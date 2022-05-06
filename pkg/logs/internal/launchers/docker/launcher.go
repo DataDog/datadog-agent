@@ -14,17 +14,17 @@ import (
 	"sync"
 	"time"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/docker"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	dockerutilpkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 const (
@@ -37,23 +37,13 @@ type sourceInfoPair struct {
 	info   *config.MappedInfo
 }
 
-// A Launcher starts and stops new tailers for every new containers discovered
-// by autodiscovery.
-//
-// Note that despite being named "Docker", this is a generic container-related
-// launcher.
+// A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
 type Launcher struct {
 	pipelineProvider   pipeline.Provider
-	addedSources       chan *config.LogSource
-	removedSources     chan *config.LogSource
-	addedServices      chan *service.Service
-	removedServices    chan *service.Service
 	activeSources      []*config.LogSource
 	pendingContainers  map[string]*Container
 	tailers            map[string]*tailer.Tailer
 	registry           auditor.Registry
-	runtime            coreConfig.Feature
-	stop               chan struct{}
 	erroredContainerID chan string
 	lock               *sync.Mutex
 	collectAllSource   *config.LogSource
@@ -65,55 +55,28 @@ type Launcher struct {
 	tailFromFile           bool                      // If true docker will be tailed from the corresponding log file
 	fileSourcesByContainer map[string]sourceInfoPair // Keep track of locally generated sources
 	sources                *config.LogSources        // To schedule file source when taileing container from file
-}
+	services               *service.Services
+	cop                    containersorpods.Chooser
 
-// IsAvailable retrues true if the launcher is available and a retrier otherwise
-func IsAvailable() (bool, *retry.Retrier) {
-	if !coreConfig.IsFeaturePresent(coreConfig.Docker) {
-		return false, nil
-	}
+	// ctx is the context for the running goroutine, set in Start
+	ctx context.Context
 
-	util, retrier := dockerutilpkg.GetDockerUtilWithRetrier()
-	if util != nil {
-		log.Info("Docker launcher is available")
-		return true, nil
-	}
-
-	return false, retrier
+	// cancel cancels the running goroutine
+	cancel context.CancelFunc
 }
 
 // NewLauncher returns a new launcher
-func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, tailFromFile, forceTailingFromFile bool) *Launcher {
-	if _, err := dockerutilpkg.GetDockerUtil(); err != nil {
-		log.Errorf("DockerUtil not available, failed to create launcher", err)
-		return nil
-	}
-
-	var runtime coreConfig.Feature
-	for _, rt := range []coreConfig.Feature{
-		coreConfig.Docker,
-		coreConfig.Containerd,
-		coreConfig.Cri,
-		coreConfig.Podman,
-	} {
-		if coreConfig.IsFeaturePresent(rt) {
-			runtime = rt
-			break
-		}
-	}
-
+func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, cop containersorpods.Chooser, tailFromFile, forceTailingFromFile bool) *Launcher {
 	launcher := &Launcher{
-		pipelineProvider:       pipelineProvider,
 		tailers:                make(map[string]*tailer.Tailer),
 		pendingContainers:      make(map[string]*Container),
-		registry:               registry,
-		runtime:                runtime,
-		stop:                   make(chan struct{}),
 		erroredContainerID:     make(chan string),
 		lock:                   &sync.Mutex{},
 		readTimeout:            readTimeout,
 		serviceNameFunc:        util.ServiceNameFromTags,
 		sources:                sources,
+		services:               services,
+		cop:                    cop,
 		forceTailingFromFile:   forceTailingFromFile,
 		tailFromFile:           tailFromFile,
 		fileSourcesByContainer: make(map[string]sourceInfoPair),
@@ -121,52 +84,67 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 	}
 
 	if tailFromFile {
-		if err := launcher.checkContainerLogfileAccess(); err != nil {
+		if err := checkReadAccess(); err != nil {
 			log.Errorf("Could not access container log files: %v; falling back on tailing from container runtime socket", err)
 			launcher.tailFromFile = false
 		}
 	}
 
-	// FIXME(achntrl): Find a better way of choosing the right launcher
-	// between Docker and Kubernetes
-	launcher.addedSources = sources.GetAddedForType(config.DockerType)
-	launcher.removedSources = sources.GetRemovedForType(config.DockerType)
-	launcher.addedServices = services.GetAddedServicesForType(config.DockerType)
-	launcher.removedServices = services.GetRemovedServicesForType(config.DockerType)
 	return launcher
 }
 
 // Start starts the Launcher
-func (l *Launcher) Start() {
-	log.Info("Starting Docker launcher")
-	go l.run()
+func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+	// only start this launcher once it's determined that we should be logging containers, and not pods.
+	l.ctx, l.cancel = context.WithCancel(context.Background())
+	go l.run(sourceProvider, pipelineProvider, registry)
 }
 
 // Stop stops the Launcher and its tailers in parallel,
 // this call returns only when all the tailers are stopped.
 func (l *Launcher) Stop() {
-	log.Info("Stopping Docker launcher")
-	l.stop <- struct{}{}
-	stopper := restart.NewParallelStopper()
-	l.lock.Lock()
-	var containerIDs []string
-	for _, tailer := range l.tailers {
-		stopper.Add(tailer)
-		containerIDs = append(containerIDs, tailer.ContainerID)
+	if l.cancel != nil {
+		l.cancel()
 	}
-	l.lock.Unlock()
-	for _, containerID := range containerIDs {
-		l.removeTailer(containerID)
+
+	// only stop this launcher once it's determined that we should be logging
+	// containers, and not pods, but do not block trying to find out.
+	if l.cop.Get() == containersorpods.LogContainers {
+		stopper := startstop.NewParallelStopper()
+		l.lock.Lock()
+		var containerIDs []string
+		for _, tailer := range l.tailers {
+			stopper.Add(tailer)
+			containerIDs = append(containerIDs, tailer.ContainerID)
+		}
+		l.lock.Unlock()
+		for _, containerID := range containerIDs {
+			l.removeTailer(containerID)
+		}
+		stopper.Stop()
 	}
-	stopper.Stop()
 }
 
 // run starts and stops new tailers when it receives a new source
 // or a new service which is mapped to a container.
-func (l *Launcher) run() {
+func (l *Launcher) run(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+	// if we're not logging containers, then there's nothing to do
+	if l.cop.Wait(l.ctx) != containersorpods.LogContainers {
+		return
+	}
+
+	log.Info("Starting Docker launcher")
+	l.pipelineProvider = pipelineProvider
+	l.registry = registry
+
+	addedSources := sourceProvider.GetAddedForType(config.DockerType)
+	removedSources := sourceProvider.GetRemovedForType(config.DockerType)
+	addedServices := l.services.GetAddedServicesForType(config.DockerType)
+	removedServices := l.services.GetRemovedServicesForType(config.DockerType)
+
 	for {
 		select {
-		case service := <-l.addedServices:
+		case service := <-addedServices:
 			// detected a new container running on the host,
 			dockerutil, err := dockerutilpkg.GetDockerUtil()
 			if err != nil {
@@ -190,7 +168,7 @@ func (l *Launcher) run() {
 				// so it's put in a cache until a matching source is found.
 				l.pendingContainers[service.Identifier] = container
 			}
-		case source := <-l.addedSources:
+		case source := <-addedSources:
 			// detected a new source that has been created either from a configuration file,
 			// a docker label or a pod annotation.
 			l.activeSources = append(l.activeSources, source)
@@ -206,7 +184,7 @@ func (l *Launcher) run() {
 			}
 			// keep the containers that have not found any source yet for next iterations
 			l.pendingContainers = pendingContainers
-		case source := <-l.removedSources:
+		case source := <-removedSources:
 			for i, src := range l.activeSources {
 				if src == source {
 					// no need to stop any tailer here, it will be stopped after receiving a
@@ -215,15 +193,16 @@ func (l *Launcher) run() {
 					break
 				}
 			}
-		case service := <-l.removedServices:
+		case service := <-removedServices:
 			// detected that a container has been stopped.
 			containerID := service.Identifier
 			l.stopTailer(containerID)
 			delete(l.pendingContainers, containerID)
 		case containerID := <-l.erroredContainerID:
 			go l.restartTailer(containerID)
-		case <-l.stop:
+		case <-l.ctx.Done():
 			// no docker container should be tailed anymore
+			log.Info("Stopping Docker launcher")
 			return
 		}
 	}
@@ -282,7 +261,7 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 	}
 
 	// Update parent source with additional information
-	sourceInfo.SetMessage(containerID, fmt.Sprintf("Container ID: %s, Image: %s, Created: %s, Tailing from file: %s", dockerutilpkg.ShortContainerID(containerID), shortName, container.container.Created, l.getContainerLogfilePath(containerID)))
+	sourceInfo.SetMessage(containerID, fmt.Sprintf("Container ID: %s, Image: %s, Created: %s, Tailing from file: %s", dockerutilpkg.ShortContainerID(containerID), shortName, container.container.Created, getPath(containerID)))
 
 	// When ContainerCollectAll is not enabled, we try to derive the service and source names from container labels
 	// provided by AD (in this case, the parent source config). Otherwise we use the standard service or short image
@@ -303,14 +282,13 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 
 	// New file source that inherit most of its parent properties
 	fileSource := config.NewLogSource(source.Name, &config.LogsConfig{
-		Type:             config.FileType,
-		Identifier:       containerID,
-		Path:             l.getContainerLogfilePath(containerID),
-		Service:          serviceName,
-		Source:           sourceName,
-		Tags:             source.Config.Tags,
-		ProcessingRules:  source.Config.ProcessingRules,
-		ContainerRuntime: l.runtime,
+		Type:            config.FileType,
+		Identifier:      containerID,
+		Path:            getPath(containerID),
+		Service:         serviceName,
+		Source:          sourceName,
+		Tags:            source.Config.Tags,
+		ProcessingRules: source.Config.ProcessingRules,
 	})
 	fileSource.SetSourceType(config.DockerSourceType)
 	fileSource.Status = source.Status

@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -27,10 +26,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cihub/seelog"
-	ct "github.com/florianl/go-conntrack"
+	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 )
 
@@ -149,8 +147,8 @@ func (e *ebpfConntracker) processEvent(ev netlink.Event) {
 	for _, c := range conns {
 		if netlink.IsNAT(c) {
 			log.Tracef("initial conntrack %s", c)
-			src := formatKey(uint32(c.NetNS), c.Origin)
-			dst := formatKey(uint32(c.NetNS), c.Reply)
+			src := formatKey(c.NetNS, &c.Origin)
+			dst := formatKey(c.NetNS, &c.Reply)
 			if src != nil && dst != nil {
 				if err := e.addTranslation(src, dst); err != nil {
 					log.Warnf("error adding initial conntrack entry to ebpf map: %s", err)
@@ -170,39 +168,28 @@ func (e *ebpfConntracker) addTranslation(src *netebpf.ConntrackTuple, dst *neteb
 	return nil
 }
 
-func formatKey(netns uint32, tuple *ct.IPTuple) *netebpf.ConntrackTuple {
-	var proto network.ConnectionType
-	switch *tuple.Proto.Number {
-	case unix.IPPROTO_TCP:
-		proto = network.TCP
-	case unix.IPPROTO_UDP:
-		proto = network.UDP
-	default:
-		return nil
-	}
-
+func formatKey(netns uint32, tuple *netlink.ConTuple) *netebpf.ConntrackTuple {
 	nct := &netebpf.ConntrackTuple{
 		Netns: netns,
-		Sport: *tuple.Proto.SrcPort,
-		Dport: *tuple.Proto.DstPort,
+		Sport: tuple.Src.Port(),
+		Dport: tuple.Dst.Port(),
 	}
-	src := util.AddressFromNetIP(*tuple.Src)
-	nct.Saddr_l, nct.Saddr_h = util.ToLowHigh(src)
-	nct.Daddr_l, nct.Daddr_h = util.ToLowHigh(util.AddressFromNetIP(*tuple.Dst))
+	src := tuple.Src.IP()
+	nct.Saddr_l, nct.Saddr_h = util.ToLowHighIP(src)
+	nct.Daddr_l, nct.Daddr_h = util.ToLowHighIP(tuple.Dst.IP())
 
-	switch len(src.Bytes()) {
-	case net.IPv4len:
+	if src.Is4() {
 		nct.Metadata |= uint32(netebpf.IPv4)
-	case net.IPv6len:
+	} else {
 		nct.Metadata |= uint32(netebpf.IPv6)
+	}
+	switch tuple.Proto {
+	case unix.IPPROTO_TCP:
+		nct.Metadata |= uint32(netebpf.TCP)
+	case unix.IPPROTO_UDP:
+		nct.Metadata |= uint32(netebpf.UDP)
 	default:
 		return nil
-	}
-	switch proto {
-	case network.TCP:
-		nct.Metadata |= uint32(netebpf.TCP)
-	case network.UDP:
-		nct.Metadata |= uint32(netebpf.UDP)
 	}
 
 	return nct
@@ -361,7 +348,13 @@ func getManager(buf io.ReaderAt, maxStateSize int) (*manager.Manager, error) {
 		},
 		PerfMaps: []*manager.PerfMap{},
 		Probes: []*manager.Probe{
-			{Section: string(probes.ConntrackHashInsert)},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  string(probes.ConntrackHashInsert),
+					EBPFFuncName: "kprobe___nf_conntrack_hash_insert",
+					UID:          "conntracker",
+				},
+			},
 		},
 	}
 

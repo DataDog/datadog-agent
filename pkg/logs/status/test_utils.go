@@ -7,12 +7,13 @@ package status
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
+	"go.uber.org/atomic"
 )
 
 // InitStatus initialize a status builder
 func InitStatus(sources *config.LogSources) {
-	var isRunning int32 = 1
+	var isRunning *atomic.Bool = atomic.NewBool(true)
 	endpoints, _ := config.BuildEndpoints(config.HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	Init(&isRunning, endpoints, sources, metrics.LogsExpvars)
+	Init(isRunning, endpoints, sources, metrics.LogsExpvars)
 }

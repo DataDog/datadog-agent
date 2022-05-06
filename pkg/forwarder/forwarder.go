@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -20,8 +19,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"go.uber.org/atomic"
 )
 
 const (
@@ -197,33 +199,40 @@ type DefaultForwarder struct {
 	domainForwarders map[string]*domainForwarder
 	domainResolvers  map[string]resolver.DomainResolver
 	healthChecker    *forwarderHealth
-	internalState    uint32     // atomic
+	internalState    *atomic.Uint32
 	m                sync.Mutex // To control Start/Stop races
 
 	completionHandler transaction.HTTPCompletionHandler
+
+	agentName                       string
+	queueDurationCapacity           *retry.QueueDurationCapacity
+	retryQueueDurationCapacityMutex sync.Mutex
 }
 
 // NewDefaultForwarder returns a new DefaultForwarder.
 func NewDefaultForwarder(options *Options) *DefaultForwarder {
+	agentName := getAgentName(options)
 	f := &DefaultForwarder{
 		NumberOfWorkers:  options.NumberOfWorkers,
 		domainForwarders: map[string]*domainForwarder{},
 		domainResolvers:  map[string]resolver.DomainResolver{},
-		internalState:    Stopped,
+		internalState:    atomic.NewUint32(Stopped),
 		healthChecker: &forwarderHealth{
 			domainResolvers:       options.DomainResolvers,
 			disableAPIKeyChecking: options.DisableAPIKeyChecking,
 			validationInterval:    options.APIKeyValidationInterval,
 		},
 		completionHandler: options.CompletionHandler,
+		agentName:         agentName,
 	}
 	var optionalRemovalPolicy *retry.FileRemovalPolicy
 	storageMaxSize := config.Datadog.GetInt64("forwarder_storage_max_size_in_bytes")
+	var diskUsageLimit *retry.DiskUsageLimit
 
 	// Disk Persistence is a core-only feature for now.
 	if storageMaxSize == 0 {
 		log.Infof("Retry queue storage on disk is disabled")
-	} else if agentFolder := getAgentFolder(options); agentFolder != "" {
+	} else if agentName != "" {
 		storagePath := config.Datadog.GetString("forwarder_storage_path")
 		if storagePath == "" {
 			storagePath = path.Join(config.Datadog.GetString("run_path"), "transactions_to_retry")
@@ -231,7 +240,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		outdatedFileInDays := config.Datadog.GetInt("forwarder_outdated_file_in_days")
 		var err error
 
-		storagePath = path.Join(storagePath, agentFolder)
+		storagePath = path.Join(storagePath, agentName)
 		optionalRemovalPolicy, err = retry.NewFileRemovalPolicy(storagePath, outdatedFileInDays, retry.FileRemovalPolicyTelemetry{})
 		if err != nil {
 			log.Errorf("Error when initializing the removal policy: %v", err)
@@ -242,6 +251,10 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 			}
 			log.Debugf("Outdated files removed: %v", strings.Join(filesRemoved, ", "))
 		}
+
+		diskRatio := config.Datadog.GetFloat64("forwarder_storage_max_disk_ratio")
+		diskUsageLimit = retry.NewDiskUsageLimit(storagePath, filesystem.NewDisk(), storageMaxSize, diskRatio)
+
 	} else {
 		log.Infof("Retry queue storage on disk is disabled because the feature is unavailable for this process.")
 	}
@@ -249,6 +262,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	flushToDiskMemRatio := config.Datadog.GetFloat64("forwarder_flush_to_disk_mem_ratio")
 	domainForwarderSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
 	transactionContainerSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
+	var queueDiskSpaceUsedList []retry.QueueDiskSpaceUsed
 
 	for domain, resolver := range options.DomainResolvers {
 		domain, _ := config.AddAgentVersionToDomain(domain, "app")
@@ -269,10 +283,11 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 				options.RetryQueuePayloadsTotalMaxSize,
 				flushToDiskMemRatio,
 				domainFolderPath,
-				storageMaxSize,
+				diskUsageLimit,
 				transactionContainerSort,
 				resolver)
 			f.domainResolvers[domain] = resolver
+			queueDiskSpaceUsedList = append(queueDiskSpaceUsedList, transactionContainer)
 			fwd := newDomainForwarder(
 				domain,
 				transactionContainer,
@@ -287,6 +302,16 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		}
 	}
 
+	timeInterval := config.Datadog.GetInt("forwarder_retry_queue_capacity_time_interval_sec")
+	if f.agentName != "" {
+		f.queueDurationCapacity = retry.NewQueueDurationCapacity(
+			time.Duration(timeInterval)*time.Second,
+			10*time.Second,
+			options.RetryQueuePayloadsTotalMaxSize,
+			diskUsageLimit,
+			queueDiskSpaceUsedList)
+	}
+
 	if optionalRemovalPolicy != nil {
 		filesRemoved, err := optionalRemovalPolicy.RemoveUnknownDomains()
 		if err != nil {
@@ -298,10 +323,13 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	return f
 }
 
-func getAgentFolder(options *Options) string {
+func getAgentName(options *Options) string {
 	if HasFeature(options.EnabledFeatures, CoreFeatures) {
 		return "core"
 	}
+	// If a new Agent is supported by this function, the implementation of
+	// QueueDurationCapacity.ComputeCapacity must be updated.
+	// More specifically, `totalBytesPerSec` should takes into account other Agent processes.
 	return ""
 }
 
@@ -311,7 +339,7 @@ func (f *DefaultForwarder) Start() error {
 	f.m.Lock()
 	defer f.m.Unlock()
 
-	if atomic.LoadUint32(&f.internalState) == Started {
+	if f.internalState.Load() == Started {
 		return fmt.Errorf("the forwarder is already started")
 	}
 
@@ -329,7 +357,7 @@ func (f *DefaultForwarder) Start() error {
 		len(endpointLogs), f.NumberOfWorkers, strings.Join(endpointLogs, " ; "))
 
 	f.healthChecker.Start()
-	atomic.StoreUint32(&f.internalState, Started)
+	f.internalState.Store(Started)
 	return nil
 }
 
@@ -340,12 +368,12 @@ func (f *DefaultForwarder) Stop() {
 	f.m.Lock()
 	defer f.m.Unlock()
 
-	if atomic.LoadUint32(&f.internalState) == Stopped {
+	if f.internalState.Load() == Stopped {
 		log.Warnf("the forwarder is already stopped")
 		return
 	}
 
-	atomic.StoreUint32(&f.internalState, Stopped)
+	f.internalState.Store(Stopped)
 
 	purgeTimeout := config.Datadog.GetDuration("forwarder_stop_timeout") * time.Second
 	if purgeTimeout > 0 {
@@ -389,7 +417,7 @@ func (f *DefaultForwarder) State() uint32 {
 	f.m.Lock()
 	defer f.m.Unlock()
 
-	return atomic.LoadUint32(&f.internalState)
+	return f.internalState.Load()
 }
 func (f *DefaultForwarder) createHTTPTransactions(endpoint transaction.Endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*transaction.HTTPTransaction {
 	return f.createAdvancedHTTPTransactions(endpoint, payloads, apiKeyInQueryString, extra, transaction.TransactionPriorityNormal, true)
@@ -438,12 +466,47 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 }
 
 func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTransaction) error {
-	if atomic.LoadUint32(&f.internalState) == Stopped {
+	if f.internalState.Load() == Stopped {
 		return fmt.Errorf("the forwarder is not started")
 	}
+	if config.Datadog.GetBool("telemetry.enabled") {
+		f.retryQueueDurationCapacityMutex.Lock()
+		defer f.retryQueueDurationCapacityMutex.Unlock()
 
-	for _, t := range transactions {
-		f.domainForwarders[t.Domain].sendHTTPTransactions(t)
+		now := time.Now()
+		for _, t := range transactions {
+			forwarder := f.domainForwarders[t.Domain]
+			forwarder.sendHTTPTransactions(t)
+
+			if f.queueDurationCapacity != nil {
+				if err := f.queueDurationCapacity.OnTransaction(t, forwarder.domain, now); err != nil {
+					log.Errorf("Cannot add a transaction to queueDurationCapacity: %v", err)
+				}
+			}
+		}
+
+		if f.queueDurationCapacity != nil {
+			if capacities, err := f.queueDurationCapacity.ComputeCapacity(now); err != nil {
+				log.Errorf("Cannot compute the capacity of the retry queues: %v", err)
+			} else {
+				telemetry := telemetry.GetStatsTelemetryProvider()
+				metricPrefix := "datadog.agent.retry_queue_duration."
+				for domain, t := range capacities {
+					tags := []string{
+						"agent:" + f.agentName,
+						"domain:" + domain,
+					}
+					telemetry.Gauge(metricPrefix+"capacity_secs", t.Capacity.Seconds(), tags)
+					telemetry.Gauge(metricPrefix+"bytes_per_sec", t.BytesPerSec, tags)
+					telemetry.Gauge(metricPrefix+"capacity_bytes", float64(t.AvailableSpace), tags)
+				}
+			}
+		}
+	} else {
+		for _, t := range transactions {
+			forwarder := f.domainForwarders[t.Domain]
+			forwarder.sendHTTPTransactions(t)
+		}
 	}
 	return nil
 }

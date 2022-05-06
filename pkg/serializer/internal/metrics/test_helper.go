@@ -51,3 +51,28 @@ func makesketch(n int) *quantile.Sketch {
 	}
 	return s
 }
+
+type serieSourceMock struct {
+	series metrics.Series
+	index  int
+}
+
+func (s *serieSourceMock) MoveNext() bool {
+	s.index++
+	return s.index < len(s.series)
+}
+
+func (s *serieSourceMock) Current() *metrics.Serie {
+	return s.series[s.index]
+}
+
+func (s *serieSourceMock) SeriesCount() uint64 {
+	return uint64(len(s.series))
+}
+
+func CreateSerieSource(series metrics.Series) metrics.SerieSource {
+	return &serieSourceMock{
+		series: series,
+		index:  -1,
+	}
+}

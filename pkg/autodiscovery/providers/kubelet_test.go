@@ -40,6 +40,45 @@ func TestParseKubeletPodlist(t *testing.T) {
 			expectedErr: nil,
 		},
 		{
+			desc: "v2 annotations",
+			pod: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Annotations: map[string]string{
+						"ad.datadoghq.com/apache.checks": `{
+							"http_check": {
+								"instances": [
+									{
+										"name": "My service",
+										"url": "http://%%host%%",
+										"timeout": 1
+									}
+								]
+							}
+						}`,
+						"ad.datadoghq.com/apache.check_names":  "[\"invalid\"]",
+						"ad.datadoghq.com/apache.init_configs": "[{}]",
+						"ad.datadoghq.com/apache.instances":    "[{}]",
+					},
+				},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						Name: "apache",
+						ID:   "3b8efe0c50e8",
+					},
+				},
+			},
+			expectedCfg: []integration.Config{
+				{
+					Name:          "http_check",
+					ADIdentifiers: []string{"docker://3b8efe0c50e8"},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					Source:        "kubelet:docker://3b8efe0c50e8",
+				},
+			},
+			expectedErr: nil,
+		},
+		{
 			desc: "New + old, new takes over",
 			pod: &workloadmeta.KubernetesPod{
 				EntityMeta: workloadmeta.EntityMeta{

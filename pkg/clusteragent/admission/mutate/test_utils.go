@@ -48,6 +48,11 @@ func fakePodWithContainer(name string, containers ...corev1.Container) *corev1.P
 	}
 }
 
+func withLabels(pod *corev1.Pod, labels map[string]string) *corev1.Pod {
+	pod.Labels = labels
+	return pod
+}
+
 func fakePodWithLabel(k, v string) *corev1.Pod {
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -60,6 +65,13 @@ func fakePodWithLabel(k, v string) *corev1.Pod {
 
 func fakePodWithEnv(name, env string) *corev1.Pod {
 	return fakePodWithContainer(name, corev1.Container{Name: name + "-container", Env: []corev1.EnvVar{fakeEnv(env)}})
+}
+
+func fakePodWithVolume(podName, volumeName string) *corev1.Pod {
+	pod := fakePod(podName)
+	pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{Name: volumeName})
+	pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{Name: volumeName})
+	return pod
 }
 
 func fakePod(name string) *corev1.Pod {

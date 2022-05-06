@@ -79,15 +79,15 @@ func (dn *dockerNetworkExtension) PreProcess(sender generic.SenderFunc, aggSende
 func (dn *dockerNetworkExtension) Process(tags []string, container *workloadmeta.Container, collector provider.Collector, cacheValidity time.Duration) {
 	// Duplicate call with generic.Processor, but cache should allow for a fast response.
 	// We only need it for PIDs
-	containerStats, err := collector.GetContainerStats(container.ID, cacheValidity)
+	containerStats, err := collector.GetContainerStats(container.Namespace, container.ID, cacheValidity)
 	if err != nil {
-		log.Debugf("Gathering container metrics for container: %v failed, metrics may be missing, err: %w", container, err)
+		log.Debugf("Gathering container metrics for container: %v failed, metrics may be missing, err: %v", container, err)
 		return
 	}
 
-	containerNetworkStats, err := collector.GetContainerNetworkStats(container.ID, cacheValidity)
+	containerNetworkStats, err := collector.GetContainerNetworkStats(container.Namespace, container.ID, cacheValidity)
 	if err != nil {
-		log.Debugf("Gathering network metrics for container: %v failed, metrics may be missing, err: %w", container, err)
+		log.Debugf("Gathering network metrics for container: %v failed, metrics may be missing, err: %v", container, err)
 		return
 	}
 
@@ -115,6 +115,12 @@ func (dn *dockerNetworkExtension) preRun() {
 }
 
 func (dn *dockerNetworkExtension) processContainer(rawContainer dockerTypes.Container) {
+	// If containerNetworkEntries is nil, it means the generic check was not able to run properly.
+	// It's then useless to run.
+	if dn.containerNetworkEntries == nil {
+		return
+	}
+
 	// We keep excluded containers because pause containers are required as they usually hold
 	// the network configuration for other containers.
 	// However stopped containers are not useful there.
@@ -134,6 +140,12 @@ func (dn *dockerNetworkExtension) processContainer(rawContainer dockerTypes.Cont
 }
 
 func (dn *dockerNetworkExtension) postRun() {
+	// If containerNetworkEntries is nil, it means the generic check was not able to run properly.
+	// It's then useless to run.
+	if dn.containerNetworkEntries == nil {
+		return
+	}
+
 	for _, containerEntry := range dn.containerNetworkEntries {
 		// This is expected as we store excluded containers (like pause containers), created when processing `rawContainer`.
 		// If there was a real failure when gathering NetworkStats, a debug is emitted in `Process()`
@@ -201,7 +213,7 @@ func findDockerNetworks(procPath string, entry *containerNetworkEntry, container
 
 	// We need at least one PID to gather routes
 	if len(entry.pids) == 0 {
-		log.Debugf("No PID found for container: %s, skipping network")
+		log.Debugf("No PID found for container: %s, skipping network", entry.containerID)
 		return
 	}
 

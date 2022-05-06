@@ -12,7 +12,6 @@
   variables:
     KITCHEN_PLATFORM: "ubuntu"
   before_script:
-    - rsync -azr --delete ./ $SRC_PATH
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 

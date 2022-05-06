@@ -115,7 +115,7 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		},
 	} {
 		cfg.MaxConnsPerMessage = tc.maxSize
-		ctm := &model.CollectorConnectionsTelemetry{}
+		ctm := map[string]int64{}
 		rctm := map[string]*model.RuntimeCompilationTelemetry{}
 		chunks := batchConnections(cfg, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", ctm, rctm, nil, nil, nil)
 
@@ -136,10 +136,10 @@ func TestNetworkConnectionBatching(t *testing.T) {
 
 			// ensure only first chunk has telemetry
 			if i == 0 {
-				assert.NotNil(t, connections.ConnTelemetry)
+				assert.NotNil(t, connections.ConnTelemetryMap)
 				assert.NotNil(t, connections.CompilationTelemetryByAsset)
 			} else {
-				assert.Nil(t, connections.ConnTelemetry)
+				assert.Nil(t, connections.ConnTelemetryMap)
 				assert.Nil(t, connections.CompilationTelemetryByAsset)
 			}
 		}

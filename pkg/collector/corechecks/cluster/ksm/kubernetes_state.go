@@ -11,6 +11,7 @@ package ksm
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -119,12 +120,16 @@ type KSMConfig struct {
 // KSMCheck wraps the config and the metric stores needed to run the check
 type KSMCheck struct {
 	core.CheckBase
-	instance    *KSMConfig
-	allStores   [][]cache.Store
-	telemetry   *telemetryCache
-	cancel      context.CancelFunc
-	isCLCRunner bool
-	clusterName string
+	instance             *KSMConfig
+	allStores            [][]cache.Store
+	telemetry            *telemetryCache
+	cancel               context.CancelFunc
+	isCLCRunner          bool
+	clusterName          string
+	metricNamesMapper    map[string]string
+	metricAggregators    map[string]metricAggregator
+	metricTransformers   map[string]metricTransformerFunc
+	metadataMetricsRegex *regexp.Regexp
 }
 
 // JoinsConfig contains the config parameters for label joins
@@ -181,12 +186,14 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 		joinConf.setupGetAllLabels()
 	}
 
-	k.mergeLabelJoins(defaultLabelJoins)
+	labelJoins := defaultLabelJoins()
+	k.mergeLabelJoins(labelJoins)
 
 	k.processLabelsAsTags()
 
 	// Prepare labels mapper
-	k.mergeLabelsMapper(defaultLabelsMapper)
+	labelsMapper := defaultLabelsMapper()
+	k.mergeLabelsMapper(labelsMapper)
 
 	// Retrieve cluster name
 	k.getClusterName()
@@ -277,7 +284,11 @@ func (c *KSMConfig) parse(data []byte) error {
 
 // Run runs the KSM check
 func (k *KSMCheck) Run() error {
-	sender, err := aggregator.GetSender(k.ID())
+	// this check uses a "raw" sender, for better performance.  That requires
+	// careful consideration of uses of this sender.  In particular, the `tags
+	// []string` arguments must not be used after they are passed to the sender
+	// methods, as they may be mutated in-place.
+	sender, err := k.GetRawSender()
 	if err != nil {
 		return err
 	}
@@ -318,10 +329,11 @@ func (k *KSMCheck) Run() error {
 		}
 	}
 
+	currentTime := time.Now()
 	for _, stores := range k.allStores {
 		for _, store := range stores {
 			metrics := store.(*ksmstore.MetricsStore).Push(ksmstore.GetAllFamilies, ksmstore.GetAllMetrics)
-			k.processMetrics(sender, metrics, labelJoiner)
+			k.processMetrics(sender, metrics, labelJoiner, currentTime)
 			k.processTelemetry(metrics)
 		}
 	}
@@ -339,26 +351,26 @@ func (k *KSMCheck) Cancel() {
 }
 
 // processMetrics attaches tags and forwards metrics to the aggregator
-func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][]ksmstore.DDMetricsFam, labelJoiner *labelJoiner) {
+func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][]ksmstore.DDMetricsFam, labelJoiner *labelJoiner, now time.Time) {
 	for _, metricsList := range metrics {
 		for _, metricFamily := range metricsList {
 			// First check for aggregator, because the check use _labels metrics to aggregate values.
-			if aggregator, found := metricAggregators[metricFamily.Name]; found {
+			if aggregator, found := k.metricAggregators[metricFamily.Name]; found {
 				for _, m := range metricFamily.ListMetrics {
 					aggregator.accumulate(m)
 				}
 				// Some metrics can be aggregated and consumed as-is or by a transformer.
 				// So, let’s continue the processing.
 			}
-			if transform, found := metricTransformers[metricFamily.Name]; found {
+			if transform, found := k.metricTransformers[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
 					hostname, tags := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
-					transform(sender, metricFamily.Name, m, hostname, tags)
+					transform(sender, metricFamily.Name, m, hostname, tags, now)
 				}
 				continue
 			}
-			if ddname, found := metricNamesMapper[metricFamily.Name]; found {
+			if ddname, found := k.metricNamesMapper[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
 					hostname, tags := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
@@ -366,10 +378,10 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 				}
 				continue
 			}
-			if _, found := metricAggregators[metricFamily.Name]; found {
+			if _, found := k.metricAggregators[metricFamily.Name]; found {
 				continue
 			}
-			if metadataMetricsRegex.MatchString(metricFamily.Name) {
+			if k.metadataMetricsRegex.MatchString(metricFamily.Name) {
 				// metadata metrics are only used by the check for label joins
 				// they shouldn't be forwarded to Datadog
 				continue
@@ -379,16 +391,20 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 			log.Tracef("KSM metric '%s' is unknown for the check, ignoring it", metricFamily.Name)
 		}
 	}
-	for _, aggregator := range metricAggregators {
+	for _, aggregator := range k.metricAggregators {
 		aggregator.flush(sender, k, labelJoiner)
 	}
 }
 
-// hostnameAndTags returns the tags and the hostname for a metric based on the metric labels and the check configuration
+// hostnameAndTags returns the tags and the hostname for a metric based on the metric labels and the check configuration.
+//
+// This function must always return a "fresh" slice of tags, that will not be accessed after return.
 func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJoiner, lMapperOverride map[string]string) (string, []string) {
 	hostname := ""
 
 	labelsToAdd := labelJoiner.getLabelsToAdd(labels)
+
+	// generate a dedicated tags slice
 	tags := make([]string, 0, len(labels)+len(labelsToAdd))
 
 	ownerKind, ownerName := "", ""
@@ -561,8 +577,8 @@ func (k *KSMCheck) processTelemetry(metrics map[string][]ksmstore.DDMetricsFam) 
 	}
 
 	for name, list := range metrics {
-		isMetadataMetric := metadataMetricsRegex.MatchString(name)
-		if !isKnownMetric(name) && !isMetadataMetric {
+		isMetadataMetric := k.metadataMetricsRegex.MatchString(name)
+		if !k.isKnownMetric(name) && !isMetadataMetric {
 			k.telemetry.incUnknown()
 			continue
 		}
@@ -621,10 +637,17 @@ func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins
 
 func newKSMCheck(base core.CheckBase, instance *KSMConfig) *KSMCheck {
 	return &KSMCheck{
-		CheckBase:   base,
-		instance:    instance,
-		telemetry:   newTelemetryCache(),
-		isCLCRunner: config.IsCLCRunner(),
+		CheckBase:          base,
+		instance:           instance,
+		telemetry:          newTelemetryCache(),
+		isCLCRunner:        config.IsCLCRunner(),
+		metricNamesMapper:  defaultMetricNamesMapper(),
+		metricAggregators:  defaultMetricAggregators(),
+		metricTransformers: defaultMetricTransformers(),
+
+		// metadata metrics are useful for label joins
+		// but shouldn't be submitted to Datadog
+		metadataMetricsRegex: regexp.MustCompile(".*_(info|labels|status_reason)"),
 	}
 }
 
@@ -644,14 +667,14 @@ func resourceNameFromMetric(name string) string {
 //  - has a datadog metric name
 //  - has a metric transformer
 //  - has a metric aggregator
-func isKnownMetric(name string) bool {
-	if _, found := metricNamesMapper[name]; found {
+func (k *KSMCheck) isKnownMetric(name string) bool {
+	if _, found := k.metricNamesMapper[name]; found {
 		return true
 	}
-	if _, found := metricTransformers[name]; found {
+	if _, found := k.metricTransformers[name]; found {
 		return true
 	}
-	if _, found := metricAggregators[name]; found {
+	if _, found := k.metricAggregators[name]; found {
 		return true
 	}
 	return false
@@ -661,7 +684,29 @@ func isKnownMetric(name string) bool {
 // It allows us to get kube_node_created and kube_pod_created and deny
 // the rest of *_created metrics without relying on a unmaintainable and unreadable regex.
 func buildDeniedMetricsSet(collectors []string) options.MetricSet {
-	deniedMetrics := defaultDeniedMetrics
+	deniedMetrics := options.MetricSet{
+		".*_generation":                                    {},
+		".*_metadata_resource_version":                     {},
+		"kube_pod_owner":                                   {},
+		"kube_pod_restart_policy":                          {},
+		"kube_pod_completion_time":                         {},
+		"kube_pod_status_scheduled_time":                   {},
+		"kube_cronjob_status_active":                       {},
+		"kube_node_status_phase":                           {},
+		"kube_cronjob_spec_starting_deadline_seconds":      {},
+		"kube_job_spec_active_dealine_seconds":             {},
+		"kube_job_spec_completions":                        {},
+		"kube_job_spec_parallelism":                        {},
+		"kube_job_status_active":                           {},
+		"kube_job_status_.*_time":                          {},
+		"kube_service_spec_external_ip":                    {},
+		"kube_service_status_load_balancer_ingress":        {},
+		"kube_ingress_path":                                {},
+		"kube_statefulset_status_current_revision":         {},
+		"kube_statefulset_status_update_revision":          {},
+		"kube_pod_container_status_last_terminated_reason": {},
+		"kube_lease_renew_time":                            {},
+	}
 	for _, resource := range collectors {
 		// resource format: pods, nodes, jobs, deployments...
 		if resource == "pods" || resource == "nodes" {
@@ -691,7 +736,7 @@ func ownerTags(kind, name string) []string {
 	tags := []string{fmt.Sprintf(tagFormat, tagKey, name)}
 	switch kind {
 	case kubernetes.JobKind:
-		if cronjob := kubernetes.ParseCronJobForJob(name); cronjob != "" {
+		if cronjob, _ := kubernetes.ParseCronJobForJob(name); cronjob != "" {
 			return append(tags, fmt.Sprintf(tagFormat, kubernetes.CronJobTagName, cronjob))
 		}
 	case kubernetes.ReplicaSetKind:

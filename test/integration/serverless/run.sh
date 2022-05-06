@@ -17,11 +17,13 @@
 # JAVA_TRACE_LAYER_VERSION [number] - A specific layer version of dd-trace-java to use.
 # DOTNET_TRACE_LAYER_VERSION [number] - A specific layer version of dd-trace-dotnet to use.
 # ENABLE_RACE_DETECTION [true|false] - Enables go race detection for the lambda extension
+# ARCHITECTURE [arm64|amd64] - Specify the architecture to test. The default is amd64
 
 DEFAULT_NODE_LAYER_VERSION=67
 DEFAULT_PYTHON_LAYER_VERSION=50
 DEFAULT_JAVA_TRACE_LAYER_VERSION=4
-DEFAULT_DOTNET_TRACE_LAYER_VERSION=1
+DEFAULT_DOTNET_TRACE_LAYER_VERSION=3
+DEFAULT_ARCHITECTURE=amd64
 
 # Text formatting constants
 RED="\e[1;41m"
@@ -44,6 +46,10 @@ if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
     exit 0
 fi
 
+if [ -z "$ARCHITECTURE" ]; then
+    export ARCHITECTURE=$DEFAULT_ARCHITECTURE
+fi
+
 # Move into the root directory, so this script can be called from any directory
 SERVERLESS_INTEGRATION_TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
@@ -59,7 +65,7 @@ if [ "$BUILD_EXTENSION" != "false" ]; then
     # This version number is arbitrary and won't be used by AWS
     PLACEHOLDER_EXTENSION_VERSION=123
 
-    ARCHITECTURE=amd64 RACE_DETECTION_ENABLED=$ENABLE_RACE_DETECTION VERSION=$PLACEHOLDER_EXTENSION_VERSION $LAMBDA_EXTENSION_REPOSITORY_PATH/scripts/build_binary_and_layer_dockerized.sh
+    ARCHITECTURE=$ARCHITECTURE RACE_DETECTION_ENABLED=$ENABLE_RACE_DETECTION VERSION=$PLACEHOLDER_EXTENSION_VERSION $LAMBDA_EXTENSION_REPOSITORY_PATH/scripts/build_binary_and_layer_dockerized.sh
 else
     echo "Skipping extension build, reusing previously built extension"
 fi
@@ -86,6 +92,8 @@ fi
 if [ -z "$DOTNET_TRACE_LAYER_VERSION" ]; then
     export DOTNET_TRACE_LAYER_VERSION=$DEFAULT_DOTNET_TRACE_LAYER_VERSION
 fi
+
+echo "Testing for $ARCHITECTURE architecture"
 
 echo "Using dd-lambda-js layer version: $NODE_LAYER_VERSION"
 echo "Using dd-lambda-python version: $PYTHON_LAYER_VERSION"
@@ -159,7 +167,7 @@ functions_to_skip=(
 echo "Invoking functions for the first time..."
 set +e # Don't exit this script if an invocation fails or there's a diff
 for function_name in "${all_functions[@]}"; do
-    serverless invoke --stage "${stage}" -f "${function_name}" >/dev/null &
+    serverless invoke --stage "${stage}" -f "${function_name}" &>/dev/null &
 done
 wait
 
@@ -171,7 +179,7 @@ sleep $SECONDS_BETWEEN_INVOCATIONS
 # two invocations are needed since enhanced metrics are computed with the REPORT log line (which is created at the end of the first invocation)
 echo "Invoking functions for the second time..."
 for function_name in "${all_functions[@]}"; do
-    serverless invoke --stage "${stage}" -f "${function_name}" >/dev/null &
+    serverless invoke --stage "${stage}" -f "${function_name}" -d '{"body": "testing request payload"}' &>/dev/null &
 done
 wait
 
@@ -220,6 +228,7 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/dd_lambda_layer:datadog-go[0-9.]{1,}/dd_lambda_layer:datadog-gox.x.x/g" |
                 perl -p -e "s/(dd_lambda_layer:datadog-python)[0-9_]+\.[0-9]+\.[0-9]+/\1X\.X\.X/g" |
                 perl -p -e "s/(serverless.lambda-extension.integration-test.count)[0-9\.]+/\1/g" |
+                perl -p -e "s/(architecture:)(x86_64|arm64)/\1XXX/g" |
                 perl -p -e "s/$stage/XXXXXX/g" |
                 perl -p -e "s/[ ]$//g" |
                 sort
@@ -234,13 +243,22 @@ for function_name in "${all_functions[@]}"; do
                 # remove configuration log line from dd-trace-go
                 grep -v "DATADOG TRACER CONFIGURATION" |
                 perl -p -e "s/(timestamp\":)[0-9]{13}/\1TIMESTAMP/g" |
-                perl -p -e "s/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/\1TIMESTAMP/g" |
-                perl -p -e "s/\d{4}\/\d{2}\/\d{2}\s\d{2}:\d{2}:\d{2}/\1TIMESTAMP/g" |
+                perl -p -e "s/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/TIMESTAMP/g" |
+                perl -p -e "s/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/TIMESTAMP/g" |
+                perl -p -e "s/\d{4}\/\d{2}\/\d{2}\s\d{2}:\d{2}:\d{2}/TIMESTAMP/g" |
+                perl -p -e "s/.{9}-.{4}-.{4}-.{4}-.{12}/REQUEST_ID/g" |
+                perl -p -e "s/(TIMESTAMP:)\d{3}/\1XXX/g" |
                 perl -p -e "s/(\"REPORT |START |END ).*/\1XXX\"}}/g" |
-                perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"//g" |
                 perl -p -e "s/$stage/STAGE/g" |
                 perl -p -e "s/(\"message\":\").*(XXX LOG)/\1\2\3/g" |
-                perl -p -e "s/[ ]$//g"
+                perl -p -e "s/(architecture:)(x86_64|arm64)/\1XXX/g" |
+                perl -p -e "s/[ ]$//g" |
+                # ignore a Lambda error that occurs sporadically for log-csharp
+                # see here for more info: https://repost.aws/questions/QUq2OfIFUNTCyCKsChfJLr5w/lambda-function-working-locally-but-crashing-on-aws
+                perl -n -e "print unless /LAMBDA_RUNTIME Failed to get next invocation. No Response from endpoint/ or \
+                 /An error occurred while attempting to execute your code.: LambdaException/ or \
+                 /terminate called after throwing an instance of 'std::logic_error'/ or \
+                 /basic_string::_M_construct null not valid/"
         )
     else
         # Normalize traces
@@ -256,6 +274,8 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/(,\"runtime-id\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
                 perl -p -e "s/(,\"system.pid\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
                 perl -p -e "s/(\"_dd.no_p_sr\":)[0-9\.]+/\1XXX/g" |
+                perl -p -e "s/(\"architecture\":)\"(x86_64|arm64)\"/\1\"XXX\"/g" |
+                perl -p -e "s/(\"process_id\":)[0-9]+/\1XXX/g" |
                 perl -p -e "s/$stage/XXXXXX/g" |
                 perl -p -e "s/[ ]$//g" |
                 sort
@@ -273,6 +293,11 @@ for function_name in "${all_functions[@]}"; do
     else
         if [[ " ${functions_to_skip[*]} " =~ " ${function_name} " ]]; then
             printf "${YELLOW} SKIP ${END_COLOR} $function_name\n"
+            continue
+        fi
+        # Skip all csharp tests when on arm64, .NET is not supported at all for arm architecture
+        if [[ $ARCHITECTURE == "arm64" && $function_name =~ "csharp" ]]; then
+            printf "${YELLOW} SKIP ${END_COLOR} $function_name, no .NET support on arm64\n"
             continue
         fi
         diff_output=$(echo "$logs" | diff - "$function_snapshot_path")

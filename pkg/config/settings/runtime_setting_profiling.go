@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -71,10 +72,15 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 		// Note that we must derive a new profiling.Settings on every
 		// invocation, as many of these settings may have changed at runtime.
 		v, _ := version.Agent()
+		service := "datadog-agent"
+		if flavor.GetFlavor() == flavor.ClusterAgent {
+			service = "datadog-cluster-agent"
+		}
+
 		settings := profiling.Settings{
 			ProfilingURL:         site,
 			Env:                  config.Datadog.GetString("env"),
-			Service:              "datadog-agent",
+			Service:              service,
 			Period:               profiling.DefaultProfilingPeriod,
 			MutexProfileFraction: profiling.GetMutexProfileFraction(),
 			BlockProfileRate:     profiling.GetBlockProfileRate(),

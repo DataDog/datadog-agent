@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	// OrchestratorScopeEntityID defines the orchestrator scope entity ID
-	OrchestratorScopeEntityID = "internal://orchestrator-scope-entity-id"
+	// GlobalEntityID defines the entity ID that holds global tags
+	GlobalEntityID = "internal://global-entity-id"
 
 	podAnnotationPrefix              = "ad.datadoghq.com/"
 	podContainerTagsAnnotationFormat = podAnnotationPrefix + "%s.tags"
@@ -157,12 +157,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 
 	}
 
-	// NOTE: haha, this is still async and race conditions will still
-	// happen :D since the workloadmeta will be the only collector in the
-	// tagger in the end, this can be turned into a sync call to
-	// processTagInfo
 	if len(tagInfos) > 0 {
-		c.out <- tagInfos
+		c.tagProcessor.ProcessTagInfo(tagInfos)
 	}
 
 	close(evBundle.Ch)
@@ -252,6 +248,7 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 	tags.AddLow(kubernetes.NamespaceTagName, pod.Namespace)
 	tags.AddLow("pod_phase", strings.ToLower(pod.Phase))
 	tags.AddLow("kube_priority_class", pod.PriorityClass)
+	tags.AddLow("kube_qos", pod.QOSClass)
 
 	c.extractTagsFromPodLabels(pod, tags)
 
@@ -317,6 +314,31 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*TagInfo {
 	task := ev.Entity.(*workloadmeta.ECSTask)
 
+	taskTags := utils.NewTagList()
+
+	// as of Agent 7.33, tasks have a name internally, but before that
+	// task_name already was task.Family, so we keep it for backwards
+	// compatibility
+	taskTags.AddLow("task_name", task.Family)
+	taskTags.AddLow("task_family", task.Family)
+	taskTags.AddLow("task_version", task.Version)
+	taskTags.AddOrchestrator("task_arn", task.ID)
+
+	if task.ClusterName != "" {
+		if !config.Datadog.GetBool("disable_cluster_name_tag_key") {
+			taskTags.AddLow("cluster_name", task.ClusterName)
+		}
+		taskTags.AddLow("ecs_cluster_name", task.ClusterName)
+	}
+
+	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
+		taskTags.AddLow("region", task.Region)
+		taskTags.AddLow("availability_zone", task.AvailabilityZone)
+	} else if c.collectEC2ResourceTags {
+		addResourceTags(taskTags, task.ContainerInstanceTags)
+		addResourceTags(taskTags, task.Tags)
+	}
+
 	tagInfos := make([]*TagInfo, 0, len(task.Containers))
 	for _, taskContainer := range task.Containers {
 		container, err := c.store.GetContainer(taskContainer.ID)
@@ -327,32 +349,9 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*TagInfo 
 
 		c.registerChild(task.EntityID, container.EntityID)
 
-		tags := utils.NewTagList()
-
-		// as of Agent 7.33, tasks have a name internally, but before that
-		// task_name already was task.Family, so we keep it for backwards
-		// compatibility
-		tags.AddLow("task_name", task.Family)
-		tags.AddLow("task_family", task.Family)
-		tags.AddLow("task_version", task.Version)
-		tags.AddOrchestrator("task_arn", task.ID)
+		tags := taskTags.Copy()
 
 		tags.AddLow("ecs_container_name", taskContainer.Name)
-
-		if task.ClusterName != "" {
-			if !config.Datadog.GetBool("disable_cluster_name_tag_key") {
-				tags.AddLow("cluster_name", task.ClusterName)
-			}
-			tags.AddLow("ecs_cluster_name", task.ClusterName)
-		}
-
-		if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
-			tags.AddLow("region", task.Region)
-			tags.AddLow("availability_zone", task.AvailabilityZone)
-		} else if c.collectEC2ResourceTags {
-			addResourceTags(tags, task.ContainerInstanceTags)
-			addResourceTags(tags, task.Tags)
-		}
 
 		low, orch, high, standard := tags.Compute()
 		tagInfos = append(tagInfos, &TagInfo{
@@ -368,14 +367,10 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*TagInfo 
 	}
 
 	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
-		tags := utils.NewTagList()
-
-		tags.AddOrchestrator("task_arn", task.ID)
-
-		low, orch, high, standard := tags.Compute()
+		low, orch, high, standard := taskTags.Compute()
 		tagInfos = append(tagInfos, &TagInfo{
 			Source:               taskSource,
-			Entity:               OrchestratorScopeEntityID,
+			Entity:               GlobalEntityID,
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
@@ -443,7 +438,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 		}
 
 	case kubernetes.JobKind:
-		cronjob := kubernetes.ParseCronJobForJob(owner.Name)
+		cronjob, _ := kubernetes.ParseCronJobForJob(owner.Name)
 		if cronjob != "" {
 			tags.AddOrchestrator(kubernetes.JobTagName, owner.Name)
 			tags.AddLow(kubernetes.CronJobTagName, cronjob)

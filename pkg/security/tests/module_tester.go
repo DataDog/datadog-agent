@@ -11,6 +11,7 @@ package tests
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -30,6 +31,9 @@ import (
 	"unsafe"
 
 	"github.com/cihub/seelog"
+	"github.com/davecgh/go-spew/spew"
+	"github.com/hashicorp/go-multierror"
+	"github.com/oliveagle/jsonpath"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
@@ -69,11 +73,17 @@ system_probe_config:
 runtime_security_config:
   enabled: true
   fim_enabled: true
+  runtime_compilation:
+    enabled: true
   remote_tagger: false
   custom_sensitive_words:
     - "*custom*"
   socket: /tmp/test-security-probe.sock
   flush_discarder_window: 0
+{{if .EnableNetwork}}
+  network:
+    enabled: true
+{{end}}
   load_controller:
     events_count_threshold: {{ .EventsCountThreshold }}
 {{if .DisableFilters}}
@@ -89,6 +99,10 @@ runtime_security_config:
     dir: {{.TestPoliciesDir}}
   log_patterns:
   {{range .LogPatterns}}
+    - {{.}}
+  {{end}}
+  log_tags:
+  {{range .LogTags}}
     - {{.}}
   {{end}}
 `
@@ -128,6 +142,7 @@ var (
 	useReload        bool
 	logLevelStr      string
 	logPatterns      stringSlice
+	logTags          stringSlice
 	logStatusMetrics bool
 )
 
@@ -140,6 +155,7 @@ type testOpts struct {
 	testDir                     string
 	disableFilters              bool
 	disableApprovers            bool
+	enableNetwork               bool
 	disableDiscarders           bool
 	eventsCountThreshold        int
 	reuseProbeHandler           bool
@@ -159,6 +175,7 @@ func (s *stringSlice) Set(value string) error {
 func (to testOpts) Equal(opts testOpts) bool {
 	return to.testDir == opts.testDir &&
 		to.disableApprovers == opts.disableApprovers &&
+		to.enableNetwork == opts.enableNetwork &&
 		to.disableDiscarders == opts.disableDiscarders &&
 		to.disableFilters == opts.disableFilters &&
 		to.eventsCountThreshold == opts.eventsCountThreshold &&
@@ -178,6 +195,7 @@ type testModule struct {
 	cmdWrapper            cmdWrapper
 	ruleHandler           testRuleHandler
 	eventDiscarderHandler testEventDiscarderHandler
+	statsdClient          *StatsdClient
 }
 
 var testMod *testModule
@@ -213,7 +231,7 @@ type testcustomEventHandler struct {
 
 type testProbeHandler struct {
 	sync.RWMutex
-	reloading          sync.RWMutex
+	reloading          sync.Mutex
 	module             *module.Module
 	eventHandler       *testEventHandler
 	customEventHandler *testcustomEventHandler
@@ -223,14 +241,8 @@ func (h *testProbeHandler) HandleEvent(event *sprobe.Event) {
 	h.RLock()
 	defer h.RUnlock()
 
-	if h.module == nil {
-		return
-	}
-
 	h.reloading.Lock()
 	defer h.reloading.Unlock()
-
-	h.module.HandleEvent(event)
 
 	if h.eventHandler != nil && h.eventHandler.callback != nil {
 		h.eventHandler.callback(event)
@@ -274,15 +286,16 @@ func getInode(t *testing.T, path string) uint64 {
 }
 
 //nolint:deadcode,unused
-func which(name string) string {
-	executable := "/usr/bin/" + name
-	if resolved, err := os.Readlink(executable); err == nil {
-		executable = resolved
-	} else {
-		if os.IsNotExist(err) {
-			executable = "/bin/" + name
-		}
+func which(t *testing.T, name string) string {
+	executable, err := exec.LookPath(name)
+	if err != nil {
+		t.Fatalf("couldn't resolve %s: %v", name, err)
 	}
+
+	if dest, err := filepath.EvalSymlinks(executable); err == nil {
+		return dest
+	}
+
 	return executable
 }
 
@@ -346,56 +359,137 @@ func assertFieldEqual(t *testing.T, e *sprobe.Event, field string, value interfa
 }
 
 //nolint:deadcode,unused
-func assertFieldOneOf(t *testing.T, e *sprobe.Event, field string, values []interface{}, msgAndArgs ...interface{}) bool {
+func assertFieldStringArrayIndexedOneOf(t *testing.T, e *sprobe.Event, field string, index int, values []string, msgAndArgs ...interface{}) bool {
 	t.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
 		t.Errorf("failed to get field '%s': %s", field, err)
 		return false
 	}
-	return assert.Contains(t, values, fieldValue)
+
+	if fieldValues, ok := fieldValue.([]string); ok {
+		return assert.Contains(t, values, fieldValues[index])
+	}
+
+	t.Errorf("failed to get field '%s' as an array", field)
+	return false
 }
 
-func setTestConfig(dir string, opts testOpts) (string, error) {
-	tmpl, err := template.New("test-config").Parse(testConfig)
+//nolint:deadcode,unused
+func validateProcessContextLineage(tb testing.TB, event *sprobe.Event) bool {
+	var data interface{}
+	if err := json.Unmarshal([]byte(event.String()), &data); err != nil {
+		tb.Error(err)
+	}
+
+	json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors")
 	if err != nil {
-		return "", err
+		tb.Errorf("should have a process context with ancestors, got %+v (%s)", json, spew.Sdump(data))
+		return false
 	}
 
-	if opts.eventsCountThreshold == 0 {
-		opts.eventsCountThreshold = 100000000
+	var prevPID, prevPPID float64
+
+	for _, entry := range json.([]interface{}) {
+		pce, ok := entry.(map[string]interface{})
+		if !ok {
+			tb.Errorf("invalid process cache entry, %+v", entry)
+			return false
+		}
+
+		pid, ok := pce["pid"].(float64)
+		if !ok || pid == 0 {
+			tb.Errorf("invalid pid, %+v", pce)
+			return false
+		}
+
+		// check lineage, exec should have the exact same pid, fork pid/ppid relationship
+		if prevPID != 0 && pid != prevPID && pid != prevPPID {
+			tb.Errorf("invalid process tree, parent/child broken (%f -> %f/%f), %+v", pid, prevPID, prevPPID, json)
+			return false
+		}
+		prevPID = pid
+
+		if pid != 1 {
+			ppid, ok := pce["ppid"].(float64)
+			if !ok {
+				tb.Errorf("invalid pid, %+v", pce)
+				return false
+			}
+
+			prevPPID = ppid
+		}
 	}
 
-	erpcDentryResolutionEnabled := true
-	if opts.disableERPCDentryResolution {
-		erpcDentryResolutionEnabled = false
+	if prevPID != 1 {
+		tb.Errorf("invalid process tree, last ancestor should be pid 1, %+v", json)
 	}
 
-	mapDentryResolutionEnabled := true
-	if opts.disableMapDentryResolution {
-		mapDentryResolutionEnabled = false
+	return true
+}
+
+//nolint:deadcode,unused
+func validateProcessContextSECL(tb testing.TB, event *sprobe.Event) bool {
+	fields := []string{
+		"process.file.path",
+		"process.file.name",
+		"process.ancestors.file.path",
+		"process.ancestors.file.name",
 	}
 
-	buffer := new(bytes.Buffer)
-	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPoliciesDir":             dir,
-		"DisableApprovers":            opts.disableApprovers,
-		"EventsCountThreshold":        opts.eventsCountThreshold,
-		"ErpcDentryResolutionEnabled": erpcDentryResolutionEnabled,
-		"MapDentryResolutionEnabled":  mapDentryResolutionEnabled,
-		"LogPatterns":                 logPatterns,
-	}); err != nil {
-		return "", err
+	for _, field := range fields {
+		fieldValue, err := event.GetFieldValue(field)
+		if err != nil {
+			tb.Errorf("failed to get field '%s': %s", field, err)
+			return false
+		}
+
+		switch value := fieldValue.(type) {
+		case string:
+			if len(value) == 0 {
+				tb.Errorf("empty value for '%s'", field)
+				return false
+			}
+		case []string:
+			for _, v := range value {
+				if len(v) == 0 {
+					tb.Errorf("empty value for '%s'", field)
+					return false
+				}
+			}
+		default:
+			tb.Errorf("unknown type value for '%s'", field)
+			return false
+		}
 	}
 
-	sysprobeConfig, err := os.Create(path.Join(opts.testDir, "system-probe.yaml"))
-	if err != nil {
-		return "", err
-	}
-	defer sysprobeConfig.Close()
+	return true
+}
 
-	_, err = io.Copy(sysprobeConfig, buffer)
-	return sysprobeConfig.Name(), err
+//nolint:deadcode,unused
+func validateEvent(tb testing.TB, validate func(event *sprobe.Event, rule *rules.Rule)) func(event *sprobe.Event, rule *rules.Rule) {
+	return func(event *sprobe.Event, rule *rules.Rule) {
+		validate(event, rule)
+
+		if !validateProcessContextLineage(tb, event) {
+			tb.Error(event.String())
+		}
+
+		if !validateProcessContextSECL(tb, event) {
+			tb.Error(event.String())
+		}
+	}
+}
+
+//nolint:deadcode,unused
+func validateExecEvent(t *testing.T, validate func(event *sprobe.Event, rule *rules.Rule)) func(event *sprobe.Event, rule *rules.Rule) {
+	return func(event *sprobe.Event, rule *rules.Rule) {
+		validate(event, rule)
+
+		if !validateExecSchema(t, event) {
+			t.Error(event.String())
+		}
+	}
 }
 
 func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (string, error) {
@@ -434,18 +528,78 @@ func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.R
 	return testPolicyFile.Name(), nil
 }
 
-func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, opts testOpts) (*testModule, error) {
-	logLevel, found := seelog.LogLevelFromString(logLevelStr)
-	if !found {
-		return nil, fmt.Errorf("invalid log level '%s'", logLevel)
-	}
-
-	st, err := newSimpleTest(macroDefs, ruleDefs, opts.testDir, logLevel)
+func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
+	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	sysprobeConfig, err := setTestConfig(st.root, opts)
+	if opts.eventsCountThreshold == 0 {
+		opts.eventsCountThreshold = 100000000
+	}
+
+	erpcDentryResolutionEnabled := true
+	if opts.disableERPCDentryResolution {
+		erpcDentryResolutionEnabled = false
+	}
+
+	mapDentryResolutionEnabled := true
+	if opts.disableMapDentryResolution {
+		mapDentryResolutionEnabled = false
+	}
+
+	buffer := new(bytes.Buffer)
+	if err := tmpl.Execute(buffer, map[string]interface{}{
+		"TestPoliciesDir":             dir,
+		"DisableApprovers":            opts.disableApprovers,
+		"EnableNetwork":               opts.enableNetwork,
+		"EventsCountThreshold":        opts.eventsCountThreshold,
+		"ErpcDentryResolutionEnabled": erpcDentryResolutionEnabled,
+		"MapDentryResolutionEnabled":  mapDentryResolutionEnabled,
+		"LogPatterns":                 logPatterns,
+		"LogTags":                     logTags,
+	}); err != nil {
+		return nil, err
+	}
+
+	sysprobeConfig, err := os.Create(path.Join(opts.testDir, "system-probe.yaml"))
+	if err != nil {
+		return nil, err
+	}
+	defer sysprobeConfig.Close()
+
+	_, err = io.Copy(sysprobeConfig, buffer)
+	if err != nil {
+		return nil, err
+	}
+
+	agentConfig, err := sysconfig.New(sysprobeConfig.Name())
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load config")
+	}
+	config, err := config.NewConfig(agentConfig)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load config")
+	}
+
+	config.SelfTestEnabled = false
+	config.ERPCDentryResolutionEnabled = !opts.disableERPCDentryResolution
+	config.MapDentryResolutionEnabled = !opts.disableMapDentryResolution
+
+	return config, nil
+}
+
+func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, opts testOpts) (*testModule, error) {
+	if err := initLogger(); err != nil {
+		return nil, err
+	}
+
+	st, err := newSimpleTest(macroDefs, ruleDefs, opts.testDir)
+	if err != nil {
+		return nil, err
+	}
+
+	config, err := genTestConfig(st.root, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -491,22 +645,11 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.cleanup()
 	}
 
-	agentConfig, err := sysconfig.New(sysprobeConfig)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create config")
-	}
-	config, err := config.NewConfig(agentConfig)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create config")
-	}
-
-	config.SelfTestEnabled = false
-	config.ERPCDentryResolutionEnabled = !opts.disableERPCDentryResolution
-	config.MapDentryResolutionEnabled = !opts.disableMapDentryResolution
-
 	t.Log("Instantiating a new security module")
 
-	mod, err := module.NewModule(config)
+	statsdClient := NewStatsdClient()
+
+	mod, err := module.NewModule(config, module.Opts{StatsdClient: statsdClient})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create module")
 	}
@@ -524,9 +667,12 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		probe:        mod.(*module.Module).GetProbe(),
 		probeHandler: &testProbeHandler{module: mod.(*module.Module)},
 		cmdWrapper:   cmdWrapper,
+		statsdClient: statsdClient,
 	}
 
-	testMod.module.SetRulesetLoadedCallback(func(rs *rules.RuleSet) {
+	var loadErr *multierror.Error
+	testMod.module.SetRulesetLoadedCallback(func(rs *rules.RuleSet, err *multierror.Error) {
+		loadErr = err
 		log.Infof("Adding test module as listener")
 		rs.AddListener(testMod)
 	})
@@ -535,10 +681,15 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, errors.Wrap(err, "failed to init module")
 	}
 
-	testMod.probe.SetEventHandler(testMod.probeHandler)
+	testMod.probe.AddEventHandler(model.UnknownEventType, testMod.probeHandler)
 
 	if err := testMod.module.Start(); err != nil {
 		return nil, errors.Wrap(err, "failed to start module")
+	}
+
+	if loadErr.ErrorOrNil() != nil {
+		defer testMod.Close()
+		return nil, loadErr.ErrorOrNil()
 	}
 
 	if logStatusMetrics {
@@ -565,10 +716,6 @@ func (tm *testModule) reloadConfiguration() error {
 
 func (tm *testModule) Root() string {
 	return tm.st.root
-}
-
-func (tm *testModule) SwapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
-	return tm.st.swapLogLevel(logLevel)
 }
 
 func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
@@ -647,28 +794,30 @@ func (tm *testModule) GetEventDiscarder(tb testing.TB, action func() error, cb e
 
 // GetStatusMetrics returns a string representation of the perf buffer monitor metrics
 func GetStatusMetrics(probe *sprobe.Probe) string {
-	var status string
-
 	if probe == nil {
-		return status
+		return ""
 	}
 	monitor := probe.GetMonitor()
 	if monitor == nil {
-		return status
+		return ""
 	}
 	perfBufferMonitor := monitor.GetPerfBufferMonitor()
 	if perfBufferMonitor == nil {
-		return status
+		return ""
 	}
 
-	status = fmt.Sprintf("%d lost", perfBufferMonitor.GetKernelLostCount("events", -1))
+	var status strings.Builder
+	status.WriteString(fmt.Sprintf("%d lost", perfBufferMonitor.GetKernelLostCount("events", -1)))
 
-	for i := model.UnknownEventType + 1; i < model.MaxEventType; i++ {
+	for i := model.UnknownEventType + 1; i < model.MaxKernelEventType; i++ {
 		stats, kernelStats := perfBufferMonitor.GetEventStats(i, "events", -1)
-		status = fmt.Sprintf("%s, %s user:%d kernel:%d lost:%d", status, i, stats.Count, kernelStats.Count, kernelStats.Lost)
+		if stats.Count == 0 && kernelStats.Count == 0 && kernelStats.Lost == 0 {
+			continue
+		}
+		status.WriteString(fmt.Sprintf(", %s user:%d kernel:%d lost:%d", i, stats.Count, kernelStats.Count, kernelStats.Lost))
 	}
 
-	return status
+	return status.String()
 }
 
 // ErrTimeout is used to indicate that a test timed out
@@ -712,7 +861,7 @@ func (err ErrSkipTest) Error() string {
 func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb ruleHandler) {
 	tb.Helper()
 
-	if err := tm.GetSignal(tb, action, cb); err != nil {
+	if err := tm.GetSignal(tb, action, validateEvent(tb, cb)); err != nil {
 		if _, ok := err.(ErrSkipTest); ok {
 			tb.Skip(err)
 		} else {
@@ -1020,6 +1169,42 @@ func (tm *testModule) Close() {
 	}
 }
 
+var logInitilialized bool
+
+func initLogger() error {
+	logLevel, found := seelog.LogLevelFromString(logLevelStr)
+	if !found {
+		return fmt.Errorf("invalid log level '%s'", logLevel)
+	}
+
+	if !logInitilialized {
+		if _, err := swapLogLevel(logLevel); err != nil {
+			return err
+		}
+
+		logInitilialized = true
+	}
+	return nil
+}
+
+func swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
+	if logger == nil {
+		logFormat := "[%Date(2006-01-02 15:04:05.000)] [%LEVEL] %Func:%Line %Msg\n"
+
+		var err error
+
+		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, logLevel, logFormat)
+		if err != nil {
+			return 0, err
+		}
+	}
+	log.SetupLogger(logger, logLevel.String())
+
+	prevLevel, _ := seelog.LogLevelFromString(logLevelStr)
+	logLevelStr = logLevel.String()
+	return prevLevel, nil
+}
+
 type simpleTest struct {
 	root     string
 	toRemove bool
@@ -1081,39 +1266,11 @@ func (t *simpleTest) load(macros []*rules.MacroDefinition, rules []*rules.RuleDe
 	return nil
 }
 
-var logInitilialized bool
-
-func (t *simpleTest) swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
-	if logger == nil {
-		logFormat := "[%Date(2006-01-02 15:04:05.000)] [%LEVEL] %Func:%Line %Msg\n"
-
-		var err error
-
-		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, logLevel, logFormat)
-		if err != nil {
-			return 0, err
-		}
-	}
-	log.SetupLogger(logger, logLevel.String())
-
-	prevLevel, _ := seelog.LogLevelFromString(logLevelStr)
-	logLevelStr = logLevel.String()
-	return prevLevel, nil
-}
-
-func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string, logLevel seelog.LogLevel) (*simpleTest, error) {
+func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string) (*simpleTest, error) {
 	var err error
 
 	t := &simpleTest{
 		root: testDir,
-	}
-
-	if !logInitilialized {
-		if _, err := t.swapLogLevel(logLevel); err != nil {
-			return nil, err
-		}
-
-		logInitilialized = true
 	}
 
 	if testDir == "" {
@@ -1202,6 +1359,7 @@ func init() {
 	flag.BoolVar(&useReload, "reload", true, "reload rules instead of stopping/starting the agent for every test")
 	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")
+	flag.Var(&logTags, "logtag", "List of log tag")
 	flag.BoolVar(&logStatusMetrics, "status-metrics", false, "display status metrics")
 	rand.Seed(time.Now().UnixNano())
 
@@ -1221,9 +1379,10 @@ func randStringRunes(n int) string {
 
 //nolint:deadcode,unused
 func checkKernelCompatibility(t *testing.T, why string, skipCheck func(kv *kernel.Version) bool) {
+	t.Helper()
 	kv, err := kernel.NewKernelVersion()
 	if err != nil {
-		t.Errorf("failed to get kernel version: %w", err)
+		t.Errorf("failed to get kernel version: %s", err)
 		return
 	}
 

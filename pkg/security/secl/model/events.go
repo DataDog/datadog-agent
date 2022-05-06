@@ -73,8 +73,18 @@ const (
 	UnloadModuleEventType
 	// SignalEventType Signal event
 	SignalEventType
-	// MaxEventType is used internally to get the maximum number of kernel events.
-	MaxEventType
+	// SpliceEventType Splice event
+	SpliceEventType
+	// CgroupTracingEventType is sent when a new cgroup is being traced
+	CgroupTracingEventType
+	// DNSEventType DNS event
+	DNSEventType
+	// NetDeviceEventType is sent for events on net devices
+	NetDeviceEventType
+	// VethPairEventType is sent when a new veth pair is created
+	VethPairEventType
+	// MaxKernelEventType is used internally to get the maximum number of kernel events.
+	MaxKernelEventType
 
 	// FirstDiscarderEventType first event that accepts discarders
 	FirstDiscarderEventType = FileOpenEventType
@@ -83,7 +93,7 @@ const (
 	LastDiscarderEventType = FileRemoveXAttrEventType
 
 	// CustomLostReadEventType is the custom event used to report lost events detected in user space
-	CustomLostReadEventType EventType = iota
+	CustomLostReadEventType = iota
 	// CustomLostWriteEventType is the custom event used to report lost events detected in kernel space
 	CustomLostWriteEventType
 	// CustomRulesetLoadedEventType is the custom event used to report that a new ruleset was loaded
@@ -94,6 +104,8 @@ const (
 	CustomForkBombEventType
 	// CustomTruncatedParentsEventType is the custom event used to report that the parents of a path were truncated
 	CustomTruncatedParentsEventType
+	// MaxAllEventType is used internally to get the maximum number of events.
+	MaxAllEventType
 )
 
 func (t EventType) String() string {
@@ -158,6 +170,16 @@ func (t EventType) String() string {
 		return "unload_module"
 	case SignalEventType:
 		return "signal"
+	case SpliceEventType:
+		return "splice"
+	case CgroupTracingEventType:
+		return "cgroup_tracing"
+	case DNSEventType:
+		return "dns"
+	case NetDeviceEventType:
+		return "net_device"
+	case VethPairEventType:
+		return "veth_pair"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"
@@ -180,11 +202,34 @@ func (t EventType) String() string {
 // the current algorithm is not efficient but allows us to reduce the number of conversion functions
 //nolint:deadcode,unused
 func ParseEvalEventType(eventType eval.EventType) EventType {
-	for i := uint64(0); i != uint64(MaxEventType); i++ {
+	for i := uint64(0); i != uint64(MaxAllEventType); i++ {
 		if EventType(i).String() == eventType {
 			return EventType(i)
 		}
 	}
 
 	return UnknownEventType
+}
+
+var (
+	eventTypeStrings = map[string]EventType{}
+)
+
+func init() {
+	var eventType EventType
+	for i := uint64(0); i != uint64(MaxKernelEventType); i++ {
+		eventType = EventType(i)
+		eventTypeStrings[eventType.String()] = eventType
+	}
+}
+
+// ParseEventTypeStringSlice converts a list
+func ParseEventTypeStringSlice(eventTypes []string) []EventType {
+	var output []EventType
+	for _, eventTypeStr := range eventTypes {
+		if eventType := eventTypeStrings[eventTypeStr]; eventType != UnknownEventType {
+			output = append(output, eventType)
+		}
+	}
+	return output
 }

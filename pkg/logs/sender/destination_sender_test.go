@@ -1,6 +1,12 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package sender
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -90,4 +96,39 @@ func TestDestinationSenderStopsRetrying(t *testing.T) {
 	}
 
 	<-gotPayload
+}
+
+func TestDestinationSenderDeadlock(t *testing.T) {
+	output := make(chan *message.Payload)
+	dest := &mockDestination{}
+	d := NewDestinationSender(dest, output, 100)
+
+	go func() {
+		for range dest.input {
+		}
+	}()
+
+	syn := make(chan struct{})
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+
+	go func() {
+		<-syn
+		for i := 0; i < 1000; i++ {
+			dest.isRetrying <- false
+		}
+		wg.Done()
+	}()
+
+	go func() {
+		<-syn
+		for i := 0; i < 1000; i++ {
+			d.Send(&message.Payload{})
+		}
+		wg.Done()
+	}()
+
+	close(syn)
+	wg.Wait()
+	close(dest.input)
 }

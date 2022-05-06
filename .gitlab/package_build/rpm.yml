@@ -25,6 +25,7 @@
     - $S3_CP_CMD $S3_ARTIFACTS_URI/dns-debug.o.${PACKAGE_ARCH} /tmp/system-probe/dns-debug.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security-syscall-wrapper.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security-syscall-wrapper.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security-offset-guesser.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security-offset-guesser.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer.c.${PACKAGE_ARCH} /tmp/system-probe/tracer.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/http.c.${PACKAGE_ARCH} /tmp/system-probe/http.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security.c.${PACKAGE_ARCH} /tmp/system-probe/runtime-security.c
@@ -37,6 +38,7 @@
     - tar -xf /tmp/nikos.tar.gz -C /tmp/nikos
     - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --nikos-path=/tmp/nikos
     - ls -la $OMNIBUS_PACKAGE_DIR
+    - !reference [.upload_sbom_artifacts]
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -131,6 +133,7 @@ agent_rpm-arm64-a7:
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e agent.omnibus-build --flavor iot --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
     - ls -la $OMNIBUS_PACKAGE_DIR
+    - !reference [.upload_sbom_artifacts]
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -193,6 +196,7 @@ dogstatsd_rpm-x64:
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
     - ls -la $OMNIBUS_PACKAGE_DIR
+    - !reference [.upload_sbom_artifacts]
   artifacts:
     expire_in: 2 weeks
     paths:

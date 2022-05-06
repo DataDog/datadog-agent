@@ -15,8 +15,8 @@
 package attributes
 
 import (
-	"go.opentelemetry.io/collector/model/pdata"
-	conventions "go.opentelemetry.io/collector/model/semconv/v1.5.0"
+	conventions "go.opentelemetry.io/collector/model/semconv/v1.6.1"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes/azure"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes/ec2"
@@ -30,7 +30,7 @@ const (
 	AttributeK8sNodeName = "k8s.node.name"
 )
 
-func getClusterName(attrs pdata.AttributeMap) (string, bool) {
+func getClusterName(attrs pcommon.Map) (string, bool) {
 	if k8sClusterName, ok := attrs.Get(conventions.AttributeK8SClusterName); ok {
 		return k8sClusterName.StringVal(), true
 	}
@@ -54,8 +54,9 @@ func getClusterName(attrs pdata.AttributeMap) (string, bool) {
 //   5. the cloud provider host ID and
 //   6. the host.name attribute.
 //
-//  It returns a boolean value indicated if any name was found
-func HostnameFromAttributes(attrs pdata.AttributeMap) (string, bool) {
+//  It returns a boolean value indicated if any name was found. In some environments (such as Fargate)
+//  it may be possible to return an empty value and true.
+func HostnameFromAttributes(attrs pcommon.Map) (hostname string, ok bool) {
 	// Check if the host is localhost or 0.0.0.0, if so discard it.
 	// We don't do the more strict validation done for metadata,
 	// to avoid breaking users existing invalid-but-accepted hostnames.
@@ -75,7 +76,7 @@ func HostnameFromAttributes(attrs pdata.AttributeMap) (string, bool) {
 	return candidateHost, ok
 }
 
-func unsanitizedHostnameFromAttributes(attrs pdata.AttributeMap) (string, bool) {
+func unsanitizedHostnameFromAttributes(attrs pcommon.Map) (string, bool) {
 	// Custom hostname: useful for overriding in k8s/cloud envs
 	if customHostname, ok := attrs.Get(AttributeDatadogHostname); ok {
 		return customHostname.StringVal(), true

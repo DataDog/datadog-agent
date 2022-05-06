@@ -27,7 +27,7 @@ func TestClientState(t *testing.T) {
 	config.Datadog.Set("remote_configuration.config_root", testRepository1.configRoot)
 
 	db := getTestDB()
-	client1, err := NewClient(db, "testcachekey", 2, false)
+	client1, err := NewClient(db, "testcachekey", 2)
 	assert.NoError(t, err)
 
 	// Testing default state
@@ -52,7 +52,7 @@ func TestClientState(t *testing.T) {
 	assert.Equal(t, string(testRepository1.directorTargets), string(targets1))
 
 	// Testing state is maintained between runs
-	client2, err := NewClient(db, "testcachekey", 2, false)
+	client2, err := NewClient(db, "testcachekey", 2)
 	assert.NoError(t, err)
 	clientState, err = client2.State()
 	assert.NoError(t, err)
@@ -65,7 +65,7 @@ func TestClientState(t *testing.T) {
 	assert.Equal(t, string(testRepository1.directorTargets), string(targets1))
 
 	// Testing state is isolated by cache key
-	client3, err := NewClient(db, "testcachekey2", 2, false)
+	client3, err := NewClient(db, "testcachekey2", 2)
 	assert.NoError(t, err)
 	clientState, err = client3.State()
 	assert.NoError(t, err)
@@ -91,7 +91,7 @@ func TestClientFullState(t *testing.T) {
 
 	// Prepare
 	db := getTestDB()
-	client, err := NewClient(db, "testcachekey", 2, false)
+	client, err := NewClient(db, "testcachekey", 2)
 	assert.NoError(t, err)
 	err = client.Update(testRepository.toUpdate())
 	assert.NoError(t, err)
@@ -130,14 +130,14 @@ func TestClientVerifyTUF(t *testing.T) {
 	db := getTestDB()
 
 	previousConfigTargets := testRepository1.configTargets
-	client1, err := NewClient(db, "testcachekey1", 2, false)
+	client1, err := NewClient(db, "testcachekey1", 2)
 	assert.NoError(t, err)
 	testRepository1.configTargets = generateTargets(generateKey(), testRepository1.configTargetsVersion, nil)
 	err = client1.Update(testRepository1.toUpdate())
 	assert.Error(t, err)
 
 	testRepository1.configTargets = previousConfigTargets
-	client2, err := NewClient(db, "testcachekey2", 2, false)
+	client2, err := NewClient(db, "testcachekey2", 2)
 	assert.NoError(t, err)
 	testRepository1.directorTargets = generateTargets(generateKey(), testRepository1.directorTargetsVersion, nil)
 	err = client2.Update(testRepository1.toUpdate())
@@ -177,7 +177,7 @@ func TestClientVerifyUptane(t *testing.T) {
 
 	config.Datadog.Set("remote_configuration.director_root", testRepositoryValid.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepositoryValid.configRoot)
-	client1, err := NewClient(db, "testcachekey1", 2, false)
+	client1, err := NewClient(db, "testcachekey1", 2)
 	assert.NoError(t, err)
 	err = client1.Update(testRepositoryValid.toUpdate())
 	assert.NoError(t, err)
@@ -187,7 +187,7 @@ func TestClientVerifyUptane(t *testing.T) {
 
 	config.Datadog.Set("remote_configuration.director_root", testRepositoryInvalid1.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepositoryInvalid1.configRoot)
-	client2, err := NewClient(db, "testcachekey2", 2, false)
+	client2, err := NewClient(db, "testcachekey2", 2)
 	assert.NoError(t, err)
 	err = client2.Update(testRepositoryInvalid1.toUpdate())
 	assert.Error(t, err)
@@ -196,7 +196,7 @@ func TestClientVerifyUptane(t *testing.T) {
 
 	config.Datadog.Set("remote_configuration.director_root", testRepositoryInvalid2.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepositoryInvalid2.configRoot)
-	client3, err := NewClient(db, "testcachekey3", 2, false)
+	client3, err := NewClient(db, "testcachekey3", 2)
 	assert.NoError(t, err)
 	err = client3.Update(testRepositoryInvalid2.toUpdate())
 	assert.Error(t, err)
@@ -228,14 +228,14 @@ func TestClientVerifyOrgID(t *testing.T) {
 
 	config.Datadog.Set("remote_configuration.director_root", testRepositoryValid.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepositoryValid.configRoot)
-	client1, err := NewClient(db, "testcachekey1", 2, false)
+	client1, err := NewClient(db, "testcachekey1", 2)
 	assert.NoError(t, err)
 	err = client1.Update(testRepositoryValid.toUpdate())
 	assert.NoError(t, err)
 
 	config.Datadog.Set("remote_configuration.director_root", testRepositoryInvalid.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepositoryInvalid.configRoot)
-	client2, err := NewClient(db, "testcachekey2", 2, false)
+	client2, err := NewClient(db, "testcachekey2", 2)
 	assert.NoError(t, err)
 	err = client2.Update(testRepositoryInvalid.toUpdate())
 	assert.Error(t, err)
@@ -297,11 +297,11 @@ func newTestRepository(version int, configTargets data.TargetFiles, directorTarg
 	repos.directorTimestampVersion = 20 + version
 	repos.directorTargetsVersion = 200 + version
 	repos.directorSnapshotVersion = 2000 + version
-	repos.configRoot = generateRoot(repos.configRootKey, version, repos.configTimestampKey, repos.configTargetsKey, repos.configSnapshotKey)
+	repos.configRoot = generateRoot(repos.configRootKey, version, repos.configTimestampKey, repos.configTargetsKey, repos.configSnapshotKey, nil)
 	repos.configTargets = generateTargets(repos.configTargetsKey, 100+version, configTargets)
 	repos.configSnapshot = generateSnapshot(repos.configSnapshotKey, 1000+version, repos.configTargetsVersion)
 	repos.configTimestamp = generateTimestamp(repos.configTimestampKey, 10+version, repos.configSnapshotVersion, repos.configSnapshot)
-	repos.directorRoot = generateRoot(repos.directorRootKey, version, repos.directorTimestampKey, repos.directorTargetsKey, repos.directorSnapshotKey)
+	repos.directorRoot = generateRoot(repos.directorRootKey, version, repos.directorTimestampKey, repos.directorTargetsKey, repos.directorSnapshotKey, nil)
 	repos.directorTargets = generateTargets(repos.directorTargetsKey, 200+version, directorTargets)
 	repos.directorSnapshot = generateSnapshot(repos.directorSnapshotKey, 2000+version, repos.directorTargetsVersion)
 	repos.directorTimestamp = generateTimestamp(repos.directorTimestampKey, 20+version, repos.directorSnapshotVersion, repos.directorSnapshot)
@@ -326,7 +326,7 @@ func (r testRepositories) toUpdate() *pbgo.LatestConfigsResponse {
 	}
 }
 
-func generateRoot(key keys.Signer, version int, timestampKey keys.Signer, targetsKey keys.Signer, snapshotKey keys.Signer) []byte {
+func generateRoot(key keys.Signer, version int, timestampKey keys.Signer, targetsKey keys.Signer, snapshotKey keys.Signer, previousRootKey keys.Signer) []byte {
 	root := data.NewRoot()
 	root.Version = version
 	root.Expires = time.Now().Add(1 * time.Hour)
@@ -350,7 +350,13 @@ func generateRoot(key keys.Signer, version int, timestampKey keys.Signer, target
 		KeyIDs:    snapshotKey.PublicData().IDs(),
 		Threshold: 1,
 	}
-	signedRoot, _ := sign.Marshal(&root, key)
+
+	rootSigners := []keys.Signer{key}
+	if previousRootKey != nil {
+		rootSigners = append(rootSigners, previousRootKey)
+	}
+
+	signedRoot, _ := sign.Marshal(&root, rootSigners...)
 	serializedRoot, _ := json.Marshal(signedRoot)
 	return serializedRoot
 }

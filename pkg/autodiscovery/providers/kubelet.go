@@ -10,8 +10,6 @@ package providers
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
@@ -137,29 +135,6 @@ func (k *KubeletConfigProvider) generateConfigs() ([]integration.Config, error) 
 
 	var configs []integration.Config
 	for _, pod := range k.podCache {
-		var adExtractFormat string
-		for name := range pod.Annotations {
-			if strings.HasPrefix(name, utils.NewPodAnnotationPrefix) {
-				adExtractFormat = utils.NewPodAnnotationFormat
-				break
-			}
-			if strings.HasPrefix(name, utils.LegacyPodAnnotationPrefix) {
-				adExtractFormat = utils.LegacyPodAnnotationFormat
-				// Don't break so we try to look for the new prefix
-				// which will take precedence
-			}
-		}
-
-		// Filter out pods with no AD annotation
-		if adExtractFormat == "" {
-			continue
-		}
-
-		if adExtractFormat == utils.LegacyPodAnnotationFormat {
-			log.Warnf("found legacy annotations %s for %s, please use the new prefix %s",
-				utils.LegacyPodAnnotationPrefix, pod.Name, utils.NewPodAnnotationPrefix)
-		}
-
 		var errs []error
 		containerIdentifiers := map[string]struct{}{}
 		containerNames := map[string]struct{}{}
@@ -171,26 +146,27 @@ func (k *KubeletConfigProvider) generateConfigs() ([]integration.Config, error) 
 			}
 
 			adIdentifier := podContainer.Name
+			if customADID, found := utils.ExtractCheckIDFromPodAnnotations(pod.Annotations, podContainer.Name); found {
+				adIdentifier = customADID
+			}
 
-			customADIdentifier, found := utils.GetCustomCheckID(pod.Annotations, podContainer.Name)
-			if found {
-				adIdentifier = customADIdentifier
+			containerEntity := containers.BuildEntityName(string(container.Runtime), container.ID)
+			c, errors := utils.ExtractTemplatesFromPodAnnotations(
+				containerEntity,
+				pod.Annotations,
+				adIdentifier,
+			)
+
+			if len(errors) > 0 {
+				for _, err := range errors {
+					log.Errorf("Can't parse template for pod %s: %s", pod.Name, err)
+					errs = append(errs, err)
+				}
+				continue
 			}
 
 			containerIdentifiers[adIdentifier] = struct{}{}
 			containerNames[podContainer.Name] = struct{}{}
-
-			containerEntity := containers.BuildEntityName(string(container.Runtime), container.ID)
-			c, errors := extractTemplatesFromMap(
-				containerEntity,
-				pod.Annotations,
-				fmt.Sprintf(adExtractFormat, adIdentifier),
-			)
-
-			for _, err := range errors {
-				log.Errorf("Can't parse template for pod %s: %s", pod.Name, err)
-				errs = append(errs, err)
-			}
 
 			for idx := range c {
 				c[idx].Source = "kubelet:" + containerEntity

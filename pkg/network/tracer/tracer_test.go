@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -54,7 +55,11 @@ var (
 const runtimeCompilationEnvVar = "DD_TESTS_RUNTIME_COMPILED"
 
 func TestMain(m *testing.M) {
-	log.SetupLogger(seelog.Default, "warn")
+	logLevel := os.Getenv("DD_LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "warn"
+	}
+	log.SetupLogger(seelog.Default, logLevel)
 	cfg := testConfig()
 	if cfg.EnableRuntimeCompiler {
 		fmt.Println("RUNTIME COMPILER ENABLED")
@@ -63,85 +68,135 @@ func TestMain(m *testing.M) {
 }
 
 func TestGetStats(t *testing.T) {
-	dnsSupported := dnsSupported(t)
+	httpSupported := httpSupported(t)
 	cfg := testConfig()
+	cfg.EnableHTTPMonitoring = true
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()
 
 	<-time.After(time.Second)
 
-	linuxExpected := map[string][]string{
-		"conntrack": {
-			"state_size",
-			"enobufs",
-			"throttles",
-			"sampling_pct",
-			"read_errors",
-			"msg_errors",
-		},
-		"state": {
-			"stats_resets",
-			"closed_conn_dropped",
-			"conn_dropped",
-			"time_sync_collisions",
-			"dns_stats_dropped",
-			"dns_pid_collisions",
-		},
-		"tracer": {
-			"conn_valid_skipped",
-			"expired_tcp_conns",
-		},
-		"ebpf": {
-			"tcp_sent_miscounts",
-			"missed_tcp_close",
-			"closed_conn_polling_lost",
-			"closed_conn_polling_received",
-			"pid_collisions",
-		},
-		"dns": {
-			"added",
-			"decoding_errors",
-			"errors",
-			"expired",
-			"ips",
-			"lookups",
-			"oversized",
-			"packets_captured",
-			"packets_dropped",
-			"packets_processed",
-			"queries",
-			"resolved",
-			"socket_polls",
-			"successes",
-			"timestamp_micro_secs",
-			"truncated_packets",
-		},
-		"kprobes": nil,
-	}
-	windowsExpected := map[string][]string{
-		"driver":                   nil,
-		"flows":                    nil,
-		"driver_total_flow_stats":  nil,
-		"driver_flow_handle_stats": nil,
-		"state":                    nil,
-		"dns":                      nil,
-	}
+	tr.GetActiveConnections("-1")
+	linuxExpected := map[string]interface{}{}
+	err = json.Unmarshal([]byte(`{
+      "conntrack": {
+        "enobufs": 0,
+        "evicts_total": 0,
+        "gets_total": 9,
+        "msg_errors": 0,
+        "orphan_size": 0,
+        "read_errors": 0,
+        "registers_dropped": 2,
+        "registers_total": 0,
+        "sampling_pct": 100,
+        "state_size": 0,
+        "throttles": 0,
+        "unregisters_total": 0
+      },
+      "dns": {
+        "added": 0,
+        "decoding_errors": 583,
+        "dropped_stats": 0,
+        "errors": 0,
+        "expired": 0,
+        "ips": 0,
+        "lookups": 5,
+        "num_stats": 0,
+        "oversized": 0,
+        "packets_captured": 586,
+        "packets_dropped": 0,
+        "packets_processed": 586,
+        "queries": 0,
+        "resolved": 0,
+        "socket_polls": 6,
+        "successes": 0,
+        "timestamp_micro_secs": 1649790301434884,
+        "truncated_packets": 0
+      },
+      "ebpf": {
+        "closed_conn_polling_lost": 0,
+        "closed_conn_polling_received": 0,
+        "conn_stats_max_entries_hit": 0,
+        "missed_tcp_close": 0,
+        "missed_udp_close": 0,
+        "pid_collisions": 0,
+        "tcp_conns4": 1,
+        "tcp_conns6": 0,
+        "tcp_sent_miscounts": 0,
+        "udp_conns4": 4,
+        "udp_conns6": 0,
+        "udp_sends_missed": 0,
+        "udp_sends_processed": 162
+      },
+      "http": {
+        "aggregations": 0,
+        "dropped": 0,
+        "hits1_xx": 0,
+        "hits2_xx": 0,
+        "hits3_xx": 0,
+        "hits4_xx": 0,
+        "hits5_xx": 0,
+        "misses": 0,
+        "rejected": 0
+      },
+      "kprobes": {},
+      "state": {
+        "closed_conn_dropped": 0,
+		"conn_dropped": 0,
+		"dns_pid_collisions": 0,
+		"dns_stats_dropped": 0,
+		"http_stats_dropped": 0,
+		"stats_resets": 0,
+		"time_sync_collisions": 0
+      },
+      "tracer": {
+        "closed_conns": 1,
+        "conn_stats_map_size": 5,
+        "expired_tcp_conns": 0,
+        "runtime": {
+          "runtime_compilation_enabled": 0
+        },
+        "skipped_conns": 0
+      }
+    }`), &linuxExpected)
+	require.NoError(t, err)
+
+	rcExceptions := map[string]interface{}{}
+	err = json.Unmarshal([]byte(`{
+      "conntrack": {
+        "evicts_total": 0,
+        "orphan_size": 0
+      }}`), &rcExceptions)
+	require.NoError(t, err)
 
 	expected := linuxExpected
 	if runtime.GOOS == "windows" {
-		expected = windowsExpected
+		expected = map[string]interface{}{
+			"driver":                   map[string]interface{}{},
+			"flows":                    map[string]interface{}{},
+			"driver_total_flow_stats":  map[string]interface{}{},
+			"driver_flow_handle_stats": map[string]interface{}{},
+			"state":                    map[string]interface{}{},
+			"dns":                      map[string]interface{}{},
+		}
 	}
 
 	actual, _ := tr.GetStats()
 
 	for section, entries := range expected {
-		if section == "dns" && !dnsSupported {
-			// DNS stats not supported on some systems
+		if section == "http" && !httpSupported {
 			continue
 		}
 		require.Contains(t, actual, section, "missing section from telemetry map: %s", section)
-		for _, name := range entries {
+		for name := range entries.(map[string]interface{}) {
+			if cfg.EnableRuntimeCompiler {
+				if sec, ok := rcExceptions[section]; ok {
+					if _, ok := sec.(map[string]interface{})[name]; ok {
+						continue
+					}
+				}
+			}
 			assert.Contains(t, actual[section], name, "%s actual is missing %s", section, name)
 		}
 	}
@@ -195,6 +250,8 @@ func TestTCPSendAndReceive(t *testing.T) {
 	err = wg.Wait()
 	require.NoError(t, err)
 
+	initTracerState(t, tr)
+
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
 
@@ -247,6 +304,7 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 	r := bufio.NewReader(c)
 	_, _ = r.ReadBytes(byte('\n'))
 
+	initTracerState(t, tr)
 	connections := getConnections(t, tr)
 
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
@@ -272,8 +330,7 @@ func TestTCPShortlived(t *testing.T) {
 	}
 	defer tr.Stop()
 
-	// Simulate registering by calling get one time
-	getConnections(t, tr)
+	initTracerState(t, tr)
 
 	// Create TCP Server which sends back serverMessageSize bytes
 	server := NewTCPServer(func(c net.Conn) {
@@ -372,6 +429,7 @@ func TestTCPOverIPv6(t *testing.T) {
 	r := bufio.NewReader(c)
 	r.ReadBytes(byte('\n'))
 
+	initTracerState(t, tr)
 	connections := getConnections(t, tr)
 
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
@@ -424,6 +482,7 @@ func TestTCPCollectionDisabled(t *testing.T) {
 	r := bufio.NewReader(c)
 	r.ReadBytes(byte('\n'))
 
+	initTracerState(t, tr)
 	connections := getConnections(t, tr)
 
 	// Confirm that we could not find connection created above
@@ -432,22 +491,31 @@ func TestTCPCollectionDisabled(t *testing.T) {
 }
 
 func TestUDPSendAndReceive(t *testing.T) {
-	// incoming.MonotonicSentBytes is 0, when it should be 512
+	t.Run("v4", func(t *testing.T) {
+		testUDPSendAndReceive(t, "127.0.0.1:8001")
+	})
+	t.Run("v6", func(t *testing.T) {
+		testUDPSendAndReceive(t, "[::1]:8001")
+	})
+}
 
-	// Enable BPF-based system probe
+func testUDPSendAndReceive(t *testing.T, addr string) {
 	cfg := testConfig()
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
-	defer tr.Stop()
+	t.Cleanup(tr.Stop)
 
-	server := NewUDPServerOnAddress("127.0.0.1:8001", func(buf []byte, n int) []byte {
-		return genPayload(serverMessageSize)
-	})
+	server := &UDPServer{
+		address: addr,
+		onMessage: func(buf []byte, n int) []byte {
+			return genPayload(serverMessageSize)
+		},
+	}
 
 	doneChan := make(chan struct{})
 	err = server.Run(doneChan, clientMessageSize)
 	require.NoError(t, err)
-	defer close(doneChan)
+	t.Cleanup(func() { close(doneChan) })
 
 	// Connect to server
 	c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
@@ -461,25 +529,28 @@ func TestUDPSendAndReceive(t *testing.T) {
 	_, err = c.Read(make([]byte, serverMessageSize))
 	require.NoError(t, err)
 
+	initTracerState(t, tr)
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
 
 	incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-	require.True(t, ok)
-	require.Equal(t, network.INCOMING, incoming.Direction)
+	if assert.True(t, ok, "unable to find incoming connection") {
+		assert.Equal(t, network.INCOMING, incoming.Direction)
+
+		// make sure the inverse values are seen for the other message
+		assert.Equal(t, serverMessageSize, int(incoming.MonotonicSentBytes), "incoming sent")
+		assert.Equal(t, clientMessageSize, int(incoming.MonotonicRecvBytes), "incoming recv")
+		assert.True(t, incoming.IntraHost, "incoming intrahost")
+	}
 
 	outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	require.True(t, ok)
-	require.Equal(t, network.OUTGOING, outgoing.Direction)
+	if assert.True(t, ok, "unable to find outgoing connection") {
+		assert.Equal(t, network.OUTGOING, outgoing.Direction)
 
-	require.Equal(t, clientMessageSize, int(outgoing.MonotonicSentBytes))
-	require.Equal(t, serverMessageSize, int(outgoing.MonotonicRecvBytes))
-	require.True(t, outgoing.IntraHost)
-
-	// make sure the inverse values are seen for the other message
-	require.Equal(t, serverMessageSize, int(incoming.MonotonicSentBytes))
-	require.Equal(t, clientMessageSize, int(incoming.MonotonicRecvBytes))
-	require.True(t, incoming.IntraHost)
+		assert.Equal(t, clientMessageSize, int(outgoing.MonotonicSentBytes), "outgoing sent")
+		assert.Equal(t, serverMessageSize, int(outgoing.MonotonicRecvBytes), "outgoing recv")
+		assert.True(t, outgoing.IntraHost, "outgoing intrahost")
+	}
 }
 
 func TestUDPDisabled(t *testing.T) {
@@ -494,9 +565,11 @@ func TestUDPDisabled(t *testing.T) {
 	defer tr.Stop()
 
 	// Create UDP Server which sends back serverMessageSize bytes
-	server := NewUDPServer(func(b []byte, n int) []byte {
-		return genPayload(serverMessageSize)
-	})
+	server := &UDPServer{
+		onMessage: func(b []byte, n int) []byte {
+			return genPayload(serverMessageSize)
+		},
+	}
 
 	doneChan := make(chan struct{})
 	err = server.Run(doneChan, clientMessageSize)
@@ -517,6 +590,7 @@ func TestUDPDisabled(t *testing.T) {
 
 	c.Read(make([]byte, serverMessageSize))
 
+	initTracerState(t, tr)
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
 
@@ -545,6 +619,8 @@ func TestLocalDNSCollectionDisabled(t *testing.T) {
 	// Write anything
 	_, err = cn.Write([]byte("test"))
 	assert.NoError(t, err)
+
+	initTracerState(t, tr)
 
 	// Iterate through active connections making sure there are no local DNS calls
 	for _, c := range getConnections(t, tr).Conns {
@@ -577,6 +653,9 @@ func TestLocalDNSCollectionEnabled(t *testing.T) {
 	assert.NoError(t, err)
 
 	found := false
+
+	initTracerState(t, tr)
+
 	// Iterate through active connections making sure theres at least one connection
 	for _, c := range getConnections(t, tr).Conns {
 		found = found || isLocalDNS(c)
@@ -612,6 +691,8 @@ func TestShouldSkipExcludedConnection(t *testing.T) {
 	// Write anything
 	_, err = cn.Write([]byte("test"))
 	assert.NoError(t, err)
+
+	initTracerState(t, tr)
 
 	// Make sure we're not picking up 127.0.0.1:80
 	for _, c := range getConnections(t, tr).Conns {
@@ -748,7 +829,7 @@ func benchEchoUDP(size int) func(b *testing.B) {
 
 	return func(b *testing.B) {
 		end := make(chan struct{})
-		server := NewUDPServer(echoOnMessage)
+		server := &UDPServer{onMessage: echoOnMessage}
 		err := server.Run(end, size)
 		require.NoError(b, err)
 		defer close(end)
@@ -920,23 +1001,18 @@ func (s *TCPServer) Run(done chan struct{}) error {
 }
 
 type UDPServer struct {
+	network   string
 	address   string
 	onMessage func(b []byte, n int) []byte
 }
 
-func NewUDPServer(onMessage func(b []byte, n int) []byte) *UDPServer {
-	return NewUDPServerOnAddress("127.0.0.1:0", onMessage)
-}
-
-func NewUDPServerOnAddress(addr string, onMessage func(b []byte, n int) []byte) *UDPServer {
-	return &UDPServer{
-		address:   addr,
-		onMessage: onMessage,
-	}
-}
-
 func (s *UDPServer) Run(done chan struct{}, payloadSize int) error {
-	ln, err := net.ListenPacket("udp", s.address)
+	network := "udp"
+	if s.network != "" {
+		network = s.network
+	}
+
+	ln, err := net.ListenPacket(network, s.address)
 	if err != nil {
 		return err
 	}
@@ -989,6 +1065,11 @@ func addrPort(addr string) int {
 	return p
 }
 
+func initTracerState(t *testing.T, tr *Tracer) {
+	err := tr.RegisterClient("1")
+	require.NoError(t, err)
+}
+
 func getConnections(t *testing.T, tr *Tracer) *network.Connections {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections, err := tr.GetActiveConnections("1")
@@ -1004,11 +1085,6 @@ const (
 )
 
 func testDNSStats(t *testing.T, domain string, success int, failure int, timeout int, serverIP string) {
-	if !dnsSupported(t) {
-		t.Skip("DNS feature not available on pre 4.1.0 kernels")
-		return
-	}
-
 	config := testConfig()
 	config.CollectDNSStats = true
 	config.DNSTimeout = 1 * time.Second
@@ -1035,6 +1111,8 @@ func testDNSStats(t *testing.T, domain string, success int, failure int, timeout
 
 	// Allow the DNS reply to be processed in the snooper
 	time.Sleep(time.Millisecond * 500)
+
+	initTracerState(t, tr)
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
@@ -1093,8 +1171,7 @@ func TestTCPEstablished(t *testing.T) {
 	require.NoError(t, err)
 	defer tr.Stop()
 
-	// Warm-up state
-	getConnections(t, tr)
+	initTracerState(t, tr)
 
 	server := NewTCPServer(func(c net.Conn) {
 		io.Copy(ioutil.Discard, c)
@@ -1151,8 +1228,7 @@ func TestTCPEstablishedPreExistingConn(t *testing.T) {
 	require.NoError(t, err)
 	defer tr.Stop()
 
-	// Warm-up state
-	getConnections(t, tr)
+	initTracerState(t, tr)
 
 	c.Write([]byte("hello"))
 	c.Close()
@@ -1182,6 +1258,7 @@ func TestUnconnectedUDPSendIPv4(t *testing.T) {
 	bytesSent, err := conn.WriteTo(message, remoteAddr)
 	require.NoError(t, err)
 
+	initTracerState(t, tr)
 	connections := getConnections(t, tr)
 	outgoing := searchConnections(connections, func(cs network.ConnectionStats) bool {
 		return cs.DPort == uint16(remotePort)
@@ -1211,6 +1288,7 @@ func TestConnectedUDPSendIPv6(t *testing.T) {
 	bytesSent, err := conn.Write(message)
 	require.NoError(t, err)
 
+	initTracerState(t, tr)
 	connections := getConnections(t, tr)
 	outgoing := searchConnections(connections, func(cs network.ConnectionStats) bool {
 		return cs.DPort == uint16(remotePort)
@@ -1297,6 +1375,7 @@ func TestConnectionClobber(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	preCap := tr.activeBuffer.Capacity()
+	initTracerState(t, tr)
 	connections := getConnections(t, tr)
 	require.NotEmpty(t, connections)
 	src := connections.Conns[0].SPort
@@ -1333,8 +1412,7 @@ func TestTCPDirection(t *testing.T) {
 	require.NoError(t, err)
 	defer tr.Stop()
 
-	// Warm-up tracer state
-	_ = getConnections(t, tr)
+	initTracerState(t, tr)
 
 	// Start an HTTP server on localhost:8080
 	serverAddr := "127.0.0.1:8080"
@@ -1418,8 +1496,7 @@ func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
 	require.NoError(t, err)
 	defer tr.Stop()
 
-	// Warm-up tracer state
-	_ = getConnections(t, tr)
+	initTracerState(t, tr)
 
 	// open and close another client connection to force port binding delete
 	wg.Add(1)
@@ -1472,8 +1549,7 @@ func TestHTTPStats(t *testing.T) {
 	require.NoError(t, err)
 	defer tr.Stop()
 
-	// Warm-up tracer state
-	_ = getConnections(t, tr)
+	initTracerState(t, tr)
 
 	// Start an HTTP server on localhost:8080
 	serverAddr := "127.0.0.1:8080"
@@ -1534,6 +1610,10 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 		t.Skip("HTTPS feature not available on pre 4.1.0 kernels")
 	}
 
+	if !httpsSupported(t) {
+		t.Skip("HTTPS feature not supported.")
+	}
+
 	if strings.HasPrefix(runtime.GOARCH, "arm") {
 		t.Skip("this feature is not yet support on arm")
 	}
@@ -1562,38 +1642,44 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 	require.NoError(t, err)
 	defer tr.Stop()
 
-	// Spin-up HTTPS server
-	serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
-		EnableTLS: true,
-	})
-	defer serverDoneFn()
+	testHTTPS := func(keepalives bool) {
+		// Spin-up HTTPS server
+		serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
+			EnableTLS:        true,
+			EnableKeepAlives: keepalives,
+		})
+		defer serverDoneFn()
 
-	// Run wget once to make sure the OpenSSL is detected and uprobes are attached
-	exec.Command(wget).Run()
-	time.Sleep(time.Second)
+		// Run wget once to make sure the OpenSSL is detected and uprobes are attached
+		exec.Command(wget).Run()
+		time.Sleep(time.Second)
 
-	// Issue request using `wget`
-	// This is necessary (as opposed to using net/http) because we want to
-	// test a HTTP client linked to OpenSSL
-	const targetURL = "https://127.0.0.1:443/200/foobar"
-	requestCmd := exec.Command(wget, "--no-check-certificate", "-O/dev/null", targetURL)
-	err = requestCmd.Run()
-	require.NoErrorf(t, err, "failed to issue request via wget: %s", err)
+		// Issue request using `wget`
+		// This is necessary (as opposed to using net/http) because we want to
+		// test a HTTP client linked to OpenSSL
+		const targetURL = "https://127.0.0.1:443/200/foobar"
+		requestCmd := exec.Command(wget, "--no-check-certificate", "-O/dev/null", targetURL)
+		err = requestCmd.Run()
+		assert.NoErrorf(t, err, "failed to issue request via wget: %s", err)
 
-	require.Eventuallyf(t, func() bool {
-		payload, err := tr.GetActiveConnections("1")
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		for key := range payload.HTTP {
-			if key.Path == "/200/foobar" {
-				return true
+		assert.Eventuallyf(t, func() bool {
+			payload, _ := tr.GetActiveConnections("1")
+			for key := range payload.HTTP {
+				if key.Path == "/200/foobar" {
+					return true
+				}
 			}
-		}
 
-		return false
-	}, 3*time.Second, 10*time.Millisecond, "couldn't find HTTPS stats")
+			return false
+		}, 3*time.Second, 10*time.Millisecond, "couldn't find HTTPS stats")
+	}
+
+	t.Run("with keep-alives", func(t *testing.T) {
+		testHTTPS(true)
+	})
+	t.Run("without keep-alives", func(t *testing.T) {
+		testHTTPS(false)
+	})
 }
 
 func TestRuntimeCompilerEnvironmentVar(t *testing.T) {

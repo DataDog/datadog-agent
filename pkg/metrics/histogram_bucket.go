@@ -39,3 +39,8 @@ func (m *HistogramBucket) GetTags(taggerBuffer, metricBuffer *tagset.HashingTags
 	// tags.
 	metricBuffer.Append(m.Tags...)
 }
+
+// GetMetricType implements MetricSampleContext#GetMetricType.
+func (m *HistogramBucket) GetMetricType() MetricType {
+	return HistogramType
+}

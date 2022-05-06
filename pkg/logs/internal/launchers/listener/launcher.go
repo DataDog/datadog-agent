@@ -6,9 +6,11 @@
 package listener
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 // Launcher summons different protocol specific listeners based on configuration
@@ -17,23 +19,23 @@ type Launcher struct {
 	frameSize        int
 	tcpSources       chan *config.LogSource
 	udpSources       chan *config.LogSource
-	listeners        []restart.Restartable
+	listeners        []startstop.StartStoppable
 	stop             chan struct{}
 }
 
 // NewLauncher returns an initialized Launcher
-func NewLauncher(sources *config.LogSources, frameSize int, pipelineProvider pipeline.Provider) *Launcher {
+func NewLauncher(frameSize int) *Launcher {
 	return &Launcher{
-		pipelineProvider: pipelineProvider,
-		frameSize:        frameSize,
-		tcpSources:       sources.GetAddedForType(config.TCPType),
-		udpSources:       sources.GetAddedForType(config.UDPType),
-		stop:             make(chan struct{}),
+		frameSize: frameSize,
+		stop:      make(chan struct{}),
 	}
 }
 
 // Start starts the listener.
-func (l *Launcher) Start() {
+func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+	l.pipelineProvider = pipelineProvider
+	l.tcpSources = sourceProvider.GetAddedForType(config.TCPType)
+	l.udpSources = sourceProvider.GetAddedForType(config.UDPType)
 	go l.run()
 }
 
@@ -58,7 +60,7 @@ func (l *Launcher) run() {
 // Stop stops all listeners
 func (l *Launcher) Stop() {
 	l.stop <- struct{}{}
-	stopper := restart.NewParallelStopper()
+	stopper := startstop.NewParallelStopper()
 	for _, l := range l.listeners {
 		stopper.Add(l)
 	}

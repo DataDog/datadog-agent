@@ -30,6 +30,7 @@ import (
 type endpointResolveMode string
 
 const (
+	kubeEndpointID               = "endpoints"
 	kubeEndpointAnnotationPrefix = "ad.datadoghq.com/endpoints."
 	kubeEndpointResolvePath      = "resolve"
 
@@ -207,21 +208,27 @@ func (k *kubeEndpointsConfigProvider) setUpToDate(v bool) {
 
 func parseServiceAnnotationsForEndpoints(services []*v1.Service) []configInfo {
 	var configsInfo []configInfo
+
 	for _, svc := range services {
 		if svc == nil || svc.ObjectMeta.UID == "" {
 			log.Debug("Ignoring a nil service")
 			continue
 		}
+
 		endpointsID := apiserver.EntityForEndpoints(svc.Namespace, svc.Name, "")
-		endptConf, errors := extractTemplatesFromMap(endpointsID, svc.Annotations, kubeEndpointAnnotationPrefix)
+
+		endptConf, errors := utils.ExtractTemplatesFromPodAnnotations(endpointsID, svc.Annotations, kubeEndpointID)
 		for _, err := range errors {
 			log.Errorf("Cannot parse endpoint template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}
+
 		ignoreADTags := ignoreADTagsFromAnnotations(svc.GetAnnotations(), kubeEndpointAnnotationPrefix)
+
 		var resolveMode endpointResolveMode
 		if value, found := svc.Annotations[kubeEndpointAnnotationPrefix+kubeEndpointResolvePath]; found {
 			resolveMode = endpointResolveMode(value)
 		}
+
 		for i := range endptConf {
 			endptConf[i].Source = "kube_endpoints:" + endpointsID
 			endptConf[i].IgnoreAutodiscoveryTags = ignoreADTags
@@ -233,6 +240,7 @@ func parseServiceAnnotationsForEndpoints(services []*v1.Service) []configInfo {
 			})
 		}
 	}
+
 	return configsInfo
 }
 

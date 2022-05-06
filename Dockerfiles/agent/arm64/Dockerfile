@@ -6,17 +6,18 @@ ARG CIBUILD
 # cause `apt update` to fail with exit code 100 or make it hang on `0% [Working]`
 # indefinitely. Therefore we create a mirrorlist with the 2 mirrors that we know
 # should be reliable enough in combination and also well maintained.
- RUN if [ "$CIBUILD" = "true" ]; then \
+RUN if [ "$CIBUILD" = "true" ]; then \
   echo "http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports" > /etc/apt/mirrorlist && \
   sed -i -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist#g' /etc/apt/sources.list; \
-   fi
+  fi
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt update
 
 FROM baseimage AS faccessat
 COPY faccessat/faccessat.c   /tmp/faccessat.c
 COPY faccessat/faccessat.sym /tmp/faccessat.sym
-ENV DEBIAN_FRONTEND=noninteractive
-RUN apt update && \
-    apt install -y gcc
+RUN apt install --no-install-recommends -y gcc libc6-dev
 RUN gcc -pipe -Wall -Wextra -O2 -shared -o /tmp/libfaccessat.so /tmp/faccessat.c -Wl,--version-script=/tmp/faccessat.sym
 
 ############################################
@@ -27,21 +28,21 @@ FROM baseimage AS extract
 ARG WITH_JMX
 ARG PYTHON_VERSION
 ARG DD_AGENT_ARTIFACT=datadog-agent*_arm64.deb
+ARG GENERAL_ARTIFACTS_CACHE_BUCKET_URL
 
 # copy everything - globbing with args wont work
 COPY datadog-agent*_arm64.deb /
 WORKDIR /output
 
-# Get s6-overlay and check gpg signature
-# Hack: PGP key store locally as it's currently not available from https://keybase.io/justcontainers/key.asc
-COPY hack/s6-pgp-key /tmp/s6-pgp-key
+# Get s6-overlay
 ENV S6_VERSION v1.22.1.0
-ADD https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-aarch64.tar.gz /output/s6.tgz
-ADD https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-aarch64.tar.gz.sig /tmp/s6.tgz.sig
-RUN apt update \
- && apt install --no-install-recommends -y gpg gpg-agent curl ca-certificates \
- && cat /tmp/s6-pgp-key | gpg --import \
- && gpg --verify /tmp/s6.tgz.sig /output/s6.tgz
+# To calculate S6_SHA256SUM for a specific version, run:
+# curl -L https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-aarch64.tar.gz | sha256sum
+ENV S6_SHA256SUM=4eac8bfebdb004eaa0b5ff6a09eb0b24e308cc0d7f37912ab19d3d063be3279c
+ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL:+${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/s6-overlay}
+ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${JUST_CONTAINERS_DOWNLOAD_LOCATION:-https://github.com/just-containers/s6-overlay/releases/download}
+ADD ${JUST_CONTAINERS_DOWNLOAD_LOCATION}/${S6_VERSION}/s6-overlay-aarch64.tar.gz /output/s6.tgz
+RUN echo "${S6_SHA256SUM} /output/s6.tgz" | sha256sum -c -
 
 # Extract and cleanup:
 #   - unused systemd unit
@@ -113,12 +114,12 @@ ENV DOCKER_DD_AGENT=true \
     # Exit container if entrypoint fails
     S6_BEHAVIOUR_IF_STAGE2_FAILS=2 \
     # Allow readonlyrootfs
-    S6_READ_ONLY_ROOT=1
+    S6_READ_ONLY_ROOT=1 \
+    # Allow User Group to exec the secret backend script.
+    DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true"
 
-# make sure we have recent dependencies
-RUN apt update \
-  # CVE-fixing time!
-  && apt full-upgrade -y \
+# make sure we have recent dependencies -- CVE-fixing time!
+RUN apt full-upgrade -y \
   # Install iproute2 package for the ss utility that is used by the network check.
   # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
   # this can be removed
@@ -131,7 +132,6 @@ RUN apt update \
 
 # Install openjdk-11-jre-headless on jmx flavor
 RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
- && apt update \
  && mkdir -p /usr/share/man/man1 \
  && apt install --no-install-recommends -y openjdk-11-jre-headless \
  && apt clean; fi
@@ -168,7 +168,7 @@ RUN tar xzf s6.tgz -C / --exclude="./bin" \
  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
  && chmod 755 /probe.sh /initlog.sh \
  && chown root:root /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
- && chmod 500 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh
+ && chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh
 
 # Update links to python binaries
 
@@ -207,15 +207,3 @@ COPY entrypoint.sh /bin/entrypoint.sh
 COPY entrypoint.d /opt/entrypoints
 
 CMD ["/bin/entrypoint.sh"]
-
-
-################################################################
-#  Sanity checks on the image contents                         #
-#  Build the release artifact with "--target release" to skip  #
-################################################################
-
-FROM release AS testing
-ARG WITH_JMX
-
-COPY test_*.py /
-RUN python /test_image_contents.py -v

@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"math/rand"
 	"net"
 	"os"
@@ -28,6 +29,7 @@ import (
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"golang.org/x/sys/unix"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -40,16 +42,16 @@ import (
 	vnetns "github.com/vishvananda/netns"
 )
 
-func dnsSupported(t *testing.T) bool {
+func httpSupported(t *testing.T) bool {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	return currKernelVersion >= kernel.VersionCode(4, 1, 0)
 }
 
-func httpSupported(t *testing.T) bool {
-	currKernelVersion, err := kernel.HostVersion()
+func httpsSupported(t *testing.T) bool {
+	kv, err := kernel.HostVersion()
 	require.NoError(t, err)
-	return currKernelVersion >= kernel.VersionCode(4, 1, 0)
+	return kv < kernel.VersionCode(5, 5, 0)
 }
 
 func TestTCPRemoveEntries(t *testing.T) {
@@ -256,13 +258,13 @@ func TestTCPRTT(t *testing.T) {
 	// Wait for a second so RTT can stabilize
 	time.Sleep(1 * time.Second)
 
-	// Obtain information from a TCP socket via GETSOCKOPT(2) system call.
-	tcpInfo, err := tcpGetInfo(c)
-	require.NoError(t, err)
-
 	// Write something to socket to ensure connection is tracked
 	// This will trigger the collection of TCP stats including RTT
 	_, err = c.Write([]byte("foo"))
+	require.NoError(t, err)
+
+	// Obtain information from a TCP socket via GETSOCKOPT(2) system call.
+	tcpInfo, err := tcpGetInfo(c)
 	require.NoError(t, err)
 
 	// Fetch connection matching source and target address
@@ -881,9 +883,11 @@ func TestConnectionAssured(t *testing.T) {
 	// register test as client
 	getConnections(t, tr)
 
-	server := NewUDPServer(func(b []byte, n int) []byte {
-		return genPayload(serverMessageSize)
-	})
+	server := &UDPServer{
+		onMessage: func(b []byte, n int) []byte {
+			return genPayload(serverMessageSize)
+		},
+	}
 
 	done := make(chan struct{})
 	err = server.Run(done, clientMessageSize)
@@ -926,9 +930,11 @@ func TestConnectionNotAssured(t *testing.T) {
 	// register test as client
 	getConnections(t, tr)
 
-	server := NewUDPServer(func(b []byte, n int) []byte {
-		return nil
-	})
+	server := &UDPServer{
+		onMessage: func(b []byte, n int) []byte {
+			return nil
+		},
+	}
 
 	done := make(chan struct{})
 	err = server.Run(done, clientMessageSize)
@@ -1305,8 +1311,15 @@ func TestSendfileRegression(t *testing.T) {
 	// Warm up state
 	_ = getConnections(t, tr)
 
+	// Grab file size
+	stat, err := tmpfile.Stat()
+	require.NoError(t, err)
+	fsize := int(stat.Size())
+
 	// Send file contents via SENDFILE(2)
-	sendFile(t, c, tmpfile)
+	n, err = sendFile(t, c, tmpfile, nil, fsize)
+	require.NoError(t, err)
+	require.Equal(t, fsize, n)
 
 	// Verify that our TCP server received the contents of the file
 	c.Close()
@@ -1326,19 +1339,151 @@ func TestSendfileRegression(t *testing.T) {
 	assert.Equalf(t, int64(clientMessageSize), int64(conn.MonotonicSentBytes), "sendfile data wasn't properly traced")
 }
 
-func sendFile(t *testing.T, c net.Conn, f *os.File) {
-	// Grab file size
-	stat, err := f.Stat()
+func TestSendfileError(t *testing.T) {
+	tr, err := NewTracer(testConfig())
 	require.NoError(t, err)
-	fsize := int(stat.Size())
+	t.Cleanup(tr.Stop)
 
+	tmpfile, err := ioutil.TempFile("", "sendfile_source")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.Remove(tmpfile.Name()) })
+
+	n, err := tmpfile.Write(genPayload(clientMessageSize))
+	require.NoError(t, err)
+	require.Equal(t, clientMessageSize, n)
+	_, err = tmpfile.Seek(0, 0)
+	require.NoError(t, err)
+
+	server := NewTCPServer(func(c net.Conn) {
+		_, _ = io.Copy(ioutil.Discard, c)
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	err = server.Run(doneChan)
+	require.NoError(t, err)
+	t.Cleanup(func() { close(doneChan) })
+
+	c, err := net.DialTimeout("tcp", server.address, time.Second)
+	require.NoError(t, err)
+
+	// Warm up state
+	_ = getConnections(t, tr)
+
+	// Send file contents via SENDFILE(2)
+	offset := int64(math.MaxInt64 - 1)
+	_, err = sendFile(t, c, tmpfile, &offset, 10)
+	require.Error(t, err)
+
+	c.Close()
+
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		var ok bool
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		return ok
+	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by sendfile(2)")
+
+	assert.Equalf(t, int64(0), int64(conn.MonotonicSentBytes), "sendfile data wasn't properly traced")
+}
+
+func sendFile(t *testing.T, c net.Conn, f *os.File, offset *int64, count int) (int, error) {
 	// Send payload using SENDFILE(2) syscall
 	rawConn, err := c.(*net.TCPConn).SyscallConn()
 	require.NoError(t, err)
 	var n int
+	var serr error
 	err = rawConn.Control(func(fd uintptr) {
-		n, _ = syscall.Sendfile(int(fd), int(f.Fd()), nil, fsize)
+		n, serr = syscall.Sendfile(int(fd), int(f.Fd()), offset, count)
 	})
+	if err != nil {
+		return 0, err
+	}
+	return n, serr
+}
+
+func TestShortWrite(t *testing.T) {
+	tr, err := NewTracer(testConfig())
 	require.NoError(t, err)
-	require.Equal(t, fsize, n)
+	t.Cleanup(tr.Stop)
+
+	read := make(chan struct{})
+	server := NewTCPServer(func(c net.Conn) {
+		// set recv buffer to 0 and don't read
+		// to fill up tcp window
+		err := c.(*net.TCPConn).SetReadBuffer(0)
+		require.NoError(t, err)
+		<-read
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	err = server.Run(doneChan)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		close(read)
+		close(doneChan)
+	})
+
+	s, err := unix.Socket(syscall.AF_INET, syscall.SOCK_STREAM|syscall.SOCK_NONBLOCK, 0)
+	require.NoError(t, err)
+	defer syscall.Close(s)
+
+	err = unix.SetsockoptInt(s, syscall.SOL_SOCKET, syscall.SO_SNDBUF, 5000)
+	require.NoError(t, err)
+
+	sndBufSize, err := unix.GetsockoptInt(s, syscall.SOL_SOCKET, syscall.SO_SNDBUF)
+	require.GreaterOrEqual(t, sndBufSize, 5000)
+
+	var sa unix.SockaddrInet4
+	host, portStr, err := net.SplitHostPort(server.address)
+	require.NoError(t, err)
+	copy(sa.Addr[:], net.ParseIP(host).To4())
+	port, err := strconv.ParseInt(portStr, 10, 32)
+	sa.Port = int(port)
+
+	err = unix.Connect(s, &sa)
+	if syscall.EINPROGRESS != err {
+		require.NoError(t, err)
+	}
+
+	var wfd unix.FdSet
+	wfd.Zero()
+	wfd.Set(s)
+	tv := unix.NsecToTimeval(int64((5 * time.Second).Nanoseconds()))
+	nfds, err := unix.Select(s+1, nil, &wfd, nil, &tv)
+	require.NoError(t, err)
+	require.Equal(t, 1, nfds)
+
+	var written int
+	done := false
+	var sent uint64
+	toSend := sndBufSize / 2
+	for i := 0; i < 100; i++ {
+		written, err = unix.Write(s, genPayload(toSend))
+		require.Greater(t, written, 0)
+		require.NoError(t, err)
+		sent += uint64(written)
+		t.Logf("sent: %v", sent)
+		if written < toSend {
+			done = true
+			break
+		}
+	}
+
+	require.True(t, done)
+
+	f := os.NewFile(uintptr(s), "")
+	defer f.Close()
+	c, err := net.FileConn(f)
+	require.NoError(t, err)
+
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		var ok bool
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		return ok
+	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by short write")
+
+	assert.Equal(t, sent, conn.MonotonicSentBytes)
 }

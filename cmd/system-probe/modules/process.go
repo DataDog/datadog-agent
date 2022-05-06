@@ -10,7 +10,7 @@ package modules
 
 import (
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -30,26 +30,29 @@ var ErrProcessUnsupported = errors.New("process module unsupported")
 
 // Process is a module that fetches process level data
 var Process = module.Factory{
-	Name: config.ProcessModule,
+	Name:             config.ProcessModule,
+	ConfigNamespaces: []string{},
 	Fn: func(cfg *config.Config) (module.Module, error) {
 		log.Infof("Creating process module for: %s", filepath.Base(os.Args[0]))
 
 		// we disable returning zero values for stats to reduce parsing work on process-agent side
 		p := procutil.NewProcessProbe(procutil.WithReturnZeroPermStats(false))
-		if p == nil {
-			return nil, ErrProcessUnsupported
-		}
 		return &process{probe: p}, nil
 	},
 }
 
 var _ module.Module = &process{}
 
-type process struct{ probe procutil.Probe }
+type process struct {
+	probe     procutil.Probe
+	lastCheck int64
+}
 
 // GetStats returns stats for the module
 func (t *process) GetStats() map[string]interface{} {
-	return nil
+	return map[string]interface{}{
+		"last_check": atomic.LoadInt64(&t.lastCheck),
+	}
 }
 
 // Register registers endpoints for the module to expose data
@@ -57,6 +60,7 @@ func (t *process) Register(httpMux *module.Router) error {
 	var runCounter uint64
 	httpMux.HandleFunc("/proc/stats", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
+		atomic.StoreInt64(&t.lastCheck, start.Unix())
 		pids, err := getPids(req)
 		if err != nil {
 			log.Errorf("Unable to get PIDs from request: %s", err)
@@ -114,7 +118,7 @@ func writeStats(w http.ResponseWriter, marshaler encoding.Marshaler, stats map[i
 
 func getPids(r *http.Request) ([]int32, error) {
 	contentType := r.Header.Get("Content-Type")
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, err
 	}

@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/shirou/gopsutil/disk"
+	"github.com/shirou/gopsutil/v3/disk"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -34,7 +34,7 @@ type Check struct {
 
 // Run executes the check
 func (c *Check) Run() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}

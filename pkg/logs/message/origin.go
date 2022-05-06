@@ -28,12 +28,14 @@ func NewOrigin(source *config.LogSource) *Origin {
 	}
 }
 
-// Tags returns the tags of the origin.
+// Tags returns the tags of the origin merged with those from the LogSource config
+//
+// The returned slice must not be modified by the caller.
 func (o *Origin) Tags() []string {
-	return o.tagsToStringArray()
+	return o.tagsToStringArray(true)
 }
 
-// TagsPayload returns the raw tag payload of the origin.
+// TagsPayload returns the raw tag payload of the origin (including those from the LogSource config).
 func (o *Origin) TagsPayload() []byte {
 	var tagsPayload []byte
 
@@ -46,9 +48,7 @@ func (o *Origin) TagsPayload() []byte {
 		tagsPayload = append(tagsPayload, []byte("[dd ddsourcecategory=\""+sourceCategory+"\"]")...)
 	}
 
-	var tags []string
-	tags = append(tags, o.LogSource.Config.Tags...)
-	tags = append(tags, o.tags...)
+	tags := o.tagsToStringArray(false)
 
 	if len(tags) > 0 {
 		tagsPayload = append(tagsPayload, []byte("[dd ddtags=\""+strings.Join(tags, ",")+"\"]")...)
@@ -59,9 +59,9 @@ func (o *Origin) TagsPayload() []byte {
 	return tagsPayload
 }
 
-// TagsToString encodes tags to a single string, in a comma separated format
+// TagsToString encodes tags of the origin (including those from the LogSource config) to a single string, in a comma separated format
 func (o *Origin) TagsToString() string {
-	tags := o.tagsToStringArray()
+	tags := o.tagsToStringArray(true)
 
 	if tags == nil {
 		return ""
@@ -70,16 +70,25 @@ func (o *Origin) TagsToString() string {
 	return strings.Join(tags, ",")
 }
 
-func (o *Origin) tagsToStringArray() []string {
-	tags := o.tags
+func (o *Origin) tagsToStringArray(addSourceCategory bool) []string {
+	tmpMap := make(map[string]struct{}, len(o.tags)+len(o.LogSource.Config.Tags)+1)
 
+	for i := range o.tags {
+		tmpMap[o.tags[i]] = struct{}{}
+	}
 	sourceCategory := o.LogSource.Config.SourceCategory
-	if sourceCategory != "" {
-		tags = append(tags, "sourcecategory"+":"+sourceCategory)
+	if addSourceCategory && sourceCategory != "" {
+		tmpMap["sourcecategory"+":"+sourceCategory] = struct{}{}
 	}
 
-	tags = append(tags, o.LogSource.Config.Tags...)
+	for i := range o.LogSource.Config.Tags {
+		tmpMap[o.LogSource.Config.Tags[i]] = struct{}{}
+	}
 
+	tags := make([]string, 0, len(tmpMap))
+	for k := range tmpMap {
+		tags = append(tags, k)
+	}
 	return tags
 }
 

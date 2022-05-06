@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/internal/mapper"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -198,7 +198,7 @@ type metricsCountBuckets struct {
 }
 
 // NewServer returns a running DogStatsD server.
-func NewServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
+func NewServer(demultiplexer aggregator.Demultiplexer, serverless bool) (*Server, error) {
 	// This needs to be done after the configuration is loaded
 	once.Do(initLatencyTelemetry)
 
@@ -347,6 +347,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
 		TCapture:           capture,
 		UdsListenerRunning: udsListenerRunning,
 		cachedTlmOriginIds: make(map[string]cachedTagsOriginMap),
+		ServerlessMode:     serverless,
 	}
 
 	// packets forwarding
@@ -368,7 +369,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
 	// start the workers processing the packets read on the socket
 	// ----------------------
 
-	s.handleMessages()
+	s.handleMessages(serverless)
 
 	// start the debug loop
 	// ----------------------
@@ -396,7 +397,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
 	return s, nil
 }
 
-func (s *Server) handleMessages() {
+func (s *Server) handleMessages(serverless bool) {
 	if s.Statistics != nil {
 		go s.Statistics.Process()
 		go s.Statistics.Update(&dogstatsdPacketsLastSec)
@@ -452,7 +453,7 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan packets.Packets) {
 func (s *Server) ServerlessFlush() {
 	log.Debug("Received a Flush trigger")
 
-	// make all workers flush their aggregated data (in the batchers) to the aggregator.
+	// make all workers flush their aggregated data (in the batchers) into the time samplers
 	s.serverlessFlushChan <- true
 
 	start := time.Now()

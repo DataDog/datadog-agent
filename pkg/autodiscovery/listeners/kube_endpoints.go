@@ -30,9 +30,9 @@ import (
 )
 
 const (
-	kubeEndpointsAnnotationFormat = "ad.datadoghq.com/endpoints.instances"
-	leaderAnnotation              = "control-plane.alpha.kubernetes.io/leader"
-	kubeEndpointsName             = "kube_endpoints"
+	kubeEndpointsID   = "endpoints"
+	kubeEndpointsName = "kube_endpoints"
+	leaderAnnotation  = "control-plane.alpha.kubernetes.io/leader"
 )
 
 // KubeEndpointsListener listens to kubernetes endpoints creation
@@ -189,12 +189,12 @@ func (l *KubeEndpointsListener) serviceUpdated(old, obj interface{}) {
 	}
 
 	// Detect if new annotations are added
-	if !isServiceAnnotated(castedOld, kubeEndpointsAnnotationFormat) && isServiceAnnotated(castedObj, kubeEndpointsAnnotationFormat) {
+	if !isServiceAnnotated(castedOld, kubeEndpointsID) && isServiceAnnotated(castedObj, kubeEndpointsID) {
 		l.createService(l.endpointsForService(castedObj), false)
 	}
 
 	// Detect changes of AD labels for standard tags if the Service is annotated
-	if isServiceAnnotated(castedObj, kubeEndpointsAnnotationFormat) && (standardTagsDigest(castedOld.GetLabels()) != standardTagsDigest(castedObj.GetLabels())) {
+	if isServiceAnnotated(castedObj, kubeEndpointsID) && (standardTagsDigest(castedOld.GetLabels()) != standardTagsDigest(castedObj.GetLabels())) {
 		kep := l.endpointsForService(castedObj)
 		l.removeService(kep)
 		l.createService(kep, false)
@@ -233,7 +233,7 @@ func (l *KubeEndpointsListener) endpointsDiffer(first, second *v1.Endpoints) boo
 	}
 
 	// AD annotations on the corresponding services
-	if isServiceAnnotated(ksvcFirst, kubeEndpointsAnnotationFormat) != isServiceAnnotated(ksvcSecond, kubeEndpointsAnnotationFormat) {
+	if isServiceAnnotated(ksvcFirst, kubeEndpointsID) != isServiceAnnotated(ksvcSecond, kubeEndpointsID) {
 		return true
 	}
 
@@ -260,7 +260,7 @@ func (l *KubeEndpointsListener) isEndpointsAnnotated(kep *v1.Endpoints) bool {
 		log.Tracef("Cannot get Kubernetes service: %s", err)
 		return false
 	}
-	return isServiceAnnotated(ksvc, kubeEndpointsAnnotationFormat) || l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations())
+	return isServiceAnnotated(ksvc, kubeEndpointsID) || l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations())
 }
 
 func (l *KubeEndpointsListener) shouldIgnore(kep *v1.Endpoints) bool {
@@ -415,11 +415,11 @@ func (s *KubeEndpointService) GetPorts(context.Context) ([]ContainerPort, error)
 }
 
 // GetTags retrieves tags
-func (s *KubeEndpointService) GetTags() ([]string, string, error) {
+func (s *KubeEndpointService) GetTags() ([]string, error) {
 	if s.tags == nil {
-		return []string{}, "", nil
+		return []string{}, nil
 	}
-	return s.tags, "", nil
+	return s.tags, nil
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet
@@ -445,6 +445,6 @@ func (s *KubeEndpointService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig isn't supported
-func (s *KubeEndpointService) GetExtraConfig(key []byte) ([]byte, error) {
-	return []byte{}, ErrNotSupported
+func (s *KubeEndpointService) GetExtraConfig(key string) (string, error) {
+	return "", ErrNotSupported
 }

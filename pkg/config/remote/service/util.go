@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
@@ -33,6 +34,7 @@ func openCacheDB(path string) (*bbolt.DB, error) {
 }
 
 func parseRemoteConfigKey(serializedKey string) (*msgpgo.RemoteConfigKey, error) {
+	serializedKey = strings.TrimPrefix(serializedKey, "DDRCM")
 	encoding := base32.StdEncoding.WithPadding(base32.NoPadding)
 	rawKey, err := encoding.DecodeString(serializedKey)
 	if err != nil {
@@ -71,12 +73,12 @@ func buildLatestConfigsRequest(hostname string, state uptane.State, activeClient
 		CurrentConfigRootVersion:     state.ConfigRootVersion(),
 		CurrentDirectorRootVersion:   state.DirectorRootVersion(),
 		ActiveClients:                activeClients,
-		ClientState:                  clientState,
+		BackendClientState:           clientState,
 	}
 }
 
 type targetsCustom struct {
-	ClientState []byte `json:"client_state"`
+	ClientState json.RawMessage `json:"client_state"`
 }
 
 func parseTargetsCustom(rawTargetsCustom []byte) (targetsCustom, error) {

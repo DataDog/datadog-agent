@@ -19,7 +19,7 @@ func NewNullReverseDNS() ReverseDNS {
 
 type nullReverseDNS struct{}
 
-func (nullReverseDNS) Resolve(_ []util.Address) map[util.Address][]string {
+func (nullReverseDNS) Resolve(_ []util.Address) map[util.Address][]Hostname {
 	return nil
 }
 
@@ -40,6 +40,10 @@ func (nullReverseDNS) GetStats() map[string]int64 {
 		"socket_polls":      0,
 		"decoding_errors":   0,
 	}
+}
+
+func (nullReverseDNS) Start() error {
+	return nil
 }
 
 func (nullReverseDNS) Close() {}

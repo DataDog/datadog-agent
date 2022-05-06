@@ -6,66 +6,30 @@
 package main
 
 import (
-	_ "expvar"
-	"fmt"
-	_ "net/http/pprof"
 	"os"
 	"os/signal"
-	"runtime"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/spf13/cobra"
-
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
+	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
-	// serverlessAgentCmd is the root command
-	serverlessAgentCmd = &cobra.Command{
-		Use:   "agent [command]",
-		Short: "Serverless Datadog Agent at your service.",
-		Long: `
-Datadog Serverless Agent accepts custom application metrics points over UDP, aggregates and forwards them to Datadog,
-where they can be graphed on dashboards. The Datadog Serverless Agent implements the StatsD protocol, along with a few extensions for special Datadog features.`,
-	}
-
-	runCmd = &cobra.Command{
-		Use:   "run",
-		Short: "Runs the Serverless Datadog Agent",
-		Long:  `Runs the Serverless Datadog Agent`,
-		RunE:  run,
-	}
-
-	versionCmd = &cobra.Command{
-		Use:   "version",
-		Short: "Print the version number",
-		Long:  ``,
-		Run: func(cmd *cobra.Command, args []string) {
-			av, _ := version.Agent()
-			fmt.Printf("Serverless Datadog Agent %s - Codename: %s - Commit: %s - Serialization version: %s - Go version: %s\n",
-				av.GetNumber(), av.Meta, av.Commit, serializer.AgentPayloadVersion, runtime.Version())
-		},
-	}
-
 	kmsAPIKeyEnvVar            = "DD_KMS_API_KEY"
 	secretsManagerAPIKeyEnvVar = "DD_API_KEY_SECRET_ARN"
 	apiKeyEnvVar               = "DD_API_KEY"
@@ -99,41 +63,22 @@ const (
 	logsAPIMaxItems            = 1000
 )
 
-func init() {
-	// attach the command to the root
-	serverlessAgentCmd.AddCommand(runCmd)
-	serverlessAgentCmd.AddCommand(versionCmd)
-}
-
-func run(cmd *cobra.Command, args []string) error {
+func main() {
+	flavor.SetFlavor(flavor.ServerlessAgent)
 	stopCh := make(chan struct{})
 
 	// run the agent
 	serverlessDaemon, err := runAgent(stopCh)
 	if err != nil {
-		return err
+		log.Error(err)
+		os.Exit(-1)
 	}
 
-	// handle SIGTERM
+	// handle SIGTERM signal
 	go handleSignals(serverlessDaemon, stopCh)
 
 	// block here until we receive a stop signal
 	<-stopCh
-	return nil
-}
-
-func main() {
-	flavor.SetFlavor(flavor.ServerlessAgent)
-
-	// if not command has been provided, run the agent
-	if len(os.Args) == 1 {
-		os.Args = append(os.Args, "run")
-	}
-
-	if err := serverlessAgentCmd.Execute(); err != nil {
-		log.Error(err)
-		os.Exit(-1)
-	}
 }
 
 func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error) {
@@ -166,7 +111,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	// immediately starts the communication server
 	serverlessDaemon = daemon.StartDaemon(httpServerAddr)
-	err = serverlessDaemon.RestoreCurrentStateFromFile()
+	err = serverlessDaemon.ExecutionContext.RestoreCurrentStateFromFile()
 	if err != nil {
 		log.Debug("Unable to restore the state from file")
 	} else {
@@ -244,7 +189,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	// validate that an apikey has been set, either by the env var, read from KMS or Secrets Manager.
 	// ---------------------------
-
 	if !config.Datadog.IsSet("api_key") {
 		// we're not reporting the error to AWS because we don't want the function
 		// execution to be stopped. TODO(remy): discuss with AWS if there is way
@@ -252,6 +196,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		// serverless.ReportInitError(serverlessID, serverless.FatalNoAPIKey)
 		log.Error("No API key configured, exiting")
 	}
+	config.Datadog.SetConfigFile(datadogConfigPath)
 
 	logChannel := make(chan *logConfig.ChannelMessage)
 
@@ -291,7 +236,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		if logRegistrationError != nil {
 			log.Error("Can't subscribe to logs:", logRegistrationError)
 		} else {
-			setupLogAgent(logChannel)
+			serverlessLogs.SetupLogAgent(logChannel)
 		}
 	}()
 
@@ -299,10 +244,11 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	// set up invocation processor in the serverless Daemon to be used for the proxy and/or lifecycle API
 	serverlessDaemon.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
-		ExtraTags:           serverlessDaemon.ExtraTags,
-		Demux:               serverlessDaemon.MetricAgent.Demux,
-		ProcessTrace:        serverlessDaemon.TraceAgent.Get().Process,
-		DetectLambdaLibrary: func() bool { return serverlessDaemon.LambdaLibraryDetected },
+		ExtraTags:            serverlessDaemon.ExtraTags,
+		Demux:                serverlessDaemon.MetricAgent.Demux,
+		ProcessTrace:         serverlessDaemon.TraceAgent.Get().Process,
+		DetectLambdaLibrary:  func() bool { return serverlessDaemon.LambdaLibraryDetected },
+		InferredSpansEnabled: inferredspan.IsInferredSpansEnabled(),
 	}
 
 	// start the experimental proxy if enabled
@@ -346,14 +292,5 @@ func handleSignals(serverlessDaemon *daemon.Daemon, stopCh chan struct{}) {
 			stopCh <- struct{}{}
 			return
 		}
-	}
-}
-
-func setupLogAgent(logChannel chan *logConfig.ChannelMessage) {
-	if err := logs.StartServerless(
-		func() *autodiscovery.AutoConfig { return common.AC },
-		logChannel, nil,
-	); err != nil {
-		log.Error("Could not start an instance of the Logs Agent:", err)
 	}
 }

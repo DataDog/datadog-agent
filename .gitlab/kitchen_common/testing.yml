@@ -1,8 +1,8 @@
 ---
 .kitchen_common:
   stage: kitchen_testing
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/dd-agent-testing:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
   artifacts:
     expire_in: 2 weeks
     when: always

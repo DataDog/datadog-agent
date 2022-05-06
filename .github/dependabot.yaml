@@ -4,7 +4,8 @@ updates:
     directory: /
     labels:
       - dependencies
-      - team/agent-platform
+      - dependencies-go
+      - team/triage
       - changelog/no-changelog
     milestone: 22
     ignore:
@@ -36,6 +37,7 @@ updates:
     directory: /pkg/otlp/model
     labels:
       - dependencies
+      - dependencies-go
       - team/agent-platform
       - changelog/no-changelog
     milestone: 22
@@ -45,9 +47,25 @@ updates:
     schedule:
       interval: weekly
   - package-ecosystem: gomod
+    directory: /pkg/trace
+    labels:
+      - dependencies
+      - dependencies-go
+      - team/agent-apm
+      - changelog/no-changelog
+    milestone: 22
+    ignore:
+      # Ignore internal modules
+      - dependency-name: github.com/DataDog/datadog-agent/*
+      # See https://github.com/DataDog/datadog-agent/pull/10112
+      - dependency-name: github.com/mailru/easyjson
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
     directory: /pkg/obfuscate
     labels:
       - dependencies
+      - dependencies-go
       - team/agent-apm
       - changelog/no-changelog
     milestone: 22
@@ -62,44 +80,8 @@ updates:
     directory: /pkg/quantile
     labels:
       - dependencies
+      - dependencies-go
       - team/metrics-aggregation
-      - changelog/no-changelog
-    milestone: 22
-    ignore:
-      # Ignore internal modules
-      - dependency-name: github.com/DataDog/datadog-agent/*
-    schedule:
-      interval: weekly
-  - package-ecosystem: gomod
-    directory: /pkg/util/log
-    labels:
-      - dependencies
-      - team/agent-platform
-      - changelog/no-changelog
-    milestone: 22
-    ignore:
-      - dependency-name: github.com/cihub/seelog
-      # Ignore internal modules
-      - dependency-name: github.com/DataDog/datadog-agent/*
-    schedule:
-      interval: weekly
-  - package-ecosystem: gomod
-    directory: /pkg/util/scrubber
-    labels:
-      - dependencies
-      - team/agent-core
-      - changelog/no-changelog
-    milestone: 22
-    ignore:
-      # Ignore internal modules
-      - dependency-name: github.com/DataDog/datadog-agent/*
-    schedule:
-      interval: weekly
-  - package-ecosystem: gomod
-    directory: /pkg/util/winutil
-    labels:
-      - dependencies
-      - team/agent-platform
       - changelog/no-changelog
     milestone: 22
     ignore:
@@ -111,6 +93,7 @@ updates:
     directory: /pkg/security/secl
     labels:
       - dependencies
+      - dependencies-go
       - team/agent-security
       - changelog/no-changelog
     milestone: 22
@@ -123,6 +106,11 @@ updates:
     directory: /internal/tools
     labels:
       - dependencies
+      - dependencies-go
+      - dependencies-go-tools # This makes the go_mod_tidy Github Action not run go tools from this
+                              # package on Dependabot PRs. Otherwise, a malicious dependency could
+                              # publish a new version exploiting that it runs automatically after it
+                              # is updated to write to our repo.
       - dev/tooling
       - team/agent-platform
       - changelog/no-changelog

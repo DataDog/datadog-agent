@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
@@ -117,6 +117,7 @@ var (
 	aggregatorOrchestratorMetadata             = expvar.Int{}
 	aggregatorOrchestratorMetadataErrors       = expvar.Int{}
 	aggregatorDogstatsdContexts                = expvar.Int{}
+	aggregatorDogstatsdContextsByMtype         = []expvar.Int{}
 	aggregatorEventPlatformEvents              = expvar.Map{}
 	aggregatorEventPlatformEventsErrors        = expvar.Map{}
 	aggregatorContainerLifecycleEvents         = expvar.Int{}
@@ -130,6 +131,8 @@ var (
 		nil, "Count of hostname update")
 	tlmDogstatsdContexts = telemetry.NewGauge("aggregator", "dogstatsd_contexts",
 		nil, "Count the number of dogstatsd contexts in the aggregator")
+	tlmDogstatsdContextsByMtype = telemetry.NewGauge("aggregator", "dogstatsd_contexts_by_mtype",
+		[]string{"metric_type"}, "Count the number of dogstatsd contexts in the aggregator, by metric type")
 
 	// Hold series to be added to aggregated series on each flush
 	recurrentSeries     metrics.Series
@@ -172,6 +175,15 @@ func init() {
 	aggregatorExpvars.Set("EventPlatformEventsErrors", &aggregatorEventPlatformEventsErrors)
 	aggregatorExpvars.Set("ContainerLifecycleEvents", &aggregatorContainerLifecycleEvents)
 	aggregatorExpvars.Set("ContainerLifecycleEventsErrors", &aggregatorContainerLifecycleEventsErrors)
+
+	contextsByMtypeMap := expvar.Map{}
+	aggregatorDogstatsdContextsByMtype = make([]expvar.Int, int(metrics.NumMetricTypes))
+	for i := 0; i < int(metrics.NumMetricTypes); i++ {
+		mtype := metrics.MetricType(i).String()
+		aggregatorDogstatsdContextsByMtype[i] = expvar.Int{}
+		contextsByMtypeMap.Set(mtype, &aggregatorDogstatsdContextsByMtype[i])
+	}
+	aggregatorExpvars.Set("DogstatsdContextsByMtype", &contextsByMtypeMap)
 
 	tagsetTlm = newTagsetTelemetry([]uint64{90, 100})
 
@@ -231,13 +243,21 @@ type BufferedAggregator struct {
 	tlmContainerTagsEnabled bool                                              // Whether we should call the tagger to tag agent telemetry metrics
 	agentTags               func(collectors.TagCardinality) ([]string, error) // This function gets the agent tags from the tagger (defined as a struct field to ease testing)
 
-	flushAndSerializeInParallel flushAndSerializeInParallel
+	flushAndSerializeInParallel FlushAndSerializeInParallel
 }
 
-type flushAndSerializeInParallel struct {
-	enabled     bool
-	channelSize int
-	bufferSize  int
+// FlushAndSerializeInParallel contains options for flushing metrics and serializing in parallel.
+type FlushAndSerializeInParallel struct {
+	ChannelSize int
+	BufferSize  int
+}
+
+// NewFlushAndSerializeInParallel creates a new instance of FlushAndSerializeInParallel.
+func NewFlushAndSerializeInParallel(config config.Config) FlushAndSerializeInParallel {
+	return FlushAndSerializeInParallel{
+		BufferSize:  config.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size"),
+		ChannelSize: config.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_chan_size"),
+	}
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
@@ -275,25 +295,21 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		contLcycleBuffer:  make(chan senderContainerLifecycleEvent, bufferSize),
 		contLcycleStopper: make(chan struct{}),
 
-		tagsStore:               tagsStore,
-		checkSamplers:           make(map[check.ID]*CheckSampler),
-		flushInterval:           flushInterval,
-		serializer:              s,
-		eventPlatformForwarder:  eventPlatformForwarder,
-		hostname:                hostname,
-		hostnameUpdate:          make(chan string),
-		hostnameUpdateDone:      make(chan struct{}),
-		flushChan:               make(chan flushTrigger),
-		stopChan:                make(chan struct{}),
-		health:                  health.RegisterLiveness("aggregator"),
-		agentName:               agentName,
-		tlmContainerTagsEnabled: config.Datadog.GetBool("basic_telemetry_add_container_tags"),
-		agentTags:               tagger.AgentTags,
-		flushAndSerializeInParallel: flushAndSerializeInParallel{
-			enabled:     config.Datadog.GetBool("aggregator_flush_metrics_and_serialize_in_parallel") && s != nil && s.IsIterableSeriesSupported(),
-			bufferSize:  config.Datadog.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size"),
-			channelSize: config.Datadog.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_chan_size"),
-		},
+		tagsStore:                   tagsStore,
+		checkSamplers:               make(map[check.ID]*CheckSampler),
+		flushInterval:               flushInterval,
+		serializer:                  s,
+		eventPlatformForwarder:      eventPlatformForwarder,
+		hostname:                    hostname,
+		hostnameUpdate:              make(chan string),
+		hostnameUpdateDone:          make(chan struct{}),
+		flushChan:                   make(chan flushTrigger),
+		stopChan:                    make(chan struct{}),
+		health:                      health.RegisterLiveness("aggregator"),
+		agentName:                   agentName,
+		tlmContainerTagsEnabled:     config.Datadog.GetBool("basic_telemetry_add_container_tags"),
+		agentTags:                   tagger.AgentTags,
+		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(config.Datadog),
 	}
 
 	return aggregator
@@ -345,6 +361,9 @@ func (agg *BufferedAggregator) registerSender(id check.ID) error {
 
 func (agg *BufferedAggregator) deregisterSender(id check.ID) {
 	agg.mu.Lock()
+	if cs, ok := agg.checkSamplers[id]; ok {
+		cs.release()
+	}
 	delete(agg.checkSamplers, id)
 	agg.mu.Unlock()
 }
@@ -523,24 +542,11 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 }
 
 func (agg *BufferedAggregator) flushSeriesAndSketches(trigger flushTrigger) {
-	if !agg.flushAndSerializeInParallel.enabled {
+	sketches := agg.getSeriesAndSketches(trigger.time, trigger.seriesSink)
+	agg.appendDefaultSeries(trigger.time, trigger.seriesSink)
 
-		series, sketches := agg.GetSeriesAndSketches(trigger.time)
-		agg.appendDefaultSeries(trigger.time, &series)
-
-		if len(series) > 0 {
-			*trigger.flushedSeries = append(*trigger.flushedSeries, series)
-		}
-		if len(sketches) > 0 {
-			*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
-		}
-	} else {
-		sketches := agg.getSeriesAndSketches(trigger.time, trigger.seriesSink)
-		agg.appendDefaultSeries(trigger.time, trigger.seriesSink)
-
-		if len(sketches) > 0 {
-			*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
-		}
+	if len(sketches) > 0 {
+		*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
 	}
 }
 
@@ -767,7 +773,7 @@ func (agg *BufferedAggregator) dequeueContainerLifecycleEvents() {
 		case event := <-agg.contLcycleBuffer:
 			if err := agg.serializer.SendContainerLifecycleEvent(event.msgs, agg.hostname); err != nil {
 				aggregatorContainerLifecycleEventsErrors.Add(1)
-				log.Warnf("Error submitting container lifecycle data: %w", err)
+				log.Warnf("Error submitting container lifecycle data: %v", err)
 			}
 		case <-agg.contLcycleStopper:
 			return

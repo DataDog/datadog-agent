@@ -9,8 +9,6 @@
 package traps
 
 import (
-	"net"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -67,24 +65,6 @@ var (
 	}
 )
 
-func parsePort(t *testing.T, addr string) uint16 {
-	_, portString, err := net.SplitHostPort(addr)
-	require.NoError(t, err)
-
-	port, err := strconv.ParseUint(portString, 10, 16)
-	require.NoError(t, err)
-
-	return uint16(port)
-}
-
-// GetPort requests a random UDP port number and makes sure it is available
-func GetPort(t *testing.T) uint16 {
-	conn, err := net.ListenPacket("udp", ":0")
-	require.NoError(t, err)
-	defer conn.Close()
-	return parsePort(t, conn.LocalAddr().String())
-}
-
 // Configure sets Datadog Agent configuration from a config object.
 func Configure(t *testing.T, trapConfig Config) {
 	ConfigureWithGlobalNamespace(t, trapConfig, "")
@@ -92,14 +72,14 @@ func Configure(t *testing.T, trapConfig Config) {
 
 // ConfigureWithGlobalNamespace sets Datadog Agent configuration from a config object and a namespace
 func ConfigureWithGlobalNamespace(t *testing.T, trapConfig Config, globalNamespace string) {
-	datadogYaml := map[string]interface{}{
-		"snmp_traps_enabled": true,
-		"snmp_traps_config":  trapConfig,
+	trapConfig.Enabled = true
+	datadogYaml := map[string]map[string]interface{}{
+		"network_devices": {
+			"snmp_traps": trapConfig,
+		},
 	}
 	if globalNamespace != "" {
-		datadogYaml["network_devices"] = map[string]interface{}{
-			"namespace": globalNamespace,
-		}
+		datadogYaml["network_devices"]["namespace"] = globalNamespace
 	}
 
 	config.Datadog.SetConfigType("yaml")

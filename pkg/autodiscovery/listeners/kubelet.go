@@ -9,8 +9,6 @@
 package listeners
 
 import (
-	"encoding/json"
-	"fmt"
 	"sort"
 	"time"
 
@@ -20,13 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-)
-
-const (
-	newPodAnnotationFormat              = "ad.datadoghq.com/%s.instances"
-	legacyPodAnnotationFormat           = "service-discovery.datadoghq.com/%s.instances"
-	newPodAnnotationCheckNamesFormat    = "ad.datadoghq.com/%s.check_names"
-	legacyPodAnnotationCheckNamesFormat = "service-discovery.datadoghq.com/%s.check_names"
 )
 
 func init() {
@@ -184,67 +175,24 @@ func (l *KubeletListener) createContainerService(
 	}
 
 	adIdentifier := containerName
-
-	// Check for custom AD identifiers
-	if customADID, found := utils.GetCustomCheckID(pod.Annotations, containerName); found {
+	if customADID, found := utils.ExtractCheckIDFromPodAnnotations(pod.Annotations, containerName); found {
 		adIdentifier = customADID
 		svc.adIdentifiers = append(svc.adIdentifiers, customADID)
 	}
 
-	// Add container uid as ID
-	svc.adIdentifiers = append(svc.adIdentifiers, entity)
-
-	// Cache check names if the pod template is annotated
-	if podHasADTemplate(pod.Annotations, adIdentifier) {
-		var err error
-		svc.checkNames, err = getCheckNamesFromAnnotations(pod.Annotations, adIdentifier)
-		if err != nil {
-			log.Error(err.Error())
-		}
-	}
-
-	svc.adIdentifiers = append(svc.adIdentifiers, containerImg.RawName)
+	svc.adIdentifiers = append(svc.adIdentifiers, entity, containerImg.RawName)
 
 	if len(containerImg.ShortName) > 0 && containerImg.ShortName != containerImg.RawName {
 		svc.adIdentifiers = append(svc.adIdentifiers, containerImg.ShortName)
 	}
 
+	var err error
+	svc.checkNames, err = utils.ExtractCheckNamesFromPodAnnotations(pod.Annotations, adIdentifier)
+	if err != nil {
+		log.Error(err.Error())
+	}
+
 	svcID := buildSvcID(container.GetID())
 	podSvcID := buildSvcID(pod.GetID())
 	l.AddService(svcID, svc, podSvcID)
-}
-
-// podHasADTemplate looks in pod annotations and looks for annotations containing an
-// AD template. It does not try to validate it, just having the `instance` fields is
-// OK to return true.
-func podHasADTemplate(annotations map[string]string, containerName string) bool {
-	if _, found := annotations[fmt.Sprintf(newPodAnnotationFormat, containerName)]; found {
-		return true
-	}
-	if _, found := annotations[fmt.Sprintf(legacyPodAnnotationFormat, containerName)]; found {
-		return true
-	}
-	return false
-}
-
-// getCheckNamesFromAnnotations unmarshals the json string of check names
-// defined in pod annotations and returns a slice of check names
-func getCheckNamesFromAnnotations(annotations map[string]string, containerName string) ([]string, error) {
-	if checkNamesJSON, found := annotations[fmt.Sprintf(newPodAnnotationCheckNamesFormat, containerName)]; found {
-		checkNames := []string{}
-		err := json.Unmarshal([]byte(checkNamesJSON), &checkNames)
-		if err != nil {
-			return nil, fmt.Errorf("Cannot parse check names: %v", err)
-		}
-		return checkNames, nil
-	}
-	if checkNamesJSON, found := annotations[fmt.Sprintf(legacyPodAnnotationCheckNamesFormat, containerName)]; found {
-		checkNames := []string{}
-		err := json.Unmarshal([]byte(checkNamesJSON), &checkNames)
-		if err != nil {
-			return nil, fmt.Errorf("Cannot parse check names: %v", err)
-		}
-		return checkNames, nil
-	}
-	return nil, nil
 }

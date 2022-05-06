@@ -46,7 +46,6 @@ type StreamJSONMarshaler interface {
 // serialize themselves in a stream.
 // Expected usage:
 //
-//  defer m.IterationStopped()
 //	m.WriteHeader(stream)
 //	for m.MoveNext() {
 //		m.WriteCurrentItem(stream)
@@ -58,7 +57,6 @@ type IterableStreamJSONMarshaler interface {
 	WriteCurrentItem(*jsoniter.Stream) error
 	DescribeCurrentItem() string
 	MoveNext() bool
-	IterationStopped()
 }
 
 // BufferContext contains the buffers used for MarshalSplitCompress so they can be shared between invocations

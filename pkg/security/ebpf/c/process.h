@@ -16,7 +16,7 @@ struct proc_cache_t {
     char comm[TASK_COMM_LEN];
 };
 
-static __attribute__((always_inline)) u32 copy_tty_name(char src[TTY_NAME_LEN], char dst[TTY_NAME_LEN]) {
+static __attribute__((always_inline)) u32 copy_tty_name(const char src[TTY_NAME_LEN], char dst[TTY_NAME_LEN]) {
     if (src[0] == 0) {
         return 0;
     }
@@ -39,7 +39,6 @@ void __attribute__((always_inline)) copy_proc_cache_except_comm(struct proc_cach
 void __attribute__((always_inline)) copy_proc_cache(struct proc_cache_t *src, struct proc_cache_t *dst) {
     copy_proc_cache_except_comm(src, dst);
     bpf_probe_read(dst->comm, TASK_COMM_LEN, src->comm);
-    return;
 }
 
 struct bpf_map_def SEC("maps/proc_cache") proc_cache = {
@@ -111,16 +110,33 @@ struct proc_cache_t * __attribute__((always_inline)) get_proc_cache(u32 tgid) {
     return entry;
 }
 
-static struct proc_cache_t * __attribute__((always_inline)) fill_process_context(struct process_context_t *data) {
-    // Pid & Tid
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+struct bpf_map_def SEC("maps/netns_cache") netns_cache = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 40960,
+    .pinning = 0,
+    .namespace = "",
+};
+
+static struct proc_cache_t * __attribute__((always_inline)) fill_process_context_with_pid_tgid(struct process_context_t *data, u64 pid_tgid) {
     u32 tgid = pid_tgid >> 32;
 
     // https://github.com/iovisor/bcc/blob/master/docs/reference_guide.md#4-bpf_get_current_pid_tgid
     data->pid = tgid;
     data->tid = pid_tgid;
 
+    u32 *netns = bpf_map_lookup_elem(&netns_cache, &data->tid);
+    if (netns != NULL) {
+        data->netns = *netns;
+    }
+
     return get_proc_cache(tgid);
+}
+
+static struct proc_cache_t * __attribute__((always_inline)) fill_process_context(struct process_context_t *data) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    return fill_process_context_with_pid_tgid(data, pid_tgid);
 }
 
 struct bpf_map_def SEC("maps/root_nr_namespace_nr") root_nr_namespace_nr = {
@@ -212,7 +228,84 @@ void __attribute__((always_inline)) cache_nr_translations(struct pid *pid) {
     bpf_probe_read(&namespace_nr, sizeof(namespace_nr), (void *)pid + get_pid_numbers_offset() + namespace_numbers_offset);
 
     register_nr(root_nr, namespace_nr);
-    return;
+}
+
+__attribute__((always_inline)) u32 get_ifindex_from_net_device(struct net_device *device) {
+    u64 net_device_ifindex_offset;
+    LOAD_CONSTANT("net_device_ifindex_offset", net_device_ifindex_offset);
+
+    u32 ifindex;
+    bpf_probe_read(&ifindex, sizeof(ifindex), (void*)device + net_device_ifindex_offset);
+    return ifindex;
+}
+
+#define NET_STRUCT_HAS_PROC_INUM 0
+#define NET_STRUCT_HAS_NS        1
+
+__attribute__((always_inline)) u32 get_netns_from_net(struct net *net) {
+    u64 net_struct_type;
+    LOAD_CONSTANT("net_struct_type", net_struct_type);
+    u64 net_proc_inum_offset;
+    LOAD_CONSTANT("net_proc_inum_offset", net_proc_inum_offset);
+    u64 net_ns_offset;
+    LOAD_CONSTANT("net_ns_offset", net_ns_offset);
+
+    if (net_struct_type == NET_STRUCT_HAS_PROC_INUM) {
+        u32 inum = 0;
+        bpf_probe_read(&inum, sizeof(inum), (void*)net + net_proc_inum_offset);
+        return inum;
+    }
+
+    struct ns_common ns;
+    bpf_probe_read(&ns, sizeof(ns), (void*)net + net_ns_offset);
+    return ns.inum;
+}
+
+__attribute__((always_inline)) u32 get_netns_from_sock(struct sock *sk) {
+    u64 sock_common_skc_net_offset;
+    LOAD_CONSTANT("sock_common_skc_net_offset", sock_common_skc_net_offset);
+
+    struct sock_common *common = (void *)sk;
+    struct net *net = NULL;
+    bpf_probe_read(&net, sizeof(net), (void *)common + sock_common_skc_net_offset);
+    return get_netns_from_net(net);
+}
+
+__attribute__((always_inline)) u32 get_netns_from_socket(struct socket *socket) {
+    u64 socket_sock_offset;
+    LOAD_CONSTANT("socket_sock_offset", socket_sock_offset);
+
+    struct sock *sk = NULL;
+    bpf_probe_read(&sk, sizeof(sk), (void *)socket + socket_sock_offset);
+    return get_netns_from_sock(sk);
+}
+
+__attribute__((always_inline)) u32 get_netns_from_nf_conn(struct nf_conn *ct) {
+    u64 nf_conn_ct_net_offset;
+    LOAD_CONSTANT("nf_conn_ct_net_offset", nf_conn_ct_net_offset);
+
+    struct net *net = NULL;
+    bpf_probe_read(&net, sizeof(net), (void *)ct + nf_conn_ct_net_offset);
+    return get_netns_from_net(net);
+}
+
+SEC("kprobe/switch_task_namespaces")
+int kprobe_switch_task_namespaces(struct pt_regs *ctx) {
+    struct nsproxy *new_ns = (struct nsproxy *)PT_REGS_PARM2(ctx);
+    if (new_ns == NULL) {
+        return 0;
+    }
+
+    struct net *net;
+    bpf_probe_read(&net, sizeof(net), &new_ns->net_ns);
+    if (net == NULL) {
+        return 0;
+    }
+
+    u32 netns = get_netns_from_net(net);
+    u32 tid = bpf_get_current_pid_tgid();
+    bpf_map_update_elem(&netns_cache, &tid, &netns, BPF_ANY);
+    return 0;
 }
 
 #endif

@@ -61,6 +61,8 @@ func GetStatus() (map[string]interface{}, error) {
 
 	stats["logsStats"] = logs.GetStatus()
 
+	stats["otlp"] = GetOTLPStatus()
+
 	endpointsInfos, err := getEndpointsInfos()
 	if endpointsInfos != nil && err == nil {
 		stats["endpointsInfos"] = endpointsInfos

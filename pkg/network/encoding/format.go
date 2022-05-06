@@ -11,7 +11,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/gogo/protobuf/proto"
 )
@@ -46,7 +45,7 @@ func (ipc ipCache) Get(addr util.Address) string {
 func FormatConnection(
 	conn network.ConnectionStats,
 	routes map[string]RouteIdx,
-	httpStats *model.HTTPAggregations,
+	httpEncoder *httpEncoder,
 	dnsFormatter *dnsFormatter,
 	ipc ipCache,
 ) *model.Connection {
@@ -76,32 +75,11 @@ func FormatConnection(
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
 	dnsFormatter.FormatConnectionDNS(conn, c)
 
-	if httpStats != nil {
+	if httpStats := httpEncoder.GetHTTPAggregations(conn); httpStats != nil {
 		c.HttpAggregations, _ = proto.Marshal(httpStats)
 	}
 
 	return c
-}
-
-// FormatConnTelemetry converts telemetry from its internal representation to a protobuf message
-func FormatConnTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTelemetry {
-	if tel == nil {
-		return nil
-	}
-
-	t := new(model.ConnectionsTelemetry)
-	t.MonotonicKprobesTriggered = tel.MonotonicKprobesTriggered
-	t.MonotonicKprobesMissed = tel.MonotonicKprobesMissed
-	t.MonotonicConntrackRegisters = tel.MonotonicConntrackRegisters
-	t.MonotonicConntrackRegistersDropped = tel.MonotonicConntrackRegistersDropped
-	t.MonotonicDnsPacketsProcessed = tel.MonotonicDNSPacketsProcessed
-	t.MonotonicConnsClosed = tel.MonotonicConnsClosed
-	t.ConnsBpfMapSize = tel.ConnsBpfMapSize
-	t.MonotonicUdpSendsProcessed = tel.MonotonicUDPSendsProcessed
-	t.MonotonicUdpSendsMissed = tel.MonotonicUDPSendsMissed
-	t.ConntrackSamplingPercent = tel.ConntrackSamplingPercent
-	t.DnsStatsDropped = tel.DNSStatsDropped
-	return t
 }
 
 // FormatCompilationTelemetry converts telemetry from its internal representation to a protobuf message
@@ -122,71 +100,17 @@ func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilation
 	return ret
 }
 
-// FormatHTTPStats converts the HTTP map into a suitable format for serialization
-func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]*model.HTTPAggregations {
-	var (
-		aggregationsByKey = make(map[http.Key]*model.HTTPAggregations, len(httpData))
-
-		// Pre-allocate some of the objects
-		dataPool = make([]model.HTTPStats_Data, len(httpData)*http.NumStatusClasses)
-		ptrPool  = make([]*model.HTTPStats_Data, len(httpData)*http.NumStatusClasses)
-		poolIdx  = 0
-	)
-
-	for key, stats := range httpData {
-		path := key.Path
-		method := key.Method
-		key.Path = ""
-		key.Method = http.MethodUnknown
-
-		httpAggregations, ok := aggregationsByKey[key]
-		if !ok {
-			httpAggregations = &model.HTTPAggregations{
-				EndpointAggregations: make([]*model.HTTPStats, 0, 10),
-			}
-
-			aggregationsByKey[key] = httpAggregations
-		}
-
-		ms := &model.HTTPStats{
-			Path:                  path,
-			Method:                model.HTTPMethod(method),
-			StatsByResponseStatus: ptrPool[poolIdx : poolIdx+http.NumStatusClasses],
-		}
-
-		for i := 0; i < len(stats); i++ {
-			data := &dataPool[poolIdx+i]
-			ms.StatsByResponseStatus[i] = data
-			data.Count = uint32(stats[i].Count)
-
-			if latencies := stats[i].Latencies; latencies != nil {
-				blob, _ := proto.Marshal(latencies.ToProto())
-				data.Latencies = blob
-			} else {
-				data.FirstLatencySample = stats[i].FirstLatencySample
-			}
-		}
-
-		poolIdx += http.NumStatusClasses
-		httpAggregations.EndpointAggregations = append(httpAggregations.EndpointAggregations, ms)
+// FormatConnectionTelemetry converts telemetry from its internal representation to a protobuf message
+func FormatConnectionTelemetry(tel map[network.ConnTelemetryType]int64) map[string]int64 {
+	if tel == nil {
+		return nil
 	}
 
-	return aggregationsByKey
-}
-
-// Build the key for the http map based on whether the local or remote side is http.
-func httpKeyFromConn(c network.ConnectionStats) http.Key {
-	// Retrieve translated addresses
-	laddr, lport := network.GetNATLocalAddress(c)
-	raddr, rport := network.GetNATRemoteAddress(c)
-
-	// HTTP data is always indexed as (client, server), so we flip
-	// the lookup key if necessary using the port range heuristic
-	if network.IsEphemeralPort(int(lport)) {
-		return http.NewKey(laddr, raddr, lport, rport, "", http.MethodUnknown)
+	ret := make(map[string]int64)
+	for k, v := range tel {
+		ret[string(k)] = v
 	}
-
-	return http.NewKey(raddr, laddr, rport, lport, "", http.MethodUnknown)
+	return ret
 }
 
 func returnToPool(c *model.Connections) {

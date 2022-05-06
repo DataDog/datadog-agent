@@ -10,7 +10,8 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
+	"go.uber.org/atomic"
 )
 
 // Transport is the transport used by logs-agent, i.e TCP or HTTP
@@ -65,7 +66,7 @@ type Status struct {
 }
 
 // Init instantiates the builder that builds the status on the fly.
-func Init(isRunning *int32, endpoints *config.Endpoints, sources *config.LogSources, logExpVars *expvar.Map) {
+func Init(isRunning *atomic.Bool, endpoints *config.Endpoints, sources *config.LogSources, logExpVars *expvar.Map) {
 	warnings = config.NewMessages()
 	errors = config.NewMessages()
 	builder = NewBuilder(isRunning, endpoints, sources, warnings, errors, logExpVars)

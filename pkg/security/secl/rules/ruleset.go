@@ -25,8 +25,8 @@ type CombinePolicy = string
 // Combine policies
 const (
 	NoPolicy       CombinePolicy = ""
-	MergePolicy                  = "merge"
-	OverridePolicy               = "override"
+	MergePolicy    CombinePolicy = "merge"
+	OverridePolicy CombinePolicy = "override"
 )
 
 // MacroDefinition holds the definition of a macro
@@ -396,7 +396,7 @@ func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) 
 		}
 
 		eventApprovers, err := rs.GetEventApprovers(eventType, caps)
-		if err != nil {
+		if err != nil || len(eventApprovers) == 0 {
 			continue
 		}
 		approvers[eventType] = eventApprovers
@@ -412,7 +412,7 @@ func (rs *RuleSet) GetEventApprovers(eventType eval.EventType, fieldCaps FieldCa
 		return nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
-	return bucket.GetApprovers(rs.eventCtor(), fieldCaps)
+	return GetApprovers(bucket.rules, rs.eventCtor(), fieldCaps)
 }
 
 // GetFieldValues returns all the values of the given field

@@ -6,7 +6,7 @@
 package traps
 
 const (
-	defaultPort        = uint16(162) // Standard UDP port for traps.
+	defaultPort        = uint16(9162) // Standard UDP port for traps.
 	defaultStopTimeout = 5
 	defaultNamespace   = "default"
 	packetsChanSize    = 100

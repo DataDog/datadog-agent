@@ -9,7 +9,7 @@ import warnings
 
 import emoji
 from lib.const import SECURITY_START_LOG, SYS_PROBE_START_LOG
-from lib.cws.app import App
+from lib.cws.app import App, check_for_ignored_policies
 from lib.cws.policy import PolicyLoader
 from lib.kubernetes import KubernetesHelper
 from lib.log import wait_agent_log
@@ -40,9 +40,6 @@ class TestE2EKubernetes(unittest.TestCase):
         if self.signal_rule_id:
             self.App.delete_signal_rule(self.signal_rule_id)
 
-        if self.policies:
-            os.remove(self.policies)
-
     def test_open_signal(self):
         print("")
 
@@ -69,16 +66,6 @@ class TestE2EKubernetes(unittest.TestCase):
                 agent_rule_name,
             )
 
-        with Step(msg="check policies download", emoji=":file_folder:"):
-            self.policies = self.App.download_policies()
-            data = self.policy_loader.load(self.policies)
-            self.assertIsNotNone(data, msg="unable to load policy")
-
-        with Step(msg="check rule presence in policies", emoji=":bullseye:"):
-            rule = self.policy_loader.get_rule_by_desc(desc)
-            self.assertIsNotNone(rule, msg="unable to find e2e rule")
-            self.assertEqual(rule["id"], agent_rule_name)
-
         with Step(msg="select pod", emoji=":man_running:"):
             self.kubernetes_helper.select_pod_name("app=datadog-agent")
 
@@ -88,15 +75,44 @@ class TestE2EKubernetes(unittest.TestCase):
         with Step(msg="check system-probe start", emoji=":customs:"):
             wait_agent_log("system-probe", self.kubernetes_helper, SYS_PROBE_START_LOG)
 
+        with Step(msg="check ruleset_loaded", emoji=":delivery_truck:"):
+            event = self.App.wait_app_log("rule_id:ruleset_loaded")
+            attributes = event["data"][-1]["attributes"]["attributes"]
+            start_date = attributes["date"]
+            check_for_ignored_policies(self, attributes)
+
         with Step(msg="wait for host tags (3m)", emoji=":alarm_clock:"):
             time.sleep(3 * 60)
 
-        with Step(msg="upload policies", emoji=":down_arrow:"):
-            self.kubernetes_helper.cp_to_agent("system-probe", self.policies, "/tmp/runtime-security.d/default.policy")
+        with Step(msg="check policies download", emoji=":file_folder:"):
+            self.policies = self.kubernetes_helper.download_policies()
+            self.assertNotEqual(self.policies, "", msg="check policy download failed")
+            data = self.policy_loader.load(self.policies)
+            self.assertIsNotNone(data, msg="unable to load policy")
 
-        with Step(msg="restart system-probe", emoji=":rocket:"):
-            self.kubernetes_helper.kill_agent("system-probe", "-HUP")
-            time.sleep(60)
+        with Step(msg="check rule presence in policies", emoji=":bullseye:"):
+            rule = self.policy_loader.get_rule_by_desc(desc)
+            self.assertIsNotNone(rule, msg="unable to find e2e rule")
+            self.assertEqual(rule["id"], agent_rule_name)
+
+        with Step(msg="push policies", emoji=":envelope:"):
+            self.kubernetes_helper.push_policies(self.policies)
+
+        with Step(msg="reload policies", emoji=":rocket:"):
+            self.kubernetes_helper.reload_policies()
+
+        with Step(msg="check ruleset_loaded", emoji=":delivery_truck:"):
+            for _i in range(60):  # retry 60 times
+                event = self.App.wait_app_log("rule_id:ruleset_loaded")
+                attributes = event["data"][-1]["attributes"]["attributes"]
+                restart_date = attributes["date"]
+                # search for restart log until the timestamp differs
+                if restart_date != start_date:
+                    break
+                time.sleep(1)
+            else:
+                self.fail("check ruleset_loaded timeouted")
+            check_for_ignored_policies(self, attributes)
 
         with Step(msg="check agent event", emoji=":check_mark_button:"):
             os.system(f"touch {filename}")

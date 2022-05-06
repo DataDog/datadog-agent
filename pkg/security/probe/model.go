@@ -9,17 +9,19 @@
 package probe
 
 import (
+	"fmt"
 	"path"
 	"strings"
 	"syscall"
 	"time"
 
-	"golang.org/x/sys/unix"
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/mailru/easyjson/jwriter"
 
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/mailru/easyjson/jwriter"
 )
 
 const (
@@ -32,11 +34,40 @@ var eventZero Event
 // Model describes the data model for the runtime security agent probe events
 type Model struct {
 	model.Model
+	probe *Probe
+}
+
+// ValidateField validates the value of a field
+func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
+	if err := m.Model.ValidateField(field, fieldValue); err != nil {
+		return err
+	}
+
+	switch field {
+	case "bpf.map.name":
+		if offset, found := m.probe.constantOffsets["bpf_map_name_offset"]; !found || offset == constantfetch.ErrorSentinel {
+			return fmt.Errorf("%s is not available on this kernel version", field)
+		}
+
+	case "bpf.prog.name":
+		if offset, found := m.probe.constantOffsets["bpf_prog_aux_name_offset"]; !found || offset == constantfetch.ErrorSentinel {
+			return fmt.Errorf("%s is not available on this kernel version", field)
+		}
+	}
+
+	return nil
 }
 
 // NewEvent returns a new Event
 func (m *Model) NewEvent() eval.Event {
 	return &Event{}
+}
+
+// NetDeviceKey is used to uniquely identify a network device
+type NetDeviceKey struct {
+	IfIndex          uint32
+	NetNS            uint32
+	NetworkDirection manager.TrafficType
 }
 
 // Event describes a probe event
@@ -47,6 +78,7 @@ type Event struct {
 	processCacheEntry   *model.ProcessCacheEntry
 	pathResolutionError error
 	scrubber            *pconfig.DataScrubber
+	probe               *Probe
 }
 
 // Retain the event
@@ -71,14 +103,7 @@ func (ev *Event) GetPathResolutionError() error {
 
 // ResolveFilePath resolves the inode to a full path
 func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
-	// do not try to resolve mmap events when they aren't backed by any file
-	if ev.GetEventType() == model.MMapEventType {
-		if ev.MMap.Flags&unix.MAP_ANONYMOUS != 0 {
-			return ""
-		}
-	}
-
-	if len(f.PathnameStr) == 0 {
+	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
 		path, err := ev.resolvers.resolveFileFieldsPath(&f.FileFields)
 		if err != nil {
 			switch err.(type) {
@@ -89,18 +114,18 @@ func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 				ev.SetPathResolutionError(err)
 			}
 		}
-		f.PathnameStr = path
+		f.SetPathnameStr(path)
 	}
 	return f.PathnameStr
 }
 
 // ResolveFileBasename resolves the inode to a full path
 func (ev *Event) ResolveFileBasename(f *model.FileEvent) string {
-	if len(f.BasenameStr) == 0 {
+	if !f.IsBasenameStrResolved && len(f.BasenameStr) == 0 {
 		if f.PathnameStr != "" {
-			f.BasenameStr = path.Base(f.PathnameStr)
+			f.SetBasenameStr(path.Base(f.PathnameStr))
 		} else {
-			f.BasenameStr = ev.resolvers.resolveBasename(&f.FileFields)
+			f.SetBasenameStr(ev.resolvers.resolveBasename(&f.FileFields))
 		}
 	}
 	return f.BasenameStr
@@ -451,6 +476,15 @@ func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 		ev.processCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.ProcessContext.Pid, ev.ProcessContext.Tid)
 		if ev.processCacheEntry == nil {
 			ev.processCacheEntry = &model.ProcessCacheEntry{}
+
+			// mark context as resolved to avoid resolution with empty inode/mount id
+			ev.processCacheEntry.FileEvent.SetPathnameStr("")
+			ev.processCacheEntry.FileEvent.SetBasenameStr("")
+		} else if ev.processCacheEntry.FileEvent.Inode == 0 || ev.processCacheEntry.FileEvent.MountID == 0 {
+			// FIX(safchain) this condition should be removed once the kworker detection will be fixed and
+			// once process context without inode/mountid bug will be fixed
+			ev.processCacheEntry.FileEvent.SetPathnameStr("")
+			ev.processCacheEntry.FileEvent.SetBasenameStr("")
 		}
 	}
 
@@ -489,11 +523,38 @@ func (ev *Event) GetProcessServiceTag() string {
 	return ""
 }
 
+// ResolveNetworkDeviceIfName returns the network iterface name from the network context
+func (ev *Event) ResolveNetworkDeviceIfName(device *model.NetworkDeviceContext) string {
+	if len(device.IfName) == 0 && ev.probe != nil {
+		key := NetDeviceKey{
+			NetNS:            device.NetNS,
+			IfIndex:          device.IfIndex,
+			NetworkDirection: manager.Egress,
+		}
+
+		ev.probe.tcProgramsLock.RLock()
+		defer ev.probe.tcProgramsLock.RUnlock()
+
+		tcProbe, ok := ev.probe.tcPrograms[key]
+		if !ok {
+			key.NetworkDirection = manager.Ingress
+			tcProbe = ev.probe.tcPrograms[key]
+		}
+
+		if tcProbe != nil {
+			device.IfName = tcProbe.IfName
+		}
+	}
+
+	return device.IfName
+}
+
 // NewEvent returns a new event
-func NewEvent(resolvers *Resolvers, scrubber *pconfig.DataScrubber) *Event {
+func NewEvent(resolvers *Resolvers, scrubber *pconfig.DataScrubber, probe *Probe) *Event {
 	return &Event{
 		Event:     model.Event{},
 		resolvers: resolvers,
 		scrubber:  scrubber,
+		probe:     probe,
 	}
 }

@@ -84,7 +84,7 @@ func GetKernelHeaders(downloadEnabled bool, headerDirs []string, headerDownloadD
 		if dirs, err = getSysfsHeaderDirs(hv); err == nil {
 			return dirs, sysfsHeadersFound, nil
 		}
-		log.Debugf("unable to find system kernel headers: %w", err)
+		log.Debugf("unable to find system kernel headers: %v", err)
 	}
 
 	downloadedDirs := validateHeaderDirs(hv, getDownloadedHeaderDirs(headerDownloadDir), false)
@@ -139,7 +139,7 @@ func validateHeaderDirs(hv Version, dirs []string, checkForCriticalHeaders bool)
 				valid = append(valid, d)
 				continue
 			}
-			log.Debugf("error validating %s: error validating headers version: %w", d, err)
+			log.Debugf("error validating %s: error validating headers version: %v", d, err)
 			continue
 		}
 

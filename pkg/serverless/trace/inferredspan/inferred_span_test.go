@@ -6,9 +6,12 @@
 package inferredspan
 
 import (
+	"os"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
 )
@@ -85,4 +88,145 @@ func TestFilterFunctionTags(t *testing.T) {
 	assert.Equal(t, filteredTags["region"], "test")
 	assert.Equal(t, filteredTags["account_id"], "test")
 	assert.Equal(t, filteredTags["aws_account"], "test")
+}
+
+func TestCompleteInferredSpanWithNoError(t *testing.T) {
+
+	startTime := time.Now()
+
+	inferredSpan := GenerateInferredSpan(time.Now())
+	inferredSpan.Span.TraceID = 2350923428932752492
+	inferredSpan.Span.SpanID = 1304592378509342580
+	inferredSpan.Span.Start = startTime.UnixNano()
+	inferredSpan.Span.Name = "aws.mock"
+	inferredSpan.Span.Service = "aws.mock"
+	inferredSpan.Span.Resource = "test-function"
+	inferredSpan.Span.Type = "http"
+	inferredSpan.Span.Meta = map[string]string{
+		Stage: "dev",
+	}
+
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
+	isError := false
+	var tracePayload *api.Payload
+	mockProcessTrace := func(payload *api.Payload) {
+		tracePayload = payload
+	}
+
+	CompleteInferredSpan(mockProcessTrace, endTime, isError, inferredSpan)
+	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	assert.Equal(t, "aws.mock", span.Name)
+	assert.Equal(t, "aws.mock", span.Service)
+	assert.Equal(t, "test-function", span.Resource)
+	assert.Equal(t, "http", span.Type)
+	assert.Equal(t, "dev", span.Meta["stage"])
+	assert.Equal(t, inferredSpan.Span.TraceID, span.TraceID)
+	assert.Equal(t, inferredSpan.Span.SpanID, span.SpanID)
+	assert.Equal(t, duration.Nanoseconds(), span.Duration)
+	assert.Equal(t, int32(0), inferredSpan.Span.Error)
+}
+
+func TestCompleteInferredSpanWithError(t *testing.T) {
+
+	startTime := time.Now()
+
+	inferredSpan := GenerateInferredSpan(time.Now())
+	inferredSpan.Span.TraceID = 2350923428932752492
+	inferredSpan.Span.SpanID = 1304592378509342580
+	inferredSpan.Span.Start = startTime.UnixNano()
+	inferredSpan.Span.Name = "aws.mock"
+	inferredSpan.Span.Service = "aws.mock"
+	inferredSpan.Span.Resource = "test-function"
+	inferredSpan.Span.Type = "http"
+	inferredSpan.Span.Meta = map[string]string{
+		Stage: "dev",
+	}
+
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
+	isError := true
+	var tracePayload *api.Payload
+	mockProcessTrace := func(payload *api.Payload) {
+		tracePayload = payload
+	}
+
+	CompleteInferredSpan(mockProcessTrace, endTime, isError, inferredSpan)
+	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	assert.Equal(t, "aws.mock", span.Name)
+	assert.Equal(t, "aws.mock", span.Service)
+	assert.Equal(t, "test-function", span.Resource)
+	assert.Equal(t, "http", span.Type)
+	assert.Equal(t, "dev", span.Meta["stage"])
+	assert.Equal(t, inferredSpan.Span.TraceID, span.TraceID)
+	assert.Equal(t, inferredSpan.Span.SpanID, span.SpanID)
+	assert.Equal(t, duration.Nanoseconds(), span.Duration)
+	assert.Equal(t, int32(1), inferredSpan.Span.Error)
+}
+
+func TestCompleteInferredSpanWithAsync(t *testing.T) {
+	// Start of inferred span
+	startTime := time.Now()
+	duration := 2 * time.Second
+	// mock invocation end time
+	lambdaInvocationStartTime := startTime.Add(duration)
+	inferredSpan := GenerateInferredSpan(lambdaInvocationStartTime)
+	inferredSpan.IsAsync = true
+	inferredSpan.Span.TraceID = 2350923428932752492
+	inferredSpan.Span.SpanID = 1304592378509342580
+	inferredSpan.Span.Start = startTime.UnixNano()
+	inferredSpan.Span.Name = "aws.mock"
+	inferredSpan.Span.Service = "aws.mock"
+	inferredSpan.Span.Resource = "test-function"
+	inferredSpan.Span.Type = "http"
+	inferredSpan.Span.Meta = map[string]string{
+		Stage: "dev",
+	}
+	isError := false
+	var tracePayload *api.Payload
+	mockProcessTrace := func(payload *api.Payload) {
+		tracePayload = payload
+	}
+	CompleteInferredSpan(mockProcessTrace, time.Now(), isError, inferredSpan)
+	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	assert.Equal(t, "aws.mock", span.Name)
+	assert.Equal(t, "aws.mock", span.Service)
+	assert.Equal(t, "test-function", span.Resource)
+	assert.Equal(t, "http", span.Type)
+	assert.Equal(t, "dev", span.Meta["stage"])
+	assert.Equal(t, inferredSpan.Span.TraceID, span.TraceID)
+	assert.Equal(t, inferredSpan.Span.SpanID, span.SpanID)
+	assert.Equal(t, duration.Nanoseconds(), span.Duration)
+	assert.Equal(t, int32(0), inferredSpan.Span.Error)
+}
+
+func TestIsInferredSpansEnabledWhileTrue(t *testing.T) {
+	defer unsetEnvVars()
+	setEnvVars("true", "True")
+	isEnabled := IsInferredSpansEnabled()
+	assert.True(t, isEnabled)
+}
+func TestIsInferredSpansEnabledWhileFalse(t *testing.T) {
+	defer unsetEnvVars()
+	setEnvVars("true", "false")
+	isEnabled := IsInferredSpansEnabled()
+	assert.False(t, isEnabled)
+}
+
+func TestIsInferredSpansEnabledWhileInvalid(t *testing.T) {
+	defer unsetEnvVars()
+	setEnvVars("true", "42")
+	isEnabled := IsInferredSpansEnabled()
+	assert.False(t, isEnabled)
+
+}
+
+func unsetEnvVars() {
+	os.Unsetenv("DD_TRACE_ENABLED")
+	os.Unsetenv("DD_TRACE_MANAGED_SERVICES")
+}
+
+func setEnvVars(trace string, managedServices string) {
+	os.Setenv("DD_TRACE_ENABLED", trace)
+	os.Setenv("DD_TRACE_MANAGED_SERVICES", managedServices)
 }

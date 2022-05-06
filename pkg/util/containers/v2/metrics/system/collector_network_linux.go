@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
@@ -31,7 +32,7 @@ func buildNetworkStats(procPath string, pids []int) (*provider.ContainerNetworkS
 		}
 
 		if !errors.Is(err, os.ErrNotExist) {
-			log.Debugf("Unable to get network stats for PID: %d, err: %w", pid, err)
+			log.Debugf("Unable to get network stats for PID: %d, err: %v", pid, err)
 			return nil, err
 		}
 	}
@@ -96,7 +97,10 @@ func collectNetworkStats(procPath string, pid int) (*provider.ContainerNetworkSt
 		return nil, nil
 	}
 
-	netStats := provider.ContainerNetworkStats{Interfaces: ifaceStats}
+	netStats := provider.ContainerNetworkStats{
+		Timestamp:  time.Now(),
+		Interfaces: ifaceStats,
+	}
 	convertField(&totalRcvd, &netStats.BytesRcvd)
 	convertField(&totalSent, &netStats.BytesSent)
 	convertField(&totalPktRcvd, &netStats.PacketsRcvd)

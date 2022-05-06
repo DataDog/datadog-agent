@@ -453,25 +453,6 @@ func Initialize(paths ...string) error {
 	return nil
 }
 
-// Destroy destroys the loaded Python interpreter initialized by 'Initialize'
-func Destroy() {
-	pyDestroyLock.Lock()
-	defer pyDestroyLock.Unlock()
-
-	// Sanity check - this should ideally never happen
-	if rtloader == nil {
-		log.Warn("Python runtime already destroyed. Ignoring action.")
-		return
-	}
-
-	// Clear the C-side and Go-side rtloader pointers
-	log.Info("Destroying Python runtime")
-	C.destroy(rtloader)
-	rtloader = nil
-
-	log.Info("Python runtime destroyed")
-}
-
 // GetRtLoader returns the underlying rtloader_t struct. This is meant for testing and
 // tooling, use the rtloader_t struct at your own risk
 func GetRtLoader() *C.rtloader_t {

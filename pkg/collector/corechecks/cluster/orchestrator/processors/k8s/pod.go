@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	kubetypes "github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
@@ -21,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	kubetypes "github.com/DataDog/datadog-agent/third_party/kubernetes/pkg/kubelet/types"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -102,6 +102,7 @@ func (h *PodHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resourc
 		ClusterId:   ctx.ClusterID,
 		GroupId:     ctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
+		HostName:    ctx.HostName,
 		Pods:        models,
 		Tags:        ctx.Cfg.ExtraTags,
 	}

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package util
 
 import (
@@ -33,7 +38,7 @@ func GetStaticTagsSlice(ctx context.Context) []string {
 		// eks_fargate_node
 		node, err := fargate.GetEKSFargateNodename()
 		if err != nil {
-			log.Infof("Couldn't build the 'eks_fargate_node' tag: %w", err)
+			log.Infof("Couldn't build the 'eks_fargate_node' tag: %v", err)
 		} else {
 			tags = append(tags, "eks_fargate_node:"+node)
 		}

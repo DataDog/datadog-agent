@@ -7,12 +7,10 @@ package workloadmeta
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/imdario/mergo"
 	"github.com/mohae/deepcopy"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -124,6 +122,9 @@ const (
 	ContainerRuntimePodman     ContainerRuntime = "podman"
 	ContainerRuntimeCRIO       ContainerRuntime = "cri-o"
 	ContainerRuntimeGarden     ContainerRuntime = "garden"
+	// ECS Fargate can be considered as a runtime in the sense that we don't
+	// know the actual runtime but we need to identify it's Fargate
+	ContainerRuntimeECSFargate ContainerRuntime = "ecsfargate"
 )
 
 // ContainerStatus is the status of the container
@@ -175,10 +176,9 @@ const (
 // the agent.
 //
 // This interface is implemented by several concrete types, and is typically
-// cast to that concrete type to get detailed information.  For EntityTypeSet
-// events, the concrete type corresponds to the entity's type (GetID().Kind),
-// and it is safe to make an unchecked cast.  For EntityTypeUnset, the entity
-// is an EntityID and such a cast will fail.
+// cast to that concrete type to get detailed information.  The concrete type
+// corresponds to the entity's type (GetID().Kind), and it is safe to make an
+// unchecked cast.
 type Entity interface {
 	// GetID gets the EntityID for this entity.
 	GetID() EntityID
@@ -205,28 +205,6 @@ type EntityID struct {
 
 	// ID is the ID for this entity, in a format specific to the entity Kind.
 	ID string
-}
-
-// EntityID satisfies the Entity interface for EntityID to allow a standalone
-// EntityID to be passed in events of type EventTypeUnset without the need to
-// build a full, concrete entity.
-var _ Entity = EntityID{}
-
-// GetID implements Entity#GetID.
-func (i EntityID) GetID() EntityID {
-	return i
-}
-
-// Merge implements Entity#Merge.
-func (i EntityID) Merge(e Entity) error {
-	// Merge returns an error because EntityID is not expected to be merged
-	// with another Entity, because it's used as an identifier.
-	return errors.New("cannot merge EntityID with another entity")
-}
-
-// DeepCopy implements Entity#DeepCopy.
-func (i EntityID) DeepCopy() Entity {
-	return i
 }
 
 // String implements Entity#String.
@@ -395,7 +373,7 @@ func (c *Container) Merge(e Entity) error {
 		return fmt.Errorf("cannot merge Container with different kind %T", e)
 	}
 
-	return mergo.Merge(c, cc)
+	return merge(c, cc)
 }
 
 // DeepCopy implements Entity#DeepCopy.
@@ -451,6 +429,7 @@ type KubernetesPod struct {
 	Phase                      string
 	IP                         string
 	PriorityClass              string
+	QOSClass                   string
 	KubeServices               []string
 	NamespaceLabels            map[string]string
 }
@@ -467,7 +446,7 @@ func (p *KubernetesPod) Merge(e Entity) error {
 		return fmt.Errorf("cannot merge KubernetesPod with different kind %T", e)
 	}
 
-	return mergo.Merge(p, pp)
+	return merge(p, pp)
 }
 
 // DeepCopy implements Entity#DeepCopy.
@@ -506,6 +485,7 @@ func (p KubernetesPod) String(verbose bool) string {
 
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Priority Class:", p.PriorityClass)
+		_, _ = fmt.Fprintln(&sb, "QOS Class:", p.QOSClass)
 		_, _ = fmt.Fprintln(&sb, "PVCs:", sliceToString(p.PersistentVolumeClaimNames))
 		_, _ = fmt.Fprintln(&sb, "Kube Services:", sliceToString(p.KubeServices))
 		_, _ = fmt.Fprintln(&sb, "Namespace Labels:", mapToString(p.NamespaceLabels))
@@ -562,7 +542,7 @@ func (t *ECSTask) Merge(e Entity) error {
 		return fmt.Errorf("cannot merge ECSTask with different kind %T", e)
 	}
 
-	return mergo.Merge(t, tt)
+	return merge(t, tt)
 }
 
 // DeepCopy implements Entity#DeepCopy.
@@ -601,52 +581,6 @@ func (t ECSTask) String(verbose bool) string {
 }
 
 var _ Entity = &ECSTask{}
-
-// GardenContainer is an Entity representing a CloudFoundry Garden Container
-type GardenContainer struct {
-	EntityID
-	EntityMeta
-	Tags []string
-}
-
-// GetID returns a GardenContainer's EntityID.
-func (c GardenContainer) GetID() EntityID {
-	return c.EntityID
-}
-
-// Merge merges a GardenContainer with another. Returns an error if trying to
-// merge with another kind.
-func (c *GardenContainer) Merge(e Entity) error {
-	cc, ok := e.(*GardenContainer)
-	if !ok {
-		return fmt.Errorf("cannot merge GardenContainer with different kind %T", e)
-	}
-
-	return mergo.Merge(c, cc)
-}
-
-// DeepCopy returns a deep copy of the container.
-func (c GardenContainer) DeepCopy() Entity {
-	cp := deepcopy.Copy(c).(GardenContainer)
-	return &cp
-}
-
-// String returns a string representation of a GardenContainer.
-func (c GardenContainer) String(verbose bool) string {
-	var sb strings.Builder
-	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
-	_, _ = fmt.Fprint(&sb, c.EntityID.String(verbose))
-
-	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
-	_, _ = fmt.Fprint(&sb, c.EntityMeta.String(verbose))
-
-	_, _ = fmt.Fprintln(&sb, "----------- Container Info -----------")
-	_, _ = fmt.Fprintln(&sb, "Tags:", sliceToString(c.Tags))
-
-	return sb.String()
-}
-
-var _ Entity = &GardenContainer{}
 
 // CollectorEvent is an event generated by a metadata collector, to be handled
 // by the metadata store.

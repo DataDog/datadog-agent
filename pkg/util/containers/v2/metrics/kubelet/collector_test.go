@@ -58,10 +58,10 @@ func TestKubeletCollectorLinux(t *testing.T) {
 		metadataStore: metadataStore,
 	}
 
-	// On first `GetContainerStats`, the full data is read and cache is filled
+	// On first `GetCoreContainerStats`, the full data is read and cache is filled
 	expectedTime, _ := time.Parse(time.RFC3339, "2019-11-20T13:13:13Z")
 	expectedTime = expectedTime.Local()
-	cID1Stats, err := kubeletCollector.GetContainerStats("cID1", time.Minute)
+	cID1Stats, err := kubeletCollector.GetContainerStats("", "cID1", time.Minute)
 	// Removing content from kubeletMock to make sure anything we hit is from cache
 	clearFakeStatsSummary(kubeletMock)
 
@@ -79,7 +79,7 @@ func TestKubeletCollectorLinux(t *testing.T) {
 
 	expectedTime, _ = time.Parse(time.RFC3339, "2019-11-20T13:13:09Z")
 	expectedTime = expectedTime.Local()
-	cID2Stats, err := kubeletCollector.GetContainerStats("cID2", time.Minute)
+	cID2Stats, err := kubeletCollector.GetContainerStats("", "cID2", time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, &provider.ContainerStats{
 		Timestamp: expectedTime,
@@ -94,7 +94,7 @@ func TestKubeletCollectorLinux(t *testing.T) {
 
 	expectedTime, _ = time.Parse(time.RFC3339, "2019-11-20T13:13:16Z")
 	expectedTime = expectedTime.Local()
-	cID3Stats, err := kubeletCollector.GetContainerStats("cID3", time.Minute)
+	cID3Stats, err := kubeletCollector.GetContainerStats("", "cID3", time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, &provider.ContainerStats{
 		Timestamp: expectedTime,
@@ -109,6 +109,7 @@ func TestKubeletCollectorLinux(t *testing.T) {
 
 	// Test network stats
 	expectedPodNetworkStats := &provider.ContainerNetworkStats{
+		Timestamp: expectedTime,
 		BytesRcvd: pointer.Float64Ptr(254942755),
 		BytesSent: pointer.Float64Ptr(137422821),
 		Interfaces: map[string]provider.InterfaceNetStats{
@@ -120,21 +121,21 @@ func TestKubeletCollectorLinux(t *testing.T) {
 		NetworkIsolationGroupID: pointer.UInt64Ptr(17659160645723176180),
 	}
 
-	cID3NetworkStats, err := kubeletCollector.GetContainerNetworkStats("cID3", time.Minute)
+	cID3NetworkStats, err := kubeletCollector.GetContainerNetworkStats("", "cID3", time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedPodNetworkStats, cID3NetworkStats)
 
-	cID2NetworkStats, err := kubeletCollector.GetContainerNetworkStats("cID2", time.Minute)
+	cID2NetworkStats, err := kubeletCollector.GetContainerNetworkStats("", "cID2", time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedPodNetworkStats, cID2NetworkStats)
 
 	// Test getting stats for an unknown container, should answer without data but without error (no API call triggered)
-	cID4Stats, err := kubeletCollector.GetContainerStats("cID4", time.Minute)
+	cID4Stats, err := kubeletCollector.GetContainerStats("", "cID4", time.Minute)
 	assert.NoError(t, err)
 	assert.Nil(t, cID4Stats)
 
 	// Forcing a refresh, will trigger a Kubelet call (which will answer with 404 Not found)
-	cID1Stats, err = kubeletCollector.GetContainerStats("cID1", 0)
+	cID1Stats, err = kubeletCollector.GetContainerStats("", "cID1", 0)
 	assert.Equal(t, err.Error(), "Unable to fetch stats summary from Kubelet, rc: 404")
 	assert.Nil(t, cID1Stats)
 }
@@ -168,10 +169,10 @@ func TestKubeletCollectorWindows(t *testing.T) {
 		metadataStore: metadataStore,
 	}
 
-	// On first `GetContainerStats`, the full data is read and cache is filled
+	// On first `GetCoreContainerStats`, the full data is read and cache is filled
 	expectedTime, _ := time.Parse(time.RFC3339, "2020-04-24T15:54:14Z")
 	expectedTime = expectedTime.Local()
-	cID1Stats, err := kubeletCollector.GetContainerStats("cID1", time.Minute)
+	cID1Stats, err := kubeletCollector.GetContainerStats("", "cID1", time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, &provider.ContainerStats{
 		Timestamp: expectedTime,

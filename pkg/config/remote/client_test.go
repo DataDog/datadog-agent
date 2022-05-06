@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package remote
 
 import (
@@ -18,7 +23,8 @@ import (
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -80,8 +86,7 @@ func TestClientEmptyResponse(t *testing.T) {
 	embeddedRoot := generateRoot(generateKey(), 1, generateKey())
 	config.Datadog.Set("remote_configuration.director_root", embeddedRoot)
 
-	testFacts := Facts{ID: "test-agent", Name: "test-agent-name", Version: "v6.1.1"}
-	client, err := newClient(testFacts, []rdata.Product{rdata.ProductAPMSampling})
+	client, err := newClient("test-agent-name", []rdata.Product{rdata.ProductAPMSampling})
 	assert.NoError(t, err)
 
 	testServer.On("ClientGetConfigs", mock.Anything, &pbgo.ClientGetConfigsRequest{Client: &pbgo.Client{
@@ -90,13 +95,16 @@ func TestClientEmptyResponse(t *testing.T) {
 			TargetsVersion: 0,
 			Error:          "",
 		},
-		Id:       testFacts.ID,
-		Name:     testFacts.Name,
-		Version:  testFacts.Version,
+		Id:      client.stateClient.ID(),
+		IsAgent: true,
+		ClientAgent: &pbgo.ClientAgent{
+			Name:    "test-agent-name",
+			Version: version.AgentVersion,
+		},
 		Products: []string{string(rdata.ProductAPMSampling)},
 	}}).Return(&pbgo.ClientGetConfigsResponse{
-		Roots:       []*pbgo.TopMeta{},
-		Targets:     &pbgo.TopMeta{},
+		Roots:       [][]byte{},
+		Targets:     []byte{},
 		TargetFiles: []*pbgo.File{},
 	}, nil)
 
@@ -109,18 +117,17 @@ func TestClientValidResponse(t *testing.T) {
 
 	targetsKey := generateKey()
 	embeddedRoot := generateRoot(generateKey(), 1, targetsKey)
-	apmConfig := pb.APMSampling{
-		TargetTPS: []pb.TargetTPS{{Service: "service1", Env: "env1", Value: 4}},
+	apmConfig := apmsampling.APMSampling{
+		TargetTPS: []apmsampling.TargetTPS{{Service: "service1", Env: "env1", Value: 4}},
 	}
 	rawApmConfig, err := apmConfig.MarshalMsg(nil)
 	assert.NoError(t, err)
 	target1 := generateTarget(rawApmConfig, 5)
-	target2content, target2 := generateRandomTarget(2)
-	targets := generateTargets(targetsKey, 1, data.TargetFiles{"datadog/3/APM_SAMPLING/id/1": target1, "datadog/3/TESTING1/id/2": target2})
+	target2content, _ := generateRandomTarget(2)
+	targets := generateTargets(targetsKey, 1, data.TargetFiles{"datadog/3/APM_SAMPLING/config-id-1/1": target1})
 	config.Datadog.Set("remote_configuration.director_root", embeddedRoot)
 
-	testFacts := Facts{ID: "test-agent", Name: "test-agent-name", Version: "v6.1.1"}
-	client, err := newClient(testFacts, []rdata.Product{rdata.ProductAPMSampling})
+	c, err := newClient("test-agent", []rdata.Product{rdata.ProductAPMSampling})
 	assert.NoError(t, err)
 
 	testServer.On("ClientGetConfigs", mock.Anything, &pbgo.ClientGetConfigsRequest{Client: &pbgo.Client{
@@ -129,36 +136,31 @@ func TestClientValidResponse(t *testing.T) {
 			TargetsVersion: 0,
 			Error:          "",
 		},
-		Id:       testFacts.ID,
-		Name:     testFacts.Name,
-		Version:  testFacts.Version,
+		Id:      c.stateClient.ID(),
+		IsAgent: true,
+		ClientAgent: &pbgo.ClientAgent{
+			Name:    "test-agent",
+			Version: version.AgentVersion,
+		},
 		Products: []string{string(rdata.ProductAPMSampling)},
 	}}).Return(&pbgo.ClientGetConfigsResponse{
-		Roots: []*pbgo.TopMeta{},
-		Targets: &pbgo.TopMeta{
-			Version: 1,
-			Raw:     targets,
-		},
+		Targets: targets,
 		TargetFiles: []*pbgo.File{
-			{Path: "datadog/3/APM_SAMPLING/id/1", Raw: rawApmConfig},
-			{Path: "datadog/3/TESTING1/id/2", Raw: target2content},
+			{Path: "datadog/3/APM_SAMPLING/config-id-1/1", Raw: rawApmConfig},
+			{Path: "datadog/3/TESTING1/config-id-2/2", Raw: target2content},
 		},
 	}, nil)
 
-	err = client.poll()
+	err = c.poll()
 	assert.NoError(t, err)
-	apmUpdates := client.APMSamplingUpdates()
+	c.updateConfigs()
+	apmUpdates := c.APMSamplingUpdates()
 	require.Len(t, apmUpdates, 1)
 	apmUpdate := <-apmUpdates
-	assert.Equal(t, APMSamplingUpdate{
-		Config: &APMSamplingConfig{
-			Config: Config{
-				ID:      "id",
-				Version: 5,
-			},
-			Rates: []pb.APMSampling{apmConfig},
-		},
-	}, apmUpdate)
+	assert.Len(t, apmUpdate, 1)
+	assert.Equal(t, "config-id-1", apmUpdate[0].ID)
+	assert.Equal(t, uint64(5), apmUpdate[0].Version)
+	assert.Equal(t, apmConfig, apmUpdate[0].Config)
 }
 
 func generateKey() keys.Signer {
@@ -212,6 +214,10 @@ func generateRandomTarget(version int) ([]byte, data.TargetFileMeta) {
 	file := make([]byte, 128)
 	rand.Read(file)
 	return file, generateTarget(file, uint64(version))
+}
+
+type versionCustom struct {
+	Version *uint64 `json:"v"`
 }
 
 func generateTarget(file []byte, version uint64) data.TargetFileMeta {

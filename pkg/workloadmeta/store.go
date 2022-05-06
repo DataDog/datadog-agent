@@ -359,98 +359,122 @@ func (s *store) pull(ctx context.Context) {
 
 func (s *store) handleEvents(evs []CollectorEvent) {
 	s.storeMut.Lock()
+	s.subscribersMut.RLock()
+
+	filteredEvents := make(map[subscriber][]Event, len(s.subscribers))
+	for _, sub := range s.subscribers {
+		filteredEvents[sub] = make([]Event, 0, len(evs))
+	}
 
 	for _, ev := range evs {
-		meta := ev.Entity.GetID()
+		entityID := ev.Entity.GetID()
 
-		telemetry.EventsReceived.Inc(string(meta.Kind), string(ev.Source))
+		telemetry.EventsReceived.Inc(string(entityID.Kind), string(ev.Source))
 
-		entitiesOfKind, ok := s.store[meta.Kind]
+		entitiesOfKind, ok := s.store[entityID.Kind]
 		if !ok {
-			s.store[meta.Kind] = make(map[string]*cachedEntity)
-			entitiesOfKind = s.store[meta.Kind]
+			s.store[entityID.Kind] = make(map[string]*cachedEntity)
+			entitiesOfKind = s.store[entityID.Kind]
 		}
 
-		cachedEntity, ok := entitiesOfKind[meta.ID]
+		cachedEntity, ok := entitiesOfKind[entityID.ID]
 
 		switch ev.Type {
 		case EventTypeSet:
 			if !ok {
-				entitiesOfKind[meta.ID] = newCachedEntity()
-				cachedEntity = entitiesOfKind[meta.ID]
+				entitiesOfKind[entityID.ID] = newCachedEntity()
+				cachedEntity = entitiesOfKind[entityID.ID]
 			}
 
 			if found := cachedEntity.set(ev.Source, ev.Entity); !found {
 				telemetry.StoredEntities.Inc(
-					string(meta.Kind),
+					string(entityID.Kind),
 					string(ev.Source),
 				)
 			}
 		case EventTypeUnset:
-			if ok && cachedEntity.unset(ev.Source) {
-				telemetry.StoredEntities.Dec(
-					string(meta.Kind),
-					string(ev.Source),
-				)
+			// if the entity we're trying to remove was not
+			// present in the store, skip generating any
+			// events for downstream subscribers. this
+			// fixes an issue where collectors emit
+			// EventTypeUnset events for pause containers
+			// they never emitted a EventTypeSet for.
 
-				if len(cachedEntity.sources) == 0 {
-					delete(entitiesOfKind, meta.ID)
-				}
+			if !ok {
+				continue
+			}
+
+			_, sourceOk := cachedEntity.sources[ev.Source]
+			if !sourceOk {
+				continue
+			}
+
+			// keep a copy of cachedEntity before removing sources,
+			// as we may need to merge it later
+			c := cachedEntity
+			cachedEntity = c.copy()
+
+			c.unset(ev.Source)
+
+			telemetry.StoredEntities.Dec(
+				string(entityID.Kind),
+				string(ev.Source),
+			)
+
+			if len(c.sources) == 0 {
+				delete(entitiesOfKind, entityID.ID)
 			}
 		default:
-			log.Errorf("cannot handle event of type %d. event dump: %+v", ev)
+			log.Errorf("cannot handle event of type %d. event dump: %+v", ev.Type, ev)
 		}
-	}
 
-	// unlock the store before notifying subscribers, as they might need to
-	// read it for related entities (such as a pod's containers) while they
-	// process an event.
-	s.storeMut.Unlock()
-
-	// copy the list of subscribers to hold locks for as little as
-	// possible, since notifyChannel is a blocking operation.
-	s.subscribersMut.RLock()
-	subscribers := append([]subscriber{}, s.subscribers...)
-	s.subscribersMut.RUnlock()
-
-	for _, sub := range subscribers {
-		filter := sub.filter
-		filteredEvents := make([]Event, 0, len(evs))
-
-		for _, ev := range evs {
-			entityID := ev.Entity.GetID()
+		for _, sub := range s.subscribers {
+			filter := sub.filter
 			if !filter.MatchKind(entityID.Kind) || !filter.MatchSource(ev.Source) {
 				// event should be filtered out because it
 				// doesn't match the filter
 				continue
 			}
 
-			cachedEntity, ok := s.store[entityID.Kind][entityID.ID]
-
-			var entity Entity
-			if ok {
-				entity = cachedEntity.get(filter.Source())
+			var isEventTypeSet bool
+			if ev.Type == EventTypeSet {
+				isEventTypeSet = true
+			} else if filter.Source() == SourceAll {
+				isEventTypeSet = len(cachedEntity.sources) > 1
+			} else {
+				isEventTypeSet = false
 			}
 
-			if entity != nil {
-				// setting an entity (EventTypeSet) or entity
-				// had one source removed, but others remain
-				filteredEvents = append(filteredEvents, Event{
+			entity := cachedEntity.get(filter.Source())
+			if isEventTypeSet {
+				filteredEvents[sub] = append(filteredEvents[sub], Event{
 					Type:   EventTypeSet,
 					Entity: entity,
 				})
-
 			} else {
-				// entity has been removed entirely, unsetting
-				// is straight forward too
-				filteredEvents = append(filteredEvents, Event{
+				err := entity.Merge(ev.Entity)
+				if err != nil {
+					log.Errorf("cannot merge %+v into %+v: %s", entity, ev.Entity, err)
+					continue
+				}
+
+				filteredEvents[sub] = append(filteredEvents[sub], Event{
 					Type:   EventTypeUnset,
-					Entity: ev.Entity,
+					Entity: entity,
 				})
 			}
 		}
+	}
 
-		notifyChannel(sub.name, sub.ch, filteredEvents, true)
+	s.subscribersMut.RUnlock()
+
+	// unlock the store before notifying subscribers, as they might need to
+	// read it for related entities (such as a pod's containers) while they
+	// process an event.
+	s.storeMut.Unlock()
+
+	for sub, evs := range filteredEvents {
+		notifyChannel(sub.name, sub.ch, evs, true)
 	}
 }
 
@@ -495,6 +519,8 @@ func (s *store) unsubscribeAll() {
 	for _, sub := range s.subscribers {
 		close(sub.ch)
 	}
+
+	s.subscribers = nil
 
 	telemetry.Subscribers.Set(0)
 }

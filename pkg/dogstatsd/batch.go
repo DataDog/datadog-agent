@@ -50,12 +50,16 @@ func fastrange(key ckey.ContextKey, pipelineCount int) uint32 {
 	return uint32((uint64(key>>32) * uint64(pipelineCount)) >> 32)
 }
 
-func newBatcher(demux aggregator.Demultiplexer) *batcher {
-	agg := demux.Aggregator()
-
+func newBatcher(demux aggregator.DemultiplexerWithAggregator) *batcher {
 	_, pipelineCount := aggregator.GetDogStatsDWorkerAndPipelineCount()
 
-	e, sc := agg.GetBufferedChannels()
+	var e chan []*metrics.Event
+	var sc chan []*metrics.ServiceCheck
+
+	// the Serverless Agent doesn't have to support service checks nor events so
+	// it doesn't run an Aggregator.
+	e, sc = demux.Aggregator().GetBufferedChannels()
+
 	samples := make([][]metrics.MetricSample, pipelineCount)
 	samplesCount := make([]int, pipelineCount)
 
@@ -70,6 +74,28 @@ func newBatcher(demux aggregator.Demultiplexer) *batcher {
 		metricSamplePool:   demux.GetMetricSamplePool(),
 		choutEvents:        e,
 		choutServiceChecks: sc,
+
+		demux:         demux,
+		pipelineCount: pipelineCount,
+		tagsBuffer:    tagset.NewHashingTagsAccumulator(),
+		keyGenerator:  ckey.NewKeyGenerator(),
+	}
+}
+
+func newServerlessBatcher(demux aggregator.Demultiplexer) *batcher {
+	_, pipelineCount := aggregator.GetDogStatsDWorkerAndPipelineCount()
+	samples := make([][]metrics.MetricSample, pipelineCount)
+	samplesCount := make([]int, pipelineCount)
+
+	for i := range samples {
+		samples[i] = demux.GetMetricSamplePool().GetBatch()
+		samplesCount[i] = 0
+	}
+
+	return &batcher{
+		samples:          samples,
+		samplesCount:     samplesCount,
+		metricSamplePool: demux.GetMetricSamplePool(),
 
 		demux:         demux,
 		pipelineCount: pipelineCount,
@@ -132,6 +158,7 @@ func (b *batcher) flush() {
 
 		b.events = []*metrics.Event{}
 	}
+
 	if len(b.serviceChecks) > 0 {
 		t1 := time.Now()
 		b.choutServiceChecks <- b.serviceChecks

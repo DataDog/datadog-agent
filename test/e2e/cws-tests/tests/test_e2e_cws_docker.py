@@ -7,7 +7,7 @@ import warnings
 
 from lib.config import gen_datadog_agent_config, gen_system_probe_config
 from lib.const import SECURITY_START_LOG, SYS_PROBE_START_LOG
-from lib.cws.app import App
+from lib.cws.app import App, check_for_ignored_policies
 from lib.cws.policy import PolicyLoader
 from lib.docker import DockerHelper
 from lib.log import wait_agent_log
@@ -33,9 +33,6 @@ class TestE2EDocker(unittest.TestCase):
 
         if self.signal_rule_id:
             self.App.delete_signal_rule(self.signal_rule_id)
-
-        if self.policies:
-            os.remove(self.policies)
 
             self.docker_helper.close()
 
@@ -65,16 +62,6 @@ class TestE2EDocker(unittest.TestCase):
                 agent_rule_name,
             )
 
-        with Step(msg="check policies download", emoji=":file_folder:"):
-            self.policies = self.App.download_policies()
-            data = self.policy_loader.load(self.policies)
-            self.assertIsNotNone(data, msg="unable to load policy")
-
-        with Step(msg="check rule presence in policies", emoji=":bullseye:"):
-            rule = self.policy_loader.get_rule_by_desc(desc)
-            self.assertIsNotNone(rule, msg="unable to find e2e rule")
-            self.assertEqual(rule["id"], agent_rule_name)
-
         with Step(msg="check agent start", emoji=":man_running:"):
             image = os.getenv("DD_AGENT_IMAGE")
             hostname = f"host_{test_id}"
@@ -85,7 +72,6 @@ class TestE2EDocker(unittest.TestCase):
 
             self.container = self.docker_helper.start_cws_agent(
                 image,
-                self.policies,
                 datadog_agent_config=self.datadog_agent_config,
                 system_probe_config=self.system_probe_config,
             )
@@ -95,6 +81,42 @@ class TestE2EDocker(unittest.TestCase):
 
             wait_agent_log("security-agent", self.docker_helper, SECURITY_START_LOG)
             wait_agent_log("system-probe", self.docker_helper, SYS_PROBE_START_LOG)
+
+        with Step(msg="check ruleset_loaded", emoji=":delivery_truck:"):
+            event = self.App.wait_app_log("rule_id:ruleset_loaded")
+            attributes = event["data"][-1]["attributes"]["attributes"]
+            start_date = attributes["date"]
+            check_for_ignored_policies(self, attributes)
+
+        with Step(msg="download policies", emoji=":file_folder:"):
+            self.policies = self.docker_helper.download_policies().output.decode()
+            self.assertNotEqual(self.policies, "", msg="download policies failed")
+            data = self.policy_loader.load(self.policies)
+            self.assertIsNotNone(data, msg="unable to load policy")
+
+        with Step(msg="check rule presence in policies", emoji=":bullseye:"):
+            rule = self.policy_loader.get_rule_by_desc(desc)
+            self.assertIsNotNone(rule, msg="unable to find e2e rule")
+            self.assertEqual(rule["id"], agent_rule_name)
+
+        with Step(msg="push policies", emoji=":envelope:"):
+            self.docker_helper.push_policies(self.policies)
+
+        with Step(msg="reload policies", emoji=":file_folder:"):
+            self.docker_helper.reload_policies()
+
+        with Step(msg="check ruleset_loaded", emoji=":delivery_truck:"):
+            for _i in range(60):  # retry 60 times
+                event = self.App.wait_app_log("rule_id:ruleset_loaded")
+                attributes = event["data"][-1]["attributes"]["attributes"]
+                restart_date = attributes["date"]
+                # search for restart log until the timestamp differs
+                if restart_date != start_date:
+                    break
+                time.sleep(1)
+            else:
+                self.fail("check ruleset_loaded timeouted")
+            check_for_ignored_policies(self, attributes)
 
         with Step(msg="wait for host tags (3m)", emoji=":alarm_clock:"):
             time.sleep(3 * 60)

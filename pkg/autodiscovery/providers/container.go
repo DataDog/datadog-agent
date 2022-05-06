@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -23,8 +24,7 @@ import (
 )
 
 const (
-	containerADLabelPrefix = "com.datadoghq.ad."
-	delayDuration          = 5 * time.Second
+	delayDuration = 5 * time.Second
 )
 
 // ContainerConfigProvider implements the ConfigProvider interface for container labels.
@@ -42,7 +42,7 @@ type ContainerConfigProvider struct {
 func NewContainerConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
 	containerFilter, err := containers.NewAutodiscoveryFilter(containers.GlobalFilter)
 	if err != nil {
-		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %w", err)
+		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
 	}
 
 	return &ContainerConfigProvider{
@@ -169,7 +169,7 @@ func (d *ContainerConfigProvider) generateConfigs() ([]integration.Config, error
 	var configs []integration.Config
 	for containerID, container := range d.containerCache {
 		containerEntityName := containers.BuildEntityName(string(container.Runtime), containerID)
-		c, errors := extractTemplatesFromMap(containerEntityName, container.Labels, containerADLabelPrefix)
+		c, errors := utils.ExtractTemplatesFromContainerLabels(containerEntityName, container.Labels)
 
 		for _, err := range errors {
 			log.Errorf("Can't parse template for container %s: %s", containerID, err)

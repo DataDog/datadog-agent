@@ -8,10 +8,12 @@ package autodiscovery
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -20,7 +22,8 @@ import (
 // `ConfigProvider` and whether it should be polled or not.
 type configPoller struct {
 	provider     providers.ConfigProvider
-	configs      []integration.Config
+	configs      map[uint64]integration.Config
+	configsMu    sync.Mutex
 	canPoll      bool
 	isPolling    bool
 	pollInterval time.Duration
@@ -31,20 +34,10 @@ type configPoller struct {
 func newConfigPoller(provider providers.ConfigProvider, canPoll bool, interval time.Duration) *configPoller {
 	return &configPoller{
 		provider:     provider,
-		configs:      []integration.Config{},
+		configs:      make(map[uint64]integration.Config),
 		canPoll:      canPoll,
 		pollInterval: interval,
 	}
-}
-
-// contains checks if the providerDescriptor contains the Config passed
-func (pd *configPoller) contains(c *integration.Config) bool {
-	for _, config := range pd.configs {
-		if config.Equal(c) {
-			return true
-		}
-	}
-	return false
 }
 
 // stop stops the provider descriptor if it's polling
@@ -104,24 +97,35 @@ func (pd *configPoller) poll(ac *AutoConfig) {
 			// Process removed configs first to handle the case where a
 			// container churn would result in the same configuration hash.
 			ac.processRemovedConfigs(removedConfigs)
-			// We can also remove any cached template
-			ac.removeConfigTemplates(removedConfigs)
 
 			for _, config := range newConfigs {
 				config.Provider = pd.provider.String()
-				resolvedConfigs := ac.processNewConfig(config)
-				ac.schedule(resolvedConfigs)
+				changes := ac.processNewConfig(config)
+				ac.applyChanges(changes)
 			}
 		}
 	}
 }
 
+func (pd *configPoller) overwriteConfigs(configs []integration.Config) {
+	pd.configsMu.Lock()
+	defer pd.configsMu.Unlock()
+
+	fetchedMap := make(map[uint64]integration.Config, len(configs))
+	for _, c := range configs {
+		cHash := c.FastDigest()
+		fetchedMap[cHash] = c
+	}
+	pd.configs = fetchedMap
+}
+
 // collect is just a convenient wrapper to fetch configurations from a provider and
 // see what changed from the last time we called Collect().
 func (pd *configPoller) collect(ctx context.Context) ([]integration.Config, []integration.Config) {
-	var newConf []integration.Config
-	var removedConf []integration.Config
-	old := pd.configs
+	start := time.Now()
+	defer func() {
+		telemetry.PollDuration.Observe(time.Since(start).Seconds(), pd.provider.String())
+	}()
 
 	fetched, err := pd.provider.Collect(ctx)
 	if err != nil {
@@ -129,17 +133,33 @@ func (pd *configPoller) collect(ctx context.Context) ([]integration.Config, []in
 		return nil, nil
 	}
 
-	for _, c := range fetched {
-		if !pd.contains(&c) {
+	return pd.storeAndDiffConfigs(fetched)
+}
+
+func (pd *configPoller) storeAndDiffConfigs(configs []integration.Config) ([]integration.Config, []integration.Config) {
+	pd.configsMu.Lock()
+	defer pd.configsMu.Unlock()
+
+	var newConf []integration.Config
+	var removedConf []integration.Config
+
+	// We allocate a new map. We could do without it with a bit more processing
+	// but it allows to free some memory if number of collected configs varies a lot
+	fetchedMap := make(map[uint64]integration.Config, len(configs))
+	for _, c := range configs {
+		cHash := c.FastDigest()
+		fetchedMap[cHash] = c
+		if _, found := pd.configs[cHash]; found {
+			delete(pd.configs, cHash)
+		} else {
 			newConf = append(newConf, c)
 		}
 	}
 
-	pd.configs = fetched
-	for _, c := range old {
-		if !pd.contains(&c) {
-			removedConf = append(removedConf, c)
-		}
+	for _, c := range pd.configs {
+		removedConf = append(removedConf, c)
 	}
+	pd.configs = fetchedMap
+
 	return newConf, removedConf
 }

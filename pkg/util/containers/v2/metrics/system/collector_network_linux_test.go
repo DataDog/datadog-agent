@@ -93,6 +93,7 @@ func TestCollectNetworkStats(t *testing.T) {
 			assert.NoError(t, err)
 
 			stat, err := collectNetworkStats(dummyProcDir.RootPath, tc.pid)
+			stat.Timestamp = tc.stat.Timestamp
 			assert.NoError(t, err)
 			assert.Equal(t, &tc.stat, stat)
 		})

@@ -28,8 +28,8 @@
             "x86_64": {
                 "debian-8": "urn,credativ:Debian:8:8.0.201901221",
                 "debian-9": "urn,credativ:Debian:9:9.20200722.0",
-                "debian-10": "urn,Debian:debian-10:10:0.20210208.542",
-                "debian-11": "urn,Debian:debian-11:11:0.20210814.734"
+                "debian-10": "urn,Debian:debian-10:10:0.20211011.792",
+                "debian-11": "urn,Debian:debian-11:11:0.20220328.962"
             }
         },
         "ec2": {
@@ -41,9 +41,9 @@
     "suse": {
         "azure": {
             "x86_64": {
-                "sles-12": "urn,SUSE:sles-12-sp5-byos:gen1:2021.03.03",
-                "sles-15": "urn,SUSE:sles-15-sp2-byos:gen1:2021.03.03",
-                "opensuse-15-3": "urn,SUSE:opensuse-leap-15-3:gen1:2021.10.12"
+                "sles-12": "urn,SUSE:sles-12-sp5-byos:gen1:2022.03.08",
+                "sles-15": "urn,SUSE:sles-15-sp2-byos:gen1:2022.03.09",
+                "opensuse-15-3": "urn,SUSE:opensuse-leap-15-3:gen1:2022.01.28"
             }
         },
         "ec2": {
@@ -56,12 +56,15 @@
         "azure": {
             "x86_64": {
                 "ubuntu-14-04": "urn,Canonical:UbuntuServer:14.04.5-LTS:14.04.201905140",
+                "ubuntu-16-04-4.4": "urn,Canonical:UbuntuServer:16.04.0-LTS:16.04.201608150",
                 "ubuntu-16-04": "urn,Canonical:UbuntuServer:16.04.0-LTS:16.04.202106110",
+                "ubuntu-18-04-0": "urn,Canonical:UbuntuServer:18.04-LTS:18.04.201809110",
                 "ubuntu-18-04": "urn,Canonical:UbuntuServer:18.04-LTS:18.04.201906040",
                 "ubuntu-18-04-3": "urn,Canonical:UbuntuServer:18.04-LTS:18.04.201912180",
                 "ubuntu-20-04": "urn,Canonical:0001-com-ubuntu-server-focal:20_04-lts:20.04.202004230",
                 "ubuntu-20-04-2": "urn,Canonical:0001-com-ubuntu-server-focal:20_04-lts:20.04.202107200",
-                "ubuntu-21-10": "urn,Canonical:0001-com-ubuntu-server-impish-daily:21_10-daily:21.10.202202040"
+                "ubuntu-21-10": "urn,Canonical:0001-com-ubuntu-server-impish-daily:21_10-daily:21.10.202202040",
+                "ubuntu-22-04": "urn,Canonical:0001-com-ubuntu-server-jammy:22_04-lts:22.04.202204200"
             }
         },
         "ec2": {
@@ -69,12 +72,16 @@
                 "ubuntu-18-04": "ami-02ed82f3a38303e6f",
                 "ubuntu-20-04": "ami-0b75998a97c952252",
                 "ubuntu-20-04-2": "ami-0a82127206c2824a1",
-                "ubuntu-21-04": "ami-044f0ceee8e885e87"
+                "ubuntu-21-04": "ami-044f0ceee8e885e87",
+                "ubuntu-21-10": "ami-0419d418f41aa4a0f"
             }
         },
         "vagrant": {
             "x86_64": {
                 "ubuntu-16-04": "bento/ubuntu-16.04"
+            },
+            "arm64": {
+                "ubuntu-20-04": "bytesguy/ubuntu-server-20.04-arm64"
             }
         }
     },
@@ -85,10 +92,18 @@
             }
         }
     },
+    "amazonlinux": {
+        "ec2": {
+            "x86_64": {
+                "amazonlinux2-4-14": "ami-038b3df3312ddf25d",
+                "amazonlinux2-5-10": "ami-033b95fb8079dc481"
+            }
+        }
+    },
     "windows": {
         "azure": {
             "x86_64": {
-                "win2008r2": "id,/subscriptions/8c56d827-5f07-45ce-8f2b-6c5001db5c6f/resourceGroups/kitchen-test-images/providers/Microsoft.Compute/galleries/kitchenimages/images/Windows2008-R2-SP1/versions/1.0.0",
+                "win2008r2": "id,/subscriptions/a53d2c33-d372-4e36-9e33-eaf32ce95b28/resourceGroups/agentcustomimages/providers/Microsoft.Compute/galleries/agentcustomimages/images/Windows2008-R2-SP1/versions/1.0.0",
                 "win2012": "urn,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190410",
                 "win2012r2": "urn,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190416",
                 "win2016": "urn,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190416",
@@ -96,8 +111,8 @@
                 "win2019cn": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-zhcn:17763.2114.2108051826",
                 "win1903": "urn,MicrosoftWindowsServer:WindowsServer:Datacenter-Core-1903-with-Containers-smalldisk:18362.1256.2012032308",
                 "win1909": "urn,MicrosoftWindowsServer:WindowsServer:datacenter-core-1909-with-containers-smalldisk:18363.1316.2101130054",
-                "win2004": "urn,MicrosoftWindowsServer:WindowsServer:datacenter-core-2004-with-containers-smalldisk:19041.746.2101092327",
-                "win20h2": "urn,MicrosoftWindowsServer:WindowsServer:datacenter-core-20h2-with-containers-smalldisk:19042.746.2101092352",
+                "win2004": "urn,MicrosoftWindowsServer:WindowsServer:datacenter-core-2004-with-containers-smalldisk:19041.1415.2112101053",
+                "win20h2": "urn,MicrosoftWindowsServer:WindowsServer:datacenter-core-20h2-with-containers-smalldisk:19042.1645.220403",
                 "win2022": "urn,MicrosoftWindowsServer:WindowsServer:2022-datacenter-core:20348.169.2108120020"
             }
         },

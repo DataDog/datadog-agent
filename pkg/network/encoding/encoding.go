@@ -12,7 +12,6 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gogo/protobuf/jsonpb"
 )
@@ -68,25 +67,18 @@ func modelConnections(conns *network.Connections) *model.Connections {
 
 	agentConns := make([]*model.Connection, len(conns.Conns))
 	routeIndex := make(map[string]RouteIdx)
-	httpIndex := FormatHTTPStats(conns.HTTP)
-	httpMatches := make(map[http.Key]struct{}, len(httpIndex))
+	httpEncoder := newHTTPEncoder(conns)
 	ipc := make(ipCache, len(conns.Conns)/2)
 	dnsFormatter := newDNSFormatter(conns, ipc)
 
 	for i, conn := range conns.Conns {
-		httpKey := httpKeyFromConn(conn)
-		httpAggregations := httpIndex[httpKey]
-		if httpAggregations != nil {
-			httpMatches[httpKey] = struct{}{}
-		}
-
-		agentConns[i] = FormatConnection(conn, routeIndex, httpAggregations, dnsFormatter, ipc)
+		agentConns[i] = FormatConnection(conn, routeIndex, httpEncoder, dnsFormatter, ipc)
 	}
 
-	if orphans := len(httpIndex) - len(httpMatches); orphans > 0 {
+	if httpEncoder != nil && httpEncoder.orphanEntries > 0 {
 		log.Debugf(
 			"detected orphan http aggreggations. this can be either caused by conntrack sampling or missed tcp close events. count=%d",
-			orphans,
+			httpEncoder.orphanEntries,
 		)
 	}
 
@@ -100,7 +92,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	payload.Conns = agentConns
 	payload.Domains = dnsFormatter.Domains()
 	payload.Dns = dnsFormatter.DNS()
-	payload.ConnTelemetry = FormatConnTelemetry(conns.ConnTelemetry)
+	payload.ConnTelemetryMap = FormatConnectionTelemetry(conns.ConnTelemetry)
 	payload.CompilationTelemetryByAsset = FormatCompilationTelemetry(conns.CompilationTelemetryByAsset)
 	payload.Routes = routes
 

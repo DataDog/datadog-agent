@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
@@ -102,7 +101,7 @@ func (c *IOCheck) Configure(data integration.Data, initConfig integration.Data, 
 
 // Run executes the check
 func (c *IOCheck) Run() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}

@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "precompiled/stdafx.h"
 #include "ReplaceYamlProperties.h"
 
 TEST_F(ReplaceYamlPropertiesTests, When_Logs_Enabled_Correctly_Replace)

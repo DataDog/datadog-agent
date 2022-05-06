@@ -117,27 +117,64 @@ type BufferedData struct {
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
 	BufferedData
-	DNS                         map[util.Address][]string
-	ConnTelemetry               *ConnectionsTelemetry
+	DNS                         map[util.Address][]dns.Hostname
+	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
 	HTTP                        map[http.Key]http.RequestStats
 	DNSStats                    dns.StatsByKeyByNameByType
 }
 
-// ConnectionsTelemetry stores telemetry from the system probe related to connections collection
-type ConnectionsTelemetry struct {
-	MonotonicKprobesTriggered          int64
-	MonotonicKprobesMissed             int64
-	MonotonicConntrackRegisters        int64
-	MonotonicConntrackRegistersDropped int64
-	MonotonicDNSPacketsProcessed       int64
-	MonotonicConnsClosed               int64
-	ConnsBpfMapSize                    int64
-	MonotonicUDPSendsProcessed         int64
-	MonotonicUDPSendsMissed            int64
-	ConntrackSamplingPercent           int64
-	DNSStatsDropped                    int64
-}
+// ConnTelemetryType enumerates the connection telemetry gathered by the system-probe
+// The string name of each telemetry type is the metric name which will be emitted
+type ConnTelemetryType string
+
+//revive:disable:exported
+const (
+	MonotonicKprobesTriggered          ConnTelemetryType = "kprobes_triggered"
+	MonotonicKprobesMissed             ConnTelemetryType = "kprobes_missed"
+	MonotonicConnsClosed               ConnTelemetryType = "conns_closed"
+	MonotonicConntrackRegisters        ConnTelemetryType = "conntrack_registers"
+	MonotonicConntrackRegistersDropped ConnTelemetryType = "conntrack_registers_dropped"
+	MonotonicDNSPacketsProcessed       ConnTelemetryType = "dns_packets_processed"
+	MonotonicUDPSendsProcessed         ConnTelemetryType = "udp_sends_processed"
+	MonotonicUDPSendsMissed            ConnTelemetryType = "udp_sends_missed"
+	DNSStatsDropped                    ConnTelemetryType = "dns_stats_dropped"
+	ConnsBpfMapSize                    ConnTelemetryType = "conns_bpf_map_size"
+	ConntrackSamplingPercent           ConnTelemetryType = "conntrack_sampling_percent"
+	NPMDriverFlowsMissedMaxExceeded    ConnTelemetryType = "driver_flows_missed_max_exceeded"
+	MonotonicDNSPacketsDropped         ConnTelemetryType = "dns_packets_dropped"
+	HTTPRequestsDropped                ConnTelemetryType = "http_requests_dropped"
+	HTTPRequestsMissed                 ConnTelemetryType = "http_requests_missed"
+)
+
+//revive:enable
+
+var (
+	// ConnTelemetryTypes lists all the possible (non-monotonic) telemetry which can be bundled
+	// into the network connections payload
+	ConnTelemetryTypes = []ConnTelemetryType{
+		ConnsBpfMapSize,
+		ConntrackSamplingPercent,
+		DNSStatsDropped,
+		NPMDriverFlowsMissedMaxExceeded,
+		HTTPRequestsDropped,
+		HTTPRequestsMissed,
+	}
+
+	// MonotonicConnTelemetryTypes lists all the possible monotonic telemetry which can be bundled
+	// into the network connections payload
+	MonotonicConnTelemetryTypes = []ConnTelemetryType{
+		MonotonicKprobesTriggered,
+		MonotonicKprobesMissed,
+		MonotonicConntrackRegisters,
+		MonotonicConntrackRegistersDropped,
+		MonotonicDNSPacketsProcessed,
+		MonotonicConnsClosed,
+		MonotonicUDPSendsProcessed,
+		MonotonicUDPSendsMissed,
+		MonotonicDNSPacketsDropped,
+	}
+)
 
 // RuntimeCompilationTelemetry stores telemetry related to the runtime compilation of various assets
 type RuntimeCompilationTelemetry struct {
@@ -295,7 +332,7 @@ func BeautifyKey(key string) string {
 }
 
 // ConnectionSummary returns a string summarizing a connection
-func ConnectionSummary(c *ConnectionStats, names map[util.Address][]string) string {
+func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname) string {
 	str := fmt.Sprintf(
 		"[%s%s] [PID: %d] [%v:%d ⇄ %v:%d] ",
 		c.Type,
@@ -334,10 +371,16 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]string) stri
 	return str
 }
 
-func printAddress(address util.Address, names []string) string {
+func printAddress(address util.Address, names []dns.Hostname) string {
 	if len(names) == 0 {
 		return address.String()
 	}
 
-	return strings.Join(names, ",")
+	var b strings.Builder
+	b.WriteString(dns.ToString(names[0]))
+	for _, s := range names[1:] {
+		b.WriteString(",")
+		b.WriteString(dns.ToString(s))
+	}
+	return b.String()
 }

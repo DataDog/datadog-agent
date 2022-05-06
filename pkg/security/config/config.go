@@ -7,11 +7,15 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -84,19 +88,68 @@ type Config struct {
 	HostServiceName string
 	// LogPatterns pattern to be used by the logger for trace level
 	LogPatterns []string
+	// LogTags tags to be used by the logger for trace level
+	LogTags []string
 	// SelfTestEnabled defines if the self tester should be enabled (useful for tests for example)
 	SelfTestEnabled bool
-	// EnableRemoteConfig defines if configuration should be fetched from the backend
+	// EnableRemoteConfig defines if the agent configuration should be fetched from the backend
 	EnableRemoteConfig bool
+	// ActivityDumpEnabled defines if the activity dump manager should be enabled
+	ActivityDumpEnabled bool
+	// ActivityDumpCleanupPeriod defines the period at which the activity dump manager should perform its cleanup
+	// operation.
+	ActivityDumpCleanupPeriod time.Duration
+	// ActivityDumpTagsResolutionPeriod defines the period at which the activity dump manager should try to resolve
+	// missing container tags.
+	ActivityDumpTagsResolutionPeriod time.Duration
+	// ActivityDumpTracedCgroupsCount defines the maximum count of cgroups that should be monitored concurrently. Set
+	// this parameter to -1 to monitor all cgroups at the same time. Leave this parameter to 0 to prevent the generation
+	// of activity dumps based on cgroups.
+	ActivityDumpTracedCgroupsCount int
+	// ActivityDumpTracedEventTypes defines the list of events that should be captured in an activity dump. Leave this
+	// parameter empty to monitor all event types. If not already present, the `exec` event will automatically be added
+	// to this list.
+	ActivityDumpTracedEventTypes []model.EventType
+	// ActivityDumpCgroupDumpTimeout defines the cgroup activity dumps timeout.
+	ActivityDumpCgroupDumpTimeout time.Duration
+	// ActivityDumpCgroupWaitListSize defines the size of the cgroup wait list. The wait list is used to introduce a
+	// delay between 2 activity dumps of the same cgroup.
+	ActivityDumpCgroupWaitListSize int
+	// ActivityDumpCgroupOutputDirectory defines the output directory for the cgroup activity dumps and graphs. Leave
+	// this field empty to prevent writing any output to disk.
+	ActivityDumpCgroupOutputDirectory string
+	// RuntimeMonitor defines if the runtime monitor should be enabled
+	RuntimeMonitor bool
+	// NetworkEnabled defines if the network probes should be activated
+	NetworkEnabled bool
+	// NetworkLazyInterfacePrefixes is the list of interfaces prefix that aren't explicitly deleted by the container
+	// runtime, and that are lazily deleted by the kernel when a network namespace is cleaned up. This list helps the
+	// agent detect when a network namespace should be purged from all caches.
+	NetworkLazyInterfacePrefixes []string
+	// RuntimeCompilationEnabled defines if the runtime-compilation is enabled
+	RuntimeCompilationEnabled bool
 	// EnableRuntimeCompiledConstants defines if the runtime compilation based constant fetcher is enabled
-	EnableRuntimeCompiledConstants bool
+	RuntimeCompiledConstantsEnabled bool
 	// RuntimeCompiledConstantsIsSet is set if the runtime compiled constants option is user-set
 	RuntimeCompiledConstantsIsSet bool
+	// EventMonitoring enabled event monitoring
+	EventMonitoring bool
 }
 
 // IsEnabled returns true if any feature is enabled. Has to be applied in config package too
 func (c *Config) IsEnabled() bool {
 	return c.RuntimeEnabled || c.FIMEnabled
+}
+
+func setEnv() {
+	if aconfig.IsContainerized() && util.PathExists("/host") {
+		if v := os.Getenv("HOST_PROC"); v == "" {
+			os.Setenv("HOST_PROC", "/host/proc")
+		}
+		if v := os.Getenv("HOST_SYS"); v == "" {
+			os.Setenv("HOST_SYS", "/host/sys")
+		}
+	}
 }
 
 // NewConfig returns a new Config object
@@ -105,6 +158,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		Config:                             *ebpf.NewConfig(),
 		RuntimeEnabled:                     aconfig.Datadog.GetBool("runtime_security_config.enabled"),
 		FIMEnabled:                         aconfig.Datadog.GetBool("runtime_security_config.fim_enabled"),
+		EventMonitoring:                    aconfig.Datadog.GetBool("runtime_security_config.event_monitoring.enabled"),
 		EnableKernelFilters:                aconfig.Datadog.GetBool("runtime_security_config.enable_kernel_filters"),
 		EnableApprovers:                    aconfig.Datadog.GetBool("runtime_security_config.enable_approvers"),
 		EnableDiscarders:                   aconfig.Datadog.GetBool("runtime_security_config.enable_discarders"),
@@ -130,10 +184,24 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		DentryCacheSize:                    aconfig.Datadog.GetInt("runtime_security_config.dentry_cache_size"),
 		RemoteTaggerEnabled:                aconfig.Datadog.GetBool("runtime_security_config.remote_tagger"),
 		LogPatterns:                        aconfig.Datadog.GetStringSlice("runtime_security_config.log_patterns"),
+		LogTags:                            aconfig.Datadog.GetStringSlice("runtime_security_config.log_tags"),
 		SelfTestEnabled:                    aconfig.Datadog.GetBool("runtime_security_config.self_test.enabled"),
 		EnableRemoteConfig:                 aconfig.Datadog.GetBool("runtime_security_config.enable_remote_configuration"),
-		EnableRuntimeCompiledConstants:     aconfig.Datadog.GetBool("runtime_security_config.enable_runtime_compiled_constants"),
-		RuntimeCompiledConstantsIsSet:      aconfig.Datadog.IsSet("runtime_security_config.enable_runtime_compiled_constants"),
+		ActivityDumpEnabled:                aconfig.Datadog.GetBool("runtime_security_config.activity_dump.enabled"),
+		ActivityDumpCleanupPeriod:          time.Duration(aconfig.Datadog.GetInt("runtime_security_config.activity_dump.cleanup_period")) * time.Second,
+		ActivityDumpTagsResolutionPeriod:   time.Duration(aconfig.Datadog.GetInt("runtime_security_config.activity_dump.tags_resolution_period")) * time.Second,
+		ActivityDumpTracedCgroupsCount:     aconfig.Datadog.GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
+		ActivityDumpTracedEventTypes:       model.ParseEventTypeStringSlice(aconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
+		ActivityDumpCgroupDumpTimeout:      time.Duration(aconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_dump_timeout")) * time.Minute,
+		ActivityDumpCgroupWaitListSize:     aconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_wait_list_size"),
+		ActivityDumpCgroupOutputDirectory:  aconfig.Datadog.GetString("runtime_security_config.activity_dump.cgroup_output_directory"),
+		RuntimeMonitor:                     aconfig.Datadog.GetBool("runtime_security_config.runtime_monitor.enabled"),
+		NetworkEnabled:                     aconfig.Datadog.GetBool("runtime_security_config.network.enabled"),
+		NetworkLazyInterfacePrefixes:       aconfig.Datadog.GetStringSlice("runtime_security_config.network.lazy_interface_prefixes"),
+		// runtime compilation
+		RuntimeCompilationEnabled:       aconfig.Datadog.GetBool("runtime_security_config.runtime_compilation.enabled"),
+		RuntimeCompiledConstantsEnabled: aconfig.Datadog.GetBool("runtime_security_config.runtime_compilation.compiled_constants_enabled"),
+		RuntimeCompiledConstantsIsSet:   aconfig.Datadog.IsSet("runtime_security_config.runtime_compilation.compiled_constants_enabled"),
 	}
 
 	// if runtime is enabled then we force fim
@@ -161,8 +229,13 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		c.MapDentryResolutionEnabled = true
 	}
 
+	// not enable at the system-probe level, disable for cws as well
 	if !c.Config.EnableRuntimeCompiler {
-		c.EnableRuntimeCompiledConstants = false
+		c.RuntimeCompilationEnabled = false
+	}
+
+	if !c.RuntimeCompilationEnabled {
+		c.RuntimeCompiledConstantsEnabled = false
 	}
 
 	serviceName := utils.GetTagValue("service", aconfig.GetConfiguredTags(true))
@@ -170,5 +243,28 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		c.HostServiceName = fmt.Sprintf("service:%s", serviceName)
 	}
 
+	var found bool
+	for _, evtType := range c.ActivityDumpTracedEventTypes {
+		if evtType == model.ExecEventType {
+			found = true
+		}
+	}
+	if !found {
+		c.ActivityDumpTracedEventTypes = append(c.ActivityDumpTracedEventTypes, model.ExecEventType)
+	}
+
+	lazyInterfaces := make(map[string]bool)
+	for _, name := range c.NetworkLazyInterfacePrefixes {
+		lazyInterfaces[name] = true
+	}
+	// make sure to append both `lo` and `dummy` in the list of `runtime_security_config.network.lazy_interface_prefixes`
+	lazyDefaults := []string{"lo", "dummy"}
+	for _, name := range lazyDefaults {
+		if !lazyInterfaces[name] {
+			c.NetworkLazyInterfacePrefixes = append(c.NetworkLazyInterfacePrefixes, name)
+		}
+	}
+
+	setEnv()
 	return c, nil
 }

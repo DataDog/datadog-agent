@@ -30,9 +30,9 @@ const (
 	testModulePathFmt = "/lib/modules/%s/kernel/fs/cifs/cifs.ko"
 )
 
-func loadModule(name string) error {
+func loadModule(name string) ([]byte, error) {
 	e := exec.Command("modprobe", name)
-	return e.Run()
+	return e.Output()
 }
 
 func compressModule(modulePath string, t *testing.T) {
@@ -109,7 +109,7 @@ func TestLoadModule(t *testing.T) {
 	}
 
 	// before trying to load the module, some dependant modules might be needed, use modprobe to load them first
-	if err := loadModule(testModuleName); err != nil {
+	if _, err := loadModule(testModuleName); err != nil {
 		t.Skipf("failed to load %s module: %v", testModuleName, err)
 	}
 
@@ -202,7 +202,7 @@ func TestUnloadModule(t *testing.T) {
 	}
 
 	// before trying to load the module, some dependant modules might be needed, use modprobe to load them first
-	if err := loadModule(testModuleName); err != nil {
+	if _, err := loadModule(testModuleName); err != nil {
 		t.Skipf("failed to load %s module: %v", testModuleName, err)
 	}
 

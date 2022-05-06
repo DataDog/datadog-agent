@@ -54,11 +54,37 @@ struct bpf_map_def SEC("maps/conn_close_batch") conn_close_batch = {
     .namespace = "",
 };
 
+/*
+ * Map to hold struct sock parameter for tcp_sendmsg calls
+ * to be used in kretprobe/tcp_sendmsg
+ */
+struct bpf_map_def SEC("maps/tcp_sendmsg_args") tcp_sendmsg_args = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u64),
+    .value_size = sizeof(struct sock*),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
 /* This map is used to match the kprobe & kretprobe of udp_recvmsg */
 /* This is a key/value store with the keys being a pid
  * and the values being a udp_recv_sock_t
  */
 struct bpf_map_def SEC("maps/udp_recv_sock") udp_recv_sock = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u64),
+    .value_size = sizeof(udp_recv_sock_t),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
+/* This map is used to match the kprobe & kretprobe of udpv6_recvmsg */
+/* This is a key/value store with the keys being a pid
+ * and the values being a udp_recv_sock_t
+ */
+struct bpf_map_def SEC("maps/udpv6_recv_sock") udpv6_recv_sock = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(__u64),
     .value_size = sizeof(udp_recv_sock_t),

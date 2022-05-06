@@ -12,7 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/gohai"
+	"github.com/DataDog/datadog-agent/pkg/metadata/internal/gohai"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
