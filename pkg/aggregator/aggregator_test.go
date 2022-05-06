@@ -565,11 +565,9 @@ type MockSerializerIterableSerie struct {
 	serializer.MockSerializer
 }
 
-func (s *MockSerializerIterableSerie) SendIterableSeries(iterableSerie *metrics.IterableSeries) error {
-	defer iterableSerie.IterationStopped()
-
-	for iterableSerie.MoveNext() {
-		s.series = append(s.series, iterableSerie.Current())
+func (s *MockSerializerIterableSerie) SendIterableSeries(seriesSource metrics.SerieSource) error {
+	for seriesSource.MoveNext() {
+		s.series = append(s.series, seriesSource.Current())
 	}
 	return nil
 }
