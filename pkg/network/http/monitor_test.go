@@ -152,11 +152,10 @@ func requestGenerator(t *testing.T, targetAddr string) func() *nethttp.Request {
 	}
 }
 
-func includesRequest(t *testing.T, allStats map[Key]RequestStats, req *nethttp.Request) {
+func includesRequest(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.Request) {
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	for key, stats := range allStats {
-		i := expectedStatus/100 - 1
-		if key.Path == req.URL.Path && stats[i].Count == 1 {
+		if key.Path == req.URL.Path && stats.HasStats(expectedStatus) {
 			return
 		}
 	}

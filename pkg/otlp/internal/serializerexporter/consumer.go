@@ -105,18 +105,17 @@ func (c *serializerConsumer) flush(s serializer.MetricSerializer) error {
 	if err := s.SendSketch(c.sketches); err != nil {
 		return err
 	}
-	iterableSeries := metrics.NewIterableSeries(func(se *metrics.Serie) {}, 200, 4000)
-	done := make(chan struct{})
+
 	var err error
-	go func() {
-		err = s.SendIterableSeries(iterableSeries)
-		iterableSeries.IterationStopped()
-		close(done)
-	}()
-	for _, serie := range c.series {
-		iterableSeries.Append(serie)
-	}
-	iterableSeries.SenderStopped()
-	<-done
+	metrics.StartIteration(
+		metrics.NewIterableSeries(func(se *metrics.Serie) {}, 200, 4000),
+		func(seriesSink metrics.SerieSink) {
+			for _, serie := range c.series {
+				seriesSink.Append(serie)
+			}
+		}, func(serieSource metrics.SerieSource) {
+			err = s.SendIterableSeries(serieSource)
+		})
+
 	return err
 }

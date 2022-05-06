@@ -74,6 +74,9 @@ func (tx *httpTX) StatusClass() int {
 
 // RequestLatency returns the latency of the request in nanoseconds
 func (tx *httpTX) RequestLatency() float64 {
+	if uint64(tx.request_started) == 0 || uint64(tx.response_last_seen) == 0 {
+		return 0
+	}
 	return nsTimestampToFloat(uint64(tx.response_last_seen - tx.request_started))
 }
 

@@ -87,7 +87,7 @@ func initExtraHeaders() {
 type MetricSerializer interface {
 	SendEvents(e metrics.Events) error
 	SendServiceChecks(serviceChecks metrics.ServiceChecks) error
-	SendIterableSeries(series *metrics.IterableSeries) error
+	SendIterableSeries(serieSource metrics.SerieSource) error
 	SendSketch(sketches metrics.SketchSeriesList) error
 	SendMetadata(m marshaler.JSONMarshaler) error
 	SendHostMetadata(m marshaler.JSONMarshaler) error
@@ -297,13 +297,13 @@ func (s *Serializer) SendServiceChecks(serviceChecks metrics.ServiceChecks) erro
 }
 
 // SendIterableSeries serializes a list of series and sends the payload to the forwarder
-func (s *Serializer) SendIterableSeries(series *metrics.IterableSeries) error {
+func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	if !s.enableSeries {
 		log.Debug("series payloads are disabled: dropping it")
 		return nil
 	}
 
-	seriesSerializer := metricsserializer.IterableSeries{IterableSeries: series}
+	seriesSerializer := metricsserializer.IterableSeries{SerieSource: serieSource}
 	useV1API := !config.Datadog.GetBool("use_v2_api.series")
 
 	var seriesPayloads forwarder.Payloads

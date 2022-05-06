@@ -13,8 +13,8 @@ import (
 )
 
 type httpEncoder struct {
-	aggregations map[http.Key]*model.HTTPAggregations
-	tags         map[http.Key]uint64
+	aggregations map[http.KeyTuple]*model.HTTPAggregations
+	tags         map[http.KeyTuple]uint64
 
 	// pre-allocated objects
 	dataPool []model.HTTPStats_Data
@@ -30,8 +30,8 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 	}
 
 	encoder := &httpEncoder{
-		aggregations: make(map[http.Key]*model.HTTPAggregations, len(payload.Conns)),
-		tags:         make(map[http.Key]uint64, len(payload.Conns)),
+		aggregations: make(map[http.KeyTuple]*model.HTTPAggregations, len(payload.Conns)),
+		tags:         make(map[http.KeyTuple]uint64, len(payload.Conns)),
 
 		// pre-allocate all data objects at once
 		dataPool: make([]model.HTTPStats_Data, len(payload.HTTP)*http.NumStatusClasses),
@@ -42,7 +42,7 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 	// pre-populate aggregation map with keys for all existent connections
 	// this allows us to skip encoding orphan HTTP objects that can't be matched to a connection
 	for _, conn := range payload.Conns {
-		encoder.aggregations[httpKeyFromConn(conn)] = nil
+		encoder.aggregations[httpKeyTupleFromConn(conn)] = nil
 	}
 
 	encoder.buildAggregations(payload)
@@ -54,18 +54,18 @@ func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats) (*mo
 		return nil, 0
 	}
 
-	key := httpKeyFromConn(c)
-	return e.aggregations[key], e.tags[key]
+	keyTuple := httpKeyTupleFromConn(c)
+	return e.aggregations[keyTuple], e.tags[keyTuple]
 }
 
 func (e *httpEncoder) buildAggregations(payload *network.Connections) {
-	for key, stats := range payload.HTTP {
-		path := key.Path
-		method := key.Method
-		key.Path = ""
-		key.Method = http.MethodUnknown
+	aggrSize := make(map[http.KeyTuple]int)
+	for key := range payload.HTTP {
+		aggrSize[key.KeyTuple]++
+	}
 
-		aggregation, ok := e.aggregations[key]
+	for key, stats := range payload.HTTP {
+		aggregation, ok := e.aggregations[key.KeyTuple]
 		if !ok {
 			// if there is no matching connection don't even bother to serialize HTTP data
 			e.orphanEntries++
@@ -74,26 +74,31 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 
 		if aggregation == nil {
 			aggregation = &model.HTTPAggregations{
-				EndpointAggregations: make([]*model.HTTPStats, 0, 10),
+				EndpointAggregations: make([]*model.HTTPStats, 0, aggrSize[key.KeyTuple]),
 			}
-			e.aggregations[key] = aggregation
+			e.aggregations[key.KeyTuple] = aggregation
 		}
 
 		ms := &model.HTTPStats{
-			Path:                  path,
-			Method:                model.HTTPMethod(method),
+			Path:                  key.Path,
+			Method:                model.HTTPMethod(key.Method),
 			StatsByResponseStatus: e.getDataSlice(),
 		}
 
 		tags := e.tags[key]
 		for i, data := range ms.StatsByResponseStatus {
-			data.Count = uint32(stats[i].Count)
+			class := (i + 1) * 100
+			if !stats.HasStats(class) {
+				continue
+			}
+			s := stats.Stats(class)
+			data.Count = uint32(s.Count)
 
-			if latencies := stats[i].Latencies; latencies != nil {
+			if latencies := s.Latencies; latencies != nil {
 				blob, _ := proto.Marshal(latencies.ToProto())
 				data.Latencies = blob
 			} else {
-				data.FirstLatencySample = stats[i].FirstLatencySample
+				data.FirstLatencySample = s.FirstLatencySample
 			}
 
 			tags |= stats[i].Tags
@@ -115,7 +120,7 @@ func (e *httpEncoder) getDataSlice() []*model.HTTPStats_Data {
 }
 
 // Build the key for the http map based on whether the local or remote side is http.
-func httpKeyFromConn(c network.ConnectionStats) http.Key {
+func httpKeyTupleFromConn(c network.ConnectionStats) http.KeyTuple {
 	// Retrieve translated addresses
 	laddr, lport := network.GetNATLocalAddress(c)
 	raddr, rport := network.GetNATRemoteAddress(c)
@@ -126,8 +131,8 @@ func httpKeyFromConn(c network.ConnectionStats) http.Key {
 	// to mimic the normalization heuristic done in the eBPF side (see `port_range.h`)
 	if (network.IsEphemeralPort(int(lport)) && !network.IsEphemeralPort(int(rport))) ||
 		(network.IsEphemeralPort(int(lport)) == network.IsEphemeralPort(int(rport)) && lport < rport) {
-		return http.NewKey(laddr, raddr, lport, rport, "", http.MethodUnknown)
+		return http.NewKeyTuple(laddr, raddr, lport, rport)
 	}
 
-	return http.NewKey(raddr, laddr, rport, lport, "", http.MethodUnknown)
+	return http.NewKeyTuple(raddr, laddr, rport, lport)
 }
