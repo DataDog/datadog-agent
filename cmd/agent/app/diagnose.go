@@ -21,6 +21,7 @@ var (
 		Use:   "diagnose",
 		Short: "Execute some connectivity diagnosis on your system",
 		Long:  ``,
+		RunE:  doDiagnoseMetadataAvailability,
 	}
 
 	diagnoseMetadataAvailabilityCommand = &cobra.Command{
