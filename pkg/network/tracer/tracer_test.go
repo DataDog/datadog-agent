@@ -1492,6 +1492,8 @@ func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
 
 	// start tracer so it dumps port bindings
 	cfg := testConfig()
+	// delay from gateway lookup timeout can cause test failure
+	cfg.EnableGatewayLookup = false
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()
