@@ -10,7 +10,6 @@ package bytecode
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"syscall"
 )

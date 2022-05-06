@@ -10,7 +10,6 @@ package bytecode
 
 import (
 	"fmt"
-	"io"
 )
 
 // VerifyAssetPermissions is for verifying the permissions of bpf programs
