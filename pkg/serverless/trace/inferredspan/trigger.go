@@ -49,9 +49,9 @@ func (eventKeys *EventKeys) extractEventSource() string {
 }
 
 // Checks if the Records array is available and returns the first entry
-func (ek *EventKeys) getFirstRecord() *RecordKeys {
-	if ek.Records != nil && len(ek.Records) > 0 {
-		return ek.Records[0]
+func (eventKeys *EventKeys) getFirstRecord() *RecordKeys {
+	if eventKeys.Records != nil && len(eventKeys.Records) > 0 {
+		return eventKeys.Records[0]
 	}
 	return nil
 }
