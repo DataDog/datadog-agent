@@ -27,8 +27,6 @@ DNF_TAG = "dnf"
 CLANG_CMD = "clang {flags} -c '{c_file}' -o '{bc_file}'"
 LLC_CMD = "llc -march=bpf -filetype=obj -o '{obj_file}' '{bc_file}'"
 
-DATADOG_AGENT_EMBEDDED_PATH = '/opt/datadog-agent/embedded'
-
 KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
 TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/...", "./pkg/collector/corechecks/ebpf/..."]
@@ -58,7 +56,6 @@ def build(
     go_mod="mod",
     windows=is_windows,
     arch=CURRENT_ARCH,
-    embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
     compile_ebpf=True,
     nikos_embedded_path=None,
     bundle_ebpf=False,
@@ -92,7 +89,6 @@ def build(
         ctx,
         major_version=major_version,
         python_runtimes=python_runtimes,
-        embedded_path=embedded_path,
         nikos_embedded_path=nikos_embedded_path,
     )
 
@@ -709,8 +705,7 @@ def build_object_files(ctx, parallel_build):
     print("checking for clang executable...")
     ctx.run("which clang")
 
-    bpf_dir = os.path.join(".", "pkg", "ebpf")
-    build_dir = os.path.join(bpf_dir, "bytecode", "build")
+    build_dir = os.path.join(".", "pkg", "ebpf", "bytecode", "build")
     build_runtime_dir = os.path.join(build_dir, "runtime")
 
     ctx.run(f"mkdir -p {build_dir}")
@@ -721,6 +716,20 @@ def build_object_files(ctx, parallel_build):
     build_security_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build)
 
     generate_runtime_files(ctx)
+
+    # We need to copy the bpf files out of the mounted build directory in order to be able to
+    # change their ownership to root
+    src_files = os.path.join(build_dir, "*")
+    bpf_dir = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
+
+    if not is_root():
+        ctx.sudo(f"mkdir -p {bpf_dir}")
+        ctx.sudo(f"cp -R {src_files} {bpf_dir}")
+        ctx.sudo(f"chown root:root -R {bpf_dir}")
+    else:
+        ctx.run(f"mkdir -p {bpf_dir}")
+        ctx.run(f"cp -R {src_files} {bpf_dir}")
+        ctx.run(f"chown root:root -R {bpf_dir}")
 
 
 @task
