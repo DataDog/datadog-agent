@@ -34,6 +34,7 @@
     - $S3_CP_CMD $S3_ARTIFACTS_URI/tcp-queue-length.c.${PACKAGE_ARCH} /tmp/system-probe/tcp-queue-length.c
     - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/clang-11.0.1.${PACKAGE_ARCH} /tmp/system-probe/clang-bpf
     - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/llc-11.0.1.${PACKAGE_ARCH} /tmp/system-probe/llc-bpf
+    - chmod 0644 /tmp/system-probe/*.o
     - chmod 0744 /tmp/system-probe/system-probe /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
     - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/nikos-${PACKAGE_ARCH}.tar.gz /tmp/nikos.tar.gz
     - mkdir -p /tmp/nikos
