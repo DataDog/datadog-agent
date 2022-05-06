@@ -277,13 +277,13 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 		return nil, err
 	}
 
-	// While implementing client predicates report all as matches
-	configPointers := make([]*pbgo.ConfigPointer, 0, len(targetFiles))
-
-	for _, v := range targetFiles {
-		configPointers = append(configPointers, &pbgo.ConfigPointer{
-			Path: v.Path,
-		})
+	directorTargets, err := s.uptane.Targets()
+	if err != nil {
+		return nil, err
+	}
+	configPointers, err := executeClientPredicates(request.Client, directorTargets)
+	if err != nil {
+		return nil, err
 	}
 
 	return &pbgo.ClientGetConfigsResponse{
