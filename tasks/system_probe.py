@@ -349,14 +349,16 @@ def clang_tidy(ctx, fix=False, fail_on_issue=False):
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_files = list(base_files)
     network_files.extend(glob.glob(network_c_dir + "/**/*[!http].c"))
+    network_files.append(os.path.join(network_c_dir, "runtime", "http.c"))
     network_flags = list(build_flags)
     network_flags.append(f"-I{network_c_dir}")
     network_flags.append(f"-I{os.path.join(network_c_dir, 'prebuilt')}")
     network_flags.append(f"-I{os.path.join(network_c_dir, 'runtime')}")
     run_tidy(ctx, files=network_files, build_flags=network_flags, fix=fix, fail_on_issue=fail_on_issue)
 
-    http_files = [os.path.join(network_c_dir, 'prebuilt', 'http.c')]
-    http_flags = get_http_build_flags(network_c_dir)
+    # special treatment for prebuilt/http.c
+    http_files = [os.path.join(network_c_dir, "prebuilt", "http.c")]
+    http_flags = get_http_prebuilt_build_flags(network_c_dir)
     http_flags.append(f"-I{network_c_dir}")
     http_flags.append(f"-I{os.path.join(network_c_dir, 'prebuilt')}")
     run_tidy(ctx, files=http_files, build_flags=http_flags, fix=fix, fail_on_issue=fail_on_issue)
@@ -542,7 +544,7 @@ def build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, netwo
         )
 
 
-def get_http_build_flags(network_c_dir):
+def get_http_prebuilt_build_flags(network_c_dir):
     uname_m = check_output("uname -m", shell=True).decode('utf-8').strip()
     flags = get_ebpf_build_flags(target=["-target", "bpf"])
     flags.append(f"-I{network_c_dir}")
@@ -556,7 +558,7 @@ def build_http_ebpf_files(ctx, build_dir):
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
-    network_flags = get_http_build_flags(network_c_dir)
+    network_flags = get_http_prebuilt_build_flags(network_c_dir)
 
     build_network_ebpf_compile_file(
         ctx, False, build_dir, "http", True, network_prebuilt_dir, network_flags, extension=".o"
