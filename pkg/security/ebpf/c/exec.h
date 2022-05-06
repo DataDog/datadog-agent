@@ -527,6 +527,12 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         // send the entry to maintain userspace cache
         struct exit_event_t event = {};
         struct proc_cache_t *cache_entry = fill_process_context(&event.process);
+
+        // consider entry without file context as a kworker
+        if (!event.proc_entry.executable.path_key.ino && !event.proc_entry.executable.path_key.mount_id) {
+            return 0;
+        }
+
         fill_container_context(cache_entry, &event.container);
         fill_span_context(&event.span);
         send_event(ctx, EVENT_EXIT, event);
