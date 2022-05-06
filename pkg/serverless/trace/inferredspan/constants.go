@@ -56,7 +56,10 @@ type RequestContextKeys struct {
 // HeaderKeys holds the extracted headers from the trace context
 type HeaderKeys struct {
 	InvocationType string `json:"X-Amz-Invocation-Type"`
+<<<<<<< HEAD
 	ParentID       string `json:"x-datadog-parent-id"`
+=======
+>>>>>>> main
 }
 
 // HTTPKeys holds the nested HTTP data from the event payload
