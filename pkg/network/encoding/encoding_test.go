@@ -193,7 +193,7 @@ func TestSerialization(t *testing.T) {
 				},
 			},
 		},
-		HTTP: map[http.Key]http.RequestStats{
+		HTTP: map[http.Key]*http.RequestStats{
 			http.NewKey(
 				util.AddressFromString("20.1.1.1"),
 				util.AddressFromString("20.1.1.1"),
@@ -201,7 +201,7 @@ func TestSerialization(t *testing.T) {
 				80,
 				"/testpath",
 				http.MethodGet,
-			): httpReqStats,
+			): &httpReqStats,
 		},
 	}
 
@@ -422,7 +422,7 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				},
 			},
 		},
-		HTTP: map[http.Key]http.RequestStats{
+		HTTP: map[http.Key]*http.RequestStats{
 			http.NewKey(
 				localhost,
 				localhost,
@@ -430,7 +430,7 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				serverPort,
 				"/testpath",
 				http.MethodGet,
-			): httpReqStats,
+			): &httpReqStats,
 		},
 	}
 
@@ -534,7 +534,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		if (i % 2) == 0 {
 			httpKey.Path = fmt.Sprintf("/path-%d", i)
-			in.HTTP = map[http.Key]http.RequestStats{httpKey: {}}
+			in.HTTP = map[http.Key]*http.RequestStats{httpKey: {}}
 			out := encodeAndDecodeHTTP(in)
 
 			require.NotNil(t, out)
