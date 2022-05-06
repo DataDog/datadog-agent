@@ -60,7 +60,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.36.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.36.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/trace v0.36.0-rc.4
-	github.com/DataDog/datadog-go/v5 v5.1.0
+	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf-manager v0.0.0-20220406140358-68e6b7f54dde
 	github.com/DataDog/gohai v0.0.0-20220329101230-3b6a804fdd24
