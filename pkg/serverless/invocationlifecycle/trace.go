@@ -165,9 +165,8 @@ func convertRawPayload(rawPayload string) invocationPayload {
 func convertStrToUnit64(s string) (uint64, error) {
 	num, err := strconv.ParseUint(s, 0, 64)
 	if err != nil {
-		log.Debug("Error with string conversion of trace or parent ID")
+		log.Debugf("Error while converting %s, failing with : %s", s, err)
 	}
-
 	return num, err
 }
 

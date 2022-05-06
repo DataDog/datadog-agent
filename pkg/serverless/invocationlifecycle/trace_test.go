@@ -17,6 +17,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestConvertStrToUnit64Error(t *testing.T) {
+	value, err := convertStrToUnit64("invalid")
+	assert.NotNil(t, err)
+	assert.Equal(t, uint64(0), value)
+}
+
+func TestConvertStrToUnit64Success(t *testing.T) {
+	value, err := convertStrToUnit64("1234")
+	assert.Nil(t, err)
+	assert.Equal(t, uint64(1234), value)
+}
+
 func TestGetSamplingPriority(t *testing.T) {
 	assert.Equal(t, sampler.PriorityNone, getSamplingPriority("xxx", "yyy"))
 	assert.Equal(t, sampler.PriorityUserDrop, getSamplingPriority("-1", "yyy"))
