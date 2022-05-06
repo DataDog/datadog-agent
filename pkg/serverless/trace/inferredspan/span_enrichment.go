@@ -148,6 +148,10 @@ func calculateStartTime(epoch int64) int64 {
 // a Unix timestamp in nanoseconds
 func formatISOStartTime(isotime string) int64 {
 	layout := "2006-01-02T15:04:05.000Z"
-	startTime, _ := time.Parse(layout, isotime)
+	startTime, err := time.Parse(layout, isotime)
+	if err != nil {
+		log.Debugf("Error parsing ISO time %s, failing with: %s", isotime, err)
+		return 0
+	}
 	return startTime.UnixNano()
 }

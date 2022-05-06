@@ -123,7 +123,6 @@ func (inferredSpan *InferredSpan) CompleteInferredSpan(
 	isError bool) {
 
 	if inferredSpan.IsAsync {
-		log.Debug("THIS IS ASYNC AND THE START TIME IS ", inferredSpan.CurrentInvocationStartTime.UnixNano())
 		inferredSpan.Span.Duration = inferredSpan.CurrentInvocationStartTime.UnixNano() - inferredSpan.Span.Start
 	} else {
 		inferredSpan.Span.Duration = endTime.UnixNano() - inferredSpan.Span.Start
@@ -163,7 +162,7 @@ func (inferredSpan *InferredSpan) GenerateInferredSpan(startTime time.Time) {
 		SpanID:  rand.Random.Uint64(),
 		TraceID: rand.Random.Uint64(),
 	}
-	log.Debug("Generated new Inferred span ", inferredSpan)
+	log.Debugf("Generated new Inferred span: %s", inferredSpan)
 }
 
 // IsInferredSpansEnabled is used to determine if we need to

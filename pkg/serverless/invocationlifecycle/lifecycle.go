@@ -28,8 +28,8 @@ var inferredSpan inferredspan.InferredSpan
 // OnInvokeStart is the hook triggered when an invocation has started
 func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails) {
 	log.Debug("[lifecycle] onInvokeStart ------")
-	log.Debug("[lifecycle] Invocation has started at :", startDetails.StartTime)
-	log.Debug("[lifecycle] Invocation invokeEvent payload is :", startDetails.InvokeEventRawPayload)
+	log.Debugf("[lifecycle] Invocation has started at: %d", startDetails.StartTime)
+	log.Debugf("[lifecycle] Invocation invokeEvent payload is: %s", startDetails.InvokeEventRawPayload)
 	log.Debug("[lifecycle] ---------------------------------------")
 
 	if !lp.DetectLambdaLibrary() {
@@ -46,8 +46,8 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 // OnInvokeEnd is the hook triggered when an invocation has ended
 func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 	log.Debug("[lifecycle] onInvokeEnd ------")
-	log.Debug("[lifecycle] Invocation has finished at :", endDetails.EndTime)
-	log.Debug("[lifecycle] Invocation isError is :", endDetails.IsError)
+	log.Debugf("[lifecycle] Invocation has finished at: %d", endDetails.EndTime)
+	log.Debugf("[lifecycle] Invocation isError is: %d", endDetails.IsError)
 	log.Debug("[lifecycle] ---------------------------------------")
 
 	if !lp.DetectLambdaLibrary() {
@@ -56,7 +56,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 
 		if lp.InferredSpansEnabled {
 			log.Debug("[lifecycle] Attempting to complete the inferred span")
-			log.Debug("[lifecycle] The inferred span attributes are ", inferredSpan)
+			log.Debugf("[lifecycle] The inferred span attributes are: %s", inferredSpan)
 			inferredSpan.CompleteInferredSpan(lp.ProcessTrace, endDetails.EndTime, endDetails.IsError)
 
 		}

@@ -230,6 +230,12 @@ func TestFormatISOStartTime(t *testing.T) {
 
 }
 
+func TestFormatInvalidISOStartTime(t *testing.T) {
+	isotime := "invalid"
+	startTime := formatISOStartTime(isotime)
+	assert.Equal(t, int64(0), startTime)
+}
+
 func getEventFromFile(filename string) []byte {
 	event, _ := os.ReadFile(dataFile + filename)
 	return event
