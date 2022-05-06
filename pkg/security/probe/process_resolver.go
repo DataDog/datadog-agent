@@ -1016,14 +1016,15 @@ func (p *ProcessResolver) syncCache(proc *process.Process, filledProc *process.F
 	}
 
 	// ignore kworker
-	if !isKworker {
-		p.setAncestor(entry)
-
-		if entry = p.insertEntry(pid, entry, p.entryCache[pid]); entry == nil {
-			return nil, false
-		}
-	} else {
+	if isKworker {
 		entry.Release()
+		return nil, false
+	}
+
+	p.setAncestor(entry)
+
+	if entry = p.insertEntry(pid, entry, p.entryCache[pid]); entry == nil {
+		return nil, false
 	}
 
 	seclog.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.FileEvent.PathnameStr, pid, entry.FileEvent.Inode)
