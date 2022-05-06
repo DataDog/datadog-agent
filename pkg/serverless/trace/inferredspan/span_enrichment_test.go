@@ -74,7 +74,7 @@ func TestEnrichInferredSpanWithAPIGatewayNonProxyAsyncRESTEvent(t *testing.T) {
 	span := inferredSpan.Span
 	assert.Equal(t, span.TraceID, uint64(7353030974370088224))
 	assert.Equal(t, span.SpanID, uint64(8048964810003407541))
-	assert.Equal(t, span.Start, int64(1631210915000000000))
+	assert.Equal(t, span.Start, int64(1631210915251000000))
 	assert.Equal(t, span.Service, "lgxbo6a518.execute-api.sa-east-1.amazonaws.com")
 	assert.Equal(t, span.Name, "aws.apigateway")
 	assert.Equal(t, span.Resource, "GET /http/get")
@@ -99,7 +99,7 @@ func TestEnrichInferredSpanWithAPIGatewayHTTPEvent(t *testing.T) {
 	span := inferredSpan.Span
 	assert.Equal(t, span.TraceID, uint64(7353030974370088224))
 	assert.Equal(t, span.SpanID, uint64(8048964810003407541))
-	assert.Equal(t, span.Start, int64(1631212283000000000))
+	assert.Equal(t, span.Start, int64(1631212283738000000))
 	assert.Equal(t, span.Service, "x02yirxc7a.execute-api.sa-east-1.amazonaws.com")
 	assert.Equal(t, span.Name, "aws.httpapi")
 	assert.Equal(t, span.Resource, "GET ")
@@ -124,7 +124,7 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketDefaultEvent(t *testing.T) {
 
 	assert.Equal(t, span.TraceID, uint64(7353030974370088224))
 	assert.Equal(t, span.SpanID, uint64(8048964810003407541))
-	assert.Equal(t, span.Start, int64(1631285061000000000))
+	assert.Equal(t, span.Start, int64(1631285061365000000))
 	assert.Equal(t, span.Service, "p62c47itsb.execute-api.sa-east-1.amazonaws.com")
 	assert.Equal(t, span.Name, "aws.apigateway.websocket")
 	assert.Equal(t, span.Resource, "$default")
@@ -151,7 +151,7 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketConnectEvent(t *testing.T) {
 
 	assert.Equal(t, span.TraceID, uint64(7353030974370088224))
 	assert.Equal(t, span.SpanID, uint64(8048964810003407541))
-	assert.Equal(t, span.Start, int64(1631284003000000000))
+	assert.Equal(t, span.Start, int64(1631284003071000000))
 	assert.Equal(t, span.Service, "p62c47itsb.execute-api.sa-east-1.amazonaws.com")
 	assert.Equal(t, span.Name, "aws.apigateway.websocket")
 	assert.Equal(t, span.Resource, "$connect")
@@ -178,7 +178,7 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketDisconnectEvent(t *testing.T) 
 
 	assert.Equal(t, span.TraceID, uint64(7353030974370088224))
 	assert.Equal(t, span.SpanID, uint64(8048964810003407541))
-	assert.Equal(t, span.Start, int64(1631284034000000000))
+	assert.Equal(t, span.Start, int64(1631284034737000000))
 	assert.Equal(t, span.Service, "p62c47itsb.execute-api.sa-east-1.amazonaws.com")
 	assert.Equal(t, span.Name, "aws.apigateway.websocket")
 	assert.Equal(t, span.Resource, "$disconnect")
