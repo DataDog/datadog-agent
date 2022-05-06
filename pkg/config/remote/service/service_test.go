@@ -288,6 +288,10 @@ func TestService(t *testing.T) {
 	assert.ElementsMatch(t, [][]byte{root3, root4}, configResponse.Roots)
 	assert.ElementsMatch(t, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: fileAPM1}, {Path: "datadog/2/APM_SAMPLING/id/2", Raw: fileAPM2}}, configResponse.TargetFiles)
 	assert.Equal(t, targets, configResponse.Targets)
+	assert.ElementsMatch(t,
+		configResponse.ClientConfigs,
+		[]*pbgo.ConfigPointer{{Path: "datadog/2/APM_SAMPLING/id/1"}, {Path: "datadog/2/APM_SAMPLING/id/2"}},
+	)
 	err = service.refresh()
 	assert.NoError(t, err)
 

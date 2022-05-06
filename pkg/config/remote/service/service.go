@@ -276,10 +276,21 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	if err != nil {
 		return nil, err
 	}
+
+	// While implementing client predicates report all as matches
+	configPointers := make([]*pbgo.ConfigPointer, 0, len(targetFiles))
+
+	for _, v := range targetFiles {
+		configPointers = append(configPointers, &pbgo.ConfigPointer{
+			Path: v.Path,
+		})
+	}
+
 	return &pbgo.ClientGetConfigsResponse{
-		Roots:       roots,
-		Targets:     targetsRaw,
-		TargetFiles: targetFiles,
+		Roots:         roots,
+		Targets:       targetsRaw,
+		TargetFiles:   targetFiles,
+		ClientConfigs: configPointers,
 	}, nil
 }
 
