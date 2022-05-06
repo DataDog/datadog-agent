@@ -284,7 +284,7 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 				for i := 0; i < 4; i++ {
 					traceID := out.Chunks[i].Spans[0].TraceID
 					p, ok := traceIDPriority[traceID]
-					require.True(ok, fmt.Sprintf("%v trace ID ont found", traceID))
+					require.True(ok, fmt.Sprintf("%v trace ID not found", traceID))
 					require.Equal(p, out.Chunks[i].Priority)
 				}
 			},
