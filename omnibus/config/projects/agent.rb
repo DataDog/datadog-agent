@@ -148,7 +148,7 @@ package :zip do
     # noinspection RubyLiteralArrayInspection
     extra_package_dirs [
       "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files",
-      "#{Omnibus::Config.source_dir()}\\cf-root",
+      "#{Omnibus::Config.source_dir()}\\cf-root"
     ]
 
     # Always sign everything for binaries zip
