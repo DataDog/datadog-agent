@@ -3,9 +3,22 @@ package network
 import (
 	"errors"
 	"net"
+
+	"github.com/DataDog/gohai/utils"
 )
 
-type Network struct{}
+// Network holds network metadata about the host
+type Network struct {
+	// IpAddress is the ipv4 address for the host
+	IpAddress string
+	// IpAddressv6 is the ipv6 address for the host
+	IpAddressv6 string
+	// MacAddress is the macaddress for the host
+	MacAddress string
+
+	// TODO: the collect method also returns metadata about interfaces. They should be added to this struct.
+	// Since it would require even more cleanup we'll do it in another PR when needed.
+}
 
 const name = "network"
 
@@ -28,6 +41,22 @@ func (self *Network) Collect() (result interface{}, err error) {
 		interfaceMap["interfaces"] = interfaces
 	}
 	return
+}
+
+// Get returns a Network struct already initialized, a list of warnings and an error. The method will try to collect as much
+// metadata as possible, an error is returned if nothing could be collected. The list of warnings contains errors if
+// some metadata could not be collected.
+func Get() (*Network, []string, error) {
+	networkInfo, err := getNetworkInfo()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return &Network{
+		IpAddress:   utils.GetStringInterface(networkInfo, "ipaddress"),
+		IpAddressv6: utils.GetStringInterface(networkInfo, "ipaddressv6"),
+		MacAddress:  utils.GetStringInterface(networkInfo, "macaddress"),
+	}, nil, nil
 }
 
 func getMultiNetworkInfo() (multiNetworkInfo []map[string]interface{}, err error) {
