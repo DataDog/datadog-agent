@@ -52,6 +52,10 @@ const (
 	maxArgsEnvResidents = 1024
 )
 
+var (
+	errKthreads = errors.New("cannot snapshot kernel threads")
+)
+
 func getAttr2(probe *Probe) uint64 {
 	if probe.kernelVersion.IsRH7Kernel() {
 		return 1
@@ -330,17 +334,13 @@ func (p *ProcessResolver) AddExecEntry(pid uint32, entry *model.ProcessCacheEntr
 }
 
 // enrichEventFromProc uses /proc to enrich a ProcessCacheEntry with additional metadata
-func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *process.Process) error {
-	filledProc := utils.GetFilledProcess(proc)
-	if filledProc == nil {
-		return errors.Errorf("snapshot failed for %d: binary was deleted", proc.Pid)
+func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *process.Process, filledProc *process.FilledProcess) error {
+	// the provided process is a kernel process if its virtual memory size is null
+	if filledProc.MemInfo.VMS == 0 {
+		return errKthreads
 	}
 
 	pid := uint32(proc.Pid)
-	// the provided process is a kernel process if its virtual memory size is null
-	if filledProc.MemInfo.VMS == 0 {
-		return fmt.Errorf("cannot snapshot kernel threads")
-	}
 
 	// Get process filename and pre-fill the cache
 	procExecPath := utils.ProcExePath(proc.Pid)
@@ -689,13 +689,12 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32, maxDepth int) *model.Pro
 			return nil
 		}
 
-		// kthreads are ignored
 		filledProc := utils.GetFilledProcess(proc)
 		if filledProc == nil {
 			return nil
 		}
 
-		entry, inserted = p.syncCache(proc)
+		entry, inserted = p.syncCache(proc, filledProc)
 		ppid = uint32(filledProc.Ppid)
 	} else {
 		ppid = entry.PPid
@@ -953,7 +952,13 @@ func (p *ProcessResolver) SyncCache(proc *process.Process) bool {
 	// required.
 	p.Lock()
 	defer p.Unlock()
-	_, ret := p.syncCache(proc)
+
+	filledProc := utils.GetFilledProcess(proc)
+	if filledProc == nil {
+		return false
+	}
+
+	_, ret := p.syncCache(proc, filledProc)
 	return ret
 }
 
@@ -965,7 +970,7 @@ func (p *ProcessResolver) setAncestor(pce *model.ProcessCacheEntry) {
 }
 
 // syncCache snapshots /proc for the provided pid. This method returns true if it updated the process cache.
-func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheEntry, bool) {
+func (p *ProcessResolver) syncCache(proc *process.Process, filledProc *process.FilledProcess) (*model.ProcessCacheEntry, bool) {
 	pid := uint32(proc.Pid)
 
 	// Check if an entry is already in cache for the given pid.
@@ -978,22 +983,23 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 
 	entry = p.NewProcessCacheEntry()
 
+	var isKworker bool
+
 	// update the cache entry
-	if err := p.enrichEventFromProc(entry, proc); err != nil {
-		seclog.Trace(err)
-		return nil, false
-	}
-
-	p.setAncestor(entry)
-
-	if entry = p.insertEntry(pid, entry, p.entryCache[pid]); entry == nil {
-		return nil, false
+	if err := p.enrichEventFromProc(entry, proc, filledProc); err != nil {
+		// one need to add kworker kernel cache entries in order to have the
+		// process context and the kthreads detection working
+		if err == errKthreads && filledProc.Pid == 2 {
+			isKworker = true
+		} else {
+			seclog.Trace(err)
+			return nil, false
+		}
 	}
 
 	// insert new entry in kernel maps
 	procCacheEntryB := make([]byte, 224)
-	_, err := entry.Process.MarshalProcCache(procCacheEntryB)
-	if err != nil {
+	if _, err := entry.Process.MarshalProcCache(procCacheEntryB); err != nil {
 		seclog.Errorf("couldn't marshal proc_cache entry: %s", err)
 	} else {
 		if err = p.procCacheMap.Put(pid, procCacheEntryB); err != nil {
@@ -1001,13 +1007,23 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 		}
 	}
 	pidCacheEntryB := make([]byte, 64)
-	_, err = entry.Process.MarshalPidCache(pidCacheEntryB)
-	if err != nil {
-		seclog.Errorf("couldn't marshal prid_cache entry: %s", err)
+	if _, err := entry.Process.MarshalPidCache(pidCacheEntryB); err != nil {
+		seclog.Errorf("couldn't marshal pid_cache entry: %s", err)
 	} else {
 		if err = p.pidCacheMap.Put(pid, pidCacheEntryB); err != nil {
 			seclog.Errorf("couldn't push pid_cache entry to kernel space: %s", err)
 		}
+	}
+
+	// ignore kworker
+	if !isKworker {
+		p.setAncestor(entry)
+
+		if entry = p.insertEntry(pid, entry, p.entryCache[pid]); entry == nil {
+			return nil, false
+		}
+	} else {
+		entry.Release()
 	}
 
 	seclog.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.FileEvent.PathnameStr, pid, entry.FileEvent.Inode)

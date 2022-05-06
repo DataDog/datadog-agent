@@ -260,10 +260,6 @@ func (r *Resolvers) snapshot() error {
 			continue
 		}
 
-		if utils.IsKThread(uint32(ppid), uint32(proc.Pid)) {
-			continue
-		}
-
 		// Start with the mount resolver because the process resolver might need it to resolve paths
 		if err = r.MountResolver.SyncCache(proc); err != nil {
 			if !os.IsNotExist(err) {
@@ -273,6 +269,11 @@ func (r *Resolvers) snapshot() error {
 
 		// Sync the process cache
 		r.ProcessResolver.SyncCache(proc)
+
+		// at this point we can now ignore kthreads
+		if utils.IsKThread(uint32(ppid), uint32(proc.Pid)) {
+			continue
+		}
 
 		// Sync the namespace cache
 		r.NamespaceResolver.SyncCache(proc)

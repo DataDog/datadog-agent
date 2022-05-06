@@ -536,6 +536,8 @@ int kprobe_do_exit(struct pt_regs *ctx) {
     // remove nr translations
     remove_nr(pid);
 
+    del_kthread(pid);
+
     return 0;
 }
 

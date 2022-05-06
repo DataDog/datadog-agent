@@ -180,11 +180,6 @@ func GetFilledProcess(p *process.Process) *process.FilledProcess {
 		return nil
 	}
 
-	// ignore kthreads
-	if IsKThread(uint32(ppid), uint32(p.Pid)) {
-		return nil
-	}
-
 	createTime, err := p.CreateTime()
 	if err != nil {
 		return nil

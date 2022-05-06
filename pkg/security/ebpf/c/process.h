@@ -113,6 +113,10 @@ int __attribute__((always_inline)) is_kthread(u32 pid) {
     return pid == 2 || bpf_map_lookup_elem(&kthread_cache, &pid) != NULL;
 }
 
+void __attribute__((always_inline)) del_kthread(u32 pid) {
+    bpf_map_delete_elem(&kthread_cache, &pid);
+}
+
 // defined in exec.h
 struct proc_cache_t *get_proc_from_cookie(u32 cookie);
 
