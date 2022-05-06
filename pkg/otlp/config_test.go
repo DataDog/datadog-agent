@@ -21,11 +21,11 @@ func TestIsEnabled(t *testing.T) {
 		path    string
 		enabled bool
 	}{
-		{path: "stable/invalid_port_based.yaml", enabled: false},
-		{path: "stable/receiver/noprotocols.yaml", enabled: true},
-		{path: "stable/receiver/simple.yaml", enabled: true},
-		{path: "stable/receiver/null.yaml", enabled: true},
-		{path: "stable/receiver/advanced.yaml", enabled: true},
+		{path: "invalid_port_based.yaml", enabled: false},
+		{path: "receiver/noprotocols.yaml", enabled: true},
+		{path: "receiver/simple.yaml", enabled: true},
+		{path: "receiver/null.yaml", enabled: true},
+		{path: "receiver/advanced.yaml", enabled: true},
 	}
 
 	for _, testInstance := range tests {
@@ -51,7 +51,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 		err  string
 	}{
 		{
-			path: "stable/receiver/noprotocols.yaml",
+			path: "receiver/noprotocols.yaml",
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{},
 				TracePort:          5003,
@@ -64,7 +64,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 			},
 		},
 		{
-			path: "stable/receiver/simple.yaml",
+			path: "receiver/simple.yaml",
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
@@ -82,7 +82,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 			},
 		},
 		{
-			path: "stable/receiver/null.yaml",
+			path: "receiver/null.yaml",
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
@@ -100,7 +100,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 			},
 		},
 		{
-			path: "stable/receiver/advanced.yaml",
+			path: "receiver/advanced.yaml",
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
@@ -260,7 +260,7 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 		err  string
 	}{
 		{
-			path: "stable/metrics/allconfig.yaml",
+			path: "metrics/allconfig.yaml",
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 5678, 1234),
 				TracePort:          5003,
