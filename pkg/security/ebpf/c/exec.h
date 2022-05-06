@@ -482,6 +482,11 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         }
     }
 
+    // consider entry without file context as a kworker
+    if (!event.proc_entry.executable.path_key.ino && !event.proc_entry.executable.path_key.mount_id) {
+        return 0;
+    }
+
     // insert the pid cache entry for the new process
     bpf_map_update_elem(&pid_cache, &pid, &event.pid_entry, BPF_ANY);
 
