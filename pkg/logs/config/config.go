@@ -142,12 +142,10 @@ func IsExpectedTagsSet() bool {
 func buildTCPEndpoints(logsConfig *LogsConfigKeys) (*Endpoints, error) {
 	useProto := logsConfig.devModeUseProto()
 	proxyAddress := logsConfig.socks5ProxyAddress()
-	isReliable := true
 	main := Endpoint{
 		APIKey:                  logsConfig.getLogsAPIKey(),
 		ProxyAddress:            proxyAddress,
 		ConnectionResetInterval: logsConfig.connectionResetInterval(),
-		IsReliable:              &isReliable,
 	}
 
 	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
@@ -182,10 +180,6 @@ func buildTCPEndpoints(logsConfig *LogsConfigKeys) (*Endpoints, error) {
 		additionals[i].UseSSL = main.UseSSL
 		additionals[i].ProxyAddress = proxyAddress
 		additionals[i].APIKey = coreConfig.SanitizeAPIKey(additionals[i].APIKey)
-		if additionals[i].IsReliable == nil {
-			reliable := true
-			additionals[i].IsReliable = &reliable
-		}
 	}
 	return NewEndpoints(main, additionals, useProto, false), nil
 }
@@ -204,7 +198,6 @@ func BuildHTTPEndpointsWithVectorOverride(intakeTrackType IntakeTrackType, intak
 func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
 	// Provide default values for legacy settings when the configuration key does not exist
 	defaultNoSSL := logsConfig.logsNoSSL()
-	isReliable := true
 
 	main := Endpoint{
 		APIKey:                  logsConfig.getLogsAPIKey(),
@@ -216,7 +209,6 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 		BackoffFactor:           logsConfig.senderBackoffFactor(),
 		RecoveryInterval:        logsConfig.senderRecoveryInterval(),
 		RecoveryReset:           logsConfig.senderRecoveryReset(),
-		IsReliable:              &isReliable,
 	}
 
 	if logsConfig.useV2API() && intakeTrackType != "" {
@@ -290,10 +282,6 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 			additionals[i].TrackType = intakeTrackType
 			additionals[i].Protocol = intakeProtocol
 			additionals[i].Origin = intakeOrigin
-		}
-		if additionals[i].IsReliable == nil {
-			reliable := true
-			additionals[i].IsReliable = &reliable
 		}
 	}
 

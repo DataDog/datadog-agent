@@ -93,6 +93,15 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 	return fmt.Sprintf("%sSending %s logs in %s to %s on port %d", prefix, compression, protocol, host, port)
 }
 
+func (e *Endpoint) GetIsReliable() bool {
+	return e.IsReliable == nil || *e.IsReliable
+}
+
+func (e *Endpoint) SetIsReliable(reliable bool) {
+	val := reliable
+	e.IsReliable = &val
+}
+
 // Endpoints holds the main endpoint and additional ones to dualship logs.
 type Endpoints struct {
 	Main                   Endpoint
@@ -158,7 +167,7 @@ func NewEndpointsWithBatchSettings(main Endpoint,
 func (e *Endpoints) GetReliableEndpoints() []Endpoint {
 	endpoints := []Endpoint{}
 	for _, endpoint := range e.Endpoints {
-		if *endpoint.IsReliable {
+		if endpoint.GetIsReliable() {
 			endpoints = append(endpoints, endpoint)
 		}
 	}
@@ -169,7 +178,7 @@ func (e *Endpoints) GetReliableEndpoints() []Endpoint {
 func (e *Endpoints) GetUnReliableEndpoints() []Endpoint {
 	endpoints := []Endpoint{}
 	for _, endpoint := range e.Endpoints {
-		if !*endpoint.IsReliable {
+		if !endpoint.GetIsReliable() {
 			endpoints = append(endpoints, endpoint)
 		}
 	}
