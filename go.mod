@@ -46,9 +46,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/client => ./pkg/remoteconfig/client
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/trace => ./pkg/trace
-	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
-	github.com/DataDog/datadog-agent/pkg/util/scrubber => ./pkg/util/scrubber
-	github.com/DataDog/datadog-agent/pkg/util/winutil => ./pkg/util/winutil
 )
 
 require (
@@ -63,9 +60,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.36.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.36.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/trace v0.36.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/log v0.36.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.36.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.36.0-rc.4
 	github.com/DataDog/datadog-go/v5 v5.1.0
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf-manager v0.0.0-20220406140358-68e6b7f54dde
@@ -123,7 +117,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.2
-	github.com/google/go-cmp v0.5.7
+	github.com/google/go-cmp v0.5.8
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/gopacket v1.1.19
 	github.com/google/pprof v0.0.0-20210720184732-4bb14d4b1be1

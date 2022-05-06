@@ -90,46 +90,6 @@ updates:
     schedule:
       interval: weekly
   - package-ecosystem: gomod
-    directory: /pkg/util/log
-    labels:
-      - dependencies
-      - dependencies-go
-      - team/agent-core
-      - changelog/no-changelog
-    milestone: 22
-    ignore:
-      - dependency-name: github.com/cihub/seelog
-      # Ignore internal modules
-      - dependency-name: github.com/DataDog/datadog-agent/*
-    schedule:
-      interval: weekly
-  - package-ecosystem: gomod
-    directory: /pkg/util/scrubber
-    labels:
-      - dependencies
-      - dependencies-go
-      - team/agent-core
-      - changelog/no-changelog
-    milestone: 22
-    ignore:
-      # Ignore internal modules
-      - dependency-name: github.com/DataDog/datadog-agent/*
-    schedule:
-      interval: weekly
-  - package-ecosystem: gomod
-    directory: /pkg/util/winutil
-    labels:
-      - dependencies
-      - dependencies-go
-      - team/agent-platform
-      - changelog/no-changelog
-    milestone: 22
-    ignore:
-      # Ignore internal modules
-      - dependency-name: github.com/DataDog/datadog-agent/*
-    schedule:
-      interval: weekly
-  - package-ecosystem: gomod
     directory: /pkg/security/secl
     labels:
       - dependencies
