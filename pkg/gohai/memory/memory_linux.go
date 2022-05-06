@@ -5,6 +5,10 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
+	"strings"
+
+	"github.com/DataDog/gohai/utils"
 )
 
 var memMap = map[string]string{
@@ -44,4 +48,30 @@ func getMemoryInfo() (memoryInfo map[string]string, err error) {
 	}
 
 	return
+}
+
+func getMemoryInfoByte() (mem uint64, swap uint64, warnings []string, err error) {
+	memInfo, err := getMemoryInfo()
+	if err != nil {
+		return
+	}
+
+	memString := strings.TrimSuffix(strings.ToLower(utils.GetString(memInfo, "total")), "kb")
+	swapString := strings.TrimSuffix(strings.ToLower(utils.GetString(memInfo, "swap_total")), "kb")
+
+	t, e := strconv.ParseUint(memString, 10, 64)
+	if e == nil {
+		mem = t * 1024 // getMemoryInfo return values in KB
+	} else {
+		warnings = append(warnings, fmt.Sprintf("could not parse memory size: %s", e))
+	}
+
+	s, e := strconv.ParseUint(swapString, 10, 64)
+	if e == nil {
+		swap = s * 1024 // getMemoryInfo return values in KB
+	} else {
+		warnings = append(warnings, fmt.Sprintf("could not parse swap size: %s", e))
+	}
+
+	return mem, swap, warnings, err
 }
