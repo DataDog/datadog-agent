@@ -261,6 +261,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 		Stats: info.NewStats(),
 	}
 	tracesByID := make(map[uint64]pb.Trace)
+	priorityByID := make(map[uint64]float64)
 	for i := 0; i < rspans.ScopeSpans().Len(); i++ {
 		libspans := rspans.ScopeSpans().At(i)
 		lib := libspans.Scope()
@@ -291,6 +292,9 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 					containerID = v
 				}
 			}
+			if p, ok := ddspan.Metrics["_sampling_priority_v1"]; ok {
+				priorityByID[traceID] = p
+			}
 			tracesByID[traceID] = append(tracesByID[traceID], ddspan)
 		}
 	}
@@ -301,11 +305,13 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 	p := Payload{
 		Source: tagstats,
 	}
-	for _, spans := range tracesByID {
+	for k, spans := range tracesByID {
+		prio := int32(sampler.PriorityAutoKeep)
+		if p, ok := priorityByID[k]; ok {
+			prio = int32(p)
+		}
 		traceChunks = append(traceChunks, &pb.TraceChunk{
-			// auto-keep all incoming traces; it was already chosen as a keeper on
-			// the client side.
-			Priority: int32(sampler.PriorityAutoKeep),
+			Priority: prio,
 			Spans:    spans,
 		})
 	}
