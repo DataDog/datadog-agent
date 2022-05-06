@@ -246,12 +246,12 @@ end
 def windows_service_status(service)
   raise "windows_service_status is only for windows" unless os == :windows
   # Language-independent way of getting the service status
-  (`powershell -command "try { (get-service "#{service}" -ErrorAction Stop).Status } catch { write-host "NOTINSTALLED" }"`).upcase.strip
+  return (`powershell -command "try { (get-service "#{service}" -ErrorAction Stop).Status } catch { write-host "NOTINSTALLED" }"`).upcase.strip
 end
 
 def is_service_running?(service)
   if os == :windows
-    windows_service_status(service) == "RUNNING"
+    return windows_service_status(service) == "RUNNING"
   else
     if has_systemctl
       system "sudo systemctl status --no-pager #{service}.service"
@@ -267,7 +267,7 @@ end
 
 def is_windows_service_installed(service)
   raise "is_windows_service_installed is only for windows" unless os == :windows
-  windows_service_status(service) != "NOTINSTALLED"
+  return windows_service_status(service) != "NOTINSTALLED"
 end
 
 def is_flavor_running?(flavor)
@@ -283,7 +283,7 @@ def is_process_running?(pname)
   else
     return true if system("pgrep -f #{pname}")
   end
-  false
+  return false
 end
 
 def agent_processes_running?
@@ -362,7 +362,7 @@ def fetch_python_version(timeout = 15)
     end
     sleep 1
   end
-  nil
+  return nil
 end
 
 def is_file_signed(fullpath)
@@ -370,7 +370,7 @@ def is_file_signed(fullpath)
   expect(File).to exist(fullpath)
   output = `powershell -command "(get-authenticodesignature -FilePath '#{fullpath}').SignerCertificate.Thumbprint"`
   signature_hash = "748A3B5C681AF45FAC149A76FE59E7CBBDFF058C"
-  output.upcase.strip == signature_hash
+  return output.upcase.strip == signature_hash
 end
 
 def is_dpkg_package_installed(package)
@@ -437,7 +437,6 @@ shared_examples_for "an installed Agent" do
       if File.file?(msi_path_upgrade)
         msi_path = msi_path_upgrade
       end
-      msi_path = msi_path_upgrade if File.file?(msi_path_upgrade)
       is_signed = is_file_signed(msi_path)
       expect(is_signed).to be_truthy
 
@@ -945,7 +944,7 @@ def equal_sddl?(left, right)
     end
   end
   return false if right_dacl.length != 0
-  true
+  return true
 end
 def get_security_settings
   fname = "secout.txt"
