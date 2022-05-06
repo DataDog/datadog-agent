@@ -138,19 +138,9 @@ func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, uint32, error) {
 	}
 	copy(b, s.recvbuf[:n])
 
-	raw, err := syscall.ParseNetlinkMessage(b[:n])
+	msgs, err := ParseNetlinkMessage(b[:n])
 	if err != nil {
 		return nil, 0, err
-	}
-
-	msgs := make([]netlink.Message, 0, len(raw))
-	for _, r := range raw {
-		m := netlink.Message{
-			Header: sysToHeader(r.Header),
-			Data:   r.Data,
-		}
-
-		msgs = append(msgs, m)
 	}
 
 	var netns uint32
@@ -164,6 +154,36 @@ func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, uint32, error) {
 	}
 
 	return msgs, netns, nil
+}
+
+// ParseNetlinkMessage parses b as an array of netlink messages and
+// returns the slice containing the netlink.Message structures.
+func ParseNetlinkMessage(b []byte) ([]netlink.Message, error) {
+	var msgs []netlink.Message
+	for len(b) >= unix.NLMSG_HDRLEN {
+		h, dbuf, dlen, err := netlinkMessageHeaderAndData(b)
+		if err != nil {
+			return nil, err
+		}
+		m := netlink.Message{Header: *h, Data: dbuf[:int(h.Length)-unix.NLMSG_HDRLEN]}
+		msgs = append(msgs, m)
+		b = b[dlen:]
+	}
+	return msgs, nil
+}
+
+func netlinkMessageHeaderAndData(b []byte) (*netlink.Header, []byte, int, error) {
+	h := (*netlink.Header)(unsafe.Pointer(&b[0]))
+	l := nlmAlignOf(int(h.Length))
+	if int(h.Length) < unix.NLMSG_HDRLEN || l > len(b) {
+		return nil, nil, 0, unix.EINVAL
+	}
+	return h, b[unix.NLMSG_HDRLEN:], l, nil
+}
+
+// Round the length of a netlink message up to align it properly.
+func nlmAlignOf(msglen int) int {
+	return (msglen + unix.NLMSG_ALIGNTO - 1) & ^(unix.NLMSG_ALIGNTO - 1)
 }
 
 func parseNetNS(scms []unix.SocketControlMessage) uint32 {
@@ -297,11 +317,4 @@ func ready(err error) bool {
 		// Ready whether there was error or no error.
 		return true
 	}
-}
-
-// sysToHeader converts a syscall.NlMsghdr to a Header.
-func sysToHeader(r syscall.NlMsghdr) netlink.Header {
-	// NB: the memory layout of Header and syscall.NlMsgHdr must be
-	// exactly the same for this unsafe cast to work
-	return *(*netlink.Header)(unsafe.Pointer(&r))
 }
