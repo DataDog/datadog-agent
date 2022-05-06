@@ -132,7 +132,10 @@ func setupAPM(config Config) {
 
 func parseKVList(key string) func(string) interface{} {
 	return func(in string) interface{} {
-		if len(in) == 0 || in[0] != '[' {
+		if len(in) == 0 {
+			return []string{}
+		}
+		if in[0] != '[' {
 			return strings.Split(in, " ")
 		}
 		// '[' as a first character signals JSON array format
