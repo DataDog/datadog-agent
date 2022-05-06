@@ -419,6 +419,11 @@ int sched_process_exec(struct _tracepoint_sched_process_exec *args) {
     return 0;
 }
 
+int __attribute__((always_inline)) is_kworker_comm(const char comm[TASK_COMM_LEN]) {
+    return comm[0] == 'k' && comm[1] == 'w' && comm[2] == 'o' && comm[3] == 'r' &&
+           comm[4] == 'k' && comm[5] == 'e' && comm[6] == 'r';
+}
+
 SEC("tracepoint/sched/sched_process_fork")
 int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     // inherit netns
@@ -483,7 +488,8 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     }
 
     // consider entry without file context as a kworker
-    if (!event.proc_entry.executable.path_key.ino && !event.proc_entry.executable.path_key.mount_id) {
+    if (!event.proc_entry.executable.path_key.ino && !event.proc_entry.executable.path_key.mount_id &&
+        is_kworker_comm(event.proc_entry.comm)) {
         return 0;
     }
 
@@ -529,8 +535,14 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         struct proc_cache_t *cache_entry = fill_process_context(&event.process);
 
         // consider entry without file context as a kworker
-        if (!event.proc_entry.executable.path_key.ino && !event.proc_entry.executable.path_key.mount_id) {
-            return 0;
+        if (cache_entry) {
+            if (!cache_entry->executable.path_key.ino && !cache_entry->executable.path_key.mount_id) {
+                bpf_get_current_comm(&cache_entry->comm, sizeof(cache_entry->comm));
+
+                if (is_kworker_comm(cache_entry->comm)) {
+                    return 0;
+                }
+            }
         }
 
         fill_container_context(cache_entry, &event.container);
