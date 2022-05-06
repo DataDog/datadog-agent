@@ -457,7 +457,7 @@ func (p *ProcessResolver) retrieveExecFileFields(procExecPath string) (*model.Fi
 	return &fileFields, nil
 }
 
-func (p *ProcessResolver) insertEntry(pid uint32, entry, prev *model.ProcessCacheEntry) *model.ProcessCacheEntry {
+func (p *ProcessResolver) insertEntry(pid uint32, entry, prev *model.ProcessCacheEntry) {
 	p.entryCache[pid] = entry
 	entry.Retain()
 
@@ -467,8 +467,6 @@ func (p *ProcessResolver) insertEntry(pid uint32, entry, prev *model.ProcessCach
 
 	atomic.AddInt64(&p.addedEntries, 1)
 	atomic.AddInt64(&p.cacheSize, 1)
-
-	return entry
 }
 
 func (p *ProcessResolver) insertForkEntry(pid uint32, entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
@@ -487,7 +485,9 @@ func (p *ProcessResolver) insertForkEntry(pid uint32, entry *model.ProcessCacheE
 		parent.Fork(entry)
 	}
 
-	return p.insertEntry(pid, entry, prev)
+	p.insertEntry(pid, entry, prev)
+
+	return entry
 }
 
 func (p *ProcessResolver) insertExecEntry(pid uint32, entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
@@ -496,7 +496,9 @@ func (p *ProcessResolver) insertExecEntry(pid uint32, entry *model.ProcessCacheE
 		prev.Exec(entry)
 	}
 
-	return p.insertEntry(pid, entry, prev)
+	p.insertEntry(pid, entry, prev)
+
+	return entry
 }
 
 func (p *ProcessResolver) deleteEntry(pid uint32, exitTime time.Time) {
@@ -992,6 +994,8 @@ func (p *ProcessResolver) syncCache(proc *process.Process, filledProc *process.F
 		if err == errKthreads && filledProc.Pid == 2 {
 			isKworker = true
 		} else {
+			entry.Release()
+
 			seclog.Trace(err)
 			return nil, false
 		}
@@ -1022,10 +1026,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process, filledProc *process.F
 	}
 
 	p.setAncestor(entry)
-
-	if entry = p.insertEntry(pid, entry, p.entryCache[pid]); entry == nil {
-		return nil, false
-	}
+	p.insertEntry(pid, entry, p.entryCache[pid])
 
 	seclog.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.FileEvent.PathnameStr, pid, entry.FileEvent.Inode)
 
