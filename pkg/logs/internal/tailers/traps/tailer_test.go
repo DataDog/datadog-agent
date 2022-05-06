@@ -64,10 +64,10 @@ func TestTrapsShouldReceiveMessages(t *testing.T) {
 	formattedPacket := format(t, p)
 	assert.Equal(t, message.StatusInfo, msg.GetStatus())
 	assert.Equal(t, formattedPacket, msg.Content)
-	assert.Equal(t, []string{
-		"snmp_version:2",
+	assert.ElementsMatch(t, []string{
 		"device_namespace:default",
 		"snmp_device:127.0.0.1",
+		"snmp_version:2",
 	}, msg.Origin.Tags())
 
 	close(inputChan)
