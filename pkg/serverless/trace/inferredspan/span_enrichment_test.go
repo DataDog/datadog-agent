@@ -207,3 +207,7 @@ func mockInferredSpan() InferredSpan {
 	inferredSpan.Span.SpanID = uint64(8048964810003407541)
 	return inferredSpan
 }
+
+func TestCalculateStartTime(t *testing.T) {
+	assert.Equal(t, int64(1651863561696000000), calculateStartTime(1651863561696))
+}
