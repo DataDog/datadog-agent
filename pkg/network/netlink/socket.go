@@ -36,10 +36,11 @@ type Socket struct {
 	// A 32KB buffer which we use for polling the socket.
 	// Since a netlink message can't exceed that size
 	// (in *theory* they can be as large as 4GB (u32), but see link below)
-	// we can avoid message peeks and and essentially cut recvmsg syscalls by half
+	// we can avoid message peeks and essentially cut recvmsg syscalls by half
 	// which is currently a perf bottleneck in certain workloads.
 	// https://www.spinics.net/lists/netdev/msg431592.html
 	recvbuf []byte
+	oobbuf  []byte
 }
 
 // NewSocket creates a new NETLINK socket
@@ -86,6 +87,7 @@ func NewSocket() (*Socket, error) {
 		pid:     pid,
 		conn:    conn,
 		recvbuf: make([]byte, 32*1024),
+		oobbuf:  make([]byte, unix.CmsgSpace(24)),
 	}
 	return socket, nil
 }
@@ -119,8 +121,7 @@ func (s *Socket) Receive() ([]netlink.Message, error) {
 
 // ReceiveInto reads one or more netlink.Messages off the socket
 func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, uint32, error) {
-	oob := make([]byte, unix.CmsgSpace(24))
-	n, oobn, err := s.recvmsg(s.recvbuf, oob, 0)
+	n, oobn, err := s.recvmsg(s.recvbuf, s.oobbuf, unix.MSG_DONTWAIT)
 	if err != nil {
 		return nil, 0, os.NewSyscallError("recvmsg", err)
 	}
@@ -150,8 +151,7 @@ func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, uint32, error) {
 
 	var netns uint32
 	if oobn > 0 {
-		oob = oob[:oobn]
-		scms, err := unix.ParseSocketControlMessage(oob)
+		scms, err := unix.ParseSocketControlMessage(s.oobbuf[:oobn])
 		if err != nil {
 			return nil, 0, err
 		}
