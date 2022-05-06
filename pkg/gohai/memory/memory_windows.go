@@ -21,6 +21,14 @@ type MEMORYSTATUSEX struct {
 func getMemoryInfo() (memoryInfo map[string]string, err error) {
 	memoryInfo = make(map[string]string)
 
+	mem, _, _, err := getMemoryInfoByte()
+	if err == nil {
+		memoryInfo["total"] = strconv.FormatUint(mem, 10)
+	}
+	return
+}
+
+func getMemoryInfoByte() (mem uint64, swap uint64, warnings []string, err error) {
 	var mod = syscall.NewLazyDLL("kernel32.dll")
 	var getMem = mod.NewProc("GlobalMemoryStatusEx")
 
@@ -30,7 +38,7 @@ func getMemoryInfo() (memoryInfo map[string]string, err error) {
 
 	status, _, err := getMem.Call(uintptr(unsafe.Pointer(&mem_struct)))
 	if status != 0 {
-		memoryInfo["total"] = strconv.FormatUint(mem_struct.ulTotalPhys, 10)
+		mem = mem_struct.ulTotalPhys
 		err = nil
 	}
 	return
