@@ -41,6 +41,10 @@ type Socket struct {
 	// https://www.spinics.net/lists/netdev/msg431592.html
 	recvbuf []byte
 	oobbuf  []byte
+
+	n       int
+	oobn    int
+	readErr error
 }
 
 // NewSocket creates a new NETLINK socket
@@ -121,13 +125,13 @@ func (s *Socket) Receive() ([]netlink.Message, error) {
 
 // ReceiveInto reads one or more netlink.Messages off the socket
 func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, uint32, error) {
-	n, oobn, err := s.recvmsg(s.recvbuf, s.oobbuf, unix.MSG_DONTWAIT)
+	n, oobn, err := s.recvmsg()
 	if err != nil {
 		return nil, 0, os.NewSyscallError("recvmsg", err)
 	}
 
 	n = nlmsgAlign(n)
-	// If we cannot fit the date into the suplied buffer,  we allocate a slice
+	// If we cannot fit the date into the supplied buffer,  we allocate a slice
 	// with enough capacity. This should happen very rarely.
 	if n > len(b) {
 		b = make([]byte, n)
@@ -259,23 +263,17 @@ func (s *Socket) SetBPF(filter []bpf.RawInstruction) error {
 	return err
 }
 
-func (s *Socket) recvmsg(b []byte, oob []byte, flags int) (int, int, error) {
-	var (
-		n    int
-		oobn int
-		err  error
-	)
-
-	ctrlErr := s.conn.Read(func(fd uintptr) bool {
-		n, oobn, _, err = noallocRecvmsg(int(fd), b, oob, flags)
-		return ready(err)
-	})
-
+func (s *Socket) recvmsg() (int, int, error) {
+	ctrlErr := s.conn.Read(s.rawread)
 	if ctrlErr != nil {
 		return 0, 0, ctrlErr
 	}
+	return s.n, s.oobn, s.readErr
+}
 
-	return n, oobn, err
+func (s *Socket) rawread(fd uintptr) bool {
+	s.n, s.oobn, _, s.readErr = noallocRecvmsg(int(fd), s.recvbuf, s.oobbuf, unix.MSG_DONTWAIT)
+	return ready(s.readErr)
 }
 
 // Copied from github.com/mdlayher/netlink
