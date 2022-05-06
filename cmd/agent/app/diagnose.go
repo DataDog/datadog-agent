@@ -32,10 +32,11 @@ var (
 	}
 
 	diagnoseDatadogConnectivityCommand = &cobra.Command{
-		Use:   "datadog-connectivity",
-		Short: "Execute some connectivity diagnosis between your system and Datadog endpoints",
-		Long:  ``,
-		RunE:  doDiagnoseDatadogConnectivity,
+		Use:    "datadog-connectivity",
+		Short:  "Execute some connectivity diagnosis between your system and Datadog endpoints",
+		Long:   ``,
+		Hidden: true,
+		RunE:   doDiagnoseDatadogConnectivity,
 	}
 )
 
