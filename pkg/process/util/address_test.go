@@ -142,6 +142,14 @@ func TestAddressV6(t *testing.T) {
 	assert.False(t, addr.IsLoopback())
 }
 
+func TestV6AddressAllocation(t *testing.T) {
+	allocs := int(testing.AllocsPerRun(100, func() {
+		_ = V6Address(889192575, 0)
+	}))
+
+	assert.Equalf(t, 0, allocs, "V6Address should not allocate: got %d allocations", allocs)
+}
+
 func BenchmarkNetIPFromAddress(b *testing.B) {
 	var (
 		buf  = make([]byte, 16)
@@ -157,8 +165,6 @@ func BenchmarkNetIPFromAddress(b *testing.B) {
 	runtime.KeepAlive(ip)
 }
 
-// The purpose of this benchmark is to ensure that generating
-// an Address from a pair o int64s doesn't allocate
 func BenchmarkV6Address(b *testing.B) {
 	var addr Address
 
