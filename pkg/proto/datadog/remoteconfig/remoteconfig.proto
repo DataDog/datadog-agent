@@ -122,6 +122,12 @@ message ClientGetConfigsResponse {
   repeated bytes roots = 1;
   bytes targets = 2;
   repeated File target_files = 3;
+  repeated ConfigPointer client_configs = 4;
+}
+
+message ConfigPointer {
+  string id = 1;
+  string path = 2;
 }
 
 // Full state
