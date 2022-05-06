@@ -277,7 +277,9 @@ end
 def is_process_running?(pname)
   if os == :windows
     tasklist = `tasklist /fi \"ImageName eq #{pname}\" 2>&1`
-    return true if tasklist.include?(pname)
+    if tasklist.include?(pname)
+      return true
+    end
   else
     return true if system("pgrep -f #{pname}")
   end
@@ -398,11 +400,15 @@ shared_examples_for "an installed Agent" do
   wait_until_service_started get_service_name("datadog-agent")
 
   it 'has an example config file' do
-    expect(File).to exist('/etc/datadog-agent/datadog.yaml.example') if os != :windows
+    if os != :windows
+      expect(File).to exist('/etc/datadog-agent/datadog.yaml.example')
+    end
   end
 
   it 'has a datadog-agent binary in usr/bin' do
-    expect(File).to exist('/usr/bin/datadog-agent') if os != :windows
+    if os != :windows
+      expect(File).to exist('/usr/bin/datadog-agent')
+    end
   end
 
   # We retrieve the value defined in kitchen.yml because there is no simple way
@@ -428,6 +434,9 @@ shared_examples_for "an installed Agent" do
 
       # The upgrade file should only be present when doing an upgrade test.  Therefore,
       # check the file we're upgrading to, not the file we're upgrading from
+      if File.file?(msi_path_upgrade)
+        msi_path = msi_path_upgrade
+      end
       msi_path = msi_path_upgrade if File.file?(msi_path_upgrade)
       is_signed = is_file_signed(msi_path)
       expect(is_signed).to be_truthy
@@ -474,7 +483,9 @@ end
 
 shared_examples_for "a running Agent with no errors" do
   it 'has an agent binary' do
-    expect(File).to exist('/usr/bin/datadog-agent') if os != :windows
+    if os != :windows
+      expect(File).to exist('/usr/bin/datadog-agent')
+    end
   end
 
   it 'is running' do
@@ -547,7 +558,9 @@ shared_examples_for "a running Agent with APM manually disabled" do
 
     f = File.read(conf_path)
     confYaml = YAML.load(f)
-    confYaml["apm_config"] = {} if !confYaml.key("apm_config")
+    if !confYaml.key("apm_config")
+      confYaml["apm_config"] = {}
+    end
     confYaml["apm_config"]["enabled"] = false
     File.write(conf_path, confYaml.to_yaml)
 
@@ -570,7 +583,9 @@ end
 shared_examples_for 'an Agent that stops' do
   it 'stops' do
     output = stop "datadog-agent"
-    expect(output).to be_truthy if os != :windows
+    if os != :windows
+      expect(output).to be_truthy
+    end
     expect(is_flavor_running? "datadog-agent").to be_falsey
   end
 
@@ -588,23 +603,33 @@ shared_examples_for 'an Agent that stops' do
 
   it 'starts after being stopped' do
     output = start "datadog-agent"
-    expect(output).to be_truthy if os != :windows
+    if os != :windows
+      expect(output).to be_truthy
+    end
     expect(is_flavor_running? "datadog-agent").to be_truthy
   end
 end
 
 shared_examples_for 'an Agent that restarts' do
   it 'restarts when the agent is running' do
-    start "datadog-agent" if !is_flavor_running? "datadog-agent"
+    if !is_flavor_running? "datadog-agent"
+      start "datadog-agent"
+    end
     output = restart "datadog-agent"
-    expect(output).to be_truthy if os != :windows
+    if os != :windows
+      expect(output).to be_truthy
+    end
     expect(is_flavor_running? "datadog-agent").to be_truthy
   end
 
   it 'restarts when the agent is not running' do
-    stop "datadog-agent" if is_flavor_running? "datadog-agent"
+    if is_flavor_running? "datadog-agent"
+      stop "datadog-agent"
+    end
     output = restart "datadog-agent"
-    expect(output).to be_truthy if os != :windows
+    if os != :windows
+      expect(output).to be_truthy
+    end
     expect(is_flavor_running? "datadog-agent").to be_truthy
   end
 end
@@ -629,7 +654,9 @@ shared_examples_for 'an Agent with python3 enabled' do
   it 'runs Python 3 after python_version is set to 3' do
     result = false
     python_version = fetch_python_version
-    result = true if ! python_version.nil? && Gem::Version.new('3.0.0') <= Gem::Version.new(python_version)
+    if ! python_version.nil? && Gem::Version.new('3.0.0') <= Gem::Version.new(python_version)
+      result = true
+    end
     expect(result).to be_truthy
   end
 
@@ -654,7 +681,9 @@ shared_examples_for 'an Agent with python3 enabled' do
     skip if info.include? "v7."
     result = false
     python_version = fetch_python_version
-    result = true if ! python_version.nil? && Gem::Version.new('3.0.0') > Gem::Version.new(python_version)
+    if ! python_version.nil? && Gem::Version.new('3.0.0') > Gem::Version.new(python_version)
+      result = true
+    end
     expect(result).to be_truthy
   end
 end
@@ -887,13 +916,17 @@ def equal_sddl?(left, right)
   right_array = right.split("D:")
 
   # compare the ownership & group.  Must be the same
-  return false if left_array[0] != right_array[0]
+  if left_array[0] != right_array[0]
+    return false
+  end
   left_dacl = left_array[1].scan(/(\([^)]*\))/)
   right_dacl = right_array[1].scan(/(\([^)]*\))/)
 
 
   # if they're different lengths, they're different
-  return false if left_dacl.length != right_dacl.length
+  if left_dacl.length != right_dacl.length
+    return false
+  end
 
   ## now need to break up the DACL list, because they may be listed in different
   ## orders... the order doesn't matter but the components should be the same.  So..
@@ -907,7 +940,9 @@ def equal_sddl?(left, right)
         break
       end
     end
-    return false if !found
+    if !found
+      return false
+    end
   end
   return false if right_dacl.length != 0
   true
@@ -930,7 +965,9 @@ end
 
 def check_has_security_right(data, k, name)
   right = data[k]
-  return false unless right
+  unless right
+    return false
+  end
   rights = right.split(",")
   rights.each do |r|
     return true if r == name
