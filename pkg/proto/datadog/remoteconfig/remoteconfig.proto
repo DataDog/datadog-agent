@@ -126,8 +126,7 @@ message ClientGetConfigsResponse {
 }
 
 message ConfigPointer {
-  string id = 1;
-  string path = 2;
+  string path = 1;
 }
 
 // Full state
