@@ -162,6 +162,8 @@ functions_to_skip=(
     "timeout-go"
     "timeout-csharp"
     "timeout-proxy"
+    "trace-csharp" # Will be reactivated when the new dotnet layer will be released
+    "trace-proxy" # Will be reactivated when sampling with proxy will be implemented
 )
 
 echo "Invoking functions for the first time..."
