@@ -17,6 +17,10 @@ if node['platform_family'] != 'windows'
     mode '755'
   end
 
+  directory "/opt/datadog-agent/embedded/bin" do
+    recursive true
+  end
+
   cookbook_file "/opt/datadog-agent/embedded/bin/clang-bpf" do
     source "clang-bpf"
     mode '0744'
