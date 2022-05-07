@@ -28,12 +28,13 @@
     - mkdir llvm && tar xf llvm.src.tar.xz --strip-components=1 --no-same-owner -C llvm
     - mkdir build && cd build
     - |
-      cmake -DLLVM_ENABLE_PROJECTS=clang \
+      cmake \
+      -DLLVM_ENABLE_PROJECTS=clang;llc \
       -DLLVM_TARGETS_TO_BUILD="BPF" \
       -DCMAKE_INSTALL_PREFIX=$DATADOG_AGENT_EMBEDDED_PATH \
       -G "Ninja" \
       -DCMAKE_BUILD_TYPE=MinSizeRel \
-      -DLLVM_BUILD_TOOLS=ON \
+      -DLLVM_BUILD_TOOLS=OFF \
       -DLLVM_ENABLE_TERMINFO=OFF \
       -DLLVM_INCLUDE_EXAMPLES=OFF \
       -DLLVM_INCLUDE_TESTS=OFF \
