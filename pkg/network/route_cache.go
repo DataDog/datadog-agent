@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/golang/groupcache/lru"
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 type routeKey struct {
@@ -59,12 +60,14 @@ const defaultTTL = 2 * time.Minute
 type RouteCache interface {
 	Get(source, dest util.Address, netns uint32) (Route, bool)
 	GetStats() map[string]interface{}
+	Close()
 }
 
 // Router is an interface to get a route for a (source, destination, net ns) tuple
 type Router interface {
 	Route(source, dest util.Address, netns uint32) (Route, bool)
 	GetStats() map[string]interface{}
+	Close()
 }
 
 // NewRouteCache creates a new RouteCache
@@ -91,6 +94,10 @@ func newRouteCache(size int, router Router, ttl time.Duration) *routeCache {
 	}
 
 	return rc
+}
+
+func (c *routeCache) Close() {
+	c.router.Close()
 }
 
 func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) {
@@ -146,8 +153,14 @@ type ifkey struct {
 	netns uint32
 }
 
+type ifEntry struct {
+	index    int
+	loopback bool
+}
+
 type netlinkRouter struct {
 	rootNs  uint32
+	ioctlFD int
 	ifcache *lru.Cache
 
 	netlinkLookups uint64 `stats:"atomic"`
@@ -168,8 +181,18 @@ func NewNetlinkRouter(procRoot string) (Router, error) {
 		return nil, fmt.Errorf("netlink gw cache backing: could not get root net ns: %w", err)
 	}
 
+	var fd int
+	err = util.WithRootNS(procRoot, func() (sockErr error) {
+		fd, sockErr = unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0)
+		return
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	nr := &netlinkRouter{
-		rootNs: rootNs,
+		rootNs:  rootNs,
+		ioctlFD: fd,
 		// ifcache should ideally fit all interfaces on a given node
 		ifcache: lru.New(128),
 	}
@@ -180,6 +203,10 @@ func NewNetlinkRouter(procRoot string) (Router, error) {
 	}
 
 	return nr, nil
+}
+
+func (n *netlinkRouter) Close() {
+	unix.Close(n.ioctlFD)
 }
 
 func (n *netlinkRouter) GetStats() map[string]interface{} {
@@ -202,10 +229,14 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 		// a container most likely, and so need to find out
 		// which interface is associated with the ns
 
-		// get input interface name for src ip
-		iifIndex = n.getInterfaceIndex(source, srcIP, netns)
-		if iifIndex == 0 {
+		// get input interface for src ip
+		iif := n.getInterface(source, srcIP, netns)
+		if iif == nil || iif.index == 0 {
 			return Route{}, false
+		}
+
+		if !iif.loopback {
+			iifIndex = iif.index
 		}
 	}
 
@@ -237,28 +268,47 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 	}, true
 }
 
-func (n *netlinkRouter) getInterfaceIndex(srcAddress util.Address, srcIP net.IP, netns uint32) int {
+func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netns uint32) *ifEntry {
 	atomic.AddUint64(&n.ifCacheLookups, 1)
 
 	key := ifkey{ip: srcAddress, netns: netns}
 	if entry, ok := n.ifcache.Get(key); ok {
-		return entry.(int)
+		return entry.(*ifEntry)
 	}
 	atomic.AddUint64(&n.ifCacheMisses, 1)
 
 	atomic.AddUint64(&n.netlinkLookups, 1)
 	routes, err := netlink.RouteGet(srcIP)
-
 	if err != nil {
 		atomic.AddUint64(&n.netlinkErrors, 1)
-		return 0
+		return nil
 	}
 	if len(routes) != 1 {
 		atomic.AddUint64(&n.netlinkMisses, 1)
-		return 0
+		return nil
 	}
 
-	n.ifcache.Add(key, routes[0].LinkIndex)
+	ifr, err := unix.NewIfreq("")
+	if err != nil {
+		return nil
+	}
+
+	ifr.SetUint32(uint32(routes[0].LinkIndex))
+	// first get the name of the interface. this is
+	// necessary to make the subsequent request to
+	// get the link flags
+	if err = unix.IoctlIfreq(n.ioctlFD, unix.SIOCGIFNAME, ifr); err != nil {
+		log.Tracef("error getting interface name for link index %d: %s", routes[0].LinkIndex, err)
+		return nil
+	}
+	if err = unix.IoctlIfreq(n.ioctlFD, unix.SIOCGIFFLAGS, ifr); err != nil {
+		log.Tracef("error getting interface flags for link index %d: %s", routes[0].LinkIndex, err)
+		return nil
+	}
+
+	iff := &ifEntry{index: routes[0].LinkIndex, loopback: (ifr.Uint16() & unix.IFF_LOOPBACK) != 0}
+	log.Tracef("adding interface entry, key=%+v, entry=%v", key, *iff)
+	n.ifcache.Add(key, iff)
 	atomic.AddUint64(&n.ifCacheSize, 1)
-	return routes[0].LinkIndex
+	return iff
 }
