@@ -27,9 +27,6 @@
     - mkdir clang && tar xf clang.src.tar.xz --strip-components=1 --no-same-owner -C clang
     - mkdir llvm && tar xf llvm.src.tar.xz --strip-components=1 --no-same-owner -C llvm
     - mkdir build && cd build
-    # patch references to glibc >= 2.18
-    - patch -ruN ../llvm/CMakeLists.txt < $SRC_PATH/pkg/ebpf/c/cmakelists.patch
-    - patch -ruN ../llvm/lib/Analysis/ConstantFolding.cpp < $SRC_PATH/pkg/ebpf/c/constant_folding.patch
     - |
       cmake -DLLVM_ENABLE_PROJECTS=clang \
       -DLLVM_TARGETS_TO_BUILD="BPF" \
