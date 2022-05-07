@@ -28,8 +28,7 @@
     - mkdir llvm && tar xf llvm.src.tar.xz --strip-components=1 --no-same-owner -C llvm
     - mkdir build && cd build
     - |
-      cmake \
-      -DLLVM_ENABLE_PROJECTS=clang;llc \
+      cmake -DLLVM_ENABLE_PROJECTS=clang;llc \
       -DLLVM_TARGETS_TO_BUILD="BPF" \
       -DCMAKE_INSTALL_PREFIX=$DATADOG_AGENT_EMBEDDED_PATH \
       -G "Ninja" \
