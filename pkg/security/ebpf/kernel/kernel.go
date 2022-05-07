@@ -163,6 +163,11 @@ func (k *Version) UbuntuKernelVersion() *kernel.UbuntuKernelVersion {
 	return ukv
 }
 
+// Is
+func (k *Version) IsRH7FrankensteinKernel() bool {
+	return k.Code != 0 && k.Code < Kernel4_12 && k.IsRH7Kernel()
+}
+
 // IsRH7Kernel returns whether the kernel is a rh7 kernel
 func (k *Version) IsRH7Kernel() bool {
 	return (k.OsRelease["ID"] == "centos" || k.OsRelease["ID"] == "rhel") && k.OsRelease["VERSION_ID"] == "7"
@@ -211,5 +216,5 @@ func (k *Version) IsAmazonLinuxKernel() bool {
 // IsInRangeCloseOpen returns whether the kernel version is between the begin
 // version (included) and the end version (excluded)
 func (k *Version) IsInRangeCloseOpen(begin kernel.Version, end kernel.Version) bool {
-	return k.Code != 0 && begin <= k.Code && k.Code < end
+	return begin <= k.Code && k.Code < end
 }
