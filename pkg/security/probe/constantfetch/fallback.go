@@ -130,7 +130,7 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 	}
 
 	switch {
-	case kv.IsRH7Kernel():
+	case kv.IsRH7FrankensteinKernel():
 		sizeOf = 584
 	case kv.IsRH8Kernel():
 		sizeOf = 648
@@ -172,7 +172,7 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 func getSuperBlockMagicOffset(kv *kernel.Version) uint64 {
 	sizeOf := uint64(96)
 
-	if kv.IsRH7Kernel() {
+	if kv.IsRH7FrankensteinKernel() {
 		sizeOf = 88
 	}
 
@@ -183,7 +183,7 @@ func getSignalTTYOffset(kv *kernel.Version) uint64 {
 	ttyOffset := uint64(400)
 
 	switch {
-	case kv.IsRH7Kernel():
+	case kv.IsRH7FrankensteinKernel():
 		ttyOffset = 416
 	case kv.IsRH8Kernel():
 		ttyOffset = 392
@@ -246,7 +246,7 @@ func getTTYNameOffset(kv *kernel.Version) uint64 {
 	nameOffset := uint64(368)
 
 	switch {
-	case kv.IsRH7Kernel():
+	case kv.IsRH7FrankensteinKernel():
 		nameOffset = 312
 	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
 		nameOffset = 552
@@ -293,7 +293,7 @@ func getBpfMapNameOffset(kv *kernel.Version) uint64 {
 	nameOffset := uint64(168)
 
 	switch {
-	case kv.IsRH7Kernel():
+	case kv.IsRH7FrankensteinKernel():
 		nameOffset = 112
 	case kv.IsRH8Kernel():
 		nameOffset = 80
@@ -374,7 +374,7 @@ func getBpfProgAuxIDOffset(kv *kernel.Version) uint64 {
 	idOffset := uint64(24)
 
 	switch {
-	case kv.IsRH7Kernel():
+	case kv.IsRH7FrankensteinKernel():
 		idOffset = 8
 	case kv.IsRH8Kernel():
 		idOffset = 32
@@ -404,7 +404,7 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 	nameOffset := uint64(176)
 
 	switch {
-	case kv.IsRH7Kernel():
+	case kv.IsRH7FrankensteinKernel():
 		nameOffset = 144
 	case kv.IsRH8Kernel():
 		nameOffset = 520
@@ -450,7 +450,7 @@ func getPIDNumbersOffset(kv *kernel.Version) uint64 {
 	pidNumbersOffset := uint64(48)
 
 	switch {
-	case kv.IsRH7Kernel():
+	case kv.IsRH7FrankensteinKernel():
 		pidNumbersOffset = 48
 	case kv.IsRH8Kernel():
 		pidNumbersOffset = 56
@@ -487,7 +487,7 @@ func getSizeOfUpid(kv *kernel.Version) uint64 {
 	sizeOfUpid := uint64(16)
 
 	switch {
-	case kv.IsRH7Kernel():
+	case kv.IsRH7FrankensteinKernel():
 		sizeOfUpid = 32
 	case kv.IsRH8Kernel():
 		sizeOfUpid = 16
@@ -520,7 +520,7 @@ func getPipeInodeInfoBufsOffset(kv *kernel.Version) uint64 {
 	offset := uint64(120)
 
 	switch {
-	case kv.IsRH7Kernel():
+	case kv.IsRH7FrankensteinKernel():
 		offset = 128
 	case kv.IsRH8Kernel():
 		offset = 120
@@ -551,7 +551,7 @@ func getNetDeviceIfindexOffset(kv *kernel.Version) uint64 {
 	offset := uint64(260)
 
 	switch {
-	case kv.IsRH7Kernel():
+	case kv.IsRH7FrankensteinKernel():
 		offset = 192
 	case kv.IsRH8Kernel():
 		offset = 264
@@ -619,7 +619,7 @@ func getSocketSockOffset(kv *kernel.Version) uint64 {
 	offset := uint64(32)
 
 	switch {
-	case kv.IsRH7Kernel():
+	case kv.IsRH7FrankensteinKernel():
 		offset = 32
 	case kv.IsRH8Kernel():
 		offset = 32
@@ -641,7 +641,7 @@ func getNFConnCTNetOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsCOSKernel():
 		offset = 168
-	case kv.IsRH7Kernel():
+	case kv.IsRH7FrankensteinKernel():
 		offset = 240
 	}
 
@@ -656,7 +656,7 @@ func getFlowi4SAddrOffset(kv *kernel.Version) uint64 {
 	offset := uint64(40)
 
 	switch {
-	case kv.IsRH7Kernel():
+	case kv.IsRH7FrankensteinKernel():
 		offset = 20
 	case kv.IsRH8Kernel():
 		offset = 56

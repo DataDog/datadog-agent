@@ -1424,7 +1424,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest("flowi6_uli_offset", "struct flowi6", "uli", "net/flow.h")
 	constantFetcher.AppendOffsetofRequest("socket_sock_offset", "struct socket", "sk", "linux/net.h")
 
-	if !kv.IsRH7Kernel() {
+	if !kv.IsRH7FrankensteinKernel() {
 		constantFetcher.AppendOffsetofRequest("nf_conn_ct_net_offset", "struct nf_conn", "ct_net", "net/netfilter/nf_conntrack.h")
 	}
 

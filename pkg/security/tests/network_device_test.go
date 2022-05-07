@@ -29,7 +29,7 @@ import (
 func TestNetDevice(t *testing.T) {
 	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 		// TODO: Oracle because we are missing offsets
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+		return kv.IsRH7FrankensteinKernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
 	})
 
 	if testEnvironment != DockerEnvironment && !config.IsContainerized() {

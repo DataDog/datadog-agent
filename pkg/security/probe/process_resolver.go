@@ -53,7 +53,7 @@ const (
 )
 
 func getAttr2(probe *Probe) uint64 {
-	if probe.kernelVersion.IsRH7Kernel() {
+	if probe.kernelVersion.IsRH7FrankensteinKernel() {
 		return 1
 	}
 	return 0
@@ -73,7 +73,7 @@ func getCGroupWriteConstants() manager.ConstantEditor {
 	cgroupWriteConst := uint64(1)
 	kv, err := kernel.NewKernelVersion()
 	if err == nil {
-		if kv.IsRH7Kernel() {
+		if kv.IsRH7FrankensteinKernel() {
 			cgroupWriteConst = 2
 		}
 	}

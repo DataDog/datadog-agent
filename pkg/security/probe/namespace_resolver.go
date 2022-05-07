@@ -50,7 +50,7 @@ const (
 )
 
 func getNetStructType(kv *kernel.Version) uint64 {
-	if kv.IsRH7Kernel() {
+	if kv.IsRH7FrankensteinKernel() {
 		return netStructHasProcINum
 	}
 	return netStructHasNS
