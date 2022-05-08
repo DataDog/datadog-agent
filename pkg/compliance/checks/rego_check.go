@@ -16,6 +16,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
+	"github.com/open-policy-agent/opa/topdown/cache"
 	"github.com/open-policy-agent/opa/topdown/print"
 	"gopkg.in/yaml.v3"
 
@@ -121,25 +122,27 @@ func computeRuleModulesAndQuery(rule *compliance.RegoRule, meta *compliance.Suit
 func (r *regoCheck) compileRule(rule *compliance.RegoRule, ruleScope compliance.RuleScope, meta *compliance.SuiteMeta) error {
 	ctx := context.TODO()
 
-	moduleArgs := make([]func(*rego.Rego), 0, 2+len(regoBuiltins))
-
 	// rego modules and query
 	ruleModules, query, err := computeRuleModulesAndQuery(rule, meta)
 	if err != nil {
 		return err
 	}
-	moduleArgs = append(moduleArgs, ruleModules...)
-	moduleArgs = append(moduleArgs, rego.Query(query))
 
 	log.Debugf("rego query: %v", query)
+
+	moduleArgs := make([]func(*rego.Rego), 0, 4+len(ruleModules)+len(regoBuiltins))
+	moduleArgs = append(moduleArgs, ruleModules...)
 
 	// rego builtins
 	moduleArgs = append(moduleArgs, regoBuiltins...)
 
+	cache := buildQueryCache()
 	moduleArgs = append(
 		moduleArgs,
+		rego.Query(query),
 		rego.EnablePrintStatements(true),
 		rego.PrintHook(&regoPrintHook{}),
+		rego.InterQueryBuiltinCache(cache),
 	)
 
 	preparedEvalQuery, err := rego.New(
@@ -154,6 +157,19 @@ func (r *regoCheck) compileRule(rule *compliance.RegoRule, ruleScope compliance.
 	r.ruleScope = ruleScope
 
 	return nil
+}
+
+const maxSizeBytesCache int64 = 1024 * 1024
+
+func buildQueryCache() cache.InterQueryCache {
+	maxSize := maxSizeBytesCache
+	config := cache.Config{
+		InterQueryBuiltinCache: cache.InterQueryBuiltinCacheConfig{
+			MaxSizeBytes: &maxSize,
+		},
+	}
+
+	return cache.NewInterQueryCache(&config)
 }
 
 func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
