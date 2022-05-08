@@ -155,7 +155,7 @@ func (r *regoCheck) compileRule(rule *compliance.RegoRule, ruleScope compliance.
 	return nil
 }
 
-const maxSizeBytesCache int64 = 1024 * 1024
+const maxSizeBytesCache int64 = 1024 * 1024 // 1Mio
 
 func buildQueryCache() cache.InterQueryCache {
 	maxSize := maxSizeBytesCache
