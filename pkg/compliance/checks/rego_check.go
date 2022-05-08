@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/google/go-cmp/cmp"
 )
 
 const regoEvaluator = "rego"
@@ -35,9 +34,6 @@ type regoCheck struct {
 	ruleScope         compliance.RuleScope
 	inputs            []compliance.RegoInput
 	preparedEvalQuery rego.PreparedEvalQuery
-
-	cachedInput   eval.RegoInputMap
-	cachedResults rego.ResultSet
 }
 
 func importModule(importPath, parentDir string, required bool) (string, error) {
@@ -402,16 +398,10 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 		_ = dumpInputToFile(r.ruleID, path, input)
 	}
 
-	results := r.cachedResults
-	if !cmp.Equal(r.cachedInput, input) {
-		ctx := context.TODO()
-		computedResults, err := r.preparedEvalQuery.Eval(ctx, rego.EvalInput(input))
-		if err != nil {
-			return buildErrorReports(err)
-		}
-		r.cachedInput = input
-		r.cachedResults = computedResults
-		results = computedResults
+	ctx := context.TODO()
+	results, err := r.preparedEvalQuery.Eval(ctx, rego.EvalInput(input))
+	if err != nil {
+		return buildErrorReports(err)
 	}
 
 	log.Debugf("%s: rego evaluation done => %+v\n", r.ruleID, results)
