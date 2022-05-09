@@ -9,5 +9,5 @@
 enhancements:
   - |
     Make logs agent ``additional_endpoints`` reliable by default.
-    This can be disabled by setting setting ``is_reliable: false` 
+    This can be disabled by setting ``is_reliable: false``
     on the additional endpoint.
