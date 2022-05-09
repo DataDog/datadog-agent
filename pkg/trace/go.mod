@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.36.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.34.0
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.36.0-rc.4
-	github.com/DataDog/datadog-go/v5 v5.1.0
+	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/Microsoft/go-winio v0.5.1
 	github.com/gogo/protobuf v1.3.2
