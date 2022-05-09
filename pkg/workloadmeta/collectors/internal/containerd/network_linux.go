@@ -42,18 +42,25 @@ func extractIP(container containerd.Container, containerdClient cutil.Containerd
 		return "", errors.New("no PIDs found")
 	}
 
-	IPs, err := system.ParseProcessIPs(
-		config.Datadog.GetString("container_proc_root"),
-		int(taskPids[0].Pid), // Any PID of the container should work
-		func(ip string) bool { return ip != "127.0.0.1" },
-	)
-	if err != nil {
-		return "", err
+	// Any PID should work, but processes could be deleted between we retrieve
+	// the list of PIDs and the moment we check the files. That's why we try all
+	// of them.
+	for _, taskPid := range taskPids {
+		IPs, err := system.ParseProcessIPs(
+			config.Datadog.GetString("container_proc_root"),
+			int(taskPid.Pid),
+			func(ip string) bool { return ip != "127.0.0.1" },
+		)
+		if err != nil {
+			continue
+		}
+
+		if len(IPs) == 0 {
+			return "", errors.New("no IPs found")
+		}
+
+		return IPs[0], nil
 	}
 
-	if len(IPs) == 0 {
-		return "", errors.New("no IPs found")
-	}
-
-	return IPs[0], nil
+	return "", errors.New("no IPs found")
 }
