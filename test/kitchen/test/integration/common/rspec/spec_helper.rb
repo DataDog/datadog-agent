@@ -465,7 +465,7 @@ shared_examples_for "an installed Agent" do
       end
 
       verify_signature_files.each do |vf|
-        expect(is_file_signed(vf)).to true
+        expect(is_file_signed(vf)).to be_truthy
       end
     end
   end
