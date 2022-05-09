@@ -172,6 +172,7 @@ type netlinkRouter struct {
 	ifCacheLookups uint64 `stats:"atomic"`
 	ifCacheMisses  uint64 `stats:"atomic"`
 	ifCacheSize    uint64 `stats:"atomic"`
+	ifCacheErrors  uint64 `stats:"atomic"`
 
 	reporter netstats.Reporter
 }
@@ -292,6 +293,7 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 
 	ifr, err := unix.NewIfreq("")
 	if err != nil {
+		atomic.AddUint64(&n.ifCacheErrors, 1)
 		return nil
 	}
 
@@ -300,10 +302,12 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	// necessary to make the subsequent request to
 	// get the link flags
 	if err = unix.IoctlIfreq(n.ioctlFD, unix.SIOCGIFNAME, ifr); err != nil {
+		atomic.AddUint64(&n.ifCacheErrors, 1)
 		log.Tracef("error getting interface name for link index %d: %s", routes[0].LinkIndex, err)
 		return nil
 	}
 	if err = unix.IoctlIfreq(n.ioctlFD, unix.SIOCGIFFLAGS, ifr); err != nil {
+		atomic.AddUint64(&n.ifCacheErrors, 1)
 		log.Tracef("error getting interface flags for link index %d: %s", routes[0].LinkIndex, err)
 		return nil
 	}
