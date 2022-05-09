@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"go.uber.org/atomic"
 
 	"k8s.io/client-go/tools/cache"
 )
@@ -54,7 +55,7 @@ type CollectorRunConfig struct {
 	APIClient   *apiserver.APIClient
 	ClusterID   string
 	Config      *config.OrchestratorConfig
-	MsgGroupRef *int32
+	MsgGroupRef *atomic.Int32
 }
 
 // CollectorRunResult contains information about what the collector has done.
