@@ -43,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -289,6 +290,10 @@ func RunAgent(ctx context.Context) (err error) {
 			log.Errorf("failed to start the tagger: %s", err)
 		}
 	}
+
+	// Start workloadmeta store
+	store := workloadmeta.GetGlobalStore()
+	store.Start(ctx)
 
 	complianceAgent, err := startCompliance(hostname, stopper, statsdClient)
 	if err != nil {
