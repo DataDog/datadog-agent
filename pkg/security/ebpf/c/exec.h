@@ -310,12 +310,42 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     return 0;
 }
 
+int __attribute__((always_inline)) handle_sys_fork(struct pt_regs *ctx) {
+    struct syscall_cache_t syscall = {
+        .type = EVENT_FORK,
+    };
+
+    cache_syscall(&syscall);
+
+    return 0;
+}
+
+SYSCALL_KPROBE0(fork) {
+    return handle_sys_fork(ctx);
+}
+
+SYSCALL_KPROBE0(clone) {
+    return handle_sys_fork(ctx);
+}
+
+SYSCALL_KPROBE0(clone3) {
+    return handle_sys_fork(ctx);
+}
+
+SYSCALL_KPROBE0(vfork) {
+    return handle_sys_fork(ctx);
+}
+
 #define DO_FORK_STRUCT_INPUT 1
 
 int __attribute__((always_inline)) handle_do_fork(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
+    if (!syscall) {
+        return 0;
+    }
+
     u64 input;
     LOAD_CONSTANT("do_fork_input", input);
-    u64 is_thread = 1;
 
     if (input == DO_FORK_STRUCT_INPUT) {
         void *args = (void *)PT_REGS_PARM1(ctx);
@@ -323,22 +353,14 @@ int __attribute__((always_inline)) handle_do_fork(struct pt_regs *ctx) {
         bpf_probe_read(&exit_signal, sizeof(int), (void *)args + 32);
 
         if (exit_signal == SIGCHLD) {
-            is_thread = 0;
+            syscall->fork.is_thread = 0;
         }
     } else {
         u64 flags = (u64)PT_REGS_PARM1(ctx);
         if ((flags & SIGCHLD) == SIGCHLD) {
-            is_thread = 0;
+            syscall->fork.is_thread = 0;
         }
     }
-
-    struct syscall_cache_t syscall = {
-        .type = EVENT_FORK,
-        .fork = {
-            .is_thread = is_thread,
-        },
-    };
-    cache_syscall(&syscall);
 
     return 0;
 }
@@ -419,11 +441,6 @@ int sched_process_exec(struct _tracepoint_sched_process_exec *args) {
     return 0;
 }
 
-int __attribute__((always_inline)) is_kworker_comm(const char comm[TASK_COMM_LEN]) {
-    return comm[0] == 'k' && comm[1] == 'w' && comm[2] == 'o' && comm[3] == 'r' &&
-           comm[4] == 'k' && comm[5] == 'e' && comm[6] == 'r';
-}
-
 SEC("tracepoint/sched/sched_process_fork")
 int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     // inherit netns
@@ -437,7 +454,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         bpf_map_update_elem(&netns_cache, &pid, &child_netns_entry, BPF_ANY);
     }
 
-    // check if this is a thread first
+    // ignore the rest if kworker
     struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
     if (!syscall) {
         return 0;
@@ -487,12 +504,6 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         }
     }
 
-    // consider entry without file context as a kworker
-    if (!event.proc_entry.executable.path_key.ino && !event.proc_entry.executable.path_key.mount_id &&
-        is_kworker_comm(event.proc_entry.comm)) {
-        return 0;
-    }
-
     // insert the pid cache entry for the new process
     bpf_map_update_elem(&pid_cache, &pid, &event.pid_entry, BPF_ANY);
 
@@ -523,31 +534,16 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
         if (pid_entry) {
             pid_entry->exit_timestamp = bpf_ktime_get_ns();
-
-            // ignore kthreads
-            if (IS_KTHREAD(pid_entry->ppid, pid)) {
-                return 0;
-            }
         }
 
         // send the entry to maintain userspace cache
         struct exit_event_t event = {};
         struct proc_cache_t *cache_entry = fill_process_context(&event.process);
-
-        // consider entry without file context as a kworker
         if (cache_entry) {
-            if (!cache_entry->executable.path_key.ino && !cache_entry->executable.path_key.mount_id) {
-                bpf_get_current_comm(&cache_entry->comm, sizeof(cache_entry->comm));
-
-                if (is_kworker_comm(cache_entry->comm)) {
-                    return 0;
-                }
-            }
+            fill_container_context(cache_entry, &event.container);
+            fill_span_context(&event.span);
+            send_event(ctx, EVENT_EXIT, event);
         }
-
-        fill_container_context(cache_entry, &event.container);
-        fill_span_context(&event.span);
-        send_event(ctx, EVENT_EXIT, event);
 
         unregister_span_memory();
 
