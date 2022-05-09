@@ -21,22 +21,12 @@ type exporterConfig struct {
 	exporterhelper.QueueSettings   `mapstructure:",squash"`
 
 	Metrics metricsConfig `mapstructure:"metrics"`
-
-	warnings []error
 }
 
 // metricsConfig defines the metrics exporter specific configuration options
 type metricsConfig struct {
 	// Enabled reports whether Metrics should be enabled.
 	Enabled bool `mapstructure:"enabled"`
-
-	// Quantiles states whether to report quantiles from summary metrics.
-	// By default, the minimum, maximum and average are reported.
-	Quantiles bool `mapstructure:"report_quantiles"`
-
-	// SendMonotonic states whether to report cumulative monotonic metrics as counters
-	// or gauges
-	SendMonotonic bool `mapstructure:"send_monotonic_counter"`
 
 	// DeltaTTL defines the time that previous points of a cumulative monotonic
 	// metric are kept in memory to calculate deltas
@@ -164,19 +154,4 @@ type metricsExporterConfig struct {
 // Validate configuration
 func (e *exporterConfig) Validate() error {
 	return e.QueueSettings.Validate()
-}
-
-func (e *exporterConfig) Unmarshal(cfgMap *config.Map) error {
-	err := cfgMap.UnmarshalExact(e)
-	if err != nil {
-		return err
-	}
-
-	warnings, err := handleRenamedSettings(cfgMap, e)
-	if err != nil {
-		return err
-	}
-	e.warnings = append(e.warnings, warnings...)
-
-	return nil
 }
