@@ -28,7 +28,7 @@ var inferredSpan inferredspan.InferredSpan
 // OnInvokeStart is the hook triggered when an invocation has started
 func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails) {
 	log.Debug("[lifecycle] onInvokeStart ------")
-	log.Debugf("[lifecycle] Invocation has started at: %d", startDetails.StartTime)
+	log.Debugf("[lifecycle] Invocation has started at: %v", startDetails.StartTime)
 	log.Debugf("[lifecycle] Invocation invokeEvent payload is: %s", startDetails.InvokeEventRawPayload)
 	log.Debug("[lifecycle] ---------------------------------------")
 
@@ -46,8 +46,8 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 // OnInvokeEnd is the hook triggered when an invocation has ended
 func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 	log.Debug("[lifecycle] onInvokeEnd ------")
-	log.Debugf("[lifecycle] Invocation has finished at: %d", endDetails.EndTime)
-	log.Debugf("[lifecycle] Invocation isError is: %d", endDetails.IsError)
+	log.Debugf("[lifecycle] Invocation has finished at: %v", endDetails.EndTime)
+	log.Debugf("[lifecycle] Invocation isError is: %v", endDetails.IsError)
 	log.Debug("[lifecycle] ---------------------------------------")
 
 	if !lp.DetectLambdaLibrary() {
