@@ -111,16 +111,7 @@ func TestParseProcessIPs(t *testing.T) {
 	assert.Nil(t, err)
 	defer dummyProcDir.RemoveAll() // clean up
 
-	tests := []struct {
-		name                      string
-		pid                       int
-		procNetFibTrieFileContent string
-		expectedIPs               []string
-	}{
-		{
-			name: "standard case",
-			pid:  123,
-			procNetFibTrieFileContent: `
+	exampleNetFibTrieFileContent := `
 Main:
   +-- 0.0.0.0/1 2 0 2
      +-- 0.0.0.0/4 2 0 2
@@ -167,8 +158,27 @@ Local:
               /32 host LOCAL
         |-- 127.255.255.255
            /32 link BROADCAST
-`,
-			expectedIPs: []string{"10.4.0.216", "127.0.0.1"},
+`
+
+	tests := []struct {
+		name                      string
+		pid                       int
+		procNetFibTrieFileContent string
+		filterFunc                func(string) bool
+		expectedIPs               []string
+	}{
+		{
+			name:                      "standard case",
+			pid:                       123,
+			procNetFibTrieFileContent: exampleNetFibTrieFileContent,
+			expectedIPs:               []string{"10.4.0.216", "127.0.0.1"},
+		},
+		{
+			name:                      "with filter",
+			pid:                       123,
+			procNetFibTrieFileContent: exampleNetFibTrieFileContent,
+			filterFunc:                func(ip string) bool { return ip != "127.0.0.1" },
+			expectedIPs:               []string{"10.4.0.216"},
 		},
 	}
 
@@ -178,7 +188,7 @@ Local:
 			err = dummyProcDir.Add(filepath.Join(strconv.Itoa(test.pid), "net", "fib_trie"), test.procNetFibTrieFileContent)
 			assert.NoError(t, err)
 
-			resultIPs, err := ParseProcessIPs(dummyProcDir.RootPath, test.pid)
+			resultIPs, err := ParseProcessIPs(dummyProcDir.RootPath, test.pid, test.filterFunc)
 
 			assert.NoError(t, err)
 			assert.ElementsMatch(t, test.expectedIPs, resultIPs)

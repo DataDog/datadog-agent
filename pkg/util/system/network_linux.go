@@ -121,7 +121,7 @@ func ParseProcessRoutes(procPath string, pid int) ([]NetworkRoute, error) {
 //
 // The IPs that we're interested in are the ones that appear above lines that
 // contain "/32 host".
-func ParseProcessIPs(procPath string, pid int) ([]string, error) {
+func ParseProcessIPs(procPath string, pid int, filterFunc func(string) bool) ([]string, error) {
 	var procNetFibTrieFile string
 	if pid > 0 {
 		procNetFibTrieFile = filepath.Join(procPath, strconv.Itoa(pid), "net", "fib_trie")
@@ -142,7 +142,10 @@ func ParseProcessIPs(procPath string, pid int) ([]string, error) {
 		if strings.Contains(line, "/32 host") && i > 0 {
 			split := strings.Split(lines[i-1], "|-- ")
 			if len(split) == 2 {
-				IPs[split[1]] = true
+				ip := split[1]
+				if filterFunc == nil || filterFunc(ip) {
+					IPs[ip] = true
+				}
 			}
 		}
 	}

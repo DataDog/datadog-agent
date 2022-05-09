@@ -8,6 +8,6 @@
 
 package system
 
-func ParseProcessIPs(procPath string, pid int) ([]string, error) {
+func ParseProcessIPs(procPath string, pid int, filterFunc func(string) bool) ([]string, error) {
 	return nil, nil
 }

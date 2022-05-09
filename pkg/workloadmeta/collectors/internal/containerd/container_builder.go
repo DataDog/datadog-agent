@@ -134,17 +134,15 @@ func extractIP(container containerd.Container, containerdClient cutil.Containerd
 	IPs, err := system.ParseProcessIPs(
 		config.Datadog.GetString("container_proc_root"),
 		int(taskPids[0].Pid), // Any PID of the container should work
+		func(ip string) bool { return ip != "127.0.0.1" },
 	)
 	if err != nil {
 		return "", err
 	}
 
-	// From all the IPs, just return the first one that's not localhost.
-	for _, IP := range IPs {
-		if IP != "127.0.0.1" {
-			return IP, nil
-		}
+	if len(IPs) == 0 {
+		return "", errors.New("no IPs found")
 	}
 
-	return "", errors.New("no IPs found")
+	return IPs[0], nil
 }
