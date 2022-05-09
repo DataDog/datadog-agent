@@ -97,27 +97,46 @@ func TestGetAddedForTypeExistingSources(t *testing.T) {
 	assert.Equal(t, sb3, source3)
 }
 
-func TestGetRemovedForType(t *testing.T) {
+func TestSubscribeForType(t *testing.T) {
 	sources := NewLogSources()
-	source := NewLogSource("foo", &LogsConfig{Type: "foo"})
+	source1 := NewLogSource("one", &LogsConfig{Type: "foo"})
+	source2 := NewLogSource("two", &LogsConfig{Type: "foo"})
+	source3 := NewLogSource("three", &LogsConfig{Type: "foo"})
 
-	streamA := sources.GetRemovedForType("foo")
-	assert.NotNil(t, streamA)
-	assert.Equal(t, 0, len(streamA))
+	go func() { sources.AddSource(source1) }()
 
-	streamB := sources.GetRemovedForType("foo")
-	assert.NotNil(t, streamB)
-	assert.Equal(t, 0, len(streamB))
+	addA, removeA := sources.SubscribeForType("foo")
+	assert.NotNil(t, addA)
+	sa1 := <-addA
+	assert.Equal(t, sa1, source1)
+	assert.Equal(t, 0, len(removeA))
 
-	// removing a nonexistent source does nothing
-	sources.RemoveSource(source)
-	assert.Equal(t, 0, len(streamA))
-	assert.Equal(t, 0, len(streamB))
+	go func() { sources.AddSource(source2) }()
 
-	sources.AddSource(source)
-	go func() { sources.RemoveSource(source) }()
-	sa := <-streamA
-	sb := <-streamB
-	assert.Equal(t, sa, source)
-	assert.Equal(t, sb, source)
+	sa2 := <-addA
+	assert.Equal(t, sa2, source2)
+
+	addB, removeB := sources.SubscribeForType("foo")
+	assert.NotNil(t, addB)
+	sb1 := <-addB
+	sb2 := <-addB
+	assert.ElementsMatch(t, []*LogSource{source1, source2}, []*LogSource{sb1, sb2})
+	assert.Equal(t, 0, len(removeB))
+
+	go func() { sources.AddSource(source3) }()
+
+	sa3 := <-addA
+	sb3 := <-addB
+	assert.Equal(t, sa3, source3)
+	assert.Equal(t, sb3, source3)
+
+	assert.Equal(t, 0, len(removeA))
+	assert.Equal(t, 0, len(removeB))
+
+	go func() { sources.RemoveSource(source1) }()
+
+	sa1 = <-removeA
+	sb1 = <-removeB
+	assert.Equal(t, sa1, source1)
+	assert.Equal(t, sb1, source1)
 }

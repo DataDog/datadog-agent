@@ -80,6 +80,38 @@ func (s *LogSources) RemoveSource(source *LogSource) {
 	}
 }
 
+// SubscribeForType returns two channels carrying notifications of added and
+// removed sources with the given type, respectively.  This guarantees
+// consistency if sources are added or removed concurrently.
+//
+// Any sources added before this call are delivered from a new goroutine.
+func (s *LogSources) SubscribeForType(sourceType string) (added chan *LogSource, removed chan *LogSource) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	added = make(chan *LogSource)
+	removed = make(chan *LogSource)
+
+	if _, exists := s.addedByType[sourceType]; !exists {
+		s.addedByType[sourceType] = []chan *LogSource{}
+	}
+	s.addedByType[sourceType] = append(s.addedByType[sourceType], added)
+
+	if _, exists := s.removedByType[sourceType]; !exists {
+		s.removedByType[sourceType] = []chan *LogSource{}
+	}
+	s.removedByType[sourceType] = append(s.removedByType[sourceType], removed)
+
+	existingSources := append([]*LogSource{}, s.sources...) // clone for goroutine
+	go func() {
+		for _, source := range existingSources {
+			added <- source
+		}
+	}()
+
+	return
+}
+
 // GetAddedForType returns a channel carrying notifications of new sources
 // with the given type.
 //
@@ -102,23 +134,6 @@ func (s *LogSources) GetAddedForType(sourceType string) chan *LogSource {
 			stream <- source
 		}
 	}()
-
-	return stream
-}
-
-// GetRemovedForType returns a channel carrying notifications of removed sources
-// with the given type.
-func (s *LogSources) GetRemovedForType(sourceType string) chan *LogSource {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	_, exists := s.removedByType[sourceType]
-	if !exists {
-		s.removedByType[sourceType] = []chan *LogSource{}
-	}
-
-	stream := make(chan *LogSource)
-	s.removedByType[sourceType] = append(s.removedByType[sourceType], stream)
 
 	return stream
 }
