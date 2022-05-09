@@ -141,7 +141,7 @@ func isAsyncEvent(attributes EventKeys) bool {
 
 // CalculateStartTime converts AWS event timeEpochs to nanoseconds
 func calculateStartTime(epoch int64) int64 {
-	return (epoch / 1000) * 1e9
+	return epoch * 1e6
 }
 
 // formatISOStartTime converts ISO timestamps and returns
