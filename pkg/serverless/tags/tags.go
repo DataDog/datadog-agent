@@ -59,6 +59,11 @@ const (
 	accountIDKey  = "account_id"
 	awsAccountKey = "aws_account"
 	resourceKey   = "resource"
+
+	// X86LambdaPlatform is for the lambda platform X86_64
+	X86LambdaPlatform = "x86_64"
+	// ArmLambdaPlatform is for the lambda platform Arm64
+	ArmLambdaPlatform = "arm64"
 )
 
 // currentExtensionVersion represents the current version of the Datadog Lambda Extension.
