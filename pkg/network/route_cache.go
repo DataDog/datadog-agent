@@ -133,7 +133,9 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 }
 
 func (c *routeCache) GetStats() map[string]interface{} {
-	return c.reporter.Report()
+	stats := c.reporter.Report()
+	stats["router"] = c.router.GetStats()
+	return stats
 }
 
 func newRouteKey(source, dest util.Address, netns uint32) routeKey {
