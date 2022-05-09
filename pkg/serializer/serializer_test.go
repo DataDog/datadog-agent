@@ -284,7 +284,7 @@ func TestSendV1Series(t *testing.T) {
 
 func TestSendSeries(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
-	matcher := createProtoPayloadMatcher([]byte{10, 8, 10, 6, 10, 4, 104, 111, 115, 116})
+	matcher := createProtoPayloadMatcher([]byte{0xa, 0xa, 0xa, 0x6, 0xa, 0x4, 0x68, 0x6f, 0x73, 0x74, 0x28, 0x3})
 	f.On("SubmitSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 	config.Datadog.Set("use_v2_api.series", true)
 	defer config.Datadog.Set("use_v2_api.series", false)
