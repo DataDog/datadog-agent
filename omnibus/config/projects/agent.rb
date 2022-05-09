@@ -190,7 +190,7 @@ package :msi do
     "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe",
     "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe",
     "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\libdatadog-agent-three.dll",
-    "#{INSTALL_DIR}\\bin\\agent\\ddtray.exe",
+    "#{windows_safe_path(INSTALL_DIR)}\\bin\\agent\\ddtray.exe",
     "#{windows_safe_path(PYTHON_3_EMBEDDED_DIR)}\\python.exe",
     "#{windows_safe_path(PYTHON_3_EMBEDDED_DIR)}\\python3.dll",
     "#{windows_safe_path(PYTHON_3_EMBEDDED_DIR)}\\python38.dll",
