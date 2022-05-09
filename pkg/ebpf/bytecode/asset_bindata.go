@@ -23,7 +23,9 @@ var bindata embed.FS
 // GetReader returns a new AssetReader for the specified bundled asset
 func GetReader(dir, name string) (AssetReader, error) {
 	dir = "build"
-	content, err := bindata.ReadFile(path.Join(dir, name))
+	assetPath := path.Join(dir, name)
+
+	content, err := bindata.ReadFile(assetPath)
 	if err != nil {
 		return nil, err
 	}

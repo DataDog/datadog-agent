@@ -21,26 +21,28 @@ func TestAddRequest(t *testing.T) {
 	stats.AddRequest(404, 15.0)
 	stats.AddRequest(405, 20.0)
 
-	for i := 0; i < 5; i++ {
-		if i == 3 {
-			assert.Equal(t, 3, stats[i].Count)
-			assert.Equal(t, 3.0, stats[i].Latencies.GetCount())
+	for i := 100; i <= 500; i += 100 {
+		s := stats.Stats(i)
+		if i == 400 {
+			if assert.NotNil(t, s) {
+				assert.Equal(t, 3, s.Count)
+				assert.Equal(t, 3.0, s.Latencies.GetCount())
 
-			verifyQuantile(t, stats[i].Latencies, 0.0, 10.0)  // min item
-			verifyQuantile(t, stats[i].Latencies, 0.99, 15.0) // median
-			verifyQuantile(t, stats[i].Latencies, 1.0, 20.0)  // max item
+				verifyQuantile(t, s.Latencies, 0.0, 10.0)  // min item
+				verifyQuantile(t, s.Latencies, 0.99, 15.0) // median
+				verifyQuantile(t, s.Latencies, 1.0, 20.0)  // max item
+			}
 		} else {
-			assert.Equal(t, 0, stats[i].Count)
-			assert.Nil(t, stats[i].Latencies)
+			assert.Nil(t, s)
 		}
 	}
 }
 
 func TestCombineWith(t *testing.T) {
 	var stats RequestStats
-	for i := 0; i < 5; i++ {
-		assert.Equal(t, 0, stats[i].Count)
-		assert.True(t, stats[i].Latencies == nil)
+	for i := 100; i <= 500; i += 100 {
+		s := stats.Stats(i)
+		assert.Nil(t, s)
 	}
 
 	var stats2, stats3, stats4 RequestStats
@@ -48,19 +50,21 @@ func TestCombineWith(t *testing.T) {
 	stats3.AddRequest(404, 15.0)
 	stats4.AddRequest(405, 20.0)
 
-	stats.CombineWith(stats2)
-	stats.CombineWith(stats3)
-	stats.CombineWith(stats4)
+	stats.CombineWith(&stats2)
+	stats.CombineWith(&stats3)
+	stats.CombineWith(&stats4)
 
-	for i := 0; i < 5; i++ {
-		if i == 3 {
-			assert.Equal(t, 3, stats[i].Count)
-			verifyQuantile(t, stats[i].Latencies, 0.0, 10.0)
-			verifyQuantile(t, stats[i].Latencies, 0.5, 15.0)
-			verifyQuantile(t, stats[i].Latencies, 1.0, 20.0)
+	for i := 100; i <= 500; i += 100 {
+		s := stats.Stats(i)
+		if i == 400 {
+			if assert.NotNil(t, s) {
+				assert.Equal(t, 3, s.Count)
+				verifyQuantile(t, s.Latencies, 0.0, 10.0)
+				verifyQuantile(t, s.Latencies, 0.5, 15.0)
+				verifyQuantile(t, s.Latencies, 1.0, 20.0)
+			}
 		} else {
-			assert.Equal(t, 0, stats[i].Count)
-			assert.True(t, stats[i].Latencies == nil)
+			assert.Nil(t, s)
 		}
 	}
 }

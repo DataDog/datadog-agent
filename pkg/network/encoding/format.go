@@ -57,11 +57,11 @@ func FormatConnection(
 	c.Type = formatType(conn.Type)
 	c.IsLocalPortEphemeral = formatEphemeralType(conn.SPortIsEphemeral)
 	c.PidCreateTime = 0
-	c.LastBytesSent = conn.LastSentBytes
-	c.LastBytesReceived = conn.LastRecvBytes
-	c.LastPacketsSent = conn.LastSentPackets
-	c.LastPacketsReceived = conn.LastRecvPackets
-	c.LastRetransmits = conn.LastRetransmits
+	c.LastBytesSent = conn.Last.SentBytes
+	c.LastBytesReceived = conn.Last.RecvBytes
+	c.LastPacketsSent = conn.Last.SentPackets
+	c.LastPacketsReceived = conn.Last.RecvPackets
+	c.LastRetransmits = conn.Last.Retransmits
 	c.Direction = formatDirection(conn.Direction)
 	c.NetNS = conn.NetNS
 	c.RemoteNetworkId = ""
@@ -69,8 +69,8 @@ func FormatConnection(
 	c.Rtt = conn.RTT
 	c.RttVar = conn.RTTVar
 	c.IntraHost = conn.IntraHost
-	c.LastTcpEstablished = conn.LastTCPEstablished
-	c.LastTcpClosed = conn.LastTCPClosed
+	c.LastTcpEstablished = conn.Last.TCPEstablished
+	c.LastTcpClosed = conn.Last.TCPClosed
 
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
 	dnsFormatter.FormatConnectionDNS(conn, c)
@@ -129,7 +129,7 @@ func returnToPool(c *model.Connections) {
 }
 
 func formatAddr(addr util.Address, port uint16, ipc ipCache) *model.Addr {
-	if addr == nil {
+	if addr.IsZero() {
 		return nil
 	}
 

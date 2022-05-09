@@ -23,6 +23,5 @@ const (
 	InvocationErrorHeader = "x-datadog-invocation-error"
 
 	// SamplingPriorityHeader is the header containing the sampling priority for execution and/or inferred spans
-	// used in /trace.go
 	SamplingPriorityHeader = "x-datadog-sampling-priority"
 )

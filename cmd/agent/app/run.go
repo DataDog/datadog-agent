@@ -44,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"
@@ -245,7 +246,11 @@ func StartAgent() error {
 		return fmt.Errorf("Error while setting up logging, exiting: %v", loggerSetupErr)
 	}
 
-	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
+	if flavor.GetFlavor() == flavor.IotAgent {
+		log.Infof("Starting Datadog IoT Agent v%v", version.AgentVersion)
+	} else {
+		log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
+	}
 
 	if err := util.SetupCoreDump(); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)

@@ -35,7 +35,9 @@ struct bpf_map_def SEC("maps/pid_fd_by_sock") pid_fd_by_sock = {
     .namespace = "",
 };
 
-static __always_inline void clear_sockfd_maps(struct sock* sock) {
+// On older kernels, clang can generate Wunused-function warnings on static inline functions defined in 
+// header files, even if they are later used in source files. __maybe_unused prevents that issue
+__maybe_unused static __always_inline void clear_sockfd_maps(struct sock* sock) {
     if (sock == NULL) {
         return;
     }

@@ -361,7 +361,6 @@ func (c *safeConfig) ReadInConfig() error {
 	c.Lock()
 	err := c.Viper.ReadInConfig()
 	c.Unlock()
-	promoteExperimentalOTLP(c) // TODO(gbbr): remove after 7.35.0 is released
 	return err
 }
 
