@@ -11,8 +11,8 @@ import (
 )
 
 type ContainersTelemetry struct {
-	sender        aggregator.Sender
-	metadataStore workloadmeta.Store
+	Sender        aggregator.Sender
+	MetadataStore workloadmeta.Store
 }
 
 func NewContainersTelemetry() (*ContainersTelemetry, error) {
@@ -22,24 +22,24 @@ func NewContainersTelemetry() (*ContainersTelemetry, error) {
 	}
 
 	return &ContainersTelemetry{
-		sender:        sender,
-		metadataStore: workloadmeta.GetGlobalStore(),
+		Sender:        sender,
+		MetadataStore: workloadmeta.GetGlobalStore(),
 	}, nil
 }
 
 func (c *ContainersTelemetry) ReportContainers(metricName string) error {
-	containers, err := c.metadataStore.ListContainers()
+	containers, err := c.MetadataStore.ListContainers()
 	if err != nil {
 		return err
 	}
 
 	for _, container := range containers {
 		if container.State.Running {
-			c.sender.Gauge(metricName, 1.0, "", []string{"container_id:" + container.ID})
+			c.Sender.Gauge(metricName, 1.0, "", []string{"container_id:" + container.ID})
 		}
 	}
 
-	c.sender.Commit()
+	c.Sender.Commit()
 
 	return nil
 }
