@@ -67,8 +67,6 @@ func setupOTLPEnvironmentVariables(config Config) {
 	config.BindEnv(OTLPSection + ".receiver.protocols.http.include_metadata")
 
 	// Metrics settings
-	config.BindEnv(OTLPSection + ".metrics.report_quantiles")
-	config.BindEnv(OTLPSection + ".metrics.send_monotonic_counter")
 	config.BindEnv(OTLPSection + ".metrics.delta_ttl")
 	config.BindEnv(OTLPSection + ".metrics.resource_attributes_as_tags")
 	config.BindEnv(OTLPSection + ".metrics.instrumentation_library_metadata_as_tags")
