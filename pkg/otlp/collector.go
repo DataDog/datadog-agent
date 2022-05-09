@@ -187,9 +187,14 @@ func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSe
 
 // GetCollectorStatus get the collector status and error message (if there is one)
 func GetCollectorStatus(p *Pipeline) CollectorStatus {
+	statusMessage, errMessage := "Failed to start", ""
 	if p != nil {
-		return CollectorStatus{Status: p.col.GetState().String(), ErrorMessage: ""}
+		statusMessage = p.col.GetState().String()
 	}
-	// If the pipeline is nil then it failed to start so we return the error.
-	return CollectorStatus{Status: "Failed to start", ErrorMessage: pipelineError.Load().Error()}
+	err := pipelineError.Load()
+	if err != nil {
+		// If the pipeline is nil then it failed to start so we return the error.
+		errMessage = err.Error()
+	}
+	return CollectorStatus{Status: statusMessage, ErrorMessage: errMessage}
 }
