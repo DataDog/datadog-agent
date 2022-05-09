@@ -303,6 +303,43 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 	}
 }
 
+func TestOTLPSetAttributes(t *testing.T) {
+	t.Run("setMetaOTLP", func(t *testing.T) {
+		s := &pb.Span{Meta: make(map[string]string), Metrics: make(map[string]float64)}
+
+		setMetaOTLP(s, "a", "b")
+		require.Equal(t, "b", s.Meta["a"])
+
+		setMetaOTLP(s, "operation.name", "on")
+		require.Equal(t, "on", s.Name)
+
+		setMetaOTLP(s, "service.name", "sn")
+		require.Equal(t, "sn", s.Service)
+
+		setMetaOTLP(s, "span.type", "st")
+		require.Equal(t, "st", s.Type)
+
+		setMetaOTLP(s, "analytics.event", "true")
+		require.Equal(t, float64(1), s.Metrics[sampler.KeySamplingRateEventExtraction])
+
+		setMetaOTLP(s, "analytics.event", "false")
+		require.Equal(t, float64(0), s.Metrics[sampler.KeySamplingRateEventExtraction])
+	})
+
+	t.Run("setMetricOTLP", func(t *testing.T) {
+		s := &pb.Span{Meta: make(map[string]string), Metrics: make(map[string]float64)}
+
+		setMetricOTLP(s, "a", 1)
+		require.Equal(t, float64(1), s.Metrics["a"])
+
+		setMetricOTLP(s, "sampling.priority", 2)
+		require.Equal(t, float64(2), s.Metrics["_sampling_priority_v1"])
+
+		setMetricOTLP(s, "_sampling_priority_v1", 3)
+		require.Equal(t, float64(3), s.Metrics["_sampling_priority_v1"])
+	})
+}
+
 func TestOTLPHostname(t *testing.T) {
 	for _, tt := range []struct {
 		config, resource, span string
