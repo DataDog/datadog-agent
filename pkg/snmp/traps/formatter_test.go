@@ -303,6 +303,9 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 			trap:        NetSNMPExampleHeartbeatNotification,
 			resolver:    resolverWithData,
 			expectedContent: map[string]interface{}{
+				"ddsource":                    "snmp-traps",
+				"ddtags":                      "snmp_version:2,device_namespace:default,snmp_device:127.0.0.1",
+				"timestamp":                   0.,
 				"uptime":                      float64(1000),
 				"snmpTrapName":                "netSnmpExampleHeartbeatNotification",
 				"snmpTrapMIB":                 "NET-SNMP-EXAMPLES-MIB",
@@ -332,6 +335,9 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 			trap:        LinkUpExampleV2Trap,
 			resolver:    resolverWithData,
 			expectedContent: map[string]interface{}{
+				"ddsource":      "snmp-traps",
+				"ddtags":        "snmp_version:2,device_namespace:default,snmp_device:127.0.0.1",
+				"timestamp":     0.,
 				"snmpTrapName":  "linkUp",
 				"snmpTrapMIB":   "IF-MIB",
 				"snmpTrapOID":   "1.3.6.1.6.3.1.1.5.4",
@@ -368,6 +374,9 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 			trap:        BadValueExampleV2Trap,
 			resolver:    resolverWithData,
 			expectedContent: map[string]interface{}{
+				"ddsource":      "snmp-traps",
+				"ddtags":        "snmp_version:2,device_namespace:default,snmp_device:127.0.0.1",
+				"timestamp":     0.,
 				"snmpTrapName":  "linkUp",
 				"snmpTrapMIB":   "IF-MIB",
 				"snmpTrapOID":   "1.3.6.1.6.3.1.1.5.4",
@@ -404,6 +413,9 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 			trap:        NoEnumMappingExampleV2Trap,
 			resolver:    resolverWithData,
 			expectedContent: map[string]interface{}{
+				"ddsource":      "snmp-traps",
+				"ddtags":        "snmp_version:2,device_namespace:default,snmp_device:127.0.0.1",
+				"timestamp":     0.,
 				"snmpTrapName":  "linkUp",
 				"snmpTrapMIB":   "IF-MIB",
 				"snmpTrapOID":   "1.3.6.1.6.3.1.1.5.4",
@@ -445,9 +457,9 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 			data, err := formatter.FormatPacket(packet)
 			require.NoError(t, err)
 			content := make(map[string]interface{})
-	    err = json.Unmarshal(data, &content)
-	    require.NoError(t, err)
-	    trapContent := content["trap"].(map[string]interface{})
+			err = json.Unmarshal(data, &content)
+			require.NoError(t, err)
+			trapContent := content["trap"].(map[string]interface{})
 			// map comparisons shouldn't be reliant on ordering with this lib
 			// however variables are a slice, they must be sorted
 			if diff := cmp.Diff(trapContent, d.expectedContent); diff != "" {
