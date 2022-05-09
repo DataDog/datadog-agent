@@ -487,7 +487,7 @@ ENV DOCKER_DD_AGENT=yes
 RUN dpkg --add-architecture i386
 
 RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends xfsprogs ca-certificates \
+    && apt-get install -y --no-install-recommends xfsprogs ca-certificates iproute2 \
     && rm -rf /var/lib/apt/lists/*
     """
 
