@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Reporter defines an interface for reporting rule events
 type Reporter interface {
 	Report(event *Event)
 	ReportRaw(content []byte, service string, tags ...string)
