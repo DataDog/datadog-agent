@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	rand "github.com/DataDog/datadog-agent/pkg/serverless/random"
+	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -41,8 +41,6 @@ type InferredSpan struct {
 	// current invocation not he inferred span. It is used
 	// for async function calls to calculate the duration.
 	CurrentInvocationStartTime time.Time
-	// reference for nil check in invocationlifecycle/trace.go
-	SamplingPriority *sampler.SamplingPriority
 }
 
 var functionTagsToIgnore = []string{
@@ -120,7 +118,9 @@ func (inferredSpan *InferredSpan) DispatchInferredSpan(event string) {
 func (inferredSpan *InferredSpan) CompleteInferredSpan(
 	processTrace func(p *api.Payload),
 	endTime time.Time,
-	isError bool) {
+	isError bool,
+	traceID uint64,
+	samplingPriority sampler.SamplingPriority) {
 
 	if inferredSpan.IsAsync {
 		inferredSpan.Span.Duration = inferredSpan.CurrentInvocationStartTime.UnixNano() - inferredSpan.Span.Start
@@ -131,16 +131,12 @@ func (inferredSpan *InferredSpan) CompleteInferredSpan(
 		inferredSpan.Span.Error = 1
 	}
 
-	traceChunk := &pb.TraceChunk{
-		Origin: "lambda",
-		Spans:  []*pb.Span{inferredSpan.Span},
-	}
+	inferredSpan.Span.TraceID = traceID
 
-	if inferredSpan.SamplingPriority != nil {
-		priority := *inferredSpan.SamplingPriority
-		traceChunk.Priority = int32(priority)
-	} else {
-		traceChunk.Priority = int32(sampler.PriorityNone)
+	traceChunk := &pb.TraceChunk{
+		Origin:   "lambda",
+		Spans:    []*pb.Span{inferredSpan.Span},
+		Priority: int32(samplingPriority),
 	}
 
 	tracerPayload := &pb.TracerPayload{
@@ -159,8 +155,7 @@ func (inferredSpan *InferredSpan) GenerateInferredSpan(startTime time.Time) {
 
 	inferredSpan.CurrentInvocationStartTime = startTime
 	inferredSpan.Span = &pb.Span{
-		SpanID:  rand.Random.Uint64(),
-		TraceID: rand.Random.Uint64(),
+		SpanID: random.Random.Uint64(),
 	}
 	log.Debugf("Generated new Inferred span: %s", inferredSpan)
 }

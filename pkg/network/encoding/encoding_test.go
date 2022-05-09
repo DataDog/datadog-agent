@@ -127,21 +127,25 @@ func TestSerialization(t *testing.T) {
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
 				{
-					Source:               util.AddressFromString("10.1.1.1"),
-					Dest:                 util.AddressFromString("10.2.2.2"),
-					MonotonicSentBytes:   1,
-					LastSentBytes:        2,
-					MonotonicRecvBytes:   100,
-					LastRecvBytes:        101,
-					LastUpdateEpoch:      50,
-					LastTCPEstablished:   1,
-					LastTCPClosed:        1,
-					MonotonicRetransmits: 201,
-					LastRetransmits:      201,
-					Pid:                  6000,
-					NetNS:                7,
-					SPort:                1000,
-					DPort:                9000,
+					Source: util.AddressFromString("10.1.1.1"),
+					Dest:   util.AddressFromString("10.2.2.2"),
+					Monotonic: network.StatCounters{
+						SentBytes:   1,
+						RecvBytes:   100,
+						Retransmits: 201,
+					},
+					Last: network.StatCounters{
+						SentBytes:      2,
+						RecvBytes:      101,
+						TCPEstablished: 1,
+						TCPClosed:      1,
+						Retransmits:    201,
+					},
+					LastUpdateEpoch: 50,
+					Pid:             6000,
+					NetNS:           7,
+					SPort:           1000,
+					DPort:           9000,
 					IPTranslation: &network.IPTranslation{
 						ReplSrcIP:   util.AddressFromString("20.1.1.1"),
 						ReplDstIP:   util.AddressFromString("20.1.1.1"),
@@ -189,7 +193,7 @@ func TestSerialization(t *testing.T) {
 				},
 			},
 		},
-		HTTP: map[http.Key]http.RequestStats{
+		HTTP: map[http.Key]*http.RequestStats{
 			http.NewKey(
 				util.AddressFromString("20.1.1.1"),
 				util.AddressFromString("20.1.1.1"),
@@ -197,7 +201,7 @@ func TestSerialization(t *testing.T) {
 				80,
 				"/testpath",
 				http.MethodGet,
-			): httpReqStats,
+			): &httpReqStats,
 		},
 	}
 
@@ -418,7 +422,7 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				},
 			},
 		},
-		HTTP: map[http.Key]http.RequestStats{
+		HTTP: map[http.Key]*http.RequestStats{
 			http.NewKey(
 				localhost,
 				localhost,
@@ -426,7 +430,7 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				serverPort,
 				"/testpath",
 				http.MethodGet,
-			): httpReqStats,
+			): &httpReqStats,
 		},
 	}
 
@@ -530,7 +534,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		if (i % 2) == 0 {
 			httpKey.Path = fmt.Sprintf("/path-%d", i)
-			in.HTTP = map[http.Key]http.RequestStats{httpKey: {}}
+			in.HTTP = map[http.Key]*http.RequestStats{httpKey: {}}
 			out := encodeAndDecodeHTTP(in)
 
 			require.NotNil(t, out)

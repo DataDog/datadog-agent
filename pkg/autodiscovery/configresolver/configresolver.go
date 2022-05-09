@@ -7,6 +7,7 @@ package configresolver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -125,7 +126,7 @@ func substituteTemplateVariables(ctx context.Context, config *integration.Config
 		if toResolve.dtype == dataInstance {
 			pp = postProcessor
 		}
-		*toResolve.data, err = resolveDataWithTemplateVars(ctx, *toResolve.data, svc, pp)
+		*toResolve.data, err = resolveDataWithTemplateVars(ctx, *toResolve.data, svc, toResolve.parser, pp)
 		if err != nil {
 			return err
 		}
@@ -142,37 +143,60 @@ const (
 	dataLogs
 )
 
+type parser struct {
+	marshal   func(interface{}) ([]byte, error)
+	unmarshal func([]byte, interface{}) error
+}
+
+var jsonp = parser{
+	marshal:   json.Marshal,
+	unmarshal: json.Unmarshal,
+}
+
+var yamlp = parser{
+	marshal:   yaml.Marshal,
+	unmarshal: yaml.Unmarshal,
+}
+
 type dataToResolve struct {
-	data  *integration.Data
-	dtype dataType
+	data   *integration.Data
+	dtype  dataType
+	parser parser
 }
 
 func listDataToResolve(config *integration.Config) []dataToResolve {
 	res := []dataToResolve{
 		{
-			data:  &config.InitConfig,
-			dtype: dataInit,
+			data:   &config.InitConfig,
+			dtype:  dataInit,
+			parser: yamlp,
 		},
 	}
 
 	for i := 0; i < len(config.Instances); i++ {
 		res = append(res, dataToResolve{
-			data:  &config.Instances[i],
-			dtype: dataInstance,
+			data:   &config.Instances[i],
+			dtype:  dataInstance,
+			parser: yamlp,
 		})
 	}
 
 	if config.IsLogConfig() {
+		p := yamlp
+		if config.Provider == names.Container || config.Provider == names.Kubernetes {
+			p = jsonp
+		}
 		res = append(res, dataToResolve{
-			data:  &config.LogsConfig,
-			dtype: dataLogs,
+			data:   &config.LogsConfig,
+			dtype:  dataLogs,
+			parser: p,
 		})
 	}
 
 	return res
 }
 
-func resolveDataWithTemplateVars(ctx context.Context, data integration.Data, svc listeners.Service, postProcessor func(interface{}) error) ([]byte, error) {
+func resolveDataWithTemplateVars(ctx context.Context, data integration.Data, svc listeners.Service, parser parser, postProcessor func(interface{}) error) ([]byte, error) {
 	if len(data) == 0 {
 		return nil, nil
 	}
@@ -181,7 +205,7 @@ func resolveDataWithTemplateVars(ctx context.Context, data integration.Data, svc
 
 	// Percent character is not allowed in unquoted yaml strings.
 	data2 := strings.ReplaceAll(string(data), "%%", "‰")
-	if err := yaml.Unmarshal([]byte(data2), &tree); err != nil {
+	if err := parser.unmarshal([]byte(data2), &tree); err != nil {
 		return data, err
 	}
 
@@ -209,6 +233,19 @@ func resolveDataWithTemplateVars(ctx context.Context, data integration.Data, svc
 		switch elem := top.get().(type) {
 
 		case map[interface{}]interface{}:
+			for k, v := range elem {
+				k2, v2 := k, v
+				stack = append(stack, treePointer{
+					get: func() interface{} {
+						return v2
+					},
+					set: func(x interface{}) {
+						elem[k2] = x
+					},
+				})
+			}
+
+		case map[string]interface{}:
 			for k, v := range elem {
 				k2, v2 := k, v
 				stack = append(stack, treePointer{
@@ -254,7 +291,7 @@ func resolveDataWithTemplateVars(ctx context.Context, data integration.Data, svc
 		}
 	}
 
-	return yaml.Marshal(&tree)
+	return parser.marshal(&tree)
 }
 
 var ipv6Re = regexp.MustCompile(`^[0-9a-f:]+$`)

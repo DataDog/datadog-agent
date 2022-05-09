@@ -17,7 +17,7 @@ func parseEvent(event string) EventKeys {
 	log.Debug("Attempting to parse the event for inferred spans")
 	err := json.Unmarshal([]byte(event), &eventKeys)
 	if err != nil {
-		log.Debug("Unable to unmarshall event payload")
+		log.Errorf("Unable to unmarshall event payload : %s", err)
 	}
 	return eventKeys
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -114,14 +115,14 @@ func TestCompleteInferredSpanWithNoError(t *testing.T) {
 		tracePayload = payload
 	}
 
-	inferredSpan.CompleteInferredSpan(mockProcessTrace, endTime, isError)
+	inferredSpan.CompleteInferredSpan(mockProcessTrace, endTime, isError, 1234, sampler.PriorityAutoKeep)
 	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.mock", span.Name)
 	assert.Equal(t, "aws.mock", span.Service)
 	assert.Equal(t, "test-function", span.Resource)
 	assert.Equal(t, "http", span.Type)
 	assert.Equal(t, "dev", span.Meta["stage"])
-	assert.Equal(t, inferredSpan.Span.TraceID, span.TraceID)
+	assert.Equal(t, uint64(1234), span.TraceID)
 	assert.Equal(t, inferredSpan.Span.SpanID, span.SpanID)
 	assert.Equal(t, duration.Nanoseconds(), span.Duration)
 	assert.Equal(t, int32(0), inferredSpan.Span.Error)
@@ -151,14 +152,14 @@ func TestCompleteInferredSpanWithError(t *testing.T) {
 		tracePayload = payload
 	}
 
-	inferredSpan.CompleteInferredSpan(mockProcessTrace, endTime, isError)
+	inferredSpan.CompleteInferredSpan(mockProcessTrace, endTime, isError, 1234, sampler.PriorityAutoKeep)
 	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.mock", span.Name)
 	assert.Equal(t, "aws.mock", span.Service)
 	assert.Equal(t, "test-function", span.Resource)
 	assert.Equal(t, "http", span.Type)
 	assert.Equal(t, "dev", span.Meta["stage"])
-	assert.Equal(t, inferredSpan.Span.TraceID, span.TraceID)
+	assert.Equal(t, uint64(1234), span.TraceID)
 	assert.Equal(t, inferredSpan.Span.SpanID, span.SpanID)
 	assert.Equal(t, duration.Nanoseconds(), span.Duration)
 	assert.Equal(t, int32(1), inferredSpan.Span.Error)
@@ -188,14 +189,15 @@ func TestCompleteInferredSpanWithAsync(t *testing.T) {
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
-	inferredSpan.CompleteInferredSpan(mockProcessTrace, time.Now(), isError)
+
+	inferredSpan.CompleteInferredSpan(mockProcessTrace, time.Now(), isError, 1234, sampler.PriorityAutoKeep)
 	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.mock", span.Name)
 	assert.Equal(t, "aws.mock", span.Service)
 	assert.Equal(t, "test-function", span.Resource)
 	assert.Equal(t, "http", span.Type)
 	assert.Equal(t, "dev", span.Meta["stage"])
-	assert.Equal(t, inferredSpan.Span.TraceID, span.TraceID)
+	assert.Equal(t, uint64(1234), span.TraceID)
 	assert.Equal(t, inferredSpan.Span.SpanID, span.SpanID)
 	assert.Equal(t, duration.Nanoseconds(), span.Duration)
 	assert.Equal(t, int32(0), inferredSpan.Span.Error)

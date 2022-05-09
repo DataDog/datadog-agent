@@ -277,7 +277,7 @@ func TestSendV1Series(t *testing.T) {
 
 	s := NewSerializer(f, nil, nil)
 
-	err := s.SendIterableSeries(metricsserializer.CreateIterableSeries(metrics.Series{}))
+	err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{}))
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 }
@@ -291,7 +291,7 @@ func TestSendSeries(t *testing.T) {
 
 	s := NewSerializer(f, nil, nil)
 
-	err := s.SendIterableSeries(metricsserializer.CreateIterableSeries(metrics.Series{&metrics.Serie{}}))
+	err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{&metrics.Serie{}}))
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 }
@@ -375,7 +375,7 @@ func TestSendWithDisabledKind(t *testing.T) {
 	payload := &testPayload{}
 
 	s.SendEvents(make(metrics.Events, 0))
-	s.SendIterableSeries(metricsserializer.CreateIterableSeries(metrics.Series{}))
+	s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{}))
 	s.SendSketch(make(metrics.SketchSeriesList, 0))
 	s.SendServiceChecks(make(metrics.ServiceChecks, 0))
 	s.SendProcessesMetadata("test")
