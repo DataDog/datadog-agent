@@ -473,6 +473,9 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 			if kind == DollarQuotedFunc {
 				// this is considered an embedded query, we should try and
 				// obfuscate it
+				// Trim off the $func$ tag
+				tok = tok[6:]
+				tok = tok[:len(tok)-6]
 				out, err := attemptObfuscation(NewSQLTokenizer(string(tok), tkn.literalEscapes, tkn.cfg))
 				if err != nil {
 					// if we can't obfuscate it, treat it as a regular string
@@ -617,12 +620,7 @@ func (tkn *SQLTokenizer) scanDollarQuotedString() (TokenKind, []byte) {
 		buf bytes.Buffer
 	)
 	delim := tag
-	// on empty strings, tkn.scanString returns the delimiters
-	if string(delim) != "$$" {
-		// on non-empty strings, the delimiter is $tag$
-		delim = append([]byte{'$'}, delim...)
-		delim = append(delim, '$')
-	}
+	buf.Write(delim)
 	for {
 		ch := tkn.lastChar
 		tkn.advance()
@@ -647,6 +645,7 @@ func (tkn *SQLTokenizer) scanDollarQuotedString() (TokenKind, []byte) {
 		}
 		buf.WriteRune(ch)
 	}
+	buf.Write(delim)
 	if tkn.cfg.DollarQuotedFunc && string(delim) == "$func$" {
 		return DollarQuotedFunc, buf.Bytes()
 	}
@@ -770,12 +769,14 @@ exit:
 
 func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []byte) {
 	buf := bytes.NewBuffer(tkn.buf[:0])
+	buf.WriteRune(delim)
 	for {
 		ch := tkn.lastChar
 		tkn.advance()
 		if ch == delim {
-			if tkn.lastChar == delim {
+			if tkn.lastChar == delim && delim != '$' {
 				// doubling a delimiter is the default way to embed the delimiter within a string
+				buf.WriteRune(ch)
 				tkn.advance()
 			} else {
 				// a single delimiter denotes the end of the string
@@ -786,6 +787,7 @@ func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []by
 
 			if !tkn.literalEscapes {
 				// treat as an escape character
+				buf.WriteRune(ch)
 				ch = tkn.lastChar
 				tkn.advance()
 			}
@@ -796,13 +798,7 @@ func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []by
 		}
 		buf.WriteRune(ch)
 	}
-	if kind == ID && buf.Len() == 0 || bytes.IndexFunc(buf.Bytes(), func(r rune) bool { return !unicode.IsSpace(r) }) == -1 {
-		// This string is an empty or white-space only identifier.
-		// We should keep the start and end delimiters in order to
-		// avoid creating invalid queries.
-		// See: https://github.com/DataDog/datadog-trace-agent/issues/316
-		return kind, append(runeBytes(delim), runeBytes(delim)...)
-	}
+	buf.WriteRune(delim)
 	return kind, buf.Bytes()
 }
 
