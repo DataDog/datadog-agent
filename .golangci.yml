@@ -5,6 +5,7 @@ run:
     - pkg/util/cloudproviders/cloudfoundry/bbscache_test.go # implements interface from imported package whose method names fail linting
 
 issues:
+  exclude-use-default: false
   # Do not limit the number of issues per linter.
   max-issues-per-linter: 0
 
@@ -12,6 +13,7 @@ issues:
   max-same-issues: 0
 
   exclude:
+    - "Error return value of .((os\\.)?std(out|err)\\..*|.*Close|.*Flush|os\\.Remove(All)?|.*print(f|ln)?|os\\.(Un)?Setenv). is not checked"
     - "`eventContext` is unused"
     - "`\\(\\*DatadogLogger\\).changeLogLevel` is unused"
     - "`defaultRetryDuration` is unused" # used by APM and Process
