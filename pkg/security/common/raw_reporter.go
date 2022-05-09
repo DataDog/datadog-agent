@@ -5,6 +5,7 @@
 
 package common
 
+// RawReporter defines an interface for reporting raw rule events
 type RawReporter interface {
 	ReportRaw(content []byte, service string, tags ...string)
 }

@@ -10,11 +10,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
+// ContainersTelemetry represents the objects necessary to send metrics listing containers
 type ContainersTelemetry struct {
 	Sender        aggregator.Sender
 	MetadataStore workloadmeta.Store
 }
 
+// NewContainersTelemetry returns a new ContainersTelemetry based on default/global objects
 func NewContainersTelemetry() (*ContainersTelemetry, error) {
 	sender, err := aggregator.GetDefaultSender()
 	if err != nil {
@@ -27,6 +29,7 @@ func NewContainersTelemetry() (*ContainersTelemetry, error) {
 	}, nil
 }
 
+// ReportContainers sends the metrics about currently running containers
 func (c *ContainersTelemetry) ReportContainers(metricName string) error {
 	containers, err := c.MetadataStore.ListContainers()
 	if err != nil {
