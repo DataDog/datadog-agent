@@ -26,6 +26,7 @@ type Config interface {
 	// API implemented by viper.Viper
 
 	Set(key string, value interface{})
+	Unset(key string)
 	SetDefault(key string, value interface{})
 	SetFs(fs afero.Fs)
 	IsSet(key string) bool

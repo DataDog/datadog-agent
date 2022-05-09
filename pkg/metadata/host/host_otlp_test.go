@@ -16,11 +16,14 @@ import (
 )
 
 func TestGetOtlpMetaWithOtlp(t *testing.T) {
-	config.Datadog.Set(config.OTLPReceiverSection+".protocols.grpc.endpoint", "localhost:9999")
 	meta := getOtlpMeta()
+	assert.Equal(t, false, meta.Enabled)
+
+	config.Datadog.Set(config.OTLPReceiverSection+".protocols.grpc.endpoint", "localhost:9999")
+	meta = getOtlpMeta()
 	assert.Equal(t, true, meta.Enabled)
 
-	config.Datadog.Set(config.OTLPSection, nil)
+	config.Datadog.Unset(config.OTLPSection)
 	meta = getOtlpMeta()
 	assert.Equal(t, false, meta.Enabled)
 }
