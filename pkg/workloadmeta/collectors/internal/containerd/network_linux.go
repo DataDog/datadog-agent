@@ -29,6 +29,10 @@ import (
 //   them. That means that if a container is attached to multiple networks this
 //   might not work as expected.
 func extractIP(container containerd.Container, containerdClient cutil.ContainerdItf) (string, error) {
+	if !config.IsHostProcAvailable() {
+		return "", errors.New("/proc is not mounted")
+	}
+
 	taskPids, err := containerdClient.TaskPids(container)
 	if err != nil {
 		return "", err
