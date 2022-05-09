@@ -56,7 +56,11 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 
 		if lp.InferredSpansEnabled {
 			log.Debug("[lifecycle] Attempting to complete the inferred span")
-			inferredspan.CompleteInferredSpan(lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, inferredSpan, TraceID(), SamplingPriority())
+			if inferredSpan.Span.Start != 0 {
+				inferredspan.CompleteInferredSpan(lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, inferredSpan, TraceID(), SamplingPriority())
+			} else {
+				log.Debug("[lifecyle] Failed to complete inferred span due to a missing start time. Please check that the payload is being populated with the appropriate data")
+			}
 		}
 	}
 
