@@ -13,14 +13,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // telemetry reports environment information (e.g containers running) when the runtime security component is running
 type telemetry struct {
 	sender                aggregator.Sender
-	detector              collectors.DetectorInterface
+	metadataStore         workloadmeta.Store
 	runtimeSecurityClient *RuntimeSecurityClient
 }
 
@@ -36,7 +36,7 @@ func newTelemetry() (*telemetry, error) {
 
 	return &telemetry{
 		sender:                sender,
-		detector:              collectors.NewDetector(""),
+		metadataStore:         workloadmeta.GetGlobalStore(),
 		runtimeSecurityClient: runtimeSecurityClient,
 	}, nil
 }
@@ -77,18 +77,15 @@ func (t *telemetry) reportContainers() error {
 		return nil
 	}
 
-	collector, _, err := t.detector.GetPreferred()
-	if err != nil {
-		return err
-	}
-
-	containers, err := collector.List()
+	containers, err := t.metadataStore.ListContainers()
 	if err != nil {
 		return err
 	}
 
 	for _, container := range containers {
-		t.sender.Gauge(metricName, 1.0, "", []string{"container_id:" + container.ID})
+		if container.State.Running {
+			t.sender.Gauge(metricName, 1.0, "", []string{"container_id:" + container.ID})
+		}
 	}
 
 	t.sender.Commit()
