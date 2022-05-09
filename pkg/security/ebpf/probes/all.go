@@ -19,7 +19,7 @@ const (
 	minPathnamesEntries = 64000 // ~27 MB
 	maxPathnamesEntries = 96000
 
-	minProcEntries = 4096
+	minProcEntries = 16394
 	maxProcEntries = 131072
 )
 
