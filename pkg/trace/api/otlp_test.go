@@ -237,6 +237,58 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 				require.Len(out.Chunks[1].Spans, 2)
 			},
 		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					Spans: []*testutil.OTLPSpan{
+						{
+							TraceID:    [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+							Name:       "first",
+							Attributes: map[string]interface{}{"_sampling_priority_v1": -1},
+						},
+						{
+							TraceID:    [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17},
+							SpanID:     [8]byte{10, 10, 11, 12, 13, 14, 15, 16},
+							Name:       "second",
+							Attributes: map[string]interface{}{"_sampling_priority_v1": 2},
+						},
+						{
+							TraceID:    [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17},
+							SpanID:     [8]byte{9, 10, 11, 12, 13, 14, 15, 16},
+							Name:       "third",
+							Attributes: map[string]interface{}{"_sampling_priority_v1": 3},
+						},
+						{
+							TraceID:    [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 18},
+							SpanID:     [8]byte{9, 10, 11, 12, 13, 14, 15, 16},
+							Name:       "third",
+							Attributes: map[string]interface{}{"_sampling_priority_v1": 0},
+						},
+						{
+							TraceID: [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 19},
+							SpanID:  [8]byte{9, 10, 11, 12, 13, 14, 15, 16},
+							Name:    "third",
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Len(out.Chunks, 4) // 4 traces total
+				// expected priorities by TraceID
+				traceIDPriority := map[uint64]int32{
+					0x90a0b0c0d0e0f10: -1,
+					0x90a0b0c0d0e0f11: 3,
+					0x90a0b0c0d0e0f12: 0,
+					0x90a0b0c0d0e0f13: 1,
+				}
+				for i := 0; i < 4; i++ {
+					traceID := out.Chunks[i].Spans[0].TraceID
+					p, ok := traceIDPriority[traceID]
+					require.True(ok, fmt.Sprintf("%v trace ID not found", traceID))
+					require.Equal(p, out.Chunks[i].Priority)
+				}
+			},
+		},
 	} {
 		t.Run("", func(t *testing.T) {
 			rcv.ReceiveResourceSpans(testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0), http.Header{}, "agent_tests")
@@ -249,6 +301,43 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOTLPSetAttributes(t *testing.T) {
+	t.Run("setMetaOTLP", func(t *testing.T) {
+		s := &pb.Span{Meta: make(map[string]string), Metrics: make(map[string]float64)}
+
+		setMetaOTLP(s, "a", "b")
+		require.Equal(t, "b", s.Meta["a"])
+
+		setMetaOTLP(s, "operation.name", "on")
+		require.Equal(t, "on", s.Name)
+
+		setMetaOTLP(s, "service.name", "sn")
+		require.Equal(t, "sn", s.Service)
+
+		setMetaOTLP(s, "span.type", "st")
+		require.Equal(t, "st", s.Type)
+
+		setMetaOTLP(s, "analytics.event", "true")
+		require.Equal(t, float64(1), s.Metrics[sampler.KeySamplingRateEventExtraction])
+
+		setMetaOTLP(s, "analytics.event", "false")
+		require.Equal(t, float64(0), s.Metrics[sampler.KeySamplingRateEventExtraction])
+	})
+
+	t.Run("setMetricOTLP", func(t *testing.T) {
+		s := &pb.Span{Meta: make(map[string]string), Metrics: make(map[string]float64)}
+
+		setMetricOTLP(s, "a", 1)
+		require.Equal(t, float64(1), s.Metrics["a"])
+
+		setMetricOTLP(s, "sampling.priority", 2)
+		require.Equal(t, float64(2), s.Metrics["_sampling_priority_v1"])
+
+		setMetricOTLP(s, "_sampling_priority_v1", 3)
+		require.Equal(t, float64(3), s.Metrics["_sampling_priority_v1"])
+	})
 }
 
 func TestOTLPHostname(t *testing.T) {

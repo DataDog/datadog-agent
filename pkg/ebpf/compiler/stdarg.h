@@ -1,4 +1,3 @@
-R"***(
 /*===---- stdarg.h - Variable argument handling ----------------------------===
  *
  * Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -34,4 +33,3 @@ typedef __builtin_va_list __gnuc_va_list;
 #endif
 
 #endif /* __STDARG_H */
-)***"

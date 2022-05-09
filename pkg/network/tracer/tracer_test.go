@@ -186,6 +186,7 @@ func TestGetStats(t *testing.T) {
 
 	for section, entries := range expected {
 		if section == "http" && !httpSupported {
+			// HTTP stats not supported on some systems
 			continue
 		}
 		require.Contains(t, actual, section, "missing section from telemetry map: %s", section)

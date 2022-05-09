@@ -6,7 +6,7 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package runtime
+package compiler
 
 import (
 	"fmt"
@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,26 +30,23 @@ func TestCompilerMatch(t *testing.T) {
 		}
 		return
 	}
+	input, err := os.Open(cPath)
+	require.NoError(t, err)
+	defer input.Close()
 
 	cfg := ebpf.NewConfig()
 
-	c, err := compiler.NewEBPFCompiler(nil, false)
-	require.NoError(t, err)
-	defer c.Close()
-
-	cflags := make([]string, len(defaultFlags))
-	copy(cflags, defaultFlags)
-	cflags = append(cflags,
+	cflags := []string{
 		"-I./c",
 		"-I../network/ebpf/c",
 		"-includeasm_goto_workaround.h",
-	)
+	}
 	tmpObjFile, err := ioutil.TempFile("", "offset-guess-static-*.o")
 	require.NoError(t, err)
 	defer os.Remove(tmpObjFile.Name())
 
 	onDiskObjFilename := tmpObjFile.Name()
-	err = c.CompileFileToObjectFile(cPath, onDiskObjFilename, cflags)
+	err = CompileToObjectFile(input, onDiskObjFilename, cflags, nil)
 	require.NoError(t, err)
 
 	bs, err := ioutil.ReadFile(onDiskObjFilename)

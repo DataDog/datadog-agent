@@ -6,18 +6,28 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package kprobe
+package http
 
 import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/stretchr/testify/require"
 )
 
-func TestTracerCompile(t *testing.T) {
+func TestHttpCompile(t *testing.T) {
+	if !rtcHttpSupported(t) {
+		t.Skip("HTTP Runtime compilation not supported on this kernel version")
+	}
 	cfg := config.New()
 	cfg.BPFDebug = true
-	_, err := getRuntimeCompiledTracer(cfg)
+	_, err := getRuntimeCompiledHTTP(cfg)
 	require.NoError(t, err)
+}
+
+func rtcHttpSupported(t *testing.T) bool {
+	currKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	return currKernelVersion >= kernel.VersionCode(4, 5, 0)
 }
