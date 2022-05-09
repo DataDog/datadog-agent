@@ -54,32 +54,70 @@ func TestGetAddedForType(t *testing.T) {
 	sources := NewLogSources()
 	source := NewLogSource("foo", &LogsConfig{Type: "foo"})
 
-	sources.AddSource(source)
+	stream1 := sources.GetAddedForType("foo")
+	assert.NotNil(t, stream1)
 
-	stream := sources.GetAddedForType("foo")
-	assert.NotNil(t, stream)
-	assert.Equal(t, 0, len(stream))
+	stream2 := sources.GetAddedForType("foo")
+	assert.NotNil(t, stream2)
 
 	go func() { sources.AddSource(source) }()
-	s := <-stream
-	assert.Equal(t, s, source)
+	s1 := <-stream1
+	s2 := <-stream2
+	assert.Equal(t, s1, source)
+	assert.Equal(t, s2, source)
+}
+
+func TestGetAddedForTypeExistingSources(t *testing.T) {
+	sources := NewLogSources()
+	source1 := NewLogSource("one", &LogsConfig{Type: "foo"})
+	source2 := NewLogSource("two", &LogsConfig{Type: "foo"})
+	source3 := NewLogSource("three", &LogsConfig{Type: "foo"})
+
+	go func() { sources.AddSource(source1) }()
+
+	streamA := sources.GetAddedForType("foo")
+	assert.NotNil(t, streamA)
+	sa1 := <-streamA
+	assert.Equal(t, sa1, source1)
+
+	go func() { sources.AddSource(source2) }()
+	sa2 := <-streamA
+	assert.Equal(t, sa2, source2)
+
+	streamB := sources.GetAddedForType("foo")
+	assert.NotNil(t, streamB)
+	sb1 := <-streamB
+	sb2 := <-streamB
+	assert.ElementsMatch(t, []*LogSource{source1, source2}, []*LogSource{sb1, sb2})
+
+	go func() { sources.AddSource(source3) }()
+	sa3 := <-streamA
+	sb3 := <-streamB
+	assert.Equal(t, sa3, source3)
+	assert.Equal(t, sb3, source3)
 }
 
 func TestGetRemovedForType(t *testing.T) {
 	sources := NewLogSources()
 	source := NewLogSource("foo", &LogsConfig{Type: "foo"})
 
-	sources.RemoveSource(source)
+	streamA := sources.GetRemovedForType("foo")
+	assert.NotNil(t, streamA)
+	assert.Equal(t, 0, len(streamA))
 
-	stream := sources.GetRemovedForType("foo")
-	assert.NotNil(t, stream)
-	assert.Equal(t, 0, len(stream))
+	streamB := sources.GetRemovedForType("foo")
+	assert.NotNil(t, streamB)
+	assert.Equal(t, 0, len(streamB))
 
+	// removing a nonexistent source does nothing
 	sources.RemoveSource(source)
-	assert.Equal(t, 0, len(stream))
+	assert.Equal(t, 0, len(streamA))
+	assert.Equal(t, 0, len(streamB))
 
 	sources.AddSource(source)
 	go func() { sources.RemoveSource(source) }()
-	s := <-stream
-	assert.Equal(t, s, source)
+	sa := <-streamA
+	sb := <-streamB
+	assert.Equal(t, sa, source)
+	assert.Equal(t, sb, source)
 }
