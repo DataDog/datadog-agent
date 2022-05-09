@@ -392,7 +392,7 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 					}
 					fallthrough
 				default:
-					switch lastToken { 
+					switch lastToken {
 					case '[':
 					case '.':
 					default:
