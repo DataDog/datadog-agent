@@ -76,12 +76,12 @@ int kprobe_vfs_mkdir(struct pt_regs *ctx) {
 }
 
 int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, int dr_type) {
-    if (IS_UNHANDLED_ERROR(retval)) {
-        return 0;
-    }
-
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
     if (!syscall) {
+        return 0;
+    }
+    if (IS_UNHANDLED_ERROR(retval)) {
+        discard_syscall(syscall);
         return 0;
     }
 
@@ -100,6 +100,18 @@ int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, int dr_t
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_MKDIR);
     return 0;
+}
+
+SEC("kprobe/do_mkdirat")
+int kprobe_do_mkdirat(struct pt_regs *ctx) {
+    umode_t mode = (umode_t)PT_REGS_PARM3(ctx);
+    return trace__sys_mkdir(mode);
+}
+
+SEC("kretprobe/do_mkdirat")
+int kretprobe_do_mkdirat(struct pt_regs *ctx) {
+    int retval = PT_REGS_RC(ctx);
+    return sys_mkdir_ret(ctx, retval, DR_KPROBE);
 }
 
 int __attribute__((always_inline)) kprobe_sys_mkdir_ret(struct pt_regs *ctx) {

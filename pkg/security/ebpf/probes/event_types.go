@@ -344,6 +344,8 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 	// List of probes required to capture mkdir events
 	"mkdir": {
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/do_mkdirat", EBPFFuncName: "kprobe_do_mkdirat"}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/do_mkdirat", EBPFFuncName: "kretprobe_do_mkdirat"}},
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/vfs_mkdir", EBPFFuncName: "kprobe_vfs_mkdir"}},
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/filename_create", EBPFFuncName: "kprobe_filename_create"}},
 		}},
