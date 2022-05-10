@@ -94,7 +94,7 @@ type reconcilingConfigManager struct {
 	//  3. update serviceResolutions, generating changes (see reconcileService)
 	//  4. update scheduledConfigs
 	//
-	// For non-template configs, only steps 1 and 5 are required.
+	// For non-template configs, only steps 1 and 4 are required.
 
 	// m synchronizes all operations on this struct.
 	m sync.Mutex
@@ -257,7 +257,7 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 
 		// Execute the steps outlined in the comment on reconcilingConfigManager:
 		//
-		//  1. update orctiveConfigs / activeServices
+		//  1. update activeConfigs / activeServices
 		delete(cm.activeConfigs, digest)
 
 		var changes configChanges
