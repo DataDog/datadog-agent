@@ -511,6 +511,7 @@ RUN apt-get update -y \
     cmd += '-v /usr/lib/os-release:/host/usr/lib/os-release '
     cmd += '-v /etc/passwd:/etc/passwd '
     cmd += '-v /etc/group:/etc/group '
+    cmd += '-v /opt/datadog-agent/embedded/bin/:/opt/datadog-agent/embedded/bin/ '
     cmd += '-v {GOPATH}/src/{REPO_PATH}/pkg/security/tests:/tests {image_tag} sleep 3600'
 
     args = {
