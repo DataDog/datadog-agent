@@ -197,7 +197,7 @@ package :msi do
   ]
   if with_python_runtime? '2'
     # noinspection RubyLiteralArrayInspection
-    additional_sign_files_list = [
+    additional_sign_files_list <<= [
       "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\libdatadog-agent-two.dll",
       "#{install_dir}\\embedded2\\python.exe",
       "#{install_dir}\\embedded2\\python27.dll",
