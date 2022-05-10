@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	tags2 "github.com/DataDog/datadog-agent/pkg/serverless/tags"
+	serverlessTags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -22,10 +22,6 @@ const (
 	x86LambdaPricePerGbSecond = 0.0000166667
 	armLambdaPricePerGbSecond = 0.0000133334
 	msToSec                   = 0.001
-
-	//aws platform
-	x86LambdaPlatform = "x86_64"
-	armLambdaPlatform = "arm64"
 
 	// Enhanced metrics
 	maxMemoryUsedMetric   = "aws.lambda.enhanced.max_memory_used"
@@ -119,7 +115,7 @@ func GenerateEnhancedMetricsFromReportLog(initDurationMs float64, durationMs flo
 		Timestamp:  timestamp,
 	}, {
 		Name:       estimatedCostMetric,
-		Value:      calculateEstimatedCost(billedDuration, memorySize, tags2.ResolveRuntimeArch()),
+		Value:      calculateEstimatedCost(billedDuration, memorySize, serverlessTags.ResolveRuntimeArch()),
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
@@ -187,9 +183,11 @@ func calculateEstimatedCost(billedDurationMs float64, memorySizeMb float64, arch
 // get the lambda price per Gb second based on the runtime platform
 func getLambdaPricePerGbSecond(architecture string) float64 {
 	switch architecture {
-	case armLambdaPlatform:
+	case serverlessTags.ArmLambdaPlatform:
+		// for arm64
 		return armLambdaPricePerGbSecond
 	default:
+		// for x86 and amd64
 		return x86LambdaPricePerGbSecond
 	}
 }

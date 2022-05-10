@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessTags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -90,7 +91,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
 	}, {
 		Name:       estimatedCostMetric,
-		Value:      calculateEstimatedCost(800.0, 1024.0, x86LambdaPlatform),
+		Value:      calculateEstimatedCost(800.0, 1024.0, serverlessTags.X86LambdaPlatform),
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
@@ -145,7 +146,7 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
 	}, {
 		Name:       estimatedCostMetric,
-		Value:      calculateEstimatedCost(800.0, 1024.0, x86LambdaPlatform),
+		Value:      calculateEstimatedCost(800.0, 1024.0, serverlessTags.X86LambdaPlatform),
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
@@ -243,21 +244,31 @@ func TestCalculateEstimatedCost(t *testing.T) {
 	// The case of X86_64
 	// Example 1: If you allocated 512MB of memory to your function, executed it 3 million times in one month,
 	// and it ran for 1 second each time, your charges would be $18.74
-	estimatedCost := 3000000.0 * calculateEstimatedCost(1000.0, 512.0, x86LambdaPlatform)
+	estimatedCost := 3000000.0 * calculateEstimatedCost(1000.0, 512.0, serverlessTags.X86LambdaPlatform)
 	assert.InDelta(t, 18.74, estimatedCost-freeTierX86CostAdjustment, 0.01)
 	// Example 2: If you allocated 128MB of memory to your function, executed it 30 million times in one month,
 	// and it ran for 200ms each time, your charges would be $11.63
-	estimatedCost = 30000000.0 * calculateEstimatedCost(200.0, 128.0, x86LambdaPlatform)
+	estimatedCost = 30000000.0 * calculateEstimatedCost(200.0, 128.0, serverlessTags.X86LambdaPlatform)
+	assert.InDelta(t, 11.63, estimatedCost-freeTierX86CostAdjustment, 0.01)
+
+	// The case of Amd64, which is an extension of X86_64
+	// Example 1: If you allocated 512MB of memory to your function, executed it 3 million times in one month,
+	// and it ran for 1 second each time, your charges would be $18.74
+	estimatedCost = 3000000.0 * calculateEstimatedCost(1000.0, 512.0, serverlessTags.AmdLambdaPlatform)
+	assert.InDelta(t, 18.74, estimatedCost-freeTierX86CostAdjustment, 0.01)
+	// Example 2: If you allocated 128MB of memory to your function, executed it 30 million times in one month,
+	// and it ran for 200ms each time, your charges would be $11.63
+	estimatedCost = 30000000.0 * calculateEstimatedCost(200.0, 128.0, serverlessTags.AmdLambdaPlatform)
 	assert.InDelta(t, 11.63, estimatedCost-freeTierX86CostAdjustment, 0.01)
 
 	// The case of Arm86
 	// Example 1: If you allocated 512MB of memory to your function, executed it 3 million times in one month,
 	// and it ran for 1 second each time, your charges would be $15.07
-	estimatedCost = 3000000.0 * calculateEstimatedCost(1000.0, 512.0, armLambdaPlatform)
+	estimatedCost = 3000000.0 * calculateEstimatedCost(1000.0, 512.0, serverlessTags.ArmLambdaPlatform)
 	assert.InDelta(t, 15.07, estimatedCost-freeTierArmCostAdjustment, 0.01)
 	// Example 2: If you allocated 128MB of memory to your function, executed it 30 million times in one month,
 	// and it ran for 200ms each time, your charges would be $10.47
-	estimatedCost = 30000000.0 * calculateEstimatedCost(200.0, 128.0, armLambdaPlatform)
+	estimatedCost = 30000000.0 * calculateEstimatedCost(200.0, 128.0, serverlessTags.ArmLambdaPlatform)
 	assert.InDelta(t, 10.47, estimatedCost-freeTierArmCostAdjustment, 0.01)
 }
 

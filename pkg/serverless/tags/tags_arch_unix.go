@@ -18,7 +18,7 @@ import (
 func ResolveRuntimeArch() string {
 	var uname unix.Utsname
 	if err := unix.Uname(&uname); err != nil {
-		return ArmLambdaPlatform
+		return AmdLambdaPlatform
 	}
 
 	switch string(uname.Machine[:bytes.IndexByte(uname.Machine[:], 0)]) {
