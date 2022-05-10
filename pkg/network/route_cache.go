@@ -180,6 +180,10 @@ type netlinkRouter struct {
 
 // NewNetlinkRouter create a Router that queries routes via netlink
 func NewNetlinkRouter(procRoot string) (Router, error) {
+	return newNetlinkRouter(procRoot)
+}
+
+func newNetlinkRouter(procRoot string) (*netlinkRouter, error) {
 	rootNs, err := util.GetNetNsInoFromPid(procRoot, 1)
 	if err != nil {
 		return nil, fmt.Errorf("netlink gw cache backing: could not get root net ns: %w", err)
@@ -187,7 +191,7 @@ func NewNetlinkRouter(procRoot string) (Router, error) {
 
 	var fd int
 	var nlHandle *netlink.Handle
-	util.WithRootNS(procRoot, func() (sockErr error) {
+	err = util.WithRootNS(procRoot, func() (sockErr error) {
 		if fd, err = unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0); err != nil {
 			return err
 		}
