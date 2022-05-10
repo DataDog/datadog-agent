@@ -2210,6 +2210,22 @@ api_key:
   #
   # kubernetes_service_name: "datadog-cluster-agent"
 
+  ## @param max_leader_connections - integer - optional - default: 500
+  ## Maximum number of connections between a follower and a leader.
+  #
+  # max_leader_connections: 500
+
+  ## @param max_leader_idle_connections - integer - optional - default: 50
+  ## Maximum number of idle connections between a follower and a leader.
+  #
+  # max_leader_idle_connections: 50
+
+  ## @param client_reconnect_period_seconds - integer - optional - default: 1200
+  ## Set the refersh period for Agent to Cluster Agent connection (new connection is created, old connection is closed).
+  ## Set to 0 to disable periodic reconnection.
+  #
+  # client_reconnect_period_seconds: 1200
+
   ## @param tagging_fallback - boolean - optional - default: false
   ## Set to true to enabled fallback to local metamapper when the connection with the Cluster Agent fails.
   #
