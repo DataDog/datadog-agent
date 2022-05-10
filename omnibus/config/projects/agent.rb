@@ -19,6 +19,9 @@ license_file "../LICENSE"
 homepage 'http://www.datadoghq.com'
 
 if windows?
+  # Note: this is the path used by Omnibus to build the agent, the final install
+  # dir will be determined by the Windows installer. This path must not contain
+  # spaces because Omnibus doesn't quote the Git commands it launches.
   INSTALL_DIR = 'C:/opt/datadog-agent/'
   PYTHON_2_EMBEDDED_DIR = format('%s/embedded2', INSTALL_DIR)
   PYTHON_3_EMBEDDED_DIR = format('%s/embedded3', INSTALL_DIR)
@@ -26,11 +29,9 @@ else
   INSTALL_DIR = '/opt/datadog-agent'
 end
 
+install_dir INSTALL_DIR
+
 if windows?
-  # Note: this is the path used by Omnibus to build the agent, the final install
-  # dir will be determined by the Windows installer. This path must not contain
-  # spaces because Omnibus doesn't quote the Git commands it launches.
-  install_dir INSTALL_DIR
   python_2_embedded PYTHON_2_EMBEDDED_DIR
   python_3_embedded PYTHON_3_EMBEDDED_DIR
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
@@ -72,8 +73,6 @@ else
       entitlements_file "#{files_path}/macos/Entitlements.plist"
     end
   end
-
-  install_dir INSTALL_DIR
 end
 
 # build_version is computed by an invoke command/function.
