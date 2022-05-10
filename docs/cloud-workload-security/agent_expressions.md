@@ -32,7 +32,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 
 | SECL Event | Type | Definition | Agent Version |
 | ---------- | ---- | ---------- | ------------- |
-| `bind` | Network | A bind was executed | 7.37 |
+| `bind` | Network | [Experimental] A bind was executed | 7.37 |
 | `bpf` | Kernel | A BPF command was executed | 7.33 |
 | `capset` | Process | A process changed its capacity set | 7.27 |
 | `chmod` | File | A file’s permissions were changed | 7.27 |
@@ -269,6 +269,8 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.user` | string | User of the process |
 
 ### Event `bind`
+
+_This event type is experimental and may change in the future._
 
 A bind was executed
 
