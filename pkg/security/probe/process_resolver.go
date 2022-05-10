@@ -246,8 +246,6 @@ func (p *ProcessResolver) DequeueExited() {
 // NewProcessCacheEntry returns a new process cache entry
 func (p *ProcessResolver) NewProcessCacheEntry() *model.ProcessCacheEntry {
 	entry := p.processCacheEntryPool.Get()
-
-	// TODO safchain, pass the pid/tid to the function
 	entry.Cookie = eval.NewCookie()
 	return entry
 }
@@ -485,8 +483,8 @@ func (p *ProcessResolver) insertForkEntry(entry *model.ProcessCacheEntry) {
 	p.insertEntry(entry, prev)
 }
 
-func (p *ProcessResolver) insertExecEntry(pid uint32, entry *model.ProcessCacheEntry) {
-	prev := p.entryCache[pid]
+func (p *ProcessResolver) insertExecEntry(entry *model.ProcessCacheEntry) {
+	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		prev.Exec(entry)
 	}
