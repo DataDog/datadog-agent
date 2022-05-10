@@ -146,7 +146,6 @@ func buildTCPEndpoints(logsConfig *LogsConfigKeys) (*Endpoints, error) {
 		APIKey:                  logsConfig.getLogsAPIKey(),
 		ProxyAddress:            proxyAddress,
 		ConnectionResetInterval: logsConfig.connectionResetInterval(),
-		IsReliable:              true,
 	}
 
 	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
@@ -210,7 +209,6 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 		BackoffFactor:           logsConfig.senderBackoffFactor(),
 		RecoveryInterval:        logsConfig.senderRecoveryInterval(),
 		RecoveryReset:           logsConfig.senderRecoveryReset(),
-		IsReliable:              true,
 	}
 
 	if logsConfig.useV2API() && intakeTrackType != "" {
