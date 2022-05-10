@@ -21,8 +21,9 @@ const (
 
 func TestSetSynchronicityFalse(t *testing.T) {
 	var attributes EventKeys
+	var span InferredSpan
 	attributes.Headers.InvocationType = ""
-	span := GenerateInferredSpan(time.Now())
+	span.GenerateInferredSpan(time.Now())
 	span.IsAsync = isAsyncEvent(attributes)
 
 	assert.False(t, span.IsAsync)
@@ -30,8 +31,9 @@ func TestSetSynchronicityFalse(t *testing.T) {
 
 func TestSetSynchronicityTrue(t *testing.T) {
 	var attributes EventKeys
+	var span InferredSpan
 	attributes.Headers.InvocationType = "Event"
-	span := GenerateInferredSpan(time.Now())
+	span.GenerateInferredSpan(time.Now())
 	span.IsAsync = isAsyncEvent(attributes)
 
 	assert.True(t, span.IsAsync)
@@ -42,7 +44,7 @@ func TestEnrichInferredSpanWithAPIGatewayRESTEvent(t *testing.T) {
 	_ = json.Unmarshal(getEventFromFile("api-gateway.json"), &eventKeys)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.IsAsync = isAsyncEvent(eventKeys)
-	EnrichInferredSpanWithAPIGatewayRESTEvent(eventKeys, inferredSpan)
+	inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(eventKeys)
 
 	span := inferredSpan.Span
 
@@ -69,7 +71,7 @@ func TestEnrichInferredSpanWithAPIGatewayNonProxyAsyncRESTEvent(t *testing.T) {
 	_ = json.Unmarshal(getEventFromFile("api-gateway-non-proxy-async.json"), &eventKeys)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.IsAsync = isAsyncEvent(eventKeys)
-	EnrichInferredSpanWithAPIGatewayRESTEvent(eventKeys, inferredSpan)
+	inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(eventKeys)
 
 	span := inferredSpan.Span
 	assert.Equal(t, span.TraceID, uint64(7353030974370088224))
@@ -94,7 +96,7 @@ func TestEnrichInferredSpanWithAPIGatewayHTTPEvent(t *testing.T) {
 	var eventKeys EventKeys
 	_ = json.Unmarshal(getEventFromFile("http-api.json"), &eventKeys)
 	inferredSpan := mockInferredSpan()
-	EnrichInferredSpanWithAPIGatewayHTTPEvent(eventKeys, inferredSpan)
+	inferredSpan.EnrichInferredSpanWithAPIGatewayHTTPEvent(eventKeys)
 
 	span := inferredSpan.Span
 	assert.Equal(t, span.TraceID, uint64(7353030974370088224))
@@ -120,7 +122,7 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketDefaultEvent(t *testing.T) {
 	inferredSpan := mockInferredSpan()
 	span := inferredSpan.Span
 
-	EnrichInferredSpanWithAPIGatewayWebsocketEvent(eventKeys, inferredSpan)
+	inferredSpan.EnrichInferredSpanWithAPIGatewayWebsocketEvent(eventKeys)
 
 	assert.Equal(t, span.TraceID, uint64(7353030974370088224))
 	assert.Equal(t, span.SpanID, uint64(8048964810003407541))
@@ -147,7 +149,7 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketConnectEvent(t *testing.T) {
 	inferredSpan := mockInferredSpan()
 	span := inferredSpan.Span
 
-	EnrichInferredSpanWithAPIGatewayWebsocketEvent(eventKeys, inferredSpan)
+	inferredSpan.EnrichInferredSpanWithAPIGatewayWebsocketEvent(eventKeys)
 
 	assert.Equal(t, span.TraceID, uint64(7353030974370088224))
 	assert.Equal(t, span.SpanID, uint64(8048964810003407541))
@@ -174,7 +176,7 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketDisconnectEvent(t *testing.T) 
 	inferredSpan := mockInferredSpan()
 	span := inferredSpan.Span
 
-	EnrichInferredSpanWithAPIGatewayWebsocketEvent(eventKeys, inferredSpan)
+	inferredSpan.EnrichInferredSpanWithAPIGatewayWebsocketEvent(eventKeys)
 
 	assert.Equal(t, span.TraceID, uint64(7353030974370088224))
 	assert.Equal(t, span.SpanID, uint64(8048964810003407541))
@@ -193,6 +195,45 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketDisconnectEvent(t *testing.T) 
 	assert.Equal(t, span.Meta[RequestID], "Fc2ydE4LmjQFhdg=")
 	assert.Equal(t, span.Meta[ResourceNames], "$disconnect")
 	assert.Equal(t, span.Meta[Stage], "dev")
+}
+
+func TestEnrichInferredSpanWithSNSEvent(t *testing.T) {
+	var eventKeys EventKeys
+	_ = json.Unmarshal(getEventFromFile("sns.json"), &eventKeys)
+	inferredSpan := mockInferredSpan()
+	inferredSpan.IsAsync = isAsyncEvent(eventKeys)
+	inferredSpan.EnrichInferredSpanWithSNSEvent(eventKeys)
+
+	span := inferredSpan.Span
+
+	assert.Equal(t, span.TraceID, uint64(7353030974370088224))
+	assert.Equal(t, span.SpanID, uint64(8048964810003407541))
+	assert.Equal(t, span.Start, formatISOStartTime("2022-01-31T14:13:41.637Z"))
+	assert.Equal(t, span.Service, "sns")
+	assert.Equal(t, span.Name, "aws.sns")
+	assert.Equal(t, span.Resource, "serverlessTracingTopicPy")
+	assert.Equal(t, span.Type, "web")
+	assert.Equal(t, span.Meta[MessageID], "87056a47-f506-5d77-908b-303605d3b197")
+	assert.Equal(t, span.Meta[OperationName], "aws.sns")
+	assert.Equal(t, span.Meta[ResourceNames], "serverlessTracingTopicPy")
+	assert.Equal(t, span.Meta[Subject], "Hello")
+	assert.Equal(t, span.Meta[TopicARN], "arn:aws:sns:sa-east-1:601427279990:serverlessTracingTopicPy")
+	assert.Equal(t, span.Meta[TopicName], "serverlessTracingTopicPy")
+	assert.Equal(t, span.Meta[Type], "Notification")
+	assert.True(t, inferredSpan.IsAsync)
+}
+
+func TestFormatISOStartTime(t *testing.T) {
+	isotime := "2022-01-31T14:13:41.637Z"
+	startTime := formatISOStartTime(isotime)
+	assert.Equal(t, int64(1643638421637000000), startTime)
+
+}
+
+func TestFormatInvalidISOStartTime(t *testing.T) {
+	isotime := "invalid"
+	startTime := formatISOStartTime(isotime)
+	assert.Equal(t, int64(0), startTime)
 }
 
 func getEventFromFile(filename string) []byte {
