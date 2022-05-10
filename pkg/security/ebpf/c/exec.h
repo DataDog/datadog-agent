@@ -107,6 +107,15 @@ struct bpf_map_def SEC("maps/exec_count_bb") exec_count_bb = {
     .namespace = "",
 };
 
+struct bpf_map_def SEC("maps/pid_ignored") pid_ignored = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 16738,
+    .pinning = 0,
+    .namespace = "",
+};
+
 struct proc_cache_t __attribute__((always_inline)) *get_proc_from_cookie(u32 cookie) {
     if (!cookie) {
         return NULL;
@@ -343,6 +352,7 @@ int __attribute__((always_inline)) handle_do_fork(struct pt_regs *ctx) {
     if (!syscall) {
         return 0;
     }
+    syscall->fork.is_thread = 1;
 
     u64 input;
     LOAD_CONSTANT("do_fork_input", input);
@@ -446,18 +456,22 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     // inherit netns
     u32 pid = 0;
     bpf_probe_read(&pid, sizeof(pid), &args->child_pid);
+
+    // ignore the rest if kworker
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
+    if (!syscall) {
+        u32 value = 1;
+        // mark as ignored fork not from syscall, ex: kworkers
+        bpf_map_update_elem(&pid_ignored, &pid, &value, BPF_ANY);
+        return 0;
+    }
+
     u32 parent_pid = args->parent_pid;
     bpf_probe_read(&parent_pid, sizeof(parent_pid), &args->child_pid);
     u32 *netns = bpf_map_lookup_elem(&netns_cache, &parent_pid);
     if (netns != NULL) {
         u32 child_netns_entry = *netns;
         bpf_map_update_elem(&netns_cache, &pid, &child_netns_entry, BPF_ANY);
-    }
-
-    // ignore the rest if kworker
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
-    if (!syscall) {
-        return 0;
     }
 
     // cache namespace nr translations
@@ -522,6 +536,11 @@ int kprobe_do_exit(struct pt_regs *ctx) {
     u32 tgid = pid_tgid >> 32;
     u32 pid = pid_tgid;
 
+    void *ignored = bpf_map_lookup_elem(&pid_ignored, &pid);
+    if (ignored) {
+        return 0;
+    }
+
     // delete netns entry
     bpf_map_delete_elem(&netns_cache, &pid);
 
@@ -539,11 +558,9 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         // send the entry to maintain userspace cache
         struct exit_event_t event = {};
         struct proc_cache_t *cache_entry = fill_process_context(&event.process);
-        if (cache_entry) {
-            fill_container_context(cache_entry, &event.container);
-            fill_span_context(&event.span);
-            send_event(ctx, EVENT_EXIT, event);
-        }
+        fill_container_context(cache_entry, &event.container);
+        fill_span_context(&event.span);
+        send_event(ctx, EVENT_EXIT, event);
 
         unregister_span_memory();
 
