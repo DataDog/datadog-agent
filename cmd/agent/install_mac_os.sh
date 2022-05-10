@@ -47,7 +47,7 @@ if [ -n "$DD_SYSTEMDAEMON_INSTALL" ]; then
         exit 1;
     fi
     if ! echo "$systemdaemon_user_group" | grep "^[^:]\+:[^:]\+$" > /dev/null; then
-        printf "\033[31mDD_SYSTEMDAEMON_USER_GROUP must be in format UID:GID or UserName:GroupName\033[0m\n"
+        printf "\033[31mDD_SYSTEMDAEMON_USER_GROUP must be in format UserName:GroupName\033[0m\n"
         exit 1;
     fi
     if echo "$systemdaemon_user_group" | grep ">\|<" > /dev/null; then
@@ -96,7 +96,7 @@ can't install the Agent when systemwide installation exists.
 
 If no systemwide installation is present or you want to remove it, run:
 
-    sudo launchctl unload -w $systemwide_servicefile_name
+    sudo launchctl unload -wF $systemwide_servicefile_name
     sudo rm $systemwide_servicefile_name
 
 Then rerun this script to install the Agent for your user account.
@@ -177,20 +177,12 @@ function plist_modify_user_group() {
     plist_file="$1"
     user_value="$(echo "$2" | awk -F: '{ print $1 }')"
     group_value="$(echo "$2" | awk -F: '{ print $2 }')"
-    user_parameter="UID"
-    group_parameter="GID"
+    user_parameter="UserName"
+    group_parameter="GroupName"
 
-    # we have to distinguish between uid/gid and username/groupname
-    if [ ! -z "${user_value##[0-9]*}" ]; then
-        user_parameter="UserName"
-    fi
-    if [ ! -z "${group_value##[0-9]*}" ]; then
-        group_parameter="GroupName"
-    fi
-
-    # if, in a future agent version we add UID/GID/UserName/GroupName to the plist file,
+    # if, in a future agent version we add UserName/GroupName to the plist file,
     # we want this older version of install script fail, because it wouldn't know what to do
-    terms="UID UserName GID GroupName"
+    terms="UserName GroupName"
     for term in $terms; do
         if grep "<key>$term</key>" "$1"; then
             printf "\033[31m$plist_file already contains <key>$term</key>, please update this script to the latest version\033[0m\n"
@@ -218,7 +210,7 @@ if [ "$systemdaemon_install" != false ] && [ -f "$systemwide_servicefile_name" ]
     # we use "|| true" because if the service is not started/loaded, the commands fail
     $sudo_cmd launchctl stop $service_name || true
     if $sudo_cmd launchctl print system/$service_name 2>/dev/null >/dev/null; then
-        $sudo_cmd launchctl unload $systemwide_servicefile_name || true
+        $sudo_cmd launchctl unload -wF $systemwide_servicefile_name || true
     fi
 fi
 printf "\033[34m\n    - Unpacking and copying files (this usually takes about a minute) ...\n\033[0m"
@@ -245,22 +237,25 @@ if grep -E 'api_key:( APIKEY)?$' "$etc_dir/datadog.yaml" > /dev/null 2>&1; then
         new_config
     fi
     printf "\n\033[34m* Restarting the Agent...\n\033[0m\n"
-    $cmd_launchctl stop $service_name
+    # systemwide installation is stopped at this point and will be started later on
+    if [ "$systemdaemon_install" != true ]; then
+      $cmd_launchctl stop $service_name
 
-    # Wait for the agent to fully stop
-    retry=0
-    until [ "$retry" -ge 5 ]; do
-        curl -m 5 -o /dev/null -s -I http://127.0.0.1:5002 || break
-        retry=$[$retry+1]
-        sleep 5
-    done
-    if [ "$retry" -ge 5 ]; then
-        printf "\n\033[33mCould not restart the agent.
+      # Wait for the agent to fully stop
+      retry=0
+      until [ "$retry" -ge 5 ]; do
+          curl -m 5 -o /dev/null -s -I http://127.0.0.1:5002 || break
+          retry=$[$retry+1]
+          sleep 5
+      done
+      if [ "$retry" -ge 5 ]; then
+          printf "\n\033[33mCould not restart the agent.
 You may have to restart it manually using the systray app or the
 \"launchctl start $service_name\" command.\n\033[0m\n"
-    fi
+      fi
 
-    $cmd_launchctl start $service_name
+      $cmd_launchctl start $service_name
+    fi
 else
     printf "\033[34m\n* A datadog.yaml configuration file already exists. It will not be overwritten.\n\033[0m\n"
 fi
@@ -274,7 +269,7 @@ else
     # if it is running - it's not running if the script was launched when
     # the GUI was not running for the user (e.g. a run of this script via
     # ssh for user not logged in via GUI).
-    if $cmd_launchctl print $service_name 1>/dev/null 2>/dev/null; then
+    if $cmd_launchctl print gui/$UID/$service_name 1>/dev/null 2>/dev/null; then
         $cmd_real_user osascript -e 'tell application "System Events" to if login item "Datadog Agent" exists then delete login item "Datadog Agent"'
         $cmd_launchctl stop "$service_name"
         $cmd_launchctl unload "$user_plist_file"
@@ -287,7 +282,7 @@ else
     $sudo_cmd chown "0:0" "$systemwide_servicefile_name"
     $sudo_cmd chown -R "$systemdaemon_user_group" "$etc_dir" "$log_dir" "$run_dir"
     $sudo_cmd launchctl load -w "$systemwide_servicefile_name"
-    $sudo_cmd launchctl start "$service_name"
+    $sudo_cmd launchctl kickstart "system/$service_name"
 fi
 
 # Agent works, echo some instructions and exit
