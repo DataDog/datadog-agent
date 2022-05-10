@@ -21,6 +21,7 @@ replace (
 	github.com/coreos/go-systemd => github.com/coreos/go-systemd v0.0.0-20180202092358-40e2722dffea
 	github.com/docker/distribution => github.com/docker/distribution v2.8.0+incompatible
 	github.com/googleapis/gnostic => github.com/googleapis/gnostic v0.4.1
+	github.com/iceber/iouring-go => github.com/spikat/iouring-go v0.0.0-20220505140047-5250ffd43c76
 	github.com/lxn/walk => github.com/lxn/walk v0.0.0-20180521183810-02935bac0ab8
 	github.com/mholt/archiver => github.com/mholt/archiver v2.0.1-0.20171012052341-26cf5bb32d07+incompatible
 	github.com/spf13/cast => github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3
