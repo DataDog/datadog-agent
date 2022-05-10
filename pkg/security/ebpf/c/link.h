@@ -42,6 +42,11 @@ SYSCALL_KPROBE0(linkat) {
     return trace__sys_link();
 }
 
+SEC("kprobe/do_linkat")
+int kprobe_do_linkat(struct pt_regs *ctx) {
+    return trace__sys_link();
+}
+
 SEC("kprobe/vfs_link")
 int kprobe_vfs_link(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
@@ -141,6 +146,12 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_ty
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_LINK);
     return 0;
+}
+
+SEC("kretprobe/do_linkat")
+int kretprobe_do_linkat(struct pt_regs *ctx) {
+    int retval = PT_REGS_RC(ctx);
+    return sys_link_ret(ctx, retval, DR_KPROBE);
 }
 
 int __attribute__((always_inline)) kprobe_sys_link_ret(struct pt_regs *ctx) {
