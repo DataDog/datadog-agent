@@ -17,7 +17,7 @@ int __attribute__((always_inline)) rmdir_approvers(struct syscall_cache_t *sysca
 }
 int __attribute__((always_inline)) unlink_approvers(struct syscall_cache_t *syscall);
 
-SYSCALL_KPROBE0(rmdir) {
+int __attribute__((always_inline)) trace__sys_rmdir(int flags) {
     struct syscall_cache_t syscall = {
         .type = EVENT_RMDIR,
         .policy = fetch_policy(EVENT_RMDIR),
@@ -26,6 +26,15 @@ SYSCALL_KPROBE0(rmdir) {
     cache_syscall(&syscall);
 
     return 0;
+}
+
+SYSCALL_KPROBE0(rmdir) {
+    return trace__sys_rmdir(0);
+}
+
+SEC("kprobe/do_rmdir")
+int kprobe_do_rmdir(struct pt_regs *ctx) {
+    return trace__sys_rmdir(0);
 }
 
 int __attribute__((always_inline)) rmdir_predicate(u64 type) {
@@ -147,6 +156,12 @@ int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
     }
 
     return 0;
+}
+
+SEC("kretprobe/do_rmdir")
+int kretprobe_do_rmdir(struct pt_regs *ctx) {
+    int retval = PT_REGS_RC(ctx);
+    return sys_rmdir_ret(ctx, retval);
 }
 
 SEC("tracepoint/syscalls/sys_exit_rmdir")
