@@ -140,7 +140,6 @@ func (lc *LoadController) discardNoisiestProcess() {
 
 	atomic.AddInt64(&lc.pidDiscardersCount, 1)
 
-	// fetch noisy process metadata
 	process := lc.probe.resolvers.ProcessResolver.Resolve(maxKey.Pid, maxKey.Pid)
 	if process == nil {
 		log.Warnf("Unable to resolve process with pid: %d", maxKey.Pid)
@@ -154,8 +153,8 @@ func (lc *LoadController) discardNoisiestProcess() {
 			lc.EventsCountThreshold,
 			lc.ControllerPeriod,
 			ts.Add(lc.DiscarderTimeout),
-			process,
-			lc.probe.GetResolvers(),
+			maxKey.Pid,
+			process.Comm,
 			ts,
 		),
 	)
