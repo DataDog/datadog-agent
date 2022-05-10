@@ -199,7 +199,7 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 	if kubeletProxyEnabled {
 		// Explicitly disable HTTP to reach APIServer
 		kubeletHTTPPort = 0
-		httpsPort, err := strconv.ParseInt(os.Getenv("KUBERNETES_SERVICE_PORT"), 10, 64)
+		httpsPort, err := strconv.ParseUint(os.Getenv("KUBERNETES_SERVICE_PORT"), 10, 16)
 		if err != nil {
 			return nil, fmt.Errorf("unable to get APIServer port: %w", err)
 		}
