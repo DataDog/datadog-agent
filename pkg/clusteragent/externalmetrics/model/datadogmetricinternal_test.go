@@ -10,11 +10,12 @@ package model
 
 import (
 	"errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 	"time"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/v1alpha1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
 
 	"github.com/stretchr/testify/assert"
 )
