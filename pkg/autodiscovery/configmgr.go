@@ -78,216 +78,321 @@ type configManager interface {
 	mapOverLoadedConfigs(func(map[string]integration.Config))
 }
 
-// simpleConfigManager implements the "simple" config manager that reconciles
-// services and templates without any priority, using a store as a backend.
-type simpleConfigManager struct {
+// serviceAndADIDs bundles a service and its associated AD identifiers.
+type serviceAndADIDs struct {
+	svc   listeners.Service
+	adIDs []string
+}
+
+// reconcilingConfigManager implements the a config manager that reconciles
+// services and templates to generate the scheduled configs.
+type reconcilingConfigManager struct {
+	// updates to this data structure work from the top down:
+	//
+	//  1. update orctiveConfigs / activeServices
+	//  2. update templatesByADID or servicesByADID to match
+	//  3. update serviceResolutions, generating changes (see reconcileService)
+	//  4. update scheduledConfigs
+	//
+	// For non-template configs, only steps 1 and 4 are required.
+
 	// m synchronizes all operations on this struct.
 	m sync.Mutex
 
-	// store contains the data tracked by this manager.
-	store *store
+	// activeConfigs contains an entry for each config from the config
+	// providers, keyed by its digest.  This is the "base truth" of configs --
+	// the set of new configs processed net deleted configs.
+	activeConfigs map[string]integration.Config
+
+	// activeServices contains an entry for each service from the listeners,
+	// keyed by its serviceID and with its AD identifiers stored separately.
+	// This is the "base truth" of services -- the set of new services
+	// processed net deleted services.
+	activeServices map[string]serviceAndADIDs
+
+	// templatesByADID catalogs digests for all templates, indexed by their AD
+	// identifiers.  It is an index to activeConfigs.
+	templatesByADID multimap
+
+	// servicesByADID catalogs serviceIDs for all services, indexed by their AD
+	// identifiers.  It is an index to activeServices.
+	servicesByADID multimap
+
+	// serviceResolutions maps a serviceID to the resolutions performed for
+	// that service: serviceID -> template digest -> resolved config digest.
+	serviceResolutions map[string]map[string]string
+
+	// scheduledConfigs contains an entry for each scheduled config, keyed by
+	// its digest.  This is a mix of resolved templates and non-template
+	// configs.  The returned configChanges from interface methods correspond
+	// exactly to changes in this map.
+	scheduledConfigs map[string]integration.Config
 }
 
-// newSimpleConfigManager creates a new, empty simpleConfigManager.
-func newSimpleConfigManager() configManager {
-	return &simpleConfigManager{
-		store: newStore(),
+var _ configManager = &reconcilingConfigManager{}
+
+// newReconcilingConfigManager creates a new, empty reconcilingConfigManager.
+func newReconcilingConfigManager() configManager {
+	return &reconcilingConfigManager{
+		activeConfigs:      map[string]integration.Config{},
+		activeServices:     map[string]serviceAndADIDs{},
+		templatesByADID:    newMultimap(),
+		servicesByADID:     newMultimap(),
+		serviceResolutions: map[string]map[string]string{},
+		scheduledConfigs:   map[string]integration.Config{},
 	}
 }
 
 // processNewService implements configManager#processNewService.
-func (cm *simpleConfigManager) processNewService(adIdentifiers []string, svc listeners.Service) configChanges {
+func (cm *reconcilingConfigManager) processNewService(adIdentifiers []string, svc listeners.Service) configChanges {
 	cm.m.Lock()
 	defer cm.m.Unlock()
 
-	cm.store.setServiceForEntity(svc, svc.GetServiceID())
+	svcID := svc.GetServiceID()
+	if _, found := cm.activeServices[svcID]; found {
+		log.Debugf("Service %s is already tracked by autodiscovery", svcID)
+		return configChanges{}
+	}
 
-	var templates []integration.Config
+	// Execute the steps outlined in the comment on reconcilingConfigManager:
+	//
+	//  1. update orctiveConfigs / activeServices
+	cm.activeServices[svcID] = serviceAndADIDs{
+		svc:   svc,
+		adIDs: adIdentifiers,
+	}
+
+	//  2. update templatesByADID or servicesByADID to match
 	for _, adID := range adIdentifiers {
-		// map the AD identifier to this service for reverse lookup
-		cm.store.setADIDForServices(adID, svc.GetServiceID())
-		tpls, err := cm.store.templateCache.get(adID)
-		if err != nil {
-			log.Debugf("Unable to fetch templates from the cache: %v", err)
-		}
-		templates = append(templates, tpls...)
+		cm.servicesByADID.insert(adID, svcID)
 	}
 
-	resolvedSet := map[string]integration.Config{}
-	for _, template := range templates {
-		// resolve the template
-		resolvedConfig, err := cm.resolveTemplateForService(template, svc)
-		if err != nil {
-			continue
-		}
+	//  3. update serviceResolutions, generating changes
+	changes := cm.reconcileService(svcID)
 
-		resolvedSet[resolvedConfig.Digest()] = resolvedConfig
-	}
-
-	// build the config changes to return
-	changes := configChanges{}
-	for _, v := range resolvedSet {
-		changes.scheduleConfig(v)
-	}
-
-	return changes
+	//  4. update scheduledConfigs
+	return cm.applyChanges(changes)
 }
 
 // processDelService implements configManager#processDelService.
-func (cm *simpleConfigManager) processDelService(svc listeners.Service) configChanges {
+func (cm *reconcilingConfigManager) processDelService(svc listeners.Service) configChanges {
 	cm.m.Lock()
 	defer cm.m.Unlock()
-	changes := configChanges{}
 
-	cm.store.removeServiceForEntity(svc.GetServiceID())
-	removedConfigs := cm.store.removeConfigsForService(svc.GetServiceID())
-	for _, c := range removedConfigs {
-		if cm.store.removeLoadedConfig(c) {
-			changes.unscheduleConfig(c)
-		}
+	svcID := svc.GetServiceID()
+	svcAndADIDs, found := cm.activeServices[svcID]
+	if !found {
+		log.Debugf("Service %s is not tracked by autodiscovery", svcID)
+		return configChanges{}
 	}
 
-	return changes
+	// Execute the steps outlined in the comment on reconcilingConfigManager:
+	//
+	//  1. update activeConfigs or activeServices
+	delete(cm.activeServices, svcID)
+
+	//  2. update templatesByADID or servicesByADID to match
+	for _, adID := range svcAndADIDs.adIDs {
+		cm.servicesByADID.remove(adID, svcID)
+	}
+
+	//  3. update serviceResolutions, generating changes
+	changes := cm.reconcileService(svcID)
+
+	//  4. update scheduledConfigs
+	return cm.applyChanges(changes)
 }
 
 // processNewConfig implements configManager#processNewConfig.
-func (cm *simpleConfigManager) processNewConfig(config integration.Config) configChanges {
+func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) configChanges {
 	cm.m.Lock()
 	defer cm.m.Unlock()
-	changes := configChanges{}
 
+	digest := config.Digest()
+	if _, found := cm.activeConfigs[digest]; found {
+		log.Debug("Config %v is already tracked by autodiscovery", config.Name)
+		return configChanges{}
+	}
+
+	// Execute the steps outlined in the comment on reconcilingConfigManager:
+	//
+	//  1. update orctiveConfigs / activeServices
+	cm.activeConfigs[digest] = config
+
+	var changes configChanges
 	if config.IsTemplate() {
-		// store the template in the cache in any case
-		if err := cm.store.templateCache.set(config); err != nil {
-			log.Errorf("Unable to store Check configuration in the cache: %s", err)
+		//  2. update templatesByADID or servicesByADID to match
+		matchingServices := map[string]struct{}{}
+		for _, adID := range config.ADIdentifiers {
+			cm.templatesByADID.insert(adID, digest)
+			for _, svcID := range cm.servicesByADID.get(adID) {
+				matchingServices[svcID] = struct{}{}
+			}
 		}
 
-		// try to resolve the template
-		resolvedConfigs := cm.resolveTemplate(config)
-		if resolvedConfigs.isEmpty() {
-			e := fmt.Sprintf("Can't resolve the template for %s at this moment.", config.Name)
-			errorStats.setResolveWarning(config.Name, e)
-			log.Debug(e)
-			return changes // empty result
+		//  3. update serviceResolutions, generating changes
+		for svcID := range matchingServices {
+			changes.merge(cm.reconcileService(svcID))
 		}
-
-		return resolvedConfigs
+	} else {
+		changes.scheduleConfig(config)
 	}
 
-	// decrypt and store non-template config in AC as well
-	config, err := decryptConfig(config)
-	if err != nil {
-		log.Errorf("Dropping conf for '%s': %s", config.Name, err.Error())
-		return changes // empty result
-	}
-	changes.scheduleConfig(config)
-	cm.store.setLoadedConfig(config)
-
-	return changes
+	//  4. update scheduledConfigs
+	return cm.applyChanges(changes)
 }
 
 // processDelConfigs implements configManager#processDelConfigs.
-func (cm *simpleConfigManager) processDelConfigs(configs []integration.Config) configChanges {
+func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Config) configChanges {
 	cm.m.Lock()
 	defer cm.m.Unlock()
-	changes := configChanges{}
 
-	for _, c := range configs {
-		if c.IsTemplate() {
-			// Remove the resolved configurations
-			tplDigest := c.Digest()
-			removedConfigs := cm.store.removeConfigsForTemplate(tplDigest)
-			for _, rc := range removedConfigs {
-				if cm.store.removeLoadedConfig(rc) {
-					changes.unscheduleConfig(rc)
+	var allChanges configChanges
+	for _, config := range configs {
+		digest := config.Digest()
+		if _, found := cm.activeConfigs[digest]; !found {
+			log.Debug("Config %v is not tracked by autodiscovery", config.Name)
+			continue
+		}
+
+		// Execute the steps outlined in the comment on reconcilingConfigManager:
+		//
+		//  1. update activeConfigs / activeServices
+		delete(cm.activeConfigs, digest)
+
+		var changes configChanges
+		if config.IsTemplate() {
+			//  2. update templatesByADID or servicesByADID to match
+			matchingServices := map[string]struct{}{}
+			for _, adID := range config.ADIdentifiers {
+				cm.templatesByADID.remove(adID, digest)
+				for _, svcID := range cm.servicesByADID.get(adID) {
+					matchingServices[svcID] = struct{}{}
 				}
 			}
 
-			// Remove template from the cache
-			err := cm.store.templateCache.del(c)
-			if err != nil {
-				log.Debugf("Could not delete template: %v", err)
+			//  3. update serviceResolutions, generating changes
+			for svcID := range matchingServices {
+				changes.merge(cm.reconcileService(svcID))
 			}
 		} else {
-			cm.store.removeLoadedConfig(c)
-			changes.unscheduleConfig(c)
+			changes.unscheduleConfig(config)
 		}
+
+		//  4. update scheduledConfigs
+		allChanges.merge(cm.applyChanges(changes))
+	}
+
+	return allChanges
+}
+
+// mapOverLoadedConfigs implements configManager#mapOverLoadedConfigs.
+func (cm *reconcilingConfigManager) mapOverLoadedConfigs(f func(map[string]integration.Config)) {
+	cm.m.Lock()
+	defer cm.m.Unlock()
+	f(cm.scheduledConfigs)
+}
+
+// reconcileService calculates the current set of resolved templates for the
+// given service and calculates the difference from what is currently recorded
+// in cm.serviceResolutions.  It updates cm.serviceResolutions and returns the
+// changes.
+//
+// This method must be called with cm.m locked.
+func (cm *reconcilingConfigManager) reconcileService(svcID string) configChanges {
+	var changes configChanges
+
+	// note that this method can be called in a case where svcID is not in the
+	// activeServices: this occurs when the service is removed.
+	serviceAndADIDs := cm.activeServices[svcID]
+	adIDs := serviceAndADIDs.adIDs // nil slice if service is not defined
+	svc := serviceAndADIDs.svc     // nil if the service is not defined
+
+	// get the existing resolutions for this service
+	existingResolutions, found := cm.serviceResolutions[svcID]
+	if !found {
+		existingResolutions = map[string]string{}
+	}
+
+	// determine the matching templates by template digest.  If the service
+	// has been removed, then this slice is empty.
+	expectedResolutions := map[string]integration.Config{}
+	for _, adID := range adIDs {
+		digests := cm.templatesByADID.get(adID)
+		for _, digest := range digests {
+			tpl := cm.activeConfigs[digest]
+			expectedResolutions[digest] = tpl
+		}
+	}
+
+	// allow the service to filter those templates, unless we are removing
+	// the service, in which case no resolutions are expected.
+	if svc != nil {
+		svc.FilterTemplates(expectedResolutions)
+	}
+
+	// compare existing to expected, generating changes and modifying
+	// existingResolutions in-place
+	for templateDigest, resolvedDigest := range existingResolutions {
+		if _, found = expectedResolutions[templateDigest]; !found {
+			changes.unscheduleConfig(cm.scheduledConfigs[resolvedDigest])
+			delete(existingResolutions, templateDigest)
+		}
+	}
+
+	for digest, config := range expectedResolutions {
+		if _, found := existingResolutions[digest]; !found {
+			// at this point, there was at least one expected resolution, so
+			// svc must not be nil.
+			resolved, ok := cm.resolveTemplateForService(config, svc)
+			if !ok {
+				continue
+			}
+			changes.scheduleConfig(resolved)
+			existingResolutions[digest] = resolved.Digest()
+		}
+	}
+
+	if len(existingResolutions) == 0 {
+		delete(cm.serviceResolutions, svcID)
+	} else {
+		cm.serviceResolutions[svcID] = existingResolutions
 	}
 
 	return changes
 }
 
-// mapOverLoadedConfigs implements configManager#mapOverLoadedConfigs.
-func (cm *simpleConfigManager) mapOverLoadedConfigs(f func(map[string]integration.Config)) {
-	cm.m.Lock()
-	defer cm.m.Unlock()
-	cm.store.mapOverLoadedConfigs(f)
-}
-
-// resolveTemplateForService resolves a template config for the given service
-func (cm *simpleConfigManager) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
+// resolveTemplateForService resolves a template config for the given service,
+// updating errorStats in the process.  If the resolution fails, this method
+// returns false.
+func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, bool) {
 	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
-		newErr := fmt.Errorf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
-		errorStats.setResolveWarning(tpl.Name, newErr.Error())
-		return tpl, log.Warn(newErr)
+		msg := fmt.Sprintf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
+		errorStats.setResolveWarning(tpl.Name, msg)
+		return tpl, false
 	}
 	resolvedConfig, err := decryptConfig(config)
 	if err != nil {
-		newErr := fmt.Errorf("error decrypting secrets in config %s for service %s: %v", config.Name, svc.GetServiceID(), err)
-		return config, log.Warn(newErr)
+		msg := fmt.Sprintf("error decrypting secrets in config %s for service %s: %v", config.Name, svc.GetServiceID(), err)
+		errorStats.setResolveWarning(tpl.Name, msg)
+		return config, false
 	}
-	cm.store.setLoadedConfig(resolvedConfig)
-	cm.store.addConfigForService(svc.GetServiceID(), resolvedConfig)
-	cm.store.addConfigForTemplate(tpl.Digest(), resolvedConfig)
 	errorStats.removeResolveWarnings(tpl.Name)
-	return resolvedConfig, nil
+	return resolvedConfig, true
 }
 
-// resolveTemplate attempts to resolve a configuration template using the AD
-// identifiers in the `integration.Config` struct to match a Service.
+// applyChanges applies the given changes to cm.scheduledConfigs
 //
-// The function might return more than one configuration for a single template,
-// for example when the `ad_identifiers` section of a config.yaml file contains
-// multiple entries, or when more than one Service has the same identifier,
-// e.g. 'redis'.
-//
-// The function might return an empty list in the case the configuration has a
-// list of Autodiscovery identifiers for services that are unknown to the
-// resolver at this moment.
-func (cm *simpleConfigManager) resolveTemplate(tpl integration.Config) configChanges {
-	// use a map to dedupe configurations
-	resolvedSet := map[string]integration.Config{}
-
-	// go through the AD identifiers provided by the template
-	for _, id := range tpl.ADIdentifiers {
-		// check out whether any service we know has this identifier
-		serviceIds, found := cm.store.getServiceEntitiesForADID(id)
-		if !found {
-			s := fmt.Sprintf("No service found with this AD identifier: %s", id)
-			errorStats.setResolveWarning(tpl.Name, s)
-			log.Debugf(s)
-			continue
-		}
-
-		for serviceID := range serviceIds {
-			svc := cm.store.getServiceForEntity(serviceID)
-			if svc == nil {
-				log.Warnf("Service %s was removed before we could resolve its config", serviceID)
-				continue
-			}
-			resolvedConfig, err := cm.resolveTemplateForService(tpl, svc)
-			if err != nil {
-				continue
-			}
-			resolvedSet[resolvedConfig.Digest()] = resolvedConfig
-		}
+// This method must be called with cm.m locked.
+func (cm *reconcilingConfigManager) applyChanges(changes configChanges) configChanges {
+	for _, cfg := range changes.unschedule {
+		digest := cfg.Digest()
+		delete(cm.scheduledConfigs, digest)
 	}
-
-	// build the config changes to return
-	changes := configChanges{}
-	for _, v := range resolvedSet {
-		changes.scheduleConfig(v)
+	for _, cfg := range changes.schedule {
+		digest := cfg.Digest()
+		cm.scheduledConfigs[digest] = cfg
 	}
 
 	return changes
