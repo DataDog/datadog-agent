@@ -17,7 +17,7 @@
         "SECURITY_AGENT_POLICIES_VERSION": "master"
     },
     "nightly-a7": {
-        "INTEGRATIONS_CORE_VERSION": "master",
+        "INTEGRATIONS_CORE_VERSION": "e5cfaa5467ee33c4942b763b8f839ecf63e80183",
         "OMNIBUS_SOFTWARE_VERSION": "master",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.46.0",
