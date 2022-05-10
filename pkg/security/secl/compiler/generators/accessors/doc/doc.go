@@ -6,7 +6,6 @@
 package doc
 
 import (
-	"bytes"
 	"encoding/json"
 	"os"
 	"regexp"
@@ -33,20 +32,6 @@ type eventTypeProperty struct {
 	Name string `json:"name"`
 	Type string `json:"type"`
 	Doc  string `json:"definition"`
-}
-
-func prettyprint(v interface{}) ([]byte, error) {
-	base, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-
-	var out bytes.Buffer
-	if err := json.Indent(&out, base, "", "  "); err != nil {
-		return nil, err
-	}
-
-	return out.Bytes(), nil
 }
 
 func translateFieldType(rt string) string {
@@ -95,7 +80,7 @@ func GenerateDocJSON(module *common.Module, outputPath string) error {
 		Types: eventTypes,
 	}
 
-	res, err := prettyprint(doc)
+	res, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
 		return err
 	}
