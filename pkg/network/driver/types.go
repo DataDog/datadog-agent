@@ -41,6 +41,7 @@ const FilterPacketHeaderSize = C.sizeof_struct_filterPacketHeader
 type HandleStats C.struct__handle_stats
 type FlowStats C.struct__flow_handle_stats
 type TransportStats C.struct__transport_handle_stats
+type HttpStats C.struct__http_handle_stats
 type Stats C.struct__stats
 type DriverStats C.struct_driver_stats
 
