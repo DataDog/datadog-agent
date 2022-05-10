@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Make the name of the ConfigMap used by the cluster agent for its leader election configurable.
+    Make the name of the ConfigMap used by the Cluster Agent for its leader election configurable.
