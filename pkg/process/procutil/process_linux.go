@@ -18,13 +18,13 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"syscall"
 	"time"
 	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/atomic"
 )
 
 const (
@@ -91,7 +91,7 @@ func WithBootTimeRefreshInterval(bootTimeRefreshInterval time.Duration) Option {
 
 // probe is a service that fetches process related info on current host
 type probe struct {
-	bootTime     uint64
+	bootTime     *atomic.Uint64
 	procRootLoc  string // ProcFS
 	procRootFile *os.File
 	uid          uint32 // UID
@@ -119,9 +119,10 @@ func NewProcessProbe(options ...Option) Probe {
 		euid:                    uint32(os.Geteuid()),
 		clockTicks:              getClockTicks(),
 		exit:                    make(chan struct{}),
+		bootTime:                atomic.NewUint64(0),
 		bootTimeRefreshInterval: time.Minute,
 	}
-	atomic.StoreUint64(&p.bootTime, bootTime)
+	p.bootTime.Store(bootTime)
 
 	for _, o := range options {
 		o(p)
@@ -153,7 +154,7 @@ func (p *probe) syncBootTime() {
 		if err != nil {
 			log.Errorf("could not parse boot time: %s", err)
 		} else {
-			atomic.StoreUint64(&p.bootTime, bootTime)
+			p.bootTime.Store(bootTime)
 		}
 	case <-p.exit:
 		return
@@ -619,7 +620,7 @@ func (p *probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 
 	t, err := strconv.ParseUint(startTimeStr, 10, 64)
 	if err == nil {
-		ctime := (t / uint64(p.clockTicks)) + atomic.LoadUint64(&p.bootTime)
+		ctime := (t / uint64(p.clockTicks)) + p.bootTime.Load()
 		// convert create time into milliseconds
 		sInfo.createTime = int64(ctime * 1000)
 	}

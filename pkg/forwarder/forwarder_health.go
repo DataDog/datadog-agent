@@ -26,10 +26,11 @@ const (
 )
 
 var (
-	apiKeyStatusUnknown = expvar.String{}
-	apiKeyInvalid       = expvar.String{}
-	apiKeyValid         = expvar.String{}
-	apiKeyFake          = expvar.String{}
+	apiKeyEndpointUnreachable  = expvar.String{}
+	apiKeyUnexpectedStatusCode = expvar.String{}
+	apiKeyInvalid              = expvar.String{}
+	apiKeyValid                = expvar.String{}
+	apiKeyFake                 = expvar.String{}
 
 	validateAPIKeyTimeout = 10 * time.Second
 
@@ -37,7 +38,8 @@ var (
 )
 
 func init() {
-	apiKeyStatusUnknown.Set("Unable to validate API Key")
+	apiKeyEndpointUnreachable.Set("Unable to reach the API Key validation endpoint")
+	apiKeyUnexpectedStatusCode.Set("Unexpected response code from the API Key validation endpoint")
 	apiKeyInvalid.Set("API Key invalid")
 	apiKeyValid.Set("API Key valid")
 	apiKeyFake.Set("Fake API Key that skips validation")
@@ -169,7 +171,7 @@ func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		fh.setAPIKeyStatus(apiKey, domain, &apiKeyStatusUnknown)
+		fh.setAPIKeyStatus(apiKey, domain, &apiKeyEndpointUnreachable)
 		return false, err
 	}
 
@@ -177,7 +179,7 @@ func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fh.setAPIKeyStatus(apiKey, domain, &apiKeyStatusUnknown)
+		fh.setAPIKeyStatus(apiKey, domain, &apiKeyEndpointUnreachable)
 		return false, err
 	}
 	defer resp.Body.Close()
@@ -191,7 +193,7 @@ func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
 		return false, nil
 	}
 
-	fh.setAPIKeyStatus(apiKey, domain, &apiKeyStatusUnknown)
+	fh.setAPIKeyStatus(apiKey, domain, &apiKeyUnexpectedStatusCode)
 	return false, fmt.Errorf("Unexpected response code from the apikey validation endpoint: %v", resp.StatusCode)
 }
 

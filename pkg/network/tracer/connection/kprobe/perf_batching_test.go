@@ -166,7 +166,8 @@ func newTestBatchManager(t *testing.T) (*perfBatchManager, func()) {
 	require.NoError(t, err)
 
 	tr := ctr.(*kprobeTracer)
-	tr.Start(func(_ []network.ConnectionStats) {})
+	// do not start tracer, so we don't pick up on any connections outside the test
+
 	manager := tr.closeConsumer.batchManager
 	doneFn := func() { tr.Stop() }
 	return manager, doneFn

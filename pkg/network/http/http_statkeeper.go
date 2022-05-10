@@ -15,8 +15,8 @@ import (
 )
 
 type httpStatKeeper struct {
-	stats      map[Key]RequestStats
-	incomplete map[Key]httpTX
+	stats      map[Key]*RequestStats
+	incomplete map[KeyTuple]*httpTX
 	maxEntries int
 	telemetry  *telemetry
 
@@ -33,8 +33,8 @@ type httpStatKeeper struct {
 
 func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
 	return &httpStatKeeper{
-		stats:        make(map[Key]RequestStats),
-		incomplete:   make(map[Key]httpTX),
+		stats:        make(map[Key]*RequestStats),
+		incomplete:   make(map[KeyTuple]*httpTX),
 		maxEntries:   c.MaxHTTPStatsBuffered,
 		replaceRules: c.HTTPReplaceRules,
 		buffer:       make([]byte, HTTPBufferSize),
@@ -44,7 +44,8 @@ func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
 }
 
 func (h *httpStatKeeper) Process(transactions []httpTX) {
-	for _, tx := range transactions {
+	for i := range transactions {
+		tx := &transactions[i]
 		if tx.Incomplete() {
 			h.handleIncomplete(tx)
 			continue
@@ -56,15 +57,15 @@ func (h *httpStatKeeper) Process(transactions []httpTX) {
 	atomic.StoreInt64(&h.telemetry.aggregations, int64(len(h.stats)))
 }
 
-func (h *httpStatKeeper) GetAndResetAllStats() map[Key]RequestStats {
+func (h *httpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	ret := h.stats // No deep copy needed since `h.stats` gets reset
-	h.stats = make(map[Key]RequestStats)
-	h.incomplete = make(map[Key]httpTX)
+	h.stats = make(map[Key]*RequestStats)
+	h.incomplete = make(map[KeyTuple]*httpTX)
 	h.interned = make(map[string]string)
 	return ret
 }
 
-func (h *httpStatKeeper) add(tx httpTX) {
+func (h *httpStatKeeper) add(tx *httpTX) {
 	rawPath := tx.Path(h.buffer)
 	if rawPath == nil {
 		atomic.AddInt64(&h.telemetry.malformed, 1)
@@ -78,21 +79,24 @@ func (h *httpStatKeeper) add(tx httpTX) {
 
 	key := h.newKey(tx, path)
 	stats, ok := h.stats[key]
-	if !ok && len(h.stats) >= h.maxEntries {
-		atomic.AddInt64(&h.telemetry.dropped, 1)
-		return
+	if !ok {
+		if len(h.stats) >= h.maxEntries {
+			atomic.AddInt64(&h.telemetry.dropped, 1)
+			return
+		}
+		stats = new(RequestStats)
+		h.stats[key] = stats
 	}
 
 	stats.AddRequest(tx.StatusClass(), tx.RequestLatency())
-	h.stats[key] = stats
 }
 
 // handleIncomplete is responsible for handling incomplete transactions
 // (eg. httpTX objects that have either only the request or response information)
 // this happens only in the context of localhost traffic with NAT and these disjoint
 // parts of the transactions are joined here by src port
-func (h *httpStatKeeper) handleIncomplete(tx httpTX) {
-	key := Key{
+func (h *httpStatKeeper) handleIncomplete(tx *httpTX) {
+	key := KeyTuple{
 		SrcIPHigh: uint64(tx.tup.saddr_h),
 		SrcIPLow:  uint64(tx.tup.saddr_l),
 		SrcPort:   uint16(tx.tup.sport),
@@ -105,7 +109,6 @@ func (h *httpStatKeeper) handleIncomplete(tx httpTX) {
 		} else {
 			h.incomplete[key] = tx
 		}
-
 		return
 	}
 
@@ -131,16 +134,18 @@ func (h *httpStatKeeper) handleIncomplete(tx httpTX) {
 	delete(h.incomplete, key)
 }
 
-func (h *httpStatKeeper) newKey(tx httpTX, path string) Key {
+func (h *httpStatKeeper) newKey(tx *httpTX, path string) Key {
 	return Key{
-		SrcIPHigh: uint64(tx.tup.saddr_h),
-		SrcIPLow:  uint64(tx.tup.saddr_l),
-		SrcPort:   uint16(tx.tup.sport),
-		DstIPHigh: uint64(tx.tup.daddr_h),
-		DstIPLow:  uint64(tx.tup.daddr_l),
-		DstPort:   uint16(tx.tup.dport),
-		Path:      path,
-		Method:    Method(tx.request_method),
+		KeyTuple: KeyTuple{
+			SrcIPHigh: uint64(tx.tup.saddr_h),
+			SrcIPLow:  uint64(tx.tup.saddr_l),
+			SrcPort:   uint16(tx.tup.sport),
+			DstIPHigh: uint64(tx.tup.daddr_h),
+			DstIPLow:  uint64(tx.tup.daddr_l),
+			DstPort:   uint16(tx.tup.dport),
+		},
+		Path:   path,
+		Method: Method(tx.request_method),
 	}
 }
 

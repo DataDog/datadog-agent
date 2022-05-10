@@ -70,10 +70,10 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 	}
 	testProcessor.OnInvokeStart(&startDetails)
 
-	assert.NotEqual(t, uint64(0), currentExecutionInfo.spanID)
+	assert.Equal(t, uint64(0), currentExecutionInfo.spanID)
 	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.traceID)
 	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
-	assert.Equal(t, sampler.SamplingPriority(1), *currentExecutionInfo.samplingPriority)
+	assert.Equal(t, sampler.SamplingPriority(1), currentExecutionInfo.samplingPriority)
 	assert.Equal(t, startInvocationTime, currentExecutionInfo.startTime)
 }
 
@@ -127,7 +127,7 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 		traceID:          123,
 		spanID:           1,
 		parentID:         3,
-		samplingPriority: &samplingPriority,
+		samplingPriority: samplingPriority,
 	}
 
 	testProcessor := LifecycleProcessor{
@@ -146,7 +146,7 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 	assert.Equal(t, currentExecutionInfo.traceID, executionSpan.TraceID)
 	assert.Equal(t, currentExecutionInfo.spanID, executionSpan.SpanID)
 	assert.Equal(t, currentExecutionInfo.parentID, executionSpan.ParentID)
-	assert.Equal(t, int32(*currentExecutionInfo.samplingPriority), executionChunkPriority)
+	assert.Equal(t, int32(currentExecutionInfo.samplingPriority), executionChunkPriority)
 	assert.Equal(t, startInvocationTime.UnixNano(), executionSpan.Start)
 	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
 }

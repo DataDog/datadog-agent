@@ -88,16 +88,17 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 		srcAddr, dstAddr = convertV6Addr(flow.LocalAddress), convertV6Addr(flow.RemoteAddress)
 	}
 
+	*cs = ConnectionStats{}
 	cs.Source = srcAddr
 	cs.Dest = dstAddr
 	// after lengthy discussion, use the transport bytes in/out.  monotonic
 	// RecvBytes/SentBytes includes the size of the IP header and transport
 	// header, transportBytes is the raw transport data.  At present,
 	// the linux probe only reports the raw transport data.  So do that by default.
-	cs.MonotonicSentBytes = monotonicOrTransportBytes(enableMonotonicCounts, flow.MonotonicSentBytes, flow.TransportBytesOut)
-	cs.MonotonicRecvBytes = monotonicOrTransportBytes(enableMonotonicCounts, flow.MonotonicRecvBytes, flow.TransportBytesIn)
-	cs.MonotonicSentPackets = flow.PacketsOut
-	cs.MonotonicRecvPackets = flow.PacketsIn
+	cs.Monotonic.SentBytes = monotonicOrTransportBytes(enableMonotonicCounts, flow.MonotonicSentBytes, flow.TransportBytesOut)
+	cs.Monotonic.RecvBytes = monotonicOrTransportBytes(enableMonotonicCounts, flow.MonotonicRecvBytes, flow.TransportBytesIn)
+	cs.Monotonic.SentPackets = flow.PacketsOut
+	cs.Monotonic.RecvPackets = flow.PacketsIn
 	cs.LastUpdateEpoch = flow.Timestamp
 	cs.Pid = uint32(flow.ProcessId)
 	cs.SPort = flow.LocalPort
@@ -107,34 +108,19 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 	cs.Direction = connDirection(flow.Flags)
 	cs.SPortIsEphemeral = IsPortInEphemeralRange(cs.Family, cs.Type, cs.SPort)
 
-	// reset other fields to default values
-	cs.NetNS = 0
-	cs.IPTranslation = nil
-	cs.IntraHost = false
-	cs.LastSentBytes = 0
-	cs.LastRecvBytes = 0
-	cs.MonotonicRetransmits = 0
-	cs.LastRetransmits = 0
-	cs.MonotonicTCPEstablished = 0
-	cs.LastTCPEstablished = 0
-	cs.MonotonicTCPClosed = 0
-	cs.LastTCPClosed = 0
-	cs.RTT = 0
-	cs.RTTVar = 0
-
 	if connectionType == TCP {
 		tf := flow.TCPFlow()
 		if tf != nil {
-			cs.MonotonicRetransmits = uint32(tf.RetransmitCount)
+			cs.Monotonic.Retransmits = uint32(tf.RetransmitCount)
 			cs.RTT = uint32(tf.SRTT)
 			cs.RTTVar = uint32(tf.RttVariance)
 		}
 
 		if isTCPFlowEstablished(flow.Flags) {
-			cs.MonotonicTCPEstablished = 1
+			cs.Monotonic.TCPEstablished = 1
 		}
 		if isFlowClosed(flow.Flags) {
-			cs.MonotonicTCPClosed = 1
+			cs.Monotonic.TCPClosed = 1
 		}
 	}
 }

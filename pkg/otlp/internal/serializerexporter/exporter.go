@@ -30,9 +30,7 @@ func newDefaultConfig() config.Exporter {
 		QueueSettings: exporterhelper.NewDefaultQueueSettings(),
 
 		Metrics: metricsConfig{
-			SendMonotonic: true,
-			DeltaTTL:      3600,
-			Quantiles:     true,
+			DeltaTTL: 3600,
 			ExporterConfig: metricsExporterConfig{
 				ResourceAttributesAsTags:             false,
 				InstrumentationLibraryMetadataAsTags: false,
@@ -116,10 +114,6 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 }
 
 func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporterConfig) (*exporter, error) {
-	for _, err := range cfg.warnings {
-		logger.Warn(fmt.Sprintf("Deprecated: %v", err))
-	}
-
 	tr, err := translatorFromConfig(logger, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
