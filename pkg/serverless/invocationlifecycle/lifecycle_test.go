@@ -200,8 +200,7 @@ func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 		tracePayload = payload
 	}
 	startInferredSpan := time.Now()
-	time.Sleep(250 * time.Millisecond)
-	startInvocationTime := time.Now()
+	startInvocationTime := startInferredSpan.Add(250 * time.Millisecond)
 	duration := 1 * time.Second
 	endInvocationTime := startInvocationTime.Add(duration)
 	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: false}
@@ -227,7 +226,6 @@ func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 	testProcessor.OnInvokeEnd(&endDetails)
 
 	completedInferredSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
-	t.Log(tracePayload.TracerPayload)
 	assert.Equal(t, inferredSpan.Span.Start, completedInferredSpan.Start)
 }
 
@@ -246,7 +244,6 @@ func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
 		tracePayload = payload
 	}
 	startInferredSpan := int64(0)
-	time.Sleep(250 * time.Millisecond)
 	startInvocationTime := time.Now()
 	duration := 1 * time.Second
 	endInvocationTime := startInvocationTime.Add(duration)
@@ -276,6 +273,5 @@ func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
 	// and the start time is expected to be the invocation start time,
 	// not the inferred span start time.
 	completedInferredSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
-	t.Log(tracePayload.TracerPayload)
 	assert.Equal(t, startInvocationTime.UnixNano(), completedInferredSpan.Start)
 }
