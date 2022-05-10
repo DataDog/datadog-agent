@@ -235,6 +235,8 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 
 		// unlink rmdir probes
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/do_unlinkat", EBPFFuncName: "kprobe_do_unlinkat"}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/do_unlinkat", EBPFFuncName: "kretprobe_do_unlinkat"}},
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/mnt_want_write", EBPFFuncName: "kprobe_mnt_want_write"}},
 		}},
 		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(

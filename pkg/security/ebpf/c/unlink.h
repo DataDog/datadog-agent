@@ -41,6 +41,11 @@ SYSCALL_KPROBE3(unlinkat, int, dirfd, const char*, filename, int, flags) {
     return trace__sys_unlink(flags);
 }
 
+SEC("kprobe/do_unlinkat")
+int kprobe_do_unlinkat(struct pt_regs *ctx) {
+    return trace__sys_unlink(0);
+}
+
 SEC("kprobe/vfs_unlink")
 int kprobe_vfs_unlink(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
@@ -145,6 +150,12 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
     }
 
     return 0;
+}
+
+SEC("kretprobe/do_unlinkat")
+int kretprobe_do_unlinkat(struct pt_regs *ctx) {
+    int retval = PT_REGS_RC(ctx);
+    return sys_unlink_ret(ctx, retval);
 }
 
 int __attribute__((always_inline)) kprobe_sys_unlink_ret(struct pt_regs *ctx) {
