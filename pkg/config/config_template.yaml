@@ -3162,8 +3162,8 @@ api_key:
 
     ## @param enabled - boolean - optional - default: true
     ## @env DD_OTLP_CONFIG_METRICS_ENABLED - boolean - optional - default: true
-    ## Whether to ingest metrics through the OTLP endpoint. Set to false to disable OTLP metrics ingest.
-    ## Note that you need to set the otlp_config.receiver section in order to enable OTLP in the Agent.
+    ## Set to false to disable metrics support in the OTLP ingest endpoint.
+    ## To enable the OTLP ingest, the otlp_config.receiver section must be set.
     #
     # enabled: true
 
@@ -3269,8 +3269,8 @@ api_key:
 
     ## @param enabled - boolean - optional - default: true
     ## @env DD_OTLP_CONFIG_TRACES_ENABLED - boolean - optional - default: true
-    ## Whether to ingest traces through the OTLP endpoint. Set to false to disable OTLP traces ingest.
-    ## Note that you need to set the otlp_config.receiver section in order to enable OTLP in the Agent.
+    ## Set to false to disable traces support in the OTLP ingest endpoint.
+    ## To enable the OTLP ingest, the otlp_config.receiver section must be set.
     #
     # enabled: true
 
