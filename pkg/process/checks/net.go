@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"sort"
-	"sync/atomic"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -23,11 +22,14 @@ import (
 	procutil "github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/atomic"
 )
 
 var (
 	// Connections is a singleton ConnectionsCheck.
-	Connections = &ConnectionsCheck{}
+	Connections = &ConnectionsCheck{
+		lastConnsByPID: &atomic.Value{},
+	}
 
 	// LocalResolver is a singleton LocalResolver
 	LocalResolver = &resolver.LocalResolver{}
@@ -46,7 +48,7 @@ type ConnectionsCheck struct {
 	notInitializedLogLimit *procutil.LogLimit
 	// store the last collection result by PID, currently used to populate network data for processes
 	// it's in format map[int32][]*model.Connections
-	lastConnsByPID atomic.Value
+	lastConnsByPID *atomic.Value
 }
 
 // Init initializes a ConnectionsCheck instance.

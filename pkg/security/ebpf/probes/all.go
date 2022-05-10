@@ -16,8 +16,11 @@ import (
 )
 
 const (
-	minPathnamesEntries = 64000  // ~27 MB
-	maxPathnamesEntries = 128000 // ~54 MB
+	minPathnamesEntries = 64000 // ~27 MB
+	maxPathnamesEntries = 96000
+
+	minProcEntries = 16394
+	maxProcEntries = 131072
 )
 
 // allProbes contain the list of all the probes of the runtime security module
@@ -128,12 +131,12 @@ const (
 	MaxTracedCgroupsCount = 1000
 )
 
-// max 128 000 | min 64,000 entrie =>
-func getPathnamesMaxEntries(numCPU int) uint32 {
-	maxEntries := math.Min(maxPathnamesEntries, float64(minPathnamesEntries*numCPU)/4)
-	if maxEntries < minPathnamesEntries {
-		maxEntries = minPathnamesEntries
+func getMaxEntries(numCPU int, min int, max int) uint32 {
+	maxEntries := int(math.Min(float64(max), float64(min*numCPU)/4))
+	if maxEntries < min {
+		maxEntries = min
 	}
+
 	return uint32(maxEntries)
 }
 
@@ -147,15 +150,15 @@ func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize in
 	}
 	editors := map[string]manager.MapSpecEditor{
 		"proc_cache": {
-			MaxEntries: uint32(4096 * numCPU),
+			MaxEntries: getMaxEntries(numCPU, minProcEntries, maxProcEntries),
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"pid_cache": {
-			MaxEntries: uint32(4096 * numCPU),
+			MaxEntries: getMaxEntries(numCPU, minProcEntries, maxProcEntries),
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"pathnames": {
-			MaxEntries: getPathnamesMaxEntries(numCPU),
+			MaxEntries: getMaxEntries(numCPU, minPathnamesEntries, maxPathnamesEntries),
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"traced_cgroups": {
