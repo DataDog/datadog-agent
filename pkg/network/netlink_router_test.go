@@ -21,6 +21,7 @@ import (
 func TestNetlinkRouterNonRootNamespace(t *testing.T) {
 	// setup a network namespace
 	cmds := []string{
+		"sysctl -w net.ipv4.ip_forward=1",
 		"ip link add br0 type bridge",
 		"ip addr add 2.2.2.1/24 broadcast 2.2.2.255 dev br0",
 		"ip netns add test1",
@@ -35,10 +36,12 @@ func TestNetlinkRouterNonRootNamespace(t *testing.T) {
 		"iptables -I POSTROUTING 1 -t nat -s 2.2.2.0/24 ! -d 2.2.2.0/24 -j MASQUERADE",
 		"iptables -I FORWARD -i br0 -j ACCEPT",
 		"iptables -I FORWARD -o br0 -j ACCEPT",
-		"sysctl -w net.ipv4.ip_forward=1",
+		"ip netns add router",
 	}
 	defer func() {
 		testutil.RunCommands(t, []string{
+			"ip netns del router",
+			"iptables -L -nv",
 			"iptables -D FORWARD -o br0 -j ACCEPT",
 			"iptables -D FORWARD -i br0 -j ACCEPT",
 			"iptables -D POSTROUTING -t nat -s 2.2.2.0/24 ! -d 2.2.2.0/24 -j MASQUERADE",
@@ -51,21 +54,20 @@ func TestNetlinkRouterNonRootNamespace(t *testing.T) {
 
 	test1Ns, err := netns.GetFromName("test1")
 	require.NoError(t, err)
-	defer test1Ns.Close()
 
 	ino, err := util.GetInoForNs(test1Ns)
 	require.NoError(t, err)
 
-	// create the router in a different namespace than the root network namespace
-	ns, err := netns.NewNamed("router")
+	routerNs, err := netns.GetFromName("router")
 	require.NoError(t, err)
-	defer netns.DeleteNamed("router")
 
 	var router *netlinkRouter
-	err = util.WithNS("/proc", ns, func() error {
+	err = util.WithNS("/proc", routerNs, func() error {
 		router, err = newNetlinkRouter("/proc")
 		return err
 	})
+
+	defer router.Close()
 
 	// do a route lookup for a connection from test1 namespace
 	r, ok := router.Route(util.AddressFromString("2.2.2.2"), util.AddressFromString("8.8.8.8"), ino)
