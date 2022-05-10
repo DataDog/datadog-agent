@@ -93,7 +93,7 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 	return fmt.Sprintf("%sSending %s logs in %s to %s on port %d", prefix, compression, protocol, host, port)
 }
 
-// GetIsReliable returns true if the endpoint is reliable. Endpoints are reliable by default. 
+// GetIsReliable returns true if the endpoint is reliable. Endpoints are reliable by default.
 func (e *Endpoint) GetIsReliable() bool {
 	return e.IsReliable == nil || *e.IsReliable
 }
