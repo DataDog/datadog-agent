@@ -19,7 +19,7 @@ import (
 var (
 	diagnoseCommand = &cobra.Command{
 		Use:        "diagnose",
-		Short:      "Execute some connectivity diagnosis on your system",
+		Short:      "Check availability of cloud provider metadata endpoints",
 		Long:       ``,
 		Deprecated: "this command is only here for backward compatibility. Please consider using 'diagnose metadata-availability' instead.",
 		RunE:       doDiagnoseMetadataAvailability,
