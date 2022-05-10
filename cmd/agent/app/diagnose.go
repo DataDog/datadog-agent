@@ -27,7 +27,7 @@ var (
 
 	diagnoseMetadataAvailabilityCommand = &cobra.Command{
 		Use:   "metadata-availability",
-		Short: "Execute some availability checks on cloud provider metadata endpoints",
+		Short: "Check availability of cloud provider metadata endpoints",
 		Long:  ``,
 		RunE:  doDiagnoseMetadataAvailability,
 	}
