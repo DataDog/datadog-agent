@@ -27,8 +27,6 @@ DNF_TAG = "dnf"
 CLANG_CMD = "clang {flags} -c '{c_file}' -o '{bc_file}'"
 LLC_CMD = "llc -march=bpf -filetype=obj -o '{obj_file}' '{bc_file}'"
 
-DATADOG_AGENT_EMBEDDED_PATH = '/opt/datadog-agent/embedded'
-
 KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
 TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/...", "./pkg/collector/corechecks/ebpf/..."]
@@ -58,7 +56,6 @@ def build(
     go_mod="mod",
     windows=is_windows,
     arch=CURRENT_ARCH,
-    embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
     compile_ebpf=True,
     nikos_embedded_path=None,
     bundle_ebpf=False,
@@ -92,7 +89,6 @@ def build(
         ctx,
         major_version=major_version,
         python_runtimes=python_runtimes,
-        embedded_path=embedded_path,
         nikos_embedded_path=nikos_embedded_path,
     )
 
@@ -348,12 +344,20 @@ def clang_tidy(ctx, fix=False, fail_on_issue=False):
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_files = list(base_files)
-    network_files.extend(glob.glob(network_c_dir + "/**/*.c"))
+    network_files.extend(glob.glob(network_c_dir + "/**/*[!http].c"))
+    network_files.append(os.path.join(network_c_dir, "runtime", "http.c"))
     network_flags = list(build_flags)
     network_flags.append(f"-I{network_c_dir}")
     network_flags.append(f"-I{os.path.join(network_c_dir, 'prebuilt')}")
     network_flags.append(f"-I{os.path.join(network_c_dir, 'runtime')}")
     run_tidy(ctx, files=network_files, build_flags=network_flags, fix=fix, fail_on_issue=fail_on_issue)
+
+    # special treatment for prebuilt/http.c
+    http_files = [os.path.join(network_c_dir, "prebuilt", "http.c")]
+    http_flags = get_http_prebuilt_build_flags(network_c_dir)
+    http_flags.append(f"-I{network_c_dir}")
+    http_flags.append(f"-I{os.path.join(network_c_dir, 'prebuilt')}")
+    run_tidy(ctx, files=http_files, build_flags=http_flags, fix=fix, fail_on_issue=fail_on_issue)
 
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_files = list(base_files)
@@ -536,17 +540,21 @@ def build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, netwo
         )
 
 
+def get_http_prebuilt_build_flags(network_c_dir):
+    uname_m = check_output("uname -m", shell=True).decode('utf-8').strip()
+    flags = get_ebpf_build_flags(target=["-target", "bpf"])
+    flags.append(f"-I{network_c_dir}")
+    flags.append(f"-D__{uname_m}__")
+    flags.append(f"-isystem /usr/include/{uname_m}-linux-gnu")
+    return flags
+
+
 def build_http_ebpf_files(ctx, build_dir):
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
-    uname_m = check_output("uname -m", shell=True).decode('utf-8').strip()
-    network_flags = get_ebpf_build_flags(target=["-target", "bpf"])
-    network_flags.append(f"-I{network_c_dir}")
-    network_flags.append(f"-D__{uname_m}__")
-
-    network_flags.append(f"-isystem /usr/include/{uname_m}-linux-gnu")
+    network_flags = get_http_prebuilt_build_flags(network_c_dir)
 
     build_network_ebpf_compile_file(
         ctx, False, build_dir, "http", True, network_prebuilt_dir, network_flags, extension=".o"
@@ -556,6 +564,12 @@ def build_http_ebpf_files(ctx, build_dir):
     )
 
 
+def get_network_build_flags(network_c_dir):
+    flags = get_ebpf_build_flags()
+    flags.append(f"-I{network_c_dir}")
+    return flags
+
+
 def build_network_ebpf_files(ctx, build_dir, parallel_build=True):
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
@@ -563,8 +577,7 @@ def build_network_ebpf_files(ctx, build_dir, parallel_build=True):
 
     compiled_programs = ["dns", "offset-guess", "tracer"]
 
-    network_flags = get_ebpf_build_flags()
-    network_flags.append(f"-I{network_c_dir}")
+    network_flags = get_network_build_flags(network_c_dir)
 
     flavor = []
     for prog in compiled_programs:
@@ -692,8 +705,7 @@ def build_object_files(ctx, parallel_build):
     print("checking for clang executable...")
     ctx.run("which clang")
 
-    bpf_dir = os.path.join(".", "pkg", "ebpf")
-    build_dir = os.path.join(bpf_dir, "bytecode", "build")
+    build_dir = os.path.join(".", "pkg", "ebpf", "bytecode", "build")
     build_runtime_dir = os.path.join(build_dir, "runtime")
 
     ctx.run(f"mkdir -p {build_dir}")
@@ -704,6 +716,20 @@ def build_object_files(ctx, parallel_build):
     build_security_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build)
 
     generate_runtime_files(ctx)
+
+    # We need to copy the bpf files out of the mounted build directory in order to be able to
+    # change their ownership to root
+    src_files = os.path.join(build_dir, "*")
+    bpf_dir = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
+
+    if not is_root():
+        ctx.sudo(f"mkdir -p {bpf_dir}")
+        ctx.sudo(f"cp -R {src_files} {bpf_dir}")
+        ctx.sudo(f"chown root:root -R {bpf_dir}")
+    else:
+        ctx.run(f"mkdir -p {bpf_dir}")
+        ctx.run(f"cp -R {src_files} {bpf_dir}")
+        ctx.run(f"chown root:root -R {bpf_dir}")
 
 
 @task

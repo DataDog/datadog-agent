@@ -35,17 +35,15 @@ func TestFormatHTTPStats(t *testing.T) {
 		http.MethodGet,
 	)
 	var httpStats1 http.RequestStats
-	for i := range httpStats1 {
-		httpStats1[i].Count = 1
-		httpStats1[i].FirstLatencySample = 10
+	for i := 100; i <= 500; i += 100 {
+		httpStats1.AddRequest(i, 10)
 	}
 
 	httpKey2 := httpKey1
 	httpKey2.Path = "/testpath-2"
 	var httpStats2 http.RequestStats
-	for i := range httpStats2 {
-		httpStats2[i].Count = 1
-		httpStats2[i].FirstLatencySample = 20
+	for i := 100; i <= 500; i += 100 {
+		httpStats2.AddRequest(i, 20)
 	}
 
 	in := &network.Connections{
@@ -59,9 +57,9 @@ func TestFormatHTTPStats(t *testing.T) {
 				},
 			},
 		},
-		HTTP: map[http.Key]http.RequestStats{
-			httpKey1: httpStats1,
-			httpKey2: httpStats2,
+		HTTP: map[http.Key]*http.RequestStats{
+			httpKey1: &httpStats1,
+			httpKey2: &httpStats2,
 		},
 	}
 	out := &model.HTTPAggregations{
@@ -105,11 +103,11 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 	httpReqStats.AddRequest(405, 3.5)
 
 	// Verify the latency data is correct prior to serialization
-	latencies := httpReqStats[model.HTTPResponseStatus_Info].Latencies
+	latencies := httpReqStats.Stats(int(model.HTTPResponseStatus_Info+1) * 100).Latencies
 	assert.Equal(t, 2.0, latencies.GetCount())
 	verifyQuantile(t, latencies, 0.5, 12.5)
 
-	latencies = httpReqStats[model.HTTPResponseStatus_ClientErr].Latencies
+	latencies = httpReqStats.Stats(int(model.HTTPResponseStatus_ClientErr+1) * 100).Latencies
 	assert.Equal(t, 2.0, latencies.GetCount())
 	verifyQuantile(t, latencies, 0.5, 3.5)
 
@@ -133,8 +131,8 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 				},
 			},
 		},
-		HTTP: map[http.Key]http.RequestStats{
-			key: httpReqStats,
+		HTTP: map[http.Key]*http.RequestStats{
+			key: &httpReqStats,
 		},
 	}
 	httpEncoder := newHTTPEncoder(payload)

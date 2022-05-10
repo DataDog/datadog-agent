@@ -28,15 +28,15 @@ var inferredSpan inferredspan.InferredSpan
 // OnInvokeStart is the hook triggered when an invocation has started
 func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails) {
 	log.Debug("[lifecycle] onInvokeStart ------")
-	log.Debug("[lifecycle] Invocation has started at :", startDetails.StartTime)
-	log.Debug("[lifecycle] Invocation invokeEvent payload is :", startDetails.InvokeEventRawPayload)
+	log.Debugf("[lifecycle] Invocation has started at: %v", startDetails.StartTime)
+	log.Debugf("[lifecycle] Invocation invokeEvent payload is: %s", startDetails.InvokeEventRawPayload)
 	log.Debug("[lifecycle] ---------------------------------------")
 
 	if !lp.DetectLambdaLibrary() {
 		if lp.InferredSpansEnabled {
 			log.Debug("[lifecycle] Attempting to create inferred span")
-			inferredSpan = inferredspan.GenerateInferredSpan(startDetails.StartTime)
-			inferredspan.DispatchInferredSpan(startDetails.InvokeEventRawPayload, inferredSpan)
+			inferredSpan.GenerateInferredSpan(startDetails.StartTime)
+			inferredSpan.DispatchInferredSpan(startDetails.InvokeEventRawPayload)
 		}
 
 		startExecutionSpan(startDetails.StartTime, startDetails.InvokeEventRawPayload, startDetails.InvokeEventHeaders, lp.InferredSpansEnabled)
@@ -46,8 +46,8 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 // OnInvokeEnd is the hook triggered when an invocation has ended
 func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 	log.Debug("[lifecycle] onInvokeEnd ------")
-	log.Debug("[lifecycle] Invocation has finished at :", endDetails.EndTime)
-	log.Debug("[lifecycle] Invocation isError is :", endDetails.IsError)
+	log.Debugf("[lifecycle] Invocation has finished at: %v", endDetails.EndTime)
+	log.Debugf("[lifecycle] Invocation isError is: %v", endDetails.IsError)
 	log.Debug("[lifecycle] ---------------------------------------")
 
 	if !lp.DetectLambdaLibrary() {
@@ -56,9 +56,12 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 
 		if lp.InferredSpansEnabled {
 			log.Debug("[lifecycle] Attempting to complete the inferred span")
-			inferredspan.CompleteInferredSpan(
-				lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, inferredSpan,
-			)
+			if inferredSpan.Span.Start != 0 {
+				inferredSpan.CompleteInferredSpan(lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, TraceID(), SamplingPriority())
+				log.Debugf("[lifecycle] The inferred span attributes are: %v", inferredSpan)
+			} else {
+				log.Debug("[lifecyle] Failed to complete inferred span due to a missing start time. Please check that the event payload was received with the appropriate data")
+			}
 		}
 	}
 

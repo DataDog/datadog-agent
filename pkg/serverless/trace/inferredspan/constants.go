@@ -5,34 +5,45 @@
 
 package inferredspan
 
-// Used for inferred span tagging and enrichment
 const (
-	OperationName    = "operation_name"
+	// APIID and below are used for inferred span
+	// tagging and enrichment
+	APIID            = "apiid"
+	APIName          = "apiname"
+	ConnectionID     = "connection_id"
+	Endpoint         = "endpoint"
+	EventType        = "event_type"
 	HTTP             = "http"
 	HTTPURL          = "http.url"
 	HTTPMethod       = "http.method"
 	HTTPProtocol     = "http.protocol"
 	HTTPSourceIP     = "http.source_ip"
 	HTTPUserAgent    = "http.user_agent"
-	Endpoint         = "endpoint"
-	ResourceNames    = "resource_names"
-	APIID            = "apiid"
-	APIName          = "apiname"
-	Stage            = "stage"
-	RequestID        = "request_id"
-	ConnectionID     = "connection_id"
-	EventType        = "event_type"
 	MessageDirection = "message_direction"
-	APIGATEWAY       = "apigateway"
-	HTTPAPI          = "http-api"
-	WEBSOCKET        = "websocket"
-	UNKNOWN          = "unknown"
+	MessageID        = "message_id"
+	OperationName    = "operation_name"
+	RequestID        = "request_id"
+	ResourceNames    = "resource_names"
+	Stage            = "stage"
+	Subject          = "subject"
+	TopicName        = "topicname"
+	TopicARN         = "topic_arn"
+	Type             = "type"
+	// APIGATEWAY and below are used for parsing
+	// and setting the event sources
+	APIGATEWAY = "apigateway"
+	HTTPAPI    = "http-api"
+	SNS        = "sns"
+	SNSType    = "aws:sns"
+	WEBSOCKET  = "websocket"
+	UNKNOWN    = "unknown"
 )
 
 // EventKeys are used to tell us what event type we received
 type EventKeys struct {
 	RequestContext RequestContextKeys `json:"requestContext"`
 	Headers        HeaderKeys         `json:"headers"`
+	Records        []*RecordKeys      `json:"Records"`
 	HTTPMethod     string             `json:"httpMethod"`
 	Path           string             `json:"path"`
 }
@@ -64,4 +75,19 @@ type HTTPKeys struct {
 	Protocol  string `json:"protocol"`
 	SourceIP  string `json:"sourceIp"`
 	UserAgent string `json:"userAgent"`
+}
+
+// RecordKeys holds the data for Records
+type RecordKeys struct {
+	EventSource string  `json:"EventSource"`
+	SNS         SNSKeys `json:"Sns"`
+}
+
+// SNSKeys holds the SNS data
+type SNSKeys struct {
+	MessageID string  `json:"MessageID"`
+	TopicArn  string  `json:"TopicArn"`
+	Type      string  `json:"Type"`
+	TimeStamp string  `json:"Timestamp"`
+	Subject   *string `json:"Subject"`
 }

@@ -47,12 +47,12 @@ type Serie struct {
 // https://github.com/DataDog/agent-payload/blob/master/proto/metrics/agent_payload.proto
 func (a APIMetricType) SeriesAPIV2Enum() int32 {
 	switch a {
-	case APIGaugeType:
-		return 0
-	case APIRateType:
-		return 2
 	case APICountType:
 		return 1
+	case APIRateType:
+		return 2
+	case APIGaugeType:
+		return 3
 	default:
 		panic("unknown APIMetricType")
 	}

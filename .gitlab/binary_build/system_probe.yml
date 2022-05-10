@@ -11,15 +11,12 @@
     - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -depth  # -delete implies -depth
     - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -delete || true  # Allow failure, we can't remove parent folders of datadog-agent
     - inv -e deps
-    - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/clang-$ARCH-11.0.1.tar.xz /tmp/clang.tar.xz
-    - mkdir -p $DATADOG_AGENT_EMBEDDED_PATH
-    - tar -xvf /tmp/clang.tar.xz -C $DATADOG_AGENT_EMBEDDED_PATH
     # Retrieve nikos from S3
     - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/nikos-$ARCH.tar.gz /tmp/nikos.tar.gz
     - mkdir -p $NIKOS_EMBEDDED_PATH
     - tar -xf /tmp/nikos.tar.gz -C $NIKOS_EMBEDDED_PATH
   script:
-    - inv -e system-probe.build --embedded-path=$DATADOG_AGENT_EMBEDDED_PATH --nikos-embedded-path=$NIKOS_EMBEDDED_PATH
+    - inv -e system-probe.build --nikos-embedded-path=$NIKOS_EMBEDDED_PATH
     # fail if references to glibc >= 2.18
     - objdump -p $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
     - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTIFACTS_URI/system-probe.$ARCH

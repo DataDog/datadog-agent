@@ -117,6 +117,8 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
 
         ctx.run(f"cp pkg/ebpf/bytecode/build/*.o {docker_context}")
         ctx.run(f"cp pkg/ebpf/bytecode/build/runtime/*.c {docker_context}")
+        ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {docker_context}")
+        ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {docker_context}")
 
         with ctx.cd(docker_context):
             # --pull in the build will force docker to grab the latest base image

@@ -2210,6 +2210,22 @@ api_key:
   #
   # kubernetes_service_name: "datadog-cluster-agent"
 
+  ## @param max_leader_connections - integer - optional - default: 500
+  ## Maximum number of connections between a follower and a leader.
+  #
+  # max_leader_connections: 500
+
+  ## @param max_leader_idle_connections - integer - optional - default: 50
+  ## Maximum number of idle connections between a follower and a leader.
+  #
+  # max_leader_idle_connections: 50
+
+  ## @param client_reconnect_period_seconds - integer - optional - default: 1200
+  ## Set the refersh period for Agent to Cluster Agent connection (new connection is created, old connection is closed).
+  ## Set to 0 to disable periodic reconnection.
+  #
+  # client_reconnect_period_seconds: 1200
+
   ## @param tagging_fallback - boolean - optional - default: false
   ## Set to true to enabled fallback to local metamapper when the connection with the Cluster Agent fails.
   #
@@ -3156,13 +3172,13 @@ api_key:
 
   ## @param metrics - custom object - optional
   ## Metrics-specific configuration for OTLP ingest in the Datadog Agent.
-  ## Note that these configuration options may change in future minor Agent versions.
   #
   # metrics:
 
     ## @param enabled - boolean - optional - default: true
     ## @env DD_OTLP_CONFIG_METRICS_ENABLED - boolean - optional - default: true
-    ## Whether to ingest metrics through the OTLP endpoint. Set to false to disable OTLP metrics ingest.
+    ## Set to false to disable metrics support in the OTLP ingest endpoint.
+    ## To enable the OTLP ingest, the otlp_config.receiver section must be set.
     #
     # enabled: true
 
@@ -3190,23 +3206,6 @@ api_key:
     ## (one per container instead of one per host). This may impact your custom metrics billing.
     #
     # tag_cardinality: low
-
-    ## @param report_quantiles - boolean - optional - default: true
-    ## @env DD_OTLP_CONFIG_METRICS_REPORT_QUANTILES - boolean - optional - default: true
-    ## DEPRECATED: [v7.36 / v6.36] Use `summaries.mode` instead. Will be removed in v7.37 / 6.36.
-    ## Whether to report quantile metrics for OTLP Summary points.
-    ## See https://docs.datadoghq.com/metrics/otlp/?tab=summary for more details.
-    #
-    # report_quantiles: true
-
-    ## @param send_monotonic_counter - boolean - optional - default: false
-    ## @env DD_OTLP_CONFIG_METRICS_SEND_MONOTONIC_COUNTER - boolean - optional - default: false
-    ## DEPRECATED: [v7.36] Use `sums.cumulative_monotonic_mode` instead. Will be removed in v7.37.
-    ## Whether to report monotonic metrics as counters or gauges (raw value).
-    ## See https://docs.datadoghq.com/integrations/guide/prometheus-metrics/#counter
-    ## for further details.
-    #
-    # send_monotonic_counter: true
 
     ## @param delta_ttl - int - optional - default: 3600
     ## @env DD_OTLP_CONFIG_METRICS_DELTA_TTL - int - optional - default: 3600
@@ -3268,7 +3267,8 @@ api_key:
 
     ## @param enabled - boolean - optional - default: true
     ## @env DD_OTLP_CONFIG_TRACES_ENABLED - boolean - optional - default: true
-    ## Whether to ingest traces through the OTLP endpoint. Set to false to disable OTLP traces ingest.
+    ## Set to false to disable traces support in the OTLP ingest endpoint.
+    ## To enable the OTLP ingest, the otlp_config.receiver section must be set.
     #
     # enabled: true
 

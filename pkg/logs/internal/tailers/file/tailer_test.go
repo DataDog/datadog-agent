@@ -243,8 +243,9 @@ func (suite *TailerTestSuite) TestOriginTagsWhenTailingFiles() {
 
 	msg := <-suite.outputChan
 	tags := msg.Origin.Tags()
-	suite.Equal(1, len(tags))
-	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
+	suite.ElementsMatch([]string{
+		"filename:" + filepath.Base(suite.testFile.Name()),
+	}, tags)
 }
 
 func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
@@ -262,9 +263,10 @@ func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 
 	msg := <-suite.outputChan
 	tags := msg.Origin.Tags()
-	suite.Equal(2, len(tags))
-	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
-	suite.Equal("dirname:"+filepath.Dir(suite.testFile.Name()), tags[1])
+	suite.ElementsMatch([]string{
+		"filename:" + filepath.Base(suite.testFile.Name()),
+		"dirname:" + filepath.Dir(suite.testFile.Name()),
+	}, tags)
 }
 
 func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
@@ -278,8 +280,9 @@ func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
 	suite.tailer.StartFromBeginning()
 
 	tags := suite.tailer.buildTailerTags()
-	suite.Equal(1, len(tags))
-	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
+	suite.ElementsMatch([]string{
+		"filename:" + filepath.Base(suite.testFile.Name()),
+	}, tags)
 }
 
 func (suite *TailerTestSuite) TestBuildTagsFileDir() {
@@ -292,9 +295,10 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 	suite.tailer.StartFromBeginning()
 
 	tags := suite.tailer.buildTailerTags()
-	suite.Equal(2, len(tags))
-	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
-	suite.Equal("dirname:"+filepath.Dir(suite.testFile.Name()), tags[1])
+	suite.ElementsMatch([]string{
+		"filename:" + filepath.Base(suite.testFile.Name()),
+		"dirname:" + filepath.Dir(suite.testFile.Name()),
+	}, tags)
 }
 
 func (suite *TailerTestSuite) TestMutliLineAutoDetect() {

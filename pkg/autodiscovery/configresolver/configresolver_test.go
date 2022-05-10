@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 
 	// we need some valid check in the catalog to run tests
@@ -91,6 +92,10 @@ func (s *dummyService) HasFilter(filter containers.FilterType) bool {
 // GetExtraConfig returns extra configuration
 func (s *dummyService) GetExtraConfig(key string) (string, error) {
 	return s.ExtraConfig[key], nil
+}
+
+// FilterConfigs does nothing.
+func (s *dummyService) FilterTemplates(map[string]integration.Config) {
 }
 
 func TestGetFallbackHost(t *testing.T) {
@@ -718,6 +723,77 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("host_ipv4: 192.168.0.1\nhost_ipv6: fd::1\ntags:\n- foo:bar\nurl_ipv4: http://192.168.0.1:3/data\nurl_ipv6: http://[fd::1]:3/data\n")},
 				ServiceID:     "a5901276aed1",
+			},
+		},
+		{
+			testName: "logs config in yaml from file",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hosts:         map[string]string{"bridge": "127.0.0.1"},
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: %%host%%\n")},
+				LogsConfig:    integration.Data("logs:\n- log_processing_rules:\n  - name: numbers\n    pattern: ^[0-9]+$\n    type: include_at_match\n  type: docker\n"),
+				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
+				Provider:      names.File,
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n- foo:bar\n")},
+				LogsConfig:    integration.Data("logs:\n- log_processing_rules:\n  - name: numbers\n    pattern: ^[0-9]+$\n    type: include_at_match\n  type: docker\n"),
+				ServiceID:     "a5901276aed1",
+				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
+				Provider:      names.File,
+			},
+		},
+		{
+			testName: "logs config in json from container",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hosts:         map[string]string{"bridge": "127.0.0.1"},
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: %%host%%\n")},
+				LogsConfig:    integration.Data(`[{"service":"any_service","source":"any_source","tags":["a","b:d"]}]`),
+				Provider:      names.Container,
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n- foo:bar\n")},
+				LogsConfig:    integration.Data(`[{"service":"any_service","source":"any_source","tags":["a","b:d"]}]`),
+				ServiceID:     "a5901276aed1",
+				Provider:      names.Container,
+			},
+		},
+		{
+			testName: "logs config in json from kubernetes",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hosts:         map[string]string{"bridge": "127.0.0.1"},
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: %%host%%\n")},
+				LogsConfig:    integration.Data(`[{"service":"any_service","source":"any_source","tags":["a","b:d"]}]`),
+				Provider:      names.Kubernetes,
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n- foo:bar\n")},
+				LogsConfig:    integration.Data(`[{"service":"any_service","source":"any_source","tags":["a","b:d"]}]`),
+				ServiceID:     "a5901276aed1",
+				Provider:      names.Kubernetes,
 			},
 		},
 	}

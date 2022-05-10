@@ -31,23 +31,6 @@
 # error "kernel version not included?"
 #endif
 
-static __always_inline __be32 rt_nexthop_bpf(struct rtable *rt) {
-    if (!rt) {
-        return 0;
-    }
-    __be32 hop = 0;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
-    bpf_probe_read(&hop, sizeof(hop), &rt->rt_gateway);
-#else
-    u8 family;
-    bpf_probe_read(&family, sizeof(family), &rt->rt_gw_family);
-    if (family == AF_INET) {
-        bpf_probe_read(&hop, sizeof(hop), &rt->rt_gw4);
-    }
-#endif
-    return hop;
-}
-
 static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* skp) {
     __u32 rtt = 0;
     __u32 rtt_var = 0;

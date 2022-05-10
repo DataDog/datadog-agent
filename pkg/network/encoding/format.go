@@ -129,7 +129,7 @@ func returnToPool(c *model.Connections) {
 }
 
 func formatAddr(addr util.Address, port uint16, ipc ipCache) *model.Addr {
-	if addr == nil {
+	if addr.IsZero() {
 		return nil
 	}
 

@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 
 	"github.com/stretchr/testify/assert"
@@ -70,10 +71,10 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 	}
 	testProcessor.OnInvokeStart(&startDetails)
 
-	assert.NotEqual(t, uint64(0), currentExecutionInfo.spanID)
+	assert.Equal(t, uint64(0), currentExecutionInfo.spanID)
 	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.traceID)
 	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
-	assert.Equal(t, sampler.SamplingPriority(1), *currentExecutionInfo.samplingPriority)
+	assert.Equal(t, sampler.SamplingPriority(1), currentExecutionInfo.samplingPriority)
 	assert.Equal(t, startInvocationTime, currentExecutionInfo.startTime)
 }
 
@@ -127,7 +128,7 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 		traceID:          123,
 		spanID:           1,
 		parentID:         3,
-		samplingPriority: &samplingPriority,
+		samplingPriority: samplingPriority,
 	}
 
 	testProcessor := LifecycleProcessor{
@@ -146,7 +147,7 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 	assert.Equal(t, currentExecutionInfo.traceID, executionSpan.TraceID)
 	assert.Equal(t, currentExecutionInfo.spanID, executionSpan.SpanID)
 	assert.Equal(t, currentExecutionInfo.parentID, executionSpan.ParentID)
-	assert.Equal(t, int32(*currentExecutionInfo.samplingPriority), executionChunkPriority)
+	assert.Equal(t, int32(currentExecutionInfo.samplingPriority), executionChunkPriority)
 	assert.Equal(t, startInvocationTime.UnixNano(), executionSpan.Start)
 	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
 }
@@ -182,4 +183,95 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 	testProcessor.OnInvokeEnd(&endDetails)
 
 	assert.Equal(t, (*api.Payload)(nil), tracePayload)
+}
+
+func TestCompleteInferredSpanWithStartTime(t *testing.T) {
+	defer os.Unsetenv(functionNameEnvVar)
+	os.Setenv(functionNameEnvVar, "TestFunction")
+
+	extraTags := &logs.Tags{
+		Tags: []string{"functionname:test-function"},
+	}
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	mockDetectLambdaLibrary := func() bool { return false }
+
+	var tracePayload *api.Payload
+	mockProcessTrace := func(payload *api.Payload) {
+		tracePayload = payload
+	}
+	startInferredSpan := time.Now()
+	startInvocationTime := startInferredSpan.Add(250 * time.Millisecond)
+	duration := 1 * time.Second
+	endInvocationTime := startInvocationTime.Add(duration)
+	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: false}
+	samplingPriority := sampler.SamplingPriority(1)
+	currentExecutionInfo = executionStartInfo{
+		startTime:        startInvocationTime,
+		traceID:          123,
+		spanID:           1,
+		parentID:         3,
+		samplingPriority: samplingPriority,
+	}
+
+	testProcessor := LifecycleProcessor{
+		ExtraTags:            extraTags,
+		ProcessTrace:         mockProcessTrace,
+		DetectLambdaLibrary:  mockDetectLambdaLibrary,
+		Demux:                demux,
+		InferredSpansEnabled: true,
+	}
+
+	inferredSpan.Span = &pb.Span{TraceID: 123, SpanID: 3, Start: startInferredSpan.UnixNano()}
+
+	testProcessor.OnInvokeEnd(&endDetails)
+
+	completedInferredSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	assert.Equal(t, inferredSpan.Span.Start, completedInferredSpan.Start)
+}
+
+func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
+	defer os.Unsetenv(functionNameEnvVar)
+	os.Setenv(functionNameEnvVar, "TestFunction")
+
+	extraTags := &logs.Tags{
+		Tags: []string{"functionname:test-function"},
+	}
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	mockDetectLambdaLibrary := func() bool { return false }
+
+	var tracePayload *api.Payload
+	mockProcessTrace := func(payload *api.Payload) {
+		tracePayload = payload
+	}
+	startInferredSpan := int64(0)
+	startInvocationTime := time.Now()
+	duration := 1 * time.Second
+	endInvocationTime := startInvocationTime.Add(duration)
+	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: false}
+	samplingPriority := sampler.SamplingPriority(1)
+	currentExecutionInfo = executionStartInfo{
+		startTime:        startInvocationTime,
+		traceID:          123,
+		spanID:           1,
+		parentID:         3,
+		samplingPriority: samplingPriority,
+	}
+
+	testProcessor := LifecycleProcessor{
+		ExtraTags:            extraTags,
+		ProcessTrace:         mockProcessTrace,
+		DetectLambdaLibrary:  mockDetectLambdaLibrary,
+		Demux:                demux,
+		InferredSpansEnabled: true,
+	}
+
+	inferredSpan.Span = &pb.Span{TraceID: 123, SpanID: 3, Start: startInferredSpan}
+
+	testProcessor.OnInvokeEnd(&endDetails)
+
+	// If our logic is correct this will actually be the execution span
+	// and the start time is expected to be the invocation start time,
+	// not the inferred span start time.
+	completedInferredSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	assert.Equal(t, startInvocationTime.UnixNano(), completedInferredSpan.Start)
 }

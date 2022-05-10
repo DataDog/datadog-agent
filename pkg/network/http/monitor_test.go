@@ -31,7 +31,17 @@ func TestHTTPMonitorIntegration(t *testing.T) {
 
 	targetAddr := "localhost:8080"
 	serverAddr := "localhost:8080"
-	testHTTPMonitor(t, targetAddr, serverAddr, 100)
+
+	t.Run("with keep-alives", func(t *testing.T) {
+		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
+			EnableKeepAlives: true,
+		})
+	})
+	t.Run("without keep-alives", func(t *testing.T) {
+		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
+			EnableKeepAlives: false,
+		})
+	})
 }
 
 func TestHTTPMonitorIntegrationWithNAT(t *testing.T) {
@@ -47,7 +57,16 @@ func TestHTTPMonitorIntegrationWithNAT(t *testing.T) {
 
 	targetAddr := "2.2.2.2:8080"
 	serverAddr := "1.1.1.1:8080"
-	testHTTPMonitor(t, targetAddr, serverAddr, 10)
+	t.Run("with keep-alives", func(t *testing.T) {
+		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
+			EnableKeepAlives: true,
+		})
+	})
+	t.Run("without keep-alives", func(t *testing.T) {
+		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
+			EnableKeepAlives: false,
+		})
+	})
 }
 
 func TestUnknownMethodRegression(t *testing.T) {
@@ -98,12 +117,8 @@ func TestUnknownMethodRegression(t *testing.T) {
 
 }
 
-func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int) {
-	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
-		EnableTLS:        false,
-		EnableKeepAlives: false,
-	})
-	defer srvDoneFn()
+func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o testutil.Options) {
+	srvDoneFn := testutil.HTTPServer(t, serverAddr, o)
 
 	monitor, err := NewMonitor(config.New(), nil, nil)
 	require.NoError(t, err)
@@ -117,6 +132,7 @@ func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int) {
 	for i := 0; i < numReqs; i++ {
 		requests = append(requests, requestFn())
 	}
+	srvDoneFn()
 
 	// Ensure all captured transactions get sent to user-space
 	time.Sleep(10 * time.Millisecond)
@@ -152,11 +168,10 @@ func requestGenerator(t *testing.T, targetAddr string) func() *nethttp.Request {
 	}
 }
 
-func includesRequest(t *testing.T, allStats map[Key]RequestStats, req *nethttp.Request) {
+func includesRequest(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.Request) {
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	for key, stats := range allStats {
-		i := expectedStatus/100 - 1
-		if key.Path == req.URL.Path && stats[i].Count == 1 {
+		if key.Path == req.URL.Path && stats.HasStats(expectedStatus) {
 			return
 		}
 	}

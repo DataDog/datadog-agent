@@ -315,9 +315,6 @@ def build_functional_tests(
 
     if static:
         build_tags.extend(["osusergo", "netgo"])
-        if "CGO_CPPFLAGS" not in env:
-            env["CGO_CPPFLAGS"] = ""
-        env["CGO_CPPFLAGS"] += "-DSKIP_GLIBC_WRAPPER"
 
     if not skip_linters:
         targets = ['./pkg/security/tests']
@@ -487,7 +484,7 @@ ENV DOCKER_DD_AGENT=yes
 RUN dpkg --add-architecture i386
 
 RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends xfsprogs ca-certificates \
+    && apt-get install -y --no-install-recommends xfsprogs ca-certificates iproute2 \
     && rm -rf /var/lib/apt/lists/*
     """
 

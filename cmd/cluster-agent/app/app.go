@@ -55,7 +55,7 @@ import (
 // loggerName is the name of the cluster agent logger
 const loggerName config.LoggerName = "CLUSTER"
 
-// FIXME: move LoadComponents and StartAutoConfig in their own package so we don't import cmd/agent
+// FIXME: move LoadComponents and AC.LoadAndRun in their own package so we don't import cmd/agent
 var (
 	ClusterAgentCmd = &cobra.Command{
 		Use:   "datadog-cluster-agent [command]",
@@ -284,7 +284,7 @@ func start(cmd *cobra.Command, args []string) error {
 	// create and setup the Autoconfig instance
 	common.LoadComponents(mainCtx, config.Datadog.GetString("confd_path"))
 	// start the autoconfig, this will immediately run any configured check
-	common.StartAutoConfig()
+	common.AC.LoadAndRun()
 
 	if config.Datadog.GetBool("cluster_checks.enabled") {
 		// Start the cluster check Autodiscovery
