@@ -273,7 +273,7 @@ func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
 	testProcessor.OnInvokeEnd(&endDetails)
 
 	// If our logic is correct this will actually be the execution span
-	// and the start time is expected to be the invocation start,
+	// and the start time is expected to be the invocation start time,
 	// not the inferred span start time.
 	completedInferredSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	t.Log(tracePayload.TracerPayload)
