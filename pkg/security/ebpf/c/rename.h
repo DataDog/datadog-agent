@@ -41,6 +41,11 @@ SYSCALL_KPROBE0(renameat2) {
     return trace__sys_rename();
 }
 
+SEC("kprobe/do_renameat2")
+int kprobe_do_renameat2(struct pt_regs *ctx) {
+    return trace__sys_rename();
+}
+
 SEC("kprobe/vfs_rename")
 int kprobe_vfs_rename(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
@@ -149,6 +154,12 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
     // if the tail call failed we need to pop the syscall cache entry
     pop_syscall(EVENT_RENAME);
     return 0;
+}
+
+SEC("kretprobe/do_renameat2")
+int kretprobe_do_renameat2(struct pt_regs *ctx) {
+    int retval = PT_REGS_RC(ctx);
+    return sys_rename_ret(ctx, retval, DR_KPROBE);
 }
 
 int __attribute__((always_inline)) kprobe_sys_rename_ret(struct pt_regs *ctx) {
