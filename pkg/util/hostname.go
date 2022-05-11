@@ -269,15 +269,20 @@ func GetHostnameData(ctx context.Context) (HostnameData, error) {
 	// at this point we've either the hostname from the os or an empty string
 	// ------------------------
 
-	// We use the instance id if we're on an ECS cluster or we're on EC2
-	// and the hostname is one of the default ones
+	// We use the instance id if we're on an ECS cluster or we're on EC2 and the hostname is one of the default ones
+	// or ec2_prioritize_instance_id_as_hostname is set to true
+	prioritizeEC2Hostname := config.Datadog.GetBool("ec2_prioritize_instance_id_as_hostname")
 	if getEC2Hostname := hostname.GetProvider("ec2"); getEC2Hostname != nil {
 		log.Debug("GetHostname trying EC2 metadata...")
 
-		if ecs.IsECSInstance() || ec2.IsDefaultHostname(hostName) {
+		if ecs.IsECSInstance() || ec2.IsDefaultHostname(hostName) || prioritizeEC2Hostname {
 			ec2Hostname, err := getValidEC2Hostname(ctx, getEC2Hostname)
 
 			if err == nil {
+				if prioritizeEC2Hostname {
+					return saveHostnameData(cacheHostnameKey, ec2Hostname, "aws"), nil
+				}
+
 				hostName = ec2Hostname
 				provider = "aws"
 			} else {
@@ -307,6 +312,10 @@ func GetHostnameData(ctx context.Context) (HostnameData, error) {
 				}
 			}
 		}
+	} else if prioritizeEC2Hostname {
+		expErr := new(expvar.String)
+		expErr.Set("ec2 hostname provider is not enabled despite ec2_prioritize_instance_id_as_hostname being set to true")
+		hostnameErrors.Set("forced EC2 hostname", expErr)
 	}
 
 	if getAzureHostname := hostname.GetProvider("azure"); getAzureHostname != nil {
