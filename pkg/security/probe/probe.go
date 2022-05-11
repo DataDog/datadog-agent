@@ -82,6 +82,7 @@ type Probe struct {
 	inodeDiscarders    *inodeDiscarders
 	flushingDiscarders int64
 	approvers          map[eval.EventType]activeApprovers
+	discarderRate      *utils.RateLimiter
 
 	constantOffsets map[string]uint64
 
@@ -771,6 +772,10 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 		return nil
 	}
 
+	if !p.discarderRate.Allow(event.TimestampRaw) {
+		return nil
+	}
+
 	seclog.Tracef("New discarder of type %s for field %s", eventType, field)
 
 	if handler, ok := allDiscarderHandlers[eventType]; ok {
@@ -1179,6 +1184,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		discarderReq:   newDiscarderRequest(),
 		tcPrograms:     make(map[NetDeviceKey]*manager.Probe),
 		statsdClient:   statsdClient,
+		discarderRate:  utils.NewRateLimiter(time.Second, 100),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
