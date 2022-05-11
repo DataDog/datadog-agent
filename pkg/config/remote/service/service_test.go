@@ -204,8 +204,8 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 	assert.Equal(t, 1*time.Second, refreshInterval)
 }
 
-func customMeta(predicates []*ClientPredicate) *json.RawMessage {
-	data, err := json.Marshal(DirectorTargetsCustomMetadata{Predicates: &Predicates{Predicates: predicates}})
+func customMeta(predicates []*clientPredicate) *json.RawMessage {
+	data, err := json.Marshal(DirectorTargetsCustomMetadata{Predicates: &clientPredicates{Predicates: predicates}})
 	if err != nil {
 		panic(err)
 	}
@@ -329,7 +329,8 @@ func TestService(t *testing.T) {
 
 // Test for client predicates
 func TestServiceClientPredicates(t *testing.T) {
-	const clientID = "client-id"
+	clientID := "client-id"
+	clientIDFail := clientID + "_fail"
 
 	assert := assert.New(t)
 	clock := clock.NewMock()
@@ -356,23 +357,24 @@ func TestServiceClientPredicates(t *testing.T) {
 	uptaneClient.On("TargetsMeta").Return([]byte(`testtargets`), nil)
 	uptaneClient.On("TargetsCustom").Return([]byte(`{"client_state":"test_state"}`), nil)
 
+	wrongServiceName := "wrong-service"
 	uptaneClient.On("Targets").Return(data.TargetFiles{
 		// must be delivered
-		"datadog/2/APM_SAMPLING/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*ClientPredicate{})}},
-		"datadog/2/APM_SAMPLING/id/2": {FileMeta: data.FileMeta{Custom: customMeta([]*ClientPredicate{
+		"datadog/2/APM_SAMPLING/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*clientPredicate{})}},
+		"datadog/2/APM_SAMPLING/id/2": {FileMeta: data.FileMeta{Custom: customMeta([]*clientPredicate{
 			{
-				ClientID: clientID,
+				RuntimeID: &clientID,
 			},
 		})}},
 		// must not be delivered
-		"datadog/2/TESTING1/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*ClientPredicate{
+		"datadog/2/TESTING1/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*clientPredicate{
 			{
-				ClientID: clientID + "_fail",
+				RuntimeID: &clientIDFail,
 			},
 		})}},
-		"datadog/2/APPSEC/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*ClientPredicate{
+		"datadog/2/APPSEC/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*clientPredicate{
 			{
-				Service: "wrong-service",
+				Service: &wrongServiceName,
 			},
 		})}}},
 		nil,

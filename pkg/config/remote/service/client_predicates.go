@@ -5,27 +5,27 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/Masterminds/semver"
 	"github.com/theupdateframework/go-tuf/data"
 )
 
-type ClientPredicate struct {
-	ClientID      string `json:"client_id,omitempty"`
-	Service       string `json:"service,omitempty"`
-	Environment   string `json:"environment,omitempty"`
-	AppVersion    string `json:"app_version,omitempty"`
-	TracerVersion string `json:"tracer_version,omitempty"`
-	Product       string `json:"product,omitempty"`
-	Language      string `json:"language,omitempty"`
+type clientPredicate struct {
+	RuntimeID     *string `json:"runtime-id,omitempty"`
+	Service       *string `json:"service,omitempty"`
+	Environment   *string `json:"environment,omitempty"`
+	AppVersion    *string `json:"app-version,omitempty"`
+	TracerVersion *string `json:"tracer-version,omitempty"`
+	Language      *string `json:"language,omitempty"`
 }
 
-type Predicates struct {
+type clientPredicates struct {
 	Version    int                `json:"version,omitempty"`
-	Predicates []*ClientPredicate `json:"predicates,omitempty"`
+	Predicates []*clientPredicate `json:"predicates,omitempty"`
 }
 
 type DirectorTargetsCustomMetadata struct {
-	Predicates *Predicates `json:"predicates,omitempty"`
+	Predicates *clientPredicates `json:"tracer-predicates,omitempty"`
 }
 
 // Given the hostname and state will parse predicates and execute them
@@ -60,7 +60,7 @@ func executeClientPredicates(
 	return configPointers, nil
 }
 
-func parsePredicates(customJSON *json.RawMessage) (*Predicates, error) {
+func parsePredicates(customJSON *json.RawMessage) (*clientPredicates, error) {
 	if customJSON == nil {
 		return nil, nil
 	}
@@ -72,71 +72,59 @@ func parsePredicates(customJSON *json.RawMessage) (*Predicates, error) {
 	return metadata.Predicates, nil
 }
 
-func executePredicate(client *pbgo.Client, predicates []*ClientPredicate) (bool, error) {
+func executePredicate(client *pbgo.Client, predicates []*clientPredicate) (bool, error) {
 	for _, predicate := range predicates {
 		if client.IsTracer {
 			tracer := client.ClientTracer
-			if predicate.ClientID != "" {
-				if tracer.RuntimeId != predicate.ClientID {
+			if predicate.RuntimeID != nil {
+				if tracer.RuntimeId != *predicate.RuntimeID {
 					return false, nil
 				}
 			}
 
-			if predicate.Service != "" {
-				if tracer.Service != predicate.Service {
+			if predicate.Service != nil {
+				if tracer.Service != *predicate.Service {
 					return false, nil
 				}
 			}
 
-			if predicate.Environment != "" {
-				if tracer.Env != predicate.Environment {
+			if predicate.Environment != nil {
+				if tracer.Env != *predicate.Environment {
 					return false, nil
 				}
 			}
 
-			if predicate.Language == "" {
-				if tracer.Language != predicate.Language {
+			if predicate.Language != nil {
+				if tracer.Language != *predicate.Language {
 					return false, nil
 				}
 			}
 
-			if predicate.AppVersion != "" {
-				if predicate.AppVersion != tracer.AppVersion {
+			if predicate.AppVersion != nil {
+				if tracer.AppVersion != *predicate.AppVersion {
 					return false, nil
 				}
 			}
 
-			if predicate.TracerVersion != "" {
+			if predicate.TracerVersion != nil {
 				version, err := semver.NewVersion(tracer.TracerVersion)
 				if err != nil {
 					return false, err
 				}
-				versionConstraint, err := semver.NewConstraint(predicate.TracerVersion)
+				versionConstraint, err := semver.NewConstraint(*predicate.TracerVersion)
 				if err != nil {
 					return false, err
 				}
 
 				matched, errs := versionConstraint.Validate(version)
-				if !matched || errs != nil {
+				if len(errs) != 0 {
 					return false, fmt.Errorf("errors: %s", errs)
 				}
-			}
-
-		}
-
-		if predicate.Product != "" {
-			var anyMatch bool
-			for _, p := range client.Products {
-				if p == predicate.Product {
-					anyMatch = true
-					break
+				if !matched || len(errs) > 0 {
+					return false, nil
 				}
 			}
-			if !anyMatch {
-				return false, nil
-			}
 		}
-
 	}
 
 	return true, nil
