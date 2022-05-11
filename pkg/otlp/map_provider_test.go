@@ -9,12 +9,12 @@
 package otlp
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config"
-	"go.opentelemetry.io/collector/config/configunmarshaler"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -248,7 +248,7 @@ func TestNewMap(t *testing.T) {
 }
 
 func TestUnmarshal(t *testing.T) {
-	cfg, err := buildMap(PipelineConfig{
+	provider, err := newMapProvider(PipelineConfig{
 		OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 4317, 4318),
 		TracePort:          5001,
 		MetricsEnabled:     true,
@@ -269,7 +269,6 @@ func TestUnmarshal(t *testing.T) {
 	components, err := getComponents(&serializer.MockSerializer{})
 	require.NoError(t, err)
 
-	cu := configunmarshaler.NewDefault()
-	_, err = cu.Unmarshal(cfg, components)
+	_, err = provider.Get(context.Background(), components)
 	require.NoError(t, err)
 }

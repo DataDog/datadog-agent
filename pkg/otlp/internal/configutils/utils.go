@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/config"
-	"go.opentelemetry.io/collector/config/configunmarshaler"
 	"go.opentelemetry.io/collector/service"
 	"gopkg.in/yaml.v2"
 )
@@ -71,7 +70,6 @@ func NewConfigProviderFromMap(cfg *config.Map) service.ConfigProvider {
 			"map": provider,
 		},
 		MapConverters: []config.MapConverterFunc{},
-		Unmarshaler:   configunmarshaler.NewDefault(),
 	}
 	cp, err := service.NewConfigProvider(settings)
 	if err != nil {
