@@ -58,6 +58,16 @@ func buildWorkloadMetaContainer(container containerd.Container, containerdClient
 		status = containerd.Unknown
 	}
 
+	networkIPs := make(map[string]string)
+	ip, err := extractIP(container, containerdClient)
+	if err != nil {
+		log.Debugf("cannot get IP of container %s", err)
+	} else if ip == "" {
+		log.Debugf("no IPs for container")
+	} else {
+		networkIPs[""] = ip
+	}
+
 	// Some attributes in workloadmeta.Container cannot be fetched from
 	// containerd. I've marked those as "Not available".
 	return workloadmeta.Container{
@@ -80,7 +90,7 @@ func buildWorkloadMetaContainer(container containerd.Container, containerdClient
 			StartedAt:  info.CreatedAt, // StartedAt not available in containerd, mapped to CreatedAt
 			FinishedAt: time.Time{},    // Not available
 		},
-		NetworkIPs: make(map[string]string), // Not available
+		NetworkIPs: networkIPs,
 		Hostname:   spec.Hostname,
 		PID:        0, // Not available
 	}, nil
