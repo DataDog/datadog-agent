@@ -115,8 +115,8 @@ if node['platform_family'] != 'windows'
       ADD nikos.tar.gz /opt/datadog-agent/embedded/nikos/embedded/
 
       RUN mkdir -p /opt/datadog-agent/embedded/bin
-      COPY clang-btf /opt/datadog-agent/embedded/bin/
-      COPY llc-btf /opt/datadog-agent/embedded/bin/
+      COPY clang-bpf /opt/datadog-agent/embedded/bin/
+      COPY llc-bpf /opt/datadog-agent/embedded/bin/
 
       RUN yum -y install xfsprogs e2fsprogs iproute
       CMD sleep 7200
