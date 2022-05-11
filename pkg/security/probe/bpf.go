@@ -9,7 +9,8 @@
 package probe
 
 import (
-	internal "github.com/DataDog/btf-internals"
+	"errors"
+
 	"github.com/DataDog/btf-internals/sys"
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
@@ -38,7 +39,7 @@ func haveMmapableMaps() error {
 		MapFlags:   unix.BPF_F_MMAPABLE,
 	})
 	if err != nil {
-		return internal.ErrNotSupported
+		return errors.New("not supported")
 	}
 	_ = m.Close()
 	return nil
