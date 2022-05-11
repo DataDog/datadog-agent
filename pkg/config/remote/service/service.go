@@ -286,10 +286,22 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 		return nil, err
 	}
 
+	// filter files to only return the configPointers ones
+	configsMap := make(map[string]interface{})
+	for _, configPointer := range configPointers {
+		configsMap[configPointer.Path] = struct{}{}
+	}
+	filteredFiles := make([]*pbgo.File, 0, len(configPointers))
+	for _, targetFile := range targetFiles {
+		if _, ok := configsMap[targetFile.Path]; ok {
+			filteredFiles = append(filteredFiles, targetFile)
+		}
+	}
+
 	return &pbgo.ClientGetConfigsResponse{
 		Roots:         roots,
 		Targets:       targetsRaw,
-		TargetFiles:   targetFiles,
+		TargetFiles:   filteredFiles,
 		ClientConfigs: configPointers,
 	}, nil
 }
