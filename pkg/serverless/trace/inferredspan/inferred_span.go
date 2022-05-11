@@ -161,5 +161,5 @@ func (inferredSpan *InferredSpan) GenerateInferredSpan(startTime time.Time) {
 // IsInferredSpansEnabled is used to determine if we need to
 // generate and enrich inferred spans for a particular invocation
 func IsInferredSpansEnabled() bool {
-	return config.Datadog.GetBool("trace_enabled") && config.Datadog.GetBool("trace_managed_services")
+	return config.Datadog.GetBool("serverless.trace_enabled") && config.Datadog.GetBool("serverless.trace_managed_services")
 }
