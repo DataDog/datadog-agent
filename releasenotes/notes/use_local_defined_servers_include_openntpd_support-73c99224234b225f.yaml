@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Include `/etc/ntpd.conf` and `/etc/openntpd/ntpd.conf` for `use_local_defined_servers`
+    NTP check: Include ``/etc/ntpd.conf`` and ``/etc/openntpd/ntpd.conf`` for ``use_local_defined_servers``.
