@@ -27,7 +27,19 @@ if node['platform_family'] != 'windows'
     action :create
   end
 
+  cookbook_file "#{wrk_dir}/clang-bpf" do
+    source "clang-bpf"
+    mode '0744'
+    action :create
+  end
+
   cookbook_file "/opt/datadog-agent/embedded/bin/llc-bpf" do
+    source "llc-bpf"
+    mode '0744'
+    action :create
+  end
+
+  cookbook_file "#{wrk_dir}/llc-bpf" do
     source "llc-bpf"
     mode '0744'
     action :create
@@ -97,8 +109,15 @@ if node['platform_family'] != 'windows'
     file "#{wrk_dir}/Dockerfile" do
       content <<-EOF
       FROM centos:7
+
       ENV DOCKER_DD_AGENT=yes
+
       ADD nikos.tar.gz /opt/datadog-agent/embedded/nikos/embedded/
+
+      RUN mkdir -p /opt/datadog-agent/embedded/bin
+      COPY clang-btf /opt/datadog-agent/embedded/bin/
+      COPY llc-btf /opt/datadog-agent/embedded/bin/
+
       RUN yum -y install xfsprogs e2fsprogs iproute
       CMD sleep 7200
       EOF
@@ -118,7 +137,6 @@ if node['platform_family'] != 'windows'
       volumes [
         # security-agent misc
         '/tmp/security-agent:/tmp/security-agent',
-        '/opt/datadog-agent/embedded/bin:/opt/datadog-agent/embedded/bin',
         # HOST_* paths
         '/proc:/host/proc',
         '/etc:/host/etc',
