@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package module
+package probe
 
 import (
 	"fmt"
@@ -16,7 +16,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
+
+	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -46,13 +48,24 @@ type SelfTester struct {
 	eventChan       chan selfTestEvent
 	targetFilePath  string
 	targetTempDir   string
+	success         []string
+	fails           []string
+	lastTimestamp   time.Time
 }
 
 // NewSelfTester returns a new SelfTester, enabled or not
 func NewSelfTester() *SelfTester {
 	return &SelfTester{
-		waitingForEvent: 0,
-		eventChan:       make(chan selfTestEvent, 10),
+		eventChan: make(chan selfTestEvent, 10),
+	}
+}
+
+// GetStatus returns the result of the last performed self tests
+func (t *SelfTester) GetStatus() *api.SelfTestsStatus {
+	return &api.SelfTestsStatus{
+		LastTimestamp: t.lastTimestamp.Format(time.RFC822),
+		Success:       t.success,
+		Fails:         t.fails,
 	}
 }
 
@@ -110,33 +123,47 @@ func (t *SelfTester) AddSelfTestRulesToRuleSets(ruleSet, approverRuleSet *rules.
 
 	_, rules, merr := selfTestPolicy.GetValidMacroAndRules()
 	if merr.ErrorOrNil() != nil {
-		logMultiErrors("error while loading additional policies", merr)
+		seclog.RuleLoadingErrors("error while loading additional policies", merr)
 	}
 
 	if len(rules) != 0 {
 		if merr := ruleSet.AddRules(rules); merr.ErrorOrNil() != nil {
-			logMultiErrors("error while loading additional policies", merr)
+			seclog.RuleLoadingErrors("error while loading additional policies", merr)
 		}
 
 		if merr := approverRuleSet.AddRules(rules); merr.ErrorOrNil() != nil {
-			logMultiErrors("error while loading additional policies", merr)
+			seclog.RuleLoadingErrors("error while loading additional policies", merr)
 		}
 	}
 }
 
-// RunSelfTest runs the self test
-func (t *SelfTester) RunSelfTest() error {
+// RunSelfTest runs the self test and return the result
+func (t *SelfTester) RunSelfTest() ([]string, []string, error) {
 	if err := t.BeginWaitingForEvent(); err != nil {
-		return errors.Wrap(err, "failed to run self test")
+		return nil, nil, errors.Wrap(err, "failed to run self test")
 	}
 	defer t.EndWaitingForEvent()
 
+	t.lastTimestamp = time.Now()
+
+	// launch the self tests
+	var lastErr error
+	var success []string
+	var fails []string
 	for _, fn := range SelfTestFunctions {
-		if err := fn(t); err != nil {
-			return err
+		if err := fn.fn(t); err != nil {
+			lastErr = err
+			fails = append(fails, fn.id)
+		} else {
+			success = append(success, fn.id)
 		}
 	}
-	return nil
+
+	// save the results for get status command
+	t.success = success
+	t.fails = fails
+
+	return success, fails, lastErr
 }
 
 // Cleanup removes temp directories and files used by the self tester
@@ -165,17 +192,17 @@ type selfTestEvent struct {
 	Filepath string
 }
 
-// SendEventIfExpecting sends an event to the tester
-func (t *SelfTester) SendEventIfExpecting(rule *rules.Rule, event eval.Event) {
+// isExpectedEvent sends an event to the tester
+func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event) bool {
 	if atomic.LoadUint32(&t.waitingForEvent) != 0 && rule.Definition.Policy.Name == selfTestPolicyName {
-		ev, ok := event.(*probe.Event)
+		ev, ok := event.(*Event)
 		if !ok {
-			return
+			return true
 		}
 
-		s := probe.NewEventSerializer(ev)
+		s := NewEventSerializer(ev)
 		if s == nil || s.FileEventSerializer == nil {
-			return
+			return true
 		}
 
 		selfTestEvent := selfTestEvent{
@@ -183,7 +210,9 @@ func (t *SelfTester) SendEventIfExpecting(rule *rules.Rule, event eval.Event) {
 			Filepath: s.FileEventSerializer.Path,
 		}
 		t.eventChan <- selfTestEvent
+		return true
 	}
+	return false
 }
 
 func (t *SelfTester) expectEvent(predicate func(selfTestEvent) bool) error {
@@ -248,9 +277,15 @@ func selfTestChown(t *SelfTester) error {
 	})
 }
 
+// SelfTestFunction represent one self test, with its ID and func
+type SelfTestFunction struct {
+	id string
+	fn func(*SelfTester) error
+}
+
 // SelfTestFunctions slice of self test functions representing each individual file test
-var SelfTestFunctions = []func(*SelfTester) error{
-	selfTestOpen,
-	selfTestChmod,
-	selfTestChown,
+var SelfTestFunctions = []SelfTestFunction{
+	{"selfTestOpen", selfTestOpen},
+	{"selfTestChmod", selfTestChmod},
+	{"selfTestChown", selfTestChown},
 }
