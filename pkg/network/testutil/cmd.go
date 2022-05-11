@@ -28,10 +28,9 @@ func RunCommands(t *testing.T, cmds []string, ignoreErrors bool) []string {
 			if !ignoreErrors {
 				t.Fatalf("%s returned %s: %s", c, err, out)
 				return nil
-			} else {
-				t.Logf("%s returned %s: %s", c, err, out)
 			}
 
+			t.Logf("%s returned %s: %s", c, err, out)
 		}
 	}
 	return output
