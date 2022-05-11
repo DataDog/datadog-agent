@@ -62,6 +62,8 @@ func buildWorkloadMetaContainer(container containerd.Container, containerdClient
 	ip, err := extractIP(container, containerdClient)
 	if err != nil {
 		log.Debugf("cannot get IP of container %s", err)
+	} else if ip == "" {
+		log.Debugf("no IPs for container")
 	} else {
 		networkIPs[""] = ip
 	}

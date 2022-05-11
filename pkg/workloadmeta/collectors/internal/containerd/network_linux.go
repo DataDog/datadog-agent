@@ -30,7 +30,7 @@ import (
 //   might not work as expected.
 func extractIP(container containerd.Container, containerdClient cutil.ContainerdItf) (string, error) {
 	if !config.IsHostProcAvailable() {
-		return "", errors.New("/proc is not mounted")
+		return "", nil
 	}
 
 	taskPids, err := containerdClient.TaskPids(container)
