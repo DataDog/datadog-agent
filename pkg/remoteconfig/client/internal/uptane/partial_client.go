@@ -200,7 +200,7 @@ func (c *PartialClient) Update(roots [][]byte, previousTargets *PartialClientTar
 	}
 	purgeTargetFiles(targets.Targets, mergedTargetFiles)
 	return &PartialClientTargets{
-		version:     int64(targets.Version),
+		version:     targets.Version,
 		metas:       targets.Targets,
 		targetFiles: mergedTargetFiles,
 	}, nil
