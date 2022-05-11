@@ -315,9 +315,6 @@ def build_functional_tests(
 
     if static:
         build_tags.extend(["osusergo", "netgo"])
-        if "CGO_CPPFLAGS" not in env:
-            env["CGO_CPPFLAGS"] = ""
-        env["CGO_CPPFLAGS"] += "-DSKIP_GLIBC_WRAPPER"
 
     if not skip_linters:
         targets = ['./pkg/security/tests']
@@ -487,8 +484,12 @@ ENV DOCKER_DD_AGENT=yes
 RUN dpkg --add-architecture i386
 
 RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends xfsprogs ca-certificates \
+    && apt-get install -y --no-install-recommends xfsprogs ca-certificates iproute2 clang-11 llvm-11 \
     && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /opt/datadog-agent/embedded/bin
+RUN ln -s $(which clang-11) /opt/datadog-agent/embedded/bin/clang-bpf
+RUN ln -s $(which llc-11) /opt/datadog-agent/embedded/bin/llc-bpf
     """
 
     docker_image_tag_name = "docker-functional-tests"

@@ -86,6 +86,7 @@ func (suite *clusterAgentSuite) TestClusterChecksRedirect() {
 	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 	ca, err := GetClusterAgentClient()
 	require.NoError(suite.T(), err)
+	ca.(*DCAClient).initLeaderClient()
 
 	// checking version on init
 	assert.NotNil(suite.T(), follower.PopRequest(), "request did not go through follower")

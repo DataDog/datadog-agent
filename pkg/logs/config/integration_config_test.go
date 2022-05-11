@@ -80,3 +80,9 @@ func TestAutoMultilineEnabled(t *testing.T) {
 	assert.False(t, decode(`{}`).AutoMultiLineEnabled())
 
 }
+
+func TestConfigDump(t *testing.T) {
+	config := LogsConfig{Type: FileType, Path: "/var/log/foo.log"}
+	dump := config.Dump()
+	assert.Contains(t, dump, `Path: "/var/log/foo.log",`)
+}

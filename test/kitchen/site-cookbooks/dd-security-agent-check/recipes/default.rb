@@ -27,7 +27,19 @@ if node['platform_family'] != 'windows'
     action :create
   end
 
+  cookbook_file "#{wrk_dir}/clang-bpf" do
+    source "clang-bpf"
+    mode '0744'
+    action :create
+  end
+
   cookbook_file "/opt/datadog-agent/embedded/bin/llc-bpf" do
+    source "llc-bpf"
+    mode '0744'
+    action :create
+  end
+
+  cookbook_file "#{wrk_dir}/llc-bpf" do
     source "llc-bpf"
     mode '0744'
     action :create
@@ -38,9 +50,9 @@ if node['platform_family'] != 'windows'
     mode '755'
   end
 
-  archive_file "nikos.tar.gz" do
-    path "#{wrk_dir}/nikos.tar.gz"
-    destination "/opt/datadog-agent/embedded/nikos/embedded"
+  execute "Extract nikos.tar.gz" do
+    command "mkdir -p /opt/datadog-agent/embedded/nikos/embedded/ && tar -xzvf #{wrk_dir}/nikos.tar.gz -C /opt/datadog-agent/embedded/nikos/embedded/"
+    action :run
   end
 
   # `/swapfile` doesn't work on Oracle Linux, so we use `/mnt/swapfile`
@@ -97,8 +109,15 @@ if node['platform_family'] != 'windows'
     file "#{wrk_dir}/Dockerfile" do
       content <<-EOF
       FROM centos:7
+
       ENV DOCKER_DD_AGENT=yes
+
       ADD nikos.tar.gz /opt/datadog-agent/embedded/nikos/embedded/
+
+      RUN mkdir -p /opt/datadog-agent/embedded/bin
+      COPY clang-bpf /opt/datadog-agent/embedded/bin/
+      COPY llc-bpf /opt/datadog-agent/embedded/bin/
+
       RUN yum -y install xfsprogs e2fsprogs iproute
       CMD sleep 7200
       EOF

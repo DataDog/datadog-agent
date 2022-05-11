@@ -168,7 +168,7 @@ func generateKey() keys.Signer {
 	return key
 }
 
-func generateTargets(key keys.Signer, version int, targets data.TargetFiles) []byte {
+func generateTargets(key keys.Signer, version int64, targets data.TargetFiles) []byte {
 	meta := data.NewTargets()
 	meta.Expires = time.Now().Add(1 * time.Hour)
 	meta.Version = version
@@ -178,7 +178,7 @@ func generateTargets(key keys.Signer, version int, targets data.TargetFiles) []b
 	return serialized
 }
 
-func generateRoot(key keys.Signer, version int, targetsKey keys.Signer) []byte {
+func generateRoot(key keys.Signer, version int64, targetsKey keys.Signer) []byte {
 	root := data.NewRoot()
 	root.Version = version
 	root.Expires = time.Now().Add(1 * time.Hour)

@@ -422,8 +422,7 @@ func StartAgent() error {
 	// create and setup the Autoconfig instance
 	common.LoadComponents(common.MainCtx, config.Datadog.GetString("confd_path"))
 
-	// start logs-agent.  This must happen after AutoConfig is set up (via common.LoadComponents) and
-	// before AutoConfig is started (va common.StartAutoConfig).
+	// start logs-agent.  This must happen after AutoConfig is set up (via common.LoadComponents)
 	if config.Datadog.GetBool("logs_enabled") || config.Datadog.GetBool("log_enabled") {
 		if config.Datadog.GetBool("log_enabled") {
 			log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
@@ -435,8 +434,8 @@ func StartAgent() error {
 		log.Info("logs-agent disabled")
 	}
 
-	// start the autoconfig, this will immediately run any configured check
-	common.StartAutoConfig()
+	// load and run all configs in AD
+	common.AC.LoadAndRun()
 
 	// check for common misconfigurations and report them to log
 	misconfig.ToLog()

@@ -28,7 +28,7 @@ node['yum-centos']['vault_repos'].each do |release, _config|
       description "CentOS-#{release} Vault - #{id.capitalize}"
       case node['platform_version'].to_i
       when 7
-        if arm?
+        if Chef::SystemProbeHelpers::arm?(node)
             baseurl "http://mirror.rackspace.com/centos-vault/altarch/#{release}/#{dir}/$basearch/"
             gpgkey ['file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-$releasever-$basearch', 'file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-$releasever']
         else

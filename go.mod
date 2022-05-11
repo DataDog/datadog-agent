@@ -67,7 +67,7 @@ require (
 	github.com/DataDog/gopsutil v0.0.0-20220308095538-d086941833e3
 	github.com/DataDog/nikos v1.7.6
 	github.com/DataDog/sketches-go v1.4.1
-	github.com/DataDog/viper v1.9.0
+	github.com/DataDog/viper v1.10.0
 	github.com/DataDog/watermarkpodautoscaler v0.3.1-logs-attributes.2.0.20211014120627-6d6a5c559fc9
 	github.com/DataDog/zstd v1.5.0
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f
@@ -166,7 +166,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.1
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
-	github.com/theupdateframework/go-tuf v0.1.0
+	github.com/theupdateframework/go-tuf v0.3.0
 	github.com/tinylib/msgp v1.1.6
 	github.com/twmb/murmur3 v1.1.6
 	github.com/urfave/negroni v1.0.0
@@ -327,7 +327,7 @@ require (
 	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.2
-	github.com/opencontainers/runc v1.0.2 // indirect
+	github.com/opencontainers/runc v1.0.3 // indirect
 	github.com/opencontainers/selinux v1.9.1 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pelletier/go-toml v1.9.4 // indirect
