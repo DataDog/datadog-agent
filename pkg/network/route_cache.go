@@ -161,9 +161,10 @@ type ifEntry struct {
 }
 
 type netlinkRouter struct {
-	rootNs  uint32
-	ioctlFD int
-	ifcache *lru.Cache
+	rootNs   uint32
+	ioctlFD  int
+	ifcache  *lru.Cache
+	nlHandle *netlink.Handle
 
 	netlinkLookups uint64 `stats:"atomic"`
 	netlinkErrors  uint64 `stats:"atomic"`
@@ -179,16 +180,26 @@ type netlinkRouter struct {
 
 // NewNetlinkRouter create a Router that queries routes via netlink
 func NewNetlinkRouter(procRoot string) (Router, error) {
+	return newNetlinkRouter(procRoot)
+}
+
+func newNetlinkRouter(procRoot string) (*netlinkRouter, error) {
 	rootNs, err := util.GetNetNsInoFromPid(procRoot, 1)
 	if err != nil {
 		return nil, fmt.Errorf("netlink gw cache backing: could not get root net ns: %w", err)
 	}
 
 	var fd int
+	var nlHandle *netlink.Handle
 	err = util.WithRootNS(procRoot, func() (sockErr error) {
-		fd, sockErr = unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0)
-		return
+		if fd, err = unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0); err != nil {
+			return err
+		}
+
+		nlHandle, err = netlink.NewHandle(unix.NETLINK_ROUTE)
+		return err
 	})
+
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +208,8 @@ func NewNetlinkRouter(procRoot string) (Router, error) {
 		rootNs:  rootNs,
 		ioctlFD: fd,
 		// ifcache should ideally fit all interfaces on a given node
-		ifcache: lru.New(128),
+		ifcache:  lru.New(128),
+		nlHandle: nlHandle,
 	}
 
 	nr.reporter, err = netstats.NewReporter(nr)
@@ -210,6 +222,7 @@ func NewNetlinkRouter(procRoot string) (Router, error) {
 
 func (n *netlinkRouter) Close() {
 	unix.Close(n.ioctlFD)
+	n.nlHandle.Close()
 }
 
 func (n *netlinkRouter) GetStats() map[string]interface{} {
@@ -245,7 +258,7 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 
 	atomic.AddUint64(&n.netlinkLookups, 1)
 	dstIP := util.NetIPFromAddress(dest, *dstBuf)
-	routes, err := netlink.RouteGetWithOptions(
+	routes, err := n.nlHandle.RouteGetWithOptions(
 		dstIP,
 		&netlink.RouteGetOptions{
 			SrcAddr:  srcIP,
@@ -254,8 +267,7 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 
 	if err != nil {
 		atomic.AddUint64(&n.netlinkErrors, 1)
-	}
-	if len(routes) != 1 {
+	} else if len(routes) != 1 {
 		atomic.AddUint64(&n.netlinkMisses, 1)
 	}
 	if err != nil || len(routes) != 1 {
@@ -281,12 +293,11 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	atomic.AddUint64(&n.ifCacheMisses, 1)
 
 	atomic.AddUint64(&n.netlinkLookups, 1)
-	routes, err := netlink.RouteGet(srcIP)
+	routes, err := n.nlHandle.RouteGet(srcIP)
 	if err != nil {
 		atomic.AddUint64(&n.netlinkErrors, 1)
 		return nil
-	}
-	if len(routes) != 1 {
+	} else if len(routes) != 1 {
 		atomic.AddUint64(&n.netlinkMisses, 1)
 		return nil
 	}
@@ -303,12 +314,12 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	// get the link flags
 	if err = unix.IoctlIfreq(n.ioctlFD, unix.SIOCGIFNAME, ifr); err != nil {
 		atomic.AddUint64(&n.ifCacheErrors, 1)
-		log.Tracef("error getting interface name for link index %d: %s", routes[0].LinkIndex, err)
+		log.Tracef("error getting interface name for link index %d, src ip %s: %s", routes[0].LinkIndex, srcIP, err)
 		return nil
 	}
 	if err = unix.IoctlIfreq(n.ioctlFD, unix.SIOCGIFFLAGS, ifr); err != nil {
 		atomic.AddUint64(&n.ifCacheErrors, 1)
-		log.Tracef("error getting interface flags for link index %d: %s", routes[0].LinkIndex, err)
+		log.Tracef("error getting interface flags for link index %d, src ip %s: %s", routes[0].LinkIndex, srcIP, err)
 		return nil
 	}
 
