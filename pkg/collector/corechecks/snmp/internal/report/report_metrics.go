@@ -40,15 +40,34 @@ func NewMetricSender(sender aggregator.Sender, hostname string) *MetricSender {
 
 // ReportMetrics reports metrics using Sender
 func (ms *MetricSender) ReportMetrics(metrics []checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
+	scalarSamples := make(map[string]MetricSample)
+	columnSamples := make(map[string]map[string]MetricSample)
+
 	for _, metric := range metrics {
 		if metric.IsScalar() {
-			_, err := ms.reportScalarMetrics(metric, values, tags)
+			sample, err := ms.reportScalarMetrics(metric, values, tags)
 			if err != nil {
 				continue
 			}
+			if _, ok := EvaluatedSampleDependencies[sample.symbol.Name]; !ok {
+				continue
+			}
+			scalarSamples[sample.symbol.Name] = sample
 		} else if metric.IsColumn() {
-			ms.reportColumnMetrics(metric, values, tags)
+			samples := ms.reportColumnMetrics(metric, values, tags)
+
+			for name, sampleRows := range samples {
+				if _, ok := EvaluatedSampleDependencies[name]; !ok {
+					continue
+				}
+				columnSamples[name] = sampleRows
+			}
 		}
+	}
+
+	err := ms.tryReportMemoryUsage(scalarSamples, columnSamples)
+	if err != nil {
+		log.Debugf("error reporting memory usage : %v", err)
 	}
 }
 
