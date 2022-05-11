@@ -72,52 +72,52 @@ func ParseProcessRoutes(procPath string, pid int) ([]NetworkRoute, error) {
 // addresses found. The result does not contain duplicate IPs.
 //
 // Here's an example of /proc/<pid>/net/fib_trie that shows its format:
-//Main:
-//  +-- 0.0.0.0/1 2 0 2
-//     +-- 0.0.0.0/4 2 0 2
-//        |-- 0.0.0.0
-//           /0 universe UNICAST
-//        +-- 10.4.0.0/24 2 1 2
-//           |-- 10.4.0.0
-//              /32 link BROADCAST
-//              /24 link UNICAST
-//           +-- 10.4.0.192/26 2 0 2
-//              |-- 10.4.0.216
-//                 /32 host LOCAL
-//              |-- 10.4.0.255
-//                 /32 link BROADCAST
-//     +-- 127.0.0.0/8 2 0 2
-//        +-- 127.0.0.0/31 1 0 0
-//           |-- 127.0.0.0
-//              /32 link BROADCAST
-//              /8 host LOCAL
-//           |-- 127.0.0.1
-//              /32 host LOCAL
-//        |-- 127.255.255.255
-//           /32 link BROADCAST
-//Local:
-//  +-- 0.0.0.0/1 2 0 2
-//     +-- 0.0.0.0/4 2 0 2
-//        |-- 0.0.0.0
-//           /0 universe UNICAST
-//        +-- 10.4.0.0/24 2 1 2
-//           |-- 10.4.0.0
-//              /32 link BROADCAST
-//              /24 link UNICAST
-//           +-- 10.4.0.192/26 2 0 2
-//              |-- 10.4.0.216
-//                 /32 host LOCAL
-//              |-- 10.4.0.255
-//                 /32 link BROADCAST
-//     +-- 127.0.0.0/8 2 0 2
-//        +-- 127.0.0.0/31 1 0 0
-//           |-- 127.0.0.0
-//              /32 link BROADCAST
-//              /8 host LOCAL
-//           |-- 127.0.0.1
-//              /32 host LOCAL
-//        |-- 127.255.255.255
-//           /32 link BROADCAST
+//	Main:
+//	  +-- 0.0.0.0/1 2 0 2
+//	     +-- 0.0.0.0/4 2 0 2
+//	        |-- 0.0.0.0
+//	           /0 universe UNICAST
+//	        +-- 10.4.0.0/24 2 1 2
+//	           |-- 10.4.0.0
+//	              /32 link BROADCAST
+//	              /24 link UNICAST
+//	           +-- 10.4.0.192/26 2 0 2
+//	              |-- 10.4.0.216
+//	                 /32 host LOCAL
+//	              |-- 10.4.0.255
+//	                 /32 link BROADCAST
+//	     +-- 127.0.0.0/8 2 0 2
+//	        +-- 127.0.0.0/31 1 0 0
+//	           |-- 127.0.0.0
+//	              /32 link BROADCAST
+//	              /8 host LOCAL
+//	           |-- 127.0.0.1
+//	              /32 host LOCAL
+//	        |-- 127.255.255.255
+//	           /32 link BROADCAST
+//	Local:
+//	  +-- 0.0.0.0/1 2 0 2
+//	     +-- 0.0.0.0/4 2 0 2
+//	        |-- 0.0.0.0
+//	           /0 universe UNICAST
+//	        +-- 10.4.0.0/24 2 1 2
+//	           |-- 10.4.0.0
+//	              /32 link BROADCAST
+//	              /24 link UNICAST
+//	           +-- 10.4.0.192/26 2 0 2
+//	              |-- 10.4.0.216
+//	                 /32 host LOCAL
+//	              |-- 10.4.0.255
+//	                 /32 link BROADCAST
+//	     +-- 127.0.0.0/8 2 0 2
+//	        +-- 127.0.0.0/31 1 0 0
+//	           |-- 127.0.0.0
+//	              /32 link BROADCAST
+//	              /8 host LOCAL
+//	           |-- 127.0.0.1
+//	              /32 host LOCAL
+//	        |-- 127.255.255.255
+//	           /32 link BROADCAST
 //
 // The IPs that we're interested in are the ones that appear above lines that
 // contain "/32 host".
