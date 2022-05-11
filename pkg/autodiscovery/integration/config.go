@@ -10,6 +10,7 @@ import (
 	"hash/fnv"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/twmb/murmur3"
 	yaml "gopkg.in/yaml.v2"
@@ -417,4 +418,42 @@ func (c *Config) FastDigest() uint64 {
 	_, _ = h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags)))
 
 	return h.Sum64()
+}
+
+// Dump returns a multiline string representing this Config value, for debugging purposes.
+func (c *Config) Dump() string {
+	var b strings.Builder
+	dataField := func(data Data) string {
+		if data == nil {
+			return "nil"
+		}
+		return fmt.Sprintf("[]byte(%#v)", string(data))
+	}
+	fmt.Fprintf(&b, "integration.Config = {\n")
+	fmt.Fprintf(&b, "\tName: %#v,\n", c.Name)
+	if c.Instances == nil {
+		fmt.Fprintf(&b, "\tInstances: nil,\n")
+	} else {
+		fmt.Fprintf(&b, "\tInstances: {\n")
+		for _, inst := range c.Instances {
+			fmt.Fprintf(&b, "\t\t%s,", dataField(inst))
+		}
+		fmt.Fprintf(&b, "\t}\n")
+	}
+	fmt.Fprintf(&b, "\tInitConfig: %s,\n", dataField(c.InitConfig))
+	fmt.Fprintf(&b, "\tMetricConfig: %s,\n", dataField(c.MetricConfig))
+	fmt.Fprintf(&b, "\tLogsConfig: %s,\n", dataField(c.LogsConfig))
+	fmt.Fprintf(&b, "\tADIdentifiers: %#v,\n", c.ADIdentifiers)
+	fmt.Fprintf(&b, "\tAdvancedADIdentifiers: %#v,\n", c.AdvancedADIdentifiers)
+	fmt.Fprintf(&b, "\tProvider: %#v,\n", c.Provider)
+	fmt.Fprintf(&b, "\tServiceID: %#v,\n", c.ServiceID)
+	fmt.Fprintf(&b, "\tTaggerEntity: %#v,\n", c.TaggerEntity)
+	fmt.Fprintf(&b, "\tClusterCheck: %t,\n", c.ClusterCheck)
+	fmt.Fprintf(&b, "\tNodeName: %#v,\n", c.NodeName)
+	fmt.Fprintf(&b, "\tSource: %s,\n", c.Source)
+	fmt.Fprintf(&b, "\tIgnoreAutodiscoveryTags: %t,\n", c.IgnoreAutodiscoveryTags)
+	fmt.Fprintf(&b, "\tMetricsExcluded: %t,\n", c.MetricsExcluded)
+	fmt.Fprintf(&b, "\tLogsExcluded: %t,\n", c.LogsExcluded)
+	fmt.Fprintf(&b, "} (digest %s)", c.Digest())
+	return b.String()
 }

@@ -374,7 +374,6 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal("localhost", c.StatsdHost)
 	assert.Equal(8125, c.StatsdPort)
 
-	assert.Equal("INFO", c.LogLevel)
 	assert.Equal(true, c.Enabled)
 }
 
@@ -390,7 +389,6 @@ func TestNoAPMConfig(t *testing.T) {
 	assert.Equal("apikey_12", c.Endpoints[0].APIKey)
 	assert.Equal("0.0.0.0", c.ReceiverHost)
 	assert.Equal(28125, c.StatsdPort)
-	assert.Equal("DEBUG", c.LogLevel)
 }
 
 func TestFullYamlConfig(t *testing.T) {
@@ -410,7 +408,6 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.Equal("mymachine", c.Hostname)
 	assert.Equal("https://user:password@proxy_for_https:1234", c.ProxyURL.String())
 	assert.True(c.SkipSSLValidation)
-	assert.Equal("info", c.LogLevel)
 	assert.Equal(18125, c.StatsdPort)
 	assert.False(c.Enabled)
 	assert.Equal("abc", c.LogFilePath)
@@ -781,18 +778,6 @@ func TestLoadEnv(t *testing.T) {
 		})
 	}
 
-	env = "DD_LOG_LEVEL"
-	t.Run(env, func(t *testing.T) {
-		defer cleanConfig()()
-		assert := assert.New(t)
-		err := os.Setenv(env, "warn")
-		assert.NoError(err)
-		defer os.Unsetenv(env)
-		cfg, err := LoadConfigFile("./testdata/full.yaml")
-		assert.NoError(err)
-		assert.Equal("warn", cfg.LogLevel)
-	})
-
 	env = "DD_APM_ANALYZED_SPANS"
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
@@ -844,6 +829,17 @@ func TestLoadEnv(t *testing.T) {
 		assert.Equal(cfg.RequireTags, []*config.Tag{{K: "important1", V: ""}, {K: "important2", V: "value1"}})
 	})
 
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		err := os.Setenv(env, `["important1:value with a space"]`)
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.Equal(cfg.RequireTags, []*config.Tag{{K: "important1", V: "value with a space"}})
+	})
+
 	env = "DD_APM_FILTER_TAGS_REJECT"
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
@@ -854,6 +850,17 @@ func TestLoadEnv(t *testing.T) {
 		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal(cfg.RejectTags, []*config.Tag{{K: "bad1", V: "value1"}})
+	})
+
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		err := os.Setenv(env, `["bad1:value with a space"]`)
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.Equal(cfg.RejectTags, []*config.Tag{{K: "bad1", V: "value with a space"}})
 	})
 
 	for _, envKey := range []string{

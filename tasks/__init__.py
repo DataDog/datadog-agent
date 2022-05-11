@@ -32,18 +32,14 @@ from . import (
 from .build_tags import audit_tag_impact
 from .go import (
     check_mod_tidy,
-    cyclo,
     deps,
     deps_vendored,
-    fmt,
     generate_licenses,
     generate_protobuf,
     golangci_lint,
-    lint,
     lint_licenses,
     reset,
     tidy_all,
-    vet,
 )
 from .test import (
     download_tools,
@@ -65,10 +61,6 @@ from .test import (
 ns = Collection()
 
 # add single tasks to the root
-ns.add_task(fmt)
-ns.add_task(lint)
-ns.add_task(vet)
-ns.add_task(cyclo)
 ns.add_task(golangci_lint)
 ns.add_task(test)
 ns.add_task(integration_tests)

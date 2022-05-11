@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package daemon
 
 import (
@@ -55,8 +60,9 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	lambdaInvokeContext := invocationlifecycle.LambdaInvokeEventHeaders{
-		TraceID:  r.Header.Get(invocationlifecycle.TraceIDHeader),
-		ParentID: r.Header.Get(invocationlifecycle.ParentIDHeader),
+		TraceID:          r.Header.Get(invocationlifecycle.TraceIDHeader),
+		ParentID:         r.Header.Get(invocationlifecycle.ParentIDHeader),
+		SamplingPriority: r.Header.Get(invocationlifecycle.SamplingPriorityHeader),
 	}
 	startDetails := &invocationlifecycle.InvocationStartDetails{
 		StartTime:             startTime,
@@ -64,6 +70,13 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		InvokeEventHeaders:    lambdaInvokeContext,
 	}
 	s.daemon.InvocationProcessor.OnInvokeStart(startDetails)
+	if invocationlifecycle.TraceID() == 0 {
+		log.Debug("no context has been found, the tracer will be responsible for initializing the context")
+	} else {
+		log.Debug("a context has been found, sending the context to the tracer")
+		w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", invocationlifecycle.TraceID()))
+		w.Header().Set(invocationlifecycle.SamplingPriorityHeader, fmt.Sprintf("%v", invocationlifecycle.SamplingPriority()))
+	}
 }
 
 // EndInvocation is a route that can be called at the end of an invocation to enable
@@ -88,6 +101,11 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		RequestID:          ecs.LastRequestID,
 		ResponseRawPayload: responseBody,
 	}
+	if invocationlifecycle.TraceID() == 0 {
+		log.Debug("no context has been found yet, injecting it now via headers from the tracer")
+		invocationlifecycle.InjectContext(r.Header)
+	}
+	invocationlifecycle.InjectSpanID(r.Header)
 	e.daemon.InvocationProcessor.OnInvokeEnd(&endDetails)
 }
 
@@ -99,4 +117,5 @@ func (tc *TraceContext) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.TraceContext route.")
 	w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", invocationlifecycle.TraceID()))
 	w.Header().Set(invocationlifecycle.SpanIDHeader, fmt.Sprintf("%v", invocationlifecycle.SpanID()))
+	w.Header().Set(invocationlifecycle.SamplingPriorityHeader, fmt.Sprintf("%v", invocationlifecycle.SamplingPriority()))
 }

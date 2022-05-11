@@ -206,7 +206,7 @@ func createProtoPayloadMatcher(content []byte) interface{} {
 }
 func TestSendV1Events(t *testing.T) {
 	config.Datadog.Set("enable_events_stream_payload_serialization", false)
-	defer config.Datadog.Set("enable_events_stream_payload_serialization", nil)
+	defer config.Datadog.Unset("enable_events_stream_payload_serialization")
 
 	f := &forwarder.MockedForwarder{}
 
@@ -228,7 +228,7 @@ func (p *testPayloadMutipleValues) Len() int { return p.count }
 
 func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 	config.Datadog.Set("enable_events_stream_payload_serialization", true)
-	defer config.Datadog.Set("enable_events_stream_payload_serialization", nil)
+	defer config.Datadog.Unset("enable_events_stream_payload_serialization")
 	f := &forwarder.MockedForwarder{}
 
 	s := NewSerializer(f, nil, nil)
@@ -246,7 +246,7 @@ func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 	f.AssertExpectations(t)
 
 	config.Datadog.Set("serializer_max_payload_size", 20)
-	defer config.Datadog.Set("serializer_max_payload_size", nil)
+	defer config.Datadog.Unset("serializer_max_payload_size")
 
 	f.On("SubmitV1Intake", payloadsCountMatcher(3), jsonExtraHeadersWithCompression).Return(nil)
 	err = s.SendEvents(events)
@@ -259,7 +259,7 @@ func TestSendV1ServiceChecks(t *testing.T) {
 	matcher := createJSONPayloadMatcher(`[{"check":"","host_name":"","timestamp":0,"status":0,"message":"","tags":null}]`)
 	f.On("SubmitV1CheckRuns", matcher, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 	config.Datadog.Set("enable_service_checks_stream_payload_serialization", false)
-	defer config.Datadog.Set("enable_service_checks_stream_payload_serialization", nil)
+	defer config.Datadog.Unset("enable_service_checks_stream_payload_serialization")
 
 	s := NewSerializer(f, nil, nil)
 	err := s.SendServiceChecks(metrics.ServiceChecks{&metrics.ServiceCheck{}})
@@ -273,25 +273,25 @@ func TestSendV1Series(t *testing.T) {
 
 	f.On("SubmitV1Series", matcher, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 	config.Datadog.Set("enable_stream_payload_serialization", false)
-	defer config.Datadog.Set("enable_stream_payload_serialization", nil)
+	defer config.Datadog.Unset("enable_stream_payload_serialization")
 
 	s := NewSerializer(f, nil, nil)
 
-	err := s.SendIterableSeries(metricsserializer.CreateIterableSeries(metrics.Series{}))
+	err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{}))
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 }
 
 func TestSendSeries(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
-	matcher := createProtoPayloadMatcher([]byte{10, 8, 10, 6, 10, 4, 104, 111, 115, 116})
+	matcher := createProtoPayloadMatcher([]byte{0xa, 0xa, 0xa, 0x6, 0xa, 0x4, 0x68, 0x6f, 0x73, 0x74, 0x28, 0x3})
 	f.On("SubmitSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 	config.Datadog.Set("use_v2_api.series", true)
 	defer config.Datadog.Set("use_v2_api.series", false)
 
 	s := NewSerializer(f, nil, nil)
 
-	err := s.SendIterableSeries(metricsserializer.CreateIterableSeries(metrics.Series{&metrics.Serie{}}))
+	err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{&metrics.Serie{}}))
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 }
@@ -375,7 +375,7 @@ func TestSendWithDisabledKind(t *testing.T) {
 	payload := &testPayload{}
 
 	s.SendEvents(make(metrics.Events, 0))
-	s.SendIterableSeries(metricsserializer.CreateIterableSeries(metrics.Series{}))
+	s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{}))
 	s.SendSketch(make(metrics.SketchSeriesList, 0))
 	s.SendServiceChecks(make(metrics.ServiceChecks, 0))
 	s.SendProcessesMetadata("test")

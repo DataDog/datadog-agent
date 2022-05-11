@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -68,6 +69,12 @@ func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 
 // NewAutoConfigNoStart creates an AutoConfig instance.
 func NewAutoConfigNoStart(scheduler *scheduler.MetaScheduler) *AutoConfig {
+	var cfgMgr configManager
+	if util.CcaInAD() {
+		cfgMgr = newReconcilingConfigManager()
+	} else {
+		cfgMgr = newSimpleConfigManager()
+	}
 	ac := &AutoConfig{
 		providers:          make([]*configPoller, 0, 9),
 		listenerCandidates: make(map[string]*listenerCandidate),
@@ -77,7 +84,7 @@ func NewAutoConfigNoStart(scheduler *scheduler.MetaScheduler) *AutoConfig {
 		newService:         make(chan listeners.Service),
 		delService:         make(chan listeners.Service),
 		store:              newStore(),
-		cfgMgr:             newSimpleConfigManager(),
+		cfgMgr:             cfgMgr,
 		scheduler:          scheduler,
 		ranOnce:            atomic.NewBool(false),
 	}

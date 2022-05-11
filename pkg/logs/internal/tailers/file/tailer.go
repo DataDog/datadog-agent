@@ -77,10 +77,19 @@ type Tailer struct {
 	// sleepDuration is the time between polls of the underlying file.
 	sleepDuration time.Duration
 
-	// closeTimeout is the duration the tailer will remain active after its file
-	// has been rotated.  This allows the tailer to complete reading and processing
-	// any remaining log lines in the file.
+	// closeTimeout (UNIX only) is the duration the tailer will remain active
+	// after its file has been rotated.  This allows the tailer to complete
+	// reading and processing any remaining log lines in the file.
 	closeTimeout time.Duration
+
+	// windowsOpenFileTimeout (Windows only) is the duration the tailer will
+	// hold a file open while waiting for the downstream logs pipeline to
+	// clear.  Setting this to too short a time may result in data in rotated
+	// logfiles being lost when the pipeline is briefly stalled; setting this
+	// to too long a value may result in the agent holding a rotated file open
+	// at a time that the application producing the logs would like to delete
+	// it.
+	windowsOpenFileTimeout time.Duration
 
 	// isFinished is true when the tailer has closed its input and flushed all messages.
 	isFinished *atomic.Bool
@@ -126,22 +135,24 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 
 	forwardContext, stopForward := context.WithCancel(context.Background())
 	closeTimeout := coreConfig.Datadog.GetDuration("logs_config.close_timeout") * time.Second
+	windowsOpenFileTimeout := coreConfig.Datadog.GetDuration("logs_config.windows_open_file_timeout") * time.Second
 
 	return &Tailer{
-		file:           file,
-		outputChan:     outputChan,
-		decoder:        decoder,
-		tagProvider:    tagProvider,
-		lastReadOffset: atomic.NewInt64(0),
-		decodedOffset:  atomic.NewInt64(0),
-		sleepDuration:  sleepDuration,
-		closeTimeout:   closeTimeout,
-		stop:           make(chan struct{}, 1),
-		done:           make(chan struct{}, 1),
-		forwardContext: forwardContext,
-		stopForward:    stopForward,
-		isFinished:     atomic.NewBool(false),
-		didFileRotate:  atomic.NewBool(false),
+		file:                   file,
+		outputChan:             outputChan,
+		decoder:                decoder,
+		tagProvider:            tagProvider,
+		lastReadOffset:         atomic.NewInt64(0),
+		decodedOffset:          atomic.NewInt64(0),
+		sleepDuration:          sleepDuration,
+		closeTimeout:           closeTimeout,
+		windowsOpenFileTimeout: windowsOpenFileTimeout,
+		stop:                   make(chan struct{}, 1),
+		done:                   make(chan struct{}, 1),
+		forwardContext:         forwardContext,
+		stopForward:            stopForward,
+		isFinished:             atomic.NewBool(false),
+		didFileRotate:          atomic.NewBool(false),
 	}
 }
 
@@ -197,6 +208,8 @@ func (t *Tailer) Stop() {
 
 // StopAfterFileRotation prepares the tailer to stop after a timeout
 // to finish reading its file that has been log-rotated
+//
+// This is only used on UNIX.
 func (t *Tailer) StopAfterFileRotation() {
 	t.didFileRotate.Store(true)
 	go func() {

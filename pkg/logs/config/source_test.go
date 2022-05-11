@@ -8,6 +8,7 @@ package config
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -26,6 +27,12 @@ func (s *LogSourceSuite) TestInputs() {
 	s.Equal(0, len(s.source.GetInputs()))
 	s.source.RemoveInput("bar")
 
+}
+
+func (s *LogSourceSuite) TestDump() {
+	s.source = NewLogSource("mysource", nil)
+	dump := s.source.Dump()
+	assert.Contains(s.T(), dump, "mysource")
 }
 
 func TestTrackerSuite(t *testing.T) {

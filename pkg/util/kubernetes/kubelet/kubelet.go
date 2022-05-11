@@ -21,8 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
@@ -398,6 +400,7 @@ func (ku *KubeUtil) GetKubeletAPIEndpoint() string {
 }
 
 // GetRawConnectionInfo returns a map containging the url and credentials to connect to the kubelet
+// It refreshes the auth token on each call.
 // Possible map entries:
 //   - url: full url with scheme (required)
 //   - verify_tls: "true" or "false" string
@@ -406,6 +409,15 @@ func (ku *KubeUtil) GetKubeletAPIEndpoint() string {
 //   - client_crt: path to the client cert if set
 //   - client_key: path to the client key if set
 func (ku *KubeUtil) GetRawConnectionInfo() map[string]string {
+	if ku.kubeletClient.config.scheme == "https" && ku.kubeletClient.config.token != "" {
+		token, err := kubernetes.GetBearerToken(ku.kubeletClient.config.tokenPath)
+		if err != nil {
+			log.Warnf("Couldn't read auth token defined in %q: %v", ku.kubeletClient.config.tokenPath, err)
+		} else {
+			ku.rawConnectionInfo["token"] = token
+		}
+	}
+
 	return ku.rawConnectionInfo
 }
 

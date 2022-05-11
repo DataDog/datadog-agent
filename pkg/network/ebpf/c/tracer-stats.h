@@ -114,7 +114,7 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
 }
 
 static __always_inline int handle_message(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, conn_direction_t dir,
-                                          __u32 packets_out, __u32 packets_in, packet_count_increment_t segs_type) 
+                                          __u32 packets_out, __u32 packets_in, packet_count_increment_t segs_type)
 {
     u64 ts = bpf_ktime_get_ns();
 

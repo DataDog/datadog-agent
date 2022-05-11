@@ -2,6 +2,84 @@
 Release Notes
 =============
 
+.. _Release Notes_dca-1.19.0_dca-1.19.X:
+
+dca-1.19.0
+==========
+
+.. _Release Notes_dca-1.19.0_dca-1.19.X_Prelude:
+
+Prelude
+-------
+
+Released on: 2022-04-12
+Pinned to datadog-agent v7.35.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7350--6350>`_.
+
+.. _Release Notes_dca-1.19.0_dca-1.19.X_New Features:
+
+New Features
+------------
+
+- Collect ResourceRequirements on other K8s workloads as well for live containers (Deployment, StatefulSet, ReplicaSet, DaemonSet)
+- Enable collection of Roles/RoleBindings/ClusterRoles/ClusterRoleBindings/ServiceAccounts by default in the orchestrator check.
+- Add ``Ingress`` collection in the orchestrator check.
+
+.. _Release Notes_dca-1.19.0_dca-1.19.X_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a bug that prevents scrubbing sensitive content on the DaemonSet resource.
+- Fix a bug that prevents scrubbing sensitive content on the StatefulSet resource.
+
+.. _Release Notes_dca-1.19.0_dca-1.19.X_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Adds a new histogram metric `admission_webhooks_response_duration` to monitor the admission-webhook's response time. The existing metric `admission_webhooks_webhooks_received` is now a counter.
+- The cluster agent has an external metrics provider feature to allow using Datadog queries in Kubernetes HorizontalPodAutoscalers.
+    It sometimes faces issues like:
+    2022-01-01 01:01:01 UTC | CLUSTER | ERROR | (pkg/util/kubernetes/autoscalers/datadogexternal.go:79 in queryDatadogExternal) | Error while executing metric query ... truncated... API returned error: Query timed out
+    To mitigate this problem, use the new ``external_metrics_provider.chunk_size`` parameter to reduce the number of queries that are batched by the Agent and sent together to Datadog.
+
+.. _Release Notes_dca-1.18.0_dca-1.18.X:
+
+dca-1.18.0
+==========
+
+.. _Release Notes_dca-1.18.0_dca-1.18.X_Prelude:
+
+Prelude
+-------
+
+Released on: 2022-03-01
+Pinned to datadog-agent v7.34.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7340--6340>`_.
+
+.. _Release Notes_dca-1.18.0_dca-1.18.X_New Features:
+
+New Features
+------------
+
+- Add an ``external_metrics_provider.endpoints`` parameter that allows to specify a list of external metrics provider endpoints. 
+If the first one fails, the DCA will query the next ones.
+- Support file-based endpoint checks.
+- Enable collection of PV/PVCs by default in the orchestrator check
+- File-based cluster checks support Autodiscovery.
+
+.. _Release Notes_dca-1.18.0_dca-1.18.X_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix the ``Admission Controller``/``Webhooks info`` section of the cluster agent ``agent status`` output on Kubernetes 1.22+. 
+Although the cluster agent was able to register its webhook with both the ``v1beta1`` and the ``v1`` version of the Administrationregistration API, the ``agent status`` command was always using the ``v1beta1``, which has been removed in Kubernetes 1.22.
+- Improve error handling of deleted HPA objects.
+- Fix an issue where scrubbing custom sensitive words would not work as intended for the orchestrator check.
+- Fixed a bug that could prevent the Admission Controller from starting when the External Metrics Provider is enabled.
+- Fix the caculation of orchestrator cache hits.
+
+
 .. _Release Notes_dca-1.17.0_dca-1.17.X:
 
 dca-1.17.0

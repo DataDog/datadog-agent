@@ -41,6 +41,13 @@ func (c *safeConfig) Set(key string, value interface{}) {
 	c.Viper.Set(key, value)
 }
 
+// Unset wraps Viper for concurrent access
+func (c *safeConfig) Unset(key string) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.Unset(key)
+}
+
 // SetDefault wraps Viper for concurrent access
 func (c *safeConfig) SetDefault(key string, value interface{}) {
 	c.Lock()
@@ -361,7 +368,6 @@ func (c *safeConfig) ReadInConfig() error {
 	c.Lock()
 	err := c.Viper.ReadInConfig()
 	c.Unlock()
-	promoteExperimentalOTLP(c) // TODO(gbbr): remove after 7.35.0 is released
 	return err
 }
 

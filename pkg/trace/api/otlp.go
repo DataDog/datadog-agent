@@ -261,6 +261,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 		Stats: info.NewStats(),
 	}
 	tracesByID := make(map[uint64]pb.Trace)
+	priorityByID := make(map[uint64]float64)
 	for i := 0; i < rspans.ScopeSpans().Len(); i++ {
 		libspans := rspans.ScopeSpans().At(i)
 		lib := libspans.Scope()
@@ -291,6 +292,9 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 					containerID = v
 				}
 			}
+			if p, ok := ddspan.Metrics["_sampling_priority_v1"]; ok {
+				priorityByID[traceID] = p
+			}
 			tracesByID[traceID] = append(tracesByID[traceID], ddspan)
 		}
 	}
@@ -301,11 +305,13 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 	p := Payload{
 		Source: tagstats,
 	}
-	for _, spans := range tracesByID {
+	for k, spans := range tracesByID {
+		prio := int32(sampler.PriorityAutoKeep)
+		if p, ok := priorityByID[k]; ok {
+			prio = int32(p)
+		}
 		traceChunks = append(traceChunks, &pb.TraceChunk{
-			// auto-keep all incoming traces; it was already chosen as a keeper on
-			// the client side.
-			Priority: int32(sampler.PriorityAutoKeep),
+			Priority: prio,
 			Spans:    spans,
 		})
 	}
@@ -400,6 +406,40 @@ func marshalEvents(events ptrace.SpanEventSlice) string {
 	return str.String()
 }
 
+// setMetaOTLP sets the k/v OTLP attribute pair as a tag on span s.
+func setMetaOTLP(s *pb.Span, k, v string) {
+	switch k {
+	case "operation.name":
+		s.Name = v
+	case "service.name":
+		s.Service = v
+	case "resource.name":
+		s.Resource = v
+	case "span.type":
+		s.Type = v
+	case "analytics.event":
+		if v, err := strconv.ParseBool(v); err == nil {
+			if v {
+				s.Metrics[sampler.KeySamplingRateEventExtraction] = 1
+			} else {
+				s.Metrics[sampler.KeySamplingRateEventExtraction] = 0
+			}
+		}
+	default:
+		s.Meta[k] = v
+	}
+}
+
+// setMetricOTLP sets the k/v OTLP attribute pair as a metric on span s.
+func setMetricOTLP(s *pb.Span, k string, v float64) {
+	switch k {
+	case "sampling.priority":
+		s.Metrics["_sampling_priority_v1"] = v
+	default:
+		s.Metrics[k] = v
+	}
+}
+
 // convertSpan converts the span in to a Datadog span, and uses the rattr resource tags and the lib instrumentation
 // library attributes to further augment it.
 func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.InstrumentationScope, in ptrace.Span) *pb.Span {
@@ -417,65 +457,46 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		Meta:     meta,
 		Metrics:  map[string]float64{},
 	}
-	span.Meta["otel.trace_id"] = hex.EncodeToString(traceID[:])
+	setMetaOTLP(span, "otel.trace_id", hex.EncodeToString(traceID[:]))
 	if _, ok := span.Meta["version"]; !ok {
 		if ver := rattr[string(semconv.AttributeServiceVersion)]; ver != "" {
-			span.Meta["version"] = ver
+			setMetaOTLP(span, "version", ver)
 		}
 	}
 	if in.Events().Len() > 0 {
-		span.Meta["events"] = marshalEvents(in.Events())
+		setMetaOTLP(span, "events", marshalEvents(in.Events()))
 	}
 	in.Attributes().Range(func(k string, v pcommon.Value) bool {
 		switch v.Type() {
 		case pcommon.ValueTypeDouble:
-			span.Metrics[k] = v.DoubleVal()
+			setMetricOTLP(span, k, v.DoubleVal())
 		case pcommon.ValueTypeInt:
-			span.Metrics[k] = float64(v.IntVal())
+			setMetricOTLP(span, k, float64(v.IntVal()))
 		default:
-			switch k {
-			case "operation.name":
-				span.Name = v.AsString()
-			case "service.name":
-				span.Service = v.AsString()
-			case "resource.name":
-				span.Resource = v.AsString()
-			case "span.type":
-				span.Type = v.AsString()
-			case "analytics.event":
-				if v, err := strconv.ParseBool(v.AsString()); err == nil {
-					if v {
-						span.Metrics[sampler.KeySamplingRateEventExtraction] = 1
-					} else {
-						span.Metrics[sampler.KeySamplingRateEventExtraction] = 0
-					}
-				}
-			default:
-				span.Meta[k] = v.AsString()
-			}
+			setMetaOTLP(span, k, v.AsString())
 		}
 		return true
 	})
 	if ctags := attributes.ContainerTagFromAttributes(span.Meta); ctags != "" {
-		span.Meta[tagContainersTags] = ctags
+		setMetaOTLP(span, tagContainersTags, ctags)
 	}
 	if _, ok := span.Meta["env"]; !ok {
 		if env := span.Meta[string(semconv.AttributeDeploymentEnvironment)]; env != "" {
-			span.Meta["env"] = traceutil.NormalizeTag(env)
+			setMetaOTLP(span, "env", traceutil.NormalizeTag(env))
 		}
 	}
 	if in.TraceState() != ptrace.TraceStateEmpty {
-		span.Meta["w3c.tracestate"] = string(in.TraceState())
+		setMetaOTLP(span, "w3c.tracestate", string(in.TraceState()))
 	}
 	if lib.Name() != "" {
-		span.Meta[semconv.OtelLibraryName] = lib.Name()
+		setMetaOTLP(span, semconv.OtelLibraryName, lib.Name())
 	}
 	if lib.Version() != "" {
-		span.Meta[semconv.OtelLibraryVersion] = lib.Version()
+		setMetaOTLP(span, semconv.OtelLibraryVersion, lib.Version())
 	}
-	span.Meta[semconv.OtelStatusCode] = in.Status().Code().String()
+	setMetaOTLP(span, semconv.OtelStatusCode, in.Status().Code().String())
 	if msg := in.Status().Message(); msg != "" {
-		span.Meta[semconv.OtelStatusDescription] = msg
+		setMetaOTLP(span, semconv.OtelStatusDescription, msg)
 	}
 	status2Error(in.Status(), in.Events(), span)
 	if span.Name == "" {

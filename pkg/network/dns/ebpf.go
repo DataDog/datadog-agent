@@ -20,6 +20,7 @@ import (
 )
 
 const funcName = "socket__dns_filter"
+const probeUID = "dns"
 
 type ebpfProgram struct {
 	*manager.Manager
@@ -38,6 +39,7 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFSection:  string(probes.SocketDnsFilter),
 				EBPFFuncName: funcName,
+				UID: probeUID,
 			}},
 		},
 	}
@@ -70,6 +72,7 @@ func (e *ebpfProgram) Init() error {
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  string(probes.SocketDnsFilter),
 					EBPFFuncName: funcName,
+					UID: probeUID,
 				},
 			},
 		},

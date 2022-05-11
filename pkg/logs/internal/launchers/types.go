@@ -30,9 +30,9 @@ type Launcher interface {
 //
 // The *config.LogSources type satisfies this interface.
 type SourceProvider interface {
-	// GetAddedForType returns the new added sources matching the provided type.
-	GetAddedForType(sourceType string) chan *config.LogSource
+	// SubscribeForType returns channels containing the new added and removed sources matching the provided type.
+	SubscribeForType(sourceType string) (added chan *config.LogSource, removed chan *config.LogSource)
 
-	// GetRemovedForType returns the new removed sources matching the provided type.
-	GetRemovedForType(sourceType string) chan *config.LogSource
+	// GetAddedForType returns channels containing the new added sources matching the provided type.
+	GetAddedForType(sourceType string) chan *config.LogSource
 }
