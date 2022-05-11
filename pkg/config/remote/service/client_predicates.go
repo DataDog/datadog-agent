@@ -45,6 +45,10 @@ func executeClientPredicates(
 		var matched bool
 		nullPredicates := predicates == nil || predicates.Predicates == nil
 		if !nullPredicates {
+			if predicates.Version != 0 {
+				log.Infof("Unsupported predicate version %d for products %s", predicates.Version)
+				continue
+			}
 			matched, err = executePredicate(client, predicates.Predicates)
 			if err != nil {
 				return nil, err
