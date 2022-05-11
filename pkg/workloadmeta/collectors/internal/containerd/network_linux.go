@@ -11,10 +11,11 @@ package containerd
 import (
 	"errors"
 
+	"github.com/containerd/containerd"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
-	"github.com/containerd/containerd"
 )
 
 // extractIP gets the IP of a container.

@@ -3,16 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux
-// +build !linux
+//go:build containerd && !linux
+// +build containerd,!linux
 
 package containerd
 
 import (
 	"errors"
 
-	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/containerd/containerd"
+
+	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 )
 
 func extractIP(container containerd.Container, containerdClient cutil.ContainerdItf) (string, error) {
