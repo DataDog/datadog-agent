@@ -50,7 +50,7 @@ func (m *mapProvider) Retrieve(_ context.Context, uri string, _ config.WatcherFu
 		return config.Retrieved{}, fmt.Errorf("%v location is not supported by %v provider", uri, mapSchemeName)
 	}
 
-	return config.Retrieved{Map: m.cfg}, nil
+	return config.NewRetrievedFromMap(m.cfg), nil
 }
 
 func (m *mapProvider) Scheme() string {
