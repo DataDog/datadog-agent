@@ -118,6 +118,7 @@ if node['platform_family'] != 'windows'
       volumes [
         # security-agent misc
         '/tmp/security-agent:/tmp/security-agent',
+        '/opt/datadog-agent/embedded/bin:/opt/datadog-agent/embedded/bin',
         # HOST_* paths
         '/proc:/host/proc',
         '/etc:/host/etc',
