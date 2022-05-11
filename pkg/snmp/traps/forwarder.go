@@ -7,6 +7,9 @@ import (
 )
 
 // TrapForwarder consumes from a trapsIn channel, format traps and send them as EventPlatformEvents
+// The TrapForwarder is an intermediate step between the listener and the epforwarder in order to limit the processing of the listener
+// to the minimum. The forwarder process payloads received by the listener via the trapsIn channel, formats them and finally
+// give them to the epforwarder for sending it to Datadog.
 type TrapForwarder struct {
 	trapsIn   PacketsChannel
 	formatter Formatter

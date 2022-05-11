@@ -49,7 +49,9 @@ func GetStatus() map[string]interface{} {
 	metricsJSON := []byte(expvar.Get("snmp_traps").String())
 	metrics := make(map[string]interface{})
 	json.Unmarshal(metricsJSON, &metrics) //nolint:errcheck
-	metrics["PacketsDropped"] = getDroppedPackets()
+	if dropped := getDroppedPackets(); dropped > 0 {
+		metrics["PacketsDropped"] = dropped
+	}
 	status["metrics"] = metrics
 
 	if startError != nil {

@@ -73,7 +73,6 @@ func (t *TrapListener) Stop() {
 }
 
 func (t *TrapListener) receiveTrap(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
-	currentTime := time.Now().UnixMilli()
 	if err := validatePacket(p, t.config); err != nil {
 		t.errorLogger.Warn("Invalid credentials from %s on listener %s, dropping traps", u.String(), t.config.Addr())
 		trapsPacketsAuthErrors.Add(1)
@@ -81,5 +80,5 @@ func (t *TrapListener) receiveTrap(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
 	}
 	log.Debugf("Packet received from %s on listener %s", u.String(), t.config.Addr())
 	trapsPackets.Add(1)
-	t.packets <- &SnmpPacket{Content: p, Addr: u, Timestamp: currentTime}
+	t.packets <- &SnmpPacket{Content: p, Addr: u, Timestamp: time.Now().UnixMilli()}
 }
