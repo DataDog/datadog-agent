@@ -69,6 +69,7 @@ func TestRename(t *testing.T) {
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
+			assert.Equal(t, event.Rename.Async, int64(0))
 
 			if !validateRenameSchema(t, event) {
 				t.Error(event.String())
@@ -97,6 +98,7 @@ func TestRename(t *testing.T) {
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
+			assert.Equal(t, event.Rename.Async, int64(0))
 
 			if !validateRenameSchema(t, event) {
 				t.Error(event.String())
@@ -128,6 +130,7 @@ func TestRename(t *testing.T) {
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
+			assert.Equal(t, event.Rename.Async, int64(0))
 
 			if !validateRenameSchema(t, event) {
 				t.Error(event.String())
@@ -184,6 +187,7 @@ func TestRename(t *testing.T) {
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
+			assert.Equal(t, event.Rename.Async, int64(1))
 
 			executable, err := os.Executable()
 			if err != nil {

@@ -14,12 +14,16 @@
                 },
                 "outcome": {
                     "type": "string"
+                },
+                "async": {
+                    "type": "boolean"
                 }
             },
             "required": [
                 "name",
                 "category",
-                "outcome"
+                "outcome",
+                "async"
             ]
         },
         "date": {

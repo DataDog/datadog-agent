@@ -18,7 +18,7 @@ int __attribute__((always_inline)) link_approvers(struct syscall_cache_t *syscal
            basename_approver(syscall, syscall->link.target_dentry, EVENT_LINK);
 }
 
-int __attribute__((always_inline)) trace__sys_link() {
+int __attribute__((always_inline)) trace__sys_link(u8 async) {
     struct policy_t policy = fetch_policy(EVENT_LINK);
     if (is_discarded_by_process(policy.mode, EVENT_LINK)) {
         return 0;
@@ -27,6 +27,7 @@ int __attribute__((always_inline)) trace__sys_link() {
     struct syscall_cache_t syscall = {
         .type = EVENT_LINK,
         .policy = policy,
+        .async = async,
     };
 
     cache_syscall(&syscall);
@@ -35,16 +36,20 @@ int __attribute__((always_inline)) trace__sys_link() {
 }
 
 SYSCALL_KPROBE0(link) {
-    return trace__sys_link();
+    return trace__sys_link(SYNC_SYSCALL);
 }
 
 SYSCALL_KPROBE0(linkat) {
-    return trace__sys_link();
+    return trace__sys_link(SYNC_SYSCALL);
 }
 
 SEC("kprobe/do_linkat")
 int kprobe_do_linkat(struct pt_regs *ctx) {
-    return trace__sys_link();
+    struct syscall_cache_t* syscall = peek_syscall(EVENT_LINK);
+    if (!syscall) {
+        return trace__sys_link(ASYNC_SYSCALL);
+    }
+    return 0;
 }
 
 SEC("kprobe/vfs_link")
@@ -196,6 +201,7 @@ int __attribute__((always_inline)) dr_link_dst_callback(void *ctx, int retval) {
         .event.type = EVENT_LINK,
         .event.timestamp = bpf_ktime_get_ns(),
         .syscall.retval = retval,
+        .syscall.async = (u64)syscall->async,
         .source = syscall->link.src_file,
         .target = syscall->link.target_file,
     };

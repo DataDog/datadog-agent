@@ -435,11 +435,12 @@ func (e *SetXAttrEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *SyscallEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 8 {
+	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
 	e.Retval = int64(ByteOrder.Uint64(data[0:8]))
-	return 8, nil
+	e.Async = int64(ByteOrder.Uint64(data[8:16]))
+	return 16, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

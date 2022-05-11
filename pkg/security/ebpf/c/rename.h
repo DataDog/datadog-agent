@@ -18,9 +18,10 @@ int __attribute__((always_inline)) rename_approvers(struct syscall_cache_t *sysc
            basename_approver(syscall, syscall->rename.target_dentry, EVENT_RENAME);
 }
 
-int __attribute__((always_inline)) trace__sys_rename() {
+int __attribute__((always_inline)) trace__sys_rename(u8 async) {
     struct syscall_cache_t syscall = {
         .policy = fetch_policy(EVENT_RENAME),
+        .async = async,
         .type = EVENT_RENAME,
     };
 
@@ -30,20 +31,24 @@ int __attribute__((always_inline)) trace__sys_rename() {
 }
 
 SYSCALL_KPROBE0(rename) {
-    return trace__sys_rename();
+    return trace__sys_rename(SYNC_SYSCALL);
 }
 
 SYSCALL_KPROBE0(renameat) {
-    return trace__sys_rename();
+    return trace__sys_rename(SYNC_SYSCALL);
 }
 
 SYSCALL_KPROBE0(renameat2) {
-    return trace__sys_rename();
+    return trace__sys_rename(SYNC_SYSCALL);
 }
 
 SEC("kprobe/do_renameat2")
 int kprobe_do_renameat2(struct pt_regs *ctx) {
-    return trace__sys_rename();
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
+    if (!syscall) {
+        return trace__sys_rename(ASYNC_SYSCALL);
+    }
+    return 0;
 }
 
 SEC("kprobe/vfs_rename")
@@ -211,6 +216,7 @@ int __attribute__((always_inline)) dr_rename_callback(void *ctx, int retval) {
 
     struct rename_event_t event = {
         .syscall.retval = retval,
+        .syscall.async = syscall->async,
         .old = syscall->rename.src_file,
         .new = syscall->rename.target_file,
     };

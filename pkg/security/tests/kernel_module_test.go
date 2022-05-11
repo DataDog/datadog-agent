@@ -165,6 +165,7 @@ func TestLoadModule(t *testing.T) {
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "test_load_module_from_memory", r.ID, "invalid rule triggered")
 			assert.Equal(t, "", event.ResolveFilePath(&event.LoadModule.File), "shouldn't get a path")
+			assert.Equal(t, event.LoadModule.Async, int64(0))
 
 			if !validateLoadModuleNoFileSchema(t, event) {
 				t.Error(event.String())

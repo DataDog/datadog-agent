@@ -239,6 +239,7 @@ struct kevent_t {
 
 struct syscall_t {
     s64 retval;
+    u64 async;
 };
 
 struct span_context_t {

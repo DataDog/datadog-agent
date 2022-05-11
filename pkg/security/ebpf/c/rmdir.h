@@ -17,10 +17,11 @@ int __attribute__((always_inline)) rmdir_approvers(struct syscall_cache_t *sysca
 }
 int __attribute__((always_inline)) unlink_approvers(struct syscall_cache_t *syscall);
 
-int __attribute__((always_inline)) trace__sys_rmdir(int flags) {
+int __attribute__((always_inline)) trace__sys_rmdir(u8 async, int flags) {
     struct syscall_cache_t syscall = {
         .type = EVENT_RMDIR,
         .policy = fetch_policy(EVENT_RMDIR),
+        .async = async,
     };
 
     cache_syscall(&syscall);
@@ -29,16 +30,20 @@ int __attribute__((always_inline)) trace__sys_rmdir(int flags) {
 }
 
 SYSCALL_KPROBE0(rmdir) {
-    return trace__sys_rmdir(0);
-}
-
-SEC("kprobe/do_rmdir")
-int kprobe_do_rmdir(struct pt_regs *ctx) {
-    return trace__sys_rmdir(0);
+    return trace__sys_rmdir(SYNC_SYSCALL, 0);
 }
 
 int __attribute__((always_inline)) rmdir_predicate(u64 type) {
     return type == EVENT_RMDIR || type == EVENT_UNLINK;
+}
+
+SEC("kprobe/do_rmdir")
+int kprobe_do_rmdir(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
+    if (!syscall) {
+        return trace__sys_rmdir(ASYNC_SYSCALL, 0);
+    }
+    return 0;
 }
 
 // security_inode_rmdir is shared between rmdir and unlink syscalls
@@ -141,6 +146,7 @@ int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
     if (pass_to_userspace) {
         struct rmdir_event_t event = {
             .syscall.retval = retval,
+            .syscall.async = syscall->async,
             .file = syscall->rmdir.file,
         };
 

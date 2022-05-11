@@ -622,6 +622,7 @@ type SetXAttrEvent struct {
 // SyscallEvent contains common fields for all the event
 type SyscallEvent struct {
 	Retval int64 `field:"retval" msg:"retval"` // Return value of the syscall
+	Async  int64 `field:"async" msg:"async"`   // True if the syscall was asynchronous
 }
 
 // UnlinkEvent represents an unlink event

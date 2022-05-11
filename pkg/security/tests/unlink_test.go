@@ -57,6 +57,7 @@ func TestUnlink(t *testing.T) {
 			assertRights(t, event.Unlink.File.Mode, expectedMode)
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
+			assert.Equal(t, event.Unlink.Async, int64(0))
 		})
 	}))
 
@@ -80,6 +81,7 @@ func TestUnlink(t *testing.T) {
 			assertRights(t, event.Unlink.File.Mode, expectedMode)
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
+			assert.Equal(t, event.Unlink.Async, int64(0))
 		})
 	})
 
@@ -132,6 +134,7 @@ func TestUnlink(t *testing.T) {
 			assertRights(t, event.Unlink.File.Mode, expectedMode)
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
+			assert.Equal(t, event.Unlink.Async, int64(1))
 
 			executable, err := os.Executable()
 			if err != nil {
