@@ -8,7 +8,7 @@
 +extern "C" {
 +#endif
 +
-+#if defined(__GLIBC__) && !defined(SKIP_GLIBC_WRAPPER)
++#if defined(__GLIBC__)
 +
 +#ifdef __x86_64__
 +#define GLIBC_VERS "GLIBC_2.2.5"

@@ -128,8 +128,9 @@ github.com/DataDog/datadog-api-client-go v1.0.0-beta.18/go.mod h1:Gn0fZwIOBbSidO
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-go v4.4.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-go/v5 v5.0.2/go.mod h1:ZI9JFB4ewXbw1sBnF4sxsR2k1H3xjV+PUAOUsHvKpcU=
-github.com/DataDog/datadog-go/v5 v5.1.0 h1:Zmq3tCk9+Tdq8Du73M71Zo6Dyx+cEo9QkCSCqQlHFaQ=
 github.com/DataDog/datadog-go/v5 v5.1.0/go.mod h1:KhiYb2Badlv9/rofz+OznKoEF5XKTonWyhx5K83AP8E=
+github.com/DataDog/datadog-go/v5 v5.1.1 h1:JLZ6s2K1pG2h9GkvEvMdEGqMDyVLEAccdX5TltWcLMU=
+github.com/DataDog/datadog-go/v5 v5.1.1/go.mod h1:KhiYb2Badlv9/rofz+OznKoEF5XKTonWyhx5K83AP8E=
 github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a h1:vqz6k806rvz01tIzOA2UHE3j1IEAMcDxw8O+nA3H+Mk=
 github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a/go.mod h1:2qOvG41jii2ks6Umn6MbDGlHRgwoFiYXcjgQQ9VlsS0=
 github.com/DataDog/ebpf-manager v0.0.0-20220406140358-68e6b7f54dde h1:tAtD5vDOWsD3s44PMuqVnQ4ADPwqyw1usEZ2Afs5j9g=
@@ -155,8 +156,8 @@ github.com/DataDog/nikos v1.7.6/go.mod h1:kK2wHo4SMa+qDP7cNQWzS3Ol9uJK46zPLPtK1C
 github.com/DataDog/sketches-go v1.0.0/go.mod h1:O+XkJHWk9w4hDwY2ZUDU31ZC9sNYlYo8DiFsxjYeo1k=
 github.com/DataDog/sketches-go v1.4.1 h1:j5G6as+9FASM2qC36lvpvQAj9qsv/jUs3FtO8CwZNAY=
 github.com/DataDog/sketches-go v1.4.1/go.mod h1:xJIXldczJyyjnbDop7ZZcLxJdV3+7Kra7H1KMgpgkLk=
-github.com/DataDog/viper v1.9.0 h1:9Ha1yJebecIKtboH/GXUM3brfoMofvdd8BlMck8Cs8Q=
-github.com/DataDog/viper v1.9.0/go.mod h1:Gx7+/WONkbQIh3ac52KqcFTzipQ1OYHhCQGWAgHlzpc=
+github.com/DataDog/viper v1.10.0 h1:W7pvGGEMJUcBbgeil3klCBsWwWCi4bK3CmG/eqZBMms=
+github.com/DataDog/viper v1.10.0/go.mod h1:Gx7+/WONkbQIh3ac52KqcFTzipQ1OYHhCQGWAgHlzpc=
 github.com/DataDog/watermarkpodautoscaler v0.3.1-logs-attributes.2.0.20211014120627-6d6a5c559fc9 h1:eTBekOGVnZyX9hBoYjiOpDijtOZZ8VHVC3NyrcYuC7w=
 github.com/DataDog/watermarkpodautoscaler v0.3.1-logs-attributes.2.0.20211014120627-6d6a5c559fc9/go.mod h1:p6kKSHVHifUrxvl4KhuazpnuPuqjwdGoyGRempGdZ/w=
 github.com/DataDog/zstd v1.3.5/go.mod h1:1jcaCB/ufaK+sKp1NBhlGmpz41jOoPQ35bpF36t7BBo=
@@ -507,8 +508,8 @@ github.com/docker/distribution v2.8.0+incompatible h1:l9EaZDICImO1ngI+uTifW+ZYvv
 github.com/docker/distribution v2.8.0+incompatible/go.mod h1:J2gT2udsDAN96Uj4KfcMRqY0/ypR+oyYUYmja8H+y+w=
 github.com/docker/docker v1.4.2-0.20190924003213-a8608b5b67c7/go.mod h1:eEKB0N0r5NX/I1kEveEz05bcu8tLC/8azJZsviup8Sk=
 github.com/docker/docker v1.4.2-0.20200319182547-c7ad2b866182/go.mod h1:eEKB0N0r5NX/I1kEveEz05bcu8tLC/8azJZsviup8Sk=
-github.com/docker/docker v17.12.0-ce-rc1.0.20200916142827-bd33bbf0497b+incompatible h1:SiUATuP//KecDjpOK2tvZJgeScYAklvyjfK8JZlU6fo=
-github.com/docker/docker v17.12.0-ce-rc1.0.20200916142827-bd33bbf0497b+incompatible/go.mod h1:eEKB0N0r5NX/I1kEveEz05bcu8tLC/8azJZsviup8Sk=
+github.com/docker/docker v20.10.14+incompatible h1:+T9/PRYWNDo5SZl5qS1r9Mo/0Q8AwxKKPtu9S1yxM0w=
+github.com/docker/docker v20.10.14+incompatible/go.mod h1:eEKB0N0r5NX/I1kEveEz05bcu8tLC/8azJZsviup8Sk=
 github.com/docker/docker-credential-helpers v0.6.3/go.mod h1:WRaJzqw3CTB9bk10avuGsjVBZsD05qeibJ1/TYlvc0Y=
 github.com/docker/go-connections v0.4.0 h1:El9xVISelRB7BuFusrZozjnkIM5YnzCViNKohAFqRJQ=
 github.com/docker/go-connections v0.4.0/go.mod h1:Gbd7IOopHjR8Iph03tsViu4nIes5XhDvyHbTtUxmeec=
@@ -1316,6 +1317,7 @@ github.com/moby/sys/mountinfo v0.6.1 h1:+H/KnGEAGRpTrEAqNVQ2AM3SiwMgJUt/TXj+Z8cm
 github.com/moby/sys/mountinfo v0.6.1/go.mod h1:3bMD3Rg+zkqx8MRYPi7Pyb0Ie97QEBmdxbhnCLlSvSU=
 github.com/moby/sys/symlink v0.1.0/go.mod h1:GGDODQmbFOjFsXvfLVn3+ZRxkch54RkSiGqsZeMYowQ=
 github.com/moby/term v0.0.0-20200312100748-672ec06f55cd/go.mod h1:DdlQx2hp0Ss5/fLikoLlEeIYiATotOjgB//nb973jeo=
+github.com/moby/term v0.0.0-20201216013528-df9cb8a40635 h1:rzf0wL0CHVc8CEsgyygG0Mn9CNCCPZqOPaz8RiiHYQk=
 github.com/moby/term v0.0.0-20201216013528-df9cb8a40635/go.mod h1:FBS0z0QWA44HXygs7VXDUOGoN/1TV3RuWkLO04am3wc=
 github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=
 github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd h1:TRLaZ9cD/w8PVh93nsPXa1VrQ6jlwL5oN8l14QlcNfg=
@@ -1665,8 +1667,8 @@ github.com/tedsuo/ifrit v0.0.0-20191009134036-9a97d0632f00 h1:mujcChM89zOHwgZBBN
 github.com/tedsuo/ifrit v0.0.0-20191009134036-9a97d0632f00/go.mod h1:eyZnKCc955uh98WQvzOm0dgAeLnf2O0Rz0LPoC5ze+0=
 github.com/tedsuo/rata v1.0.0 h1:Sf9aZrYy6ElSTncjnGkyC2yuVvz5YJetBIUKJ4CmeKE=
 github.com/tedsuo/rata v1.0.0/go.mod h1:X47ELzhOoLbfFIY0Cql9P6yo3Cdwf2CMX3FVZxRzJPc=
-github.com/theupdateframework/go-tuf v0.1.0 h1:ZtpteY7vwPlJd2x4LNaMPtL2EjKZ/YDf23rS4dTRuzQ=
-github.com/theupdateframework/go-tuf v0.1.0/go.mod h1:Vlrf6NdcfjEjbF24KDNIL07h8kUjzznkSJgihzWMC9Q=
+github.com/theupdateframework/go-tuf v0.3.0 h1:od2sc5+BSkKZhmUG2o2rmruy0BGSmhrbDhCnpxh87X8=
+github.com/theupdateframework/go-tuf v0.3.0/go.mod h1:E5XP0wXitrFUHe4b8cUcAAdxBW4LbfnqF4WXXGLgWNo=
 github.com/tidwall/assert v0.1.0/go.mod h1:QLYtGyeqse53vuELQheYl9dngGCJQ+mTtlxcktb+Kj8=
 github.com/tidwall/btree v0.3.0/go.mod h1:huei1BkDWJ3/sLXmO+bsCNELL+Bp2Kks9OLyQFkzvA8=
 github.com/tidwall/btree v1.1.0/go.mod h1:TzIRzen6yHbibdSfK6t8QimqbUnoxUSrZfeW7Uob0q4=

@@ -101,7 +101,7 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 
 	// if there is no gateway, we don't need to add subnet info
 	// for gateway resolution in the backend
-	if r.Gateway.IsUnspecified() {
+	if r.Gateway.IsZero() || r.Gateway.IsUnspecified() {
 		return nil
 	}
 

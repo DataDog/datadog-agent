@@ -90,7 +90,7 @@ type Config struct {
 	LogPatterns []string
 	// LogTags tags to be used by the logger for trace level
 	LogTags []string
-	// SelfTestEnabled defines if the self tester should be enabled (useful for tests for example)
+	// SelfTestEnabled defines if the self tests should be executed at startup or not
 	SelfTestEnabled bool
 	// EnableRemoteConfig defines if the agent configuration should be fetched from the backend
 	EnableRemoteConfig bool

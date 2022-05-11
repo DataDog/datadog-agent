@@ -72,8 +72,6 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:     true,
 				Metrics: map[string]interface{}{
 					"delta_ttl":                                2000,
-					"report_quantiles":                         false,
-					"send_monotonic_counter":                   true,
 					"resource_attributes_as_tags":              true,
 					"instrumentation_library_metadata_as_tags": true,
 					"histograms": map[string]interface{}{
@@ -108,8 +106,6 @@ func TestNewMap(t *testing.T) {
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
 							"delta_ttl":                                2000,
-							"report_quantiles":                         false,
-							"send_monotonic_counter":                   true,
 							"resource_attributes_as_tags":              true,
 							"instrumentation_library_metadata_as_tags": true,
 							"histograms": map[string]interface{}{
@@ -183,8 +179,6 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:     true,
 				Metrics: map[string]interface{}{
 					"delta_ttl":                                1500,
-					"report_quantiles":                         true,
-					"send_monotonic_counter":                   false,
 					"resource_attributes_as_tags":              false,
 					"instrumentation_library_metadata_as_tags": false,
 					"histograms": map[string]interface{}{
@@ -212,8 +206,6 @@ func TestNewMap(t *testing.T) {
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
 							"delta_ttl":                                1500,
-							"report_quantiles":                         true,
-							"send_monotonic_counter":                   false,
 							"resource_attributes_as_tags":              false,
 							"instrumentation_library_metadata_as_tags": false,
 							"histograms": map[string]interface{}{
@@ -255,8 +247,6 @@ func TestUnmarshal(t *testing.T) {
 		TracesEnabled:      true,
 		Metrics: map[string]interface{}{
 			"delta_ttl":                                2000,
-			"report_quantiles":                         false,
-			"send_monotonic_counter":                   true,
 			"resource_attributes_as_tags":              true,
 			"instrumentation_library_metadata_as_tags": true,
 			"histograms": map[string]interface{}{

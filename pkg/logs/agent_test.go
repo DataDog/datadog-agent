@@ -127,14 +127,13 @@ func (suite *AgentTestSuite) TestAgentHttp() {
 
 	server := http.NewTestServer(200)
 	defer server.Stop()
-	server.Endpoint.IsReliable = true
 	endpoints := config.NewEndpoints(server.Endpoint, nil, false, true)
 
 	suite.testAgent(endpoints)
 }
 
 func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
-	endpoint := config.Endpoint{Host: "fake:", Port: 0, IsReliable: true}
+	endpoint := config.Endpoint{Host: "fake:", Port: 0}
 	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{}, true, false)
 
 	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})

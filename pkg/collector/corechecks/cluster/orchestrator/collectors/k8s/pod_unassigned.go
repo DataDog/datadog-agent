@@ -9,8 +9,6 @@
 package k8s
 
 import (
-	"sync/atomic"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -74,7 +72,7 @@ func (c *UnassignedPodCollector) Run(rcfg *collectors.CollectorRunConfig) (*coll
 		APIClient:  rcfg.APIClient,
 		Cfg:        rcfg.Config,
 		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: atomic.AddInt32(rcfg.MsgGroupRef, 1),
+		MsgGroupID: rcfg.MsgGroupRef.Inc(),
 		NodeType:   c.metadata.NodeType,
 	}
 

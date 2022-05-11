@@ -104,6 +104,8 @@ const (
 	CustomForkBombEventType
 	// CustomTruncatedParentsEventType is the custom event used to report that the parents of a path were truncated
 	CustomTruncatedParentsEventType
+	// CustomSelfTestEventType is the custom event used to report the results of a self test run
+	CustomSelfTestEventType
 	// MaxAllEventType is used internally to get the maximum number of events.
 	MaxAllEventType
 )
@@ -193,6 +195,8 @@ func (t EventType) String() string {
 		return "fork_bomb"
 	case CustomTruncatedParentsEventType:
 		return "truncated_parents"
+	case CustomSelfTestEventType:
+		return "self_test"
 	default:
 		return "unknown"
 	}

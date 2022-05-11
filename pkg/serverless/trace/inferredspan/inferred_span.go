@@ -98,26 +98,27 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 
 // DispatchInferredSpan decodes the event and routes it to the correct
 // enrichment function for that event source
-func DispatchInferredSpan(event string, inferredSpan InferredSpan) {
+func (inferredSpan *InferredSpan) DispatchInferredSpan(event string) {
 	attributes := parseEvent(event)
 	eventSource := attributes.extractEventSource()
 	switch eventSource {
 	case APIGATEWAY:
-		EnrichInferredSpanWithAPIGatewayRESTEvent(attributes, inferredSpan)
+		inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(attributes)
 	case HTTPAPI:
-		EnrichInferredSpanWithAPIGatewayHTTPEvent(attributes, inferredSpan)
+		inferredSpan.EnrichInferredSpanWithAPIGatewayHTTPEvent(attributes)
 	case WEBSOCKET:
-		EnrichInferredSpanWithAPIGatewayWebsocketEvent(attributes, inferredSpan)
+		inferredSpan.EnrichInferredSpanWithAPIGatewayWebsocketEvent(attributes)
+	case SNS:
+		inferredSpan.EnrichInferredSpanWithSNSEvent(attributes)
 	}
 }
 
 // CompleteInferredSpan finishes the inferred span and passes it
 // as an API payload to be processed by the trace agent
-func CompleteInferredSpan(
+func (inferredSpan *InferredSpan) CompleteInferredSpan(
 	processTrace func(p *api.Payload),
 	endTime time.Time,
 	isError bool,
-	inferredSpan InferredSpan,
 	traceID uint64,
 	samplingPriority sampler.SamplingPriority) {
 
@@ -150,15 +151,13 @@ func CompleteInferredSpan(
 
 // GenerateInferredSpan declares and initializes a new inferred span
 // with the SpanID and TraceID
-func GenerateInferredSpan(startTime time.Time) InferredSpan {
-	var inferredSpan InferredSpan
+func (inferredSpan *InferredSpan) GenerateInferredSpan(startTime time.Time) {
 
 	inferredSpan.CurrentInvocationStartTime = startTime
 	inferredSpan.Span = &pb.Span{
 		SpanID: random.Random.Uint64(),
 	}
-	log.Debug("Generated new Inferred span ", inferredSpan)
-	return inferredSpan
+	log.Debugf("Generated new Inferred span: %s", inferredSpan)
 }
 
 // IsInferredSpansEnabled is used to determine if we need to
