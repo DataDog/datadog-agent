@@ -204,8 +204,8 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 	assert.Equal(t, 1*time.Second, refreshInterval)
 }
 
-func customMeta(predicates []*clientPredicate) *json.RawMessage {
-	data, err := json.Marshal(DirectorTargetsCustomMetadata{Predicates: &clientPredicates{Predicates: predicates}})
+func customMeta(tracerPredicates []*tracerPredicates) *json.RawMessage {
+	data, err := json.Marshal(DirectorTargetsCustomMetadata{Predicates: &clientPredicates{Predicates: tracerPredicates}})
 	if err != nil {
 		panic(err)
 	}
@@ -308,11 +308,11 @@ func TestService(t *testing.T) {
 	assert.Equal(t, targets, configResponse.Targets)
 	assert.ElementsMatch(t,
 		configResponse.ClientConfigs,
-		[]*pbgo.ConfigPointer{
-			{Path: "datadog/2/APM_SAMPLING/id/1"},
-			{Path: "datadog/2/APM_SAMPLING/id/2"},
-			{Path: "datadog/2/TESTING1/id/1"},
-			{Path: "datadog/2/APPSEC/id/1"},
+		[]string{
+			"datadog/2/APM_SAMPLING/id/1",
+			"datadog/2/APM_SAMPLING/id/2",
+			"datadog/2/TESTING1/id/1",
+			"datadog/2/APPSEC/id/1",
 		},
 	)
 	err = service.refresh()
@@ -360,19 +360,19 @@ func TestServiceClientPredicates(t *testing.T) {
 	wrongServiceName := "wrong-service"
 	uptaneClient.On("Targets").Return(data.TargetFiles{
 		// must be delivered
-		"datadog/2/APM_SAMPLING/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*clientPredicate{})}},
-		"datadog/2/APM_SAMPLING/id/2": {FileMeta: data.FileMeta{Custom: customMeta([]*clientPredicate{
+		"datadog/2/APM_SAMPLING/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*tracerPredicates{})}},
+		"datadog/2/APM_SAMPLING/id/2": {FileMeta: data.FileMeta{Custom: customMeta([]*tracerPredicates{
 			{
 				RuntimeID: &clientID,
 			},
 		})}},
 		// must not be delivered
-		"datadog/2/TESTING1/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*clientPredicate{
+		"datadog/2/TESTING1/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*tracerPredicates{
 			{
 				RuntimeID: &clientIDFail,
 			},
 		})}},
-		"datadog/2/APPSEC/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*clientPredicate{
+		"datadog/2/APPSEC/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*tracerPredicates{
 			{
 				Service: &wrongServiceName,
 			},
@@ -407,9 +407,9 @@ func TestServiceClientPredicates(t *testing.T) {
 	assert.NoError(err)
 	assert.ElementsMatch(
 		configResponse.ClientConfigs,
-		[]*pbgo.ConfigPointer{
-			{Path: "datadog/2/APM_SAMPLING/id/1"},
-			{Path: "datadog/2/APM_SAMPLING/id/2"},
+		[]string{
+			"datadog/2/APM_SAMPLING/id/1",
+			"datadog/2/APM_SAMPLING/id/2",
 		},
 	)
 	err = service.refresh()

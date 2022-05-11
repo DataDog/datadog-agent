@@ -10,7 +10,7 @@ import (
 	"github.com/theupdateframework/go-tuf/data"
 )
 
-type clientPredicate struct {
+type tracerPredicates struct {
 	RuntimeID     *string `json:"runtime-id,omitempty"`
 	Service       *string `json:"service,omitempty"`
 	Environment   *string `json:"environment,omitempty"`
@@ -20,8 +20,8 @@ type clientPredicate struct {
 }
 
 type clientPredicates struct {
-	Version    int                `json:"version,omitempty"`
-	Predicates []*clientPredicate `json:"predicates,omitempty"`
+	Version    int                 `json:"version,omitempty"`
+	Predicates []*tracerPredicates `json:"predicates,omitempty"`
 }
 
 type DirectorTargetsCustomMetadata struct {
@@ -33,8 +33,8 @@ type DirectorTargetsCustomMetadata struct {
 func executeClientPredicates(
 	client *pbgo.Client,
 	directorTargets data.TargetFiles,
-) ([]*pbgo.ConfigPointer, error) {
-	configPointers := make([]*pbgo.ConfigPointer, 0)
+) ([]string, error) {
+	configs := make([]string, 0)
 
 	for path, meta := range directorTargets {
 		predicates, err := parsePredicates(meta.Custom)
@@ -56,12 +56,12 @@ func executeClientPredicates(
 		}
 
 		if matched || nullPredicates {
-			configPointers = append(configPointers, &pbgo.ConfigPointer{Path: path})
+			configs = append(configs, path)
 		}
 
 	}
 
-	return configPointers, nil
+	return configs, nil
 }
 
 func parsePredicates(customJSON *json.RawMessage) (*clientPredicates, error) {
@@ -76,7 +76,7 @@ func parsePredicates(customJSON *json.RawMessage) (*clientPredicates, error) {
 	return metadata.Predicates, nil
 }
 
-func executePredicate(client *pbgo.Client, predicates []*clientPredicate) (bool, error) {
+func executePredicate(client *pbgo.Client, predicates []*tracerPredicates) (bool, error) {
 	for _, predicate := range predicates {
 		if client.IsTracer {
 			tracer := client.ClientTracer
