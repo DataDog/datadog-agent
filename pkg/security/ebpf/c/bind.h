@@ -46,7 +46,11 @@ SYSCALL_KRETPROBE(bind) {
         return 0;
     }
 
-    int retval = PT_REGS_RC(ctx); /* TODO: define which errors we want to discard */
+    int retval = PT_REGS_RC(ctx);
+    if (IS_UNHANDLED_ERROR(retval)) {
+        return 0;
+    }
+
 
     /* get address family */
     uint16_t addr_family;

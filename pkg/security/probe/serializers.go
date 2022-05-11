@@ -268,6 +268,14 @@ type IPPortSerializer struct {
 	Port uint16 `json:"port" jsonschema_description:"Port number"`
 }
 
+// IPPortFamilySerializer is used to serialize an IP, Port and address family context to JSON
+// easyjson:json
+type IPPortFamilySerializer struct {
+	Family string `json:"family" jsonschema_description:"Address family"`
+	IP     string `json:"ip" jsonschema_description:"IP address"`
+	Port   uint16 `json:"port" jsonschema_description:"Port number"`
+}
+
 // NetworkContextSerializer serializes the network context to JSON
 // easyjson:json
 type NetworkContextSerializer struct {
@@ -321,8 +329,7 @@ type SpliceEventSerializer struct {
 // BindEventSerializer serializes a bind event to JSON
 // easyjson:json
 type BindEventSerializer struct {
-	AddrFamily string            `json:"addr_family" jsonschema_description:"Address family"`
-	Addr       *IPPortSerializer `json:"addr" jsonschema_description:"Bound address (if any)"`
+	Addr *IPPortFamilySerializer `json:"addr" jsonschema_description:"Bound address (if any)"`
 }
 
 // EventSerializer serializes an event to JSON
@@ -689,6 +696,14 @@ func newIPPortSerializer(c *model.IPPortContext) *IPPortSerializer {
 	}
 }
 
+func newIPPortFamilySerializer(c *model.IPPortContext, family string) *IPPortFamilySerializer {
+	return &IPPortFamilySerializer{
+		IP:     c.IPNet.IP.String(),
+		Port:   c.Port,
+		Family: family,
+	}
+}
+
 func newNetworkDeviceSerializer(e *Event) *NetworkDeviceSerializer {
 	return &NetworkDeviceSerializer{
 		NetNS:   e.NetworkContext.Device.NetNS,
@@ -710,8 +725,7 @@ func newNetworkContextSerializer(e *Event) *NetworkContextSerializer {
 
 func newBindEventSerializer(e *Event) *BindEventSerializer {
 	bes := &BindEventSerializer{
-		AddrFamily: model.AddressFamily(e.Bind.AddrFamily).String(),
-		Addr:       newIPPortSerializer(&e.Bind.Addr),
+		Addr: newIPPortFamilySerializer(&e.Bind.Addr, model.AddressFamily(e.Bind.AddrFamily).String()),
 	}
 	return bes
 }

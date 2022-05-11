@@ -143,16 +143,12 @@
     },
     "BindEvent": {
       "required": [
-        "addr_family",
         "addr"
       ],
       "properties": {
-        "addr_family": {
-          "type": "string",
-          "description": "Address family"
-        },
         "addr": {
-          "$ref": "#/definitions/IPPort",
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/IPPortFamily",
           "description": "Bound address (if any)"
         }
       },
@@ -457,6 +453,29 @@
         "port"
       ],
       "properties": {
+        "ip": {
+          "type": "string",
+          "description": "IP address"
+        },
+        "port": {
+          "type": "integer",
+          "description": "Port number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "IPPortFamily": {
+      "required": [
+        "family",
+        "ip",
+        "port"
+      ],
+      "properties": {
+        "family": {
+          "type": "string",
+          "description": "Address family"
+        },
         "ip": {
           "type": "string",
           "description": "IP address"

@@ -217,16 +217,11 @@ CWS logs have the following JSON schema:
 {{< code-block lang="json" collapsible="true" >}}
 {
     "required": [
-        "addr_family",
         "addr"
     ],
     "properties": {
-        "addr_family": {
-            "type": "string",
-            "description": "Address family"
-        },
         "addr": {
-            "$ref": "#/definitions/IPPort",
+            "$ref": "#/definitions/IPPortFamily",
             "description": "Bound address (if any)"
         }
     },
@@ -238,12 +233,11 @@ CWS logs have the following JSON schema:
 
 | Field | Description |
 | ----- | ----------- |
-| `addr_family` | Address family |
 | `addr` | Bound address (if any) |
 
 | References |
 | ---------- |
-| [IPPort](#ipport) |
+| [IPPortFamily](#ipportfamily) |
 
 ## `ContainerContext`
 
@@ -698,6 +692,43 @@ CWS logs have the following JSON schema:
 
 | Field | Description |
 | ----- | ----------- |
+| `ip` | IP address |
+| `port` | Port number |
+
+
+## `IPPortFamily`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "family",
+        "ip",
+        "port"
+    ],
+    "properties": {
+        "family": {
+            "type": "string",
+            "description": "Address family"
+        },
+        "ip": {
+            "type": "string",
+            "description": "IP address"
+        },
+        "port": {
+            "type": "integer",
+            "description": "Port number"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `family` | Address family |
 | `ip` | IP address |
 | `port` | Port number |
 

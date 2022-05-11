@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"net"
 	"os/exec"
-	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -66,54 +65,6 @@ func TestBindEvent(t *testing.T) {
 			assert.Equal(t, uint16(4242), event.Bind.Addr.Port, "wrong address port")
 			assert.Equal(t, string("0.0.0.0/32"), event.Bind.Addr.IPNet.String(), "wrong address")
 			assert.Equal(t, int64(0), event.Bind.Retval, "wrong retval")
-
-			if !validateBindSchema(t, event) {
-				t.Error(event.String())
-			}
-		})
-	})
-
-	test.Run(t, "bind-af-inet-ip-error", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		args := []string{"bind", "AF_INET", "custom_ip"}
-		envs := []string{}
-
-		test.WaitSignal(t, func() error {
-			cmd := cmdFunc(syscallTester, args, envs)
-			if out, err := cmd.CombinedOutput(); err != nil {
-				return fmt.Errorf("%s: %w", out, err)
-			}
-
-			return nil
-		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, "bind", event.GetType(), "wrong event type")
-			assert.Equal(t, uint16(unix.AF_INET), event.Bind.AddrFamily, "wrong address family")
-			assert.Equal(t, uint16(4242), event.Bind.Addr.Port, "wrong address port")
-			assert.Equal(t, string("127.0.0.1/32"), event.Bind.Addr.IPNet.String(), "wrong address")
-			assert.Equal(t, -int64(syscall.EADDRNOTAVAIL), event.Bind.Retval, "wrong retval")
-
-			if !validateBindSchema(t, event) {
-				t.Error(event.String())
-			}
-		})
-	})
-
-	test.Run(t, "bind-af-inet6-ip-error", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		args := []string{"bind", "AF_INET6", "custom_ip"}
-		envs := []string{}
-
-		test.WaitSignal(t, func() error {
-			cmd := cmdFunc(syscallTester, args, envs)
-			if out, err := cmd.CombinedOutput(); err != nil {
-				return fmt.Errorf("%s: %w", out, err)
-			}
-
-			return nil
-		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, "bind", event.GetType(), "wrong event type")
-			assert.Equal(t, uint16(unix.AF_INET6), event.Bind.AddrFamily, "wrong address family")
-			assert.Equal(t, uint16(4242), event.Bind.Addr.Port, "wrong address port")
-			assert.Equal(t, string("1234:5678:90ab:cdef::1a1a:1337/128"), event.Bind.Addr.IPNet.String(), "wrong address")
-			assert.Equal(t, -int64(syscall.EADDRNOTAVAIL), event.Bind.Retval, "wrong retval")
 
 			if !validateBindSchema(t, event) {
 				t.Error(event.String())
