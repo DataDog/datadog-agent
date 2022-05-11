@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    The "%%host%%" autodiscovery tag now works properly when using containerd.
+    The "%%host%%" autodiscovery tag now works properly when using containerd, but only on Linux and when using IP v4 addresses.
 
