@@ -72,6 +72,10 @@ func validateParserKind(parser string) (string, error) {
 
 // readContent unmarshal file
 func readContent(filePath, parser string) (interface{}, error) {
+	if parser == "" {
+		return "", nil
+	}
+
 	f, err := os.Open(filePath)
 	if err != nil {
 		return "", err
