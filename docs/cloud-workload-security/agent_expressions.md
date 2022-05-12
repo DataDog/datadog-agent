@@ -276,9 +276,9 @@ A bind was executed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
+| `bind.addr.family` | int | Address family |
 | `bind.addr.ip` | IP/CIDR | IP address |
 | `bind.addr.port` | int | Port number |
-| `bind.addr_family` | int | Address family |
 | `bind.retval` | int | Return value of the syscall |
 | `bind.socket` | int | The socket to be bound |
 

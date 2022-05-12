@@ -25,15 +25,15 @@ func TestBindEvent(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_bind_af_inet",
-			Expression: `bind.addr_family == AF_INET && process.file.name == "syscall_tester"`,
+			Expression: `bind.addr.family == AF_INET && process.file.name == "syscall_tester"`,
 		},
 		{
 			ID:         "test_bind_af_inet6",
-			Expression: `bind.addr_family == AF_INET6 && process.file.name == "syscall_tester"`,
+			Expression: `bind.addr.family == AF_INET6 && process.file.name == "syscall_tester"`,
 		},
 		{
 			ID:         "test_bind_af_unix",
-			Expression: `bind.addr_family == AF_UNIX && process.file.name == "syscall_tester"`,
+			Expression: `bind.addr.family == AF_UNIX && process.file.name == "syscall_tester"`,
 		},
 	}
 

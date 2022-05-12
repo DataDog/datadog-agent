@@ -522,6 +522,11 @@
       "experimental": true,
       "properties": [
         {
+          "name": "bind.addr.family",
+          "type": "int",
+          "definition": "Address family"
+        },
+        {
           "name": "bind.addr.ip",
           "type": "IP/CIDR",
           "definition": "IP address"
@@ -530,11 +535,6 @@
           "name": "bind.addr.port",
           "type": "int",
           "definition": "Port number"
-        },
-        {
-          "name": "bind.addr_family",
-          "type": "int",
-          "definition": "Address family"
         },
         {
           "name": "bind.retval",
