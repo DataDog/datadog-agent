@@ -6,8 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-fixes:
+upgrade:
   - |
-    The tag data for a log message origin could potentially have
-    duplicate tags. Tags are now filtered to remove any duplicates
-    before creating the tags payload.
+    OTLP: Deprecated settings ``otlp_config.metrics.report_quantiles`` and ``otlp_config.metrics.send_monotonic_counter`` have been removed in favor of ``otlp_config.metrics.summaries.mode`` and ``otlp_config.metrics.sums.cumulative_monotonic_mode`` respectively.

@@ -13,35 +13,23 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strconv"
 
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	dcautil "github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	apiRequests = telemetry.NewCounterWithOpts("", "api_requests",
-		[]string{"handler", "status"}, "Counter of requests made to the cluster agent API.",
-		telemetry.Options{NoDoubleUnderscoreSep: true})
-)
-
-func incrementRequestMetric(handler string, status int) {
-	apiRequests.Inc(handler, strconv.Itoa(status))
-}
-
 // Install registers v1 API endpoints
 func installClusterCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) {
-	r.HandleFunc("/clusterchecks/status/{identifier}", postCheckStatus(sc)).Methods("POST")
-	r.HandleFunc("/clusterchecks/configs/{identifier}", getCheckConfigs(sc)).Methods("GET")
-	r.HandleFunc("/clusterchecks/rebalance", postRebalanceChecks(sc)).Methods("POST")
-	r.HandleFunc("/clusterchecks", getState(sc)).Methods("GET")
+	r.HandleFunc("/clusterchecks/status/{identifier}", api.WithTelemetryWrapper("postCheckStatus", postCheckStatus(sc))).Methods("POST")
+	r.HandleFunc("/clusterchecks/configs/{identifier}", api.WithTelemetryWrapper("getCheckConfigs", getCheckConfigs(sc))).Methods("GET")
+	r.HandleFunc("/clusterchecks/rebalance", api.WithTelemetryWrapper("postRebalanceChecks", postRebalanceChecks(sc))).Methods("POST")
+	r.HandleFunc("/clusterchecks", api.WithTelemetryWrapper("getState", getState(sc))).Methods("GET")
 }
 
 // postCheckStatus is used by the node-agent's config provider
@@ -51,7 +39,7 @@ func postCheckStatus(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !shouldHandle(w, r, sc.ClusterCheckHandler, "postCheckStatus") {
+		if sc.ClusterCheckHandler.RejectOrForwardLeaderQuery(w, r) {
 			return
 		}
 
@@ -63,25 +51,22 @@ func postCheckStatus(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 		err := decoder.Decode(&status)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			incrementRequestMetric("postCheckStatus", http.StatusInternalServerError)
 			return
 		}
 
 		clientIP, err := validateClientIP(r.Header.Get(dcautil.RealIPHeader))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			incrementRequestMetric("postCheckStatus", http.StatusInternalServerError)
 			return
 		}
 
 		response, err := sc.ClusterCheckHandler.PostStatus(identifier, clientIP, status)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			incrementRequestMetric("postCheckStatus", http.StatusInternalServerError)
 			return
 		}
 
-		writeJSONResponse(w, response, "postCheckStatus")
+		writeJSONResponse(w, response)
 	}
 }
 
@@ -92,7 +77,7 @@ func getCheckConfigs(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !shouldHandle(w, r, sc.ClusterCheckHandler, "getCheckConfigs") {
+		if sc.ClusterCheckHandler.RejectOrForwardLeaderQuery(w, r) {
 			return
 		}
 
@@ -101,11 +86,10 @@ func getCheckConfigs(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 		response, err := sc.ClusterCheckHandler.GetConfigs(identifier)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			incrementRequestMetric("getCheckConfigs", http.StatusInternalServerError)
 			return
 		}
 
-		writeJSONResponse(w, response, "getCheckConfigs")
+		writeJSONResponse(w, response)
 	}
 }
 
@@ -116,18 +100,17 @@ func postRebalanceChecks(sc clusteragent.ServerContext) func(w http.ResponseWrit
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !shouldHandle(w, r, sc.ClusterCheckHandler, "postRebalanceChecks") {
+		if sc.ClusterCheckHandler.RejectOrForwardLeaderQuery(w, r) {
 			return
 		}
 
 		response, err := sc.ClusterCheckHandler.RebalanceClusterChecks()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			incrementRequestMetric("postRebalanceChecks", http.StatusInternalServerError)
 			return
 		}
 
-		writeJSONResponse(w, response, "postRebalanceChecks")
+		writeJSONResponse(w, response)
 	}
 }
 
@@ -142,54 +125,27 @@ func getState(sc clusteragent.ServerContext) func(w http.ResponseWriter, r *http
 		response, err := sc.ClusterCheckHandler.GetState()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			incrementRequestMetric("getState", http.StatusInternalServerError)
 			return
 		}
 
-		writeJSONResponse(w, response, "getState")
+		writeJSONResponse(w, response)
 	}
 }
 
 // writeJSONResponse serialises and writes data to the response
-func writeJSONResponse(w http.ResponseWriter, data interface{}, handler string) {
+func writeJSONResponse(w http.ResponseWriter, data interface{}) {
 	slcB, err := json.Marshal(data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		incrementRequestMetric(handler, http.StatusInternalServerError)
 		return
 	}
 
 	if len(slcB) != 0 {
 		w.WriteHeader(http.StatusOK)
 		w.Write(slcB)
-		incrementRequestMetric(handler, http.StatusOK)
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
-	incrementRequestMetric(handler, http.StatusNotFound)
-}
-
-// shouldHandle is common code to handle redirection and errors
-// due to the handler state
-func shouldHandle(w http.ResponseWriter, r *http.Request, h *clusterchecks.Handler, handler string) bool {
-	code, reason := h.ShouldHandle()
-
-	switch code {
-	case http.StatusOK:
-		return true
-	case http.StatusFound:
-		// Redirection to leader
-		url := r.URL
-		url.Host = reason
-		http.Redirect(w, r, url.String(), http.StatusFound)
-		incrementRequestMetric(handler, http.StatusFound)
-		return false
-	default:
-		// Unexpected error
-		http.Error(w, reason, code)
-		incrementRequestMetric(handler, code)
-		return false
-	}
 }
 
 // clusterChecksDisabledHandler returns a 404 response when cluster-checks are disabled

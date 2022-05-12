@@ -26,12 +26,12 @@ func NewMockSourceProvider() *MockSourceProvider {
 	}
 }
 
-// GetAddedForType implements SourceProvider#GetAddedForType.
-func (sp *MockSourceProvider) GetAddedForType(sourceType string) chan *config.LogSource {
-	return sp.SourceChan
+// SubscribeForType implements SourceProvider#SubscribeForType.
+func (sp *MockSourceProvider) SubscribeForType(sourceType string) (chan *config.LogSource, chan *config.LogSource) {
+	return sp.SourceChan, sp.SourceChan
 }
 
-// GetRemovedForType implements SourceProvider#GetRemovedForType.
-func (sp *MockSourceProvider) GetRemovedForType(sourceType string) chan *config.LogSource {
+// GetAddedForType implements SourceProvider#GetAddedForType.
+func (sp *MockSourceProvider) GetAddedForType(sourceType string) chan *config.LogSource {
 	return sp.SourceChan
 }

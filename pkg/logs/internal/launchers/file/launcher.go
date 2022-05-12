@@ -74,8 +74,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 // Start starts the Launcher
 func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
 	s.pipelineProvider = pipelineProvider
-	s.addedSources = sourceProvider.GetAddedForType(config.FileType)
-	s.removedSources = sourceProvider.GetRemovedForType(config.FileType)
+	s.addedSources, s.removedSources = sourceProvider.SubscribeForType(config.FileType)
 	s.registry = registry
 	go s.run()
 }

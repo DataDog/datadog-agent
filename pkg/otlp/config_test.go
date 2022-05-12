@@ -269,8 +269,6 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 				Metrics: map[string]interface{}{
 					"enabled":                     true,
 					"delta_ttl":                   2400,
-					"report_quantiles":            false,
-					"send_monotonic_counter":      true,
 					"resource_attributes_as_tags": true,
 					"instrumentation_library_metadata_as_tags": true,
 					"tag_cardinality":                          "orchestrator",

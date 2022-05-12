@@ -37,5 +37,21 @@ func (eventKeys *EventKeys) extractEventSource() string {
 			eventSource = WEBSOCKET
 		}
 	}
+
+	record := eventKeys.getFirstRecord()
+	if record != nil {
+		switch record.EventSource {
+		case SNSType:
+			eventSource = SNS
+		}
+	}
 	return eventSource
+}
+
+// Checks if the Records array is available and returns the first entry
+func (eventKeys *EventKeys) getFirstRecord() *RecordKeys {
+	if eventKeys.Records != nil && len(eventKeys.Records) > 0 {
+		return eventKeys.Records[0]
+	}
+	return nil
 }

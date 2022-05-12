@@ -89,7 +89,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 	logTicker := newLogBackoffTicker()
 
 	rsa.running.Store(true)
-	for rsa.running.Load() == true {
+	for rsa.running.Load() {
 		stream, err := rsa.client.GetEvents()
 		if err != nil {
 			rsa.connected.Store(false)
@@ -162,6 +162,14 @@ func (rsa *RuntimeSecurityAgent) GetStatus() map[string]interface{} {
 					environment["constantFetchers"] = cfStatus.Environment.Constants
 				}
 				base["environment"] = environment
+			}
+			if cfStatus.SelfTests != nil {
+				selfTests := map[string]interface{}{
+					"LastTimestamp": cfStatus.SelfTests.LastTimestamp,
+					"Success":       cfStatus.SelfTests.Success,
+					"Fails":         cfStatus.SelfTests.Fails,
+				}
+				base["selfTests"] = selfTests
 			}
 		}
 	}

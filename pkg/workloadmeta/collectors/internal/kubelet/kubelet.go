@@ -91,6 +91,14 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			continue
 		}
 
+		// Validate allocation size.
+		// Limits hardcoded here are huge enough to never be hit.
+		if len(pod.Spec.Containers) > 10000 ||
+			len(pod.Spec.InitContainers) > 10000 {
+			log.Errorf("pod %s has a crazy number of containers: %d or init containers: %d. Skipping it!",
+				podMeta.UID, len(pod.Spec.Containers), len(pod.Spec.InitContainers))
+			continue
+		}
 		containerSpecs := make(
 			[]kubelet.ContainerSpec, 0,
 			len(pod.Spec.Containers)+len(pod.Spec.InitContainers),

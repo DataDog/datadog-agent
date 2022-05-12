@@ -68,7 +68,7 @@ type Module struct {
 	rulesLoaded      func(rs *rules.RuleSet, err *multierror.Error)
 	policiesVersions []string
 
-	selfTester *SelfTester
+	selfTester *sprobe.SelfTester
 	reloader   *debouncer.Debouncer
 }
 
@@ -144,6 +144,14 @@ func (m *Module) Start() error {
 		return err
 	}
 
+	// launch the self tests and send the result report
+	if m.config.SelfTestEnabled {
+		err := m.RunSelfTestAndReport()
+		if err != nil {
+			return err
+		}
+	}
+
 	m.wg.Add(1)
 	go m.metricsSender()
 
@@ -202,23 +210,6 @@ func (m *Module) getEventTypeEnabled() map[eval.EventType]bool {
 	}
 
 	return enabled
-}
-
-func logMultiErrors(msg string, m *multierror.Error) {
-	var errorLevel bool
-	for _, err := range m.Errors {
-		if rErr, ok := err.(*rules.ErrRuleLoad); ok {
-			if !errors.Is(rErr.Err, rules.ErrEventTypeNotEnabled) {
-				errorLevel = true
-			}
-		}
-	}
-
-	if errorLevel {
-		log.Errorf(msg, m.Error())
-	} else {
-		log.Warnf(msg, m.Error())
-	}
 }
 
 func getPoliciesVersions(rs *rules.RuleSet) []string {
@@ -297,20 +288,18 @@ func (m *Module) Reload() error {
 	loadErr := rules.LoadPolicies(policiesDir, ruleSet)
 
 	if loadErr.ErrorOrNil() != nil {
-		logMultiErrors("error while loading policies: %+v", loadErr)
+		seclog.RuleLoadingErrors("error while loading policies: %+v", loadErr)
 	} else if loadApproversErr.ErrorOrNil() != nil {
-		logMultiErrors("error while loading policies for Approvers: %+v", loadApproversErr)
+		seclog.RuleLoadingErrors("error while loading policies for Approvers: %+v", loadApproversErr)
 	}
 
 	monitor := m.probe.GetMonitor()
 	ruleSetLoadedReport := monitor.PrepareRuleSetLoadedReport(ruleSet, loadErr)
 
-	if m.selfTester != nil {
-		if err := m.selfTester.CreateTargetFileIfNeeded(); err != nil {
-			log.Errorf("failed to create self-test target file: %+v", err)
-		}
-		m.selfTester.AddSelfTestRulesToRuleSets(ruleSet, approverRuleSet)
+	if err := m.selfTester.CreateTargetFileIfNeeded(); err != nil {
+		log.Errorf("failed to create self-test target file: %+v", err)
 	}
+	m.selfTester.AddSelfTestRulesToRuleSets(ruleSet, approverRuleSet)
 
 	approvers, err := approverRuleSet.GetApprovers(sprobe.GetCapababilities())
 	if err != nil {
@@ -422,10 +411,9 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 		return append(tags, m.probe.GetResolvers().TagsResolver.Resolve(id)...)
 	}
 
-	if m.selfTester != nil {
-		m.selfTester.SendEventIfExpecting(rule, event)
+	if !m.selfTester.IsExpectedEvent(rule, event) {
+		m.SendEvent(rule, event, extTagsCb, service)
 	}
-	m.SendEvent(rule, event, extTagsCb, service)
 }
 
 // SendEvent sends an event to the backend after checking that the rate limiter allows it for the provided rule
@@ -543,10 +531,7 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 	// custom limiters
 	limits := make(map[rules.RuleID]Limit)
 
-	var selfTester *SelfTester
-	if cfg.SelfTestEnabled {
-		selfTester = NewSelfTester()
-	}
+	var selfTester = sprobe.NewSelfTester()
 
 	m := &Module{
 		config:       cfg,
@@ -569,4 +554,17 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 	sapi.RegisterSecurityModuleServer(m.grpcServer, m.apiServer)
 
 	return m, nil
+}
+
+// RunSelfTestAndReport runs the self tests, and send a result report
+func (m *Module) RunSelfTestAndReport() error {
+	success, fails, err := m.selfTester.RunSelfTest()
+	if err != nil {
+		return err
+	}
+
+	// send the report
+	monitor := m.probe.GetMonitor()
+	monitor.ReportSelfTest(success, fails)
+	return err
 }

@@ -415,8 +415,12 @@ func (ns *networkState) storeHTTPStats(allStats map[http.Key]*http.RequestStats)
 				continue
 			}
 
-			prevStats.CombineWith(stats)
-			client.httpStatsDelta[key] = prevStats
+			if prevStats != nil {
+				prevStats.CombineWith(stats)
+				client.httpStatsDelta[key] = prevStats
+			} else {
+				client.httpStatsDelta[key] = stats
+			}
 		}
 	}
 }

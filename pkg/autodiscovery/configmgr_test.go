@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-// changeMatch verifies that the given slice of changes has exactly
+// assertConfigsMatch verifies that the given slice of changes has exactly
 // one match to each of the given functions, regardless of order.
 func assertConfigsMatch(t *testing.T, configs []integration.Config, matches ...func(integration.Config) bool) {
 	matchCount := make([]int, len(matches))
@@ -44,6 +44,20 @@ func assertConfigsMatch(t *testing.T, configs []integration.Config, matches ...f
 	}
 }
 
+// assertLoadedConfigsMatch asserts that the set of loaded configs on the given
+// configManager matches the given functions.
+func assertLoadedConfigsMatch(t *testing.T, cm configManager, matches ...func(integration.Config) bool) {
+	var configs []integration.Config
+	cm.mapOverLoadedConfigs(func(loaded map[string]integration.Config) {
+		for _, cfg := range loaded {
+			configs = append(configs, cfg)
+		}
+	})
+
+	assertConfigsMatch(t, configs, matches...)
+}
+
+// matchAll matches when all of the given functions match
 func matchAll(matches ...func(integration.Config) bool) func(integration.Config) bool {
 	return func(config integration.Config) bool {
 		for _, f := range matches {
@@ -55,22 +69,31 @@ func matchAll(matches ...func(integration.Config) bool) func(integration.Config)
 	}
 }
 
+// matchName matches config.Name
 func matchName(name string) func(integration.Config) bool {
 	return func(config integration.Config) bool {
 		return config.Name == name
 	}
 }
 
+// matchLogsConfig matches config.LogsConfig (for verifying templates are applied)
 func matchLogsConfig(logsConfig string) func(integration.Config) bool {
 	return func(config integration.Config) bool {
 		return string(config.LogsConfig) == logsConfig
 	}
 }
 
+// matchLogsConfig matches config.LogsConfig (for verifying templates are applied)
+func matchSvc(serviceID string) func(integration.Config) bool {
+	return func(config integration.Config) bool {
+		return config.ServiceID == serviceID
+	}
+}
+
 var (
 	nonTemplateConfig = integration.Config{Name: "non-template"}
 	templateConfig    = integration.Config{Name: "template", LogsConfig: []byte("source: %%host%%"), ADIdentifiers: []string{"my-service"}}
-	myService         = &dummyService{ID: "abcd", ADIdentifiers: []string{"my-service"}, Hosts: map[string]string{"main": "myhost"}}
+	myService         = &dummyService{ID: "my-service", ADIdentifiers: []string{"my-service"}, Hosts: map[string]string{"main": "myhost"}}
 )
 
 type ConfigManagerSuite struct {
@@ -315,6 +338,28 @@ func (suite *ConfigManagerSuite) TestFuzz() {
 				}
 			}
 
+			// verify that the loaded configs are correct
+			cm.mapOverLoadedConfigs(func(loaded map[string]integration.Config) {
+				failed := false
+
+				for digest := range scheduled {
+					if _, found := loaded[digest]; !found {
+						fmt.Printf("config with digest %s is not scheduled and should be", digest)
+						failed = true
+					}
+				}
+
+				for digest := range loaded {
+					if _, found := scheduled[digest]; !found {
+						fmt.Printf("config with digest %s is scheduled and should not be", digest)
+						failed = true
+					}
+				}
+				if failed {
+					suite.T().Fatalf("mapOverLoadedConfigs returned unexpected set of configs")
+				}
+			})
+
 			op++
 			if op > removeAfterOps && len(services) == 0 && len(configs) == 0 {
 				break
@@ -327,4 +372,68 @@ func (suite *ConfigManagerSuite) TestFuzz() {
 
 func TestSimpleConfigManagement(t *testing.T) {
 	suite.Run(t, &ConfigManagerSuite{factory: newSimpleConfigManager})
+}
+
+type ReconcilingConfigManagerSuite struct {
+	ConfigManagerSuite // include all ConfigManager tests, and more..
+}
+
+// A service's filtering determines which templates are resolved and scheduled.
+func (suite *ReconcilingConfigManagerSuite) TestServiceTemplateFiltering() {
+	filterSvc := &dummyService{ID: "filter", ADIdentifiers: []string{"filter"}}
+	filterSvc.filterTemplates = func(configs map[string]integration.Config) {
+		for digest, config := range configs {
+			if !strings.HasSuffix(config.Name, "-keep") {
+				delete(configs, digest)
+			}
+		}
+	}
+
+	// adding service with no templates has no effect
+	changes := suite.cm.processNewService(myService.ADIdentifiers, myService)
+	assertConfigsMatch(suite.T(), changes.schedule)
+	assertConfigsMatch(suite.T(), changes.unschedule)
+	assertLoadedConfigsMatch(suite.T(), suite.cm)
+
+	// adding service with no templates has no effect
+	changes = suite.cm.processNewService(filterSvc.ADIdentifiers, filterSvc)
+	assertConfigsMatch(suite.T(), changes.schedule)
+	assertConfigsMatch(suite.T(), changes.unschedule)
+	assertLoadedConfigsMatch(suite.T(), suite.cm)
+
+	// adding a template that does not end in -keep only matches my-service
+	cfg1 := integration.Config{Name: "cfg1", ADIdentifiers: []string{"my-service", "filter"}}
+	changes = suite.cm.processNewConfig(cfg1)
+	assertConfigsMatch(suite.T(), changes.schedule, matchAll(matchName("cfg1"), matchSvc("my-service")))
+	assertConfigsMatch(suite.T(), changes.unschedule)
+	assertLoadedConfigsMatch(suite.T(), suite.cm, matchAll(matchName("cfg1"), matchSvc("my-service")))
+
+	// adding a template that ends in -keep matches both services
+	cfg2 := integration.Config{Name: "cfg2-keep", ADIdentifiers: []string{"my-service", "filter"}}
+	changes = suite.cm.processNewConfig(cfg2)
+	assertConfigsMatch(suite.T(), changes.schedule,
+		matchAll(matchName("cfg2-keep"), matchSvc("my-service")),
+		matchAll(matchName("cfg2-keep"), matchSvc("filter")),
+	)
+	assertConfigsMatch(suite.T(), changes.unschedule)
+	assertLoadedConfigsMatch(suite.T(), suite.cm,
+		matchAll(matchName("cfg1"), matchSvc("my-service")),
+		matchAll(matchName("cfg2-keep"), matchSvc("my-service")),
+		matchAll(matchName("cfg2-keep"), matchSvc("filter")),
+	)
+
+	// removing a service removes only the scheduled configs
+	changes = suite.cm.processDelService(filterSvc)
+	assertConfigsMatch(suite.T(), changes.schedule)
+	assertConfigsMatch(suite.T(), changes.unschedule, matchAll(matchName("cfg2-keep"), matchSvc("filter")))
+	assertLoadedConfigsMatch(suite.T(), suite.cm,
+		matchAll(matchName("cfg1"), matchSvc("my-service")),
+		matchAll(matchName("cfg2-keep"), matchSvc("my-service")),
+	)
+}
+
+func TestReconcilingConfigManagement(t *testing.T) {
+	suite.Run(t, &ReconcilingConfigManagerSuite{
+		ConfigManagerSuite{factory: newReconcilingConfigManager},
+	})
 }
