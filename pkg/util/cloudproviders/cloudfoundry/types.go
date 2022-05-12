@@ -163,6 +163,20 @@ type listSidecarsResponse struct {
 	Resources  []CFSidecar         `json:"resources"`
 }
 
+type IsolationSegmentRelationshipResponse struct {
+	Data []struct {
+		GUID string `json:"guid"`
+	} `json:"data"`
+	Links struct {
+		Self struct {
+			Href string `json:"href"`
+		} `json:"self"`
+		Related struct {
+			Href string `json:"href"`
+		} `json:"related"`
+	} `json:"links"`
+}
+
 type CFOrgQuota struct {
 	GUID        string
 	MemoryLimit int
@@ -301,6 +315,13 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 					customTags = append(customTags, fmt.Sprintf("%s:%d", SidecarCountTagKey, len(sidecars)))
 				} else {
 					customTags = append(customTags, fmt.Sprintf("%s:%s", SidecarPresentTagKey, "false"))
+				}
+				if segment, err := ccCache.GetIsolationSegmentForOrg(orgGUID); err == nil {
+					customTags = append(customTags, fmt.Sprintf("%s:%s", SegmentIDTagKey, segment.GUID))
+					customTags = append(customTags, fmt.Sprintf("%s:%s", SegmentNameTagKey, segment.Name))
+				} else if segment, err := ccCache.GetIsolationSegmentForSpace(spaceGUID); err == nil {
+					customTags = append(customTags, fmt.Sprintf("%s:%s", SegmentIDTagKey, segment.GUID))
+					customTags = append(customTags, fmt.Sprintf("%s:%s", SegmentNameTagKey, segment.Name))
 				}
 			}
 		}
@@ -575,4 +596,44 @@ func (c *CFClient) ListSidecarsByApp(query url.Values, appGUID string) ([]CFSide
 		}
 	}
 	return sidecars, nil
+}
+
+func (c *CFClient) getIsolationSegmentRelationship(resource, guid string) (string, error) {
+	requestURL := "/v3/isolation_segments/" + guid + "/relationships/" + resource
+	r := c.NewRequest("GET", requestURL)
+
+	resp, err := c.DoRequest(r)
+	if err != nil {
+		return "", fmt.Errorf("Error requesting isolation segment %s: %s", resource, err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("Error listing isolation segment %s, response code: %d", resource, resp.StatusCode)
+	}
+
+	defer resp.Body.Close()
+	resBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("Error reading isolation segment %s response: %s", resource, err)
+	}
+
+	var data IsolationSegmentRelationshipResponse
+	err = json.Unmarshal(resBody, &data)
+	if err != nil {
+		return "", fmt.Errorf("Error unmarshalling isolation segment %s response: %s", resource, err)
+	}
+
+	if len(data.Data) == 0 {
+		return "", nil
+	}
+
+	return data.Data[0].GUID, nil
+}
+
+func (c *CFClient) GetIsolationSegmentSpaceGUID(guid string) (string, error) {
+	return c.getIsolationSegmentRelationship("spaces", guid)
+}
+
+func (c *CFClient) GetIsolationSegmentOrganizationGUID(guid string) (string, error) {
+	return c.getIsolationSegmentRelationship("organizations", guid)
 }

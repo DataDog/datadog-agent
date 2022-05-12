@@ -90,6 +90,16 @@ var cfSidecar2 = CFSidecar{
 	Name: "sidecar_name_2",
 }
 
+var cfIsolationSegment1 = cfclient.IsolationSegment{
+	GUID: "isolation_segment_guid_1",
+	Name: "isolation_segment_name_1",
+}
+
+var cfIsolationSegment2 = cfclient.IsolationSegment{
+	GUID: "isolation_segment_guid_2",
+	Name: "isolation_segment_name_2",
+}
+
 type Links struct {
 	Self  cfclient.Link `json:"self"`
 	Scale cfclient.Link `json:"scale"`
@@ -291,7 +301,7 @@ var ExpectedD1 = DesiredLRP{
 	ProcessGUID:      "0123456789012345678901234567890123456789",
 	SpaceGUID:        "space_guid_1",
 	SpaceName:        "space_name_1",
-	CustomTags:       []string{"env:test-env", "service:test-service", "sidecar_present:true", "sidecar_count:1"},
+	CustomTags:       []string{"env:test-env", "service:test-service", "sidecar_present:true", "sidecar_count:1", "segment_id:isolation_segment_guid_1", "segment_name:isolation_segment_name_1"},
 }
 
 var ExpectedD2 = DesiredLRP{
@@ -319,6 +329,8 @@ var ExpectedD2 = DesiredLRP{
 		"service:test-service",
 		"sidecar_present:true",
 		"sidecar_count:1",
+		"segment_id:isolation_segment_guid_1",
+		"segment_name:isolation_segment_name_1",
 	},
 }
 
