@@ -14,25 +14,44 @@ import (
 
 // MetaScheduler is a scheduler dispatching to all its registered schedulers
 type MetaScheduler struct {
-	m                sync.Mutex
+	// m protects all fields in this struct.
+	m sync.Mutex
+
+	// scheduledConfigs contains the set of configs that have been scheduled
+	// via the metascheduler, but not subsequently unscheduled.
+	scheduledConfigs map[string]integration.Config
+
+	// activeSchedulers is the set of schedulers currently subscribed to configs.
 	activeSchedulers map[string]Scheduler
 }
 
 // NewMetaScheduler inits a meta scheduler
 func NewMetaScheduler() *MetaScheduler {
 	return &MetaScheduler{
+		scheduledConfigs: make(map[string]integration.Config),
 		activeSchedulers: make(map[string]Scheduler),
 	}
 }
 
 // Register a scheduler in the meta scheduler to dispatch to
-func (ms *MetaScheduler) Register(name string, s Scheduler) {
+func (ms *MetaScheduler) Register(name string, s Scheduler, replayConfigs bool) {
 	ms.m.Lock()
 	defer ms.m.Unlock()
 	if _, ok := ms.activeSchedulers[name]; ok {
 		log.Warnf("Scheduler %s already registered, overriding it", name)
 	}
 	ms.activeSchedulers[name] = s
+
+	// if replaying configs, replay the currently-scheduled configs; note that
+	// this occurs under the protection of `ms.m`, so no config may be double-
+	// scheduled or missed in this process.
+	if replayConfigs {
+		configs := make([]integration.Config, 0, len(ms.scheduledConfigs))
+		for _, config := range ms.scheduledConfigs {
+			configs = append(configs, config)
+		}
+		s.Schedule(configs)
+	}
 }
 
 // Deregister a scheduler in the meta scheduler to dispatch to
@@ -50,6 +69,9 @@ func (ms *MetaScheduler) Deregister(name string) {
 func (ms *MetaScheduler) Schedule(configs []integration.Config) {
 	ms.m.Lock()
 	defer ms.m.Unlock()
+	for _, config := range configs {
+		ms.scheduledConfigs[config.Digest()] = config
+	}
 	for _, scheduler := range ms.activeSchedulers {
 		scheduler.Schedule(configs)
 	}
@@ -59,6 +81,9 @@ func (ms *MetaScheduler) Schedule(configs []integration.Config) {
 func (ms *MetaScheduler) Unschedule(configs []integration.Config) {
 	ms.m.Lock()
 	defer ms.m.Unlock()
+	for _, config := range configs {
+		delete(ms.scheduledConfigs, config.Digest())
+	}
 	for _, scheduler := range ms.activeSchedulers {
 		scheduler.Unschedule(configs)
 	}
