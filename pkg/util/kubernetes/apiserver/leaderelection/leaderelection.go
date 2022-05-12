@@ -69,7 +69,7 @@ type LeaderEngine struct {
 
 func newLeaderEngine() *LeaderEngine {
 	return &LeaderEngine{
-		LeaseName:       config.Datadog.GetString("lease_name"),
+		LeaseName:       config.Datadog.GetString("leader_lease_name"),
 		LeaderNamespace: common.GetResourcesNamespace(),
 		ServiceName:     config.Datadog.GetString("cluster_agent.kubernetes_service_name"),
 		leaderMetric:    metrics.NewLeaderMetric(),
@@ -263,7 +263,7 @@ func GetLeaderElectionRecord() (leaderDetails rl.LeaderElectionRecord, err error
 	c := client.Cl.CoreV1()
 
 	leaderNamespace := common.GetResourcesNamespace()
-	leaderElectionCM, err := c.ConfigMaps(leaderNamespace).Get(context.TODO(), config.Datadog.GetString("lease_name"), metav1.GetOptions{})
+	leaderElectionCM, err := c.ConfigMaps(leaderNamespace).Get(context.TODO(), config.Datadog.GetString("leader_lease_name"), metav1.GetOptions{})
 	if err != nil {
 		return led, err
 	}

@@ -647,7 +647,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_apiserver_tls_verify", true)
 	config.BindEnvAndSetDefault("leader_lease_duration", "60")
 	config.BindEnvAndSetDefault("leader_election", false)
-	config.BindEnvAndSetDefault("lease_name", "datadog-leader-election")
+	config.BindEnvAndSetDefault("leader_lease_name", "datadog-leader-election")
 	config.BindEnvAndSetDefault("kube_resources_namespace", "")
 	config.BindEnvAndSetDefault("kube_cache_sync_timeout_seconds", 5)
 
