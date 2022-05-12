@@ -9,6 +9,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -29,6 +30,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	v5 "github.com/DataDog/datadog-agent/pkg/metadata/v5"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -36,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -70,8 +74,15 @@ func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/workload-list/short", getShortWorkloadList).Methods("GET")
 	r.HandleFunc("/workload-list/verbose", getVerboseWorkloadList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
+	r.HandleFunc("/metadata/{payload}", metadataPayload).Methods("GET")
 
 	return r
+}
+
+func setJSONError(w http.ResponseWriter, err error, errorCode int) {
+	w.Header().Set("Content-Type", "application/json")
+	body, _ := json.Marshal(map[string]string{"error": err.Error()})
+	http.Error(w, string(body), errorCode)
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
@@ -140,9 +151,7 @@ func componentConfigHandler(w http.ResponseWriter, r *http.Request) {
 	case "jmx":
 		getJMXConfigs(w, r)
 	default:
-		err := fmt.Errorf("bad url or resource does not exist")
-		log.Errorf("%s", err.Error())
-		http.Error(w, err.Error(), 404)
+		http.Error(w, log.Errorf("bad url or resource does not exist").Error(), 404)
 	}
 }
 
@@ -153,9 +162,7 @@ func componentStatusGetterHandler(w http.ResponseWriter, r *http.Request) {
 	case "py":
 		getPythonStatus(w, r)
 	default:
-		err := fmt.Errorf("bad url or resource does not exist")
-		log.Errorf("%s", err.Error())
-		http.Error(w, err.Error(), 404)
+		http.Error(w, log.Errorf("bad url or resource does not exist").Error(), 404)
 	}
 }
 
@@ -166,9 +173,7 @@ func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
 	case "jmx":
 		setJMXStatus(w, r)
 	default:
-		err := fmt.Errorf("bad url or resource does not exist")
-		log.Errorf("%s", err.Error())
-		http.Error(w, err.Error(), 404)
+		http.Error(w, log.Errorf("bad url or resource does not exist").Error(), 404)
 	}
 }
 
@@ -177,17 +182,13 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	s, err := status.GetStatus()
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
-		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		http.Error(w, string(body), 500)
+		setJSONError(w, log.Errorf("Error getting status. Error: %v, Status: %v", err, s), 500)
 		return
 	}
 
 	jsonStats, err := json.Marshal(s)
 	if err != nil {
-		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, s)
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		http.Error(w, string(body), 500)
+		setJSONError(w, log.Errorf("Error marshalling status. Error: %v, Status: %v", err, s), 500)
 		return
 	}
 
@@ -296,9 +297,7 @@ func getDogstatsdStats(w http.ResponseWriter, r *http.Request) {
 
 	jsonStats, err := common.DSD.GetJSONDebugStats()
 	if err != nil {
-		log.Errorf("Error getting marshalled Dogstatsd stats: %s", err)
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		http.Error(w, string(body), 500)
+		setJSONError(w, log.Errorf("Error getting marshalled Dogstatsd stats: %s", err), 500)
 		return
 	}
 
@@ -309,10 +308,7 @@ func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got a request for the formatted status. Making formatted status.")
 	s, err := status.GetAndFormatStatus()
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		http.Error(w, string(body), 500)
+		setJSONError(w, log.Errorf("Error getting status: %v", err, s), 500)
 		return
 	}
 
@@ -329,8 +325,7 @@ func getHealth(w http.ResponseWriter, r *http.Request) {
 	jsonHealth, err := json.Marshal(h)
 	if err != nil {
 		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, h)
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		http.Error(w, string(body), 500)
+		setJSONError(w, err, 500)
 		return
 	}
 
@@ -346,8 +341,7 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 
 	if common.AC == nil {
 		log.Errorf("Trying to use /config-check before the agent has been initialized.")
-		body, _ := json.Marshal(map[string]string{"error": "agent not initialized"})
-		http.Error(w, string(body), 503)
+		setJSONError(w, fmt.Errorf("agent not initialized"), 503)
 		return
 	}
 
@@ -362,9 +356,7 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 
 	jsonConfig, err := json.Marshal(response)
 	if err != nil {
-		log.Errorf("Unable to marshal config check response: %s", err)
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		http.Error(w, string(body), 500)
+		setJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
 		return
 	}
 
@@ -378,9 +370,7 @@ func getTaggerList(w http.ResponseWriter, r *http.Request) {
 
 	jsonTags, err := json.Marshal(response)
 	if err != nil {
-		log.Errorf("Unable to marshal tagger list response: %s", err)
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		http.Error(w, string(body), 500)
+		setJSONError(w, log.Errorf("Unable to marshal tagger list response: %s", err), 500)
 		return
 	}
 	w.Write(jsonTags)
@@ -398,9 +388,7 @@ func workloadList(w http.ResponseWriter, verbose bool) {
 	response := workloadmeta.GetGlobalStore().Dump(verbose)
 	jsonDump, err := json.Marshal(response)
 	if err != nil {
-		log.Errorf("Unable to marshal workload list response: %w", err)
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		http.Error(w, string(body), 500)
+		setJSONError(w, log.Errorf("Unable to marshal workload list response: %w", err), 500)
 		return
 	}
 
@@ -410,19 +398,58 @@ func workloadList(w http.ResponseWriter, verbose bool) {
 func secretInfo(w http.ResponseWriter, r *http.Request) {
 	info, err := secrets.GetDebugInfo()
 	if err != nil {
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		http.Error(w, string(body), 500)
+		setJSONError(w, err, 500)
 		return
 	}
 
 	jsonInfo, err := json.Marshal(info)
 	if err != nil {
-		log.Errorf("Unable to marshal secrets info response: %s", err)
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		http.Error(w, string(body), 500)
+		setJSONError(w, log.Errorf("Unable to marshal secrets info response: %s", err), 500)
 		return
 	}
 	w.Write(jsonInfo)
+}
+
+func metadataPayload(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	payloadType := vars["payload"]
+
+	var jsonPayload []byte
+	var err error
+
+	switch payloadType {
+	case "v5":
+		ctx := context.Background()
+		hostnameData, err := util.GetHostnameData(ctx)
+		if err != nil {
+			setJSONError(w, err, 500)
+			return
+		}
+
+		payload := v5.GetPayload(ctx, hostnameData)
+		jsonPayload, err = json.MarshalIndent(payload, "", "    ")
+		if err != nil {
+			setJSONError(w, log.Errorf("Unable to marshal v5 metadata payload: %s", err), 500)
+			return
+		}
+	case "inventory":
+		jsonPayload, err = inventories.GetLastPayload()
+		if err != nil {
+			setJSONError(w, err, 500)
+			return
+		}
+	default:
+		setJSONError(w, log.Errorf("Unknown metadata payload requested: %s", payloadType), 500)
+		return
+	}
+
+	scrubbed, err := scrubber.ScrubBytes(jsonPayload)
+	if err != nil {
+		setJSONError(w, log.Errorf("Unable to scrub metadata payload: %s", err), 500)
+		return
+	}
+
+	w.Write(scrubbed)
 }
 
 // max returns the maximum value between a and b.
