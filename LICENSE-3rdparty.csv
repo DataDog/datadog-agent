@@ -268,9 +268,13 @@ core,github.com/containernetworking/cni/libcni,Apache-2.0,Copyright 2019 CNI aut
 core,github.com/containernetworking/cni/pkg/invoke,Apache-2.0,Copyright 2019 CNI authors
 core,github.com/containernetworking/cni/pkg/types,Apache-2.0,Copyright 2019 CNI authors
 core,github.com/containernetworking/cni/pkg/types/020,Apache-2.0,Copyright 2019 CNI authors
-core,github.com/containernetworking/cni/pkg/types/current,Apache-2.0,Copyright 2019 CNI authors
+core,github.com/containernetworking/cni/pkg/types/040,Apache-2.0,Copyright 2019 CNI authors
+core,github.com/containernetworking/cni/pkg/types/100,Apache-2.0,Copyright 2019 CNI authors
+core,github.com/containernetworking/cni/pkg/types/create,Apache-2.0,Copyright 2019 CNI authors
+core,github.com/containernetworking/cni/pkg/types/internal,Apache-2.0,Copyright 2019 CNI authors
 core,github.com/containernetworking/cni/pkg/utils,Apache-2.0,Copyright 2019 CNI authors
 core,github.com/containernetworking/cni/pkg/version,Apache-2.0,Copyright 2019 CNI authors
+core,github.com/containernetworking/plugins/pkg/ns,Apache-2.0,Copyright 2019 CNI authors
 core,github.com/coreos/go-semver/semver,Apache-2.0,"Copyright 2017 CoreOS, Inc"
 core,github.com/coreos/go-systemd/daemon,Apache-2.0,"Copyright 2017 CoreOS, Inc"
 core,github.com/coreos/go-systemd/dbus,Apache-2.0,"Copyright 2017 CoreOS, Inc"
