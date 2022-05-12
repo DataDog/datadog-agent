@@ -146,10 +146,7 @@ func (m *Module) Start() error {
 
 	// launch the self tests and send the result report
 	if m.config.SelfTestEnabled {
-		err := m.RunSelfTestAndReport()
-		if err != nil {
-			return err
-		}
+		_ = m.RunSelfTestAndReport()
 	}
 
 	m.wg.Add(1)
