@@ -1,12 +1,17 @@
 package connectivity
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"net/http"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -19,13 +24,21 @@ func RunDatadogConnectivityChecks() error {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
 
-	endpoint := endpoints.V1SeriesEndpoint
+	endpoint := endpoints.V1ValidateEndpoint
 	// Create a domain resolver
 	// Should we use NewDomainResolverWithMetricToVector ?
 	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
 
+	method := "GET"
+	payload := []byte("")
+	client := newHTTPClient()
+
 	urls := getAllUrlForAnEndpoint(domainResolvers, endpoint, true)
 	fmt.Printf("'%v'\n", urls)
+
+	for _, url := range urls {
+		sendHTTPRequestToEndpoint(client, url, method, payload)
+	}
 
 	return fmt.Errorf("this command is not implemented yet")
 }
@@ -49,9 +62,48 @@ func getAllUrlForAnEndpoint(domainResolvers map[string]resolver.DomainResolver, 
 func createEndpointURL(domain string, endpoint transaction.Endpoint, apiKey string, apiKeyInQueryString bool) string {
 
 	url := domain + endpoint.Route
+
 	if apiKeyInQueryString {
 		url = fmt.Sprintf("%s?api_key=%s", url, apiKey)
 	}
 
-	return scrubber.ScrubLine(url)
+	return url
+}
+
+func newHTTPClient() *http.Client {
+	transport := httputils.CreateHTTPTransport()
+
+	return &http.Client{
+		Timeout:   config.Datadog.GetDuration("forwarder_timeout") * time.Second,
+		Transport: transport,
+	}
+}
+
+func sendHTTPRequestToEndpoint(client *http.Client, url string, method string, payload []byte) {
+	logURL := scrubber.ScrubLine(url)
+	reader := bytes.NewReader(payload)
+
+	// TODO: check allowed method
+	req, err := http.NewRequest(method, url, reader)
+
+	if err != nil {
+		log.Errorf("Could not create request for transaction to invalid URL %q (dropping transaction): %s", url, err)
+	}
+
+	//req = req.WithContext(ctx)
+	//req.Header = t.Headers
+	resp, err := client.Do(req)
+
+	if err != nil {
+		fmt.Printf("Could not send the HTTP request to '%v'\n", logURL)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Errorf("Fail to read the response Body: %s", err)
+	}
+
+	fmt.Printf("Endpoint '%v' answers with status code %v\n", logURL, resp.StatusCode)
+	fmt.Printf("Response : '%v'\n", string(body))
 }
