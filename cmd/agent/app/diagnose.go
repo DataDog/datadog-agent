@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -76,5 +77,27 @@ func doDiagnoseMetadataAvailability(cmd *cobra.Command, args []string) error {
 }
 
 func doDiagnoseDatadogConnectivity(cmd *cobra.Command, args []string) error {
-	return fmt.Errorf("this command is not implemented yet")
+
+	// Global config setup
+	err := common.SetupConfig(confFilePath)
+	if err != nil {
+		return fmt.Errorf("unable to set up global agent configuration: %v", err)
+	}
+
+	// log level is always off since this might be use by other agent to get the hostname
+	err = config.SetupLogger(
+		loggerName,
+		config.Datadog.GetString("log_level"),
+		common.DefaultLogFile,
+		config.GetSyslogURI(),
+		config.Datadog.GetBool("syslog_rfc"),
+		config.Datadog.GetBool("log_to_console"),
+		config.Datadog.GetBool("log_format_json"),
+	)
+
+	if err != nil {
+		return fmt.Errorf("error while setting up logging, exiting: %v", err)
+	}
+
+	return connectivity.RunDatadogConnectivityChecks()
 }
