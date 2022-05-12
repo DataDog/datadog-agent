@@ -407,8 +407,6 @@ require (
 	google.golang.org/grpc/credentials/insecure v0.0.0 // indirect
 )
 
-require go.opentelemetry.io/collector/model v0.50.0
-
 require (
 	github.com/Sirupsen/logrus v1.0.6 // indirect
 	go.opentelemetry.io/collector/semconv v0.50.0 // indirect
