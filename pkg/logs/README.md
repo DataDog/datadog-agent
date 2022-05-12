@@ -69,7 +69,6 @@ Several Launchers are quite simple, translating sources into a tailers.
 For example:
 
 * The listener launcher creates a new tailer for each configured UDP port, or for each incoming connection on a configured TCP port.
-* The "traps" launcher (`pkg/internal/launchers/traps`) creates a tailer that produces logs messages for each SNMP trap from the configured SNMP device(s).
 
 The launchers depicted separately in the diagram above have some additional behaviors.
 
