@@ -89,7 +89,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 	logTicker := newLogBackoffTicker()
 
 	rsa.running.Store(true)
-	for rsa.running.Load() == true {
+	for rsa.running.Load() {
 		stream, err := rsa.client.GetEvents()
 		if err != nil {
 			rsa.connected.Store(false)
