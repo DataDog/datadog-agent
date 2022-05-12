@@ -6,6 +6,7 @@
 #include "tracer-stats.h"
 #include "tracer-telemetry.h"
 #include "sockfd.h"
+#include "tags.h"
 
 #include "bpf_helpers.h"
 #include "bpf_endian.h"

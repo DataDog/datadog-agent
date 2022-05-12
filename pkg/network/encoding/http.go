@@ -14,6 +14,7 @@ import (
 
 type httpEncoder struct {
 	aggregations map[http.KeyTuple]*model.HTTPAggregations
+	tags         map[http.KeyTuple]uint64
 
 	// pre-allocated objects
 	dataPool []model.HTTPStats_Data
@@ -30,6 +31,7 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 
 	encoder := &httpEncoder{
 		aggregations: make(map[http.KeyTuple]*model.HTTPAggregations, len(payload.Conns)),
+		tags:         make(map[http.KeyTuple]uint64, len(payload.Conns)),
 
 		// pre-allocate all data objects at once
 		dataPool: make([]model.HTTPStats_Data, len(payload.HTTP)*http.NumStatusClasses),
@@ -47,12 +49,13 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 	return encoder
 }
 
-func (e *httpEncoder) GetHTTPAggregations(c network.ConnectionStats) *model.HTTPAggregations {
+func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats) (*model.HTTPAggregations, uint64) {
 	if e == nil {
-		return nil
+		return nil, 0
 	}
 
-	return e.aggregations[httpKeyTupleFromConn(c)]
+	keyTuple := httpKeyTupleFromConn(c)
+	return e.aggregations[keyTuple], e.tags[keyTuple]
 }
 
 func (e *httpEncoder) buildAggregations(payload *network.Connections) {
@@ -82,6 +85,7 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 			StatsByResponseStatus: e.getDataSlice(),
 		}
 
+		tags := e.tags[key.KeyTuple]
 		for i, data := range ms.StatsByResponseStatus {
 			class := (i + 1) * 100
 			if !stats.HasStats(class) {
@@ -96,7 +100,11 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 			} else {
 				data.FirstLatencySample = s.FirstLatencySample
 			}
+
+			tags |= s.Tags
 		}
+
+		e.tags[key.KeyTuple] = tags
 
 		aggregation.EndpointAggregations = append(aggregation.EndpointAggregations, ms)
 	}

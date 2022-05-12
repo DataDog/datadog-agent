@@ -3,11 +3,13 @@
 #include "bpf_helpers.h"
 #include "ip.h"
 #include "ipv6.h"
-#include "sock.h"
-#include "sockfd.h"
-#include "port_range.h"
 #include "http.h"
 #include "https.h"
+#include "http-buffer.h"
+#include "sockfd.h"
+#include "tags-types.h"
+#include "sock.h"
+#include "port_range.h"
 
 #define HTTPS_PORT 443
 #define SO_SUFFIX_SIZE 3
@@ -57,7 +59,7 @@ int socket__http_filter(struct __sk_buff* skb) {
     normalize_tuple(&http.tup);
 
     read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
-    http_process(&http, &skb_info);
+    http_process(&http, &skb_info, NO_TAGS);
     return 0;
 }
 
@@ -143,7 +145,7 @@ int uretprobe__SSL_read(struct pt_regs* ctx) {
     }
 
     u32 len = (u32)PT_REGS_RC(ctx);
-    https_process(t, args->buf, len);
+    https_process(t, args->buf, len, LIBSSL);
  cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
@@ -160,7 +162,7 @@ int uprobe__SSL_write(struct pt_regs* ctx) {
 
     void *ssl_buffer = (void *)PT_REGS_PARM2(ctx);
     size_t len = (size_t)PT_REGS_PARM3(ctx);
-    https_process(t, ssl_buffer, len);
+    https_process(t, ssl_buffer, len, LIBSSL);
     return 0;
 }
 
@@ -253,8 +255,7 @@ int uretprobe__gnutls_record_recv(struct pt_regs* ctx) {
         goto cleanup;
     }
 
-
-    https_process(t, args->buf, read_len);
+    https_process(t, args->buf, read_len, LIBGNUTLS);
  cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
@@ -273,7 +274,7 @@ int uprobe__gnutls_record_send(struct pt_regs* ctx) {
         return 0;
     }
 
-    https_process(t, data, data_size);
+    https_process(t, data, data_size, LIBGNUTLS);
     return 0;
 }
 
