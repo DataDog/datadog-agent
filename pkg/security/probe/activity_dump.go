@@ -105,7 +105,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) (*Acti
 	}
 
 	// generate counters
-	for i := model.EventType(0); i < model.MaxEventType; i++ {
+	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
 		processed := uint64(0)
 		ad.processedCount[i] = &processed
 		runtime := uint64(0)
@@ -484,9 +484,9 @@ func (ad *ActivityDump) generateFIMRules(file *FileActivityNode, activityNode *P
 			file.File.GID),
 			ruleIDPrefix,
 		)
-		rule.Expression += fmt.Sprintf(" && process.file.path == \"%s\"", activityNode.Process.PathnameStr)
+		rule.Expression += fmt.Sprintf(" && process.file.path == \"%s\"", activityNode.Process.FileEvent.PathnameStr)
 		for _, parent := range ancestors {
-			rule.Expression += fmt.Sprintf(" && process.ancestors.file.path == \"%s\"", parent.Process.PathnameStr)
+			rule.Expression += fmt.Sprintf(" && process.ancestors.file.path == \"%s\"", parent.Process.FileEvent.PathnameStr)
 		}
 		rules = append(rules, rule)
 	}
@@ -505,7 +505,7 @@ func (ad *ActivityDump) generateRules(node *ProcessActivityNode, ancestors []*Pr
 	// add exec rule
 	rule := NewProfileRule(fmt.Sprintf(
 		"exec.file.path == \"%s\" && process.uid == %d && process.gid == %d && process.cap_effective == %d && process.cap_permitted == %d",
-		node.Process.PathnameStr,
+		node.Process.FileEvent.PathnameStr,
 		node.Process.UID,
 		node.Process.GID,
 		node.Process.CapEffective,
@@ -513,7 +513,7 @@ func (ad *ActivityDump) generateRules(node *ProcessActivityNode, ancestors []*Pr
 		ruleIDPrefix,
 	)
 	for _, parent := range ancestors {
-		rule.Expression += fmt.Sprintf(" && process.ancestors.file.path == \"%s\"", parent.Process.PathnameStr)
+		rule.Expression += fmt.Sprintf(" && process.ancestors.file.path == \"%s\"", parent.Process.FileEvent.PathnameStr)
 	}
 	rules = append(rules, rule)
 
@@ -687,7 +687,7 @@ func NewProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeG
 
 // nolint: unused
 func (pan *ProcessActivityNode) debug(prefix string) {
-	fmt.Printf("%s- process: %s\n", prefix, pan.Process.PathnameStr)
+	fmt.Printf("%s- process: %s\n", prefix, pan.Process.FileEvent.PathnameStr)
 	if len(pan.Files) > 0 {
 		fmt.Printf("%s  files:\n", prefix)
 		for _, f := range pan.Files {
@@ -730,7 +730,7 @@ func (pan *ProcessActivityNode) recursiveRelease() {
 // Matches return true if the process fields used to generate the dump are identical with the provided ProcessCacheEntry
 func (pan *ProcessActivityNode) Matches(entry *model.ProcessCacheEntry, matchArgs bool, resolvers *Resolvers) bool {
 
-	if pan.Process.Comm == entry.Comm && pan.Process.PathnameStr == entry.PathnameStr &&
+	if pan.Process.Comm == entry.Comm && pan.Process.FileEvent.PathnameStr == entry.FileEvent.PathnameStr &&
 		pan.Process.Credentials == entry.Credentials {
 
 		if matchArgs {
@@ -859,7 +859,7 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 	}
 
 	for _, mm := range *memoryMaps {
-		if mm.Path != pan.Process.PathnameStr {
+		if mm.Path != pan.Process.FileEvent.PathnameStr {
 			files = append(files, mm.Path)
 		}
 	}

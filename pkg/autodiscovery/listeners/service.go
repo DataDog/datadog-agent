@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -79,8 +80,8 @@ func (s *service) GetPorts(_ context.Context) ([]ContainerPort, error) {
 }
 
 // GetTags returns the tags associated with the service.
-func (s *service) GetTags() ([]string, string, error) {
-	return tagger.TagWithHash(s.GetTaggerEntity(), tagger.ChecksCardinality)
+func (s *service) GetTags() ([]string, error) {
+	return tagger.Tag(s.GetTaggerEntity(), tagger.ChecksCardinality)
 }
 
 // GetPid returns the process ID of the service.
@@ -116,14 +117,18 @@ func (s *service) HasFilter(filter containers.FilterType) bool {
 	return false
 }
 
+// FilterTemplates implements Service#FilterTemplates.
+func (s *service) FilterTemplates(configs map[string]integration.Config) {
+}
+
 // GetExtraConfig returns extra configuration associated with the service.
-func (s *service) GetExtraConfig(key []byte) ([]byte, error) {
-	result, found := s.extraConfig[string(key)]
+func (s *service) GetExtraConfig(key string) (string, error) {
+	result, found := s.extraConfig[key]
 	if !found {
-		return []byte{}, fmt.Errorf("extra config %q is not supported", key)
+		return "", fmt.Errorf("extra config %q is not supported", key)
 	}
 
-	return []byte(result), nil
+	return result, nil
 }
 
 // svcEqual checks that two Services are equal to each other by doing a deep

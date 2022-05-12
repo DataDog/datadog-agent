@@ -9,7 +9,7 @@ from subprocess import check_output
 from invoke import task
 
 from .build_tags import get_default_build_tags
-from .go import golangci_lint, staticcheck, vet
+from .go import golangci_lint
 from .system_probe import CLANG_CMD as CLANG_BPF_CMD
 from .system_probe import CURRENT_ARCH, get_ebpf_build_flags
 from .utils import (
@@ -224,6 +224,36 @@ def build_c_syscall_tester_common(ctx, file_name, build_dir, flags=None, libs=No
     return syscall_tester_exe_file
 
 
+def build_c_latency_common(ctx, file_name, build_dir, flags=None, libs=None, static=True):
+    if flags is None:
+        flags = []
+    if libs is None:
+        libs = []
+
+    latency_c_dir = os.path.join(".", "pkg", "security", "tests", "latency", "c")
+    latency_c_file = os.path.join(latency_c_dir, f"{file_name}.c")
+    latency_exe_file = os.path.join(build_dir, file_name)
+
+    if static:
+        flags.append("-static")
+
+    flags_arg = " ".join(flags)
+    libs_arg = " ".join(libs)
+    ctx.run(CLANG_EXE_CMD.format(flags=flags_arg, libs=libs_arg, c_file=latency_c_file, out_file=latency_exe_file))
+    return latency_exe_file
+
+
+def build_latency_tools(ctx, build_dir, static=True):
+    return build_c_latency_common(ctx, "bench_net_DNS", build_dir, libs=["-lpthread"], static=static)
+
+
+@task
+def build_embed_latency_tools(ctx, static=True):
+    build_dir = os.path.join(".", "pkg", "security", "tests", "latency", "bin")
+    create_dir_if_needed(build_dir)
+    build_latency_tools(ctx, build_dir, static=static)
+
+
 def build_syscall_x86_tester(ctx, build_dir, static=True):
     return build_c_syscall_tester_common(ctx, "syscall_x86_tester", build_dir, flags=["-m32"], static=static)
 
@@ -285,15 +315,10 @@ def build_functional_tests(
 
     if static:
         build_tags.extend(["osusergo", "netgo"])
-        if "CGO_CPPFLAGS" not in env:
-            env["CGO_CPPFLAGS"] = ""
-        env["CGO_CPPFLAGS"] += "-DSKIP_GLIBC_WRAPPER"
 
     if not skip_linters:
         targets = ['./pkg/security/tests']
-        vet(ctx, targets=targets, build_tags=build_tags, arch=arch)
         golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
-        staticcheck(ctx, targets=targets, build_tags=build_tags, arch=arch)
 
     # linters have a hard time with dnf, so we add the build tag after running them
     if nikos_embedded_path:
@@ -348,6 +373,8 @@ def stress_tests(
     testflags='',
     skip_linters=False,
 ):
+    build_embed_latency_tools(ctx)
+
     build_stress_tests(
         ctx,
         go_version=go_version,
@@ -435,6 +462,7 @@ def docker_functional_tests(
     major_version='7',
     testflags='',
     static=False,
+    bundle_ebpf=True,
     skip_linters=False,
 ):
     build_functional_tests(
@@ -443,7 +471,7 @@ def docker_functional_tests(
         arch=arch,
         major_version=major_version,
         output="pkg/security/tests/testsuite",
-        bundle_ebpf=True,
+        bundle_ebpf=bundle_ebpf,
         static=static,
         skip_linters=skip_linters,
     )
@@ -451,11 +479,17 @@ def docker_functional_tests(
     dockerfile = """
 FROM debian:bullseye
 
+ENV DOCKER_DD_AGENT=yes
+
 RUN dpkg --add-architecture i386
 
 RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends xfsprogs libc6:i386 \
+    && apt-get install -y --no-install-recommends xfsprogs ca-certificates iproute2 clang-11 llvm-11 \
     && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /opt/datadog-agent/embedded/bin
+RUN ln -s $(which clang-11) /opt/datadog-agent/embedded/bin/clang-bpf
+RUN ln -s $(which llc-11) /opt/datadog-agent/embedded/bin/llc-bpf
     """
 
     docker_image_tag_name = "docker-functional-tests"
@@ -475,16 +509,20 @@ RUN apt-get update -y \
     cmd = 'docker run --name {container_name} {caps} --privileged -d '
     cmd += '-v /dev:/dev '
     cmd += '-v /proc:/host/proc -e HOST_PROC=/host/proc '
-    cmd += '-v /:/host/root -e HOST_ROOT=/host/root '
     cmd += '-v /etc:/host/etc -e HOST_ETC=/host/etc '
+    cmd += '-v /sys:/host/sys -e HOST_SYS=/host/sys '
+    cmd += '-v /etc/os-release:/host/etc/os-release '
+    cmd += '-v /usr/lib/os-release:/host/usr/lib/os-release '
+    cmd += '-v /etc/passwd:/etc/passwd '
+    cmd += '-v /etc/group:/etc/group '
     cmd += '-v {GOPATH}/src/{REPO_PATH}/pkg/security/tests:/tests {image_tag} sleep 3600'
 
     args = {
         "GOPATH": get_gopath(ctx),
         "REPO_PATH": REPO_PATH,
         "container_name": container_name,
-        "caps": ' '.join(['--cap-add ' + cap for cap in capabilities]),
-        "image_tag": docker_image_tag_name + ":latest",
+        "caps": ' '.join(f"--cap-add {cap}" for cap in capabilities),
+        "image_tag": f"{docker_image_tag_name}:latest",
     }
 
     ctx.run(cmd.format(**args))

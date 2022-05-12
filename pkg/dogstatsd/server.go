@@ -15,7 +15,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -31,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/atomic"
 )
 
 var (
@@ -178,8 +178,7 @@ type metricStat struct {
 
 type dsdServerDebug struct {
 	sync.Mutex
-	// Enabled is an atomic int used as a boolean
-	Enabled uint64                         `json:"enabled"`
+	Enabled *atomic.Bool
 	Stats   map[ckey.ContextKey]metricStat `json:"stats"`
 	// counting number of metrics processed last X seconds
 	metricsCounts metricsCountBuckets
@@ -198,7 +197,7 @@ type metricsCountBuckets struct {
 }
 
 // NewServer returns a running DogStatsD server.
-func NewServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
+func NewServer(demultiplexer aggregator.Demultiplexer, serverless bool) (*Server, error) {
 	// This needs to be done after the configuration is loaded
 	once.Do(initLatencyTelemetry)
 
@@ -213,10 +212,10 @@ func NewServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
 		dogstatsdExpvars.Set("PacketsLastSecond", &dogstatsdPacketsLastSec)
 	}
 
-	var metricsStatsEnabled uint64 // we're using an uint64 for its atomic capacity
+	metricsStatsEnabled := false
 	if config.Datadog.GetBool("dogstatsd_metrics_stats_enable") == true {
 		log.Info("Dogstatsd: metrics statistics will be stored.")
-		metricsStatsEnabled = 1
+		metricsStatsEnabled = true
 	}
 
 	packetsChannel := make(chan packets.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
@@ -336,7 +335,8 @@ func NewServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
 		entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 		disableVerboseLogs:        config.Datadog.GetBool("dogstatsd_disable_verbose_logs"),
 		Debug: &dsdServerDebug{
-			Stats: make(map[ckey.ContextKey]metricStat),
+			Enabled: atomic.NewBool(false),
+			Stats:   make(map[ckey.ContextKey]metricStat),
 			metricsCounts: metricsCountBuckets{
 				counts:     [5]uint64{0, 0, 0, 0, 0},
 				metricChan: make(chan struct{}),
@@ -347,6 +347,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
 		TCapture:           capture,
 		UdsListenerRunning: udsListenerRunning,
 		cachedTlmOriginIds: make(map[string]cachedTagsOriginMap),
+		ServerlessMode:     serverless,
 	}
 
 	// packets forwarding
@@ -368,12 +369,12 @@ func NewServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
 	// start the workers processing the packets read on the socket
 	// ----------------------
 
-	s.handleMessages()
+	s.handleMessages(serverless)
 
 	// start the debug loop
 	// ----------------------
 
-	if metricsStatsEnabled == 1 {
+	if metricsStatsEnabled {
 		s.EnableMetricsStats()
 	}
 
@@ -396,7 +397,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer) (*Server, error) {
 	return s, nil
 }
 
-func (s *Server) handleMessages() {
+func (s *Server) handleMessages(serverless bool) {
 	if s.Statistics != nil {
 		go s.Statistics.Process()
 		go s.Statistics.Update(&dogstatsdPacketsLastSec)
@@ -554,7 +555,7 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 				var err error
 				samples = samples[0:0]
 
-				debugEnabled := atomic.LoadUint64(&s.Debug.Enabled) == 1
+				debugEnabled := s.Debug.Enabled.Load()
 
 				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, debugEnabled)
 				if err != nil {
@@ -748,11 +749,11 @@ func (s *Server) EnableMetricsStats() {
 	defer s.Debug.Unlock()
 
 	// already enabled?
-	if atomic.LoadUint64(&s.Debug.Enabled) == 1 {
+	if s.Debug.Enabled.Load() {
 		return
 	}
 
-	atomic.StoreUint64(&s.Debug.Enabled, 1)
+	s.Debug.Enabled.Store(true)
 	go func() {
 		ticker := time.NewTicker(time.Millisecond * 100)
 		var closed bool
@@ -812,8 +813,8 @@ func (s *Server) DisableMetricsStats() {
 	s.Debug.Lock()
 	defer s.Debug.Unlock()
 
-	if atomic.LoadUint64(&s.Debug.Enabled) == 1 {
-		atomic.StoreUint64(&s.Debug.Enabled, 0)
+	if s.Debug.Enabled.Load() {
+		s.Debug.Enabled.Store(false)
 		s.Debug.metricsCounts.closeChan <- struct{}{}
 	}
 

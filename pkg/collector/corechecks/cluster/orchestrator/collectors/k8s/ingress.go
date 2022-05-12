@@ -10,7 +10,6 @@ package k8s
 
 import (
 	"context"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
@@ -96,7 +95,7 @@ func (c *IngressCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors
 		APIClient:  rcfg.APIClient,
 		Cfg:        rcfg.Config,
 		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: atomic.AddInt32(rcfg.MsgGroupRef, 1),
+		MsgGroupID: rcfg.MsgGroupRef.Inc(),
 		NodeType:   c.metadata.NodeType,
 	}
 

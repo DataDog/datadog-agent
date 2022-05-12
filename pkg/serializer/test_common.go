@@ -31,18 +31,8 @@ func (s *MockSerializer) SendServiceChecks(serviceChecks metrics.ServiceChecks) 
 }
 
 // SendIterableSeries serializes a list of Serie and sends the payload to the forwarder
-func (s *MockSerializer) SendIterableSeries(series *metrics.IterableSeries) error {
-	return s.Called(series).Error(0)
-}
-
-// IsIterableSeriesSupported returns whether `SendIterableSeries` is supported
-func (s *MockSerializer) IsIterableSeriesSupported() bool {
-	return s.Called().Get(0).(bool)
-}
-
-// SendSeries serializes a list of series and sends the payload to the forwarder
-func (s *MockSerializer) SendSeries(series metrics.Series) error {
-	return s.Called(series).Error(0)
+func (s *MockSerializer) SendIterableSeries(serieSource metrics.SerieSource) error {
+	return s.Called(serieSource).Error(0)
 }
 
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder

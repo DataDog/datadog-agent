@@ -131,6 +131,11 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 	const dogsketchK = 7
 	const dogsketchN = 8
 
+	// the backend accepts payloads up to specific compressed / uncompressed
+	// sizes, but prefers small uncompressed payloads.
+	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
+	maxUncompressedSize := config.Datadog.GetInt("serializer_max_uncompressed_payload_size")
+
 	// Generate a footer containing an empty Metadata field.  The gogoproto
 	// generated serialization code includes this when marshaling the struct,
 	// despite the protobuf encoding not really requiring it (all fields
@@ -152,7 +157,10 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 		bufferContext.CompressorInput.Reset()
 		bufferContext.CompressorOutput.Reset()
 
-		compressor, err = stream.NewCompressor(bufferContext.CompressorInput, bufferContext.CompressorOutput, []byte{}, footer, []byte{})
+		compressor, err = stream.NewCompressor(
+			bufferContext.CompressorInput, bufferContext.CompressorOutput,
+			maxPayloadSize, maxUncompressedSize,
+			[]byte{}, footer, []byte{})
 		if err != nil {
 			return err
 		}

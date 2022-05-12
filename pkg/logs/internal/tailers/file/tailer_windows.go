@@ -12,7 +12,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sync/atomic"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,8 +37,8 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	filePos, _ := f.Seek(offset, whence)
 	f.Close()
 
-	t.setLastReadOffset(filePos)
-	t.setDecodedOffset(filePos)
+	t.lastReadOffset.Store(filePos)
+	t.decodedOffset.Store(filePos)
 
 	return nil
 }
@@ -46,41 +46,72 @@ func (t *Tailer) setup(offset int64, whence int) error {
 func (t *Tailer) readAvailable() (int, error) {
 	// If the file has already rotated, there is nothing to be done. Unlike on *nix,
 	// there is no open file handle from which remaining data might be read.
-	if t.hasFileRotated() {
+	if t.didFileRotate.Load() {
 		return 0, io.EOF
 	}
 
-	f, err := openFile(t.fullpath)
-	if err != nil {
-		return 0, err
-	}
-	defer f.Close()
+	var f *os.File
+	defer func() {
+		if f != nil {
+			f.Close()
+		}
+	}()
 
-	st, err := f.Stat()
-	if err != nil {
-		log.Debugf("Error stat()ing file %v", err)
-		return 0, err
-	}
-
-	sz := st.Size()
-	offset := t.getLastReadOffset()
-	if sz < offset {
-		log.Debugf("File size of %s is shorter than last read offset; returning EOF", t.fullpath)
-		return 0, io.EOF
-	}
-
-	f.Seek(offset, io.SeekStart)
 	bytes := 0
-
 	for {
+		if f == nil {
+			var err error
+			f, err = openFile(t.fullpath)
+			if err != nil {
+				return bytes, err
+			}
+			st, err := f.Stat()
+			if err != nil {
+				log.Debugf("Error stat()ing file %v", err)
+				return bytes, err
+			}
+
+			sz := st.Size()
+			offset := t.lastReadOffset.Load()
+			if sz < offset {
+				log.Debugf("File size of %s is shorter than last read offset; returning EOF", t.fullpath)
+				return bytes, io.EOF
+			}
+
+			f.Seek(offset, io.SeekStart)
+		}
+
 		inBuf := make([]byte, 4096)
 		n, err := f.Read(inBuf)
 		bytes += n
 		if n == 0 || err != nil {
 			return bytes, err
 		}
-		t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
-		t.incrementLastReadOffset(n)
+
+		// First, try to send the data to the decoder, but only wait for
+		// windowsOpenFileTimeout.  This short-term blocking send allows this
+		// component to hold a file open over any short-term blockages in the
+		// logs pipeline.
+		timer := time.NewTimer(t.windowsOpenFileTimeout)
+		select {
+		case t.decoder.InputChan <- decoder.NewInput(inBuf[:n]):
+			timer.Stop()
+		case <-timer.C:
+			// The windowsOpenFileTimeout expired, and we want to avoid
+			// blocking with the file open. So close the file before performing
+			// a blocking send.  The file will be re-opened on the next
+			// iteration, after the send succeeds.  NOTE: if the open file has
+			// been rotated, then the re-open will access a different file and
+			// any remaining data in the rotated file will not be seen.
+			f.Close()
+			f = nil
+
+			// blocking send to the decoder
+			t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
+		}
+
+		// record these bytes as having been read
+		t.lastReadOffset.Add(int64(n))
 	}
 }
 
@@ -96,17 +127,4 @@ func (t *Tailer) read() (int, error) {
 		return n, log.Error("Err: ", err)
 	}
 	return n, nil
-}
-
-// setLastReadOffset sets the value of lastReadOffset, atomically.
-func (t *Tailer) setLastReadOffset(off int64) {
-	atomic.StoreInt64(&t.lastReadOffset, off)
-}
-
-// setDecodedOffset sets decodedOffset, atomically.
-//
-// NOTE: other access to this field is not made atomically, so calling this
-// method may lead to undefined behavior.
-func (t *Tailer) setDecodedOffset(off int64) {
-	atomic.StoreInt64(&t.decodedOffset, off)
 }

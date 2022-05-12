@@ -15,61 +15,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb/otlppb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/collector/model/otlpgrpc"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"google.golang.org/grpc"
 )
-
-var otlpTestID128 = []byte{0x72, 0xdf, 0x52, 0xa, 0xf2, 0xbd, 0xe7, 0xa5, 0x24, 0x0, 0x31, 0xea, 0xd7, 0x50, 0xe5, 0xf3}
-
-func makeOTLPTestSpan(start uint64) *otlppb.Span {
-	return &otlppb.Span{
-		TraceId:           otlpTestID128,
-		SpanId:            otlpTestID128,
-		TraceState:        "state",
-		ParentSpanId:      []byte{0},
-		Name:              "/path",
-		Kind:              otlppb.Span_SPAN_KIND_SERVER,
-		StartTimeUnixNano: start,
-		EndTimeUnixNano:   start + 200000000,
-		Attributes: []*otlppb.KeyValue{
-			{Key: "name", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "john"}}},
-			{Key: "name", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_DoubleValue{DoubleValue: 1.2}}},
-			{Key: "count", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_IntValue{IntValue: 2}}},
-		},
-		DroppedAttributesCount: 0,
-		Events: []*otlppb.Span_Event{
-			{
-				TimeUnixNano: 123,
-				Name:         "boom",
-				Attributes: []*otlppb.KeyValue{
-					{Key: "message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "Out of memory"}}},
-					{Key: "accuracy", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_DoubleValue{DoubleValue: 2.4}}},
-				},
-				DroppedAttributesCount: 2,
-			},
-			{
-				TimeUnixNano: 456,
-				Name:         "exception",
-				Attributes: []*otlppb.KeyValue{
-					{Key: "exception.message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "Out of memory"}}},
-					{Key: "exception.type", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "mem"}}},
-					{Key: "exception.stacktrace", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "1/2/3"}}},
-				},
-				DroppedAttributesCount: 2,
-			},
-		},
-		DroppedEventsCount: 0,
-		Links:              nil,
-		DroppedLinksCount:  0,
-		Status: &otlppb.Status{
-			Message: "Error",
-			Code:    otlppb.Status_STATUS_CODE_ERROR,
-		},
-	}
-}
 
 func TestOTLPIngest(t *testing.T) {
 	var r test.Runner
@@ -103,25 +56,25 @@ apm_config:
 		if err != nil {
 			log.Fatal("Error dialing: ", err)
 		}
-		client := otlppb.NewTraceServiceClient(conn)
-		pack := otlppb.ExportTraceServiceRequest{
-			ResourceSpans: []*otlppb.ResourceSpans{
-				{
-					Resource: &otlppb.Resource{
-						Attributes: []*otlppb.KeyValue{
-							{Key: "service.name", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "pylons"}}},
-						},
-					},
-					InstrumentationLibrarySpans: []*otlppb.InstrumentationLibrarySpans{
-						{
-							InstrumentationLibrary: &otlppb.InstrumentationLibrary{Name: "test", Version: "0.1t"},
-							Spans:                  []*otlppb.Span{makeOTLPTestSpan(uint64(time.Now().UnixNano()))},
-						},
+		client := otlpgrpc.NewTracesClient(conn)
+		now := uint64(time.Now().UnixNano())
+		pack := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+			{
+				LibName:    "test",
+				LibVersion: "0.1t",
+				Attributes: map[string]interface{}{"service.name": "pylons"},
+				Spans: []*testutil.OTLPSpan{
+					{
+						Name:       "/path",
+						Kind:       ptrace.SpanKindServer,
+						Start:      now,
+						End:        now + 200000000,
+						Attributes: map[string]interface{}{"name": "john"},
 					},
 				},
 			},
-		}
-		_, err = client.Export(context.Background(), &pack)
+		})
+		_, err = client.Export(context.Background(), pack)
 		if err != nil {
 			log.Fatal("Error calling: ", err)
 		}
@@ -157,28 +110,34 @@ apm_config:
 		if err != nil {
 			log.Fatal("Error dialing: ", err)
 		}
-		client := otlppb.NewTraceServiceClient(conn)
-		pack := otlppb.ExportTraceServiceRequest{
-			ResourceSpans: []*otlppb.ResourceSpans{
-				{
-					Resource: &otlppb.Resource{
-						Attributes: []*otlppb.KeyValue{
-							{Key: "service.name", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "pylons"}}},
-						},
+		client := otlpgrpc.NewTracesClient(conn)
+		now := uint64(time.Now().UnixNano())
+		pack := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+			{
+				LibName:    "test",
+				LibVersion: "0.1t",
+				Attributes: map[string]interface{}{"service.name": "pylons"},
+				Spans: []*testutil.OTLPSpan{
+					{
+						TraceID: testutil.OTLPFixedTraceID.Bytes(),
+						SpanID:  testutil.OTLPFixedSpanID.Bytes(),
+						Name:    "/path",
+						Kind:    ptrace.SpanKindServer,
+						Start:   now,
+						End:     now + 200000000,
 					},
-					InstrumentationLibrarySpans: []*otlppb.InstrumentationLibrarySpans{
-						{
-							InstrumentationLibrary: &otlppb.InstrumentationLibrary{Name: "test", Version: "0.1t"},
-							Spans: []*otlppb.Span{
-								makeOTLPTestSpan(uint64(time.Now().UnixNano())),
-								makeOTLPTestSpan(uint64(time.Now().UnixNano())),
-							},
-						},
+					{
+						TraceID: testutil.OTLPFixedTraceID.Bytes(),
+						SpanID:  testutil.OTLPFixedSpanID.Bytes(),
+						Name:    "/path",
+						Kind:    ptrace.SpanKindServer,
+						Start:   now,
+						End:     now + 200000000,
 					},
 				},
 			},
-		}
-		_, err = client.Export(context.Background(), &pack)
+		})
+		_, err = client.Export(context.Background(), pack)
 		if err != nil {
 			log.Fatal("Error calling: ", err)
 		}

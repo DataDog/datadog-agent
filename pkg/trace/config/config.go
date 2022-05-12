@@ -15,9 +15,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 // ErrMissingAPIKey is returned when the config could not be validated due to missing API key.
@@ -48,6 +48,13 @@ type OTLP struct {
 	// GRPCPort specifies the port to use for the plain HTTP receiver.
 	// If unset (or 0), the receiver will be off.
 	GRPCPort int `mapstructure:"grpc_port"`
+
+	// SpanNameRemappings is the map of datadog span names and preferred name to map to. This can be used to
+	// automatically map Datadog Span Operation Names to an updated value. All entries should be key/value pairs.
+	SpanNameRemappings map[string]string `mapstructure:"span_name_remappings"`
+
+	// SpanNameAsResourceName uses the OTLP span name as the Datadog resource name.
+	SpanNameAsResourceName bool `mapstructure:"span_name_as_resource_name"`
 
 	// MaxRequestBytes specifies the maximum number of bytes that will be read
 	// from an incoming HTTP request.
@@ -316,7 +323,6 @@ type AgentConfig struct {
 	StatsdSocket   string // for UDS Sockets
 
 	// logging
-	LogLevel      string
 	LogFilePath   string
 	LogThrottling bool
 
@@ -394,8 +400,7 @@ type RemoteClient interface {
 
 // SamplingUpdate ...
 type SamplingUpdate struct {
-	Configs map[string]uint64
-	Rates   []pb.APMSampling
+	Configs map[string]client.ConfigAPMSamling
 }
 
 // Tag represents a key/value pair.
@@ -435,7 +440,6 @@ func New() *AgentConfig {
 		StatsdHost: "localhost",
 		StatsdPort: 8125,
 
-		LogLevel:      "INFO",
 		LogThrottling: true,
 
 		MaxMemory:        5e8, // 500 Mb, should rarely go above 50 Mb

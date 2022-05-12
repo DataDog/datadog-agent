@@ -45,7 +45,6 @@ var (
 )
 
 const (
-	configMapDCAToken         = "datadogtoken"
 	tokenTime                 = "tokenTimestamp"
 	tokenKey                  = "tokenKey"
 	metadataMapExpire         = 2 * time.Minute
@@ -317,6 +316,10 @@ func (c *APIClient) connect() error {
 		c.UnassignedPodInformerFactory, err = getInformerFactoryWithOption(
 			informers.WithTweakListOptions(tweakListOptions),
 		)
+		if err != nil {
+			log.Infof("Could not get informer factory: %v", err)
+			return err
+		}
 	}
 
 	if config.Datadog.GetBool("admission_controller.enabled") {
@@ -324,10 +327,14 @@ func (c *APIClient) connect() error {
 		optionsForService := func(options *metav1.ListOptions) {
 			options.FieldSelector = fields.OneTermEqualSelector(nameFieldkey, config.Datadog.GetString("admission_controller.certificate.secret_name")).String()
 		}
-		c.CertificateSecretInformerFactory, _ = getInformerFactoryWithOption(
+		c.CertificateSecretInformerFactory, err = getInformerFactoryWithOption(
 			informers.WithTweakListOptions(optionsForService),
 			informers.WithNamespace(common.GetResourcesNamespace()),
 		)
+		if err != nil {
+			log.Infof("Could not get informer factory: %v", err)
+			return err
+		}
 
 		optionsForWebhook := func(options *metav1.ListOptions) {
 			options.FieldSelector = fields.OneTermEqualSelector(nameFieldkey, config.Datadog.GetString("admission_controller.webhook_name")).String()
@@ -335,6 +342,10 @@ func (c *APIClient) connect() error {
 		c.WebhookConfigInformerFactory, err = getInformerFactoryWithOption(
 			informers.WithTweakListOptions(optionsForWebhook),
 		)
+		if err != nil {
+			log.Infof("Could not get informer factory: %v", err)
+			return err
+		}
 
 	}
 
@@ -409,6 +420,7 @@ func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, erro
 	namespace := common.GetResourcesNamespace()
 	nowTs := time.Now()
 
+	configMapDCAToken := config.Datadog.GetString("cluster_agent.token_name")
 	cmEvent, err := c.getOrCreateConfigMap(configMapDCAToken, namespace)
 	if err != nil {
 		// we do not process event if we can't interact with the CM.
@@ -447,6 +459,7 @@ func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, erro
 // sets its collected timestamp in the ConfigMap `configmaptokendca`
 func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string, timestamp time.Time) error {
 	namespace := common.GetResourcesNamespace()
+	configMapDCAToken := config.Datadog.GetString("cluster_agent.token_name")
 	tokenConfigMap, err := c.getOrCreateConfigMap(configMapDCAToken, namespace)
 	if err != nil {
 		return err
@@ -507,10 +520,6 @@ func GetMetadataMapBundleOnAllNodes(cl *APIClient) (*apiv1.MetadataResponse, err
 	}
 
 	for _, node := range nodes {
-		if node.GetObjectMeta() == nil {
-			log.Error("Incorrect payload when evaluating a node for the service mapper") // This will be removed as we move to the client-go
-			continue
-		}
 		var bundle *metadataMapperBundle
 		bundle, err = getMetadataMapBundle(node.Name)
 		if err != nil {

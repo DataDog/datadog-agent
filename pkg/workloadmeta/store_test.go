@@ -15,6 +15,8 @@ import (
 
 const (
 	dummySubscriber = "subscriber"
+	fooSource       = "foo"
+	barSource       = "bar"
 )
 
 func TestHandleEvents(t *testing.T) {
@@ -79,6 +81,15 @@ func TestSubscribe(t *testing.T) {
 			Name: "foo-name-override",
 		},
 		PID: 1001001,
+	}
+
+	fooContainerMerged := &Container{
+		EntityID: fooContainer.EntityID,
+		EntityMeta: EntityMeta{
+			Name: fooContainerToMerge.Name,
+		},
+		Hostname: fooContainer.Hostname,
+		PID:      fooContainerToMerge.PID,
 	}
 
 	barContainer := &Container{
@@ -218,29 +229,16 @@ func TestSubscribe(t *testing.T) {
 				{
 					Events: []Event{
 						{
-							Type: EventTypeSet,
-							Entity: &Container{
-								EntityID: fooContainer.EntityID,
-								EntityMeta: EntityMeta{
-									Name: fooContainer.Name,
-								},
-								Hostname: fooContainer.Hostname,
-							},
+							Type:   EventTypeSet,
+							Entity: fooContainer,
 						},
 					},
 				},
 				{
 					Events: []Event{
 						{
-							Type: EventTypeSet,
-							Entity: &Container{
-								EntityID: fooContainer.EntityID,
-								EntityMeta: EntityMeta{
-									Name: fooContainerToMerge.Name,
-								},
-								Hostname: fooContainer.Hostname,
-								PID:      fooContainerToMerge.PID,
-							},
+							Type:   EventTypeSet,
+							Entity: fooContainerMerged,
 						},
 					},
 				},
@@ -267,15 +265,8 @@ func TestSubscribe(t *testing.T) {
 				{
 					Events: []Event{
 						{
-							Type: EventTypeSet,
-							Entity: &Container{
-								EntityID: fooContainer.EntityID,
-								EntityMeta: EntityMeta{
-									Name: fooContainerToMerge.Name,
-								},
-								Hostname: fooContainer.Hostname,
-								PID:      fooContainerToMerge.PID,
-							},
+							Type:   EventTypeSet,
+							Entity: fooContainerMerged,
 						},
 					},
 				},
@@ -295,7 +286,7 @@ func TestSubscribe(t *testing.T) {
 					{
 						Type:   EventTypeUnset,
 						Source: fooSource,
-						Entity: fooContainer.GetID(),
+						Entity: fooContainer,
 					},
 				},
 			},
@@ -312,7 +303,7 @@ func TestSubscribe(t *testing.T) {
 					Events: []Event{
 						{
 							Type:   EventTypeUnset,
-							Entity: fooContainer.GetID(),
+							Entity: fooContainer,
 						},
 					},
 				},
@@ -343,7 +334,7 @@ func TestSubscribe(t *testing.T) {
 					{
 						Type:   EventTypeUnset,
 						Source: fooSource,
-						Entity: fooContainer.GetID(),
+						Entity: fooContainer,
 					},
 				},
 			},
@@ -360,7 +351,7 @@ func TestSubscribe(t *testing.T) {
 					Events: []Event{
 						{
 							Type:   EventTypeUnset,
-							Entity: fooContainer.GetID(),
+							Entity: fooContainer,
 						},
 					},
 				},
@@ -377,21 +368,21 @@ func TestSubscribe(t *testing.T) {
 					{
 						Type:   EventTypeSet,
 						Source: fooSource,
-						Entity: fooContainer.GetID(),
+						Entity: fooContainer,
 					},
 				},
 				{
 					{
 						Type:   EventTypeSet,
 						Source: barSource,
-						Entity: fooContainer.GetID(),
+						Entity: fooContainer,
 					},
 				},
 				{
 					{
 						Type:   EventTypeUnset,
 						Source: fooSource,
-						Entity: fooContainer.GetID(),
+						Entity: fooContainer,
 					},
 				},
 			},
@@ -400,7 +391,7 @@ func TestSubscribe(t *testing.T) {
 					Events: []Event{
 						{
 							Type:   EventTypeSet,
-							Entity: fooContainer.GetID(),
+							Entity: fooContainer,
 						},
 					},
 				},
@@ -408,7 +399,7 @@ func TestSubscribe(t *testing.T) {
 					Events: []Event{
 						{
 							Type:   EventTypeSet,
-							Entity: fooContainer.GetID(),
+							Entity: fooContainer,
 						},
 					},
 				},
@@ -416,11 +407,84 @@ func TestSubscribe(t *testing.T) {
 					Events: []Event{
 						{
 							Type:   EventTypeSet,
-							Entity: fooContainer.GetID(),
+							Entity: fooContainer,
 						},
 					},
 				},
 			},
+		},
+		{
+			// unsetting an unknown entity should generate no events
+			name:   "unsets unknown entity",
+			filter: nil,
+			postEvents: [][]CollectorEvent{
+				{
+					{
+						Type:   EventTypeUnset,
+						Source: fooSource,
+						Entity: fooContainer,
+					},
+				},
+			},
+			expected: []EventBundle{},
+		},
+		{
+			// unsetting an entity with a non-empty state (as in,
+			// emitting data in other fields instead of just a
+			// wrapped EntityID) merges that with the last known
+			// state of the entity before deletion.
+			name:   "unsetting entity merges last known state",
+			filter: nil,
+			postEvents: [][]CollectorEvent{
+				{
+					{
+						Type:   EventTypeSet,
+						Source: fooSource,
+						Entity: fooContainer,
+					},
+					{
+						Type:   EventTypeUnset,
+						Source: fooSource,
+						Entity: fooContainerToMerge,
+					},
+				},
+			},
+			expected: []EventBundle{
+				{
+					Events: []Event{
+						{
+							Type:   EventTypeSet,
+							Entity: fooContainer,
+						},
+						{
+							Type: EventTypeUnset,
+							Entity: &Container{
+								EntityID: fooContainer.EntityID,
+								EntityMeta: EntityMeta{
+									Name: fooContainer.Name,
+								},
+								Hostname: fooContainer.Hostname,
+								PID:      fooContainerToMerge.PID,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// unsetting an unknown entity should generate no events
+			name:   "unsets unknown entity",
+			filter: nil,
+			postEvents: [][]CollectorEvent{
+				{
+					{
+						Type:   EventTypeUnset,
+						Source: fooSource,
+						Entity: fooContainer,
+					},
+				},
+			},
+			expected: []EventBundle{},
 		},
 	}
 
@@ -433,7 +497,7 @@ func TestSubscribe(t *testing.T) {
 			ch := s.Subscribe(dummySubscriber, NormalPriority, tt.filter)
 			doneCh := make(chan struct{})
 
-			var actual []EventBundle
+			actual := []EventBundle{}
 			go func() {
 				for bundle := range ch {
 					close(bundle.Ch)

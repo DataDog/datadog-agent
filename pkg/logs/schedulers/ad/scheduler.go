@@ -11,9 +11,11 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/adlistener"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -26,30 +28,30 @@ import (
 // This type implements  pkg/logs/schedulers.Scheduler.
 type Scheduler struct {
 	mgr                schedulers.SourceManager
-	listener           *adListener
+	listener           *adlistener.ADListener
 	sourcesByServiceID map[string]*logsConfig.LogSource
 }
 
 var _ schedulers.Scheduler = &Scheduler{}
 
 // New creates a new scheduler.
-func New() schedulers.Scheduler {
+func New(ac *autodiscovery.AutoConfig) schedulers.Scheduler {
 	sch := &Scheduler{
 		sourcesByServiceID: make(map[string]*logsConfig.LogSource),
 	}
-	sch.listener = newADListener(sch.Schedule, sch.Unschedule)
+	sch.listener = adlistener.NewADListener("logs-agent AD scheduler", ac, sch.Schedule, sch.Unschedule)
 	return sch
 }
 
 // Start implements schedulers.Scheduler#Start.
 func (s *Scheduler) Start(sourceMgr schedulers.SourceManager) {
 	s.mgr = sourceMgr
-	s.listener.start()
+	s.listener.StartListener()
 }
 
 // Stop implements schedulers.Scheduler#Stop.
 func (s *Scheduler) Stop() {
-	s.listener.stop()
+	s.listener.StopListener()
 	s.mgr = nil
 }
 

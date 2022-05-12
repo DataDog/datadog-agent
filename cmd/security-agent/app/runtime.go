@@ -270,12 +270,10 @@ func init() {
 	activityDumpGenerateCmd.AddCommand(activityDumpGenerateDumpCmd)
 	activityDumpGenerateCmd.AddCommand(activityDumpGenerateProfileCmd)
 	activityDumpGenerateCmd.AddCommand(activityDumpGenerateGraphCmd)
-	activityDumpCmd.AddCommand(activityDumpGenerateCmd)
 
+	activityDumpCmd.AddCommand(activityDumpGenerateCmd)
 	activityDumpCmd.AddCommand(activityDumpListCmd)
 	activityDumpCmd.AddCommand(activityDumpStopCmd)
-	activityDumpCmd.AddCommand(activityDumpGenerateProfileCmd)
-	activityDumpCmd.AddCommand(activityDumpGenerateGraphCmd)
 	runtimeCmd.AddCommand(activityDumpCmd)
 
 	runtimeCmd.AddCommand(checkPoliciesCmd)
@@ -646,6 +644,14 @@ func startRuntimeSecurity(hostname string, stopper startstop.Stopper, statsdClie
 		return nil, nil
 	}
 
+	// start/stop order is important, agent need to be stopped first and started after all the others
+	// components
+	agent, err := secagent.NewRuntimeSecurityAgent(hostname)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to create a runtime security agent instance")
+	}
+	stopper.Add(agent)
+
 	endpoints, context, err := newLogContextRuntime()
 	if err != nil {
 		log.Error(err)
@@ -657,13 +663,7 @@ func startRuntimeSecurity(hostname string, stopper startstop.Stopper, statsdClie
 		return nil, err
 	}
 
-	agent, err := secagent.NewRuntimeSecurityAgent(hostname, reporter, endpoints)
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to create a runtime security agent instance")
-	}
-	agent.Start()
-
-	stopper.Add(agent)
+	agent.Start(reporter, endpoints)
 
 	log.Info("Datadog runtime security agent is now running")
 

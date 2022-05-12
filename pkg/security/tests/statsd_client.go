@@ -35,6 +35,10 @@ func (s *StatsdClient) Gauge(name string, value float64, tags []string, rate flo
 
 // Count does nothing and returns nil
 func (s *StatsdClient) Count(name string, value int64, tags []string, rate float64) error {
+	if len(tags) == 0 {
+		s.counts[name] = value
+	}
+
 	for _, tag := range tags {
 		s.counts[name+":"+tag] = value
 	}
@@ -103,6 +107,7 @@ func (s *StatsdClient) Close() error {
 
 // Flush does nothing and returns nil
 func (s *StatsdClient) Flush() error {
+	s.counts = make(map[string]int64)
 	return nil
 }
 

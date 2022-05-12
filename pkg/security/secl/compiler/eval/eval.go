@@ -33,11 +33,16 @@ const (
 // BoolEvalFnc describe a eval function return a boolean
 type BoolEvalFnc = func(ctx *Context) bool
 
-func extractField(field string) (Field, Field, RegisterID, error) {
-	var regID RegisterID
+func extractField(field string, state *State) (Field, Field, RegisterID, error) {
+	if state.regexpCache.arraySubscriptFindRE == nil {
+		state.regexpCache.arraySubscriptFindRE = regexp.MustCompile(`\[([^\]]*)\]`)
+	}
+	if state.regexpCache.arraySubscriptReplaceRE == nil {
+		state.regexpCache.arraySubscriptReplaceRE = regexp.MustCompile(`(.+)\[[^\]]+\](.*)`)
+	}
 
-	re := regexp.MustCompile(`\[([^\]]*)\]`)
-	ids := re.FindStringSubmatch(field)
+	var regID RegisterID
+	ids := state.regexpCache.arraySubscriptFindRE.FindStringSubmatch(field)
 
 	switch len(ids) {
 	case 0:
@@ -48,10 +53,10 @@ func extractField(field string) (Field, Field, RegisterID, error) {
 		return "", "", "", fmt.Errorf("wrong register format for fields: %s", field)
 	}
 
-	re = regexp.MustCompile(`(.+)\[[^\]]+\](.*)`)
-	field, itField := re.ReplaceAllString(field, `$1$2`), re.ReplaceAllString(field, `$1`)
+	resField := state.regexpCache.arraySubscriptReplaceRE.ReplaceAllString(field, `$1$2`)
+	itField := state.regexpCache.arraySubscriptReplaceRE.ReplaceAllString(field, `$1`)
 
-	return field, itField, regID, nil
+	return resField, itField, regID, nil
 }
 
 type ident struct {
@@ -70,7 +75,7 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 		}
 	}
 
-	field, itField, regID, err := extractField(*obj.Ident)
+	field, itField, regID, err := extractField(*obj.Ident, state)
 	if err != nil {
 		return nil, obj.Pos, err
 	}
@@ -154,9 +159,7 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, 
 		return &evaluator, array.Pos, nil
 	} else if len(array.StringMembers) != 0 {
 		var evaluator StringValuesEvaluator
-		if err := evaluator.AppendMembers(array.StringMembers...); err != nil {
-			return nil, array.Pos, NewError(array.Pos, err.Error())
-		}
+		evaluator.AppendMembers(array.StringMembers...)
 		return &evaluator, array.Pos, nil
 	} else if array.Ident != nil {
 		if state.macros != nil {
@@ -173,6 +176,36 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, 
 			return nil, array.Pos, NewError(array.Pos, fmt.Sprintf("invalid variable name '%s'", *array.Variable))
 		}
 		return evaluatorFromVariable(varName, array.Pos, opts)
+	} else if array.CIDR != nil {
+		var values CIDRValues
+		if err := values.AppendCIDR(*array.CIDR); err != nil {
+			return nil, array.Pos, NewError(array.Pos, fmt.Sprintf("invalid CIDR '%s'", *array.CIDR))
+		}
+
+		evaluator := &CIDRValuesEvaluator{
+			Value:     values,
+			ValueType: IPNetValueType,
+		}
+		return evaluator, array.Pos, nil
+	} else if len(array.CIDRMembers) != 0 {
+		var values CIDRValues
+		for _, member := range array.CIDRMembers {
+			if member.CIDR != nil {
+				if err := values.AppendCIDR(*member.CIDR); err != nil {
+					return nil, array.Pos, NewError(array.Pos, fmt.Sprintf("invalid CIDR '%s'", *member.CIDR))
+				}
+			} else if member.IP != nil {
+				if err := values.AppendIP(*member.IP); err != nil {
+					return nil, array.Pos, NewError(array.Pos, fmt.Sprintf("invalid IP '%s'", *member.IP))
+				}
+			}
+		}
+
+		evaluator := &CIDRValuesEvaluator{
+			Value:     values,
+			ValueType: IPNetValueType,
+		}
+		return evaluator, array.Pos, nil
 	}
 
 	return nil, array.Pos, NewError(array.Pos, "unknown array element type")
@@ -542,6 +575,130 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				default:
 					return nil, pos, NewArrayTypeError(pos, reflect.Array, reflect.Int)
 				}
+			case *CIDREvaluator:
+				switch nextCIDR := next.(type) {
+				case *CIDREvaluator:
+					nextIP, ok := next.(*CIDREvaluator)
+					if !ok {
+						return nil, pos, NewTypeError(pos, reflect.TypeOf(CIDREvaluator{}).Kind())
+					}
+
+					boolEvaluator, err = CIDREquals(unary, nextIP, opts, state)
+					if err != nil {
+						return nil, obj.Pos, err
+					}
+					switch *obj.ArrayComparison.Op {
+					case "in", "allin":
+						return boolEvaluator, obj.Pos, nil
+					case "notin":
+						return Not(boolEvaluator, opts, state), obj.Pos, nil
+					}
+					return nil, pos, NewOpUnknownError(obj.Pos, *obj.ArrayComparison.Op)
+				case *CIDRValuesEvaluator:
+					switch *obj.ArrayComparison.Op {
+					case "in", "allin":
+						boolEvaluator, err = CIDRValuesContains(unary, nextCIDR, opts, state)
+						if err != nil {
+							return nil, pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case "notin":
+						boolEvaluator, err = CIDRValuesContains(unary, nextCIDR, opts, state)
+						if err != nil {
+							return nil, pos, err
+						}
+						return Not(boolEvaluator, opts, state), obj.Pos, nil
+					}
+					return nil, pos, NewOpUnknownError(obj.Pos, *obj.ArrayComparison.Op)
+				case *CIDRArrayEvaluator:
+					switch *obj.ArrayComparison.Op {
+					case "in", "allin":
+						boolEvaluator, err = CIDRArrayContains(unary, nextCIDR, opts, state)
+						if err != nil {
+							return nil, pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case "notin":
+						boolEvaluator, err = CIDRArrayContains(unary, nextCIDR, opts, state)
+						if err != nil {
+							return nil, pos, err
+						}
+						return Not(boolEvaluator, opts, state), obj.Pos, nil
+					}
+					return nil, pos, NewOpUnknownError(obj.Pos, *obj.ArrayComparison.Op)
+				default:
+					return nil, pos, NewCIDRTypeError(pos, reflect.Array, next)
+				}
+			case *CIDRArrayEvaluator:
+				switch nextCIDR := next.(type) {
+				case *CIDRValuesEvaluator:
+					switch *obj.ArrayComparison.Op {
+					case "in":
+						boolEvaluator, err = CIDRArrayMatches(unary, nextCIDR, opts, state)
+						if err != nil {
+							return nil, pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case "allin":
+						boolEvaluator, err = CIDRArrayMatchesAll(unary, nextCIDR, opts, state)
+						if err != nil {
+							return nil, pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case "notin":
+						boolEvaluator, err = CIDRArrayMatches(unary, nextCIDR, opts, state)
+						if err != nil {
+							return nil, pos, err
+						}
+						return Not(boolEvaluator, opts, state), obj.Pos, nil
+					}
+					return nil, pos, NewOpUnknownError(obj.Pos, *obj.ArrayComparison.Op)
+				default:
+					return nil, pos, NewCIDRTypeError(pos, reflect.Array, next)
+				}
+			case *CIDRValuesEvaluator:
+				switch nextCIDR := next.(type) {
+				case *CIDREvaluator:
+					switch *obj.ArrayComparison.Op {
+					case "in", "allin":
+						boolEvaluator, err = CIDRValuesContains(nextCIDR, unary, opts, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case "notin":
+						boolEvaluator, err = CIDRValuesContains(nextCIDR, unary, opts, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return Not(boolEvaluator, opts, state), obj.Pos, nil
+					}
+					return nil, pos, NewOpUnknownError(obj.Pos, *obj.ArrayComparison.Op)
+				case *CIDRArrayEvaluator:
+					switch *obj.ArrayComparison.Op {
+					case "allin":
+						boolEvaluator, err = CIDRArrayMatchesAll(nextCIDR, unary, opts, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case "in":
+						boolEvaluator, err = CIDRArrayMatches(nextCIDR, unary, opts, state)
+						if err != nil {
+							return nil, pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case "notin":
+						boolEvaluator, err = CIDRArrayMatches(nextCIDR, unary, opts, state)
+						if err != nil {
+							return nil, pos, err
+						}
+						return Not(boolEvaluator, opts, state), obj.Pos, nil
+					}
+					return nil, pos, NewOpUnknownError(obj.Pos, *obj.ArrayComparison.Op)
+				default:
+					return nil, pos, NewCIDRTypeError(pos, reflect.Array, next)
+				}
 			default:
 				return nil, pos, NewTypeError(pos, reflect.Array)
 			}
@@ -617,10 +774,6 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 						nextString.ValueType = PatternValueType
 					}
 
-					if err := nextString.Compile(); err != nil {
-						return nil, obj.Pos, NewError(obj.Pos, err.Error())
-					}
-
 					boolEvaluator, err = StringEqualsWrapper(unary, nextString, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
@@ -642,10 +795,6 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 						nextString.ValueType = PatternValueType
 					}
 
-					if err := nextString.Compile(); err != nil {
-						return nil, obj.Pos, NewError(obj.Pos, err.Error())
-					}
-
 					boolEvaluator, err = StringEqualsWrapper(unary, nextString, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
@@ -653,6 +802,30 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 					return boolEvaluator, obj.Pos, nil
 				}
 				return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
+			case *CIDREvaluator:
+				switch next.(type) {
+				case *CIDREvaluator:
+					nextIP, ok := next.(*CIDREvaluator)
+					if !ok {
+						return nil, pos, NewTypeError(pos, reflect.TypeOf(CIDREvaluator{}).Kind())
+					}
+
+					switch *obj.ScalarComparison.Op {
+					case "!=":
+						boolEvaluator, err = CIDREquals(unary, nextIP, opts, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return Not(boolEvaluator, opts, state), obj.Pos, nil
+					case "==":
+						boolEvaluator, err = CIDREquals(unary, nextIP, opts, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					}
+					return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
+				}
 			case *StringArrayEvaluator:
 				nextString, ok := next.(*StringEvaluator)
 				if !ok {
@@ -682,10 +855,6 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 						nextString.ValueType = PatternValueType
 					}
 
-					if err := nextString.Compile(); err != nil {
-						return nil, obj.Pos, NewError(obj.Pos, err.Error())
-					}
-
 					boolEvaluator, err = StringArrayContainsWrapper(nextString, unary, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
@@ -699,10 +868,6 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 					// force pattern if needed
 					if nextString.ValueType == ScalarValueType {
 						nextString.ValueType = PatternValueType
-					}
-
-					if err := nextString.Compile(); err != nil {
-						return nil, obj.Pos, NewError(obj.Pos, err.Error())
 					}
 
 					boolEvaluator, err = StringArrayContainsWrapper(nextString, unary, opts, state)
@@ -956,17 +1121,33 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				Value:     *obj.Pattern,
 				ValueType: PatternValueType,
 			}
-			if err := evaluator.Compile(); err != nil {
-				return nil, obj.Pos, NewError(obj.Pos, err.Error())
-			}
 			return evaluator, obj.Pos, nil
 		case obj.Regexp != nil:
 			evaluator := &StringEvaluator{
 				Value:     *obj.Regexp,
 				ValueType: RegexpValueType,
 			}
-			if err := evaluator.Compile(); err != nil {
-				return nil, obj.Pos, NewError(obj.Pos, err.Error())
+			return evaluator, obj.Pos, nil
+		case obj.IP != nil:
+			ipnet, err := ParseCIDR(*obj.IP)
+			if err != nil {
+				return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("invalid IP '%s'", *obj.IP))
+			}
+
+			evaluator := &CIDREvaluator{
+				Value:     *ipnet,
+				ValueType: IPNetValueType,
+			}
+			return evaluator, obj.Pos, nil
+		case obj.CIDR != nil:
+			ipnet, err := ParseCIDR(*obj.CIDR)
+			if err != nil {
+				return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("invalid CIDR '%s'", *obj.CIDR))
+			}
+
+			evaluator := &CIDREvaluator{
+				Value:     *ipnet,
+				ValueType: IPNetValueType,
 			}
 			return evaluator, obj.Pos, nil
 		case obj.SubExpression != nil:

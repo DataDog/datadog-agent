@@ -138,7 +138,7 @@ func (suite *TailerTestSuite) TestTailFromBeginning() {
 	suite.Equal("good bye", string(msg.Content))
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
 
-	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset))
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset.Load()))
 }
 
 func (suite *TailerTestSuite) TestTailFromEnd() {
@@ -167,7 +167,7 @@ func (suite *TailerTestSuite) TestTailFromEnd() {
 	suite.Equal("good bye", string(msg.Content))
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
 
-	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset))
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset.Load()))
 }
 
 func (suite *TailerTestSuite) TestRecoverTailing() {
@@ -198,7 +198,7 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 	suite.Equal("good bye", string(msg.Content))
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
 
-	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset))
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset.Load()))
 }
 
 func (suite *TailerTestSuite) TestWithBlanklines() {
@@ -226,7 +226,7 @@ func (suite *TailerTestSuite) TestWithBlanklines() {
 	msg = <-suite.outputChan
 	suite.Equal("message 3", string(msg.Content))
 
-	suite.Equal(len(lines), int(suite.tailer.decodedOffset))
+	suite.Equal(len(lines), int(suite.tailer.decodedOffset.Load()))
 }
 
 func (suite *TailerTestSuite) TestTailerIdentifier() {
@@ -243,8 +243,9 @@ func (suite *TailerTestSuite) TestOriginTagsWhenTailingFiles() {
 
 	msg := <-suite.outputChan
 	tags := msg.Origin.Tags()
-	suite.Equal(1, len(tags))
-	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
+	suite.ElementsMatch([]string{
+		"filename:" + filepath.Base(suite.testFile.Name()),
+	}, tags)
 }
 
 func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
@@ -262,9 +263,10 @@ func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 
 	msg := <-suite.outputChan
 	tags := msg.Origin.Tags()
-	suite.Equal(2, len(tags))
-	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
-	suite.Equal("dirname:"+filepath.Dir(suite.testFile.Name()), tags[1])
+	suite.ElementsMatch([]string{
+		"filename:" + filepath.Base(suite.testFile.Name()),
+		"dirname:" + filepath.Dir(suite.testFile.Name()),
+	}, tags)
 }
 
 func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
@@ -278,8 +280,9 @@ func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
 	suite.tailer.StartFromBeginning()
 
 	tags := suite.tailer.buildTailerTags()
-	suite.Equal(1, len(tags))
-	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
+	suite.ElementsMatch([]string{
+		"filename:" + filepath.Base(suite.testFile.Name()),
+	}, tags)
 }
 
 func (suite *TailerTestSuite) TestBuildTagsFileDir() {
@@ -292,9 +295,10 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 	suite.tailer.StartFromBeginning()
 
 	tags := suite.tailer.buildTailerTags()
-	suite.Equal(2, len(tags))
-	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
-	suite.Equal("dirname:"+filepath.Dir(suite.testFile.Name()), tags[1])
+	suite.ElementsMatch([]string{
+		"filename:" + filepath.Base(suite.testFile.Name()),
+		"dirname:" + filepath.Dir(suite.testFile.Name()),
+	}, tags)
 }
 
 func (suite *TailerTestSuite) TestMutliLineAutoDetect() {

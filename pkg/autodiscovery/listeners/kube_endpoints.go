@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -415,11 +416,11 @@ func (s *KubeEndpointService) GetPorts(context.Context) ([]ContainerPort, error)
 }
 
 // GetTags retrieves tags
-func (s *KubeEndpointService) GetTags() ([]string, string, error) {
+func (s *KubeEndpointService) GetTags() ([]string, error) {
 	if s.tags == nil {
-		return []string{}, "", nil
+		return []string{}, nil
 	}
-	return s.tags, "", nil
+	return s.tags, nil
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet
@@ -445,6 +446,10 @@ func (s *KubeEndpointService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig isn't supported
-func (s *KubeEndpointService) GetExtraConfig(key []byte) ([]byte, error) {
-	return []byte{}, ErrNotSupported
+func (s *KubeEndpointService) GetExtraConfig(key string) (string, error) {
+	return "", ErrNotSupported
+}
+
+// FilterTemplates does nothing.
+func (s *KubeEndpointService) FilterTemplates(map[string]integration.Config) {
 }

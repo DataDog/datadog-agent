@@ -30,6 +30,8 @@ const (
 	NoisyProcessRuleID = "noisy_process"
 	// AbnormalPathRuleID is the rule ID for the abnormal_path events
 	AbnormalPathRuleID = "abnormal_path"
+	// SelfTestRuleID is the rule ID for the self_test events
+	SelfTestRuleID = "self_test"
 )
 
 // AllCustomRuleIDs returns the list of custom rule IDs
@@ -39,6 +41,7 @@ func AllCustomRuleIDs() []string {
 		RulesetLoadedRuleID,
 		NoisyProcessRuleID,
 		AbnormalPathRuleID,
+		SelfTestRuleID,
 	}
 }
 
@@ -322,5 +325,24 @@ func NewAbnormalPathEvent(event *Event, pathResolutionError error) (*rules.Rule,
 			Timestamp:           event.ResolveEventTimestamp(),
 			Event:               NewEventSerializer(event),
 			PathResolutionError: pathResolutionError.Error(),
+		})
+}
+
+// SelfTestEvent is used to report a self test result
+// easyjson:json
+type SelfTestEvent struct {
+	Timestamp time.Time `json:"date"`
+	Success   []string  `json:"succeeded_tests"`
+	Fails     []string  `json:"failed_tests"`
+}
+
+// NewSelfTestEvent returns the rule and the result of the self test
+func NewSelfTestEvent(success []string, fails []string) (*rules.Rule, *CustomEvent) {
+	return newRule(&rules.RuleDefinition{
+			ID: SelfTestRuleID,
+		}), newCustomEvent(model.CustomSelfTestEventType, SelfTestEvent{
+			Timestamp: time.Now(),
+			Success:   success,
+			Fails:     fails,
 		})
 }

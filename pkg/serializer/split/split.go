@@ -169,7 +169,7 @@ func serializeMarshaller(m marshaler.AbstractMarshaler, compress bool, marshalFc
 		return nil, nil, err
 	}
 	if compress {
-		compressedPayload, err = compression.Compress(nil, payload)
+		compressedPayload, err = compression.Compress(payload)
 		if err != nil {
 			return nil, nil, err
 		}

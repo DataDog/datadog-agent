@@ -74,7 +74,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 		return err
 	}
 
-	err = c.generateEventsFromContainerList(ctx)
+	err = c.generateEventsFromContainerList(ctx, filter)
 	if err != nil {
 		return err
 	}
@@ -131,8 +131,8 @@ func (c *collector) stream(ctx context.Context) {
 	}
 }
 
-func (c *collector) generateEventsFromContainerList(ctx context.Context) error {
-	containers, err := c.dockerUtil.RawContainerList(ctx, types.ContainerListOptions{})
+func (c *collector) generateEventsFromContainerList(ctx context.Context, filter *containers.Filter) error {
+	containers, err := c.dockerUtil.RawContainerListWithFilter(ctx, types.ContainerListOptions{}, filter)
 	if err != nil {
 		return err
 	}
@@ -223,6 +223,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 			State: workloadmeta.ContainerState{
 				Running:    container.State.Running,
 				Status:     extractStatus(container.State),
+				Health:     extractHealth(container.State.Health),
 				StartedAt:  startedAt,
 				FinishedAt: finishedAt,
 				CreatedAt:  createdAt,
@@ -414,4 +415,21 @@ func extractStatus(containerState *types.ContainerState) workloadmeta.ContainerS
 	}
 
 	return workloadmeta.ContainerStatusUnknown
+}
+
+func extractHealth(containerHealth *types.Health) workloadmeta.ContainerHealth {
+	if containerHealth == nil {
+		return workloadmeta.ContainerHealthUnknown
+	}
+
+	switch containerHealth.Status {
+	case types.NoHealthcheck, types.Starting:
+		return workloadmeta.ContainerHealthUnknown
+	case types.Healthy:
+		return workloadmeta.ContainerHealthHealthy
+	case types.Unhealthy:
+		return workloadmeta.ContainerHealthUnhealthy
+	}
+
+	return workloadmeta.ContainerHealthUnknown
 }

@@ -63,8 +63,8 @@ func readConfigSection(cfg config.Config, section string) *colConfig.Map {
 	return cfgMap
 }
 
-// fromConfig builds a PipelineConfig from the configuration.
-func fromConfig(cfg config.Config) (PipelineConfig, error) {
+// FromAgentConfig builds a pipeline configuration from an Agent configuration.
+func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 	var errs []error
 	otlpConfig := readConfigSection(cfg, config.OTLPReceiverSection)
 
@@ -101,8 +101,7 @@ func IsEnabled(cfg config.Config) bool {
 	return ok
 }
 
-// FromAgentConfig builds a pipeline configuration from an Agent configuration.
-func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
-	// TODO (AP-1267): Check stable config too
-	return fromConfig(cfg)
+// IsDisplayed checks if the OTLP section should be rendered in the Agent
+func IsDisplayed() bool {
+	return true
 }

@@ -251,8 +251,8 @@ func (s *Sampler) countSample() {
 // getSignatureSampleRate returns the sampling rate to apply to a signature
 func (s *Sampler) getSignatureSampleRate(sig Signature) float64 {
 	s.muRates.RLock()
-	defer s.muRates.RUnlock()
 	rate, ok := s.rates[sig]
+	s.muRates.RUnlock()
 	if !ok {
 		return s.defaultRate()
 	}
@@ -262,11 +262,11 @@ func (s *Sampler) getSignatureSampleRate(sig Signature) float64 {
 // getAllSignatureSampleRates returns the sampling rate to apply to each signature
 func (s *Sampler) getAllSignatureSampleRates() (map[Signature]float64, float64) {
 	s.muRates.RLock()
-	defer s.muRates.RUnlock()
 	rates := make(map[Signature]float64, len(s.rates))
 	for sig, val := range s.rates {
 		rates[sig] = val * s.extraRate
 	}
+	s.muRates.RUnlock()
 	return rates, s.defaultRate()
 }
 
@@ -281,6 +281,7 @@ func (s *Sampler) defaultRate() float64 {
 
 	var maxSeen float32
 	s.muSeen.RLock()
+	defer s.muSeen.RUnlock()
 	for _, c := range s.allSigsSeen {
 		if c > maxSeen {
 			maxSeen = c
@@ -292,7 +293,6 @@ func (s *Sampler) defaultRate() float64 {
 	if targetTPS < seenTPS && seenTPS > 0 {
 		rate = targetTPS / seenTPS
 	}
-	s.muSeen.RUnlock()
 	if s.lowestRate < rate && s.lowestRate != 0 {
 		return s.lowestRate
 	}
@@ -313,7 +313,7 @@ func (s *Sampler) report() {
 	kept := atomic.SwapInt64(&s.totalKept, 0)
 	metrics.Count("datadog.trace_agent.sampler.kept", kept, s.tags, 1)
 	metrics.Count("datadog.trace_agent.sampler.seen", seen, s.tags, 1)
-	metrics.Count("datadog.trace_agent.sampler.size", s.size(), s.tags, 1)
+	metrics.Gauge("datadog.trace_agent.sampler.size", float64(s.size()), s.tags, 1)
 }
 
 // Stop stops the main Run loop

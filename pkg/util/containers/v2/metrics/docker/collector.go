@@ -74,7 +74,7 @@ func (d *dockerCollector) ID() string {
 }
 
 // GetContainerStats returns stats by container ID.
-func (d *dockerCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
+func (d *dockerCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	stats, err := d.stats(containerID)
 	if err != nil {
 		return nil, err
@@ -91,8 +91,14 @@ func (d *dockerCollector) GetContainerStats(containerID string, cacheValidity ti
 	return outStats, nil
 }
 
+// GetContainerOpenFilesCount returns open files count by container ID.
+func (d *dockerCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
+	// Not available
+	return nil, nil
+}
+
 // GetContainerNetworkStats returns network stats by container ID.
-func (d *dockerCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
+func (d *dockerCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
 	stats, err := d.stats(containerID)
 	if err != nil {
 		return nil, err
@@ -198,6 +204,17 @@ func fillStatsFromSpec(containerStats *provider.ContainerStats, spec *types.Cont
 	}
 
 	computeCPULimit(containerStats, spec)
+	computeMemoryLimit(containerStats, spec)
+}
+
+func computeMemoryLimit(containerStats *provider.ContainerStats, spec *types.ContainerJSON) {
+	if spec == nil || spec.HostConfig == nil || containerStats.Memory == nil {
+		return
+	}
+
+	if spec.HostConfig.Memory > 0 {
+		containerStats.Memory.Limit = pointer.IntToFloatPtr(spec.HostConfig.Memory)
+	}
 }
 
 func convertNetworkStats(stats *types.StatsJSON) *provider.ContainerNetworkStats {

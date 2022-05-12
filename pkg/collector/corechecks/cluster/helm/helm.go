@@ -262,8 +262,14 @@ func tagsForMetricsAndEvents(release *release, storageDriver helmStorage, includ
 func tagsForServiceCheck(release *release, storageDriver helmStorage) []string {
 	tags := []string{
 		fmt.Sprintf("helm_release:%s", release.Name),
-		fmt.Sprintf("helm_namespace:%s", release.Namespace),
 		fmt.Sprintf("helm_storage:%s", storageDriver),
+		fmt.Sprintf("kube_namespace:%s", release.Namespace),
+
+		// "helm_namespace" is just an alias for "kube_namespace".
+		// "kube_namespace" is a better name and consistent with the rest of
+		// checks, but in the first release of the check we had "helm_namespace"
+		// so we need to keep it for backwards-compatibility.
+		fmt.Sprintf("helm_namespace:%s", release.Namespace),
 	}
 
 	if release.Chart != nil && release.Chart.Metadata != nil {

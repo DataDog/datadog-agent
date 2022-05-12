@@ -14,9 +14,6 @@ var (
 	// PIDFilePath specifies the path to the PID file.
 	PIDFilePath string
 
-	// LogLevel specifies the log output level.
-	LogLevel string
-
 	// Version will cause the agent to show version information.
 	Version bool
 

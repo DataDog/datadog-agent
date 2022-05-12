@@ -276,13 +276,33 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	if err != nil {
 		return nil, err
 	}
+
+	directorTargets, err := s.uptane.Targets()
+	if err != nil {
+		return nil, err
+	}
+	matchedClientConfigs, err := executeClientPredicates(request.Client, directorTargets)
+	if err != nil {
+		return nil, err
+	}
+
+	// filter files to only return the ones that predicates marked for this client
+	matchedConfigsMap := make(map[string]interface{})
+	for _, configPointer := range matchedClientConfigs {
+		matchedConfigsMap[configPointer] = struct{}{}
+	}
+	filteredFiles := make([]*pbgo.File, 0, len(matchedClientConfigs))
+	for _, targetFile := range targetFiles {
+		if _, ok := matchedConfigsMap[targetFile.Path]; ok {
+			filteredFiles = append(filteredFiles, targetFile)
+		}
+	}
+
 	return &pbgo.ClientGetConfigsResponse{
-		Roots: roots,
-		Targets: &pbgo.TopMeta{
-			Version: state.DirectorTargetsVersion(),
-			Raw:     targetsRaw,
-		},
-		TargetFiles: targetFiles,
+		Roots:         roots,
+		Targets:       targetsRaw,
+		TargetFiles:   filteredFiles,
+		ClientConfigs: matchedClientConfigs,
 	}, nil
 }
 
@@ -314,17 +334,14 @@ func (s *Service) ConfigGetState() (*pbgo.GetStateConfigResponse, error) {
 	return response, nil
 }
 
-func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) ([]*pbgo.TopMeta, error) {
-	var roots []*pbgo.TopMeta
+func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) ([][]byte, error) {
+	var roots [][]byte
 	for i := currentVersion + 1; i <= newVersion; i++ {
 		root, err := s.uptane.DirectorRoot(i)
 		if err != nil {
 			return nil, err
 		}
-		roots = append(roots, &pbgo.TopMeta{
-			Raw:     root,
-			Version: i,
-		})
+		roots = append(roots, root)
 	}
 	return roots, nil
 }
@@ -351,11 +368,11 @@ func (s *Service) getTargetFiles(products []rdata.Product, cachedTargetFiles []*
 	}
 	var configFiles []*pbgo.File
 	for targetPath, targetMeta := range targets {
-		configFileMeta, err := rdata.ParseFilePathMeta(targetPath)
+		configPathMeta, err := rdata.ParseConfigPath(targetPath)
 		if err != nil {
 			return nil, err
 		}
-		if _, inClientProducts := productSet[configFileMeta.Product]; inClientProducts {
+		if _, inClientProducts := productSet[rdata.Product(configPathMeta.Product)]; inClientProducts {
 			if notEqualErr := tufutil.FileMetaEqual(cachedTargets[targetPath], targetMeta.FileMeta); notEqualErr == nil {
 				continue
 			}

@@ -203,6 +203,7 @@ func (a *APIServer) GetStatus(ctx context.Context, params *api.GetStatusParams) 
 				Values:   constants,
 			},
 		},
+		SelfTests: a.module.selfTester.GetStatus(),
 	}
 
 	envErrors := a.probe.VerifyEnvironment()
@@ -214,6 +215,7 @@ func (a *APIServer) GetStatus(ctx context.Context, params *api.GetStatusParams) 
 	}
 
 	apiStatus.Environment.KernelLockdown = string(kernel.GetLockdownMode())
+
 	return apiStatus, nil
 }
 
@@ -340,7 +342,7 @@ func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestPara
 		}, nil
 	}
 
-	if err := a.module.selfTester.RunSelfTest(); err != nil {
+	if err := a.module.RunSelfTestAndReport(); err != nil {
 		return &api.SecuritySelfTestResultMessage{
 			Ok:    false,
 			Error: err.Error(),

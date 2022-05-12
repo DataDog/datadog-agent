@@ -6,12 +6,8 @@
 package checkconfig
 
 import (
-	"regexp"
-	"strings"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
+	"regexp"
 )
 
 // SymbolConfig holds info for a single symbol/oid
@@ -25,6 +21,9 @@ type SymbolConfig struct {
 	MatchPattern         string `yaml:"match_pattern"`
 	MatchValue           string `yaml:"match_value"`
 	MatchPatternCompiled *regexp.Regexp
+
+	ScaleFactor float64 `yaml:"scale_factor"`
+	Format      string  `yaml:"format"`
 }
 
 // MetricTagConfig holds metric tag info
@@ -80,68 +79,11 @@ type MetricsConfig struct {
 	// Table configs
 	Symbols []SymbolConfig `yaml:"symbols"`
 
+	StaticTags []string            `yaml:"static_tags"`
 	MetricTags MetricTagConfigList `yaml:"metric_tags"`
 
 	ForcedType string              `yaml:"forced_type"`
 	Options    MetricsConfigOption `yaml:"options"`
-}
-
-// GetTags retrieve tags using the metric config and values
-func (mtcl MetricTagConfigList) GetTags(fullIndex string, values *valuestore.ResultValueStore) []string {
-	var rowTags []string
-	indexes := strings.Split(fullIndex, ".")
-	for _, metricTag := range mtcl {
-		// get tag using `index` field
-		if metricTag.Index > 0 {
-			index := metricTag.Index - 1 // `index` metric config is 1-based
-			if index >= uint(len(indexes)) {
-				log.Debugf("error getting tags. index `%d` not found in indexes `%v`", metricTag.Index, indexes)
-				continue
-			}
-			var tagValue string
-			if len(metricTag.Mapping) > 0 {
-				mappedValue, ok := metricTag.Mapping[indexes[index]]
-				if !ok {
-					log.Debugf("error getting tags. mapping for `%s` does not exist. mapping=`%v`, indexes=`%v`", indexes[index], metricTag.Mapping, indexes)
-					continue
-				}
-				tagValue = mappedValue
-			} else {
-				tagValue = indexes[index]
-			}
-			rowTags = append(rowTags, metricTag.Tag+":"+tagValue)
-		}
-		// get tag using another column value
-		if metricTag.Column.OID != "" {
-			// TODO: Support extract value see II-635
-			columnValues, err := values.GetColumnValues(metricTag.Column.OID)
-			if err != nil {
-				log.Debugf("error getting column value: %v", err)
-				continue
-			}
-
-			var newIndexes []string
-			if len(metricTag.IndexTransform) > 0 {
-				newIndexes = transformIndex(indexes, metricTag.IndexTransform)
-			} else {
-				newIndexes = indexes
-			}
-			newFullIndex := strings.Join(newIndexes, ".")
-
-			tagValue, ok := columnValues[newFullIndex]
-			if !ok {
-				log.Debugf("index not found for column value: tag=%v, index=%v", metricTag.Tag, newFullIndex)
-				continue
-			}
-			strValue, err := tagValue.ToString()
-			if err != nil {
-				log.Debugf("error converting tagValue (%#v) to string : %v", tagValue, err)
-				continue
-			}
-			rowTags = append(rowTags, metricTag.GetTags(strValue)...)
-		}
-	}
-	return rowTags
 }
 
 // GetSymbolTags returns symbol tags
@@ -202,22 +144,6 @@ func RegexReplaceValue(value string, pattern *regexp.Regexp, normalizedTemplate 
 func normalizeRegexReplaceValue(val string) string {
 	re := regexp.MustCompile("\\\\(\\d+)")
 	return re.ReplaceAllString(val, "$$$1")
-}
-
-// transformIndex change a source index into a new index using a list of transform rules.
-// A transform rule has start/end fields, it is used to extract a subset of the source index.
-func transformIndex(indexes []string, transformRules []MetricIndexTransform) []string {
-	var newIndex []string
-
-	for _, rule := range transformRules {
-		start := rule.Start
-		end := rule.End + 1
-		if end > uint(len(indexes)) {
-			return nil
-		}
-		newIndex = append(newIndex, indexes[start:end]...)
-	}
-	return newIndex
 }
 
 // normalizeMetrics converts legacy syntax to new syntax

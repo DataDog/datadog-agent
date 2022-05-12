@@ -9,11 +9,11 @@ import (
 	"errors"
 	"sort"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"go.uber.org/atomic"
 )
 
 // Known container runtimes
@@ -96,7 +96,7 @@ type GenericProvider struct {
 	effectiveCollectorsList []*collectorReference
 	effectiveLock           sync.RWMutex
 	lastRetryTimestamp      time.Time
-	remainingCandidates     uint32
+	remainingCandidates     *atomic.Uint32
 	metaCollector           MetaCollector
 }
 
@@ -111,6 +111,7 @@ func newProvider() *GenericProvider {
 	provider := &GenericProvider{
 		collectors:          make(map[string]CollectorMetadata),
 		effectiveCollectors: make(map[string]*collectorReference),
+		remainingCandidates: atomic.NewUint32(0),
 	}
 	provider.metaCollector = newMetaCollector(provider.getCollectors)
 
@@ -136,7 +137,7 @@ func (mp *GenericProvider) RegisterCollector(collectorMeta CollectorMetadata) {
 	defer mp.collectorsLock.Unlock()
 
 	mp.collectors[collectorMeta.ID] = collectorMeta
-	atomic.StoreUint32(&mp.remainingCandidates, uint32(len(mp.collectors)))
+	mp.remainingCandidates.Store(uint32(len(mp.collectors)))
 }
 
 func (mp *GenericProvider) getCollector(runtime string) Collector {
@@ -156,7 +157,7 @@ func (mp *GenericProvider) getCollectors() []*collectorReference {
 }
 
 func (mp *GenericProvider) retryCollectors(cacheValidity time.Duration) {
-	if atomic.LoadUint32(&mp.remainingCandidates) == 0 {
+	if mp.remainingCandidates.Load() == 0 {
 		return
 	}
 
@@ -189,7 +190,7 @@ func (mp *GenericProvider) retryCollectors(cacheValidity time.Duration) {
 		}
 	}
 
-	atomic.StoreUint32(&mp.remainingCandidates, uint32(len(mp.collectors)))
+	mp.remainingCandidates.Store(uint32(len(mp.collectors)))
 }
 
 func (mp *GenericProvider) updateEffectiveCollectors(newCollector Collector, newCollectorDesc CollectorMetadata) {

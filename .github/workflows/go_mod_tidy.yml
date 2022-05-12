@@ -17,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+      with:
+        ref: ${{ github.head_ref }}
     - name: Checkout PR
       # run only if triggered manually, otherwise we are already on the right branch and we won't have `pr_number`
       if: ${{ github.event_name == 'workflow_dispatch' }}

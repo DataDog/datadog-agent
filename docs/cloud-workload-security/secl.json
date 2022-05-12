@@ -18,6 +18,11 @@
           "definition": "Tags of the container"
         },
         {
+          "name": "network.destination.ip",
+          "type": "IP/CIDR",
+          "definition": "IP address"
+        },
+        {
           "name": "network.destination.port",
           "type": "int",
           "definition": "Port number"
@@ -46,6 +51,11 @@
           "name": "network.size",
           "type": "int",
           "definition": "size in bytes of the network packet"
+        },
+        {
+          "name": "network.source.ip",
+          "type": "IP/CIDR",
+          "definition": "IP address"
         },
         {
           "name": "network.source.port",
@@ -155,7 +165,7 @@
         {
           "name": "process.ancestors.file.filesystem",
           "type": "string",
-          "definition": "FileSystem of the process executable"
+          "definition": "File's filesystem"
         },
         {
           "name": "process.ancestors.file.gid",
@@ -195,12 +205,12 @@
         {
           "name": "process.ancestors.file.name",
           "type": "string",
-          "definition": "Basename of the path of the process executable"
+          "definition": "File's basename"
         },
         {
           "name": "process.ancestors.file.path",
           "type": "string",
-          "definition": "Path of the process executable"
+          "definition": "File's path"
         },
         {
           "name": "process.ancestors.file.rights",
@@ -380,7 +390,7 @@
         {
           "name": "process.file.filesystem",
           "type": "string",
-          "definition": "FileSystem of the process executable"
+          "definition": "File's filesystem"
         },
         {
           "name": "process.file.gid",
@@ -420,12 +430,12 @@
         {
           "name": "process.file.name",
           "type": "string",
-          "definition": "Basename of the path of the process executable"
+          "definition": "File's basename"
         },
         {
           "name": "process.file.path",
           "type": "string",
-          "definition": "Path of the process executable"
+          "definition": "File's path"
         },
         {
           "name": "process.file.rights",
@@ -919,7 +929,7 @@
         {
           "name": "exec.file.filesystem",
           "type": "string",
-          "definition": "FileSystem of the process executable"
+          "definition": "File's filesystem"
         },
         {
           "name": "exec.file.gid",
@@ -959,12 +969,12 @@
         {
           "name": "exec.file.name",
           "type": "string",
-          "definition": "Basename of the path of the process executable"
+          "definition": "File's basename"
         },
         {
           "name": "exec.file.path",
           "type": "string",
-          "definition": "Path of the process executable"
+          "definition": "File's path"
         },
         {
           "name": "exec.file.rights",
@@ -1717,7 +1727,7 @@
         {
           "name": "ptrace.tracee.ancestors.file.filesystem",
           "type": "string",
-          "definition": "FileSystem of the process executable"
+          "definition": "File's filesystem"
         },
         {
           "name": "ptrace.tracee.ancestors.file.gid",
@@ -1757,12 +1767,12 @@
         {
           "name": "ptrace.tracee.ancestors.file.name",
           "type": "string",
-          "definition": "Basename of the path of the process executable"
+          "definition": "File's basename"
         },
         {
           "name": "ptrace.tracee.ancestors.file.path",
           "type": "string",
-          "definition": "Path of the process executable"
+          "definition": "File's path"
         },
         {
           "name": "ptrace.tracee.ancestors.file.rights",
@@ -1942,7 +1952,7 @@
         {
           "name": "ptrace.tracee.file.filesystem",
           "type": "string",
-          "definition": "FileSystem of the process executable"
+          "definition": "File's filesystem"
         },
         {
           "name": "ptrace.tracee.file.gid",
@@ -1982,12 +1992,12 @@
         {
           "name": "ptrace.tracee.file.name",
           "type": "string",
-          "definition": "Basename of the path of the process executable"
+          "definition": "File's basename"
         },
         {
           "name": "ptrace.tracee.file.path",
           "type": "string",
-          "definition": "Path of the process executable"
+          "definition": "File's path"
         },
         {
           "name": "ptrace.tracee.file.rights",
@@ -2719,7 +2729,7 @@
         {
           "name": "signal.target.ancestors.file.filesystem",
           "type": "string",
-          "definition": "FileSystem of the process executable"
+          "definition": "File's filesystem"
         },
         {
           "name": "signal.target.ancestors.file.gid",
@@ -2759,12 +2769,12 @@
         {
           "name": "signal.target.ancestors.file.name",
           "type": "string",
-          "definition": "Basename of the path of the process executable"
+          "definition": "File's basename"
         },
         {
           "name": "signal.target.ancestors.file.path",
           "type": "string",
-          "definition": "Path of the process executable"
+          "definition": "File's path"
         },
         {
           "name": "signal.target.ancestors.file.rights",
@@ -2944,7 +2954,7 @@
         {
           "name": "signal.target.file.filesystem",
           "type": "string",
-          "definition": "FileSystem of the process executable"
+          "definition": "File's filesystem"
         },
         {
           "name": "signal.target.file.gid",
@@ -2984,12 +2994,12 @@
         {
           "name": "signal.target.file.name",
           "type": "string",
-          "definition": "Basename of the path of the process executable"
+          "definition": "File's basename"
         },
         {
           "name": "signal.target.file.path",
           "type": "string",
-          "definition": "Path of the process executable"
+          "definition": "File's path"
         },
         {
           "name": "signal.target.file.rights",

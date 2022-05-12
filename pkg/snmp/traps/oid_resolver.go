@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2022-present Datadog, Inc.package traps
+// Copyright 2022-present Datadog, Inc.
 
 package traps
 
@@ -52,6 +52,9 @@ func NewMultiFilesOIDResolver() (*MultiFilesOIDResolver, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read dir `%s`: %v", trapsDBRoot, err)
 	}
+	if len(files) == 0 {
+		return nil, fmt.Errorf("dir `%s` does not contain any trap db file", trapsDBRoot)
+	}
 	fileNames := getSortedFileNames(files)
 	for _, fileName := range fileNames {
 		err := oidResolver.updateFromFile(filepath.Join(trapsDBRoot, fileName))
@@ -90,6 +93,9 @@ func (or *MultiFilesOIDResolver) GetVariableMetadata(trapOID string, varOID stri
 }
 
 func getSortedFileNames(files []fs.DirEntry) []string {
+	if len(files) == 0 {
+		return []string{}
+	}
 	// There should usually be one file provided by Datadog and zero or more provided by the user
 	userProvidedFileNames := make([]string, 0, len(files)-1)
 	// Using a slice for error-proofing but there will usually be only one dd provided file.
@@ -170,6 +176,7 @@ func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB trapDBFileContent
 		or.traps[trapOID] = TrapMetadata{
 			Name:            trapData.Name,
 			Description:     trapData.Description,
+			MIBName:         trapData.MIBName,
 			variableSpecPtr: definedVariables,
 		}
 	}

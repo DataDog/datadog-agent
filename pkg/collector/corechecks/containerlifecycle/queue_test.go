@@ -83,8 +83,9 @@ func TestBatching(t *testing.T) {
 		queue.add(fakeContainerEvent(strconv.FormatInt(i, 10)))
 	}
 
-	data := queue.dump()
+	data := queue.flush()
 	assert.Len(t, data, 5)
+	assert.Len(t, queue.data, 0)
 
 	for i := int64(0); i < 5; i++ {
 		assert.Len(t, data[i].Events, commonChunkSize)

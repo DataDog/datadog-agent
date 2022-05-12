@@ -13,10 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
@@ -27,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -76,7 +74,7 @@ func main() {
 		os.Exit(-1)
 	}
 
-	// handle SIGTERM
+	// handle SIGTERM signal
 	go handleSignals(serverlessDaemon, stopCh)
 
 	// block here until we receive a stop signal
@@ -238,7 +236,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		if logRegistrationError != nil {
 			log.Error("Can't subscribe to logs:", logRegistrationError)
 		} else {
-			setupLogAgent(logChannel)
+			serverlessLogs.SetupLogAgent(logChannel)
 		}
 	}()
 
@@ -246,10 +244,11 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	// set up invocation processor in the serverless Daemon to be used for the proxy and/or lifecycle API
 	serverlessDaemon.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
-		ExtraTags:           serverlessDaemon.ExtraTags,
-		Demux:               serverlessDaemon.MetricAgent.Demux,
-		ProcessTrace:        serverlessDaemon.TraceAgent.Get().Process,
-		DetectLambdaLibrary: func() bool { return serverlessDaemon.LambdaLibraryDetected },
+		ExtraTags:            serverlessDaemon.ExtraTags,
+		Demux:                serverlessDaemon.MetricAgent.Demux,
+		ProcessTrace:         serverlessDaemon.TraceAgent.Get().Process,
+		DetectLambdaLibrary:  func() bool { return serverlessDaemon.LambdaLibraryDetected },
+		InferredSpansEnabled: inferredspan.IsInferredSpansEnabled(),
 	}
 
 	// start the experimental proxy if enabled
@@ -294,16 +293,4 @@ func handleSignals(serverlessDaemon *daemon.Daemon, stopCh chan struct{}) {
 			return
 		}
 	}
-}
-
-func setupLogAgent(logChannel chan *logConfig.ChannelMessage) {
-	agent, err := logs.StartServerless(
-		func() *autodiscovery.AutoConfig { return common.AC },
-	)
-	if err != nil {
-		log.Error("Could not start an instance of the Logs Agent:", err)
-		return
-	}
-
-	agent.AddScheduler(serverlessLogs.NewScheduler(logChannel, nil))
 }
