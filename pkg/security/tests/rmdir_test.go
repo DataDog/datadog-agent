@@ -62,7 +62,7 @@ func TestRmdir(t *testing.T) {
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
-			assert.Equal(t, event.Rmdir.Async, int64(0))
+			assert.Equal(t, event.Rmdir.Async, false)
 		})
 	}))
 
@@ -90,7 +90,7 @@ func TestRmdir(t *testing.T) {
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
-			assert.Equal(t, event.Rmdir.Async, int64(0))
+			assert.Equal(t, event.Rmdir.Async, false)
 		})
 	})
 
@@ -147,7 +147,7 @@ func TestRmdir(t *testing.T) {
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
-			assert.Equal(t, event.Rmdir.Async, int64(1))
+			assert.Equal(t, event.Rmdir.Async, true)
 
 			executable, err := os.Executable()
 			if err != nil {

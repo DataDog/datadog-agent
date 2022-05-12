@@ -439,7 +439,11 @@ func (e *SyscallEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 	e.Retval = int64(ByteOrder.Uint64(data[0:8]))
-	e.Async = int64(ByteOrder.Uint64(data[8:16]))
+	if ByteOrder.Uint64(data[8:16]) != 0 {
+		e.Async = true
+	} else {
+		e.Async = false
+	}
 	return 16, nil
 }
 

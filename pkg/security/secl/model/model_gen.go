@@ -2165,7 +2165,7 @@ func (z *SyscallEvent) DecodeMsg(dc *msgp.Reader) (err error) {
 				return
 			}
 		case "async":
-			z.Async, err = dc.ReadInt64()
+			z.Async, err = dc.ReadBool()
 			if err != nil {
 				err = msgp.WrapError(err, "Async")
 				return
@@ -2199,7 +2199,7 @@ func (z SyscallEvent) EncodeMsg(en *msgp.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	err = en.WriteInt64(z.Async)
+	err = en.WriteBool(z.Async)
 	if err != nil {
 		err = msgp.WrapError(err, "Async")
 		return
@@ -2216,7 +2216,7 @@ func (z SyscallEvent) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.AppendInt64(o, z.Retval)
 	// string "async"
 	o = append(o, 0xa5, 0x61, 0x73, 0x79, 0x6e, 0x63)
-	o = msgp.AppendInt64(o, z.Async)
+	o = msgp.AppendBool(o, z.Async)
 	return
 }
 
@@ -2245,7 +2245,7 @@ func (z *SyscallEvent) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 		case "async":
-			z.Async, bts, err = msgp.ReadInt64Bytes(bts)
+			z.Async, bts, err = msgp.ReadBoolBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Async")
 				return
@@ -2264,6 +2264,6 @@ func (z *SyscallEvent) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z SyscallEvent) Msgsize() (s int) {
-	s = 1 + 7 + msgp.Int64Size + 6 + msgp.Int64Size
+	s = 1 + 7 + msgp.Int64Size + 6 + msgp.BoolSize
 	return
 }

@@ -56,9 +56,9 @@ func (m *Model) GetEventTypes() []eval.EventType {
 func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
 	case "bpf.async":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).BPF.SyscallEvent.Async)
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).BPF.SyscallEvent.Async
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -156,9 +156,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "chmod.async":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).Chmod.SyscallEvent.Async)
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Chmod.SyscallEvent.Async
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -301,9 +301,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "chown.async":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).Chown.SyscallEvent.Async)
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Chown.SyscallEvent.Async
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -880,9 +880,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "link.async":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).Link.SyscallEvent.Async)
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Link.SyscallEvent.Async
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1122,9 +1122,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "load_module.async":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).LoadModule.SyscallEvent.Async)
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).LoadModule.SyscallEvent.Async
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1267,9 +1267,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "mkdir.async":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).Mkdir.SyscallEvent.Async)
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Mkdir.SyscallEvent.Async
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1412,9 +1412,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "mmap.async":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).MMap.SyscallEvent.Async)
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).MMap.SyscallEvent.Async
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1557,9 +1557,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "mprotect.async":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).MProtect.SyscallEvent.Async)
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).MProtect.SyscallEvent.Async
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1661,9 +1661,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "open.async":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).Open.SyscallEvent.Async)
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Open.SyscallEvent.Async
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -2888,9 +2888,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "ptrace.async":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).PTrace.SyscallEvent.Async)
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).PTrace.SyscallEvent.Async
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3994,9 +3994,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "removexattr.async":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).RemoveXAttr.SyscallEvent.Async)
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).RemoveXAttr.SyscallEvent.Async
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -4139,9 +4139,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "rename.async":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).Rename.SyscallEvent.Async)
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Rename.SyscallEvent.Async
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -4381,9 +4381,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "rmdir.async":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).Rmdir.SyscallEvent.Async)
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Rmdir.SyscallEvent.Async
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -4638,9 +4638,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 	case "setxattr.async":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).SetXAttr.SyscallEvent.Async)
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).SetXAttr.SyscallEvent.Async
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -4783,9 +4783,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "signal.async":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).Signal.SyscallEvent.Async)
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Signal.SyscallEvent.Async
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5897,9 +5897,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "splice.async":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).Splice.SyscallEvent.Async)
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Splice.SyscallEvent.Async
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6042,9 +6042,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "unlink.async":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).Unlink.SyscallEvent.Async)
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Unlink.SyscallEvent.Async
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6171,9 +6171,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "unload_module.async":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).UnloadModule.SyscallEvent.Async)
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).UnloadModule.SyscallEvent.Async
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6195,9 +6195,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 	case "utimes.async":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).Utimes.SyscallEvent.Async)
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Utimes.SyscallEvent.Async
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6978,7 +6978,7 @@ func (e *Event) GetFields() []eval.Field {
 func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
 	case "bpf.async":
-		return int(e.BPF.SyscallEvent.Async), nil
+		return e.BPF.SyscallEvent.Async, nil
 	case "bpf.cmd":
 		return int(e.BPF.Cmd), nil
 	case "bpf.map.name":
@@ -7006,7 +7006,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "capset.cap_permitted":
 		return int(e.Capset.CapPermitted), nil
 	case "chmod.async":
-		return int(e.Chmod.SyscallEvent.Async), nil
+		return e.Chmod.SyscallEvent.Async, nil
 	case "chmod.file.change_time":
 		return int(e.Chmod.File.FileFields.CTime), nil
 	case "chmod.file.destination.mode":
@@ -7042,7 +7042,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "chmod.retval":
 		return int(e.Chmod.SyscallEvent.Retval), nil
 	case "chown.async":
-		return int(e.Chown.SyscallEvent.Async), nil
+		return e.Chown.SyscallEvent.Async, nil
 	case "chown.file.change_time":
 		return int(e.Chown.File.FileFields.CTime), nil
 	case "chown.file.destination.gid":
@@ -7186,7 +7186,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "exec.user":
 		return e.Exec.Process.Credentials.User, nil
 	case "link.async":
-		return int(e.Link.SyscallEvent.Async), nil
+		return e.Link.SyscallEvent.Async, nil
 	case "link.file.change_time":
 		return int(e.Link.Source.FileFields.CTime), nil
 	case "link.file.destination.change_time":
@@ -7246,7 +7246,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "link.retval":
 		return int(e.Link.SyscallEvent.Retval), nil
 	case "load_module.async":
-		return int(e.LoadModule.SyscallEvent.Async), nil
+		return e.LoadModule.SyscallEvent.Async, nil
 	case "load_module.file.change_time":
 		return int(e.LoadModule.File.FileFields.CTime), nil
 	case "load_module.file.filesystem":
@@ -7282,7 +7282,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "load_module.retval":
 		return int(e.LoadModule.SyscallEvent.Retval), nil
 	case "mkdir.async":
-		return int(e.Mkdir.SyscallEvent.Async), nil
+		return e.Mkdir.SyscallEvent.Async, nil
 	case "mkdir.file.change_time":
 		return int(e.Mkdir.File.FileFields.CTime), nil
 	case "mkdir.file.destination.mode":
@@ -7318,7 +7318,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "mkdir.retval":
 		return int(e.Mkdir.SyscallEvent.Retval), nil
 	case "mmap.async":
-		return int(e.MMap.SyscallEvent.Async), nil
+		return e.MMap.SyscallEvent.Async, nil
 	case "mmap.file.change_time":
 		return int(e.MMap.File.FileFields.CTime), nil
 	case "mmap.file.filesystem":
@@ -7354,7 +7354,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "mmap.retval":
 		return int(e.MMap.SyscallEvent.Retval), nil
 	case "mprotect.async":
-		return int(e.MProtect.SyscallEvent.Async), nil
+		return e.MProtect.SyscallEvent.Async, nil
 	case "mprotect.req_protection":
 		return e.MProtect.ReqProtection, nil
 	case "mprotect.retval":
@@ -7380,7 +7380,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "network.source.port":
 		return int(e.NetworkContext.Source.Port), nil
 	case "open.async":
-		return int(e.Open.SyscallEvent.Async), nil
+		return e.Open.SyscallEvent.Async, nil
 	case "open.file.change_time":
 		return int(e.Open.File.FileFields.CTime), nil
 	case "open.file.destination.mode":
@@ -8046,7 +8046,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "process.user":
 		return e.ProcessContext.Process.Credentials.User, nil
 	case "ptrace.async":
-		return int(e.PTrace.SyscallEvent.Async), nil
+		return e.PTrace.SyscallEvent.Async, nil
 	case "ptrace.request":
 		return int(e.PTrace.Request), nil
 	case "ptrace.retval":
@@ -8682,7 +8682,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "ptrace.tracee.user":
 		return e.PTrace.Tracee.Process.Credentials.User, nil
 	case "removexattr.async":
-		return int(e.RemoveXAttr.SyscallEvent.Async), nil
+		return e.RemoveXAttr.SyscallEvent.Async, nil
 	case "removexattr.file.change_time":
 		return int(e.RemoveXAttr.File.FileFields.CTime), nil
 	case "removexattr.file.destination.name":
@@ -8718,7 +8718,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "removexattr.retval":
 		return int(e.RemoveXAttr.SyscallEvent.Retval), nil
 	case "rename.async":
-		return int(e.Rename.SyscallEvent.Async), nil
+		return e.Rename.SyscallEvent.Async, nil
 	case "rename.file.change_time":
 		return int(e.Rename.Old.FileFields.CTime), nil
 	case "rename.file.destination.change_time":
@@ -8778,7 +8778,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "rename.retval":
 		return int(e.Rename.SyscallEvent.Retval), nil
 	case "rmdir.async":
-		return int(e.Rmdir.SyscallEvent.Async), nil
+		return e.Rmdir.SyscallEvent.Async, nil
 	case "rmdir.file.change_time":
 		return int(e.Rmdir.File.FileFields.CTime), nil
 	case "rmdir.file.filesystem":
@@ -8842,7 +8842,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "setuid.user":
 		return e.SetUID.User, nil
 	case "setxattr.async":
-		return int(e.SetXAttr.SyscallEvent.Async), nil
+		return e.SetXAttr.SyscallEvent.Async, nil
 	case "setxattr.file.change_time":
 		return int(e.SetXAttr.File.FileFields.CTime), nil
 	case "setxattr.file.destination.name":
@@ -8878,7 +8878,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "setxattr.retval":
 		return int(e.SetXAttr.SyscallEvent.Retval), nil
 	case "signal.async":
-		return int(e.Signal.SyscallEvent.Async), nil
+		return e.Signal.SyscallEvent.Async, nil
 	case "signal.pid":
 		return int(e.Signal.PID), nil
 	case "signal.retval":
@@ -9516,7 +9516,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "signal.type":
 		return int(e.Signal.Type), nil
 	case "splice.async":
-		return int(e.Splice.SyscallEvent.Async), nil
+		return e.Splice.SyscallEvent.Async, nil
 	case "splice.file.change_time":
 		return int(e.Splice.File.FileFields.CTime), nil
 	case "splice.file.filesystem":
@@ -9552,7 +9552,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "splice.retval":
 		return int(e.Splice.SyscallEvent.Retval), nil
 	case "unlink.async":
-		return int(e.Unlink.SyscallEvent.Async), nil
+		return e.Unlink.SyscallEvent.Async, nil
 	case "unlink.file.change_time":
 		return int(e.Unlink.File.FileFields.CTime), nil
 	case "unlink.file.filesystem":
@@ -9584,13 +9584,13 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "unlink.retval":
 		return int(e.Unlink.SyscallEvent.Retval), nil
 	case "unload_module.async":
-		return int(e.UnloadModule.SyscallEvent.Async), nil
+		return e.UnloadModule.SyscallEvent.Async, nil
 	case "unload_module.name":
 		return e.UnloadModule.Name, nil
 	case "unload_module.retval":
 		return int(e.UnloadModule.SyscallEvent.Retval), nil
 	case "utimes.async":
-		return int(e.Utimes.SyscallEvent.Async), nil
+		return e.Utimes.SyscallEvent.Async, nil
 	case "utimes.file.change_time":
 		return int(e.Utimes.File.FileFields.CTime), nil
 	case "utimes.file.filesystem":
@@ -10922,7 +10922,7 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	switch field {
 	case "bpf.async":
-		return reflect.Int, nil
+		return reflect.Bool, nil
 	case "bpf.cmd":
 		return reflect.Int, nil
 	case "bpf.map.name":
@@ -10946,7 +10946,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "capset.cap_permitted":
 		return reflect.Int, nil
 	case "chmod.async":
-		return reflect.Int, nil
+		return reflect.Bool, nil
 	case "chmod.file.change_time":
 		return reflect.Int, nil
 	case "chmod.file.destination.mode":
@@ -10982,7 +10982,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "chmod.retval":
 		return reflect.Int, nil
 	case "chown.async":
-		return reflect.Int, nil
+		return reflect.Bool, nil
 	case "chown.file.change_time":
 		return reflect.Int, nil
 	case "chown.file.destination.gid":
@@ -11126,7 +11126,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "exec.user":
 		return reflect.String, nil
 	case "link.async":
-		return reflect.Int, nil
+		return reflect.Bool, nil
 	case "link.file.change_time":
 		return reflect.Int, nil
 	case "link.file.destination.change_time":
@@ -11186,7 +11186,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "link.retval":
 		return reflect.Int, nil
 	case "load_module.async":
-		return reflect.Int, nil
+		return reflect.Bool, nil
 	case "load_module.file.change_time":
 		return reflect.Int, nil
 	case "load_module.file.filesystem":
@@ -11222,7 +11222,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "load_module.retval":
 		return reflect.Int, nil
 	case "mkdir.async":
-		return reflect.Int, nil
+		return reflect.Bool, nil
 	case "mkdir.file.change_time":
 		return reflect.Int, nil
 	case "mkdir.file.destination.mode":
@@ -11258,7 +11258,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "mkdir.retval":
 		return reflect.Int, nil
 	case "mmap.async":
-		return reflect.Int, nil
+		return reflect.Bool, nil
 	case "mmap.file.change_time":
 		return reflect.Int, nil
 	case "mmap.file.filesystem":
@@ -11294,7 +11294,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "mmap.retval":
 		return reflect.Int, nil
 	case "mprotect.async":
-		return reflect.Int, nil
+		return reflect.Bool, nil
 	case "mprotect.req_protection":
 		return reflect.Int, nil
 	case "mprotect.retval":
@@ -11320,7 +11320,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "network.source.port":
 		return reflect.Int, nil
 	case "open.async":
-		return reflect.Int, nil
+		return reflect.Bool, nil
 	case "open.file.change_time":
 		return reflect.Int, nil
 	case "open.file.destination.mode":
@@ -11536,7 +11536,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "process.user":
 		return reflect.String, nil
 	case "ptrace.async":
-		return reflect.Int, nil
+		return reflect.Bool, nil
 	case "ptrace.request":
 		return reflect.Int, nil
 	case "ptrace.retval":
@@ -11722,7 +11722,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "ptrace.tracee.user":
 		return reflect.String, nil
 	case "removexattr.async":
-		return reflect.Int, nil
+		return reflect.Bool, nil
 	case "removexattr.file.change_time":
 		return reflect.Int, nil
 	case "removexattr.file.destination.name":
@@ -11758,7 +11758,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "removexattr.retval":
 		return reflect.Int, nil
 	case "rename.async":
-		return reflect.Int, nil
+		return reflect.Bool, nil
 	case "rename.file.change_time":
 		return reflect.Int, nil
 	case "rename.file.destination.change_time":
@@ -11818,7 +11818,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "rename.retval":
 		return reflect.Int, nil
 	case "rmdir.async":
-		return reflect.Int, nil
+		return reflect.Bool, nil
 	case "rmdir.file.change_time":
 		return reflect.Int, nil
 	case "rmdir.file.filesystem":
@@ -11882,7 +11882,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "setuid.user":
 		return reflect.String, nil
 	case "setxattr.async":
-		return reflect.Int, nil
+		return reflect.Bool, nil
 	case "setxattr.file.change_time":
 		return reflect.Int, nil
 	case "setxattr.file.destination.name":
@@ -11918,7 +11918,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "setxattr.retval":
 		return reflect.Int, nil
 	case "signal.async":
-		return reflect.Int, nil
+		return reflect.Bool, nil
 	case "signal.pid":
 		return reflect.Int, nil
 	case "signal.retval":
@@ -12106,7 +12106,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "signal.type":
 		return reflect.Int, nil
 	case "splice.async":
-		return reflect.Int, nil
+		return reflect.Bool, nil
 	case "splice.file.change_time":
 		return reflect.Int, nil
 	case "splice.file.filesystem":
@@ -12142,7 +12142,7 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "splice.retval":
 		return reflect.Int, nil
 	case "unlink.async":
-		return reflect.Int, nil
+		return reflect.Bool, nil
 	case "unlink.file.change_time":
 		return reflect.Int, nil
 	case "unlink.file.filesystem":
@@ -12174,13 +12174,13 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "unlink.retval":
 		return reflect.Int, nil
 	case "unload_module.async":
-		return reflect.Int, nil
+		return reflect.Bool, nil
 	case "unload_module.name":
 		return reflect.String, nil
 	case "unload_module.retval":
 		return reflect.Int, nil
 	case "utimes.async":
-		return reflect.Int, nil
+		return reflect.Bool, nil
 	case "utimes.file.change_time":
 		return reflect.Int, nil
 	case "utimes.file.filesystem":
@@ -12217,11 +12217,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	switch field {
 	case "bpf.async":
-		v, ok := value.(int)
-		if !ok {
+		var ok bool
+		if e.BPF.SyscallEvent.Async, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BPF.SyscallEvent.Async"}
 		}
-		e.BPF.SyscallEvent.Async = int64(v)
 		return nil
 	case "bpf.cmd":
 		v, ok := value.(int)
@@ -12301,11 +12300,10 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Capset.CapPermitted = uint64(v)
 		return nil
 	case "chmod.async":
-		v, ok := value.(int)
-		if !ok {
+		var ok bool
+		if e.Chmod.SyscallEvent.Async, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.SyscallEvent.Async"}
 		}
-		e.Chmod.SyscallEvent.Async = int64(v)
 		return nil
 	case "chmod.file.change_time":
 		v, ok := value.(int)
@@ -12426,11 +12424,10 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chmod.SyscallEvent.Retval = int64(v)
 		return nil
 	case "chown.async":
-		v, ok := value.(int)
-		if !ok {
+		var ok bool
+		if e.Chown.SyscallEvent.Async, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.SyscallEvent.Async"}
 		}
-		e.Chown.SyscallEvent.Async = int64(v)
 		return nil
 	case "chown.file.change_time":
 		v, ok := value.(int)
@@ -12926,11 +12923,10 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.User = str
 		return nil
 	case "link.async":
-		v, ok := value.(int)
-		if !ok {
+		var ok bool
+		if e.Link.SyscallEvent.Async, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.SyscallEvent.Async"}
 		}
-		e.Link.SyscallEvent.Async = int64(v)
 		return nil
 	case "link.file.change_time":
 		v, ok := value.(int)
@@ -13134,11 +13130,10 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.SyscallEvent.Retval = int64(v)
 		return nil
 	case "load_module.async":
-		v, ok := value.(int)
-		if !ok {
+		var ok bool
+		if e.LoadModule.SyscallEvent.Async, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.SyscallEvent.Async"}
 		}
-		e.LoadModule.SyscallEvent.Async = int64(v)
 		return nil
 	case "load_module.file.change_time":
 		v, ok := value.(int)
@@ -13258,11 +13253,10 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.LoadModule.SyscallEvent.Retval = int64(v)
 		return nil
 	case "mkdir.async":
-		v, ok := value.(int)
-		if !ok {
+		var ok bool
+		if e.Mkdir.SyscallEvent.Async, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.SyscallEvent.Async"}
 		}
-		e.Mkdir.SyscallEvent.Async = int64(v)
 		return nil
 	case "mkdir.file.change_time":
 		v, ok := value.(int)
@@ -13383,11 +13377,10 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Mkdir.SyscallEvent.Retval = int64(v)
 		return nil
 	case "mmap.async":
-		v, ok := value.(int)
-		if !ok {
+		var ok bool
+		if e.MMap.SyscallEvent.Async, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.SyscallEvent.Async"}
 		}
-		e.MMap.SyscallEvent.Async = int64(v)
 		return nil
 	case "mmap.file.change_time":
 		v, ok := value.(int)
@@ -13508,11 +13501,10 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.MMap.SyscallEvent.Retval = int64(v)
 		return nil
 	case "mprotect.async":
-		v, ok := value.(int)
-		if !ok {
+		var ok bool
+		if e.MProtect.SyscallEvent.Async, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MProtect.SyscallEvent.Async"}
 		}
-		e.MProtect.SyscallEvent.Async = int64(v)
 		return nil
 	case "mprotect.req_protection":
 		v, ok := value.(int)
@@ -13599,11 +13591,10 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.NetworkContext.Source.Port = uint16(v)
 		return nil
 	case "open.async":
-		v, ok := value.(int)
-		if !ok {
+		var ok bool
+		if e.Open.SyscallEvent.Async, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.SyscallEvent.Async"}
 		}
-		e.Open.SyscallEvent.Async = int64(v)
 		return nil
 	case "open.file.change_time":
 		v, ok := value.(int)
@@ -14483,11 +14474,10 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.User = str
 		return nil
 	case "ptrace.async":
-		v, ok := value.(int)
-		if !ok {
+		var ok bool
+		if e.PTrace.SyscallEvent.Async, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.SyscallEvent.Async"}
 		}
-		e.PTrace.SyscallEvent.Async = int64(v)
 		return nil
 	case "ptrace.request":
 		v, ok := value.(int)
@@ -15263,11 +15253,10 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.User = str
 		return nil
 	case "removexattr.async":
-		v, ok := value.(int)
-		if !ok {
+		var ok bool
+		if e.RemoveXAttr.SyscallEvent.Async, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.SyscallEvent.Async"}
 		}
-		e.RemoveXAttr.SyscallEvent.Async = int64(v)
 		return nil
 	case "removexattr.file.change_time":
 		v, ok := value.(int)
@@ -15388,11 +15377,10 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.RemoveXAttr.SyscallEvent.Retval = int64(v)
 		return nil
 	case "rename.async":
-		v, ok := value.(int)
-		if !ok {
+		var ok bool
+		if e.Rename.SyscallEvent.Async, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.SyscallEvent.Async"}
 		}
-		e.Rename.SyscallEvent.Async = int64(v)
 		return nil
 	case "rename.file.change_time":
 		v, ok := value.(int)
@@ -15596,11 +15584,10 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.SyscallEvent.Retval = int64(v)
 		return nil
 	case "rmdir.async":
-		v, ok := value.(int)
-		if !ok {
+		var ok bool
+		if e.Rmdir.SyscallEvent.Async, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.SyscallEvent.Async"}
 		}
-		e.Rmdir.SyscallEvent.Async = int64(v)
 		return nil
 	case "rmdir.file.change_time":
 		v, ok := value.(int)
@@ -15818,11 +15805,10 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetUID.User = str
 		return nil
 	case "setxattr.async":
-		v, ok := value.(int)
-		if !ok {
+		var ok bool
+		if e.SetXAttr.SyscallEvent.Async, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.SyscallEvent.Async"}
 		}
-		e.SetXAttr.SyscallEvent.Async = int64(v)
 		return nil
 	case "setxattr.file.change_time":
 		v, ok := value.(int)
@@ -15943,11 +15929,10 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetXAttr.SyscallEvent.Retval = int64(v)
 		return nil
 	case "signal.async":
-		v, ok := value.(int)
-		if !ok {
+		var ok bool
+		if e.Signal.SyscallEvent.Async, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.SyscallEvent.Async"}
 		}
-		e.Signal.SyscallEvent.Async = int64(v)
 		return nil
 	case "signal.pid":
 		v, ok := value.(int)
@@ -16730,11 +16715,10 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Type = uint32(v)
 		return nil
 	case "splice.async":
-		v, ok := value.(int)
-		if !ok {
+		var ok bool
+		if e.Splice.SyscallEvent.Async, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.SyscallEvent.Async"}
 		}
-		e.Splice.SyscallEvent.Async = int64(v)
 		return nil
 	case "splice.file.change_time":
 		v, ok := value.(int)
@@ -16855,11 +16839,10 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Splice.SyscallEvent.Retval = int64(v)
 		return nil
 	case "unlink.async":
-		v, ok := value.(int)
-		if !ok {
+		var ok bool
+		if e.Unlink.SyscallEvent.Async, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.SyscallEvent.Async"}
 		}
-		e.Unlink.SyscallEvent.Async = int64(v)
 		return nil
 	case "unlink.file.change_time":
 		v, ok := value.(int)
@@ -16966,11 +16949,10 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Unlink.SyscallEvent.Retval = int64(v)
 		return nil
 	case "unload_module.async":
-		v, ok := value.(int)
-		if !ok {
+		var ok bool
+		if e.UnloadModule.SyscallEvent.Async, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "UnloadModule.SyscallEvent.Async"}
 		}
-		e.UnloadModule.SyscallEvent.Async = int64(v)
 		return nil
 	case "unload_module.name":
 		str, ok := value.(string)
@@ -16987,11 +16969,10 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.UnloadModule.SyscallEvent.Retval = int64(v)
 		return nil
 	case "utimes.async":
-		v, ok := value.(int)
-		if !ok {
+		var ok bool
+		if e.Utimes.SyscallEvent.Async, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.SyscallEvent.Async"}
 		}
-		e.Utimes.SyscallEvent.Async = int64(v)
 		return nil
 	case "utimes.file.change_time":
 		v, ok := value.(int)

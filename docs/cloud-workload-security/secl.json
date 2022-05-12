@@ -523,7 +523,7 @@
       "properties": [
         {
           "name": "bpf.async",
-          "type": "int",
+          "type": "bool",
           "definition": "True if the syscall was asynchronous"
         },
         {
@@ -601,7 +601,7 @@
       "properties": [
         {
           "name": "chmod.async",
-          "type": "int",
+          "type": "bool",
           "definition": "True if the syscall was asynchronous"
         },
         {
@@ -700,7 +700,7 @@
       "properties": [
         {
           "name": "chown.async",
-          "type": "int",
+          "type": "bool",
           "definition": "True if the syscall was asynchronous"
         },
         {
@@ -1077,7 +1077,7 @@
       "properties": [
         {
           "name": "link.async",
-          "type": "int",
+          "type": "bool",
           "definition": "True if the syscall was asynchronous"
         },
         {
@@ -1236,7 +1236,7 @@
       "properties": [
         {
           "name": "load_module.async",
-          "type": "int",
+          "type": "bool",
           "definition": "True if the syscall was asynchronous"
         },
         {
@@ -1335,7 +1335,7 @@
       "properties": [
         {
           "name": "mkdir.async",
-          "type": "int",
+          "type": "bool",
           "definition": "True if the syscall was asynchronous"
         },
         {
@@ -1434,7 +1434,7 @@
       "properties": [
         {
           "name": "mmap.async",
-          "type": "int",
+          "type": "bool",
           "definition": "True if the syscall was asynchronous"
         },
         {
@@ -1533,7 +1533,7 @@
       "properties": [
         {
           "name": "mprotect.async",
-          "type": "int",
+          "type": "bool",
           "definition": "True if the syscall was asynchronous"
         },
         {
@@ -1562,7 +1562,7 @@
       "properties": [
         {
           "name": "open.async",
-          "type": "int",
+          "type": "bool",
           "definition": "True if the syscall was asynchronous"
         },
         {
@@ -1661,7 +1661,7 @@
       "properties": [
         {
           "name": "ptrace.async",
-          "type": "int",
+          "type": "bool",
           "definition": "True if the syscall was asynchronous"
         },
         {
@@ -2135,7 +2135,7 @@
       "properties": [
         {
           "name": "removexattr.async",
-          "type": "int",
+          "type": "bool",
           "definition": "True if the syscall was asynchronous"
         },
         {
@@ -2234,7 +2234,7 @@
       "properties": [
         {
           "name": "rename.async",
-          "type": "int",
+          "type": "bool",
           "definition": "True if the syscall was asynchronous"
         },
         {
@@ -2393,7 +2393,7 @@
       "properties": [
         {
           "name": "rmdir.async",
-          "type": "int",
+          "type": "bool",
           "definition": "True if the syscall was asynchronous"
         },
         {
@@ -2589,7 +2589,7 @@
       "properties": [
         {
           "name": "setxattr.async",
-          "type": "int",
+          "type": "bool",
           "definition": "True if the syscall was asynchronous"
         },
         {
@@ -2688,7 +2688,7 @@
       "properties": [
         {
           "name": "signal.async",
-          "type": "int",
+          "type": "bool",
           "definition": "True if the syscall was asynchronous"
         },
         {
@@ -3167,7 +3167,7 @@
       "properties": [
         {
           "name": "splice.async",
-          "type": "int",
+          "type": "bool",
           "definition": "True if the syscall was asynchronous"
         },
         {
@@ -3266,7 +3266,7 @@
       "properties": [
         {
           "name": "unlink.async",
-          "type": "int",
+          "type": "bool",
           "definition": "True if the syscall was asynchronous"
         },
         {
@@ -3355,7 +3355,7 @@
       "properties": [
         {
           "name": "unload_module.async",
-          "type": "int",
+          "type": "bool",
           "definition": "True if the syscall was asynchronous"
         },
         {
@@ -3379,7 +3379,7 @@
       "properties": [
         {
           "name": "utimes.async",
-          "type": "int",
+          "type": "bool",
           "definition": "True if the syscall was asynchronous"
         },
         {
