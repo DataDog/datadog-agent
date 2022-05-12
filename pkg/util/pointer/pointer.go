@@ -31,6 +31,12 @@ func Float64Ptr(v float64) *float64 {
 	return &v
 }
 
+// IntToFloatPtr converts a int64 value to float64 and returns a pointer.
+func IntToFloatPtr(u int64) *float64 {
+	f := float64(u)
+	return &f
+}
+
 // UIntToFloatPtr converts a uint64 value to float64 and returns a pointer.
 func UIntToFloatPtr(u uint64) *float64 {
 	f := float64(u)
