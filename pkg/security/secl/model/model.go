@@ -132,10 +132,15 @@ type Event struct {
 	TimestampRaw uint64    `field:"-"`
 	Timestamp    time.Time `field:"-"` // Timestamp of the event
 
-	ProcessContext   *ProcessContext  `field:"process" event:"*"`
-	ContainerContext ContainerContext `field:"container"`
-	NetworkContext   NetworkContext   `field:"network"`
+	// context shared with all events
+	ProcessCacheEntry *ProcessCacheEntry `field:"-"`
+	PIDContext        PIDContext         `field:"-"`
+	SpanContext       SpanContext        `field:"-"`
+	ProcessContext    *ProcessContext    `field:"process" event:"*"`
+	ContainerContext  ContainerContext   `field:"container"`
+	NetworkContext    NetworkContext     `field:"network"`
 
+	// fim events
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
 	Chown       ChownEvent    `field:"chown" event:"chown"`             // [7.27] [File] A file’s owner was changed
 	Open        OpenEvent     `field:"open" event:"open"`               // [7.27] [File] A file was opened
@@ -149,6 +154,7 @@ type Event struct {
 	RemoveXAttr SetXAttrEvent `field:"removexattr" event:"removexattr"` // [7.27] [File] Remove extended attributes
 	Splice      SpliceEvent   `field:"splice" event:"splice"`           // [7.36] [File] A splice command was executed
 
+	// process events
 	Exec   ExecEvent   `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed or forked
 	SetUID SetuidEvent `field:"setuid" event:"setuid"` // [7.27] [Process] A process changed its effective uid
 	SetGID SetgidEvent `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
@@ -162,20 +168,19 @@ type Event struct {
 	MProtect     MProtectEvent     `field:"mprotect" event:"mprotect"`           // [7.35] [Kernel] A mprotect command was executed
 	LoadModule   LoadModuleEvent   `field:"load_module" event:"load_module"`     // [7.35] [Kernel] A new kernel module was loaded
 	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
-	DNS          DNSEvent          `field:"dns" event:"dns"`                     // [7.36] [Network] A DNS request was sent
+
+	// network events
+	DNS DNSEvent `field:"dns" event:"dns"` // [7.36] [Network] A DNS request was sent
 
 	// internal usage
-	PIDContext        PIDContext            `field:"-"`
-	ProcessCacheEntry *ProcessCacheEntry    `field:"-"`
-	SpanContext       SpanContext           `field:"-"`
-	Mount             MountEvent            `field:"-"`
-	Umount            UmountEvent           `field:"-"`
-	InvalidateDentry  InvalidateDentryEvent `field:"-"`
-	ArgsEnvs          ArgsEnvsEvent         `field:"-"`
-	MountReleased     MountReleasedEvent    `field:"-"`
-	CgroupTracing     CgroupTracingEvent    `field:"-"`
-	NetDevice         NetDeviceEvent        `field:"-"`
-	VethPair          VethPairEvent         `field:"-"`
+	Mount            MountEvent            `field:"-"`
+	Umount           UmountEvent           `field:"-"`
+	InvalidateDentry InvalidateDentryEvent `field:"-"`
+	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
+	MountReleased    MountReleasedEvent    `field:"-"`
+	CgroupTracing    CgroupTracingEvent    `field:"-"`
+	NetDevice        NetDeviceEvent        `field:"-"`
+	VethPair         VethPairEvent         `field:"-"`
 }
 
 // GetType returns the event type

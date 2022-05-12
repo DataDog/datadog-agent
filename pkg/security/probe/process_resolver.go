@@ -244,8 +244,9 @@ func (p *ProcessResolver) DequeueExited() {
 }
 
 // NewProcessCacheEntry returns a new process cache entry
-func (p *ProcessResolver) NewProcessCacheEntry() *model.ProcessCacheEntry {
+func (p *ProcessResolver) NewProcessCacheEntry(pidContext model.PIDContext) *model.ProcessCacheEntry {
 	entry := p.processCacheEntryPool.Get()
+	entry.PIDContext = pidContext
 	entry.Cookie = eval.NewCookie()
 	return entry
 }
@@ -644,14 +645,12 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessC
 		return nil
 	}
 
-	entry := p.NewProcessCacheEntry()
+	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: tid})
 	data := append(entryb, cookieb...)
 
 	if _, err = p.unmarshalFromKernelMaps(entry, data); err != nil {
 		return nil
 	}
-	entry.Pid = pid
-	entry.Tid = tid
 
 	// resolve paths and other context fields
 	if err = p.ResolveNewProcessCacheEntry(entry); err != nil {
@@ -995,7 +994,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process, filledProc *process.F
 		return nil, false
 	}
 
-	entry = p.NewProcessCacheEntry()
+	entry = p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: pid})
 
 	// update the cache entry
 	if err := p.enrichEventFromProc(entry, proc, filledProc); err != nil {

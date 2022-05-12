@@ -210,9 +210,7 @@ func (ev *Event) ResolveContainerTags(e *model.ContainerContext) []string {
 
 // UnmarshalProcessCacheEntry unmarshal a Process
 func (ev *Event) UnmarshalProcessCacheEntry(data []byte) (int, error) {
-	// reset the process cache entry of the current event
-	entry := ev.resolvers.ProcessResolver.NewProcessCacheEntry()
-	entry.PIDContext = ev.PIDContext
+	entry := ev.resolvers.ProcessResolver.NewProcessCacheEntry(ev.PIDContext)
 
 	n, err := entry.Process.UnmarshalBinary(data)
 	if err != nil {
@@ -476,13 +474,8 @@ func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 
 	if ev.ProcessCacheEntry == nil {
 		// keep the original PIDContext
-		ev.ProcessCacheEntry = &model.ProcessCacheEntry{
-			ProcessContext: model.ProcessContext{
-				Process: model.Process{
-					PIDContext: ev.PIDContext,
-				},
-			},
-		}
+		ev.ProcessCacheEntry = model.NewProcessCacheEntry(nil)
+		ev.ProcessCacheEntry.PIDContext = ev.PIDContext
 
 		ev.ProcessCacheEntry.FileEvent.SetPathnameStr("")
 		ev.ProcessCacheEntry.FileEvent.SetBasenameStr("")
