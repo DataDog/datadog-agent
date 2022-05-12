@@ -200,7 +200,7 @@ func (c *collector) generateInitialEvents(ctx context.Context, namespace string)
 		// ignoring a container we should've kept
 		ignore, err := c.ignoreContainer(container)
 		if err != nil {
-			log.Debugf("Error while deciding to ignore event, keeping it: %s", err)
+			log.Debugf("Error while deciding to ignore event %s, keeping it: %s", container.ID(), err)
 		} else if ignore {
 			continue
 		}
@@ -228,7 +228,7 @@ func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerd
 	if container != nil {
 		ignore, err := c.ignoreContainer(container)
 		if err != nil {
-			log.Debugf("Error while deciding to ignore event, keeping it: %s", err)
+			log.Debugf("Error while deciding to ignore event %s, keeping it: %s", container.ID(), err)
 		} else if ignore {
 			return nil
 		}
@@ -289,6 +289,15 @@ func (c *collector) extractContainerFromEvent(ctx context.Context, containerdEve
 // ignoreContainer returns whether a containerd event should be ignored.
 // The ignored events are the ones that refer to a "pause" container.
 func (c *collector) ignoreContainer(container containerd.Container) (bool, error) {
+	isSandbox, err := c.containerdClient.IsSandbox(container)
+	if err != nil {
+		return false, err
+	}
+
+	if isSandbox {
+		return true, nil
+	}
+
 	info, err := c.containerdClient.Info(container)
 	if err != nil {
 		return false, err
