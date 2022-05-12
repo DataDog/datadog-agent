@@ -29,6 +29,10 @@ type getter func([]byte, string) (string, error)
 
 type contentParser func([]byte) (interface{}, error)
 
+func parseRawContent(data []byte) (interface{}, error) {
+	return string(data), nil
+}
+
 func parseJSONContent(data []byte) (interface{}, error) {
 	var content interface{}
 
@@ -55,10 +59,10 @@ func parseYAMLContent(data []byte) (interface{}, error) {
 var contentParsers = map[string]contentParser{
 	"json": parseJSONContent,
 	"yaml": parseYAMLContent,
+	"raw":  parseRawContent,
 }
 
 func validateParserKind(parser string) (string, error) {
-
 	if parser == "" {
 		return "", nil
 	}
