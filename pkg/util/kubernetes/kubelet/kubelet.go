@@ -213,6 +213,14 @@ func (ku *KubeUtil) GetLocalPodList(ctx context.Context) ([]*Pod, error) {
 	tmpSlice := make([]*Pod, 0, len(pods.Items))
 	for _, pod := range pods.Items {
 		if pod != nil {
+			// Validate allocation size.
+			// Limits hardcoded here are huge enough to never be hit.
+			if len(pod.Spec.Containers) > 10000 ||
+				len(pod.Spec.InitContainers) > 10000 {
+				log.Errorf("pod %s has a crazy number of containers: %d or init containers: %d. Skipping it!",
+					pod.Metadata.UID, len(pod.Spec.Containers), len(pod.Spec.InitContainers))
+				continue
+			}
 			allContainers := make([]ContainerStatus, 0, len(pod.Status.InitContainers)+len(pod.Status.Containers))
 			allContainers = append(allContainers, pod.Status.InitContainers...)
 			allContainers = append(allContainers, pod.Status.Containers...)
