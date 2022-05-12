@@ -122,7 +122,7 @@ func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTi
 			"request_id": requestID,
 		},
 	}
-	captureLambdaPayloadEnabled := config.Datadog.GetBool("serverless.capture_lambda_payload")
+	captureLambdaPayloadEnabled := config.Datadog.GetBool("capture_lambda_payload")
 	if captureLambdaPayloadEnabled {
 		executionSpan.Meta["function.request"] = currentExecutionInfo.requestPayload
 		executionSpan.Meta["function.response"] = string(responsePayload)

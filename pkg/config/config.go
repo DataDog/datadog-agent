@@ -1043,8 +1043,8 @@ func InitConfig(config Config) {
 
 	// Serverless Agent
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
-	config.BindEnvAndSetDefault("serverless.enhanced_metrics", true, "DD_ENHANCED_METRICS")
-	config.BindEnvAndSetDefault("serverless.capture_lambda_payload", false, "DD_CAPTURE_LAMBDA_PAYLOAD")
+	config.BindEnvAndSetDefault("enhanced_metrics", true)
+	config.BindEnvAndSetDefault("capture_lambda_payload", false)
 	config.BindEnvAndSetDefault("serverless.trace_enabled", false, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", false, "DD_TRACE_MANAGED_SERVICES")
 
