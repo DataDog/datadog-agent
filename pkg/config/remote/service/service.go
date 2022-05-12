@@ -281,17 +281,17 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	if err != nil {
 		return nil, err
 	}
-	configPointers, err := executeClientPredicates(request.Client, directorTargets)
+	matchedClientConfigs, err := executeClientPredicates(request.Client, directorTargets)
 	if err != nil {
 		return nil, err
 	}
 
-	// filter files to only return the configPointers ones
+	// filter files to only return the ones that predicates marked for this client
 	matchedConfigsMap := make(map[string]interface{})
-	for _, configPointer := range configPointers {
+	for _, configPointer := range matchedClientConfigs {
 		matchedConfigsMap[configPointer] = struct{}{}
 	}
-	filteredFiles := make([]*pbgo.File, 0, len(configPointers))
+	filteredFiles := make([]*pbgo.File, 0, len(matchedClientConfigs))
 	for _, targetFile := range targetFiles {
 		if _, ok := matchedConfigsMap[targetFile.Path]; ok {
 			filteredFiles = append(filteredFiles, targetFile)
@@ -302,7 +302,7 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 		Roots:         roots,
 		Targets:       targetsRaw,
 		TargetFiles:   filteredFiles,
-		ClientConfigs: configPointers,
+		ClientConfigs: matchedClientConfigs,
 	}, nil
 }
 

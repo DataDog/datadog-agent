@@ -29,7 +29,7 @@ type DirectorTargetsCustomMetadata struct {
 }
 
 // Given the hostname and state will parse predicates and execute them
-// It will return a list ConfigPointers
+// It will return a list
 func executeClientPredicates(
 	client *pbgo.Client,
 	directorTargets data.TargetFiles,
@@ -37,19 +37,19 @@ func executeClientPredicates(
 	configs := make([]string, 0)
 
 	for path, meta := range directorTargets {
-		predicates, err := parsePredicates(meta.Custom)
+		clientPredicates, err := parsePredicates(meta.Custom)
 		if err != nil {
 			return nil, err
 		}
 
 		var matched bool
-		nullPredicates := predicates == nil || predicates.Predicates == nil
+		nullPredicates := clientPredicates == nil || clientPredicates.Predicates == nil
 		if !nullPredicates {
-			if predicates.Version != 0 {
-				log.Infof("Unsupported predicate version %d for products %s", predicates.Version)
+			if clientPredicates.Version != 0 {
+				log.Infof("Unsupported predicate version %d for products %s", clientPredicates.Version)
 				continue
 			}
-			matched, err = executePredicate(client, predicates.Predicates)
+			matched, err = executePredicate(client, clientPredicates.Predicates)
 			if err != nil {
 				return nil, err
 			}
