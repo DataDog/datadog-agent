@@ -91,7 +91,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
 	}, {
 		Name:       estimatedCostMetric,
-		Value:      calculateEstimatedCost(800.0, 1024.0, serverlessTags.X86LambdaPlatform),
+		Value:      calculateEstimatedCost(800.0, 1024.0, serverlessTags.ResolveRuntimeArch()),
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
@@ -146,7 +146,7 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
 	}, {
 		Name:       estimatedCostMetric,
-		Value:      calculateEstimatedCost(800.0, 1024.0, serverlessTags.X86LambdaPlatform),
+		Value:      calculateEstimatedCost(800.0, 1024.0, serverlessTags.ResolveRuntimeArch()),
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
