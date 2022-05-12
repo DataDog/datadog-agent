@@ -24,6 +24,15 @@ type MetricSender struct {
 	submittedMetrics int
 }
 
+// MetricSample is a collected metric sample with its metadata, ready to be submitted through the metric sender
+type MetricSample struct {
+	value      valuestore.ResultValue
+	tags       []string
+	symbol     checkconfig.SymbolConfig
+	forcedType string
+	options    checkconfig.MetricsConfigOption
+}
+
 // NewMetricSender create a new MetricSender
 func NewMetricSender(sender aggregator.Sender, hostname string) *MetricSender {
 	return &MetricSender{sender: sender, hostname: hostname}
@@ -31,12 +40,34 @@ func NewMetricSender(sender aggregator.Sender, hostname string) *MetricSender {
 
 // ReportMetrics reports metrics using Sender
 func (ms *MetricSender) ReportMetrics(metrics []checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
+	scalarSamples := make(map[string]MetricSample)
+	columnSamples := make(map[string]map[string]MetricSample)
+
 	for _, metric := range metrics {
 		if metric.IsScalar() {
-			ms.reportScalarMetrics(metric, values, tags)
+			sample, err := ms.reportScalarMetrics(metric, values, tags)
+			if err != nil {
+				continue
+			}
+			if _, ok := EvaluatedSampleDependencies[sample.symbol.Name]; !ok {
+				continue
+			}
+			scalarSamples[sample.symbol.Name] = sample
 		} else if metric.IsColumn() {
-			ms.reportColumnMetrics(metric, values, tags)
+			samples := ms.reportColumnMetrics(metric, values, tags)
+
+			for name, sampleRows := range samples {
+				if _, ok := EvaluatedSampleDependencies[name]; !ok {
+					continue
+				}
+				columnSamples[name] = sampleRows
+			}
 		}
+	}
+
+	err := ms.tryReportMemoryUsage(scalarSamples, columnSamples)
+	if err != nil {
+		log.Debugf("error reporting memory usage : %v", err)
 	}
 }
 
@@ -60,20 +91,29 @@ func (ms *MetricSender) GetCheckInstanceMetricTags(metricTags []checkconfig.Metr
 	return globalTags
 }
 
-func (ms *MetricSender) reportScalarMetrics(metric checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
+func (ms *MetricSender) reportScalarMetrics(metric checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) (MetricSample, error) {
 	value, err := getScalarValueFromSymbol(values, metric.Symbol)
 	if err != nil {
 		log.Debugf("report scalar: error getting scalar value: %v", err)
-		return
+		return MetricSample{}, err
 	}
 
 	scalarTags := common.CopyStrings(tags)
 	scalarTags = append(scalarTags, metric.GetSymbolTags()...)
-	ms.sendMetric(metric.Symbol, value, scalarTags, metric)
+	sample := MetricSample{
+		value:      value,
+		tags:       scalarTags,
+		symbol:     metric.Symbol,
+		forcedType: metric.ForcedType,
+		options:    metric.Options,
+	}
+	ms.sendMetric(sample)
+	return sample, nil
 }
 
-func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
+func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) map[string]map[string]MetricSample {
 	rowTagsCache := make(map[string][]string)
+	samples := map[string]map[string]MetricSample{}
 	for _, symbol := range metricConfig.Symbols {
 		metricValues, err := getColumnValueFromSymbol(values, symbol)
 		if err != nil {
@@ -88,65 +128,77 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 				rowTagsCache[fullIndex] = tmpTags
 			}
 			rowTags := rowTagsCache[fullIndex]
-			ms.sendMetric(symbol, value, rowTags, metricConfig)
+			sample := MetricSample{
+				value:      value,
+				tags:       rowTags,
+				symbol:     symbol,
+				forcedType: metricConfig.ForcedType,
+				options:    metricConfig.Options,
+			}
+			ms.sendMetric(sample)
+			if _, ok := samples[sample.symbol.Name]; !ok {
+				samples[sample.symbol.Name] = make(map[string]MetricSample)
+			}
+			samples[sample.symbol.Name][fullIndex] = sample
 			ms.trySendBandwidthUsageMetric(symbol, fullIndex, values, rowTags)
 		}
 	}
+	return samples
 }
 
-func (ms *MetricSender) sendMetric(symbol checkconfig.SymbolConfig, value valuestore.ResultValue, tags []string, metricConfig checkconfig.MetricsConfig) {
-	metricFullName := "snmp." + symbol.Name
-	forcedType := metricConfig.ForcedType
+func (ms *MetricSender) sendMetric(metricSample MetricSample) {
+	metricFullName := "snmp." + metricSample.symbol.Name
+	forcedType := metricSample.forcedType
 	if forcedType == "" {
-		if value.SubmissionType != "" {
-			forcedType = value.SubmissionType
+		if metricSample.value.SubmissionType != "" {
+			forcedType = metricSample.value.SubmissionType
 		} else {
 			forcedType = "gauge"
 		}
 	} else if forcedType == "flag_stream" {
-		strValue, err := value.ToString()
+		strValue, err := metricSample.value.ToString()
 		if err != nil {
-			log.Debugf("error converting value (%#v) to string : %v", value, err)
+			log.Debugf("error converting value (%#v) to string : %v", metricSample.value, err)
 			return
 		}
-		options := metricConfig.Options
+		options := metricSample.options
 		floatValue, err := getFlagStreamValue(options.Placement, strValue)
 		if err != nil {
 			log.Debugf("metric `%s`: failed to get flag stream value: %s", metricFullName, err)
 			return
 		}
 		metricFullName = metricFullName + "." + options.MetricSuffix
-		value = valuestore.ResultValue{Value: floatValue}
+		metricSample.value = valuestore.ResultValue{Value: floatValue}
 		forcedType = "gauge"
 	}
 
-	floatValue, err := value.ToFloat64()
+	floatValue, err := metricSample.value.ToFloat64()
 	if err != nil {
 		log.Debugf("metric `%s`: failed to convert to float64: %s", metricFullName, err)
 		return
 	}
 
-	scaleFactor := symbol.ScaleFactor
+	scaleFactor := metricSample.symbol.ScaleFactor
 	if scaleFactor != 0 {
 		floatValue *= scaleFactor
 	}
 
 	switch forcedType {
 	case "gauge":
-		ms.Gauge(metricFullName, floatValue, tags)
+		ms.Gauge(metricFullName, floatValue, metricSample.tags)
 		ms.submittedMetrics++
 	case "counter":
-		ms.Rate(metricFullName, floatValue, tags)
+		ms.Rate(metricFullName, floatValue, metricSample.tags)
 		ms.submittedMetrics++
 	case "percent":
-		ms.Rate(metricFullName, floatValue*100, tags)
+		ms.Rate(metricFullName, floatValue*100, metricSample.tags)
 		ms.submittedMetrics++
 	case "monotonic_count":
-		ms.MonotonicCount(metricFullName, floatValue, tags)
+		ms.MonotonicCount(metricFullName, floatValue, metricSample.tags)
 		ms.submittedMetrics++
 	case "monotonic_count_and_rate":
-		ms.MonotonicCount(metricFullName, floatValue, tags)
-		ms.Rate(metricFullName+".rate", floatValue, tags)
+		ms.MonotonicCount(metricFullName, floatValue, metricSample.tags)
+		ms.Rate(metricFullName+".rate", floatValue, metricSample.tags)
 		ms.submittedMetrics += 2
 	default:
 		log.Debugf("metric `%s`: unsupported forcedType: %s", metricFullName, forcedType)

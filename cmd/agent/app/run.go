@@ -397,7 +397,7 @@ func StartAgent() error {
 	// Start SNMP trap server
 	if traps.IsEnabled() {
 		if config.Datadog.GetBool("logs_enabled") {
-			err = traps.StartServer(hostname)
+			err = traps.StartServer(hostname, demux)
 			if err != nil {
 				log.Errorf("Failed to start snmp-traps server: %s", err)
 			}

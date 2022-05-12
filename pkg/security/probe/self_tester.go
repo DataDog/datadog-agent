@@ -147,13 +147,12 @@ func (t *SelfTester) RunSelfTest() ([]string, []string, error) {
 	t.lastTimestamp = time.Now()
 
 	// launch the self tests
-	var lastErr error
 	var success []string
 	var fails []string
 	for _, fn := range SelfTestFunctions {
 		if err := fn.fn(t); err != nil {
-			lastErr = err
 			fails = append(fails, fn.id)
+			log.Errorf("Self test failed: %s", fn.id)
 		} else {
 			success = append(success, fn.id)
 		}
@@ -163,7 +162,7 @@ func (t *SelfTester) RunSelfTest() ([]string, []string, error) {
 	t.success = success
 	t.fails = fails
 
-	return success, fails, lastErr
+	return success, fails, nil
 }
 
 // Cleanup removes temp directories and files used by the self tester

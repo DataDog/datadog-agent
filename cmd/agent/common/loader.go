@@ -42,7 +42,7 @@ func LoadComponents(ctx context.Context, confdPath string) {
 	metaScheduler := scheduler.NewMetaScheduler()
 
 	// registering the check scheduler
-	metaScheduler.Register("check", collector.InitCheckScheduler(Coll))
+	metaScheduler.Register("check", collector.InitCheckScheduler(Coll), false)
 
 	// setup autodiscovery
 	confSearchPaths := []string{

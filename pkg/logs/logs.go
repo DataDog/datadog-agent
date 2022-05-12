@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	ccaScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/cca"
-	trapsScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/traps"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
@@ -135,7 +134,6 @@ func start(ac *autodiscovery.AutoConfig, serverless bool) (*Agent, error) {
 		agent.AddScheduler(adScheduler.New(ac))
 		agent.AddScheduler(ccaScheduler.New(ac))
 	}
-	agent.AddScheduler(trapsScheduler.New())
 
 	return agent, nil
 }

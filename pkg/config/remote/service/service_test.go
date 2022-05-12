@@ -8,6 +8,7 @@ package service
 import (
 	"context"
 	"encoding/base32"
+	"encoding/json"
 	"errors"
 	"os"
 	"testing"
@@ -203,6 +204,16 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 	assert.Equal(t, 1*time.Second, refreshInterval)
 }
 
+func customMeta(tracerPredicates []*tracerPredicates) *json.RawMessage {
+	data, err := json.Marshal(DirectorTargetsCustomMetadata{Predicates: &clientPredicates{Predicates: tracerPredicates}})
+	if err != nil {
+		panic(err)
+	}
+
+	raw := json.RawMessage(data)
+	return &raw
+}
+
 func TestService(t *testing.T) {
 	api := &mockAPI{}
 	uptaneClient := &mockUptane{}
@@ -250,7 +261,14 @@ func TestService(t *testing.T) {
 	fileAPM2 := []byte(`testapm2`)
 	uptaneClient.On("TargetsMeta").Return(targets, nil)
 	uptaneClient.On("TargetsCustom").Return(testTargetsCustom, nil)
-	uptaneClient.On("Targets").Return(data.TargetFiles{"datadog/2/APM_SAMPLING/id/1": {}, "datadog/2/TESTING1/id/1": {}, "datadog/2/APM_SAMPLING/id/2": {}, "datadog/2/APPSEC/id/1": {}}, nil)
+
+	uptaneClient.On("Targets").Return(data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": {},
+		"datadog/2/TESTING1/id/1":     {},
+		"datadog/2/APM_SAMPLING/id/2": {},
+		"datadog/2/APPSEC/id/1":       {}},
+		nil,
+	)
 	uptaneClient.On("State").Return(uptane.State{
 		ConfigState: map[string]uptane.MetaState{
 			"root.json":      {Version: 1},
@@ -288,6 +306,15 @@ func TestService(t *testing.T) {
 	assert.ElementsMatch(t, [][]byte{root3, root4}, configResponse.Roots)
 	assert.ElementsMatch(t, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: fileAPM1}, {Path: "datadog/2/APM_SAMPLING/id/2", Raw: fileAPM2}}, configResponse.TargetFiles)
 	assert.Equal(t, targets, configResponse.Targets)
+	assert.ElementsMatch(t,
+		configResponse.ClientConfigs,
+		[]string{
+			"datadog/2/APM_SAMPLING/id/1",
+			"datadog/2/APM_SAMPLING/id/2",
+			"datadog/2/TESTING1/id/1",
+			"datadog/2/APPSEC/id/1",
+		},
+	)
 	err = service.refresh()
 	assert.NoError(t, err)
 
@@ -296,6 +323,98 @@ func TestService(t *testing.T) {
 	assert.Equal(t, 5, len(stateResponse.ConfigState))
 	assert.Equal(t, uint64(5), stateResponse.ConfigState["role1.json"].Version)
 	assert.Equal(t, 2, len(stateResponse.DirectorState))
+	api.AssertExpectations(t)
+	uptaneClient.AssertExpectations(t)
+}
+
+// Test for client predicates
+func TestServiceClientPredicates(t *testing.T) {
+	clientID := "client-id"
+	clientIDFail := clientID + "_fail"
+
+	assert := assert.New(t)
+	clock := clock.NewMock()
+	lastConfigResponse := &pbgo.LatestConfigsResponse{
+		TargetFiles: []*pbgo.File{{Path: "test"}},
+	}
+	uptaneClient := &mockUptane{}
+	api := &mockAPI{}
+
+	service := newTestService(t, api, uptaneClient, clock)
+
+	client := &pbgo.Client{
+		State: &pbgo.ClientState{
+			RootVersion: 2,
+		},
+		Products: []string{
+			string(rdata.ProductAPMSampling),
+		},
+		IsTracer: true,
+		ClientTracer: &pbgo.ClientTracer{
+			RuntimeId: clientID,
+		},
+	}
+	uptaneClient.On("TargetsMeta").Return([]byte(`testtargets`), nil)
+	uptaneClient.On("TargetsCustom").Return([]byte(`{"client_state":"test_state"}`), nil)
+
+	wrongServiceName := "wrong-service"
+	uptaneClient.On("Targets").Return(data.TargetFiles{
+		// must be delivered
+		"datadog/2/APM_SAMPLING/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*tracerPredicates{})}},
+		"datadog/2/APM_SAMPLING/id/2": {FileMeta: data.FileMeta{Custom: customMeta([]*tracerPredicates{
+			{
+				RuntimeID: &clientID,
+			},
+		})}},
+		// must not be delivered
+		"datadog/2/TESTING1/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*tracerPredicates{
+			{
+				RuntimeID: &clientIDFail,
+			},
+		})}},
+		"datadog/2/APPSEC/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*tracerPredicates{
+			{
+				Service: &wrongServiceName,
+			},
+		})}}},
+		nil,
+	)
+	uptaneClient.On("State").Return(uptane.State{
+		ConfigState: map[string]uptane.MetaState{},
+		DirectorState: map[string]uptane.MetaState{
+			"root.json":    {Version: 1},
+			"targets.json": {Version: 5},
+		},
+	}, nil)
+	uptaneClient.On("TargetFile", "datadog/2/APM_SAMPLING/id/1").Return([]byte(``), nil)
+	uptaneClient.On("TargetFile", "datadog/2/APM_SAMPLING/id/2").Return([]byte(``), nil)
+	uptaneClient.On("Update", lastConfigResponse).Return(nil)
+	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
+		Hostname:                     service.hostname,
+		AgentVersion:                 version.AgentVersion,
+		CurrentConfigRootVersion:     0,
+		CurrentConfigSnapshotVersion: 0,
+		CurrentDirectorRootVersion:   0,
+		Products:                     []string{},
+		NewProducts: []string{
+			string(rdata.ProductAPMSampling),
+		},
+		ActiveClients:      []*pbgo.Client{client},
+		BackendClientState: []byte(`"test_state"`),
+	}).Return(lastConfigResponse, nil)
+
+	configResponse, err := service.ClientGetConfigs(&pbgo.ClientGetConfigsRequest{Client: client})
+	assert.NoError(err)
+	assert.ElementsMatch(
+		configResponse.ClientConfigs,
+		[]string{
+			"datadog/2/APM_SAMPLING/id/1",
+			"datadog/2/APM_SAMPLING/id/2",
+		},
+	)
+	err = service.refresh()
+	assert.NoError(err)
+
 	api.AssertExpectations(t)
 	uptaneClient.AssertExpectations(t)
 }

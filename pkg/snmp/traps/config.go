@@ -18,7 +18,7 @@ import (
 
 // IsEnabled returns whether SNMP trap collection is enabled in the Agent configuration.
 func IsEnabled() bool {
-	return config.Datadog.GetBool("snmp_traps_enabled")
+	return config.Datadog.GetBool("network_devices.snmp_traps.enabled")
 }
 
 // UserV3 contains the definition of one SNMPv3 user with its username and its auth

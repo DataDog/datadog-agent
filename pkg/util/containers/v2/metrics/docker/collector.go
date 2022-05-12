@@ -204,6 +204,17 @@ func fillStatsFromSpec(containerStats *provider.ContainerStats, spec *types.Cont
 	}
 
 	computeCPULimit(containerStats, spec)
+	computeMemoryLimit(containerStats, spec)
+}
+
+func computeMemoryLimit(containerStats *provider.ContainerStats, spec *types.ContainerJSON) {
+	if spec == nil || spec.HostConfig == nil || containerStats.Memory == nil {
+		return
+	}
+
+	if spec.HostConfig.Memory > 0 {
+		containerStats.Memory.Limit = pointer.IntToFloatPtr(spec.HostConfig.Memory)
+	}
 }
 
 func convertNetworkStats(stats *types.StatsJSON) *provider.ContainerNetworkStats {

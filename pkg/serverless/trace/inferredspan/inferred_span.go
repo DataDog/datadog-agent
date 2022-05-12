@@ -6,8 +6,6 @@
 package inferredspan
 
 import (
-	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -163,17 +161,5 @@ func (inferredSpan *InferredSpan) GenerateInferredSpan(startTime time.Time) {
 // IsInferredSpansEnabled is used to determine if we need to
 // generate and enrich inferred spans for a particular invocation
 func IsInferredSpansEnabled() bool {
-	traceEnabled, e1 := strconv.ParseBool(os.Getenv("DD_TRACE_ENABLED"))
-	managedServiceEnabled, e2 := strconv.ParseBool(os.Getenv("DD_TRACE_MANAGED_SERVICES"))
-	isEnabled := traceEnabled && managedServiceEnabled
-
-	if e1 != nil {
-		log.Debug("Inferred spans will not be enabled. DD_TRACE_ENABLED could not be parsed")
-		return false
-	} else if e2 != nil {
-		log.Debug("Inferred spans will not be enabled. DD_TRACE_MANAGED_SERVICES could not be parsed")
-		return false
-	} else {
-		return isEnabled
-	}
+	return config.Datadog.GetBool("serverless.trace_enabled") && config.Datadog.GetBool("serverless.trace_managed_services")
 }

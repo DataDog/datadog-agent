@@ -634,6 +634,7 @@ func InitConfig(config Config) {
 	config.SetKnown("snmp_listener.min_collection_interval")
 	config.SetKnown("snmp_listener.namespace")
 
+	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.port", 9162)
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.community_strings", []string{})
@@ -647,6 +648,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_apiserver_tls_verify", true)
 	config.BindEnvAndSetDefault("leader_lease_duration", "60")
 	config.BindEnvAndSetDefault("leader_election", false)
+	config.BindEnvAndSetDefault("leader_lease_name", "datadog-leader-election")
 	config.BindEnvAndSetDefault("kube_resources_namespace", "")
 	config.BindEnvAndSetDefault("kube_cache_sync_timeout_seconds", 5)
 
@@ -663,6 +665,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.server.idle_timeout_seconds", 60)
 	config.BindEnvAndSetDefault("cluster_agent.serve_nozzle_data", false)
 	config.BindEnvAndSetDefault("cluster_agent.advanced_tagging", false)
+	config.BindEnvAndSetDefault("cluster_agent.token_name", "datadogtoken")
 	config.BindEnvAndSetDefault("cluster_agent.max_leader_connections", 500)
 	config.BindEnvAndSetDefault("cluster_agent.max_leader_idle_connections", 50)
 	config.BindEnvAndSetDefault("cluster_agent.client_reconnect_period_seconds", 1200)
@@ -1048,6 +1051,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
 	config.BindEnvAndSetDefault("enhanced_metrics", true)
 	config.BindEnvAndSetDefault("capture_lambda_payload", false)
+	config.BindEnvAndSetDefault("serverless.trace_enabled", false, "DD_TRACE_ENABLED")
+	config.BindEnvAndSetDefault("serverless.trace_managed_services", false, "DD_TRACE_MANAGED_SERVICES")
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
@@ -1199,7 +1204,6 @@ func findUnknownEnvVars(config Config, environ []string) []string {
 		// these variables are used by serverless, but not via the Config struct
 		"DD_SERVICE":            {},
 		"DD_DOTNET_TRACER_HOME": {},
-		"DD_TRACE_ENABLED":      {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}
