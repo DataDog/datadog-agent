@@ -15,7 +15,7 @@ import (
 )
 
 func getLocalDefinedNTPServers() ([]string, error) {
-	return getNTPServersFromFiles([]string{"/etc/ntp.conf", "/etc/xntp.conf", "/etc/chrony.conf"})
+	return getNTPServersFromFiles([]string{"/etc/ntp.conf", "/etc/xntp.conf", "/etc/chrony.conf", "/etc/ntpd.conf", "/etc/openntpd/ntpd.conf"})
 }
 
 func getNTPServersFromFiles(files []string) ([]string, error) {
