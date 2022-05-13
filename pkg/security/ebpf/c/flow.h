@@ -5,9 +5,8 @@
 #define INGRESS 2
 
 struct pid_route_t {
-    u64 addr[2];
+    struct addr_t addr;
     u32 netns;
-    u16 port;
 };
 
 struct bpf_map_def SEC("maps/flow_pid") flow_pid = {
@@ -23,8 +22,8 @@ __attribute__((always_inline)) u32 get_flow_pid(struct pid_route_t *key) {
     u32 *value = bpf_map_lookup_elem(&flow_pid, key);
     if (!value) {
         // Try with IP set to 0.0.0.0
-        key->addr[0] = 0;
-        key->addr[1] = 0;
+        key->addr.ip[0] = 0;
+        key->addr.ip[1] = 0;
         value = bpf_map_lookup_elem(&flow_pid, key);
         if (!value) {
             return 0;
@@ -77,19 +76,19 @@ int kprobe_security_sk_classify_flow(struct pt_regs *ctx)
 
     u16 family = get_family_from_sock_common((void *)sk);
     if (family == AF_INET6) {
-        bpf_probe_read(&key.addr, sizeof(u64) * 2, (void *)fl + get_flowi6_saddr_offset());
+        bpf_probe_read(&key.addr.ip, sizeof(u64) * 2, (void *)fl + get_flowi6_saddr_offset());
         bpf_probe_read(&uli, sizeof(uli), (void *)fl + get_flowi6_uli_offset());
-        bpf_probe_read(&key.port, sizeof(key.port), &uli.ports.sport);
+        bpf_probe_read(&key.addr.port, sizeof(key.addr.port), &uli.ports.sport);
     } else if (family == AF_INET) {
-        bpf_probe_read(&key.addr, sizeof(u32), (void *)fl + get_flowi4_saddr_offset());
+        bpf_probe_read(&key.addr.ip, sizeof(u32), (void *)fl + get_flowi4_saddr_offset());
         bpf_probe_read(&uli, sizeof(uli), (void *)fl + get_flowi4_uli_offset());
-        bpf_probe_read(&key.port, sizeof(key.port), &uli.ports.sport);
+        bpf_probe_read(&key.addr.port, sizeof(key.addr.port), &uli.ports.sport);
     } else {
         return 0;
     }
 
     // Register service PID
-    if (key.port != 0) {
+    if (key.addr.port != 0) {
         u64 id = bpf_get_current_pid_tgid();
         u32 tid = (u32)id;
         u32 pid = id >> 32;
@@ -104,31 +103,27 @@ int kprobe_security_sk_classify_flow(struct pt_regs *ctx)
 
 #ifdef DEBUG
         bpf_printk("# registered (flow) pid:%d netns:%u\n", pid, key.netns);
-        bpf_printk("# p:%d a:%d a:%d\n", key.port, key.addr[0], key.addr[1]);
+        bpf_printk("# p:%d a:%d a:%d\n", key.addr.port, key.addr.ip[0], key.addr.ip[1]);
 #endif
     }
     return 0;
 };
 
-int __attribute__((always_inline)) parse_addr(u16* retfamily, u16* port, void* ip, struct sockaddr* address) {
-    if (!address) {
+int __attribute__((always_inline)) parse_addr(struct addr_t* retaddr, struct sockaddr* address) {
+    if (!address || !retaddr) {
         return -EINVAL;
     }
 
     // Extract IP and port from the sockaddr structure
-    u16 family = 0;
-    bpf_probe_read(&family, sizeof(family), &address->sa_family);
-    if (retfamily) {
-        *retfamily = family;
-    }
-    if (family == AF_INET) {
+    bpf_probe_read(&retaddr->family, sizeof(retaddr->family), &address->sa_family);
+    if (retaddr->family == AF_INET) {
         struct sockaddr_in *addr_in = (struct sockaddr_in *)address;
-        bpf_probe_read(port, sizeof(addr_in->sin_port), &addr_in->sin_port);
-        bpf_probe_read(ip, sizeof(addr_in->sin_addr.s_addr), &addr_in->sin_addr.s_addr);
-    } else if (family == AF_INET6) {
+        bpf_probe_read(&retaddr->port, sizeof(addr_in->sin_port), &addr_in->sin_port);
+        bpf_probe_read(&retaddr->ip, sizeof(addr_in->sin_addr.s_addr), &addr_in->sin_addr.s_addr);
+    } else if (retaddr->family == AF_INET6) {
         struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)address;
-        bpf_probe_read(port, sizeof(addr_in6->sin6_port), &addr_in6->sin6_port);
-        bpf_probe_read(ip, sizeof(u64) * 2, (char *)addr_in6 + offsetof(struct sockaddr_in6, sin6_addr));
+        bpf_probe_read(&retaddr->port, sizeof(addr_in6->sin6_port), &addr_in6->sin6_port);
+        bpf_probe_read(&retaddr->ip, sizeof(u64) * 2, (char *)addr_in6 + offsetof(struct sockaddr_in6, sin6_addr));
     } else {
         return EAFNOSUPPORT;
     }
@@ -143,12 +138,20 @@ int kprobe_security_socket_bind(struct pt_regs *ctx)
     struct sockaddr *address = (struct sockaddr *)PT_REGS_PARM2(ctx);
     struct pid_route_t key = {};
 
-    if (parse_addr(NULL, &key.port, (u64*)&key.addr, address)) {
+    int ret = parse_addr(&key.addr, address);
+    if (ret < 0) {
+        return 0;
+    }
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_BIND);
+    if (syscall) {
+        memcpy(&syscall->bind.addr, &key.addr, sizeof(syscall->bind.addr));
+    }
+    if (ret == EAFNOSUPPORT) {
         return 0;
     }
 
     // Register service PID
-    if (key.port != 0) {
+    if (key.addr.port != 0) {
         u64 id = bpf_get_current_pid_tgid();
         u32 tid = (u32) id;
         u32 pid = id >> 32;
@@ -163,7 +166,7 @@ int kprobe_security_socket_bind(struct pt_regs *ctx)
 
 #ifdef DEBUG
         bpf_printk("# registered (bind) pid:%d\n", pid);
-        bpf_printk("# p:%d a:%d a:%d\n", key.port, key.addr[0], key.addr[1]);
+        bpf_printk("# p:%d a:%d a:%d\n", key.addr.port, key.addr.ip[0], key.addr.ip[1]);
 #endif
     }
     return 0;

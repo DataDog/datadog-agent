@@ -30,7 +30,7 @@ SYSCALL_KPROBE3(bind, int, socket, struct sockaddr*, addr, unsigned int, addr_le
     struct syscall_cache_t syscall = {
         .type = EVENT_BIND,
         .bind = {
-            .addr = addr,
+            .addr.family = 0,
         },
     };
     cache_syscall(&syscall);
@@ -50,12 +50,11 @@ int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
     /* pre-fill the event */
     struct bind_event_t event = {
         .syscall.retval = retval,
-        .addr_port = 0,
+        .addr_family = syscall->bind.addr.family,
+        .addr_port = syscall->bind.addr.port,
+        .addr_ip6[0] = syscall->bind.addr.ip[0],
+        .addr_ip6[1] = syscall->bind.addr.ip[1],
     };
-    /* extract the addr fields */
-    if (parse_addr(&event.addr_family, &event.addr_port, (u64*)&event.addr_ip6, syscall->bind.addr) < 0) {
-        return 0;
-    }
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);

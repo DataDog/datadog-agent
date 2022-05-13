@@ -115,21 +115,21 @@ int kprobe_path_get(struct pt_regs *ctx) {
     u16 family = 0;
     bpf_probe_read(&family, sizeof(family), &sk->__sk_common.skc_family);
     if (family == AF_INET) {
-        bpf_probe_read(&route.addr, sizeof(sk->__sk_common.skc_rcv_saddr), &sk->__sk_common.skc_rcv_saddr);
+        bpf_probe_read(&route.addr.ip, sizeof(sk->__sk_common.skc_rcv_saddr), &sk->__sk_common.skc_rcv_saddr);
     } else if (family == AF_INET6) {
-        bpf_probe_read(&route.addr, sizeof(u64) * 2, &sk->__sk_common.skc_v6_rcv_saddr);
+        bpf_probe_read(&route.addr.ip, sizeof(u64) * 2, &sk->__sk_common.skc_v6_rcv_saddr);
     } else {
         return 0;
     }
-    bpf_probe_read(&route.port, sizeof(route.port), &sk->__sk_common.skc_num);
+    bpf_probe_read(&route.addr.port, sizeof(route.addr.port), &sk->__sk_common.skc_num);
 
     // save pid route
     bpf_map_update_elem(&flow_pid, &route, &pid, BPF_ANY);
 
 #ifdef DEBUG
     bpf_printk("path_get netns: %u\n", route.netns);
-    bpf_printk("         skc_num:%d\n", htons(route.port));
-    bpf_printk("         skc_rcv_saddr:%x\n", route.addr[0]);
+    bpf_printk("         skc_num:%d\n", htons(route.add.port));
+    bpf_printk("         skc_rcv_saddr:%x\n", route.addr.ip[0]);
     bpf_printk("         pid:%d\n", pid);
 #endif
     return 0;
