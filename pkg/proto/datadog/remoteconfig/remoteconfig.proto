@@ -58,7 +58,7 @@ message LatestConfigsResponse {
   repeated File target_files = 3;
 }
 
-// Client defintions
+// Client definitions
 
 message Client {
   ClientState state = 1;
@@ -69,6 +69,7 @@ message Client {
   ClientTracer client_tracer = 7;
   bool is_agent = 8;
   ClientAgent client_agent = 9;
+  uint64 last_seen = 10;
 }
 
 message ClientTracer {
@@ -78,6 +79,7 @@ message ClientTracer {
   string service = 4;
   string env = 5;
   string app_version = 6;
+  repeated string tags = 7;
 }
 
 message ClientAgent {
