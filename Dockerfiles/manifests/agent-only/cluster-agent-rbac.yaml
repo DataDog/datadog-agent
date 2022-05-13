@@ -5,7 +5,7 @@ kind: ServiceAccount
 metadata:
   labels:
     app: "datadog"
-    chart: "datadog-2.30.16"
+    chart: "datadog-2.33.5"
     heritage: "Helm"
     release: "datadog"
   name: datadog-cluster-agent
@@ -59,6 +59,7 @@ rules:
       - configmaps
     resourceNames:
       - datadogtoken # Kubernetes event collection state
+      - datadogtoken # Kept for backward compatibility with agent <7.37.0
     verbs:
       - get
       - update
@@ -68,6 +69,7 @@ rules:
       - configmaps
     resourceNames:
       - datadog-leader-election # Leader election token
+      - datadog-leader-election # Kept for backward compatibility with agent <7.37.0
     verbs:
       - get
       - update

@@ -8,6 +8,7 @@ metadata:
   labels: {}
 spec:
   replicas: 2
+  revisionHistoryLimit: 10
   strategy:
     rollingUpdate:
       maxSurge: 1
@@ -31,7 +32,7 @@ spec:
       imagePullSecrets: []
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/agent:7.34.0"
+          image: "gcr.io/datadoghq/agent:7.35.2"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -41,7 +42,7 @@ spec:
               mountPath: /opt/datadog-agent
           resources: {}
         - name: init-config
-          image: "gcr.io/datadoghq/agent:7.34.0"
+          image: "gcr.io/datadoghq/agent:7.35.2"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -52,7 +53,7 @@ spec:
           resources: {}
       containers:
         - name: agent
-          image: "gcr.io/datadoghq/agent:7.34.0"
+          image: "gcr.io/datadoghq/agent:7.35.2"
           command: ["bash", "-c"]
           args:
             - rm -rf /etc/datadog-agent/conf.d && touch /etc/datadog-agent/datadog.yaml && exec agent run
