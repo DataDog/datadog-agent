@@ -6,10 +6,11 @@ package driver
 const Signature = 0xddfd00000010
 
 const (
-	GetStatsIOCTL      = 0x122004
-	SetFlowFilterIOCTL = 0x122010
-	SetDataFilterIOCTL = 0x12200c
-	SetMaxFlowsIOCTL   = 0x122018
+	GetStatsIOCTL             = 0x122004
+	SetFlowFilterIOCTL        = 0x122010
+	SetDataFilterIOCTL        = 0x12200c
+	SetMaxFlowsIOCTL          = 0x122018
+	FlushPendingHttpTxnsIOCTL = 0x122020
 )
 
 type FilterAddress struct {
@@ -148,4 +149,28 @@ const (
 
 const (
 	LayerTransport = 0x1
+)
+
+type HttpTransactionType struct {
+	RequestStarted     uint64
+	ResponseLastSeen   uint64
+	Tup                ConnTupleType
+	RequestMethod      uint32
+	ResponseStatusCode uint16
+	RequestFragment    [25]uint8
+	Pad_cgo_0          [1]byte
+}
+type ConnTupleType struct {
+	CliAddr [16]uint8
+	SrvAddr [16]uint8
+	CliPort uint16
+	SrvPort uint16
+	Family  uint16
+}
+type HttpMethodType uint32
+
+const (
+	HttpBatchSize           = 0xf
+	HttpBufferSize          = 0x19
+	HttpTransactionTypeSize = 0x58
 )
