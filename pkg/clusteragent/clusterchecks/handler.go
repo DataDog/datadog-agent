@@ -25,6 +25,7 @@ import (
 
 const (
 	schedulerName = "clusterchecks"
+	logFrequency  = 100
 )
 
 type state int
@@ -55,6 +56,7 @@ type Handler struct {
 	state                state
 	leaderIP             string
 	port                 int
+	errCount             int
 }
 
 // NewHandler returns a populated Handler
@@ -183,9 +185,21 @@ func (h *Handler) leaderWatch(ctx context.Context) {
 			// This goroutine might hang if the leader election engine blocks
 		case <-watchTicker.C:
 			err := h.updateLeaderIP()
+			h.m.Lock()
 			if err != nil {
-				log.Warnf("Could not refresh leadership status: %s", err)
+				h.errCount++
+				if h.errCount == 1 {
+					log.Warnf("Could not refresh leadership status: %s, will only log every %d errors", err, logFrequency)
+				} else if h.errCount%logFrequency == 0 {
+					log.Warnf("Could not refresh leadership status after %d tries: %s", logFrequency, err)
+				}
+			} else {
+				if h.errCount > 0 {
+					log.Infof("Found leadership status after %d tries", h.errCount)
+					h.errCount = 0
+				}
 			}
+			h.m.Unlock()
 		case <-ctx.Done():
 			return
 		}

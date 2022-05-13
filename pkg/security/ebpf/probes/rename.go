@@ -19,6 +19,20 @@ var renameProbes = []*manager.Probe{
 			EBPFFuncName: "kprobe_vfs_rename",
 		},
 	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/do_renameat2",
+			EBPFFuncName: "kprobe_do_renameat2",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kretprobe/do_renameat2",
+			EBPFFuncName: "kretprobe_do_renameat2",
+		},
+	},
 }
 
 func getRenameProbes() []*manager.Probe {

@@ -533,11 +533,8 @@ func (k *KSMCheck) processLabelsAsTags() {
 			joinsConfig.LabelsToGet = append(joinsConfig.LabelsToGet, labels...)
 		} else {
 			joinsConfig := &JoinsConfig{
-				LabelsToMatch: []string{resourceKind, "namespace"},
+				LabelsToMatch: getLabelToMatchForKind(resourceKind),
 				LabelsToGet:   labels,
-			}
-			if resourceKind == "node" {
-				joinsConfig.LabelsToMatch = []string{"node"}
 			}
 			k.instance.LabelJoins["kube_"+resourceKind+"_labels"] = joinsConfig
 		}

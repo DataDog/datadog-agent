@@ -3244,6 +3244,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe22(in *jl
 			out.Category = string(in.String())
 		case "outcome":
 			out.Outcome = string(in.String())
+		case "async":
+			out.Async = bool(in.Bool())
 		default:
 			in.SkipRecursive()
 		}
@@ -3283,6 +3285,16 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe22(out *j
 			out.RawString(prefix)
 		}
 		out.String(string(in.Outcome))
+	}
+	if in.Async {
+		const prefix string = ",\"async\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Bool(bool(in.Async))
 	}
 	out.RawByte('}')
 }
