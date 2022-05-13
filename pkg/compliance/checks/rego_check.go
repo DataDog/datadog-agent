@@ -390,6 +390,10 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 		_ = dumpInputToFile(r.ruleID, path, input)
 	}
 
+	if env.ShouldSkipRegoEval() {
+		return nil
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), regoEvalTimeout)
 	defer cancel()
 	results, err := r.preparedEvalQuery.Eval(ctx, rego.EvalInput(input))
