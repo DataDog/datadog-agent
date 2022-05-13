@@ -41,3 +41,17 @@ func (_m *RegoConfiguration) ProvidedInput(ruleID string) eval.RegoInputMap {
 
 	return r0
 }
+
+// ShouldSkipRegoEval provides a mock function with given fields:
+func (_m *RegoConfiguration) ShouldSkipRegoEval() bool {
+	ret := _m.Called()
+
+	var r0 bool
+	if rf, ok := ret.Get(0).(func() bool); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	return r0
+}

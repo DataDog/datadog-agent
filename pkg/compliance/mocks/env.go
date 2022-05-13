@@ -232,3 +232,17 @@ func (_m *Env) Reporter() event.Reporter {
 
 	return r0
 }
+
+// ShouldSkipRegoEval provides a mock function with given fields:
+func (_m *Env) ShouldSkipRegoEval() bool {
+	ret := _m.Called()
+
+	var r0 bool
+	if rf, ok := ret.Get(0).(func() bool); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	return r0
+}
