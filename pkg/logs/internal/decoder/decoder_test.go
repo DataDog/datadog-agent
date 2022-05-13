@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerfile"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerstream"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/encodedtext"
@@ -21,9 +22,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func InitializeDecoderForTest(source *config.LogSource, parser parsers.Parser) *Decoder {
+	return InitializeDecoder(config.NewReplaceableSource(source), parser)
+}
+
 func TestDecoderWithDockerHeader(t *testing.T) {
 	source := config.NewLogSource("config", &config.LogsConfig{})
-	d := InitializeDecoder(source, noop.New())
+	d := InitializeDecoderForTest(source, noop.New())
 	d.Start()
 
 	input := []byte("hello\n")
@@ -54,8 +59,7 @@ func TestDecoderWithDockerHeaderSingleline(t *testing.T) {
 	var line []byte
 	var lineLen int
 
-	d := InitializeDecoder(
-		config.NewLogSource("", &config.LogsConfig{}), dockerstream.New("abc123"))
+	d := InitializeDecoderForTest(config.NewLogSource("", &config.LogsConfig{}), dockerstream.New("abc123"))
 	d.Start()
 	defer d.Stop()
 
@@ -107,7 +111,7 @@ func TestDecoderWithDockerHeaderMultiline(t *testing.T) {
 		},
 	}
 
-	d := InitializeDecoder(config.NewLogSource("", c), dockerstream.New("abc123"))
+	d := InitializeDecoderForTest(config.NewLogSource("", c), dockerstream.New("abc123"))
 	d.Start()
 	defer d.Stop()
 
@@ -142,7 +146,7 @@ func TestDecoderWithDockerJSONSingleline(t *testing.T) {
 	var line []byte
 	var lineLen int
 
-	d := InitializeDecoder(config.NewLogSource("", &config.LogsConfig{}), dockerfile.New())
+	d := InitializeDecoderForTest(config.NewLogSource("", &config.LogsConfig{}), dockerfile.New())
 	d.Start()
 	defer d.Stop()
 
@@ -181,7 +185,7 @@ func TestDecoderWithDockerJSONMultiline(t *testing.T) {
 		},
 	}
 
-	d := InitializeDecoder(config.NewLogSource("", c), dockerfile.New())
+	d := InitializeDecoderForTest(config.NewLogSource("", c), dockerfile.New())
 	d.Start()
 	defer d.Stop()
 
@@ -215,7 +219,7 @@ func TestDecoderWithDockerJSONSplittedByDocker(t *testing.T) {
 	var output *Message
 	var line []byte
 
-	d := InitializeDecoder(config.NewLogSource("", &config.LogsConfig{}), dockerfile.New())
+	d := InitializeDecoderForTest(config.NewLogSource("", &config.LogsConfig{}), dockerfile.New())
 	d.Start()
 	defer d.Stop()
 
@@ -239,7 +243,7 @@ func TestDecoderWithDockerJSONSplittedByDocker(t *testing.T) {
 func TestDecoderWithDecodingParser(t *testing.T) {
 	source := config.NewLogSource("config", &config.LogsConfig{})
 
-	d := NewDecoderWithFraming(source, encodedtext.New(encodedtext.UTF16LE), framer.UTF16LENewline, nil)
+	d := NewDecoderWithFraming(config.NewReplaceableSource(source), encodedtext.New(encodedtext.UTF16LE), framer.UTF16LENewline, nil)
 	d.Start()
 
 	input := []byte{'h', 0x0, 'e', 0x0, 'l', 0x0, 'l', 0x0, 'o', 0x0, '\n', 0x0}
@@ -266,7 +270,7 @@ func TestDecoderWithSinglelineKubernetes(t *testing.T) {
 	var line []byte
 	var lineLen int
 
-	d := InitializeDecoder(config.NewLogSource("", &config.LogsConfig{}), kubernetes.New())
+	d := InitializeDecoderForTest(config.NewLogSource("", &config.LogsConfig{}), kubernetes.New())
 	d.Start()
 	defer d.Stop()
 
@@ -304,7 +308,7 @@ func TestDecoderWithMultilineKubernetes(t *testing.T) {
 			},
 		},
 	}
-	d := InitializeDecoder(config.NewLogSource("", c), kubernetes.New())
+	d := InitializeDecoderForTest(config.NewLogSource("", c), kubernetes.New())
 	d.Start()
 	defer d.Stop()
 
