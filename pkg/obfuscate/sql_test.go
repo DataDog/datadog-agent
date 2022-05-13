@@ -1213,6 +1213,15 @@ func TestPGJsonOperators(t *testing.T) {
 				DBMS: DBMSSQLServer,
 			},
 		},
+		// Ensure that in a non-postgresql dbms, global variables denoted
+		// as @@ident are parsed as identifiers
+		{
+			`SELECT @@foo`,
+			`SELECT @@foo`,
+			SQLConfig{
+				DBMS: DBMSSQLServer,
+			},
+		},
 		{
 			"select * from users where user.custom ?| array [ '1', '2' ]",
 			"select * from users where user.custom ?| array [ ? ]",
