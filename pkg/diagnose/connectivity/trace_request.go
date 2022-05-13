@@ -82,7 +82,7 @@ func sendHTTPRequestToEndpoint(client *http.Client, url string, method string, p
 	req, err := http.NewRequest(method, url, reader)
 
 	if err != nil {
-		log.Errorf("Could not create request for transaction to invalid URL %q (dropping transaction): %s", url, err)
+		log.Errorf("Could not create request for transaction to invalid URL '%v' : %v", logURL, err)
 	}
 
 	//req = req.WithContext(ctx)
@@ -91,12 +91,14 @@ func sendHTTPRequestToEndpoint(client *http.Client, url string, method string, p
 
 	if err != nil {
 		fmt.Printf("Could not send the HTTP request to '%v'\n", logURL)
+		return
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Errorf("Fail to read the response Body: %s", err)
+		return
 	}
 
 	fmt.Printf("Endpoint '%v' answers with status code %v\n", logURL, resp.StatusCode)
