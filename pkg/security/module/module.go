@@ -56,21 +56,22 @@ type Opts struct {
 // Module represents the system-probe module for the runtime security agent
 type Module struct {
 	sync.RWMutex
-	wg               sync.WaitGroup
-	probe            *sprobe.Probe
-	config           *sconfig.Config
-	currentRuleSet   atomic.Value
-	reloading        uint64
-	statsdClient     statsd.ClientInterface
-	apiServer        *APIServer
-	grpcServer       *grpc.Server
-	listener         net.Listener
-	rateLimiter      *RateLimiter
-	sigupChan        chan os.Signal
-	ctx              context.Context
-	cancelFnc        context.CancelFunc
-	rulesLoaded      func(rs *rules.RuleSet, err *multierror.Error)
-	policiesVersions []string
+	wg                 sync.WaitGroup
+	probe              *sprobe.Probe
+	config             *sconfig.Config
+	currentRuleSet     atomic.Value
+	reloading          uint64
+	statsdClient       statsd.ClientInterface
+	apiServer          *APIServer
+	grpcServer         *grpc.Server
+	remoteConfigClient *remote.Client
+	listener           net.Listener
+	rateLimiter        *RateLimiter
+	sigupChan          chan os.Signal
+	ctx                context.Context
+	cancelFnc          context.CancelFunc
+	rulesLoaded        func(rs *rules.RuleSet, err *multierror.Error)
+	policiesVersions   []string
 
 	selfTester *sprobe.SelfTester
 	reloader   *debouncer.Debouncer
@@ -166,19 +167,22 @@ func (m *Module) Start() error {
 			m.triggerReload()
 		}
 	}()
-
-	c, err := remote.NewClient("security-agent", []data.Product{data.ProductCWSDD})
-	if err != nil {
-		return err
-	}
-	go func() {
-		for configs := range c.CWSDDUpdates() {
-			err := m.processRemoteConfigsUpdate(configs)
-			if err != nil {
-				log.Debugf("could not process remote-config update: %v", err)
-			}
+	if m.config.EnableRemoteConfig {
+		c, err := remote.NewClient("security-agent", []data.Product{data.ProductCWSDD})
+		if err != nil {
+			return err
 		}
-	}()
+		m.remoteConfigClient = c
+		go func() {
+			for configs := range c.CWSDDUpdates() {
+				err := m.processRemoteConfigsUpdate(configs)
+				if err != nil {
+					log.Debugf("could not process remote-config update: %v", err)
+				}
+			}
+		}()
+	}
+
 	return nil
 }
 
@@ -370,6 +374,9 @@ func (m *Module) Close() {
 	m.reloader.Stop()
 
 	close(m.sigupChan)
+	if m.remoteConfigClient != nil {
+		m.remoteConfigClient.Close()
+	}
 	m.cancelFnc()
 
 	if m.grpcServer != nil {
