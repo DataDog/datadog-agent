@@ -236,6 +236,13 @@ func WithRegoInputDumpPath(regoInputDumpPath string) BuilderOption {
 	}
 }
 
+func WithRegoEvalSkip(regoEvalSkip bool) BuilderOption {
+	return func(b *builder) error {
+		b.regoEvalSkip = regoEvalSkip
+		return nil
+	}
+}
+
 // IsFramework matches a compliance suite by the name of the framework
 func IsFramework(framework string) SuiteMatcher {
 	return func(s *compliance.SuiteMeta) bool {
@@ -296,6 +303,7 @@ type builder struct {
 
 	regoInputOverride map[string]eval.RegoInputMap
 	regoInputDumpPath string
+	regoEvalSkip      bool
 
 	status *status
 }
@@ -736,6 +744,10 @@ func (b *builder) ProvidedInput(ruleID string) eval.RegoInputMap {
 
 func (b *builder) DumpInputPath() string {
 	return b.regoInputDumpPath
+}
+
+func (b *builder) ShouldSkipRegoEval() bool {
+	return b.regoEvalSkip
 }
 
 func (b *builder) Hostname() string {
