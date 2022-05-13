@@ -382,6 +382,10 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 		_ = dumpInputToFile(r.ruleID, path, input)
 	}
 
+	if env.ShouldSkipRegoEval() {
+		return nil
+	}
+
 	ctx := context.TODO()
 	results, err := r.preparedEvalQuery.Eval(ctx, rego.EvalInput(input))
 	if err != nil {
