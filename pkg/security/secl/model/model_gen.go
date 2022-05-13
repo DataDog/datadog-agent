@@ -945,6 +945,134 @@ func (z *FileFields) Msgsize() (s int) {
 }
 
 // DecodeMsg implements msgp.Decodable
+func (z *PIDContext) DecodeMsg(dc *msgp.Reader) (err error) {
+	var field []byte
+	_ = field
+	var zb0001 uint32
+	zb0001, err = dc.ReadMapHeader()
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for zb0001 > 0 {
+		zb0001--
+		field, err = dc.ReadMapKeyPtr()
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "pid":
+			z.Pid, err = dc.ReadUint32()
+			if err != nil {
+				err = msgp.WrapError(err, "Pid")
+				return
+			}
+		case "tid":
+			z.Tid, err = dc.ReadUint32()
+			if err != nil {
+				err = msgp.WrapError(err, "Tid")
+				return
+			}
+		default:
+			err = dc.Skip()
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	return
+}
+
+// EncodeMsg implements msgp.Encodable
+func (z PIDContext) EncodeMsg(en *msgp.Writer) (err error) {
+	// map header, size 2
+	// write "pid"
+	err = en.Append(0x82, 0xa3, 0x70, 0x69, 0x64)
+	if err != nil {
+		return
+	}
+	err = en.WriteUint32(z.Pid)
+	if err != nil {
+		err = msgp.WrapError(err, "Pid")
+		return
+	}
+	// write "tid"
+	err = en.Append(0xa3, 0x74, 0x69, 0x64)
+	if err != nil {
+		return
+	}
+	err = en.WriteUint32(z.Tid)
+	if err != nil {
+		err = msgp.WrapError(err, "Tid")
+		return
+	}
+	return
+}
+
+// MarshalMsg implements msgp.Marshaler
+func (z PIDContext) MarshalMsg(b []byte) (o []byte, err error) {
+	o = msgp.Require(b, z.Msgsize())
+	// map header, size 2
+	// string "pid"
+	o = append(o, 0x82, 0xa3, 0x70, 0x69, 0x64)
+	o = msgp.AppendUint32(o, z.Pid)
+	// string "tid"
+	o = append(o, 0xa3, 0x74, 0x69, 0x64)
+	o = msgp.AppendUint32(o, z.Tid)
+	return
+}
+
+// UnmarshalMsg implements msgp.Unmarshaler
+func (z *PIDContext) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	var field []byte
+	_ = field
+	var zb0001 uint32
+	zb0001, bts, err = msgp.ReadMapHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for zb0001 > 0 {
+		zb0001--
+		field, bts, err = msgp.ReadMapKeyZC(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "pid":
+			z.Pid, bts, err = msgp.ReadUint32Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Pid")
+				return
+			}
+		case "tid":
+			z.Tid, bts, err = msgp.ReadUint32Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Tid")
+				return
+			}
+		default:
+			bts, err = msgp.Skip(bts)
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	o = bts
+	return
+}
+
+// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
+func (z PIDContext) Msgsize() (s int) {
+	s = 1 + 4 + msgp.Uint32Size + 4 + msgp.Uint32Size
+	return
+}
+
+// DecodeMsg implements msgp.Decodable
 func (z *Process) DecodeMsg(dc *msgp.Reader) (err error) {
 	var field []byte
 	_ = field
@@ -962,22 +1090,45 @@ func (z *Process) DecodeMsg(dc *msgp.Reader) (err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
+		case "PIDContext":
+			var zb0002 uint32
+			zb0002, err = dc.ReadMapHeader()
+			if err != nil {
+				err = msgp.WrapError(err, "PIDContext")
+				return
+			}
+			for zb0002 > 0 {
+				zb0002--
+				field, err = dc.ReadMapKeyPtr()
+				if err != nil {
+					err = msgp.WrapError(err, "PIDContext")
+					return
+				}
+				switch msgp.UnsafeString(field) {
+				case "pid":
+					z.PIDContext.Pid, err = dc.ReadUint32()
+					if err != nil {
+						err = msgp.WrapError(err, "PIDContext", "Pid")
+						return
+					}
+				case "tid":
+					z.PIDContext.Tid, err = dc.ReadUint32()
+					if err != nil {
+						err = msgp.WrapError(err, "PIDContext", "Tid")
+						return
+					}
+				default:
+					err = dc.Skip()
+					if err != nil {
+						err = msgp.WrapError(err, "PIDContext")
+						return
+					}
+				}
+			}
 		case "file":
 			err = z.FileEvent.DecodeMsg(dc)
 			if err != nil {
 				err = msgp.WrapError(err, "FileEvent")
-				return
-			}
-		case "pid":
-			z.Pid, err = dc.ReadUint32()
-			if err != nil {
-				err = msgp.WrapError(err, "Pid")
-				return
-			}
-		case "tid":
-			z.Tid, err = dc.ReadUint32()
-			if err != nil {
-				err = msgp.WrapError(err, "Tid")
 				return
 			}
 		case "container_id":
@@ -987,16 +1138,16 @@ func (z *Process) DecodeMsg(dc *msgp.Reader) (err error) {
 				return
 			}
 		case "container_tags":
-			var zb0002 uint32
-			zb0002, err = dc.ReadArrayHeader()
+			var zb0003 uint32
+			zb0003, err = dc.ReadArrayHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "ContainerTags")
 				return
 			}
-			if cap(z.ContainerTags) >= int(zb0002) {
-				z.ContainerTags = (z.ContainerTags)[:zb0002]
+			if cap(z.ContainerTags) >= int(zb0003) {
+				z.ContainerTags = (z.ContainerTags)[:zb0003]
 			} else {
-				z.ContainerTags = make([]string, zb0002)
+				z.ContainerTags = make([]string, zb0003)
 			}
 			for za0001 := range z.ContainerTags {
 				z.ContainerTags[za0001], err = dc.ReadString()
@@ -1120,25 +1271,21 @@ func (z *Process) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 18
-	// write "file"
-	err = en.Append(0xde, 0x0, 0x12, 0xa4, 0x66, 0x69, 0x6c, 0x65)
+	// map header, size 17
+	// write "PIDContext"
+	err = en.Append(0xde, 0x0, 0x11, 0xaa, 0x50, 0x49, 0x44, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74)
 	if err != nil {
 		return
 	}
-	err = z.FileEvent.EncodeMsg(en)
-	if err != nil {
-		err = msgp.WrapError(err, "FileEvent")
-		return
-	}
+	// map header, size 2
 	// write "pid"
-	err = en.Append(0xa3, 0x70, 0x69, 0x64)
+	err = en.Append(0x82, 0xa3, 0x70, 0x69, 0x64)
 	if err != nil {
 		return
 	}
-	err = en.WriteUint32(z.Pid)
+	err = en.WriteUint32(z.PIDContext.Pid)
 	if err != nil {
-		err = msgp.WrapError(err, "Pid")
+		err = msgp.WrapError(err, "PIDContext", "Pid")
 		return
 	}
 	// write "tid"
@@ -1146,9 +1293,19 @@ func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	err = en.WriteUint32(z.Tid)
+	err = en.WriteUint32(z.PIDContext.Tid)
 	if err != nil {
-		err = msgp.WrapError(err, "Tid")
+		err = msgp.WrapError(err, "PIDContext", "Tid")
+		return
+	}
+	// write "file"
+	err = en.Append(0xa4, 0x66, 0x69, 0x6c, 0x65)
+	if err != nil {
+		return
+	}
+	err = z.FileEvent.EncodeMsg(en)
+	if err != nil {
+		err = msgp.WrapError(err, "FileEvent")
 		return
 	}
 	// write "container_id"
@@ -1328,20 +1485,23 @@ func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
 // MarshalMsg implements msgp.Marshaler
 func (z *Process) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 18
+	// map header, size 17
+	// string "PIDContext"
+	o = append(o, 0xde, 0x0, 0x11, 0xaa, 0x50, 0x49, 0x44, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74)
+	// map header, size 2
+	// string "pid"
+	o = append(o, 0x82, 0xa3, 0x70, 0x69, 0x64)
+	o = msgp.AppendUint32(o, z.PIDContext.Pid)
+	// string "tid"
+	o = append(o, 0xa3, 0x74, 0x69, 0x64)
+	o = msgp.AppendUint32(o, z.PIDContext.Tid)
 	// string "file"
-	o = append(o, 0xde, 0x0, 0x12, 0xa4, 0x66, 0x69, 0x6c, 0x65)
+	o = append(o, 0xa4, 0x66, 0x69, 0x6c, 0x65)
 	o, err = z.FileEvent.MarshalMsg(o)
 	if err != nil {
 		err = msgp.WrapError(err, "FileEvent")
 		return
 	}
-	// string "pid"
-	o = append(o, 0xa3, 0x70, 0x69, 0x64)
-	o = msgp.AppendUint32(o, z.Pid)
-	// string "tid"
-	o = append(o, 0xa3, 0x74, 0x69, 0x64)
-	o = msgp.AppendUint32(o, z.Tid)
 	// string "container_id"
 	o = append(o, 0xac, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x5f, 0x69, 0x64)
 	o = msgp.AppendString(o, z.ContainerID)
@@ -1431,22 +1591,45 @@ func (z *Process) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
+		case "PIDContext":
+			var zb0002 uint32
+			zb0002, bts, err = msgp.ReadMapHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "PIDContext")
+				return
+			}
+			for zb0002 > 0 {
+				zb0002--
+				field, bts, err = msgp.ReadMapKeyZC(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "PIDContext")
+					return
+				}
+				switch msgp.UnsafeString(field) {
+				case "pid":
+					z.PIDContext.Pid, bts, err = msgp.ReadUint32Bytes(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "PIDContext", "Pid")
+						return
+					}
+				case "tid":
+					z.PIDContext.Tid, bts, err = msgp.ReadUint32Bytes(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "PIDContext", "Tid")
+						return
+					}
+				default:
+					bts, err = msgp.Skip(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "PIDContext")
+						return
+					}
+				}
+			}
 		case "file":
 			bts, err = z.FileEvent.UnmarshalMsg(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "FileEvent")
-				return
-			}
-		case "pid":
-			z.Pid, bts, err = msgp.ReadUint32Bytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "Pid")
-				return
-			}
-		case "tid":
-			z.Tid, bts, err = msgp.ReadUint32Bytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "Tid")
 				return
 			}
 		case "container_id":
@@ -1456,16 +1639,16 @@ func (z *Process) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 		case "container_tags":
-			var zb0002 uint32
-			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			var zb0003 uint32
+			zb0003, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "ContainerTags")
 				return
 			}
-			if cap(z.ContainerTags) >= int(zb0002) {
-				z.ContainerTags = (z.ContainerTags)[:zb0002]
+			if cap(z.ContainerTags) >= int(zb0003) {
+				z.ContainerTags = (z.ContainerTags)[:zb0003]
 			} else {
-				z.ContainerTags = make([]string, zb0002)
+				z.ContainerTags = make([]string, zb0003)
 			}
 			for za0001 := range z.ContainerTags {
 				z.ContainerTags[za0001], bts, err = msgp.ReadStringBytes(bts)
@@ -1588,7 +1771,7 @@ func (z *Process) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Process) Msgsize() (s int) {
-	s = 3 + 5 + z.FileEvent.Msgsize() + 4 + msgp.Uint32Size + 4 + msgp.Uint32Size + 13 + msgp.StringPrefixSize + len(z.ContainerID) + 15 + msgp.ArrayHeaderSize
+	s = 3 + 11 + 1 + 4 + msgp.Uint32Size + 4 + msgp.Uint32Size + 5 + z.FileEvent.Msgsize() + 13 + msgp.StringPrefixSize + len(z.ContainerID) + 15 + msgp.ArrayHeaderSize
 	for za0001 := range z.ContainerTags {
 		s += msgp.StringPrefixSize + len(z.ContainerTags[za0001])
 	}

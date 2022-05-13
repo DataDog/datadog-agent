@@ -206,11 +206,6 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
-func (e *ExecEvent) UnmarshalBinary(data []byte) (int, error) {
-	return UnmarshalBinary(data, &e.Process)
-}
-
-// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData
@@ -395,7 +390,7 @@ func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
-func (p *ProcessContext) UnmarshalBinary(data []byte) (int, error) {
+func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}

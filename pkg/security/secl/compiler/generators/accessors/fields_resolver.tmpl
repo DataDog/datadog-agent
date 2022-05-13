@@ -21,7 +21,13 @@ func (ev *Event) ResolveFields() {
         {{- if (eq $Field.Prefix "") }}
             _ = {{ print "ev." $Field.Handler "(ev)"}}
         {{- else}}
-            _ = {{ print "ev." $Field.Handler "(&ev." $Field.Prefix ")"}}
+            {{$Ptr := "&"}}
+            {{$Parent := index $.AllFields $Field.Prefix}}
+            {{- if $Parent.IsOrigTypePtr}}
+                {{$Ptr = ""}}
+            {{end}}
+
+            _ = {{ print "ev." $Field.Handler "(" $Ptr "ev." $Field.Prefix ")"}}
         {{- end}}
     {{- end -}}
 {{end}}
@@ -37,7 +43,13 @@ func (ev *Event) ResolveFields() {
                     {{- if (eq $Field.Prefix "") }}
                         _ = {{ print "ev." $Field.Handler "(ev)"}}
                     {{- else}}
-                        _ = {{ print "ev." $Field.Handler "(&ev." $Field.Prefix ")"}}
+                        {{$Ptr := "&"}}
+                        {{$Parent := index $.AllFields $Field.Prefix}}
+                        {{- if $Parent.IsOrigTypePtr}}
+                            {{$Ptr = ""}}
+                        {{end}}
+
+                        _ = {{ print "ev." $Field.Handler "(" $Ptr "ev." $Field.Prefix ")"}}
                     {{- end}}
                 {{- end -}}
             {{end}}
