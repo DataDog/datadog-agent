@@ -169,10 +169,10 @@ type Event struct {
 	MProtect     MProtectEvent     `field:"mprotect" event:"mprotect"`           // [7.35] [Kernel] A mprotect command was executed
 	LoadModule   LoadModuleEvent   `field:"load_module" event:"load_module"`     // [7.35] [Kernel] A new kernel module was loaded
 	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
-	Bind         BindEvent         `field:"bind" event:"bind"`                   // [7.37] [Network] [Experimental] A bind was executed
 
 	// network events
-	DNS DNSEvent `field:"dns" event:"dns"` // [7.36] [Network] A DNS request was sent
+	DNS  DNSEvent  `field:"dns" event:"dns"`   // [7.36] [Network] A DNS request was sent
+	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] [Experimental] A bind was executed
 
 	// internal usage
 	Mount            MountEvent            `field:"-"`

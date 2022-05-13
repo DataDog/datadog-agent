@@ -537,6 +537,11 @@
           "definition": "Port number"
         },
         {
+          "name": "bind.async",
+          "type": "bool",
+          "definition": "True if the syscall was asynchronous"
+        },
+        {
           "name": "bind.retval",
           "type": "int",
           "definition": "Return value of the syscall"

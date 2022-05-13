@@ -279,8 +279,8 @@ A bind was executed
 | `bind.addr.family` | int | Address family |
 | `bind.addr.ip` | IP/CIDR | IP address |
 | `bind.addr.port` | int | Port number |
+| `bind.async` | bool | True if the syscall was asynchronous |
 | `bind.retval` | int | Return value of the syscall |
-| `bind.socket` | int | The socket to be bound |
 
 ### Event `bpf`
 
