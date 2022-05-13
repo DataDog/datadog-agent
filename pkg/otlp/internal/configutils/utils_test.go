@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config"
-	"go.opentelemetry.io/collector/config/configunmarshaler"
 	"go.opentelemetry.io/collector/config/mapconverter/expandmapconverter"
 	"go.opentelemetry.io/collector/config/mapprovider/envmapprovider"
 	"go.opentelemetry.io/collector/config/mapprovider/filemapprovider"
@@ -58,7 +57,6 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 		Locations:     []string{fmt.Sprintf("file:%s", testPath)},
 		MapProviders:  makeConfigMapProviderMap(filemapprovider.New(), envmapprovider.New(), yamlmapprovider.New()),
 		MapConverters: []config.MapConverterFunc{expandmapconverter.New()},
-		Unmarshaler:   configunmarshaler.NewDefault(),
 	}
 	defaultProvider, err := service.NewConfigProvider(settings)
 	require.NoError(t, err)
