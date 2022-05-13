@@ -180,9 +180,11 @@ func (di *DriverInterface) GetConnectionStats(activeBuf *ConnectionBuffer, close
 
 	var bytesRead uint32
 	var totalBytesRead uint32
+	var nReadFiles uint32
 	// keep reading while driver says there is more data available
 	for err := error(windows.ERROR_MORE_DATA); err == windows.ERROR_MORE_DATA; {
 		err = windows.ReadFile(di.driverFlowHandle.Handle, di.readBuffer, &bytesRead, nil)
+		nReadFiles += 1
 		if err != nil {
 			if err == windows.ERROR_NO_MORE_ITEMS {
 				break
@@ -215,10 +217,12 @@ func (di *DriverInterface) GetConnectionStats(activeBuf *ConnectionBuffer, close
 				}
 			}
 		}
+
+		di.readBuffer = resizeDriverBuffer(int(totalBytesRead), di.readBuffer)
+		atomic.StoreInt64(&di.bufferSize, int64(len(di.readBuffer)))
 	}
 
-	di.readBuffer = resizeDriverBuffer(int(totalBytesRead), di.readBuffer)
-	atomic.StoreInt64(&di.bufferSize, int64(len(di.readBuffer)))
+	log.Debugf("READFILES: %d", nReadFiles)
 
 	activeCount := activeBuf.Len() - startActive
 	closedCount := closedBuf.Len() - startClosed
