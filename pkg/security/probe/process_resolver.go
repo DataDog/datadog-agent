@@ -50,6 +50,7 @@ const (
 const (
 	procResolveMaxDepth = 16
 	maxArgsEnvResidents = 1024
+	maxParallelArgsEnvs = 512 // == number of parallel starting processes
 )
 
 func getAttr2(probe *Probe) uint64 {
@@ -1137,7 +1138,7 @@ func (p *ProcessResolver) NewProcessVariables() rules.VariableProvider {
 
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(probe *Probe, resolvers *Resolvers, opts ProcessResolverOpts) (*ProcessResolver, error) {
-	argsEnvsCache, err := simplelru.NewLRU(512, nil)
+	argsEnvsCache, err := simplelru.NewLRU(maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
 	}

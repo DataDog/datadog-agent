@@ -11,7 +11,9 @@ import (
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -119,6 +121,53 @@ func (s *service) HasFilter(filter containers.FilterType) bool {
 
 // FilterTemplates implements Service#FilterTemplates.
 func (s *service) FilterTemplates(configs map[string]integration.Config) {
+	if !util.CcaInAD() {
+		// only applies when `logs_config.cca_in_ad` is set; otherwise this is
+		// handled in pkg/autodiscovery/configresolver/configresolver.go
+		return
+	}
+
+	s.filterTemplatesEmptyOverrides(configs)
+	s.filterTemplatesOverriddenChecks(configs)
+}
+
+// filterTemplatesEmptyOverrides drops file-based templates if this service is a container
+// or pod and has an empty check_names label/annotation.
+func (s *service) filterTemplatesEmptyOverrides(configs map[string]integration.Config) {
+	// Empty check names on k8s annotations or container labels override the check config from file
+	// Used to deactivate unneeded OOTB autodiscovery checks defined in files
+	// The checkNames slice is considered empty also if it contains one single empty string
+	if s.checkNames != nil && (len(s.checkNames) == 0 || (len(s.checkNames) == 1 && s.checkNames[0] == "")) {
+		// ...remove all file-based templates
+		for digest, config := range configs {
+			if config.Provider == names.File {
+				log.Debugf(
+					"Ignoring config from %s, as the service %s defines an empty set of checkNames",
+					config.Source, s.GetServiceID())
+				delete(configs, digest)
+			}
+		}
+	}
+}
+
+// filterTemplatesOverriddenChecks drops file-based templates if this service's
+// labels/annotations specify a check of the same name.
+func (s *service) filterTemplatesOverriddenChecks(configs map[string]integration.Config) {
+	for digest, config := range configs {
+		if config.Provider != names.File {
+			continue // only override file configs
+		}
+		for _, checkName := range s.checkNames {
+			if config.Name == checkName {
+				// Ignore config from file when the same check is activated on
+				// the same service via other config providers (k8s annotations
+				// or container labels)
+				log.Debugf("Ignoring config from %s: the service %s overrides check %s",
+					config.Source, s.GetServiceID(), config.Name)
+				delete(configs, digest)
+			}
+		}
+	}
 }
 
 // GetExtraConfig returns extra configuration associated with the service.

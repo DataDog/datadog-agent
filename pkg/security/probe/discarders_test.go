@@ -11,6 +11,7 @@ package probe
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -343,5 +344,58 @@ func BenchmarkParentDiscarder(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, _ = id.isParentPathDiscarder(rs, model.FileUnlinkEventType, "unlink.file.path", "/var/log/datadog/system-probe.log", 1)
+	}
+}
+
+func TestIsRecentlyAdded(t *testing.T) {
+	var id inodeDiscarders
+
+	if id.isRecentlyAdded(1, 2, uint64(time.Now().UnixNano())) {
+		t.Error("shouldn't be marked as added")
+	}
+	id.recentlyAdded(1, 2, uint64(time.Now().UnixNano()))
+
+	if !id.isRecentlyAdded(1, 2, uint64(time.Now().UnixNano())) {
+		t.Error("should be marked as added")
+	}
+
+	time.Sleep(time.Duration(recentlyAddedTimeout))
+
+	if id.isRecentlyAdded(1, 2, uint64(time.Now().UnixNano())) {
+		t.Error("shouldn't be marked as added")
+	}
+}
+
+func TestIsRecentlyAddedCollision(t *testing.T) {
+	var id inodeDiscarders
+
+	if recentlyAddedIndex(0, 2) != recentlyAddedIndex(0, 2+maxRecentlyAddedCacheSize) {
+		t.Error("unable to test without collision")
+	}
+
+	if id.isRecentlyAdded(0, 2, uint64(time.Now().UnixNano())) {
+		t.Error("shouldn't be marked as added")
+	}
+	id.recentlyAdded(0, 2, uint64(time.Now().UnixNano()))
+
+	if !id.isRecentlyAdded(0, 2, uint64(time.Now().UnixNano())) {
+		t.Error("should be marked as added")
+	}
+
+	if id.isRecentlyAdded(0, 2+maxRecentlyAddedCacheSize, uint64(time.Now().UnixNano())) {
+		t.Error("shouldn't be marked as added")
+	}
+}
+
+func TestIsRecentlyAddedOverflow(t *testing.T) {
+	var id inodeDiscarders
+
+	if id.isRecentlyAdded(0, 2, 2) {
+		t.Error("shouldn't be marked as added")
+	}
+	id.recentlyAdded(0, 2, 2)
+
+	if !id.isRecentlyAdded(0, 2, 1) {
+		t.Error("should be marked as added")
 	}
 }

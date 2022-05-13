@@ -961,10 +961,10 @@ func (p *Probe) FlushDiscarders() error {
 	// Sleeping a bit to avoid races with executing kprobes and setting discarders
 	time.Sleep(time.Second)
 
-	var discardedInodes []inodeDiscarder
+	var discardedInodes []inodeDiscarderMapEntry
 	var mapValue [256]byte
 
-	var inode inodeDiscarder
+	var inode inodeDiscarderMapEntry
 	for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, unsafe.Pointer(&mapValue[0])); {
 		discardedInodes = append(discardedInodes, inode)
 	}
