@@ -104,7 +104,6 @@ func remoteConfigHandler(r *api.HTTPReceiver, client pbgo.AgentSecureClient, tok
 
 func getContainerTags(req *http.Request, cfg *config.AgentConfig) []string {
 	if cfg == nil || cfg.ContainerTags == nil {
-		_ = log.Warn("ContainerTags not configured")
 		return nil
 	}
 	if cid := req.Header.Get(headerContainerID); cid != "" {
