@@ -123,55 +123,55 @@ func defaultLabelJoins() map[string]*JoinsConfig {
 
 	return map[string]*JoinsConfig{
 		"kube_pod_status_phase": {
-			LabelsToMatch: []string{"pod", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("pod"),
 			LabelsToGet:   []string{"phase"},
 		},
 		"kube_pod_info": {
-			LabelsToMatch: []string{"pod", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("pod"),
 			LabelsToGet:   []string{"node", "created_by_kind", "created_by_name", "priority_class"},
 		},
 		"kube_persistentvolume_info": {
-			LabelsToMatch: []string{"persistentvolume"}, // persistent volumes are not namespaced
+			LabelsToMatch: getLabelToMatchForKind("persistentvolume"),
 			LabelsToGet:   []string{"storageclass"},
 		},
 		"kube_persistentvolumeclaim_info": {
-			LabelsToMatch: []string{"persistentvolumeclaim", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("persistentvolumeclaim"),
 			LabelsToGet:   []string{"storageclass"},
 		},
 		"kube_pod_labels": {
-			LabelsToMatch: []string{"pod", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("pod"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_pod_status_reason": {
-			LabelsToMatch: []string{"pod", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("pod"),
 			LabelsToGet:   []string{"reason"},
 		},
 		"kube_deployment_labels": {
-			LabelsToMatch: []string{"deployment", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("deployment"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_replicaset_labels": {
-			LabelsToMatch: []string{"replicaset", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("replicaset"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_daemonset_labels": {
-			LabelsToMatch: []string{"daemonset", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("daemonset"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_statefulset_labels": {
-			LabelsToMatch: []string{"statefulset", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("statefulset"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_job_labels": {
-			LabelsToMatch: []string{"job_name", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("job_name"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_cronjob_labels": {
-			LabelsToMatch: []string{"cronjob", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("cronjob"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_node_labels": {
-			LabelsToMatch: []string{"node"},
+			LabelsToMatch: getLabelToMatchForKind("node"),
 			LabelsToGet: []string{
 				"label_topology_kubernetes_io_region",            // k8s v1.17+
 				"label_topology_kubernetes_io_zone",              // k8s v1.17+
@@ -180,8 +180,26 @@ func defaultLabelJoins() map[string]*JoinsConfig {
 			},
 		},
 		"kube_node_info": {
-			LabelsToMatch: []string{"node"},
+			LabelsToMatch: getLabelToMatchForKind("node"),
 			LabelsToGet:   []string{"container_runtime_version", "kernel_version", "kubelet_version", "os_image"},
 		},
+	}
+}
+
+// getLabelToMatchForKind returns the set of labels use to match
+// a resource.
+// this function centralized the logic about label_joins.labelToMatch
+// configuration, because some resource like `job` is use a non standard
+// label or and because some other resource doesn't need the `namespace` label.
+func getLabelToMatchForKind(kind string) []string {
+	switch kind {
+	case "job": // job metrics use specific label
+		return []string{"job_name", "namespace"}
+	case "node": // persistent nodes are not namespaced
+		return []string{"node"}
+	case "persistentvolume": // persistent volumes are not namespaced
+		return []string{"persistentvolume"}
+	default:
+		return []string{kind, "namespace"}
 	}
 }

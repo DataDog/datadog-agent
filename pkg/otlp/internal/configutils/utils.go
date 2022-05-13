@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/config"
-	"go.opentelemetry.io/collector/config/configunmarshaler"
 	"go.opentelemetry.io/collector/service"
 	"gopkg.in/yaml.v2"
 )
@@ -51,7 +50,7 @@ func (m *mapProvider) Retrieve(_ context.Context, uri string, _ config.WatcherFu
 		return config.Retrieved{}, fmt.Errorf("%v location is not supported by %v provider", uri, mapSchemeName)
 	}
 
-	return config.Retrieved{Map: m.cfg}, nil
+	return config.NewRetrievedFromMap(m.cfg), nil
 }
 
 func (m *mapProvider) Scheme() string {
@@ -71,7 +70,6 @@ func NewConfigProviderFromMap(cfg *config.Map) service.ConfigProvider {
 			"map": provider,
 		},
 		MapConverters: []config.MapConverterFunc{},
-		Unmarshaler:   configunmarshaler.NewDefault(),
 	}
 	cp, err := service.NewConfigProvider(settings)
 	if err != nil {

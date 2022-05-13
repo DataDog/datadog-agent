@@ -355,6 +355,10 @@ CWS logs have the following JSON schema:
         "outcome": {
             "type": "string",
             "description": "Event outcome"
+        },
+        "async": {
+            "type": "boolean",
+            "description": "True if the event was asynchronous"
         }
     },
     "additionalProperties": false,
@@ -368,6 +372,7 @@ CWS logs have the following JSON schema:
 | `name` | Event name |
 | `category` | Event category |
 | `outcome` | Event outcome |
+| `async` | True if the event was asynchronous |
 
 
 ## `File`

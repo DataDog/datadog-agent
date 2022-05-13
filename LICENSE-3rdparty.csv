@@ -785,7 +785,6 @@ core,go.opentelemetry.io/collector/config/confighttp,Apache-2.0,Copyright The Op
 core,go.opentelemetry.io/collector/config/confignet,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configtelemetry,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configtls,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/config/configunmarshaler,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/experimental/configsource,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/mapconverter/expandmapconverter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/mapconverter/overwritepropertiesmapconverter,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -801,6 +800,7 @@ core,go.opentelemetry.io/collector/exporter/otlpexporter,Apache-2.0,Copyright Th
 core,go.opentelemetry.io/collector/extension/ballastextension,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/extension/experimental/storage,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/cgroups,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/internal/configunmarshaler,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/iruntime,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/middleware,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/obsreportconfig,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -808,8 +808,6 @@ core,go.opentelemetry.io/collector/internal/obsreportconfig/obsmetrics,Apache-2.
 core,go.opentelemetry.io/collector/internal/sharedcomponent,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/testdata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/version,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/model/semconv/v1.5.0,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/model/semconv/v1.6.1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/obsreport,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/internal/data,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -835,6 +833,8 @@ core,go.opentelemetry.io/collector/receiver/otlpreceiver/internal/logs,Apache-2.
 core,go.opentelemetry.io/collector/receiver/otlpreceiver/internal/metrics,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/receiver/otlpreceiver/internal/trace,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/receiver/scrapererror,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/semconv/v1.5.0,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/semconv/v1.6.1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/featuregate,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal,Apache-2.0,Copyright The OpenTelemetry Authors

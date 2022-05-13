@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
+enhancements:
   - |
-    OTLP ingest now supports the same settings and protocol version as the OpenTelemetry Collector OTLP receiver v0.50.0.
+    Adds ``segment_name`` and ``segment_id`` tags to PCF containers that belong to an isolation segment.

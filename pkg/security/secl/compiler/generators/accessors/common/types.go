@@ -25,7 +25,8 @@ type Module struct {
 	SourcePkg       string
 	TargetPkg       string
 	BuildTags       []string
-	Fields          map[string]*StructField
+	Fields          map[string]*StructField // only exposed fields by SECL
+	AllFields       map[string]*StructField
 	Iterators       map[string]*StructField
 	EventTypes      map[string]*EventTypeMetadata
 	Mock            bool

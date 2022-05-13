@@ -22,13 +22,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // RuntimeSecurityAgent represents the main wrapper for the Runtime Security product
 type RuntimeSecurityAgent struct {
 	hostname      string
-	reporter      event.Reporter
+	reporter      common.RawReporter
 	client        *RuntimeSecurityClient
 	running       uatomic.Bool
 	wg            sync.WaitGroup

@@ -30,7 +30,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/common"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/doc"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/resolver"
 )
 
 const (
@@ -66,6 +65,15 @@ func origTypeToBasicType(kind string) string {
 		return "int"
 	}
 	return kind
+}
+
+func qualifiedType(module *common.Module, kind string) string {
+	switch kind {
+	case "int", "string", "bool":
+		return kind
+	default:
+		return module.SourcePkgPrefix + kind
+	}
 }
 
 func handleBasic(module *common.Module, name, alias, kind, event string, iterator *common.StructField, isArray bool, opOverrides string, commentText string) {
@@ -259,21 +267,26 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 							alias = aliasPrefix + "." + fieldAlias
 						}
 
-						if iterator := seclField.iterator; iterator != "" {
-							qualifiedType := func(t string) string {
-								switch t {
-								case "int", "string", "bool":
-									return t
-								default:
-									return module.SourcePkgPrefix + t
-								}
-							}
+						name := fmt.Sprintf("%s.%s", prefix, fieldName)
+						if len(prefix) == 0 {
+							name = fieldName
+						}
 
+						// maintain a list of all the fields
+						module.AllFields[name] = &common.StructField{
+							Name:          name,
+							Event:         event,
+							OrigType:      qualifiedType(module, fieldType),
+							IsOrigTypePtr: isPointer,
+							IsArray:       isArray,
+						}
+
+						if iterator := seclField.iterator; iterator != "" {
 							module.Iterators[alias] = &common.StructField{
-								Name:                fmt.Sprintf("%s.%s", prefix, fieldName),
-								ReturnType:          qualifiedType(iterator),
+								Name:                name,
+								ReturnType:          qualifiedType(module, iterator),
 								Event:               event,
-								OrigType:            qualifiedType(fieldType),
+								OrigType:            qualifiedType(module, fieldType),
 								IsOrigTypePtr:       isPointer,
 								IsArray:             isArray,
 								Weight:              weight,
@@ -292,7 +305,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 
 							module.Fields[fieldAlias] = &common.StructField{
 								Prefix:              prefix,
-								Name:                fmt.Sprintf("%s.%s", prefix, fieldName),
+								Name:                name,
 								BasicType:           origTypeToBasicType(fieldType),
 								Struct:              typeSpec.Name.Name,
 								Handler:             handler,
@@ -305,6 +318,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								CommentText:         fieldCommentText,
 								OpOverrides:         opOverrides,
 								CachelessResolution: seclField.cachelessResolution,
+								IsOrigTypePtr:       isPointer,
 							}
 
 							if _, ok = module.EventTypes[event]; !ok {
@@ -348,6 +362,22 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 							if verbose {
 								log.Printf("Embedded struct %s", ident.Name)
 							}
+
+							name := fmt.Sprintf("%s.%s", prefix, ident.Name)
+							if len(prefix) == 0 {
+								name = ident.Name
+							}
+							fieldType, isPointer, isArray := getFieldIdentName(field.Type)
+
+							// maintain a list of all the fields
+							module.AllFields[name] = &common.StructField{
+								Name:          name,
+								Event:         event,
+								OrigType:      qualifiedType(module, fieldType),
+								IsOrigTypePtr: isPointer,
+								IsArray:       isArray,
+							}
+
 							handleSpec(module, astFile, embedded.Decl, prefix+"."+ident.Name, aliasPrefix, event, fieldIterator, dejavu)
 						}
 					}
@@ -408,6 +438,7 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 		TargetPkg:  pkgName,
 		BuildTags:  buildTags,
 		Fields:     make(map[string]*common.StructField),
+		AllFields:  make(map[string]*common.StructField),
 		Iterators:  make(map[string]*common.StructField),
 		EventTypes: make(map[string]*common.EventTypeMetadata),
 		Mock:       mock,
@@ -446,12 +477,35 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 	return module, nil
 }
 
+func newField(allFields map[string]*common.StructField, field *common.StructField) string {
+	var path, result string
+	for _, node := range strings.Split(field.Name, ".") {
+		if path != "" {
+			path += "." + node
+		} else {
+			path = node
+		}
+
+		if field, ok := allFields[path]; ok {
+			if field.IsOrigTypePtr {
+				result += fmt.Sprintf("if e.%s == nil { e.%s = &%s{} }\n", field.Name, field.Name, field.OrigType)
+			}
+		}
+	}
+
+	return result
+}
+
 var funcMap = map[string]interface{}{
 	"TrimPrefix": strings.TrimPrefix,
+	"NewField":   newField,
 }
 
 //go:embed accessors.tmpl
 var accessorsTemplateCode string
+
+//go:embed fields_resolver.tmpl
+var fieldsResolverTemplate string
 
 func main() {
 	module, err := parseFile(filename, pkgname)
@@ -460,7 +514,7 @@ func main() {
 	}
 
 	if len(fieldsResolverOutput) > 0 {
-		if err = resolver.GenerateFieldsResolver(module, fieldsResolverOutput); err != nil {
+		if err = GenerateContent(fieldsResolverOutput, module, fieldsResolverTemplate); err != nil {
 			panic(err)
 		}
 	}
@@ -473,13 +527,14 @@ func main() {
 	}
 
 	os.Remove(output)
-	if err := generateContent(output, module); err != nil {
+	if err := GenerateContent(output, module, accessorsTemplateCode); err != nil {
 		panic(err)
 	}
 }
 
-func generateContent(output string, module *common.Module) error {
-	tmpl := template.Must(template.New("header").Funcs(funcMap).Parse(accessorsTemplateCode))
+// GenerateContent generates with the given template
+func GenerateContent(output string, module *common.Module, tmplCode string) error {
+	tmpl := template.Must(template.New("header").Funcs(funcMap).Parse(tmplCode))
 
 	buffer := bytes.Buffer{}
 	if err := tmpl.Execute(&buffer, module); err != nil {
@@ -488,7 +543,7 @@ func generateContent(output string, module *common.Module) error {
 
 	cleaned := removeEmptyLines(&buffer)
 
-	tmpfile, err := os.CreateTemp(path.Dir(output), "accessors")
+	tmpfile, err := os.CreateTemp(path.Dir(output), "secl-helpers")
 	if err != nil {
 		return err
 	}
