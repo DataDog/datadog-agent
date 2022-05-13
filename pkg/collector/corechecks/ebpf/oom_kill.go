@@ -7,8 +7,8 @@
 // github.com/DataDog/datadog-agent/pkg/process/net depends on `github.com/DataDog/agent-payload/v5/process`,
 // which has a hard dependency on `github.com/DataDog/zstd_0`, which requires CGO.
 // Should be removed once `github.com/DataDog/agent-payload/v5/process` can be imported with CGO disabled.
-// +build cgo
-// +build linux
+//go:build cgo && linux
+// +build cgo,linux
 
 package ebpf
 
@@ -20,7 +20,6 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -28,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -97,7 +97,7 @@ func (m *OOMKillCheck) Run() error {
 	}
 
 	// sender is just what is used to submit the data
-	sender, err := aggregator.GetSender(m.ID())
+	sender, err := m.GetSender()
 	if err != nil {
 		return err
 	}
@@ -109,18 +109,24 @@ func (m *OOMKillCheck) Run() error {
 		return log.Errorf("Raw data has incorrect type")
 	}
 	for _, line := range oomkillStats {
-		entityID := containers.BuildTaggerEntityName(line.ContainerID)
+		containerID, err := cgroups.ContainerFilter("", line.CgroupName)
+		if err != nil || containerID == "" {
+			log.Warnf("Unable to extract containerID from cgroup name: %s, err: %v", line.CgroupName, err)
+			continue
+		}
+
+		entityID := containers.BuildTaggerEntityName(containerID)
 		var tags []string
 		if entityID != "" {
 			tags, err = tagger.Tag(entityID, tagger.ChecksCardinality)
 			if err != nil {
-				log.Errorf("Error collecting tags for container %s: %s", line.ContainerID, err)
+				log.Errorf("Error collecting tags for container %s: %s", containerID, err)
 			}
 		}
 
 		if line.MemCgOOM == 1 {
 			triggerType = "cgroup"
-			triggerTypeText = fmt.Sprintf("This OOM kill was invoked by a cgroup, containerID: %s.", line.ContainerID)
+			triggerTypeText = fmt.Sprintf("This OOM kill was invoked by a cgroup, containerID: %s.", containerID)
 		} else {
 			triggerType = "system"
 			triggerTypeText = "This OOM kill was invoked by the system."
@@ -138,7 +144,7 @@ func (m *OOMKillCheck) Run() error {
 			Priority:       metrics.EventPriorityNormal,
 			SourceTypeName: oomKillCheckName,
 			EventType:      oomKillCheckName,
-			AggregationKey: line.ContainerID,
+			AggregationKey: containerID,
 			Title:          fmt.Sprintf("Process OOM Killed: oom_kill_process called on %s (pid: %d)", line.TComm, line.TPid),
 			Tags:           tags,
 		}

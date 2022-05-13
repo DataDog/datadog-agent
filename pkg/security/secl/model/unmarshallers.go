@@ -6,8 +6,13 @@
 package model
 
 import (
+	"encoding/binary"
+	"fmt"
+	"strings"
 	"time"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 // BinaryUnmarshaler interface implemented by every event type
@@ -17,13 +22,13 @@ type BinaryUnmarshaler interface {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
-	id, err := UnmarshalString(data, 64)
+	id, err := UnmarshalString(data, ContainerIDLen)
 	if err != nil {
 		return 0, err
 	}
-	e.ID = FindContainerID(id)
+	e.ID = id
 
-	return 64, nil
+	return ContainerIDLen, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -54,8 +59,9 @@ func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
 		return n, ErrNotEnoughData
 	}
 
-	e.UID = ByteOrder.Uint32(data[0:4])
-	e.GID = ByteOrder.Uint32(data[4:8])
+	// First convert to int32 to sign extend, then convert to int64
+	e.UID = int64(int32(ByteOrder.Uint32(data[0:4])))
+	e.GID = int64(int32(ByteOrder.Uint32(data[4:8])))
 	return n + 8, nil
 }
 
@@ -127,10 +133,15 @@ func unmarshalTime(data []byte) time.Time {
 	return time.Time{}
 }
 
+// isValidTTYName uses a naive assumption as other tty driver may create tty with other prefix
+func isValidTTYName(ttyName string) bool {
+	return IsPrintableASCII(ttyName) && (strings.HasPrefix(ttyName, "tty") || strings.HasPrefix(ttyName, "pts"))
+}
+
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	// Unmarshal proc_cache_t
-	read, err := UnmarshalBinary(data, &e.FileFields)
+	read, err := UnmarshalBinary(data, &e.FileEvent)
 	if err != nil {
 		return 0, err
 	}
@@ -139,7 +150,7 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.ExecTime = time.Unix(0, int64(ByteOrder.Uint64(data[read:read+8])))
+	e.ExecTime = unmarshalTime(data[read : read+8])
 	read += 8
 
 	var ttyRaw [64]byte
@@ -148,7 +159,7 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if IsPrintableASCII(ttyName) {
+	if isValidTTYName(ttyName) {
 		e.TTYName = ttyName
 	}
 	read += 64
@@ -162,7 +173,10 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	read += 16
 
 	// Unmarshal pid_cache_t
-	e.Cookie = ByteOrder.Uint32(data[read : read+4])
+	cookie := ByteOrder.Uint32(data[read : read+4])
+	if cookie > 0 {
+		e.Cookie = cookie
+	}
 	e.PPid = ByteOrder.Uint32(data[read+4 : read+8])
 
 	e.ForkTime = unmarshalTime(data[read+8 : read+16])
@@ -176,6 +190,10 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	}
 	read += n
 
+	if len(data[read:]) < 16 {
+		return 0, ErrNotEnoughData
+	}
+
 	e.ArgsID = ByteOrder.Uint32(data[read : read+4])
 	e.ArgsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
 	read += 8
@@ -185,11 +203,6 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	read += 8
 
 	return read, nil
-}
-
-// UnmarshalBinary unmarshalls a binary representation of itself
-func (e *ExecEvent) UnmarshalBinary(data []byte) (int, error) {
-	return UnmarshalBinary(data, &e.Process)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -377,15 +390,16 @@ func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
-func (p *ProcessContext) UnmarshalBinary(data []byte) (int, error) {
+func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
 
 	p.Pid = ByteOrder.Uint32(data[0:4])
 	p.Tid = ByteOrder.Uint32(data[4:8])
-
-	return 8, nil
+	p.NetNS = ByteOrder.Uint32(data[8:12])
+	// padding (4 bytes)
+	return 16, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -416,11 +430,16 @@ func (e *SetXAttrEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *SyscallEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 8 {
+	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
 	e.Retval = int64(ByteOrder.Uint64(data[0:8]))
-	return 8, nil
+	if ByteOrder.Uint64(data[8:16]) != 0 {
+		e.Async = true
+	} else {
+		e.Async = false
+	}
+	return 16, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -549,7 +568,7 @@ func (m *BPFMap) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (p *BPFProgram) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 56 {
+	if len(data) < 64 {
 		return 0, ErrNotEnoughData
 	}
 	p.ID = ByteOrder.Uint32(data[0:4])
@@ -567,7 +586,10 @@ func (p *BPFProgram) UnmarshalBinary(data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	return 56, nil
+	for _, b := range data[56:64] {
+		p.Tag += fmt.Sprintf("%x", b)
+	}
+	return 64, nil
 }
 
 func parseHelpers(helpers []uint64) []uint32 {
@@ -599,4 +621,282 @@ func parseHelpers(helpers []uint64) []uint32 {
 		}
 	}
 	return rep
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *PTraceEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 16 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Request = ByteOrder.Uint32(data[read : read+4])
+	e.PID = ByteOrder.Uint32(data[read+4 : read+8])
+	e.Address = ByteOrder.Uint64(data[read+8 : read+16])
+	return read + 16, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *MMapEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 28 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Addr = ByteOrder.Uint64(data[read : read+8])
+	e.Offset = ByteOrder.Uint64(data[read+8 : read+16])
+	e.Len = ByteOrder.Uint32(data[read+16 : read+20])
+	e.Protection = int(ByteOrder.Uint32(data[read+20 : read+24]))
+	e.Flags = int(ByteOrder.Uint32(data[read+24 : read+28]))
+	return read + 28, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *MProtectEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 32 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.VMStart = ByteOrder.Uint64(data[read : read+8])
+	e.VMEnd = ByteOrder.Uint64(data[read+8 : read+16])
+	e.VMProtection = int(ByteOrder.Uint32(data[read+16 : read+24]))
+	e.ReqProtection = int(ByteOrder.Uint32(data[read+24 : read+32]))
+	return read + 32, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *LoadModuleEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 60 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Name, err = UnmarshalString(data[read:read+56], 56)
+	if err != nil {
+		return 0, err
+	}
+	e.LoadedFromMemory = ByteOrder.Uint32(data[read+56:read+60]) == uint32(1)
+	return read + 60, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *UnloadModuleEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 56 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Name, err = UnmarshalString(data[read:read+56], 56)
+	if err != nil {
+		return 0, err
+	}
+	return read + 56, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *SignalEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.PID = ByteOrder.Uint32(data[read : read+4])
+	e.Type = ByteOrder.Uint32(data[read+4 : read+8])
+	return read + 8, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *SpliceEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.PipeEntryFlag = ByteOrder.Uint32(data[read : read+4])
+	e.PipeExitFlag = ByteOrder.Uint32(data[read+4 : read+8])
+	return read + 4, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.ContainerContext)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.TimeoutRaw = ByteOrder.Uint64(data[read : read+8])
+	return read + 8, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *NetworkDeviceContext) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+	e.NetNS = ByteOrder.Uint32(data[0:4])
+	e.IfIndex = ByteOrder.Uint32(data[4:8])
+	return 8, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *NetworkContext) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.Device)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 44 {
+		return 0, ErrNotEnoughData
+	}
+
+	srcIP, dstIP := data[read:read+16], data[read+16:read+32]
+	e.Source.Port = binary.BigEndian.Uint16(data[read+32 : read+34])
+	e.Destination.Port = binary.BigEndian.Uint16(data[read+34 : read+36])
+	// padding 4 bytes
+
+	e.Size = ByteOrder.Uint32(data[read+40 : read+44])
+	e.L3Protocol = ByteOrder.Uint16(data[read+44 : read+46])
+	e.L4Protocol = ByteOrder.Uint16(data[read+46 : read+48])
+
+	// readjust IP sizes depending on the protocol
+	switch e.L3Protocol {
+	case 0x800: // unix.ETH_P_IP
+		e.Source.IPNet = *eval.IPNetFromIP(srcIP[0:4])
+		e.Destination.IPNet = *eval.IPNetFromIP(dstIP[0:4])
+	default:
+		e.Source.IPNet = *eval.IPNetFromIP(srcIP)
+		e.Destination.IPNet = *eval.IPNetFromIP(dstIP)
+	}
+	return read + 48, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 10 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.ID = ByteOrder.Uint16(data[0:2])
+	e.Count = ByteOrder.Uint16(data[2:4])
+	e.Type = ByteOrder.Uint16(data[4:6])
+	e.Class = ByteOrder.Uint16(data[6:8])
+	e.Size = ByteOrder.Uint16(data[8:10])
+	e.Name = decodeDNS(data[10:])
+	return len(data), nil
+}
+
+func decodeDNS(raw []byte) string {
+	rawLen := len(raw)
+	rep := ""
+	i := 0
+	for {
+		// Parse label length
+		if rawLen < i+1 {
+			break
+		}
+		labelLen := int(raw[i])
+
+		if rawLen-(i+1) < labelLen || labelLen == 0 {
+			break
+		}
+		labelRaw := raw[i+1 : i+1+labelLen]
+
+		if i == 0 {
+			rep = string(labelRaw)
+		} else {
+			rep = rep + "." + string(labelRaw)
+		}
+		i += labelLen + 1
+	}
+	return rep
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (d *NetDevice) UnmarshalBinary(data []byte) (int, error) {
+	if len(data[:]) < 32 {
+		return 0, ErrNotEnoughData
+	}
+
+	var err error
+	d.Name, err = UnmarshalString(data[0:16], 16)
+	if err != nil {
+		return 0, err
+	}
+	d.NetNS = ByteOrder.Uint32(data[16:20])
+	d.IfIndex = ByteOrder.Uint32(data[20:24])
+	d.PeerNetNS = ByteOrder.Uint32(data[24:28])
+	d.PeerIfIndex = ByteOrder.Uint32(data[28:32])
+	return 32, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *NetDeviceEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+	cursor := read
+
+	read, err = e.Device.UnmarshalBinary(data[cursor:])
+	if err != nil {
+		return 0, err
+	}
+	cursor += read
+	return cursor, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *VethPairEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+	cursor := read
+
+	read, err = e.HostDevice.UnmarshalBinary(data[cursor:])
+	if err != nil {
+		return 0, err
+	}
+	cursor += read
+
+	read, err = e.PeerDevice.UnmarshalBinary(data[cursor:])
+	if err != nil {
+		return 0, err
+	}
+	cursor += read
+
+	return cursor, nil
 }

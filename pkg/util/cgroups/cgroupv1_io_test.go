@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	sampleIOEmptyServiceBytes = `Total 0`
-	sampleIOServiceBytes      = `8:16 Read 585728
+	sampleIOEmpty        = `Total 0`
+	sampleIOServiceBytes = `8:16 Read 585728
 8:16 Write 0
 8:16 Sync 0
 8:16 Async 585728
@@ -100,7 +100,8 @@ func TestCgroupV1IOStats(t *testing.T) {
 
 	// Test reading files in blkio controller, empty file
 	tr.reset()
-	cfs.setCgroupV1File(cgFoo1, "blkio", "blkio.throttle.io_service_bytes", sampleIOEmptyServiceBytes)
+	cfs.setCgroupV1File(cgFoo1, "blkio", "blkio.throttle.io_service_bytes", sampleIOEmpty)
+	cfs.setCgroupV1File(cgFoo1, "blkio", "blkio.throttle.io_serviced", sampleIOEmpty)
 	stats = &IOStats{}
 	err = cgFoo1.GetIOStats(stats)
 	assert.NoError(t, err)
@@ -108,13 +109,8 @@ func TestCgroupV1IOStats(t *testing.T) {
 	assert.Empty(t, cmp.Diff(IOStats{
 		ReadBytes:       uint64Ptr(0),
 		WriteBytes:      uint64Ptr(0),
-		ReadOperations:  uint64Ptr(38),
-		WriteOperations: uint64Ptr(27528),
-		Devices: map[string]DeviceIOStats{
-			"259:0": {
-				ReadOperations:  uint64Ptr(38),
-				WriteOperations: uint64Ptr(27528),
-			},
-		},
+		ReadOperations:  uint64Ptr(0),
+		WriteOperations: uint64Ptr(0),
+		Devices:         nil,
 	}, *stats))
 }

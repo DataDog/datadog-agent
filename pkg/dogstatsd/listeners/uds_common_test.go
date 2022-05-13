@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
 // +build !windows
+
 // UDS won't work in windows
 
 package listeners
@@ -93,7 +95,7 @@ func TestStartStopUDSListener(t *testing.T) {
 	conn.Close()
 
 	s.Stop()
-	conn, err = net.Dial("unixgram", socketPath)
+	_, err = net.Dial("unixgram", socketPath)
 	assert.NotNil(t, err)
 }
 

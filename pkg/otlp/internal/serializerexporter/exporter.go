@@ -11,10 +11,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/translator"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 )
 
@@ -26,19 +27,24 @@ func newDefaultConfig() config.Exporter {
 		// Disable timeout; we don't really do HTTP requests on the ConsumeMetrics call.
 		TimeoutSettings: exporterhelper.TimeoutSettings{Timeout: 0},
 		// TODO (AP-1294): Fine-tune queue settings and look into retry settings.
-		QueueSettings: exporterhelper.DefaultQueueSettings(),
+		QueueSettings: exporterhelper.NewDefaultQueueSettings(),
 
 		Metrics: metricsConfig{
-			SendMonotonic: true,
-			DeltaTTL:      3600,
-			Quantiles:     true,
+			DeltaTTL: 3600,
 			ExporterConfig: metricsExporterConfig{
 				ResourceAttributesAsTags:             false,
 				InstrumentationLibraryMetadataAsTags: false,
 			},
+			TagCardinality: collectors.LowCardinalityString,
 			HistConfig: histogramConfig{
 				Mode:         "distributions",
 				SendCountSum: false,
+			},
+			SumConfig: sumConfig{
+				CumulativeMonotonicMode: CumulativeMonotonicSumModeToDelta,
+			},
+			SummaryConfig: summaryConfig{
+				Mode: SummaryModeGauges,
 			},
 		},
 	}
@@ -57,9 +63,10 @@ func (f hostnameProviderFunc) Hostname(ctx context.Context) (string, error) {
 // exporter translate OTLP metrics into the Datadog format and sends
 // them to the agent serializer.
 type exporter struct {
-	tr       *translator.Translator
-	s        serializer.MetricSerializer
-	hostname string
+	tr          *translator.Translator
+	s           serializer.MetricSerializer
+	hostname    string
+	cardinality collectors.TagCardinality
 }
 
 func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.Translator, error) {
@@ -81,7 +88,8 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 		options = append(options, translator.WithCountSumMetrics())
 	}
 
-	if cfg.Metrics.Quantiles {
+	switch cfg.Metrics.SummaryConfig.Mode {
+	case SummaryModeGauges:
 		options = append(options, translator.WithQuantiles())
 	}
 
@@ -94,10 +102,11 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 	}
 
 	var numberMode translator.NumberMode
-	if cfg.Metrics.SendMonotonic {
-		numberMode = translator.NumberModeCumulativeToDelta
-	} else {
+	switch cfg.Metrics.SumConfig.CumulativeMonotonicMode {
+	case CumulativeMonotonicSumModeRawValue:
 		numberMode = translator.NumberModeRawValue
+	case CumulativeMonotonicSumModeToDelta:
+		numberMode = translator.NumberModeCumulativeToDelta
 	}
 	options = append(options, translator.WithNumberMode(numberMode))
 
@@ -115,15 +124,21 @@ func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporte
 		return nil, err
 	}
 
+	cardinality, err := collectors.StringToTagCardinality(cfg.Metrics.TagCardinality)
+	if err != nil {
+		return nil, err
+	}
+
 	return &exporter{
-		tr:       tr,
-		s:        s,
-		hostname: hostname,
+		tr:          tr,
+		s:           s,
+		hostname:    hostname,
+		cardinality: cardinality,
 	}, nil
 }
 
-func (e *exporter) ConsumeMetrics(ctx context.Context, ld pdata.Metrics) error {
-	consumer := &serializerConsumer{}
+func (e *exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
+	consumer := &serializerConsumer{cardinality: e.cardinality}
 	err := e.tr.MapMetrics(ctx, ld, consumer)
 	if err != nil {
 		return err

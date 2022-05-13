@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package docker
@@ -168,7 +169,7 @@ func TestResolveImageNameFromContainerError(t *testing.T) {
 	assert := assert.New(t)
 
 	// This returns a nil client because the transport verification fails
-	cli, _ := client.NewEnvClient()
+	cli, _ := client.NewClientWithOpts(client.FromEnv)
 
 	globalDockerUtil = &DockerUtil{
 		cfg:            &Config{CollectNetwork: false},

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux || freebsd || netbsd || openbsd || solaris || dragonfly
 // +build linux freebsd netbsd openbsd solaris dragonfly
 
 package host
@@ -10,7 +11,7 @@ package host
 import (
 	"runtime"
 
-	"github.com/shirou/gopsutil/host"
+	"github.com/shirou/gopsutil/v3/host"
 )
 
 type osVersion [3]string

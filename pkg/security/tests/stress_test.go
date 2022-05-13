@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build stresstests
 // +build stresstests
 
 package tests
@@ -69,11 +70,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 			}
 		}
 
-		if err := f.Close(); err != nil {
-			return err
-		}
-
-		return nil
+		return f.Close()
 	}
 
 	opts := StressOpts{
@@ -98,7 +95,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 	}
 
 	report.AddMetric("lost", float64(perfBufferMonitor.GetLostCount("events", -1)), "lost")
-	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetKernelLostCount("events", -1)), "lost")
+	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetKernelLostCount("events", -1)), "kernel lost")
 	report.AddMetric("events", float64(events), "events")
 	report.AddMetric("events/sec", float64(events)/report.Duration.Seconds(), "event/s")
 
@@ -204,15 +201,12 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 
 	fnc := func() error {
 		cmd := exec.Command(executable, testFile)
-		if _, err := cmd.CombinedOutput(); err != nil {
-			return err
-		}
-
-		return nil
+		_, err := cmd.CombinedOutput()
+		return err
 	}
 
 	opts := StressOpts{
-		Duration:    40 * time.Second,
+		Duration:    time.Duration(duration) * time.Second,
 		KeepProfile: keepProfile,
 		DiffBase:    diffBase,
 		TopFrom:     "probe",
@@ -225,9 +219,13 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 	})
 	defer test.RegisterRuleEventHandler(nil)
 
-	report, err := StressIt(t, nil, nil, fnc, opts)
-	test.RegisterRuleEventHandler(nil)
+	kevents := 0
+	test.RegisterEventHandler(func(_ *sprobe.Event) {
+		kevents++
+	})
+	defer test.RegisterRuleEventHandler(nil)
 
+	report, err := StressIt(t, nil, nil, fnc, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,9 +233,11 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 	time.Sleep(2 * time.Second)
 
 	report.AddMetric("lost", float64(perfBufferMonitor.GetLostCount("events", -1)), "lost")
-	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetKernelLostCount("events", -1)), "lost")
+	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetKernelLostCount("events", -1)), "kernel lost")
 	report.AddMetric("events", float64(events), "events")
 	report.AddMetric("events/sec", float64(events)/report.Duration.Seconds(), "event/s")
+	report.AddMetric("kevents", float64(kevents), "kevents")
+	report.AddMetric("kevents/sec", float64(kevents)/report.Duration.Seconds(), "kevent/s")
 
 	report.Print(t)
 }
@@ -245,8 +245,8 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 // goal: measure host abality to handle open syscall without any kprobe, act as a reference
 // this benchmark generate syscall but without having kprobe installed
 
-func TestStress_E2EOExecNoKprobe(t *testing.T) {
-	executable := which("touch")
+func TestStress_E2EExecNoKprobe(t *testing.T) {
+	executable := which(t, "touch")
 
 	stressExec(t, nil, "folder1/folder2/folder1/folder2/test", executable)
 }
@@ -254,7 +254,7 @@ func TestStress_E2EOExecNoKprobe(t *testing.T) {
 // goal: measure the impact of an event catched and passed from the kernel to the userspace
 // this benchmark generate event that passs from the kernel to the userspace
 func TestStress_E2EExecEvent(t *testing.T) {
-	executable := which("touch")
+	executable := which(t, "touch")
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -268,5 +268,5 @@ func init() {
 	flag.BoolVar(&keepProfile, "keep-profile", false, "do not delete profile after run")
 	flag.StringVar(&reportFile, "report-file", "", "save report of the stress test")
 	flag.StringVar(&diffBase, "diff-base", "", "source of base stress report for comparison")
-	flag.IntVar(&duration, "duration", 30, "duration of the run in second")
+	flag.IntVar(&duration, "duration", 60, "duration of the run in second")
 }

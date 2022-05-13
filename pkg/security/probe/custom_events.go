@@ -5,6 +5,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -29,6 +30,8 @@ const (
 	NoisyProcessRuleID = "noisy_process"
 	// AbnormalPathRuleID is the rule ID for the abnormal_path events
 	AbnormalPathRuleID = "abnormal_path"
+	// SelfTestRuleID is the rule ID for the self_test events
+	SelfTestRuleID = "self_test"
 )
 
 // AllCustomRuleIDs returns the list of custom rule IDs
@@ -38,6 +41,7 @@ func AllCustomRuleIDs() []string {
 		RulesetLoadedRuleID,
 		NoisyProcessRuleID,
 		AbnormalPathRuleID,
+		SelfTestRuleID,
 	}
 }
 
@@ -266,12 +270,13 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 // NoisyProcessEvent is used to report that a noisy process was temporarily discarded
 // easyjson:json
 type NoisyProcessEvent struct {
-	Timestamp      time.Time                `json:"date"`
-	Count          uint64                   `json:"pid_count"`
-	Threshold      int64                    `json:"threshold"`
-	ControlPeriod  time.Duration            `json:"control_period"`
-	DiscardedUntil time.Time                `json:"discarded_until"`
-	Process        ProcessContextSerializer `json:"process"`
+	Timestamp      time.Time     `json:"date"`
+	Count          uint64        `json:"pid_count"`
+	Threshold      int64         `json:"threshold"`
+	ControlPeriod  time.Duration `json:"control_period"`
+	DiscardedUntil time.Time     `json:"discarded_until"`
+	Pid            uint32        `json:"pid"`
+	Comm           string        `json:"comm"`
 }
 
 // NewNoisyProcessEvent returns the rule and a populated custom event for a noisy_process event
@@ -279,11 +284,10 @@ func NewNoisyProcessEvent(count uint64,
 	threshold int64,
 	controlPeriod time.Duration,
 	discardedUntil time.Time,
-	process *model.ProcessCacheEntry,
-	resolvers *Resolvers,
+	pid uint32,
+	comm string,
 	timestamp time.Time) (*rules.Rule, *CustomEvent) {
 
-	processSerializer := newProcessContextSerializer(process, nil, resolvers)
 	return newRule(&rules.RuleDefinition{
 			ID: NoisyProcessRuleID,
 		}), newCustomEvent(model.CustomNoisyProcessEventType, NoisyProcessEvent{
@@ -292,7 +296,8 @@ func NewNoisyProcessEvent(count uint64,
 			Threshold:      threshold,
 			ControlPeriod:  controlPeriod,
 			DiscardedUntil: discardedUntil,
-			Process:        processSerializer,
+			Pid:            pid,
+			Comm:           comm,
 		})
 }
 
@@ -321,5 +326,24 @@ func NewAbnormalPathEvent(event *Event, pathResolutionError error) (*rules.Rule,
 			Timestamp:           event.ResolveEventTimestamp(),
 			Event:               NewEventSerializer(event),
 			PathResolutionError: pathResolutionError.Error(),
+		})
+}
+
+// SelfTestEvent is used to report a self test result
+// easyjson:json
+type SelfTestEvent struct {
+	Timestamp time.Time `json:"date"`
+	Success   []string  `json:"succeeded_tests"`
+	Fails     []string  `json:"failed_tests"`
+}
+
+// NewSelfTestEvent returns the rule and the result of the self test
+func NewSelfTestEvent(success []string, fails []string) (*rules.Rule, *CustomEvent) {
+	return newRule(&rules.RuleDefinition{
+			ID: SelfTestRuleID,
+		}), newCustomEvent(model.CustomSelfTestEventType, SelfTestEvent{
+			Timestamp: time.Now(),
+			Success:   success,
+			Fails:     fails,
 		})
 }

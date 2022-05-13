@@ -6,11 +6,17 @@
 package service
 
 import (
+	"encoding/base32"
+	"encoding/json"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
+	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"go.etcd.io/bbolt"
 )
 
@@ -27,24 +33,59 @@ func openCacheDB(path string) (*bbolt.DB, error) {
 	return db, nil
 }
 
-type remoteConfigKey struct {
-	orgID      int64
-	appKey     string
-	datacenter string
+func parseRemoteConfigKey(serializedKey string) (*msgpgo.RemoteConfigKey, error) {
+	serializedKey = strings.TrimPrefix(serializedKey, "DDRCM_")
+	encoding := base32.StdEncoding.WithPadding(base32.NoPadding)
+	rawKey, err := encoding.DecodeString(serializedKey)
+	if err != nil {
+		return nil, err
+	}
+	var key msgpgo.RemoteConfigKey
+	_, err = key.UnmarshalMsg(rawKey)
+	if err != nil {
+		return nil, err
+	}
+	if key.AppKey == "" || key.Datacenter == "" || key.OrgID == 0 {
+		return nil, fmt.Errorf("invalid remote config key")
+	}
+	return &key, nil
 }
 
-func parseRemoteConfigKey(rawKey string) (remoteConfigKey, error) {
-	split := strings.SplitN(rawKey, "/", 3)
-	if len(split) < 3 {
-		return remoteConfigKey{}, fmt.Errorf("invalid remote configuration key format, should be datacenter/org_id/app_key")
+func buildLatestConfigsRequest(hostname string, state uptane.State, activeClients []*pbgo.Client, products map[data.Product]struct{}, newProducts map[data.Product]struct{}, clientState []byte) *pbgo.LatestConfigsRequest {
+	productsList := make([]data.Product, len(products))
+	i := 0
+	for k := range products {
+		productsList[i] = k
+		i++
 	}
-	orgID, err := strconv.ParseInt(split[1], 10, 64)
+	newProductsList := make([]data.Product, len(newProducts))
+	i = 0
+	for k := range newProducts {
+		newProductsList[i] = k
+		i++
+	}
+	return &pbgo.LatestConfigsRequest{
+		Hostname:                     hostname,
+		AgentVersion:                 version.AgentVersion,
+		Products:                     data.ProductListToString(productsList),
+		NewProducts:                  data.ProductListToString(newProductsList),
+		CurrentConfigSnapshotVersion: state.ConfigSnapshotVersion(),
+		CurrentConfigRootVersion:     state.ConfigRootVersion(),
+		CurrentDirectorRootVersion:   state.DirectorRootVersion(),
+		ActiveClients:                activeClients,
+		BackendClientState:           clientState,
+	}
+}
+
+type targetsCustom struct {
+	ClientState json.RawMessage `json:"client_state"`
+}
+
+func parseTargetsCustom(rawTargetsCustom []byte) (targetsCustom, error) {
+	var custom targetsCustom
+	err := json.Unmarshal(rawTargetsCustom, &custom)
 	if err != nil {
-		return remoteConfigKey{}, err
+		return targetsCustom{}, err
 	}
-	return remoteConfigKey{
-		orgID:      orgID,
-		appKey:     split[2],
-		datacenter: split[0],
-	}, nil
+	return custom, nil
 }

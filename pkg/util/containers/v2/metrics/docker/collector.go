@@ -4,32 +4,34 @@
 // Copyright 2021-present Datadog, Inc.
 
 //go:build docker && (linux || windows)
-// +build docker,linux docker,windows
+// +build docker
+// +build linux windows
 
 package docker
 
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/docker/docker/api/types"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
-	dockerCollectorID    = "docker"
-	statsCacheKey        = "docker-%s"
-	statsCacheExpiration = 10 * time.Second
-)
+	dockerCollectorID = "docker"
 
-type dockerStatsFunc func(ctx context.Context, id string) (*types.StatsJSON, error)
+	pidCacheGCInterval     = 60 * time.Second
+	pidCacheFullRefreshKey = "refreshTime"
+)
 
 func init() {
 	provider.GetProvider().RegisterCollector(provider.CollectorMetadata{
@@ -40,12 +42,14 @@ func init() {
 		Factory: func() (provider.Collector, error) {
 			return newDockerCollector()
 		},
+		DelegateCache: true,
 	})
 }
 
 type dockerCollector struct {
-	du             *docker.DockerUtil
-	lastScrapeTime time.Time
+	du            *docker.DockerUtil
+	pidCache      *provider.Cache
+	metadataStore workloadmeta.Store
 }
 
 func newDockerCollector() (*dockerCollector, error) {
@@ -58,7 +62,11 @@ func newDockerCollector() (*dockerCollector, error) {
 		return nil, provider.ConvertRetrierErr(err)
 	}
 
-	return &dockerCollector{du: du}, nil
+	return &dockerCollector{
+		du:            du,
+		pidCache:      provider.NewCache(pidCacheGCInterval),
+		metadataStore: workloadmeta.GetGlobalStore(),
+	}, nil
 }
 
 func (d *dockerCollector) ID() string {
@@ -66,72 +74,170 @@ func (d *dockerCollector) ID() string {
 }
 
 // GetContainerStats returns stats by container ID.
-func (d *dockerCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
-	stats, err := d.stats(containerID, cacheValidity, d.du.GetContainerStats)
+func (d *dockerCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
+	stats, err := d.stats(containerID)
 	if err != nil {
 		return nil, err
 	}
+	outStats := convertContainerStats(&stats.Stats)
 
-	return convertContainerStats(&stats.Stats), nil
+	contSpec, err := d.spec(containerID)
+	if err == nil {
+		fillStatsFromSpec(outStats, contSpec)
+	} else {
+		log.Debugf("Unable to inspect container some metrics will be missing, cid: %s, err: %v", containerID, err)
+	}
+
+	return outStats, nil
+}
+
+// GetContainerOpenFilesCount returns open files count by container ID.
+func (d *dockerCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
+	// Not available
+	return nil, nil
 }
 
 // GetContainerNetworkStats returns network stats by container ID.
-func (d *dockerCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*provider.ContainerNetworkStats, error) {
-	stats, err := d.stats(containerID, cacheValidity, d.du.GetContainerStats)
+func (d *dockerCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
+	stats, err := d.stats(containerID)
 	if err != nil {
 		return nil, err
 	}
 
-	return convertNetworkStats(stats.Networks, networks), nil
+	return convertNetworkStats(stats), nil
 }
 
-// stats returns stats by container ID, it uses an in-memory cache to reduce the number of api calls.
-// Cache expires every 10 seconds and can also be invalidated using the cacheValidity argument.
-func (d *dockerCollector) stats(containerID string, cacheValidity time.Duration, clientFunc dockerStatsFunc) (*types.StatsJSON, error) {
-	refreshRequired := d.lastScrapeTime.Add(cacheValidity).Before(time.Now())
-	cacheKey := fmt.Sprintf(statsCacheKey, containerID)
-	if cacheStats, found := cache.Cache.Get(cacheKey); found && !refreshRequired {
-		stats := cacheStats.(*types.StatsJSON)
-		log.Debugf("Got docker stats from cache for %s", containerID)
-		return stats, nil
+// GetContainerIDForPID returns the container ID for given PID
+func (d *dockerCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
+	currentTime := time.Now()
+	strPid := strconv.Itoa(pid)
+
+	cID, found, _ := d.pidCache.Get(currentTime, strPid, cacheValidity)
+	if found {
+		return cID.(string), nil
 	}
 
-	stats, err := clientFunc(context.TODO(), containerID)
+	if err := d.refreshPIDCache(currentTime, cacheValidity); err != nil {
+		return "", err
+	}
+
+	// Use harcoded cacheValidity as input one could be 0
+	cID, found, _ = d.pidCache.Get(currentTime, strPid, time.Second)
+	if found {
+		return cID.(string), nil
+	}
+
+	return "", nil
+}
+
+// GetSelfContainerID returns current process container ID
+func (d *dockerCollector) GetSelfContainerID() (string, error) {
+	cID, err := d.GetContainerIDForPID(os.Getpid(), pidCacheGCInterval)
+	if err == nil && cID != "" {
+		return cID, err
+	}
+
+	cID, err = d.GetContainerIDForPID(os.Getppid(), pidCacheGCInterval)
+	if err == nil && cID != "" {
+		return cID, err
+	}
+
+	return "", nil
+}
+
+// stats returns stats by container ID
+func (d *dockerCollector) stats(containerID string) (*types.StatsJSON, error) {
+	stats, err := d.du.GetContainerStats(context.TODO(), containerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get container stats for %s: %w", containerID, err)
 	}
 
-	log.Debugf("Got docker stats from API for container %s", containerID)
-	d.lastScrapeTime = time.Now()
-	cache.Cache.Set(cacheKey, stats, statsCacheExpiration)
-
 	return stats, nil
 }
 
-func convertNetworkStats(networkStats map[string]types.NetworkStats, networks map[string]string) *provider.ContainerNetworkStats {
+func (d *dockerCollector) spec(containerID string) (*types.ContainerJSON, error) {
+	contSpec, err := d.du.Inspect(context.TODO(), containerID, false)
+	if err != nil {
+		return nil, err
+	}
+
+	return &contSpec, nil
+}
+
+func (d *dockerCollector) refreshPIDCache(currentTime time.Time, cacheValidity time.Duration) error {
+	// If we've done a full refresh within cacheValidity, we do not trigger another full refresh
+	// We're using the cache itself with a dedicated key pidCacheFullRefreshKey to know if
+	// we need to perform a full refresh or not to seamlessly handle cacheValidity and cache GC.
+	_, found, err := d.pidCache.Get(currentTime, pidCacheFullRefreshKey, cacheValidity)
+	if found {
+		return err
+	}
+
+	// Full refresh
+	containers, err := d.metadataStore.ListContainers()
+	if err != nil {
+		d.pidCache.Store(currentTime, pidCacheFullRefreshKey, struct{}{}, err)
+		return err
+	}
+
+	for _, container := range containers {
+		if container.Runtime == workloadmeta.ContainerRuntimeDocker && container.PID != 0 {
+			d.pidCache.Store(currentTime, strconv.Itoa(container.PID), container.ID, nil)
+		}
+	}
+
+	d.pidCache.Store(currentTime, pidCacheFullRefreshKey, struct{}{}, nil)
+	return nil
+}
+
+func fillStatsFromSpec(containerStats *provider.ContainerStats, spec *types.ContainerJSON) {
+	if spec == nil || containerStats == nil {
+		return
+	}
+
+	if spec.State != nil && spec.State.Pid > 0 {
+		if containerStats.PID == nil {
+			containerStats.PID = &provider.ContainerPIDStats{}
+		}
+
+		containerStats.PID.PIDs = append(containerStats.PID.PIDs, spec.State.Pid)
+	}
+
+	computeCPULimit(containerStats, spec)
+	computeMemoryLimit(containerStats, spec)
+}
+
+func computeMemoryLimit(containerStats *provider.ContainerStats, spec *types.ContainerJSON) {
+	if spec == nil || spec.HostConfig == nil || containerStats.Memory == nil {
+		return
+	}
+
+	if spec.HostConfig.Memory > 0 {
+		containerStats.Memory.Limit = pointer.IntToFloatPtr(spec.HostConfig.Memory)
+	}
+}
+
+func convertNetworkStats(stats *types.StatsJSON) *provider.ContainerNetworkStats {
 	containerNetworkStats := &provider.ContainerNetworkStats{
-		BytesSent:   util.Float64Ptr(0),
-		BytesRcvd:   util.Float64Ptr(0),
-		PacketsSent: util.Float64Ptr(0),
-		PacketsRcvd: util.Float64Ptr(0),
+		Timestamp:   stats.Read,
+		BytesSent:   pointer.Float64Ptr(0),
+		BytesRcvd:   pointer.Float64Ptr(0),
+		PacketsSent: pointer.Float64Ptr(0),
+		PacketsRcvd: pointer.Float64Ptr(0),
 		Interfaces:  make(map[string]provider.InterfaceNetStats),
 	}
 
-	for ifname, netStats := range networkStats {
-		if new, found := networks[ifname]; found {
-			ifname = new
-		}
-
+	for ifname, netStats := range stats.Networks {
 		*containerNetworkStats.BytesSent += float64(netStats.TxBytes)
 		*containerNetworkStats.BytesRcvd += float64(netStats.RxBytes)
 		*containerNetworkStats.PacketsSent += float64(netStats.TxPackets)
 		*containerNetworkStats.PacketsRcvd += float64(netStats.RxPackets)
 
 		ifNetStats := provider.InterfaceNetStats{
-			BytesSent:   util.UIntToFloatPtr(netStats.TxBytes),
-			BytesRcvd:   util.UIntToFloatPtr(netStats.RxBytes),
-			PacketsSent: util.UIntToFloatPtr(netStats.TxPackets),
-			PacketsRcvd: util.UIntToFloatPtr(netStats.RxPackets),
+			BytesSent:   pointer.UIntToFloatPtr(netStats.TxBytes),
+			BytesRcvd:   pointer.UIntToFloatPtr(netStats.RxBytes),
+			PacketsSent: pointer.UIntToFloatPtr(netStats.TxPackets),
+			PacketsRcvd: pointer.UIntToFloatPtr(netStats.RxPackets),
 		}
 		containerNetworkStats.Interfaces[ifname] = ifNetStats
 	}

@@ -47,11 +47,15 @@
                             "type": "object",
                             "required": [
                                 "name",
+                                "tag",
                                 "program_type",
                                 "attach_type"
                             ],
                             "properties": {
                                 "name": {
+                                    "type": "string"
+                                },
+                                "tag": {
                                     "type": "string"
                                 },
                                 "program_type": {
@@ -64,7 +68,10 @@
                         }
                     }
                 }
-            }
+            },
+            "required": [
+                "bpf"
+            ]
         }
     ]
 }

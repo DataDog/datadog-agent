@@ -45,16 +45,19 @@ func DefaultFilter(path, name string) (string, error) {
 	return path, nil
 }
 
-var containerRegexp = regexp.MustCompile("([0-9a-f]{64}|[0-9a-f]{8}(-[0-9a-f]{4}){4})")
+// ContainerRegexp defines the regexp used to match container ids
+// First part is usual containerid (opencontainers standard)
+// Second part is PCF/Garden regexp. We currently assume no suffix ($) to avoid matching pod UIDs
+var ContainerRegexp = regexp.MustCompile("([0-9a-f]{64})|([0-9a-f]{8}(-[0-9a-f]{4}){4}$)")
 
 // ContainerFilter returns a filter that will match cgroup folders containing a container id
 func ContainerFilter(path, name string) (string, error) {
-	match := containerRegexp.FindString(name)
+	match := ContainerRegexp.FindString(name)
 
 	// With systemd cgroup driver, there may be a `.mount` cgroup on top of the normal one
 	// While existing, no process is attached to it and thus holds no stats
 	if match != "" {
-		if strings.HasSuffix(name, ".mount") {
+		if strings.HasSuffix(name, ".mount") || strings.HasPrefix(name, "crio-conmon-") {
 			return "", nil
 		}
 
@@ -130,14 +133,14 @@ func (r *Reader) init() error {
 	if isCgroup1(cgroupMounts) {
 		r.cgroupVersion = 1
 
-		r.impl, err = newReaderV1(cgroupMounts, r.cgroupV1BaseController, r.readerFilter)
+		r.impl, err = newReaderV1(r.procPath, cgroupMounts, r.cgroupV1BaseController, r.readerFilter)
 		if err != nil {
 			return err
 		}
 	} else if isCgroup2(cgroupMounts) {
 		r.cgroupVersion = 2
 
-		r.impl, err = newReaderV2(cgroupMounts[cgroupV2Key], r.readerFilter)
+		r.impl, err = newReaderV2(r.procPath, cgroupMounts[cgroupV2Key], r.readerFilter)
 		if err != nil {
 			return err
 		}
@@ -146,6 +149,11 @@ func (r *Reader) init() error {
 	}
 
 	return nil
+}
+
+// CgroupVersion returns the detected cgroup version
+func (r *Reader) CgroupVersion() int {
+	return r.cgroupVersion
 }
 
 // ListCgroups returns list of known cgroups

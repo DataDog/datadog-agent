@@ -3,19 +3,97 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"syscall"
 	"testing"
 
-	probe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
+
+func TestDentryResolutionERPC(t *testing.T) {
+	// generate a basename up to the current limit of the agent
+	var basename string
+	for i := 0; i < model.MaxSegmentLength; i++ {
+		basename += "a"
+	}
+	rule := &rules.RuleDefinition{
+		ID:         "test_erpc_rule",
+		Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/%s" && open.flags & O_CREAT != 0`, basename),
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{disableMapDentryResolution: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	test.WaitSignal(t, func() error {
+		testFile, _, err := test.Create(basename)
+		if err != nil {
+			return err
+		}
+		return os.Remove(testFile)
+	}, func(event *sprobe.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_erpc_rule")
+	})
+
+	test.probe.SendStats()
+
+	key := metrics.MetricDentryResolverHits + ":" + metrics.ERPCTag
+	assert.NotEmpty(t, test.statsdClient.counts[key])
+
+	key = metrics.MetricDentryResolverHits + ":" + metrics.KernelMapsTag
+	assert.Empty(t, test.statsdClient.counts[key])
+}
+
+func TestDentryResolutionMap(t *testing.T) {
+	// generate a basename up to the current limit of the agent
+	var basename string
+	for i := 0; i < model.MaxSegmentLength; i++ {
+		basename += "a"
+	}
+	rule := &rules.RuleDefinition{
+		ID:         "test_map_rule",
+		Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/%s" && open.flags & O_CREAT != 0`, basename),
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{disableERPCDentryResolution: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	test.WaitSignal(t, func() error {
+		testFile, _, err := test.Create(basename)
+		if err != nil {
+			return err
+		}
+		return os.Remove(testFile)
+	}, func(event *sprobe.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_map_rule")
+	})
+
+	test.probe.SendStats()
+
+	key := metrics.MetricDentryResolverHits + ":" + metrics.KernelMapsTag
+	assert.NotEmpty(t, test.statsdClient.counts[key])
+
+	key = metrics.MetricDentryResolverHits + ":" + metrics.ERPCTag
+	assert.Empty(t, test.statsdClient.counts[key])
+}
 
 func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 	rule := &rules.RuleDefinition{
@@ -48,7 +126,7 @@ func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(event *probe.Event, _ *rules.Rule) {
+	}, func(event *sprobe.Event, _ *rules.Rule) {
 		mountID = event.Open.File.MountID
 		inode = event.Open.File.Inode
 		pathID = event.Open.File.PathID
@@ -58,7 +136,7 @@ func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := probe.NewDentryResolver(test.probe)
+	resolver, err := sprobe.NewDentryResolver(test.probe)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -117,7 +195,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(event *probe.Event, _ *rules.Rule) {
+	}, func(event *sprobe.Event, _ *rules.Rule) {
 		mountID = event.Open.File.MountID
 		inode = event.Open.File.Inode
 		pathID = event.Open.File.PathID
@@ -127,7 +205,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := probe.NewDentryResolver(test.probe)
+	resolver, err := sprobe.NewDentryResolver(test.probe)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -185,11 +263,8 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 		if err != nil {
 			return err
 		}
-		if err = syscall.Close(fd); err != nil {
-			return err
-		}
-		return nil
-	}, func(event *probe.Event, _ *rules.Rule) {
+		return syscall.Close(fd)
+	}, func(event *sprobe.Event, _ *rules.Rule) {
 		mountID = event.Open.File.MountID
 		inode = event.Open.File.Inode
 		pathID = event.Open.File.PathID
@@ -199,7 +274,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := probe.NewDentryResolver(test.probe)
+	resolver, err := sprobe.NewDentryResolver(test.probe)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -258,7 +333,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(event *probe.Event, _ *rules.Rule) {
+	}, func(event *sprobe.Event, _ *rules.Rule) {
 		mountID = event.Open.File.MountID
 		inode = event.Open.File.Inode
 		pathID = event.Open.File.PathID
@@ -268,7 +343,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := probe.NewDentryResolver(test.probe)
+	resolver, err := sprobe.NewDentryResolver(test.probe)
 	if err != nil {
 		b.Fatal(err)
 	}

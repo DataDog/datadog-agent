@@ -10,10 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
-	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -22,22 +24,22 @@ func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	metricChannel := make(chan []metrics.MetricSample)
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return true }
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 
 	endInvocationTime := time.Now()
-	endDetails := proxy.InvocationEndDetails{EndTime: endInvocationTime, IsError: true}
+	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: true}
 
-	testProcessor := ProxyProcessor{
+	testProcessor := LifecycleProcessor{
 		ExtraTags:           extraTags,
 		ProcessTrace:        mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
-		MetricChannel:       metricChannel,
+		Demux:               demux,
 	}
 	go testProcessor.OnInvokeEnd(&endDetails)
 
-	generatedMetrics := <-metricChannel
+	generatedMetrics := demux.WaitForSamples(time.Millisecond * 250)
 
 	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.errors",
@@ -45,7 +47,7 @@ func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 		Mtype:      metrics.DistributionType,
 		Tags:       extraTags.Tags,
 		SampleRate: 1,
-		Timestamp:  float64(endInvocationTime.UnixNano()),
+		Timestamp:  float64(endInvocationTime.UnixNano()) / float64(time.Second),
 	}})
 }
 
@@ -53,23 +55,26 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	metricChannel := make(chan []metrics.MetricSample)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return false }
 
+	eventPayload := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startInvocationTime := time.Now()
-	startDetails := proxy.InvocationStartDetails{StartTime: startInvocationTime}
+	startDetails := InvocationStartDetails{StartTime: startInvocationTime, InvokeEventRawPayload: eventPayload}
 
-	testProcessor := ProxyProcessor{
+	testProcessor := LifecycleProcessor{
 		ExtraTags:           extraTags,
 		ProcessTrace:        mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
-		MetricChannel:       metricChannel,
+		Demux:               demux,
 	}
 	testProcessor.OnInvokeStart(&startDetails)
 
-	assert.NotEqual(t, uint64(0), currentExecutionInfo.spanID)
-	assert.NotEqual(t, uint64(0), currentExecutionInfo.traceID)
+	assert.Equal(t, uint64(0), currentExecutionInfo.spanID)
+	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.traceID)
+	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
+	assert.Equal(t, sampler.SamplingPriority(1), currentExecutionInfo.samplingPriority)
 	assert.Equal(t, startInvocationTime, currentExecutionInfo.startTime)
 }
 
@@ -79,23 +84,23 @@ func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	metricChannel := make(chan []metrics.MetricSample)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return true }
 
 	startInvocationTime := time.Now()
-	startDetails := proxy.InvocationStartDetails{StartTime: startInvocationTime}
+	startDetails := InvocationStartDetails{StartTime: startInvocationTime}
 
-	testProcessor := ProxyProcessor{
+	testProcessor := LifecycleProcessor{
 		ExtraTags:           extraTags,
 		ProcessTrace:        mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
-		MetricChannel:       metricChannel,
+		Demux:               demux,
 	}
 	testProcessor.OnInvokeStart(&startDetails)
 
-	assert.Equal(t, uint64(0), currentExecutionInfo.spanID)
-	assert.Equal(t, uint64(0), currentExecutionInfo.traceID)
+	assert.NotEqual(t, 0, currentExecutionInfo.spanID)
+	assert.NotEqual(t, 0, currentExecutionInfo.traceID)
 	assert.NotEqual(t, startInvocationTime, currentExecutionInfo.startTime)
 }
 
@@ -106,7 +111,7 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	metricChannel := make(chan []metrics.MetricSample)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	mockDetectLambdaLibrary := func() bool { return false }
 
 	var tracePayload *api.Payload
@@ -116,22 +121,24 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 	startInvocationTime := time.Now()
 	duration := 1 * time.Second
 	endInvocationTime := startInvocationTime.Add(duration)
-	endDetails := proxy.InvocationEndDetails{EndTime: endInvocationTime, IsError: false}
-
+	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: false}
+	samplingPriority := sampler.SamplingPriority(1)
 	currentExecutionInfo = executionStartInfo{
-		startTime: startInvocationTime,
-		traceID:   123,
-		spanID:    1,
+		startTime:        startInvocationTime,
+		traceID:          123,
+		spanID:           1,
+		parentID:         3,
+		samplingPriority: samplingPriority,
 	}
 
-	testProcessor := ProxyProcessor{
+	testProcessor := LifecycleProcessor{
 		ExtraTags:           extraTags,
 		ProcessTrace:        mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
-		MetricChannel:       metricChannel,
+		Demux:               demux,
 	}
 	testProcessor.OnInvokeEnd(&endDetails)
-
+	executionChunkPriority := tracePayload.TracerPayload.Chunks[0].Priority
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.lambda", executionSpan.Name)
 	assert.Equal(t, "aws.lambda", executionSpan.Service)
@@ -139,6 +146,8 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 	assert.Equal(t, "serverless", executionSpan.Type)
 	assert.Equal(t, currentExecutionInfo.traceID, executionSpan.TraceID)
 	assert.Equal(t, currentExecutionInfo.spanID, executionSpan.SpanID)
+	assert.Equal(t, currentExecutionInfo.parentID, executionSpan.ParentID)
+	assert.Equal(t, int32(currentExecutionInfo.samplingPriority), executionChunkPriority)
 	assert.Equal(t, startInvocationTime.UnixNano(), executionSpan.Start)
 	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
 }
@@ -147,7 +156,7 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	metricChannel := make(chan []metrics.MetricSample)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	mockDetectLambdaLibrary := func() bool { return true }
 
 	var tracePayload *api.Payload
@@ -157,7 +166,7 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 	startInvocationTime := time.Now()
 	duration := 1 * time.Second
 	endInvocationTime := startInvocationTime.Add(duration)
-	endDetails := proxy.InvocationEndDetails{EndTime: endInvocationTime, IsError: false}
+	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: false}
 
 	currentExecutionInfo = executionStartInfo{
 		startTime: startInvocationTime,
@@ -165,13 +174,104 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 		spanID:    1,
 	}
 
-	testProcessor := ProxyProcessor{
+	testProcessor := LifecycleProcessor{
 		ExtraTags:           extraTags,
 		ProcessTrace:        mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
-		MetricChannel:       metricChannel,
+		Demux:               demux,
 	}
 	testProcessor.OnInvokeEnd(&endDetails)
 
 	assert.Equal(t, (*api.Payload)(nil), tracePayload)
+}
+
+func TestCompleteInferredSpanWithStartTime(t *testing.T) {
+	defer os.Unsetenv(functionNameEnvVar)
+	os.Setenv(functionNameEnvVar, "TestFunction")
+
+	extraTags := &logs.Tags{
+		Tags: []string{"functionname:test-function"},
+	}
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	mockDetectLambdaLibrary := func() bool { return false }
+
+	var tracePayload *api.Payload
+	mockProcessTrace := func(payload *api.Payload) {
+		tracePayload = payload
+	}
+	startInferredSpan := time.Now()
+	startInvocationTime := startInferredSpan.Add(250 * time.Millisecond)
+	duration := 1 * time.Second
+	endInvocationTime := startInvocationTime.Add(duration)
+	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: false}
+	samplingPriority := sampler.SamplingPriority(1)
+	currentExecutionInfo = executionStartInfo{
+		startTime:        startInvocationTime,
+		traceID:          123,
+		spanID:           1,
+		parentID:         3,
+		samplingPriority: samplingPriority,
+	}
+
+	testProcessor := LifecycleProcessor{
+		ExtraTags:            extraTags,
+		ProcessTrace:         mockProcessTrace,
+		DetectLambdaLibrary:  mockDetectLambdaLibrary,
+		Demux:                demux,
+		InferredSpansEnabled: true,
+	}
+
+	inferredSpan.Span = &pb.Span{TraceID: 123, SpanID: 3, Start: startInferredSpan.UnixNano()}
+
+	testProcessor.OnInvokeEnd(&endDetails)
+
+	completedInferredSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	assert.Equal(t, inferredSpan.Span.Start, completedInferredSpan.Start)
+}
+
+func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
+	defer os.Unsetenv(functionNameEnvVar)
+	os.Setenv(functionNameEnvVar, "TestFunction")
+
+	extraTags := &logs.Tags{
+		Tags: []string{"functionname:test-function"},
+	}
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	mockDetectLambdaLibrary := func() bool { return false }
+
+	var tracePayload *api.Payload
+	mockProcessTrace := func(payload *api.Payload) {
+		tracePayload = payload
+	}
+	startInferredSpan := int64(0)
+	startInvocationTime := time.Now()
+	duration := 1 * time.Second
+	endInvocationTime := startInvocationTime.Add(duration)
+	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: false}
+	samplingPriority := sampler.SamplingPriority(1)
+	currentExecutionInfo = executionStartInfo{
+		startTime:        startInvocationTime,
+		traceID:          123,
+		spanID:           1,
+		parentID:         3,
+		samplingPriority: samplingPriority,
+	}
+
+	testProcessor := LifecycleProcessor{
+		ExtraTags:            extraTags,
+		ProcessTrace:         mockProcessTrace,
+		DetectLambdaLibrary:  mockDetectLambdaLibrary,
+		Demux:                demux,
+		InferredSpansEnabled: true,
+	}
+
+	inferredSpan.Span = &pb.Span{TraceID: 123, SpanID: 3, Start: startInferredSpan}
+
+	testProcessor.OnInvokeEnd(&endDetails)
+
+	// If our logic is correct this will actually be the execution span
+	// and the start time is expected to be the invocation start time,
+	// not the inferred span start time.
+	completedInferredSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	assert.Equal(t, startInvocationTime.UnixNano(), completedInferredSpan.Start)
 }

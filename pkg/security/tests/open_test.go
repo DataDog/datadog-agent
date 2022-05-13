@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
@@ -59,6 +60,7 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0755)
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			assert.Equal(t, event.Open.Async, false)
 
 			if !validateOpenSchema(t, event) {
 				t.Error(event.String())
@@ -80,6 +82,7 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			assert.Equal(t, event.Open.Async, false)
 		})
 	})
 
@@ -105,6 +108,7 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			assert.Equal(t, event.Open.Async, false)
 		})
 	})
 
@@ -122,6 +126,7 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, int(event.Open.Flags), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			assert.Equal(t, event.Open.Async, false)
 		})
 	}))
 
@@ -153,6 +158,7 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, int(event.Open.Flags), "wrong flags")
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			assert.Equal(t, event.Open.Async, false)
 		})
 	})
 
@@ -189,13 +195,14 @@ func TestOpen(t *testing.T) {
 				if err == unix.EINVAL {
 					return ErrSkipTest{"open_by_handle_at not supported"}
 				}
-				return fmt.Errorf("OpenByHandleAt: %v", err)
+				return fmt.Errorf("OpenByHandleAt: %w", err)
 			}
 			return unix.Close(fdInt)
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			assert.Equal(t, event.Open.Async, false)
 		})
 	})
 
@@ -257,6 +264,13 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags&0xfff), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0747)
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			assert.Equal(t, event.Open.Async, true)
+
+			executable, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertFieldEqual(t, event, "process.file.path", executable)
 		})
 
 		prepRequest, err = iouring.Openat2(unix.AT_FDCWD, testFile, &openHow)
@@ -290,6 +304,13 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags&0xfff), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			assert.Equal(t, event.Open.Async, true)
+
+			executable, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertFieldEqual(t, event, "process.file.path", executable)
 		})
 	})
 
@@ -332,6 +353,7 @@ func TestOpenMetadata(t *testing.T) {
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 			assertNearTime(t, event.Open.File.MTime)
 			assertNearTime(t, event.Open.File.CTime)
+			assert.Equal(t, event.Open.Async, false)
 		})
 	})
 }

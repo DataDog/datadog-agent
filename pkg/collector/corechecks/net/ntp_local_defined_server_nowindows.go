@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
 // +build !windows
 
 package net
@@ -14,7 +15,7 @@ import (
 )
 
 func getLocalDefinedNTPServers() ([]string, error) {
-	return getNTPServersFromFiles([]string{"/etc/ntp.conf", "etc/xntp.conf"})
+	return getNTPServersFromFiles([]string{"/etc/ntp.conf", "/etc/xntp.conf", "/etc/chrony.conf", "/etc/ntpd.conf", "/etc/openntpd/ntpd.conf"})
 }
 
 func getNTPServersFromFiles(files []string) ([]string, error) {

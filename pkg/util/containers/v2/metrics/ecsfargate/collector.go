@@ -11,39 +11,45 @@ package ecsfargate
 import (
 	"context"
 	"fmt"
+	"math"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 const (
 	ecsFargateCollectorID = "ecs_fargate"
-	statsCacheKey         = "ecs-stats-%s"
-	statsCacheExpiration  = 10 * time.Second
+	ecsTaskTimeout        = 2 * time.Second
+	// cpuKey represents the cpu key used in the resource limits map returned by the ECS API
+	cpuKey = "CPU"
+	// memoryKey represents the memory key used in the resource limits map returned by the ECS API
+	memoryKey = "Memory"
 )
+
+var ecsUnsetMemoryLimit = uint64(math.Pow(2, 62))
 
 func init() {
 	provider.GetProvider().RegisterCollector(provider.CollectorMetadata{
-		ID:       ecsFargateCollectorID,
-		Priority: 0,
-		Runtimes: provider.AllLinuxRuntimes,
-		Factory:  func() (provider.Collector, error) { return newEcsFargateCollector() },
+		ID:            ecsFargateCollectorID,
+		Priority:      0,
+		Runtimes:      []string{provider.RuntimeNameECSFargate},
+		Factory:       func() (provider.Collector, error) { return newEcsFargateCollector() },
+		DelegateCache: true,
 	})
 }
 
 type ecsFargateCollector struct {
-	client         *v2.Client
-	lastScrapeTime time.Time
-}
+	client *v2.Client
 
-// ecsStatsFunc allows mocking the ecs api for testing.
-type ecsStatsFunc func(ctx context.Context, id string) (*v2.ContainerStats, error)
+	taskSpec *v2.Task
+	taskLock sync.Mutex
+}
 
 // newEcsFargateCollector returns a new *ecsFargateCollector.
 func newEcsFargateCollector() (*ecsFargateCollector, error) {
@@ -63,44 +69,64 @@ func newEcsFargateCollector() (*ecsFargateCollector, error) {
 func (e *ecsFargateCollector) ID() string { return ecsFargateCollectorID }
 
 // GetContainerStats returns stats by container ID.
-func (e *ecsFargateCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
-	stats, err := e.stats(containerID, cacheValidity, e.client.GetContainerStats)
+func (e *ecsFargateCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
+	stats, err := e.stats(containerID)
 	if err != nil {
 		return nil, err
 	}
+	containerStats := convertEcsStats(stats)
 
-	return convertEcsStats(stats), nil
+	// Data from Task spec are not mandatory, do not return an error
+	if err := e.getTask(); err == nil {
+		fillFromSpec(containerStats, e.taskSpec)
+	} else {
+		log.Warnf("Unable to get ECS Fargate task metadata, err: %v", err)
+	}
+
+	return containerStats, nil
+}
+
+// GetContainerPIDStats returns pid stats by container ID.
+func (e *ecsFargateCollector) GetContainerPIDStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerPIDStats, error) {
+	// Not available
+	return nil, nil
+}
+
+// GetContainerOpenFilesCount returns open files count by container ID.
+func (e *ecsFargateCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
+	// Not available
+	return nil, nil
 }
 
 // GetContainerNetworkStats returns network stats by container ID.
-func (e *ecsFargateCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*provider.ContainerNetworkStats, error) {
-	stats, err := e.stats(containerID, cacheValidity, e.client.GetContainerStats)
+func (e *ecsFargateCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
+	stats, err := e.stats(containerID)
 	if err != nil {
 		return nil, err
 	}
 
-	return convertNetworkStats(stats.Networks, networks), nil
+	return convertNetworkStats(stats), nil
+}
+
+// GetContainerIDForPID returns the container ID for given PID
+func (e *ecsFargateCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
+	// Not available
+	return "", nil
+}
+
+// GetSelfContainerID returns current process container ID
+func (e *ecsFargateCollector) GetSelfContainerID() (string, error) {
+	// Not available
+	return "", nil
 }
 
 // stats returns stats by container ID, it uses an in-memory cache to reduce the number of api calls.
 // Cache expires every 2 minutes and can also be invalidated using the cacheValidity argument.
-func (e *ecsFargateCollector) stats(containerID string, cacheValidity time.Duration, clientFunc ecsStatsFunc) (*v2.ContainerStats, error) {
-	refreshRequired := e.lastScrapeTime.Add(cacheValidity).Before(time.Now())
-	cacheKey := fmt.Sprintf(statsCacheKey, containerID)
-	if cacheStats, found := cache.Cache.Get(cacheKey); found && !refreshRequired {
-		stats := cacheStats.(*v2.ContainerStats)
-		log.Debugf("Got ecs stats from cache for container %s", containerID)
-		return stats, nil
-	}
-
-	stats, err := clientFunc(context.TODO(), containerID)
+func (e *ecsFargateCollector) stats(containerID string) (*v2.ContainerStats, error) {
+	stats, err := e.client.GetContainerStats(context.TODO(), containerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get container stats for %s: %w", containerID, err)
 	}
-
-	log.Debugf("Got ecs stats from ECS API for container %s", containerID)
-	e.lastScrapeTime = time.Now()
-	cache.Cache.Set(cacheKey, stats, statsCacheExpiration)
 
 	return stats, nil
 }
@@ -110,12 +136,79 @@ func convertEcsStats(ecsStats *v2.ContainerStats) *provider.ContainerStats {
 		return nil
 	}
 
+	dataTimestamp, err := time.Parse(time.RFC3339Nano, ecsStats.Timestamp)
+	if err != nil {
+		dataTimestamp = time.Now()
+	}
+
 	return &provider.ContainerStats{
-		Timestamp: time.Now(),
+		Timestamp: dataTimestamp,
 		CPU:       convertCPUStats(&ecsStats.CPU),
 		Memory:    convertMemoryStats(&ecsStats.Memory),
 		IO:        convertIOStats(&ecsStats.IO),
 	}
+}
+
+func (e *ecsFargateCollector) getTask() error {
+	if e.taskSpec != nil {
+		return nil
+	}
+
+	// We can observe a nil task and refresh multiple times, which is not optimal
+	// but better than paying the lock cost forever.
+	e.taskLock.Lock()
+	defer e.taskLock.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), ecsTaskTimeout)
+	defer cancel()
+
+	task, err := e.client.GetTask(ctx)
+	if err != nil {
+		return err
+	}
+
+	e.taskSpec = task
+	return nil
+}
+
+func convertNetworkStats(ecsStats *v2.ContainerStats) *provider.ContainerNetworkStats {
+	if ecsStats == nil {
+		return nil
+	}
+
+	dataTimestamp, err := time.Parse(time.RFC3339Nano, ecsStats.Timestamp)
+	if err != nil {
+		dataTimestamp = time.Now()
+	}
+
+	// networks is not useful for ECS Fargate as the Fargate endpoint
+	// already reports a name (like `eth0`)
+	stats := &provider.ContainerNetworkStats{
+		Timestamp: dataTimestamp,
+	}
+	stats.Interfaces = make(map[string]provider.InterfaceNetStats)
+	var totalPacketsRcvd, totalPacketsSent, totalBytesRcvd, totalBytesSent uint64
+	for iface, statsPerInterface := range ecsStats.Networks {
+		iStats := provider.InterfaceNetStats{
+			BytesSent:   pointer.UIntToFloatPtr(statsPerInterface.TxBytes),
+			PacketsSent: pointer.UIntToFloatPtr(statsPerInterface.TxPackets),
+			BytesRcvd:   pointer.UIntToFloatPtr(statsPerInterface.RxBytes),
+			PacketsRcvd: pointer.UIntToFloatPtr(statsPerInterface.RxPackets),
+		}
+		stats.Interfaces[iface] = iStats
+
+		totalPacketsRcvd += statsPerInterface.RxPackets
+		totalPacketsSent += statsPerInterface.TxPackets
+		totalBytesRcvd += statsPerInterface.RxBytes
+		totalBytesSent += statsPerInterface.TxBytes
+	}
+
+	stats.PacketsRcvd = pointer.UIntToFloatPtr(totalPacketsRcvd)
+	stats.PacketsSent = pointer.UIntToFloatPtr(totalPacketsSent)
+	stats.BytesRcvd = pointer.UIntToFloatPtr(totalBytesRcvd)
+	stats.BytesSent = pointer.UIntToFloatPtr(totalBytesSent)
+
+	return stats
 }
 
 func convertCPUStats(cpuStats *v2.CPUStats) *provider.ContainerCPUStats {
@@ -124,9 +217,9 @@ func convertCPUStats(cpuStats *v2.CPUStats) *provider.ContainerCPUStats {
 	}
 
 	return &provider.ContainerCPUStats{
-		Total:  util.UIntToFloatPtr(cpuStats.Usage.Total),
-		System: util.UIntToFloatPtr(cpuStats.Usage.Kernelmode),
-		User:   util.UIntToFloatPtr(cpuStats.Usage.Usermode),
+		Total:  pointer.UIntToFloatPtr(cpuStats.Usage.Total),
+		System: pointer.UIntToFloatPtr(cpuStats.Usage.Kernelmode),
+		User:   pointer.UIntToFloatPtr(cpuStats.Usage.Usermode),
 	}
 }
 
@@ -135,12 +228,17 @@ func convertMemoryStats(memStats *v2.MemStats) *provider.ContainerMemStats {
 		return nil
 	}
 
-	return &provider.ContainerMemStats{
-		Limit:      util.UIntToFloatPtr(memStats.Limit),
-		UsageTotal: util.UIntToFloatPtr(memStats.Usage),
-		RSS:        util.UIntToFloatPtr(memStats.Details.RSS),
-		Cache:      util.UIntToFloatPtr(memStats.Details.Cache),
+	cMemStats := &provider.ContainerMemStats{
+		UsageTotal: pointer.UIntToFloatPtr(memStats.Usage),
+		RSS:        pointer.UIntToFloatPtr(memStats.Details.RSS),
+		Cache:      pointer.UIntToFloatPtr(memStats.Details.Cache),
 	}
+
+	if memStats.Limit > 0 && memStats.Limit < ecsUnsetMemoryLimit {
+		cMemStats.Limit = pointer.UIntToFloatPtr(memStats.Limit)
+	}
+
+	return cMemStats
 }
 
 func convertIOStats(ioStats *v2.IOStats) *provider.ContainerIOStats {
@@ -173,40 +271,22 @@ func convertIOStats(ioStats *v2.IOStats) *provider.ContainerIOStats {
 	}
 
 	return &provider.ContainerIOStats{
-		ReadBytes:       util.UIntToFloatPtr(readBytes),
-		WriteBytes:      util.UIntToFloatPtr(writeBytes),
-		ReadOperations:  util.UIntToFloatPtr(readOp),
-		WriteOperations: util.UIntToFloatPtr(writeOp),
+		ReadBytes:       pointer.UIntToFloatPtr(readBytes),
+		WriteBytes:      pointer.UIntToFloatPtr(writeBytes),
+		ReadOperations:  pointer.UIntToFloatPtr(readOp),
+		WriteOperations: pointer.UIntToFloatPtr(writeOp),
 	}
 }
 
-func convertNetworkStats(netStats v2.NetStatsMap, networks map[string]string) *provider.ContainerNetworkStats {
-	stats := &provider.ContainerNetworkStats{}
-	stats.Interfaces = make(map[string]provider.InterfaceNetStats)
-	var totalPacketsRcvd, totalPacketsSent, totalBytesRcvd, totalBytesSent uint64
-	for iface, statsPerInterface := range netStats {
-		if new, found := networks[iface]; found {
-			iface = new
-		}
-
-		iStats := provider.InterfaceNetStats{
-			BytesSent:   util.UIntToFloatPtr(statsPerInterface.TxBytes),
-			PacketsSent: util.UIntToFloatPtr(statsPerInterface.TxPackets),
-			BytesRcvd:   util.UIntToFloatPtr(statsPerInterface.RxBytes),
-			PacketsRcvd: util.UIntToFloatPtr(statsPerInterface.RxPackets),
-		}
-		stats.Interfaces[iface] = iStats
-
-		totalPacketsRcvd += statsPerInterface.RxPackets
-		totalPacketsSent += statsPerInterface.TxPackets
-		totalBytesRcvd += statsPerInterface.RxBytes
-		totalBytesSent += statsPerInterface.TxBytes
+func fillFromSpec(containerStats *provider.ContainerStats, taskSpec *v2.Task) {
+	// Handling Task CPU/Memory Limit (cannot be empty, mandatory on ECS Fargate)
+	taskCPULimit := taskSpec.Limits[cpuKey]
+	if taskCPULimit != 0 && containerStats.CPU != nil {
+		containerStats.CPU.Limit = pointer.Float64Ptr(taskCPULimit * 100) // vCPU to percentage (0-N00%)
 	}
 
-	stats.PacketsRcvd = util.UIntToFloatPtr(totalPacketsRcvd)
-	stats.PacketsSent = util.UIntToFloatPtr(totalPacketsSent)
-	stats.BytesRcvd = util.UIntToFloatPtr(totalBytesRcvd)
-	stats.BytesSent = util.UIntToFloatPtr(totalBytesSent)
-
-	return stats
+	taskMemoryLimit := taskSpec.Limits[memoryKey]
+	if taskMemoryLimit != 0 && containerStats.Memory != nil && containerStats.Memory.Limit == nil {
+		containerStats.Memory.Limit = pointer.Float64Ptr(taskMemoryLimit * 1024 * 1024) // Megabytes to bytes
+	}
 }

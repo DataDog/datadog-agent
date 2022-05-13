@@ -1,10 +1,15 @@
+import datetime
 import os
 import tempfile
 
 import requests
 from datadog_api_client.v2 import ApiClient, ApiException, Configuration
-from datadog_api_client.v2.api import logs_api, security_monitoring_api
+from datadog_api_client.v2.api import cloud_workload_security_api, logs_api, security_monitoring_api
 from datadog_api_client.v2.models import (
+    CloudWorkloadSecurityAgentRuleCreateAttributes,
+    CloudWorkloadSecurityAgentRuleCreateData,
+    CloudWorkloadSecurityAgentRuleCreateRequest,
+    CloudWorkloadSecurityAgentRuleType,
     LogsListRequest,
     LogsListRequestPage,
     LogsQueryFilter,
@@ -20,13 +25,11 @@ from datadog_api_client.v2.models import (
     SecurityMonitoringRuleQueryCreate,
     SecurityMonitoringRuleSeverity,
     SecurityMonitoringRuleTypeCreate,
-    SecurityMonitoringRuntimeAgentRule,
     SecurityMonitoringSignalListRequest,
     SecurityMonitoringSignalListRequestFilter,
     SecurityMonitoringSignalListRequestPage,
     SecurityMonitoringSignalsSort,
 )
-from dateutil.parser import parse as dateutil_parser
 from retry.api import retry_call
 
 
@@ -53,12 +56,15 @@ def get_app_log(api_client, query):
 
 
 def get_app_signal(api_client, query):
+    now = datetime.datetime.now(datetime.timezone.utc)
+    query_from = now - datetime.timedelta(minutes=15)
+
     api_instance = security_monitoring_api.SecurityMonitoringApi(api_client)
     body = SecurityMonitoringSignalListRequest(
         filter=SecurityMonitoringSignalListRequestFilter(
-            _from=dateutil_parser("2021-01-01T00:00:00.00Z"),
+            _from=query_from.isoformat(),
             query=query,
-            to=dateutil_parser("2050-01-01T00:00:00.00Z"),
+            to=now.isoformat(),
         ),
         page=SecurityMonitoringSignalListRequestPage(
             limit=25,
@@ -82,7 +88,7 @@ class App:
     def __exit__(self):
         self.api_client.rest_client.pool_manager.clear()
 
-    def create_cws_rule(self, name, msg, agent_rule_id, secl, tags=None):
+    def create_cws_signal_rule(self, name, msg, agent_rule_id, tags=None):
         if not tags:
             tags = []
 
@@ -106,12 +112,8 @@ class App:
             ),
             queries=[
                 SecurityMonitoringRuleQueryCreate(
-                    agent_rule=SecurityMonitoringRuntimeAgentRule(
-                        agent_rule_id=agent_rule_id,
-                        expression=secl,
-                    ),
                     aggregation=SecurityMonitoringRuleQueryAggregation("count"),
-                    query="a > 0",
+                    query="@agent.rule_id:" + agent_rule_id,
                     name="a",
                 ),
             ],
@@ -121,13 +123,41 @@ class App:
         response = api_instance.create_security_monitoring_rule(body)
         return response.id
 
-    def delete_rule(self, rule_id):
+    def create_cws_agent_rule(self, name, msg, secl, tags=None):
+        if not tags:
+            tags = []
+
+        api_instance = cloud_workload_security_api.CloudWorkloadSecurityApi(self.api_client)
+        body = CloudWorkloadSecurityAgentRuleCreateRequest(
+            data=CloudWorkloadSecurityAgentRuleCreateData(
+                attributes=CloudWorkloadSecurityAgentRuleCreateAttributes(
+                    description=msg,
+                    enabled=True,
+                    expression=secl,
+                    name=name,
+                ),
+                type=CloudWorkloadSecurityAgentRuleType("agent_rule"),
+            ),
+        )
+
+        api_response = api_instance.create_cloud_workload_security_agent_rule(body)
+        return api_response.data.id
+
+    def delete_signal_rule(self, rule_id):
         api_instance = security_monitoring_api.SecurityMonitoringApi(self.api_client)
 
         try:
             api_instance.delete_security_monitoring_rule(rule_id)
         except ApiException as e:
             print(f"Exception when calling SecurityMonitoringApi->delete_security_monitoring_rule: {e}")
+
+    def delete_agent_rule(self, rule_id):
+        api_instance = cloud_workload_security_api.CloudWorkloadSecurityApi(self.api_client)
+
+        try:
+            api_instance.delete_cloud_workload_security_agent_rule(rule_id)
+        except ApiException as e:
+            print(f"Exception when calling CloudWorkloadSecurityApi->delete_cloud_workload_security_agent_rule: {e}")
 
     def download_policies(self):
         site = os.environ["DD_SITE"]
@@ -155,3 +185,12 @@ class App:
 
     def wait_app_signal(self, query, tries=30, delay=10):
         return retry_call(get_app_signal, fargs=[self.api_client, query], tries=tries, delay=delay)
+
+
+def check_for_ignored_policies(test_case, policies):
+    if "policies_ignored" in policies:
+        test_case.assertEqual(len(policies["policies_ignored"]), 0)
+    if "policies" in policies:
+        for policy in policies["policies"]:
+            if "rules_ignored" in policy:
+                test_case.assertEqual(len(policy["rules_ignored"]), 0)

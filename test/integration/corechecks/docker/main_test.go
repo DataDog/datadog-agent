@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
@@ -107,11 +106,12 @@ func setup() error {
 	}
 	config.DetectFeatures()
 
-	workloadmeta.GetGlobalStore().Start(context.Background())
+	store := workloadmeta.GetGlobalStore()
+	store.Start(context.Background())
 
 	// Setup tagger
-	tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
-	tagger.Init()
+	tagger.SetDefaultTagger(local.NewTagger(store))
+	tagger.Init(context.Background())
 
 	// Start compose recipes
 	for projectName, file := range defaultCatalog.composeFilesByProjects {
@@ -130,15 +130,16 @@ func setup() error {
 
 // Reset the state and trigger a new run
 func doRun(m *testing.M) int {
-	// Setup docker check
-	dockerCfg := []byte(dockerCfgString)
-	dockerInitCfg := []byte("")
 	dockerCheck = docker.DockerFactory()
-	dockerCheck.Configure(dockerCfg, dockerInitCfg, "test")
 
 	// Setup mock sender
 	sender = mocksender.NewMockSender(dockerCheck.ID())
 	sender.SetupAcceptAll()
+
+	// Setup docker check
+	dockerCfg := []byte(dockerCfgString)
+	dockerInitCfg := []byte("")
+	dockerCheck.Configure(dockerCfg, dockerInitCfg, "test")
 
 	dockerCheck.Run()
 	return m.Run()

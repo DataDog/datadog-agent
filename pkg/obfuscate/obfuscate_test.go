@@ -6,16 +6,12 @@
 package obfuscate
 
 import (
-	"encoding/json"
 	"flag"
-	"fmt"
 	"log"
 	"os"
 	"testing"
 
-	"github.com/mailru/easyjson/jlexer"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type compactSpacesTestCase struct {
@@ -115,62 +111,6 @@ func TestReplaceDigits(t *testing.T) {
 		},
 	} {
 		assert.Equal(tt.expected, replaceDigits(tt.in))
-	}
-}
-
-// TestSQLObfuscationOptionsDeserializationMethod checks if the use of easyjson results in the same deserialization
-// output as encoding/json.
-func TestSQLObfuscationOptionsDeserializationMethod(t *testing.T) {
-	opts, err := json.Marshal(SQLConfig{ReplaceDigits: true})
-	require.NoError(t, err)
-
-	var in, out SQLConfig
-
-	err = json.Unmarshal(opts, &in)
-	require.NoError(t, err)
-
-	jl := &jlexer.Lexer{Data: opts}
-	out.UnmarshalEasyJSON(jl)
-	require.NoError(t, jl.Error())
-
-	assert.Equal(t, in, out)
-}
-
-func BenchmarkSQLObfuscationOptionsEasyJSONDeserialization(b *testing.B) {
-	for i := 1; i <= 100000; i *= 10 {
-		b.Run(fmt.Sprintf("Range:%d", i), func(b *testing.B) {
-			benchmarkSQLObfuscationOptionsEasyJSONDeserialization(b)
-		})
-	}
-}
-
-func benchmarkSQLObfuscationOptionsEasyJSONDeserialization(b *testing.B) {
-	b.ReportAllocs()
-	opts, err := json.Marshal(SQLConfig{ReplaceDigits: true})
-	require.NoError(b, err)
-	for i := 0; i < b.N; i++ {
-		var sqlCfg SQLConfig
-		jl := &jlexer.Lexer{Data: opts}
-		sqlCfg.UnmarshalEasyJSON(jl)
-		require.NoError(b, jl.Error())
-	}
-}
-func BenchmarkSQLObfuscationOptionsRegularJSONDeserialization(b *testing.B) {
-	for i := 1; i <= 100000; i *= 10 {
-		b.Run(fmt.Sprintf("Range:%d", i), func(b *testing.B) {
-			benchmarkSQLObfuscationOptionsRegularJSONDeserialization(b)
-		})
-	}
-}
-
-func benchmarkSQLObfuscationOptionsRegularJSONDeserialization(b *testing.B) {
-	b.ReportAllocs()
-	opts, err := json.Marshal(SQLConfig{ReplaceDigits: true})
-	require.NoError(b, err)
-	for i := 0; i < b.N; i++ {
-		var sqlCfg SQLConfig
-		err := json.Unmarshal(opts, &sqlCfg)
-		require.NoError(b, err)
 	}
 }
 

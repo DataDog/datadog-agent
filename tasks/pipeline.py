@@ -202,8 +202,8 @@ def run(
     gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
     gitlab.test_project_found()
 
-    if not git_ref and not here:
-        raise Exit("Either --here or --git-ref <git ref> must be specified.", code=1)
+    if (not git_ref and not here) or (git_ref and here):
+        raise Exit("ERROR: Exactly one of --here or --git-ref <git ref> must be specified.", code=1)
 
     if use_release_entries:
         release_version_6 = release_entry_for(6)
@@ -290,6 +290,19 @@ def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog
     gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
     gitlab.test_project_found()
 
+    args_given = 0
+    if id is not None:
+        args_given += 1
+    if git_ref is not None:
+        args_given += 1
+    if here:
+        args_given += 1
+    if args_given != 1:
+        raise Exit(
+            "ERROR: Exactly one of --here, --git-ref or --id must be given.\nSee --help for an explanation of each.",
+            code=1,
+        )
+
     if id is not None:
         wait_for_pipeline(gitlab, id)
     elif git_ref is not None:
@@ -315,7 +328,7 @@ GITHUB_SLACK_MAP = {
     "@DataDog/container-integrations": "#container-integrations",
     "@DataDog/integrations-tools-and-libraries": "#intg-tools-libs",
     "@DataDog/agent-network": "#network-agent",
-    "@DataDog/agent-security": "#security-and-compliance-agent",
+    "@DataDog/agent-security": "#security-and-compliance-agent-ops",
     "@DataDog/agent-apm": "#apm-agent",
     "@DataDog/infrastructure-integrations": "#infrastructure-integrations",
     "@DataDog/processes": "#processes",
@@ -323,6 +336,7 @@ GITHUB_SLACK_MAP = {
     "@DataDog/container-app": "#container-app",
     "@DataDog/metrics-aggregation": "#metrics-aggregation",
     "@DataDog/serverless": "#serverless-agent",
+    "@DataDog/remote-config": "#remote-config-monitoring",
     "@DataDog/agent-all": "#datadog-agent-pipelines",
 }
 

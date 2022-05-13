@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -38,7 +38,7 @@ func TestTiming(t *testing.T) {
 
 		calls = stats.GaugeCalls
 		assert.Equal(2, len(calls))
-		assert.Equal(2500., float64(findCall(assert, calls, "counter1.avg").Value), "avg")
+		assert.Equal(2500., findCall(assert, calls, "counter1.avg").Value, "avg")
 		assert.Equal(3000., findCall(assert, calls, "counter1.max").Value, "max")
 	})
 

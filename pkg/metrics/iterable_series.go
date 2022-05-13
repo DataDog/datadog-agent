@@ -6,99 +6,122 @@
 package metrics
 
 import (
-	"errors"
-	"sync/atomic"
+	"context"
 
-	jsoniter "github.com/json-iterator/go"
+	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/atomic"
 )
 
-// IterableSeries represents an iterable collection of Serie.
-// Serie can be appended to IterableSeries while IterableSeries is serialized
+// IterableSeries represents an iterable collection of Serie.  Serie can be
+// appended to IterableSeries while IterableSeries is serialized.
+// IterableSeries is designed be used with StartIteration.
+//
+// An IterableSeries interfaces two goroutines, referred to below as "sender"
+// and "receiver".  The sender calls Append any number of times followed by
+// senderStopped.  The receiver calls MoveNext and Current to iterate through
+// the items, and iterationStopped when it is finished.
 type IterableSeries struct {
-	c                   chan *Serie
-	receiverStoppedChan chan struct{}
-	callback            func(*Serie)
-	current             *Serie
-	count               uint64
+	count              *atomic.Uint64
+	ch                 *util.BufferedChan
+	bufferedChanClosed bool
+	cancel             context.CancelFunc
+	callback           func(*Serie)
+	current            *Serie
 }
 
 // NewIterableSeries creates a new instance of *IterableSeries
-// `callback` is called each time `Append` is called.
-// `chanSize` is the internal channel buffer size
-func NewIterableSeries(callback func(*Serie), chanSize int) *IterableSeries {
+//
+// `callback` is called in the context of the sender's goroutine each time `Append` is called.
+func NewIterableSeries(callback func(*Serie), chanSize int, bufferSize int) *IterableSeries {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &IterableSeries{
-		c:                   make(chan *Serie, chanSize),
-		receiverStoppedChan: make(chan struct{}),
-		callback:            callback,
-		current:             nil,
+		count:    atomic.NewUint64(0),
+		ch:       util.NewBufferedChan(ctx, chanSize, bufferSize),
+		cancel:   cancel,
+		callback: callback,
+		current:  nil,
 	}
 }
 
 // Append appends a serie
+//
+// This method must only be called by the sender.
 func (series *IterableSeries) Append(serie *Serie) {
 	series.callback(serie)
-	atomic.AddUint64(&series.count, 1)
-	select {
-	case series.c <- serie:
-
-	// Make sure `Append` doesn't block. See `IterationStopped()`.
-	case <-series.receiverStoppedChan:
+	series.count.Inc()
+	if !series.ch.Put(serie) && !series.bufferedChanClosed {
+		series.bufferedChanClosed = true
+		log.Errorf("Cannot append a serie in a closed buffered channel")
 	}
 }
 
 // SeriesCount returns the number of series appended with `IterableSeries.Append`.
+//
+// SeriesCount can be called by any goroutine.
 func (series *IterableSeries) SeriesCount() uint64 {
-	return atomic.LoadUint64(&series.count)
+	return series.count.Load()
 }
 
-// SenderStopped must be called when sender stop calling Append.
-func (series *IterableSeries) SenderStopped() {
-	close(series.c)
+// senderStopped must be called when sender stop calling Append.
+//
+// This method must only be called by the sender.
+// It is automatically called by StartIteration.
+func (series *IterableSeries) senderStopped() {
+	series.ch.Close()
 }
 
-// IterationStopped must be called when the receiver stops calling `MoveNext`.
+// iterationStopped must be called when the receiver stops calling `MoveNext`.
 // This function prevents the case when the receiver stops iterating before the
 // end of the iteration because of an error and so blocks the sender forever
 // as no goroutine read the channel.
-func (series *IterableSeries) IterationStopped() {
-	close(series.receiverStoppedChan)
-}
-
-// WriteHeader writes the payload header for this type
-func (series *IterableSeries) WriteHeader(stream *jsoniter.Stream) error {
-	return writeHeader(stream)
-}
-
-// WriteFooter writes the payload footer for this type
-func (series *IterableSeries) WriteFooter(stream *jsoniter.Stream) error {
-	return writeFooter(stream)
-}
-
-// WriteCurrentItem writes the json representation of an item
-func (series *IterableSeries) WriteCurrentItem(stream *jsoniter.Stream) error {
-	if series.current == nil {
-		return errors.New("nil serie")
-	}
-	return writeItem(stream, series.current)
-}
-
-// DescribeCurrentItem returns a text description for logs
-func (series *IterableSeries) DescribeCurrentItem() string {
-	if series.current == nil {
-		return "nil serie"
-	}
-	return describeItem(series.current)
+//
+// This method must only be called by the receiver.
+// It is automatically called by StartIteration.
+func (series *IterableSeries) iterationStopped() {
+	series.cancel()
 }
 
 // MoveNext advances to the next element.
 // Returns false for the end of the iteration.
+//
+// This method must only be called by the receiver.
 func (series *IterableSeries) MoveNext() bool {
-	var ok bool
-	series.current, ok = <-series.c
+	v, ok := series.ch.Get()
+	if v != nil {
+		series.current = v.(*Serie)
+	} else {
+		series.current = nil
+	}
 	return ok
 }
 
 // Current returns the current serie.
+//
+// This method must only be called by the receiver.
 func (series *IterableSeries) Current() *Serie {
 	return series.current
+}
+
+// SerieSource is a source of series used by the serializer.
+type SerieSource interface {
+	MoveNext() bool
+	Current() *Serie
+	SeriesCount() uint64
+}
+
+// StartIteration starts the iteration over an iterableSeries.
+// `sink` callback is responsible for adding the data. It runs in the current goroutine.
+// `source` callback is responsible for consuming the data. It runs in its OWN goroutine.
+// This function returns when both `sink`` and `source` functions are finished.
+func StartIteration(iterableSeries *IterableSeries, sink func(SerieSink), source func(SerieSource)) {
+	done := make(chan struct{})
+	go func() {
+		source(iterableSeries)
+		iterableSeries.iterationStopped()
+		close(done)
+	}()
+	sink(iterableSeries)
+	iterableSeries.senderStopped()
+	<-done
 }

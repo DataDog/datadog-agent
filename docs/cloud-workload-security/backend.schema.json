@@ -17,12 +17,43 @@
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/BPFEvent"
     },
+    "mmap": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/MMapEvent"
+    },
+    "mprotect": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/MProtectEvent"
+    },
+    "ptrace": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/PTraceEvent"
+    },
+    "module": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/ModuleEvent"
+    },
+    "signal": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/SignalEvent"
+    },
+    "splice": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/SpliceEvent"
+    },
+    "dns": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/DNSEvent"
+    },
+    "network": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/NetworkContext"
+    },
     "usr": {
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/UserContext"
     },
     "process": {
-      "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/ProcessContext"
     },
     "dd": {
@@ -83,6 +114,10 @@
           "type": "string",
           "description": "Name of the BPF program"
         },
+        "tag": {
+          "type": "string",
+          "description": "Hash (sha1) of the BPF program"
+        },
         "program_type": {
           "type": "string",
           "description": "Type of the BPF program"
@@ -126,6 +161,57 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "DNSEvent": {
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "id is the unique identifier of the DNS request"
+        },
+        "question": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/DNSQuestion",
+          "description": "question is a DNS question for the DNS request"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "DNSQuestion": {
+      "required": [
+        "class",
+        "type",
+        "name",
+        "size",
+        "count"
+      ],
+      "properties": {
+        "class": {
+          "type": "string",
+          "description": "class is the class looked up by the DNS question"
+        },
+        "type": {
+          "type": "string",
+          "description": "type is a two octet code which specifies the DNS question type"
+        },
+        "name": {
+          "type": "string",
+          "description": "name is the queried domain name"
+        },
+        "size": {
+          "type": "integer",
+          "description": "size is the total DNS request size in bytes"
+        },
+        "count": {
+          "type": "integer",
+          "description": "count is the total count of questions in the DNS request"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "EventContext": {
       "properties": {
         "name": {
@@ -139,6 +225,10 @@
         "outcome": {
           "type": "string",
           "description": "Event outcome"
+        },
+        "async": {
+          "type": "boolean",
+          "description": "True if the event was asynchronous"
         }
       },
       "additionalProperties": false,
@@ -339,7 +429,188 @@
       "additionalProperties": false,
       "type": "object"
     },
-    "ProcessCacheEntry": {
+    "IPPort": {
+      "required": [
+        "ip",
+        "port"
+      ],
+      "properties": {
+        "ip": {
+          "type": "string",
+          "description": "IP address"
+        },
+        "port": {
+          "type": "integer",
+          "description": "Port number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MMapEvent": {
+      "required": [
+        "address",
+        "offset",
+        "length",
+        "protection",
+        "flags"
+      ],
+      "properties": {
+        "address": {
+          "type": "string",
+          "description": "memory segment address"
+        },
+        "offset": {
+          "type": "integer",
+          "description": "file offset"
+        },
+        "length": {
+          "type": "integer",
+          "description": "memory segment length"
+        },
+        "protection": {
+          "type": "string",
+          "description": "memory segment protection"
+        },
+        "flags": {
+          "type": "string",
+          "description": "memory segment flags"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MProtectEvent": {
+      "required": [
+        "vm_start",
+        "vm_end",
+        "vm_protection",
+        "req_protection"
+      ],
+      "properties": {
+        "vm_start": {
+          "type": "string",
+          "description": "memory segment start address"
+        },
+        "vm_end": {
+          "type": "string",
+          "description": "memory segment end address"
+        },
+        "vm_protection": {
+          "type": "string",
+          "description": "initial memory segment protection"
+        },
+        "req_protection": {
+          "type": "string",
+          "description": "new memory segment protection"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ModuleEvent": {
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "module name"
+        },
+        "loaded_from_memory": {
+          "type": "boolean",
+          "description": "indicates if a module was loaded from memory, as opposed to a file"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "NetworkContext": {
+      "required": [
+        "l3_protocol",
+        "l4_protocol",
+        "source",
+        "destination",
+        "size"
+      ],
+      "properties": {
+        "device": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/NetworkDevice",
+          "description": "device is the network device on which the event was captured"
+        },
+        "l3_protocol": {
+          "type": "string",
+          "description": "l3_protocol is the layer 3 procotocol name"
+        },
+        "l4_protocol": {
+          "type": "string",
+          "description": "l4_protocol is the layer 4 procotocol name"
+        },
+        "source": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/IPPort",
+          "description": "source is the emitter of the network event"
+        },
+        "destination": {
+          "$ref": "#/definitions/IPPort",
+          "description": "destination is the receiver of the network event"
+        },
+        "size": {
+          "type": "integer",
+          "description": "size is the size in bytes of the network event"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "NetworkDevice": {
+      "required": [
+        "netns",
+        "ifindex",
+        "ifname"
+      ],
+      "properties": {
+        "netns": {
+          "type": "integer",
+          "description": "netns is the interface ifindex"
+        },
+        "ifindex": {
+          "type": "integer",
+          "description": "ifindex is the network interface ifindex"
+        },
+        "ifname": {
+          "type": "string",
+          "description": "ifname is the network interface name"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "PTraceEvent": {
+      "required": [
+        "request",
+        "address"
+      ],
+      "properties": {
+        "request": {
+          "type": "string",
+          "description": "ptrace request"
+        },
+        "address": {
+          "type": "string",
+          "description": "address at which the ptrace request was executed"
+        },
+        "tracee": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/ProcessContext",
+          "description": "process context of the tracee"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Process": {
       "required": [
         "uid",
         "gid"
@@ -411,6 +682,10 @@
         "container": {
           "$ref": "#/definitions/ContainerContext",
           "description": "Container context"
+        },
+        "argv0": {
+          "type": "string",
+          "description": "First command line argument"
         },
         "args": {
           "items": {
@@ -513,6 +788,10 @@
           "$ref": "#/definitions/ContainerContext",
           "description": "Container context"
         },
+        "argv0": {
+          "type": "string",
+          "description": "First command line argument"
+        },
         "args": {
           "items": {
             "type": "string"
@@ -537,12 +816,12 @@
         },
         "parent": {
           "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/ProcessCacheEntry",
+          "$ref": "#/definitions/Process",
           "description": "Parent process"
         },
         "ancestors": {
           "items": {
-            "$ref": "#/definitions/ProcessCacheEntry"
+            "$ref": "#/definitions/Process"
           },
           "type": "array",
           "description": "Ancestor processes"
@@ -683,6 +962,46 @@
           "$schema": "http://json-schema.org/draft-04/schema#",
           "$ref": "#/definitions/SELinuxBoolCommit",
           "description": "SELinux boolean commit"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SignalEvent": {
+      "required": [
+        "type",
+        "pid"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "signal type"
+        },
+        "pid": {
+          "type": "integer",
+          "description": "signal target pid"
+        },
+        "target": {
+          "$ref": "#/definitions/ProcessContext",
+          "description": "process context of the signal target"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SpliceEvent": {
+      "required": [
+        "pipe_entry_flag",
+        "pipe_exit_flag"
+      ],
+      "properties": {
+        "pipe_entry_flag": {
+          "type": "string",
+          "description": "Entry flag of the fd_out pipe passed to the splice syscall"
+        },
+        "pipe_exit_flag": {
+          "type": "string",
+          "description": "Exit flag of the fd_out pipe passed to the splice syscall"
         }
       },
       "additionalProperties": false,

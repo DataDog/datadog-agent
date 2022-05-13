@@ -38,6 +38,10 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	// expect payload to be sent because buffer is full
 	assert.Equal(t, expectedPayload, <-output)
 	s.Stop()
+
+	if _, isOpen := <-input; isOpen {
+		assert.Fail(t, "input should be closed")
+	}
 }
 
 func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
@@ -64,6 +68,9 @@ func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 		}
 	}
 	s.Stop()
+	if _, isOpen := <-input; isOpen {
+		assert.Fail(t, "input should be closed")
+	}
 }
 
 func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
@@ -77,7 +84,13 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 	message := message.NewMessage([]byte("a"), nil, "", 0)
 	input <- message
 
-	s.Stop()
+	go func() {
+		s.Stop()
+	}()
+
+	if _, isOpen := <-input; isOpen {
+		assert.Fail(t, "input should be closed")
+	}
 
 	// expect payload to be sent before timer, so we never advance the clock; if this
 	// doesn't work, the test will hang
@@ -94,7 +107,14 @@ func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 	message := message.NewMessage([]byte{}, nil, "", 0)
 
 	input <- message
-	s.Stop()
+
+	go func() {
+		s.Stop()
+	}()
+	if _, isOpen := <-input; isOpen {
+		assert.Fail(t, "input should be closed")
+	}
+
 	assert.Equal(t, message, (<-output).Messages[0])
 }
 
@@ -125,8 +145,14 @@ func TestBatchStrategySynchronousFlush(t *testing.T) {
 	default:
 	}
 
-	// Stop triggers the flush and make sure we can read the messages out now
-	strategy.Stop()
+	go func() {
+		// Stop triggers the flush and make sure we can read the messages out now
+		strategy.Stop()
+	}()
+
+	if _, isOpen := <-input; isOpen {
+		assert.Fail(t, "input should be closed")
+	}
 
 	assert.ElementsMatch(t, messages, (<-output).Messages)
 

@@ -6,6 +6,9 @@
 package uptane
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"path"
@@ -64,6 +67,27 @@ func metaVersion(rawMeta json.RawMessage) (uint64, error) {
 	return *metaVersion.Signed.Version, nil
 }
 
+func metaCustom(rawMeta json.RawMessage) ([]byte, error) {
+	var metaVersion struct {
+		Signed *struct {
+			Custom json.RawMessage `json:"custom"`
+		} `json:"signed"`
+	}
+	err := json.Unmarshal(rawMeta, &metaVersion)
+	if err != nil {
+		return nil, err
+	}
+	if metaVersion.Signed == nil {
+		return nil, fmt.Errorf("invalid meta: signed is missing")
+	}
+	return []byte(metaVersion.Signed.Custom), nil
+}
+
+func metaHash(rawMeta json.RawMessage) string {
+	hash := sha256.Sum256(rawMeta)
+	return hex.EncodeToString(hash[:])
+}
+
 func trimHashTargetPath(targetPath string) string {
 	basename := path.Base(targetPath)
 	split := strings.SplitN(basename, ".", 2)
@@ -71,4 +95,12 @@ func trimHashTargetPath(targetPath string) string {
 		basename = split[1]
 	}
 	return path.Join(path.Dir(targetPath), basename)
+}
+
+type bufferDestination struct {
+	bytes.Buffer
+}
+
+func (b *bufferDestination) Delete() error {
+	return nil
 }

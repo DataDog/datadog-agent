@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build clusterchecks
 // +build clusterchecks
 
 package providers
@@ -143,7 +144,7 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 				{
 					ADIdentifiers: []string{"processguid1/flask-app/instance-guid-1-0"},
 					ClusterCheck:  true,
-					Entity:        "processguid1/flask-app/instance-guid-1-0",
+					ServiceID:     "processguid1/flask-app/instance-guid-1-0",
 					InitConfig:    []byte(`{}`),
 					Instances:     []integration.Data{[]byte(`{"name":"My Nginx","timeout":1,"url":"http://%%host%%:%%port_p8080%%"}`)},
 					Name:          "http_check",
@@ -173,7 +174,7 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 				{
 					ADIdentifiers: []string{"processguid1/flask-app/instance-guid-1-0"},
 					ClusterCheck:  true,
-					Entity:        "processguid1/flask-app/instance-guid-1-0",
+					ServiceID:     "processguid1/flask-app/instance-guid-1-0",
 					InitConfig:    []byte(`{}`),
 					Instances:     []integration.Data{[]byte(`{"name":"My Nginx","timeout":1,"url":"http://%%host%%:%%port_p8080%%"}`)},
 					Name:          "http_check",
@@ -182,7 +183,7 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 				{
 					ADIdentifiers: []string{"processguid1/flask-app/instance-guid-1-1"},
 					ClusterCheck:  true,
-					Entity:        "processguid1/flask-app/instance-guid-1-1",
+					ServiceID:     "processguid1/flask-app/instance-guid-1-1",
 					InitConfig:    []byte(`{}`),
 					Instances:     []integration.Data{[]byte(`{"name":"My Nginx","timeout":1,"url":"http://%%host%%:%%port_p8080%%"}`)},
 					Name:          "http_check",
@@ -213,7 +214,7 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 				{
 					ADIdentifiers: []string{"appguid1/my-postgres"},
 					ClusterCheck:  true,
-					Entity:        "appguid1/my-postgres",
+					ServiceID:     "appguid1/my-postgres",
 					InitConfig:    []byte(`{}`),
 					Instances:     []integration.Data{[]byte(`{"dbname":"mydb","host":"a.b.c","password":"secret","port":5432,"username":"me"}`)},
 					Name:          "postgres",
@@ -245,7 +246,7 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 				{
 					ADIdentifiers: []string{"appguid1/my-postgres"},
 					ClusterCheck:  true,
-					Entity:        "appguid1/my-postgres",
+					ServiceID:     "appguid1/my-postgres",
 					InitConfig:    []byte(`{}`),
 					Instances:     []integration.Data{[]byte(`{"dbname":"mydb","host":"a.b.c","password":"secret","port":5432,"username":"me"}`)},
 					Name:          "postgres",
@@ -307,7 +308,7 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 				{
 					ADIdentifiers: []string{"appguid1/my-postgres"},
 					ClusterCheck:  true,
-					Entity:        "appguid1/my-postgres",
+					ServiceID:     "appguid1/my-postgres",
 					InitConfig:    []byte(`{}`),
 					Instances:     []integration.Data{[]byte(`{"dbname":"mydb","host":"a.b.c","password":"secret","port":5432,"username":"me"}`)},
 					Name:          "postgres",
@@ -316,7 +317,7 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 				{
 					ADIdentifiers: []string{"processguid1/flask-app/instance-guid-1-0"},
 					ClusterCheck:  true,
-					Entity:        "processguid1/flask-app/instance-guid-1-0",
+					ServiceID:     "processguid1/flask-app/instance-guid-1-0",
 					InitConfig:    []byte(`{}`),
 					Instances:     []integration.Data{[]byte(`{"name":"My Nginx","timeout":1,"url":"http://%%host%%:%%port_p8080%%"}`)},
 					Name:          "http_check",
@@ -325,7 +326,7 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 				{
 					ADIdentifiers: []string{"processguid1/flask-app/instance-guid-1-1"},
 					ClusterCheck:  true,
-					Entity:        "processguid1/flask-app/instance-guid-1-1",
+					ServiceID:     "processguid1/flask-app/instance-guid-1-1",
 					InitConfig:    []byte(`{}`),
 					Instances:     []integration.Data{[]byte(`{"name":"My Nginx","timeout":1,"url":"http://%%host%%:%%port_p8080%%"}`)},
 					Name:          "http_check",
@@ -334,7 +335,7 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 				{
 					ADIdentifiers: []string{"appguid2/my-postgres"},
 					ClusterCheck:  true,
-					Entity:        "appguid2/my-postgres",
+					ServiceID:     "appguid2/my-postgres",
 					InitConfig:    []byte(`{}`),
 					Instances:     []integration.Data{[]byte(`{"dbname":"mydb","host":"a.b.c","password":"secret","port":5432,"username":"me"}`)},
 					Name:          "postgres",
@@ -343,7 +344,7 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 				{
 					ADIdentifiers: []string{"processguid2/flask-app/instance-guid-2-0"},
 					ClusterCheck:  true,
-					Entity:        "processguid2/flask-app/instance-guid-2-0",
+					ServiceID:     "processguid2/flask-app/instance-guid-2-0",
 					InitConfig:    []byte(`{}`),
 					Instances:     []integration.Data{[]byte(`{"name":"My Nginx","timeout":1,"url":"http://%%host%%:%%port_p8080%%"}`)},
 					Name:          "http_check",
@@ -352,7 +353,7 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 				{
 					ADIdentifiers: []string{"processguid2/flask-app/instance-guid-2-1"},
 					ClusterCheck:  true,
-					Entity:        "processguid2/flask-app/instance-guid-2-1",
+					ServiceID:     "processguid2/flask-app/instance-guid-2-1",
 					InitConfig:    []byte(`{}`),
 					Instances:     []integration.Data{[]byte(`{"name":"My Nginx","timeout":1,"url":"http://%%host%%:%%port_p8080%%"}`)},
 					Name:          "http_check",

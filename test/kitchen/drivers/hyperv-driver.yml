@@ -1,7 +1,7 @@
 provisioner:
   name: chef_solo
   product_name: chef
-  product_version: 13.6.4
+  product_version: 13.9.4
   install_strategy: always
   # the following settings make it possible to do a reboot during setup
   # (necessary for FIPS tests which reboot to enable FIPS mode)
@@ -39,17 +39,7 @@ platforms:
     # TEST_PLATFORMS syntax is `short_name1,parent vhd folder,parent_vhd_name|...`
     hyperv_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
 
-    sizes = [
-      "Standard_D1_v2",
-      "Standard_A1_v2",
-    ]
-
-    windows_sizes = [
-      "Standard_D2_v2"
-    ]
-
     windows_platforms = []
-    sles11_platforms = []
     sles15_platforms = []
 
     idx = 0
@@ -60,21 +50,14 @@ platforms:
       platform_name = platform[0] + "-#{host}"
 
       windows = platform_name.include?("win")
-      sles11 = platform_name.include?("sles-11")
       sles15 = platform_name.include?("sles-15")
       windows2008 = windows && platform_name.include?("2008")
 
       if windows
         windows_platforms << platform_name
-        size = windows_sizes[idx % windows_sizes.length]
-      else
-        if sles15
-          sles15_platforms << platform_name
-        end
-        if sles11
-          sles11_platforms << platform_name
-        end
-        size = sizes[idx % sizes.length]
+      end
+      if sles15
+        sles15_platforms << platform_name
       end
 
       vm_username = ENV['VM_USERNAME'] ? ENV['VM_USERNAME'] : "datadog"

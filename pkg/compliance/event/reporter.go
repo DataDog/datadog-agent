@@ -16,15 +16,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 // Reporter defines an interface for reporting rule events
 type Reporter interface {
+	common.RawReporter
 	Report(event *Event)
-	ReportRaw(content []byte, service string, tags ...string)
 }
 
 type reporter struct {
@@ -33,7 +34,7 @@ type reporter struct {
 }
 
 // NewLogReporter instantiates a new log reporter
-func NewLogReporter(stopper restart.Stopper, sourceName, sourceType, runPath string, endpoints *config.Endpoints, context *client.DestinationsContext) (Reporter, error) {
+func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath string, endpoints *config.Endpoints, context *client.DestinationsContext) (Reporter, error) {
 	health := health.RegisterLiveness(sourceType)
 
 	// setup the auditor

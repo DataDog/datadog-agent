@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -83,8 +82,7 @@ func TestKubeletCreatePodService(t *testing.T) {
 						hosts: map[string]string{
 							"pod": "127.0.0.1",
 						},
-						creationTime: integration.After,
-						ready:        true,
+						ready: true,
 					},
 				},
 			},
@@ -95,7 +93,7 @@ func TestKubeletCreatePodService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			listener, wlm := newKubeletListener(t)
 
-			listener.createPodService(tt.pod, tt.containers, integration.After)
+			listener.createPodService(tt.pod, tt.containers)
 
 			wlm.assertServices(tt.expectedServices)
 		})
@@ -171,6 +169,17 @@ func TestKubeletCreateContainerService(t *testing.T) {
 		Runtime: workloadmeta.ContainerRuntimeDocker,
 	}
 
+	runningContainerWithFinishedAtTime := &workloadmeta.Container{
+		EntityID:   containerEntityID,
+		EntityMeta: containerEntityMeta,
+		Image:      basicImage,
+		State: workloadmeta.ContainerState{
+			Running:    true,
+			FinishedAt: time.Now().Add(-48 * time.Hour), // Older than default "container_exclude_stopped_age" config
+		},
+		Runtime: workloadmeta.ContainerRuntimeDocker,
+	}
+
 	multiplePortsContainer := &workloadmeta.Container{
 		EntityID:   containerEntityID,
 		EntityMeta: containerEntityMeta,
@@ -230,8 +239,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						hosts: map[string]string{
 							"pod": "127.0.0.1",
 						},
-						ports:        []ContainerPort{},
-						creationTime: integration.After,
+						ports: []ContainerPort{},
 						extraConfig: map[string]string{
 							"namespace": podNamespace,
 							"pod_name":  podName,
@@ -263,7 +271,6 @@ func TestKubeletCreateContainerService(t *testing.T) {
 							"pod": "127.0.0.1",
 						},
 						ports:           []ContainerPort{},
-						creationTime:    integration.After,
 						metricsExcluded: true,
 						extraConfig: map[string]string{
 							"namespace": podNamespace,
@@ -287,11 +294,46 @@ func TestKubeletCreateContainerService(t *testing.T) {
 				EntityMeta: containerEntityMeta,
 				Image:      basicImage,
 				State: workloadmeta.ContainerState{
+					Running:    false,
 					FinishedAt: time.Now().Add(-48 * time.Hour),
 				},
 				Runtime: workloadmeta.ContainerRuntimeDocker,
 			},
 			expectedServices: map[string]wlmListenerSvc{},
+		},
+		{
+			// In docker, running containers can have a "finishedAt" time when
+			// they have been stopped and then restarted. When that's the case,
+			// we want to collect their info.
+			name: "running container with finishedAt time older than the configured threshold is collected",
+			pod:  pod,
+			podContainer: &workloadmeta.OrchestratorContainer{
+				ID:    containerID,
+				Name:  containerName,
+				Image: basicImage,
+			},
+			container: runningContainerWithFinishedAtTime,
+			expectedServices: map[string]wlmListenerSvc{
+				"container://foobarquux": {
+					parent: "kubernetes_pod://foobar",
+					service: &service{
+						entity: runningContainerWithFinishedAtTime,
+						adIdentifiers: []string{
+							"docker://foobarquux",
+							"foobar",
+						},
+						hosts: map[string]string{
+							"pod": "127.0.0.1",
+						},
+						ports: []ContainerPort{},
+						extraConfig: map[string]string{
+							"namespace": podNamespace,
+							"pod_name":  podName,
+							"pod_uid":   podID,
+						},
+					},
+				},
+			},
 		},
 		{
 			name: "container with multiple ports collects them in ascending order",
@@ -324,7 +366,6 @@ func TestKubeletCreateContainerService(t *testing.T) {
 								Name: "http",
 							},
 						},
-						creationTime: integration.After,
 						extraConfig: map[string]string{
 							"namespace": podNamespace,
 							"pod_name":  podName,
@@ -356,9 +397,8 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						hosts: map[string]string{
 							"pod": "127.0.0.1",
 						},
-						ports:        []ContainerPort{},
-						creationTime: integration.After,
-						checkNames:   []string{"customcheck"},
+						ports:      []ContainerPort{},
+						checkNames: []string{"customcheck"},
 						extraConfig: map[string]string{
 							"namespace": podNamespace,
 							"pod_name":  podName,
@@ -374,7 +414,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			listener, wlm := newKubeletListener(t)
 
-			listener.createContainerService(tt.pod, tt.podContainer, tt.container, integration.After)
+			listener.createContainerService(tt.pod, tt.podContainer, tt.container)
 
 			wlm.assertServices(tt.expectedServices)
 		})

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package utils
@@ -11,7 +12,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/sha256"
-	"io/ioutil"
+	"os"
 	"strconv"
 	"strings"
 
@@ -53,7 +54,7 @@ func (cg ControlGroup) GetContainerID() ContainerID {
 
 // GetProcControlGroups returns the cgroup membership of the specified task.
 func GetProcControlGroups(tgid, pid uint32) ([]ControlGroup, error) {
-	data, err := ioutil.ReadFile(CgroupTaskPath(tgid, pid))
+	data, err := os.ReadFile(CgroupTaskPath(tgid, pid))
 	if err != nil {
 		return nil, err
 	}

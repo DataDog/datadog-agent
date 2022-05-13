@@ -29,6 +29,7 @@ import (
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"golang.org/x/sys/unix"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -41,16 +42,16 @@ import (
 	vnetns "github.com/vishvananda/netns"
 )
 
-func dnsSupported(t *testing.T) bool {
+func httpSupported(t *testing.T) bool {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	return currKernelVersion >= kernel.VersionCode(4, 1, 0)
 }
 
-func httpSupported(t *testing.T) bool {
-	currKernelVersion, err := kernel.HostVersion()
+func httpsSupported(t *testing.T) bool {
+	kv, err := kernel.HostVersion()
 	require.NoError(t, err)
-	return currKernelVersion >= kernel.VersionCode(4, 1, 0)
+	return kv < kernel.VersionCode(5, 5, 0)
 }
 
 func TestTCPRemoveEntries(t *testing.T) {
@@ -109,9 +110,9 @@ func TestTCPRemoveEntries(t *testing.T) {
 
 	conn, ok := findConnection(c2.LocalAddr(), c2.RemoteAddr(), connections)
 	require.True(t, ok)
-	assert.Equal(t, clientMessageSize, int(conn.MonotonicSentBytes))
-	assert.Equal(t, 0, int(conn.MonotonicRecvBytes))
-	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
+	assert.Equal(t, clientMessageSize, int(conn.Monotonic.SentBytes))
+	assert.Equal(t, 0, int(conn.Monotonic.RecvBytes))
+	assert.Equal(t, 0, int(conn.Monotonic.Retransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 }
@@ -163,8 +164,8 @@ func TestTCPRetransmit(t *testing.T) {
 
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.True(t, ok)
-	assert.Equal(t, 100*clientMessageSize, int(conn.MonotonicSentBytes))
-	assert.True(t, int(conn.MonotonicRetransmits) > 0)
+	assert.Equal(t, 100*clientMessageSize, int(conn.Monotonic.SentBytes))
+	assert.True(t, int(conn.Monotonic.Retransmits) > 0)
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 }
@@ -213,7 +214,7 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 
 	totalSent := 0
 	for _, c := range conns {
-		totalSent += int(c.MonotonicSentBytes)
+		totalSent += int(c.Monotonic.SentBytes)
 	}
 	assert.Equal(t, numProcesses*clientMessageSize, totalSent)
 
@@ -222,7 +223,7 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 	// same socket
 	connsWithRetransmits := 0
 	for _, c := range conns {
-		if c.MonotonicRetransmits > 0 {
+		if c.Monotonic.Retransmits > 0 {
 			connsWithRetransmits++
 		}
 	}
@@ -257,13 +258,13 @@ func TestTCPRTT(t *testing.T) {
 	// Wait for a second so RTT can stabilize
 	time.Sleep(1 * time.Second)
 
-	// Obtain information from a TCP socket via GETSOCKOPT(2) system call.
-	tcpInfo, err := tcpGetInfo(c)
-	require.NoError(t, err)
-
 	// Write something to socket to ensure connection is tracked
 	// This will trigger the collection of TCP stats including RTT
 	_, err = c.Write([]byte("foo"))
+	require.NoError(t, err)
+
+	// Obtain information from a TCP socket via GETSOCKOPT(2) system call.
+	tcpInfo, err := tcpGetInfo(c)
 	require.NoError(t, err)
 
 	// Fetch connection matching source and target address
@@ -329,7 +330,7 @@ func TestTCPMiscount(t *testing.T) {
 
 	// TODO this should not happen but is expected for now
 	// we don't have the correct count since retries happened
-	assert.False(t, uint64(len(x)) == conn.MonotonicSentBytes)
+	assert.False(t, uint64(len(x)) == conn.Monotonic.SentBytes)
 
 	tel := tr.ebpfTracer.GetTelemetry()
 	assert.NotZero(t, tel["tcp_sent_miscounts"])
@@ -369,7 +370,7 @@ func TestConnectionExpirationRegression(t *testing.T) {
 	allConnections := getConnections(t, tr)
 	connectionStats, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), allConnections)
 	require.True(t, ok)
-	assert.Equal(t, uint64(len(payload)), connectionStats.LastSentBytes)
+	assert.Equal(t, uint64(len(payload)), connectionStats.Last.SentBytes)
 
 	// This emulates the race condition, a `tcp_close` followed by a call to `Tracer.removeConnections()`
 	// It's unfortunate we're relying here on private methods, but there isn't much we can do to avoid that.
@@ -382,7 +383,7 @@ func TestConnectionExpirationRegression(t *testing.T) {
 	allConnections = getConnections(t, tr)
 	connectionStats, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), allConnections)
 	require.True(t, ok)
-	assert.Equal(t, uint64(0), connectionStats.LastSentBytes)
+	assert.Equal(t, uint64(0), connectionStats.Last.SentBytes)
 
 	// Finally, this connection should have been expired from the state
 	allConnections = getConnections(t, tr)
@@ -559,19 +560,10 @@ func TestUnconnectedUDPSendIPv6(t *testing.T) {
 
 	require.Len(t, outgoing, 1)
 	assert.Equal(t, remoteAddr.IP.String(), outgoing[0].Dest.String())
-	assert.Equal(t, bytesSent, int(outgoing[0].MonotonicSentBytes))
+	assert.Equal(t, bytesSent, int(outgoing[0].Monotonic.SentBytes))
 }
 
 func TestGatewayLookupNotEnabled(t *testing.T) {
-	t.Run("gateway lookup not enabled", func(t *testing.T) {
-		cfg := testConfig()
-		tr, err := NewTracer(cfg)
-		require.NoError(t, err)
-		require.NotNil(t, tr)
-		defer tr.Stop()
-		require.Nil(t, tr.gwLookup)
-	})
-
 	t.Run("gateway lookup enabled, not on aws", func(t *testing.T) {
 		cfg := testConfig()
 		cfg.EnableGatewayLookup = true
@@ -882,9 +874,11 @@ func TestConnectionAssured(t *testing.T) {
 	// register test as client
 	getConnections(t, tr)
 
-	server := NewUDPServer(func(b []byte, n int) []byte {
-		return genPayload(serverMessageSize)
-	})
+	server := &UDPServer{
+		onMessage: func(b []byte, n int) []byte {
+			return genPayload(serverMessageSize)
+		},
+	}
 
 	done := make(chan struct{})
 	err = server.Run(done, clientMessageSize)
@@ -910,7 +904,7 @@ func TestConnectionAssured(t *testing.T) {
 		conns := getConnections(t, tr)
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		return ok && conn.MonotonicSentBytes > 0 && conn.MonotonicRecvBytes > 0
+		return ok && conn.Monotonic.SentBytes > 0 && conn.Monotonic.RecvBytes > 0
 	}, 3*time.Second, 500*time.Millisecond, "could not find udp connection")
 
 	// verify the connection is marked as assured
@@ -927,9 +921,11 @@ func TestConnectionNotAssured(t *testing.T) {
 	// register test as client
 	getConnections(t, tr)
 
-	server := NewUDPServer(func(b []byte, n int) []byte {
-		return nil
-	})
+	server := &UDPServer{
+		onMessage: func(b []byte, n int) []byte {
+			return nil
+		},
+	}
 
 	done := make(chan struct{})
 	err = server.Run(done, clientMessageSize)
@@ -948,7 +944,7 @@ func TestConnectionNotAssured(t *testing.T) {
 		conns := getConnections(t, tr)
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		return ok && conn.MonotonicSentBytes > 0 && conn.MonotonicRecvBytes == 0
+		return ok && conn.Monotonic.SentBytes > 0 && conn.Monotonic.RecvBytes == 0
 	}, 3*time.Second, 500*time.Millisecond, "could not find udp connection")
 
 	// verify the connection is marked as not assured
@@ -1170,13 +1166,13 @@ func TestUDPPeekCount(t *testing.T) {
 		return outgoing != nil && incoming != nil
 	}, 3*time.Second, 100*time.Millisecond, "couldn't find incoming and outgoing connections matching")
 
-	require.Equal(t, len(msg), int(outgoing.MonotonicSentBytes))
-	require.Equal(t, 0, int(outgoing.MonotonicRecvBytes))
+	require.Equal(t, len(msg), int(outgoing.Monotonic.SentBytes))
+	require.Equal(t, 0, int(outgoing.Monotonic.RecvBytes))
 	require.True(t, outgoing.IntraHost)
 
 	// make sure the inverse values are seen for the other message
-	require.Equal(t, 0, int(incoming.MonotonicSentBytes))
-	require.Equal(t, len(msg), int(incoming.MonotonicRecvBytes))
+	require.Equal(t, 0, int(incoming.Monotonic.SentBytes))
+	require.Equal(t, len(msg), int(incoming.Monotonic.RecvBytes))
 	require.True(t, incoming.IntraHost)
 }
 
@@ -1328,10 +1324,10 @@ func TestSendfileRegression(t *testing.T) {
 		conns := getConnections(t, tr)
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		return ok && conn.MonotonicSentBytes > 0
+		return ok && conn.Monotonic.SentBytes > 0
 	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by sendfile(2)")
 
-	assert.Equalf(t, int64(clientMessageSize), int64(conn.MonotonicSentBytes), "sendfile data wasn't properly traced")
+	assert.Equalf(t, int64(clientMessageSize), int64(conn.Monotonic.SentBytes), "sendfile data wasn't properly traced")
 }
 
 func TestSendfileError(t *testing.T) {
@@ -1379,7 +1375,7 @@ func TestSendfileError(t *testing.T) {
 		return ok
 	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by sendfile(2)")
 
-	assert.Equalf(t, int64(0), int64(conn.MonotonicSentBytes), "sendfile data wasn't properly traced")
+	assert.Equalf(t, int64(0), int64(conn.Monotonic.SentBytes), "sendfile data wasn't properly traced")
 }
 
 func sendFile(t *testing.T, c net.Conn, f *os.File, offset *int64, count int) (int, error) {
@@ -1395,4 +1391,90 @@ func sendFile(t *testing.T, c net.Conn, f *os.File, offset *int64, count int) (i
 		return 0, err
 	}
 	return n, serr
+}
+
+func TestShortWrite(t *testing.T) {
+	tr, err := NewTracer(testConfig())
+	require.NoError(t, err)
+	t.Cleanup(tr.Stop)
+
+	read := make(chan struct{})
+	server := NewTCPServer(func(c net.Conn) {
+		// set recv buffer to 0 and don't read
+		// to fill up tcp window
+		err := c.(*net.TCPConn).SetReadBuffer(0)
+		require.NoError(t, err)
+		<-read
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	err = server.Run(doneChan)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		close(read)
+		close(doneChan)
+	})
+
+	s, err := unix.Socket(syscall.AF_INET, syscall.SOCK_STREAM|syscall.SOCK_NONBLOCK, 0)
+	require.NoError(t, err)
+	defer syscall.Close(s)
+
+	err = unix.SetsockoptInt(s, syscall.SOL_SOCKET, syscall.SO_SNDBUF, 5000)
+	require.NoError(t, err)
+
+	sndBufSize, err := unix.GetsockoptInt(s, syscall.SOL_SOCKET, syscall.SO_SNDBUF)
+	require.GreaterOrEqual(t, sndBufSize, 5000)
+
+	var sa unix.SockaddrInet4
+	host, portStr, err := net.SplitHostPort(server.address)
+	require.NoError(t, err)
+	copy(sa.Addr[:], net.ParseIP(host).To4())
+	port, err := strconv.ParseInt(portStr, 10, 32)
+	sa.Port = int(port)
+
+	err = unix.Connect(s, &sa)
+	if syscall.EINPROGRESS != err {
+		require.NoError(t, err)
+	}
+
+	var wfd unix.FdSet
+	wfd.Zero()
+	wfd.Set(s)
+	tv := unix.NsecToTimeval(int64((5 * time.Second).Nanoseconds()))
+	nfds, err := unix.Select(s+1, nil, &wfd, nil, &tv)
+	require.NoError(t, err)
+	require.Equal(t, 1, nfds)
+
+	var written int
+	done := false
+	var sent uint64
+	toSend := sndBufSize / 2
+	for i := 0; i < 100; i++ {
+		written, err = unix.Write(s, genPayload(toSend))
+		require.Greater(t, written, 0)
+		require.NoError(t, err)
+		sent += uint64(written)
+		t.Logf("sent: %v", sent)
+		if written < toSend {
+			done = true
+			break
+		}
+	}
+
+	require.True(t, done)
+
+	f := os.NewFile(uintptr(s), "")
+	defer f.Close()
+	c, err := net.FileConn(f)
+	require.NoError(t, err)
+
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		var ok bool
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		return ok
+	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by short write")
+
+	assert.Equal(t, sent, conn.Monotonic.SentBytes)
 }

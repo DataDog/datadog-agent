@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -410,7 +409,7 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 
 func dumpInputToFile(ruleID, path string, input interface{}) error {
 	currentData := make(map[string]interface{})
-	currentContent, err := ioutil.ReadFile(path)
+	currentContent, err := os.ReadFile(path)
 	if err == nil {
 		if len(currentContent) != 0 {
 			if err := json.Unmarshal(currentContent, &currentData); err != nil {
@@ -426,7 +425,7 @@ func dumpInputToFile(ruleID, path string, input interface{}) error {
 		return err
 	}
 
-	return ioutil.WriteFile(path, jsonData, 0644)
+	return os.WriteFile(path, jsonData, 0644)
 }
 
 type regoFinding struct {

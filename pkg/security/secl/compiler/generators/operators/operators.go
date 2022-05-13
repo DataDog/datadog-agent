@@ -37,22 +37,35 @@ func main() {
 
 package	eval
 
+import (
+	"errors"
+)
+
 {{ range .Operators }}
 
-func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *state) (*{{ .FuncReturnType }}, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *State) (*{{ .FuncReturnType }}, error) {
+	{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
+	isDc := a.IsDeterministicFor(state.field) || b.IsDeterministicFor(state.field)
+	{{ else }}
+	isDc := isArithmDeterministic(a, b, state)
+	{{ end }}
 
+	{{ if eq .ValueType "BitmaskValueType" }}
+	if a.EvalFnc != nil && b.EvalFnc != nil {
+		return nil, errors.New("full dynamic bitmask operation not supported")
+	}
+	{{ else }}
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
 			if state.field != "" {
-				if a.isPartial {
+				if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
 					ea = func(ctx *Context) {{ .EvalReturnType }} {
 						return true
 					}
 				}
-				if b.isPartial {
+				if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
 					eb = func(ctx *Context) {{ .EvalReturnType }} {
 						return true
 					}
@@ -60,7 +73,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			}
 		{{ end }}
 
-		// optimize the evaluation if needed, moving the evaluation with more weight at the right
+		{{/* optimize the evaluation if needed, moving the evaluation with more weight at the right */}}
 		{{ if .Commutative }}
 			if a.Weight > b.Weight {
 				tmp := ea
@@ -76,30 +89,20 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		return &{{ .FuncReturnType }}{
 			EvalFnc: evalFnc,
 			Weight: a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
+			isDeterministic: isDc,
 		}, nil
 	}
+	{{ end }}
 
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Value, b.Value
-
-		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
-		if state.field != "" {
-			if a.isPartial {
-				ea = true
-			}
-			if b.isPartial {
-				eb = true
-			}
-		}
-		{{ end }}
 
 		ctx := NewContext(nil)
 		_ = ctx
 
 		return &{{ .FuncReturnType }}{
 			Value: {{ call .Op "ea" "eb" }},
-			isPartial: isPartialLeaf,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -114,12 +117,12 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 
 		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
 			if state.field != "" {
-				if a.isPartial {
+				if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
 					ea = func(ctx *Context) {{ .EvalReturnType }} {
 						return true
 					}
 				}
-				if b.isPartial {
+				if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
 					eb = true
 				}
 			}
@@ -131,8 +134,9 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 
 		return &{{ .FuncReturnType }}{
 			EvalFnc: evalFnc,
+			Field: a.Field,
 			Weight: a.Weight,
-			isPartial: isPartialLeaf,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -146,10 +150,10 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 
 	{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
 		if state.field != "" {
-			if a.isPartial {
+			if !a.IsDeterministicFor(state.field) && !a.IsStatic() {
 				ea = true
 			}
-			if b.isPartial {
+			if !b.IsDeterministicFor(state.field) && !b.IsStatic() {
 				eb = func(ctx *Context) {{ .EvalReturnType }} {
 					return true
 				}
@@ -163,16 +167,21 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 
 	return &{{ .FuncReturnType }}{
 		EvalFnc: evalFnc,
+		Field: b.Field,
 		Weight: b.Weight,
-		isPartial: isPartialLeaf,
+		isDeterministic: isDc,
 	}, nil
 }
 {{ end }}
 
 {{ range .ArrayOperators }}
 
-func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *state) (*{{ .FuncReturnType }}, error) {
-	isPartialLeaf := isPartialLeaf(a, b, state)
+func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *State) (*{{ .FuncReturnType }}, error) {
+	{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
+	isDc := a.IsDeterministicFor(state.field) || b.IsDeterministicFor(state.field)
+	{{ else }}
+	isDc := isArithmDeterministic(a, b, state)
+	{{ end }}
 
 	arrayOp := func(a {{ .ArrayType }}, b []{{ .ArrayType }}) bool {
 		for _, v := range b {
@@ -193,7 +202,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 		return &{{ .FuncReturnType }}{
 			EvalFnc:   evalFnc,
 			Weight:    a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -203,7 +212,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 		return &{{ .FuncReturnType }}{
 			Value:     arrayOp(ea, eb),
 			Weight:    a.Weight + InArrayWeight*len(eb),
-			isPartial: isPartialLeaf,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -225,7 +234,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 		return &{{ .FuncReturnType }}{
 			EvalFnc:   evalFnc,
 			Weight:    a.Weight + InArrayWeight*len(eb),
-			isPartial: isPartialLeaf,
+			isDeterministic: isDc,
 		}, nil
 	}
 
@@ -244,7 +253,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 	return &{{ .FuncReturnType }}{
 		EvalFnc:   evalFnc,
 		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
+		isDeterministic: isDc,
 	}, nil
 }
 {{end}}
@@ -412,7 +421,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 		},
 		ArrayOperators: []Operator{
 			{
-				FuncName:       "IntEquals",
+				FuncName:       "IntArrayEquals",
 				Arg1Type:       "IntEvaluator",
 				Arg2Type:       "IntArrayEvaluator",
 				FuncReturnType: "BoolEvaluator",
@@ -422,7 +431,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				ValueType:      "ScalarValueType",
 			},
 			{
-				FuncName:       "BoolEquals",
+				FuncName:       "BoolArrayEquals",
 				Arg1Type:       "BoolEvaluator",
 				Arg2Type:       "BoolArrayEvaluator",
 				FuncReturnType: "BoolEvaluator",
@@ -432,7 +441,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				ValueType:      "ScalarValueType",
 			},
 			{
-				FuncName:       "IntGreaterThan",
+				FuncName:       "IntArrayGreaterThan",
 				Arg1Type:       "IntEvaluator",
 				Arg2Type:       "IntArrayEvaluator",
 				FuncReturnType: "BoolEvaluator",
@@ -442,7 +451,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				ValueType:      "ScalarValueType",
 			},
 			{
-				FuncName:       "IntGreaterOrEqualThan",
+				FuncName:       "IntArrayGreaterOrEqualThan",
 				Arg1Type:       "IntEvaluator",
 				Arg2Type:       "IntArrayEvaluator",
 				FuncReturnType: "BoolEvaluator",
@@ -452,7 +461,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				ValueType:      "ScalarValueType",
 			},
 			{
-				FuncName:       "IntLesserThan",
+				FuncName:       "IntArrayLesserThan",
 				Arg1Type:       "IntEvaluator",
 				Arg2Type:       "IntArrayEvaluator",
 				FuncReturnType: "BoolEvaluator",
@@ -462,7 +471,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				ValueType:      "ScalarValueType",
 			},
 			{
-				FuncName:       "IntLesserOrEqualThan",
+				FuncName:       "IntArrayLesserOrEqualThan",
 				Arg1Type:       "IntEvaluator",
 				Arg2Type:       "IntArrayEvaluator",
 				FuncReturnType: "BoolEvaluator",

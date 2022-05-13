@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package kubernetesapiserver
@@ -205,7 +206,7 @@ func TestProcessBundledEvents(t *testing.T) {
 	mockConfig.Set("cluster_name", testClusterName)
 	clustername.ResetClusterName() // reset state as clustername was already read
 	// defer a reset of the state so that future hostname fetches are not impacted
-	defer mockConfig.Set("cluster_name", nil)
+	defer mockConfig.Unset("cluster_name")
 	defer clustername.ResetClusterName()
 
 	modifiedNewDatadogEventsWithClusterName := metrics.Event{

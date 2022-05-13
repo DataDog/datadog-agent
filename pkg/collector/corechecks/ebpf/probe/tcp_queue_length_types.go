@@ -7,7 +7,7 @@ package probe
 
 // TCPQueueLengthStatsKey is the type of the `TCPQueueLengthStats` map key: the container ID
 type TCPQueueLengthStatsKey struct {
-	ContainerID string `json:"containerid"`
+	CgroupName string `json:"cgroupName"`
 }
 
 // TCPQueueLengthStatsValue is the type of the `TCPQueueLengthStats` map value: the maximum fill rate of busiest read and write buffers

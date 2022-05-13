@@ -1,19 +1,5 @@
 require 'spec_helper'
 
-def read_conf_file
-    conf_path = ""
-    if os == :windows
-      conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
-    else
-      conf_path = '/etc/datadog-agent/datadog.yaml'
-    end
-    f = File.read(conf_path)
-    confYaml = YAML.load(f)
-    confYaml
-end
-
-
-
 =begin
 Each SDDL is defined as follows (split across multiple lines here for readability, but they're
 all concatenated into one)

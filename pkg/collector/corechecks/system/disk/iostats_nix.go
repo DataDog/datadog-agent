@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
 // +build !windows
 
 package disk
@@ -13,16 +14,17 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/shirou/gopsutil/disk"
+	"github.com/shirou/gopsutil/v3/disk"
+	"github.com/shirou/gopsutil/v3/mem" // for system.io.block_{in,out}
 )
 
 // For testing purpose
 var (
 	ioCounters = disk.IOCounters
+	swapMemory = mem.SwapMemory
 
 	// for test purpose
 	nowNano = func() int64 { return time.Now().UnixNano() }
@@ -68,7 +70,7 @@ func incrementWithOverflow(currentValue, lastValue uint64) int64 {
 }
 
 func (c *IOCheck) nixIO() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}
@@ -173,6 +175,15 @@ func (c *IOCheck) nixIO() error {
 
 	}
 
+	// pgpgin and pgpgout are reported in /proc/vmstat and parsed by mem.swapMemory() only
+	s, errSwap := swapMemory()
+	if errSwap == nil {
+		sender.Rate("system.io.block_in", float64(s.PgIn), "", nil)
+		sender.Rate("system.io.block_out", float64(s.PgOut), "", nil)
+	} else {
+		log.Errorf("system.IOCheck: could not retrieve I/O block stats: %s", errSwap)
+	}
+
 	c.stats = iomap
 	c.ts = now
 	return nil
@@ -180,7 +191,7 @@ func (c *IOCheck) nixIO() error {
 
 // Run executes the check
 func (c *IOCheck) Run() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}

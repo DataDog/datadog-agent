@@ -122,7 +122,7 @@ func (a *Agent) Run() error {
 
 	onCheck := func(rule *compliance.RuleCommon, check compliance.Check, err error) bool {
 		if err != nil {
-			log.Errorf("%s: check not scheduled: %v", rule.ID, err)
+			log.Infof("%s: check not scheduled: %v", rule.ID, err)
 			return true
 		}
 

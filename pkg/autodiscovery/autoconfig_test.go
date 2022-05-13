@@ -6,10 +6,8 @@
 package autodiscovery
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -60,9 +58,11 @@ type MockListener struct {
 func (l *MockListener) Listen(newSvc, delSvc chan<- listeners.Service) {
 	l.ListenCount++
 }
+
 func (l *MockListener) Stop() {
 	l.stopReceived = true
 }
+
 func (l *MockListener) fakeFactory(listeners.Config) (listeners.ServiceListener, error) {
 	return l, nil
 }
@@ -175,13 +175,20 @@ func (suite *AutoConfigTestSuite) TestAddListener() {
 	ac.m.Unlock()
 }
 
-func (suite *AutoConfigTestSuite) TestContains() {
+func (suite *AutoConfigTestSuite) TestDiffConfigs() {
 	c1 := integration.Config{Name: "bar"}
 	c2 := integration.Config{Name: "foo"}
+	c3 := integration.Config{Name: "baz"}
 	pd := configPoller{}
-	pd.configs = append(pd.configs, c1)
-	assert.True(suite.T(), pd.contains(&c1))
-	assert.False(suite.T(), pd.contains(&c2))
+
+	pd.overwriteConfigs([]integration.Config{c1, c2})
+	added, removed := pd.storeAndDiffConfigs([]integration.Config{c1, c3})
+	assert.ElementsMatch(suite.T(), added, []integration.Config{c3})
+	assert.ElementsMatch(suite.T(), removed, []integration.Config{c2})
+	assert.Equal(suite.T(), map[uint64]integration.Config{
+		c3.FastDigest(): c3,
+		c1.FastDigest(): c1,
+	}, pd.configs)
 }
 
 func (suite *AutoConfigTestSuite) TestStop() {
@@ -311,8 +318,8 @@ func TestResolveTemplate(t *testing.T) {
 	}
 
 	// no services
-	res := ac.resolveTemplate(tpl)
-	assert.Len(t, res, 0)
+	changes := ac.processNewConfig(tpl)
+	assert.Len(t, changes.schedule, 0)
 
 	service := dummyService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
@@ -321,8 +328,8 @@ func TestResolveTemplate(t *testing.T) {
 	ac.processNewService(ctx, &service)
 
 	// there are no template vars but it's ok
-	res = ac.resolveTemplate(tpl)
-	assert.Len(t, res, 1)
+	changes = ac.processNewConfig(tpl)
+	assert.Len(t, changes.schedule, 1)
 }
 
 func countLoadedConfigs(ac *AutoConfig) int {
@@ -357,12 +364,12 @@ func TestRemoveTemplate(t *testing.T) {
 		Name:          "cpu",
 		ADIdentifiers: []string{"redis"},
 	}
-	configs := ac.processNewConfig(tpl)
-	assert.Len(t, configs, 1)
+	changes := ac.processNewConfig(tpl)
+	assert.Len(t, changes.schedule, 1)
 	assert.Equal(t, countLoadedConfigs(ac), 2)
 
 	// Remove the template, config should be removed too
-	ac.removeConfigTemplates([]integration.Config{tpl})
+	ac.processRemovedConfigs([]integration.Config{tpl})
 	assert.Equal(t, countLoadedConfigs(ac), 1)
 }
 
@@ -374,7 +381,6 @@ func TestGetLoadedConfigNotInitialized(t *testing.T) {
 func TestCheckOverride(t *testing.T) {
 	ctx := context.Background()
 
-	ac := NewAutoConfig(scheduler.NewMetaScheduler())
 	tpl := integration.Config{
 		Name:          "redis",
 		ADIdentifiers: []string{"redis"},
@@ -382,164 +388,74 @@ func TestCheckOverride(t *testing.T) {
 	}
 
 	// check must be overridden (same check)
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
 	ac.processNewService(ctx, &dummyService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
 		CheckNames:    []string{"redis"},
 	})
-	assert.Len(t, ac.resolveTemplate(tpl), 0)
+	assert.Len(t, ac.processNewConfig(tpl).schedule, 0)
 
 	// check must be overridden (empty config)
+	ac = NewAutoConfig(scheduler.NewMetaScheduler())
 	ac.processNewService(ctx, &dummyService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
 		CheckNames:    []string{""},
 	})
-	assert.Len(t, ac.resolveTemplate(tpl), 0)
+	assert.Len(t, ac.processNewConfig(tpl).schedule, 0)
 
 	// check must be scheduled (different checks)
+	ac = NewAutoConfig(scheduler.NewMetaScheduler())
 	ac.processNewService(ctx, &dummyService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
 		CheckNames:    []string{"tcp_check"},
 	})
-	assert.Len(t, ac.resolveTemplate(tpl), 1)
+	assert.Len(t, ac.processNewConfig(tpl).schedule, 1)
 }
 
-type MockSecretDecrypt struct {
-	t         *testing.T
-	scenarios []struct {
-		expectedData   []byte
-		expectedOrigin string
-		returnedData   []byte
-		returnedError  error
-		called         int
-	}
-}
-
-func (m *MockSecretDecrypt) getDecryptFunc() func([]byte, string) ([]byte, error) {
-	return func(data []byte, origin string) ([]byte, error) {
-		for n, scenario := range m.scenarios {
-			if bytes.Compare(data, scenario.expectedData) == 0 && origin == scenario.expectedOrigin {
-				m.scenarios[n].called++
-				return scenario.returnedData, scenario.returnedError
-			}
-		}
-		m.t.Errorf("Decrypt called with unexpected arguments: data=%s, origin=%s", data, origin)
-		return nil, fmt.Errorf("Decrypt called with unexpected arguments: data=%s, origin=%s", data, origin)
-	}
-}
-
-func (m *MockSecretDecrypt) haveAllScenariosBeenCalled() bool {
-	for _, scenario := range m.scenarios {
-		if scenario.called == 0 {
-			return false
-		}
-	}
-	return true
-}
-
-func (m *MockSecretDecrypt) haveAllScenariosNotCalled() bool {
-	for _, scenario := range m.scenarios {
-		if scenario.called != 0 {
-			return false
-		}
-	}
-	return true
-}
-
-func mockDecrypt(t *testing.T) MockSecretDecrypt {
-	return MockSecretDecrypt{
-		t: t,
-		scenarios: []struct {
-			expectedData   []byte
-			expectedOrigin string
-			returnedData   []byte
-			returnedError  error
-			called         int
-		}{
-			{
-				expectedData:   []byte{},
-				expectedOrigin: "cpu",
-				returnedData:   []byte{},
-				returnedError:  nil,
-			},
-			{
-				expectedData:   []byte("param1: ENC[foo]"),
-				expectedOrigin: "cpu",
-				returnedData:   []byte("param1: foo"),
-				returnedError:  nil,
-			},
-			{
-				expectedData:   []byte("param2: ENC[bar]"),
-				expectedOrigin: "cpu",
-				returnedData:   []byte("param2: bar"),
-				returnedError:  nil,
-			},
-		},
-	}
-}
-
-var sharedTpl = integration.Config{
-	Name:          "cpu",
-	ADIdentifiers: []string{"redis"},
-	InitConfig:    []byte("param1: ENC[foo]"),
-	Instances: []integration.Data{
-		[]byte("param2: ENC[bar]"),
-	},
-}
-
-var sharedService = dummyService{
-	ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
-	ADIdentifiers: []string{"redis"},
-}
-
-func TestSecretDecrypt(t *testing.T) {
+func TestDecryptConfig(t *testing.T) {
 	ctx := context.Background()
 
-	/// resolveTemplate
+	mockDecrypt := MockSecretDecrypt{t, []mockSecretScenario{
+		{
+			expectedData:   []byte{},
+			expectedOrigin: "cpu",
+			returnedData:   []byte{},
+			returnedError:  nil,
+		},
+		{
+			expectedData:   []byte("param1: ENC[foo]\n"),
+			expectedOrigin: "cpu",
+			returnedData:   []byte("param1: foo\n"),
+			returnedError:  nil,
+		},
+	}}
+	defer mockDecrypt.install()()
+
 	ac := NewAutoConfig(scheduler.NewMetaScheduler())
+	ac.processNewService(ctx, &dummyService{ID: "abcd", ADIdentifiers: []string{"redis"}})
 
-	mockDecrypt := mockDecrypt(t)
-	originalSecretsDecrypt := secretsDecrypt
-	secretsDecrypt = mockDecrypt.getDecryptFunc()
-	defer func() { secretsDecrypt = originalSecretsDecrypt }()
+	tpl := integration.Config{
+		Name:          "cpu",
+		ADIdentifiers: []string{"redis"},
+		InitConfig:    []byte("param1: ENC[foo]"),
+	}
+	changes := ac.processNewConfig(tpl)
 
-	// no services
-	res := ac.resolveTemplate(sharedTpl)
-	assert.Len(t, res, 0)
+	require.Len(t, changes.schedule, 1)
 
-	service := sharedService
-	ac.processNewService(ctx, &service)
-
-	// there are no template vars but it's ok
-	res = ac.resolveTemplate(sharedTpl)
-	assert.Len(t, res, 1)
+	resolved := integration.Config{
+		Name:          "cpu",
+		ADIdentifiers: []string{"redis"},
+		InitConfig:    []byte("param1: foo\n"),
+		Instances:     []integration.Data{},
+		MetricConfig:  integration.Data{},
+		LogsConfig:    integration.Data{},
+		ServiceID:     "abcd",
+	}
+	assert.Equal(t, resolved, changes.schedule[0])
 
 	assert.True(t, mockDecrypt.haveAllScenariosBeenCalled())
-}
-
-func TestSkipSecretDecrypt(t *testing.T) {
-	ctx := context.Background()
-	ac := NewAutoConfig(scheduler.NewMetaScheduler())
-
-	mockDecrypt := mockDecrypt(t)
-	originalSecretsDecrypt := secretsDecrypt
-	secretsDecrypt = mockDecrypt.getDecryptFunc()
-	defer func() { secretsDecrypt = originalSecretsDecrypt }()
-
-	cfg := config.Mock()
-	cfg.Set("secret_backend_skip_checks", true)
-	defer cfg.Set("secret_backend_skip_checks", false)
-
-	service := sharedService
-	ac.processNewService(ctx, &service)
-
-	res := ac.resolveTemplate(sharedTpl)
-	assert.Len(t, res, 1)
-
-	assert.Equal(t, sharedTpl.Instances, res[0].Instances)
-	assert.Equal(t, sharedTpl.InitConfig, res[0].InitConfig)
-
-	assert.True(t, mockDecrypt.haveAllScenariosNotCalled())
 }

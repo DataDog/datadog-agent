@@ -6,12 +6,14 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
+	_ "embed"
 	"errors"
 	"flag"
 	"fmt"
 	"go/ast"
 	"go/types"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -35,17 +37,19 @@ const (
 )
 
 var (
-	filename          string
-	pkgname           string
-	output            string
-	verbose           bool
-	mock              bool
-	genDoc            bool
-	packagesLookupMap map[string]*types.Package
-	buildTags         string
+	filename             string
+	pkgname              string
+	output               string
+	verbose              bool
+	mock                 bool
+	docOutput            string
+	fieldsResolverOutput string
+	buildTags            string
 )
 
-var module *common.Module
+var (
+	packagesLookupMap map[string]*types.Package
+)
 
 func resolveSymbol(pkg, symbol string) (types.Object, error) {
 	if typePackage, found := packagesLookupMap[pkg]; found {
@@ -63,8 +67,19 @@ func origTypeToBasicType(kind string) string {
 	return kind
 }
 
-func handleBasic(name, alias, kind, event string, iterator *common.StructField, isArray bool, commentText string) {
-	fmt.Printf("handleBasic %s %s\n", name, kind)
+func qualifiedType(module *common.Module, kind string) string {
+	switch kind {
+	case "int", "string", "bool":
+		return kind
+	default:
+		return module.SourcePkgPrefix + kind
+	}
+}
+
+func handleBasic(module *common.Module, name, alias, kind, event string, iterator *common.StructField, isArray bool, opOverrides string, commentText string) {
+	if verbose {
+		fmt.Printf("handleBasic %s %s\n", name, kind)
+	}
 
 	basicType := origTypeToBasicType(kind)
 	module.Fields[alias] = &common.StructField{
@@ -76,24 +91,29 @@ func handleBasic(name, alias, kind, event string, iterator *common.StructField, 
 		OrigType:    kind,
 		Iterator:    iterator,
 		CommentText: commentText,
+		OpOverrides: opOverrides,
 	}
 
-	module.EventTypes[event] = true
+	if _, ok := module.EventTypes[event]; !ok {
+		module.EventTypes[event] = common.NewEventTypeMetada()
+	}
 }
 
-func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident, event string, iterator *common.StructField, dejavu map[string]bool, isArray bool, commentText string) error {
-	fmt.Printf("handleField fieldName %s, alias %s, prefix %s, aliasPrefix %s, pkgName %s, fieldType, %s\n", name, alias, prefix, aliasPrefix, pkgName, fieldType)
+func handleField(module *common.Module, astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType string, event string, iterator *common.StructField, dejavu map[string]bool, isArray bool, opOverride string, commentText string) error {
+	if verbose {
+		fmt.Printf("handleField fieldName %s, alias %s, prefix %s, aliasPrefix %s, pkgName %s, fieldType, %s\n", name, alias, prefix, aliasPrefix, pkgName, fieldType)
+	}
 
-	switch fieldType.Name {
-	case "string", "bool", "int", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64":
+	switch fieldType {
+	case "string", "bool", "int", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "net.IPNet":
 		if prefix != "" {
 			name = prefix + "." + name
 			alias = aliasPrefix + "." + alias
 		}
-		handleBasic(name, alias, fieldType.Name, event, iterator, isArray, commentText)
+		handleBasic(module, name, alias, fieldType, event, iterator, isArray, opOverride, commentText)
 
 	default:
-		symbol, err := resolveSymbol(pkgName, fieldType.Name)
+		symbol, err := resolveSymbol(pkgName, fieldType)
 		if err != nil {
 			return fmt.Errorf("failed to resolve symbol for %+v in %s: %s", fieldType, pkgName, err)
 		}
@@ -109,32 +129,44 @@ func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName st
 			aliasPrefix = alias
 		}
 
-		spec := astFile.Scope.Lookup(fieldType.Name)
-		handleSpec(astFile, spec.Decl, prefix, aliasPrefix, event, iterator, dejavu)
+		spec := astFile.Scope.Lookup(fieldType)
+		handleSpec(module, astFile, spec.Decl, prefix, aliasPrefix, event, iterator, dejavu)
 	}
 
 	return nil
 }
 
-func getFieldIdent(field *ast.Field) (ident *ast.Ident, isPointer, isArray bool) {
-	if fieldType, ok := field.Type.(*ast.Ident); ok {
-		return fieldType, false, false
-	} else if fieldType, ok := field.Type.(*ast.StarExpr); ok {
-		if ident, ok := fieldType.X.(*ast.Ident); ok {
-			return ident, true, false
-		}
-	} else if ft, ok := field.Type.(*ast.ArrayType); ok {
-		if ident, ok := ft.Elt.(*ast.Ident); ok {
-			return ident, false, true
-		}
+func getFieldName(expr ast.Expr) string {
+	switch expr := expr.(type) {
+	case *ast.Ident:
+		return expr.Name
+	case *ast.StarExpr:
+		return getFieldName(expr.X)
+	case *ast.ArrayType:
+		return getFieldName(expr.Elt)
+	case *ast.SelectorExpr:
+		return getFieldName(expr.X) + "." + getFieldName(expr.Sel)
+	default:
+		return ""
 	}
-	return nil, false, false
+}
+
+func getFieldIdentName(expr ast.Expr) (name string, isPointer bool, isArray bool) {
+	switch expr.(type) {
+	case *ast.StarExpr:
+		isPointer = true
+	case *ast.ArrayType:
+		isArray = true
+	}
+
+	return getFieldName(expr), isPointer, isArray
 }
 
 type seclField struct {
-	name     string
-	iterator string
-	handler  string
+	name                string
+	iterator            string
+	handler             string
+	cachelessResolution bool
 }
 
 func parseHandler(handler string) (string, int64) {
@@ -153,8 +185,10 @@ func parseHandler(handler string) (string, int64) {
 	return handler, weight
 }
 
-func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event string, iterator *common.StructField, dejavu map[string]bool) {
-	fmt.Printf("handleSpec spec: %+v, prefix: %s, aliasPrefix %s, event %s, iterator %+v\n", spec, prefix, aliasPrefix, event, iterator)
+func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, prefix, aliasPrefix, event string, iterator *common.StructField, dejavu map[string]bool) {
+	if verbose {
+		fmt.Printf("handleSpec spec: %+v, prefix: %s, aliasPrefix %s, event %s, iterator %+v\n", spec, prefix, aliasPrefix, event, iterator)
+	}
 
 	if typeSpec, ok := spec.(*ast.TypeSpec); ok {
 		if structType, ok := typeSpec.Type.(*ast.StructType); ok {
@@ -171,7 +205,10 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 
 				if e, ok := tag.Lookup("event"); ok {
 					event = e
-					module.EventTypeDocs[e] = fieldCommentText
+					if _, ok = module.EventTypes[e]; !ok {
+						module.EventTypes[e] = common.NewEventTypeMetada()
+					}
+					module.EventTypes[e].Doc = fieldCommentText
 				}
 
 				if isEmbedded := len(field.Names) == 0; !isEmbedded {
@@ -185,27 +222,38 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 						continue
 					}
 
+					var opOverrides string
 					var fields []seclField
-					fieldType, isPointer, isArray := getFieldIdent(field)
+					fieldType, isPointer, isArray := getFieldIdentName(field.Type)
 
 					var weight int64
 					if tags, err := structtag.Parse(string(tag)); err == nil && len(tags.Tags()) != 0 {
-						for _, fieldTag := range tags.Tags() {
-							if fieldTag.Key == "field" {
-								splitted := strings.SplitN(fieldTag.Value(), ",", 3)
-								alias := splitted[0]
-								if alias == "-" {
-									continue FIELD
-								}
-								field := seclField{name: alias}
-								if len(splitted) > 1 {
-									field.handler, weight = parseHandler(splitted[1])
-								}
-								if len(splitted) > 2 {
-									field.iterator, weight = parseHandler(splitted[2])
+						for _, tag := range tags.Tags() {
+							switch tag.Key {
+							case "field":
+								fieldGroups := strings.Split(tag.Value(), ";")
+								for _, fieldGroup := range fieldGroups {
+									splitted := strings.SplitN(fieldGroup, ",", 4)
+									alias := splitted[0]
+									if alias == "-" {
+										continue FIELD
+									}
+									field := seclField{name: alias}
+									if len(splitted) > 1 {
+										field.handler, weight = parseHandler(splitted[1])
+									}
+									if len(splitted) > 2 {
+										field.iterator, weight = parseHandler(splitted[2])
+									}
+									if len(splitted) > 3 {
+										field.cachelessResolution = splitted[3] == "cacheless_resolution"
+									}
+
+									fields = append(fields, field)
 								}
 
-								fields = append(fields, field)
+							case "op_override":
+								opOverrides = tag.Value()
 							}
 						}
 					} else {
@@ -219,25 +267,32 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 							alias = aliasPrefix + "." + fieldAlias
 						}
 
-						if iterator := seclField.iterator; iterator != "" {
-							qualifiedType := func(t string) string {
-								switch t {
-								case "int", "string", "bool":
-									return t
-								default:
-									return module.SourcePkgPrefix + t
-								}
-							}
+						name := fmt.Sprintf("%s.%s", prefix, fieldName)
+						if len(prefix) == 0 {
+							name = fieldName
+						}
 
+						// maintain a list of all the fields
+						module.AllFields[name] = &common.StructField{
+							Name:          name,
+							Event:         event,
+							OrigType:      qualifiedType(module, fieldType),
+							IsOrigTypePtr: isPointer,
+							IsArray:       isArray,
+						}
+
+						if iterator := seclField.iterator; iterator != "" {
 							module.Iterators[alias] = &common.StructField{
-								Name:          fmt.Sprintf("%s.%s", prefix, fieldName),
-								ReturnType:    qualifiedType(iterator),
-								Event:         event,
-								OrigType:      qualifiedType(fieldType.Name),
-								IsOrigTypePtr: isPointer,
-								IsArray:       isArray,
-								Weight:        weight,
-								CommentText:   fieldCommentText,
+								Name:                name,
+								ReturnType:          qualifiedType(module, iterator),
+								Event:               event,
+								OrigType:            qualifiedType(module, fieldType),
+								IsOrigTypePtr:       isPointer,
+								IsArray:             isArray,
+								Weight:              weight,
+								CommentText:         fieldCommentText,
+								OpOverrides:         opOverrides,
+								CachelessResolution: seclField.cachelessResolution,
 							}
 
 							fieldIterator = module.Iterators[alias]
@@ -249,21 +304,28 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 							}
 
 							module.Fields[fieldAlias] = &common.StructField{
-								Prefix:      prefix,
-								Name:        fmt.Sprintf("%s.%s", prefix, fieldName),
-								BasicType:   origTypeToBasicType(fieldType.Name),
-								Struct:      typeSpec.Name.Name,
-								Handler:     handler,
-								ReturnType:  origTypeToBasicType(fieldType.Name),
-								Event:       event,
-								OrigType:    fieldType.Name,
-								Iterator:    fieldIterator,
-								IsArray:     isArray,
-								Weight:      weight,
-								CommentText: fieldCommentText,
+								Prefix:              prefix,
+								Name:                name,
+								BasicType:           origTypeToBasicType(fieldType),
+								Struct:              typeSpec.Name.Name,
+								Handler:             handler,
+								ReturnType:          origTypeToBasicType(fieldType),
+								Event:               event,
+								OrigType:            fieldType,
+								Iterator:            fieldIterator,
+								IsArray:             isArray,
+								Weight:              weight,
+								CommentText:         fieldCommentText,
+								OpOverrides:         opOverrides,
+								CachelessResolution: seclField.cachelessResolution,
+								IsOrigTypePtr:       isPointer,
 							}
 
-							module.EventTypes[event] = true
+							if _, ok = module.EventTypes[event]; !ok {
+								module.EventTypes[event] = common.NewEventTypeMetada(fieldAlias)
+							} else {
+								module.EventTypes[event].Fields = append(module.EventTypes[event].Fields, fieldAlias)
+							}
 							delete(dejavu, fieldName)
 
 							continue
@@ -271,8 +333,8 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 
 						dejavu[fieldName] = true
 
-						if fieldType != nil {
-							if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, false, fieldCommentText); err != nil {
+						if len(fieldType) != 0 {
+							if err := handleField(module, astFile, fieldName, fieldAlias, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, false, opOverrides, fieldCommentText); err != nil {
 								log.Print(err)
 							}
 
@@ -297,8 +359,26 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 					if ident != nil {
 						embedded := astFile.Scope.Lookup(ident.Name)
 						if embedded != nil {
-							log.Printf("Embedded struct %s", ident.Name)
-							handleSpec(astFile, embedded.Decl, prefix+"."+ident.Name, aliasPrefix, event, fieldIterator, dejavu)
+							if verbose {
+								log.Printf("Embedded struct %s", ident.Name)
+							}
+
+							name := fmt.Sprintf("%s.%s", prefix, ident.Name)
+							if len(prefix) == 0 {
+								name = ident.Name
+							}
+							fieldType, isPointer, isArray := getFieldIdentName(field.Type)
+
+							// maintain a list of all the fields
+							module.AllFields[name] = &common.StructField{
+								Name:          name,
+								Event:         event,
+								OrigType:      qualifiedType(module, fieldType),
+								IsOrigTypePtr: isPointer,
+								IsArray:       isArray,
+							}
+
+							handleSpec(module, astFile, embedded.Decl, prefix+"."+ident.Name, aliasPrefix, event, fieldIterator, dejavu)
 						}
 					}
 				}
@@ -352,16 +432,16 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 		moduleName = path.Base(pkgName)
 	}
 
-	module = &common.Module{
-		Name:          moduleName,
-		SourcePkg:     pkgName,
-		TargetPkg:     pkgName,
-		BuildTags:     buildTags,
-		Fields:        make(map[string]*common.StructField),
-		Iterators:     make(map[string]*common.StructField),
-		EventTypes:    make(map[string]bool),
-		EventTypeDocs: make(map[string]string),
-		Mock:          mock,
+	module := &common.Module{
+		Name:       moduleName,
+		SourcePkg:  pkgName,
+		TargetPkg:  pkgName,
+		BuildTags:  buildTags,
+		Fields:     make(map[string]*common.StructField),
+		AllFields:  make(map[string]*common.StructField),
+		Iterators:  make(map[string]*common.StructField),
+		EventTypes: make(map[string]*common.EventTypeMetadata),
+		Mock:       mock,
 	}
 
 	// If the target package is different from the model package
@@ -375,18 +455,20 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 			genaccessors := false
 			if decl.Doc != nil {
 				for _, doc := range decl.Doc.List {
-					if genaccessors = strings.Index(doc.Text, "genaccessors") != -1; genaccessors {
+					if strings.Contains(doc.Text, "genaccessors") {
+						genaccessors = true
 						break
 					}
 				}
 			}
+
 			if !genaccessors {
 				continue
 			}
 
 			for _, spec := range decl.Specs {
 				if typeSpec, ok := spec.(*ast.TypeSpec); ok {
-					handleSpec(astFile, typeSpec, "", "", "", nil, make(map[string]bool))
+					handleSpec(module, astFile, typeSpec, "", "", "", nil, make(map[string]bool))
 				}
 			}
 		}
@@ -395,378 +477,112 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 	return module, nil
 }
 
-var FuncMap = map[string]interface{}{
-	"TrimPrefix": strings.TrimPrefix,
+func newField(allFields map[string]*common.StructField, field *common.StructField) string {
+	var path, result string
+	for _, node := range strings.Split(field.Name, ".") {
+		if path != "" {
+			path += "." + node
+		} else {
+			path = node
+		}
+
+		if field, ok := allFields[path]; ok {
+			if field.IsOrigTypePtr {
+				result += fmt.Sprintf("if e.%s == nil { e.%s = &%s{} }\n", field.Name, field.Name, field.OrigType)
+			}
+		}
+	}
+
+	return result
 }
+
+var funcMap = map[string]interface{}{
+	"TrimPrefix": strings.TrimPrefix,
+	"NewField":   newField,
+}
+
+//go:embed accessors.tmpl
+var accessorsTemplateCode string
+
+//go:embed fields_resolver.tmpl
+var fieldsResolverTemplate string
 
 func main() {
-	var err error
-	tmpl := template.Must(template.New("header").Funcs(FuncMap).Parse(`{{- range .BuildTags }}// {{.}}{{end}}
-
-// Code generated - DO NOT EDIT.
-
-package {{.Name}}
-
-import (
-	"reflect"
-	"unsafe"
-
-	{{if ne $.SourcePkg $.TargetPkg}}"{{.SourcePkg}}"{{end}}
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-)
-
-// suppress unused package warning
-var (
-	_ *unsafe.Pointer
-)
-
-func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
-	switch field {
-	{{range $Name, $Field := .Iterators}}
-	case "{{$Name}}":
-		return &{{$Field.ReturnType}}{}, nil
-	{{end}}
-	}
-
-	return nil, &eval.ErrIteratorNotSupported{Field: field}
-}
-
-func (m *Model) GetEventTypes() []eval.EventType {
-	return []eval.EventType{
-		{{range $Name, $Exists := .EventTypes}}
-			{{- if ne $Name "*"}}
-			eval.EventType("{{$Name}}"),
-			{{end -}}
-		{{end}}
-	}
-}
-
-func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
-	switch field {
-	{{$Mock := .Mock}}
-	{{range $Name, $Field := .Fields}}
-	{{$EvaluatorType := "eval.StringEvaluator"}}
-	{{if or $Field.Iterator $Field.IsArray}}
-		{{$EvaluatorType = "eval.StringArrayEvaluator"}}
-	{{end}}
-	{{if eq $Field.ReturnType "int"}}
-		{{$EvaluatorType = "eval.IntEvaluator"}}
-		{{if or $Field.Iterator $Field.IsArray}}
-			{{$EvaluatorType = "eval.IntArrayEvaluator"}}
-		{{end}}
-	{{else if eq $Field.ReturnType "bool"}}
-		{{$EvaluatorType = "eval.BoolEvaluator"}}
-		{{if or $Field.Iterator $Field.IsArray}}
-			{{$EvaluatorType = "eval.BoolArrayEvaluator"}}
-		{{end}}
-	{{end}}
-
-	case "{{$Name}}":
-		return &{{$EvaluatorType}}{
-			{{- if $Field.Iterator}}
-				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {
-					{{- if not $Mock }}
-					if ptr := ctx.Cache[field]; ptr != nil {
-						if result := (*[]{{$Field.ReturnType}})(ptr); result != nil {
-							return *result
-						}
-					}
-					{{end -}}
-
-					var results []{{$Field.ReturnType}}
-
-					iterator := &{{$Field.Iterator.ReturnType}}{}
-
-					value := iterator.Front(ctx)
-					for value != nil {
-						var result {{$Field.ReturnType}}
-
-						{{if $Field.Iterator.IsOrigTypePtr}}
-							element := (*{{$Field.Iterator.OrigType}})(value)
-						{{else}}
-							elementPtr := (*{{$Field.Iterator.OrigType}})(value)
-							element := *elementPtr
-						{{end}}
-
-						{{$SubName := $Field.Iterator.Name | TrimPrefix $Field.Name}}
-
-						{{$Return := $SubName | printf "element%s"}}
-						{{if and (ne $Field.Handler "") (not $Mock) }}
-							{{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
-							{{$Return = print "(*Event)(ctx.Object)." $Handler "(&element." $Field.Struct ")"}}
-						{{end}}
-
-						{{if eq $Field.ReturnType "int"}}
-							result = int({{$Return}})
-						{{else}}
-							result = {{$Return}}
-						{{end}}
-
-						results = append(results, result)
-
-						value = iterator.Next()
-					}
-
-					{{- if not $Mock }}
-					ctx.Cache[field] = unsafe.Pointer(&results)
-					{{end}}
-
-					return results
-				},
-			{{- else}}
-				{{- $ArrayPrefix := ""}}
-				{{- if $Field.IsArray}}
-					{{$ArrayPrefix = "[]"}}
-				{{end}}
-				EvalFnc: func(ctx *eval.Context) {{$ArrayPrefix}}{{$Field.ReturnType}} {
-					{{$Return := $Field.Name | printf "(*Event)(ctx.Object).%s"}}
-					{{- if and (ne $Field.Handler "") (not $Mock)}}
-						{{$Return = print "(*Event)(ctx.Object)." $Field.Handler "(&(*Event)(ctx.Object)." $Field.Prefix ")"}}
-					{{end}}
-
-					{{- if eq $Field.ReturnType "int"}}
-						{{- if and ($Field.IsArray) (ne $Field.OrigType "int") }}
-							result := make([]int, len({{$Return}}))
-							for i, v := range {{$Return}} {
-								result[i] = int(v)
-							}
-							return result
-						{{- else}}
-							{{- if ne $Field.OrigType "int"}}
-								return int({{$Return}})
-							{{- else}}
-								return {{$Return}}
-							{{end -}}
-						{{end -}}
-					{{- else}}
-						return {{$Return}}
-					{{end -}}
-				},
-			{{end -}}
-			Field: field,
-			{{- if $Field.Iterator}}
-				Weight: eval.IteratorWeight,
-			{{else if $Field.Handler}}
-				{{- if gt $Field.Weight 0}}
-					Weight: {{$Field.Weight}},
-				{{else}}
-					Weight: eval.HandlerWeight,
-				{{end -}}
-			{{else}}
-				Weight: eval.FunctionWeight,
-			{{end}}
-		}, nil
-	{{end}}
-	}
-
-	return nil, &eval.ErrFieldNotFound{Field: field}
-}
-
-func (e *Event) GetFields() []eval.Field {
-	return []eval.Field{
-		{{range $Name, $Field := .Fields}}
-			"{{$Name}}",
-		{{end}}
-	}
-}
-
-func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
-	switch field {
-		{{$Mock := .Mock}}
-		{{range $Name, $Field := .Fields}}
-		case "{{$Name}}":
-		{{if $Field.Iterator}}
-			var values []{{$Field.ReturnType}}
-
-			ctx := eval.NewContext(unsafe.Pointer(e))
-
-			iterator := &{{$Field.Iterator.ReturnType}}{}
-			ptr := iterator.Front(ctx)
-
-			for ptr != nil {
-				{{if $Field.Iterator.IsOrigTypePtr}}
-					element := (*{{$Field.Iterator.OrigType}})(ptr)
-				{{else}}
-					elementPtr := (*{{$Field.Iterator.OrigType}})(ptr)
-					element := *elementPtr
-				{{end}}
-
-				{{$SubName := $Field.Iterator.Name | TrimPrefix $Field.Name}}
-
-				{{$Return := $SubName | printf "element%s"}}
-				{{if and (ne $Field.Handler "") (not $Mock) }}
-					{{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
-					{{$Return = print "(*Event)(ctx.Object)." $Handler "(&element." $Field.Struct ")"}}
-				{{end}}
-
-				{{if and (eq $Field.ReturnType "int") (ne $Field.OrigType "int")}}
-					result := int({{$Return}})
-				{{else}}
-					result := {{$Return}}
-				{{end}}
-
-				values = append(values, result)
-
-				ptr = iterator.Next()
-			}
-
-			return values, nil
-		{{else}}
-			{{$Return := $Field.Name | printf "e.%s"}}
-			{{if and (ne $Field.Handler "") (not $Mock)}}
-				{{$Return = print "e." $Field.Handler "(&e." $Field.Prefix ")"}}
-			{{end}}
-
-			{{- $ArrayPrefix := ""}}
-			{{- if $Field.IsArray}}
-				{{$ArrayPrefix = "[]"}}
-			{{end}}
-
-			{{if eq $Field.ReturnType "string"}}
-				return {{$Return}}, nil
-			{{else if eq $Field.ReturnType "int"}}
-				{{- if and ($Field.IsArray) (ne $Field.OrigType "int") }}
-					result := make([]int, len({{$Return}}))
-					for i, v := range {{$Return}} {
-						result[i] = int(v)
-					}
-					return result, nil
-				{{- else}}
-					{{- if ne $Field.OrigType "int"}}
-						return int({{$Return}}), nil
-					{{- else}}
-						return {{$Return}}, nil
-					{{end -}}
-				{{end -}}
-			{{else if eq $Field.ReturnType "bool"}}
-				return {{$Return}}, nil
-			{{end}}
-		{{end}}
-		{{end}}
-		}
-
-		return nil, &eval.ErrFieldNotFound{Field: field}
-}
-
-func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
-	switch field {
-	{{range $Name, $Field := .Fields}}
-	case "{{$Name}}":
-		return "{{$Field.Event}}", nil
-	{{end}}
-	}
-
-	return "", &eval.ErrFieldNotFound{Field: field}
-}
-
-func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
-	switch field {
-		{{range $Name, $Field := .Fields}}
-
-		case "{{$Name}}":
-		{{if eq $Field.ReturnType "string"}}
-			return reflect.String, nil
-		{{else if eq $Field.ReturnType "int"}}
-			return reflect.Int, nil
-		{{else if eq $Field.ReturnType "bool"}}
-			return reflect.Bool, nil
-		{{end}}
-		{{end}}
-		}
-
-		return reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
-}
-
-func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
-	switch field {
-		{{range $Name, $Field := .Fields}}
-		{{$FieldName := $Field.Name | printf "e.%s"}}
-		case "{{$Name}}":
-		{{if $Field.Iterator}}
-			{{if $Field.Iterator.IsOrigTypePtr}}
-				if e.{{$Field.Iterator.Name}} == nil {
-					e.{{$Field.Iterator.Name}} = &{{$Field.Iterator.OrigType}}{}
-				}
-			{{end}}
-		{{end}}
-			var ok bool
-		{{- if eq $Field.OrigType "string"}}
-			str, ok := value.(string)
-			if !ok {
-				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
-			}
-			{{- if $Field.IsArray}}
-				{{$FieldName}} = append({{$FieldName}}, str)
-			{{else}}
-				{{$FieldName}} = str
-			{{end}}
-			return nil
-		{{else if eq $Field.BasicType "int"}}
-			v, ok := value.(int)
-			if !ok {
-				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
-			}
-			{{- if $Field.IsArray}}
-				{{$FieldName}} = append({{$FieldName}}, {{$Field.OrigType}}(v))
-			{{else}}
-				{{$FieldName}} = {{$Field.OrigType}}(v)
-			{{end}}
-			return nil
-		{{else if eq $Field.BasicType "bool"}}
-			if {{$FieldName}}, ok = value.(bool); !ok {
-				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
-			}
-			return nil
-		{{end}}
-		{{end}}
-		}
-
-		return &eval.ErrFieldNotFound{Field: field}
-}
-
-`))
-
-	os.Remove(output)
-
-	module, err = parseFile(filename, pkgname)
+	module, err := parseFile(filename, pkgname)
 	if err != nil {
 		panic(err)
 	}
 
-	if genDoc {
-		if err := doc.GenerateDocJSON(module, output); err != nil {
+	if len(fieldsResolverOutput) > 0 {
+		if err = GenerateContent(fieldsResolverOutput, module, fieldsResolverTemplate); err != nil {
 			panic(err)
 		}
-		return
 	}
 
-	tmpfile, err := ioutil.TempFile(path.Dir(output), "accessors")
-	if err != nil {
-		log.Fatal(err)
+	if docOutput != "" {
+		os.Remove(docOutput)
+		if err := doc.GenerateDocJSON(module, docOutput); err != nil {
+			panic(err)
+		}
 	}
 
-	if err := tmpl.Execute(tmpfile, module); err != nil {
+	os.Remove(output)
+	if err := GenerateContent(output, module, accessorsTemplateCode); err != nil {
 		panic(err)
+	}
+}
+
+// GenerateContent generates with the given template
+func GenerateContent(output string, module *common.Module, tmplCode string) error {
+	tmpl := template.Must(template.New("header").Funcs(funcMap).Parse(tmplCode))
+
+	buffer := bytes.Buffer{}
+	if err := tmpl.Execute(&buffer, module); err != nil {
+		return err
+	}
+
+	cleaned := removeEmptyLines(&buffer)
+
+	tmpfile, err := os.CreateTemp(path.Dir(output), "secl-helpers")
+	if err != nil {
+		return err
+	}
+
+	if _, err := tmpfile.WriteString(cleaned); err != nil {
+		return err
 	}
 
 	if err := tmpfile.Close(); err != nil {
-		panic(err)
+		return err
 	}
 
 	cmd := exec.Command("gofmt", "-s", "-w", tmpfile.Name())
-	if err := cmd.Run(); err != nil {
-		panic(err)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		log.Fatal(string(output))
+		return err
 	}
 
-	if err := os.Rename(tmpfile.Name(), output); err != nil {
-		panic(err)
+	return os.Rename(tmpfile.Name(), output)
+}
+
+func removeEmptyLines(input *bytes.Buffer) string {
+	scanner := bufio.NewScanner(input)
+	builder := strings.Builder{}
+	for scanner.Scan() {
+		trimmed := strings.TrimSpace(scanner.Text())
+		if len(trimmed) != 0 {
+			builder.WriteString(trimmed)
+			builder.WriteRune('\n')
+		}
 	}
+	return builder.String()
 }
 
 func init() {
 	flag.BoolVar(&verbose, "verbose", false, "Be verbose")
 	flag.BoolVar(&mock, "mock", false, "Mock accessors")
-	flag.BoolVar(&genDoc, "doc", false, "Generate documentation JSON")
+	flag.StringVar(&docOutput, "doc", "", "Generate documentation JSON")
+	flag.StringVar(&fieldsResolverOutput, "fields-resolver", "", "Fields resolver output file")
 	flag.StringVar(&filename, "input", os.Getenv("GOFILE"), "Go file to generate decoders from")
 	flag.StringVar(&pkgname, "package", pkgPrefix+"/"+os.Getenv("GOPACKAGE"), "Go package name")
 	flag.StringVar(&buildTags, "tags", "", "build tags used for parsing")

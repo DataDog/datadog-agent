@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
 // +build !windows
 
 package main
@@ -12,7 +13,6 @@ import (
 	"flag"
 
 	"github.com/DataDog/datadog-agent/pkg/runtime"
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
@@ -31,5 +31,5 @@ func main() {
 
 	flag.Parse()
 
-	agent.Run(ctx)
+	Run(ctx)
 }

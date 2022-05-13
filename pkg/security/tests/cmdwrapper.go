@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//+build functionaltests stresstests
+//go:build functionaltests || stresstests
+// +build functionaltests stresstests
 
 package tests
 
@@ -73,10 +74,7 @@ func (d *dockerCmdWrapper) Command(bin string, args []string, envs []string) *ex
 func (d *dockerCmdWrapper) start() ([]byte, error) {
 	d.containerName = fmt.Sprintf("docker-wrapper-%s", randStringRunes(6))
 	cmd := exec.Command(d.executable, "run", "--rm", "-d", "--name", d.containerName, "-v", d.root+":"+d.root, "ubuntu:focal", "sleep", "600")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return out, err
-	}
-	return nil, nil
+	return cmd.CombinedOutput()
 }
 
 func (d *dockerCmdWrapper) stop() ([]byte, error) {

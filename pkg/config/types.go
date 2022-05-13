@@ -26,6 +26,7 @@ type Config interface {
 	// API implemented by viper.Viper
 
 	Set(key string, value interface{})
+	Unset(key string)
 	SetDefault(key string, value interface{})
 	SetFs(fs afero.Fs)
 	IsSet(key string) bool
@@ -89,4 +90,8 @@ type Config interface {
 	// GetEnvVars returns a list of the env vars that the config supports.
 	// These have had the EnvPrefix applied, as well as the EnvKeyReplacer.
 	GetEnvVars() []string
+
+	// IsSectionSet checks if a given section is set by checking if any of
+	// its subkeys is set.
+	IsSectionSet(section string) bool
 }

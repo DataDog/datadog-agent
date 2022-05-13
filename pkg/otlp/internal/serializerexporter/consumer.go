@@ -11,23 +11,52 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/translator"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var _ translator.Consumer = (*serializerConsumer)(nil)
 
 type serializerConsumer struct {
-	series   metrics.Series
-	sketches metrics.SketchSeriesList
+	cardinality collectors.TagCardinality
+	series      metrics.Series
+	sketches    metrics.SketchSeriesList
 }
 
-func (c *serializerConsumer) ConsumeSketch(_ context.Context, name string, ts uint64, qsketch *quantile.Sketch, tags []string, host string) {
+// enrichedTags of a given dimension.
+// In the OTLP pipeline, 'contexts' are kept within the translator and function differently than DogStatsD/check metrics.
+func (c *serializerConsumer) enrichedTags(dimensions *translator.Dimensions) []string {
+	enrichedTags := make([]string, 0, len(dimensions.Tags()))
+	enrichedTags = append(enrichedTags, dimensions.Tags()...)
+
+	entityTags, err := tagger.Tag(dimensions.OriginID(), c.cardinality)
+	if err != nil {
+		log.Tracef("Cannot get tags for entity %s: %s", dimensions.OriginID(), err)
+	} else {
+		enrichedTags = append(enrichedTags, entityTags...)
+	}
+
+	globalTags, err := tagger.GlobalTags(c.cardinality)
+	if err != nil {
+		log.Trace(err.Error())
+	} else {
+		enrichedTags = append(enrichedTags, globalTags...)
+	}
+
+	return enrichedTags
+}
+
+func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *translator.Dimensions, ts uint64, qsketch *quantile.Sketch) {
 	c.sketches = append(c.sketches, metrics.SketchSeries{
-		Name:     name,
-		Tags:     tags,
-		Host:     host,
+		Name:     dimensions.Name(),
+		Tags:     tagset.CompositeTagsFromSlice(c.enrichedTags(dimensions)),
+		Host:     dimensions.Host(),
 		Interval: 1,
 		Points: []metrics.SketchPoint{{
 			Ts:     int64(ts / 1e9),
@@ -46,13 +75,13 @@ func apiTypeFromTranslatorType(typ translator.MetricDataType) metrics.APIMetricT
 	panic(fmt.Sprintf("unreachable: received non-count non-gauge type: %d", typ))
 }
 
-func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, name string, typ translator.MetricDataType, ts uint64, value float64, tags []string, host string) {
+func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, dimensions *translator.Dimensions, typ translator.MetricDataType, ts uint64, value float64) {
 	c.series = append(c.series,
 		&metrics.Serie{
-			Name:     name,
+			Name:     dimensions.Name(),
 			Points:   []metrics.Point{{Ts: float64(ts / 1e9), Value: value}},
-			Tags:     tags,
-			Host:     host,
+			Tags:     tagset.CompositeTagsFromSlice(c.enrichedTags(dimensions)),
+			Host:     dimensions.Host(),
 			MType:    apiTypeFromTranslatorType(typ),
 			Interval: 1,
 		},
@@ -64,7 +93,7 @@ func (c *serializerConsumer) addTelemetryMetric(hostname string) {
 	c.series = append(c.series, &metrics.Serie{
 		Name:           "datadog.agent.otlp.metrics",
 		Points:         []metrics.Point{{Value: 1, Ts: float64(time.Now().Unix())}},
-		Tags:           []string{},
+		Tags:           tagset.CompositeTagsFromSlice([]string{}),
 		Host:           hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
@@ -76,5 +105,17 @@ func (c *serializerConsumer) flush(s serializer.MetricSerializer) error {
 	if err := s.SendSketch(c.sketches); err != nil {
 		return err
 	}
-	return s.SendSeries(c.series)
+
+	var err error
+	metrics.StartIteration(
+		metrics.NewIterableSeries(func(se *metrics.Serie) {}, 200, 4000),
+		func(seriesSink metrics.SerieSink) {
+			for _, serie := range c.series {
+				seriesSink.Append(serie)
+			}
+		}, func(serieSource metrics.SerieSource) {
+			err = s.SendIterableSeries(serieSource)
+		})
+
+	return err
 }

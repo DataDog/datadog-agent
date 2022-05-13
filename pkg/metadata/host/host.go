@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
@@ -62,6 +63,7 @@ func GetPayload(ctx context.Context, hostnameData util.HostnameData) *Payload {
 		LogsMeta:      getLogsMeta(),
 		InstallMethod: getInstallMethod(getInstallInfoPath()),
 		ProxyMeta:     getProxyMeta(),
+		OtlpMeta:      getOtlpMeta(),
 	}
 
 	// Cache the metadata for use in other payloads
@@ -216,7 +218,10 @@ func getContainerMeta(timeout time.Duration) map[string]string {
 }
 
 func getLogsMeta() *LogsMeta {
-	return &LogsMeta{Transport: string(status.CurrentTransport)}
+	return &LogsMeta{
+		Transport:            string(status.CurrentTransport),
+		AutoMultilineEnabled: config.Datadog.GetBool("logs_config.auto_multi_line_detection"),
+	}
 }
 
 // Expose the value of no_proxy_nonexact_match as well as any warnings of proxy behavior change in the metadata payload.
@@ -282,4 +287,8 @@ func getInstallMethod(infoPath string) *InstallMethod {
 		Tool:             &install.Method.Tool,
 		InstallerVersion: &install.Method.InstallerVersion,
 	}
+}
+
+func getOtlpMeta() *OtlpMeta {
+	return &OtlpMeta{Enabled: otlp.IsEnabled(config.Datadog)}
 }

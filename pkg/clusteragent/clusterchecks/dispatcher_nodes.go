@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build clusterchecks
 // +build clusterchecks
 
 package clusterchecks
@@ -125,6 +126,15 @@ func (d *dispatcher) expireNodes() {
 				log.Debugf("Adding %s:%s as a dangling Cluster Check config", config.Name, digest)
 				d.store.danglingConfigs[digest] = config
 				danglingConfigs.Inc(le.JoinLeaderValue)
+
+				// TODO: Use partial label matching when it becomes available:
+				// Replace the loop by a single function call (delete by node name).
+				// Requires https://github.com/prometheus/client_golang/pull/1013
+				for k, v := range d.store.idToDigest {
+					if v == digest {
+						configsInfo.Delete(name, string(k), le.JoinLeaderValue)
+					}
+				}
 			}
 			delete(d.store.nodes, name)
 

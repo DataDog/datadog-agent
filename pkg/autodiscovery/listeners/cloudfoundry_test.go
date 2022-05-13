@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build clusterchecks
 // +build clusterchecks
 
 package listeners
@@ -14,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 
@@ -157,7 +157,6 @@ func TestCloudFoundryListener(t *testing.T) {
 				"processguid1/flask-app/instance-guid-1-0": &CloudFoundryService{
 					containerIPs:   map[string]string{CfServiceContainerIP: "1.2.3.4"},
 					containerPorts: []ContainerPort{{Port: 11, Name: "p11"}, {Port: 22, Name: "p22"}},
-					creationTime:   integration.After,
 					tags:           []string{"tag:x"},
 				},
 			},
@@ -172,7 +171,6 @@ func TestCloudFoundryListener(t *testing.T) {
 				"processguid1/flask-app/instance-guid-1-0": &CloudFoundryService{
 					containerIPs:   map[string]string{CfServiceContainerIP: "1.2.3.4"},
 					containerPorts: []ContainerPort{{Port: 11, Name: "p11"}, {Port: 22, Name: "p22"}},
-					creationTime:   integration.After,
 					tags:           []string{"tag:x"},
 				},
 			},
@@ -201,7 +199,6 @@ func TestCloudFoundryListener(t *testing.T) {
 				"myappguid1/my-postgres": &CloudFoundryService{
 					containerIPs:   map[string]string{},
 					containerPorts: []ContainerPort{},
-					creationTime:   integration.After,
 					tags:           []string{"app_guid:myappguid1", "app_id:myappguid1", "app_name:myappname1"},
 				},
 			},
@@ -346,7 +343,6 @@ func TestCloudFoundryListener(t *testing.T) {
 				"myappguid1/my-postgres": &CloudFoundryService{
 					containerIPs:   map[string]string{},
 					containerPorts: []ContainerPort{},
-					creationTime:   integration.After,
 					tags:           []string{"app_guid:myappguid1", "app_id:myappguid1", "app_name:myappname1"},
 				},
 			},
@@ -363,8 +359,7 @@ func TestCloudFoundryListener(t *testing.T) {
 							Port: 22,
 						},
 					},
-					creationTime: integration.After,
-					tags:         []string{"tag:11"},
+					tags: []string{"tag:11"},
 				},
 				"processguid1/flask-app/instance-guid-1-1": &CloudFoundryService{
 					containerIPs: map[string]string{CfServiceContainerIP: "1.2.3.5"},
@@ -378,13 +373,11 @@ func TestCloudFoundryListener(t *testing.T) {
 							Port: 44,
 						},
 					},
-					creationTime: integration.After,
-					tags:         []string{"tag:12"},
+					tags: []string{"tag:12"},
 				},
 				"appguid1/my-postgres": &CloudFoundryService{
 					containerIPs:   map[string]string{},
 					containerPorts: []ContainerPort{},
-					creationTime:   integration.After,
 					tags:           []string{"app_guid:appguid1", "app_id:appguid1", "app_name:appname1", "org_id:orgguid1", "org_name:orgname1", "space_id:spaceguid1", "space_name:spacename1"},
 				},
 				"processguid2/flask-app/instance-guid-2-0": &CloudFoundryService{
@@ -399,8 +392,7 @@ func TestCloudFoundryListener(t *testing.T) {
 							Port: 88,
 						},
 					},
-					creationTime: integration.After,
-					tags:         []string{"tag:21"},
+					tags: []string{"tag:21"},
 				},
 				"processguid2/flask-app/instance-guid-2-1": &CloudFoundryService{
 					containerIPs: map[string]string{CfServiceContainerIP: "1.2.3.8"},
@@ -414,13 +406,11 @@ func TestCloudFoundryListener(t *testing.T) {
 							Port: 111,
 						},
 					},
-					creationTime: integration.After,
-					tags:         []string{"tag:22"},
+					tags: []string{"tag:22"},
 				},
 				"appguid2/my-postgres": &CloudFoundryService{
 					containerIPs:   map[string]string{},
 					containerPorts: []ContainerPort{},
-					creationTime:   integration.After,
 					tags:           []string{"app_guid:appguid2", "app_id:appguid2", "app_name:appname2", "org_id:orgguid2", "org_name:orgname2", "space_id:spaceguid2", "space_name:spacename2"},
 				},
 			},

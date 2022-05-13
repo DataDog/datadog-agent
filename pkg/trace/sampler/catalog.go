@@ -9,8 +9,8 @@ import (
 	"container/list"
 	"sync"
 
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 // defaultServiceRateKey specifies the key for the default rate to be used by any service that
@@ -34,11 +34,18 @@ type catalogEntry struct {
 	sig Signature
 }
 
-// newServiceLookup returns a new serviceKeyCatalog.
-func newServiceLookup() *serviceKeyCatalog {
+// rm specifies the pair of rate and mechanism.
+type rm struct {
+	r float64
+	m apmsampling.SamplingMechanism
+}
+
+// newServiceLookup returns a new serviceKeyCatalog with maxEntries maximum number of entries.
+// If maxEntries is 0, a default of 5000 (maxCatalogEntries) will be used.
+func newServiceLookup(maxEntries int) *serviceKeyCatalog {
 	entries := maxCatalogEntries
-	if v := coreconfig.Datadog.GetInt("apm_config.max_catalog_entries"); v > 0 {
-		entries = v
+	if maxEntries > 0 {
+		entries = maxEntries
 	}
 	return &serviceKeyCatalog{
 		items:      make(map[ServiceSignature]*list.Element),
@@ -70,30 +77,30 @@ func (cat *serviceKeyCatalog) register(svcSig ServiceSignature) Signature {
 
 // ratesByService returns a map of service signatures mapping to the rates identified using
 // the signatures.
-func (cat *serviceKeyCatalog) ratesByService(agentEnv string, localRates, remoteRates map[Signature]float64, defaultRate float64) map[ServiceSignature]float64 {
-	rbs := make(map[ServiceSignature]float64, len(localRates)+1)
+func (cat *serviceKeyCatalog) ratesByService(agentEnv string, localRates map[Signature]float64, remoteRates map[Signature]rm, defaultRate float64) map[ServiceSignature]rm {
+	rbs := make(map[ServiceSignature]rm, len(localRates)+1)
 	cat.mu.Lock()
 	defer cat.mu.Unlock()
 	for key, el := range cat.items {
 		sig := el.Value.(catalogEntry).sig
-		// todo:raphael distinguish remote rates from local rates with a separate priority value
-		var rate float64
-		var ok bool
-		rate, ok = remoteRates[sig]
-		if !ok {
-			rate, ok = localRates[sig]
-		}
-		if !ok {
+		if r, ok := remoteRates[sig]; ok {
+			rbs[key] = r
+		} else if rate, ok := localRates[sig]; ok {
+			rbs[key] = rm{
+				r: rate,
+			}
+		} else {
 			cat.ll.Remove(el)
 			delete(cat.items, key)
 			continue
 		}
 
-		rbs[key] = rate
 		if rateWithEmptyEnv(key.Env, agentEnv) {
-			rbs[ServiceSignature{Name: key.Name}] = rate
+			rbs[ServiceSignature{Name: key.Name}] = rbs[key]
 		}
 	}
-	rbs[ServiceSignature{}] = defaultRate
+	rbs[ServiceSignature{}] = rm{
+		r: defaultRate,
+	}
 	return rbs
 }

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
@@ -59,6 +60,7 @@ func TestUtimes(t *testing.T) {
 			assertRights(t, event.Utimes.File.Mode, expectedMode)
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
+			assert.Equal(t, event.Utimes.Async, false)
 		})
 	}))
 
@@ -84,7 +86,7 @@ func TestUtimes(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(&times[0])), 0); errno != 0 {
-				return err
+				return error(errno)
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -95,6 +97,7 @@ func TestUtimes(t *testing.T) {
 			assertRights(t, event.Utimes.File.Mode, expectedMode)
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
+			assert.Equal(t, event.Utimes.Async, false)
 		})
 	}))
 
@@ -134,6 +137,7 @@ func TestUtimes(t *testing.T) {
 			assertRights(t, event.Utimes.File.Mode, expectedMode)
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
+			assert.Equal(t, event.Utimes.Async, false)
 		})
 	})
 }

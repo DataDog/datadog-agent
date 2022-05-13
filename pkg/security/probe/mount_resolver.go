@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -10,7 +11,6 @@ package probe
 import (
 	"context"
 	"os"
-	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -40,7 +40,7 @@ func parseGroupID(mnt *mountinfo.Info) (uint32, error) {
 	// Has optional fields, which is a space separated list of values.
 	// Example: shared:2 master:7
 	if len(mnt.Optional) > 0 {
-		for _, field := range strings.Split(mnt.Optional, ",") {
+		for _, field := range strings.Split(mnt.Optional, " ") {
 			optionSplit := strings.SplitN(field, ":", 2)
 			if len(optionSplit) == 2 {
 				target, value := optionSplit[0], optionSplit[1]
@@ -145,6 +145,7 @@ func (mr *MountResolver) deleteDevice(mount *model.MountEvent) {
 }
 
 func (mr *MountResolver) delete(mount *model.MountEvent) {
+	mr.clearCacheForMountID(mount.MountID)
 	delete(mr.mounts, mount.MountID)
 
 	mounts, exists := mr.devices[mount.Device]
@@ -160,6 +161,8 @@ func (mr *MountResolver) delete(mount *model.MountEvent) {
 func (mr *MountResolver) Delete(mountID uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
+
+	mr.clearCacheForMountID(mountID)
 
 	mount, exists := mr.mounts[mountID]
 	if !exists {
@@ -195,6 +198,14 @@ func (mr *MountResolver) IsOverlayFS(mountID uint32) bool {
 	}
 
 	return mount.IsOverlayFS()
+}
+
+// Get returns a mount event from the mount id
+func (mr *MountResolver) Get(mountID uint32) *model.MountEvent {
+	mr.lock.RLock()
+	defer mr.lock.RUnlock()
+
+	return mr.mounts[mountID]
 }
 
 // Insert a new mount point in the cache
@@ -259,7 +270,7 @@ func (mr *MountResolver) _getParentPath(mountID uint32, cache map[uint32]bool) s
 		}
 
 		if p != "/" && !strings.HasPrefix(mount.MountPointStr, p) {
-			mountPointStr = path.Join(p, mount.MountPointStr)
+			mountPointStr = p + mount.MountPointStr
 		}
 	}
 
@@ -338,8 +349,7 @@ func (mr *MountResolver) dequeue(now time.Time) {
 		}
 
 		// clear cache anyway
-		mr.parentPathCache.Remove(req.mount.MountID)
-		mr.overlayPathCache.Remove(req.mount.MountID)
+		mr.clearCacheForMountID(req.mount.MountID)
 
 		i++
 	}
@@ -351,6 +361,11 @@ func (mr *MountResolver) dequeue(now time.Time) {
 	}
 
 	mr.lock.Unlock()
+}
+
+func (mr *MountResolver) clearCacheForMountID(mountID uint32) {
+	mr.parentPathCache.Remove(mountID)
+	mr.overlayPathCache.Remove(mountID)
 }
 
 // Start starts the resolver
@@ -398,41 +413,6 @@ func getMountIDOffset(probe *Probe) uint64 {
 	}
 
 	return offset
-}
-
-func getSizeOfStructInode(probe *Probe) uint64 {
-	sizeOf := uint64(600)
-
-	switch {
-	case probe.kernelVersion.IsRH7Kernel():
-		sizeOf = 584
-	case probe.kernelVersion.IsRH8Kernel():
-		sizeOf = 648
-	case probe.kernelVersion.IsSLES12Kernel():
-		sizeOf = 560
-	case probe.kernelVersion.IsSLES15Kernel():
-		sizeOf = 592
-	case probe.kernelVersion.IsOracleUEKKernel():
-		sizeOf = 632
-	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < skernel.Kernel4_16:
-		sizeOf = 608
-	case skernel.Kernel5_0 <= probe.kernelVersion.Code && probe.kernelVersion.Code < skernel.Kernel5_1:
-		sizeOf = 584
-	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_13:
-		sizeOf = 592
-	}
-
-	return sizeOf
-}
-
-func getSuperBlockMagicOffset(probe *Probe) uint64 {
-	sizeOf := uint64(96)
-
-	if probe.kernelVersion.IsRH7Kernel() {
-		sizeOf = 88
-	}
-
-	return sizeOf
 }
 
 func getVFSLinkDentryPosition(probe *Probe) uint64 {

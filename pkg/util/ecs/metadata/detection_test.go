@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package metadata
@@ -34,8 +35,8 @@ func TestLocateECSHTTP(t *testing.T) {
 	require.Nil(t, err)
 
 	ts, ecsAgentPort, err := ecsinterface.Start()
-	defer ts.Close()
 	require.Nil(t, err)
+	defer ts.Close()
 
 	config.Datadog.SetDefault("ecs_agent_url", fmt.Sprintf("http://localhost:%d/", ecsAgentPort))
 
@@ -58,8 +59,8 @@ func TestLocateECSHTTPFail(t *testing.T) {
 	require.Nil(t, err)
 
 	ts, ecsAgentPort, err := ecsinterface.Start()
-	defer ts.Close()
 	require.Nil(t, err)
+	defer ts.Close()
 
 	config.Datadog.SetDefault("ecs_agent_url", fmt.Sprintf("http://localhost:%d/", ecsAgentPort))
 

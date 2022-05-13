@@ -14,7 +14,15 @@ import (
 )
 
 func TestProcessDiscoveryCheck(t *testing.T) {
-	cfg := &config.AgentConfig{MaxPerMessage: 10}
+	prev := getMaxBatchSize
+	defer func() {
+		getMaxBatchSize = prev
+	}()
+
+	maxBatchSize := 10
+	getMaxBatchSize = func() int { return maxBatchSize }
+
+	cfg := &config.AgentConfig{}
 	ProcessDiscovery.Init(cfg, &model.SystemInfo{
 		Cpus:        []*model.CPUInfo{{Number: 0}},
 		TotalMemory: 0,
@@ -31,9 +39,9 @@ func TestProcessDiscoveryCheck(t *testing.T) {
 		for _, proc := range collectorProcDiscovery.ProcessDiscoveries {
 			assert.Empty(t, proc.Host)
 		}
-		if len(collectorProcDiscovery.ProcessDiscoveries) > cfg.MaxPerMessage {
+		if len(collectorProcDiscovery.ProcessDiscoveries) > maxBatchSize {
 			t.Errorf("Expected less than %d messages in chunk, got %d",
-				cfg.MaxPerMessage, len(collectorProcDiscovery.ProcessDiscoveries))
+				maxBatchSize, len(collectorProcDiscovery.ProcessDiscoveries))
 		}
 	}
 }

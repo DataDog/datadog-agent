@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build clusterchecks && !windows
 // +build clusterchecks,!windows
 
 package cloudfoundry
@@ -32,12 +33,6 @@ var v3App1 = cfclient.V3App{
 	},
 }
 
-var cfApp1 = CFApp{
-	Name:      "name_of_app_cc",
-	Tags:      []string{"env:test-env", "service:test-service"},
-	SpaceGUID: "space_guid_1",
-}
-
 var v3App2 = cfclient.V3App{
 	Name:          "app2",
 	State:         "running",
@@ -53,20 +48,10 @@ var v3App2 = cfclient.V3App{
 	},
 }
 
-var cfApp2 = CFApp{
-	Name:      "app2",
-	SpaceGUID: "space_guid_2",
-}
-
 var v3Space1 = cfclient.V3Space{
 	Name:          "space_name_1",
 	GUID:          "space_guid_1",
 	Relationships: map[string]cfclient.V3ToOneRelationship{"organization": {Data: cfclient.V3Relationship{GUID: "org_guid_1"}}},
-}
-
-var cfSpace1 = CFSpace{
-	Name:    "space_name_1",
-	OrgGUID: "org_guid_1",
 }
 
 var v3Space2 = cfclient.V3Space{
@@ -80,13 +65,113 @@ var v3Org1 = cfclient.V3Organization{
 	GUID: "org_guid_1",
 }
 
-var cfOrg1 = CFOrg{
-	Name: "org_name_1",
-}
-
 var v3Org2 = cfclient.V3Organization{
 	Name: "org_name_2",
 	GUID: "org_guid_2",
+}
+
+var cfOrgQuota1 = cfclient.OrgQuota{
+	Guid: "org_quota_guid_1",
+	Name: "org_quota_name_1",
+}
+
+var cfOrgQuota2 = cfclient.OrgQuota{
+	Guid: "org_quota_guid_2",
+	Name: "org_quota_name_2",
+}
+
+var cfSidecar1 = CFSidecar{
+	GUID: "sidecar_guid_1",
+	Name: "sidecar_name_1",
+}
+
+var cfSidecar2 = CFSidecar{
+	GUID: "sidecar_guid_2",
+	Name: "sidecar_name_2",
+}
+
+var cfIsolationSegment1 = cfclient.IsolationSegment{
+	GUID: "isolation_segment_guid_1",
+	Name: "isolation_segment_name_1",
+}
+
+var cfIsolationSegment2 = cfclient.IsolationSegment{
+	GUID: "isolation_segment_guid_2",
+	Name: "isolation_segment_name_2",
+}
+
+type Links struct {
+	Self  cfclient.Link `json:"self"`
+	Scale cfclient.Link `json:"scale"`
+	App   cfclient.Link `json:"app"`
+	Space cfclient.Link `json:"space"`
+	Stats cfclient.Link `json:"stats"`
+}
+
+var cfProcess1 = cfclient.Process{
+	GUID: "process_guid_1",
+	Type: "process_type_1",
+	Links: Links{
+		App: cfclient.Link{
+			Href: "https://api.sys.integrations-lab.devenv.dog/v3/apps/random_app_guid",
+		},
+	},
+}
+
+var cfProcess2 = cfclient.Process{
+	GUID: "process_guid_2",
+	Type: "process_type_2",
+	Links: Links{
+		App: cfclient.Link{
+			Href: "https://api.sys.integrations-lab.devenv.dog/v3/apps/random_app_guid",
+		},
+	},
+}
+
+var cfApp1 = CFApplication{
+	GUID:           "random_app_guid",
+	Name:           "name_of_app_cc",
+	SpaceGUID:      "space_guid_1",
+	SpaceName:      "space_name_1",
+	OrgName:        "org_name_1",
+	OrgGUID:        "org_guid_1",
+	Instances:      0,
+	Buildpacks:     nil,
+	DiskQuota:      0,
+	TotalDiskQuota: 0,
+	Memory:         0,
+	TotalMemory:    0,
+	Labels: map[string]string{
+		"tags.datadoghq.com/env": "test-env",
+		"toto":                   "tata",
+	},
+	Annotations: map[string]string{
+		"tags.datadoghq.com/service": "test-service",
+		"foo":                        "bar",
+	},
+	Sidecars: []CFSidecar{
+		cfSidecar1,
+	},
+}
+
+var cfApp2 = CFApplication{
+	GUID:           "guid2",
+	Name:           "app2",
+	SpaceGUID:      "space_guid_2",
+	SpaceName:      "space_name_2",
+	OrgName:        "org_name_2",
+	OrgGUID:        "org_guid_2",
+	Instances:      0,
+	Buildpacks:     nil,
+	DiskQuota:      0,
+	TotalDiskQuota: 0,
+	Memory:         0,
+	TotalMemory:    0,
+	Labels:         map[string]string{},
+	Annotations:    map[string]string{},
+	Sidecars: []CFSidecar{
+		cfSidecar2,
+	},
 }
 
 var BBSModelA1 = models.ActualLRP{
@@ -216,7 +301,7 @@ var ExpectedD1 = DesiredLRP{
 	ProcessGUID:      "0123456789012345678901234567890123456789",
 	SpaceGUID:        "space_guid_1",
 	SpaceName:        "space_name_1",
-	CustomTags:       []string{"env:test-env", "service:test-service"},
+	CustomTags:       []string{"env:test-env", "service:test-service", "sidecar_present:true", "sidecar_count:1", "segment_id:isolation_segment_guid_1", "segment_name:isolation_segment_name_1"},
 }
 
 var ExpectedD2 = DesiredLRP{
@@ -242,6 +327,10 @@ var ExpectedD2 = DesiredLRP{
 		"CUSTOM_TAG_2:TEST2",
 		"env:test-env",
 		"service:test-service",
+		"sidecar_present:true",
+		"sidecar_count:1",
+		"segment_id:isolation_segment_guid_1",
+		"segment_name:isolation_segment_name_1",
 	},
 }
 
@@ -303,21 +392,6 @@ func TestADIdentifier(t *testing.T) {
 			assert.EqualValues(t, tc.expected, i.String())
 		})
 	}
-}
-
-func TestCFAppFromV3App(t *testing.T) {
-	result := CFAppFromV3App(&v3App1)
-	assert.EqualValues(t, cfApp1, *result)
-}
-
-func TestCFSpaceFromV3Space(t *testing.T) {
-	result := CFSpaceFromV3Space(&v3Space1)
-	assert.EqualValues(t, cfSpace1, *result)
-}
-
-func TestCFOrgFromV3Organization(t *testing.T) {
-	result := CFOrgFromV3Organization(&v3Org1)
-	assert.EqualValues(t, cfOrg1, *result)
 }
 
 func TestActualLRPFromBBSModel(t *testing.T) {

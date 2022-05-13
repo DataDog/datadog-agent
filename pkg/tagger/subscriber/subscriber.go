@@ -63,10 +63,11 @@ func (s *Subscriber) Unsubscribe(ch chan []types.EntityEvent) {
 // unsubscribe ends a subscription to entity events and closes its channel. It
 // is not thread-safe, and callers should take care of synchronization.
 func (s *Subscriber) unsubscribe(ch chan []types.EntityEvent) {
-	defer telemetry.Subscribers.Dec()
-
-	delete(s.subscribers, ch)
-	close(ch)
+	if _, ok := s.subscribers[ch]; ok {
+		telemetry.Subscribers.Dec()
+		delete(s.subscribers, ch)
+		close(ch)
+	}
 }
 
 // Notify sends a slice of EntityEvents to all registered subscribers at their

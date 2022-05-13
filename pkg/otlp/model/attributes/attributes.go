@@ -18,8 +18,8 @@ import (
 	"fmt"
 	"strings"
 
-	"go.opentelemetry.io/collector/model/pdata"
-	conventions "go.opentelemetry.io/collector/model/semconv/v1.5.0"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
 )
 
 var (
@@ -92,6 +92,10 @@ var (
 		conventions.AttributeAWSECSContainerARN,
 	}
 
+	runningTagsAttributes = []string{
+		conventions.AttributeAWSECSTaskARN,
+	}
+
 	// Kubernetes mappings defines the mapping between Kubernetes conventions (both general and Datadog specific)
 	// and Datadog Agent conventions. The Datadog Agent conventions can be found at
 	// https://github.com/DataDog/datadog-agent/blob/e081bed/pkg/tagger/collectors/const.go and
@@ -114,13 +118,13 @@ var (
 
 // TagsFromAttributes converts a selected list of attributes
 // to a tag list that can be added to metrics.
-func TagsFromAttributes(attrs pdata.AttributeMap) []string {
+func TagsFromAttributes(attrs pcommon.Map) []string {
 	tags := make([]string, 0, attrs.Len())
 
 	var processAttributes processAttributes
 	var systemAttributes systemAttributes
 
-	attrs.Range(func(key string, value pdata.AttributeValue) bool {
+	attrs.Range(func(key string, value pcommon.Value) bool {
 		switch key {
 		// Process attributes
 		case conventions.AttributeProcessExecutableName:
@@ -156,6 +160,32 @@ func TagsFromAttributes(attrs pdata.AttributeMap) []string {
 	tags = append(tags, processAttributes.extractTags()...)
 	tags = append(tags, systemAttributes.extractTags()...)
 
+	return tags
+}
+
+// OriginIDFromAttributes gets the origin IDs from resource attributes.
+// If not found, an empty string is returned for each of them.
+func OriginIDFromAttributes(attrs pcommon.Map) (originID string) {
+	// originID is always empty. Container ID is preferred over Kubernetes pod UID.
+	// Prefixes come from pkg/util/kubernetes/kubelet and pkg/util/containers.
+	if containerID, ok := attrs.Get(conventions.AttributeContainerID); ok {
+		originID = "container_id://" + containerID.AsString()
+	} else if podUID, ok := attrs.Get(conventions.AttributeK8SPodUID); ok {
+		originID = "kubernetes_pod_uid://" + podUID.AsString()
+	}
+	return
+}
+
+// RunningTagsFromAttributes gets tags used for running metrics from attributes.
+func RunningTagsFromAttributes(attrs pcommon.Map) []string {
+	tags := make([]string, 0, 1)
+	for _, key := range runningTagsAttributes {
+		if val, ok := attrs.Get(key); ok {
+			if ddKey, found := conventionsMapping[key]; found && val.StringVal() != "" {
+				tags = append(tags, fmt.Sprintf("%s:%s", ddKey, val.StringVal()))
+			}
+		}
+	}
 	return tags
 }
 

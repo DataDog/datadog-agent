@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -12,7 +13,6 @@ import (
 	"math"
 	"math/rand"
 	"path"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -35,6 +35,16 @@ const (
 	// DiscardRetention time a discard is retained but not discarding. This avoid race for pending event is userspace
 	// pipeline for already deleted file in kernel space.
 	DiscardRetention = 5 * time.Second
+
+	// maxParentDiscarderDepth defines the maximum parent depth to find parent discarders
+	// the eBPF part need to be adapted accordingly
+	maxParentDiscarderDepth = 3
+
+	// allEventTypes is a mask to match all the events
+	allEventTypes = 0xffffffffffffffff
+
+	// inode/mountid that won't be resubmitted
+	maxRecentlyAddedCacheSize = uint64(64)
 )
 
 var (
@@ -44,7 +54,14 @@ var (
 			Name:  "discarder_retention",
 			Value: uint64(DiscardRetention.Nanoseconds()),
 		},
+		/*{
+			Name:  "max_discarder_depth",
+			Value: uint64(maxParentDiscarderDepth),
+		},*/
 	}
+
+	// recentlyAddedTimeout do not add twice the same discarder in 2sec
+	recentlyAddedTimeout = uint64(2 * time.Second.Nanoseconds())
 )
 
 // Discarder represents a discarder which is basically the field that we know for sure
@@ -102,88 +119,115 @@ func marshalDiscardHeader(req *ERPCRequest, eventType model.EventType, timeout u
 type pidDiscarders struct {
 	*lib.Map
 	erpc *ERPC
+	req  ERPCRequest
 }
 
 func (p *pidDiscarders) discard(eventType model.EventType, pid uint32) error {
-	req := ERPCRequest{
-		OP: DiscardPidOp,
-	}
+	offset := marshalDiscardHeader(&p.req, eventType, 0)
+	model.ByteOrder.PutUint32(p.req.Data[offset:offset+4], pid)
 
-	offset := marshalDiscardHeader(&req, eventType, 0)
-	model.ByteOrder.PutUint32(req.Data[offset:offset+4], pid)
-
-	return p.erpc.Request(&req)
+	return p.erpc.Request(&p.req)
 }
 
 func (p *pidDiscarders) discardWithTimeout(eventType model.EventType, pid uint32, timeout int64) error {
-	req := ERPCRequest{
-		OP: DiscardPidOp,
-	}
+	offset := marshalDiscardHeader(&p.req, eventType, uint64(timeout))
+	model.ByteOrder.PutUint32(p.req.Data[offset:offset+4], pid)
 
-	offset := marshalDiscardHeader(&req, eventType, uint64(timeout))
-	model.ByteOrder.PutUint32(req.Data[offset:offset+4], pid)
-
-	return p.erpc.Request(&req)
+	return p.erpc.Request(&p.req)
 }
 
 func newPidDiscarders(m *lib.Map, erpc *ERPC) *pidDiscarders {
-	return &pidDiscarders{Map: m, erpc: erpc}
+	return &pidDiscarders{Map: m, erpc: erpc, req: ERPCRequest{OP: DiscardPidOp}}
 }
 
-type inodeDiscarder struct {
+type inodeDiscarderMapEntry struct {
 	PathKey PathKey
 	IsLeaf  uint32
 	Padding uint32
 }
 
+type inodeDiscarderEntry struct {
+	Inode     uint64
+	MountID   uint32
+	Timestamp uint64
+}
+
+func recentlyAddedIndex(mountID uint32, inode uint64) uint64 {
+	return (uint64(mountID)<<32 | inode) % maxRecentlyAddedCacheSize
+}
+
 // inodeDiscarders is used to issue eRPC discarder requests
 type inodeDiscarders struct {
 	*lib.Map
-	erpc               *ERPC
-	revisions          *lib.Map
-	revisionCache      [discarderRevisionSize]uint32
-	dentryResolver     *DentryResolver
-	rs                 *rules.RuleSet
-	parentDiscarderFnc map[eval.Field]func(dirname string) (bool, error)
+	erpc           *ERPC
+	revisions      *lib.Map
+	revisionCache  [discarderRevisionSize]uint32
+	dentryResolver *DentryResolver
+	rs             *rules.RuleSet
+
+	// parentDiscarderFncs holds parent discarder functions per depth
+	parentDiscarderFncs [maxParentDiscarderDepth]map[eval.Field]func(dirname string) (bool, error)
+
+	recentlyAddedEntries [maxRecentlyAddedCacheSize]inodeDiscarderEntry
+}
+
+func newDiscarderRequest() *ERPCRequest {
+	return &ERPCRequest{OP: DiscardInodeOp}
 }
 
 func newInodeDiscarders(inodesMap, revisionsMap *lib.Map, erpc *ERPC, dentryResolver *DentryResolver) (*inodeDiscarders, error) {
-	return &inodeDiscarders{
+	id := &inodeDiscarders{
 		Map:            inodesMap,
 		erpc:           erpc,
 		revisions:      revisionsMap,
 		dentryResolver: dentryResolver,
-	}, nil
-}
-
-func (id *inodeDiscarders) discardInode(eventType model.EventType, mountID uint32, inode uint64, isLeaf bool) error {
-	req := ERPCRequest{
-		OP: DiscardInodeOp,
 	}
 
+	id.initParentDiscarderFncs()
+
+	return id, nil
+}
+
+func (id *inodeDiscarders) isRecentlyAdded(mountID uint32, inode uint64, timestamp uint64) bool {
+	entry := id.recentlyAddedEntries[recentlyAddedIndex(mountID, inode)]
+
+	var delta uint64
+	if timestamp > entry.Timestamp {
+		delta = timestamp - entry.Timestamp
+	} else {
+		delta = entry.Timestamp - timestamp
+	}
+
+	return entry.MountID == mountID && entry.Inode == inode && delta < recentlyAddedTimeout
+}
+
+func (id *inodeDiscarders) recentlyAdded(mountID uint32, inode uint64, timestamp uint64) {
+	entry := &id.recentlyAddedEntries[recentlyAddedIndex(mountID, inode)]
+	entry.MountID = mountID
+	entry.Inode = inode
+	entry.Timestamp = timestamp
+}
+
+func (id *inodeDiscarders) discardInode(req *ERPCRequest, eventType model.EventType, mountID uint32, inode uint64, isLeaf bool) error {
 	var isLeafInt uint32
 	if isLeaf {
 		isLeafInt = 1
 	}
 
-	offset := marshalDiscardHeader(&req, eventType, 0)
+	offset := marshalDiscardHeader(req, eventType, 0)
 	model.ByteOrder.PutUint64(req.Data[offset:offset+8], inode)
 	model.ByteOrder.PutUint32(req.Data[offset+8:offset+12], mountID)
 	model.ByteOrder.PutUint32(req.Data[offset+12:offset+16], isLeafInt)
 
-	return id.erpc.Request(&req)
+	return id.erpc.Request(req)
 }
 
 // expireInodeDiscarder sends an eRPC request to expire a discarder
-func (id *inodeDiscarders) expireInodeDiscarder(mountID uint32, inode uint64) error {
-	req := ERPCRequest{
-		OP: ExpireInodeDiscarderOp,
-	}
-
+func (id *inodeDiscarders) expireInodeDiscarder(req *ERPCRequest, mountID uint32, inode uint64) error {
 	model.ByteOrder.PutUint64(req.Data[0:8], inode)
 	model.ByteOrder.PutUint32(req.Data[8:12], mountID)
 
-	return id.erpc.Request(&req)
+	return id.erpc.Request(req)
 }
 
 func (id *inodeDiscarders) setRevision(mountID uint32, revision uint32) {
@@ -207,57 +251,65 @@ func (id *inodeDiscarders) initRevision(mountEvent *model.MountEvent) {
 }
 
 var (
-	discarderEvent = NewEvent(nil, nil)
+	discarderEvent = NewEvent(nil, nil, nil)
 )
 
-// Important should always be called after having checked that the file is not a discarder itself otherwise it can report incorrect
-// parent discarder
-func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType model.EventType, filenameField eval.Field, filename string) (bool, error) {
-	dirname := filepath.Dir(filename)
-
-	// check cache first
-	if id.rs != rs {
-		id.parentDiscarderFnc = make(map[eval.Field]func(dirname string) (bool, error))
-		id.rs = rs
-	} else {
-		if fnc, exists := id.parentDiscarderFnc[filenameField]; exists {
-			return fnc(dirname)
-		}
+// use a faster version of path.Dir which adds some sanity checks not required here
+func dirname(filename string) string {
+	if len(filename) == 0 {
+		return "/"
 	}
 
-	// compile
-	if _, err := discarderEvent.GetFieldType(filenameField); err != nil {
-		fnc := func(dirname string) (bool, error) {
-			return false, err
-		}
-		id.parentDiscarderFnc[filenameField] = fnc
-		return fnc(dirname)
+	i := len(filename) - 1
+	for i >= 0 && filename[i] != '/' {
+		i--
 	}
 
-	if !strings.HasSuffix(filenameField, model.PathSuffix) {
-		fnc := func(dirname string) (bool, error) {
-			return false, errors.New("path suffix not found")
-		}
-		id.parentDiscarderFnc[filenameField] = fnc
-		return fnc(dirname)
+	if filename == "/" {
+		return filename
 	}
 
-	basenameField := strings.Replace(filenameField, model.PathSuffix, model.NameSuffix, 1)
+	if i <= 0 {
+		return "/"
+	}
+
+	return filename[:i]
+}
+
+func getParent(filename string, depth int) string {
+	for ; depth > 0; depth-- {
+		filename = dirname(filename)
+	}
+
+	return filename
+}
+
+func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType model.EventType, field eval.Field, depth int) (func(dirname string) (bool, error), error) {
+	fnc, exists := id.parentDiscarderFncs[depth-1][field]
+	if exists {
+		return fnc, nil
+	}
+
+	bucket := rs.GetBucket(eventType.String())
+	if bucket == nil {
+		return nil, nil
+	}
+
+	if _, err := discarderEvent.GetFieldType(field); err != nil {
+		return nil, err
+	}
+
+	if !strings.HasSuffix(field, model.PathSuffix) {
+		return nil, errors.New("path suffix not found")
+	}
+
+	basenameField := strings.Replace(field, model.PathSuffix, model.NameSuffix, 1)
 	if _, err := discarderEvent.GetFieldType(basenameField); err != nil {
-		fnc := func(dirname string) (bool, error) {
-			return false, err
-		}
-		id.parentDiscarderFnc[filenameField] = fnc
-		return fnc(dirname)
+		return nil, err
 	}
 
 	var valueFnc func(dirname string) (bool, bool, error)
 	var valueFncs []func(dirname string) (bool, bool, error)
-
-	bucket := rs.GetBucket(eventType.String())
-	if bucket == nil {
-		return false, nil
-	}
 
 	for _, rule := range bucket.GetRules() {
 		// ensure we don't push parent discarder if there is another rule relying on the parent path
@@ -273,22 +325,16 @@ func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType mo
 		// /etc/conf.d/httpd.conf is a discarder but not the parent
 
 		// check filename
-		if values := rule.GetFieldValues(filenameField); len(values) > 0 {
+		if values := rule.GetFieldValues(field); len(values) > 0 {
 			for _, value := range values {
-				if value.Type == eval.PatternValueType {
-					valueDir := path.Dir(value.Value.(string))
-					regexDir, err := eval.PatternToRegexp(valueDir)
+				if value.Type == eval.GlobValueType {
+					glob, err := eval.NewGlob(value.Value.(string), false)
 					if err != nil {
-						return false, err
+						return nil, fmt.Errorf("unexpected glob `%v`: %w", value.Value, err)
 					}
 
-					regexValue := value.Regexp
 					valueFnc = func(dirname string) (bool, bool, error) {
-						if regexValue.MatchString(dirname) || regexDir.MatchString(dirname) {
-							return false, false, nil
-						}
-
-						return true, false, nil
+						return !glob.Contains(dirname), false, nil
 					}
 				} else if value.Type == eval.ScalarValueType {
 					str := value.Value.(string)
@@ -296,6 +342,7 @@ func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType mo
 						return !strings.HasPrefix(str, dirname), false, nil
 					}
 				} else {
+					// regex are not currently supported on path, see ValidateFields
 					valueFnc = func(dirname string) (bool, bool, error) {
 						return false, false, nil
 					}
@@ -322,7 +369,7 @@ func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType mo
 		}
 	}
 
-	parentDiscarderFnc := func(dirname string) (bool, error) {
+	fnc = func(dirname string) (bool, error) {
 		var result, altered bool
 		var err error
 
@@ -339,51 +386,103 @@ func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType mo
 			}
 		}
 
-		if err := discarderEvent.SetFieldValue(filenameField, dirname); err != nil {
-			return false, err
-		}
-
-		if isDiscarder, _ := rs.IsDiscarder(discarderEvent, filenameField); !isDiscarder {
-			return false, nil
-		}
-
-		return true, nil
+		return len(valueFncs) > 0, nil
 	}
-	id.parentDiscarderFnc[filenameField] = parentDiscarderFnc
+	id.parentDiscarderFncs[depth-1][field] = fnc
 
-	seclog.Tracef("`%s` discovered as parent discarder", dirname)
-
-	return parentDiscarderFnc(dirname)
+	return fnc, nil
 }
 
-func (id *inodeDiscarders) discardParentInode(rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, mountID uint32, inode uint64, pathID uint32) (bool, uint32, uint64, error) {
-	isDiscarder, err := id.isParentPathDiscarder(rs, eventType, field, filename)
-	if !isDiscarder {
+func (id *inodeDiscarders) initParentDiscarderFncs() {
+	for i := range id.parentDiscarderFncs {
+		id.parentDiscarderFncs[i] = make(map[eval.Field]func(dirname string) (bool, error))
+	}
+}
+
+// onRuleSetChanged if the ruleset changed we need to flush all the previous functions
+func (id *inodeDiscarders) onRuleSetChanged(rs *rules.RuleSet) {
+	id.initParentDiscarderFncs()
+	id.rs = rs
+}
+
+func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, depth int) (bool, error) {
+	if id.rs != rs {
+		id.onRuleSetChanged(rs)
+	}
+
+	fnc, err := id.getParentDiscarderFnc(rs, eventType, field, depth)
+	if fnc == nil || err != nil {
+		return false, err
+	}
+
+	dirname := getParent(filename, depth)
+	if dirname == "/" {
+		// never discard /
+		return false, nil
+	}
+
+	found, err := fnc(dirname)
+	if !found || err != nil {
+		return false, err
+	}
+
+	seclog.Tracef("`%s` discovered as parent discarder for `%s`", dirname, field)
+
+	return true, nil
+}
+
+func (id *inodeDiscarders) discardParentInode(req *ERPCRequest, rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, mountID uint32, inode uint64, pathID uint32, timestamp uint64) (bool, uint32, uint64, error) {
+	var discarderDepth int
+	var isDiscarder bool
+	var err error
+
+	for depth := maxParentDiscarderDepth; depth > 0; depth-- {
+		if isDiscarder, err = id.isParentPathDiscarder(rs, eventType, field, filename, depth); isDiscarder {
+			discarderDepth = depth
+			break
+		}
+	}
+
+	if err != nil || discarderDepth == 0 {
 		return false, 0, 0, err
 	}
 
-	parentMountID, parentInode, err := id.dentryResolver.GetParent(mountID, inode, pathID)
-	if err != nil {
-		return false, 0, 0, err
+	for i := 0; i < discarderDepth; i++ {
+		parentMountID, parentInode, err := id.dentryResolver.GetParent(mountID, inode, pathID)
+		if err != nil || IsFakeInode(parentInode) {
+			if i == 0 {
+				return false, 0, 0, err
+			}
+			break
+		}
+		mountID, inode = parentMountID, parentInode
 	}
 
-	if parentMountID == 0 || parentInode == 0 {
+	// do not insert multiple time the same discarder
+	if id.isRecentlyAdded(mountID, inode, timestamp) {
 		return false, 0, 0, nil
 	}
 
-	if err := id.discardInode(eventType, parentMountID, parentInode, false); err != nil {
+	if err := id.discardInode(req, eventType, mountID, inode, false); err != nil {
 		return false, 0, 0, err
 	}
 
-	return true, parentMountID, parentInode, nil
+	id.recentlyAdded(mountID, inode, timestamp)
+
+	return true, mountID, inode, nil
 }
 
-// function used to retrieve discarder information, *.file.path, mountID, inode, file deleted
-type inodeEventGetter = func(event *Event) (eval.Field, uint32, uint64, uint32, bool)
+// function used to retrieve discarder information, *.file.path, FileEvent, file deleted
+type inodeEventGetter = func(event *Event) (eval.Field, *model.FileEvent, bool)
 
 func filenameDiscarderWrapper(eventType model.EventType, handler onDiscarderHandler, getter inodeEventGetter) onDiscarderHandler {
 	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
-		field, mountID, inode, pathID, isDeleted := getter(event)
+		field, fileEvent, isDeleted := getter(event)
+
+		if fileEvent.PathResolutionError != nil {
+			return fileEvent.PathResolutionError
+		}
+		mountID, inode, pathID := fileEvent.MountID, fileEvent.Inode, fileEvent.PathID
 
 		if discarder.Field == field {
 			value, err := event.GetFieldValue(field)
@@ -400,19 +499,18 @@ func filenameDiscarderWrapper(eventType model.EventType, handler onDiscarderHand
 				return nil
 			}
 
-			isDiscarded, _, parentInode, err := probe.inodeDiscarders.discardParentInode(rs, eventType, field, filename, mountID, inode, pathID)
+			isDiscarded, _, parentInode, err := probe.inodeDiscarders.discardParentInode(probe.discarderReq, rs, eventType, field, filename, mountID, inode, pathID, event.TimestampRaw)
 			if !isDiscarded && !isDeleted {
 				if _, ok := err.(*ErrInvalidKeyPath); !ok {
-					seclog.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, inode, filename)
+					if !IsFakeInode(inode) {
+						seclog.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, inode, filename)
 
-					// not able to discard the parent then only discard the filename
-					if err = probe.inodeDiscarders.discardInode(eventType, mountID, inode, true); err == nil {
-						probe.countNewInodeDiscarder(eventType)
+						// not able to discard the parent then only discard the filename
+						_ = probe.inodeDiscarders.discardInode(probe.discarderReq, eventType, mountID, inode, true)
 					}
 				}
 			} else if !isDeleted {
 				seclog.Tracef("Apply `%s.file.path` parent inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, parentInode, filename)
-				probe.countNewInodeDiscarder(eventType)
 			}
 
 			if err != nil {
@@ -461,14 +559,14 @@ func createInvalidDiscardersCache() map[eval.Field]map[interface{}]bool {
 func processDiscarderWrapper(eventType model.EventType, fnc onDiscarderHandler) onDiscarderHandler {
 	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) error {
 		if discarder.Field == "process.file.path" {
-			seclog.Tracef("Apply process.file.path discarder for event `%s`, inode: %d, pid: %d", eventType, event.ProcessContext.FileFields.Inode, event.ProcessContext.Pid)
+			seclog.Tracef("Apply process.file.path discarder for event `%s`, inode: %d, pid: %d", eventType, event.ProcessContext.FileEvent.Inode, event.ProcessContext.Pid)
 
 			// discard by PID for long running process
 			if err := probe.pidDiscarders.discard(eventType, event.ProcessContext.Pid); err != nil {
 				return err
 			}
 
-			return probe.inodeDiscarders.discardInode(eventType, event.ProcessContext.FileFields.MountID, event.ProcessContext.FileFields.Inode, true)
+			return probe.inodeDiscarders.discardInode(probe.discarderReq, eventType, event.ProcessContext.FileEvent.MountID, event.ProcessContext.FileEvent.Inode, true)
 		}
 
 		if fnc != nil {
@@ -488,15 +586,15 @@ func init() {
 
 	allDiscarderHandlers["open"] = processDiscarderWrapper(model.FileOpenEventType,
 		filenameDiscarderWrapper(model.FileOpenEventType, nil,
-			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
-				return "open.file.path", event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID, false
+			func(event *Event) (eval.Field, *model.FileEvent, bool) {
+				return "open.file.path", &event.Open.File, false
 			}))
 	SupportedDiscarders["open.file.path"] = true
 
 	allDiscarderHandlers["mkdir"] = processDiscarderWrapper(model.FileMkdirEventType,
 		filenameDiscarderWrapper(model.FileMkdirEventType, nil,
-			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
-				return "mkdir.file.path", event.Mkdir.File.MountID, event.Mkdir.File.Inode, event.Mkdir.File.PathID, false
+			func(event *Event) (eval.Field, *model.FileEvent, bool) {
+				return "mkdir.file.path", &event.Mkdir.File, false
 			}))
 	SupportedDiscarders["mkdir.file.path"] = true
 
@@ -506,52 +604,72 @@ func init() {
 
 	allDiscarderHandlers["unlink"] = processDiscarderWrapper(model.FileUnlinkEventType,
 		filenameDiscarderWrapper(model.FileUnlinkEventType, nil,
-			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
-				return "unlink.file.path", event.Unlink.File.MountID, event.Unlink.File.Inode, event.Unlink.File.PathID, true
+			func(event *Event) (eval.Field, *model.FileEvent, bool) {
+				return "unlink.file.path", &event.Unlink.File, true
 			}))
 	SupportedDiscarders["unlink.file.path"] = true
 
 	allDiscarderHandlers["rmdir"] = processDiscarderWrapper(model.FileRmdirEventType,
 		filenameDiscarderWrapper(model.FileRmdirEventType, nil,
-			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
-				return "rmdir.file.path", event.Rmdir.File.MountID, event.Rmdir.File.Inode, event.Rmdir.File.PathID, false
+			func(event *Event) (eval.Field, *model.FileEvent, bool) {
+				return "rmdir.file.path", &event.Rmdir.File, false
 			}))
 	SupportedDiscarders["rmdir.file.path"] = true
 
 	allDiscarderHandlers["chmod"] = processDiscarderWrapper(model.FileChmodEventType,
 		filenameDiscarderWrapper(model.FileChmodEventType, nil,
-			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
-				return "chmod.file.path", event.Chmod.File.MountID, event.Chmod.File.Inode, event.Chmod.File.PathID, false
+			func(event *Event) (eval.Field, *model.FileEvent, bool) {
+				return "chmod.file.path", &event.Chmod.File, false
 			}))
 	SupportedDiscarders["chmod.file.path"] = true
 
 	allDiscarderHandlers["chown"] = processDiscarderWrapper(model.FileChownEventType,
 		filenameDiscarderWrapper(model.FileChownEventType, nil,
-			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
-				return "chown.file.path", event.Chown.File.MountID, event.Chown.File.Inode, event.Chown.File.PathID, false
+			func(event *Event) (eval.Field, *model.FileEvent, bool) {
+				return "chown.file.path", &event.Chown.File, false
 			}))
 	SupportedDiscarders["chown.file.path"] = true
 
 	allDiscarderHandlers["utimes"] = processDiscarderWrapper(model.FileUtimesEventType,
 		filenameDiscarderWrapper(model.FileUtimesEventType, nil,
-			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
-				return "utimes.file.path", event.Utimes.File.MountID, event.Utimes.File.Inode, event.Utimes.File.PathID, false
+			func(event *Event) (eval.Field, *model.FileEvent, bool) {
+				return "utimes.file.path", &event.Utimes.File, false
 			}))
 	SupportedDiscarders["utimes.file.path"] = true
 
 	allDiscarderHandlers["setxattr"] = processDiscarderWrapper(model.FileSetXAttrEventType,
 		filenameDiscarderWrapper(model.FileSetXAttrEventType, nil,
-			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
-				return "setxattr.file.path", event.SetXAttr.File.MountID, event.SetXAttr.File.Inode, event.SetXAttr.File.PathID, false
+			func(event *Event) (eval.Field, *model.FileEvent, bool) {
+				return "setxattr.file.path", &event.SetXAttr.File, false
 			}))
 	SupportedDiscarders["setxattr.file.path"] = true
 
 	allDiscarderHandlers["removexattr"] = processDiscarderWrapper(model.FileRemoveXAttrEventType,
 		filenameDiscarderWrapper(model.FileRemoveXAttrEventType, nil,
-			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
-				return "removexattr.file.path", event.RemoveXAttr.File.MountID, event.RemoveXAttr.File.Inode, event.RemoveXAttr.File.PathID, false
+			func(event *Event) (eval.Field, *model.FileEvent, bool) {
+				return "removexattr.file.path", &event.RemoveXAttr.File, false
 			}))
 	SupportedDiscarders["removexattr.file.path"] = true
 
 	allDiscarderHandlers["bpf"] = processDiscarderWrapper(model.BPFEventType, nil)
+
+	allDiscarderHandlers["mmap"] = processDiscarderWrapper(model.MMapEventType,
+		filenameDiscarderWrapper(model.MMapEventType, nil,
+			func(event *Event) (eval.Field, *model.FileEvent, bool) {
+				return "mmap.file.path", &event.MMap.File, false
+			}))
+	SupportedDiscarders["mmap.file.path"] = true
+
+	allDiscarderHandlers["splice"] = processDiscarderWrapper(model.SpliceEventType,
+		filenameDiscarderWrapper(model.SpliceEventType, nil,
+			func(event *Event) (eval.Field, *model.FileEvent, bool) {
+				return "splice.file.path", &event.Splice.File, false
+			}))
+	SupportedDiscarders["splice.file.path"] = true
+
+	allDiscarderHandlers["mprotect"] = processDiscarderWrapper(model.MProtectEventType, nil)
+	allDiscarderHandlers["ptrace"] = processDiscarderWrapper(model.PTraceEventType, nil)
+	allDiscarderHandlers["load_module"] = processDiscarderWrapper(model.LoadModuleEventType, nil)
+	allDiscarderHandlers["unload_module"] = processDiscarderWrapper(model.UnloadModuleEventType, nil)
+	allDiscarderHandlers["signal"] = processDiscarderWrapper(model.SignalEventType, nil)
 }

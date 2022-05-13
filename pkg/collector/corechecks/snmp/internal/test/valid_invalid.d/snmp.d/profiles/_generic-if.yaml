@@ -1,0 +1,27 @@
+# Generic network interfaces metrics.
+#
+extends:
+  - _abstract.yaml
+
+metrics:
+- MIB: IF-MIB
+  table:
+    OID: 1.3.6.1.2.1.2.2
+    name: ifTable
+  forced_type: monotonic_count
+  symbols:
+  - OID: 1.3.6.1.2.1.2.2.1.14
+    name: ifInErrors
+  - OID: 1.3.6.1.2.1.2.2.1.13
+    name: ifInDiscards
+  metric_tags:
+  - column:
+      OID: 1.3.6.1.2.1.31.1.1.1.1
+      name: ifName
+    table: ifXTable
+    tag: interface
+  - column:
+      OID: 1.3.6.1.2.1.31.1.1.1.18
+      name: ifAlias
+    table: ifXTable
+    tag: interface_alias

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
@@ -60,6 +61,7 @@ func TestChmod(t *testing.T) {
 			assertRights(t, event.Chmod.File.Mode, expectedMode, "wrong initial mode")
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)
+			assert.Equal(t, event.Chmod.Async, false)
 
 			if !validateChmodSchema(t, event) {
 				t.Error(event.String())
@@ -82,6 +84,7 @@ func TestChmod(t *testing.T) {
 			assertRights(t, event.Chmod.File.Mode, expectedMode)
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)
+			assert.Equal(t, event.Chmod.Async, false)
 
 			if !validateChmodSchema(t, event) {
 				t.Error(event.String())
@@ -102,6 +105,7 @@ func TestChmod(t *testing.T) {
 			assertRights(t, event.Chmod.File.Mode, expectedMode, "wrong initial mode")
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)
+			assert.Equal(t, event.Chmod.Async, false)
 
 			if !validateChmodSchema(t, event) {
 				t.Error(event.String())

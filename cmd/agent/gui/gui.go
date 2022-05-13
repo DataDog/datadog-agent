@@ -1,10 +1,13 @@
-//go:generate go run github.com/shuLhan/go-bindata/cmd/go-bindata -pkg gui -prefix views -o ./templates.go views/...
-//go:generate go fmt ./templates.go
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
 
 package gui
 
 import (
 	"crypto/rand"
+	"embed"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -14,6 +17,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -35,6 +39,9 @@ var (
 	// To compute uptime
 	startTimestamp int64
 )
+
+//go:embed views
+var viewsFS embed.FS
 
 // Payload struct is for the JSON messages received from a client POST request
 type Payload struct {
@@ -111,7 +118,7 @@ func createCSRFToken() error {
 }
 
 func generateIndex(w http.ResponseWriter, r *http.Request) {
-	data, err := Asset("/templates/index.tmpl")
+	data, err := viewsFS.ReadFile("views/templates/index.tmpl")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -130,7 +137,7 @@ func generateIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func generateAuthEndpoint(w http.ResponseWriter, r *http.Request) {
-	data, err := Asset("/templates/auth.tmpl")
+	data, err := viewsFS.ReadFile("views/templates/auth.tmpl")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -149,8 +156,8 @@ func generateAuthEndpoint(w http.ResponseWriter, r *http.Request) {
 }
 
 func serveAssets(w http.ResponseWriter, req *http.Request) {
-	path := filepath.Join("/private", req.URL.Path)
-	data, err := Asset(path)
+	path := path.Join("views", "private", req.URL.Path)
+	data, err := viewsFS.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			http.Error(w, err.Error(), http.StatusNotFound)

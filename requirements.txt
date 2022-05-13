@@ -1,9 +1,2 @@
-# python development requirements for the Datadog Agent
-invoke==1.6.0
-reno==3.5.0
-dulwich<0.20.27
-docker==5.0.3
-docker-squash==1.0.9
-requests==2.26.0
-PyYAML==6.0
-toml==0.10.2
+# To edit the requirements file, open a PR on github.com/DataDog/datadog-agent-buildimages
+-r https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/main/requirements.txt

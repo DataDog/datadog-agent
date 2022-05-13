@@ -6,12 +6,12 @@
 package containerlifecycle
 
 import (
+	"context"
 	"errors"
 	"time"
 
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -68,7 +68,7 @@ func (c *Check) Configure(config, initConfig integration.Data, source string) er
 		return err
 	}
 
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}
@@ -93,22 +93,26 @@ func (c *Check) Run() error {
 
 	contEventsCh := c.workloadmetaStore.Subscribe(
 		checkName+"-cont",
+		workloadmeta.NormalPriority,
 		workloadmeta.NewFilter(
 			[]workloadmeta.Kind{workloadmeta.KindContainer},
-			[]workloadmeta.Source{workloadmeta.SourceDocker, workloadmeta.SourceContainerd},
+			workloadmeta.SourceRuntime,
 		),
 	)
 
 	podEventsCh := c.workloadmetaStore.Subscribe(
 		checkName+"-pod",
+		workloadmeta.NormalPriority,
 		workloadmeta.NewFilter(
 			[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
-			[]workloadmeta.Source{workloadmeta.SourceKubelet},
+			workloadmeta.SourceNodeOrchestrator,
 		),
 	)
 
 	pollInterval := time.Duration(c.instance.pollInterval) * time.Second
-	c.processor.start(c.stopCh, pollInterval)
+
+	processorCtx, stopProcessor := context.WithCancel(context.Background())
+	c.processor.start(processorCtx, pollInterval)
 
 	for {
 		select {
@@ -117,6 +121,7 @@ func (c *Check) Run() error {
 		case eventBundle := <-podEventsCh:
 			c.processor.processEvents(eventBundle)
 		case <-c.stopCh:
+			stopProcessor()
 			return nil
 		}
 	}

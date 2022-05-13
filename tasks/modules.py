@@ -1,18 +1,18 @@
 import os
-import sys
-
-from invoke import task
+import subprocess
+from contextlib import contextmanager
 
 
 class GoModule:
     """A Go module abstraction."""
 
-    def __init__(self, path, targets=None, condition=lambda: True, dependencies=None, should_tag=True):
+    def __init__(self, path, targets=None, condition=lambda: True, should_tag=True):
         self.path = path
         self.targets = targets if targets else ["."]
-        self.dependencies = dependencies if dependencies else []
         self.condition = condition
         self.should_tag = should_tag
+
+        self._dependencies = None
 
     def __version(self, agent_version):
         """Return the module version for a given Agent version.
@@ -24,6 +24,29 @@ class GoModule:
             return "v" + agent_version
 
         return "v0" + agent_version[1:]
+
+    def __compute_dependencies(self):
+        """
+        Computes the list of github.com/DataDog/datadog-agent/ dependencies of the module.
+        """
+        prefix = "github.com/DataDog/datadog-agent/"
+        base_path = os.getcwd()
+        mod_parser_path = os.path.join(base_path, "internal", "tools", "modparser")
+
+        if not os.path.isdir(mod_parser_path):
+            raise Exception(f"Cannot find go.mod parser in {mod_parser_path}")
+
+        try:
+            output = subprocess.check_output(
+                ["go", "run", ".", "-path", os.path.join(base_path, self.path), "-prefix", prefix],
+                cwd=mod_parser_path,
+            ).decode("utf-8")
+        except subprocess.CalledProcessError as e:
+            print(f"Error while calling go.mod parser: {e.output}")
+            raise e
+
+        # Remove github.com/DataDog/datadog-agent/ from each line
+        return [line[len(prefix) :] for line in output.strip().splitlines()]
 
     # FIXME: Change when Agent 6 and Agent 7 releases are decoupled
     def tag(self, agent_version):
@@ -44,6 +67,12 @@ class GoModule:
     def go_mod_path(self):
         """Return the absolute path of the Go module go.mod file."""
         return self.full_path() + "/go.mod"
+
+    @property
+    def dependencies(self):
+        if not self._dependencies:
+            self._dependencies = self.__compute_dependencies()
+        return self._dependencies
 
     @property
     def import_path(self):
@@ -70,28 +99,19 @@ DEFAULT_MODULES = {
     ".": GoModule(
         ".",
         targets=["./pkg", "./cmd"],
-        dependencies=[
-            "pkg/util/scrubber",
-            "pkg/util/log",
-            "pkg/util/winutil",
-            "pkg/quantile",
-            "pkg/otlp/model",
-            "pkg/obfuscate",
-            "pkg/security/secl",
-        ],
     ),
-    "pkg/util/scrubber": GoModule("pkg/util/scrubber"),
-    "pkg/util/log": GoModule("pkg/util/log", dependencies=["pkg/util/scrubber"]),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
-    "pkg/util/winutil": GoModule(
-        "pkg/util/winutil",
-        condition=lambda: sys.platform == 'win32',
-        dependencies=["pkg/util/log"],
+    "internal/tools/proto": GoModule("internal/tools/proto", condition=lambda: False, should_tag=False),
+    "internal/tools/modparser": GoModule("internal/tools/modparser", condition=lambda: False, should_tag=False),
+    "test/e2e/containers/otlp_sender": GoModule(
+        "test/e2e/containers/otlp_sender", condition=lambda: False, should_tag=False
     ),
     "pkg/quantile": GoModule("pkg/quantile"),
     "pkg/obfuscate": GoModule("pkg/obfuscate"),
-    "pkg/otlp/model": GoModule("pkg/otlp/model", dependencies=["pkg/quantile"]),
+    "pkg/trace": GoModule("pkg/trace"),
+    "pkg/otlp/model": GoModule("pkg/otlp/model"),
     "pkg/security/secl": GoModule("pkg/security/secl"),
+    "pkg/remoteconfig/client": GoModule("pkg/remoteconfig/client"),
 }
 
 MAIN_TEMPLATE = """package main
@@ -106,24 +126,37 @@ func main() {{}}
 PACKAGE_TEMPLATE = '	_ "{}"'
 
 
-@task
+@contextmanager
 def generate_dummy_package(ctx, folder):
-    import_paths = []
-    for mod in DEFAULT_MODULES.values():
-        if mod.path != "." and mod.condition():
-            import_paths.append(mod.import_path)
-
-    os.mkdir(folder)
-    with ctx.cd(folder):
-        print("Creating dummy 'main.go' file... ", end="")
-        with open(os.path.join(ctx.cwd, 'main.go'), 'w') as main_file:
-            main_file.write(
-                MAIN_TEMPLATE.format(imports="\n".join(PACKAGE_TEMPLATE.format(path) for path in import_paths))
-            )
-        print("Done")
-
-        ctx.run("go mod init example.com/testmodule")
+    """
+    Return a generator-iterator when called.
+    Allows us to wrap this function with a "with" statement to delete the created dummy pacakage afterwards.
+    """
+    try:
+        import_paths = []
         for mod in DEFAULT_MODULES.values():
-            if mod.path != ".":
-                ctx.run(f"go mod edit -require={mod.dependency_path('0.0.0')}")
-                ctx.run(f"go mod edit -replace {mod.import_path}=../{mod.path}")
+            if mod.path != "." and mod.condition():
+                import_paths.append(mod.import_path)
+
+        os.mkdir(folder)
+        with ctx.cd(folder):
+            print("Creating dummy 'main.go' file... ", end="")
+            with open(os.path.join(ctx.cwd, 'main.go'), 'w') as main_file:
+                main_file.write(
+                    MAIN_TEMPLATE.format(imports="\n".join(PACKAGE_TEMPLATE.format(path) for path in import_paths))
+                )
+            print("Done")
+
+            ctx.run("go mod init example.com/testmodule")
+            for mod in DEFAULT_MODULES.values():
+                if mod.path != ".":
+                    ctx.run(f"go mod edit -require={mod.dependency_path('0.0.0')}")
+                    ctx.run(f"go mod edit -replace {mod.import_path}=../{mod.path}")
+
+        # yield folder waiting for a "with" block to be executed (https://docs.python.org/3/library/contextlib.html)
+        yield folder
+
+    # the generator is then resumed here after the "with" block is exited
+    finally:
+        # delete test_folder to avoid FileExistsError while running this task again
+        ctx.run(f"rm -rf ./{folder}")

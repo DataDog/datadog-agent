@@ -29,7 +29,7 @@ func TestGetPrometheusConfigs(t *testing.T) {
 				{
 					Instances: []*types.OpenmetricsInstance{
 						{
-							Metrics:   []string{"*"},
+							Metrics:   []string{"PLACEHOLDER"},
 							Namespace: "",
 						},
 					},

@@ -13,11 +13,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type proxyTransport struct {
-	processor InvocationProcessor
+	processor invocationlifecycle.InvocationProcessor
 }
 
 func (p *proxyTransport) RoundTrip(request *http.Request) (*http.Response, error) {
@@ -45,10 +46,9 @@ func (p *proxyTransport) RoundTrip(request *http.Request) (*http.Response, error
 
 	// triggers onInvokeStart when /next response is received
 	if request.Method == "GET" && strings.HasSuffix(request.URL.String(), "/next") {
-		details := &InvocationStartDetails{
-			StartTime:          time.Now(),
-			InvokeHeaders:      response.Header,
-			InvokeEventPayload: string(dumpedResponse[indexPayload:]),
+		details := &invocationlifecycle.InvocationStartDetails{
+			StartTime:             time.Now(),
+			InvokeEventRawPayload: string(dumpedResponse[indexPayload:]),
 		}
 		p.processor.OnInvokeStart(details)
 	}
@@ -58,13 +58,13 @@ func (p *proxyTransport) RoundTrip(request *http.Request) (*http.Response, error
 
 func processRequest(p *proxyTransport, request *http.Request) {
 	if request.Method == "POST" && strings.HasSuffix(request.URL.String(), "/response") {
-		details := &InvocationEndDetails{
+		details := &invocationlifecycle.InvocationEndDetails{
 			EndTime: time.Now(),
 			IsError: false,
 		}
 		p.processor.OnInvokeEnd(details)
 	} else if request.Method == "POST" && strings.HasSuffix(request.URL.String(), "/error") {
-		details := &InvocationEndDetails{
+		details := &invocationlifecycle.InvocationEndDetails{
 			EndTime: time.Now(),
 			IsError: true,
 		}

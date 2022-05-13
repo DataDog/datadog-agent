@@ -9,23 +9,34 @@ import (
 	"context"
 	"fmt"
 	"path"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
+	"github.com/theupdateframework/go-tuf/data"
+	tufutil "github.com/theupdateframework/go-tuf/util"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
+	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.etcd.io/bbolt"
 )
 
 const (
-	minimalRefreshInterval = time.Second * 5
-	defaultTracerCacheSize = 1000
-	defaultTracerCacheTTL  = 10 * time.Second
+	minimalRefreshInterval = 5 * time.Second
+	defaultClientsTTL      = 30 * time.Second
+	maxClientsTTL          = 60 * time.Second
+)
+
+// Constraints on the maximum backoff time when errors occur
+const (
+	minimalMaxBackoffTime = 2 * time.Minute
+	maximalMaxBackoffTime = 5 * time.Minute
 )
 
 // Service defines the remote config management service responsible for fetching, storing
@@ -34,19 +45,34 @@ type Service struct {
 	sync.Mutex
 	firstUpdate bool
 
-	refreshInterval time.Duration
-	remoteConfigKey remoteConfigKey
+	defaultRefreshInterval time.Duration
 
-	ctx    context.Context
-	db     *bbolt.DB
-	uptane *uptane.Client
-	client *client.HTTPClient
+	// The backoff policy used for retries when errors are encountered
+	backoffPolicy backoff.Policy
+	// The number of errors we're currently tracking within the context of our backoff policy
+	backoffErrorCount int
 
-	products    map[pbgo.Product]struct{}
-	newProducts map[pbgo.Product]struct{}
+	ctx      context.Context
+	clock    clock.Clock
+	hostname string
+	db       *bbolt.DB
+	uptane   uptaneClient
+	api      api.API
 
-	subscribers []*Subscriber
-	TracerInfos *TracerCache
+	products    map[rdata.Product]struct{}
+	newProducts map[rdata.Product]struct{}
+	clients     *clients
+}
+
+// uptaneClient is used to mock the uptane component for testing
+type uptaneClient interface {
+	Update(response *pbgo.LatestConfigsResponse) error
+	State() (uptane.State, error)
+	DirectorRoot(version uint64) ([]byte, error)
+	Targets() (data.TargetFiles, error)
+	TargetFile(path string) ([]byte, error)
+	TargetsMeta() ([]byte, error)
+	TargetsCustom() ([]byte, error)
 }
 
 // NewService instantiates a new remote configuration management service
@@ -56,6 +82,32 @@ func NewService() (*Service, error) {
 		log.Warnf("remote_configuration.refresh_interval is set to %v which is bellow the minimum of %v", refreshInterval, minimalRefreshInterval)
 		refreshInterval = minimalRefreshInterval
 	}
+
+	maxBackoffTime := config.Datadog.GetDuration("remote_configuration.max_backoff_interval")
+	if maxBackoffTime < minimalMaxBackoffTime {
+		log.Warnf("remote_configuration.max_backoff_time is set to %v which is below the minimum of %v - setting value to %v", maxBackoffTime, minimalMaxBackoffTime, minimalMaxBackoffTime)
+		maxBackoffTime = minimalMaxBackoffTime
+	} else if maxBackoffTime > maximalMaxBackoffTime {
+		log.Warnf("remote_configuration.max_backoff_time is set to %v which is above the maximum of %v - setting value to %v", maxBackoffTime, maximalMaxBackoffTime, maximalMaxBackoffTime)
+		maxBackoffTime = maximalMaxBackoffTime
+	}
+
+	// A backoff is calculated as a range from which a random value will be selected. The formula is as follows.
+	//
+	// min = baseBackoffTime * 2^<NumErrors> / minBackoffFactor
+	// max = min(maxBackoffTime, baseBackoffTime * 2 ^<NumErrors>)
+	//
+	// The following values mean each range will always be [30*2^<NumErrors-1>, min(maxBackoffTime, 30*2^<NumErrors>)].
+	// Every success will cause numErrors to shrink by 2.
+	// This is a sensible default backoff pattern, and there isn't really any need to
+	// let clients configure this at this time.
+	minBackoffFactor := 2.0
+	baseBackoffTime := 30.0
+	recoveryInterval := 2
+	recoveryReset := false
+
+	backoffPolicy := backoff.NewPolicy(minBackoffFactor, baseBackoffTime,
+		maxBackoffTime.Seconds(), recoveryInterval, recoveryReset)
 
 	rawRemoteConfigKey := config.Datadog.GetString("remote_configuration.key")
 	remoteConfigKey, err := parseRemoteConfigKey(rawRemoteConfigKey)
@@ -72,46 +124,39 @@ func NewService() (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	backendURL := config.Datadog.GetString("remote_configuration.endpoint")
-	client := client.NewHTTPClient(backendURL, apiKey, remoteConfigKey.appKey, hostname)
+	http := api.NewHTTPClient(apiKey, remoteConfigKey.AppKey)
 
 	dbPath := path.Join(config.Datadog.GetString("run_path"), "remote-config.db")
 	db, err := openCacheDB(dbPath)
 	if err != nil {
 		return nil, err
 	}
-	cacheKey := fmt.Sprintf("%s/%d/", remoteConfigKey.datacenter, remoteConfigKey.orgID)
-	uptaneClient, err := uptane.NewClient(db, cacheKey, remoteConfigKey.orgID)
+	cacheKey := fmt.Sprintf("%s/%d/", remoteConfigKey.Datacenter, remoteConfigKey.OrgID)
+	uptaneClient, err := uptane.NewClient(db, cacheKey, remoteConfigKey.OrgID)
 	if err != nil {
 		return nil, err
 	}
 
-	tracerCacheSize := config.Datadog.GetInt("remote_configuration.tracer_cache.size")
-	if tracerCacheSize <= 0 {
-		tracerCacheSize = defaultTracerCacheSize
+	clientsTTL := config.Datadog.GetDuration("remote_configuration.clients.ttl_seconds")
+	if clientsTTL <= minimalRefreshInterval || clientsTTL >= maxClientsTTL {
+		log.Warnf("Configured clients ttl is not within accepted range (%s - %s): %s. Defaulting to %s", minimalRefreshInterval, maxClientsTTL, clientsTTL, defaultClientsTTL)
+		clientsTTL = defaultClientsTTL
 	}
-
-	tracerCacheTTL := time.Second * config.Datadog.GetDuration("remote_configuration.tracer_cache.ttl_seconds")
-	if tracerCacheTTL <= 0 {
-		tracerCacheTTL = defaultTracerCacheTTL
-	}
-
-	if tracerCacheTTL <= 5*time.Second || tracerCacheTTL >= 60*time.Second {
-		log.Warnf("Configured tracer cache ttl is not within accepted range (%ds - %ds): %s. Defaulting to %s", 5, 10, tracerCacheTTL, defaultTracerCacheTTL)
-		tracerCacheTTL = defaultTracerCacheTTL
-	}
-
+	clock := clock.New()
 	return &Service{
-		ctx:             context.Background(),
-		firstUpdate:     true,
-		refreshInterval: refreshInterval,
-		remoteConfigKey: remoteConfigKey,
-		products:        make(map[pbgo.Product]struct{}),
-		newProducts:     make(map[pbgo.Product]struct{}),
-		db:              db,
-		client:          client,
-		uptane:          uptaneClient,
-		TracerInfos:     NewTracerCache(tracerCacheSize, tracerCacheTTL, time.Second),
+		ctx:                    context.Background(),
+		firstUpdate:            true,
+		defaultRefreshInterval: refreshInterval,
+		backoffErrorCount:      0,
+		backoffPolicy:          backoffPolicy,
+		products:               make(map[rdata.Product]struct{}),
+		newProducts:            make(map[rdata.Product]struct{}),
+		hostname:               hostname,
+		clock:                  clock,
+		db:                     db,
+		api:                    http,
+		uptane:                 uptaneClient,
+		clients:                newClients(clock, clientsTTL),
 	}, nil
 }
 
@@ -122,12 +167,14 @@ func (s *Service) Start(ctx context.Context) error {
 		defer cancel()
 
 		for {
+			refreshInterval := s.calculateRefreshInterval()
+			err := s.refresh()
+			if err != nil {
+				log.Errorf("could not refresh remote-config: %v", err)
+			}
 			select {
-			case <-time.After(s.refreshInterval):
-				err := s.refresh()
-				if err != nil {
-					log.Errorf("could not refresh remote-config: %v", err)
-				}
+			case <-s.clock.After(refreshInterval):
+				continue
 			case <-ctx.Done():
 				return
 			}
@@ -136,35 +183,46 @@ func (s *Service) Start(ctx context.Context) error {
 	return nil
 }
 
+func (s *Service) calculateRefreshInterval() time.Duration {
+	backoffTime := s.backoffPolicy.GetBackoffDuration(s.backoffErrorCount)
+
+	return s.defaultRefreshInterval + backoffTime
+}
+
 func (s *Service) refresh() error {
 	s.Lock()
 	defer s.Unlock()
+	activeClients := s.clients.activeClients()
+	s.refreshProducts(activeClients)
 	previousState, err := s.uptane.State()
 	if err != nil {
-		return err
+		log.Warnf("could not get previous state: %v", err)
 	}
-	if s.forceRefresh() {
+	if s.forceRefresh() || err != nil {
 		previousState = uptane.State{}
 	}
-	response, err := s.client.Fetch(s.ctx, previousState, s.TracerInfos.Tracers(), s.products, s.newProducts)
+	clientState, err := s.getClientState()
 	if err != nil {
+		log.Warnf("could not get previous backend client state: %v", err)
+	}
+	response, err := s.api.Fetch(s.ctx, buildLatestConfigsRequest(s.hostname, previousState, activeClients, s.products, s.newProducts, clientState))
+	if err != nil {
+		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
 		return err
 	}
 	err = s.uptane.Update(response)
 	if err != nil {
+		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
 		return err
 	}
 	s.firstUpdate = false
 	for product := range s.newProducts {
 		s.products[product] = struct{}{}
 	}
-	s.newProducts = make(map[pbgo.Product]struct{})
-	for _, subscriber := range s.subscribers {
-		err := s.refreshSubscriber(subscriber)
-		if err != nil {
-			log.Errorf("could not notify a remote-config subscriber: %v", err)
-		}
-	}
+	s.newProducts = make(map[rdata.Product]struct{})
+
+	s.backoffErrorCount = s.backoffPolicy.DecError(s.backoffErrorCount)
+
 	return nil
 }
 
@@ -172,94 +230,164 @@ func (s *Service) forceRefresh() bool {
 	return s.firstUpdate
 }
 
-// TODO(RCM-34): rework the subscribers API
-
-func getTargetProduct(path string) (pbgo.Product, error) {
-	splits := strings.SplitN(path, "/", 3)
-	if len(splits) < 3 {
-		return pbgo.Product(0), fmt.Errorf("failed to determine product for target file %s", path)
+func (s *Service) refreshProducts(activeClients []*pbgo.Client) {
+	for _, client := range activeClients {
+		for _, product := range client.Products {
+			if _, hasProduct := s.products[rdata.Product(product)]; !hasProduct {
+				s.newProducts[rdata.Product(product)] = struct{}{}
+			}
+		}
 	}
-	product, found := pbgo.Product_value[splits[1]]
-	if !found {
-		return pbgo.Product(0), fmt.Errorf("failed to determine product for target file %s", path)
-	}
-	return pbgo.Product(product), nil
 }
 
-func (s *Service) refreshSubscriber(subscriber *Subscriber) error {
-	configResponse, err := s.GetConfigs(subscriber.product)
-	if err != nil {
-		return err
-	}
-	if err := subscriber.callback(configResponse); err != nil {
-		return err
-	}
-
-	subscriber.lastUpdate = time.Now()
-
-	return nil
-}
-
-// GetConfigs returns the current config files
-func (s *Service) GetConfigs(product pbgo.Product) (*pbgo.ConfigResponse, error) {
-	currentTargets, err := s.uptane.Targets()
+func (s *Service) getClientState() ([]byte, error) {
+	rawTargetsCustom, err := s.uptane.TargetsCustom()
 	if err != nil {
 		return nil, err
 	}
-	var targetFiles []*pbgo.File
-	for targetPath := range currentTargets {
-		p, err := getTargetProduct(targetPath)
-		if err != nil {
-			return nil, err
-		}
-		if product == p {
-			targetContent, err := s.uptane.TargetFile(targetPath)
-			if err != nil {
-				return nil, err
-			}
-			targetFiles = append(targetFiles, &pbgo.File{
-				Path: targetPath,
-				Raw:  targetContent,
-			})
+	custom, err := parseTargetsCustom(rawTargetsCustom)
+	if err != nil {
+		return nil, err
+	}
+	return custom.ClientState, nil
+}
+
+// ClientGetConfigs is the polling API called by tracers and agents to get the latest configurations
+func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+	s.Lock()
+	defer s.Unlock()
+	s.clients.seen(request.Client)
+	state, err := s.uptane.State()
+	if err != nil {
+		return nil, err
+	}
+	if request.Client.State == nil {
+		return &pbgo.ClientGetConfigsResponse{}, nil
+	}
+	if state.DirectorTargetsVersion() == request.Client.State.TargetsVersion {
+		return &pbgo.ClientGetConfigsResponse{}, nil
+	}
+	roots, err := s.getNewDirectorRoots(request.Client.State.RootVersion, state.DirectorRootVersion())
+	if err != nil {
+		return nil, err
+	}
+	targetsRaw, err := s.uptane.TargetsMeta()
+	if err != nil {
+		return nil, err
+	}
+	targetFiles, err := s.getTargetFiles(rdata.StringListToProduct(request.Client.Products), request.CachedTargetFiles)
+	if err != nil {
+		return nil, err
+	}
+
+	directorTargets, err := s.uptane.Targets()
+	if err != nil {
+		return nil, err
+	}
+	matchedClientConfigs, err := executeClientPredicates(request.Client, directorTargets)
+	if err != nil {
+		return nil, err
+	}
+
+	// filter files to only return the ones that predicates marked for this client
+	matchedConfigsMap := make(map[string]interface{})
+	for _, configPointer := range matchedClientConfigs {
+		matchedConfigsMap[configPointer] = struct{}{}
+	}
+	filteredFiles := make([]*pbgo.File, 0, len(matchedClientConfigs))
+	for _, targetFile := range targetFiles {
+		if _, ok := matchedConfigsMap[targetFile.Path]; ok {
+			filteredFiles = append(filteredFiles, targetFile)
 		}
 	}
-	return &pbgo.ConfigResponse{
-		TargetFiles: targetFiles,
+
+	return &pbgo.ClientGetConfigsResponse{
+		Roots:         roots,
+		Targets:       targetsRaw,
+		TargetFiles:   filteredFiles,
+		ClientConfigs: matchedClientConfigs,
 	}, nil
 }
 
-// RegisterSubscriber registers a subscriber
-func (s *Service) RegisterSubscriber(subscriber *Subscriber) {
-	s.Lock()
-	defer s.Unlock()
-	s.subscribers = append(s.subscribers, subscriber)
-	if _, ok := s.products[subscriber.product]; ok {
-		return
+// ConfigGetState returns the state of the configuration and the director repos in the local store
+func (s *Service) ConfigGetState() (*pbgo.GetStateConfigResponse, error) {
+	state, err := s.uptane.State()
+	if err != nil {
+		return nil, err
 	}
-	s.newProducts[subscriber.product] = struct{}{}
+
+	response := &pbgo.GetStateConfigResponse{
+		ConfigState:     map[string]*pbgo.FileMetaState{},
+		DirectorState:   map[string]*pbgo.FileMetaState{},
+		TargetFilenames: map[string]string{},
+	}
+
+	for metaName, metaState := range state.ConfigState {
+		response.ConfigState[metaName] = &pbgo.FileMetaState{Version: metaState.Version, Hash: metaState.Hash}
+	}
+
+	for metaName, metaState := range state.DirectorState {
+		response.DirectorState[metaName] = &pbgo.FileMetaState{Version: metaState.Version, Hash: metaState.Hash}
+	}
+
+	for targetName, targetHash := range state.TargetFilenames {
+		response.TargetFilenames[targetName] = targetHash
+	}
+
+	return response, nil
 }
 
-// UnregisterSubscriber unregisters a subscriber
-func (s *Service) UnregisterSubscriber(subscriber *Subscriber) {
-	s.Lock()
-	defer s.Unlock()
-	var subscribers []*Subscriber
-	for _, sub := range s.subscribers {
-		if sub != subscriber {
-			subscribers = append(subscribers, sub)
+func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) ([][]byte, error) {
+	var roots [][]byte
+	for i := currentVersion + 1; i <= newVersion; i++ {
+		root, err := s.uptane.DirectorRoot(i)
+		if err != nil {
+			return nil, err
 		}
+		roots = append(roots, root)
 	}
-	s.subscribers = subscribers
+	return roots, nil
 }
 
-// HasSubscriber returns true if the product already registered a subscriber
-func (s *Service) HasSubscriber(product pbgo.Product) bool {
-	s.Lock()
-	defer s.Unlock()
-	for _, s := range s.subscribers {
-		if s.product == product {
-			return true
+func (s *Service) getTargetFiles(products []rdata.Product, cachedTargetFiles []*pbgo.TargetFileMeta) ([]*pbgo.File, error) {
+	productSet := make(map[rdata.Product]struct{})
+	for _, product := range products {
+		productSet[product] = struct{}{}
+	}
+	targets, err := s.uptane.Targets()
+	if err != nil {
+		return nil, err
+	}
+	cachedTargets := make(map[string]data.FileMeta)
+	for _, cachedTarget := range cachedTargetFiles {
+		hashes := make(data.Hashes)
+		for _, hash := range cachedTarget.Hashes {
+			hashes[hash.Algorithm] = hash.Hash
+		}
+		cachedTargets[cachedTarget.Path] = data.FileMeta{
+			Hashes: hashes,
+			Length: cachedTarget.Length,
 		}
 	}
-	return false
+	var configFiles []*pbgo.File
+	for targetPath, targetMeta := range targets {
+		configPathMeta, err := rdata.ParseConfigPath(targetPath)
+		if err != nil {
+			return nil, err
+		}
+		if _, inClientProducts := productSet[rdata.Product(configPathMeta.Product)]; inClientProducts {
+			if notEqualErr := tufutil.FileMetaEqual(cachedTargets[targetPath], targetMeta.FileMeta); notEqualErr == nil {
+				continue
+			}
+			fileContents, err := s.uptane.TargetFile(targetPath)
+			if err != nil {
+				return nil, err
+			}
+			configFiles = append(configFiles, &pbgo.File{
+				Path: targetPath,
+				Raw:  fileContents,
+			})
+		}
+	}
+	return configFiles, nil
 }

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probes
@@ -64,4 +65,11 @@ const (
 	DentryResolverLinkDstCallbackTracepointKey
 	// DentryResolverRenameCallbackTracepointKey is the key to the callback program to execute after resolving the destination dentry of a rename event
 	DentryResolverRenameCallbackTracepointKey
+)
+
+const (
+	// TCDNSRequestKey is the key to DNS request program
+	TCDNSRequestKey uint32 = iota + 1
+	// TCDNSRequestParserKey is the key to DNS request parser program
+	TCDNSRequestParserKey
 )

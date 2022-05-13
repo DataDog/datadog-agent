@@ -42,11 +42,11 @@ func NewTagger() *Tagger {
 
 // Init initializes the connection to the replay tagger and starts watching for
 // events.
-func (t *Tagger) Init() error {
+func (t *Tagger) Init(ctx context.Context) error {
 	t.health = health.RegisterLiveness("tagger")
 	t.telemetryTicker = time.NewTicker(1 * time.Minute)
 
-	t.ctx, t.cancel = context.WithCancel(context.Background())
+	t.ctx, t.cancel = context.WithCancel(ctx)
 
 	return nil
 }

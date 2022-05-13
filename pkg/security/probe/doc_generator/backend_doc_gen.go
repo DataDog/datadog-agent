@@ -3,15 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"flag"
-	"io/ioutil"
+	"os"
 	"reflect"
 	"strings"
 
@@ -26,17 +26,13 @@ func generateBackendJSON(output string) error {
 		TypeNamer:      jsonTypeNamer,
 	}
 	schema := reflector.Reflect(&probe.EventSerializer{})
-	schemaJSON, err := schema.MarshalJSON()
+
+	schemaJSON, err := json.MarshalIndent(schema, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	var out bytes.Buffer
-	if err := json.Indent(&out, schemaJSON, "", "  "); err != nil {
-		return err
-	}
-
-	return ioutil.WriteFile(output, out.Bytes(), 0664)
+	return os.WriteFile(output, schemaJSON, 0664)
 }
 
 func jsonTypeNamer(ty reflect.Type) string {

@@ -34,7 +34,7 @@ func DiscoverComponentsFromConfig() ([]config.ConfigurationProviders, []config.L
 	if flavor.GetFlavor() == flavor.ClusterAgent {
 		advancedConfigs, _, err := providers.ReadConfigFiles(providers.WithAdvancedADOnly)
 		if err != nil {
-			log.Warnf("Couldn't read config files: %w", err)
+			log.Warnf("Couldn't read config files: %v", err)
 		}
 
 		svcFound, epFound := false, false
@@ -81,7 +81,7 @@ func DiscoverComponentsFromEnv() ([]config.ConfigurationProviders, []config.List
 		return detectedProviders, detectedListeners
 	}
 
-	if config.IsFeaturePresent(config.Docker) || config.IsFeaturePresent(config.Containerd) || config.IsFeaturePresent(config.ECSFargate) || config.IsFeaturePresent(config.Podman) {
+	if config.IsFeaturePresent(config.Docker) || config.IsFeaturePresent(config.Containerd) || config.IsFeaturePresent(config.Podman) || config.IsFeaturePresent(config.ECSFargate) {
 		detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: names.Container, Polling: true, PollInterval: "1s"})
 		if !config.IsFeaturePresent(config.Kubernetes) {
 			detectedListeners = append(detectedListeners, config.Listeners{Name: names.Container})

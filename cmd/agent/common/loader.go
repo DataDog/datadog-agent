@@ -11,10 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector"
-	lsched "github.com/DataDog/datadog-agent/pkg/logs/scheduler"
-	lstatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -26,14 +23,13 @@ import (
 
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery
-func LoadComponents(confdPath string) {
+func LoadComponents(ctx context.Context, confdPath string) {
 	if flavor.GetFlavor() != flavor.ClusterAgent {
-		workloadmeta.GetGlobalStore().Start(context.Background())
+		store := workloadmeta.GetGlobalStore()
+		store.Start(ctx)
 
-		// start the tagger. must be done before autodiscovery, as it needs to
-		// be the first subscribed to metadata store to avoid race conditions.
-		tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
-		if err := tagger.Init(); err != nil {
+		tagger.SetDefaultTagger(local.NewTagger(store))
+		if err := tagger.Init(ctx); err != nil {
 			log.Errorf("failed to start the tagger: %s", err)
 		}
 	}
@@ -46,12 +42,7 @@ func LoadComponents(confdPath string) {
 	metaScheduler := scheduler.NewMetaScheduler()
 
 	// registering the check scheduler
-	metaScheduler.Register("check", collector.InitCheckScheduler(Coll))
-
-	// registering the logs scheduler
-	if lstatus.Get().IsRunning {
-		metaScheduler.Register("logs", lsched.GetScheduler())
-	}
+	metaScheduler.Register("check", collector.InitCheckScheduler(Coll), false)
 
 	// setup autodiscovery
 	confSearchPaths := []string{

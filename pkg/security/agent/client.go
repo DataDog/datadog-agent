@@ -8,6 +8,7 @@ package agent
 import (
 	"context"
 	"errors"
+	"net"
 
 	"google.golang.org/grpc"
 
@@ -17,14 +18,13 @@ import (
 
 // RuntimeSecurityClient is used to send request to security module
 type RuntimeSecurityClient struct {
-	conn *grpc.ClientConn
+	apiClient api.SecurityModuleClient
+	conn      *grpc.ClientConn
 }
 
-// DumpProcessCache send a dump request
-func (c *RuntimeSecurityClient) DumpProcessCache() (string, error) {
-	apiClient := api.NewSecurityModuleClient(c.conn)
-
-	response, err := apiClient.DumpProcessCache(context.Background(), &api.DumpProcessCacheParams{})
+// DumpProcessCache sends a process cache dump request
+func (c *RuntimeSecurityClient) DumpProcessCache(withArgs bool) (string, error) {
+	response, err := c.apiClient.DumpProcessCache(context.Background(), &api.DumpProcessCacheParams{WithArgs: withArgs})
 	if err != nil {
 		return "", err
 	}
@@ -32,22 +32,72 @@ func (c *RuntimeSecurityClient) DumpProcessCache() (string, error) {
 	return response.Filename, nil
 }
 
+// GenerateActivityDump send a dump activity request
+func (c *RuntimeSecurityClient) GenerateActivityDump(comm string, timeout int32, withGraph bool, differentiateArgs bool, outputDirectory string, outputFormat string) (*api.SecurityActivityDumpMessage, error) {
+	apiClient := api.NewSecurityModuleClient(c.conn)
+	return apiClient.DumpActivity(context.Background(), &api.DumpActivityParams{
+		Comm:              comm,
+		Timeout:           timeout,
+		WithGraph:         withGraph,
+		DifferentiateArgs: differentiateArgs,
+		OutputDirectory:   outputDirectory,
+		OutputFormat:      outputFormat,
+	})
+}
+
+// ListActivityDumps lists the active activity dumps
+func (c *RuntimeSecurityClient) ListActivityDumps() (*api.SecurityActivityDumpListMessage, error) {
+	apiClient := api.NewSecurityModuleClient(c.conn)
+	return apiClient.ListActivityDumps(context.Background(), &api.ListActivityDumpsParams{})
+}
+
+// StopActivityDump stops an active dump if it exists
+func (c *RuntimeSecurityClient) StopActivityDump(comm string) (*api.SecurityActivityDumpStoppedMessage, error) {
+	apiClient := api.NewSecurityModuleClient(c.conn)
+	return apiClient.StopActivityDump(context.Background(), &api.StopActivityDumpParams{
+		Comm: comm,
+	})
+}
+
+// GenerateProfile generates a policy file from the provided activity dump
+func (c *RuntimeSecurityClient) GenerateProfile(file string) (*api.SecurityProfileGeneratedMessage, error) {
+	apiClient := api.NewSecurityModuleClient(c.conn)
+	return apiClient.GenerateProfile(context.Background(), &api.GenerateProfileParams{
+		ActivityDumpFile: file,
+	})
+}
+
+// GenerateGraph generates a graph from the provided activity dump
+func (c *RuntimeSecurityClient) GenerateGraph(file string) (*api.SecurityGraphGeneratedMessage, error) {
+	apiClient := api.NewSecurityModuleClient(c.conn)
+	return apiClient.GenerateGraph(context.Background(), &api.GenerateGraphParams{
+		ActivityDumpFile: file,
+	})
+}
+
+// DumpNetworkNamespace sends a network namespace cache dump request
+func (c *RuntimeSecurityClient) DumpNetworkNamespace(snapshotInterfaces bool) (*api.DumpNetworkNamespaceMessage, error) {
+	return c.apiClient.DumpNetworkNamespace(context.Background(), &api.DumpNetworkNamespaceParams{SnapshotInterfaces: snapshotInterfaces})
+}
+
 // GetConfig retrieves the config of the runtime security module
 func (c *RuntimeSecurityClient) GetConfig() (*api.SecurityConfigMessage, error) {
-	apiClient := api.NewSecurityModuleClient(c.conn)
-
-	response, err := apiClient.GetConfig(context.Background(), &api.GetConfigParams{})
+	response, err := c.apiClient.GetConfig(context.Background(), &api.GetConfigParams{})
 	if err != nil {
 		return nil, err
 	}
 	return response, nil
 }
 
+// GetStatus returns the status of the module
+func (c *RuntimeSecurityClient) GetStatus() (*api.Status, error) {
+	apiClient := api.NewSecurityModuleClient(c.conn)
+	return apiClient.GetStatus(context.Background(), &api.GetStatusParams{})
+}
+
 // RunSelfTest instructs the system probe to run a self test
 func (c *RuntimeSecurityClient) RunSelfTest() (*api.SecuritySelfTestResultMessage, error) {
-	apiClient := api.NewSecurityModuleClient(c.conn)
-
-	response, err := apiClient.RunSelfTest(context.Background(), &api.RunSelfTestParams{})
+	response, err := c.apiClient.RunSelfTest(context.Background(), &api.RunSelfTestParams{})
 	if err != nil {
 		return nil, err
 	}
@@ -56,13 +106,20 @@ func (c *RuntimeSecurityClient) RunSelfTest() (*api.SecuritySelfTestResultMessag
 
 // ReloadPolicies instructs the system probe to reload its policies
 func (c *RuntimeSecurityClient) ReloadPolicies() (*api.ReloadPoliciesResultMessage, error) {
-	apiClient := api.NewSecurityModuleClient(c.conn)
-
-	response, err := apiClient.ReloadPolicies(context.Background(), &api.ReloadPoliciesParams{})
+	response, err := c.apiClient.ReloadPolicies(context.Background(), &api.ReloadPoliciesParams{})
 	if err != nil {
 		return nil, err
 	}
 	return response, nil
+}
+
+// GetEvents returns a stream of events
+func (c *RuntimeSecurityClient) GetEvents() (api.SecurityModule_GetEventsClient, error) {
+	stream, err := c.apiClient.GetEvents(context.Background(), &api.GetEventParams{})
+	if err != nil {
+		return nil, err
+	}
+	return stream, nil
 }
 
 // Close closes the connection
@@ -77,13 +134,15 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		return nil, errors.New("runtime_security_config.socket must be set")
 	}
 
-	path := "unix://" + socketPath
-	conn, err := grpc.Dial(path, grpc.WithInsecure())
+	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
+		return net.Dial("unix", url)
+	}))
 	if err != nil {
 		return nil, err
 	}
 
 	return &RuntimeSecurityClient{
-		conn: conn,
+		conn:      conn,
+		apiClient: api.NewSecurityModuleClient(conn),
 	}, nil
 }

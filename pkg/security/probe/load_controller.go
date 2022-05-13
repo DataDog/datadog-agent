@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -13,14 +14,18 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
+	"golang.org/x/time/rate"
 
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	defaultRateLimit = 1 // per second
 )
 
 type eventCounterLRUKey struct {
@@ -31,8 +36,7 @@ type eventCounterLRUKey struct {
 // LoadController is used to monitor and control the pressure put on the host
 type LoadController struct {
 	sync.RWMutex
-	probe        *Probe
-	statsdClient *statsd.Client
+	probe *Probe
 
 	eventsTotal        int64
 	eventsCounters     *simplelru.LRU
@@ -41,24 +45,27 @@ type LoadController struct {
 	EventsCountThreshold int64
 	DiscarderTimeout     time.Duration
 	ControllerPeriod     time.Duration
+
+	NoisyProcessCustomEventRate *rate.Limiter
 }
 
 // NewLoadController instantiates a new load controller
-func NewLoadController(probe *Probe, statsdClient *statsd.Client) (*LoadController, error) {
+func NewLoadController(probe *Probe) (*LoadController, error) {
 	lru, err := simplelru.NewLRU(probe.config.PIDCacheSize, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	lc := &LoadController{
-		probe:        probe,
-		statsdClient: statsdClient,
+		probe: probe,
 
 		eventsCounters: lru,
 
 		EventsCountThreshold: probe.config.LoadControllerEventsCountThreshold,
 		DiscarderTimeout:     probe.config.LoadControllerDiscarderTimeout,
 		ControllerPeriod:     probe.config.LoadControllerControlPeriod,
+
+		NoisyProcessCustomEventRate: rate.NewLimiter(rate.Every(time.Second), defaultRateLimit),
 	}
 	return lc, nil
 }
@@ -67,7 +74,7 @@ func NewLoadController(probe *Probe, statsdClient *statsd.Client) (*LoadControll
 func (lc *LoadController) SendStats() error {
 	// send load_controller.pids_discarder metric
 	if count := atomic.SwapInt64(&lc.pidDiscardersCount, 0); count > 0 {
-		if err := lc.statsdClient.Count(metrics.MetricLoadControllerPidDiscarder, count, []string{}, 1.0); err != nil {
+		if err := lc.probe.statsdClient.Count(metrics.MetricLoadControllerPidDiscarder, count, []string{}, 1.0); err != nil {
 			return errors.Wrap(err, "couldn't send load_controller.pids_discarder metric")
 		}
 	}
@@ -131,7 +138,7 @@ func (lc *LoadController) discardNoisiestProcess() {
 
 	// push a temporary discarder on the noisiest process & event type tuple
 	seclog.Tracef("discarding events from pid %d for %s seconds", maxKey.Pid, lc.DiscarderTimeout)
-	if err := lc.probe.pidDiscarders.discardWithTimeout(0xffffffffffffffff, maxKey.Pid, lc.DiscarderTimeout.Nanoseconds()); err != nil {
+	if err := lc.probe.pidDiscarders.discardWithTimeout(allEventTypes, maxKey.Pid, lc.DiscarderTimeout.Nanoseconds()); err != nil {
 		log.Warnf("couldn't insert temporary discarder: %v", err)
 		return
 	}
@@ -140,10 +147,9 @@ func (lc *LoadController) discardNoisiestProcess() {
 	oldMaxCount := atomic.SwapUint64(maxCount, 0)
 	atomic.AddInt64(&lc.eventsTotal, -int64(oldMaxCount))
 
-	if lc.statsdClient != nil {
-		atomic.AddInt64(&lc.pidDiscardersCount, 1)
+	atomic.AddInt64(&lc.pidDiscardersCount, 1)
 
-		// fetch noisy process metadata
+	if lc.NoisyProcessCustomEventRate.Allow() {
 		process := lc.probe.resolvers.ProcessResolver.Resolve(maxKey.Pid, maxKey.Pid)
 		if process == nil {
 			log.Warnf("Unable to resolve process with pid: %d", maxKey.Pid)
@@ -157,8 +163,8 @@ func (lc *LoadController) discardNoisiestProcess() {
 				lc.EventsCountThreshold,
 				lc.ControllerPeriod,
 				ts.Add(lc.DiscarderTimeout),
-				process,
-				lc.probe.GetResolvers(),
+				maxKey.Pid,
+				process.Comm,
 				ts,
 			),
 		)

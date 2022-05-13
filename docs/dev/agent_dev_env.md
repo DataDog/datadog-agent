@@ -93,7 +93,7 @@ variables (see Invoke docs for more details).
 
 ## Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.16.7` or
+You must [install Golang](https://golang.org/doc/install) version `1.17.6` or
 higher. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
 cannot use any additional tool it might need.
 
@@ -102,9 +102,9 @@ specified in our build images (see e.g. [here](https://github.com/DataDog/datado
 may not be able to build the agent and/or the [rtloader](https://github.com/DataDog/datadog-agent/tree/main/rtloader)
 binary properly.**
 
-## Installing dependencies
+## Installing tooling
 
-From the root of `datadog-agent`, run `invoke install-tools` to install go tooling, then `invoke deps` to install go dependencies. This uses `go` to install the necessary dependencies.
+From the root of `datadog-agent`, run `invoke install-tools` to install go tooling. This uses `go` to install the necessary dependencies.
 
 ## System or Embedded?
 

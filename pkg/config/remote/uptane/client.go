@@ -8,9 +8,9 @@ package uptane
 import (
 	"bytes"
 	"fmt"
-	"strings"
 	"sync"
 
+	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/pkg/errors"
 	"github.com/theupdateframework/go-tuf/client"
@@ -18,18 +18,11 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-// State represents the state of an uptane client
-type State struct {
-	ConfigRootVersion     uint64
-	ConfigSnapshotVersion uint64
-	DirectorRootVersion   uint64
-}
-
 // Client is an uptane client
 type Client struct {
 	sync.Mutex
 
-	orgIDTargetPrefix string
+	orgID int64
 
 	configLocalStore  *localStore
 	configRemoteStore *remoteStoreConfig
@@ -57,7 +50,7 @@ func NewClient(cacheDB *bbolt.DB, cacheKey string, orgID int64) (*Client, error)
 		return nil, err
 	}
 	c := &Client{
-		orgIDTargetPrefix:   fmt.Sprintf("%d/", orgID),
+		orgID:               orgID,
 		configLocalStore:    localStoreConfig,
 		configRemoteStore:   newRemoteStoreConfig(targetStore),
 		directorLocalStore:  localStoreDirector,
@@ -84,63 +77,47 @@ func (c *Client) Update(response *pbgo.LatestConfigsResponse) error {
 	return c.verify()
 }
 
-// State returns the state of the uptane client
-func (c *Client) State() (State, error) {
+// TargetsCustom returns the current targets custom of this uptane client
+func (c *Client) TargetsCustom() ([]byte, error) {
 	c.Lock()
 	defer c.Unlock()
-	configRootVersion, err := c.configLocalStore.GetMetaVersion(metaRoot)
+	return c.directorLocalStore.GetMetaCustom(metaTargets)
+}
+
+// DirectorRoot returns a director root
+func (c *Client) DirectorRoot(version uint64) ([]byte, error) {
+	c.Lock()
+	defer c.Unlock()
+	err := c.verify()
 	if err != nil {
-		return State{}, err
+		return nil, err
 	}
-	directorRootVersion, err := c.directorLocalStore.GetMetaVersion(metaRoot)
+	root, found, err := c.directorLocalStore.GetRoot(version)
 	if err != nil {
-		return State{}, err
+		return nil, err
 	}
-	configSnapshotVersion, err := c.configLocalStore.GetMetaVersion(metaSnapshot)
+	if !found {
+		return nil, fmt.Errorf("director root version %d was not found in local store", version)
+	}
+	return root, nil
+}
+
+func (c *Client) unsafeTargets() (data.TargetFiles, error) {
+	err := c.verify()
 	if err != nil {
-		return State{}, err
+		return nil, err
 	}
-	return State{
-		ConfigRootVersion:     configRootVersion,
-		ConfigSnapshotVersion: configSnapshotVersion,
-		DirectorRootVersion:   directorRootVersion,
-	}, nil
+	return c.directorTUFClient.Targets()
 }
 
 // Targets returns the current targets of this uptane client
 func (c *Client) Targets() (data.TargetFiles, error) {
 	c.Lock()
 	defer c.Unlock()
-	return c.directorTUFClient.Targets()
+	return c.unsafeTargets()
 }
 
-// TargetsMeta returns the current raw targets.json meta of this uptane client
-func (c *Client) TargetsMeta() ([]byte, error) {
-	c.Lock()
-	defer c.Unlock()
-	metas, err := c.directorLocalStore.GetMeta()
-	if err != nil {
-		return nil, err
-	}
-	targets, found := metas[metaTargets]
-	if !found {
-		return nil, fmt.Errorf("empty targets meta in director local store")
-	}
-	return targets, nil
-}
-
-type bufferDestination struct {
-	bytes.Buffer
-}
-
-func (b *bufferDestination) Delete() error {
-	return nil
-}
-
-// TargetFile returns the content of a target if the repository is in a verified state
-func (c *Client) TargetFile(path string) ([]byte, error) {
-	c.Lock()
-	defer c.Unlock()
+func (c *Client) unsafeTargetFile(path string) ([]byte, error) {
 	err := c.verify()
 	if err != nil {
 		return nil, err
@@ -151,6 +128,32 @@ func (c *Client) TargetFile(path string) ([]byte, error) {
 		return nil, err
 	}
 	return buffer.Bytes(), nil
+}
+
+// TargetFile returns the content of a target if the repository is in a verified state
+func (c *Client) TargetFile(path string) ([]byte, error) {
+	c.Lock()
+	defer c.Unlock()
+	return c.unsafeTargetFile(path)
+}
+
+// TargetsMeta returns the current raw targets.json meta of this uptane client
+func (c *Client) TargetsMeta() ([]byte, error) {
+	c.Lock()
+	defer c.Unlock()
+	err := c.verify()
+	if err != nil {
+		return nil, err
+	}
+	metas, err := c.directorLocalStore.GetMeta()
+	if err != nil {
+		return nil, err
+	}
+	targets, found := metas[metaTargets]
+	if !found {
+		return nil, fmt.Errorf("empty targets meta in director local store")
+	}
+	return targets, nil
 }
 
 func (c *Client) updateRepos(response *pbgo.LatestConfigsResponse) error {
@@ -197,7 +200,12 @@ func (c *Client) verifyOrgID() error {
 		return err
 	}
 	for targetPath := range directorTargets {
-		if !strings.HasPrefix(targetPath, c.orgIDTargetPrefix) {
+		configPathMeta, err := rdata.ParseConfigPath(targetPath)
+		if err != nil {
+			return err
+		}
+		checkOrgID := configPathMeta.Source != rdata.SourceEmployee
+		if checkOrgID && configPathMeta.OrgID != c.orgID {
 			return fmt.Errorf("director target '%s' does not have the correct orgID", targetPath)
 		}
 	}

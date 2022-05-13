@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build python
 // +build python
 
 package python
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -253,7 +255,7 @@ func sendTelemetry(pythonVersion string) {
 	aggregator.AddRecurrentSeries(&metrics.Serie{
 		Name:   "datadog.agent.python.version",
 		Points: []metrics.Point{{Value: 1.0}},
-		Tags:   tags,
+		Tags:   tagset.CompositeTagsFromSlice(tags),
 		MType:  metrics.APIGaugeType,
 	})
 }
@@ -449,25 +451,6 @@ func Initialize(paths ...string) error {
 	sendTelemetry(pythonVersion)
 
 	return nil
-}
-
-// Destroy destroys the loaded Python interpreter initialized by 'Initialize'
-func Destroy() {
-	pyDestroyLock.Lock()
-	defer pyDestroyLock.Unlock()
-
-	// Sanity check - this should ideally never happen
-	if rtloader == nil {
-		log.Warn("Python runtime already destroyed. Ignoring action.")
-		return
-	}
-
-	// Clear the C-side and Go-side rtloader pointers
-	log.Info("Destroying Python runtime")
-	C.destroy(rtloader)
-	rtloader = nil
-
-	log.Info("Python runtime destroyed")
 }
 
 // GetRtLoader returns the underlying rtloader_t struct. This is meant for testing and

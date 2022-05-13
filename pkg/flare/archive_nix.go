@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
 // +build !windows
 
 package flare
@@ -33,6 +34,9 @@ func zipWindowsEventLogs(tempDir, hostname string) error {
 	return nil
 }
 func zipServiceStatus(tempDir, hostname string) error {
+	return nil
+}
+func zipDatadogRegistry(tempDir, hostname string) error {
 	return nil
 }
 

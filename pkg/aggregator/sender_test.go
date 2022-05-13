@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
 // +build test
 
 package aggregator
@@ -175,7 +176,7 @@ func TestGetSenderDefaultHostname(t *testing.T) {
 	assert.Equal(t, altDefaultHostname, checksender.defaultHostname)
 	assert.Equal(t, false, checksender.defaultHostnameDisabled)
 
-	aggregatorInstance.Stop(false)
+	aggregatorInstance.Stop()
 }
 
 func TestGetSenderServiceTagMetrics(t *testing.T) {

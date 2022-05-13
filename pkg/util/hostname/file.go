@@ -5,7 +5,7 @@
 
 package hostname
 
-import "github.com/DataDog/datadog-agent/pkg/util/hostname/file"
+import "github.com/DataDog/datadog-agent/pkg/util/hostname/internal/file"
 
 func init() {
 	RegisterHostnameProvider("file", file.HostnameProvider)

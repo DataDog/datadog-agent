@@ -40,7 +40,7 @@ func TestSpanSeenTTLExpiration(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			assert := assert.New(t)
 			span := &pb.Span{Service: "s1", Resource: "r1", Metrics: tc.metrics}
-			assert.Equal(tc.expected, e.sample(tc.time, "", getTraceChunkWithSpanAndPriority(span, tc.priority)))
+			assert.Equal(tc.expected, e.Sample(tc.time, getTraceChunkWithSpanAndPriority(span, tc.priority), ""))
 		})
 	}
 }
@@ -68,7 +68,7 @@ func TestConsideredSpans(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			assert := assert.New(t)
 			span := &pb.Span{Service: tc.service, Metrics: tc.metrics}
-			assert.Equal(tc.expected, e.sample(testTime, "", getTraceChunkWithSpanAndPriority(span, tc.priority)))
+			assert.Equal(tc.expected, e.Sample(testTime, getTraceChunkWithSpanAndPriority(span, tc.priority), ""))
 		})
 	}
 }
@@ -80,7 +80,7 @@ func TestRareSamplerRace(t *testing.T) {
 		go func() {
 			for j := 0; j < 100; j++ {
 				span := &pb.Span{Resource: strconv.Itoa(j), Metrics: map[string]float64{"_top_level": 1}}
-				e.sample(time.Now(), "", getTraceChunkWithSpanAndPriority(span, PriorityNone))
+				e.Sample(time.Now(), getTraceChunkWithSpanAndPriority(span, PriorityNone), "")
 			}
 		}()
 	}
@@ -92,13 +92,13 @@ func TestCardinalityLimit(t *testing.T) {
 	e.Stop()
 	for j := 1; j <= cardinalityLimit; j++ {
 		span := &pb.Span{Resource: strconv.Itoa(j), Metrics: map[string]float64{"_top_level": 1}}
-		e.sample(time.Now(), "", getTraceChunkWithSpanAndPriority(span, PriorityAutoKeep))
+		e.Sample(time.Now(), getTraceChunkWithSpanAndPriority(span, PriorityAutoKeep), "")
 		for _, set := range e.seen {
 			assert.Len(set.expires, j)
 		}
 	}
 	span := &pb.Span{Resource: "newResource", Metrics: map[string]float64{"_top_level": 1}}
-	e.sample(time.Now(), "", getTraceChunkWithSpanAndPriority(span, PriorityNone))
+	e.Sample(time.Now(), getTraceChunkWithSpanAndPriority(span, PriorityNone), "")
 
 	assert.Len(e.seen, 1)
 	for _, set := range e.seen {

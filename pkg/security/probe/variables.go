@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -14,10 +15,8 @@ import (
 var (
 	// SECLVariables set of variables
 	SECLVariables = map[string]eval.VariableValue{
-		"process.pid": {
-			IntFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).ProcessContext.Process.Pid)
-			},
-		},
+		"process.pid": eval.NewIntVariable(func(ctx *eval.Context) int {
+			return int((*Event)(ctx.Object).ProcessContext.Process.Pid)
+		}, nil),
 	}
 )

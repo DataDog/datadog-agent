@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build clusterchecks
 // +build clusterchecks
 
 package clusterchecks
@@ -49,7 +50,11 @@ func (d *dispatcher) addConfig(config integration.Config, targetNodeName string)
 	digest := config.Digest()
 	d.store.digestToConfig[digest] = config
 	for _, instance := range config.Instances {
-		d.store.idToDigest[check.BuildID(config.Name, instance, config.InitConfig)] = digest
+		checkID := check.BuildID(config.Name, instance, config.InitConfig)
+		d.store.idToDigest[checkID] = digest
+		if targetNodeName != "" {
+			configsInfo.Set(1.0, targetNodeName, string(checkID), le.JoinLeaderValue)
+		}
 	}
 
 	// No target node specified: store in danglingConfigs
@@ -90,6 +95,7 @@ func (d *dispatcher) removeConfig(digest string) {
 
 	for k, v := range d.store.idToDigest {
 		if v == digest {
+			configsInfo.Delete(node.name, string(k), le.JoinLeaderValue)
 			delete(d.store.idToDigest, k)
 		}
 	}

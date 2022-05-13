@@ -3,8 +3,9 @@ syntax = "proto3";
 package datadog.api.v1;
 
 import "datadog/model/v1/model.proto";
-import "datadog/config/config.proto";
+import "datadog/remoteconfig/remoteconfig.proto";
 import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
 
 option go_package = "pkg/proto/pbgo"; // golang
 
@@ -92,17 +93,16 @@ service AgentSecure {
         };
     };
 
-    rpc GetConfigUpdates(stream datadog.config.SubscribeConfigRequest) returns (stream datadog.config.ConfigResponse) {
+    rpc ClientGetConfigs(datadog.config.ClientGetConfigsRequest) returns (datadog.config.ClientGetConfigsResponse) {
         option (google.api.http) = {
-            post: "/v1/grpc/config/updates"
+            post: "/v1/grpc/remoteconfig/configs"
             body: "*"
         };
     };
 
-    // Fetch config of the given product
-    rpc GetConfigs(datadog.config.GetConfigsRequest) returns (datadog.config.GetConfigsResponse) {
+    rpc GetConfigState(google.protobuf.Empty) returns (datadog.config.GetStateConfigResponse) {
         option (google.api.http) = {
-            post: "/v1/grpc/config/fetch"
+            post: "/v1/grpc/remoteconfig/state"
             body: "*"
         };
     };

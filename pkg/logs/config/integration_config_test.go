@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
 // +build !windows
 
 package config
@@ -22,7 +23,6 @@ func TestValidateShouldSucceedWithValidConfigs(t *testing.T) {
 		{Type: UDPType, Port: 5678},
 		{Type: DockerType},
 		{Type: JournaldType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: ExcludeAtMatch, Pattern: ".*"}}},
-		{Type: SnmpTrapsType},
 	}
 
 	for _, config := range validConfigs {
@@ -78,4 +78,10 @@ func TestAutoMultilineEnabled(t *testing.T) {
 	mockConfig.Set("logs_config.auto_multi_line_detection", false)
 	assert.False(t, decode(`{}`).AutoMultiLineEnabled())
 
+}
+
+func TestConfigDump(t *testing.T) {
+	config := LogsConfig{Type: FileType, Path: "/var/log/foo.log"}
+	dump := config.Dump()
+	assert.Contains(t, dump, `Path: "/var/log/foo.log",`)
 }

@@ -61,7 +61,7 @@ func launchGui(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	csrfToken, err := util.DoGet(c, urlstr)
+	csrfToken, err := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
 	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(csrfToken, &errMap) //nolint:errcheck

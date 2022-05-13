@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build containerd
 // +build containerd
 
 package containerd
@@ -276,6 +277,49 @@ func TestStatus(t *testing.T) {
 	resultStatus, err := mockUtil.Status(container)
 	require.NoError(t, err)
 	require.Equal(t, resultStatus, status)
+}
+
+func TestIsSandbox(t *testing.T) {
+	mockUtil := ContainerdUtil{}
+
+	withSandboxLabel := &mockContainer{
+		mockSpec: func() (*oci.Spec, error) {
+			return &oci.Spec{Annotations: map[string]string{}}, nil
+		},
+		mockLabels: func() (map[string]string, error) {
+			return map[string]string{"io.cri-containerd.kind": "sandbox"}, nil
+		},
+	}
+
+	isSandbox, err := mockUtil.IsSandbox(withSandboxLabel)
+	require.NoError(t, err)
+	require.True(t, isSandbox)
+
+	withSandboxAnnotation := &mockContainer{
+		mockSpec: func() (*oci.Spec, error) {
+			return &oci.Spec{Annotations: map[string]string{"io.kubernetes.cri.container-type": "sandbox"}}, nil
+		},
+		mockLabels: func() (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+	}
+
+	isSandbox, err = mockUtil.IsSandbox(withSandboxAnnotation)
+	require.NoError(t, err)
+	require.True(t, isSandbox)
+
+	notSandbox := &mockContainer{
+		mockSpec: func() (*oci.Spec, error) {
+			return &oci.Spec{Annotations: map[string]string{"annotation_key": "annotation_val"}}, nil
+		},
+		mockLabels: func() (map[string]string, error) {
+			return map[string]string{"label_key": "label_val"}, nil
+		},
+	}
+
+	isSandbox, err = mockUtil.IsSandbox(notSandbox)
+	require.NoError(t, err)
+	require.False(t, isSandbox)
 }
 
 func makeCtn(value v1.Metrics, typeURL string, taskMetricsError error) containerd.Container {

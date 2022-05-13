@@ -16,17 +16,12 @@ import (
 )
 
 const (
-	sampleCgroupProcs = `1142219
-1142238
-1142208
-1142129`
 	samplePidsCurrent      = "12"
 	samplePidsMaxUnlimited = "max"
 	samplePidsMax          = "42"
 )
 
 func createCgroupV1FakePIDFiles(cfs *cgroupMemoryFS, cg *cgroupV1) {
-	cfs.setCgroupV1File(cg, "pids", "cgroup.procs", sampleCgroupProcs)
 	cfs.setCgroupV1File(cg, "pids", "pids.current", samplePidsCurrent)
 	cfs.setCgroupV1File(cg, "pids", "pids.max", samplePidsMax)
 }
@@ -48,7 +43,7 @@ func TestCgroupV1PIDStats(t *testing.T) {
 	cfs.enableControllers("pids")
 	err = cgFoo1.GetPIDStats(stats)
 	assert.NoError(t, err)
-	assert.Equal(t, len(tr.errors), 3)
+	assert.Equal(t, len(tr.errors), 2)
 	assert.Equal(t, "", cmp.Diff(PIDStats{}, *stats))
 
 	// Test reading files in pids controller, all files present
@@ -57,7 +52,6 @@ func TestCgroupV1PIDStats(t *testing.T) {
 	err = cgFoo1.GetPIDStats(stats)
 	assert.NoError(t, err)
 	assert.Equal(t, "", cmp.Diff(PIDStats{
-		PIDs:                    []int{1142219, 1142238, 1142208, 1142129},
 		HierarchicalThreadCount: uint64Ptr(12),
 		HierarchicalThreadLimit: uint64Ptr(42),
 	}, *stats))
@@ -69,7 +63,6 @@ func TestCgroupV1PIDStats(t *testing.T) {
 	err = cgFoo1.GetPIDStats(stats)
 	assert.NoError(t, err)
 	assert.Equal(t, "", cmp.Diff(PIDStats{
-		PIDs:                    []int{1142219, 1142238, 1142208, 1142129},
 		HierarchicalThreadCount: uint64Ptr(12),
 		HierarchicalThreadLimit: nil,
 	}, *stats))

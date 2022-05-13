@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package apiserver
@@ -664,7 +665,7 @@ type testWriter struct {
 
 func (tw testWriter) Write(p []byte) (n int, err error) {
 	line := string(p)
-	strings.TrimRight(line, "\r\n")
+	line = strings.TrimRight(line, "\r\n")
 	tw.t.Log(line)
 	return len(p), nil
 }

@@ -8,25 +8,30 @@ package snmp
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/gosnmp/gosnmp"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/gosnmp/gosnmp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/version"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 )
 
 func TestProfileMetadata_f5(t *testing.T) {
 	timeNow = common.MockTimeNow
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
-	invalidPath, _ := filepath.Abs(filepath.Join("test", "metadata_conf.d"))
+	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
 	config.Datadog.Set("confd_path", invalidPath)
 
 	sess := session.CreateMockSession()
@@ -148,7 +153,7 @@ profiles:
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.6.1",
 				Type:  gosnmp.OctetString,
-				Value: []byte("00:00:00:00:00:01"),
+				Value: []byte{0x82, 0xa5, 0x6e, 0xa5, 0xc9, 0x01},
 			},
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.7.1",
@@ -188,7 +193,7 @@ profiles:
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.6.2",
 				Type:  gosnmp.OctetString,
-				Value: []byte("00:00:00:00:00:02"),
+				Value: []byte{0x82, 0xa5, 0x6e, 0xa5, 0xc9, 0x02},
 			},
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.7.2",
@@ -258,7 +263,7 @@ profiles:
 		},
 	}
 
-	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
+	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{
 		"1.3.6.1.2.1.1.1.0",
 		"1.3.6.1.2.1.1.2.0",
@@ -289,7 +294,7 @@ profiles:
 	assert.Nil(t, err)
 
 	// language=json
-	event := []byte(`
+	event := []byte(fmt.Sprintf(`
 {
   "subnet": "",
   "namespace":"profile-metadata",
@@ -301,6 +306,7 @@ profiles:
         "snmp_device:1.2.3.4"
       ],
       "tags": [
+        "agent_version:%s",
         "device_namespace:profile-metadata",
         "device_vendor:f5",
         "snmp_device:1.2.3.4",
@@ -332,7 +338,7 @@ profiles:
       "name": "nameRow1",
       "alias": "descRow1",
       "description": "ifDesc1",
-      "mac_address": "00:00:00:00:00:01",
+      "mac_address": "82:a5:6e:a5:c9:01",
       "admin_status": 1,
       "oper_status": 1
     },
@@ -343,14 +349,14 @@ profiles:
       "name": "nameRow2",
       "alias": "descRow2",
       "description": "ifDesc2",
-      "mac_address": "00:00:00:00:00:02",
+      "mac_address": "82:a5:6e:a5:c9:02",
       "admin_status": 1,
       "oper_status": 1
     }
   ],
   "collect_timestamp":946684800
 }
-`)
+`, version.AgentVersion))
 	compactEvent := new(bytes.Buffer)
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)

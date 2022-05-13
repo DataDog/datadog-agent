@@ -1,9 +1,13 @@
 provisioner:
   name: chef_solo
   product_name: chef
-  # allow overriding of chef version since we need >= 15 for arm64 testing
+  # There is no arm64 distribution of Chef 14 for Debian. Use the Ubuntu package instead
+  <% if ENV['KITCHEN_PLATFORM'] == "debian" && ENV['KITCHEN_ARCH'] == "arm64" %>
+  download_url: https://packages.chef.io/files/stable/chef/14.15.6/ubuntu/18.04/chef_14.15.6-1_arm64.deb
+  product_version: 14.15.6
+  <% else %>
   product_version: <%= ENV['CHEF_VERSION'] ||= '14.12.9' %>
-  chef_license: accept
+  <% end %>
   install_strategy: always
   # the following settings make it possible to do a reboot during setup
   # (necessary for FIPS tests which reboot to enable FIPS mode)
@@ -20,7 +24,7 @@ driver:
   instance_type: <%= ENV['KITCHEN_EC2_INSTANCE_TYPE'] ||= 't3.xlarge' %>
   associate_public_ip: false
   subnet_id: <%= ENV['KITCHEN_EC2_SUBNET'] ||= 'subnet-b89e00e2' %>
-  iam_profile_name: <%= ENV['KITCHEN_EC2_IAM_PROFILE_NAME'] ||= null %>
+  iam_profile_name: <%= ENV['KITCHEN_EC2_IAM_PROFILE_NAME'] ||= nil %>
   spot_price: <%= ENV['KITCHEN_EC2_SPOT_PRICE'] %>
   block_duration_minutes: <%= ENV['KITCHEN_EC2_SPOT_DURATION'] ||= '60' %>
   tags:
@@ -40,7 +44,6 @@ platforms:
     ec2_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
 
     windows_platforms = []
-    sles11_platforms = []
     sles15_platforms = []
 
     idx = 0
@@ -51,7 +54,6 @@ platforms:
       platform_name = platform[0] + "-#{host}"
 
       windows = platform_name.include?("win")
-      sles11 = platform_name.include?("sles-11")
       sles15 = platform_name.include?("sles-15")
       windows2008 = windows && platform_name.include?("2008")
 
@@ -60,9 +62,6 @@ platforms:
       else
         if sles15
           sles15_platforms << platform_name
-        end
-        if sles11
-          sles11_platforms << platform_name
         end
       end
 
@@ -82,7 +81,7 @@ platforms:
     <% end %>
     image_id: <%= platform[1] %>
     block_device_mappings:
-      - device_name: /dev/sda1
+      - device_name: /dev/xvda
         ebs:
           volume_type: gp2
           volume_size: 40
@@ -100,6 +99,5 @@ platforms:
     username: ec2-user
     <% end %>
     ssh_key: <%= ENV['KITCHEN_EC2_SSH_KEY'] %>
-    
 
 <% end %>

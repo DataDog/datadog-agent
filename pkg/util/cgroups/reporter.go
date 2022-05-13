@@ -10,6 +10,7 @@ package cgroups
 
 // Reporter defines some hooks that can be used to track and report on cgroup parsing.
 // It's typically useful for logging and debugging.
+// Reporter implementations should support concurrent calls.
 type Reporter interface {
 	// HandleError is called when a non-blocking error has been encountered.
 	// e is the encountered error

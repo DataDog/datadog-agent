@@ -21,6 +21,10 @@ var (
 		nil, "Usage of the metric sample pool in dogstatsd")
 )
 
+// MetricSampleBatch is a slice of MetricSample. It is used by the MetricSamplePool
+// to avoid constant reallocation in high throughput pipelines.
+type MetricSampleBatch []MetricSample
+
 // MetricSamplePool is a pool of metrics sample
 type MetricSamplePool struct {
 	pool *sync.Pool
@@ -33,7 +37,7 @@ func NewMetricSamplePool(batchSize int) *MetricSamplePool {
 	return &MetricSamplePool{
 		pool: &sync.Pool{
 			New: func() interface{} {
-				return make([]MetricSample, batchSize)
+				return make(MetricSampleBatch, batchSize)
 			},
 		},
 		// telemetry
@@ -42,7 +46,7 @@ func NewMetricSamplePool(batchSize int) *MetricSamplePool {
 }
 
 // GetBatch gets a batch of metric samples from the pool
-func (m *MetricSamplePool) GetBatch() []MetricSample {
+func (m *MetricSamplePool) GetBatch() MetricSampleBatch {
 	if m == nil {
 		return nil
 	}
@@ -50,11 +54,11 @@ func (m *MetricSamplePool) GetBatch() []MetricSample {
 		tlmMetricSamplePoolGet.Inc()
 		tlmMetricSamplePool.Inc()
 	}
-	return m.pool.Get().([]MetricSample)
+	return m.pool.Get().(MetricSampleBatch)
 }
 
 // PutBatch puts a batch back into the pool
-func (m *MetricSamplePool) PutBatch(batch []MetricSample) {
+func (m *MetricSamplePool) PutBatch(batch MetricSampleBatch) {
 	if m == nil {
 		return
 	}

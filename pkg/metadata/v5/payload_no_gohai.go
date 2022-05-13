@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build freebsd || netbsd || openbsd || solaris || dragonfly
 // +build freebsd netbsd openbsd solaris dragonfly
 
 package v5
@@ -25,8 +26,4 @@ type Payload struct {
 func (p *Payload) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	// Metadata payloads are analyzed as a whole, so they cannot be split
 	return nil, fmt.Errorf("V5 Payload splitting is not implemented")
-}
-
-func (p *Payload) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
-	return nil, fmt.Errorf("V5 Payload MarshalSplitCompress is not implemented")
 }

@@ -17,7 +17,7 @@ go_deps:
   tags: ["runner:main"]
   needs: []
   script:
-    - inv -e deps
+    - inv -e deps --verbose
     - cd $GOPATH/pkg/mod/ && tar czf $CI_PROJECT_DIR/modcache.tar.gz .
   artifacts:
     expire_in: 1 day

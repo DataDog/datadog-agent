@@ -5,9 +5,7 @@
 
 package eval
 
-import (
-	"sort"
-)
+import "regexp"
 
 type registerInfo struct {
 	iterator  Iterator
@@ -15,47 +13,57 @@ type registerInfo struct {
 	subFields map[Field]bool
 }
 
-type state struct {
+// StateRegexpCache is used to cache regexps used in the rule compilation process
+type StateRegexpCache struct {
+	arraySubscriptFindRE    *regexp.Regexp
+	arraySubscriptReplaceRE *regexp.Regexp
+}
+
+// State defines the current state of the rule compilation
+type State struct {
 	model         Model
 	field         Field
 	events        map[EventType]bool
 	fieldValues   map[Field][]FieldValue
 	macros        map[MacroID]*MacroEvaluator
 	registersInfo map[RegisterID]*registerInfo
+	regexpCache   StateRegexpCache
 }
 
-func (s *state) UpdateFields(field Field) {
+// UpdateFields updates the fields used in the rule
+func (s *State) UpdateFields(field Field) {
 	if _, ok := s.fieldValues[field]; !ok {
 		s.fieldValues[field] = []FieldValue{}
 	}
 }
 
-func (s *state) UpdateFieldValues(field Field, value FieldValue) error {
+// UpdateFieldValues updates the field values
+func (s *State) UpdateFieldValues(field Field, value FieldValue) error {
 	values, ok := s.fieldValues[field]
 	if !ok {
 		values = []FieldValue{}
 	}
+	for _, v := range values {
+		// compare only comparable
+		switch v.Value.(type) {
+		case int, uint, int64, uint64, string:
+			if v == value {
+				return nil
+			}
+		}
+	}
+
 	values = append(values, value)
 	s.fieldValues[field] = values
 	return s.model.ValidateField(field, value)
 }
 
-func (s *state) Events() []EventType {
-	var events []EventType
-
-	for event := range s.events {
-		events = append(events, event)
-	}
-	sort.Strings(events)
-
-	return events
-}
-
-func newState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *state {
+// NewState returns a new State
+func NewState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *State {
 	if macros == nil {
 		macros = make(map[MacroID]*MacroEvaluator)
 	}
-	return &state{
+	return &State{
 		field:         field,
 		macros:        macros,
 		model:         model,

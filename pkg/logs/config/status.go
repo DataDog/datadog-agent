@@ -76,3 +76,22 @@ func (s *LogStatus) GetError() string {
 	defer s.mu.Unlock()
 	return s.err
 }
+
+// Dump provides a single-line dump of the status, for debugging purposes.
+func (s *LogStatus) Dump() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var status string
+	switch s.status {
+	case isPending:
+		status = "isPending"
+	case isSuccess:
+		status = "isSuccess"
+	case isError:
+		status = "isError"
+	default:
+		status = fmt.Sprintf("%d", s.status)
+	}
+	return fmt.Sprintf("&LogStatus{status: %s, err: %#v}", status, s.err)
+}

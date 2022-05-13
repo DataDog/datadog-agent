@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package docker
@@ -105,7 +106,6 @@ func (d *DockerUtil) Images(ctx context.Context, includeIntermediate bool) ([]ty
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
 	images, err := d.cli.ImageList(ctx, types.ImageListOptions{All: includeIntermediate})
-
 	if err != nil {
 		return nil, fmt.Errorf("unable to list docker images: %s", err)
 	}
@@ -137,6 +137,38 @@ func (d *DockerUtil) RawContainerList(ctx context.Context, options types.Contain
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
 	return d.cli.ContainerList(ctx, options)
+}
+
+// RawContainerListWithFilter is like RawContainerList but with a container filter.
+func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options types.ContainerListOptions, filter *containers.Filter) ([]types.Container, error) {
+	containers, err := d.RawContainerList(ctx, options)
+	if err != nil {
+		return nil, err
+	}
+
+	if filter == nil {
+		return containers, nil
+	}
+
+	isExcluded := func(container types.Container) bool {
+		for _, name := range container.Names {
+			if filter.IsExcluded(name, container.Image, "") {
+				log.Tracef("Container with name %q and image %q is filtered-out", name, container.Image)
+				return true
+			}
+		}
+
+		return false
+	}
+
+	filtered := []types.Container{}
+	for _, container := range containers {
+		if !isExcluded(container) {
+			filtered = append(filtered, container)
+		}
+	}
+
+	return filtered, nil
 }
 
 func (d *DockerUtil) GetHostname(ctx context.Context) (string, error) {
@@ -173,35 +205,53 @@ func (d *DockerUtil) ResolveImageName(ctx context.Context, image string) (string
 	}
 
 	d.Lock()
-	defer d.Unlock()
-	if _, ok := d.imageNameBySha[image]; !ok {
-		ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
-		defer cancel()
-		r, _, err := d.cli.ImageInspectWithRaw(ctx, image)
-		if err != nil {
-			// Only log errors that aren't "not found" because some images may
-			// just not be available in docker inspect.
-			if !client.IsErrNotFound(err) {
-				return image, err
-			}
-			d.imageNameBySha[image] = image
-		}
-
-		// Try RepoTags first and fall back to RepoDigest otherwise.
-		if len(r.RepoTags) > 0 {
-			sort.Strings(r.RepoTags)
-			d.imageNameBySha[image] = r.RepoTags[0]
-		} else if len(r.RepoDigests) > 0 {
-			// Digests formatted like quay.io/foo/bar@sha256:hash
-			sort.Strings(r.RepoDigests)
-			sp := strings.SplitN(r.RepoDigests[0], "@", 2)
-			d.imageNameBySha[image] = sp[0]
-		} else {
-			log.Debugf("No information in image/inspect to resolve: %s", image)
-			d.imageNameBySha[image] = image
-		}
+	if preferredName, found := d.imageNameBySha[image]; found {
+		d.Unlock()
+		return preferredName, nil
 	}
-	return d.imageNameBySha[image], nil
+
+	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
+	defer cancel()
+	r, _, err := d.cli.ImageInspectWithRaw(ctx, image)
+	if err != nil {
+		// Only log errors that aren't "not found" because some images may
+		// just not be available in docker inspect.
+		if !client.IsErrNotFound(err) {
+			d.Unlock()
+			return image, err
+		}
+		d.imageNameBySha[image] = image
+	}
+
+	d.Unlock()
+	return d.GetPreferredImageName(r.ID, r.RepoTags, r.RepoDigests), nil
+}
+
+// GetPreferredImageName returns preferred image name based on RepoTags and RepoDigests
+func (d *DockerUtil) GetPreferredImageName(imageID string, repoTags []string, repoDigests []string) string {
+	d.Lock()
+	defer d.Unlock()
+
+	if preferredName, found := d.imageNameBySha[imageID]; found {
+		return preferredName
+	}
+
+	var preferredName string
+	// Try RepoTags first and fall back to RepoDigest otherwise.
+	if len(repoTags) > 0 {
+		sort.Strings(repoTags)
+		preferredName = repoTags[0]
+	} else if len(repoDigests) > 0 {
+		// Digests formatted like quay.io/foo/bar@sha256:hash
+		sort.Strings(repoDigests)
+		sp := strings.SplitN(repoDigests[0], "@", 2)
+		preferredName = sp[0]
+	} else {
+		preferredName = imageID
+	}
+
+	d.imageNameBySha[imageID] = preferredName
+	return preferredName
 }
 
 // ResolveImageNameFromContainer will resolve the container sha image name to their user-friendly name.
@@ -305,7 +355,7 @@ func (d *DockerUtil) AllContainerLabels(ctx context.Context) (map[string]map[str
 func (d *DockerUtil) GetContainerStats(ctx context.Context, containerID string) (*types.StatsJSON, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
-	stats, err := d.cli.ContainerStats(ctx, containerID, false)
+	stats, err := d.cli.ContainerStatsOneShot(ctx, containerID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get Docker stats: %s", err)
 	}

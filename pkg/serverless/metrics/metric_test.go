@@ -8,8 +8,11 @@ package metrics
 import (
 	"fmt"
 	"math/rand"
+	"net"
 	"net/http"
 	"os"
+	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStartDoesNotBlock(t *testing.T) {
@@ -24,7 +28,7 @@ func TestStartDoesNotBlock(t *testing.T) {
 	metricAgent := &ServerlessMetricAgent{}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
-	assert.NotNil(t, metricAgent.GetMetricChannel())
+	assert.NotNil(t, metricAgent.Demux)
 	assert.True(t, metricAgent.IsReady())
 	// allow some time to stop to avoid 'can't listen: listen udp 127.0.0.1:8125: bind: address already in use'
 	time.Sleep(100 * time.Millisecond)
@@ -56,7 +60,7 @@ func TestStartInvalidConfig(t *testing.T) {
 type MetricDogStatsDMocked struct {
 }
 
-func (m *MetricDogStatsDMocked) NewServer(demux aggregator.Demultiplexer, extraTags []string) (*dogstatsd.Server, error) {
+func (m *MetricDogStatsDMocked) NewServer(demux aggregator.Demultiplexer) (*dogstatsd.Server, error) {
 	return nil, fmt.Errorf("error")
 }
 
@@ -70,10 +74,12 @@ func TestStartInvalidDogStatsD(t *testing.T) {
 }
 
 func TestStartWithProxy(t *testing.T) {
-	t.Skip() // TODO: FIX ME - config is shared across tests
+	originalValues := config.Datadog.GetStringSlice(statsDMetricBlocklistKey)
+	defer config.Datadog.Set(statsDMetricBlocklistKey, originalValues)
+	config.Datadog.Set(statsDMetricBlocklistKey, []string{})
 
-	os.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
-	defer os.Unsetenv("DD_EXPERIMENTAL_ENABLE_PROXY")
+	os.Setenv(proxyEnabledEnvVar, "true")
+	defer os.Unsetenv(proxyEnabledEnvVar)
 
 	metricAgent := &ServerlessMetricAgent{}
 	defer metricAgent.Stop()
@@ -81,10 +87,10 @@ func TestStartWithProxy(t *testing.T) {
 
 	expected := []string{
 		invocationsMetric,
-		errorsMetric,
+		ErrorsMetric,
 	}
 
-	setValues := config.Datadog.GetStringSlice("statsd_metric_blocklist")
+	setValues := config.Datadog.GetStringSlice(statsDMetricBlocklistKey)
 	assert.Equal(t, expected, setValues)
 }
 func TestRaceFlushVersusAddSample(t *testing.T) {
@@ -95,7 +101,7 @@ func TestRaceFlushVersusAddSample(t *testing.T) {
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &ValidMetricConfigMocked{}, &MetricDogStatsD{})
 
-	assert.NotNil(t, metricAgent.GetMetricChannel())
+	assert.NotNil(t, metricAgent.Demux)
 
 	go func() {
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -112,7 +118,7 @@ func TestRaceFlushVersusAddSample(t *testing.T) {
 		for i := 0; i < 1000; i++ {
 			n := rand.Intn(10)
 			time.Sleep(time.Duration(n) * time.Microsecond)
-			go SendTimeoutEnhancedMetric([]string{"tag0:value0", "tag1:value1"}, metricAgent.GetMetricChannel())
+			go SendTimeoutEnhancedMetric([]string{"tag0:value0", "tag1:value1"}, metricAgent.Demux)
 		}
 	}()
 
@@ -150,8 +156,68 @@ func TestBuildMetricBlocklistForProxy(t *testing.T) {
 		"user.defined.a",
 		"user.defined.b",
 		invocationsMetric,
-		errorsMetric,
+		ErrorsMetric,
 	}
 	result := buildMetricBlocklistForProxy(userProvidedBlocklist)
 	assert.Equal(t, expected, result)
+}
+
+// getAvailableUDPPort requests a random port number and makes sure it is available
+func getAvailableUDPPort() (int, error) {
+	conn, err := net.ListenPacket("udp", ":0")
+	if err != nil {
+		return -1, fmt.Errorf("can't find an available udp port: %s", err)
+	}
+	defer conn.Close()
+
+	_, portString, err := net.SplitHostPort(conn.LocalAddr().String())
+	if err != nil {
+		return -1, fmt.Errorf("can't find an available udp port: %s", err)
+	}
+	portInt, err := strconv.Atoi(portString)
+	if err != nil {
+		return -1, fmt.Errorf("can't convert udp port: %s", err)
+	}
+
+	return portInt, nil
+}
+
+func TestRaceFlushVersusParsePacket(t *testing.T) {
+	port, err := getAvailableUDPPort()
+	require.NoError(t, err)
+	config.Datadog.SetDefault("dogstatsd_port", port)
+
+	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts.FlushInterval = 10 * time.Millisecond
+	opts.DontStartForwarders = true
+	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, "serverless", time.Second*1000)
+
+	s, err := dogstatsd.NewServer(demux, true)
+	require.NoError(t, err, "cannot start DSD")
+	defer s.Stop()
+
+	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
+	conn, err := net.Dial("udp", url)
+	require.NoError(t, err, "cannot connect to DSD socket")
+	defer conn.Close()
+
+	finish := &sync.WaitGroup{}
+	finish.Add(2)
+
+	go func(wg *sync.WaitGroup) {
+		for i := 0; i < 1000; i++ {
+			conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
+			time.Sleep(10 * time.Millisecond)
+		}
+		finish.Done()
+	}(finish)
+
+	go func(wg *sync.WaitGroup) {
+		for i := 0; i < 1000; i++ {
+			s.ServerlessFlush()
+		}
+		finish.Done()
+	}(finish)
+
+	finish.Wait()
 }

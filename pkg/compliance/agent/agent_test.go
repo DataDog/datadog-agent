@@ -3,13 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
 // +build !windows
 
 package agent
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -38,7 +38,7 @@ func (e *tempEnv) leave() {
 func enterTempEnv(t *testing.T) *tempEnv {
 	t.Helper()
 	assert := assert.New(t)
-	tempDir, err := ioutil.TempDir("", "compliance-agent-")
+	tempDir, err := os.MkdirTemp("", "compliance-agent-")
 	assert.NoError(err)
 
 	err = util.CopyDir("./testdata/configs", tempDir)

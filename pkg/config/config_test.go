@@ -7,13 +7,12 @@ package config
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"os"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -69,11 +68,11 @@ func TestDefaults(t *testing.T) {
 	assert.False(t, config.IsSet("dd_url"))
 	assert.Equal(t, "", config.GetString("site"))
 	assert.Equal(t, "", config.GetString("dd_url"))
-	assert.Equal(t, []string{"aws", "gcp", "azure", "alibaba", "oracle"}, config.GetStringSlice("cloud_provider_metadata"))
+	assert.Equal(t, []string{"aws", "gcp", "azure", "alibaba", "oracle", "ibm"}, config.GetStringSlice("cloud_provider_metadata"))
 
 	// Testing process-agent defaults
 	assert.Equal(t, map[string]interface{}{
-		"enabled":  false,
+		"enabled":  true,
 		"interval": 4 * time.Hour,
 	}, config.GetStringMap("process_config.process_discovery"))
 }
@@ -137,6 +136,27 @@ unknown_key.unknown_subkey: true
 	assert.Len(t, findUnknownKeys(confWithUnknownKeys), 0)
 }
 
+func TestUnknownVarsWarning(t *testing.T) {
+	test := func(v string, unknown bool) func(*testing.T) {
+		return func(t *testing.T) {
+			env := []string{fmt.Sprintf("%s=foo", v)}
+			var exp []string
+			if unknown {
+				exp = append(exp, v)
+			}
+			assert.Equal(t, exp, findUnknownEnvVars(Mock(), env))
+		}
+	}
+	t.Run("DD_API_KEY", test("DD_API_KEY", false))
+	t.Run("DD_SITE", test("DD_SITE", false))
+	t.Run("DD_UNKNOWN", test("DD_UNKNOWN", true))
+	t.Run("UNKNOWN", test("UNKNOWN", false)) // no DD_ prefix
+	t.Run("DD_PROXY_NO_PROXY", test("DD_PROXY_NO_PROXY", false))
+	t.Run("DD_PROXY_HTTP", test("DD_PROXY_HTTP", false))
+	t.Run("DD_PROXY_HTTPS", test("DD_PROXY_HTTPS", false))
+	t.Run("DD_INSIDE_CI", test("DD_INSIDE_CI", false))
+}
+
 func TestSiteEnvVar(t *testing.T) {
 	resetAPIKey := setEnvForTest("DD_API_KEY", "fakeapikey")
 	resetSite := setEnvForTest("DD_SITE", "datadoghq.eu")
@@ -170,6 +190,30 @@ func TestDDHostnameFileEnvVar(t *testing.T) {
 
 func TestDDURLEnvVar(t *testing.T) {
 	resetAPIKey := setEnvForTest("DD_API_KEY", "fakeapikey")
+	resetURL := setEnvForTest("DD_URL", "https://app.datadoghq.eu")
+	resetExternalURL := setEnvForTest("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
+	defer resetAPIKey()
+	defer resetURL()
+	defer resetExternalURL()
+	testConfig := setupConfFromYAML("")
+	testConfig.BindEnv("external_config.external_agent_dd_url")
+
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
+	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
+
+	expectedMultipleEndpoints := map[string][]string{
+		"https://app.datadoghq.eu": {
+			"fakeapikey",
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+	assert.Equal(t, "https://custom.external-agent.datadoghq.com", externalAgentURL)
+}
+
+func TestDDDDURLEnvVar(t *testing.T) {
+	resetAPIKey := setEnvForTest("DD_API_KEY", "fakeapikey")
 	resetURL := setEnvForTest("DD_DD_URL", "https://app.datadoghq.eu")
 	resetExternalURL := setEnvForTest("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
 	defer resetAPIKey()
@@ -183,6 +227,35 @@ func TestDDURLEnvVar(t *testing.T) {
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://app.datadoghq.eu": {
+			"fakeapikey",
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+	assert.Equal(t, "https://custom.external-agent.datadoghq.com", externalAgentURL)
+}
+
+func TestDDURLAndDDDDURLEnvVar(t *testing.T) {
+	resetAPIKey := setEnvForTest("DD_API_KEY", "fakeapikey")
+
+	// If DD_DD_URL and DD_URL are set, the value of DD_DD_URL is used
+	resetURL := setEnvForTest("DD_DD_URL", "https://app.datadoghq.dd_dd_url.eu")
+	resetURLWeaker := setEnvForTest("DD_URL", "https://app.datadoghq.dd_url.eu")
+
+	resetExternalURL := setEnvForTest("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
+	defer resetAPIKey()
+	defer resetURL()
+	defer resetURLWeaker()
+	defer resetExternalURL()
+	testConfig := setupConfFromYAML("")
+	testConfig.BindEnv("external_config.external_agent_dd_url")
+
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
+	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
+
+	expectedMultipleEndpoints := map[string][]string{
+		"https://app.datadoghq.dd_dd_url.eu": {
 			"fakeapikey",
 		},
 	}
@@ -465,6 +538,15 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 	newURL, err = AddAgentVersionToDomain("https://app.datadoghq.eu", "flare")
 	require.Nil(t, err)
 	assert.Equal(t, "https://"+getDomainPrefix("flare")+".datadoghq.eu", newURL)
+
+	// Gov
+	newURL, err = AddAgentVersionToDomain("https://app.ddog-gov.com", "app")
+	require.Nil(t, err)
+	assert.Equal(t, "https://"+getDomainPrefix("app")+".ddog-gov.com", newURL)
+
+	newURL, err = AddAgentVersionToDomain("https://app.ddog-gov.com", "flare")
+	require.Nil(t, err)
+	assert.Equal(t, "https://"+getDomainPrefix("flare")+".ddog-gov.com", newURL)
 
 	// Additional site
 	newURL, err = AddAgentVersionToDomain("https://app.us2.datadoghq.com", "app")
@@ -991,22 +1073,6 @@ func TestDogstatsdMappingProfilesEnv(t *testing.T) {
 	assert.Equal(t, mappings, expected)
 }
 
-func TestPrometheusScrapeChecksEnv(t *testing.T) {
-	env := "DD_PROMETHEUS_SCRAPE_CHECKS"
-	err := os.Setenv(env, `[{"configurations":[{"timeout":5,"send_distribution_buckets":true}],"autodiscovery":{"kubernetes_container_names":["my-app"],"kubernetes_annotations":{"include":{"custom_label":"true"}}}}]`)
-	assert.Nil(t, err)
-	defer os.Unsetenv(env)
-	expected := []*types.PrometheusCheck{
-		{
-			Instances: []*types.OpenmetricsInstance{{Timeout: 5, DistributionBuckets: true}},
-			AD:        &types.ADConfig{KubeContainerNames: []string{"my-app"}, KubeAnnotations: &types.InclExcl{Incl: map[string]string{"custom_label": "true"}}},
-		},
-	}
-	checks := []*types.PrometheusCheck{}
-	assert.NoError(t, Datadog.UnmarshalKey("prometheus_scrape.checks", &checks))
-	assert.EqualValues(t, checks, expected)
-}
-
 func TestGetValidHostAliasesWithConfig(t *testing.T) {
 	config := setupConfFromYAML(`host_aliases: ["foo", "-bar"]`)
 	assert.EqualValues(t, getValidHostAliasesWithConfig(config), []string{"foo"})
@@ -1035,7 +1101,7 @@ func TestGetInventoriesMinInterval(t *testing.T) {
 func TestGetInventoriesMinIntervalInvalid(t *testing.T) {
 	// an invalid integer results in a value of 0 from Viper (with a logged warning)
 	Mock().Set("inventories_min_interval", 0)
-	assert.EqualValues(t, DefaultInventoriesMinInterval, GetInventoriesMinInterval())
+	assert.EqualValues(t, DefaultInventoriesMinInterval*time.Second, GetInventoriesMinInterval())
 }
 
 func TestGetInventoriesMaxInterval(t *testing.T) {
@@ -1046,5 +1112,5 @@ func TestGetInventoriesMaxInterval(t *testing.T) {
 func TestGetInventoriesMaxIntervalInvalid(t *testing.T) {
 	// an invalid integer results in a value of 0 from Viper (with a logged warning)
 	Mock().Set("inventories_max_interval", 0)
-	assert.EqualValues(t, DefaultInventoriesMaxInterval, GetInventoriesMaxInterval())
+	assert.EqualValues(t, DefaultInventoriesMaxInterval*time.Second, GetInventoriesMaxInterval())
 }

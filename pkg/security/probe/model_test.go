@@ -3,11 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
 
 import (
+	"net"
 	"reflect"
 	"sort"
 	"testing"
@@ -37,20 +39,32 @@ func TestSetFieldValue(t *testing.T) {
 			if err = event.SetFieldValue(field, true); err != nil {
 				t.Error(err)
 			}
+		case reflect.Struct:
+			switch field {
+			case "network.destination.ip", "network.source.ip":
+				_, ipnet, err := net.ParseCIDR("127.0.0.1/24")
+				if err != nil {
+					t.Error(err)
+				}
+
+				if err = event.SetFieldValue(field, *ipnet); err != nil {
+					t.Error(err)
+				}
+			}
 		default:
-			t.Errorf("type unknown: %v", kind)
+			t.Errorf("type of field %s unknown: %v", field, kind)
 		}
 	}
 }
 
-func TestExecArgsFlags(t *testing.T) {
+func TestProcessArgsFlags(t *testing.T) {
 	e := Event{
 		Event: model.Event{
 			Exec: model.ExecEvent{
-				Process: model.Process{
+				Process: &model.Process{
 					ArgsEntry: &model.ArgsEntry{
 						Values: []string{
-							"-abc", "--verbose", "test",
+							"cmd", "-abc", "--verbose", "test",
 							"-v=1", "--host=myhost",
 							"-9", "-", "--",
 						},
@@ -60,12 +74,12 @@ func TestExecArgsFlags(t *testing.T) {
 		},
 	}
 
-	resolver, _ := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(10000))
+	resolver, _ := NewProcessResolver(&Probe{}, nil, NewProcessResolverOpts(10000))
 	e.resolvers = &Resolvers{
 		ProcessResolver: resolver,
 	}
 
-	flags := e.ResolveExecArgsFlags(&e.Exec)
+	flags := e.ResolveProcessArgsFlags(e.Exec.Process)
 	sort.Strings(flags)
 
 	hasFlag := func(flags []string, flag string) bool {
@@ -102,14 +116,14 @@ func TestExecArgsFlags(t *testing.T) {
 	}
 }
 
-func TestExecArgsOptions(t *testing.T) {
+func TestProcessArgsOptions(t *testing.T) {
 	e := Event{
 		Event: model.Event{
 			Exec: model.ExecEvent{
-				Process: model.Process{
+				Process: &model.Process{
 					ArgsEntry: &model.ArgsEntry{
 						Values: []string{
-							"--config", "/etc/myfile", "--host=myhost", "--verbose",
+							"cmd", "--config", "/etc/myfile", "--host=myhost", "--verbose",
 							"-c", "/etc/myfile", "-e", "", "-h=myhost", "-v",
 							"--", "---", "-9",
 						},
@@ -119,12 +133,12 @@ func TestExecArgsOptions(t *testing.T) {
 		},
 	}
 
-	resolver, _ := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(10000))
+	resolver, _ := NewProcessResolver(&Probe{}, nil, NewProcessResolverOpts(10000))
 	e.resolvers = &Resolvers{
 		ProcessResolver: resolver,
 	}
 
-	options := e.ResolveExecArgsOptions(&e.Exec)
+	options := e.ResolveProcessArgsOptions(e.Exec.Process)
 	sort.Strings(options)
 
 	hasOption := func(options []string, option string) bool {

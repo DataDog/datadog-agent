@@ -18,11 +18,12 @@ type ContainerMemStats struct {
 	KernelMemory *float64
 	Limit        *float64
 	Softlimit    *float64
+	Swap         *float64
+	SwapLimit    *float64 // Memory+Swap Limit (>= Limit)
 
 	// Linux-only fields
 	RSS       *float64
 	Cache     *float64
-	Swap      *float64
 	OOMEvents *float64 // Number of events where memory allocation failed
 
 	// Windows-only fields
@@ -62,7 +63,6 @@ type ContainerIOStats struct {
 	WriteBytes      *float64
 	ReadOperations  *float64
 	WriteOperations *float64
-	OpenFiles       *float64
 
 	Devices map[string]DeviceIOStats
 }
@@ -85,11 +85,14 @@ type InterfaceNetStats struct {
 
 // ContainerNetworkStats stores network statistics about a container per interface
 type ContainerNetworkStats struct {
-	BytesSent   *float64
-	BytesRcvd   *float64
-	PacketsSent *float64
-	PacketsRcvd *float64
-	Interfaces  map[string]InterfaceNetStats
+	Timestamp               time.Time
+	BytesSent               *float64
+	BytesRcvd               *float64
+	PacketsSent             *float64
+	PacketsRcvd             *float64
+	Interfaces              map[string]InterfaceNetStats
+	NetworkIsolationGroupID *uint64
+	UsingHostNetwork        *bool
 }
 
 // ContainerStats wraps all container metrics

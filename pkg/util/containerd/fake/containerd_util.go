@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build containerd
 // +build containerd
 
 package fake
@@ -21,27 +22,31 @@ import (
 // MockedContainerdClient is a fake containerd client that implements the
 // ContainerItf interface. It's only meant to be used in unit tests.
 type MockedContainerdClient struct {
-	MockClose               func() error
-	MockCheckConnectivity   func() *retry.Error
-	MockEvents              func() containerd.EventService
-	MockContainers          func() ([]containerd.Container, error)
-	MockContainer           func(id string) (containerd.Container, error)
-	MockContainerWithCtx    func(ctx context.Context, id string) (containerd.Container, error)
-	MockEnvVars             func(ctn containerd.Container) (map[string]string, error)
-	MockMetadata            func() (containerd.Version, error)
-	MockImage               func(ctn containerd.Container) (containerd.Image, error)
-	MockImageSize           func(ctn containerd.Container) (int64, error)
-	MockTaskMetrics         func(ctn containerd.Container) (*types.Metric, error)
-	MockTaskPids            func(ctn containerd.Container) ([]containerd.ProcessInfo, error)
-	MockInfo                func(ctn containerd.Container) (containers.Container, error)
-	MockLabels              func(ctn containerd.Container) (map[string]string, error)
-	MockLabelsWithContext   func(ctx context.Context, ctn containerd.Container) (map[string]string, error)
-	MockCurrentNamespace    func() string
-	MockSetCurrentNamespace func(namespace string)
-	MockNamespaces          func(ctx context.Context) ([]string, error)
-	MockSpec                func(ctn containerd.Container) (*oci.Spec, error)
-	MockSpecWithContext     func(ctx context.Context, ctn containerd.Container) (*oci.Spec, error)
-	MockStatus              func(ctn containerd.Container) (containerd.ProcessStatus, error)
+	MockClose                 func() error
+	MockCheckConnectivity     func() *retry.Error
+	MockEvents                func() containerd.EventService
+	MockContainers            func() ([]containerd.Container, error)
+	MockContainer             func(id string) (containerd.Container, error)
+	MockContainerWithCtx      func(ctx context.Context, id string) (containerd.Container, error)
+	MockEnvVars               func(ctn containerd.Container) (map[string]string, error)
+	MockMetadata              func() (containerd.Version, error)
+	MockListImages            func() ([]containerd.Image, error)
+	MockImage                 func(ctn containerd.Container) (containerd.Image, error)
+	MockImageSize             func(ctn containerd.Container) (int64, error)
+	MockTaskMetrics           func(ctn containerd.Container) (*types.Metric, error)
+	MockTaskPids              func(ctn containerd.Container) ([]containerd.ProcessInfo, error)
+	MockInfo                  func(ctn containerd.Container) (containers.Container, error)
+	MockLabels                func(ctn containerd.Container) (map[string]string, error)
+	MockLabelsWithContext     func(ctx context.Context, ctn containerd.Container) (map[string]string, error)
+	MockCurrentNamespace      func() string
+	MockSetCurrentNamespace   func(namespace string)
+	MockNamespaces            func(ctx context.Context) ([]string, error)
+	MockSpec                  func(ctn containerd.Container) (*oci.Spec, error)
+	MockSpecWithContext       func(ctx context.Context, ctn containerd.Container) (*oci.Spec, error)
+	MockStatus                func(ctn containerd.Container) (containerd.ProcessStatus, error)
+	MockCallWithClientContext func(f func(context.Context) error) error
+	MockAnnotations           func(ctn containerd.Container) (map[string]string, error)
+	MockIsSandbox             func(ctn containerd.Container) (bool, error)
 }
 
 func (client *MockedContainerdClient) Close() error {
@@ -50,6 +55,10 @@ func (client *MockedContainerdClient) Close() error {
 
 func (client *MockedContainerdClient) CheckConnectivity() *retry.Error {
 	return client.MockCheckConnectivity()
+}
+
+func (client *MockedContainerdClient) ListImages() ([]containerd.Image, error) {
+	return client.MockListImages()
 }
 
 func (client *MockedContainerdClient) Image(ctn containerd.Container) (containerd.Image, error) {
@@ -126,4 +135,16 @@ func (client *MockedContainerdClient) EnvVars(ctn containerd.Container) (map[str
 
 func (client *MockedContainerdClient) Status(ctn containerd.Container) (containerd.ProcessStatus, error) {
 	return client.MockStatus(ctn)
+}
+
+func (client *MockedContainerdClient) CallWithClientContext(f func(context.Context) error) error {
+	return client.MockCallWithClientContext(f)
+}
+
+func (client *MockedContainerdClient) Annotations(ctn containerd.Container) (map[string]string, error) {
+	return client.MockAnnotations(ctn)
+}
+
+func (client *MockedContainerdClient) IsSandbox(ctn containerd.Container) (bool, error) {
+	return client.MockIsSandbox(ctn)
 }

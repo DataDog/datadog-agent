@@ -19,7 +19,10 @@
                         "destination"
                     ]
                 }
-            }
+            },
+            "required": [
+                "file"
+            ]
         }
     ]
 }

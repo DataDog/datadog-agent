@@ -36,10 +36,15 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `capset` | Process | A process changed its capacity set | 7.27 |
 | `chmod` | File | A file’s permissions were changed | 7.27 |
 | `chown` | File | A file’s owner was changed | 7.27 |
+| `dns` | Network | A DNS request was sent | 7.36 |
 | `exec` | Process | A process was executed or forked | 7.27 |
 | `link` | File | Create a new name/alias for a file | 7.27 |
+| `load_module` | Kernel | A new kernel module was loaded | 7.35 |
 | `mkdir` | File | A directory was created | 7.27 |
+| `mmap` | Kernel | A mmap command was executed | 7.35 |
+| `mprotect` | Kernel | A mprotect command was executed | 7.35 |
 | `open` | File | A file was opened | 7.27 |
+| `ptrace` | Kernel | A ptrace command was executed | 7.35 |
 | `removexattr` | File | Remove extended attributes | 7.27 |
 | `rename` | File | A file/directory was renamed | 7.27 |
 | `rmdir` | File | A directory was removed | 7.27 |
@@ -47,7 +52,10 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `setgid` | Process | A process changed its effective gid | 7.27 |
 | `setuid` | Process | A process changed its effective uid | 7.27 |
 | `setxattr` | File | Set exteneded attributes | 7.27 |
+| `signal` | Process | A signal was sent | 7.35 |
+| `splice` | File | A splice command was executed | 7.36 |
 | `unlink` | File | A file was deleted | 7.27 |
+| `unload_module` | Kernel | A kernel module was deleted | 7.35 |
 | `utimes` | File | Change file access/modification times | 7.27 |
 
 ## Operators
@@ -68,17 +76,37 @@ SECL operators are used to combine event attributes together into a full express
 | `=~`                  | File             | String matching                          | 7.27          |
 | `!~`                  | File             | String not matching                      | 7.27          |
 | `&`                   | File             | Binary and                               | 7.27          |
-| `|`                   | File             | Binary or                                | 7.27          |
+| `\|`                  | File             | Binary or                                | 7.27          |
 | `&&`                  | File             | Logical and                              | 7.27          |
-| `||`                  | File             | Logical or                               | 7.27          |
+| `\|\|`                | File             | Logical or                               | 7.27          |
+| `in CIDR`             | Network          | Element is in the IP range               | 7.37          |
+| `not in CIDR`         | Network          | Element is not in the IP range           | 7.37          |
+| `allin CIDR`          | Network          | All the elements are in the IP range     | 7.37          |
+| `in [CIDR1, ...]`     | Network          | Element is in the IP ranges              | 7.37          |
+| `not in [CIDR1, ...]` | Network          | Element is not in the IP ranges          | 7.37          |
+| `allin [CIDR1, ...]`  | Network          | All the elements are in the IP ranges    | 7.37          |
 
 ## Patterns and regular expressions
 Patterns or regular expressions can be used in SECL expressions. They can be used with the `in`, `not in`, `=~`, and `!~` operators.
 
-| Format           |  Example             | Agent Version |
-|------------------|----------------------|---------------|
-| `~"pattern"`     | `~"/etc/*"`          | 7.27          |
-| `r"regexp"`      | `r"/etc/rc[0-9]+"`   | 7.27          |
+| Format           |  Example             | Supported Fields   | Agent Version |
+|------------------|----------------------|--------------------|---------------|
+| `~"pattern"`     | `~"httpd.*"`         | All                | 7.27          |
+| `r"regexp"`      | `r"rc[0-9]+"`        | All except `.path` | 7.27          |
+
+Patterns on `.path` fields will be used as Glob. `*` will match files and folders at the same level. `**`, introduced in 7.34, can be used at the end of a path in order to match all the files and subfolders.
+
+## Duration
+You can use SECL to write rules based on durations, which trigger on events that occur during a specific time period. For example, trigger on an event where a secret file is accessed more than a certain length of time after a process is created.
+Such a rule could be written as follows:
+
+
+{{< code-block lang="javascript" >}}
+open.file.path == "/etc/secret" && process.file.name == "java" && process.created_at > 5s
+
+{{< /code-block >}}
+
+Durations are numbers with a unit suffix. The supported suffixes are "s", "m", "h".
 
 ## Variables
 SECL variables are predefined variables that can be used as values or as part of values.
@@ -96,6 +124,17 @@ List of the available variables:
 | SECL Variable         |  Definition                           | Agent Version |
 |-----------------------|---------------------------------------|---------------|
 | `process.pid`         | Process PID                           | 7.33          |
+
+## CIDR and IP range
+CIDR and IP matching is possible in SECL. One can use operators such as `in`, `not in`, or `allin` combined with CIDR or IP notations.
+
+Such rules can be written as follows:
+
+
+{{< code-block lang="javascript" >}}
+dns.question.name == "example.com" && network.destination.ip in ["192.168.1.25", "10.0.0.0/24"]
+
+{{< /code-block >}}
 
 ## Helpers
 Helpers exist in SECL that enable users to write advanced rules without needing to rely on generic techniques such as regex.
@@ -128,6 +167,21 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | -------- | ---- | ---------- |
 | `container.id` | string | ID of the container |
 | `container.tags` | string | Tags of the container |
+| `network.destination.ip` | IP/CIDR | IP address |
+| `network.destination.port` | int | Port number |
+| `network.device.ifindex` | int | interface ifindex |
+| `network.device.ifname` | string | interface ifname |
+| `network.l3_protocol` | int | l3 protocol of the network packet |
+| `network.l4_protocol` | int | l4 protocol of the network packet |
+| `network.size` | int | size in bytes of the network packet |
+| `network.source.ip` | IP/CIDR | IP address |
+| `network.source.port` | int | Port number |
+| `process.ancestors.args` | string | Arguments of the process (as a string) |
+| `process.ancestors.args_flags` | string | Arguments of the process (as an array) |
+| `process.ancestors.args_options` | string | Arguments of the process (as an array) |
+| `process.ancestors.args_truncated` | bool | Indicator of arguments truncation |
+| `process.ancestors.argv` | string | Arguments of the process (as an array) |
+| `process.ancestors.argv0` | string | First argument of the process |
 | `process.ancestors.cap_effective` | int | Effective capability set of the process |
 | `process.ancestors.cap_permitted` | int | Permitted capability set of the process |
 | `process.ancestors.comm` | string | Comm attribute of the process |
@@ -136,10 +190,13 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.ancestors.created_at` | int | Timestamp of the creation of the process |
 | `process.ancestors.egid` | int | Effective GID of the process |
 | `process.ancestors.egroup` | string | Effective group of the process |
+| `process.ancestors.envp` | string | Environment variables of the process |
+| `process.ancestors.envs` | string | Environment variable names of the process |
+| `process.ancestors.envs_truncated` | bool | Indicator of environment variables truncation |
 | `process.ancestors.euid` | int | Effective UID of the process |
 | `process.ancestors.euser` | string | Effective user of the process |
 | `process.ancestors.file.change_time` | int | Change time of the file |
-| `process.ancestors.file.filesystem` | string | FileSystem of the process executable |
+| `process.ancestors.file.filesystem` | string | File's filesystem |
 | `process.ancestors.file.gid` | int | GID of the file's owner |
 | `process.ancestors.file.group` | string | Group of the file's owner |
 | `process.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
@@ -147,8 +204,8 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.ancestors.file.mode` | int | Mode/rights of the file |
 | `process.ancestors.file.modification_time` | int | Modification time of the file |
 | `process.ancestors.file.mount_id` | int | Mount ID of the file |
-| `process.ancestors.file.name` | string | Basename of the path of the process executable |
-| `process.ancestors.file.path` | string | Path of the process executable |
+| `process.ancestors.file.name` | string | File's basename |
+| `process.ancestors.file.path` | string | File's path |
 | `process.ancestors.file.rights` | int | Mode/rights of the file |
 | `process.ancestors.file.uid` | int | UID of the file's owner |
 | `process.ancestors.file.user` | string | User of the file's owner |
@@ -164,6 +221,12 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.ancestors.tty_name` | string | Name of the TTY associated with the process |
 | `process.ancestors.uid` | int | UID of the process |
 | `process.ancestors.user` | string | User of the process |
+| `process.args` | string | Arguments of the process (as a string) |
+| `process.args_flags` | string | Arguments of the process (as an array) |
+| `process.args_options` | string | Arguments of the process (as an array) |
+| `process.args_truncated` | bool | Indicator of arguments truncation |
+| `process.argv` | string | Arguments of the process (as an array) |
+| `process.argv0` | string | First argument of the process |
 | `process.cap_effective` | int | Effective capability set of the process |
 | `process.cap_permitted` | int | Permitted capability set of the process |
 | `process.comm` | string | Comm attribute of the process |
@@ -172,10 +235,13 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.created_at` | int | Timestamp of the creation of the process |
 | `process.egid` | int | Effective GID of the process |
 | `process.egroup` | string | Effective group of the process |
+| `process.envp` | string | Environment variables of the process |
+| `process.envs` | string | Environment variable names of the process |
+| `process.envs_truncated` | bool | Indicator of environment variables truncation |
 | `process.euid` | int | Effective UID of the process |
 | `process.euser` | string | Effective user of the process |
 | `process.file.change_time` | int | Change time of the file |
-| `process.file.filesystem` | string | FileSystem of the process executable |
+| `process.file.filesystem` | string | File's filesystem |
 | `process.file.gid` | int | GID of the file's owner |
 | `process.file.group` | string | Group of the file's owner |
 | `process.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
@@ -183,8 +249,8 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.file.mode` | int | Mode/rights of the file |
 | `process.file.modification_time` | int | Modification time of the file |
 | `process.file.mount_id` | int | Mount ID of the file |
-| `process.file.name` | string | Basename of the path of the process executable |
-| `process.file.path` | string | Path of the process executable |
+| `process.file.name` | string | File's basename |
+| `process.file.path` | string | File's path |
 | `process.file.rights` | int | Mode/rights of the file |
 | `process.file.uid` | int | UID of the file's owner |
 | `process.file.user` | string | User of the file's owner |
@@ -207,9 +273,14 @@ A BPF command was executed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
+| `bpf.async` | bool | True if the syscall was asynchronous |
 | `bpf.cmd` | int | BPF command name |
+| `bpf.map.name` | string | Name of the eBPF map (added in 7.35) |
 | `bpf.map.type` | int | Type of the eBPF map |
 | `bpf.prog.attach_type` | int | Attach type of the eBPF program |
+| `bpf.prog.helpers` | int | eBPF helpers used by the eBPF program (added in 7.35) |
+| `bpf.prog.name` | string | Name of the eBPF program (added in 7.35) |
+| `bpf.prog.tag` | string | Hash (sha1) of the eBPF program (added in 7.35) |
 | `bpf.prog.type` | int | Type of the eBPF program |
 | `bpf.retval` | int | Return value of the syscall |
 
@@ -228,6 +299,7 @@ A file’s permissions were changed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
+| `chmod.async` | bool | True if the syscall was asynchronous |
 | `chmod.file.change_time` | int | Change time of the file |
 | `chmod.file.destination.mode` | int | New mode/rights of the chmod-ed file |
 | `chmod.file.destination.rights` | int | New mode/rights of the chmod-ed file |
@@ -252,6 +324,7 @@ A file’s owner was changed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
+| `chown.async` | bool | True if the syscall was asynchronous |
 | `chown.file.change_time` | int | Change time of the file |
 | `chown.file.destination.gid` | int | New GID of the chown-ed file's owner |
 | `chown.file.destination.group` | string | New group of the chown-ed file's owner |
@@ -272,6 +345,18 @@ A file’s owner was changed
 | `chown.file.user` | string | User of the file's owner |
 | `chown.retval` | int | Return value of the syscall |
 
+### Event `dns`
+
+A DNS request was sent
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `dns.question.class` | int | the class looked up by the DNS question |
+| `dns.question.count` | int | the total count of questions in the DNS request |
+| `dns.question.name` | string | the queried domain name |
+| `dns.question.size` | int | the total DNS request size in bytes |
+| `dns.question.type` | int | a two octet code which specifies the DNS question type |
+
 ### Event `exec`
 
 A process was executed or forked
@@ -283,6 +368,7 @@ A process was executed or forked
 | `exec.args_options` | string | Arguments of the process (as an array) |
 | `exec.args_truncated` | bool | Indicator of arguments truncation |
 | `exec.argv` | string | Arguments of the process (as an array) |
+| `exec.argv0` | string | First argument of the process |
 | `exec.cap_effective` | int | Effective capability set of the process |
 | `exec.cap_permitted` | int | Permitted capability set of the process |
 | `exec.comm` | string | Comm attribute of the process |
@@ -291,12 +377,13 @@ A process was executed or forked
 | `exec.created_at` | int | Timestamp of the creation of the process |
 | `exec.egid` | int | Effective GID of the process |
 | `exec.egroup` | string | Effective group of the process |
-| `exec.envs` | string | Environment variables of the process |
+| `exec.envp` | string | Environment variables of the process |
+| `exec.envs` | string | Environment variable names of the process |
 | `exec.envs_truncated` | bool | Indicator of environment variables truncation |
 | `exec.euid` | int | Effective UID of the process |
 | `exec.euser` | string | Effective user of the process |
 | `exec.file.change_time` | int | Change time of the file |
-| `exec.file.filesystem` | string | FileSystem of the process executable |
+| `exec.file.filesystem` | string | File's filesystem |
 | `exec.file.gid` | int | GID of the file's owner |
 | `exec.file.group` | string | Group of the file's owner |
 | `exec.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
@@ -304,8 +391,8 @@ A process was executed or forked
 | `exec.file.mode` | int | Mode/rights of the file |
 | `exec.file.modification_time` | int | Modification time of the file |
 | `exec.file.mount_id` | int | Mount ID of the file |
-| `exec.file.name` | string | Basename of the path of the process executable |
-| `exec.file.path` | string | Path of the process executable |
+| `exec.file.name` | string | File's basename |
+| `exec.file.path` | string | File's path |
 | `exec.file.rights` | int | Mode/rights of the file |
 | `exec.file.uid` | int | UID of the file's owner |
 | `exec.file.user` | string | User of the file's owner |
@@ -328,6 +415,7 @@ Create a new name/alias for a file
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
+| `link.async` | bool | True if the syscall was asynchronous |
 | `link.file.change_time` | int | Change time of the file |
 | `link.file.destination.change_time` | int | Change time of the file |
 | `link.file.destination.filesystem` | string | File's filesystem |
@@ -358,12 +446,38 @@ Create a new name/alias for a file
 | `link.file.user` | string | User of the file's owner |
 | `link.retval` | int | Return value of the syscall |
 
+### Event `load_module`
+
+A new kernel module was loaded
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `load_module.async` | bool | True if the syscall was asynchronous |
+| `load_module.file.change_time` | int | Change time of the file |
+| `load_module.file.filesystem` | string | File's filesystem |
+| `load_module.file.gid` | int | GID of the file's owner |
+| `load_module.file.group` | string | Group of the file's owner |
+| `load_module.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `load_module.file.inode` | int | Inode of the file |
+| `load_module.file.mode` | int | Mode/rights of the file |
+| `load_module.file.modification_time` | int | Modification time of the file |
+| `load_module.file.mount_id` | int | Mount ID of the file |
+| `load_module.file.name` | string | File's basename |
+| `load_module.file.path` | string | File's path |
+| `load_module.file.rights` | int | Mode/rights of the file |
+| `load_module.file.uid` | int | UID of the file's owner |
+| `load_module.file.user` | string | User of the file's owner |
+| `load_module.loaded_from_memory` | bool | Indicates if the kernel module was loaded from memory |
+| `load_module.name` | string | Name of the new kernel module |
+| `load_module.retval` | int | Return value of the syscall |
+
 ### Event `mkdir`
 
 A directory was created
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
+| `mkdir.async` | bool | True if the syscall was asynchronous |
 | `mkdir.file.change_time` | int | Change time of the file |
 | `mkdir.file.destination.mode` | int | Mode/rights of the new directory |
 | `mkdir.file.destination.rights` | int | Mode/rights of the new directory |
@@ -382,12 +496,49 @@ A directory was created
 | `mkdir.file.user` | string | User of the file's owner |
 | `mkdir.retval` | int | Return value of the syscall |
 
+### Event `mmap`
+
+A mmap command was executed
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `mmap.async` | bool | True if the syscall was asynchronous |
+| `mmap.file.change_time` | int | Change time of the file |
+| `mmap.file.filesystem` | string | File's filesystem |
+| `mmap.file.gid` | int | GID of the file's owner |
+| `mmap.file.group` | string | Group of the file's owner |
+| `mmap.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `mmap.file.inode` | int | Inode of the file |
+| `mmap.file.mode` | int | Mode/rights of the file |
+| `mmap.file.modification_time` | int | Modification time of the file |
+| `mmap.file.mount_id` | int | Mount ID of the file |
+| `mmap.file.name` | string | File's basename |
+| `mmap.file.path` | string | File's path |
+| `mmap.file.rights` | int | Mode/rights of the file |
+| `mmap.file.uid` | int | UID of the file's owner |
+| `mmap.file.user` | string | User of the file's owner |
+| `mmap.flags` | int | memory segment flags |
+| `mmap.protection` | int | memory segment protection |
+| `mmap.retval` | int | Return value of the syscall |
+
+### Event `mprotect`
+
+A mprotect command was executed
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `mprotect.async` | bool | True if the syscall was asynchronous |
+| `mprotect.req_protection` | int | new memory segment protection |
+| `mprotect.retval` | int | Return value of the syscall |
+| `mprotect.vm_protection` | int | initial memory segment protection |
+
 ### Event `open`
 
 A file was opened
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
+| `open.async` | bool | True if the syscall was asynchronous |
 | `open.file.change_time` | int | Change time of the file |
 | `open.file.destination.mode` | int | Mode of the created file |
 | `open.file.filesystem` | string | File's filesystem |
@@ -406,12 +557,113 @@ A file was opened
 | `open.flags` | int | Flags used when opening the file |
 | `open.retval` | int | Return value of the syscall |
 
+### Event `ptrace`
+
+A ptrace command was executed
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `ptrace.async` | bool | True if the syscall was asynchronous |
+| `ptrace.request` | int | ptrace request |
+| `ptrace.retval` | int | Return value of the syscall |
+| `ptrace.tracee.ancestors.args` | string | Arguments of the process (as a string) |
+| `ptrace.tracee.ancestors.args_flags` | string | Arguments of the process (as an array) |
+| `ptrace.tracee.ancestors.args_options` | string | Arguments of the process (as an array) |
+| `ptrace.tracee.ancestors.args_truncated` | bool | Indicator of arguments truncation |
+| `ptrace.tracee.ancestors.argv` | string | Arguments of the process (as an array) |
+| `ptrace.tracee.ancestors.argv0` | string | First argument of the process |
+| `ptrace.tracee.ancestors.cap_effective` | int | Effective capability set of the process |
+| `ptrace.tracee.ancestors.cap_permitted` | int | Permitted capability set of the process |
+| `ptrace.tracee.ancestors.comm` | string | Comm attribute of the process |
+| `ptrace.tracee.ancestors.container.id` | string | Container ID |
+| `ptrace.tracee.ancestors.cookie` | int | Cookie of the process |
+| `ptrace.tracee.ancestors.created_at` | int | Timestamp of the creation of the process |
+| `ptrace.tracee.ancestors.egid` | int | Effective GID of the process |
+| `ptrace.tracee.ancestors.egroup` | string | Effective group of the process |
+| `ptrace.tracee.ancestors.envp` | string | Environment variables of the process |
+| `ptrace.tracee.ancestors.envs` | string | Environment variable names of the process |
+| `ptrace.tracee.ancestors.envs_truncated` | bool | Indicator of environment variables truncation |
+| `ptrace.tracee.ancestors.euid` | int | Effective UID of the process |
+| `ptrace.tracee.ancestors.euser` | string | Effective user of the process |
+| `ptrace.tracee.ancestors.file.change_time` | int | Change time of the file |
+| `ptrace.tracee.ancestors.file.filesystem` | string | File's filesystem |
+| `ptrace.tracee.ancestors.file.gid` | int | GID of the file's owner |
+| `ptrace.tracee.ancestors.file.group` | string | Group of the file's owner |
+| `ptrace.tracee.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `ptrace.tracee.ancestors.file.inode` | int | Inode of the file |
+| `ptrace.tracee.ancestors.file.mode` | int | Mode/rights of the file |
+| `ptrace.tracee.ancestors.file.modification_time` | int | Modification time of the file |
+| `ptrace.tracee.ancestors.file.mount_id` | int | Mount ID of the file |
+| `ptrace.tracee.ancestors.file.name` | string | File's basename |
+| `ptrace.tracee.ancestors.file.path` | string | File's path |
+| `ptrace.tracee.ancestors.file.rights` | int | Mode/rights of the file |
+| `ptrace.tracee.ancestors.file.uid` | int | UID of the file's owner |
+| `ptrace.tracee.ancestors.file.user` | string | User of the file's owner |
+| `ptrace.tracee.ancestors.fsgid` | int | FileSystem-gid of the process |
+| `ptrace.tracee.ancestors.fsgroup` | string | FileSystem-group of the process |
+| `ptrace.tracee.ancestors.fsuid` | int | FileSystem-uid of the process |
+| `ptrace.tracee.ancestors.fsuser` | string | FileSystem-user of the process |
+| `ptrace.tracee.ancestors.gid` | int | GID of the process |
+| `ptrace.tracee.ancestors.group` | string | Group of the process |
+| `ptrace.tracee.ancestors.pid` | int | Process ID of the process (also called thread group ID) |
+| `ptrace.tracee.ancestors.ppid` | int | Parent process ID |
+| `ptrace.tracee.ancestors.tid` | int | Thread ID of the thread |
+| `ptrace.tracee.ancestors.tty_name` | string | Name of the TTY associated with the process |
+| `ptrace.tracee.ancestors.uid` | int | UID of the process |
+| `ptrace.tracee.ancestors.user` | string | User of the process |
+| `ptrace.tracee.args` | string | Arguments of the process (as a string) |
+| `ptrace.tracee.args_flags` | string | Arguments of the process (as an array) |
+| `ptrace.tracee.args_options` | string | Arguments of the process (as an array) |
+| `ptrace.tracee.args_truncated` | bool | Indicator of arguments truncation |
+| `ptrace.tracee.argv` | string | Arguments of the process (as an array) |
+| `ptrace.tracee.argv0` | string | First argument of the process |
+| `ptrace.tracee.cap_effective` | int | Effective capability set of the process |
+| `ptrace.tracee.cap_permitted` | int | Permitted capability set of the process |
+| `ptrace.tracee.comm` | string | Comm attribute of the process |
+| `ptrace.tracee.container.id` | string | Container ID |
+| `ptrace.tracee.cookie` | int | Cookie of the process |
+| `ptrace.tracee.created_at` | int | Timestamp of the creation of the process |
+| `ptrace.tracee.egid` | int | Effective GID of the process |
+| `ptrace.tracee.egroup` | string | Effective group of the process |
+| `ptrace.tracee.envp` | string | Environment variables of the process |
+| `ptrace.tracee.envs` | string | Environment variable names of the process |
+| `ptrace.tracee.envs_truncated` | bool | Indicator of environment variables truncation |
+| `ptrace.tracee.euid` | int | Effective UID of the process |
+| `ptrace.tracee.euser` | string | Effective user of the process |
+| `ptrace.tracee.file.change_time` | int | Change time of the file |
+| `ptrace.tracee.file.filesystem` | string | File's filesystem |
+| `ptrace.tracee.file.gid` | int | GID of the file's owner |
+| `ptrace.tracee.file.group` | string | Group of the file's owner |
+| `ptrace.tracee.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `ptrace.tracee.file.inode` | int | Inode of the file |
+| `ptrace.tracee.file.mode` | int | Mode/rights of the file |
+| `ptrace.tracee.file.modification_time` | int | Modification time of the file |
+| `ptrace.tracee.file.mount_id` | int | Mount ID of the file |
+| `ptrace.tracee.file.name` | string | File's basename |
+| `ptrace.tracee.file.path` | string | File's path |
+| `ptrace.tracee.file.rights` | int | Mode/rights of the file |
+| `ptrace.tracee.file.uid` | int | UID of the file's owner |
+| `ptrace.tracee.file.user` | string | User of the file's owner |
+| `ptrace.tracee.fsgid` | int | FileSystem-gid of the process |
+| `ptrace.tracee.fsgroup` | string | FileSystem-group of the process |
+| `ptrace.tracee.fsuid` | int | FileSystem-uid of the process |
+| `ptrace.tracee.fsuser` | string | FileSystem-user of the process |
+| `ptrace.tracee.gid` | int | GID of the process |
+| `ptrace.tracee.group` | string | Group of the process |
+| `ptrace.tracee.pid` | int | Process ID of the process (also called thread group ID) |
+| `ptrace.tracee.ppid` | int | Parent process ID |
+| `ptrace.tracee.tid` | int | Thread ID of the thread |
+| `ptrace.tracee.tty_name` | string | Name of the TTY associated with the process |
+| `ptrace.tracee.uid` | int | UID of the process |
+| `ptrace.tracee.user` | string | User of the process |
+
 ### Event `removexattr`
 
 Remove extended attributes
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
+| `removexattr.async` | bool | True if the syscall was asynchronous |
 | `removexattr.file.change_time` | int | Change time of the file |
 | `removexattr.file.destination.name` | string | Name of the extended attribute |
 | `removexattr.file.destination.namespace` | string | Namespace of the extended attribute |
@@ -436,6 +688,7 @@ A file/directory was renamed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
+| `rename.async` | bool | True if the syscall was asynchronous |
 | `rename.file.change_time` | int | Change time of the file |
 | `rename.file.destination.change_time` | int | Change time of the file |
 | `rename.file.destination.filesystem` | string | File's filesystem |
@@ -472,6 +725,7 @@ A directory was removed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
+| `rmdir.async` | bool | True if the syscall was asynchronous |
 | `rmdir.file.change_time` | int | Change time of the file |
 | `rmdir.file.filesystem` | string | File's filesystem |
 | `rmdir.file.gid` | int | GID of the file's owner |
@@ -531,6 +785,7 @@ Set exteneded attributes
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
+| `setxattr.async` | bool | True if the syscall was asynchronous |
 | `setxattr.file.change_time` | int | Change time of the file |
 | `setxattr.file.destination.name` | string | Name of the extended attribute |
 | `setxattr.file.destination.namespace` | string | Namespace of the extended attribute |
@@ -549,12 +804,139 @@ Set exteneded attributes
 | `setxattr.file.user` | string | User of the file's owner |
 | `setxattr.retval` | int | Return value of the syscall |
 
+### Event `signal`
+
+A signal was sent
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `signal.async` | bool | True if the syscall was asynchronous |
+| `signal.pid` | int | Target PID |
+| `signal.retval` | int | Return value of the syscall |
+| `signal.target.ancestors.args` | string | Arguments of the process (as a string) |
+| `signal.target.ancestors.args_flags` | string | Arguments of the process (as an array) |
+| `signal.target.ancestors.args_options` | string | Arguments of the process (as an array) |
+| `signal.target.ancestors.args_truncated` | bool | Indicator of arguments truncation |
+| `signal.target.ancestors.argv` | string | Arguments of the process (as an array) |
+| `signal.target.ancestors.argv0` | string | First argument of the process |
+| `signal.target.ancestors.cap_effective` | int | Effective capability set of the process |
+| `signal.target.ancestors.cap_permitted` | int | Permitted capability set of the process |
+| `signal.target.ancestors.comm` | string | Comm attribute of the process |
+| `signal.target.ancestors.container.id` | string | Container ID |
+| `signal.target.ancestors.cookie` | int | Cookie of the process |
+| `signal.target.ancestors.created_at` | int | Timestamp of the creation of the process |
+| `signal.target.ancestors.egid` | int | Effective GID of the process |
+| `signal.target.ancestors.egroup` | string | Effective group of the process |
+| `signal.target.ancestors.envp` | string | Environment variables of the process |
+| `signal.target.ancestors.envs` | string | Environment variable names of the process |
+| `signal.target.ancestors.envs_truncated` | bool | Indicator of environment variables truncation |
+| `signal.target.ancestors.euid` | int | Effective UID of the process |
+| `signal.target.ancestors.euser` | string | Effective user of the process |
+| `signal.target.ancestors.file.change_time` | int | Change time of the file |
+| `signal.target.ancestors.file.filesystem` | string | File's filesystem |
+| `signal.target.ancestors.file.gid` | int | GID of the file's owner |
+| `signal.target.ancestors.file.group` | string | Group of the file's owner |
+| `signal.target.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `signal.target.ancestors.file.inode` | int | Inode of the file |
+| `signal.target.ancestors.file.mode` | int | Mode/rights of the file |
+| `signal.target.ancestors.file.modification_time` | int | Modification time of the file |
+| `signal.target.ancestors.file.mount_id` | int | Mount ID of the file |
+| `signal.target.ancestors.file.name` | string | File's basename |
+| `signal.target.ancestors.file.path` | string | File's path |
+| `signal.target.ancestors.file.rights` | int | Mode/rights of the file |
+| `signal.target.ancestors.file.uid` | int | UID of the file's owner |
+| `signal.target.ancestors.file.user` | string | User of the file's owner |
+| `signal.target.ancestors.fsgid` | int | FileSystem-gid of the process |
+| `signal.target.ancestors.fsgroup` | string | FileSystem-group of the process |
+| `signal.target.ancestors.fsuid` | int | FileSystem-uid of the process |
+| `signal.target.ancestors.fsuser` | string | FileSystem-user of the process |
+| `signal.target.ancestors.gid` | int | GID of the process |
+| `signal.target.ancestors.group` | string | Group of the process |
+| `signal.target.ancestors.pid` | int | Process ID of the process (also called thread group ID) |
+| `signal.target.ancestors.ppid` | int | Parent process ID |
+| `signal.target.ancestors.tid` | int | Thread ID of the thread |
+| `signal.target.ancestors.tty_name` | string | Name of the TTY associated with the process |
+| `signal.target.ancestors.uid` | int | UID of the process |
+| `signal.target.ancestors.user` | string | User of the process |
+| `signal.target.args` | string | Arguments of the process (as a string) |
+| `signal.target.args_flags` | string | Arguments of the process (as an array) |
+| `signal.target.args_options` | string | Arguments of the process (as an array) |
+| `signal.target.args_truncated` | bool | Indicator of arguments truncation |
+| `signal.target.argv` | string | Arguments of the process (as an array) |
+| `signal.target.argv0` | string | First argument of the process |
+| `signal.target.cap_effective` | int | Effective capability set of the process |
+| `signal.target.cap_permitted` | int | Permitted capability set of the process |
+| `signal.target.comm` | string | Comm attribute of the process |
+| `signal.target.container.id` | string | Container ID |
+| `signal.target.cookie` | int | Cookie of the process |
+| `signal.target.created_at` | int | Timestamp of the creation of the process |
+| `signal.target.egid` | int | Effective GID of the process |
+| `signal.target.egroup` | string | Effective group of the process |
+| `signal.target.envp` | string | Environment variables of the process |
+| `signal.target.envs` | string | Environment variable names of the process |
+| `signal.target.envs_truncated` | bool | Indicator of environment variables truncation |
+| `signal.target.euid` | int | Effective UID of the process |
+| `signal.target.euser` | string | Effective user of the process |
+| `signal.target.file.change_time` | int | Change time of the file |
+| `signal.target.file.filesystem` | string | File's filesystem |
+| `signal.target.file.gid` | int | GID of the file's owner |
+| `signal.target.file.group` | string | Group of the file's owner |
+| `signal.target.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `signal.target.file.inode` | int | Inode of the file |
+| `signal.target.file.mode` | int | Mode/rights of the file |
+| `signal.target.file.modification_time` | int | Modification time of the file |
+| `signal.target.file.mount_id` | int | Mount ID of the file |
+| `signal.target.file.name` | string | File's basename |
+| `signal.target.file.path` | string | File's path |
+| `signal.target.file.rights` | int | Mode/rights of the file |
+| `signal.target.file.uid` | int | UID of the file's owner |
+| `signal.target.file.user` | string | User of the file's owner |
+| `signal.target.fsgid` | int | FileSystem-gid of the process |
+| `signal.target.fsgroup` | string | FileSystem-group of the process |
+| `signal.target.fsuid` | int | FileSystem-uid of the process |
+| `signal.target.fsuser` | string | FileSystem-user of the process |
+| `signal.target.gid` | int | GID of the process |
+| `signal.target.group` | string | Group of the process |
+| `signal.target.pid` | int | Process ID of the process (also called thread group ID) |
+| `signal.target.ppid` | int | Parent process ID |
+| `signal.target.tid` | int | Thread ID of the thread |
+| `signal.target.tty_name` | string | Name of the TTY associated with the process |
+| `signal.target.uid` | int | UID of the process |
+| `signal.target.user` | string | User of the process |
+| `signal.type` | int | Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc) |
+
+### Event `splice`
+
+A splice command was executed
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `splice.async` | bool | True if the syscall was asynchronous |
+| `splice.file.change_time` | int | Change time of the file |
+| `splice.file.filesystem` | string | File's filesystem |
+| `splice.file.gid` | int | GID of the file's owner |
+| `splice.file.group` | string | Group of the file's owner |
+| `splice.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `splice.file.inode` | int | Inode of the file |
+| `splice.file.mode` | int | Mode/rights of the file |
+| `splice.file.modification_time` | int | Modification time of the file |
+| `splice.file.mount_id` | int | Mount ID of the file |
+| `splice.file.name` | string | File's basename |
+| `splice.file.path` | string | File's path |
+| `splice.file.rights` | int | Mode/rights of the file |
+| `splice.file.uid` | int | UID of the file's owner |
+| `splice.file.user` | string | User of the file's owner |
+| `splice.pipe_entry_flag` | int | Entry flag of the "fd_out" pipe passed to the splice syscall |
+| `splice.pipe_exit_flag` | int | Exit flag of the "fd_out" pipe passed to the splice syscall |
+| `splice.retval` | int | Return value of the syscall |
+
 ### Event `unlink`
 
 A file was deleted
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
+| `unlink.async` | bool | True if the syscall was asynchronous |
 | `unlink.file.change_time` | int | Change time of the file |
 | `unlink.file.filesystem` | string | File's filesystem |
 | `unlink.file.gid` | int | GID of the file's owner |
@@ -571,12 +953,23 @@ A file was deleted
 | `unlink.file.user` | string | User of the file's owner |
 | `unlink.retval` | int | Return value of the syscall |
 
+### Event `unload_module`
+
+A kernel module was deleted
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `unload_module.async` | bool | True if the syscall was asynchronous |
+| `unload_module.name` | string | Name of the kernel module that was deleted |
+| `unload_module.retval` | int | Return value of the syscall |
+
 ### Event `utimes`
 
 Change file access/modification times
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
+| `utimes.async` | bool | True if the syscall was asynchronous |
 | `utimes.file.change_time` | int | Change time of the file |
 | `utimes.file.filesystem` | string | File's filesystem |
 | `utimes.file.gid` | int | GID of the file's owner |

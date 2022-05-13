@@ -17,9 +17,13 @@
 provisioner:
   name: chef_solo
   product_name: chef
-  # allow overriding of chef version since we need >= 15 for arm64 testing
+  # There is no arm64 distribution of Chef 14 for Debian. Use the Ubuntu package instead
+  <% if ENV['KITCHEN_PLATFORM'] == "debian" && ENV['KITCHEN_ARCH'] == "arm64" %>
+  download_url: https://packages.chef.io/files/stable/chef/14.15.6/ubuntu/18.04/chef_14.15.6-1_arm64.deb
+  product_version: 14.15.6
+  <% else %>
   product_version: <%= ENV['CHEF_VERSION'] ||= '14.12.9' %>
-  chef_license: accept
+  <% end %>
   install_strategy: always
   # the following settings make it possible to do a reboot during setup
   # (necessary for FIPS tests which reboot to enable FIPS mode)
@@ -39,6 +43,12 @@ driver_config:
   <% else %>
   azure_resource_group_suffix: plnone
   <% end %>
+  custom_data: |
+    #cloud-config
+    runcmd:
+      - mkdir /mnt/kitchen
+      - chmod a+rwx /mnt/kitchen
+      - ln -s /mnt/kitchen /tmp/kitchen
 
 platforms:
 # Loop through two lists and output a total matrix of all possible platform + chef versions,
@@ -50,17 +60,22 @@ platforms:
     # TEST_PLATFORMS syntax is `short_name1,parent vhd folder,parent_vhd_name|...`
     azure_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
 
-    sizes = [
-      "Standard_D1_v2",
-      "Standard_A1_v2",
-    ]
+    if ENV['TEST_IMAGE_SIZE'] != ""
+      sizes = [
+        ENV['TEST_IMAGE_SIZE']
+      ]
+    else
+      sizes = [
+        "Standard_D1_v2",
+        "Standard_A1_v2",
+      ]
+    end
 
     windows_sizes = [
-      "Standard_D2_v2"
+      "Standard_D2_v4"
     ]
 
     windows_platforms = []
-    sles11_platforms = []
     sles15_platforms = []
 
     idx = 0
@@ -83,7 +98,6 @@ platforms:
       end
 
       windows = platform_name.include?("win")
-      sles11 = platform_name.include?("sles-11")
       sles15 = platform_name.include?("sles-15")
       windows2008 = windows && platform_name.include?("2008")
 
@@ -93,9 +107,6 @@ platforms:
       else
         if sles15
           sles15_platforms << platform_name
-        end
-        if sles11
-          sles11_platforms << platform_name
         end
         size = sizes[idx % sizes.length]
       end
@@ -143,7 +154,9 @@ platforms:
     <% else %>
     connection_retries: 30
     connection_retry_sleep: 2
+    <% unless ENV['KITCHEN_SKIP_MANUAL_SSH_KEY'] %>
     ssh_key: <%= ENV['KITCHEN_SSH_KEY_PATH'] %>
+    <% end %>
     <% end %>
 
 <% end %>

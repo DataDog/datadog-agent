@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/stretchr/testify/assert"
 )
@@ -491,6 +491,19 @@ func TestNormalizeChunkNotPopulatingSamplingPriority(t *testing.T) {
 	chunk.Priority = int32(sampler.PriorityAutoDrop)
 	normalizeChunk(chunk, root)
 	assert.EqualValues(sampler.PriorityAutoDrop, chunk.Priority)
+}
+
+func TestNormalizePopulatePriorityFromAnySpan(t *testing.T) {
+	assert := assert.New(t)
+	root := newTestSpan()
+	chunk := testutil.TraceChunkWithSpan(root)
+	chunk.Priority = int32(sampler.PriorityNone)
+	chunk.Spans = []*pb.Span{newTestSpan(), newTestSpan(), newTestSpan()}
+	chunk.Spans[0].Metrics = nil
+	chunk.Spans[2].Metrics = nil
+	traceutil.SetMetric(chunk.Spans[1], "_sampling_priority_v1", float64(sampler.PriorityAutoKeep))
+	normalizeChunk(chunk, root)
+	assert.EqualValues(sampler.PriorityAutoKeep, chunk.Priority)
 }
 
 func BenchmarkNormalization(b *testing.B) {

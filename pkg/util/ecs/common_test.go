@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package ecs
@@ -270,9 +271,9 @@ func TestConvertMetaV2ContainerStats(t *testing.T) {
 	}
 
 	expectedCPU := &metrics.ContainerCPUStats{
-		User:        7450000000,
-		System:      2260000000,
-		SystemUsage: 3951680000000,
+		User:        745,
+		System:      226,
+		SystemUsage: 395168,
 	}
 	expectedMem := &metrics.ContainerMemStats{
 		Cache:           65499136,

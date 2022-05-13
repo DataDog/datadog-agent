@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build functionaltests
 // +build functionaltests
 
 package tests
@@ -16,6 +17,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -34,23 +36,25 @@ func TestRulesetLoaded(t *testing.T) {
 	}
 	defer test.Close()
 
+	test.probe.SendStats()
+
+	key := metrics.MetricRuleSetLoaded
+	assert.NotEmpty(t, test.statsdClient.counts[key])
+	assert.NotZero(t, test.statsdClient.counts[key])
+
+	test.statsdClient.Flush()
+
 	t.Run("ruleset_loaded", func(t *testing.T) {
-		if err = test.GetProbeCustomEvent(t, func() error {
-			// This test is an exception, we should never use any t.* method in the action function (especially within a
-			// goroutine). We don't have a choice here because we're not triggering a kernel space event: the same
-			// goroutine that calls test.reloadConfiguration will eventually call the callback.
-			go func() {
-				if err := test.reloadConfiguration(); err != nil {
-					t.Errorf("failed to reload configuration: %v", err)
-				}
-			}()
-			return nil
-		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
-			assert.Equal(t, sprobe.RulesetLoadedRuleID, rule.ID, "wrong rule")
-			return true
-		}, model.CustomRulesetLoadedEventType); err != nil {
-			t.Fatal(err)
+		count := test.statsdClient.counts[key]
+		assert.Zero(t, count)
+
+		if err := test.reloadConfiguration(); err != nil {
+			t.Errorf("failed to reload configuration: %v", err)
 		}
+
+		test.probe.SendStats()
+
+		assert.Equal(t, count+1, test.statsdClient.counts[key])
 	})
 }
 
@@ -61,8 +65,9 @@ func truncatedParents(t *testing.T, opts testOpts) {
 	}
 
 	rule := &rules.RuleDefinition{
-		ID:         "path_test",
-		Expression: `open.file.path =~ "*/a" && open.flags & O_CREAT != 0`,
+		ID: "path_test",
+		// because of the truncated path open.file.path will be '/a/a/a/a*' and not '{{.Root}}/a/a/a*'
+		Expression: `open.file.path =~ "*/a/**" && open.flags & O_CREAT != 0`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, opts)

@@ -11,6 +11,7 @@ package cgroups
 import (
 	"fmt"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/karrick/godirwalk"
@@ -24,9 +25,10 @@ type readerV2 struct {
 	cgroupRoot        string
 	cgroupControllers map[string]struct{}
 	filter            ReaderFilter
+	pidMapper         pidMapper
 }
 
-func newReaderV2(cgroupRoot string, filter ReaderFilter) (*readerV2, error) {
+func newReaderV2(procPath, cgroupRoot string, filter ReaderFilter) (*readerV2, error) {
 	controllers, err := readCgroupControllers(cgroupRoot)
 	if err != nil {
 		return nil, err
@@ -36,6 +38,7 @@ func newReaderV2(cgroupRoot string, filter ReaderFilter) (*readerV2, error) {
 		cgroupRoot:        cgroupRoot,
 		cgroupControllers: controllers,
 		filter:            filter,
+		pidMapper:         getPidMapper(procPath, cgroupRoot, "", filter),
 	}, nil
 }
 
@@ -49,7 +52,12 @@ func (r *readerV2) parseCgroups() (map[string]Cgroup, error) {
 			if de.IsDir() {
 				id, err := r.filter(fullPath, de.Name())
 				if id != "" {
-					res[id] = newCgroupV2(id, fullPath, r.cgroupControllers)
+					relPath, err := filepath.Rel(r.cgroupRoot, fullPath)
+					if err != nil {
+						return err
+					}
+
+					res[id] = newCgroupV2(id, r.cgroupRoot, relPath, r.cgroupControllers, r.pidMapper)
 
 					if err != nil {
 						return err

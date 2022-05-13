@@ -56,8 +56,18 @@ const (
 	NE
 	Not
 	As
+	Alter
+	Drop
+	Create
+	Grant
+	Revoke
+	Commit
+	Begin
+	Truncate
+	Select
 	From
 	Update
+	Delete
 	Insert
 	Into
 	Join
@@ -109,8 +119,18 @@ var tokenKindStrings = map[TokenKind]string{
 	NE:                           "NE",
 	Not:                          "NOT",
 	As:                           "As",
+	Alter:                        "Alter",
+	Drop:                         "Drop",
+	Create:                       "Create",
+	Grant:                        "Grant",
+	Revoke:                       "Revoke",
+	Commit:                       "Commit",
+	Begin:                        "Begin",
+	Truncate:                     "Truncate",
+	Select:                       "Select",
 	From:                         "From",
 	Update:                       "Update",
+	Delete:                       "Delete",
 	Insert:                       "Insert",
 	Into:                         "Into",
 	Join:                         "Join",
@@ -129,6 +149,11 @@ func (k TokenKind) String() string {
 	}
 	return str
 }
+
+const (
+	// DBMSSQLServer is a MS SQL Server
+	DBMSSQLServer = "mssql"
+)
 
 const escapeCharacter = '\\'
 
@@ -179,8 +204,18 @@ var keywords = map[string]TokenKind{
 	"SAVEPOINT": Savepoint,
 	"LIMIT":     Limit,
 	"AS":        As,
+	"ALTER":     Alter,
+	"CREATE":    Create,
+	"GRANT":     Grant,
+	"REVOKE":    Revoke,
+	"COMMIT":    Commit,
+	"BEGIN":     Begin,
+	"TRUNCATE":  Truncate,
+	"DROP":      Drop,
+	"SELECT":    Select,
 	"FROM":      From,
 	"UPDATE":    Update,
+	"DELETE":    Delete,
 	"INSERT":    Insert,
 	"INTO":      Into,
 	"JOIN":      Join,
@@ -276,6 +311,9 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				return TokenKind(ch), tkn.bytes()
 			}
 		case '#':
+			if tkn.cfg.DBMS == DBMSSQLServer {
+				return tkn.scanIdentifier()
+			}
 			tkn.advance()
 			return tkn.scanCommentType1("#")
 		case '<':

@@ -11,7 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 	"time"
 
@@ -220,7 +220,7 @@ func WithNodeLabels(nodeLabels map[string]string) BuilderOption {
 // of a file instead of the current environment
 func WithRegoInput(regoInputPath string) BuilderOption {
 	return func(b *builder) error {
-		content, err := ioutil.ReadFile(regoInputPath)
+		content, err := os.ReadFile(regoInputPath)
 		if err != nil {
 			return err
 		}
@@ -375,6 +375,8 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 	for _, r := range suite.Rules {
 		if b.checkMatchingRule(file, suite, &r) {
 			matchedCount++
+		} else {
+			continue
 		}
 
 		log.Debugf("%s/%s: loading rule %s", suite.Meta.Name, suite.Meta.Version, r.ID)
@@ -394,6 +396,8 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 	for _, r := range suite.RegoRules {
 		if b.checkMatchingRule(file, suite, &r) {
 			matchedCount++
+		} else {
+			continue
 		}
 
 		log.Debugf("%s/%s: loading rule %s", suite.Meta.Name, suite.Meta.Version, r.ID)

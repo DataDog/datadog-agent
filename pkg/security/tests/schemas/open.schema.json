@@ -19,7 +19,10 @@
                         "flags"
                     ]
                 }
-            }
+            },
+            "required": [
+                "file"
+            ]
         }
     ]
 }

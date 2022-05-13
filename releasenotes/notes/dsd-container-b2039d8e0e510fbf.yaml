@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    The DogstatsD protocol now supports a new field that contains the client's container ID.
+    This allows enriching DogstatsD metrics with container tags.

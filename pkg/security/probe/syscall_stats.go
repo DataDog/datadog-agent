@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probe
@@ -13,7 +14,7 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
 	"github.com/pkg/errors"
@@ -99,7 +100,7 @@ func (s *SyscallStats) CountConcurrentSyscalls(count int64) error {
 
 // SyscallStatsdCollector collects syscall statistics and sends them to statsd
 type SyscallStatsdCollector struct {
-	statsdClient *statsd.Client
+	statsdClient statsd.ClientInterface
 }
 
 // CountSyscall counts the number of calls of a syscall by a process
@@ -149,7 +150,7 @@ func (sm *SyscallMonitor) GetStats() (*SyscallStats, error) {
 }
 
 // SendStats sends the syscall statistics to statsd
-func (sm *SyscallMonitor) SendStats(statsdClient *statsd.Client) error {
+func (sm *SyscallMonitor) SendStats(statsdClient statsd.ClientInterface) error {
 	collector := &SyscallStatsdCollector{statsdClient: statsdClient}
 	return sm.CollectStats(collector)
 }

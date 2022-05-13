@@ -10,6 +10,60 @@ u64 __attribute__((always_inline)) get_check_helper_call_input(void) {
     return input;
 }
 
+u64 __attribute__((always_inline)) get_bpf_map_id_offset(void) {
+    u64 bpf_map_id_offset;
+    LOAD_CONSTANT("bpf_map_id_offset", bpf_map_id_offset);
+    return bpf_map_id_offset;
+}
+
+u64 __attribute__((always_inline)) get_bpf_map_name_offset(void) {
+    u64 bpf_map_name_offset;
+    LOAD_CONSTANT("bpf_map_name_offset", bpf_map_name_offset);
+    return bpf_map_name_offset;
+}
+
+u64 __attribute__((always_inline)) get_bpf_map_type_offset(void) {
+    u64 bpf_map_type_offset;
+    LOAD_CONSTANT("bpf_map_type_offset", bpf_map_type_offset);
+    return bpf_map_type_offset;
+}
+
+u64 __attribute__((always_inline)) get_bpf_prog_aux_offset(void) {
+    u64 bpf_prog_aux_offset;
+    LOAD_CONSTANT("bpf_prog_aux_offset", bpf_prog_aux_offset);
+    return bpf_prog_aux_offset;
+}
+
+u64 __attribute__((always_inline)) get_bpf_prog_aux_id_offset(void) {
+    u64 bpf_prog_aux_id_offset;
+    LOAD_CONSTANT("bpf_prog_aux_id_offset", bpf_prog_aux_id_offset);
+    return bpf_prog_aux_id_offset;
+}
+
+u64 __attribute__((always_inline)) get_bpf_prog_type_offset(void) {
+    u64 bpf_prog_type_offset;
+    LOAD_CONSTANT("bpf_prog_type_offset", bpf_prog_type_offset);
+    return bpf_prog_type_offset;
+}
+
+u64 __attribute__((always_inline)) get_bpf_prog_attach_type_offset(void) {
+    u64 bpf_prog_attach_type_offset;
+    LOAD_CONSTANT("bpf_prog_attach_type_offset", bpf_prog_attach_type_offset);
+    return bpf_prog_attach_type_offset;
+}
+
+u64 __attribute__((always_inline)) get_bpf_prog_aux_name_offset(void) {
+    u64 bpf_prog_aux_name_offset;
+    LOAD_CONSTANT("bpf_prog_aux_name_offset", bpf_prog_aux_name_offset);
+    return bpf_prog_aux_name_offset;
+}
+
+u64 __attribute__((always_inline)) get_bpf_prog_tag_offset(void) {
+    u64 bpf_prog_tag_offset;
+    LOAD_CONSTANT("bpf_prog_tag_offset", bpf_prog_tag_offset);
+    return bpf_prog_tag_offset;
+}
+
 struct bpf_map_t {
     u32 id;
     enum bpf_map_type map_type;
@@ -23,6 +77,7 @@ struct bpf_prog_t {
     u32 padding;
     u64 helpers[3];
     char name[BPF_OBJ_NAME_LEN];
+    char tag[BPF_TAG_SIZE];
 };
 
 struct bpf_tgid_fd_t {
@@ -85,14 +140,18 @@ __attribute__((always_inline)) void save_obj_fd(struct syscall_cache_t *syscall)
         .fd = syscall->bpf.retval,
     };
 
+    u32 id = 0;
+
     switch (syscall->bpf.cmd) {
     case BPF_MAP_CREATE:
     case BPF_MAP_GET_FD_BY_ID:
-        bpf_map_update_elem(&tgid_fd_map_id, &key, &syscall->bpf.map_id, BPF_ANY);
+        id = syscall->bpf.map_id;
+        bpf_map_update_elem(&tgid_fd_map_id, &key, &id, BPF_ANY);
         break;
     case BPF_PROG_LOAD:
     case BPF_PROG_GET_FD_BY_ID:
-        bpf_map_update_elem(&tgid_fd_prog_id, &key, &syscall->bpf.prog_id, BPF_ANY);
+        id = syscall->bpf.prog_id;
+        bpf_map_update_elem(&tgid_fd_prog_id, &key, &id, BPF_ANY);
         break;
     }
 }
@@ -217,6 +276,7 @@ __attribute__((always_inline)) void fill_from_syscall_args(struct syscall_cache_
 __attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cache_t *syscall) {
     struct bpf_event_t event = {
         .syscall.retval = syscall->bpf.retval,
+        .syscall.async = 0,
         .cmd = syscall->bpf.cmd,
     };
 
@@ -224,9 +284,12 @@ __attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cac
     fill_container_context(entry, &event.container);
     fill_span_context(&event.span);
 
+    u32 id = 0;
+
     // select map if applicable
     if (syscall->bpf.map_id != 0) {
-        struct bpf_map_t *map = bpf_map_lookup_elem(&bpf_maps, &syscall->bpf.map_id);
+        id = syscall->bpf.map_id;
+        struct bpf_map_t *map = bpf_map_lookup_elem(&bpf_maps, &id);
         if (map != NULL) {
             event.map = *map;
         }
@@ -234,20 +297,20 @@ __attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cac
 
     // select prog if applicable
     if (syscall->bpf.prog_id != 0) {
-        struct bpf_prog_t *prog = bpf_map_lookup_elem(&bpf_progs, &syscall->bpf.prog_id);
+        id = syscall->bpf.prog_id;
+        struct bpf_prog_t *prog = bpf_map_lookup_elem(&bpf_progs, &id);
         if (prog != NULL) {
             event.prog = *prog;
         }
     }
 
-    if (event.map.id == 0 && event.prog.id == 0) {
+    if (event.cmd == BPF_PROG_LOAD || event.cmd == BPF_MAP_CREATE) {
         // fill metadata from syscall arguments
         fill_from_syscall_args(syscall, &event);
     }
 
     // send event
     send_event(ctx, EVENT_BPF, event);
-    return;
 }
 
 SYSCALL_KPROBE3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int, size) {
@@ -271,8 +334,9 @@ SYSCALL_KPROBE3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int, siz
 
 __attribute__((always_inline)) int sys_bpf_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_BPF);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     syscall->bpf.retval = retval;
 
@@ -301,16 +365,17 @@ int tracepoint_syscalls_sys_exit_bpf(struct tracepoint_syscalls_sys_exit_t *args
 SEC("kprobe/security_bpf_map")
 int kprobe_security_bpf_map(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_BPF);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     struct bpf_map *map = (struct bpf_map *)PT_REGS_PARM1(ctx);
 
     // collect relevant map metadata
     struct bpf_map_t m = {};
-    bpf_probe_read(&m.id, sizeof(m.id), &map->id);
-    bpf_probe_read(&m.name, sizeof(m.name), &map->name);
-    bpf_probe_read(&m.map_type, sizeof(m.map_type), &map->map_type);
+    bpf_probe_read(&m.id, sizeof(m.id), (void *)map + get_bpf_map_id_offset());
+    bpf_probe_read(&m.name, sizeof(m.name), (void *)map + get_bpf_map_name_offset());
+    bpf_probe_read(&m.map_type, sizeof(m.map_type), (void *)map + get_bpf_map_type_offset());
 
     // save map metadata
     bpf_map_update_elem(&bpf_maps, &m.id, &m, BPF_ANY);
@@ -323,19 +388,23 @@ int kprobe_security_bpf_map(struct pt_regs *ctx) {
 SEC("kprobe/security_bpf_prog")
 int kprobe_security_bpf_prog(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_BPF);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     struct bpf_prog *prog = (struct bpf_prog *)PT_REGS_PARM1(ctx);
     struct bpf_prog_aux *prog_aux = 0;
-    bpf_probe_read(&prog_aux, sizeof(prog_aux), &prog->aux);
+    bpf_probe_read(&prog_aux, sizeof(prog_aux), (void *)prog + get_bpf_prog_aux_offset());
 
     // collect relevant prog metadata
     struct bpf_prog_t p = {};
-    bpf_probe_read(&p.id, sizeof(p.id), &prog_aux->id);
-    bpf_probe_read(&p.prog_type, sizeof(p.prog_type), &prog->type);
-    bpf_probe_read(&p.attach_type, sizeof(p.attach_type), &prog->expected_attach_type);
-    bpf_probe_read(&p.name, sizeof(p.name), &prog_aux->name);
+    bpf_probe_read(&p.id, sizeof(p.id), (void *)prog_aux + get_bpf_prog_aux_id_offset());
+    bpf_probe_read(&p.prog_type, sizeof(p.prog_type), (void *)prog + get_bpf_prog_type_offset());
+    if (get_bpf_prog_attach_type_offset() > 0) {
+        bpf_probe_read(&p.attach_type, sizeof(p.attach_type), (void *)prog + get_bpf_prog_attach_type_offset());
+    }
+    bpf_probe_read(&p.name, sizeof(p.name), (void *)prog_aux + get_bpf_prog_aux_name_offset());
+    bpf_probe_read(&p.tag, sizeof(p.tag), (void *)prog + get_bpf_prog_tag_offset());
 
     // update context
     syscall->bpf.prog_id = p.id;
@@ -354,8 +423,9 @@ SEC("kprobe/check_helper_call")
 int kprobe_check_helper_call(struct pt_regs *ctx) {
     int func_id = 0;
     struct syscall_cache_t *syscall = peek_syscall(EVENT_BPF);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     u64 input = get_check_helper_call_input();
     if (input == CHECK_HELPER_CALL_FUNC_ID) {

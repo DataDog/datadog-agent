@@ -16,9 +16,9 @@ import (
 // MarshalMsg implements msgp.Marshaler
 func (z *Span) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 12
+	// map header, size 13
 	// string "service"
-	o = append(o, 0x8c, 0xa7, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
+	o = append(o, 0x8d, 0xa7, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
 	o = msgp.AppendString(o, z.Service)
 	// string "name"
 	o = append(o, 0xa4, 0x6e, 0x61, 0x6d, 0x65)
@@ -61,6 +61,14 @@ func (z *Span) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "type"
 	o = append(o, 0xa4, 0x74, 0x79, 0x70, 0x65)
 	o = msgp.AppendString(o, z.Type)
+
+	// string "meta_struct"
+	o = append(o, 0xab, 0x6d, 0x65, 0x74, 0x61, 0x5f, 0x73, 0x74, 0x72, 0x75, 0x63, 0x74)
+	o = msgp.AppendMapHeader(o, uint32(len(z.MetaStruct)))
+	for za0005, za0006 := range z.MetaStruct {
+		o = msgp.AppendString(o, za0005)
+		o = msgp.AppendBytes(o, za0006)
+	}
 	return
 }
 
@@ -217,6 +225,41 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Type")
 				return
 			}
+		case "meta_struct":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				z.MetaStruct = nil
+				break
+			}
+			var zb0004 uint32
+			zb0004, bts, err = msgp.ReadMapHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "MetaStruct")
+				return
+			}
+			if z.MetaStruct == nil && zb0004 > 0 {
+				z.MetaStruct = make(map[string][]byte, zb0004)
+			} else if len(z.MetaStruct) > 0 {
+				for key := range z.MetaStruct {
+					delete(z.MetaStruct, key)
+				}
+			}
+			for zb0004 > 0 {
+				var za0005 string
+				var za0006 []byte
+				zb0004--
+				za0005, bts, err = parseStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "MetaStruct")
+					return
+				}
+				za0006, bts, err = parseBytes(bts)
+				if za0006 != nil && err != nil {
+					err = msgp.WrapError(err, "MetaStruct", za0006)
+					return
+				}
+				z.MetaStruct[za0005] = za0006
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -245,6 +288,12 @@ func (z *Span) Msgsize() (s int) {
 			s += msgp.StringPrefixSize + len(za0003) + msgp.Float64Size
 		}
 	}
-	s += 5 + msgp.StringPrefixSize + len(z.Type)
+	s += 5 + msgp.StringPrefixSize + len(z.Type) + 12 + msgp.MapHeaderSize
+	if z.MetaStruct != nil {
+		for za0005, za0006 := range z.MetaStruct {
+			_ = za0006
+			s += msgp.StringPrefixSize + len(za0005) + msgp.BytesPrefixSize + len(za0006)
+		}
+	}
 	return
 }

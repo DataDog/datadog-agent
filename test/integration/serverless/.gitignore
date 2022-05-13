@@ -1,10 +1,7 @@
 .serverless
+!datadog.yaml
 recorder-extension/extensions
 recorder-extension/ext.zip
 src/csharp-tests/bin
 src/csharp-tests/obj
-src/java-tests/with-ddlambda/target
-src/java-tests/trace/target
-src/java-tests/log/target
-src/java-tests/timeout/target
-src/java-tests/error/target
+src/java-tests/*/target

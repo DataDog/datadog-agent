@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build clusterchecks
 // +build clusterchecks
 
 package clusterchecks
@@ -10,6 +11,7 @@ package clusterchecks
 import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 )
 
 // getEndpointsConfigs provides configs templates of endpoints checks queried by node name.
@@ -45,13 +47,21 @@ func (d *dispatcher) addEndpointConfig(config integration.Config, nodename strin
 		d.store.endpointsConfigs[nodename] = map[string]integration.Config{}
 	}
 	d.store.endpointsConfigs[nodename][config.Digest()] = config
+	dispatchedEndpoints.Inc(nodename, le.JoinLeaderValue)
 }
 
 // removeEndpointConfig deletes a given endpoint configuration
 func (d *dispatcher) removeEndpointConfig(config integration.Config, nodename string) {
 	d.store.Lock()
 	defer d.store.Unlock()
-	delete(d.store.endpointsConfigs[nodename], config.Digest())
+
+	digest := config.Digest()
+	if _, found := d.store.endpointsConfigs[nodename][digest]; !found {
+		return
+	}
+
+	delete(d.store.endpointsConfigs[nodename], digest)
+	dispatchedEndpoints.Dec(nodename, le.JoinLeaderValue)
 }
 
 // patchEndpointsConfiguration transforms the endpoint configuration from AD into a config

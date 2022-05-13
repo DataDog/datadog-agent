@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver || clusterchecks
 // +build kubeapiserver clusterchecks
 
 package commands
@@ -21,9 +22,10 @@ import (
 func GetConfigCheckCobraCmd(flagNoColor *bool, confPath *string, loggerName config.LoggerName) *cobra.Command {
 	var withDebug bool
 	configCheckCommand := &cobra.Command{
-		Use:   "configcheck",
-		Short: "Print all configurations loaded & resolved of a running cluster agent",
-		Long:  ``,
+		Use:     "configcheck",
+		Aliases: []string{"checkconfig"},
+		Short:   "Print all configurations loaded & resolved of a running cluster agent",
+		Long:    ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 
 			if *flagNoColor {

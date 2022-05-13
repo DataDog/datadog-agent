@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package probes
@@ -116,6 +117,27 @@ var execProbes = []*manager.Probe{
 			EBPFFuncName: "kprobe_commit_creds",
 		},
 	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kretprobe/__task_pid_nr_ns",
+			EBPFFuncName: "kretprobe__task_pid_nr_ns",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kretprobe/alloc_pid",
+			EBPFFuncName: "kretprobe_alloc_pid",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/switch_task_namespaces",
+			EBPFFuncName: "kprobe_switch_task_namespaces",
+		},
+	},
 }
 
 func getExecProbes() []*manager.Probe {
@@ -130,6 +152,30 @@ func getExecProbes() []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "execveat",
+	}, Entry)...)
+	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "fork",
+	}, Entry)...)
+	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "vfork",
+	}, Entry)...)
+	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "clone",
+	}, Entry)...)
+	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "clone3",
 	}, Entry)...)
 
 	for _, name := range []string{

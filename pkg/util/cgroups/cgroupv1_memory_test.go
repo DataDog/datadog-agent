@@ -34,7 +34,7 @@ active_anon 18923520
 inactive_file 4595712
 active_file 0
 unevictable 0
-hierarchical_memory_limit 107108864
+hierarchical_memory_limit 67108864
 hierarchical_memsw_limit 9223372036854771712
 total_cache 4866048
 total_rss 19058688
@@ -55,9 +55,7 @@ total_active_file 0
 total_unevictable 0`
 	sampleMemoryFailCnt   = "0"
 	sampleMemoryKmemUsage = "4444160"
-	sampleMemoryLimit     = "67108864"
 	sampleMemorySoftLimit = "9223372036854771712" // No limit
-	sampleMemorySwapLimit = "9223372036854771712" // No limit
 )
 
 func createCgroupV1FakeMemoryFiles(cfs *cgroupMemoryFS, cg *cgroupV1) {
@@ -65,9 +63,7 @@ func createCgroupV1FakeMemoryFiles(cfs *cgroupMemoryFS, cg *cgroupV1) {
 	cfs.setCgroupV1File(cg, "memory", "memory.stat", sampleMemoryStat)
 	cfs.setCgroupV1File(cg, "memory", "memory.failcnt", sampleMemoryFailCnt)
 	cfs.setCgroupV1File(cg, "memory", "memory.kmem.usage_in_bytes", sampleMemoryKmemUsage)
-	cfs.setCgroupV1File(cg, "memory", "memory.limit_in_bytes", sampleMemoryLimit)
 	cfs.setCgroupV1File(cg, "memory", "memory.soft_limit_in_bytes", sampleMemorySoftLimit)
-	cfs.setCgroupV1File(cg, "memory", "memory.memsw.limit_in_bytes", sampleMemorySwapLimit)
 }
 
 func TestCgroupV1MemoryStats(t *testing.T) {
@@ -87,7 +83,7 @@ func TestCgroupV1MemoryStats(t *testing.T) {
 	cfs.enableControllers("memory")
 	err = cgFoo1.GetMemoryStats(stats)
 	assert.NoError(t, err)
-	assert.Equal(t, len(tr.errors), 6)
+	assert.Equal(t, len(tr.errors), 5)
 	assert.Equal(t, "", cmp.Diff(MemoryStats{}, *stats))
 
 	// Test reading files in memory controller, all files present

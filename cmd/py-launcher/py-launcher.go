@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build python
 // +build python
 
 package main
@@ -68,6 +69,4 @@ func main() {
 	if res == 0 {
 		fmt.Printf("Error while running python script: %s\n", C.GoString(C.get_error(rtloader)))
 	}
-
-	python.Destroy()
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -60,6 +61,8 @@ func GetStatus() (map[string]interface{}, error) {
 
 	stats["logsStats"] = logs.GetStatus()
 
+	stats["otlp"] = GetOTLPStatus()
+
 	endpointsInfos, err := getEndpointsInfos()
 	if endpointsInfos != nil && err == nil {
 		stats["endpointsInfos"] = endpointsInfos
@@ -74,6 +77,8 @@ func GetStatus() (map[string]interface{}, error) {
 	if config.Datadog.GetBool("system_probe_config.enabled") {
 		stats["systemProbeStats"] = GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
 	}
+
+	stats["processAgentStatus"] = GetProcessAgentStatus()
 
 	if !config.Datadog.GetBool("no_proxy_nonexact_match") {
 		httputils.NoProxyMapMutex.Lock()
@@ -174,6 +179,12 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	} else {
 		stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
 		stats["admissionWebhook"] = admission.GetStatus(apiCl.Cl)
+	}
+
+	if config.Datadog.GetBool("external_metrics_provider.use_datadogmetric_crd") {
+		stats["externalmetrics"] = externalmetrics.GetStatus()
+	} else {
+		stats["externalmetrics"] = apiserver.GetStatus()
 	}
 
 	if config.Datadog.GetBool("cluster_checks.enabled") {

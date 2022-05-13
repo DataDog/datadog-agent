@@ -35,7 +35,7 @@ func (e Entity) GetTags(cardinality collectors.TagCardinality) []string {
 		tagArrays = append(tagArrays, e.HighCardinalityTags)
 	}
 
-	return utils.ConcatenateTags(tagArrays)
+	return utils.ConcatenateTags(tagArrays...)
 }
 
 // GetHash returns a computed hash of all of the entity's tags.

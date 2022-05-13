@@ -5,6 +5,10 @@
 # Copyright (C) 2020-present Datadog
 #
 
+if !platform?('windows')
+  include_recipe "::linux_use_azure_mnt"
+end
+
 # This will copy the whole file tree from COOKBOOK_NAME/files/default/tests
 # to the directory where RSpec is expecting them.
 testdir = value_for_platform(
@@ -16,6 +20,7 @@ remote_directory testdir do
   source 'tests'
   mode '755'
   files_mode '755'
+  sensitive true
   case
   when !platform?('windows')
     files_owner 'root'

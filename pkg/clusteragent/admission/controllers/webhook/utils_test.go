@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package webhook
@@ -11,6 +12,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -54,4 +57,12 @@ func buildSecret(data map[string][]byte, cfg Config) *corev1.Secret {
 		},
 		Data: data,
 	}
+}
+
+func resetMockConfig(c *config.MockConfig) {
+	c.Set("admission_controller.mutate_unlabelled", false)
+	c.Set("admission_controller.inject_config.enabled", true)
+	c.Set("admission_controller.inject_tags.enabled", true)
+	c.Set("admission_controller.namespace_selector_fallback", false)
+	c.Set("admission_controller.add_aks_selectors", false)
 }

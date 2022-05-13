@@ -11,7 +11,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
@@ -163,7 +162,7 @@ func snakeToCamelCase(snake string) string {
 }
 
 func writeFileAndFormat(outputPath string, content string) error {
-	tmpfile, err := ioutil.TempFile(path.Dir(outputPath), "syscalls-enum")
+	tmpfile, err := os.CreateTemp(path.Dir(outputPath), "syscalls-enum")
 	if err != nil {
 		return err
 	}

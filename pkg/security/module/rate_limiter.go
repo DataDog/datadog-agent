@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package module
@@ -11,7 +12,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -61,11 +62,11 @@ type RateLimiter struct {
 	sync.RWMutex
 	opts         LimiterOpts
 	limiters     map[rules.RuleID]*Limiter
-	statsdClient *statsd.Client
+	statsdClient statsd.ClientInterface
 }
 
 // NewRateLimiter initializes an empty rate limiter
-func NewRateLimiter(client *statsd.Client, opts LimiterOpts) *RateLimiter {
+func NewRateLimiter(client statsd.ClientInterface, opts LimiterOpts) *RateLimiter {
 	return &RateLimiter{
 		limiters:     make(map[string]*Limiter),
 		statsdClient: client,

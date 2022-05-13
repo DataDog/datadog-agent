@@ -7,6 +7,7 @@
 // https://github.com/shirou/gopsutil .  This code is licensed under the New BSD License
 // copyright WAKAYAMA Shirou, and the gopsutil contributors
 
+//go:build windows
 // +build windows
 
 package cpu
@@ -22,8 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 	"github.com/DataDog/gohai/cpu"
 	"golang.org/x/sys/windows"
-
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
 var (
@@ -49,7 +48,7 @@ type Check struct {
 
 // Run executes the check
 func (c *Check) Run() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}

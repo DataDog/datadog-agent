@@ -6,9 +6,10 @@
 package generic
 
 import (
+	"time"
+
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -18,6 +19,7 @@ import (
 
 const (
 	genericContainerCheckName = "container"
+	cacheValidity             = 2 * time.Second
 )
 
 // ContainerConfig holds the check configuration
@@ -59,16 +61,16 @@ func (c *ContainerCheck) Configure(config, initConfig integration.Data, source s
 		return err
 	}
 
-	c.processor = NewProcessor(metrics.GetProvider(), MetadataContainerLister{}, GenericMetricsAdapter{}, filter)
+	c.processor = NewProcessor(metrics.GetProvider(), MetadataContainerAccessor{}, GenericMetricsAdapter{}, LegacyContainerFilter{OldFilter: filter})
 	return c.instance.Parse(config)
 }
 
 // Run executes the check
 func (c *ContainerCheck) Run() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}
 
-	return c.processor.Run(sender, c.Interval()/2)
+	return c.processor.Run(sender, cacheValidity)
 }

@@ -185,11 +185,14 @@ std::wstring replace_yaml_properties(
     auto processEnabledProp = propertyRetriever(L"PROCESS_ENABLED");
     if (processEnabledProp)
     {
-        std::wstring processEnabled = to_bool(*processEnabledProp) ? L"true" : L"disabled";
+        std::wstring processEnabled = to_bool(*processEnabledProp) ? L"true" : L"false";
+        auto p = PropertyReplacer::match(input, L"process_config:");
         if (!PropertyReplacer::match(input, L"process_config:")
+                 .then(L"^[ #]*process_collection:.*")
+                 .replace_with(L"  process_collection:") ||
+            !PropertyReplacer::match(input, L"^[ #]*process_collection:.*")
                  .then(L"^[ #]*enabled:.*")
-                 // Note that this is a string, and should be between ""
-                 .replace_with(L"  enabled: \"" + processEnabled + L"\""))
+                 .replace_with(L"    enabled: " + processEnabled))
         {
             if (failedToReplace != nullptr)
             {

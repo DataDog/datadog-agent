@@ -6,14 +6,20 @@ set -x
 
 cd "$(dirname "$0")"
 
-sha512sum -c argo.sha512sum && {
-    chmod +x ./argo
-    exit 0
-}
-
 set -e
-curl -sLf https://github.com/argoproj/argo-workflows/releases/download/v3.1.1/argo-linux-amd64.gz -o argo.gz
-sha512sum -c argo.sha512sum
-gunzip argo.gz
+
+
+# if argo is not here, or if the SHA doesnt match, (re)download it
+if [[ ! -f ./argo.gz ]] || ! sha512sum -c argo.sha512sum ; then
+    curl -Lf https://github.com/argoproj/argo-workflows/releases/download/v3.1.1/argo-linux-amd64.gz -o argo.gz
+    # before gunziping it, check its SHA
+    if ! sha512sum -c argo.sha512sum; then
+        echo "SHA512 of argo.gz differs, exiting."
+        exit 1
+    fi
+fi
+if [[ ! -f ./argo. ]]; then
+    gunzip -kf argo.gz
+fi
 chmod +x ./argo
 ./argo version

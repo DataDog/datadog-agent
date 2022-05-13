@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build cri
 // +build cri
 
 package cri
@@ -13,17 +14,13 @@ import (
 	"k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 const (
-	criCollectorID    = "cri"
-	criCacheKeyPrefix = "cri-stats-"
-	criCacheTTL       = 10 * time.Second
+	criCollectorID = "cri"
 )
 
 func init() {
@@ -34,12 +31,12 @@ func init() {
 		Factory: func() (provider.Collector, error) {
 			return newCRICollector()
 		},
+		DelegateCache: true,
 	})
 }
 
 type criCollector struct {
-	client         cri.CRIClient
-	lastScrapeTime time.Time
+	client cri.CRIClient
 }
 
 func newCRICollector() (*criCollector, error) {
@@ -61,8 +58,8 @@ func (collector *criCollector) ID() string {
 }
 
 // GetContainerStats returns stats by container ID.
-func (collector *criCollector) GetContainerStats(containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
-	stats, err := collector.getCriContainerStats(containerID, cacheValidity)
+func (collector *criCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
+	stats, err := collector.getCriContainerStats(containerID)
 	if err != nil {
 		return nil, err
 	}
@@ -70,35 +67,43 @@ func (collector *criCollector) GetContainerStats(containerID string, cacheValidi
 	return &provider.ContainerStats{
 		Timestamp: time.Now(),
 		CPU: &provider.ContainerCPUStats{
-			Total: util.UIntToFloatPtr(stats.GetCpu().GetUsageCoreNanoSeconds().GetValue()),
+			Total: pointer.UIntToFloatPtr(stats.GetCpu().GetUsageCoreNanoSeconds().GetValue()),
 		},
 		Memory: &provider.ContainerMemStats{
-			RSS: util.UIntToFloatPtr(stats.GetMemory().GetWorkingSetBytes().GetValue()),
+			UsageTotal: pointer.UIntToFloatPtr(stats.GetMemory().GetWorkingSetBytes().GetValue()),
 		},
 	}, nil
 }
 
-// GetContainerNetworkStats returns network stats by container ID.
-func (collector *criCollector) GetContainerNetworkStats(containerID string, cacheValidity time.Duration, networks map[string]string) (*provider.ContainerNetworkStats, error) {
+// GetContainerOpenFilesCount returns open files count by container ID.
+func (collector *criCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
 	// Not available
 	return nil, nil
 }
 
-func (collector *criCollector) getCriContainerStats(containerID string, cacheValidity time.Duration) (*v1alpha2.ContainerStats, error) {
-	refreshRequired := collector.lastScrapeTime.Add(cacheValidity).Before(time.Now())
-	cacheKey := criCacheKeyPrefix + containerID
-	if cachedMetrics, found := cache.Cache.Get(cacheKey); found && !refreshRequired {
-		log.Debugf("Got CRI stats from cache for container %s", containerID)
-		return cachedMetrics.(*v1alpha2.ContainerStats), nil
-	}
+// GetContainerNetworkStats returns network stats by container ID.
+func (collector *criCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
+	// Not available
+	return nil, nil
+}
 
+// GetContainerIDForPID returns the container ID for given PID
+func (collector *criCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
+	// Not available
+	return "", nil
+}
+
+// GetSelfContainerID returns current process container ID
+func (collector *criCollector) GetSelfContainerID() (string, error) {
+	// Not available
+	return "", nil
+}
+
+func (collector *criCollector) getCriContainerStats(containerID string) (*v1alpha2.ContainerStats, error) {
 	stats, err := collector.client.GetContainerStats(containerID)
 	if err != nil {
 		return nil, err
 	}
-
-	collector.lastScrapeTime = time.Now()
-	cache.Cache.Set(cacheKey, stats, criCacheTTL)
 
 	return stats, nil
 }

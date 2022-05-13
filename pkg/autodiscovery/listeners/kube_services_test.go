@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
-// +build kubeapiserver
+//go:build clusterchecks && kubeapiserver
+// +build clusterchecks,kubeapiserver
 
 package listeners
 
@@ -12,8 +12,6 @@ import (
 	"context"
 	"sort"
 	"testing"
-
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -49,9 +47,8 @@ func TestProcessService(t *testing.T) {
 		},
 	}
 
-	svc := processService(ksvc, true)
-	assert.Equal(t, "kube_service://default/myservice", svc.GetEntity())
-	assert.Equal(t, integration.Before, svc.GetCreationTime())
+	svc := processService(ksvc)
+	assert.Equal(t, "kube_service://default/myservice", svc.GetServiceID())
 
 	adID, err := svc.GetADIdentifiers(ctx)
 	assert.NoError(t, err)
@@ -65,7 +62,7 @@ func TestProcessService(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []ContainerPort{{123, "test1"}, {126, "test2"}}, ports)
 
-	tags, _, err := svc.GetTags()
+	tags, err := svc.GetTags()
 	assert.NoError(t, err)
 	expectedTags := []string{
 		"kube_service:myservice",
@@ -77,9 +74,6 @@ func TestProcessService(t *testing.T) {
 	sort.Strings(expectedTags)
 	sort.Strings(tags)
 	assert.Equal(t, expectedTags, tags)
-
-	svc = processService(ksvc, false)
-	assert.Equal(t, integration.After, svc.GetCreationTime())
 }
 
 func TestServicesDiffer(t *testing.T) {

@@ -4,165 +4,66 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker && (linux || windows)
-// +build docker,linux docker,windows
+// +build docker
+// +build linux windows
 
 package docker
 
 import (
-	"context"
-	"errors"
 	"testing"
 	"time"
 
-	"github.com/docker/docker/api/types"
-	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestStats(t *testing.T) {
-	apiStats := types.StatsJSON{Stats: types.Stats{MemoryStats: types.MemoryStats{Limit: 512}}}
-	cachedStats := types.StatsJSON{Stats: types.Stats{MemoryStats: types.MemoryStats{Limit: 256}}}
-	type fields struct {
-		lastScrapeTime time.Time
-	}
-	type args struct {
-		containerID   string
-		cacheValidity time.Duration
-		clientFunc    dockerStatsFunc
-	}
-	tests := []struct {
-		name     string
-		fields   fields
-		args     args
-		loadFunc func()
-		want     *types.StatsJSON
-		wantErr  bool
-		wantFunc func() error
-	}{
-		{
-			name: "empty cache, call api, set cache",
-			args: args{
-				containerID:   "container_id",
-				cacheValidity: 5 * time.Second,
-				clientFunc:    func(context.Context, string) (*types.StatsJSON, error) { return &apiStats, nil },
-			},
-			loadFunc: func() {},
-			want:     &apiStats,
-			wantErr:  false,
-			wantFunc: func() error {
-				if _, found := cache.Cache.Get("docker-container_id"); !found {
-					return errors.New("container stats not cached")
-				}
-				return nil
-			},
-		},
-		{
-			name: "cache is valid",
-			fields: fields{
-				lastScrapeTime: time.Now(),
-			},
-			args: args{
-				containerID:   "container_id",
-				cacheValidity: 10 * time.Second,
-				clientFunc: func(context.Context, string) (*types.StatsJSON, error) {
-					return nil, errors.New("should use cache")
-				},
-			},
-			loadFunc: func() { cache.Cache.Set("docker-container_id", &cachedStats, statsCacheExpiration) },
-			want:     &cachedStats,
-			wantErr:  false,
-			wantFunc: func() error {
-				if _, found := cache.Cache.Get("docker-container_id"); !found {
-					return errors.New("container stats not cached")
-				}
-				return nil
-			},
-		},
-		{
-			name: "cache is populated, but invalid",
-			fields: fields{
-				lastScrapeTime: time.Now().Add(-30 * time.Second),
-			},
-			args: args{
-				containerID:   "container_id",
-				cacheValidity: 10 * time.Second,
-				clientFunc:    func(context.Context, string) (*types.StatsJSON, error) { return &apiStats, nil },
-			},
-			loadFunc: func() { cache.Cache.Set("docker-container_id", &cachedStats, statsCacheExpiration) },
-			want:     &apiStats,
-			wantErr:  false,
-			wantFunc: func() error {
-				if _, found := cache.Cache.Get("docker-container_id"); !found {
-					return errors.New("container stats not cached")
-				}
-				return nil
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			e := &dockerCollector{
-				lastScrapeTime: tt.fields.lastScrapeTime,
-			}
-
-			tt.loadFunc()
-			got, err := e.stats(tt.args.containerID, tt.args.cacheValidity, tt.args.clientFunc)
-
-			assert.Equal(t, tt.wantErr, err != nil)
-			assert.EqualValues(t, tt.want, got)
-			assert.Nil(t, tt.wantFunc())
-
-			cache.Cache.Flush()
-		})
-	}
-}
-
-func Test_convertNetworkStats(t *testing.T) {
+func TestConvertNetworkStats(t *testing.T) {
 	tests := []struct {
 		name           string
-		input          map[string]types.NetworkStats
+		input          *types.StatsJSON
 		networks       map[string]string
 		expectedOutput provider.ContainerNetworkStats
 	}{
 		{
 			name: "basic",
-			input: map[string]types.NetworkStats{
-				"eth0": {
-					RxBytes:   42,
-					RxPackets: 43,
-					TxBytes:   44,
-					TxPackets: 45,
+			input: &types.StatsJSON{
+				Networks: map[string]types.NetworkStats{
+					"eth0": {
+						RxBytes:   42,
+						RxPackets: 43,
+						TxBytes:   44,
+						TxPackets: 45,
+					},
+					"eth1": {
+						RxBytes:   46,
+						RxPackets: 47,
+						TxBytes:   48,
+						TxPackets: 49,
+					},
 				},
-				"eth1": {
-					RxBytes:   46,
-					RxPackets: 47,
-					TxBytes:   48,
-					TxPackets: 49,
-				},
-			},
-			networks: map[string]string{
-				"eth1": "custom_iface",
 			},
 			expectedOutput: provider.ContainerNetworkStats{
-				BytesSent:   util.Float64Ptr(92),
-				BytesRcvd:   util.Float64Ptr(88),
-				PacketsSent: util.Float64Ptr(94),
-				PacketsRcvd: util.Float64Ptr(90),
+				BytesSent:   pointer.Float64Ptr(92),
+				BytesRcvd:   pointer.Float64Ptr(88),
+				PacketsSent: pointer.Float64Ptr(94),
+				PacketsRcvd: pointer.Float64Ptr(90),
 				Interfaces: map[string]provider.InterfaceNetStats{
 					"eth0": {
-						BytesSent:   util.Float64Ptr(44),
-						BytesRcvd:   util.Float64Ptr(42),
-						PacketsSent: util.Float64Ptr(45),
-						PacketsRcvd: util.Float64Ptr(43),
+						BytesSent:   pointer.Float64Ptr(44),
+						BytesRcvd:   pointer.Float64Ptr(42),
+						PacketsSent: pointer.Float64Ptr(45),
+						PacketsRcvd: pointer.Float64Ptr(43),
 					},
-					"custom_iface": {
-						BytesSent:   util.Float64Ptr(48),
-						BytesRcvd:   util.Float64Ptr(46),
-						PacketsSent: util.Float64Ptr(49),
-						PacketsRcvd: util.Float64Ptr(47),
+					"eth1": {
+						BytesSent:   pointer.Float64Ptr(48),
+						BytesRcvd:   pointer.Float64Ptr(46),
+						PacketsSent: pointer.Float64Ptr(49),
+						PacketsRcvd: pointer.Float64Ptr(47),
 					},
 				},
 			},
@@ -171,7 +72,91 @@ func Test_convertNetworkStats(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, &test.expectedOutput, convertNetworkStats(test.input, test.networks))
+			assert.Equal(t, &test.expectedOutput, convertNetworkStats(test.input))
+		})
+	}
+}
+
+func TestGetContainerIDForPID(t *testing.T) {
+	mockStore := workloadmeta.NewMockStore()
+	collector := dockerCollector{
+		pidCache:      provider.NewCache(pidCacheGCInterval),
+		metadataStore: mockStore,
+	}
+
+	mockStore.SetEntity(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "cID1",
+		},
+		Runtime: workloadmeta.ContainerRuntimeDocker,
+		PID:     100,
+	})
+
+	// Cache is empty, will trigger a full refresh
+	cID1, err := collector.GetContainerIDForPID(100, time.Minute)
+	assert.NoError(t, err)
+	assert.Equal(t, "cID1", cID1)
+
+	// Add an entry for PID 200, should not be picked up because full refresh is recent enough
+	mockStore.SetEntity(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "cID2",
+		},
+		Runtime: workloadmeta.ContainerRuntimeDocker,
+		PID:     200,
+	})
+
+	cID2, err := collector.GetContainerIDForPID(200, time.Minute)
+	assert.NoError(t, err)
+	assert.Equal(t, "", cID2)
+
+	cID2, err = collector.GetContainerIDForPID(200, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, "cID2", cID2)
+}
+
+func Test_fillStatsFromSpec(t *testing.T) {
+	tests := []struct {
+		name          string
+		spec          *types.ContainerJSON
+		expectedStats *provider.ContainerStats
+	}{
+		{
+			name: "Empty HostConfig",
+			spec: &types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{
+					HostConfig: &container.HostConfig{},
+				},
+			},
+			expectedStats: &provider.ContainerStats{
+				Memory: &provider.ContainerMemStats{},
+			},
+		},
+		{
+			name: "Memory Limit set",
+			spec: &types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{
+					HostConfig: &container.HostConfig{
+						Resources: container.Resources{
+							Memory: 500,
+						},
+					},
+				},
+			},
+			expectedStats: &provider.ContainerStats{
+				Memory: &provider.ContainerMemStats{
+					Limit: pointer.Float64Ptr(500),
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			containerStats := &provider.ContainerStats{Memory: &provider.ContainerMemStats{}}
+			fillStatsFromSpec(containerStats, tt.spec)
+			assert.Equal(t, "", cmp.Diff(*tt.expectedStats, *containerStats))
 		})
 	}
 }

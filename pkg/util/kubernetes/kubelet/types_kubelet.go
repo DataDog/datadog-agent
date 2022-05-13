@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubelet
 // +build kubelet
 
 package kubelet
@@ -102,6 +103,7 @@ type Status struct {
 	InitContainers []ContainerStatus `json:"initContainerStatuses,omitempty"`
 	AllContainers  []ContainerStatus
 	Conditions     []Conditions `json:"conditions,omitempty"`
+	QOSClass       string       `json:"qosClass,omitempty"`
 }
 
 // GetAllContainers returns the list of init and regular containers

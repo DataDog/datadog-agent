@@ -155,7 +155,7 @@ func (mp *provider) GetAgentCID() (string, error) {
 	prefix := config.Datadog.GetString("container_cgroup_prefix")
 	cID, _, err := readCgroupsForPath("/proc/self/cgroup", prefix)
 	if err != nil {
-		return "", err
+		return "", err
 	}
 	return cID, err
 }

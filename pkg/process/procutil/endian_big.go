@@ -5,6 +5,7 @@
 
 // Copyright 2016 The Go Authors. All rights reserved.
 
+//go:build (linux && ppc64) || (linux && s390x) || (linux && mips) || (linux && mips64)
 // +build linux,ppc64 linux,s390x linux,mips linux,mips64
 
 package procutil

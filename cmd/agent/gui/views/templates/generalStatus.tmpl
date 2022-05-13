@@ -318,7 +318,7 @@
       {{- end }}
       {{- if and (eq .use_http false) (.is_running) }}
 
-        You are currently sending Logs to Datadog through TCP (either because logs_config.use_tcp or logs_config.socks5_proxy_address is set or the HTTP connectivity test has failed). To benefit from increased reliability and better network performances, we strongly encourage switching over to compressed HTTPS which is now the default protocol.</br>
+        You are currently sending Logs to Datadog through TCP (either because logs_config.force_use_tcp or logs_config.socks5_proxy_address is set or the HTTP connectivity test has failed). To benefit from increased reliability and better network performances, we strongly encourage switching over to compressed HTTPS which is now the default protocol.</br>
       {{- end }}
       {{- if .metrics }}
 
@@ -373,7 +373,7 @@
             24h Average Latency (ms): {{ .recent_avg_latency }}</br>
             Peak Latency (ms): {{ .all_time_peak_latency }}</br>
             24h Peak Latency (ms): {{ .recent_peak_latency }}</br>
-            {{- if .info }} 
+            {{- if .info }}
             {{- range $key, $value := .info }} {{ $len := len $value }} {{ if eq $len 1 }}
             {{$key}}: {{index $value 0}}</br> {{ else }}
             {{$key}}:</br>
@@ -436,6 +436,9 @@
         {{- if .SketchesFlushErrors}}
           Sketches Flush Errors: {{.SketchesFlushErrors}}<br>
         {{- end -}}
+        {{- if .ChecksHistogramBucketMetricSample}}
+          Checks Histogram Bucket Metric Sample: {{.ChecksHistogramBucketMetricSample}}<br>
+        {{- end -}}
         {{- if .EventPlatformEvents }}
         {{- range $k, $v := .EventPlatformEvents }}
           {{ $k }}: {{humanize $v}}
@@ -475,6 +478,19 @@
           {{formatTitle $key}}: {{humanize $value}}<br>
         {{- end }}
       {{- end -}}
+    </span>
+  </div>
+
+  <div class="stat">
+    <span class="stat_title">OTLP</span>
+    <span class="stat_data">
+      {{ with .otlp }}
+        Status: {{ if .otlpStatus }}Enabled{{else}}Not enabled{{end}}
+        <br>Collector status: {{ .otlpCollectorStatus }}
+        {{ if .otlpCollectorStatusErr }}
+          <br><span class="error">Error</span>: <b>{{ .otlpCollectorStatusErr }}</b>
+        {{ end }}
+      {{ end }}
     </span>
   </div>
 {{- end -}}

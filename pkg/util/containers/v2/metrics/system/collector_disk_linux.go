@@ -41,11 +41,11 @@ func buildIOStats(procPath string, cgs *cgroups.IOStats) *provider.ContainerIOSt
 
 	deviceMapping, err := GetDiskDeviceMapping(procPath)
 	if err != nil {
-		log.Debugf("Error while getting disk mapping, no disk metrics will be present, err:  %w", err)
+		log.Debugf("Error while getting disk mapping, no disk metrics will be present, err:  %v", err)
 		return cs
 	}
 
-	csDevicesStats := make(map[string]provider.DeviceIOStats, len(deviceMapping))
+	csDevicesStats := make(map[string]provider.DeviceIOStats, len(cgs.Devices))
 	for deviceID, deviceStats := range cgs.Devices {
 		if deviceName, found := deviceMapping[deviceID]; found {
 			targetDeviceStats := provider.DeviceIOStats{}
@@ -103,7 +103,7 @@ func GetDiskDeviceMapping(procPath string) (map[string]string, error) {
 		mapping[fmt.Sprintf("%s:%s", fields[0], fields[1])] = fields[2]
 	}
 	if err := scanner.Err(); err != nil {
-		log.Debugf("Error while reading %s, disk metrics may be missing, err:  %w", statfile, err)
+		log.Debugf("Error while reading %s, disk metrics may be missing, err: %v", statfile, err)
 		return mapping, nil
 	}
 

@@ -94,10 +94,6 @@ build do
       debug_customaction = "--debug"
     end
     command "invoke -e customaction.build --major-version #{major_version_arg} #{debug_customaction} --arch=" + platform
-    unless windows_arch_i386?
-      command "invoke installcmd.build --major-version #{major_version_arg} --arch=" + platform
-      command "invoke uninstallcmd.build --major-version #{major_version_arg} --arch=" + platform
-    end
   end
 
   # move around bin and config files
@@ -227,24 +223,6 @@ build do
       erb source: "upstart_redhat.security.conf.erb",
           dest: "#{install_dir}/scripts/datadog-agent-security.conf",
           mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-    end
-    if suse?
-      erb source: "sysvinit_suse.erb",
-          dest: "#{install_dir}/scripts/datadog-agent",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_suse.process.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-process",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_suse.trace.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-trace",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_suse.security.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-security",
-          mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
     end
 

@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubelet
 // +build kubelet
 
 package kubelet
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -19,14 +21,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+
+	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
 const (
 	kubeletPodPath         = "/pods"
 	kubeletMetricsPath     = "/metrics"
+	kubeletStatsSummary    = "/stats/summary"
 	authorizationHeaderKey = "Authorization"
 	podListCacheKey        = "KubeletPodListCacheKey"
 	unreadyAnnotation      = "ad.datadoghq.com/tolerate-unready"
@@ -208,6 +213,14 @@ func (ku *KubeUtil) GetLocalPodList(ctx context.Context) ([]*Pod, error) {
 	tmpSlice := make([]*Pod, 0, len(pods.Items))
 	for _, pod := range pods.Items {
 		if pod != nil {
+			// Validate allocation size.
+			// Limits hardcoded here are huge enough to never be hit.
+			if len(pod.Spec.Containers) > 10000 ||
+				len(pod.Spec.InitContainers) > 10000 {
+				log.Errorf("pod %s has a crazy number of containers: %d or init containers: %d. Skipping it!",
+					pod.Metadata.UID, len(pod.Spec.Containers), len(pod.Spec.InitContainers))
+				continue
+			}
 			allContainers := make([]ContainerStatus, 0, len(pod.Status.InitContainers)+len(pod.Status.Containers))
 			allContainers = append(allContainers, pod.Status.InitContainers...)
 			allContainers = append(allContainers, pod.Status.Containers...)
@@ -365,6 +378,23 @@ func (ku *KubeUtil) GetPodForEntityID(ctx context.Context, entityID string) (*Po
 	return ku.GetPodForContainerID(ctx, entityID)
 }
 
+func (ku *KubeUtil) GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error) {
+	data, code, err := ku.QueryKubelet(ctx, kubeletStatsSummary)
+	if err != nil {
+		return nil, errors.NewRetriable("statssummary", fmt.Errorf("error performing kubelet query %s%s: %w", ku.kubeletClient.kubeletURL, kubeletStatsSummary, err))
+	}
+	if code != http.StatusOK {
+		return nil, errors.NewRetriable("statssummary", fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletClient.kubeletURL, kubeletStatsSummary, string(data)))
+	}
+
+	statsSummary := &kubeletv1alpha1.Summary{}
+	if err := json.Unmarshal(data, statsSummary); err != nil {
+		return nil, err
+	}
+
+	return statsSummary, nil
+}
+
 // QueryKubelet allows to query the KubeUtil registered kubelet API on the parameter path
 // path commonly used are /healthz, /pods, /metrics
 // return the content of the response, the response HTTP status code and an error in case of
@@ -378,6 +408,7 @@ func (ku *KubeUtil) GetKubeletAPIEndpoint() string {
 }
 
 // GetRawConnectionInfo returns a map containging the url and credentials to connect to the kubelet
+// It refreshes the auth token on each call.
 // Possible map entries:
 //   - url: full url with scheme (required)
 //   - verify_tls: "true" or "false" string
@@ -386,6 +417,15 @@ func (ku *KubeUtil) GetKubeletAPIEndpoint() string {
 //   - client_crt: path to the client cert if set
 //   - client_key: path to the client key if set
 func (ku *KubeUtil) GetRawConnectionInfo() map[string]string {
+	if ku.kubeletClient.config.scheme == "https" && ku.kubeletClient.config.token != "" {
+		token, err := kubernetes.GetBearerToken(ku.kubeletClient.config.tokenPath)
+		if err != nil {
+			log.Warnf("Couldn't read auth token defined in %q: %v", ku.kubeletClient.config.tokenPath, err)
+		} else {
+			ku.rawConnectionInfo["token"] = token
+		}
+	}
+
 	return ku.rawConnectionInfo
 }
 
@@ -403,13 +443,12 @@ func (ku *KubeUtil) GetRawMetrics(ctx context.Context) ([]byte, error) {
 }
 
 // IsAgentHostNetwork returns whether the agent is running inside a container with `hostNetwork` or not
-func (ku *KubeUtil) IsAgentHostNetwork(ctx context.Context) (bool, error) {
-	cid, err := providers.ContainerImpl().GetAgentCID()
-	if err != nil {
-		return false, err
+func (ku *KubeUtil) IsAgentHostNetwork(ctx context.Context, agentContainerID string) (bool, error) {
+	if agentContainerID == "" {
+		return false, fmt.Errorf("unable to determine self container id")
 	}
 
-	pod, err := ku.GetPodForContainerID(ctx, cid)
+	pod, err := ku.GetPodForContainerID(ctx, agentContainerID)
 	if err != nil {
 		return false, err
 	}

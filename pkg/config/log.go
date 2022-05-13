@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/seelog"
+	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/internal/seelog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/cihub/seelog"
@@ -102,8 +102,11 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 // if a non empty logFile is provided, it will also log to the file
 // a non empty syslogURI will enable syslog, and format them following RFC 5424 if specified
 // you can also specify to log to the console and in JSON format
-func SetupJMXLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
-	seelogLogLevel, err := validateLogLevel(logLevel)
+func SetupJMXLogger(loggerName LoggerName, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
+	// The JMX logger always logs at level "info", because JMXFetch does its
+	// own level filtering on and provides all messages to seelog at the info
+	// or error levels, via log.JMXInfo and log.JMXError.
+	seelogLogLevel, err := validateLogLevel("info")
 	if err != nil {
 		return err
 	}

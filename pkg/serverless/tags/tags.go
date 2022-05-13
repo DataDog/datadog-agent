@@ -17,31 +17,48 @@ import (
 )
 
 const (
+	// Environment variables for Unified Service Tagging
+	envEnvVar     = "DD_ENV"
+	versionEnvVar = "DD_VERSION"
+	serviceEnvVar = "DD_SERVICE"
+
+	// Environment variables for the Lambda execution environment info
 	qualifierEnvVar = "AWS_LAMBDA_FUNCTION_VERSION"
-	envEnvVar       = "DD_ENV"
-	versionEnvVar   = "DD_VERSION"
-	serviceEnvVar   = "DD_SERVICE"
 	runtimeVar      = "AWS_EXECUTION_ENV"
 	memorySizeVar   = "AWS_LAMBDA_FUNCTION_MEMORY_SIZE"
 
+	// FunctionARNKey is the tag key for a function's arn
+	FunctionARNKey = "function_arn"
+	// FunctionNameKey is the tag key for a function's name
+	FunctionNameKey = "functionname"
+	// ExecutedVersionKey is the tag key for a function's executed version
+	ExecutedVersionKey = "executedversion"
+	// RuntimeKey is the tag key for a function's runtime (e.g node, python)
+	RuntimeKey = "runtime"
+	// MemorySizeKey is the tag key for a function's allocated memory size
+	MemorySizeKey = "memorysize"
+	// ArchitectureKey is the tag key for a function's architecture (e.g. x86_64, arm64)
+	ArchitectureKey = "architecture"
+
+	// EnvKey is the tag key for a function's env environment variable
+	EnvKey = "env"
+	// VersionKey is the tag key for a function's version environment variable
+	VersionKey = "version"
+	// ServiceKey is the tag key for a function's service environment variable
+	ServiceKey = "service"
+
 	traceOriginMetadataKey   = "_dd.origin"
 	traceOriginMetadataValue = "lambda"
-	computeStatsKey          = "_dd.compute_stats"
-	computeStatsValue        = "1"
-	functionARNKey           = "function_arn"
-	functionNameKey          = "functionname"
-	regionKey                = "region"
-	accountIDKey             = "account_id"
-	awsAccountKey            = "aws_account"
-	resourceKey              = "resource"
-	executedVersionKey       = "executedversion"
-	extensionVersionKey      = "dd_extension_version"
-	envKey                   = "env"
-	versionKey               = "version"
-	serviceKey               = "service"
-	runtimeKey               = "runtime"
-	memorySizeKey            = "memorysize"
-	architectureKey          = "architecture"
+
+	computeStatsKey   = "_dd.compute_stats"
+	computeStatsValue = "1"
+
+	extensionVersionKey = "dd_extension_version"
+
+	regionKey     = "region"
+	accountIDKey  = "account_id"
+	awsAccountKey = "aws_account"
+	resourceKey   = "resource"
 )
 
 // currentExtensionVersion represents the current version of the Datadog Lambda Extension.
@@ -54,15 +71,15 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags := make(map[string]string)
 
 	architecture := ResolveRuntimeArch()
-	tags = setIfNotEmpty(tags, architectureKey, architecture)
+	tags = setIfNotEmpty(tags, ArchitectureKey, architecture)
 
-	tags = setIfNotEmpty(tags, runtimeKey, getRuntime("/proc", "/etc", runtimeVar))
+	tags = setIfNotEmpty(tags, RuntimeKey, getRuntime("/proc", "/etc", runtimeVar))
 
-	tags = setIfNotEmpty(tags, memorySizeKey, os.Getenv(memorySizeVar))
+	tags = setIfNotEmpty(tags, MemorySizeKey, os.Getenv(memorySizeVar))
 
-	tags = setIfNotEmpty(tags, envKey, os.Getenv(envEnvVar))
-	tags = setIfNotEmpty(tags, versionKey, os.Getenv(versionEnvVar))
-	tags = setIfNotEmpty(tags, serviceKey, os.Getenv(serviceEnvVar))
+	tags = setIfNotEmpty(tags, EnvKey, os.Getenv(envEnvVar))
+	tags = setIfNotEmpty(tags, VersionKey, os.Getenv(versionEnvVar))
+	tags = setIfNotEmpty(tags, ServiceKey, os.Getenv(serviceEnvVar))
 
 	for _, tag := range configTags {
 		splitTags := strings.Split(tag, ",")
@@ -73,8 +90,8 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 
 	tags = setIfNotEmpty(tags, traceOriginMetadataKey, traceOriginMetadataValue)
 	tags = setIfNotEmpty(tags, computeStatsKey, computeStatsValue)
-	tags = setIfNotEmpty(tags, functionARNKey, arn)
-	tags = setIfNotEmpty(tags, extensionVersionKey, currentExtensionVersion)
+	tags = setIfNotEmpty(tags, FunctionARNKey, arn)
+	tags = setIfNotEmpty(tags, extensionVersionKey, GetExtensionVersion())
 
 	parts := strings.Split(arn, ":")
 	if len(parts) < 6 {
@@ -84,14 +101,14 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags = setIfNotEmpty(tags, regionKey, parts[3])
 	tags = setIfNotEmpty(tags, awsAccountKey, parts[4])
 	tags = setIfNotEmpty(tags, accountIDKey, parts[4])
-	tags = setIfNotEmpty(tags, functionNameKey, parts[6])
+	tags = setIfNotEmpty(tags, FunctionNameKey, parts[6])
 	tags = setIfNotEmpty(tags, resourceKey, parts[6])
 
 	qualifier := os.Getenv(qualifierEnvVar)
 	if len(qualifier) > 0 {
 		if qualifier != "$LATEST" {
 			tags = setIfNotEmpty(tags, resourceKey, fmt.Sprintf("%s:%s", parts[6], qualifier))
-			tags = setIfNotEmpty(tags, executedVersionKey, qualifier)
+			tags = setIfNotEmpty(tags, ExecutedVersionKey, qualifier)
 		}
 	}
 
@@ -132,6 +149,11 @@ func BuildTracerTags(tags map[string]string) map[string]string {
 func AddColdStartTag(tags []string, coldStart bool) []string {
 	tags = append(tags, fmt.Sprintf("cold_start:%v", coldStart))
 	return tags
+}
+
+// GetExtensionVersion returns the extension version which is fed at build time
+func GetExtensionVersion() string {
+	return currentExtensionVersion
 }
 
 func setIfNotEmpty(tagMap map[string]string, key string, value string) map[string]string {

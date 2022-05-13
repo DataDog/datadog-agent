@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
 // +build kubeapiserver
 
 package app
@@ -54,7 +55,7 @@ import (
 // loggerName is the name of the cluster agent logger
 const loggerName config.LoggerName = "CLUSTER"
 
-// FIXME: move LoadComponents and StartAutoConfig in their own package so we don't import cmd/agent
+// FIXME: move LoadComponents and AC.LoadAndRun in their own package so we don't import cmd/agent
 var (
 	ClusterAgentCmd = &cobra.Command{
 		Use:   "datadog-cluster-agent [command]",
@@ -156,6 +157,9 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Warnf("Can't initiliaze the runtime settings: %v", err)
 	}
 
+	// Setup Internal Profiling
+	common.SetupInternalProfiling()
+
 	if !config.Datadog.IsSet("api_key") {
 		log.Critical("no API key configured, exiting")
 		return nil
@@ -166,11 +170,15 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// Expose the registered metrics via HTTP.
 	http.Handle("/metrics", telemetry.Handler())
+	metricsPort := config.Datadog.GetInt("metrics_port")
+	metricsServer := &http.Server{
+		Addr:    fmt.Sprintf("0.0.0.0:%d", metricsPort),
+		Handler: http.DefaultServeMux,
+	}
 	go func() {
-		port := config.Datadog.GetInt("metrics_port")
-		err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", port), nil)
+		err := metricsServer.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("Error creating telemetry server on port %v: %v", port, err)
+			log.Errorf("Error creating expvar server on port %v: %v", metricsPort, err)
 		}
 	}()
 
@@ -274,9 +282,9 @@ func start(cmd *cobra.Command, args []string) error {
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 	// create and setup the Autoconfig instance
-	common.LoadComponents(config.Datadog.GetString("confd_path"))
+	common.LoadComponents(mainCtx, config.Datadog.GetString("confd_path"))
 	// start the autoconfig, this will immediately run any configured check
-	common.StartAutoConfig()
+	common.AC.LoadAndRun()
 
 	if config.Datadog.GetBool("cluster_checks.enabled") {
 		// Start the cluster check Autodiscovery
@@ -381,6 +389,9 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	demux.Stop(true)
+	if err := metricsServer.Shutdown(context.Background()); err != nil {
+		log.Errorf("Error shutdowning metrics server on port %d: %v", metricsPort, err)
+	}
 
 	log.Info("See ya!")
 	log.Flush()
