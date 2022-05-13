@@ -684,17 +684,10 @@ func zipDiagnose(tempDir, hostname string) error {
 	return writeScrubbedFile(f, b.Bytes())
 }
 
-func zipFile(sourceDir, targetDir, filename string) error {
-	original, err := os.Open(filepath.Join(sourceDir, filename))
+func zipReader(r io.Reader, targetDir, filename string) error {
 	targetPath := filepath.Join(targetDir, filename)
 
-	if err != nil {
-		return err
-	}
-	defer original.Close()
-
-	err = ensureParentDirsExist(targetPath)
-	if err != nil {
+	if err := ensureParentDirsExist(targetPath); err != nil {
 		return err
 	}
 
@@ -708,7 +701,7 @@ func zipFile(sourceDir, targetDir, filename string) error {
 	// see: https://github.com/golang/go/issues/44272
 	buf := make([]byte, 256)
 	for {
-		n, err := original.Read(buf)
+		n, err := r.Read(buf)
 		if err != nil && err != io.EOF {
 			return err
 		}
@@ -721,6 +714,16 @@ func zipFile(sourceDir, targetDir, filename string) error {
 		}
 	}
 	return err
+}
+
+func zipFile(sourceDir, targetDir, filename string) error {
+	original, err := os.Open(filepath.Join(sourceDir, filename))
+	if err != nil {
+		return err
+	}
+	defer original.Close()
+
+	return zipReader(original, targetDir, filename)
 }
 
 func zipRegistryJSON(tempDir, hostname string) error {

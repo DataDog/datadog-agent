@@ -94,7 +94,12 @@ func CreateSecurityAgentArchive(local bool, logFilePath string, runtimeStatus, c
 		return "", err
 	}
 
-	err = zipLinuxKrobeEvents(tempDir, hostname)
+	err = zipLinuxDmesg(tempDir, hostname)
+	if err != nil {
+		log.Infof("Error while retrieving dmesg: %s", err)
+	}
+
+	err = zipLinuxKprobeEvents(tempDir, hostname)
 	if err != nil {
 		log.Infof("Error while getting kprobe_events: %s", err)
 	}

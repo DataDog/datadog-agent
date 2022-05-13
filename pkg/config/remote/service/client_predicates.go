@@ -10,22 +10,8 @@ import (
 	"github.com/theupdateframework/go-tuf/data"
 )
 
-type tracerPredicates struct {
-	RuntimeID     *string `json:"runtime-id,omitempty"`
-	Service       *string `json:"service,omitempty"`
-	Environment   *string `json:"environment,omitempty"`
-	AppVersion    *string `json:"app-version,omitempty"`
-	TracerVersion *string `json:"tracer-version,omitempty"`
-	Language      *string `json:"language,omitempty"`
-}
-
-type clientPredicates struct {
-	Version    int                 `json:"version,omitempty"`
-	Predicates []*tracerPredicates `json:"predicates,omitempty"`
-}
-
 type DirectorTargetsCustomMetadata struct {
-	Predicates *clientPredicates `json:"tracer-predicates,omitempty"`
+	Predicates *pbgo.TracerPredicates `json:"tracer-predicates,omitempty"`
 }
 
 // Given the hostname and state will parse predicates and execute them
@@ -37,19 +23,19 @@ func executeClientPredicates(
 	configs := make([]string, 0)
 
 	for path, meta := range directorTargets {
-		clientPredicates, err := parsePredicates(meta.Custom)
+		tracerPredicates, err := parsePredicates(meta.Custom)
 		if err != nil {
 			return nil, err
 		}
 
 		var matched bool
-		nullPredicates := clientPredicates == nil || clientPredicates.Predicates == nil
+		nullPredicates := tracerPredicates == nil || tracerPredicates.TracerPredicates == nil
 		if !nullPredicates {
-			if clientPredicates.Version != 0 {
-				log.Infof("Unsupported predicate version %d for products %s", clientPredicates.Version)
+			if tracerPredicates.Version != 0 {
+				log.Infof("Unsupported predicate version %d for products %s", tracerPredicates.Version)
 				continue
 			}
-			matched, err = executePredicate(client, clientPredicates.Predicates)
+			matched, err = executePredicate(client, tracerPredicates.TracerPredicates)
 			if err != nil {
 				return nil, err
 			}
@@ -64,7 +50,7 @@ func executeClientPredicates(
 	return configs, nil
 }
 
-func parsePredicates(customJSON *json.RawMessage) (*clientPredicates, error) {
+func parsePredicates(customJSON *json.RawMessage) (*pbgo.TracerPredicates, error) {
 	if customJSON == nil {
 		return nil, nil
 	}
@@ -76,46 +62,36 @@ func parsePredicates(customJSON *json.RawMessage) (*clientPredicates, error) {
 	return metadata.Predicates, nil
 }
 
-func executePredicate(client *pbgo.Client, predicates []*tracerPredicates) (bool, error) {
+func executePredicate(client *pbgo.Client, predicates []*pbgo.TracerPredicate) (bool, error) {
 	for _, predicate := range predicates {
 		if client.IsTracer {
 			tracer := client.ClientTracer
-			if predicate.RuntimeID != nil {
-				if tracer.RuntimeId != *predicate.RuntimeID {
-					return false, nil
-				}
+			if predicate.RuntimeID != "" && tracer.RuntimeId != predicate.RuntimeID {
+				return false, nil
 			}
 
-			if predicate.Service != nil {
-				if tracer.Service != *predicate.Service {
-					return false, nil
-				}
+			if predicate.Service != "" && tracer.Service != predicate.Service {
+				return false, nil
 			}
 
-			if predicate.Environment != nil {
-				if tracer.Env != *predicate.Environment {
-					return false, nil
-				}
+			if predicate.Environment != "" && tracer.Env != predicate.Environment {
+				return false, nil
 			}
 
-			if predicate.Language != nil {
-				if tracer.Language != *predicate.Language {
-					return false, nil
-				}
+			if predicate.Language != "" && tracer.Language != predicate.Language {
+				return false, nil
 			}
 
-			if predicate.AppVersion != nil {
-				if tracer.AppVersion != *predicate.AppVersion {
-					return false, nil
-				}
+			if predicate.AppVersion != "" && tracer.AppVersion != predicate.AppVersion {
+				return false, nil
 			}
 
-			if predicate.TracerVersion != nil {
+			if predicate.TracerVersion != "" {
 				version, err := semver.NewVersion(tracer.TracerVersion)
 				if err != nil {
 					return false, err
 				}
-				versionConstraint, err := semver.NewConstraint(*predicate.TracerVersion)
+				versionConstraint, err := semver.NewConstraint(predicate.TracerVersion)
 				if err != nil {
 					return false, err
 				}

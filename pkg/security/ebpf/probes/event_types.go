@@ -171,6 +171,18 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "capset"}, EntryAndExit),
 		},
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "fork"}, Entry),
+		},
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "vfork"}, Entry),
+		},
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "clone"}, Entry),
+		},
+		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "clone3"}, Entry),
+		},
 
 		// Open probes
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
