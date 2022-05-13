@@ -15,6 +15,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -168,11 +169,11 @@ func (m *Module) Start() error {
 
 	c, err := remote.NewClient("security-agent", []data.Product{data.ProductCWSDD})
 	if err != nil {
-		return nil, err
+		return err
 	}
 	go func() {
 		for configs := range c.CWSDDUpdates() {
-			err := processRemoteConfigsUpdate(configs)
+			err := m.processRemoteConfigsUpdate(configs)
 			if err != nil {
 				log.Debugf("could not process remote-config update: %v", err)
 			}
@@ -187,7 +188,7 @@ func (m *Module) processRemoteConfigsUpdate(configs []client.ConfigCWSDD) error 
 		if err != nil {
 			return err
 		}
-		err = policyFile.Write(c.Config)
+		_, err = policyFile.Write(c.Config)
 		if err != nil {
 			return err
 		}
