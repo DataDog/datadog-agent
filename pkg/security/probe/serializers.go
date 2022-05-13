@@ -268,6 +268,14 @@ type IPPortSerializer struct {
 	Port uint16 `json:"port" jsonschema_description:"Port number"`
 }
 
+// IPPortFamilySerializer is used to serialize an IP, Port and address family context to JSON
+// easyjson:json
+type IPPortFamilySerializer struct {
+	Family string `json:"family" jsonschema_description:"Address family"`
+	IP     string `json:"ip" jsonschema_description:"IP address"`
+	Port   uint16 `json:"port" jsonschema_description:"Port number"`
+}
+
 // NetworkContextSerializer serializes the network context to JSON
 // easyjson:json
 type NetworkContextSerializer struct {
@@ -318,6 +326,12 @@ type SpliceEventSerializer struct {
 	PipeExitFlag  string `json:"pipe_exit_flag" jsonschema_description:"Exit flag of the fd_out pipe passed to the splice syscall"`
 }
 
+// BindEventSerializer serializes a bind event to JSON
+// easyjson:json
+type BindEventSerializer struct {
+	Addr *IPPortFamilySerializer `json:"addr" jsonschema_description:"Bound address (if any)"`
+}
+
 // EventSerializer serializes an event to JSON
 // easyjson:json
 type EventSerializer struct {
@@ -333,6 +347,7 @@ type EventSerializer struct {
 	*SpliceEventSerializer      `json:"splice,omitempty"`
 	*DNSEventSerializer         `json:"dns,omitempty"`
 	*NetworkContextSerializer   `json:"network,omitempty"`
+	*BindEventSerializer        `json:"bind,omitempty"`
 	*UserContextSerializer      `json:"usr,omitempty"`
 	*ProcessContextSerializer   `json:"process,omitempty"`
 	*DDContextSerializer        `json:"dd,omitempty"`
@@ -681,6 +696,14 @@ func newIPPortSerializer(c *model.IPPortContext) *IPPortSerializer {
 	}
 }
 
+func newIPPortFamilySerializer(c *model.IPPortContext, family string) *IPPortFamilySerializer {
+	return &IPPortFamilySerializer{
+		IP:     c.IPNet.IP.String(),
+		Port:   c.Port,
+		Family: family,
+	}
+}
+
 func newNetworkDeviceSerializer(e *Event) *NetworkDeviceSerializer {
 	return &NetworkDeviceSerializer{
 		NetNS:   e.NetworkContext.Device.NetNS,
@@ -698,6 +721,13 @@ func newNetworkContextSerializer(e *Event) *NetworkContextSerializer {
 		Destination: newIPPortSerializer(&e.NetworkContext.Destination),
 		Size:        e.NetworkContext.Size,
 	}
+}
+
+func newBindEventSerializer(e *Event) *BindEventSerializer {
+	bes := &BindEventSerializer{
+		Addr: newIPPortFamilySerializer(&e.Bind.Addr, model.AddressFamily(e.Bind.AddrFamily).String()),
+	}
+	return bes
 }
 
 func serializeSyscallRetval(retval int64) string {
@@ -948,6 +978,9 @@ func NewEventSerializer(event *Event) *EventSerializer {
 	case model.DNSEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 		s.DNSEventSerializer = newDNSEventSerializer(&event.DNS)
+	case model.BindEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Bind.Retval)
+		s.BindEventSerializer = newBindEventSerializer(event)
 	}
 
 	return s

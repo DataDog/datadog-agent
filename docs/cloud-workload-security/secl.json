@@ -515,6 +515,40 @@
       ]
     },
     {
+      "name": "bind",
+      "definition": "A bind was executed",
+      "type": "Network",
+      "from_agent_version": "7.37",
+      "experimental": true,
+      "properties": [
+        {
+          "name": "bind.addr.family",
+          "type": "int",
+          "definition": "Address family"
+        },
+        {
+          "name": "bind.addr.ip",
+          "type": "IP/CIDR",
+          "definition": "IP address"
+        },
+        {
+          "name": "bind.addr.port",
+          "type": "int",
+          "definition": "Port number"
+        },
+        {
+          "name": "bind.async",
+          "type": "bool",
+          "definition": "True if the syscall was asynchronous"
+        },
+        {
+          "name": "bind.retval",
+          "type": "int",
+          "definition": "Return value of the syscall"
+        }
+      ]
+    },
+    {
       "name": "bpf",
       "definition": "A BPF command was executed",
       "type": "Kernel",

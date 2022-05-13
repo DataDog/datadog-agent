@@ -900,3 +900,29 @@ func (e *VethPairEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	return cursor, nil
 }
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 20 {
+		return 0, ErrNotEnoughData
+	}
+
+	ipRaw := data[read : read+16]
+	e.AddrFamily = ByteOrder.Uint16(data[read+16 : read+18])
+	e.Addr.Port = binary.BigEndian.Uint16(data[read+18 : read+20])
+
+	// readjust IP size depending on the protocol
+	switch e.AddrFamily {
+	case 0x2: // unix.AF_INET
+		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw[0:4])
+	case 0xa: // unix.AF_INET6
+		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw)
+	}
+
+	return read + 20, nil
+}

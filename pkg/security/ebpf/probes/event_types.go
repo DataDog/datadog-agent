@@ -548,4 +548,14 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/get_pipe_info", EBPFFuncName: "kretprobe_get_pipe_info"}},
 		}},
 	},
+
+	// List of probes required to capture bind events
+	"bind": {
+		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_socket_bind", EBPFFuncName: "kprobe_security_socket_bind"}},
+		}},
+		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "bind"}, EntryAndExit),
+		},
+	},
 }

@@ -161,6 +161,7 @@ type Event struct {
 	Capset CapsetEvent `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
 	Signal SignalEvent `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
 
+	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
 	BPF          BPFEvent          `field:"bpf" event:"bpf"`                     // [7.33] [Kernel] A BPF command was executed
 	PTrace       PTraceEvent       `field:"ptrace" event:"ptrace"`               // [7.35] [Kernel] A ptrace command was executed
@@ -170,7 +171,8 @@ type Event struct {
 	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
 
 	// network events
-	DNS DNSEvent `field:"dns" event:"dns"` // [7.36] [Network] A DNS request was sent
+	DNS  DNSEvent  `field:"dns" event:"dns"`   // [7.36] [Network] A DNS request was sent
+	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] [Experimental] A bind was executed
 
 	// internal usage
 	Mount            MountEvent            `field:"-"`
@@ -807,6 +809,15 @@ type DNSEvent struct {
 	Class uint16 `field:"question.class"`                              // the class looked up by the DNS question
 	Size  uint16 `field:"question.size"`                               // the total DNS request size in bytes
 	Count uint16 `field:"question.count"`                              // the total count of questions in the DNS request
+}
+
+// BindEvent represents a bind event
+//msgp:ignore BindEvent
+type BindEvent struct {
+	SyscallEvent
+
+	AddrFamily uint16        `field:"addr.family"` // Address family
+	Addr       IPPortContext `field:"addr"`        // Bound address
 }
 
 // NetDevice represents a network device

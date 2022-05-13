@@ -30,6 +30,7 @@ func (ev *Event) ResolveFields() {
 	_ = ev.ResolveFileFieldsUser(&ev.ProcessContext.Process.FileEvent.FileFields)
 	// resolve event specific fields
 	switch ev.GetEventType().String() {
+	case "bind":
 	case "bpf":
 		_ = ev.ResolveHelpers(&ev.BPF.Program)
 	case "capset":
