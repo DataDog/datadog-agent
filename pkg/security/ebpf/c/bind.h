@@ -8,7 +8,6 @@ struct bind_event_t {
     struct container_context_t container;
     struct syscall_t syscall;
 
-    int socket;
     uint16_t addr_family;
     uint16_t addr_port;
     union  {
@@ -31,9 +30,7 @@ SYSCALL_KPROBE3(bind, int, socket, struct sockaddr*, addr, unsigned int, addr_le
     struct syscall_cache_t syscall = {
         .type = EVENT_BIND,
         .bind = {
-            .socket = socket,
             .addr = addr,
-            .addr_len = addr_len,
         },
     };
     cache_syscall(&syscall);
@@ -61,7 +58,6 @@ SYSCALL_KRETPROBE(bind) {
     /* pre-fill the event */
     struct bind_event_t event = {
         .syscall.retval = retval,
-        .socket = syscall->bind.socket,
         .addr_family = addr_family,
         .addr_port = 0,
     };

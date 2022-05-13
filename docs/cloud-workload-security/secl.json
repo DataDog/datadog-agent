@@ -540,11 +540,6 @@
           "name": "bind.retval",
           "type": "int",
           "definition": "Return value of the syscall"
-        },
-        {
-          "name": "bind.socket",
-          "type": "int",
-          "definition": "The socket to be bound"
         }
       ]
     },

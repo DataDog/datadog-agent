@@ -203,9 +203,7 @@ struct syscall_cache_t {
         } splice;
 
         struct {
-            int socket;
             struct sockaddr* addr;
-            u32 addr_len;
         } bind;
     };
 };

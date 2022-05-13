@@ -909,23 +909,22 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
-	if len(data)-read < 24 {
+	if len(data)-read < 20 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.Socket = int32(ByteOrder.Uint32(data[read : read+4]))
-	e.AddrFamily = ByteOrder.Uint16(data[read+4 : read+6])
+	e.AddrFamily = ByteOrder.Uint16(data[read : read+2])
 
 	if e.AddrFamily == unix.AF_INET {
-		e.Addr.Port = binary.BigEndian.Uint16(data[read+6 : read+8])
+		e.Addr.Port = binary.BigEndian.Uint16(data[read+2 : read+4])
 		// have to convert it first to network endianess to be correctly loaded by IPPortContext
-		ip32 := binary.BigEndian.Uint32(data[read+8 : read+12])
+		ip32 := binary.BigEndian.Uint32(data[read+4 : read+8])
 		e.Addr.IPNet = *eval.IPNetFromIP((*[4]byte)(unsafe.Pointer(&ip32))[:])
 		// padding 12-24
 	} else if e.AddrFamily == unix.AF_INET6 {
-		e.Addr.Port = binary.BigEndian.Uint16(data[read+6 : read+8])
-		e.Addr.IPNet = *eval.IPNetFromIP(data[read+8 : read+24])
-	} // else, padding 6-24
+		e.Addr.Port = binary.BigEndian.Uint16(data[read+2 : read+4])
+		e.Addr.IPNet = *eval.IPNetFromIP(data[read+4 : read+20])
+	} // else, padding 2-20
 
-	return read + 24, nil
+	return read + 20, nil
 }
