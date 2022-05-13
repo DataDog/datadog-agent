@@ -1128,12 +1128,6 @@ LIMIT 1
 			`INSERT INTO table (field1) VALUES ($tag$random \wqejks "sadads' text$tag$)`,
 			`INSERT INTO table ( field1 ) VALUES ( ? )`,
 		},
-		// Ensure that if we're not explicitly sending postgresql in the config,
-		// ident<@ident should parse as ident < @ident, not as a postgres specific json operator
-		{
-			`SELECT a FROM foo WHERE value<@name`,
-			`SELECT a FROM foo WHERE value < @name`,
-		},
 		{
 			query:    `SELECT nspname FROM pg_class where nspname !~ '.*toIgnore.*'`,
 			expected: `SELECT nspname FROM pg_class where nspname !~ ?`,
@@ -1208,6 +1202,15 @@ func TestPGJsonOperators(t *testing.T) {
 			`SELECT a FROM foo WHERE value <@ name`,
 			SQLConfig{
 				DBMS: DBMSPostgresql,
+			},
+		},
+		// Ensure that in a non-postgresql dbms, ident<@ident should parse
+		// as ident < @ident, (ident less than @ident) not as a postgres json operator
+		{
+			`SELECT a FROM foo WHERE value<@name`,
+			`SELECT a FROM foo WHERE value < @name`,
+			SQLConfig{
+				DBMS: DBMSSQLServer,
 			},
 		},
 		{
