@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -57,7 +56,6 @@ type AutoMultilineHandler struct {
 	scoredMatches     []*scoredPattern
 	processFunc       func(message *Message)
 	flushTimeout      time.Duration
-	source            *config.LogSource
 	timeoutTimer      *time.Timer
 	detectedPattern   *DetectedPattern
 }
