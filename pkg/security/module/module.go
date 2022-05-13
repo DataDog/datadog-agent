@@ -28,6 +28,9 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
@@ -162,7 +165,31 @@ func (m *Module) Start() error {
 			m.triggerReload()
 		}
 	}()
+
+	c, err := remote.NewClient("security-agent", []data.Product{data.ProductCWSDD})
+	if err != nil {
+		return nil, err
+	}
+	go func() {
+		for configs := range c.CWSDDUpdates() {
+			processRemoteConfigsUpdate(configs)
+		}
+	}()
 	return nil
+}
+
+func (m *Module) processRemoteConfigsUpdate(configs []client.ConfigCWSDD) error {
+	for _, c := range configs {
+		policyFile, err := os.Create(filepath.Join(m.config.PoliciesDir, c.ID))
+		if err != nil {
+			return err
+		}
+		err = policyFile.Write(c.Config)
+		if err != nil {
+			return err
+		}
+	}
+	return m.Reload()
 }
 
 func (m *Module) displayReport(report *sprobe.Report) {
