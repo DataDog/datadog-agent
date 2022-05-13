@@ -57,32 +57,7 @@ static __always_inline void http_enqueue(http_transaction_t *http) {
     if (batch == NULL) {
         return;
     }
-
-    // I haven't found a way to avoid this unrolled loop on Kernel 4.4 (newer versions work fine)
-    // If you try to directly write the desired batch slot by doing
-    //
-    //  __builtin_memcpy(&batch->txs[batch_state->pos], http, sizeof(http_transaction_t));
-    //
-    // You get an error like the following:
-    //
-    // R0=inv R1=map_value(ks=4,vs=4816) R2=imm5 R3=imm0 R4=imm0 R6=map_value(ks=48,vs=96) R7=imm1 R8=imm0 R9=inv R10=fp
-    ///809: (79) r2 = *(u64 *)(r6 +88)
-    // 810: (7b) *(u64 *)(r0 +88) = r2
-    // R0 invalid mem access 'inv'
-    //
-    // This is because the value range of the R0 register (holding the memory address of the batch) can't be
-    // figured out by the verifier and thus the memory access can't be considered safe during verification time.
-    // It seems that support for this type of access range by the verifier was added later on:
-    // https://patchwork.ozlabs.org/project/netdev/patch/1475074472-23538-1-git-send-email-jbacik@fb.com/
-    //
-    // What is unfortunate about this is not only that enqueuing a HTTP transaction is O(HTTP_BATCH_SIZE),
-    // but also that we can't really increase the batch/page size at the moment because that blows up the eBPF *program* size
-#pragma unroll
-    for (int i = 0; i < HTTP_BATCH_SIZE; i++) {
-        if (i == batch_state->pos) {
-            __builtin_memcpy(&batch->txs[i], http, sizeof(http_transaction_t));
-        }
-    }
+    __builtin_memcpy(&batch->txs[batch_state->pos & (HTTP_BATCH_SIZE-1)], http, sizeof(http_transaction_t));
 
     log_debug("http transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", cpu, batch_state->idx, batch_state->pos);
     batch_state->pos++;
