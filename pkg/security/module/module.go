@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/signal"
@@ -145,7 +146,7 @@ func (m *Module) Start() error {
 	m.probe.Start()
 	m.reloader.Start()
 
-	if err := m.Reload(); err != nil {
+	if err := m.Reload(m.config.PoliciesDir); err != nil {
 		return err
 	}
 
@@ -167,12 +168,14 @@ func (m *Module) Start() error {
 			m.triggerReload()
 		}
 	}()
-	if m.config.EnableRemoteConfig {
+
+	if m.config.RemoteConfigurationEnabled {
 		c, err := remote.NewClient("security-agent", []data.Product{data.ProductCWSDD})
 		if err != nil {
 			return err
 		}
 		m.remoteConfigClient = c
+
 		go func() {
 			for configs := range c.CWSDDUpdates() {
 				err := m.processRemoteConfigsUpdate(configs)
@@ -187,17 +190,30 @@ func (m *Module) Start() error {
 }
 
 func (m *Module) processRemoteConfigsUpdate(configs []client.ConfigCWSDD) error {
-	for _, c := range configs {
-		policyFile, err := os.Create(filepath.Join(m.config.PoliciesDir, c.ID))
-		if err != nil {
-			return err
-		}
-		_, err = policyFile.Write(c.Config)
-		if err != nil {
-			return err
-		}
+	if len(configs) == 0 {
+		return errors.New("no remote configuration")
 	}
-	return m.Reload()
+
+	policiesDir, err := ioutil.TempDir("", "cws-rc-config")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(policiesDir)
+
+	for _, c := range configs {
+		policyFile, err := os.Create(filepath.Join(policiesDir, c.ID))
+		if err != nil {
+			return err
+		}
+
+		if _, err = policyFile.Write(c.Config); err != nil {
+			return err
+		}
+
+		_ = policyFile.Close()
+	}
+
+	return m.Reload(policiesDir)
 }
 
 func (m *Module) displayReport(report *sprobe.Report) {
@@ -263,13 +279,13 @@ func getPoliciesVersions(rs *rules.RuleSet) []string {
 
 func (m *Module) triggerReload() {
 	log.Info("Reload configuration")
-	if err := m.Reload(); err != nil {
+	if err := m.Reload(m.config.PoliciesDir); err != nil {
 		log.Errorf("failed to reload configuration: %s", err)
 	}
 }
 
 // Reload the rule set
-func (m *Module) Reload() error {
+func (m *Module) Reload(policiesDir string) error {
 	// not enabled, do not reload rule
 	if !m.config.IsEnabled() {
 		return nil
@@ -281,7 +297,6 @@ func (m *Module) Reload() error {
 	atomic.StoreUint64(&m.reloading, 1)
 	defer atomic.StoreUint64(&m.reloading, 0)
 
-	policiesDir := m.config.PoliciesDir
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
 	probeVariables := make(map[string]eval.VariableValue, len(model.SECLVariables))
@@ -377,6 +392,7 @@ func (m *Module) Close() {
 	if m.remoteConfigClient != nil {
 		m.remoteConfigClient.Close()
 	}
+
 	m.cancelFnc()
 
 	if m.grpcServer != nil {
