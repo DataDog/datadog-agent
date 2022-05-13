@@ -172,7 +172,10 @@ func (m *Module) Start() error {
 	}
 	go func() {
 		for configs := range c.CWSDDUpdates() {
-			processRemoteConfigsUpdate(configs)
+			err := processRemoteConfigsUpdate(configs)
+			if err != nil {
+				log.Debugf("could not process remote-config update: %v", err)
+			}
 		}
 	}()
 	return nil
