@@ -92,8 +92,8 @@ require (
 	github.com/cilium/ebpf v0.8.2-0.20220404151855-0d439865ca15
 	github.com/clbanning/mxj v1.8.4
 	github.com/cloudfoundry-community/go-cfclient v0.0.0-20210621174645-7773f7e22665
-	github.com/containerd/cgroups v1.0.2
-	github.com/containerd/containerd v1.5.10
+	github.com/containerd/cgroups v1.0.3
+	github.com/containerd/containerd v1.6.2
 	github.com/containerd/typeurl v1.0.2
 	github.com/containernetworking/cni v1.0.1
 	github.com/coreos/go-semver v0.3.0
@@ -148,7 +148,7 @@ require (
 	github.com/moby/sys/mountinfo v0.6.1
 	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/open-policy-agent/opa v0.39.0
+	github.com/open-policy-agent/opa v0.40.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.50.0
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417
 	github.com/openshift/api v0.0.0-20190924102528-32369d4db2ad
@@ -178,7 +178,7 @@ require (
 	go.etcd.io/etcd/client/v2 v2.305.4
 	go.opentelemetry.io/collector v0.50.0
 	go.opentelemetry.io/collector/pdata v0.50.0
-	go.uber.org/automaxprocs v1.4.0
+	go.uber.org/automaxprocs v1.5.1
 	go.uber.org/multierr v1.8.0
 	go.uber.org/zap v1.21.0
 	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4 // indirect
@@ -190,7 +190,7 @@ require (
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11
 	golang.org/x/tools v0.1.10
 	gomodules.xyz/jsonpatch/v3 v3.0.1
-	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa
+	google.golang.org/genproto v0.0.0-20220107163113-42d7afdf6368
 	google.golang.org/grpc v1.46.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.37.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -198,19 +198,19 @@ require (
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	gotest.tools v2.2.0+incompatible
 	inet.af/netaddr v0.0.0-20211027220019-c74959edd3b6
-	k8s.io/api v0.21.5
-	k8s.io/apimachinery v0.21.5
-	k8s.io/apiserver v0.21.5
+	k8s.io/api v0.22.5
+	k8s.io/apimachinery v0.22.5
+	k8s.io/apiserver v0.22.5
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.9.2
-	k8s.io/client-go v0.21.5
-	k8s.io/cri-api v0.21.5
+	k8s.io/client-go v0.22.5
+	k8s.io/cri-api v0.23.1
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
-	k8s.io/klog/v2 v2.9.0
-	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
+	k8s.io/klog/v2 v2.30.0
+	k8s.io/kube-openapi v0.0.0-20211109043538-20434351676c
 	k8s.io/kube-state-metrics/v2 v2.1.1
 	k8s.io/kubelet v0.21.5
 	k8s.io/metrics v0.21.5
-	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
+	k8s.io/utils v0.0.0-20210930125809-cb0fa318a74b
 )
 
 require (
@@ -249,7 +249,7 @@ require (
 	github.com/bmizerany/pat v0.0.0-20170815010413-6226ea591a40 // indirect
 	github.com/cenkalti/backoff/v4 v4.1.3 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
-	github.com/containerd/continuity v0.1.0 // indirect
+	github.com/containerd/continuity v0.2.2 // indirect
 	github.com/containerd/fifo v1.0.0 // indirect
 	github.com/containerd/ttrpc v1.1.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
@@ -262,9 +262,9 @@ require (
 	github.com/dsnet/compress v0.0.2-0.20210315054119-f66993602bf5 // indirect
 	github.com/emicklei/go-restful v2.14.3+incompatible // indirect
 	github.com/emicklei/go-restful-swagger12 v0.0.0-20201014110547-68ccff494617 // indirect
-	github.com/evanphx/json-patch v4.9.0+incompatible // indirect
+	github.com/evanphx/json-patch v4.11.0+incompatible // indirect
 	github.com/felixge/httpsnoop v1.0.2 // indirect
-	github.com/fsnotify/fsnotify v1.5.1 // indirect
+	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-kit/log v0.2.0 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
@@ -274,13 +274,13 @@ require (
 	github.com/go-openapi/jsonreference v0.20.0 // indirect
 	github.com/go-openapi/swag v0.19.15 // indirect
 	github.com/go-test/deep v1.0.5 // indirect
-	github.com/godbus/dbus/v5 v5.0.4 // indirect
+	github.com/godbus/dbus/v5 v5.0.6 // indirect
 	github.com/gogo/googleapis v1.4.0 // indirect
 	github.com/golang/glog v1.0.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.1.1 // indirect
-	github.com/googleapis/gnostic v0.5.1 // indirect
+	github.com/googleapis/gnostic v0.5.5 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
@@ -326,8 +326,8 @@ require (
 	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.2
-	github.com/opencontainers/runc v1.0.3 // indirect
-	github.com/opencontainers/selinux v1.9.1 // indirect
+	github.com/opencontainers/runc v1.1.0 // indirect
+	github.com/opencontainers/selinux v1.10.0 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pelletier/go-toml v1.9.4 // indirect
 	github.com/philhofer/fwd v1.1.1 // indirect
@@ -365,7 +365,6 @@ require (
 	github.com/xor-gate/ar v0.0.0-20170530204233-5c72ae81e2b7 // indirect
 	github.com/yashtewari/glob-intersection v0.1.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
-	go.etcd.io/etcd v0.5.0-alpha.5.0.20200910180754-dd1b699fc489 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.4 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.4 // indirect
 	go.opencensus.io v0.23.0 // indirect
@@ -392,7 +391,7 @@ require (
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
-	k8s.io/component-base v0.21.5 // indirect
+	k8s.io/component-base v0.22.5 // indirect
 	k8s.io/gengo v0.0.0-20201214224949-b6c5ce23f027 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.22 // indirect
 	sigs.k8s.io/controller-runtime v0.7.2 // indirect
@@ -411,7 +410,13 @@ require github.com/containernetworking/plugins v1.1.1 // indirect
 
 require (
 	github.com/Sirupsen/logrus v1.0.6 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.0 // indirect
+	github.com/moby/sys/signal v0.6.0 // indirect
+	go.etcd.io/etcd/client/v3 v3.5.0 // indirect
 	go.opentelemetry.io/collector/semconv v0.50.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp v0.20.0 // indirect
+	go.opentelemetry.io/otel/sdk/export/metric v0.20.0 // indirect
+	go.opentelemetry.io/proto/otlp v0.15.0 // indirect
 )
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
