@@ -7,16 +7,19 @@ import (
 
 type EndpointInfo struct {
 	endpoint            transaction.Endpoint
-	apiKeyInQueryString bool
 	payload             []byte
 	method              string
+	apiKeyInQueryString bool
 }
 
 var (
+	apiKeyInQueryString = true
+
 	emptyPayload = []byte("")
 
-	V1SeriesEndpointInfo   = EndpointInfo{endpoints.V1SeriesEndpoint, true, emptyPayload, "POST"}
-	V1ValidateEndpointInfo = EndpointInfo{endpoints.V1ValidateEndpoint, true, emptyPayload, "GET"}
+	// TODO : add more endpoints info and a filtering function to only keep used endpoints
+	V1SeriesEndpointInfo   = EndpointInfo{endpoints.V1SeriesEndpoint, emptyPayload, "POST", apiKeyInQueryString}
+	V1ValidateEndpointInfo = EndpointInfo{endpoints.V1ValidateEndpoint, emptyPayload, "GET", apiKeyInQueryString}
 
 	endpointsInfo = []EndpointInfo{V1SeriesEndpointInfo, V1ValidateEndpointInfo}
 )

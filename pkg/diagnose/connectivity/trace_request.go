@@ -9,61 +9,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
-	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
-
-func RunDatadogConnectivityChecks() error {
-
-	// Build endpoints
-	keysPerDomain, err := config.GetMultipleEndpoints()
-	if err != nil {
-		log.Error("Misconfiguration of agent endpoints: ", err)
-	}
-	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
-
-	client := newHTTPClient()
-
-	for _, endpointInfo := range endpointsInfo {
-
-		urls := getAllUrlForAnEndpoint(domainResolvers, endpointInfo.endpoint, endpointInfo.apiKeyInQueryString)
-
-		for _, url := range urls {
-			sendHTTPRequestToEndpoint(client, url, endpointInfo.method, endpointInfo.payload)
-		}
-	}
-
-	return nil
-}
-
-func getAllUrlForAnEndpoint(domainResolvers map[string]resolver.DomainResolver, endpoint transaction.Endpoint, apiKeyInQueryString bool) []string {
-
-	urls := make([]string, 0)
-
-	for _, resolver := range domainResolvers {
-		for _, apiKey := range resolver.GetAPIKeys() {
-			domain, _ := resolver.Resolve(endpoint)
-			url := createEndpointURL(domain, endpoint, apiKey, apiKeyInQueryString)
-
-			urls = append(urls, url)
-		}
-	}
-
-	return urls
-}
-
-func createEndpointURL(domain string, endpoint transaction.Endpoint, apiKey string, apiKeyInQueryString bool) string {
-
-	url := domain + endpoint.Route
-
-	if apiKeyInQueryString {
-		url = fmt.Sprintf("%s?api_key=%s", url, apiKey)
-	}
-
-	return url
-}
 
 func newHTTPClient() *http.Client {
 	transport := httputils.CreateHTTPTransport()
@@ -74,27 +23,75 @@ func newHTTPClient() *http.Client {
 	}
 }
 
-func sendHTTPRequestToEndpoint(client *http.Client, url string, method string, payload []byte) {
-	logURL := scrubber.ScrubLine(url)
-	reader := bytes.NewReader(payload)
+func RunDatadogConnectivityChecks() error {
 
-	// TODO: check allowed method
-	req, err := http.NewRequest(method, url, reader)
+	// Create domain resolvers
+	keysPerDomain, err := config.GetMultipleEndpoints()
+	if err != nil {
+		log.Error("Misconfiguration of agent endpoints: ", err)
+	}
+	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
+
+	client := newHTTPClient()
+
+	// Send requests to all endpoints for all domains
+	for _, domainResolver := range domainResolvers {
+		sendRequestToAllEndpointOfADomain(client, domainResolver)
+	}
+
+	return nil
+}
+
+func sendRequestToAllEndpointOfADomain(client *http.Client, domainResolver resolver.DomainResolver) {
+
+	for _, apiKey := range domainResolver.GetAPIKeys() {
+
+		for _, endpointInfo := range endpointsInfo {
+			domain, _ := domainResolver.Resolve(endpointInfo.endpoint)
+
+			// Create the endpoint URL and send the request
+			url := createEndpointURL(domain, apiKey, endpointInfo)
+			sendHTTPRequestToUrl(client, url, endpointInfo)
+		}
+	}
+}
+
+func createEndpointURL(domain string, apiKey string, endpointInfo EndpointInfo) string {
+
+	url := domain + endpointInfo.endpoint.Route
+
+	if endpointInfo.apiKeyInQueryString {
+		url = fmt.Sprintf("%s?api_key=%s", url, apiKey)
+	}
+
+	return url
+}
+
+func sendHTTPRequestToUrl(client *http.Client, url string, info EndpointInfo) {
+	logURL := scrubber.ScrubLine(url)
+
+	// Create a request for the backend
+	reader := bytes.NewReader(info.payload)
+	req, err := http.NewRequest(info.method, url, reader)
 
 	if err != nil {
-		log.Errorf("Could not create request for transaction to invalid URL '%v' : %v", logURL, err)
+		log.Errorf("Could not create request for transaction to invalid URL '%v' : %v", logURL, scrubber.ScrubLine(err.Error()))
 	}
 
 	//req = req.WithContext(ctx)
 	//req.Header = t.Headers
+	//req = req.WithContext(httptrace.WithClientTrace(context.Background(), Trace))
+
+	// Send the request
 	resp, err := client.Do(req)
 
 	if err != nil {
-		fmt.Printf("Could not send the HTTP request to '%v'\n", logURL)
+		fmt.Printf("Could not send the HTTP request to '%v' : %v\n", logURL, scrubber.ScrubLine(err.Error()))
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	// Check the endpoint response
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Errorf("Fail to read the response Body: %s", err)
