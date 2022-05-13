@@ -37,17 +37,15 @@ SYSCALL_KPROBE3(bind, int, socket, struct sockaddr*, addr, unsigned int, addr_le
     return 0;
 }
 
-SYSCALL_KRETPROBE(bind) {
+int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_BIND);
     if (!syscall) {
         return 0;
     }
 
-    int retval = PT_REGS_RC(ctx);
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
     }
-
 
     /* get address family */
     uint16_t addr_family;
@@ -100,6 +98,16 @@ SYSCALL_KRETPROBE(bind) {
     fill_span_context(&event.span);
     send_event(ctx, EVENT_BIND, event);
     return 0;
+}
+
+SYSCALL_KRETPROBE(bind) {
+    int retval = PT_REGS_RC(ctx);
+    return sys_bind_ret(ctx, retval);
+}
+
+SEC("tracepoint/syscalls/sys_exit_bind")
+int tracepoint_syscalls_sys_exit_bind(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_bind_ret(args, args->ret);
 }
 
 #endif /* _BIND_H_ */
