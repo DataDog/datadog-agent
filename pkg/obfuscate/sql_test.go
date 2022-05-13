@@ -1191,6 +1191,20 @@ func TestPGJsonOperators(t *testing.T) {
 			},
 		},
 		{
+			"select users.custom -> 'foo' from users",
+			"select users.custom -> ? from users",
+			SQLConfig{
+				DBMS: DBMSPostgresql,
+			},
+		},
+		{
+			"select users.custom ->> 'foo' from users",
+			"select users.custom ->> ? from users",
+			SQLConfig{
+				DBMS: DBMSPostgresql,
+			},
+		},
+		{
 			"select * from users where user.custom @> '{a,b}'",
 			"select * from users where user.custom @> ?",
 			SQLConfig{

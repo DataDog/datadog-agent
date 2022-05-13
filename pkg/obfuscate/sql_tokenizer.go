@@ -74,6 +74,19 @@ const (
 	TableName
 	ColonCast
 
+	// Postgres Specific JSON operators
+	JSONSelect
+	JSONSelectText
+	JSONSelectPath
+	JSONSelectPathText
+
+	JSONContains
+	JSONContainsLeft
+	JSONKeyExists
+	JSONAnyKeysExist
+	JSONAllKeysExist
+	JSONDelete
+
 	// FilteredGroupable specifies that the given token has been discarded by one of the
 	// token filters and that it is groupable together with consecutive FilteredGroupable
 	// tokens.
@@ -96,44 +109,56 @@ const (
 )
 
 var tokenKindStrings = map[TokenKind]string{
-	LexError:                     "LexError",
-	ID:                           "ID",
-	Limit:                        "Limit",
-	Null:                         "Null",
-	String:                       "String",
-	DoubleQuotedString:           "DoubleQuotedString",
-	DollarQuotedString:           "DollarQuotedString",
-	DollarQuotedFunc:             "DollarQuotedFunc",
-	Number:                       "Number",
-	BooleanLiteral:               "BooleanLiteral",
-	ValueArg:                     "ValueArg",
-	ListArg:                      "ListArg",
-	Comment:                      "Comment",
-	Variable:                     "Variable",
-	Savepoint:                    "Savepoint",
-	PreparedStatement:            "PreparedStatement",
-	EscapeSequence:               "EscapeSequence",
-	NullSafeEqual:                "NullSafeEqual",
-	LE:                           "LE",
-	GE:                           "GE",
-	NE:                           "NE",
-	Not:                          "NOT",
-	As:                           "As",
-	Alter:                        "Alter",
-	Drop:                         "Drop",
-	Create:                       "Create",
-	Grant:                        "Grant",
-	Revoke:                       "Revoke",
-	Commit:                       "Commit",
-	Begin:                        "Begin",
-	Truncate:                     "Truncate",
-	Select:                       "Select",
-	From:                         "From",
-	Update:                       "Update",
-	Delete:                       "Delete",
-	Insert:                       "Insert",
-	Into:                         "Into",
-	Join:                         "Join",
+	LexError:           "LexError",
+	ID:                 "ID",
+	Limit:              "Limit",
+	Null:               "Null",
+	String:             "String",
+	DoubleQuotedString: "DoubleQuotedString",
+	DollarQuotedString: "DollarQuotedString",
+	DollarQuotedFunc:   "DollarQuotedFunc",
+	Number:             "Number",
+	BooleanLiteral:     "BooleanLiteral",
+	ValueArg:           "ValueArg",
+	ListArg:            "ListArg",
+	Comment:            "Comment",
+	Variable:           "Variable",
+	Savepoint:          "Savepoint",
+	PreparedStatement:  "PreparedStatement",
+	EscapeSequence:     "EscapeSequence",
+	NullSafeEqual:      "NullSafeEqual",
+	LE:                 "LE",
+	GE:                 "GE",
+	NE:                 "NE",
+	Not:                "NOT",
+	As:                 "As",
+	Alter:              "Alter",
+	Drop:               "Drop",
+	Create:             "Create",
+	Grant:              "Grant",
+	Revoke:             "Revoke",
+	Commit:             "Commit",
+	Begin:              "Begin",
+	Truncate:           "Truncate",
+	Select:             "Select",
+	From:               "From",
+	Update:             "Update",
+	Delete:             "Delete",
+	Insert:             "Insert",
+	Into:               "Into",
+	Join:               "Join",
+
+	JSONSelect:         "JSONSelect",
+	JSONSelectText:     "JSONSelectText",
+	JSONSelectPath:     "JSONSelectPath",
+	JSONSelectPathText: "JSONSelectPathText",
+	JSONContains:       "JSONContains",
+	JSONContainsLeft:   "JSONContainsLeft",
+	JSONKeyExists:      "JSONKeyExists",
+	JSONAnyKeysExist:   "JSONAnyKeysExist",
+	JSONAllKeysExist:   "JSONAllKeysExist",
+	JSONDelete:         "JSONDelete",
+
 	TableName:                    "TableName",
 	ColonCast:                    "ColonCast",
 	FilteredGroupable:            "FilteredGroupable",
@@ -286,12 +311,12 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				switch tkn.lastChar {
 				case '|':
 					tkn.advance()
-					return NE, []byte("?|")
+					return JSONAnyKeysExist, []byte("?|")
 				case '&':
 					tkn.advance()
-					return NE, []byte("?&")
+					return JSONAllKeysExist, []byte("?&")
 				default:
-					return TokenKind(ch), tkn.bytes()
+					return JSONKeyExists, tkn.bytes()
 				}
 			}
 			return TokenKind(ch), tkn.bytes()
@@ -318,6 +343,15 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 			case tkn.lastChar == '-':
 				tkn.advance()
 				return tkn.scanCommentType1("--")
+			case tkn.lastChar == '>' && tkn.cfg.DBMS == DBMSPostgresql:
+				tkn.advance()
+				switch tkn.lastChar {
+				case '>':
+					tkn.advance()
+					return JSONSelectText, []byte("->>")
+				default:
+					return JSONSelect, []byte("->")
+				}
 			case isDigit(tkn.lastChar):
 				kind, tokenBytes := tkn.scanNumber(false)
 				return kind, append([]byte{'-'}, tokenBytes...)
@@ -344,13 +378,13 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 					switch tkn.lastChar {
 					case '>':
 						tkn.advance()
-						return NullSafeEqual, []byte("#>>")
+						return JSONSelectPathText, []byte("#>>")
 					default:
-						return NE, []byte("#>")
+						return JSONSelectPath, []byte("#>")
 					}
 				case '-':
 					tkn.advance()
-					return NE, []byte("#-")
+					return JSONDelete, []byte("#-")
 				default:
 					return TokenKind(ch), tkn.bytes()
 				}
@@ -375,7 +409,7 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 			case '@':
 				if tkn.cfg.DBMS == DBMSPostgresql {
 					tkn.advance()
-					return NE, []byte("<@")
+					return JSONContainsLeft, []byte("<@")
 				}
 				return TokenKind(ch), tkn.bytes()
 			default:
@@ -452,7 +486,7 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				switch tkn.lastChar {
 				case '>':
 					tkn.advance()
-					return NE, []byte("@>")
+					return JSONContains, []byte("@>")
 				default:
 					return TokenKind(ch), tkn.bytes()
 				}
