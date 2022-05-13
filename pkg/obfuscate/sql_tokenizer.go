@@ -152,10 +152,9 @@ func (k TokenKind) String() string {
 
 const (
 	// DBMSSQLServer is a MS SQL Server
-	DBMSSQLServer = "mssql"
+	DBMSSQLServer  = "mssql"
+	DBMSPostgresql = "postgresql"
 )
-
-const DBMSPostgresql = "postgresql"
 
 const escapeCharacter = '\\'
 
