@@ -148,6 +148,19 @@ func (s *LogSource) IsHiddenFromStatus() bool {
 	return s.hiddenFromStatus
 }
 
+// RecordBytes reports bytes to the source expvars
+// Since `container_collect_all` reports all docker logs as a single source (even though the source is overridden internally),
+// we need to report the byte count to the parent source used to populate the status page.
+func (s *LogSource) RecordBytes(n int64) {
+	s.BytesRead.Add(n)
+
+	// In some cases like `container_collect_all` we need to report the byte count to the parent source
+	// used to populate the status page.
+	if s.ParentSource != nil {
+		s.ParentSource.BytesRead.Add(n)
+	}
+}
+
 // Dump provides a multi-line dump of the LogSource contents, for debugging purposes
 func (s *LogSource) Dump() string {
 	if s == nil {

@@ -80,12 +80,12 @@ type Decoder struct {
 }
 
 // InitializeDecoder returns a properly initialized Decoder
-func InitializeDecoder(source *config.LogSource, parser parsers.Parser) *Decoder {
+func InitializeDecoder(source *config.ReplaceableSource, parser parsers.Parser) *Decoder {
 	return NewDecoderWithFraming(source, parser, framer.UTF8Newline, nil)
 }
 
 // NewDecoderWithFraming initialize a decoder with given endline strategy.
-func NewDecoderWithFraming(source *config.LogSource, parser parsers.Parser, framing framer.Framing, multiLinePattern *regexp.Regexp) *Decoder {
+func NewDecoderWithFraming(source *config.ReplaceableSource, parser parsers.Parser, framing framer.Framing, multiLinePattern *regexp.Regexp) *Decoder {
 	inputChan := make(chan *Input)
 	outputChan := make(chan *Message)
 	lineLimit := defaultContentLenLimit
@@ -95,7 +95,7 @@ func NewDecoderWithFraming(source *config.LogSource, parser parsers.Parser, fram
 
 	// construct the lineHandler
 	var lineHandler LineHandler
-	for _, rule := range source.Config.ProcessingRules {
+	for _, rule := range source.Config().ProcessingRules {
 		if rule.Type == config.MultiLine {
 			lh := NewMultiLineHandler(outputFn, rule.Regex, config.AggregationTimeout(), lineLimit)
 
@@ -113,7 +113,7 @@ func NewDecoderWithFraming(source *config.LogSource, parser parsers.Parser, fram
 		}
 	}
 	if lineHandler == nil {
-		if source.Config.AutoMultiLineEnabled() {
+		if source.Config().AutoMultiLineEnabled() {
 			log.Infof("Auto multi line log detection enabled")
 
 			if multiLinePattern != nil {
@@ -145,12 +145,12 @@ func NewDecoderWithFraming(source *config.LogSource, parser parsers.Parser, fram
 	return New(inputChan, outputChan, framer, lineParser, lineHandler, detectedPattern)
 }
 
-func buildAutoMultilineHandlerFromConfig(outputFn func(*Message), lineLimit int, source *config.LogSource, detectedPattern *DetectedPattern) *AutoMultilineHandler {
-	linesToSample := source.Config.AutoMultiLineSampleSize
+func buildAutoMultilineHandlerFromConfig(outputFn func(*Message), lineLimit int, source *config.ReplaceableSource, detectedPattern *DetectedPattern) *AutoMultilineHandler {
+	linesToSample := source.Config().AutoMultiLineSampleSize
 	if linesToSample <= 0 {
 		linesToSample = dd_conf.Datadog.GetInt("logs_config.auto_multi_line_default_sample_size")
 	}
-	matchThreshold := source.Config.AutoMultiLineMatchThreshold
+	matchThreshold := source.Config().AutoMultiLineMatchThreshold
 	if matchThreshold == 0 {
 		matchThreshold = dd_conf.Datadog.GetFloat64("logs_config.auto_multi_line_default_match_threshold")
 	}
@@ -174,7 +174,6 @@ func buildAutoMultilineHandlerFromConfig(outputFn func(*Message), lineLimit int,
 		matchThreshold,
 		matchTimeout,
 		config.AggregationTimeout(),
-		source,
 		additionalPatternsCompiled,
 		detectedPattern)
 }

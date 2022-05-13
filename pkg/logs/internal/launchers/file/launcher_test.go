@@ -427,7 +427,7 @@ func TestContainerIDInContainerLogFile(t *testing.T) {
 	file := filetailer.File{
 		Path:           "/var/log/pods/file-uuid-foo-bar.log",
 		IsWildcardPath: false,
-		Source:         logSource,
+		Source:         config.NewReplaceableSource(logSource),
 	}
 
 	launcher := &Launcher{}
@@ -438,7 +438,7 @@ func TestContainerIDInContainerLogFile(t *testing.T) {
 	// now, let's change the container for which we are trying to scan files,
 	// because the symlink is pointing from another container, we should ignore
 	// that log file
-	file.Source.Config.Identifier = "1234123412341234123412341234123412341234123412341234123412341234"
+	file.Source.Config().Identifier = "1234123412341234123412341234123412341234123412341234123412341234"
 	assert.True(launcher.shouldIgnore(&file), "the file existing in ContainersLogsDir is not pointing to the same container, scanned file should be ignored")
 
 	// in this scenario, no link is found in /var/log/containers, thus, we should not ignore the file

@@ -69,7 +69,6 @@ func NewAutoMultilineHandler(
 	matchThreshold float64,
 	matchTimeout time.Duration,
 	flushTimeout time.Duration,
-	source *config.LogSource,
 	additionalPatterns []*regexp.Regexp,
 	detectedPattern *DetectedPattern,
 ) *AutoMultilineHandler {
@@ -92,7 +91,6 @@ func NewAutoMultilineHandler(
 		scoredMatches:   scoredMatches,
 		linesToAssess:   linesToAssess,
 		flushTimeout:    flushTimeout,
-		source:          source,
 		timeoutTimer:    time.NewTimer(matchTimeout),
 		detectedPattern: detectedPattern,
 	}

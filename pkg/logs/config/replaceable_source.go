@@ -26,13 +26,6 @@ func (r *ReplaceableSource) Replace(source *LogSource) {
 	r.source = source
 }
 
-// Identifier gets the config identifier
-func (r *ReplaceableSource) Identifier() string {
-	r.RLock()
-	defer r.RUnlock()
-	return r.source.Config.Identifier
-}
-
 // Status gets the underlying status
 func (r *ReplaceableSource) Status() *LogStatus {
 	r.RLock()
@@ -80,4 +73,18 @@ func (r *ReplaceableSource) UnderlyingSource() *LogSource {
 	r.RLock()
 	defer r.RUnlock()
 	return r.source
+}
+
+// RegisterInfo registers some info to display on the status page
+func (r *ReplaceableSource) RegisterInfo(i InfoProvider) {
+	r.RLock()
+	defer r.RUnlock()
+	r.source.RegisterInfo(i)
+}
+
+// GetInfo gets an InfoProvider instance by the key
+func (r *ReplaceableSource) GetInfo(key string) InfoProvider {
+	r.RLock()
+	defer r.RUnlock()
+	return r.source.GetInfo(key)
 }

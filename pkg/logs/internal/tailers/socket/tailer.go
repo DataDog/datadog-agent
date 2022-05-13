@@ -36,7 +36,7 @@ func NewTailer(source *config.LogSource, conn net.Conn, outputChan chan *message
 		Conn:       conn,
 		outputChan: outputChan,
 		read:       read,
-		decoder:    decoder.InitializeDecoder(source, noop.New()),
+		decoder:    decoder.InitializeDecoder(config.NewReplaceableSource(source), noop.New()),
 		stop:       make(chan struct{}, 1),
 		done:       make(chan struct{}, 1),
 	}
