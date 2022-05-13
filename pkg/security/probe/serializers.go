@@ -158,6 +158,7 @@ type EventContextSerializer struct {
 	Name     string `json:"name,omitempty" jsonschema_description:"Event name"`
 	Category string `json:"category,omitempty" jsonschema_description:"Event category"`
 	Outcome  string `json:"outcome,omitempty" jsonschema_description:"Event outcome"`
+	Async    bool   `json:"async,omitempty" jsonschema_description:"True if the event was asynchronous"`
 }
 
 // ProcessContextSerializer serializes a process context to JSON
@@ -767,6 +768,7 @@ func NewEventSerializer(event *Event) *EventSerializer {
 			Destination:    newFileSerializer(&event.Link.Target, event, event.Link.Source.Inode),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Link.Retval)
+		s.EventContextSerializer.Async = event.Link.Async
 	case model.FileOpenEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Open.File, event),
@@ -780,6 +782,7 @@ func NewEventSerializer(event *Event) *EventSerializer {
 
 		s.FileSerializer.Flags = model.OpenFlags(event.Open.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Open.Retval)
+		s.EventContextSerializer.Async = event.Open.Async
 	case model.FileMkdirEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Mkdir.File, event),
@@ -788,17 +791,20 @@ func NewEventSerializer(event *Event) *EventSerializer {
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Mkdir.Retval)
+		s.EventContextSerializer.Async = event.Mkdir.Async
 	case model.FileRmdirEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Rmdir.File, event),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Rmdir.Retval)
+		s.EventContextSerializer.Async = event.Rmdir.Async
 	case model.FileUnlinkEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Unlink.File, event),
 		}
 		s.FileSerializer.Flags = model.UnlinkFlags(event.Unlink.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Unlink.Retval)
+		s.EventContextSerializer.Async = event.Unlink.Async
 	case model.FileRenameEventType:
 		// use the new inode as the old one is a fake inode
 		s.FileEventSerializer = &FileEventSerializer{
@@ -806,6 +812,7 @@ func NewEventSerializer(event *Event) *EventSerializer {
 			Destination:    newFileSerializer(&event.Rename.New, event),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Rename.Retval)
+		s.EventContextSerializer.Async = event.Rename.Async
 	case model.FileRemoveXAttrEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.RemoveXAttr.File, event),

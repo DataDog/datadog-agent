@@ -225,6 +225,10 @@
         "outcome": {
           "type": "string",
           "description": "Event outcome"
+        },
+        "async": {
+          "type": "boolean",
+          "description": "True if the event was asynchronous"
         }
       },
       "additionalProperties": false,
