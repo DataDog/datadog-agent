@@ -455,22 +455,21 @@ func (t *kprobeTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnT
 
 func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *netebpf.ConnStats) {
 	*stats = network.ConnectionStats{
-		Pid:                  t.Pid,
-		NetNS:                t.Netns,
-		Source:               t.SourceAddress(),
-		Dest:                 t.DestAddress(),
-		SPort:                t.Sport,
-		DPort:                t.Dport,
-		SPortIsEphemeral:     network.IsPortInEphemeralRange(t.Sport),
+		Pid:              t.Pid,
+		NetNS:            t.Netns,
+		Source:           t.SourceAddress(),
+		Dest:             t.DestAddress(),
+		SPort:            t.Sport,
+		DPort:            t.Dport,
+		SPortIsEphemeral: network.IsPortInEphemeralRange(t.Sport),
 		Monotonic: network.StatCounters{
 			SentBytes:   s.Sent_bytes,
 			RecvBytes:   s.Recv_bytes,
 			SentPackets: s.Sent_packets,
 			RecvPackets: s.Recv_packets,
 		},
-		LastUpdateEpoch:      s.Timestamp,
-		IsAssured:            s.IsAssured(),
-		Tags:                 s.Tags,
+		LastUpdateEpoch: s.Timestamp,
+		IsAssured:       s.IsAssured(),
 	}
 
 	if t.Type() == netebpf.TCP {
