@@ -12,12 +12,6 @@ enum {
     ASYNC_SYSCALL
 };
 
-struct addr_t {
-    u16 family;
-    u16 port;
-    u64 ip[2];
-};
-
 struct str_array_ref_t {
     u32 id;
     u8 index;
@@ -209,7 +203,9 @@ struct syscall_cache_t {
         } splice;
 
         struct {
-            struct addr_t addr;
+            u64 addr[2];
+            u16 family;
+            u16 port;
         } bind;
     };
 };

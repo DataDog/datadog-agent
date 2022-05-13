@@ -146,16 +146,16 @@ __attribute__((always_inline)) int route_pkt(struct __sk_buff *skb, struct packe
     // resolve pid
     switch (network_direction) {
         case EGRESS: {
-            pid_route.addr.ip[0] = pkt->translated_ns_flow.flow.saddr[0];
-            pid_route.addr.ip[1] = pkt->translated_ns_flow.flow.saddr[1];
-            pid_route.addr.port = pkt->translated_ns_flow.flow.sport;
+            pid_route.addr[0] = pkt->translated_ns_flow.flow.saddr[0];
+            pid_route.addr[1] = pkt->translated_ns_flow.flow.saddr[1];
+            pid_route.port = pkt->translated_ns_flow.flow.sport;
             pid_route.netns = pkt->translated_ns_flow.netns;
             break;
         }
         case INGRESS: {
-            pid_route.addr.ip[0] = pkt->translated_ns_flow.flow.daddr[0];
-            pid_route.addr.ip[1] = pkt->translated_ns_flow.flow.daddr[1];
-            pid_route.addr.port = pkt->translated_ns_flow.flow.dport;
+            pid_route.addr[0] = pkt->translated_ns_flow.flow.daddr[0];
+            pid_route.addr[1] = pkt->translated_ns_flow.flow.daddr[1];
+            pid_route.port = pkt->translated_ns_flow.flow.dport;
             pid_route.netns = pkt->translated_ns_flow.netns;
         }
     }

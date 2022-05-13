@@ -8,12 +8,9 @@ struct bind_event_t {
     struct container_context_t container;
     struct syscall_t syscall;
 
-    uint16_t addr_family;
-    uint16_t addr_port;
-    union  {
-        uint32_t addr_ip;
-        u64 addr_ip6[2];
-    };
+    u64 addr[2];
+    u16 family;
+    u16 port;
 };
 
 SYSCALL_KPROBE3(bind, int, socket, struct sockaddr*, addr, unsigned int, addr_len) {
@@ -29,9 +26,6 @@ SYSCALL_KPROBE3(bind, int, socket, struct sockaddr*, addr, unsigned int, addr_le
     /* cache the bind and wait to grab the retval to send it */
     struct syscall_cache_t syscall = {
         .type = EVENT_BIND,
-        .bind = {
-            .addr.family = 0,
-        },
     };
     cache_syscall(&syscall);
     return 0;
@@ -50,10 +44,10 @@ int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
     /* pre-fill the event */
     struct bind_event_t event = {
         .syscall.retval = retval,
-        .addr_family = syscall->bind.addr.family,
-        .addr_port = syscall->bind.addr.port,
-        .addr_ip6[0] = syscall->bind.addr.ip[0],
-        .addr_ip6[1] = syscall->bind.addr.ip[1],
+        .addr[0] = syscall->bind.addr[0],
+        .addr[1] = syscall->bind.addr[1],
+        .family = syscall->bind.family,
+        .port = syscall->bind.port,
     };
 
     struct proc_cache_t *entry = fill_process_context(&event.process);

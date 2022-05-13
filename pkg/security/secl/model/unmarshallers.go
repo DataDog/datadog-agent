@@ -13,7 +13,6 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"golang.org/x/sys/unix"
 )
 
 // BinaryUnmarshaler interface implemented by every event type
@@ -913,18 +912,17 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.AddrFamily = ByteOrder.Uint16(data[read : read+2])
+	ipRaw := data[read : read+16]
+	e.AddrFamily = ByteOrder.Uint16(data[read+16 : read+18])
+	e.Addr.Port = binary.BigEndian.Uint16(data[read+18 : read+20])
 
-	if e.AddrFamily == unix.AF_INET {
-		e.Addr.Port = binary.BigEndian.Uint16(data[read+2 : read+4])
-		// have to convert it first to network endianess to be correctly loaded by IPPortContext
-		ip32 := binary.BigEndian.Uint32(data[read+4 : read+8])
-		e.Addr.IPNet = *eval.IPNetFromIP((*[4]byte)(unsafe.Pointer(&ip32))[:])
-		// padding 12-24
-	} else if e.AddrFamily == unix.AF_INET6 {
-		e.Addr.Port = binary.BigEndian.Uint16(data[read+2 : read+4])
-		e.Addr.IPNet = *eval.IPNetFromIP(data[read+4 : read+20])
-	} // else, padding 2-20
+	// readjust IP size depending on the protocol
+	switch e.AddrFamily {
+	case 0x2: // unix.AF_INET
+		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw[0:4])
+	case 0xa: // unix.AF_INET6
+		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw)
+	}
 
 	return read + 20, nil
 }
