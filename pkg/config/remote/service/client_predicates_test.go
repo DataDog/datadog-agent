@@ -15,7 +15,7 @@ func TestClientPredicateBadTracerVersion(t *testing.T) {
 			IsTracer:     true,
 			ClientTracer: &pbgo.ClientTracer{TracerVersion: "1.0"},
 		},
-		[]*tracerPredicates{
+		[]*pbgo.TracerPredicate{
 			{
 				TracerVersion: "abc",
 			},
@@ -26,8 +26,8 @@ func TestClientPredicateBadTracerVersion(t *testing.T) {
 	assert.Error(err)
 }
 
-func testPredicate(client *pbgo.Client, assert *assert.Assertions) func(bool, []*tracerPredicates) {
-	return func(result bool, predicates []*tracerPredicates) {
+func testPredicate(client *pbgo.Client, assert *assert.Assertions) func(bool, []*pbgo.TracerPredicate) {
+	return func(result bool, predicates []*pbgo.TracerPredicate) {
 		config, err := executePredicate(client, predicates)
 
 		if !result {
@@ -64,28 +64,28 @@ func TestClientPredicates(t *testing.T) {
 	language := "python"
 	empty := ""
 
-	tester(true, []*tracerPredicates{{TracerVersion: tracerVersion}})
-	tester(true, []*tracerPredicates{{Service: serviceMatch}})
-	tester(true, []*tracerPredicates{{Environment: environment}})
-	tester(true, []*tracerPredicates{{AppVersion: appVersion}})
-	tester(true, []*tracerPredicates{{Language: language}})
+	tester(true, []*pbgo.TracerPredicate{{TracerVersion: tracerVersion}})
+	tester(true, []*pbgo.TracerPredicate{{Service: serviceMatch}})
+	tester(true, []*pbgo.TracerPredicate{{Environment: environment}})
+	tester(true, []*pbgo.TracerPredicate{{AppVersion: appVersion}})
+	tester(true, []*pbgo.TracerPredicate{{Language: language}})
 
-	tester(false, []*tracerPredicates{{TracerVersion: tracerVersionFail}})
-	tester(false, []*tracerPredicates{{Service: serviceFail}})
-	tester(false, []*tracerPredicates{{Environment: serviceFail}})
-	tester(false, []*tracerPredicates{{AppVersion: serviceFail}})
-	tester(false, []*tracerPredicates{{Language: serviceFail}})
+	tester(false, []*pbgo.TracerPredicate{{TracerVersion: tracerVersionFail}})
+	tester(false, []*pbgo.TracerPredicate{{Service: serviceFail}})
+	tester(false, []*pbgo.TracerPredicate{{Environment: serviceFail}})
+	tester(false, []*pbgo.TracerPredicate{{AppVersion: serviceFail}})
+	tester(false, []*pbgo.TracerPredicate{{Language: serviceFail}})
 
 	// empty string match
-	tester(true, []*tracerPredicates{{Language: empty}})
+	tester(true, []*pbgo.TracerPredicate{{Language: empty}})
 
 	// test match all
-	tester(true, []*tracerPredicates{})
+	tester(true, []*pbgo.TracerPredicate{})
 
 	// multiple fields
 	tester(
 		true,
-		[]*tracerPredicates{
+		[]*pbgo.TracerPredicate{
 			{
 				TracerVersion: tracerVersion,
 				Service:       serviceMatch,
@@ -94,7 +94,7 @@ func TestClientPredicates(t *testing.T) {
 	)
 	tester(
 		false,
-		[]*tracerPredicates{
+		[]*pbgo.TracerPredicate{
 			{
 				TracerVersion: tracerVersion,
 				Service:       serviceFail,
@@ -103,7 +103,7 @@ func TestClientPredicates(t *testing.T) {
 	)
 	tester(
 		true,
-		[]*tracerPredicates{
+		[]*pbgo.TracerPredicate{
 			{
 				TracerVersion: tracerVersion,
 				Service:       empty,
