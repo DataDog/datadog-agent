@@ -9,7 +9,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
-	"github.com/DataDog/datadog-agent/pkg/forwarder/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -23,24 +22,20 @@ func RunDatadogConnectivityChecks() error {
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-
-	endpoint := endpoints.V1ValidateEndpoint
-	// Create a domain resolver
-	// Should we use NewDomainResolverWithMetricToVector ?
 	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
 
-	method := "GET"
-	payload := []byte("")
 	client := newHTTPClient()
 
-	urls := getAllUrlForAnEndpoint(domainResolvers, endpoint, true)
-	fmt.Printf("'%v'\n", urls)
+	for _, endpointInfo := range endpointsInfo {
 
-	for _, url := range urls {
-		sendHTTPRequestToEndpoint(client, url, method, payload)
+		urls := getAllUrlForAnEndpoint(domainResolvers, endpointInfo.endpoint, endpointInfo.apiKeyInQueryString)
+
+		for _, url := range urls {
+			sendHTTPRequestToEndpoint(client, url, endpointInfo.method, endpointInfo.payload)
+		}
 	}
 
-	return fmt.Errorf("this command is not implemented yet")
+	return nil
 }
 
 func getAllUrlForAnEndpoint(domainResolvers map[string]resolver.DomainResolver, endpoint transaction.Endpoint, apiKeyInQueryString bool) []string {
