@@ -363,18 +363,18 @@ func TestServiceClientPredicates(t *testing.T) {
 		"datadog/2/APM_SAMPLING/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*tracerPredicates{})}},
 		"datadog/2/APM_SAMPLING/id/2": {FileMeta: data.FileMeta{Custom: customMeta([]*tracerPredicates{
 			{
-				RuntimeID: &clientID,
+				RuntimeID: clientID,
 			},
 		})}},
 		// must not be delivered
 		"datadog/2/TESTING1/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*tracerPredicates{
 			{
-				RuntimeID: &clientIDFail,
+				RuntimeID: clientIDFail,
 			},
 		})}},
 		"datadog/2/APPSEC/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*tracerPredicates{
 			{
-				Service: &wrongServiceName,
+				Service: wrongServiceName,
 			},
 		})}}},
 		nil,

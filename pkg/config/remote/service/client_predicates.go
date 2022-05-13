@@ -11,12 +11,12 @@ import (
 )
 
 type tracerPredicates struct {
-	RuntimeID     *string `json:"runtime-id,omitempty"`
-	Service       *string `json:"service,omitempty"`
-	Environment   *string `json:"environment,omitempty"`
-	AppVersion    *string `json:"app-version,omitempty"`
-	TracerVersion *string `json:"tracer-version,omitempty"`
-	Language      *string `json:"language,omitempty"`
+	RuntimeID     string `json:"runtime-id,omitempty"`
+	Service       string `json:"service,omitempty"`
+	Environment   string `json:"environment,omitempty"`
+	AppVersion    string `json:"app-version,omitempty"`
+	TracerVersion string `json:"tracer-version,omitempty"`
+	Language      string `json:"language,omitempty"`
 }
 
 type clientPredicates struct {
@@ -80,42 +80,32 @@ func executePredicate(client *pbgo.Client, predicates []*tracerPredicates) (bool
 	for _, predicate := range predicates {
 		if client.IsTracer {
 			tracer := client.ClientTracer
-			if predicate.RuntimeID != nil {
-				if tracer.RuntimeId != *predicate.RuntimeID {
-					return false, nil
-				}
+			if predicate.RuntimeID != "" && tracer.RuntimeId != predicate.RuntimeID {
+				return false, nil
 			}
 
-			if predicate.Service != nil {
-				if tracer.Service != *predicate.Service {
-					return false, nil
-				}
+			if predicate.Service != "" && tracer.Service != predicate.Service {
+				return false, nil
 			}
 
-			if predicate.Environment != nil {
-				if tracer.Env != *predicate.Environment {
-					return false, nil
-				}
+			if predicate.Environment != "" && tracer.Env != predicate.Environment {
+				return false, nil
 			}
 
-			if predicate.Language != nil {
-				if tracer.Language != *predicate.Language {
-					return false, nil
-				}
+			if predicate.Language != "" && tracer.Language != predicate.Language {
+				return false, nil
 			}
 
-			if predicate.AppVersion != nil {
-				if tracer.AppVersion != *predicate.AppVersion {
-					return false, nil
-				}
+			if predicate.AppVersion != "" && tracer.AppVersion != predicate.AppVersion {
+				return false, nil
 			}
 
-			if predicate.TracerVersion != nil {
+			if predicate.TracerVersion != "" {
 				version, err := semver.NewVersion(tracer.TracerVersion)
 				if err != nil {
 					return false, err
 				}
-				versionConstraint, err := semver.NewConstraint(*predicate.TracerVersion)
+				versionConstraint, err := semver.NewConstraint(predicate.TracerVersion)
 				if err != nil {
 					return false, err
 				}
