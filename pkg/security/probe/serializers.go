@@ -158,7 +158,7 @@ type EventContextSerializer struct {
 	Name     string `json:"name,omitempty" jsonschema_description:"Event name"`
 	Category string `json:"category,omitempty" jsonschema_description:"Event category"`
 	Outcome  string `json:"outcome,omitempty" jsonschema_description:"Event outcome"`
-	Async    bool   `json:"async" jsonschema_description:"True if the event was asynchronous"`
+	Async    bool   `json:"async,omitempty" jsonschema_description:"True if the event was asynchronous"`
 }
 
 // ProcessContextSerializer serializes a process context to JSON

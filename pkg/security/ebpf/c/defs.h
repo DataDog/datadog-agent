@@ -239,7 +239,7 @@ struct kevent_t {
 
 struct syscall_t {
     s64 retval;
-    u64 async;
+    u64 async; /* TODO: optimize the way we retrieve the async boolean */
 };
 
 struct span_context_t {

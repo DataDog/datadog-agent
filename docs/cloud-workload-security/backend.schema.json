@@ -213,9 +213,6 @@
       "type": "object"
     },
     "EventContext": {
-      "required": [
-        "async"
-      ],
       "properties": {
         "name": {
           "type": "string",

@@ -3286,7 +3286,7 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe22(out *j
 		}
 		out.String(string(in.Outcome))
 	}
-	{
+	if in.Async {
 		const prefix string = ",\"async\":"
 		if first {
 			first = false

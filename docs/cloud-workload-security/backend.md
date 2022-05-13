@@ -343,9 +343,6 @@ CWS logs have the following JSON schema:
 
 {{< code-block lang="json" collapsible="true" >}}
 {
-    "required": [
-        "async"
-    ],
     "properties": {
         "name": {
             "type": "string",
