@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/open-policy-agent/opa/ast"
@@ -27,6 +28,7 @@ import (
 )
 
 const regoEvaluator = "rego"
+const regoEvalTimeout = 20 * time.Second
 
 type regoCheck struct {
 	ruleID            string
@@ -382,7 +384,8 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 		_ = dumpInputToFile(r.ruleID, path, input)
 	}
 
-	ctx := context.TODO()
+	ctx, cancel := context.WithTimeout(context.Background(), regoEvalTimeout)
+	defer cancel()
 	results, err := r.preparedEvalQuery.Eval(ctx, rego.EvalInput(input))
 	if err != nil {
 		return buildErrorReports(err)
