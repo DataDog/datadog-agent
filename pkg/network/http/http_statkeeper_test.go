@@ -51,7 +51,7 @@ func TestProcessHTTPTransactions(t *testing.T) {
 	assert.Equal(t, 0, len(sk.stats))
 	assert.Equal(t, numPaths, len(stats))
 	for key, stats := range stats {
-		assert.Equal(t, "/testpath", key.Path[:9])
+		assert.Equal(t, "/testpath", key.Path.Content[:9])
 		for i := 0; i < 5; i++ {
 			s := stats.Stats((i + 1) * 100)
 			require.NotNil(t, s)
@@ -148,7 +148,7 @@ func TestPathProcessing(t *testing.T) {
 
 		require.Len(t, stats, 1)
 		for key := range stats {
-			assert.Equal(t, "/foobar", key.Path)
+			assert.Equal(t, "/foobar", key.Path.Content)
 		}
 	})
 
@@ -171,7 +171,7 @@ func TestPathProcessing(t *testing.T) {
 
 		require.Len(t, stats, 1)
 		for key, metrics := range stats {
-			assert.Equal(t, "/prefix/users/?", key.Path)
+			assert.Equal(t, "/prefix/users/?", key.Path.Content)
 			s := metrics.Stats(statusCode)
 			require.NotNil(t, s)
 			assert.Equal(t, 3, s.Count)
@@ -200,7 +200,7 @@ func TestPathProcessing(t *testing.T) {
 
 		require.Len(t, stats, 1)
 		for key, metrics := range stats {
-			assert.Equal(t, "/users/?/payment/?", key.Path)
+			assert.Equal(t, "/users/?/payment/?", key.Path.Content)
 			s := metrics.Stats(statusCode)
 			require.NotNil(t, s)
 			assert.Equal(t, 2, s.Count)

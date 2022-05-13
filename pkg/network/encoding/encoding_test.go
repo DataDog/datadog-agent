@@ -215,6 +215,7 @@ func TestSerialization(t *testing.T) {
 				40,
 				80,
 				"/testpath",
+				true,
 				http.MethodGet,
 			): &httpReqStats,
 		},
@@ -223,8 +224,9 @@ func TestSerialization(t *testing.T) {
 	httpOut := &model.HTTPAggregations{
 		EndpointAggregations: []*model.HTTPStats{
 			{
-				Path:   "/testpath",
-				Method: model.HTTPMethod_Get,
+				Path:     "/testpath",
+				Method:   model.HTTPMethod_Get,
+				FullPath: true,
 				StatsByResponseStatus: []*model.HTTPStats_Data{
 					{
 						Count:     0,
@@ -459,6 +461,7 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				clientPort,
 				serverPort,
 				"/testpath",
+				true,
 				http.MethodGet,
 			): &httpReqStats,
 		},
@@ -467,8 +470,9 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 	httpOut := &model.HTTPAggregations{
 		EndpointAggregations: []*model.HTTPStats{
 			{
-				Path:   "/testpath",
-				Method: model.HTTPMethod_Get,
+				Path:     "/testpath",
+				Method:   model.HTTPMethod_Get,
+				FullPath: true,
 				StatsByResponseStatus: []*model.HTTPStats_Data{
 					{Count: 0, Latencies: nil},
 					{Count: 0, Latencies: nil},
@@ -524,6 +528,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 		60000,
 		8080,
 		"",
+		true,
 		http.MethodGet,
 	)
 
@@ -563,13 +568,16 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 	// Let's alternate between payloads with and without HTTP data
 	for i := 0; i < 1000; i++ {
 		if (i % 2) == 0 {
-			httpKey.Path = fmt.Sprintf("/path-%d", i)
+			httpKey.Path = http.Path{
+				Content:  fmt.Sprintf("/path-%d", i),
+				FullPath: true,
+			}
 			in.HTTP = map[http.Key]*http.RequestStats{httpKey: {}}
 			out := encodeAndDecodeHTTP(in)
 
 			require.NotNil(t, out)
 			require.Len(t, out.EndpointAggregations, 1)
-			require.Equal(t, httpKey.Path, out.EndpointAggregations[0].Path)
+			require.Equal(t, httpKey.Path.Content, out.EndpointAggregations[0].Path)
 		} else {
 			// No HTTP data in this payload, so we should never get HTTP data back after the serialization
 			in.HTTP = nil
