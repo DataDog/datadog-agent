@@ -12,7 +12,7 @@ struct bind_event_t {
     uint16_t addr_port;
     union  {
         uint32_t addr_ip;
-        uint8_t  addr_ip6[16];
+        u64 addr_ip6[2];
     };
 };
 
@@ -47,50 +47,14 @@ int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
         return 0;
     }
 
-    /* get address family */
-    uint16_t addr_family;
-    if (bpf_probe_read(&addr_family, sizeof(addr_family), &(syscall->bind.addr->sa_family))) {
-        return 0;
-    }
-
     /* pre-fill the event */
     struct bind_event_t event = {
         .syscall.retval = retval,
-        .addr_family = addr_family,
         .addr_port = 0,
     };
-
-    /* get additionnal information, depending on the addr family */
-    struct sockaddr_in* sockin;
-    struct sockaddr_in6* sockin6;
-    switch (addr_family) {
-    case AF_INET:
-        /* get port */
-        sockin = (struct sockaddr_in*)syscall->bind.addr;
-        if (bpf_probe_read(&event.addr_port, sizeof(event.addr_port), &(sockin->sin_port))) {
-            return 0;
-        }
-
-        /* get ip */
-        if (bpf_probe_read(&event.addr_ip, sizeof(event.addr_ip), &(sockin->sin_addr))) {
-            return 0;
-        }
-        break;
-
-    case AF_INET6:
-        /* get port */
-        sockin6 = (struct sockaddr_in6*)syscall->bind.addr;
-        if (bpf_probe_read(&event.addr_port, sizeof(event.addr_port), &(sockin6->sin6_port))) {
-            return 0;
-        }
-
-        /* get addr ip */
-        if (bpf_probe_read(&event.addr_ip6, sizeof(event.addr_ip6), &(sockin6->sin6_addr))) {
-            return 0;
-        }
-        break;
-
-    /* TODO: handle other addr family */
+    /* extract the addr fields */
+    if (parse_addr(&event.addr_family, &event.addr_port, (u64*)&event.addr_ip6, syscall->bind.addr) < 0) {
+        return 0;
     }
 
     struct proc_cache_t *entry = fill_process_context(&event.process);

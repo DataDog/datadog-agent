@@ -110,25 +110,40 @@ int kprobe_security_sk_classify_flow(struct pt_regs *ctx)
     return 0;
 };
 
+int __attribute__((always_inline)) parse_addr(u16* retfamily, u16* port, void* ip, struct sockaddr* address) {
+    if (!address) {
+        return -EINVAL;
+    }
+
+    // Extract IP and port from the sockaddr structure
+    u16 family = 0;
+    bpf_probe_read(&family, sizeof(family), &address->sa_family);
+    if (retfamily) {
+        *retfamily = family;
+    }
+    if (family == AF_INET) {
+        struct sockaddr_in *addr_in = (struct sockaddr_in *)address;
+        bpf_probe_read(port, sizeof(addr_in->sin_port), &addr_in->sin_port);
+        bpf_probe_read(ip, sizeof(addr_in->sin_addr.s_addr), &addr_in->sin_addr.s_addr);
+    } else if (family == AF_INET6) {
+        struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)address;
+        bpf_probe_read(port, sizeof(addr_in6->sin6_port), &addr_in6->sin6_port);
+        bpf_probe_read(ip, sizeof(u64) * 2, (char *)addr_in6 + offsetof(struct sockaddr_in6, sin6_addr));
+    } else {
+        return EAFNOSUPPORT;
+    }
+    return 0;
+}
+
+
 SEC("kprobe/security_socket_bind")
 int kprobe_security_socket_bind(struct pt_regs *ctx)
 {
     struct socket *sk = (struct socket *)PT_REGS_PARM1(ctx);
     struct sockaddr *address = (struct sockaddr *)PT_REGS_PARM2(ctx);
     struct pid_route_t key = {};
-    u16 family = 0;
 
-    // Extract IP and port from the sockaddr structure
-    bpf_probe_read(&family, sizeof(family), &address->sa_family);
-    if (family == AF_INET) {
-        struct sockaddr_in *addr_in = (struct sockaddr_in *)address;
-        bpf_probe_read(&key.port, sizeof(addr_in->sin_port), &addr_in->sin_port);
-        bpf_probe_read(&key.addr, sizeof(addr_in->sin_addr.s_addr), &addr_in->sin_addr.s_addr);
-    } else if (family == AF_INET6) {
-        struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)address;
-        bpf_probe_read(&key.port, sizeof(addr_in6->sin6_port), &addr_in6->sin6_port);
-        bpf_probe_read(&key.addr, sizeof(u64) * 2, (char *)addr_in6 + offsetof(struct sockaddr_in6, sin6_addr));
-    } else {
+    if (parse_addr(NULL, &key.port, (u64*)&key.addr, address)) {
         return 0;
     }
 
