@@ -24,7 +24,7 @@ RUN chmod 755 entrypoint.sh \
 FROM builder AS nosys-seccomp
 COPY nosys-seccomp/nosys.c /tmp/nosys.c
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt update && install --no-install-recommends -y gcc libc6-dev libseccomp-dev
+RUN apt update && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
 RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -o /tmp/nosys.so /tmp/nosys.c -lseccomp
 
 ####################################
