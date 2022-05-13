@@ -1128,6 +1128,12 @@ LIMIT 1
 			`INSERT INTO table (field1) VALUES ($tag$random \wqejks "sadads' text$tag$)`,
 			`INSERT INTO table ( field1 ) VALUES ( ? )`,
 		},
+		// Ensure that if we're not explicitly sending postgresql in the config,
+		// ident<@ident should parse as ident < @ident, not as a postgres specific json operator
+		{
+			`SELECT a FROM foo WHERE value<@name`,
+			`SELECT a FROM foo WHERE value < @name`,
+		},
 		{
 			query:    `SELECT nspname FROM pg_class where nspname !~ '.*toIgnore.*'`,
 			expected: `SELECT nspname FROM pg_class where nspname !~ ?`,
@@ -1159,6 +1165,71 @@ LIMIT 1
 			oq, err := o.ObfuscateSQLString(c.query)
 			require.NoError(t, err)
 			require.Equal(t, c.expected, oq.Query)
+		})
+	}
+}
+
+func TestPGJsonOperators(t *testing.T) {
+	assert := assert.New(t)
+	for _, tt := range []struct {
+		in, out string
+		cfg     SQLConfig
+	}{
+		{
+			"select users.custom #> '{a,b}' from users",
+			"select users.custom #> ? from users",
+			SQLConfig{
+				DBMS: DBMSPostgresql,
+			},
+		},
+		{
+			"select users.custom #>> '{a,b}' from users",
+			"select users.custom #>> ? from users",
+			SQLConfig{
+				DBMS: DBMSPostgresql,
+			},
+		},
+		{
+			"select users.custom #- '{a,b}' from users",
+			"select users.custom #- ? from users",
+			SQLConfig{
+				DBMS: DBMSPostgresql,
+			},
+		},
+		{
+			"select * from users where user.custom @> '{a,b}'",
+			"select * from users where user.custom @> ?",
+			SQLConfig{
+				DBMS: DBMSPostgresql,
+			},
+		},
+		{
+			`SELECT a FROM foo WHERE value<@name`,
+			`SELECT a FROM foo WHERE value <@ name`,
+			SQLConfig{
+				DBMS: DBMSPostgresql,
+			},
+		},
+		{
+			"select * from users where user.custom ?| array [ '1', '2' ]",
+			"select * from users where user.custom ?| array [ ? ]",
+			SQLConfig{
+				DBMS: DBMSPostgresql,
+			},
+		},
+
+		{
+			"select * from users where user.custom ?& array [ '1', '2' ]",
+			"select * from users where user.custom ?& array [ ? ]",
+			SQLConfig{
+				DBMS: DBMSPostgresql,
+			},
+		},
+	} {
+		t.Run(tt.cfg.DBMS, func(t *testing.T) {
+			oq, err := NewObfuscator(Config{SQL: tt.cfg}).ObfuscateSQLString(tt.in)
+			assert.NoError(err)
+			assert.Equal(tt.out, oq.Query)
 		})
 	}
 }

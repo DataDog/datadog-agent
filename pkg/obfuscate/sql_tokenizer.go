@@ -155,6 +155,8 @@ const (
 	DBMSSQLServer = "mssql"
 )
 
+const DBMSPostgresql = "postgresql"
+
 const escapeCharacter = '\\'
 
 // SQLTokenizer is the struct used to generate SQL
@@ -280,7 +282,21 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 			default:
 				return TokenKind(ch), tkn.bytes()
 			}
-		case '=', ',', ';', '(', ')', '+', '*', '&', '|', '^', '[', ']', '?':
+		case '?':
+			if tkn.cfg.DBMS == DBMSPostgresql {
+				switch tkn.lastChar {
+				case '|':
+					tkn.advance()
+					return NE, []byte("?|")
+				case '&':
+					tkn.advance()
+					return NE, []byte("?&")
+				default:
+					return TokenKind(ch), tkn.bytes()
+				}
+			}
+			return TokenKind(ch), tkn.bytes()
+		case '=', ',', ';', '(', ')', '+', '*', '&', '|', '^', '[', ']':
 			return TokenKind(ch), tkn.bytes()
 		case '.':
 			if isDigit(tkn.lastChar) {
@@ -322,6 +338,24 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 			if tkn.cfg.DBMS == DBMSSQLServer {
 				return tkn.scanIdentifier()
 			}
+			if tkn.cfg.DBMS == DBMSPostgresql {
+				switch tkn.lastChar {
+				case '>':
+					tkn.advance()
+					switch tkn.lastChar {
+					case '>':
+						tkn.advance()
+						return NullSafeEqual, []byte("#>>")
+					default:
+						return NE, []byte("#>")
+					}
+				case '-':
+					tkn.advance()
+					return NE, []byte("#-")
+				default:
+					return TokenKind(ch), tkn.bytes()
+				}
+			}
 			tkn.advance()
 			return tkn.scanCommentType1("#")
 		case '<':
@@ -338,6 +372,13 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				default:
 					return LE, []byte("<=")
 				}
+			// Check for the postgres left jsonb contains operator <@
+			case '@':
+				if tkn.cfg.DBMS == DBMSPostgresql {
+					tkn.advance()
+					return NE, []byte("<@")
+				}
+				return TokenKind(ch), tkn.bytes()
 			default:
 				return TokenKind(ch), tkn.bytes()
 			}
@@ -403,6 +444,21 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				tok = append(append([]byte("$func$"), []byte(out.Query)...), []byte("$func$")...)
 			}
 			return kind, tok
+		case '@':
+			// For postgres the @ symbol is reserved as an operator
+			// https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-OPERATORS
+			// And is used as a json operator
+			// https://www.postgresql.org/docs/9.5/functions-json.html
+			if tkn.cfg.DBMS == DBMSPostgresql {
+				switch tkn.lastChar {
+				case '>':
+					tkn.advance()
+					return NE, []byte("@>")
+				default:
+					return TokenKind(ch), tkn.bytes()
+				}
+			}
+			return tkn.scanIdentifier()
 		case '{':
 			if tkn.pos == 1 || tkn.curlys > 0 {
 				// Do not fully obfuscate top-level SQL escape sequences like {{[?=]call procedure-name[([parameter][,parameter]...)]}.
@@ -786,7 +842,7 @@ func (tkn *SQLTokenizer) Position() int {
 }
 
 func isLeadingLetter(ch rune) bool {
-	return unicode.IsLetter(ch) || ch == '_' || ch == '@'
+	return unicode.IsLetter(ch) || ch == '_'
 }
 
 func isLetter(ch rune) bool {
