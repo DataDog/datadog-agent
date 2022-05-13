@@ -133,6 +133,7 @@ const (
 	DoSendfileArgsMap     BPFMapName = "do_sendfile_args"
 	SockByPidFDMap        BPFMapName = "sock_by_pid_fd"
 	PidFDBySockMap        BPFMapName = "pid_fd_by_sock"
+	TagsMap               BPFMapName = "conn_tags"
 	TcpSendMsgArgsMap     BPFMapName = "tcp_sendmsg_args"
 )
 

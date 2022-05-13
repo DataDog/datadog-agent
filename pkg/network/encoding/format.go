@@ -48,6 +48,7 @@ func FormatConnection(
 	httpEncoder *httpEncoder,
 	dnsFormatter *dnsFormatter,
 	ipc ipCache,
+	tagsSet *network.TagsSet,
 ) *model.Connection {
 	c := connPool.Get().(*model.Connection)
 	c.Pid = int32(conn.Pid)
@@ -75,9 +76,13 @@ func FormatConnection(
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
 	dnsFormatter.FormatConnectionDNS(conn, c)
 
-	if httpStats := httpEncoder.GetHTTPAggregations(conn); httpStats != nil {
+	httpStats, tags := httpEncoder.GetHTTPAggregationsAndTags(conn)
+	if httpStats != nil {
 		c.HttpAggregations, _ = proto.Marshal(httpStats)
 	}
+
+	conn.Tags |= tags
+	c.Tags = formatTags(tagsSet, conn)
 
 	return c
 }
@@ -225,4 +230,11 @@ func formatRouteIdx(v *network.Via, routes map[string]RouteIdx) int32 {
 
 func routeKey(v *network.Via) string {
 	return v.Subnet.Alias
+}
+
+func formatTags(tagsSet *network.TagsSet, c network.ConnectionStats) (tagsIdx []uint32) {
+	for _, tag := range network.GetStaticTags(c.Tags) {
+		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
+	}
+	return tagsIdx
 }

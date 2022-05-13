@@ -97,7 +97,7 @@ message ClientState {
   repeated ConfigState config_states = 3;
   bool has_error = 4;
   string error = 5;
-  bytes backend_client_state = 6; 
+  bytes backend_client_state = 6;
 }
 
 // Client queries
@@ -122,6 +122,7 @@ message ClientGetConfigsResponse {
   repeated bytes roots = 1;
   bytes targets = 2;
   repeated File target_files = 3;
+  repeated string client_configs = 4;
 }
 
 // Full state

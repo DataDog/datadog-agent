@@ -146,10 +146,7 @@ func (m *Module) Start() error {
 
 	// launch the self tests and send the result report
 	if m.config.SelfTestEnabled {
-		err := m.RunSelfTestAndReport()
-		if err != nil {
-			return err
-		}
+		_ = m.RunSelfTestAndReport()
 	}
 
 	m.wg.Add(1)
@@ -558,6 +555,10 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 
 // RunSelfTestAndReport runs the self tests, and send a result report
 func (m *Module) RunSelfTestAndReport() error {
+	if !m.config.IsEnabled() {
+		return nil
+	}
+
 	success, fails, err := m.selfTester.RunSelfTest()
 	if err != nil {
 		return err

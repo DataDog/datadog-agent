@@ -122,21 +122,25 @@ func TestFormatPacketV1Generic(t *testing.T) {
 	data := make(map[string]interface{})
 	err = json.Unmarshal(formattedPacket, &data)
 	require.NoError(t, err)
+	trapContent := data["trap"].(map[string]interface{})
 
-	assert.Equal(t, "1.3.6.1.6.3.1.1.5.3", data["snmpTrapOID"])
-	assert.NotNil(t, data["uptime"])
-	assert.NotNil(t, data["enterpriseOID"])
-	assert.NotNil(t, data["genericTrap"])
-	assert.NotNil(t, data["specificTrap"])
+	assert.Equal(t, "snmp-traps", trapContent["ddsource"])
+	assert.Equal(t, "snmp_version:1,device_namespace:default,snmp_device:127.0.0.1", trapContent["ddtags"])
+
+	assert.Equal(t, "1.3.6.1.6.3.1.1.5.3", trapContent["snmpTrapOID"])
+	assert.NotNil(t, trapContent["uptime"])
+	assert.NotNil(t, trapContent["enterpriseOID"])
+	assert.NotNil(t, trapContent["genericTrap"])
+	assert.NotNil(t, trapContent["specificTrap"])
 
 	variables := make([]map[string]interface{}, 3)
 	for i := 0; i < 3; i++ {
-		variables[i] = data["variables"].([]interface{})[i].(map[string]interface{})
+		variables[i] = trapContent["variables"].([]interface{})[i].(map[string]interface{})
 	}
 
-	assert.Equal(t, "1.3.6.1.6.3.1.1.5", data["enterpriseOID"])
-	assert.EqualValues(t, 2, data["genericTrap"])
-	assert.EqualValues(t, 0, data["specificTrap"])
+	assert.Equal(t, "1.3.6.1.6.3.1.1.5", trapContent["enterpriseOID"])
+	assert.EqualValues(t, 2, trapContent["genericTrap"])
+	assert.EqualValues(t, 0, trapContent["specificTrap"])
 
 	ifIndex := variables[0]
 	assert.EqualValues(t, ifIndex["oid"], "1.3.6.1.2.1.2.2.1.1")
@@ -161,21 +165,25 @@ func TestFormatPacketV1Specific(t *testing.T) {
 	data := make(map[string]interface{})
 	err = json.Unmarshal(formattedPacket, &data)
 	require.NoError(t, err)
+	trapContent := data["trap"].(map[string]interface{})
 
-	assert.Equal(t, "1.3.6.1.2.1.118.0.2", data["snmpTrapOID"])
-	assert.NotNil(t, data["uptime"])
-	assert.NotNil(t, data["enterpriseOID"])
-	assert.NotNil(t, data["genericTrap"])
-	assert.NotNil(t, data["specificTrap"])
+	assert.Equal(t, "snmp-traps", trapContent["ddsource"])
+	assert.Equal(t, "snmp_version:1,device_namespace:default,snmp_device:127.0.0.1", trapContent["ddtags"])
+
+	assert.Equal(t, "1.3.6.1.2.1.118.0.2", trapContent["snmpTrapOID"])
+	assert.NotNil(t, trapContent["uptime"])
+	assert.NotNil(t, trapContent["enterpriseOID"])
+	assert.NotNil(t, trapContent["genericTrap"])
+	assert.NotNil(t, trapContent["specificTrap"])
 
 	variables := make([]map[string]interface{}, 2)
 	for i := 0; i < 2; i++ {
-		variables[i] = data["variables"].([]interface{})[i].(map[string]interface{})
+		variables[i] = trapContent["variables"].([]interface{})[i].(map[string]interface{})
 	}
 
-	assert.Equal(t, "1.3.6.1.2.1.118", data["enterpriseOID"])
-	assert.EqualValues(t, 6, data["genericTrap"])
-	assert.EqualValues(t, 2, data["specificTrap"])
+	assert.Equal(t, "1.3.6.1.2.1.118", trapContent["enterpriseOID"])
+	assert.EqualValues(t, 6, trapContent["genericTrap"])
+	assert.EqualValues(t, 2, trapContent["specificTrap"])
 
 	alarmActiveModelPointer := variables[0]
 	assert.Equal(t, alarmActiveModelPointer["oid"], "1.3.6.1.2.1.118.1.2.2.1.13")
@@ -197,13 +205,17 @@ func TestFormatPacketToJSON(t *testing.T) {
 	data := make(map[string]interface{})
 	err = json.Unmarshal(formattedPacket, &data)
 	require.NoError(t, err)
+	trapContent := data["trap"].(map[string]interface{})
 
-	assert.Equal(t, "1.3.6.1.4.1.8072.2.3.0.1", data["snmpTrapOID"])
-	assert.NotNil(t, data["uptime"])
+	assert.Equal(t, "snmp-traps", trapContent["ddsource"])
+	assert.Equal(t, "snmp_version:2,device_namespace:default,snmp_device:127.0.0.1", trapContent["ddtags"])
+
+	assert.Equal(t, "1.3.6.1.4.1.8072.2.3.0.1", trapContent["snmpTrapOID"])
+	assert.NotNil(t, trapContent["uptime"])
 
 	variables := make([]map[string]interface{}, 2)
 	for i := 0; i < 2; i++ {
-		variables[i] = data["variables"].([]interface{})[i].(map[string]interface{})
+		variables[i] = trapContent["variables"].([]interface{})[i].(map[string]interface{})
 	}
 
 	heartBeatRate := variables[0]
@@ -247,7 +259,7 @@ func TestFormatPacketToJSONShouldFailIfNotEnoughVariables(t *testing.T) {
 
 func TestGetTags(t *testing.T) {
 	packet := createTestPacket(NetSNMPExampleHeartbeatNotification)
-	assert.Equal(t, defaultFormatter.GetTags(packet), []string{
+	assert.Equal(t, defaultFormatter.getTags(packet), []string{
 		"snmp_version:2",
 		"device_namespace:default",
 		"snmp_device:127.0.0.1",
@@ -257,7 +269,7 @@ func TestGetTags(t *testing.T) {
 func TestGetTagsForUnsupportedVersionShouldStillSucceed(t *testing.T) {
 	packet := createTestPacket(NetSNMPExampleHeartbeatNotification)
 	packet.Content.Version = 12
-	assert.Equal(t, defaultFormatter.GetTags(packet), []string{
+	assert.Equal(t, defaultFormatter.getTags(packet), []string{
 		"snmp_version:unknown",
 		"device_namespace:default",
 		"snmp_device:127.0.0.1",
@@ -270,7 +282,7 @@ func TestNewJSONFormatterWithNilStillWorks(t *testing.T) {
 	packet := createTestPacket(NetSNMPExampleHeartbeatNotification)
 	_, err = formatter.FormatPacket(packet)
 	require.NoError(t, err)
-	tags := formatter.GetTags(packet)
+	tags := formatter.getTags(packet)
 	assert.Equal(t, tags, []string{
 		"snmp_version:2",
 		"device_namespace:default",
@@ -291,6 +303,9 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 			trap:        NetSNMPExampleHeartbeatNotification,
 			resolver:    resolverWithData,
 			expectedContent: map[string]interface{}{
+				"ddsource":                    "snmp-traps",
+				"ddtags":                      "snmp_version:2,device_namespace:default,snmp_device:127.0.0.1",
+				"timestamp":                   0.,
 				"uptime":                      float64(1000),
 				"snmpTrapName":                "netSnmpExampleHeartbeatNotification",
 				"snmpTrapMIB":                 "NET-SNMP-EXAMPLES-MIB",
@@ -320,6 +335,9 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 			trap:        LinkUpExampleV2Trap,
 			resolver:    resolverWithData,
 			expectedContent: map[string]interface{}{
+				"ddsource":      "snmp-traps",
+				"ddtags":        "snmp_version:2,device_namespace:default,snmp_device:127.0.0.1",
+				"timestamp":     0.,
 				"snmpTrapName":  "linkUp",
 				"snmpTrapMIB":   "IF-MIB",
 				"snmpTrapOID":   "1.3.6.1.6.3.1.1.5.4",
@@ -356,6 +374,9 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 			trap:        BadValueExampleV2Trap,
 			resolver:    resolverWithData,
 			expectedContent: map[string]interface{}{
+				"ddsource":      "snmp-traps",
+				"ddtags":        "snmp_version:2,device_namespace:default,snmp_device:127.0.0.1",
+				"timestamp":     0.,
 				"snmpTrapName":  "linkUp",
 				"snmpTrapMIB":   "IF-MIB",
 				"snmpTrapOID":   "1.3.6.1.6.3.1.1.5.4",
@@ -392,6 +413,9 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 			trap:        NoEnumMappingExampleV2Trap,
 			resolver:    resolverWithData,
 			expectedContent: map[string]interface{}{
+				"ddsource":      "snmp-traps",
+				"ddtags":        "snmp_version:2,device_namespace:default,snmp_device:127.0.0.1",
+				"timestamp":     0.,
 				"snmpTrapName":  "linkUp",
 				"snmpTrapMIB":   "IF-MIB",
 				"snmpTrapOID":   "1.3.6.1.6.3.1.1.5.4",
@@ -433,16 +457,17 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 			data, err := formatter.FormatPacket(packet)
 			require.NoError(t, err)
 			content := make(map[string]interface{})
-			json.Unmarshal(data, &content)
-
+			err = json.Unmarshal(data, &content)
+			require.NoError(t, err)
+			trapContent := content["trap"].(map[string]interface{})
 			// map comparisons shouldn't be reliant on ordering with this lib
 			// however variables are a slice, they must be sorted
-			if diff := cmp.Diff(content, d.expectedContent); diff != "" {
+			if diff := cmp.Diff(trapContent, d.expectedContent); diff != "" {
 				t.Error(diff)
 			}
 
 			// sort strings lexographically as comparison is order sensitive
-			tags := formatter.GetTags(packet)
+			tags := formatter.getTags(packet)
 			sort.Strings(tags)
 			sort.Strings(d.expectedTags)
 			if diff := cmp.Diff(tags, d.expectedTags); diff != "" {
@@ -459,15 +484,20 @@ func TestFormatterWithResolverAndTrapV1Generic(t *testing.T) {
 	data, err := formatter.FormatPacket(packet)
 	require.NoError(t, err)
 	content := make(map[string]interface{})
-	json.Unmarshal(data, &content)
+	err = json.Unmarshal(data, &content)
+	require.NoError(t, err)
+	trapContent := content["trap"].(map[string]interface{})
 
-	assert.EqualValues(t, "ifDown", content["snmpTrapName"])
-	assert.EqualValues(t, "IF-MIB", content["snmpTrapMIB"])
-	assert.EqualValues(t, 2, content["ifIndex"])
-	assert.EqualValues(t, "up", content["ifAdminStatus"])
-	assert.EqualValues(t, "down", content["ifOperStatus"])
+	assert.Equal(t, "snmp-traps", trapContent["ddsource"])
+	assert.Equal(t, "snmp_version:1,device_namespace:default,snmp_device:127.0.0.1", trapContent["ddtags"])
 
-	tags := formatter.GetTags(packet)
+	assert.EqualValues(t, "ifDown", trapContent["snmpTrapName"])
+	assert.EqualValues(t, "IF-MIB", trapContent["snmpTrapMIB"])
+	assert.EqualValues(t, 2, trapContent["ifIndex"])
+	assert.EqualValues(t, "up", trapContent["ifAdminStatus"])
+	assert.EqualValues(t, "down", trapContent["ifOperStatus"])
+
+	tags := formatter.getTags(packet)
 	assert.Equal(t, tags, []string{
 		"snmp_version:1",
 		"device_namespace:default",

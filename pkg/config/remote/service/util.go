@@ -34,7 +34,7 @@ func openCacheDB(path string) (*bbolt.DB, error) {
 }
 
 func parseRemoteConfigKey(serializedKey string) (*msgpgo.RemoteConfigKey, error) {
-	serializedKey = strings.TrimPrefix(serializedKey, "DDRCM")
+	serializedKey = strings.TrimPrefix(serializedKey, "DDRCM.")
 	encoding := base32.StdEncoding.WithPadding(base32.NoPadding)
 	rawKey, err := encoding.DecodeString(serializedKey)
 	if err != nil {

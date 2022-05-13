@@ -6,17 +6,20 @@
 package traps
 
 import (
+	"fmt"
 	"net"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gosnmp/gosnmp"
 )
 
 // SnmpPacket is the type of packets yielded by server listeners.
 type SnmpPacket struct {
-	Content *gosnmp.SnmpPacket
-	Addr    *net.UDPAddr
+	Content   *gosnmp.SnmpPacket
+	Addr      *net.UDPAddr
+	Timestamp int64
 }
 
 // PacketsChannel is the type of channels of trap packets.
@@ -26,8 +29,8 @@ type PacketsChannel = chan *SnmpPacket
 type TrapServer struct {
 	Addr     string
 	config   *Config
-	listener *gosnmp.TrapListener
-	packets  PacketsChannel
+	listener *TrapListener
+	sender   *TrapForwarder
 }
 
 var (
@@ -36,8 +39,20 @@ var (
 )
 
 // StartServer starts the global trap server.
-func StartServer(agentHostname string) error {
-	server, err := NewTrapServer(agentHostname)
+func StartServer(agentHostname string, demux aggregator.Demultiplexer) error {
+	sender, err := demux.GetDefaultSender()
+	if err != nil {
+		return err
+	}
+	oidResolver, err := NewMultiFilesOIDResolver()
+	if err != nil {
+		return err
+	}
+	formatter, err := NewJSONFormatter(oidResolver)
+	if err != nil {
+		return err
+	}
+	server, err := NewTrapServer(agentHostname, formatter, sender)
 	serverInstance = server
 	startError = err
 	return err
@@ -57,11 +72,6 @@ func IsRunning() bool {
 	return serverInstance != nil
 }
 
-// GetPacketsChannel returns a channel containing all received trap packets.
-func GetPacketsChannel() PacketsChannel {
-	return serverInstance.packets
-}
-
 // GetNamespace returns the device namespace for the traps listener.
 func GetNamespace() string {
 	if serverInstance != nil {
@@ -71,7 +81,7 @@ func GetNamespace() string {
 }
 
 // NewTrapServer configures and returns a running SNMP traps server.
-func NewTrapServer(agentHostname string) (*TrapServer, error) {
+func NewTrapServer(agentHostname string, formatter Formatter, aggregator aggregator.Sender) (*TrapServer, error) {
 	config, err := ReadConfig(agentHostname)
 	if err != nil {
 		return nil, err
@@ -79,63 +89,42 @@ func NewTrapServer(agentHostname string) (*TrapServer, error) {
 
 	packets := make(PacketsChannel, packetsChanSize)
 
-	listener, err := startSNMPTrapListener(config, packets)
+	listener, err := startSNMPTrapListener(*config, packets)
 	if err != nil {
 		return nil, err
 	}
 
+	trapForwarder, err := startSNMPTrapForwarder(formatter, aggregator, packets)
+	if err != nil {
+		return nil, fmt.Errorf("unable to start trapForwarder: %w. Will not listen for SNMP traps", err)
+	}
 	server := &TrapServer{
 		listener: listener,
 		config:   config,
-		packets:  packets,
+		sender:   trapForwarder,
 	}
 
 	return server, nil
 }
 
-func startSNMPTrapListener(c *Config, packets PacketsChannel) (*gosnmp.TrapListener, error) {
-	var err error
-	listener := gosnmp.NewTrapListener()
-	listener.Params, err = c.BuildSNMPParams()
+func startSNMPTrapForwarder(formatter Formatter, aggregator aggregator.Sender, packets PacketsChannel) (*TrapForwarder, error) {
+	trapForwarder, err := NewTrapForwarder(formatter, aggregator, packets)
 	if err != nil {
 		return nil, err
 	}
-
-	listener.OnNewTrap = func(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
-		if err := validatePacket(p, c); err != nil {
-			log.Warnf("Invalid credentials from %s on listener %s, dropping packet", u.String(), c.Addr())
-			trapsPacketsAuthErrors.Add(1)
-			return
-		}
-		log.Debugf("Packet received from %s on listener %s", u.String(), c.Addr())
-		trapsPackets.Add(1)
-		packets <- &SnmpPacket{Content: p, Addr: u}
-	}
-
-	errors := make(chan error, 1)
-
-	// Start actually listening in the background.
-	go func() {
-		log.Infof("Start listening for traps on %s", c.Addr())
-		err := listener.Listen(c.Addr())
-		if err != nil {
-			errors <- err
-		}
-	}()
-
-	select {
-	// Wait for listener to be started and listening to traps.
-	// See: https://godoc.org/github.com/gosnmp/gosnmp#TrapListener.Listening
-	case <-listener.Listening():
-		break
-	// If the listener failed to start (eg because it couldn't bind to a socket),
-	// we'll get an error here.
-	case err := <-errors:
-		close(errors)
+	trapForwarder.Start()
+	return trapForwarder, nil
+}
+func startSNMPTrapListener(c Config, packets PacketsChannel) (*TrapListener, error) {
+	trapListener, err := NewTrapListener(c, packets)
+	if err != nil {
 		return nil, err
 	}
-
-	return listener, nil
+	err = trapListener.Start()
+	if err != nil {
+		return nil, err
+	}
+	return trapListener, nil
 }
 
 // Stop stops the TrapServer.
@@ -144,7 +133,8 @@ func (s *TrapServer) Stop() {
 
 	go func() {
 		log.Infof("Stop listening on %s", s.config.Addr())
-		s.listener.Close()
+		s.listener.Stop()
+		s.sender.Stop()
 		close(stopped)
 	}()
 
@@ -153,7 +143,4 @@ func (s *TrapServer) Stop() {
 	case <-time.After(time.Duration(s.config.StopTimeout) * time.Second):
 		log.Errorf("Stopping server. Timeout after %d seconds", s.config.StopTimeout)
 	}
-
-	// Let consumers know that we will not be sending any more packets.
-	close(s.packets)
 }

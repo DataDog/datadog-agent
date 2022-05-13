@@ -9,6 +9,8 @@
 package traps
 
 import (
+	"net"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -64,6 +66,41 @@ var (
 		},
 	}
 )
+
+func getFreePort() uint16 {
+	var port uint16
+	for i := 0; i < 5; i++ {
+		conn, err := net.ListenPacket("udp", ":0")
+		if err != nil {
+			continue
+		}
+		conn.Close()
+		port, err = parsePort(conn.LocalAddr().String())
+		if err != nil {
+			continue
+		}
+		listener, err := startSNMPTrapListener(Config{Port: port}, nil)
+		if err != nil {
+			continue
+		}
+		listener.Stop()
+		return port
+	}
+	panic("unable to find free port for starting the trap listener")
+}
+
+func parsePort(addr string) (uint16, error) {
+	_, portString, err := net.SplitHostPort(addr)
+	if err != nil {
+		return 0, err
+	}
+
+	port, err := strconv.ParseUint(portString, 10, 16)
+	if err != nil {
+		return 0, err
+	}
+	return uint16(port), nil
+}
 
 // Configure sets Datadog Agent configuration from a config object.
 func Configure(t *testing.T, trapConfig Config) {
@@ -163,17 +200,6 @@ func sendTestV3Trap(t *testing.T, trapConfig Config, securityParams *gosnmp.UsmS
 	return params
 }
 
-// receivePacket waits for a received trap packet and returns it.
-func receivePacket(t *testing.T) *SnmpPacket {
-	select {
-	case packet := <-GetPacketsChannel():
-		return packet
-	case <-time.After(3 * time.Second):
-		t.Error("Trap not received")
-		return nil
-	}
-}
-
 func assertIsValidV2Packet(t *testing.T, packet *SnmpPacket, trapConfig Config) {
 	require.Equal(t, gosnmp.Version2c, packet.Content.Version)
 	communityValid := false
@@ -207,13 +233,4 @@ func assertVariables(t *testing.T, packet *SnmpPacket) {
 	assert.Equal(t, ".1.3.6.1.4.1.8072.2.3.2.2", heartBeatName.Name)
 	assert.Equal(t, gosnmp.OctetString, heartBeatName.Type)
 	assert.Equal(t, "test", string(heartBeatName.Value.([]byte)))
-}
-
-func assertNoPacketReceived(t *testing.T) {
-	select {
-	case <-GetPacketsChannel():
-		t.Error("Unexpectedly received an unauthorized packet")
-	case <-time.After(100 * time.Millisecond):
-		break
-	}
 }

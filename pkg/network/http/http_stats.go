@@ -127,6 +127,9 @@ type RequestStat struct {
 	// a single value. This is quite common in the context of HTTP requests without
 	// keep-alives where a short-lived TCP connection is used for a single request.
 	FirstLatencySample float64
+
+	// Tags bitfields from tags-types.h
+	Tags uint64
 }
 
 func (r *RequestStats) idx(status int) int {
@@ -173,7 +176,7 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 		newStatsData := newStats.Stats(statusClass)
 		if newStatsData.Count == 1 {
 			// The other bucket has a single latency sample, so we "manually" add it
-			r.AddRequest(statusClass, newStatsData.FirstLatencySample)
+			r.AddRequest(statusClass, newStatsData.FirstLatencySample, newStatsData.Tags)
 			continue
 		}
 
@@ -206,7 +209,7 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 }
 
 // AddRequest takes information about a HTTP transaction and adds it to the request stats
-func (r *RequestStats) AddRequest(statusClass int, latency float64) {
+func (r *RequestStats) AddRequest(statusClass int, latency float64, tags uint64) {
 	if !r.isValid(statusClass) {
 		return
 	}
@@ -216,6 +219,7 @@ func (r *RequestStats) AddRequest(statusClass int, latency float64) {
 		stats = r.Stats(statusClass)
 	}
 
+	stats.Tags |= tags
 	stats.Count++
 	if stats.Count == 1 {
 		// We postpone the creation of histograms when we have only one latency sample

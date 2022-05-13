@@ -8,6 +8,7 @@ package encoding
 import (
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -21,6 +22,14 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+)
+
+type connTag = uint64
+
+// ConnTag constant must be the same for all platform
+const (
+	tagGnuTLS  connTag = 1 // netebpf.GnuTLS
+	tagOpenSSL connTag = 2 // netebpf.OpenSSL
 )
 
 var originalConfig = config.Datadog
@@ -118,9 +127,14 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 			NpmEnabled: false,
 			TsmEnabled: false,
 		},
+		Tags: network.GetStaticTags(1),
+	}
+	if runtime.GOOS == "linux" {
+		out.Conns[1].Tags = []uint32{0}
 	}
 	return out
 }
+
 func TestSerialization(t *testing.T) {
 	var httpReqStats http.RequestStats
 	in := &network.Connections{
@@ -170,6 +184,7 @@ func TestSerialization(t *testing.T) {
 					Type:      network.UDP,
 					Family:    network.AFINET6,
 					Direction: network.LOCAL,
+					Tags:      uint64(1),
 				},
 			},
 		},
@@ -253,11 +268,14 @@ func TestSerialization(t *testing.T) {
 
 		unmarshaler := GetUnmarshaler("application/json")
 		result, err := unmarshaler.Unmarshal(blob)
-
 		require.NoError(t, err)
 
-		// fixup: json marshaler encode nil slices and maps as empty
-		result.ConnTelemetryMap = nil
+		// fixup: json marshaler encode nil slice as empty
+		result.Conns[0].Tags = nil
+		if runtime.GOOS != "linux" {
+			result.Conns[1].Tags = nil
+			result.Tags = nil
+		}
 		assert.Equal(out, result)
 	})
 	t.Run("requesting application/json serialization (with query types)", func(t *testing.T) {
@@ -277,8 +295,12 @@ func TestSerialization(t *testing.T) {
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
 
-		// fixup: json marshaler encode nil slices and maps as empty
-		result.ConnTelemetryMap = nil
+		// fixup: json marshaler encode nil slice as empty
+		result.Conns[0].Tags = nil
+		if runtime.GOOS != "linux" {
+			result.Conns[1].Tags = nil
+			result.Tags = nil
+		}
 		assert.Equal(out, result)
 	})
 
@@ -299,8 +321,12 @@ func TestSerialization(t *testing.T) {
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
 
-		// fixup: json marshaler encode nil slices and maps as empty
-		result.ConnTelemetryMap = nil
+		// fixup: json marshaler encode nil slice as empty
+		result.Conns[0].Tags = nil
+		if runtime.GOOS != "linux" {
+			result.Conns[1].Tags = nil
+			result.Tags = nil
+		}
 		assert.Equal(out, result)
 	})
 
@@ -323,8 +349,12 @@ func TestSerialization(t *testing.T) {
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
 
-		// fixup: json marshaler encode nil slices and maps as empty
-		result.ConnTelemetryMap = nil
+		// fixup: json marshaler encode nil slice as empty
+		result.Conns[0].Tags = nil
+		if runtime.GOOS != "linux" {
+			result.Conns[1].Tags = nil
+			result.Tags = nil
+		}
 		assert.Equal(out, result)
 	})
 

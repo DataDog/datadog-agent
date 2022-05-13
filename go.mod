@@ -52,7 +52,7 @@ require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/DataDog/agent-payload/v5 v5.0.19
+	github.com/DataDog/agent-payload/v5 v5.0.21
 	github.com/DataDog/btf-internals v0.0.0-20220424171854-ebe6bce9afb0
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.36.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.36.0-rc.4
@@ -95,10 +95,10 @@ require (
 	github.com/containerd/cgroups v1.0.2
 	github.com/containerd/containerd v1.5.10
 	github.com/containerd/typeurl v1.0.2
-	github.com/containernetworking/cni v0.8.1
+	github.com/containernetworking/cni v1.0.1
 	github.com/coreos/go-semver v0.3.0
 	github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f
-	github.com/cri-o/ocicni v0.2.0
+	github.com/cri-o/ocicni v0.3.0
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/davecgh/go-spew v1.1.1
 	github.com/docker/docker v20.10.14+incompatible
@@ -407,10 +407,9 @@ require (
 	google.golang.org/grpc/credentials/insecure v0.0.0 // indirect
 )
 
-require (
-	github.com/Sirupsen/logrus v1.0.6 // indirect
-	go.opentelemetry.io/collector/semconv v0.50.0 // indirect
-)
+require github.com/containernetworking/plugins v1.1.1 // indirect
+
+require github.com/Sirupsen/logrus v1.0.6 // indirect
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
