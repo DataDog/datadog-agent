@@ -65,9 +65,19 @@ int socket__http_filter(struct __sk_buff* skb) {
 
 // This kprobe is used to send batch completion notification to userspace
 // because perf events can't be sent from socket filter programs
-SEC("kretprobe/tcp_sendmsg")
-int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
+SEC("kprobe/tcp_sendmsg")
+int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
     http_notify_batch(ctx);
+    try_init_ssl_sock((struct sock*)PT_REGS_PARM1(ctx));
+    return 0;
+}
+
+
+SEC("uprobe/SSL_do_handshake")
+int uprobe__SSL_do_handshake(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
+    bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
     return 0;
 }
 

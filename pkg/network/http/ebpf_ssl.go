@@ -25,12 +25,13 @@ import (
 )
 
 var openSSLProbes = map[string]string{
-	"uprobe/SSL_set_bio":  "uprobe__SSL_set_bio",
-	"uprobe/SSL_set_fd":   "uprobe__SSL_set_fd",
-	"uprobe/SSL_read":     "uprobe__SSL_read",
-	"uretprobe/SSL_read":  "uretprobe__SSL_read",
-	"uprobe/SSL_write":    "uprobe__SSL_write",
-	"uprobe/SSL_shutdown": "uprobe__SSL_shutdown",
+	"uprobe/SSL_do_handshake": "uprobe__SSL_do_handshake",
+	"uprobe/SSL_set_bio":      "uprobe__SSL_set_bio",
+	"uprobe/SSL_set_fd":       "uprobe__SSL_set_fd",
+	"uprobe/SSL_read":         "uprobe__SSL_read",
+	"uretprobe/SSL_read":      "uretprobe__SSL_read",
+	"uprobe/SSL_write":        "uprobe__SSL_write",
+	"uprobe/SSL_shutdown":     "uprobe__SSL_shutdown",
 }
 
 var cryptoProbes = map[string]string{
