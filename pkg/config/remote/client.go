@@ -41,6 +41,7 @@ type Client struct {
 	lastPollErr error
 
 	apmSamplingUpdates chan []client.ConfigAPMSamling
+	cwsDDUpdates       chan []client.ConfigCWSDD
 }
 
 // NewClient creates a new client
@@ -78,6 +79,7 @@ func newClient(agentName string, products []data.Product, dialOpts ...grpc.DialO
 		pollInterval:       1 * time.Second,
 		stateClient:        stateClient,
 		apmSamplingUpdates: make(chan []client.ConfigAPMSamling, 8),
+		cwsDDUpdates:       make(chan []client.ConfigCWSDD, 8),
 	}, nil
 }
 
@@ -85,6 +87,7 @@ func newClient(agentName string, products []data.Product, dialOpts ...grpc.DialO
 func (c *Client) Close() {
 	c.close()
 	close(c.apmSamplingUpdates)
+	close(c.cwsDDUpdates)
 }
 
 func (c *Client) pollLoop() {
@@ -149,6 +152,9 @@ func (c *Client) updateConfigs() {
 	if updatedProducts.APMSampling {
 		c.apmSamplingUpdates <- newConfigs.APMSamplingConfigs
 	}
+	if updatedProducts.CWSDD {
+		c.cwsDDUpdates <- newConfigs.CWSDDConfigs
+	}
 }
 
 func (c *Client) configStates() []*pbgo.ConfigState {
@@ -161,10 +167,22 @@ func (c *Client) configStates() []*pbgo.ConfigState {
 			Version: config.Version,
 		})
 	}
+	for _, config := range configs.CWSDDConfigs {
+		configStates = append(configStates, &pbgo.ConfigState{
+			Product: string(data.ProductCWSDD),
+			Id:      config.ID,
+			Version: config.Version,
+		})
+	}
 	return configStates
 }
 
 // APMSamplingUpdates returns a chan to consume apm sampling updates
 func (c *Client) APMSamplingUpdates() <-chan []client.ConfigAPMSamling {
 	return c.apmSamplingUpdates
+}
+
+// CWSDDUpdates returns a chan to consume cws dd updates
+func (c *Client) CWSDDUpdates() <-chan []client.ConfigCWSDD {
+	return c.cwsDDUpdates
 }

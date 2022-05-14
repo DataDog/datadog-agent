@@ -106,8 +106,9 @@ func configHash(meta configMeta, contents []byte) [32]byte {
 
 // configList is a config list
 type configList struct {
-	configs    map[string]map[string]struct{}
-	apmConfigs []ConfigAPMSamling
+	configs      map[string]map[string]struct{}
+	apmConfigs   []ConfigAPMSamling
+	cwsDDConfigs []ConfigCWSDD
 }
 
 func newConfigList() *configList {
@@ -130,6 +131,12 @@ func (cl *configList) addConfig(c config) error {
 			return err
 		}
 		cl.apmConfigs = append(cl.apmConfigs, pc)
+	case ProductCWSDD:
+		pc, err := parseConfigCWSDD(c)
+		if err != nil {
+			return err
+		}
+		cl.cwsDDConfigs = append(cl.cwsDDConfigs, pc)
 	default:
 		return &errUnknownProduct{product: c.meta.path.Product}
 	}
@@ -139,6 +146,7 @@ func (cl *configList) addConfig(c config) error {
 
 func (cl *configList) getCurrentConfigs(clientID string, time int64) Configs {
 	apmSamplingHash := bytes.Buffer{}
+	cwsDDHash := bytes.Buffer{}
 	configs := Configs{
 		APMSamplingConfigs: make([]ConfigAPMSamling, 0, len(cl.apmConfigs)),
 	}
@@ -148,24 +156,35 @@ func (cl *configList) getCurrentConfigs(clientID string, time int64) Configs {
 			apmSamplingHash.Write(pc.c.hash[:])
 		}
 	}
+	for _, pc := range cl.cwsDDConfigs {
+		if !pc.c.meta.expired(time) && pc.c.meta.scopedToClient(clientID) {
+			configs.CWSDDConfigs = append(configs.CWSDDConfigs, pc)
+			cwsDDHash.Write(pc.c.hash[:])
+		}
+	}
 	configs.apmSamplingConfigsHash = sha256.Sum256(apmSamplingHash.Bytes())
+	configs.cwsDDConfigsHash = sha256.Sum256(cwsDDHash.Bytes())
 	return configs
 }
 
 // Configs is a list of configs
 type Configs struct {
+	CWSDDConfigs           []ConfigCWSDD
 	APMSamplingConfigs     []ConfigAPMSamling
 	apmSamplingConfigsHash [32]byte
+	cwsDDConfigsHash       [32]byte
 }
 
 // ConfigsUpdated contains the info about which config got updated
 type ConfigsUpdated struct {
 	APMSampling bool
+	CWSDD       bool
 }
 
 // Diff compares two config lists and returns which configs got updated
 func (c *Configs) Diff(oldConfigs Configs) ConfigsUpdated {
 	return ConfigsUpdated{
 		APMSampling: c.apmSamplingConfigsHash != oldConfigs.apmSamplingConfigsHash,
+		CWSDD:       c.cwsDDConfigsHash != oldConfigs.cwsDDConfigsHash,
 	}
 }
