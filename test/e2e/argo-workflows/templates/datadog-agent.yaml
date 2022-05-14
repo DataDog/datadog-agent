@@ -197,7 +197,7 @@ spec:
           set -euo pipefail
           set -x
 
-          until kubectl --namespace {{inputs.parameters.namespace}} get cm datadog-leader-election -o jsonpath={.metadata.annotations."control-plane\.alpha\.kubernetes\.io/leader"}; do
+          until kubectl --namespace {{inputs.parameters.namespace}} get cm datadog-agent-leader-election -o jsonpath={.metadata.annotations."control-plane\.alpha\.kubernetes\.io/leader"}; do
             sleep 1
           done
 
