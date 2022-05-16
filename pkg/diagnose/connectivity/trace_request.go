@@ -12,6 +12,7 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/fatih/color"
 )
 
 func newHTTPClient() *http.Client {
@@ -70,6 +71,8 @@ func createEndpointURL(domain string, apiKey string, endpointInfo EndpointInfo) 
 func sendHTTPRequestToUrl(client *http.Client, url string, info EndpointInfo) {
 	logURL := scrubber.ScrubLine(url)
 
+	fmt.Printf("======== '%v' ========\n", logURL)
+
 	// Create a request for the backend
 	reader := bytes.NewReader(info.payload)
 	req, err := http.NewRequest(info.method, url, reader)
@@ -77,10 +80,6 @@ func sendHTTPRequestToUrl(client *http.Client, url string, info EndpointInfo) {
 	if err != nil {
 		log.Errorf("Could not create request for transaction to invalid URL '%v' : %v", logURL, scrubber.ScrubLine(err.Error()))
 	}
-
-	//req = req.WithContext(ctx)
-	//req.Header = t.Headers
-	//req = req.WithContext(httptrace.WithClientTrace(context.Background(), Trace))
 
 	// Send the request
 	resp, err := client.Do(req)
@@ -98,6 +97,12 @@ func sendHTTPRequestToUrl(client *http.Client, url string, info EndpointInfo) {
 		return
 	}
 
-	fmt.Printf("Endpoint '%v' answers with status code %v\n", logURL, resp.StatusCode)
-	fmt.Printf("Response : '%v'\n", string(body))
+	statusString := color.GreenString("PASS")
+	if resp.StatusCode != http.StatusOK {
+		statusString = color.RedString("FAIL")
+		//fmt.Printf("Endpoint '%v' answers with status code %v\n", logURL, resp.StatusCode)
+		fmt.Printf("Received response : '%v'\n", string(body))
+	}
+	fmt.Printf("Received status code %v from the endpoint ====> %v\n\n", resp.StatusCode, statusString)
+
 }
