@@ -34,7 +34,7 @@ func (p *ProcessMonitoring) HandleEvent(event *sprobe.Event) {
 	e := &model.ProcessMonitoringEvent{
 		ProcessCacheEntry: entry,
 		EventType:         event.GetEventType().String(),
-		Date:              event.Timestamp,
+		CollectionTime:    event.Timestamp,
 	}
 
 	data, err := e.MarshalMsg(nil)

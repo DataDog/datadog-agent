@@ -49,10 +49,10 @@ func (z *ProcessMonitoringEvent) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "EventType")
 				return
 			}
-		case "date":
-			z.Date, err = dc.ReadTime()
+		case "collection_time":
+			z.CollectionTime, err = dc.ReadTime()
 			if err != nil {
-				err = msgp.WrapError(err, "Date")
+				err = msgp.WrapError(err, "CollectionTime")
 				return
 			}
 		default:
@@ -96,14 +96,14 @@ func (z *ProcessMonitoringEvent) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "EventType")
 		return
 	}
-	// write "date"
-	err = en.Append(0xa4, 0x64, 0x61, 0x74, 0x65)
+	// write "collection_time"
+	err = en.Append(0xaf, 0x63, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x74, 0x69, 0x6d, 0x65)
 	if err != nil {
 		return
 	}
-	err = en.WriteTime(z.Date)
+	err = en.WriteTime(z.CollectionTime)
 	if err != nil {
-		err = msgp.WrapError(err, "Date")
+		err = msgp.WrapError(err, "CollectionTime")
 		return
 	}
 	return
@@ -127,9 +127,9 @@ func (z *ProcessMonitoringEvent) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "evt_type"
 	o = append(o, 0xa8, 0x65, 0x76, 0x74, 0x5f, 0x74, 0x79, 0x70, 0x65)
 	o = msgp.AppendString(o, z.EventType)
-	// string "date"
-	o = append(o, 0xa4, 0x64, 0x61, 0x74, 0x65)
-	o = msgp.AppendTime(o, z.Date)
+	// string "collection_time"
+	o = append(o, 0xaf, 0x63, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x74, 0x69, 0x6d, 0x65)
+	o = msgp.AppendTime(o, z.CollectionTime)
 	return
 }
 
@@ -174,10 +174,10 @@ func (z *ProcessMonitoringEvent) UnmarshalMsg(bts []byte) (o []byte, err error) 
 				err = msgp.WrapError(err, "EventType")
 				return
 			}
-		case "date":
-			z.Date, bts, err = msgp.ReadTimeBytes(bts)
+		case "collection_time":
+			z.CollectionTime, bts, err = msgp.ReadTimeBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Date")
+				err = msgp.WrapError(err, "CollectionTime")
 				return
 			}
 		default:
@@ -200,6 +200,6 @@ func (z *ProcessMonitoringEvent) Msgsize() (s int) {
 	} else {
 		s += z.ProcessCacheEntry.Msgsize()
 	}
-	s += 9 + msgp.StringPrefixSize + len(z.EventType) + 5 + msgp.TimeSize
+	s += 9 + msgp.StringPrefixSize + len(z.EventType) + 16 + msgp.TimeSize
 	return
 }
