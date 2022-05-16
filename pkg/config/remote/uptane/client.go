@@ -33,6 +33,8 @@ type Client struct {
 	directorTUFClient   *client.Client
 
 	targetStore *targetStore
+
+	cachedVerify bool
 }
 
 // NewClient creates a new uptane client
@@ -66,6 +68,7 @@ func NewClient(cacheDB *bbolt.DB, cacheKey string, orgID int64) (*Client, error)
 func (c *Client) Update(response *pbgo.LatestConfigsResponse) error {
 	c.Lock()
 	defer c.Unlock()
+	c.cachedVerify = false
 	err := c.updateRepos(response)
 	if err != nil {
 		return err
@@ -187,11 +190,19 @@ func (c *Client) pruneTargetFiles() error {
 }
 
 func (c *Client) verify() error {
+	if c.cachedVerify {
+		return nil
+	}
 	err := c.verifyOrgID()
 	if err != nil {
 		return err
 	}
-	return c.verifyUptane()
+	err = c.verifyUptane()
+	if err != nil {
+		return err
+	}
+	c.cachedVerify = true
+	return nil
 }
 
 func (c *Client) verifyOrgID() error {
