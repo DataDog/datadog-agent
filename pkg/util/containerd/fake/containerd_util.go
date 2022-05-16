@@ -45,6 +45,8 @@ type MockedContainerdClient struct {
 	MockSpecWithContext       func(ctx context.Context, ctn containerd.Container) (*oci.Spec, error)
 	MockStatus                func(ctn containerd.Container) (containerd.ProcessStatus, error)
 	MockCallWithClientContext func(f func(context.Context) error) error
+	MockAnnotations           func(ctn containerd.Container) (map[string]string, error)
+	MockIsSandbox             func(ctn containerd.Container) (bool, error)
 }
 
 func (client *MockedContainerdClient) Close() error {
@@ -137,4 +139,12 @@ func (client *MockedContainerdClient) Status(ctn containerd.Container) (containe
 
 func (client *MockedContainerdClient) CallWithClientContext(f func(context.Context) error) error {
 	return client.MockCallWithClientContext(f)
+}
+
+func (client *MockedContainerdClient) Annotations(ctn containerd.Container) (map[string]string, error) {
+	return client.MockAnnotations(ctn)
+}
+
+func (client *MockedContainerdClient) IsSandbox(ctn containerd.Container) (bool, error) {
+	return client.MockIsSandbox(ctn)
 }

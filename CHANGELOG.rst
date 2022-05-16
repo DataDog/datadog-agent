@@ -2,6 +2,25 @@
 Release Notes
 =============
 
+.. _Release Notes_7.35.2:
+
+7.35.2 / 6.35.2
+======
+
+.. _Release Notes_7.35.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-05-05
+
+.. _Release Notes_7.35.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a regression impacting CSPM metering
+
 .. _Release Notes_7.35.1:
 
 7.35.1 / 6.35.1

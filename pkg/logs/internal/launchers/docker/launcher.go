@@ -137,8 +137,7 @@ func (l *Launcher) run(sourceProvider launchers.SourceProvider, pipelineProvider
 	l.pipelineProvider = pipelineProvider
 	l.registry = registry
 
-	addedSources := sourceProvider.GetAddedForType(config.DockerType)
-	removedSources := sourceProvider.GetRemovedForType(config.DockerType)
+	addedSources, removedSources := sourceProvider.SubscribeForType(config.DockerType)
 	addedServices := l.services.GetAddedServicesForType(config.DockerType)
 	removedServices := l.services.GetRemovedServicesForType(config.DockerType)
 

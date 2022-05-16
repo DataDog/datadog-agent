@@ -83,8 +83,8 @@ const (
 	NetDeviceEventType
 	// VethPairEventType is sent when a new veth pair is created
 	VethPairEventType
-	// MaxEventType is used internally to get the maximum number of kernel events.
-	MaxEventType
+	// MaxKernelEventType is used internally to get the maximum number of kernel events.
+	MaxKernelEventType
 
 	// FirstDiscarderEventType first event that accepts discarders
 	FirstDiscarderEventType = FileOpenEventType
@@ -93,7 +93,7 @@ const (
 	LastDiscarderEventType = FileRemoveXAttrEventType
 
 	// CustomLostReadEventType is the custom event used to report lost events detected in user space
-	CustomLostReadEventType EventType = iota
+	CustomLostReadEventType = iota
 	// CustomLostWriteEventType is the custom event used to report lost events detected in kernel space
 	CustomLostWriteEventType
 	// CustomRulesetLoadedEventType is the custom event used to report that a new ruleset was loaded
@@ -104,6 +104,10 @@ const (
 	CustomForkBombEventType
 	// CustomTruncatedParentsEventType is the custom event used to report that the parents of a path were truncated
 	CustomTruncatedParentsEventType
+	// CustomSelfTestEventType is the custom event used to report the results of a self test run
+	CustomSelfTestEventType
+	// MaxAllEventType is used internally to get the maximum number of events.
+	MaxAllEventType
 )
 
 func (t EventType) String() string {
@@ -191,6 +195,8 @@ func (t EventType) String() string {
 		return "fork_bomb"
 	case CustomTruncatedParentsEventType:
 		return "truncated_parents"
+	case CustomSelfTestEventType:
+		return "self_test"
 	default:
 		return "unknown"
 	}
@@ -200,7 +206,7 @@ func (t EventType) String() string {
 // the current algorithm is not efficient but allows us to reduce the number of conversion functions
 //nolint:deadcode,unused
 func ParseEvalEventType(eventType eval.EventType) EventType {
-	for i := uint64(0); i != uint64(MaxEventType); i++ {
+	for i := uint64(0); i != uint64(MaxAllEventType); i++ {
 		if EventType(i).String() == eventType {
 			return EventType(i)
 		}
@@ -215,7 +221,7 @@ var (
 
 func init() {
 	var eventType EventType
-	for i := uint64(0); i != uint64(MaxEventType); i++ {
+	for i := uint64(0); i != uint64(MaxKernelEventType); i++ {
 		eventType = EventType(i)
 		eventTypeStrings[eventType.String()] = eventType
 	}

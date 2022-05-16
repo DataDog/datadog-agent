@@ -12,7 +12,6 @@ package dns
 import "C"
 import (
 	"fmt"
-	"net"
 	"syscall"
 	"time"
 	"unsafe"
@@ -139,32 +138,26 @@ func (d *dnsDriver) GetStatsForHandle() (map[string]int64, error) {
 
 func createDNSFilters() ([]driver.FilterDefinition, error) {
 	var filters []driver.FilterDefinition
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return nil, err
-	}
+	
+	filters = append(filters, driver.FilterDefinition{
+		FilterVersion:  driver.Signature,
+		Size:           driver.FilterDefinitionSize,
+		FilterLayer:    driver.LayerTransport,
+		Af:             windows.AF_INET,
+		RemotePort:     53,
+		InterfaceIndex: uint64(0),
+		Direction:      driver.DirectionOutbound,
+	})
 
-	for _, iface := range ifaces {
-		filters = append(filters, driver.FilterDefinition{
-			FilterVersion:  driver.Signature,
-			Size:           driver.FilterDefinitionSize,
-			FilterLayer:    driver.LayerTransport,
-			Af:             windows.AF_INET,
-			RemotePort:     53,
-			InterfaceIndex: uint64(iface.Index),
-			Direction:      driver.DirectionOutbound,
-		})
-
-		filters = append(filters, driver.FilterDefinition{
-			FilterVersion:  driver.Signature,
-			Size:           driver.FilterDefinitionSize,
-			FilterLayer:    driver.LayerTransport,
-			Af:             windows.AF_INET,
-			RemotePort:     53,
-			InterfaceIndex: uint64(iface.Index),
-			Direction:      driver.DirectionInbound,
-		})
-	}
+	filters = append(filters, driver.FilterDefinition{
+		FilterVersion:  driver.Signature,
+		Size:           driver.FilterDefinitionSize,
+		FilterLayer:    driver.LayerTransport,
+		Af:             windows.AF_INET,
+		RemotePort:     53,
+		InterfaceIndex: uint64(0),
+		Direction:      driver.DirectionInbound,
+	})
 
 	return filters, nil
 }

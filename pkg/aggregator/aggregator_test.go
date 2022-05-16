@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"sort"
 
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -260,7 +259,7 @@ func TestDefaultData(t *testing.T) {
 	s.AssertNotCalled(t, "SendSketch")
 
 	// not counted as huge for (just checking the first threshold..)
-	assert.Equal(t, uint64(0), atomic.LoadUint64(&tagsetTlm.hugeSeriesCount[0]))
+	assert.Equal(t, uint64(0), tagsetTlm.hugeSeriesCount[0].Load())
 }
 
 func TestSeriesTooManyTags(t *testing.T) {
@@ -309,7 +308,7 @@ func TestSeriesTooManyTags(t *testing.T) {
 
 			expMap := map[string]uint64{}
 			for i, thresh := range tagsetTlm.sizeThresholds {
-				assert.Equal(t, expHugeCounts[i], atomic.LoadUint64(&tagsetTlm.hugeSeriesCount[i]))
+				assert.Equal(t, expHugeCounts[i], tagsetTlm.hugeSeriesCount[i].Load())
 				expMap[fmt.Sprintf("Above%d", thresh)] = expHugeCounts[i]
 			}
 			gotMap := aggregatorExpvars.Get("MetricTags").(expvar.Func).Value().(map[string]map[string]uint64)["Series"]
@@ -374,7 +373,7 @@ func TestDistributionsTooManyTags(t *testing.T) {
 
 			expMap := map[string]uint64{}
 			for i, thresh := range tagsetTlm.sizeThresholds {
-				assert.Equal(t, expHugeCounts[i], atomic.LoadUint64(&tagsetTlm.hugeSketchesCount[i]))
+				assert.Equal(t, expHugeCounts[i], tagsetTlm.hugeSketchesCount[i].Load())
 				expMap[fmt.Sprintf("Above%d", thresh)] = expHugeCounts[i]
 			}
 			gotMap := aggregatorExpvars.Get("MetricTags").(expvar.Func).Value().(map[string]map[string]uint64)["Sketches"]
@@ -531,7 +530,7 @@ func TestTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defer config.Datadog.Set("basic_telemetry_add_container_tags", nil)
+			defer config.Datadog.Unset("basic_telemetry_add_container_tags")
 			config.Datadog.Set("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
 			agg := NewBufferedAggregator(nil, nil, "hostname", time.Second)
 			agg.agentTags = tt.agentTags
@@ -566,11 +565,9 @@ type MockSerializerIterableSerie struct {
 	serializer.MockSerializer
 }
 
-func (s *MockSerializerIterableSerie) SendIterableSeries(iterableSerie *metrics.IterableSeries) error {
-	defer iterableSerie.IterationStopped()
-
-	for iterableSerie.MoveNext() {
-		s.series = append(s.series, iterableSerie.Current())
+func (s *MockSerializerIterableSerie) SendIterableSeries(seriesSource metrics.SerieSource) error {
+	for seriesSource.MoveNext() {
+		s.series = append(s.series, seriesSource.Current())
 	}
 	return nil
 }

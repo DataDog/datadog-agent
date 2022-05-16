@@ -14,10 +14,11 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
+const ddsource string = "snmp-traps"
+
 // Formatter is an interface to extract and format raw SNMP Traps
 type Formatter interface {
 	FormatPacket(packet *SnmpPacket) ([]byte, error)
-	GetTags(packet *SnmpPacket) []string
 }
 
 // JSONFormatter is a Formatter implementation that transforms Traps into JSON
@@ -47,22 +48,48 @@ func NewJSONFormatter(oidResolver OIDResolver) (JSONFormatter, error) {
 }
 
 // FormatPacket converts a raw SNMP trap packet to a FormattedSnmpPacket containing the JSON data and the tags to attach
+// {
+//	"trap": {
+//    "ddsource": "snmp-traps",
+//    "ddtags": "namespace:default,snmp_device:10.0.0.2,...",
+//    "timestamp": 123456789,
+//    "snmpTrapName": "...",
+//    "snmpTrapOID": "1.3.6.1.5.3.....",
+//    "snmpTrapMIB": "...",
+//    "uptime": "12345",
+//    "genericTrap": "5", # v1 only
+//    "specificTrap": "0",  # v1 only
+//    "variables": [
+//      {
+//        "oid": "1.3.4.1....",
+//        "type": "integer",
+//        "value": 12
+//      },
+//      ...
+//    ],
+//   }
+// }
 func (f JSONFormatter) FormatPacket(packet *SnmpPacket) ([]byte, error) {
-	var formattedData map[string]interface{}
+	payload := make(map[string]interface{})
+	var formattedTrap map[string]interface{}
 	var err error
 	if packet.Content.Version == gosnmp.Version1 {
-		formattedData = f.formatV1Trap(packet.Content)
+		formattedTrap = f.formatV1Trap(packet.Content)
 	} else {
-		formattedData, err = f.formatTrap(packet.Content)
+		formattedTrap, err = f.formatTrap(packet.Content)
 		if err != nil {
 			return nil, err
 		}
 	}
-	return json.Marshal(formattedData)
+	formattedTrap["ddsource"] = ddsource
+	formattedTrap["ddtags"] = strings.Join(f.getTags(packet), ",")
+	formattedTrap["timestamp"] = packet.Timestamp
+	payload["trap"] = formattedTrap
+	return json.Marshal(payload)
 }
 
 // GetTags returns a list of tags associated to an SNMP trap packet.
-func (f JSONFormatter) GetTags(packet *SnmpPacket) []string {
+func (f JSONFormatter) getTags(packet *SnmpPacket) []string {
 	return []string{
 		"snmp_version:" + formatVersion(packet.Content),
 		"device_namespace:" + f.namespace,
@@ -103,7 +130,7 @@ func (f JSONFormatter) formatV1Trap(packet *gosnmp.SnmpPacket) map[string]interf
 			log.Debugf("unable to enrich variable: %s", err)
 			continue
 		}
-		data[varMetadata.Name] = variable.Value
+		data[varMetadata.Name] = parseValue(variable, varMetadata)
 	}
 	return data
 }
@@ -149,7 +176,7 @@ func (f JSONFormatter) formatTrap(packet *gosnmp.SnmpPacket) (map[string]interfa
 			log.Debugf("unable to enrich variable: %s", err)
 			continue
 		}
-		data[varMetadata.Name] = variable.Value
+		data[varMetadata.Name] = parseValue(variable, varMetadata)
 	}
 	return data, nil
 }
@@ -159,6 +186,26 @@ func NormalizeOID(value string) string {
 	// OIDs can be formatted as ".1.2.3..." ("absolute form") or "1.2.3..." ("relative form").
 	// Convert everything to relative form, like we do in the Python check.
 	return strings.TrimLeft(value, ".")
+}
+
+// parseValue checks to see if the variable has a mapping in an enum and
+// returns the mapping if it exists, otherwise returns the value unchanged
+func parseValue(variable trapVariable, varMetadata VariableMetadata) interface{} {
+	if len(varMetadata.Enumeration) > 0 {
+		if i, ok := variable.Value.(int); !ok {
+			log.Debugf("unable to parse value of type \"integer\": %+v", variable.Value)
+		} else {
+			// if we find a mapping set it and return
+			if value, ok := varMetadata.Enumeration[i]; !ok {
+				log.Debugf("unable to find enum mapping for value %d variable %q", i, varMetadata.Name)
+			} else {
+				return value
+			}
+		}
+	}
+
+	// if no mapping is found or type is not integer
+	return variable.Value
 }
 
 func parseSysUpTime(variable gosnmp.SnmpPDU) (uint32, error) {

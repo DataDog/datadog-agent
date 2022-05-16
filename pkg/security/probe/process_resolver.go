@@ -314,33 +314,28 @@ func (p *ProcessResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 }
 
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
-func (p *ProcessResolver) AddForkEntry(pid uint32, entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
+func (p *ProcessResolver) AddForkEntry(pid uint32, entry *model.ProcessCacheEntry) {
 	p.Lock()
 	defer p.Unlock()
 
-	return p.insertForkEntry(pid, entry)
+	p.insertForkEntry(pid, entry)
 }
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
-func (p *ProcessResolver) AddExecEntry(pid uint32, entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
+func (p *ProcessResolver) AddExecEntry(pid uint32, entry *model.ProcessCacheEntry) {
 	p.Lock()
 	defer p.Unlock()
 
-	return p.insertExecEntry(pid, entry)
+	p.insertExecEntry(pid, entry)
 }
 
 // enrichEventFromProc uses /proc to enrich a ProcessCacheEntry with additional metadata
-func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *process.Process) error {
-	filledProc := utils.GetFilledProcess(proc)
-	if filledProc == nil {
-		return errors.Errorf("snapshot failed for %d: binary was deleted", proc.Pid)
-	}
-
-	pid := uint32(proc.Pid)
+func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *process.Process, filledProc *process.FilledProcess) error {
 	// the provided process is a kernel process if its virtual memory size is null
 	if filledProc.MemInfo.VMS == 0 {
 		return fmt.Errorf("cannot snapshot kernel threads")
 	}
+	pid := uint32(proc.Pid)
 
 	// Get process filename and pre-fill the cache
 	procExecPath := utils.ProcExePath(proc.Pid)
@@ -457,7 +452,7 @@ func (p *ProcessResolver) retrieveExecFileFields(procExecPath string) (*model.Fi
 	return &fileFields, nil
 }
 
-func (p *ProcessResolver) insertEntry(pid uint32, entry, prev *model.ProcessCacheEntry) *model.ProcessCacheEntry {
+func (p *ProcessResolver) insertEntry(pid uint32, entry, prev *model.ProcessCacheEntry) {
 	p.entryCache[pid] = entry
 	entry.Retain()
 
@@ -467,11 +462,9 @@ func (p *ProcessResolver) insertEntry(pid uint32, entry, prev *model.ProcessCach
 
 	atomic.AddInt64(&p.addedEntries, 1)
 	atomic.AddInt64(&p.cacheSize, 1)
-
-	return entry
 }
 
-func (p *ProcessResolver) insertForkEntry(pid uint32, entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
+func (p *ProcessResolver) insertForkEntry(pid uint32, entry *model.ProcessCacheEntry) {
 	prev := p.entryCache[pid]
 	if prev != nil {
 		// this shouldn't happen but it is better to exit the prev and let the new one replace it
@@ -487,16 +480,16 @@ func (p *ProcessResolver) insertForkEntry(pid uint32, entry *model.ProcessCacheE
 		parent.Fork(entry)
 	}
 
-	return p.insertEntry(pid, entry, prev)
+	p.insertEntry(pid, entry, prev)
 }
 
-func (p *ProcessResolver) insertExecEntry(pid uint32, entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
+func (p *ProcessResolver) insertExecEntry(pid uint32, entry *model.ProcessCacheEntry) {
 	prev := p.entryCache[pid]
 	if prev != nil {
 		prev.Exec(entry)
 	}
 
-	return p.insertEntry(pid, entry, prev)
+	p.insertEntry(pid, entry, prev)
 }
 
 func (p *ProcessResolver) deleteEntry(pid uint32, exitTime time.Time) {
@@ -669,10 +662,12 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessC
 	}
 
 	if entry.ExecTime.IsZero() {
-		return p.insertForkEntry(pid, entry)
+		p.insertForkEntry(pid, entry)
+		return entry
 	}
 
-	return p.insertExecEntry(pid, entry)
+	p.insertExecEntry(pid, entry)
+	return entry
 }
 
 // IsKThread returns whether given pids are from kthreads
@@ -704,7 +699,7 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32, maxDepth int) *model.Pro
 			return nil
 		}
 
-		entry, inserted = p.syncCache(proc)
+		entry, inserted = p.syncCache(proc, filledProc)
 		ppid = uint32(filledProc.Ppid)
 	} else {
 		ppid = entry.PPid
@@ -962,7 +957,13 @@ func (p *ProcessResolver) SyncCache(proc *process.Process) bool {
 	// required.
 	p.Lock()
 	defer p.Unlock()
-	_, ret := p.syncCache(proc)
+
+	filledProc := utils.GetFilledProcess(proc)
+	if filledProc == nil {
+		return false
+	}
+
+	_, ret := p.syncCache(proc, filledProc)
 	return ret
 }
 
@@ -974,7 +975,7 @@ func (p *ProcessResolver) setAncestor(pce *model.ProcessCacheEntry) {
 }
 
 // syncCache snapshots /proc for the provided pid. This method returns true if it updated the process cache.
-func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheEntry, bool) {
+func (p *ProcessResolver) syncCache(proc *process.Process, filledProc *process.FilledProcess) (*model.ProcessCacheEntry, bool) {
 	pid := uint32(proc.Pid)
 
 	// Check if an entry is already in cache for the given pid.
@@ -988,16 +989,16 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 	entry = p.NewProcessCacheEntry()
 
 	// update the cache entry
-	if err := p.enrichEventFromProc(entry, proc); err != nil {
+	if err := p.enrichEventFromProc(entry, proc, filledProc); err != nil {
+		entry.Release()
+
 		seclog.Trace(err)
 		return nil, false
 	}
 
 	p.setAncestor(entry)
 
-	if entry = p.insertEntry(pid, entry, p.entryCache[pid]); entry == nil {
-		return nil, false
-	}
+	p.insertEntry(pid, entry, p.entryCache[pid])
 
 	// insert new entry in kernel maps
 	procCacheEntryB := make([]byte, 224)

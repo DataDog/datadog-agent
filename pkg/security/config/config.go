@@ -90,7 +90,7 @@ type Config struct {
 	LogPatterns []string
 	// LogTags tags to be used by the logger for trace level
 	LogTags []string
-	// SelfTestEnabled defines if the self tester should be enabled (useful for tests for example)
+	// SelfTestEnabled defines if the self tests should be executed at startup or not
 	SelfTestEnabled bool
 	// EnableRemoteConfig defines if the agent configuration should be fetched from the backend
 	EnableRemoteConfig bool
@@ -132,6 +132,8 @@ type Config struct {
 	RuntimeCompiledConstantsEnabled bool
 	// RuntimeCompiledConstantsIsSet is set if the runtime compiled constants option is user-set
 	RuntimeCompiledConstantsIsSet bool
+	// EventMonitoring enabled event monitoring
+	EventMonitoring bool
 }
 
 // IsEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -156,6 +158,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		Config:                             *ebpf.NewConfig(),
 		RuntimeEnabled:                     aconfig.Datadog.GetBool("runtime_security_config.enabled"),
 		FIMEnabled:                         aconfig.Datadog.GetBool("runtime_security_config.fim_enabled"),
+		EventMonitoring:                    aconfig.Datadog.GetBool("runtime_security_config.event_monitoring.enabled"),
 		EnableKernelFilters:                aconfig.Datadog.GetBool("runtime_security_config.enable_kernel_filters"),
 		EnableApprovers:                    aconfig.Datadog.GetBool("runtime_security_config.enable_approvers"),
 		EnableDiscarders:                   aconfig.Datadog.GetBool("runtime_security_config.enable_discarders"),

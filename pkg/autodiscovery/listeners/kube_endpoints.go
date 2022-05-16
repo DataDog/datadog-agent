@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -447,4 +448,8 @@ func (s *KubeEndpointService) HasFilter(filter containers.FilterType) bool {
 // GetExtraConfig isn't supported
 func (s *KubeEndpointService) GetExtraConfig(key string) (string, error) {
 	return "", ErrNotSupported
+}
+
+// FilterTemplates does nothing.
+func (s *KubeEndpointService) FilterTemplates(map[string]integration.Config) {
 }

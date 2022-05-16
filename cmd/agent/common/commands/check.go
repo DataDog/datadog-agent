@@ -417,9 +417,6 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			}
 
 			if formatJSON {
-				fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("JSON")))
-				checkFileOutput.WriteString("=== JSON ===\n")
-
 				instancesJSON, _ := json.MarshalIndent(instancesData, "", "  ")
 				instanceJSONString := string(instancesJSON)
 

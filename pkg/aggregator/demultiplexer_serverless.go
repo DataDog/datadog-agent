@@ -99,33 +99,30 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
 
-	var seriesSink *metrics.IterableSeries
-	var done chan struct{}
-
 	logPayloads := config.Datadog.GetBool("log_payloads")
-
-	seriesSink, done = startSendingIterableSeries(
-		d.serializer,
-		d.flushAndSerializeInParallel,
-		logPayloads,
-		start)
-
 	flushedSketches := make([]metrics.SketchSeriesList, 0)
 
-	trigger := flushTrigger{
-		trigger: trigger{
-			time:              start,
-			blockChan:         make(chan struct{}),
-			waitForSerializer: waitForSerializer,
-		},
-		flushedSketches: &flushedSketches,
-		seriesSink:      seriesSink,
-	}
+	metrics.StartIteration(
+		createIterableSeries(
+			d.flushAndSerializeInParallel,
+			logPayloads,
+		),
+		func(seriesSink metrics.SerieSink) {
+			trigger := flushTrigger{
+				trigger: trigger{
+					time:              start,
+					blockChan:         make(chan struct{}),
+					waitForSerializer: waitForSerializer,
+				},
+				flushedSketches: &flushedSketches,
+				seriesSink:      seriesSink,
+			}
 
-	d.statsdWorker.flushChan <- trigger
-	<-trigger.blockChan
-
-	stopIterableSeries(seriesSink, done)
+			d.statsdWorker.flushChan <- trigger
+			<-trigger.blockChan
+		}, func(serieSource metrics.SerieSource) {
+			sendIterableSeries(d.serializer, start, serieSource)
+		})
 
 	var sketches metrics.SketchSeriesList
 	for _, s := range flushedSketches {

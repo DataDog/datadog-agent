@@ -21,4 +21,7 @@ const (
 	// InvocationErrorHeader : if set to "true", the extension will know that the current invocation has failed
 	// used in /lambda/end-invocation
 	InvocationErrorHeader = "x-datadog-invocation-error"
+
+	// SamplingPriorityHeader is the header containing the sampling priority for execution and/or inferred spans
+	SamplingPriorityHeader = "x-datadog-sampling-priority"
 )

@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/containernetworking/cni/pkg/types/current"
+	cnitypes "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/cri-o/ocicni/pkg/ocicni"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
@@ -81,9 +81,9 @@ func TestPull(t *testing.T) {
 				State:       podman.ContainerStateRunning,
 				StartedTime: startTime,
 				PID:         10,
-				NetworkStatus: []*current.Result{
+				NetworkStatus: []*cnitypes.Result{
 					{
-						IPs: []*current.IPConfig{
+						IPs: []*cnitypes.IPConfig{
 							{
 								Address: net.IPNet{
 									IP: net.ParseIP("10.88.0.13"),
@@ -130,9 +130,9 @@ func TestPull(t *testing.T) {
 				State:       podman.ContainerStateRunning,
 				StartedTime: startTime,
 				PID:         11,
-				NetworkStatus: []*current.Result{
+				NetworkStatus: []*cnitypes.Result{
 					{
-						IPs: []*current.IPConfig{
+						IPs: []*cnitypes.IPConfig{
 							{
 								Address: net.IPNet{
 									IP: net.ParseIP("10.88.0.14"),
@@ -330,9 +330,9 @@ func TestNetworkIPS(t *testing.T) {
 					},
 				},
 				State: &podman.ContainerState{
-					NetworkStatus: []*current.Result{
+					NetworkStatus: []*cnitypes.Result{
 						{
-							IPs: []*current.IPConfig{
+							IPs: []*cnitypes.IPConfig{
 								{
 									Address: net.IPNet{
 										IP: net.ParseIP("10.88.0.14"),
@@ -357,9 +357,9 @@ func TestNetworkIPS(t *testing.T) {
 					},
 				},
 				State: &podman.ContainerState{ // Sorted alphabetically by network name
-					NetworkStatus: []*current.Result{
+					NetworkStatus: []*cnitypes.Result{
 						{
-							IPs: []*current.IPConfig{
+							IPs: []*cnitypes.IPConfig{
 								{
 									Address: net.IPNet{
 										IP: net.ParseIP("10.88.0.11"),
@@ -368,7 +368,7 @@ func TestNetworkIPS(t *testing.T) {
 							},
 						},
 						{
-							IPs: []*current.IPConfig{
+							IPs: []*cnitypes.IPConfig{
 								{
 									Address: net.IPNet{
 										IP: net.ParseIP("10.88.0.12"),
@@ -377,7 +377,7 @@ func TestNetworkIPS(t *testing.T) {
 							},
 						},
 						{
-							IPs: []*current.IPConfig{
+							IPs: []*cnitypes.IPConfig{
 								{
 									Address: net.IPNet{
 										IP: net.ParseIP("10.88.0.13"),
@@ -408,9 +408,9 @@ func TestNetworkIPS(t *testing.T) {
 					},
 				},
 				State: &podman.ContainerState{
-					NetworkStatus: []*current.Result{
+					NetworkStatus: []*cnitypes.Result{
 						{
-							IPs: []*current.IPConfig{
+							IPs: []*cnitypes.IPConfig{
 								{
 									Address: net.IPNet{
 										IP: net.ParseIP("10.88.0.10"),
@@ -419,7 +419,7 @@ func TestNetworkIPS(t *testing.T) {
 							},
 						},
 						{
-							IPs: []*current.IPConfig{
+							IPs: []*cnitypes.IPConfig{
 								{
 									Address: net.IPNet{
 										IP: net.ParseIP("10.88.0.11"),

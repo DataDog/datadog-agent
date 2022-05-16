@@ -183,11 +183,6 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 	return ad
 }
 
-// StartAutoConfig starts auto discovery
-func StartAutoConfig() {
-	AC.LoadAndRun()
-}
-
 // WaitForConfigs retries the collection of Autodiscovery configs until the checkMatcher function (which
 // defines whether the list of integration configs collected is sufficient) returns true or the timeout is reached.
 // Autodiscovery listeners run asynchronously, AC.GetAllConfigs() can fail at the beginning to resolve templated configs

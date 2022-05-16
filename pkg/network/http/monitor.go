@@ -25,7 +25,7 @@ import (
 // * requestsStats which are the http data stats
 // * telemetry which are telemetry stats
 type HTTPMonitorStats struct {
-	requestStats map[Key]RequestStats
+	requestStats map[Key]*RequestStats
 	telemetry    telemetry
 }
 
@@ -63,7 +63,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, fmt.Errorf("error initializing http ebpf program: %s", err)
 	}
 
-	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFSection: httpSocketFilter, EBPFFuncName: "socket__http_filter"})
+	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFSection: httpSocketFilter, EBPFFuncName: "socket__http_filter", UID: probeUID})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
@@ -173,7 +173,7 @@ func (m *Monitor) Start() error {
 
 // GetHTTPStats returns a map of HTTP stats stored in the following format:
 // [source, dest tuple, request path] -> RequestStats object
-func (m *Monitor) GetHTTPStats() map[Key]RequestStats {
+func (m *Monitor) GetHTTPStats() map[Key]*RequestStats {
 	if m == nil {
 		return nil
 	}

@@ -12,6 +12,15 @@ import (
 	"math"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"golang.org/x/sys/unix"
+)
+
+const (
+	minPathnamesEntries = 64000 // ~27 MB
+	maxPathnamesEntries = 96000
+
+	minProcEntries = 16394
+	maxProcEntries = 131072
 )
 
 // allProbes contain the list of all the probes of the runtime security module
@@ -98,6 +107,7 @@ func AllMaps() []*manager.Map {
 		{Name: "exec_file_cache"},
 		// Open tables
 		{Name: "open_flags_approvers"},
+		{Name: "io_uring_req_pid"},
 		// Exec tables
 		{Name: "proc_cache"},
 		{Name: "pid_cache"},
@@ -121,26 +131,34 @@ const (
 	MaxTracedCgroupsCount = 1000
 )
 
+func getMaxEntries(numCPU int, min int, max int) uint32 {
+	maxEntries := int(math.Min(float64(max), float64(min*numCPU)/4))
+	if maxEntries < min {
+		maxEntries = min
+	}
+
+	return uint32(maxEntries)
+}
+
 // AllMapSpecEditors returns the list of map editors
-func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize int) map[string]manager.MapSpecEditor {
+func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize int, supportMmapableMaps bool) map[string]manager.MapSpecEditor {
 	if tracedCgroupsCount <= 0 || tracedCgroupsCount > MaxTracedCgroupsCount {
 		tracedCgroupsCount = MaxTracedCgroupsCount
 	}
 	if cgroupWaitListSize <= 0 || cgroupWaitListSize > MaxTracedCgroupsCount {
 		cgroupWaitListSize = MaxTracedCgroupsCount
 	}
-	return map[string]manager.MapSpecEditor{
+	editors := map[string]manager.MapSpecEditor{
 		"proc_cache": {
-			MaxEntries: uint32(4096 * numCPU),
+			MaxEntries: getMaxEntries(numCPU, minProcEntries, maxProcEntries),
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"pid_cache": {
-			MaxEntries: uint32(4096 * numCPU),
+			MaxEntries: getMaxEntries(numCPU, minProcEntries, maxProcEntries),
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"pathnames": {
-			// max 600,000 | min 64,000 entrie => max ~180 MB | min ~27 MB
-			MaxEntries: uint32(math.Max(math.Min(640000, float64(64000*numCPU/4)), 96000)),
+			MaxEntries: getMaxEntries(numCPU, minPathnamesEntries, maxPathnamesEntries),
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"traced_cgroups": {
@@ -152,6 +170,13 @@ func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize in
 			EditorFlag: manager.EditMaxEntries,
 		},
 	}
+	if supportMmapableMaps {
+		editors["dr_erpc_buffer"] = manager.MapSpecEditor{
+			Flags:      unix.BPF_F_MMAPABLE,
+			EditorFlag: manager.EditFlags,
+		}
+	}
+	return editors
 }
 
 // AllPerfMaps returns the list of perf maps of the runtime security module
@@ -164,11 +189,11 @@ func AllPerfMaps() []*manager.PerfMap {
 }
 
 // AllTailRoutes returns the list of all the tail call routes
-func AllTailRoutes(ERPCDentryResolutionEnabled bool, networkEnabled bool) []manager.TailCallRoute {
+func AllTailRoutes(ERPCDentryResolutionEnabled, networkEnabled, supportMmapableMaps bool) []manager.TailCallRoute {
 	var routes []manager.TailCallRoute
 
 	routes = append(routes, getExecTailCallRoutes()...)
-	routes = append(routes, getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled)...)
+	routes = append(routes, getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapableMaps)...)
 	routes = append(routes, getSysExitTailCallRoutes()...)
 	if networkEnabled {
 		routes = append(routes, getTCTailCallRoutes()...)
@@ -180,9 +205,9 @@ func AllTailRoutes(ERPCDentryResolutionEnabled bool, networkEnabled bool) []mana
 // AllBPFProbeWriteUserProgramFunctions returns the list of program functions that use the bpf_probe_write_user helper
 func AllBPFProbeWriteUserProgramFunctions() []string {
 	return []string{
-		"kprobe_dentry_resolver_erpc",
-		"kprobe_dentry_resolver_parent_erpc",
-		"kprobe_dentry_resolver_segment_erpc",
+		"kprobe_dentry_resolver_erpc_write_user",
+		"kprobe_dentry_resolver_parent_erpc_write_user",
+		"kprobe_dentry_resolver_segment_erpc_write_user",
 	}
 }
 

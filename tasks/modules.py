@@ -1,6 +1,5 @@
 import os
 import subprocess
-import sys
 from contextlib import contextmanager
 
 
@@ -101,14 +100,11 @@ DEFAULT_MODULES = {
         ".",
         targets=["./pkg", "./cmd"],
     ),
-    "pkg/util/scrubber": GoModule("pkg/util/scrubber"),
-    "pkg/util/log": GoModule("pkg/util/log"),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
     "internal/tools/proto": GoModule("internal/tools/proto", condition=lambda: False, should_tag=False),
     "internal/tools/modparser": GoModule("internal/tools/modparser", condition=lambda: False, should_tag=False),
-    "pkg/util/winutil": GoModule(
-        "pkg/util/winutil",
-        condition=lambda: sys.platform == 'win32',
+    "test/e2e/containers/otlp_sender": GoModule(
+        "test/e2e/containers/otlp_sender", condition=lambda: False, should_tag=False
     ),
     "pkg/quantile": GoModule("pkg/quantile"),
     "pkg/obfuscate": GoModule("pkg/obfuscate"),

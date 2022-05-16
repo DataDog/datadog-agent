@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/listener"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/traps"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -78,7 +77,6 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	lnchrs.AddLauncher(listener.NewLauncher(coreConfig.Datadog.GetInt("logs_config.frame_size")))
 	lnchrs.AddLauncher(journald.NewLauncher())
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
-	lnchrs.AddLauncher(traps.NewLauncher())
 	lnchrs.AddLauncher(docker.NewLauncher(
 		time.Duration(coreConfig.Datadog.GetInt("logs_config.docker_client_read_timeout"))*time.Second,
 		sources,

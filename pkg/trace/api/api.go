@@ -72,7 +72,6 @@ type HTTPReceiver struct {
 	statsProcessor StatsProcessor
 	appsecHandler  http.Handler
 
-	debug               bool
 	rateLimiterResponse int // HTTP status code when refusing
 
 	wg   sync.WaitGroup // waits for all requests to be processed
@@ -99,7 +98,6 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		dynConf:        dynConf,
 		appsecHandler:  appsecHandler,
 
-		debug:               strings.ToLower(conf.LogLevel) == "debug",
 		rateLimiterResponse: rateLimiterResponse,
 
 		exit: make(chan struct{}),
@@ -138,7 +136,6 @@ func (r *HTTPReceiver) Start() {
 		log.Debug("HTTP receiver disabled by config (apm_config.receiver_port: 0).")
 		return
 	}
-	mux := r.buildMux()
 
 	timeout := 5 * time.Second
 	if r.conf.ReceiverTimeout > 0 {
@@ -149,7 +146,7 @@ func (r *HTTPReceiver) Start() {
 		ReadTimeout:  timeout,
 		WriteTimeout: timeout,
 		ErrorLog:     stdlog.New(httpLogger, "http.Server: ", 0),
-		Handler:      mux,
+		Handler:      r.buildMux(),
 	}
 
 	addr := fmt.Sprintf("%s:%d", r.conf.ReceiverHost, r.conf.ReceiverPort)
@@ -257,7 +254,7 @@ func (r *HTTPReceiver) listenUnix(path string) (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.Chmod(path, 0722); err != nil {
+	if err := os.Chmod(path, 0o722); err != nil {
 		return nil, fmt.Errorf("error setting socket permissions: %v", err)
 	}
 	return NewMeasuredListener(ln, "uds_connections"), err
@@ -316,17 +313,16 @@ func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.Respons
 	}
 }
 
+var errInvalidHeaderTraceCountValue = fmt.Errorf("%q header value is not a number", headerTraceCount)
+
 func traceCount(req *http.Request) (int64, error) {
-	if _, ok := req.Header[headerTraceCount]; !ok {
-		return 0, fmt.Errorf("HTTP header %q not found", headerTraceCount)
-	}
 	str := req.Header.Get(headerTraceCount)
 	if str == "" {
-		return 0, fmt.Errorf("HTTP header %q value not set", headerTraceCount)
+		return 0, fmt.Errorf("HTTP header %q not found", headerTraceCount)
 	}
 	n, err := strconv.Atoi(str)
 	if err != nil {
-		return 0, fmt.Errorf("HTTP header %q can not be parsed: %v", headerTraceCount, err)
+		return 0, errInvalidHeaderTraceCountValue
 	}
 	return int64(n), nil
 }
@@ -523,13 +519,16 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		atomic.AddInt64(&ts.PayloadRefused, 1)
 		return
 	}
+	if err == errInvalidHeaderTraceCountValue {
+		log.Errorf("Failed to count traces: %s", err)
+	}
 
 	start := time.Now()
+	tp, ranHook, err := decodeTracerPayload(v, req, ts)
 	defer func(err error) {
 		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
 		metrics.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)
 	}(err)
-	tp, ranHook, err := decodeTracerPayload(v, req, ts)
 	if err != nil {
 		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w)
 		switch err {
@@ -724,7 +723,7 @@ func (r *HTTPReceiver) watchdog(now time.Time) {
 	if r.conf.MaxCPU > 0 {
 		rateCPU = computeRateLimitingRate(r.conf.MaxCPU, wi.CPU.UserAvg, r.RateLimiter.RealRate())
 		if rateCPU < 1 {
-			log.Warnf("CPU threshold exceeded (apm_config.max_cpu_percent: %.0f): %.0f", r.conf.MaxCPU*100, wi.CPU.UserAvg)
+			log.Warnf("CPU threshold exceeded (apm_config.max_cpu_percent: %.0f): %.0f", r.conf.MaxCPU*100, wi.CPU.UserAvg*100)
 		}
 	}
 
@@ -834,7 +833,7 @@ func getContainerTags(fn func(string) ([]string, error), containerID string) str
 		log.Warn("ContainerTags not configured")
 		return ""
 	}
-	list, err := fn("container_id://" + containerID)
+	list, err := fn(containerID)
 	if err != nil {
 		log.Tracef("Getting container tags for ID %q: %v", containerID, err)
 		return ""

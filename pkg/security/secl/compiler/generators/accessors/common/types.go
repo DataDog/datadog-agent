@@ -63,7 +63,7 @@ func (sf *StructField) GetEvaluatorType() string {
 		if sf.Iterator != nil || sf.IsArray {
 			evaluatorType = "eval.BoolArrayEvaluator"
 		}
-	} else if sf.ReturnType == "net.IP" {
+	} else if sf.ReturnType == "net.IPNet" {
 		evaluatorType = "eval.CIDREvaluator"
 		if sf.IsArray {
 			evaluatorType = "eval.CIDRValuesEvaluator"

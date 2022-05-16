@@ -442,14 +442,30 @@ shared_examples_for "an installed Agent" do
 
       program_files = safe_program_files
       verify_signature_files = [
+        # TODO: Uncomment this when we start shipping the security agent on Windows
+        # "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\security-agent.exe",
         "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\process-agent.exe",
         "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\trace-agent.exe",
         "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\ddtray.exe",
-        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent.exe"
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\libdatadog-agent-three.dll",
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent.exe",
+        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python.exe",
+        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\pythonw.exe",
+        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python3.dll",
+        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python38.dll"
       ]
+      libdatadog_agent_two = "#{program_files}\\DataDog\\Datadog Agent\\bin\\libdatadog-agent-two.dll"
+      if File.file?(libdatadog_agent_two)
+        verify_signature_files += [
+          libdatadog_agent_two,
+          "#{program_files}\\DataDog\\Datadog Agent\\embedded2\\python.exe",
+          "#{program_files}\\DataDog\\Datadog Agent\\embedded2\\pythonw.exe",
+          "#{program_files}\\DataDog\\Datadog Agent\\embedded2\\python27.dll"
+        ]
+      end
+
       verify_signature_files.each do |vf|
-        is_signed = is_file_signed(vf)
-        expect(is_signed).to be_truthy
+        expect(is_file_signed(vf)).to be_truthy
       end
     end
   end

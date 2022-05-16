@@ -7,7 +7,6 @@ package settings
 
 import (
 	"fmt"
-	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -34,7 +33,7 @@ func (s DsdStatsRuntimeSetting) Name() string {
 
 // Get returns the current value of the runtime setting
 func (s DsdStatsRuntimeSetting) Get() (interface{}, error) {
-	return atomic.LoadUint64(&common.DSD.Debug.Enabled) == 1, nil
+	return common.DSD.Debug.Enabled.Load(), nil
 }
 
 // Set changes the value of the runtime setting

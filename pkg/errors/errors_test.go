@@ -37,3 +37,27 @@ func TestRetriable(t *testing.T) {
 	require.False(t, IsRetriable(fmt.Errorf("fake")))
 	require.False(t, IsRetriable(fmt.Errorf(`couldn't fetch "foo": bar`)))
 }
+
+func TestRemoteService(t *testing.T) {
+	// New
+	err := NewRemoteServiceError("datadog cluster agent", "500 Internal Server Error")
+	require.Error(t, err)
+	require.Equal(t, `"datadog cluster agent" is unavailable: 500 Internal Server Error`, err.Error())
+
+	// Is
+	require.True(t, IsRemoteService(err))
+	require.False(t, IsRemoteService(errors.New("fake")))
+	require.False(t, IsRemoteService(errors.New(`"datadog cluster agent" is unavailable: 500 Internal Server Error`)))
+}
+
+func TestTimeout(t *testing.T) {
+	// New
+	err := NewTimeoutError("datadog cluster agent", errors.New("context deadline exceeded"))
+	require.Error(t, err)
+	require.Equal(t, `timeout calling "datadog cluster agent": context deadline exceeded`, err.Error())
+
+	// Is
+	require.True(t, IsTimeout(err))
+	require.False(t, IsTimeout(errors.New("fake")))
+	require.False(t, IsTimeout(errors.New(`timeout calling "datadog cluster agent": context deadline exceeded`)))
+}

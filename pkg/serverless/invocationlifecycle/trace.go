@@ -7,6 +7,7 @@ package invocationlifecycle
 
 import (
 	"encoding/json"
+	"net/http"
 	"os"
 	"regexp"
 	"strconv"
@@ -26,14 +27,25 @@ const (
 
 // executionStartInfo is saved information from when an execution span was started
 type executionStartInfo struct {
-	startTime      time.Time
-	traceID        uint64
-	spanID         uint64
-	parentID       uint64
-	requestPayload string
+	startTime        time.Time
+	traceID          uint64
+	spanID           uint64
+	parentID         uint64
+	requestPayload   string
+	samplingPriority sampler.SamplingPriority
 }
+
 type invocationPayload struct {
 	Headers map[string]string `json:"headers"`
+}
+
+func (esi *executionStartInfo) reset(startTime time.Time) {
+	esi.startTime = startTime
+	esi.traceID = 0
+	esi.spanID = 0
+	esi.parentID = 0
+	esi.requestPayload = ""
+	esi.samplingPriority = sampler.PriorityNone
 }
 
 // currentExecutionInfo represents information from the start of the current execution span
@@ -41,34 +53,54 @@ var currentExecutionInfo executionStartInfo
 
 // startExecutionSpan records information from the start of the invocation.
 // It should be called at the start of the invocation.
-func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeaders LambdaInvokeEventHeaders) {
-	currentExecutionInfo.startTime = startTime
-	currentExecutionInfo.traceID = random.Uint64()
-	currentExecutionInfo.spanID = random.Uint64()
-	currentExecutionInfo.parentID = 0
-
+func startExecutionSpan(startTime time.Time, rawPayload string, invokeEventHeaders LambdaInvokeEventHeaders, inferredSpansEnabled bool) {
+	currentExecutionInfo.reset(startTime)
 	payload := convertRawPayload(rawPayload)
-
 	currentExecutionInfo.requestPayload = rawPayload
 
-	var traceID, parentID uint64
-	var e1, e2 error
+	if inferredSpansEnabled {
+		currentExecutionInfo.traceID = inferredSpan.Span.TraceID
+		currentExecutionInfo.parentID = inferredSpan.Span.SpanID
+	}
 
 	if payload.Headers != nil {
-		traceID, e1 = convertStrToUnit64(payload.Headers[TraceIDHeader])
-		parentID, e2 = convertStrToUnit64(payload.Headers[ParentIDHeader])
+
+		traceID, err := strconv.ParseUint(payload.Headers[TraceIDHeader], 0, 64)
+		if err != nil {
+			log.Debug("Unable to parse traceID from payload headers")
+		} else {
+			currentExecutionInfo.traceID = traceID
+			if inferredSpansEnabled {
+				inferredSpan.Span.TraceID = traceID
+			}
+		}
+
+		parentID, err := strconv.ParseUint(payload.Headers[ParentIDHeader], 0, 64)
+		if err != nil {
+			log.Debug("Unable to parse parentID from payload headers")
+		} else {
+			if inferredSpansEnabled {
+				inferredSpan.Span.ParentID = parentID
+			} else {
+				currentExecutionInfo.parentID = parentID
+			}
+		}
 	} else if invokeEventHeaders.TraceID != "" { // trace context from a direct invocation
-		traceID, e1 = convertStrToUnit64(invokeEventHeaders.TraceID)
-		parentID, e2 = convertStrToUnit64(invokeEventHeaders.ParentID)
-	}
+		traceID, err := strconv.ParseUint(invokeEventHeaders.TraceID, 0, 64)
+		if err != nil {
+			log.Debug("Unable to parse traceID from invokeEventHeaders")
+		} else {
+			currentExecutionInfo.traceID = traceID
+		}
 
-	if e1 == nil && traceID != 0 {
-		currentExecutionInfo.traceID = traceID
+		parentID, err := strconv.ParseUint(invokeEventHeaders.ParentID, 0, 64)
+		if err != nil {
+			log.Debug("Unable to parse parentID from invokeEventHeaders")
+		} else {
+			currentExecutionInfo.parentID = parentID
+		}
 	}
-
-	if e2 == nil && parentID != 0 {
-		currentExecutionInfo.parentID = parentID
-	}
+	currentExecutionInfo.samplingPriority = getSamplingPriority(payload.Headers[SamplingPriorityHeader], invokeEventHeaders.SamplingPriority)
 }
 
 // endExecutionSpan builds the function execution span and sends it to the intake.
@@ -101,7 +133,7 @@ func endExecutionSpan(processTrace func(p *api.Payload), requestID string, endTi
 	}
 
 	traceChunk := &pb.TraceChunk{
-		Priority: int32(sampler.PriorityNone),
+		Priority: int32(currentExecutionInfo.samplingPriority),
 		Spans:    []*pb.Span{executionSpan},
 	}
 
@@ -133,10 +165,24 @@ func convertRawPayload(rawPayload string) invocationPayload {
 func convertStrToUnit64(s string) (uint64, error) {
 	num, err := strconv.ParseUint(s, 0, 64)
 	if err != nil {
-		log.Debug("Error with string conversion of trace or parent ID")
+		log.Debugf("Error while converting %s, failing with : %s", s, err)
 	}
-
 	return num, err
+}
+
+func getSamplingPriority(header string, directInvokeHeader string) sampler.SamplingPriority {
+	// default priority if nothing is found from headers or direct invocation payload
+	samplingPriority := sampler.PriorityNone
+	if v, err := strconv.ParseInt(header, 10, 8); err == nil {
+		// if the current lambda invocation is not the head of the trace, we need to propagate the sampling decision
+		samplingPriority = sampler.SamplingPriority(v)
+	} else {
+		// try to look for direction invocation headers
+		if v, err := strconv.ParseInt(directInvokeHeader, 10, 8); err == nil {
+			samplingPriority = sampler.SamplingPriority(v)
+		}
+	}
+	return samplingPriority
 }
 
 // TraceID returns the current TraceID
@@ -147,4 +193,33 @@ func TraceID() uint64 {
 // SpanID returns the current SpanID
 func SpanID() uint64 {
 	return currentExecutionInfo.spanID
+}
+
+// SamplingPriority returns the current samplingPriority
+func SamplingPriority() sampler.SamplingPriority {
+	return currentExecutionInfo.samplingPriority
+}
+
+// InjectContext injects the context
+func InjectContext(headers http.Header) {
+	if value, err := convertStrToUnit64(headers.Get(TraceIDHeader)); err == nil {
+		log.Debug("injecting traceID = %v", value)
+		currentExecutionInfo.traceID = value
+	}
+	if value, err := convertStrToUnit64(headers.Get(ParentIDHeader)); err == nil {
+		log.Debug("injecting parentId = %v", value)
+		currentExecutionInfo.parentID = value
+	}
+	if value, err := strconv.ParseInt(headers.Get(SamplingPriorityHeader), 10, 8); err == nil {
+		log.Debug("injecting samplingPriority = %v", value)
+		currentExecutionInfo.samplingPriority = sampler.SamplingPriority(value)
+	}
+}
+
+// InjectSpanID injects the spanId
+func InjectSpanID(headers http.Header) {
+	if value, err := strconv.ParseUint(headers.Get(SpanIDHeader), 10, 64); err == nil {
+		log.Debug("injecting spanID = %v", value)
+		currentExecutionInfo.spanID = value
+	}
 }
