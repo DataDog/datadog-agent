@@ -13,24 +13,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/fatih/color"
 )
-
-func newHTTPClient() *http.Client {
-	transport := httputils.CreateHTTPTransport()
-
-	return &http.Client{
-		Timeout:   config.Datadog.GetDuration("forwarder_timeout") * time.Second,
-		Transport: transport,
-	}
-}
 
 // RunDatadogConnectivityDiagnose send requests to all known endpoints for all domains
 // to check if there are connectivity issues between Datadog and these endpoints
@@ -44,7 +34,7 @@ func RunDatadogConnectivityDiagnose() error {
 	// XXX: use NewDomainResolverWithMetricToVector ?
 	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
 
-	client := newHTTPClient()
+	client := forwarder.NewHTTPClient()
 
 	// Send requests to all endpoints for all domains
 	for _, domainResolver := range domainResolvers {
