@@ -32,13 +32,16 @@ func newHTTPClient() *http.Client {
 	}
 }
 
-func RunDatadogConnectivityChecks() error {
-
+// RunDatadogConnectivityDiagnose send requests to all known endpoints for all domains
+// to check if there are connectivity issues between Datadog and these endpoints
+func RunDatadogConnectivityDiagnose() error {
 	// Create domain resolvers
 	keysPerDomain, err := config.GetMultipleEndpoints()
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
+
+	// XXX: use NewDomainResolverWithMetricToVector ?
 	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
 
 	client := newHTTPClient()
@@ -51,39 +54,31 @@ func RunDatadogConnectivityChecks() error {
 	return nil
 }
 
+// sendRequestToAllEndpointOfADomain sends HTTP request on all endpoints for a given domain
 func sendRequestToAllEndpointOfADomain(client *http.Client, domainResolver resolver.DomainResolver) {
 
+	// Go through all API Keys of a domain and send an HTTP request on each endpoint
 	for _, apiKey := range domainResolver.GetAPIKeys() {
 
 		for _, endpointInfo := range endpointsInfo {
-			domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
 
-			// Create the endpoint URL and send the request
-			url := createEndpointURL(domain, apiKey, endpointInfo)
-			sendHTTPRequestToUrl(client, url, endpointInfo)
+			domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
+			sendHTTPRequestToEndpoint(client, domain, endpointInfo, apiKey)
 		}
 	}
 }
 
-func createEndpointURL(domain string, apiKey string, endpointInfo EndpointInfo) string {
-
-	url := domain + endpointInfo.Endpoint.Route
-
-	if endpointInfo.ApiKeyInQueryString {
-		url = fmt.Sprintf("%s?api_key=%s", url, apiKey)
-	}
-
-	return url
-}
-
-func sendHTTPRequestToUrl(client *http.Client, url string, info EndpointInfo) {
+// sendHTTPRequestToEndpoint creates an URL based on the domain and the endpoint information
+// then sends an HTTP Request with the method and payload inside the endpoint information
+func sendHTTPRequestToEndpoint(client *http.Client, domain string, endpointInfo EndpointInfo, apiKey string) {
+	url := createEndpointURL(domain, endpointInfo, apiKey)
 	logURL := scrubber.ScrubLine(url)
 
 	fmt.Printf("\n======== '%v' ========\n", logURL)
 
 	// Create a request for the backend
-	reader := bytes.NewReader(info.Payload)
-	req, err := http.NewRequest(info.Method, url, reader)
+	reader := bytes.NewReader(endpointInfo.Payload)
+	req, err := http.NewRequest(endpointInfo.Method, url, reader)
 
 	if err != nil {
 		log.Errorf("Could not create request for transaction to invalid URL '%v' : %v", logURL, scrubber.ScrubLine(err.Error()))
@@ -98,19 +93,31 @@ func sendHTTPRequestToUrl(client *http.Client, url string, info EndpointInfo) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Check the endpoint response
+	// Get the endpoint response
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Errorf("Fail to read the response Body: %s", err)
 		return
 	}
 
+	// Check the endpoint response
 	statusString := color.GreenString("PASS")
 	if resp.StatusCode != http.StatusOK {
 		statusString = color.RedString("FAIL")
-		//fmt.Printf("Endpoint '%v' answers with status code %v\n", logURL, resp.StatusCode)
 		fmt.Printf("Received response : '%v'\n", string(body))
 	}
 	fmt.Printf("Received status code %v from the endpoint ====> %v\n", resp.StatusCode, statusString)
 
+}
+
+// createEndpointUrl joins a domain with an endpoint and adds the apiKey to the query
+// string if it is necessary for the given endpoint
+func createEndpointURL(domain string, endpointInfo EndpointInfo, apiKey string) string {
+	url := domain + endpointInfo.Endpoint.Route
+
+	if endpointInfo.ApiKeyInQueryString {
+		url = fmt.Sprintf("%s?api_key=%s", url, apiKey)
+	}
+
+	return url
 }

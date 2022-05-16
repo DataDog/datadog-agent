@@ -99,5 +99,5 @@ func doDiagnoseDatadogConnectivity(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error while setting up logging, exiting: %v", err)
 	}
 
-	return connectivity.RunDatadogConnectivityChecks()
+	return connectivity.RunDatadogConnectivityDiagnose()
 }
