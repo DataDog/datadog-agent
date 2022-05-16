@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/Masterminds/semver"
@@ -22,7 +23,19 @@ func executeClientPredicates(
 ) ([]string, error) {
 	configs := make([]string, 0)
 
+	productsMap := make(map[string]struct{})
+	for _, product := range client.Products {
+		productsMap[product] = struct{}{}
+	}
+
 	for path, meta := range directorTargets {
+		pathMeta, err := rdata.ParseConfigPath(path)
+		if err != nil {
+			return nil, err
+		}
+		if _, productRequested := productsMap[pathMeta.Product]; !productRequested {
+			continue
+		}
 		tracerPredicates, err := parsePredicates(meta.Custom)
 		if err != nil {
 			return nil, err

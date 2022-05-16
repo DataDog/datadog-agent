@@ -311,8 +311,6 @@ func TestService(t *testing.T) {
 		[]string{
 			"datadog/2/APM_SAMPLING/id/1",
 			"datadog/2/APM_SAMPLING/id/2",
-			"datadog/2/TESTING1/id/1",
-			"datadog/2/APPSEC/id/1",
 		},
 	)
 	err = service.refresh()
