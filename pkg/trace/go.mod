@@ -54,5 +54,6 @@ require (
 replace (
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ../obfuscate
 	github.com/DataDog/datadog-agent/pkg/otlp/model => ../otlp/model
+	github.com/DataDog/datadog-agent/pkg/quantile => ../quantile
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/client => ../remoteconfig/client
 )
