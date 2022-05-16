@@ -37,6 +37,7 @@ func RunDatadogConnectivityDiagnose() error {
 	client := forwarder.NewHTTPClient()
 
 	// Send requests to all endpoints for all domains
+	fmt.Println("\n================ Starting connectivity diagnosis ================")
 	for _, domainResolver := range domainResolvers {
 		sendRequestToAllEndpointOfADomain(client, domainResolver)
 	}
@@ -64,7 +65,7 @@ func sendHTTPRequestToEndpoint(client *http.Client, domain string, endpointInfo 
 	url := createEndpointURL(domain, endpointInfo, apiKey)
 	logURL := scrubber.ScrubLine(url)
 
-	fmt.Printf("\n======== '%v' ========\n", logURL)
+	fmt.Printf("\n======== '%v' ========\n", color.BlueString(logURL))
 
 	// Create a request for the backend
 	reader := bytes.NewReader(endpointInfo.Payload)
