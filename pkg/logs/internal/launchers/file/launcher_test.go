@@ -10,7 +10,6 @@ package file
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -51,8 +50,7 @@ func (suite *LauncherTestSuite) SetupTest() {
 	suite.outputChan = suite.pipelineProvider.NextPipelineChan()
 
 	var err error
-	suite.testDir, err = ioutil.TempDir("", "log-launcher-test-")
-	suite.Nil(err)
+	suite.testDir = suite.T().TempDir()
 
 	suite.testPath = fmt.Sprintf("%s/launcher.log", suite.testDir)
 	suite.testRotatedPath = fmt.Sprintf("%s.1", suite.testPath)
@@ -79,7 +77,6 @@ func (suite *LauncherTestSuite) TearDownTest() {
 	status.Clear()
 	suite.testFile.Close()
 	suite.testRotatedFile.Close()
-	os.Remove(suite.testDir)
 	suite.s.cleanup()
 }
 
@@ -210,14 +207,12 @@ func TestLauncherTestSuiteWithConfigID(t *testing.T) {
 
 func TestLauncherScanStartNewTailer(t *testing.T) {
 	var path string
-	var file *os.File
 	var msg *message.Message
 
 	IDs := []string{"", "123456789"}
 
 	for _, configID := range IDs {
-		testDir, err := ioutil.TempDir("", "log-launcher-test-")
-		assert.Nil(t, err)
+		testDir := t.TempDir()
 
 		// create launcher
 		path = fmt.Sprintf("%s/*.log", testDir)
@@ -235,7 +230,7 @@ func TestLauncherScanStartNewTailer(t *testing.T) {
 
 		// create file
 		path = fmt.Sprintf("%s/test.log", testDir)
-		file, err = os.Create(path)
+		file, err := os.Create(path)
 		assert.Nil(t, err)
 
 		// add content
@@ -255,8 +250,7 @@ func TestLauncherScanStartNewTailer(t *testing.T) {
 }
 
 func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
-	testDir, err := ioutil.TempDir("", "log-launcher-test-")
-	assert.Nil(t, err)
+	testDir := t.TempDir()
 	path := fmt.Sprintf("%s/container.log", testDir)
 
 	// create launcher
@@ -304,8 +298,7 @@ func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
 }
 
 func TestLauncherTailFromTheBeginning(t *testing.T) {
-	testDir, err := ioutil.TempDir("", "log-launcher-test-")
-	assert.Nil(t, err)
+	testDir := t.TempDir()
 
 	// create launcher
 	openFilesLimit := 3
@@ -357,8 +350,7 @@ func TestLauncherScanWithTooManyFiles(t *testing.T) {
 	var err error
 	var path string
 
-	testDir, err := ioutil.TempDir("", "log-launcher-test-")
-	assert.Nil(t, err)
+	testDir := t.TempDir()
 
 	// creates files
 	path = fmt.Sprintf("%s/1.log", testDir)

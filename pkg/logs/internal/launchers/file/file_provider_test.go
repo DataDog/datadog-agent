@@ -10,7 +10,6 @@ package file
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -38,8 +37,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 
 	// Create temporary directory
 	var err error
-	suite.testDir, err = ioutil.TempDir("", "log-file_provider-test-")
-	suite.Nil(err)
+	suite.testDir = suite.T().TempDir()
 
 	// Create directory tree:
 	path := fmt.Sprintf("%s/1", suite.testDir)
@@ -73,7 +71,6 @@ func (suite *ProviderTestSuite) SetupTest() {
 
 func (suite *ProviderTestSuite) TearDownTest() {
 	status.Clear()
-	os.Remove(suite.testDir)
 }
 
 func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFile() {

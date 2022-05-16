@@ -11,7 +11,6 @@ package host
 import (
 	"context"
 	"io/ioutil"
-	"os"
 	"path"
 	"testing"
 	"time"
@@ -134,10 +133,7 @@ func TestGetLogsMeta(t *testing.T) {
 }
 
 func TestGetInstallMethod(t *testing.T) {
-	dir, err := ioutil.TempDir("", "test_install_method")
-	assert.Nil(t, err)
-	defer os.RemoveAll(dir)
-
+	dir := t.TempDir()
 	installInfoPath := path.Join(dir, "install_info")
 
 	// ------------- Without file, the install is considered private
