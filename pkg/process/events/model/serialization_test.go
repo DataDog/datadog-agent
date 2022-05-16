@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-// +build linux
-
 package model
 
 import (
@@ -26,8 +23,8 @@ func newProcessMonitoringEvent(argCount int) *ProcessMonitoringEvent {
 	}
 
 	return &ProcessMonitoringEvent{
-		EventType: "exit",
-		Date:      time.Now(),
+		EventType:      "exit",
+		CollectionTime: time.Now(),
 		ProcessCacheEntry: &model.ProcessCacheEntry{
 			ProcessContext: model.ProcessContext{
 				Process: model.Process{
