@@ -20,12 +20,11 @@ type DirectorTargetsCustomMetadata struct {
 func executeClientPredicates(
 	client *pbgo.Client,
 	directorTargets data.TargetFiles,
-	products []string,
 ) ([]string, error) {
 	configs := make([]string, 0)
 
 	productsMap := make(map[string]struct{})
-	for _, product := range products {
+	for _, product := range client.Products {
 		productsMap[product] = struct{}{}
 	}
 
