@@ -411,7 +411,7 @@ require github.com/containernetworking/plugins v1.1.1 // indirect
 
 require (
 	github.com/Sirupsen/logrus v1.0.6 // indirect
-	go.opentelemetry.io/collector/semconv v0.50.0 // indirect
+	go.opentelemetry.io/collector/semconv v0.51.0 // indirect
 )
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
