@@ -27,12 +27,14 @@ func (rp *ResourcesCollector) Send(ctx context.Context, s serializer.MetricSeria
 	if res == nil {
 		return errors.New("empty processes metadata")
 	}
+
 	payload := map[string]interface{}{
 		"resources": res,
 	}
 	if err := s.SendProcessesMetadata(payload); err != nil {
 		return fmt.Errorf("unable to serialize processes metadata payload, %s", err)
 	}
+
 	return nil
 }
 
