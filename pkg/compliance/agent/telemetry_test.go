@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	"github.com/stretchr/testify/assert"
@@ -33,8 +34,10 @@ func TestReportContainersCount(t *testing.T) {
 
 	fakeStore := workloadmeta.NewMockStore()
 	telemetry := &telemetry{
-		sender:        mockSender,
-		metadataStore: fakeStore,
+		containers: &common.ContainersTelemetry{
+			Sender:        mockSender,
+			MetadataStore: fakeStore,
+		},
 	}
 
 	containersCount := 10

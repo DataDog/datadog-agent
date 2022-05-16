@@ -707,7 +707,7 @@ func (tm *testModule) reloadConfiguration() error {
 	log.Debugf("reload configuration with testDir: %s", tm.Root())
 	tm.config.PoliciesDir = tm.Root()
 
-	if err := tm.module.Reload(); err != nil {
+	if err := tm.module.Reload(tm.config.PoliciesDir); err != nil {
 		return errors.Wrap(err, "failed to reload test module")
 	}
 

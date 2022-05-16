@@ -1589,7 +1589,7 @@ func TestHTTPStats(t *testing.T) {
 		}
 
 		for key, stats := range payload.HTTP {
-			if key.Path == "/test" {
+			if key.Path.Content == "/test" {
 				httpReqStats = stats
 				return true
 			}
@@ -1669,7 +1669,7 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 		assert.Eventuallyf(t, func() bool {
 			payload, _ := tr.GetActiveConnections("1")
 			for key := range payload.HTTP {
-				if key.Path == "/200/foobar" {
+				if key.Path.Content == "/200/foobar" {
 					return true
 				}
 			}

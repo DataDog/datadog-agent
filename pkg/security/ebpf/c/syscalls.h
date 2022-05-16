@@ -7,6 +7,11 @@
 
 #define FSTYPE_LEN 16
 
+enum {
+    SYNC_SYSCALL = 0,
+    ASYNC_SYSCALL
+};
+
 struct str_array_ref_t {
     u32 id;
     u8 index;
@@ -36,6 +41,7 @@ struct syscall_cache_t {
     struct policy_t policy;
     u64 type;
     u32 discarded;
+    u8 async;
 
     struct dentry_resolver_input_t resolver;
 
@@ -195,6 +201,12 @@ struct syscall_cache_t {
             u32 pipe_entry_flag;
             u32 pipe_exit_flag;
         } splice;
+
+        struct {
+            u64 addr[2];
+            u16 family;
+            u16 port;
+        } bind;
     };
 };
 

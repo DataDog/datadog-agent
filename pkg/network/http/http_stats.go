@@ -60,6 +60,12 @@ func (m Method) String() string {
 	}
 }
 
+// Path represents the HTTP path
+type Path struct {
+	Content  string
+	FullPath bool
+}
+
 // KeyTuple represents the network tuple for a group of HTTP transactions
 type KeyTuple struct {
 	SrcIPHigh uint64
@@ -76,17 +82,20 @@ type KeyTuple struct {
 // Key is an identifier for a group of HTTP transactions
 type Key struct {
 	// this field order is intentional to help the GC pointer tracking
-	Path string
+	Path Path
 	KeyTuple
 	Method Method
 }
 
 // NewKey generates a new Key
-func NewKey(saddr, daddr util.Address, sport, dport uint16, path string, method Method) Key {
+func NewKey(saddr, daddr util.Address, sport, dport uint16, path string, fullPath bool, method Method) Key {
 	return Key{
 		KeyTuple: NewKeyTuple(saddr, daddr, sport, dport),
-		Path:     path,
-		Method:   method,
+		Path: Path{
+			Content:  path,
+			FullPath: fullPath,
+		},
+		Method: method,
 	}
 }
 
@@ -127,6 +136,9 @@ type RequestStat struct {
 	// a single value. This is quite common in the context of HTTP requests without
 	// keep-alives where a short-lived TCP connection is used for a single request.
 	FirstLatencySample float64
+
+	// Tags bitfields from tags-types.h
+	Tags uint64
 }
 
 func (r *RequestStats) idx(status int) int {
@@ -173,7 +185,7 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 		newStatsData := newStats.Stats(statusClass)
 		if newStatsData.Count == 1 {
 			// The other bucket has a single latency sample, so we "manually" add it
-			r.AddRequest(statusClass, newStatsData.FirstLatencySample)
+			r.AddRequest(statusClass, newStatsData.FirstLatencySample, newStatsData.Tags)
 			continue
 		}
 
@@ -206,7 +218,7 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 }
 
 // AddRequest takes information about a HTTP transaction and adds it to the request stats
-func (r *RequestStats) AddRequest(statusClass int, latency float64) {
+func (r *RequestStats) AddRequest(statusClass int, latency float64, tags uint64) {
 	if !r.isValid(statusClass) {
 		return
 	}
@@ -216,6 +228,7 @@ func (r *RequestStats) AddRequest(statusClass int, latency float64) {
 		stats = r.Stats(statusClass)
 	}
 
+	stats.Tags |= tags
 	stats.Count++
 	if stats.Count == 1 {
 		// We postpone the creation of histograms when we have only one latency sample

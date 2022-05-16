@@ -158,6 +158,7 @@ type EventContextSerializer struct {
 	Name     string `json:"name,omitempty" jsonschema_description:"Event name"`
 	Category string `json:"category,omitempty" jsonschema_description:"Event category"`
 	Outcome  string `json:"outcome,omitempty" jsonschema_description:"Event outcome"`
+	Async    bool   `json:"async,omitempty" jsonschema_description:"True if the event was asynchronous"`
 }
 
 // ProcessContextSerializer serializes a process context to JSON
@@ -267,6 +268,14 @@ type IPPortSerializer struct {
 	Port uint16 `json:"port" jsonschema_description:"Port number"`
 }
 
+// IPPortFamilySerializer is used to serialize an IP, Port and address family context to JSON
+// easyjson:json
+type IPPortFamilySerializer struct {
+	Family string `json:"family" jsonschema_description:"Address family"`
+	IP     string `json:"ip" jsonschema_description:"IP address"`
+	Port   uint16 `json:"port" jsonschema_description:"Port number"`
+}
+
 // NetworkContextSerializer serializes the network context to JSON
 // easyjson:json
 type NetworkContextSerializer struct {
@@ -317,6 +326,12 @@ type SpliceEventSerializer struct {
 	PipeExitFlag  string `json:"pipe_exit_flag" jsonschema_description:"Exit flag of the fd_out pipe passed to the splice syscall"`
 }
 
+// BindEventSerializer serializes a bind event to JSON
+// easyjson:json
+type BindEventSerializer struct {
+	Addr *IPPortFamilySerializer `json:"addr" jsonschema_description:"Bound address (if any)"`
+}
+
 // EventSerializer serializes an event to JSON
 // easyjson:json
 type EventSerializer struct {
@@ -332,6 +347,7 @@ type EventSerializer struct {
 	*SpliceEventSerializer      `json:"splice,omitempty"`
 	*DNSEventSerializer         `json:"dns,omitempty"`
 	*NetworkContextSerializer   `json:"network,omitempty"`
+	*BindEventSerializer        `json:"bind,omitempty"`
 	*UserContextSerializer      `json:"usr,omitempty"`
 	*ProcessContextSerializer   `json:"process,omitempty"`
 	*DDContextSerializer        `json:"dd,omitempty"`
@@ -499,7 +515,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *Event, r *Resolver
 	if e == nil {
 		// custom events create an empty event
 		e = NewEvent(r, nil, nil)
-		e.ProcessContext = *pc
+		e.ProcessContext = pc
 	}
 
 	ps = ProcessContextSerializer{
@@ -622,7 +638,7 @@ func newPTraceEventSerializer(e *Event) *PTraceEventSerializer {
 	return &PTraceEventSerializer{
 		Request: model.PTraceRequest(e.PTrace.Request).String(),
 		Address: fmt.Sprintf("0x%x", e.PTrace.Address),
-		Tracee:  newProcessContextSerializer(&e.PTrace.Tracee, e, e.resolvers),
+		Tracee:  newProcessContextSerializer(e.PTrace.Tracee, e, e.resolvers),
 	}
 }
 
@@ -644,7 +660,7 @@ func newSignalEventSerializer(e *Event) *SignalEventSerializer {
 	ses := &SignalEventSerializer{
 		Type:   model.Signal(e.Signal.Type).String(),
 		PID:    e.Signal.PID,
-		Target: newProcessContextSerializer(&e.Signal.Target, e, e.resolvers),
+		Target: newProcessContextSerializer(e.Signal.Target, e, e.resolvers),
 	}
 	return ses
 }
@@ -680,6 +696,14 @@ func newIPPortSerializer(c *model.IPPortContext) *IPPortSerializer {
 	}
 }
 
+func newIPPortFamilySerializer(c *model.IPPortContext, family string) *IPPortFamilySerializer {
+	return &IPPortFamilySerializer{
+		IP:     c.IPNet.IP.String(),
+		Port:   c.Port,
+		Family: family,
+	}
+}
+
 func newNetworkDeviceSerializer(e *Event) *NetworkDeviceSerializer {
 	return &NetworkDeviceSerializer{
 		NetNS:   e.NetworkContext.Device.NetNS,
@@ -697,6 +721,13 @@ func newNetworkContextSerializer(e *Event) *NetworkContextSerializer {
 		Destination: newIPPortSerializer(&e.NetworkContext.Destination),
 		Size:        e.NetworkContext.Size,
 	}
+}
+
+func newBindEventSerializer(e *Event) *BindEventSerializer {
+	bes := &BindEventSerializer{
+		Addr: newIPPortFamilySerializer(&e.Bind.Addr, model.AddressFamily(e.Bind.AddrFamily).String()),
+	}
+	return bes
 }
 
 func serializeSyscallRetval(retval int64) string {
@@ -767,6 +798,7 @@ func NewEventSerializer(event *Event) *EventSerializer {
 			Destination:    newFileSerializer(&event.Link.Target, event, event.Link.Source.Inode),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Link.Retval)
+		s.EventContextSerializer.Async = event.Link.Async
 	case model.FileOpenEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Open.File, event),
@@ -780,6 +812,7 @@ func NewEventSerializer(event *Event) *EventSerializer {
 
 		s.FileSerializer.Flags = model.OpenFlags(event.Open.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Open.Retval)
+		s.EventContextSerializer.Async = event.Open.Async
 	case model.FileMkdirEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Mkdir.File, event),
@@ -788,17 +821,20 @@ func NewEventSerializer(event *Event) *EventSerializer {
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Mkdir.Retval)
+		s.EventContextSerializer.Async = event.Mkdir.Async
 	case model.FileRmdirEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Rmdir.File, event),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Rmdir.Retval)
+		s.EventContextSerializer.Async = event.Rmdir.Async
 	case model.FileUnlinkEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Unlink.File, event),
 		}
 		s.FileSerializer.Flags = model.UnlinkFlags(event.Unlink.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Unlink.Retval)
+		s.EventContextSerializer.Async = event.Unlink.Async
 	case model.FileRenameEventType:
 		// use the new inode as the old one is a fake inode
 		s.FileEventSerializer = &FileEventSerializer{
@@ -806,6 +842,7 @@ func NewEventSerializer(event *Event) *EventSerializer {
 			Destination:    newFileSerializer(&event.Rename.New, event),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Rename.Retval)
+		s.EventContextSerializer.Async = event.Rename.Async
 	case model.FileRemoveXAttrEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.RemoveXAttr.File, event),
@@ -890,7 +927,7 @@ func NewEventSerializer(event *Event) *EventSerializer {
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 	case model.ExecEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.processCacheEntry.Process.FileEvent, event),
+			FileSerializer: *newFileSerializer(&event.ProcessContext.Process.FileEvent, event),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 	case model.SELinuxEventType:
@@ -941,6 +978,9 @@ func NewEventSerializer(event *Event) *EventSerializer {
 	case model.DNSEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 		s.DNSEventSerializer = newDNSEventSerializer(&event.DNS)
+	case model.BindEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Bind.Retval)
+		s.BindEventSerializer = newBindEventSerializer(event)
 	}
 
 	return s

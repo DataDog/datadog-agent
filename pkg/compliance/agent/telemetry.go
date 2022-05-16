@@ -9,9 +9,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -20,19 +19,17 @@ const (
 
 // telemetry reports environment information (e.g containers running) when the compliance component is running
 type telemetry struct {
-	sender        aggregator.Sender
-	metadataStore workloadmeta.Store
+	containers *common.ContainersTelemetry
 }
 
 func newTelemetry() (*telemetry, error) {
-	sender, err := aggregator.GetDefaultSender()
+	containersTelemetry, err := common.NewContainersTelemetry()
 	if err != nil {
 		return nil, err
 	}
 
 	return &telemetry{
-		sender:        sender,
-		metadataStore: workloadmeta.GetGlobalStore(),
+		containers: containersTelemetry,
 	}, nil
 }
 
@@ -56,18 +53,5 @@ func (t *telemetry) run(ctx context.Context) {
 }
 
 func (t *telemetry) reportContainers() error {
-	containers, err := t.metadataStore.ListContainers()
-	if err != nil {
-		return err
-	}
-
-	for _, container := range containers {
-		if container.State.Running {
-			t.sender.Gauge(containersCountMetricName, 1.0, "", []string{"container_id:" + container.ID})
-		}
-	}
-
-	t.sender.Commit()
-
-	return nil
+	return t.containers.ReportContainers(containersCountMetricName)
 }

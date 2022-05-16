@@ -206,11 +206,6 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
-func (e *ExecEvent) UnmarshalBinary(data []byte) (int, error) {
-	return UnmarshalBinary(data, &e.Process)
-}
-
-// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData
@@ -395,7 +390,7 @@ func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
-func (p *ProcessContext) UnmarshalBinary(data []byte) (int, error) {
+func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
@@ -435,11 +430,16 @@ func (e *SetXAttrEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *SyscallEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 8 {
+	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
 	e.Retval = int64(ByteOrder.Uint64(data[0:8]))
-	return 8, nil
+	if ByteOrder.Uint64(data[8:16]) != 0 {
+		e.Async = true
+	} else {
+		e.Async = false
+	}
+	return 16, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -899,4 +899,30 @@ func (e *VethPairEvent) UnmarshalBinary(data []byte) (int, error) {
 	cursor += read
 
 	return cursor, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 20 {
+		return 0, ErrNotEnoughData
+	}
+
+	ipRaw := data[read : read+16]
+	e.AddrFamily = ByteOrder.Uint16(data[read+16 : read+18])
+	e.Addr.Port = binary.BigEndian.Uint16(data[read+18 : read+20])
+
+	// readjust IP size depending on the protocol
+	switch e.AddrFamily {
+	case 0x2: // unix.AF_INET
+		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw[0:4])
+	case 0xa: // unix.AF_INET6
+		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw)
+	}
+
+	return read + 20, nil
 }

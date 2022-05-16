@@ -82,6 +82,7 @@ type Probe struct {
 	inodeDiscarders    *inodeDiscarders
 	flushingDiscarders int64
 	approvers          map[eval.EventType]activeApprovers
+	discarderRate      *utils.RateLimiter
 
 	constantOffsets map[string]uint64
 
@@ -375,7 +376,7 @@ func (p *Probe) zeroEvent() *Event {
 }
 
 func (p *Probe) unmarshalContexts(data []byte, event *Event) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.ProcessContext, &event.SpanContext, &event.ContainerContext)
+	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, &event.ContainerContext)
 	if err != nil {
 		return 0, err
 	}
@@ -467,8 +468,8 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	offset += read
 
 	// save netns handle if applicable
-	nsPath := utils.NetNSPathFromPid(event.ProcessContext.Pid)
-	_, _ = p.resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(event.ProcessContext.NetNS, nsPath)
+	nsPath := utils.NetNSPathFromPid(event.PIDContext.Pid)
+	_, _ = p.resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(event.PIDContext.NetNS, nsPath)
 
 	if model.GetEventTypeCategory(eventType.String()) == model.NetworkCategory {
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
@@ -598,55 +599,53 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 	case model.ForkEventType:
-		if _, err = event.UnmarshalProcess(data[offset:]); err != nil {
+		if _, err = event.UnmarshalProcessCacheEntry(data[offset:]); err != nil {
 			log.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 
-		if IsKThread(event.processCacheEntry.PPid, event.processCacheEntry.Pid) {
+		if IsKThread(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
 			return
 		}
 
-		p.resolvers.ProcessResolver.ApplyBootTime(event.processCacheEntry)
-		event.processCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
+		p.resolvers.ProcessResolver.ApplyBootTime(event.ProcessCacheEntry)
+		event.ProcessCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
 
-		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessContext.Pid, event.processCacheEntry)
+		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessCacheEntry)
 	case model.ExecEventType:
 		// unmarshal and fill event.processCacheEntry
-		if _, err = event.UnmarshalProcess(data[offset:]); err != nil {
+		if _, err = event.UnmarshalProcessCacheEntry(data[offset:]); err != nil {
 			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 
-		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntryContext(event.processCacheEntry); err != nil {
+		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry); err != nil {
 			log.Debugf("failed to resolve new process cache entry context: %s", err)
 		}
 
-		p.resolvers.ProcessResolver.AddExecEntry(event.ProcessContext.Pid, event.processCacheEntry)
+		p.resolvers.ProcessResolver.AddExecEntry(event.ProcessCacheEntry)
 
-		// copy some of the field from the entry
-		event.Exec.Process = event.processCacheEntry.Process
-		event.Exec.FileEvent = event.processCacheEntry.Process.FileEvent
+		event.Exec.Process = &event.ProcessCacheEntry.Process
 	case model.ExitEventType:
-		// do nothing
+		// nothing to do here
 	case model.SetuidEventType:
 		if _, err = event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode setuid event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		defer p.resolvers.ProcessResolver.UpdateUID(event.ProcessContext.Pid, event)
+		defer p.resolvers.ProcessResolver.UpdateUID(event.PIDContext.Pid, event)
 	case model.SetgidEventType:
 		if _, err = event.SetGID.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode setgid event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		defer p.resolvers.ProcessResolver.UpdateGID(event.ProcessContext.Pid, event)
+		defer p.resolvers.ProcessResolver.UpdateGID(event.PIDContext.Pid, event)
 	case model.CapsetEventType:
 		if _, err = event.Capset.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode capset event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		defer p.resolvers.ProcessResolver.UpdateCapset(event.ProcessContext.Pid, event)
+		defer p.resolvers.ProcessResolver.UpdateCapset(event.PIDContext.Pid, event)
 	case model.SELinuxEventType:
 		if _, err = event.SELinux.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode selinux event: %s (offset %d, len %d)", err, offset, len(data))
@@ -665,7 +664,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		// resolve tracee process context
 		cacheEntry := event.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID)
 		if cacheEntry != nil {
-			event.PTrace.Tracee = cacheEntry.ProcessContext
+			event.PTrace.Tracee = &cacheEntry.ProcessContext
 		}
 	case model.MMapEventType:
 		if _, err = event.MMap.UnmarshalBinary(data[offset:]); err != nil {
@@ -675,8 +674,8 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 
 		if event.MMap.Flags&unix.MAP_ANONYMOUS != 0 {
 			// no need to trigger a dentry resolver, not backed by any file
-			event.MMap.File.IsPathnameStrResolved = true
-			event.MMap.File.IsBasenameStrResolved = true
+			event.MMap.File.SetPathnameStr("")
+			event.MMap.File.SetBasenameStr("")
 		}
 	case model.MProtectEventType:
 		if _, err = event.MProtect.UnmarshalBinary(data[offset:]); err != nil {
@@ -691,8 +690,8 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 
 		if event.LoadModule.LoadedFromMemory {
 			// no need to trigger a dentry resolver, not backed by any file
-			event.MMap.File.IsPathnameStrResolved = true
-			event.MMap.File.IsBasenameStrResolved = true
+			event.LoadModule.File.SetPathnameStr("")
+			event.LoadModule.File.SetBasenameStr("")
 		}
 	case model.UnloadModuleEventType:
 		if _, err = event.UnloadModule.UnmarshalBinary(data[offset:]); err != nil {
@@ -706,7 +705,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		// resolve target process context
 		cacheEntry := event.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID)
 		if cacheEntry != nil {
-			event.Signal.Target = cacheEntry.ProcessContext
+			event.Signal.Target = &cacheEntry.ProcessContext
 		}
 	case model.SpliceEventType:
 		if _, err = event.Splice.UnmarshalBinary(data[offset:]); err != nil {
@@ -730,21 +729,28 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.BindEventType:
+		if _, err = event.Bind.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode bind event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	default:
 		log.Errorf("unsupported event type %d", eventType)
 		return
 	}
 
-	// resolve event context
-	if eventType != model.ExitEventType {
-		event.ResolveProcessCacheEntry()
-		event.ProcessContext = event.processCacheEntry.ProcessContext
-	} else {
-		if IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
-			return
-		}
+	// resolve the process cache entry
+	event.ProcessCacheEntry = event.ResolveProcessCacheEntry()
 
-		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTimestamp())
+	// use ProcessCacheEntry process context as process context
+	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
+
+	if IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
+		return
+	}
+
+	if eventType == model.ExitEventType {
+		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessCacheEntry.Pid, event.ResolveEventTimestamp())
 	}
 
 	p.DispatchEvent(event, dataLen, int(CPU), p.perfMap)
@@ -768,6 +774,10 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 	}
 
 	if atomic.LoadInt64(&p.flushingDiscarders) == 1 {
+		return nil
+	}
+
+	if !p.discarderRate.Allow(event.TimestampRaw) {
 		return nil
 	}
 
@@ -961,10 +971,10 @@ func (p *Probe) FlushDiscarders() error {
 	// Sleeping a bit to avoid races with executing kprobes and setting discarders
 	time.Sleep(time.Second)
 
-	var discardedInodes []inodeDiscarder
+	var discardedInodes []inodeDiscarderMapEntry
 	var mapValue [256]byte
 
-	var inode inodeDiscarder
+	var inode inodeDiscarderMapEntry
 	for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, unsafe.Pointer(&mapValue[0])); {
 		discardedInodes = append(discardedInodes, inode)
 	}
@@ -1179,6 +1189,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		discarderReq:   newDiscarderRequest(),
 		tcPrograms:     make(map[NetDeviceKey]*manager.Probe),
 		statsdClient:   statsdClient,
+		discarderRate:  utils.NewRateLimiter(time.Second, 100),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {

@@ -171,6 +171,18 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "capset"}, EntryAndExit),
 		},
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "fork"}, Entry),
+		},
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "vfork"}, Entry),
+		},
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "clone"}, Entry),
+		},
+		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "clone3"}, Entry),
+		},
 
 		// Open probes
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
@@ -227,8 +239,12 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "renameat"}, EntryAndExit),
 		},
-		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
-			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "renameat2"}, EntryAndExit),
+		&manager.BestEffort{Selectors: append(
+			[]manager.ProbesSelector{
+				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/do_renameat2", EBPFFuncName: "kprobe_do_renameat2"}},
+				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/do_renameat2", EBPFFuncName: "kretprobe_do_renameat2"}},
+			},
+			ExpandSyscallProbesSelector(manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "renameat2"}, EntryAndExit)...),
 		},
 
 		// unlink rmdir probes
@@ -238,6 +254,10 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "unlinkat"}, EntryAndExit),
 		},
+		&manager.BestEffort{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/do_unlinkat", EBPFFuncName: "kprobe_do_unlinkat"}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/do_unlinkat", EBPFFuncName: "kretprobe_do_unlinkat"}},
+		}},
 
 		// Rmdir probes
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
@@ -246,6 +266,10 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "rmdir"}, EntryAndExit),
 		},
+		&manager.BestEffort{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/do_rmdir", EBPFFuncName: "kprobe_do_rmdir"}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/do_rmdir", EBPFFuncName: "kretprobe_do_rmdir"}},
+		}},
 
 		// Unlink probes
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
@@ -254,6 +278,10 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "unlink"}, EntryAndExit),
 		},
+		&manager.BestEffort{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/do_linkat", EBPFFuncName: "kprobe_do_linkat"}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/do_linkat", EBPFFuncName: "kretprobe_do_linkat"}},
+		}},
 
 		// ioctl probes
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
@@ -353,6 +381,10 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "mkdirat"}, EntryAndExit),
 		},
+		&manager.BestEffort{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/do_mkdirat", EBPFFuncName: "kprobe_do_mkdirat"}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/do_mkdirat", EBPFFuncName: "kretprobe_do_mkdirat"}},
+		}},
 	},
 
 	// List of probes required to capture removexattr events
@@ -515,5 +547,15 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/get_pipe_info", EBPFFuncName: "kprobe_get_pipe_info"}},
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/get_pipe_info", EBPFFuncName: "kretprobe_get_pipe_info"}},
 		}},
+	},
+
+	// List of probes required to capture bind events
+	"bind": {
+		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_socket_bind", EBPFFuncName: "kprobe_security_socket_bind"}},
+		}},
+		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "bind"}, EntryAndExit),
+		},
 	},
 }

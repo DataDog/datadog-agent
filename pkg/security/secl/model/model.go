@@ -132,11 +132,15 @@ type Event struct {
 	TimestampRaw uint64    `field:"-"`
 	Timestamp    time.Time `field:"-"` // Timestamp of the event
 
-	ProcessContext   ProcessContext   `field:"process" event:"*"`
-	SpanContext      SpanContext      `field:"-"`
-	ContainerContext ContainerContext `field:"container"`
-	NetworkContext   NetworkContext   `field:"network"`
+	// context shared with all events
+	ProcessCacheEntry *ProcessCacheEntry `field:"-"`
+	PIDContext        PIDContext         `field:"-"`
+	SpanContext       SpanContext        `field:"-"`
+	ProcessContext    *ProcessContext    `field:"process" event:"*"`
+	ContainerContext  ContainerContext   `field:"container"`
+	NetworkContext    NetworkContext     `field:"network"`
 
+	// fim events
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
 	Chown       ChownEvent    `field:"chown" event:"chown"`             // [7.27] [File] A file’s owner was changed
 	Open        OpenEvent     `field:"open" event:"open"`               // [7.27] [File] A file was opened
@@ -150,12 +154,14 @@ type Event struct {
 	RemoveXAttr SetXAttrEvent `field:"removexattr" event:"removexattr"` // [7.27] [File] Remove extended attributes
 	Splice      SpliceEvent   `field:"splice" event:"splice"`           // [7.36] [File] A splice command was executed
 
+	// process events
 	Exec   ExecEvent   `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed or forked
 	SetUID SetuidEvent `field:"setuid" event:"setuid"` // [7.27] [Process] A process changed its effective uid
 	SetGID SetgidEvent `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
 	Capset CapsetEvent `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
 	Signal SignalEvent `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
 
+	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
 	BPF          BPFEvent          `field:"bpf" event:"bpf"`                     // [7.33] [Kernel] A BPF command was executed
 	PTrace       PTraceEvent       `field:"ptrace" event:"ptrace"`               // [7.35] [Kernel] A ptrace command was executed
@@ -163,8 +169,12 @@ type Event struct {
 	MProtect     MProtectEvent     `field:"mprotect" event:"mprotect"`           // [7.35] [Kernel] A mprotect command was executed
 	LoadModule   LoadModuleEvent   `field:"load_module" event:"load_module"`     // [7.35] [Kernel] A new kernel module was loaded
 	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
-	DNS          DNSEvent          `field:"dns" event:"dns"`                     // [7.36] [Network] A DNS request was sent
 
+	// network events
+	DNS  DNSEvent  `field:"dns" event:"dns"`   // [7.36] [Network] A DNS request was sent
+	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] [Experimental] A bind was executed
+
+	// internal usage
 	Mount            MountEvent            `field:"-"`
 	Umount           UmountEvent           `field:"-"`
 	InvalidateDentry InvalidateDentryEvent `field:"-"`
@@ -261,12 +271,9 @@ func (e *Process) GetPathResolutionError() string {
 
 // Process represents a process
 type Process struct {
-	// proc_cache_t
-	FileEvent FileEvent `field:"file" msg:"file"`
+	PIDContext
 
-	Pid   uint32 `field:"pid" msg:"pid"` // Process ID of the process (also called thread group ID)
-	Tid   uint32 `field:"tid" msg:"tid"` // Thread ID of the thread
-	NetNS uint32 `field:"-" msg:"-"`
+	FileEvent FileEvent `field:"file" msg:"file"`
 
 	ContainerID   string   `field:"container.id" msg:"container_id"` // Container ID
 	ContainerTags []string `field:"-" msg:"container_tags"`
@@ -321,7 +328,7 @@ type SpanContext struct {
 // ExecEvent represents a exec event
 //msgp:ignore ExecEvent
 type ExecEvent struct {
-	Process
+	*Process
 }
 
 // FileFields holds the information required to identify a file
@@ -591,6 +598,13 @@ type ProcessContext struct {
 	Ancestor *ProcessCacheEntry `field:"ancestors,,ProcessAncestorsIterator" msg:"ancestor"`
 }
 
+// PIDContext holds the process context of an kernel event
+type PIDContext struct {
+	Pid   uint32 `field:"pid" msg:"pid"` // Process ID of the process (also called thread group ID)
+	Tid   uint32 `field:"tid" msg:"tid"` // Thread ID of the thread
+	NetNS uint32 `field:"-" msg:"-"`
+}
+
 // RenameEvent represents a rename event
 //msgp:ignore RenameEvent
 type RenameEvent struct {
@@ -622,6 +636,7 @@ type SetXAttrEvent struct {
 // SyscallEvent contains common fields for all the event
 type SyscallEvent struct {
 	Retval int64 `field:"retval" msg:"retval"` // Return value of the syscall
+	Async  bool  `field:"async" msg:"async"`   // True if the syscall was asynchronous
 }
 
 // UnlinkEvent represents an unlink event
@@ -683,10 +698,10 @@ type BPFProgram struct {
 type PTraceEvent struct {
 	SyscallEvent
 
-	Request uint32         `field:"request"` //  ptrace request
-	PID     uint32         `field:"-"`
-	Address uint64         `field:"-"`
-	Tracee  ProcessContext `field:"tracee"` // process context of the tracee
+	Request uint32          `field:"request"` //  ptrace request
+	PID     uint32          `field:"-"`
+	Address uint64          `field:"-"`
+	Tracee  *ProcessContext `field:"tracee"` // process context of the tracee
 }
 
 // MMapEvent represents a mmap event
@@ -736,9 +751,9 @@ type UnloadModuleEvent struct {
 type SignalEvent struct {
 	SyscallEvent
 
-	Type   uint32         `field:"type"`   // Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)
-	PID    uint32         `field:"pid"`    // Target PID
-	Target ProcessContext `field:"target"` // Target process context
+	Type   uint32          `field:"type"`   // Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)
+	PID    uint32          `field:"pid"`    // Target PID
+	Target *ProcessContext `field:"target"` // Target process context
 }
 
 // SpliceEvent represents a splice event
@@ -794,6 +809,15 @@ type DNSEvent struct {
 	Class uint16 `field:"question.class"`                              // the class looked up by the DNS question
 	Size  uint16 `field:"question.size"`                               // the total DNS request size in bytes
 	Count uint16 `field:"question.count"`                              // the total count of questions in the DNS request
+}
+
+// BindEvent represents a bind event
+//msgp:ignore BindEvent
+type BindEvent struct {
+	SyscallEvent
+
+	AddrFamily uint16        `field:"addr.family"` // Address family
+	Addr       IPPortContext `field:"addr"`        // Bound address
 }
 
 // NetDevice represents a network device

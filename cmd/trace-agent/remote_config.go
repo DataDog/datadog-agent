@@ -14,11 +14,18 @@ import (
 	"sync"
 	"time"
 
+	"google.golang.org/grpc/metadata"
+
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
-	"google.golang.org/grpc/metadata"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	headerContainerID = "Datadog-Container-ID"
 )
 
 var bufferPool = sync.Pool{
@@ -37,7 +44,7 @@ func putBuffer(buffer *bytes.Buffer) {
 	bufferPool.Put(buffer)
 }
 
-func remoteConfigHandler(r *api.HTTPReceiver, client pbgo.AgentSecureClient, token string) http.Handler {
+func remoteConfigHandler(r *api.HTTPReceiver, client pbgo.AgentSecureClient, token string, cfg *config.AgentConfig) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		defer timing.Since("datadog.trace_agent.receiver.config_process_ms", time.Now())
 		tags := r.TagStats(api.V07, req.Header).AsTags()
@@ -65,6 +72,14 @@ func remoteConfigHandler(r *api.HTTPReceiver, client pbgo.AgentSecureClient, tok
 			"authorization": []string{fmt.Sprintf("Bearer %s", token)},
 		}
 		ctx := metadata.NewOutgoingContext(req.Context(), md)
+		if configsRequest.GetClient().GetClientTracer() != nil {
+			if configsRequest.Client.ClientTracer.Tags == nil {
+				configsRequest.Client.ClientTracer.Tags = make([]string, 0)
+			}
+			for _, tag := range getContainerTags(req, cfg) {
+				configsRequest.Client.ClientTracer.Tags = append(configsRequest.Client.ClientTracer.Tags, tag)
+			}
+		}
 		cfg, err := client.ClientGetConfigs(ctx, &configsRequest)
 		if err != nil {
 			statusCode = http.StatusInternalServerError
@@ -85,4 +100,18 @@ func remoteConfigHandler(r *api.HTTPReceiver, client pbgo.AgentSecureClient, tok
 		w.Write(content)
 
 	})
+}
+
+func getContainerTags(req *http.Request, cfg *config.AgentConfig) []string {
+	if cfg == nil || cfg.ContainerTags == nil {
+		return nil
+	}
+	if cid := req.Header.Get(headerContainerID); cid != "" {
+		containerTags, err := cfg.ContainerTags(cid)
+		if err != nil {
+			_ = log.Error("Failed getting container tags", err)
+		}
+		return containerTags
+	}
+	return nil
 }

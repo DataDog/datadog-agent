@@ -226,6 +226,7 @@ enum event_type
     EVENT_DNS,
     EVENT_NET_DEVICE,
     EVENT_VETH_PAIR,
+    EVENT_BIND,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffffffffffff // used as a mask for all the events
@@ -239,6 +240,7 @@ struct kevent_t {
 
 struct syscall_t {
     s64 retval;
+    u64 async; /* TODO: optimize the way we retrieve the async boolean */
 };
 
 struct span_context_t {

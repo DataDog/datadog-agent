@@ -115,7 +115,6 @@ func SetupVethPair(t *testing.T) {
 func TeardownVethPair(t *testing.T) {
 	cmds := []string{
 		"ip link del veth1",
-		"ip -n test link del veth2",
 		"ip netns del test",
 	}
 	nettestutil.RunCommands(t, cmds, true)

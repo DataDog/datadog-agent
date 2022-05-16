@@ -1,40 +1,24 @@
 #ifndef __HTTPS_H
 #define __HTTPS_H
 
+#include "http-buffer.h"
 #include "http-types.h"
 #include "http-maps.h"
 #include "http-maps.h"
 #include "http.h"
+#include "port_range.h"
+#include "sockfd.h"
+#include "tags-types.h"
 
-// read_into_buffer copies data from an arbitrary memory address into a (statically sized) HTTP buffer.
-// Ideally we would only copy min(data_size, HTTP_BUFFER_SIZE) bytes, but the code below is the only way
-// we found to handle data sizes smaller than HTTP_BUFFER_SIZE in Kernel 4.4.
-// In a nutshell, we read HTTP_BUFFER_SIZE bytes no matter what and then get rid of garbage data.
-// Please note that even though the memset could be removed with no semantic change to the code,
-// it is still necessary to make the eBPF verifier happy.
-static __always_inline void read_into_buffer(char *buffer, char *data, size_t data_size) {
-    __builtin_memset(buffer, 0, HTTP_BUFFER_SIZE);
-    bpf_probe_read(buffer, HTTP_BUFFER_SIZE, data);
-    if (data_size >= HTTP_BUFFER_SIZE) {
-        return;
-    }
+static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type);
 
-    // clean up garbage
-#pragma unroll
-    for (int i = 0; i < HTTP_BUFFER_SIZE; i++) {
-        if (i >= data_size) {
-            buffer[i] = 0;
-        }
-    }
-}
-
-static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t len) {
+static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t len, __u64 tags) {
     http_transaction_t http;
     __builtin_memset(&http, 0, sizeof(http));
     __builtin_memcpy(&http.tup, t, sizeof(conn_tuple_t));
     read_into_buffer((char *)http.request_fragment, buffer, len);
     http.owned_by_src_port = http.tup.sport;
-    http_process(&http, NULL);
+    http_process(&http, NULL, tags);
 }
 
 static __always_inline void https_finish(conn_tuple_t *t) {
@@ -45,7 +29,7 @@ static __always_inline void https_finish(conn_tuple_t *t) {
 
     skb_info_t skb_info = {0};
     skb_info.tcp_flags |= TCPHDR_FIN;
-    http_process(&http, &skb_info);
+    http_process(&http, &skb_info, NO_TAGS);
 }
 
 static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgid) {
