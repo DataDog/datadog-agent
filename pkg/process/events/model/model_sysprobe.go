@@ -16,8 +16,8 @@ import (
 // ProcessMonitoringEvent is an event sent by the ProcessMonitoring handler in the runtime-security module
 type ProcessMonitoringEvent struct {
 	*model.ProcessCacheEntry
-	EventType string    `json:"EventType" msg:"evt_type"`
-	Date      time.Time `json:"Date" msg:"date"`
+	EventType      string    `json:"EventType" msg:"evt_type"`
+	CollectionTime time.Time `json:"CollectionTime" msg:"collection_time"`
 }
 
 // ProcessMonitoringtoProcessEvent converts a ProcessMonitoringEvent to a generic ProcessEvent
@@ -28,18 +28,18 @@ func ProcessMonitoringtoProcessEvent(e *ProcessMonitoringEvent) *ProcessEvent {
 	}
 
 	return &ProcessEvent{
-		EventType: e.EventType,
-		Date:      e.Date,
-		Pid:       e.Pid,
-		Ppid:      e.PPid,
-		UID:       e.UID,
-		GID:       e.GID,
-		Username:  e.User,
-		Group:     e.Group,
-		Exe:       e.FileEvent.PathnameStr,
-		Cmdline:   cmdline,
-		ForkTime:  e.ForkTime,
-		ExecTime:  e.ExecTime,
-		ExitTime:  e.ExitTime,
+		EventType:      e.EventType,
+		CollectionTime: e.CollectionTime,
+		Pid:            e.Pid,
+		Ppid:           e.PPid,
+		UID:            e.UID,
+		GID:            e.GID,
+		Username:       e.User,
+		Group:          e.Group,
+		Exe:            e.FileEvent.PathnameStr,
+		Cmdline:        cmdline,
+		ForkTime:       e.ForkTime,
+		ExecTime:       e.ExecTime,
+		ExitTime:       e.ExitTime,
 	}
 }
