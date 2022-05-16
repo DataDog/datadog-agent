@@ -155,7 +155,7 @@ require (
 	github.com/moby/sys/mountinfo v0.5.0
 	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/open-policy-agent/opa v0.38.1
+	github.com/open-policy-agent/opa v0.37.2
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.47.0
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417
 	github.com/openshift/api v0.0.0-20190924102528-32369d4db2ad
