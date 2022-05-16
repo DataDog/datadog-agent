@@ -20,7 +20,7 @@ type metricRecorder struct {
 	serializer.Serializer // embed for implementing serializer.MetricSerializer
 
 	sketchSeriesList metrics.SketchSeriesList
-	serieSource      metrics.SerieSource
+	series           []*metrics.Serie
 }
 
 func (r *metricRecorder) SendSketch(s metrics.SketchSeriesList) error {
@@ -29,7 +29,13 @@ func (r *metricRecorder) SendSketch(s metrics.SketchSeriesList) error {
 }
 
 func (r *metricRecorder) SendIterableSeries(s metrics.SerieSource) error {
-	r.serieSource = s
+	for s.MoveNext() {
+		c := s.Current()
+		if c == nil {
+			continue
+		}
+		r.series = append(r.series, c)
+	}
 	return nil
 }
 
@@ -45,14 +51,6 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 		wantSketchTags tagset.CompositeTags
 		wantSerieTags  tagset.CompositeTags
 	}{
-		{
-			name: "no metrics",
-			genMetrics: func(t *testing.T) pmetric.Metrics {
-				return pmetric.NewMetrics()
-			},
-			wantSketchTags: tagset.NewCompositeTags([]string{}, nil),
-			wantSerieTags:  tagset.NewCompositeTags([]string{}, nil),
-		},
 		{
 			name: "no tags",
 			genMetrics: func(t *testing.T) pmetric.Metrics {
@@ -132,18 +130,22 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				return
 			}
 
-			for _, s := range rec.sketchSeriesList {
-				if s.Name == histogramMetricName {
-					assert.Equal(t, tt.wantSketchTags, s.Tags)
-				}
+			if tt.wantSketchTags.Len() > 0 {
+				assert.Equal(t, tt.wantSketchTags, rec.sketchSeriesList[0].Tags)
+			} else {
+				assert.Equal(t, tagset.NewCompositeTags([]string{}, nil), rec.sketchSeriesList[0].Tags)
 			}
-			for rec.serieSource.MoveNext() {
-				s := rec.serieSource.Current()
-				if s == nil {
-					continue
+			assert.True(t, len(rec.series) > 0)
+			for _, s := range rec.series {
+				if s.Name == "datadog.agent.otlp.metrics" {
+					assert.Equal(t, tagset.NewCompositeTags([]string{}, nil), s.Tags)
 				}
 				if s.Name == numberMetricName {
-					assert.Equal(t, tt.wantSerieTags, s.Tags)
+					if tt.wantSerieTags.Len() > 0 {
+						assert.Equal(t, tt.wantSerieTags, s.Tags)
+					} else {
+						assert.Equal(t, tagset.NewCompositeTags([]string{}, nil), s.Tags)
+					}
 				}
 			}
 		})
