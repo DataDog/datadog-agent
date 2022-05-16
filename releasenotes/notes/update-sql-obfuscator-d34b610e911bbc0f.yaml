@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    APM: Add better handling of strings and identifiers for the SQL obfuscator.
+    APM: Added better handling of strings and identifiers for the SQL obfuscator.
