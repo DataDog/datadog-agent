@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 	"sync"
+	"time"
 
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
@@ -34,7 +35,8 @@ type Client struct {
 
 	targetStore *targetStore
 
-	cachedVerify bool
+	cachedVerify     bool
+	cachedVerifyTime time.Time
 }
 
 // NewClient creates a new uptane client
@@ -190,7 +192,7 @@ func (c *Client) pruneTargetFiles() error {
 }
 
 func (c *Client) verify() error {
-	if c.cachedVerify {
+	if c.cachedVerify && time.Since(c.cachedVerifyTime) < time.Minute {
 		return nil
 	}
 	err := c.verifyOrgID()
@@ -202,6 +204,7 @@ func (c *Client) verify() error {
 		return err
 	}
 	c.cachedVerify = true
+	c.cachedVerifyTime = time.Now()
 	return nil
 }
 
