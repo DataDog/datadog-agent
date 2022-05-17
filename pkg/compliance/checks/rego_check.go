@@ -120,8 +120,6 @@ func computeRuleModulesAndQuery(rule *compliance.RegoRule, meta *compliance.Suit
 }
 
 func (r *regoCheck) compileRule(rule *compliance.RegoRule, ruleScope compliance.RuleScope, meta *compliance.SuiteMeta) error {
-	ctx := context.TODO()
-
 	moduleArgs := make([]func(*rego.Rego), 0, 2+len(regoBuiltins))
 
 	// rego modules and query
@@ -143,6 +141,8 @@ func (r *regoCheck) compileRule(rule *compliance.RegoRule, ruleScope compliance.
 		rego.PrintHook(&regoPrintHook{}),
 	)
 
+	ctx, cancel := context.WithTimeout(context.Background(), regoEvalTimeout)
+	defer cancel()
 	preparedEvalQuery, err := rego.New(
 		moduleArgs...,
 	).PrepareForEval(ctx)
