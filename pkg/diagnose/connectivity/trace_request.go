@@ -106,7 +106,7 @@ func sendHTTPRequestToEndpoint(client *http.Client, domain string, endpointInfo 
 func createEndpointURL(domain string, endpointInfo EndpointInfo, apiKey string) string {
 	url := domain + endpointInfo.Endpoint.Route
 
-	if endpointInfo.ApiKeyInQueryString {
+	if endpointInfo.APIKeyInQueryString {
 		url = fmt.Sprintf("%s?api_key=%s", url, apiKey)
 	}
 

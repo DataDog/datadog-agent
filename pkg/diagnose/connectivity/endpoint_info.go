@@ -30,7 +30,7 @@ type EndpointInfo struct {
 
 	// ApiKeyInQueryString is set to true if the API Key has to be in the query string
 	// i.e. https://domain/endpoint?api_key=***************************XXXXX
-	ApiKeyInQueryString bool
+	APIKeyInQueryString bool
 }
 
 var (

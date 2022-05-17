@@ -50,34 +50,26 @@ func init() {
 }
 
 func doDiagnoseMetadataAvailability(cmd *cobra.Command, args []string) error {
-	// Global config setup
-	err := common.SetupConfig(confFilePath)
-	if err != nil {
-		return fmt.Errorf("unable to set up global agent configuration: %v", err)
+	if err := configAndLogSetup(); err != nil {
+		return err
 	}
 
 	if flagNoColor {
 		color.NoColor = true
 	}
 
-	err = config.SetupLogger(
-		loggerName,
-		config.Datadog.GetString("log_level"),
-		common.DefaultLogFile,
-		config.GetSyslogURI(),
-		config.Datadog.GetBool("syslog_rfc"),
-		config.Datadog.GetBool("log_to_console"),
-		config.Datadog.GetBool("log_format_json"),
-	)
-	if err != nil {
-		return fmt.Errorf("error while setting up logging, exiting: %v", err)
-	}
-
 	return diagnose.RunAll(color.Output)
 }
 
 func doDiagnoseDatadogConnectivity(cmd *cobra.Command, args []string) error {
+	if err := configAndLogSetup(); err != nil {
+		return err
+	}
 
+	return connectivity.RunDatadogConnectivityDiagnose()
+}
+
+func configAndLogSetup() error {
 	// Global config setup
 	err := common.SetupConfig(confFilePath)
 	if err != nil {
@@ -99,5 +91,5 @@ func doDiagnoseDatadogConnectivity(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error while setting up logging, exiting: %v", err)
 	}
 
-	return connectivity.RunDatadogConnectivityDiagnose()
+	return nil
 }
