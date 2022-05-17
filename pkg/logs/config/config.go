@@ -230,6 +230,7 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 				main.UseSSL = false
 			}
 			main.Host = u.Hostname()
+			main.UseCompression = false
 			if u.Port() != "" {
 				port, err := strconv.Atoi(u.Port())
 				if err != nil {
@@ -245,6 +246,7 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 			main.Host = host
 			main.Port = port
 			main.UseSSL = !defaultNoSSL
+			main.UseCompression = false
 		}
 
 	} else if logsDDURL, logsDDURLDefined := logsConfig.logsDDURL(); logsDDURLDefined {
