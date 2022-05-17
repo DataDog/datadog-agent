@@ -275,22 +275,12 @@ func (m *Monitor) StopActivityDump(params *api.StopActivityDumpParams) (*api.Sec
 	return m.activityDumpManager.StopActivityDump(params)
 }
 
-// GenerateProfile returns a profile from the provided activity dump
-func (m *Monitor) GenerateProfile(params *api.GenerateProfileParams) (*api.SecurityProfileGeneratedMessage, error) {
+// GenerateTranscoding encodes an activity dump following the input parameters
+func (m *Monitor) GenerateTranscoding(params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
 	if !m.probe.config.ActivityDumpEnabled {
-		return &api.SecurityProfileGeneratedMessage{
+		return &api.TranscodingRequestMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
 		}, ErrActivityDumpManagerDisabled
 	}
-	return m.activityDumpManager.GenerateProfile(params)
-}
-
-// GenerateGraph returns a graph from the provided activity dump
-func (m *Monitor) GenerateGraph(params *api.GenerateGraphParams) (*api.SecurityGraphGeneratedMessage, error) {
-	if !m.probe.config.ActivityDumpEnabled {
-		return &api.SecurityGraphGeneratedMessage{
-			Error: ErrActivityDumpManagerDisabled.Error(),
-		}, ErrActivityDumpManagerDisabled
-	}
-	return m.activityDumpManager.GenerateGraph(params)
+	return m.activityDumpManager.TranscodingRequest(params)
 }

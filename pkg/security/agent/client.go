@@ -33,46 +33,25 @@ func (c *RuntimeSecurityClient) DumpProcessCache(withArgs bool) (string, error) 
 }
 
 // GenerateActivityDump send a dump activity request
-func (c *RuntimeSecurityClient) GenerateActivityDump(comm string, timeout int32, withGraph bool, differentiateArgs bool, outputDirectory string, outputFormat string) (*api.SecurityActivityDumpMessage, error) {
-	apiClient := api.NewSecurityModuleClient(c.conn)
-	return apiClient.DumpActivity(context.Background(), &api.DumpActivityParams{
-		Comm:              comm,
-		Timeout:           timeout,
-		WithGraph:         withGraph,
-		DifferentiateArgs: differentiateArgs,
-		OutputDirectory:   outputDirectory,
-		OutputFormat:      outputFormat,
-	})
+func (c *RuntimeSecurityClient) GenerateActivityDump(request *api.DumpActivityParams) (*api.SecurityActivityDumpMessage, error) {
+	return c.apiClient.DumpActivity(context.Background(), request)
 }
 
 // ListActivityDumps lists the active activity dumps
 func (c *RuntimeSecurityClient) ListActivityDumps() (*api.SecurityActivityDumpListMessage, error) {
-	apiClient := api.NewSecurityModuleClient(c.conn)
-	return apiClient.ListActivityDumps(context.Background(), &api.ListActivityDumpsParams{})
+	return c.apiClient.ListActivityDumps(context.Background(), &api.ListActivityDumpsParams{})
 }
 
 // StopActivityDump stops an active dump if it exists
 func (c *RuntimeSecurityClient) StopActivityDump(comm string) (*api.SecurityActivityDumpStoppedMessage, error) {
-	apiClient := api.NewSecurityModuleClient(c.conn)
-	return apiClient.StopActivityDump(context.Background(), &api.StopActivityDumpParams{
+	return c.apiClient.StopActivityDump(context.Background(), &api.StopActivityDumpParams{
 		Comm: comm,
 	})
 }
 
-// GenerateProfile generates a policy file from the provided activity dump
-func (c *RuntimeSecurityClient) GenerateProfile(file string) (*api.SecurityProfileGeneratedMessage, error) {
-	apiClient := api.NewSecurityModuleClient(c.conn)
-	return apiClient.GenerateProfile(context.Background(), &api.GenerateProfileParams{
-		ActivityDumpFile: file,
-	})
-}
-
-// GenerateGraph generates a graph from the provided activity dump
-func (c *RuntimeSecurityClient) GenerateGraph(file string) (*api.SecurityGraphGeneratedMessage, error) {
-	apiClient := api.NewSecurityModuleClient(c.conn)
-	return apiClient.GenerateGraph(context.Background(), &api.GenerateGraphParams{
-		ActivityDumpFile: file,
-	})
+// GenerateEncoding sends a transcoding request
+func (c *RuntimeSecurityClient) GenerateEncoding(request *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
+	return c.apiClient.TranscodingRequest(context.Background(), request)
 }
 
 // DumpNetworkNamespace sends a network namespace cache dump request

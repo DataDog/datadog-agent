@@ -64,22 +64,6 @@ func (z *ActivityDump) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "DifferentiateArgs")
 				return
 			}
-		case "with_graph":
-			z.WithGraph, err = dc.ReadBool()
-			if err != nil {
-				err = msgp.WrapError(err, "WithGraph")
-				return
-			}
-		case "format":
-			{
-				var zb0003 string
-				zb0003, err = dc.ReadString()
-				if err != nil {
-					err = msgp.WrapError(err, "OutputFormat")
-					return
-				}
-				z.OutputFormat = OutputFormat(zb0003)
-			}
 		case "comm":
 			z.Comm, err = dc.ReadString()
 			if err != nil {
@@ -93,16 +77,16 @@ func (z *ActivityDump) DecodeMsg(dc *msgp.Reader) (err error) {
 				return
 			}
 		case "tags":
-			var zb0004 uint32
-			zb0004, err = dc.ReadArrayHeader()
+			var zb0003 uint32
+			zb0003, err = dc.ReadArrayHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "Tags")
 				return
 			}
-			if cap(z.Tags) >= int(zb0004) {
-				z.Tags = (z.Tags)[:zb0004]
+			if cap(z.Tags) >= int(zb0003) {
+				z.Tags = (z.Tags)[:zb0003]
 			} else {
-				z.Tags = make([]string, zb0004)
+				z.Tags = make([]string, zb0003)
 			}
 			for za0002 := range z.Tags {
 				z.Tags[za0002], err = dc.ReadString()
@@ -123,6 +107,12 @@ func (z *ActivityDump) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "End")
 				return
 			}
+		case "name":
+			z.Name, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "Name")
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -137,23 +127,23 @@ func (z *ActivityDump) DecodeMsg(dc *msgp.Reader) (err error) {
 // EncodeMsg implements msgp.Encodable
 func (z *ActivityDump) EncodeMsg(en *msgp.Writer) (err error) {
 	// omitempty: check for empty values
-	zb0001Len := uint32(9)
-	var zb0001Mask uint16 /* 9 bits */
+	zb0001Len := uint32(8)
+	var zb0001Mask uint8 /* 8 bits */
 	if z.ProcessActivityTree == nil {
 		zb0001Len--
 		zb0001Mask |= 0x1
 	}
 	if z.Comm == "" {
 		zb0001Len--
-		zb0001Mask |= 0x10
+		zb0001Mask |= 0x4
 	}
 	if z.ContainerID == "" {
 		zb0001Len--
-		zb0001Mask |= 0x20
+		zb0001Mask |= 0x8
 	}
 	if z.Tags == nil {
 		zb0001Len--
-		zb0001Mask |= 0x40
+		zb0001Mask |= 0x10
 	}
 	// variable map header, size zb0001Len
 	err = en.Append(0x80 | uint8(zb0001Len))
@@ -199,27 +189,7 @@ func (z *ActivityDump) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "DifferentiateArgs")
 		return
 	}
-	// write "with_graph"
-	err = en.Append(0xaa, 0x77, 0x69, 0x74, 0x68, 0x5f, 0x67, 0x72, 0x61, 0x70, 0x68)
-	if err != nil {
-		return
-	}
-	err = en.WriteBool(z.WithGraph)
-	if err != nil {
-		err = msgp.WrapError(err, "WithGraph")
-		return
-	}
-	// write "format"
-	err = en.Append(0xa6, 0x66, 0x6f, 0x72, 0x6d, 0x61, 0x74)
-	if err != nil {
-		return
-	}
-	err = en.WriteString(string(z.OutputFormat))
-	if err != nil {
-		err = msgp.WrapError(err, "OutputFormat")
-		return
-	}
-	if (zb0001Mask & 0x10) == 0 { // if not empty
+	if (zb0001Mask & 0x4) == 0 { // if not empty
 		// write "comm"
 		err = en.Append(0xa4, 0x63, 0x6f, 0x6d, 0x6d)
 		if err != nil {
@@ -231,7 +201,7 @@ func (z *ActivityDump) EncodeMsg(en *msgp.Writer) (err error) {
 			return
 		}
 	}
-	if (zb0001Mask & 0x20) == 0 { // if not empty
+	if (zb0001Mask & 0x8) == 0 { // if not empty
 		// write "container_id"
 		err = en.Append(0xac, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x5f, 0x69, 0x64)
 		if err != nil {
@@ -243,7 +213,7 @@ func (z *ActivityDump) EncodeMsg(en *msgp.Writer) (err error) {
 			return
 		}
 	}
-	if (zb0001Mask & 0x40) == 0 { // if not empty
+	if (zb0001Mask & 0x10) == 0 { // if not empty
 		// write "tags"
 		err = en.Append(0xa4, 0x74, 0x61, 0x67, 0x73)
 		if err != nil {
@@ -282,6 +252,16 @@ func (z *ActivityDump) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "End")
 		return
 	}
+	// write "name"
+	err = en.Append(0xa4, 0x6e, 0x61, 0x6d, 0x65)
+	if err != nil {
+		return
+	}
+	err = en.WriteString(z.Name)
+	if err != nil {
+		err = msgp.WrapError(err, "Name")
+		return
+	}
 	return
 }
 
@@ -289,23 +269,23 @@ func (z *ActivityDump) EncodeMsg(en *msgp.Writer) (err error) {
 func (z *ActivityDump) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// omitempty: check for empty values
-	zb0001Len := uint32(9)
-	var zb0001Mask uint16 /* 9 bits */
+	zb0001Len := uint32(8)
+	var zb0001Mask uint8 /* 8 bits */
 	if z.ProcessActivityTree == nil {
 		zb0001Len--
 		zb0001Mask |= 0x1
 	}
 	if z.Comm == "" {
 		zb0001Len--
-		zb0001Mask |= 0x10
+		zb0001Mask |= 0x4
 	}
 	if z.ContainerID == "" {
 		zb0001Len--
-		zb0001Mask |= 0x20
+		zb0001Mask |= 0x8
 	}
 	if z.Tags == nil {
 		zb0001Len--
-		zb0001Mask |= 0x40
+		zb0001Mask |= 0x10
 	}
 	// variable map header, size zb0001Len
 	o = append(o, 0x80|uint8(zb0001Len))
@@ -331,23 +311,17 @@ func (z *ActivityDump) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "differentiate_args"
 	o = append(o, 0xb2, 0x64, 0x69, 0x66, 0x66, 0x65, 0x72, 0x65, 0x6e, 0x74, 0x69, 0x61, 0x74, 0x65, 0x5f, 0x61, 0x72, 0x67, 0x73)
 	o = msgp.AppendBool(o, z.DifferentiateArgs)
-	// string "with_graph"
-	o = append(o, 0xaa, 0x77, 0x69, 0x74, 0x68, 0x5f, 0x67, 0x72, 0x61, 0x70, 0x68)
-	o = msgp.AppendBool(o, z.WithGraph)
-	// string "format"
-	o = append(o, 0xa6, 0x66, 0x6f, 0x72, 0x6d, 0x61, 0x74)
-	o = msgp.AppendString(o, string(z.OutputFormat))
-	if (zb0001Mask & 0x10) == 0 { // if not empty
+	if (zb0001Mask & 0x4) == 0 { // if not empty
 		// string "comm"
 		o = append(o, 0xa4, 0x63, 0x6f, 0x6d, 0x6d)
 		o = msgp.AppendString(o, z.Comm)
 	}
-	if (zb0001Mask & 0x20) == 0 { // if not empty
+	if (zb0001Mask & 0x8) == 0 { // if not empty
 		// string "container_id"
 		o = append(o, 0xac, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x5f, 0x69, 0x64)
 		o = msgp.AppendString(o, z.ContainerID)
 	}
-	if (zb0001Mask & 0x40) == 0 { // if not empty
+	if (zb0001Mask & 0x10) == 0 { // if not empty
 		// string "tags"
 		o = append(o, 0xa4, 0x74, 0x61, 0x67, 0x73)
 		o = msgp.AppendArrayHeader(o, uint32(len(z.Tags)))
@@ -361,6 +335,9 @@ func (z *ActivityDump) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "end"
 	o = append(o, 0xa3, 0x65, 0x6e, 0x64)
 	o = msgp.AppendTime(o, z.End)
+	// string "name"
+	o = append(o, 0xa4, 0x6e, 0x61, 0x6d, 0x65)
+	o = msgp.AppendString(o, z.Name)
 	return
 }
 
@@ -418,22 +395,6 @@ func (z *ActivityDump) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "DifferentiateArgs")
 				return
 			}
-		case "with_graph":
-			z.WithGraph, bts, err = msgp.ReadBoolBytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "WithGraph")
-				return
-			}
-		case "format":
-			{
-				var zb0003 string
-				zb0003, bts, err = msgp.ReadStringBytes(bts)
-				if err != nil {
-					err = msgp.WrapError(err, "OutputFormat")
-					return
-				}
-				z.OutputFormat = OutputFormat(zb0003)
-			}
 		case "comm":
 			z.Comm, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
@@ -447,16 +408,16 @@ func (z *ActivityDump) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 		case "tags":
-			var zb0004 uint32
-			zb0004, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			var zb0003 uint32
+			zb0003, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Tags")
 				return
 			}
-			if cap(z.Tags) >= int(zb0004) {
-				z.Tags = (z.Tags)[:zb0004]
+			if cap(z.Tags) >= int(zb0003) {
+				z.Tags = (z.Tags)[:zb0003]
 			} else {
-				z.Tags = make([]string, zb0004)
+				z.Tags = make([]string, zb0003)
 			}
 			for za0002 := range z.Tags {
 				z.Tags[za0002], bts, err = msgp.ReadStringBytes(bts)
@@ -475,6 +436,12 @@ func (z *ActivityDump) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			z.End, bts, err = msgp.ReadTimeBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "End")
+				return
+			}
+		case "name":
+			z.Name, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Name")
 				return
 			}
 		default:
@@ -499,11 +466,63 @@ func (z *ActivityDump) Msgsize() (s int) {
 			s += z.ProcessActivityTree[za0001].Msgsize()
 		}
 	}
-	s += 19 + msgp.BoolSize + 11 + msgp.BoolSize + 7 + msgp.StringPrefixSize + len(string(z.OutputFormat)) + 5 + msgp.StringPrefixSize + len(z.Comm) + 13 + msgp.StringPrefixSize + len(z.ContainerID) + 5 + msgp.ArrayHeaderSize
+	s += 19 + msgp.BoolSize + 5 + msgp.StringPrefixSize + len(z.Comm) + 13 + msgp.StringPrefixSize + len(z.ContainerID) + 5 + msgp.ArrayHeaderSize
 	for za0002 := range z.Tags {
 		s += msgp.StringPrefixSize + len(z.Tags[za0002])
 	}
-	s += 6 + msgp.TimeSize + 4 + msgp.TimeSize
+	s += 6 + msgp.TimeSize + 4 + msgp.TimeSize + 5 + msgp.StringPrefixSize + len(z.Name)
+	return
+}
+
+// DecodeMsg implements msgp.Decodable
+func (z *ActivityDumpStatus) DecodeMsg(dc *msgp.Reader) (err error) {
+	{
+		var zb0001 int
+		zb0001, err = dc.ReadInt()
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		(*z) = ActivityDumpStatus(zb0001)
+	}
+	return
+}
+
+// EncodeMsg implements msgp.Encodable
+func (z ActivityDumpStatus) EncodeMsg(en *msgp.Writer) (err error) {
+	err = en.WriteInt(int(z))
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	return
+}
+
+// MarshalMsg implements msgp.Marshaler
+func (z ActivityDumpStatus) MarshalMsg(b []byte) (o []byte, err error) {
+	o = msgp.Require(b, z.Msgsize())
+	o = msgp.AppendInt(o, int(z))
+	return
+}
+
+// UnmarshalMsg implements msgp.Unmarshaler
+func (z *ActivityDumpStatus) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	{
+		var zb0001 int
+		zb0001, bts, err = msgp.ReadIntBytes(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		(*z) = ActivityDumpStatus(zb0001)
+	}
+	o = bts
+	return
+}
+
+// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
+func (z ActivityDumpStatus) Msgsize() (s int) {
+	s = msgp.IntSize
 	return
 }
 
@@ -633,14 +652,10 @@ func (z *FileActivityNode) DecodeMsg(dc *msgp.Reader) (err error) {
 				}
 			}
 		case "generation_type":
-			{
-				var zb0002 string
-				zb0002, err = dc.ReadString()
-				if err != nil {
-					err = msgp.WrapError(err, "GenerationType")
-					return
-				}
-				z.GenerationType = NodeGenerationType(zb0002)
+			err = z.GenerationType.DecodeMsg(dc)
+			if err != nil {
+				err = msgp.WrapError(err, "GenerationType")
+				return
 			}
 		case "first_seen":
 			z.FirstSeen, err = dc.ReadTime()
@@ -660,14 +675,14 @@ func (z *FileActivityNode) DecodeMsg(dc *msgp.Reader) (err error) {
 				if z.Open == nil {
 					z.Open = new(OpenNode)
 				}
-				var zb0003 uint32
-				zb0003, err = dc.ReadMapHeader()
+				var zb0002 uint32
+				zb0002, err = dc.ReadMapHeader()
 				if err != nil {
 					err = msgp.WrapError(err, "Open")
 					return
 				}
-				for zb0003 > 0 {
-					zb0003--
+				for zb0002 > 0 {
+					zb0002--
 					field, err = dc.ReadMapKeyPtr()
 					if err != nil {
 						err = msgp.WrapError(err, "Open")
@@ -702,21 +717,21 @@ func (z *FileActivityNode) DecodeMsg(dc *msgp.Reader) (err error) {
 				}
 			}
 		case "children":
-			var zb0004 uint32
-			zb0004, err = dc.ReadMapHeader()
+			var zb0003 uint32
+			zb0003, err = dc.ReadMapHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "Children")
 				return
 			}
 			if z.Children == nil {
-				z.Children = make(map[string]*FileActivityNode, zb0004)
+				z.Children = make(map[string]*FileActivityNode, zb0003)
 			} else if len(z.Children) > 0 {
 				for key := range z.Children {
 					delete(z.Children, key)
 				}
 			}
-			for zb0004 > 0 {
-				zb0004--
+			for zb0003 > 0 {
+				zb0003--
 				var za0001 string
 				var za0002 *FileActivityNode
 				za0001, err = dc.ReadString()
@@ -817,7 +832,7 @@ func (z *FileActivityNode) EncodeMsg(en *msgp.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	err = en.WriteString(string(z.GenerationType))
+	err = z.GenerationType.EncodeMsg(en)
 	if err != nil {
 		err = msgp.WrapError(err, "GenerationType")
 		return
@@ -958,7 +973,11 @@ func (z *FileActivityNode) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 	// string "generation_type"
 	o = append(o, 0xaf, 0x67, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x74, 0x79, 0x70, 0x65)
-	o = msgp.AppendString(o, string(z.GenerationType))
+	o, err = z.GenerationType.MarshalMsg(o)
+	if err != nil {
+		err = msgp.WrapError(err, "GenerationType")
+		return
+	}
 	if (zb0001Mask & 0x8) == 0 { // if not empty
 		// string "first_seen"
 		o = append(o, 0xaa, 0x66, 0x69, 0x72, 0x73, 0x74, 0x5f, 0x73, 0x65, 0x65, 0x6e)
@@ -1048,14 +1067,10 @@ func (z *FileActivityNode) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				}
 			}
 		case "generation_type":
-			{
-				var zb0002 string
-				zb0002, bts, err = msgp.ReadStringBytes(bts)
-				if err != nil {
-					err = msgp.WrapError(err, "GenerationType")
-					return
-				}
-				z.GenerationType = NodeGenerationType(zb0002)
+			bts, err = z.GenerationType.UnmarshalMsg(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "GenerationType")
+				return
 			}
 		case "first_seen":
 			z.FirstSeen, bts, err = msgp.ReadTimeBytes(bts)
@@ -1074,14 +1089,14 @@ func (z *FileActivityNode) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				if z.Open == nil {
 					z.Open = new(OpenNode)
 				}
-				var zb0003 uint32
-				zb0003, bts, err = msgp.ReadMapHeaderBytes(bts)
+				var zb0002 uint32
+				zb0002, bts, err = msgp.ReadMapHeaderBytes(bts)
 				if err != nil {
 					err = msgp.WrapError(err, "Open")
 					return
 				}
-				for zb0003 > 0 {
-					zb0003--
+				for zb0002 > 0 {
+					zb0002--
 					field, bts, err = msgp.ReadMapKeyZC(bts)
 					if err != nil {
 						err = msgp.WrapError(err, "Open")
@@ -1116,23 +1131,23 @@ func (z *FileActivityNode) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				}
 			}
 		case "children":
-			var zb0004 uint32
-			zb0004, bts, err = msgp.ReadMapHeaderBytes(bts)
+			var zb0003 uint32
+			zb0003, bts, err = msgp.ReadMapHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Children")
 				return
 			}
 			if z.Children == nil {
-				z.Children = make(map[string]*FileActivityNode, zb0004)
+				z.Children = make(map[string]*FileActivityNode, zb0003)
 			} else if len(z.Children) > 0 {
 				for key := range z.Children {
 					delete(z.Children, key)
 				}
 			}
-			for zb0004 > 0 {
+			for zb0003 > 0 {
 				var za0001 string
 				var za0002 *FileActivityNode
-				zb0004--
+				zb0003--
 				za0001, bts, err = msgp.ReadStringBytes(bts)
 				if err != nil {
 					err = msgp.WrapError(err, "Children")
@@ -1176,7 +1191,7 @@ func (z *FileActivityNode) Msgsize() (s int) {
 	} else {
 		s += z.File.Msgsize()
 	}
-	s += 16 + msgp.StringPrefixSize + len(string(z.GenerationType)) + 11 + msgp.TimeSize + 5
+	s += 16 + z.GenerationType.Msgsize() + 11 + msgp.TimeSize + 5
 	if z.Open == nil {
 		s += msgp.NilSize
 	} else {
@@ -1194,58 +1209,6 @@ func (z *FileActivityNode) Msgsize() (s int) {
 			}
 		}
 	}
-	return
-}
-
-// DecodeMsg implements msgp.Decodable
-func (z *NodeGenerationType) DecodeMsg(dc *msgp.Reader) (err error) {
-	{
-		var zb0001 string
-		zb0001, err = dc.ReadString()
-		if err != nil {
-			err = msgp.WrapError(err)
-			return
-		}
-		(*z) = NodeGenerationType(zb0001)
-	}
-	return
-}
-
-// EncodeMsg implements msgp.Encodable
-func (z NodeGenerationType) EncodeMsg(en *msgp.Writer) (err error) {
-	err = en.WriteString(string(z))
-	if err != nil {
-		err = msgp.WrapError(err)
-		return
-	}
-	return
-}
-
-// MarshalMsg implements msgp.Marshaler
-func (z NodeGenerationType) MarshalMsg(b []byte) (o []byte, err error) {
-	o = msgp.Require(b, z.Msgsize())
-	o = msgp.AppendString(o, string(z))
-	return
-}
-
-// UnmarshalMsg implements msgp.Unmarshaler
-func (z *NodeGenerationType) UnmarshalMsg(bts []byte) (o []byte, err error) {
-	{
-		var zb0001 string
-		zb0001, bts, err = msgp.ReadStringBytes(bts)
-		if err != nil {
-			err = msgp.WrapError(err)
-			return
-		}
-		(*z) = NodeGenerationType(zb0001)
-	}
-	o = bts
-	return
-}
-
-// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
-func (z NodeGenerationType) Msgsize() (s int) {
-	s = msgp.StringPrefixSize + len(string(z))
 	return
 }
 
@@ -1407,58 +1370,6 @@ func (z *OpenNode) Msgsize() (s int) {
 }
 
 // DecodeMsg implements msgp.Decodable
-func (z *OutputFormat) DecodeMsg(dc *msgp.Reader) (err error) {
-	{
-		var zb0001 string
-		zb0001, err = dc.ReadString()
-		if err != nil {
-			err = msgp.WrapError(err)
-			return
-		}
-		(*z) = OutputFormat(zb0001)
-	}
-	return
-}
-
-// EncodeMsg implements msgp.Encodable
-func (z OutputFormat) EncodeMsg(en *msgp.Writer) (err error) {
-	err = en.WriteString(string(z))
-	if err != nil {
-		err = msgp.WrapError(err)
-		return
-	}
-	return
-}
-
-// MarshalMsg implements msgp.Marshaler
-func (z OutputFormat) MarshalMsg(b []byte) (o []byte, err error) {
-	o = msgp.Require(b, z.Msgsize())
-	o = msgp.AppendString(o, string(z))
-	return
-}
-
-// UnmarshalMsg implements msgp.Unmarshaler
-func (z *OutputFormat) UnmarshalMsg(bts []byte) (o []byte, err error) {
-	{
-		var zb0001 string
-		zb0001, bts, err = msgp.ReadStringBytes(bts)
-		if err != nil {
-			err = msgp.WrapError(err)
-			return
-		}
-		(*z) = OutputFormat(zb0001)
-	}
-	o = bts
-	return
-}
-
-// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
-func (z OutputFormat) Msgsize() (s int) {
-	s = msgp.StringPrefixSize + len(string(z))
-	return
-}
-
-// DecodeMsg implements msgp.Decodable
 func (z *ProcessActivityNode) DecodeMsg(dc *msgp.Reader) (err error) {
 	var field []byte
 	_ = field
@@ -1483,31 +1394,27 @@ func (z *ProcessActivityNode) DecodeMsg(dc *msgp.Reader) (err error) {
 				return
 			}
 		case "generation_type":
-			{
-				var zb0002 string
-				zb0002, err = dc.ReadString()
-				if err != nil {
-					err = msgp.WrapError(err, "GenerationType")
-					return
-				}
-				z.GenerationType = NodeGenerationType(zb0002)
+			err = z.GenerationType.DecodeMsg(dc)
+			if err != nil {
+				err = msgp.WrapError(err, "GenerationType")
+				return
 			}
 		case "files":
-			var zb0003 uint32
-			zb0003, err = dc.ReadMapHeader()
+			var zb0002 uint32
+			zb0002, err = dc.ReadMapHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "Files")
 				return
 			}
 			if z.Files == nil {
-				z.Files = make(map[string]*FileActivityNode, zb0003)
+				z.Files = make(map[string]*FileActivityNode, zb0002)
 			} else if len(z.Files) > 0 {
 				for key := range z.Files {
 					delete(z.Files, key)
 				}
 			}
-			for zb0003 > 0 {
-				zb0003--
+			for zb0002 > 0 {
+				zb0002--
 				var za0001 string
 				var za0002 *FileActivityNode
 				za0001, err = dc.ReadString()
@@ -1535,21 +1442,21 @@ func (z *ProcessActivityNode) DecodeMsg(dc *msgp.Reader) (err error) {
 				z.Files[za0001] = za0002
 			}
 		case "dns":
-			var zb0004 uint32
-			zb0004, err = dc.ReadMapHeader()
+			var zb0003 uint32
+			zb0003, err = dc.ReadMapHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "DNSNames")
 				return
 			}
 			if z.DNSNames == nil {
-				z.DNSNames = make(map[string]*DNSNode, zb0004)
+				z.DNSNames = make(map[string]*DNSNode, zb0003)
 			} else if len(z.DNSNames) > 0 {
 				for key := range z.DNSNames {
 					delete(z.DNSNames, key)
 				}
 			}
-			for zb0004 > 0 {
-				zb0004--
+			for zb0003 > 0 {
+				zb0003--
 				var za0003 string
 				var za0004 *DNSNode
 				za0003, err = dc.ReadString()
@@ -1568,14 +1475,14 @@ func (z *ProcessActivityNode) DecodeMsg(dc *msgp.Reader) (err error) {
 					if za0004 == nil {
 						za0004 = new(DNSNode)
 					}
-					var zb0005 uint32
-					zb0005, err = dc.ReadMapHeader()
+					var zb0004 uint32
+					zb0004, err = dc.ReadMapHeader()
 					if err != nil {
 						err = msgp.WrapError(err, "DNSNames", za0003)
 						return
 					}
-					for zb0005 > 0 {
-						zb0005--
+					for zb0004 > 0 {
+						zb0004--
 						field, err = dc.ReadMapKeyPtr()
 						if err != nil {
 							err = msgp.WrapError(err, "DNSNames", za0003)
@@ -1594,16 +1501,16 @@ func (z *ProcessActivityNode) DecodeMsg(dc *msgp.Reader) (err error) {
 				z.DNSNames[za0003] = za0004
 			}
 		case "children":
-			var zb0006 uint32
-			zb0006, err = dc.ReadArrayHeader()
+			var zb0005 uint32
+			zb0005, err = dc.ReadArrayHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "Children")
 				return
 			}
-			if cap(z.Children) >= int(zb0006) {
-				z.Children = (z.Children)[:zb0006]
+			if cap(z.Children) >= int(zb0005) {
+				z.Children = (z.Children)[:zb0005]
 			} else {
-				z.Children = make([]*ProcessActivityNode, zb0006)
+				z.Children = make([]*ProcessActivityNode, zb0005)
 			}
 			for za0005 := range z.Children {
 				if dc.IsNil() {
@@ -1675,7 +1582,7 @@ func (z *ProcessActivityNode) EncodeMsg(en *msgp.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	err = en.WriteString(string(z.GenerationType))
+	err = z.GenerationType.EncodeMsg(en)
 	if err != nil {
 		err = msgp.WrapError(err, "GenerationType")
 		return
@@ -1803,7 +1710,11 @@ func (z *ProcessActivityNode) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 	// string "generation_type"
 	o = append(o, 0xaf, 0x67, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x74, 0x79, 0x70, 0x65)
-	o = msgp.AppendString(o, string(z.GenerationType))
+	o, err = z.GenerationType.MarshalMsg(o)
+	if err != nil {
+		err = msgp.WrapError(err, "GenerationType")
+		return
+	}
 	if (zb0001Mask & 0x4) == 0 { // if not empty
 		// string "files"
 		o = append(o, 0xa5, 0x66, 0x69, 0x6c, 0x65, 0x73)
@@ -1879,33 +1790,29 @@ func (z *ProcessActivityNode) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 		case "generation_type":
-			{
-				var zb0002 string
-				zb0002, bts, err = msgp.ReadStringBytes(bts)
-				if err != nil {
-					err = msgp.WrapError(err, "GenerationType")
-					return
-				}
-				z.GenerationType = NodeGenerationType(zb0002)
+			bts, err = z.GenerationType.UnmarshalMsg(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "GenerationType")
+				return
 			}
 		case "files":
-			var zb0003 uint32
-			zb0003, bts, err = msgp.ReadMapHeaderBytes(bts)
+			var zb0002 uint32
+			zb0002, bts, err = msgp.ReadMapHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Files")
 				return
 			}
 			if z.Files == nil {
-				z.Files = make(map[string]*FileActivityNode, zb0003)
+				z.Files = make(map[string]*FileActivityNode, zb0002)
 			} else if len(z.Files) > 0 {
 				for key := range z.Files {
 					delete(z.Files, key)
 				}
 			}
-			for zb0003 > 0 {
+			for zb0002 > 0 {
 				var za0001 string
 				var za0002 *FileActivityNode
-				zb0003--
+				zb0002--
 				za0001, bts, err = msgp.ReadStringBytes(bts)
 				if err != nil {
 					err = msgp.WrapError(err, "Files")
@@ -1930,23 +1837,23 @@ func (z *ProcessActivityNode) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				z.Files[za0001] = za0002
 			}
 		case "dns":
-			var zb0004 uint32
-			zb0004, bts, err = msgp.ReadMapHeaderBytes(bts)
+			var zb0003 uint32
+			zb0003, bts, err = msgp.ReadMapHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "DNSNames")
 				return
 			}
 			if z.DNSNames == nil {
-				z.DNSNames = make(map[string]*DNSNode, zb0004)
+				z.DNSNames = make(map[string]*DNSNode, zb0003)
 			} else if len(z.DNSNames) > 0 {
 				for key := range z.DNSNames {
 					delete(z.DNSNames, key)
 				}
 			}
-			for zb0004 > 0 {
+			for zb0003 > 0 {
 				var za0003 string
 				var za0004 *DNSNode
-				zb0004--
+				zb0003--
 				za0003, bts, err = msgp.ReadStringBytes(bts)
 				if err != nil {
 					err = msgp.WrapError(err, "DNSNames")
@@ -1962,14 +1869,14 @@ func (z *ProcessActivityNode) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					if za0004 == nil {
 						za0004 = new(DNSNode)
 					}
-					var zb0005 uint32
-					zb0005, bts, err = msgp.ReadMapHeaderBytes(bts)
+					var zb0004 uint32
+					zb0004, bts, err = msgp.ReadMapHeaderBytes(bts)
 					if err != nil {
 						err = msgp.WrapError(err, "DNSNames", za0003)
 						return
 					}
-					for zb0005 > 0 {
-						zb0005--
+					for zb0004 > 0 {
+						zb0004--
 						field, bts, err = msgp.ReadMapKeyZC(bts)
 						if err != nil {
 							err = msgp.WrapError(err, "DNSNames", za0003)
@@ -1988,16 +1895,16 @@ func (z *ProcessActivityNode) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				z.DNSNames[za0003] = za0004
 			}
 		case "children":
-			var zb0006 uint32
-			zb0006, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			var zb0005 uint32
+			zb0005, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Children")
 				return
 			}
-			if cap(z.Children) >= int(zb0006) {
-				z.Children = (z.Children)[:zb0006]
+			if cap(z.Children) >= int(zb0005) {
+				z.Children = (z.Children)[:zb0005]
 			} else {
-				z.Children = make([]*ProcessActivityNode, zb0006)
+				z.Children = make([]*ProcessActivityNode, zb0005)
 			}
 			for za0005 := range z.Children {
 				if msgp.IsNil(bts) {
@@ -2031,7 +1938,7 @@ func (z *ProcessActivityNode) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *ProcessActivityNode) Msgsize() (s int) {
-	s = 1 + 8 + z.Process.Msgsize() + 16 + msgp.StringPrefixSize + len(string(z.GenerationType)) + 6 + msgp.MapHeaderSize
+	s = 1 + 8 + z.Process.Msgsize() + 16 + z.GenerationType.Msgsize() + 6 + msgp.MapHeaderSize
 	if z.Files != nil {
 		for za0001, za0002 := range z.Files {
 			_ = za0002

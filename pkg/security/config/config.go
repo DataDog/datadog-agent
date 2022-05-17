@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/probe/activity_dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -94,6 +95,7 @@ type Config struct {
 	LogTags []string
 	// SelfTestEnabled defines if the self tests should be executed at startup or not
 	SelfTestEnabled bool
+
 	// ActivityDumpEnabled defines if the activity dump manager should be enabled
 	ActivityDumpEnabled bool
 	// ActivityDumpCleanupPeriod defines the period at which the activity dump manager should perform its cleanup
@@ -115,14 +117,24 @@ type Config struct {
 	// ActivityDumpCgroupWaitListSize defines the size of the cgroup wait list. The wait list is used to introduce a
 	// delay between 2 activity dumps of the same cgroup.
 	ActivityDumpCgroupWaitListSize int
-	// ActivityDumpCgroupOutputDirectory defines the output directory for the cgroup activity dumps and graphs. Leave
-	// this field empty to prevent writing any output to disk.
-	ActivityDumpCgroupOutputDirectory string
-	// ActivityDumpCgroupGenerateGraph defines if system-probe should generate a graph for cgroup dumps.
-	ActivityDumpCgroupGenerateGraph bool
 	// ActivityDumpCgroupDifferentiateGraphs defines if system-probe should differentiate process nodes using process
 	// arguments for dumps.
 	ActivityDumpCgroupDifferentiateGraphs bool
+	// ActivityDumpLocalStorageDirectory defines the output directory for the activity dumps and graphs. Leave
+	// this field empty to prevent writing any output to disk.
+	ActivityDumpLocalStorageDirectory string
+	// ActivityDumpLocalStorageFormats defines the formats that should be used to persist the activity dumps locally.
+	ActivityDumpLocalStorageFormats []activity_dump.StorageFormat
+	// ActivityDumpLocalStorageCompression defines if the local storage should compress the persisted data.
+	ActivityDumpLocalStorageCompression bool
+	// ActivityDumpLocalStorageMaxDumpsCount defines the maximum count of activity dumps that should be kept locally.
+	// When the limit is reached, the oldest dumps will be deleted first.
+	ActivityDumpLocalStorageMaxDumpsCount int
+	// ActivityDumpRemoteStorageFormats defines the formats that should be used to persist the activity dumps remotely.
+	ActivityDumpRemoteStorageFormats []activity_dump.StorageFormat
+	// ActivityDumpRemoteStorageCompression defines if the remote storage should compress the persisted data.
+	ActivityDumpRemoteStorageCompression bool
+
 	// RuntimeMonitor defines if the runtime monitor should be enabled
 	RuntimeMonitor bool
 	// NetworkEnabled defines if the network probes should be activated
@@ -212,9 +224,11 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpTracedEventTypes:          model.ParseEventTypeStringSlice(aconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
 		ActivityDumpCgroupDumpTimeout:         time.Duration(aconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_dump_timeout")) * time.Minute,
 		ActivityDumpCgroupWaitListSize:        aconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_wait_list_size"),
-		ActivityDumpCgroupOutputDirectory:     aconfig.Datadog.GetString("runtime_security_config.activity_dump.cgroup_output_directory"),
-		ActivityDumpCgroupGenerateGraph:       aconfig.Datadog.GetBool("runtime_security_config.activity_dump.cgroup_generate_graph"),
 		ActivityDumpCgroupDifferentiateGraphs: aconfig.Datadog.GetBool("runtime_security_config.activity_dump.cgroup_differentiate_args"),
+		ActivityDumpLocalStorageDirectory:     aconfig.Datadog.GetString("runtime_security_config.activity_dump.local_storage.output_directory"),
+		ActivityDumpLocalStorageMaxDumpsCount: aconfig.Datadog.GetInt("runtime_security_config.activity_dump.local_storage.max_dumps_count"),
+		ActivityDumpLocalStorageCompression:   aconfig.Datadog.GetBool("runtime_security_config.activity_dump.local_storage.compression"),
+		ActivityDumpRemoteStorageCompression:  aconfig.Datadog.GetBool("runtime_security_config.activity_dump.remote_storage.compression"),
 	}
 
 	// if runtime is enabled then we force fim
@@ -264,6 +278,21 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 	}
 	if !found {
 		c.ActivityDumpTracedEventTypes = append(c.ActivityDumpTracedEventTypes, model.ExecEventType)
+	}
+
+	if formats := aconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.local_storage.formats"); len(formats) > 0 {
+		var err error
+		c.ActivityDumpLocalStorageFormats, err = activity_dump.ParseStorageFormats(formats)
+		if err != nil {
+			return nil, fmt.Errorf("invalid value for runtime_security_config.activity_dump.local_storage.formats: %w", err)
+		}
+	}
+	if formats := aconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.remote_storage.formats"); len(formats) > 0 {
+		var err error
+		c.ActivityDumpRemoteStorageFormats, err = activity_dump.ParseStorageFormats(formats)
+		if err != nil {
+			return nil, fmt.Errorf("invalid value for runtime_security_config.activity_dump.remote_storage.formats: %w", err)
+		}
 	}
 
 	lazyInterfaces := make(map[string]bool)

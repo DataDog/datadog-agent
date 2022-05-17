@@ -182,23 +182,10 @@ func (a *APIServer) StopActivityDump(ctx context.Context, params *api.StopActivi
 	return nil, fmt.Errorf("monitor not configured")
 }
 
-// GenerateProfile generates a profile from an activity dump
-func (a *APIServer) GenerateProfile(ctx context.Context, params *api.GenerateProfileParams) (*api.SecurityProfileGeneratedMessage, error) {
+// TranscodingRequest encodes an activity dump following the requested parameters
+func (a *APIServer) TranscodingRequest(ctx context.Context, params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
 	if monitor := a.probe.GetMonitor(); monitor != nil {
-		msg, err := monitor.GenerateProfile(params)
-		if err != nil {
-			seclog.Errorf(err.Error())
-		}
-		return msg, nil
-	}
-
-	return nil, fmt.Errorf("monitor not configured")
-}
-
-// GenerateGraph generates a graph from an activity dump
-func (a *APIServer) GenerateGraph(ctx context.Context, params *api.GenerateGraphParams) (*api.SecurityGraphGeneratedMessage, error) {
-	if monitor := a.probe.GetMonitor(); monitor != nil {
-		msg, err := monitor.GenerateGraph(params)
+		msg, err := monitor.GenerateTranscoding(params)
 		if err != nil {
 			seclog.Errorf(err.Error())
 		}
