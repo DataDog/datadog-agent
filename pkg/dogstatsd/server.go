@@ -369,7 +369,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer, serverless bool) (*Server
 	// start the workers processing the packets read on the socket
 	// ----------------------
 
-	s.handleMessages(serverless)
+	s.handleMessages()
 
 	// start the debug loop
 	// ----------------------
@@ -397,7 +397,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer, serverless bool) (*Server
 	return s, nil
 }
 
-func (s *Server) handleMessages(serverless bool) {
+func (s *Server) handleMessages() {
 	if s.Statistics != nil {
 		go s.Statistics.Process()
 		go s.Statistics.Update(&dogstatsdPacketsLastSec)
