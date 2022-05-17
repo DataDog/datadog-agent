@@ -43,7 +43,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ./pkg/obfuscate
 	github.com/DataDog/datadog-agent/pkg/otlp/model => ./pkg/otlp/model
 	github.com/DataDog/datadog-agent/pkg/quantile => ./pkg/quantile
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/client => ./pkg/remoteconfig/client
+	github.com/DataDog/datadog-agent/pkg/remoteconfig => ./pkg/remoteconfig
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/trace => ./pkg/trace
 )
@@ -57,7 +57,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.37.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.37.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/quantile v0.37.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.37.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.37.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/trace v0.37.0-rc.1
 	github.com/DataDog/datadog-go/v5 v5.1.1
@@ -408,6 +407,8 @@ require (
 )
 
 require github.com/containernetworking/plugins v1.1.1 // indirect
+
+require github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.37.0-rc.1
 
 require (
 	github.com/Sirupsen/logrus v1.0.6 // indirect
