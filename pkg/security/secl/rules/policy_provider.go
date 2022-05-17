@@ -5,11 +5,8 @@
 
 package rules
 
-// Policy represents a policy file which is composed of a list of rules and macros
-type Policy struct {
-	Name    string
-	Source  string
-	Version string
-	Rules   []*RuleDefinition
-	Macros  []*MacroDefinition
+// PolicyProvider defines a rule provider
+type PolicyProvider interface {
+	LoadPolicy() (*Policy, error)
+	SetOnPolicyChangedCb(_ func(*Policy))
 }

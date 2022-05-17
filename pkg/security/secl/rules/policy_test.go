@@ -15,10 +15,9 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/hashicorp/go-multierror"
 )
 
-func savePolicy(filename string, testPolicy *Policy) error {
+func savePolicy(filename string, testPolicy *PolicyDef) error {
 	yamlBytes, err := yaml.Marshal(testPolicy)
 	if err != nil {
 		return err
@@ -35,8 +34,7 @@ func TestMacroMerge(t *testing.T) {
 		WithEventTypeEnabled(map[eval.EventType]bool{"*": true})
 
 	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
-	testPolicy := &Policy{
-		Name: "test-policy",
+	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{{
 			ID:         "test_rule",
 			Expression: `open.filename == "/tmp/test" && process.name == "/usr/bin/vim"`,
@@ -47,8 +45,7 @@ func TestMacroMerge(t *testing.T) {
 		}},
 	}
 
-	testPolicy2 := &Policy{
-		Name: "test-policy2",
+	testPolicy2 := &PolicyDef{
 		Macros: []*MacroDefinition{{
 			ID:      "test_macro",
 			Values:  []string{"/usr/bin/vim"},
@@ -79,7 +76,14 @@ func TestMacroMerge(t *testing.T) {
 		},
 	})
 
-	if err := LoadPolicies(tmpDir, rs); err != nil {
+	providers, err := GetFileProviders(tmpDir, &NullLogger{})
+	if err != nil {
+		t.Error(err)
+	}
+
+	loader := NewPolicyLoader(providers)
+
+	if err := rs.LoadPolicies(loader); err != nil {
 		t.Error(err)
 	}
 
@@ -94,7 +98,7 @@ func TestMacroMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := LoadPolicies(tmpDir, rs); err == nil {
+	if err := rs.LoadPolicies(loader); err == nil {
 		t.Error("expected macro ID conflict")
 	}
 }
@@ -107,16 +111,14 @@ func TestRuleMerge(t *testing.T) {
 		WithEventTypeEnabled(map[eval.EventType]bool{"*": true})
 	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
 
-	testPolicy := &Policy{
-		Name: "test-policy",
+	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{{
 			ID:         "test_rule",
 			Expression: `open.filename == "/tmp/test"`,
 		}},
 	}
 
-	testPolicy2 := &Policy{
-		Name: "test-policy2",
+	testPolicy2 := &PolicyDef{
 		Rules: []*RuleDefinition{{
 			ID:         "test_rule",
 			Expression: `open.filename == "/tmp/test"`,
@@ -138,7 +140,14 @@ func TestRuleMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := LoadPolicies(tmpDir, rs); err != nil {
+	providers, err := GetFileProviders(tmpDir, &NullLogger{})
+	if err != nil {
+		t.Error(err)
+	}
+
+	loader := NewPolicyLoader(providers)
+
+	if err := rs.LoadPolicies(loader); err != nil {
 		t.Error(err)
 	}
 
@@ -153,7 +162,7 @@ func TestRuleMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := LoadPolicies(tmpDir, rs); err == nil {
+	if err := rs.LoadPolicies(loader); err == nil {
 		t.Error("expected rule ID conflict")
 	}
 }
@@ -213,8 +222,7 @@ func TestActionSetVariable(t *testing.T) {
 		WithMacros(make(map[eval.MacroID]*eval.Macro))
 	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
 
-	testPolicy := &Policy{
-		Name: "test-policy",
+	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{{
 			ID:         "test_rule",
 			Expression: `open.filename == "/tmp/test"`,
@@ -307,7 +315,14 @@ func TestActionSetVariable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := LoadPolicies(tmpDir, rs); err != nil {
+	providers, err := GetFileProviders(tmpDir, &NullLogger{})
+	if err != nil {
+		t.Error(err)
+	}
+
+	loader := NewPolicyLoader(providers)
+
+	if err := rs.LoadPolicies(loader); err != nil {
 		t.Error(err)
 	}
 
@@ -357,8 +372,7 @@ func TestActionSetVariableConflict(t *testing.T) {
 		WithMacros(make(map[eval.MacroID]*eval.Macro))
 	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
 
-	testPolicy := &Policy{
-		Name: "test-policy",
+	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{{
 			ID:         "test_rule",
 			Expression: `open.filename == "/tmp/test"`,
@@ -389,14 +403,21 @@ func TestActionSetVariableConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := LoadPolicies(tmpDir, rs); err == nil {
+	providers, err := GetFileProviders(tmpDir, &NullLogger{})
+	if err != nil {
+		t.Error(err)
+	}
+
+	loader := NewPolicyLoader(providers)
+
+	if err := rs.LoadPolicies(loader); err == nil {
 		t.Error("expected policy to fail to load")
 	} else {
 		t.Log(err)
 	}
 }
 
-func loadPolicy(t *testing.T, testPolicy *Policy) *multierror.Error {
+func loadPolicy(t *testing.T, testPolicy *PolicyDef) error {
 	enabled := map[eval.EventType]bool{"*": true}
 	var opts Opts
 	opts.
@@ -416,13 +437,19 @@ func loadPolicy(t *testing.T, testPolicy *Policy) *multierror.Error {
 		t.Fatal(err)
 	}
 
-	return LoadPolicies(tmpDir, rs)
+	providers, err := GetFileProviders(tmpDir, &NullLogger{})
+	if err != nil {
+		t.Error(err)
+	}
+
+	loader := NewPolicyLoader(providers)
+
+	return rs.LoadPolicies(loader)
 }
 
 func TestActionSetVariableInvalid(t *testing.T) {
 	t.Run("both-field-and-value", func(t *testing.T) {
-		testPolicy := &Policy{
-			Name: "test-policy",
+		testPolicy := &PolicyDef{
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
 				Expression: `open.filename == "/tmp/test"`,
@@ -437,15 +464,14 @@ func TestActionSetVariableInvalid(t *testing.T) {
 		}
 
 		if err := loadPolicy(t, testPolicy); err == nil {
-			t.Error("expected policy to fail to load")
+			t.Error("policy should fail to load")
 		} else {
 			t.Log(err)
 		}
 	})
 
 	t.Run("bool-array", func(t *testing.T) {
-		testPolicy := &Policy{
-			Name: "test-policy",
+		testPolicy := &PolicyDef{
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
 				Expression: `open.filename == "/tmp/test"`,
@@ -470,8 +496,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 	})
 
 	t.Run("heterogeneous-array", func(t *testing.T) {
-		testPolicy := &Policy{
-			Name: "test-policy",
+		testPolicy := &PolicyDef{
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
 				Expression: `open.filename == "/tmp/test"`,
@@ -496,8 +521,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 	})
 
 	t.Run("nil-values", func(t *testing.T) {
-		testPolicy := &Policy{
-			Name: "test-policy",
+		testPolicy := &PolicyDef{
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
 				Expression: `open.filename == "/tmp/test"`,
@@ -518,8 +542,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 	})
 
 	t.Run("append-array", func(t *testing.T) {
-		testPolicy := &Policy{
-			Name: "test-policy",
+		testPolicy := &PolicyDef{
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
 				Expression: `open.filename == "/tmp/test"`,
@@ -551,8 +574,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 	})
 
 	t.Run("conflicting-field-type", func(t *testing.T) {
-		testPolicy := &Policy{
-			Name: "test-policy",
+		testPolicy := &PolicyDef{
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
 				Expression: `open.filename == "/tmp/test"`,
@@ -583,8 +605,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 	})
 
 	t.Run("conflicting-field-type", func(t *testing.T) {
-		testPolicy := &Policy{
-			Name: "test-policy",
+		testPolicy := &PolicyDef{
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
 				Expression: `open.filename == "/tmp/test"`,
