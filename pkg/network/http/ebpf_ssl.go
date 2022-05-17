@@ -25,13 +25,14 @@ import (
 )
 
 var openSSLProbes = map[string]string{
-	"uprobe/SSL_do_handshake": "uprobe__SSL_do_handshake",
-	"uprobe/SSL_set_bio":      "uprobe__SSL_set_bio",
-	"uprobe/SSL_set_fd":       "uprobe__SSL_set_fd",
-	"uprobe/SSL_read":         "uprobe__SSL_read",
-	"uretprobe/SSL_read":      "uretprobe__SSL_read",
-	"uprobe/SSL_write":        "uprobe__SSL_write",
-	"uprobe/SSL_shutdown":     "uprobe__SSL_shutdown",
+	"uprobe/SSL_do_handshake":    "uprobe__SSL_do_handshake",
+	"uretprobe/SSL_do_handshake": "uretprobe__SSL_do_handshake",
+	"uprobe/SSL_set_bio":         "uprobe__SSL_set_bio",
+	"uprobe/SSL_set_fd":          "uprobe__SSL_set_fd",
+	"uprobe/SSL_read":            "uprobe__SSL_read",
+	"uretprobe/SSL_read":         "uretprobe__SSL_read",
+	"uprobe/SSL_write":           "uprobe__SSL_write",
+	"uprobe/SSL_shutdown":        "uprobe__SSL_shutdown",
 }
 
 var cryptoProbes = map[string]string{
@@ -103,12 +104,12 @@ func (o *sslProgram) ConfigureManager(m *manager.Manager) {
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFSection:  doSysOpen,
 				EBPFFuncName: "kprobe__do_sys_open",
-				UID: probeUID,
+				UID:          probeUID,
 			}, KProbeMaxActive: maxActive},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFSection:  doSysOpenRet,
 				EBPFFuncName: "kretprobe__do_sys_open",
-				UID: probeUID,
+				UID:          probeUID,
 			}, KProbeMaxActive: maxActive},
 		)
 	}
@@ -131,14 +132,14 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  doSysOpen,
 					EBPFFuncName: "kprobe__do_sys_open",
-					UID: probeUID,
+					UID:          probeUID,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  doSysOpenRet,
 					EBPFFuncName: "kretprobe__do_sys_open",
-					UID: probeUID,
+					UID:          probeUID,
 				},
 			},
 		)

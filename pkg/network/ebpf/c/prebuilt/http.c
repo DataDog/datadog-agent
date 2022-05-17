@@ -63,12 +63,14 @@ int socket__http_filter(struct __sk_buff* skb) {
     return 0;
 }
 
-// This kprobe is used to send batch completion notification to userspace
-// because perf events can't be sent from socket filter programs
 SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
+    // send batch completion notification to userspace
+    // because perf events can't be sent from socket filter programs
     http_notify_batch(ctx);
-    init_ssl_sock_from_sock((struct sock*)PT_REGS_PARM1(ctx));
+
+    // map connection tuple during SSL_do_handshake(ctx)
+    init_ssl_sock_from_do_handshake((struct sock*)PT_REGS_PARM1(ctx));
     return 0;
 }
 
@@ -193,6 +195,7 @@ int uprobe__SSL_shutdown(struct pt_regs* ctx) {
     }
 
     https_finish(t);
+    bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
     return 0;
 }
 
