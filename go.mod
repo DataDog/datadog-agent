@@ -177,21 +177,21 @@ require (
 	go.etcd.io/bbolt v1.3.6
 	go.etcd.io/etcd/client/v2 v2.305.4
 	go.opentelemetry.io/collector v0.50.0
-	go.opentelemetry.io/collector/pdata v0.50.0
+	go.opentelemetry.io/collector/pdata v0.51.0
 	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/multierr v1.8.0
 	go.uber.org/zap v1.21.0
 	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4 // indirect
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
-	golang.org/x/net v0.0.0-20220225172249-27dd8689420f
+	golang.org/x/net v0.0.0-20220516155154-20f960328961
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20220422013727-9388b58f7150
+	golang.org/x/sys v0.0.0-20220513210249-45d2b4557a2a
 	golang.org/x/text v0.3.7
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11
 	golang.org/x/tools v0.1.10
 	gomodules.xyz/jsonpatch/v3 v3.0.1
-	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa
-	google.golang.org/grpc v1.46.0
+	google.golang.org/genproto v0.0.0-20220505152158-f39f71e6c8f3
+	google.golang.org/grpc v1.46.2
 	gopkg.in/DataDog/dd-trace-go.v1 v1.37.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b

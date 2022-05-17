@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/quantile/summary"
 	gocache "github.com/patrickmn/go-cache"
@@ -32,8 +33,6 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
-
-	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
 )
 
 func TestIsCumulativeMonotonic(t *testing.T) {
@@ -1043,6 +1042,40 @@ func createTestMetrics(additionalAttributes map[string]string, name, version str
 	dpDoubleHist.SetExplicitBounds([]float64{0})
 	dpDoubleHist.SetTimestamp(seconds(0))
 
+	// Exponential Histogram (delta)
+	met = metricsArray.AppendEmpty()
+	met.SetName("double.exponential.delta.histogram")
+	met.SetDataType(pmetric.MetricDataTypeExponentialHistogram)
+	met.ExponentialHistogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
+	expDeltaHistDp := met.ExponentialHistogram().DataPoints()
+	expDeltaHist := expDeltaHistDp.AppendEmpty()
+	expDeltaHist.SetScale(6)
+	expDeltaHist.SetCount(30)
+	expDeltaHist.SetZeroCount(10)
+	expDeltaHist.SetSum(math.Pi)
+	expDeltaHist.Negative().SetOffset(2)
+	expDeltaHist.Negative().SetBucketCounts([]uint64{3, 2, 5})
+	expDeltaHist.Positive().SetOffset(3)
+	expDeltaHist.Positive().SetBucketCounts([]uint64{1, 1, 1, 2, 2, 3})
+	expDeltaHist.SetTimestamp(seconds(0))
+
+	// Exponential Histogram (cumulative)
+	met = metricsArray.AppendEmpty()
+	met.SetName("double.exponential.cumulative.histogram")
+	met.SetDataType(pmetric.MetricDataTypeExponentialHistogram)
+	met.ExponentialHistogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityCumulative)
+	expCumHistDp := met.ExponentialHistogram().DataPoints()
+	expCumHist := expCumHistDp.AppendEmpty()
+	expCumHist.SetScale(6)
+	expCumHist.SetCount(30)
+	expDeltaHist.SetZeroCount(10)
+	expCumHist.SetSum(math.Pi)
+	expCumHist.Negative().SetOffset(2)
+	expCumHist.Negative().SetBucketCounts([]uint64{3, 2, 5})
+	expCumHist.Positive().SetOffset(3)
+	expCumHist.Positive().SetBucketCounts([]uint64{1, 1, 1, 2, 2, 3})
+	expCumHist.SetTimestamp(seconds(0))
+
 	// Int Sum (cumulative)
 	met = metricsArray.AppendEmpty()
 	met.SetName("int.cumulative.sum")
@@ -1154,18 +1187,18 @@ func TestMapMetrics(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                                      string
 		resourceAttributesAsTags                  bool
 		instrumentationLibraryMetadataAsTags      bool
+		withCountSum                              bool
 		expectedMetrics                           []metric
 		expectedSketches                          []sketch
 		expectedUnknownMetricType                 int
 		expectedUnsupportedAggregationTemporality int
 	}{
 		{
-			name:                                 "ResourceAttributesAsTags: false, InstrumentationLibraryMetadataAsTags: false",
 			resourceAttributesAsTags:             false,
 			instrumentationLibraryMetadataAsTags: false,
+			withCountSum:                         false,
 			expectedMetrics: []metric{
 				newGaugeWithHostname("int.gauge", 1, attrTags),
 				newGaugeWithHostname("double.gauge", math.Pi, attrTags),
@@ -1173,12 +1206,12 @@ func TestMapMetrics(t *testing.T) {
 				newCountWithHostname("double.delta.sum", math.E, 0, attrTags),
 				newCountWithHostname("int.delta.monotonic.sum", 2, 0, attrTags),
 				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, attrTags),
-				newCountWithHostname("summary.sum", 10_000, 2, attrTags),
-				newCountWithHostname("summary.count", 100, 2, attrTags),
 				newGaugeWithHostname("int.cumulative.sum", 4, attrTags),
 				newGaugeWithHostname("double.cumulative.sum", 4, attrTags),
 				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, attrTags),
 				newCountWithHostname("double.cumulative.monotonic.sum", math.Pi, 2, attrTags),
+				newCountWithHostname("summary.count", 100, 2, attrTags),
+				newCountWithHostname("summary.sum", 10_000, 2, attrTags),
 			},
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.histogram", summary.Summary{
@@ -1188,14 +1221,21 @@ func TestMapMetrics(t *testing.T) {
 					Avg: math.Phi / 20,
 					Cnt: 20,
 				}, attrTags),
+				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
+					Min: -1.0475797592879845,
+					Max: 1.0974563270357618,
+					Sum: math.Pi,
+					Avg: 0.10471975511965977,
+					Cnt: 30,
+				}, attrTags),
 			},
 			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 2,
+			expectedUnsupportedAggregationTemporality: 3,
 		},
 		{
-			name:                                 "ResourceAttributesAsTags: true, InstrumentationLibraryMetadataAsTags: false",
 			resourceAttributesAsTags:             true,
 			instrumentationLibraryMetadataAsTags: false,
+			withCountSum:                         false,
 			expectedMetrics: []metric{
 				newGaugeWithHostname("int.gauge", 1, attrTags),
 				newGaugeWithHostname("double.gauge", math.Pi, attrTags),
@@ -1203,12 +1243,12 @@ func TestMapMetrics(t *testing.T) {
 				newCountWithHostname("double.delta.sum", math.E, 0, attrTags),
 				newCountWithHostname("int.delta.monotonic.sum", 2, 0, attrTags),
 				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, attrTags),
-				newCountWithHostname("summary.sum", 10_000, 2, attrTags),
-				newCountWithHostname("summary.count", 100, 2, attrTags),
 				newGaugeWithHostname("int.cumulative.sum", 4, attrTags),
 				newGaugeWithHostname("double.cumulative.sum", 4, attrTags),
 				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, attrTags),
 				newCountWithHostname("double.cumulative.monotonic.sum", math.Pi, 2, attrTags),
+				newCountWithHostname("summary.count", 100, 2, attrTags),
+				newCountWithHostname("summary.sum", 10_000, 2, attrTags),
 			},
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.histogram", summary.Summary{
@@ -1218,14 +1258,62 @@ func TestMapMetrics(t *testing.T) {
 					Avg: math.Phi / 20.0,
 					Cnt: 20,
 				}, attrTags),
+				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
+					Min: -1.0475797592879845,
+					Max: 1.0974563270357618,
+					Sum: math.Pi,
+					Avg: 0.10471975511965977,
+					Cnt: 30,
+				}, attrTags),
 			},
 			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 2,
+			expectedUnsupportedAggregationTemporality: 3,
 		},
 		{
-			name:                                 "ResourceAttributesAsTags: false, InstrumentationLibraryMetadataAsTags: true",
+			resourceAttributesAsTags:             false,
+			instrumentationLibraryMetadataAsTags: false,
+			withCountSum:                         true,
+			expectedMetrics: []metric{
+				newGaugeWithHostname("int.gauge", 1, attrTags),
+				newGaugeWithHostname("double.gauge", math.Pi, attrTags),
+				newCountWithHostname("int.delta.sum", 2, 0, attrTags),
+				newCountWithHostname("double.delta.sum", math.E, 0, attrTags),
+				newCountWithHostname("int.delta.monotonic.sum", 2, 0, attrTags),
+				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, attrTags),
+				newCountWithHostname("double.histogram.count", 20, 0, attrTags),
+				newCountWithHostname("double.histogram.sum", 1.618033988749895, 0, attrTags),
+				newCountWithHostname("double.exponential.delta.histogram.count", 30, 0, attrTags),
+				newCountWithHostname("double.exponential.delta.histogram.sum", 3.141592653589793, 0, attrTags),
+				newGaugeWithHostname("int.cumulative.sum", 4, attrTags),
+				newGaugeWithHostname("double.cumulative.sum", 4, attrTags),
+				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, attrTags),
+				newCountWithHostname("double.cumulative.monotonic.sum", math.Pi, 2, attrTags),
+				newCountWithHostname("summary.count", 100, 2, attrTags),
+				newCountWithHostname("summary.sum", 10_000, 2, attrTags),
+			},
+			expectedSketches: []sketch{
+				newSketchWithHostname("double.histogram", summary.Summary{
+					Min: 0,
+					Max: 0,
+					Sum: math.Phi,
+					Avg: math.Phi / 20,
+					Cnt: 20,
+				}, attrTags),
+				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
+					Min: -1.0475797592879845,
+					Max: 1.0974563270357618,
+					Sum: math.Pi,
+					Avg: 0.10471975511965977,
+					Cnt: 30,
+				}, attrTags),
+			},
+			expectedUnknownMetricType:                 1,
+			expectedUnsupportedAggregationTemporality: 3,
+		},
+		{
 			resourceAttributesAsTags:             false,
 			instrumentationLibraryMetadataAsTags: true,
+			withCountSum:                         false,
 			expectedMetrics: []metric{
 				newGaugeWithHostname("int.gauge", 1, append(attrTags, ilTags...)),
 				newGaugeWithHostname("double.gauge", math.Pi, append(attrTags, ilTags...)),
@@ -1233,12 +1321,12 @@ func TestMapMetrics(t *testing.T) {
 				newCountWithHostname("double.delta.sum", math.E, 0, append(attrTags, ilTags...)),
 				newCountWithHostname("int.delta.monotonic.sum", 2, 0, append(attrTags, ilTags...)),
 				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("summary.sum", 10_000, 2, append(attrTags, ilTags...)),
-				newCountWithHostname("summary.count", 100, 2, append(attrTags, ilTags...)),
 				newGaugeWithHostname("int.cumulative.sum", 4, append(attrTags, ilTags...)),
 				newGaugeWithHostname("double.cumulative.sum", 4, append(attrTags, ilTags...)),
 				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, append(attrTags, ilTags...)),
 				newCountWithHostname("double.cumulative.monotonic.sum", math.Pi, 2, append(attrTags, ilTags...)),
+				newCountWithHostname("summary.count", 100, 2, append(attrTags, ilTags...)),
+				newCountWithHostname("summary.sum", 10_000, 2, append(attrTags, ilTags...)),
 			},
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.histogram", summary.Summary{
@@ -1248,14 +1336,21 @@ func TestMapMetrics(t *testing.T) {
 					Avg: math.Phi / 20,
 					Cnt: 20,
 				}, append(attrTags, ilTags...)),
+				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
+					Min: -1.0475797592879845,
+					Max: 1.0974563270357618,
+					Sum: math.Pi,
+					Avg: 0.10471975511965977,
+					Cnt: 30,
+				}, append(attrTags, ilTags...)),
 			},
 			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 2,
+			expectedUnsupportedAggregationTemporality: 3,
 		},
 		{
-			name:                                 "ResourceAttributesAsTags: true, InstrumentationLibraryMetadataAsTags: true",
-			resourceAttributesAsTags:             true,
+			resourceAttributesAsTags:             false,
 			instrumentationLibraryMetadataAsTags: true,
+			withCountSum:                         true,
 			expectedMetrics: []metric{
 				newGaugeWithHostname("int.gauge", 1, append(attrTags, ilTags...)),
 				newGaugeWithHostname("double.gauge", math.Pi, append(attrTags, ilTags...)),
@@ -1263,12 +1358,16 @@ func TestMapMetrics(t *testing.T) {
 				newCountWithHostname("double.delta.sum", math.E, 0, append(attrTags, ilTags...)),
 				newCountWithHostname("int.delta.monotonic.sum", 2, 0, append(attrTags, ilTags...)),
 				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("summary.sum", 10_000, 2, append(attrTags, ilTags...)),
-				newCountWithHostname("summary.count", 100, 2, append(attrTags, ilTags...)),
+				newCountWithHostname("double.histogram.count", 20, 0, append(attrTags, ilTags...)),
+				newCountWithHostname("double.histogram.sum", 1.618033988749895, 0, append(attrTags, ilTags...)),
+				newCountWithHostname("double.exponential.delta.histogram.count", 30, 0, append(attrTags, ilTags...)),
+				newCountWithHostname("double.exponential.delta.histogram.sum", 3.141592653589793, 0, append(attrTags, ilTags...)),
 				newGaugeWithHostname("int.cumulative.sum", 4, append(attrTags, ilTags...)),
 				newGaugeWithHostname("double.cumulative.sum", 4, append(attrTags, ilTags...)),
 				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, append(attrTags, ilTags...)),
 				newCountWithHostname("double.cumulative.monotonic.sum", math.Pi, 2, append(attrTags, ilTags...)),
+				newCountWithHostname("summary.count", 100, 2, append(attrTags, ilTags...)),
+				newCountWithHostname("summary.sum", 10_000, 2, append(attrTags, ilTags...)),
 			},
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.histogram", summary.Summary{
@@ -1278,14 +1377,101 @@ func TestMapMetrics(t *testing.T) {
 					Avg: math.Phi / 20,
 					Cnt: 20,
 				}, append(attrTags, ilTags...)),
+				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
+					Min: -1.0475797592879845,
+					Max: 1.0974563270357618,
+					Sum: math.Pi,
+					Avg: 0.10471975511965977,
+					Cnt: 30,
+				}, append(attrTags, ilTags...)),
 			},
 			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 2,
+			expectedUnsupportedAggregationTemporality: 3,
+		},
+		{
+			resourceAttributesAsTags:             true,
+			instrumentationLibraryMetadataAsTags: true,
+			withCountSum:                         false,
+			expectedMetrics: []metric{
+				newGaugeWithHostname("int.gauge", 1, append(attrTags, ilTags...)),
+				newGaugeWithHostname("double.gauge", math.Pi, append(attrTags, ilTags...)),
+				newCountWithHostname("int.delta.sum", 2, 0, append(attrTags, ilTags...)),
+				newCountWithHostname("double.delta.sum", math.E, 0, append(attrTags, ilTags...)),
+				newCountWithHostname("int.delta.monotonic.sum", 2, 0, append(attrTags, ilTags...)),
+				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, append(attrTags, ilTags...)),
+				newGaugeWithHostname("int.cumulative.sum", 4, append(attrTags, ilTags...)),
+				newGaugeWithHostname("double.cumulative.sum", 4, append(attrTags, ilTags...)),
+				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, append(attrTags, ilTags...)),
+				newCountWithHostname("double.cumulative.monotonic.sum", math.Pi, 2, append(attrTags, ilTags...)),
+				newCountWithHostname("summary.count", 100, 2, append(attrTags, ilTags...)),
+				newCountWithHostname("summary.sum", 10_000, 2, append(attrTags, ilTags...)),
+			},
+			expectedSketches: []sketch{
+				newSketchWithHostname("double.histogram", summary.Summary{
+					Min: 0,
+					Max: 0,
+					Sum: math.Phi,
+					Avg: math.Phi / 20,
+					Cnt: 20,
+				}, append(attrTags, ilTags...)),
+				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
+					Min: -1.0475797592879845,
+					Max: 1.0974563270357618,
+					Sum: math.Pi,
+					Avg: 0.10471975511965977,
+					Cnt: 30,
+				}, append(attrTags, ilTags...)),
+			},
+			expectedUnknownMetricType:                 1,
+			expectedUnsupportedAggregationTemporality: 3,
+		},
+		{
+			resourceAttributesAsTags:             true,
+			instrumentationLibraryMetadataAsTags: true,
+			withCountSum:                         true,
+			expectedMetrics: []metric{
+				newGaugeWithHostname("int.gauge", 1, append(attrTags, ilTags...)),
+				newGaugeWithHostname("double.gauge", math.Pi, append(attrTags, ilTags...)),
+				newCountWithHostname("int.delta.sum", 2, 0, append(attrTags, ilTags...)),
+				newCountWithHostname("double.delta.sum", math.E, 0, append(attrTags, ilTags...)),
+				newCountWithHostname("int.delta.monotonic.sum", 2, 0, append(attrTags, ilTags...)),
+				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, append(attrTags, ilTags...)),
+				newCountWithHostname("double.histogram.count", 20, 0, append(attrTags, ilTags...)),
+				newCountWithHostname("double.histogram.sum", 1.618033988749895, 0, append(attrTags, ilTags...)),
+				newCountWithHostname("double.exponential.delta.histogram.count", 30, 0, append(attrTags, ilTags...)),
+				newCountWithHostname("double.exponential.delta.histogram.sum", 3.141592653589793, 0, append(attrTags, ilTags...)),
+				newGaugeWithHostname("int.cumulative.sum", 4, append(attrTags, ilTags...)),
+				newGaugeWithHostname("double.cumulative.sum", 4, append(attrTags, ilTags...)),
+				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, append(attrTags, ilTags...)),
+				newCountWithHostname("double.cumulative.monotonic.sum", math.Pi, 2, append(attrTags, ilTags...)),
+				newCountWithHostname("summary.count", 100, 2, append(attrTags, ilTags...)),
+				newCountWithHostname("summary.sum", 10_000, 2, append(attrTags, ilTags...)),
+			},
+			expectedSketches: []sketch{
+				newSketchWithHostname("double.histogram", summary.Summary{
+					Min: 0,
+					Max: 0,
+					Sum: math.Phi,
+					Avg: math.Phi / 20,
+					Cnt: 20,
+				}, append(attrTags, ilTags...)),
+				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
+					Min: -1.0475797592879845,
+					Max: 1.0974563270357618,
+					Sum: math.Pi,
+					Avg: 0.10471975511965977,
+					Cnt: 30,
+				}, append(attrTags, ilTags...)),
+			},
+			expectedUnknownMetricType:                 1,
+			expectedUnsupportedAggregationTemporality: 3,
 		},
 	}
 
 	for _, testInstance := range tests {
-		t.Run(testInstance.name, func(t *testing.T) {
+		tName := fmt.Sprintf("resourceAttributesAsTags: %t, instrumentationLibraryMetadataAsTags: %t, withCountSum: %t",
+			testInstance.resourceAttributesAsTags, testInstance.instrumentationLibraryMetadataAsTags, testInstance.withCountSum)
+		t.Run(tName, func(t *testing.T) {
 			md := createTestMetrics(attrs, ilName, ilVersion)
 
 			core, observed := observer.New(zapcore.DebugLevel)
@@ -1300,14 +1486,18 @@ func TestMapMetrics(t *testing.T) {
 			if testInstance.instrumentationLibraryMetadataAsTags {
 				options = append(options, WithInstrumentationLibraryMetadataAsTags())
 			}
+			if testInstance.withCountSum {
+				options = append(options, WithCountSumMetrics())
+			}
+
 			tr := newTranslator(t, testLogger, options...)
 			err := tr.MapMetrics(ctx, md, consumer)
 			require.NoError(t, err)
 
 			assert.ElementsMatch(t, consumer.metrics, testInstance.expectedMetrics)
 			assert.ElementsMatch(t, consumer.sketches, testInstance.expectedSketches)
-			assert.Equal(t, observed.FilterMessage("Unknown or unsupported metric type").Len(), testInstance.expectedUnknownMetricType)
-			assert.Equal(t, observed.FilterMessage("Unknown or unsupported aggregation temporality").Len(), testInstance.expectedUnsupportedAggregationTemporality)
+			assert.Equal(t, testInstance.expectedUnknownMetricType, observed.FilterMessage("Unknown or unsupported metric type").Len())
+			assert.Equal(t, testInstance.expectedUnsupportedAggregationTemporality, observed.FilterMessage("Unknown or unsupported aggregation temporality").Len())
 		})
 	}
 }
