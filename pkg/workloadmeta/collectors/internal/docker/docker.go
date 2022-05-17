@@ -180,7 +180,10 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 	}
 
 	switch ev.Action {
-	case docker.ContainerEventActionStart, docker.ContainerEventActionRename:
+	case docker.ContainerEventActionStart,
+		docker.ContainerEventActionRename,
+		docker.ContainerEventActionHealthStatus:
+
 		container, err := c.dockerUtil.InspectNoCache(ctx, ev.ContainerID, false)
 		if err != nil {
 			return event, fmt.Errorf("could not inspect container %q: %s", ev.ContainerID, err)
