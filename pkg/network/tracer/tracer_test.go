@@ -1633,10 +1633,6 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 		t.Skip("HTTPS feature not available on pre 4.1.0 kernels")
 	}
 
-	if !httpsSupported(t) {
-		t.Skip("HTTPS feature not supported.")
-	}
-
 	if strings.HasPrefix(runtime.GOARCH, "arm") {
 		t.Skip("this feature is not yet support on arm")
 	}
