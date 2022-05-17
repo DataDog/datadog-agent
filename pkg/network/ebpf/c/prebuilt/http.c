@@ -68,7 +68,7 @@ int socket__http_filter(struct __sk_buff* skb) {
 SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
     http_notify_batch(ctx);
-    try_init_ssl_sock((struct sock*)PT_REGS_PARM1(ctx));
+    init_ssl_sock_from_sock((struct sock*)PT_REGS_PARM1(ctx));
     return 0;
 }
 
@@ -78,6 +78,13 @@ int uprobe__SSL_do_handshake(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
     bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
+    return 0;
+}
+
+SEC("uretprobe/SSL_do_handshake")
+int uretprobe__SSL_do_handshake(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
     return 0;
 }
 
