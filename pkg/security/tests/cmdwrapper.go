@@ -25,6 +25,7 @@ const (
 type cmdWrapper interface {
 	Run(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd))
 	Type() wrapperType
+	TestSuffix() string
 }
 
 type stdCmdWrapper struct {
@@ -47,12 +48,17 @@ func (s *stdCmdWrapper) Type() wrapperType {
 	return stdWrapperType
 }
 
+func (s *stdCmdWrapper) TestSuffix() string {
+	return string(s.Type())
+}
+
 func newStdCmdWrapper() *stdCmdWrapper {
 	return &stdCmdWrapper{}
 }
 
 type dockerCmdWrapper struct {
 	executable    string
+	image         string
 	root          string
 	containerName string
 }
@@ -73,7 +79,7 @@ func (d *dockerCmdWrapper) Command(bin string, args []string, envs []string) *ex
 
 func (d *dockerCmdWrapper) start() ([]byte, error) {
 	d.containerName = fmt.Sprintf("docker-wrapper-%s", randStringRunes(6))
-	cmd := exec.Command(d.executable, "run", "--rm", "-d", "--name", d.containerName, "-v", d.root+":"+d.root, "ubuntu:focal", "sleep", "600")
+	cmd := exec.Command(d.executable, "run", "--rm", "-d", "--name", d.containerName, "-v", d.root+":"+d.root, d.image, "sleep", "600")
 	return cmd.CombinedOutput()
 }
 
@@ -103,7 +109,11 @@ func (d *dockerCmdWrapper) Type() wrapperType {
 	return dockerWrapperType
 }
 
-func newDockerCmdWrapper(root string) (*dockerCmdWrapper, error) {
+func (d *dockerCmdWrapper) TestSuffix() string {
+	return fmt.Sprintf("%s-%s", string(d.Type()), d.image)
+}
+
+func newDockerCmdWrapper(image, root string) (*dockerCmdWrapper, error) {
 	executable, err := exec.LookPath("docker")
 	if err != nil {
 		return nil, err
@@ -117,6 +127,7 @@ func newDockerCmdWrapper(root string) (*dockerCmdWrapper, error) {
 
 	return &dockerCmdWrapper{
 		executable: executable,
+		image:      image,
 		root:       root,
 	}, nil
 }
@@ -127,13 +138,16 @@ type multiCmdWrapper struct {
 
 func (m *multiCmdWrapper) Run(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
 	for _, wrapper := range m.wrappers {
-		kind := wrapper.Type()
-		wrapper.Run(t, fmt.Sprintf("%s-%s", name, kind), fnc)
+		wrapper.Run(t, fmt.Sprintf("%s-%s", name, wrapper.TestSuffix()), fnc)
 	}
 }
 
 func (m *multiCmdWrapper) Type() wrapperType {
 	return multiWrapperType
+}
+
+func (m *multiCmdWrapper) TestSuffix() string {
+	return string(m.Type())
 }
 
 func newMultiCmdWrapper(wrappers ...cmdWrapper) *multiCmdWrapper {

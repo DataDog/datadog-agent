@@ -610,23 +610,25 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 	defer os.Remove(cfgFilename)
 
-	var cmdWrapper cmdWrapper
+	var multiCmdWrapper cmdWrapper
 	if testEnvironment == DockerEnvironment {
-		cmdWrapper = newStdCmdWrapper()
+		multiCmdWrapper = newStdCmdWrapper()
 	} else {
-		wrapper, err := newDockerCmdWrapper(st.Root())
-		if err == nil {
-			cmdWrapper = newMultiCmdWrapper(wrapper, newStdCmdWrapper())
-		} else {
-			// docker not present run only on host
-			cmdWrapper = newStdCmdWrapper()
+		wrappers := make([]cmdWrapper, 0)
+		if dockerWrapper, err := newDockerCmdWrapper("ubuntu:focal", st.Root()); err == nil {
+			wrappers = append(wrappers, dockerWrapper)
 		}
+		if dockerWrapper, err := newDockerCmdWrapper("alpine:latest", st.Root()); err == nil {
+			wrappers = append(wrappers, dockerWrapper)
+		}
+		wrappers = append(wrappers, newStdCmdWrapper())
+		multiCmdWrapper = newMultiCmdWrapper(wrappers...)
 	}
 
 	if useReload && testMod != nil {
 		if opts.Equal(testMod.opts) {
 			testMod.st = st
-			testMod.cmdWrapper = cmdWrapper
+			testMod.cmdWrapper = multiCmdWrapper
 			testMod.t = t
 
 			testMod.probeHandler.reloading.Lock()
@@ -666,7 +668,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		module:       mod.(*module.Module),
 		probe:        mod.(*module.Module).GetProbe(),
 		probeHandler: &testProbeHandler{module: mod.(*module.Module)},
-		cmdWrapper:   cmdWrapper,
+		cmdWrapper:   multiCmdWrapper,
 		statsdClient: statsdClient,
 	}
 
