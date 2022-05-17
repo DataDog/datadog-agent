@@ -19,8 +19,7 @@ import (
 // the samples that the TimeSamplers should have received.
 type TestAgentDemultiplexer struct {
 	*AgentDemultiplexer
-	receivedSamples   []metrics.MetricSample
-	mockDefaultSender Sender
+	receivedSamples []metrics.MetricSample
 	sync.Mutex
 }
 
