@@ -95,21 +95,21 @@ func (k *Version) String() string {
 // NewKernelVersion returns a new kernel version helper
 func NewKernelVersion() (*Version, error) {
 	osReleasePaths := []string{
-		osrelease.EtcOsRelease,
 		osrelease.UsrLibOsRelease,
+		osrelease.EtcOsRelease,
 	}
 
 	if config.IsContainerized() && util.PathExists("/host") {
 		osReleasePaths = append([]string{
-			filepath.Join("/host", osrelease.EtcOsRelease),
 			filepath.Join("/host", osrelease.UsrLibOsRelease),
+			filepath.Join("/host", osrelease.EtcOsRelease),
 		}, osReleasePaths...)
 	}
 
 	if hostRoot := os.Getenv("HOST_ROOT"); hostRoot != "" {
 		osReleasePaths = append([]string{
-			filepath.Join(hostRoot, osrelease.EtcOsRelease),
 			filepath.Join(hostRoot, osrelease.UsrLibOsRelease),
+			filepath.Join(hostRoot, osrelease.EtcOsRelease),
 		}, osReleasePaths...)
 	}
 
