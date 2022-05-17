@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/open-policy-agent/opa/ast"
@@ -27,8 +29,11 @@ import (
 )
 
 const regoEvaluator = "rego"
+const regoEvalTimeout = 20 * time.Second
 
 type regoCheck struct {
+	evalLock sync.Mutex
+
 	ruleID            string
 	ruleScope         compliance.RuleScope
 	inputs            []compliance.RegoInput
@@ -359,6 +364,9 @@ func findingsToReports(findings []regoFinding) []*compliance.Report {
 }
 
 func (r *regoCheck) check(env env.Env) []*compliance.Report {
+	r.evalLock.Lock()
+	defer r.evalLock.Unlock()
+
 	log.Debugf("%s: rego check starting", r.ruleID)
 
 	var input eval.RegoInputMap
@@ -382,7 +390,13 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 		_ = dumpInputToFile(r.ruleID, path, input)
 	}
 
-	ctx := context.TODO()
+	if env.ShouldSkipRegoEval() {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), regoEvalTimeout)
+	defer cancel()
+
 	results, err := r.preparedEvalQuery.Eval(ctx, rego.EvalInput(input))
 	if err != nil {
 		return buildErrorReports(err)
