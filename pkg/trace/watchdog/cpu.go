@@ -20,7 +20,7 @@ func cpuTimeUser(pid int32) (float64, error) {
 		return 0, err
 	}
 	if len(times) == 0 {
-		return 0, errors.New("no CPU times returned. Will report 0 CPU usage.")
+		return 0, errors.New("no CPU times returned. Will report 0 CPU usage")
 	}
 	return times[0].User, nil
 }
