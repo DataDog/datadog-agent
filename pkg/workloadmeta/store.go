@@ -452,6 +452,7 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 					Entity: entity,
 				})
 			} else {
+				entity = entity.DeepCopy()
 				err := entity.Merge(ev.Entity)
 				if err != nil {
 					log.Errorf("cannot merge %+v into %+v: %s", entity, ev.Entity, err)
