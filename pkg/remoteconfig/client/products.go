@@ -18,43 +18,39 @@ const (
 	ProductCWSDD = "CWS_DD"
 )
 
-// ConfigAPMSamling is an apm sampling config
-type ConfigAPMSamling struct {
-	c config
+type tufMetadata struct {
+	version   uint64
+	rawLength uint64
+	hashes    map[string][]byte
+}
 
-	ID      string
-	Version uint64
-	Config  apmsampling.APMSampling
+// APMSamplingConfig is an apm sampling config
+type APMSamplingConfig struct {
+	Config apmsampling.APMSampling
+
+	meta tufMetadata
 }
 
 // ConfigCWSDD is a CWS DD config
 type ConfigCWSDD struct {
-	c config
+	Config []byte
 
-	ID      string
-	Version uint64
-	Config  []byte
+	meta tufMetadata
 }
 
-func parseConfigAPMSampling(config config) (ConfigAPMSamling, error) {
+func parseConfigAPMSampling(metadata []byte, data []byte) (APMSamplingConfig, error) {
 	var apmConfig apmsampling.APMSampling
-	_, err := apmConfig.UnmarshalMsg(config.contents)
+	_, err := apmConfig.UnmarshalMsg(data)
 	if err != nil {
-		return ConfigAPMSamling{}, fmt.Errorf("could not parse apm sampling config: %v", err)
+		return APMSamplingConfig{}, fmt.Errorf("could not parse apm sampling config: %v", err)
 	}
-	return ConfigAPMSamling{
-		c:       config,
-		ID:      config.meta.path.ConfigID,
-		Version: *config.meta.custom.Version,
-		Config:  apmConfig,
+	return APMSamplingConfig{
+		Config: apmConfig,
 	}, nil
 }
 
-func parseConfigCWSDD(config config) (ConfigCWSDD, error) {
+func parseConfigCWSDD(metadata []byte, data []byte) (ConfigCWSDD, error) {
 	return ConfigCWSDD{
-		c:       config,
-		ID:      config.meta.path.ConfigID,
-		Version: *config.meta.custom.Version,
-		Config:  config.contents,
+		Config: data,
 	}, nil
 }

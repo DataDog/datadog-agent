@@ -20,7 +20,7 @@ func newRemoteClient() (*remoteClient, error) {
 	out := make(chan config.SamplingUpdate, 10) // remote.Client uses 8
 	go func() {
 		for in := range c.APMSamplingUpdates() {
-			configs := make(map[string]client.ConfigAPMSamling)
+			configs := make(map[string]client.APMSamplingConfig)
 			for _, c := range in {
 				configs[c.ID] = c
 			}

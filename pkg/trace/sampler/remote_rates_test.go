@@ -40,7 +40,7 @@ func newTestRemoteRates() *RemoteRates {
 func configGenerator(version uint64, rates apmsampling.APMSampling) config.SamplingUpdate {
 	return config.SamplingUpdate{
 
-		Configs: map[string]client.ConfigAPMSamling{
+		Configs: map[string]client.APMSamplingConfig{
 			"testid": {
 				ID:      "testid",
 				Version: version,

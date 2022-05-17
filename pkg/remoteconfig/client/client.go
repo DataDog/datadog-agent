@@ -7,10 +7,9 @@ package client
 
 import (
 	"crypto/rand"
-	"fmt"
-	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/internal/uptane"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/theupdateframework/go-tuf/data"
 )
 
 var (
@@ -18,36 +17,43 @@ var (
 	idAlphabet = []rune("_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 )
 
-// Client is a remoteconfig client
-type Client struct {
-	m        sync.Mutex
-	id       string
-	products map[string]struct{}
+// AgentClient is a remote config client used in a downstream process to retrieve
+// remote config updates from an Agent.
+type AgentClient struct {
+	// Client data
+	id                string
+	supportedProducts []string
 
-	partialClient  *uptane.PartialClient
-	currentTargets *uptane.PartialClientTargets
+	// TUF related data
+	roots         [][]byte
+	latestTargets *data.Targets
 
-	currentConfigs *configList
+	// Config files
+	apmConfigs   map[string]APMSamplingConfig
+	cwsDDConfigs map[string]ConfigCWSDD
 }
 
-// NewClient creates a new client
-func NewClient(embededRoot []byte, products []string) *Client {
-	productsMap := make(map[string]struct{})
-	for _, product := range products {
-		productsMap[product] = struct{}{}
-	}
-	return &Client{
-		id:             generateID(),
-		products:       productsMap,
-		partialClient:  uptane.NewPartialClient(embededRoot),
-		currentTargets: &uptane.PartialClientTargets{},
-		currentConfigs: newConfigList(),
+// NewAgentClient creates a new remote config agent Client. It will store updates
+func NewAgentClient(embeddedRoot []byte, products []string) *AgentClient {
+	return &AgentClient{
+		id:                generateID(),
+		supportedProducts: products,
+		roots:             [][]byte{embeddedRoot},
+		apmConfigs:        make(map[string]APMSamplingConfig),
+		cwsDDConfigs:      make(map[string]ConfigCWSDD),
 	}
 }
 
-// ID is the ID of the client
-func (c *Client) ID() string {
-	return c.id
+// Update processes the ClientGetConfigsResponse from the Agent and updates the
+// configuration state
+func (c *AgentClient) Update(update *pbgo.ClientGetConfigsResponse) error {
+	return nil
+}
+
+// NewUpdateRequest builds a new request for a config update from the
+// agent for this AgentClient
+func (c *AgentClient) NewUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
+	return nil, nil
 }
 
 func generateID() string {
@@ -61,78 +67,4 @@ func generateID() string {
 		id[i] = idAlphabet[bytes[i]&63]
 	}
 	return string(id[:idSize])
-}
-
-// State is the TUF state
-type State struct {
-	RootVersion    int64
-	TargetsVersion int64
-}
-
-// State returns the TUF state of the client
-func (c *Client) State() State {
-	return State{
-		RootVersion:    c.partialClient.RootVersion(),
-		TargetsVersion: c.currentTargets.Version(),
-	}
-}
-
-// GetConfigs returns the current assigned configurations
-func (c *Client) GetConfigs(time int64) Configs {
-	c.m.Lock()
-	defer c.m.Unlock()
-	return c.currentConfigs.getCurrentConfigs(c.id, time)
-}
-
-// File is a file
-type File struct {
-	Path string
-	Raw  []byte
-}
-
-// Update is an update bundle for the client
-type Update struct {
-	Roots       [][]byte
-	Targets     []byte
-	TargetFiles map[string][]byte
-}
-
-// Update updates the client
-func (c *Client) Update(update Update) error {
-	c.m.Lock()
-	defer c.m.Unlock()
-	if len(update.Roots) == 0 && len(update.Targets) == 0 {
-		return nil
-	}
-	newTargets, err := c.partialClient.Update(update.Roots, c.currentTargets, update.Targets, update.TargetFiles)
-	if err != nil {
-		return err
-	}
-	newConfigs := newConfigList()
-	for targetPath, targetMeta := range newTargets.Targets() {
-		configMeta, err := parseConfigMeta(targetPath, *targetMeta.Custom)
-		if err != nil {
-			return err
-		}
-		_, hasProduct := c.products[configMeta.path.Product]
-		if !hasProduct || !configMeta.scopedToClient(c.id) {
-			continue
-		}
-		configContents, found := newTargets.TargetFile(targetPath)
-		if !found {
-			return fmt.Errorf("missing config file: %s", targetPath)
-		}
-		config := config{
-			meta:     configMeta,
-			contents: configContents,
-			hash:     configHash(configMeta, configContents),
-		}
-		err = newConfigs.addConfig(config)
-		if err != nil {
-			return err
-		}
-	}
-	c.currentConfigs = newConfigs
-	c.currentTargets = newTargets
-	return nil
 }

@@ -40,7 +40,7 @@ type Client struct {
 
 	lastPollErr error
 
-	apmSamplingUpdates chan []client.ConfigAPMSamling
+	apmSamplingUpdates chan []client.APMSamplingConfig
 	cwsDDUpdates       chan []client.ConfigCWSDD
 }
 
@@ -78,7 +78,7 @@ func newClient(agentName string, products []data.Product, dialOpts ...grpc.DialO
 		close:              close,
 		pollInterval:       1 * time.Second,
 		stateClient:        stateClient,
-		apmSamplingUpdates: make(chan []client.ConfigAPMSamling, 8),
+		apmSamplingUpdates: make(chan []client.APMSamplingConfig, 8),
 		cwsDDUpdates:       make(chan []client.ConfigCWSDD, 8),
 	}, nil
 }
@@ -178,7 +178,7 @@ func (c *Client) configStates() []*pbgo.ConfigState {
 }
 
 // APMSamplingUpdates returns a chan to consume apm sampling updates
-func (c *Client) APMSamplingUpdates() <-chan []client.ConfigAPMSamling {
+func (c *Client) APMSamplingUpdates() <-chan []client.APMSamplingConfig {
 	return c.apmSamplingUpdates
 }
 

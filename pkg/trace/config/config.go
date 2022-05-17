@@ -400,7 +400,7 @@ type RemoteClient interface {
 
 // SamplingUpdate ...
 type SamplingUpdate struct {
-	Configs map[string]client.ConfigAPMSamling
+	Configs map[string]client.APMSamplingConfig
 }
 
 // Tag represents a key/value pair.
