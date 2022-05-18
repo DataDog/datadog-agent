@@ -36,7 +36,7 @@ import (
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/activity_dump"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -224,8 +224,8 @@ func init() {
 	activityDumpGenerateDumpCmd.Flags().StringArrayVar(
 		&activityDumpArgs.localStorageFormats,
 		"format",
-		[]string{"msgp", "dot"},
-		fmt.Sprintf("local storage output formats. Available options are %v.", activity_dump.AllStorageFormats()),
+		[]string{},
+		fmt.Sprintf("local storage output formats. Available options are %v.", dump.AllStorageFormats()),
 	)
 	activityDumpGenerateDumpCmd.Flags().BoolVar(
 		&activityDumpArgs.remoteStorageCompression,
@@ -237,7 +237,7 @@ func init() {
 		&activityDumpArgs.remoteStorageFormats,
 		"remote-format",
 		[]string{},
-		fmt.Sprintf("remote storage output formats. Available options are %v.", activity_dump.AllStorageFormats()),
+		fmt.Sprintf("remote storage output formats. Available options are %v.", dump.AllStorageFormats()),
 	)
 
 	activityDumpStopCmd.Flags().StringVar(
@@ -269,8 +269,8 @@ func init() {
 	activityDumpGenerateEncodingCmd.Flags().StringArrayVar(
 		&activityDumpArgs.localStorageFormats,
 		"format",
-		[]string{"profile", "dot"},
-		fmt.Sprintf("local storage output formats. Available options are %v.", activity_dump.AllStorageFormats()),
+		[]string{},
+		fmt.Sprintf("local storage output formats. Available options are %v.", dump.AllStorageFormats()),
 	)
 	activityDumpGenerateEncodingCmd.Flags().BoolVar(
 		&activityDumpArgs.remoteStorageCompression,
@@ -282,7 +282,7 @@ func init() {
 		&activityDumpArgs.remoteStorageFormats,
 		"remote-format",
 		[]string{},
-		fmt.Sprintf("remote storage output formats. Available options are %v.", activity_dump.AllStorageFormats()),
+		fmt.Sprintf("remote storage output formats. Available options are %v.", dump.AllStorageFormats()),
 	)
 	activityDumpGenerateEncodingCmd.Flags().BoolVar(
 		&activityDumpArgs.remoteRequest,
@@ -378,21 +378,20 @@ func printStorageRequestMessage(prefix string, storage *api.StorageRequestMessag
 	fmt.Printf("%s  compression: %v\n", prefix, storage.GetCompression())
 }
 
-func printSecurityActivityDumpMessage(prefix string, msg *api.SecurityActivityDumpMessage) {
-	fmt.Printf("%s- name: %s\n", prefix, msg.GetName())
-	fmt.Printf("%s  start: %s\n", prefix, msg.GetStart())
-	fmt.Printf("%s  timeout: %s\n", prefix, msg.GetTimeout())
-	fmt.Printf("%s  left: %s\n", prefix, msg.GetLeft())
-	if len(msg.GetComm()) > 0 {
-		fmt.Printf("%s  comm: %s\n", prefix, msg.GetComm())
+func printSecurityActivityDumpMessage(prefix string, msg *api.ActivityDumpMessage) {
+	fmt.Printf("%s- name: %s\n", prefix, msg.GetMetadata().GetName())
+	fmt.Printf("%s  start: %s\n", prefix, msg.GetMetadata().GetStart())
+	fmt.Printf("%s  timeout: %s\n", prefix, msg.GetMetadata().GetTimeout())
+	if len(msg.GetMetadata().GetComm()) > 0 {
+		fmt.Printf("%s  comm: %s\n", prefix, msg.GetMetadata().GetComm())
 	}
-	if len(msg.GetContainerID()) > 0 {
-		fmt.Printf("%s  container ID: %s\n", prefix, msg.GetContainerID())
+	if len(msg.GetMetadata().GetContainerID()) > 0 {
+		fmt.Printf("%s  container ID: %s\n", prefix, msg.GetMetadata().GetContainerID())
 	}
 	if len(msg.GetTags()) > 0 {
 		fmt.Printf("%s  tags: %s\n", prefix, strings.Join(msg.GetTags(), ", "))
 	}
-	fmt.Printf("%s  differentiate args: %v\n", prefix, msg.GetDifferentiateArgs())
+	fmt.Printf("%s  differentiate args: %v\n", prefix, msg.GetMetadata().GetDifferentiateArgs())
 	if len(msg.GetStorage()) > 0 {
 		fmt.Printf("%s  storage:\n", prefix)
 		for _, storage := range msg.GetStorage() {
@@ -403,13 +402,13 @@ func printSecurityActivityDumpMessage(prefix string, msg *api.SecurityActivityDu
 
 func parseStorageRequest() (*api.StorageRequestParams, error) {
 	// parse local storage formats
-	_, err := activity_dump.ParseStorageFormats(activityDumpArgs.localStorageFormats)
+	_, err := dump.ParseStorageFormats(activityDumpArgs.localStorageFormats)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't parse local storage formats %v: %v", activityDumpArgs.localStorageFormats, err)
 	}
 
 	// parse remote storage formats
-	_, err = activity_dump.ParseStorageFormats(activityDumpArgs.remoteStorageFormats)
+	_, err = dump.ParseStorageFormats(activityDumpArgs.remoteStorageFormats)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't parse remote storage formats %v: %v", activityDumpArgs.remoteStorageFormats, err)
 	}
@@ -439,7 +438,7 @@ func generateActivityDump(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	output, err := client.GenerateActivityDump(&api.DumpActivityParams{
+	output, err := client.GenerateActivityDump(&api.ActivityDumpParams{
 		Comm:              activityDumpArgs.comm,
 		Timeout:           int32(activityDumpArgs.timeout),
 		DifferentiateArgs: activityDumpArgs.differentiateArgs,
@@ -543,10 +542,10 @@ func generateEncodingFromActivityDump(cmd *cobra.Command, args []string) error {
 
 	} else {
 		// encoding request will be handled locally
-		var dump sprobe.ActivityDump
+		var ad sprobe.ActivityDump
 
 		// open and parse input file
-		if err := dump.DecodeMSGP(activityDumpArgs.file); err != nil {
+		if err := ad.Decode(activityDumpArgs.file); err != nil {
 			return err
 		}
 		parsedRequests, err := parseStorageRequest()
@@ -554,12 +553,12 @@ func generateEncodingFromActivityDump(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		storageRequests, err := activity_dump.ParseStorageRequests(parsedRequests)
+		storageRequests, err := dump.ParseStorageRequests(parsedRequests)
 		if err != nil {
-			return fmt.Errorf("couldn't parse transcoding request for [%s]: %v", dump.GetSelectorStr(), err)
+			return fmt.Errorf("couldn't parse transcoding request for [%s]: %v", ad.GetSelectorStr(), err)
 		}
 		for _, request := range storageRequests {
-			dump.AddStorageRequest(request)
+			ad.AddStorageRequest(request)
 		}
 
 		storage, err := sprobe.NewActivityDumpStorageManager(nil)
@@ -567,12 +566,12 @@ func generateEncodingFromActivityDump(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("couldn't instantiate storage manager: %w", err)
 		}
 
-		err = storage.Persist(&dump)
+		err = storage.Persist(&ad)
 		if err != nil {
-			return fmt.Errorf("couldn't persist %s dump from %s: %w", activity_dump.Profile, activityDumpArgs.file, err)
+			return fmt.Errorf("couldn't persist dump from %s: %w", activityDumpArgs.file, err)
 		}
 
-		output = dump.ToTranscodingRequestMessage()
+		output = ad.ToTranscodingRequestMessage()
 	}
 
 	if len(output.GetError()) > 0 {

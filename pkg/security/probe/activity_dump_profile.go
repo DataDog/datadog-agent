@@ -155,8 +155,8 @@ func (ad *ActivityDump) GenerateProfileData() Profile {
 	}
 
 	// generate selector
-	if len(ad.Comm) > 0 {
-		p.Selector = fmt.Sprintf("process.comm = \"%s\"", ad.Comm)
+	if len(ad.Metadata.Comm) > 0 {
+		p.Selector = fmt.Sprintf("process.comm = \"%s\"", ad.Metadata.Comm)
 	}
 
 	// Add rules

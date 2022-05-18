@@ -95,11 +95,27 @@ message StorageRequestParams {
     bool RemoteStorageCompression = 5;
 }
 
-message DumpActivityParams {
+message ActivityDumpParams {
     string comm = 1;
     int32 timeout = 2;
     bool DifferentiateArgs = 4;
     StorageRequestParams Storage = 5;
+}
+
+message ActivityDumpMetadataMessage {
+    string AgentVersion = 1;
+    string AgentCommit = 2;
+    string KernelVersion = 3;
+    string LinuxDistribution = 4;
+
+    string Name = 5;
+    string ActivityDumpVersion = 6;
+    bool DifferentiateArgs = 7;
+    string Comm = 8;
+    string ContainerID = 9;
+    string Start = 10;
+    string Timeout = 11;
+    uint64 Size = 12;
 }
 
 message StorageRequestMessage {
@@ -109,31 +125,27 @@ message StorageRequestMessage {
     string File = 4;
 }
 
-message SecurityActivityDumpMessage {
-    string Comm = 1;
-    string ContainerID = 2;
+message ActivityDumpMessage {
+    string Hostname = 1;
+    string Source = 2;
     repeated string Tags = 3;
-    bool DifferentiateArgs = 4;
-    string Timeout = 5;
-    string Start = 6;
-    string Left = 7;
-    string Error = 8;
-    repeated StorageRequestMessage Storage = 9;
-    string Name = 10;
+    repeated StorageRequestMessage Storage = 4;
+    ActivityDumpMetadataMessage Metadata = 5;
+    string Error = 6;
 }
 
-message ListActivityDumpsParams {}
+message ActivityDumpListParams {}
 
-message SecurityActivityDumpListMessage {
-    repeated SecurityActivityDumpMessage Dumps = 1;
+message ActivityDumpListMessage {
+    repeated ActivityDumpMessage Dumps = 1;
     string Error = 2;
 }
 
-message StopActivityDumpParams {
+message ActivityDumpStopParams {
     string Comm = 2;
 }
 
-message SecurityActivityDumpStoppedMessage {
+message ActivityDumpStopMessage {
     string Error = 1;
 }
 
@@ -147,6 +159,14 @@ message TranscodingRequestMessage {
     repeated StorageRequestMessage Storage = 2;
 }
 
+message ActivityDumpStreamParams {}
+
+message ActivityDumpStreamMessage {
+    ActivityDumpMessage Dump = 1;
+    bool IsCompressed = 2;
+    bytes Data = 3;
+}
+
 service SecurityModule {
     rpc GetEvents(GetEventParams) returns (stream SecurityEventMessage) {}
     rpc GetProcessEvents(GetProcessEventParams) returns (stream SecurityProcessEventMessage) {}
@@ -158,8 +178,9 @@ service SecurityModule {
     rpc DumpNetworkNamespace(DumpNetworkNamespaceParams) returns (DumpNetworkNamespaceMessage) {}
 
     // Activity dumps
-    rpc DumpActivity(DumpActivityParams) returns (SecurityActivityDumpMessage) {}
-    rpc ListActivityDumps(ListActivityDumpsParams) returns (SecurityActivityDumpListMessage) {}
-    rpc StopActivityDump(StopActivityDumpParams) returns (SecurityActivityDumpStoppedMessage) {}
+    rpc DumpActivity(ActivityDumpParams) returns (ActivityDumpMessage) {}
+    rpc ListActivityDumps(ActivityDumpListParams) returns (ActivityDumpListMessage) {}
+    rpc StopActivityDump(ActivityDumpStopParams) returns (ActivityDumpStopMessage) {}
     rpc TranscodingRequest(TranscodingRequestParams) returns (TranscodingRequestMessage) {}
+    rpc GetActivityDumpStream(ActivityDumpStreamParams) returns (stream ActivityDumpStreamMessage) {}
 }

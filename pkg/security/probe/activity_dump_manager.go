@@ -11,17 +11,24 @@ package probe
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/probe/activity_dump"
 	"github.com/cilium/ebpf"
 	"github.com/pkg/errors"
 
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util"
+
+	// util.GetHostname(...) will panic without this import
+	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/cgroup"
 )
 
 func getTracedCgroupsCount(p *Probe) uint64 {
@@ -45,6 +52,8 @@ type ActivityDumpManager struct {
 	activeDumps   []*ActivityDump
 	snapshotQueue chan *ActivityDump
 	storage       *ActivityDumpStorageManager
+	contextTags   []string
+	hostname      string
 }
 
 // Start runs the ActivityDumpManager
@@ -68,9 +77,9 @@ func (adm *ActivityDumpManager) Start(ctx context.Context, wg *sync.WaitGroup) {
 			adm.cleanup()
 		case <-tagsTicker.C:
 			adm.resolveTags()
-		case dump := <-adm.snapshotQueue:
-			if err := dump.Snapshot(); err != nil {
-				seclog.Errorf("couldn't snapshot [%s]: %v", dump.GetSelectorStr(), err)
+		case ad := <-adm.snapshotQueue:
+			if err := ad.Snapshot(); err != nil {
+				seclog.Errorf("couldn't snapshot [%s]: %v", ad.GetSelectorStr(), err)
 			}
 		}
 	}
@@ -84,7 +93,7 @@ func (adm *ActivityDumpManager) cleanup() {
 	var toDelete []int
 
 	for i, d := range adm.activeDumps {
-		if time.Now().After(d.Start.Add(d.Timeout)) {
+		if time.Now().After(d.Metadata.Start.Add(d.Metadata.Timeout)) {
 			d.Stop()
 			seclog.Infof("tracing stopped for [%s]", d.GetSelectorStr())
 
@@ -95,9 +104,6 @@ func (adm *ActivityDumpManager) cleanup() {
 			if err := adm.storage.Persist(d); err != nil {
 				seclog.Errorf("couldn't persist dump [%s]: %v", d.GetSelectorStr(), err)
 			}
-
-			// release dump
-			d.Release()
 		}
 	}
 
@@ -112,8 +118,8 @@ func (adm *ActivityDumpManager) resolveTags() {
 	defer adm.Unlock()
 
 	var err error
-	for _, dump := range adm.activeDumps {
-		err = dump.ResolveTags()
+	for _, ad := range adm.activeDumps {
+		err = ad.ResolveTags()
 		if err != nil {
 			seclog.Warnf("couldn't resolve activity dump tags (will try again later): %v", err)
 		}
@@ -176,7 +182,7 @@ func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 		return nil, fmt.Errorf("couldn't instantiate the activity dump storage manager: %w", err)
 	}
 
-	return &ActivityDumpManager{
+	adm := &ActivityDumpManager{
 		probe:               p,
 		tracedPIDsMap:       tracedPIDs,
 		tracedCommsMap:      tracedComms,
@@ -185,51 +191,77 @@ func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 		cgroupWaitListMap:   cgroupWaitList,
 		snapshotQueue:       make(chan *ActivityDump, 100),
 		storage:             storageManager,
-	}, nil
+	}
+	adm.prepareContextTags()
+	return adm, nil
+}
+
+func (adm *ActivityDumpManager) prepareContextTags() {
+	var err error
+
+	// add hostname tag
+	adm.hostname, err = util.GetHostname(context.TODO())
+	if err != nil {
+		adm.hostname = "unknown"
+	}
+	adm.contextTags = append(adm.contextTags, fmt.Sprintf("host:%s", adm.hostname))
+
+	// merge tags from config
+	for _, tag := range coreconfig.GetConfiguredTags(true) {
+		if strings.HasPrefix(tag, "host") {
+			continue
+		}
+		adm.contextTags = append(adm.contextTags, tag)
+	}
+
+	// add source tag
+	if len(utils.GetTagValue("source", adm.contextTags)) == 0 {
+		adm.contextTags = append(adm.contextTags, fmt.Sprintf("source:%s", ActivityDumpSource))
+	}
 }
 
 // insertActivityDump inserts an activity dump in the list of activity dumps handled by the manager
 func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error {
 	// sanity checks
-	if len(newDump.ContainerID) > 0 {
+	if len(newDump.Metadata.ContainerID) > 0 {
 		// check if the provided container ID is new
-		for _, dump := range adm.activeDumps {
-			if dump.ContainerID == newDump.ContainerID {
+		for _, ad := range adm.activeDumps {
+			if ad.Metadata.ContainerID == newDump.Metadata.ContainerID {
 				// an activity dump is already active for this container ID, ignore
 				return nil
 			}
 		}
 	}
 
-	if len(newDump.Comm) > 0 {
+	if len(newDump.Metadata.Comm) > 0 {
 		// check if the provided comm is new
-		for _, dump := range adm.activeDumps {
-			if dump.Comm == newDump.Comm {
+		for _, ad := range adm.activeDumps {
+			if ad.Metadata.Comm == newDump.Metadata.Comm {
 				return fmt.Errorf("an activity dump is already active for the provided comm")
 			}
 		}
 	}
 
 	// dump will be added, push kernel space filters
-	if len(newDump.ContainerID) > 0 {
+	if len(newDump.Metadata.ContainerID) > 0 {
 		// put this container ID on the wait list so that we don't snapshot it again before a while
 		containerIDB := make([]byte, model.ContainerIDLen)
-		copy(containerIDB, newDump.ContainerID)
+		copy(containerIDB, newDump.Metadata.ContainerID)
 		waitListTimeout := time.Now().Add(time.Duration(adm.probe.config.ActivityDumpCgroupWaitListSize) * adm.probe.config.ActivityDumpCgroupDumpTimeout)
 		waitListTimeoutRaw := adm.probe.resolvers.TimeResolver.ComputeMonotonicTimestamp(waitListTimeout)
 		err := adm.cgroupWaitListMap.Put(containerIDB, waitListTimeoutRaw)
 		if err != nil {
-			seclog.Debugf("couldn't insert container ID %s to cgroup_wait_list: %v", newDump.ContainerID, err)
+			seclog.Debugf("couldn't insert container ID %s to cgroup_wait_list: %v", newDump.Metadata.ContainerID, err)
 		}
 	}
 
-	if len(newDump.Comm) > 0 {
+	if len(newDump.Metadata.Comm) > 0 {
 		commB := make([]byte, 16)
-		copy(commB, newDump.Comm)
+		copy(commB, newDump.Metadata.Comm)
 		value := newDump.getTimeoutRawTimestamp()
 		err := adm.tracedCommsMap.Put(commB, &value)
 		if err != nil {
-			seclog.Debugf("couldn't insert activity dump filter comm(%s): %v", newDump.Comm, err)
+			seclog.Debugf("couldn't insert activity dump filter comm(%s): %v", newDump.Metadata.Comm, err)
 		}
 	}
 
@@ -258,15 +290,15 @@ func (adm *ActivityDumpManager) HandleCgroupTracingEvent(event *model.CgroupTrac
 		return
 	}
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
-		ad.ContainerID = event.ContainerContext.ID
-		ad.Timeout = adm.probe.resolvers.TimeResolver.ResolveMonotonicTimestamp(event.TimeoutRaw).Sub(time.Now())
-		ad.DifferentiateArgs = adm.probe.config.ActivityDumpCgroupDifferentiateGraphs
+		ad.Metadata.ContainerID = event.ContainerContext.ID
+		ad.Metadata.Timeout = adm.probe.resolvers.TimeResolver.ResolveMonotonicTimestamp(event.TimeoutRaw).Sub(time.Now())
+		ad.Metadata.DifferentiateArgs = adm.probe.config.ActivityDumpCgroupDifferentiateGraphs
 	})
 
 	// add local storage requests
 	for _, format := range adm.probe.config.ActivityDumpLocalStorageFormats {
-		newDump.AddStorageRequest(activity_dump.NewStorageRequest(
-			activity_dump.LocalStorage,
+		newDump.AddStorageRequest(dump.NewStorageRequest(
+			dump.LocalStorage,
 			format,
 			adm.probe.config.ActivityDumpLocalStorageCompression,
 			adm.probe.config.ActivityDumpLocalStorageDirectory,
@@ -275,8 +307,8 @@ func (adm *ActivityDumpManager) HandleCgroupTracingEvent(event *model.CgroupTrac
 
 	// add remote storage requests
 	for _, format := range adm.probe.config.ActivityDumpRemoteStorageFormats {
-		newDump.AddStorageRequest(activity_dump.NewStorageRequest(
-			activity_dump.RemoteStorage,
+		newDump.AddStorageRequest(dump.NewStorageRequest(
+			dump.RemoteStorage,
 			format,
 			adm.probe.config.ActivityDumpRemoteStorageCompression,
 			"",
@@ -291,21 +323,21 @@ func (adm *ActivityDumpManager) HandleCgroupTracingEvent(event *model.CgroupTrac
 }
 
 // DumpActivity handles an activity dump request
-func (adm *ActivityDumpManager) DumpActivity(params *api.DumpActivityParams) (*api.SecurityActivityDumpMessage, error) {
+func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
 	adm.Lock()
 	defer adm.Unlock()
 
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
-		ad.Comm = params.GetComm()
-		ad.Timeout = time.Duration(params.Timeout) * time.Minute
-		ad.DifferentiateArgs = params.GetDifferentiateArgs()
+		ad.Metadata.Comm = params.GetComm()
+		ad.Metadata.Timeout = time.Duration(params.Timeout) * time.Minute
+		ad.Metadata.DifferentiateArgs = params.GetDifferentiateArgs()
 	})
 
 	// add local storage requests
-	storageRequests, err := activity_dump.ParseStorageRequests(params.GetStorage())
+	storageRequests, err := dump.ParseStorageRequests(params.GetStorage())
 	if err != nil {
 		errMsg := fmt.Errorf("couldn't start tracing [%s]: %v", newDump.GetSelectorStr(), err)
-		return &api.SecurityActivityDumpMessage{Error: errMsg.Error()}, errMsg
+		return &api.ActivityDumpMessage{Error: errMsg.Error()}, errMsg
 	}
 	for _, request := range storageRequests {
 		newDump.AddStorageRequest(request)
@@ -313,7 +345,7 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.DumpActivityParams) (*a
 
 	if err = adm.insertActivityDump(newDump); err != nil {
 		errMsg := fmt.Errorf("couldn't start tracing [%s]: %v", newDump.GetSelectorStr(), err)
-		return &api.SecurityActivityDumpMessage{Error: errMsg.Error()}, errMsg
+		return &api.ActivityDumpMessage{Error: errMsg.Error()}, errMsg
 	}
 	seclog.Infof("tracing started for [%s]", newDump.GetSelectorStr())
 
@@ -321,21 +353,21 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.DumpActivityParams) (*a
 }
 
 // ListActivityDumps returns the list of active activity dumps
-func (adm *ActivityDumpManager) ListActivityDumps(params *api.ListActivityDumpsParams) (*api.SecurityActivityDumpListMessage, error) {
+func (adm *ActivityDumpManager) ListActivityDumps(params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
 	adm.Lock()
 	defer adm.Unlock()
 
-	var activeDumps []*api.SecurityActivityDumpMessage
+	var activeDumps []*api.ActivityDumpMessage
 	for _, d := range adm.activeDumps {
 		activeDumps = append(activeDumps, d.ToSecurityActivityDumpMessage())
 	}
-	return &api.SecurityActivityDumpListMessage{
+	return &api.ActivityDumpListMessage{
 		Dumps: activeDumps,
 	}, nil
 }
 
 // StopActivityDump stops an active activity dump
-func (adm *ActivityDumpManager) StopActivityDump(params *api.StopActivityDumpParams) (*api.SecurityActivityDumpStoppedMessage, error) {
+func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
 	adm.Lock()
 	defer adm.Unlock()
 
@@ -350,18 +382,15 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.StopActivityDumpPar
 			if err := adm.storage.Persist(d); err != nil {
 				seclog.Errorf("couldn't persist [%s]: %v", d.GetSelectorStr(), err)
 			}
-
-			// release activity dump resources
-			d.Release()
 			break
 		}
 	}
 	if toDelete >= 0 {
 		adm.activeDumps = append(adm.activeDumps[:toDelete], adm.activeDumps[toDelete+1:]...)
-		return &api.SecurityActivityDumpStoppedMessage{}, nil
+		return &api.ActivityDumpStopMessage{}, nil
 	}
 	errMsg := errors.Errorf("the activity dump manager does not contain any ActivityDump with the following comm: %s", params.GetComm())
-	return &api.SecurityActivityDumpStoppedMessage{Error: errMsg.Error()}, errMsg
+	return &api.ActivityDumpStopMessage{Error: errMsg.Error()}, errMsg
 }
 
 // ProcessEvent processes a new event and insert it in an activity dump if applicable
@@ -400,30 +429,30 @@ func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(ad *Activi
 func (adm *ActivityDumpManager) TranscodingRequest(params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
 	adm.Lock()
 	defer adm.Unlock()
-	var dump ActivityDump
+	var ad ActivityDump
 
 	// open and parse input file
-	if err := dump.Decode(params.GetActivityDumpFile()); err != nil {
+	if err := ad.Decode(params.GetActivityDumpFile()); err != nil {
 		errMsg := errors.Errorf("couldn't parse input file %s: %v", params.GetActivityDumpFile(), err)
 		return &api.TranscodingRequestMessage{Error: errMsg.Error()}, errMsg
 	}
 
 	// add transcoding requests
-	storageRequests, err := activity_dump.ParseStorageRequests(params.GetStorage())
+	storageRequests, err := dump.ParseStorageRequests(params.GetStorage())
 	if err != nil {
-		errMsg := fmt.Errorf("couldn't parse transcoding request for [%s]: %v", dump.GetSelectorStr(), err)
+		errMsg := fmt.Errorf("couldn't parse transcoding request for [%s]: %v", ad.GetSelectorStr(), err)
 		return &api.TranscodingRequestMessage{Error: errMsg.Error()}, errMsg
 	}
 	for _, request := range storageRequests {
-		dump.AddStorageRequest(request)
+		ad.AddStorageRequest(request)
 	}
 
 	// persist to execute transcoding request
-	if err = adm.storage.Persist(&dump); err != nil {
-		seclog.Errorf("couldn't persist [%s]: %v", dump.GetSelectorStr(), err)
+	if err = adm.storage.Persist(&ad); err != nil {
+		seclog.Errorf("couldn't persist [%s]: %v", ad.GetSelectorStr(), err)
 	}
 
-	return dump.ToTranscodingRequestMessage(), nil
+	return ad.ToTranscodingRequestMessage(), nil
 }
 
 // SendStats sends the activity dump manager stats
@@ -431,9 +460,9 @@ func (adm *ActivityDumpManager) SendStats() error {
 	adm.Lock()
 	defer adm.Unlock()
 
-	for _, dump := range adm.activeDumps {
-		if err := dump.SendStats(); err != nil {
-			return errors.Wrapf(err, "couldn't send metrics for [%s]", dump.GetSelectorStr())
+	for _, ad := range adm.activeDumps {
+		if err := ad.SendStats(); err != nil {
+			return errors.Wrapf(err, "couldn't send metrics for [%s]", ad.GetSelectorStr())
 		}
 	}
 
@@ -461,5 +490,32 @@ func (adm *ActivityDumpManager) snapshotTracedCgroups() {
 
 	if err = iterator.Err(); err != nil {
 		seclog.Errorf("couldn't iterate over the map traced_cgroups: %v", err)
+	}
+}
+
+// AddContextTags adds context tags to the activity dump
+func (adm *ActivityDumpManager) AddContextTags(ad *ActivityDump) {
+	var tagName string
+	var found bool
+
+	dumpTagNames := make([]string, 0, len(ad.Tags))
+	for _, tag := range ad.Tags {
+		dumpTagNames = append(dumpTagNames, utils.GetTagName(tag))
+	}
+
+	for _, tag := range adm.contextTags {
+		tagName = utils.GetTagName(tag)
+		found = false
+
+		for _, dumpTagName := range dumpTagNames {
+			if tagName == dumpTagName {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			ad.Tags = append(ad.Tags, tag)
+		}
 	}
 }

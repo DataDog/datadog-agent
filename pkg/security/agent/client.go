@@ -33,18 +33,18 @@ func (c *RuntimeSecurityClient) DumpProcessCache(withArgs bool) (string, error) 
 }
 
 // GenerateActivityDump send a dump activity request
-func (c *RuntimeSecurityClient) GenerateActivityDump(request *api.DumpActivityParams) (*api.SecurityActivityDumpMessage, error) {
+func (c *RuntimeSecurityClient) GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
 	return c.apiClient.DumpActivity(context.Background(), request)
 }
 
 // ListActivityDumps lists the active activity dumps
-func (c *RuntimeSecurityClient) ListActivityDumps() (*api.SecurityActivityDumpListMessage, error) {
-	return c.apiClient.ListActivityDumps(context.Background(), &api.ListActivityDumpsParams{})
+func (c *RuntimeSecurityClient) ListActivityDumps() (*api.ActivityDumpListMessage, error) {
+	return c.apiClient.ListActivityDumps(context.Background(), &api.ActivityDumpListParams{})
 }
 
 // StopActivityDump stops an active dump if it exists
-func (c *RuntimeSecurityClient) StopActivityDump(comm string) (*api.SecurityActivityDumpStoppedMessage, error) {
-	return c.apiClient.StopActivityDump(context.Background(), &api.StopActivityDumpParams{
+func (c *RuntimeSecurityClient) StopActivityDump(comm string) (*api.ActivityDumpStopMessage, error) {
+	return c.apiClient.StopActivityDump(context.Background(), &api.ActivityDumpStopParams{
 		Comm: comm,
 	})
 }
@@ -95,6 +95,15 @@ func (c *RuntimeSecurityClient) ReloadPolicies() (*api.ReloadPoliciesResultMessa
 // GetEvents returns a stream of events
 func (c *RuntimeSecurityClient) GetEvents() (api.SecurityModule_GetEventsClient, error) {
 	stream, err := c.apiClient.GetEvents(context.Background(), &api.GetEventParams{})
+	if err != nil {
+		return nil, err
+	}
+	return stream, nil
+}
+
+// GetActivityDumpStream returns a stream of activity dumps
+func (c *RuntimeSecurityClient) GetActivityDumpStream() (api.SecurityModule_GetActivityDumpStreamClient, error) {
+	stream, err := c.apiClient.GetActivityDumpStream(context.Background(), &api.ActivityDumpStreamParams{})
 	if err != nil {
 		return nil, err
 	}

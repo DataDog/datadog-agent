@@ -16,7 +16,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/DataDog/datadog-agent/pkg/security/probe/activity_dump"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -93,12 +93,12 @@ func (ad *ActivityDump) EncodeDOT() (*bytes.Buffer, error) {
 	ad.Lock()
 	defer ad.Unlock()
 
-	title := fmt.Sprintf("%s: %s", ad.Name, ad.GetSelectorStr())
+	title := fmt.Sprintf("%s: %s", ad.Metadata.Name, ad.GetSelectorStr())
 	data := ad.prepareGraphData(title)
 	t := template.Must(template.New("tmpl").Parse(GraphTemplate))
 	raw := bytes.NewBuffer(nil)
 	if err := t.Execute(raw, data); err != nil {
-		return nil, fmt.Errorf("couldn't encode %s in %s: %w", ad.GetSelectorStr(), activity_dump.DOT, err)
+		return nil, fmt.Errorf("couldn't encode %s in %s: %w", ad.GetSelectorStr(), dump.DOT, err)
 	}
 	return raw, nil
 }
@@ -118,8 +118,8 @@ func (ad *ActivityDump) prepareGraphData(title string) graph {
 
 func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data *graph) {
 	var args string
-	if p.Process.ArgsEntry != nil {
-		args = strings.ReplaceAll(strings.Join(p.Process.ArgsEntry.Values, " "), "\"", "\\\"")
+	if argv, _ := ad.adm.probe.resolvers.ProcessResolver.GetProcessScrubbedArgv(&p.Process); len(argv) > 0 {
+		args = strings.ReplaceAll(strings.Join(argv, " "), "\"", "\\\"")
 		args = strings.ReplaceAll(args, "\n", " ")
 		args = strings.ReplaceAll(args, ">", "\\>")
 		args = strings.ReplaceAll(args, "|", "\\|")

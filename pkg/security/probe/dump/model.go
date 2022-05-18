@@ -8,7 +8,7 @@
 
 //go:generate go run github.com/tinylib/msgp -o=model_gen_linux.go -tests=false
 
-package activity_dump
+package dump
 
 import (
 	"fmt"
@@ -20,6 +20,9 @@ import (
 func init() {
 	for _, format := range AllStorageFormats() {
 		strToFormats[format.String()] = format
+	}
+	for _, storage := range AllStorageTypes() {
+		strToTypes[storage.String()] = storage
 	}
 }
 
@@ -122,12 +125,12 @@ func AllStorageFormats() []StorageFormat {
 
 // ParseStorageFormat returns a storage format from a string input
 func ParseStorageFormat(input string) (StorageFormat, error) {
-	if input[0] == '.' {
+	if len(input) > 0 && input[0] == '.' {
 		input = input[1:]
 	}
 	format, ok := strToFormats[input]
 	if !ok {
-		return "", fmt.Errorf("%s: unkown storage format, available options are %v", input, AllStorageFormats())
+		return "", fmt.Errorf("%s: unknown storage format, available options are %v", input, AllStorageFormats())
 	}
 	return format, nil
 }
@@ -155,6 +158,15 @@ const (
 	RemoteStorage
 )
 
+// AllStorageTypes returns the list of supported storage types
+func AllStorageTypes() []StorageType {
+	return []StorageType{LocalStorage, RemoteStorage}
+}
+
+var (
+	strToTypes = make(map[string]StorageType)
+)
+
 func (st StorageType) String() string {
 	switch st {
 	case LocalStorage:
@@ -164,4 +176,13 @@ func (st StorageType) String() string {
 	default:
 		return ""
 	}
+}
+
+// ParseStorageType returns a storage type from its string representation
+func ParseStorageType(input string) (StorageType, error) {
+	storageType, ok := strToTypes[input]
+	if !ok {
+		return -1, fmt.Errorf("unknown storage type [%s]", input)
+	}
+	return storageType, nil
 }

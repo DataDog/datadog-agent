@@ -7,6 +7,7 @@
 // +build linux
 
 //go:generate go run github.com/tinylib/msgp -o=activity_dump_gen_linux.go -tests=false
+//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
 
 package probe
 
@@ -31,10 +32,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/activity_dump"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/version"
+)
+
+const (
+	// ActivityDumpVersion defines the version of the activity dump
+	ActivityDumpVersion = "0.1"
+	// ActivityDumpSource defines the source of activity dumps
+	ActivityDumpSource = "runtime-security-agent"
 )
 
 // ActivityDumpStatus defines the state of an activity dump
@@ -47,7 +56,27 @@ const (
 	Running
 )
 
+// DumpMetadata is used to provide context about the activity dump
+type DumpMetadata struct {
+	AgentVersion      string `msg:"agent_version" json:"agent_version"`
+	AgentCommit       string `msg:"agent_commit" json:"agent_commit"`
+	KernelVersion     string `msg:"kernel_version" json:"kernel_version"`
+	LinuxDistribution string `msg:"linux_distribution" json:"linux_distribution"`
+
+	Name                string        `msg:"name" json:"name"`
+	ActivityDumpVersion string        `msg:"activity_dump_version" json:"activity_dump_version"`
+	DifferentiateArgs   bool          `msg:"differentiate_args" json:"differentiate_args"`
+	Comm                string        `msg:"comm,omitempty" json:"comm,omitempty"`
+	ContainerID         string        `msg:"container_id,omitempty" json:"container_id,omitempty"`
+	Start               time.Time     `msg:"start" json:"start"`
+	Timeout             time.Duration `msg:"-" json:"-"`
+	End                 time.Time     `msg:"end" json:"end"`
+	timeoutRaw          int64         `msg:"-"`
+	Size                uint64        `msg:"size,omitempty" json:"size,omitempty"`
+}
+
 // ActivityDump holds the activity tree for the workload defined by the provided list of tags
+// easyjson:json
 type ActivityDump struct {
 	sync.Mutex         `msg:"-"`
 	state              ActivityDumpStatus
@@ -56,19 +85,18 @@ type ActivityDump struct {
 	addedRuntimeCount  map[model.EventType]*uint64
 	addedSnapshotCount map[model.EventType]*uint64
 
-	CookiesNode         map[uint32]*ProcessActivityNode `msg:"-"`
-	ProcessActivityTree []*ProcessActivityNode          `msg:"tree,omitempty"`
-	DifferentiateArgs   bool                            `msg:"differentiate_args"`
-	Comm                string                          `msg:"comm,omitempty"`
-	ContainerID         string                          `msg:"container_id,omitempty"`
-	Tags                []string                        `msg:"tags,omitempty"`
-	Start               time.Time                       `msg:"start"`
-	Timeout             time.Duration                   `msg:"-"`
-	End                 time.Time                       `msg:"end"`
-	timeoutRaw          int64                           `msg:"-"`
-	Name                string                          `msg:"name"`
+	// standard attributes used by the intake
+	Hostname string   `msg:"hostname" json:"hostname,omitempty"`
+	Source   string   `msg:"source" json:"ddsource,omitempty"`
+	Tags     []string `msg:"tags,omitempty" json:"-"`
+	DDTags   string   `msg:"-" json:"ddtags,omitempty"`
 
-	StorageRequests map[activity_dump.StorageFormat][]activity_dump.StorageRequest `msg:"storage_requests,omitempty"`
+	CookiesNode         map[uint32]*ProcessActivityNode              `msg:"-" json:"-"`
+	ProcessActivityTree []*ProcessActivityNode                       `msg:"tree,omitempty" json:"-"`
+	StorageRequests     map[dump.StorageFormat][]dump.StorageRequest `msg:"storage_requests,omitempty" json:"-"`
+
+	// Dump metadata
+	Metadata DumpMetadata `msg:"metadata" json:"metadata"`
 }
 
 // WithDumpOption can be used to configure an ActivityDump
@@ -78,14 +106,23 @@ type WithDumpOption func(ad *ActivityDump)
 // NewActivityDump returns a new instance of an ActivityDump
 func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *ActivityDump {
 	ad := ActivityDump{
+		Metadata: DumpMetadata{
+			AgentVersion:        version.AgentVersion,
+			AgentCommit:         version.Commit,
+			KernelVersion:       adm.probe.kernelVersion.Code.String(),
+			LinuxDistribution:   adm.probe.kernelVersion.OsRelease["PRETTY_NAME"],
+			Name:                fmt.Sprintf("activity-dump-%s", eval.RandString(10)),
+			ActivityDumpVersion: ActivityDumpVersion,
+			Start:               time.Now(),
+		},
+		Hostname:           adm.hostname,
+		Source:             ActivityDumpSource,
 		CookiesNode:        make(map[uint32]*ProcessActivityNode),
-		Start:              time.Now(),
 		adm:                adm,
 		processedCount:     make(map[model.EventType]*uint64),
 		addedRuntimeCount:  make(map[model.EventType]*uint64),
 		addedSnapshotCount: make(map[model.EventType]*uint64),
-		StorageRequests:    make(map[activity_dump.StorageFormat][]activity_dump.StorageRequest),
-		Name:               fmt.Sprintf("activity-dump-%s", eval.RandString(10)),
+		StorageRequests:    make(map[dump.StorageFormat][]dump.StorageRequest),
 	}
 
 	for _, option := range options {
@@ -105,6 +142,70 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 	return &ad
 }
 
+// NewActivityDumpFromMessage returns a new ActivityDump from a SecurityActivityDumpMessage
+func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, error) {
+	metadata := msg.GetMetadata()
+	if metadata == nil {
+		return nil, fmt.Errorf("couldn't create new ActivityDump: missing activity dump metadata")
+	}
+
+	startTime, err := time.Parse(time.RFC822, metadata.GetStart())
+	if err != nil {
+		return nil, fmt.Errorf("couldn't parse start time [%s]: %w", metadata.GetStart(), err)
+	}
+	timeout, err := time.ParseDuration(metadata.GetTimeout())
+	if err != nil {
+		return nil, fmt.Errorf("couldn't parse timeout [%s]: %w", metadata.GetTimeout(), err)
+	}
+
+	ad := ActivityDump{
+		CookiesNode:        make(map[uint32]*ProcessActivityNode),
+		processedCount:     make(map[model.EventType]*uint64),
+		addedRuntimeCount:  make(map[model.EventType]*uint64),
+		addedSnapshotCount: make(map[model.EventType]*uint64),
+		StorageRequests:    make(map[dump.StorageFormat][]dump.StorageRequest),
+		Hostname:           msg.GetHostname(),
+		Source:             msg.GetSource(),
+		Tags:               msg.GetTags(),
+		Metadata: DumpMetadata{
+			AgentVersion:        metadata.GetAgentVersion(),
+			AgentCommit:         metadata.GetAgentCommit(),
+			KernelVersion:       metadata.GetKernelVersion(),
+			LinuxDistribution:   metadata.GetLinuxDistribution(),
+			Name:                metadata.GetName(),
+			ActivityDumpVersion: metadata.GetActivityDumpVersion(),
+			DifferentiateArgs:   metadata.GetDifferentiateArgs(),
+			Comm:                metadata.GetComm(),
+			ContainerID:         metadata.GetContainerID(),
+			Start:               startTime,
+			Timeout:             timeout,
+			End:                 startTime.Add(timeout),
+			Size:                metadata.GetSize(),
+		},
+	}
+
+	// parse requests from message
+	for _, request := range msg.GetStorage() {
+		storageType, err := dump.ParseStorageType(request.GetType())
+		if err != nil {
+			// invalid storage type, ignore
+			continue
+		}
+		storageFormat, err := dump.ParseStorageFormat(request.GetFormat())
+		if err != nil {
+			// invalid storage format, ignore
+			continue
+		}
+		ad.StorageRequests[storageFormat] = append(ad.StorageRequests[storageFormat], dump.NewStorageRequest(
+			storageType,
+			storageFormat,
+			request.GetCompression(),
+			filepath.Base(request.File),
+		))
+	}
+	return &ad, nil
+}
+
 // SetState sets the status of the activity dump
 func (ad *ActivityDump) SetState(state ActivityDumpStatus) {
 	ad.Lock()
@@ -113,22 +214,22 @@ func (ad *ActivityDump) SetState(state ActivityDumpStatus) {
 }
 
 // AddStorageRequest adds a storage request to an activity dump
-func (ad *ActivityDump) AddStorageRequest(request activity_dump.StorageRequest) {
+func (ad *ActivityDump) AddStorageRequest(request dump.StorageRequest) {
 	ad.Lock()
 	defer ad.Unlock()
 
 	if ad.StorageRequests == nil {
-		ad.StorageRequests = make(map[activity_dump.StorageFormat][]activity_dump.StorageRequest)
+		ad.StorageRequests = make(map[dump.StorageFormat][]dump.StorageRequest)
 	}
 	ad.StorageRequests[request.Format] = append(ad.StorageRequests[request.Format], request)
 }
 
 // getTimeoutRawTimestamp returns the timeout timestamp of the current activity dump as a monolitic kernel timestamp
 func (ad *ActivityDump) getTimeoutRawTimestamp() int64 {
-	if ad.timeoutRaw == 0 {
-		ad.timeoutRaw = ad.adm.probe.resolvers.TimeResolver.ComputeMonotonicTimestamp(ad.Start.Add(ad.Timeout))
+	if ad.Metadata.timeoutRaw == 0 {
+		ad.Metadata.timeoutRaw = ad.adm.probe.resolvers.TimeResolver.ComputeMonotonicTimestamp(ad.Metadata.Start.Add(ad.Metadata.Timeout))
 	}
-	return ad.timeoutRaw
+	return ad.Metadata.timeoutRaw
 }
 
 // updateTracedPidTimeout updates the timeout of a traced pid in kernel space
@@ -143,12 +244,12 @@ func (ad *ActivityDump) updateTracedPidTimeout(pid uint32) {
 
 // commMatches returns true if the ActivityDump comm matches the provided comm
 func (ad *ActivityDump) commMatches(comm string) bool {
-	return ad.Comm == comm
+	return ad.Metadata.Comm == comm
 }
 
 // containerIDMatches returns true if the ActivityDump container ID matches the provided container ID
 func (ad *ActivityDump) containerIDMatches(containerID string) bool {
-	return ad.ContainerID == containerID
+	return ad.Metadata.ContainerID == containerID
 }
 
 // Matches returns true if the provided list of tags and / or the provided comm match the current ActivityDump
@@ -157,13 +258,13 @@ func (ad *ActivityDump) Matches(entry *model.ProcessCacheEntry) bool {
 		return false
 	}
 
-	if len(ad.ContainerID) > 0 {
+	if len(ad.Metadata.ContainerID) > 0 {
 		if !ad.containerIDMatches(entry.ContainerID) {
 			return false
 		}
 	}
 
-	if len(ad.Comm) > 0 {
+	if len(ad.Metadata.Comm) > 0 {
 		if !ad.commMatches(entry.Comm) {
 			return false
 		}
@@ -172,43 +273,51 @@ func (ad *ActivityDump) Matches(entry *model.ProcessCacheEntry) bool {
 	return true
 }
 
+// scrubAndRetainProcessArgsEnvs scrubs process arguments and environment variables
+func (ad *ActivityDump) scrubAndRetainProcessArgsEnvs(nodes []*ProcessActivityNode) {
+	// iterate through all the process nodes
+	for _, node := range nodes {
+
+		// scrub the current process
+		node.scrubAndReleaseArgsEnvs(ad.adm.probe.resolvers.ProcessResolver)
+
+		// scrub each child recursively
+		ad.scrubAndRetainProcessArgsEnvs(node.Children)
+	}
+}
+
 // Stop stops an active dump
 func (ad *ActivityDump) Stop() {
 	ad.Lock()
 	defer ad.Unlock()
 	ad.state = Stopped
-	ad.End = time.Now()
+	ad.Metadata.End = time.Now()
 
 	// remove comm from kernel space
-	if len(ad.Comm) > 0 {
+	if len(ad.Metadata.Comm) > 0 {
 		commB := make([]byte, 16)
-		copy(commB, ad.Comm)
+		copy(commB, ad.Metadata.Comm)
 		err := ad.adm.tracedCommsMap.Delete(commB)
 		if err != nil {
-			seclog.Debugf("couldn't delete activity dump filter comm(%s): %v", ad.Comm, err)
+			seclog.Debugf("couldn't delete activity dump filter comm(%s): %v", ad.Metadata.Comm, err)
 		}
 	}
 
 	// remove container ID from kernel space
-	if len(ad.ContainerID) > 0 {
+	if len(ad.Metadata.ContainerID) > 0 {
 		containerIDB := make([]byte, model.ContainerIDLen)
-		copy(containerIDB, ad.ContainerID)
+		copy(containerIDB, ad.Metadata.ContainerID)
 		err := ad.adm.tracedCgroupsMap.Delete(containerIDB)
 		if err != nil {
-			seclog.Debugf("couldn't delete activity dump filter containerID(%s): %v", ad.ContainerID, err)
+			seclog.Debugf("couldn't delete activity dump filter containerID(%s): %v", ad.Metadata.ContainerID, err)
 		}
 	}
-}
 
-// Release releases all the resources held by an activity dump
-func (ad *ActivityDump) Release() {
-	ad.Lock()
-	defer ad.Unlock()
+	// add additionnal tags
+	ad.adm.AddContextTags(ad)
 
-	// release all shared resources
-	for _, p := range ad.ProcessActivityTree {
-		p.recursiveRelease()
-	}
+	// scrub processes and retain args envs now
+	ad.scrubAndRetainProcessArgsEnvs(ad.ProcessActivityTree)
 }
 
 // nolint: unused
@@ -310,7 +419,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 
 		// go through the root nodes and check if one of them matches the input ProcessCacheEntry:
 		for _, root := range ad.ProcessActivityTree {
-			if root.Matches(entry, ad.DifferentiateArgs, ad.adm.probe.resolvers) {
+			if root.Matches(entry, ad.Metadata.DifferentiateArgs, ad.adm.probe.resolvers) {
 				return root
 			}
 		}
@@ -325,7 +434,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 		// to add the current entry no matter if it matches the selector or not. Go through the root children of the
 		// parent node and check if one of them matches the input ProcessCacheEntry.
 		for _, child := range parentNode.Children {
-			if child.Matches(entry, ad.DifferentiateArgs, ad.adm.probe.resolvers) {
+			if child.Matches(entry, ad.Metadata.DifferentiateArgs, ad.adm.probe.resolvers) {
 				return child
 			}
 		}
@@ -357,16 +466,20 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 
 // GetSelectorStr returns a string representation of the profile selector
 func (ad *ActivityDump) GetSelectorStr() string {
+	var tags []string
+	if len(ad.Metadata.ContainerID) > 0 {
+		tags = append(tags, fmt.Sprintf("container_id:%s", ad.Metadata.ContainerID))
+	}
+	if len(ad.Metadata.Comm) > 0 {
+		tags = append(tags, fmt.Sprintf("comm:%s", ad.Metadata.Comm))
+	}
 	if len(ad.Tags) > 0 {
-		return strings.Join(ad.Tags, ",")
+		tags = append(tags, ad.Tags...)
 	}
-	if len(ad.ContainerID) > 0 {
-		return fmt.Sprintf("container_id:%s", ad.ContainerID)
+	if len(tags) == 0 {
+		return "empty_selector"
 	}
-	if len(ad.Comm) > 0 {
-		return fmt.Sprintf("comm:%s", ad.Comm)
-	}
-	return "empty_selector"
+	return strings.Join(tags, ",")
 }
 
 // SendStats sends activity dump stats
@@ -428,37 +541,46 @@ func (ad *ActivityDump) ResolveTags() error {
 
 // resolveTags thread unsafe version ot ResolveTags
 func (ad *ActivityDump) resolveTags() error {
-	if len(ad.Tags) > 0 || len(ad.ContainerID) == 0 {
+	if len(ad.Tags) > 0 || len(ad.Metadata.ContainerID) == 0 {
 		return nil
 	}
 
 	var err error
-	ad.Tags, err = ad.adm.probe.resolvers.TagsResolver.ResolveWithErr(ad.ContainerID)
+	ad.Tags, err = ad.adm.probe.resolvers.TagsResolver.ResolveWithErr(ad.Metadata.ContainerID)
 	if err != nil {
-		return fmt.Errorf("failed to resolve %s: %w", ad.ContainerID, err)
+		return fmt.Errorf("failed to resolve %s: %w", ad.Metadata.ContainerID, err)
 	}
 	return nil
 }
 
 // ToSecurityActivityDumpMessage returns a pointer to a SecurityActivityDumpMessage
-func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.SecurityActivityDumpMessage {
+func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage {
 	var storage []*api.StorageRequestMessage
 	for _, requests := range ad.StorageRequests {
 		for _, request := range requests {
-			storage = append(storage, request.ToStorageRequestMessage(ad.Name))
+			storage = append(storage, request.ToStorageRequestMessage(ad.Metadata.Name))
 		}
 	}
 
-	return &api.SecurityActivityDumpMessage{
-		Comm:              ad.Comm,
-		ContainerID:       ad.ContainerID,
-		Tags:              ad.Tags,
-		DifferentiateArgs: ad.DifferentiateArgs,
-		Timeout:           ad.Timeout.String(),
-		Start:             ad.Start.String(),
-		Left:              ad.Start.Add(ad.Timeout).Sub(time.Now()).String(),
-		Storage:           storage,
-		Name:              ad.Name,
+	return &api.ActivityDumpMessage{
+		Hostname: ad.Hostname,
+		Source:   ad.Source,
+		Tags:     ad.Tags,
+		Storage:  storage,
+		Metadata: &api.ActivityDumpMetadataMessage{
+			AgentVersion:        ad.Metadata.AgentVersion,
+			AgentCommit:         ad.Metadata.AgentCommit,
+			KernelVersion:       ad.Metadata.KernelVersion,
+			LinuxDistribution:   ad.Metadata.LinuxDistribution,
+			Name:                ad.Metadata.Name,
+			ActivityDumpVersion: ad.Metadata.ActivityDumpVersion,
+			DifferentiateArgs:   ad.Metadata.DifferentiateArgs,
+			Comm:                ad.Metadata.Comm,
+			ContainerID:         ad.Metadata.ContainerID,
+			Start:               ad.Metadata.Start.Format(time.RFC822),
+			Timeout:             ad.Metadata.Timeout.String(),
+			Size:                ad.Metadata.Size,
+		},
 	}
 }
 
@@ -467,7 +589,7 @@ func (ad *ActivityDump) ToTranscodingRequestMessage() *api.TranscodingRequestMes
 	var storage []*api.StorageRequestMessage
 	for _, requests := range ad.StorageRequests {
 		for _, request := range requests {
-			storage = append(storage, request.ToStorageRequestMessage(ad.Name))
+			storage = append(storage, request.ToStorageRequestMessage(ad.Metadata.Name))
 		}
 	}
 
@@ -477,15 +599,15 @@ func (ad *ActivityDump) ToTranscodingRequestMessage() *api.TranscodingRequestMes
 }
 
 // Encode encodes an activity dump in the provided format
-func (ad *ActivityDump) Encode(format activity_dump.StorageFormat) (*bytes.Buffer, error) {
+func (ad *ActivityDump) Encode(format dump.StorageFormat) (*bytes.Buffer, error) {
 	switch format {
-	case activity_dump.JSON:
+	case dump.JSON:
 		return ad.EncodeJSON()
-	case activity_dump.MSGP:
+	case dump.MSGP:
 		return ad.EncodeMSGP()
-	case activity_dump.DOT:
+	case dump.DOT:
 		return ad.EncodeDOT()
-	case activity_dump.Profile:
+	case dump.Profile:
 		return ad.EncodeProfile()
 	default:
 		return nil, fmt.Errorf("couldn't encode activity dump [%s] as [%s]: unknown format", ad.GetSelectorStr(), format)
@@ -499,12 +621,12 @@ func (ad *ActivityDump) EncodeJSON() (*bytes.Buffer, error) {
 
 	msgpRaw, err := ad.MarshalMsg(nil)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't encode in %s: %v\n", activity_dump.MSGP, err)
+		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.MSGP, err)
 	}
 	raw := bytes.NewBuffer(nil)
 	_, err = msgp.UnmarshalAsJSON(raw, msgpRaw)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't encode %s: %v\n", activity_dump.JSON, err)
+		return nil, fmt.Errorf("couldn't encode %s: %v", dump.JSON, err)
 	}
 	return raw, nil
 }
@@ -516,7 +638,7 @@ func (ad *ActivityDump) EncodeMSGP() (*bytes.Buffer, error) {
 
 	raw, err := ad.MarshalMsg(nil)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't encode in %s: %v\n", activity_dump.MSGP, err)
+		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.MSGP, err)
 	}
 	return bytes.NewBuffer(raw), nil
 }
@@ -564,12 +686,12 @@ func (ad *ActivityDump) Decode(inputFile string) error {
 		ext = filepath.Ext(inputFile)
 	}
 
-	format, err := activity_dump.ParseStorageFormat(ext)
+	format, err := dump.ParseStorageFormat(ext)
 	if err != nil {
 		return err
 	}
 	switch format {
-	case activity_dump.MSGP:
+	case dump.MSGP:
 		return ad.DecodeMSGP(inputFile)
 	default:
 		return fmt.Errorf("unsupported input format: %s", format)
@@ -646,26 +768,26 @@ func (pan *ProcessActivityNode) debug(prefix string) {
 
 func (pan *ProcessActivityNode) retain() {
 	if pan.Process.ArgsEntry != nil && pan.Process.ArgsEntry.ArgsEnvsCacheEntry != nil {
-		pan.Process.ArgsEntry.ArgsEnvsCacheEntry.Retain()
+		pan.Process.ArgsEntry.Retain()
 	}
 	if pan.Process.EnvsEntry != nil && pan.Process.EnvsEntry.ArgsEnvsCacheEntry != nil {
-		pan.Process.EnvsEntry.ArgsEnvsCacheEntry.Retain()
+		pan.Process.EnvsEntry.Retain()
 	}
 }
 
-func (pan *ProcessActivityNode) release() {
+// scrubAndReleaseArgsEnvs scrubs the process args and envs, and then releases them
+func (pan *ProcessActivityNode) scrubAndReleaseArgsEnvs(resolver *ProcessResolver) {
+	_, _ = resolver.GetProcessScrubbedArgv(&pan.Process)
+	envs, envsTruncated := resolver.GetProcessEnvs(&pan.Process)
+	pan.Process.Envs = envs
+	pan.Process.EnvsTruncated = envsTruncated
+	pan.Process.Argv0, _ = resolver.GetProcessArgv0(&pan.Process)
+
 	if pan.Process.ArgsEntry != nil && pan.Process.ArgsEntry.ArgsEnvsCacheEntry != nil {
-		pan.Process.ArgsEntry.ArgsEnvsCacheEntry.Release()
+		pan.Process.ArgsEntry.Release()
 	}
 	if pan.Process.EnvsEntry != nil && pan.Process.EnvsEntry.ArgsEnvsCacheEntry != nil {
-		pan.Process.EnvsEntry.ArgsEnvsCacheEntry.Release()
-	}
-}
-
-func (pan *ProcessActivityNode) recursiveRelease() {
-	pan.release()
-	for _, child := range pan.Children {
-		child.recursiveRelease()
+		pan.Process.EnvsEntry.Release()
 	}
 }
 

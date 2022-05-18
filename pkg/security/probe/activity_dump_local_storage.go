@@ -20,7 +20,7 @@ import (
 	"time"
 
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/activity_dump"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/hashicorp/golang-lru/simplelru"
 )
 
@@ -34,8 +34,8 @@ type dumpFilesSlice []*dumpFiles
 
 func newDumpFilesSlice(dumps map[string]*dumpFiles) dumpFilesSlice {
 	s := make(dumpFilesSlice, 0, len(dumps))
-	for _, dump := range dumps {
-		s = append(s, dump)
+	for _, ad := range dumps {
+		s = append(s, ad)
 	}
 	return s
 }
@@ -100,37 +100,37 @@ func NewActivityDumpLocalStorage(p *Probe) (ActivityDumpStorage, error) {
 		for _, f := range files {
 			// check if the extension of the file is known
 			ext := filepath.Ext(f.Name())
-			if _, err = activity_dump.ParseStorageFormat(ext); err != nil && ext != ".gz" {
+			if _, err = dump.ParseStorageFormat(ext); err != nil && ext != ".gz" {
 				// ignore this file
 				continue
 			}
 			// retrieve the basename of the dump
 			dumpName := strings.Trim(filepath.Base(f.Name()), ext)
 			// insert the file in the list of dumps
-			dump, ok := localDumps[dumpName]
+			ad, ok := localDumps[dumpName]
 			if !ok {
-				dump = &dumpFiles{
+				ad = &dumpFiles{
 					Name:  dumpName,
 					Files: make([]string, 1),
 				}
-				localDumps[dumpName] = dump
+				localDumps[dumpName] = ad
 			}
-			dump.Files = append(dump.Files, f.Name())
+			ad.Files = append(ad.Files, f.Name())
 			dumpInfo, err := f.Info()
 			if err != nil {
 				// ignore this file
 				continue
 			}
-			if !dump.MTime.IsZero() && dump.MTime.Before(dumpInfo.ModTime()) {
-				dump.MTime = dumpInfo.ModTime()
+			if !ad.MTime.IsZero() && ad.MTime.Before(dumpInfo.ModTime()) {
+				ad.MTime = dumpInfo.ModTime()
 			}
 		}
 		// sort the existing dumps by modification timestamp
 		dumps := newDumpFilesSlice(localDumps)
 		sort.Sort(dumps)
 		// insert the dumps in cache (will trigger clean up if necessary)
-		for _, dump := range dumps {
-			lru.Add(dump.Name, dump.Files)
+		for _, ad := range dumps {
+			lru.Add(ad.Name, ad.Files)
 		}
 	}
 
@@ -140,13 +140,13 @@ func NewActivityDumpLocalStorage(p *Probe) (ActivityDumpStorage, error) {
 }
 
 // GetStorageType returns the storage type of the ActivityDumpLocalStorage
-func (storage *ActivityDumpLocalStorage) GetStorageType() activity_dump.StorageType {
-	return activity_dump.LocalStorage
+func (storage *ActivityDumpLocalStorage) GetStorageType() dump.StorageType {
+	return dump.LocalStorage
 }
 
 // Persist saves the provided buffer to the persistent storage
-func (storage *ActivityDumpLocalStorage) Persist(request activity_dump.StorageRequest, dump *ActivityDump, raw *bytes.Buffer) error {
-	outputPath := request.GetOutputPath(dump.Name)
+func (storage *ActivityDumpLocalStorage) Persist(request dump.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error {
+	outputPath := request.GetOutputPath(ad.Metadata.Name)
 
 	if request.Compression {
 		var tmpBuf bytes.Buffer
@@ -165,17 +165,20 @@ func (storage *ActivityDumpLocalStorage) Persist(request activity_dump.StorageRe
 		raw = &tmpBuf
 	}
 
+	// set activity dump size for current encoding
+	ad.Metadata.Size = uint64(len(raw.Bytes()))
+
 	// add the file to the list of local dumps (thus removing one or more files if we reached the limit)
 	if storage.localDumps != nil {
-		filesRaw, ok := storage.localDumps.Get(dump.Name)
+		filesRaw, ok := storage.localDumps.Get(ad.Metadata.Name)
 		if !ok {
-			storage.localDumps.Add(dump.Name, []string{outputPath})
+			storage.localDumps.Add(ad.Metadata.Name, []string{outputPath})
 		} else {
 			files, ok := filesRaw.([]string)
 			if !ok {
 				files = []string{}
 			}
-			storage.localDumps.Add(dump.Name, append(files, outputPath))
+			storage.localDumps.Add(ad.Metadata.Name, append(files, outputPath))
 		}
 	}
 
@@ -196,6 +199,6 @@ func (storage *ActivityDumpLocalStorage) Persist(request activity_dump.StorageRe
 	if _, err = file.Write(raw.Bytes()); err != nil {
 		return fmt.Errorf("couldn't write to file [%s]: %w", outputPath, err)
 	}
-	seclog.Infof("[%s] file for [%s] written at: [%s]", request.Format, dump.GetSelectorStr(), outputPath)
+	seclog.Infof("[%s] file for [%s] written at: [%s]", request.Format, ad.GetSelectorStr(), outputPath)
 	return nil
 }

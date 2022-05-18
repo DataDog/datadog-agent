@@ -246,9 +246,9 @@ func (m *Monitor) ReportSelfTest(success []string, fails []string) {
 var ErrActivityDumpManagerDisabled = errors.New("ActivityDumpManager is disabled")
 
 // DumpActivity handles an activity dump request
-func (m *Monitor) DumpActivity(params *api.DumpActivityParams) (*api.SecurityActivityDumpMessage, error) {
+func (m *Monitor) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
 	if !m.probe.config.ActivityDumpEnabled {
-		return &api.SecurityActivityDumpMessage{
+		return &api.ActivityDumpMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
 		}, ErrActivityDumpManagerDisabled
 	}
@@ -256,9 +256,9 @@ func (m *Monitor) DumpActivity(params *api.DumpActivityParams) (*api.SecurityAct
 }
 
 // ListActivityDumps returns the list of active dumps
-func (m *Monitor) ListActivityDumps(params *api.ListActivityDumpsParams) (*api.SecurityActivityDumpListMessage, error) {
+func (m *Monitor) ListActivityDumps(params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
 	if !m.probe.config.ActivityDumpEnabled {
-		return &api.SecurityActivityDumpListMessage{
+		return &api.ActivityDumpListMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
 		}, ErrActivityDumpManagerDisabled
 	}
@@ -266,9 +266,9 @@ func (m *Monitor) ListActivityDumps(params *api.ListActivityDumpsParams) (*api.S
 }
 
 // StopActivityDump stops an active activity dump
-func (m *Monitor) StopActivityDump(params *api.StopActivityDumpParams) (*api.SecurityActivityDumpStoppedMessage, error) {
+func (m *Monitor) StopActivityDump(params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
 	if !m.probe.config.ActivityDumpEnabled {
-		return &api.SecurityActivityDumpStoppedMessage{
+		return &api.ActivityDumpStopMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
 		}, ErrActivityDumpManagerDisabled
 	}
