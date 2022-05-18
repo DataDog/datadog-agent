@@ -2,6 +2,7 @@ package flowaggregator
 
 import (
 	"encoding/json"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -22,7 +23,7 @@ type FlowAggregator struct {
 	sender           aggregator.Sender
 	stopChan         chan struct{}
 	logPayload       bool
-	flushedFlowCount int
+	flushedFlowCount uint64
 }
 
 // NewFlowAggregator returns a new FlowAggregator
@@ -77,7 +78,7 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 			continue
 		}
 		agg.sender.EventPlatformEvent(string(payloadBytes), epforwarder.EventTypeNetworkDevicesNetFlow)
-		agg.flushedFlowCount++
+		atomic.AddUint64(&agg.flushedFlowCount, 1)
 	}
 }
 

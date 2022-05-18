@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"net"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -145,7 +146,7 @@ stopLoop:
 	}
 }
 
-func waitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Duration, minEvents int) error {
+func waitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Duration, minEvents uint64) error {
 	timeout := time.After(timeoutDuration)
 	tick := time.Tick(500 * time.Millisecond)
 	// Keep trying until we're timed out or got a result or got an error
@@ -153,10 +154,10 @@ func waitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Du
 		select {
 		// Got a timeout! fail with a timeout error
 		case <-timeout:
-			return fmt.Errorf("timeout error (expected at least %d events, but got %d events)", minEvents, aggregator.flushedFlowCount)
+			return fmt.Errorf("timeout error waiting for events")
 		// Got a tick, we should check on doSomething()
 		case <-tick:
-			if aggregator.flushedFlowCount >= minEvents {
+			if atomic.LoadUint64(&aggregator.flushedFlowCount) >= minEvents {
 				return nil
 			}
 		}

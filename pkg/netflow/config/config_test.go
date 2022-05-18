@@ -95,7 +95,7 @@ network_devices:
     listeners:
       - flow_type: invalidType
 `,
-			expectedError: "the provided flow type `invalidType` is not valid (valid flow types: [ipfix sflow5 netflow5 netflow9])",
+			expectedError: "the provided flow type `invalidType` is not valid",
 		},
 	}
 	for _, tt := range tests {
@@ -106,7 +106,7 @@ network_devices:
 
 			readConfig, err := ReadConfig()
 			if tt.expectedError != "" {
-				assert.EqualError(t, err, tt.expectedError)
+				assert.ErrorContains(t, err, tt.expectedError)
 				assert.Nil(t, readConfig)
 			} else {
 				require.NoError(t, err)
