@@ -81,11 +81,6 @@ func (ce *CustomEvent) GetEventType() model.EventType {
 	return ce.eventType
 }
 
-// MarshalJSON is the JSON marshaller function of the custom event
-func (ce *CustomEvent) MarshalJSON() ([]byte, error) {
-	return json.Marshal(ce)
-}
-
 // String returns the string representation of a custom event
 func (ce *CustomEvent) String() string {
 	d, err := json.Marshal(ce)

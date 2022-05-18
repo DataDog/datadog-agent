@@ -14,8 +14,8 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/mailru/easyjson"
 	"github.com/stretchr/testify/assert"
+	"github.com/goccy/go-json"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -71,6 +71,7 @@ func BenchmarkSerializersEasyJson(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
+<<<<<<< HEAD
 		_, err := easyjson.Marshal(es)
 		if err != nil {
 			b.Error(err)
@@ -87,6 +88,9 @@ func BenchmarkSerializersStd(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		_, err := json.Marshal(es)
+=======
+		_, err := json.Marshal(workingEvent)
+>>>>>>> 7907889ed (Fix serializers_test)
 		if err != nil {
 			b.Error(err)
 		}
