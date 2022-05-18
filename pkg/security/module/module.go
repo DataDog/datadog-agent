@@ -145,11 +145,7 @@ func (m *Module) Start() error {
 	}
 
 	if m.config.SelfTestEnabled && m.selfTester != nil {
-		if err := m.LoadPolicies([]rules.PolicyProvider{m.selfTester}); err != nil {
-			log.Errorf("failed to load self test policy: %s", err)
-		} else {
-			_ = m.RunSelfTestAndReport()
-		}
+		_ = m.RunSelfTest(true)
 	}
 
 	policyProviders, err := rules.GetFileProviders(m.config.PoliciesDir, &seclog.PatternLogger{})
@@ -157,7 +153,7 @@ func (m *Module) Start() error {
 		log.Errorf("failed to load policies: %s", err)
 	}
 
-	if err := m.LoadPolicies(policyProviders); err != nil {
+	if err := m.LoadPolicies(policyProviders, true); err != nil {
 		log.Errorf("failed to load policies: %s", err)
 	}
 
@@ -171,7 +167,7 @@ func (m *Module) Start() error {
 		defer m.wg.Done()
 
 		for range m.sigupChan {
-			if err := m.LoadPolicies(policyProviders); err != nil {
+			if err := m.LoadPolicies(policyProviders, true); err != nil {
 				log.Errorf("failed to reload policies: %s", err)
 			}
 		}
@@ -289,11 +285,11 @@ func getPoliciesVersions(rs *rules.RuleSet) []string {
 func (m *Module) ReloadPolicies() error {
 	log.Info("reload policies")
 
-	return m.LoadPolicies(m.policyProviders)
+	return m.LoadPolicies(m.policyProviders, true)
 }
 
 // LoadPolicies loads the policies
-func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider) error {
+func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoadedReport bool) error {
 	log.Info("load policies")
 
 	m.Lock()
@@ -386,10 +382,12 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider) error {
 
 	m.displayReport(report)
 
-	// report that a new policy was loaded
-	monitor := m.probe.GetMonitor()
-	ruleSetLoadedReport := monitor.PrepareRuleSetLoadedReport(ruleSet, loadErrs)
-	monitor.ReportRuleSetLoaded(ruleSetLoadedReport)
+	if sendLoadedReport {
+		// report that a new policy was loaded
+		monitor := m.probe.GetMonitor()
+		ruleSetLoadedReport := monitor.PrepareRuleSetLoadedReport(ruleSet, loadErrs)
+		monitor.ReportRuleSetLoaded(ruleSetLoadedReport)
+	}
 
 	return nil
 }
@@ -625,8 +623,22 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 	return m, nil
 }
 
-// RunSelfTestAndReport runs the self tests, and send a result report
-func (m *Module) RunSelfTestAndReport() error {
+// RunSelfTest runs the self tests
+func (m *Module) RunSelfTest(sendLoadedReport bool) error {
+	prevProviders, providers := m.policyProviders, m.policyProviders
+
+	// add selftests as provider
+	providers = append(providers, m.selfTester)
+	defer func() {
+		if err := m.LoadPolicies(prevProviders, false); err != nil {
+			log.Errorf("failed to load policies: %s", err)
+		}
+	}()
+
+	if err := m.LoadPolicies(providers, false); err != nil {
+		return err
+	}
+
 	success, fails, err := m.selfTester.RunSelfTest()
 	if err != nil {
 		return err
