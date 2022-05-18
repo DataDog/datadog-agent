@@ -101,6 +101,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 // An EventPlatformForwarder forwards Messages to a destination based on their event type
 type EventPlatformForwarder interface {
 	SendEventPlatformEvent(e *message.Message, eventType string) error
+	GetInputChannel(eventType string) chan *message.Message
 	Purge() map[string][]*message.Message
 	Start()
 	Stop()
@@ -148,6 +149,17 @@ func (s *defaultEventPlatformForwarder) Purge() map[string][]*message.Message {
 		result[eventType] = purgeChan(p.in)
 	}
 	return result
+}
+
+// GetInputChannel returns input channel
+func (s *defaultEventPlatformForwarder) GetInputChannel(eventType string) chan *message.Message {
+	s.purgeMx.Lock()
+	defer s.purgeMx.Unlock()
+	pipeline, ok := s.pipelines[eventType]
+	if !ok {
+		return nil
+	}
+	return pipeline.in
 }
 
 func (s *defaultEventPlatformForwarder) Start() {

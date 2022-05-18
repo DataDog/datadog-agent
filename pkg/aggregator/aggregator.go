@@ -615,6 +615,11 @@ func (agg *BufferedAggregator) GetEventPlatformEvents() map[string][]*message.Me
 	return agg.eventPlatformForwarder.Purge()
 }
 
+// GetEventPlatformEventInputChannel get input channel for specific event platform event track
+func (agg *BufferedAggregator) GetEventPlatformEventInputChannel(eventType string) chan *message.Message {
+	return agg.eventPlatformForwarder.GetInputChannel(eventType)
+}
+
 func (agg *BufferedAggregator) sendEvents(start time.Time, events metrics.Events) {
 	log.Debugf("Flushing %d events to the forwarder", len(events))
 	err := agg.serializer.SendEvents(events)

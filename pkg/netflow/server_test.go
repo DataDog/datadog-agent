@@ -6,6 +6,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,9 +45,17 @@ network_devices:
 	err = sendUDPPacket(port, mockNetflowV5Data)
 	require.NoError(t, err, "error sending udp packet")
 
-	// Get Event Platform Events
-	netflowEvents, err := demux.WaitEventPlatformEvents(epforwarder.EventTypeNetworkDevicesNetFlow, 6, 15*time.Second)
-	require.NoError(t, err, "error waiting event platform events")
+	eventChan := demux.GetEventPlatformEventsChannels(epforwarder.EventTypeNetworkDevicesNetFlow)
+
+	var netflowEvents []*message.Message
+	for i := 0; i < 6; i++ {
+		select {
+		case event := <-eventChan:
+			netflowEvents = append(netflowEvents, event)
+		case <-time.After(30 * time.Second):
+			break
+		}
+	}
 	assert.Equal(t, 6, len(netflowEvents))
 
 	actualFlow, err := findEventBySourceDest(netflowEvents, "10.129.2.1", "10.128.2.119")
