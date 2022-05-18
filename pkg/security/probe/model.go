@@ -16,6 +16,7 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/mailru/easyjson"
 	"github.com/mailru/easyjson/jwriter"
 
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
@@ -421,6 +422,14 @@ func (ev *Event) ResolveSELinuxBoolName(e *model.SELinuxEvent) string {
 		ev.SELinux.BoolName = ev.resolvers.resolveBasename(&e.File.FileFields)
 	}
 	return ev.SELinux.BoolName
+}
+
+func (ev *Event) String() string {
+	d, err := easyjson.Marshal(ev)
+	if err != nil {
+		return err.Error()
+	}
+	return string(d)
 }
 
 // SetPathResolutionError sets the Event.pathResolutionError

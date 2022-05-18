@@ -718,7 +718,7 @@ func (tm *testModule) Root() string {
 	return tm.st.root
 }
 
-func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
+func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.EventMarshaler) {
 	tm.ruleHandler.RLock()
 	callback := tm.ruleHandler.callback
 	tm.ruleHandler.RUnlock()
