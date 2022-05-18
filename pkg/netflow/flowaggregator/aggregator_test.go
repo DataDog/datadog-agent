@@ -127,10 +127,22 @@ func TestAggregator(t *testing.T) {
 	// Test aggregator Stop
 	assert.False(t, expectStartExisted)
 	aggregator.Stop()
-	time.Sleep(500 * time.Millisecond)
-	stoppedMu.Lock()
-	assert.True(t, expectStartExisted)
-	stoppedMu.Unlock()
+
+	waitStopTimeout := time.After(2 * time.Second)
+	waitStopTick := time.Tick(100 * time.Millisecond)
+stopLoop:
+	for {
+		select {
+		case <-waitStopTimeout:
+			assert.Fail(t, "timeout waiting for aggregator to be stopped")
+		case <-waitStopTick:
+			stoppedMu.Lock()
+			if expectStartExisted {
+				break stopLoop
+			}
+			stoppedMu.Unlock()
+		}
+	}
 }
 
 func waitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Duration, minEvents int) error {
