@@ -39,8 +39,8 @@ var (
 	emptyPayload = []byte("")
 
 	// TODO : add more endpoints info and a filtering function to only keep used endpoints
-	V1SeriesEndpointInfo   = EndpointInfo{endpoints.V1SeriesEndpoint, "POST", emptyPayload, apiKeyInQueryString}
-	V1ValidateEndpointInfo = EndpointInfo{endpoints.V1ValidateEndpoint, "GET", emptyPayload, apiKeyInQueryString}
+	v1SeriesEndpointInfo   = endpointInfo{endpoints.V1SeriesEndpoint, "POST", emptyPayload, apiKeyInQueryString}
+	v1ValidateEndpointInfo = endpointInfo{endpoints.V1ValidateEndpoint, "GET", emptyPayload, apiKeyInQueryString}
 
-	endpointsInfo = []EndpointInfo{V1SeriesEndpointInfo, V1ValidateEndpointInfo}
+	endpointsInfo = []endpointInfo{v1SeriesEndpointInfo, v1ValidateEndpointInfo}
 )

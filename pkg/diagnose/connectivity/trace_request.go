@@ -22,7 +22,7 @@ import (
 	"github.com/fatih/color"
 )
 
-// RunDatadogConnectivityDiagnose send requests to all known endpoints for all domains
+// RunDatadogConnectivityDiagnose send requests to endpoints for all domains
 // to check if there are connectivity issues between Datadog and these endpoints
 func RunDatadogConnectivityDiagnose() error {
 	// Create domain resolvers
@@ -31,7 +31,6 @@ func RunDatadogConnectivityDiagnose() error {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
 
-	// XXX: use NewDomainResolverWithMetricToVector ?
 	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
 
 	client := forwarder.NewHTTPClient()
@@ -73,13 +72,14 @@ func sendHTTPRequestToEndpoint(client *http.Client, domain string, endpointInfo 
 
 	if err != nil {
 		log.Errorf("Could not create request for transaction to invalid URL '%v' : %v", logURL, scrubber.ScrubLine(err.Error()))
+		return
 	}
 
 	// Send the request
 	resp, err := client.Do(req)
 
 	if err != nil {
-		fmt.Printf("Could not send the HTTP request to '%v' : %v\n", logURL, scrubber.ScrubLine(err.Error()))
+		log.Errorf("Could not send the HTTP request to '%v' : %v\n", logURL, scrubber.ScrubLine(err.Error()))
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
