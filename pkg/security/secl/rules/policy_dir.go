@@ -12,7 +12,7 @@ import (
 )
 
 // GetFileProviders returns providers for the given policies dir
-func GetFileProviders(policiesDir string) ([]PolicyProvider, error) {
+func GetFileProviders(policiesDir string, watch bool) ([]PolicyProvider, error) {
 	policyFiles, err := os.ReadDir(policiesDir)
 	if err != nil {
 		return nil, &ErrPoliciesLoad{Name: policiesDir, Err: err}
@@ -40,7 +40,7 @@ func GetFileProviders(policiesDir string) ([]PolicyProvider, error) {
 		}
 
 		filename := filepath.Join(policiesDir, name)
-		providers = append(providers, NewPolicyFileProvider(filename))
+		providers = append(providers, NewPolicyFileProvider(filename, watch))
 	}
 
 	return providers, nil

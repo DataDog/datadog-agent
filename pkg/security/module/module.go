@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/self_tests"
+	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -70,6 +71,7 @@ type Module struct {
 	rulesLoaded        func(rs *rules.RuleSet, err *multierror.Error)
 	policiesVersions   []string
 	policyProviders    []rules.PolicyProvider
+	policyLoader       *rules.PolicyLoader
 	selfTester         *self_tests.SelfTester
 }
 
@@ -122,6 +124,9 @@ func (m *Module) Init() error {
 		return errors.Wrap(err, "failed to init probe")
 	}
 
+	// policy loader
+	m.policyLoader = rules.NewPolicyLoader(nil)
+
 	return nil
 }
 
@@ -140,6 +145,7 @@ func (m *Module) Start() error {
 
 	m.probe.Start()
 
+	// runtime security is disabled but might be used by other component like process
 	if !m.config.IsEnabled() {
 		return nil
 	}
@@ -148,9 +154,19 @@ func (m *Module) Start() error {
 		_ = m.RunSelfTest(true)
 	}
 
-	policyProviders, err := rules.GetFileProviders(m.config.PoliciesDir)
+	policyProviders, err := rules.GetFileProviders(m.config.PoliciesDir, true)
 	if err != nil {
 		log.Errorf("failed to load policies: %s", err)
+	}
+
+	// add remote config as config provider if enabled
+	if m.config.RemoteConfigurationEnabled {
+		provider, err := rconfig.NewRCPolicyProvider("security-agent")
+		if err != nil {
+			log.Errorf("will be unable to load remote policy: %s", err)
+		} else {
+			policyProviders = append(policyProviders, provider)
+		}
 	}
 
 	if err := m.LoadPolicies(policyProviders, true); err != nil {
@@ -166,8 +182,20 @@ func (m *Module) Start() error {
 	go func() {
 		defer m.wg.Done()
 
+		// TODO(safchain) select
 		for range m.sigupChan {
 			if err := m.LoadPolicies(policyProviders, true); err != nil {
+				log.Errorf("failed to reload policies: %s", err)
+			}
+		}
+	}()
+
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+
+		for range m.policyLoader.NewPolicyReady() {
+			if err := m.LoadPolicies(m.policyProviders, true); err != nil {
 				log.Errorf("failed to reload policies: %s", err)
 			}
 		}
@@ -336,16 +364,16 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 	ruleSet := m.probe.NewRuleSet(&opts)
 
 	// load policies
-	loader := rules.NewPolicyLoader(policyProviders)
+	m.policyLoader.SetProviders(policyProviders)
 
-	loadErrs := approverRuleSet.LoadPolicies(loader)
-	loadApproversErrs := ruleSet.LoadPolicies(loader)
+	loadErrs := approverRuleSet.LoadPolicies(m.policyLoader)
+	loadApproversErrs := ruleSet.LoadPolicies(m.policyLoader)
 
 	// non fatal error, just log
 	if loadErrs.ErrorOrNil() != nil {
-		seclog.RuleLoadingErrors("error while loading policies: %+v", loadErrs)
+		logLoadingErrors("error while loading policies: %+v", loadErrs)
 	} else if loadApproversErrs.ErrorOrNil() != nil {
-		seclog.RuleLoadingErrors("error while loading policies for Approvers: %+v", loadApproversErrs)
+		logLoadingErrors("error while loading policies for Approvers: %+v", loadApproversErrs)
 	}
 
 	approvers, err := approverRuleSet.GetApprovers(sprobe.GetCapababilities())
@@ -395,9 +423,9 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 // Close the module
 func (m *Module) Close() {
 	close(m.sigupChan)
-	if m.remoteConfigClient != nil {
-		m.remoteConfigClient.Close()
-	}
+
+	// close the policy loader and all the related providers
+	m.policyLoader.Close()
 
 	m.cancelFnc()
 
@@ -648,4 +676,21 @@ func (m *Module) RunSelfTest(sendLoadedReport bool) error {
 	monitor := m.probe.GetMonitor()
 	monitor.ReportSelfTest(success, fails)
 	return err
+}
+
+func logLoadingErrors(msg string, m *multierror.Error) {
+	var errorLevel bool
+	for _, err := range m.Errors {
+		if rErr, ok := err.(*rules.ErrRuleLoad); ok {
+			if !errors.Is(rErr.Err, rules.ErrEventTypeNotEnabled) {
+				errorLevel = true
+			}
+		}
+	}
+
+	if errorLevel {
+		log.Errorf(msg, m.Error())
+	} else {
+		log.Warnf(msg, m.Error())
+	}
 }

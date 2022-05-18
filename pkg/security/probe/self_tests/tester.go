@@ -95,7 +95,11 @@ func (t *SelfTester) LoadPolicy() (*rules.Policy, error) {
 }
 
 // SetOnPolicyChangedCb implements the PolicyProvider interface
-func (t *SelfTester) SetOnPolicyChangedCb(cb func(*rules.Policy)) {
+func (t *SelfTester) SetOnNewPolicyReadyCb(cb func(*rules.Policy)) {
+}
+
+// Stop implements the PolicyProvider interface
+func (t *SelfTester) Stop() {
 }
 
 func (t *SelfTester) createTargetFile() error {

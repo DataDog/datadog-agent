@@ -77,7 +77,7 @@ func TestMacroMerge(t *testing.T) {
 		},
 	})
 
-	providers, err := GetFileProviders(tmpDir)
+	providers, err := GetFileProviders(tmpDir, false)
 	if err != nil {
 		t.Error(err)
 	}
@@ -141,7 +141,7 @@ func TestRuleMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	providers, err := GetFileProviders(tmpDir)
+	providers, err := GetFileProviders(tmpDir, false)
 	if err != nil {
 		t.Error(err)
 	}
@@ -316,7 +316,7 @@ func TestActionSetVariable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	providers, err := GetFileProviders(tmpDir)
+	providers, err := GetFileProviders(tmpDir, false)
 	if err != nil {
 		t.Error(err)
 	}
@@ -404,17 +404,15 @@ func TestActionSetVariableConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	providers, err := GetFileProviders(tmpDir)
+	providers, err := GetFileProviders(tmpDir, false)
 	if err != nil {
 		t.Error(err)
 	}
 
 	loader := NewPolicyLoader(providers)
 
-	if errs := rs.LoadPolicies(loader); errs.ErrorOrNil() != nil {
+	if errs := rs.LoadPolicies(loader); errs.ErrorOrNil() == nil {
 		t.Error("expected policy to fail to load")
-	} else {
-		t.Log(err)
 	}
 }
 
@@ -438,7 +436,7 @@ func loadPolicy(t *testing.T, testPolicy *PolicyDef) *multierror.Error {
 		t.Fatal(err)
 	}
 
-	providers, err := GetFileProviders(tmpDir)
+	providers, err := GetFileProviders(tmpDir, false)
 	if err != nil {
 		t.Error(err)
 	}

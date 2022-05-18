@@ -8,6 +8,7 @@ package rules
 // PolicyProvider defines a rule provider
 type PolicyProvider interface {
 	LoadPolicy() (*Policy, error)
-	SetOnPolicyChangedCb(_ func(*Policy))
+	SetOnNewPolicyReadyCb(_ func(*Policy))
+	Stop()
 	//GetPriority() int
 }
