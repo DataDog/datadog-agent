@@ -896,13 +896,6 @@ func digitVal(ch rune) int {
 
 func isDigit(ch rune) bool { return '0' <= ch && ch <= '9' }
 
-// runeBytes converts the given rune to a slice of bytes.
-func runeBytes(r rune) []byte {
-	buf := make([]byte, utf8.UTFMax)
-	n := utf8.EncodeRune(buf, r)
-	return buf[:n]
-}
-
 // isValidCharAfterOperator returns true if c is a valid character after an operator
 func isValidCharAfterOperator(c rune) bool {
 	return c == '(' || c == '`' || c == '\'' || c == '"' || c == '+' || c == '-' || unicode.IsSpace(c) || isLetter(c) || isDigit(c)
