@@ -13,6 +13,7 @@ package connectivity
 // Their prototypes are defined by htpp.Client so variables might be unused
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net/http/httptrace"
 
@@ -35,6 +36,10 @@ var DiagnoseTrace = &httptrace.ClientTrace{
 	// Hooks for DNS resolution
 	DNSStart: dnsStartHook,
 	DNSDone:  dnsDoneHook,
+
+	// Hooks for TLS Handshake
+	TLSHandshakeStart: tlsHandshakeStartHook,
+	TLSHandshakeDone:  tlsHandshakeDoneHook,
 }
 
 // connectStartHook is called when the http.Client is establishing a new connection to 'addr'
@@ -88,4 +93,20 @@ func dnsDoneHook(di httptrace.DNSDoneInfo) {
 		fmt.Printf("Unable to resolve the address : %v\n", di.Err)
 	}
 	fmt.Printf("DNS Lookup [%v]\n\n", statusString)
+}
+
+// tlsHandshakeStartHook is called when starting the TLS Handshake
+func tlsHandshakeStartHook() {
+	fmt.Printf("### Starting TLS Handshake ###\n")
+}
+
+// tlsHandshakeDoneHook is called after the TLS Handshake
+// It displays the error message if there is one and indicates if this step was successful
+func tlsHandshakeDoneHook(cs tls.ConnectionState, err error) {
+	statusString := color.GreenString("OK")
+	if err != nil {
+		statusString = color.RedString("KO")
+		fmt.Printf("Unable to achieve the TLS Handshake : %v\n", err)
+	}
+	fmt.Printf("TLS Handshake [%v]\n\n", statusString)
 }
