@@ -84,17 +84,18 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	aggFlow, ok := f.flows[aggHash]
 	if !ok {
 		f.flows[aggHash] = newFlowWrapper(flowToAdd)
-	} else {
-		if aggFlow.flow == nil {
-			aggFlow.flow = flowToAdd
-		} else {
-			aggFlow.flow.Bytes += flowToAdd.Bytes
-			aggFlow.flow.Packets += flowToAdd.Packets
-			aggFlow.flow.StartTimestamp = common.MinUint64(aggFlow.flow.StartTimestamp, flowToAdd.StartTimestamp)
-			aggFlow.flow.EndTimestamp = common.MaxUint64(aggFlow.flow.EndTimestamp, flowToAdd.EndTimestamp)
-
-			// TODO: Cumulate TCPFlags (Cumulative of all the TCP flags seen for this flow)
-		}
-		f.flows[aggHash] = aggFlow
+		return
 	}
+	if aggFlow.flow == nil {
+		aggFlow.flow = flowToAdd
+	} else {
+		// accumulate flowToAdd with existing flow(s) with same hash
+		aggFlow.flow.Bytes += flowToAdd.Bytes
+		aggFlow.flow.Packets += flowToAdd.Packets
+		aggFlow.flow.StartTimestamp = common.MinUint64(aggFlow.flow.StartTimestamp, flowToAdd.StartTimestamp)
+		aggFlow.flow.EndTimestamp = common.MaxUint64(aggFlow.flow.EndTimestamp, flowToAdd.EndTimestamp)
+
+		// TODO: Cumulate TCPFlags (Cumulative of all the TCP flags seen for this flow)
+	}
+	f.flows[aggHash] = aggFlow
 }
