@@ -450,6 +450,37 @@ func TestContainerIDInContainerLogFile(t *testing.T) {
 	assert.False(launcher.shouldIgnore(&file), "no container ID found, we don't want to ignore this scanned file")
 }
 
+func TestLauncherUpdatesSourceForExistingTailer(t *testing.T) {
+
+	testDir, err := ioutil.TempDir("", "log-launcher-test-")
+	assert.Nil(t, err)
+
+	path := fmt.Sprintf("%s/*.log", testDir)
+	os.Create(path)
+	openFilesLimit := 2
+	sleepDuration := 20 * time.Millisecond
+	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second)
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditor.NewRegistry()
+
+	source := config.NewLogSource("Source 1", &config.LogsConfig{Type: config.FileType, Identifier: "TEST_ID", Path: path})
+
+	launcher.addSource(source)
+	tailer := launcher.tailers[getScanKey(path, source)]
+
+	// test scan from beginning
+	assert.Equal(t, 1, len(launcher.tailers))
+	assert.Equal(t, tailer.Source(), source)
+
+	// Add a new source with the same file
+	source2 := config.NewLogSource("Source 2", &config.LogsConfig{Type: config.FileType, Identifier: "TEST_ID", Path: path})
+
+	launcher.addSource(source2)
+
+	// Source is replaced with the new source on the same tailer
+	assert.Equal(t, tailer.Source(), source2)
+}
+
 func getScanKey(path string, source *config.LogSource) string {
 	return filetailer.NewFile(path, source, false).GetScanKey()
 }

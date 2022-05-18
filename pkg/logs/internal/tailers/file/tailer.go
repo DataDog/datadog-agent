@@ -318,6 +318,12 @@ func (t *Tailer) recordBytes(n int64) {
 	t.file.Source.RecordBytes(n)
 }
 
+// ReplaceSource replaces the current source
 func (t *Tailer) ReplaceSource(newSource *config.LogSource) {
 	t.file.Source.Replace(newSource)
+}
+
+// Source gets the source (currently only used for testing)
+func (t *Tailer) Source() *config.LogSource {
+	return t.file.Source.UnderlyingSource()
 }

@@ -282,7 +282,7 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode) bool 
 // to validate that we will be reading a file for the correct container.
 func (s *Launcher) shouldIgnore(file *tailer.File) bool {
 	// this method needs a source config to detect whether we should ignore that file or not
-	if file == nil || file.Source == nil || file.Source.Config == nil {
+	if file == nil || file.Source == nil || file.Source.Config() == nil {
 		return false
 	}
 
