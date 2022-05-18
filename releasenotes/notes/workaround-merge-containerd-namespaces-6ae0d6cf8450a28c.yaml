@@ -8,7 +8,7 @@
 ---
 fixes:
   - |
-    Fixed the error "svType != tvType; key=containerd_namespace, st=[]interface
-    {}, tt=[]string, sv=[], tv=[]" that triggered when using a secret backend
+    Fixed the triggered "svType != tvType; key=containerd_namespace, st=[]interface
+    {}, tt=[]string, sv=[], tv=[]" error when using a secret backend
     reader.
 
