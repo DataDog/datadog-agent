@@ -105,9 +105,9 @@ func (agg *FlowAggregator) flushLoop() {
 
 // Flush flushes the aggregator
 func (agg *FlowAggregator) flush() int {
-	flows := agg.flowAcc.flush()
-	log.Debugf("Flushing %d flows to the forwarder", len(flows))
-	if len(flows) == 0 {
+	flowsToFlush := agg.flowAcc.flush()
+	log.Debugf("Flushing %d flows to the forwarder", len(flowsToFlush))
+	if len(flowsToFlush) == 0 {
 		return 0
 	}
 	// TODO: Add flush stats to agent telemetry e.g. aggregator newFlushCountStats()
@@ -115,11 +115,11 @@ func (agg *FlowAggregator) flush() int {
 	// For debug purposes print out all flows
 	if agg.logPayload {
 		log.Debug("==== Flushing events BEGIN ======")
-		for _, flow := range flows {
+		for _, flow := range flowsToFlush {
 			log.Debugf("flow: %s", flow.AsJSONString())
 		}
 		log.Debug("==== Flushing events END ======")
 	}
-	agg.sendFlows(flows)
-	return len(flows)
+	agg.sendFlows(flowsToFlush)
+	return len(flowsToFlush)
 }

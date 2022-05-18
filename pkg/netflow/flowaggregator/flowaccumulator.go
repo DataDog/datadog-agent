@@ -50,14 +50,14 @@ func (f *flowAccumulator) flush() []*common.Flow {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	var flows []*common.Flow
+	var flowsToFlush []*common.Flow
 	for key, flow := range f.flows {
 		now := timeNow()
 		if flow.nextFlush.After(now) {
 			continue
 		}
 		if flow.flow != nil {
-			flows = append(flows, flow.flow)
+			flowsToFlush = append(flowsToFlush, flow.flow)
 			flow.lastSuccessfulFlush = now
 			flow.flow = nil
 		} else if flow.lastSuccessfulFlush.Add(f.flowContextTTL).Before(now) {
@@ -68,7 +68,7 @@ func (f *flowAccumulator) flush() []*common.Flow {
 		flow.nextFlush = flow.nextFlush.Add(f.flowFlushInterval)
 		f.flows[key] = flow
 	}
-	return flows
+	return flowsToFlush
 }
 
 func (f *flowAccumulator) add(flowToAdd *common.Flow) {
@@ -78,10 +78,10 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	// TODO: handle port direction (see network-http-logger)
 	// TODO: ignore ephemeral ports
 
-	log.Tracef("New Flow (digest=%s): %+v", flowToAdd.AggregationHash(), flowToAdd)
+	aggHash := flowToAdd.AggregationHash()
+	log.Tracef("New Flow (digest=%s): %+v", aggHash, flowToAdd)
 
 	aggFlow, ok := f.flows[flowToAdd.AggregationHash()]
-	aggHash := flowToAdd.AggregationHash()
 	if !ok {
 		f.flows[aggHash] = newFlowWrapper(flowToAdd)
 	} else {
