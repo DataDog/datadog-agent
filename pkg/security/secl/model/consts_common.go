@@ -15,7 +15,8 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/hashicorp/golang-lru/simplelru"
+
+	lru "github.com/hashicorp/golang-lru"
 )
 
 const (
@@ -972,11 +973,11 @@ func (f RetValError) String() string {
 	return ""
 }
 
-var capsStringArrayCache *simplelru.LRU
+var capsStringArrayCache *lru.Cache
 
 func init() {
 	initConstants()
-	capsStringArrayCache, _ = simplelru.NewLRU(4, nil)
+	capsStringArrayCache, _ = lru.New(4)
 }
 
 // KernelCapability represents a kernel capability bitmask value
