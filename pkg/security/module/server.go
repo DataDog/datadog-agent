@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -373,13 +374,13 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 		ruleEvent.AgentContext.PolicyVersion = policy.Version
 	}
 
-	probeJSON, err := easyjson.Marshal(event)
+	probeJSON, err := utils.EasyjsonMarshal(event)
 	if err != nil {
 		log.Error(errors.Wrap(err, "failed to marshal event"))
 		return
 	}
 
-	ruleEventJSON, err := easyjson.Marshal(ruleEvent)
+	ruleEventJSON, err := utils.EasyjsonMarshal(ruleEvent)
 	if err != nil {
 		log.Error(errors.Wrap(err, "failed to marshal event context"))
 		return

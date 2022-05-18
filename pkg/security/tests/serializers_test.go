@@ -16,7 +16,7 @@ import (
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/mailru/easyjson"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -70,7 +70,7 @@ func BenchmarkSerializersEasyJson(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, err := easyjson.Marshal(es)
+		_, err := utils.EasyjsonMarshal(es, -1)
 		if err != nil {
 			b.Error(err)
 		}

@@ -16,13 +16,13 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/mailru/easyjson"
 	"github.com/mailru/easyjson/jwriter"
 
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 const (
@@ -425,7 +425,7 @@ func (ev *Event) ResolveSELinuxBoolName(e *model.SELinuxEvent) string {
 }
 
 func (ev *Event) String() string {
-	d, err := easyjson.Marshal(ev)
+	d, err := utils.EasyjsonMarshal(ev)
 	if err != nil {
 		return err.Error()
 	}
