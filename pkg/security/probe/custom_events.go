@@ -89,15 +89,6 @@ func (ce *CustomEvent) MarshalEasyJSON(w *jwriter.Writer) {
 	ce.inner.MarshalEasyJSON(w)
 }
 
-// String returns the string representation of a custom event
-func (ce *CustomEvent) String() string {
-	d, err := json.Marshal(ce)
-	if err != nil {
-		return err.Error()
-	}
-	return string(d)
-}
-
 func newRule(ruleDef *rules.RuleDefinition) *rules.Rule {
 	return &rules.Rule{
 		Rule:       &eval.Rule{ID: ruleDef.ID},
