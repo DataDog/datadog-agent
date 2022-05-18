@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
 // ResultValue represent a snmp value
@@ -43,7 +45,7 @@ func (sv ResultValue) ToString() (string, error) {
 	case []byte:
 		bytesValue := sv.Value.([]byte)
 		var strValue string
-		if !isString(bytesValue) {
+		if !gosnmplib.IsStringPrintable(bytesValue) {
 			// We hexify like Python/pysnmp impl (keep compatibility) if the value contains non ascii letters:
 			// https://github.com/etingof/pyasn1/blob/db8f1a7930c6b5826357646746337dafc983f953/pyasn1/type/univ.py#L950-L953
 			// hexifying like pysnmp prettyPrint might lead to unpredictable results since `[]byte` might or might not have
