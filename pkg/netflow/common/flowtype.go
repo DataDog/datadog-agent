@@ -17,20 +17,20 @@ const (
 )
 
 // FlowTypeDetails contain list of valid FlowTypeDetail
-var FlowTypeDetails = []FlowTypeDetail{
-	{
+var FlowTypeDetails = map[FlowType]FlowTypeDetail{
+	TypeIPFIX: {
 		name:        TypeIPFIX,
 		defaultPort: uint16(4739),
 	},
-	{
+	TypeSFlow5: {
 		name:        TypeSFlow5,
 		defaultPort: uint16(6343),
 	},
-	{
+	TypeNetFlow5: {
 		name:        TypeNetFlow5,
 		defaultPort: uint16(2055),
 	},
-	{
+	TypeNetFlow9: {
 		name:        TypeNetFlow9,
 		defaultPort: uint16(2055),
 	},
@@ -54,19 +54,18 @@ func (f FlowTypeDetail) DefaultPort() uint16 {
 
 // GetFlowTypeByName search FlowTypeDetail by name
 func GetFlowTypeByName(name FlowType) (FlowTypeDetail, error) {
-	for _, flowType := range FlowTypeDetails {
-		if flowType.name == name {
-			return flowType, nil
-		}
+	detail, ok := FlowTypeDetails[name]
+	if !ok {
+		return FlowTypeDetail{}, fmt.Errorf("flow type `%s` is not valid", name)
 	}
-	return FlowTypeDetail{}, fmt.Errorf("flow type `%s` is not valid", name)
+	return detail, nil
 }
 
 // GetAllFlowTypes returns all flow names
 func GetAllFlowTypes() []FlowType {
 	var flowTypes []FlowType
-	for _, flowType := range FlowTypeDetails {
-		flowTypes = append(flowTypes, flowType.name)
+	for flowType := range FlowTypeDetails {
+		flowTypes = append(flowTypes, flowType)
 	}
 	return flowTypes
 }
