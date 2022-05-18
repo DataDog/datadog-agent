@@ -7,6 +7,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/fatih/structtag v1.2.0
 	github.com/hashicorp/go-multierror v1.1.1
+	github.com/mailru/easyjson v0.7.7
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cast v1.4.1
 	github.com/stretchr/testify v1.7.1
@@ -18,6 +19,7 @@ require (
 
 require (
 	github.com/hashicorp/errwrap v1.0.0 // indirect
+	github.com/josharian/intern v1.0.0 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/philhofer/fwd v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
