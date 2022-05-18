@@ -10,7 +10,6 @@ package module
 
 import (
 	"context"
-	json "encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -93,6 +92,7 @@ LOOP:
 type Event interface {
 	GetTags() []string
 	GetType() string
+	easyjson.Marshaler
 }
 
 // RuleEvent is a wrapper used to send an event to the backend
@@ -373,7 +373,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 		ruleEvent.AgentContext.PolicyVersion = policy.Version
 	}
 
-	probeJSON, err := json.Marshal(event)
+	probeJSON, err := easyjson.Marshal(event)
 	if err != nil {
 		log.Error(errors.Wrap(err, "failed to marshal event"))
 		return

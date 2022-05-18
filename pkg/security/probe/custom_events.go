@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/hashicorp/go-multierror"
 	"github.com/mailru/easyjson"
+	jwriter "github.com/mailru/easyjson/jwriter"
 )
 
 const (
@@ -45,10 +46,10 @@ func AllCustomRuleIDs() []string {
 	}
 }
 
-func newCustomEvent(eventType model.EventType, marshaler easyjson.Marshaler) *CustomEvent {
+func newCustomEvent(eventType model.EventType, inner easyjson.Marshaler) *CustomEvent {
 	return &CustomEvent{
 		eventType: eventType,
-		marshaler: marshaler,
+		inner:     inner,
 	}
 }
 
@@ -56,7 +57,7 @@ func newCustomEvent(eventType model.EventType, marshaler easyjson.Marshaler) *Cu
 type CustomEvent struct {
 	eventType model.EventType
 	tags      []string
-	marshaler easyjson.Marshaler
+	inner     easyjson.Marshaler
 }
 
 // Clone returns a copy of the current CustomEvent
@@ -64,7 +65,7 @@ func (ce *CustomEvent) Clone() CustomEvent {
 	return CustomEvent{
 		eventType: ce.eventType,
 		tags:      ce.tags,
-		marshaler: ce.marshaler,
+		inner:     ce.inner,
 	}
 }
 
@@ -83,9 +84,9 @@ func (ce *CustomEvent) GetEventType() model.EventType {
 	return ce.eventType
 }
 
-// MarshalJSON is the JSON marshaller function of the custom event
-func (ce *CustomEvent) MarshalJSON() ([]byte, error) {
-	return easyjson.Marshal(ce.marshaler)
+// MarshalEasyJSON is the JSON marshaller function of the custom event
+func (ce *CustomEvent) MarshalEasyJSON(w *jwriter.Writer) {
+	ce.inner.MarshalEasyJSON(w)
 }
 
 // String returns the string representation of a custom event

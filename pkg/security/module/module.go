@@ -437,7 +437,7 @@ func (m *Module) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) 
 }
 
 // RuleMatch is called by the ruleset when a rule matches
-func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
+func (m *Module) RuleMatch(rule *rules.Rule, event eval.EventMarshaler) {
 	// prepare the event
 	m.probe.OnRuleMatch(rule, event.(*sprobe.Event))
 

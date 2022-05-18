@@ -8,6 +8,8 @@ package eval
 import (
 	"reflect"
 	"unsafe"
+
+	"github.com/mailru/easyjson"
 )
 
 // EventType is the type of an event
@@ -29,6 +31,11 @@ type Event interface {
 	GetPointer() unsafe.Pointer
 	// GetTags returns a list of tags
 	GetTags() []string
+}
+
+type EventMarshaler interface {
+	easyjson.Marshaler
+	Event
 }
 
 func eventTypesFromFields(model Model, state *State) ([]EventType, error) {

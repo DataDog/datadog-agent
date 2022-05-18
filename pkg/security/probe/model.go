@@ -423,27 +423,15 @@ func (ev *Event) ResolveSELinuxBoolName(e *model.SELinuxEvent) string {
 	return ev.SELinux.BoolName
 }
 
-func (ev *Event) String() string {
-	d, err := ev.MarshalJSON()
-	if err != nil {
-		return err.Error()
-	}
-	return string(d)
-}
-
 // SetPathResolutionError sets the Event.pathResolutionError
 func (ev *Event) SetPathResolutionError(err error) {
 	ev.pathResolutionError = err
 }
 
-// MarshalJSON returns the JSON encoding of the event
-func (ev *Event) MarshalJSON() ([]byte, error) {
+// MarshalEasyJSON returns the JSON encoding of the event
+func (ev *Event) MarshalEasyJSON(w *jwriter.Writer) {
 	s := NewEventSerializer(ev)
-	w := &jwriter.Writer{
-		Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
-	}
 	s.MarshalEasyJSON(w)
-	return w.BuildBytes()
 }
 
 // ExtractEventInfo extracts cpu and timestamp from the raw data event
