@@ -93,6 +93,8 @@ static __always_inline void init_ssl_sock_from_do_handshake(struct sock *skp) {
     if (!read_conn_tuple(&ssl_sock.tup, skp, pid_tgid, CONN_TYPE_TCP)) {
         return;
     }
+    ssl_sock.tup.netns = 0;
+    ssl_sock.tup.pid = 0;
     normalize_tuple(&ssl_sock.tup);
 
     // copy map value to stack. required for older kernels
