@@ -31,6 +31,10 @@ var DiagnoseTrace = &httptrace.ClientTrace{
 	// Hooks for connection establishment
 	ConnectStart: connectStartHook,
 	ConnectDone:  connectDoneHook,
+
+	// Hooks for DNS resolution
+	DNSStart: dnsStartHook,
+	DNSDone:  dnsDoneHook,
 }
 
 // connectStartHook is called when the http.Client is establishing a new connection to 'addr'
@@ -48,7 +52,6 @@ func connectDoneHook(network, addr string, err error) {
 		fmt.Printf("Unable to connect to the endpoint : %v\n", err)
 	}
 	fmt.Printf("Connection to the endpoint [%v]\n\n", statusString)
-
 }
 
 // getConnHook is called before getting a new connection.
@@ -69,4 +72,20 @@ func gotConnHook(gci httptrace.GotConnInfo) {
 	if gci.Reused {
 		fmt.Print(color.CyanString("Reusing a previous connection that was idle for %v\n", gci.IdleTime))
 	}
+}
+
+// dnsStartHook is called when starting the DNS lookup
+func dnsStartHook(di httptrace.DNSStartInfo) {
+	fmt.Printf("--- Starting DNS lookup to resolve '%v' ---\n", di.Host)
+}
+
+// dnsDoneHook is called after the DNS lookup
+// It displays the error message if there is one and indicates if this step was successful
+func dnsDoneHook(di httptrace.DNSDoneInfo) {
+	statusString := color.GreenString("OK")
+	if di.Err != nil {
+		statusString = color.RedString("KO")
+		fmt.Printf("Unable to resolve the address : %v\n", di.Err)
+	}
+	fmt.Printf("DNS Lookup [%v]\n\n", statusString)
 }
