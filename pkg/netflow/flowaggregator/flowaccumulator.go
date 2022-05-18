@@ -81,7 +81,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	aggHash := flowToAdd.AggregationHash()
 	log.Tracef("New Flow (digest=%s): %+v", aggHash, flowToAdd)
 
-	aggFlow, ok := f.flows[flowToAdd.AggregationHash()]
+	aggFlow, ok := f.flows[aggHash]
 	if !ok {
 		f.flows[aggHash] = newFlowWrapper(flowToAdd)
 	} else {
