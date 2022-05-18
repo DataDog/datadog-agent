@@ -16,12 +16,13 @@ const flowAggregatorFlushInterval = 10 * time.Second
 
 // FlowAggregator is used for space and time aggregation of NetFlow flows
 type FlowAggregator struct {
-	flowIn        chan *common.Flow
-	flushInterval time.Duration
-	flowAcc       *flowAccumulator
-	sender        aggregator.Sender
-	stopChan      chan struct{}
-	logPayload    bool
+	flowIn           chan *common.Flow
+	flushInterval    time.Duration
+	flowAcc          *flowAccumulator
+	sender           aggregator.Sender
+	stopChan         chan struct{}
+	logPayload       bool
+	flushedFlowCount int
 }
 
 // NewFlowAggregator returns a new FlowAggregator
@@ -76,6 +77,7 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 			continue
 		}
 		agg.sender.EventPlatformEvent(string(payloadBytes), epforwarder.EventTypeNetworkDevicesNetFlow)
+		agg.flushedFlowCount++
 	}
 }
 
@@ -111,10 +113,11 @@ func (agg *FlowAggregator) flush() int {
 
 	// For debug purposes print out all flows
 	if agg.logPayload {
-		log.Debug("Flushing the following Events:")
+		log.Debug("==== Flushing events BEGIN ======")
 		for _, flow := range flows {
 			log.Debugf("flow: %s", flow.AsJSONString())
 		}
+		log.Debug("==== Flushing events END ======")
 	}
 	agg.sendFlows(flows)
 	return len(flows)

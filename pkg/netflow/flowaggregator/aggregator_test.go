@@ -3,6 +3,7 @@ package flowaggregator
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
@@ -65,8 +66,6 @@ func TestAggregator(t *testing.T) {
 	}()
 	inChan <- flow
 
-	time.Sleep(3 * time.Second)
-
 	// language=json
 	event := []byte(`
 {
@@ -118,6 +117,10 @@ func TestAggregator(t *testing.T) {
 	compactEvent := new(bytes.Buffer)
 	err := json.Compact(compactEvent, event)
 	assert.NoError(t, err)
+
+	err = waitForFlowsToBeFlushed(aggregator, 10*time.Second, 1)
+	assert.NoError(t, err)
+
 	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-netflow")
 	sender.AssertMetric(t, "Count", "datadog.newflow.aggregator.flows_flushed", 1, "", []string{"exporter:127.0.0.1", "flow_type:netflow9"})
 
@@ -128,4 +131,22 @@ func TestAggregator(t *testing.T) {
 	stoppedMu.Lock()
 	assert.True(t, expectStartExisted)
 	stoppedMu.Unlock()
+}
+
+func waitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Duration, minEvents int) error {
+	timeout := time.After(timeoutDuration)
+	tick := time.Tick(500 * time.Millisecond)
+	// Keep trying until we're timed out or got a result or got an error
+	for {
+		select {
+		// Got a timeout! fail with a timeout error
+		case <-timeout:
+			return fmt.Errorf("timeout error (expected at least %d events, but got %d events)", minEvents, aggregator.flushedFlowCount)
+		// Got a tick, we should check on doSomething()
+		case <-tick:
+			if aggregator.flushedFlowCount >= minEvents {
+				return nil
+			}
+		}
+	}
 }
