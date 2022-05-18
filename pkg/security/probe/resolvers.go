@@ -30,10 +30,10 @@ type Resolvers struct {
 	DentryResolver    *DentryResolver
 	MountResolver     *MountResolver
 	ContainerResolver *resolvers.ContainerResolver
-	TimeResolver      *TimeResolver
+	TimeResolver      *resolvers.TimeResolver
 	ProcessResolver   *ProcessResolver
-	UserGroupResolver *UserGroupResolver
-	TagsResolver      *TagsResolver
+	UserGroupResolver *resolvers.UserGroupResolver
+	TagsResolver      *resolvers.TagsResolver
 	NamespaceResolver *NamespaceResolver
 }
 
@@ -44,12 +44,12 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
-	timeResolver, err := NewTimeResolver()
+	timeResolver, err := resolvers.NewTimeResolver()
 	if err != nil {
 		return nil, err
 	}
 
-	userGroupResolver, err := NewUserGroupResolver()
+	userGroupResolver, err := resolvers.NewUserGroupResolver()
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		TimeResolver:      timeResolver,
 		ContainerResolver: &resolvers.ContainerResolver{},
 		UserGroupResolver: userGroupResolver,
-		TagsResolver:      NewTagsResolver(config),
+		TagsResolver:      resolvers.NewTagsResolver(config),
 		NamespaceResolver: namespaceResolver,
 	}
 
@@ -217,7 +217,7 @@ func (r *Resolvers) Snapshot() error {
 		return errors.Wrap(err, "unable to snapshot SELinux")
 	}
 
-	if err := snapshotSELinux(selinuxStatusMap); err != nil {
+	if err := resolvers.SnapshotSELinux(selinuxStatusMap); err != nil {
 		return err
 	}
 
