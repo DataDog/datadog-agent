@@ -10,9 +10,11 @@ package connectivity
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptrace"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
@@ -67,6 +69,9 @@ func sendHTTPRequestToEndpoint(client *http.Client, domain string, endpointInfo 
 	url := createEndpointURL(domain, endpointInfo, apiKey)
 	logURL := scrubber.ScrubLine(url)
 
+	// Enable HTTP trace
+	ctx := httptrace.WithClientTrace(context.Background(), DiagnoseTrace)
+
 	fmt.Printf("\n======== '%v' ========\n", color.BlueString(logURL))
 
 	// Create a request for the backend
@@ -77,7 +82,8 @@ func sendHTTPRequestToEndpoint(client *http.Client, domain string, endpointInfo 
 		return 0, nil, fmt.Errorf("cannot create request for transaction to invalid URL '%v' : %v", logURL, scrubber.ScrubLine(err.Error()))
 	}
 
-	// Send the request
+	// Add tracing and send the request
+	req = req.WithContext(ctx)
 	resp, err := client.Do(req)
 
 	if err != nil {
