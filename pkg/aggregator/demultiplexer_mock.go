@@ -81,7 +81,7 @@ func (a *TestAgentDemultiplexer) WaitForSamples(timeout time.Duration) []metrics
 	}
 }
 
-// WaitEventPlatformEvents returns the event platform events samples received by the demultiplexer.
+// WaitEventPlatformEvents waits for timeout and eventually returns the event platform events samples received by the demultiplexer.
 func (a *TestAgentDemultiplexer) WaitEventPlatformEvents(eventType string, minEvents int, timeout time.Duration) ([]*message.Message, error) {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	timeoutOn := time.Now().Add(timeout)
