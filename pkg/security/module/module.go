@@ -148,7 +148,7 @@ func (m *Module) Start() error {
 		_ = m.RunSelfTest(true)
 	}
 
-	policyProviders, err := rules.GetFileProviders(m.config.PoliciesDir, &seclog.PatternLogger{})
+	policyProviders, err := rules.GetFileProviders(m.config.PoliciesDir)
 	if err != nil {
 		log.Errorf("failed to load policies: %s", err)
 	}

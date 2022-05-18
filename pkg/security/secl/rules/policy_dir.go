@@ -12,7 +12,7 @@ import (
 )
 
 // GetFileProviders returns providers for the given policies dir
-func GetFileProviders(policiesDir string, logger Logger) ([]PolicyProvider, error) {
+func GetFileProviders(policiesDir string) ([]PolicyProvider, error) {
 	policyFiles, err := os.ReadDir(policiesDir)
 	if err != nil {
 		return nil, &ErrPoliciesLoad{Name: policiesDir, Err: err}
@@ -36,7 +36,6 @@ func GetFileProviders(policiesDir string, logger Logger) ([]PolicyProvider, erro
 
 		// policy path extension check
 		if filepath.Ext(name) != ".policy" {
-			logger.Debugf("ignoring file `%s` wrong extension `%s`", policyPath.Name(), filepath.Ext(name))
 			continue
 		}
 

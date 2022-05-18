@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/hashicorp/go-multierror"
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -76,7 +77,7 @@ func TestMacroMerge(t *testing.T) {
 		},
 	})
 
-	providers, err := GetFileProviders(tmpDir, &NullLogger{})
+	providers, err := GetFileProviders(tmpDir)
 	if err != nil {
 		t.Error(err)
 	}
@@ -140,7 +141,7 @@ func TestRuleMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	providers, err := GetFileProviders(tmpDir, &NullLogger{})
+	providers, err := GetFileProviders(tmpDir)
 	if err != nil {
 		t.Error(err)
 	}
@@ -315,7 +316,7 @@ func TestActionSetVariable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	providers, err := GetFileProviders(tmpDir, &NullLogger{})
+	providers, err := GetFileProviders(tmpDir)
 	if err != nil {
 		t.Error(err)
 	}
@@ -403,7 +404,7 @@ func TestActionSetVariableConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	providers, err := GetFileProviders(tmpDir, &NullLogger{})
+	providers, err := GetFileProviders(tmpDir)
 	if err != nil {
 		t.Error(err)
 	}
@@ -437,14 +438,14 @@ func loadPolicy(t *testing.T, testPolicy *PolicyDef) *multierror.Error {
 		t.Fatal(err)
 	}
 
-	providers, err := GetFileProviders(tmpDir, &NullLogger{})
+	providers, err := GetFileProviders(tmpDir)
 	if err != nil {
 		t.Error(err)
 	}
 
 	loader := NewPolicyLoader(providers)
 
-	return rs.LoadPolicies(loader).ErrorOrNil()
+	return rs.LoadPolicies(loader)
 }
 
 func TestActionSetVariableInvalid(t *testing.T) {
