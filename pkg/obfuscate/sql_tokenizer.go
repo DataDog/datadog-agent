@@ -107,6 +107,10 @@ const (
 	FilteredBracketedIdentifier
 )
 
+const (
+	FuncTag = "$func$"
+)
+
 var tokenKindStrings = map[TokenKind]string{
 	LexError:                     "LexError",
 	ID:                           "ID",
@@ -473,15 +477,14 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 			if kind == DollarQuotedFunc {
 				// this is considered an embedded query, we should try and
 				// obfuscate it
-				// Trim off the $func$ tag
-				tok = tok[6:]
-				tok = tok[:len(tok)-6]
+				tok = tok[len(FuncTag):]
+				tok = tok[:len(tok)-len(FuncTag)]
 				out, err := attemptObfuscation(NewSQLTokenizer(string(tok), tkn.literalEscapes, tkn.cfg))
 				if err != nil {
 					// if we can't obfuscate it, treat it as a regular string
 					return DollarQuotedString, tok
 				}
-				tok = append(append([]byte("$func$"), []byte(out.Query)...), []byte("$func$")...)
+				tok = append(append([]byte(FuncTag), []byte(out.Query)...), []byte(FuncTag)...)
 			}
 			return kind, tok
 		case '@':
@@ -646,7 +649,7 @@ func (tkn *SQLTokenizer) scanDollarQuotedString() (TokenKind, []byte) {
 		buf.WriteRune(ch)
 	}
 	buf.Write(delim)
-	if tkn.cfg.DollarQuotedFunc && string(delim) == "$func$" {
+	if tkn.cfg.DollarQuotedFunc && string(delim) == FuncTag {
 		return DollarQuotedFunc, buf.Bytes()
 	}
 	return DollarQuotedString, buf.Bytes()
