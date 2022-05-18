@@ -589,7 +589,7 @@ func (rs *RuleSet) generatePartials() error {
 	return nil
 }
 
-func (rs *RuleSet) LoadPolicies(loader *PolicyLoader) error {
+func (rs *RuleSet) LoadPolicies(loader *PolicyLoader) *multierror.Error {
 	var (
 		errs       *multierror.Error
 		allRules   []*RuleDefinition
@@ -741,7 +741,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader) error {
 		errs = multierror.Append(errs, err)
 	}
 
-	return errs.ErrorOrNil()
+	return errs
 }
 
 // NewRuleSet returns a new ruleset for the specified data model

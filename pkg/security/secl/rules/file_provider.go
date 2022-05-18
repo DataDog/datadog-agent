@@ -31,7 +31,7 @@ type PolicyFileProvider struct {
 }
 
 // GetValidMacroAndRules returns valid macro, rules definitions
-func (p *PolicyFileProvider) parseDef(name string, def *PolicyDef) (*Policy, error) {
+func (p *PolicyFileProvider) parseDef(name string, def *PolicyDef) (*Policy, *multierror.Error) {
 	var errs *multierror.Error
 
 	policy := &Policy{
@@ -50,7 +50,7 @@ func (p *PolicyFileProvider) parseDef(name string, def *PolicyDef) (*Policy, err
 			continue
 		}
 
-		policy.Macros = append(policy.Macros, macroDef)
+		policy.AddMacro(macroDef)
 	}
 
 	for _, ruleDef := range def.Rules {
@@ -68,10 +68,10 @@ func (p *PolicyFileProvider) parseDef(name string, def *PolicyDef) (*Policy, err
 			continue
 		}
 
-		policy.Rules = append(policy.Rules, ruleDef)
+		policy.AddRule(ruleDef)
 	}
 
-	return policy, errs.ErrorOrNil()
+	return policy, errs
 }
 
 // LoadPolicy loads a YAML file and returns a new policy
@@ -89,9 +89,9 @@ func (p *PolicyFileProvider) LoadPolicy() (*Policy, error) {
 		return nil, &ErrPolicyLoad{Name: p.Filename, Err: err}
 	}
 
-	policy, err := p.parseDef(filepath.Base(p.Filename), &def)
-	if err != nil {
-		return nil, err
+	policy, errs := p.parseDef(filepath.Base(p.Filename), &def)
+	if errs.ErrorOrNil() != nil {
+		return nil, errs
 	}
 
 	if p.onPolicyChangedCb != nil {

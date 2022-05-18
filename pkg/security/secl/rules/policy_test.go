@@ -83,7 +83,7 @@ func TestMacroMerge(t *testing.T) {
 
 	loader := NewPolicyLoader(providers)
 
-	if err := rs.LoadPolicies(loader); err != nil {
+	if errs := rs.LoadPolicies(loader); errs.ErrorOrNil() != nil {
 		t.Error(err)
 	}
 
@@ -147,7 +147,7 @@ func TestRuleMerge(t *testing.T) {
 
 	loader := NewPolicyLoader(providers)
 
-	if err := rs.LoadPolicies(loader); err != nil {
+	if errs := rs.LoadPolicies(loader); errs.ErrorOrNil() != nil {
 		t.Error(err)
 	}
 
@@ -322,7 +322,7 @@ func TestActionSetVariable(t *testing.T) {
 
 	loader := NewPolicyLoader(providers)
 
-	if err := rs.LoadPolicies(loader); err != nil {
+	if errs := rs.LoadPolicies(loader); errs.ErrorOrNil() != nil {
 		t.Error(err)
 	}
 
@@ -410,14 +410,14 @@ func TestActionSetVariableConflict(t *testing.T) {
 
 	loader := NewPolicyLoader(providers)
 
-	if err := rs.LoadPolicies(loader); err == nil {
+	if errs := rs.LoadPolicies(loader); errs.ErrorOrNil() != nil {
 		t.Error("expected policy to fail to load")
 	} else {
 		t.Log(err)
 	}
 }
 
-func loadPolicy(t *testing.T, testPolicy *PolicyDef) error {
+func loadPolicy(t *testing.T, testPolicy *PolicyDef) *multierror.Error {
 	enabled := map[eval.EventType]bool{"*": true}
 	var opts Opts
 	opts.
@@ -444,7 +444,7 @@ func loadPolicy(t *testing.T, testPolicy *PolicyDef) error {
 
 	loader := NewPolicyLoader(providers)
 
-	return rs.LoadPolicies(loader)
+	return rs.LoadPolicies(loader).ErrorOrNil()
 }
 
 func TestActionSetVariableInvalid(t *testing.T) {

@@ -9,4 +9,5 @@ package rules
 type PolicyProvider interface {
 	LoadPolicy() (*Policy, error)
 	SetOnPolicyChangedCb(_ func(*Policy))
+	//GetPriority() int
 }

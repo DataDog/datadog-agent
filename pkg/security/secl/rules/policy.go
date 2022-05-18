@@ -13,3 +13,14 @@ type Policy struct {
 	Rules   []*RuleDefinition
 	Macros  []*MacroDefinition
 }
+
+// AddMacro add a macro to the policy
+func (p *Policy) AddMacro(def *MacroDefinition) {
+	p.Macros = append(p.Macros, def)
+}
+
+// AddRule add a rule to the policy
+func (p *Policy) AddRule(def *RuleDefinition) {
+	def.Policy = p
+	p.Rules = append(p.Rules, def)
+}

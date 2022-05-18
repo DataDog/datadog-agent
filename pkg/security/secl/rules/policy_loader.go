@@ -17,7 +17,7 @@ type PolicyLoader struct {
 }
 
 // LoadPolicies loads the policies
-func (p *PolicyLoader) LoadPolicies() ([]*Policy, error) {
+func (p *PolicyLoader) LoadPolicies() ([]*Policy, *multierror.Error) {
 	var errs *multierror.Error
 	var policies []*Policy
 
@@ -32,7 +32,7 @@ func (p *PolicyLoader) LoadPolicies() ([]*Policy, error) {
 		}
 	}
 
-	return policies, errs.ErrorOrNil()
+	return policies, errs
 }
 
 func (p *PolicyLoader) OnPolicyChanged(policy *Policy) {
