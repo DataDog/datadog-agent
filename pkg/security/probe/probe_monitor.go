@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/reorderer"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/syscalls"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -35,7 +36,7 @@ type Monitor struct {
 	syscallMonitor      *syscalls.SyscallMonitor
 	reordererMonitor    *reorderer.ReordererMonitor
 	activityDumpManager *ActivityDumpManager
-	runtimeMonitor      *RuntimeMonitor
+	runtimeMonitor      *monitors.RuntimeMonitor
 	discarderMonitor    *DiscarderMonitor
 }
 
@@ -79,7 +80,7 @@ func NewMonitor(p *Probe) (*Monitor, error) {
 	}
 
 	if p.config.RuntimeMonitor {
-		m.runtimeMonitor = NewRuntimeMonitor(p.statsdClient)
+		m.runtimeMonitor = monitors.NewRuntimeMonitor(p.statsdClient)
 	}
 
 	m.discarderMonitor, err = NewDiscarderMonitor(p)
