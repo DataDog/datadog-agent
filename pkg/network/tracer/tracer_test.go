@@ -49,8 +49,7 @@ type connTag = uint64
 
 const (
 	tagGnuTLS  connTag = 1 // netebpf.GnuTLS
-	tagOpenSSL connTag = 2 // netebpf.OpenSSL
-	tagTLS     connTag = 4 // netebpf.TLS
+	tagOpenSSL connTag = 2 // netebpf .OpenSSL
 )
 
 var (
