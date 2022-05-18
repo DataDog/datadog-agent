@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/mailru/easyjson/jwriter"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -40,6 +41,9 @@ type testEvent struct {
 	process testProcess
 	open    testOpen
 	mkdir   testMkdir
+}
+
+func (e *testEvent) MarshalEasyJSON(w *jwriter.Writer) {
 }
 
 type testModel struct {
