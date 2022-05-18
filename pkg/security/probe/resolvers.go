@@ -18,6 +18,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,7 +29,7 @@ type Resolvers struct {
 	probe             *Probe
 	DentryResolver    *DentryResolver
 	MountResolver     *MountResolver
-	ContainerResolver *ContainerResolver
+	ContainerResolver *resolvers.ContainerResolver
 	TimeResolver      *TimeResolver
 	ProcessResolver   *ProcessResolver
 	UserGroupResolver *UserGroupResolver
@@ -68,7 +69,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		DentryResolver:    dentryResolver,
 		MountResolver:     mountResolver,
 		TimeResolver:      timeResolver,
-		ContainerResolver: &ContainerResolver{},
+		ContainerResolver: &resolvers.ContainerResolver{},
 		UserGroupResolver: userGroupResolver,
 		TagsResolver:      NewTagsResolver(config),
 		NamespaceResolver: namespaceResolver,
