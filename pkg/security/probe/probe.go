@@ -38,6 +38,7 @@ import (
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/reorderer"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -72,7 +73,7 @@ type Probe struct {
 	resolvers *Resolvers
 	event     *Event
 	perfMap   *manager.PerfMap
-	reOrderer *ReOrderer
+	reOrderer *reorderer.ReOrderer
 	scrubber  *pconfig.DataScrubber
 
 	// Approvers / discarders section
@@ -1341,10 +1342,10 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	}
 	p.resolvers = resolvers
 
-	p.reOrderer = NewReOrderer(ctx,
+	p.reOrderer = reorderer.NewReOrderer(ctx,
 		p.handleEvent,
 		ExtractEventInfo,
-		ReOrdererOpts{
+		reorderer.ReOrdererOpts{
 			QueueSize:  10000,
 			Rate:       50 * time.Millisecond,
 			Retention:  5,

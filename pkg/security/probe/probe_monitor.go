@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/reorderer"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/syscalls"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,7 +33,7 @@ type Monitor struct {
 	loadController      *LoadController
 	perfBufferMonitor   *PerfBufferMonitor
 	syscallMonitor      *syscalls.SyscallMonitor
-	reordererMonitor    *ReordererMonitor
+	reordererMonitor    *reorderer.ReordererMonitor
 	activityDumpManager *ActivityDumpManager
 	runtimeMonitor      *RuntimeMonitor
 	discarderMonitor    *DiscarderMonitor
@@ -57,7 +58,7 @@ func NewMonitor(p *Probe) (*Monitor, error) {
 		return nil, errors.Wrap(err, "couldn't create the events statistics monitor")
 	}
 
-	m.reordererMonitor, err = NewReOrderMonitor(p)
+	m.reordererMonitor, err = reorderer.NewReOrderMonitor(p.reOrderer, p.statsdClient)
 	if err != nil {
 		return nil, errors.Wrap(err, "couldn't create the reorder monitor")
 	}
