@@ -123,7 +123,7 @@ const outputTemplateContent = `
 
 // +build linux
 
-package probe
+package syscalls
 
 // Syscall represents a syscall identifier
 type Syscall int

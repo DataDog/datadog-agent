@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/syscalls"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -30,7 +31,7 @@ type Monitor struct {
 
 	loadController      *LoadController
 	perfBufferMonitor   *PerfBufferMonitor
-	syscallMonitor      *SyscallMonitor
+	syscallMonitor      *syscalls.SyscallMonitor
 	reordererMonitor    *ReordererMonitor
 	activityDumpManager *ActivityDumpManager
 	runtimeMonitor      *RuntimeMonitor
@@ -70,7 +71,7 @@ func NewMonitor(p *Probe) (*Monitor, error) {
 
 	// create a new syscall monitor if requested
 	if p.config.SyscallMonitor {
-		m.syscallMonitor, err = NewSyscallMonitor(p.manager)
+		m.syscallMonitor, err = syscalls.NewSyscallMonitor(p.manager)
 		if err != nil {
 			return nil, err
 		}
@@ -168,16 +169,16 @@ func (m *Monitor) SendStats() error {
 func (m *Monitor) GetStats() (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
 
-	var syscalls *SyscallStats
+	var syscallsStats *syscalls.SyscallStats
 	var err error
 
 	if m.syscallMonitor != nil {
-		syscalls, err = m.syscallMonitor.GetStats()
+		syscallsStats, err = m.syscallMonitor.GetStats()
 	}
 
 	stats["events"] = map[string]interface{}{
 		"perf_buffer": 0,
-		"syscalls":    syscalls,
+		"syscalls":    syscallsStats,
 	}
 	return stats, err
 }
