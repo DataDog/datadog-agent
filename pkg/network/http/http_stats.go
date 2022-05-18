@@ -113,19 +113,6 @@ func NewKeyTuple(saddr, daddr util.Address, sport, dport uint16) KeyTuple {
 	}
 }
 
-// L3L4Equal return true is both KeyTuple are equal
-func (t *KeyTuple) L3L4Equal(t2 KeyTuple) bool {
-	if (t.SrcIPHigh == t2.SrcIPHigh) &&
-		(t.SrcIPLow == t2.SrcIPLow) &&
-		(t.DstIPHigh == t2.DstIPHigh) &&
-		(t.DstIPLow == t2.DstIPLow) &&
-		(t.SrcPort == t2.SrcPort) &&
-		(t.DstPort == t2.DstPort) {
-		return true
-	}
-	return false
-}
-
 // NumStatusClasses represents the number of HTTP status classes (1XX, 2XX, 3XX, 4XX, 5XX)
 const NumStatusClasses = 5
 
