@@ -138,10 +138,11 @@ stopLoop:
 			assert.Fail(t, "timeout waiting for aggregator to be stopped")
 		case <-waitStopTick:
 			stoppedMu.Lock()
-			if expectStartExisted {
+			startExited := expectStartExisted
+			stoppedMu.Unlock()
+			if startExited {
 				break stopLoop
 			}
-			stoppedMu.Unlock()
 		}
 	}
 }
