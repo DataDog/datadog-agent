@@ -72,6 +72,7 @@ func TestFlow_AsJSONString(t *testing.T) {
 		InputInterface: 1,
 		Tos:            0,
 	}
+	// language=json
 	expectedJSON := `{
     "namespace":"my-ns",
     "type":"netflow9",

@@ -35,11 +35,6 @@ func (a *TestAgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*me
 	return a.aggregator.GetBufferedChannels()
 }
 
-// GetEventPlatformEventsChannels returns underlying event platform events
-func (a *TestAgentDemultiplexer) GetEventPlatformEventsChannels() map[string][]*message.Message {
-	return a.aggregator.GetEventPlatformEvents()
-}
-
 // AddTimeSample implements a noop timesampler, appending the sample in an internal slice.
 func (a *TestAgentDemultiplexer) AddTimeSample(sample metrics.MetricSample) {
 	a.Lock()
@@ -94,14 +89,14 @@ func (a *TestAgentDemultiplexer) WaitEventPlatformEvents(eventType string, minEv
 			// this case could always take priority on the timeout case, we have to make sure
 			// we've not timeout
 			if time.Now().After(timeoutOn) {
-				return nil, fmt.Errorf("waiting for %d events but only received %d", minEvents, len(savedEvents))
+				return nil, fmt.Errorf("timeout waitig for events (expected at least %d events but only received %d)", minEvents, len(savedEvents))
 			}
 
 			if len(savedEvents) >= minEvents {
 				return savedEvents, nil
 			}
 		case <-time.After(timeout):
-			return nil, fmt.Errorf("waiting for %d events but only received %d", minEvents, len(savedEvents))
+			return nil, fmt.Errorf("timeout waitig for events (expected at least %d events but only received %d)", minEvents, len(savedEvents))
 		}
 	}
 }
