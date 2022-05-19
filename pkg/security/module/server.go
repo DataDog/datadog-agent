@@ -374,13 +374,13 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 		ruleEvent.AgentContext.PolicyVersion = policy.Version
 	}
 
-	probeJSON, err := utils.EasyjsonMarshal(event)
+	probeJSON, err := utils.EasyjsonMarshal(event, 20000)
 	if err != nil {
 		log.Error(errors.Wrap(err, "failed to marshal event"))
 		return
 	}
 
-	ruleEventJSON, err := utils.EasyjsonMarshal(ruleEvent)
+	ruleEventJSON, err := utils.EasyjsonMarshal(ruleEvent, -1)
 	if err != nil {
 		log.Error(errors.Wrap(err, "failed to marshal event context"))
 		return

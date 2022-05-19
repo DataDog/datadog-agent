@@ -425,7 +425,7 @@ func (ev *Event) ResolveSELinuxBoolName(e *model.SELinuxEvent) string {
 }
 
 func (ev *Event) String() string {
-	d, err := utils.EasyjsonMarshal(ev)
+	d, err := utils.EasyjsonMarshal(ev, -1)
 	if err != nil {
 		return err.Error()
 	}

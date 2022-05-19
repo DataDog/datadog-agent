@@ -10,10 +10,15 @@ import (
 	"github.com/mailru/easyjson/jwriter"
 )
 
-func EasyjsonMarshal(v easyjson.Marshaler) ([]byte, error) {
+func EasyjsonMarshal(v easyjson.Marshaler, preEnsure int) ([]byte, error) {
 	w := jwriter.Writer{
 		Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
 	}
+
+	if preEnsure > 0 {
+		w.Buffer.EnsureSpace(preEnsure)
+	}
+
 	v.MarshalEasyJSON(&w)
 	return w.BuildBytes()
 }
