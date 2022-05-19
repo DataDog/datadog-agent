@@ -12,11 +12,16 @@ import (
 	"github.com/mailru/easyjson/jwriter"
 )
 
-type EasyjsonTime time.Time
+type EasyjsonTime struct {
+	inner time.Time
+}
+
+func NewEasyjsonTime(t time.Time) EasyjsonTime {
+	return EasyjsonTime{inner: t}
+}
 
 func (t EasyjsonTime) MarshalEasyJSON(w *jwriter.Writer) {
-	tt := time.Time(t)
-	if y := tt.Year(); y < 0 || y >= 10000 {
+	if y := t.inner.Year(); y < 0 || y >= 10000 {
 		if w.Error == nil {
 			w.Error = errors.New("Time.MarshalJSON: year outside of range [0,9999]")
 		}
@@ -25,6 +30,10 @@ func (t EasyjsonTime) MarshalEasyJSON(w *jwriter.Writer) {
 
 	w.Buffer.EnsureSpace(len(time.RFC3339Nano) + 2)
 	w.Buffer.AppendByte('"')
-	w.Buffer.Buf = tt.AppendFormat(w.Buffer.Buf, time.RFC3339Nano)
+	w.Buffer.Buf = t.inner.AppendFormat(w.Buffer.Buf, time.RFC3339Nano)
 	w.Buffer.AppendByte('"')
+}
+
+func (t *EasyjsonTime) UnmarshalJSON(b []byte) error {
+	return t.inner.UnmarshalJSON(b)
 }

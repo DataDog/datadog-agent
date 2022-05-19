@@ -712,7 +712,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe9(in *jle
 				if out.ForkTime == nil {
 					out.ForkTime = new(utils.EasyjsonTime)
 				}
-				easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityUtils(in, out.ForkTime)
+				if data := in.Raw(); in.Ok() {
+					in.AddError((*out.ForkTime).UnmarshalJSON(data))
+				}
 			}
 		case "exec_time":
 			if in.IsNull() {
@@ -722,7 +724,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe9(in *jle
 				if out.ExecTime == nil {
 					out.ExecTime = new(utils.EasyjsonTime)
 				}
-				easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityUtils(in, out.ExecTime)
+				if data := in.Raw(); in.Ok() {
+					in.AddError((*out.ExecTime).UnmarshalJSON(data))
+				}
 			}
 		case "exit_time":
 			if in.IsNull() {
@@ -732,7 +736,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe9(in *jle
 				if out.ExitTime == nil {
 					out.ExitTime = new(utils.EasyjsonTime)
 				}
-				easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityUtils(in, out.ExitTime)
+				if data := in.Raw(); in.Ok() {
+					in.AddError((*out.ExitTime).UnmarshalJSON(data))
+				}
 			}
 		case "credentials":
 			if in.IsNull() {
@@ -980,41 +986,6 @@ func (v ProcessSerializer) MarshalEasyJSON(w *jwriter.Writer) {
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *ProcessSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe9(l, v)
-}
-func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityUtils(in *jlexer.Lexer, out *utils.EasyjsonTime) {
-	isTopLevel := in.IsStart()
-	if in.IsNull() {
-		if isTopLevel {
-			in.Consumed()
-		}
-		in.Skip()
-		return
-	}
-	in.Delim('{')
-	for !in.IsDelim('}') {
-		key := in.UnsafeFieldName(false)
-		in.WantColon()
-		if in.IsNull() {
-			in.Skip()
-			in.WantComma()
-			continue
-		}
-		switch key {
-		default:
-			in.SkipRecursive()
-		}
-		in.WantComma()
-	}
-	in.Delim('}')
-	if isTopLevel {
-		in.Consumed()
-	}
-}
-func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityUtils(out *jwriter.Writer, in utils.EasyjsonTime) {
-	out.RawByte('{')
-	first := true
-	_ = first
-	out.RawByte('}')
 }
 func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe10(in *jlexer.Lexer, out *ProcessCredentialsSerializer) {
 	isTopLevel := in.IsStart()
@@ -1338,7 +1309,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe11(in *jl
 				if out.ForkTime == nil {
 					out.ForkTime = new(utils.EasyjsonTime)
 				}
-				easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityUtils(in, out.ForkTime)
+				if data := in.Raw(); in.Ok() {
+					in.AddError((*out.ForkTime).UnmarshalJSON(data))
+				}
 			}
 		case "exec_time":
 			if in.IsNull() {
@@ -1348,7 +1321,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe11(in *jl
 				if out.ExecTime == nil {
 					out.ExecTime = new(utils.EasyjsonTime)
 				}
-				easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityUtils(in, out.ExecTime)
+				if data := in.Raw(); in.Ok() {
+					in.AddError((*out.ExecTime).UnmarshalJSON(data))
+				}
 			}
 		case "exit_time":
 			if in.IsNull() {
@@ -1358,7 +1333,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe11(in *jl
 				if out.ExitTime == nil {
 					out.ExitTime = new(utils.EasyjsonTime)
 				}
-				easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityUtils(in, out.ExitTime)
+				if data := in.Raw(); in.Ok() {
+					in.AddError((*out.ExitTime).UnmarshalJSON(data))
+				}
 			}
 		case "credentials":
 			if in.IsNull() {
@@ -2360,7 +2337,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe20(in *jl
 				if out.Atime == nil {
 					out.Atime = new(utils.EasyjsonTime)
 				}
-				easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityUtils(in, out.Atime)
+				if data := in.Raw(); in.Ok() {
+					in.AddError((*out.Atime).UnmarshalJSON(data))
+				}
 			}
 		case "modification_time":
 			if in.IsNull() {
@@ -2370,7 +2349,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe20(in *jl
 				if out.Mtime == nil {
 					out.Mtime = new(utils.EasyjsonTime)
 				}
-				easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityUtils(in, out.Mtime)
+				if data := in.Raw(); in.Ok() {
+					in.AddError((*out.Mtime).UnmarshalJSON(data))
+				}
 			}
 		case "change_time":
 			if in.IsNull() {
@@ -2380,7 +2361,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe20(in *jl
 				if out.Ctime == nil {
 					out.Ctime = new(utils.EasyjsonTime)
 				}
-				easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityUtils(in, out.Ctime)
+				if data := in.Raw(); in.Ok() {
+					in.AddError((*out.Ctime).UnmarshalJSON(data))
+				}
 			}
 		default:
 			in.SkipRecursive()
@@ -2676,7 +2659,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe21(in *jl
 				if out.Atime == nil {
 					out.Atime = new(utils.EasyjsonTime)
 				}
-				easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityUtils(in, out.Atime)
+				if data := in.Raw(); in.Ok() {
+					in.AddError((*out.Atime).UnmarshalJSON(data))
+				}
 			}
 		case "modification_time":
 			if in.IsNull() {
@@ -2686,7 +2671,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe21(in *jl
 				if out.Mtime == nil {
 					out.Mtime = new(utils.EasyjsonTime)
 				}
-				easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityUtils(in, out.Mtime)
+				if data := in.Raw(); in.Ok() {
+					in.AddError((*out.Mtime).UnmarshalJSON(data))
+				}
 			}
 		case "change_time":
 			if in.IsNull() {
@@ -2696,7 +2683,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe21(in *jl
 				if out.Ctime == nil {
 					out.Ctime = new(utils.EasyjsonTime)
 				}
-				easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityUtils(in, out.Ctime)
+				if data := in.Raw(); in.Ok() {
+					in.AddError((*out.Ctime).UnmarshalJSON(data))
+				}
 			}
 		default:
 			in.SkipRecursive()
@@ -3112,7 +3101,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe22(in *jl
 				(*out.ContainerContextSerializer).UnmarshalEasyJSON(in)
 			}
 		case "date":
-			easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityUtils(in, &out.Date)
+			if data := in.Raw(); in.Ok() {
+				in.AddError((out.Date).UnmarshalJSON(data))
+			}
 		default:
 			in.SkipRecursive()
 		}

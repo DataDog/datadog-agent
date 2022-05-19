@@ -408,7 +408,7 @@ func getTimeIfNotZero(t time.Time) *utils.EasyjsonTime {
 	if t.IsZero() {
 		return nil
 	}
-	tt := utils.EasyjsonTime(t)
+	tt := utils.NewEasyjsonTime(t)
 	return &tt
 }
 
@@ -758,7 +758,7 @@ func NewEventSerializer(event *Event) *EventSerializer {
 		ProcessContextSerializer: newProcessContextSerializer(&pc, event, event.resolvers),
 		DDContextSerializer:      newDDContextSerializer(event),
 		UserContextSerializer:    newUserContextSerializer(event),
-		Date:                     utils.EasyjsonTime(event.ResolveEventTimestamp()),
+		Date:                     utils.NewEasyjsonTime(event.ResolveEventTimestamp()),
 	}
 
 	if id := event.ResolveContainerID(&event.ContainerContext); id != "" {
