@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"os"
 	"os/exec"
@@ -1547,36 +1546,17 @@ func TestProcessResolution(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var cmd *exec.Cmd
-	var stdin io.WriteCloser
-	defer func() {
-		if cmd != nil {
-			if stdin != nil {
-				stdin.Close()
-			}
-
-			if err := cmd.Wait(); err != nil {
-				t.Fatal(err)
-			}
-		}
-	}()
-
 	test.WaitSignal(t, func() error {
 		var err error
 
-		args := []string{"multi-open", "/tmp/test-process-resolution", "/tmp/test-process-resolution"}
+		args := []string{"open", "/tmp/test-process-resolution", ";",
+			"open", "/tmp/test-process-resolution"}
 
 		cmd := exec.Command(syscallTester, args...)
-		stdin, err = cmd.StdinPipe()
-		if err != nil {
-			return err
-		}
 
-		if err := cmd.Start(); err != nil {
+		if err := cmd.Run(); err != nil {
 			t.Fatal(err)
 		}
-
-		_, err = io.WriteString(stdin, "\n")
 
 		return err
 	}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -1618,9 +1598,5 @@ func TestProcessResolution(t *testing.T) {
 		}
 
 		equals(t, cacheEntry, procEntry)
-
-		if _, err = io.WriteString(stdin, "\n"); err != nil {
-			t.Error(err)
-		}
 	})
 }
