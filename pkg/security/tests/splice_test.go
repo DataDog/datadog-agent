@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -38,7 +39,7 @@ func TestSpliceEvent(t *testing.T) {
 
 	t.Run("test_splice", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "splice")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "splice")
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "splice", event.GetType(), "wrong event type")
 			assert.Equal(t, uint32(0), event.Splice.PipeEntryFlag, "wrong pipe entry flag")

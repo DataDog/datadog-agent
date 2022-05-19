@@ -134,6 +134,7 @@ func AllMaps() []*manager.Map {
 		{Name: "selinux_enforce_status"},
 		// Enabled event mask
 		{Name: "enabled_events"},
+		{Name: "kill_list"},
 	}
 }
 

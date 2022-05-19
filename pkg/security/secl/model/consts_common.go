@@ -820,11 +820,11 @@ func initMMapFlagsConstants() {
 }
 
 func initSignalConstants() {
-	for k, v := range signalConstants {
+	for k, v := range SignalConstants {
 		SECLConstants[k] = &eval.IntEvaluator{Value: v}
 	}
 
-	for k, v := range signalConstants {
+	for k, v := range SignalConstants {
 		signalStrings[v] = k
 	}
 }

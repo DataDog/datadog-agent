@@ -45,6 +45,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -87,6 +88,7 @@ type Probe struct {
 	ctx            context.Context
 	cancelFnc      context.CancelFunc
 	wg             sync.WaitGroup
+
 	// Events section
 	handlers      [model.MaxAllEventType][]EventHandler
 	monitor       *Monitor
@@ -115,6 +117,8 @@ type Probe struct {
 	runtimeCompiled bool
 
 	isRuntimeDiscarded bool
+
+	SupportsBPFSendSignal bool
 }
 
 // GetResolvers returns the resolvers of Probe
@@ -932,7 +936,7 @@ func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
 
 // SelectProbes applies the loaded set of rules and returns a report
 // of the applied approvers for it.
-func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
+func (p *Probe) SelectProbes(eventTypes []eval.EventType, capabilities []string) error {
 	var activatedProbes []manager.ProbesSelector
 
 	for eventType, selectors := range probes.GetSelectorsPerEventType() {
@@ -958,14 +962,30 @@ func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
 
 	activatedProbes = append(activatedProbes, p.resolvers.TCResolver.SelectTCProbes())
 
-	// Add syscall monitor probes
+	// check if we have enabled activity dumps with traced syscalls
+	hasActivityDumpSyscallTracedEvents := false
 	if p.Config.ActivityDumpEnabled {
 		for _, e := range p.Config.ActivityDumpTracedEventTypes {
 			if e == model.SyscallsEventType {
-				activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+				hasActivityDumpSyscallTracedEvents = true
 				break
 			}
 		}
+	}
+
+	// check if we have a rule with a kill action
+	hasKillAction := false
+	if slices.Contains(capabilities, "action_kill") {
+		hasKillAction = true
+	}
+	if hasKillAction && !p.SupportsBPFSendSignal && aconfig.IsContainerized() {
+		log.Errorf("'kill' action is not available on this host")
+	}
+
+	// Add syscall monitor probes if it's either activated or
+	// there is an 'kill' action in the ruleset
+	if hasActivityDumpSyscallTracedEvents || hasKillAction {
+		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
 	}
 
 	// Print the list of unique probe identification IDs that are registered
@@ -1218,7 +1238,7 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*ApplyRuleSetReport, error) {
 		return nil, fmt.Errorf("failed to flush discarders: %w", err)
 	}
 
-	if err := p.SelectProbes(rs.GetEventTypes()); err != nil {
+	if err := p.SelectProbes(rs.GetEventTypes(), rs.GetCapabilities()); err != nil {
 		return nil, fmt.Errorf("failed to select probes: %w", err)
 	}
 
@@ -1237,18 +1257,19 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	p := &Probe{
-		Opts:                 opts,
-		Config:               config,
-		approvers:            make(map[eval.EventType]activeApprovers),
-		managerOptions:       ebpf.NewDefaultOptions(),
-		ctx:                  ctx,
-		cancelFnc:            cancel,
-		Erpc:                 nerpc,
-		erpcRequest:          &erpc.ERPCRequest{},
-		StatsdClient:         opts.StatsdClient,
-		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
-		isRuntimeDiscarded:   !opts.DontDiscardRuntime,
-		event:                &model.Event{},
+		Opts:                  opts,
+		Config:                config,
+		approvers:             make(map[eval.EventType]activeApprovers),
+		managerOptions:        ebpf.NewDefaultOptions(),
+		ctx:                   ctx,
+		cancelFnc:             cancel,
+		Erpc:                  nerpc,
+		erpcRequest:           &erpc.ERPCRequest{},
+		StatsdClient:          opts.StatsdClient,
+		discarderRateLimiter:  rate.NewLimiter(rate.Every(time.Second/5), 100),
+		isRuntimeDiscarded:    !opts.DontDiscardRuntime,
+		event:                 &model.Event{},
+		SupportsBPFSendSignal: kernel.SupportBPFSendSignal(),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -1375,6 +1396,16 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, getCGroupWriteConstants())
+
+	sendSignalConstant := manager.ConstantEditor{
+		Name:  "signal_processes",
+		Value: uint64(0),
+	}
+	if p.SupportsBPFSendSignal {
+		sendSignalConstant.Value = uint64(1)
+	}
+
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, sendSignalConstant)
 
 	// if we are using tracepoints to probe syscall exits, i.e. if we are using an old kernel version (< 4.12)
 	// we need to use raw_syscall tracepoints for exits, as syscall are not trace when running an ia32 userspace

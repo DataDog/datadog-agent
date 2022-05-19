@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -63,7 +64,7 @@ func TestChown32(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			// fchown syscall
-			return runSyscallTesterFunc(t, syscallTester, "chown", testFile, "100", "200")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "chown", testFile, "100", "200")
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(100), event.Chown.UID, "wrong user")
@@ -88,7 +89,7 @@ func TestChown32(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			// fchown syscall
-			return runSyscallTesterFunc(t, syscallTester, "fchown", testFile, "101", "201")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "fchown", testFile, "101", "201")
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(101), event.Chown.UID, "wrong user")
@@ -113,7 +114,7 @@ func TestChown32(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			// fchown syscall
-			return runSyscallTesterFunc(t, syscallTester, "fchownat", testFile, "102", "202")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "fchownat", testFile, "102", "202")
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(102), event.Chown.UID, "wrong user")
@@ -143,7 +144,7 @@ func TestChown32(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			// fchown syscall
-			return runSyscallTesterFunc(t, syscallTester, "lchown", testSymlink, "103", "203")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "lchown", testSymlink, "103", "203")
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(103), event.Chown.UID, "wrong user")
@@ -173,7 +174,7 @@ func TestChown32(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			// fchown syscall
-			return runSyscallTesterFunc(t, syscallTester, "lchown32", testSymlink, "104", "204")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "lchown32", testSymlink, "104", "204")
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(104), event.Chown.UID, "wrong user")
@@ -199,7 +200,7 @@ func TestChown32(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			// fchown syscall
-			return runSyscallTesterFunc(t, syscallTester, "fchown32", testFile, "105", "205")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "fchown32", testFile, "105", "205")
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(105), event.Chown.UID, "wrong user")
@@ -224,7 +225,7 @@ func TestChown32(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			// fchown syscall
-			return runSyscallTesterFunc(t, syscallTester, "chown32", testFile, "106", "206")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "chown32", testFile, "106", "206")
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(106), event.Chown.UID, "wrong user")

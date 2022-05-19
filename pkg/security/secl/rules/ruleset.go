@@ -14,6 +14,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cast"
+	"k8s.io/utils/strings/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -113,21 +114,36 @@ func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 
 // ActionDefinition describes a rule action section
 type ActionDefinition struct {
-	Set *SetDefinition `yaml:"set"`
+	Set  *SetDefinition  `yaml:"set"`
+	Kill *KillDefinition `yaml:"kill"`
 }
 
 // Check returns an error if the action in invalid
 func (a *ActionDefinition) Check() error {
-	if a.Set == nil {
-		return errors.New("missing 'set' section in action")
+	if a.Set == nil && a.Kill == nil {
+		return errors.New("either 'set' or 'kill' section of an action must be specified")
 	}
 
-	if a.Set.Name == "" {
-		return errors.New("action name is empty")
-	}
+	if a.Set != nil {
+		if a.Kill != nil {
+			return errors.New("only of 'set' or 'kill' section of an action can be specified")
+		}
 
-	if (a.Set.Value == nil && a.Set.Field == "") || (a.Set.Value != nil && a.Set.Field != "") {
-		return errors.New("either 'value' or 'field' must be specified")
+		if a.Set.Name == "" {
+			return errors.New("action name is empty")
+		}
+
+		if (a.Set.Value == nil && a.Set.Field == "") || (a.Set.Value != nil && a.Set.Field != "") {
+			return errors.New("either 'value' or 'field' must be specified")
+		}
+	} else {
+		if a.Kill.Signal == "" {
+			a.Kill.Signal = "SIGTERM"
+		}
+
+		if _, found := model.SignalConstants[a.Kill.Signal]; !found {
+			return fmt.Errorf("unsupported signal '%s'", a.Kill.Signal)
+		}
 	}
 
 	return nil
@@ -143,6 +159,11 @@ type SetDefinition struct {
 	Field  string      `yaml:"field"`
 	Append bool        `yaml:"append"`
 	Scope  Scope       `yaml:"scope"`
+}
+
+// KillDefinition describes the 'kill' section of a rule action
+type KillDefinition struct {
+	Signal string `yaml:"signal"`
 }
 
 // Rule describes a rule of a ruleset
@@ -173,6 +194,7 @@ type RuleSet struct {
 	listeners        []RuleSetListener
 	globalVariables  eval.GlobalVariables
 	scopedVariables  map[Scope]VariableProvider
+	capabilities     []string
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
 	fields []string
 	logger log.Logger
@@ -481,9 +503,10 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 	return IsDiscarder(ctx, field, bucket.rules)
 }
 
-func (rs *RuleSet) runRuleActions(ctx *eval.Context, rule *Rule) error {
+func (rs *RuleSet) runRuleActions(event eval.Event, ctx *eval.Context, rule *Rule) error {
 	for _, action := range rule.Definition.Actions {
 		switch {
+		// action.Kill has to handled by a ruleset listener
 		case action.Set != nil:
 			name := string(action.Set.Scope)
 			if name != "" {
@@ -549,7 +572,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 			rs.NotifyRuleMatch(rule, event)
 			result = true
 
-			if err := rs.runRuleActions(ctx, rule); err != nil {
+			if err := rs.runRuleActions(event, ctx, rule); err != nil {
 				rs.logger.Errorf("Error while executing rule actions: %s", err)
 			}
 		}
@@ -667,7 +690,11 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 				continue
 			}
 
-			if action.Set != nil {
+			if action.Kill != nil {
+				if !slices.Contains(rs.capabilities, "action_kill") {
+					rs.capabilities = append(rs.capabilities, "action_kill")
+				}
+			} else if action.Set != nil {
 				varName := action.Set.Name
 				if action.Set.Scope != "" {
 					varName = string(action.Set.Scope) + "." + varName
@@ -801,4 +828,9 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		fieldEvaluators:  make(map[string]eval.Evaluator),
 		scopedVariables:  make(map[Scope]VariableProvider),
 	}
+}
+
+// GetCapabilities returns list of needed capabilities
+func (rs *RuleSet) GetCapabilities() []string {
+	return rs.capabilities
 }

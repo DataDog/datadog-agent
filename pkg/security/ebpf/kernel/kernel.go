@@ -21,6 +21,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	ksyms "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -268,4 +269,10 @@ func (k *Version) HaveMmapableMaps() bool {
 func (k *Version) HaveRingBuffers() bool {
 	// This checks ring buffer maps, which appeared in 5.8
 	return k.Code != 0 && k.Code >= Kernel5_8 && features.HaveMapType(ebpf.RingBuf) == nil
+}
+
+// SupportBPFSendSignal returns true if the eBPF function bpf_send_signal is available
+func SupportBPFSendSignal() bool {
+	missings, err := ksyms.VerifyKernelFuncs(filepath.Join(util.GetProcRoot(), "kallsyms"), []string{"bpf_send_signal"})
+	return len(missings) == 0 && err == nil
 }

@@ -163,20 +163,18 @@ void sig_handler(int signum){
     exit(0);
 }
 
-int test_signal_sigusr(int sig) {
-    pid_t child = fork();
+int test_signal_sigusr(int child, int sig) {
     if (child == 0) {
-        signal(sig, sig_handler);
-        sleep(60);
-
-        return EXIT_SUCCESS;
+        child = fork();
+        if (child == 0) {
+            sleep(5);
+            return EXIT_SUCCESS;
+        }
     }
 
     int ret = kill(child, sig);
-    if (ret < 0) {
-        return ret;
-    }
-    return wait(NULL);
+    sleep(1);
+    return ret;
 }
 
 int test_signal_eperm(void) {
@@ -202,10 +200,19 @@ int test_signal(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
+    int pid = 0;
+    if (argc >= 2) {
+        pid = atoi(argv[2]);
+        if (pid < 1) {
+            fprintf(stderr, "invalid pid: %s\n", argv[2]);
+            return EXIT_FAILURE;
+        }
+    }
+
     if (!strcmp(argv[1], "sigusr"))
-        return test_signal_sigusr(SIGUSR1);
+        return test_signal_sigusr(pid, SIGUSR1);
     if (!strcmp(argv[1], "sigusr2"))
-        return test_signal_sigusr(SIGUSR2);
+        return test_signal_sigusr(pid, SIGUSR2);
     else if (!strcmp(argv[1], "eperm"))
         return test_signal_eperm();
     fprintf(stderr, "%s: Unknown argument: %s.\n", __FUNCTION__, argv[1]);
@@ -423,7 +430,6 @@ int test_bind_af_unix(void) {
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, TEST_BIND_AF_UNIX_SERVER_PATH, strlen(TEST_BIND_AF_UNIX_SERVER_PATH));
     int ret = bind(s, (struct sockaddr*)&addr, sizeof(addr));
-    printf("bind retval: %i\n", ret);
     if (ret)
         perror("bind");
 

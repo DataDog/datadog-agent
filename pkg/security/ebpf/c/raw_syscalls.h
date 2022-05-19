@@ -69,11 +69,31 @@ struct _tracepoint_raw_syscalls_sys_enter {
     unsigned long args[6];
 };
 
+struct bpf_map_def SEC("maps/kill_list") kill_list = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 256,
+};
+
 SEC("tracepoint/raw_syscalls/sys_enter")
 int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     struct syscall_monitor_entry_t zero = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
+        
+    // check if we have to kill the process
+    u64 signal_processes;
+    LOAD_CONSTANT("signal_processes", signal_processes);
+    if (signal_processes) {
+        u32 *sig = bpf_map_lookup_elem(&kill_list, &pid);
+        if ((sig != NULL && *sig != 0)) {
+#ifdef DEBUG
+            bpf_printk("Sending process %d %d\n", pid, *sig);
+#endif
+            bpf_send_signal(*sig);
+        }
+    }
 
     struct syscall_monitor_entry_t *entry = bpf_map_lookup_elem(&syscall_monitor, &pid);
     if (entry == NULL) {
@@ -88,7 +108,6 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     // compute the offset of the current syscall
     u16 index = ((unsigned long) args->id) / 8;
     u8 bit = 1 << (((unsigned long) args->id) % 8);
-
     // check if this is a new syscall
     if ((entry->syscalls[index & (SYSCALL_ENCODING_TABLE_SIZE - 1)] & bit) == 0) {
         entry->dirty = 1;

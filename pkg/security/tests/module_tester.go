@@ -165,6 +165,12 @@ rules:
           scope: {{$Action.Set.Scope}}
           append: {{$Action.Set.Append}}
 {{- end}}
+{{- if $Action.Kill}}
+      - kill:
+		  {{- if $Action.Kill.Signal}}
+          signal: {{$Action.Kill.Signal}}
+          {{- end}}
+{{- end}}
 {{- end}}
 {{end}}
 `

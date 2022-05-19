@@ -15,14 +15,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/cilium/ebpf"
+
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // Monitor regroups all the work we want to do to monitor the probes we pushed in the kernel
 type Monitor struct {
-	probe *Probe
-
+	probe               *Probe
+	KillListMap         *ebpf.Map
 	loadController      *LoadController
 	perfBufferMonitor   *PerfBufferMonitor
 	activityDumpManager *ActivityDumpManager
@@ -33,9 +36,14 @@ type Monitor struct {
 
 // NewMonitor returns a new instance of a ProbeMonitor
 func NewMonitor(p *Probe) (*Monitor, error) {
-	var err error
+	KillListMap, err := managerhelper.Map(p.Manager, "kill_list")
+	if err != nil {
+		return nil, err
+	}
+
 	m := &Monitor{
-		probe: p,
+		probe:       p,
+		KillListMap: KillListMap,
 	}
 
 	// instantiate a new load controller

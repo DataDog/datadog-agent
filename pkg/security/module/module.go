@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -159,7 +160,7 @@ func (m *Module) Start() error {
 				model.ForkEventType.String(),
 				model.ExecEventType.String(),
 				model.ExitEventType.String(),
-			})
+			}, nil)
 		}
 		return nil
 	}
@@ -451,6 +452,9 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 	ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
 	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
 
+	// Handle rule actions
+	m.HandleActions(rule, ev)
+
 	// needs to be resolved here, outside of the callback as using process tree
 	// which can be modified during queuing
 	service := ev.FieldHandlers.GetProcessServiceTag(ev)
@@ -710,5 +714,28 @@ func logLoadingErrors(msg string, m *multierror.Error) {
 		seclog.Errorf(msg, m.Error())
 	} else {
 		seclog.Warnf(msg, m.Error())
+	}
+}
+
+// HandleActions executes the rule actions
+func (m *Module) HandleActions(rule *rules.Rule, event *model.Event) {
+	for _, action := range rule.Definition.Actions {
+		if action.Kill != nil && m.probe.SupportsBPFSendSignal {
+			if pid, err := event.GetFieldValue("process.pid"); err == nil {
+				if pid, ok := pid.(int); ok && pid > 1 && pid != int(utils.Getpid()) {
+					log.Debugf("Requesting signal %d to be sent to %d", action.Kill.Signal, pid)
+					sig := model.SignalConstants[action.Kill.Signal]
+
+					if m.probe.SupportsBPFSendSignal {
+						err = m.probe.GetMonitor().KillListMap.Put(uint32(pid), uint32(sig))
+					} else {
+						err = syscall.Kill(pid, syscall.Signal(sig))
+					}
+					if err != nil {
+						log.Warn(err)
+					}
+				}
+			}
+		}
 	}
 }
