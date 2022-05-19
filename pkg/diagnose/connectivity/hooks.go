@@ -20,9 +20,9 @@ import (
 	"github.com/fatih/color"
 )
 
-// During a request, the http.Client will call the functions of the ClientTrace at specific moments.
+// During a request, the http.Client will call the functions of the ClientTrace at specific moments
 // This is useful to get extra information about what is happening and if there are errors during
-// connection establishment, DNS resolution or TLS handshake for instance.
+// connection establishment, DNS resolution or TLS handshake for instance
 var DiagnoseTrace = &httptrace.ClientTrace{
 
 	// Hooks called before and after creating or retrieving a connection
@@ -42,7 +42,11 @@ var DiagnoseTrace = &httptrace.ClientTrace{
 	TLSHandshakeDone:  tlsHandshakeDoneHook,
 }
 
-var EmptyTrace = &httptrace.ClientTrace{}
+var (
+	EmptyTrace   = &httptrace.ClientTrace{}
+	dnsColorFunc = color.MagentaString
+	tlsColorFunc = color.YellowString
+)
 
 // connectStartHook is called when the http.Client is establishing a new connection to 'addr'
 // However, it is not called when a connection is reused (see gotConnHook)
@@ -58,7 +62,7 @@ func connectDoneHook(network, addr string, err error) {
 		statusString = color.RedString("KO")
 		fmt.Printf("Unable to connect to the endpoint : %v\n", err)
 	}
-	fmt.Printf("Connection to the endpoint [%v]\n\n", statusString)
+	fmt.Printf("• Connection to the endpoint [%v]\n\n", statusString)
 }
 
 // getConnHook is called before getting a new connection.
@@ -83,7 +87,7 @@ func gotConnHook(gci httptrace.GotConnInfo) {
 
 // dnsStartHook is called when starting the DNS lookup
 func dnsStartHook(di httptrace.DNSStartInfo) {
-	fmt.Printf("--- Starting DNS lookup to resolve '%v' ---\n", di.Host)
+	fmt.Print(dnsColorFunc("--- Starting DNS lookup to resolve '%v' ---\n", di.Host))
 }
 
 // dnsDoneHook is called after the DNS lookup
@@ -92,14 +96,14 @@ func dnsDoneHook(di httptrace.DNSDoneInfo) {
 	statusString := color.GreenString("OK")
 	if di.Err != nil {
 		statusString = color.RedString("KO")
-		fmt.Printf("Unable to resolve the address : %v\n", di.Err)
+		fmt.Print(dnsColorFunc("Unable to resolve the address : %v\n", di.Err))
 	}
-	fmt.Printf("DNS Lookup [%v]\n\n", statusString)
+	fmt.Printf("• %v [%v]\n\n", dnsColorFunc("DNS Lookup"), statusString)
 }
 
 // tlsHandshakeStartHook is called when starting the TLS Handshake
 func tlsHandshakeStartHook() {
-	fmt.Printf("### Starting TLS Handshake ###\n")
+	fmt.Print(tlsColorFunc("### Starting TLS Handshake ###\n"))
 }
 
 // tlsHandshakeDoneHook is called after the TLS Handshake
@@ -108,7 +112,7 @@ func tlsHandshakeDoneHook(cs tls.ConnectionState, err error) {
 	statusString := color.GreenString("OK")
 	if err != nil {
 		statusString = color.RedString("KO")
-		fmt.Printf("Unable to achieve the TLS Handshake : %v\n", err)
+		fmt.Print(tlsColorFunc("Unable to achieve the TLS Handshake : %v\n", err))
 	}
-	fmt.Printf("TLS Handshake [%v]\n\n", statusString)
+	fmt.Printf("• %v [%v]\n\n", tlsColorFunc("TLS Handshake"), statusString)
 }

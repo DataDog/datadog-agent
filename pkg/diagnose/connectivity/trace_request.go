@@ -24,7 +24,7 @@ import (
 	"github.com/fatih/color"
 )
 
-// RunDatadogConnectivityDiagnose send requests to endpoints for all domains
+// RunDatadogConnectivityDiagnose sends requests to all known endpoints for all domains
 // to check if there are connectivity issues between Datadog and these endpoints
 func RunDatadogConnectivityDiagnose(noTrace bool) error {
 	// Create domain resolvers
