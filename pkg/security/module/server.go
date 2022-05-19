@@ -386,7 +386,9 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 		return
 	}
 
-	data := append(probeJSON[:len(probeJSON)-1], ',')
+	data := make([]byte, 0, len(probeJSON)+len(ruleEventJSON)-1) // -2 for the '}' and '{' +1 for the ','
+	data = append(data, probeJSON[:len(probeJSON)-1]...)
+	data = append(data, ',')
 	data = append(data, ruleEventJSON[1:]...)
 	seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", rule.ID, string(data))
 
