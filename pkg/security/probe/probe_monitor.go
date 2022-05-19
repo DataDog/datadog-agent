@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"syscall"
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -20,7 +21,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -194,6 +197,20 @@ func (m *Monitor) ProcessEvent(event *Event, size uint64, CPU int, perfMap *mana
 	} else {
 		if m.activityDumpManager != nil {
 			m.activityDumpManager.ProcessEvent(event)
+		}
+	}
+}
+
+// HandleActions executes the rule actions
+func (m *Monitor) HandleActions(rule *rules.Rule, event *Event) {
+	for _, action := range rule.Definition.Actions {
+		if action.Kill != nil {
+			if pid, err := event.GetFieldValue("process.pid"); err == nil {
+				if pid, ok := pid.(int); ok && pid > 1 && pid != int(utils.Getpid()) {
+					log.Debugf("Sending signal %s to %d", action.Kill.Signal, pid)
+					syscall.Kill(int(pid), syscall.Signal(model.SignalConstants[action.Kill.Signal]))
+				}
+			}
 		}
 	}
 }

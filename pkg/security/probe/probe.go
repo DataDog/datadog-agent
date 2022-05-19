@@ -764,6 +764,8 @@ func (p *Probe) OnRuleMatch(rule *rules.Rule, event *Event) {
 	// ensure that all the fields are resolved before sending
 	event.ResolveContainerID(&event.ContainerContext)
 	event.ResolveContainerTags(&event.ContainerContext)
+
+	p.monitor.HandleActions(rule, event)
 }
 
 // OnNewDiscarder is called when a new discarder is found

@@ -190,7 +190,8 @@ func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
 				result = multierror.Append(result, fmt.Errorf("invalid action: %w", err))
 			}
 
-			if action.Set != nil {
+			switch {
+			case action.Set != nil:
 				varName := action.Set.Name
 				if action.Set.Scope != "" {
 					varName = string(action.Set.Scope) + "." + varName

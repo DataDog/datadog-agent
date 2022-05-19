@@ -323,7 +323,7 @@ var (
 		"MAP_HUGE_16GB":       34 << unix.MAP_HUGE_SHIFT,
 	}
 
-	signalConstants = map[string]int{
+	SignalConstants = map[string]int{
 		"SIGHUP":    int(unix.SIGHUP),
 		"SIGINT":    int(unix.SIGINT),
 		"SIGQUIT":   int(unix.SIGQUIT),
