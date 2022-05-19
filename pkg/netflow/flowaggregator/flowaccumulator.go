@@ -45,7 +45,7 @@ func newFlowAccumulator(aggregatorFlushInterval time.Duration) *flowAccumulator 
 // flush will flush specific flow context (distinct hash) if nextFlush is reached
 // once a flow context is flushed nextFlush will be updated to the next flush time
 // Specific flow context in `flowAccumulator.flows` map will be deleted if `flowContextTTL`
-// to avoid keeping flow context that are not seen anymore.
+// is reached to avoid keeping flow context that are not seen anymore.
 func (f *flowAccumulator) flush() []*common.Flow {
 	f.mu.Lock()
 	defer f.mu.Unlock()
