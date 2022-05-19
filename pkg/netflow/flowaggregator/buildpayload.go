@@ -1,29 +1,18 @@
 package flowaggregator
 
 import (
-	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	coreutil "github.com/DataDog/datadog-agent/pkg/util"
-
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/payload"
 )
 
-func buildPayload(aggFlow *common.Flow) payload.FlowPayload {
+func buildPayload(aggFlow *common.Flow, hostname string) payload.FlowPayload {
 	var direction string
 
 	if aggFlow.Direction == 0 {
 		direction = "ingress"
 	} else {
 		direction = "egress"
-	}
-
-	hostname, err := coreutil.GetHostname(context.TODO())
-	if err != nil {
-		log.Warnf("Error getting the hostname: %v", err)
-		hostname = ""
 	}
 
 	ipProtocol := fmt.Sprintf("%d", aggFlow.IPProtocol)

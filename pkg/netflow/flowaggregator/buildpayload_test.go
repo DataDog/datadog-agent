@@ -1,7 +1,6 @@
 package flowaggregator
 
 import (
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/payload"
 	"github.com/stretchr/testify/assert"
@@ -10,7 +9,6 @@ import (
 )
 
 func Test_buildPayload(t *testing.T) {
-	coreconfig.Datadog.Set("hostname", "my-hostname")
 	tests := []struct {
 		name            string
 		flow            common.Flow
@@ -80,7 +78,7 @@ func Test_buildPayload(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			flowPayload := buildPayload(&tt.flow)
+			flowPayload := buildPayload(&tt.flow, "my-hostname")
 			assert.Equal(t, tt.expectedPayload, flowPayload)
 		})
 	}

@@ -25,10 +25,11 @@ type FlowAggregator struct {
 	logPayload        bool
 	receivedFlowCount uint64
 	flushedFlowCount  uint64
+	hostname          string
 }
 
 // NewFlowAggregator returns a new FlowAggregator
-func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig) *FlowAggregator {
+func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig, hostname string) *FlowAggregator {
 	return &FlowAggregator{
 		flowIn:        make(chan *common.Flow, config.AggregatorBufferSize),
 		flowAcc:       newFlowAccumulator(time.Duration(config.AggregatorFlushInterval) * time.Second),
@@ -36,6 +37,7 @@ func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig) *
 		sender:        sender,
 		stopChan:      make(chan struct{}),
 		logPayload:    config.LogPayloads,
+		hostname:      hostname,
 	}
 }
 
@@ -71,7 +73,7 @@ func (agg *FlowAggregator) run() {
 
 func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 	for _, flow := range flows {
-		flowPayload := buildPayload(flow)
+		flowPayload := buildPayload(flow, agg.hostname)
 		payloadBytes, err := json.Marshal(flowPayload)
 		if err != nil {
 			log.Errorf("Error marshalling device metadata: %s", err)

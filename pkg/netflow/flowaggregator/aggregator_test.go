@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +19,6 @@ import (
 func TestAggregator(t *testing.T) {
 	stoppedMu := sync.RWMutex{} // Mutex needed to avoid race condition in test
 
-	coreconfig.Datadog.Set("hostname", "my-hostname")
 	sender := mocksender.NewMockSender("")
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
@@ -54,7 +52,7 @@ func TestAggregator(t *testing.T) {
 		DstPort:        uint32(80),
 	}
 
-	aggregator := NewFlowAggregator(sender, &conf)
+	aggregator := NewFlowAggregator(sender, &conf, "my-hostname")
 	aggregator.flushInterval = 1 * time.Second
 	inChan := aggregator.GetFlowInChan()
 
