@@ -54,10 +54,6 @@ func doDiagnoseMetadataAvailability(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if flagNoColor {
-		color.NoColor = true
-	}
-
 	return diagnose.RunAll(color.Output)
 }
 
@@ -74,6 +70,10 @@ func configAndLogSetup() error {
 	err := common.SetupConfig(confFilePath)
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
+	}
+
+	if flagNoColor {
+		color.NoColor = true
 	}
 
 	// log level is always off since this might be use by other agent to get the hostname
