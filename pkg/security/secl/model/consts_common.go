@@ -652,6 +652,13 @@ var (
 		"IP_PROTO_MPLS":    IPProtoMPLS,
 		"IP_PROTO_RAW":     IPProtoRAW,
 	}
+
+	// exitCauseConstants is the list of supported Exit causes
+	exitCauseConstants = map[string]ExitCause{
+		"EXITED":     ExitExited,
+		"COREDUMPED": ExitCoreDumped,
+		"SIGNALED":   ExitSignaled,
+	}
 )
 
 var (
@@ -675,6 +682,7 @@ var (
 	l3ProtocolStrings         = map[L3Protocol]string{}
 	l4ProtocolStrings         = map[L4Protocol]string{}
 	addressFamilyStrings      = map[uint16]string{}
+	exitCauseStrings          = map[ExitCause]string{}
 )
 
 // File flags
@@ -860,6 +868,13 @@ func initAddressFamilyConstants() {
 	}
 }
 
+func initExitCauseConstants() {
+	for k, v := range exitCauseConstants {
+		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		exitCauseStrings[v] = k
+	}
+}
+
 func initConstants() {
 	initErrorConstants()
 	initOpenConstants()
@@ -882,6 +897,7 @@ func initConstants() {
 	initL3ProtocolConstants()
 	initL4ProtocolConstants()
 	initAddressFamilyConstants()
+	initExitCauseConstants()
 }
 
 func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
@@ -2016,4 +2032,20 @@ const (
 	IPProtoMPLS L4Protocol = 137
 	// IPProtoRAW Raw IP packets
 	IPProtoRAW L4Protocol = 255
+)
+
+// ExitCaise represents the cause of a process termination
+type ExitCause uint32
+
+func (cause ExitCause) String() string {
+   return exitCauseStrings[cause]
+}
+
+const (
+    // ExitExited Process exited normally
+    ExitExited ExitCause = iota
+    // ExitCoreDumped Process was terminated with a coredump signal
+    ExitCoreDumped
+    // ExitSignaled Process was terminated with a signal other than a coredump
+    ExitSignaled
 )

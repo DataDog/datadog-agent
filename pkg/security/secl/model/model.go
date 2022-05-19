@@ -161,6 +161,7 @@ type Event struct {
 	SetGID SetgidEvent `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
 	Capset CapsetEvent `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
 	Signal SignalEvent `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
+	Exit   ExitEvent   `field:"exit" event:"exit"`     // [7.3x] [Process] A process terminated
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
@@ -332,6 +333,14 @@ type SpanContext struct {
 //msgp:ignore ExecEvent
 type ExecEvent struct {
 	*Process
+}
+
+// ExitEvent represents a process exit event
+//msgp:ignore ExecEvent
+type ExitEvent struct {
+	*Process
+	Cause uint32 `field:"cause" msg:"exit_cause"` // Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)
+	Code  uint32 `field:"code" msg:"exit_code"`   // Exit code of the process
 }
 
 // FileFields holds the information required to identify a file

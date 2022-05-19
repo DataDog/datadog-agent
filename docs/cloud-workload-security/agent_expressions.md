@@ -39,6 +39,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `chown` | File | A file’s owner was changed | 7.27 |
 | `dns` | Network | A DNS request was sent | 7.36 |
 | `exec` | Process | A process was executed or forked | 7.27 |
+| `exit` | Process | A process terminated | 7.3x |
 | `link` | File | Create a new name/alias for a file | 7.27 |
 | `load_module` | Kernel | A new kernel module was loaded | 7.35 |
 | `mkdir` | File | A directory was created | 7.27 |
@@ -423,6 +424,61 @@ A process was executed or forked
 | `exec.tty_name` | string | Name of the TTY associated with the process |  |
 | `exec.uid` | int | UID of the process |  |
 | `exec.user` | string | User of the process |  |
+
+### Event `exit`
+
+A process terminated
+
+| Property | Type | Definition | Constants |
+| -------- | ---- | ---------- | --------- |
+| `exit.args` | string | Arguments of the process (as a string) |  |
+| `exit.args_flags` | string | Arguments of the process (as an array) |  |
+| `exit.args_options` | string | Arguments of the process (as an array) |  |
+| `exit.args_truncated` | bool | Indicator of arguments truncation |  |
+| `exit.argv` | string | Arguments of the process (as an array) |  |
+| `exit.argv0` | string | First argument of the process |  |
+| `exit.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
+| `exit.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
+| `exit.cause` | int | Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED) |  |
+| `exit.code` | int | Exit code of the process |  |
+| `exit.comm` | string | Comm attribute of the process |  |
+| `exit.container.id` | string | Container ID |  |
+| `exit.cookie` | int | Cookie of the process |  |
+| `exit.created_at` | int | Timestamp of the creation of the process |  |
+| `exit.egid` | int | Effective GID of the process |  |
+| `exit.egroup` | string | Effective group of the process |  |
+| `exit.envp` | string | Environment variables of the process |  |
+| `exit.envs` | string | Environment variable names of the process |  |
+| `exit.envs_truncated` | bool | Indicator of environment variables truncation |  |
+| `exit.euid` | int | Effective UID of the process |  |
+| `exit.euser` | string | Effective user of the process |  |
+| `exit.file.change_time` | int | Change time of the file |  |
+| `exit.file.filesystem` | string | File's filesystem |  |
+| `exit.file.gid` | int | GID of the file's owner |  |
+| `exit.file.group` | string | Group of the file's owner |  |
+| `exit.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `exit.file.inode` | int | Inode of the file |  |
+| `exit.file.mode` | int | Mode/rights of the file | Chmod mode constants |
+| `exit.file.modification_time` | int | Modification time of the file |  |
+| `exit.file.mount_id` | int | Mount ID of the file |  |
+| `exit.file.name` | string | File's basename |  |
+| `exit.file.path` | string | File's path |  |
+| `exit.file.rights` | int | Mode/rights of the file | Chmod mode constants |
+| `exit.file.uid` | int | UID of the file's owner |  |
+| `exit.file.user` | string | User of the file's owner |  |
+| `exit.fsgid` | int | FileSystem-gid of the process |  |
+| `exit.fsgroup` | string | FileSystem-group of the process |  |
+| `exit.fsuid` | int | FileSystem-uid of the process |  |
+| `exit.fsuser` | string | FileSystem-user of the process |  |
+| `exit.gid` | int | GID of the process |  |
+| `exit.group` | string | Group of the process |  |
+| `exit.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
+| `exit.pid` | int | Process ID of the process (also called thread group ID) |  |
+| `exit.ppid` | int | Parent process ID |  |
+| `exit.tid` | int | Thread ID of the thread |  |
+| `exit.tty_name` | string | Name of the TTY associated with the process |  |
+| `exit.uid` | int | UID of the process |  |
+| `exit.user` | string | User of the process |  |
 
 ### Event `link`
 

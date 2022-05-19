@@ -56,6 +56,9 @@ CWS logs have the following JSON schema:
         "bind": {
             "$ref": "#/definitions/BindEvent"
         },
+        "exit": {
+            "$ref": "#/definitions/ExitEvent"
+        },
         "usr": {
             "$ref": "#/definitions/UserContext"
         },
@@ -94,6 +97,7 @@ CWS logs have the following JSON schema:
 | `dns` | $ref | Please see [DNSEvent](#dnsevent) |
 | `network` | $ref | Please see [NetworkContext](#networkcontext) |
 | `bind` | $ref | Please see [BindEvent](#bindevent) |
+| `exit` | $ref | Please see [ExitEvent](#exitevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
@@ -405,6 +409,37 @@ CWS logs have the following JSON schema:
 | `category` | Event category |
 | `outcome` | Event outcome |
 | `async` | True if the event was asynchronous |
+
+
+## `ExitEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "cause",
+        "code"
+    ],
+    "properties": {
+        "cause": {
+            "type": "string",
+            "description": "Cause of the process termination"
+        },
+        "code": {
+            "type": "integer",
+            "description": "Exit code of the process"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `cause` | Cause of the process termination |
+| `code` | Exit code of the process |
 
 
 ## `File`

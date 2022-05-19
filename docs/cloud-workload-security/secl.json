@@ -1309,6 +1309,303 @@
       ]
     },
     {
+      "name": "exit",
+      "definition": "A process terminated",
+      "type": "Process",
+      "from_agent_version": "7.3x",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "exit.args",
+          "type": "string",
+          "definition": "Arguments of the process (as a string)",
+          "constants": ""
+        },
+        {
+          "name": "exit.args_flags",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)",
+          "constants": ""
+        },
+        {
+          "name": "exit.args_options",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)",
+          "constants": ""
+        },
+        {
+          "name": "exit.args_truncated",
+          "type": "bool",
+          "definition": "Indicator of arguments truncation",
+          "constants": ""
+        },
+        {
+          "name": "exit.argv",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)",
+          "constants": ""
+        },
+        {
+          "name": "exit.argv0",
+          "type": "string",
+          "definition": "First argument of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.cap_effective",
+          "type": "int",
+          "definition": "Effective capability set of the process",
+          "constants": "Kernel Capability constants"
+        },
+        {
+          "name": "exit.cap_permitted",
+          "type": "int",
+          "definition": "Permitted capability set of the process",
+          "constants": "Kernel Capability constants"
+        },
+        {
+          "name": "exit.cause",
+          "type": "int",
+          "definition": "Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)",
+          "constants": ""
+        },
+        {
+          "name": "exit.code",
+          "type": "int",
+          "definition": "Exit code of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.comm",
+          "type": "string",
+          "definition": "Comm attribute of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.container.id",
+          "type": "string",
+          "definition": "Container ID",
+          "constants": ""
+        },
+        {
+          "name": "exit.cookie",
+          "type": "int",
+          "definition": "Cookie of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.created_at",
+          "type": "int",
+          "definition": "Timestamp of the creation of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.egid",
+          "type": "int",
+          "definition": "Effective GID of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.egroup",
+          "type": "string",
+          "definition": "Effective group of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.envp",
+          "type": "string",
+          "definition": "Environment variables of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.envs_truncated",
+          "type": "bool",
+          "definition": "Indicator of environment variables truncation",
+          "constants": ""
+        },
+        {
+          "name": "exit.euid",
+          "type": "int",
+          "definition": "Effective UID of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.euser",
+          "type": "string",
+          "definition": "Effective user of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.filesystem",
+          "type": "string",
+          "definition": "File's filesystem",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.gid",
+          "type": "int",
+          "definition": "GID of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.group",
+          "type": "string",
+          "definition": "Group of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.in_upper_layer",
+          "type": "bool",
+          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.inode",
+          "type": "int",
+          "definition": "Inode of the file",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.mode",
+          "type": "int",
+          "definition": "Mode/rights of the file",
+          "constants": "Chmod mode constants"
+        },
+        {
+          "name": "exit.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the file",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.name",
+          "type": "string",
+          "definition": "File's basename",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.path",
+          "type": "string",
+          "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.rights",
+          "type": "int",
+          "definition": "Mode/rights of the file",
+          "constants": "Chmod mode constants"
+        },
+        {
+          "name": "exit.file.uid",
+          "type": "int",
+          "definition": "UID of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.user",
+          "type": "string",
+          "definition": "User of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "exit.fsgid",
+          "type": "int",
+          "definition": "FileSystem-gid of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.fsgroup",
+          "type": "string",
+          "definition": "FileSystem-group of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.fsuid",
+          "type": "int",
+          "definition": "FileSystem-uid of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.fsuser",
+          "type": "string",
+          "definition": "FileSystem-user of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.gid",
+          "type": "int",
+          "definition": "GID of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.group",
+          "type": "string",
+          "definition": "Group of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.is_thread",
+          "type": "bool",
+          "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
+          "constants": ""
+        },
+        {
+          "name": "exit.pid",
+          "type": "int",
+          "definition": "Process ID of the process (also called thread group ID)",
+          "constants": ""
+        },
+        {
+          "name": "exit.ppid",
+          "type": "int",
+          "definition": "Parent process ID",
+          "constants": ""
+        },
+        {
+          "name": "exit.tid",
+          "type": "int",
+          "definition": "Thread ID of the thread",
+          "constants": ""
+        },
+        {
+          "name": "exit.tty_name",
+          "type": "string",
+          "definition": "Name of the TTY associated with the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.uid",
+          "type": "int",
+          "definition": "UID of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.user",
+          "type": "string",
+          "definition": "User of the process",
+          "constants": ""
+        }
+      ]
+    },
+    {
       "name": "link",
       "definition": "Create a new name/alias for a file",
       "type": "File",

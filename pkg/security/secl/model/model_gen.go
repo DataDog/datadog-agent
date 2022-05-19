@@ -638,6 +638,203 @@ func (z *DNSEvent) Msgsize() (s int) {
 }
 
 // DecodeMsg implements msgp.Decodable
+func (z *ExitEvent) DecodeMsg(dc *msgp.Reader) (err error) {
+	var field []byte
+	_ = field
+	var zb0001 uint32
+	zb0001, err = dc.ReadMapHeader()
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for zb0001 > 0 {
+		zb0001--
+		field, err = dc.ReadMapKeyPtr()
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "Process":
+			if dc.IsNil() {
+				err = dc.ReadNil()
+				if err != nil {
+					err = msgp.WrapError(err, "Process")
+					return
+				}
+				z.Process = nil
+			} else {
+				if z.Process == nil {
+					z.Process = new(Process)
+				}
+				err = z.Process.DecodeMsg(dc)
+				if err != nil {
+					err = msgp.WrapError(err, "Process")
+					return
+				}
+			}
+		case "exit_cause":
+			z.Cause, err = dc.ReadUint32()
+			if err != nil {
+				err = msgp.WrapError(err, "Cause")
+				return
+			}
+		case "exit_code":
+			z.Code, err = dc.ReadUint32()
+			if err != nil {
+				err = msgp.WrapError(err, "Code")
+				return
+			}
+		default:
+			err = dc.Skip()
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	return
+}
+
+// EncodeMsg implements msgp.Encodable
+func (z *ExitEvent) EncodeMsg(en *msgp.Writer) (err error) {
+	// map header, size 3
+	// write "Process"
+	err = en.Append(0x83, 0xa7, 0x50, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73)
+	if err != nil {
+		return
+	}
+	if z.Process == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = z.Process.EncodeMsg(en)
+		if err != nil {
+			err = msgp.WrapError(err, "Process")
+			return
+		}
+	}
+	// write "exit_cause"
+	err = en.Append(0xaa, 0x65, 0x78, 0x69, 0x74, 0x5f, 0x63, 0x61, 0x75, 0x73, 0x65)
+	if err != nil {
+		return
+	}
+	err = en.WriteUint32(z.Cause)
+	if err != nil {
+		err = msgp.WrapError(err, "Cause")
+		return
+	}
+	// write "exit_code"
+	err = en.Append(0xa9, 0x65, 0x78, 0x69, 0x74, 0x5f, 0x63, 0x6f, 0x64, 0x65)
+	if err != nil {
+		return
+	}
+	err = en.WriteUint32(z.Code)
+	if err != nil {
+		err = msgp.WrapError(err, "Code")
+		return
+	}
+	return
+}
+
+// MarshalMsg implements msgp.Marshaler
+func (z *ExitEvent) MarshalMsg(b []byte) (o []byte, err error) {
+	o = msgp.Require(b, z.Msgsize())
+	// map header, size 3
+	// string "Process"
+	o = append(o, 0x83, 0xa7, 0x50, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73)
+	if z.Process == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		o, err = z.Process.MarshalMsg(o)
+		if err != nil {
+			err = msgp.WrapError(err, "Process")
+			return
+		}
+	}
+	// string "exit_cause"
+	o = append(o, 0xaa, 0x65, 0x78, 0x69, 0x74, 0x5f, 0x63, 0x61, 0x75, 0x73, 0x65)
+	o = msgp.AppendUint32(o, z.Cause)
+	// string "exit_code"
+	o = append(o, 0xa9, 0x65, 0x78, 0x69, 0x74, 0x5f, 0x63, 0x6f, 0x64, 0x65)
+	o = msgp.AppendUint32(o, z.Code)
+	return
+}
+
+// UnmarshalMsg implements msgp.Unmarshaler
+func (z *ExitEvent) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	var field []byte
+	_ = field
+	var zb0001 uint32
+	zb0001, bts, err = msgp.ReadMapHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for zb0001 > 0 {
+		zb0001--
+		field, bts, err = msgp.ReadMapKeyZC(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "Process":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				if err != nil {
+					return
+				}
+				z.Process = nil
+			} else {
+				if z.Process == nil {
+					z.Process = new(Process)
+				}
+				bts, err = z.Process.UnmarshalMsg(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Process")
+					return
+				}
+			}
+		case "exit_cause":
+			z.Cause, bts, err = msgp.ReadUint32Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Cause")
+				return
+			}
+		case "exit_code":
+			z.Code, bts, err = msgp.ReadUint32Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Code")
+				return
+			}
+		default:
+			bts, err = msgp.Skip(bts)
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	o = bts
+	return
+}
+
+// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
+func (z *ExitEvent) Msgsize() (s int) {
+	s = 1 + 8
+	if z.Process == nil {
+		s += msgp.NilSize
+	} else {
+		s += z.Process.Msgsize()
+	}
+	s += 11 + msgp.Uint32Size + 10 + msgp.Uint32Size
+	return
+}
+
+// DecodeMsg implements msgp.Decodable
 func (z *FileEvent) DecodeMsg(dc *msgp.Reader) (err error) {
 	var field []byte
 	_ = field

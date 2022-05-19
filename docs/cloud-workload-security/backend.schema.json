@@ -53,6 +53,10 @@
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/BindEvent"
     },
+    "exit": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/ExitEvent"
+    },
     "usr": {
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/UserContext"
@@ -247,6 +251,24 @@
         "async": {
           "type": "boolean",
           "description": "True if the event was asynchronous"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ExitEvent": {
+      "required": [
+        "cause",
+        "code"
+      ],
+      "properties": {
+        "cause": {
+          "type": "string",
+          "description": "Cause of the process termination"
+        },
+        "code": {
+          "type": "integer",
+          "description": "Exit code of the process"
         }
       },
       "additionalProperties": false,

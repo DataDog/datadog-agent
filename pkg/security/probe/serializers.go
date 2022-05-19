@@ -334,6 +334,13 @@ type BindEventSerializer struct {
 	Addr *IPPortFamilySerializer `json:"addr" jsonschema_description:"Bound address (if any)"`
 }
 
+// ExitEventSerializer serializes an exit event to JSON
+// easyjson:json
+type ExitEventSerializer struct {
+	Cause string `json:"cause" jsonschema_description:"Cause of the process termination"`
+	Code  uint32 `json:"code" jsonschema_description:"Exit code of the process"`
+}
+
 // EventSerializer serializes an event to JSON
 // easyjson:json
 type EventSerializer struct {
@@ -350,6 +357,7 @@ type EventSerializer struct {
 	*DNSEventSerializer         `json:"dns,omitempty"`
 	*NetworkContextSerializer   `json:"network,omitempty"`
 	*BindEventSerializer        `json:"bind,omitempty"`
+	*ExitEventSerializer        `json:"exit,omitempty"`
 	*UserContextSerializer      `json:"usr,omitempty"`
 	*ProcessContextSerializer   `json:"process,omitempty"`
 	*DDContextSerializer        `json:"dd,omitempty"`
@@ -732,6 +740,13 @@ func newBindEventSerializer(e *Event) *BindEventSerializer {
 		Addr: newIPPortFamilySerializer(&e.Bind.Addr, model.AddressFamily(e.Bind.AddrFamily).String()),
 	}
 	return bes
+}
+
+func newExitEventSerializer(e *Event) *ExitEventSerializer {
+	return &ExitEventSerializer{
+		Cause: model.ExitCause(e.Exit.Cause).String(),
+		Code: e.Exit.Code,
+	}
 }
 
 func serializeSyscallRetval(retval int64) string {
