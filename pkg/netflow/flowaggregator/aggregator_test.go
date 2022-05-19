@@ -22,7 +22,7 @@ func TestAggregator(t *testing.T) {
 
 	coreconfig.Datadog.Set("hostname", "my-hostname")
 	sender := mocksender.NewMockSender("")
-	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 	conf := config.NetflowConfig{
@@ -123,7 +123,8 @@ func TestAggregator(t *testing.T) {
 	assert.NoError(t, err)
 
 	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-netflow")
-	sender.AssertMetric(t, "Count", "datadog.newflow.aggregator.flows_flushed", 1, "", []string{"exporter:127.0.0.1", "flow_type:netflow9"})
+	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.aggregator.flows_flushed", 1, "", nil)
+	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.aggregator.flows_received", 1, "", nil)
 
 	// Test aggregator Stop
 	assert.False(t, expectStartExisted)

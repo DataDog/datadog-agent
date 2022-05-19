@@ -79,12 +79,3 @@ func (f *Flow) AsJSONString() string {
 	}
 	return string(s)
 }
-
-// TelemetryTags return tags used for telemetry
-func (f *Flow) TelemetryTags() []string {
-	return []string{
-		"exporter:" + f.ExporterAddr,
-		"namespace:" + f.Namespace,
-		"flow_type:" + string(f.FlowType),
-	}
-}

@@ -108,20 +108,3 @@ func TestFlow_AsJSONString(t *testing.T) {
 
 	assert.Equal(t, expectedPretty.String(), actualPretty.String())
 }
-
-func TestFlow_TelemetryTags(t *testing.T) {
-	flow := Flow{
-		FlowType:       TypeNetFlow9,
-		SrcAddr:        "1.2.3.4",
-		DstAddr:        "2.3.4.5",
-		ExporterAddr:   "127.0.0.1",
-		IPProtocol:     6,
-		SrcPort:        2000,
-		DstPort:        80,
-		InputInterface: 1,
-		Tos:            0,
-		Namespace:      "my-ns",
-	}
-	expectedTags := []string{"exporter:127.0.0.1", "flow_type:netflow9", "namespace:my-ns"}
-	assert.ElementsMatch(t, expectedTags, flow.TelemetryTags())
-}

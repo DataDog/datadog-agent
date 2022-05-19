@@ -17,13 +17,14 @@ const flowAggregatorFlushInterval = 10 * time.Second
 
 // FlowAggregator is used for space and time aggregation of NetFlow flows
 type FlowAggregator struct {
-	flowIn           chan *common.Flow
-	flushInterval    time.Duration
-	flowAcc          *flowAccumulator
-	sender           aggregator.Sender
-	stopChan         chan struct{}
-	logPayload       bool
-	flushedFlowCount uint64
+	flowIn            chan *common.Flow
+	flushInterval     time.Duration
+	flowAcc           *flowAccumulator
+	sender            aggregator.Sender
+	stopChan          chan struct{}
+	logPayload        bool
+	receivedFlowCount uint64
+	flushedFlowCount  uint64
 }
 
 // NewFlowAggregator returns a new FlowAggregator
@@ -62,7 +63,7 @@ func (agg *FlowAggregator) run() {
 			log.Info("Stopping aggregator")
 			return
 		case flow := <-agg.flowIn:
-			agg.sender.Count("datadog.newflow.aggregator.flows_received", 1, "", flow.TelemetryTags())
+			atomic.AddUint64(&agg.receivedFlowCount, 1)
 			agg.flowAcc.add(flow)
 		}
 	}
@@ -70,7 +71,6 @@ func (agg *FlowAggregator) run() {
 
 func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 	for _, flow := range flows {
-		agg.sender.Count("datadog.newflow.aggregator.flows_flushed", 1, "", flow.TelemetryTags())
 		flowPayload := buildPayload(flow)
 		payloadBytes, err := json.Marshal(flowPayload)
 		if err != nil {
@@ -78,7 +78,6 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 			continue
 		}
 		agg.sender.EventPlatformEvent(string(payloadBytes), epforwarder.EventTypeNetworkDevicesNetFlow)
-		atomic.AddUint64(&agg.flushedFlowCount, 1)
 	}
 }
 
@@ -121,5 +120,10 @@ func (agg *FlowAggregator) flush() int {
 		log.Debug("==== Flushing events END ======")
 	}
 	agg.sendFlows(flowsToFlush)
+
+	atomic.AddUint64(&agg.flushedFlowCount, uint64(len(flowsToFlush)))
+	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_received", float64(atomic.LoadUint64(&agg.receivedFlowCount)), "", nil)
+	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_flushed", float64(atomic.LoadUint64(&agg.flushedFlowCount)), "", nil)
+
 	return len(flowsToFlush)
 }
