@@ -20,36 +20,36 @@ const (
 	sourceName          = "Google Cloud Run"
 )
 
-type LogConfig struct {
+type Config struct {
 	FlushTimeout time.Duration
 	channel      chan *logConfig.ChannelMessage
 	source       string
 	loggerName   config.LoggerName
-	containerId  string
+	containerID  string
 }
 
 type CustomWriter struct {
-	LogConfig *LogConfig
+	LogConfig *Config
 }
 
-func CreateConfig(containerId string) *LogConfig {
-	return &LogConfig{
+func CreateConfig(containerID string) *Config {
+	return &Config{
 		FlushTimeout: defaultFlushTimeout,
 		channel:      make(chan *logConfig.ChannelMessage),
 		source:       source,
 		loggerName:   loggerName,
-		containerId:  containerId,
+		containerID:  containerID,
 	}
 }
 
-func Write(conf *LogConfig, msgToSend []byte) {
+func Write(conf *Config, msgToSend []byte) {
 	logMessage := &logConfig.ChannelMessage{
 		Content: msgToSend,
 	}
 	conf.channel <- logMessage
 }
 
-func SetupLog(conf *LogConfig) {
+func SetupLog(conf *Config) {
 	if err := config.SetupLogger(
 		conf.loggerName,
 		"error", // will be re-set later with the value from the env var
@@ -68,13 +68,13 @@ func SetupLog(conf *LogConfig) {
 		}
 	}
 	serverlessLogs.SetupLogAgent(conf.channel, sourceName, source)
-	serverlessLogs.SetLogsTags(getTagsWithRevision(tag.GetBaseTags(), conf.containerId))
+	serverlessLogs.SetLogsTags(getTagsWithRevision(tag.GetBaseTags(), conf.containerID))
 }
 
-func getTagsWithRevision(tags []string, containerId string) []string {
+func getTagsWithRevision(tags []string, containerID string) []string {
 	var result []string
 	result = append(result, tags...)
-	result = append(result, fmt.Sprintf("containerid:%s", containerId))
+	result = append(result, fmt.Sprintf("containerid:%s", containerID))
 	return result
 }
 

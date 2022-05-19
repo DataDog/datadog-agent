@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 )
 
-func Run(logConfig *log.LogConfig, metricAgent *metrics.ServerlessMetricAgent, traceAgent *trace.ServerlessTraceAgent, args []string) {
+func Run(logConfig *log.Config, metricAgent *metrics.ServerlessMetricAgent, traceAgent *trace.ServerlessTraceAgent, args []string) {
 	log.Write(logConfig, []byte(fmt.Sprintf("[datadog init process] running cmd = >%v<", args)))
 	err := execute(logConfig, metricAgent, traceAgent, args)
 	if err != nil {
@@ -29,7 +29,7 @@ func Run(logConfig *log.LogConfig, metricAgent *metrics.ServerlessMetricAgent, t
 	}
 }
 
-func execute(config *log.LogConfig, metricAgent *metrics.ServerlessMetricAgent, traceAgent *trace.ServerlessTraceAgent, args []string) error {
+func execute(config *log.Config, metricAgent *metrics.ServerlessMetricAgent, traceAgent *trace.ServerlessTraceAgent, args []string) error {
 	sigs := make(chan os.Signal, 1)
 	defer close(sigs)
 	signal.Notify(sigs)
@@ -51,7 +51,7 @@ func execute(config *log.LogConfig, metricAgent *metrics.ServerlessMetricAgent, 
 			}
 			if sig != syscall.SIGCHLD {
 				if cmd.Process != nil {
-					syscall.Kill(-cmd.Process.Pid, sig.(syscall.Signal))
+					_ = syscall.Kill(-cmd.Process.Pid, sig.(syscall.Signal))
 				}
 			}
 			if sig == syscall.SIGTERM {

@@ -8,22 +8,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const defaultUrl = "http://metadata.google.internal/computeMetadata/v1/instance/id"
+const defaultURL = "http://metadata.google.internal/computeMetadata/v1/instance/id"
 const defaultTimeout = 300 * time.Millisecond
 
-type MetadataConfig struct {
+type Config struct {
 	url     string
 	timeout time.Duration
 }
 
-func GetDefaultConfig() *MetadataConfig {
-	return &MetadataConfig{
-		url:     defaultUrl,
+func GetDefaultConfig() *Config {
+	return &Config{
+		url:     defaultURL,
 		timeout: defaultTimeout,
 	}
 }
 
-func GetContainerId(config *MetadataConfig) string {
+func GetContainerID(config *Config) string {
 	client := &http.Client{
 		Timeout: config.timeout,
 	}
@@ -37,8 +37,7 @@ func GetContainerId(config *MetadataConfig) string {
 	if err != nil {
 		log.Error("unable to get the instance id, defaulting to unknown-id")
 		return "unknown-id"
-	} else {
-		data, _ := ioutil.ReadAll(res.Body)
-		return string(data)
 	}
+	data, _ := ioutil.ReadAll(res.Body)
+	return string(data)
 }

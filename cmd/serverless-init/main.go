@@ -23,8 +23,8 @@ func main() {
 	if len(os.Args) < 2 {
 		panic("invalid arguments")
 	}
-	containerId := metadata.GetContainerId(metadata.GetDefaultConfig())
-	logConfig := log.CreateConfig(containerId)
+	containerID := metadata.GetContainerID(metadata.GetDefaultConfig())
+	logConfig := log.CreateConfig(containerID)
 	log.SetupLog(logConfig)
 	log.Write(logConfig, []byte(fmt.Sprintf("[datadog init process] starting, K_SERVICE = %s, K_REVISION = %s", os.Getenv("K_SERVICE"), os.Getenv("K_REVISION"))))
 

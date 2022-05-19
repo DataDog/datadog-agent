@@ -23,7 +23,7 @@ func TestGetTagsWithRevision(t *testing.T) {
 func TestWrite(t *testing.T) {
 	testContent := []byte("hello this is a log")
 	logChannel := make(chan *config.ChannelMessage)
-	config := &LogConfig{
+	config := &Config{
 		channel: logChannel,
 	}
 	go Write(config, testContent)
@@ -41,5 +41,5 @@ func TestCreateConfig(t *testing.T) {
 	assert.Equal(t, 5*time.Second, config.FlushTimeout)
 	assert.Equal(t, "cloudrun", config.source)
 	assert.Equal(t, "DD_CLOUDRUN_LOG_AGENT", string(config.loggerName))
-	assert.Equal(t, "abc456", config.containerId)
+	assert.Equal(t, "abc456", config.containerID)
 }

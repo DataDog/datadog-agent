@@ -20,11 +20,11 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestGetContainerMalformedUrl(t *testing.T) {
-	testConfig := &MetadataConfig{
+	testConfig := &Config{
 		timeout: 1 * time.Millisecond,
 		url:     string([]byte("\u007F")),
 	}
-	assert.Equal(t, "unknown-id", GetContainerId(testConfig))
+	assert.Equal(t, "unknown-id", GetContainerID(testConfig))
 }
 
 func TestGetContainerTimeout(t *testing.T) {
@@ -33,22 +33,21 @@ func TestGetContainerTimeout(t *testing.T) {
 		w.WriteHeader(200)
 	}))
 	defer ts.Close()
-	testConfig := &MetadataConfig{
+	testConfig := &Config{
 		timeout: 1 * time.Millisecond,
 		url:     ts.URL,
 	}
-	assert.Equal(t, "unknown-id", GetContainerId(testConfig))
+	assert.Equal(t, "unknown-id", GetContainerID(testConfig))
 }
 
 func TestGetContainerOK(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
 		w.Write([]byte("1234"))
 	}))
 	defer ts.Close()
-	testConfig := &MetadataConfig{
-		timeout: 1 * time.Millisecond,
+	testConfig := &Config{
+		timeout: 1 * time.Second,
 		url:     ts.URL,
 	}
-	assert.Equal(t, "1234", GetContainerId(testConfig))
+	assert.Equal(t, "1234", GetContainerID(testConfig))
 }
