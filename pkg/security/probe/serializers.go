@@ -26,7 +26,8 @@ import (
 // FileSerializer serializes a file to JSON
 // easyjson:json
 type FileSerializer struct {
-	Path                string              `json:"path,omitempty" jsonschema_description:"File path"`
+	// File path
+	Path                string              `json:"path,omitempty"`
 	Name                string              `json:"name,omitempty" jsonschema_description:"File basename"`
 	PathResolutionError string              `json:"path_resolution_error,omitempty" jsonschema_description:"Error message from path resolution"`
 	Inode               *uint64             `json:"inode,omitempty" jsonschema_description:"File inode number"`

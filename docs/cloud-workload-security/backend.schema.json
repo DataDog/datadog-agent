@@ -21,7 +21,8 @@
       "type": "object",
       "required": [
         "cmd"
-      ]
+      ],
+      "description": "BPFEventSerializer serializes a BPF event to JSON"
     },
     "BPFMap": {
       "properties": {
@@ -35,7 +36,8 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "BPFMapSerializer serializes a BPF map to JSON"
     },
     "BPFProgram": {
       "properties": {
@@ -64,7 +66,8 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "BPFProgramSerializer serializes a BPF map to JSON"
     },
     "BindEvent": {
       "properties": {
@@ -77,7 +80,8 @@
       "type": "object",
       "required": [
         "addr"
-      ]
+      ],
+      "description": "BindEventSerializer serializes a bind event to JSON"
     },
     "ContainerContext": {
       "properties": {
@@ -87,7 +91,8 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "ContainerContextSerializer serializes a container context to JSON"
     },
     "DDContext": {
       "properties": {
@@ -101,7 +106,8 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "DDContextSerializer serializes a span context to JSON"
     },
     "DNSEvent": {
       "properties": {
@@ -118,7 +124,8 @@
       "type": "object",
       "required": [
         "id"
-      ]
+      ],
+      "description": "DNSEventSerializer serializes a dns event to JSON"
     },
     "DNSQuestion": {
       "properties": {
@@ -151,7 +158,8 @@
         "name",
         "size",
         "count"
-      ]
+      ],
+      "description": "DNSQuestionSerializer serializes a DNS question to JSON"
     },
     "EventContext": {
       "properties": {
@@ -173,7 +181,8 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "EventContextSerializer serializes an event context to JSON"
     },
     "ExitEvent": {
       "properties": {
@@ -281,7 +290,8 @@
       "required": [
         "uid",
         "gid"
-      ]
+      ],
+      "description": "FileSerializer serializes a file to JSON"
     },
     "FileEvent": {
       "properties": {
@@ -391,7 +401,8 @@
       "required": [
         "uid",
         "gid"
-      ]
+      ],
+      "description": "FileEventSerializer serializes a file event to JSON"
     },
     "IPPort": {
       "properties": {
@@ -409,7 +420,8 @@
       "required": [
         "ip",
         "port"
-      ]
+      ],
+      "description": "IPPortSerializer is used to serialize an IP and Port context to JSON"
     },
     "IPPortFamily": {
       "properties": {
@@ -432,7 +444,8 @@
         "family",
         "ip",
         "port"
-      ]
+      ],
+      "description": "IPPortFamilySerializer is used to serialize an IP, Port and address family context to JSON"
     },
     "MMapEvent": {
       "properties": {
@@ -465,7 +478,8 @@
         "length",
         "protection",
         "flags"
-      ]
+      ],
+      "description": "MMapEventSerializer serializes a mmap event to JSON"
     },
     "MProtectEvent": {
       "properties": {
@@ -493,7 +507,8 @@
         "vm_end",
         "vm_protection",
         "req_protection"
-      ]
+      ],
+      "description": "MProtectEventSerializer serializes a mmap event to JSON"
     },
     "ModuleEvent": {
       "properties": {
@@ -510,7 +525,8 @@
       "type": "object",
       "required": [
         "name"
-      ]
+      ],
+      "description": "ModuleEventSerializer serializes a module event to JSON"
     },
     "NetworkContext": {
       "properties": {
@@ -547,7 +563,8 @@
         "source",
         "destination",
         "size"
-      ]
+      ],
+      "description": "NetworkContextSerializer serializes the network context to JSON"
     },
     "NetworkDevice": {
       "properties": {
@@ -570,7 +587,8 @@
         "netns",
         "ifindex",
         "ifname"
-      ]
+      ],
+      "description": "NetworkDeviceSerializer serializes the network device context to JSON"
     },
     "PTraceEvent": {
       "properties": {
@@ -592,7 +610,8 @@
       "required": [
         "request",
         "address"
-      ]
+      ],
+      "description": "PTraceEventSerializer serializes a mmap event to JSON"
     },
     "Process": {
       "properties": {
@@ -702,7 +721,8 @@
       "required": [
         "uid",
         "gid"
-      ]
+      ],
+      "description": "ProcessSerializer serializes a process to JSON"
     },
     "ProcessContext": {
       "properties": {
@@ -823,7 +843,8 @@
       "required": [
         "uid",
         "gid"
-      ]
+      ],
+      "description": "ProcessContextSerializer serializes a process context to JSON"
     },
     "ProcessCredentials": {
       "properties": {
@@ -904,7 +925,8 @@
         "fsgid",
         "cap_effective",
         "cap_permitted"
-      ]
+      ],
+      "description": "ProcessCredentialsSerializer serializes the process credentials to JSON"
     },
     "SELinuxBoolChange": {
       "properties": {
@@ -956,7 +978,8 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "SELinuxEventSerializer serializes a SELinux context to JSON"
     },
     "SignalEvent": {
       "properties": {
@@ -978,7 +1001,8 @@
       "required": [
         "type",
         "pid"
-      ]
+      ],
+      "description": "SignalEventSerializer serializes a signal event to JSON"
     },
     "SpliceEvent": {
       "properties": {
@@ -996,7 +1020,8 @@
       "required": [
         "pipe_entry_flag",
         "pipe_exit_flag"
-      ]
+      ],
+      "description": "SpliceEventSerializer serializes a splice event to JSON"
     },
     "UserContext": {
       "properties": {
@@ -1010,7 +1035,8 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "UserContextSerializer serializes a user context to JSON"
     }
   },
   "properties": {
@@ -1075,5 +1101,6 @@
     }
   },
   "additionalProperties": false,
-  "type": "object"
+  "type": "object",
+  "description": "EventSerializer serializes an event to JSON"
 }

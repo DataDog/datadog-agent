@@ -28,6 +28,12 @@ func generateBackendJSON(output string) error {
 		Mapper:         jsonTypeMapper,
 		Namer:          jsonTypeNamer,
 	}
+
+	if err := reflector.AddGoComments("github.com/DataDog/datadog-agent/pkg/security/probe", "./"); err != nil {
+		return err
+	}
+	reflector.CommentMap = cleanupEasyjson(reflector.CommentMap)
+
 	schema := reflector.Reflect(&probe.EventSerializer{})
 
 	schemaJSON, err := json.MarshalIndent(schema, "", "  ")
@@ -43,6 +49,16 @@ func jsonTypeMapper(ty reflect.Type) *jsonschema.Schema {
 		return jsonschema.Reflect(time.Time{})
 	}
 	return nil
+}
+
+func cleanupEasyjson(commentMap map[string]string) map[string]string {
+	res := make(map[string]string, len(commentMap))
+	for name, comment := range commentMap {
+		cleaned := strings.TrimSpace(comment)
+		cleaned = strings.TrimSuffix(cleaned, "easyjson:json")
+		res[name] = strings.TrimSpace(cleaned)
+	}
+	return res
 }
 
 func jsonTypeNamer(ty reflect.Type) string {
