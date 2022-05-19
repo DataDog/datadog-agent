@@ -4,8 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-
-// build linux
+// +build linux
 
 package probe
 
