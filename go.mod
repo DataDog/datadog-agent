@@ -63,7 +63,6 @@ require (
 	github.com/Microsoft/go-winio v0.5.1
 	github.com/Microsoft/hcsshim v0.9.3
 	github.com/acobaugh/osrelease v0.1.0
-	github.com/alecthomas/jsonschema v0.0.0-20210526225647-edb03dcab7bc
 	github.com/alecthomas/participle v0.7.1
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
 	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15
@@ -119,6 +118,7 @@ require (
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
 	github.com/iceber/iouring-go v0.0.0-20220511091803-99712053f7ec
 	github.com/imdario/mergo v0.3.12
+	github.com/invopop/jsonschema v0.4.0
 	github.com/iovisor/gobpf v0.2.0
 	github.com/itchyny/gojq v0.12.7
 	github.com/json-iterator/go v1.1.12

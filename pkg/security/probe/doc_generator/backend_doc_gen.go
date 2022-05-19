@@ -18,15 +18,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/alecthomas/jsonschema"
+	"github.com/invopop/jsonschema"
 )
 
 func generateBackendJSON(output string) error {
 	reflector := jsonschema.Reflector{
 		ExpandedStruct: true,
 		DoNotReference: false,
-		TypeMapper:     jsonTypeMapper,
-		TypeNamer:      jsonTypeNamer,
+		Mapper:         jsonTypeMapper,
+		Namer:          jsonTypeNamer,
 	}
 	schema := reflector.Reflect(&probe.EventSerializer{})
 
@@ -38,9 +38,9 @@ func generateBackendJSON(output string) error {
 	return os.WriteFile(output, schemaJSON, 0664)
 }
 
-func jsonTypeMapper(ty reflect.Type) *jsonschema.Type {
+func jsonTypeMapper(ty reflect.Type) *jsonschema.Schema {
 	if ty == reflect.TypeOf(utils.EasyjsonTime{}) {
-		return jsonschema.Reflect(time.Time{}).Type
+		return jsonschema.Reflect(time.Time{})
 	}
 	return nil
 }
