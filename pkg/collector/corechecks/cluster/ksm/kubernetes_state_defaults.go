@@ -163,7 +163,7 @@ func defaultLabelJoins() map[string]*JoinsConfig {
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_job_labels": {
-			LabelsToMatch: getLabelToMatchForKind("job_name"),
+			LabelsToMatch: getLabelToMatchForKind("job"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_cronjob_labels": {
