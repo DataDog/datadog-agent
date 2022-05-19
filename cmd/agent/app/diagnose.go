@@ -39,12 +39,16 @@ var (
 		Hidden: true,
 		RunE:   doDiagnoseDatadogConnectivity,
 	}
+
+	noTrace bool
 )
 
 func init() {
 
 	diagnoseCommand.AddCommand(diagnoseMetadataAvailabilityCommand)
 	diagnoseCommand.AddCommand(diagnoseDatadogConnectivityCommand)
+
+	diagnoseDatadogConnectivityCommand.PersistentFlags().BoolVarP(&noTrace, "no-trace", "", false, "mute extra information about connection establishment, DNS lookup and TLS handshake")
 
 	AgentCmd.AddCommand(diagnoseCommand)
 }
@@ -62,7 +66,7 @@ func doDiagnoseDatadogConnectivity(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return connectivity.RunDatadogConnectivityDiagnose()
+	return connectivity.RunDatadogConnectivityDiagnose(noTrace)
 }
 
 func configAndLogSetup() error {

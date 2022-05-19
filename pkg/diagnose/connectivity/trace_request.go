@@ -26,7 +26,7 @@ import (
 
 // RunDatadogConnectivityDiagnose send requests to endpoints for all domains
 // to check if there are connectivity issues between Datadog and these endpoints
-func RunDatadogConnectivityDiagnose() error {
+func RunDatadogConnectivityDiagnose(noTrace bool) error {
 	// Create domain resolvers
 	keysPerDomain, err := config.GetMultipleEndpoints()
 	if err != nil {
@@ -36,6 +36,10 @@ func RunDatadogConnectivityDiagnose() error {
 	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
 
 	client := forwarder.NewHTTPClient()
+
+	if noTrace {
+		DiagnoseTrace = EmptyTrace
+	}
 
 	// Send requests to all endpoints for all domains
 	fmt.Println("\n================ Starting connectivity diagnosis ================")

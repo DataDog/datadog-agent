@@ -42,6 +42,8 @@ var DiagnoseTrace = &httptrace.ClientTrace{
 	TLSHandshakeDone:  tlsHandshakeDoneHook,
 }
 
+var EmptyTrace = &httptrace.ClientTrace{}
+
 // connectStartHook is called when the http.Client is establishing a new connection to 'addr'
 // However, it is not called when a connection is reused (see gotConnHook)
 func connectStartHook(network, addr string) {
