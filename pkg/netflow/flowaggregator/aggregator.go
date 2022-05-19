@@ -88,7 +88,7 @@ func (agg *FlowAggregator) flushLoop() {
 	if agg.flushInterval > 0 {
 		flushTicker = time.NewTicker(agg.flushInterval).C
 	} else {
-		log.Debugf("flushInterval set to 0: will never flush automatically")
+		log.Debug("flushInterval set to 0: will never flush automatically")
 	}
 
 	for {

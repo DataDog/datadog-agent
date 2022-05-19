@@ -34,7 +34,10 @@ network_devices:
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(1 * time.Millisecond)
 	defer demux.Stop(false)
 
-	server, err := NewNetflowServer(demux)
+	sender, err := demux.GetDefaultSender()
+	require.NoError(t, err, "cannot get default sender")
+
+	server, err := NewNetflowServer(sender)
 	require.NoError(t, err, "cannot start Netflow Server")
 	assert.NotNil(t, server)
 
@@ -81,7 +84,11 @@ network_devices:
 func TestStartServerAndStopServer(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
 	defer demux.Stop(false)
-	err := StartServer(demux)
+
+	sender, err := demux.GetDefaultSender()
+	require.NoError(t, err, "cannot get default sender")
+
+	err = StartServer(sender)
 	require.NoError(t, err)
 	require.NotNil(t, serverInstance)
 
@@ -121,7 +128,10 @@ network_devices:
 	// Setup Netflow Server
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
 	defer demux.Stop(false)
-	server, err := NewNetflowServer(demux)
+	sender, err := demux.GetDefaultSender()
+	require.NoError(t, err, "cannot get default sender")
+
+	server, err := NewNetflowServer(sender)
 	require.NoError(t, err, "cannot start Netflow Server")
 	assert.NotNil(t, server)
 
