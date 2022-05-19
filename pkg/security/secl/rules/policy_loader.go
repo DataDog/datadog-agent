@@ -7,8 +7,14 @@ package rules
 
 import (
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/skydive-project/go-debouncer"
+)
+
+var (
+	debounceDelay = 5 * time.Second
 )
 
 // PolicyLoader defines a policy loader
@@ -16,7 +22,9 @@ type PolicyLoader struct {
 	sync.RWMutex
 
 	Providers []PolicyProvider
+
 	listeners []chan struct{}
+	debouncer *debouncer.Debouncer
 }
 
 // LoadPolicies loads the policies
@@ -24,21 +32,33 @@ func (p *PolicyLoader) LoadPolicies() ([]*Policy, *multierror.Error) {
 	p.RLock()
 	defer p.RUnlock()
 
-	var errs *multierror.Error
-	var policies []*Policy
+	var (
+		errs          *multierror.Error
+		allPolicies   []*Policy
+		defaultPolicy *Policy
+	)
 
+	// use the provider in the order of insertion, keep the very last default policy
 	for _, provider := range p.Providers {
-		policy, err := provider.LoadPolicy()
-		if err != nil {
+		policies, err := provider.LoadPolicies()
+		if err.ErrorOrNil() != nil {
 			errs = multierror.Append(errs, err)
 		}
 
-		if policy != nil {
-			policies = append(policies, policy)
+		for _, policy := range policies {
+			if policy.Name == defaultPolicyName {
+				defaultPolicy = policy
+			} else {
+				allPolicies = append(allPolicies, policy)
+			}
 		}
 	}
 
-	return policies, errs
+	if defaultPolicy != nil {
+		allPolicies = append([]*Policy{defaultPolicy}, allPolicies...)
+	}
+
+	return allPolicies, errs
 }
 
 // NewPolicyReady returns chan to listen new policy ready event
@@ -51,7 +71,11 @@ func (p *PolicyLoader) NewPolicyReady() <-chan struct{} {
 	return ch
 }
 
-func (p *PolicyLoader) onNewPolicyReady(policy *Policy) {
+func (p *PolicyLoader) onNewPoliciesReady() {
+	p.debouncer.Call()
+}
+
+func (p *PolicyLoader) notifyListeners() {
 	p.RLock()
 	defer p.RUnlock()
 
@@ -72,6 +96,8 @@ func (p *PolicyLoader) Close() {
 	for _, ch := range p.listeners {
 		close(ch)
 	}
+
+	p.debouncer.Stop()
 }
 
 // SetProviders set providers
@@ -79,21 +105,20 @@ func (p *PolicyLoader) SetProviders(providers []PolicyProvider) {
 	p.Lock()
 	defer p.Unlock()
 
-	// first terminate the previous providers
-	for _, provider := range p.Providers {
-		provider.Stop()
-	}
-
 	p.Providers = providers
-
 	for _, provider := range providers {
-		provider.SetOnNewPolicyReadyCb(p.onNewPolicyReady)
+		provider.SetOnNewPoliciesReadyCb(p.onNewPoliciesReady)
 	}
 }
 
 // NewPolicyLoader returns a new loader
-func NewPolicyLoader(providers []PolicyProvider) *PolicyLoader {
+func NewPolicyLoader(providers ...PolicyProvider) *PolicyLoader {
 	p := &PolicyLoader{}
+
+	p.debouncer = debouncer.New(debounceDelay, p.notifyListeners)
+	p.debouncer.Start()
+
 	p.SetProviders(providers)
+
 	return p
 }

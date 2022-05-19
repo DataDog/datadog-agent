@@ -34,6 +34,8 @@ type Config struct {
 	RuntimeEnabled bool
 	// PoliciesDir defines the folder in which the policy files are located
 	PoliciesDir string
+	// WatchPoliciesDir activate policy dir inotify
+	WatchPoliciesDir bool
 	// EnableKernelFilters defines if in-kernel filtering should be activated or not
 	EnableKernelFilters bool
 	// EnableApprovers defines if in-kernel approvers should be activated or not
@@ -166,6 +168,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		SocketPath:                         aconfig.Datadog.GetString("runtime_security_config.socket"),
 		SyscallMonitor:                     aconfig.Datadog.GetBool("runtime_security_config.syscall_monitor.enabled"),
 		PoliciesDir:                        aconfig.Datadog.GetString("runtime_security_config.policies.dir"),
+		WatchPoliciesDir:                   aconfig.Datadog.GetBool("runtime_security_config.policies.watch_dir"),
 		EventServerBurst:                   aconfig.Datadog.GetInt("runtime_security_config.event_server.burst"),
 		EventServerRate:                    aconfig.Datadog.GetInt("runtime_security_config.event_server.rate"),
 		EventServerRetention:               aconfig.Datadog.GetInt("runtime_security_config.event_server.retention"),

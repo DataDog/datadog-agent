@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package self_tests
+package selftests
 
 import (
 	"fmt"

@@ -77,12 +77,11 @@ func TestMacroMerge(t *testing.T) {
 		},
 	})
 
-	providers, err := GetFileProviders(tmpDir, false)
+	provider, err := NewPoliciesDirProvider(tmpDir, false)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
-
-	loader := NewPolicyLoader(providers)
+	loader := NewPolicyLoader(provider)
 
 	if errs := rs.LoadPolicies(loader); errs.ErrorOrNil() != nil {
 		t.Error(err)
@@ -141,12 +140,11 @@ func TestRuleMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	providers, err := GetFileProviders(tmpDir, false)
+	provider, err := NewPoliciesDirProvider(tmpDir, false)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
-
-	loader := NewPolicyLoader(providers)
+	loader := NewPolicyLoader(provider)
 
 	if errs := rs.LoadPolicies(loader); errs.ErrorOrNil() != nil {
 		t.Error(err)
@@ -316,12 +314,11 @@ func TestActionSetVariable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	providers, err := GetFileProviders(tmpDir, false)
+	provider, err := NewPoliciesDirProvider(tmpDir, false)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
-
-	loader := NewPolicyLoader(providers)
+	loader := NewPolicyLoader(provider)
 
 	if errs := rs.LoadPolicies(loader); errs.ErrorOrNil() != nil {
 		t.Error(err)
@@ -404,12 +401,11 @@ func TestActionSetVariableConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	providers, err := GetFileProviders(tmpDir, false)
+	provider, err := NewPoliciesDirProvider(tmpDir, false)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
-
-	loader := NewPolicyLoader(providers)
+	loader := NewPolicyLoader(provider)
 
 	if errs := rs.LoadPolicies(loader); errs.ErrorOrNil() == nil {
 		t.Error("expected policy to fail to load")
@@ -436,12 +432,12 @@ func loadPolicy(t *testing.T, testPolicy *PolicyDef) *multierror.Error {
 		t.Fatal(err)
 	}
 
-	providers, err := GetFileProviders(tmpDir, false)
+	provider, err := NewPoliciesDirProvider(tmpDir, false)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
-	loader := NewPolicyLoader(providers)
+	loader := NewPolicyLoader(provider)
 
 	return rs.LoadPolicies(loader)
 }

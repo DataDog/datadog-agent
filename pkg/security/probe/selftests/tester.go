@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package self_tests
+package selftests
 
 import (
 	"os"
@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 )
 
@@ -80,7 +81,7 @@ func (t *SelfTester) GetStatus() *api.SelfTestsStatus {
 }
 
 // LoadPolicy implements the PolicyProvider interface
-func (t *SelfTester) LoadPolicy() (*rules.Policy, error) {
+func (t *SelfTester) LoadPolicies() ([]*rules.Policy, *multierror.Error) {
 	p := &rules.Policy{
 		Name:    policyName,
 		Source:  policySource,
@@ -91,15 +92,11 @@ func (t *SelfTester) LoadPolicy() (*rules.Policy, error) {
 		p.AddRule(selftest.GetRuleDefinition(t.targetFilePath))
 	}
 
-	return p, nil
+	return []*rules.Policy{p}, nil
 }
 
 // SetOnPolicyChangedCb implements the PolicyProvider interface
-func (t *SelfTester) SetOnNewPolicyReadyCb(cb func(*rules.Policy)) {
-}
-
-// Stop implements the PolicyProvider interface
-func (t *SelfTester) Stop() {
+func (t *SelfTester) SetOnNewPoliciesReadyCb(cb func()) {
 }
 
 func (t *SelfTester) createTargetFile() error {

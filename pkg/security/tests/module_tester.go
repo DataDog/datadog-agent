@@ -708,12 +708,12 @@ func (tm *testModule) reloadConfiguration() error {
 	log.Debugf("reload configuration with testDir: %s", tm.Root())
 	tm.config.PoliciesDir = tm.Root()
 
-	policyProviders, err := rules.GetFileProviders(tm.config.PoliciesDir)
+	provider, err := rules.NewPoliciesDirProvider(tm.config.PoliciesDir, false)
 	if err != nil {
-		return errors.Wrap(err, "failed to load policies")
+		return err
 	}
 
-	if err := tm.module.LoadPolicies(policyProviders, true); err != nil {
+	if err := tm.module.LoadPolicies([]rules.PolicyProvider{provider}, true); err != nil {
 		return errors.Wrap(err, "failed to reload test module")
 	}
 

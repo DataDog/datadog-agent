@@ -27,13 +27,12 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/self_tests"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -72,7 +71,8 @@ type Module struct {
 	policiesVersions   []string
 	policyProviders    []rules.PolicyProvider
 	policyLoader       *rules.PolicyLoader
-	selfTester         *self_tests.SelfTester
+	rcPolicyProvider   *rconfig.RCPolicyProvider
+	selfTester         *selftests.SelfTester
 }
 
 // Register the runtime security agent module
@@ -125,7 +125,7 @@ func (m *Module) Init() error {
 	}
 
 	// policy loader
-	m.policyLoader = rules.NewPolicyLoader(nil)
+	m.policyLoader = rules.NewPolicyLoader()
 
 	return nil
 }
@@ -154,18 +154,23 @@ func (m *Module) Start() error {
 		_ = m.RunSelfTest(true)
 	}
 
-	policyProviders, err := rules.GetFileProviders(m.config.PoliciesDir, true)
-	if err != nil {
+	var policyProviders []rules.PolicyProvider
+
+	// directory policy provider
+	if provider, err := rules.NewPoliciesDirProvider(m.config.PoliciesDir, m.config.WatchPoliciesDir); err != nil {
 		log.Errorf("failed to load policies: %s", err)
+	} else {
+		policyProviders = append(policyProviders, provider)
 	}
 
 	// add remote config as config provider if enabled
+	var err error
 	if m.config.RemoteConfigurationEnabled {
-		provider, err := rconfig.NewRCPolicyProvider("security-agent")
+		m.rcPolicyProvider, err = rconfig.NewRCPolicyProvider("security-agent")
 		if err != nil {
 			log.Errorf("will be unable to load remote policy: %s", err)
 		} else {
-			policyProviders = append(policyProviders, provider)
+			policyProviders = append(policyProviders, m.rcPolicyProvider)
 		}
 	}
 
@@ -182,9 +187,8 @@ func (m *Module) Start() error {
 	go func() {
 		defer m.wg.Done()
 
-		// TODO(safchain) select
 		for range m.sigupChan {
-			if err := m.LoadPolicies(policyProviders, true); err != nil {
+			if err := m.ReloadPolicies(); err != nil {
 				log.Errorf("failed to reload policies: %s", err)
 			}
 		}
@@ -195,58 +199,19 @@ func (m *Module) Start() error {
 		defer m.wg.Done()
 
 		for range m.policyLoader.NewPolicyReady() {
-			if err := m.LoadPolicies(m.policyProviders, true); err != nil {
+			if err := m.ReloadPolicies(); err != nil {
 				log.Errorf("failed to reload policies: %s", err)
 			}
 		}
 	}()
 
-	/*if m.config.RemoteConfigurationEnabled {
-		c, err := remote.NewClient("security-agent", []data.Product{data.ProductCWSDD})
-		if err != nil {
-			return err
-		}
-		m.remoteConfigClient = c
-
-		go func() {
-			for configs := range c.CWSDDUpdates() {
-				err := m.processRemoteConfigsUpdate(configs)
-				if err != nil {
-					log.Debugf("could not process remote-config update: %v", err)
-				}
-			}
-		}()
-	}*/
+	// start remote config if needed
+	if m.rcPolicyProvider != nil {
+		m.rcPolicyProvider.Start()
+	}
 
 	return nil
 }
-
-/*func (m *Module) processRemoteConfigsUpdate(configs []client.ConfigCWSDD) error {
-	if len(configs) == 0 {
-		return errors.New("no remote configuration")
-	}
-
-	policiesDir, err := ioutil.TempDir("", "cws-rc-config")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(policiesDir)
-
-	for _, c := range configs {
-		policyFile, err := os.Create(filepath.Join(policiesDir, c.ID))
-		if err != nil {
-			return err
-		}
-
-		if _, err = policyFile.Write(c.Config); err != nil {
-			return err
-		}
-
-		_ = policyFile.Close()
-	}
-
-	return m.Reload(policiesDir)
-}*/
 
 func (m *Module) displayReport(report *sprobe.Report) {
 	content, _ := json.Marshal(report)
@@ -423,6 +388,9 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 // Close the module
 func (m *Module) Close() {
 	close(m.sigupChan)
+
+	// stop remote config provider
+	m.rcPolicyProvider.Stop()
 
 	// close the policy loader and all the related providers
 	m.policyLoader.Close()
@@ -622,9 +590,9 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 	// custom limiters
 	limits := make(map[rules.RuleID]Limit)
 
-	selfTester, err := self_tests.NewSelfTester()
+	selfTester, err := selftests.NewSelfTester()
 	if err != nil {
-		log.Errorf("unable to instanciate self tests: %s", err)
+		log.Errorf("unable to instantiate self tests: %s", err)
 	}
 
 	m := &Module{

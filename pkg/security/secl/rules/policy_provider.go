@@ -5,10 +5,14 @@
 
 package rules
 
+import (
+	"github.com/hashicorp/go-multierror"
+)
+
+const defaultPolicyName = "default.policy"
+
 // PolicyProvider defines a rule provider
 type PolicyProvider interface {
-	LoadPolicy() (*Policy, error)
-	SetOnNewPolicyReadyCb(_ func(*Policy))
-	Stop()
-	//GetPriority() int
+	LoadPolicies() ([]*Policy, *multierror.Error)
+	SetOnNewPoliciesReadyCb(func())
 }
