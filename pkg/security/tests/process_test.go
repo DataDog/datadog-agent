@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -1003,7 +1004,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setuid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setuid", "1001", "0")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setuid", "1001", "0")
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setuid")
 			assert.Equal(t, uint32(1001), event.SetUID.UID, "wrong uid")
@@ -1012,7 +1013,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setreuid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setreuid", "1002", "1003")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setreuid", "1002", "1003")
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setreuid")
 			assert.Equal(t, uint32(1002), event.SetUID.UID, "wrong uid")
@@ -1022,7 +1023,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setresuid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setresuid", "1002", "1003")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setresuid", "1002", "1003")
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setreuid")
 			assert.Equal(t, uint32(1002), event.SetUID.UID, "wrong uid")
@@ -1032,7 +1033,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setfsuid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setfsuid", "1004", "0")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setfsuid", "1004", "0")
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setfsuid")
 			assert.Equal(t, uint32(1004), event.SetUID.FSUID, "wrong fsuid")
@@ -1041,7 +1042,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setgid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setgid", "1005", "0")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setgid", "1005", "0")
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setgid")
 			assert.Equal(t, uint32(1005), event.SetGID.GID, "wrong gid")
@@ -1050,7 +1051,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setregid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setregid", "1006", "1007")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setregid", "1006", "1007")
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setregid")
 			assert.Equal(t, uint32(1006), event.SetGID.GID, "wrong gid")
@@ -1060,7 +1061,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setresgid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setresgid", "1006", "1007")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setresgid", "1006", "1007")
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setregid")
 			assert.Equal(t, uint32(1006), event.SetGID.GID, "wrong gid")
@@ -1070,7 +1071,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setfsgid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setfsgid", "1008", "0")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setfsgid", "1008", "0")
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setfsgid")
 			assert.Equal(t, uint32(1008), event.SetGID.FSGID, "wrong gid")
@@ -1091,7 +1092,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 		threadCapabilities.Unset(capability.EFFECTIVE, capability.CAP_WAKE_ALARM)
 
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, goSyscallTester, "-process-credentials-capset")
+			return runSyscallTesterFunc(context.Background(), t, goSyscallTester, "-process-credentials-capset")
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_capset")
 

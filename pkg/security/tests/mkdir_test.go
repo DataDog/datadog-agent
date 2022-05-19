@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"syscall"
@@ -181,7 +182,7 @@ func TestMkdirError(t *testing.T) {
 		}
 
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "mkdirat-error", testatFile)
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "mkdirat-error", testatFile)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdirat_error")
 			assertReturnValue(t, event.Mkdir.Retval, -int64(syscall.EACCES))

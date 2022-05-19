@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -44,7 +45,7 @@ func TestBPFEventLoad(t *testing.T) {
 
 	t.Run("prog_load", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "-load-bpf")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "-load-bpf")
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "bpf", event.GetType(), "wrong event type")
 			assert.Equal(t, uint32(model.BpfProgTypeKprobe), event.BPF.Program.Type, "wrong program type")
@@ -81,7 +82,7 @@ func TestBPFEventMap(t *testing.T) {
 
 	t.Run("map_lookup", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "-load-bpf", "-clone-bpf")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "-load-bpf", "-clone-bpf")
 		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, "bpf", event.GetType(), "wrong event type")
 			assert.Equal(t, uint32(model.BpfMapTypeHash), event.BPF.Map.Type, "wrong map type")
