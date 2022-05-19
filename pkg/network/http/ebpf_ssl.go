@@ -27,8 +27,6 @@ import (
 var openSSLProbes = map[string]string{
 	"uprobe/SSL_do_handshake":    "uprobe__SSL_do_handshake",
 	"uretprobe/SSL_do_handshake": "uretprobe__SSL_do_handshake",
-	"uprobe/SSL_set_bio":         "uprobe__SSL_set_bio",
-	"uprobe/SSL_set_fd":          "uprobe__SSL_set_fd",
 	"uprobe/SSL_read":            "uprobe__SSL_read",
 	"uretprobe/SSL_read":         "uretprobe__SSL_read",
 	"uprobe/SSL_write":           "uprobe__SSL_write",
@@ -164,11 +162,12 @@ func (o *sslProgram) Start() {
 			registerCB:   addHooks(o.manager, openSSLProbes),
 			unregisterCB: removeHooks(o.manager, openSSLProbes),
 		},
-		soRule{
-			re:           regexp.MustCompile(`libcrypto.so`),
-			registerCB:   addHooks(o.manager, cryptoProbes),
-			unregisterCB: removeHooks(o.manager, cryptoProbes),
-		},
+		/*
+			soRule{
+				re:           regexp.MustCompile(`libcrypto.so`),
+				registerCB:   addHooks(o.manager, cryptoProbes),
+				unregisterCB: removeHooks(o.manager, cryptoProbes),
+			},*/
 		soRule{
 			re:           regexp.MustCompile(`libgnutls.so`),
 			registerCB:   addHooks(o.manager, gnuTLSProbes),

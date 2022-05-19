@@ -94,55 +94,6 @@ int uretprobe__SSL_do_handshake(struct pt_regs* ctx) {
     return 0;
 }
 
-// this uprobe is essentially creating an index mapping a SSL context to a conn_tuple_t
-SEC("uprobe/SSL_set_fd")
-int uprobe__SSL_set_fd(struct pt_regs* ctx) {
-    void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
-    u32 socket_fd = (u32)PT_REGS_PARM2(ctx);
-    init_ssl_sock(ssl_ctx, socket_fd);
-    return 0;
-}
-
-SEC("uprobe/BIO_new_socket")
-int uprobe__BIO_new_socket(struct pt_regs* ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u32 socket_fd = (u32)PT_REGS_PARM1(ctx);
-    bpf_map_update_elem(&bio_new_socket_args, &pid_tgid, &socket_fd, BPF_ANY);
-    return 0;
-}
-
-SEC("uretprobe/BIO_new_socket")
-int uretprobe__BIO_new_socket(struct pt_regs* ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u32 *socket_fd = bpf_map_lookup_elem(&bio_new_socket_args, &pid_tgid);
-    if (socket_fd == NULL) {
-        return 0;
-    }
-
-    void *bio = (void *)PT_REGS_RC(ctx);
-    if (bio == NULL) {
-        goto cleanup;
-    }
-    u32 fd = *socket_fd; // copy map value into stack (required by older Kernels)
-    bpf_map_update_elem(&fd_by_ssl_bio, &bio, &fd, BPF_ANY);
- cleanup:
-    bpf_map_delete_elem(&bio_new_socket_args, &pid_tgid);
-    return 0;
-}
-
-SEC("uprobe/SSL_set_bio")
-int uprobe__SSL_set_bio(struct pt_regs* ctx) {
-    void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
-    void *bio = (void *)PT_REGS_PARM2(ctx);
-    u32 *socket_fd = bpf_map_lookup_elem(&fd_by_ssl_bio, &bio);
-    if (socket_fd == NULL)  {
-        return 0;
-    }
-    init_ssl_sock(ssl_ctx, *socket_fd);
-    bpf_map_delete_elem(&fd_by_ssl_bio, &bio);
-    return 0;
-}
-
 SEC("uprobe/SSL_read")
 int uprobe__SSL_read(struct pt_regs* ctx) {
     ssl_read_args_t args = {0};

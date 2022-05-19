@@ -92,8 +92,8 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			{Name: httpBatchStateMap},
 			{Name: sslSockByCtxMap},
 			{Name: "ssl_read_args"},
-			{Name: "bio_new_socket_args"},
-			{Name: "fd_by_ssl_bio"},
+			//			{Name: "bio_new_socket_args"},
+			//			{Name: "fd_by_ssl_bio"},
 			{Name: "ssl_ctx_by_pid_tgid"},
 		},
 		PerfMaps: []*manager.PerfMap{
