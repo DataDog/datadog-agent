@@ -14,4 +14,7 @@ const (
 
 	// DefaultAggregatorBufferSize is the default aggregator buffer size interval
 	DefaultAggregatorBufferSize = 100
+
+	// DefaultBindHost is the default bind host used for flow listeners
+	DefaultBindHost = "0.0.0.0"
 )

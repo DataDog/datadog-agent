@@ -53,8 +53,7 @@ func ReadConfig() (*NetflowConfig, error) {
 			}
 		}
 		if listenerConfig.BindHost == "" {
-			// Default to global bind_host option.
-			listenerConfig.BindHost = coreconfig.GetBindHost()
+			listenerConfig.BindHost = common.DefaultBindHost
 		}
 		if listenerConfig.Workers == 0 {
 			listenerConfig.Workers = 1
