@@ -410,14 +410,6 @@ func StartAgent() error {
 		}
 	}
 
-	// Start NetFlow server
-	if netflow.IsEnabled() {
-		err = netflow.StartServer(demux)
-		if err != nil {
-			log.Errorf("Failed to start NetFlow server: %s", err)
-		}
-	}
-
 	if err = common.SetupSystemProbeConfig(sysProbeConfFilePath); err != nil {
 		log.Infof("System probe config not found, disabling pulling system probe info in the status page: %v", err)
 	}
@@ -441,6 +433,16 @@ func StartAgent() error {
 		}
 	} else {
 		log.Info("logs-agent disabled")
+	}
+
+	// Start NetFlow server
+	// This must happen after LoadComponents is set up (via common.LoadComponents).
+	// netflow.StartServer uses AgentDemultiplexer, that uses ContextResolver, that uses the tagger (initialized by LoadComponents)
+	if netflow.IsEnabled() {
+		err = netflow.StartServer(demux)
+		if err != nil {
+			log.Errorf("Failed to start NetFlow server: %s", err)
+		}
 	}
 
 	// load and run all configs in AD
