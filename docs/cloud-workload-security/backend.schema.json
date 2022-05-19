@@ -200,7 +200,8 @@
       "required": [
         "cause",
         "code"
-      ]
+      ],
+      "description": "ExitEventSerializer serializes an exit event to JSON"
     },
     "File": {
       "properties": {
@@ -268,18 +269,16 @@
           "description": "File flags"
         },
         "access_time": {
-          "$schema": "http://json-schema.org/draft/2020-12/schema",
           "type": "string",
-          "format": "date-time"
+          "format": "date-time",
+          "description": "File access time"
         },
         "modification_time": {
-          "$schema": "http://json-schema.org/draft/2020-12/schema",
           "type": "string",
           "format": "date-time",
           "description": "File modified time"
         },
         "change_time": {
-          "$schema": "http://json-schema.org/draft/2020-12/schema",
           "type": "string",
           "format": "date-time",
           "description": "File change time"
@@ -359,18 +358,16 @@
           "description": "File flags"
         },
         "access_time": {
-          "$schema": "http://json-schema.org/draft/2020-12/schema",
           "type": "string",
-          "format": "date-time"
+          "format": "date-time",
+          "description": "File access time"
         },
         "modification_time": {
-          "$schema": "http://json-schema.org/draft/2020-12/schema",
           "type": "string",
           "format": "date-time",
           "description": "File modified time"
         },
         "change_time": {
-          "$schema": "http://json-schema.org/draft/2020-12/schema",
           "type": "string",
           "format": "date-time",
           "description": "File change time"
@@ -656,19 +653,16 @@
           "description": "TTY associated with the process"
         },
         "fork_time": {
-          "$schema": "http://json-schema.org/draft/2020-12/schema",
           "type": "string",
           "format": "date-time",
           "description": "Fork time of the process"
         },
         "exec_time": {
-          "$schema": "http://json-schema.org/draft/2020-12/schema",
           "type": "string",
           "format": "date-time",
           "description": "Exec time of the process"
         },
         "exit_time": {
-          "$schema": "http://json-schema.org/draft/2020-12/schema",
           "type": "string",
           "format": "date-time",
           "description": "Exit time of the process"
@@ -767,19 +761,16 @@
           "description": "TTY associated with the process"
         },
         "fork_time": {
-          "$schema": "http://json-schema.org/draft/2020-12/schema",
           "type": "string",
           "format": "date-time",
           "description": "Fork time of the process"
         },
         "exec_time": {
-          "$schema": "http://json-schema.org/draft/2020-12/schema",
           "type": "string",
           "format": "date-time",
           "description": "Exec time of the process"
         },
         "exit_time": {
-          "$schema": "http://json-schema.org/draft/2020-12/schema",
           "type": "string",
           "format": "date-time",
           "description": "Exit time of the process"
@@ -901,14 +892,14 @@
             "type": "string"
           },
           "type": "array",
-          "description": "Effective Capacity set"
+          "description": "Effective Capability set"
         },
         "cap_permitted": {
           "items": {
             "type": "string"
           },
           "type": "array",
-          "description": "Permitted Capacity set"
+          "description": "Permitted Capability set"
         },
         "destination": {
           "description": "Credentials after the operation"
@@ -1095,7 +1086,6 @@
       "$ref": "#/$defs/ContainerContext"
     },
     "date": {
-      "$schema": "http://json-schema.org/draft/2020-12/schema",
       "type": "string",
       "format": "date-time"
     }

@@ -46,7 +46,9 @@ func generateBackendJSON(output string) error {
 
 func jsonTypeMapper(ty reflect.Type) *jsonschema.Schema {
 	if ty == reflect.TypeOf(utils.EasyjsonTime{}) {
-		return jsonschema.Reflect(time.Time{})
+		schema := jsonschema.Reflect(time.Time{})
+		schema.Version = ""
+		return schema
 	}
 	return nil
 }
