@@ -68,8 +68,7 @@
       "$ref": "#/definitions/ContainerContext"
     },
     "date": {
-      "type": "string",
-      "format": "date-time"
+      "$ref": "#/definitions/EasyjsonTime"
     }
   },
   "additionalProperties": false,
@@ -230,6 +229,11 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "EasyjsonTime": {
+      "properties": {},
+      "additionalProperties": false,
+      "type": "object"
+    },
     "EventContext": {
       "properties": {
         "name": {
@@ -322,18 +326,15 @@
           "description": "File flags"
         },
         "access_time": {
-          "type": "string",
-          "format": "date-time"
+          "$ref": "#/definitions/EasyjsonTime"
         },
         "modification_time": {
-          "type": "string",
-          "description": "File modified time",
-          "format": "date-time"
+          "$ref": "#/definitions/EasyjsonTime",
+          "description": "File modified time"
         },
         "change_time": {
-          "type": "string",
-          "description": "File change time",
-          "format": "date-time"
+          "$ref": "#/definitions/EasyjsonTime",
+          "description": "File change time"
         }
       },
       "additionalProperties": false,
@@ -409,18 +410,16 @@
           "description": "File flags"
         },
         "access_time": {
-          "type": "string",
-          "format": "date-time"
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/EasyjsonTime"
         },
         "modification_time": {
-          "type": "string",
-          "description": "File modified time",
-          "format": "date-time"
+          "$ref": "#/definitions/EasyjsonTime",
+          "description": "File modified time"
         },
         "change_time": {
-          "type": "string",
-          "description": "File change time",
-          "format": "date-time"
+          "$ref": "#/definitions/EasyjsonTime",
+          "description": "File change time"
         },
         "destination": {
           "$schema": "http://json-schema.org/draft-04/schema#",
@@ -698,19 +697,16 @@
           "description": "TTY associated with the process"
         },
         "fork_time": {
-          "type": "string",
-          "description": "Fork time of the process",
-          "format": "date-time"
+          "$ref": "#/definitions/EasyjsonTime",
+          "description": "Fork time of the process"
         },
         "exec_time": {
-          "type": "string",
-          "description": "Exec time of the process",
-          "format": "date-time"
+          "$ref": "#/definitions/EasyjsonTime",
+          "description": "Exec time of the process"
         },
         "exit_time": {
-          "type": "string",
-          "description": "Exit time of the process",
-          "format": "date-time"
+          "$ref": "#/definitions/EasyjsonTime",
+          "description": "Exit time of the process"
         },
         "credentials": {
           "$ref": "#/definitions/ProcessCredentials",
@@ -801,19 +797,16 @@
           "description": "TTY associated with the process"
         },
         "fork_time": {
-          "type": "string",
-          "description": "Fork time of the process",
-          "format": "date-time"
+          "$ref": "#/definitions/EasyjsonTime",
+          "description": "Fork time of the process"
         },
         "exec_time": {
-          "type": "string",
-          "description": "Exec time of the process",
-          "format": "date-time"
+          "$ref": "#/definitions/EasyjsonTime",
+          "description": "Exec time of the process"
         },
         "exit_time": {
-          "type": "string",
-          "description": "Exit time of the process",
-          "format": "date-time"
+          "$ref": "#/definitions/EasyjsonTime",
+          "description": "Exit time of the process"
         },
         "credentials": {
           "$schema": "http://json-schema.org/draft-04/schema#",
