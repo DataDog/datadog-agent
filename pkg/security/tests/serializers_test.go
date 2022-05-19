@@ -70,7 +70,7 @@ func BenchmarkSerializersEasyJson(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, err := utils.EasyjsonMarshal(es, -1)
+		_, err := utils.EasyjsonMarshal(es)
 		if err != nil {
 			b.Error(err)
 		}
