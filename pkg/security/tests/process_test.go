@@ -19,14 +19,18 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 
 	"github.com/avast/retry-go/v4"
@@ -2224,7 +2228,7 @@ func TestProcessFilelessExecution(t *testing.T) {
 				}
 			} else {
 				testModule.WaitSignal(t, func() error {
-					return runSyscallTesterFunc(t, syscallTester, test.syscallTesterToRun, test.syscallTesterScriptFilenameToRun)
+					return runSyscallTesterFunc(context.Background(), t, syscallTester, test.syscallTesterToRun, test.syscallTesterScriptFilenameToRun)
 				}, func(event *model.Event, rule *rules.Rule) {
 					assertTriggeredRule(t, rule, test.rule.ID)
 					test.check(event, rule)
@@ -2232,4 +2236,54 @@ func TestProcessFilelessExecution(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestKillAction(t *testing.T) {
+	checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
+		return !kv.SupportBPFSendSignal() && config.IsContainerized()
+	})
+
+	rule := &rules.RuleDefinition{
+		ID: "kill_action",
+		// using a wilcard to avoid approvers on basename. events will not match thus will be noisy
+		Expression: `process.file.name == "syscall_tester" && mkdir.file.path == "{{.Root}}/test-kill-action"`,
+		Actions: []rules.ActionDefinition{
+			{
+				Kill: &rules.KillDefinition{
+					Signal: "SIGUSR2",
+				},
+			},
+		},
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{disableDiscarders: true, eventsCountThreshold: 1000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testFile, _, err := test.Path("test-kill-action")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("kill_action", func(t *testing.T) {
+		sigpipeCh := make(chan os.Signal, 1)
+		signal.Notify(sigpipeCh, syscall.SIGUSR2)
+
+		if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "set-signal-handler", ";", "mkdirat", testFile, ";", "wait-signal", ";", "signal", "sigusr2", strconv.Itoa(int(utils.Getpid()))); err != nil {
+			t.Error("no signal")
+		}
+
+		select {
+		case <-sigpipeCh:
+		case <-time.After(time.Second * 3):
+			t.Error("signal timeout")
+		}
+	})
 }
