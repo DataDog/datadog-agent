@@ -887,8 +887,19 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 
 	activatedProbes = append(activatedProbes, p.selectTCProbes()...)
 
-	// Add syscall monitor probes
-	if p.config.SyscallMonitor {
+	// Add syscall monitor probes if it's either activated or
+	// there is an 'kill' action in the ruleset
+	hasKillAction := false
+	for _, rule := range rs.GetRules() {
+		for _, action := range rule.Definition.Actions {
+			if action.Kill != nil {
+				hasKillAction = true
+				break
+			}
+		}
+	}
+
+	if p.config.SyscallMonitor || hasKillAction {
 		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
 	}
 
@@ -1299,6 +1310,10 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		manager.ConstantEditor{
 			Name:  "net_struct_type",
 			Value: getNetStructType(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  "signal_processes",
+			Value: uint64(1),
 		},
 	)
 

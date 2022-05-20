@@ -12,10 +12,10 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"syscall"
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 
@@ -29,8 +29,8 @@ import (
 
 // Monitor regroups all the work we want to do to monitor the probes we pushed in the kernel
 type Monitor struct {
-	probe *Probe
-
+	probe               *Probe
+	killListMap         *ebpf.Map
 	loadController      *LoadController
 	perfBufferMonitor   *PerfBufferMonitor
 	syscallMonitor      *SyscallMonitor
@@ -42,9 +42,14 @@ type Monitor struct {
 
 // NewMonitor returns a new instance of a ProbeMonitor
 func NewMonitor(p *Probe) (*Monitor, error) {
-	var err error
+	killListMap, err := p.Map("kill_list")
+	if err != nil {
+		return nil, err
+	}
+
 	m := &Monitor{
-		probe: p,
+		probe:       p,
+		killListMap: killListMap,
 	}
 
 	// instantiate a new load controller
@@ -207,8 +212,11 @@ func (m *Monitor) HandleActions(rule *rules.Rule, event *Event) {
 		if action.Kill != nil {
 			if pid, err := event.GetFieldValue("process.pid"); err == nil {
 				if pid, ok := pid.(int); ok && pid > 1 && pid != int(utils.Getpid()) {
-					log.Debugf("Sending signal %s to %d", action.Kill.Signal, pid)
-					syscall.Kill(int(pid), syscall.Signal(model.SignalConstants[action.Kill.Signal]))
+					log.Debugf("Requesting signal %d to be sent to %d", action.Kill.Signal, pid)
+					sig := model.SignalConstants[action.Kill.Signal]
+					if err := m.killListMap.Put(uint32(pid), uint32(sig)); err != nil {
+						log.Warn(err)
+					}
 				}
 			}
 		}

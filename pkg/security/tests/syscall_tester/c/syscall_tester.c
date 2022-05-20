@@ -154,6 +154,29 @@ int ptrace_traceme() {
     return EXIT_SUCCESS;
 }
 
+int test_sleep(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "%s: Please pass a duration in seconds.\n", __FUNCTION__);
+        return EXIT_FAILURE;
+    }
+
+    int duration = atoi(argv[1]);
+    if (duration < 1) {
+        fprintf(stderr, "invalid duration: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    }
+
+    for (int i = 0; i < duration; i++)
+        sleep(1);
+
+    return EXIT_SUCCESS;
+}
+
+int test_ioctl(int argc, char **argv) {
+    ioctl(666, 0);
+    return EXIT_SUCCESS;
+}
+
 int test_signal_sigusr(int child, int sig) {
     if (child == 0) {
         child = fork();
@@ -336,7 +359,7 @@ int test_bind_af_inet(int argc, char** argv) {
     }
 
     if (argc != 2) {
-        fprintf(stderr, "Please speficy an option in the list: any, custom_ip\n");
+        fprintf(stderr, "Please specify an option in the list: any, custom_ip\n");
         return EXIT_FAILURE;
     }
 
@@ -355,7 +378,7 @@ int test_bind_af_inet(int argc, char** argv) {
         }
         addr.sin_addr.s_addr = htonl(ip32);
     } else {
-        fprintf(stderr, "Please speficy an option in the list: any, broadcast, custom_ip\n");
+        fprintf(stderr, "Please specify an option in the list: any, broadcast, custom_ip\n");
         return EXIT_FAILURE;
     }
 
@@ -374,7 +397,7 @@ int test_bind_af_inet6(int argc, char** argv) {
     }
 
     if (argc != 2) {
-        fprintf(stderr, "Please speficy an option in the list: any, custom_ip\n");
+        fprintf(stderr, "Please specify an option in the list: any, custom_ip\n");
         return EXIT_FAILURE;
     }
 
@@ -388,7 +411,7 @@ int test_bind_af_inet6(int argc, char** argv) {
     } else if (!strcmp(ip, "custom_ip")) {
         inet_pton(AF_INET6, "1234:5678:90ab:cdef:0000:0000:1a1a:1337", &addr.sin6_addr);
     } else {
-        fprintf(stderr, "Please speficy an option in the list: any, broadcast, custom_ip\n");
+        fprintf(stderr, "Please specify an option in the list: any, broadcast, custom_ip\n");
         return EXIT_FAILURE;
     }
 
@@ -413,7 +436,6 @@ int test_bind_af_unix(void) {
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, TEST_BIND_AF_UNIX_SERVER_PATH, strlen(TEST_BIND_AF_UNIX_SERVER_PATH));
     int ret = bind(s, (struct sockaddr*)&addr, sizeof(addr));
-    printf("bind retval: %i\n", ret);
     if (ret)
         perror("bind");
 
@@ -424,7 +446,7 @@ int test_bind_af_unix(void) {
 
 int test_bind(int argc, char** argv) {
     if (argc <= 1) {
-        fprintf(stderr, "Please speficy an addr_type\n");
+        fprintf(stderr, "Please specify an addr_type\n");
         return EXIT_FAILURE;
     }
 
@@ -441,27 +463,21 @@ int test_bind(int argc, char** argv) {
     return EXIT_FAILURE;
 }
 
-int test_set_signal_handler(int argc, char** argv) {
-    sigset_t set;
-    int sig;
-    int *sigptr = &sig;
-    int ret_val;
+sigset_t set;
 
+int test_set_signal_handler(int argc, char** argv) {
     sigemptyset(&set);
     sigaddset(&set, SIGUSR2);
-    sigprocmask( SIG_BLOCK, &set, NULL );
+    int ret = sigprocmask( SIG_BLOCK, &set, NULL );
 
-    return EXIT_SUCCESS;
+    return ret;
 }
 
 int test_wait_signal(int argc, char** argv) {
-    sigset_t set;
     int sig;
     int *sigptr = &sig;
     int ret_val;
 
-    sigemptyset(&set);
-    sigaddset(&set, SIGUSR2);
     return sigwait(&set, sigptr);
 }
 
@@ -516,12 +532,16 @@ int main(int argc, char **argv) {
             exit_code = test_setregid(sub_argc, sub_argv);
         } else if (strcmp(cmd, "setreuid") == 0) {
             exit_code = test_setreuid(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "sleep") == 0) {
+            exit_code = test_sleep(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "ioctl") == 0) {
+            exit_code = test_ioctl(sub_argc, sub_argv);
         } else {
             fprintf(stderr, "Unknown command `%s`\n", cmd);
             exit_code = EXIT_FAILURE;
         }
 
-        if (exit_code == EXIT_FAILURE) {
+        if (exit_code != EXIT_SUCCESS) {
             fprintf(stderr, "Command `%s` failed: %d\n", cmd, exit_code);
             return exit_code;
         }

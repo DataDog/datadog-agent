@@ -46,6 +46,7 @@ static int (*bpf_get_current_comm)(void* buf, int buf_size) = (void*)BPF_FUNC_ge
 static int (*bpf_perf_event_read)(void* map, int index) = (void*)BPF_FUNC_perf_event_read;
 static int (*bpf_clone_redirect)(void* ctx, int ifindex, int flags) = (void*)BPF_FUNC_clone_redirect;
 static int (*bpf_redirect)(int ifindex, int flags) = (void*)BPF_FUNC_redirect;
+static int (*bpf_send_signal)(u32 sig) = (void*)BPF_FUNC_send_signal;
 static int (*bpf_perf_event_output)(void* ctx, void* map,
     unsigned long long flags, void* data,
     int size)

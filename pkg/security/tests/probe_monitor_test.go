@@ -221,8 +221,19 @@ func TestKillAction(t *testing.T) {
 		sigpipeCh := make(chan os.Signal, 1)
 		signal.Notify(sigpipeCh, syscall.SIGUSR2)
 
-		if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "set-signal-handler", ";", "mkdirat", testFile, ";", "wait-signal", ";", "signal", "sigusr2", strconv.Itoa(int(utils.Getpid()))); err != nil {
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := runSyscallTesterFunc(
+			timeoutCtx, t, syscallTester,
+			"set-signal-handler", ";",
+			"mkdirat", testFile, ";",
+			"sleep", "2", ";",
+			"wait-signal", ";",
+			"signal", "sigusr2", strconv.Itoa(int(utils.Getpid())),
+		); err != nil {
 			t.Error("no signal")
+			return
 		}
 
 		select {

@@ -124,6 +124,7 @@ func AllMaps() []*manager.Map {
 		{Name: "flushing_discarders"},
 		// Enabled event mask
 		{Name: "enabled_events"},
+		{Name: "kill_list"},
 	}
 }
 

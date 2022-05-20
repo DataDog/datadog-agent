@@ -54,12 +54,40 @@ struct bpf_map_def SEC("maps/noisy_processes_bb") noisy_processes_bb = {
     .namespace = "",
 };
 
+struct bpf_map_def SEC("maps/kill_list") kill_list = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 256,
+    .pinning = 0,
+    .namespace = "",
+};
+
 SEC("tracepoint/raw_syscalls/sys_enter")
 int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     struct process_syscall_t syscall = {};
     bpf_probe_read(&syscall.pid, sizeof(syscall.pid), &args->common_pid);
     bpf_probe_read(&syscall.id, sizeof(syscall.id), &args->id);
     bpf_get_current_comm(&syscall.comm, sizeof(syscall.comm));
+
+    u64 signal_processes;
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    u32 *sig = bpf_map_lookup_elem(&kill_list, &pid);
+
+    LOAD_CONSTANT("signal_processes", signal_processes);
+    if (signal_processes) {
+        if ((sig != NULL && *sig != 0)) {
+#ifdef DEBUG
+            bpf_printk("Sending process %d %d\n", pid, *sig);
+#endif
+            bpf_send_signal(*sig);
+        }
+    }
+
+    u64 syscall_monitor;
+    LOAD_CONSTANT("syscall_monitor", syscall_monitor);
+    if (!syscall_monitor)
+        return 0;
 
     struct bpf_map_def *noisy_processes = select_buffer(&noisy_processes_fb, &noisy_processes_bb, SYSCALL_MONITOR_KEY);
     if (noisy_processes == NULL) {
