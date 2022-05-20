@@ -77,6 +77,7 @@ if osx?
   # Temporarily blacklist Aerospike until builder supports new dependency
   blacklist_packages.push(/^aerospike==/)
   blacklist_folders.push('aerospike')
+  blacklist_folders.push('teradata')
 end
 
 if arm?
