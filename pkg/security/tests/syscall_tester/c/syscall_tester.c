@@ -164,7 +164,7 @@ void sig_handler(int signum){
 }
 
 int test_signal_sigusr(int child, int sig) {
-    int do_fork = child != 0;
+    int do_fork = child == 0;
     if (do_fork) {
         child = fork();
         if (child == 0) {
@@ -437,7 +437,6 @@ int test_bind_af_unix(void) {
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, TEST_BIND_AF_UNIX_SERVER_PATH, strlen(TEST_BIND_AF_UNIX_SERVER_PATH));
     int ret = bind(s, (struct sockaddr*)&addr, sizeof(addr));
-    printf("bind retval: %i\n", ret);
     if (ret)
         perror("bind");
 
@@ -552,27 +551,20 @@ int test_unlink(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+sigset_t set;
 int test_set_signal_handler(int argc, char** argv) {
-    sigset_t set;
-    int sig;
-    int *sigptr = &sig;
-    int ret_val;
-
     sigemptyset(&set);
     sigaddset(&set, SIGUSR2);
-    sigprocmask( SIG_BLOCK, &set, NULL );
+    int ret = sigprocmask( SIG_BLOCK, &set, NULL );
 
-    return EXIT_SUCCESS;
+    return ret;
 }
 
 int test_wait_signal(int argc, char** argv) {
-    sigset_t set;
     int sig;
     int *sigptr = &sig;
     int ret_val;
 
-    sigemptyset(&set);
-    sigaddset(&set, SIGUSR2);
     return sigwait(&set, sigptr);
 }
 
@@ -606,14 +598,20 @@ int test_exec_in_pthread(int argc, char **argv) {
 
 int test_sleep(int argc, char **argv) {
     if (argc != 2) {
-        fprintf(stderr, "Please specify at a sleep duration\n");
+        fprintf(stderr, "%s: Please pass a duration in seconds.\n", __FUNCTION__);
         return EXIT_FAILURE;
     }
     int duration = atoi(argv[1]);
     if (duration <= 0) {
         fprintf(stderr, "Please specify at a valid sleep duration\n");
     }
-    sleep(duration);
+    for (int i = 0; i < duration; i++)
+        sleep(1);
+    return EXIT_SUCCESS;
+}
+
+int test_ioctl(int argc, char **argv) {
+    ioctl(666, 0);
     return EXIT_SUCCESS;
 }
 
@@ -744,8 +742,8 @@ int main(int argc, char **argv) {
             exit_code = EXIT_FAILURE;
         }
 
-        if (exit_code == EXIT_FAILURE) {
-            fprintf(stderr, "Command `%s` failed: %d\n", cmd, exit_code);
+        if (exit_code != EXIT_SUCCESS) {
+            fprintf(stderr, "Command `%s` failed: %d (errno: %s)\n", cmd, exit_code, strerror(errno));
             return exit_code;
         }
 

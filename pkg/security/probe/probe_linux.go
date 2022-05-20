@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"golang.org/x/exp/slices"
@@ -107,11 +108,12 @@ type PlatformProbe struct {
 	// Approvers / discarders section
 	notifyDiscarderPushedCallbacksLock sync.Mutex
 
+	killListMap *lib.Map
+
 	isRuntimeDiscarded bool
 	constantOffsets    map[string]uint64
 	runtimeCompiled    bool
-
-	useFentry bool
+	useFentry          bool
 }
 
 func (p *Probe) detectKernelVersion() error {
@@ -297,7 +299,9 @@ func (p *Probe) Setup() error {
 
 	p.applyDefaultFilterPolicies()
 
-	if err := p.updateProbes(defaultEventTypes, true); err != nil {
+	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
+
+	if err := p.updateProbes(defaultEventTypes, true, needRawSyscalls); err != nil {
 		return err
 	}
 
@@ -1094,7 +1098,7 @@ func (p *Probe) validEventTypeForConfig(eventType string) bool {
 
 // updateProbes applies the loaded set of rules and returns a report
 // of the applied approvers for it.
-func (p *Probe) updateProbes(ruleEventTypes []eval.EventType, useSnapshotProbes bool) error {
+func (p *Probe) updateProbes(ruleEventTypes []eval.EventType, useSnapshotProbes, needRawSyscalls bool) error {
 	// event types enabled either by event handlers or by rules
 	eventTypes := append([]eval.EventType{}, defaultEventTypes...)
 	eventTypes = append(eventTypes, ruleEventTypes...)
@@ -1125,12 +1129,16 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType, useSnapshotProbes 
 
 	activatedProbes = append(activatedProbes, p.resolvers.TCResolver.SelectTCProbes())
 
-	// ActivityDumps
-	if p.Config.RuntimeSecurity.ActivityDumpEnabled {
-		for _, e := range p.profileManagers.GetActivityDumpTracedEventTypes() {
-			if e == model.SyscallsEventType {
-				activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
-				break
+	if needRawSyscalls {
+		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+	} else {
+		// ActivityDumps
+		if p.Config.RuntimeSecurity.ActivityDumpEnabled {
+			for _, e := range p.profileManagers.GetActivityDumpTracedEventTypes() {
+				if e == model.SyscallsEventType {
+					activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+					break
+				}
 			}
 		}
 	}
@@ -1408,7 +1416,21 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, e
 		}
 	}
 
-	if err := p.updateProbes(rs.GetEventTypes(), false); err != nil {
+	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
+	if !needRawSyscalls {
+		// Add syscall monitor probes if it's either activated or
+		// there is an 'kill' action in the ruleset
+		for _, rule := range rs.GetRules() {
+			for _, action := range rule.Definition.Actions {
+				if action.Kill != nil {
+					needRawSyscalls = true
+					break
+				}
+			}
+		}
+	}
+
+	if err := p.updateProbes(rs.GetEventTypes(), false, needRawSyscalls); err != nil {
 		return nil, fmt.Errorf("failed to select probes: %w", err)
 	}
 
@@ -1474,6 +1496,12 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	useMmapableMaps := p.kernelVersion.HaveMmapableMaps()
 
 	p.Manager = ebpf.NewRuntimeSecurityManager(useRingBuffers, p.useFentry)
+
+	killListMap, err := managerhelper.Map(p.Manager, "kill_list")
+	if err != nil {
+		return nil, err
+	}
+	p.killListMap = killListMap
 
 	p.ensureConfigDefaults()
 
