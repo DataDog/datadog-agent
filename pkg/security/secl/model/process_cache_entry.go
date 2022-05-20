@@ -111,7 +111,7 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.Comm = pc.Comm
 	childEntry.FileEvent = pc.FileEvent
 	childEntry.ContainerID = pc.ContainerID
-	childEntry.ExecTime = pc.ExecTime
+	childEntry.ExecTime = time.Time{}
 	childEntry.Credentials = pc.Credentials
 	childEntry.Cookie = pc.Cookie
 
