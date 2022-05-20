@@ -161,7 +161,7 @@ type Event struct {
 	SetGID SetgidEvent `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
 	Capset CapsetEvent `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
 	Signal SignalEvent `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
-	Exit   ExitEvent   `field:"exit" event:"exit"`     // [7.3x] [Process] A process terminated
+	Exit   ExitEvent   `field:"exit" event:"exit"`     // [7.38] [Process] A process terminated
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
