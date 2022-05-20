@@ -7,12 +7,12 @@ package sampler
 
 import (
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 )
 
@@ -39,10 +39,9 @@ const (
 // The resulting sampled traces will likely be incomplete and will be flagged with
 // a exceptioKey metric set at 1.
 type RareSampler struct {
-	// Variables access through the 'atomic' package must be 64bits aligned.
-	hits    int64
-	misses  int64
-	shrinks int64
+	hits    *atomic.Int64
+	misses  *atomic.Int64
+	shrinks *atomic.Int64
 	mu      sync.RWMutex
 
 	tickStats *time.Ticker
@@ -54,6 +53,9 @@ type RareSampler struct {
 // of env, service, name, resource, http-status, error type for each top level or measured spans
 func NewRareSampler() *RareSampler {
 	e := &RareSampler{
+		hits:      atomic.NewInt64(0),
+		misses:    atomic.NewInt64(0),
+		shrinks:   atomic.NewInt64(0),
 		limiter:   rate.NewLimiter(rareSamplerTPS, rareSamplerBurst),
 		seen:      make(map[Signature]*seenSpans),
 		tickStats: time.NewTicker(10 * time.Second),
@@ -125,10 +127,10 @@ func (e *RareSampler) sampleSpan(now time.Time, env string, s *pb.Span) bool {
 		sampled = e.limiter.Allow()
 		if sampled {
 			ss.add(now.Add(defaultTTL), s)
-			atomic.AddInt64(&e.hits, 1)
+			e.hits.Inc()
 			traceutil.SetMetric(s, rareKey, 1)
 		} else {
-			atomic.AddInt64(&e.misses, 1)
+			e.misses.Inc()
 		}
 	}
 	return sampled
@@ -141,7 +143,7 @@ func (e *RareSampler) loadSeenSpans(shardSig Signature) *seenSpans {
 	if ok {
 		return s
 	}
-	s = &seenSpans{expires: make(map[spanHash]time.Time), totalSamplerShrinks: &e.shrinks}
+	s = &seenSpans{expires: make(map[spanHash]time.Time), totalSamplerShrinks: e.shrinks}
 	e.mu.Lock()
 	e.seen[shardSig] = s
 	e.mu.Unlock()
@@ -149,9 +151,9 @@ func (e *RareSampler) loadSeenSpans(shardSig Signature) *seenSpans {
 }
 
 func (e *RareSampler) report() {
-	metrics.Count("datadog.trace_agent.sampler.rare.hits", atomic.SwapInt64(&e.hits, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.sampler.rare.misses", atomic.SwapInt64(&e.misses, 0), nil, 1)
-	metrics.Gauge("datadog.trace_agent.sampler.rare.shrinks", float64(atomic.LoadInt64(&e.shrinks)), nil, 1)
+	metrics.Count("datadog.trace_agent.sampler.rare.hits", e.hits.Swap(0), nil, 1)
+	metrics.Count("datadog.trace_agent.sampler.rare.misses", e.misses.Swap(0), nil, 1)
+	metrics.Gauge("datadog.trace_agent.sampler.rare.shrinks", float64(e.shrinks.Load()), nil, 1)
 }
 
 // seenSpans keeps record of a set of spans.
@@ -162,7 +164,7 @@ type seenSpans struct {
 	// shrunk caracterize seenSpans when it's limited in size by capacityLimit.
 	shrunk bool
 	// totalSamplerShrinks is the reference to the total number of shrinks reported by RareSampler.
-	totalSamplerShrinks *int64
+	totalSamplerShrinks *atomic.Int64
 }
 
 func (ss *seenSpans) add(expire time.Time, s *pb.Span) {
@@ -194,7 +196,7 @@ func (ss *seenSpans) shrink() {
 	}
 	ss.expires = newExpires
 	ss.shrunk = true
-	atomic.AddInt64(ss.totalSamplerShrinks, 1)
+	ss.totalSamplerShrinks.Inc()
 }
 
 func (ss *seenSpans) getExpire(h spanHash) (time.Time, bool) {
