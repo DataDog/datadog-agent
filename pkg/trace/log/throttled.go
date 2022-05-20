@@ -6,31 +6,36 @@
 package log
 
 import (
-	"sync/atomic"
 	"time"
+
+	"go.uber.org/atomic"
 )
 
 // NewThrottled returns a new throttled logger. The returned logger will allow up to n calls in
 // a time period of length d.
 func NewThrottled(n int, d time.Duration) *ThrottledLogger {
-	return &ThrottledLogger{n: uint64(n), d: d}
+	return &ThrottledLogger{
+		n: uint64(n),
+		c: atomic.NewUint64(0),
+		d: d,
+	}
 }
 
 // ThrottledLogger limits the number of log calls during a time window. To create a new logger
 // use NewThrottled.
 type ThrottledLogger struct {
-	n uint64 // number of log calls allowed during interval d
-	c uint64 // number of log calls performed during an interval d; atomic value
+	n uint64         // number of log calls allowed during interval d
+	c *atomic.Uint64 // number of log calls performed during an interval d
 	d time.Duration
 }
 
 type loggerFunc func(format string, params ...interface{})
 
 func (tl *ThrottledLogger) log(logFunc loggerFunc, format string, params ...interface{}) {
-	c := atomic.AddUint64(&tl.c, 1) - 1
+	c := tl.c.Inc() - 1
 	if c == 0 {
 		// first call, trigger the reset
-		time.AfterFunc(tl.d, func() { atomic.StoreUint64(&tl.c, 0) })
+		time.AfterFunc(tl.d, func() { tl.c.Store(0) })
 	}
 	if c >= tl.n {
 		if c == tl.n {
