@@ -1,8 +1,6 @@
 package goflowlib
 
 import (
-	"net"
-
 	flowpb "github.com/netsampler/goflow2/pb"
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
@@ -15,13 +13,13 @@ func ConvertFlow(srcFlow *flowpb.FlowMessage, namespace string) *common.Flow {
 		FlowType:        convertFlowType(srcFlow.Type),
 		SamplingRate:    srcFlow.SamplingRate,
 		Direction:       srcFlow.FlowDirection,
-		ExporterAddr:    net.IP(srcFlow.SamplerAddress).String(),
+		ExporterAddr:    srcFlow.SamplerAddress,
 		StartTimestamp:  srcFlow.TimeFlowStart,
 		EndTimestamp:    srcFlow.TimeFlowEnd,
 		Bytes:           srcFlow.Bytes,
 		Packets:         srcFlow.Packets,
-		SrcAddr:         net.IP(srcFlow.SrcAddr).String(),
-		DstAddr:         net.IP(srcFlow.DstAddr).String(),
+		SrcAddr:         srcFlow.SrcAddr,
+		DstAddr:         srcFlow.DstAddr,
 		SrcMac:          srcFlow.SrcMac,
 		DstMac:          srcFlow.DstMac,
 		SrcMask:         srcFlow.SrcNet,
@@ -33,7 +31,7 @@ func ConvertFlow(srcFlow *flowpb.FlowMessage, namespace string) *common.Flow {
 		InputInterface:  srcFlow.InIf,
 		OutputInterface: srcFlow.OutIf,
 		Tos:             srcFlow.IPTos,
-		NextHop:         net.IP(srcFlow.NextHop).String(),
+		NextHop:         srcFlow.NextHop,
 	}
 }
 

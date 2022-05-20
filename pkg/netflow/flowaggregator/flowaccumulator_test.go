@@ -3,7 +3,6 @@ package flowaggregator
 import (
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/stretchr/testify/assert"
-	"net"
 	"testing"
 	"time"
 )
@@ -26,40 +25,40 @@ func Test_flowAccumulator_add(t *testing.T) {
 	// Given
 	flowA1 := &common.Flow{
 		FlowType:       common.TypeNetFlow9,
-		ExporterAddr:   net.IP([]byte{127, 0, 0, 1}).String(),
+		ExporterAddr:   []byte{127, 0, 0, 1},
 		StartTimestamp: 1234568,
 		EndTimestamp:   1234569,
 		Bytes:          20,
 		Packets:        4,
-		SrcAddr:        net.IP([]byte{10, 10, 10, 10}).String(),
-		DstAddr:        net.IP([]byte{10, 10, 10, 20}).String(),
+		SrcAddr:        []byte{10, 10, 10, 10},
+		DstAddr:        []byte{10, 10, 10, 20},
 		IPProtocol:     uint32(6),
 		SrcPort:        uint32(2000),
 		DstPort:        uint32(80),
 	}
 	flowA2 := &common.Flow{
 		FlowType:       common.TypeNetFlow9,
-		ExporterAddr:   net.IP([]byte{127, 0, 0, 1}).String(),
+		ExporterAddr:   []byte{127, 0, 0, 1},
 		StartTimestamp: 1234578,
 		EndTimestamp:   1234579,
 		Bytes:          10,
 		Packets:        2,
-		SrcAddr:        net.IP([]byte{10, 10, 10, 10}).String(),
-		DstAddr:        net.IP([]byte{10, 10, 10, 20}).String(),
+		SrcAddr:        []byte{10, 10, 10, 10},
+		DstAddr:        []byte{10, 10, 10, 20},
 		IPProtocol:     uint32(6),
 		SrcPort:        uint32(2000),
 		DstPort:        uint32(80),
 	}
 	flowB1 := &common.Flow{
 		FlowType:       common.TypeNetFlow9,
-		ExporterAddr:   net.IP([]byte{127, 0, 0, 1}).String(),
+		ExporterAddr:   []byte{127, 0, 0, 1},
 		StartTimestamp: 1234568,
 		EndTimestamp:   1234569,
 		Bytes:          10,
 		Packets:        2,
-		SrcAddr:        net.IP([]byte{10, 10, 10, 10}).String(),
+		SrcAddr:        []byte{10, 10, 10, 10},
 		// different destination addr
-		DstAddr:    net.IP([]byte{10, 10, 10, 30}).String(),
+		DstAddr:    []byte{10, 10, 10, 30},
 		IPProtocol: uint32(6),
 		SrcPort:    uint32(2000),
 		DstPort:    uint32(80),
@@ -75,16 +74,16 @@ func Test_flowAccumulator_add(t *testing.T) {
 	assert.Equal(t, 2, len(acc.flows))
 
 	wrappedFlowA := acc.flows[flowA1.AggregationHash()]
-	assert.Equal(t, net.IP([]byte{10, 10, 10, 10}).String(), wrappedFlowA.flow.SrcAddr)
-	assert.Equal(t, net.IP([]byte{10, 10, 10, 20}).String(), wrappedFlowA.flow.DstAddr)
+	assert.Equal(t, []byte{10, 10, 10, 10}, wrappedFlowA.flow.SrcAddr)
+	assert.Equal(t, []byte{10, 10, 10, 20}, wrappedFlowA.flow.DstAddr)
 	assert.Equal(t, uint64(30), wrappedFlowA.flow.Bytes)
 	assert.Equal(t, uint64(6), wrappedFlowA.flow.Packets)
 	assert.Equal(t, uint64(1234568), wrappedFlowA.flow.StartTimestamp)
 	assert.Equal(t, uint64(1234579), wrappedFlowA.flow.EndTimestamp)
 
 	wrappedFlowB := acc.flows[flowB1.AggregationHash()]
-	assert.Equal(t, net.IP([]byte{10, 10, 10, 10}).String(), wrappedFlowB.flow.SrcAddr)
-	assert.Equal(t, net.IP([]byte{10, 10, 10, 30}).String(), wrappedFlowB.flow.DstAddr)
+	assert.Equal(t, []byte{10, 10, 10, 10}, wrappedFlowB.flow.SrcAddr)
+	assert.Equal(t, []byte{10, 10, 10, 30}, wrappedFlowB.flow.DstAddr)
 }
 
 func Test_flowAccumulator_flush(t *testing.T) {
@@ -95,13 +94,13 @@ func Test_flowAccumulator_flush(t *testing.T) {
 	// Given
 	flow := &common.Flow{
 		FlowType:       common.TypeNetFlow9,
-		ExporterAddr:   net.IP([]byte{127, 0, 0, 1}).String(),
+		ExporterAddr:   []byte{127, 0, 0, 1},
 		StartTimestamp: 1234568,
 		EndTimestamp:   1234569,
 		Bytes:          20,
 		Packets:        4,
-		SrcAddr:        net.IP([]byte{10, 10, 10, 10}).String(),
-		DstAddr:        net.IP([]byte{10, 10, 10, 20}).String(),
+		SrcAddr:        []byte{10, 10, 10, 10},
+		DstAddr:        []byte{10, 10, 10, 20},
 		IPProtocol:     uint32(6),
 		SrcPort:        uint32(2000),
 		DstPort:        uint32(80),

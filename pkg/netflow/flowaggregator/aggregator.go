@@ -80,6 +80,11 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 			continue
 		}
 		agg.sender.EventPlatformEvent(string(payloadBytes), epforwarder.EventTypeNetworkDevicesNetFlow)
+
+		// For debug purposes print out all flows
+		if agg.logPayload {
+			log.Debugf("flushed flow: %s", string(payloadBytes))
+		}
 	}
 }
 
@@ -113,14 +118,6 @@ func (agg *FlowAggregator) flush() int {
 	}
 	// TODO: Add flush stats to agent telemetry e.g. aggregator newFlushCountStats()
 
-	// For debug purposes print out all flows
-	if agg.logPayload {
-		log.Debug("==== Flushing events BEGIN ======")
-		for _, flow := range flowsToFlush {
-			log.Debugf("flow: %s", flow.AsJSONString())
-		}
-		log.Debug("==== Flushing events END ======")
-	}
 	agg.sendFlows(flowsToFlush)
 
 	atomic.AddUint64(&agg.flushedFlowCount, uint64(len(flowsToFlush)))

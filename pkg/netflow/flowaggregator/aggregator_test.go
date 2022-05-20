@@ -9,7 +9,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"net"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -40,13 +39,13 @@ func TestAggregator(t *testing.T) {
 	flow := &common.Flow{
 		Namespace:      "my-ns",
 		FlowType:       common.TypeNetFlow9,
-		ExporterAddr:   net.IP([]byte{127, 0, 0, 1}).String(),
+		ExporterAddr:   []byte{127, 0, 0, 1},
 		StartTimestamp: 1234568,
 		EndTimestamp:   1234569,
 		Bytes:          20,
 		Packets:        4,
-		SrcAddr:        net.IP([]byte{10, 10, 10, 10}).String(),
-		DstAddr:        net.IP([]byte{10, 10, 10, 20}).String(),
+		SrcAddr:        []byte{10, 10, 10, 10},
+		DstAddr:        []byte{10, 10, 10, 20},
 		IPProtocol:     uint32(6),
 		SrcPort:        uint32(2000),
 		DstPort:        uint32(80),

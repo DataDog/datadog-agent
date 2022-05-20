@@ -20,7 +20,7 @@ type flowWrapper struct {
 
 // flowAccumulator is used to accumulate aggregated flows
 type flowAccumulator struct {
-	flows             map[string]flowWrapper
+	flows             map[uint64]flowWrapper
 	mu                sync.Mutex
 	flowFlushInterval time.Duration
 	flowContextTTL    time.Duration
@@ -36,7 +36,7 @@ func newFlowWrapper(flow *common.Flow) flowWrapper {
 
 func newFlowAccumulator(aggregatorFlushInterval time.Duration) *flowAccumulator {
 	return &flowAccumulator{
-		flows:             make(map[string]flowWrapper),
+		flows:             make(map[uint64]flowWrapper),
 		flowFlushInterval: aggregatorFlushInterval,
 		flowContextTTL:    aggregatorFlushInterval * 5,
 	}
@@ -79,7 +79,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	// TODO: ignore ephemeral ports
 
 	aggHash := flowToAdd.AggregationHash()
-	log.Tracef("New Flow (digest=%s): %+v", aggHash, flowToAdd)
+	log.Tracef("New Flow (digest=%d): %+v", aggHash, flowToAdd)
 
 	aggFlow, ok := f.flows[aggHash]
 	if !ok {

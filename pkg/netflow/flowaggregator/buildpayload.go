@@ -24,7 +24,7 @@ func buildPayload(aggFlow *common.Flow, hostname string) payload.FlowPayload {
 		SamplingRate: aggFlow.SamplingRate,
 		Direction:    direction,
 		Exporter: payload.Exporter{
-			IP: aggFlow.ExporterAddr,
+			IP: common.IPBytesToString(aggFlow.ExporterAddr),
 		},
 		Start:      aggFlow.StartTimestamp,
 		End:        aggFlow.EndTimestamp,
@@ -33,7 +33,7 @@ func buildPayload(aggFlow *common.Flow, hostname string) payload.FlowPayload {
 		EtherType:  etherType,
 		IPProtocol: ipProtocol,
 		Source: payload.Endpoint{
-			IP:   aggFlow.SrcAddr,
+			IP:   common.IPBytesToString(aggFlow.SrcAddr),
 			Port: aggFlow.SrcPort,
 			// TODO: implement Mac
 			// TODO: implement Mask
@@ -41,7 +41,7 @@ func buildPayload(aggFlow *common.Flow, hostname string) payload.FlowPayload {
 			Mask: "0.0.0.0/24",
 		},
 		Destination: payload.Endpoint{
-			IP:   aggFlow.DstAddr,
+			IP:   common.IPBytesToString(aggFlow.DstAddr),
 			Port: aggFlow.DstPort,
 		},
 		Ingress: payload.ObservationPoint{
@@ -59,7 +59,7 @@ func buildPayload(aggFlow *common.Flow, hostname string) payload.FlowPayload {
 		// TODO: implement tcp_flags
 		TCPFlags: []string{"SYN", "ACK"},
 		NextHop: payload.NextHop{
-			IP: aggFlow.NextHop,
+			IP: common.IPBytesToString(aggFlow.NextHop),
 		},
 	}
 }

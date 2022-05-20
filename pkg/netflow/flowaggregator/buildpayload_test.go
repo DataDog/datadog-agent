@@ -4,7 +4,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/payload"
 	"github.com/stretchr/testify/assert"
-	"net"
 	"testing"
 )
 
@@ -21,13 +20,13 @@ func Test_buildPayload(t *testing.T) {
 				FlowType:        common.TypeNetFlow9,
 				SamplingRate:    10,
 				Direction:       1,
-				ExporterAddr:    net.IP([]byte{127, 0, 0, 1}).String(),
+				ExporterAddr:    []byte{127, 0, 0, 1},
 				StartTimestamp:  1234568,
 				EndTimestamp:    1234569,
 				Bytes:           10,
 				Packets:         2,
-				SrcAddr:         net.IP([]byte{10, 10, 10, 10}).String(),
-				DstAddr:         net.IP([]byte{10, 10, 10, 20}).String(),
+				SrcAddr:         []byte{10, 10, 10, 10},
+				DstAddr:         []byte{10, 10, 10, 20},
 				SrcMac:          uint64(10),
 				DstMac:          uint64(20),
 				SrcMask:         uint32(10),
@@ -39,7 +38,7 @@ func Test_buildPayload(t *testing.T) {
 				InputInterface:  10,
 				OutputInterface: 20,
 				Tos:             3,
-				NextHop:         net.IP([]byte{10, 10, 10, 30}).String(),
+				NextHop:         []byte{10, 10, 10, 30},
 			},
 			expectedPayload: payload.FlowPayload{
 				FlowType:     "netflow9",
