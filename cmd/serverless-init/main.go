@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package main
 
 import (
@@ -32,7 +37,7 @@ func main() {
 	go setupTraceAgent(traceAgent)
 
 	metricAgent := setupMetricAgent()
-	metric.ColdStart(tag.GetBaseTags(), time.Now(), metricAgent.Demux)
+	metric.AddColdStartMetric(tag.GetBaseTags(), time.Now(), metricAgent.Demux)
 	go metricAgent.Flush()
 	initcontainer.Run(logConfig, metricAgent, traceAgent, os.Args[1:])
 }

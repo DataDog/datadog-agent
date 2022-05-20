@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package metric
 
 import (
@@ -22,10 +27,10 @@ func TestAdd(t *testing.T) {
 	assert.Equal(t, metric.Tags[1], "tagb:valueb")
 }
 
-func TestColdStart(t *testing.T) {
+func TestAddColdStartMetric(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	timestamp := time.Now()
-	ColdStart([]string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
+	AddColdStartMetric([]string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
 	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 1, len(generatedMetrics))
 	metric := generatedMetrics[0]
@@ -35,10 +40,10 @@ func TestColdStart(t *testing.T) {
 	assert.Equal(t, metric.Tags[1], "tagb:valueb")
 }
 
-func TestShutdown(t *testing.T) {
+func TestAddShutdownMetric(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	timestamp := time.Now()
-	Shutdown([]string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
+	AddShutdownMetric([]string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
 	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 1, len(generatedMetrics))
 	metric := generatedMetrics[0]
