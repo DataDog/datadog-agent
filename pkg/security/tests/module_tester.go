@@ -594,7 +594,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	st, err := newSimpleTest(macroDefs, ruleDefs, opts.testDir)
+	st, err := newSimpleTest(t, macroDefs, ruleDefs, opts.testDir)
 	if err != nil {
 		return nil, err
 	}
@@ -1151,7 +1151,6 @@ func (tm *testModule) startTracing() (*tracePipeLogger, error) {
 }
 
 func (tm *testModule) cleanup() {
-	tm.st.Close()
 	tm.module.Close()
 }
 
@@ -1206,14 +1205,7 @@ func swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
 }
 
 type simpleTest struct {
-	root     string
-	toRemove bool
-}
-
-func (t *simpleTest) Close() {
-	if t.toRemove {
-		os.RemoveAll(t.root)
-	}
+	root string
 }
 
 func (t *simpleTest) Root() string {
@@ -1266,19 +1258,13 @@ func (t *simpleTest) load(macros []*rules.MacroDefinition, rules []*rules.RuleDe
 	return nil
 }
 
-func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string) (*simpleTest, error) {
-	var err error
-
+func newSimpleTest(tb testing.TB, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string) (*simpleTest, error) {
 	t := &simpleTest{
 		root: testDir,
 	}
 
 	if testDir == "" {
-		t.root, err = os.MkdirTemp("", "test-secagent-root")
-		if err != nil {
-			return nil, err
-		}
-		t.toRemove = true
+		t.root = tb.TempDir()
 		if err := os.Chmod(t.root, 0o711); err != nil {
 			return nil, err
 		}

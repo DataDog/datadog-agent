@@ -56,11 +56,7 @@ func TestMacroMerge(t *testing.T) {
 		}},
 	}
 
-	tmpDir, err := os.MkdirTemp("", "test-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
 		t.Fatal(err)
@@ -124,11 +120,7 @@ func TestRuleMerge(t *testing.T) {
 		}},
 	}
 
-	tmpDir, err := os.MkdirTemp("", "test-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
 		t.Fatal(err)
@@ -298,10 +290,7 @@ func TestActionSetVariable(t *testing.T) {
 		}},
 	}
 
-	tmpDir, err := os.MkdirTemp("", "test-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
+	tmpDir := t.TempDir()
 
 	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
 		t.Fatal(err)
@@ -380,10 +369,7 @@ func TestActionSetVariableConflict(t *testing.T) {
 		}},
 	}
 
-	tmpDir, err := os.MkdirTemp("", "test-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
+	tmpDir := t.TempDir()
 
 	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
 		t.Fatal(err)
@@ -407,10 +393,7 @@ func loadPolicy(t *testing.T, testPolicy *Policy) *multierror.Error {
 		WithMacros(make(map[eval.MacroID]*eval.Macro))
 	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
 
-	tmpDir, err := os.MkdirTemp("", "test-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
+	tmpDir := t.TempDir()
 
 	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
 		t.Fatal(err)
