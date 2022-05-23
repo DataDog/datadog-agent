@@ -21,6 +21,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -188,6 +190,10 @@ func TestNoisyProcess(t *testing.T) {
 }
 
 func TestKillAction(t *testing.T) {
+	if !kernel.SupportBPFSendSignal() && config.IsContainerized() {
+		t.Skip("bpf_send_signal is not supported on this kernel and agent is running in container mode")
+	}
+
 	rule := &rules.RuleDefinition{
 		ID: "kill_action",
 		// using a wilcard to avoid approvers on basename. events will not match thus will be noisy

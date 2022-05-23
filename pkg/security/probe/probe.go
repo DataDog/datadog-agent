@@ -66,6 +66,7 @@ type Probe struct {
 	ctx            context.Context
 	cancelFnc      context.CancelFunc
 	wg             sync.WaitGroup
+
 	// Events section
 	handlers  [model.MaxAllEventType][]EventHandler
 	monitor   *Monitor
@@ -88,6 +89,8 @@ type Probe struct {
 
 	tcProgramsLock sync.RWMutex
 	tcPrograms     map[NetDeviceKey]*manager.Probe
+
+	supportsBPFSendSignal bool
 }
 
 // GetResolvers returns the resolvers of Probe
@@ -900,7 +903,11 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	}
 
 	if p.config.SyscallMonitor || hasKillAction {
-		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+		if !p.supportsBPFSendSignal && aconfig.IsContainerized() {
+			log.Errorf("'kill' action is not available on this host")
+		} else {
+			activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+		}
 	}
 
 	// Print the list of unique probe identification IDs that are registered
@@ -1192,17 +1199,18 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	ctx, cancel := context.WithCancel(context.Background())
 
 	p := &Probe{
-		config:         config,
-		approvers:      make(map[eval.EventType]activeApprovers),
-		manager:        ebpf.NewRuntimeSecurityManager(),
-		managerOptions: ebpf.NewDefaultOptions(),
-		ctx:            ctx,
-		cancelFnc:      cancel,
-		erpc:           erpc,
-		discarderReq:   newDiscarderRequest(),
-		tcPrograms:     make(map[NetDeviceKey]*manager.Probe),
-		statsdClient:   statsdClient,
-		discarderRate:  utils.NewRateLimiter(time.Second, 100),
+		config:                config,
+		approvers:             make(map[eval.EventType]activeApprovers),
+		manager:               ebpf.NewRuntimeSecurityManager(),
+		managerOptions:        ebpf.NewDefaultOptions(),
+		ctx:                   ctx,
+		cancelFnc:             cancel,
+		erpc:                  erpc,
+		discarderReq:          newDiscarderRequest(),
+		tcPrograms:            make(map[NetDeviceKey]*manager.Probe),
+		statsdClient:          statsdClient,
+		discarderRate:         utils.NewRateLimiter(time.Second, 100),
+		supportsBPFSendSignal: kernel.SupportBPFSendSignal(),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -1311,14 +1319,20 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 			Name:  "net_struct_type",
 			Value: getNetStructType(p.kernelVersion),
 		},
-		manager.ConstantEditor{
-			Name:  "signal_processes",
-			Value: uint64(1),
-		},
 	)
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, getCGroupWriteConstants())
+
+	sendSignalConstant := manager.ConstantEditor{
+		Name:  "signal_processes",
+		Value: uint64(0),
+	}
+	if p.supportsBPFSendSignal {
+		sendSignalConstant.Value = uint64(1)
+	}
+
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, sendSignalConstant)
 
 	// if we are using tracepoints to probe syscall exits, i.e. if we are using an old kernel version (< 4.12)
 	// we need to use raw_syscall tracepoints for exits, as syscall are not trace when running an ia32 userspace

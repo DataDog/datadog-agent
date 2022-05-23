@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"syscall"
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -19,6 +20,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -208,13 +210,23 @@ func (m *Monitor) ProcessEvent(event *Event, size uint64, CPU int, perfMap *mana
 
 // HandleActions executes the rule actions
 func (m *Monitor) HandleActions(rule *rules.Rule, event *Event) {
+	if !m.probe.supportsBPFSendSignal && config.IsContainerized() {
+		return
+	}
+
 	for _, action := range rule.Definition.Actions {
 		if action.Kill != nil {
 			if pid, err := event.GetFieldValue("process.pid"); err == nil {
 				if pid, ok := pid.(int); ok && pid > 1 && pid != int(utils.Getpid()) {
 					log.Debugf("Requesting signal %d to be sent to %d", action.Kill.Signal, pid)
 					sig := model.SignalConstants[action.Kill.Signal]
-					if err := m.killListMap.Put(uint32(pid), uint32(sig)); err != nil {
+
+					if m.probe.supportsBPFSendSignal {
+						err = m.killListMap.Put(uint32(pid), uint32(sig))
+					} else {
+						err = syscall.Kill(pid, syscall.Signal(sig))
+					}
+					if err != nil {
 						log.Warn(err)
 					}
 				}
