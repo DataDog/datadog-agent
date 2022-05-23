@@ -12,7 +12,6 @@ issues:
   max-same-issues: 0
 
   exclude:
-    - "Error return value of .((os\\.)?std(out|err)\\..*|.*Close|.*Flush|os\\.Remove(All)?|.*print(f|ln)?|os\\.(Un)?Setenv). is not checked"
     - "`eventContext` is unused"
     - "`\\(\\*DatadogLogger\\).changeLogLevel` is unused"
     - "`defaultRetryDuration` is unused" # used by APM and Process
@@ -71,5 +70,3 @@ linters-settings:
              "-SA6002", # TODO: Fix sync.Pools
              "-SA4025", # TODO: Fix trace unit test
             ]
-  revive:
-
