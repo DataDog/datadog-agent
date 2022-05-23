@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -32,17 +33,20 @@ type httpStatKeeper struct {
 	// map containing interned path strings
 	// this is rotated  with the stats map
 	interned map[string]string
+
+	oversizedLogLimit *util.LogLimit
 }
 
 func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
 	return &httpStatKeeper{
-		stats:        make(map[Key]*RequestStats),
-		incomplete:   newIncompleteBuffer(c, telemetry),
-		maxEntries:   c.MaxHTTPStatsBuffered,
-		replaceRules: c.HTTPReplaceRules,
-		buffer:       make([]byte, HTTPBufferSize),
-		interned:     make(map[string]string),
-		telemetry:    telemetry,
+		stats:             make(map[Key]*RequestStats),
+		incomplete:        newIncompleteBuffer(c, telemetry),
+		maxEntries:        c.MaxHTTPStatsBuffered,
+		replaceRules:      c.HTTPReplaceRules,
+		buffer:            make([]byte, HTTPBufferSize),
+		interned:          make(map[string]string),
+		telemetry:         telemetry,
+		oversizedLogLimit: util.NewLogLimit(10, time.Minute*10),
 	}
 }
 
@@ -85,14 +89,18 @@ func (h *httpStatKeeper) add(tx *httpTX) {
 
 	if Method(tx.request_method) == MethodUnknown {
 		atomic.AddInt64(&h.telemetry.malformed, 1)
-		log.Warnf("method should never be unknown: %s", tx.String())
+		if h.oversizedLogLimit.ShouldLog() {
+			log.Warnf("method should never be unknown: %s", tx.String())
+		}
 		return
 	}
 
 	latency := tx.RequestLatency()
 	if latency <= 0 {
 		atomic.AddInt64(&h.telemetry.malformed, 1)
-		log.Warnf("latency should never be equal to 0: %s", tx.String())
+		if h.oversizedLogLimit.ShouldLog() {
+			log.Warnf("latency should never be equal to 0: %s", tx.String())
+		}
 		return
 	}
 
@@ -155,7 +163,9 @@ func (h *httpStatKeeper) processHTTPPath(tx *httpTX, path []byte) (pathStr strin
 	// If the user didn't specify a rule matching this particular path, we can check for its format.
 	// Otherwise, we don't want the custom path to be rejected by our path formatting check.
 	if !match && pathIsMalformed(path) {
-		log.Warnf("http path malformed: %s", tx.String())
+		if h.oversizedLogLimit.ShouldLog() {
+			log.Warnf("http path malformed: %s", tx.String())
+		}
 		atomic.AddInt64(&h.telemetry.malformed, 1)
 		return "", true
 	}
