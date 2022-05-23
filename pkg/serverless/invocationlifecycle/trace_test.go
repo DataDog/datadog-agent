@@ -17,6 +17,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var timeNow = func() time.Time {
+	return time.Date(2022, time.December, 27, 0, 0, 0, 0, time.UTC)
+}
+
+func newExecutionContextWithTime() *ExecutionStartInfo {
+	return &ExecutionStartInfo{
+		startTime: timeNow(),
+	}
+}
+
 func TestConvertStrToUnit64Error(t *testing.T) {
 	value, err := convertStrToUnit64("invalid")
 	assert.NotNil(t, err)
@@ -42,70 +52,63 @@ func TestGetSamplingPriority(t *testing.T) {
 	assert.Equal(t, sampler.PriorityUserKeep, getSamplingPriority("xxx", "2"))
 }
 
-func TestSamplingPriority(t *testing.T) {
-	currentExecutionInfo.reset(time.Now())
-	currentExecutionInfo.samplingPriority = sampler.PriorityUserDrop
-	assert.Equal(t, sampler.PriorityUserDrop, SamplingPriority())
-}
-
 func TestInjectContextNoContext(t *testing.T) {
-	currentExecutionInfo.reset(time.Now())
-	InjectContext(nil)
-	assert.Equal(t, uint64(0), currentExecutionInfo.traceID)
+	currentExecutionInfo := newExecutionContextWithTime()
+	InjectContext(currentExecutionInfo, nil)
+	assert.Equal(t, uint64(0), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(0), currentExecutionInfo.parentID)
-	assert.Equal(t, sampler.PriorityNone, currentExecutionInfo.samplingPriority)
+	assert.Equal(t, sampler.SamplingPriority(0), currentExecutionInfo.SamplingPriority)
 }
 
 func TestInjectContextWithContext(t *testing.T) {
-	currentExecutionInfo.reset(time.Now())
+	currentExecutionInfo := newExecutionContextWithTime()
 	httpHeaders := http.Header{}
 	httpHeaders.Set("x-datadog-trace-id", "1234")
 	httpHeaders.Set("x-datadog-parent-id", "5678")
 	httpHeaders.Set("x-datadog-sampling-priority", "2")
-	InjectContext(httpHeaders)
-	assert.Equal(t, uint64(1234), currentExecutionInfo.traceID)
+	InjectContext(currentExecutionInfo, httpHeaders)
+	assert.Equal(t, uint64(1234), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(5678), currentExecutionInfo.parentID)
-	assert.Equal(t, sampler.PriorityUserKeep, currentExecutionInfo.samplingPriority)
+	assert.Equal(t, sampler.PriorityUserKeep, currentExecutionInfo.SamplingPriority)
 }
 
 func TestInjectSpanIDNoContext(t *testing.T) {
-	currentExecutionInfo.reset(time.Now())
-	InjectSpanID(nil)
-	assert.Equal(t, uint64(0), currentExecutionInfo.spanID)
+	currentExecutionInfo := newExecutionContextWithTime()
+	InjectSpanID(currentExecutionInfo, nil)
+	assert.Equal(t, uint64(0), currentExecutionInfo.SpanID)
 }
 
 func TestInjectSpanIDWithContext(t *testing.T) {
-	currentExecutionInfo.reset(time.Now())
+	currentExecutionInfo := newExecutionContextWithTime()
 	httpHeaders := http.Header{}
 	httpHeaders.Set("x-datadog-span-id", "1234")
-	InjectSpanID(httpHeaders)
-	assert.Equal(t, uint64(1234), currentExecutionInfo.spanID)
+	InjectSpanID(currentExecutionInfo, httpHeaders)
+	assert.Equal(t, uint64(1234), currentExecutionInfo.SpanID)
 }
 
 func TestStartExecutionSpanWithoutPayload(t *testing.T) {
-	defer reset()
-	startTime := time.Now()
-	startExecutionSpan(startTime, "", LambdaInvokeEventHeaders{}, false)
-	assert.Equal(t, startTime, currentExecutionInfo.startTime)
-	assert.Equal(t, uint64(0), currentExecutionInfo.traceID)
-	assert.Equal(t, uint64(0), currentExecutionInfo.spanID)
-	assert.Equal(t, sampler.PriorityNone, currentExecutionInfo.samplingPriority)
+	currentExecutionInfo := &ExecutionStartInfo{}
+	startExecutionSpan(currentExecutionInfo, timeNow(), "", LambdaInvokeEventHeaders{}, false)
+	assert.Equal(t, currentExecutionInfo.startTime, currentExecutionInfo.startTime)
+	assert.Equal(t, uint64(0), currentExecutionInfo.TraceID)
+	assert.Equal(t, uint64(0), currentExecutionInfo.SpanID)
+	assert.Equal(t, sampler.PriorityNone, currentExecutionInfo.SamplingPriority)
 }
 
 func TestStartExecutionSpanWithPayload(t *testing.T) {
-	defer reset()
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"-1","x-datadog-trace-id":"5736943178450432258"}}0`
-	startTime := time.Now()
-	startExecutionSpan(startTime, testString, LambdaInvokeEventHeaders{}, false)
+	startTime := timeNow()
+	currentExecutionInfo := &ExecutionStartInfo{}
+	startExecutionSpan(currentExecutionInfo, startTime, testString, LambdaInvokeEventHeaders{}, false)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
-	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.traceID)
+	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
-	assert.Equal(t, sampler.PriorityUserDrop, currentExecutionInfo.samplingPriority)
-	assert.NotEqual(t, 0, currentExecutionInfo.spanID)
+	assert.Equal(t, sampler.PriorityUserDrop, currentExecutionInfo.SamplingPriority)
+	assert.NotEqual(t, 0, currentExecutionInfo.SpanID)
 }
 
 func TestStartExecutionSpanWithPayloadAndLambdaContextHeaders(t *testing.T) {
-	defer reset()
+	currentExecutionInfo := &ExecutionStartInfo{}
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}0`
 	lambdaInvokeContext := LambdaInvokeEventHeaders{
 		TraceID:          "5736943178450432258",
@@ -113,65 +116,70 @@ func TestStartExecutionSpanWithPayloadAndLambdaContextHeaders(t *testing.T) {
 		SamplingPriority: "1",
 	}
 	startTime := time.Now()
-	startExecutionSpan(startTime, testString, lambdaInvokeContext, false)
+	startExecutionSpan(currentExecutionInfo, startTime, testString, lambdaInvokeContext, false)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
-	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.traceID)
+	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
-	assert.Equal(t, sampler.PriorityAutoKeep, currentExecutionInfo.samplingPriority)
-	assert.NotEqual(t, 0, currentExecutionInfo.spanID)
+	assert.Equal(t, sampler.PriorityAutoKeep, currentExecutionInfo.SamplingPriority)
+	assert.NotEqual(t, 0, currentExecutionInfo.SpanID)
 }
 
 func TestStartExecutionSpanWithPayloadAndInvalidIDs(t *testing.T) {
-	defer reset()
+	currentExecutionInfo := &ExecutionStartInfo{}
 	invalidTestString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"INVALID","x-datadog-sampling-priority":"-1","x-datadog-trace-id":"INVALID"}}0`
 	startTime := time.Now()
-	startExecutionSpan(startTime, invalidTestString, LambdaInvokeEventHeaders{}, false)
+	startExecutionSpan(currentExecutionInfo, startTime, invalidTestString, LambdaInvokeEventHeaders{}, false)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
-	assert.NotEqual(t, 9, currentExecutionInfo.traceID)
+	assert.NotEqual(t, 9, currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(0), currentExecutionInfo.parentID)
-	assert.Equal(t, sampler.PriorityUserDrop, currentExecutionInfo.samplingPriority)
-	assert.NotEqual(t, 0, currentExecutionInfo.spanID)
+	assert.Equal(t, sampler.PriorityUserDrop, currentExecutionInfo.SamplingPriority)
+	assert.NotEqual(t, 0, currentExecutionInfo.SpanID)
 }
 
 func TestStartExecutionSpanWithNoHeadersAndInferredSpan(t *testing.T) {
+	currentExecutionInfo := &ExecutionStartInfo{}
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}0`
 	startTime := time.Now()
+
 	inferredSpan.Span = &pb.Span{
 		TraceID: 2350923428932752492,
 		SpanID:  1304592378509342580,
+		Start:   int64(startTime.UnixNano()),
 	}
-	startExecutionSpan(startTime, testString, LambdaInvokeEventHeaders{}, true)
+	startExecutionSpan(currentExecutionInfo, startTime, testString, LambdaInvokeEventHeaders{}, true)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
-	assert.Equal(t, uint64(2350923428932752492), currentExecutionInfo.traceID)
+	assert.Equal(t, uint64(2350923428932752492), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(1304592378509342580), currentExecutionInfo.parentID)
-	assert.NotEqual(t, 0, currentExecutionInfo.spanID)
+	assert.NotEqual(t, 0, currentExecutionInfo.SpanID)
 }
 
 func TestStartExecutionSpanWithHeadersAndInferredSpan(t *testing.T) {
+	currentExecutionInfo := &ExecutionStartInfo{}
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startTime := time.Now()
 	inferredSpan.Span = &pb.Span{
 		SpanID: 1304592378509342580,
+		Start:  int64(startTime.UnixNano()),
 	}
-	startExecutionSpan(startTime, testString, LambdaInvokeEventHeaders{}, true)
+	startExecutionSpan(currentExecutionInfo, startTime, testString, LambdaInvokeEventHeaders{}, true)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
-	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.traceID)
+	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(1304592378509342580), currentExecutionInfo.parentID)
-	assert.Equal(t, sampler.SamplingPriority(1), currentExecutionInfo.samplingPriority)
+	assert.Equal(t, sampler.SamplingPriority(1), currentExecutionInfo.SamplingPriority)
 	assert.Equal(t, uint64(5736943178450432258), inferredSpan.Span.TraceID)
 	assert.Equal(t, uint64(1480558859903409531), inferredSpan.Span.ParentID)
 
-	assert.NotEqual(t, 0, currentExecutionInfo.spanID)
+	assert.NotEqual(t, 0, currentExecutionInfo.SpanID)
 }
 func TestEndExecutionSpanWithNoError(t *testing.T) {
+	currentExecutionInfo := &ExecutionStartInfo{}
 	defer os.Unsetenv(functionNameEnvVar)
 	defer os.Unsetenv("DD_CAPTURE_LAMBDA_PAYLOAD")
 	os.Setenv(functionNameEnvVar, "TestFunction")
 	os.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "true")
-	defer reset()
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startTime := time.Now()
-	startExecutionSpan(startTime, testString, LambdaInvokeEventHeaders{}, false)
+	startExecutionSpan(currentExecutionInfo, startTime, testString, LambdaInvokeEventHeaders{}, false)
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
@@ -181,7 +189,7 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 		tracePayload = payload
 	}
 
-	endExecutionSpan(mockProcessTrace, "test-request-id", endTime, isError, []byte(`{"response":"test response payload"}`))
+	endExecutionSpan(currentExecutionInfo, mockProcessTrace, "test-request-id", endTime, isError, []byte(`{"response":"test response payload"}`))
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.lambda", executionSpan.Name)
 	assert.Equal(t, "aws.lambda", executionSpan.Service)
@@ -190,8 +198,8 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 	assert.Equal(t, "test-request-id", executionSpan.Meta["request_id"])
 	assert.Equal(t, testString, executionSpan.Meta["function.request"])
 	assert.Equal(t, `{"response":"test response payload"}`, executionSpan.Meta["function.response"])
-	assert.Equal(t, currentExecutionInfo.traceID, executionSpan.TraceID)
-	assert.Equal(t, currentExecutionInfo.spanID, executionSpan.SpanID)
+	assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
+	assert.Equal(t, currentExecutionInfo.SpanID, executionSpan.SpanID)
 	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
 	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
 }
@@ -201,10 +209,10 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 	defer os.Unsetenv("DD_CAPTURE_LAMBDA_PAYLOAD")
 	os.Setenv(functionNameEnvVar, "TestFunction")
 	os.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "INVALID_INPUT")
-	defer reset()
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startTime := time.Now()
-	startExecutionSpan(startTime, testString, LambdaInvokeEventHeaders{}, false)
+	currentExecutionInfo := &ExecutionStartInfo{}
+	startExecutionSpan(currentExecutionInfo, startTime, testString, LambdaInvokeEventHeaders{}, false)
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
@@ -214,7 +222,7 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 		tracePayload = payload
 	}
 
-	endExecutionSpan(mockProcessTrace, "test-request-id", endTime, isError, []byte(`{"response":"test response payload"}`))
+	endExecutionSpan(currentExecutionInfo, mockProcessTrace, "test-request-id", endTime, isError, []byte(`{"response":"test response payload"}`))
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.lambda", executionSpan.Name)
 	assert.Equal(t, "aws.lambda", executionSpan.Service)
@@ -223,19 +231,19 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 	assert.Equal(t, "test-request-id", executionSpan.Meta["request_id"])
 	assert.NotContains(t, executionSpan.Meta, "function.request")
 	assert.NotContains(t, executionSpan.Meta, "function.response")
-	assert.Equal(t, currentExecutionInfo.traceID, executionSpan.TraceID)
-	assert.Equal(t, currentExecutionInfo.spanID, executionSpan.SpanID)
+	assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
+	assert.Equal(t, currentExecutionInfo.SpanID, executionSpan.SpanID)
 	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
 	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
 }
 
 func TestEndExecutionSpanWithError(t *testing.T) {
+	currentExecutionInfo := &ExecutionStartInfo{}
 	defer os.Unsetenv(functionNameEnvVar)
 	os.Setenv(functionNameEnvVar, "TestFunction")
-	defer reset()
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startTime := time.Now()
-	startExecutionSpan(startTime, testString, LambdaInvokeEventHeaders{}, false)
+	startExecutionSpan(currentExecutionInfo, startTime, testString, LambdaInvokeEventHeaders{}, false)
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
@@ -245,7 +253,7 @@ func TestEndExecutionSpanWithError(t *testing.T) {
 		tracePayload = payload
 	}
 
-	endExecutionSpan(mockProcessTrace, "test-request-id", endTime, isError, []byte("{}"))
+	endExecutionSpan(currentExecutionInfo, mockProcessTrace, "test-request-id", endTime, isError, []byte("{}"))
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, executionSpan.Error, int32(1))
 }
@@ -271,8 +279,4 @@ func TestConvertRawPayloadWithOutHeaders(t *testing.T) {
 	p := convertRawPayload(s)
 
 	assert.Equal(t, p, expectedPayload)
-}
-
-func reset() {
-	currentExecutionInfo = executionStartInfo{}
 }

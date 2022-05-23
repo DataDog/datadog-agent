@@ -12,11 +12,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/mitchellh/mapstructure"
 )
 
 const (
@@ -64,7 +66,6 @@ func CheckIsInferredSpan(span *pb.Span) bool {
 
 // FilterFunctionTags filters out DD tags & function specific tags
 func FilterFunctionTags(input map[string]string) map[string]string {
-
 	if input == nil {
 		return nil
 	}
@@ -96,19 +97,46 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 
 // DispatchInferredSpan decodes the event and routes it to the correct
 // enrichment function for that event source
-func (inferredSpan *InferredSpan) DispatchInferredSpan(event string) {
-	attributes := parseEvent(event)
-	eventSource := attributes.extractEventSource()
-	switch eventSource {
-	case APIGATEWAY:
-		inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(attributes)
-	case HTTPAPI:
-		inferredSpan.EnrichInferredSpanWithAPIGatewayHTTPEvent(attributes)
-	case WEBSOCKET:
-		inferredSpan.EnrichInferredSpanWithAPIGatewayWebsocketEvent(attributes)
-	case SNS:
-		inferredSpan.EnrichInferredSpanWithSNSEvent(attributes)
+func (inferredSpan *InferredSpan) DispatchInferredSpan(parsedPayload map[string]interface{}) error {
+	eventType, err := trigger.GetEventType(parsedPayload)
+	if err != nil {
+		return err
 	}
+	switch eventType {
+	case trigger.ApiGatewayEvent:
+		apiGatewayRestRequest := APIGatewayRESTEvent{}
+		err := mapstructure.Decode(parsedPayload, &apiGatewayRestRequest)
+		if err != nil {
+			return err
+		}
+		inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(apiGatewayRestRequest)
+
+	case trigger.ApiGatewayV2Event:
+		apiGatewayHTTPRequest := APIGatewayHTTPEvent{}
+		err := mapstructure.Decode(parsedPayload, &apiGatewayHTTPRequest)
+		if err != nil {
+			return err
+		}
+		inferredSpan.EnrichInferredSpanWithAPIGatewayHTTPEvent(apiGatewayHTTPRequest)
+
+	case trigger.ApiGatewayWebsocketEvent:
+		apiGatewayWebsocketRequest := APIGatewayWebsocketEvent{}
+		err := mapstructure.Decode(parsedPayload, &apiGatewayWebsocketRequest)
+		if err != nil {
+			return err
+		}
+		inferredSpan.EnrichInferredSpanWithAPIGatewayWebsocketEvent(apiGatewayWebsocketRequest)
+
+	case trigger.SNSEvent:
+		snsRequest := SNSRequest{}
+		err := mapstructure.Decode(parsedPayload, &snsRequest)
+		if err != nil {
+			return err
+		}
+		inferredSpan.EnrichInferredSpanWithSNSEvent(snsRequest)
+	}
+
+	return nil
 }
 
 // CompleteInferredSpan finishes the inferred span and passes it

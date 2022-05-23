@@ -39,6 +39,31 @@ const (
 	UNKNOWN    = "unknown"
 )
 
+type APIGatewayBaseEvent struct {
+	RequestContext RequestContextKeys `mapstructure:"requestContext" json:"requestContext"`
+	Headers        HeaderKeys         `mapstructure:"headers" json:"headers"`
+}
+
+// APIGatewayRESTEvent is the API gateway request event
+type APIGatewayRESTEvent struct {
+	APIGatewayBaseEvent
+	Path       string `mapstructure:"path" json:"path"`
+	HTTPMethod string `mapstructure:"httpMethod" json:"httpMethod"`
+}
+
+type APIGatewayHTTPEvent struct {
+	APIGatewayBaseEvent
+}
+
+type APIGatewayWebsocketEvent struct {
+	APIGatewayBaseEvent
+}
+
+// SNSRequest is the SNS event
+type SNSRequest struct {
+	Records []*RecordKeys `mapStructure:"Records" json:"Records"`
+}
+
 // EventKeys are used to tell us what event type we received
 type EventKeys struct {
 	RequestContext RequestContextKeys `json:"requestContext"`
@@ -66,7 +91,7 @@ type RequestContextKeys struct {
 
 // HeaderKeys holds the extracted headers from the trace context
 type HeaderKeys struct {
-	InvocationType string `json:"X-Amz-Invocation-Type"`
+	InvocationType string `json:"X-Amz-Invocation-Type",mapstructure:"X-Amz-Invocation-Type"`
 }
 
 // HTTPKeys holds the nested HTTP data from the event payload
