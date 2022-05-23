@@ -142,8 +142,14 @@ func (a *ActionDefinition) Check() error {
 		if (a.Set.Value == nil && a.Set.Field == "") || (a.Set.Value != nil && a.Set.Field != "") {
 			return errors.New("either 'value' or 'field' must be specified")
 		}
-	} else if _, found := model.SignalConstants[a.Kill.Signal]; !found {
-		return fmt.Errorf("unsupported signal '%s'", a.Kill.Signal)
+	} else if a.Kill != nil {
+		if a.Kill.Signal == "" {
+			a.Kill.Signal = "SIGTERM"
+		}
+
+		if _, found := model.SignalConstants[a.Kill.Signal]; !found {
+			return fmt.Errorf("unsupported signal '%s'", a.Kill.Signal)
+		}
 	}
 
 	return nil
