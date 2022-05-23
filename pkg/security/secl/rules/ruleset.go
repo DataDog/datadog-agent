@@ -126,6 +126,10 @@ func (a *ActionDefinition) Check() error {
 			return errors.New("either 'value' or 'field' must be specified")
 		}
 	} else {
+		if a.Kill.Signal == "" {
+			a.Kill.Signal = "SIGTERM"
+		}
+
 		if _, found := model.SignalConstants[a.Kill.Signal]; !found {
 			return fmt.Errorf("unsupported signal '%s'", a.Kill.Signal)
 		}
