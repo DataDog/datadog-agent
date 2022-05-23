@@ -48,7 +48,7 @@ static __always_inline void read_into_buffer_skb(char *buffer, struct __sk_buff*
     // Indeed, mostly because of 4.4 verifier, we want to make sure the offset into the buffer is not
     // stored on the stack, so that the verifier is able to verify that we're not doing out-of-bound on
     // the stack.
-    // Basically, we should get a register from the code block above containing an fp based address. As
+    // Basically, we should get a register from the code block above containing an fp relative address. As
     // we are doing `buffer[0]` here, there is not dynamic computation on that said register after this,
     // and thus the verifier is able to ensure that we are in-bound.
     if (offset + 2 < len) {
