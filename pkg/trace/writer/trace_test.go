@@ -6,7 +6,15 @@
 package writer
 
 import (
+	"bytes"
 	"compress/gzip"
+	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/andybalholm/brotli"
+	"github.com/klauspost/compress"
+	kgzip "github.com/klauspost/compress/gzip"
+	"github.com/klauspost/compress/zstd"
+	"github.com/pierrec/lz4"
 	"io/ioutil"
 	"reflect"
 	"runtime"
@@ -293,7 +301,7 @@ func BenchmarkMapDelete(b *testing.B) {
 	}
 	for n := 0; n < b.N; n++ {
 		m["_sampling_priority_v1"] = 1
-		//delete(m, "_sampling_priority_v1")
+		// delete(m, "_sampling_priority_v1")
 	}
 }
 
@@ -310,10 +318,214 @@ func BenchmarkSpanProto(b *testing.B) {
 			"hello.world.6": 1,
 			"hello.world.7": 1,
 			"hello.world.8": 1,
-			//"_sampling_priority_v1": 1,
+			// "_sampling_priority_v1": 1,
 		},
 	}
 	for n := 0; n < b.N; n++ {
 		s.Marshal()
 	}
+}
+
+func BenchmarkCompression(b *testing.B) {
+	traceChunks := testutil.GetTestTraceChunks(10, 20, true)
+	tp := []*pb.TracerPayload{{Chunks: traceChunks}}
+	p := pb.AgentPayload{
+		AgentVersion:   info.Version,
+		HostName:       "someHostName",
+		Env:            "benchmark",
+		TargetTPS:      1,
+		ErrorTPS:       10,
+		TracerPayloads: tp,
+	}
+	uut, err := proto.Marshal(&p)
+	assert.NoError(b, err)
+
+	fmt.Printf("Compressability %f\n", compress.Estimate(uut))
+
+	b.Run("gzip-CURRENT", func(b *testing.B) {
+		b.SetBytes(int64(len(uut)))
+		out := bytes.Buffer{}
+		w, _ := gzip.NewWriterLevel(&out, gzip.BestSpeed)
+		w.Write(uut)
+		w.Close()
+		b.ReportMetric(float64(out.Len()), "compressedBytes")
+		w.Reset(&out)
+		out.Reset()
+		for i := 0; i < b.N; i++ {
+			w.Write(uut)
+			w.Close()
+			w.Reset(&out)
+			out.Reset()
+		}
+	})
+
+	b.Run("gzip-bestcomp", func(b *testing.B) {
+		b.SetBytes(int64(len(uut)))
+		out := bytes.Buffer{}
+		w, _ := gzip.NewWriterLevel(&out, gzip.BestCompression)
+		w.Write(uut)
+		w.Close()
+		b.ReportMetric(float64(out.Len()), "compressedBytes")
+		w.Reset(&out)
+		out.Reset()
+		for i := 0; i < b.N; i++ {
+			w.Write(uut)
+			w.Close()
+			w.Reset(&out)
+			out.Reset()
+		}
+	})
+
+	b.Run("lz4", func(b *testing.B) {
+		b.SetBytes(int64(len(uut)))
+		out := bytes.Buffer{}
+		w := lz4.NewWriter(&out)
+		w.Write(uut)
+		w.Close()
+		b.ReportMetric(float64(out.Len()), "compressedBytes")
+		w.Reset(&out)
+		out.Reset()
+		for i := 0; i < b.N; i++ {
+			w.Write(uut)
+			w.Close()
+			w.Reset(&out)
+			out.Reset()
+		}
+	})
+
+	b.Run("kgzip-bestspeed", func(b *testing.B) {
+		b.SetBytes(int64(len(uut)))
+		out := bytes.Buffer{}
+		w, _ := kgzip.NewWriterLevel(&out, kgzip.BestSpeed)
+		w.Write(uut)
+		w.Close()
+		b.ReportMetric(float64(out.Len()), "compressedBytes")
+		w.Reset(&out)
+		out.Reset()
+		for i := 0; i < b.N; i++ {
+			w.Write(uut)
+			w.Close()
+			w.Reset(&out)
+			out.Reset()
+		}
+	})
+
+	b.Run("kgzip-bestcomp", func(b *testing.B) {
+		b.SetBytes(int64(len(uut)))
+		out := bytes.Buffer{}
+		w, _ := kgzip.NewWriterLevel(&out, kgzip.BestCompression)
+		w.Write(uut)
+		w.Close()
+		b.ReportMetric(float64(out.Len()), "compressedBytes")
+		w.Reset(&out)
+		out.Reset()
+		for i := 0; i < b.N; i++ {
+			w.Write(uut)
+			w.Close()
+			w.Reset(&out)
+			out.Reset()
+		}
+	})
+
+	b.Run("zstd-bestspeed", func(b *testing.B) {
+		b.SetBytes(int64(len(uut)))
+		out := bytes.Buffer{}
+		w, _ := zstd.NewWriter(&out, zstd.WithEncoderLevel(zstd.SpeedFastest))
+		w.Write(uut)
+		w.Close()
+		b.ReportMetric(float64(out.Len()), "compressedBytes")
+		w.Reset(&out)
+		out.Reset()
+		for i := 0; i < b.N; i++ {
+			w.Write(uut)
+			w.Close()
+			w.Reset(&out)
+			out.Reset()
+		}
+	})
+
+	b.Run("zstd-default", func(b *testing.B) {
+		b.SetBytes(int64(len(uut)))
+		out := bytes.Buffer{}
+		w, _ := zstd.NewWriter(&out, zstd.WithEncoderLevel(zstd.SpeedDefault))
+		w.Write(uut)
+		w.Close()
+		b.ReportMetric(float64(out.Len()), "compressedBytes")
+		w.Reset(&out)
+		out.Reset()
+		for i := 0; i < b.N; i++ {
+			w.Write(uut)
+			w.Close()
+			w.Reset(&out)
+			out.Reset()
+		}
+	})
+
+	b.Run("zstd-bettercomp", func(b *testing.B) {
+		b.SetBytes(int64(len(uut)))
+		out := bytes.Buffer{}
+		w, _ := zstd.NewWriter(&out, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
+		w.Write(uut)
+		w.Close()
+		b.ReportMetric(float64(out.Len()), "compressedBytes")
+		w.Reset(&out)
+		out.Reset()
+		for i := 0; i < b.N; i++ {
+			w.Write(uut)
+			w.Close()
+			w.Reset(&out)
+			out.Reset()
+		}
+	})
+
+	b.Run("brotli-default", func(b *testing.B) {
+		b.SetBytes(int64(len(uut)))
+		out := bytes.Buffer{}
+		w := brotli.NewWriter(&out)
+		w.Write(uut)
+		w.Close()
+		b.ReportMetric(float64(out.Len()), "compressedBytes")
+		w.Reset(&out)
+		out.Reset()
+		for i := 0; i < b.N; i++ {
+			w.Write(uut)
+			w.Close()
+			w.Reset(&out)
+			out.Reset()
+		}
+	})
+
+	b.Run("brotli-bestspeed", func(b *testing.B) {
+		b.SetBytes(int64(len(uut)))
+		out := bytes.Buffer{}
+		w := brotli.NewWriterLevel(&out, brotli.BestSpeed)
+		w.Write(uut)
+		w.Close()
+		b.ReportMetric(float64(out.Len()), "compressedBytes")
+		w.Reset(&out)
+		out.Reset()
+		for i := 0; i < b.N; i++ {
+			w.Write(uut)
+			w.Close()
+			w.Reset(&out)
+			out.Reset()
+		}
+	})
+
+	b.Run("brotli-mediumspeed", func(b *testing.B) {
+		b.SetBytes(int64(len(uut)))
+		out := bytes.Buffer{}
+		w := brotli.NewWriterLevel(&out, 3)
+		w.Write(uut)
+		w.Close()
+		b.ReportMetric(float64(out.Len()), "compressedBytes")
+		w.Reset(&out)
+		out.Reset()
+		for i := 0; i < b.N; i++ {
+			w.Write(uut)
+			w.Close()
+			w.Reset(&out)
+			out.Reset()
+		}
+	})
 }

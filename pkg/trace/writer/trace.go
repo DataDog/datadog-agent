@@ -6,8 +6,8 @@
 package writer
 
 import (
-	"compress/gzip"
 	"errors"
+	"github.com/klauspost/compress/zstd"
 	"math"
 	"strings"
 	"sync"
@@ -246,23 +246,24 @@ func (w *TraceWriter) flush() {
 	go func() {
 		defer timing.Since("datadog.trace_agent.trace_writer.compress_ms", time.Now())
 		defer w.wg.Done()
+		log.Infof("YEP ITS ANDREWS VERSION\n")
 		p := newPayload(map[string]string{
 			"Content-Type":     "application/x-protobuf",
-			"Content-Encoding": "gzip",
+			"Content-Encoding": "zstd",
 			headerLanguages:    strings.Join(info.Languages(), "|"),
 		})
-		gzipw, err := gzip.NewWriterLevel(p.body, gzip.BestSpeed)
+		gzipw, err := zstd.NewWriter(p.body)
 		if err != nil {
 			// it will never happen, unless an invalid compression is chosen;
 			// we know gzip.BestSpeed is valid.
-			log.Errorf("gzip.NewWriterLevel: %d", err)
+			log.Errorf("zstd.NewWriterLevel: %d", err)
 			return
 		}
 		if _, err := gzipw.Write(b); err != nil {
-			log.Errorf("Error gzipping trace payload: %v", err)
+			log.Errorf("Error zstd-compressing trace payload: %v", err)
 		}
 		if err := gzipw.Close(); err != nil {
-			log.Errorf("Error closing gzip stream when writing trace payload: %v", err)
+			log.Errorf("Error closing zstd stream when writing trace payload: %v", err)
 		}
 
 		sendPayloads(w.senders, p, w.syncMode)
