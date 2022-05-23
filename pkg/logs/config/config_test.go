@@ -550,13 +550,13 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 	suite.Equal(expectedEndpoints, endpoints)
 }
 
-func getTestEndpoint(host string, port int, ssl bool) Endpoint {
+func getTestEndpoint(host string, port int, ssl bool, compression bool) Endpoint {
 	return Endpoint{
 		APIKey:           "123",
 		Host:             host,
 		Port:             port,
 		UseSSL:           ssl,
-		UseCompression:   true,
+		UseCompression:   compression,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
 		BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
@@ -586,7 +586,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpOverride() {
 	suite.config.Set("vector.logs.url", "http://vector.host:8080/")
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride("test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8080, false))
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8080, false, false))
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
 }
@@ -597,7 +597,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpsOverride() {
 	suite.config.Set("vector.logs.url", "https://vector.host:8443/")
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride("test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8443, true))
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8443, true, false))
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
 }
@@ -608,7 +608,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHostAndPortOverride() 
 	suite.config.Set("vector.logs.url", "vector.host:8443")
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride("test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8443, true))
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8443, true, false))
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
 }
@@ -620,7 +620,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHostAndPortNoSSLOverri
 	suite.config.Set("vector.logs.url", "vector.host:8443")
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride("test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8443, false))
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8443, false, false))
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
 }
@@ -632,7 +632,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithoutVector() {
 	suite.config.Set("vector.logs.url", "vector.host:8443")
 	endpoints, err := BuildHTTPEndpoints("test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	expectedEndpoints := getTestEndpoints(getTestEndpoint("agent-http-intake.logs.datadoghq.com", 0, true))
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("agent-http-intake.logs.datadoghq.com", 0, true, true))
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
 }
