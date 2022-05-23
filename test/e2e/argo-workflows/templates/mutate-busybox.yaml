@@ -4,7 +4,7 @@ metadata:
   name: busybox
 spec:
   templates:
-    - name: create-busybox-tags
+    - name: create-busybox-with-tags
       inputs:
         parameters:
           - name: namespace
@@ -29,67 +29,23 @@ spec:
                   - "3600"
                 image: busybox
                 name: busybox
-    - name: create-busybox-hostip
+    - name: create-busybox-with-mode
       inputs:
         parameters:
           - name: namespace
+          - name: mode
       resource:
         action: apply
         manifest: |
           apiVersion: v1
           kind: Pod
           metadata:
-            name: busybox-hostip
+            name: busybox-{{inputs.parameters.mode}}
             namespace: {{inputs.parameters.namespace}}
             labels:
               "app": "busybox"
               "admission.datadoghq.com/enabled": "true"
-          spec:
-            containers:
-              - command:
-                  - sleep
-                  - "3600"
-                image: busybox
-                name: busybox
-    - name: create-busybox-service
-      inputs:
-        parameters:
-          - name: namespace
-      resource:
-        action: apply
-        manifest: |
-          apiVersion: v1
-          kind: Pod
-          metadata:
-            name: busybox-service
-            namespace: {{inputs.parameters.namespace}}
-            labels:
-              "app": "busybox"
-              "admission.datadoghq.com/enabled": "true"
-              "admission.datadoghq.com/config.mode": "service"
-          spec:
-            containers:
-              - command:
-                  - sleep
-                  - "3600"
-                image: busybox
-                name: busybox
-    - name: create-busybox-socket
-      inputs:
-        parameters:
-          - name: namespace
-      resource:
-        action: apply
-        manifest: |
-          apiVersion: v1
-          kind: Pod
-          metadata:
-            name: busybox-socket
-            namespace: {{inputs.parameters.namespace}}
-            labels:
-              "app": "busybox"
-              "admission.datadoghq.com/enabled": "true"
-              "admission.datadoghq.com/config.mode": "socket"
+              "admission.datadoghq.com/config.mode": "{{inputs.parameters.mode}}"
           spec:
             containers:
               - command:
@@ -103,25 +59,31 @@ spec:
           - name: namespace
       steps:
         - - name: busybox-hostip
-            template: create-busybox-hostip
+            template: create-busybox-with-mode
             arguments:
               parameters:
                 - name: namespace
                   value: "{{inputs.parameters.namespace}}"
+                - name: mode
+                  value: hostip
         - - name: busybox-service
-            template: create-busybox-service
+            template: create-busybox-with-mode
             arguments:
               parameters:
                 - name: namespace
                   value: "{{inputs.parameters.namespace}}"
+                - name: mode
+                  value: service
         - - name: busybox-socket
-            template: create-busybox-socket
+            template: create-busybox-with-mode
             arguments:
               parameters:
                 - name: namespace
                   value: "{{inputs.parameters.namespace}}"
+                - name: mode
+                  value: socket
         - - name: busybox-tags
-            template: create-busybox-tags
+            template: create-busybox-with-tags
             arguments:
               parameters:
                 - name: namespace
