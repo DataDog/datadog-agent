@@ -49,16 +49,16 @@ func TestProcessEventFiltering(t *testing.T) {
 	handlers := make([]EventHandler, 0)
 
 	// The listener should drop unexpected events and not call the EventHandler for it
-	rawEvents = append(rawEvents, model.NewProcessMonitoringEvent(model.Fork, time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"}))
+	rawEvents = append(rawEvents, model.NewMockedProcessMonitoringEvent(model.Fork, time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"}))
 
 	// Verify that expected events are correctly consumed
-	rawEvents = append(rawEvents, model.NewProcessMonitoringEvent(model.Exec, time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"}))
+	rawEvents = append(rawEvents, model.NewMockedProcessMonitoringEvent(model.Exec, time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"}))
 	handlers = append(handlers, func(e *model.ProcessEvent) {
 		require.Equal(t, model.Exec, e.EventType)
 		require.Equal(t, uint32(23), e.Pid)
 	})
 
-	rawEvents = append(rawEvents, model.NewProcessMonitoringEvent(model.Exit, time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"}))
+	rawEvents = append(rawEvents, model.NewMockedProcessMonitoringEvent(model.Exit, time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"}))
 	handlers = append(handlers, func(e *model.ProcessEvent) {
 		require.Equal(t, model.Exit, e.EventType)
 		require.Equal(t, uint32(23), e.Pid)
@@ -128,7 +128,7 @@ func TestProcessEventHandling(t *testing.T) {
 			t.Error("should not have received more process events")
 		}
 
-		assertProcessEvents(t, events[i], e)
+		model.AssertProcessEvents(t, events[i], e)
 		// all message have been consumed
 		if i == len(events)-1 {
 			close(rcvMessage)
