@@ -409,6 +409,8 @@ require (
 
 require github.com/containernetworking/plugins v1.1.1 // indirect
 
+require github.com/buger/jsonparser v1.1.1
+
 require (
 	github.com/Sirupsen/logrus v1.0.6 // indirect
 	go.opentelemetry.io/collector/semconv v0.50.0 // indirect
