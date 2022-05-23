@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"syscall"
 	"time"
 
 	lib "github.com/cilium/ebpf"
@@ -61,6 +62,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
@@ -108,7 +110,8 @@ type PlatformProbe struct {
 	// Approvers / discarders section
 	notifyDiscarderPushedCallbacksLock sync.Mutex
 
-	killListMap *lib.Map
+	killListMap           *lib.Map
+	supportsBPFSendSignal bool
 
 	isRuntimeDiscarded bool
 	constantOffsets    map[string]uint64
@@ -281,6 +284,11 @@ func (p *Probe) Init() error {
 	p.profileManagers.AddActivityDumpHandler(p.activityDumpHandler)
 
 	p.eventStream.SetMonitor(p.monitors.eventStreamMonitor)
+
+	p.killListMap, err = managerhelper.Map(p.Manager, "kill_list")
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -1497,11 +1505,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 
 	p.Manager = ebpf.NewRuntimeSecurityManager(useRingBuffers, p.useFentry)
 
-	killListMap, err := managerhelper.Map(p.Manager, "kill_list")
-	if err != nil {
-		return nil, err
-	}
-	p.killListMap = killListMap
+	p.supportsBPFSendSignal = p.kernelVersion.SupportBPFSendSignal()
 
 	p.ensureConfigDefaults()
 
@@ -1613,7 +1617,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		},
 		manager.ConstantEditor{
 			Name:  "send_signal",
-			Value: isBPFSendSignalHelperAvailable(p.kernelVersion),
+			Value: utils.BoolTouint64(p.kernelVersion.SupportBPFSendSignal()),
 		},
 		manager.ConstantEditor{
 			Name:  "anomaly_syscalls",
@@ -1808,14 +1812,6 @@ func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
 	return 0
 }
 
-// isBPFSendSignalHelperAvailable returns true if the bpf_send_signal helper is available in the current kernel
-func isBPFSendSignalHelperAvailable(kernelVersion *kernel.Version) uint64 {
-	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel5_3 {
-		return uint64(1)
-	}
-	return uint64(0)
-}
-
 // getCGroupWriteConstants returns the value of the constant used to determine how cgroups should be captured in kernel
 // space
 func getCGroupWriteConstants() manager.ConstantEditor {
@@ -1929,5 +1925,32 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	// iouring
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_1) {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameIoKiocbStructCtx, "struct io_kiocb", "ctx", "")
+	}
+}
+
+// HandleActions executes the actions of a triggered rule
+func (p *Probe) HandleActions(rule *rules.Rule, event eval.Event) {
+	ev := event.(*model.Event)
+	for _, action := range rule.Definition.Actions {
+		switch {
+		case action.InternalCallbackDefinition != nil && rule.ID == events.RefreshUserCacheRuleID:
+			_ = p.RefreshUserCache(ev.ContainerContext.ID)
+
+		case action.Kill != nil:
+			if pid := ev.ProcessContext.Pid; pid > 1 && pid != utils.Getpid() {
+				log.Debugf("Requesting signal %s to be sent to %d", action.Kill.Signal, pid)
+				sig := model.SignalConstants[action.Kill.Signal]
+
+				var err error
+				if p.supportsBPFSendSignal {
+					err = p.killListMap.Put(uint32(pid), uint32(sig))
+				} else {
+					err = syscall.Kill(int(pid), syscall.Signal(sig))
+				}
+				if err != nil {
+					seclog.Warnf("failed to kill process %d: %s", pid, err)
+				}
+			}
+		}
 	}
 }

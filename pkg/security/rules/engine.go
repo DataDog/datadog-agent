@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -30,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -353,18 +351,7 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 		return false
 	}
 
-	for _, action := range rule.Definition.Actions {
-		if action.InternalCallbackDefinition != nil && rule.ID == refreshUserCacheRuleID {
-			_ = e.probe.RefreshUserCache(ev.ContainerContext.ID)
-		} else if action.Kill != nil {
-			if pid, err := event.GetFieldValue("process.pid"); err == nil {
-				if pid, ok := pid.(int); ok && pid > 1 && pid != int(utils.Getpid()) {
-					log.Debugf("Sending signal %s to %d", action.Kill.Signal, pid)
-					syscall.Kill(int(pid), syscall.Signal(model.SignalConstants[action.Kill.Signal]))
-				}
-			}
-		}
-	}
+	e.probe.HandleActions(rule, event)
 
 	if rule.Definition.Silent {
 		return false
