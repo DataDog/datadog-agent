@@ -105,7 +105,9 @@ func (s *LogSources) SubscribeForType(sourceType string) (added chan *LogSource,
 	existingSources := append([]*LogSource{}, s.sources...) // clone for goroutine
 	go func() {
 		for _, source := range existingSources {
-			added <- source
+			if source.Config.Type == sourceType {
+				added <- source
+			}
 		}
 	}()
 
@@ -131,7 +133,9 @@ func (s *LogSources) GetAddedForType(sourceType string) chan *LogSource {
 	existingSources := append([]*LogSource{}, s.sources...) // clone for goroutine
 	go func() {
 		for _, source := range existingSources {
-			stream <- source
+			if source.Config.Type == sourceType {
+				stream <- source
+			}
 		}
 	}()
 
