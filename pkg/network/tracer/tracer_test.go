@@ -1239,7 +1239,7 @@ func TestTCPEstablishedPreExistingConn(t *testing.T) {
 	conn, ok := findConnection(laddr, raddr, connections)
 
 	require.True(t, ok)
-	assert.Equal(t, uint32(0), conn.Monotonic.TCPEstablished)
+	assert.Equal(t, uint32(1), conn.Monotonic.TCPEstablished)
 	assert.Equal(t, uint32(1), conn.Monotonic.TCPClosed)
 }
 
