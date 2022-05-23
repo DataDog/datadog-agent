@@ -159,10 +159,6 @@ int ptrace_traceme() {
     return EXIT_SUCCESS;
 }
 
-void sig_handler(int signum){
-    exit(0);
-}
-
 int test_signal_sigusr(int child, int sig) {
     int do_fork = child == 0;
     if (do_fork) {
@@ -607,11 +603,6 @@ int test_sleep(int argc, char **argv) {
     }
     for (int i = 0; i < duration; i++)
         sleep(1);
-    return EXIT_SUCCESS;
-}
-
-int test_ioctl(int argc, char **argv) {
-    ioctl(666, 0);
     return EXIT_SUCCESS;
 }
 
