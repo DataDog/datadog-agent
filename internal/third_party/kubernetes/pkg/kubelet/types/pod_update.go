@@ -23,15 +23,21 @@ import (
 )
 
 const (
+	// ConfigSourceAnnotationKey TODO (<container-integrations>): XX-YYYY
 	ConfigSourceAnnotationKey = "kubernetes.io/config.source"
 
 	// These constants identify the sources of pods
+
+	// FileSource TODO (<container-integrations>): XX-YYYY
 	// Updates from a file
 	FileSource = "file"
+	// HTTPSource TODO (<container-integrations>): XX-YYYY
 	// Updates from querying a web page
 	HTTPSource = "http"
+	// ApiserverSource TODO (<container-integrations>): XX-YYYY
 	// Updates from Kubernetes API Server
 	ApiserverSource = "api"
+	// AllSource TODO (<container-integrations>): XX-YYYY
 	// Updates from all sources
 	AllSource = "*"
 )
