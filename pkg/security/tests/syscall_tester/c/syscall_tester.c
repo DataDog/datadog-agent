@@ -172,11 +172,6 @@ int test_sleep(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
-int test_ioctl(int argc, char **argv) {
-    ioctl(666, 0);
-    return EXIT_SUCCESS;
-}
-
 int test_signal_sigusr(int child, int sig) {
     if (child == 0) {
         child = fork();
@@ -534,8 +529,6 @@ int main(int argc, char **argv) {
             exit_code = test_setreuid(sub_argc, sub_argv);
         } else if (strcmp(cmd, "sleep") == 0) {
             exit_code = test_sleep(sub_argc, sub_argv);
-        } else if (strcmp(cmd, "ioctl") == 0) {
-            exit_code = test_ioctl(sub_argc, sub_argv);
         } else {
             fprintf(stderr, "Unknown command `%s`\n", cmd);
             exit_code = EXIT_FAILURE;
