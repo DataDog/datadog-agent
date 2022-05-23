@@ -163,7 +163,7 @@ spec:
           set -euo pipefail
           set -x
 
-          until kubectl get pods -o json --namespace {{inputs.parameters.namespace}} | jq '.items[] | select(.spec.containers[].volumeMount[]? | .name == "{{inputs.parameters.volumeName}}" and .mountPath == "{{inputs.parameters.volumePath}}") | .metadata.name' | grep {{inputs.parameters.target}}; do
+          until kubectl get pods -o json --namespace {{inputs.parameters.namespace}} | jq '.items[] | select(.spec.containers[].volumeMounts[]? | .name == "{{inputs.parameters.volumeName}}" and .mountPath == "{{inputs.parameters.volumePath}}") | .metadata.name' | grep {{inputs.parameters.target}}; do
             sleep 2
           done
 
