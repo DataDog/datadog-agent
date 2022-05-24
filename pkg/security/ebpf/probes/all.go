@@ -114,7 +114,6 @@ func AllMaps() []*manager.Map {
 		{Name: "pid_cache"},
 		{Name: "str_array_buffers"},
 		// SELinux tables
-		{Name: "selinux_write_buffer"},
 		{Name: "selinux_enforce_status"},
 		// Syscall monitor tables
 		{Name: "buffer_selector"},

@@ -35,16 +35,7 @@ struct selinux_event_t {
 
 struct selinux_write_buffer_t {
     char buffer[SELINUX_WRITE_BUFFER_LEN];
-};
-
-struct bpf_map_def SEC("maps/selinux_write_buffer") selinux_write_buffer = {
-    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(struct selinux_write_buffer_t),
-    .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
-};
+} selinux_write_buffer;
 
 struct bpf_map_def SEC("maps/selinux_enforce_status") selinux_enforce_status = {
     .type = BPF_MAP_TYPE_ARRAY,
@@ -59,19 +50,14 @@ struct bpf_map_def SEC("maps/selinux_enforce_status") selinux_enforce_status = {
 #define SELINUX_ENFORCE_STATUS_ENFORCE_KEY 1
 
 int __attribute__((always_inline)) parse_buf_to_bool(const char *buf) {
-    u32 key = 0;
-    struct selinux_write_buffer_t *copy = bpf_map_lookup_elem(&selinux_write_buffer, &key);
-    if (!copy) {
-        return -1;
-    }
-    int read_status = bpf_probe_read_str(&copy->buffer, SELINUX_WRITE_BUFFER_LEN, (void *)buf);
+    int read_status = bpf_probe_read_str(&selinux_write_buffer.buffer, SELINUX_WRITE_BUFFER_LEN, (void *)buf);
     if (!read_status) {
         return -1;
     }
 
 #pragma unroll
     for (size_t i = 0; i < SELINUX_WRITE_BUFFER_LEN; i++) {
-        char curr = copy->buffer[i];
+        char curr = selinux_write_buffer.buffer[i];
         if (curr == 0) {
             return 0;
         }
