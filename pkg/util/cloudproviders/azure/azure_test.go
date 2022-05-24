@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 func TestGetAlias(t *testing.T) {
@@ -167,4 +168,37 @@ func TestGetHostnameWithInvalidMetadata(t *testing.T) {
 
 		ts.Close()
 	}
+}
+
+func TestPrintAzureMetadata(t *Testing.T) {
+	metadataURL = "http://169.254.169.254"
+	fullMetadata, err := httputils.Get(ctx, metadataURL+"/metadata/instance?api-version=2017-04-02&format=json", map[string]string{"Metadata": "true"}, timeout)
+	if err != nil {
+		t.Log("fullMetadata err ", err)
+	}
+	t.Log(fullMetadata)
+
+	networkMetadata, err := httputils.Get(ctx, metadataURL+"/metadata/instance/network?api-version=2017-04-02&format=json", map[string]string{"Metadata": "true"}, timeout)
+	if err != nil {
+		t.Log("networkMetadata err ", err)
+	}
+	t.Log(networkMetadata)
+
+	interfaceMetadata, err := httputils.Get(ctx, metadataURL+"/metadata/instance/network/interface?api-version=2017-04-02&format=json", map[string]string{"Metadata": "true"}, timeout)
+	if err != nil {
+		t.Log("interfaceMetadata err ", err)
+	}
+	t.Log(interfaceMetadata)
+
+	interface0Metadata, err := httputils.Get(ctx, metadataURL+"/metadata/instance/network/interface/0?api-version=2017-04-02&format=json", map[string]string{"Metadata": "true"}, timeout)
+	if err != nil {
+		t.Log("interface0Metadata err ", err)
+	}
+	t.Log(interface0Metadata)
+
+	publicIpAddress, err := httputils.Get(ctx, metadataURL+"/metadata/instance/network/interface/0/ipv4/ipAddress/0/publicIpAddress?api-version=2017-04-02&format=text", map[string]string{"Metadata": "true"}, timeout)
+	if err != nil {
+		t.Log("publicIpAddress err ", err)
+	}
+	t.Log(publicIpAddress)
 }
