@@ -90,7 +90,7 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
         return 0;
     }
 
-    handle_tcp_stats(&t, skp, TCP_ESTABLISHED);
+    handle_tcp_stats(&t, skp, 0);
 
     __u32 packets_in = 0;
     __u32 packets_out = 0;
@@ -118,7 +118,7 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs* ctx) {
         return 0;
     }
 
-    handle_tcp_stats(&t, sk, TCP_ESTABLISHED);
+    handle_tcp_stats(&t, sk, 0);
     return handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE);
 }
 
