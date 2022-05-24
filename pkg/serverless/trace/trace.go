@@ -77,6 +77,13 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load) {
 	}
 }
 
+// Flush performs a synchronous flushing in the trace agent
+func (s *ServerlessTraceAgent) Flush() {
+	if s.Get() != nil {
+		s.ta.FlushSync()
+	}
+}
+
 // Get returns the trace agent instance
 func (s *ServerlessTraceAgent) Get() *agent.Agent {
 	return s.ta

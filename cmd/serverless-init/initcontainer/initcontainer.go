@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs"
+	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 )
@@ -46,14 +47,13 @@ func execute(config *log.Config, metricAgent *metrics.ServerlessMetricAgent, tra
 	cmd.Stderr = &log.CustomWriter{
 		LogConfig: config,
 	}
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	handleSignals(cmd.Process, config, metricAgent)
 	err := cmd.Start()
 	if err != nil {
 		return err
 	}
 	err = cmd.Wait()
-	flush(config, metricAgent, traceAgent)
+	flush(config.FlushTimeout, metricAgent, traceAgent)
 	return err
 }
 
@@ -88,8 +88,8 @@ func handleSignals(process *os.Process, config *log.Config, metricAgent *metrics
 	}()
 }
 
-func flush(config *log.Config, metricAgent *metrics.ServerlessMetricAgent, traceAgent *trace.ServerlessTraceAgent) {
-	ctx, cancel := context.WithTimeout(context.Background(), config.FlushTimeout)
+func flush(flushTimeout time.Duration, metricAgent serverless.FlushableAgent, traceAgent serverless.FlushableAgent) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 	defer cancel()
 
 	wg := &sync.WaitGroup{}
@@ -101,7 +101,7 @@ func flush(config *log.Config, metricAgent *metrics.ServerlessMetricAgent, trace
 	}(wg)
 
 	go func(wg *sync.WaitGroup) {
-		traceAgent.Get().FlushSync()
+		traceAgent.Flush()
 		wg.Done()
 	}(wg)
 
@@ -110,10 +110,10 @@ func flush(config *log.Config, metricAgent *metrics.ServerlessMetricAgent, trace
 		wg.Done()
 	}(wg, ctx)
 
-	waitWithTimeout(wg, config.FlushTimeout)
+	return waitWithTimeout(wg, flushTimeout)
 }
 
-func waitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) {
+func waitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 	c := make(chan struct{})
 	go func() {
 		defer close(c)
@@ -121,8 +121,8 @@ func waitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) {
 	}()
 	select {
 	case <-c:
-		return
+		return false
 	case <-time.After(timeout):
-		return
+		return true
 	}
 }
