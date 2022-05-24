@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/perf"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"github.com/pkg/errors"
@@ -68,13 +69,14 @@ type Probe struct {
 	cancelFnc      context.CancelFunc
 	wg             sync.WaitGroup
 	// Events section
-	handlers  [model.MaxAllEventType][]EventHandler
-	monitor   *Monitor
-	resolvers *Resolvers
-	event     *Event
-	perfMap   *manager.PerfMap
-	reOrderer *ReOrderer
-	scrubber  *pconfig.DataScrubber
+	handlers   [model.MaxAllEventType][]EventHandler
+	monitor    *Monitor
+	resolvers  *Resolvers
+	event      *Event
+	perfMap    *manager.PerfMap
+	reOrderer  *ReOrderer
+	scrubber   *pconfig.DataScrubber
+	recordPool *RecordPool
 
 	// Approvers / discarders section
 	erpc                 *ERPC
@@ -87,6 +89,7 @@ type Probe struct {
 
 	constantOffsets map[string]uint64
 
+	// network section
 	tcProgramsLock sync.RWMutex
 	tcPrograms     map[NetDeviceKey]*manager.Probe
 }
@@ -238,8 +241,9 @@ func (p *Probe) Init() error {
 	}
 
 	p.perfMap.PerfMapOptions = manager.PerfMapOptions{
-		DataHandler: p.reOrderer.HandleEvent,
-		LostHandler: p.handleLostEvents,
+		RecordHandler: p.reOrderer.HandleEvent,
+		LostHandler:   p.handleLostEvents,
+		RecordGetter:  p.recordPool.Get,
 	}
 
 	if os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true" {
@@ -396,9 +400,13 @@ func (p *Probe) invalidateDentry(mountID uint32, inode uint64) {
 	p.resolvers.DentryResolver.DelCacheEntry(mountID, inode)
 }
 
-func (p *Probe) handleEvent(CPU uint64, data []byte) {
+func (p *Probe) handleEvent(record *perf.Record) {
+	defer p.recordPool.Release(record)
+
 	offset := 0
 	event := p.zeroEvent()
+
+	data := record.RawSample
 	dataLen := uint64(len(data))
 
 	read, err := event.UnmarshalBinary(data)
@@ -409,7 +417,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	offset += read
 
 	eventType := event.GetEventType()
-	p.monitor.perfBufferMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, p.perfMap, int(CPU))
+	p.monitor.perfBufferMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, p.perfMap, record.CPU)
 
 	// no need to dispatch events
 	switch eventType {
@@ -754,7 +762,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessCacheEntry.Pid, event.ResolveEventTimestamp())
 	}
 
-	p.DispatchEvent(event, dataLen, int(CPU), p.perfMap)
+	p.DispatchEvent(event, dataLen, record.CPU, p.perfMap)
 
 	// flush exited process
 	p.resolvers.ProcessResolver.DequeueExited()
@@ -1192,6 +1200,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		tcPrograms:           make(map[NetDeviceKey]*manager.Probe),
 		statsdClient:         statsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second), 100),
+		recordPool:           NewRecordPool(),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
