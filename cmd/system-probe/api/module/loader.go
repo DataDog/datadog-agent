@@ -22,6 +22,7 @@ func init() {
 	l = &loader{
 		modules: make(map[config.ModuleName]Module),
 		errors:  make(map[config.ModuleName]error),
+		routers: make(map[config.ModuleName]*Router),
 	}
 }
 
@@ -35,7 +36,7 @@ type loader struct {
 	errors  map[config.ModuleName]error
 	stats   map[string]interface{}
 	cfg     *config.Config
-	router  *Router
+	routers map[config.ModuleName]*Router
 	closed  bool
 }
 
@@ -111,7 +112,12 @@ func RestartModule(factory Factory) error {
 	delete(l.errors, factory.Name)
 	log.Infof("module %s restarted", factory.Name)
 
-	err = newModule.Register(l.router)
+	currentRouter, ok := l.routers[factory.Name]
+	if !ok {
+		return fmt.Errorf("module %s does not have an associated router", factory.Name)
+	}
+
+	err = newModule.Register(currentRouter)
 	if err != nil {
 		return err
 	}
