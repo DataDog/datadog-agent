@@ -5,6 +5,10 @@
 
 package inferredspan
 
+import (
+	"github.com/aws/aws-lambda-go/events"
+)
+
 const (
 	// APIID and below are used for inferred span
 	// tagging and enrichment
@@ -39,6 +43,65 @@ const (
 	UNKNOWN    = "unknown"
 )
 
+type APIGatewayRestEvent struct {
+	events.APIGatewayProxyRequest
+}
+
+// type APIGatewayHTTPEvent struct {
+// 	events.APIGatewayV2HTTPRequest
+// }
+
+// type APIGatewayWebsocketEvent struct {
+// 	events.APIGatewayWebsocketProxyRequest
+// }
+
+type AlbEvent struct {
+	events.ALBTargetGroupRequest
+}
+
+type CloudWatchLogsEvent struct {
+	events.CloudwatchLogsEvent
+}
+type CloudWatchEvent struct {
+	events.CloudWatchEvent
+}
+
+type DynamoDBEvent struct {
+	events.DynamoDBEvent
+}
+
+//Not in library
+type EventBridgeEvent struct {
+}
+
+type KinesisEvent struct {
+	events.KinesisEvent
+}
+
+//Not in Library
+type LambdaFunctionURL struct {
+	//not sure about this one??
+	//    if request_context and request_context.get("stage"):
+	//     if "domainName" in request_context and detect_lambda_function_url_domain(
+	//         request_context.get("domainName")
+	//     ):
+	//         return _EventSource(EventTypes.LAMBDA_FUNCTION_URL)
+}
+
+type S3Event struct {
+	events.S3Event
+}
+type SNSEvent struct {
+	events.SNSEvent
+}
+
+type SQSEvent struct {
+	events.SQSEvent
+}
+
+////////////////////////////////////////////
+///////////////// OLD CODE /////////////////
+////////////////////////////////////////////
 type APIGatewayBaseEvent struct {
 	RequestContext RequestContextKeys `mapstructure:"requestContext" json:"requestContext"`
 	Headers        HeaderKeys         `mapstructure:"headers" json:"headers"`
