@@ -6,8 +6,6 @@
 package invocationlifecycle
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -50,10 +48,11 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	log.Debugf("[lifecycle] Invocation invokeEvent payload is: %s", startDetails.InvokeEventRawPayload)
 	log.Debug("[lifecycle] ---------------------------------------")
 
-	parsedPayload, err := trigger.Unmarshal(startDetails.InvokeEventRawPayload)
+	lambdaPayloadString := parseLambdaPayload(startDetails.InvokeEventRawPayload)
+
+	parsedPayload, err := trigger.Unmarshal(lambdaPayloadString)
 	if err != nil {
 		log.Debugf("[lifecycle] Failed to parse event payload")
-		return
 	}
 
 	// Singleton instance of request handler
@@ -61,8 +60,11 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		lp.requestHandler = &RequestHandler{}
 	}
 
+	// Each new request will get a new execution context.
+	// We're guaranteed by the lambda API that each invocation runs sequentially,
+	// so we don't need to worry about race conditions here.
 	lp.requestHandler.executionContext = &ExecutionStartInfo{
-		startTime: time.Now(),
+		requestPayload: lambdaPayloadString,
 	}
 
 	if !lp.DetectLambdaLibrary() {
@@ -72,7 +74,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 			inferredSpan.DispatchInferredSpan(parsedPayload)
 		}
 
-		startExecutionSpan(lp.requestHandler.executionContext, startDetails.StartTime, startDetails.InvokeEventRawPayload, startDetails.InvokeEventHeaders, lp.InferredSpansEnabled)
+		startExecutionSpan(lp.requestHandler.executionContext, startDetails.StartTime, lambdaPayloadString, startDetails.InvokeEventHeaders, lp.InferredSpansEnabled)
 	}
 }
 

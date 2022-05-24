@@ -69,20 +69,19 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
 		Demux:               demux,
 	}
+
 	testProcessor.OnInvokeStart(&startDetails)
 
-	// assert.Equal(t, uint64(0), currentExecutionInfo.SpanID)
-	// assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.traceID)
-	// assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
-	// assert.Equal(t, sampler.SamplingPriority(1), currentExecutionInfo.samplingPriority)
-	// assert.Equal(t, startInvocationTime, currentExecutionInfo.startTime)
+	assert.NotNil(t, testProcessor.GetExecutionContext())
+
+	assert.Equal(t, uint64(0), testProcessor.GetExecutionContext().SpanID)
+	assert.Equal(t, uint64(5736943178450432258), testProcessor.GetExecutionContext().TraceID)
+	assert.Equal(t, uint64(1480558859903409531), testProcessor.GetExecutionContext().parentID)
+	assert.Equal(t, sampler.SamplingPriority(1), testProcessor.GetExecutionContext().SamplingPriority)
+	assert.Equal(t, startInvocationTime, testProcessor.GetExecutionContext().startTime)
 }
 
 func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
-	// t.Skip() // TODO: FIX ME  - currentExecutionInfois shared across tests
-
-	currentExecutionInfo := &ExecutionStartInfo{}
-
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
@@ -101,9 +100,9 @@ func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
 	}
 	testProcessor.OnInvokeStart(&startDetails)
 
-	assert.NotEqual(t, 0, currentExecutionInfo.SpanID)
-	assert.NotEqual(t, 0, currentExecutionInfo.TraceID)
-	assert.NotEqual(t, startInvocationTime, currentExecutionInfo.startTime)
+	assert.NotEqual(t, 0, testProcessor.GetExecutionContext().SpanID)
+	assert.NotEqual(t, 0, testProcessor.GetExecutionContext().TraceID)
+	assert.NotEqual(t, startInvocationTime, testProcessor.GetExecutionContext().startTime)
 }
 
 func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
