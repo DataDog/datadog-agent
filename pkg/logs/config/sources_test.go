@@ -70,17 +70,25 @@ func TestGetAddedForType(t *testing.T) {
 func TestGetAddedForTypeExistingSources(t *testing.T) {
 	sources := NewLogSources()
 	source1 := NewLogSource("one", &LogsConfig{Type: "foo"})
+	source1bar := NewLogSource("one-bar", &LogsConfig{Type: "bar"})
 	source2 := NewLogSource("two", &LogsConfig{Type: "foo"})
+	source2bar := NewLogSource("two-bar", &LogsConfig{Type: "bar"})
 	source3 := NewLogSource("three", &LogsConfig{Type: "foo"})
 
-	go func() { sources.AddSource(source1) }()
+	go func() {
+		sources.AddSource(source1bar)
+		sources.AddSource(source1)
+	}()
 
 	streamA := sources.GetAddedForType("foo")
 	assert.NotNil(t, streamA)
 	sa1 := <-streamA
 	assert.Equal(t, sa1, source1)
 
-	go func() { sources.AddSource(source2) }()
+	go func() {
+		sources.AddSource(source2bar)
+		sources.AddSource(source2)
+	}()
 	sa2 := <-streamA
 	assert.Equal(t, sa2, source2)
 
@@ -100,10 +108,15 @@ func TestGetAddedForTypeExistingSources(t *testing.T) {
 func TestSubscribeForType(t *testing.T) {
 	sources := NewLogSources()
 	source1 := NewLogSource("one", &LogsConfig{Type: "foo"})
+	source1bar := NewLogSource("one-bar", &LogsConfig{Type: "bar"})
 	source2 := NewLogSource("two", &LogsConfig{Type: "foo"})
+	source2bar := NewLogSource("two-bar", &LogsConfig{Type: "bar"})
 	source3 := NewLogSource("three", &LogsConfig{Type: "foo"})
 
-	go func() { sources.AddSource(source1) }()
+	go func() {
+		sources.AddSource(source1bar)
+		sources.AddSource(source1)
+	}()
 
 	addA, removeA := sources.SubscribeForType("foo")
 	assert.NotNil(t, addA)
@@ -111,7 +124,10 @@ func TestSubscribeForType(t *testing.T) {
 	assert.Equal(t, sa1, source1)
 	assert.Equal(t, 0, len(removeA))
 
-	go func() { sources.AddSource(source2) }()
+	go func() {
+		sources.AddSource(source2bar)
+		sources.AddSource(source2)
+	}()
 
 	sa2 := <-addA
 	assert.Equal(t, sa2, source2)
