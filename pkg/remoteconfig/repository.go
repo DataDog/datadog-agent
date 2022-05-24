@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/theupdateframework/go-tuf/data"
 )
@@ -24,8 +25,6 @@ type RepositoryState struct {
 }
 
 // ConfigState describes an applied config by the agent client.
-//
-// This does not imply the raw file is cached by this client.
 type ConfigState struct {
 	Product string
 	ID      string
@@ -33,6 +32,10 @@ type ConfigState struct {
 }
 
 // CachedFile describes a cached file stored by the agent client
+//
+// Note: You may be wondering why this exists when `ConfigState` exists
+// as well. The API for requesting updates does not mandate that a client
+// cache config files. This implementation just happens to do so.
 type CachedFile struct {
 	Path   string
 	Length uint64
@@ -59,10 +62,8 @@ type Repository struct {
 	latestTargets *data.Targets
 
 	// Config file storage
-	apmConfigs      map[string]APMSamplingConfig
-	cwsDDConfigs    map[string]ConfigCWSDD
-	ldConfigs       map[string]LDConfig
-	featuresConfigs map[string]FeaturesConfig
+	metadata map[string]Metadata
+	configs  map[string]map[string]interface{}
 }
 
 // NewRepository creates a new remote config respository that will track
@@ -73,18 +74,17 @@ func NewRepository(embeddedRoot []byte) *Repository {
 		roots = [][]byte{embeddedRoot}
 	}
 
-	return &Repository{
-		roots:           roots,
-		latestTargets:   data.NewTargets(),
-		apmConfigs:      make(map[string]APMSamplingConfig),
-		cwsDDConfigs:    make(map[string]ConfigCWSDD),
-		ldConfigs:       make(map[string]LDConfig),
-		featuresConfigs: make(map[string]FeaturesConfig),
+	configs := make(map[string]map[string]interface{})
+	for _, product := range allProducts {
+		configs[product] = make(map[string]interface{})
 	}
-}
 
-func (r *Repository) APMConfigs() map[string]APMSamplingConfig {
-	return r.apmConfigs
+	return &Repository{
+		roots:         roots,
+		latestTargets: data.NewTargets(),
+		metadata:      make(map[string]Metadata),
+		configs:       configs,
+	}
 }
 
 // Update processes the ClientGetConfigsResponse from the Agent and updates the
@@ -96,43 +96,25 @@ func (r *Repository) Update(update Update) error {
 		return err
 	}
 
-	result := newUpdateResult()
-
 	clientConfigsMap := make(map[string]struct{})
 	for _, f := range update.ClientConfigs {
 		clientConfigsMap[f] = struct{}{}
 	}
 
-	// 2: Check the config list and mark any missing configs as "to be removed"
-	for f := range r.apmConfigs {
-		if _, ok := clientConfigsMap[f]; !ok {
-			result.removedAPM = append(result.removedAPM, f)
-		}
-	}
-	for f := range r.cwsDDConfigs {
-		if _, ok := clientConfigsMap[f]; !ok {
-			result.removedCWSDD = append(result.removedCWSDD, f)
-		}
-	}
-	for f := range r.ldConfigs {
-		if _, ok := clientConfigsMap[f]; !ok {
-			result.removedLD = append(result.removedLD, f)
-		}
-	}
-	for f := range r.featuresConfigs {
-		if _, ok := clientConfigsMap[f]; !ok {
-			result.removedFeatures = append(result.removedFeatures, f)
-		}
-	}
+	result := newUpdateResult()
 
-	log.Printf("Removed APM: %v", result.removedAPM)
-	log.Printf("Removed CWSDD: %v", result.removedCWSDD)
-	log.Printf("Removed LD: %v", result.removedLD)
-	log.Printf("Removed Features: %v", result.removedFeatures)
+	// 2: Check the config list and mark any missing configs as "to be removed"
+	for _, configs := range r.configs {
+		for path := range configs {
+			if _, ok := clientConfigsMap[path]; !ok {
+				result.removed = append(result.removed, path)
+			}
+		}
+	}
 
 	// 3: For all the files referenced in this update
 	for _, path := range update.ClientConfigs {
-		meta, ok := updatedTargets.Targets[path]
+		targetsMetadata, ok := updatedTargets.Targets[path]
 		if !ok {
 			return fmt.Errorf("missing config file in TUF targets - %s", path)
 		}
@@ -143,38 +125,15 @@ func (r *Repository) Update(update Update) error {
 			return err
 		}
 
-		// 3.b/3.retermine if the configuration is new or updated
-		var exists bool
-		switch parsedPath.Product {
-		case ProductAPMSampling:
-			var asc APMSamplingConfig
-			asc, exists = r.apmConfigs[path]
-			if exists && hashesEqual(meta.Hashes, asc.Metadata.Hashes) {
-				continue
-			}
-		case ProductCWSDD:
-			var cddc ConfigCWSDD
-			cddc, exists = r.cwsDDConfigs[path]
-			if exists && hashesEqual(meta.Hashes, cddc.Metadata.Hashes) {
-				continue
-			}
-		case ProductFeatures:
-			var fc FeaturesConfig
-			fc, exists = r.featuresConfigs[path]
-			if exists && hashesEqual(meta.Hashes, fc.Metadata.Hashes) {
-				continue
-			}
-		case ProductLiveDebugging:
-			var ldc LDConfig
-			ldc, exists = r.ldConfigs[path]
-			if exists && hashesEqual(meta.Hashes, ldc.Metadata.Hashes) {
-				continue
-			}
+		storedMetadata, exists := r.metadata[path]
+		if exists && hashesEqual(targetsMetadata.Hashes, storedMetadata.Hashes) {
+			continue
 		}
 
 		// 3.d: Ensure that the raw configuration file is present in the
 		// update payload.
-		if _, ok := update.TargetFiles[path]; !ok {
+		raw, ok := update.TargetFiles[path]
+		if !ok {
 			return fmt.Errorf("missing update file - %s", path)
 		}
 
@@ -183,57 +142,16 @@ func (r *Repository) Update(update Update) error {
 		//
 		// Note: We don't have to worry about extra fields as mentioned
 		// in the RFC because the encoding/json library handles that for us.
-		m, err := newConfigMetadata(parsedPath, meta)
+		m, err := newConfigMetadata(parsedPath, targetsMetadata)
 		if err != nil {
 			return err
 		}
-
-		switch parsedPath.Product {
-		case ProductAPMSampling:
-			c, err := parseConfigAPMSampling(update.TargetFiles[path])
-			if err != nil {
-				return err
-			}
-			c.Metadata = m
-			if exists {
-				result.updatedAPM[path] = c
-			} else {
-				result.newAPM[path] = c
-			}
-		case ProductCWSDD:
-			c, err := parseConfigCWSDD(update.TargetFiles[path])
-			if err != nil {
-				return err
-			}
-			c.Metadata = m
-			if exists {
-				result.updatedCWSDD[path] = c
-			} else {
-				result.newCWSDD[path] = c
-			}
-		case ProductFeatures:
-			c, err := parseFeaturesConfing(update.TargetFiles[path])
-			if err != nil {
-				return err
-			}
-			c.Metadata = m
-			if exists {
-				result.updatedFeatures[path] = c
-			} else {
-				result.newFeatures[path] = c
-			}
-		case ProductLiveDebugging:
-			c, err := parseLDConfig(update.TargetFiles[path])
-			if err != nil {
-				return err
-			}
-			c.Metadata = m
-			if exists {
-				result.updatedLD[path] = c
-			} else {
-				result.newLD[path] = c
-			}
+		config, err := parseConfig(parsedPath.Product, raw)
+		if err != nil {
+			return err
 		}
+		result.metadata[path] = m
+		result.changed[parsedPath.Product][path] = config
 	}
 
 	// 4.a: Store the new targets.signed.custom.client_state
@@ -242,73 +160,135 @@ func (r *Repository) Update(update Update) error {
 	r.latestTargets = updatedTargets
 
 	// 4.b/4.rave the new state and apply cleanups
-	err = r.applyUpdateResult(update, result)
-	if err != nil {
-		return err
-	}
+	r.applyUpdateResult(update, result)
 
 	return nil
+}
+
+func (r *Repository) APMConfigs() map[string]APMSamplingConfig {
+	typedConfigs := make(map[string]APMSamplingConfig)
+
+	configs := r.getConfigs(ProductAPMSampling)
+
+	for path, conf := range configs {
+		// We control this, so if this has gone wrong something has gone horribly wrong
+		typed, ok := conf.(APMSamplingConfig)
+		if !ok {
+			panic("unexpected config stored as APMSamplingConfig")
+		}
+
+		typedConfigs[path] = typed
+	}
+
+	return typedConfigs
+}
+
+func (r *Repository) getConfigs(product string) map[string]interface{} {
+	configs, ok := r.configs[product]
+	if !ok {
+		return nil
+	}
+
+	return configs
 }
 
 // applyUpdateResult changes the state of the client based on the given update.
 //
 // The update is guaranteed to succeed at this point, having been vetted and the details
 // needed to apply the update stored in the `updateResult`.
-func (r *Repository) applyUpdateResult(update Update, result updateResult) error {
+func (r *Repository) applyUpdateResult(update Update, result updateResult) {
 	// 4.b Save all the updated and new config files
-	for path, config := range result.updatedAPM {
-		log.Printf("Applying updated APM file %s", path)
-		r.apmConfigs[path] = config
+	for product, configs := range result.changed {
+		for path, config := range configs {
+			m := r.configs[product]
+			m[path] = config
+		}
 	}
-	for path, config := range result.updatedCWSDD {
-		log.Printf("Applying updated CWSDD file %s", path)
-		r.cwsDDConfigs[path] = config
-	}
-	for path, config := range result.updatedLD {
-		log.Printf("Applying updated LD file %s", path)
-		r.ldConfigs[path] = config
-	}
-	for path, config := range result.updatedFeatures {
-		log.Printf("Applying updated features file %s", path)
-		r.featuresConfigs[path] = config
-	}
-
-	for path, config := range result.newAPM {
-		log.Printf("Applying new APM file %s", path)
-		r.apmConfigs[path] = config
-	}
-	for path, config := range result.newCWSDD {
-		log.Printf("Applying new CWSDD file %s", path)
-		r.cwsDDConfigs[path] = config
-	}
-	for path, config := range result.newLD {
-		log.Printf("Applying new LD file %s", path)
-		r.ldConfigs[path] = config
-	}
-	for path, config := range result.newFeatures {
-		log.Printf("Applying new features file %s", path)
-		r.featuresConfigs[path] = config
+	for path, metadata := range result.metadata {
+		r.metadata[path] = metadata
 	}
 
 	// 5.b Clean up the cache of any removed configs
-	for _, file := range result.removedAPM {
-		log.Printf("Removing old APM file %s", file)
-		delete(r.apmConfigs, file)
+	for _, path := range result.removed {
+		delete(r.metadata, path)
+		for _, configs := range r.configs {
+			delete(configs, path)
+		}
 	}
-	for _, file := range result.removedCWSDD {
-		log.Printf("Remove old CWSDD file %s", file)
-		delete(r.cwsDDConfigs, file)
-	}
-	for _, file := range result.removedLD {
-		log.Printf("Removing old LD file %s", file)
-		delete(r.ldConfigs, file)
-	}
-	for _, file := range result.removedFeatures {
-		log.Printf("Removing old features file %s", file)
-		delete(r.featuresConfigs, file)
+}
+
+// CurrentState returns all of the information needed to
+// make an update for new configurations.
+func (r *Repository) CurrentState() RepositoryState {
+	var configs []ConfigState
+	var cached []CachedFile
+
+	for path, metadata := range r.metadata {
+		configs = append(configs, configStateFromMetadata(metadata))
+		cached = append(cached, cachedFileFromMetadata(path, metadata))
 	}
 
-	return nil
+	return RepositoryState{
+		Configs:        configs,
+		CachedFiles:    cached,
+		TargetsVersion: r.latestTargets.Version,
+		RootsVersion:   1,
+	}
+}
+
+// An updateResult allows the client to apply the update as a transaction
+// after validating all required preconditions
+type updateResult struct {
+	removed  []string
+	metadata map[string]Metadata
+	changed  map[string]map[string]interface{}
+}
+
+func newUpdateResult() updateResult {
+	changed := make(map[string]map[string]interface{})
+
+	for _, p := range allProducts {
+		changed[p] = make(map[string]interface{})
+	}
+
+	return updateResult{
+		removed:  make([]string, 0),
+		metadata: make(map[string]Metadata),
+		changed:  changed,
+	}
+}
+
+func (ur updateResult) Log() {
+	log.Printf("Removed Configs: %v", ur.removed)
+
+	var b strings.Builder
+	b.WriteString("Changed configs: [")
+	for path := range ur.metadata {
+		b.WriteString(path)
+		b.WriteString(" ")
+	}
+	b.WriteString("]")
+
+	log.Println(b.String())
+}
+
+func parseConfig(product string, raw []byte) (interface{}, error) {
+	var c interface{}
+	var err error
+	switch product {
+	case ProductAPMSampling:
+		c, err = parseConfigAPMSampling(raw)
+	case ProductFeatures:
+		c, err = parseFeaturesConfing(raw)
+	case ProductLiveDebugging:
+		c, err = parseLDConfig(raw)
+	case ProductCWSDD:
+		c, err = parseConfigCWSDD(raw)
+	default:
+		return nil, fmt.Errorf("unknown product - %s", product)
+	}
+
+	return c, err
 }
 
 func configStateFromMetadata(m Metadata) ConfigState {
@@ -324,73 +304,6 @@ func cachedFileFromMetadata(path string, m Metadata) CachedFile {
 		Path:   path,
 		Length: m.RawLength,
 		Hashes: m.Hashes,
-	}
-}
-
-// CurrentState returns all of the information needed to
-// make an update for new configurations.
-func (r *Repository) CurrentState() RepositoryState {
-	var configs []ConfigState
-	var cached []CachedFile
-
-	for path, config := range r.apmConfigs {
-		configs = append(configs, configStateFromMetadata(config.Metadata))
-		cached = append(cached, cachedFileFromMetadata(path, config.Metadata))
-	}
-
-	for path, config := range r.cwsDDConfigs {
-		configs = append(configs, configStateFromMetadata(config.Metadata))
-		cached = append(cached, cachedFileFromMetadata(path, config.Metadata))
-	}
-
-	for path, config := range r.ldConfigs {
-		configs = append(configs, configStateFromMetadata(config.Metadata))
-		cached = append(cached, cachedFileFromMetadata(path, config.Metadata))
-	}
-
-	for path, config := range r.featuresConfigs {
-		configs = append(configs, configStateFromMetadata(config.Metadata))
-		cached = append(cached, cachedFileFromMetadata(path, config.Metadata))
-	}
-
-	return RepositoryState{
-		Configs:        configs,
-		CachedFiles:    cached,
-		TargetsVersion: r.latestTargets.Version,
-		RootsVersion:   1,
-	}
-}
-
-// An updateResult allows the client to apply the update as a transaction
-// after validating all required preconditions
-type updateResult struct {
-	removedAPM      []string
-	removedCWSDD    []string
-	removedLD       []string
-	removedFeatures []string
-
-	updatedAPM      map[string]APMSamplingConfig
-	updatedCWSDD    map[string]ConfigCWSDD
-	updatedLD       map[string]LDConfig
-	updatedFeatures map[string]FeaturesConfig
-
-	newAPM      map[string]APMSamplingConfig
-	newCWSDD    map[string]ConfigCWSDD
-	newLD       map[string]LDConfig
-	newFeatures map[string]FeaturesConfig
-}
-
-func newUpdateResult() updateResult {
-	return updateResult{
-		updatedAPM:      make(map[string]APMSamplingConfig),
-		updatedCWSDD:    make(map[string]ConfigCWSDD),
-		updatedLD:       make(map[string]LDConfig),
-		updatedFeatures: make(map[string]FeaturesConfig),
-
-		newAPM:      make(map[string]APMSamplingConfig),
-		newCWSDD:    make(map[string]ConfigCWSDD),
-		newLD:       make(map[string]LDConfig),
-		newFeatures: make(map[string]FeaturesConfig),
 	}
 }
 

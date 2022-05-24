@@ -14,6 +14,8 @@ import (
 	"github.com/theupdateframework/go-tuf/data"
 )
 
+var allProducts = []string{ProductAPMSampling, ProductCWSDD, ProductFeatures, ProductLiveDebugging}
+
 const (
 	// ProductAPMSampling is the apm sampling product
 	ProductAPMSampling = "APM_SAMPLING"
