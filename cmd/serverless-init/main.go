@@ -26,7 +26,7 @@ const (
 
 func main() {
 	if len(os.Args) < 2 {
-		panic("invalid arguments")
+		panic("[datadog init process] invalid argument count, did you forget to set CMD ?")
 	}
 	containerID := metadata.GetContainerID(metadata.GetDefaultConfig())
 	logConfig := log.CreateConfig(containerID)
