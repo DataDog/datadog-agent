@@ -36,7 +36,7 @@ type ExecutionStartInfo struct {
 }
 
 type invocationPayload struct {
-	Headers map[string]string `json:"headers"`
+	Headers map[string]string `json:"headers" mapstructure:"payload"`
 }
 
 // startExecutionSpan records information from the start of the invocation.
@@ -135,14 +135,16 @@ func endExecutionSpan(executionContext *ExecutionStartInfo, processTrace func(p 
 	})
 }
 
-func convertRawPayload(rawPayload string) invocationPayload {
-	//Need to remove unwanted text from the initial payload
+func parseLambdaPayload(rawPayload string) string {
+	// Removes the beginning and end identifiers for a lambda payload
 	reg := regexp.MustCompile(`{(?:|(.*))*}`)
-	subString := reg.FindString(rawPayload)
+	return reg.FindString(rawPayload)
+}
 
+func convertRawPayload(payloadString string) invocationPayload {
 	payload := invocationPayload{}
 
-	err := json.Unmarshal([]byte(subString), &payload)
+	err := json.Unmarshal([]byte(parseLambdaPayload(payloadString)), &payload)
 	if err != nil {
 		log.Debug("Could not unmarshal the invocation event payload")
 	}

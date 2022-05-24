@@ -69,7 +69,9 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		InvokeEventRawPayload: string(reqBody),
 		InvokeEventHeaders:    lambdaInvokeContext,
 	}
+
 	s.daemon.InvocationProcessor.OnInvokeStart(startDetails)
+
 	if s.daemon.InvocationProcessor.GetExecutionContext().TraceID == 0 {
 		log.Debug("no context has been found, the tracer will be responsible for initializing the context")
 	} else {
