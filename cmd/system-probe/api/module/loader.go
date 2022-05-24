@@ -44,7 +44,6 @@ type loader struct {
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
 func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) error {
-	router := NewRouter(httpMux)
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
 			log.Infof("%s module disabled", factory.Name)
@@ -61,18 +60,25 @@ func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) erro
 			continue
 		}
 
-		if err = module.Register(router); err != nil {
+		subRouter, err := makeSubrouter(httpMux, string(factory.Name))
+		if err != nil {
+			l.errors[factory.Name] = err
+			log.Error("error making router for module %s error: %s", factory.Name, err)
+			continue
+		}
+
+		if err = module.Register(subRouter); err != nil {
 			l.errors[factory.Name] = err
 			log.Errorf("error registering HTTP endpoints for module `%s` error: %s", factory.Name, err)
 			continue
 		}
 
+		l.routers[factory.Name] = subRouter
 		l.modules[factory.Name] = module
 
 		log.Infof("module: %s started", factory.Name)
 	}
 
-	l.router = router
 	l.cfg = cfg
 	if len(l.modules) == 0 {
 		return errors.New("no module could be loaded")
@@ -80,6 +86,13 @@ func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) erro
 
 	go updateStats()
 	return nil
+}
+
+func makeSubrouter(r *mux.Router, namespace string) (*Router, error) {
+	if namespace == "" {
+		return nil, errors.New("module name not set")
+	}
+	return NewRouter(r.PathPrefix("/" + namespace).Subrouter()), nil
 }
 
 // GetStats returns the stats from all modules, namespaced by their names
