@@ -30,6 +30,7 @@ func NewContainersTelemetry() (*ContainersTelemetry, error) {
 }
 
 // ReportContainers sends the metrics about currently running containers
+// Used for billing, please tread carefully
 func (c *ContainersTelemetry) ReportContainers(metricName string) error {
 	containers, err := c.MetadataStore.ListContainers()
 	if err != nil {
