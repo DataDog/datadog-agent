@@ -3,6 +3,9 @@ require 'spec_helper'
 print `cat /etc/os-release`
 print `uname -a`
 
+print `ls /sys/devices/system/cpu`
+print `cat /sys/devices/system/cpu/nohz_full`
+
 describe 'successfully run functional test' do
   it 'displays PASS and returns 0' do
     output = `sudo /tmp/security-agent/testsuite -test.v -status-metrics 1>&2`
