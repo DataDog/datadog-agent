@@ -155,8 +155,6 @@ func (f *discardFilter) Filter(token, lastToken TokenKind, buffer []byte) (Token
 	switch token {
 	case Comment:
 		return Filtered, nil, nil
-	case ';':
-		return markFilteredGroupable(token), nil, nil
 	case As:
 		if !f.keepSQLAlias {
 			return As, nil, nil
@@ -354,6 +352,10 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 		grouping groupingFilter
 	)
 	defer metadata.Reset()
+
+	// Keep track of whether we saw a semicolon.
+	// We want to track semicolons and only emit them when they are between statements.
+	sawSemicolon := false
 	// call Scan() function until tokens are available or if a LEX_ERROR is raised. After
 	// retrieving a token, send it to the tokenFilter chains so that the token is discarded
 	// or replaced.
@@ -381,6 +383,11 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 		if buff != nil {
 			if out.Len() != 0 {
 				switch token {
+				// Check for a semicolon, if we found one, we don't want to write
+				// it to the buffer yet, in case it's the last token.
+				case ';':
+					sawSemicolon = true
+					continue
 				case ',':
 				case '=':
 					if lastToken == ':' {
@@ -392,6 +399,12 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 				default:
 					out.WriteRune(' ')
 				}
+			}
+			// If we saw a semicolon, and we didn't find and EndChar above
+			// then we want to Write the semicolon.
+			if sawSemicolon {
+				out.WriteString("; ")
+				sawSemicolon = false
 			}
 			out.Write(buff)
 		}
