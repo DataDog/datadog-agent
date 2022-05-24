@@ -273,6 +273,7 @@ func init() {
 	DefaultLogger = &PatternLogger{}
 }
 
+// RuleLoadingErrors logs the errors related to loading rules
 func RuleLoadingErrors(msg string, m *multierror.Error) {
 	var errorLevel bool
 	for _, err := range m.Errors {
