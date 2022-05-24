@@ -31,10 +31,10 @@ func SliceToArray(src []byte, dst unsafe.Pointer) {
 // UnmarshalStringArray extract array of string for array of byte
 func UnmarshalStringArray(data []byte) ([]string, error) {
 	var result []string
-	len := uint32(len(data))
+	length := uint32(len(data))
 
-	for i := uint32(0); i < len; {
-		if i+4 >= len {
+	for i := uint32(0); i < length; {
+		if i+4 >= length {
 			return result, ErrStringArrayOverflow
 		}
 		// size of arg
@@ -44,16 +44,22 @@ func UnmarshalStringArray(data []byte) ([]string, error) {
 		}
 		i += 4
 
-		if i+n > len {
+		if i+n > length {
 			// truncated
-			arg := string(bytes.SplitN(data[i:len-1], []byte{0}, 2)[0])
-			return append(result, arg), ErrStringArrayOverflow
+			part := bytes.SplitN(data[i:length-1], []byte{0}, 2)[0]
+			arg := make([]byte, len(part))
+			copy(arg, part)
+
+			return append(result, string(arg)), ErrStringArrayOverflow
 		}
 
-		arg := string(bytes.SplitN(data[i:i+n], []byte{0}, 2)[0])
-		i += n
+		part := bytes.SplitN(data[i:i+n], []byte{0}, 2)[0]
+		arg := make([]byte, len(part))
+		copy(arg, part)
 
-		result = append(result, arg)
+		result = append(result, string(arg))
+
+		i += n
 	}
 
 	return result, nil
@@ -65,7 +71,11 @@ func UnmarshalString(data []byte, size int) (string, error) {
 		return "", ErrNotEnoughData
 	}
 
-	return string(bytes.SplitN(data[:size], []byte{0}, 2)[0]), nil
+	part := bytes.SplitN(data[:size], []byte{0}, 2)[0]
+	str := make([]byte, len(part))
+	copy(str, part)
+
+	return string(str), nil
 }
 
 // UnmarshalPrintableString unmarshal printable string
