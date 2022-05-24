@@ -55,22 +55,11 @@ type APIGatewayRestEvent struct {
 // 	events.APIGatewayWebsocketProxyRequest
 // }
 
-type AlbEvent struct {
-	events.ALBTargetGroupRequest
-}
-
-type CloudWatchLogsEvent struct {
-	events.CloudwatchLogsEvent
-}
-type CloudWatchEvent struct {
-	events.CloudWatchEvent
-}
-
 type DynamoDBEvent struct {
 	events.DynamoDBEvent
 }
 
-//Not in library
+// Not in library
 type EventBridgeEvent struct {
 }
 
@@ -78,7 +67,7 @@ type KinesisEvent struct {
 	events.KinesisEvent
 }
 
-//Not in Library
+// Not in Library
 type LambdaFunctionURL struct {
 	//not sure about this one??
 	//    if request_context and request_context.get("stage"):
