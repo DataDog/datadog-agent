@@ -5,10 +5,6 @@
 
 package inferredspan
 
-import (
-	"github.com/aws/aws-lambda-go/events"
-)
-
 const (
 	// APIID and below are used for inferred span
 	// tagging and enrichment
@@ -33,6 +29,8 @@ const (
 	TopicName        = "topicname"
 	TopicARN         = "topic_arn"
 	Type             = "type"
+
+	InvocationType = "X-Amz-Invocation-Type"
 	// APIGATEWAY and below are used for parsing
 	// and setting the event sources
 	APIGATEWAY = "apigateway"
@@ -43,28 +41,8 @@ const (
 	UNKNOWN    = "unknown"
 )
 
-type APIGatewayRestEvent struct {
-	events.APIGatewayProxyRequest
-}
-
-// type APIGatewayHTTPEvent struct {
-// 	events.APIGatewayV2HTTPRequest
-// }
-
-// type APIGatewayWebsocketEvent struct {
-// 	events.APIGatewayWebsocketProxyRequest
-// }
-
-type DynamoDBEvent struct {
-	events.DynamoDBEvent
-}
-
 // Not in library
 type EventBridgeEvent struct {
-}
-
-type KinesisEvent struct {
-	events.KinesisEvent
 }
 
 // Not in Library
@@ -75,17 +53,6 @@ type LambdaFunctionURL struct {
 	//         request_context.get("domainName")
 	//     ):
 	//         return _EventSource(EventTypes.LAMBDA_FUNCTION_URL)
-}
-
-type S3Event struct {
-	events.S3Event
-}
-type SNSEvent struct {
-	events.SNSEvent
-}
-
-type SQSEvent struct {
-	events.SQSEvent
 }
 
 ////////////////////////////////////////////

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/aws/aws-lambda-go/events"
 )
 
 const (
@@ -96,16 +97,28 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 
 // DispatchInferredSpan decodes the event and routes it to the correct
 // enrichment function for that event source
-func (inferredSpan *InferredSpan) DispatchInferredSpan(eventType trigger.AWSEventType, eventPayload struct{}) error {
+func (inferredSpan *InferredSpan) DispatchInferredSpan(eventType trigger.AWSEventType, eventPayload interface{}) error {
 	switch eventType {
 	case trigger.ApiGatewayEvent:
-		inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(eventPayload)
+		eventContext, ok := eventPayload.(events.APIGatewayProxyRequest)
+		if ok {
+			inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(eventContext)
+		}
 	case trigger.ApiGatewayV2Event:
-		inferredSpan.EnrichInferredSpanWithAPIGatewayHTTPEvent(eventPayload)
+		eventContext, ok := eventPayload.(events.APIGatewayV2HTTPRequest)
+		if ok {
+			inferredSpan.EnrichInferredSpanWithAPIGatewayHTTPEvent(eventContext)
+		}
 	case trigger.ApiGatewayWebsocketEvent:
-		inferredSpan.EnrichInferredSpanWithAPIGatewayWebsocketEvent(eventPayload)
+		eventContext, ok := eventPayload.(events.APIGatewayWebsocketProxyRequest)
+		if ok {
+			inferredSpan.EnrichInferredSpanWithAPIGatewayWebsocketEvent(eventContext)
+		}
 	case trigger.SNSEvent:
-		inferredSpan.EnrichInferredSpanWithSNSEvent(eventPayload)
+		eventContext, ok := eventPayload.(events.SNSEvent)
+		if ok {
+			inferredSpan.EnrichInferredSpanWithSNSEvent(eventContext)
+		}
 	}
 
 	return nil
