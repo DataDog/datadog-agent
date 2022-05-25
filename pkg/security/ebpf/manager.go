@@ -30,6 +30,8 @@ func NewDefaultOptions() manager.Options {
 		// following form: (1 + 2^n) * pages. Checkout https://github.com/DataDog/ebpf for more.
 		DefaultPerfRingBufferSize: 257 * os.Getpagesize(),
 
+		DefaultRingBufferSize: 4097 * os.Getpagesize(),
+
 		VerifierOptions: ebpf.CollectionOptions{
 			Programs: ebpf.ProgramOptions{
 				// LogSize is the size of the log buffer given to the verifier. Give it a big enough (2 * 1024 * 1024)
