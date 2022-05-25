@@ -6,8 +6,12 @@
 package network
 
 import (
+	"context"
 	"runtime"
 	"testing"
+	"time"
+
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 func BenchmarkBuffer(b *testing.B) {
@@ -22,4 +26,40 @@ func BenchmarkBuffer(b *testing.B) {
 		}
 	}
 	runtime.KeepAlive(buffer)
+}
+
+func TestPrintAzureMetadata(t *testing.T) {
+	metadataURL := "http://169.254.169.254"
+	ctx := context.Background()
+	timeout := 5 * time.Second
+
+	fullMetadata, err := httputils.Get(ctx, metadataURL+"/metadata/instance?api-version=2017-04-02&format=json", map[string]string{"Metadata": "true"}, timeout)
+	if err != nil {
+		t.Log("fullMetadata err ", err)
+	}
+	t.Log(fullMetadata)
+
+	networkMetadata, err := httputils.Get(ctx, metadataURL+"/metadata/instance/network?api-version=2017-04-02&format=json", map[string]string{"Metadata": "true"}, timeout)
+	if err != nil {
+		t.Log("networkMetadata err ", err)
+	}
+	t.Log(networkMetadata)
+
+	interfaceMetadata, err := httputils.Get(ctx, metadataURL+"/metadata/instance/network/interface?api-version=2017-04-02&format=json", map[string]string{"Metadata": "true"}, timeout)
+	if err != nil {
+		t.Log("interfaceMetadata err ", err)
+	}
+	t.Log(interfaceMetadata)
+
+	interface0Metadata, err := httputils.Get(ctx, metadataURL+"/metadata/instance/network/interface/0?api-version=2017-04-02&format=json", map[string]string{"Metadata": "true"}, timeout)
+	if err != nil {
+		t.Log("interface0Metadata err ", err)
+	}
+	t.Log(interface0Metadata)
+
+	publicIpAddress, err := httputils.Get(ctx, metadataURL+"/metadata/instance/network/interface/0/ipv4/ipAddress/0/publicIpAddress?api-version=2017-04-02&format=text", map[string]string{"Metadata": "true"}, timeout)
+	if err != nil {
+		t.Log("publicIpAddress err ", err)
+	}
+	t.Log(publicIpAddress)
 }
