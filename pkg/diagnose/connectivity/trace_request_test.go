@@ -6,11 +6,8 @@
 package connectivity
 
 import (
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -20,8 +17,8 @@ import (
 
 var (
 	apiKey                    = "api_key1"
-	endpointInfoWithApiKey    = EndpointInfo{Endpoint: endpoints.V1ValidateEndpoint, APIKeyInQueryString: true}
-	endpointInfoWithoutApiKey = EndpointInfo{Endpoint: endpoints.V1SeriesEndpoint, APIKeyInQueryString: false}
+	endpointInfoWithApiKey    = endpointInfo{Endpoint: endpoints.V1ValidateEndpoint, APIKeyInQueryString: true}
+	endpointInfoWithoutApiKey = endpointInfo{Endpoint: endpoints.V1SeriesEndpoint, APIKeyInQueryString: false}
 )
 
 func TestCreateEndpointUrl(t *testing.T) {
@@ -33,41 +30,32 @@ func TestCreateEndpointUrl(t *testing.T) {
 	assert.Equal(t, urlWithoutApiKey, "https://domain2/api/v1/series")
 }
 
-func TestSendHTTPRequestToEndpointPass(t *testing.T) {
+func TestSendHTTPRequestToEndpoint(t *testing.T) {
 
 	// Create a fake server that send a 200 Response if there is 'api_key1' in the query string
 	// or a 400 response otherwise.
 	ts1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 		if r.Form.Get("api_key") == "api_key1" {
-			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("OK"))
 		} else {
 			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("Bad Request"))
 		}
 	}))
 	defer ts1.Close()
 
 	client := forwarder.NewHTTPClient()
 
-	output := captureOutputSendHTTPRequestToEndpoint(client, ts1.URL, endpointInfoWithApiKey, apiKey)
-	assert.True(t, strings.Contains(output, "PASS"))
+	// With the API Key, it should be a 200
+	statusCodeWithKey, responseBodyWithKey, errWithKey := sendHTTPRequestToEndpoint(client, ts1.URL, endpointInfoWithApiKey, apiKey)
+	assert.Nil(t, errWithKey)
+	assert.Equal(t, statusCodeWithKey, 200)
+	assert.Equal(t, string(responseBodyWithKey), "OK")
 
-	output2 := captureOutputSendHTTPRequestToEndpoint(client, ts1.URL, endpointInfoWithoutApiKey, apiKey)
-	assert.True(t, strings.Contains(output2, "FAIL"))
-}
-
-// captureOutputSendHTTPRequestToEndpoint is a helper to get the output of the
-// sendHTTPRequestToEndpoint function into a string
-func captureOutputSendHTTPRequestToEndpoint(client *http.Client, domain string, endpointInfo EndpointInfo, apiKey string) string {
-	rescueStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	sendHTTPRequestToEndpoint(client, domain, endpointInfo, apiKey)
-
-	w.Close()
-	out, _ := ioutil.ReadAll(r)
-	os.Stdout = rescueStdout
-
-	return string(out)
+	// Without the API Key, it should be a 400
+	statusCode, responseBody, err := sendHTTPRequestToEndpoint(client, ts1.URL, endpointInfoWithoutApiKey, apiKey)
+	assert.Nil(t, err)
+	assert.Equal(t, statusCode, 400)
+	assert.Equal(t, string(responseBody), "Bad Request")
 }

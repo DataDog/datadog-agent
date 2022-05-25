@@ -53,14 +53,17 @@ func sendRequestToAllEndpointOfADomain(client *http.Client, domainResolver resol
 		for _, endpointInfo := range endpointsInfo {
 
 			domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
-			sendHTTPRequestToEndpoint(client, domain, endpointInfo, apiKey)
+			statusCode, responseBody, err := sendHTTPRequestToEndpoint(client, domain, endpointInfo, apiKey)
+
+			// Check if there is a response and if it's valid
+			verifyEndpointResponse(statusCode, responseBody, err)
 		}
 	}
 }
 
 // sendHTTPRequestToEndpoint creates an URL based on the domain and the endpoint information
 // then sends an HTTP Request with the method and payload inside the endpoint information
-func sendHTTPRequestToEndpoint(client *http.Client, domain string, endpointInfo EndpointInfo, apiKey string) {
+func sendHTTPRequestToEndpoint(client *http.Client, domain string, endpointInfo endpointInfo, apiKey string) (int, []byte, error) {
 	url := createEndpointURL(domain, endpointInfo, apiKey)
 	logURL := scrubber.ScrubLine(url)
 
@@ -71,39 +74,29 @@ func sendHTTPRequestToEndpoint(client *http.Client, domain string, endpointInfo 
 	req, err := http.NewRequest(endpointInfo.Method, url, reader)
 
 	if err != nil {
-		log.Errorf("Could not create request for transaction to invalid URL '%v' : %v", logURL, scrubber.ScrubLine(err.Error()))
-		return
+		return 0, nil, fmt.Errorf("cannot create request for transaction to invalid URL '%v' : %v", logURL, scrubber.ScrubLine(err.Error()))
 	}
 
 	// Send the request
 	resp, err := client.Do(req)
 
 	if err != nil {
-		log.Errorf("Could not send the HTTP request to '%v' : %v\n", logURL, scrubber.ScrubLine(err.Error()))
-		return
+		return 0, nil, fmt.Errorf("cannot send the HTTP request to '%v' : %v", logURL, scrubber.ScrubLine(err.Error()))
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	// Get the endpoint response
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Errorf("Fail to read the response Body: %s", err)
-		return
+		return 0, nil, fmt.Errorf("fail to read the response Body: %s", err)
 	}
 
-	// Check the endpoint response
-	statusString := color.GreenString("PASS")
-	if resp.StatusCode != http.StatusOK {
-		statusString = color.RedString("FAIL")
-		fmt.Printf("Received response : '%v'\n", string(body))
-	}
-	fmt.Printf("Received status code %v from the endpoint ====> %v\n", resp.StatusCode, statusString)
-
+	return resp.StatusCode, body, nil
 }
 
 // createEndpointUrl joins a domain with an endpoint and adds the apiKey to the query
 // string if it is necessary for the given endpoint
-func createEndpointURL(domain string, endpointInfo EndpointInfo, apiKey string) string {
+func createEndpointURL(domain string, endpointInfo endpointInfo, apiKey string) string {
 	url := domain + endpointInfo.Endpoint.Route
 
 	if endpointInfo.APIKeyInQueryString {
@@ -111,4 +104,19 @@ func createEndpointURL(domain string, endpointInfo EndpointInfo, apiKey string) 
 	}
 
 	return url
+}
+
+func verifyEndpointResponse(statusCode int, responseBody []byte, err error) {
+
+	if err != nil {
+		fmt.Printf("could not get a response from the endpoint : %v\n", err)
+		return
+	}
+
+	statusString := color.GreenString("PASS")
+	if statusCode != http.StatusOK {
+		statusString = color.RedString("FAIL")
+		fmt.Printf("Received response : '%v'\n", string(responseBody))
+	}
+	fmt.Printf("Received status code %v from the endpoint ====> %v\n", statusCode, statusString)
 }

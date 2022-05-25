@@ -14,11 +14,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 )
 
-// EndpointInfo is a value object that contains all the information we need to
+// endpointInfo is a value object that contains all the information we need to
 // contact an endpoint to troubleshoot connectivity issues.
 // It can be seen as a very lightweight version of transaction.HTTPTransaction.
-// One EndpointInfo should be define for each endpoint we want to troubleshoot.
-type EndpointInfo struct {
+// One endpointInfo should be defined for each endpoint we want to troubleshoot.
+type endpointInfo struct {
 	// Endpoint is the API Endpoint we want to contact.
 	Endpoint transaction.Endpoint
 
@@ -39,8 +39,8 @@ var (
 	emptyPayload = []byte("")
 
 	// TODO : add more endpoints info and a filtering function to only keep used endpoints
-	v1SeriesEndpointInfo   = EndpointInfo{endpoints.V1SeriesEndpoint, "POST", emptyPayload, apiKeyInQueryString}
-	v1ValidateEndpointInfo = EndpointInfo{endpoints.V1ValidateEndpoint, "GET", emptyPayload, apiKeyInQueryString}
+	v1SeriesEndpointInfo   = endpointInfo{endpoints.V1SeriesEndpoint, "POST", emptyPayload, apiKeyInQueryString}
+	v1ValidateEndpointInfo = endpointInfo{endpoints.V1ValidateEndpoint, "GET", emptyPayload, apiKeyInQueryString}
 
-	endpointsInfo = []EndpointInfo{v1SeriesEndpointInfo, v1ValidateEndpointInfo}
+	endpointsInfo = []endpointInfo{v1SeriesEndpointInfo, v1ValidateEndpointInfo}
 )
