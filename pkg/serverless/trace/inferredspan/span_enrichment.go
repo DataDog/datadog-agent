@@ -16,11 +16,11 @@ import (
 // EnrichInferredSpanWithAPIGatewayRESTEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a REST event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayRESTEvent(apiGatewayRestRequest APIGatewayRESTEvent) {
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayRESTEvent(eventPayload APIGatewayRESTEvent) {
 	log.Debug("Enriching an inferred span for a REST API Gateway")
-	requestContext := apiGatewayRestRequest.RequestContext
-	resource := fmt.Sprintf("%s %s", apiGatewayRestRequest.HTTPMethod, apiGatewayRestRequest.Path)
-	httpurl := fmt.Sprintf("%s%s", requestContext.Domain, apiGatewayRestRequest.Path)
+	requestContext := eventPayload.RequestContext
+	resource := fmt.Sprintf("%s %s", eventPayload.HTTPMethod, eventPayload.Path)
+	httpurl := fmt.Sprintf("%s%s", requestContext.Domain, eventPayload.Path)
 	startTime := calculateStartTime(requestContext.RequestTimeEpoch)
 
 	inferredSpan.Span.Name = "aws.apigateway"
@@ -31,7 +31,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayRESTEvent(apiG
 	inferredSpan.Span.Meta = map[string]string{
 		APIID:         requestContext.APIID,
 		APIName:       requestContext.APIID,
-		Endpoint:      apiGatewayRestRequest.Path,
+		Endpoint:      eventPayload.Path,
 		HTTPURL:       httpurl,
 		OperationName: "aws.apigateway.rest",
 		RequestID:     requestContext.RequestID,
@@ -39,7 +39,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayRESTEvent(apiG
 		Stage:         requestContext.Stage,
 	}
 
-	inferredSpan.IsAsync = apiGatewayRestRequest.Headers.InvocationType == "Event"
+	inferredSpan.IsAsync = eventPayload.Headers.InvocationType == "Event"
 }
 
 // EnrichInferredSpanWithAPIGatewayHTTPEvent uses the parsed event

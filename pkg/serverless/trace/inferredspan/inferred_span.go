@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/mitchellh/mapstructure"
 )
 
 const (
@@ -98,42 +97,15 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 // DispatchInferredSpan decodes the event and routes it to the correct
 // enrichment function for that event source
 func (inferredSpan *InferredSpan) DispatchInferredSpan(eventType trigger.AWSEventType, eventPayload struct{}) error {
-	eventType, err := trigger.GetEventType(parsedPayload)
-	if err != nil {
-		return err
-	}
 	switch eventType {
 	case trigger.ApiGatewayEvent:
-		apiGatewayRestRequest := APIGatewayRESTEvent{}
-		err := mapstructure.Decode(parsedPayload, &apiGatewayRestRequest)
-		if err != nil {
-			return err
-		}
-		inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(apiGatewayRestRequest)
-
+		inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(eventPayload)
 	case trigger.ApiGatewayV2Event:
-		apiGatewayHTTPRequest := APIGatewayHTTPEvent{}
-		err := mapstructure.Decode(parsedPayload, &apiGatewayHTTPRequest)
-		if err != nil {
-			return err
-		}
-		inferredSpan.EnrichInferredSpanWithAPIGatewayHTTPEvent(apiGatewayHTTPRequest)
-
+		inferredSpan.EnrichInferredSpanWithAPIGatewayHTTPEvent(eventPayload)
 	case trigger.ApiGatewayWebsocketEvent:
-		apiGatewayWebsocketRequest := APIGatewayWebsocketEvent{}
-		err := mapstructure.Decode(parsedPayload, &apiGatewayWebsocketRequest)
-		if err != nil {
-			return err
-		}
-		inferredSpan.EnrichInferredSpanWithAPIGatewayWebsocketEvent(apiGatewayWebsocketRequest)
-
+		inferredSpan.EnrichInferredSpanWithAPIGatewayWebsocketEvent(eventPayload)
 	case trigger.SNSEvent:
-		snsRequest := SNSRequest{}
-		err := mapstructure.Decode(parsedPayload, &snsRequest)
-		if err != nil {
-			return err
-		}
-		inferredSpan.EnrichInferredSpanWithSNSEvent(snsRequest)
+		inferredSpan.EnrichInferredSpanWithSNSEvent(eventPayload)
 	}
 
 	return nil

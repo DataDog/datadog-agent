@@ -64,6 +64,7 @@ func (lp *LifecycleProcessor) GetExecutionContext() *ExecutionStartInfo {
 	return lp.requestHandler.executionContext
 }
 
+// DO WE NEED THESE IVAN!>?!??!?!?>!?!?
 func (lp *LifecycleProcessor) GetInferredSpanContext() *inferredspan.InferredSpan {
 	return lp.requestHandler.inferredSpanContext
 }
@@ -98,7 +99,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 			if err != nil {
 				log.Debug("[lifecycle] Attempting to create inferred span")
 			}
-			inferredSpan.DispatchInferredSpan(lp.requestHandler.inferredSpanContext, parsedPayload)
+			lp.requestHandler.inferredSpanContext.DispatchInferredSpan() // FOR IVAN // )
 		}
 
 		startExecutionSpan(lp.requestHandler.executionContext, inferredSpan, startDetails.StartTime, lambdaPayloadString, startDetails.InvokeEventHeaders, lp.InferredSpansEnabled)
