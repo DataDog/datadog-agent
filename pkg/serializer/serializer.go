@@ -345,8 +345,7 @@ func (s *Serializer) SendSketch(sketches metrics.SketchSeriesList) error {
 	}
 
 	compress := true
-	useV1API := false // Sketches only have a v2 endpoint
-	splitSketches, extraHeaders, err := s.serializePayload(sketchesSerializer, sketchesSerializer, compress, useV1API)
+	splitSketches, extraHeaders, err := s.serializePayloadProto(sketchesSerializer, compress)
 	if err != nil {
 		return fmt.Errorf("dropping sketch payload: %s", err)
 	}
