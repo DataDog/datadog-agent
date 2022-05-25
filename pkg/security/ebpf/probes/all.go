@@ -12,6 +12,7 @@ import (
 	"math"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 )
 
@@ -142,7 +143,7 @@ func getMaxEntries(numCPU int, min int, max int) uint32 {
 }
 
 // AllMapSpecEditors returns the list of map editors
-func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize int, supportMmapableMaps bool) map[string]manager.MapSpecEditor {
+func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize int, supportMmapableMaps, supportsRingBuffers bool) map[string]manager.MapSpecEditor {
 	if tracedCgroupsCount <= 0 || tracedCgroupsCount > MaxTracedCgroupsCount {
 		tracedCgroupsCount = MaxTracedCgroupsCount
 	}
@@ -177,12 +178,28 @@ func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize in
 			EditorFlag: manager.EditFlags,
 		}
 	}
+	if supportsRingBuffers {
+		editors["events"] = manager.MapSpecEditor{
+			MaxEntries: 4096 * 64,
+			Type:       ebpf.RingBuf,
+			EditorFlag: manager.EditType | manager.EditMaxEntries,
+		}
+	}
 	return editors
 }
 
 // AllPerfMaps returns the list of perf maps of the runtime security module
 func AllPerfMaps() []*manager.PerfMap {
 	return []*manager.PerfMap{
+		{
+			Map: manager.Map{Name: "events"},
+		},
+	}
+}
+
+// AllRingBuffers returns the list of ring buffers of the runtime security module
+func AllRingBuffers() []*manager.RingBuffer {
+	return []*manager.RingBuffer{
 		{
 			Map: manager.Map{Name: "events"},
 		},

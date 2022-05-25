@@ -13,7 +13,6 @@ import (
 	"sync/atomic"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
 	"github.com/pkg/errors"
 
@@ -319,31 +318,31 @@ func (pbm *PerfBufferMonitor) getAndResetSortingErrorCount(eventType model.Event
 }
 
 // CountLostEvent adds `count` to the counter of lost events
-func (pbm *PerfBufferMonitor) CountLostEvent(count uint64, m *manager.PerfMap, cpu int) {
+func (pbm *PerfBufferMonitor) CountLostEvent(count uint64, mapName string, cpu int) {
 	// sanity check
-	if (pbm.readLostEvents[m.Name] == nil) || (len(pbm.readLostEvents[m.Name]) <= cpu) {
+	if (pbm.readLostEvents[mapName] == nil) || (len(pbm.readLostEvents[mapName]) <= cpu) {
 		return
 	}
-	atomic.AddUint64(&pbm.readLostEvents[m.Name][cpu], count)
+	atomic.AddUint64(&pbm.readLostEvents[mapName][cpu], count)
 }
 
 // CountEvent adds `count` to the counter of received events of the specified type
-func (pbm *PerfBufferMonitor) CountEvent(eventType model.EventType, timestamp uint64, count uint64, size uint64, m *manager.PerfMap, cpu int) {
+func (pbm *PerfBufferMonitor) CountEvent(eventType model.EventType, timestamp uint64, count uint64, size uint64, mapName string, cpu int) {
 	// check event order
 	if timestamp < pbm.lastTimestamp && pbm.lastTimestamp != 0 {
-		atomic.AddInt64(pbm.sortingErrorStats[m.Name][eventType], 1)
+		atomic.AddInt64(pbm.sortingErrorStats[mapName][eventType], 1)
 		atomic.SwapUint64(&pbm.shouldBumpGeneration, 1)
 	} else {
 		pbm.lastTimestamp = timestamp
 	}
 
 	// sanity check
-	if (pbm.stats[m.Name] == nil) || (len(pbm.stats[m.Name]) <= cpu) || (len(pbm.stats[m.Name][cpu]) <= int(eventType)) {
+	if (pbm.stats[mapName] == nil) || (len(pbm.stats[mapName]) <= cpu) || (len(pbm.stats[mapName][cpu]) <= int(eventType)) {
 		return
 	}
 
-	atomic.AddUint64(&pbm.stats[m.Name][cpu][eventType].Count, count)
-	atomic.AddUint64(&pbm.stats[m.Name][cpu][eventType].Bytes, size)
+	atomic.AddUint64(&pbm.stats[mapName][cpu][eventType].Count, count)
+	atomic.AddUint64(&pbm.stats[mapName][cpu][eventType].Bytes, size)
 }
 
 func (pbm *PerfBufferMonitor) sendEventsAndBytesReadStats(client statsd.ClientInterface) error {

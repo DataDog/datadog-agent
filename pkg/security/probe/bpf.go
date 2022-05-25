@@ -43,3 +43,16 @@ func haveMmapableMaps() error {
 	_ = m.Close()
 	return nil
 }
+
+func haveRingBuffers() error {
+	// This checks ring buffer maps, which appeared in ???.
+	m, err := sys.MapCreate(&sys.MapCreateAttr{
+		MapType:    sys.MapType(ebpf.RingBuf),
+		MaxEntries: 4096 * 16,
+	})
+	if err != nil {
+		return internal.ErrNotSupported
+	}
+	_ = m.Close()
+	return nil
+}

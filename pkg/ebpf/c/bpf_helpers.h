@@ -44,6 +44,7 @@ static unsigned long long (*bpf_get_current_pid_tgid)(void) = (void*)BPF_FUNC_ge
 static unsigned long long (*bpf_get_current_uid_gid)(void) = (void*)BPF_FUNC_get_current_uid_gid;
 static int (*bpf_get_current_comm)(void* buf, int buf_size) = (void*)BPF_FUNC_get_current_comm;
 static int (*bpf_perf_event_read)(void* map, int index) = (void*)BPF_FUNC_perf_event_read;
+static int (*bpf_ringbuf_output)(void *ringbuf, void *data, u64 size, u64 flags) = (void*)BPF_FUNC_ringbuf_output;
 static int (*bpf_clone_redirect)(void* ctx, int ifindex, int flags) = (void*)BPF_FUNC_clone_redirect;
 static int (*bpf_redirect)(int ifindex, int flags) = (void*)BPF_FUNC_redirect;
 static int (*bpf_perf_event_output)(void* ctx, void* map,

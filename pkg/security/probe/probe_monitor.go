@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 
@@ -31,7 +30,6 @@ type Monitor struct {
 	loadController      *LoadController
 	perfBufferMonitor   *PerfBufferMonitor
 	syscallMonitor      *SyscallMonitor
-	reordererMonitor    *ReordererMonitor
 	activityDumpManager *ActivityDumpManager
 	runtimeMonitor      *RuntimeMonitor
 	discarderMonitor    *DiscarderMonitor
@@ -54,11 +52,6 @@ func NewMonitor(p *Probe) (*Monitor, error) {
 	m.perfBufferMonitor, err = NewPerfBufferMonitor(p)
 	if err != nil {
 		return nil, errors.Wrap(err, "couldn't create the events statistics monitor")
-	}
-
-	m.reordererMonitor, err = NewReOrderMonitor(p)
-	if err != nil {
-		return nil, errors.Wrap(err, "couldn't create the reorder monitor")
 	}
 
 	if p.config.ActivityDumpEnabled {
@@ -102,7 +95,6 @@ func (m *Monitor) Start(ctx context.Context, wg *sync.WaitGroup) error {
 	wg.Add(delta)
 
 	go m.loadController.Start(ctx, wg)
-	go m.reordererMonitor.Start(ctx, wg)
 
 	if m.activityDumpManager != nil {
 		go m.activityDumpManager.Start(ctx, wg)
@@ -183,7 +175,7 @@ func (m *Monitor) GetStats() (map[string]interface{}, error) {
 }
 
 // ProcessEvent processes an event through the various monitors and controllers of the probe
-func (m *Monitor) ProcessEvent(event *Event, size uint64, CPU int, perfMap *manager.PerfMap) {
+func (m *Monitor) ProcessEvent(event *Event) {
 	m.loadController.Count(event)
 
 	// Look for an unresolved path

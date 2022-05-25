@@ -53,10 +53,15 @@ func NewDefaultOptions() manager.Options {
 }
 
 // NewRuntimeSecurityManager returns a new instance of the runtime security module manager
-func NewRuntimeSecurityManager() *manager.Manager {
-	return &manager.Manager{
-		Probes:   probes.AllProbes(),
-		Maps:     probes.AllMaps(),
-		PerfMaps: probes.AllPerfMaps(),
+func NewRuntimeSecurityManager(supportsRingBuffers bool) *manager.Manager {
+	manager := &manager.Manager{
+		Probes: probes.AllProbes(),
+		Maps:   probes.AllMaps(),
 	}
+	if supportsRingBuffers {
+		manager.RingBuffers = probes.AllRingBuffers()
+	} else {
+		manager.PerfMaps = probes.AllPerfMaps()
+	}
+	return manager
 }
