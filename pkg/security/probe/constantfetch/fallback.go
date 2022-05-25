@@ -181,6 +181,8 @@ func getSuperBlockMagicOffset(kv *kernel.Version) uint64 {
 	return sizeOf
 }
 
+// Depending on the value CONFIG_NO_HZ_FULL, a field can be added before the `tty` field.
+// See https://elixir.bootlin.com/linux/v5.18/source/include/linux/sched/signal.h#L164
 func getNoHzOffset() uint64 {
 	if _, err := os.Stat("/sys/devices/system/cpu/nohz_full"); errors.Is(err, os.ErrNotExist) {
 		return 0
