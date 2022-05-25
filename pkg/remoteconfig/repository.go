@@ -290,25 +290,6 @@ func (ur updateResult) Log() {
 	log.Println(b.String())
 }
 
-func parseConfig(product string, raw []byte, metadata Metadata) (interface{}, error) {
-	var c interface{}
-	var err error
-	switch product {
-	case ProductAPMSampling:
-		c, err = parseConfigAPMSampling(raw, metadata)
-	case ProductFeatures:
-		c, err = parseFeaturesConfing(raw, metadata)
-	case ProductLiveDebugging:
-		c, err = parseLDConfig(raw, metadata)
-	case ProductCWSDD:
-		c, err = parseConfigCWSDD(raw, metadata)
-	default:
-		return nil, fmt.Errorf("unknown product - %s", product)
-	}
-
-	return c, err
-}
-
 func configStateFromMetadata(m Metadata) ConfigState {
 	return ConfigState{
 		Product: m.Product,

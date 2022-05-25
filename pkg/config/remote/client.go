@@ -79,11 +79,17 @@ func NewClient(agentName string, agentVersion string, products []data.Product, p
 	}, nil
 }
 
+// Start starts the client's poll loop.
+//
+// If the client is already started, this is a no-op. At this time, a client that has been stopped cannot
+// be restarted.
 func (c *Client) Start() {
 	c.startupSync.Do(c.startFn)
 }
 
-// Close closes the client
+// Close terminates the client's poll loop.
+//
+// A client that has been closed cannot be restarted
 func (c *Client) Close() {
 	c.close()
 }
@@ -92,6 +98,10 @@ func (c *Client) startFn() {
 	go c.pollLoop()
 }
 
+// pollLoop is the main polling loop of the client.
+//
+// pollLoop should never be called manaully and only be called via the client's `sync.Once`
+// structure in startFn.
 func (c *Client) pollLoop() {
 	for {
 		select {
@@ -106,6 +116,9 @@ func (c *Client) pollLoop() {
 	}
 }
 
+// update requests a config updates from the agent via the secure grpc channel and
+// applies that update, informing any registered listeners of any config state changes
+// that occured.
 func (c *Client) update() error {
 	req := c.newUpdateRequest()
 	response, err := c.grpc.ClientGetConfigs(c.ctx, req)
@@ -135,10 +148,14 @@ func (c *Client) update() error {
 	return nil
 }
 
+// RegisterAPMUpdate registers a callback function to be called after a successful client update that will
+// contain the current state of the APMSampling product.
 func (c *Client) RegisterAPMUpdate(fn func(update map[string]remoteconfig.APMSamplingConfig)) {
 	c.apmListeners = append(c.apmListeners, fn)
 }
 
+// RegisterCWSDDUpdate registers a callback function to be called after a successful client update that will
+// contain the current state of the CWSDD product.
 func (c *Client) RegisterCWSDDUpdate(fn func(update map[string]remoteconfig.ConfigCWSDD)) {
 	c.cwsListeners = append(c.cwsListeners, fn)
 }
@@ -159,6 +176,8 @@ func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) error {
 	return c.repository.Update(update)
 }
 
+// newUpdateRequests builds a new request for the agent based on the current state of the
+// remote config repository.
 func (c *Client) newUpdateRequest() *pbgo.ClientGetConfigsRequest {
 	state := c.repository.CurrentState()
 
@@ -222,6 +241,7 @@ var (
 	idAlphabet = []rune("_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 )
 
+// generateID creates a new random ID for a new client instance
 func generateID() string {
 	bytes := make([]byte, idSize)
 	_, err := rand.Read(bytes)

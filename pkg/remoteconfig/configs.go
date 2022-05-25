@@ -29,6 +29,25 @@ const (
 
 var ErrNoConfigVersion = errors.New("version missing in custom file meta")
 
+func parseConfig(product string, raw []byte, metadata Metadata) (interface{}, error) {
+	var c interface{}
+	var err error
+	switch product {
+	case ProductAPMSampling:
+		c, err = parseConfigAPMSampling(raw, metadata)
+	case ProductFeatures:
+		c, err = parseFeaturesConfing(raw, metadata)
+	case ProductLiveDebugging:
+		c, err = parseLDConfig(raw, metadata)
+	case ProductCWSDD:
+		c, err = parseConfigCWSDD(raw, metadata)
+	default:
+		return nil, fmt.Errorf("unknown product - %s", product)
+	}
+
+	return c, err
+}
+
 // APMSamplingConfig is a deserialized APM Sampling configuration file
 // along with its associated remote config metadata.
 type APMSamplingConfig struct {
@@ -62,6 +81,8 @@ func parseConfigCWSDD(data []byte, metadata Metadata) (ConfigCWSDD, error) {
 	}, nil
 }
 
+// LDConfig is a deserailized Live Debugging configuration file along with its associated
+// remote config metadata.
 type LDConfig struct {
 	Config   []byte
 	Metadata Metadata
@@ -74,6 +95,8 @@ func parseLDConfig(data []byte, metadata Metadata) (LDConfig, error) {
 	}, nil
 }
 
+// FeaturesConfig is a deserialized configuration file that indicates what features should be enabled
+// within a tracer, along with its associated remote config metadata.
 type FeaturesConfig struct {
 	Config   []byte
 	Metadata Metadata
@@ -86,6 +109,7 @@ func parseFeaturesConfing(data []byte, metadata Metadata) (FeaturesConfig, error
 	}, nil
 }
 
+// Metadata stores remote config metadata for a given configuration
 type Metadata struct {
 	Product   string
 	ID        string
