@@ -39,7 +39,7 @@ func Run(logConfig *log.Config, metricAgent *metrics.ServerlessMetricAgent, trac
 }
 
 func execute(config *log.Config, metricAgent *metrics.ServerlessMetricAgent, traceAgent *trace.ServerlessTraceAgent, args []string) error {
-	commandName, commandArgs := buildCommandParam(args[0])
+	commandName, commandArgs := buildCommandParam(args)
 	cmd := exec.Command(commandName, commandArgs...)
 	cmd.Stdout = &log.CustomWriter{
 		LogConfig: config,
@@ -57,8 +57,11 @@ func execute(config *log.Config, metricAgent *metrics.ServerlessMetricAgent, tra
 	return err
 }
 
-func buildCommandParam(cmdArg string) (string, []string) {
-	fields := strings.Fields(cmdArg)
+func buildCommandParam(cmdArg []string) (string, []string) {
+	fields := cmdArg
+	if len(cmdArg) == 1 {
+		fields = strings.Fields(cmdArg[0])
+	}
 	commandName := fields[0]
 	if len(fields) > 1 {
 		return commandName, fields[1:]
