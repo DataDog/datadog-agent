@@ -107,6 +107,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayWebsocketEvent
 	inferredSpan.IsAsync = isAsyncEvent(attributes)
 }
 
+// EnrichInferredSpanWithSNSEvent TODO (<serverless>): SLS-2255
 func (inferredSpan *InferredSpan) EnrichInferredSpanWithSNSEvent(attributes EventKeys) {
 	eventRecord := *attributes.Records[0]
 	snsMessage := eventRecord.SNS
