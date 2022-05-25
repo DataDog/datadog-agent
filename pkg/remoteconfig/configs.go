@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/products/apmsampling"
 	"github.com/theupdateframework/go-tuf/data"
@@ -137,6 +136,5 @@ func parseFileMetaCustom(rawCustom []byte) (fileMetaCustom, error) {
 	if custom.Version == nil {
 		return fileMetaCustom{}, ErrNoConfigVersion
 	}
-	log.Println("found a version number for a config: ", *custom.Version)
 	return custom, nil
 }
