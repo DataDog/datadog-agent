@@ -74,6 +74,35 @@ func (ad *ActivityDump) generateDNSRule(dns *DNSNode, activityNode *ProcessActiv
 	return rules
 }
 
+func (ad *ActivityDump) generateBindRule(sock *SocketNode, activityNode *ProcessActivityNode,
+	ancestors []*ProcessActivityNode, ruleIDPrefix string) []ProfileRule {
+	var rules []ProfileRule
+
+	if sock != nil {
+		var rule ProfileRule
+		if sock.Family == "AF_INET" || sock.Family == "AF_INET6" {
+			rule = NewProfileRule(fmt.Sprintf(
+				"bind.addr.family == %s && bind.addr.ip in %s/32 && bind.addr.port == %d",
+				sock.Family, sock.Bind.IP, sock.Bind.Port),
+				ruleIDPrefix,
+			)
+		} else {
+			rule = NewProfileRule(fmt.Sprintf("bind.addr.family == %s", sock.Family),
+				ruleIDPrefix,
+			)
+		}
+		rule.Expression += fmt.Sprintf(" && process.file.path == \"%s\"",
+			activityNode.Process.FileEvent.PathnameStr)
+		for _, parent := range ancestors {
+			rule.Expression += fmt.Sprintf(" && process.ancestors.file.path == \"%s\"",
+				parent.Process.FileEvent.PathnameStr)
+		}
+		rules = append(rules, rule)
+	}
+
+	return rules
+}
+
 func (ad *ActivityDump) generateFIMRules(file *FileActivityNode, activityNode *ProcessActivityNode, ancestors []*ProcessActivityNode, ruleIDPrefix string) []ProfileRule {
 	var rules []ProfileRule
 
@@ -133,6 +162,12 @@ func (ad *ActivityDump) generateRules(node *ProcessActivityNode, ancestors []*Pr
 	for _, dns := range node.DNSNames {
 		dnsRules := ad.generateDNSRule(dns, node, ancestors, ruleIDPrefix)
 		rules = append(rules, dnsRules...)
+	}
+
+	// add Bind rules
+	for _, sock := range node.Sockets {
+		bindRules := ad.generateBindRule(sock, node, ancestors, ruleIDPrefix)
+		rules = append(rules, bindRules...)
 	}
 
 	// add children rules recursively

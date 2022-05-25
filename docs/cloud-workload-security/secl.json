@@ -644,7 +644,7 @@
           "name": "bind.addr.family",
           "type": "int",
           "definition": "Address family",
-          "constants": "Network Address Family constants"
+          "constants": ""
         },
         {
           "name": "bind.addr.ip",
