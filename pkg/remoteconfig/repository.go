@@ -146,7 +146,7 @@ func (r *Repository) Update(update Update) error {
 		if err != nil {
 			return err
 		}
-		config, err := parseConfig(parsedPath.Product, raw)
+		config, err := parseConfig(parsedPath.Product, raw, m)
 		if err != nil {
 			return err
 		}
@@ -272,18 +272,18 @@ func (ur updateResult) Log() {
 	log.Println(b.String())
 }
 
-func parseConfig(product string, raw []byte) (interface{}, error) {
+func parseConfig(product string, raw []byte, metadata Metadata) (interface{}, error) {
 	var c interface{}
 	var err error
 	switch product {
 	case ProductAPMSampling:
-		c, err = parseConfigAPMSampling(raw)
+		c, err = parseConfigAPMSampling(raw, metadata)
 	case ProductFeatures:
-		c, err = parseFeaturesConfing(raw)
+		c, err = parseFeaturesConfing(raw, metadata)
 	case ProductLiveDebugging:
-		c, err = parseLDConfig(raw)
+		c, err = parseLDConfig(raw, metadata)
 	case ProductCWSDD:
-		c, err = parseConfigCWSDD(raw)
+		c, err = parseConfigCWSDD(raw, metadata)
 	default:
 		return nil, fmt.Errorf("unknown product - %s", product)
 	}

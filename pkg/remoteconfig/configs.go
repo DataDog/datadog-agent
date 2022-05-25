@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/products/apmsampling"
 	"github.com/theupdateframework/go-tuf/data"
@@ -36,14 +37,15 @@ type APMSamplingConfig struct {
 	Metadata Metadata
 }
 
-func parseConfigAPMSampling(data []byte) (APMSamplingConfig, error) {
+func parseConfigAPMSampling(data []byte, metadata Metadata) (APMSamplingConfig, error) {
 	var apmConfig apmsampling.APMSampling
 	_, err := apmConfig.UnmarshalMsg(data)
 	if err != nil {
 		return APMSamplingConfig{}, fmt.Errorf("could not parse apm sampling config: %v", err)
 	}
 	return APMSamplingConfig{
-		Config: apmConfig,
+		Config:   apmConfig,
+		Metadata: metadata,
 	}, nil
 }
 
@@ -54,9 +56,10 @@ type ConfigCWSDD struct {
 	Metadata Metadata
 }
 
-func parseConfigCWSDD(data []byte) (ConfigCWSDD, error) {
+func parseConfigCWSDD(data []byte, metadata Metadata) (ConfigCWSDD, error) {
 	return ConfigCWSDD{
-		Config: data,
+		Config:   data,
+		Metadata: metadata,
 	}, nil
 }
 
@@ -65,9 +68,10 @@ type LDConfig struct {
 	Metadata Metadata
 }
 
-func parseLDConfig(data []byte) (LDConfig, error) {
+func parseLDConfig(data []byte, metadata Metadata) (LDConfig, error) {
 	return LDConfig{
-		Config: data,
+		Config:   data,
+		Metadata: metadata,
 	}, nil
 }
 
@@ -76,9 +80,10 @@ type FeaturesConfig struct {
 	Metadata Metadata
 }
 
-func parseFeaturesConfing(data []byte) (FeaturesConfig, error) {
+func parseFeaturesConfing(data []byte, metadata Metadata) (FeaturesConfig, error) {
 	return FeaturesConfig{
-		Config: data,
+		Config:   data,
+		Metadata: metadata,
 	}, nil
 }
 
@@ -132,5 +137,6 @@ func parseFileMetaCustom(rawCustom []byte) (fileMetaCustom, error) {
 	if custom.Version == nil {
 		return fileMetaCustom{}, ErrNoConfigVersion
 	}
+	log.Println("found a version number for a config: ", *custom.Version)
 	return custom, nil
 }
