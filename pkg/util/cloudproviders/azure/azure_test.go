@@ -191,6 +191,6 @@ func TestGetPublicIPv4(t *testing.T) {
 
 	val, err := GetPublicIPv4()
 	assert.Nil(t, err)
-	asser.Equal(t, expected, val)
-	assert.True(t, strings.HasPrefix(t, lastRequest.URL.Path, pathPrefix))
+	assert.Equal(t, expected, val)
+	assert.True(t, strings.HasPrefix(lastRequest.URL.Path, pathPrefix))
 }
