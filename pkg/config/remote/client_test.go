@@ -5,6 +5,8 @@
 
 package remote
 
+/*
+
 import (
 	"context"
 	"crypto/rand"
@@ -233,3 +235,4 @@ func generateTarget(file []byte, version uint64) data.TargetFileMeta {
 		},
 	}
 }
+*/

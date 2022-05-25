@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/products/apmsampling"
 )
 
 // DynamicConfig contains configuration items which may change

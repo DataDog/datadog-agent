@@ -125,8 +125,6 @@ github.com/DataDog/btf-internals v0.0.0-20220424171854-ebe6bce9afb0 h1:01FWXvRqm
 github.com/DataDog/btf-internals v0.0.0-20220424171854-ebe6bce9afb0/go.mod h1:cBVVIJ/f6XtwFL/U9QI5QDA/LcaiSiI8B4ipyGXzc1s=
 github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3 h1:SobA9WYm4K/MUtWlbKaomWTmnuYp1KhIm8Wlx3vmpsg=
 github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3/go.mod h1:Qx5cxh0v+4UWYiBimWS+eyWzqEqokIECu5etghLkUJE=
-github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.37.0-rc.1 h1:xCBEkjUecTLTdAE+/LL7p+mwdIVMSld71seR++KypOg=
-github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.37.0-rc.1/go.mod h1:owxN9wvN+xU4wdY/E0CKeiV/XyGy0TBGUHbSnf75CGE=
 github.com/DataDog/datadog-api-client-go v1.0.0-beta.18/go.mod h1:Gn0fZwIOBbSidO0OaPEh9nO5EmIPsxJrHfHvfVXEaoU=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-go v4.4.0+incompatible h1:R7WqXWP4fIOAqWJtUKmSfuc7eDsBT58k9AY5WSHVosk=

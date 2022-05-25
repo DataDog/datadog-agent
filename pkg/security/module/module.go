@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
@@ -174,22 +173,14 @@ func (m *Module) Start() error {
 		if err != nil {
 			return err
 		}
+		c.RegisterCWSDDUpdate(m.processRemoteConfigsUpdate)
 		m.remoteConfigClient = c
-
-		go func() {
-			for configs := range c.CWSDDUpdates() {
-				err := m.processRemoteConfigsUpdate(configs)
-				if err != nil {
-					log.Debugf("could not process remote-config update: %v", err)
-				}
-			}
-		}()
 	}
 
 	return nil
 }
 
-func (m *Module) processRemoteConfigsUpdate(configs []client.ConfigCWSDD) error {
+func (m *Module) processRemoteConfigsUpdate(configs map[string]remoteconfig.ConfigCWSDD) error {
 	if len(configs) == 0 {
 		return errors.New("no remote configuration")
 	}

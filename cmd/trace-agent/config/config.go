@@ -22,6 +22,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/osutil"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -80,7 +82,8 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 	}
 	cfg.ConfigPath = path
 	if coreconfig.Datadog.GetBool("remote_configuration.enabled") && coreconfig.Datadog.GetBool("remote_configuration.apm_sampling.enabled") {
-		if client, err := newRemoteClient(); err != nil {
+		client, err := remote.NewClient("trace-agent", version.AgentVersion, []data.Product{data.ProductAPMSampling}, time.Second*1)
+		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {
 			cfg.RemoteSamplingClient = client

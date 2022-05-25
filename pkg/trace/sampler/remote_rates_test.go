@@ -9,9 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,19 +31,16 @@ func newTestRemoteRates() *RemoteRates {
 	return &RemoteRates{
 		maxSigTPS: maxRemoteTPS,
 		samplers:  make(map[Signature]*remoteSampler),
-
-		stopped: make(chan struct{}),
 	}
 }
 
-func configGenerator(version uint64, rates apmsampling.APMSampling) config.SamplingUpdate {
-	return config.SamplingUpdate{
-
-		Configs: map[string]client.APMSamplingConfig{
-			"testid": {
+func configGenerator(version uint64, rates apmsampling.APMSampling) map[string]remoteconfig.APMSamplingConfig {
+	return map[string]remoteconfig.APMSamplingConfig{
+		"testid": {
+			Config: rates,
+			Metadata: remoteconfig.Metadata{
 				ID:      "testid",
 				Version: version,
-				Config:  rates,
 			},
 		},
 	}
