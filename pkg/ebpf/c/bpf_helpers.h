@@ -44,7 +44,6 @@ static unsigned long long (*bpf_get_current_pid_tgid)(void) = (void*)BPF_FUNC_ge
 static unsigned long long (*bpf_get_current_uid_gid)(void) = (void*)BPF_FUNC_get_current_uid_gid;
 static int (*bpf_get_current_comm)(void* buf, int buf_size) = (void*)BPF_FUNC_get_current_comm;
 static int (*bpf_perf_event_read)(void* map, int index) = (void*)BPF_FUNC_perf_event_read;
-static int (*bpf_ringbuf_output)(void *ringbuf, void *data, u64 size, u64 flags) = (void*)BPF_FUNC_ringbuf_output;
 static int (*bpf_clone_redirect)(void* ctx, int ifindex, int flags) = (void*)BPF_FUNC_clone_redirect;
 static int (*bpf_redirect)(int ifindex, int flags) = (void*)BPF_FUNC_redirect;
 static int (*bpf_perf_event_output)(void* ctx, void* map,
@@ -93,6 +92,10 @@ static int (*bpf_probe_read_kernel_str)(void* dst, int size, void* unsafe_ptr) =
 #endif
 static int (*bpf_probe_read_user)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read;
 static int (*bpf_probe_read_kernel)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read;
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
+static int (*bpf_ringbuf_output)(void *ringbuf, void *data, u64 size, u64 flags) = (void*)BPF_FUNC_ringbuf_output;
 #endif
 
 #pragma clang diagnostic pop
