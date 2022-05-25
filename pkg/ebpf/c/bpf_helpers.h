@@ -46,7 +46,6 @@ static int (*bpf_get_current_comm)(void* buf, int buf_size) = (void*)BPF_FUNC_ge
 static int (*bpf_perf_event_read)(void* map, int index) = (void*)BPF_FUNC_perf_event_read;
 static int (*bpf_clone_redirect)(void* ctx, int ifindex, int flags) = (void*)BPF_FUNC_clone_redirect;
 static int (*bpf_redirect)(int ifindex, int flags) = (void*)BPF_FUNC_redirect;
-static int (*bpf_send_signal)(u32 sig) = (void*)BPF_FUNC_send_signal;
 static int (*bpf_perf_event_output)(void* ctx, void* map,
     unsigned long long flags, void* data,
     int size)
@@ -83,6 +82,10 @@ static int (*bpf_probe_read_user_str)(void* dst, int size, void* unsafe_ptr) = (
 static int (*bpf_probe_read_kernel_str)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_kernel_str;
 static int (*bpf_probe_read_user)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_user;
 static int (*bpf_probe_read_kernel)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_kernel;
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0)
+static int (*bpf_send_signal)(u32 sig) = (void*)BPF_FUNC_send_signal;
 #endif
 
 #pragma clang diagnostic pop
