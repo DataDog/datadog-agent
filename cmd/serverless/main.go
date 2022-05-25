@@ -67,6 +67,23 @@ func main() {
 	flavor.SetFlavor(flavor.ServerlessAgent)
 	stopCh := make(chan struct{})
 
+	// retrieve DD_SM variables and set them as normal environment variables
+	for _, envVar := range os.Environ() {
+		if strings.HasPrefix(envVar, "DD_SM_") {
+			envKey, envVal, found := strings.Cut(envVar, "=")
+			if !found {
+				// couldn't parse KEY=VALUE format
+				continue
+			}
+			secretVal, err := GetSecretsManagerValue(envVal)
+			if err != nil {
+				log.Errorf("Error retrieving key from secrets manager: %v\n", err)
+				return
+			}
+			os.Setenv(envKey[6:], secretVal)
+		}
+	}
+
 	// run the agent
 	serverlessDaemon, err := runAgent(stopCh)
 	if err != nil {
