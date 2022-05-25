@@ -14,12 +14,12 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	easyjson "github.com/mailru/easyjson"
 	"github.com/pkg/errors"
+	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
@@ -47,7 +47,7 @@ type pendingMsg struct {
 type APIServer struct {
 	msgs              chan *api.SecurityEventMessage
 	expiredEventsLock sync.RWMutex
-	expiredEvents     map[rules.RuleID]*int64
+	expiredEvents     map[rules.RuleID]*atomic.Int64
 	rate              *Limiter
 	statsdClient      statsd.ClientInterface
 	probe             *sprobe.Probe
@@ -419,7 +419,7 @@ func (a *APIServer) expireEvent(msg *api.SecurityEventMessage) {
 	// Update metric
 	count, ok := a.expiredEvents[msg.RuleID]
 	if ok {
-		atomic.AddInt64(count, 1)
+		count.Inc()
 	}
 	seclog.Tracef("the event server channel is full, an event of ID %v was dropped", msg.RuleID)
 }
@@ -432,7 +432,7 @@ func (a *APIServer) GetStats() map[string]int64 {
 
 	stats := make(map[string]int64)
 	for ruleID, val := range a.expiredEvents {
-		stats[ruleID] = atomic.SwapInt64(val, 0)
+		stats[ruleID] = val.Swap(0)
 	}
 	return stats
 }
@@ -463,9 +463,9 @@ func (a *APIServer) Apply(ruleIDs []rules.RuleID) {
 	a.expiredEventsLock.Lock()
 	defer a.expiredEventsLock.Unlock()
 
-	a.expiredEvents = make(map[rules.RuleID]*int64)
+	a.expiredEvents = make(map[rules.RuleID]*atomic.Int64)
 	for _, id := range ruleIDs {
-		a.expiredEvents[id] = new(int64)
+		a.expiredEvents[id] = atomic.NewInt64(0)
 	}
 }
 
@@ -473,7 +473,7 @@ func (a *APIServer) Apply(ruleIDs []rules.RuleID) {
 func NewAPIServer(cfg *config.Config, probe *sprobe.Probe, client statsd.ClientInterface) *APIServer {
 	es := &APIServer{
 		msgs:          make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
-		expiredEvents: make(map[rules.RuleID]*int64),
+		expiredEvents: make(map[rules.RuleID]*atomic.Int64),
 		rate:          NewLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
 		statsdClient:  client,
 		probe:         probe,
