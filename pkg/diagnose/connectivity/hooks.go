@@ -23,7 +23,7 @@ import (
 // During a request, the http.Client will call the functions of the ClientTrace at specific moments
 // This is useful to get extra information about what is happening and if there are errors during
 // connection establishment, DNS resolution or TLS handshake for instance
-var DiagnoseTrace = &httptrace.ClientTrace{
+var diagnoseTrace = &httptrace.ClientTrace{
 
 	// Hooks called before and after creating or retrieving a connection
 	GetConn: getConnHook,
@@ -43,7 +43,7 @@ var DiagnoseTrace = &httptrace.ClientTrace{
 }
 
 var (
-	EmptyTrace   = &httptrace.ClientTrace{}
+	emptyTrace   = &httptrace.ClientTrace{}
 	dnsColorFunc = color.MagentaString
 	tlsColorFunc = color.YellowString
 )
@@ -59,14 +59,14 @@ func connectStartHook(network, addr string) {
 func connectDoneHook(network, addr string, err error) {
 	statusString := color.GreenString("OK")
 	if err != nil {
-		statusString = color.RedString("KO")
+		statusString = color.RedString("ERROR")
 		fmt.Printf("Unable to connect to the endpoint : %v\n", err)
 	}
 	fmt.Printf("• Connection to the endpoint [%v]\n\n", statusString)
 }
 
 // getConnHook is called before getting a new connection.
-// This will be called before :
+// This is called before :
 // 		- Creating a new connection 		: getConnHook ---> connectStartHook
 //		- Retrieving an existing connection : getConnHook ---> gotConnHook
 func getConnHook(hostPort string) {
@@ -95,7 +95,7 @@ func dnsStartHook(di httptrace.DNSStartInfo) {
 func dnsDoneHook(di httptrace.DNSDoneInfo) {
 	statusString := color.GreenString("OK")
 	if di.Err != nil {
-		statusString = color.RedString("KO")
+		statusString = color.RedString("ERROR")
 		fmt.Print(dnsColorFunc("Unable to resolve the address : %v\n", di.Err))
 	}
 	fmt.Printf("• %v [%v]\n\n", dnsColorFunc("DNS Lookup"), statusString)
@@ -111,7 +111,7 @@ func tlsHandshakeStartHook() {
 func tlsHandshakeDoneHook(cs tls.ConnectionState, err error) {
 	statusString := color.GreenString("OK")
 	if err != nil {
-		statusString = color.RedString("KO")
+		statusString = color.RedString("ERROR")
 		fmt.Print(tlsColorFunc("Unable to achieve the TLS Handshake : %v\n", err))
 	}
 	fmt.Printf("• %v [%v]\n\n", tlsColorFunc("TLS Handshake"), statusString)

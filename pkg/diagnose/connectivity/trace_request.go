@@ -38,7 +38,7 @@ func RunDatadogConnectivityDiagnose(noTrace bool) error {
 	client := forwarder.NewHTTPClient()
 
 	if noTrace {
-		DiagnoseTrace = EmptyTrace
+		diagnoseTrace = emptyTrace
 	}
 
 	// Send requests to all endpoints for all domains
@@ -74,7 +74,7 @@ func sendHTTPRequestToEndpoint(client *http.Client, domain string, endpointInfo 
 	logURL := scrubber.ScrubLine(url)
 
 	// Enable HTTP trace
-	ctx := httptrace.WithClientTrace(context.Background(), DiagnoseTrace)
+	ctx := httptrace.WithClientTrace(context.Background(), diagnoseTrace)
 
 	fmt.Printf("\n======== '%v' ========\n", color.BlueString(logURL))
 
