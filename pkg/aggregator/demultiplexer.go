@@ -149,7 +149,7 @@ func sendIterableSeries(serializer serializer.MetricSerializer, start time.Time,
 	log.Debug("Demultiplexer: sendIterableSeries: start sending iterable series to the serializer")
 	err := serializer.SendIterableSeries(serieSource)
 	// if err == nil, SenderStopped was called and it is safe to read the number of series.
-	count := serieSource.SeriesCount()
+	count := serieSource.Count()
 	addFlushCount("Series", int64(count))
 	updateSerieTelemetry(start, count, err)
 	log.Debug("Demultiplexer: sendIterableSeries: stop routine")

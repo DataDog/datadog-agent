@@ -66,7 +66,7 @@ func (s *serieSourceMock) Current() *metrics.Serie {
 	return s.series[s.index]
 }
 
-func (s *serieSourceMock) SeriesCount() uint64 {
+func (s *serieSourceMock) Count() uint64 {
 	return uint64(len(s.series))
 }
 
