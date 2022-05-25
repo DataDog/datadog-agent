@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    This change disables compression when the Datadog Agent is configured to
+    use a Vector aggregator through the `vector.*` options. The expected impact
+    of this change is that while internal bandwidth usage will increase
+    slightly, significant CPU savings can be achieved.
