@@ -6,21 +6,46 @@
 package invocationlifecycle
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type RequestHandler struct {
-	executionContext *ExecutionStartInfo
+	executionContext    *ExecutionStartInfo
+	inferredSpanContext *inferredspan.InferredSpan
 }
 
 func (r *RequestHandler) GetExecutionContext() *ExecutionStartInfo {
 	return r.executionContext
+}
+
+func (r *RequestHandler) GetInferredSpanContext() *inferredspan.InferredSpan {
+	return r.inferredSpanContext
+}
+
+func (r *RequestHandler) CreateNewExecutionContext(lambdaPayloadString string, startTime time.Time) {
+	r.executionContext = &ExecutionStartInfo{
+		requestPayload: lambdaPayloadString,
+		startTime:      startTime,
+	}
+}
+
+func (r *RequestHandler) CreateNewInferredSpan(currentInvocationStartTime time.Time) {
+	r.inferredSpanContext = &inferredspan.InferredSpan{
+		CurrentInvocationStartTime: currentInvocationStartTime,
+		Span: &pb.Span{
+			SpanID: random.Random.Uint64(),
+		},
+	}
 }
 
 // LifecycleProcessor is a InvocationProcessor implementation
@@ -39,7 +64,9 @@ func (lp *LifecycleProcessor) GetExecutionContext() *ExecutionStartInfo {
 	return lp.requestHandler.executionContext
 }
 
-var inferredSpan inferredspan.InferredSpan
+func (lp *LifecycleProcessor) GetInferredSpanContext() *inferredspan.InferredSpan {
+	return lp.requestHandler.inferredSpanContext
+}
 
 // OnInvokeStart is the hook triggered when an invocation has started
 func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails) {
@@ -60,22 +87,24 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		lp.requestHandler = &RequestHandler{}
 	}
 
-	// Each new request will get a new execution context.
+	// Each new request will get a new execution context and inferred span.
 	// We're guaranteed by the lambda API that each invocation runs sequentially,
 	// so we don't need to worry about race conditions here.
-	lp.requestHandler.executionContext = &ExecutionStartInfo{
-		requestPayload: lambdaPayloadString,
-	}
+	lp.requestHandler.CreateNewExecutionContext(startDetails.InvokeEventRawPayload, startDetails.StartTime)
+	lp.requestHandler.CreateNewInferredSpan(startDetails.StartTime)
 
 	if !lp.DetectLambdaLibrary() {
 		if lp.InferredSpansEnabled {
-			log.Debug("[lifecycle] Attempting to create inferred span")
-			inferredSpan.GenerateInferredSpan(startDetails.StartTime)
-			inferredSpan.DispatchInferredSpan(parsedPayload)
+			if err != nil {
+				log.Debug("[lifecycle] Attempting to create inferred span")
+			}
+			inferredSpan.DispatchInferredSpan(lp.requestHandler.inferredSpanContext, parsedPayload)
 		}
 
-		startExecutionSpan(lp.requestHandler.executionContext, startDetails.StartTime, lambdaPayloadString, startDetails.InvokeEventHeaders, lp.InferredSpansEnabled)
+		startExecutionSpan(lp.requestHandler.executionContext, inferredSpan, startDetails.StartTime, lambdaPayloadString, startDetails.InvokeEventHeaders, lp.InferredSpansEnabled)
 	}
+
+	// Add trigger type stuff here
 }
 
 // OnInvokeEnd is the hook triggered when an invocation has ended

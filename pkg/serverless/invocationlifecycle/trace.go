@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -41,7 +42,7 @@ type invocationPayload struct {
 
 // startExecutionSpan records information from the start of the invocation.
 // It should be called at the start of the invocation.
-func startExecutionSpan(executionContext *ExecutionStartInfo, startTime time.Time, rawPayload string, invokeEventHeaders LambdaInvokeEventHeaders, inferredSpansEnabled bool) {
+func startExecutionSpan(executionContext *ExecutionStartInfo, inferredSpan *inferredspan.InferredSpan, startTime time.Time, rawPayload string, invokeEventHeaders LambdaInvokeEventHeaders, inferredSpansEnabled bool) {
 	payload := convertRawPayload(rawPayload)
 	executionContext.requestPayload = rawPayload
 	executionContext.startTime = startTime

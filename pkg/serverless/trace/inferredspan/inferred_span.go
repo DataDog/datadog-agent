@@ -97,7 +97,7 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 
 // DispatchInferredSpan decodes the event and routes it to the correct
 // enrichment function for that event source
-func (inferredSpan *InferredSpan) DispatchInferredSpan(parsedPayload map[string]interface{}) error {
+func (inferredSpan *InferredSpan) DispatchInferredSpan(eventType trigger.AWSEventType, eventPayload struct{}) error {
 	eventType, err := trigger.GetEventType(parsedPayload)
 	if err != nil {
 		return err
