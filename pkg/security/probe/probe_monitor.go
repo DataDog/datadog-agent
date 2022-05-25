@@ -88,7 +88,7 @@ func (m *Monitor) GetPerfBufferMonitor() *PerfBufferMonitor {
 
 // Start triggers the goroutine of all the underlying controllers and monitors of the Monitor
 func (m *Monitor) Start(ctx context.Context, wg *sync.WaitGroup) error {
-	delta := 2
+	delta := 1
 	if m.activityDumpManager != nil {
 		delta++
 	}
