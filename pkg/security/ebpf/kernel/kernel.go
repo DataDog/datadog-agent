@@ -16,9 +16,11 @@ import (
 	"sync"
 
 	"github.com/acobaugh/osrelease"
+	"github.com/cilium/ebpf"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/btf-internals/sys"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -87,6 +89,9 @@ type Version struct {
 	OsReleasePath string
 	Code          kernel.Version
 	UnameRelease  string
+
+	haveMmapableMaps *bool
+	haveRingBuffers  *bool
 }
 
 func (k *Version) String() string {
@@ -243,4 +248,47 @@ func (k *Version) IsAmazonLinuxKernel() bool {
 // version (included) and the end version (excluded)
 func (k *Version) IsInRangeCloseOpen(begin kernel.Version, end kernel.Version) bool {
 	return k.Code != 0 && begin <= k.Code && k.Code < end
+}
+
+func (k *Version) HaveMmapableMaps() bool {
+	if k.haveMmapableMaps != nil {
+		return *k.haveMmapableMaps
+	}
+
+	// This checks BPF_F_MMAPABLE, which appeared in 5.5 for array maps.
+	m, err := sys.MapCreate(&sys.MapCreateAttr{
+		MapType:    sys.MapType(ebpf.Array),
+		KeySize:    4,
+		ValueSize:  4,
+		MaxEntries: 1,
+		MapFlags:   unix.BPF_F_MMAPABLE,
+	})
+	k.haveMmapableMaps = new(bool)
+	*k.haveMmapableMaps = err == nil
+
+	if err != nil {
+		return false
+	}
+	_ = m.Close()
+	return true
+}
+
+func (k *Version) HaveRingBuffers() bool {
+	if k.haveRingBuffers != nil {
+		return *k.haveRingBuffers
+	}
+
+	// This checks ring buffer maps, which appeared in ???.
+	m, err := sys.MapCreate(&sys.MapCreateAttr{
+		MapType:    sys.MapType(ebpf.RingBuf),
+		MaxEntries: 4096 * 16,
+	})
+	k.haveRingBuffers = new(bool)
+	*k.haveRingBuffers = err == nil
+
+	if err != nil {
+		return false
+	}
+	_ = m.Close()
+	return true
 }

@@ -1203,12 +1203,9 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	supportsRingBuffers := haveRingBuffers() == nil
-
 	p := &Probe{
 		config:               config,
 		approvers:            make(map[eval.EventType]activeApprovers),
-		manager:              ebpf.NewRuntimeSecurityManager(supportsRingBuffers),
 		managerOptions:       ebpf.NewDefaultOptions(),
 		ctx:                  ctx,
 		cancelFnc:            cancel,
@@ -1236,9 +1233,12 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		log.Warnf("the current environment may be misconfigured: %v", err)
 	}
 
-	p.ensureConfigDefaults()
+	useRingBuffers := p.kernelVersion.HaveRingBuffers()
+	useMmapableMaps := p.kernelVersion.HaveMmapableMaps()
 
-	supportMmapableMaps := haveMmapableMaps() == nil
+	p.manager = ebpf.NewRuntimeSecurityManager(useRingBuffers)
+
+	p.ensureConfigDefaults()
 
 	numCPU, err := utils.NumCPU()
 	if err != nil {
@@ -1248,8 +1248,8 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		numCPU,
 		p.config.ActivityDumpTracedCgroupsCount,
 		p.config.ActivityDumpCgroupWaitListSize,
-		supportMmapableMaps,
-		supportsRingBuffers,
+		useMmapableMaps,
+		useRingBuffers,
 	)
 
 	if !p.config.EnableKernelFilters {
@@ -1348,7 +1348,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		)
 	}
 
-	if supportsRingBuffers {
+	if p.kernelVersion.HaveRingBuffers() {
 		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
 			manager.ConstantEditor{
 				Name:  "use_ring_buffer",
@@ -1366,8 +1366,8 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	}
 
 	// tail calls
-	p.managerOptions.TailCallRouter = probes.AllTailRoutes(p.config.ERPCDentryResolutionEnabled, p.config.NetworkEnabled, supportMmapableMaps)
-	if !p.config.ERPCDentryResolutionEnabled || supportMmapableMaps {
+	p.managerOptions.TailCallRouter = probes.AllTailRoutes(p.config.ERPCDentryResolutionEnabled, p.config.NetworkEnabled, useMmapableMaps)
+	if !p.config.ERPCDentryResolutionEnabled || useMmapableMaps {
 		// exclude the programs that use the bpf_probe_write_user helper
 		p.managerOptions.ExcludedFunctions = probes.AllBPFProbeWriteUserProgramFunctions()
 	}
@@ -1392,7 +1392,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	eventZero.scrubber = p.scrubber
 	eventZero.probe = p
 
-	if supportsRingBuffers {
+	if useRingBuffers {
 		p.eventStream = NewRingBuffer(p.handleEvent)
 	} else {
 		p.eventStream = NewOrderedPerfMap(context.Background(), p.handleEvent)
