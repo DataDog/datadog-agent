@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/timing"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
@@ -86,7 +85,7 @@ func handleSignals(process *os.Process, config *log.Config, metricAgent *metrics
 				}
 			}
 			if sig == syscall.SIGTERM {
-				metric.AddShutdownMetric(tag.GetBaseTagsArrayWithMetadataTags(config.Metadata.TagMap()), time.Now(), metricAgent.Demux)
+				metric.AddShutdownMetric(metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 			}
 		}
 	}()

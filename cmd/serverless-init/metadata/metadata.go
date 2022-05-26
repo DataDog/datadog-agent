@@ -120,7 +120,7 @@ func getSingleMetadata(url string, timeout time.Duration) string {
 	req.Header.Add("Metadata-Flavor", "Google")
 	res, err := client.Do(req)
 	if err != nil {
-		log.Error("unable to get the instance id, defaulting to unknown")
+		log.Error("unable to get the requested metadata, defaulting to unknown")
 		return "unknown"
 	}
 	data, _ := ioutil.ReadAll(res.Body)

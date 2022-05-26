@@ -36,8 +36,8 @@ func main() {
 	traceAgent := &trace.ServerlessTraceAgent{}
 	go setupTraceAgent(traceAgent, metadata)
 
-	metricAgent := setupMetricAgent()
-	metric.AddColdStartMetric(tag.GetBaseTagsArrayWithMetadataTags(metadata.TagMap()), time.Now(), metricAgent.Demux)
+	metricAgent := setupMetricAgent(metadata)
+	metric.AddColdStartMetric(metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 	go metricAgent.Flush()
 	initcontainer.Run(logConfig, metricAgent, traceAgent, os.Args[1:])
 }
@@ -50,8 +50,13 @@ func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, metadata *metadata.
 	}
 }
 
-func setupMetricAgent() *metrics.ServerlessMetricAgent {
+func setupMetricAgent(metadata *metadata.Metadata) *metrics.ServerlessMetricAgent {
 	metricAgent := &metrics.ServerlessMetricAgent{}
+	tagMap := metadata.TagMap()
+	// we don't want to add the containerID tag to metrics for cardinality reasons
+	delete(tagMap, "containerid")
+	tagArray := tag.GetBaseTagsArrayWithMetadataTags(tagMap)
+	metricAgent.SetExtraTags(tagArray)
 	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	return metricAgent
 }
