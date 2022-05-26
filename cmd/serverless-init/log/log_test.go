@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/metadata"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/stretchr/testify/assert"
 )
@@ -42,9 +43,12 @@ func TestWrite(t *testing.T) {
 }
 
 func TestCreateConfig(t *testing.T) {
-	config := CreateConfig("abc456")
+	metadata := &metadata.Metadata{
+		ContainerID: &metadata.MetadataInfo{},
+	}
+	config := CreateConfig(metadata)
 	assert.Equal(t, 5*time.Second, config.FlushTimeout)
 	assert.Equal(t, "cloudrun", config.source)
 	assert.Equal(t, "DD_CLOUDRUN_LOG_AGENT", string(config.loggerName))
-	assert.Equal(t, "abc456", config.containerID)
+	assert.Equal(t, metadata, config.Metadata)
 }

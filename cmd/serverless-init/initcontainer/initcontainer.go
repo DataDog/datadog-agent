@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/timing"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -85,7 +86,7 @@ func handleSignals(process *os.Process, config *log.Config, metricAgent *metrics
 				}
 			}
 			if sig == syscall.SIGTERM {
-				metric.AddShutdownMetric(tag.GetBaseTagsArray(), time.Now(), metricAgent.Demux)
+				metric.AddShutdownMetric(tag.GetBaseTagsArrayWithMetadataTags(config.Metadata.TagMap()), time.Now(), metricAgent.Demux)
 			}
 		}
 	}()
@@ -113,19 +114,5 @@ func flush(flushTimeout time.Duration, metricAgent serverless.FlushableAgent, tr
 		wg.Done()
 	}(wg, ctx)
 
-	return waitWithTimeout(wg, flushTimeout)
-}
-
-func waitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
-	c := make(chan struct{})
-	go func() {
-		defer close(c)
-		wg.Wait()
-	}()
-	select {
-	case <-c:
-		return false
-	case <-time.After(timeout):
-		return true
-	}
+	return timing.WaitWithTimeout(wg, flushTimeout)
 }
