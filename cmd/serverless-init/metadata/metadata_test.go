@@ -63,7 +63,7 @@ func TestGetContainerID(t *testing.T) {
 		timeout:        1 * time.Second,
 		containerIDURL: ts.URL,
 	}
-	assert.Equal(t, &info{tagName: "containerid", value: "1234"}, getContainerID(testConfig))
+	assert.Equal(t, &info{tagName: "container_id", value: "1234"}, getContainerID(testConfig))
 }
 
 func TestGetRegionUnknown(t *testing.T) {
@@ -75,7 +75,7 @@ func TestGetRegionUnknown(t *testing.T) {
 		timeout:   1 * time.Second,
 		regionURL: ts.URL,
 	}
-	assert.Equal(t, &info{tagName: "region", value: "unknown"}, getRegion(testConfig))
+	assert.Equal(t, &info{tagName: "location", value: "unknown"}, getRegion(testConfig))
 }
 
 func TestGetRegionOK(t *testing.T) {
@@ -87,7 +87,7 @@ func TestGetRegionOK(t *testing.T) {
 		timeout:   1 * time.Second,
 		regionURL: ts.URL,
 	}
-	assert.Equal(t, &info{tagName: "region", value: "us-central1"}, getRegion(testConfig))
+	assert.Equal(t, &info{tagName: "location", value: "us-central1"}, getRegion(testConfig))
 }
 
 func TestGetProjectID(t *testing.T) {
@@ -99,7 +99,7 @@ func TestGetProjectID(t *testing.T) {
 		timeout:      1 * time.Second,
 		projectIDURL: ts.URL,
 	}
-	assert.Equal(t, &info{tagName: "projectid", value: "superproject"}, getProjectID(testConfig))
+	assert.Equal(t, &info{tagName: "project_id", value: "superproject"}, getProjectID(testConfig))
 }
 
 func TestGetMetaDataComplete(t *testing.T) {
@@ -124,9 +124,9 @@ func TestGetMetaDataComplete(t *testing.T) {
 	}
 
 	metadata := GetMetaData(testConfig)
-	assert.Equal(t, &info{tagName: "containerid", value: "acb54"}, metadata.containerID)
-	assert.Equal(t, &info{tagName: "region", value: "greatregion"}, metadata.region)
-	assert.Equal(t, &info{tagName: "projectid", value: "superprojectid"}, metadata.projectID)
+	assert.Equal(t, &info{tagName: "container_id", value: "acb54"}, metadata.containerID)
+	assert.Equal(t, &info{tagName: "location", value: "greatregion"}, metadata.region)
+	assert.Equal(t, &info{tagName: "project_id", value: "superprojectid"}, metadata.projectID)
 }
 
 func TestGetMetaDataIncompleteDueToTimeout(t *testing.T) {
@@ -152,29 +152,29 @@ func TestGetMetaDataIncompleteDueToTimeout(t *testing.T) {
 	}
 
 	metadata := GetMetaData(testConfig)
-	assert.Equal(t, &info{tagName: "containerid", value: "acb54"}, metadata.containerID)
+	assert.Equal(t, &info{tagName: "container_id", value: "acb54"}, metadata.containerID)
 	assert.Nil(t, metadata.region)
-	assert.Equal(t, &info{tagName: "projectid", value: "superprojectid"}, metadata.projectID)
+	assert.Equal(t, &info{tagName: "project_id", value: "superprojectid"}, metadata.projectID)
 }
 
 func TestTagMap(t *testing.T) {
 	metadata := Metadata{
 		projectID: &info{
-			tagName: "projectid",
+			tagName: "project_id",
 			value:   "myprojectid",
 		},
 		region: &info{
-			tagName: "region",
-			value:   "myregion",
+			tagName: "location",
+			value:   "mylocation",
 		},
 		containerID: &info{
-			tagName: "containerid",
+			tagName: "container_id",
 			value:   "f45ab",
 		},
 	}
 	tagMap := metadata.TagMap()
 	assert.Equal(t, 3, len(tagMap))
-	assert.Equal(t, "myprojectid", tagMap["projectid"])
-	assert.Equal(t, "myregion", tagMap["region"])
-	assert.Equal(t, "f45ab", tagMap["containerid"])
+	assert.Equal(t, "myprojectid", tagMap["project_id"])
+	assert.Equal(t, "mylocation", tagMap["location"])
+	assert.Equal(t, "f45ab", tagMap["container_id"])
 }

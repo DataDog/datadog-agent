@@ -6,7 +6,6 @@
 package log
 
 import (
-	"fmt"
 	"os"
 	"time"
 
@@ -75,13 +74,6 @@ func SetupLog(conf *Config) {
 	}
 	serverlessLogs.SetupLogAgent(conf.channel, sourceName, source)
 	serverlessLogs.SetLogsTags(tag.GetBaseTagsArrayWithMetadataTags(conf.Metadata.TagMap()))
-}
-
-func getTagsWithRevision(tags []string, containerID string) []string {
-	var result []string
-	result = append(result, tags...)
-	result = append(result, fmt.Sprintf("containerid:%s", containerID))
-	return result
 }
 
 func (cw *CustomWriter) Write(p []byte) (n int, err error) {

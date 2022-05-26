@@ -87,7 +87,7 @@ func GetMetaData(config *config) *Metadata {
 
 func getContainerID(config *config) *info {
 	return &info{
-		tagName: "containerid",
+		tagName: "container_id",
 		value:   getSingleMetadata(config.containerIDURL, config.timeout),
 	}
 }
@@ -96,14 +96,14 @@ func getRegion(config *config) *info {
 	value := getSingleMetadata(config.regionURL, config.timeout)
 	tokens := strings.Split(value, "/")
 	return &info{
-		tagName: "region",
+		tagName: "location",
 		value:   tokens[len(tokens)-1],
 	}
 }
 
 func getProjectID(config *config) *info {
 	return &info{
-		tagName: "projectid",
+		tagName: "project_id",
 		value:   getSingleMetadata(config.projectIDURL, config.timeout),
 	}
 }

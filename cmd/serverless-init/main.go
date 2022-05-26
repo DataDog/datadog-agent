@@ -54,8 +54,8 @@ func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, metadata *metadata.
 func setupMetricAgent(metadata *metadata.Metadata) *metrics.ServerlessMetricAgent {
 	metricAgent := &metrics.ServerlessMetricAgent{}
 	tagMap := metadata.TagMap()
-	// we don't want to add the containerID tag to metrics for cardinality reasons
-	delete(tagMap, "containerid")
+	// we don't want to add the container_id tag to metrics for cardinality reasons
+	delete(tagMap, "container_id")
 	tagArray := tag.GetBaseTagsArrayWithMetadataTags(tagMap)
 	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	metricAgent.SetExtraTags(tagArray)

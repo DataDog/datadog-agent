@@ -14,18 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetTagsWithRevision(t *testing.T) {
-	baseTags := []string{
-		"taga:valuea",
-		"tagb:valueb",
-	}
-	resultTags := getTagsWithRevision(baseTags, "45f45")
-	assert.Equal(t, 3, len(resultTags))
-	assert.Equal(t, "taga:valuea", resultTags[0])
-	assert.Equal(t, "tagb:valueb", resultTags[1])
-	assert.Equal(t, "containerid:45f45", resultTags[2])
-}
-
 func TestWrite(t *testing.T) {
 	testContent := []byte("hello this is a log")
 	logChannel := make(chan *config.ChannelMessage)

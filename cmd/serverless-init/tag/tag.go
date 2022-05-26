@@ -28,11 +28,11 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string) map[string]string {
 	tags := map[string]string{}
 	listTags := []tagPair{
 		{
-			name:    "cloudrunrevision",
+			name:    "revision_name",
 			envName: "K_REVISION",
 		},
 		{
-			name:    "cloudrunservice",
+			name:    "service_name",
 			envName: "K_SERVICE",
 		},
 		{

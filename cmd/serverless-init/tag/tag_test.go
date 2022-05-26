@@ -31,10 +31,10 @@ func TestGetBaseTagsArrayWithMetadataTagsNoMetadata(t *testing.T) {
 	tags := GetBaseTagsArrayWithMetadataTags(make(map[string]string, 0))
 	sort.Strings(tags)
 	assert.Equal(t, 5, len(tags))
-	assert.Equal(t, "cloudrunrevision:fdgf34", tags[0])
-	assert.Equal(t, "cloudrunservice:myservice", tags[1])
-	assert.Equal(t, "env:myenv", tags[2])
-	assert.Equal(t, "service:superservice", tags[3])
+	assert.Equal(t, "env:myenv", tags[0])
+	assert.Equal(t, "revision_name:fdgf34", tags[1])
+	assert.Equal(t, "service:superservice", tags[2])
+	assert.Equal(t, "service_name:myservice", tags[3])
 	assert.Equal(t, "version:123.4", tags[4])
 }
 
@@ -69,10 +69,10 @@ func TestGetBaseTagsMapNoMetadata(t *testing.T) {
 	defer os.Unsetenv("DD_VERSION")
 	tags := GetBaseTagsMapWithMetadata(make(map[string]string, 0))
 	assert.Equal(t, 5, len(tags))
-	assert.Equal(t, "fdgf34", tags["cloudrunrevision"])
-	assert.Equal(t, "myservice", tags["cloudrunservice"])
 	assert.Equal(t, "myenv", tags["env"])
+	assert.Equal(t, "fdgf34", tags["revision_name"])
 	assert.Equal(t, "superservice", tags["service"])
+	assert.Equal(t, "myservice", tags["service_name"])
 	assert.Equal(t, "123.4", tags["version"])
 }
 
@@ -80,25 +80,26 @@ func TestGetBaseTagsMapWithMetadata(t *testing.T) {
 	os.Setenv("K_SERVICE", "myService")
 	defer os.Unsetenv("K_SERVICE")
 	tags := GetBaseTagsMapWithMetadata(map[string]string{
-		"region":        "mysuperregion",
+		"location":      "mysuperlocation",
 		"othermetadata": "mysuperothermetadatavalue",
 	})
 	assert.Equal(t, 3, len(tags))
-	assert.Equal(t, "myservice", tags["cloudrunservice"])
-	assert.Equal(t, "mysuperregion", tags["region"])
+	assert.Equal(t, "mysuperlocation", tags["location"])
 	assert.Equal(t, "mysuperothermetadatavalue", tags["othermetadata"])
+	assert.Equal(t, "myservice", tags["service_name"])
 }
 
 func TestGetBaseTagsArrayWithMetadataTags(t *testing.T) {
 	os.Setenv("K_REVISION", "FDGF34")
 	defer os.Unsetenv("K_REVISION")
 	tags := GetBaseTagsArrayWithMetadataTags(map[string]string{
-		"region":        "mysuperregion",
+		"location":      "mysuperlocation",
 		"othermetadata": "mysuperothermetadatavalue",
 	})
 	sort.Strings(tags)
 	assert.Equal(t, 3, len(tags))
-	assert.Equal(t, "cloudrunrevision:fdgf34", tags[0])
+	assert.Equal(t, "location:mysuperlocation", tags[0])
 	assert.Equal(t, "othermetadata:mysuperothermetadatavalue", tags[1])
-	assert.Equal(t, "region:mysuperregion", tags[2])
+	assert.Equal(t, "revision_name:fdgf34", tags[2])
+
 }
