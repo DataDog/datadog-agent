@@ -11,12 +11,56 @@ import (
 	"strings"
 )
 
-func GetBaseTags() []string {
-	if len(os.Getenv("K_SERVICE")) > 0 && len(os.Getenv("K_REVISION")) > 0 {
-		return []string{
-			fmt.Sprintf("revision:%s", strings.ToLower(os.Getenv("K_REVISION"))),
-			fmt.Sprintf("service:%s", strings.ToLower(os.Getenv("K_SERVICE"))),
+type tagPair struct {
+	name    string
+	envName string
+}
+
+func getTag(envName string) (string, bool) {
+	value := os.Getenv(envName)
+	if len(value) == 0 {
+		return "", false
+	}
+	return strings.ToLower(value), true
+}
+
+func GetBaseTagsMap() map[string]string {
+	tags := map[string]string{}
+	listTags := []tagPair{
+		{
+			name:    "cloudrunrevision",
+			envName: "K_REVISION",
+		},
+		{
+			name:    "cloudrunservice",
+			envName: "K_SERVICE",
+		},
+		{
+			name:    "env",
+			envName: "DD_ENV",
+		},
+		{
+			name:    "service",
+			envName: "DD_SERVICE",
+		},
+		{
+			name:    "version",
+			envName: "DD_VERSION",
+		},
+	}
+	for _, tagPair := range listTags {
+		if value, found := getTag(tagPair.envName); found {
+			tags[tagPair.name] = value
 		}
 	}
-	return []string{}
+	return tags
+}
+
+func GetBaseTagsArray() []string {
+	tagsMap := GetBaseTagsMap()
+	tagsArray := make([]string, 0, len(tagsMap))
+	for key, value := range tagsMap {
+		tagsArray = append(tagsArray, fmt.Sprintf("%s:%s", key, value))
+	}
+	return tagsArray
 }

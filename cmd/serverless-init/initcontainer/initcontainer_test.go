@@ -17,13 +17,13 @@ import (
 )
 
 func TestBuildCommandParamWithArgs(t *testing.T) {
-	name, args := buildCommandParam("superCmd --verbose path -i .")
+	name, args := buildCommandParam([]string{"superCmd", "--verbose", "path", "-i", "."})
 	assert.Equal(t, "superCmd", name)
 	assert.Equal(t, []string{"--verbose", "path", "-i", "."}, args)
 }
 
 func TestBuildCommandParam(t *testing.T) {
-	name, args := buildCommandParam("superCmd")
+	name, args := buildCommandParam([]string{"superCmd"})
 	assert.Equal(t, "superCmd", name)
 	assert.Equal(t, []string{}, args)
 }
