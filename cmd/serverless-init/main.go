@@ -37,13 +37,14 @@ func main() {
 	go setupTraceAgent(traceAgent)
 
 	metricAgent := setupMetricAgent()
-	metric.AddColdStartMetric(tag.GetBaseTags(), time.Now(), metricAgent.Demux)
+	metric.AddColdStartMetric(tag.GetBaseTagsArray(), time.Now(), metricAgent.Demux)
 	go metricAgent.Flush()
 	initcontainer.Run(logConfig, metricAgent, traceAgent, os.Args[1:])
 }
 
 func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent) {
 	traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath})
+	traceAgent.SetTags(tag.GetBaseTagsMap())
 	for range time.Tick(3 * time.Second) {
 		traceAgent.Get().FlushSync()
 	}
