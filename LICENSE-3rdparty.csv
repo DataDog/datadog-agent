@@ -486,6 +486,7 @@ core,github.com/klauspost/compress/flate,BSD-3-Clause,Copyright (c) 2011 The Sna
 core,github.com/klauspost/compress/fse,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/gzip,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/huff0,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
+core,github.com/klauspost/compress/internal/cpuinfo,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/internal/snapref,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/zip,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/zstd,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2016 Caleb Spare | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
@@ -776,7 +777,6 @@ core,go.opencensus.io/trace/propagation,Apache-2.0,"Copyright 2018, OpenCensus A
 core,go.opencensus.io/trace/tracestate,Apache-2.0,"Copyright 2018, OpenCensus Authors"
 core,go.opentelemetry.io/collector/client,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/component,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/component/componenterror,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configauth,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configcompression,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -800,7 +800,6 @@ core,go.opentelemetry.io/collector/exporter/otlpexporter,Apache-2.0,Copyright Th
 core,go.opentelemetry.io/collector/extension/ballastextension,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/extension/experimental/storage,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/cgroups,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/internal/configunmarshaler,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/iruntime,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/middleware,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/obsreportconfig,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -840,6 +839,7 @@ core,go.opentelemetry.io/collector/service/featuregate,Apache-2.0,Copyright The 
 core,go.opentelemetry.io/collector/service/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/builder,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/components,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/service/internal/configunmarshaler,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/extensions,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/fanoutconsumer,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/telemetry,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -848,8 +848,6 @@ core,go.opentelemetry.io/collector/service/internal/zpages,Apache-2.0,Copyright 
 core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/contrib/zpages,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/contrib/zpages/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/attribute,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/baggage,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -888,7 +886,8 @@ core,go.opentelemetry.io/otel/sdk/metric/sdkapi,Apache-2.0,Copyright The OpenTel
 core,go.opentelemetry.io/otel/sdk/metric/selector/simple,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/resource,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/trace,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/otel/semconv/v1.7.0,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/semconv/internal,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/semconv/v1.10.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/trace,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.uber.org/atomic,MIT,"Copyright (c) 2016 Uber Technologies, Inc"
 core,go.uber.org/automaxprocs/internal/cgroups,MIT,"Copyright (c) 2017 Uber Technologies, Inc"
