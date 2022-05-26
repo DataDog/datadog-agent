@@ -85,9 +85,6 @@ func getTagsWithRevision(tags []string, containerID string) []string {
 }
 
 func (cw *CustomWriter) Write(p []byte) (n int, err error) {
-	if len(os.Getenv("DD_DISPLAY_LOGS")) > 0 {
-		fmt.Println(string(p))
-	}
 	Write(cw.LogConfig, p)
 	return len(p), nil
 }

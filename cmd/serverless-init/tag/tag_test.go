@@ -7,6 +7,7 @@ package tag
 
 import (
 	"os"
+	"sort"
 	"testing"
 
 	"gotest.tools/assert"
@@ -16,7 +17,7 @@ func TestGetBaseTagsArrayNoEnvNoMetadata(t *testing.T) {
 	assert.Equal(t, 0, len(GetBaseTagsArrayWithMetadataTags(make(map[string]string, 0))))
 }
 
-func GetBaseTagsArrayWithMetadataTagsNoMetadata(t *testing.T) {
+func TestGetBaseTagsArrayWithMetadataTagsNoMetadata(t *testing.T) {
 	os.Setenv("K_SERVICE", "myService")
 	defer os.Unsetenv("K_SERVICE")
 	os.Setenv("K_REVISION", "FDGF34")
@@ -28,6 +29,7 @@ func GetBaseTagsArrayWithMetadataTagsNoMetadata(t *testing.T) {
 	os.Setenv("DD_VERSION", "123.4")
 	defer os.Unsetenv("DD_VERSION")
 	tags := GetBaseTagsArrayWithMetadataTags(make(map[string]string, 0))
+	sort.Strings(tags)
 	assert.Equal(t, 5, len(tags))
 	assert.Equal(t, "cloudrunrevision:fdgf34", tags[0])
 	assert.Equal(t, "cloudrunservice:myservice", tags[1])
@@ -94,8 +96,9 @@ func TestGetBaseTagsArrayWithMetadataTags(t *testing.T) {
 		"region":        "mysuperregion",
 		"othermetadata": "mysuperothermetadatavalue",
 	})
+	sort.Strings(tags)
 	assert.Equal(t, 3, len(tags))
 	assert.Equal(t, "cloudrunrevision:fdgf34", tags[0])
-	assert.Equal(t, "region:mysuperregion", tags[1])
-	assert.Equal(t, "othermetadata:mysuperothermetadatavalue", tags[2])
+	assert.Equal(t, "othermetadata:mysuperothermetadatavalue", tags[1])
+	assert.Equal(t, "region:mysuperregion", tags[2])
 }

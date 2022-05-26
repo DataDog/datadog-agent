@@ -93,9 +93,11 @@ func getContainerID(config *Config) *MetadataInfo {
 }
 
 func getRegion(config *Config) *MetadataInfo {
+	value := getSingleMetadata(config.RegionUrl, config.timeout)
+	tokens := strings.Split(value, "/")
 	return &MetadataInfo{
 		tagName: "region",
-		value:   getSingleMetadata(config.RegionUrl, config.timeout),
+		value:   tokens[len(tokens)-1],
 	}
 }
 

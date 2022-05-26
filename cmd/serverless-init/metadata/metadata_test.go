@@ -66,16 +66,28 @@ func TestGetContainerID(t *testing.T) {
 	assert.Equal(t, &MetadataInfo{tagName: "containerid", value: "1234"}, getContainerID(testConfig))
 }
 
-func TestGetRegion(t *testing.T) {
+func TestGetRegionUnknown(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("superRegion"))
+		w.Write([]byte("unknown"))
 	}))
 	defer ts.Close()
 	testConfig := &Config{
 		timeout:   1 * time.Second,
 		RegionUrl: ts.URL,
 	}
-	assert.Equal(t, &MetadataInfo{tagName: "region", value: "superregion"}, getRegion(testConfig))
+	assert.Equal(t, &MetadataInfo{tagName: "region", value: "unknown"}, getRegion(testConfig))
+}
+
+func TestGetRegionOK(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("projects/xxx/regions/us-central1"))
+	}))
+	defer ts.Close()
+	testConfig := &Config{
+		timeout:   1 * time.Second,
+		RegionUrl: ts.URL,
+	}
+	assert.Equal(t, &MetadataInfo{tagName: "region", value: "us-central1"}, getRegion(testConfig))
 }
 
 func TestGetProjectID(t *testing.T) {
