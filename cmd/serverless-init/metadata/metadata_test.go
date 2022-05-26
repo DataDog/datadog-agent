@@ -22,7 +22,7 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestGetSingleMetadataMalformedUrl(t *testing.T) {
-	testConfig := &Config{
+	testConfig := &config{
 		timeout:        1 * time.Millisecond,
 		containerIDURL: string([]byte("\u007F")),
 	}
@@ -35,7 +35,7 @@ func TestSingleMedataTimeout(t *testing.T) {
 		w.WriteHeader(200)
 	}))
 	defer ts.Close()
-	testConfig := &Config{
+	testConfig := &config{
 		timeout:        1 * time.Millisecond,
 		containerIDURL: ts.URL,
 	}
@@ -47,7 +47,7 @@ func TestSingleMedataOK(t *testing.T) {
 		w.Write([]byte("1234"))
 	}))
 	defer ts.Close()
-	testConfig := &Config{
+	testConfig := &config{
 		timeout:        1 * time.Second,
 		containerIDURL: ts.URL,
 	}
@@ -59,7 +59,7 @@ func TestGetContainerID(t *testing.T) {
 		w.Write([]byte("1234"))
 	}))
 	defer ts.Close()
-	testConfig := &Config{
+	testConfig := &config{
 		timeout:        1 * time.Second,
 		containerIDURL: ts.URL,
 	}
@@ -71,7 +71,7 @@ func TestGetRegionUnknown(t *testing.T) {
 		w.Write([]byte("unknown"))
 	}))
 	defer ts.Close()
-	testConfig := &Config{
+	testConfig := &config{
 		timeout:   1 * time.Second,
 		regionURL: ts.URL,
 	}
@@ -83,7 +83,7 @@ func TestGetRegionOK(t *testing.T) {
 		w.Write([]byte("projects/xxx/regions/us-central1"))
 	}))
 	defer ts.Close()
-	testConfig := &Config{
+	testConfig := &config{
 		timeout:   1 * time.Second,
 		regionURL: ts.URL,
 	}
@@ -95,7 +95,7 @@ func TestGetProjectID(t *testing.T) {
 		w.Write([]byte("superproject"))
 	}))
 	defer ts.Close()
-	testConfig := &Config{
+	testConfig := &config{
 		timeout:      1 * time.Second,
 		projectIDURL: ts.URL,
 	}
@@ -116,7 +116,7 @@ func TestGetMetaDataComplete(t *testing.T) {
 	}))
 	defer tsContainerID.Close()
 
-	testConfig := &Config{
+	testConfig := &config{
 		timeout:        1 * time.Second,
 		projectIDURL:   tsProjectID.URL,
 		regionURL:      tsRegion.URL,
@@ -144,7 +144,7 @@ func TestGetMetaDataIncompleteDueToTimeout(t *testing.T) {
 	}))
 	defer tsContainerID.Close()
 
-	testConfig := &Config{
+	testConfig := &config{
 		timeout:        500 * time.Millisecond,
 		projectIDURL:   tsProjectID.URL,
 		regionURL:      tsRegion.URL,
