@@ -73,7 +73,7 @@ func SetupLog(conf *Config) {
 		}
 	}
 	serverlessLogs.SetupLogAgent(conf.channel, sourceName, source)
-	serverlessLogs.SetLogsTags(getTagsWithRevision(tag.GetBaseTags(), conf.containerID))
+	serverlessLogs.SetLogsTags(getTagsWithRevision(tag.GetBaseTagsArray(), conf.containerID))
 }
 
 func getTagsWithRevision(tags []string, containerID string) []string {

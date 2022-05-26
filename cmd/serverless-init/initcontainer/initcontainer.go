@@ -85,7 +85,7 @@ func handleSignals(process *os.Process, config *log.Config, metricAgent *metrics
 				}
 			}
 			if sig == syscall.SIGTERM {
-				metric.AddShutdownMetric(tag.GetBaseTags(), time.Now(), metricAgent.Demux)
+				metric.AddShutdownMetric(tag.GetBaseTagsArray(), time.Now(), metricAgent.Demux)
 			}
 		}
 	}()
