@@ -43,9 +43,7 @@ func TestWrite(t *testing.T) {
 }
 
 func TestCreateConfig(t *testing.T) {
-	metadata := &metadata.Metadata{
-		ContainerID: &metadata.MetadataInfo{},
-	}
+	metadata := &metadata.Metadata{}
 	config := CreateConfig(metadata)
 	assert.Equal(t, 5*time.Second, config.FlushTimeout)
 	assert.Equal(t, "cloudrun", config.source)

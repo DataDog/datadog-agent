@@ -17,49 +17,49 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const defaultBaseUrl = "http://metadata.google.internal/computeMetadata/v1"
-const defaultContainerIDUrl = "/instance/id"
-const defaultRegionUrl = "/instance/region"
+const defaultBaseURL = "http://metadata.google.internal/computeMetadata/v1"
+const defaultContainerIDURL = "/instance/id"
+const defaultRegionURL = "/instance/region"
 const defaultProjectID = "/project/project-id"
 const defaultTimeout = 300 * time.Millisecond
 
 type Config struct {
-	ContainerIDUrl string
-	RegionUrl      string
-	ProjectIDUrl   string
+	containerIDURL string
+	regionURL      string
+	projectIDURL   string
 	timeout        time.Duration
 }
 
-type MetadataInfo struct {
+type info struct {
 	tagName string
 	value   string
 }
 
 type Metadata struct {
-	ContainerID *MetadataInfo
-	Region      *MetadataInfo
-	ProjectID   *MetadataInfo
+	containerID *info
+	region      *info
+	projectID   *info
 }
 
 func (metadata *Metadata) TagMap() map[string]string {
 	tagMap := map[string]string{}
-	if metadata.ContainerID != nil {
-		tagMap[metadata.ContainerID.tagName] = metadata.ContainerID.value
+	if metadata.containerID != nil {
+		tagMap[metadata.containerID.tagName] = metadata.containerID.value
 	}
-	if metadata.Region != nil {
-		tagMap[metadata.Region.tagName] = metadata.Region.value
+	if metadata.region != nil {
+		tagMap[metadata.region.tagName] = metadata.region.value
 	}
-	if metadata.ProjectID != nil {
-		tagMap[metadata.ProjectID.tagName] = metadata.ProjectID.value
+	if metadata.projectID != nil {
+		tagMap[metadata.projectID.tagName] = metadata.projectID.value
 	}
 	return tagMap
 }
 
 func GetDefaultConfig() *Config {
 	return &Config{
-		ContainerIDUrl: fmt.Sprintf("%s%s", defaultBaseUrl, defaultContainerIDUrl),
-		RegionUrl:      fmt.Sprintf("%s%s", defaultBaseUrl, defaultRegionUrl),
-		ProjectIDUrl:   fmt.Sprintf("%s%s", defaultBaseUrl, defaultProjectID),
+		containerIDURL: fmt.Sprintf("%s%s", defaultBaseURL, defaultContainerIDURL),
+		regionURL:      fmt.Sprintf("%s%s", defaultBaseURL, defaultRegionURL),
+		projectIDURL:   fmt.Sprintf("%s%s", defaultBaseURL, defaultProjectID),
 		timeout:        defaultTimeout,
 	}
 }
@@ -69,15 +69,15 @@ func GetMetaData(config *Config) *Metadata {
 	metadata := &Metadata{}
 	wg.Add(3)
 	go func() {
-		metadata.ContainerID = getContainerID(config)
+		metadata.containerID = getContainerID(config)
 		wg.Done()
 	}()
 	go func() {
-		metadata.Region = getRegion(config)
+		metadata.region = getRegion(config)
 		wg.Done()
 	}()
 	go func() {
-		metadata.ProjectID = getProjectID(config)
+		metadata.projectID = getProjectID(config)
 		wg.Done()
 	}()
 	// make extra sure that we will not wait for this waig group forever
@@ -85,26 +85,26 @@ func GetMetaData(config *Config) *Metadata {
 	return metadata
 }
 
-func getContainerID(config *Config) *MetadataInfo {
-	return &MetadataInfo{
+func getContainerID(config *Config) *info {
+	return &info{
 		tagName: "containerid",
-		value:   getSingleMetadata(config.ContainerIDUrl, config.timeout),
+		value:   getSingleMetadata(config.containerIDURL, config.timeout),
 	}
 }
 
-func getRegion(config *Config) *MetadataInfo {
-	value := getSingleMetadata(config.RegionUrl, config.timeout)
+func getRegion(config *Config) *info {
+	value := getSingleMetadata(config.regionURL, config.timeout)
 	tokens := strings.Split(value, "/")
-	return &MetadataInfo{
+	return &info{
 		tagName: "region",
 		value:   tokens[len(tokens)-1],
 	}
 }
 
-func getProjectID(config *Config) *MetadataInfo {
-	return &MetadataInfo{
+func getProjectID(config *Config) *info {
+	return &info{
 		tagName: "projectid",
-		value:   getSingleMetadata(config.ProjectIDUrl, config.timeout),
+		value:   getSingleMetadata(config.projectIDURL, config.timeout),
 	}
 }
 
