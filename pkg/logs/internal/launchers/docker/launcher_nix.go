@@ -27,7 +27,7 @@ func checkReadAccess() error {
 	if coreConfig.Datadog.GetBool("logs_config.use_podman_logs") {
 		path = podmanBasePath
 	}
-	err := unix.Access(path, unix.X_OK)
+	err := unix.Access(path, unix.R_OK|unix.X_OK)
 	if err != nil {
 		return fmt.Errorf("Error accessing %s: %w", path, err)
 	}
