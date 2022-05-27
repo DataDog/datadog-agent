@@ -90,7 +90,7 @@ func (t *TCPQueueLengthCheck) Run() error {
 	}
 
 	data, err := sysProbeUtil.GetCheck(
-		fmt.Sprintf("%s/%s", string(sysconfig.TCPQueueLengthTracerModule), "tcp_queue_length"),
+		fmt.Sprintf("%s/%s", string(sysconfig.TCPQueueLengthTracerModule), "check/tcp_queue_length"),
 	)
 	if err != nil {
 		return err
