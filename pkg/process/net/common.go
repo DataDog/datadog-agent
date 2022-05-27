@@ -100,7 +100,6 @@ func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPer
 		return nil, err
 	}
 
-	procStatsURL := GetProcStatsURL()
 	req, err := http.NewRequest("POST", procStatsURL, bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, err
@@ -134,7 +133,6 @@ func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPer
 
 // GetConnections returns a set of active network connections, retrieved from the system probe service
 func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections, error) {
-	connectionsURL := GetConnectionsURL()
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s?client_id=%s", connectionsURL, clientID), nil)
 	if err != nil {
 		return nil, err
@@ -197,7 +195,6 @@ func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
 
 // Register registers the client to system probe
 func (r *RemoteSysProbeUtil) Register(clientID string) error {
-	registerURL := GetRegisterURL()
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s?client_id=%s", registerURL, clientID), nil)
 	if err != nil {
 		return err

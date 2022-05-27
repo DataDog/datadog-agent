@@ -15,13 +15,11 @@ import (
 )
 
 const (
-	connectionsEndpoint = "connections"
-	procStatsEndpoint   = "stats"
-	registerEndpoint    = "register"
-
-	urlPrefix = "http://unix"
-	statsURL  = "http://unix/debug/stats"
-	netType   = "unix"
+	connectionsURL = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/connections"
+	procStatsURL   = "http://unix/" + string(sysconfig.ProcessModule) + "/stats"
+	registerURL    = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/register"
+	statsURL       = "http://unix/debug/stats"
+	netType        = "unix"
 )
 
 // CheckPath is used in conjunction with calling the stats endpoint, since we are calling this
@@ -35,16 +33,4 @@ func CheckPath() error {
 		return fmt.Errorf("socket path does not exist: %v", err)
 	}
 	return nil
-}
-
-func GetConnectionsURL() string {
-	return fmt.Sprintf("%s/%s/%s", urlPrefix, string(sysconfig.NetworkTracerModule), connectionsEndpoint)
-}
-
-func GetProcStatsURL() string {
-	return fmt.Sprintf("%s/%s/%s", urlPrefix, string(sysconfig.ProcessModule), procStatsEndpoint)
-}
-
-func GetRegisterURL() string {
-	return fmt.Sprintf("%s/%s/%s", urlPrefix, string(sysconfig.NetworkTracerModule), registerEndpoint)
 }

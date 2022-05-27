@@ -13,6 +13,7 @@
 package ebpf
 
 import (
+	"fmt"
 	yaml "gopkg.in/yaml.v2"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
