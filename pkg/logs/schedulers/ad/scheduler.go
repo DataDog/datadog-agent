@@ -118,10 +118,12 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 				log.Warnf("Invalid configuration: %v", err)
 				continue
 			}
-			if source, found := s.sourcesByServiceID[identifier]; found {
-				delete(s.sourcesByServiceID, identifier)
-				s.mgr.RemoveSource(source)
+			for _, source := range s.sourcesByServiceID {
+				if identifier == source.Config.Identifier {
+					s.mgr.RemoveSource(source)
+				}
 			}
+
 		case s.newService(config):
 			// new service to remove
 			entityType, _, err := s.parseEntity(config.TaggerEntity)
