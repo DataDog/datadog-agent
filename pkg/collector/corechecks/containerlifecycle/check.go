@@ -97,6 +97,7 @@ func (c *Check) Run() error {
 		workloadmeta.NewFilter(
 			[]workloadmeta.Kind{workloadmeta.KindContainer},
 			workloadmeta.SourceRuntime,
+			workloadmeta.EventTypeAll,
 		),
 	)
 
@@ -106,6 +107,7 @@ func (c *Check) Run() error {
 		workloadmeta.NewFilter(
 			[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
 			workloadmeta.SourceNodeOrchestrator,
+			workloadmeta.EventTypeAll,
 		),
 	)
 
