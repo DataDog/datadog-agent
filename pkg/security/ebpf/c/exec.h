@@ -538,6 +538,7 @@ int kprobe_do_exit(struct pt_regs *ctx) {
 
     void *ignored = bpf_map_lookup_elem(&pid_ignored, &pid);
     if (ignored) {
+        bpf_map_delete_elem(&pid_ignored, &pid);
         return 0;
     }
 
