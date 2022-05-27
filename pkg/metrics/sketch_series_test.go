@@ -31,8 +31,8 @@ func TestString(t *testing.T) {
 		},
 	}
 	sketchSerieList := SketchSeriesList{
-		sketchSerie0,
-		sketchSerie1,
+		&sketchSerie0,
+		&sketchSerie1,
 	}
 	assert.Equal(t, "{\"sketches\":[{\"metric\":\"sketchSerie0\",\"tags\":[],\"host\":\"hostSketchSerie0\",\"interval\":10,\"points\":[{\"sketch\":null,\"ts\":1},{\"sketch\":null,\"ts\":2}]},{\"metric\":\"sketchSerie1\",\"tags\":[],\"host\":\"hostSketchSerie1\",\"interval\":100,\"points\":[{\"sketch\":null,\"ts\":3},{\"sketch\":null,\"ts\":4}]}]}\n", sketchSerieList.String())
 }

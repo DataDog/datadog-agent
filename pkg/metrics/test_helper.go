@@ -86,20 +86,20 @@ func AssertSerieEqual(t *testing.T, expected, actual *Serie) {
 type sketchComparator func(exp, act *quantile.Sketch) bool
 
 // AssertSketchSeriesEqual checks whether two SketchSeries are equal
-func AssertSketchSeriesEqual(t assert.TestingT, exp, act SketchSeries) {
+func AssertSketchSeriesEqual(t assert.TestingT, exp, act *SketchSeries) {
 	assertSketchSeriesEqualWithComparator(t, exp, act, func(exp, act *quantile.Sketch) bool {
 		return exp.Equals(act)
 	})
 }
 
 // AssertSketchSeriesApproxEqual checks whether two SketchSeries are approximately equal. e represents the acceptable error %
-func AssertSketchSeriesApproxEqual(t assert.TestingT, exp, act SketchSeries, e float64) {
+func AssertSketchSeriesApproxEqual(t assert.TestingT, exp, act *SketchSeries, e float64) {
 	assertSketchSeriesEqualWithComparator(t, exp, act, func(exp, act *quantile.Sketch) bool {
 		return quantile.SketchesApproxEqual(exp, act, e)
 	})
 }
 
-func assertSketchSeriesEqualWithComparator(t assert.TestingT, exp, act SketchSeries, compareFn sketchComparator) {
+func assertSketchSeriesEqualWithComparator(t assert.TestingT, exp, act *SketchSeries, compareFn sketchComparator) {
 	if h, ok := t.(tHelper); ok {
 		h.Helper()
 	}

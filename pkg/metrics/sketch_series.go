@@ -31,7 +31,7 @@ type SketchPoint struct {
 }
 
 // SketchSeriesList is a collection of SketchSeries
-type SketchSeriesList []SketchSeries
+type SketchSeriesList []*SketchSeries
 
 // MarshalJSON serializes sketch series to JSON.
 func (sl SketchSeriesList) MarshalJSON() ([]byte, error) {

@@ -18,9 +18,9 @@ import (
 )
 
 // Makeseries creates a metrics.SketchSeries with i+5 Sketch Points
-func Makeseries(i int) metrics.SketchSeries {
+func Makeseries(i int) *metrics.SketchSeries {
 	// Makeseries is deterministic so that we can test for mutation.
-	ss := metrics.SketchSeries{
+	ss := &metrics.SketchSeries{
 		Name: fmt.Sprintf("name.%d", i),
 		Tags: tagset.CompositeTagsFromSlice([]string{
 			fmt.Sprintf("a:%d", i),

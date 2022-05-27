@@ -110,7 +110,7 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 	sl[0] = Makeseries(0)
 
 	// A small item (no dropped)
-	sl[1] = metrics.SketchSeries{
+	sl[1] = &metrics.SketchSeries{
 		Name:     "small",
 		Tags:     tagset.CompositeTagsFromSlice([]string{}),
 		Host:     "",

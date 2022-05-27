@@ -19,7 +19,7 @@ import (
 )
 
 // A SketchSeriesList implements marshaler.Marshaler
-type SketchSeriesList []metrics.SketchSeries
+type SketchSeriesList []*metrics.SketchSeries
 
 var (
 	expvars                    = expvar.NewMap("sketch_series")

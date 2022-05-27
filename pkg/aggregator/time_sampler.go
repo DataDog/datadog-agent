@@ -96,9 +96,9 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 		}
 	}
 }
-func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) metrics.SketchSeries {
+func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
 	ctx, _ := s.contextResolver.get(ck)
-	ss := metrics.SketchSeries{
+	ss := &metrics.SketchSeries{
 		Name:       ctx.Name,
 		Tags:       ctx.Tags(),
 		Host:       ctx.Host,

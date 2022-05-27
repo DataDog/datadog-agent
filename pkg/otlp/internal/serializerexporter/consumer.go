@@ -53,7 +53,7 @@ func (c *serializerConsumer) enrichedTags(dimensions *translator.Dimensions) []s
 }
 
 func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *translator.Dimensions, ts uint64, qsketch *quantile.Sketch) {
-	c.sketches = append(c.sketches, metrics.SketchSeries{
+	c.sketches = append(c.sketches, &metrics.SketchSeries{
 		Name:     dimensions.Name(),
 		Tags:     tagset.CompositeTagsFromSlice(c.enrichedTags(dimensions)),
 		Host:     dimensions.Host(),
