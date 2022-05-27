@@ -141,7 +141,8 @@ type ArgsEnvs struct {
 // ArgsEnvsCacheEntry defines a args/envs base entry
 //msgp:ignore ArgsEnvsCacheEntry
 type ArgsEnvsCacheEntry struct {
-	ArgsEnvs
+	Size      uint32
+	ValuesRaw []byte
 
 	Container *list.Element
 
@@ -158,6 +159,8 @@ func (p *ArgsEnvsCacheEntry) release() {
 	for entry != nil {
 		next := entry.next
 
+		entry.Size = 0
+		entry.ValuesRaw = nil
 		entry.next = nil
 		entry.last = nil
 		entry.refCount = 0
@@ -214,7 +217,7 @@ func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 
 	for entry != nil {
 		v, err := UnmarshalStringArray(entry.ValuesRaw[:entry.Size])
-		if err != nil || entry.Size == 128 {
+		if err != nil || entry.Size == 256 {
 			if len(v) > 0 {
 				v[len(v)-1] = v[len(v)-1] + "..."
 			}
@@ -223,6 +226,7 @@ func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 		if len(v) > 0 {
 			values = append(values, v...)
 		}
+		entry.ValuesRaw = nil
 
 		entry = entry.next
 	}
