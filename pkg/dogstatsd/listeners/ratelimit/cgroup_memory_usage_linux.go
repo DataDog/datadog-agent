@@ -9,11 +9,13 @@
 package ratelimit
 
 import (
-	"errors"
 	"fmt"
-	"time"
+	"os"
+	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var _ memoryUsage = (*hostMemoryUsage)(nil)
@@ -33,31 +35,36 @@ func newCgroupMemoryUsage() (*cgroupMemoryUsage, error) {
 	}
 
 	// Check if a Cgroup is defined
-	if _, err := limit.getMemoryUsageRate(); err != nil {
+	rate, err := limit.getMemoryUsageRate()
+	if err != nil {
 		return nil, err
 	}
-
+	fmt.Println("Initial memory rate is: ", rate)
 	return limit, nil
 }
 
 func (c *cgroupMemoryUsage) getMemoryUsageRate() (float64, error) {
-	if err := c.reader.RefreshCgroups(15 * time.Minute); err != nil {
-		return 0, err
-	}
-	groups := c.reader.ListCgroups()
-	if len(groups) != 1 {
-		return 0, fmt.Errorf("cannot find a single cgroup. Found: %v groups", len(groups))
-	}
-	var stats cgroups.MemoryStats
-	if err := groups[0].GetMemoryStats(&stats); err != nil {
-		return 0, err
-	}
-	if stats.Limit == nil || *stats.Limit == 0 {
-		return 0, errors.New("cannot get the memory `Limit`")
-	}
-	if stats.UsageTotal == nil || *stats.UsageTotal == 0 {
-		return 0, errors.New("cannot get the memory `UsageTotal`")
+	usageBytes, err := os.ReadFile("/sys/fs/cgroup/memory/memory.usage_in_bytes")
+	if err != nil {
+		return 0, log.Errorf("Cannot read memory.usage_in_bytes %v", err)
 	}
 
-	return float64(*stats.UsageTotal) / float64(*stats.Limit), nil
+	limitBytes, err := os.ReadFile("/sys/fs/cgroup/memory/memory.limit_in_bytes")
+	if err != nil {
+		return 0, log.Errorf("Cannot read memory.limit_in_bytes %v", err)
+	}
+
+	usageStr := strings.TrimSpace(string(usageBytes))
+	usage, err := strconv.Atoi(usageStr)
+	if err != nil {
+		return 0, log.Errorf("Usage invalid number %v %v", usageStr, err)
+	}
+
+	limitStr := strings.TrimSpace(string(limitBytes))
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		return 0, log.Errorf("Limit invalid number %v %v", limitStr, err)
+	}
+
+	return float64(usage) / float64(limit), nil
 }
