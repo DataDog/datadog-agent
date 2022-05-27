@@ -86,25 +86,53 @@ var otlpTestTracesRequest = testutil.NewOTLPTracesRequest([]testutil.OTLPResourc
 
 func TestOTLPNameRemapping(t *testing.T) {
 	cfg := config.New()
-	cfg.OTLPReceiver.SpanNameRemappings = map[string]string{"libname.unspecified": "new"}
+	cfg.OTLPReceiver.SpanNameRemappings = map[string]string{
+		"libname.unspecified": "new",
+		"go.opentelemetry.io_contrib_instrumentation_net_http_otelhttp.client": "http.client",
+	}
 	out := make(chan *Payload, 1)
 	rcv := NewOTLPReceiver(out, cfg)
-	rcv.ReceiveResourceSpans(testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+	for _, tt := range []struct {
+		in   []testutil.OTLPResourceSpan
+		want string
+	}{
 		{
-			LibName:    "libname",
-			LibVersion: "1.2",
-			Attributes: map[string]interface{}{},
-			Spans: []*testutil.OTLPSpan{
-				{Name: "asd"},
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{Name: "asd"},
+					},
+				},
 			},
+			want: "new",
 		},
-	}).Traces().ResourceSpans().At(0), http.Header{}, "")
-	timeout := time.After(500 * time.Millisecond)
-	select {
-	case <-timeout:
-		t.Fatal("timed out")
-	case p := <-out:
-		assert.Equal(t, "new", p.TracerPayload.Chunks[0].Spans[0].Name)
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp",
+					LibVersion: "1.0.0",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{Name: "asd", Kind: ptrace.SpanKindClient},
+					},
+				},
+			},
+			want: "http.client",
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			rcv.ReceiveResourceSpans(testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0), http.Header{}, "")
+			timeout := time.After(500 * time.Millisecond)
+			select {
+			case <-timeout:
+				t.Fatal("timed out")
+			case p := <-out:
+				assert.Equal(t, tt.want, p.TracerPayload.Chunks[0].Spans[0].Name)
+			}
+		})
 	}
 }
 

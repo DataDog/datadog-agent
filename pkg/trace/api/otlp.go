@@ -509,6 +509,13 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 				name = "opentelemetry." + name
 			}
 		}
+
+		normalized, err := traceutil.NormalizeName(name)
+		if err != nil {
+			log.Warnf("failed to normalize span name, use default span name: %v", err)
+		}
+		name = normalized
+
 		if v, ok := o.conf.OTLPReceiver.SpanNameRemappings[name]; ok {
 			name = v
 		}
