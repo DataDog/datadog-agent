@@ -739,6 +739,8 @@ func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) 
 	if err != nil {
 		return nil, err
 	}
+	defer rootNSHandle.Close()
+
 	rootNS, err := util.GetInoForNs(rootNSHandle)
 	if err != nil {
 		return nil, err
@@ -763,6 +765,8 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer rootNSHandle.Close()
+
 	rootNS, err := util.GetInoForNs(rootNSHandle)
 	if err != nil {
 		return nil, err
