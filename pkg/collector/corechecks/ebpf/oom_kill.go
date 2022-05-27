@@ -20,6 +20,7 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -91,7 +92,9 @@ func (m *OOMKillCheck) Run() error {
 		return err
 	}
 
-	data, err := sysProbeUtil.GetCheck("oom_kill")
+	data, err := sysProbeUtil.GetCheck(
+		fmt.Sprintf("%s/%s", string(sysconfig.OOMKillProbeModule), "oom_kill"),
+	)
 	if err != nil {
 		return err
 	}

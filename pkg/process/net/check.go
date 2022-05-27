@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	checksURL = "http://unix/check"
+	checksURL = "http://unix"
 )
 
 // GetCheck returns the output of the specified check

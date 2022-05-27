@@ -10,15 +10,18 @@ package net
 
 import (
 	"fmt"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"os"
 )
 
 const (
-	connectionsURL = "http://unix/connections"
-	statsURL       = "http://unix/debug/stats"
-	procStatsURL   = "http://unix/proc/stats"
-	registerURL    = "http://unix/network_tracer/register"
-	netType        = "unix"
+	connectionsEndpoint = "connections"
+	procStatsEndpoint   = "stats"
+	registerEndpoint    = "register"
+
+	urlPrefix = "http://unix"
+	statsURL  = "http://unix/debug/stats"
+	netType   = "unix"
 )
 
 // CheckPath is used in conjunction with calling the stats endpoint, since we are calling this
@@ -32,4 +35,16 @@ func CheckPath() error {
 		return fmt.Errorf("socket path does not exist: %v", err)
 	}
 	return nil
+}
+
+func GetConnectionsURL() string {
+	return fmt.Sprintf("%s/%s/%s", urlPrefix, string(sysconfig.NetworkTracerModule), connectionsEndpoint)
+}
+
+func GetProcStatsURL() string {
+	return fmt.Sprintf("%s/%s/%s", urlPrefix, string(sysconfig.ProcessModule), procStatsEndpoint)
+}
+
+func GetRegisterURL() string {
+	return fmt.Sprintf("%s/%s/%s", urlPrefix, string(sysconfig.NetworkTracerModule), registerEndpoint)
 }
