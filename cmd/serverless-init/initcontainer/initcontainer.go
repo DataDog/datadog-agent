@@ -47,7 +47,7 @@ func execute(config *log.Config, metricAgent *metrics.ServerlessMetricAgent, tra
 	cmd.Stderr = &log.CustomWriter{
 		LogConfig: config,
 	}
-	handleSignals(cmd.Process, config, metricAgent)
+	handleSignals(cmd.Process, config, metricAgent, traceAgent)
 	err := cmd.Start()
 	if err != nil {
 		return err
@@ -69,12 +69,10 @@ func buildCommandParam(cmdArg []string) (string, []string) {
 	return commandName, []string{}
 }
 
-func handleSignals(process *os.Process, config *log.Config, metricAgent *metrics.ServerlessMetricAgent) {
-	sigs := make(chan os.Signal, 1)
-	defer close(sigs)
-	signal.Notify(sigs)
-	defer signal.Reset()
+func handleSignals(process *os.Process, config *log.Config, metricAgent *metrics.ServerlessMetricAgent, traceAgent *trace.ServerlessTraceAgent) {
 	go func() {
+		sigs := make(chan os.Signal, 1)
+		signal.Notify(sigs)
 		for sig := range sigs {
 			if sig != syscall.SIGURG {
 				log.Write(config, []byte(fmt.Sprintf("[datadog init process] %s received", sig)))
@@ -86,6 +84,8 @@ func handleSignals(process *os.Process, config *log.Config, metricAgent *metrics
 			}
 			if sig == syscall.SIGTERM {
 				metric.AddShutdownMetric(metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
+				flush(config.FlushTimeout, metricAgent, traceAgent)
+				os.Exit(0)
 			}
 		}
 	}()
