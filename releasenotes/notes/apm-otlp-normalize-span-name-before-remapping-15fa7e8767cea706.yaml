@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    APM OTLP: Normalize span name before remapping for OTLP
+    APM OTLP: Normalize span name before remapping for OTLP.
