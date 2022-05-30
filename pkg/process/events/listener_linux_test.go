@@ -18,6 +18,8 @@ import (
 // assertProcessEvents compares two ProcessEvents. Two events can't be compared using directly assert.Equal
 // due to the embedded time fields
 func assertProcessEvents(t *testing.T, expected, actual *model.ProcessEvent) {
+	t.Helper()
+
 	assert.Equal(t, expected.EventType, actual.EventType)
 	assert.WithinDuration(t, expected.CollectionTime, actual.CollectionTime, 0)
 	assert.Equal(t, expected.Pid, actual.Pid)
@@ -69,7 +71,7 @@ func TestProcessEventFiltering(t *testing.T) {
 		require.NoError(t, err)
 		l.consumeData(data)
 	}
-	assert.Equal(t, calledHandlers, len(handlers))
+	assert.Equal(t, len(handlers), calledHandlers)
 }
 
 // TestProcessEventHandling mocks a SecurityModuleClient and asserts that the Listener bubbles up the correct events

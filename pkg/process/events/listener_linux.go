@@ -28,13 +28,18 @@ import (
 
 // SysProbeListener collects process events using the runtime-security module in system-probe
 type SysProbeListener struct {
-	client        api.SecurityModuleClient
-	conn          *grpc.ClientConn
-	running       atomic.Value
-	connected     atomic.Value
+	// client holds a gRPC client to connect to System-Probe
+	client api.SecurityModuleClient
+	// conn holds the connection used by the client, so it can be closed once the listener is stopped
+	conn *grpc.ClientConn
+	// retryInterval is how long the listener will wait before trying to reconnect to system-probe if there's a connection failure
 	retryInterval time.Duration
-	handler       EventHandler
-	wg            sync.WaitGroup
+	// handler is the EventHandler function applied to every event collected by the listener
+	handler EventHandler
+	// running, connected and wg are used to control the main listener routine
+	running   atomic.Value
+	connected atomic.Value
+	wg        sync.WaitGroup
 }
 
 // NewListener returns a new SysProbeListener to listen for process events
