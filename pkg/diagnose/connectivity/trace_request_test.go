@@ -17,17 +17,17 @@ import (
 
 var (
 	apiKey                    = "api_key1"
-	endpointInfoWithApiKey    = endpointInfo{Endpoint: endpoints.V1ValidateEndpoint, APIKeyInQueryString: true}
-	endpointInfoWithoutApiKey = endpointInfo{Endpoint: endpoints.V1SeriesEndpoint, APIKeyInQueryString: false}
+	endpointInfoWithAPIKey    = endpointInfo{Endpoint: endpoints.V1ValidateEndpoint, APIKeyInQueryString: true}
+	endpointInfoWithoutAPIKey = endpointInfo{Endpoint: endpoints.V1SeriesEndpoint, APIKeyInQueryString: false}
 )
 
 func TestCreateEndpointUrl(t *testing.T) {
 
-	urlWithApiKey := createEndpointURL("https://domain", endpointInfoWithApiKey, apiKey)
-	urlWithoutApiKey := createEndpointURL("https://domain2", endpointInfoWithoutApiKey, apiKey)
+	urlWithAPIKey := createEndpointURL("https://domain", endpointInfoWithAPIKey, apiKey)
+	urlWithoutAPIKey := createEndpointURL("https://domain2", endpointInfoWithoutAPIKey, apiKey)
 
-	assert.Equal(t, urlWithApiKey, "https://domain/api/v1/validate?api_key=api_key1")
-	assert.Equal(t, urlWithoutApiKey, "https://domain2/api/v1/series")
+	assert.Equal(t, urlWithAPIKey, "https://domain/api/v1/validate?api_key=api_key1")
+	assert.Equal(t, urlWithoutAPIKey, "https://domain2/api/v1/series")
 }
 
 func TestSendHTTPRequestToEndpoint(t *testing.T) {
@@ -48,13 +48,13 @@ func TestSendHTTPRequestToEndpoint(t *testing.T) {
 	client := forwarder.NewHTTPClient()
 
 	// With the API Key, it should be a 200
-	statusCodeWithKey, responseBodyWithKey, errWithKey := sendHTTPRequestToEndpoint(client, ts1.URL, endpointInfoWithApiKey, apiKey)
+	statusCodeWithKey, responseBodyWithKey, errWithKey := sendHTTPRequestToEndpoint(client, ts1.URL, endpointInfoWithAPIKey, apiKey)
 	assert.Nil(t, errWithKey)
 	assert.Equal(t, statusCodeWithKey, 200)
 	assert.Equal(t, string(responseBodyWithKey), "OK")
 
 	// Without the API Key, it should be a 400
-	statusCode, responseBody, err := sendHTTPRequestToEndpoint(client, ts1.URL, endpointInfoWithoutApiKey, apiKey)
+	statusCode, responseBody, err := sendHTTPRequestToEndpoint(client, ts1.URL, endpointInfoWithoutAPIKey, apiKey)
 	assert.Nil(t, err)
 	assert.Equal(t, statusCode, 400)
 	assert.Equal(t, string(responseBody), "Bad Request")
