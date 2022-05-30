@@ -122,7 +122,7 @@ func TestMkdir(t *testing.T) {
 			result := <-ch
 			ret, err := result.ReturnInt()
 			if err != nil {
-				if err == syscall.EBADF {
+				if err == syscall.EBADF || err == syscall.EINVAL {
 					return ErrSkipTest{"mkdirat not supported by io_uring"}
 				}
 				return err
