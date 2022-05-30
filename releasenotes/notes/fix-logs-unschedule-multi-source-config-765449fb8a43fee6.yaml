@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    This fixes a regression introduced in ``7.36.0`` where some logs sources attached to a container/pod would not be
+    unscheduled on container/pod stop if multiple logs configs were attached to the container/pod.
+    This could lead to duplicate log entries being created on container/pod restart as there would
+    be more than one tailer tailing the targeted source.
