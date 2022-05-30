@@ -23,10 +23,12 @@ func NewListener(handler EventHandler) (*FallbackListener, error) {
 	return nil, errors.New("Process event collection is not yet supported on this system")
 }
 
+// Run starts the listener
 func (*FallbackListener) Run() {
 	log.Error("Process event collection is not yet supported on this system")
 }
 
+// Stop stops the listener
 func (*FallbackListener) Stop() {
 	log.Error("Process event collection is not yet supported on this system")
 }

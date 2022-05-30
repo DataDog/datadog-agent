@@ -7,4 +7,5 @@ package events
 
 import "github.com/DataDog/datadog-agent/pkg/process/events/model"
 
+// EventHandler is a function used by the listener to handle a collected process event
 type EventHandler func(e *model.ProcessEvent)
