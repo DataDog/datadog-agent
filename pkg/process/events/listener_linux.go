@@ -32,7 +32,7 @@ type SysProbeListener struct {
 	client api.SecurityModuleClient
 	// conn holds the connection used by the client, so it can be closed once the listener is stopped
 	conn *grpc.ClientConn
-	// retryInterval is how long the listener will wait before trying to reconnect to system-probe if there's a connection failure
+	// retryInterval is how long the listener will wait before trying to reconnect to System-Probe if there's a connection failure
 	retryInterval time.Duration
 	// handler is the EventHandler function applied to every event collected by the listener
 	handler EventHandler
