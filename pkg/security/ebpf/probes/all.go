@@ -10,6 +10,7 @@ package probes
 
 import (
 	"math"
+	"os"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -180,7 +181,7 @@ func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize in
 	}
 	if supportsRingBuffers {
 		editors["events"] = manager.MapSpecEditor{
-			MaxEntries: 4096 * 64,
+			MaxEntries: uint32(4096 * os.Getpagesize()),
 			Type:       ebpf.RingBuf,
 			EditorFlag: manager.EditType | manager.EditMaxEntries,
 		}
