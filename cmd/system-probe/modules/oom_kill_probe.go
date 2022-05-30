@@ -44,7 +44,7 @@ type oomKillModule struct {
 }
 
 func (o *oomKillModule) Register(httpMux *module.Router) error {
-	httpMux.HandleFunc("/check/oom_kill", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
 		atomic.StoreInt64(&o.lastCheck, time.Now().Unix())
 		stats := o.OOMKillProbe.GetAndFlush()
 		utils.WriteAsJSON(w, stats)

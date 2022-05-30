@@ -92,9 +92,7 @@ func (m *OOMKillCheck) Run() error {
 		return err
 	}
 
-	data, err := sysProbeUtil.GetCheck(
-		fmt.Sprintf("%s/%s", string(sysconfig.OOMKillProbeModule), "check/oom_kill"),
-	)
+	data, err := sysProbeUtil.GetCheck(sysconfig.OOMKillProbeModule)
 	if err != nil {
 		return err
 	}

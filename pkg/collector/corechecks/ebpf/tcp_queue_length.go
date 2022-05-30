@@ -13,7 +13,6 @@
 package ebpf
 
 import (
-	"fmt"
 	yaml "gopkg.in/yaml.v2"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -89,9 +88,7 @@ func (t *TCPQueueLengthCheck) Run() error {
 		return err
 	}
 
-	data, err := sysProbeUtil.GetCheck(
-		fmt.Sprintf("%s/%s", string(sysconfig.TCPQueueLengthTracerModule), "check/tcp_queue_length"),
-	)
+	data, err := sysProbeUtil.GetCheck(sysconfig.TCPQueueLengthTracerModule)
 	if err != nil {
 		return err
 	}
