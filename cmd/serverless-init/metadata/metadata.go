@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/timing"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -67,34 +66,36 @@ func GetDefaultConfig() *Config {
 
 func GetMetaData(config *Config) *Metadata {
 	wg := sync.WaitGroup{}
-	metadata := &Metadata{}
 	wg.Add(3)
+	httpClient := &http.Client{
+		Timeout: config.timeout,
+	}
+	metadata := &Metadata{}
 	go func() {
-		metadata.containerID = getContainerID(config)
+		metadata.containerID = getContainerID(httpClient, config)
 		wg.Done()
 	}()
 	go func() {
-		metadata.region = getRegion(config)
+		metadata.region = getRegion(httpClient, config)
 		wg.Done()
 	}()
 	go func() {
-		metadata.projectID = getProjectID(config)
+		metadata.projectID = getProjectID(httpClient, config)
 		wg.Done()
 	}()
-	// make extra sure that we will not wait for this waig group forever
-	timing.WaitWithTimeout(&wg, config.timeout)
+	wg.Wait()
 	return metadata
 }
 
-func getContainerID(config *Config) *info {
+func getContainerID(httpClient *http.Client, config *Config) *info {
 	return &info{
 		tagName: "container_id",
-		value:   getSingleMetadata(config.containerIDURL, config.timeout),
+		value:   getSingleMetadata(httpClient, config.containerIDURL),
 	}
 }
 
-func getRegion(config *Config) *info {
-	value := getSingleMetadata(config.regionURL, config.timeout)
+func getRegion(httpClient *http.Client, config *Config) *info {
+	value := getSingleMetadata(httpClient, config.regionURL)
 	tokens := strings.Split(value, "/")
 	return &info{
 		tagName: "location",
@@ -102,24 +103,21 @@ func getRegion(config *Config) *info {
 	}
 }
 
-func getProjectID(config *Config) *info {
+func getProjectID(httpClient *http.Client, config *Config) *info {
 	return &info{
 		tagName: "project_id",
-		value:   getSingleMetadata(config.projectIDURL, config.timeout),
+		value:   getSingleMetadata(httpClient, config.projectIDURL),
 	}
 }
 
-func getSingleMetadata(url string, timeout time.Duration) string {
-	client := &http.Client{
-		Timeout: timeout,
-	}
+func getSingleMetadata(httpClient *http.Client, url string) string {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		log.Error("unable to build the metadata request, defaulting to unknown")
 		return "unknown"
 	}
 	req.Header.Add("Metadata-Flavor", "Google")
-	res, err := client.Do(req)
+	res, err := httpClient.Do(req)
 	if err != nil {
 		log.Error("unable to get the requested metadata, defaulting to unknown")
 		return "unknown"
