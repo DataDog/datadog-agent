@@ -30,7 +30,7 @@ type Store interface {
 	// Stop stops the store
 	Stop()
 	// Push sends an event to be stored. An optional channel can be passed to acknowledge when the event is successfully written
-	Push(*model.ProcessEvent, chan bool)
+	Push(*model.ProcessEvent, chan bool) error
 	// Pull fetches all events in the store that haven't been consumed yet
 	Pull(context.Context, time.Duration) ([]*model.ProcessEvent, error)
 }
@@ -148,7 +148,7 @@ func (s *RingStore) Stop() {
 
 // Push adds an event to the RingStore. If the store is full, the oldest event is dropped to make space for the new one
 // The done channel is optional. It's used to signal if the event has been successfully written to the Store
-func (s *RingStore) Push(e *model.ProcessEvent, done chan bool) {
+func (s *RingStore) Push(e *model.ProcessEvent, done chan bool) error {
 	r := &pushRequest{
 		event: e,
 		done:  done,
@@ -163,7 +163,11 @@ func (s *RingStore) Push(e *model.ProcessEvent, done chan bool) {
 		if done != nil {
 			done <- false
 		}
+
+		return errors.New("too many pending push requests")
 	}
+
+	return nil
 }
 
 // Pull returns all events stored in the RingStore
