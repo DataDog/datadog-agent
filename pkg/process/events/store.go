@@ -8,6 +8,7 @@ package events
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -83,7 +84,7 @@ type RingStore struct {
 func readPositiveInt(key string) (int, error) {
 	i := ddconfig.Datadog.GetInt(key)
 	if i <= 0 {
-		return 0, errors.New("invalid setting. " + key + " should be > 0")
+		return 0, fmt.Errorf("invalid setting. %s must be > 0", key)
 	}
 
 	return i, nil

@@ -25,7 +25,11 @@ import (
 )
 
 var (
-	pullInterval = 5 * time.Second
+	pullInterval time.Duration
+)
+
+const (
+	defaultPullInterval = time.Duration(5) * time.Second
 )
 
 // EventsCmd is a command to interact with process lifecycle events
@@ -53,7 +57,7 @@ var EventsPullCmd = &cobra.Command{
 
 func init() {
 	EventsCmd.AddCommand(EventsListenCmd, EventsPullCmd)
-	EventsPullCmd.Flags().DurationVarP(&pullInterval, "tick", "t", 5*time.Second, "The period between 2 consecutive pulls to fetch process events")
+	EventsPullCmd.Flags().DurationVarP(&pullInterval, "tick", "t", defaultPullInterval, "The period between 2 consecutive pulls to fetch process events")
 }
 
 func bootstrapEventsCmd(cmd *cobra.Command) error {
@@ -87,7 +91,7 @@ func bootstrapEventsCmd(cmd *cobra.Command) error {
 func printEvent(e *model.ProcessEvent) {
 	b, err := json.MarshalIndent(e, "", "  ")
 	if err != nil {
-		log.Error("Error while marshalling process event: ", err.Error())
+		log.Errorf("Error while marshalling process event: %v", err)
 	}
 	fmt.Println(string(b))
 }
