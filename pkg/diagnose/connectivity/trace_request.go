@@ -28,7 +28,7 @@ func RunDatadogConnectivityDiagnose() error {
 	// Create domain resolvers
 	keysPerDomain, err := config.GetMultipleEndpoints()
 	if err != nil {
-		log.Error("Misconfiguration of agent endpoints: ", err)
+		return log.Error("Misconfiguration of agent endpoints: ", err)
 	}
 
 	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
