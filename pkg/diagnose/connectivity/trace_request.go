@@ -37,21 +37,17 @@ func RunDatadogConnectivityDiagnose(noTrace bool) error {
 
 	client := forwarder.NewHTTPClient()
 
-	if noTrace {
-		diagnoseTrace = emptyTrace
-	}
-
 	// Send requests to all endpoints for all domains
 	fmt.Println("\n================ Starting connectivity diagnosis ================")
 	for _, domainResolver := range domainResolvers {
-		sendRequestToAllEndpointOfADomain(client, domainResolver)
+		sendRequestToAllEndpointOfADomain(client, domainResolver, noTrace)
 	}
 
 	return nil
 }
 
 // sendRequestToAllEndpointOfADomain sends HTTP request on all endpoints for a given domain
-func sendRequestToAllEndpointOfADomain(client *http.Client, domainResolver resolver.DomainResolver) {
+func sendRequestToAllEndpointOfADomain(client *http.Client, domainResolver resolver.DomainResolver, noTrace bool) {
 
 	// Go through all API Keys of a domain and send an HTTP request on each endpoint
 	for _, apiKey := range domainResolver.GetAPIKeys() {
@@ -59,7 +55,13 @@ func sendRequestToAllEndpointOfADomain(client *http.Client, domainResolver resol
 		for _, endpointInfo := range endpointsInfo {
 
 			domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
-			statusCode, responseBody, err := sendHTTPRequestToEndpoint(client, domain, endpointInfo, apiKey)
+
+			ctx := context.Background()
+			if !noTrace {
+				ctx = httptrace.WithClientTrace(context.Background(), createDiagnoseTrace())
+			}
+
+			statusCode, responseBody, err := sendHTTPRequestToEndpoint(ctx, client, domain, endpointInfo, apiKey)
 
 			// Check if there is a response and if it's valid
 			verifyEndpointResponse(statusCode, responseBody, err)
@@ -69,12 +71,11 @@ func sendRequestToAllEndpointOfADomain(client *http.Client, domainResolver resol
 
 // sendHTTPRequestToEndpoint creates an URL based on the domain and the endpoint information
 // then sends an HTTP Request with the method and payload inside the endpoint information
-func sendHTTPRequestToEndpoint(client *http.Client, domain string, endpointInfo endpointInfo, apiKey string) (int, []byte, error) {
+func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain string, endpointInfo endpointInfo, apiKey string) (int, []byte, error) {
 	url := createEndpointURL(domain, endpointInfo, apiKey)
 	logURL := scrubber.ScrubLine(url)
 
 	// Enable HTTP trace
-	ctx := httptrace.WithClientTrace(context.Background(), diagnoseTrace)
 
 	fmt.Printf("\n======== '%v' ========\n", color.BlueString(logURL))
 
