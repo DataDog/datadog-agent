@@ -14,6 +14,9 @@
 // _________^
 #define HTTP_STATUS_OFFSET 9
 
+// This is needed to reduce code size on multiple copy opitmizations that were made in
+// the http eBPF program.
+_Static_assert((HTTP_BUFFER_SIZE % 8) == 0, "HTTP_BUFFER_SIZE must be a multiple of 8.");
 
 typedef enum
 {
@@ -48,7 +51,7 @@ typedef struct {
     __u64 request_started;
     __u16 response_status_code;
     __u64 response_last_seen;
-    char request_fragment[HTTP_BUFFER_SIZE];
+    char request_fragment[HTTP_BUFFER_SIZE] __attribute__ ((aligned (8)));
 
     // this field is used exclusively in the kernel side to prevent a TCP segment
     // to be processed twice in the context of localhost traffic. The field will
