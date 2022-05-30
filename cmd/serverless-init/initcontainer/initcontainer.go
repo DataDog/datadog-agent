@@ -93,7 +93,7 @@ func handleSignals(process *os.Process, config *serverlessLog.Config, metricAgen
 }
 
 func flush(flushTimeout time.Duration, metricAgent serverless.FlushableAgent, traceAgent serverless.FlushableAgent) bool {
-	var hasTimeout int32 = 0
+	var hasTimeout int32
 	wg := &sync.WaitGroup{}
 	wg.Add(3)
 	go flushAndWait(flushTimeout, wg, metricAgent, hasTimeout)
@@ -108,16 +108,15 @@ func flush(flushTimeout time.Duration, metricAgent serverless.FlushableAgent, tr
 	return atomic.LoadInt32(&hasTimeout) > 0
 }
 
-func flushWithContext(ctx context.Context, timeout time.Duration, timeoutchan chan struct{}, flushFunction func()) error {
+func flushWithContext(ctx context.Context, timeout time.Duration, timeoutchan chan struct{}, flushFunction func()) {
 	flushFunction()
 	select {
 	case timeoutchan <- struct{}{}:
 		log.Debug("finished flushing")
 	case <-ctx.Done():
 		log.Error("timed out while flushing")
-		return ctx.Err()
+		return
 	}
-	return nil
 }
 
 func flushAndWait(flushTimeout time.Duration, wg *sync.WaitGroup, agent serverless.FlushableAgent, hasTimeout int32) {
