@@ -15,6 +15,8 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+
+	lru "github.com/hashicorp/golang-lru"
 )
 
 const (
@@ -971,8 +973,11 @@ func (f RetValError) String() string {
 	return ""
 }
 
+var capsStringArrayCache *lru.Cache
+
 func init() {
 	initConstants()
+	capsStringArrayCache, _ = lru.New(4)
 }
 
 // KernelCapability represents a kernel capability bitmask value
@@ -984,7 +989,12 @@ func (kc KernelCapability) String() string {
 
 // StringArray returns the kernel capabilities as an array of strings
 func (kc KernelCapability) StringArray() []string {
-	return bitmaskU64ToStringArray(uint64(kc), kernelCapabilitiesStrings)
+	if value, ok := capsStringArrayCache.Get(kc); ok {
+		return value.([]string)
+	}
+	computed := bitmaskU64ToStringArray(uint64(kc), kernelCapabilitiesStrings)
+	capsStringArrayCache.Add(kc, computed)
+	return computed
 }
 
 // BPFCmd represents a BPF command
