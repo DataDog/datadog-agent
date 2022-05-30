@@ -32,14 +32,15 @@ type SysProbeListener struct {
 	client api.SecurityModuleClient
 	// conn holds the connection used by the client, so it can be closed once the listener is stopped
 	conn *grpc.ClientConn
-	// retryInterval is how long the listener will wait before trying to reconnect to system-probe if there's a connection failure
+	// retryInterval is how long the listener will wait before trying to reconnect to System-Probe if there's a connection failure
 	retryInterval time.Duration
 	// handler is the EventHandler function applied to every event collected by the listener
 	handler EventHandler
-	// running, connected and wg are used to control the main listener routine
-	running   atomic.Value
+	// connected holds the status of the connection to System-Probe
 	connected atomic.Value
-	wg        sync.WaitGroup
+	// wg and exit are used to control the main listener routine
+	wg   sync.WaitGroup
+	exit chan struct{}
 }
 
 // NewListener returns a new SysProbeListener to listen for process events
@@ -71,14 +72,13 @@ func newSysProbeListener(conn *grpc.ClientConn, client api.SecurityModuleClient,
 		conn:          conn,
 		retryInterval: 2 * time.Second,
 		handler:       handler,
+		exit:          make(chan struct{}),
 	}, nil
 }
 
 // Run starts a new thread to listen for process events
 func (l *SysProbeListener) Run() {
 	log.Info("Start listening for process events")
-	l.running.Store(true)
-	l.connected.Store(false)
 
 	l.wg.Add(1)
 	go func() {
@@ -89,35 +89,42 @@ func (l *SysProbeListener) Run() {
 
 // run keeps polling the SecurityModule server for process events
 func (l *SysProbeListener) run() {
+	l.connected.Store(false)
 	logTicker := newLogBackoffTicker()
-	for l.running.Load() == true {
-		stream, err := l.client.GetProcessEvents(context.Background(), &api.GetProcessEventParams{})
-		if err != nil {
-			l.connected.Store(false)
 
-			select {
-			case <-logTicker.C:
-				log.Warnf("Error while connecting to the runtime-security module: %v", err)
-			default:
-				// do nothing
+	for {
+		select {
+		case <-l.exit:
+			return
+		default:
+			stream, err := l.client.GetProcessEvents(context.Background(), &api.GetProcessEventParams{})
+			if err != nil {
+				l.connected.Store(false)
+
+				select {
+				case <-logTicker.C:
+					log.Warnf("Error while connecting to the runtime-security module: %v", err)
+				default:
+					// do nothing
+				}
+
+				time.Sleep(l.retryInterval)
+				continue
 			}
 
-			time.Sleep(l.retryInterval)
-			continue
-		}
+			if l.connected.Load() != true {
+				l.connected.Store(true)
 
-		if l.connected.Load() != true {
-			l.connected.Store(true)
-
-			log.Info("Successfully connected to the runtime-security module")
-		}
-
-		for {
-			in, err := stream.Recv()
-			if err == io.EOF || in == nil {
-				break
+				log.Info("Successfully connected to the runtime-security module")
 			}
-			l.consumeData(in.Data)
+
+			for {
+				in, err := stream.Recv()
+				if err == io.EOF || in == nil {
+					break
+				}
+				l.consumeData(in.Data)
+			}
 		}
 	}
 
@@ -151,7 +158,7 @@ func (l *SysProbeListener) consumeData(data []byte) {
 // Stop stops the thread listening for process events
 func (l *SysProbeListener) Stop() {
 	log.Info("Stopping listening for process events")
-	l.running.Store(false)
+	close(l.exit)
 	l.wg.Wait()
 	// conn may be nil during tests
 	if l.conn != nil {

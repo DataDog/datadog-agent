@@ -165,26 +165,20 @@ func TestSecurityModuleClientReconnect(t *testing.T) {
 	client.On("GetProcessEvents", ctx, &api.GetProcessEventParams{}).Return(stream, nil).WaitUntil(reconnect)
 
 	l.Run()
-	assert.Eventually(t, func() bool { return l.running.Load() == true }, 2*time.Second, 20*time.Millisecond,
-		"event listener didn't start")
 	assert.Eventually(t, func() bool { return l.connected.Load() == true }, 2*time.Second, 20*time.Millisecond,
 		"event listener can't connect to SecurityModule server")
 
 	// Next call to mocked GetProcessEvents blocks until drop channel is closed
 	close(drop)
-	assert.True(t, l.running.Load() == true)
 	assert.Eventually(t, func() bool { return l.connected.Load() == false }, 2*time.Second, 20*time.Millisecond,
 		"event listener shouldn't be connected to SecurityModule server")
 
 	// Next call to mocked GetProcessEvents blocks until reconnect channel is closed
 	close(reconnect)
-	assert.True(t, l.running.Load() == true)
 	assert.Eventually(t, func() bool { return l.connected.Load() == true }, 2*time.Second, 20*time.Millisecond,
 		"event listener should be connected to SecurityModule server")
 
 	l.Stop()
-	assert.Eventually(t, func() bool { return l.running.Load() == false }, 2*time.Second, 20*time.Millisecond,
-		"event listener should have stopped")
 
 	client.AssertExpectations(t)
 	stream.AssertExpectations(t)
