@@ -57,6 +57,7 @@ func NewWorker(
 	}
 }
 
+// NewHTTPClient creates a new http.Client
 func NewHTTPClient() *http.Client {
 	transport := httputils.CreateHTTPTransport()
 
