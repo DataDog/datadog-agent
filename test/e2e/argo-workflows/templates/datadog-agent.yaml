@@ -119,6 +119,8 @@ spec:
             token: c9e21a248434a400b1de021dbdd554d790983a1212a5eac0ba36e79346ec52fd
             metricsProvider:
               enabled: true
+            admissionController:
+              enabled: true
             env:
               - name: DATADOG_HOST
                 value: {{inputs.parameters.dd-url}}

@@ -586,6 +586,7 @@ func InitConfig(config Config) {
 	// Containerd
 	config.BindEnvAndSetDefault("containerd_namespace", []string{})
 	config.BindEnvAndSetDefault("containerd_namespaces", []string{}) // alias for containerd_namespace
+	config.BindEnvAndSetDefault("containerd_exclude_namespaces", []string{"moby"})
 	config.BindEnvAndSetDefault("container_env_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("container_labels_as_tags", map[string]string{})
 

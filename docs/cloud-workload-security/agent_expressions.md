@@ -166,6 +166,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
+| `async` | bool | True if the syscall was asynchronous |
 | `container.id` | string | ID of the container |
 | `container.tags` | string | Tags of the container |
 | `network.destination.ip` | IP/CIDR | IP address |
@@ -279,7 +280,6 @@ A bind was executed
 | `bind.addr.family` | int | Address family |
 | `bind.addr.ip` | IP/CIDR | IP address |
 | `bind.addr.port` | int | Port number |
-| `bind.async` | bool | True if the syscall was asynchronous |
 | `bind.retval` | int | Return value of the syscall |
 
 ### Event `bpf`
@@ -288,7 +288,6 @@ A BPF command was executed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `bpf.async` | bool | True if the syscall was asynchronous |
 | `bpf.cmd` | int | BPF command name |
 | `bpf.map.name` | string | Name of the eBPF map (added in 7.35) |
 | `bpf.map.type` | int | Type of the eBPF map |
@@ -314,7 +313,6 @@ A file’s permissions were changed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `chmod.async` | bool | True if the syscall was asynchronous |
 | `chmod.file.change_time` | int | Change time of the file |
 | `chmod.file.destination.mode` | int | New mode/rights of the chmod-ed file |
 | `chmod.file.destination.rights` | int | New mode/rights of the chmod-ed file |
@@ -339,7 +337,6 @@ A file’s owner was changed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `chown.async` | bool | True if the syscall was asynchronous |
 | `chown.file.change_time` | int | Change time of the file |
 | `chown.file.destination.gid` | int | New GID of the chown-ed file's owner |
 | `chown.file.destination.group` | string | New group of the chown-ed file's owner |
@@ -430,7 +427,6 @@ Create a new name/alias for a file
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `link.async` | bool | True if the syscall was asynchronous |
 | `link.file.change_time` | int | Change time of the file |
 | `link.file.destination.change_time` | int | Change time of the file |
 | `link.file.destination.filesystem` | string | File's filesystem |
@@ -467,7 +463,6 @@ A new kernel module was loaded
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `load_module.async` | bool | True if the syscall was asynchronous |
 | `load_module.file.change_time` | int | Change time of the file |
 | `load_module.file.filesystem` | string | File's filesystem |
 | `load_module.file.gid` | int | GID of the file's owner |
@@ -492,7 +487,6 @@ A directory was created
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `mkdir.async` | bool | True if the syscall was asynchronous |
 | `mkdir.file.change_time` | int | Change time of the file |
 | `mkdir.file.destination.mode` | int | Mode/rights of the new directory |
 | `mkdir.file.destination.rights` | int | Mode/rights of the new directory |
@@ -517,7 +511,6 @@ A mmap command was executed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `mmap.async` | bool | True if the syscall was asynchronous |
 | `mmap.file.change_time` | int | Change time of the file |
 | `mmap.file.filesystem` | string | File's filesystem |
 | `mmap.file.gid` | int | GID of the file's owner |
@@ -542,7 +535,6 @@ A mprotect command was executed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `mprotect.async` | bool | True if the syscall was asynchronous |
 | `mprotect.req_protection` | int | new memory segment protection |
 | `mprotect.retval` | int | Return value of the syscall |
 | `mprotect.vm_protection` | int | initial memory segment protection |
@@ -553,7 +545,6 @@ A file was opened
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `open.async` | bool | True if the syscall was asynchronous |
 | `open.file.change_time` | int | Change time of the file |
 | `open.file.destination.mode` | int | Mode of the created file |
 | `open.file.filesystem` | string | File's filesystem |
@@ -578,7 +569,6 @@ A ptrace command was executed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `ptrace.async` | bool | True if the syscall was asynchronous |
 | `ptrace.request` | int | ptrace request |
 | `ptrace.retval` | int | Return value of the syscall |
 | `ptrace.tracee.ancestors.args` | string | Arguments of the process (as a string) |
@@ -678,7 +668,6 @@ Remove extended attributes
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `removexattr.async` | bool | True if the syscall was asynchronous |
 | `removexattr.file.change_time` | int | Change time of the file |
 | `removexattr.file.destination.name` | string | Name of the extended attribute |
 | `removexattr.file.destination.namespace` | string | Namespace of the extended attribute |
@@ -703,7 +692,6 @@ A file/directory was renamed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `rename.async` | bool | True if the syscall was asynchronous |
 | `rename.file.change_time` | int | Change time of the file |
 | `rename.file.destination.change_time` | int | Change time of the file |
 | `rename.file.destination.filesystem` | string | File's filesystem |
@@ -740,7 +728,6 @@ A directory was removed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `rmdir.async` | bool | True if the syscall was asynchronous |
 | `rmdir.file.change_time` | int | Change time of the file |
 | `rmdir.file.filesystem` | string | File's filesystem |
 | `rmdir.file.gid` | int | GID of the file's owner |
@@ -800,7 +787,6 @@ Set exteneded attributes
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `setxattr.async` | bool | True if the syscall was asynchronous |
 | `setxattr.file.change_time` | int | Change time of the file |
 | `setxattr.file.destination.name` | string | Name of the extended attribute |
 | `setxattr.file.destination.namespace` | string | Namespace of the extended attribute |
@@ -825,7 +811,6 @@ A signal was sent
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `signal.async` | bool | True if the syscall was asynchronous |
 | `signal.pid` | int | Target PID |
 | `signal.retval` | int | Return value of the syscall |
 | `signal.target.ancestors.args` | string | Arguments of the process (as a string) |
@@ -926,7 +911,6 @@ A splice command was executed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `splice.async` | bool | True if the syscall was asynchronous |
 | `splice.file.change_time` | int | Change time of the file |
 | `splice.file.filesystem` | string | File's filesystem |
 | `splice.file.gid` | int | GID of the file's owner |
@@ -951,7 +935,6 @@ A file was deleted
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `unlink.async` | bool | True if the syscall was asynchronous |
 | `unlink.file.change_time` | int | Change time of the file |
 | `unlink.file.filesystem` | string | File's filesystem |
 | `unlink.file.gid` | int | GID of the file's owner |
@@ -974,7 +957,6 @@ A kernel module was deleted
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `unload_module.async` | bool | True if the syscall was asynchronous |
 | `unload_module.name` | string | Name of the kernel module that was deleted |
 | `unload_module.retval` | int | Return value of the syscall |
 
@@ -984,7 +966,6 @@ Change file access/modification times
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `utimes.async` | bool | True if the syscall was asynchronous |
 | `utimes.file.change_time` | int | Change time of the file |
 | `utimes.file.filesystem` | string | File's filesystem |
 | `utimes.file.gid` | int | GID of the file's owner |

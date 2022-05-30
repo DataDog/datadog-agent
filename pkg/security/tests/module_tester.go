@@ -99,7 +99,7 @@ runtime_security_config:
     dir: {{.TestPoliciesDir}}
   log_patterns:
   {{range .LogPatterns}}
-    - {{.}}
+    - "{{.}}"
   {{end}}
   log_tags:
   {{range .LogTags}}

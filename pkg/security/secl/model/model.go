@@ -128,7 +128,8 @@ type ContainerContext struct {
 // genaccessors
 type Event struct {
 	ID           string    `field:"-"`
-	Type         uint64    `field:"-"`
+	Type         uint32    `field:"-"`
+	Async        bool      `field:"async" msg:"async" event:"*"` // True if the syscall was asynchronous
 	TimestampRaw uint64    `field:"-"`
 	Timestamp    time.Time `field:"-"` // Timestamp of the event
 
@@ -636,7 +637,6 @@ type SetXAttrEvent struct {
 // SyscallEvent contains common fields for all the event
 type SyscallEvent struct {
 	Retval int64 `field:"retval" msg:"retval"` // Return value of the syscall
-	Async  bool  `field:"async" msg:"async"`   // True if the syscall was asynchronous
 }
 
 // UnlinkEvent represents an unlink event

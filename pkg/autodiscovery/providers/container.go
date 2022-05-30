@@ -87,6 +87,7 @@ func (d *ContainerConfigProvider) listen() {
 	workloadmetaEventsChannel := d.workloadmetaStore.Subscribe("ad-containerprovider", workloadmeta.NormalPriority, workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindContainer},
 		workloadmeta.SourceRuntime,
+		workloadmeta.EventTypeAll,
 	))
 
 	for {
