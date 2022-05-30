@@ -337,7 +337,7 @@ type BindEventSerializer struct {
 // ExitEventSerializer serializes an exit event to JSON
 // easyjson:json
 type ExitEventSerializer struct {
-	Cause string `json:"cause" jsonschema_description:"Cause of the process termination"`
+	Cause string `json:"cause" jsonschema_description:"Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)"`
 	Code  uint32 `json:"code" jsonschema_description:"Exit code of the process"`
 }
 
@@ -745,7 +745,7 @@ func newBindEventSerializer(e *Event) *BindEventSerializer {
 func newExitEventSerializer(e *Event) *ExitEventSerializer {
 	return &ExitEventSerializer{
 		Cause: model.ExitCause(e.Exit.Cause).String(),
-		Code: e.Exit.Code,
+		Code:  e.Exit.Code,
 	}
 }
 
@@ -943,6 +943,10 @@ func NewEventSerializer(event *Event) *EventSerializer {
 	case model.ForkEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 	case model.ExitEventType:
+		s.FileEventSerializer = &FileEventSerializer{
+			FileSerializer: *newFileSerializer(&event.ProcessContext.Process.FileEvent, event),
+		}
+		s.ExitEventSerializer = newExitEventSerializer(event)
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 	case model.ExecEventType:
 		s.FileEventSerializer = &FileEventSerializer{
