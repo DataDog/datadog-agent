@@ -449,6 +449,25 @@ int test_forkexec(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_exit_fork(int argc, char **argv) {
+    if (argc >= 2 && strcmp(argv[1], "exec") == 0) {
+        int child = fork();
+        if (child == 0) {
+            char *const args[] = {"syscall_tester_child", NULL};
+            execv("/proc/self/exe", args);
+        } else {
+            wait(NULL);
+        }
+    } else {
+        int child = fork();
+        if (child > 0) {
+            wait(NULL);
+        }
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please pass a command\n");
@@ -479,6 +498,8 @@ int main(int argc, char **argv) {
         return test_bind(argc - 1, argv + 1);
     } else if (strcmp(cmd, "fork") == 0) {
         return test_forkexec(argc - 1, argv + 1);
+    } else if (strcmp(cmd, "exit-fork") == 0) {
+        return test_exit_fork(argc - 1, argv + 1);
     } else {
         fprintf(stderr, "Unknown command `%s`\n", cmd);
         return EXIT_FAILURE;
