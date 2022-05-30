@@ -23,7 +23,8 @@ const defaultRegionURL = "/instance/region"
 const defaultProjectID = "/project/project-id"
 const defaultTimeout = 300 * time.Millisecond
 
-type config struct {
+// Config holds the metadata configuration
+type Config struct {
 	containerIDURL string
 	regionURL      string
 	projectIDURL   string
@@ -55,8 +56,8 @@ func (metadata *Metadata) TagMap() map[string]string {
 	return tagMap
 }
 
-func GetDefaultConfig() *config {
-	return &config{
+func GetDefaultConfig() *Config {
+	return &Config{
 		containerIDURL: fmt.Sprintf("%s%s", defaultBaseURL, defaultContainerIDURL),
 		regionURL:      fmt.Sprintf("%s%s", defaultBaseURL, defaultRegionURL),
 		projectIDURL:   fmt.Sprintf("%s%s", defaultBaseURL, defaultProjectID),
@@ -64,7 +65,7 @@ func GetDefaultConfig() *config {
 	}
 }
 
-func GetMetaData(config *config) *Metadata {
+func GetMetaData(config *Config) *Metadata {
 	wg := sync.WaitGroup{}
 	metadata := &Metadata{}
 	wg.Add(3)
@@ -85,14 +86,14 @@ func GetMetaData(config *config) *Metadata {
 	return metadata
 }
 
-func getContainerID(config *config) *info {
+func getContainerID(config *Config) *info {
 	return &info{
 		tagName: "container_id",
 		value:   getSingleMetadata(config.containerIDURL, config.timeout),
 	}
 }
 
-func getRegion(config *config) *info {
+func getRegion(config *Config) *info {
 	value := getSingleMetadata(config.regionURL, config.timeout)
 	tokens := strings.Split(value, "/")
 	return &info{
@@ -101,7 +102,7 @@ func getRegion(config *config) *info {
 	}
 }
 
-func getProjectID(config *config) *info {
+func getProjectID(config *Config) *info {
 	return &info{
 		tagName: "project_id",
 		value:   getSingleMetadata(config.projectIDURL, config.timeout),
