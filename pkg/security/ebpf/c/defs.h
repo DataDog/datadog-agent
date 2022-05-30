@@ -236,9 +236,8 @@ struct kevent_t {
     u64 cpu;
     u64 timestamp;
     u32 type;
-    u32 async:8,
-        padding:24;
-
+    u8 async;
+    u8 padding[3];
 };
 
 struct syscall_t {
