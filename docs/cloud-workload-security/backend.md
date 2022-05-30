@@ -423,7 +423,7 @@ CWS logs have the following JSON schema:
     "properties": {
         "cause": {
             "type": "string",
-            "description": "Cause of the process termination"
+            "description": "Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)"
         },
         "code": {
             "type": "integer",
@@ -438,7 +438,7 @@ CWS logs have the following JSON schema:
 
 | Field | Description |
 | ----- | ----------- |
-| `cause` | Cause of the process termination |
+| `cause` | Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED) |
 | `code` | Exit code of the process |
 
 

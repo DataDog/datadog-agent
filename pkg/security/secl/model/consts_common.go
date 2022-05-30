@@ -2038,14 +2038,14 @@ const (
 type ExitCause uint32
 
 func (cause ExitCause) String() string {
-   return exitCauseStrings[cause]
+	return exitCauseStrings[cause]
 }
 
 const (
-    // ExitExited Process exited normally
-    ExitExited ExitCause = iota
-    // ExitCoreDumped Process was terminated with a coredump signal
-    ExitCoreDumped
-    // ExitSignaled Process was terminated with a signal other than a coredump
-    ExitSignaled
+	// ExitExited Process exited normally
+	ExitExited ExitCause = iota
+	// ExitCoreDumped Process was terminated with a coredump signal
+	ExitCoreDumped
+	// ExitSignaled Process was terminated with a signal other than a coredump
+	ExitSignaled
 )

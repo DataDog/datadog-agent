@@ -1312,7 +1312,7 @@
       "name": "exit",
       "definition": "A process terminated",
       "type": "Process",
-      "from_agent_version": "7.3x",
+      "from_agent_version": "7.38",
       "experimental": false,
       "properties": [
         {

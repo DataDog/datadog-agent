@@ -215,15 +215,15 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 func (e *ExitEvent) UnmarshalBinary(data []byte) (int, error) {
 	// Unmarshal exit code
 	if len(data) < 4 {
-        return 0, ErrNotEnoughData
+		return 0, ErrNotEnoughData
 	}
 
 	exitStatus := ByteOrder.Uint32(data[0:4])
-	if exitStatus & 0x7F == 0x00 { // process terminated normally
+	if exitStatus&0x7F == 0x00 { // process terminated normally
 		e.Cause = uint32(ExitExited)
-		e.Code = uint32(exitStatus >> 8) & 0xFF
-	} else if exitStatus & 0x7F != 0x7F { // process terminated because of a signal
-		if exitStatus & 0x80 == 0x80 { // coredump signal
+		e.Code = uint32(exitStatus>>8) & 0xFF
+	} else if exitStatus&0x7F != 0x7F { // process terminated because of a signal
+		if exitStatus&0x80 == 0x80 { // coredump signal
 			e.Cause = uint32(ExitCoreDumped)
 			e.Code = uint32(exitStatus & 0x7F)
 		} else { // other signals

@@ -264,7 +264,7 @@
       "properties": {
         "cause": {
           "type": "string",
-          "description": "Cause of the process termination"
+          "description": "Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)"
         },
         "code": {
           "type": "integer",
