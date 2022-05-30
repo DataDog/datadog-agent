@@ -79,13 +79,11 @@ func GetValueFromPDU(pduVariable gosnmp.SnmpPDU) (interface{}, error) {
 	}
 }
 
-// internal func used to convert the output of `GetValueFromPDU` to a string for debug/trace logging
-func standardTypeToString(value interface{}) (string, error) {
+// StandardTypeToString can be used to convert the output of `GetValueFromPDU` to a string
+func StandardTypeToString(value interface{}) (string, error) {
 	switch value.(type) {
 	case float64:
 		return strconv.Itoa(int(value.(float64))), nil
-	case float32:
-		return strconv.Itoa(int(value.(float32))), nil
 	case string:
 		return value.(string), nil
 	case []byte:
@@ -119,7 +117,7 @@ func PacketAsString(packet *gosnmp.SnmpPacket) string {
 		value := fmt.Sprintf("%v", pduVariable.Value)
 		resValue, err := GetValueFromPDU(pduVariable)
 		if err == nil {
-			resValueStr, err := standardTypeToString(resValue)
+			resValueStr, err := StandardTypeToString(resValue)
 			if err == nil {
 				value = resValueStr
 			}
