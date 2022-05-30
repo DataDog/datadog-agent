@@ -20,14 +20,14 @@ import (
 var (
 	diagnoseCommand = &cobra.Command{
 		Use:   "diagnose",
-		Short: "Check availability of cloud provider metadata endpoints",
+		Short: "Check availability of cloud provider and container metadata endpoints",
 		Long:  ``,
 		RunE:  doDiagnoseMetadataAvailability,
 	}
 
 	diagnoseMetadataAvailabilityCommand = &cobra.Command{
 		Use:   "metadata-availability",
-		Short: "Check availability of cloud provider metadata endpoints",
+		Short: "Check availability of cloud provider and container metadata endpoints",
 		Long:  ``,
 		RunE:  doDiagnoseMetadataAvailability,
 	}
