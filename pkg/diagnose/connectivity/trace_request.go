@@ -75,8 +75,6 @@ func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain 
 	url := createEndpointURL(domain, endpointInfo, apiKey)
 	logURL := scrubber.ScrubLine(url)
 
-	// Enable HTTP trace
-
 	fmt.Printf("\n======== '%v' ========\n", color.BlueString(logURL))
 
 	// Create a request for the backend
