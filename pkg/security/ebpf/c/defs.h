@@ -229,18 +229,19 @@ enum event_type
     EVENT_BIND,
     EVENT_MAX, // has to be the last one
 
-    EVENT_ALL = 0xffffffffffffffff // used as a mask for all the events
+    EVENT_ALL = 0xffffffff // used as a mask for all the events
 };
 
 struct kevent_t {
     u64 cpu;
     u64 timestamp;
-    u64 type;
+    u32 type;
+    u8 async;
+    u8 padding[3];
 };
 
 struct syscall_t {
     s64 retval;
-    u64 async; /* TODO: optimize the way we retrieve the async boolean */
 };
 
 struct span_context_t {

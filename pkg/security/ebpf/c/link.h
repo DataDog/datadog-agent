@@ -201,7 +201,7 @@ int __attribute__((always_inline)) dr_link_dst_callback(void *ctx, int retval) {
         .event.type = EVENT_LINK,
         .event.timestamp = bpf_ktime_get_ns(),
         .syscall.retval = retval,
-        .syscall.async = (u64)syscall->async,
+        .event.async = syscall->async,
         .source = syscall->link.src_file,
         .target = syscall->link.target_file,
     };

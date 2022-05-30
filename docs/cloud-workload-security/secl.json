@@ -8,6 +8,11 @@
       "experimental": false,
       "properties": [
         {
+          "name": "async",
+          "type": "bool",
+          "definition": "True if the syscall was asynchronous"
+        },
+        {
           "name": "container.id",
           "type": "string",
           "definition": "ID of the container"
@@ -537,11 +542,6 @@
           "definition": "Port number"
         },
         {
-          "name": "bind.async",
-          "type": "bool",
-          "definition": "True if the syscall was asynchronous"
-        },
-        {
           "name": "bind.retval",
           "type": "int",
           "definition": "Return value of the syscall"
@@ -555,11 +555,6 @@
       "from_agent_version": "7.33",
       "experimental": false,
       "properties": [
-        {
-          "name": "bpf.async",
-          "type": "bool",
-          "definition": "True if the syscall was asynchronous"
-        },
         {
           "name": "bpf.cmd",
           "type": "int",
@@ -633,11 +628,6 @@
       "from_agent_version": "7.27",
       "experimental": false,
       "properties": [
-        {
-          "name": "chmod.async",
-          "type": "bool",
-          "definition": "True if the syscall was asynchronous"
-        },
         {
           "name": "chmod.file.change_time",
           "type": "int",
@@ -732,11 +722,6 @@
       "from_agent_version": "7.27",
       "experimental": false,
       "properties": [
-        {
-          "name": "chown.async",
-          "type": "bool",
-          "definition": "True if the syscall was asynchronous"
-        },
         {
           "name": "chown.file.change_time",
           "type": "int",
@@ -1110,11 +1095,6 @@
       "experimental": false,
       "properties": [
         {
-          "name": "link.async",
-          "type": "bool",
-          "definition": "True if the syscall was asynchronous"
-        },
-        {
           "name": "link.file.change_time",
           "type": "int",
           "definition": "Change time of the file"
@@ -1269,11 +1249,6 @@
       "experimental": false,
       "properties": [
         {
-          "name": "load_module.async",
-          "type": "bool",
-          "definition": "True if the syscall was asynchronous"
-        },
-        {
           "name": "load_module.file.change_time",
           "type": "int",
           "definition": "Change time of the file"
@@ -1367,11 +1342,6 @@
       "from_agent_version": "7.27",
       "experimental": false,
       "properties": [
-        {
-          "name": "mkdir.async",
-          "type": "bool",
-          "definition": "True if the syscall was asynchronous"
-        },
         {
           "name": "mkdir.file.change_time",
           "type": "int",
@@ -1467,11 +1437,6 @@
       "experimental": false,
       "properties": [
         {
-          "name": "mmap.async",
-          "type": "bool",
-          "definition": "True if the syscall was asynchronous"
-        },
-        {
           "name": "mmap.file.change_time",
           "type": "int",
           "definition": "Change time of the file"
@@ -1566,11 +1531,6 @@
       "experimental": false,
       "properties": [
         {
-          "name": "mprotect.async",
-          "type": "bool",
-          "definition": "True if the syscall was asynchronous"
-        },
-        {
           "name": "mprotect.req_protection",
           "type": "int",
           "definition": "new memory segment protection"
@@ -1594,11 +1554,6 @@
       "from_agent_version": "7.27",
       "experimental": false,
       "properties": [
-        {
-          "name": "open.async",
-          "type": "bool",
-          "definition": "True if the syscall was asynchronous"
-        },
         {
           "name": "open.file.change_time",
           "type": "int",
@@ -1693,11 +1648,6 @@
       "from_agent_version": "7.35",
       "experimental": false,
       "properties": [
-        {
-          "name": "ptrace.async",
-          "type": "bool",
-          "definition": "True if the syscall was asynchronous"
-        },
         {
           "name": "ptrace.request",
           "type": "int",
@@ -2168,11 +2118,6 @@
       "experimental": false,
       "properties": [
         {
-          "name": "removexattr.async",
-          "type": "bool",
-          "definition": "True if the syscall was asynchronous"
-        },
-        {
           "name": "removexattr.file.change_time",
           "type": "int",
           "definition": "Change time of the file"
@@ -2266,11 +2211,6 @@
       "from_agent_version": "7.27",
       "experimental": false,
       "properties": [
-        {
-          "name": "rename.async",
-          "type": "bool",
-          "definition": "True if the syscall was asynchronous"
-        },
         {
           "name": "rename.file.change_time",
           "type": "int",
@@ -2425,11 +2365,6 @@
       "from_agent_version": "7.27",
       "experimental": false,
       "properties": [
-        {
-          "name": "rmdir.async",
-          "type": "bool",
-          "definition": "True if the syscall was asynchronous"
-        },
         {
           "name": "rmdir.file.change_time",
           "type": "int",
@@ -2622,11 +2557,6 @@
       "experimental": false,
       "properties": [
         {
-          "name": "setxattr.async",
-          "type": "bool",
-          "definition": "True if the syscall was asynchronous"
-        },
-        {
           "name": "setxattr.file.change_time",
           "type": "int",
           "definition": "Change time of the file"
@@ -2720,11 +2650,6 @@
       "from_agent_version": "7.35",
       "experimental": false,
       "properties": [
-        {
-          "name": "signal.async",
-          "type": "bool",
-          "definition": "True if the syscall was asynchronous"
-        },
         {
           "name": "signal.pid",
           "type": "int",
@@ -3200,11 +3125,6 @@
       "experimental": false,
       "properties": [
         {
-          "name": "splice.async",
-          "type": "bool",
-          "definition": "True if the syscall was asynchronous"
-        },
-        {
           "name": "splice.file.change_time",
           "type": "int",
           "definition": "Change time of the file"
@@ -3299,11 +3219,6 @@
       "experimental": false,
       "properties": [
         {
-          "name": "unlink.async",
-          "type": "bool",
-          "definition": "True if the syscall was asynchronous"
-        },
-        {
           "name": "unlink.file.change_time",
           "type": "int",
           "definition": "Change time of the file"
@@ -3388,11 +3303,6 @@
       "experimental": false,
       "properties": [
         {
-          "name": "unload_module.async",
-          "type": "bool",
-          "definition": "True if the syscall was asynchronous"
-        },
-        {
           "name": "unload_module.name",
           "type": "string",
           "definition": "Name of the kernel module that was deleted"
@@ -3411,11 +3321,6 @@
       "from_agent_version": "7.27",
       "experimental": false,
       "properties": [
-        {
-          "name": "utimes.async",
-          "type": "bool",
-          "definition": "True if the syscall was asynchronous"
-        },
         {
           "name": "utimes.file.change_time",
           "type": "int",
