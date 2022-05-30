@@ -135,8 +135,8 @@ func runEventStore(cmd *cobra.Command, args []string) error {
 	}
 
 	l, err := events.NewListener(func(e *model.ProcessEvent) {
-		// push events to the store asynchronously
-		store.Push(e, nil)
+		// push events to the store asynchronously without checking for errors
+		_ = store.Push(e, nil)
 	})
 	if err != nil {
 		return err
