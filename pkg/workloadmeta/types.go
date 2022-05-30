@@ -163,8 +163,12 @@ const (
 type EventType int
 
 const (
+	// EventTypeAll matches any event type. Should not be returned by
+	// collectors, as it is only meant to be used in filters.
+	EventTypeAll EventType = iota
+
 	// EventTypeSet indicates that an entity has been added or updated.
-	EventTypeSet EventType = iota
+	EventTypeSet
 
 	// EventTypeUnset indicates that an entity has been removed.  If multiple
 	// sources provide data for an entity, this message is only sent when the

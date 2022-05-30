@@ -430,7 +430,7 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 
 		for _, sub := range s.subscribers {
 			filter := sub.filter
-			if !filter.MatchKind(entityID.Kind) || !filter.MatchSource(ev.Source) {
+			if !filter.MatchKind(entityID.Kind) || !filter.MatchSource(ev.Source) || !filter.MatchEventType(ev.Type) {
 				// event should be filtered out because it
 				// doesn't match the filter
 				continue
