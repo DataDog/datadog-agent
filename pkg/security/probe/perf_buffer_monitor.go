@@ -111,11 +111,24 @@ func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 
 		pbm.perfBufferStatsMaps[perfMapName] = stats
 		// set default perf buffer size, it will be readjusted in the next loop if needed
-		pbm.perfBufferSize[perfMapName] = float64(p.managerOptions.DefaultPerfRingBufferSize)
+		if stats.Type() == lib.RingBuf {
+			pbm.perfBufferSize[perfMapName] = float64(p.managerOptions.DefaultRingBufferSize)
+		} else {
+			pbm.perfBufferSize[perfMapName] = float64(p.managerOptions.DefaultPerfRingBufferSize)
+		}
+	}
+
+	maps := make(map[string]int, len(p.manager.PerfMaps)+len(p.manager.RingBuffers))
+	for _, pm := range p.manager.PerfMaps {
+		maps[pm.Name] = pm.PerfRingBufferSize
+	}
+
+	for _, rb := range p.manager.RingBuffers {
+		maps[rb.Name] = rb.RingBufferSize
 	}
 
 	// Prepare user space counters
-	for _, m := range p.manager.PerfMaps {
+	for mapName, size := range maps {
 		var stats, kernelStats [][model.MaxKernelEventType]PerfMapStats
 		var usrLostEvents []uint64
 		var sortingErrorStats [model.MaxKernelEventType]*int64
@@ -131,14 +144,14 @@ func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 			sortingErrorStats[i] = &zero
 		}
 
-		pbm.stats[m.Name] = stats
-		pbm.kernelStats[m.Name] = kernelStats
-		pbm.readLostEvents[m.Name] = usrLostEvents
-		pbm.sortingErrorStats[m.Name] = sortingErrorStats
+		pbm.stats[mapName] = stats
+		pbm.kernelStats[mapName] = kernelStats
+		pbm.readLostEvents[mapName] = usrLostEvents
+		pbm.sortingErrorStats[mapName] = sortingErrorStats
 
 		// update perf buffer size if needed
-		if m.PerfRingBufferSize != 0 {
-			pbm.perfBufferSize[m.Name] = float64(m.PerfRingBufferSize)
+		if size != 0 {
+			pbm.perfBufferSize[mapName] = float64(size)
 		}
 	}
 	log.Debugf("monitoring perf ring buffer on %d CPU, %d events", pbm.numCPU, model.MaxKernelEventType)
