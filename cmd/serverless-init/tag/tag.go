@@ -24,15 +24,15 @@ func getTag(envName string) (string, bool) {
 	return strings.ToLower(value), true
 }
 
-func GetBaseTagsMap() map[string]string {
+func GetBaseTagsMapWithMetadata(metadata map[string]string) map[string]string {
 	tags := map[string]string{}
 	listTags := []tagPair{
 		{
-			name:    "cloudrunrevision",
+			name:    "revision_name",
 			envName: "K_REVISION",
 		},
 		{
-			name:    "cloudrunservice",
+			name:    "service_name",
 			envName: "K_SERVICE",
 		},
 		{
@@ -53,11 +53,16 @@ func GetBaseTagsMap() map[string]string {
 			tags[tagPair.name] = value
 		}
 	}
+
+	for key, value := range metadata {
+		tags[key] = value
+	}
+
 	return tags
 }
 
-func GetBaseTagsArray() []string {
-	tagsMap := GetBaseTagsMap()
+func GetBaseTagsArrayWithMetadataTags(metadata map[string]string) []string {
+	tagsMap := GetBaseTagsMapWithMetadata(metadata)
 	tagsArray := make([]string, 0, len(tagsMap))
 	for key, value := range tagsMap {
 		tagsArray = append(tagsArray, fmt.Sprintf("%s:%s", key, value))

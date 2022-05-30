@@ -6,43 +6,122 @@
 package metadata
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const defaultURL = "http://metadata.google.internal/computeMetadata/v1/instance/id"
+const defaultBaseURL = "http://metadata.google.internal/computeMetadata/v1"
+const defaultContainerIDURL = "/instance/id"
+const defaultRegionURL = "/instance/region"
+const defaultProjectID = "/project/project-id"
 const defaultTimeout = 300 * time.Millisecond
 
+// Config holds the metadata configuration
 type Config struct {
-	url     string
-	timeout time.Duration
+	containerIDURL string
+	regionURL      string
+	projectIDURL   string
+	timeout        time.Duration
+}
+
+type info struct {
+	tagName string
+	value   string
+}
+
+type Metadata struct {
+	containerID *info
+	region      *info
+	projectID   *info
+}
+
+func (metadata *Metadata) TagMap() map[string]string {
+	tagMap := map[string]string{}
+	if metadata.containerID != nil {
+		tagMap[metadata.containerID.tagName] = metadata.containerID.value
+	}
+	if metadata.region != nil {
+		tagMap[metadata.region.tagName] = metadata.region.value
+	}
+	if metadata.projectID != nil {
+		tagMap[metadata.projectID.tagName] = metadata.projectID.value
+	}
+	return tagMap
 }
 
 func GetDefaultConfig() *Config {
 	return &Config{
-		url:     defaultURL,
-		timeout: defaultTimeout,
+		containerIDURL: fmt.Sprintf("%s%s", defaultBaseURL, defaultContainerIDURL),
+		regionURL:      fmt.Sprintf("%s%s", defaultBaseURL, defaultRegionURL),
+		projectIDURL:   fmt.Sprintf("%s%s", defaultBaseURL, defaultProjectID),
+		timeout:        defaultTimeout,
 	}
 }
 
-func GetContainerID(config *Config) string {
-	client := &http.Client{
+func GetMetaData(config *Config) *Metadata {
+	wg := sync.WaitGroup{}
+	wg.Add(3)
+	httpClient := &http.Client{
 		Timeout: config.timeout,
 	}
-	req, err := http.NewRequest(http.MethodGet, config.url, nil)
+	metadata := &Metadata{}
+	go func() {
+		metadata.containerID = getContainerID(httpClient, config)
+		wg.Done()
+	}()
+	go func() {
+		metadata.region = getRegion(httpClient, config)
+		wg.Done()
+	}()
+	go func() {
+		metadata.projectID = getProjectID(httpClient, config)
+		wg.Done()
+	}()
+	wg.Wait()
+	return metadata
+}
+
+func getContainerID(httpClient *http.Client, config *Config) *info {
+	return &info{
+		tagName: "container_id",
+		value:   getSingleMetadata(httpClient, config.containerIDURL),
+	}
+}
+
+func getRegion(httpClient *http.Client, config *Config) *info {
+	value := getSingleMetadata(httpClient, config.regionURL)
+	tokens := strings.Split(value, "/")
+	return &info{
+		tagName: "location",
+		value:   tokens[len(tokens)-1],
+	}
+}
+
+func getProjectID(httpClient *http.Client, config *Config) *info {
+	return &info{
+		tagName: "project_id",
+		value:   getSingleMetadata(httpClient, config.projectIDURL),
+	}
+}
+
+func getSingleMetadata(httpClient *http.Client, url string) string {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		log.Error("unable to build the metadata request, defaulting to unknown-id")
-		return "unknown-id"
+		log.Error("unable to build the metadata request, defaulting to unknown")
+		return "unknown"
 	}
 	req.Header.Add("Metadata-Flavor", "Google")
-	res, err := client.Do(req)
+	res, err := httpClient.Do(req)
 	if err != nil {
-		log.Error("unable to get the instance id, defaulting to unknown-id")
-		return "unknown-id"
+		log.Error("unable to get the requested metadata, defaulting to unknown")
+		return "unknown"
 	}
 	data, _ := ioutil.ReadAll(res.Body)
-	return string(data)
+	return strings.ToLower(string(data))
 }

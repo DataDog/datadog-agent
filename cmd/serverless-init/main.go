@@ -28,30 +28,36 @@ func main() {
 	if len(os.Args) < 2 {
 		panic("[datadog init process] invalid argument count, did you forget to set CMD ?")
 	}
-	containerID := metadata.GetContainerID(metadata.GetDefaultConfig())
-	logConfig := log.CreateConfig(containerID)
+	metadata := metadata.GetMetaData(metadata.GetDefaultConfig())
+	logConfig := log.CreateConfig(metadata)
 	log.SetupLog(logConfig)
 	log.Write(logConfig, []byte(fmt.Sprintf("[datadog init process] starting, K_SERVICE = %s, K_REVISION = %s", os.Getenv("K_SERVICE"), os.Getenv("K_REVISION"))))
 
 	traceAgent := &trace.ServerlessTraceAgent{}
-	go setupTraceAgent(traceAgent)
+	go setupTraceAgent(traceAgent, metadata)
 
-	metricAgent := setupMetricAgent()
-	metric.AddColdStartMetric(tag.GetBaseTagsArray(), time.Now(), metricAgent.Demux)
+	metricAgent := setupMetricAgent(metadata)
+	metric.AddColdStartMetric(metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
+
 	go metricAgent.Flush()
 	initcontainer.Run(logConfig, metricAgent, traceAgent, os.Args[1:])
 }
 
-func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent) {
+func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, metadata *metadata.Metadata) {
 	traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath})
-	traceAgent.SetTags(tag.GetBaseTagsMap())
+	traceAgent.SetTags(tag.GetBaseTagsMapWithMetadata(metadata.TagMap()))
 	for range time.Tick(3 * time.Second) {
 		traceAgent.Get().FlushSync()
 	}
 }
 
-func setupMetricAgent() *metrics.ServerlessMetricAgent {
+func setupMetricAgent(metadata *metadata.Metadata) *metrics.ServerlessMetricAgent {
 	metricAgent := &metrics.ServerlessMetricAgent{}
+	tagMap := metadata.TagMap()
+	// we don't want to add the container_id tag to metrics for cardinality reasons
+	delete(tagMap, "container_id")
+	tagArray := tag.GetBaseTagsArrayWithMetadataTags(tagMap)
 	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
+	metricAgent.SetExtraTags(tagArray)
 	return metricAgent
 }

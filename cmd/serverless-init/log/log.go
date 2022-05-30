@@ -6,10 +6,10 @@
 package log
 
 import (
-	"fmt"
 	"os"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/metadata"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -27,23 +27,23 @@ const (
 
 type Config struct {
 	FlushTimeout time.Duration
+	Metadata     *metadata.Metadata
 	channel      chan *logConfig.ChannelMessage
 	source       string
 	loggerName   config.LoggerName
-	containerID  string
 }
 
 type CustomWriter struct {
 	LogConfig *Config
 }
 
-func CreateConfig(containerID string) *Config {
+func CreateConfig(metadata *metadata.Metadata) *Config {
 	return &Config{
 		FlushTimeout: defaultFlushTimeout,
+		Metadata:     metadata,
 		channel:      make(chan *logConfig.ChannelMessage),
 		source:       source,
 		loggerName:   loggerName,
-		containerID:  containerID,
 	}
 }
 
@@ -73,14 +73,7 @@ func SetupLog(conf *Config) {
 		}
 	}
 	serverlessLogs.SetupLogAgent(conf.channel, sourceName, source)
-	serverlessLogs.SetLogsTags(getTagsWithRevision(tag.GetBaseTagsArray(), conf.containerID))
-}
-
-func getTagsWithRevision(tags []string, containerID string) []string {
-	var result []string
-	result = append(result, tags...)
-	result = append(result, fmt.Sprintf("containerid:%s", containerID))
-	return result
+	serverlessLogs.SetLogsTags(tag.GetBaseTagsArrayWithMetadataTags(conf.Metadata.TagMap()))
 }
 
 func (cw *CustomWriter) Write(p []byte) (n int, err error) {
