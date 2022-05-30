@@ -44,9 +44,9 @@ func ProcessMonitoringtoProcessEvent(e *ProcessMonitoringEvent) *ProcessEvent {
 	}
 }
 
-// ProcessEventToProcessMonitorinEvent converts a ProcessEvent to a ProcessMonitoringEvent
+// ProcessEventToProcessMonitoringEvent converts a ProcessEvent to a ProcessMonitoringEvent
 // It's used during tests to mock a ProcessMonitoringEvent message
-func ProcessEventToProcessMonitorinEvent(e *ProcessEvent) *ProcessMonitoringEvent {
+func ProcessEventToProcessMonitoringEvent(e *ProcessEvent) *ProcessMonitoringEvent {
 	return &ProcessMonitoringEvent{
 		EventType:      e.EventType,
 		CollectionTime: e.CollectionTime,

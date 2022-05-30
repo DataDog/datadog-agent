@@ -35,8 +35,8 @@ func assertProcessEvents(t *testing.T, expected, actual *model.ProcessEvent) {
 
 // TestProcessEventFiltering asserts that sysProbeListener collects only expected events and drops everything else
 func TestProcessEventFiltering(t *testing.T) {
-	rawEvents := make([]*model.ProcessMonitoringEvent, 0, 3)
-	handlers := make([]EventHandler, 0, 3)
+	rawEvents := make([]*model.ProcessMonitoringEvent, 0)
+	handlers := make([]EventHandler, 0)
 
 	// The listener should drop unexpected events and not call the EventHandler for it
 	rawEvents = append(rawEvents, model.NewProcessMonitoringEvent(model.Fork, time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"}))
@@ -55,10 +55,10 @@ func TestProcessEventFiltering(t *testing.T) {
 	})
 
 	// To avoid race conditions, all handlers should be assigned during the creation of SysProbeListener
-	i := 0
+	calledHandlers := 0
 	handler := func(e *model.ProcessEvent) {
-		handlers[i](e)
-		i++
+		handlers[calledHandlers](e)
+		calledHandlers++
 	}
 
 	l, err := newSysProbeListener(nil, nil, handler)
@@ -69,6 +69,7 @@ func TestProcessEventFiltering(t *testing.T) {
 		require.NoError(t, err)
 		l.consumeData(data)
 	}
+	assert.Equal(t, calledHandlers, len(handlers))
 }
 
 // TestProcessEventHandling mocks a SecurityModuleClient and asserts that the Listener bubbles up the correct events
@@ -80,7 +81,7 @@ func TestProcessEventHandling(t *testing.T) {
 	client.On("GetProcessEvents", ctx, &api.GetProcessEventParams{}).Return(stream, nil)
 
 	now := time.Now()
-	events := make([]*model.ProcessEvent, 0, 2)
+	events := make([]*model.ProcessEvent, 0)
 	e1 := model.ProcessEvent{
 		EventType:      model.Exec,
 		CollectionTime: now,
@@ -102,7 +103,7 @@ func TestProcessEventHandling(t *testing.T) {
 	events = append(events, &e2)
 
 	for _, e := range events {
-		sysEvent := model.ProcessEventToProcessMonitorinEvent(e)
+		sysEvent := model.ProcessEventToProcessMonitoringEvent(e)
 		data, err := sysEvent.MarshalMsg(nil)
 		require.NoError(t, err)
 

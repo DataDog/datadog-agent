@@ -11,13 +11,13 @@ package events
 import (
 	"context"
 	"errors"
-	"go.uber.org/atomic"
 	"io"
 	"net"
 	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff"
+	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -71,6 +71,10 @@ func newSysProbeListener(conn *grpc.ClientConn, client api.SecurityModuleClient,
 
 // Run starts a new thread to listen for process events
 func (l *SysProbeListener) Run() {
+	log.Info("Start listening for process events")
+	l.running.Store(true)
+	l.connected.Store(false)
+
 	l.wg.Add(1)
 	go func() {
 		defer l.wg.Done()
@@ -80,10 +84,6 @@ func (l *SysProbeListener) Run() {
 
 // run keeps polling the SecurityModule server for process events
 func (l *SysProbeListener) run() {
-	log.Info("Start listening for process events")
-	l.running.Store(true)
-	l.connected.Store(false)
-
 	logTicker := newLogBackoffTicker()
 	for l.running.Load() == true {
 		stream, err := l.client.GetProcessEvents(context.Background(), &api.GetProcessEventParams{})
