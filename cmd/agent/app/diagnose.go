@@ -39,6 +39,8 @@ var (
 		Hidden: true,
 		RunE:   doDiagnoseDatadogConnectivity,
 	}
+
+	noTrace bool
 )
 
 func init() {
@@ -46,16 +48,14 @@ func init() {
 	diagnoseCommand.AddCommand(diagnoseMetadataAvailabilityCommand)
 	diagnoseCommand.AddCommand(diagnoseDatadogConnectivityCommand)
 
+	diagnoseDatadogConnectivityCommand.PersistentFlags().BoolVarP(&noTrace, "no-trace", "", false, "mute extra information about connection establishment, DNS lookup and TLS handshake")
+
 	AgentCmd.AddCommand(diagnoseCommand)
 }
 
 func doDiagnoseMetadataAvailability(cmd *cobra.Command, args []string) error {
 	if err := configAndLogSetup(); err != nil {
 		return err
-	}
-
-	if flagNoColor {
-		color.NoColor = true
 	}
 
 	return diagnose.RunAll(color.Output)
@@ -66,7 +66,7 @@ func doDiagnoseDatadogConnectivity(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return connectivity.RunDatadogConnectivityDiagnose()
+	return connectivity.RunDatadogConnectivityDiagnose(noTrace)
 }
 
 func configAndLogSetup() error {
@@ -74,6 +74,10 @@ func configAndLogSetup() error {
 	err := common.SetupConfig(confFilePath)
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
+	}
+
+	if flagNoColor {
+		color.NoColor = true
 	}
 
 	// log level is always off since this might be use by other agent to get the hostname

@@ -6,6 +6,7 @@
 package connectivity
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -48,13 +49,13 @@ func TestSendHTTPRequestToEndpoint(t *testing.T) {
 	client := forwarder.NewHTTPClient()
 
 	// With the API Key, it should be a 200
-	statusCodeWithKey, responseBodyWithKey, errWithKey := sendHTTPRequestToEndpoint(client, ts1.URL, endpointInfoWithAPIKey, apiKey)
+	statusCodeWithKey, responseBodyWithKey, errWithKey := sendHTTPRequestToEndpoint(context.Background(), client, ts1.URL, endpointInfoWithAPIKey, apiKey)
 	assert.Nil(t, errWithKey)
 	assert.Equal(t, statusCodeWithKey, 200)
 	assert.Equal(t, string(responseBodyWithKey), "OK")
 
 	// Without the API Key, it should be a 400
-	statusCode, responseBody, err := sendHTTPRequestToEndpoint(client, ts1.URL, endpointInfoWithoutAPIKey, apiKey)
+	statusCode, responseBody, err := sendHTTPRequestToEndpoint(context.Background(), client, ts1.URL, endpointInfoWithoutAPIKey, apiKey)
 	assert.Nil(t, err)
 	assert.Equal(t, statusCode, 400)
 	assert.Equal(t, string(responseBody), "Bad Request")
