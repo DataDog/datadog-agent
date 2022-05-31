@@ -45,17 +45,19 @@ type pendingMsg struct {
 // APIServer represents a gRPC server in charge of receiving events sent by
 // the runtime security system-probe module and forwards them to Datadog
 type APIServer struct {
-	msgs              chan *api.SecurityEventMessage
-	expiredEventsLock sync.RWMutex
-	expiredEvents     map[rules.RuleID]*atomic.Int64
-	rate              *Limiter
-	statsdClient      statsd.ClientInterface
-	probe             *sprobe.Probe
-	queueLock         sync.Mutex
-	queue             []*pendingMsg
-	retention         time.Duration
-	cfg               *config.Config
-	module            *Module
+	msgs                 chan *api.SecurityEventMessage
+	processMsgs          chan *api.SecurityProcessEventMessage
+	expiredEventsLock    sync.RWMutex
+	expiredEvents        map[rules.RuleID]*atomic.Int64
+	expiredProcessEvents *atomic.Int64
+	rate                 *Limiter
+	statsdClient         statsd.ClientInterface
+	probe                *sprobe.Probe
+	queueLock            sync.Mutex
+	queue                []*pendingMsg
+	retention            time.Duration
+	cfg                  *config.Config
+	module               *Module
 }
 
 // GetEvents waits for security events
@@ -72,6 +74,32 @@ LOOP:
 		// Read on message
 		select {
 		case msg := <-a.msgs:
+			if err := stream.Send(msg); err != nil {
+				return err
+			}
+			msgs--
+		case <-time.After(time.Second):
+			break LOOP
+		}
+
+		// Stop the loop when 10 messages were retrieved
+		if msgs <= 0 {
+			break
+		}
+	}
+
+	return nil
+}
+
+// GetProcessEvents sends process events through a gRPC stream
+func (a *APIServer) GetProcessEvents(params *api.GetProcessEventParams, stream api.SecurityModule_GetProcessEventsServer) error {
+	// Read 10 security events per call
+	msgs := 10
+LOOP:
+	for {
+		// Read on message
+		select {
+		case msg := <-a.processMsgs:
 			if err := stream.Send(msg); err != nil {
 				return err
 			}
@@ -447,6 +475,12 @@ func (a *APIServer) SendStats() error {
 			}
 		}
 	}
+
+	if count := a.expiredProcessEvents.Swap(0); count > 0 {
+		if err := a.statsdClient.Count(metrics.MetricProcessEventsServerExpired, count, []string{}, 1.0); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -469,16 +503,45 @@ func (a *APIServer) Apply(ruleIDs []rules.RuleID) {
 	}
 }
 
+// SendProcessEvent forwards collected process events to the processMsgs channel so they can be consumed next time GetProcessEvents
+// is called
+func (a *APIServer) SendProcessEvent(data []byte) {
+	m := &api.SecurityProcessEventMessage{
+		Data: data,
+	}
+
+	select {
+	case a.processMsgs <- m:
+		break
+	default:
+		// The channel is full, expire the oldest event
+		_ = <-a.processMsgs
+		a.expiredProcessEvents.Inc()
+		// Try to send the event again
+		select {
+		case a.processMsgs <- m:
+			break
+		default:
+			// looks like the process msgs channel is full again, expire the current event
+			a.expiredProcessEvents.Inc()
+			break
+		}
+		break
+	}
+}
+
 // NewAPIServer returns a new gRPC event server
 func NewAPIServer(cfg *config.Config, probe *sprobe.Probe, client statsd.ClientInterface) *APIServer {
 	es := &APIServer{
-		msgs:          make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
-		expiredEvents: make(map[rules.RuleID]*atomic.Int64),
-		rate:          NewLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
-		statsdClient:  client,
-		probe:         probe,
-		retention:     time.Duration(cfg.EventServerRetention) * time.Second,
-		cfg:           cfg,
+		msgs:                 make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
+		processMsgs:          make(chan *api.SecurityProcessEventMessage, cfg.EventServerBurst*3),
+		expiredEvents:        make(map[rules.RuleID]*atomic.Int64),
+		expiredProcessEvents: atomic.NewInt64(0),
+		rate:                 NewLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
+		statsdClient:         client,
+		probe:                probe,
+		retention:            time.Duration(cfg.EventServerRetention) * time.Second,
+		cfg:                  cfg,
 	}
 	return es
 }
