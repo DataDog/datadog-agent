@@ -5,7 +5,7 @@ go 1.17
 replace github.com/DataDog/datadog-agent/pkg/quantile => ../../quantile
 
 require (
-	github.com/DataDog/datadog-agent/pkg/quantile v0.37.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/quantile v0.37.0-rc.3
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/stretchr/testify v1.7.1
 	go.opentelemetry.io/collector/pdata v0.50.0

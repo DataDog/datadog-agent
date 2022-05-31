@@ -376,7 +376,7 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
 
     struct open_event_t event = {
         .syscall.retval = retval,
-        .syscall.async = syscall->async,
+        .event.async = syscall->async,
         .file = syscall->open.file,
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,

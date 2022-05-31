@@ -191,7 +191,7 @@ type selfTestEvent struct {
 	Filepath string
 }
 
-// isExpectedEvent sends an event to the tester
+// IsExpectedEvent sends an event to the tester
 func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event) bool {
 	if atomic.LoadUint32(&t.waitingForEvent) != 0 && rule.Definition.Policy.Name == selfTestPolicyName {
 		ev, ok := event.(*Event)

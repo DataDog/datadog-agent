@@ -152,7 +152,7 @@ func TestSubscribe(t *testing.T) {
 			// that don't match the filter at all should not
 			// generate an event.
 			name:   "receive events for entities in the store pre-subscription with filter",
-			filter: NewFilter(nil, fooSource),
+			filter: NewFilter(nil, fooSource, EventTypeAll),
 			preEvents: []CollectorEvent{
 				// set container with two sources, delete one source
 				{
@@ -314,7 +314,7 @@ func TestSubscribe(t *testing.T) {
 			// unsetting from only one (that matches the filter)
 			// correctly generates an unset event
 			name:   "sets and unsets an entity with source filters",
-			filter: NewFilter(nil, fooSource),
+			filter: NewFilter(nil, fooSource, EventTypeAll),
 			postEvents: [][]CollectorEvent{
 				{
 					{
@@ -485,6 +485,36 @@ func TestSubscribe(t *testing.T) {
 				},
 			},
 			expected: []EventBundle{},
+		},
+		{
+			name:   "filters by event type",
+			filter: NewFilter(nil, SourceAll, EventTypeUnset),
+			postEvents: [][]CollectorEvent{
+				{
+					{
+						Type:   EventTypeSet,
+						Source: fooSource,
+						Entity: fooContainer,
+					},
+				},
+				{
+					{
+						Type:   EventTypeUnset,
+						Source: fooSource,
+						Entity: fooContainer,
+					},
+				},
+			},
+			expected: []EventBundle{
+				{
+					Events: []Event{
+						{
+							Type:   EventTypeUnset,
+							Entity: fooContainer,
+						},
+					},
+				},
+			},
 		},
 	}
 

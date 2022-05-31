@@ -52,12 +52,13 @@ func NewWorker(
 		resetConnectionChan: make(chan struct{}, 1),
 		stopChan:            make(chan struct{}),
 		stopped:             make(chan struct{}),
-		Client:              newHTTPClient(),
+		Client:              NewHTTPClient(),
 		blockedList:         blocked,
 	}
 }
 
-func newHTTPClient() *http.Client {
+// NewHTTPClient creates a new http.Client
+func NewHTTPClient() *http.Client {
 	transport := httputils.CreateHTTPTransport()
 
 	return &http.Client{
@@ -192,5 +193,5 @@ func (w *Worker) process(ctx context.Context, t transaction.Transaction) {
 func (w *Worker) resetConnections() {
 	log.Debug("Resetting worker's connections")
 	w.Client.CloseIdleConnections()
-	w.Client = newHTTPClient()
+	w.Client = NewHTTPClient()
 }

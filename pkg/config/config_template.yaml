@@ -2689,6 +2689,16 @@ api_key:
 #
 # containerd_namespaces:
 #   - k8s.io
+#
+## @param containerd_exclude_namespaces - list of strings - optional - default: ["moby"]
+## @env DD_CONTAINERD_EXCLUDE_NAMESPACES - space separated list of strings - optional - default: ["moby"]
+## When containerd_namespaces is set to [], containerd_exclude_namespaces
+## allows the exclusion of containers from specific namespaces. By default it
+## excludes "moby", to prevent Docker containers from being detected as
+## containerd containers.
+#
+# containerd_exclude_namespaces:
+#   - moby
 
 {{ end -}}
 {{- if .Kubelet }}

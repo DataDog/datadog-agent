@@ -23,7 +23,7 @@ func TestLocalProviderShouldReturnEmptyList(t *testing.T) {
 	tags := []string{"tag1:value1", "tag2", "tag3"}
 
 	mockConfig.Set("tags", tags)
-	defer mockConfig.Unset("tags")
+	defer mockConfig.Set("tags", nil)
 
 	mockConfig.Set("logs_config.expected_tags_duration", "0")
 
@@ -44,7 +44,7 @@ func TestLocalProviderExpectedTags(t *testing.T) {
 	tags := []string{"tag1:value1", "tag2", "tag3"}
 
 	mockConfig.Set("tags", tags)
-	defer mockConfig.Unset("tags")
+	defer mockConfig.Set("tags", nil)
 
 	expectedTagsDuration := 5 * time.Second
 	mockConfig.Set("logs_config.expected_tags_duration", "5s")
