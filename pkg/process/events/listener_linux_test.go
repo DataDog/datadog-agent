@@ -23,26 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/api/mocks"
 )
 
-// assertProcessEvents compares two ProcessEvents. Two events can't be compared using directly assert.Equal
-// due to the embedded time fields
-func assertProcessEvents(t *testing.T, expected, actual *model.ProcessEvent) {
-	t.Helper()
-
-	assert.Equal(t, expected.EventType, actual.EventType)
-	assert.WithinDuration(t, expected.CollectionTime, actual.CollectionTime, 0)
-	assert.Equal(t, expected.Pid, actual.Pid)
-	assert.Equal(t, expected.Ppid, actual.Ppid)
-	assert.Equal(t, expected.UID, actual.UID)
-	assert.Equal(t, expected.GID, actual.GID)
-	assert.Equal(t, expected.Username, actual.Username)
-	assert.Equal(t, expected.Group, actual.Group)
-	assert.Equal(t, expected.Exe, actual.Exe)
-	assert.Equal(t, expected.Cmdline, actual.Cmdline)
-	assert.WithinDuration(t, expected.ForkTime, actual.ForkTime, 0)
-	assert.WithinDuration(t, expected.ExecTime, actual.ExecTime, 0)
-	assert.WithinDuration(t, expected.ExitTime, actual.ExitTime, 0)
-}
-
 // TestProcessEventFiltering asserts that sysProbeListener collects only expected events and drops everything else
 func TestProcessEventFiltering(t *testing.T) {
 	rawEvents := make([]*model.ProcessMonitoringEvent, 0)
