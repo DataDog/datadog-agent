@@ -55,6 +55,7 @@ func (a *TestAgentDemultiplexer) samples() []metrics.MetricSample {
 // WaitForSamples returns the samples received by the demultiplexer.
 func (a *TestAgentDemultiplexer) WaitForSamples(timeout time.Duration) []metrics.MetricSample {
 	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
 	timeoutOn := time.Now().Add(timeout)
 	for {
 		select {
@@ -79,6 +80,7 @@ func (a *TestAgentDemultiplexer) WaitForSamples(timeout time.Duration) []metrics
 // WaitEventPlatformEvents waits for timeout and eventually returns the event platform events samples received by the demultiplexer.
 func (a *TestAgentDemultiplexer) WaitEventPlatformEvents(eventType string, minEvents int, timeout time.Duration) ([]*message.Message, error) {
 	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
 	timeoutOn := time.Now().Add(timeout)
 	var savedEvents []*message.Message
 	for {
