@@ -79,7 +79,6 @@ func SetupLog(conf *Config) {
 			log.Errorf("While changing the loglevel: %s", err)
 		}
 	}
-
 	serverlessLogs.SetupLogAgent(conf.channel, sourceName, source)
 	serverlessLogs.SetLogsTags(tag.GetBaseTagsArrayWithMetadataTags(conf.Metadata.TagMap()))
 }
