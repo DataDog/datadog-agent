@@ -7,6 +7,7 @@ package generic
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -50,7 +51,7 @@ func (f LegacyContainerFilter) IsExcluded(container *workloadmeta.Container) boo
 		return false
 	}
 
-	return f.OldFilter.IsExcluded(container.Name, container.Image.Name, container.Labels["io.kubernetes.pod.namespace"])
+	return f.OldFilter.IsExcluded(container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel])
 }
 
 // RuntimeContainerFilter filters containers by runtime
