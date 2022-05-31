@@ -85,11 +85,17 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 		raddr.ContainerId = l.addrToCtrID[addr]
 
 		// resolve laddr
-		cid, ok := l.ctrForPid[int(conn.Pid)]
-		if !ok {
-			continue
+		// container id may already be set in system-probe
+		// if cgroup name collection is enabled
+		cid := conn.Laddr.ContainerId
+		if cid == "" {
+			cid = l.ctrForPid[int(conn.Pid)]
+			if cid == "" {
+				continue
+			}
+
+			conn.Laddr.ContainerId = cid
 		}
-		conn.Laddr.ContainerId = cid
 
 		ip := procutil.AddressFromString(conn.Laddr.Ip)
 		if ip.IsZero() {

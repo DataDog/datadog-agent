@@ -135,6 +135,7 @@ const (
 	PidFDBySockMap        BPFMapName = "pid_fd_by_sock"
 	TagsMap               BPFMapName = "conn_tags"
 	TcpSendMsgArgsMap     BPFMapName = "tcp_sendmsg_args"
+	CgroupNames           BPFMapName = "cgroup_names"
 )
 
 // SectionName returns the SectionName for the given BPF map

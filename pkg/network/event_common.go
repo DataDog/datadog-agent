@@ -122,6 +122,7 @@ type Connections struct {
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
 	HTTP                        map[http.Key]*http.RequestStats
 	DNSStats                    dns.StatsByKeyByNameByType
+	PidToContainerID            map[uint32]string
 }
 
 // ConnTelemetryType enumerates the connection telemetry gathered by the system-probe

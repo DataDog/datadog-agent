@@ -11,6 +11,7 @@
 #include "netns.h"
 #include "sockfd.h"
 #include "conn-tuple.h"
+#include "cgroup.h"
 
 #ifdef FEATURE_IPV6_ENABLED
 #include "ipv6.h"
@@ -88,6 +89,8 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
         return 0;
     }
 
+    update_cgroup_name();
+
     handle_tcp_stats(&t, skp);
 
     __u32 packets_in = 0;
@@ -115,6 +118,8 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs* ctx) {
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
+
+    update_cgroup_name();
 
     return handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE);
 }
@@ -200,6 +205,8 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
         t.dport = bpf_ntohs(t.dport);
     }
 
+    update_cgroup_name();
+
     log_debug("kprobe/ip6_make_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
     handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT);
     increment_telemetry_count(udp_send_processed);
@@ -238,6 +245,8 @@ int kprobe__ip_make_skb(struct pt_regs* ctx) {
             return 0;
         }
     }
+
+    update_cgroup_name();
 
     log_debug("kprobe/ip_send_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
     handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT);
@@ -319,6 +328,8 @@ static __always_inline int handle_ret_udp_recvmsg(struct pt_regs* ctx, struct bp
         return 0;
     }
 
+    update_cgroup_name();
+
     log_debug("kretprobe/udp_recvmsg: pid_tgid: %d, return: %d\n", pid_tgid, copied);
     handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_INCREMENT);
 
@@ -365,6 +376,8 @@ int kprobe__tcp_set_state(struct pt_regs* ctx) {
         return 0;
     }
 
+    update_cgroup_name();
+
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     conn_tuple_t t = {};
@@ -393,6 +406,9 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
+
+    update_cgroup_name();
+
     handle_tcp_stats(&t, sk);
     handle_message(&t, 0, 0, CONN_DIRECTION_INCOMING, 0, 0, PACKET_COUNT_NONE);
 

@@ -117,7 +117,10 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		closedChannelSize = config.ClosedChannelSize
 	}
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
-	m := newManager(perfHandlerTCP, runtimeTracer)
+	m, err := newManager(perfHandlerTCP, runtimeTracer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ebpf manager: %w", err)
+	}
 	m.DumpHandler = dumpMapsHandler
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
@@ -204,13 +207,8 @@ func (t *kprobeTracer) Stop() {
 }
 
 func (t *kprobeTracer) GetMap(name string) *ebpf.Map {
-	switch name {
-	case string(probes.SockByPidFDMap):
-		m, _, _ := t.m.GetMap(name)
-		return m
-	default:
-		return nil
-	}
+	m, _, _ := t.m.GetMap(name)
+	return m
 }
 
 func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error {

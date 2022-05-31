@@ -9,11 +9,13 @@
 package kprobe
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	manager "github.com/DataDog/ebpf-manager"
 )
 
@@ -59,7 +61,7 @@ var altProbes = map[probes.ProbeName]string{
 	probes.TCPSendMsgPre410:    "kprobe__tcp_sendmsg__pre_4_1_0",
 }
 
-func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Manager {
+func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) (*manager.Manager, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(probes.ConnMap)},
@@ -115,7 +117,16 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.UDPv6RecvMsgPre410), EBPFFuncName: "kprobe__udpv6_recvmsg_pre_4_1_0", UID: probeUID}, MatchFuncName: "^udpv6_recvmsg$"},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPSendMsgPre410), EBPFFuncName: "kprobe__tcp_sendmsg__pre_4_1_0", UID: probeUID}, MatchFuncName: "^tcp_sendmsg$"},
 		)
+	} else {
+		kv, err := kernel.HostVersion()
+		if err != nil {
+			return nil, fmt.Errorf("error getting kernel version: %w", err)
+		}
+
+		if kv >= kernel.VersionCode(4, 10, 0) {
+			mgr.Maps = append(mgr.Maps, &manager.Map{Name: string(probes.CgroupNames)})
+		}
 	}
 
-	return mgr
+	return mgr, nil
 }
