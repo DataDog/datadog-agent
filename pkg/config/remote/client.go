@@ -25,6 +25,8 @@ import (
 
 // Client is a remote-configuration client to obtain configurations from the local API
 type Client struct {
+	m sync.Mutex
+
 	ID string
 
 	startupSync sync.Once
@@ -137,6 +139,8 @@ func (c *Client) update() error {
 		return err
 	}
 
+	c.m.Lock()
+	defer c.m.Unlock()
 	for _, listener := range c.apmListeners {
 		listener(c.repository.APMConfigs())
 	}
@@ -151,13 +155,17 @@ func (c *Client) update() error {
 // RegisterAPMUpdate registers a callback function to be called after a successful client update that will
 // contain the current state of the APMSampling product.
 func (c *Client) RegisterAPMUpdate(fn func(update map[string]remoteconfig.APMSamplingConfig)) {
+	c.m.Lock()
 	c.apmListeners = append(c.apmListeners, fn)
+	c.m.Unlock()
 }
 
 // RegisterCWSDDUpdate registers a callback function to be called after a successful client update that will
 // contain the current state of the CWSDD product.
 func (c *Client) RegisterCWSDDUpdate(fn func(update map[string]remoteconfig.ConfigCWSDD)) {
+	c.m.Lock()
 	c.cwsListeners = append(c.cwsListeners, fn)
+	c.m.Unlock()
 }
 
 func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) error {
