@@ -1042,40 +1042,6 @@ func createTestMetrics(additionalAttributes map[string]string, name, version str
 	dpDoubleHist.SetExplicitBounds([]float64{0})
 	dpDoubleHist.SetTimestamp(seconds(0))
 
-	// Exponential Histogram (delta)
-	met = metricsArray.AppendEmpty()
-	met.SetName("double.exponential.delta.histogram")
-	met.SetDataType(pmetric.MetricDataTypeExponentialHistogram)
-	met.ExponentialHistogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
-	expDeltaHistDp := met.ExponentialHistogram().DataPoints()
-	expDeltaHist := expDeltaHistDp.AppendEmpty()
-	expDeltaHist.SetScale(6)
-	expDeltaHist.SetCount(30)
-	expDeltaHist.SetZeroCount(10)
-	expDeltaHist.SetSum(math.Pi)
-	expDeltaHist.Negative().SetOffset(2)
-	expDeltaHist.Negative().SetBucketCounts([]uint64{3, 2, 5})
-	expDeltaHist.Positive().SetOffset(3)
-	expDeltaHist.Positive().SetBucketCounts([]uint64{1, 1, 1, 2, 2, 3})
-	expDeltaHist.SetTimestamp(seconds(0))
-
-	// Exponential Histogram (cumulative)
-	met = metricsArray.AppendEmpty()
-	met.SetName("double.exponential.cumulative.histogram")
-	met.SetDataType(pmetric.MetricDataTypeExponentialHistogram)
-	met.ExponentialHistogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityCumulative)
-	expCumHistDp := met.ExponentialHistogram().DataPoints()
-	expCumHist := expCumHistDp.AppendEmpty()
-	expCumHist.SetScale(6)
-	expCumHist.SetCount(30)
-	expDeltaHist.SetZeroCount(10)
-	expCumHist.SetSum(math.Pi)
-	expCumHist.Negative().SetOffset(2)
-	expCumHist.Negative().SetBucketCounts([]uint64{3, 2, 5})
-	expCumHist.Positive().SetOffset(3)
-	expCumHist.Positive().SetBucketCounts([]uint64{1, 1, 1, 2, 2, 3})
-	expCumHist.SetTimestamp(seconds(0))
-
 	// Int Sum (cumulative)
 	met = metricsArray.AppendEmpty()
 	met.SetName("int.cumulative.sum")
@@ -1221,16 +1187,9 @@ func TestMapMetrics(t *testing.T) {
 					Avg: math.Phi / 20,
 					Cnt: 20,
 				}, attrTags),
-				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
-					Sum: math.Pi,
-					Avg: 0.10471975511965977,
-					Cnt: 30,
-				}, attrTags),
 			},
 			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 3,
+			expectedUnsupportedAggregationTemporality: 2,
 		},
 		{
 			resourceAttributesAsTags:             true,
@@ -1258,16 +1217,9 @@ func TestMapMetrics(t *testing.T) {
 					Avg: math.Phi / 20.0,
 					Cnt: 20,
 				}, attrTags),
-				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
-					Sum: math.Pi,
-					Avg: 0.10471975511965977,
-					Cnt: 30,
-				}, attrTags),
 			},
 			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 3,
+			expectedUnsupportedAggregationTemporality: 2,
 		},
 		{
 			resourceAttributesAsTags:             false,
@@ -1282,8 +1234,6 @@ func TestMapMetrics(t *testing.T) {
 				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, attrTags),
 				newCountWithHostname("double.histogram.count", 20, 0, attrTags),
 				newCountWithHostname("double.histogram.sum", 1.618033988749895, 0, attrTags),
-				newCountWithHostname("double.exponential.delta.histogram.count", 30, 0, attrTags),
-				newCountWithHostname("double.exponential.delta.histogram.sum", 3.141592653589793, 0, attrTags),
 				newGaugeWithHostname("int.cumulative.sum", 4, attrTags),
 				newGaugeWithHostname("double.cumulative.sum", 4, attrTags),
 				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, attrTags),
@@ -1299,16 +1249,9 @@ func TestMapMetrics(t *testing.T) {
 					Avg: math.Phi / 20,
 					Cnt: 20,
 				}, attrTags),
-				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
-					Sum: math.Pi,
-					Avg: 0.10471975511965977,
-					Cnt: 30,
-				}, attrTags),
 			},
 			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 3,
+			expectedUnsupportedAggregationTemporality: 2,
 		},
 		{
 			resourceAttributesAsTags:             false,
@@ -1336,16 +1279,9 @@ func TestMapMetrics(t *testing.T) {
 					Avg: math.Phi / 20,
 					Cnt: 20,
 				}, append(attrTags, ilTags...)),
-				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
-					Sum: math.Pi,
-					Avg: 0.10471975511965977,
-					Cnt: 30,
-				}, append(attrTags, ilTags...)),
 			},
 			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 3,
+			expectedUnsupportedAggregationTemporality: 2,
 		},
 		{
 			resourceAttributesAsTags:             false,
@@ -1360,8 +1296,6 @@ func TestMapMetrics(t *testing.T) {
 				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, append(attrTags, ilTags...)),
 				newCountWithHostname("double.histogram.count", 20, 0, append(attrTags, ilTags...)),
 				newCountWithHostname("double.histogram.sum", 1.618033988749895, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("double.exponential.delta.histogram.count", 30, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("double.exponential.delta.histogram.sum", 3.141592653589793, 0, append(attrTags, ilTags...)),
 				newGaugeWithHostname("int.cumulative.sum", 4, append(attrTags, ilTags...)),
 				newGaugeWithHostname("double.cumulative.sum", 4, append(attrTags, ilTags...)),
 				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, append(attrTags, ilTags...)),
@@ -1377,16 +1311,9 @@ func TestMapMetrics(t *testing.T) {
 					Avg: math.Phi / 20,
 					Cnt: 20,
 				}, append(attrTags, ilTags...)),
-				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
-					Sum: math.Pi,
-					Avg: 0.10471975511965977,
-					Cnt: 30,
-				}, append(attrTags, ilTags...)),
 			},
 			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 3,
+			expectedUnsupportedAggregationTemporality: 2,
 		},
 		{
 			resourceAttributesAsTags:             true,
@@ -1414,16 +1341,9 @@ func TestMapMetrics(t *testing.T) {
 					Avg: math.Phi / 20,
 					Cnt: 20,
 				}, append(attrTags, ilTags...)),
-				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
-					Sum: math.Pi,
-					Avg: 0.10471975511965977,
-					Cnt: 30,
-				}, append(attrTags, ilTags...)),
 			},
 			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 3,
+			expectedUnsupportedAggregationTemporality: 2,
 		},
 		{
 			resourceAttributesAsTags:             true,
@@ -1438,8 +1358,6 @@ func TestMapMetrics(t *testing.T) {
 				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, append(attrTags, ilTags...)),
 				newCountWithHostname("double.histogram.count", 20, 0, append(attrTags, ilTags...)),
 				newCountWithHostname("double.histogram.sum", 1.618033988749895, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("double.exponential.delta.histogram.count", 30, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("double.exponential.delta.histogram.sum", 3.141592653589793, 0, append(attrTags, ilTags...)),
 				newGaugeWithHostname("int.cumulative.sum", 4, append(attrTags, ilTags...)),
 				newGaugeWithHostname("double.cumulative.sum", 4, append(attrTags, ilTags...)),
 				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, append(attrTags, ilTags...)),
@@ -1455,16 +1373,9 @@ func TestMapMetrics(t *testing.T) {
 					Avg: math.Phi / 20,
 					Cnt: 20,
 				}, append(attrTags, ilTags...)),
-				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
-					Sum: math.Pi,
-					Avg: 0.10471975511965977,
-					Cnt: 30,
-				}, append(attrTags, ilTags...)),
 			},
 			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 3,
+			expectedUnsupportedAggregationTemporality: 2,
 		},
 	}
 
