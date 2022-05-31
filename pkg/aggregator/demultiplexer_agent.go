@@ -391,7 +391,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	}
 
 	logPayloads := config.Datadog.GetBool("log_payloads")
-	flushedSketches := make([]metrics.SketchSeriesList, 0)
+	sketches := make(metrics.SketchSeriesList, 0)
 
 	metrics.StartIteration(
 		createIterableSeries(d.aggregator.flushAndSerializeInParallel, logPayloads),
@@ -406,8 +406,8 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 						time:      start,
 						blockChan: make(chan struct{}),
 					},
-					flushedSketches: &flushedSketches,
-					seriesSink:      seriesSink,
+					sketchesSink: &sketches,
+					seriesSink:   seriesSink,
 				}
 
 				worker.flushChan <- t
@@ -424,8 +424,8 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 						blockChan:         make(chan struct{}),
 						waitForSerializer: waitForSerializer,
 					},
-					flushedSketches: &flushedSketches,
-					seriesSink:      seriesSink,
+					sketchesSink: &sketches,
+					seriesSink:   seriesSink,
 				}
 
 				d.aggregator.flushChan <- t
@@ -434,15 +434,6 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 		}, func(serieSource metrics.SerieSource) {
 			sendIterableSeries(d.sharedSerializer, start, serieSource)
 		})
-
-	// collect the series and sketches that the multiple samplers may have reported
-	// ------------------------------------------------------
-
-	var sketches metrics.SketchSeriesList
-
-	for _, s := range flushedSketches {
-		sketches = append(sketches, s...)
-	}
 
 	// debug flag to log payloads
 	// --------------------------

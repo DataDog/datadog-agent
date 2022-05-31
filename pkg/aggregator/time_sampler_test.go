@@ -534,6 +534,8 @@ func BenchmarkTimeSampler(b *testing.B) {
 
 func flushSerie(sampler *TimeSampler, timestamp float64) (metrics.Series, metrics.SketchSeriesList) {
 	var series metrics.Series
-	sketches := sampler.flush(timestamp, &series)
+	var sketches metrics.SketchSeriesList
+
+	sampler.flush(timestamp, &series, &sketches)
 	return series, sketches
 }

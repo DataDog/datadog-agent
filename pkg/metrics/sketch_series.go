@@ -53,3 +53,16 @@ func (sl SketchSeriesList) String() string {
 	}
 	return string(json)
 }
+
+// SketchesSink is a sink for sketches.
+// It provides a way to append a sketches into `SketchSeriesList`
+type SketchesSink interface {
+	Append(*SketchSeries)
+}
+
+var _ SketchesSink = (*SketchSeriesList)(nil)
+
+// Append appends a sketches.
+func (sl *SketchSeriesList) Append(sketches *SketchSeries) {
+	*sl = append(*sl, sketches)
+}

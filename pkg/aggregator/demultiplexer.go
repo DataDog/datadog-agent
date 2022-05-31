@@ -110,8 +110,8 @@ type trigger struct {
 type flushTrigger struct {
 	trigger
 
-	flushedSketches *[]metrics.SketchSeriesList
-	seriesSink      metrics.SerieSink
+	sketchesSink metrics.SketchesSink
+	seriesSink   metrics.SerieSink
 }
 
 // DefaultDemultiplexerOptions returns the default options to initialize a Demultiplexer.
