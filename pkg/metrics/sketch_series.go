@@ -66,3 +66,24 @@ var _ SketchesSink = (*SketchSeriesList)(nil)
 func (sl *SketchSeriesList) Append(sketches *SketchSeries) {
 	*sl = append(*sl, sketches)
 }
+
+// SketchesSource is a source of sketches used by the serializer.
+type SketchesSource interface {
+	MoveNext() bool
+	Current() *SketchSeries
+	Count() uint64
+}
+
+// These functions are removed in a later commit
+func (sl SketchSeriesList) MoveNext() bool {
+	panic("NOT IMPLEMENTED")
+}
+
+func (sl SketchSeriesList) Current() *SketchSeries {
+	panic("NOT IMPLEMENTED")
+
+}
+
+func (sl SketchSeriesList) Count() uint64 {
+	panic("NOT IMPLEMENTED")
+}

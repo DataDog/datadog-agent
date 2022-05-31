@@ -19,7 +19,9 @@ import (
 )
 
 // A SketchSeriesList implements marshaler.Marshaler
-type SketchSeriesList []*metrics.SketchSeries
+type SketchSeriesList struct {
+	metrics.SketchesSource
+}
 
 var (
 	expvars                    = expvar.NewMap("sketch_series")
@@ -136,7 +138,8 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 		return nil, err
 	}
 
-	for _, ss := range sl {
+	for sl.MoveNext() {
+		ss := sl.Current()
 		buf.Reset()
 		err = ps.Embedded(payloadSketches, func(ps *molecule.ProtoStream) error {
 			var err error
@@ -273,10 +276,11 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 // Marshal encodes this series list.
 func (sl SketchSeriesList) Marshal() ([]byte, error) {
 	pb := &gogen.SketchPayload{
-		Sketches: make([]gogen.SketchPayload_Sketch, 0, len(sl)),
+		Sketches: make([]gogen.SketchPayload_Sketch, 0),
 	}
 
-	for _, ss := range sl {
+	for sl.MoveNext() {
+		ss := sl.Current()
 		dsl := make([]gogen.SketchPayload_Sketch_Dogsketch, 0, len(ss.Points))
 
 		for _, p := range ss.Points {
@@ -306,6 +310,18 @@ func (sl SketchSeriesList) Marshal() ([]byte, error) {
 
 // SplitPayload breaks the payload into times number of pieces
 func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
+	var sketches SketchSeriesSlice
+	for sl.MoveNext() {
+		ss := sl.Current()
+		sketches = append(sketches, ss)
+	}
+	return sketches.SplitPayload(times)
+}
+
+type SketchSeriesSlice []*metrics.SketchSeries
+
+// SplitPayload breaks the payload into times number of pieces
+func (sl SketchSeriesSlice) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	// Only break it down as much as possible
 	if len(sl) < times {
 		times = len(sl)

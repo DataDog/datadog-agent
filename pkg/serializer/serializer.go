@@ -88,7 +88,7 @@ type MetricSerializer interface {
 	SendEvents(e metrics.Events) error
 	SendServiceChecks(serviceChecks metrics.ServiceChecks) error
 	SendIterableSeries(serieSource metrics.SerieSource) error
-	SendSketch(sketches metrics.SketchSeriesList) error
+	SendSketch(sketches metrics.SketchesSource) error
 	SendMetadata(m marshaler.JSONMarshaler) error
 	SendHostMetadata(m marshaler.JSONMarshaler) error
 	SendProcessesMetadata(data interface{}) error
@@ -330,12 +330,12 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 }
 
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder
-func (s *Serializer) SendSketch(sketches metrics.SketchSeriesList) error {
+func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 	if !s.enableSketches {
 		log.Debug("sketches payloads are disabled: dropping it")
 		return nil
 	}
-	sketchesSerializer := metricsserializer.SketchSeriesList(sketches)
+	sketchesSerializer := metricsserializer.SketchSeriesList{SketchesSource: sketches}
 	if s.enableSketchProtobufStream {
 		payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
 		if err == nil {
