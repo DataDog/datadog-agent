@@ -14,12 +14,12 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	easyjson "github.com/mailru/easyjson"
 	"github.com/pkg/errors"
+	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
@@ -48,8 +48,8 @@ type APIServer struct {
 	msgs                 chan *api.SecurityEventMessage
 	processMsgs          chan *api.SecurityProcessEventMessage
 	expiredEventsLock    sync.RWMutex
-	expiredEvents        map[rules.RuleID]*int64
-	expiredProcessEvents int64
+	expiredEvents        map[rules.RuleID]*atomic.Int64
+	expiredProcessEvents *atomic.Int64
 	rate                 *Limiter
 	statsdClient         statsd.ClientInterface
 	probe                *sprobe.Probe
@@ -447,7 +447,7 @@ func (a *APIServer) expireEvent(msg *api.SecurityEventMessage) {
 	// Update metric
 	count, ok := a.expiredEvents[msg.RuleID]
 	if ok {
-		atomic.AddInt64(count, 1)
+		count.Inc()
 	}
 	seclog.Tracef("the event server channel is full, an event of ID %v was dropped", msg.RuleID)
 }
@@ -460,7 +460,7 @@ func (a *APIServer) GetStats() map[string]int64 {
 
 	stats := make(map[string]int64)
 	for ruleID, val := range a.expiredEvents {
-		stats[ruleID] = atomic.SwapInt64(val, 0)
+		stats[ruleID] = val.Swap(0)
 	}
 	return stats
 }
@@ -476,7 +476,7 @@ func (a *APIServer) SendStats() error {
 		}
 	}
 
-	if count := atomic.SwapInt64(&a.expiredProcessEvents, 0); count > 0 {
+	if count := a.expiredProcessEvents.Swap(0); count > 0 {
 		if err := a.statsdClient.Count(metrics.MetricProcessEventsServerExpired, count, []string{}, 1.0); err != nil {
 			return err
 		}
@@ -497,9 +497,9 @@ func (a *APIServer) Apply(ruleIDs []rules.RuleID) {
 	a.expiredEventsLock.Lock()
 	defer a.expiredEventsLock.Unlock()
 
-	a.expiredEvents = make(map[rules.RuleID]*int64)
+	a.expiredEvents = make(map[rules.RuleID]*atomic.Int64)
 	for _, id := range ruleIDs {
-		a.expiredEvents[id] = new(int64)
+		a.expiredEvents[id] = atomic.NewInt64(0)
 	}
 }
 
@@ -516,14 +516,14 @@ func (a *APIServer) SendProcessEvent(data []byte) {
 	default:
 		// The channel is full, expire the oldest event
 		_ = <-a.processMsgs
-		atomic.AddInt64(&a.expiredProcessEvents, 1)
+		a.expiredProcessEvents.Inc()
 		// Try to send the event again
 		select {
 		case a.processMsgs <- m:
 			break
 		default:
 			// looks like the process msgs channel is full again, expire the current event
-			atomic.AddInt64(&a.expiredProcessEvents, 1)
+			a.expiredProcessEvents.Inc()
 			break
 		}
 		break
@@ -533,14 +533,15 @@ func (a *APIServer) SendProcessEvent(data []byte) {
 // NewAPIServer returns a new gRPC event server
 func NewAPIServer(cfg *config.Config, probe *sprobe.Probe, client statsd.ClientInterface) *APIServer {
 	es := &APIServer{
-		msgs:          make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
-		processMsgs:   make(chan *api.SecurityProcessEventMessage, cfg.EventServerBurst*3),
-		expiredEvents: make(map[rules.RuleID]*int64),
-		rate:          NewLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
-		statsdClient:  client,
-		probe:         probe,
-		retention:     time.Duration(cfg.EventServerRetention) * time.Second,
-		cfg:           cfg,
+		msgs:                 make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
+		processMsgs:          make(chan *api.SecurityProcessEventMessage, cfg.EventServerBurst*3),
+		expiredEvents:        make(map[rules.RuleID]*atomic.Int64),
+		expiredProcessEvents: atomic.NewInt64(0),
+		rate:                 NewLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
+		statsdClient:         client,
+		probe:                probe,
+		retention:            time.Duration(cfg.EventServerRetention) * time.Second,
+		cfg:                  cfg,
 	}
 	return es
 }
