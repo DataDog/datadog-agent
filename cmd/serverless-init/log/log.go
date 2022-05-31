@@ -80,10 +80,8 @@ func SetupLog(conf *Config) {
 		}
 	}
 
-	if conf.isEnabled {
-		serverlessLogs.SetupLogAgent(conf.channel, sourceName, source)
-		serverlessLogs.SetLogsTags(tag.GetBaseTagsArrayWithMetadataTags(conf.Metadata.TagMap()))
-	}
+	serverlessLogs.SetupLogAgent(conf.channel, sourceName, source)
+	serverlessLogs.SetLogsTags(tag.GetBaseTagsArrayWithMetadataTags(conf.Metadata.TagMap()))
 }
 
 func (cw *CustomWriter) Write(p []byte) (n int, err error) {
