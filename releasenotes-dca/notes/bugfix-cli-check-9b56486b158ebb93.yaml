@@ -9,4 +9,4 @@
 fixes:
   - |
     Fix a panic occuring during the invocation of the `check` command on the
-    cluster agent if the orchestrator explorer feature is enabled.
+    Cluster Agent if the Orchestrator Explorer feature is enabled.
