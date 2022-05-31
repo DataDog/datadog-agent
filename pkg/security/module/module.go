@@ -53,26 +53,25 @@ type Opts struct {
 // Module represents the system-probe module for the runtime security agent
 type Module struct {
 	sync.RWMutex
-	wg                 sync.WaitGroup
-	probe              *sprobe.Probe
-	config             *sconfig.Config
-	currentRuleSet     *atomic.Value
-	reloading          *atomic.Bool
-	statsdClient       statsd.ClientInterface
-	apiServer          *APIServer
-	grpcServer         *grpc.Server
-	remoteConfigClient *remote.Client
-	listener           net.Listener
-	rateLimiter        *RateLimiter
-	sigupChan          chan os.Signal
-	ctx                context.Context
-	cancelFnc          context.CancelFunc
-	rulesLoaded        func(rs *rules.RuleSet, err *multierror.Error)
-	policiesVersions   []string
-	policyProviders    []rules.PolicyProvider
-	policyLoader       *rules.PolicyLoader
-	rcPolicyProvider   *rconfig.RCPolicyProvider
-	selfTester         *selftests.SelfTester
+	wg               sync.WaitGroup
+	probe            *sprobe.Probe
+	config           *sconfig.Config
+	currentRuleSet   *atomic.Value
+	reloading        *atomic.Bool
+	statsdClient     statsd.ClientInterface
+	apiServer        *APIServer
+	grpcServer       *grpc.Server
+	listener         net.Listener
+	rateLimiter      *RateLimiter
+	sigupChan        chan os.Signal
+	ctx              context.Context
+	cancelFnc        context.CancelFunc
+	rulesLoaded      func(rs *rules.RuleSet, err *multierror.Error)
+	policiesVersions []string
+	policyProviders  []rules.PolicyProvider
+	policyLoader     *rules.PolicyLoader
+	rcPolicyProvider *rconfig.RCPolicyProvider
+	selfTester       *selftests.SelfTester
 }
 
 // Register the runtime security agent module
