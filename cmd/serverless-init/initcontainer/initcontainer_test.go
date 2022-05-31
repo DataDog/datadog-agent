@@ -27,27 +27,33 @@ func TestBuildCommandParam(t *testing.T) {
 	assert.Equal(t, []string{}, args)
 }
 
+type TestTimeoutFlushableAgent struct {
+	hasBeenCalled bool
+}
+
 type TestFlushableAgent struct {
 	hasBeenCalled bool
 }
 
-func (tfa *TestFlushableAgent) Flush() {
-	time.Sleep(10 * time.Millisecond)
+func (tfa *TestTimeoutFlushableAgent) Flush() {
+	time.Sleep(1 * time.Hour)
 	tfa.hasBeenCalled = true
 }
 
-func TestFlushSuccess(t *testing.T) {
+func (tfa *TestFlushableAgent) Flush() {
+	tfa.hasBeenCalled = true
+}
+
+func TestFlushSucess(t *testing.T) {
 	metricAgent := &TestFlushableAgent{}
 	traceAgent := &TestFlushableAgent{}
 	flush(100*time.Millisecond, metricAgent, traceAgent)
 	assert.Equal(t, true, metricAgent.hasBeenCalled)
-	assert.Equal(t, true, traceAgent.hasBeenCalled)
 }
 
-func TestFlushTimeoutNonBlocking(t *testing.T) {
-	metricAgent := &TestFlushableAgent{}
-	traceAgent := &TestFlushableAgent{}
-	flush(1*time.Millisecond, metricAgent, traceAgent)
+func TestFlushTimeout(t *testing.T) {
+	metricAgent := &TestTimeoutFlushableAgent{}
+	traceAgent := &TestTimeoutFlushableAgent{}
+	flush(100*time.Millisecond, metricAgent, traceAgent)
 	assert.Equal(t, false, metricAgent.hasBeenCalled)
-	assert.Equal(t, false, traceAgent.hasBeenCalled)
 }

@@ -22,11 +22,7 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestGetSingleMetadataMalformedUrl(t *testing.T) {
-	testConfig := &config{
-		timeout:        1 * time.Millisecond,
-		containerIDURL: string([]byte("\u007F")),
-	}
-	assert.Equal(t, "unknown", getSingleMetadata(testConfig.containerIDURL, testConfig.timeout))
+	assert.Equal(t, "unknown", getSingleMetadata(&http.Client{}, string([]byte("\u007F"))))
 }
 
 func TestSingleMedataTimeout(t *testing.T) {
@@ -35,11 +31,10 @@ func TestSingleMedataTimeout(t *testing.T) {
 		w.WriteHeader(200)
 	}))
 	defer ts.Close()
-	testConfig := &config{
-		timeout:        1 * time.Millisecond,
-		containerIDURL: ts.URL,
+	httpClient := &http.Client{
+		Timeout: 1 * time.Millisecond,
 	}
-	assert.Equal(t, "unknown", getSingleMetadata(testConfig.containerIDURL, testConfig.timeout))
+	assert.Equal(t, "unknown", getSingleMetadata(httpClient, ts.URL))
 }
 
 func TestSingleMedataOK(t *testing.T) {
@@ -47,11 +42,7 @@ func TestSingleMedataOK(t *testing.T) {
 		w.Write([]byte("1234"))
 	}))
 	defer ts.Close()
-	testConfig := &config{
-		timeout:        1 * time.Second,
-		containerIDURL: ts.URL,
-	}
-	assert.Equal(t, "1234", getSingleMetadata(testConfig.containerIDURL, testConfig.timeout))
+	assert.Equal(t, "1234", getSingleMetadata(&http.Client{}, ts.URL))
 }
 
 func TestGetContainerID(t *testing.T) {
@@ -59,11 +50,11 @@ func TestGetContainerID(t *testing.T) {
 		w.Write([]byte("1234"))
 	}))
 	defer ts.Close()
-	testConfig := &config{
+	testConfig := &Config{
 		timeout:        1 * time.Second,
 		containerIDURL: ts.URL,
 	}
-	assert.Equal(t, &info{tagName: "container_id", value: "1234"}, getContainerID(testConfig))
+	assert.Equal(t, &info{tagName: "container_id", value: "1234"}, getContainerID(&http.Client{}, testConfig))
 }
 
 func TestGetRegionUnknown(t *testing.T) {
@@ -71,11 +62,11 @@ func TestGetRegionUnknown(t *testing.T) {
 		w.Write([]byte("unknown"))
 	}))
 	defer ts.Close()
-	testConfig := &config{
+	testConfig := &Config{
 		timeout:   1 * time.Second,
 		regionURL: ts.URL,
 	}
-	assert.Equal(t, &info{tagName: "location", value: "unknown"}, getRegion(testConfig))
+	assert.Equal(t, &info{tagName: "location", value: "unknown"}, getRegion(&http.Client{}, testConfig))
 }
 
 func TestGetRegionOK(t *testing.T) {
@@ -83,11 +74,11 @@ func TestGetRegionOK(t *testing.T) {
 		w.Write([]byte("projects/xxx/regions/us-central1"))
 	}))
 	defer ts.Close()
-	testConfig := &config{
+	testConfig := &Config{
 		timeout:   1 * time.Second,
 		regionURL: ts.URL,
 	}
-	assert.Equal(t, &info{tagName: "location", value: "us-central1"}, getRegion(testConfig))
+	assert.Equal(t, &info{tagName: "location", value: "us-central1"}, getRegion(&http.Client{}, testConfig))
 }
 
 func TestGetProjectID(t *testing.T) {
@@ -95,11 +86,11 @@ func TestGetProjectID(t *testing.T) {
 		w.Write([]byte("superproject"))
 	}))
 	defer ts.Close()
-	testConfig := &config{
+	testConfig := &Config{
 		timeout:      1 * time.Second,
 		projectIDURL: ts.URL,
 	}
-	assert.Equal(t, &info{tagName: "project_id", value: "superproject"}, getProjectID(testConfig))
+	assert.Equal(t, &info{tagName: "project_id", value: "superproject"}, getProjectID(&http.Client{}, testConfig))
 }
 
 func TestGetMetaDataComplete(t *testing.T) {
@@ -116,7 +107,7 @@ func TestGetMetaDataComplete(t *testing.T) {
 	}))
 	defer tsContainerID.Close()
 
-	testConfig := &config{
+	testConfig := &Config{
 		timeout:        1 * time.Second,
 		projectIDURL:   tsProjectID.URL,
 		regionURL:      tsRegion.URL,
@@ -144,7 +135,7 @@ func TestGetMetaDataIncompleteDueToTimeout(t *testing.T) {
 	}))
 	defer tsContainerID.Close()
 
-	testConfig := &config{
+	testConfig := &Config{
 		timeout:        500 * time.Millisecond,
 		projectIDURL:   tsProjectID.URL,
 		regionURL:      tsRegion.URL,
@@ -153,7 +144,7 @@ func TestGetMetaDataIncompleteDueToTimeout(t *testing.T) {
 
 	metadata := GetMetaData(testConfig)
 	assert.Equal(t, &info{tagName: "container_id", value: "acb54"}, metadata.containerID)
-	assert.Nil(t, metadata.region)
+	assert.Equal(t, &info{tagName: "location", value: "unknown"}, metadata.region)
 	assert.Equal(t, &info{tagName: "project_id", value: "superprojectid"}, metadata.projectID)
 }
 

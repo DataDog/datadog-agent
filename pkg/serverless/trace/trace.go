@@ -94,6 +94,8 @@ func (s *ServerlessTraceAgent) SetTags(tagMap map[string]string) {
 	if s.Get() != nil {
 		s.ta.SetGlobalTagsUnsafe(tagMap)
 		s.spanModifier.tags = tagMap
+	} else {
+		log.Debug("could not set tags as the trace agent has not been initialized")
 	}
 }
 
