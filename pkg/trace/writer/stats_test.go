@@ -282,8 +282,8 @@ func testStatsWriter() (*StatsWriter, chan pb.StatsPayload, *testServer) {
 	// other end.
 	in := make(chan pb.StatsPayload)
 	cfg := &config.AgentConfig{
-		Endpoints:   []*config.Endpoint{{Host: srv.URL, APIKey: "123"}},
-		StatsWriter: &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
+		Endpoints:     []*config.Endpoint{{Host: srv.URL, APIKey: "123"}},
+		StatsWriter:   &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
 		ContainerTags: func(cid string) ([]string, error) { return nil, nil },
 	}
 	return NewStatsWriter(cfg, in), in, srv
