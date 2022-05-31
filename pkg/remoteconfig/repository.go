@@ -284,7 +284,7 @@ func (r *Repository) applyUpdateResult(update Update, result updateResult) {
 
 // CurrentState returns all of the information needed to
 // make an update for new configurations.
-func (r *Repository) CurrentState() RepositoryState {
+func (r *Repository) CurrentState() (RepositoryState, error) {
 	var configs []ConfigState
 	var cached []CachedFile
 
@@ -293,12 +293,17 @@ func (r *Repository) CurrentState() RepositoryState {
 		cached = append(cached, cachedFileFromMetadata(path, metadata))
 	}
 
+	latestRoot, err := r.latestRoot()
+	if err != nil {
+		return RepositoryState{}, err
+	}
+
 	return RepositoryState{
 		Configs:        configs,
 		CachedFiles:    cached,
 		TargetsVersion: r.latestTargets.Version,
-		RootsVersion:   1,
-	}
+		RootsVersion:   latestRoot.Version,
+	}, nil
 }
 
 // An updateResult allows the client to apply the update as a transaction

@@ -122,7 +122,11 @@ func (c *Client) pollLoop() {
 // applies that update, informing any registered listeners of any config state changes
 // that occured.
 func (c *Client) update() error {
-	req := c.newUpdateRequest()
+	req, err := c.newUpdateRequest()
+	if err != nil {
+		return err
+	}
+
 	response, err := c.grpc.ClientGetConfigs(c.ctx, req)
 	if err != nil {
 		return err
@@ -192,8 +196,11 @@ func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) (bool, err
 
 // newUpdateRequests builds a new request for the agent based on the current state of the
 // remote config repository.
-func (c *Client) newUpdateRequest() *pbgo.ClientGetConfigsRequest {
-	state := c.repository.CurrentState()
+func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
+	state, err := c.repository.CurrentState()
+	if err != nil {
+		return nil, err
+	}
 
 	pbCachedFiles := make([]*pbgo.TargetFileMeta, 0, len(state.CachedFiles))
 	for _, f := range state.CachedFiles {
@@ -247,7 +254,7 @@ func (c *Client) newUpdateRequest() *pbgo.ClientGetConfigsRequest {
 		CachedTargetFiles: pbCachedFiles,
 	}
 
-	return req
+	return req, nil
 }
 
 var (
