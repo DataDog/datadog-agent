@@ -7,7 +7,6 @@ package remoteconfig
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -94,41 +93,22 @@ func NewRepository(embeddedRoot []byte) *Repository {
 	}
 }
 
-func (r *Repository) updateRoots(roots [][]byte) error {
+func (r *Repository) updateRoots(roots [][]byte) (*data.Root, error) {
 	if len(roots) == 0 {
-		return nil
+		latestRoot, err := r.latestRoot()
+		if err != nil {
+			return nil, err
+		}
+		return latestRoot, nil
 	}
+
 	r.rootRemoteStore.roots = roots
 	err := r.rootClient.UpdateRoots()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return r.updateRootVersion()
-}
-
-func (r *Repository) updateRootVersion() error {
-	meta, err := r.rootLocalStore.GetMeta()
-	if err != nil {
-		return err
-	}
-	rootMetaRaw, rootFound := meta["root.json"]
-	if !rootFound {
-		return fmt.Errorf("could not find root.json in the local store")
-	}
-
-	var signed data.Signed
-	var root data.Root
-	err = json.Unmarshal(rootMetaRaw, &signed)
-	if err != nil {
-		return err
-	}
-	err = json.Unmarshal(signed.Signed, &root)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return r.latestRoot()
 }
 
 func (r *Repository) latestRoot() (*data.Root, error) {
@@ -145,12 +125,7 @@ func (r *Repository) latestRoot() (*data.Root, error) {
 // configuration state
 func (r *Repository) Update(update Update) (bool, error) {
 	// TUF (Non-RFC): Update the roots
-	err := r.updateRoots(update.TUFRoots)
-	if err != nil {
-		return false, err
-	}
-
-	latestRoot, err := r.latestRoot()
+	latestRoot, err := r.updateRoots(update.TUFRoots)
 	if err != nil {
 		return false, err
 	}
