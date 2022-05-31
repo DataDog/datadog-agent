@@ -249,12 +249,21 @@ func (s *store) GetContainer(id string) (*Container, error) {
 
 // ListContainers implements Store#ListContainers.
 func (s *store) ListContainers() []*Container {
+	return s.ListContainersWithFilter(nil)
+}
+
+// ListContainersWithFilter implements Store#ListContainersWithFilter
+func (s *store) ListContainersWithFilter(filter ContainerFilterFunc) []*Container {
 	entities := s.listEntitiesByKind(KindContainer)
 
 	// Not very efficient
 	containers := make([]*Container, 0, len(entities))
 	for _, entity := range entities {
-		containers = append(containers, entity.(*Container))
+		container := entity.(*Container)
+
+		if filter == nil || filter(container) {
+			containers = append(containers, container)
+		}
 	}
 
 	return containers
