@@ -123,17 +123,6 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
 
-	// options noop orchestrator forwarder
-
-	opts = demuxTestOptions()
-	opts.UseNoopOrchestratorForwarder = true
-	demux = InitAndStartAgentDemultiplexer(opts, "")
-	require.NotNil(demux)
-	require.NotNil(demux.forwarders.eventPlatform)
-	require.NotNil(demux.forwarders.orchestrator)
-	require.NotNil(demux.forwarders.shared)
-	demux.Stop(false)
-
 	// no options to disable it, but the feature is not enabled
 
 	config.Datadog.Set("orchestrator_explorer.enabled", false)
