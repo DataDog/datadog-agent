@@ -1621,3 +1621,263 @@ func TestNaNMetrics(t *testing.T) {
 	// One metric type was unknown or unsupported
 	assert.Equal(t, observed.FilterMessage("Unsupported metric value").Len(), 7)
 }
+
+func TestMapExponentialHistogram(t *testing.T) {
+	attrs := map[string]string{
+		conventions.AttributeDeploymentEnvironment: "dev",
+		"custom_attribute":                         "custom_value",
+	}
+
+	// Attributes defined in internal/attributes get converted to tags.
+	// Other tags do not get converted if ResourceAttributesAsTags is false,
+	// or are converted into datapoint-level attributes (which are then converted to tags) by
+	// the resourcetotelemetry helper if ResourceAttributesAsTags is true
+	// (outside of the MapMetrics function's scope).
+	attrTags := []string{
+		"env:dev",
+	}
+
+	ilName := "instrumentation_library"
+	ilVersion := "1.0.0"
+	ilTags := []string{
+		fmt.Sprintf("instrumentation_library:%s", ilName),
+		fmt.Sprintf("instrumentation_library_version:%s", ilVersion),
+	}
+
+	tests := []struct {
+		resourceAttributesAsTags                  bool
+		instrumentationLibraryMetadataAsTags      bool
+		withCountSum                              bool
+		expectedMetrics                           []metric
+		expectedSketches                          []sketch
+		expectedUnknownMetricType                 int
+		expectedUnsupportedAggregationTemporality int
+	}{
+		{
+			resourceAttributesAsTags:             false,
+			instrumentationLibraryMetadataAsTags: false,
+			withCountSum:                         false,
+			expectedMetrics:                      nil,
+			expectedSketches: []sketch{
+				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
+					Min: -1.0475797592879845,
+					Max: 1.0974563270357618,
+					Sum: math.Pi,
+					Avg: math.Pi / float64(30),
+					Cnt: 30,
+				}, attrTags),
+			},
+			expectedUnknownMetricType:                 1,
+			expectedUnsupportedAggregationTemporality: 1,
+		},
+		{
+			resourceAttributesAsTags:             true,
+			instrumentationLibraryMetadataAsTags: false,
+			withCountSum:                         false,
+			expectedMetrics:                      nil,
+			expectedSketches: []sketch{
+				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
+					Min: -1.0475797592879845,
+					Max: 1.0974563270357618,
+					Sum: math.Pi,
+					Avg: 0.10471975511965977,
+					Cnt: 30,
+				}, attrTags),
+			},
+			expectedUnknownMetricType:                 1,
+			expectedUnsupportedAggregationTemporality: 1,
+		},
+		{
+			resourceAttributesAsTags:             false,
+			instrumentationLibraryMetadataAsTags: false,
+			withCountSum:                         true,
+			expectedMetrics: []metric{
+				newCountWithHostname("double.exponential.delta.histogram.count", 30, 0, attrTags),
+				newCountWithHostname("double.exponential.delta.histogram.sum", math.Pi, 0, attrTags),
+			},
+			expectedSketches: []sketch{
+				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
+					Min: -1.0475797592879845,
+					Max: 1.0974563270357618,
+					Sum: math.Pi,
+					Avg: 0.10471975511965977,
+					Cnt: 30,
+				}, attrTags),
+			},
+			expectedUnknownMetricType:                 1,
+			expectedUnsupportedAggregationTemporality: 1,
+		},
+		{
+			resourceAttributesAsTags:             false,
+			instrumentationLibraryMetadataAsTags: true,
+			withCountSum:                         false,
+			expectedMetrics:                      nil,
+			expectedSketches: []sketch{
+				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
+					Min: -1.0475797592879845,
+					Max: 1.0974563270357618,
+					Sum: math.Pi,
+					Avg: 0.10471975511965977,
+					Cnt: 30,
+				}, append(attrTags, ilTags...)),
+			},
+			expectedUnknownMetricType:                 1,
+			expectedUnsupportedAggregationTemporality: 1,
+		},
+		{
+			resourceAttributesAsTags:             false,
+			instrumentationLibraryMetadataAsTags: true,
+			withCountSum:                         true,
+			expectedMetrics: []metric{
+				newCountWithHostname("double.exponential.delta.histogram.count", 30, 0, append(attrTags, ilTags...)),
+				newCountWithHostname("double.exponential.delta.histogram.sum", math.Pi, 0, append(attrTags, ilTags...)),
+			},
+			expectedSketches: []sketch{
+				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
+					Min: -1.0475797592879845,
+					Max: 1.0974563270357618,
+					Sum: math.Pi,
+					Avg: 0.10471975511965977,
+					Cnt: 30,
+				}, append(attrTags, ilTags...)),
+			},
+			expectedUnknownMetricType:                 1,
+			expectedUnsupportedAggregationTemporality: 1,
+		},
+		{
+			resourceAttributesAsTags:             true,
+			instrumentationLibraryMetadataAsTags: true,
+			withCountSum:                         false,
+			expectedSketches: []sketch{
+				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
+					Min: -1.0475797592879845,
+					Max: 1.0974563270357618,
+					Sum: math.Pi,
+					Avg: 0.10471975511965977,
+					Cnt: 30,
+				}, append(attrTags, ilTags...)),
+			},
+			expectedUnknownMetricType:                 1,
+			expectedUnsupportedAggregationTemporality: 1,
+		},
+		{
+			resourceAttributesAsTags:             true,
+			instrumentationLibraryMetadataAsTags: true,
+			withCountSum:                         true,
+			expectedMetrics: []metric{
+				newCountWithHostname("double.exponential.delta.histogram.count", 30, 0, append(attrTags, ilTags...)),
+				newCountWithHostname("double.exponential.delta.histogram.sum", math.Pi, 0, append(attrTags, ilTags...)),
+			},
+			expectedSketches: []sketch{
+				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
+					Min: -1.0475797592879845,
+					Max: 1.0974563270357618,
+					Sum: math.Pi,
+					Avg: 0.10471975511965977,
+					Cnt: 30,
+				}, append(attrTags, ilTags...)),
+			},
+			expectedUnknownMetricType:                 1,
+			expectedUnsupportedAggregationTemporality: 1,
+		},
+	}
+
+	for _, testInstance := range tests {
+		tName := fmt.Sprintf("resourceAttributesAsTags: %t, instrumentationLibraryMetadataAsTags: %t, withCountSum: %t",
+			testInstance.resourceAttributesAsTags, testInstance.instrumentationLibraryMetadataAsTags, testInstance.withCountSum)
+		t.Run(tName, func(t *testing.T) {
+			md := createTestExponentialHistogram(attrs, ilName, ilVersion)
+
+			core, observed := observer.New(zapcore.DebugLevel)
+			testLogger := zap.New(core)
+			ctx := context.Background()
+			consumer := &mockFullConsumer{}
+
+			options := []Option{}
+			if testInstance.resourceAttributesAsTags {
+				options = append(options, WithResourceAttributesAsTags())
+			}
+			if testInstance.instrumentationLibraryMetadataAsTags {
+				options = append(options, WithInstrumentationLibraryMetadataAsTags())
+			}
+			if testInstance.withCountSum {
+				options = append(options, WithCountSumMetrics())
+			}
+
+			tr := newTranslator(t, testLogger, options...)
+			err := tr.MapMetrics(ctx, md, consumer)
+			require.NoError(t, err)
+
+			assert.Equal(t, testInstance.expectedMetrics, consumer.metrics, "consumer.metrics doesn't have the expected one")
+			assert.Equal(t, len(testInstance.expectedSketches), len(consumer.sketches), "sketches list doesn't have the expected size")
+			if len(testInstance.expectedSketches) == len(consumer.sketches) {
+				for i := 0; i < len(consumer.sketches); i++ {
+					assert.Equal(t, testInstance.expectedSketches[i].name, consumer.sketches[i].name)
+					assert.Equal(t, testInstance.expectedSketches[i].host, consumer.sketches[i].host)
+					assert.Equal(t, testInstance.expectedSketches[i].tags, consumer.sketches[i].tags)
+					assert.InDelta(t, testInstance.expectedSketches[i].basic.Min, consumer.sketches[i].basic.Min, 0.01)
+					assert.InDelta(t, testInstance.expectedSketches[i].basic.Max, consumer.sketches[i].basic.Max, 0.01)
+					assert.Equal(t, testInstance.expectedSketches[i].basic.Cnt, consumer.sketches[i].basic.Cnt)
+					assert.Equal(t, testInstance.expectedSketches[i].basic.Sum, consumer.sketches[i].basic.Sum)
+					assert.Equal(t, testInstance.expectedSketches[i].basic.Avg, consumer.sketches[i].basic.Avg)
+				}
+			}
+			assert.Equal(t, testInstance.expectedUnknownMetricType, observed.FilterMessage("Unknown or unsupported metric type").Len())
+			assert.Equal(t, testInstance.expectedUnsupportedAggregationTemporality, observed.FilterMessage("Unknown or unsupported aggregation temporality").Len())
+		})
+	}
+}
+
+func createTestExponentialHistogram(additionalAttributes map[string]string, name, version string) pmetric.Metrics {
+	md := pmetric.NewMetrics()
+	rms := md.ResourceMetrics()
+	rm := rms.AppendEmpty()
+
+	attrs := rm.Resource().Attributes()
+	attrs.InsertString(attributes.AttributeDatadogHostname, testHostname)
+	for attr, val := range additionalAttributes {
+		attrs.InsertString(attr, val)
+	}
+	ilms := rm.ScopeMetrics()
+
+	ilm := ilms.AppendEmpty()
+	ilm.Scope().SetName(name)
+	ilm.Scope().SetVersion(version)
+	metricsArray := ilm.Metrics()
+	metricsArray.AppendEmpty() // first one is TypeNone to test that it's ignored
+
+	// Exponential Histogram (delta)
+	met := metricsArray.AppendEmpty()
+	met.SetName("double.exponential.delta.histogram")
+	met.SetDataType(pmetric.MetricDataTypeExponentialHistogram)
+	met.ExponentialHistogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
+	expDeltaHistDp := met.ExponentialHistogram().DataPoints()
+	expDeltaHist := expDeltaHistDp.AppendEmpty()
+	expDeltaHist.SetScale(6)
+	expDeltaHist.SetCount(30)
+	expDeltaHist.SetZeroCount(10)
+	expDeltaHist.SetSum(math.Pi)
+	expDeltaHist.Negative().SetOffset(2)
+	expDeltaHist.Negative().SetBucketCounts([]uint64{3, 2, 5})
+	expDeltaHist.Positive().SetOffset(3)
+	expDeltaHist.Positive().SetBucketCounts([]uint64{1, 1, 1, 2, 2, 3})
+	expDeltaHist.SetTimestamp(seconds(0))
+
+	// Exponential Histogram (cumulative)
+	met = metricsArray.AppendEmpty()
+	met.SetName("double.exponential.cumulative.histogram")
+	met.SetDataType(pmetric.MetricDataTypeExponentialHistogram)
+	met.ExponentialHistogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityCumulative)
+	expCumHistDp := met.ExponentialHistogram().DataPoints()
+	expCumHist := expCumHistDp.AppendEmpty()
+	expCumHist.SetScale(6)
+	expCumHist.SetCount(30)
+	expDeltaHist.SetZeroCount(10)
+	expCumHist.SetSum(math.Pi)
+	expCumHist.Negative().SetOffset(2)
+	expCumHist.Negative().SetBucketCounts([]uint64{3, 2, 5})
+	expCumHist.Positive().SetOffset(3)
+	expCumHist.Positive().SetBucketCounts([]uint64{1, 1, 1, 2, 2, 3})
+	expCumHist.SetTimestamp(seconds(0))
+	return md
+}
