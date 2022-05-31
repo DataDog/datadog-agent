@@ -8,7 +8,6 @@ package collector
 import (
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -16,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/atomic"
 )
 
 const (
@@ -28,7 +28,9 @@ const cancelCheckTimeout time.Duration = 500 * time.Millisecond
 // Collector abstract common operations about running a Check
 type Collector struct {
 	checkInstances int64
-	state          uint32
+
+	// state is 'started' or 'stopped'
+	state *atomic.Uint32
 
 	scheduler *scheduler.Scheduler
 	runner    *runner.Runner
@@ -50,7 +52,7 @@ func NewCollector(paths ...string) *Collector {
 		scheduler:      sched,
 		runner:         run,
 		checks:         make(map[check.ID]check.Check),
-		state:          started,
+		state:          atomic.NewUint32(started),
 		checkInstances: int64(0),
 	}
 	pyVer, pyHome, pyPath := pySetup(paths...)
@@ -76,7 +78,7 @@ func (c *Collector) Stop() {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	if c.state == stopped {
+	if c.state.Load() == stopped {
 		return
 	}
 
@@ -84,7 +86,7 @@ func (c *Collector) Stop() {
 	c.scheduler = nil
 	c.runner.Stop()
 	c.runner = nil
-	c.state = stopped
+	c.state.Store(stopped)
 }
 
 // RunCheck sends a Check in the execution queue
@@ -94,7 +96,7 @@ func (c *Collector) RunCheck(ch check.Check) (check.ID, error) {
 
 	var emptyID check.ID
 
-	if c.state != started {
+	if c.state.Load() != started {
 		return emptyID, fmt.Errorf("the collector is not running")
 	}
 
@@ -196,7 +198,7 @@ func (c *Collector) delete(id check.ID) {
 
 // lightweight shortcut to see if the collector has started
 func (c *Collector) started() bool {
-	return atomic.LoadUint32(&(c.state)) == started
+	return c.state.Load() == started
 }
 
 // GetAllInstanceIDs returns the ID's of all instances of a check

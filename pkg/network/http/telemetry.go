@@ -83,32 +83,25 @@ func (t *telemetry) reset() telemetry {
 	delta.aggregations = atomic.SwapInt64(&t.aggregations, 0)
 	delta.elapsed = now - then
 
+	totalRequests := delta.hits1XX + delta.hits2XX + delta.hits3XX + delta.hits4XX + delta.hits5XX
+	log.Debugf(
+		"http stats summary: requests_processed=%d(%.2f/s) requests_missed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) requests_malformed=%d(%.2f/s) aggregations=%d",
+		totalRequests,
+		float64(totalRequests)/float64(delta.elapsed),
+		delta.misses,
+		float64(delta.misses)/float64(delta.elapsed),
+		delta.dropped,
+		float64(delta.dropped)/float64(delta.elapsed),
+		delta.rejected,
+		float64(delta.rejected)/float64(delta.elapsed),
+		delta.malformed,
+		float64(delta.malformed)/float64(delta.elapsed),
+		delta.aggregations,
+	)
+
 	return *delta
 }
 
 func (t *telemetry) report() map[string]interface{} {
-	stats := t.reporter.Report()
-
-	misses := stats["misses"].(int64)
-	dropped := stats["dropped"].(int64)
-	rejected := stats["rejected"].(int64)
-	aggregations := stats["aggregations"].(int64)
-	totalRequests := stats["hits1_xx"].(int64) + stats["hits2_xx"].(int64) + stats["hits3_xx"].(int64) + stats["hits4_xx"].(int64) + stats["hits5_xx"].(int64)
-
-	log.Debugf(
-		"http stats summary: requests_processed=%d(%.2f/s) requests_missed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) requests_malformed=%d(%.2f/s) aggregations=%d",
-		totalRequests,
-		float64(totalRequests)/float64(t.elapsed),
-		misses,
-		float64(misses)/float64(t.elapsed),
-		dropped,
-		float64(dropped)/float64(t.elapsed),
-		rejected,
-		float64(rejected)/float64(t.elapsed),
-		t.malformed,
-		float64(t.malformed)/float64(t.elapsed),
-		aggregations,
-	)
-
-	return stats
+	return t.reporter.Report()
 }

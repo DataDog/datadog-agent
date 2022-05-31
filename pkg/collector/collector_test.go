@@ -89,14 +89,14 @@ func (suite *CollectorTestSuite) TearDownTest() {
 func (suite *CollectorTestSuite) TestNewCollector() {
 	assert.NotNil(suite.T(), suite.c.runner)
 	assert.NotNil(suite.T(), suite.c.scheduler)
-	assert.Equal(suite.T(), started, suite.c.state)
+	assert.Equal(suite.T(), started, suite.c.state.Load())
 }
 
 func (suite *CollectorTestSuite) TestStop() {
 	suite.c.Stop()
 	assert.Nil(suite.T(), suite.c.runner)
 	assert.Nil(suite.T(), suite.c.scheduler)
-	assert.Equal(suite.T(), stopped, suite.c.state)
+	assert.Equal(suite.T(), stopped, suite.c.state.Load())
 }
 
 func (suite *CollectorTestSuite) TestRunCheck() {

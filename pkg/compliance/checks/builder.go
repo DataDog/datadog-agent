@@ -236,6 +236,7 @@ func WithRegoInputDumpPath(regoInputDumpPath string) BuilderOption {
 	}
 }
 
+// WithRegoEvalSkip configures a builder to skip the rego evaluation, while still building the input
 func WithRegoEvalSkip(regoEvalSkip bool) BuilderOption {
 	return func(b *builder) error {
 		b.regoEvalSkip = regoEvalSkip

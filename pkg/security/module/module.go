@@ -18,7 +18,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 	"unsafe"
@@ -27,6 +26,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/skydive-project/go-debouncer"
+	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -60,8 +60,8 @@ type Module struct {
 	wg                 sync.WaitGroup
 	probe              *sprobe.Probe
 	config             *sconfig.Config
-	currentRuleSet     atomic.Value
-	reloading          uint64
+	currentRuleSet     *atomic.Value
+	reloading          *atomic.Bool
 	statsdClient       statsd.ClientInterface
 	apiServer          *APIServer
 	grpcServer         *grpc.Server
@@ -294,8 +294,8 @@ func (m *Module) Reload(policiesDir string) error {
 	m.Lock()
 	defer m.Unlock()
 
-	atomic.StoreUint64(&m.reloading, 1)
-	defer atomic.StoreUint64(&m.reloading, 0)
+	m.reloading.Store(true)
+	defer m.reloading.Store(false)
 
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
@@ -415,7 +415,7 @@ func (m *Module) Close() {
 
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
 func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
-	if atomic.LoadUint64(&m.reloading) == 1 {
+	if m.reloading.Load() {
 		return
 	}
 
@@ -515,6 +515,11 @@ func (m *Module) metricsSender() {
 			} else if m.config.FIMEnabled {
 				_ = m.statsdClient.Gauge(metrics.MetricSecurityAgentFIMRunning, 1, tags, 1)
 			}
+
+			// Event monitoring may run independently of CWS products
+			if m.config.EventMonitoring {
+				_ = m.statsdClient.Gauge(metrics.MetricEventMonitoringRunning, 1, tags, 1)
+			}
 		case <-m.ctx.Done():
 			return
 		}
@@ -585,16 +590,18 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 	var selfTester = sprobe.NewSelfTester()
 
 	m := &Module{
-		config:       cfg,
-		probe:        probe,
-		statsdClient: statsdClient,
-		apiServer:    NewAPIServer(cfg, probe, statsdClient),
-		grpcServer:   grpc.NewServer(),
-		rateLimiter:  NewRateLimiter(statsdClient, LimiterOpts{Limits: limits}),
-		sigupChan:    make(chan os.Signal, 1),
-		ctx:          ctx,
-		cancelFnc:    cancelFnc,
-		selfTester:   selfTester,
+		config:         cfg,
+		probe:          probe,
+		currentRuleSet: new(atomic.Value),
+		reloading:      atomic.NewBool(false),
+		statsdClient:   statsdClient,
+		apiServer:      NewAPIServer(cfg, probe, statsdClient),
+		grpcServer:     grpc.NewServer(),
+		rateLimiter:    NewRateLimiter(statsdClient, LimiterOpts{Limits: limits}),
+		sigupChan:      make(chan os.Signal, 1),
+		ctx:            ctx,
+		cancelFnc:      cancelFnc,
+		selfTester:     selfTester,
 	}
 	m.apiServer.module = m
 	m.reloader = debouncer.New(3*time.Second, m.triggerReload)

@@ -36,6 +36,11 @@ type SourceManager interface {
 	// source is recognized by pointer equality.
 	RemoveSource(source *logsConfig.LogSource)
 
+	// GetSources returns all the sources currently held.  The result is copied and
+	// will not be modified after it is returned, and represents a "snapshot" of the
+	// state when the function was called.
+	GetSources() []*logsConfig.LogSource
+
 	// AddService adds a new service to the logs agent.
 	AddService(service *service.Service)
 
