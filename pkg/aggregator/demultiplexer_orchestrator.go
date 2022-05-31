@@ -13,6 +13,6 @@ import (
 	orch "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 )
 
-func buildOrchestratorForwarder() forwarder.Forwarder {
+func buildOrchestratorForwarder() *forwarder.DefaultForwarder {
 	return orch.NewOrchestratorForwarder()
 }

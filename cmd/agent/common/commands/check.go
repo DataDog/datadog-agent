@@ -148,7 +148,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			opts.FlushInterval = 0
 			opts.UseNoopForwarder = true
 			opts.UseNoopEventPlatformForwarder = true
-			opts.UseNoopOrchestratorForwarder = true
+			opts.UseOrchestratorForwarder = false
 			demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
 
 			common.LoadComponents(context.Background(), config.Datadog.GetString("confd_path"))

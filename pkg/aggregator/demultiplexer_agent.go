@@ -61,7 +61,7 @@ type statsd struct {
 
 type forwarders struct {
 	shared             forwarder.Forwarder
-	orchestrator       forwarder.Forwarder
+	orchestrator       *forwarder.DefaultForwarder
 	eventPlatform      epforwarder.EventPlatformForwarder
 	containerLifecycle *forwarder.DefaultForwarder
 }
@@ -96,10 +96,8 @@ func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *Agen
 
 	log.Debugf("Creating forwarders")
 	// orchestrator forwarder
-	var orchestratorForwarder forwarder.Forwarder
-	if options.UseNoopOrchestratorForwarder {
-		orchestratorForwarder = new(forwarder.NoopForwarder)
-	} else if options.UseOrchestratorForwarder {
+	var orchestratorForwarder *forwarder.DefaultForwarder
+	if options.UseOrchestratorForwarder {
 		orchestratorForwarder = buildOrchestratorForwarder()
 	}
 
