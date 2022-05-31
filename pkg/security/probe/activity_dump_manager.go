@@ -93,7 +93,7 @@ func (adm *ActivityDumpManager) cleanup() {
 	var toDelete []int
 
 	for i, d := range adm.activeDumps {
-		if time.Now().After(d.Metadata.Start.Add(d.Metadata.Timeout)) {
+		if time.Now().After(d.DumpMetadata.Start.Add(d.DumpMetadata.Timeout)) {
 			d.Stop()
 			seclog.Infof("tracing stopped for [%s]", d.GetSelectorStr())
 
@@ -223,45 +223,45 @@ func (adm *ActivityDumpManager) prepareContextTags() {
 // insertActivityDump inserts an activity dump in the list of activity dumps handled by the manager
 func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error {
 	// sanity checks
-	if len(newDump.Metadata.ContainerID) > 0 {
+	if len(newDump.DumpMetadata.ContainerID) > 0 {
 		// check if the provided container ID is new
 		for _, ad := range adm.activeDumps {
-			if ad.Metadata.ContainerID == newDump.Metadata.ContainerID {
+			if ad.DumpMetadata.ContainerID == newDump.DumpMetadata.ContainerID {
 				// an activity dump is already active for this container ID, ignore
 				return nil
 			}
 		}
 	}
 
-	if len(newDump.Metadata.Comm) > 0 {
+	if len(newDump.DumpMetadata.Comm) > 0 {
 		// check if the provided comm is new
 		for _, ad := range adm.activeDumps {
-			if ad.Metadata.Comm == newDump.Metadata.Comm {
+			if ad.DumpMetadata.Comm == newDump.DumpMetadata.Comm {
 				return fmt.Errorf("an activity dump is already active for the provided comm")
 			}
 		}
 	}
 
 	// dump will be added, push kernel space filters
-	if len(newDump.Metadata.ContainerID) > 0 {
+	if len(newDump.DumpMetadata.ContainerID) > 0 {
 		// put this container ID on the wait list so that we don't snapshot it again before a while
 		containerIDB := make([]byte, model.ContainerIDLen)
-		copy(containerIDB, newDump.Metadata.ContainerID)
+		copy(containerIDB, newDump.DumpMetadata.ContainerID)
 		waitListTimeout := time.Now().Add(time.Duration(adm.probe.config.ActivityDumpCgroupWaitListSize) * adm.probe.config.ActivityDumpCgroupDumpTimeout)
 		waitListTimeoutRaw := adm.probe.resolvers.TimeResolver.ComputeMonotonicTimestamp(waitListTimeout)
 		err := adm.cgroupWaitListMap.Put(containerIDB, waitListTimeoutRaw)
 		if err != nil {
-			seclog.Debugf("couldn't insert container ID %s to cgroup_wait_list: %v", newDump.Metadata.ContainerID, err)
+			seclog.Debugf("couldn't insert container ID %s to cgroup_wait_list: %v", newDump.DumpMetadata.ContainerID, err)
 		}
 	}
 
-	if len(newDump.Metadata.Comm) > 0 {
+	if len(newDump.DumpMetadata.Comm) > 0 {
 		commB := make([]byte, 16)
-		copy(commB, newDump.Metadata.Comm)
+		copy(commB, newDump.DumpMetadata.Comm)
 		value := newDump.getTimeoutRawTimestamp()
 		err := adm.tracedCommsMap.Put(commB, &value)
 		if err != nil {
-			seclog.Debugf("couldn't insert activity dump filter comm(%s): %v", newDump.Metadata.Comm, err)
+			seclog.Debugf("couldn't insert activity dump filter comm(%s): %v", newDump.DumpMetadata.Comm, err)
 		}
 	}
 
@@ -290,9 +290,9 @@ func (adm *ActivityDumpManager) HandleCgroupTracingEvent(event *model.CgroupTrac
 		return
 	}
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
-		ad.Metadata.ContainerID = event.ContainerContext.ID
-		ad.Metadata.Timeout = adm.probe.resolvers.TimeResolver.ResolveMonotonicTimestamp(event.TimeoutRaw).Sub(time.Now())
-		ad.Metadata.DifferentiateArgs = adm.probe.config.ActivityDumpCgroupDifferentiateGraphs
+		ad.DumpMetadata.ContainerID = event.ContainerContext.ID
+		ad.DumpMetadata.Timeout = adm.probe.resolvers.TimeResolver.ResolveMonotonicTimestamp(event.TimeoutRaw).Sub(time.Now())
+		ad.DumpMetadata.DifferentiateArgs = adm.probe.config.ActivityDumpCgroupDifferentiateGraphs
 	})
 
 	// add local storage requests
@@ -328,9 +328,9 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*a
 	defer adm.Unlock()
 
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
-		ad.Metadata.Comm = params.GetComm()
-		ad.Metadata.Timeout = time.Duration(params.Timeout) * time.Minute
-		ad.Metadata.DifferentiateArgs = params.GetDifferentiateArgs()
+		ad.DumpMetadata.Comm = params.GetComm()
+		ad.DumpMetadata.Timeout = time.Duration(params.Timeout) * time.Minute
+		ad.DumpMetadata.DifferentiateArgs = params.GetDifferentiateArgs()
 	})
 
 	// add local storage requests

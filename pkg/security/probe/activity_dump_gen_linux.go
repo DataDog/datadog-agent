@@ -27,10 +27,16 @@ func (z *ActivityDump) DecodeMsg(dc *msgp.Reader) (err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
-		case "hostname":
-			z.Hostname, err = dc.ReadString()
+		case "host":
+			z.Host, err = dc.ReadString()
 			if err != nil {
-				err = msgp.WrapError(err, "Hostname")
+				err = msgp.WrapError(err, "Host")
+				return
+			}
+		case "service":
+			z.Service, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "Service")
 				return
 			}
 		case "source":
@@ -89,10 +95,10 @@ func (z *ActivityDump) DecodeMsg(dc *msgp.Reader) (err error) {
 					}
 				}
 			}
-		case "metadata":
-			err = z.Metadata.DecodeMsg(dc)
+		case "DumpMetadata":
+			err = z.DumpMetadata.DecodeMsg(dc)
 			if err != nil {
-				err = msgp.WrapError(err, "Metadata")
+				err = msgp.WrapError(err, "DumpMetadata")
 				return
 			}
 		default:
@@ -109,15 +115,19 @@ func (z *ActivityDump) DecodeMsg(dc *msgp.Reader) (err error) {
 // EncodeMsg implements msgp.Encodable
 func (z *ActivityDump) EncodeMsg(en *msgp.Writer) (err error) {
 	// omitempty: check for empty values
-	zb0001Len := uint32(5)
-	var zb0001Mask uint8 /* 5 bits */
+	zb0001Len := uint32(6)
+	var zb0001Mask uint8 /* 6 bits */
+	if z.Service == "" {
+		zb0001Len--
+		zb0001Mask |= 0x2
+	}
 	if z.Tags == nil {
 		zb0001Len--
-		zb0001Mask |= 0x4
+		zb0001Mask |= 0x8
 	}
 	if z.ProcessActivityTree == nil {
 		zb0001Len--
-		zb0001Mask |= 0x8
+		zb0001Mask |= 0x10
 	}
 	// variable map header, size zb0001Len
 	err = en.Append(0x80 | uint8(zb0001Len))
@@ -127,15 +137,27 @@ func (z *ActivityDump) EncodeMsg(en *msgp.Writer) (err error) {
 	if zb0001Len == 0 {
 		return
 	}
-	// write "hostname"
-	err = en.Append(0xa8, 0x68, 0x6f, 0x73, 0x74, 0x6e, 0x61, 0x6d, 0x65)
+	// write "host"
+	err = en.Append(0xa4, 0x68, 0x6f, 0x73, 0x74)
 	if err != nil {
 		return
 	}
-	err = en.WriteString(z.Hostname)
+	err = en.WriteString(z.Host)
 	if err != nil {
-		err = msgp.WrapError(err, "Hostname")
+		err = msgp.WrapError(err, "Host")
 		return
+	}
+	if (zb0001Mask & 0x2) == 0 { // if not empty
+		// write "service"
+		err = en.Append(0xa7, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
+		if err != nil {
+			return
+		}
+		err = en.WriteString(z.Service)
+		if err != nil {
+			err = msgp.WrapError(err, "Service")
+			return
+		}
 	}
 	// write "source"
 	err = en.Append(0xa6, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65)
@@ -147,7 +169,7 @@ func (z *ActivityDump) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Source")
 		return
 	}
-	if (zb0001Mask & 0x4) == 0 { // if not empty
+	if (zb0001Mask & 0x8) == 0 { // if not empty
 		// write "tags"
 		err = en.Append(0xa4, 0x74, 0x61, 0x67, 0x73)
 		if err != nil {
@@ -166,7 +188,7 @@ func (z *ActivityDump) EncodeMsg(en *msgp.Writer) (err error) {
 			}
 		}
 	}
-	if (zb0001Mask & 0x8) == 0 { // if not empty
+	if (zb0001Mask & 0x10) == 0 { // if not empty
 		// write "tree"
 		err = en.Append(0xa4, 0x74, 0x72, 0x65, 0x65)
 		if err != nil {
@@ -192,14 +214,14 @@ func (z *ActivityDump) EncodeMsg(en *msgp.Writer) (err error) {
 			}
 		}
 	}
-	// write "metadata"
-	err = en.Append(0xa8, 0x6d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61)
+	// write "DumpMetadata"
+	err = en.Append(0xac, 0x44, 0x75, 0x6d, 0x70, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61)
 	if err != nil {
 		return
 	}
-	err = z.Metadata.EncodeMsg(en)
+	err = z.DumpMetadata.EncodeMsg(en)
 	if err != nil {
-		err = msgp.WrapError(err, "Metadata")
+		err = msgp.WrapError(err, "DumpMetadata")
 		return
 	}
 	return
@@ -209,28 +231,37 @@ func (z *ActivityDump) EncodeMsg(en *msgp.Writer) (err error) {
 func (z *ActivityDump) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// omitempty: check for empty values
-	zb0001Len := uint32(5)
-	var zb0001Mask uint8 /* 5 bits */
+	zb0001Len := uint32(6)
+	var zb0001Mask uint8 /* 6 bits */
+	if z.Service == "" {
+		zb0001Len--
+		zb0001Mask |= 0x2
+	}
 	if z.Tags == nil {
 		zb0001Len--
-		zb0001Mask |= 0x4
+		zb0001Mask |= 0x8
 	}
 	if z.ProcessActivityTree == nil {
 		zb0001Len--
-		zb0001Mask |= 0x8
+		zb0001Mask |= 0x10
 	}
 	// variable map header, size zb0001Len
 	o = append(o, 0x80|uint8(zb0001Len))
 	if zb0001Len == 0 {
 		return
 	}
-	// string "hostname"
-	o = append(o, 0xa8, 0x68, 0x6f, 0x73, 0x74, 0x6e, 0x61, 0x6d, 0x65)
-	o = msgp.AppendString(o, z.Hostname)
+	// string "host"
+	o = append(o, 0xa4, 0x68, 0x6f, 0x73, 0x74)
+	o = msgp.AppendString(o, z.Host)
+	if (zb0001Mask & 0x2) == 0 { // if not empty
+		// string "service"
+		o = append(o, 0xa7, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
+		o = msgp.AppendString(o, z.Service)
+	}
 	// string "source"
 	o = append(o, 0xa6, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65)
 	o = msgp.AppendString(o, z.Source)
-	if (zb0001Mask & 0x4) == 0 { // if not empty
+	if (zb0001Mask & 0x8) == 0 { // if not empty
 		// string "tags"
 		o = append(o, 0xa4, 0x74, 0x61, 0x67, 0x73)
 		o = msgp.AppendArrayHeader(o, uint32(len(z.Tags)))
@@ -238,7 +269,7 @@ func (z *ActivityDump) MarshalMsg(b []byte) (o []byte, err error) {
 			o = msgp.AppendString(o, z.Tags[za0001])
 		}
 	}
-	if (zb0001Mask & 0x8) == 0 { // if not empty
+	if (zb0001Mask & 0x10) == 0 { // if not empty
 		// string "tree"
 		o = append(o, 0xa4, 0x74, 0x72, 0x65, 0x65)
 		o = msgp.AppendArrayHeader(o, uint32(len(z.ProcessActivityTree)))
@@ -254,11 +285,11 @@ func (z *ActivityDump) MarshalMsg(b []byte) (o []byte, err error) {
 			}
 		}
 	}
-	// string "metadata"
-	o = append(o, 0xa8, 0x6d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61)
-	o, err = z.Metadata.MarshalMsg(o)
+	// string "DumpMetadata"
+	o = append(o, 0xac, 0x44, 0x75, 0x6d, 0x70, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61)
+	o, err = z.DumpMetadata.MarshalMsg(o)
 	if err != nil {
-		err = msgp.WrapError(err, "Metadata")
+		err = msgp.WrapError(err, "DumpMetadata")
 		return
 	}
 	return
@@ -282,10 +313,16 @@ func (z *ActivityDump) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
-		case "hostname":
-			z.Hostname, bts, err = msgp.ReadStringBytes(bts)
+		case "host":
+			z.Host, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Hostname")
+				err = msgp.WrapError(err, "Host")
+				return
+			}
+		case "service":
+			z.Service, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Service")
 				return
 			}
 		case "source":
@@ -343,10 +380,10 @@ func (z *ActivityDump) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					}
 				}
 			}
-		case "metadata":
-			bts, err = z.Metadata.UnmarshalMsg(bts)
+		case "DumpMetadata":
+			bts, err = z.DumpMetadata.UnmarshalMsg(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Metadata")
+				err = msgp.WrapError(err, "DumpMetadata")
 				return
 			}
 		default:
@@ -363,7 +400,7 @@ func (z *ActivityDump) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *ActivityDump) Msgsize() (s int) {
-	s = 1 + 9 + msgp.StringPrefixSize + len(z.Hostname) + 7 + msgp.StringPrefixSize + len(z.Source) + 5 + msgp.ArrayHeaderSize
+	s = 1 + 5 + msgp.StringPrefixSize + len(z.Host) + 8 + msgp.StringPrefixSize + len(z.Service) + 7 + msgp.StringPrefixSize + len(z.Source) + 5 + msgp.ArrayHeaderSize
 	for za0001 := range z.Tags {
 		s += msgp.StringPrefixSize + len(z.Tags[za0001])
 	}
@@ -375,7 +412,7 @@ func (z *ActivityDump) Msgsize() (s int) {
 			s += z.ProcessActivityTree[za0002].Msgsize()
 		}
 	}
-	s += 9 + z.Metadata.Msgsize()
+	s += 13 + z.DumpMetadata.Msgsize()
 	return
 }
 
@@ -598,7 +635,7 @@ func (z *DumpMetadata) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "End")
 				return
 			}
-		case "size":
+		case "activity_dump_size":
 			z.Size, err = dc.ReadUint64()
 			if err != nil {
 				err = msgp.WrapError(err, "Size")
@@ -755,8 +792,8 @@ func (z *DumpMetadata) EncodeMsg(en *msgp.Writer) (err error) {
 		return
 	}
 	if (zb0001Mask & 0x800) == 0 { // if not empty
-		// write "size"
-		err = en.Append(0xa4, 0x73, 0x69, 0x7a, 0x65)
+		// write "activity_dump_size"
+		err = en.Append(0xb2, 0x61, 0x63, 0x74, 0x69, 0x76, 0x69, 0x74, 0x79, 0x5f, 0x64, 0x75, 0x6d, 0x70, 0x5f, 0x73, 0x69, 0x7a, 0x65)
 		if err != nil {
 			return
 		}
@@ -830,8 +867,8 @@ func (z *DumpMetadata) MarshalMsg(b []byte) (o []byte, err error) {
 	o = append(o, 0xa3, 0x65, 0x6e, 0x64)
 	o = msgp.AppendTime(o, z.End)
 	if (zb0001Mask & 0x800) == 0 { // if not empty
-		// string "size"
-		o = append(o, 0xa4, 0x73, 0x69, 0x7a, 0x65)
+		// string "activity_dump_size"
+		o = append(o, 0xb2, 0x61, 0x63, 0x74, 0x69, 0x76, 0x69, 0x74, 0x79, 0x5f, 0x64, 0x75, 0x6d, 0x70, 0x5f, 0x73, 0x69, 0x7a, 0x65)
 		o = msgp.AppendUint64(o, z.Size)
 	}
 	return
@@ -921,7 +958,7 @@ func (z *DumpMetadata) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "End")
 				return
 			}
-		case "size":
+		case "activity_dump_size":
 			z.Size, bts, err = msgp.ReadUint64Bytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Size")
@@ -941,7 +978,7 @@ func (z *DumpMetadata) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *DumpMetadata) Msgsize() (s int) {
-	s = 1 + 14 + msgp.StringPrefixSize + len(z.AgentVersion) + 13 + msgp.StringPrefixSize + len(z.AgentCommit) + 15 + msgp.StringPrefixSize + len(z.KernelVersion) + 19 + msgp.StringPrefixSize + len(z.LinuxDistribution) + 5 + msgp.StringPrefixSize + len(z.Name) + 22 + msgp.StringPrefixSize + len(z.ActivityDumpVersion) + 19 + msgp.BoolSize + 5 + msgp.StringPrefixSize + len(z.Comm) + 13 + msgp.StringPrefixSize + len(z.ContainerID) + 6 + msgp.TimeSize + 4 + msgp.TimeSize + 5 + msgp.Uint64Size
+	s = 1 + 14 + msgp.StringPrefixSize + len(z.AgentVersion) + 13 + msgp.StringPrefixSize + len(z.AgentCommit) + 15 + msgp.StringPrefixSize + len(z.KernelVersion) + 19 + msgp.StringPrefixSize + len(z.LinuxDistribution) + 5 + msgp.StringPrefixSize + len(z.Name) + 22 + msgp.StringPrefixSize + len(z.ActivityDumpVersion) + 19 + msgp.BoolSize + 5 + msgp.StringPrefixSize + len(z.Comm) + 13 + msgp.StringPrefixSize + len(z.ContainerID) + 6 + msgp.TimeSize + 4 + msgp.TimeSize + 19 + msgp.Uint64Size
 	return
 }
 

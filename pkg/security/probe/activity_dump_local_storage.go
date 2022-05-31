@@ -146,7 +146,7 @@ func (storage *ActivityDumpLocalStorage) GetStorageType() dump.StorageType {
 
 // Persist saves the provided buffer to the persistent storage
 func (storage *ActivityDumpLocalStorage) Persist(request dump.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error {
-	outputPath := request.GetOutputPath(ad.Metadata.Name)
+	outputPath := request.GetOutputPath(ad.DumpMetadata.Name)
 
 	if request.Compression {
 		var tmpBuf bytes.Buffer
@@ -166,19 +166,19 @@ func (storage *ActivityDumpLocalStorage) Persist(request dump.StorageRequest, ad
 	}
 
 	// set activity dump size for current encoding
-	ad.Metadata.Size = uint64(len(raw.Bytes()))
+	ad.DumpMetadata.Size = uint64(len(raw.Bytes()))
 
 	// add the file to the list of local dumps (thus removing one or more files if we reached the limit)
 	if storage.localDumps != nil {
-		filesRaw, ok := storage.localDumps.Get(ad.Metadata.Name)
+		filesRaw, ok := storage.localDumps.Get(ad.DumpMetadata.Name)
 		if !ok {
-			storage.localDumps.Add(ad.Metadata.Name, []string{outputPath})
+			storage.localDumps.Add(ad.DumpMetadata.Name, []string{outputPath})
 		} else {
 			files, ok := filesRaw.([]string)
 			if !ok {
 				files = []string{}
 			}
-			storage.localDumps.Add(ad.Metadata.Name, append(files, outputPath))
+			storage.localDumps.Add(ad.DumpMetadata.Name, append(files, outputPath))
 		}
 	}
 

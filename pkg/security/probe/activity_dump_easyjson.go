@@ -39,14 +39,40 @@ func easyjson9a9a4de6DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 			continue
 		}
 		switch key {
-		case "hostname":
-			out.Hostname = string(in.String())
+		case "host":
+			out.Host = string(in.String())
+		case "service":
+			out.Service = string(in.String())
 		case "ddsource":
 			out.Source = string(in.String())
 		case "ddtags":
 			out.DDTags = string(in.String())
-		case "metadata":
-			easyjson9a9a4de6DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in, &out.Metadata)
+		case "agent_version":
+			out.AgentVersion = string(in.String())
+		case "agent_commit":
+			out.AgentCommit = string(in.String())
+		case "kernel_version":
+			out.KernelVersion = string(in.String())
+		case "linux_distribution":
+			out.LinuxDistribution = string(in.String())
+		case "name":
+			out.Name = string(in.String())
+		case "activity_dump_version":
+			out.ActivityDumpVersion = string(in.String())
+		case "differentiate_args":
+			out.DifferentiateArgs = bool(in.Bool())
+		case "comm":
+			out.Comm = string(in.String())
+		case "start":
+			if data := in.Raw(); in.Ok() {
+				in.AddError((out.Start).UnmarshalJSON(data))
+			}
+		case "end":
+			if data := in.Raw(); in.Ok() {
+				in.AddError((out.End).UnmarshalJSON(data))
+			}
+		case "activity_dump_size":
+			out.Size = uint64(in.Uint64())
 		default:
 			in.SkipRecursive()
 		}
@@ -61,11 +87,21 @@ func easyjson9a9a4de6EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwr
 	out.RawByte('{')
 	first := true
 	_ = first
-	if in.Hostname != "" {
-		const prefix string = ",\"hostname\":"
+	if in.Host != "" {
+		const prefix string = ",\"host\":"
 		first = false
 		out.RawString(prefix[1:])
-		out.String(string(in.Hostname))
+		out.String(string(in.Host))
+	}
+	if in.Service != "" {
+		const prefix string = ",\"service\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.Service))
 	}
 	if in.Source != "" {
 		const prefix string = ",\"ddsource\":"
@@ -88,91 +124,13 @@ func easyjson9a9a4de6EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwr
 		out.String(string(in.DDTags))
 	}
 	{
-		const prefix string = ",\"metadata\":"
+		const prefix string = ",\"agent_version\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
-		easyjson9a9a4de6EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out, in.Metadata)
-	}
-	out.RawByte('}')
-}
-
-// MarshalEasyJSON supports easyjson.Marshaler interface
-func (v ActivityDump) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson9a9a4de6EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(w, v)
-}
-
-// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
-func (v *ActivityDump) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson9a9a4de6DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(l, v)
-}
-func easyjson9a9a4de6DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jlexer.Lexer, out *DumpMetadata) {
-	isTopLevel := in.IsStart()
-	if in.IsNull() {
-		if isTopLevel {
-			in.Consumed()
-		}
-		in.Skip()
-		return
-	}
-	in.Delim('{')
-	for !in.IsDelim('}') {
-		key := in.UnsafeFieldName(false)
-		in.WantColon()
-		if in.IsNull() {
-			in.Skip()
-			in.WantComma()
-			continue
-		}
-		switch key {
-		case "agent_version":
-			out.AgentVersion = string(in.String())
-		case "agent_commit":
-			out.AgentCommit = string(in.String())
-		case "kernel_version":
-			out.KernelVersion = string(in.String())
-		case "linux_distribution":
-			out.LinuxDistribution = string(in.String())
-		case "name":
-			out.Name = string(in.String())
-		case "activity_dump_version":
-			out.ActivityDumpVersion = string(in.String())
-		case "differentiate_args":
-			out.DifferentiateArgs = bool(in.Bool())
-		case "comm":
-			out.Comm = string(in.String())
-		case "container_id":
-			out.ContainerID = string(in.String())
-		case "start":
-			if data := in.Raw(); in.Ok() {
-				in.AddError((out.Start).UnmarshalJSON(data))
-			}
-		case "end":
-			if data := in.Raw(); in.Ok() {
-				in.AddError((out.End).UnmarshalJSON(data))
-			}
-		case "size":
-			out.Size = uint64(in.Uint64())
-		default:
-			in.SkipRecursive()
-		}
-		in.WantComma()
-	}
-	in.Delim('}')
-	if isTopLevel {
-		in.Consumed()
-	}
-}
-func easyjson9a9a4de6EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jwriter.Writer, in DumpMetadata) {
-	out.RawByte('{')
-	first := true
-	_ = first
-	{
-		const prefix string = ",\"agent_version\":"
-		out.RawString(prefix[1:])
 		out.String(string(in.AgentVersion))
 	}
 	{
@@ -210,11 +168,6 @@ func easyjson9a9a4de6EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jw
 		out.RawString(prefix)
 		out.String(string(in.Comm))
 	}
-	if in.ContainerID != "" {
-		const prefix string = ",\"container_id\":"
-		out.RawString(prefix)
-		out.String(string(in.ContainerID))
-	}
 	{
 		const prefix string = ",\"start\":"
 		out.RawString(prefix)
@@ -226,9 +179,19 @@ func easyjson9a9a4de6EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jw
 		out.Raw((in.End).MarshalJSON())
 	}
 	if in.Size != 0 {
-		const prefix string = ",\"size\":"
+		const prefix string = ",\"activity_dump_size\":"
 		out.RawString(prefix)
 		out.Uint64(uint64(in.Size))
 	}
 	out.RawByte('}')
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (v ActivityDump) MarshalEasyJSON(w *jwriter.Writer) {
+	easyjson9a9a4de6EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(w, v)
+}
+
+// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
+func (v *ActivityDump) UnmarshalEasyJSON(l *jlexer.Lexer) {
+	easyjson9a9a4de6DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(l, v)
 }

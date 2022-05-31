@@ -93,7 +93,7 @@ func (ad *ActivityDump) EncodeDOT() (*bytes.Buffer, error) {
 	ad.Lock()
 	defer ad.Unlock()
 
-	title := fmt.Sprintf("%s: %s", ad.Metadata.Name, ad.GetSelectorStr())
+	title := fmt.Sprintf("%s: %s", ad.DumpMetadata.Name, ad.GetSelectorStr())
 	data := ad.prepareGraphData(title)
 	t := template.Must(template.New("tmpl").Parse(GraphTemplate))
 	raw := bytes.NewBuffer(nil)

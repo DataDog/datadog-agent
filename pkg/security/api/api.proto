@@ -126,12 +126,13 @@ message StorageRequestMessage {
 }
 
 message ActivityDumpMessage {
-    string Hostname = 1;
+    string Host = 1;
     string Source = 2;
-    repeated string Tags = 3;
-    repeated StorageRequestMessage Storage = 4;
-    ActivityDumpMetadataMessage Metadata = 5;
-    string Error = 6;
+    string Service = 3;
+    repeated string Tags = 4;
+    repeated StorageRequestMessage Storage = 5;
+    ActivityDumpMetadataMessage Metadata = 6;
+    string Error = 7;
 }
 
 message ActivityDumpListParams {}

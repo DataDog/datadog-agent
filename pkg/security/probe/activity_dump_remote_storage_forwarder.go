@@ -44,7 +44,7 @@ func (storage *ActivityDumpRemoteStorageForwarder) Persist(request dump.StorageR
 	if request.Compression {
 		var tmpBuf bytes.Buffer
 		zw := gzip.NewWriter(&tmpBuf)
-		zw.Name = strings.Trim(path.Base(request.GetOutputPath(ad.Metadata.Name)), ".gz")
+		zw.Name = strings.Trim(path.Base(request.GetOutputPath(ad.DumpMetadata.Name)), ".gz")
 		zw.ModTime = time.Now()
 		if _, err := zw.Write(raw.Bytes()); err != nil {
 			return fmt.Errorf("couldn't compress activity dump: %w", err)
@@ -59,7 +59,7 @@ func (storage *ActivityDumpRemoteStorageForwarder) Persist(request dump.StorageR
 	}
 
 	// set activity dump size for current encoding
-	ad.Metadata.Size = uint64(len(raw.Bytes()))
+	ad.DumpMetadata.Size = uint64(len(raw.Bytes()))
 
 	// generate stream message
 	msg := &api.ActivityDumpStreamMessage{
@@ -69,7 +69,7 @@ func (storage *ActivityDumpRemoteStorageForwarder) Persist(request dump.StorageR
 	}
 
 	// override storage request so that it contains only the current persisted data
-	msg.Dump.Storage = []*api.StorageRequestMessage{request.ToStorageRequestMessage(ad.Metadata.Name)}
+	msg.Dump.Storage = []*api.StorageRequestMessage{request.ToStorageRequestMessage(ad.DumpMetadata.Name)}
 
 	storage.probe.DispatchActivityDump(msg)
 

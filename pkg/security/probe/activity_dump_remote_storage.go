@@ -134,7 +134,7 @@ func (storage *ActivityDumpRemoteStorage) buildBody(request dump.StorageRequest,
 	defer multipartWriter.Close()
 
 	// set activity dump size
-	ad.Metadata.Size = uint64(len(raw.Bytes()))
+	ad.DumpMetadata.Size = uint64(len(raw.Bytes()))
 
 	if err := storage.writeEventMetadata(multipartWriter, ad); err != nil {
 		return nil, nil, err
