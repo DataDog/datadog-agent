@@ -206,7 +206,7 @@ func TestProcessBundledEvents(t *testing.T) {
 	mockConfig.Set("cluster_name", testClusterName)
 	clustername.ResetClusterName() // reset state as clustername was already read
 	// defer a reset of the state so that future hostname fetches are not impacted
-	defer mockConfig.Unset("cluster_name")
+	defer mockConfig.Set("cluster_name", nil)
 	defer clustername.ResetClusterName()
 
 	modifiedNewDatadogEventsWithClusterName := metrics.Event{

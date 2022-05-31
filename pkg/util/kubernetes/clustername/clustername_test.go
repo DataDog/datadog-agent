@@ -22,7 +22,7 @@ func TestGetClusterName(t *testing.T) {
 
 	var testClusterName = "laika"
 	mockConfig.Set("cluster_name", testClusterName)
-	defer mockConfig.Unset("cluster_name")
+	defer mockConfig.Set("cluster_name", nil)
 
 	assert.Equal(t, testClusterName, getClusterName(ctx, data, "hostname"))
 
