@@ -31,6 +31,7 @@ kitchen_test_system_probe_linux_x64:
   before_script:
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
+    - source /root/.bashrc && conda activate ddpy3 && conda install openssl gnutls
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
