@@ -102,20 +102,31 @@ func (c *serializerConsumer) addTelemetryMetric(hostname string) {
 
 // flush all metrics and sketches in consumer.
 func (c *serializerConsumer) flush(s serializer.MetricSerializer) error {
-	if err := s.SendSketch(c.sketches); err != nil {
-		return err
-	}
-
-	var err error
-	metrics.StartIteration(
+	var serieErr error
+	var sketchesErr error
+	metrics.StartSerialization(
 		metrics.NewIterableSeries(func(se *metrics.Serie) {}, 200, 4000),
-		func(seriesSink metrics.SerieSink) {
+		metrics.NewIterableSketches(func(se *metrics.SketchSeries) {}, 200, 4000),
+		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
 			for _, serie := range c.series {
 				seriesSink.Append(serie)
 			}
+			for _, sketch := range c.sketches {
+				sketchesSink.Append(sketch)
+			}
 		}, func(serieSource metrics.SerieSource) {
-			err = s.SendIterableSeries(serieSource)
+			serieErr = s.SendIterableSeries(serieSource)
+		}, func(sketchesSource metrics.SketchesSource) {
+			sketchesErr = s.SendSketch(sketchesSource)
 		})
 
-	return err
+	if serieErr != nil && sketchesErr != nil {
+		return fmt.Errorf("serie: %v, sketches: %v", serieErr, sketchesErr)
+	}
+
+	if serieErr != nil {
+		return serieErr
+	}
+
+	return sketchesErr
 }

@@ -7,6 +7,7 @@ package metrics
 
 import (
 	"context"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -113,4 +114,33 @@ func StartIteration(iterableSeries *IterableSeries, sink func(SerieSink), source
 	sink(iterableSeries)
 	iterableSeries.senderStopped()
 	<-done
+}
+
+// StartSerialization starts the serialization for series and sketches.
+// `sink` callback is responsible for adding the data. It runs in the current goroutine.
+// `serieSource` callback is responsible for consuming the series. It runs in its OWN goroutine.
+// `sketchesSource` callback is responsible for consuming the sketches. It runs in its OWN goroutine.
+// This function returns when both `sink`, `serieSource` and `sketchesSource` functions are finished.
+func StartSerialization(
+	iterableSeries *IterableSeries,
+	iterableSketches *IterableSketches,
+	sink func(SerieSink, SketchesSink),
+	serieSource func(SerieSource),
+	sketchesSource func(SketchesSource)) {
+	var waitGroup sync.WaitGroup
+	waitGroup.Add(2)
+	go func() {
+		defer waitGroup.Done()
+		serieSource(iterableSeries)
+		iterableSeries.iterationStopped()
+	}()
+	go func() {
+		defer waitGroup.Done()
+		sketchesSource(iterableSketches)
+		iterableSketches.iterationStopped()
+	}()
+	sink(iterableSeries, iterableSketches)
+	iterableSeries.senderStopped()
+	iterableSketches.senderStopped()
+	waitGroup.Wait()
 }
