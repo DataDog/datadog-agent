@@ -89,11 +89,11 @@ func NewRepository(embeddedRoot []byte) *Repository {
 
 // Update processes the ClientGetConfigsResponse from the Agent and updates the
 // configuration state
-func (r *Repository) Update(update Update) error {
+func (r *Repository) Update(update Update) (bool, error) {
 	// 1: Deserialize the TUF Targets
 	updatedTargets, err := decodeTargets(update.TUFTargets)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	clientConfigsMap := make(map[string]struct{})
@@ -116,13 +116,13 @@ func (r *Repository) Update(update Update) error {
 	for _, path := range update.ClientConfigs {
 		targetsMetadata, ok := updatedTargets.Targets[path]
 		if !ok {
-			return fmt.Errorf("missing config file in TUF targets - %s", path)
+			return false, fmt.Errorf("missing config file in TUF targets - %s", path)
 		}
 
 		// 3.a: Extract the product and ID from the path
 		parsedPath, err := parseConfigPath(path)
 		if err != nil {
-			return err
+			return false, err
 		}
 
 		storedMetadata, exists := r.metadata[path]
@@ -134,7 +134,7 @@ func (r *Repository) Update(update Update) error {
 		// update payload.
 		raw, ok := update.TargetFiles[path]
 		if !ok {
-			return fmt.Errorf("missing update file - %s", path)
+			return false, fmt.Errorf("missing update file - %s", path)
 		}
 
 		// 3.e: Deserialize the configuration.
@@ -144,11 +144,11 @@ func (r *Repository) Update(update Update) error {
 		// in the RFC because the encoding/json library handles that for us.
 		m, err := newConfigMetadata(parsedPath, targetsMetadata)
 		if err != nil {
-			return err
+			return false, err
 		}
 		config, err := parseConfig(parsedPath.Product, raw, m)
 		if err != nil {
-			return err
+			return false, err
 		}
 		result.metadata[path] = m
 		result.changed[parsedPath.Product][path] = config
@@ -159,10 +159,16 @@ func (r *Repository) Update(update Update) error {
 	// covers this as well.
 	r.latestTargets = updatedTargets
 
+	// Upstream may not want to take any actions if the update result doesn't
+	// change any configs.
+	if result.isEmpty() {
+		return false, nil
+	}
+
 	// 4.b/4.rave the new state and apply cleanups
 	r.applyUpdateResult(update, result)
 
-	return nil
+	return true, nil
 }
 
 func (r *Repository) getConfigs(product string) map[string]interface{} {
@@ -252,6 +258,10 @@ func (ur updateResult) Log() {
 	b.WriteString("]")
 
 	log.Println(b.String())
+}
+
+func (ur updateResult) isEmpty() bool {
+	return len(ur.removed) == 0 && len(ur.metadata) == 0
 }
 
 func configStateFromMetadata(m Metadata) ConfigState {

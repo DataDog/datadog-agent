@@ -134,9 +134,15 @@ func (c *Client) update() error {
 		return nil
 	}
 
-	err = c.applyUpdate(response)
+	changed, err := c.applyUpdate(response)
 	if err != nil {
 		return err
+	}
+
+	// We don't want to force the products to reload config if nothing changed
+	// in the latest update.
+	if !changed {
+		return nil
 	}
 
 	c.m.Lock()
@@ -168,7 +174,7 @@ func (c *Client) RegisterCWSDDUpdate(fn func(update map[string]remoteconfig.Conf
 	c.m.Unlock()
 }
 
-func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) error {
+func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) (bool, error) {
 	fileMap := make(map[string][]byte, len(pbUpdate.TargetFiles))
 	for _, f := range pbUpdate.TargetFiles {
 		fileMap[f.Path] = f.Raw
