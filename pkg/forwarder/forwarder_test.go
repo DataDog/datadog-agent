@@ -629,7 +629,7 @@ func TestHighPriorityTransaction(t *testing.T) {
 	}))
 
 	config.Datadog.Set("forwarder_backoff_max", 0.5)
-	defer config.Datadog.Unset("forwarder_backoff_max")
+	defer config.Datadog.Set("forwarder_backoff_max", nil)
 
 	oldFlushInterval := flushInterval
 	flushInterval = 500 * time.Millisecond
