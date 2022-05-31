@@ -12,6 +12,7 @@ import (
 	"log"
 	"strings"
 
+	tufclient "github.com/theupdateframework/go-tuf/client"
 	"github.com/theupdateframework/go-tuf/data"
 )
 
@@ -58,8 +59,10 @@ type Update struct {
 // remote config updates from an Agent.
 type Repository struct {
 	// TUF related data
-	roots         [][]byte
-	latestTargets *data.Targets
+	latestTargets   *data.Targets
+	rootClient      *tufclient.Client
+	rootLocalStore  tufclient.LocalStore
+	rootRemoteStore *rootClientRemoteStore
 
 	// Config file storage
 	metadata map[string]Metadata
@@ -69,29 +72,94 @@ type Repository struct {
 // NewRepository creates a new remote config respository that will track
 // both TUF metadata and raw config files for a client.
 func NewRepository(embeddedRoot []byte) *Repository {
-	var roots [][]byte
-	if embeddedRoot != nil {
-		roots = [][]byte{embeddedRoot}
-	}
-
 	configs := make(map[string]map[string]interface{})
 	for _, product := range allProducts {
 		configs[product] = make(map[string]interface{})
 	}
 
+	rootLocalStore := tufclient.MemoryLocalStore()
+	rootLocalStore.SetMeta("root.json", embeddedRoot)
+
+	rootRemoteStore := &rootClientRemoteStore{}
+
+	rootClient := tufclient.NewClient(rootLocalStore, rootRemoteStore)
+
 	return &Repository{
-		roots:         roots,
-		latestTargets: data.NewTargets(),
-		metadata:      make(map[string]Metadata),
-		configs:       configs,
+		latestTargets:   data.NewTargets(),
+		rootClient:      rootClient,
+		rootLocalStore:  rootLocalStore,
+		rootRemoteStore: rootRemoteStore,
+		metadata:        make(map[string]Metadata),
+		configs:         configs,
 	}
+}
+
+func (r *Repository) updateRoots(roots [][]byte) error {
+	if len(roots) == 0 {
+		return nil
+	}
+	r.rootRemoteStore.roots = roots
+	err := r.rootClient.UpdateRoots()
+	if err != nil {
+		return err
+	}
+
+	return r.updateRootVersion()
+}
+
+func (r *Repository) updateRootVersion() error {
+	meta, err := r.rootLocalStore.GetMeta()
+	if err != nil {
+		return err
+	}
+	rootMetaRaw, rootFound := meta["root.json"]
+	if !rootFound {
+		return fmt.Errorf("could not find root.json in the local store")
+	}
+
+	var signed data.Signed
+	var root data.Root
+	err = json.Unmarshal(rootMetaRaw, &signed)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(signed.Signed, &root)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *Repository) latestRoot() (*data.Root, error) {
+	metas, err := r.rootLocalStore.GetMeta()
+	if err != nil {
+		return nil, err
+	}
+	rawRoot := metas["root.json"]
+
+	return unsafeUnmarshalRoot(rawRoot)
 }
 
 // Update processes the ClientGetConfigsResponse from the Agent and updates the
 // configuration state
 func (r *Repository) Update(update Update) (bool, error) {
-	// 1: Deserialize the TUF Targets
-	updatedTargets, err := decodeTargets(update.TUFTargets)
+	// TUF (Non-RFC): Update the roots
+	err := r.updateRoots(update.TUFRoots)
+	if err != nil {
+		return false, err
+	}
+
+	latestRoot, err := r.latestRoot()
+	if err != nil {
+		return false, err
+	}
+
+	// 1: Validate and Deserialize the TUF Targets
+	//
+	// Note: This goes further than the RFC requires and validates the TUF targets metadata's signatures.
+	// This is NOT required for most clients per the RFC.
+	updatedTargets, err := unmarshalTargets(latestRoot, update.TUFTargets)
 	if err != nil {
 		return false, err
 	}
@@ -114,7 +182,7 @@ func (r *Repository) Update(update Update) (bool, error) {
 
 	// 3: For all the files referenced in this update
 	for _, path := range update.ClientConfigs {
-		targetsMetadata, ok := updatedTargets.Targets[path]
+		targetFileMetadata, ok := updatedTargets.Targets[path]
 		if !ok {
 			return false, fmt.Errorf("missing config file in TUF targets - %s", path)
 		}
@@ -126,7 +194,7 @@ func (r *Repository) Update(update Update) (bool, error) {
 		}
 
 		storedMetadata, exists := r.metadata[path]
-		if exists && hashesEqual(targetsMetadata.Hashes, storedMetadata.Hashes) {
+		if exists && hashesEqual(targetFileMetadata.Hashes, storedMetadata.Hashes) {
 			continue
 		}
 
@@ -137,12 +205,19 @@ func (r *Repository) Update(update Update) (bool, error) {
 			return false, fmt.Errorf("missing update file - %s", path)
 		}
 
+		// TUF: Validate the hash of the raw target file and ensure that it matches
+		// the TUF metadata
+		err = validateTargetFileHash(targetFileMetadata, raw)
+		if err != nil {
+			return false, fmt.Errorf("error validating %s hash with TUF metadata - %v", path, err)
+		}
+
 		// 3.e: Deserialize the configuration.
 		// 3.f: Store the update details for application later
 		//
 		// Note: We don't have to worry about extra fields as mentioned
 		// in the RFC because the encoding/json library handles that for us.
-		m, err := newConfigMetadata(parsedPath, targetsMetadata)
+		m, err := newConfigMetadata(parsedPath, targetFileMetadata)
 		if err != nil {
 			return false, err
 		}
@@ -158,6 +233,8 @@ func (r *Repository) Update(update Update) (bool, error) {
 	// This data is contained within the TUF Targets file so storing that
 	// covers this as well.
 	r.latestTargets = updatedTargets
+
+	// TUF: Store the updated roots
 
 	// Upstream may not want to take any actions if the update result doesn't
 	// change any configs.
@@ -278,23 +355,6 @@ func cachedFileFromMetadata(path string, m Metadata) CachedFile {
 		Length: m.RawLength,
 		Hashes: m.Hashes,
 	}
-}
-
-func decodeTargets(raw []byte) (*data.Targets, error) {
-	var signed data.Signed
-
-	err := json.Unmarshal(raw, &signed)
-	if err != nil {
-		return nil, err
-	}
-
-	var targets data.Targets
-	err = json.Unmarshal(signed.Signed, &targets)
-	if err != nil {
-		return nil, err
-	}
-
-	return &targets, nil
 }
 
 // hashesEqual checks if the hash values in the TUF metadata file match the stored
