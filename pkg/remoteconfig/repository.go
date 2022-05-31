@@ -165,42 +165,6 @@ func (r *Repository) Update(update Update) error {
 	return nil
 }
 
-func (r *Repository) APMConfigs() map[string]APMSamplingConfig {
-	typedConfigs := make(map[string]APMSamplingConfig)
-
-	configs := r.getConfigs(ProductAPMSampling)
-
-	for path, conf := range configs {
-		// We control this, so if this has gone wrong something has gone horribly wrong
-		typed, ok := conf.(APMSamplingConfig)
-		if !ok {
-			panic("unexpected config stored as APMSamplingConfig")
-		}
-
-		typedConfigs[path] = typed
-	}
-
-	return typedConfigs
-}
-
-func (r *Repository) CWSDDConfigs() map[string]ConfigCWSDD {
-	typedConfigs := make(map[string]ConfigCWSDD)
-
-	configs := r.getConfigs(ProductCWSDD)
-
-	for path, conf := range configs {
-		// We control this, so if this has gone wrong something has gone horribly wrong
-		typed, ok := conf.(ConfigCWSDD)
-		if !ok {
-			panic("unexpected config stored as CWSDD Config")
-		}
-
-		typedConfigs[path] = typed
-	}
-
-	return typedConfigs
-}
-
 func (r *Repository) getConfigs(product string) map[string]interface{} {
 	configs, ok := r.configs[product]
 	if !ok {
