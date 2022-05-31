@@ -14,11 +14,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestWrite(t *testing.T) {
+func TestWriteEnabled(t *testing.T) {
 	testContent := []byte("hello this is a log")
 	logChannel := make(chan *config.ChannelMessage)
 	config := &Config{
-		channel: logChannel,
+		channel:   logChannel,
+		isEnabled: true,
 	}
 	go Write(config, testContent)
 	select {
@@ -30,6 +31,22 @@ func TestWrite(t *testing.T) {
 	}
 }
 
+func TestWriteDisabled(t *testing.T) {
+	testContent := []byte("hello this is a log")
+	logChannel := make(chan *config.ChannelMessage)
+	config := &Config{
+		channel:   logChannel,
+		isEnabled: false,
+	}
+	go Write(config, testContent)
+	select {
+	case <-logChannel:
+		assert.Fail(t, "We should not have received logs")
+	case <-time.After(100 * time.Millisecond):
+		assert.True(t, true)
+	}
+}
+
 func TestCreateConfig(t *testing.T) {
 	metadata := &metadata.Metadata{}
 	config := CreateConfig(metadata)
@@ -37,4 +54,17 @@ func TestCreateConfig(t *testing.T) {
 	assert.Equal(t, "cloudrun", config.source)
 	assert.Equal(t, "DD_CLOUDRUN_LOG_AGENT", string(config.loggerName))
 	assert.Equal(t, metadata, config.Metadata)
+}
+
+func TestIsEnabledTrue(t *testing.T) {
+	assert.True(t, isEnabled("True"))
+	assert.True(t, isEnabled("TRUE"))
+	assert.True(t, isEnabled("true"))
+}
+
+func TestIsEnabledFalse(t *testing.T) {
+	assert.False(t, isEnabled(""))
+	assert.False(t, isEnabled("false"))
+	assert.False(t, isEnabled("1"))
+	assert.False(t, isEnabled("FALSE"))
 }

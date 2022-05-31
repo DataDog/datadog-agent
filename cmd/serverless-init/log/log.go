@@ -6,7 +6,9 @@
 package log
 
 import (
+	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metadata"
@@ -21,6 +23,7 @@ const (
 	defaultFlushTimeout = 5 * time.Second
 	loggerName          = "DD_CLOUDRUN_LOG_AGENT"
 	logLevelEnvVar      = "DD_LOG_LEVEL"
+	logEnabledEnvVar    = "DD_LOGS_ENABLED"
 	source              = "cloudrun"
 	sourceName          = "Google Cloud Run"
 )
@@ -31,6 +34,7 @@ type Config struct {
 	channel      chan *logConfig.ChannelMessage
 	source       string
 	loggerName   config.LoggerName
+	isEnabled    bool
 }
 
 type CustomWriter struct {
@@ -44,14 +48,17 @@ func CreateConfig(metadata *metadata.Metadata) *Config {
 		channel:      make(chan *logConfig.ChannelMessage),
 		source:       source,
 		loggerName:   loggerName,
+		isEnabled:    isEnabled(os.Getenv(logEnabledEnvVar)),
 	}
 }
 
 func Write(conf *Config, msgToSend []byte) {
-	logMessage := &logConfig.ChannelMessage{
-		Content: msgToSend,
+	if conf.isEnabled {
+		logMessage := &logConfig.ChannelMessage{
+			Content: msgToSend,
+		}
+		conf.channel <- logMessage
 	}
-	conf.channel <- logMessage
 }
 
 func SetupLog(conf *Config) {
@@ -72,11 +79,19 @@ func SetupLog(conf *Config) {
 			log.Errorf("While changing the loglevel: %s", err)
 		}
 	}
-	serverlessLogs.SetupLogAgent(conf.channel, sourceName, source)
-	serverlessLogs.SetLogsTags(tag.GetBaseTagsArrayWithMetadataTags(conf.Metadata.TagMap()))
+
+	if conf.isEnabled {
+		serverlessLogs.SetupLogAgent(conf.channel, sourceName, source)
+		serverlessLogs.SetLogsTags(tag.GetBaseTagsArrayWithMetadataTags(conf.Metadata.TagMap()))
+	}
 }
 
 func (cw *CustomWriter) Write(p []byte) (n int, err error) {
+	fmt.Print(string(p))
 	Write(cw.LogConfig, p)
 	return len(p), nil
+}
+
+func isEnabled(envValue string) bool {
+	return strings.ToLower(envValue) == "true"
 }
