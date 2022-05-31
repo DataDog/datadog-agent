@@ -38,6 +38,7 @@ import (
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -76,8 +77,8 @@ type Probe struct {
 	scrubber  *pconfig.DataScrubber
 
 	// Approvers / discarders section
-	erpc               *ERPC
-	discarderReq       *ERPCRequest
+	erpc               *erpc.ERPC
+	discarderReq       *erpc.ERPCRequest
 	pidDiscarders      *pidDiscarders
 	inodeDiscarders    *inodeDiscarders
 	flushingDiscarders int64
@@ -1171,7 +1172,7 @@ func (p *Probe) flushInactiveProbes() map[uint32]int {
 
 // NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Probe, error) {
-	erpc, err := NewERPC()
+	erpc, err := erpc.NewERPC()
 	if err != nil {
 		return nil, err
 	}

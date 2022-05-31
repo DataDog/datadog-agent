@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package erpc
 
 import (
 	"syscall"
@@ -18,23 +18,6 @@ const (
 
 	// ERPCMaxDataSize maximum size of data of a request
 	ERPCMaxDataSize = 256
-)
-
-const (
-	// DiscardInodeOp discards an inode
-	DiscardInodeOp = iota + 1
-	// DiscardPidOp discards a pid
-	DiscardPidOp
-	// ResolveSegmentOp resolves the requested segment
-	ResolveSegmentOp
-	// ResolvePathOp resolves the requested path
-	ResolvePathOp
-	// ResolveParentOp resolves the parent of the provide path key
-	ResolveParentOp
-	// RegisterSpanTLSOP is used for span TLS registration
-	RegisterSpanTLSOP //nolint:deadcode,unused
-	// ExpireInodeDiscarderOp is used to expire an inode discarder
-	ExpireInodeDiscarderOp
 )
 
 // ERPC defines a krpc object

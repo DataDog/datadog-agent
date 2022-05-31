@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -109,7 +110,7 @@ var InvalidDiscarders = map[eval.Field][]interface{}{
 	"removexattr.file.path":        dentryInvalidDiscarder,
 }
 
-func marshalDiscardHeader(req *ERPCRequest, eventType model.EventType, timeout uint64) int {
+func marshalDiscardHeader(req *erpc.ERPCRequest, eventType model.EventType, timeout uint64) int {
 	model.ByteOrder.PutUint64(req.Data[0:8], uint64(eventType))
 	model.ByteOrder.PutUint64(req.Data[8:16], timeout)
 
@@ -118,8 +119,8 @@ func marshalDiscardHeader(req *ERPCRequest, eventType model.EventType, timeout u
 
 type pidDiscarders struct {
 	*lib.Map
-	erpc *ERPC
-	req  ERPCRequest
+	erpc *erpc.ERPC
+	req  erpc.ERPCRequest
 }
 
 func (p *pidDiscarders) discard(eventType model.EventType, pid uint32) error {
@@ -136,8 +137,8 @@ func (p *pidDiscarders) discardWithTimeout(eventType model.EventType, pid uint32
 	return p.erpc.Request(&p.req)
 }
 
-func newPidDiscarders(m *lib.Map, erpc *ERPC) *pidDiscarders {
-	return &pidDiscarders{Map: m, erpc: erpc, req: ERPCRequest{OP: DiscardPidOp}}
+func newPidDiscarders(m *lib.Map, e *erpc.ERPC) *pidDiscarders {
+	return &pidDiscarders{Map: m, erpc: e, req: erpc.ERPCRequest{OP: erpc.DiscardPidOp}}
 }
 
 type inodeDiscarderMapEntry struct {
@@ -159,7 +160,7 @@ func recentlyAddedIndex(mountID uint32, inode uint64) uint64 {
 // inodeDiscarders is used to issue eRPC discarder requests
 type inodeDiscarders struct {
 	*lib.Map
-	erpc           *ERPC
+	erpc           *erpc.ERPC
 	revisions      *lib.Map
 	revisionCache  [discarderRevisionSize]uint32
 	dentryResolver *DentryResolver
@@ -171,11 +172,11 @@ type inodeDiscarders struct {
 	recentlyAddedEntries [maxRecentlyAddedCacheSize]inodeDiscarderEntry
 }
 
-func newDiscarderRequest() *ERPCRequest {
-	return &ERPCRequest{OP: DiscardInodeOp}
+func newDiscarderRequest() *erpc.ERPCRequest {
+	return &erpc.ERPCRequest{OP: erpc.DiscardInodeOp}
 }
 
-func newInodeDiscarders(inodesMap, revisionsMap *lib.Map, erpc *ERPC, dentryResolver *DentryResolver) (*inodeDiscarders, error) {
+func newInodeDiscarders(inodesMap, revisionsMap *lib.Map, erpc *erpc.ERPC, dentryResolver *DentryResolver) (*inodeDiscarders, error) {
 	id := &inodeDiscarders{
 		Map:            inodesMap,
 		erpc:           erpc,
@@ -208,7 +209,7 @@ func (id *inodeDiscarders) recentlyAdded(mountID uint32, inode uint64, timestamp
 	entry.Timestamp = timestamp
 }
 
-func (id *inodeDiscarders) discardInode(req *ERPCRequest, eventType model.EventType, mountID uint32, inode uint64, isLeaf bool) error {
+func (id *inodeDiscarders) discardInode(req *erpc.ERPCRequest, eventType model.EventType, mountID uint32, inode uint64, isLeaf bool) error {
 	var isLeafInt uint32
 	if isLeaf {
 		isLeafInt = 1
@@ -223,7 +224,7 @@ func (id *inodeDiscarders) discardInode(req *ERPCRequest, eventType model.EventT
 }
 
 // expireInodeDiscarder sends an eRPC request to expire a discarder
-func (id *inodeDiscarders) expireInodeDiscarder(req *ERPCRequest, mountID uint32, inode uint64) error {
+func (id *inodeDiscarders) expireInodeDiscarder(req *erpc.ERPCRequest, mountID uint32, inode uint64) error {
 	model.ByteOrder.PutUint64(req.Data[0:8], inode)
 	model.ByteOrder.PutUint32(req.Data[8:12], mountID)
 
@@ -431,7 +432,7 @@ func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType mo
 	return true, nil
 }
 
-func (id *inodeDiscarders) discardParentInode(req *ERPCRequest, rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, mountID uint32, inode uint64, pathID uint32, timestamp uint64) (bool, uint32, uint64, error) {
+func (id *inodeDiscarders) discardParentInode(req *erpc.ERPCRequest, rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, mountID uint32, inode uint64, pathID uint32, timestamp uint64) (bool, uint32, uint64, error) {
 	var discarderDepth int
 	var isDiscarder bool
 	var err error
