@@ -28,7 +28,7 @@ func TestProviderExpectedTags(t *testing.T) {
 
 	tags := []string{"tag1:value1", "tag2", "tag3"}
 	m.Set("tags", tags)
-	defer m.Unset("tags")
+	defer m.Set("tags", nil)
 
 	m.Set("logs_config.tagger_warmup_duration", "2")
 
