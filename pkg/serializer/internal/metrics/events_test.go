@@ -164,7 +164,7 @@ func TestEventsSeveralPayloadsCreateSingleMarshaler(t *testing.T) {
 	events := createEvents("3", "3", "2", "2", "1", "1")
 
 	config.Datadog.Set("serializer_max_payload_size", 500)
-	defer config.Datadog.Unset("serializer_max_payload_size")
+	defer config.Datadog.Set("serializer_max_payload_size", nil)
 
 	expectedPayloads, err := events.MarshalJSON()
 	assert.NoError(t, err)
@@ -178,7 +178,7 @@ func TestEventsSeveralPayloadsCreateMarshalersBySourceType(t *testing.T) {
 	events := createEvents("3", "3", "2", "2", "1", "1")
 
 	config.Datadog.Set("serializer_max_payload_size", 300)
-	defer config.Datadog.Unset("serializer_max_payload_size")
+	defer config.Datadog.Set("serializer_max_payload_size", nil)
 
 	expectedPayloads, err := events.MarshalJSON()
 	assert.NoError(t, err)
