@@ -453,7 +453,9 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 		log.Debugf("Flushing %d sketches to the serializer", len(sketches))
 		err := d.sharedSerializer.SendSketch(sketches)
 		updateSketchTelemetry(start, uint64(len(sketches)), err)
-		tagsetTlm.updateHugeSketchesTelemetry(&sketches)
+		for _, sketch := range sketches {
+			tagsetTlm.updateHugeSketchesTelemetry(sketch)
+		}
 	}
 
 	addFlushTime("MainFlushTime", int64(time.Since(start)))
