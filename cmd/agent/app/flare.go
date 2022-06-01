@@ -197,6 +197,10 @@ func makeFlare(caseID string) error {
 		return err
 	}
 
+	log_level := config.Datadog.GetString("log_level")
+	if len(log_level) != 0 {
+		fmt.Fprintln(color.Output, fmt.Sprintf("Notice: This flare will be sent as %s level", color.RedString(log_level)))
+	}
 	fmt.Fprintln(color.Output, fmt.Sprintf("%s is going to be uploaded to Datadog", color.YellowString(filePath)))
 	if !autoconfirm {
 		confirmation := input.AskForConfirmation("Are you sure you want to upload a flare? [y/N]")

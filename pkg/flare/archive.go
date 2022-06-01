@@ -173,6 +173,12 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 		hostname = "unknown"
 	}
 
+	log_level := config.Datadog.GetString("log_level")
+	if len(log_level) != 0 {
+		delim := "-"
+		hostname = strings.ToUpper(log_level) + delim + hostname
+	}
+
 	hostname = cleanDirectoryName(hostname)
 
 	permsInfos := make(permissionsInfos)
@@ -1001,7 +1007,13 @@ func getArchivePath() string {
 	dir := os.TempDir()
 	t := time.Now().UTC()
 	timeString := strings.ReplaceAll(t.Format(time.RFC3339), ":", "-")
-	fileName := strings.Join([]string{"datadog", "agent", timeString}, "-")
+	log_level := config.Datadog.GetString("log_level")
+	fileName := ""
+	if len(log_level) != 0 {
+		fileName = strings.Join([]string{strings.ToUpper(log_level), "datadog", "agent", timeString}, "-")
+	} else {
+		fileName = strings.Join([]string{strings.ToUpper(log_level), "datadog", "agent", timeString}, "-")
+	}
 	fileName = strings.Join([]string{fileName, "zip"}, ".")
 	filePath := filepath.Join(dir, fileName)
 	return filePath
