@@ -87,6 +87,9 @@ func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain 
 
 	// Add tracing and send the request
 	req = req.WithContext(ctx)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("DD-API-KEY", apiKey)
+
 	resp, err := client.Do(req)
 
 	if err != nil {
@@ -123,7 +126,7 @@ func verifyEndpointResponse(statusCode int, responseBody []byte, err error) {
 	}
 
 	statusString := color.GreenString("PASS")
-	if statusCode != http.StatusOK {
+	if statusCode >= http.StatusBadRequest {
 		statusString = color.RedString("FAIL")
 		fmt.Printf("Received response : '%v'\n", string(responseBody))
 	}

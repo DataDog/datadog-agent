@@ -36,11 +36,20 @@ type endpointInfo struct {
 var (
 	apiKeyInQueryString = true
 
-	emptyPayload = []byte("")
+	emptyPayload    = []byte("{}")
+	checkRunPayload = []byte("{\"check\": \"test\", \"status\": 0}")
 
-	// TODO : add more endpoints info and a filtering function to only keep used endpoints
-	v1SeriesEndpointInfo   = endpointInfo{endpoints.V1SeriesEndpoint, "POST", emptyPayload, apiKeyInQueryString}
-	v1ValidateEndpointInfo = endpointInfo{endpoints.V1ValidateEndpoint, "GET", emptyPayload, apiKeyInQueryString}
+	// v1 endpoints
+	v1SeriesEndpointInfo    = endpointInfo{endpoints.V1SeriesEndpoint, "POST", emptyPayload, apiKeyInQueryString}
+	v1CheckRunsEndpointInfo = endpointInfo{endpoints.V1CheckRunsEndpoint, "POST", checkRunPayload, apiKeyInQueryString}
+	v1IntakeEndpointInfo    = endpointInfo{endpoints.V1IntakeEndpoint, "POST", emptyPayload, apiKeyInQueryString}
+	v1ValidateEndpointInfo  = endpointInfo{endpoints.V1ValidateEndpoint, "GET", emptyPayload, false}
+	v1MetadataEndpointInfo  = endpointInfo{endpoints.V1MetadataEndpoint, "POST", emptyPayload, apiKeyInQueryString}
 
-	endpointsInfo = []endpointInfo{v1SeriesEndpointInfo, v1ValidateEndpointInfo}
+	// v2 endpoints
+	SeriesEndpointInfo       = endpointInfo{endpoints.SeriesEndpoint, "POST", emptyPayload, apiKeyInQueryString}
+	SketchSeriesEndpointInfo = endpointInfo{endpoints.SketchSeriesEndpoint, "POST", emptyPayload, apiKeyInQueryString}
+
+	endpointsInfo = []endpointInfo{v1SeriesEndpointInfo, v1CheckRunsEndpointInfo, v1MetadataEndpointInfo, v1IntakeEndpointInfo,
+		SeriesEndpointInfo, SketchSeriesEndpointInfo, v1ValidateEndpointInfo}
 )
