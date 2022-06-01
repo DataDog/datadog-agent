@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"go.uber.org/atomic"
 )
 
@@ -18,14 +19,14 @@ import (
 type Builder struct {
 	isRunning   *atomic.Bool
 	endpoints   *config.Endpoints
-	sources     *config.LogSources
+	sources     *sourcesPkg.LogSources
 	warnings    *config.Messages
 	errors      *config.Messages
 	logsExpVars *expvar.Map
 }
 
 // NewBuilder returns a new builder.
-func NewBuilder(isRunning *atomic.Bool, endpoints *config.Endpoints, sources *config.LogSources, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map) *Builder {
+func NewBuilder(isRunning *atomic.Bool, endpoints *config.Endpoints, sources *sourcesPkg.LogSources, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map) *Builder {
 	return &Builder{
 		isRunning:   isRunning,
 		endpoints:   endpoints,
@@ -106,14 +107,14 @@ func (b *Builder) getIntegrations() []Integration {
 
 // groupSourcesByName groups all logs sources by name so that they get properly displayed
 // on the agent status.
-func (b *Builder) groupSourcesByName() map[string][]*config.LogSource {
-	sources := make(map[string][]*config.LogSource)
+func (b *Builder) groupSourcesByName() map[string][]*sourcesPkg.LogSource {
+	sources := make(map[string][]*sourcesPkg.LogSource)
 	for _, source := range b.sources.GetSources() {
 		if source.IsHiddenFromStatus() {
 			continue
 		}
 		if _, exists := sources[source.Name]; !exists {
-			sources[source.Name] = []*config.LogSource{}
+			sources[source.Name] = []*sourcesPkg.LogSource{}
 		}
 		sources[source.Name] = append(sources[source.Name], source)
 	}

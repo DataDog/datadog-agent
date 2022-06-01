@@ -13,16 +13,16 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/socket"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 // A TCPListener listens and accepts TCP connections and delegates the read operations to a tailer.
 type TCPListener struct {
 	pipelineProvider pipeline.Provider
-	source           *config.LogSource
+	source           *sources.LogSource
 	idleTimeout      time.Duration
 	frameSize        int
 	listener         net.Listener
@@ -32,7 +32,7 @@ type TCPListener struct {
 }
 
 // NewTCPListener returns an initialized TCPListener
-func NewTCPListener(pipelineProvider pipeline.Provider, source *config.LogSource, frameSize int) *TCPListener {
+func NewTCPListener(pipelineProvider pipeline.Provider, source *sources.LogSource, frameSize int) *TCPListener {
 	var idleTimeout time.Duration
 	if source.Config.IdleTimeout != "" {
 		var err error

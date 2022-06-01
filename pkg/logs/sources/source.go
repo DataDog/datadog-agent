@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package sources
 
 import (
 	"fmt"
@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"go.uber.org/atomic"
 )
@@ -31,16 +32,16 @@ const (
 // Changing the status is designed to be thread safe.
 type LogSource struct {
 	Name     string
-	Config   *LogsConfig
-	Status   *LogStatus
+	Config   *config.LogsConfig
+	Status   *config.LogStatus
 	inputs   map[string]bool
 	lock     *sync.Mutex
-	Messages *Messages
+	Messages *config.Messages
 	// sourceType is the type of the source that we are tailing whereas Config.Type is the type of the tailer
 	// that reads log lines for this source. E.g, a sourceType == containerd and Config.Type == file means that
 	// the agent is tailing a file to read logs of a containerd container
 	sourceType SourceType
-	info       map[string]InfoProvider
+	info       map[string]config.InfoProvider
 	// In the case that the source is overridden, keep a reference to the parent for bubbling up information about the child
 	ParentSource *LogSource
 	// LatencyStats tracks internal stats on the time spent by messages from this source in a processing pipeline, i.e.
@@ -51,16 +52,16 @@ type LogSource struct {
 }
 
 // NewLogSource creates a new log source.
-func NewLogSource(name string, config *LogsConfig) *LogSource {
+func NewLogSource(name string, cfg *config.LogsConfig) *LogSource {
 	return &LogSource{
 		Name:             name,
-		Config:           config,
-		Status:           NewLogStatus(),
+		Config:           cfg,
+		Status:           config.NewLogStatus(),
 		inputs:           make(map[string]bool),
 		lock:             &sync.Mutex{},
-		Messages:         NewMessages(),
+		Messages:         config.NewMessages(),
 		BytesRead:        atomic.NewInt64(0),
-		info:             make(map[string]InfoProvider),
+		info:             make(map[string]config.InfoProvider),
 		LatencyStats:     util.NewStatsTracker(time.Hour*24, time.Hour),
 		hiddenFromStatus: false,
 	}
@@ -106,14 +107,14 @@ func (s *LogSource) GetSourceType() SourceType {
 }
 
 // RegisterInfo registers some info to display on the status page
-func (s *LogSource) RegisterInfo(i InfoProvider) {
+func (s *LogSource) RegisterInfo(i config.InfoProvider) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	s.info[i.InfoKey()] = i
 }
 
 // GetInfo gets an InfoProvider instance by the key
-func (s *LogSource) GetInfo(key string) InfoProvider {
+func (s *LogSource) GetInfo(key string) config.InfoProvider {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	return s.info[key]
