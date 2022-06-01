@@ -11,7 +11,6 @@ import (
 	"log"
 	"strings"
 
-	tufclient "github.com/theupdateframework/go-tuf/client"
 	"github.com/theupdateframework/go-tuf/data"
 )
 
@@ -58,10 +57,8 @@ type Update struct {
 // remote config updates from an Agent.
 type Repository struct {
 	// TUF related data
-	latestTargets   *data.Targets
-	rootClient      *tufclient.Client
-	rootLocalStore  tufclient.LocalStore
-	rootRemoteStore *rootClientRemoteStore
+	latestTargets  *data.Targets
+	tufRootsClient *tufRootsClient
 
 	// Config file storage
 	metadata map[string]Metadata
@@ -76,56 +73,28 @@ func NewRepository(embeddedRoot []byte) *Repository {
 		configs[product] = make(map[string]interface{})
 	}
 
-	rootLocalStore := tufclient.MemoryLocalStore()
-	rootLocalStore.SetMeta("root.json", embeddedRoot)
-
-	rootRemoteStore := &rootClientRemoteStore{}
-
-	rootClient := tufclient.NewClient(rootLocalStore, rootRemoteStore)
+	tufRootsClient := newTufRootsClient(embeddedRoot)
 
 	return &Repository{
-		latestTargets:   data.NewTargets(),
-		rootClient:      rootClient,
-		rootLocalStore:  rootLocalStore,
-		rootRemoteStore: rootRemoteStore,
-		metadata:        make(map[string]Metadata),
-		configs:         configs,
+		latestTargets:  data.NewTargets(),
+		tufRootsClient: tufRootsClient,
+		metadata:       make(map[string]Metadata),
+		configs:        configs,
 	}
-}
-
-func (r *Repository) updateRoots(newRoots [][]byte) (*data.Root, error) {
-	if len(newRoots) == 0 {
-		latestRoot, err := r.latestRoot()
-		if err != nil {
-			return nil, err
-		}
-		return latestRoot, nil
-	}
-
-	r.rootRemoteStore.roots = append(r.rootRemoteStore.roots, newRoots...)
-	err := r.rootClient.UpdateRoots()
-	if err != nil {
-		return nil, err
-	}
-
-	return r.latestRoot()
-}
-
-func (r *Repository) latestRoot() (*data.Root, error) {
-	metas, err := r.rootLocalStore.GetMeta()
-	if err != nil {
-		return nil, err
-	}
-	rawRoot := metas["root.json"]
-
-	return unsafeUnmarshalRoot(rawRoot)
 }
 
 // Update processes the ClientGetConfigsResponse from the Agent and updates the
 // configuration state
 func (r *Repository) Update(update Update) ([]string, error) {
-	// TUF (Non-RFC): Update the roots
-	latestRoot, err := r.updateRoots(update.TUFRoots)
+	// TUF: Update the roots
+	//
+	// NWe don't want to partially update the state, so we need a temporary client to hold the new root
+	// data until we know it's valid
+	tmpRootClient, err := r.tufRootsClient.clone()
+	if err != nil {
+		return nil, err
+	}
+	latestRoot, err := tmpRootClient.updateRoots(update.TUFRoots)
 	if err != nil {
 		return nil, err
 	}
@@ -205,11 +174,11 @@ func (r *Repository) Update(update Update) ([]string, error) {
 	}
 
 	// 4.a: Store the new targets.signed.custom.client_state
+	// TUF: Store the updated roots now that everything has validated
 	// This data is contained within the TUF Targets file so storing that
 	// covers this as well.
 	r.latestTargets = updatedTargets
-
-	// TUF: Store the updated roots
+	r.tufRootsClient = tmpRootClient
 
 	// Upstream may not want to take any actions if the update result doesn't
 	// change any configs.
@@ -275,7 +244,7 @@ func (r *Repository) CurrentState() (RepositoryState, error) {
 		cached = append(cached, cachedFileFromMetadata(path, metadata))
 	}
 
-	latestRoot, err := r.latestRoot()
+	latestRoot, err := r.tufRootsClient.latestRoot()
 	if err != nil {
 		return RepositoryState{}, err
 	}

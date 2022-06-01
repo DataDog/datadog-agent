@@ -15,6 +15,73 @@ import (
 	"github.com/theupdateframework/go-tuf/verify"
 )
 
+type tufRootsClient struct {
+	rootClient      *client.Client
+	rootLocalStore  client.LocalStore
+	rootRemoteStore *rootClientRemoteStore
+}
+
+func newTufRootsClient(root []byte) *tufRootsClient {
+	rootLocalStore := client.MemoryLocalStore()
+	rootLocalStore.SetMeta("root.json", root)
+
+	rootRemoteStore := &rootClientRemoteStore{}
+
+	rootClient := client.NewClient(rootLocalStore, rootRemoteStore)
+
+	return &tufRootsClient{
+		rootClient:      rootClient,
+		rootLocalStore:  rootLocalStore,
+		rootRemoteStore: rootRemoteStore,
+	}
+}
+
+func (trc *tufRootsClient) clone() (*tufRootsClient, error) {
+	root, err := trc.latestRootRaw()
+	if err != nil {
+		return nil, err
+	}
+
+	return newTufRootsClient(root), nil
+}
+
+func (trc *tufRootsClient) updateRoots(newRoots [][]byte) (*data.Root, error) {
+	if len(newRoots) == 0 {
+		latestRoot, err := trc.latestRoot()
+		if err != nil {
+			return nil, err
+		}
+		return latestRoot, nil
+	}
+
+	trc.rootRemoteStore.roots = append(trc.rootRemoteStore.roots, newRoots...)
+	err := trc.rootClient.UpdateRoots()
+	if err != nil {
+		return nil, err
+	}
+
+	return trc.latestRoot()
+}
+
+func (trc *tufRootsClient) latestRoot() (*data.Root, error) {
+	raw, err := trc.latestRootRaw()
+	if err != nil {
+		return nil, err
+	}
+
+	return unsafeUnmarshalRoot(raw)
+}
+
+func (trc *tufRootsClient) latestRootRaw() ([]byte, error) {
+	metas, err := trc.rootLocalStore.GetMeta()
+	if err != nil {
+		return nil, err
+	}
+	rawRoot := metas["root.json"]
+
+	return rawRoot, nil
+}
+
 type rootClientRemoteStore struct {
 	roots [][]byte
 }
