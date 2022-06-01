@@ -91,8 +91,6 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
         return 0;
     }
 
-    update_cgroup_name();
-
     handle_tcp_stats(&t, skp, 0);
 
     __u32 packets_in = 0;
@@ -121,7 +119,6 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs* ctx) {
         return 0;
     }
 
-    update_cgroup_name();
     handle_tcp_stats(&t, sk, 0);
     return handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE);
 }
@@ -329,8 +326,6 @@ static __always_inline int handle_ret_udp_recvmsg(struct pt_regs* ctx, struct bp
         log_debug("ERR(kretprobe/udp_recvmsg): error reading conn tuple, pid_tgid=%d\n", pid_tgid);
         return 0;
     }
-
-    update_cgroup_name();
 
     log_debug("kretprobe/udp_recvmsg: pid_tgid: %d, return: %d\n", pid_tgid, copied);
     handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_INCREMENT);
