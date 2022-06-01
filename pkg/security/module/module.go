@@ -515,6 +515,11 @@ func (m *Module) metricsSender() {
 			} else if m.config.FIMEnabled {
 				_ = m.statsdClient.Gauge(metrics.MetricSecurityAgentFIMRunning, 1, tags, 1)
 			}
+
+			// Event monitoring may run independently of CWS products
+			if m.config.EventMonitoring {
+				_ = m.statsdClient.Gauge(metrics.MetricEventMonitoringRunning, 1, tags, 1)
+			}
 		case <-m.ctx.Done():
 			return
 		}

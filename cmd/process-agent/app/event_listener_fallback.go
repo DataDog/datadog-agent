@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows
-// +build windows
+//go:build !linux
+// +build !linux
 
-package tags
+package app
 
-// ResolveRuntimeArch determines the architecture of the lambda at runtime
-func ResolveRuntimeArch() string {
-	return X86LambdaPlatform
-}
+import "github.com/spf13/cobra"
+
+// EventsCmd is a command to interact with process lifecycle events. It's currently available only on Linux
+var EventsCmd = &cobra.Command{}

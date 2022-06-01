@@ -10,6 +10,7 @@ package http
 
 import (
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,14 +30,19 @@ func TestPath(t *testing.T) {
 }
 
 func TestMaximumLengthPath(t *testing.T) {
+	rep := strings.Repeat("a", HTTPBufferSize-6)
+	str := "GET /" + rep
+	str += "bc"
 	tx := httpTX{
 		request_fragment: requestFragment(
-			[]byte("GET /aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabc"),
+			[]byte(str),
 		),
 	}
 	b := make([]byte, HTTPBufferSize)
 	path, fullPath := tx.Path(b)
-	assert.Equal(t, "/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab", string(path))
+	expected := "/" + rep
+	expected = expected + "b"
+	assert.Equal(t, expected, string(path))
 	assert.False(t, fullPath)
 }
 
