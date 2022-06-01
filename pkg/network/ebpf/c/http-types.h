@@ -44,8 +44,8 @@ typedef struct {
 // HTTP transaction information associated to a certain socket (tuple_t)
 typedef struct {
     conn_tuple_t tup;
-    __u8 request_method;
     __u64 request_started;
+    __u8  request_method;
     __u16 response_status_code;
     __u64 response_last_seen;
     char request_fragment[HTTP_BUFFER_SIZE];
@@ -55,11 +55,12 @@ typedef struct {
     // be populated with the "original" (pre-normalization) source port number of
     // the TCP segment containing the beginning of a given HTTP request
     __u16 owned_by_src_port;
-    __u64 tags;
 
     // this field is used to disambiguate segments in the context of keep-alives
     // we populate it with the TCP seq number of the request and then the response segments
     __u32 tcp_seq;
+
+    __u64 tags;
 } http_transaction_t;
 
 typedef struct {
