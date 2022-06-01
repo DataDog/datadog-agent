@@ -84,6 +84,10 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 		}
 		raddr.ContainerId = l.addrToCtrID[addr]
 
+		if conn.Laddr == nil {
+			continue
+		}
+
 		// resolve laddr
 		// container id may already be set in system-probe
 		// if cgroup name collection is enabled
