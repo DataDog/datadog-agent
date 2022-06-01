@@ -166,16 +166,18 @@ func (c *Client) update() error {
 // contain the current state of the APMSampling product.
 func (c *Client) RegisterAPMUpdate(fn func(update map[string]remoteconfig.APMSamplingConfig)) {
 	c.m.Lock()
+	defer c.m.Unlock()
 	c.apmListeners = append(c.apmListeners, fn)
-	c.m.Unlock()
+	fn(c.repository.APMConfigs())
 }
 
 // RegisterCWSDDUpdate registers a callback function to be called after a successful client update that will
 // contain the current state of the CWSDD product.
 func (c *Client) RegisterCWSDDUpdate(fn func(update map[string]remoteconfig.ConfigCWSDD)) {
 	c.m.Lock()
+	defer c.m.Unlock()
 	c.cwsListeners = append(c.cwsListeners, fn)
-	c.m.Unlock()
+	fn(c.repository.CWSDDConfigs())
 }
 
 func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) (bool, error) {
