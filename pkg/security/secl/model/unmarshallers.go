@@ -72,7 +72,13 @@ func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	e.TimestampRaw = ByteOrder.Uint64(data[8:16])
-	e.Type = ByteOrder.Uint64(data[16:24])
+	e.Type = ByteOrder.Uint32(data[16:20])
+	if data[20] != 0 {
+		e.Async = true
+	} else {
+		e.Async = false
+	}
+	// 21-24: padding
 
 	return 24, nil
 }
@@ -430,16 +436,11 @@ func (e *SetXAttrEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *SyscallEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 16 {
+	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
 	e.Retval = int64(ByteOrder.Uint64(data[0:8]))
-	if ByteOrder.Uint64(data[8:16]) != 0 {
-		e.Async = true
-	} else {
-		e.Async = false
-	}
-	return 16, nil
+	return 8, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

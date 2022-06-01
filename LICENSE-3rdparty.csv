@@ -521,8 +521,8 @@ core,github.com/mattn/go-colorable,MIT,Copyright (c) 2016 Yasuhiro Matsumoto
 core,github.com/mattn/go-isatty,MIT,Copyright (c) Yasuhiro MATSUMOTO <mattn.jp@gmail.com>
 core,github.com/mattn/go-runewidth,MIT,Copyright (c) 2016 Yasuhiro Matsumoto
 core,github.com/matttproud/golang_protobuf_extensions/pbutil,Apache-2.0,Copyright 2012 Matt T. Proud (matt.proud@gmail.com)
-core,github.com/mdlayher/netlink,MIT,Copyright (C) 2016-2021 Matt Layher
-core,github.com/mdlayher/netlink/nlenc,MIT,Copyright (C) 2016-2021 Matt Layher
+core,github.com/mdlayher/netlink,MIT,Copyright (C) 2016-2022 Matt Layher
+core,github.com/mdlayher/netlink/nlenc,MIT,Copyright (C) 2016-2022 Matt Layher
 core,github.com/mdlayher/socket,MIT,Copyright (C) 2021 Matt Layher
 core,github.com/mholt/archiver/v3,MIT,Copyright (c) 2016 Matthew Holt
 core,github.com/mitchellh/copystructure,MIT,Copyright (c) 2014 Mitchell Hashimoto

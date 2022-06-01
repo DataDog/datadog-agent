@@ -69,7 +69,7 @@ func TestRename(t *testing.T) {
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
-			assert.Equal(t, event.Rename.Async, false)
+			assert.Equal(t, event.Async, false)
 
 			if !validateRenameSchema(t, event) {
 				t.Error(event.String())
@@ -98,7 +98,7 @@ func TestRename(t *testing.T) {
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
-			assert.Equal(t, event.Rename.Async, false)
+			assert.Equal(t, event.Async, false)
 
 			if !validateRenameSchema(t, event) {
 				t.Error(event.String())
@@ -130,7 +130,7 @@ func TestRename(t *testing.T) {
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
-			assert.Equal(t, event.Rename.Async, false)
+			assert.Equal(t, event.Async, false)
 
 			if !validateRenameSchema(t, event) {
 				t.Error(event.String())
@@ -167,7 +167,7 @@ func TestRename(t *testing.T) {
 			result := <-ch
 			ret, err := result.ReturnInt()
 			if err != nil {
-				if err == syscall.EBADF {
+				if err == syscall.EBADF || err == syscall.EINVAL {
 					return ErrSkipTest{"renameat not supported by io_uring"}
 				}
 				return err
@@ -187,7 +187,7 @@ func TestRename(t *testing.T) {
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
-			assert.Equal(t, event.Rename.Async, true)
+			assert.Equal(t, event.Async, true)
 
 			executable, err := os.Executable()
 			if err != nil {

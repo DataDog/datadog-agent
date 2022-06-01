@@ -206,5 +206,7 @@ ENV LD_PRELOAD=/lib/x86_64-linux-gnu/nosys.so \
 # Single entrypoint
 COPY entrypoint.sh /bin/entrypoint.sh
 COPY entrypoint.d /opt/entrypoints
+RUN chmod 755 /bin/entrypoint.sh \
+ && chmod 755 -R /opt/entrypoints
 
 CMD ["/bin/entrypoint.sh"]

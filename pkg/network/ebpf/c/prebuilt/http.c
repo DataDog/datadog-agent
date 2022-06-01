@@ -17,18 +17,54 @@
 static __always_inline void read_into_buffer_skb(char *buffer, struct __sk_buff* skb, skb_info_t *info) {
     u64 offset = (u64)info->data_off;
 
+#define BLK_SIZE (4)
+    const u32 iter = HTTP_BUFFER_SIZE / BLK_SIZE;
+    const u32 len = HTTP_BUFFER_SIZE < (skb->len - (u32)offset) ? (u32)offset + HTTP_BUFFER_SIZE : skb->len;
+
+    unsigned i = 0;
+
 #pragma unroll
-    for (int i = 0; i < HTTP_BUFFER_SIZE; i++) {
-        if (offset < skb->len) {
-            asm("r8 = *(u64 *)%[offset]\n\t"
-                "r0 = 0\n\t"
-                "r0 = *(u8 *)skb[r8]\n\t"
-                "*(u8 *)%[buffer] = r0\n\t"
-                : [buffer]"=m"(buffer[i])
-                : [offset]"m"(offset)
-                : "r0", "r1", "r2", "r3", "r4", "r5", "r8");
-        }
-        offset++;
+    for (; i < iter; i++) {
+        if (offset + BLK_SIZE - 1 >= len) break;
+
+        // There was a bug in the bpf translatter that was incorrectly clobbering r2 register,
+        // which led to erasing r1 value in that case:
+        //      0:  r6 = r1
+        //      1:  r1 = 12
+        //      2:  r0 = *(u16 *)skb[r1]
+        // https://github.com/torvalds/linux/commit/e6a18d36118bea3bf497c9df4d9988b6df120689
+        //
+        // To prevent the compiler from using the r1 register in the `load_*` functions, we need
+        // to fake using it, so that it increases the chance for the compiler not using it.
+        asm volatile("":::"r1");
+        *(u32 *)buffer = __builtin_bswap32(load_word(skb, offset));
+        asm volatile("":::"r1");
+
+        offset += BLK_SIZE;
+        buffer += BLK_SIZE;
+    }
+
+    // This part is very hard to write in a loop and unroll it.
+    // Indeed, mostly because of 4.4 verifier, we want to make sure the offset into the buffer is not
+    // stored on the stack, so that the verifier is able to verify that we're not doing out-of-bound on
+    // the stack.
+    // Basically, we should get a register from the code block above containing an fp relative address. As
+    // we are doing `buffer[0]` here, there is not dynamic computation on that said register after this,
+    // and thus the verifier is able to ensure that we are in-bound.
+    if (offset + 2 < len) {
+        asm volatile("":::"r1");
+        *(u16 *)(&buffer[0]) = __builtin_bswap16(load_half(skb, offset));
+        asm volatile("":::"r1");
+        *(&buffer[2]) = load_byte(skb, offset + 2);
+        asm volatile("":::"r1");
+    } else if (offset + 1 < len) {
+        asm volatile("":::"r1");
+        *(u16 *)(&buffer[0]) = __builtin_bswap16(load_half(skb, offset));
+        asm volatile("":::"r1");
+    } else if (offset < len) {
+        asm volatile("":::"r1");
+        *(&buffer[0]) = load_byte(skb, offset);
+        asm volatile("":::"r1");
     }
 }
 

@@ -54,7 +54,7 @@ func (suite *ConfigTestSuite) TestGlobalProcessingRulesShouldReturnNoRulesWithEm
 		err   error
 	)
 
-	suite.config.Unset("logs_config.processing_rules")
+	suite.config.Set("logs_config.processing_rules", nil)
 
 	rules, err = GlobalProcessingRules()
 	suite.Nil(err)

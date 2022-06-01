@@ -63,7 +63,7 @@ func TestMkdir(t *testing.T) {
 			assertRights(t, event.Mkdir.File.Mode, expectedMode)
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
-			assert.Equal(t, event.Mkdir.Async, false)
+			assert.Equal(t, event.Async, false)
 		})
 	}))
 
@@ -87,7 +87,7 @@ func TestMkdir(t *testing.T) {
 			assertRights(t, event.Mkdir.File.Mode&expectedMode, expectedMode)
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
-			assert.Equal(t, event.Mkdir.Async, false)
+			assert.Equal(t, event.Async, false)
 		})
 	})
 
@@ -122,7 +122,7 @@ func TestMkdir(t *testing.T) {
 			result := <-ch
 			ret, err := result.ReturnInt()
 			if err != nil {
-				if err == syscall.EBADF {
+				if err == syscall.EBADF || err == syscall.EINVAL {
 					return ErrSkipTest{"mkdirat not supported by io_uring"}
 				}
 				return err
@@ -140,7 +140,7 @@ func TestMkdir(t *testing.T) {
 			assertRights(t, event.Mkdir.File.Mode&expectedMode, expectedMode)
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
-			assert.Equal(t, event.Mkdir.Async, true)
+			assert.Equal(t, event.Async, true)
 
 			executable, err := os.Executable()
 			if err != nil {
@@ -184,7 +184,7 @@ func TestMkdirError(t *testing.T) {
 			return runSyscallTesterFunc(t, syscallTester, "mkdirat-error", testatFile)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdirat_error")
-			assertReturnValue(t, event.Mkdir.Retval, -int64(syscall.EACCES))
+			assert.Equal(t, event.Mkdir.Retval, -int64(syscall.EACCES))
 		})
 	})
 }

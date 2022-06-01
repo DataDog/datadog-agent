@@ -364,18 +364,6 @@ func StartAgent() error {
 	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
 	opts.UseContainerLifecycleForwarder = config.Datadog.GetBool("container_lifecycle.enabled")
 	demux = aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
-	demux.AddAgentStartupTelemetry(version.AgentVersion)
-
-	// start dogstatsd
-	if config.Datadog.GetBool("use_dogstatsd") {
-		var err error
-		common.DSD, err = dogstatsd.NewServer(demux, false)
-		if err != nil {
-			log.Errorf("Could not start dogstatsd: %s", err)
-		} else {
-			log.Debugf("dogstatsd started")
-		}
-	}
 
 	// Setup stats telemetry handler
 	if sender, err := demux.GetDefaultSender(); err == nil {
@@ -397,16 +385,9 @@ func StartAgent() error {
 
 	// Start SNMP trap server
 	if traps.IsEnabled() {
-		if config.Datadog.GetBool("logs_enabled") {
-			err = traps.StartServer(hostname, demux)
-			if err != nil {
-				log.Errorf("Failed to start snmp-traps server: %s", err)
-			}
-		} else {
-			log.Warn(
-				"snmp-traps server did not start, as log collection is disabled. " +
-					"Please enable log collection to collect and forward traps.",
-			)
+		err = traps.StartServer(hostname, demux)
+		if err != nil {
+			log.Errorf("Failed to start snmp-traps server: %s", err)
 		}
 	}
 
@@ -422,6 +403,19 @@ func StartAgent() error {
 
 	// create and setup the Autoconfig instance
 	common.LoadComponents(common.MainCtx, config.Datadog.GetString("confd_path"))
+
+	demux.AddAgentStartupTelemetry(version.AgentVersion)
+
+	// start dogstatsd
+	if config.Datadog.GetBool("use_dogstatsd") {
+		var err error
+		common.DSD, err = dogstatsd.NewServer(demux, false)
+		if err != nil {
+			log.Errorf("Could not start dogstatsd: %s", err)
+		} else {
+			log.Debugf("dogstatsd started")
+		}
+	}
 
 	// start logs-agent.  This must happen after AutoConfig is set up (via common.LoadComponents)
 	if config.Datadog.GetBool("logs_enabled") || config.Datadog.GetBool("log_enabled") {

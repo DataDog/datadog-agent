@@ -2347,12 +2347,6 @@ func (z *SyscallEvent) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Retval")
 				return
 			}
-		case "async":
-			z.Async, err = dc.ReadBool()
-			if err != nil {
-				err = msgp.WrapError(err, "Async")
-				return
-			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -2366,9 +2360,9 @@ func (z *SyscallEvent) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z SyscallEvent) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 2
+	// map header, size 1
 	// write "retval"
-	err = en.Append(0x82, 0xa6, 0x72, 0x65, 0x74, 0x76, 0x61, 0x6c)
+	err = en.Append(0x81, 0xa6, 0x72, 0x65, 0x74, 0x76, 0x61, 0x6c)
 	if err != nil {
 		return
 	}
@@ -2377,29 +2371,16 @@ func (z SyscallEvent) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Retval")
 		return
 	}
-	// write "async"
-	err = en.Append(0xa5, 0x61, 0x73, 0x79, 0x6e, 0x63)
-	if err != nil {
-		return
-	}
-	err = en.WriteBool(z.Async)
-	if err != nil {
-		err = msgp.WrapError(err, "Async")
-		return
-	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
 func (z SyscallEvent) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 2
+	// map header, size 1
 	// string "retval"
-	o = append(o, 0x82, 0xa6, 0x72, 0x65, 0x74, 0x76, 0x61, 0x6c)
+	o = append(o, 0x81, 0xa6, 0x72, 0x65, 0x74, 0x76, 0x61, 0x6c)
 	o = msgp.AppendInt64(o, z.Retval)
-	// string "async"
-	o = append(o, 0xa5, 0x61, 0x73, 0x79, 0x6e, 0x63)
-	o = msgp.AppendBool(o, z.Async)
 	return
 }
 
@@ -2427,12 +2408,6 @@ func (z *SyscallEvent) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Retval")
 				return
 			}
-		case "async":
-			z.Async, bts, err = msgp.ReadBoolBytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "Async")
-				return
-			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -2447,6 +2422,6 @@ func (z *SyscallEvent) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z SyscallEvent) Msgsize() (s int) {
-	s = 1 + 7 + msgp.Int64Size + 6 + msgp.BoolSize
+	s = 1 + 7 + msgp.Int64Size
 	return
 }

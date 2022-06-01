@@ -54,12 +54,12 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/DataDog/agent-payload/v5 v5.0.22
 	github.com/DataDog/btf-internals v0.0.0-20220424171854-ebe6bce9afb0
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.37.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.37.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/quantile v0.37.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.37.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.37.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/trace v0.37.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.37.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.37.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/quantile v0.37.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.37.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.37.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/trace v0.37.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf-manager v0.0.0-20220406140358-68e6b7f54dde
@@ -67,7 +67,7 @@ require (
 	github.com/DataDog/gopsutil v0.0.0-20220308095538-d086941833e3
 	github.com/DataDog/nikos v1.7.6
 	github.com/DataDog/sketches-go v1.4.1
-	github.com/DataDog/viper v1.10.0
+	github.com/DataDog/viper v1.9.0
 	github.com/DataDog/watermarkpodautoscaler v0.3.1-logs-attributes.2.0.20211014120627-6d6a5c559fc9
 	github.com/DataDog/zstd v1.5.0
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f
@@ -141,7 +141,7 @@ require (
 	github.com/lxn/walk v0.0.0-20191128110447-55ccb3a9f5c1
 	github.com/lxn/win v0.0.0-20191128105842-2da648fda5b4
 	github.com/mailru/easyjson v0.7.7
-	github.com/mdlayher/netlink v1.4.1
+	github.com/mdlayher/netlink v1.6.0
 	github.com/mholt/archiver/v3 v3.5.1
 	github.com/miekg/dns v1.1.48
 	github.com/mitchellh/mapstructure v1.5.0
@@ -194,7 +194,7 @@ require (
 	google.golang.org/grpc v1.46.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.37.0
 	gopkg.in/yaml.v2 v2.4.0
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
+	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	gotest.tools v2.2.0+incompatible
 	inet.af/netaddr v0.0.0-20211027220019-c74959edd3b6
@@ -298,7 +298,7 @@ require (
 	github.com/jlaffaye/ftp v0.0.0-20200812143550-39e3779af0db // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
-	github.com/josharian/native v0.0.0-20200817173448-b6b71def0850 // indirect
+	github.com/josharian/native v1.0.0 // indirect
 	github.com/kjk/lzma v0.0.0-20161016003348-3fd93898850d // indirect
 	github.com/klauspost/compress v1.15.1 // indirect
 	github.com/klauspost/pgzip v1.2.5 // indirect
@@ -309,7 +309,7 @@ require (
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
-	github.com/mdlayher/socket v0.0.0-20210307095302-262dc9984e00 // indirect
+	github.com/mdlayher/socket v0.1.1 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
@@ -347,7 +347,7 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/smira/go-ftp-protocol v0.0.0-20140829150050-066b75c2b70d // indirect
 	github.com/smira/go-xz v0.0.0-20150414201226-0c531f070014
-	github.com/spf13/cast v1.4.1 // indirect
+	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/stretchr/objx v0.2.0 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7 // indirect

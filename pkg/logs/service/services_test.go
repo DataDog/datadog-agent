@@ -13,24 +13,31 @@ import (
 
 func TestAddService(t *testing.T) {
 	services := NewServices()
-	service := NewService("foo", "1234")
 
-	services.AddService(service)
+	service1 := NewService("foo", "one")
+	services.AddService(service1)
 
 	added := services.GetAddedServicesForType("foo")
 	assert.NotNil(t, added)
-	assert.Equal(t, 0, len(added))
+	assert.Equal(t, <-added, service1)
 
-	go func() { services.AddService(service) }()
-	assert.Equal(t, <-added, service)
+	service2 := NewService("foo", "two")
+	go func() { services.AddService(service2) }()
+	assert.Equal(t, <-added, service2)
 
 	all := services.GetAllAddedServices()
 	assert.NotNil(t, all)
-	assert.Equal(t, 0, len(all))
+	{
+		// order of the catch-up services is not defined
+		s1 := <-all
+		s2 := <-all
+		assert.ElementsMatch(t, []*Service{s1, s2}, []*Service{service1, service2})
+	}
 
-	go func() { services.AddService(service) }()
-	assert.Equal(t, <-added, service)
-	assert.Equal(t, <-all, service)
+	service3 := NewService("foo", "three")
+	go func() { services.AddService(service3) }()
+	assert.Equal(t, <-added, service3)
+	assert.Equal(t, <-all, service3)
 }
 
 func TestRemoveService(t *testing.T) {
