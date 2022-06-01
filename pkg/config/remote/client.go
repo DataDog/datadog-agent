@@ -40,7 +40,7 @@ type Client struct {
 	pollInterval    time.Duration
 	lastUpdateError error
 
-	repository *remoteconfig.Repository
+	state *remoteconfig.Repository
 
 	grpc pbgo.AgentSecureClient
 
@@ -74,7 +74,7 @@ func NewClient(agentName string, agentVersion string, products []data.Product, p
 		agentName:    agentName,
 		products:     data.ProductListToString(products),
 		grpc:         grpcClient,
-		repository:   repository,
+		state:        repository,
 		pollInterval: 1 * time.Second,
 		apmListeners: make([]func(update map[string]remoteconfig.APMSamplingConfig), 0),
 		cwsListeners: make([]func(update map[string]remoteconfig.ConfigCWSDD), 0),
@@ -150,12 +150,12 @@ func (c *Client) update() error {
 	defer c.m.Unlock()
 	if containsProduct(changedProducts, remoteconfig.ProductAPMSampling) {
 		for _, listener := range c.apmListeners {
-			listener(c.repository.APMConfigs())
+			listener(c.state.APMConfigs())
 		}
 	}
 	if containsProduct(changedProducts, remoteconfig.ProductCWSDD) {
 		for _, listener := range c.cwsListeners {
-			listener(c.repository.CWSDDConfigs())
+			listener(c.state.CWSDDConfigs())
 		}
 	}
 
@@ -178,7 +178,7 @@ func (c *Client) RegisterAPMUpdate(fn func(update map[string]remoteconfig.APMSam
 	c.m.Lock()
 	defer c.m.Unlock()
 	c.apmListeners = append(c.apmListeners, fn)
-	fn(c.repository.APMConfigs())
+	fn(c.state.APMConfigs())
 }
 
 // RegisterCWSDDUpdate registers a callback function to be called after a successful client update that will
@@ -187,7 +187,7 @@ func (c *Client) RegisterCWSDDUpdate(fn func(update map[string]remoteconfig.Conf
 	c.m.Lock()
 	defer c.m.Unlock()
 	c.cwsListeners = append(c.cwsListeners, fn)
-	fn(c.repository.CWSDDConfigs())
+	fn(c.state.CWSDDConfigs())
 }
 
 func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) ([]string, error) {
@@ -203,13 +203,13 @@ func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) ([]string,
 		ClientConfigs: pbUpdate.ClientConfigs,
 	}
 
-	return c.repository.Update(update)
+	return c.state.Update(update)
 }
 
 // newUpdateRequests builds a new request for the agent based on the current state of the
 // remote config repository.
 func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
-	state, err := c.repository.CurrentState()
+	state, err := c.state.CurrentState()
 	if err != nil {
 		return nil, err
 	}
