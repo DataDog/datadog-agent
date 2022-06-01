@@ -140,7 +140,10 @@ func (h *reOrdererHeap) dequeue(handler func(cpu uint64, data []byte), generatio
 		h.down(0, i, metric)
 
 		h.heap[i] = nil
-		h.heap = h.heap[0:i]
+
+		heap := make([]*reOrdererNode, i)
+		copy(heap, h.heap[0:i])
+		h.heap = heap
 
 		metric.TotalOp++
 		handler(node.cpu, node.data)
@@ -212,7 +215,11 @@ func (r *ReOrderer) Start(wg *sync.WaitGroup) {
 			}
 			lastTm = tm
 
-			r.heap.enqueue(cpu, data, tm, r.generation, &r.metric)
+			if r.heap.len() > r.opts.QueueSize*10 {
+				r.handler(cpu, data)
+			} else {
+				r.heap.enqueue(cpu, data, tm, r.generation, &r.metric)
+			}
 			r.heap.dequeue(r.handler, r.generation-r.opts.Retention, &r.metric)
 
 		case <-flushTicker.C:
