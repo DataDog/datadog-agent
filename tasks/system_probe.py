@@ -753,7 +753,7 @@ def replace_cgo_tag_absolute_path(file_path):
     for line in f:
         if line.startswith("// cgo -godefs"):
             path = line.split()[-1]
-            if path.startswith("/"):
+            if os.path.isabs(path):
                 _, filename = os.path.split(path)
                 lines.append(line.replace(path, filename))
                 continue
