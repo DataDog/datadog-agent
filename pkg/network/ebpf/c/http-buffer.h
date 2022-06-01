@@ -16,13 +16,41 @@ static __always_inline void read_into_buffer(char *buffer, char *data, size_t da
         return;
     }
 
-    // clean up garbage
+#define BLOCK_SIZE (8)
+
+    u32 offset = HTTP_BUFFER_SIZE;
+    buffer += (HTTP_BUFFER_SIZE - BLOCK_SIZE);
+
 #pragma unroll
-    for (int i = 0; i < HTTP_BUFFER_SIZE; i++) {
-        if (i >= data_size) {
-            buffer[i] = 0;
-        }
+    for (int i = 0; i < HTTP_BUFFER_SIZE / BLOCK_SIZE; i++) {
+        if (data_size > (offset - BLOCK_SIZE)) break;
+        *(u64 *)buffer = 0;
+        buffer -= BLOCK_SIZE;
+        offset -= BLOCK_SIZE;
     }
+
+    if (data_size <= (offset - 7)) {
+        buffer[1] = 0;
+    }
+    if (data_size <= (offset - 6)) {
+        buffer[2] = 0;
+    }
+    if (data_size <= (offset - 5)) {
+        buffer[3] = 0;
+    }
+    if (data_size <= (offset - 4)) {
+        buffer[4] = 0;
+    }
+    if (data_size <= (offset - 3)) {
+        buffer[5] = 0;
+    }
+    if (data_size <= (offset - 2)) {
+        buffer[6] = 0;
+    }
+    if (data_size <= (offset - 1)) {
+        buffer[7] = 0;
+    }
+#undef BLOCK_SIZE
 }
 
 #endif
