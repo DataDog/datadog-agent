@@ -252,6 +252,18 @@ type ProfilingProxyConfig struct {
 	AdditionalEndpoints map[string][]string
 }
 
+// EvpIntakeProxy ...
+type EvpIntakeProxy struct {
+	// Enabled reports whether EvpIntakeProxy is enabled (defaults to apm_config.enabled).
+	Enabled bool
+	// DDURL is the main domain URL (defaults to the Site)
+	DDURL string
+	// APIKey is the main API Key (defaults to the main API key)
+	APIKey string
+	// AdditionalEndpoints is a map of additional domain URLs to API keys.
+	AdditionalEndpoints map[string][]string
+}
+
 // DebuggerProxyConfig ...
 type DebuggerProxyConfig struct {
 	// DDURL ...
@@ -374,6 +386,9 @@ type AgentConfig struct {
 	AppSec AppSecConfig
 
 	// DebuggerProxy contains the settings for the Live Debugger proxy.
+	EvpIntakeProxy EvpIntakeProxy
+
+	// DebuggerProxy contains the settings for the Live Debugger proxy.
 	DebuggerProxy DebuggerProxyConfig
 
 	// Proxy specifies a function to return a proxy for a given Request.
@@ -462,6 +477,10 @@ func New() *AgentConfig {
 		AppSec: AppSecConfig{
 			Enabled:        true,
 			MaxPayloadSize: 5 * 1024 * 1024,
+		},
+		EvpIntakeProxy: EvpIntakeProxy{
+			Enabled: true,
+			DDURL:   "datadoghq.com",
 		},
 	}
 }
