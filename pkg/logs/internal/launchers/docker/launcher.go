@@ -36,7 +36,7 @@ const (
 
 type sourceInfoPair struct {
 	source *sources.LogSource
-	info   *config.MappedInfo
+	info   *status.MappedInfo
 }
 
 // A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
@@ -49,7 +49,7 @@ type Launcher struct {
 	erroredContainerID chan string
 	lock               *sync.Mutex
 	collectAllSource   *sources.LogSource
-	collectAllInfo     *config.MappedInfo
+	collectAllInfo     *status.MappedInfo
 	readTimeout        time.Duration               // client read timeout to set on the created tailer
 	serviceNameFunc    func(string, string) string // serviceNameFunc gets the service name from the tagger, it is in a separate field for testing purpose
 
@@ -82,7 +82,7 @@ func NewLauncher(readTimeout time.Duration, sources *sources.LogSources, service
 		forceTailingFromFile:   forceTailingFromFile,
 		tailFromFile:           tailFromFile,
 		fileSourcesByContainer: make(map[string]sourceInfoPair),
-		collectAllInfo:         config.NewMappedInfo("Container Info"),
+		collectAllInfo:         status.NewMappedInfo("Container Info"),
 	}
 
 	if tailFromFile {
@@ -243,7 +243,7 @@ func (l *Launcher) getFileSource(container *Container, source *sources.LogSource
 	containerID := container.service.Identifier
 
 	// If containerCollectAll is set - we use the global collectAllInfo, otherwise we create a new info for this source
-	var sourceInfo *config.MappedInfo
+	var sourceInfo *status.MappedInfo
 
 	// Populate the collectAllSource if we don't have it yet
 	if source.Name == config.ContainerCollectAll && l.collectAllSource == nil {
@@ -251,7 +251,7 @@ func (l *Launcher) getFileSource(container *Container, source *sources.LogSource
 		l.collectAllSource.RegisterInfo(l.collectAllInfo)
 		sourceInfo = l.collectAllInfo
 	} else {
-		sourceInfo = config.NewMappedInfo("Container Info")
+		sourceInfo = status.NewMappedInfo("Container Info")
 		source.RegisterInfo(sourceInfo)
 	}
 

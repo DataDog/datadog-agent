@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -103,7 +104,7 @@ func NewDecoderWithFraming(source *sources.LogSource, parser parsers.Parser, fra
 			// Since a single source can have multiple file tailers - each with their own decoder instance,
 			// Make sure we keep track of the multiline match count info from all of the decoders so the
 			// status page displays it correctly.
-			if existingInfo, ok := source.GetInfo(lh.countInfo.InfoKey()).(*config.CountInfo); ok {
+			if existingInfo, ok := source.GetInfo(lh.countInfo.InfoKey()).(*status.CountInfo); ok {
 				// override the new decoders info to the instance we are already using
 				lh.countInfo = existingInfo
 			} else {
