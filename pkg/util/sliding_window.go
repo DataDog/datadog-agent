@@ -21,7 +21,7 @@ type PollingFunc func() (value float64)
 
 // StatsUpdateFunc is invoked when the polling function finishes collecting
 // the data and the internal stats are updated.
-type StatsUpdateFunc func(SlidingWindow)
+type StatsUpdateFunc func(float64)
 
 // slidingWindow is an object that polls for a value every `pollingInterval`
 // and then keeps those values for the duration of the `windowSize` that can
@@ -53,10 +53,6 @@ type SlidingWindow interface {
 
 	// Stop stops the polling and processing of the data.
 	Stop()
-
-	// Average returns an average of all the polled values collected so far over
-	// the sliding window range.
-	Average() float64
 
 	// WindowSize returns the amount of time that the SlidingWindow will keep
 	// the polled values before evicting them.
@@ -168,7 +164,7 @@ func (sw *slidingWindow) newTicker() {
 				sw.stateChangeLock.RLock()
 
 				if sw.statsUpdateFunc != nil && !sw.stopped {
-					sw.statsUpdateFunc(sw)
+					sw.statsUpdateFunc(sw.average())
 				}
 
 				sw.stateChangeLock.RUnlock()
@@ -214,18 +210,10 @@ func (sw *slidingWindow) WindowSize() time.Duration {
 	return sw.windowSize
 }
 
-// Average returns an average of all the polled values collected over the
-// sliding window range.
-func (sw *slidingWindow) Average() float64 {
-	if !sw.isInitialized() {
-		log.Warnf("Attempting to use SlidingWindow.Average() without initializing it!")
-		return 0
-	}
-
+// average returns an average of all the polled values collected over the
+// sliding window range. Calls must be protected by statsChangeLock.RLock().
+func (sw *slidingWindow) average() float64 {
 	totalVal := 0.0
-
-	sw.bucketsLock.RLock()
-	defer sw.bucketsLock.RUnlock()
 
 	if sw.numBucketsUsed == 0 {
 		return 0.0
