@@ -93,8 +93,8 @@ func NewRepository(embeddedRoot []byte) *Repository {
 	}
 }
 
-func (r *Repository) updateRoots(roots [][]byte) (*data.Root, error) {
-	if len(roots) == 0 {
+func (r *Repository) updateRoots(newRoots [][]byte) (*data.Root, error) {
+	if len(newRoots) == 0 {
 		latestRoot, err := r.latestRoot()
 		if err != nil {
 			return nil, err
@@ -102,7 +102,7 @@ func (r *Repository) updateRoots(roots [][]byte) (*data.Root, error) {
 		return latestRoot, nil
 	}
 
-	r.rootRemoteStore.roots = roots
+	r.rootRemoteStore.roots = append(r.rootRemoteStore.roots, newRoots...)
 	err := r.rootClient.UpdateRoots()
 	if err != nil {
 		return nil, err
