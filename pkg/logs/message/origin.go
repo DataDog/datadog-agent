@@ -13,18 +13,30 @@ import (
 
 // Origin represents the Origin of a message
 type Origin struct {
-	Identifier string
-	LogSource  *config.LogSource
-	Offset     string
-	service    string
-	source     string
-	tags       []string
+	Identifier    string
+	LogSource     *config.LogSource
+	Offset        string
+	service       string
+	source        string
+	tags          []string
+	logSourceTags map[string]struct{}
 }
 
 // NewOrigin returns a new Origin
 func NewOrigin(source *config.LogSource) *Origin {
+	if source == nil {
+		return &Origin{
+			LogSource: source,
+		}
+	}
+
+	logSourceTags := make(map[string]struct{}, len(source.Config.Tags))
+	for i := range source.Config.Tags {
+		logSourceTags[source.Config.Tags[i]] = struct{}{}
+	}
 	return &Origin{
-		LogSource: source,
+		LogSource:     source,
+		logSourceTags: logSourceTags,
 	}
 }
 
@@ -32,38 +44,38 @@ func NewOrigin(source *config.LogSource) *Origin {
 //
 // The returned slice must not be modified by the caller.
 func (o *Origin) Tags() []string {
-	return o.tagsToStringArray()
+	return o.tagsToStringArray(true)
 }
 
 // TagsPayload returns the raw tag payload of the origin.
 func (o *Origin) TagsPayload() []byte {
-	var tagsPayload []byte
+	var tagsPayload strings.Builder
 
 	source := o.Source()
 	if source != "" {
-		tagsPayload = append(tagsPayload, []byte("[dd ddsource=\""+source+"\"]")...)
+		tagsPayload.WriteString("[dd ddsource=\"")
+		tagsPayload.WriteString(source)
+		tagsPayload.WriteString("\"]")
 	}
 	sourceCategory := o.LogSource.Config.SourceCategory
 	if sourceCategory != "" {
-		tagsPayload = append(tagsPayload, []byte("[dd ddsourcecategory=\""+sourceCategory+"\"]")...)
+		tagsPayload.WriteString("[dd ddsourcecategory=\"")
+		tagsPayload.WriteString(sourceCategory)
+		tagsPayload.WriteString("\"]")
 	}
 
-	var tags []string
-	tags = append(tags, o.LogSource.Config.Tags...)
-	tags = append(tags, o.tags...)
-
+	tags := o.tagsToStringArray(false)
 	if len(tags) > 0 {
-		tagsPayload = append(tagsPayload, []byte("[dd ddtags=\""+strings.Join(tags, ",")+"\"]")...)
+		tagsPayload.WriteString("[dd ddtags=\"")
+		tagsPayload.WriteString(strings.Join(tags, ","))
+		tagsPayload.WriteString("\"]")
 	}
-	if len(tagsPayload) == 0 {
-		tagsPayload = []byte{}
-	}
-	return tagsPayload
+	return []byte(tagsPayload.String())
 }
 
 // TagsToString encodes tags to a single string, in a comma separated format
 func (o *Origin) TagsToString() string {
-	tags := o.tagsToStringArray()
+	tags := o.tagsToStringArray(true)
 
 	if tags == nil {
 		return ""
@@ -72,22 +84,30 @@ func (o *Origin) TagsToString() string {
 	return strings.Join(tags, ",")
 }
 
-func (o *Origin) tagsToStringArray() []string {
-	tags := o.tags
-
+func (o *Origin) tagsToStringArray(incSource bool) []string {
+	tags := make([]string, 0, len(o.tags)+len(o.logSourceTags)+1)
+	tags = append(tags, o.tags...)
 	sourceCategory := o.LogSource.Config.SourceCategory
-	if sourceCategory != "" {
+	if sourceCategory != "" && incSource {
 		tags = append(tags, "sourcecategory"+":"+sourceCategory)
 	}
 
-	tags = append(tags, o.LogSource.Config.Tags...)
-
+	for key := range o.logSourceTags {
+		tags = append(tags, key)
+	}
 	return tags
 }
 
-// SetTags sets the tags of the origin.
+// SetTags sets the extra tags of the origin.
+// These tags are combined with those from the log source when message sent.
 func (o *Origin) SetTags(tags []string) {
-	o.tags = tags
+	filteredTags := make([]string, 0, len(tags))
+	for i := range tags {
+		if _, ok := o.logSourceTags[tags[i]]; !ok {
+			filteredTags = append(filteredTags, tags[i])
+		}
+	}
+	o.tags = filteredTags
 }
 
 // SetSource sets the source of the origin.
