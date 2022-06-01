@@ -10,6 +10,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -71,6 +72,10 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 	err := configureLogger()
 	if err != nil {
 		return err
+	}
+
+	if checkArgs.skipRegoEval && checkArgs.dumpReports != "" {
+		return errors.New("skipping the rego evaluation does not allow the generation of reports")
 	}
 
 	// We need to set before calling `SetupConfig`

@@ -12,13 +12,12 @@ import (
 	"crypto/x509/pkix"
 	"encoding/hex"
 	"encoding/pem"
+	"fmt"
 	"io/ioutil"
 	"math/big"
+	"net"
 	"os"
 	"path/filepath"
-
-	"fmt"
-	"net"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -66,9 +65,7 @@ func CertTemplate() (*x509.Certificate, error) {
 }
 
 // GenerateRootCert generates a root certificate
-func GenerateRootCert(hosts []string, bits int) (
-	cert *x509.Certificate, certPEM []byte, rootKey *rsa.PrivateKey, err error) {
-
+func GenerateRootCert(hosts []string, bits int) (cert *x509.Certificate, certPEM []byte, rootKey *rsa.PrivateKey, err error) {
 	rootCertTmpl, err := CertTemplate()
 	if err != nil {
 		return
@@ -235,7 +232,7 @@ func validateAuthToken(authToken string) error {
 
 // writes auth token(s) to a file with the same permissions as datadog.yaml
 func saveAuthToken(token, tokenPath string) error {
-	if err := ioutil.WriteFile(tokenPath, []byte(token), 0600); err != nil {
+	if err := ioutil.WriteFile(tokenPath, []byte(token), 0o600); err != nil {
 		return err
 	}
 
@@ -248,7 +245,7 @@ func saveAuthToken(token, tokenPath string) error {
 		log.Errorf("Failed to write auth token acl %s", err)
 		return err
 	}
-	log.Infof("Wrote auth token acl")
 
+	log.Infof("Wrote auth token")
 	return nil
 }
