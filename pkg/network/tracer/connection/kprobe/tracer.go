@@ -470,6 +470,10 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		IsAssured:       s.IsAssured(),
 	}
 
+	stats.Cgroup.ID = s.Cgroup_id
+
+	log.Tracef("conn=%+v", *stats)
+
 	if t.Type() == netebpf.TCP {
 		stats.Type = network.TCP
 	} else {

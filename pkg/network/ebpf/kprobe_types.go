@@ -68,3 +68,5 @@ var (
 		OpenSSL: "tls.library:openssl",
 	}
 )
+
+const CgroupIDNotFound = ^uint64(0)

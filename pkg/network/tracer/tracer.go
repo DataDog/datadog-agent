@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"regexp"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -44,10 +43,9 @@ import (
 
 const (
 	defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
-	containerIDLen                   = 64
-)
 
-var containerRe = regexp.MustCompile("[0-9a-f]{64}")
+	containerIDLen = 64
+)
 
 type Tracer struct {
 	config      *config.Config
@@ -94,8 +92,8 @@ type Tracer struct {
 	statsReporter stats.Reporter
 
 	cgroups struct {
-		Map    *ebpf.Map
-		Buffer []byte
+		Map        *ebpf.Map
+		NameBuffer []byte
 	}
 }
 
@@ -185,10 +183,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 
 	tr.cgroups.Map = ebpfTracer.GetMap(string(probes.CgroupNames))
 	if tr.cgroups.Map != nil {
-		if tr.cgroups.Map.ValueSize() != containerIDLen+1 {
-			return nil, fmt.Errorf("cgroup map value size is not equal to container ID length of %d", containerIDLen)
-		}
-		tr.cgroups.Buffer = make([]byte, containerIDLen+1)
+		tr.cgroups.NameBuffer = make([]byte, containerIDLen)
 	}
 
 	if tr.statsReporter, err = stats.NewReporter(tr); err != nil {
@@ -325,12 +320,26 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 		if cs.IPTranslation != nil {
 			t.conntracker.DeleteTranslation(*cs)
 		}
+		cs.Cgroup.Name = t.resolveCgroupID(cs.Cgroup.ID)
 	}
 
 	connections = connections[rejected:]
 	atomic.AddInt64(&t.closedConns, int64(len(connections)))
 	atomic.AddInt64(&t.skippedConns, int64(rejected))
 	t.state.StoreClosedConnections(connections)
+}
+
+func (t *Tracer) resolveCgroupID(id uint64) string {
+	if t.cgroups.Map == nil || id == 0 || id == netebpf.CgroupIDNotFound {
+		return ""
+	}
+
+	if err := t.cgroups.Map.Lookup(id, &t.cgroups.NameBuffer); err != nil {
+		return ""
+	}
+
+	return string(t.cgroups.NameBuffer[:containerIDLen])
+
 }
 
 func (t *Tracer) Stop() {
@@ -358,15 +367,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.retryConntrack(delta.Conns)
 
 	ips := make([]util.Address, 0, len(delta.Conns)*2)
-
-	pidToContainerID := make(map[uint32]string)
 	for _, conn := range delta.Conns {
 		ips = append(ips, conn.Source, conn.Dest)
-		if cgroup := t.containerIdForPid(conn.Pid); cgroup != "" {
-			pidToContainerID[conn.Pid] = cgroup
-		}
 	}
-
 	names := t.reverseDNS.Resolve(ips)
 	ctm := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	rctm := t.getRuntimeCompilationTelemetry()
@@ -379,25 +382,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		HTTP:                        delta.HTTP,
 		ConnTelemetry:               ctm,
 		CompilationTelemetryByAsset: rctm,
-		PidToContainerID:            pidToContainerID,
 	}, nil
-}
-
-func (t *Tracer) containerIdForPid(pid uint32) string {
-	if t.cgroups.Map == nil {
-		return ""
-	}
-
-	if err := t.cgroups.Map.Lookup(pid, &t.cgroups.Buffer); err != nil {
-		return ""
-	}
-
-	loc := containerRe.FindIndex(t.cgroups.Buffer)
-	if loc == nil || loc[0] != 0 || loc[1] != containerIDLen {
-		return ""
-	}
-
-	return string(t.cgroups.Buffer[:containerIDLen])
 }
 
 func (t *Tracer) RegisterClient(clientID string) error {
@@ -531,6 +516,10 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 		// since gateway resolution connects to the ec2 metadata
 		// endpoint)
 		t.connVia(&active[i])
+
+		if active[i].Cgroup.Name == "" {
+			active[i].Cgroup.Name = t.resolveCgroupID(active[i].Cgroup.ID)
+		}
 	}
 
 	entryCount := len(active)

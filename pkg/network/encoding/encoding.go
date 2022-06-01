@@ -74,9 +74,6 @@ func modelConnections(conns *network.Connections) *model.Connections {
 
 	for i, conn := range conns.Conns {
 		agentConns[i] = FormatConnection(conn, routeIndex, httpEncoder, dnsFormatter, ipc, tagsSet)
-		if agentConns[i].Laddr != nil {
-			agentConns[i].Laddr.ContainerId = conns.PidToContainerID[conn.Pid]
-		}
 	}
 
 	if httpEncoder != nil && httpEncoder.orphanEntries > 0 {

@@ -31,6 +31,7 @@ typedef struct {
     __u8 direction;
     __u64 sent_packets;
     __u64 recv_packets;
+    __u64 cgroup_id;
 } conn_stats_ts_t;
 
 // Connection flags

@@ -122,7 +122,6 @@ type Connections struct {
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
 	HTTP                        map[http.Key]*http.RequestStats
 	DNSStats                    dns.StatsByKeyByNameByType
-	PidToContainerID            map[uint32]string
 }
 
 // ConnTelemetryType enumerates the connection telemetry gathered by the system-probe
@@ -232,6 +231,10 @@ type ConnectionStats struct {
 
 	IntraHost bool
 	IsAssured bool
+	Cgroup    struct {
+		ID   uint64
+		Name string
+	}
 }
 
 // Via has info about the routing decision for a flow
@@ -354,6 +357,8 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 		humanize.Bytes(c.Monotonic.SentBytes), humanize.Bytes(c.Last.SentBytes),
 		humanize.Bytes(c.Monotonic.RecvBytes), humanize.Bytes(c.Last.RecvBytes),
 	)
+
+	str += fmt.Sprintf(" cgroup id %d", c.Cgroup.ID)
 
 	if c.Type == TCP {
 		str += fmt.Sprintf(

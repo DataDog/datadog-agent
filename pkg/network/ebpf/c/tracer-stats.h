@@ -85,6 +85,13 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
         }
         val->direction = (state != NULL) ? CONN_DIRECTION_INCOMING : CONN_DIRECTION_OUTGOING;
     }
+
+#ifdef GET_CGROUP_ID
+    if (val->cgroup_id == 0) {
+        val->cgroup_id = GET_CGROUP_ID();
+        log_debug("set cgroup id to %d\n", val->cgroup_id);
+    }
+#endif
 }
 
 static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats) {

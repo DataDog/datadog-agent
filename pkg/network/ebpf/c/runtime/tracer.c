@@ -1,6 +1,7 @@
 #include "kconfig.h"
 #include "tracer.h"
 
+#include "cgroup.h"
 #include "tracer-events.h"
 #include "tracer-maps.h"
 #include "tracer-stats.h"
@@ -11,7 +12,6 @@
 #include "netns.h"
 #include "sockfd.h"
 #include "conn-tuple.h"
-#include "cgroup.h"
 
 #ifdef FEATURE_IPV6_ENABLED
 #include "ipv6.h"
@@ -204,8 +204,6 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
         t.dport = bpf_ntohs(t.dport);
     }
 
-    update_cgroup_name();
-
     log_debug("kprobe/ip6_make_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
     handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT);
     increment_telemetry_count(udp_send_processed);
@@ -244,8 +242,6 @@ int kprobe__ip_make_skb(struct pt_regs* ctx) {
             return 0;
         }
     }
-
-    update_cgroup_name();
 
     log_debug("kprobe/ip_send_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
     handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT);
@@ -373,8 +369,6 @@ int kprobe__tcp_set_state(struct pt_regs* ctx) {
         return 0;
     }
 
-    update_cgroup_name();
-
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     conn_tuple_t t = {};
@@ -403,8 +397,6 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
-
-    update_cgroup_name();
 
     handle_tcp_stats(&t, sk, TCP_ESTABLISHED);
     handle_message(&t, 0, 0, CONN_DIRECTION_INCOMING, 0, 0, PACKET_COUNT_NONE);
