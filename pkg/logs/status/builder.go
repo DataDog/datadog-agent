@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"go.uber.org/atomic"
 )
@@ -122,7 +123,7 @@ func (b *Builder) groupSourcesByName() map[string][]*sourcesPkg.LogSource {
 }
 
 // toString returns a representation of a status.
-func (b *Builder) toString(status *config.LogStatus) string {
+func (b *Builder) toString(status *status.LogStatus) string {
 	var value string
 	if status.IsPending() {
 		value = "Pending"

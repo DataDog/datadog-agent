@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/docker"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
@@ -297,7 +298,7 @@ func (l *Launcher) getFileSource(container *Container, source *sources.LogSource
 }
 
 // newOverridenSource is separated from overrideSource for testing purpose
-func newOverridenSource(standardService, shortName string, status *config.LogStatus) *sources.LogSource {
+func newOverridenSource(standardService, shortName string, status *status.LogStatus) *sources.LogSource {
 	var serviceName string
 	if standardService != "" {
 		serviceName = standardService

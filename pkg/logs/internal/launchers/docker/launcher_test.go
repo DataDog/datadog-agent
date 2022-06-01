@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/stretchr/testify/assert"
@@ -82,21 +83,21 @@ func TestNewOverridenSourceServiceNameOrder(t *testing.T) {
 		name            string
 		standardService string
 		shortName       string
-		status          *config.LogStatus
+		status          *status.LogStatus
 		wantServiceName string
 	}{
 		{
 			name:            "standard svc name",
 			standardService: "stdServiceName",
 			shortName:       "fooName",
-			status:          config.NewLogStatus(),
+			status:          status.NewLogStatus(),
 			wantServiceName: "stdServiceName",
 		},
 		{
 			name:            "image name",
 			standardService: "",
 			shortName:       "fooName",
-			status:          config.NewLogStatus(),
+			status:          status.NewLogStatus(),
 			wantServiceName: "fooName",
 		},
 	}

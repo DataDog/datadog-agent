@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"go.uber.org/atomic"
 )
@@ -33,7 +34,7 @@ const (
 type LogSource struct {
 	Name     string
 	Config   *config.LogsConfig
-	Status   *config.LogStatus
+	Status   *status.LogStatus
 	inputs   map[string]bool
 	lock     *sync.Mutex
 	Messages *config.Messages
@@ -56,7 +57,7 @@ func NewLogSource(name string, cfg *config.LogsConfig) *LogSource {
 	return &LogSource{
 		Name:             name,
 		Config:           cfg,
-		Status:           config.NewLogStatus(),
+		Status:           status.NewLogStatus(),
 		inputs:           make(map[string]bool),
 		lock:             &sync.Mutex{},
 		Messages:         config.NewMessages(),
