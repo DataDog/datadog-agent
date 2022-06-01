@@ -123,11 +123,11 @@ func (r *Repository) latestRoot() (*data.Root, error) {
 
 // Update processes the ClientGetConfigsResponse from the Agent and updates the
 // configuration state
-func (r *Repository) Update(update Update) (bool, error) {
+func (r *Repository) Update(update Update) ([]string, error) {
 	// TUF (Non-RFC): Update the roots
 	latestRoot, err := r.updateRoots(update.TUFRoots)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	// 1: Validate and Deserialize the TUF Targets
@@ -136,7 +136,7 @@ func (r *Repository) Update(update Update) (bool, error) {
 	// This is NOT required for most clients per the RFC.
 	updatedTargets, err := unmarshalTargets(latestRoot, update.TUFTargets)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	clientConfigsMap := make(map[string]struct{})
@@ -159,13 +159,13 @@ func (r *Repository) Update(update Update) (bool, error) {
 	for _, path := range update.ClientConfigs {
 		targetFileMetadata, ok := updatedTargets.Targets[path]
 		if !ok {
-			return false, fmt.Errorf("missing config file in TUF targets - %s", path)
+			return nil, fmt.Errorf("missing config file in TUF targets - %s", path)
 		}
 
 		// 3.a: Extract the product and ID from the path
 		parsedPath, err := parseConfigPath(path)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
 
 		storedMetadata, exists := r.metadata[path]
@@ -177,14 +177,14 @@ func (r *Repository) Update(update Update) (bool, error) {
 		// update payload.
 		raw, ok := update.TargetFiles[path]
 		if !ok {
-			return false, fmt.Errorf("missing update file - %s", path)
+			return nil, fmt.Errorf("missing update file - %s", path)
 		}
 
 		// TUF: Validate the hash of the raw target file and ensure that it matches
 		// the TUF metadata
 		err = validateTargetFileHash(targetFileMetadata, raw)
 		if err != nil {
-			return false, fmt.Errorf("error validating %s hash with TUF metadata - %v", path, err)
+			return nil, fmt.Errorf("error validating %s hash with TUF metadata - %v", path, err)
 		}
 
 		// 3.e: Deserialize the configuration.
@@ -194,11 +194,11 @@ func (r *Repository) Update(update Update) (bool, error) {
 		// in the RFC because the encoding/json library handles that for us.
 		m, err := newConfigMetadata(parsedPath, targetFileMetadata)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
 		config, err := parseConfig(parsedPath.Product, raw, m)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
 		result.metadata[path] = m
 		result.changed[parsedPath.Product][path] = config
@@ -214,13 +214,20 @@ func (r *Repository) Update(update Update) (bool, error) {
 	// Upstream may not want to take any actions if the update result doesn't
 	// change any configs.
 	if result.isEmpty() {
-		return false, nil
+		return nil, nil
+	}
+
+	changedProducts := make([]string, 0)
+	for product, configs := range result.changed {
+		if len(configs) > 0 {
+			changedProducts = append(changedProducts, product)
+		}
 	}
 
 	// 4.b/4.rave the new state and apply cleanups
 	r.applyUpdateResult(update, result)
 
-	return true, nil
+	return changedProducts, nil
 }
 
 func (r *Repository) getConfigs(product string) map[string]interface{} {

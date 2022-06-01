@@ -126,40 +126,50 @@ func (c *Client) update() error {
 	if err != nil {
 		return err
 	}
-
 	response, err := c.grpc.ClientGetConfigs(c.ctx, req)
 	if err != nil {
 		return err
 	}
-
 	// If there isn't a new update for us, the TargetFiles field will
 	// be nil and we can stop processing this update.
 	if response.TargetFiles == nil {
 		return nil
 	}
 
-	changed, err := c.applyUpdate(response)
+	changedProducts, err := c.applyUpdate(response)
 	if err != nil {
 		return err
 	}
-
 	// We don't want to force the products to reload config if nothing changed
 	// in the latest update.
-	if !changed {
+	if len(changedProducts) == 0 {
 		return nil
 	}
 
 	c.m.Lock()
 	defer c.m.Unlock()
-	for _, listener := range c.apmListeners {
-		listener(c.repository.APMConfigs())
+	if containsProduct(changedProducts, remoteconfig.ProductAPMSampling) {
+		for _, listener := range c.apmListeners {
+			listener(c.repository.APMConfigs())
+		}
 	}
-
-	for _, listener := range c.cwsListeners {
-		listener(c.repository.CWSDDConfigs())
+	if containsProduct(changedProducts, remoteconfig.ProductCWSDD) {
+		for _, listener := range c.cwsListeners {
+			listener(c.repository.CWSDDConfigs())
+		}
 	}
 
 	return nil
+}
+
+func containsProduct(products []string, product string) bool {
+	for _, p := range products {
+		if product == p {
+			return true
+		}
+	}
+
+	return false
 }
 
 // RegisterAPMUpdate registers a callback function to be called after a successful client update that will
@@ -180,7 +190,7 @@ func (c *Client) RegisterCWSDDUpdate(fn func(update map[string]remoteconfig.Conf
 	fn(c.repository.CWSDDConfigs())
 }
 
-func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) (bool, error) {
+func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) ([]string, error) {
 	fileMap := make(map[string][]byte, len(pbUpdate.TargetFiles))
 	for _, f := range pbUpdate.TargetFiles {
 		fileMap[f.Path] = f.Raw
