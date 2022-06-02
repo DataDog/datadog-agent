@@ -43,13 +43,14 @@ func check(t *testing.T, in metrics.SketchPoint, pb gogen.SketchPayload_Sketch_D
 }
 
 func TestSketchSeriesListMarshal(t *testing.T) {
-	sl := make(SketchSeriesList, 2)
+	sl := metrics.NewSketchesSourceTest()
 
-	for i := range sl {
-		sl[i] = Makeseries(i)
+	for i := 0; i < 2; i++ {
+		sl.Append(Makeseries(i))
 	}
 
-	b, err := sl.Marshal()
+	serializer := SketchSeriesList{SketchesSource: sl}
+	b, err := serializer.Marshal()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,10 +60,10 @@ func TestSketchSeriesListMarshal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	require.Len(t, pl.Sketches, len(sl))
+	require.Len(t, pl.Sketches, int(sl.Count()))
 
 	for i, pb := range pl.Sketches {
-		in := sl[i]
+		in := sl.Get(i)
 		require.Equal(t, Makeseries(i), in, "make sure we don't modify input")
 
 		assert.Equal(t, in.Host, pb.Host)
@@ -84,7 +85,7 @@ func TestSketchSeriesListMarshal(t *testing.T) {
 
 func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 
-	sl := SketchSeriesList{}
+	sl := SketchSeriesList{SketchesSource: metrics.NewSketchesSourceTest()}
 	payload, _ := sl.Marshal()
 	payloads, err := sl.MarshalSplitCompress(marshaler.DefaultBufferContext())
 
@@ -105,19 +106,20 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 	defer config.Datadog.Set("serializer_max_uncompressed_payload_size", oldSetting)
 	config.Datadog.Set("serializer_max_uncompressed_payload_size", 100)
 
-	sl := make(SketchSeriesList, 2)
+	sl := metrics.NewSketchesSourceTest()
 	// A big item (to be dropped)
-	sl[0] = Makeseries(0)
+	sl.Append(Makeseries(0))
 
 	// A small item (no dropped)
-	sl[1] = &metrics.SketchSeries{
+	sl.Append(&metrics.SketchSeries{
 		Name:     "small",
 		Tags:     tagset.CompositeTagsFromSlice([]string{}),
 		Host:     "",
 		Interval: 0,
-	}
+	})
 
-	payloads, err := sl.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	serializer := SketchSeriesList{SketchesSource: sl}
+	payloads, err := serializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
 
 	assert.Nil(t, err)
 
@@ -136,14 +138,17 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 }
 
 func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
-	sl := make(SketchSeriesList, 2)
+	sl := metrics.NewSketchesSourceTest()
 
-	for i := range sl {
-		sl[i] = Makeseries(i)
+	for i := 0; i < 2; i++ {
+		sl.Append(Makeseries(i))
 	}
 
-	payload, _ := sl.Marshal()
-	payloads, err := sl.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	serializer1 := SketchSeriesList{SketchesSource: sl}
+	payload, _ := serializer1.Marshal()
+	sl.Reset()
+	serializer2 := SketchSeriesList{SketchesSource: sl}
+	payloads, err := serializer2.MarshalSplitCompress(marshaler.DefaultBufferContext())
 	require.NoError(t, err)
 
 	reader := bytes.NewReader(*payloads[0])
@@ -158,10 +163,10 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 	err = pl.Unmarshal(decompressed)
 	require.NoError(t, err)
 
-	require.Len(t, pl.Sketches, len(sl))
+	require.Len(t, pl.Sketches, int(sl.Count()))
 
 	for i, pb := range pl.Sketches {
-		in := sl[i]
+		in := sl.Get(i)
 		require.Equal(t, Makeseries(i), in, "make sure we don't modify input")
 
 		assert.Equal(t, in.Host, pb.Host)
@@ -182,13 +187,14 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 	defer config.Datadog.Set("serializer_max_uncompressed_payload_size", oldSetting)
 	config.Datadog.Set("serializer_max_uncompressed_payload_size", 2000)
 
-	sl := make(SketchSeriesList, 20)
+	sl := metrics.NewSketchesSourceTest()
 
-	for i := range sl {
-		sl[i] = Makeseries(i)
+	for i := 0; i < 20; i++ {
+		sl.Append(Makeseries(i))
 	}
 
-	payloads, err := sl.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	serializer := SketchSeriesList{SketchesSource: sl}
+	payloads, err := serializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
 	assert.Nil(t, err)
 
 	recoveredSketches := []gogen.SketchPayload{}
@@ -207,13 +213,13 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 		recoveredCount += len(pl.Sketches)
 	}
 
-	assert.Equal(t, recoveredCount, len(sl))
+	assert.Equal(t, recoveredCount, int(sl.Count()))
 	assert.Greater(t, len(recoveredSketches), 1)
 
 	i := 0
 	for _, pl := range recoveredSketches {
 		for _, pb := range pl.Sketches {
-			in := sl[i]
+			in := sl.Get(i)
 			require.Equal(t, Makeseries(i), in, "make sure we don't modify input")
 
 			assert.Equal(t, in.Host, pb.Host)

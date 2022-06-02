@@ -148,3 +148,40 @@ func assertSketchSeriesEqualWithComparator(t assert.TestingT, exp, act *SketchSe
 type tHelper interface {
 	Helper()
 }
+
+var _ SketchesSource = (*SketchesSourceTest)(nil)
+
+type SketchesSourceTest struct {
+	values       SketchSeriesList
+	currentIndex int
+}
+
+func NewSketchesSourceTest() *SketchesSourceTest {
+	return &SketchesSourceTest{
+		currentIndex: -1,
+	}
+}
+
+func (s *SketchesSourceTest) MoveNext() bool {
+	s.currentIndex++
+	return s.currentIndex < len(s.values)
+}
+
+func (s *SketchesSourceTest) Current() *SketchSeries {
+	return s.values[s.currentIndex]
+}
+func (s *SketchesSourceTest) Count() uint64 {
+	return uint64(len(s.values))
+}
+
+func (s *SketchesSourceTest) Append(sketches *SketchSeries) {
+	s.values = append(s.values, sketches)
+}
+
+func (s *SketchesSourceTest) Get(index int) *SketchSeries {
+	return s.values[index]
+}
+
+func (s *SketchesSourceTest) Reset() {
+	s.currentIndex = -1
+}
