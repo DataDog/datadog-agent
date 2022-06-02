@@ -3065,9 +3065,8 @@ api_key:
   # namespace: default
 
   ## @param snmp_traps - custom object - optional
-  ## This section configures SNMP traps collection. Traps are forwarded as logs to Datadog.
-  ## NOTE: This feature is currently **EXPERIMENTAL**. Both behavior and configuration options may
-  ## change in the future.
+  ## This section configures SNMP traps collection.
+  ## Traps are forwarded as logs to Datadog and can be found with `source:snmp-traps`
   #
   # snmp_traps:
 
