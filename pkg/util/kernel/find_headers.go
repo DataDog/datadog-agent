@@ -127,6 +127,7 @@ func validateHeaderDirs(hv Version, dirs []string, checkForCriticalHeaders bool)
 	var valid []string
 	for _, d := range dirs {
 		if _, err := os.Stat(d); errors.Is(err, fs.ErrNotExist) {
+			log.Debugf("header dir %s not found", d)
 			continue
 		}
 
