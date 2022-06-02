@@ -128,7 +128,7 @@ func TestInfoHandler(t *testing.T) {
 		"/v0.6/stats",
 		"/v0.1/pipeline_stats",
 		"/appsec/proxy/",
-		"/evpIntakeProxy/v1",
+		"/evpIntakeProxy/v1/",
 		"/debugger/v1/input"
 	],
 	"feature_flags": [
@@ -188,7 +188,7 @@ func TestInfoHandler(t *testing.T) {
 		"/v0.6/stats",
 		"/v0.1/pipeline_stats",
 		"/appsec/proxy/",
-		"/evpIntakeProxy/v1",
+		"/evpIntakeProxy/v1/",
 		"/debugger/v1/input"
 	],
 	"feature_flags": [
