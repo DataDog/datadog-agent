@@ -21,19 +21,21 @@ type tufRootsClient struct {
 	rootRemoteStore *rootClientRemoteStore
 }
 
-func newTufRootsClient(root []byte) *tufRootsClient {
+func newTufRootsClient(root []byte) (*tufRootsClient, error) {
 	rootLocalStore := client.MemoryLocalStore()
-	rootLocalStore.SetMeta("root.json", root)
-
 	rootRemoteStore := &rootClientRemoteStore{}
-
 	rootClient := client.NewClient(rootLocalStore, rootRemoteStore)
+
+	err := rootClient.InitLocal(root)
+	if err != nil {
+		return nil, err
+	}
 
 	return &tufRootsClient{
 		rootClient:      rootClient,
 		rootLocalStore:  rootLocalStore,
 		rootRemoteStore: rootRemoteStore,
-	}
+	}, nil
 }
 
 func (trc *tufRootsClient) clone() (*tufRootsClient, error) {
@@ -42,7 +44,7 @@ func (trc *tufRootsClient) clone() (*tufRootsClient, error) {
 		return nil, err
 	}
 
-	return newTufRootsClient(root), nil
+	return newTufRootsClient(root)
 }
 
 func (trc *tufRootsClient) updateRoots(newRoots [][]byte) (*data.Root, error) {

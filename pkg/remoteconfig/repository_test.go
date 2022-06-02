@@ -59,7 +59,10 @@ func buildTestRoot(key keys.Signer) ([]byte, *data.Root) {
 func newTestArtifacts() testArtifacts {
 	key := newTestRootKey()
 	signedBaseRoot, rootData := buildTestRoot(key)
-	repository := NewRepository(signedBaseRoot)
+	repository, err := NewRepository(signedBaseRoot)
+	if err != nil {
+		panic(err)
+	}
 
 	return testArtifacts{
 		key:            key,
@@ -86,4 +89,16 @@ func TestEmptyUpdate(t *testing.T) {
 	assert.Equal(t, 0, len(updatedProducts), "An empty update shouldn't indicate any updated products")
 	assert.Equal(t, 0, len(r.APMConfigs()), "An empty update shoudldn't add any APM configs")
 	assert.Equal(t, 0, len(r.CWSDDConfigs()), "An empty update shouldn't add any CWSDD configs")
+}
+
+func TestNewRepositoryWithNilRoot(t *testing.T) {
+	repository, err := NewRepository(nil)
+	assert.Nil(t, repository, "Creating a repository without a starting base root should result in an error per TUF spec")
+	assert.Error(t, err, "Creating a repository without a starting base root should result in an error per TUF spec")
+}
+
+func TestNewRepositoryWithMalformedRoot(t *testing.T) {
+	repository, err := NewRepository([]byte("haha I am not a real root"))
+	assert.Nil(t, repository, "Creating a repository with a malformed base root should result in an error per TUF spec")
+	assert.Error(t, err, "Creating a repository with a malformed base root should result in an error per TUF spec")
 }

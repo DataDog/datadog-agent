@@ -7,11 +7,16 @@ package remoteconfig
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
 
 	"github.com/theupdateframework/go-tuf/data"
+)
+
+var (
+	ErrMalformedEmbeddedRoot = errors.New("malformed embedded TUF root file provided")
 )
 
 // RepositoryState contains all of the information about the current config files
@@ -67,20 +72,27 @@ type Repository struct {
 
 // NewRepository creates a new remote config respository that will track
 // both TUF metadata and raw config files for a client.
-func NewRepository(embeddedRoot []byte) *Repository {
+func NewRepository(embeddedRoot []byte) (*Repository, error) {
+	if embeddedRoot == nil {
+		return nil, ErrMalformedEmbeddedRoot
+	}
+
 	configs := make(map[string]map[string]interface{})
 	for _, product := range allProducts {
 		configs[product] = make(map[string]interface{})
 	}
 
-	tufRootsClient := newTufRootsClient(embeddedRoot)
+	tufRootsClient, err := newTufRootsClient(embeddedRoot)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Repository{
 		latestTargets:  data.NewTargets(),
 		tufRootsClient: tufRootsClient,
 		metadata:       make(map[string]Metadata),
 		configs:        configs,
-	}
+	}, nil
 }
 
 // Update processes the ClientGetConfigsResponse from the Agent and updates the
