@@ -141,7 +141,7 @@ func (l *SysProbeListener) consumeData(data []byte) {
 		return
 	}
 
-	e := model.ProcessMonitoringtoProcessEvent(&sysEvent)
+	e := model.ProcessMonitoringToProcessEvent(&sysEvent)
 
 	// Only consume expected process events
 	switch e.EventType {

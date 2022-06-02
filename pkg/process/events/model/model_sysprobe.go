@@ -20,8 +20,8 @@ type ProcessMonitoringEvent struct {
 	CollectionTime time.Time `json:"CollectionTime" msg:"collection_time"`
 }
 
-// ProcessMonitoringtoProcessEvent converts a ProcessMonitoringEvent to a generic ProcessEvent
-func ProcessMonitoringtoProcessEvent(e *ProcessMonitoringEvent) *ProcessEvent {
+// ProcessMonitoringToProcessEvent converts a ProcessMonitoringEvent to a generic ProcessEvent
+func ProcessMonitoringToProcessEvent(e *ProcessMonitoringEvent) *ProcessEvent {
 	var cmdline []string
 	if e.ArgsEntry != nil {
 		cmdline = e.ArgsEntry.Values
