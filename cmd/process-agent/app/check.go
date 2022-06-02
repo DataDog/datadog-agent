@@ -117,6 +117,7 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 	if check == checks.Connections.Name() {
 		checks.Process.Init(cfg, sysInfo)
 		checks.Process.Run(cfg, 0) //nolint:errcheck
+		defer checks.Process.Cleanup()
 	}
 
 	names := make([]string, 0, len(checks.All))
@@ -125,13 +126,19 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 
 		if ch.Name() == check {
 			ch.Init(cfg, sysInfo)
-			return runCheck(cfg, ch)
+			err := runCheck(cfg, ch)
+			ch.Cleanup()
+
+			return err
 		}
 
 		withRealTime, ok := ch.(checks.CheckWithRealTime)
 		if ok && withRealTime.RealTimeName() == check {
 			withRealTime.Init(cfg, sysInfo)
-			return runCheckAsRealTime(cfg, withRealTime)
+			err := runCheckAsRealTime(cfg, withRealTime)
+			withRealTime.Cleanup()
+
+			return err
 		}
 	}
 	return log.Errorf("invalid check '%s', choose from: %v", check, names)
