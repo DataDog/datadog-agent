@@ -57,10 +57,15 @@ func isValidQueryString(s string) bool {
 
 // evpIntakeEndpointsFromConfig returns the configured list of endpoints to forward payloads to.
 func evpIntakeEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
-	mainEndpoint := config.Endpoint{
-		Host:   conf.EvpIntakeProxy.DDURL,
-		APIKey: conf.EvpIntakeProxy.APIKey,
+	apiKey := conf.EvpIntakeProxy.APIKey
+	if apiKey == "" {
+		apiKey = conf.APIKey()
 	}
+	endpoint := conf.EvpIntakeProxy.DDURL
+	if endpoint == "" {
+		endpoint = conf.Site
+	}
+	mainEndpoint := config.Endpoint{Host: endpoint, APIKey: apiKey}
 	endpoints := []config.Endpoint{mainEndpoint}
 	for host, keys := range conf.EvpIntakeProxy.AdditionalEndpoints {
 		for _, key := range keys {
@@ -76,15 +81,14 @@ func evpIntakeEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
 // evpIntakeHandler returns an HTTP handler for the /evpIntakeProxy API.
 // Depending on the config, this is a proxying handler or a noop handler.
 func (r *HTTPReceiver) evpIntakeHandler() http.Handler {
-
 	// r.conf is populated by cmd/trace-agent/config/config.go
 	if !r.conf.EvpIntakeProxy.Enabled {
 		return evpIntakeErrorHandler("Has been disabled in config")
 	}
-
 	endpoints := evpIntakeEndpointsFromConfig(r.conf)
-	reverseProxyHandler := evpIntakeReverseProxyHandler(r.conf, endpoints)
-	return http.StripPrefix("/evpIntakeProxy/v1/", reverseProxyHandler)
+	transport := r.conf.NewHTTPTransport()
+	reverseProxyHandler := evpIntakeReverseProxyHandler(r.conf, endpoints, transport)
+	return http.StripPrefix("/evpIntakeProxy/v1", reverseProxyHandler)
 }
 
 // evpIntakeErrorHandler returns an HTTP handler that will always return
@@ -100,7 +104,7 @@ func evpIntakeErrorHandler(message string) http.Handler {
 // to one or more endpoints, based on the request received and the Agent configuration.
 // Headers are not proxied, instead we add our own known set of headers.
 // See also evpIntakeProxyTransport below.
-func evpIntakeReverseProxyHandler(conf *config.AgentConfig, endpoints []config.Endpoint) http.Handler {
+func evpIntakeReverseProxyHandler(conf *config.AgentConfig, endpoints []config.Endpoint, transport http.RoundTripper) http.Handler {
 	director := func(req *http.Request) {
 
 		containerID := req.Header.Get(headerContainerID)
@@ -127,7 +131,7 @@ func evpIntakeReverseProxyHandler(conf *config.AgentConfig, endpoints []config.E
 
 		// URL, Host and the API key header are set in the transport for each outbound request
 	}
-	transport := conf.NewHTTPTransport()
+
 	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
 		Director:  director,
@@ -162,12 +166,12 @@ func (t *evpIntakeProxyTransport) RoundTrip(req *http.Request) (rresp *http.Resp
 
 	// Parse request path: The first component is the target subdomain, the rest is the target path.
 	inputPath := req.URL.Path
-	subdomainAndPath := strings.SplitN(inputPath, "/", 2)
-	if len(subdomainAndPath) != 2 || subdomainAndPath[0] == "" || subdomainAndPath[1] == "" {
+	subdomainAndPath := strings.SplitN(inputPath, "/", 3)
+	if len(subdomainAndPath) != 3 || subdomainAndPath[0] != "" || subdomainAndPath[1] == "" || subdomainAndPath[2] == "" {
 		return nil, fmt.Errorf("EvpIntakeProxy: invalid path: '%s'", inputPath)
 	}
-	subdomain := subdomainAndPath[0]
-	path := subdomainAndPath[1]
+	subdomain := subdomainAndPath[1]
+	path := subdomainAndPath[2]
 
 	// Sanitize the input
 	if !isValidSubdomain(subdomain) {

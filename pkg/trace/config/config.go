@@ -480,7 +480,6 @@ func New() *AgentConfig {
 		},
 		EvpIntakeProxy: EvpIntakeProxy{
 			Enabled: true,
-			DDURL:   "datadoghq.com",
 		},
 	}
 }
