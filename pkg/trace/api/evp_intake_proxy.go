@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 )
 
 const (
@@ -147,6 +148,18 @@ type evpIntakeProxyTransport struct {
 
 func (t *evpIntakeProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
 
+	// Metrics with stats for debugging
+	beginTime := time.Now()
+	metricTags := []string{}
+	defer func() {
+		metrics.Count("datadog.trace_agent.evpiproxy.request", 1, metricTags, 1)
+		metrics.Count("datadog.trace_agent.evpiproxy.request_bytes", req.ContentLength, metricTags, 1)
+		metrics.Timing("datadog.trace_agent.evpiproxy.request_duration_ms", time.Since(beginTime), metricTags, 1)
+		if rerr != nil {
+			metrics.Count("datadog.trace_agent.evpiproxy.request_error", 1, metricTags, 1)
+		}
+	}()
+
 	// Parse request path: The first component is the target subdomain, the rest is the target path.
 	inputPath := req.URL.Path
 	subdomainAndPath := strings.SplitN(inputPath, "/", 2)
@@ -160,6 +173,7 @@ func (t *evpIntakeProxyTransport) RoundTrip(req *http.Request) (rresp *http.Resp
 	if !isValidSubdomain(subdomain) {
 		return nil, fmt.Errorf("EvpIntakeProxy: invalid subdomain: %s", subdomain)
 	}
+	metricTags = append(metricTags, "subdomain:"+subdomain)
 	if !isValidPath(path) {
 		return nil, fmt.Errorf("EvpIntakeProxy: invalid target path: %s", path)
 	}
