@@ -150,8 +150,11 @@ type Config struct {
 	// EnableMonotonicCount (Windows only) determines if we will calculate send/recv bytes of connections with headers and retransmits
 	EnableMonotonicCount bool
 
-	// DriverBufferSize (Windows only) determines the size (in bytes) of the buffer we pass to the driver when reading flows
+	// DriverBufferSize (Windows only, deprecated) determines the size (in bytes) of the buffer we pass to the driver when reading flows
 	DriverBufferSize int
+
+	// DriverBufferEntries (Windows only) determines the number of flow entries the buffer we pass to the driver can receive
+	DriverBufferEntries int
 
 	// EnableGatewayLookup enables looking up gateway information for connection destinations
 	EnableGatewayLookup bool
@@ -219,6 +222,7 @@ func New() *Config {
 
 		EnableMonotonicCount: cfg.GetBool(join(spNS, "windows.enable_monotonic_count")),
 		DriverBufferSize:     cfg.GetInt(join(spNS, "windows.driver_buffer_size")),
+		DriverBufferEntries:  cfg.GetInt(join(spNS, "windows.driver_buffer_entries")),
 
 		RecordedQueryTypes: cfg.GetStringSlice(join(netNS, "dns_recorded_query_types")),
 	}

@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"unsafe"
 
+	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -64,8 +65,32 @@ type DriverInterface struct {
 	cfg *config.Config
 }
 
+func calcDriverBufferSize(configured_size int, configured_entries int) int {
+
+	bufferSize := 0
+
+	if configured_size == mainconfig.DefaultDriverBufferSize {
+		log.Debug("DefaultDriverBufferSize used, deferring to DriverBufferSize")
+		bufferSize = driver.PerFlowDataSize * configured_entries
+	} else {
+		log.Debugf(
+			"DriverBufferSize differs from DefaultDriverBufferSize (%d vs. %d), rounding up to nearest even multiple of PerFlowDataSize (%d)",
+			configured_size, mainconfig.DefaultDriverBufferSize, driver.PerFlowDataSize)
+
+		// round up and determine figure out how many flow entries we can hold as specified by config
+		num_flow_entries := math.Ceil(float64(configured_size) / float64(driver.PerFlowDataSize))
+
+		// set the buffer size to the nearest even multiple of PerFlowDataSize
+		bufferSize = int(num_flow_entries * float64(driver.PerFlowDataSize))
+	}
+	log.Debugf("Final DriverBufferSize: %d", bufferSize)
+	return bufferSize
+}
+
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
 func NewDriverInterface(cfg *config.Config) (*DriverInterface, error) {
+
+	cfg.DriverBufferSize = calcDriverBufferSize(cfg.DriverBufferSize, cfg.DriverBufferEntries)
 	dc := &DriverInterface{
 		cfg:                   cfg,
 		enableMonotonicCounts: cfg.EnableMonotonicCount,
