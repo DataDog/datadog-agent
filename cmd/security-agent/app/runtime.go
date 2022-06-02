@@ -547,7 +547,14 @@ func checkPoliciesInner(dir string) error {
 	model := &model.Model{}
 	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts)
 
-	if err := rules.LoadPolicies(cfg.PoliciesDir, ruleSet); err.ErrorOrNil() != nil {
+	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false)
+	if err != nil {
+		return err
+	}
+
+	loader := rules.NewPolicyLoader(provider)
+
+	if err := ruleSet.LoadPolicies(loader); err.ErrorOrNil() != nil {
 		return err
 	}
 
