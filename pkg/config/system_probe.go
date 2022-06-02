@@ -161,7 +161,8 @@ func InitSystemProbeConfig(cfg Config) {
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.driver_buffer_size"), DefaultDriverBufferSize)
-	cfg.BindEnvAndSetDefault(join(spNS, "windows.driver_buffer_entries"), DefaultFlowEntries)
+	cfg.BindEnvAndSetDefault(join(netNS, "windows.driver_buffer_size"), DefaultDriverBufferSize)
+	cfg.BindEnvAndSetDefault(join(netNS, "windows.driver_buffer_entries"), DefaultFlowEntries)
 
 	// oom_kill module
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_oom_kill"), false)
