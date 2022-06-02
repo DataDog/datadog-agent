@@ -72,7 +72,7 @@ func sendRequestToAllEndpointOfADomain(client *http.Client, domainResolver resol
 // sendHTTPRequestToEndpoint creates an URL based on the domain and the endpoint information
 // then sends an HTTP Request with the method and payload inside the endpoint information
 func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain string, endpointInfo endpointInfo, apiKey string) (int, []byte, error) {
-	url := createEndpointURL(domain, endpointInfo, apiKey)
+	url := createEndpointURL(domain, endpointInfo)
 	logURL := scrubber.ScrubLine(url)
 
 	fmt.Printf("\n======== '%v' ========\n", color.BlueString(logURL))
@@ -106,15 +106,9 @@ func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain 
 	return resp.StatusCode, body, nil
 }
 
-// createEndpointUrl joins a domain with an endpoint and adds the apiKey to the query
-// string if it is necessary for the given endpoint
-func createEndpointURL(domain string, endpointInfo endpointInfo, apiKey string) string {
+// createEndpointUrl joins a domain with an endpoint
+func createEndpointURL(domain string, endpointInfo endpointInfo) string {
 	url := domain + endpointInfo.Endpoint.Route
-
-	if endpointInfo.APIKeyInQueryString {
-		url = fmt.Sprintf("%s?api_key=%s", url, apiKey)
-	}
-
 	return url
 }
 

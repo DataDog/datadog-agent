@@ -27,28 +27,22 @@ type endpointInfo struct {
 
 	// Payload is the HTTP request body we want to send to the endpoint.
 	Payload []byte
-
-	// ApiKeyInQueryString is set to true if the API Key has to be in the query string
-	// i.e. https://domain/endpoint?api_key=***************************XXXXX
-	APIKeyInQueryString bool
 }
 
 var (
-	apiKeyInQueryString = true
-
 	emptyPayload    = []byte("{}")
 	checkRunPayload = []byte("{\"check\": \"test\", \"status\": 0}")
 
 	// v1 endpoints
-	v1SeriesEndpointInfo    = endpointInfo{endpoints.V1SeriesEndpoint, "POST", emptyPayload, apiKeyInQueryString}
-	v1CheckRunsEndpointInfo = endpointInfo{endpoints.V1CheckRunsEndpoint, "POST", checkRunPayload, apiKeyInQueryString}
-	v1IntakeEndpointInfo    = endpointInfo{endpoints.V1IntakeEndpoint, "POST", emptyPayload, apiKeyInQueryString}
-	v1ValidateEndpointInfo  = endpointInfo{endpoints.V1ValidateEndpoint, "GET", emptyPayload, false}
-	v1MetadataEndpointInfo  = endpointInfo{endpoints.V1MetadataEndpoint, "POST", emptyPayload, apiKeyInQueryString}
+	v1SeriesEndpointInfo    = endpointInfo{endpoints.V1SeriesEndpoint, "POST", emptyPayload}
+	v1CheckRunsEndpointInfo = endpointInfo{endpoints.V1CheckRunsEndpoint, "POST", checkRunPayload}
+	v1IntakeEndpointInfo    = endpointInfo{endpoints.V1IntakeEndpoint, "POST", emptyPayload}
+	v1ValidateEndpointInfo  = endpointInfo{endpoints.V1ValidateEndpoint, "GET", emptyPayload}
+	v1MetadataEndpointInfo  = endpointInfo{endpoints.V1MetadataEndpoint, "POST", emptyPayload}
 
 	// v2 endpoints
-	SeriesEndpointInfo       = endpointInfo{endpoints.SeriesEndpoint, "POST", emptyPayload, apiKeyInQueryString}
-	SketchSeriesEndpointInfo = endpointInfo{endpoints.SketchSeriesEndpoint, "POST", emptyPayload, apiKeyInQueryString}
+	SeriesEndpointInfo       = endpointInfo{endpoints.SeriesEndpoint, "POST", emptyPayload}
+	SketchSeriesEndpointInfo = endpointInfo{endpoints.SketchSeriesEndpoint, "POST", emptyPayload}
 
 	endpointsInfo = []endpointInfo{v1SeriesEndpointInfo, v1CheckRunsEndpointInfo, v1MetadataEndpointInfo, v1IntakeEndpointInfo,
 		SeriesEndpointInfo, SketchSeriesEndpointInfo, v1ValidateEndpointInfo}
