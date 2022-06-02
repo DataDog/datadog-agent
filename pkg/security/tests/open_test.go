@@ -287,7 +287,7 @@ func TestOpen(t *testing.T) {
 			result := <-ch
 			fd, err := result.ReturnInt()
 			if err != nil {
-				if err == syscall.EBADF {
+				if err == syscall.EBADF || err == syscall.EINVAL {
 					return ErrSkipTest{"openat2 not supported by io_uring"}
 				}
 				return err

@@ -17,6 +17,12 @@ import (
 // serviceEnvVar is the environment variable of the service tag (this is used only for the serverless agent)
 const serviceEnvVar = "DD_SERVICE"
 
+// cloudRunServiceName is the environment variable of the service name tag (this is used only for the serverless agent)
+const cloudRunServiceName = "K_SERVICE"
+
+// cloudRunRevisionName is the environment variable of the revision name (this is used only for the serverless agent)
+const cloudRunRevisionName = "K_REVISION"
+
 // Tailer consumes and processes a channel of strings, and sends them to a
 // stream of log messages.
 //
@@ -83,11 +89,15 @@ func (t *Tailer) run() {
 }
 
 func computeServiceName(lambdaConfig *config.Lambda, serviceName string) string {
-	if lambdaConfig == nil {
-		return "agent"
+	if isServerlessOrigin(lambdaConfig) {
+		if len(serviceName) > 0 {
+			return strings.ToLower(serviceName)
+		}
+		return strings.ToLower(os.Getenv(cloudRunServiceName))
 	}
-	if len(serviceName) > 0 {
-		return strings.ToLower(serviceName)
-	}
-	return ""
+	return "agent"
+}
+
+func isServerlessOrigin(lambdaConfig *config.Lambda) bool {
+	return lambdaConfig != nil || (len(os.Getenv(cloudRunServiceName)) > 0 && len(os.Getenv(cloudRunRevisionName)) > 0)
 }

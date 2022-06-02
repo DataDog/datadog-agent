@@ -9,6 +9,7 @@
 package modules
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -155,6 +156,32 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 
 		utils.WriteAsJSON(w, ebpfMaps)
+	})
+
+	httpMux.HandleFunc("/debug/conntrack/cached", func(w http.ResponseWriter, req *http.Request) {
+		ctx, cancelFunc := context.WithTimeout(req.Context(), 30*time.Second)
+		defer cancelFunc()
+		table, err := nt.tracer.DebugCachedConntrack(ctx)
+		if err != nil {
+			log.Errorf("unable to retrieve cached conntrack table: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, table)
+	})
+
+	httpMux.HandleFunc("/debug/conntrack/host", func(w http.ResponseWriter, req *http.Request) {
+		ctx, cancelFunc := context.WithTimeout(req.Context(), 30*time.Second)
+		defer cancelFunc()
+		table, err := nt.tracer.DebugHostConntrack(ctx)
+		if err != nil {
+			log.Errorf("unable to retrieve host conntrack table: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, table)
 	})
 
 	// Convenience logging if nothing has made any requests to the system-probe in some time, let's log something.

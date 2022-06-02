@@ -15,9 +15,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sync/atomic"
 	"time"
 
+	"go.uber.org/atomic"
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -37,7 +37,7 @@ type processAgentCheckConf struct {
 type ProcessAgentCheck struct {
 	binPath     string
 	commandOpts []string
-	running     uint32
+	running     *atomic.Bool
 	stop        chan struct{}
 	stopDone    chan struct{}
 	source      string
@@ -58,10 +58,10 @@ func (c *ProcessAgentCheck) ConfigSource() string {
 
 // Run executes the check with retries
 func (c *ProcessAgentCheck) Run() error {
-	atomic.StoreUint32(&c.running, 1)
+	c.running.Store(true)
 	// TODO: retries should be configurable with meaningful default values
 	err := check.Retry(defaultRetryDuration, defaultRetries, c.run, c.String())
-	atomic.StoreUint32(&c.running, 0)
+	c.running.Store(false)
 
 	return err
 }
@@ -191,7 +191,7 @@ func (c *ProcessAgentCheck) IsTelemetryEnabled() bool {
 
 // Stop sends a termination signal to the process-agent process
 func (c *ProcessAgentCheck) Stop() {
-	if atomic.LoadUint32(&c.running) == 0 {
+	if !c.running.Load() {
 		log.Info("Process Agent not running.")
 		return
 	}

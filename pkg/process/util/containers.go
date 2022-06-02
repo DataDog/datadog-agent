@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -108,7 +109,7 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 			continue
 		}
 
-		if p.filter != nil && p.filter.IsExcluded(container.Name, container.Image.Name, container.Labels["io.kubernetes.pod.namespace"]) {
+		if p.filter != nil && p.filter.IsExcluded(container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
 			continue
 		}
 

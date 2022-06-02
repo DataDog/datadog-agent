@@ -19,6 +19,8 @@ type sourceManager struct {
 	services *service.Services
 }
 
+var _ SourceManager = &sourceManager{}
+
 // AddSource implements SourceManager#AddSource.
 func (sm *sourceManager) AddSource(source *logsConfig.LogSource) {
 	sm.sources.AddSource(source)
@@ -27,6 +29,11 @@ func (sm *sourceManager) AddSource(source *logsConfig.LogSource) {
 // RemoveSource implements SourceManager#RemoveSource.
 func (sm *sourceManager) RemoveSource(source *logsConfig.LogSource) {
 	sm.sources.RemoveSource(source)
+}
+
+// GetSources implements SourceManager#GetSources.
+func (sm *sourceManager) GetSources() []*logsConfig.LogSource {
+	return sm.sources.GetSources()
 }
 
 // AddService implements SourceManager#AddService.
@@ -59,7 +66,12 @@ type MockAddRemove struct {
 type MockSourceManager struct {
 	// Events are the events that occurred in the spy
 	Events []MockAddRemove
+
+	// Sources are the sources returned by GetSources
+	Sources []*logsConfig.LogSource
 }
+
+var _ SourceManager = &MockSourceManager{}
 
 // AddSource implements SourceManager#AddSource.
 func (sm *MockSourceManager) AddSource(source *logsConfig.LogSource) {
@@ -69,6 +81,13 @@ func (sm *MockSourceManager) AddSource(source *logsConfig.LogSource) {
 // RemoveSource implements SourceManager#RemoveSource.
 func (sm *MockSourceManager) RemoveSource(source *logsConfig.LogSource) {
 	sm.Events = append(sm.Events, MockAddRemove{Add: false, Source: source})
+}
+
+// GetSources implements SourceManager#GetSources.
+func (sm *MockSourceManager) GetSources() []*logsConfig.LogSource {
+	sources := make([]*logsConfig.LogSource, len(sm.Sources))
+	copy(sources, sm.Sources)
+	return sources
 }
 
 // AddService implements SourceManager#AddService.
