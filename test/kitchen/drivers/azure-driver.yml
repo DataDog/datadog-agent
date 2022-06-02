@@ -111,6 +111,15 @@ platforms:
         size = sizes[idx % sizes.length]
       end
 
+      # Check if we should use an ed25519 key, an rsa key or the default key
+      # Some newer platforms don't support rsa, while some older platforms don't support ed25519
+      # In Azure, ed25519 is not supported, but the default key created by the driver works
+      default_key_platforms = ["ubuntu-22-04"]
+      use_default_key = default_key_platforms.any? { |p| platform_name.include?(p) }
+
+      ed25519_platforms = []
+      use_ed25519 = ed25519_platforms.any? { |p| platform_name.include?(p) }
+
       vm_username = ENV['VM_USERNAME'] ? ENV['VM_USERNAME'] : "datadog"
       vm_password = ENV['SERVER_PASSWORD']
 
@@ -154,8 +163,12 @@ platforms:
     <% else %>
     connection_retries: 30
     connection_retry_sleep: 2
-    <% unless ENV['KITCHEN_SKIP_MANUAL_SSH_KEY'] %>
-    ssh_key: <%= ENV['KITCHEN_SSH_KEY_PATH'] %>
+    <% if use_default_key %>
+    ssh_key:
+    <% elsif use_ed25519 %>
+    ssh_key: <%= ENV['KITCHEN_ED25519_SSH_KEY_PATH'] %>
+    <% else %>
+    ssh_key: <%= ENV['KITCHEN_RSA_SSH_KEY_PATH'] %>
     <% end %>
     <% end %>
 
