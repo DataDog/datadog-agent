@@ -82,6 +82,7 @@ type DemultiplexerOptions struct {
 	SharedForwarderOptions         *forwarder.Options
 	UseNoopForwarder               bool
 	UseNoopEventPlatformForwarder  bool
+	UseNoopOrchestratorForwarder   bool
 	UseEventPlatformForwarder      bool
 	UseOrchestratorForwarder       bool
 	UseContainerLifecycleForwarder bool

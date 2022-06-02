@@ -33,6 +33,7 @@ func (p *reOrdererNodePool) alloc() *reOrdererNode {
 
 func (p *reOrdererNodePool) free(node *reOrdererNode) {
 	node.timestamp = 0
+	node.data = nil
 
 	if p.head == nil {
 		p.head = node

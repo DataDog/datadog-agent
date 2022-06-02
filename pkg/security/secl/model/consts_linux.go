@@ -12,6 +12,8 @@ import (
 )
 
 var (
+	// errorConstants are the supported error constants
+	// generate_constants:Error Constants,Error Constants are the supported error constants.
 	errorConstants = map[string]int{
 		"E2BIG":           -int(syscall.E2BIG),
 		"EACCES":          -int(syscall.EACCES),
@@ -148,6 +150,8 @@ var (
 		"EXFULL":          -int(syscall.EXFULL),
 	}
 
+	// openFlagsConstants are the supported flags for the open syscall
+	// generate_constants:Open flags,Open flags are the supported flags for the open syscall.
 	openFlagsConstants = map[string]int{
 		"O_RDONLY":    syscall.O_RDONLY,
 		"O_WRONLY":    syscall.O_WRONLY,
@@ -164,7 +168,7 @@ var (
 		"O_DIRECTORY": syscall.O_DIRECTORY,
 		"O_DSYNC":     syscall.O_DSYNC,
 		"O_FSYNC":     syscall.O_FSYNC,
-		//"O_LARGEFILE": syscall.O_LARGEFILE, golang defines this as 0
+		// "O_LARGEFILE": syscall.O_LARGEFILE, golang defines this as 0
 		"O_NDELAY":   syscall.O_NDELAY,
 		"O_NOATIME":  syscall.O_NOATIME,
 		"O_NOCTTY":   syscall.O_NOCTTY,
@@ -173,8 +177,10 @@ var (
 		"O_RSYNC":    syscall.O_RSYNC,
 	}
 
+	// chmodModeConstants are the supported modes for the chmod syscall
+	// generate_constants:Chmod mode constants,Chmod mode constants are the supported modes for the chmod syscall.
 	chmodModeConstants = map[string]int{
-		//"S_IEXEC":  syscall.S_IEXEC, deprecated
+		// "S_IEXEC":  syscall.S_IEXEC, deprecated
 		"S_IFBLK":  syscall.S_IFBLK,
 		"S_IFCHR":  syscall.S_IFCHR,
 		"S_IFDIR":  syscall.S_IFDIR,
@@ -183,7 +189,7 @@ var (
 		"S_IFMT":   syscall.S_IFMT,
 		"S_IFREG":  syscall.S_IFREG,
 		"S_IFSOCK": syscall.S_IFSOCK,
-		//"S_IREAD":  syscall.S_IREAD, deprecated
+		// "S_IREAD":  syscall.S_IREAD, deprecated
 		"S_IRGRP": syscall.S_IRGRP,
 		"S_IROTH": syscall.S_IROTH,
 		"S_IRUSR": syscall.S_IRUSR,
@@ -195,7 +201,7 @@ var (
 		"S_ISVTX": syscall.S_ISVTX,
 		"S_IWGRP": syscall.S_IWGRP,
 		"S_IWOTH": syscall.S_IWOTH,
-		//"S_IWRITE": syscall.S_IWRITE, deprecated
+		// "S_IWRITE": syscall.S_IWRITE, deprecated
 		"S_IWUSR": syscall.S_IWUSR,
 		"S_IXGRP": syscall.S_IXGRP,
 		"S_IXOTH": syscall.S_IXOTH,
@@ -203,6 +209,7 @@ var (
 	}
 
 	// KernelCapabilityConstants list of kernel capabilities
+	// generate_constants:Kernel Capability constants,Kernel Capability constants are the supported Linux Kernel Capability.
 	KernelCapabilityConstants = map[string]uint64{
 		"CAP_AUDIT_CONTROL":      1 << unix.CAP_AUDIT_CONTROL,
 		"CAP_AUDIT_READ":         1 << unix.CAP_AUDIT_READ,
@@ -248,6 +255,8 @@ var (
 		"CAP_WAKE_ALARM":         1 << unix.CAP_WAKE_ALARM,
 	}
 
+	// ptraceConstants are the supported ptrace commands for the ptrace syscall
+	// generate_constants:Ptrace constants,Ptrace constants are the supported ptrace commands for the ptrace syscall.
 	ptraceConstants = map[string]uint32{
 		"PTRACE_TRACEME":    unix.PTRACE_TRACEME,
 		"PTRACE_PEEKTEXT":   unix.PTRACE_PEEKTEXT,
@@ -280,6 +289,8 @@ var (
 		"PTRACE_GET_SYSCALL_INFO":     unix.PTRACE_GET_SYSCALL_INFO,
 	}
 
+	// protConstants are the supported protections for the mmap syscall
+	// generate_constants:Protection constants,Protection constants are the supported protections for the mmap syscall.
 	protConstants = map[string]int{
 		"PROT_NONE":      unix.PROT_NONE,
 		"PROT_READ":      unix.PROT_READ,
@@ -289,6 +300,8 @@ var (
 		"PROT_GROWSUP":   unix.PROT_GROWSUP,
 	}
 
+	// mmapFlagConstants are the supported flags for the mmap syscall
+	// generate_constants:MMap flags,MMap flags are the supported flags for the mmap syscall.
 	mmapFlagConstants = map[string]int{
 		"MAP_SHARED":          unix.MAP_SHARED,          /* Share changes */
 		"MAP_PRIVATE":         unix.MAP_PRIVATE,         /* Changes are private */
@@ -323,6 +336,8 @@ var (
 		"MAP_HUGE_16GB":       34 << unix.MAP_HUGE_SHIFT,
 	}
 
+	// signalConstants are the supported signals for the kill syscall
+	// generate_constants:Signal constants,Signal constants are the supported signals for the kill syscall.
 	signalConstants = map[string]int{
 		"SIGHUP":    int(unix.SIGHUP),
 		"SIGINT":    int(unix.SIGINT),
@@ -359,10 +374,14 @@ var (
 		"SIGSYS":    int(unix.SIGSYS),
 	}
 
+	// unlinkFlagsConstants are the supported unlink flags for the unlink syscall
+	// generate_constants:Unlink flags,Unlink flags are the supported flags for the unlink syscall.
 	unlinkFlagsConstants = map[string]int{
 		"AT_REMOVEDIR": unix.AT_REMOVEDIR,
 	}
 
+	// addressFamilyConstants are the supported network address families
+	// generate_constants:Network Address Family constants,Network Address Family constants are the supported network address families.
 	addressFamilyConstants = map[string]uint16{
 		"AF_UNSPEC":     unix.AF_UNSPEC,
 		"AF_LOCAL":      unix.AF_LOCAL,

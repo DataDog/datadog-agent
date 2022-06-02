@@ -40,7 +40,7 @@ func TestProcessHTTPTransactions(t *testing.T) {
 
 		for j := 0; j < 10; j++ {
 			statusCode := (j%5 + 1) * 100
-			latency := time.Duration(j%5) * time.Millisecond
+			latency := time.Duration(j%5+1) * time.Millisecond
 			txs[i*10+j] = generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, path, statusCode, latency)
 		}
 	}
@@ -61,7 +61,7 @@ func TestProcessHTTPTransactions(t *testing.T) {
 			p50, err := s.Latencies.GetValueAtQuantile(0.5)
 			assert.Nil(t, err)
 
-			expectedLatency := float64(time.Duration(i) * time.Millisecond)
+			expectedLatency := float64(time.Duration(i+1) * time.Millisecond)
 			acceptableError := expectedLatency * s.Latencies.IndexMapping.RelativeAccuracy()
 			assert.True(t, p50 >= expectedLatency-acceptableError)
 			assert.True(t, p50 <= expectedLatency+acceptableError)
@@ -75,6 +75,7 @@ func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourceP
 	reqFragment := fmt.Sprintf("GET %s HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0", path)
 	latencyNS := _Ctype_ulonglong(uint64(latency))
 	tx.request_started = 1
+	tx.request_method = 1
 	tx.response_last_seen = tx.request_started + latencyNS
 	tx.response_status_code = _Ctype_ushort(code)
 	tx.request_fragment = requestFragment([]byte(reqFragment))
@@ -206,5 +207,76 @@ func TestPathProcessing(t *testing.T) {
 			assert.Equal(t, 2, s.Count)
 		}
 	})
+}
 
+func TestHTTPCorrectness(t *testing.T) {
+	t.Run("wrong path format", func(t *testing.T) {
+		cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
+		tel, err := newTelemetry()
+		require.NoError(t, err)
+		sk := newHTTPStatkeeper(cfg, tel)
+		tx := generateIPv4HTTPTransaction(
+			util.AddressFromString("1.1.1.1"),
+			util.AddressFromString("2.2.2.2"),
+			1234,
+			8080,
+			"/ver\x04y/wro\x02g/path/",
+			404,
+			30*time.Millisecond,
+		)
+		transactions := []httpTX{tx}
+
+		sk.Process(transactions)
+		require.Equal(t, int64(1), tel.malformed)
+
+		stats := sk.GetAndResetAllStats()
+		require.Len(t, stats, 0)
+	})
+
+	t.Run("invalid http verb", func(t *testing.T) {
+		cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
+		tel, err := newTelemetry()
+		require.NoError(t, err)
+		sk := newHTTPStatkeeper(cfg, tel)
+		tx := generateIPv4HTTPTransaction(
+			util.AddressFromString("1.1.1.1"),
+			util.AddressFromString("2.2.2.2"),
+			1234,
+			8080,
+			"/ver\x04y/wro\x02g/path/",
+			404,
+			30*time.Millisecond,
+		)
+		tx.request_method = 0 /* This is MethodUnknown */
+		transactions := []httpTX{tx}
+
+		sk.Process(transactions)
+		require.Equal(t, int64(1), tel.malformed)
+
+		stats := sk.GetAndResetAllStats()
+		require.Len(t, stats, 0)
+	})
+
+	t.Run("invalid latency", func(t *testing.T) {
+		cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
+		tel, err := newTelemetry()
+		require.NoError(t, err)
+		sk := newHTTPStatkeeper(cfg, tel)
+		tx := generateIPv4HTTPTransaction(
+			util.AddressFromString("1.1.1.1"),
+			util.AddressFromString("2.2.2.2"),
+			1234,
+			8080,
+			"/ver\x04y/wro\x02g/path/",
+			404,
+			0,
+		)
+		transactions := []httpTX{tx}
+
+		sk.Process(transactions)
+		require.Equal(t, int64(1), tel.malformed)
+
+		stats := sk.GetAndResetAllStats()
+		require.Len(t, stats, 0)
+	})
 }

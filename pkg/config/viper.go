@@ -41,13 +41,6 @@ func (c *safeConfig) Set(key string, value interface{}) {
 	c.Viper.Set(key, value)
 }
 
-// Unset wraps Viper for concurrent access
-func (c *safeConfig) Unset(key string) {
-	c.Lock()
-	defer c.Unlock()
-	c.Viper.Unset(key)
-}
-
 // SetDefault wraps Viper for concurrent access
 func (c *safeConfig) SetDefault(key string, value interface{}) {
 	c.Lock()

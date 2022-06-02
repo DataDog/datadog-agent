@@ -90,6 +90,7 @@ func dumpRetryFile(file string) ([]byte, error) {
 	return json.MarshalIndent(jsonTrs, "", "  ")
 }
 
+// JsonHttpTransaction TODO (<agent-core>): AC-1784
 type JsonHttpTransaction struct {
 	*HttpTransactionProto
 	Payload string // Same as HttpTransactionProto.Payload but the type is string instead of []byte

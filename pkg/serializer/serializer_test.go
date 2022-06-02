@@ -206,7 +206,7 @@ func createProtoPayloadMatcher(content []byte) interface{} {
 }
 func TestSendV1Events(t *testing.T) {
 	config.Datadog.Set("enable_events_stream_payload_serialization", false)
-	defer config.Datadog.Unset("enable_events_stream_payload_serialization")
+	defer config.Datadog.Set("enable_events_stream_payload_serialization", nil)
 
 	f := &forwarder.MockedForwarder{}
 
@@ -228,7 +228,7 @@ func (p *testPayloadMutipleValues) Len() int { return p.count }
 
 func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 	config.Datadog.Set("enable_events_stream_payload_serialization", true)
-	defer config.Datadog.Unset("enable_events_stream_payload_serialization")
+	defer config.Datadog.Set("enable_events_stream_payload_serialization", nil)
 	f := &forwarder.MockedForwarder{}
 
 	s := NewSerializer(f, nil, nil)
@@ -246,7 +246,7 @@ func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 	f.AssertExpectations(t)
 
 	config.Datadog.Set("serializer_max_payload_size", 20)
-	defer config.Datadog.Unset("serializer_max_payload_size")
+	defer config.Datadog.Set("serializer_max_payload_size", nil)
 
 	f.On("SubmitV1Intake", payloadsCountMatcher(3), jsonExtraHeadersWithCompression).Return(nil)
 	err = s.SendEvents(events)
@@ -259,7 +259,7 @@ func TestSendV1ServiceChecks(t *testing.T) {
 	matcher := createJSONPayloadMatcher(`[{"check":"","host_name":"","timestamp":0,"status":0,"message":"","tags":null}]`)
 	f.On("SubmitV1CheckRuns", matcher, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 	config.Datadog.Set("enable_service_checks_stream_payload_serialization", false)
-	defer config.Datadog.Unset("enable_service_checks_stream_payload_serialization")
+	defer config.Datadog.Set("enable_service_checks_stream_payload_serialization", nil)
 
 	s := NewSerializer(f, nil, nil)
 	err := s.SendServiceChecks(metrics.ServiceChecks{&metrics.ServiceCheck{}})
@@ -273,7 +273,7 @@ func TestSendV1Series(t *testing.T) {
 
 	f.On("SubmitV1Series", matcher, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 	config.Datadog.Set("enable_stream_payload_serialization", false)
-	defer config.Datadog.Unset("enable_stream_payload_serialization")
+	defer config.Datadog.Set("enable_stream_payload_serialization", nil)
 
 	s := NewSerializer(f, nil, nil)
 
