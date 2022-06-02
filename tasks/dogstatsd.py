@@ -11,9 +11,8 @@ from distutils.dir_util import copy_tree
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.flavor import AgentFlavor
-
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from .flavor import AgentFlavor
 from .go import deps
 from .utils import (
     REPO_PATH,

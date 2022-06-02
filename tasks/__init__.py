@@ -5,8 +5,6 @@ import os
 
 from invoke import Collection
 
-from tasks.utils import generate_config
-
 from . import (
     agent,
     android,
@@ -56,6 +54,7 @@ from .test import (
     lint_teamassignment,
     test,
 )
+from .utils import generate_config
 
 # the root namespace
 ns = Collection()
