@@ -113,24 +113,36 @@ func NewKernelVersion() (*Version, error) {
 }
 
 func newKernelVersion() (*Version, error) {
-	osReleasePaths := []string{
-		osrelease.UsrLibOsRelease,
-		osrelease.EtcOsRelease,
-	}
+	osReleasePaths := make([]string, 0, 2*3)
 
-	if config.IsContainerized() && util.PathExists("/host") {
-		osReleasePaths = append([]string{
-			filepath.Join("/host", osrelease.UsrLibOsRelease),
-			filepath.Join("/host", osrelease.EtcOsRelease),
-		}, osReleasePaths...)
-	}
-
+	// First look at os-release files based on the `HOST_ROOT` env variable
 	if hostRoot := os.Getenv("HOST_ROOT"); hostRoot != "" {
-		osReleasePaths = append([]string{
+		osReleasePaths = append(
+			osReleasePaths,
 			filepath.Join(hostRoot, osrelease.UsrLibOsRelease),
 			filepath.Join(hostRoot, osrelease.EtcOsRelease),
-		}, osReleasePaths...)
+		)
 	}
+
+	// Then look if `/host` is mounted in the container
+	// since this can be done without the env variable being set
+	if config.IsContainerized() && util.PathExists("/host") {
+		osReleasePaths = append(
+			osReleasePaths,
+			filepath.Join("/host", osrelease.UsrLibOsRelease),
+			filepath.Join("/host", osrelease.EtcOsRelease),
+		)
+	}
+
+	// Finally default to actual default values
+	// This is last in the search order since we don't want os-release files
+	// from the distribution of the container when deployed on a host with
+	// different values
+	osReleasePaths = append(
+		osReleasePaths,
+		osrelease.UsrLibOsRelease,
+		osrelease.EtcOsRelease,
+	)
 
 	kv, err := kernel.HostVersion()
 	if err != nil {
