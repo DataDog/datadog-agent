@@ -80,3 +80,7 @@ func (sl SketchSeriesList) Current() *SketchSeries {
 func (sl SketchSeriesList) Count() uint64 {
 	panic("NOT IMPLEMENTED")
 }
+
+func (sl SketchSeriesList) WaitForValue() bool {
+	panic("NOT IMPLEMENTED")
+}

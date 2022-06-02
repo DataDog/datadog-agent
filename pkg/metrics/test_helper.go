@@ -185,3 +185,7 @@ func (s *SketchesSourceTest) Get(index int) *SketchSeries {
 func (s *SketchesSourceTest) Reset() {
 	s.currentIndex = -1
 }
+
+func (s *SketchesSourceTest) WaitForValue() bool {
+	return true
+}

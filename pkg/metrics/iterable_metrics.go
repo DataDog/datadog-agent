@@ -116,6 +116,12 @@ func StartIteration(iterableSeries *IterableSeries, sink func(SerieSink), source
 	<-done
 }
 
+// Wait until a value is available for MoveNext() or until senderStopped() is called
+// Returns true if a value is available, false otherwise
+func (it *iterableMetrics) WaitForValue() bool {
+	return it.ch.WaitForValue()
+}
+
 // StartSerialization starts the serialization for series and sketches.
 // `sink` callback is responsible for adding the data. It runs in the current goroutine.
 // `serieSource` callback is responsible for consuming the series. It runs in its OWN goroutine.
