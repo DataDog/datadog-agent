@@ -30,7 +30,6 @@ type StatsUpdateFunc func(float64)
 type slidingWindow struct {
 	bucketIdx       int
 	buckets         []float64
-	bucketsLock     sync.RWMutex // Guards against async changes to underlying stats
 	initialized     bool
 	numBuckets      int
 	numBucketsUsed  int
@@ -148,16 +147,12 @@ func (sw *slidingWindow) newTicker() {
 
 				// Store the data and update any needed variables
 
-				sw.bucketsLock.Lock()
-
 				sw.buckets[sw.bucketIdx] = value
 				if sw.numBucketsUsed < sw.numBuckets {
 					sw.numBucketsUsed++
 				}
 
 				sw.bucketIdx = (sw.bucketIdx + 1) % sw.numBuckets
-
-				sw.bucketsLock.Unlock()
 
 				// If statsUpdateFunc is defined, invoke it
 
@@ -211,7 +206,7 @@ func (sw *slidingWindow) WindowSize() time.Duration {
 }
 
 // average returns an average of all the polled values collected over the
-// sliding window range. Calls must be protected by statsChangeLock.RLock().
+// sliding window range.
 func (sw *slidingWindow) average() float64 {
 	totalVal := 0.0
 
