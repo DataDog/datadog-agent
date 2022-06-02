@@ -118,12 +118,20 @@ func (l *SysProbeListener) run() {
 				log.Info("Successfully connected to the runtime-security module")
 			}
 
-			for {
-				in, err := stream.Recv()
-				if err == io.EOF || in == nil {
-					break
+			readStream := true
+			for readStream {
+				select {
+				// If an exit signal is sent, stop consuming from the stream and return
+				case <-l.exit:
+					return
+				default:
+					in, err := stream.Recv()
+					if err == io.EOF || in == nil {
+						readStream = false
+						continue
+					}
+					l.consumeData(in.Data)
 				}
-				l.consumeData(in.Data)
 			}
 		}
 	}
