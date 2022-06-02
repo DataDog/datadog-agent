@@ -335,10 +335,11 @@ func findingsToReports(findings []regoFinding) []*compliance.Report {
 			}
 			err := fmt.Errorf("%v", errMsg)
 			report = &compliance.Report{
-				Resource:  reportResource,
-				Passed:    false,
-				Error:     err,
-				Evaluator: regoEvaluator,
+				Resource:          reportResource,
+				Passed:            false,
+				Error:             err,
+				UserProvidedError: true,
+				Evaluator:         regoEvaluator,
 			}
 		case "passed":
 			report = &compliance.Report{
