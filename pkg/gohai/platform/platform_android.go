@@ -20,3 +20,7 @@ func getPlatformInfo() (platformInfo map[string]string, err error) {
 
 	return
 }
+
+func Get() (*Platform, []string, error) {
+	return nil, nil, nil
+}
