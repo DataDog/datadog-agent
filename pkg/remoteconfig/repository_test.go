@@ -1,75 +1,21 @@
 package remoteconfig
 
 import (
-	"encoding/json"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/theupdateframework/go-tuf/data"
-	"github.com/theupdateframework/go-tuf/pkg/keys"
-	"github.com/theupdateframework/go-tuf/sign"
 )
 
-type testArtifacts struct {
-	key            keys.Signer
-	signedBaseRoot []byte
-	rootData       *data.Root
-	repository     *Repository
+func TestNewRepositoryWithNilRoot(t *testing.T) {
+	repository, err := NewRepository(nil)
+	assert.Nil(t, repository, "Creating a repository without a starting base root should result in an error per TUF spec")
+	assert.Error(t, err, "Creating a repository without a starting base root should result in an error per TUF spec")
 }
 
-func newTestRootKey() keys.Signer {
-	key, err := keys.GenerateEd25519Key()
-	if err != nil {
-		panic(err)
-	}
-
-	return key
-}
-
-// For now we'll just use the same key for all the roles. This isn't
-// secure for production but we're not trying to test this aspect of TUF here.
-func buildTestRoot(key keys.Signer) ([]byte, *data.Root) {
-	root := data.NewRoot()
-	root.Version = 1
-	root.Expires = time.Now().Add(24 * time.Hour * 365 * 10)
-	root.AddKey(key.PublicData())
-	role := &data.Role{
-		KeyIDs:    key.PublicData().IDs(),
-		Threshold: 1,
-	}
-	root.Roles["root"] = role
-	root.Roles["targets"] = role
-	root.Roles["timestsmp"] = role
-	root.Roles["snapshot"] = role
-
-	rootSigners := []keys.Signer{key}
-	signedRoot, err := sign.Marshal(&root, rootSigners...)
-	if err != nil {
-		panic(err)
-	}
-	signedRootBytes, err := json.Marshal(&signedRoot)
-	if err != nil {
-		panic(err)
-	}
-
-	return signedRootBytes, root
-}
-
-func newTestArtifacts() testArtifacts {
-	key := newTestRootKey()
-	signedBaseRoot, rootData := buildTestRoot(key)
-	repository, err := NewRepository(signedBaseRoot)
-	if err != nil {
-		panic(err)
-	}
-
-	return testArtifacts{
-		key:            key,
-		signedBaseRoot: signedBaseRoot,
-		rootData:       rootData,
-		repository:     repository,
-	}
+func TestNewRepositoryWithMalformedRoot(t *testing.T) {
+	repository, err := NewRepository([]byte("haha I am not a real root"))
+	assert.Nil(t, repository, "Creating a repository with a malformed base root should result in an error per TUF spec")
+	assert.Error(t, err, "Creating a repository with a malformed base root should result in an error per TUF spec")
 }
 
 func TestEmptyUpdate(t *testing.T) {
@@ -91,14 +37,35 @@ func TestEmptyUpdate(t *testing.T) {
 	assert.Equal(t, 0, len(r.CWSDDConfigs()), "An empty update shouldn't add any CWSDD configs")
 }
 
-func TestNewRepositoryWithNilRoot(t *testing.T) {
-	repository, err := NewRepository(nil)
-	assert.Nil(t, repository, "Creating a repository without a starting base root should result in an error per TUF spec")
-	assert.Error(t, err, "Creating a repository without a starting base root should result in an error per TUF spec")
-}
+func TestUpdateNewConfig(t *testing.T) {
+	ta := newTestArtifacts()
 
-func TestNewRepositoryWithMalformedRoot(t *testing.T) {
-	repository, err := NewRepository([]byte("haha I am not a real root"))
-	assert.Nil(t, repository, "Creating a repository with a malformed base root should result in an error per TUF spec")
-	assert.Error(t, err, "Creating a repository with a malformed base root should result in an error per TUF spec")
+	file := newCWSDDFile()
+	path, hashes, data := addCWSDDFile("test", 1, file, ta.targets)
+
+	b := signTargets(ta.key, ta.targets)
+
+	update := Update{
+		TUFRoots:      make([][]byte, 0),
+		TUFTargets:    b,
+		TargetFiles:   map[string][]byte{path: data},
+		ClientConfigs: []string{path},
+	}
+
+	updatedProducts, err := ta.repository.Update(update)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(updatedProducts))
+	assert.Contains(t, updatedProducts, ProductCWSDD)
+	assert.Equal(t, 0, len(ta.repository.APMConfigs()))
+	assert.Equal(t, 1, len(ta.repository.CWSDDConfigs()))
+
+	storedFile, ok := ta.repository.CWSDDConfigs()[path]
+	assert.True(t, ok)
+
+	assert.Equal(t, file, storedFile.Config)
+	assert.EqualValues(t, 1, storedFile.Metadata.Version)
+	assert.Equal(t, "test", storedFile.Metadata.ID)
+	assertHashesEqual(t, hashes, storedFile.Metadata.Hashes)
+	assert.Equal(t, ProductCWSDD, storedFile.Metadata.Product)
+	assert.EqualValues(t, len(data), storedFile.Metadata.RawLength)
 }
