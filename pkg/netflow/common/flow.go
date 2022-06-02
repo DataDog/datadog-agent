@@ -58,6 +58,8 @@ type Flow struct {
 // AggregationHash return a hash used as aggregation key
 func (f *Flow) AggregationHash() uint64 {
 	h := fnv.New64()
+	h.Write([]byte(f.Namespace))             //nolint:errcheck
+	h.Write(f.ExporterAddr)                  //nolint:errcheck
 	h.Write(f.SrcAddr)                       //nolint:errcheck
 	h.Write(f.DstAddr)                       //nolint:errcheck
 	h.Write(Uint32ToBytes(f.SrcPort))        //nolint:errcheck
