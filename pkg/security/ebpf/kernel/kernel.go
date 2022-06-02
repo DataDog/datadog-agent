@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/acobaugh/osrelease"
 	"github.com/pkg/errors"
@@ -92,8 +93,26 @@ func (k *Version) String() string {
 	return fmt.Sprintf("kernel %s - %v - %s", k.Code, k.OsRelease, k.UnameRelease)
 }
 
+var kernelVersionCache struct {
+	sync.Mutex
+	*Version
+}
+
 // NewKernelVersion returns a new kernel version helper
 func NewKernelVersion() (*Version, error) {
+	kernelVersionCache.Lock()
+	defer kernelVersionCache.Unlock()
+
+	if kernelVersionCache.Version != nil {
+		return kernelVersionCache.Version, nil
+	}
+
+	var err error
+	kernelVersionCache.Version, err = newKernelVersion()
+	return kernelVersionCache.Version, err
+}
+
+func newKernelVersion() (*Version, error) {
 	osReleasePaths := []string{
 		osrelease.UsrLibOsRelease,
 		osrelease.EtcOsRelease,
