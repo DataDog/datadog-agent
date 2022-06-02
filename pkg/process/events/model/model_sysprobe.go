@@ -36,7 +36,7 @@ func ProcessMonitoringtoProcessEvent(e *ProcessMonitoringEvent) *ProcessEvent {
 		GID:            e.GID,
 		Username:       e.User,
 		Group:          e.Group,
-		Exe:            e.FileEvent.PathnameStr,
+		Exe:            e.FileEvent.PathnameStr, // FileEvent is not a pointer, so it can be directly accessed
 		Cmdline:        cmdline,
 		ForkTime:       e.ForkTime,
 		ExecTime:       e.ExecTime,
