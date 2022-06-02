@@ -100,22 +100,6 @@ func (it *iterableMetrics) Current() interface{} {
 	return it.current
 }
 
-// StartIteration starts the iteration over an iterableSeries.
-// `sink` callback is responsible for adding the data. It runs in the current goroutine.
-// `source` callback is responsible for consuming the data. It runs in its OWN goroutine.
-// This function returns when both `sink`` and `source` functions are finished.
-func StartIteration(iterableSeries *IterableSeries, sink func(SerieSink), source func(SerieSource)) {
-	done := make(chan struct{})
-	go func() {
-		source(iterableSeries)
-		iterableSeries.iterationStopped()
-		close(done)
-	}()
-	sink(iterableSeries)
-	iterableSeries.senderStopped()
-	<-done
-}
-
 // Wait until a value is available for MoveNext() or until senderStopped() is called
 // Returns true if a value is available, false otherwise
 func (it *iterableMetrics) WaitForValue() bool {

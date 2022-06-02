@@ -24,6 +24,14 @@ type SketchSeries struct {
 	ContextKey ckey.ContextKey      `json:"-"`
 }
 
+// String returns the JSON representation of a SketchSeries as a string
+// or an empty string in case of an error
+func (sl SketchSeries) String() string {
+	reqBody := &bytes.Buffer{}
+	_ = json.NewEncoder(reqBody).Encode(sl)
+	return string(reqBody.Bytes())
+}
+
 // A SketchPoint represents a quantile sketch at a specific time
 type SketchPoint struct {
 	Sketch *quantile.Sketch `json:"sketch"`
@@ -65,22 +73,4 @@ var _ SketchesSink = (*SketchSeriesList)(nil)
 // Append appends a sketches.
 func (sl *SketchSeriesList) Append(sketches *SketchSeries) {
 	*sl = append(*sl, sketches)
-}
-
-// These functions are removed in a later commit
-func (sl SketchSeriesList) MoveNext() bool {
-	panic("NOT IMPLEMENTED")
-}
-
-func (sl SketchSeriesList) Current() *SketchSeries {
-	panic("NOT IMPLEMENTED")
-
-}
-
-func (sl SketchSeriesList) Count() uint64 {
-	panic("NOT IMPLEMENTED")
-}
-
-func (sl SketchSeriesList) WaitForValue() bool {
-	panic("NOT IMPLEMENTED")
 }
