@@ -37,7 +37,7 @@ func init() {
 // CheckCmd is a command that runs the process-agent version data
 var CheckCmd = &cobra.Command{
 	Use:   "check",
-	Short: "Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery",
+	Short: "Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery, process_events",
 
 	Args:         cobra.ExactArgs(1),
 	RunE:         runCheckCmd,
@@ -153,7 +153,12 @@ func runCheck(cfg *config.AgentConfig, ch checks.Check) error {
 		return fmt.Errorf("collection error: %s", err)
 	}
 
-	time.Sleep(1 * time.Second)
+	if ch.Name() == checks.ProcessEvents.Name() {
+		log.Info("Listening for process_events during 10s before running the check")
+		time.Sleep(10 * time.Second)
+	} else {
+		time.Sleep(1 * time.Second)
+	}
 
 	if !checkOutputJSON {
 		printResultsBanner(ch.Name())

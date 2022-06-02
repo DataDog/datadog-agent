@@ -57,6 +57,9 @@ const (
 
 	// DefaultProcessEventStoreStatsInterval is the default frequency at which the event store sends stats about expired events, in seconds
 	DefaultProcessEventStoreStatsInterval = 20
+
+	// DefaultProcessEventsCheckInterval is the default interval used by the process_events check
+	DefaultProcessEventsCheckInterval = 10 * time.Second
 )
 
 // setupProcesses is meant to be called multiple times for different configs, but overrides apply to all configs, so
@@ -170,6 +173,8 @@ func setupProcesses(config Config) {
 	procBindEnvAndSetDefault(config, "process_config.event_collection.store.max_pending_pushes", DefaultProcessEventStoreMaxPendingPushes)
 	procBindEnvAndSetDefault(config, "process_config.event_collection.store.max_pending_pulls", DefaultProcessEventStoreMaxPendingPulls)
 	procBindEnvAndSetDefault(config, "process_config.event_collection.store.stats_interval", DefaultProcessEventStoreStatsInterval)
+	procBindEnvAndSetDefault(config, "process_config.event_collection.enabled", false)
+	procBindEnvAndSetDefault(config, "process_config.event_collection.interval", DefaultProcessEventsCheckInterval)
 
 	processesAddOverrideOnce.Do(func() {
 		AddOverrideFunc(loadProcessTransforms)

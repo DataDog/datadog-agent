@@ -51,7 +51,7 @@ func TestProcessEventFiltering(t *testing.T) {
 		calledHandlers++
 	}
 
-	l, err := newSysProbeListener(nil, nil, handler)
+	l, err := NewSysProbeListener(nil, nil, handler)
 	require.NoError(t, err)
 
 	for _, e := range rawEvents {
@@ -116,7 +116,7 @@ func TestProcessEventHandling(t *testing.T) {
 
 		i++
 	}
-	l, err := newSysProbeListener(nil, client, handler)
+	l, err := NewSysProbeListener(nil, client, handler)
 	require.NoError(t, err)
 	l.Run()
 
@@ -134,7 +134,7 @@ func TestSecurityModuleClientReconnect(t *testing.T) {
 	client := mocks.NewSecurityModuleClient(t)
 	stream := mocks.NewSecurityModule_GetProcessEventsClient(t)
 
-	l, err := newSysProbeListener(nil, client, func(e *model.ProcessEvent) { return })
+	l, err := NewSysProbeListener(nil, client, func(e *model.ProcessEvent) { return })
 	require.NoError(t, err)
 
 	l.retryInterval = 10 * time.Millisecond // force a fast retry for tests

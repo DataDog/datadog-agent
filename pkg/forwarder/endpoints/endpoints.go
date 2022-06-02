@@ -38,6 +38,8 @@ var (
 	ProcessesEndpoint = transaction.Endpoint{Route: "/api/v1/collector", Name: "process"}
 	// ProcessDiscoveryEndpoint is a v1 endpoint used to sends process discovery checks
 	ProcessDiscoveryEndpoint = transaction.Endpoint{Route: "/api/v1/discovery", Name: "process_discovery"}
+	// ProcessLifecycleEndpoint is a v2 endpoint used to send process lifecycle events
+	ProcessLifecycleEndpoint = transaction.Endpoint{Route: "/api/v2/proclcycle", Name: "proclcycle"}
 	// RtProcessesEndpoint is a v1 endpoint used to send real time process checks
 	RtProcessesEndpoint = transaction.Endpoint{Route: "/api/v1/collector", Name: "rtprocess"}
 	// ContainerEndpoint is a v1 endpoint used to send container checks
