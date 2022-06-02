@@ -34,9 +34,9 @@ func newTestRootKey() keys.Signer {
 
 // For now we'll just use the same key for all the roles. This isn't
 // secure for production but we're not trying to test this aspect of TUF here.
-func buildTestRoot(key keys.Signer) ([]byte, *data.Root) {
+func buildTestRoot(key keys.Signer, version int64) ([]byte, *data.Root) {
 	root := data.NewRoot()
-	root.Version = 1
+	root.Version = version
 	root.Expires = time.Now().Add(24 * time.Hour * 365 * 10)
 	root.AddKey(key.PublicData())
 	role := &data.Role{
@@ -45,7 +45,7 @@ func buildTestRoot(key keys.Signer) ([]byte, *data.Root) {
 	}
 	root.Roles["root"] = role
 	root.Roles["targets"] = role
-	root.Roles["timestsmp"] = role
+	root.Roles["timestamp"] = role
 	root.Roles["snapshot"] = role
 
 	rootSigners := []keys.Signer{key}
@@ -63,13 +63,14 @@ func buildTestRoot(key keys.Signer) ([]byte, *data.Root) {
 
 func newTestArtifacts() testArtifacts {
 	key := newTestRootKey()
-	signedBaseRoot, root := buildTestRoot(key)
+	signedBaseRoot, root := buildTestRoot(key, 1)
 	repository, err := NewRepository(signedBaseRoot)
 	if err != nil {
 		panic(err)
 	}
 
 	targets := data.NewTargets()
+	targets.Version = 1
 
 	return testArtifacts{
 		key:            key,
