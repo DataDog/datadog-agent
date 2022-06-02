@@ -1004,6 +1004,7 @@ func (s *TCPServer) Run(done chan struct{}) error {
 type UDPServer struct {
 	network   string
 	address   string
+	lc        *net.ListenConfig
 	onMessage func(b []byte, n int) []byte
 }
 
@@ -1012,8 +1013,13 @@ func (s *UDPServer) Run(done chan struct{}, payloadSize int) error {
 	if s.network != "" {
 		network = s.network
 	}
-
-	ln, err := net.ListenPacket(network, s.address)
+	var err error
+	var ln net.PacketConn
+	if s.lc != nil {
+		ln, err = s.lc.ListenPacket(context.Background(), network, s.address)
+	} else {
+		ln, err = net.ListenPacket(network, s.address)
+	}
 	if err != nil {
 		return err
 	}
