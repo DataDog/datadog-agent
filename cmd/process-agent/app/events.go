@@ -8,6 +8,7 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
@@ -68,7 +69,7 @@ func runEventListener(cmd *cobra.Command, args []string) error {
 	handler := func(e *model.ProcessEvent) {
 		b, err := json.MarshalIndent(e, "", "  ")
 		if err != nil {
-			log.Error("Error while marshalling process event: ", err.Error())
+			log.Errorf("Error while marshalling process event: %v", err)
 		}
 		fmt.Println(string(b))
 	}

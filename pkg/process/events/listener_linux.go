@@ -28,15 +28,15 @@ import (
 
 // SysProbeListener collects process events using the runtime-security module in system-probe
 type SysProbeListener struct {
-	// client holds a gRPC client to connect to System-Probe
+	// client holds a gRPC client to connect to system-probe
 	client api.SecurityModuleClient
 	// conn holds the connection used by the client, so it can be closed once the listener is stopped
 	conn *grpc.ClientConn
-	// retryInterval is how long the listener will wait before trying to reconnect to System-Probe if there's a connection failure
+	// retryInterval is how long the listener will wait before trying to reconnect to system-probe if there's a connection failure
 	retryInterval time.Duration
 	// handler is the EventHandler function applied to every event collected by the listener
 	handler EventHandler
-	// connected holds the status of the connection to System-Probe
+	// connected holds the status of the connection to system-probe
 	connected atomic.Value
 	// wg and exit are used to control the main listener routine
 	wg   sync.WaitGroup
@@ -137,7 +137,7 @@ func (l *SysProbeListener) run() {
 func (l *SysProbeListener) consumeData(data []byte) {
 	var sysEvent model.ProcessMonitoringEvent
 	if _, err := sysEvent.UnmarshalMsg(data); err != nil {
-		log.Error("Could not unmarshal process event: ", err.Error())
+		log.Errorf("Could not unmarshal process event: %v", err)
 		return
 	}
 
