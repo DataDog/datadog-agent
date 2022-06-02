@@ -46,8 +46,8 @@ const (
 	// Exported for consistent buffer adjustment calculation.
 	DefaultDriverBufferSize = 1024
 
-	// defaultFlowEntries (Windows) is the default number of flow entries system-probe's buffer can receive from the driver
-	defaultFlowEntries = 50
+	// DefaultFlowEntries (Windows) is the default number of flow entries system-probe's buffer can receive from the driver
+	DefaultFlowEntries = 50
 )
 
 func isSystemProbeConfigInit(cfg Config) bool {
@@ -161,7 +161,7 @@ func InitSystemProbeConfig(cfg Config) {
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.driver_buffer_size"), DefaultDriverBufferSize)
-	cfg.BindEnvAndSetDefault(join(spNS, "windows.driver_buffer_entries"), defaultFlowEntries)
+	cfg.BindEnvAndSetDefault(join(spNS, "windows.driver_buffer_entries"), DefaultFlowEntries)
 
 	// oom_kill module
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_oom_kill"), false)
