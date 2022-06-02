@@ -65,26 +65,26 @@ type DriverInterface struct {
 	cfg *config.Config
 }
 
-func calcDriverBufferSize(configured_size int, configured_entries int) int {
+func calcDriverBufferSize(configured_size int, configured_entries int) (bufferSize int) {
 
-	bufferSize := 0
+	num_flow_entries := 0
 
-	if configured_size == mainconfig.DefaultDriverBufferSize {
-		log.Debug("DefaultDriverBufferSize used, deferring to DriverBufferSize")
-		bufferSize = driver.PerFlowDataSize * configured_entries
-	} else {
-		log.Debugf(
-			"DriverBufferSize differs from DefaultDriverBufferSize (%d vs. %d), rounding up to nearest even multiple of PerFlowDataSize (%d)",
-			configured_size, mainconfig.DefaultDriverBufferSize, driver.PerFlowDataSize)
-
+	// the only time we would want to use driver_buffer_size is when:
+	// driver_buffer_size differs from its default and driver_buffer_entries does not
+	if configured_size != mainconfig.DefaultDriverBufferSize && configured_entries == mainconfig.DefaultFlowEntries {
 		// round up and determine figure out how many flow entries we can hold as specified by config
-		num_flow_entries := math.Ceil(float64(configured_size) / float64(driver.PerFlowDataSize))
-
-		// set the buffer size to the nearest even multiple of PerFlowDataSize
-		bufferSize = int(num_flow_entries * float64(driver.PerFlowDataSize))
+		log.Debugf("Detected non-default buffer size (%d) and default entry size (%d); using buffer size",
+			configured_size, configured_entries)
+		num_flow_entries = int(math.Ceil(float64(configured_size) / float64(driver.PerFlowDataSize)))
+	} else {
+		// use configured_entries
+		log.Debugf("Detected buffer size (%d) and entry size (%d); Using entry size", configured_size, configured_entries)
+		num_flow_entries = configured_entries
 	}
+	bufferSize = num_flow_entries * driver.PerFlowDataSize
+
 	log.Debugf("Final DriverBufferSize: %d", bufferSize)
-	return bufferSize
+	return
 }
 
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
