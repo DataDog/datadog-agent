@@ -138,6 +138,16 @@ func (t *Tailer) setup() error {
 // seek seeks to the cursor if it is not empty or the end of the journal,
 // returns an error if the operation failed.
 func (t *Tailer) seek(cursor string) error {
+	mode, _ := config.TailingModeFromString(t.source.Config.TailingMode)
+
+	if mode == config.ForceBeginning {
+		return t.journal.SeekHead()
+	}
+	if mode == config.ForceEnd {
+		return t.journal.SeekTail()
+	}
+
+	// If a position is not forced from the config, try the cursor
 	if cursor != "" {
 		err := t.journal.SeekCursor(cursor)
 		if err != nil {
@@ -146,6 +156,11 @@ func (t *Tailer) seek(cursor string) error {
 		// must skip one entry since the cursor points to the last committed one.
 		_, err = t.journal.NextSkip(1)
 		return err
+	}
+
+	// If there is no cursor and an option is not forced, use the config setting
+	if mode == config.Beginning {
+		return t.journal.SeekHead()
 	}
 	return t.journal.SeekTail()
 }
@@ -163,7 +178,6 @@ func (t *Tailer) tail() {
 			return
 		default:
 			n, err := t.journal.Next()
-			t.source.BytesRead.Add(int64(n))
 			if err != nil && err != io.EOF {
 				err := fmt.Errorf("cant't tail journal %s: %s", t.journalPath(), err)
 				t.source.Status.Error(err)
@@ -253,6 +267,7 @@ func (t *Tailer) getContent(entry *sdjournal.JournalEntry) []byte {
 		value, _ := entry.Fields[sdjournal.SD_JOURNAL_FIELD_MESSAGE]
 		content = []byte(value)
 	}
+	t.source.BytesRead.Add(int64(len(content)))
 
 	return content
 }
