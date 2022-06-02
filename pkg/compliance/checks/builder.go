@@ -573,6 +573,11 @@ func (b *builder) getRuleResourceReporter(scope compliance.RuleScope, rule compl
 func (b *builder) hostMatcher(scope compliance.RuleScope, ruleID string, hostSelector string) (bool, error) {
 	switch scope {
 	case compliance.DockerScope:
+		if config.IsKubernetes() {
+			log.Infof("rule %s skipped - running on a Kubernetes environment", ruleID)
+			return false, nil
+		}
+
 		if b.dockerClient == nil {
 			log.Infof("rule %s skipped - not running in a docker environment", ruleID)
 			return false, nil
