@@ -341,3 +341,80 @@ func TestClientOnlyTakesActionOnFilesInClientConfig(t *testing.T) {
 	assert.EqualValues(t, 1, state.TargetsVersion)
 	assert.EqualValues(t, 1, state.RootsVersion)
 }
+
+func TestUpdateWithTwoProducts(t *testing.T) {
+	ta := newTestArtifacts()
+
+	file := newCWSDDFile()
+	fileAPM := newAPMSamplingFile()
+
+	path, hashes, data := addCWSDDFile("test", 1, file, ta.targets)
+	pathAPM, hashesAPM, dataAPM := addAPMSamplingFile("testAPM", 3, fileAPM, ta.targets)
+	b := signTargets(ta.key, ta.targets)
+
+	update := Update{
+		TUFRoots:      make([][]byte, 0),
+		TUFTargets:    b,
+		TargetFiles:   map[string][]byte{path: data, pathAPM: dataAPM},
+		ClientConfigs: []string{path, pathAPM},
+	}
+	updatedProducts, err := ta.repository.Update(update)
+	assert.Nil(t, err)
+	assert.Equal(t, 2, len(updatedProducts))
+	assert.Contains(t, updatedProducts, ProductCWSDD)
+	assert.Contains(t, updatedProducts, ProductAPMSampling)
+
+	assert.Equal(t, 1, len(ta.repository.APMConfigs()))
+	assert.Equal(t, 1, len(ta.repository.CWSDDConfigs()))
+
+	storedFile, ok := ta.repository.CWSDDConfigs()[path]
+	assert.True(t, ok)
+	assert.Equal(t, file, storedFile.Config)
+	assert.EqualValues(t, 1, storedFile.Metadata.Version)
+	assert.Equal(t, "test", storedFile.Metadata.ID)
+	assertHashesEqual(t, hashes, storedFile.Metadata.Hashes)
+	assert.Equal(t, ProductCWSDD, storedFile.Metadata.Product)
+	assert.EqualValues(t, len(data), storedFile.Metadata.RawLength)
+
+	storedFileAPM, ok := ta.repository.APMConfigs()[pathAPM]
+	assert.True(t, ok)
+	assert.Equal(t, fileAPM, storedFileAPM.Config)
+	assert.EqualValues(t, 3, storedFileAPM.Metadata.Version)
+	assert.Equal(t, "testAPM", storedFileAPM.Metadata.ID)
+	assertHashesEqual(t, hashesAPM, storedFileAPM.Metadata.Hashes)
+	assert.Equal(t, ProductAPMSampling, storedFileAPM.Metadata.Product)
+	assert.EqualValues(t, len(dataAPM), storedFileAPM.Metadata.RawLength)
+
+	state, err := ta.repository.CurrentState()
+	assert.Nil(t, err)
+	assert.Equal(t, 2, len(state.Configs))
+	assert.Equal(t, 2, len(state.CachedFiles))
+	assert.EqualValues(t, 1, state.TargetsVersion)
+	assert.EqualValues(t, 1, state.RootsVersion)
+
+	expectedConfigStateCWSDD := ConfigState{
+		Product: ProductCWSDD,
+		ID:      "test",
+		Version: 1,
+	}
+	expectedConfigStateAPM := ConfigState{
+		Product: ProductAPMSampling,
+		ID:      "testAPM",
+		Version: 3,
+	}
+	assert.Contains(t, state.Configs, expectedConfigStateCWSDD)
+	assert.Contains(t, state.Configs, expectedConfigStateAPM)
+
+	expectedCachedFileCWSDD := CachedFile{
+		Path:   path,
+		Length: uint64(len(data)),
+		Hashes: convertGoTufHashes(hashes),
+	}
+	expectedCachedFileAPMSampling := CachedFile{
+		Path:   pathAPM,
+		Length: uint64(len(dataAPM)),
+		Hashes: convertGoTufHashes(hashesAPM),
+	}
+	assert.Contains(t, state.CachedFiles, expectedCachedFileCWSDD)
+	assert.Contains(t, state.CachedFiles, expectedCachedFileAPMSampling)
+}

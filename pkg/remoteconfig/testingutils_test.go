@@ -157,7 +157,7 @@ func newAPMSamplingFile() apmsampling.APMSampling {
 	return apmConfig
 }
 
-func addAPMSamplingFile(id string, version int64, file apmsampling.APMSampling, targets *data.Targets) (string, []byte) {
+func addAPMSamplingFile(id string, version int64, file apmsampling.APMSampling, targets *data.Targets) (string, data.Hashes, []byte) {
 	path := fmt.Sprintf("datadog/3/%s/%s/config", ProductAPMSampling, id)
 
 	buf := make([]byte, 0, file.Msgsize())
@@ -170,5 +170,15 @@ func addAPMSamplingFile(id string, version int64, file apmsampling.APMSampling, 
 
 	targets.Targets[path] = tfm
 
-	return path, out
+	return path, tfm.Hashes, out
+}
+
+func convertGoTufHashes(hashes data.Hashes) map[string][]byte {
+	converted := make(map[string][]byte)
+
+	for algo, hash := range hashes {
+		converted[algo] = hash
+	}
+
+	return converted
 }
