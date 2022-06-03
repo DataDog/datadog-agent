@@ -55,6 +55,7 @@ linters:
     - revive      # Revive is a replacement for golint, a coding style checker
     - errcheck    # errcheck is a program for checking for unchecked errors in go programs.
     - staticcheck # staticcheck is a go vet on steroids, applying a ton of static analysis checks
+    - govet       # Vet examines Go source code and reports suspicious constructs, such as Printf calls whose arguments do not align with the format string
 
 linters-settings:
   errcheck:
@@ -70,3 +71,13 @@ linters-settings:
              "-SA6002", # TODO: Fix sync.Pools
              "-SA4025", # TODO: Fix trace unit test
             ]
+  govet:
+    settings:
+      printf:
+        funcs:
+          - github.com/DataDog/datadog-agent/pkg/util/log.Tracef
+          - github.com/DataDog/datadog-agent/pkg/util/log.Debugf
+          - github.com/DataDog/datadog-agent/pkg/util/log.Infof
+          - github.com/DataDog/datadog-agent/pkg/util/log.Printf
+          - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
+          - github.com/DataDog/datadog-agent/pkg/util/log.Errorf
