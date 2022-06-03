@@ -252,9 +252,9 @@ type ProfilingProxyConfig struct {
 	AdditionalEndpoints map[string][]string
 }
 
-// EVPIntakeProxy contains the settings for the EVPIntake proxy.
-type EVPIntakeProxy struct {
-	// Enabled reports whether EVPIntakeProxy is enabled (true by default)
+// EVPProxy contains the settings for the EVPProxy proxy.
+type EVPProxy struct {
+	// Enabled reports whether EVPProxy is enabled (true by default)
 	Enabled bool
 	// DDURL is the main domain URL (defaults to the Site)
 	DDURL string
@@ -385,8 +385,8 @@ type AgentConfig struct {
 	// AppSec contains AppSec configuration.
 	AppSec AppSecConfig
 
-	// EVPIntakeProxy contains the settings for the EVPIntake proxy.
-	EVPIntakeProxy EVPIntakeProxy
+	// EVPProxy contains the settings for the EVPProxy proxy.
+	EVPProxy EVPProxy
 
 	// DebuggerProxy contains the settings for the Live Debugger proxy.
 	DebuggerProxy DebuggerProxyConfig
@@ -478,7 +478,7 @@ func New() *AgentConfig {
 			Enabled:        true,
 			MaxPayloadSize: 5 * 1024 * 1024,
 		},
-		EVPIntakeProxy: EVPIntakeProxy{
+		EVPProxy: EVPProxy{
 			Enabled: true,
 		},
 	}

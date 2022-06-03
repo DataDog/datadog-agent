@@ -55,19 +55,19 @@ func isValidQueryString(s string) bool {
 	return true
 }
 
-// evpIntakeEndpointsFromConfig returns the configured list of endpoints to forward payloads to.
-func evpIntakeEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
-	apiKey := conf.EVPIntakeProxy.APIKey
+// evpProxyEndpointsFromConfig returns the configured list of endpoints to forward payloads to.
+func evpProxyEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
+	apiKey := conf.EVPProxy.APIKey
 	if apiKey == "" {
 		apiKey = conf.APIKey()
 	}
-	endpoint := conf.EVPIntakeProxy.DDURL
+	endpoint := conf.EVPProxy.DDURL
 	if endpoint == "" {
 		endpoint = conf.Site
 	}
 	mainEndpoint := config.Endpoint{Host: endpoint, APIKey: apiKey}
 	endpoints := []config.Endpoint{mainEndpoint}
-	for host, keys := range conf.EVPIntakeProxy.AdditionalEndpoints {
+	for host, keys := range conf.EVPProxy.AdditionalEndpoints {
 		for _, key := range keys {
 			endpoints = append(endpoints, config.Endpoint{
 				Host:   host,
@@ -78,34 +78,34 @@ func evpIntakeEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
 	return endpoints
 }
 
-// evpIntakeHandler returns an HTTP handler for the /evp_proxy API.
+// evpProxyHandler returns an HTTP handler for the /evp_proxy API.
 // Depending on the config, this is a proxying handler or a noop handler.
-func (r *HTTPReceiver) evpIntakeHandler() http.Handler {
+func (r *HTTPReceiver) evpProxyHandler() http.Handler {
 	// r.conf is populated by cmd/trace-agent/config/config.go
-	if !r.conf.EVPIntakeProxy.Enabled {
-		return evpIntakeErrorHandler("Has been disabled in config")
+	if !r.conf.EVPProxy.Enabled {
+		return evpProxyErrorHandler("Has been disabled in config")
 	}
-	endpoints := evpIntakeEndpointsFromConfig(r.conf)
+	endpoints := evpProxyEndpointsFromConfig(r.conf)
 	transport := r.conf.NewHTTPTransport()
-	logger := stdlog.New(log.NewThrottled(5, 10*time.Second), "EVPIntakeProxy: ", 0) // limit to 5 messages every 10 seconds
-	handler := evpIntakeReverseProxyHandler(r.conf, endpoints, transport, logger)
+	logger := stdlog.New(log.NewThrottled(5, 10*time.Second), "EVPProxy: ", 0) // limit to 5 messages every 10 seconds
+	handler := evpProxyForwarder(r.conf, endpoints, transport, logger)
 	return http.StripPrefix("/evp_proxy/v1/input", handler)
 }
 
-// evpIntakeErrorHandler returns an HTTP handler that will always return
+// evpProxyErrorHandler returns an HTTP handler that will always return
 // http.StatusMethodNotAllowed along with a clarification.
-func evpIntakeErrorHandler(message string) http.Handler {
+func evpProxyErrorHandler(message string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		msg := fmt.Sprintf("EVPIntakeProxy is disabled: %v", message)
+		msg := fmt.Sprintf("EVPProxy is disabled: %v", message)
 		http.Error(w, msg, http.StatusMethodNotAllowed)
 	})
 }
 
-// evpIntakeReverseProxyHandler creates an http.ReverseProxy which can forward payloads
-// to one or more endpoints, based on the request received and the Agent configuration.
+// evpProxyForwarder creates an http.ReverseProxy which can forward payloads to
+// one or more endpoints, based on the request received and the Agent configuration.
 // Headers are not proxied, instead we add our own known set of headers.
-// See also evpIntakeProxyTransport below.
-func evpIntakeReverseProxyHandler(conf *config.AgentConfig, endpoints []config.Endpoint, transport http.RoundTripper, logger *stdlog.Logger) http.Handler {
+// See also evpProxyTransport below.
+func evpProxyForwarder(conf *config.AgentConfig, endpoints []config.Endpoint, transport http.RoundTripper, logger *stdlog.Logger) http.Handler {
 	director := func(req *http.Request) {
 
 		containerID := req.Header.Get("Datadog-Container-ID")
@@ -136,21 +136,21 @@ func evpIntakeReverseProxyHandler(conf *config.AgentConfig, endpoints []config.E
 	return &httputil.ReverseProxy{
 		Director:  director,
 		ErrorLog:  logger,
-		Transport: &evpIntakeProxyTransport{transport, endpoints},
+		Transport: &evpProxyTransport{transport, endpoints},
 	}
 }
 
-// evpIntakeProxyTransport sends HTTPS requests to multiple targets using an
+// evpProxyTransport sends HTTPS requests to multiple targets using an
 // underlying http.RoundTripper. API keys are set separately for each target.
 // When multiple endpoints are in use the response from the first endpoint
 // is proxied back to the client, while for all aditional endpoints the
 // response is discarded.
-type evpIntakeProxyTransport struct {
+type evpProxyTransport struct {
 	transport http.RoundTripper
 	endpoints []config.Endpoint
 }
 
-func (t *evpIntakeProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
+func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
 
 	// Metrics with stats for debugging
 	beginTime := time.Now()
@@ -168,21 +168,21 @@ func (t *evpIntakeProxyTransport) RoundTrip(req *http.Request) (rresp *http.Resp
 	inputPath := req.URL.Path
 	parts := strings.SplitN(inputPath, "/", 3)
 	if len(parts) != 3 || parts[0] != "" || parts[1] == "" || parts[2] == "" {
-		return nil, fmt.Errorf("EVPIntakeProxy: invalid path: '%s'", inputPath)
+		return nil, fmt.Errorf("EVPProxy: invalid path: '%s'", inputPath)
 	}
 	subdomain := parts[1]
 	req.URL.Path = strings.TrimPrefix(req.URL.Path, "/"+subdomain)
 
 	// Sanitize the input
 	if !isValidSubdomain(subdomain) {
-		return nil, fmt.Errorf("EVPIntakeProxy: invalid subdomain: %s", subdomain)
+		return nil, fmt.Errorf("EVPProxy: invalid subdomain: %s", subdomain)
 	}
 	metricTags = append(metricTags, "subdomain:"+subdomain)
 	if !isValidPath(req.URL.Path) {
-		return nil, fmt.Errorf("EVPIntakeProxy: invalid target path: %s", req.URL.Path)
+		return nil, fmt.Errorf("EVPProxy: invalid target path: %s", req.URL.Path)
 	}
 	if !isValidQueryString(req.URL.RawQuery) {
-		return nil, fmt.Errorf("EVPIntakeProxy: invalid query string: %s", req.URL.RawQuery)
+		return nil, fmt.Errorf("EVPProxy: invalid query string: %s", req.URL.RawQuery)
 	}
 
 	req.URL.Scheme = "https"

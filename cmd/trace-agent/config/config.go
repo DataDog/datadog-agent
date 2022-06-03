@@ -402,16 +402,16 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		c.DebuggerProxy.APIKey = coreconfig.Datadog.GetString(k)
 	}
 	if k := "evp_proxy_config.enabled"; coreconfig.Datadog.IsSet(k) {
-		c.EVPIntakeProxy.Enabled = coreconfig.Datadog.GetBool(k)
+		c.EVPProxy.Enabled = coreconfig.Datadog.GetBool(k)
 	}
 	if k := "evp_proxy_config.evp_proxy_dd_url"; coreconfig.Datadog.IsSet(k) {
-		c.EVPIntakeProxy.DDURL = coreconfig.Datadog.GetString(k)
+		c.EVPProxy.DDURL = coreconfig.Datadog.GetString(k)
 	}
 	if k := "evp_proxy_config.evp_proxy_api_key"; coreconfig.Datadog.IsSet(k) {
-		c.EVPIntakeProxy.APIKey = coreconfig.Datadog.GetString(k)
+		c.EVPProxy.APIKey = coreconfig.Datadog.GetString(k)
 	}
 	if k := "evp_proxy_config.evp_proxy_additional_endpoints"; coreconfig.Datadog.IsSet(k) {
-		c.EVPIntakeProxy.AdditionalEndpoints = coreconfig.Datadog.GetStringMapStringSlice(k)
+		c.EVPProxy.AdditionalEndpoints = coreconfig.Datadog.GetStringMapStringSlice(k)
 	}
 	return nil
 }
