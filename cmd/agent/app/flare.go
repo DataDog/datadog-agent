@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/hashicorp/go-multierror"
@@ -197,10 +198,26 @@ func makeFlare(caseID string) error {
 		return err
 	}
 
-	logLevel := config.Datadog.GetString("log_level")
-	if len(logLevel) != 0 {
-		fmt.Fprintln(color.Output, fmt.Sprintf("Notice: This flare will be sent as %s level", color.RedString(logLevel)))
+	logLevel := ""
+
+	switch {
+	case strings.Contains(filePath, "off"):
+		logLevel = "off"
+	case strings.Contains(filePath, "critical"):
+		logLevel = "critical"
+	case strings.Contains(filePath, "error"):
+		logLevel = "error"
+	case strings.Contains(filePath, "warn"):
+		logLevel = "warn"
+	case strings.Contains(filePath, "debug"):
+		logLevel = "debug"
+	case strings.Contains(filePath, "trace"):
+		logLevel = "trace"
+	default:
+		logLevel = "info"
 	}
+	fmt.Fprintln(color.Output, fmt.Sprintf("Notice: The flare will be generated using '%s' level logging of the agent ", color.RedString(logLevel)))
+
 	fmt.Fprintln(color.Output, fmt.Sprintf("%s is going to be uploaded to Datadog", color.YellowString(filePath)))
 	if !autoconfirm {
 		confirmation := input.AskForConfirmation("Are you sure you want to upload a flare? [y/N]")
