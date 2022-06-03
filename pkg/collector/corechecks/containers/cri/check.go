@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -96,7 +97,7 @@ func (c *CRICheck) Run() error {
 	}
 	defer sender.Commit()
 
-	return c.processor.Run(sender, cacheValidity)
+	return c.runProcessor(sender)
 }
 
 func (c *CRICheck) runProcessor(sender aggregator.Sender) error {
@@ -108,7 +109,7 @@ func getProcessorFilter(legacyFilter *containers.Filter) generic.ContainerFilter
 	return generic.ANDContainerFilter{
 		Filters: []generic.ContainerFilter{
 			generic.FuncContainerFilter(func(container *workloadmeta.Container) bool {
-				return container.Labels["io.kubernetes.pod.namespace"] == ""
+				return container.Labels[kubernetes.CriContainerNamespaceLabel] == ""
 			}),
 			generic.LegacyContainerFilter{OldFilter: legacyFilter},
 		},

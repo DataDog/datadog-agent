@@ -58,7 +58,7 @@ func setupOTLPEnvironmentVariables(config Config) {
 	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.include_metadata")
 
 	// Traces settingds
-	config.BindEnv("otlp_config.traces.span_name_remappings")
+	config.BindEnvAndSetDefault("otlp_config.traces.span_name_remappings", map[string]string{})
 	config.BindEnv("otlp_config.traces.span_name_as_resource_name")
 
 	// HTTP settings

@@ -234,7 +234,7 @@ int kretprobe_register_netdevice(struct pt_regs *ctx) {
     if (state == NULL) {
         // this is a simple device registration
         struct net_device_event_t evt = {
-            .syscall.async = 0,
+            .event.async = 0,
             .device = device,
         };
 
@@ -283,7 +283,7 @@ int kretprobe_register_netdevice(struct pt_regs *ctx) {
             if (peer_device->netns != device.netns) {
                 // send event
                 struct veth_pair_event_t evt = {
-                    .syscall.async = 0,
+                    .event.async = 0,
                     .host_device = device,
                     .peer_device = *peer_device,
                 };
@@ -331,7 +331,7 @@ __attribute__((always_inline)) int trace_dev_change_net_namespace(struct pt_regs
 
     // send event
     struct veth_pair_event_t evt = {
-        .syscall.async = 0,
+        .event.async = 0,
         .host_device = *peer_device,
         .peer_device = *device,
     };

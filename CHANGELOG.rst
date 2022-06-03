@@ -2,6 +2,226 @@
 Release Notes
 =============
 
+.. _Release Notes_7.36.1:
+
+7.36.1 / 6.36.1
+======
+
+.. _Release Notes_7.36.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-05-31
+
+- Please refer to the `7.36.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7361>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.36.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes issue where proxy config was ignored by the trace-agent.
+
+- This fixes a regression introduced in ``7.36.0`` where some logs sources attached to a container/pod would not be
+  unscheduled on container/pod stop if multiple logs configs were attached to the container/pod.
+  This could lead to duplicate log entries being created on container/pod restart as there would
+  be more than one tailer tailing the targeted source.
+
+
+.. _Release Notes_7.36.0:
+
+7.36.0 / 6.36.0
+======
+
+.. _Release Notes_7.36.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-05-24
+
+- Please refer to the `7.36.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7360>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.36.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Debian packages are now built on Debian 8. Newly built DEBs are supported
+  on Debian >= 8 and Ubuntu >= 14.
+
+- The OTLP endpoint will no longer enable the legacy OTLP/HTTP endpoint ``0.0.0.0:55681`` by default. To keep using the legacy endpoint, explicitly declare it via the ``otlp_config.receiver.protocols.http.endpoint`` configuration setting or its associated environment variable, ``DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT``.
+
+- Package signing keys were rotated:
+  
+  * DEB packages are now signed with key ``AD9589B7``, a signing subkey of key `F14F620E <https://keys.datadoghq.com/DATADOG_APT_KEY_F14F620E.public>`_
+  * RPM packages are now signed with key `FD4BF915 <https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public>`_
+
+
+.. _Release Notes_7.36.0_New Features:
+
+New Features
+------------
+
+- Adding support for IBM cloud. The agent will now detect that we're running on IBM cloud and collect host aliases
+  (vm name and ID).
+
+- Added event collection in the Helm check. The feature is disabled by default. To enable it, set the ``collect_events`` option to true.
+
+- Adds a service check for the Helm check. The check fails for a release when its latest revision is in "failed" state.
+
+- Adds a ``kube_qos`` (quality of service) tag to metrics associated with
+  kubernetes pods and their containers.
+
+- CWS can now track network devices creation and load TC classifiers dynamically.
+
+- CWS can now track network namespaces.
+
+- The DNS event type was added to CWS.
+
+- The OTLP ingest endpoint is now considered GA for metrics.
+
+.. _Release Notes_7.36.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Traps OIDs are now resolved to names using user-provided 'traps db' files in ``snmp.d/traps_db/``.
+
+- The Agent now supports a single ``ad.datadoghq.com/$IDENTIFIER.checks``
+  annotation in Kubernetes Pods and Services to configure Autodiscovery
+  checks. It merges the contents of the existing "check_names",
+  ``init_configs`` (now optional), and ``instances`` annotations into a single
+  JSON value.
+
+- ``DD_URL`` environment variable can now be used to set the Datadog intake URL just like ``DD_DD_URL``.
+  If both ``DD_DD_URL`` and `DD_URL` are set, ``DD_DD_URL`` will be used to avoid breaking change.
+
+- Added a ``process-agent version`` command, and made the output mimic the core agent.
+
+- Windows: Add Datadog registry to Flare.
+
+- Add ``--service`` flag to ``stream-logs`` command to filter
+  streamed logs in detail.
+
+- Support a simple date pattern for automatic multiline detection
+
+- APM: The OTLP ingest stringification of non-standard Datadog values such as Arrays and KeyValues is now consistent with OpenTelemetry attribute stringification.
+
+- APM: Connections to upload profiles to the Datadog intake are now closed
+  after 47 seconds of idleness. Common tracer setups send one profile every
+  60 seconds, which coincides with the intake's connection timeout and would
+  occasionally lead to errors.
+
+- The Cluster Agent now exposes a new metric ``cluster_checks_configs_info``.
+  It exposes the node and the check ID as tags.
+
+- KSM core check: add a new ``kubernetes_state.cronjob.complete``
+  service check that returns the status of the most recent job for
+  a cronjob.
+
+- Retry more HTTP status codes for the logs agent HTTP destination. 
+
+- ``COPYRIGHT-3rdparty.csv`` now contains each copyright statement exactly as it is shown on the original component.
+
+- Adds ``sidecar_present`` and ``sidecar_count`` tags on Cloud Foundry containers
+  that run apps with sidecar processes.
+
+- Agent flare now includes output from the ``process`` and ``container`` checks.
+
+- Add the ``--cfgpath`` parameter in the Process Agent replacing ``--config``.
+
+- Add the ``check`` subcommand in the Process Agent replacing ``--check`` (``-check``).
+  Only warn once if the ``-version`` flag is used.
+
+- Adds human readable output of process and container data in the ``check`` command
+  for the Process Agent.
+
+- The Agent flare command now collects Process Agent performance profile data in the flare bundle when the ``--profile`` flag is used.
+
+
+.. _Release Notes_7.36.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- Deprecated ``process-agent --vesion`` in favor of ``process-agent version``.
+
+- The logs configuration ``use_http`` and ``use_tcp`` flags have been deprecated in favor of ``force_use_http`` and ``force_use_tcp``.
+
+- OTLP ingest: ``metrics.send_monotonic_counter`` has been deprecated in favor of ``metrics.sums.cumulative_monotonic_mode``. ``metrics.send_monotonic_counter`` will be removed in v7.37.
+
+- OTLP ingest: ``metrics.report_quantiles`` has been deprecated in favor of ``metrics.summaries.mode``. ``metrics.report_quantiles`` will be removed in v7.37 / v6.37.
+
+- Remove the unused ``--ddconfig`` (``-ddconfig``) parameter.
+  Deprecate the ``--config`` (``-config``) parameter (show warning on usage).
+
+- Deprecate the ``--check`` (``-check``) parameter (show warning on usage).
+
+
+.. _Release Notes_7.36.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Bump GoSNMP to fix incomplete support of SNMP v3 INFORMs.
+
+- APM: OTLP: Fixes an issue where attributes from different spans were merged leading to spans containing incorrect attributes.
+
+- APM: OTLP: Fixed an inconsistency where the error message was left empty in cases where the "exception" event was not found. Now, the span status message is used as a fallback.
+
+- Fixes an issue where some data coming from the Agent when running in ECS
+  Fargate did not have ``task_*``, ``ecs_cluster_name``, ``region``, and
+  ``availability_zone`` tags.
+
+- Collect the "0" value for resourceRequirements if it has been set
+
+- Fix a bug introduced in 7.33 that could prevent auto-discovery variable ``%%port_<name>%%`` to not be resolved properly.
+
+- Fix a panic in the Docker check when a failure happens early (when listing containers)
+
+- Fix missing ``docker.memory.limit`` (and ``docker.memory.in_use``) on Windows
+
+- Fixes a conflict preventing NPM/USM and the TCP Queue Length check from being enabled at the same time.
+
+- Fix permission of "/readsecret.sh" script in the agent Dockerfile when
+  executing with dd-agent user (for cluster check runners)
+
+- For Windows, fixes problem in upgrade wherein NPM driver is not automatically started by system probe.
+
+- Fix Gohai not being able to fetch network information when running on a non-English windows (when the output of
+  commands like ``ipconfig`` were not in English). ``gohai`` no longer relies on system commands but uses Golang ``net`` package
+  instead (same as Linux hosts).
+  This bug had the side effect of preventing network monitoring data to be linked back to the host.
+
+- Time-based metrics (for example, ``kubernetes_state.pod.age``, ``kubernetes_state.pod.uptime``) are now comparable in the Kubernetes state core check.
+
+- Fix a risk of panic when multiple KSM Core check instances run concurrently.
+
+- For Windows, includes NPM driver 1.3.2, which has a fix for a BSOD on system probe shutdown.
+
+- Adds new ``--json`` flag to ``check``. ``process-agent check --json`` now outputs valid json.
+
+- On Windows, includes NPM driver update which fixes performance
+  problem when host is under high connection load.
+
+- Previously, the Agent could not log the start or end of a check properly after the first five check runs. The Agent now can log the start and end of a check correctly.
+
+
+.. _Release Notes_7.36.0_Other Notes:
+
+Other Notes
+-----------
+
+- Include pre-generated trap db file in the ``conf.d/snmp.d/traps_db/`` folder.
+
+- Gohai dependency has been upgraded. This brings a newer version of gopsutil and a fix when fetching network
+  information in non-english Windows (see ``fixes`` section).
+
+
 .. _Release Notes_7.35.2:
 
 7.35.2 / 6.35.2

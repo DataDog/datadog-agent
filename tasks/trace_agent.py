@@ -67,7 +67,10 @@ def build(
     cmd = f"go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
     cmd += f"-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/trace-agent"
 
-    ctx.run(f"go generate -mod={go_mod} {REPO_PATH}/pkg/trace/info", env=env)
+    # go generate only works if you are in the module the target file is in, so we
+    # need to move into the pkg/trace module.
+    with ctx.cd("./pkg/trace"):
+        ctx.run(f"go generate -mod={go_mod} {REPO_PATH}/pkg/trace/info", env=env)
     ctx.run(cmd, env=env)
 
 

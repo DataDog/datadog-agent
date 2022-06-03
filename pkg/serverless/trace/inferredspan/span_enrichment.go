@@ -14,7 +14,7 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 )
 
-// EnrichInferredSpanWithAPIGatewayRESTEvent uses the parsed event
+// enrichInferredSpanWithAPIGatewayRESTEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a REST event.
 func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayRESTEvent(eventPayload events.APIGatewayProxyRequest) {
@@ -43,7 +43,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayRESTEvent(even
 	inferredSpan.IsAsync = eventPayload.Headers[InvocationType] == "Event"
 }
 
-// EnrichInferredSpanWithAPIGatewayHTTPEvent uses the parsed event
+// enrichInferredSpanWithAPIGatewayHTTPEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a HTTP event.
 func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayHTTPEvent(eventPayload events.APIGatewayV2HTTPRequest) {
@@ -75,7 +75,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayHTTPEvent(even
 	inferredSpan.IsAsync = eventPayload.Headers[InvocationType] == "Event"
 }
 
-// EnrichInferredSpanWithAPIGatewayWebsocketEvent uses the parsed event
+// enrichInferredSpanWithAPIGatewayWebsocketEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a Websocket event.
 func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayWebsocketEvent(eventPayload events.APIGatewayWebsocketProxyRequest) {

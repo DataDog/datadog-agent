@@ -27,6 +27,7 @@ import (
 	"github.com/moby/sys/mountinfo"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
+	"golang.org/x/time/rate"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
@@ -76,13 +77,13 @@ type Probe struct {
 	scrubber  *pconfig.DataScrubber
 
 	// Approvers / discarders section
-	erpc               *ERPC
-	discarderReq       *ERPCRequest
-	pidDiscarders      *pidDiscarders
-	inodeDiscarders    *inodeDiscarders
-	flushingDiscarders int64
-	approvers          map[eval.EventType]activeApprovers
-	discarderRate      *utils.RateLimiter
+	erpc                 *ERPC
+	discarderReq         *ERPCRequest
+	pidDiscarders        *pidDiscarders
+	inodeDiscarders      *inodeDiscarders
+	flushingDiscarders   int64
+	approvers            map[eval.EventType]activeApprovers
+	discarderRateLimiter *rate.Limiter
 
 	constantOffsets map[string]uint64
 
@@ -777,7 +778,8 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 		return nil
 	}
 
-	if !p.discarderRate.Allow(event.TimestampRaw) {
+	fakeTime := time.Unix(0, int64(event.TimestampRaw))
+	if !p.discarderRateLimiter.AllowN(fakeTime, 1) {
 		return nil
 	}
 
@@ -1179,17 +1181,17 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	ctx, cancel := context.WithCancel(context.Background())
 
 	p := &Probe{
-		config:         config,
-		approvers:      make(map[eval.EventType]activeApprovers),
-		manager:        ebpf.NewRuntimeSecurityManager(),
-		managerOptions: ebpf.NewDefaultOptions(),
-		ctx:            ctx,
-		cancelFnc:      cancel,
-		erpc:           erpc,
-		discarderReq:   newDiscarderRequest(),
-		tcPrograms:     make(map[NetDeviceKey]*manager.Probe),
-		statsdClient:   statsdClient,
-		discarderRate:  utils.NewRateLimiter(time.Second, 100),
+		config:               config,
+		approvers:            make(map[eval.EventType]activeApprovers),
+		manager:              ebpf.NewRuntimeSecurityManager(),
+		managerOptions:       ebpf.NewDefaultOptions(),
+		ctx:                  ctx,
+		cancelFnc:            cancel,
+		erpc:                 erpc,
+		discarderReq:         newDiscarderRequest(),
+		tcPrograms:           make(map[NetDeviceKey]*manager.Probe),
+		statsdClient:         statsdClient,
+		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second), 100),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {

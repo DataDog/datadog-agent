@@ -12,7 +12,6 @@ import (
 	"fmt"
 
 	"sync"
-	"time"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -124,8 +123,6 @@ func (m *Monitor) Start() error {
 	m.eventLoopWG.Add(1)
 	go func() {
 		defer m.eventLoopWG.Done()
-		report := time.NewTicker(30 * time.Second)
-		defer report.Stop()
 		for {
 			select {
 			case dataEvent, ok := <-m.batchCompletionHandler.DataChannel:
@@ -161,9 +158,6 @@ func (m *Monitor) Start() error {
 					requestStats: m.statkeeper.GetAndResetAllStats(),
 					telemetry:    delta,
 				}
-			case <-report.C:
-				transactions := m.batchManager.GetPendingTransactions()
-				m.process(transactions, nil)
 			}
 		}
 	}()

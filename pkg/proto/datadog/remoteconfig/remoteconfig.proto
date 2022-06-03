@@ -141,7 +141,7 @@ message GetStateConfigResponse {
 }
 
 
-message TracerPredicate {
+message TracerPredicateV1 {
 	string runtimeID = 1;
 	string service = 2;
 	string environment = 3;
@@ -151,6 +151,5 @@ message TracerPredicate {
 }
 
 message TracerPredicates {
-	uint64 version = 1;
-	repeated TracerPredicate tracer_predicates = 2;
+	repeated TracerPredicateV1 tracer_predicates_v1 = 1;
 }

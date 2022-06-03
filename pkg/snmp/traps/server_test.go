@@ -25,12 +25,12 @@ func TestStartFailure(t *testing.T) {
 	mockSender := mocksender.NewMockSender("snmp-traps-listener")
 	mockSender.SetupAcceptAll()
 
-	sucessServer, err := NewTrapServer("dummy_hostname", &DummyFormatter{}, mockSender)
+	sucessServer, err := NewTrapServer(config, &DummyFormatter{}, mockSender)
 	require.NoError(t, err)
 	require.NotNil(t, sucessServer)
 	defer sucessServer.Stop()
 
-	failedServer, err := NewTrapServer("dummy_hostname", &DummyFormatter{}, mockSender)
+	failedServer, err := NewTrapServer(config, &DummyFormatter{}, mockSender)
 	require.Nil(t, failedServer)
 	require.Error(t, err)
 }
