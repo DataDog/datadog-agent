@@ -25,8 +25,16 @@ const (
 	maxProcEntries = 131072
 )
 
-// allProbes contain the list of all the probes of the runtime security module
-var allProbes []*manager.Probe
+var (
+	// allProbes contain the list of all the probes of the runtime security module
+	allProbes []*manager.Probe
+	// EventsPerfRingBufferSize is the buffer size of the perf buffers used for events.
+	// PLEASE NOTE: for the perf ring buffer usage metrics to be accurate, the provided value must have the
+	// following form: (1 + 2^n) * pages. Checkout https://github.com/DataDog/ebpf for more.
+	EventsPerfRingBufferSize int = 257 * os.Getpagesize()
+	// EventsRingBufferSize is the default buffer size of the ring buffers for events.
+	EventsRingBufferSize int = 4096 * os.Getpagesize()
+)
 
 // AllProbes returns the list of all the probes of the runtime security module
 func AllProbes() []*manager.Probe {
@@ -181,7 +189,7 @@ func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize in
 	}
 	if supportsRingBuffers {
 		editors["events"] = manager.MapSpecEditor{
-			MaxEntries: uint32(4096 * os.Getpagesize()),
+			MaxEntries: uint32(EventsRingBufferSize),
 			Type:       ebpf.RingBuf,
 			EditorFlag: manager.EditType | manager.EditMaxEntries,
 		}
