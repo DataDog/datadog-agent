@@ -65,7 +65,7 @@ func NewTailer(source *config.LogSource, outputChan chan *message.Message) *Tail
 }
 
 // Start starts tailing the journal from a given offset.
-func (t *Tailer) Start(cursor string, journal *sdjournal.Journal) error {
+func (t *Tailer) Start(cursor string, journal JournalShim) error {
 	t.journal = journal
 	if err := t.setup(); err != nil {
 		t.source.Status.Error(err)
@@ -201,7 +201,11 @@ func (t *Tailer) tail() {
 			if t.shouldDrop(entry) {
 				continue
 			}
-			t.outputChan <- t.toMessage(entry)
+			select {
+			case <-t.stop:
+				return
+			case t.outputChan <- t.toMessage(entry):
+			}
 		}
 	}
 }

@@ -9,6 +9,8 @@
 package journald
 
 import (
+	"encoding/json"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,6 +21,57 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
+
+type MockJournal struct {
+	m              *sync.Mutex
+	addDisjunction int
+	seekTail       int
+	seekHead       int
+	cursor         string
+	entry          *sdjournal.JournalEntry
+	next           uint64
+}
+
+func (m *MockJournal) AddMatch(match string) error {
+	return nil
+}
+func (m *MockJournal) AddDisjunction() error {
+	return nil
+}
+func (m *MockJournal) SeekTail() error {
+	m.seekTail++
+	return nil
+}
+func (m *MockJournal) SeekHead() error {
+	m.seekHead++
+	return nil
+}
+func (m *MockJournal) Wait(timeout time.Duration) int {
+	return 0
+}
+func (m *MockJournal) SeekCursor(cursor string) error {
+	m.cursor = cursor
+	return nil
+}
+func (m *MockJournal) NextSkip(skip uint64) (uint64, error) {
+	return 0, nil
+}
+func (m *MockJournal) Close() error {
+	return nil
+}
+func (m *MockJournal) Next() (uint64, error) {
+	m.m.Lock()
+	defer m.m.Unlock()
+	return m.next, nil
+}
+func (m *MockJournal) GetEntry() (*sdjournal.JournalEntry, error) {
+	m.m.Lock()
+	defer m.m.Unlock()
+	return m.entry, nil
+}
+func (m *MockJournal) GetCursor() (string, error) {
+	return "", nil
+}
 
 func TestIdentifier(t *testing.T) {
 	var tailer *Tailer
@@ -335,4 +388,55 @@ func TestWrongTypeFromCache(t *testing.T) {
 	// Verify we have the value in our cache
 	_, hit := cache.Cache.Get(getImageCacheKey(containerID))
 	assert.True(t, hit)
+}
+
+func TestTailingMode(t *testing.T) {
+	m := &sync.Mutex{}
+
+	tests := []struct {
+		name                 string
+		config               *config.LogsConfig
+		cursor               string
+		expectedJournalState *MockJournal
+	}{
+		{"default no cursor", &config.LogsConfig{}, "", &MockJournal{m: m, seekTail: 1}},
+		{"default has cursor", &config.LogsConfig{}, "123", &MockJournal{m: m, cursor: "123"}},
+		{"has cursor - force head", &config.LogsConfig{TailingMode: "forceBeginning"}, "123", &MockJournal{m: m, seekHead: 1}},
+		{"has cursor - force tail", &config.LogsConfig{TailingMode: "forceEnd"}, "123", &MockJournal{m: m, seekTail: 1}},
+		{"no cursor - force head", &config.LogsConfig{TailingMode: "forceBeginning"}, "", &MockJournal{m: m, seekHead: 1}},
+		{"no cursor - force tail", &config.LogsConfig{TailingMode: "forceEnd"}, "", &MockJournal{m: m, seekTail: 1}},
+		{"no cursor - seek head", &config.LogsConfig{TailingMode: "beginning"}, "", &MockJournal{m: m, seekHead: 1}},
+		{"no cursor - seek tail", &config.LogsConfig{TailingMode: "end"}, "", &MockJournal{m: m, seekTail: 1}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockJournal := &MockJournal{m: m}
+			source := config.NewLogSource("", tt.config)
+			tailer := NewTailer(source, nil)
+			tailer.Start(tt.cursor, mockJournal)
+
+			assert.Equal(t, *tt.expectedJournalState, *mockJournal)
+			tailer.Stop()
+		})
+	}
+}
+
+func TestTailerCanTailJournal(t *testing.T) {
+
+	mockJournal := &MockJournal{m: &sync.Mutex{}, next: 1}
+	source := config.NewLogSource("", &config.LogsConfig{})
+	tailer := NewTailer(source, make(chan *message.Message, 1))
+
+	mockJournal.entry = &sdjournal.JournalEntry{Fields: map[string]string{"MESSAGE": "foobar"}}
+
+	tailer.Start("", mockJournal)
+
+	resultMessage := <-tailer.outputChan
+
+	var parsedContent map[string]interface{}
+	json.Unmarshal([]byte(resultMessage.Content), &parsedContent)
+
+	assert.Equal(t, parsedContent["message"], "foobar")
+	tailer.Stop()
 }
