@@ -350,18 +350,15 @@ func (t *Tracer) addProcessTags(c *network.ConnectionStats) {
 	}
 
 	addTag := func(k, v string) {
+		if v == "" {
+			return
+		}
 		c.Tags[k+":"+v] = struct{}{}
 	}
 
-	if v, ok := p.Envs["DD_ENV"]; ok && v != "" {
-		addTag("env", v)
-	}
-	if v, ok := p.Envs["DD_VERSION"]; ok && v != "" {
-		addTag("version", v)
-	}
-	if v, ok := p.Envs["DD_SERVICE"]; ok && v != "" {
-		addTag("service", v)
-	}
+	addTag("env", p.Envs["DD_ENV"])
+	addTag("version", p.Envs["DD_VERSION"])
+	addTag("service", p.Envs["DD_SERVICE"])
 }
 
 func (t *Tracer) Stop() {
