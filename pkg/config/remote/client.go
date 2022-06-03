@@ -51,21 +51,18 @@ type Client struct {
 
 // NewClient creates a new client
 func NewClient(agentName string, agentVersion string, products []data.Product, pollInterval time.Duration) (*Client, error) {
-	token, err := security.FetchAuthToken()
-	if err != nil {
-		return nil, errors.Wrap(err, "could not acquire agent auth token")
-	}
 	ctx, close := context.WithCancel(context.Background())
-	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
-	}
-	ctx = metadata.NewOutgoingContext(ctx, md)
 	grpcClient, err := grpc.GetDDAgentSecureClient(ctx)
 	if err != nil {
 		close()
 		return nil, err
 	}
-	repository := remoteconfig.NewRepository(meta.RootsDirector().Last())
+	repository, err := remoteconfig.NewRepository(meta.RootsDirector().Last())
+	if err != nil {
+		close()
+		return nil, err
+	}
+
 	return &Client{
 		ID:           generateID(),
 		startupSync:  sync.Once{},
@@ -122,11 +119,23 @@ func (c *Client) pollLoop() {
 // applies that update, informing any registered listeners of any config state changes
 // that occured.
 func (c *Client) update() error {
+	// This client is running, at the moment, in the trace-agent or the security-agent. The auth token is handled
+	// by the core-agent, running independently. It's not guaranteed it starts before us, or that if it restarts that
+	// the auth token remains the same. Thus we need to do this every request.
+	token, err := security.FetchAuthToken()
+	if err != nil {
+		return errors.Wrap(err, "could not acquire agent auth token")
+	}
+	md := metadata.MD{
+		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+	}
+	ctx := metadata.NewOutgoingContext(c.ctx, md)
+
 	req, err := c.newUpdateRequest()
 	if err != nil {
 		return err
 	}
-	response, err := c.grpc.ClientGetConfigs(c.ctx, req)
+	response, err := c.grpc.ClientGetConfigs(ctx, req)
 	if err != nil {
 		return err
 	}
