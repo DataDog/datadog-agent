@@ -47,7 +47,7 @@ func recordedResponse(t *testing.T, rec *httptest.ResponseRecorder) string {
 }
 
 func TestTelemetryBasicProxyRequest(t *testing.T) {
-	var endpointCalled *atomic.Uint64 = atomic.NewUint64(0)
+	endpointCalled := atomic.NewUint64(0)
 	assert := assert.New(t)
 
 	srv := assertingServer(t, func(req *http.Request, body []byte) error {
@@ -83,7 +83,7 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 }
 
 func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
-	var endpointCalled *atomic.Uint64 = atomic.NewUint64(0)
+	endpointCalled := atomic.NewUint64(0)
 	assert := assert.New(t)
 
 	mainBackend := assertingServer(t, func(req *http.Request, body []byte) error {

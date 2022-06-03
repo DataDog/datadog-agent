@@ -23,7 +23,7 @@ import (
 )
 
 func TestOOMKill(t *testing.T) {
-	var kills *atomic.Uint64 = atomic.NewUint64(0)
+	kills := atomic.NewUint64(0)
 
 	defer func(old func(string, ...interface{})) { killProcess = old }(killProcess)
 	killProcess = func(format string, a ...interface{}) {
