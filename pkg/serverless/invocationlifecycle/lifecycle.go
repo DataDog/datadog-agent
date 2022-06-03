@@ -78,9 +78,14 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 
 	lambdaPayloadString := parseLambdaPayload(startDetails.InvokeEventRawPayload)
 
-	parsedPayload, err := trigger.Unmarshal(lambdaPayloadString)
+	eventPayload, err := trigger.Unmarshal(lambdaPayloadString)
 	if err != nil {
 		log.Debugf("[lifecycle] Failed to parse event payload")
+	}
+
+	eventType, err := trigger.GetEventType(eventPayload)
+	if err != nil {
+		log.Debugf("[lifecycle] Failed to extract event type")
 	}
 
 	// Singleton instance of request handler
@@ -99,10 +104,10 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 			if err != nil {
 				log.Debug("[lifecycle] Attempting to create inferred span")
 			}
-			lp.requestHandler.inferredSpanContext.DispatchInferredSpan() // FOR IVAN // )
+			lp.requestHandler.inferredSpanContext.DispatchInferredSpan(eventType, eventPayload)
 		}
 
-		startExecutionSpan(lp.requestHandler.executionContext, inferredSpan, startDetails.StartTime, lambdaPayloadString, startDetails.InvokeEventHeaders, lp.InferredSpansEnabled)
+		startExecutionSpan(lp.requestHandler.executionContext, lp.requestHandler.inferredSpanContext, startDetails.StartTime, lambdaPayloadString, startDetails.InvokeEventHeaders, lp.InferredSpansEnabled)
 	}
 
 	// Add trigger type stuff here
@@ -121,9 +126,9 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 
 		if lp.InferredSpansEnabled {
 			log.Debug("[lifecycle] Attempting to complete the inferred span")
-			if inferredSpan.Span.Start != 0 {
-				inferredSpan.CompleteInferredSpan(lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, lp.requestHandler.executionContext.TraceID, lp.requestHandler.executionContext.SamplingPriority)
-				log.Debugf("[lifecycle] The inferred span attributes are: %v", inferredSpan)
+			if lp.requestHandler.inferredSpanContext.Span.Start != 0 {
+				lp.requestHandler.inferredSpanContext.CompleteInferredSpan(lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, lp.requestHandler.executionContext.TraceID, lp.requestHandler.executionContext.SamplingPriority)
+				log.Debugf("[lifecycle] The inferred span attributes are: %v", lp.requestHandler.inferredSpanContext)
 			} else {
 				log.Debug("[lifecyle] Failed to complete inferred span due to a missing start time. Please check that the event payload was received with the appropriate data")
 			}

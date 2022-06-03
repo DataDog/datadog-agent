@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 
 	"github.com/stretchr/testify/assert"
@@ -102,7 +101,7 @@ func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
 
 	assert.NotEqual(t, 0, testProcessor.GetExecutionContext().SpanID)
 	assert.NotEqual(t, 0, testProcessor.GetExecutionContext().TraceID)
-	assert.NotEqual(t, startInvocationTime, testProcessor.GetExecutionContext().startTime)
+	assert.Equal(t, startInvocationTime, testProcessor.GetExecutionContext().startTime)
 }
 
 func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
@@ -228,12 +227,15 @@ func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 		},
 	}
 
-	inferredSpan.Span = &pb.Span{TraceID: 123, SpanID: 3, Start: startInferredSpan.UnixNano()}
+	testProcessor.requestHandler.CreateNewInferredSpan(startInferredSpan)
+	testProcessor.requestHandler.inferredSpanContext.Span.TraceID = 123
+	testProcessor.requestHandler.inferredSpanContext.Span.SpanID = 3
+	testProcessor.requestHandler.inferredSpanContext.Span.Start = startInferredSpan.UnixNano()
 
 	testProcessor.OnInvokeEnd(&endDetails)
 
 	completedInferredSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
-	assert.Equal(t, inferredSpan.Span.Start, completedInferredSpan.Start)
+	assert.Equal(t, testProcessor.requestHandler.inferredSpanContext.Span.Start, completedInferredSpan.Start)
 }
 
 func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
@@ -250,7 +252,6 @@ func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
-	startInferredSpan := int64(0)
 	startInvocationTime := time.Now()
 	duration := 1 * time.Second
 	endInvocationTime := startInvocationTime.Add(duration)
@@ -274,7 +275,9 @@ func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
 		},
 	}
 
-	inferredSpan.Span = &pb.Span{TraceID: 123, SpanID: 3, Start: startInferredSpan}
+	testProcessor.requestHandler.CreateNewInferredSpan(time.Time{})
+	testProcessor.requestHandler.inferredSpanContext.Span.TraceID = 123
+	testProcessor.requestHandler.inferredSpanContext.Span.SpanID = 3
 
 	testProcessor.OnInvokeEnd(&endDetails)
 

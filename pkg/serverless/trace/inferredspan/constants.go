@@ -41,6 +41,8 @@ const (
 	SNSType    = "aws:sns"
 	WEBSOCKET  = "websocket"
 	UNKNOWN    = "unknown"
+
+	InvocationType = "X-Amz-Invocation-Type"
 )
 
 type APIGatewayRestEvent struct {
