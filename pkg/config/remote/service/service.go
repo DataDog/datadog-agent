@@ -301,12 +301,46 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 		}
 	}
 
+	// matchedClientConfigs contains all of the paths of files that passed client predicates for this client
+	// but it doesn't filter based on product. We can't just look at targetFiles calculated eralier either,
+	// because ClientConfigs needs to contain ALL of the files for a client EVEN IF the client is already
+	// caching it. (and thus we don't need it to be in TargetFiles)
+	filteredPaths, err := filterPathsByProduct(matchedClientConfigs, request.Client.Products)
+	if err != nil {
+		return nil, err
+	}
+
 	return &pbgo.ClientGetConfigsResponse{
 		Roots:         roots,
 		Targets:       targetsRaw,
 		TargetFiles:   filteredFiles,
-		ClientConfigs: matchedClientConfigs,
+		ClientConfigs: filteredPaths,
 	}, nil
+}
+
+// filterPathsByProduct filters the list of config paths to a list that only contains paths
+// for the provided list of products
+func filterPathsByProduct(paths []string, products []string) ([]string, error) {
+	productSet := make(map[string]struct{})
+	for _, product := range products {
+		productSet[product] = struct{}{}
+	}
+
+	filteredPaths := make([]string, 0, len(paths))
+	for _, path := range paths {
+
+		configPathMeta, err := rdata.ParseConfigPath(path)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, ok := productSet[configPathMeta.Product]; ok {
+			filteredPaths = append(filteredPaths, path)
+		}
+	}
+
+	return filteredPaths, nil
+
 }
 
 // ConfigGetState returns the state of the configuration and the director repos in the local store
