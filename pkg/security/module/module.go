@@ -169,7 +169,7 @@ func (m *Module) Start() error {
 	}()
 
 	if m.config.RemoteConfigurationEnabled {
-		c, err := remote.NewClient("security-agent", []data.Product{data.ProductCWSDD})
+		c, err := remote.NewClient("security-agent", version.AgentVersion, []data.Product{data.ProductCWSDD}, time.Second*1)
 		if err != nil {
 			return err
 		}
