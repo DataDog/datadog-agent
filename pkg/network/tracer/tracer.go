@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/stats"
@@ -86,6 +87,8 @@ type Tracer struct {
 	sysctlUDPConnStreamTimeout *sysctl.Int
 
 	statsReporter stats.Reporter
+
+	processCache *processCache
 }
 
 func NewTracer(config *config.Config) (*Tracer, error) {
@@ -172,13 +175,29 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		ebpfTracer:                 ebpfTracer,
 	}
 
+	defer func() {
+		if err != nil {
+			tr.Stop()
+		}
+	}()
+
 	if tr.statsReporter, err = stats.NewReporter(tr); err != nil {
 		return nil, fmt.Errorf("could not initialize stats: %w", err)
 	}
 
-	err = ebpfTracer.Start(tr.storeClosedConnections)
-	if err != nil {
-		tr.Stop()
+	if config.EnableProcessEventMonitoring {
+		if err = events.Init(); err != nil {
+			return nil, fmt.Errorf("could not initialize event monitoring: %w", err)
+		}
+
+		if tr.processCache, err = newProcessCache(config.MaxProcessesTracked); err != nil {
+			return nil, fmt.Errorf("could not create process cache; %w", err)
+		}
+
+		events.RegisterHandler(tr.processCache.handleProcessEvent)
+	}
+
+	if err = ebpfTracer.Start(tr.storeClosedConnections); err != nil {
 		return nil, fmt.Errorf("could not start ebpf manager: %s", err)
 	}
 
@@ -306,12 +325,43 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 		if cs.IPTranslation != nil {
 			t.conntracker.DeleteTranslation(*cs)
 		}
+
+		t.addProcessTags(cs)
 	}
 
 	connections = connections[rejected:]
 	atomic.AddInt64(&t.closedConns, int64(len(connections)))
 	atomic.AddInt64(&t.skippedConns, int64(rejected))
 	t.state.StoreClosedConnections(connections)
+}
+
+func (t *Tracer) addProcessTags(c *network.ConnectionStats) {
+	if t.processCache == nil {
+		return
+	}
+
+	p, ok := t.processCache.Process(c.Pid)
+	if !ok {
+		return
+	}
+
+	if c.Tags == nil {
+		c.Tags = make(map[string]interface{})
+	}
+
+	addTag := func(k, v string) {
+		c.Tags[k+":"+v] = struct{}{}
+	}
+
+	if v, ok := p.Envs["DD_ENV"]; ok && v != "" {
+		addTag("env", v)
+	}
+	if v, ok := p.Envs["DD_VERSION"]; ok && v != "" {
+		addTag("version", v)
+	}
+	if v, ok := p.Envs["DD_SERVICE"]; ok && v != "" {
+		addTag("service", v)
+	}
 }
 
 func (t *Tracer) Stop() {
@@ -488,6 +538,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 		// since gateway resolution connects to the ec2 metadata
 		// endpoint)
 		t.connVia(&active[i])
+		t.addProcessTags(&active[i])
 	}
 
 	entryCount := len(active)
@@ -783,6 +834,15 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 		RootNS:  rootNS,
 		Entries: table,
 	}, nil
+}
+
+// DebugDumpProcessCache dumps the process cache
+func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error) {
+	if t.processCache != nil {
+		return t.processCache.dump()
+	}
+
+	return nil, nil
 }
 
 func newHTTPMonitor(supported bool, c *config.Config, tracer connection.Tracer, offsets []manager.ConstantEditor) *http.Monitor {

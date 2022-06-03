@@ -165,6 +165,10 @@ func InitSystemProbeConfig(cfg Config) {
 
 	// service monitoring
 	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
+
+	// process event monitoring
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_process_event_monitoring"), false)
+	cfg.BindEnv(join(netNS, "max_processes_tracked"))
 }
 
 func join(pieces ...string) string {

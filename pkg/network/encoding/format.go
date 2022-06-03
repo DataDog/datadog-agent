@@ -81,7 +81,7 @@ func FormatConnection(
 		c.HttpAggregations, _ = proto.Marshal(httpStats)
 	}
 
-	conn.Tags |= tags
+	conn.StaticTags |= tags
 	c.Tags = formatTags(tagsSet, conn)
 
 	return c
@@ -233,7 +233,10 @@ func routeKey(v *network.Via) string {
 }
 
 func formatTags(tagsSet *network.TagsSet, c network.ConnectionStats) (tagsIdx []uint32) {
-	for _, tag := range network.GetStaticTags(c.Tags) {
+	for _, tag := range network.GetStaticTags(c.StaticTags) {
+		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
+	}
+	for tag, _ := range c.Tags {
 		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
 	}
 	return tagsIdx

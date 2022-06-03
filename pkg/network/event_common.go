@@ -227,7 +227,8 @@ type ConnectionStats struct {
 	Family           ConnectionFamily
 	Direction        ConnectionDirection
 	SPortIsEphemeral EphemeralPortType
-	Tags             uint64
+	StaticTags       uint64
+	Tags             map[string]interface{}
 
 	IntraHost bool
 	IsAssured bool

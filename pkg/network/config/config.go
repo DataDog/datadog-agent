@@ -25,6 +25,8 @@ const (
 
 	defaultOffsetThreshold = 400
 	maxOffsetThreshold     = 3000
+
+	defaultMaxProcessesTracked = 1024
 )
 
 // Config stores all flags used by the network eBPF tracer
@@ -161,6 +163,12 @@ type Config struct {
 
 	// HTTP replace rules
 	HTTPReplaceRules []*ReplaceRule
+
+	// EnableProcessEventMonitoring enables consuming CWS process monitoring events from the runtime security module
+	EnableProcessEventMonitoring bool
+
+	// MaxProcessesTracked is the maximum number of processes whose information is stored in the network module
+	MaxProcessesTracked int
 }
 
 func join(pieces ...string) string {
@@ -221,6 +229,9 @@ func New() *Config {
 		DriverBufferSize:     cfg.GetInt(join(spNS, "windows.driver_buffer_size")),
 
 		RecordedQueryTypes: cfg.GetStringSlice(join(netNS, "dns_recorded_query_types")),
+
+		EnableProcessEventMonitoring: cfg.GetBool(join(netNS, "enable_process_event_monitoring")),
+		MaxProcessesTracked:          cfg.GetInt(join(netNS, "max_processes_tracked")),
 	}
 
 	if !cfg.IsSet(join(spNS, "max_closed_connections_buffered")) {
@@ -268,6 +279,14 @@ func New() *Config {
 		if !cfg.IsSet(join(netNS, "enable_https_monitoring")) {
 			cfg.Set(join(netNS, "enable_https_monitoring"), true)
 			c.EnableHTTPSMonitoring = true
+		}
+	}
+
+	if c.EnableProcessEventMonitoring {
+		log.Info("process event monitoring enabled")
+
+		if c.MaxProcessesTracked == 0 {
+			c.MaxProcessesTracked = defaultMaxProcessesTracked
 		}
 	}
 
