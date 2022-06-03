@@ -101,10 +101,10 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 
 	if !lp.DetectLambdaLibrary() {
 		if lp.InferredSpansEnabled {
+			err := lp.requestHandler.inferredSpanContext.DispatchInferredSpan(eventType, eventPayload)
 			if err != nil {
-				log.Debug("[lifecycle] Attempting to create inferred span")
+				log.Debug("[lifecycle] Error dispatching inferred span")
 			}
-			lp.requestHandler.inferredSpanContext.DispatchInferredSpan(eventType, eventPayload)
 		}
 
 		startExecutionSpan(lp.requestHandler.executionContext, lp.requestHandler.inferredSpanContext, startDetails.StartTime, lambdaPayloadString, startDetails.InvokeEventHeaders, lp.InferredSpansEnabled)

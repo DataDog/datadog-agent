@@ -147,7 +147,7 @@ func TestStartExecutionSpanWithNoHeadersAndInferredSpan(t *testing.T) {
 	inferredSpan.Span = &pb.Span{
 		TraceID: 2350923428932752492,
 		SpanID:  1304592378509342580,
-		Start:   int64(startTime.UnixNano()),
+		Start:   startTime.UnixNano(),
 	}
 	startExecutionSpan(currentExecutionInfo, inferredSpan, startTime, testString, LambdaInvokeEventHeaders{}, true)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
@@ -163,7 +163,7 @@ func TestStartExecutionSpanWithHeadersAndInferredSpan(t *testing.T) {
 	inferredSpan := &inferredspan.InferredSpan{}
 	inferredSpan.Span = &pb.Span{
 		SpanID: 1304592378509342580,
-		Start:  int64(startTime.UnixNano()),
+		Start:  startTime.UnixNano(),
 	}
 	startExecutionSpan(currentExecutionInfo, inferredSpan, startTime, testString, LambdaInvokeEventHeaders{}, true)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)

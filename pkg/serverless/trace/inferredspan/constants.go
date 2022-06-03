@@ -12,7 +12,6 @@ const (
 	connectionID     = "connection_id"
 	endpoint         = "endpoint"
 	eventType        = "event_type"
-	http             = "http"
 	httpURL          = "http.url"
 	httpMethod       = "http.method"
 	httpProtocol     = "http.protocol"
@@ -30,12 +29,7 @@ const (
 	metadataType     = "type"
 
 	// Below are used for parsing and setting the event sources
-	apiGateway = "apigateway"
-	httpAPI    = "http-api"
-	sns        = "sns"
-	snsEvent   = "aws:sns"
-	websocket  = "websocket"
-	unknown    = "unknown"
+	sns = "sns"
 
 	// invocationType is used to look for the invocation type
 	// in the payload headers
