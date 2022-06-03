@@ -389,7 +389,9 @@ func (m *Module) Close() {
 	close(m.sigupChan)
 
 	// stop remote config provider
-	m.rcPolicyProvider.Stop()
+	if m.rcPolicyProvider != nil {
+		m.rcPolicyProvider.Stop()
+	}
 
 	// close the policy loader and all the related providers
 	m.policyLoader.Close()
