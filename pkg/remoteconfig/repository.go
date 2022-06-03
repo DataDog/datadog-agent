@@ -115,7 +115,7 @@ func (r *Repository) Update(update Update) ([]string, error) {
 	//
 	// Note: This goes further than the RFC requires and validates the TUF targets metadata's signatures.
 	// This is NOT required for most clients per the RFC.
-	updatedTargets, err := r.tufRootsClient.validateTargets(update.TUFTargets)
+	updatedTargets, err := tmpRootClient.validateTargets(update.TUFTargets)
 	if err != nil {
 		return nil, err
 	}

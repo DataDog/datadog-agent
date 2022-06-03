@@ -23,7 +23,7 @@ type testArtifacts struct {
 	repository     *Repository
 }
 
-func newTestRootKey() keys.Signer {
+func newTestKey() keys.Signer {
 	key, err := keys.GenerateEd25519Key()
 	if err != nil {
 		panic(err)
@@ -32,23 +32,29 @@ func newTestRootKey() keys.Signer {
 	return key
 }
 
-// For now we'll just use the same key for all the roles. This isn't
-// secure for production but we're not trying to test this aspect of TUF here.
-func buildTestRoot(key keys.Signer, version int64) ([]byte, *data.Root) {
+// For now we'll just use root for timestamp and snapshot, since we're not actually validating this
+// in tracer clients that will use the `Repository`. We'll allow for a distinct targets role to make
+// testing easier
+func buildTestRoot(rootKey keys.Signer, targetsKey keys.Signer, version int64) ([]byte, *data.Root) {
 	root := data.NewRoot()
 	root.Version = version
 	root.Expires = time.Now().Add(24 * time.Hour * 365 * 10)
-	root.AddKey(key.PublicData())
-	role := &data.Role{
-		KeyIDs:    key.PublicData().IDs(),
+	root.AddKey(rootKey.PublicData())
+	root.AddKey(targetsKey.PublicData())
+	rootRole := &data.Role{
+		KeyIDs:    rootKey.PublicData().IDs(),
 		Threshold: 1,
 	}
-	root.Roles["root"] = role
-	root.Roles["targets"] = role
-	root.Roles["timestamp"] = role
-	root.Roles["snapshot"] = role
+	root.Roles["root"] = rootRole
+	targetsRole := &data.Role{
+		KeyIDs:    targetsKey.PublicData().IDs(),
+		Threshold: 1,
+	}
+	root.Roles["targets"] = targetsRole
+	root.Roles["timestamp"] = rootRole
+	root.Roles["snapshot"] = rootRole
 
-	rootSigners := []keys.Signer{key}
+	rootSigners := []keys.Signer{rootKey}
 	signedRoot, err := sign.Marshal(&root, rootSigners...)
 	if err != nil {
 		panic(err)
@@ -62,8 +68,8 @@ func buildTestRoot(key keys.Signer, version int64) ([]byte, *data.Root) {
 }
 
 func newTestArtifacts() testArtifacts {
-	key := newTestRootKey()
-	signedBaseRoot, root := buildTestRoot(key, 1)
+	key := newTestKey()
+	signedBaseRoot, root := buildTestRoot(key, key, 1)
 	repository, err := NewRepository(signedBaseRoot)
 	if err != nil {
 		panic(err)

@@ -195,7 +195,7 @@ func TestUpdateNewConfigThenModify(t *testing.T) {
 func TestUpdateWithIncorrectlySignedTargets(t *testing.T) {
 	ta := newTestArtifacts()
 
-	fakeKey := newTestRootKey()
+	fakeKey := newTestKey()
 
 	file := newCWSDDFile()
 	path, _, data := addCWSDDFile("test", 1, file, ta.targets)
@@ -267,12 +267,15 @@ func TestUpdateWithMalformedExtraRoot(t *testing.T) {
 
 func TestUpdateWithNewRoot(t *testing.T) {
 	ta := newTestArtifacts()
+	newTargetsKey := newTestKey()
 
-	newRootRaw, _ := buildTestRoot(ta.key, 2)
+	// The new root will use a new targets key to make sure that we use the
+	// updated root data for validation of the update payload
+	newRootRaw, _ := buildTestRoot(ta.key, newTargetsKey, 2)
 
 	file := newCWSDDFile()
 	path, hashes, data := addCWSDDFile("test", 1, file, ta.targets)
-	b := signTargets(ta.key, ta.targets)
+	b := signTargets(newTargetsKey, ta.targets)
 
 	update := Update{
 		TUFRoots:      [][]byte{newRootRaw},
@@ -311,7 +314,6 @@ func TestUpdateWithNewRoot(t *testing.T) {
 	assert.Equal(t, path, cached.Path)
 	assert.EqualValues(t, len(data), cached.Length)
 	assertHashesEqual(t, hashes, cached.Hashes)
-
 }
 
 func TestClientOnlyTakesActionOnFilesInClientConfig(t *testing.T) {
