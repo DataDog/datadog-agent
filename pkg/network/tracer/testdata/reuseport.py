@@ -10,7 +10,7 @@ children = []
 port = random.randrange(32768, 65535)
 print(port)
 count = range(2)
-for x in count:
+for _x in count:
     child = os.fork()
     if child:
         children.append(child)
@@ -26,7 +26,7 @@ for x in count:
 
 time.sleep(1)
 
-for x in count:
+for _x in count:
     c = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM, proto=socket.IPPROTO_UDP)
     c.sendto(b'foobar', ("localhost", port))
     c.recvmsg(1024)
