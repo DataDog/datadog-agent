@@ -29,7 +29,7 @@ func NewDatadogClient() (DatadogClient, error) {
 	if config.Datadog.IsSet("external_metrics_provider.endpoints") {
 		var endpoints []config.Endpoint
 		if err := config.Datadog.UnmarshalKey("external_metrics_provider.endpoints", &endpoints); err != nil {
-			return nil, log.Errorf("could not parse external_metrics_provider.endpoints: %w", err)
+			return nil, log.Errorf("could not parse external_metrics_provider.endpoints: %v", err)
 		}
 
 		return newDatadogFallbackClient(endpoints)

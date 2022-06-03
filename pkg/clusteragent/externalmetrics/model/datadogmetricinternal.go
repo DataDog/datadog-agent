@@ -239,7 +239,7 @@ func (d *DatadogMetricInternal) newCondition(status bool, updateTime metav1.Time
 func (d *DatadogMetricInternal) resolveQuery(query string) {
 	resolvedQuery, err := resolveQuery(query)
 	if err != nil {
-		log.Errorf("Unable to resolve DatadogMetric query %q: %w", d.query, err)
+		log.Errorf("Unable to resolve DatadogMetric query %q: %v", d.query, err)
 		d.Valid = false
 		d.Error = fmt.Errorf("Cannot resolve query: %v", err)
 		d.UpdateTime = time.Now().UTC()
