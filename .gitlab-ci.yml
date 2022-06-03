@@ -687,11 +687,29 @@ variables:
 # Default kitchen tests are also run on dev branches
 # In that case, the target OS versions is a subset of the
 # available versions, stored in DEFAULT_KITCHEN_OSVERS
+.on_default_kitchen_tests_a6:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_kitchen
+  - <<: *if_default_kitchen
+    variables:
+      KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
+
 .on_default_kitchen_tests_a7:
   - <<: *if_not_version_7
     when: never
   - <<: *if_kitchen
   - <<: *if_default_kitchen
+    variables:
+      KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
+
+.on_default_kitchen_tests_a6_always:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_kitchen
+    when: always
+  - <<: *if_default_kitchen
+    when: always
     variables:
       KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
 
