@@ -47,22 +47,14 @@ func (trc *tufRootsClient) clone() (*tufRootsClient, error) {
 	return newTufRootsClient(root)
 }
 
-func (trc *tufRootsClient) updateRoots(newRoots [][]byte) (*data.Root, error) {
+func (trc *tufRootsClient) updateRoots(newRoots [][]byte) error {
 	if len(newRoots) == 0 {
-		latestRoot, err := trc.latestRoot()
-		if err != nil {
-			return nil, err
-		}
-		return latestRoot, nil
+		return nil
 	}
 
 	trc.rootRemoteStore.roots = append(trc.rootRemoteStore.roots, newRoots...)
-	err := trc.rootClient.UpdateRoots()
-	if err != nil {
-		return nil, err
-	}
 
-	return trc.latestRoot()
+	return trc.rootClient.UpdateRoots()
 }
 
 func (trc *tufRootsClient) latestRoot() (*data.Root, error) {
@@ -82,6 +74,37 @@ func (trc *tufRootsClient) latestRootRaw() ([]byte, error) {
 	rawRoot := metas["root.json"]
 
 	return rawRoot, nil
+}
+
+func (trc *tufRootsClient) validateTargets(rawTargets []byte) (*data.Targets, error) {
+	root, err := trc.latestRoot()
+	if err != nil {
+		return nil, err
+	}
+
+	db := verify.NewDB()
+	for _, key := range root.Keys {
+		for _, id := range key.IDs() {
+			if err := db.AddKey(id, key); err != nil {
+				return nil, err
+			}
+		}
+	}
+	targetsRole, hasRoleTargets := root.Roles["targets"]
+	if !hasRoleTargets {
+		return nil, fmt.Errorf("root is missing a targets role")
+	}
+	role := &data.Role{Threshold: targetsRole.Threshold, KeyIDs: targetsRole.KeyIDs}
+	if err := db.AddRole("targets", role); err != nil {
+		return nil, fmt.Errorf("could not add targets role to db: %v", err)
+	}
+	var targets data.Targets
+	err = db.Unmarshal(rawTargets, &targets, "targets", 0)
+	if err != nil {
+		return nil, err
+	}
+
+	return &targets, nil
 }
 
 type rootClientRemoteStore struct {
@@ -166,31 +189,6 @@ func validateTargetFileHash(targetMeta data.TargetFileMeta, targetFile []byte) e
 		return err
 	}
 	return nil
-}
-
-func unmarshalTargets(root *data.Root, rawTargets []byte) (*data.Targets, error) {
-	db := verify.NewDB()
-	for _, key := range root.Keys {
-		for _, id := range key.IDs() {
-			if err := db.AddKey(id, key); err != nil {
-				return nil, err
-			}
-		}
-	}
-	targetsRole, hasRoleTargets := root.Roles["targets"]
-	if !hasRoleTargets {
-		return nil, fmt.Errorf("root is missing a targets role")
-	}
-	role := &data.Role{Threshold: targetsRole.Threshold, KeyIDs: targetsRole.KeyIDs}
-	if err := db.AddRole("targets", role); err != nil {
-		return nil, fmt.Errorf("could not add targets role to db: %v", err)
-	}
-	var targets data.Targets
-	err := db.Unmarshal(rawTargets, &targets, "targets", 0)
-	if err != nil {
-		return nil, err
-	}
-	return &targets, nil
 }
 
 func unsafeUnmarshalRoot(raw []byte) (*data.Root, error) {

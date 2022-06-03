@@ -106,7 +106,7 @@ func (r *Repository) Update(update Update) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	latestRoot, err := tmpRootClient.updateRoots(update.TUFRoots)
+	err = tmpRootClient.updateRoots(update.TUFRoots)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func (r *Repository) Update(update Update) ([]string, error) {
 	//
 	// Note: This goes further than the RFC requires and validates the TUF targets metadata's signatures.
 	// This is NOT required for most clients per the RFC.
-	updatedTargets, err := unmarshalTargets(latestRoot, update.TUFTargets)
+	updatedTargets, err := r.tufRootsClient.validateTargets(update.TUFTargets)
 	if err != nil {
 		return nil, err
 	}
