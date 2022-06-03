@@ -20,8 +20,8 @@ import (
 	"github.com/coreos/go-systemd/sdjournal"
 )
 
-// JournalShim interfacae to wrap the functions defined in sdjournal.
-type JournalShim interface {
+// Journal interfacae to wrap the functions defined in sdjournal.
+type Journal interface {
 	AddMatch(match string) error
 	AddDisjunction() error
 	SeekTail() error
@@ -45,7 +45,7 @@ const (
 type Tailer struct {
 	source       *config.LogSource
 	outputChan   chan *message.Message
-	journal      JournalShim
+	journal      Journal
 	excludeUnits struct {
 		system map[string]bool
 		user   map[string]bool
@@ -65,7 +65,7 @@ func NewTailer(source *config.LogSource, outputChan chan *message.Message) *Tail
 }
 
 // Start starts tailing the journal from a given offset.
-func (t *Tailer) Start(cursor string, journal JournalShim) error {
+func (t *Tailer) Start(cursor string, journal Journal) error {
 	t.journal = journal
 	if err := t.setup(); err != nil {
 		t.source.Status.Error(err)

@@ -400,6 +400,8 @@ func TestTailingMode(t *testing.T) {
 	}{
 		{"default no cursor", &config.LogsConfig{}, "", &MockJournal{m: m, seekTail: 1}},
 		{"default has cursor", &config.LogsConfig{}, "123", &MockJournal{m: m, cursor: "123"}},
+		{"has cursor - seek head", &config.LogsConfig{TailingMode: "beginning"}, "123", &MockJournal{m: m, cursor: "123"}},
+		{"has cursor - seek tail", &config.LogsConfig{TailingMode: "end"}, "123", &MockJournal{m: m, cursor: "123"}},
 		{"has cursor - force head", &config.LogsConfig{TailingMode: "forceBeginning"}, "123", &MockJournal{m: m, seekHead: 1}},
 		{"has cursor - force tail", &config.LogsConfig{TailingMode: "forceEnd"}, "123", &MockJournal{m: m, seekTail: 1}},
 		{"no cursor - force head", &config.LogsConfig{TailingMode: "forceBeginning"}, "", &MockJournal{m: m, seekHead: 1}},
