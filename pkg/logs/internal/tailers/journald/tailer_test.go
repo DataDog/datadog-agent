@@ -23,13 +23,12 @@ import (
 )
 
 type MockJournal struct {
-	m              *sync.Mutex
-	addDisjunction int
-	seekTail       int
-	seekHead       int
-	cursor         string
-	entry          *sdjournal.JournalEntry
-	next           uint64
+	m        *sync.Mutex
+	seekTail int
+	seekHead int
+	cursor   string
+	entry    *sdjournal.JournalEntry
+	next     uint64
 }
 
 func (m *MockJournal) AddMatch(match string) error {
@@ -435,7 +434,7 @@ func TestTailerCanTailJournal(t *testing.T) {
 	resultMessage := <-tailer.outputChan
 
 	var parsedContent map[string]interface{}
-	json.Unmarshal([]byte(resultMessage.Content), &parsedContent)
+	json.Unmarshal(resultMessage.Content, &parsedContent)
 
 	assert.Equal(t, parsedContent["message"], "foobar")
 	tailer.Stop()
