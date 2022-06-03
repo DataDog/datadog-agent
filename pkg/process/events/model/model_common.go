@@ -67,6 +67,8 @@ func NewMockedProcessEvent(evtType string, ts time.Time, pid uint32, exe string,
 // AssertProcessEvents compares two ProcessEvents. Two events can't be compared using directly assert.Equal
 // due to the embedded time fields
 func AssertProcessEvents(t *testing.T, expected, actual *ProcessEvent) {
+	t.Helper()
+
 	assert.Equal(t, expected.EventType, actual.EventType)
 	assert.WithinDuration(t, expected.CollectionTime, actual.CollectionTime, 0)
 	assert.Equal(t, expected.Pid, actual.Pid)
