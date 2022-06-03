@@ -104,7 +104,7 @@ func TestCompleteInferredSpanWithNoError(t *testing.T) {
 	inferredSpan.Span.Resource = "test-function"
 	inferredSpan.Span.Type = "http"
 	inferredSpan.Span.Meta = map[string]string{
-		Stage: "dev",
+		stage: "dev",
 	}
 
 	duration := 1 * time.Second
@@ -141,7 +141,7 @@ func TestCompleteInferredSpanWithError(t *testing.T) {
 	inferredSpan.Span.Resource = "test-function"
 	inferredSpan.Span.Type = "http"
 	inferredSpan.Span.Meta = map[string]string{
-		Stage: "dev",
+		stage: "dev",
 	}
 
 	duration := 1 * time.Second
@@ -182,7 +182,7 @@ func TestCompleteInferredSpanWithAsync(t *testing.T) {
 	inferredSpan.Span.Resource = "test-function"
 	inferredSpan.Span.Type = "http"
 	inferredSpan.Span.Meta = map[string]string{
-		Stage: "dev",
+		stage: "dev",
 	}
 	isError := false
 	var tracePayload *api.Payload

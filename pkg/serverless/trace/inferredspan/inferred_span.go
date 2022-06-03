@@ -99,14 +99,14 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 // enrichment function for that event source
 func (inferredSpan *InferredSpan) DispatchInferredSpan(eventType trigger.AWSEventType, eventPayload interface{}) error {
 	switch eventType {
-	case trigger.ApiGatewayEvent:
-		inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(eventPayload.(events.APIGatewayProxyRequest))
-	case trigger.ApiGatewayV2Event:
-		inferredSpan.EnrichInferredSpanWithAPIGatewayHTTPEvent(eventPayload.(events.APIGatewayV2HTTPRequest))
-	case trigger.ApiGatewayWebsocketEvent:
-		inferredSpan.EnrichInferredSpanWithAPIGatewayWebsocketEvent(eventPayload.(events.APIGatewayWebsocketProxyRequest))
+	case trigger.APIGatewayEvent:
+		inferredSpan.enrichInferredSpanWithAPIGatewayRESTEvent(eventPayload.(events.APIGatewayProxyRequest))
+	case trigger.APIGatewayV2Event:
+		inferredSpan.enrichInferredSpanWithAPIGatewayHTTPEvent(eventPayload.(events.APIGatewayV2HTTPRequest))
+	case trigger.APIGatewayWebsocketEvent:
+		inferredSpan.enrichInferredSpanWithAPIGatewayWebsocketEvent(eventPayload.(events.APIGatewayWebsocketProxyRequest))
 	case trigger.SNSEvent:
-		inferredSpan.EnrichInferredSpanWithSNSEvent(eventPayload.(events.SNSEvent))
+		inferredSpan.enrichInferredSpanWithSNSEvent(eventPayload.(events.SNSEvent))
 	}
 
 	return nil

@@ -24,7 +24,7 @@ func TestEnrichInferredSpanWithAPIGatewayRESTEvent(t *testing.T) {
 	_ = json.Unmarshal(getEventFromFile("api-gateway.json"), &apiGatewayRestEvent)
 
 	inferredSpan := mockInferredSpan()
-	inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(apiGatewayRestEvent)
+	inferredSpan.enrichInferredSpanWithAPIGatewayRESTEvent(apiGatewayRestEvent)
 
 	span := inferredSpan.Span
 
@@ -35,14 +35,14 @@ func TestEnrichInferredSpanWithAPIGatewayRESTEvent(t *testing.T) {
 	assert.Equal(t, "aws.apigateway", span.Name)
 	assert.Equal(t, "POST /path/to/resource", span.Resource)
 	assert.Equal(t, "http", span.Type)
-	assert.Equal(t, "1234567890", span.Meta[APIID])
-	assert.Equal(t, "1234567890", span.Meta[APIName])
-	assert.Equal(t, "/path/to/resource", span.Meta[Endpoint])
-	assert.Equal(t, "70ixmpl4fl.execute-api.us-east-2.amazonaws.com/path/to/resource", span.Meta[HTTPURL])
-	assert.Equal(t, "aws.apigateway.rest", span.Meta[OperationName])
-	assert.Equal(t, "c6af9ac6-7b61-11e6-9a41-93e8deadbeef", span.Meta[RequestID])
-	assert.Equal(t, "POST /path/to/resource", span.Meta[ResourceNames])
-	assert.Equal(t, "prod", span.Meta[Stage])
+	assert.Equal(t, "1234567890", span.Meta[apiID])
+	assert.Equal(t, "1234567890", span.Meta[apiName])
+	assert.Equal(t, "/path/to/resource", span.Meta[endpoint])
+	assert.Equal(t, "70ixmpl4fl.execute-api.us-east-2.amazonaws.com/path/to/resource", span.Meta[httpURL])
+	assert.Equal(t, "aws.apigateway.rest", span.Meta[operationName])
+	assert.Equal(t, "c6af9ac6-7b61-11e6-9a41-93e8deadbeef", span.Meta[requestID])
+	assert.Equal(t, "POST /path/to/resource", span.Meta[resourceNames])
+	assert.Equal(t, "prod", span.Meta[stage])
 	assert.False(t, inferredSpan.IsAsync)
 }
 
@@ -50,7 +50,7 @@ func TestEnrichInferredSpanWithAPIGatewayNonProxyAsyncRESTEvent(t *testing.T) {
 	var apiGatewayRestEvent events.APIGatewayProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway-non-proxy-async.json"), &apiGatewayRestEvent)
 	inferredSpan := mockInferredSpan()
-	inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(apiGatewayRestEvent)
+	inferredSpan.enrichInferredSpanWithAPIGatewayRESTEvent(apiGatewayRestEvent)
 
 	span := inferredSpan.Span
 	assert.Equal(t, uint64(7353030974370088224), span.TraceID)
@@ -60,22 +60,22 @@ func TestEnrichInferredSpanWithAPIGatewayNonProxyAsyncRESTEvent(t *testing.T) {
 	assert.Equal(t, "aws.apigateway", span.Name)
 	assert.Equal(t, "GET /http/get", span.Resource)
 	assert.Equal(t, "http", span.Type)
-	assert.Equal(t, "lgxbo6a518", span.Meta[APIID])
-	assert.Equal(t, "lgxbo6a518", span.Meta[APIName])
-	assert.Equal(t, "/http/get", span.Meta[Endpoint])
-	assert.Equal(t, "lgxbo6a518.execute-api.sa-east-1.amazonaws.com/http/get", span.Meta[HTTPURL])
-	assert.Equal(t, "aws.apigateway.rest", span.Meta[OperationName])
-	assert.Equal(t, "7bf3b161-f698-432c-a639-6fef8b445137", span.Meta[RequestID])
-	assert.Equal(t, "GET /http/get", span.Meta[ResourceNames])
-	assert.Equal(t, "dev", span.Meta[Stage])
+	assert.Equal(t, "lgxbo6a518", span.Meta[apiID])
+	assert.Equal(t, "lgxbo6a518", span.Meta[apiName])
+	assert.Equal(t, "/http/get", span.Meta[endpoint])
+	assert.Equal(t, "lgxbo6a518.execute-api.sa-east-1.amazonaws.com/http/get", span.Meta[httpURL])
+	assert.Equal(t, "aws.apigateway.rest", span.Meta[operationName])
+	assert.Equal(t, "7bf3b161-f698-432c-a639-6fef8b445137", span.Meta[requestID])
+	assert.Equal(t, "GET /http/get", span.Meta[resourceNames])
+	assert.Equal(t, "dev", span.Meta[stage])
 	assert.True(t, inferredSpan.IsAsync)
 }
 
 func TestEnrichInferredSpanWithAPIGatewayHTTPEvent(t *testing.T) {
-	var apiGatewayHttpEvent events.APIGatewayV2HTTPRequest
-	_ = json.Unmarshal(getEventFromFile("http-api.json"), &apiGatewayHttpEvent)
+	var apiGatewayHTTPEvent events.APIGatewayV2HTTPRequest
+	_ = json.Unmarshal(getEventFromFile("http-api.json"), &apiGatewayHTTPEvent)
 	inferredSpan := mockInferredSpan()
-	inferredSpan.EnrichInferredSpanWithAPIGatewayHTTPEvent(apiGatewayHttpEvent)
+	inferredSpan.enrichInferredSpanWithAPIGatewayHTTPEvent(apiGatewayHTTPEvent)
 
 	span := inferredSpan.Span
 	assert.Equal(t, uint64(7353030974370088224), span.TraceID)
@@ -85,14 +85,14 @@ func TestEnrichInferredSpanWithAPIGatewayHTTPEvent(t *testing.T) {
 	assert.Equal(t, "aws.httpapi", span.Name)
 	assert.Equal(t, "GET /httpapi/get", span.Resource)
 	assert.Equal(t, "http", span.Type)
-	assert.Equal(t, "GET", span.Meta[HTTPMethod])
-	assert.Equal(t, "HTTP/1.1", span.Meta[HTTPProtocol])
-	assert.Equal(t, "38.122.226.210", span.Meta[HTTPSourceIP])
-	assert.Equal(t, "x02yirxc7a.execute-api.sa-east-1.amazonaws.com/httpapi/get", span.Meta[HTTPURL])
-	assert.Equal(t, "curl/7.64.1", span.Meta[HTTPUserAgent])
-	assert.Equal(t, "aws.httpapi", span.Meta[OperationName])
-	assert.Equal(t, "FaHnXjKCGjQEJ7A=", span.Meta[RequestID])
-	assert.Equal(t, "GET /httpapi/get", span.Meta[ResourceNames])
+	assert.Equal(t, "GET", span.Meta[httpMethod])
+	assert.Equal(t, "HTTP/1.1", span.Meta[httpProtocol])
+	assert.Equal(t, "38.122.226.210", span.Meta[httpSourceIP])
+	assert.Equal(t, "x02yirxc7a.execute-api.sa-east-1.amazonaws.com/httpapi/get", span.Meta[httpURL])
+	assert.Equal(t, "curl/7.64.1", span.Meta[httpUserAgent])
+	assert.Equal(t, "aws.httpapi", span.Meta[operationName])
+	assert.Equal(t, "FaHnXjKCGjQEJ7A=", span.Meta[requestID])
+	assert.Equal(t, "GET /httpapi/get", span.Meta[resourceNames])
 }
 
 func TestEnrichInferredSpanWithAPIGatewayWebsocketDefaultEvent(t *testing.T) {
@@ -101,7 +101,7 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketDefaultEvent(t *testing.T) {
 	inferredSpan := mockInferredSpan()
 	span := inferredSpan.Span
 
-	inferredSpan.EnrichInferredSpanWithAPIGatewayWebsocketEvent(apiGatewayWebsocketEvent)
+	inferredSpan.enrichInferredSpanWithAPIGatewayWebsocketEvent(apiGatewayWebsocketEvent)
 
 	assert.Equal(t, uint64(7353030974370088224), span.TraceID)
 	assert.Equal(t, uint64(8048964810003407541), span.SpanID)
@@ -110,16 +110,16 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketDefaultEvent(t *testing.T) {
 	assert.Equal(t, "aws.apigateway.websocket", span.Name)
 	assert.Equal(t, "$default", span.Resource)
 	assert.Equal(t, "web", span.Type)
-	assert.Equal(t, "p62c47itsb", span.Meta[APIID])
-	assert.Equal(t, "p62c47itsb", span.Meta[APIName])
-	assert.Equal(t, "Fc5SzcoYGjQCJlg=", span.Meta[ConnectionID])
-	assert.Equal(t, "$default", span.Meta[Endpoint])
-	assert.Equal(t, "p62c47itsb.execute-api.sa-east-1.amazonaws.com$default", span.Meta[HTTPURL])
-	assert.Equal(t, "IN", span.Meta[MessageDirection])
-	assert.Equal(t, "aws.apigateway.websocket", span.Meta[OperationName])
-	assert.Equal(t, "Fc5S3EvdGjQFtsQ=", span.Meta[RequestID])
-	assert.Equal(t, "$default", span.Meta[ResourceNames])
-	assert.Equal(t, "dev", span.Meta[Stage])
+	assert.Equal(t, "p62c47itsb", span.Meta[apiID])
+	assert.Equal(t, "p62c47itsb", span.Meta[apiName])
+	assert.Equal(t, "Fc5SzcoYGjQCJlg=", span.Meta[connectionID])
+	assert.Equal(t, "$default", span.Meta[endpoint])
+	assert.Equal(t, "p62c47itsb.execute-api.sa-east-1.amazonaws.com$default", span.Meta[httpURL])
+	assert.Equal(t, "IN", span.Meta[messageDirection])
+	assert.Equal(t, "aws.apigateway.websocket", span.Meta[operationName])
+	assert.Equal(t, "Fc5S3EvdGjQFtsQ=", span.Meta[requestID])
+	assert.Equal(t, "$default", span.Meta[resourceNames])
+	assert.Equal(t, "dev", span.Meta[stage])
 }
 
 func TestEnrichInferredSpanWithAPIGatewayWebsocketConnectEvent(t *testing.T) {
@@ -128,7 +128,7 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketConnectEvent(t *testing.T) {
 	inferredSpan := mockInferredSpan()
 	span := inferredSpan.Span
 
-	inferredSpan.EnrichInferredSpanWithAPIGatewayWebsocketEvent(apiGatewayWebsocketEvent)
+	inferredSpan.enrichInferredSpanWithAPIGatewayWebsocketEvent(apiGatewayWebsocketEvent)
 
 	assert.Equal(t, uint64(7353030974370088224), span.TraceID)
 	assert.Equal(t, uint64(8048964810003407541), span.SpanID)
@@ -137,16 +137,16 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketConnectEvent(t *testing.T) {
 	assert.Equal(t, "aws.apigateway.websocket", span.Name)
 	assert.Equal(t, "$connect", span.Resource)
 	assert.Equal(t, "web", span.Type)
-	assert.Equal(t, "p62c47itsb", span.Meta[APIID])
-	assert.Equal(t, "p62c47itsb", span.Meta[APIName])
-	assert.Equal(t, "Fc2tgfl3mjQCJfA=", span.Meta[ConnectionID])
-	assert.Equal(t, "$connect", span.Meta[Endpoint])
-	assert.Equal(t, "p62c47itsb.execute-api.sa-east-1.amazonaws.com$connect", span.Meta[HTTPURL])
-	assert.Equal(t, "IN", span.Meta[MessageDirection])
-	assert.Equal(t, "aws.apigateway.websocket", span.Meta[OperationName])
-	assert.Equal(t, "Fc2tgH1RmjQFnOg=", span.Meta[RequestID])
-	assert.Equal(t, "$connect", span.Meta[ResourceNames])
-	assert.Equal(t, "dev", span.Meta[Stage])
+	assert.Equal(t, "p62c47itsb", span.Meta[apiID])
+	assert.Equal(t, "p62c47itsb", span.Meta[apiName])
+	assert.Equal(t, "Fc2tgfl3mjQCJfA=", span.Meta[connectionID])
+	assert.Equal(t, "$connect", span.Meta[endpoint])
+	assert.Equal(t, "p62c47itsb.execute-api.sa-east-1.amazonaws.com$connect", span.Meta[httpURL])
+	assert.Equal(t, "IN", span.Meta[messageDirection])
+	assert.Equal(t, "aws.apigateway.websocket", span.Meta[operationName])
+	assert.Equal(t, "Fc2tgH1RmjQFnOg=", span.Meta[requestID])
+	assert.Equal(t, "$connect", span.Meta[resourceNames])
+	assert.Equal(t, "dev", span.Meta[stage])
 }
 
 func TestEnrichInferredSpanWithAPIGatewayWebsocketDisconnectEvent(t *testing.T) {
@@ -155,7 +155,7 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketDisconnectEvent(t *testing.T) 
 	inferredSpan := mockInferredSpan()
 	span := inferredSpan.Span
 
-	inferredSpan.EnrichInferredSpanWithAPIGatewayWebsocketEvent(apiGatewayWebsocketEvent)
+	inferredSpan.enrichInferredSpanWithAPIGatewayWebsocketEvent(apiGatewayWebsocketEvent)
 
 	assert.Equal(t, uint64(7353030974370088224), span.TraceID)
 	assert.Equal(t, uint64(8048964810003407541), span.SpanID)
@@ -164,23 +164,23 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketDisconnectEvent(t *testing.T) 
 	assert.Equal(t, "aws.apigateway.websocket", span.Name)
 	assert.Equal(t, "$disconnect", span.Resource)
 	assert.Equal(t, "web", span.Type)
-	assert.Equal(t, "p62c47itsb", span.Meta[APIID])
-	assert.Equal(t, "p62c47itsb", span.Meta[APIName])
-	assert.Equal(t, "Fc2tgfl3mjQCJfA=", span.Meta[ConnectionID])
-	assert.Equal(t, "$disconnect", span.Meta[Endpoint])
-	assert.Equal(t, "p62c47itsb.execute-api.sa-east-1.amazonaws.com$disconnect", span.Meta[HTTPURL])
-	assert.Equal(t, "IN", span.Meta[MessageDirection])
-	assert.Equal(t, "aws.apigateway.websocket", span.Meta[OperationName])
-	assert.Equal(t, "Fc2ydE4LmjQFhdg=", span.Meta[RequestID])
-	assert.Equal(t, "$disconnect", span.Meta[ResourceNames])
-	assert.Equal(t, "dev", span.Meta[Stage])
+	assert.Equal(t, "p62c47itsb", span.Meta[apiID])
+	assert.Equal(t, "p62c47itsb", span.Meta[apiName])
+	assert.Equal(t, "Fc2tgfl3mjQCJfA=", span.Meta[connectionID])
+	assert.Equal(t, "$disconnect", span.Meta[endpoint])
+	assert.Equal(t, "p62c47itsb.execute-api.sa-east-1.amazonaws.com$disconnect", span.Meta[httpURL])
+	assert.Equal(t, "IN", span.Meta[messageDirection])
+	assert.Equal(t, "aws.apigateway.websocket", span.Meta[operationName])
+	assert.Equal(t, "Fc2ydE4LmjQFhdg=", span.Meta[requestID])
+	assert.Equal(t, "$disconnect", span.Meta[resourceNames])
+	assert.Equal(t, "dev", span.Meta[stage])
 }
 
 func TestEnrichInferredSpanWithSNSEvent(t *testing.T) {
 	var snsRequest events.SNSEvent
 	_ = json.Unmarshal(getEventFromFile("sns.json"), &snsRequest)
 	inferredSpan := mockInferredSpan()
-	inferredSpan.EnrichInferredSpanWithSNSEvent(snsRequest)
+	inferredSpan.enrichInferredSpanWithSNSEvent(snsRequest)
 
 	span := inferredSpan.Span
 
@@ -191,13 +191,13 @@ func TestEnrichInferredSpanWithSNSEvent(t *testing.T) {
 	assert.Equal(t, "aws.sns", span.Name)
 	assert.Equal(t, "serverlessTracingTopicPy", span.Resource)
 	assert.Equal(t, "web", span.Type)
-	assert.Equal(t, "87056a47-f506-5d77-908b-303605d3b197", span.Meta[MessageID])
-	assert.Equal(t, "aws.sns", span.Meta[OperationName])
-	assert.Equal(t, "serverlessTracingTopicPy", span.Meta[ResourceNames])
-	assert.Equal(t, "Hello", span.Meta[Subject])
-	assert.Equal(t, "arn:aws:sns:sa-east-1:601427279990:serverlessTracingTopicPy", span.Meta[TopicARN])
-	assert.Equal(t, "serverlessTracingTopicPy", span.Meta[TopicName])
-	assert.Equal(t, "Notification", span.Meta[Type])
+	assert.Equal(t, "87056a47-f506-5d77-908b-303605d3b197", span.Meta[messageID])
+	assert.Equal(t, "aws.sns", span.Meta[operationName])
+	assert.Equal(t, "serverlessTracingTopicPy", span.Meta[resourceNames])
+	assert.Equal(t, "Hello", span.Meta[subject])
+	assert.Equal(t, "arn:aws:sns:sa-east-1:601427279990:serverlessTracingTopicPy", span.Meta[topicARN])
+	assert.Equal(t, "serverlessTracingTopicPy", span.Meta[topicName])
+	assert.Equal(t, "Notification", span.Meta[metadataType])
 	assert.True(t, inferredSpan.IsAsync)
 }
 

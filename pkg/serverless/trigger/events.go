@@ -7,61 +7,131 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/json"
 )
 
+// AWSEventType corresponds to the various event triggers
+// we get from AWS
 type AWSEventType int
 
 const (
-	ApiGatewayEvent AWSEventType = iota
-	ApiGatewayV2Event
-	ApiGatewayWebsocketEvent
-	AlbEvent
+	// APIGatewayEvent describes an event from classic AWS API Gateways
+	APIGatewayEvent AWSEventType = iota
+
+	// APIGatewayV2Event describes an event from AWS API Gateways
+	APIGatewayV2Event
+
+	// APIGatewayWebsocketEvent describes an event from websocket AWS API Gateways
+	APIGatewayWebsocketEvent
+
+	// ALBEvent describes an event from application load balancers
+	ALBEvent
+
+	// CloudWatchEvent describes an event from Cloudwatch
 	CloudWatchEvent
+
+	// CloudWatchLogsEvent describes an event from Cloudwatch logs
 	CloudWatchLogsEvent
+
+	// CloudFrontRequestEvent describes an event from Cloudfront
 	CloudFrontRequestEvent
+
+	// DynamoDBStreamEvent describes an event from DynamoDB
 	DynamoDBStreamEvent
+
+	// KinesisStreamEvent describes an event from Kinesis
 	KinesisStreamEvent
+
+	// S3Event describes an event from S3
 	S3Event
+
+	// SNSEvent describes an event from SNS
 	SNSEvent
+
+	// SQSEvent describes an event from SQS
 	SQSEvent
+
+	// SNSSQSEvent describes an event from an SQS-wrapped SNS topic
 	SNSSQSEvent
+
+	// AppSyncResolverEvent describes an event from Appsync
 	AppSyncResolverEvent
+
+	// EventBridgeEvent describes an event from EventBridge
 	EventBridgeEvent
+
+	// Unknown describes an unknown event type
 	Unknown
 )
 
-// EventParseFunc defines the signature of AWS event parsing functions
-type EventParseFunc func(map[string]interface{}) bool
+// eventParseFunc defines the signature of AWS event parsing functions
+type eventParseFunc func(map[string]interface{}) bool
 
 // GetEventType takes in a payload string and returns an AWSEventType
 // that matches the input payload. Returns `Unknown` if a payload could not be
 // matched to an event.
 func GetEventType(payload map[string]interface{}) (AWSEventType, error) {
-	parseFuncs := map[AWSEventType]EventParseFunc{
-		ApiGatewayEvent:          isApiGatewayEvent,
-		ApiGatewayV2Event:        isApiGatewayV2Event,
-		ApiGatewayWebsocketEvent: isApiGatewayWebsocketEvent,
-		AlbEvent:                 isALBEvent,
-		CloudFrontRequestEvent:   isCloudFrontRequestEvent,
-		CloudWatchEvent:          isCloudwatchEvent,
-		CloudWatchLogsEvent:      isCloudwatchLogsEvent,
-		DynamoDBStreamEvent:      isDynamoDBStreamEvent,
-		KinesisStreamEvent:       isKinesisStreamEvent,
-		S3Event:                  isS3Event,
-		SNSEvent:                 isSNSEvent,
-		SNSSQSEvent:              isSNSSQSEvent,
-		SQSEvent:                 isSQSEvent,
-		AppSyncResolverEvent:     isAppSyncResolverEvent,
-		EventBridgeEvent:         isEventBridgeEvent,
+	if isAPIGatewayEvent(payload) {
+		return APIGatewayEvent, nil
 	}
 
-	for enum, parseFunc := range parseFuncs {
-		if parseFunc(payload) {
-			return enum, nil
-		}
+	if isAPIGatewayV2Event(payload) {
+		return APIGatewayV2Event, nil
+	}
+
+	if isAPIGatewayWebsocketEvent(payload) {
+		return APIGatewayWebsocketEvent, nil
+	}
+
+	if isALBEvent(payload) {
+		return ALBEvent, nil
+	}
+
+	if isCloudFrontRequestEvent(payload) {
+		return CloudFrontRequestEvent, nil
+	}
+
+	if isCloudwatchEvent(payload) {
+		return CloudWatchEvent, nil
+	}
+
+	if isCloudwatchLogsEvent(payload) {
+		return CloudWatchLogsEvent, nil
+	}
+
+	if isDynamoDBStreamEvent(payload) {
+		return DynamoDBStreamEvent, nil
+	}
+
+	if isKinesisStreamEvent(payload) {
+		return KinesisStreamEvent, nil
+	}
+
+	if isS3Event(payload) {
+		return S3Event, nil
+	}
+
+	if isSNSEvent(payload) {
+		return SNSEvent, nil
+	}
+
+	if isSNSSQSEvent(payload) {
+		return SNSSQSEvent, nil
+	}
+
+	if isSQSEvent(payload) {
+		return SQSEvent, nil
+	}
+
+	if isAppSyncResolverEvent(payload) {
+		return AppSyncResolverEvent, nil
+	}
+
+	if isEventBridgeEvent(payload) {
+		return EventBridgeEvent, nil
 	}
 
 	return Unknown, nil
 }
 
+// Unmarshal unmarshals a payload string into a generic interface
 func Unmarshal(payload string) (map[string]interface{}, error) {
 	jsonPayload := make(map[string]interface{})
 	if err := jsonEncoder.Unmarshal([]byte(payload), &jsonPayload); err != nil {
@@ -70,13 +140,13 @@ func Unmarshal(payload string) (map[string]interface{}, error) {
 	return jsonPayload, nil
 }
 
-func isApiGatewayEvent(event map[string]interface{}) bool {
+func isAPIGatewayEvent(event map[string]interface{}) bool {
 	return json.GetNestedValue(event, "requestContext", "stage") != nil &&
 		json.GetNestedValue(event, "httpMethod") != nil &&
 		json.GetNestedValue(event, "resource") != nil
 }
 
-func isApiGatewayV2Event(event map[string]interface{}) bool {
+func isAPIGatewayV2Event(event map[string]interface{}) bool {
 	version, ok := json.GetNestedValue(event, "version").(string)
 	if !ok {
 		return false
@@ -90,7 +160,7 @@ func isApiGatewayV2Event(event map[string]interface{}) bool {
 		!strings.Contains(domainName, "lambda-url")
 }
 
-func isApiGatewayWebsocketEvent(event map[string]interface{}) bool {
+func isAPIGatewayWebsocketEvent(event map[string]interface{}) bool {
 	return json.GetNestedValue(event, "requestContext") != nil &&
 		json.GetNestedValue(event, "messageDirection") != nil
 }
@@ -154,7 +224,7 @@ func isAppSyncResolverEvent(event map[string]interface{}) bool {
 }
 
 func isEventBridgeEvent(event map[string]interface{}) bool {
-	return json.GetNestedValue(event, "detail-type") != nil
+	return json.GetNestedValue(event, "detail-type") != nil && json.GetNestedValue(event, "source") != "aws.events"
 }
 
 func eventRecordsKeyExists(event map[string]interface{}, key string) bool {

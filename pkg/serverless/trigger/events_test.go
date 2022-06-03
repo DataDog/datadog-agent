@@ -13,9 +13,9 @@ import (
 
 func TestEventPayloadParsing(t *testing.T) {
 	testDir := "./testData"
-	testCases := map[string]EventParseFunc{
-		"api-gateway-v1.json":            isApiGatewayEvent,
-		"api-gateway-v2.json":            isApiGatewayV2Event,
+	testCases := map[string]eventParseFunc{
+		"api-gateway-v1.json":            isAPIGatewayEvent,
+		"api-gateway-v2.json":            isAPIGatewayV2Event,
 		"application-load-balancer.json": isALBEvent,
 		"cloudwatch-events.json":         isCloudwatchEvent,
 		"cloudwatch-logs.json":           isCloudwatchLogsEvent,
@@ -43,9 +43,9 @@ func TestEventPayloadParsing(t *testing.T) {
 
 func TestEventPayloadParsingWrong(t *testing.T) {
 	testDir := "./testData"
-	testCases := map[string]EventParseFunc{
-		"api-gateway-v1.json":            isApiGatewayEvent,
-		"api-gateway-v2.json":            isApiGatewayV2Event,
+	testCases := map[string]eventParseFunc{
+		"api-gateway-v1.json":            isAPIGatewayEvent,
+		"api-gateway-v2.json":            isAPIGatewayV2Event,
 		"application-load-balancer.json": isALBEvent,
 		"cloudwatch-events.json":         isCloudwatchEvent,
 		"cloudwatch-logs.json":           isCloudwatchLogsEvent,
@@ -83,9 +83,9 @@ func TestEventPayloadParsingWrong(t *testing.T) {
 func TestGetEventType(t *testing.T) {
 	testDir := "./testData"
 	testCases := map[string]AWSEventType{
-		"api-gateway-v1.json":            ApiGatewayEvent,
-		"api-gateway-v2.json":            ApiGatewayV2Event,
-		"application-load-balancer.json": AlbEvent,
+		"api-gateway-v1.json":            APIGatewayEvent,
+		"api-gateway-v2.json":            APIGatewayV2Event,
+		"application-load-balancer.json": ALBEvent,
 		"cloudwatch-events.json":         CloudWatchEvent,
 		"cloudwatch-logs.json":           CloudWatchLogsEvent,
 		"cloudfront.json":                CloudFrontRequestEvent,
