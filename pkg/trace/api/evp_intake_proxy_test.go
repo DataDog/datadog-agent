@@ -29,15 +29,15 @@ func (r roundTripperMock) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 // sendRequestThroughHandler sends a request through the evpIntakeReverseProxy handler and returns the forwarded
-// request(s), their response and the log output. The path for inReq shouldn't have the /evpIntakeProxy/v1 prefix
-// since it is passed directly to the inner proxy handler and not the trace-agent API handler.
-func sendRequestThroughHandler(conf *config.AgentConfig, inReq *http.Request) (outReqs []*http.Request, response *http.Response, loggerOut string) {
+// request(s), their response and the log output. The path for inReq shouldn't have the /evp_intake_proxy/v1/input
+// prefix since it is passed directly to the inner proxy handler and not the trace-agent API handler.
+func sendRequestThroughHandler(conf *config.AgentConfig, inReq *http.Request) (outReqs []*http.Request, resp *http.Response, logs string) {
 	mockRoundTripper := roundTripperMock(func(req *http.Request) (*http.Response, error) {
 		outReqs = append(outReqs, req)
-		// If we got here it means the proxy didn't raise an error earlier, return an ok response
+		// If we got here it means the proxy didn't raise an error earlier, return an ok resp
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(bytes.NewBuffer([]byte("ok_responserino"))),
+			Body:       ioutil.NopCloser(bytes.NewBuffer([]byte("ok_resprino"))),
 		}, nil
 	})
 	var loggerBuffer bytes.Buffer
@@ -48,38 +48,38 @@ func sendRequestThroughHandler(conf *config.AgentConfig, inReq *http.Request) (o
 	return outReqs, rec.Result(), loggerBuffer.String()
 }
 
-func TestEvpIntakeReverseProxyHandlerOk(t *testing.T) {
+func TestEVPIntakeReverseProxyHandlerOk(t *testing.T) {
 	conf := newTestReceiverConfig()
 	conf.Hostname = "test_hostname"
 	conf.DefaultEnv = "test_env"
 	conf.Site = "us3.datadoghq.com"
 	conf.Endpoints[0].APIKey = "test_api_key"
 
-	request := httptest.NewRequest("POST", "/mysubdomain/mypath/mysubpath?arg=test", nil)
-	request.Header.Set("User-Agent", "test_user_agent")
-	request.Header.Set("Content-Type", "text/json")
-	request.Header.Set("Unexpected-Header", "To-Be-Discarded")
-	proxiedRequests, response, loggerOut := sendRequestThroughHandler(conf, request)
+	req := httptest.NewRequest("POST", "/mysubdomain/mypath/mysubpath?arg=test", nil)
+	req.Header.Set("User-Agent", "test_user_agent")
+	req.Header.Set("Content-Type", "text/json")
+	req.Header.Set("Unexpected-Header", "To-Be-Discarded")
+	proxyreqs, resp, logs := sendRequestThroughHandler(conf, req)
 
-	require.Equal(t, http.StatusOK, response.StatusCode, "Got: ", fmt.Sprint(response.StatusCode))
-	require.Equal(t, 1, len(proxiedRequests))
-	proxiedRequest := proxiedRequests[0]
-	assert.Equal(t, "mysubdomain.us3.datadoghq.com", proxiedRequest.Host)
-	assert.Equal(t, "mysubdomain.us3.datadoghq.com", proxiedRequest.URL.Host)
-	assert.Equal(t, "/mypath/mysubpath", proxiedRequest.URL.Path)
-	assert.Equal(t, "arg=test", proxiedRequest.URL.RawQuery)
-	assert.Equal(t, "test_api_key", proxiedRequest.Header.Get("DD-API-KEY"))
-	assert.Equal(t, conf.Hostname, proxiedRequest.Header.Get("X-Datadog-Hostname"))
-	assert.Equal(t, conf.DefaultEnv, proxiedRequest.Header.Get("X-Datadog-AgentDefaultEnv"))
-	assert.Equal(t, fmt.Sprintf("trace-agent %s", info.Version), proxiedRequest.Header.Get("Via"))
-	assert.Equal(t, "test_user_agent", proxiedRequest.Header.Get("User-Agent"))
-	assert.Equal(t, "text/json", proxiedRequest.Header.Get("Content-Type"))
-	assert.NotContains(t, proxiedRequest.Header, "Unexpected-Header")
-	assert.NotContains(t, proxiedRequest.Header, "X-Datadog-Container-Tags")
-	assert.Equal(t, "", loggerOut)
+	require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
+	require.Equal(t, 1, len(proxyreqs))
+	proxyreq := proxyreqs[0]
+	assert.Equal(t, "mysubdomain.us3.datadoghq.com", proxyreq.Host)
+	assert.Equal(t, "mysubdomain.us3.datadoghq.com", proxyreq.URL.Host)
+	assert.Equal(t, "/mypath/mysubpath", proxyreq.URL.Path)
+	assert.Equal(t, "arg=test", proxyreq.URL.RawQuery)
+	assert.Equal(t, "test_api_key", proxyreq.Header.Get("DD-API-KEY"))
+	assert.Equal(t, conf.Hostname, proxyreq.Header.Get("X-Datadog-Hostname"))
+	assert.Equal(t, conf.DefaultEnv, proxyreq.Header.Get("X-Datadog-AgentDefaultEnv"))
+	assert.Equal(t, fmt.Sprintf("trace-agent %s", info.Version), proxyreq.Header.Get("Via"))
+	assert.Equal(t, "test_user_agent", proxyreq.Header.Get("User-Agent"))
+	assert.Equal(t, "text/json", proxyreq.Header.Get("Content-Type"))
+	assert.NotContains(t, proxyreq.Header, "Unexpected-Header")
+	assert.NotContains(t, proxyreq.Header, "X-Datadog-Container-Tags")
+	assert.Equal(t, "", logs)
 }
 
-func TestEvpIntakeReverseProxyHandlerWithContainerId(t *testing.T) {
+func TestEVPIntakeReverseProxyHandlerWithContainerId(t *testing.T) {
 	conf := newTestReceiverConfig()
 	conf.Site = "us3.datadoghq.com"
 	conf.Endpoints[0].APIKey = "test_api_key"
@@ -87,94 +87,94 @@ func TestEvpIntakeReverseProxyHandlerWithContainerId(t *testing.T) {
 		return []string{"container:" + cid}, nil
 	}
 
-	request := httptest.NewRequest("POST", "/mysubdomain/mypath/mysubpath?arg=test", nil)
-	request.Header.Set("Datadog-Container-ID", "myid")
-	proxiedRequests, response, loggerOut := sendRequestThroughHandler(conf, request)
+	req := httptest.NewRequest("POST", "/mysubdomain/mypath/mysubpath?arg=test", nil)
+	req.Header.Set("Datadog-Container-ID", "myid")
+	proxyreqs, resp, logs := sendRequestThroughHandler(conf, req)
 
-	require.Equal(t, http.StatusOK, response.StatusCode, "Got: ", fmt.Sprint(response.StatusCode))
-	require.Equal(t, 1, len(proxiedRequests))
-	assert.Equal(t, "container:myid", proxiedRequests[0].Header.Get("X-Datadog-Container-Tags"))
-	assert.Equal(t, "", loggerOut)
+	require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
+	require.Equal(t, 1, len(proxyreqs))
+	assert.Equal(t, "container:myid", proxyreqs[0].Header.Get("X-Datadog-Container-Tags"))
+	assert.Equal(t, "", logs)
 }
 
-func TestEvpIntakeReverseProxyHandlerMultipleEndpoints(t *testing.T) {
+func TestEVPIntakeReverseProxyHandlerMultipleEndpoints(t *testing.T) {
 	conf := newTestReceiverConfig()
 	conf.Site = "us3.datadoghq.com"
 	conf.Endpoints[0].APIKey = "test_api_key"
-	conf.EvpIntakeProxy.AdditionalEndpoints = map[string][]string{
+	conf.EVPIntakeProxy.AdditionalEndpoints = map[string][]string{
 		"datadoghq.eu": []string{"test_api_key_1", "test_api_key_2"},
 	}
-	request := httptest.NewRequest("POST", "/mysubdomain/mypath/mysubpath?arg=test", nil)
-	request.Header.Set("X-Datadog-Agent", "test_user_agent")
-	proxiedRequests, response, loggerOut := sendRequestThroughHandler(conf, request)
+	req := httptest.NewRequest("POST", "/mysubdomain/mypath/mysubpath?arg=test", nil)
+	req.Header.Set("X-Datadog-Agent", "test_user_agent")
+	proxyreqs, resp, logs := sendRequestThroughHandler(conf, req)
 
-	require.Equal(t, http.StatusOK, response.StatusCode, "Got: ", fmt.Sprint(response.StatusCode))
-	require.Equal(t, 3, len(proxiedRequests))
+	require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
+	require.Equal(t, 3, len(proxyreqs))
 
-	assert.Equal(t, "mysubdomain.us3.datadoghq.com", proxiedRequests[0].Host)
-	assert.Equal(t, "mysubdomain.us3.datadoghq.com", proxiedRequests[0].URL.Host)
-	assert.Equal(t, "/mypath/mysubpath", proxiedRequests[0].URL.Path)
-	assert.Equal(t, "arg=test", proxiedRequests[0].URL.RawQuery)
-	assert.Equal(t, "test_api_key", proxiedRequests[0].Header.Get("DD-API-KEY"))
+	assert.Equal(t, "mysubdomain.us3.datadoghq.com", proxyreqs[0].Host)
+	assert.Equal(t, "mysubdomain.us3.datadoghq.com", proxyreqs[0].URL.Host)
+	assert.Equal(t, "/mypath/mysubpath", proxyreqs[0].URL.Path)
+	assert.Equal(t, "arg=test", proxyreqs[0].URL.RawQuery)
+	assert.Equal(t, "test_api_key", proxyreqs[0].Header.Get("DD-API-KEY"))
 
-	assert.Equal(t, "mysubdomain.datadoghq.eu", proxiedRequests[1].Host)
-	assert.Equal(t, "mysubdomain.datadoghq.eu", proxiedRequests[1].URL.Host)
-	assert.Equal(t, "/mypath/mysubpath", proxiedRequests[1].URL.Path)
-	assert.Equal(t, "arg=test", proxiedRequests[1].URL.RawQuery)
-	assert.Equal(t, "test_api_key_1", proxiedRequests[1].Header.Get("DD-API-KEY"))
+	assert.Equal(t, "mysubdomain.datadoghq.eu", proxyreqs[1].Host)
+	assert.Equal(t, "mysubdomain.datadoghq.eu", proxyreqs[1].URL.Host)
+	assert.Equal(t, "/mypath/mysubpath", proxyreqs[1].URL.Path)
+	assert.Equal(t, "arg=test", proxyreqs[1].URL.RawQuery)
+	assert.Equal(t, "test_api_key_1", proxyreqs[1].Header.Get("DD-API-KEY"))
 
-	assert.Equal(t, "mysubdomain.datadoghq.eu", proxiedRequests[2].Host)
-	assert.Equal(t, "mysubdomain.datadoghq.eu", proxiedRequests[2].URL.Host)
-	assert.Equal(t, "test_api_key_2", proxiedRequests[2].Header.Get("DD-API-KEY"))
+	assert.Equal(t, "mysubdomain.datadoghq.eu", proxyreqs[2].Host)
+	assert.Equal(t, "mysubdomain.datadoghq.eu", proxyreqs[2].URL.Host)
+	assert.Equal(t, "test_api_key_2", proxyreqs[2].Header.Get("DD-API-KEY"))
 
-	assert.Equal(t, "", loggerOut)
+	assert.Equal(t, "", logs)
 }
 
-func TestEvpIntakeReverseProxyHandlerInvalidSubdomain(t *testing.T) {
+func TestEVPIntakeReverseProxyHandlerInvalidSubdomain(t *testing.T) {
 	conf := newTestReceiverConfig()
 	conf.Site = "us3.datadoghq.com"
 	conf.Endpoints[0].APIKey = "test_api_key"
 
-	request := httptest.NewRequest("POST", "/google.com%3Fattack=/mypath/mysubpath", nil)
-	proxiedRequests, response, loggerOut := sendRequestThroughHandler(conf, request)
+	req := httptest.NewRequest("POST", "/google.com%3Fattack=/mypath/mysubpath", nil)
+	proxyreqs, resp, logs := sendRequestThroughHandler(conf, req)
 
-	require.Equal(t, 0, len(proxiedRequests))
-	require.Equal(t, http.StatusBadGateway, response.StatusCode, "Got: ", fmt.Sprint(response.StatusCode))
-	require.Contains(t, loggerOut, "invalid subdomain")
+	require.Equal(t, 0, len(proxyreqs))
+	require.Equal(t, http.StatusBadGateway, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
+	require.Contains(t, logs, "invalid subdomain")
 }
 
-func TestEvpIntakeReverseProxyHandlerInvalidPath(t *testing.T) {
+func TestEVPIntakeReverseProxyHandlerInvalidPath(t *testing.T) {
 	conf := newTestReceiverConfig()
 	conf.Site = "us3.datadoghq.com"
 	conf.Endpoints[0].APIKey = "test_api_key"
 
-	request := httptest.NewRequest("POST", "/mysubdomain/mypath/my%20subpath", nil)
-	proxiedRequests, response, loggerOut := sendRequestThroughHandler(conf, request)
+	req := httptest.NewRequest("POST", "/mysubdomain/mypath/my%20subpath", nil)
+	proxyreqs, resp, logs := sendRequestThroughHandler(conf, req)
 
-	require.Equal(t, 0, len(proxiedRequests))
-	require.Equal(t, http.StatusBadGateway, response.StatusCode, "Got: ", fmt.Sprint(response.StatusCode))
-	require.Contains(t, loggerOut, "invalid target path")
+	require.Equal(t, 0, len(proxyreqs))
+	require.Equal(t, http.StatusBadGateway, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
+	require.Contains(t, logs, "invalid target path")
 }
 
-func TestEvpIntakeReverseProxyHandlerInvalidQuery(t *testing.T) {
+func TestEVPIntakeReverseProxyHandlerInvalidQuery(t *testing.T) {
 	conf := newTestReceiverConfig()
 	conf.Site = "us3.datadoghq.com"
 	conf.Endpoints[0].APIKey = "test_api_key"
 
-	request := httptest.NewRequest("POST", "/mysubdomain/mypath/mysubpath?test=bad%20arg", nil)
-	proxiedRequests, response, loggerOut := sendRequestThroughHandler(conf, request)
+	req := httptest.NewRequest("POST", "/mysubdomain/mypath/mysubpath?test=bad%20arg", nil)
+	proxyreqs, resp, logs := sendRequestThroughHandler(conf, req)
 
-	require.Equal(t, 0, len(proxiedRequests))
-	require.Equal(t, http.StatusBadGateway, response.StatusCode, "Got: ", fmt.Sprint(response.StatusCode))
-	require.Contains(t, loggerOut, "invalid query string")
+	require.Equal(t, 0, len(proxyreqs))
+	require.Equal(t, http.StatusBadGateway, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
+	require.Contains(t, logs, "invalid query string")
 }
 
-func TestEvpIntakeEndpointsFromConfigOverride(t *testing.T) {
+func TestEVPIntakeEndpointsFromConfigOverride(t *testing.T) {
 	conf := newTestReceiverConfig()
 	conf.Site = "us3.datadoghq.com"
 	conf.Endpoints[0].APIKey = "test_api_key"
-	conf.EvpIntakeProxy.DDURL = "override.datadoghq.com"
-	conf.EvpIntakeProxy.APIKey = "override_api_key"
+	conf.EVPIntakeProxy.DDURL = "override.datadoghq.com"
+	conf.EVPIntakeProxy.APIKey = "override_api_key"
 
 	endpoints := evpIntakeEndpointsFromConfig(conf)
 
@@ -183,21 +183,21 @@ func TestEvpIntakeEndpointsFromConfigOverride(t *testing.T) {
 	require.Equal(t, endpoints[0].APIKey, "override_api_key")
 }
 
-func TestEvpIntakeHandler(t *testing.T) {
+func TestEVPIntakeHandler(t *testing.T) {
 	cfg := config.New()
 	receiver := &HTTPReceiver{conf: cfg}
 	handler := receiver.evpIntakeHandler()
 	require.NotNil(t, handler)
 }
 
-func TestEvpIntakeHandlerDisabled(t *testing.T) {
+func TestEVPIntakeHandlerDisabled(t *testing.T) {
 	cfg := config.New()
-	cfg.EvpIntakeProxy.Enabled = false
+	cfg.EVPIntakeProxy.Enabled = false
 	receiver := &HTTPReceiver{conf: cfg}
 	handler := receiver.evpIntakeHandler()
 	require.NotNil(t, handler)
 
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest("POST", "/evpIntakeProxy/v1/mysubdomain/mypath", nil))
+	handler.ServeHTTP(rec, httptest.NewRequest("POST", "/evp_intake_proxy/v1/input/mysubdomain/mypath", nil))
 	require.Equal(t, http.StatusMethodNotAllowed, rec.Code)
 }
