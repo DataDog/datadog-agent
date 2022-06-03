@@ -261,7 +261,6 @@ int __attribute__((always_inline)) sys_open_ret_with_pid_tgid(void *ctx, int ret
     return 0;
 }
 
-
 int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_type) {
     return sys_open_ret_with_pid_tgid(ctx, retval, dr_type, 0);
 }

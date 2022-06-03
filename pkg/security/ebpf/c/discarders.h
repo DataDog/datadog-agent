@@ -6,6 +6,8 @@
 #define INODE_DISCARDER_TYPE 0
 #define PID_DISCARDER_TYPE   1
 
+#define WARMUP_DURATION_SEC 90000000000 // 90 sec
+
 struct discarder_stats_t {
     u64 discarders_added;
     u64 event_discarded;
@@ -361,6 +363,23 @@ int __attribute__((always_inline)) is_discarded_by_pid(u64 event_type, u32 tgid)
 int __attribute__((always_inline)) is_discarded_by_process(const char mode, u64 event_type) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
+
+    // warm-up
+    u64 runtime_startup;
+    LOAD_CONSTANT("runtime_startup", runtime_startup);
+
+    // 30sec of warmup
+    u64 now = bpf_ktime_get_ns();
+    if (now > runtime_startup) {
+        u64 delta = now - runtime_startup;
+        if (delta < WARMUP_DURATION_SEC) {
+            u64 rnd = bpf_get_prandom_u32();
+            rnd = (rnd << 32 | rnd) % WARMUP_DURATION_SEC;
+            if (rnd > delta) {
+                return 1;
+            }
+        }
+    }
 
     u64 runtime_pid;
     LOAD_CONSTANT("runtime_pid", runtime_pid);

@@ -26,6 +26,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"github.com/pkg/errors"
+	"github.com/shirou/gopsutil/v3/host"
 	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
 
@@ -247,6 +248,17 @@ func (p *Probe) Init() error {
 			Name:  "runtime_discarded",
 			Value: uint64(1),
 		})
+
+		// discarder warm-up, discard every event and then release progressively in order to avoid event spikes
+		// while there is not filtering mechanism in place
+		bt, err := host.BootTime()
+		if err == nil {
+			ns := time.Since(time.Unix(int64(bt), 0)).Nanoseconds()
+			p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, manager.ConstantEditor{
+				Name:  "runtime_startup",
+				Value: uint64(ns),
+			})
+		}
 	}
 
 	if selectors, exists := probes.SelectorsPerEventType["*"]; exists {
