@@ -202,10 +202,6 @@ func (h *AutoscalersController) syncWPA(key interface{}) error {
 	case err != nil:
 		log.Errorf("Unable to retrieve WatermarkPodAutoscaler %v from store: %v", key, err)
 	default:
-		if wpaCached == nil {
-			log.Errorf("Could not parse empty wpa %s/%s from local store", ns, name)
-			return ErrIsEmpty
-		}
 		emList := autoscalers.InspectWPA(wpaCached)
 		if len(emList) == 0 {
 			return nil

@@ -44,9 +44,8 @@ func GetPayload(ctx context.Context) *Payload {
 					s.CheckName, s.CheckName, s.CheckID, "OK", "", "",
 				}
 			}
-			if status != nil {
-				agentChecksPayload.AgentChecks = append(agentChecksPayload.AgentChecks, status)
-			}
+
+			agentChecksPayload.AgentChecks = append(agentChecksPayload.AgentChecks, status)
 		}
 	}
 
