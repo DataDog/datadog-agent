@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
+	"github.com/coreos/go-systemd/sdjournal"
 )
 
 // Launcher is in charge of starting and stopping new journald tailers
@@ -81,7 +82,20 @@ func (l *Launcher) Stop() {
 func (l *Launcher) setupTailer(source *config.LogSource) (*tailer.Tailer, error) {
 	tailer := tailer.NewTailer(source, l.pipelineProvider.NextPipelineChan())
 	cursor := l.registry.GetOffset(tailer.Identifier())
-	err := tailer.Start(cursor)
+	var journal *sdjournal.Journal
+	var err error
+
+	if source.Config.Path == "" {
+		// open the default journal
+		journal, err = sdjournal.NewJournal()
+	} else {
+		journal, err = sdjournal.NewJournalFromDir(source.Config.Path)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	err = tailer.Start(cursor, journal)
 	if err != nil {
 		return nil, err
 	}

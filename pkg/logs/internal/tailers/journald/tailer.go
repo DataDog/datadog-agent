@@ -14,12 +14,26 @@ import (
 	"io"
 	"time"
 
-	"github.com/coreos/go-systemd/sdjournal"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/coreos/go-systemd/sdjournal"
 )
+
+// JournalShim interfacae to wrap the functions defined in sdjournal.
+type JournalShim interface {
+	AddMatch(match string) error
+	AddDisjunction() error
+	SeekTail() error
+	SeekHead() error
+	Wait(timeout time.Duration) int
+	SeekCursor(cursor string) error
+	NextSkip(skip uint64) (uint64, error)
+	Close() error
+	Next() (uint64, error)
+	GetEntry() (*sdjournal.JournalEntry, error)
+	GetCursor() (string, error)
+}
 
 // defaultWaitDuration represents the delay before which we try to collect a new log from the journal
 const (
@@ -31,7 +45,7 @@ const (
 type Tailer struct {
 	source       *config.LogSource
 	outputChan   chan *message.Message
-	journal      *sdjournal.Journal
+	journal      JournalShim
 	excludeUnits struct {
 		system map[string]bool
 		user   map[string]bool
@@ -51,7 +65,8 @@ func NewTailer(source *config.LogSource, outputChan chan *message.Message) *Tail
 }
 
 // Start starts tailing the journal from a given offset.
-func (t *Tailer) Start(cursor string) error {
+func (t *Tailer) Start(cursor string, journal *sdjournal.Journal) error {
+	t.journal = journal
 	if err := t.setup(); err != nil {
 		t.source.Status.Error(err)
 		return err
@@ -78,19 +93,8 @@ func (t *Tailer) Stop() {
 // setup configures the tailer
 func (t *Tailer) setup() error {
 	config := t.source.Config
-	var err error
 
 	t.initializeTagger()
-
-	if config.Path == "" {
-		// open the default journal
-		t.journal, err = sdjournal.NewJournal()
-	} else {
-		t.journal, err = sdjournal.NewJournalFromDir(config.Path)
-	}
-	if err != nil {
-		return err
-	}
 
 	// add filters to collect only the logs of the units defined in the configuration,
 	// if no units are defined for both System and User, collect all the logs of the journal by default.
