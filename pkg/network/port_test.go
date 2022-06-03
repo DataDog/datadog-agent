@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,13 +40,14 @@ func TestMain(m *testing.M) {
 }
 
 func TestReadInitialTCPState(t *testing.T) {
-	err := exec.Command("testdata/setup_netns.sh").Run()
-	require.NoError(t, err, "setup_netns.sh failed")
-
-	defer func() {
+	nsName := netlinktestutil.AddNS(t)
+	t.Cleanup(func() {
 		err := exec.Command("testdata/teardown_netns.sh").Run()
 		assert.NoError(t, err, "failed to teardown netns")
-	}()
+	})
+
+	err := exec.Command("testdata/setup_netns.sh", nsName).Run()
+	require.NoError(t, err, "setup_netns.sh failed")
 
 	l, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
@@ -62,7 +64,7 @@ func TestReadInitialTCPState(t *testing.T) {
 		34568,
 	}
 
-	ns, err := netns.GetFromName("test")
+	ns, err := netns.GetFromName(nsName)
 	require.NoError(t, err)
 	defer ns.Close()
 
@@ -99,13 +101,14 @@ func TestReadInitialTCPState(t *testing.T) {
 }
 
 func TestReadInitialUDPState(t *testing.T) {
-	err := exec.Command("testdata/setup_netns.sh").Run()
-	require.NoError(t, err, "setup_netns.sh failed")
-
-	defer func() {
+	nsName := netlinktestutil.AddNS(t)
+	t.Cleanup(func() {
 		err := exec.Command("testdata/teardown_netns.sh").Run()
 		assert.NoError(t, err, "failed to teardown netns")
-	}()
+	})
+
+	err := exec.Command("testdata/setup_netns.sh", nsName).Run()
+	require.NoError(t, err, "setup_netns.sh failed")
 
 	l, err := net.ListenUDP("udp", &net.UDPAddr{})
 	require.NoError(t, err)
@@ -122,7 +125,7 @@ func TestReadInitialUDPState(t *testing.T) {
 		34568,
 	}
 
-	ns, err := netns.GetFromName("test")
+	ns, err := netns.GetFromName(nsName)
 	require.NoError(t, err)
 	defer ns.Close()
 
