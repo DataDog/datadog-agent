@@ -29,7 +29,7 @@ func (r roundTripperMock) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 // sendRequestThroughHandler sends a request through the evpIntakeReverseProxy handler and returns the forwarded
-// request(s), their response and the log output. The path for inReq shouldn't have the /evp_intake_proxy/v1/input
+// request(s), their response and the log output. The path for inReq shouldn't have the /evp_proxy/v1/input
 // prefix since it is passed directly to the inner proxy handler and not the trace-agent API handler.
 func sendRequestThroughHandler(conf *config.AgentConfig, inReq *http.Request) (outReqs []*http.Request, resp *http.Response, logs string) {
 	mockRoundTripper := roundTripperMock(func(req *http.Request) (*http.Response, error) {
@@ -198,6 +198,6 @@ func TestEVPIntakeHandlerDisabled(t *testing.T) {
 	require.NotNil(t, handler)
 
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest("POST", "/evp_intake_proxy/v1/input/mysubdomain/mypath", nil))
+	handler.ServeHTTP(rec, httptest.NewRequest("POST", "/evp_proxy/v1/input/mysubdomain/mypath", nil))
 	require.Equal(t, http.StatusMethodNotAllowed, rec.Code)
 }

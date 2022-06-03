@@ -113,7 +113,7 @@ var endpoints = []Endpoint{
 		Handler: func(r *HTTPReceiver) http.Handler { return http.StripPrefix("/appsec/proxy", r.appsecHandler) },
 	},
 	{
-		Pattern: "/evp_intake_proxy/v1/input/",
+		Pattern: "/evp_proxy/v1/input/",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.evpIntakeHandler() },
 	},
 	{

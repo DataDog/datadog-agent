@@ -78,7 +78,7 @@ func evpIntakeEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
 	return endpoints
 }
 
-// evpIntakeHandler returns an HTTP handler for the /evp_intake_proxy API.
+// evpIntakeHandler returns an HTTP handler for the /evp_proxy API.
 // Depending on the config, this is a proxying handler or a noop handler.
 func (r *HTTPReceiver) evpIntakeHandler() http.Handler {
 	// r.conf is populated by cmd/trace-agent/config/config.go
@@ -89,7 +89,7 @@ func (r *HTTPReceiver) evpIntakeHandler() http.Handler {
 	transport := r.conf.NewHTTPTransport()
 	logger := stdlog.New(log.NewThrottled(5, 10*time.Second), "EVPIntakeProxy: ", 0) // limit to 5 messages every 10 seconds
 	handler := evpIntakeReverseProxyHandler(r.conf, endpoints, transport, logger)
-	return http.StripPrefix("/evp_intake_proxy/v1/input", handler)
+	return http.StripPrefix("/evp_proxy/v1/input", handler)
 }
 
 // evpIntakeErrorHandler returns an HTTP handler that will always return
@@ -156,11 +156,11 @@ func (t *evpIntakeProxyTransport) RoundTrip(req *http.Request) (rresp *http.Resp
 	beginTime := time.Now()
 	metricTags := []string{}
 	defer func() {
-		metrics.Count("datadog.trace_agent.evpiproxy.request", 1, metricTags, 1)
-		metrics.Count("datadog.trace_agent.evpiproxy.request_bytes", req.ContentLength, metricTags, 1)
-		metrics.Timing("datadog.trace_agent.evpiproxy.request_duration_ms", time.Since(beginTime), metricTags, 1)
+		metrics.Count("datadog.trace_agent.evp_proxy.request", 1, metricTags, 1)
+		metrics.Count("datadog.trace_agent.evp_proxy.request_bytes", req.ContentLength, metricTags, 1)
+		metrics.Timing("datadog.trace_agent.evp_proxy.request_duration_ms", time.Since(beginTime), metricTags, 1)
 		if rerr != nil {
-			metrics.Count("datadog.trace_agent.evpiproxy.request_error", 1, metricTags, 1)
+			metrics.Count("datadog.trace_agent.evp_proxy.request_error", 1, metricTags, 1)
 		}
 	}()
 
