@@ -267,10 +267,13 @@ func (c ConnectionStats) IsExpired(now uint64, timeout uint64) bool {
 //    32b     16b     16b      4b      4b     32/128b      32/128b
 // |  PID  | SPORT | DPORT | Family | Type |  SrcAddr  |  DestAddr
 func (c ConnectionStats) ByteKey(buf []byte) ([]byte, error) {
+	laddr, sport := GetNATLocalAddress(c)
+	raddr, dport := GetNATRemoteAddress(c)
+
 	n := 0
 	// Byte-packing to improve creation speed
 	// PID (32 bits) + SPort (16 bits) + DPort (16 bits) = 64 bits
-	p0 := uint64(c.Pid)<<32 | uint64(c.SPort)<<16 | uint64(c.DPort)
+	p0 := uint64(c.Pid)<<32 | uint64(sport)<<16 | uint64(dport)
 	binary.LittleEndian.PutUint64(buf[0:], p0)
 	n += 8
 
@@ -278,8 +281,8 @@ func (c ConnectionStats) ByteKey(buf []byte) ([]byte, error) {
 	buf[n] = uint8(c.Family)<<4 | uint8(c.Type)
 	n++
 
-	n += c.Source.WriteTo(buf[n:]) // 4 or 16 bytes
-	n += c.Dest.WriteTo(buf[n:])   // 4 or 16 bytes
+	n += laddr.WriteTo(buf[n:]) // 4 or 16 bytes
+	n += raddr.WriteTo(buf[n:]) // 4 or 16 bytes
 	return buf[:n], nil
 }
 
