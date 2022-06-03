@@ -87,7 +87,8 @@ func (r *HTTPReceiver) evpIntakeHandler() http.Handler {
 	}
 	endpoints := evpIntakeEndpointsFromConfig(r.conf)
 	transport := r.conf.NewHTTPTransport()
-	reverseProxyHandler := evpIntakeReverseProxyHandler(r.conf, endpoints, transport)
+	logger := stdlog.New(log.NewThrottled(5, 10*time.Second), "EvpIntakeProxy: ", 0) // limit to 5 messages every 10 seconds
+	reverseProxyHandler := evpIntakeReverseProxyHandler(r.conf, endpoints, transport, logger)
 	return http.StripPrefix("/evpIntakeProxy/v1", reverseProxyHandler)
 }
 
@@ -104,10 +105,10 @@ func evpIntakeErrorHandler(message string) http.Handler {
 // to one or more endpoints, based on the request received and the Agent configuration.
 // Headers are not proxied, instead we add our own known set of headers.
 // See also evpIntakeProxyTransport below.
-func evpIntakeReverseProxyHandler(conf *config.AgentConfig, endpoints []config.Endpoint, transport http.RoundTripper) http.Handler {
+func evpIntakeReverseProxyHandler(conf *config.AgentConfig, endpoints []config.Endpoint, transport http.RoundTripper, logger *stdlog.Logger) http.Handler {
 	director := func(req *http.Request) {
 
-		containerID := req.Header.Get(headerContainerID)
+		containerID := req.Header.Get("Datadog-Container-ID")
 		contentType := req.Header.Get("Content-Type")
 		userAgent := req.Header.Get("User-Agent")
 
@@ -132,10 +133,9 @@ func evpIntakeReverseProxyHandler(conf *config.AgentConfig, endpoints []config.E
 		// URL, Host and the API key header are set in the transport for each outbound request
 	}
 
-	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
 		Director:  director,
-		ErrorLog:  stdlog.New(logger, "EvpIntakeProxy: ", 0),
+		ErrorLog:  logger,
 		Transport: &evpIntakeProxyTransport{transport, endpoints},
 	}
 }
@@ -166,28 +166,26 @@ func (t *evpIntakeProxyTransport) RoundTrip(req *http.Request) (rresp *http.Resp
 
 	// Parse request path: The first component is the target subdomain, the rest is the target path.
 	inputPath := req.URL.Path
-	subdomainAndPath := strings.SplitN(inputPath, "/", 3)
-	if len(subdomainAndPath) != 3 || subdomainAndPath[0] != "" || subdomainAndPath[1] == "" || subdomainAndPath[2] == "" {
+	urlComponents := strings.SplitN(inputPath, "/", 3)
+	if len(urlComponents) != 3 || urlComponents[0] != "" || urlComponents[1] == "" || urlComponents[2] == "" {
 		return nil, fmt.Errorf("EvpIntakeProxy: invalid path: '%s'", inputPath)
 	}
-	subdomain := subdomainAndPath[1]
-	path := subdomainAndPath[2]
+	subdomain := urlComponents[1]
+	req.URL.Path = strings.TrimPrefix(req.URL.Path, "/"+subdomain)
 
 	// Sanitize the input
 	if !isValidSubdomain(subdomain) {
 		return nil, fmt.Errorf("EvpIntakeProxy: invalid subdomain: %s", subdomain)
 	}
 	metricTags = append(metricTags, "subdomain:"+subdomain)
-	if !isValidPath(path) {
-		return nil, fmt.Errorf("EvpIntakeProxy: invalid target path: %s", path)
+	if !isValidPath(req.URL.Path) {
+		return nil, fmt.Errorf("EvpIntakeProxy: invalid target path: %s", req.URL.Path)
 	}
 	if !isValidQueryString(req.URL.RawQuery) {
 		return nil, fmt.Errorf("EvpIntakeProxy: invalid query string: %s", req.URL.RawQuery)
 	}
 
 	req.URL.Scheme = "https"
-	req.URL.Path = "/" + path
-
 	setTarget := func(r *http.Request, host, apiKey string) {
 		targetHost := subdomain + "." + host
 		r.Host = targetHost
@@ -202,13 +200,19 @@ func (t *evpIntakeProxyTransport) RoundTrip(req *http.Request) (rresp *http.Resp
 
 	// There's more than one destination endpoint
 
-	slurp, err := ioutil.ReadAll(req.Body)
-	if err != nil {
-		return nil, err
+	var slurp *[]byte
+	if req.Body != nil {
+		body, err := ioutil.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+		slurp = &body
 	}
 	for i, endpointDomain := range t.endpoints {
 		newreq := req.Clone(req.Context())
-		newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))
+		if slurp != nil {
+			newreq.Body = ioutil.NopCloser(bytes.NewReader(*slurp))
+		}
 		setTarget(newreq, endpointDomain.Host, endpointDomain.APIKey)
 		if i == 0 {
 			// given the way we construct the list of targets the main endpoint
