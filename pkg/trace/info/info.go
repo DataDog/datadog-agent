@@ -80,10 +80,10 @@ const (
 
   --- Writer stats (1 min) ---
 
-  Traces: {{.Status.TraceWriter.Payloads}} payloads, {{.Status.TraceWriter.Traces}} traces, {{if gt .Status.TraceWriter.Events 0}}{{.Status.TraceWriter.Events}} events, {{end}}{{.Status.TraceWriter.Bytes}} bytes
-  {{if gt .Status.TraceWriter.Errors 0}}WARNING: Traces API errors (1 min): {{.Status.TraceWriter.Errors}}{{end}}
-  Stats: {{.Status.StatsWriter.Payloads}} payloads, {{.Status.StatsWriter.StatsBuckets}} stats buckets, {{.Status.StatsWriter.Bytes}} bytes
-  {{if gt .Status.StatsWriter.Errors 0}}WARNING: Stats API errors (1 min): {{.Status.StatsWriter.Errors}}{{end}}
+  Traces: {{.Status.TraceWriter.Payloads}} payloads, {{.Status.TraceWriter.Traces}} traces, {{if gt .Status.TraceWriter.Events.Load 0}}{{.Status.TraceWriter.Events.Load}} events, {{end}}{{.Status.TraceWriter.Bytes}} bytes
+  {{if gt .Status.TraceWriter.Errors.Load 0}}WARNING: Traces API errors (1 min): {{.Status.TraceWriter.Errors.Load}}{{end}}
+  Stats: {{.Status.StatsWriter.Payloads.Load}} payloads, {{.Status.StatsWriter.StatsBuckets.Load}} stats buckets, {{.Status.StatsWriter.Bytes.Load}} bytes
+  {{if gt .Status.StatsWriter.Errors.Load 0}}WARNING: Stats API errors (1 min): {{.Status.StatsWriter.Errors.Load}}{{end}}
 `
 
 	notRunningTmplSrc = `{{.Banner}}
