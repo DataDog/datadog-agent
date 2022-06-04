@@ -3299,3 +3299,10 @@ api_key:
     #
     # span_name_remappings:
     #   <OLD_NAME>: <NEW_NAME>
+
+  ## @param logging_exporter_log_level - string - optional - default: ""
+  ## @env DD_OTLP_CONFIG_LOGGING_EXPORTER_LOG_LEVEL - string - optional - default: ""
+  ## Configuration for log level of the logging exporter. Options are debug, info, warn, error.
+  ## If not set, disabling the logging exporter.
+  #
+  # logging_exporter_log_level: ""

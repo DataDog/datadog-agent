@@ -120,6 +120,22 @@ func buildMap(cfg PipelineConfig) (*config.Map, error) {
 		err = retMap.Merge(metricsMap)
 		errs = append(errs, err)
 	}
+	if cfg.LoggingExporterLogLevel != "" {
+		if cfg.MetricsEnabled {
+			appendConfigMapValue(retMap, buildKey("service", "pipelines", "metrics", "exporters"), []interface{}{"logging"})
+		}
+		if cfg.TracesEnabled {
+			appendConfigMapValue(retMap, buildKey("service", "pipelines", "traces", "exporters"), []interface{}{"logging"})
+		}
+		errs = append(errs, retMap.Merge(config.NewMapFromStringMap(map[string]interface{}{
+			"exporters": map[string]interface{}{
+				"logging": map[string]interface{}{
+					"loglevel": cfg.LoggingExporterLogLevel,
+				},
+			},
+		})))
+	}
+
 	err := retMap.Merge(buildReceiverMap(cfg.OTLPReceiverConfig))
 	errs = append(errs, err)
 
@@ -133,4 +149,10 @@ func newMapProvider(cfg PipelineConfig) (service.ConfigProvider, error) {
 		return nil, err
 	}
 	return configutils.NewConfigProviderFromMap(cfgMap), nil
+}
+
+// appendConfigMapValue appends given value to given config.Map associated to given key.
+func appendConfigMapValue(m *config.Map, key string, value []interface{}) {
+	v, _ := m.Get(key).([]interface{})
+	m.Set(key, append(v, value...))
 }

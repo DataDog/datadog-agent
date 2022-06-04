@@ -13,6 +13,7 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/exporter/loggingexporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/processor/batchprocessor"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
@@ -56,6 +57,7 @@ func getComponents(s serializer.MetricSerializer) (
 	exporters, err := component.MakeExporterFactoryMap(
 		otlpexporter.NewFactory(),
 		serializerexporter.NewFactory(s),
+		loggingexporter.NewFactory(),
 	)
 	if err != nil {
 		errs = append(errs, err)
@@ -96,6 +98,8 @@ type PipelineConfig struct {
 	MetricsEnabled bool
 	// TracesEnabled states whether OTLP traces support is enabled.
 	TracesEnabled bool
+	// LoggingExporterLogLevel states log level of OTLP logging exporter.
+	LoggingExporterLogLevel string
 
 	// Metrics contains configuration options for the serializer metrics exporter
 	Metrics map[string]interface{}

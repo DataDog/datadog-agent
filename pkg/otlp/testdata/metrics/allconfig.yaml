@@ -1,7 +1,8 @@
 otlp_config:
+  logging_exporter_log_level: info
   receiver:
     protocols:
-      http: 
+      http:
         endpoint: localhost:1234
       grpc:
         endpoint: localhost:5678

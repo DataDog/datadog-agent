@@ -78,15 +78,23 @@ func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 	if !metricsEnabled && !tracesEnabled {
 		errs = append(errs, fmt.Errorf("at least one OTLP signal needs to be enabled"))
 	}
-
+	logLevel := cfg.GetString(config.OTLPLoggingExporterLogLevel)
+	if logLevel != config.OTLPLoggingExporterLogLevelDisabled &&
+		logLevel != config.OTLPLoggingExporterLogLevelDebug &&
+		logLevel != config.OTLPLoggingExporterLogLevelInfo &&
+		logLevel != config.OTLPLoggingExporterLogLevelWarn &&
+		logLevel != config.OTLPLoggingExporterLogLevelError {
+		errs = append(errs, fmt.Errorf("%s is not a valid value for OTLP logging exporter log level", logLevel))
+	}
 	metricsConfig := readConfigSection(cfg, config.OTLPMetrics)
 
 	return PipelineConfig{
-		OTLPReceiverConfig: otlpConfig.ToStringMap(),
-		TracePort:          tracePort,
-		MetricsEnabled:     metricsEnabled,
-		TracesEnabled:      tracesEnabled,
-		Metrics:            metricsConfig.ToStringMap(),
+		OTLPReceiverConfig:      otlpConfig.ToStringMap(),
+		TracePort:               tracePort,
+		MetricsEnabled:          metricsEnabled,
+		TracesEnabled:           tracesEnabled,
+		Metrics:                 metricsConfig.ToStringMap(),
+		LoggingExporterLogLevel: logLevel,
 	}, multierr.Combine(errs...)
 }
 
