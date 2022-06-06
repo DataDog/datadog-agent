@@ -236,8 +236,10 @@ func formatTags(tagsSet *network.TagsSet, c network.ConnectionStats) (tagsIdx []
 	for _, tag := range network.GetStaticTags(c.StaticTags) {
 		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
 	}
-	for tag, _ := range c.Tags {
+
+	for tag := range c.Tags {
 		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
 	}
+
 	return tagsIdx
 }

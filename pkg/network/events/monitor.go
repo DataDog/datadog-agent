@@ -43,7 +43,7 @@ func (h *eventHandlerWrapper) HandleEvent(ev *sprobe.Event) {
 	}
 }
 
-func (e *eventHandlerWrapper) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) {
+func (h *eventHandlerWrapper) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) {
 	m := theMonitor.Load()
 	if m != nil {
 		m.(*eventMonitor).HandleCustomEvent(rule, event)
