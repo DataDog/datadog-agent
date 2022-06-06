@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 import os
+import random
 import socket
 import sys
-import random
 import time
 
 children = []
