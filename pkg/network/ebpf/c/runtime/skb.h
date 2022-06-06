@@ -28,7 +28,8 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
         return ret;
     }
 
-    struct iphdr iph = {};
+    struct iphdr iph;
+    __builtin_memset(&iph, 0, sizeof(struct iphdr));
     ret = bpf_probe_read(&iph, sizeof(iph), (struct iphdr *)(head + net_head));
     if (ret) {
         log_debug("ERR reading iphdr\n");
@@ -55,7 +56,8 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
     }
 #ifdef FEATURE_IPV6_ENABLED
     else if (iph.version == 6) {
-        struct ipv6hdr ip6h = {};
+        struct ipv6hdr ip6h;
+        __builtin_memset(&ip6h, 0, sizeof(struct ipv6hdr));
         ret = bpf_probe_read(&ip6h, sizeof(ip6h), (struct ipv6hdr *)(head + net_head));
         if (ret) {
             log_debug("ERR reading ipv6 hdr\n");
@@ -93,7 +95,8 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
 
     int proto = get_proto(tup);
     if (proto == CONN_TYPE_UDP) {
-        struct udphdr udph = {};
+        struct udphdr udph;
+        __builtin_memset(&udph, 0, sizeof(struct udphdr));
         ret = bpf_probe_read(&udph, sizeof(udph), (struct udphdr *)(head + trans_head));
         if (ret) {
             log_debug("ERR reading udphdr\n");
@@ -105,7 +108,8 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
         //log_debug("udp recv: udphdr.len=%d\n", bpf_ntohs(udph.len));
         return (int)(bpf_ntohs(udph.len) - sizeof(struct udphdr));
     } else if (proto == CONN_TYPE_TCP) {
-        struct tcphdr tcph = {};
+        struct tcphdr tcph;
+        __builtin_memset(&tcph, 0, sizeof(struct tcphdr));
         ret = bpf_probe_read(&tcph, sizeof(tcph), (struct tcphdr *)(head + trans_head));
         if (ret) {
             log_debug("ERR reading tcphdr\n");
