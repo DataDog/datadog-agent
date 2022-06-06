@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
-	"sync/atomic"
+	"sync"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -41,7 +41,7 @@ var (
 	procGetWindowRect    = moduser32.NewProc("GetWindowRect")
 	procGetDesktopWindow = moduser32.NewProc("GetDesktopWindow")
 	info                 flareInfo
-	inProgress           = notInProgress
+	inProgress           = sync.Mutex{}
 )
 
 type flareInfo struct {
@@ -139,12 +139,11 @@ func onFlare() {
 	// library will allow multiple calls (multi-threaded window proc?)
 	// however, we're using a single instance of the info structure to
 	// pass data around.  Don't allow multiple dialogs to be displayed
-
-	if atomic.CompareAndSwapInt32(&inProgress, notInProgress, isInProgress) == false {
+	if !inProgress.TryLock() {
 		log.Warn("Dialog already in progress, skipping")
 		return
 	}
-	defer atomic.StoreInt32(&inProgress, notInProgress)
+	defer inProgress.Unlock()
 
 	myInst := win.GetModuleHandle(nil)
 	if myInst == win.HINSTANCE(0) {
