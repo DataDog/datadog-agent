@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -136,7 +137,7 @@ func evpProxyForwarder(conf *config.AgentConfig, endpoints []config.Endpoint, tr
 	return &httputil.ReverseProxy{
 		Director:  director,
 		ErrorLog:  logger,
-		Transport: &evpProxyTransport{transport, endpoints},
+		Transport: &evpProxyTransport{transport, endpoints, conf.EVPProxy.MaxPayloadSize},
 	}
 }
 
@@ -146,11 +147,15 @@ func evpProxyForwarder(conf *config.AgentConfig, endpoints []config.Endpoint, tr
 // is proxied back to the client, while for all aditional endpoints the
 // response is discarded.
 type evpProxyTransport struct {
-	transport http.RoundTripper
-	endpoints []config.Endpoint
+	transport      http.RoundTripper
+	endpoints      []config.Endpoint
+	maxPayloadSize int64
 }
 
 func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
+	if req.Body != nil && t.maxPayloadSize > 0 {
+		req.Body = apiutil.NewLimitedReader(req.Body, t.maxPayloadSize)
+	}
 
 	// Metrics with stats for debugging
 	beginTime := time.Now()

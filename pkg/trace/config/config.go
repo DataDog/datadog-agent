@@ -262,6 +262,8 @@ type EVPProxy struct {
 	APIKey string
 	// AdditionalEndpoints is a map of additional domain URLs to API keys.
 	AdditionalEndpoints map[string][]string
+	// MaxPayloadSize indicates the size at which payloads will be rejected, in bytes
+	MaxPayloadSize int64
 }
 
 // DebuggerProxyConfig ...
@@ -479,7 +481,8 @@ func New() *AgentConfig {
 			MaxPayloadSize: 5 * 1024 * 1024,
 		},
 		EVPProxy: EVPProxy{
-			Enabled: true,
+			Enabled:        true,
+			MaxPayloadSize: 5 * 1024 * 1024,
 		},
 	}
 }

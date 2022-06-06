@@ -36,6 +36,11 @@ func (r roundTripperMock) RoundTrip(req *http.Request) (*http.Response, error) {
 // prefix since it is passed directly to the inner proxy handler and not the trace-agent API handler.
 func sendRequestThroughForwarder(conf *config.AgentConfig, inReq *http.Request) (outReqs []*http.Request, resp *http.Response, logs string) {
 	mockRoundTripper := roundTripperMock(func(req *http.Request) (*http.Response, error) {
+		if req.Body != nil {
+			if _, err := ioutil.ReadAll(req.Body); err != nil && err != io.EOF {
+				return nil, err
+			}
+		}
 		outReqs = append(outReqs, req)
 		// If we got here it means the proxy didn't raise an error earlier, return an ok resp
 		return &http.Response{
@@ -178,19 +183,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		require.Contains(t, logs, "invalid subdomain")
 
 		// check metrics
-		require.Len(t, stats.TimingCalls, 1)
-		assert.Equal(t, "datadog.trace_agent.evp_proxy.request_duration_ms", stats.TimingCalls[0].Name)
-		assert.Len(t, stats.TimingCalls[0].Tags, 0)
-		assert.Equal(t, float64(1), stats.TimingCalls[0].Rate)
 		require.Len(t, stats.CountCalls, 3)
-		assert.Equal(t, "datadog.trace_agent.evp_proxy.request", stats.CountCalls[0].Name)
-		assert.Equal(t, float64(1), stats.CountCalls[0].Value)
-		assert.Equal(t, float64(1), stats.CountCalls[0].Rate)
-		assert.Len(t, stats.CountCalls[0].Tags, 0)
-		assert.Equal(t, "datadog.trace_agent.evp_proxy.request_bytes", stats.CountCalls[1].Name)
-		assert.Equal(t, float64(0), stats.CountCalls[1].Value)
-		assert.Equal(t, float64(1), stats.CountCalls[1].Rate)
-		assert.Len(t, stats.CountCalls[1].Tags, 0)
 		assert.Equal(t, "datadog.trace_agent.evp_proxy.request_error", stats.CountCalls[2].Name)
 		assert.Equal(t, float64(1), stats.CountCalls[2].Value)
 		assert.Equal(t, float64(1), stats.CountCalls[2].Rate)
@@ -215,19 +208,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		expectedTags := []string{
 			"subdomain:my.subdomain",
 		}
-		require.Len(t, stats.TimingCalls, 1)
-		assert.Equal(t, "datadog.trace_agent.evp_proxy.request_duration_ms", stats.TimingCalls[0].Name)
-		assert.ElementsMatch(t, expectedTags, stats.TimingCalls[0].Tags)
-		assert.Equal(t, float64(1), stats.TimingCalls[0].Rate)
 		require.Len(t, stats.CountCalls, 3)
-		assert.Equal(t, "datadog.trace_agent.evp_proxy.request", stats.CountCalls[0].Name)
-		assert.Equal(t, float64(1), stats.CountCalls[0].Value)
-		assert.Equal(t, float64(1), stats.CountCalls[0].Rate)
-		assert.ElementsMatch(t, expectedTags, stats.CountCalls[0].Tags)
-		assert.Equal(t, "datadog.trace_agent.evp_proxy.request_bytes", stats.CountCalls[1].Name)
-		assert.Equal(t, float64(0), stats.CountCalls[1].Value)
-		assert.Equal(t, float64(1), stats.CountCalls[1].Rate)
-		assert.ElementsMatch(t, expectedTags, stats.CountCalls[1].Tags)
 		assert.Equal(t, "datadog.trace_agent.evp_proxy.request_error", stats.CountCalls[2].Name)
 		assert.Equal(t, float64(1), stats.CountCalls[2].Value)
 		assert.Equal(t, float64(1), stats.CountCalls[2].Rate)
@@ -245,7 +226,6 @@ func TestEVPProxyForwarder(t *testing.T) {
 		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
 
 		require.Len(t, proxyreqs, 0)
-
 		require.Equal(t, http.StatusBadGateway, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
 		require.Contains(t, logs, "invalid query string")
 
@@ -253,19 +233,33 @@ func TestEVPProxyForwarder(t *testing.T) {
 		expectedTags := []string{
 			"subdomain:my.subdomain",
 		}
-		require.Len(t, stats.TimingCalls, 1)
-		assert.Equal(t, "datadog.trace_agent.evp_proxy.request_duration_ms", stats.TimingCalls[0].Name)
-		assert.ElementsMatch(t, expectedTags, stats.TimingCalls[0].Tags)
-		assert.Equal(t, float64(1), stats.TimingCalls[0].Rate)
 		require.Len(t, stats.CountCalls, 3)
-		assert.Equal(t, "datadog.trace_agent.evp_proxy.request", stats.CountCalls[0].Name)
-		assert.Equal(t, float64(1), stats.CountCalls[0].Value)
-		assert.Equal(t, float64(1), stats.CountCalls[0].Rate)
-		assert.ElementsMatch(t, expectedTags, stats.CountCalls[0].Tags)
-		assert.Equal(t, "datadog.trace_agent.evp_proxy.request_bytes", stats.CountCalls[1].Name)
-		assert.Equal(t, float64(0), stats.CountCalls[1].Value)
-		assert.Equal(t, float64(1), stats.CountCalls[1].Rate)
-		assert.ElementsMatch(t, expectedTags, stats.CountCalls[1].Tags)
+		assert.Equal(t, "datadog.trace_agent.evp_proxy.request_error", stats.CountCalls[2].Name)
+		assert.Equal(t, float64(1), stats.CountCalls[2].Value)
+		assert.Equal(t, float64(1), stats.CountCalls[2].Rate)
+		assert.ElementsMatch(t, expectedTags, stats.CountCalls[2].Tags)
+	})
+
+	t.Run("max payload size reached", func(t *testing.T) {
+		stats.Reset()
+
+		conf := newTestReceiverConfig()
+		conf.Site = "us3.datadoghq.com"
+		conf.Endpoints[0].APIKey = "test_api_key"
+		conf.EVPProxy.MaxPayloadSize = 42
+
+		req := httptest.NewRequest("POST", "/my.subdomain/mypath/mysubpath", bytes.NewReader(randBodyBuf))
+		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
+
+		require.Len(t, proxyreqs, 0)
+		require.Equal(t, http.StatusBadGateway, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
+		require.Contains(t, logs, "read limit reached")
+
+		// check metrics
+		expectedTags := []string{
+			"subdomain:my.subdomain",
+		}
+		require.Len(t, stats.CountCalls, 3)
 		assert.Equal(t, "datadog.trace_agent.evp_proxy.request_error", stats.CountCalls[2].Name)
 		assert.Equal(t, float64(1), stats.CountCalls[2].Value)
 		assert.Equal(t, float64(1), stats.CountCalls[2].Rate)

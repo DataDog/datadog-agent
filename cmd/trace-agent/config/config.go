@@ -413,6 +413,9 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if k := "evp_proxy_config.additional_endpoints"; coreconfig.Datadog.IsSet(k) {
 		c.EVPProxy.AdditionalEndpoints = coreconfig.Datadog.GetStringMapStringSlice(k)
 	}
+	if k := "evp_proxy_config.max_payload_size"; coreconfig.Datadog.IsSet(k) {
+		c.EVPProxy.MaxPayloadSize = coreconfig.Datadog.GetInt64(k)
+	}
 	return nil
 }
 
