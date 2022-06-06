@@ -23,8 +23,9 @@ var filteredEnvs = []string{
 
 // Process stores process info
 type Process struct {
-	Pid  uint32
-	Envs map[string]string
+	Pid         uint32
+	Envs        map[string]string
+	ContainerId string
 }
 
 type processCache struct {
@@ -72,11 +73,11 @@ func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
 		}
 	}
 
-	if len(envs) == 0 && len(filteredEnvs) > 0 {
+	if len(envs) == 0 && len(filteredEnvs) > 0 && entry.ContainerID == "" {
 		return
 	}
 
-	pc.cache.Add(entry.Pid, &Process{Pid: entry.Pid, Envs: envs})
+	pc.cache.Add(entry.Pid, &Process{Pid: entry.Pid, Envs: envs, ContainerId: entry.ContainerID})
 }
 
 // Process looks up a process by PID

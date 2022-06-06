@@ -326,7 +326,7 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 			t.conntracker.DeleteTranslation(*cs)
 		}
 
-		t.addProcessTags(cs)
+		t.addProcessInfo(cs)
 	}
 
 	connections = connections[rejected:]
@@ -335,7 +335,7 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	t.state.StoreClosedConnections(connections)
 }
 
-func (t *Tracer) addProcessTags(c *network.ConnectionStats) {
+func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	if t.processCache == nil {
 		return
 	}

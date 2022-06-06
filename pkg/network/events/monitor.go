@@ -1,3 +1,10 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
+// +build linux_bpf
 package events
 
 import (
@@ -29,6 +36,7 @@ func Init() error {
 // HandlerFunc is the prototype for an event handler callback for process events
 type HandlerFunc func(*model.ProcessCacheEntry)
 
+// Registerhandler registers a handler function for getting process events
 func RegisterHandler(handler HandlerFunc) {
 	m := theMonitor.Load().(*eventMonitor)
 	m.RegisterHandler(handler)
