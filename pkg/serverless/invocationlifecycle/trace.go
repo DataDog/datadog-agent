@@ -179,15 +179,15 @@ func getSamplingPriority(header string, directInvokeHeader string) sampler.Sampl
 // InjectContext injects the context
 func InjectContext(executionContext *ExecutionStartInfo, headers http.Header) {
 	if value, err := convertStrToUnit64(headers.Get(TraceIDHeader)); err == nil {
-		log.Debug("injecting traceID = %v", value)
+		log.Debugf("injecting traceID = %v", value)
 		executionContext.TraceID = value
 	}
 	if value, err := convertStrToUnit64(headers.Get(ParentIDHeader)); err == nil {
-		log.Debug("injecting parentId = %v", value)
+		log.Debugf("injecting parentId = %v", value)
 		executionContext.parentID = value
 	}
 	if value, err := strconv.ParseInt(headers.Get(SamplingPriorityHeader), 10, 8); err == nil {
-		log.Debug("injecting samplingPriority = %v", value)
+		log.Debugf("injecting samplingPriority = %v", value)
 		executionContext.SamplingPriority = sampler.SamplingPriority(value)
 	}
 }
@@ -195,7 +195,7 @@ func InjectContext(executionContext *ExecutionStartInfo, headers http.Header) {
 // InjectSpanID injects the spanId
 func InjectSpanID(executionContext *ExecutionStartInfo, headers http.Header) {
 	if value, err := strconv.ParseUint(headers.Get(SpanIDHeader), 10, 64); err == nil {
-		log.Debug("injecting spanID = %v", value)
+		log.Debugf("injecting spanID = %v", value)
 		executionContext.SpanID = value
 	}
 }
