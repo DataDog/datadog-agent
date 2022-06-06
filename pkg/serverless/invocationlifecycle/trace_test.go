@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -88,7 +89,7 @@ func TestInjectSpanIDWithContext(t *testing.T) {
 
 func TestStartExecutionSpanWithoutPayload(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
-	startExecutionSpan(currentExecutionInfo, timeNow(), "", LambdaInvokeEventHeaders{}, false)
+	startExecutionSpan(currentExecutionInfo, nil, timeNow(), "", LambdaInvokeEventHeaders{}, false)
 	assert.Equal(t, currentExecutionInfo.startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(0), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(0), currentExecutionInfo.SpanID)
@@ -99,7 +100,7 @@ func TestStartExecutionSpanWithPayload(t *testing.T) {
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"-1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startTime := timeNow()
 	currentExecutionInfo := &ExecutionStartInfo{}
-	startExecutionSpan(currentExecutionInfo, startTime, testString, LambdaInvokeEventHeaders{}, false)
+	startExecutionSpan(currentExecutionInfo, nil, startTime, testString, LambdaInvokeEventHeaders{}, false)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
@@ -116,7 +117,7 @@ func TestStartExecutionSpanWithPayloadAndLambdaContextHeaders(t *testing.T) {
 		SamplingPriority: "1",
 	}
 	startTime := time.Now()
-	startExecutionSpan(currentExecutionInfo, startTime, testString, lambdaInvokeContext, false)
+	startExecutionSpan(currentExecutionInfo, nil, startTime, testString, lambdaInvokeContext, false)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
@@ -128,7 +129,7 @@ func TestStartExecutionSpanWithPayloadAndInvalidIDs(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
 	invalidTestString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"INVALID","x-datadog-sampling-priority":"-1","x-datadog-trace-id":"INVALID"}}0`
 	startTime := time.Now()
-	startExecutionSpan(currentExecutionInfo, startTime, invalidTestString, LambdaInvokeEventHeaders{}, false)
+	startExecutionSpan(currentExecutionInfo, nil, startTime, invalidTestString, LambdaInvokeEventHeaders{}, false)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.NotEqual(t, 9, currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(0), currentExecutionInfo.parentID)
@@ -141,12 +142,14 @@ func TestStartExecutionSpanWithNoHeadersAndInferredSpan(t *testing.T) {
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}0`
 	startTime := time.Now()
 
+	inferredSpan := &inferredspan.InferredSpan{}
+
 	inferredSpan.Span = &pb.Span{
 		TraceID: 2350923428932752492,
 		SpanID:  1304592378509342580,
-		Start:   int64(startTime.UnixNano()),
+		Start:   startTime.UnixNano(),
 	}
-	startExecutionSpan(currentExecutionInfo, startTime, testString, LambdaInvokeEventHeaders{}, true)
+	startExecutionSpan(currentExecutionInfo, inferredSpan, startTime, testString, LambdaInvokeEventHeaders{}, true)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(2350923428932752492), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(1304592378509342580), currentExecutionInfo.parentID)
@@ -157,11 +160,12 @@ func TestStartExecutionSpanWithHeadersAndInferredSpan(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startTime := time.Now()
+	inferredSpan := &inferredspan.InferredSpan{}
 	inferredSpan.Span = &pb.Span{
 		SpanID: 1304592378509342580,
-		Start:  int64(startTime.UnixNano()),
+		Start:  startTime.UnixNano(),
 	}
-	startExecutionSpan(currentExecutionInfo, startTime, testString, LambdaInvokeEventHeaders{}, true)
+	startExecutionSpan(currentExecutionInfo, inferredSpan, startTime, testString, LambdaInvokeEventHeaders{}, true)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(1304592378509342580), currentExecutionInfo.parentID)
@@ -179,7 +183,7 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 	os.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "true")
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startTime := time.Now()
-	startExecutionSpan(currentExecutionInfo, startTime, testString, LambdaInvokeEventHeaders{}, false)
+	startExecutionSpan(currentExecutionInfo, nil, startTime, testString, LambdaInvokeEventHeaders{}, false)
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
@@ -212,7 +216,7 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startTime := time.Now()
 	currentExecutionInfo := &ExecutionStartInfo{}
-	startExecutionSpan(currentExecutionInfo, startTime, testString, LambdaInvokeEventHeaders{}, false)
+	startExecutionSpan(currentExecutionInfo, nil, startTime, testString, LambdaInvokeEventHeaders{}, false)
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
@@ -243,7 +247,7 @@ func TestEndExecutionSpanWithError(t *testing.T) {
 	os.Setenv(functionNameEnvVar, "TestFunction")
 	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startTime := time.Now()
-	startExecutionSpan(currentExecutionInfo, startTime, testString, LambdaInvokeEventHeaders{}, false)
+	startExecutionSpan(currentExecutionInfo, nil, startTime, testString, LambdaInvokeEventHeaders{}, false)
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)

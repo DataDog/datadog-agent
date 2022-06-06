@@ -155,7 +155,7 @@ int __attribute__((always_inline)) sys_splice_ret(void *ctx, int retval) {
 
     struct splice_event_t event = {
         .syscall.retval = retval,
-        .syscall.async = 0,
+        .event.async = 0,
         .file = syscall->splice.file,
         .pipe_entry_flag = syscall->splice.pipe_entry_flag,
         .pipe_exit_flag = syscall->splice.pipe_exit_flag,

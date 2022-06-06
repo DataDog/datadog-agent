@@ -8,27 +8,27 @@ import (
 )
 
 func TestGetNestedValueExists(t *testing.T) {
-	rawJson := []byte(`{"key":"val"}`)
+	rawJSON := []byte(`{"key":"val"}`)
 	jsonMap := make(map[string]interface{})
-	err := json.Unmarshal(rawJson, &jsonMap)
+	err := json.Unmarshal(rawJSON, &jsonMap)
 	assert.Nil(t, err)
 
 	assert.Equal(t, "val", GetNestedValue(jsonMap, "key"))
 }
 
 func TestGetNestedValueExistsNested(t *testing.T) {
-	rawJson := []byte(`{"key":"val", "key2": {"key3": {"key4": "val2"}}}`)
+	rawJSON := []byte(`{"key":"val", "key2": {"key3": {"key4": "val2"}}}`)
 	jsonMap := make(map[string]interface{})
-	err := json.Unmarshal(rawJson, &jsonMap)
+	err := json.Unmarshal(rawJSON, &jsonMap)
 	assert.Nil(t, err)
 
 	assert.Equal(t, "val2", GetNestedValue(jsonMap, []string{"key2", "key3", "key4"}...))
 }
 
 func TestGetNestedValueExistsStruct(t *testing.T) {
-	rawJson := []byte(`{"key":"val", "key2": {"key3": {"key4": "val2"}}}`)
+	rawJSON := []byte(`{"key":"val", "key2": {"key3": {"key4": "val2"}}}`)
 	jsonMap := make(map[string]interface{})
-	err := json.Unmarshal(rawJson, &jsonMap)
+	err := json.Unmarshal(rawJSON, &jsonMap)
 	assert.Nil(t, err)
 
 	assert.Equal(t, map[string]interface{}{
@@ -37,18 +37,18 @@ func TestGetNestedValueExistsStruct(t *testing.T) {
 }
 
 func TestGetNestedValueDoesntExist(t *testing.T) {
-	rawJson := []byte(`{"key":"val", "key5": {"key3": {"key4": "val2"}}}`)
+	rawJSON := []byte(`{"key":"val", "key5": {"key3": {"key4": "val2"}}}`)
 	jsonMap := make(map[string]interface{})
-	err := json.Unmarshal(rawJson, &jsonMap)
+	err := json.Unmarshal(rawJSON, &jsonMap)
 	assert.Nil(t, err)
 
 	assert.Equal(t, nil, GetNestedValue(jsonMap, []string{"doesnt_exist", "key3"}...))
 }
 
 func TestGetNestedValueDoesntExistNested(t *testing.T) {
-	rawJson := []byte(`{"key":"val", "key5": {"key3": {"key4": "val2"}}}`)
+	rawJSON := []byte(`{"key":"val", "key5": {"key3": {"key4": "val2"}}}`)
 	jsonMap := make(map[string]interface{})
-	err := json.Unmarshal(rawJson, &jsonMap)
+	err := json.Unmarshal(rawJSON, &jsonMap)
 	assert.Nil(t, err)
 
 	assert.Equal(t, nil, GetNestedValue(jsonMap, []string{"key5", "doesnt_exist"}...))

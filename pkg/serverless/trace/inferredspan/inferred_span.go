@@ -99,26 +99,14 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 // enrichment function for that event source
 func (inferredSpan *InferredSpan) DispatchInferredSpan(eventType trigger.AWSEventType, eventPayload interface{}) error {
 	switch eventType {
-	case trigger.ApiGatewayEvent:
-		eventContext, ok := eventPayload.(events.APIGatewayProxyRequest)
-		if ok {
-			inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(eventContext)
-		}
-	case trigger.ApiGatewayV2Event:
-		eventContext, ok := eventPayload.(events.APIGatewayV2HTTPRequest)
-		if ok {
-			inferredSpan.EnrichInferredSpanWithAPIGatewayHTTPEvent(eventContext)
-		}
-	case trigger.ApiGatewayWebsocketEvent:
-		eventContext, ok := eventPayload.(events.APIGatewayWebsocketProxyRequest)
-		if ok {
-			inferredSpan.EnrichInferredSpanWithAPIGatewayWebsocketEvent(eventContext)
-		}
+	case trigger.APIGatewayEvent:
+		inferredSpan.enrichInferredSpanWithAPIGatewayRESTEvent(eventPayload.(events.APIGatewayProxyRequest))
+	case trigger.APIGatewayV2Event:
+		inferredSpan.enrichInferredSpanWithAPIGatewayHTTPEvent(eventPayload.(events.APIGatewayV2HTTPRequest))
+	case trigger.APIGatewayWebsocketEvent:
+		inferredSpan.enrichInferredSpanWithAPIGatewayWebsocketEvent(eventPayload.(events.APIGatewayWebsocketProxyRequest))
 	case trigger.SNSEvent:
-		eventContext, ok := eventPayload.(events.SNSEvent)
-		if ok {
-			inferredSpan.EnrichInferredSpanWithSNSEvent(eventContext)
-		}
+		inferredSpan.enrichInferredSpanWithSNSEvent(eventPayload.(events.SNSEvent))
 	}
 
 	return nil

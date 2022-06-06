@@ -8,10 +8,10 @@ type ExtractionFunction func(map[string]interface{}) string
 // such as SNS, SQS, etc..
 func ExtractEventARN(event map[string]interface{}) (string, error) {
 	eventExtractors := map[AWSEventType]ExtractionFunction{
-		ApiGatewayEvent:          extractApiGatewayEventARN,
-		ApiGatewayV2Event:        extractApiGatewayV2EventARN,
-		ApiGatewayWebsocketEvent: extractApiGatewayWebSocketEventARN,
-		AlbEvent:                 extractAlbEventARN,
+		APIGatewayEvent:          extractAPIGatewayEventARN,
+		APIGatewayV2Event:        extractAPIGatewayV2EventARN,
+		APIGatewayWebsocketEvent: extractAPIGatewayWebSocketEventARN,
+		ALBEvent:                 extractAlbEventARN,
 		CloudWatchEvent:          extractCloudwatchEventARN,
 		CloudWatchLogsEvent:      extractCloudwatchLogsEventARN,
 		CloudFrontRequestEvent:   extractCloudFrontRequestEventARN,
@@ -33,15 +33,15 @@ func ExtractEventARN(event map[string]interface{}) (string, error) {
 	return eventExtractors[eventType](event), nil
 }
 
-func extractApiGatewayEventARN(event map[string]interface{}) string {
+func extractAPIGatewayEventARN(event map[string]interface{}) string {
 	return ""
 }
 
-func extractApiGatewayV2EventARN(event map[string]interface{}) string {
+func extractAPIGatewayV2EventARN(event map[string]interface{}) string {
 	return ""
 }
 
-func extractApiGatewayWebSocketEventARN(event map[string]interface{}) string {
+func extractAPIGatewayWebSocketEventARN(event map[string]interface{}) string {
 	return ""
 }
 

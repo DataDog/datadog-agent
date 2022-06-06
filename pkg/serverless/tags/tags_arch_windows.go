@@ -10,5 +10,5 @@ package tags
 
 // ResolveRuntimeArch determines the architecture of the lambda at runtime
 func ResolveRuntimeArch() string {
-	return "x86_64"
+	return X86LambdaPlatform
 }

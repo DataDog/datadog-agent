@@ -163,8 +163,12 @@ const (
 type EventType int
 
 const (
+	// EventTypeAll matches any event type. Should not be returned by
+	// collectors, as it is only meant to be used in filters.
+	EventTypeAll EventType = iota
+
 	// EventTypeSet indicates that an entity has been added or updated.
-	EventTypeSet EventType = iota
+	EventTypeSet
 
 	// EventTypeUnset indicates that an entity has been removed.  If multiple
 	// sources provide data for an entity, this message is only sent when the
@@ -400,7 +404,7 @@ func (c Container) String(verbose bool) string {
 	_, _ = fmt.Fprint(&sb, c.State.String(verbose))
 
 	if verbose {
-		_, _ = fmt.Fprintln(&sb, "Env Variables:", mapToString(c.EnvVars))
+		_, _ = fmt.Fprintln(&sb, "Allowed env variables:", filterAndFormatEnvVars(c.EnvVars))
 		_, _ = fmt.Fprintln(&sb, "Hostname:", c.Hostname)
 		_, _ = fmt.Fprintln(&sb, "Network IPs:", mapToString(c.NetworkIPs))
 		_, _ = fmt.Fprintln(&sb, "PID:", c.PID)

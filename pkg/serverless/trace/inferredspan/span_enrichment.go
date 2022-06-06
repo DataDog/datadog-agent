@@ -14,10 +14,10 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 )
 
-// EnrichInferredSpanWithAPIGatewayRESTEvent uses the parsed event
+// enrichInferredSpanWithAPIGatewayRESTEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a REST event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayRESTEvent(eventPayload events.APIGatewayProxyRequest) {
+func (inferredSpan *InferredSpan) enrichInferredSpanWithAPIGatewayRESTEvent(eventPayload events.APIGatewayProxyRequest) {
 	log.Debug("Enriching an inferred span for a REST API Gateway")
 	requestContext := eventPayload.RequestContext
 	resource := fmt.Sprintf("%s %s", eventPayload.HTTPMethod, eventPayload.Path)
@@ -30,23 +30,23 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayRESTEvent(even
 	inferredSpan.Span.Start = startTime
 	inferredSpan.Span.Type = "http"
 	inferredSpan.Span.Meta = map[string]string{
-		APIID:         requestContext.APIID,
-		APIName:       requestContext.APIID,
-		Endpoint:      eventPayload.Path,
-		HTTPURL:       httpurl,
-		OperationName: "aws.apigateway.rest",
-		RequestID:     requestContext.RequestID,
-		ResourceNames: resource,
-		Stage:         requestContext.Stage,
+		apiID:         requestContext.APIID,
+		apiName:       requestContext.APIID,
+		endpoint:      eventPayload.Path,
+		httpURL:       httpurl,
+		operationName: "aws.apigateway.rest",
+		requestID:     requestContext.RequestID,
+		resourceNames: resource,
+		stage:         requestContext.Stage,
 	}
 
-	inferredSpan.IsAsync = eventPayload.Headers[InvocationType] == "Event"
+	inferredSpan.IsAsync = eventPayload.Headers[invocationType] == "Event"
 }
 
-// EnrichInferredSpanWithAPIGatewayHTTPEvent uses the parsed event
+// enrichInferredSpanWithAPIGatewayHTTPEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a HTTP event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayHTTPEvent(eventPayload events.APIGatewayV2HTTPRequest) {
+func (inferredSpan *InferredSpan) enrichInferredSpanWithAPIGatewayHTTPEvent(eventPayload events.APIGatewayV2HTTPRequest) {
 	log.Debug("Enriching an inferred span for a HTTP API Gateway")
 	requestContext := eventPayload.RequestContext
 	http := requestContext.HTTP
@@ -61,82 +61,78 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayHTTPEvent(even
 	inferredSpan.Span.Type = "http"
 	inferredSpan.Span.Start = startTime
 	inferredSpan.Span.Meta = map[string]string{
-		Endpoint:      path,
-		HTTPURL:       httpurl,
-		HTTPMethod:    http.Method,
-		HTTPProtocol:  http.Protocol,
-		HTTPSourceIP:  http.SourceIP,
-		HTTPUserAgent: http.UserAgent,
-		OperationName: "aws.httpapi",
-		RequestID:     requestContext.RequestID,
-		ResourceNames: resource,
+		endpoint:      path,
+		httpURL:       httpurl,
+		httpMethod:    http.Method,
+		httpProtocol:  http.Protocol,
+		httpSourceIP:  http.SourceIP,
+		httpUserAgent: http.UserAgent,
+		operationName: "aws.httpapi",
+		requestID:     requestContext.RequestID,
+		resourceNames: resource,
 	}
 
-	inferredSpan.IsAsync = eventPayload.Headers[InvocationType] == "Event"
+	inferredSpan.IsAsync = eventPayload.Headers[invocationType] == "Event"
 }
 
-// EnrichInferredSpanWithAPIGatewayWebsocketEvent uses the parsed event
+// enrichInferredSpanWithAPIGatewayWebsocketEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a Websocket event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayWebsocketEvent(eventPayload events.APIGatewayWebsocketProxyRequest) {
+func (inferredSpan *InferredSpan) enrichInferredSpanWithAPIGatewayWebsocketEvent(eventPayload events.APIGatewayWebsocketProxyRequest) {
 	log.Debug("Enriching an inferred span for a Websocket API Gateway")
 	requestContext := eventPayload.RequestContext
-	endpoint := requestContext.RouteKey
-	httpurl := fmt.Sprintf("%s%s", requestContext.DomainName, endpoint)
+	routeKey := requestContext.RouteKey
+	httpurl := fmt.Sprintf("%s%s", requestContext.DomainName, routeKey)
 	startTime := calculateStartTime(requestContext.RequestTimeEpoch)
 
 	inferredSpan.Span.Name = "aws.apigateway.websocket"
 	inferredSpan.Span.Service = requestContext.DomainName
-	inferredSpan.Span.Resource = endpoint
+	inferredSpan.Span.Resource = routeKey
 	inferredSpan.Span.Type = "web"
 	inferredSpan.Span.Start = startTime
 	inferredSpan.Span.Meta = map[string]string{
-		APIID:            requestContext.APIID,
-		APIName:          requestContext.APIID,
-		ConnectionID:     requestContext.ConnectionID,
-		Endpoint:         endpoint,
-		EventType:        requestContext.EventType,
-		HTTPURL:          httpurl,
-		MessageDirection: requestContext.MessageDirection,
-		OperationName:    "aws.apigateway.websocket",
-		RequestID:        requestContext.RequestID,
-		ResourceNames:    endpoint,
-		Stage:            requestContext.Stage,
+		apiID:            requestContext.APIID,
+		apiName:          requestContext.APIID,
+		connectionID:     requestContext.ConnectionID,
+		endpoint:         routeKey,
+		eventType:        requestContext.EventType,
+		httpURL:          httpurl,
+		messageDirection: requestContext.MessageDirection,
+		operationName:    "aws.apigateway.websocket",
+		requestID:        requestContext.RequestID,
+		resourceNames:    routeKey,
+		stage:            requestContext.Stage,
 	}
 
-	inferredSpan.IsAsync = eventPayload.Headers[InvocationType] == "Event"
+	inferredSpan.IsAsync = eventPayload.Headers[invocationType] == "Event"
 }
 
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithSNSEvent(eventPayload events.SNSEvent) {
+func (inferredSpan *InferredSpan) enrichInferredSpanWithSNSEvent(eventPayload events.SNSEvent) {
 	eventRecord := eventPayload.Records[0]
 	snsMessage := eventRecord.SNS
 	splitArn := strings.Split(snsMessage.TopicArn, ":")
-	topicName := splitArn[len(splitArn)-1]
+	topicNameValue := splitArn[len(splitArn)-1]
 	startTime := snsMessage.Timestamp.UnixNano()
 
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.Name = "aws.sns"
-	inferredSpan.Span.Service = SNS
+	inferredSpan.Span.Service = sns
 	inferredSpan.Span.Start = startTime
-	inferredSpan.Span.Resource = topicName
+	inferredSpan.Span.Resource = topicNameValue
 	inferredSpan.Span.Type = "web"
 	inferredSpan.Span.Meta = map[string]string{
-		OperationName: "aws.sns",
-		ResourceNames: topicName,
-		TopicName:     topicName,
-		TopicARN:      snsMessage.TopicArn,
-		MessageID:     snsMessage.MessageID,
-		Type:          snsMessage.Type,
+		operationName: "aws.sns",
+		resourceNames: topicNameValue,
+		topicName:     topicNameValue,
+		topicARN:      snsMessage.TopicArn,
+		messageID:     snsMessage.MessageID,
+		metadataType:  snsMessage.Type,
 	}
 
 	//Subject not available in SNS => SQS scenario
 	if snsMessage.Subject != "" {
-		inferredSpan.Span.Meta[Subject] = snsMessage.Subject
+		inferredSpan.Span.Meta[subject] = snsMessage.Subject
 	}
-}
-
-func isAsyncEvent(snsRequest EventKeys) bool {
-	return snsRequest.Headers.InvocationType == "Event"
 }
 
 // CalculateStartTime converts AWS event timeEpochs to nanoseconds

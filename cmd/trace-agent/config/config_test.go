@@ -9,6 +9,7 @@ import (
 	"errors"
 	"html/template"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -404,6 +405,12 @@ func TestFullYamlConfig(t *testing.T) {
 	c, err := prepareConfig("./testdata/full.yaml")
 	assert.NoError(err)
 	assert.NoError(applyDatadogConfig(c))
+
+	req, err := http.NewRequest(http.MethodGet, "https://someplace.test", nil)
+	assert.NoError(err)
+	proxyURL, err := c.Proxy(req)
+	assert.NoError(err)
+	assert.Equal("proxy_for_https:1234", proxyURL.Host)
 
 	assert.Equal("mymachine", c.Hostname)
 	assert.Equal("https://user:password@proxy_for_https:1234", c.ProxyURL.String())

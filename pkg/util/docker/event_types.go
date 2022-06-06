@@ -25,6 +25,9 @@ const (
 	ContainerEventActionDied = "died"
 	// ContainerEventActionRename is the action of renaming a docker container
 	ContainerEventActionRename = "rename"
+	// ContainerEventActionHealthStatus is the action of changing a docker
+	// container's health status
+	ContainerEventActionHealthStatus = "health_status"
 )
 
 // ContainerEvent describes an event from the docker daemon

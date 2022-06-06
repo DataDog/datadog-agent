@@ -64,9 +64,6 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 	cfg.LogFilePath = DefaultLogFilePath
 	cfg.DDAgentBin = defaultDDAgentBin
 	cfg.AgentVersion = version.AgentVersion
-	if p := coreconfig.GetProxies(); p != nil {
-		cfg.Proxy = httputils.GetProxyTransportFunc(p)
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	orch := fargate.GetOrchestrator(ctx)
 	cancel()
@@ -77,6 +74,9 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 	coreconfig.Datadog.SetConfigFile(path)
 	if _, err := coreconfig.Load(); err != nil {
 		return cfg, err
+	}
+	if p := coreconfig.GetProxies(); p != nil {
+		cfg.Proxy = httputils.GetProxyTransportFunc(p)
 	}
 	cfg.ConfigPath = path
 	if coreconfig.Datadog.GetBool("remote_configuration.enabled") && coreconfig.Datadog.GetBool("remote_configuration.apm_sampling.enabled") {

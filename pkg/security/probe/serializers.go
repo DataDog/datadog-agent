@@ -20,29 +20,30 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // FileSerializer serializes a file to JSON
 // easyjson:json
 type FileSerializer struct {
-	Path                string     `json:"path,omitempty" jsonschema_description:"File path"`
-	Name                string     `json:"name,omitempty" jsonschema_description:"File basename"`
-	PathResolutionError string     `json:"path_resolution_error,omitempty" jsonschema_description:"Error message from path resolution"`
-	Inode               *uint64    `json:"inode,omitempty" jsonschema_description:"File inode number"`
-	Mode                *uint32    `json:"mode,omitempty" jsonschema_description:"File mode"`
-	InUpperLayer        *bool      `json:"in_upper_layer,omitempty" jsonschema_description:"Indicator of file OverlayFS layer"`
-	MountID             *uint32    `json:"mount_id,omitempty" jsonschema_description:"File mount ID"`
-	Filesystem          string     `json:"filesystem,omitempty" jsonschema_description:"File filesystem name"`
-	UID                 int64      `json:"uid" jsonschema_description:"File User ID"`
-	GID                 int64      `json:"gid" jsonschema_description:"File Group ID"`
-	User                string     `json:"user,omitempty" jsonschema_description:"File user"`
-	Group               string     `json:"group,omitempty" jsonschema_description:"File group"`
-	XAttrName           string     `json:"attribute_name,omitempty" jsonschema_description:"File extended attribute name"`
-	XAttrNamespace      string     `json:"attribute_namespace,omitempty" jsonschema_description:"File extended attribute namespace"`
-	Flags               []string   `json:"flags,omitempty" jsonschema_description:"File flags"`
-	Atime               *time.Time `json:"access_time,omitempty" jsonschema_descrition:"File access time"`
-	Mtime               *time.Time `json:"modification_time,omitempty" jsonschema_description:"File modified time"`
-	Ctime               *time.Time `json:"change_time,omitempty" jsonschema_description:"File change time"`
+	Path                string              `json:"path,omitempty" jsonschema_description:"File path"`
+	Name                string              `json:"name,omitempty" jsonschema_description:"File basename"`
+	PathResolutionError string              `json:"path_resolution_error,omitempty" jsonschema_description:"Error message from path resolution"`
+	Inode               *uint64             `json:"inode,omitempty" jsonschema_description:"File inode number"`
+	Mode                *uint32             `json:"mode,omitempty" jsonschema_description:"File mode"`
+	InUpperLayer        *bool               `json:"in_upper_layer,omitempty" jsonschema_description:"Indicator of file OverlayFS layer"`
+	MountID             *uint32             `json:"mount_id,omitempty" jsonschema_description:"File mount ID"`
+	Filesystem          string              `json:"filesystem,omitempty" jsonschema_description:"File filesystem name"`
+	UID                 int64               `json:"uid" jsonschema_description:"File User ID"`
+	GID                 int64               `json:"gid" jsonschema_description:"File Group ID"`
+	User                string              `json:"user,omitempty" jsonschema_description:"File user"`
+	Group               string              `json:"group,omitempty" jsonschema_description:"File group"`
+	XAttrName           string              `json:"attribute_name,omitempty" jsonschema_description:"File extended attribute name"`
+	XAttrNamespace      string              `json:"attribute_namespace,omitempty" jsonschema_description:"File extended attribute namespace"`
+	Flags               []string            `json:"flags,omitempty" jsonschema_description:"File flags"`
+	Atime               *utils.EasyjsonTime `json:"access_time,omitempty" jsonschema_descrition:"File access time"`
+	Mtime               *utils.EasyjsonTime `json:"modification_time,omitempty" jsonschema_description:"File modified time"`
+	Ctime               *utils.EasyjsonTime `json:"change_time,omitempty" jsonschema_description:"File change time"`
 }
 
 // UserContextSerializer serializes a user context to JSON
@@ -120,9 +121,9 @@ type ProcessSerializer struct {
 	PathResolutionError string                        `json:"path_resolution_error,omitempty" jsonschema_description:"Description of an error in the path resolution"`
 	Comm                string                        `json:"comm,omitempty" jsonschema_description:"Command name"`
 	TTY                 string                        `json:"tty,omitempty" jsonschema_description:"TTY associated with the process"`
-	ForkTime            *time.Time                    `json:"fork_time,omitempty" jsonschema_description:"Fork time of the process"`
-	ExecTime            *time.Time                    `json:"exec_time,omitempty" jsonschema_description:"Exec time of the process"`
-	ExitTime            *time.Time                    `json:"exit_time,omitempty" jsonschema_description:"Exit time of the process"`
+	ForkTime            *utils.EasyjsonTime           `json:"fork_time,omitempty" jsonschema_description:"Fork time of the process"`
+	ExecTime            *utils.EasyjsonTime           `json:"exec_time,omitempty" jsonschema_description:"Exec time of the process"`
+	ExitTime            *utils.EasyjsonTime           `json:"exit_time,omitempty" jsonschema_description:"Exit time of the process"`
 	Credentials         *ProcessCredentialsSerializer `json:"credentials,omitempty" jsonschema_description:"Credentials associated with the process"`
 	Executable          *FileSerializer               `json:"executable,omitempty" jsonschema_description:"File information of the executable"`
 	Container           *ContainerContextSerializer   `json:"container,omitempty" jsonschema_description:"Container context"`
@@ -352,7 +353,7 @@ type EventSerializer struct {
 	*ProcessContextSerializer   `json:"process,omitempty"`
 	*DDContextSerializer        `json:"dd,omitempty"`
 	*ContainerContextSerializer `json:"container,omitempty"`
-	Date                        time.Time `json:"date,omitempty"`
+	Date                        utils.EasyjsonTime `json:"date,omitempty"`
 }
 
 func getInUpperLayer(r *Resolvers, f *model.FileFields) *bool {
@@ -403,11 +404,12 @@ func getUint32Pointer(i *uint32) *uint32 {
 	return i
 }
 
-func getTimeIfNotZero(t time.Time) *time.Time {
+func getTimeIfNotZero(t time.Time) *utils.EasyjsonTime {
 	if t.IsZero() {
 		return nil
 	}
-	return &t
+	tt := utils.NewEasyjsonTime(t)
+	return &tt
 }
 
 func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
@@ -756,7 +758,7 @@ func NewEventSerializer(event *Event) *EventSerializer {
 		ProcessContextSerializer: newProcessContextSerializer(&pc, event, event.resolvers),
 		DDContextSerializer:      newDDContextSerializer(event),
 		UserContextSerializer:    newUserContextSerializer(event),
-		Date:                     event.ResolveEventTimestamp(),
+		Date:                     utils.NewEasyjsonTime(event.ResolveEventTimestamp()),
 	}
 
 	if id := event.ResolveContainerID(&event.ContainerContext); id != "" {
@@ -798,7 +800,7 @@ func NewEventSerializer(event *Event) *EventSerializer {
 			Destination:    newFileSerializer(&event.Link.Target, event, event.Link.Source.Inode),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Link.Retval)
-		s.EventContextSerializer.Async = event.Link.Async
+		s.Async = event.Async
 	case model.FileOpenEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Open.File, event),
@@ -812,7 +814,7 @@ func NewEventSerializer(event *Event) *EventSerializer {
 
 		s.FileSerializer.Flags = model.OpenFlags(event.Open.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Open.Retval)
-		s.EventContextSerializer.Async = event.Open.Async
+		s.Async = event.Async
 	case model.FileMkdirEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Mkdir.File, event),
@@ -821,20 +823,20 @@ func NewEventSerializer(event *Event) *EventSerializer {
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Mkdir.Retval)
-		s.EventContextSerializer.Async = event.Mkdir.Async
+		s.Async = event.Async
 	case model.FileRmdirEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Rmdir.File, event),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Rmdir.Retval)
-		s.EventContextSerializer.Async = event.Rmdir.Async
+		s.Async = event.Async
 	case model.FileUnlinkEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Unlink.File, event),
 		}
 		s.FileSerializer.Flags = model.UnlinkFlags(event.Unlink.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Unlink.Retval)
-		s.EventContextSerializer.Async = event.Unlink.Async
+		s.Async = event.Async
 	case model.FileRenameEventType:
 		// use the new inode as the old one is a fake inode
 		s.FileEventSerializer = &FileEventSerializer{
@@ -842,7 +844,7 @@ func NewEventSerializer(event *Event) *EventSerializer {
 			Destination:    newFileSerializer(&event.Rename.New, event),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Rename.Retval)
-		s.EventContextSerializer.Async = event.Rename.Async
+		s.Async = event.Async
 	case model.FileRemoveXAttrEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.RemoveXAttr.File, event),
