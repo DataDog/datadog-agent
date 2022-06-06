@@ -155,6 +155,9 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	// Metrics with stats for debugging
 	beginTime := time.Now()
 	metricTags := []string{}
+	if ct := req.Header.Get("Content-Type"); ct != "" {
+		metricTags = append(metricTags, "content_type:"+ct)
+	}
 	defer func() {
 		metrics.Count("datadog.trace_agent.evp_proxy.request", 1, metricTags, 1)
 		metrics.Count("datadog.trace_agent.evp_proxy.request_bytes", req.ContentLength, metricTags, 1)
