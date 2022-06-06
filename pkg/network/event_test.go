@@ -113,6 +113,24 @@ func TestConnStatsByteKey(t *testing.T) {
 			a: ConnectionStats{Pid: 1, Source: addrA, Dest: addrB, Family: 1},
 			b: ConnectionStats{Pid: 1, Source: addrA, Dest: addrB, Type: 1},
 		},
+		{ // IPTranslations are different
+			a: ConnectionStats{
+				Source: addrA,
+				Dest:   addrB,
+				IPTranslation: &IPTranslation{
+					ReplSrcIP: util.AddressFromString("1.1.1.1"),
+					ReplDstIP: util.AddressFromString("2.2.2.2"),
+				},
+			},
+			b: ConnectionStats{
+				Source: addrA,
+				Dest:   addrB,
+				IPTranslation: &IPTranslation{
+					ReplSrcIP: util.AddressFromString("3.3.3.3"),
+					ReplDstIP: util.AddressFromString("4.4.4.4"),
+				},
+			},
+		},
 	} {
 		var keyA, keyB string
 		if b, err := test.a.ByteKey(buf); assert.NoError(t, err) {
