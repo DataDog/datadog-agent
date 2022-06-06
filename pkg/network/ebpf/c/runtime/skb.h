@@ -15,7 +15,7 @@
 
 // returns the data length of the skb or a negative value in case of an error
 static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *tup) {
-    unsigned char *head;
+    unsigned char *head = NULL;
     int ret = bpf_probe_read(&head, sizeof(head), &skb->head);
     if (ret || !head) {
         log_debug("ERR reading head\n");
