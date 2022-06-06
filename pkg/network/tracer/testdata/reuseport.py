@@ -34,5 +34,3 @@ for _x in count:
 
 for child in children:
     os.waitpid(child, 0)
-
-
