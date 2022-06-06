@@ -64,6 +64,12 @@ func TestHandleInvocationShouldNotSEGSEVWhenTimedOut(t *testing.T) {
 	defer debug.SetPanicOnFault(currentPanicOnFaultBehavior)
 	d := daemon.StartDaemon("http://localhost:8124")
 	defer d.Stop()
+	defer func() {
+		r := recover()
+		if r != nil {
+			assert.Fail(t, "Expected no panic, instead got ", r)
+		}
+	}()
 
 	d.WaitForDaemon()
 
@@ -73,10 +79,6 @@ func TestHandleInvocationShouldNotSEGSEVWhenTimedOut(t *testing.T) {
 	callInvocationHandler(d, "arn:aws:lambda:us-east-1:123456789012:function:my-function", deadlineMs, 0, "myRequestID", handleInvocation)
 	//before 8682842e9202a4984a38b00fdf427837c9e2d46b, if this was the Daemon's first invocation, the Go scheduler (trickster spirit)
 	//might try to execute TellDaemonRuntimeDone before TellDaemonRuntimeStarted, which would result in a SEGSEV. Now this should never happen.
-	r := recover()
-	if r != nil {
-		assert.Fail(t, "Expected no panic, instead got ", r)
-	}
 }
 
 func TestComputeTimeout(t *testing.T) {
