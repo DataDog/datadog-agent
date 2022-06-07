@@ -1620,6 +1620,16 @@ func TestHTTPStats(t *testing.T) {
 	assert.Nil(t, httpReqStats.Stats(400), "400s")            // 400
 	assert.Nil(t, httpReqStats.Stats(500), "500s")            // 500
 }
+func TestHTTPSBuildCurl(t *testing.T) {
+	if !httpSupported(t) {
+		t.Skip("HTTPS feature not available on pre 4.1.0 kernels")
+	}
+
+	o, err := exec.Command("testdata/build-curl.sh").CombinedOutput()
+	t.Logf("%v %s\n", err, string(o))
+
+	require.NoError(t, err)
+}
 
 func TestHTTPSViaLibraryIntegration(t *testing.T) {
 	if !httpSupported(t) {

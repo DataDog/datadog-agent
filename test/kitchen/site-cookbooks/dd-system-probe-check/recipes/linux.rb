@@ -35,6 +35,24 @@ package 'netcat' do
   end
 end
 
+package 'openssl-devel' do
+  case node[:platform]
+  when 'redhat', 'centos', 'fedora'
+    package_name 'openssl-devel'
+  else
+    package_name 'libssl-dev'
+  end
+end
+
+package 'gnutls-devel' do
+  case node[:platform]
+  when 'redhat', 'centos', 'fedora'
+    package_name 'gnutls-devel'
+  else
+    package_name 'gnutls-dev'
+  end
+end
+
 package 'socat'
 
 # Enable IPv6 support
