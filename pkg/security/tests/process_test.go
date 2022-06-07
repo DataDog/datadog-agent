@@ -1130,3 +1130,58 @@ func parseCapIntoSet(capabilities uint64, flag capability.CapType, c capability.
 		}
 	}
 }
+
+func TestProcessIsThread(t *testing.T) {
+	const openTriggerFilename = "test-isthread"
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_process_fork_is_thread",
+			Expression: fmt.Sprintf(`open.file.name == "%s" && process.file.name == "syscall_tester" && process.ancestors.file.name == "syscall_tester" && process.is_thread`, openTriggerFilename),
+		},
+		{
+			ID:         "test_process_exec_is_not_thread",
+			Expression: fmt.Sprintf(`open.file.name == "%s" && process.file.name == "syscall_tester" && process.ancestors.file.name == "syscall_tester" && !process.is_thread`, openTriggerFilename),
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("fork-isthread", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			args := []string{"fork", openTriggerFilename}
+			cmd := exec.Command(syscallTester, args...)
+			_ = cmd.Run()
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_process_fork_is_thread")
+			assertFieldEqual(t, event, "open.file.name", openTriggerFilename)
+			assertFieldEqual(t, event, "process.file.name", "syscall_tester")
+			assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"syscall_tester"}, "process is not a child of syscall_tester")
+			assert.True(t, event.ProcessContext.IsThread, "process should be marked as being a thread")
+		})
+	})
+
+	t.Run("exec-isnotthread", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			args := []string{"fork", "exec", openTriggerFilename}
+			cmd := exec.Command(syscallTester, args...)
+			_ = cmd.Run()
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_process_exec_is_not_thread")
+			assertFieldEqual(t, event, "open.file.name", openTriggerFilename)
+			assertFieldEqual(t, event, "process.file.name", "syscall_tester")
+			assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"syscall_tester"}, "process is not a child of syscall_tester")
+			assert.False(t, event.ProcessContext.IsThread, "process should be marked as not being a thread")
+		})
+	})
+}
