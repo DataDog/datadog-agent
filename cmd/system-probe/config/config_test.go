@@ -12,10 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
 func newConfig() {
@@ -53,4 +52,16 @@ func TestRuntimeSecurityLoad(t *testing.T) {
 			assert.Equal(t, tc.enabled, cfg.ModuleIsEnabled(SecurityRuntimeModule))
 		})
 	}
+}
+
+func TestNetworkProcessEventMonitoring(t *testing.T) {
+	newConfig()
+
+	os.Setenv("DD_NETWORK_CONFIG_ENABLE_PROCESS_EVENT_MONITORING", "true")
+	defer os.Unsetenv("DD_NETWORK_CONFIG_ENABLE_PROCESS_EVENT_MONITORING")
+
+	cfg, err := New("")
+	require.NoError(t, err)
+	assert.True(t, cfg.ModuleIsEnabled(SecurityRuntimeModule))
+	assert.True(t, config.Datadog.GetBool("runtime_security_config.event_monitoring.enabled"))
 }
