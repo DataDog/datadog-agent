@@ -78,6 +78,9 @@ func (l *TCPListener) Stop() {
 		stopper.Add(tailer)
 	}
 	stopper.Stop()
+
+	// At this point all the tailers have been stopped - remove them all from the active tailer list
+	l.tailers = []*tailer.Tailer{}
 }
 
 // run accepts new TCP connections and create a dedicated tailer for each.
@@ -149,11 +152,12 @@ func (l *TCPListener) startTailer(conn net.Conn) {
 
 // stopTailer stops the tailer.
 func (l *TCPListener) stopTailer(tailer *tailer.Tailer) {
-	tailer.Stop()
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	for i, t := range l.tailers {
 		if t == tailer {
+			// Only stop the tailer if it has not already been stopped
+			tailer.Stop()
 			l.tailers = append(l.tailers[:i], l.tailers[i+1:]...)
 			break
 		}
