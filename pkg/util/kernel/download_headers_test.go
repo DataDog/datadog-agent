@@ -25,7 +25,7 @@ const headerDownloadDir = "%s/headers"
 
 var _ types.Logger = customLogger{}
 
-var ubuntuRelease map[string]string = map[string]string{
+var ubuntuRelease = map[string]string{
 	"ID":                 "ubuntu",
 	"ID_LIKE":            "debian",
 	"PRETTY_NAME":        "Ubuntu 20.04.3 LTS",
@@ -38,7 +38,7 @@ var ubuntuRelease map[string]string = map[string]string{
 	"UBUNTU_CODENAME":    "focal",
 }
 
-var debianRelease map[string]string = map[string]string{
+var debianRelease = map[string]string{
 	"PRETTY_NAME":      "Debian GNU/Linux 11 (bullseye)",
 	"NAME":             "Debian GNU/Linux",
 	"VERSION_ID":       "11",
@@ -72,7 +72,7 @@ var debianRepos = []string{
 	"deb-src http://http.us.debian.org/debian bullseye-updates main",
 }
 
-var targetUbuntu types.Target = types.Target{
+var targetUbuntu = types.Target{
 	Distro: types.Distro{
 		"ubuntu",
 		"bullseye/sid",
@@ -103,12 +103,12 @@ type TargetSetup struct {
 	repos  []string
 }
 
-var targets map[string]TargetSetup = map[string]TargetSetup{
-	"ubuntu": TargetSetup{
+var targets = map[string]TargetSetup{
+	"ubuntu": {
 		targetUbuntu,
 		ubuntuRepos,
 	},
-	"debian": TargetSetup{
+	"debian": {
 		targetDebian,
 		debianRepos,
 	},
