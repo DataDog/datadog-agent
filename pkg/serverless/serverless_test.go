@@ -59,7 +59,7 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 	assert.Equal(t, "myRequestID", ecs.LastRequestID)
 }
 
-func TestHandleInvocationShouldNotSEGSEVWhenTimedOut(t *testing.T) {
+func TestHandleInvocationShouldNotSIGSEGVWhenTimedOut(t *testing.T) {
 	currentPanicOnFaultBehavior := debug.SetPanicOnFault(true)
 	defer debug.SetPanicOnFault(currentPanicOnFaultBehavior)
 	defer func() {
@@ -80,7 +80,7 @@ func TestHandleInvocationShouldNotSEGSEVWhenTimedOut(t *testing.T) {
 		d.Stop()
 	}
 	//before 8682842e9202a4984a38b00fdf427837c9e2d46b, if this was the Daemon's first invocation, the Go scheduler (trickster spirit)
-	//might try to execute TellDaemonRuntimeDone before TellDaemonRuntimeStarted, which would result in a SEGSEV. Now this should never happen.
+	//might try to execute TellDaemonRuntimeDone before TellDaemonRuntimeStarted, which would result in a SIGSEGV. Now this should never happen.
 }
 
 func TestComputeTimeout(t *testing.T) {
