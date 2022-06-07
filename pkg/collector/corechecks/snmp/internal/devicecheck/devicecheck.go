@@ -166,7 +166,7 @@ func (d *DeviceCheck) getValuesAndTags(staticTags []string) (bool, []string, *va
 		}
 	}
 
-	err = d.doAutodetectProfile(d.session)
+	err = d.detectMonitoredMetrics(d.session)
 	if err != nil {
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to autodetect profile: %s", err))
 	}
@@ -191,23 +191,32 @@ func (d *DeviceCheck) getValuesAndTags(staticTags []string) (bool, []string, *va
 	return deviceReachable, tags, valuesStore, joinedError
 }
 
-func (d *DeviceCheck) doAutodetectProfile(sess session.Session) error {
+func (d *DeviceCheck) detectMonitoredMetrics(sess session.Session) error {
 	// Try to detect profile using device sysobjectid
 	if d.config.AutodetectProfile {
-		sysObjectID, err := session.FetchSysObjectID(sess)
-		if err != nil {
-			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
-		}
-		d.config.AutodetectProfile = false // do not try to auto detect profile next time
+		if d.config.CollectAllAvailableMetrics {
+			allOids, err := session.FetchAllOids(d.session)
+			if err != nil {
+				return err
+			}
+			log.Warnf("fetch all oids: %v", len(allOids))
+		} else {
+			// detect using profile
+			sysObjectID, err := session.FetchSysObjectID(sess)
+			if err != nil {
+				return fmt.Errorf("failed to fetch sysobjectid: %s", err)
+			}
+			d.config.AutodetectProfile = false // do not try to auto detect profile next time
 
-		profile, err := checkconfig.GetProfileForSysObjectID(d.config.Profiles, sysObjectID)
-		if err != nil {
-			return fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
-		}
-		err = d.config.RefreshWithProfile(profile)
-		if err != nil {
-			// Should not happen since the profile is one of those we matched in GetProfileForSysObjectID
-			return fmt.Errorf("failed to refresh with profile `%s` detected using sysObjectID `%s`: %s", profile, sysObjectID, err)
+			profile, err := checkconfig.GetProfileForSysObjectID(d.config.Profiles, sysObjectID)
+			if err != nil {
+				return fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
+			}
+			err = d.config.RefreshWithProfile(profile)
+			if err != nil {
+				// Should not happen since the profile is one of those we matched in GetProfileForSysObjectID
+				return fmt.Errorf("failed to refresh with profile `%s` detected using sysObjectID `%s`: %s", profile, sysObjectID, err)
+			}
 		}
 	}
 	return nil

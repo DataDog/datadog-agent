@@ -31,6 +31,7 @@ type Session interface {
 	Get(oids []string) (result *gosnmp.SnmpPacket, err error)
 	GetBulk(oids []string, bulkMaxRepetitions uint32) (result *gosnmp.SnmpPacket, err error)
 	GetNext(oids []string) (result *gosnmp.SnmpPacket, err error)
+	Walk(rootOid string, walkFn gosnmp.WalkFunc) error
 	GetVersion() gosnmp.SnmpVersion
 }
 
@@ -62,6 +63,11 @@ func (s *GosnmpSession) GetBulk(oids []string, bulkMaxRepetitions uint32) (resul
 // GetNext will send a SNMP GETNEXT command
 func (s *GosnmpSession) GetNext(oids []string) (result *gosnmp.SnmpPacket, err error) {
 	return s.gosnmpInst.GetNext(oids)
+}
+
+// Walk retrieves a subtree of values using GETNEXT.
+func (s *GosnmpSession) Walk(rootOid string, walkFn gosnmp.WalkFunc) error {
+	return s.gosnmpInst.Walk(rootOid, walkFn)
 }
 
 // GetVersion returns the snmp version used
@@ -158,4 +164,15 @@ func FetchSysObjectID(session Session) (string, error) {
 		return "", fmt.Errorf("error converting value (%#v) to string : %v", value, err)
 	}
 	return strValue, err
+}
+
+// FetchAllOids fetches all available OIDs
+func FetchAllOids(session Session) ([]string, error) {
+	var oids []string
+	fn := func(dataUnit gosnmp.SnmpPDU) error {
+		oids = append(oids, dataUnit.Name)
+		return nil
+	}
+	err := session.Walk("1.3", fn)
+	return oids, err
 }
