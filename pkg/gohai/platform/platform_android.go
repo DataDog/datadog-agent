@@ -3,22 +3,8 @@
 
 package platform
 
-type Platform struct{}
-
-const name = "platform"
-
-func (self *Platform) Name() string {
-	return name
-}
-
-func (self *Platform) Collect() (result interface{}, err error) {
-	result, err = getPlatformInfo()
-	return
-}
-
-func getPlatformInfo() (platformInfo map[string]string, err error) {
-
-	return
+func (self *Platform) Collect() (interface{}, error) {
+	return nil, nil
 }
 
 func Get() (*Platform, []string, error) {
