@@ -181,8 +181,8 @@ func createCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceM
 	return &checkInstanceMetadata
 }
 
-// CreatePayload fills and returns the inventory metadata payload
-func CreatePayload(ctx context.Context, hostname string, ac AutoConfigInterface, coll CollectorInterface) *Payload {
+// createPayload fills and returns the inventory metadata payload
+func createPayload(ctx context.Context, hostname string, ac AutoConfigInterface, coll CollectorInterface) *Payload {
 	checkMetadataMutex.Lock()
 	defer checkMetadataMutex.Unlock()
 
@@ -239,7 +239,7 @@ func GetPayload(ctx context.Context, hostname string, ac AutoConfigInterface, co
 	defer lastGetPayloadMutex.Unlock()
 	lastGetPayload = timeNow()
 
-	lastPayload = CreatePayload(ctx, hostname, ac, coll)
+	lastPayload = createPayload(ctx, hostname, ac, coll)
 	return lastPayload
 }
 

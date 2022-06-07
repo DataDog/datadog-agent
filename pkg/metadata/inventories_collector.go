@@ -24,7 +24,7 @@ type inventoriesCollector struct {
 	sc   *Scheduler
 }
 
-func createPayload(ctx context.Context, ac inventories.AutoConfigInterface, coll inventories.CollectorInterface) (*inventories.Payload, error) {
+func getPayload(ctx context.Context, ac inventories.AutoConfigInterface, coll inventories.CollectorInterface) (*inventories.Payload, error) {
 	hostname, err := util.GetHostname(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("unable to submit inventories metadata payload, no hostname: %s", err)
@@ -39,7 +39,7 @@ func (c inventoriesCollector) Send(ctx context.Context, s serializer.MetricSeria
 		return nil
 	}
 
-	payload, err := createPayload(ctx, c.ac, c.coll)
+	payload, err := getPayload(ctx, c.ac, c.coll)
 	if err != nil {
 		return err
 	}
@@ -61,7 +61,7 @@ func (c inventoriesCollector) Init() error {
 func SetupInventoriesExpvar(ac inventories.AutoConfigInterface, coll inventories.CollectorInterface) {
 	expvar.Publish("inventories", expvar.Func(func() interface{} {
 		log.Debugf("Creating inventory payload for expvar")
-		p, err := createPayload(context.TODO(), ac, coll)
+		p, err := getPayload(context.TODO(), ac, coll)
 		if err != nil {
 			log.Errorf("Could not create inventory payload for expvar: %s", err)
 			return &inventories.Payload{}
