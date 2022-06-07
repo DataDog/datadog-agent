@@ -195,6 +195,11 @@ func (d *DeviceCheck) detectMonitoredMetrics(sess session.Session) error {
 	// Try to detect profile using device sysobjectid
 	if d.config.AutodetectProfile {
 		if d.config.CollectAllAvailableMetrics {
+			//allOids, err := session.FetchAllOids(d.session)
+			//if err != nil {
+			//	return err
+			//}
+			//log.Warnf("fetch all oids: %v", len(allOids))
 			err := d.detectAvailableMetrics(sess)
 			if err != nil {
 				return err
