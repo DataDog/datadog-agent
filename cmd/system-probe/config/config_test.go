@@ -57,9 +57,9 @@ func TestRuntimeSecurityLoad(t *testing.T) {
 func TestNetworkProcessEventMonitoring(t *testing.T) {
 	newConfig()
 
-	for i, te := range []struct{
+	for i, te := range []struct {
 		network, netProcEvents bool
-		enabled bool
+		enabled                bool
 	}{
 		{network: false, netProcEvents: false, enabled: false},
 		{network: false, netProcEvents: true, enabled: false},
