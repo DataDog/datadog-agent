@@ -28,8 +28,6 @@ const (
 	IDD_DIALOG1     = 101
 	IDC_TICKET_EDIT = 1001
 	IDC_EMAIL_EDIT  = 1002
-	notInProgress   = int32(0)
-	isInProgress    = int32(1)
 )
 
 var (
