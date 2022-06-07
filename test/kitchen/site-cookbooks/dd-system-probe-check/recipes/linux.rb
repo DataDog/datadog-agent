@@ -30,6 +30,8 @@ package 'conntrack'
 
 package 'netcat' do
   case node[:platform]
+  when 'amazon'
+    package_name 'nmap-ncat'
   when 'redhat', 'centos', 'fedora'
     package_name 'nc'
   else
