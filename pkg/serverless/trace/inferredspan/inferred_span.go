@@ -98,6 +98,7 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 // DispatchInferredSpan decodes the event and routes it to the correct
 // enrichment function for that event source
 func (inferredSpan *InferredSpan) DispatchInferredSpan(eventType trigger.AWSEventType, eventPayload interface{}) error {
+	log.Debugf("Enriching inferred span for type %v", eventType)
 	switch eventType {
 	case trigger.APIGatewayEvent:
 		inferredSpan.enrichInferredSpanWithAPIGatewayRESTEvent(eventPayload.(events.APIGatewayProxyRequest))
@@ -107,6 +108,8 @@ func (inferredSpan *InferredSpan) DispatchInferredSpan(eventType trigger.AWSEven
 		inferredSpan.enrichInferredSpanWithAPIGatewayWebsocketEvent(eventPayload.(events.APIGatewayWebsocketProxyRequest))
 	case trigger.SNSEvent:
 		inferredSpan.enrichInferredSpanWithSNSEvent(eventPayload.(events.SNSEvent))
+	default:
+		log.Debugf("Received an Unknown event type %v", eventType)
 	}
 
 	return nil

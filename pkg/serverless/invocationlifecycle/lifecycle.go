@@ -78,14 +78,16 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 
 	lambdaPayloadString := parseLambdaPayload(startDetails.InvokeEventRawPayload)
 
+	log.Debugf("Parsed payload string: %v", lambdaPayloadString)
+
 	eventPayload, err := trigger.Unmarshal(lambdaPayloadString)
 	if err != nil {
-		log.Debugf("[lifecycle] Failed to parse event payload")
+		log.Debugf("[lifecycle] Failed to parse event payload: %v", err)
 	}
 
 	eventType, err := trigger.GetEventType(eventPayload)
 	if err != nil {
-		log.Debugf("[lifecycle] Failed to extract event type")
+		log.Debugf("[lifecycle] Failed to extract event type: %v", err)
 	}
 
 	// Singleton instance of request handler
@@ -109,8 +111,6 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 
 		startExecutionSpan(lp.requestHandler.executionContext, lp.requestHandler.inferredSpanContext, startDetails.StartTime, lambdaPayloadString, startDetails.InvokeEventHeaders, lp.InferredSpansEnabled)
 	}
-
-	// Add trigger type stuff here
 }
 
 // OnInvokeEnd is the hook triggered when an invocation has ended
@@ -126,6 +126,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 
 		if lp.InferredSpansEnabled {
 			log.Debug("[lifecycle] Attempting to complete the inferred span")
+			log.Debugf("[lifecycle] Inferred span context: %+v", lp.requestHandler.inferredSpanContext.Span)
 			if lp.requestHandler.inferredSpanContext.Span.Start != 0 {
 				lp.requestHandler.inferredSpanContext.CompleteInferredSpan(lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, lp.requestHandler.executionContext.TraceID, lp.requestHandler.executionContext.SamplingPriority)
 				log.Debugf("[lifecycle] The inferred span attributes are: %v", lp.requestHandler.inferredSpanContext)

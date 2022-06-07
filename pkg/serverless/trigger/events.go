@@ -2,6 +2,7 @@ package trigger
 
 import (
 	jsonEncoder "encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/json"
@@ -128,7 +129,7 @@ func GetEventType(payload map[string]interface{}) (AWSEventType, error) {
 		return EventBridgeEvent, nil
 	}
 
-	return Unknown, nil
+	return Unknown, fmt.Errorf("Unknown event received. Payload: %+v", payload)
 }
 
 // Unmarshal unmarshals a payload string into a generic interface
