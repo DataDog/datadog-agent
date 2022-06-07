@@ -294,14 +294,17 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 		probeVariables[name] = value
 	}
 
-	var opts rules.Opts
-	opts.
+	var evalOpts eval.Opts
+	evalOpts.
 		WithConstants(model.SECLConstants).
 		WithVariables(probeVariables).
+		WithLegacyFields(model.SECLLegacyFields)
+
+	var opts rules.Opts
+	opts.
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(m.getEventTypeEnabled()).
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
-		WithLegacyFields(model.SECLLegacyFields).
 		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
 			"process": func() rules.VariableProvider {
 				return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
@@ -313,16 +316,16 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 
 	// approver ruleset
 	model := &model.Model{}
-	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts)
+	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts)
 
 	// switch SECLVariables to use the real Event structure and not the mock model.Event one
-	opts.WithVariables(sprobe.SECLVariables)
+	evalOpts.WithVariables(sprobe.SECLVariables)
 	opts.WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
 		"process": m.probe.GetResolvers().ProcessResolver.NewProcessVariables,
 	})
 
 	// standard ruleset
-	ruleSet := m.probe.NewRuleSet(&opts)
+	ruleSet := m.probe.NewRuleSet(&opts, &evalOpts)
 
 	// load policies
 	m.policyLoader.SetProviders(policyProviders)
