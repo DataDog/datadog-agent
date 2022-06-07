@@ -8,16 +8,16 @@ package eval
 var (
 	// GlobCmp replaces a pattern matcher with a glob matcher for *file.path fields.
 	GlobCmp = &OpOverrides{
-		StringEquals: func(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+		StringEquals: func(a *StringEvaluator, b *StringEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
 			if a.ValueType == PatternValueType {
 				a.ValueType = GlobValueType
 			} else if b.ValueType == PatternValueType {
 				b.ValueType = GlobValueType
 			}
 
-			return StringEquals(a, b, opts, state)
+			return StringEquals(a, b, replCtx, state)
 		},
-		StringValuesContains: func(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+		StringValuesContains: func(a *StringEvaluator, b *StringValuesEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
 			if a.ValueType == PatternValueType {
 				a.ValueType = GlobValueType
 			} else {
@@ -33,16 +33,16 @@ var (
 				}
 			}
 
-			return StringValuesContains(a, b, opts, state)
+			return StringValuesContains(a, b, replCtx, state)
 		},
-		StringArrayContains: func(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+		StringArrayContains: func(a *StringEvaluator, b *StringArrayEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
 			if a.ValueType == PatternValueType {
 				a.ValueType = GlobValueType
 			}
 
-			return StringArrayContains(a, b, opts, state)
+			return StringArrayContains(a, b, replCtx, state)
 		},
-		StringArrayMatches: func(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+		StringArrayMatches: func(a *StringArrayEvaluator, b *StringValuesEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
 			var values StringValues
 			for _, v := range b.Values.GetFieldValues() {
 				if v.Type == PatternValueType {
@@ -54,7 +54,7 @@ var (
 				Values: values,
 			}
 
-			return StringArrayMatches(a, b, opts, state)
+			return StringArrayMatches(a, b, replCtx, state)
 		},
 	}
 )

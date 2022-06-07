@@ -1066,13 +1066,13 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 }
 
 // NewRuleSet returns a new rule set
-func (p *Probe) NewRuleSet(opts *rules.Opts, evalOpts *eval.Opts) *rules.RuleSet {
+func (p *Probe) NewRuleSet(opts *rules.Opts, evalOpts *eval.Opts, macroStore *eval.MacroStore) *rules.RuleSet {
 	eventCtor := func() eval.Event {
 		return NewEvent(p.resolvers, p.scrubber, p)
 	}
 	opts.WithLogger(&seclog.PatternLogger{})
 
-	return rules.NewRuleSet(&Model{probe: p}, eventCtor, opts, evalOpts)
+	return rules.NewRuleSet(&Model{probe: p}, eventCtor, opts, evalOpts, macroStore)
 }
 
 // QueuedNetworkDeviceError is used to indicate that the new network device was queued until its namespace handle is

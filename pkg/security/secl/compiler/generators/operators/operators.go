@@ -43,7 +43,7 @@ import (
 
 {{ range .Operators }}
 
-func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *State) (*{{ .FuncReturnType }}, error) {
+func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, replCtx EvalReplacementContext, state *State) (*{{ .FuncReturnType }}, error) {
 	{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
 	isDc := a.IsDeterministicFor(state.field) || b.IsDeterministicFor(state.field)
 	{{ else }}
@@ -176,7 +176,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 
 {{ range .ArrayOperators }}
 
-func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *State) (*{{ .FuncReturnType }}, error) {
+func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, replCtx EvalReplacementContext, state *State) (*{{ .FuncReturnType }}, error) {
 	{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
 	isDc := a.IsDeterministicFor(state.field) || b.IsDeterministicFor(state.field)
 	{{ else }}

@@ -316,7 +316,7 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 
 	// approver ruleset
 	model := &model.Model{}
-	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts)
+	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
 
 	// switch SECLVariables to use the real Event structure and not the mock model.Event one
 	evalOpts.WithVariables(sprobe.SECLVariables)
@@ -325,7 +325,7 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 	})
 
 	// standard ruleset
-	ruleSet := m.probe.NewRuleSet(&opts, &evalOpts)
+	ruleSet := m.probe.NewRuleSet(&opts, &evalOpts, &eval.MacroStore{})
 
 	// load policies
 	m.policyLoader.SetProviders(policyProviders)

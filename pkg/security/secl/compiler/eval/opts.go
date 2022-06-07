@@ -5,11 +5,29 @@
 
 package eval
 
+type MacroStore struct {
+	Macros map[MacroID]*Macro
+}
+
+// WithMacros set macros fields
+func (s *MacroStore) WithMacros(macros map[MacroID]*Macro) *MacroStore {
+	s.Macros = macros
+	return s
+}
+
+// AddMacro add a macro
+func (s *MacroStore) AddMacro(macro *Macro) *MacroStore {
+	if s.Macros == nil {
+		s.Macros = make(map[string]*Macro)
+	}
+	s.Macros[macro.ID] = macro
+	return s
+}
+
 // Opts are the options to be passed to the evaluator
 type Opts struct {
 	LegacyFields map[Field]Field
 	Constants    map[string]interface{}
-	Macros       map[MacroID]*Macro
 	Variables    map[string]VariableValue
 }
 
@@ -33,20 +51,5 @@ func (o *Opts) WithVariables(variables map[string]VariableValue) *Opts {
 // WithLegacyFields set legacy fields
 func (o *Opts) WithLegacyFields(fields map[Field]Field) *Opts {
 	o.LegacyFields = fields
-	return o
-}
-
-// WithMacros set macros fields
-func (o *Opts) WithMacros(macros map[MacroID]*Macro) *Opts {
-	o.Macros = macros
-	return o
-}
-
-// AddMacro add a macro
-func (o *Opts) AddMacro(macro *Macro) *Opts {
-	if o.Macros == nil {
-		o.Macros = make(map[string]*Macro)
-	}
-	o.Macros[macro.ID] = macro
 	return o
 }

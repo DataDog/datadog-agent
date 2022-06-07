@@ -160,6 +160,7 @@ type RuleSetListener interface {
 type RuleSet struct {
 	opts             *Opts
 	evalOpts         *eval.Opts
+	macroStore       *eval.MacroStore
 	eventRuleBuckets map[eval.EventType]*RuleBucket
 	rules            map[eval.RuleID]*Rule
 	fieldEvaluators  map[string]eval.Evaluator
@@ -173,6 +174,13 @@ type RuleSet struct {
 	fields []string
 	logger Logger
 	pool   *eval.ContextPool
+}
+
+func (rs *RuleSet) replCtx() eval.EvalReplacementContext {
+	return eval.EvalReplacementContext{
+		Opts:       rs.evalOpts,
+		MacroStore: rs.macroStore,
+	}
 }
 
 // ListRuleIDs returns the list of RuleIDs from the ruleset
@@ -192,7 +200,7 @@ func (rs *RuleSet) GetRules() map[eval.RuleID]*Rule {
 // ListMacroIDs returns the list of MacroIDs from the ruleset
 func (rs *RuleSet) ListMacroIDs() []MacroID {
 	var ids []string
-	for macroID := range rs.evalOpts.Macros {
+	for macroID := range rs.macroStore.Macros {
 		ids = append(ids, macroID)
 	}
 	return ids
@@ -216,7 +224,7 @@ func (rs *RuleSet) AddMacros(macros []*MacroDefinition) *multierror.Error {
 func (rs *RuleSet) AddMacro(macroDef *MacroDefinition) (*eval.Macro, error) {
 	var err error
 
-	if _, exists := rs.evalOpts.Macros[macroDef.ID]; exists {
+	if _, exists := rs.macroStore.Macros[macroDef.ID]; exists {
 		return nil, &ErrMacroLoad{Definition: macroDef, Err: errors.New("multiple definition with the same ID")}
 	}
 
@@ -226,16 +234,16 @@ func (rs *RuleSet) AddMacro(macroDef *MacroDefinition) (*eval.Macro, error) {
 	case macroDef.Expression != "" && len(macroDef.Values) > 0:
 		return nil, &ErrMacroLoad{Definition: macroDef, Err: errors.New("only one of 'expression' and 'values' can be defined")}
 	case macroDef.Expression != "":
-		if macro.Macro, err = eval.NewMacro(macroDef.ID, macroDef.Expression, rs.model, rs.evalOpts); err != nil {
+		if macro.Macro, err = eval.NewMacro(macroDef.ID, macroDef.Expression, rs.model, rs.replCtx()); err != nil {
 			return nil, &ErrMacroLoad{Definition: macroDef, Err: err}
 		}
 	default:
-		if macro.Macro, err = eval.NewStringValuesMacro(macroDef.ID, macroDef.Values, rs.evalOpts); err != nil {
+		if macro.Macro, err = eval.NewStringValuesMacro(macroDef.ID, macroDef.Values, rs.macroStore); err != nil {
 			return nil, &ErrMacroLoad{Definition: macroDef, Err: err}
 		}
 	}
 
-	rs.evalOpts.AddMacro(macro.Macro)
+	rs.macroStore.AddMacro(macro.Macro)
 
 	return macro.Macro, nil
 }
@@ -310,7 +318,7 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 		return nil, &ErrRuleLoad{Definition: ruleDef, Err: errors.Wrap(err, "syntax error")}
 	}
 
-	if err := rule.GenEvaluator(rs.model, rs.evalOpts); err != nil {
+	if err := rule.GenEvaluator(rs.model, rs.replCtx()); err != nil {
 		return nil, &ErrRuleLoad{Definition: ruleDef, Err: err}
 	}
 
@@ -758,7 +766,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader) *multierror.Error {
 }
 
 // NewRuleSet returns a new ruleset for the specified data model
-func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalOpts *eval.Opts) *RuleSet {
+func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalOpts *eval.Opts, macroStore *eval.MacroStore) *RuleSet {
 	var logger Logger
 
 	if opts.Logger != nil {
@@ -772,6 +780,7 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		eventCtor:        eventCtor,
 		opts:             opts,
 		evalOpts:         evalOpts,
+		macroStore:       macroStore,
 		eventRuleBuckets: make(map[eval.EventType]*RuleBucket),
 		rules:            make(map[eval.RuleID]*Rule),
 		logger:           logger,
