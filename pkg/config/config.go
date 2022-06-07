@@ -1044,7 +1044,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_dump_timeout", 30)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_wait_list_size", 10)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_output_directory", "")
-	config.BindEnvAndSetDefault("runtime_security_config.network.enabled", false)
+	config.BindEnvAndSetDefault("runtime_security_config.network.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.network.lazy_interface_prefixes", []string{})
 	config.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", false)
 
