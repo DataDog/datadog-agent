@@ -25,10 +25,7 @@ func ExtractEventARN(event map[string]interface{}) (string, error) {
 		EventBridgeEvent:         extractEventBridgeEventARN,
 	}
 
-	eventType, err := GetEventType(event)
-	if err != nil {
-		return "", err
-	}
+	eventType := GetEventType(event)
 
 	return eventExtractors[eventType](event), nil
 }

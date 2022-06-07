@@ -6,6 +6,7 @@ import (
 	"os"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,7 +34,7 @@ func TestEventPayloadParsing(t *testing.T) {
 		jsonData, err := ioutil.ReadAll(file)
 		assert.NoError(t, err)
 
-		event, err := Unmarshal(string(jsonData))
+		event, err := Unmarshal(strings.ToLower(string(jsonData)))
 		assert.NoError(t, err)
 
 		funcName := runtime.FuncForPC(reflect.ValueOf(testFunc).Pointer()).Name()
@@ -71,7 +72,7 @@ func TestEventPayloadParsingWrong(t *testing.T) {
 			jsonData, err := ioutil.ReadAll(file)
 			assert.NoError(t, err)
 
-			event, err := Unmarshal(string(jsonData))
+			event, err := Unmarshal(strings.ToLower(string(jsonData)))
 			assert.NoError(t, err)
 
 			funcName := runtime.FuncForPC(reflect.ValueOf(testFunc).Pointer()).Name()
@@ -103,11 +104,10 @@ func TestGetEventType(t *testing.T) {
 		jsonData, err := ioutil.ReadAll(file)
 		assert.NoError(t, err)
 
-		jsonPayload, err := Unmarshal(string(jsonData))
+		jsonPayload, err := Unmarshal(strings.ToLower(string(jsonData)))
 		assert.NoError(t, err)
 
-		parsedEventType, err := GetEventType(jsonPayload)
-		assert.NoError(t, err)
+		parsedEventType := GetEventType(jsonPayload)
 
 		assert.Equal(t, expectedEventType, parsedEventType, fmt.Sprintf("%v\n", testFile))
 	}

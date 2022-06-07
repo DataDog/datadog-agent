@@ -2,7 +2,6 @@ package trigger
 
 import (
 	jsonEncoder "encoding/json"
-	"fmt"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/json"
@@ -68,68 +67,68 @@ type eventParseFunc func(map[string]interface{}) bool
 // GetEventType takes in a payload string and returns an AWSEventType
 // that matches the input payload. Returns `Unknown` if a payload could not be
 // matched to an event.
-func GetEventType(payload map[string]interface{}) (AWSEventType, error) {
+func GetEventType(payload map[string]interface{}) AWSEventType {
 	if isAPIGatewayEvent(payload) {
-		return APIGatewayEvent, nil
+		return APIGatewayEvent
 	}
 
 	if isAPIGatewayV2Event(payload) {
-		return APIGatewayV2Event, nil
+		return APIGatewayV2Event
 	}
 
 	if isAPIGatewayWebsocketEvent(payload) {
-		return APIGatewayWebsocketEvent, nil
+		return APIGatewayWebsocketEvent
 	}
 
 	if isALBEvent(payload) {
-		return ALBEvent, nil
+		return ALBEvent
 	}
 
 	if isCloudFrontRequestEvent(payload) {
-		return CloudFrontRequestEvent, nil
+		return CloudFrontRequestEvent
 	}
 
 	if isCloudwatchEvent(payload) {
-		return CloudWatchEvent, nil
+		return CloudWatchEvent
 	}
 
 	if isCloudwatchLogsEvent(payload) {
-		return CloudWatchLogsEvent, nil
+		return CloudWatchLogsEvent
 	}
 
 	if isDynamoDBStreamEvent(payload) {
-		return DynamoDBStreamEvent, nil
+		return DynamoDBStreamEvent
 	}
 
 	if isKinesisStreamEvent(payload) {
-		return KinesisStreamEvent, nil
+		return KinesisStreamEvent
 	}
 
 	if isS3Event(payload) {
-		return S3Event, nil
+		return S3Event
 	}
 
 	if isSNSEvent(payload) {
-		return SNSEvent, nil
+		return SNSEvent
 	}
 
 	if isSNSSQSEvent(payload) {
-		return SNSSQSEvent, nil
+		return SNSSQSEvent
 	}
 
 	if isSQSEvent(payload) {
-		return SQSEvent, nil
+		return SQSEvent
 	}
 
 	if isAppSyncResolverEvent(payload) {
-		return AppSyncResolverEvent, nil
+		return AppSyncResolverEvent
 	}
 
 	if isEventBridgeEvent(payload) {
-		return EventBridgeEvent, nil
+		return EventBridgeEvent
 	}
 
-	return Unknown, fmt.Errorf("Unknown event received. Payload: %+v", payload)
+	return Unknown
 }
 
 // Unmarshal unmarshals a payload string into a generic interface
@@ -167,7 +166,7 @@ func isAPIGatewayWebsocketEvent(event map[string]interface{}) bool {
 }
 
 func isALBEvent(event map[string]interface{}) bool {
-	return json.GetNestedValue(event, "requestContext", "elb") != nil
+	return json.GetNestedValue(event, "requestcontext", "elb") != nil
 }
 
 func isCloudwatchEvent(event map[string]interface{}) bool {
@@ -196,32 +195,32 @@ func isS3Event(event map[string]interface{}) bool {
 }
 
 func isSNSEvent(event map[string]interface{}) bool {
-	return eventRecordsKeyExists(event, "Sns")
+	return eventRecordsKeyExists(event, "sns")
 }
 
 func isSQSEvent(event map[string]interface{}) bool {
-	return eventRecordsKeyEquals(event, "eventSource", "aws:sqs")
+	return eventRecordsKeyEquals(event, "eventsource", "aws:sqs")
 }
 
 func isSNSSQSEvent(event map[string]interface{}) bool {
-	if !eventRecordsKeyEquals(event, "eventSource", "aws:sqs") {
+	if !eventRecordsKeyEquals(event, "eventsource", "aws:sqs") {
 		return false
 	}
-	messageType, ok := json.GetNestedValue(event, "body", "Type").(string)
+	messageType, ok := json.GetNestedValue(event, "body", "type").(string)
 	if !ok {
 		return false
 	}
 
-	topicArn, ok := json.GetNestedValue(event, "body", "TopicArn").(string)
+	topicArn, ok := json.GetNestedValue(event, "body", "topicarn").(string)
 	if !ok {
 		return false
 	}
 
-	return messageType == "Notification" && topicArn != ""
+	return messageType == "notification" && topicArn != ""
 }
 
 func isAppSyncResolverEvent(event map[string]interface{}) bool {
-	return json.GetNestedValue(event, "info", "selectionSetGraphQL") != nil
+	return json.GetNestedValue(event, "info", "selectionsetgraphql") != nil
 }
 
 func isEventBridgeEvent(event map[string]interface{}) bool {
@@ -229,7 +228,7 @@ func isEventBridgeEvent(event map[string]interface{}) bool {
 }
 
 func eventRecordsKeyExists(event map[string]interface{}, key string) bool {
-	records, ok := json.GetNestedValue(event, "Records").([]interface{})
+	records, ok := json.GetNestedValue(event, "records").([]interface{})
 	if !ok {
 		return false
 	}
@@ -242,7 +241,7 @@ func eventRecordsKeyExists(event map[string]interface{}, key string) bool {
 }
 
 func eventRecordsKeyEquals(event map[string]interface{}, key string, val string) bool {
-	records, ok := json.GetNestedValue(event, "Records").([]interface{})
+	records, ok := json.GetNestedValue(event, "records").([]interface{})
 	if !ok {
 		return false
 	}
