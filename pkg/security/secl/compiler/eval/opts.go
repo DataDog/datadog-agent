@@ -11,7 +11,6 @@ type Opts struct {
 	Constants    map[string]interface{}
 	Macros       map[MacroID]*Macro
 	Variables    map[string]VariableValue
-	UserCtx      interface{}
 }
 
 // WithConstants set constants
@@ -49,11 +48,5 @@ func (o *Opts) AddMacro(macro *Macro) *Opts {
 		o.Macros = make(map[string]*Macro)
 	}
 	o.Macros[macro.ID] = macro
-	return o
-}
-
-// WithUserContext set user context
-func (o *Opts) WithUserContext(ctx interface{}) *Opts {
-	o.UserCtx = ctx
 	return o
 }
