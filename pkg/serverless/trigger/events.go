@@ -142,8 +142,8 @@ func Unmarshal(payload string) (map[string]interface{}, error) {
 }
 
 func isAPIGatewayEvent(event map[string]interface{}) bool {
-	return json.GetNestedValue(event, "requestContext", "stage") != nil &&
-		json.GetNestedValue(event, "httpMethod") != nil &&
+	return json.GetNestedValue(event, "requestcontext", "stage") != nil &&
+		json.GetNestedValue(event, "httpmethod") != nil &&
 		json.GetNestedValue(event, "resource") != nil
 }
 
@@ -152,18 +152,18 @@ func isAPIGatewayV2Event(event map[string]interface{}) bool {
 	if !ok {
 		return false
 	}
-	domainName, ok := json.GetNestedValue(event, "requestContext", "domainName").(string)
+	domainName, ok := json.GetNestedValue(event, "requestcontext", "domainname").(string)
 	if !ok {
 		return false
 	}
 	return version == "2.0" &&
-		json.GetNestedValue(event, "rawQueryString") != nil &&
+		json.GetNestedValue(event, "rawquerystring") != nil &&
 		!strings.Contains(domainName, "lambda-url")
 }
 
 func isAPIGatewayWebsocketEvent(event map[string]interface{}) bool {
-	return json.GetNestedValue(event, "requestContext") != nil &&
-		json.GetNestedValue(event, "messageDirection") != nil
+	return json.GetNestedValue(event, "requestcontext") != nil &&
+		json.GetNestedValue(event, "messagedirection") != nil
 }
 
 func isALBEvent(event map[string]interface{}) bool {

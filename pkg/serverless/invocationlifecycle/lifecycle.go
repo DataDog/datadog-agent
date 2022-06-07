@@ -6,6 +6,7 @@
 package invocationlifecycle
 
 import (
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -80,12 +81,12 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 
 	log.Debugf("Parsed payload string: %v", lambdaPayloadString)
 
-	eventPayload, err := trigger.Unmarshal(lambdaPayloadString)
+	lowercaseEventPayload, err := trigger.Unmarshal(strings.ToLower(lambdaPayloadString))
 	if err != nil {
 		log.Debugf("[lifecycle] Failed to parse event payload: %v", err)
 	}
 
-	eventType, err := trigger.GetEventType(eventPayload)
+	eventType, err := trigger.GetEventType(lowercaseEventPayload)
 	if err != nil {
 		log.Debugf("[lifecycle] Failed to extract event type: %v", err)
 	}
@@ -103,7 +104,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 
 	if !lp.DetectLambdaLibrary() {
 		if lp.InferredSpansEnabled {
-			err := lp.requestHandler.inferredSpanContext.DispatchInferredSpan(eventType, eventPayload)
+			err := lp.requestHandler.inferredSpanContext.DispatchInferredSpan(eventType, lambdaPayloadString)
 			if err != nil {
 				log.Debug("[lifecycle] Error dispatching inferred span")
 			}

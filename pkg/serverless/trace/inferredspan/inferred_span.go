@@ -6,6 +6,7 @@
 package inferredspan
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -97,17 +98,25 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 
 // DispatchInferredSpan decodes the event and routes it to the correct
 // enrichment function for that event source
-func (inferredSpan *InferredSpan) DispatchInferredSpan(eventType trigger.AWSEventType, eventPayload interface{}) error {
+func (inferredSpan *InferredSpan) DispatchInferredSpan(eventType trigger.AWSEventType, eventPayload string) error {
 	log.Debugf("Enriching inferred span for type %v", eventType)
 	switch eventType {
 	case trigger.APIGatewayEvent:
-		inferredSpan.enrichInferredSpanWithAPIGatewayRESTEvent(eventPayload.(events.APIGatewayProxyRequest))
+		var apigatewayRest events.APIGatewayProxyRequest
+		json.Unmarshal([]byte(eventPayload), &apigatewayRest)
+		inferredSpan.enrichInferredSpanWithAPIGatewayRESTEvent(apigatewayRest)
 	case trigger.APIGatewayV2Event:
-		inferredSpan.enrichInferredSpanWithAPIGatewayHTTPEvent(eventPayload.(events.APIGatewayV2HTTPRequest))
+		var apigatewayHTTP events.APIGatewayV2HTTPRequest
+		json.Unmarshal([]byte(eventPayload), &apigatewayHTTP)
+		inferredSpan.enrichInferredSpanWithAPIGatewayHTTPEvent(apigatewayHTTP)
 	case trigger.APIGatewayWebsocketEvent:
-		inferredSpan.enrichInferredSpanWithAPIGatewayWebsocketEvent(eventPayload.(events.APIGatewayWebsocketProxyRequest))
+		var apigatewayWebsocket events.APIGatewayWebsocketProxyRequest
+		json.Unmarshal([]byte(eventPayload), &apigatewayWebsocket)
+		inferredSpan.enrichInferredSpanWithAPIGatewayWebsocketEvent(apigatewayWebsocket)
 	case trigger.SNSEvent:
-		inferredSpan.enrichInferredSpanWithSNSEvent(eventPayload.(events.SNSEvent))
+		var sns events.SNSEvent
+		json.Unmarshal([]byte(eventPayload), &sns)
+		inferredSpan.enrichInferredSpanWithSNSEvent(sns)
 	default:
 		log.Debugf("Received an Unknown event type %v", eventType)
 	}
