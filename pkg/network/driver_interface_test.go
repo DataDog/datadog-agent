@@ -9,19 +9,17 @@
 package network
 
 import (
-	"testing"
 	"math"
-	// "strings"
+	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/network/driver"
-	// ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	netcfg "github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
 )
 
-func TestCalcDriverSizeEx(t *testing.T) {
+func TestCalcDriverSize(t *testing.T) {
 
 	//    | net.driver_buffer_size | net.driver_buffer_entries |                 use                    |
 	// 1. |          Default       |            Default        |    net.driver_buffer_entries * PerFlow |
@@ -29,36 +27,36 @@ func TestCalcDriverSizeEx(t *testing.T) {
 	// 3. |          !Default      |            Default        |    net.driver_buffer_size * PerFlow    |
 	// 4. |          !Default      |            !Default       |    net.driver_buffer_entries * PerFlow |
 
+	const sizeModifier int = 5
 	res := 0
 	exp := 0
-	
+
 	// make initial config
 	initialConfig := netcfg.New()
 
-
-	// 1.
+	// 1. All defaults
 	exp = config.DefaultFlowEntries * driver.PerFlowDataSize
 	res = calcDriverBufferSize(initialConfig.DriverBufferSize, initialConfig.DriverBufferEntries)
 	assert.Equal(t, res, exp)
 
-	// 2.
+	// 2. buffer_size default, entries set
 	initialConfig = netcfg.New()
-	initialConfig.DriverBufferEntries = config.DefaultFlowEntries + 5
-	exp = initialConfig.DriverBufferEntries*driver.PerFlowDataSize
+	initialConfig.DriverBufferEntries = config.DefaultFlowEntries + sizeModifier
+	exp = initialConfig.DriverBufferEntries * driver.PerFlowDataSize
 	res = calcDriverBufferSize(initialConfig.DriverBufferSize, initialConfig.DriverBufferEntries)
 	assert.Equal(t, res, exp)
 
-	// 3.
+	// 3. buffer_size set, entries default
 	initialConfig = netcfg.New()
-	initialConfig.DriverBufferSize = config.DefaultDriverBufferSize + 5
-	exp = int(math.Ceil(float64(initialConfig.DriverBufferSize) / float64(driver.PerFlowDataSize)))*driver.PerFlowDataSize
+	initialConfig.DriverBufferSize = config.DefaultDriverBufferSize + sizeModifier
+	exp = int(math.Ceil(float64(initialConfig.DriverBufferSize)/float64(driver.PerFlowDataSize))) * driver.PerFlowDataSize
 	res = calcDriverBufferSize(initialConfig.DriverBufferSize, initialConfig.DriverBufferEntries)
 	assert.Equal(t, res, exp)
 
-	// 4.
+	// 4. buffer_size set, entries set
 	initialConfig = netcfg.New()
-	initialConfig.DriverBufferEntries = config.DefaultFlowEntries + 5
-	initialConfig.DriverBufferSize = config.DefaultDriverBufferSize + 5
+	initialConfig.DriverBufferEntries = config.DefaultFlowEntries + sizeModifier
+	initialConfig.DriverBufferSize = config.DefaultDriverBufferSize + sizeModifier
 	exp = initialConfig.DriverBufferEntries * driver.PerFlowDataSize
 	res = calcDriverBufferSize(initialConfig.DriverBufferSize, initialConfig.DriverBufferEntries)
 	assert.Equal(t, res, exp)
