@@ -2,6 +2,22 @@
 Release Notes
 =============
 
+.. _Release Notes_installscript-1.9.0:
+
+installscript-1.9.0
+===================
+
+.. _Release Notes_installscript-1.9.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Since datadog-agent 6.36/7.36, Debian 7 (Wheezy) is no longer supported,
+  ``install_script.sh`` now installs 6.35/7.35 when the minor version is unpinned,
+  and ``DD_AGENT_FLAVOR`` doesn't specify a version.
+
+- Allow nightly builds install on non-prod repos.
+
 .. _Release Notes_installscript-1.8.0:
 
 installscript-1.8.0

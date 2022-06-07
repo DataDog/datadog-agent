@@ -7,6 +7,12 @@ package model
 
 import "time"
 
+const (
+	Exec = "exec"
+	Fork = "fork"
+	Exit = "exit"
+)
+
 // ProcessEvent is a common interface for collected process events shared across multiple event listener implementations
 type ProcessEvent struct {
 	EventType      string    `json:"event_type"`

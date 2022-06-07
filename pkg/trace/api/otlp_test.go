@@ -233,6 +233,11 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 			},
 			fn: func(out *pb.TracerPayload) {
 				require.Len(out.Chunks, 2)
+				if len(out.Chunks[0].Spans) == 2 {
+					// it seems the chunks ended up in the wrong order; that's fine
+					// switch them to ensure assertions are correct
+					out.Chunks[0], out.Chunks[1] = out.Chunks[1], out.Chunks[0]
+				}
 				require.Equal(uint64(0x90a0b0c0d0e0f10), out.Chunks[0].Spans[0].TraceID)
 				require.Len(out.Chunks[1].Spans, 2)
 			},

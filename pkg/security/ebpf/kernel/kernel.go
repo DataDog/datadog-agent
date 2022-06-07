@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/acobaugh/osrelease"
 	"github.com/pkg/errors"
@@ -92,26 +93,56 @@ func (k *Version) String() string {
 	return fmt.Sprintf("kernel %s - %v - %s", k.Code, k.OsRelease, k.UnameRelease)
 }
 
+var kernelVersionCache struct {
+	sync.Mutex
+	*Version
+}
+
 // NewKernelVersion returns a new kernel version helper
 func NewKernelVersion() (*Version, error) {
-	osReleasePaths := []string{
-		osrelease.EtcOsRelease,
-		osrelease.UsrLibOsRelease,
+	kernelVersionCache.Lock()
+	defer kernelVersionCache.Unlock()
+
+	if kernelVersionCache.Version != nil {
+		return kernelVersionCache.Version, nil
 	}
 
-	if config.IsContainerized() && util.PathExists("/host") {
-		osReleasePaths = append([]string{
-			filepath.Join("/host", osrelease.EtcOsRelease),
-			filepath.Join("/host", osrelease.UsrLibOsRelease),
-		}, osReleasePaths...)
-	}
+	var err error
+	kernelVersionCache.Version, err = newKernelVersion()
+	return kernelVersionCache.Version, err
+}
 
+func newKernelVersion() (*Version, error) {
+	osReleasePaths := make([]string, 0, 2*3)
+
+	// First look at os-release files based on the `HOST_ROOT` env variable
 	if hostRoot := os.Getenv("HOST_ROOT"); hostRoot != "" {
-		osReleasePaths = append([]string{
-			filepath.Join(hostRoot, osrelease.EtcOsRelease),
+		osReleasePaths = append(
+			osReleasePaths,
 			filepath.Join(hostRoot, osrelease.UsrLibOsRelease),
-		}, osReleasePaths...)
+			filepath.Join(hostRoot, osrelease.EtcOsRelease),
+		)
 	}
+
+	// Then look if `/host` is mounted in the container
+	// since this can be done without the env variable being set
+	if config.IsContainerized() && util.PathExists("/host") {
+		osReleasePaths = append(
+			osReleasePaths,
+			filepath.Join("/host", osrelease.UsrLibOsRelease),
+			filepath.Join("/host", osrelease.EtcOsRelease),
+		)
+	}
+
+	// Finally default to actual default values
+	// This is last in the search order since we don't want os-release files
+	// from the distribution of the container when deployed on a host with
+	// different values
+	osReleasePaths = append(
+		osReleasePaths,
+		osrelease.UsrLibOsRelease,
+		osrelease.EtcOsRelease,
+	)
 
 	kv, err := kernel.HostVersion()
 	if err != nil {
