@@ -140,7 +140,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		conf.Site = "us3.datadoghq.com"
 		conf.Endpoints[0].APIKey = "test_api_key"
 		conf.EVPProxy.AdditionalEndpoints = map[string][]string{
-			"datadoghq.eu": []string{"test_api_key_1", "test_api_key_2"},
+			"datadoghq.eu": {"test_api_key_1", "test_api_key_2"},
 		}
 		req := httptest.NewRequest("POST", "/my.subdomain/mypath/mysubpath?arg=test", nil)
 		req.Header.Set("X-Datadog-Agent", "test_user_agent")
