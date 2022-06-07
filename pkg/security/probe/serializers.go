@@ -132,6 +132,7 @@ type ProcessSerializer struct {
 	ArgsTruncated       bool                          `json:"args_truncated,omitempty" jsonschema_description:"Indicator of arguments truncation"`
 	Envs                []string                      `json:"envs,omitempty" jsonschema_description:"Environment variables of the process"`
 	EnvsTruncated       bool                          `json:"envs_truncated,omitempty" jsonschema_description:"Indicator of environments variable truncation"`
+	IsThread            bool                          `json:"is_thread,omitempty" jsonschema_description:"The process is marked as being a thread"`
 }
 
 // ContainerContextSerializer serializes a container context to JSON
@@ -452,6 +453,7 @@ func newProcessSerializer(ps *model.Process, e *Event) *ProcessSerializer {
 		ArgsTruncated: argvTruncated,
 		Envs:          envs,
 		EnvsTruncated: EnvsTruncated,
+		IsThread:      ps.IsThread,
 	}
 
 	credsSerializer := newCredentialsSerializer(&ps.Credentials)

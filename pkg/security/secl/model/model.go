@@ -318,6 +318,8 @@ type Process struct {
 	ScrubbedArgv          []string       `field:"-" msg:"-"`
 	ScrubbedArgsTruncated bool           `field:"-" msg:"-"`
 	Variables             eval.Variables `field:"-" msg:"-"`
+
+	IsThread bool `field:"is_thread,ResolveProcessIsThread" msg:"is_thread"` // Indicator of whether the process is considered a thread (i.e. a child process that hasn't been replaced by another program)
 }
 
 // SpanContext describes a span context
