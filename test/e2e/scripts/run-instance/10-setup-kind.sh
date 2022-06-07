@@ -3,7 +3,7 @@
 set -euo pipefail
 
 download_and_install_kubectl() {
-    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    curl --retry 5 --fail --retry-all-errors -LO "https://dl.k8s.io/release/$(curl --retry 5 --fail --retry-all-errors -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
     sudo install kubectl /usr/local/bin/kubectl
 }
 
@@ -22,7 +22,7 @@ if [[ ! -f ./kubectl ]]; then
     download_and_install_kubectl
 else
     # else, download the SHA256 of the wanted version
-    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
+    curl --retry 5 --fail --retry-all-errors -LO "https://dl.k8s.io/release/$(curl --retry 5 --fail --retry-all-errors -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
     # And if it differs, force the download again
     if ! echo "$(<kubectl.sha256)  kubectl" | sha256sum --check ; then
         echo "SHA256 of kubectl differs, downloading it again"

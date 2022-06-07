@@ -10,8 +10,7 @@ import sys
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.libs.common.color import color_message
-
+from .libs.common.color import color_message
 from .utils import get_version, get_version_numeric_only
 
 # constants

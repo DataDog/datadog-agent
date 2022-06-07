@@ -13,16 +13,15 @@ from time import sleep
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
-from tasks.libs.common.color import color_message
-from tasks.libs.common.github_api import GithubAPI, get_github_token
-from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
-from tasks.libs.common.remote_api import APIError
-from tasks.pipeline import run
-from tasks.utils import DEFAULT_BRANCH, get_version, nightly_entry_for, release_entry_for
-
+from .libs.common.color import color_message
+from .libs.common.github_api import GithubAPI, get_github_token
+from .libs.common.gitlab import Gitlab, get_gitlab_token
+from .libs.common.remote_api import APIError
 from .libs.common.user_interactions import yes_no_question
 from .libs.version import Version
 from .modules import DEFAULT_MODULES
+from .pipeline import run
+from .utils import DEFAULT_BRANCH, get_version, nightly_entry_for, release_entry_for
 
 # Generic version regex. Aims to match:
 # - X.Y.Z
