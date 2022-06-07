@@ -21,7 +21,7 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
         log_debug("ERR reading head\n");
         return ret;
     }
-    u16 net_head;
+    u16 net_head = 0;
     ret = bpf_probe_read(&net_head, sizeof(net_head), &skb->network_header);
     if (ret) {
         log_debug("ERR reading network_header\n");
