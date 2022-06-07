@@ -32,7 +32,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -50,7 +49,13 @@ type connTag = uint64
 const (
 	tagGnuTLS  connTag = 1 // netebpf.GnuTLS
 	tagOpenSSL connTag = 2 // netebpf.OpenSSL
-	tagTLS     connTag = 4 // netebpf.TLS
+)
+
+var (
+	staticTags = map[connTag]string{
+		tagGnuTLS:  "tls.library:gnutls",
+		tagOpenSSL: "tls.library:openssl",
+	}
 )
 
 var (
@@ -1720,7 +1725,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 			foundPathAndHTTPTag := false
 			if key.Path.Content == "/200/foobar" && (statsTags == tagGnuTLS || statsTags == tagOpenSSL) {
 				foundPathAndHTTPTag = true
-				t.Logf("found tag 0x%x %s", statsTags, ebpf.StaticTags[statsTags])
+				t.Logf("found tag 0x%x %s", statsTags, staticTags[statsTags])
 			}
 			if foundPathAndHTTPTag {
 				return true
