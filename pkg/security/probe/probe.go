@@ -1345,10 +1345,11 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		p.handleEvent,
 		ExtractEventInfo,
 		ReOrdererOpts{
-			QueueSize:  10000,
-			Rate:       50 * time.Millisecond,
-			Retention:  5,
-			MetricRate: 5 * time.Second,
+			QueueSize:       10000,
+			Rate:            50 * time.Millisecond,
+			Retention:       5,
+			MetricRate:      5 * time.Second,
+			HeapShrinkDelta: 1000,
 		})
 
 	p.scrubber = pconfig.NewDefaultDataScrubber()
