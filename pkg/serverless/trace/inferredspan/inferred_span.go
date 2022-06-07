@@ -7,6 +7,7 @@ package inferredspan
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -103,19 +104,31 @@ func (inferredSpan *InferredSpan) DispatchInferredSpan(eventType trigger.AWSEven
 	switch eventType {
 	case trigger.APIGatewayEvent:
 		var apigatewayRest events.APIGatewayProxyRequest
-		json.Unmarshal([]byte(eventPayload), &apigatewayRest)
+		err := json.Unmarshal([]byte(eventPayload), &apigatewayRest)
+		if err != nil {
+			return fmt.Errorf("Couldn't parse API Gateway event: %v", err)
+		}
 		inferredSpan.enrichInferredSpanWithAPIGatewayRESTEvent(apigatewayRest)
 	case trigger.APIGatewayV2Event:
 		var apigatewayHTTP events.APIGatewayV2HTTPRequest
-		json.Unmarshal([]byte(eventPayload), &apigatewayHTTP)
+		err := json.Unmarshal([]byte(eventPayload), &apigatewayHTTP)
+		if err != nil {
+			return fmt.Errorf("Couldn't parse API V2 Gateway event: %v", err)
+		}
 		inferredSpan.enrichInferredSpanWithAPIGatewayHTTPEvent(apigatewayHTTP)
 	case trigger.APIGatewayWebsocketEvent:
 		var apigatewayWebsocket events.APIGatewayWebsocketProxyRequest
-		json.Unmarshal([]byte(eventPayload), &apigatewayWebsocket)
+		err := json.Unmarshal([]byte(eventPayload), &apigatewayWebsocket)
+		if err != nil {
+			return fmt.Errorf("Couldn't parse API Gateway HTTP event: %v", err)
+		}
 		inferredSpan.enrichInferredSpanWithAPIGatewayWebsocketEvent(apigatewayWebsocket)
 	case trigger.SNSEvent:
 		var sns events.SNSEvent
-		json.Unmarshal([]byte(eventPayload), &sns)
+		err := json.Unmarshal([]byte(eventPayload), &sns)
+		if err != nil {
+			return fmt.Errorf("Couldn't parse SNS event: %v", err)
+		}
 		inferredSpan.enrichInferredSpanWithSNSEvent(sns)
 	default:
 		log.Debugf("Received an Unknown event type %v", eventType)
