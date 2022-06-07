@@ -10,8 +10,9 @@ package net
 
 import (
 	"fmt"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"os"
+
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 )
 
 const (
