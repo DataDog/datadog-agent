@@ -86,7 +86,7 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
         return 0;
     }
 
-    u16 trans_head;
+    u16 trans_head = 0;
     ret = bpf_probe_read(&trans_head, sizeof(trans_head), &skb->transport_header);
     if (ret) {
         log_debug("ERR reading trans_head\n");
