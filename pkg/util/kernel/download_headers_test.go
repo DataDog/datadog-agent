@@ -38,6 +38,18 @@ var ubuntuRelease map[string]string = map[string]string{
 	"UBUNTU_CODENAME":    "focal",
 }
 
+var debianRelease map[string]string = map[string]string{
+	"PRETTY_NAME":      "Debian GNU/Linux 11 (bullseye)",
+	"NAME":             "Debian GNU/Linux",
+	"VERSION_ID":       "11",
+	"VERSION":          "11 (bullseye)",
+	"VERSION_CODENAME": "bullseye",
+	"ID":               "debian",
+	"HOME_URL":         "https://www.debian.org/",
+	"SUPPORT_URL":      "https://www.debian.org/support",
+	"BUG_REPORT_URL":   "https://bugs.debian.org/",
+}
+
 var ubuntuRepos = []string{
 	"deb http://gb.ports.ubuntu.com/ubuntu-ports/ focal main restricted",
 	"deb http://gb.ports.ubuntu.com/ubuntu-ports/ focal-updates main restricted",
@@ -49,6 +61,15 @@ var ubuntuRepos = []string{
 	"deb http://gb.ports.ubuntu.com/ubuntu-ports/ focal-security main restricted",
 	"deb http://gb.ports.ubuntu.com/ubuntu-ports/ focal-security universe",
 	"deb http://gb.ports.ubuntu.com/ubuntu-ports/ focal-security multiverse",
+}
+
+var debianRepos = []string{
+	"deb http://http.us.debian.org/debian bullseye main",
+	"deb-src http://http.us.debian.org/debian bullseye main",
+	"deb http://security.debian.org/debian-security bullseye-security main",
+	"deb-src http://security.debian.org/debian-security bullseye-security main",
+	"deb http://http.us.debian.org/debian bullseye-updates main",
+	"deb-src http://http.us.debian.org/debian bullseye-updates main",
 }
 
 var targetUbuntu types.Target = types.Target{
@@ -64,6 +85,19 @@ var targetUbuntu types.Target = types.Target{
 	},
 }
 
+var targetDebian types.Target = types.Target{
+	Distro: types.Distro{
+		"debian",
+		"11.2",
+		"debian",
+	},
+	OSRelease: debianRelease,
+	Uname: types.Utsname{
+		"5.10.0-10-arm64",
+		"aarch64",
+	},
+}
+
 type TargetSetup struct {
 	target types.Target
 	repos  []string
@@ -73,6 +107,10 @@ var targets map[string]TargetSetup = map[string]TargetSetup{
 	"ubuntu": TargetSetup{
 		targetUbuntu,
 		ubuntuRepos,
+	},
+	"debian": TargetSetup{
+		targetDebian,
+		debianRepos,
 	},
 }
 
@@ -127,7 +165,7 @@ func getBackend(target *types.Target, reposDir string) (backend types.Backend, e
 	return
 }
 
-func benchmarkHeaderDownloading(ts TargetSetup, b *testing.B) {
+func benchmarkHeaderDownload(ts TargetSetup, b *testing.B) {
 	dname := mkTargetDirName(ts.target)
 	kname := fmt.Sprintf(headerDownloadDir, dname)
 
@@ -166,5 +204,10 @@ func benchmarkHeaderDownloading(ts TargetSetup, b *testing.B) {
 
 func BenchmarkHeaderDownloadUbuntu(b *testing.B) {
 	b.ReportAllocs()
-	benchmarkHeaderDownloading(targets["ubuntu"], b)
+	benchmarkHeaderDownload(targets["ubuntu"], b)
+}
+
+func BenchmarkHeaderDownloadDebian(b *testing.B) {
+	b.ReportAllocs()
+	benchmarkHeaderDownload(targets["debian"], b)
 }
