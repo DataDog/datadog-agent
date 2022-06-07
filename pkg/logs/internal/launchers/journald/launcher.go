@@ -80,8 +80,6 @@ func (l *Launcher) Stop() {
 // setupTailer configures and starts a new tailer,
 // returns the tailer or an error.
 func (l *Launcher) setupTailer(source *config.LogSource) (*tailer.Tailer, error) {
-	tailer := tailer.NewTailer(source, l.pipelineProvider.NextPipelineChan())
-	cursor := l.registry.GetOffset(tailer.Identifier())
 	var journal *sdjournal.Journal
 	var err error
 
@@ -95,7 +93,10 @@ func (l *Launcher) setupTailer(source *config.LogSource) (*tailer.Tailer, error)
 		return nil, err
 	}
 
-	err = tailer.Start(cursor, journal)
+	tailer := tailer.NewTailer(source, l.pipelineProvider.NextPipelineChan(), journal)
+	cursor := l.registry.GetOffset(tailer.Identifier())
+
+	err = tailer.Start(cursor)
 	if err != nil {
 		return nil, err
 	}

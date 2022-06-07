@@ -78,12 +78,12 @@ func TestIdentifier(t *testing.T) {
 
 	// expect default identifier
 	source = config.NewLogSource("", &config.LogsConfig{})
-	tailer = NewTailer(source, nil)
+	tailer = NewTailer(source, nil, nil)
 	assert.Equal(t, "journald:default", tailer.Identifier())
 
 	// expect identifier to be overidden
 	source = config.NewLogSource("", &config.LogsConfig{Path: "any_path"})
-	tailer = NewTailer(source, nil)
+	tailer = NewTailer(source, nil, nil)
 	assert.Equal(t, "journald:any_path", tailer.Identifier())
 }
 
@@ -96,7 +96,7 @@ func TestShouldDropEntry(t *testing.T) {
 
 	// expect only the specified service units to be dropped
 	source = config.NewLogSource("", &config.LogsConfig{ExcludeSystemUnits: []string{"foo", "bar"}, ExcludeUserUnits: []string{"baz", "qux"}})
-	tailer = NewTailer(source, nil)
+	tailer = NewTailer(source, nil, nil)
 	err = tailer.setup()
 	assert.Nil(t, err)
 
@@ -147,7 +147,7 @@ func TestShouldDropEntry(t *testing.T) {
 
 	// expect all System-level service units to be dropped
 	source = config.NewLogSource("", &config.LogsConfig{ExcludeSystemUnits: []string{"*"}})
-	tailer = NewTailer(source, nil)
+	tailer = NewTailer(source, nil, nil)
 	err = tailer.setup()
 	assert.Nil(t, err)
 
@@ -183,7 +183,7 @@ func TestShouldDropEntry(t *testing.T) {
 
 	// expect all User-level service units to be dropped
 	source = config.NewLogSource("", &config.LogsConfig{ExcludeUserUnits: []string{"*"}})
-	tailer = NewTailer(source, nil)
+	tailer = NewTailer(source, nil, nil)
 	err = tailer.setup()
 	assert.Nil(t, err)
 
@@ -220,7 +220,7 @@ func TestShouldDropEntry(t *testing.T) {
 
 func TestApplicationName(t *testing.T) {
 	source := config.NewLogSource("", &config.LogsConfig{})
-	tailer := NewTailer(source, nil)
+	tailer := NewTailer(source, nil, nil)
 
 	assert.Equal(t, "foo", tailer.getApplicationName(
 		&sdjournal.JournalEntry{
@@ -264,7 +264,7 @@ func TestApplicationName(t *testing.T) {
 
 func TestContent(t *testing.T) {
 	source := config.NewLogSource("", &config.LogsConfig{})
-	tailer := NewTailer(source, nil)
+	tailer := NewTailer(source, nil, nil)
 
 	assert.Equal(t, []byte(`{"journald":{"_A":"foo.service"},"message":"bar"}`), tailer.getContent(
 		&sdjournal.JournalEntry{
@@ -289,7 +289,7 @@ func TestContent(t *testing.T) {
 
 func TestSeverity(t *testing.T) {
 	source := config.NewLogSource("", &config.LogsConfig{})
-	tailer := NewTailer(source, nil)
+	tailer := NewTailer(source, nil, nil)
 
 	priorityValues := []string{"0", "1", "2", "3", "4", "5", "6", "7", "foo"}
 	statuses := []string{message.StatusEmergency, message.StatusAlert, message.StatusCritical, message.StatusError, message.StatusWarning, message.StatusNotice, message.StatusInfo, message.StatusDebug, message.StatusInfo}
@@ -306,7 +306,7 @@ func TestSeverity(t *testing.T) {
 
 func TestApplicationNameShouldBeDockerForContainerEntries(t *testing.T) {
 	source := config.NewLogSource("", &config.LogsConfig{})
-	tailer := NewTailer(source, nil)
+	tailer := NewTailer(source, nil, nil)
 
 	assert.Equal(t, "docker", tailer.getApplicationName(
 		&sdjournal.JournalEntry{
@@ -324,7 +324,7 @@ func TestApplicationNameShouldBeShortImageForContainerEntries(t *testing.T) {
 	containerID := "bar"
 
 	source := config.NewLogSource("", &config.LogsConfig{ContainerMode: true})
-	tailer := NewTailer(source, nil)
+	tailer := NewTailer(source, nil, nil)
 
 	assert.Equal(t, "testImage", tailer.getApplicationName(
 		&sdjournal.JournalEntry{
@@ -346,7 +346,7 @@ func TestApplicationNameShouldBeDockerWhenTagNotFound(t *testing.T) {
 	containerID := "bar2"
 
 	source := config.NewLogSource("", &config.LogsConfig{ContainerMode: true})
-	tailer := NewTailer(source, nil)
+	tailer := NewTailer(source, nil, nil)
 
 	assert.Equal(t, "docker", tailer.getApplicationName(
 		&sdjournal.JournalEntry{
@@ -371,7 +371,7 @@ func TestWrongTypeFromCache(t *testing.T) {
 	cache.Cache.Set(getImageCacheKey(containerID), 10, 30*time.Second)
 
 	source := config.NewLogSource("", &config.LogsConfig{ContainerMode: true})
-	tailer := NewTailer(source, nil)
+	tailer := NewTailer(source, nil, nil)
 
 	assert.Equal(t, "testImage", tailer.getApplicationName(
 		&sdjournal.JournalEntry{
@@ -414,8 +414,8 @@ func TestTailingMode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockJournal := &MockJournal{m: m}
 			source := config.NewLogSource("", tt.config)
-			tailer := NewTailer(source, nil)
-			tailer.Start(tt.cursor, mockJournal)
+			tailer := NewTailer(source, nil, mockJournal)
+			tailer.Start(tt.cursor)
 
 			assert.Equal(t, *tt.expectedJournalState, *mockJournal)
 			tailer.Stop()
@@ -427,11 +427,11 @@ func TestTailerCanTailJournal(t *testing.T) {
 
 	mockJournal := &MockJournal{m: &sync.Mutex{}, next: 1}
 	source := config.NewLogSource("", &config.LogsConfig{})
-	tailer := NewTailer(source, make(chan *message.Message, 1))
+	tailer := NewTailer(source, make(chan *message.Message, 1), mockJournal)
 
 	mockJournal.entry = &sdjournal.JournalEntry{Fields: map[string]string{"MESSAGE": "foobar"}}
 
-	tailer.Start("", mockJournal)
+	tailer.Start("")
 
 	resultMessage := <-tailer.outputChan
 

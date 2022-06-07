@@ -55,18 +55,18 @@ type Tailer struct {
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(source *config.LogSource, outputChan chan *message.Message) *Tailer {
+func NewTailer(source *config.LogSource, outputChan chan *message.Message, journal Journal) *Tailer {
 	return &Tailer{
 		source:     source,
 		outputChan: outputChan,
+		journal:    journal,
 		stop:       make(chan struct{}, 1),
 		done:       make(chan struct{}, 1),
 	}
 }
 
 // Start starts tailing the journal from a given offset.
-func (t *Tailer) Start(cursor string, journal Journal) error {
-	t.journal = journal
+func (t *Tailer) Start(cursor string) error {
 	if err := t.setup(); err != nil {
 		t.source.Status.Error(err)
 		return err
