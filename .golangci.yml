@@ -5,6 +5,7 @@ run:
     - pkg/util/cloudproviders/cloudfoundry/bbscache_test.go # implements interface from imported package whose method names fail linting
 
 issues:
+  exclude-use-default: false
   # Do not limit the number of issues per linter.
   max-issues-per-linter: 0
 
@@ -12,6 +13,16 @@ issues:
   max-same-issues: 0
 
   exclude:
+    - "`RandomString|TimeNowNano|InitLogging|SetHostname` is unused" # 'deadcode' errors in test/benchmarks/util.go
+    - "Error return value of `io.WriteString` is not checked" # 'errcheck' errors in tools/dep_tree_resolver/go_deps.go
+    - "Error return value of `pem.Encode` is not checked" # 'errcheck' errors in test/integration/utils/certificates.go
+    - "exported: exported type EasyjsonTime|NewEasyjsonTime|EasyjsonTime.MarshalEasyJSON|EasyjsonTime.UnmarshalJSON should have comment or be unexported" # 'revive' errors in pkg/security/utils/json.go
+    - "exported: exported const Exec should have comment \\(or a comment on this block\\) or be unexported" # 'revive' errors in pkg/process/events/model/model_common.go
+    - "exported: exported const APIName should have comment \\(or a comment on this block\\) or be unexported" # 'revive' errors in pkg/serverless/trace/inferredspan/constants.go
+    - "unnecessary conversion" # 'unconvert' errors in test/integration/utils/certificates_test.go
+    - "SA1019*" # 'staticcheck' errors about SA1019
+    - "SA4011*" # 'staticcheck' errors about SA4011
+    - "Error return value of .((os\\.)?std(out|err)\\..*|.*Close|.*Flush|os\\.Remove(All)?|.*print(f|ln)?|os\\.(Un)?Setenv). is not checked"
     - "`eventContext` is unused"
     - "`\\(\\*DatadogLogger\\).changeLogLevel` is unused"
     - "`defaultRetryDuration` is unused" # used by APM and Process
