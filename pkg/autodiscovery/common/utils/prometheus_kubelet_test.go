@@ -148,7 +148,7 @@ func TestConfigsForPod(t *testing.T) {
 				Instances: []*types.OpenmetricsInstance{
 					{
 						PrometheusURL: "foo/bar",
-						Metrics:       []interface{}{".*"},
+						Metrics:       []interface{}{"*"},
 						Namespace:     "",
 					},
 				},
