@@ -47,7 +47,7 @@ def get_failed_jobs(project_name, pipeline_id):
     return final_failed_jobs
 
 
-def truncate_job_name(job_name, max_char_per_job=32):
+def truncate_job_name(job_name, max_char_per_job=42):
     # Job header should be before the colon, if there is no colon this won't change job_name
     truncated_job_name = job_name.split(":")[0]
     # We also want to avoid it being too long
