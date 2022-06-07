@@ -102,7 +102,7 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 type ChmodEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode;file.destination.rights"` // New mode/rights of the chmod-ed file
+	Mode uint32    `field:"file.destination.mode;file.destination.rights" constants:"Chmod mode constants"` // New mode/rights of the chmod-ed file
 }
 
 // ChownEvent represents a chown event
@@ -237,8 +237,8 @@ type SetgidEvent struct {
 // CapsetEvent represents a capset event
 //msgp:ignore CapsetEvent
 type CapsetEvent struct {
-	CapEffective uint64 `field:"cap_effective"` // Effective capability set of the process
-	CapPermitted uint64 `field:"cap_permitted"` // Permitted capability set of the process
+	CapEffective uint64 `field:"cap_effective" constants:"Kernel Capability constants"` // Effective capability set of the process
+	CapPermitted uint64 `field:"cap_permitted" constants:"Kernel Capability constants"` // Permitted capability set of the process
 }
 
 // Credentials represents the kernel credentials of a process
@@ -258,8 +258,8 @@ type Credentials struct {
 	FSUser  string `field:"fsuser" msg:"fsuser"`   // FileSystem-user of the process
 	FSGroup string `field:"fsgroup" msg:"fsgroup"` // FileSystem-group of the process
 
-	CapEffective uint64 `field:"cap_effective" msg:"cap_effective"` // Effective capability set of the process
-	CapPermitted uint64 `field:"cap_permitted" msg:"cap_permitted"` // Permitted capability set of the process
+	CapEffective uint64 `field:"cap_effective" msg:"cap_effective" constants:"Kernel Capability constants"` // Effective capability set of the process
+	CapPermitted uint64 `field:"cap_permitted" msg:"cap_permitted" constants:"Kernel Capability constants"` // Permitted capability set of the process
 }
 
 // GetPathResolutionError returns the path resolution error as a string if there is one
@@ -334,13 +334,13 @@ type ExecEvent struct {
 
 // FileFields holds the information required to identify a file
 type FileFields struct {
-	UID   uint32 `field:"uid" msg:"uid"`                                              // UID of the file's owner
-	User  string `field:"user,ResolveFileFieldsUser" msg:"user"`                      // User of the file's owner
-	GID   uint32 `field:"gid" msg:"gid"`                                              // GID of the file's owner
-	Group string `field:"group,ResolveFileFieldsGroup" msg:"group"`                   // Group of the file's owner
-	Mode  uint16 `field:"mode;rights,ResolveRights,,cacheless_resolution" msg:"mode"` // Mode/rights of the file
-	CTime uint64 `field:"change_time" msg:"ctime"`                                    // Change time of the file
-	MTime uint64 `field:"modification_time" msg:"mtime"`                              // Modification time of the file
+	UID   uint32 `field:"uid" msg:"uid"`                                                                               // UID of the file's owner
+	User  string `field:"user,ResolveFileFieldsUser" msg:"user"`                                                       // User of the file's owner
+	GID   uint32 `field:"gid" msg:"gid"`                                                                               // GID of the file's owner
+	Group string `field:"group,ResolveFileFieldsGroup" msg:"group"`                                                    // Group of the file's owner
+	Mode  uint16 `field:"mode;rights,ResolveRights,,cacheless_resolution" msg:"mode" constants:"Chmod mode constants"` // Mode/rights of the file
+	CTime uint64 `field:"change_time" msg:"ctime"`                                                                     // Change time of the file
+	MTime uint64 `field:"modification_time" msg:"mtime"`                                                               // Modification time of the file
 
 	MountID      uint32 `field:"mount_id" msg:"mount_id"`                                           // Mount ID of the file
 	Inode        uint64 `field:"inode" msg:"inode"`                                                 // Inode of the file
@@ -429,7 +429,7 @@ type LinkEvent struct {
 type MkdirEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode;file.destination.rights"` // Mode/rights of the new directory
+	Mode uint32    `field:"file.destination.mode;file.destination.rights" constants:"Chmod mode constants"` // Mode/rights of the new directory
 }
 
 // ArgsEnvsEvent defines a args/envs event
@@ -489,8 +489,8 @@ func (m *MountEvent) GetMountPointPathResolutionError() string {
 type OpenEvent struct {
 	SyscallEvent
 	File  FileEvent `field:"file"`
-	Flags uint32    `field:"flags"`                 // Flags used when opening the file
-	Mode  uint32    `field:"file.destination.mode"` // Mode of the created file
+	Flags uint32    `field:"flags" constants:"Open flags"`                           // Flags used when opening the file
+	Mode  uint32    `field:"file.destination.mode" constants:"Chmod mode constants"` // Mode of the created file
 }
 
 // SELinuxEventKind represents the event kind for SELinux events
@@ -636,7 +636,7 @@ type SetXAttrEvent struct {
 
 // SyscallEvent contains common fields for all the event
 type SyscallEvent struct {
-	Retval int64 `field:"retval" msg:"retval"` // Return value of the syscall
+	Retval int64 `field:"retval" msg:"retval" constants:"Error Constants"` // Return value of the syscall
 }
 
 // UnlinkEvent represents an unlink event
@@ -644,7 +644,7 @@ type SyscallEvent struct {
 type UnlinkEvent struct {
 	SyscallEvent
 	File              FileEvent `field:"file"`
-	Flags             uint32    `field:"-"`
+	Flags             uint32    `field:"flags" constants:"Unlink flags"`
 	DiscarderRevision uint32    `field:"-"`
 }
 
@@ -669,28 +669,28 @@ type UtimesEvent struct {
 type BPFEvent struct {
 	SyscallEvent
 
-	Map     BPFMap     `field:"map"`  // eBPF map involved in the BPF command
-	Program BPFProgram `field:"prog"` // eBPF program involved in the BPF command
-	Cmd     uint32     `field:"cmd"`  // BPF command name
+	Map     BPFMap     `field:"map"`                          // eBPF map involved in the BPF command
+	Program BPFProgram `field:"prog"`                         // eBPF program involved in the BPF command
+	Cmd     uint32     `field:"cmd" constants:"BPF commands"` // BPF command name
 }
 
 // BPFMap represents a BPF map
 //msgp:ignore BPFMap
 type BPFMap struct {
-	ID   uint32 `field:"-"`    // ID of the eBPF map
-	Type uint32 `field:"type"` // Type of the eBPF map
-	Name string `field:"name"` // Name of the eBPF map (added in 7.35)
+	ID   uint32 `field:"-"`                              // ID of the eBPF map
+	Type uint32 `field:"type" constants:"BPF map types"` // Type of the eBPF map
+	Name string `field:"name"`                           // Name of the eBPF map (added in 7.35)
 }
 
 // BPFProgram represents a BPF program
 //msgp:ignore BPFProgram
 type BPFProgram struct {
-	ID         uint32   `field:"-"`                      // ID of the eBPF program
-	Type       uint32   `field:"type"`                   // Type of the eBPF program
-	AttachType uint32   `field:"attach_type"`            // Attach type of the eBPF program
-	Helpers    []uint32 `field:"helpers,ResolveHelpers"` // eBPF helpers used by the eBPF program (added in 7.35)
-	Name       string   `field:"name"`                   // Name of the eBPF program (added in 7.35)
-	Tag        string   `field:"tag"`                    // Hash (sha1) of the eBPF program (added in 7.35)
+	ID         uint32   `field:"-"`                                                       // ID of the eBPF program
+	Type       uint32   `field:"type" constants:"BPF program types"`                      // Type of the eBPF program
+	AttachType uint32   `field:"attach_type" constants:"BPF attach types"`                // Attach type of the eBPF program
+	Helpers    []uint32 `field:"helpers,ResolveHelpers" constants:"BPF helper functions"` // eBPF helpers used by the eBPF program (added in 7.35)
+	Name       string   `field:"name"`                                                    // Name of the eBPF program (added in 7.35)
+	Tag        string   `field:"tag"`                                                     // Hash (sha1) of the eBPF program (added in 7.35)
 }
 
 // PTraceEvent represents a ptrace event
@@ -698,7 +698,7 @@ type BPFProgram struct {
 type PTraceEvent struct {
 	SyscallEvent
 
-	Request uint32          `field:"request"` //  ptrace request
+	Request uint32          `field:"request" constants:"Ptrace constants"` //  ptrace request
 	PID     uint32          `field:"-"`
 	Address uint64          `field:"-"`
 	Tracee  *ProcessContext `field:"tracee"` // process context of the tracee
@@ -713,8 +713,8 @@ type MMapEvent struct {
 	Addr       uint64    `field:"-"`
 	Offset     uint64    `field:"-"`
 	Len        uint32    `field:"-"`
-	Protection int       `field:"protection"` // memory segment protection
-	Flags      int       `field:"flags"`      // memory segment flags
+	Protection int       `field:"protection" constants:"Protection constants"` // memory segment protection
+	Flags      int       `field:"flags" constants:"MMap flags"`                // memory segment flags
 }
 
 // MProtectEvent represents a mprotect event
@@ -724,8 +724,8 @@ type MProtectEvent struct {
 
 	VMStart       uint64 `field:"-"`
 	VMEnd         uint64 `field:"-"`
-	VMProtection  int    `field:"vm_protection"`  // initial memory segment protection
-	ReqProtection int    `field:"req_protection"` // new memory segment protection
+	VMProtection  int    `field:"vm_protection" constants:"Virtual Memory flags"`  // initial memory segment protection
+	ReqProtection int    `field:"req_protection" constants:"Virtual Memory flags"` // new memory segment protection
 }
 
 // LoadModuleEvent represents a load_module event
@@ -751,9 +751,9 @@ type UnloadModuleEvent struct {
 type SignalEvent struct {
 	SyscallEvent
 
-	Type   uint32          `field:"type"`   // Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)
-	PID    uint32          `field:"pid"`    // Target PID
-	Target *ProcessContext `field:"target"` // Target process context
+	Type   uint32          `field:"type" constants:"Signal constants"` // Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)
+	PID    uint32          `field:"pid"`                               // Target PID
+	Target *ProcessContext `field:"target"`                            // Target process context
 }
 
 // SpliceEvent represents a splice event
@@ -761,9 +761,9 @@ type SignalEvent struct {
 type SpliceEvent struct {
 	SyscallEvent
 
-	File          FileEvent `field:"file"`            // File modified by the splice syscall
-	PipeEntryFlag uint32    `field:"pipe_entry_flag"` // Entry flag of the "fd_out" pipe passed to the splice syscall
-	PipeExitFlag  uint32    `field:"pipe_exit_flag"`  // Exit flag of the "fd_out" pipe passed to the splice syscall
+	File          FileEvent `field:"file"`                                          // File modified by the splice syscall
+	PipeEntryFlag uint32    `field:"pipe_entry_flag" constants:"Pipe buffer flags"` // Entry flag of the "fd_out" pipe passed to the splice syscall
+	PipeExitFlag  uint32    `field:"pipe_exit_flag" constants:"Pipe buffer flags"`  // Exit flag of the "fd_out" pipe passed to the splice syscall
 }
 
 // CgroupTracingEvent is used to signal that a new cgroup should be traced by the activity dump manager
@@ -793,22 +793,22 @@ type IPPortContext struct {
 type NetworkContext struct {
 	Device NetworkDeviceContext `field:"device"` // network device on which the network packet was captured
 
-	L3Protocol  uint16        `field:"l3_protocol"` // l3 protocol of the network packet
-	L4Protocol  uint16        `field:"l4_protocol"` // l4 protocol of the network packet
-	Source      IPPortContext `field:"source"`      // source of the network packet
-	Destination IPPortContext `field:"destination"` // destination of the network packet
-	Size        uint32        `field:"size"`        // size in bytes of the network packet
+	L3Protocol  uint16        `field:"l3_protocol" constants:"L3 protocols"` // l3 protocol of the network packet
+	L4Protocol  uint16        `field:"l4_protocol" constants:"L4 protocols"` // l4 protocol of the network packet
+	Source      IPPortContext `field:"source"`                               // source of the network packet
+	Destination IPPortContext `field:"destination"`                          // destination of the network packet
+	Size        uint32        `field:"size"`                                 // size in bytes of the network packet
 }
 
 // DNSEvent represents a DNS event
 //msgp:ignore DNSEvent
 type DNSEvent struct {
-	ID    uint16 `field:"-"`
-	Name  string `field:"question.name" op_override:"eval.DNSNameCmp"` // the queried domain name
-	Type  uint16 `field:"question.type"`                               // a two octet code which specifies the DNS question type
-	Class uint16 `field:"question.class"`                              // the class looked up by the DNS question
-	Size  uint16 `field:"question.size"`                               // the total DNS request size in bytes
-	Count uint16 `field:"question.count"`                              // the total count of questions in the DNS request
+	ID    uint16 `field:"-" msg:"-"`
+	Name  string `field:"question.name" msg:"name" op_override:"eval.DNSNameCmp"` // the queried domain name
+	Type  uint16 `field:"question.type" msg:"type" constants:"DNS qtypes"`        // a two octet code which specifies the DNS question type
+	Class uint16 `field:"question.class" msg:"class" constants:"DNS qclasses"`    // the class looked up by the DNS question
+	Size  uint16 `field:"question.size" msg:"size"`                               // the total DNS request size in bytes
+	Count uint16 `field:"question.count" msg:"count"`                             // the total count of questions in the DNS request
 }
 
 // BindEvent represents a bind event
@@ -816,8 +816,8 @@ type DNSEvent struct {
 type BindEvent struct {
 	SyscallEvent
 
-	AddrFamily uint16        `field:"addr.family"` // Address family
-	Addr       IPPortContext `field:"addr"`        // Bound address
+	AddrFamily uint16        `field:"addr.family" constants:"Network Address Family constants"` // Address family
+	Addr       IPPortContext `field:"addr"`                                                     // Bound address
 }
 
 // NetDevice represents a network device

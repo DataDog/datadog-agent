@@ -76,7 +76,7 @@ func qualifiedType(module *common.Module, kind string) string {
 	}
 }
 
-func handleBasic(module *common.Module, name, alias, kind, event string, iterator *common.StructField, isArray bool, opOverrides string, commentText string) {
+func handleBasic(module *common.Module, name, alias, kind, event string, iterator *common.StructField, isArray bool, opOverrides string, constants string, commentText string) {
 	if verbose {
 		fmt.Printf("handleBasic %s %s\n", name, kind)
 	}
@@ -92,6 +92,7 @@ func handleBasic(module *common.Module, name, alias, kind, event string, iterato
 		Iterator:    iterator,
 		CommentText: commentText,
 		OpOverrides: opOverrides,
+		Constants:   constants,
 	}
 
 	if _, ok := module.EventTypes[event]; !ok {
@@ -99,7 +100,7 @@ func handleBasic(module *common.Module, name, alias, kind, event string, iterato
 	}
 }
 
-func handleField(module *common.Module, astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType string, event string, iterator *common.StructField, dejavu map[string]bool, isArray bool, opOverride string, commentText string) error {
+func handleField(module *common.Module, astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType string, event string, iterator *common.StructField, dejavu map[string]bool, isArray bool, opOverride string, constants string, commentText string) error {
 	if verbose {
 		fmt.Printf("handleField fieldName %s, alias %s, prefix %s, aliasPrefix %s, pkgName %s, fieldType, %s\n", name, alias, prefix, aliasPrefix, pkgName, fieldType)
 	}
@@ -110,7 +111,7 @@ func handleField(module *common.Module, astFile *ast.File, name, alias, prefix, 
 			name = prefix + "." + name
 			alias = aliasPrefix + "." + alias
 		}
-		handleBasic(module, name, alias, fieldType, event, iterator, isArray, opOverride, commentText)
+		handleBasic(module, name, alias, fieldType, event, iterator, isArray, opOverride, constants, commentText)
 
 	default:
 		symbol, err := resolveSymbol(pkgName, fieldType)
@@ -223,6 +224,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 					}
 
 					var opOverrides string
+					var constants string
 					var fields []seclField
 					fieldType, isPointer, isArray := getFieldIdentName(field.Type)
 
@@ -254,6 +256,8 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 
 							case "op_override":
 								opOverrides = tag.Value()
+							case "constants":
+								constants = tag.Value()
 							}
 						}
 					} else {
@@ -279,6 +283,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 							OrigType:      qualifiedType(module, fieldType),
 							IsOrigTypePtr: isPointer,
 							IsArray:       isArray,
+							Constants:     constants,
 						}
 
 						if iterator := seclField.iterator; iterator != "" {
@@ -292,6 +297,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								Weight:              weight,
 								CommentText:         fieldCommentText,
 								OpOverrides:         opOverrides,
+								Constants:           constants,
 								CachelessResolution: seclField.cachelessResolution,
 							}
 
@@ -317,6 +323,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								Weight:              weight,
 								CommentText:         fieldCommentText,
 								OpOverrides:         opOverrides,
+								Constants:           constants,
 								CachelessResolution: seclField.cachelessResolution,
 								IsOrigTypePtr:       isPointer,
 							}
@@ -334,7 +341,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 						dejavu[fieldName] = true
 
 						if len(fieldType) != 0 {
-							if err := handleField(module, astFile, fieldName, fieldAlias, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, false, opOverrides, fieldCommentText); err != nil {
+							if err := handleField(module, astFile, fieldName, fieldAlias, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, false, opOverrides, constants, fieldCommentText); err != nil {
 								log.Print(err)
 							}
 
@@ -521,7 +528,7 @@ func main() {
 
 	if docOutput != "" {
 		os.Remove(docOutput)
-		if err := doc.GenerateDocJSON(module, docOutput); err != nil {
+		if err := doc.GenerateDocJSON(module, path.Dir(filename), docOutput); err != nil {
 			panic(err)
 		}
 	}

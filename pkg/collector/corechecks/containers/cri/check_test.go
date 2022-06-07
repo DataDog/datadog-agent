@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
-	criTypes "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	criTypes "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	"github.com/stretchr/testify/assert"
 )

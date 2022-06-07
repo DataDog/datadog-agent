@@ -37,7 +37,7 @@ func TestOrder(t *testing.T) {
 			assert.GreaterOrEqual(t, data[0], last)
 		}
 		last = data[0]
-	}, 1, &metric)
+	}, 1, &metric, &ReOrdererOpts{})
 
 	assert.Equal(t, 200, count)
 }
@@ -53,11 +53,11 @@ func TestOrderRetention(t *testing.T) {
 	}
 
 	var count int
-	heap.dequeue(func(cpu uint64, data []byte) { count++ }, 1, &metric)
+	heap.dequeue(func(cpu uint64, data []byte) { count++ }, 1, &metric, &ReOrdererOpts{})
 	assert.Equal(t, 30, count)
-	heap.dequeue(func(cpu uint64, data []byte) { count++ }, 2, &metric)
+	heap.dequeue(func(cpu uint64, data []byte) { count++ }, 2, &metric, &ReOrdererOpts{})
 	assert.Equal(t, 60, count)
-	heap.dequeue(func(cpu uint64, data []byte) { count++ }, 3, &metric)
+	heap.dequeue(func(cpu uint64, data []byte) { count++ }, 3, &metric, &ReOrdererOpts{})
 	assert.Equal(t, 90, count)
 }
 
@@ -71,10 +71,10 @@ func TestOrderGeneration(t *testing.T) {
 	heap.enqueue(0, []byte{byte(1)}, uint64(1), uint64(2), &metric)
 
 	var data []byte
-	heap.dequeue(func(c uint64, d []byte) { data = d }, 1, &metric)
+	heap.dequeue(func(c uint64, d []byte) { data = d }, 1, &metric, &ReOrdererOpts{})
 	assert.Equal(t, 1, int(data[0]))
 
-	heap.dequeue(func(c uint64, d []byte) { data = d }, 2, &metric)
+	heap.dequeue(func(c uint64, d []byte) { data = d }, 2, &metric, &ReOrdererOpts{})
 	assert.Equal(t, 10, int(data[0]))
 }
 

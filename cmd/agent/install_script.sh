@@ -6,7 +6,7 @@
 # using the package manager and Datadog repositories.
 
 set -e
-install_script_version=1.8.0.post
+install_script_version=1.9.0.post
 logfile="ddagent-install.log"
 support_email=support@datadoghq.com
 
@@ -472,8 +472,8 @@ elif [ "$OS" = "Debian" ]; then
           fi
       else
           if ! echo "$agent_flavor" | grep '[0-9]' > /dev/null; then
-              echo -e "  \033[33m$nice_flavor $agent_major_version.35 will be the last supported version on $DISTRIBUTION $release_version. Installing $agent_major_version.34 now.\n\033[0m"
-              agent_minor_version=34
+              echo -e "  \033[33m$nice_flavor $agent_major_version.35 is the last supported version on $DISTRIBUTION $release_version. Installing $agent_major_version.35 now.\n\033[0m"
+              agent_minor_version=35
           fi
       fi
     fi

@@ -33,14 +33,15 @@ import (
 type Builder struct {
 	ksmBuilder ksmtypes.BuilderInterface
 
-	kubeClient    clientset.Interface
-	vpaClient     vpaclientset.Interface
-	namespaces    options.NamespaceList
-	ctx           context.Context
-	allowDenyList ksmtypes.AllowDenyLister
-	metrics       *watch.ListWatchMetrics
-	shard         int32
-	totalShards   int
+	kubeClient      clientset.Interface
+	vpaClient       vpaclientset.Interface
+	namespaces      options.NamespaceList
+	namespaceFilter string
+	ctx             context.Context
+	allowDenyList   generator.FamilyGeneratorFilter
+	metrics         *watch.ListWatchMetrics
+	shard           int32
+	totalShards     int
 
 	resync time.Duration
 }
@@ -53,16 +54,17 @@ func New() *Builder {
 }
 
 // WithNamespaces sets the namespaces property of a Builder.
-func (b *Builder) WithNamespaces(nss options.NamespaceList) {
+func (b *Builder) WithNamespaces(nss options.NamespaceList, nsFilter string) {
 	b.namespaces = nss
-	b.ksmBuilder.WithNamespaces(nss)
+	b.namespaceFilter = nsFilter
+	b.ksmBuilder.WithNamespaces(nss, nsFilter)
 }
 
-// WithAllowDenyList configures the white or blacklisted metric to be exposed
-// by the store build by the Builder.
-func (b *Builder) WithAllowDenyList(l ksmtypes.AllowDenyLister) {
+// WithFamilyGeneratorFilter configures the white or blacklisted metric to be
+// exposed by the store build by the Builder.
+func (b *Builder) WithFamilyGeneratorFilter(l generator.FamilyGeneratorFilter) {
 	b.allowDenyList = l
-	b.ksmBuilder.WithAllowDenyList(l)
+	b.ksmBuilder.WithFamilyGeneratorFilter(l)
 }
 
 // WithSharding sets the shard and totalShards property of a Builder.
@@ -134,16 +136,18 @@ func (b *Builder) WithResync(r time.Duration) {
 }
 
 // GenerateStores use to generate new Metrics Store for Metrics Families
-func (b *Builder) GenerateStores(metricFamilies []generator.FamilyGenerator,
+func (b *Builder) GenerateStores(
+	metricFamilies []generator.FamilyGenerator,
 	expectedType interface{},
-	listWatchFunc func(kubeClient clientset.Interface, ns string) cache.ListerWatcher,
+	listWatchFunc func(kubeClient clientset.Interface, ns string, fieldSelector string) cache.ListerWatcher,
+	useAPIServerCache bool,
 ) []cache.Store {
-	filteredMetricFamilies := generator.FilterMetricFamilies(b.allowDenyList, metricFamilies)
+	filteredMetricFamilies := generator.FilterFamilyGenerators(b.allowDenyList, metricFamilies)
 	composedMetricGenFuncs := generator.ComposeMetricGenFuncs(filteredMetricFamilies)
 
 	if b.namespaces.IsAllNamespaces() {
 		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
-		listWatcher := listWatchFunc(b.kubeClient, corev1.NamespaceAll)
+		listWatcher := listWatchFunc(b.kubeClient, corev1.NamespaceAll, b.namespaceFilter)
 		b.startReflector(expectedType, store, listWatcher)
 		return []cache.Store{store}
 
@@ -152,7 +156,7 @@ func (b *Builder) GenerateStores(metricFamilies []generator.FamilyGenerator,
 	stores := make([]cache.Store, 0, len(b.namespaces))
 	for _, ns := range b.namespaces {
 		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
-		listWatcher := listWatchFunc(b.kubeClient, ns)
+		listWatcher := listWatchFunc(b.kubeClient, ns, b.namespaceFilter)
 		b.startReflector(expectedType, store, listWatcher)
 		stores = append(stores, store)
 	}
