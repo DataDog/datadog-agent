@@ -57,11 +57,26 @@ func TestRuntimeSecurityLoad(t *testing.T) {
 func TestNetworkProcessEventMonitoring(t *testing.T) {
 	newConfig()
 
-	os.Setenv("DD_NETWORK_CONFIG_ENABLE_PROCESS_EVENT_MONITORING", "true")
-	defer os.Unsetenv("DD_NETWORK_CONFIG_ENABLE_PROCESS_EVENT_MONITORING")
+	for i, te := range []struct{
+		network, netProcEvents bool
+		enabled bool
+	}{
+		{network: false, netProcEvents: false, enabled: false},
+		{network: false, netProcEvents: true, enabled: false},
+		{network: true, netProcEvents: false, enabled: false},
+		{network: true, netProcEvents: true, enabled: true},
+	} {
+		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+			os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", strconv.FormatBool(te.network))
+			os.Setenv("DD_NETWORK_CONFIG_ENABLE_PROCESS_EVENT_MONITORING", strconv.FormatBool(te.netProcEvents))
+			defer os.Unsetenv("DD_NETWORK_CONFIG_ENABLE_PROCESS_EVENT_MONITORING")
+			defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLED")
 
-	cfg, err := New("")
-	require.NoError(t, err)
-	assert.True(t, cfg.ModuleIsEnabled(SecurityRuntimeModule))
-	assert.True(t, config.Datadog.GetBool("runtime_security_config.event_monitoring.enabled"))
+			cfg, err := New("")
+			require.NoError(t, err)
+			assert.Equal(t, te.enabled, cfg.ModuleIsEnabled(SecurityRuntimeModule))
+			assert.Equal(t, te.enabled, config.Datadog.GetBool("runtime_security_config.event_monitoring.enabled"))
+		})
+	}
+
 }
