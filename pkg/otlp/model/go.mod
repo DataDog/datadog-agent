@@ -8,7 +8,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/quantile v0.37.0-rc.3
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/stretchr/testify v1.7.1
+	github.com/stretchr/testify v1.7.2
 	go.opentelemetry.io/collector/pdata v0.51.0
 	go.opentelemetry.io/collector/semconv v0.51.0
 	go.uber.org/zap v1.21.0
@@ -30,5 +30,5 @@ require (
 	google.golang.org/grpc v1.46.0 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
