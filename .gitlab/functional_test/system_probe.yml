@@ -61,6 +61,8 @@ kitchen_test_system_probe_linux_arm64:
         KITCHEN_OSVERS: "debian-10"
       - KITCHEN_PLATFORM: "centos"
         KITCHEN_OSVERS: "centos-78,rhel-83"
+      - KITCHEN_PLATFORM: "amazonlinux"
+        KITCHEN_OSVERS: "amazonlinux2-4-14,amazonlinux2-5-10"
 
 kitchen_test_system_probe_windows_x64:
   extends:
