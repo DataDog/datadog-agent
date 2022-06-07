@@ -66,6 +66,8 @@ type InitConfig struct {
 	UseDeviceIDAsHostname Boolean          `yaml:"use_device_id_as_hostname"`
 	MinCollectionInterval int              `yaml:"min_collection_interval"`
 	Namespace             string           `yaml:"namespace"`
+
+	CollectAllAvailableMetrics bool `yaml:"collect_all_available_metrics"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -155,6 +157,8 @@ type CheckConfig struct {
 	Namespace             string
 	AutodetectProfile     bool
 	MinCollectionInterval time.Duration
+
+	CollectAllAvailableMetrics bool
 
 	Network                  string
 	DiscoveryWorkers         int
@@ -285,6 +289,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.IPAddress = instance.IPAddress
 	c.Port = uint16(instance.Port)
 	c.Network = instance.Network
+	//c.CollectAllAvailableMetrics = initConfig.CollectAllAvailableMetrics
+	c.CollectAllAvailableMetrics = true
 
 	if c.IPAddress == "" && c.Network == "" {
 		return nil, fmt.Errorf("`ip_address` or `network` config must be provided")
@@ -460,6 +466,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		profiles = defaultProfiles
 	}
 
+	log.Warnf("defaultProfiles: %v", profiles)
+
 	for _, profileDef := range profiles {
 		normalizeMetrics(profileDef.Metrics)
 	}
@@ -583,6 +591,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.ResolvedSubnetName = c.ResolvedSubnetName
 	newConfig.Namespace = c.Namespace
 	newConfig.AutodetectProfile = c.AutodetectProfile
+	newConfig.CollectAllAvailableMetrics = c.CollectAllAvailableMetrics
 	newConfig.MinCollectionInterval = c.MinCollectionInterval
 
 	return &newConfig
