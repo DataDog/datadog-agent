@@ -217,6 +217,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.ancestors.fsuser` | string | FileSystem-user of the process |  |
 | `process.ancestors.gid` | int | GID of the process |  |
 | `process.ancestors.group` | string | Group of the process |  |
+| `process.ancestors.is_thread` | bool | Indicator of whether the process is considered a thread (i.e. a child process that hasn't been replaced by another program) |  |
 | `process.ancestors.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `process.ancestors.ppid` | int | Parent process ID |  |
 | `process.ancestors.tid` | int | Thread ID of the thread |  |
@@ -262,6 +263,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.fsuser` | string | FileSystem-user of the process |  |
 | `process.gid` | int | GID of the process |  |
 | `process.group` | string | Group of the process |  |
+| `process.is_thread` | bool | Indicator of whether the process is considered a thread (i.e. a child process that hasn't been replaced by another program) |  |
 | `process.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `process.ppid` | int | Parent process ID |  |
 | `process.tid` | int | Thread ID of the thread |  |
@@ -414,6 +416,7 @@ A process was executed or forked
 | `exec.fsuser` | string | FileSystem-user of the process |  |
 | `exec.gid` | int | GID of the process |  |
 | `exec.group` | string | Group of the process |  |
+| `exec.is_thread` | bool | Indicator of whether the process is considered a thread (i.e. a child process that hasn't been replaced by another program) |  |
 | `exec.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `exec.ppid` | int | Parent process ID |  |
 | `exec.tid` | int | Thread ID of the thread |  |
@@ -610,6 +613,7 @@ A ptrace command was executed
 | `ptrace.tracee.ancestors.fsuser` | string | FileSystem-user of the process |  |
 | `ptrace.tracee.ancestors.gid` | int | GID of the process |  |
 | `ptrace.tracee.ancestors.group` | string | Group of the process |  |
+| `ptrace.tracee.ancestors.is_thread` | bool | Indicator of whether the process is considered a thread (i.e. a child process that hasn't been replaced by another program) |  |
 | `ptrace.tracee.ancestors.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `ptrace.tracee.ancestors.ppid` | int | Parent process ID |  |
 | `ptrace.tracee.ancestors.tid` | int | Thread ID of the thread |  |
@@ -655,6 +659,7 @@ A ptrace command was executed
 | `ptrace.tracee.fsuser` | string | FileSystem-user of the process |  |
 | `ptrace.tracee.gid` | int | GID of the process |  |
 | `ptrace.tracee.group` | string | Group of the process |  |
+| `ptrace.tracee.is_thread` | bool | Indicator of whether the process is considered a thread (i.e. a child process that hasn't been replaced by another program) |  |
 | `ptrace.tracee.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `ptrace.tracee.ppid` | int | Parent process ID |  |
 | `ptrace.tracee.tid` | int | Thread ID of the thread |  |
@@ -852,6 +857,7 @@ A signal was sent
 | `signal.target.ancestors.fsuser` | string | FileSystem-user of the process |  |
 | `signal.target.ancestors.gid` | int | GID of the process |  |
 | `signal.target.ancestors.group` | string | Group of the process |  |
+| `signal.target.ancestors.is_thread` | bool | Indicator of whether the process is considered a thread (i.e. a child process that hasn't been replaced by another program) |  |
 | `signal.target.ancestors.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `signal.target.ancestors.ppid` | int | Parent process ID |  |
 | `signal.target.ancestors.tid` | int | Thread ID of the thread |  |
@@ -897,6 +903,7 @@ A signal was sent
 | `signal.target.fsuser` | string | FileSystem-user of the process |  |
 | `signal.target.gid` | int | GID of the process |  |
 | `signal.target.group` | string | Group of the process |  |
+| `signal.target.is_thread` | bool | Indicator of whether the process is considered a thread (i.e. a child process that hasn't been replaced by another program) |  |
 | `signal.target.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `signal.target.ppid` | int | Parent process ID |  |
 | `signal.target.tid` | int | Thread ID of the thread |  |

@@ -1092,6 +1092,10 @@ CWS logs have the following JSON schema:
         "envs_truncated": {
             "type": "boolean",
             "description": "Indicator of environments variable truncation"
+        },
+        "is_thread": {
+            "type": "boolean",
+            "description": "The process is marked as being a thread"
         }
     },
     "additionalProperties": false,
@@ -1123,6 +1127,7 @@ CWS logs have the following JSON schema:
 | `args_truncated` | Indicator of arguments truncation |
 | `envs` | Environment variables of the process |
 | `envs_truncated` | Indicator of environments variable truncation |
+| `is_thread` | The process is marked as being a thread |
 
 | References |
 | ---------- |
@@ -1233,6 +1238,10 @@ CWS logs have the following JSON schema:
             "type": "boolean",
             "description": "Indicator of environments variable truncation"
         },
+        "is_thread": {
+            "type": "boolean",
+            "description": "The process is marked as being a thread"
+        },
         "parent": {
             "$ref": "#/definitions/Process",
             "description": "Parent process"
@@ -1274,6 +1283,7 @@ CWS logs have the following JSON schema:
 | `args_truncated` | Indicator of arguments truncation |
 | `envs` | Environment variables of the process |
 | `envs_truncated` | Indicator of environments variable truncation |
+| `is_thread` | The process is marked as being a thread |
 | `parent` | Parent process |
 | `ancestors` | Ancestor processes |
 

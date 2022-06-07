@@ -749,6 +749,10 @@
         "envs_truncated": {
           "type": "boolean",
           "description": "Indicator of environments variable truncation"
+        },
+        "is_thread": {
+          "type": "boolean",
+          "description": "The process is marked as being a thread"
         }
       },
       "additionalProperties": false,
@@ -854,6 +858,10 @@
         "envs_truncated": {
           "type": "boolean",
           "description": "Indicator of environments variable truncation"
+        },
+        "is_thread": {
+          "type": "boolean",
+          "description": "The process is marked as being a thread"
         },
         "parent": {
           "$schema": "http://json-schema.org/draft-04/schema#",
