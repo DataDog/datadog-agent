@@ -190,7 +190,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 			return nil, fmt.Errorf("could not initialize event monitoring: %w", err)
 		}
 
-		if tr.processCache, err = newProcessCache(config.MaxProcessesTracked); err != nil {
+		if tr.processCache, err = newProcessCache(config.MaxProcessesTracked, defaultFilteredEnvs); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
 		}
 
@@ -535,7 +535,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 		// since gateway resolution connects to the ec2 metadata
 		// endpoint)
 		t.connVia(&active[i])
-		t.addProcessTags(&active[i])
+		t.addProcessInfo(&active[i])
 	}
 
 	entryCount := len(active)

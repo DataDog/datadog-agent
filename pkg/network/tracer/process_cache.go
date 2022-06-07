@@ -15,7 +15,7 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 )
 
-var filteredEnvs = []string{
+var defaultFilteredEnvs = []string{
 	"DD_ENV",
 	"DD_VERSION",
 	"DD_SERVICE",
@@ -29,16 +29,17 @@ type Process struct {
 }
 
 type processCache struct {
-	cache *lru.Cache
+	cache        *lru.Cache
+	filteredEnvs []string
 }
 
-func newProcessCache(maxProcs int) (*processCache, error) {
+func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error) {
 	cache, err := lru.New(maxProcs)
 	if err != nil {
 		return nil, err
 	}
 
-	return &processCache{cache: cache}, nil
+	return &processCache{cache: cache, filteredEnvs: filteredEnvs}, nil
 }
 
 func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
@@ -47,8 +48,8 @@ func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
 		for _, v := range entry.EnvsEntry.Values {
 			kv := strings.SplitN(v, "=", 2)
 			k := kv[0]
-			found := len(filteredEnvs) == 0
-			for _, r := range filteredEnvs {
+			found := len(pc.filteredEnvs) == 0
+			for _, r := range pc.filteredEnvs {
 				if k == r {
 					found = true
 					break
@@ -67,13 +68,13 @@ func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
 				envs = make(map[string]string)
 			}
 			envs[k] = v
-			if len(filteredEnvs) > 0 && len(filteredEnvs) == len(envs) {
+			if len(pc.filteredEnvs) > 0 && len(pc.filteredEnvs) == len(envs) {
 				break
 			}
 		}
 	}
 
-	if len(envs) == 0 && len(filteredEnvs) > 0 && entry.ContainerID == "" {
+	if len(envs) == 0 && len(pc.filteredEnvs) > 0 && entry.ContainerID == "" {
 		return
 	}
 
