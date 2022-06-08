@@ -176,23 +176,31 @@ func (c *CheckConfig) RefreshWithProfile(profile string) error {
 	log.Debugf("Refreshing with profile `%s`", profile)
 	tags := []string{"snmp_profile:" + profile}
 	definition := c.Profiles[profile]
-	c.ProfileDef = &definition
-	c.Profile = profile
-
-	c.Metadata = updateMetadataDefinitionWithLegacyFallback(definition.Metadata)
-	c.Metrics = append(c.Metrics, definition.Metrics...)
-	c.MetricTags = append(c.MetricTags, definition.MetricTags...)
-
-	c.OidConfig.clean()
-	c.OidConfig.addScalarOids(c.parseScalarOids(c.Metrics, c.MetricTags, c.Metadata))
-	c.OidConfig.addColumnOids(c.parseColumnOids(c.Metrics, c.Metadata))
-
 	if definition.Device.Vendor != "" {
 		tags = append(tags, "device_vendor:"+definition.Device.Vendor)
 	}
 	tags = append(tags, definition.StaticTags...)
 	c.ProfileTags = tags
+
+	c.ProfileDef = &definition
+	c.Profile = profile
+
+	metadata := definition.Metadata
+	metrics := definition.Metrics
+	metricTags := definition.MetricTags
+
+	c.UpdateConfigMetadataMetricsAndTags(metadata, metrics, metricTags)
 	return nil
+}
+
+func (c *CheckConfig) UpdateConfigMetadataMetricsAndTags(metadata MetadataConfig, metrics []MetricsConfig, metricTags []MetricTagConfig) {
+	c.Metadata = updateMetadataDefinitionWithLegacyFallback(metadata)
+	c.Metrics = append(c.Metrics, metrics...)
+	c.MetricTags = append(c.MetricTags, metricTags...)
+
+	c.OidConfig.clean()
+	c.OidConfig.addScalarOids(c.parseScalarOids(c.Metrics, c.MetricTags, c.Metadata))
+	c.OidConfig.addColumnOids(c.parseColumnOids(c.Metrics, c.Metadata))
 }
 
 // UpdateDeviceIDAndTags updates DeviceID and DeviceIDTags

@@ -194,87 +194,102 @@ func (d *DeviceCheck) getValuesAndTags(staticTags []string) (bool, []string, *va
 func (d *DeviceCheck) detectMonitoredMetrics(sess session.Session) error {
 	// Try to detect profile using device sysobjectid
 	if d.config.AutodetectProfile {
-		if d.config.CollectAllAvailableMetrics {
-			//allOids, err := session.FetchAllOids(d.session)
-			//if err != nil {
-			//	return err
-			//}
-			//log.Warnf("fetch all oids: %v", len(allOids))
-			err := d.detectAvailableMetrics(sess)
-			if err != nil {
-				return err
-			}
-		} else {
-			// detect using profile
-			sysObjectID, err := session.FetchSysObjectID(sess)
-			if err != nil {
-				return fmt.Errorf("failed to fetch sysobjectid: %s", err)
-			}
-			d.config.AutodetectProfile = false // do not try to auto detect profile next time
+		// detect using profile
+		sysObjectID, err := session.FetchSysObjectID(sess)
+		if err != nil {
+			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
+		}
+		d.config.AutodetectProfile = false // do not try to auto detect profile next time
 
-			profile, err := checkconfig.GetProfileForSysObjectID(d.config.Profiles, sysObjectID)
-			if err != nil {
-				return fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
-			}
+		profile, err := checkconfig.GetProfileForSysObjectID(d.config.Profiles, sysObjectID)
+		if err != nil {
+			log.Infof("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
+		} else {
 			err = d.config.RefreshWithProfile(profile)
 			if err != nil {
 				// Should not happen since the profile is one of those we matched in GetProfileForSysObjectID
 				return fmt.Errorf("failed to refresh with profile `%s` detected using sysObjectID `%s`: %s", profile, sysObjectID, err)
 			}
 		}
+
+		if d.config.CollectAllAvailableMetrics {
+			metrics, err := d.detectAvailableMetrics(sess)
+			if err != nil {
+				return err
+			}
+			log.Warnf("available metrics: %v", metrics)
+			d.config.UpdateConfigMetadataMetricsAndTags(nil, metrics, nil)
+		}
 	}
 	return nil
 }
 
-func (d *DeviceCheck) detectAvailableMetrics(sess session.Session) error {
-	var allScalarMetricOids []string
-	var allColumnMetricOids []string
-	var availableColumnOids []string
+func (d *DeviceCheck) detectAvailableMetrics(sess session.Session) ([]checkconfig.MetricsConfig, error) {
+	allOids, err := session.FetchAllOids(d.session)
+	if err != nil {
+		return nil, err
+	}
+
+	root := common.BuildTries(allOids)
+
+	log.Warnf("root tries: %v", root)
+
+	log.Warnf("fetch all oids: %v", len(allOids))
 
 	log.Warnf("d.config.Profiles: %v", len(d.config.Profiles))
+
+	var metrics []checkconfig.MetricsConfig
+
 	for _, profileDef := range d.config.Profiles {
 		for _, metricConfig := range profileDef.Metrics {
-			if metricConfig.Symbol.OID != "" {
-				allScalarMetricOids = append(allScalarMetricOids, metricConfig.Symbol.OID)
+			newMetricConfig := metricConfig
+			newMetricConfig.MetricTags = checkconfig.MetricTagConfigList{}
+			newMetricConfig.Symbols = []checkconfig.SymbolConfig{}
+			if metricConfig.Symbol.OID != "" && root.NodeExist(metricConfig.Symbol.OID) {
+				metrics = append(metrics, newMetricConfig)
+				continue
 			}
 			for _, symbol := range metricConfig.Symbols {
-				if symbol.OID != "" {
-					allColumnMetricOids = append(allColumnMetricOids, symbol.OID)
+				if symbol.OID != "" && root.NodeExist(symbol.OID) {
+					newMetricConfig.Symbols = append(newMetricConfig.Symbols, symbol)
 				}
 			}
 
 			for _, metricTag := range metricConfig.MetricTags {
-				if metricTag.Column.OID != "" {
-					allColumnMetricOids = append(allColumnMetricOids, metricTag.Column.OID)
+				if metricTag.Column.OID != "" && root.NodeExist(metricTag.Column.OID) {
+					newMetricConfig.MetricTags = append(newMetricConfig.MetricTags, metricTag)
 				}
+			}
+			if len(newMetricConfig.MetricTags) > 0 {
+				metrics = append(metrics, newMetricConfig)
 			}
 		}
 	}
 
-	batches, err := common.CreateStringBatches(allColumnMetricOids, d.config.OidBatchSize)
-	if err != nil {
-		return fmt.Errorf("failed to create oid batches: %s", err)
-	}
-
-	for _, batch := range batches {
-		packet, err := sess.GetNext(batch)
-		log.Warnf("nextOids: %v", len(packet.Variables))
-		if err != nil {
-			return err
-		}
-		// TODO: need to handle case where batch len is different than variable len ?
-		if len(batch) == len(packet.Variables) {
-			for idx, pdu := range packet.Variables {
-				oid := strings.TrimLeft(pdu.Name, ".")
-				if strings.HasPrefix(oid, batch[idx]) {
-					availableColumnOids = append(availableColumnOids, batch[idx])
-				}
-			}
-		}
-	}
-	log.Warnf("allColumnMetricOids: %v", len(allColumnMetricOids))
-	log.Warnf("availableColumnOids: %v", len(availableColumnOids))
-	return nil
+	//batches, err := common.CreateStringBatches(allColumnMetricOids, d.config.OidBatchSize)
+	//if err != nil {
+	//	return fmt.Errorf("failed to create oid batches: %s", err)
+	//}
+	//
+	//for _, batch := range batches {
+	//	packet, err := sess.GetNext(batch)
+	//	log.Warnf("nextOids: %v", len(packet.Variables))
+	//	if err != nil {
+	//		return err
+	//	}
+	//	// TODO: need to handle case where batch len is different than variable len ?
+	//	if len(batch) == len(packet.Variables) {
+	//		for idx, pdu := range packet.Variables {
+	//			oid := strings.TrimLeft(pdu.Name, ".")
+	//			if strings.HasPrefix(oid, batch[idx]) {
+	//				availableColumnOids = append(availableColumnOids, batch[idx])
+	//			}
+	//		}
+	//	}
+	//}
+	//log.Warnf("allColumnMetricOids: %v", len(allColumnMetricOids))
+	//log.Warnf("availableColumnOids: %v", len(availableColumnOids))
+	return metrics, nil
 }
 
 func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string) {
