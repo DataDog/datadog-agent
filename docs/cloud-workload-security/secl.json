@@ -314,12 +314,6 @@
           "constants": ""
         },
         {
-          "name": "process.ancestors.is_thread",
-          "type": "bool",
-          "definition": "Indicator of whether the process is considered a thread (i.e. a child process that hasn't been replaced by another program)",
-          "constants": ""
-        },
-        {
           "name": "process.ancestors.pid",
           "type": "int",
           "definition": "Process ID of the process (also called thread group ID)",
@@ -592,7 +586,7 @@
         {
           "name": "process.is_thread",
           "type": "bool",
-          "definition": "Indicator of whether the process is considered a thread (i.e. a child process that hasn't been replaced by another program)",
+          "definition": "Indicator of whether the process is considered a thread (i.e. a child process that hasn't executed another program)",
           "constants": ""
         },
         {
@@ -1262,12 +1256,6 @@
           "name": "exec.group",
           "type": "string",
           "definition": "Group of the process",
-          "constants": ""
-        },
-        {
-          "name": "exec.is_thread",
-          "type": "bool",
-          "definition": "Indicator of whether the process is considered a thread (i.e. a child process that hasn't been replaced by another program)",
           "constants": ""
         },
         {
@@ -2216,12 +2204,6 @@
           "constants": ""
         },
         {
-          "name": "ptrace.tracee.ancestors.is_thread",
-          "type": "bool",
-          "definition": "Indicator of whether the process is considered a thread (i.e. a child process that hasn't been replaced by another program)",
-          "constants": ""
-        },
-        {
           "name": "ptrace.tracee.ancestors.pid",
           "type": "int",
           "definition": "Process ID of the process (also called thread group ID)",
@@ -2489,12 +2471,6 @@
           "name": "ptrace.tracee.group",
           "type": "string",
           "definition": "Group of the process",
-          "constants": ""
-        },
-        {
-          "name": "ptrace.tracee.is_thread",
-          "type": "bool",
-          "definition": "Indicator of whether the process is considered a thread (i.e. a child process that hasn't been replaced by another program)",
           "constants": ""
         },
         {
@@ -3416,12 +3392,6 @@
           "constants": ""
         },
         {
-          "name": "signal.target.ancestors.is_thread",
-          "type": "bool",
-          "definition": "Indicator of whether the process is considered a thread (i.e. a child process that hasn't been replaced by another program)",
-          "constants": ""
-        },
-        {
           "name": "signal.target.ancestors.pid",
           "type": "int",
           "definition": "Process ID of the process (also called thread group ID)",
@@ -3689,12 +3659,6 @@
           "name": "signal.target.group",
           "type": "string",
           "definition": "Group of the process",
-          "constants": ""
-        },
-        {
-          "name": "signal.target.is_thread",
-          "type": "bool",
-          "definition": "Indicator of whether the process is considered a thread (i.e. a child process that hasn't been replaced by another program)",
           "constants": ""
         },
         {
