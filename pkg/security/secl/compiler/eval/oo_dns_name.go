@@ -8,7 +8,7 @@ package eval
 var (
 	// DNSNameCmp lower case values before comparing. Important : this operator override doesn't support approvers
 	DNSNameCmp = &OpOverrides{
-		StringEquals: func(a *StringEvaluator, b *StringEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+		StringEquals: func(a *StringEvaluator, b *StringEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
 				a.StringCmpOpts.ScalarCaseInsensitive = true
 				a.StringCmpOpts.PatternCaseInsensitive = true
@@ -19,7 +19,7 @@ var (
 
 			return StringEquals(a, b, replCtx, state)
 		},
-		StringValuesContains: func(a *StringEvaluator, b *StringValuesEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+		StringValuesContains: func(a *StringEvaluator, b *StringValuesEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
 				a.StringCmpOpts.ScalarCaseInsensitive = true
 				a.StringCmpOpts.PatternCaseInsensitive = true
@@ -27,7 +27,7 @@ var (
 
 			return StringValuesContains(a, b, replCtx, state)
 		},
-		StringArrayContains: func(a *StringEvaluator, b *StringArrayEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+		StringArrayContains: func(a *StringEvaluator, b *StringArrayEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
 				a.StringCmpOpts.ScalarCaseInsensitive = true
 				a.StringCmpOpts.PatternCaseInsensitive = true
@@ -38,7 +38,7 @@ var (
 
 			return StringArrayContains(a, b, replCtx, state)
 		},
-		StringArrayMatches: func(a *StringArrayEvaluator, b *StringValuesEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+		StringArrayMatches: func(a *StringArrayEvaluator, b *StringValuesEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
 				a.StringCmpOpts.ScalarCaseInsensitive = true
 				a.StringCmpOpts.PatternCaseInsensitive = true

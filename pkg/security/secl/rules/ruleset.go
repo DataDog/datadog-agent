@@ -176,8 +176,8 @@ type RuleSet struct {
 	pool   *eval.ContextPool
 }
 
-func (rs *RuleSet) replCtx() eval.EvalReplacementContext {
-	return eval.EvalReplacementContext{
+func (rs *RuleSet) replCtx() eval.ReplacementContext {
+	return eval.ReplacementContext{
 		Opts:       rs.evalOpts,
 		MacroStore: rs.macroStore,
 	}

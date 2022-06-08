@@ -320,8 +320,8 @@ func TestLowerCaseArrayContains(t *testing.T) {
 	})
 }
 
-func nilReplCtx() EvalReplacementContext {
-	return EvalReplacementContext{
+func nilReplCtx() ReplacementContext {
+	return ReplacementContext{
 		Opts:       nil,
 		MacroStore: nil,
 	}

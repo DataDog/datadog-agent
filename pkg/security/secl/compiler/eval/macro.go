@@ -33,7 +33,7 @@ type MacroEvaluator struct {
 }
 
 // NewMacro parses an expression and returns a new macro
-func NewMacro(id, expression string, model Model, replCtx EvalReplacementContext) (*Macro, error) {
+func NewMacro(id, expression string, model Model, replCtx ReplacementContext) (*Macro, error) {
 	macro := &Macro{
 		ID:    id,
 		Store: replCtx.MacroStore,
@@ -93,7 +93,7 @@ func (m *Macro) Parse(expression string) error {
 	return nil
 }
 
-func macroToEvaluator(macro *ast.Macro, model Model, replCtx EvalReplacementContext, field Field) (*MacroEvaluator, error) {
+func macroToEvaluator(macro *ast.Macro, model Model, replCtx ReplacementContext, field Field) (*MacroEvaluator, error) {
 	macros := make(map[MacroID]*MacroEvaluator)
 	for id, macro := range replCtx.Macros {
 		macros[id] = macro.evaluator
@@ -129,7 +129,7 @@ func macroToEvaluator(macro *ast.Macro, model Model, replCtx EvalReplacementCont
 }
 
 // GenEvaluator - Compiles and generates the evalutor
-func (m *Macro) GenEvaluator(expression string, model Model, replCtx EvalReplacementContext) error {
+func (m *Macro) GenEvaluator(expression string, model Model, replCtx ReplacementContext) error {
 	m.Store = replCtx.MacroStore
 
 	evaluator, err := macroToEvaluator(m.ast, model, replCtx, "")

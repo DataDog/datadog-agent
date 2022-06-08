@@ -64,12 +64,12 @@ type ident struct {
 	Ident *string
 }
 
-type EvalReplacementContext struct {
+type ReplacementContext struct {
 	*Opts
 	*MacroStore
 }
 
-func identToEvaluator(obj *ident, replCtx EvalReplacementContext, state *State) (interface{}, lexer.Position, error) {
+func identToEvaluator(obj *ident, replCtx ReplacementContext, state *State) (interface{}, lexer.Position, error) {
 	if accessor, ok := replCtx.Opts.Constants[*obj.Ident]; ok {
 		return accessor, obj.Pos, nil
 	}
@@ -157,7 +157,7 @@ func identToEvaluator(obj *ident, replCtx EvalReplacementContext, state *State) 
 	return accessor, obj.Pos, nil
 }
 
-func arrayToEvaluator(array *ast.Array, replCtx EvalReplacementContext, state *State) (interface{}, lexer.Position, error) {
+func arrayToEvaluator(array *ast.Array, replCtx ReplacementContext, state *State) (interface{}, lexer.Position, error) {
 	if len(array.Numbers) != 0 {
 		var evaluator IntArrayEvaluator
 		evaluator.AppendValues(array.Numbers...)
@@ -223,7 +223,7 @@ func isVariableName(str string) (string, bool) {
 	return "", false
 }
 
-func evaluatorFromVariable(varname string, pos lexer.Position, replCtx EvalReplacementContext) (interface{}, lexer.Position, error) {
+func evaluatorFromVariable(varname string, pos lexer.Position, replCtx ReplacementContext) (interface{}, lexer.Position, error) {
 	value, exists := replCtx.Opts.Variables[varname]
 	if !exists {
 		return nil, pos, NewError(pos, "variable '%s' doesn't exist", varname)
@@ -232,7 +232,7 @@ func evaluatorFromVariable(varname string, pos lexer.Position, replCtx EvalRepla
 	return value.GetEvaluator(), pos, nil
 }
 
-func stringEvaluatorFromVariable(str string, pos lexer.Position, replCtx EvalReplacementContext) (interface{}, lexer.Position, error) {
+func stringEvaluatorFromVariable(str string, pos lexer.Position, replCtx ReplacementContext) (interface{}, lexer.Position, error) {
 	var evaluators []*StringEvaluator
 
 	doLoc := func(sub string) error {
@@ -313,7 +313,7 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, replCtx EvalRep
 }
 
 // StringEqualsWrapper makes use of operator overrides
-func StringEqualsWrapper(a *StringEvaluator, b *StringEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+func StringEqualsWrapper(a *StringEvaluator, b *StringEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 	var evaluator *BoolEvaluator
 	var err error
 
@@ -332,7 +332,7 @@ func StringEqualsWrapper(a *StringEvaluator, b *StringEvaluator, replCtx EvalRep
 }
 
 // StringArrayContainsWrapper makes use of operator overrides
-func StringArrayContainsWrapper(a *StringEvaluator, b *StringArrayEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+func StringArrayContainsWrapper(a *StringEvaluator, b *StringArrayEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 	var evaluator *BoolEvaluator
 	var err error
 
@@ -351,7 +351,7 @@ func StringArrayContainsWrapper(a *StringEvaluator, b *StringArrayEvaluator, rep
 }
 
 // StringValuesContainsWrapper makes use of operator overrides
-func StringValuesContainsWrapper(a *StringEvaluator, b *StringValuesEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+func StringValuesContainsWrapper(a *StringEvaluator, b *StringValuesEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 	var evaluator *BoolEvaluator
 	var err error
 
@@ -368,7 +368,7 @@ func StringValuesContainsWrapper(a *StringEvaluator, b *StringValuesEvaluator, r
 }
 
 // StringArrayMatchesWrapper makes use of operator overrides
-func StringArrayMatchesWrapper(a *StringArrayEvaluator, b *StringValuesEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+func StringArrayMatchesWrapper(a *StringArrayEvaluator, b *StringValuesEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 	var evaluator *BoolEvaluator
 	var err error
 
@@ -384,7 +384,7 @@ func StringArrayMatchesWrapper(a *StringArrayEvaluator, b *StringValuesEvaluator
 	return evaluator, nil
 }
 
-func nodeToEvaluator(obj interface{}, replCtx EvalReplacementContext, state *State) (interface{}, lexer.Position, error) {
+func nodeToEvaluator(obj interface{}, replCtx ReplacementContext, state *State) (interface{}, lexer.Position, error) {
 	var err error
 	var boolEvaluator *BoolEvaluator
 	var pos lexer.Position

@@ -6,7 +6,7 @@ import (
 	"errors"
 )
 
-func Or(a *BoolEvaluator, b *BoolEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+func Or(a *BoolEvaluator, b *BoolEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 
 	isDc := a.IsDeterministicFor(state.field) || b.IsDeterministicFor(state.field)
 
@@ -118,7 +118,7 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, replCtx EvalReplacementContext, stat
 	}, nil
 }
 
-func And(a *BoolEvaluator, b *BoolEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+func And(a *BoolEvaluator, b *BoolEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 
 	isDc := a.IsDeterministicFor(state.field) || b.IsDeterministicFor(state.field)
 
@@ -230,7 +230,7 @@ func And(a *BoolEvaluator, b *BoolEvaluator, replCtx EvalReplacementContext, sta
 	}, nil
 }
 
-func IntEquals(a *IntEvaluator, b *IntEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+func IntEquals(a *IntEvaluator, b *IntEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 
 	isDc := isArithmDeterministic(a, b, state)
 
@@ -301,7 +301,7 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, replCtx EvalReplacementContext,
 	}, nil
 }
 
-func IntAnd(a *IntEvaluator, b *IntEvaluator, replCtx EvalReplacementContext, state *State) (*IntEvaluator, error) {
+func IntAnd(a *IntEvaluator, b *IntEvaluator, replCtx ReplacementContext, state *State) (*IntEvaluator, error) {
 
 	isDc := isArithmDeterministic(a, b, state)
 
@@ -362,7 +362,7 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, replCtx EvalReplacementContext, st
 	}, nil
 }
 
-func IntOr(a *IntEvaluator, b *IntEvaluator, replCtx EvalReplacementContext, state *State) (*IntEvaluator, error) {
+func IntOr(a *IntEvaluator, b *IntEvaluator, replCtx ReplacementContext, state *State) (*IntEvaluator, error) {
 
 	isDc := isArithmDeterministic(a, b, state)
 
@@ -423,7 +423,7 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, replCtx EvalReplacementContext, sta
 	}, nil
 }
 
-func IntXor(a *IntEvaluator, b *IntEvaluator, replCtx EvalReplacementContext, state *State) (*IntEvaluator, error) {
+func IntXor(a *IntEvaluator, b *IntEvaluator, replCtx ReplacementContext, state *State) (*IntEvaluator, error) {
 
 	isDc := isArithmDeterministic(a, b, state)
 
@@ -484,7 +484,7 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, replCtx EvalReplacementContext, st
 	}, nil
 }
 
-func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 
 	isDc := isArithmDeterministic(a, b, state)
 
@@ -555,7 +555,7 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, replCtx EvalReplacementConte
 	}, nil
 }
 
-func GreaterThan(a *IntEvaluator, b *IntEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+func GreaterThan(a *IntEvaluator, b *IntEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 
 	isDc := isArithmDeterministic(a, b, state)
 
@@ -626,7 +626,7 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, replCtx EvalReplacementContex
 	}, nil
 }
 
-func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 
 	isDc := isArithmDeterministic(a, b, state)
 
@@ -697,7 +697,7 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, replCtx EvalReplacemen
 	}, nil
 }
 
-func LesserThan(a *IntEvaluator, b *IntEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+func LesserThan(a *IntEvaluator, b *IntEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 
 	isDc := isArithmDeterministic(a, b, state)
 
@@ -768,7 +768,7 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, replCtx EvalReplacementContext
 	}, nil
 }
 
-func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 
 	isDc := isArithmDeterministic(a, b, state)
 
@@ -839,7 +839,7 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, replCtx EvalReplacement
 	}, nil
 }
 
-func DurationLesserThan(a *IntEvaluator, b *IntEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+func DurationLesserThan(a *IntEvaluator, b *IntEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 
 	isDc := isArithmDeterministic(a, b, state)
 
@@ -910,7 +910,7 @@ func DurationLesserThan(a *IntEvaluator, b *IntEvaluator, replCtx EvalReplacemen
 	}, nil
 }
 
-func DurationLesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+func DurationLesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 
 	isDc := isArithmDeterministic(a, b, state)
 
@@ -981,7 +981,7 @@ func DurationLesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, replCtx EvalRep
 	}, nil
 }
 
-func DurationGreaterThan(a *IntEvaluator, b *IntEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+func DurationGreaterThan(a *IntEvaluator, b *IntEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 
 	isDc := isArithmDeterministic(a, b, state)
 
@@ -1052,7 +1052,7 @@ func DurationGreaterThan(a *IntEvaluator, b *IntEvaluator, replCtx EvalReplaceme
 	}, nil
 }
 
-func DurationGreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+func DurationGreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 
 	isDc := isArithmDeterministic(a, b, state)
 
@@ -1123,7 +1123,7 @@ func DurationGreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, replCtx EvalRe
 	}, nil
 }
 
-func IntArrayEquals(a *IntEvaluator, b *IntArrayEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+func IntArrayEquals(a *IntEvaluator, b *IntArrayEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 
 	isDc := isArithmDeterministic(a, b, state)
 
@@ -1201,7 +1201,7 @@ func IntArrayEquals(a *IntEvaluator, b *IntArrayEvaluator, replCtx EvalReplaceme
 	}, nil
 }
 
-func BoolArrayEquals(a *BoolEvaluator, b *BoolArrayEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+func BoolArrayEquals(a *BoolEvaluator, b *BoolArrayEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 
 	isDc := isArithmDeterministic(a, b, state)
 
@@ -1279,7 +1279,7 @@ func BoolArrayEquals(a *BoolEvaluator, b *BoolArrayEvaluator, replCtx EvalReplac
 	}, nil
 }
 
-func IntArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+func IntArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 
 	isDc := isArithmDeterministic(a, b, state)
 
@@ -1357,7 +1357,7 @@ func IntArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, replCtx EvalRepl
 	}, nil
 }
 
-func IntArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+func IntArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 
 	isDc := isArithmDeterministic(a, b, state)
 
@@ -1435,7 +1435,7 @@ func IntArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, replCtx E
 	}, nil
 }
 
-func IntArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+func IntArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 
 	isDc := isArithmDeterministic(a, b, state)
 
@@ -1513,7 +1513,7 @@ func IntArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, replCtx EvalRepla
 	}, nil
 }
 
-func IntArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, replCtx EvalReplacementContext, state *State) (*BoolEvaluator, error) {
+func IntArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
 
 	isDc := isArithmDeterministic(a, b, state)
 

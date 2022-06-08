@@ -22,7 +22,7 @@ type Rule struct {
 	ID             RuleID
 	Expression     string
 	Tags           []string
-	ReplacementCtx EvalReplacementContext
+	ReplacementCtx ReplacementContext
 	Model          Model
 
 	evaluator *RuleEvaluator
@@ -132,7 +132,7 @@ func (r *Rule) Parse() error {
 	return nil
 }
 
-func ruleToEvaluator(rule *ast.Rule, model Model, replCtx EvalReplacementContext) (*RuleEvaluator, error) {
+func ruleToEvaluator(rule *ast.Rule, model Model, replCtx ReplacementContext) (*RuleEvaluator, error) {
 	macros := make(map[MacroID]*MacroEvaluator)
 	for id, macro := range replCtx.Macros {
 		macros[id] = macro.evaluator
@@ -169,7 +169,7 @@ func ruleToEvaluator(rule *ast.Rule, model Model, replCtx EvalReplacementContext
 }
 
 // GenEvaluator - Compile and generates the RuleEvaluator
-func (r *Rule) GenEvaluator(model Model, replCtx EvalReplacementContext) error {
+func (r *Rule) GenEvaluator(model Model, replCtx ReplacementContext) error {
 	r.Model = model
 	r.ReplacementCtx = replCtx
 
