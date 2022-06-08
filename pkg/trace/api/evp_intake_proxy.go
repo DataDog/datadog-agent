@@ -195,7 +195,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 
 	req.URL.Scheme = "https"
 	setTarget := func(r *http.Request, host, apiKey string) {
-		targetHost := subdomain + "." + host
+		targetHost := subdomain + ".evp." + host
 		r.Host = targetHost
 		r.URL.Host = targetHost
 		r.Header.Set("DD-API-KEY", apiKey)
