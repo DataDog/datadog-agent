@@ -191,35 +191,35 @@ static __always_inline bool http_closed(http_transaction_t *http, skb_info_t *sk
             http->owned_by_src_port == pre_norm_src_port);
 }
 
-static __always_inline int http_process(http_transaction_t *http_stack, skb_info_t *skb_info, __u64 tags) {
+static __always_inline int http_process_fetched(http_transaction_t *http_stack,
+                                               http_transaction_t *http_fetched,
+                                               skb_info_t *skb_info,
+                                               http_packet_t packet_type,
+                                               http_method_t method,
+                                               __u64 tags) {
     char *buffer = (char *)http_stack->request_fragment;
-    http_packet_t packet_type = HTTP_PACKET_UNKNOWN;
-    http_method_t method = HTTP_METHOD_UNKNOWN;
-    http_parse_data(buffer, &packet_type, &method);
-
-    http_transaction_t *http = http_fetch_state(http_stack, skb_info, packet_type);
-    if (http == NULL) {
+    if (http_fetched == NULL) {
         return 0;
     }
 
-    http_transaction_t *to_flush = http_should_flush_previous_state(http, packet_type);
+    http_transaction_t *to_flush = http_should_flush_previous_state(http_fetched, packet_type);
     if (packet_type == HTTP_REQUEST) {
-        http_begin_request(http, method, buffer);
+        http_begin_request(http_fetched, method, buffer);
     } else if (packet_type == HTTP_RESPONSE) {
-        http_begin_response(http, buffer);
+        http_begin_response(http_fetched, buffer);
     }
 
-    http->tags |= tags;
+    http_fetched->tags |= tags;
 
     // If we have a (L7/application-layer) payload we want to update the response_last_seen
     // This is to prevent things such as a keep-alive adding up to the transaction latency
     if (buffer[0] != 0) {
-        http->response_last_seen = bpf_ktime_get_ns();
+        http_fetched->response_last_seen = bpf_ktime_get_ns();
     }
 
-    bool conn_closed = http_closed(http, skb_info, http_stack->owned_by_src_port);
+    bool conn_closed = http_closed(http_fetched, skb_info, http_stack->owned_by_src_port);
     if (conn_closed) {
-        to_flush = http;
+        to_flush = http_fetched;
     }
 
     if (to_flush) {
@@ -233,4 +233,13 @@ static __always_inline int http_process(http_transaction_t *http_stack, skb_info
     return 0;
 }
 
+static __always_inline int http_process(http_transaction_t *http_stack, skb_info_t *skb_info, __u64 tags) {
+    char *buffer = (char *)http_stack->request_fragment;
+    http_packet_t packet_type = HTTP_PACKET_UNKNOWN;
+    http_method_t method = HTTP_METHOD_UNKNOWN;
+    http_parse_data(buffer, &packet_type, &method);
+
+    http_transaction_t *http_fetched = http_fetch_state(http_stack, skb_info, packet_type);
+    return http_process_fetched(http_stack, http_fetched, skb_info, packet_type, method, tags);
+}
 #endif
