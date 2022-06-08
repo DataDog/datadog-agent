@@ -67,23 +67,6 @@ func main() {
 	flavor.SetFlavor(flavor.ServerlessAgent)
 	stopCh := make(chan struct{})
 
-	// retrieve DD_SM variables and set them as normal environment variables
-	for _, envVar := range os.Environ() {
-		if strings.HasPrefix(envVar, "DD_SM_") {
-			envKey, envVal, found := strings.Cut(envVar, "=")
-			if !found {
-				// couldn't parse KEY=VALUE format
-				continue
-			}
-			secretVal, err := GetSecretsManagerValue(envVal)
-			if err != nil {
-				log.Errorf("Error retrieving key from secrets manager: %v\n", err)
-				return
-			}
-			os.Setenv(envKey[6:], secretVal)
-		}
-	}
-
 	// run the agent
 	serverlessDaemon, err := runAgent(stopCh)
 	if err != nil {
@@ -171,10 +154,35 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		log.Warn("An API Key has been set in multiple places:", strings.Join(apikeySetIn, ", "))
 	}
 
+	// first, generically parse all _SSM and _KMS keys
+	for _, envVar := range os.Environ() {
+		envKey, envVal, found := strings.Cut(envVar, "=")
+		if !found {
+			// couldn't parse KEY=VALUE format
+			continue
+		}
+		if strings.HasSuffix(envVar, kmsKeySuffix) {
+			secretVal, err := readAPIKeyFromKMS(envVal)
+			if err != nil {
+				log.Debugf("Couldn't read API key from KMS: %v", err)
+				continue
+			}
+			os.Setenv(strings.TrimSuffix(envKey, kmsKeySuffix), secretVal)
+		}
+		if strings.HasSuffix(envVar, secretArnSuffix) {
+			secretVal, err := readAPIKeyFromSecretsManager(envVal)
+			if err != nil {
+				log.Debugf("Couldn't read API key from KMS: %v", err)
+				continue
+			}
+			os.Setenv(strings.TrimSuffix(envVar, secretArnSuffix), secretVal)
+		}
+	}
+
 	// try to read API key from KMS
 
 	var apiKey string
-	if apiKey, err = readAPIKeyFromKMS(); err != nil {
+	if apiKey, err = readAPIKeyFromKMS(os.Getenv(kmsAPIKeyEnvVar)); err != nil {
 		log.Errorf("Error while trying to read an API Key from KMS: %s", err)
 	} else if apiKey != "" {
 		log.Info("Using deciphered KMS API Key.")
@@ -184,7 +192,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	// try to read the API key from Secrets Manager, only if not set from KMS
 
 	if apiKey == "" {
-		if apiKey, err = readAPIKeyFromSecretsManager(); err != nil {
+		if apiKey, err = readAPIKeyFromSecretsManager(os.Getenv(secretsManagerAPIKeyEnvVar)); err != nil {
 			log.Errorf("Error while trying to read an API Key from Secrets Manager: %s", err)
 		} else if apiKey != "" {
 			log.Info("Using API key set in Secrets Manager.")
