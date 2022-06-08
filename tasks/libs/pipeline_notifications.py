@@ -57,6 +57,7 @@ def get_job_failure_reason(job_log):
         "no basic auth credentials (manager.go:203:0s)",
         # docker / docker-arm runner init failures
         "Docker runner job start script failed",
+        "A disposable runner accepted this job, while it shouldn't have. Runners are meant to run just one job and be terminated.",
     ]
 
     for log in infra_failure_logs:
