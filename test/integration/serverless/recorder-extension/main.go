@@ -28,6 +28,8 @@ import (
 
 const extensionName = "recorder-extension" // extension name has to match the filename
 var extensionClient = NewClient(os.Getenv("AWS_LAMBDA_RUNTIME_API"))
+var nbHitMetrics = 0
+var outputSketches = make([]gogen.SketchPayload_Sketch, 0)
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -188,6 +190,7 @@ func Start(port string) {
 
 func startHTTPServer(port string) {
 	http.HandleFunc("/api/beta/sketches", func(w http.ResponseWriter, r *http.Request) {
+		nbHitMetrics++
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			fmt.Printf("Error while reading HTTP request body: %s \n", err)
@@ -201,11 +204,21 @@ func startHTTPServer(port string) {
 
 		for _, sketch := range pl.Sketches {
 			sort.Strings(sketch.Tags)
-			jsonSketch, err := json.Marshal(sketch)
+			sketch.Dogsketches = make([]gogen.SketchPayload_Sketch_Dogsketch, 0)
+			outputSketches = append(outputSketches, sketch)
+		}
+
+		if nbHitMetrics == 3 {
+			// two calls + shutdown
+			fmt.Println("second metric hit, now outputing for snapshot")
+			sort.SliceStable(outputSketches, func(i, j int) bool {
+				return outputSketches[i].Metric < outputSketches[j].Metric
+			})
+			jsonSketch, err := json.Marshal(outputSketches)
 			if err != nil {
 				fmt.Printf("Error while JSON encoding the sketch")
 			}
-			fmt.Printf("[sketch] %s \n", string(jsonSketch))
+			fmt.Printf("%s%s%s\n", "BEGINMETRIC", string(jsonSketch), "ENDMETRIC")
 		}
 	})
 

@@ -73,9 +73,9 @@ fi
 cd $SERVERLESS_INTEGRATION_TESTS_DIR
 
 ./build_recorder.sh
-./build_go_functions.sh
-./build_java_functions.sh
-./build_csharp_functions.sh
+#./build_go_functions.sh
+#./build_java_functions.sh
+#./build_csharp_functions.sh
 
 if [ -z "$NODE_LAYER_VERSION" ]; then
     export NODE_LAYER_VERSION=$DEFAULT_NODE_LAYER_VERSION
@@ -102,10 +102,11 @@ echo "Using dd-trace-dotnet layer version: $DOTNET_TRACE_LAYER_VERSION"
 
 # random 8-character ID to avoid collisions with other runs
 stage=$(xxd -l 4 -c 4 -p </dev/random)
+stage=e224276f
 
 function remove_stack() {
-    echo "Removing stack"
-    serverless remove --stage "${stage}"
+    echo "NOT Removing stack"
+    #serverless remove --stage "${stage}"
 }
 
 # always remove the stack before exiting, no matter what
@@ -127,44 +128,20 @@ metric_functions=(
     "timeout-go"
     "timeout-csharp"
     "timeout-proxy"
-    "error-node"
     "error-python"
     "error-java"
     "error-csharp"
     "error-proxy"
+    "error-node"
 )
-log_functions=(
-    "log-node"
-    "log-python"
-    "log-java"
-    "log-go"
-    "log-csharp"
-    "log-proxy"
-)
-trace_functions=(
-    "trace-node"
-    "trace-python"
-    "trace-java"
-    "trace-go"
-    "trace-csharp"
-    "trace-proxy"
-)
+log_functions=()
+trace_functions=()
 
 all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}")
 
 # Add a function to this list to skip checking its results
 # This should only be used temporarily while we investigate and fix the test
-functions_to_skip=(
-    # Tagging behavior after a timeout is currently known to be flaky
-    "timeout-node"
-    "timeout-python"
-    "timeout-java"
-    "timeout-go"
-    "timeout-csharp"
-    "timeout-proxy"
-    "trace-csharp" # Will be reactivated when the new dotnet layer will be released
-    "trace-proxy" # Will be reactivated when sampling with proxy will be implemented
-)
+functions_to_skip=()
 
 echo "Invoking functions for the first time..."
 set +e # Don't exit this script if an invocation fails or there's a diff
@@ -213,11 +190,15 @@ for function_name in "${all_functions[@]}"; do
     # Replace invocation-specific data like timestamps and IDs with XXX to normalize across executions
     if [[ " ${metric_functions[*]} " =~ " ${function_name} " ]]; then
         # Normalize metrics
+        echo "coucou"
+        echo $raw_logs > test.log
         logs=$(
             echo "$raw_logs" |
                 perl -p -e "s/raise Exception/\n/g" |
                 grep -v "\[log\]" |
-                grep "\[sketch\].*" |
+                grep "\BEGINMETRIC.*" |
+                perl -p -e "s/BEGINMETRIC/\1/g" |
+                perl -p -e "s/ENDMETRIC/\1/g" |
                 perl -p -e "s/(ts\":)[0-9]{10}/\1XXX/g" |
                 perl -p -e "s/(min\":)[0-9\.e\-]{1,30}/\1XXX/g" |
                 perl -p -e "s/(max\":)[0-9\.e\-]{1,30}/\1XXX/g" |
@@ -233,8 +214,9 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/(architecture:)(x86_64|arm64)/\1XXX/g" |
                 perl -p -e "s/$stage/XXXXXX/g" |
                 perl -p -e "s/[ ]$//g" |
-                sort
+                node parse-json.js
         )
+        echo $logs > test.log.json
     elif [[ " ${log_functions[*]} " =~ " ${function_name} " ]]; then
         # Normalize logs
         logs=$(
@@ -308,15 +290,6 @@ for function_name in "${all_functions[@]}"; do
 
             echo
             printf "${RED} FAIL ${END_COLOR} $function_name\n"
-            echo
-            echo "Expected logs from snapshot:"
-            echo
-            cat $function_snapshot_path
-            echo
-            echo "Actual logs:"
-            echo
-            echo "$logs"
-            echo
             echo "Diff:"
             echo
             echo "$diff_output"
