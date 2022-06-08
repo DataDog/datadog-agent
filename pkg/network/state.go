@@ -93,12 +93,13 @@ type telemetry struct {
 
 const minClosedCapacity = 1024
 
+type closedKey string
+
 type client struct {
 	lastFetch time.Time
 
-	// generated with NAT addresses and used exclusively
-	// to roll up closed connections
-	closedConnectionsKeys map[string]int
+	// generated with NAT addresses and used exclusively to roll up closed connections
+	closedConnectionsKeys map[closedKey]int
 
 	closedConnections []ConnectionStats
 	stats             map[string]*StatCounters
@@ -115,7 +116,7 @@ func (c *client) Reset(active map[string]*ConnectionStats) {
 	}
 
 	c.closedConnections = c.closedConnections[:0]
-	c.closedConnectionsKeys = make(map[string]int)
+	c.closedConnectionsKeys = make(map[closedKey]int)
 	c.dnsStats = make(dns.StatsByKeyByNameByType)
 	c.httpStatsDelta = make(map[http.Key]*http.RequestStats)
 
@@ -288,11 +289,7 @@ func (ns *networkState) RegisterClient(id string) {
 func getConnsByKey(conns []ConnectionStats, buf []byte) map[string]*ConnectionStats {
 	connsByKey := make(map[string]*ConnectionStats, len(conns))
 	for i, c := range conns {
-		key, err := c.ByteKey(buf, false)
-		if err != nil {
-			log.Warnf("failed to create byte key: %s", err)
-			continue
-		}
+		key := c.ByteKey(buf)
 		connsByKey[string(key)] = &conns[i]
 	}
 	return connsByKey
@@ -309,12 +306,9 @@ func (ns *networkState) StoreClosedConnections(closed []ConnectionStats) {
 func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 	for _, client := range ns.clients {
 		for _, c := range conns {
-			key, err := c.ByteKey(ns.buf, true)
-			if err != nil {
-				continue
-			}
+			key := generateConnectionKey(c, ns.buf, true)
 
-			i, ok := client.closedConnectionsKeys[string(key)]
+			i, ok := client.closedConnectionsKeys[closedKey(key)]
 			if ok {
 				addConnections(&client.closedConnections[i], &c)
 				continue
@@ -326,7 +320,7 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 			}
 
 			client.closedConnections = append(client.closedConnections, c)
-			client.closedConnectionsKeys[string(key)] = len(client.closedConnections) - 1
+			client.closedConnectionsKeys[closedKey(key)] = len(client.closedConnections) - 1
 		}
 	}
 }
@@ -437,7 +431,7 @@ func (ns *networkState) getClient(clientID string) *client {
 		lastFetch:             time.Now(),
 		stats:                 map[string]*StatCounters{},
 		closedConnections:     make([]ConnectionStats, 0, minClosedCapacity),
-		closedConnectionsKeys: make(map[string]int),
+		closedConnectionsKeys: make(map[closedKey]int),
 		dnsStats:              dns.StatsByKeyByNameByType{},
 		httpStatsDelta:        map[http.Key]*http.RequestStats{},
 		lastTelemetries:       make(map[ConnTelemetryType]int64),
@@ -457,11 +451,7 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 	closedKeys := make(map[string]struct{}, len(closed))
 	for i := range closed {
 		closedConn := &closed[i]
-		byteKey, err := closedConn.ByteKey(ns.buf, false)
-		if err != nil {
-			continue
-		}
-		key := string(byteKey)
+		key := string(closedConn.ByteKey(ns.buf))
 		closedKeys[key] = struct{}{}
 
 		// If the connection is also active, check the epochs to understand what's going on
