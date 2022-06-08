@@ -43,6 +43,9 @@ func TestSuiteKube(t *testing.T) {
 	mockConfig := config.Mock()
 	s := &testSuite{}
 
+	// Env detection
+	config.DetectFeatures()
+
 	// Start compose stack
 	compose, err := initAPIServerCompose()
 	require.Nil(t, err)

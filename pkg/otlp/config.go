@@ -45,9 +45,9 @@ func readConfigSection(cfg config.Config, section string) *colConfig.Map {
 	// `GetStringMap` it will fail to cast `interface{}` nil to
 	// `map[string]interface{}` nil; we use `Get` and cast manually.
 	rawVal := cfg.Get(section)
-	cfgMap := colConfig.NewMap()
-	if stringMap, ok := rawVal.(map[string]interface{}); ok {
-		cfgMap = colConfig.NewMapFromStringMap(stringMap)
+	stringMap := map[string]interface{}{}
+	if val, ok := rawVal.(map[string]interface{}); ok {
+		stringMap = val
 	}
 
 	// Step two works around https://github.com/spf13/viper/issues/1012
@@ -57,10 +57,10 @@ func readConfigSection(cfg config.Config, section string) *colConfig.Map {
 	for _, key := range cfg.AllKeys() {
 		if strings.HasPrefix(key, prefix) && cfg.IsSet(key) {
 			mapKey := strings.ReplaceAll(key[len(prefix):], ".", colConfig.KeyDelimiter)
-			cfgMap.Set(mapKey, cfg.Get(key))
+			stringMap[mapKey] = cfg.Get(key)
 		}
 	}
-	return cfgMap
+	return colConfig.NewMapFromStringMap(stringMap)
 }
 
 // FromAgentConfig builds a pipeline configuration from an Agent configuration.
