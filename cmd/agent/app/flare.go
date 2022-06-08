@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/fatih/color"
 	"github.com/hashicorp/go-multierror"
@@ -197,26 +196,6 @@ func makeFlare(caseID string) error {
 		fmt.Fprintln(color.Output, color.RedString("If the agent running in a different container try the '--local' option to generate the flare locally"))
 		return err
 	}
-
-	logLevel := ""
-
-	switch {
-	case strings.Contains(filePath, "off"):
-		logLevel = "off"
-	case strings.Contains(filePath, "critical"):
-		logLevel = "critical"
-	case strings.Contains(filePath, "error"):
-		logLevel = "error"
-	case strings.Contains(filePath, "warn"):
-		logLevel = "warn"
-	case strings.Contains(filePath, "debug"):
-		logLevel = "debug"
-	case strings.Contains(filePath, "trace"):
-		logLevel = "trace"
-	default:
-		logLevel = "info"
-	}
-	fmt.Fprintln(color.Output, fmt.Sprintf("Notice: The flare will be generated using '%s' level logging of the agent ", color.RedString(logLevel)))
 
 	fmt.Fprintln(color.Output, fmt.Sprintf("%s is going to be uploaded to Datadog", color.YellowString(filePath)))
 	if !autoconfirm {
