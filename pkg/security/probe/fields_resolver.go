@@ -28,7 +28,7 @@ func (ev *Event) ResolveFields() {
 	_ = ev.ResolveFileBasename(&ev.ProcessContext.Process.FileEvent)
 	_ = ev.ResolveFilePath(&ev.ProcessContext.Process.FileEvent)
 	_ = ev.ResolveFileFieldsUser(&ev.ProcessContext.Process.FileEvent.FileFields)
-	_ = ev.ResolveProcessIsThread(&ev.ProcessContext.Process)
+	_ = ev.ResolveIsThread(&ev.ThreadContext)
 	// resolve event specific fields
 	switch ev.GetEventType().String() {
 	case "bind":
@@ -67,7 +67,6 @@ func (ev *Event) ResolveFields() {
 		_ = ev.ResolveProcessEnvs(ev.Exec.Process)
 		_ = ev.ResolveProcessEnvp(ev.Exec.Process)
 		_ = ev.ResolveProcessEnvsTruncated(ev.Exec.Process)
-		_ = ev.ResolveProcessIsThread(ev.Exec.Process)
 	case "link":
 		_ = ev.ResolveFileFieldsUser(&ev.Link.Source.FileFields)
 		_ = ev.ResolveFileFieldsGroup(&ev.Link.Source.FileFields)
@@ -125,7 +124,6 @@ func (ev *Event) ResolveFields() {
 		_ = ev.ResolveProcessEnvs(&ev.PTrace.Tracee.Process)
 		_ = ev.ResolveProcessEnvp(&ev.PTrace.Tracee.Process)
 		_ = ev.ResolveProcessEnvsTruncated(&ev.PTrace.Tracee.Process)
-		_ = ev.ResolveProcessIsThread(&ev.PTrace.Tracee.Process)
 	case "removexattr":
 		_ = ev.ResolveFileFieldsUser(&ev.RemoveXAttr.File.FileFields)
 		_ = ev.ResolveFileFieldsGroup(&ev.RemoveXAttr.File.FileFields)
@@ -189,7 +187,6 @@ func (ev *Event) ResolveFields() {
 		_ = ev.ResolveProcessEnvs(&ev.Signal.Target.Process)
 		_ = ev.ResolveProcessEnvp(&ev.Signal.Target.Process)
 		_ = ev.ResolveProcessEnvsTruncated(&ev.Signal.Target.Process)
-		_ = ev.ResolveProcessIsThread(&ev.Signal.Target.Process)
 	case "splice":
 		_ = ev.ResolveFileFieldsUser(&ev.Splice.File.FileFields)
 		_ = ev.ResolveFileFieldsGroup(&ev.Splice.File.FileFields)

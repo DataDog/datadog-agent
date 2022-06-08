@@ -542,15 +542,15 @@ func (ev *Event) ResolveNetworkDeviceIfName(device *model.NetworkDeviceContext) 
 	return device.IfName
 }
 
-// ResolveProcessIsThread resolves whether the process is a thread (a child process without calling the exec syscall)
-func (ev *Event) ResolveProcessIsThread(process *model.Process) bool {
+// ResolveIsThread resolves whether the event was triggered by a thread (i.e. a child process that hasn't executed another program)
+func (ev *Event) ResolveIsThread(threadCtx *model.ThreadContext) bool {
 	entry := ev.ResolveProcessCacheEntry()
 	if entry == nil || entry.Ancestor == nil {
-		process.IsThread = false
+		threadCtx.IsThread = false
 	} else {
-		process.IsThread = entry.PPid == entry.Ancestor.Pid && entry.Equals(entry.Ancestor)
+		threadCtx.IsThread = entry.PPid == entry.Ancestor.Pid && entry.Equals(entry.Ancestor)
 	}
-	return process.IsThread
+	return threadCtx.IsThread
 }
 
 // NewEvent returns a new event

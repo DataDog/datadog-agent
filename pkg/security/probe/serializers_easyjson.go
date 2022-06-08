@@ -822,8 +822,6 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe9(in *jle
 			}
 		case "envs_truncated":
 			out.EnvsTruncated = bool(in.Bool())
-		case "is_thread":
-			out.IsThread = bool(in.Bool())
 		default:
 			in.SkipRecursive()
 		}
@@ -976,11 +974,6 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe9(out *jw
 		const prefix string = ",\"envs_truncated\":"
 		out.RawString(prefix)
 		out.Bool(bool(in.EnvsTruncated))
-	}
-	if in.IsThread {
-		const prefix string = ",\"is_thread\":"
-		out.RawString(prefix)
-		out.Bool(bool(in.IsThread))
 	}
 	out.RawByte('}')
 }
@@ -1426,8 +1419,6 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe11(in *jl
 			}
 		case "envs_truncated":
 			out.EnvsTruncated = bool(in.Bool())
-		case "is_thread":
-			out.IsThread = bool(in.Bool())
 		default:
 			in.SkipRecursive()
 		}
@@ -1613,11 +1604,6 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe11(out *j
 		const prefix string = ",\"envs_truncated\":"
 		out.RawString(prefix)
 		out.Bool(bool(in.EnvsTruncated))
-	}
-	if in.IsThread {
-		const prefix string = ",\"is_thread\":"
-		out.RawString(prefix)
-		out.Bool(bool(in.IsThread))
 	}
 	out.RawByte('}')
 }
@@ -3347,6 +3333,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe23(in *jl
 			out.Outcome = string(in.String())
 		case "async":
 			out.Async = bool(in.Bool())
+		case "is_thread":
+			out.IsThread = bool(in.Bool())
 		default:
 			in.SkipRecursive()
 		}
@@ -3396,6 +3384,16 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe23(out *j
 			out.RawString(prefix)
 		}
 		out.Bool(bool(in.Async))
+	}
+	if in.IsThread {
+		const prefix string = ",\"is_thread\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Bool(bool(in.IsThread))
 	}
 	out.RawByte('}')
 }

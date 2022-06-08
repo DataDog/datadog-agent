@@ -1163,10 +1163,10 @@ func TestProcessIsThread(t *testing.T) {
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_process_fork_is_thread")
-			assertFieldEqual(t, event, "open.file.name", openTriggerFilename)
-			assertFieldEqual(t, event, "process.file.name", "syscall_tester")
-			assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"syscall_tester"}, "process is not a child of syscall_tester")
-			assert.True(t, event.ProcessContext.IsThread, "process should be marked as being a thread")
+			assert.Equal(t, openTriggerFilename, event.Open.File.BasenameStr, "wrong opened file basename")
+			assert.Equal(t, "syscall_tester", event.ProcessContext.FileEvent.BasenameStr, "wrong process file basename")
+			assert.Equal(t, "syscall_tester", event.ProcessContext.Ancestor.ProcessContext.FileEvent.BasenameStr, "wrong parent process file basename")
+			assert.True(t, event.ThreadContext.IsThread, "process should be marked as being a thread")
 		})
 	})
 
@@ -1178,10 +1178,10 @@ func TestProcessIsThread(t *testing.T) {
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_process_exec_is_not_thread")
-			assertFieldEqual(t, event, "open.file.name", openTriggerFilename)
-			assertFieldEqual(t, event, "process.file.name", "syscall_tester")
-			assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"syscall_tester"}, "process is not a child of syscall_tester")
-			assert.False(t, event.ProcessContext.IsThread, "process should be marked as not being a thread")
+			assert.Equal(t, openTriggerFilename, event.Open.File.BasenameStr, "wrong opened file basename")
+			assert.Equal(t, "syscall_tester", event.ProcessContext.FileEvent.BasenameStr, "wrong process file basename")
+			assert.Equal(t, "syscall_tester", event.ProcessContext.Ancestor.ProcessContext.FileEvent.BasenameStr, "wrong parent process file basename")
+			assert.False(t, event.ThreadContext.IsThread, "process should be marked as not being a thread")
 		})
 	})
 }
