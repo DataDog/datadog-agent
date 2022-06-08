@@ -91,6 +91,10 @@ func (l *SysProbeListener) Run() {
 func (l *SysProbeListener) run() {
 	l.connected.Store(false)
 	logTicker := newLogBackoffTicker()
+	defer func() {
+		log.Info("Listener stopped")
+		logTicker.Stop()
+	}()
 
 	for {
 		select {
@@ -135,9 +139,6 @@ func (l *SysProbeListener) run() {
 			}
 		}
 	}
-
-	log.Info("Listener stopped")
-	logTicker.Stop()
 }
 
 // consumeData unmarshals the serialized process event received from the SecurityModule server, filters it and applies the
