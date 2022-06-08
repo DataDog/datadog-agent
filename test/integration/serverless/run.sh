@@ -115,25 +115,32 @@ trap remove_stack EXIT
 serverless deploy --stage "${stage}"
 
 metric_functions=(
-    "metric-node"
-    "metric-python"
-    "metric-java"
-    "metric-go"
-    "metric-csharp"
-    "metric-proxy"
-    "timeout-node"
-    "timeout-python"
-    "timeout-java"
-    "timeout-go"
-    "timeout-csharp"
-    "timeout-proxy"
-    "error-python"
-    "error-java"
-    "error-csharp"
-    "error-proxy"
-    "error-node"
+    # "metric-node"
+    # "metric-python"
+    # "metric-java"
+    # "metric-go"
+    # "metric-csharp"
+    # "metric-proxy"
+    # "timeout-node"
+    # "timeout-python"
+    # "timeout-java"
+    # "timeout-go"
+    # "timeout-csharp"
+    # "timeout-proxy"
+    # "error-python"
+    # "error-java"
+    # "error-csharp"
+    # "error-proxy"
+    # "error-node"
 )
-log_functions=()
+log_functions=(
+    "log-node"
+    "log-python"
+    "log-java"
+    "log-go"
+    "log-csharp"
+    "log-proxy"
+)
 trace_functions=()
 
 all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}")
@@ -200,13 +207,11 @@ for function_name in "${all_functions[@]}"; do
     # Replace invocation-specific data like timestamps and IDs with XXX to normalize across executions
     if [[ " ${metric_functions[*]} " =~ " ${function_name} " ]]; then
         # Normalize metrics
-        echo "coucou"
-        echo $raw_logs > test.log
         logs=$(
             echo "$raw_logs" |
                 perl -p -e "s/raise Exception/\n/g" |
-                grep -v "\[log\]" |
-                grep "\BEGINMETRIC.*" |
+                grep -v "BEGINLOG.*" |
+                grep "BEGINMETRIC.*" |
                 perl -p -e "s/BEGINMETRIC/\1/g" |
                 perl -p -e "s/ENDMETRIC/\1/g" |
                 perl -p -e "s/(ts\":)[0-9]{10}/\1XXX/g" |
@@ -226,33 +231,29 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/[ ]$//g" |
                 node parse-json.js
         )
-        echo $logs > test.log.json
     elif [[ " ${log_functions[*]} " =~ " ${function_name} " ]]; then
         # Normalize logs
         logs=$(
             echo "$raw_logs" |
-                grep -v "\[trace\]" |
-                grep -v "\[sketch\]" |
-                grep "\[log\]" |
-                # remove configuration log line from dd-trace-go
-                grep -v "DATADOG TRACER CONFIGURATION" |
-                perl -p -e "s/(timestamp\":)[0-9]{13}/\1TIMESTAMP/g" |
+                grep "BEGINLOG" |
+                grep -v "BEGINMETRIC.*" |
+                perl -p -e "s/BEGINLOG/\1/g" |
+                perl -p -e "s/ENDLOG/\1/g" |
+                perl -p -e "s/(\"timestamp\": )\d{13}/\1\"XXX\"/g" |
                 perl -p -e "s/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/TIMESTAMP/g" |
                 perl -p -e "s/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/TIMESTAMP/g" |
                 perl -p -e "s/\d{4}\/\d{2}\/\d{2}\s\d{2}:\d{2}:\d{2}/TIMESTAMP/g" |
-                perl -p -e "s/.{9}-.{4}-.{4}-.{4}-.{12}/REQUEST_ID/g" |
-                perl -p -e "s/(TIMESTAMP:)\d{3}/\1XXX/g" |
-                perl -p -e "s/(\"REPORT |START |END ).*/\1XXX\"}}/g" |
+                perl -p -e "s/\"timestamp\":\d{13},/\1/g" |
+                perl -p -e "s/([a-zA-Z0-9]{8}\-[a-zA-Z0-9]{4}\-[a-zA-Z0-9]{4}\-[a-zA-Z0-9]{4}\-[a-zA-Z0-9]{12})/\0\XXX/g" |
                 perl -p -e "s/$stage/STAGE/g" |
-                perl -p -e "s/(\"message\":\").*(XXX LOG)/\1\2\3/g" |
                 perl -p -e "s/(architecture:)(x86_64|arm64)/\1XXX/g" |
-                perl -p -e "s/[ ]$//g" |
                 # ignore a Lambda error that occurs sporadically for log-csharp
                 # see here for more info: https://repost.aws/questions/QUq2OfIFUNTCyCKsChfJLr5w/lambda-function-working-locally-but-crashing-on-aws
                 perl -n -e "print unless /LAMBDA_RUNTIME Failed to get next invocation. No Response from endpoint/ or \
                  /An error occurred while attempting to execute your code.: LambdaException/ or \
                  /terminate called after throwing an instance of 'std::logic_error'/ or \
-                 /basic_string::_M_construct null not valid/"
+                 /basic_string::_M_construct null not valid/" |
+                 node parse-json.js
         )
     else
         # Normalize traces
@@ -283,7 +284,7 @@ for function_name in "${all_functions[@]}"; do
         echo "$logs" >"$function_snapshot_path"
     elif [ "$UPDATE_SNAPSHOTS" == "true" ]; then
         printf "${MAGENTA} UPDATE ${END_COLOR} $function_name\n"
-        echo "$logs" >"$function_snapshot_path"
+        echo "$(echo $logs | node parse-json.js)" > "$function_snapshot_path"
     else
         if [[ " ${functions_to_skip[*]} " =~ " ${function_name} " ]]; then
             printf "${YELLOW} SKIP ${END_COLOR} $function_name\n"

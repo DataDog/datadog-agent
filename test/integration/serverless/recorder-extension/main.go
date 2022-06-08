@@ -239,10 +239,18 @@ func startHTTPServer(port string) {
 			return
 		}
 		for _, log := range messages {
+			if strings.Contains(log.Message.Message, "REPORT RequestId:") {
+				log.Message.Message = "REPORT" // avoid dealing with stripping out init duration, duration, memory used etc.
+			}
 			sortedTags := strings.Split(log.Tags, ",")
 			sort.Strings(sortedTags)
 			log.Tags = strings.Join(sortedTags, ",")
-			outputLogs = append(outputLogs, log)
+
+			if !strings.Contains(log.Message.Message, "DATADOG TRACER CONFIGURATION") {
+				// skip dd-trace-go tracer configuration output
+				outputLogs = append(outputLogs, log)
+			}
+
 		}
 
 		if nbHitLogs == 3 {
