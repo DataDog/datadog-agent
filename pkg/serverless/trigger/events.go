@@ -57,6 +57,9 @@ const (
 	// EventBridgeEvent describes an event from EventBridge
 	EventBridgeEvent
 
+	// LambdaFunctionURLEvent describes an event from an HTTP lambda function URL invocation
+	LambdaFunctionURLEvent
+
 	// Unknown describes an unknown event type
 	Unknown
 )

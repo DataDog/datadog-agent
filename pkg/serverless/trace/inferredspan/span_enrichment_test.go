@@ -24,7 +24,7 @@ func TestEnrichInferredSpanWithAPIGatewayRESTEvent(t *testing.T) {
 	_ = json.Unmarshal(getEventFromFile("api-gateway.json"), &apiGatewayRestEvent)
 
 	inferredSpan := mockInferredSpan()
-	inferredSpan.enrichInferredSpanWithAPIGatewayRESTEvent(apiGatewayRestEvent)
+	inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(apiGatewayRestEvent)
 
 	span := inferredSpan.Span
 
@@ -50,7 +50,7 @@ func TestEnrichInferredSpanWithAPIGatewayNonProxyAsyncRESTEvent(t *testing.T) {
 	var apiGatewayRestEvent events.APIGatewayProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway-non-proxy-async.json"), &apiGatewayRestEvent)
 	inferredSpan := mockInferredSpan()
-	inferredSpan.enrichInferredSpanWithAPIGatewayRESTEvent(apiGatewayRestEvent)
+	inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(apiGatewayRestEvent)
 
 	span := inferredSpan.Span
 	assert.Equal(t, uint64(7353030974370088224), span.TraceID)
@@ -75,7 +75,7 @@ func TestEnrichInferredSpanWithAPIGatewayHTTPEvent(t *testing.T) {
 	var apiGatewayHTTPEvent events.APIGatewayV2HTTPRequest
 	_ = json.Unmarshal(getEventFromFile("http-api.json"), &apiGatewayHTTPEvent)
 	inferredSpan := mockInferredSpan()
-	inferredSpan.enrichInferredSpanWithAPIGatewayHTTPEvent(apiGatewayHTTPEvent)
+	inferredSpan.EnrichInferredSpanWithAPIGatewayHTTPEvent(apiGatewayHTTPEvent)
 
 	span := inferredSpan.Span
 	assert.Equal(t, uint64(7353030974370088224), span.TraceID)
@@ -101,7 +101,7 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketDefaultEvent(t *testing.T) {
 	inferredSpan := mockInferredSpan()
 	span := inferredSpan.Span
 
-	inferredSpan.enrichInferredSpanWithAPIGatewayWebsocketEvent(apiGatewayWebsocketEvent)
+	inferredSpan.EnrichInferredSpanWithAPIGatewayWebsocketEvent(apiGatewayWebsocketEvent)
 
 	assert.Equal(t, uint64(7353030974370088224), span.TraceID)
 	assert.Equal(t, uint64(8048964810003407541), span.SpanID)
@@ -128,7 +128,7 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketConnectEvent(t *testing.T) {
 	inferredSpan := mockInferredSpan()
 	span := inferredSpan.Span
 
-	inferredSpan.enrichInferredSpanWithAPIGatewayWebsocketEvent(apiGatewayWebsocketEvent)
+	inferredSpan.EnrichInferredSpanWithAPIGatewayWebsocketEvent(apiGatewayWebsocketEvent)
 
 	assert.Equal(t, uint64(7353030974370088224), span.TraceID)
 	assert.Equal(t, uint64(8048964810003407541), span.SpanID)
@@ -155,7 +155,7 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketDisconnectEvent(t *testing.T) 
 	inferredSpan := mockInferredSpan()
 	span := inferredSpan.Span
 
-	inferredSpan.enrichInferredSpanWithAPIGatewayWebsocketEvent(apiGatewayWebsocketEvent)
+	inferredSpan.EnrichInferredSpanWithAPIGatewayWebsocketEvent(apiGatewayWebsocketEvent)
 
 	assert.Equal(t, uint64(7353030974370088224), span.TraceID)
 	assert.Equal(t, uint64(8048964810003407541), span.SpanID)
@@ -180,7 +180,7 @@ func TestEnrichInferredSpanWithSNSEvent(t *testing.T) {
 	var snsRequest events.SNSEvent
 	_ = json.Unmarshal(getEventFromFile("sns.json"), &snsRequest)
 	inferredSpan := mockInferredSpan()
-	inferredSpan.enrichInferredSpanWithSNSEvent(snsRequest)
+	inferredSpan.EnrichInferredSpanWithSNSEvent(snsRequest)
 
 	span := inferredSpan.Span
 

@@ -6,21 +6,17 @@
 package inferredspan
 
 import (
-	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
-	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/aws/aws-lambda-go/events"
 )
 
 const (
@@ -95,46 +91,6 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 	}
 
 	return output
-}
-
-// DispatchInferredSpan decodes the event and routes it to the correct
-// enrichment function for that event source
-func (inferredSpan *InferredSpan) DispatchInferredSpan(eventType trigger.AWSEventType, eventPayload string) error {
-	log.Debugf("Enriching inferred span for type %v", eventType)
-	switch eventType {
-	case trigger.APIGatewayEvent:
-		var apigatewayRest events.APIGatewayProxyRequest
-		err := json.Unmarshal([]byte(eventPayload), &apigatewayRest)
-		if err != nil {
-			return fmt.Errorf("Couldn't parse API Gateway event: %v", err)
-		}
-		inferredSpan.enrichInferredSpanWithAPIGatewayRESTEvent(apigatewayRest)
-	case trigger.APIGatewayV2Event:
-		var apigatewayHTTP events.APIGatewayV2HTTPRequest
-		err := json.Unmarshal([]byte(eventPayload), &apigatewayHTTP)
-		if err != nil {
-			return fmt.Errorf("Couldn't parse API V2 Gateway event: %v", err)
-		}
-		inferredSpan.enrichInferredSpanWithAPIGatewayHTTPEvent(apigatewayHTTP)
-	case trigger.APIGatewayWebsocketEvent:
-		var apigatewayWebsocket events.APIGatewayWebsocketProxyRequest
-		err := json.Unmarshal([]byte(eventPayload), &apigatewayWebsocket)
-		if err != nil {
-			return fmt.Errorf("Couldn't parse API Gateway HTTP event: %v", err)
-		}
-		inferredSpan.enrichInferredSpanWithAPIGatewayWebsocketEvent(apigatewayWebsocket)
-	case trigger.SNSEvent:
-		var sns events.SNSEvent
-		err := json.Unmarshal([]byte(eventPayload), &sns)
-		if err != nil {
-			return fmt.Errorf("Couldn't parse SNS event: %v", err)
-		}
-		inferredSpan.enrichInferredSpanWithSNSEvent(sns)
-	default:
-		log.Debugf("Received an Unknown event type %v", eventType)
-	}
-
-	return nil
 }
 
 // CompleteInferredSpan finishes the inferred span and passes it
