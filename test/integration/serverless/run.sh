@@ -115,23 +115,23 @@ trap remove_stack EXIT
 serverless deploy --stage "${stage}"
 
 metric_functions=(
-    # "metric-node"
-    # "metric-python"
-    # "metric-java"
-    # "metric-go"
-    # "metric-csharp"
-    # "metric-proxy"
-    # "timeout-node"
-    # "timeout-python"
-    # "timeout-java"
-    # "timeout-go"
-    # "timeout-csharp"
-    # "timeout-proxy"
-    # "error-python"
-    # "error-java"
-    # "error-csharp"
-    # "error-proxy"
-    # "error-node"
+    "metric-node"
+    "metric-python"
+    "metric-java"
+    "metric-go"
+    "metric-csharp"
+    "metric-proxy"
+    "timeout-node"
+    "timeout-python"
+    "timeout-java"
+    "timeout-go"
+    "timeout-csharp"
+    "timeout-proxy"
+    "error-python"
+    "error-java"
+    "error-csharp"
+    "error-proxy"
+    "error-node"
 )
 log_functions=(
     "log-node"
@@ -157,6 +157,7 @@ functions_to_skip=(
     "timeout-proxy"
     "trace-csharp" # Will be reactivated when the new dotnet layer will be released
     "trace-proxy" # Will be reactivated when sampling with proxy will be implemented
+    "log-java" # Need to remove tracer debug info
 )
 
 
@@ -211,6 +212,7 @@ for function_name in "${all_functions[@]}"; do
             echo "$raw_logs" |
                 perl -p -e "s/raise Exception/\n/g" |
                 grep -v "BEGINLOG.*" |
+                grep -v "BEGINTRACE.*" |
                 grep "BEGINMETRIC.*" |
                 perl -p -e "s/BEGINMETRIC/\1/g" |
                 perl -p -e "s/ENDMETRIC/\1/g" |
@@ -237,6 +239,7 @@ for function_name in "${all_functions[@]}"; do
             echo "$raw_logs" |
                 grep "BEGINLOG" |
                 grep -v "BEGINMETRIC.*" |
+                grep -v "BEGINTRACE.*" |
                 perl -p -e "s/BEGINLOG/\1/g" |
                 perl -p -e "s/ENDLOG/\1/g" |
                 perl -p -e "s/(\"timestamp\": )\d{13}/\1\"XXX\"/g" |

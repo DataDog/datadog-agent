@@ -30,8 +30,10 @@ const extensionName = "recorder-extension" // extension name has to match the fi
 var extensionClient = NewClient(os.Getenv("AWS_LAMBDA_RUNTIME_API"))
 var nbHitMetrics = 0
 var nbHitLogs = 0
+var nbHitTraces = 0
 var outputSketches = make([]gogen.SketchPayload_Sketch, 0)
 var outputLogs = make([]jsonServerlessPayload, 0)
+var outputTraces = make([]*pb.TracerPayload, 0)
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -280,12 +282,16 @@ func startHTTPServer(port string) {
 			return
 		}
 
-		for _, trace := range pl.TracerPayloads {
-			jsonTrace, err := json.Marshal(trace.Chunks)
+		outputTraces = append(outputTraces, pl.TracerPayloads...)
+
+		if nbHitTraces == 3 {
+			// two calls + shutdown
+			fmt.Println("third trace hit, now outputing for snapshot")
+			jsonLogs, err := json.Marshal(outputTraces)
 			if err != nil {
-				return
+				fmt.Printf("Error while JSON encoding the traces")
 			}
-			fmt.Printf("[trace] %s\n", string(jsonTrace))
+			fmt.Printf("%s%s%s\n", "BEGINTRACE", string(jsonLogs), "ENDTRACE")
 		}
 	})
 
