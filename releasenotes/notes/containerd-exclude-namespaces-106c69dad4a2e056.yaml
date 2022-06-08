@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Add a `containerd_exclude_namespaces` configuration option for the Agent to
+    ignore containers from specific containerd namespaces.

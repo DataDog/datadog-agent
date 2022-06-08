@@ -216,7 +216,7 @@ int __attribute__((always_inline)) dr_rename_callback(void *ctx, int retval) {
 
     struct rename_event_t event = {
         .syscall.retval = retval,
-        .syscall.async = syscall->async,
+        .event.async = syscall->async,
         .old = syscall->rename.src_file,
         .new = syscall->rename.target_file,
     };

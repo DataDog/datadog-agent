@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -106,9 +107,17 @@ func TestSender(t *testing.T) {
 	})
 
 	t.Run("Push", func(t *testing.T) {
-		s := &sender{cfg: &senderConfig{}, queue: make(chan *payload, 4)}
+		s := &sender{
+			cfg:      &senderConfig{},
+			queue:    make(chan *payload, 4),
+			inflight: atomic.NewInt32(0),
+			attempt:  atomic.NewInt32(0),
+		}
 		p := func(n string) *payload {
-			return &payload{body: bytes.NewBufferString(n)}
+			return &payload{
+				body:    bytes.NewBufferString(n),
+				retries: atomic.NewInt32(0),
+			}
 		}
 
 		s.Push(p("1"))

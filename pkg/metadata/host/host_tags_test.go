@@ -22,7 +22,7 @@ func TestGetHostTags(t *testing.T) {
 	ctx := context.Background()
 	mockConfig := config.Mock()
 	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag3"})
-	defer mockConfig.Unset("tags")
+	defer mockConfig.Set("tags", nil)
 
 	hostTags := GetHostTags(ctx, false)
 	assert.NotNil(t, hostTags.System)
@@ -42,7 +42,7 @@ func TestGetHostTagsWithSplits(t *testing.T) {
 	mockConfig := config.Mock()
 	mockConfig.Set("tag_value_split_separator", map[string]string{"kafka_partition": ","})
 	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"})
-	defer mockConfig.Unset("tags")
+	defer mockConfig.Set("tags", nil)
 
 	hostTags := GetHostTags(ctx, false)
 	assert.NotNil(t, hostTags.System)
@@ -54,7 +54,7 @@ func TestGetHostTagsWithoutSplits(t *testing.T) {
 	mockConfig := config.Mock()
 	mockConfig.Set("tag_value_split_separator", map[string]string{"kafka_partition": ";"})
 	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"})
-	defer mockConfig.Unset("tags")
+	defer mockConfig.Set("tags", nil)
 
 	hostTags := GetHostTags(ctx, false)
 	assert.NotNil(t, hostTags.System)
@@ -66,7 +66,7 @@ func TestGetHostTagsWithEnv(t *testing.T) {
 	mockConfig := config.Mock()
 	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag3", "env:prod"})
 	mockConfig.Set("env", "preprod")
-	defer mockConfig.Unset("tags")
+	defer mockConfig.Set("tags", nil)
 	defer mockConfig.Set("env", "")
 
 	hostTags := GetHostTags(ctx, false)
@@ -91,8 +91,8 @@ func TestCombineExtraTags(t *testing.T) {
 	mockConfig := config.Mock()
 	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag4"})
 	mockConfig.Set("extra_tags", []string{"tag1:value2", "tag3", "tag4"})
-	defer mockConfig.Unset("tags")
-	defer mockConfig.Unset("extra_tags")
+	defer mockConfig.Set("tags", nil)
+	defer mockConfig.Set("extra_tags", nil)
 
 	hostTags := GetHostTags(ctx, false)
 	assert.NotNil(t, hostTags.System)

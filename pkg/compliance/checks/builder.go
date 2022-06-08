@@ -147,7 +147,9 @@ func (c *kubeClient) ClusterID() (string, error) {
 		Version:  "v1",
 	})
 
-	resource, err := resourceDef.Get(context.TODO(), "kube-system", metav1.GetOptions{})
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+	resource, err := resourceDef.Get(ctx, "kube-system", metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -236,6 +238,7 @@ func WithRegoInputDumpPath(regoInputDumpPath string) BuilderOption {
 	}
 }
 
+// WithRegoEvalSkip configures a builder to skip the rego evaluation, while still building the input
 func WithRegoEvalSkip(regoEvalSkip bool) BuilderOption {
 	return func(b *builder) error {
 		b.regoEvalSkip = regoEvalSkip

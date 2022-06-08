@@ -13,6 +13,8 @@ import (
 )
 
 var (
+	// ptraceArchConstants are the supported ptrace commands for the ptrace syscall on arm64
+	// generate_constants:Ptrace constants,Ptrace constants are the supported ptrace commands for the ptrace syscall.
 	ptraceArchConstants = map[string]uint32{
 		"PTRACE_PEEKMTETAGS":       unix.PTRACE_PEEKMTETAGS,
 		"PTRACE_POKEMTETAGS":       unix.PTRACE_POKEMTETAGS,

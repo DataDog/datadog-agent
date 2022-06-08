@@ -89,6 +89,9 @@ const (
 	OwnerRefNameTagName = "kube_ownerref_name"
 	// OwnerRefKindTagName represents any owner ref kind
 	OwnerRefKindTagName = "kube_ownerref_kind"
+
+	// CriContainerNamespaceLabel is the label set on containers by runtimes with Pod Namespace
+	CriContainerNamespaceLabel = "io.kubernetes.pod.namespace"
 )
 
 // KindToTagName returns the tag name for a given kubernetes object name

@@ -160,6 +160,16 @@ func CreateArchive(local bool, distPath, pyChecksPath string, logFilePaths []str
 }
 
 func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, logFilePaths []string, pdata ProfileData, ipcError error) (string, error) {
+
+	/** WARNING
+	 *
+	 * When adding data to flares, carefully analyze the what is being added
+	 * and ensure that it contains no credentials or unnecessary user-specific
+	 * data.  The ./pkg/util/scrubber package can be useful for scrubbing
+	 * secrets that match pre-programmed patterns, but it is always better to
+	 * not capture data containing secrets, than to scrub that data.
+	 */
+
 	tempDir, err := createTempDir()
 	if err != nil {
 		return "", err
@@ -981,6 +991,11 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 
 // writeScrubbedFile writes the given data to the given file, after applying
 // flareScrubber to it.
+//
+// WARNING: while this function applies a scrubber, that scrubber cannot scrub
+// all secrets.  Ensure that the data being written cannot contain user secrets
+// or proprietary information. For example, do not include arbitrary
+// environment variables.
 func writeScrubbedFile(filename string, data []byte) error {
 	scrubbed, err := flareScrubber.ScrubBytes(data)
 	if err != nil {

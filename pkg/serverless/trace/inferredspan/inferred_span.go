@@ -101,13 +101,13 @@ func (inferredSpan *InferredSpan) DispatchInferredSpan(event string) {
 	eventSource := attributes.extractEventSource()
 	switch eventSource {
 	case APIGATEWAY:
-		inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(attributes)
+		inferredSpan.enrichInferredSpanWithAPIGatewayRESTEvent(attributes)
 	case HTTPAPI:
-		inferredSpan.EnrichInferredSpanWithAPIGatewayHTTPEvent(attributes)
+		inferredSpan.enrichInferredSpanWithAPIGatewayHTTPEvent(attributes)
 	case WEBSOCKET:
-		inferredSpan.EnrichInferredSpanWithAPIGatewayWebsocketEvent(attributes)
+		inferredSpan.enrichInferredSpanWithAPIGatewayWebsocketEvent(attributes)
 	case SNS:
-		inferredSpan.EnrichInferredSpanWithSNSEvent(attributes)
+		inferredSpan.enrichInferredSpanWithSNSEvent(attributes)
 	}
 }
 

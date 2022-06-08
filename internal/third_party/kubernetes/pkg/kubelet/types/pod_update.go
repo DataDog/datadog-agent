@@ -23,15 +23,21 @@ import (
 )
 
 const (
+	// ConfigSourceAnnotationKey represents the annotation key for pod config source.
 	ConfigSourceAnnotationKey = "kubernetes.io/config.source"
 
 	// These constants identify the sources of pods
+
+	// FileSource represents the file config source.
 	// Updates from a file
 	FileSource = "file"
+	// HTTPSource represents the http config source.
 	// Updates from querying a web page
 	HTTPSource = "http"
+	// ApiserverSource represents the api-server config source.
 	// Updates from Kubernetes API Server
 	ApiserverSource = "api"
+	// AllSource represents all config sources.
 	// Updates from all sources
 	AllSource = "*"
 )

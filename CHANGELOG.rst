@@ -2,6 +2,34 @@
 Release Notes
 =============
 
+.. _Release Notes_7.36.1:
+
+7.36.1 / 6.36.1
+======
+
+.. _Release Notes_7.36.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-05-31
+
+- Please refer to the `7.36.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7361>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.36.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes issue where proxy config was ignored by the trace-agent.
+
+- This fixes a regression introduced in ``7.36.0`` where some logs sources attached to a container/pod would not be
+  unscheduled on container/pod stop if multiple logs configs were attached to the container/pod.
+  This could lead to duplicate log entries being created on container/pod restart as there would
+  be more than one tailer tailing the targeted source.
+
+
 .. _Release Notes_7.36.0:
 
 7.36.0 / 6.36.0

@@ -9,6 +9,8 @@
 package http
 
 import (
+	"encoding/hex"
+	"strings"
 	"unsafe"
 )
 
@@ -91,6 +93,16 @@ func (tx *httpTX) Incomplete() bool {
 // Tags are defined here : pkg/network/ebpf/kprobe_types.go
 func (tx *httpTX) Tags() uint64 {
 	return uint64(tx.tags)
+}
+
+func (tx *httpTX) String() string {
+	var output strings.Builder
+	fragment := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.request_fragment))
+	output.WriteString("httpTX{")
+	output.WriteString("Method: '" + Method(tx.request_method).String() + "', ")
+	output.WriteString("Fragment: '" + hex.EncodeToString(fragment[:]) + "', ")
+	output.WriteString("}")
+	return output.String()
 }
 
 // IsDirty detects whether the batch page we're supposed to read from is still

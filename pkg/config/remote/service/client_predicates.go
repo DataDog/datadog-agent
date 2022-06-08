@@ -10,6 +10,7 @@ import (
 	"github.com/theupdateframework/go-tuf/data"
 )
 
+// DirectorTargetsCustomMetadata TODO (<remote-config>): RCM-228
 type DirectorTargetsCustomMetadata struct {
 	Predicates *pbgo.TracerPredicates `json:"tracer-predicates,omitempty"`
 }
