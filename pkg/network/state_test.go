@@ -122,7 +122,7 @@ func TestRemoveConnections(t *testing.T) {
 	}
 
 	buf := make([]byte, ConnectionByteKeyMaxLen)
-	key, err := conn.ByteKey(buf)
+	key, err := conn.ByteKey(buf, false)
 	require.NoError(t, err)
 
 	clientID := "1"

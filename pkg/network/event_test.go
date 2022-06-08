@@ -57,7 +57,7 @@ func TestBeautifyKey(t *testing.T) {
 			DPort:     443,
 		},
 	} {
-		bk, err := c.ByteKey(buf)
+		bk, err := c.ByteKey(buf, false)
 		require.NoError(t, err)
 		expected := fmt.Sprintf(keyFmt, c.Pid, c.Source.String(), c.SPort, c.Dest.String(), c.DPort, c.Family, c.Type)
 		assert.Equal(t, expected, BeautifyKey(string(bk)))
@@ -70,8 +70,9 @@ func TestConnStatsByteKey(t *testing.T) {
 	addrB := util.AddressFromString("127.0.0.2")
 
 	for _, test := range []struct {
-		a ConnectionStats
-		b ConnectionStats
+		a      ConnectionStats
+		b      ConnectionStats
+		useNAT bool
 	}{
 		{ // Port is different
 			a: ConnectionStats{Source: addrA, Dest: addrB, Pid: 1},
@@ -130,13 +131,14 @@ func TestConnStatsByteKey(t *testing.T) {
 					ReplDstIP: util.AddressFromString("4.4.4.4"),
 				},
 			},
+			useNAT: true,
 		},
 	} {
 		var keyA, keyB string
-		if b, err := test.a.ByteKey(buf); assert.NoError(t, err) {
+		if b, err := test.a.ByteKey(buf, test.useNAT); assert.NoError(t, err) {
 			keyA = string(b)
 		}
-		if b, err := test.b.ByteKey(buf); assert.NoError(t, err) {
+		if b, err := test.b.ByteKey(buf, test.useNAT); assert.NoError(t, err) {
 			keyB = string(b)
 		}
 		assert.NotEqual(t, keyA, keyB)
@@ -180,7 +182,7 @@ func BenchmarkByteKey(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = c.ByteKey(buf)
+		_, _ = c.ByteKey(buf, false)
 	}
 	runtime.KeepAlive(buf)
 }

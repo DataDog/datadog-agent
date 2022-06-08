@@ -266,9 +266,14 @@ func (c ConnectionStats) IsExpired(now uint64, timeout uint64) bool {
 //     4B      2B      2B     .5B     .5B      4/16B        4/16B   = 17/41B
 //    32b     16b     16b      4b      4b     32/128b      32/128b
 // |  PID  | SPORT | DPORT | Family | Type |  SrcAddr  |  DestAddr
-func (c ConnectionStats) ByteKey(buf []byte) ([]byte, error) {
-	laddr, sport := GetNATLocalAddress(c)
-	raddr, dport := GetNATRemoteAddress(c)
+func (c ConnectionStats) ByteKey(buf []byte, useNAT bool) ([]byte, error) {
+	laddr, sport := c.Source, c.SPort
+	raddr, dport := c.Dest, c.DPort
+
+	if useNAT {
+		laddr, sport = GetNATLocalAddress(c)
+		raddr, dport = GetNATRemoteAddress(c)
+	}
 
 	n := 0
 	// Byte-packing to improve creation speed

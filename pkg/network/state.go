@@ -96,9 +96,12 @@ const minClosedCapacity = 1024
 type client struct {
 	lastFetch time.Time
 
+	// generated with NAT addresses and used exclusively
+	// to roll up closed connections
 	closedConnectionsKeys map[string]int
-	closedConnections     []ConnectionStats
-	stats                 map[string]*StatCounters
+
+	closedConnections []ConnectionStats
+	stats             map[string]*StatCounters
 	// maps by dns key the domain (string) to stats structure
 	dnsStats        dns.StatsByKeyByNameByType
 	httpStatsDelta  map[http.Key]*http.RequestStats
@@ -285,7 +288,7 @@ func (ns *networkState) RegisterClient(id string) {
 func getConnsByKey(conns []ConnectionStats, buf []byte) map[string]*ConnectionStats {
 	connsByKey := make(map[string]*ConnectionStats, len(conns))
 	for i, c := range conns {
-		key, err := c.ByteKey(buf)
+		key, err := c.ByteKey(buf, false)
 		if err != nil {
 			log.Warnf("failed to create byte key: %s", err)
 			continue
@@ -306,7 +309,7 @@ func (ns *networkState) StoreClosedConnections(closed []ConnectionStats) {
 func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 	for _, client := range ns.clients {
 		for _, c := range conns {
-			key, err := c.ByteKey(ns.buf)
+			key, err := c.ByteKey(ns.buf, true)
 			if err != nil {
 				continue
 			}
@@ -451,13 +454,15 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 	client.lastFetch = now
 
 	closed := client.closedConnections
+	closedKeys := make(map[string]struct{}, len(closed))
 	for i := range closed {
 		closedConn := &closed[i]
-		byteKey, err := closedConn.ByteKey(ns.buf)
+		byteKey, err := closedConn.ByteKey(ns.buf, false)
 		if err != nil {
 			continue
 		}
 		key := string(byteKey)
+		closedKeys[key] = struct{}{}
 
 		// If the connection is also active, check the epochs to understand what's going on
 		if activeConn, ok := active[key]; ok {
@@ -488,7 +493,7 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 	// Active connections
 	for key, c := range active {
 		// If the connection was closed, it has already been processed so skip it
-		if _, ok := client.closedConnectionsKeys[key]; ok {
+		if _, ok := closedKeys[key]; ok {
 			continue
 		}
 
