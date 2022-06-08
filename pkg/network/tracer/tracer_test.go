@@ -1626,7 +1626,7 @@ func TestHTTPSBuildCurl(t *testing.T) {
 	}
 
 	o, err := exec.Command("testdata/build-curl.sh").CombinedOutput()
-	t.Logf("%v %s\n", err, string(o))
+	t.Logf("%v  %s\n", err, string(o))
 
 	require.NoError(t, err)
 }

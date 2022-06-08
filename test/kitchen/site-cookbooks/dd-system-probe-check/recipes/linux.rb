@@ -37,6 +37,8 @@ end
 
 package 'gcc'
 
+package 'make'
+
 package 'openssl-devel' do
   case node[:platform]
   when 'redhat', 'centos', 'fedora'
