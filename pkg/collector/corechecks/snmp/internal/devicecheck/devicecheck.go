@@ -192,32 +192,43 @@ func (d *DeviceCheck) getValuesAndTags(staticTags []string) (bool, []string, *va
 }
 
 func (d *DeviceCheck) detectMonitoredMetrics(sess session.Session) error {
-	// Try to detect profile using device sysobjectid
-	if d.config.AutodetectProfile {
-		// detect using profile
-		sysObjectID, err := session.FetchSysObjectID(sess)
-		if err != nil {
-			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
-		}
-		d.config.AutodetectProfile = false // do not try to auto detect profile next time
+	log.Warn("detectMonitoredMetrics")
 
-		profile, err := checkconfig.GetProfileForSysObjectID(d.config.Profiles, sysObjectID)
-		if err != nil {
-			log.Infof("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
-		} else {
-			err = d.config.RefreshWithProfile(profile)
+	// Try to detect profile using device sysobjectid
+	log.Warn("AutodetectProfile")
+	if d.config.AutodetectProfile {
+		log.Warn("do AutodetectProfile")
+		if d.config.CollectProfileMetrics {
+			log.Warn("CollectProfileMetrics")
+			// detect using profile
+			sysObjectID, err := session.FetchSysObjectID(sess)
 			if err != nil {
-				// Should not happen since the profile is one of those we matched in GetProfileForSysObjectID
-				return fmt.Errorf("failed to refresh with profile `%s` detected using sysObjectID `%s`: %s", profile, sysObjectID, err)
+				return fmt.Errorf("failed to fetch sysobjectid: %s", err)
+			}
+			d.config.AutodetectProfile = false // do not try to auto detect profile next time
+
+			profile, err := checkconfig.GetProfileForSysObjectID(d.config.Profiles, sysObjectID)
+			if err != nil {
+				log.Infof("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
+			} else {
+				err = d.config.RefreshWithProfile(profile)
+				if err != nil {
+					// Should not happen since the profile is one of those we matched in GetProfileForSysObjectID
+					return fmt.Errorf("failed to refresh with profile `%s` detected using sysObjectID `%s`: %s", profile, sysObjectID, err)
+				}
 			}
 		}
 
 		if d.config.CollectAllAvailableMetrics {
+			log.Warn("CollectAllAvailableMetrics")
+			t := time.Now()
 			metrics, err := d.detectAvailableMetrics(sess)
+			log.Warnf("detectAvailableMetrics time: %v", time.Since(t).Seconds())
 			if err != nil {
 				return err
 			}
 			log.Warnf("available metrics: %v", metrics)
+			d.config.Metrics = []checkconfig.MetricsConfig{}
 			d.config.UpdateConfigMetadataMetricsAndTags(nil, metrics, nil)
 		}
 	}
