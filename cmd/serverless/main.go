@@ -154,13 +154,15 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		log.Warn("An API Key has been set in multiple places:", strings.Join(apikeySetIn, ", "))
 	}
 
-	// first, generically parse all _SSM and _KMS keys
+	// first, generically parse all _SECRET_ARN and _KMS_KEY variables
 	for _, envVar := range os.Environ() {
-		envKey, envVal, found := strings.Cut(envVar, "=")
-		if !found {
-			// couldn't parse KEY=VALUE format
+		// TODO: Replace with strings.Cut in Go 1.18
+		tokens := strings.SplitN(envVar, "=", 2)
+		if len(tokens) != 2 {
 			continue
 		}
+		envKey := tokens[0]
+		envVal := tokens[1]
 		if strings.HasSuffix(envVar, kmsKeySuffix) {
 			secretVal, err := readAPIKeyFromKMS(envVal)
 			if err != nil {
