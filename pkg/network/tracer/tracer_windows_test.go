@@ -19,7 +19,3 @@ func dnsSupported(t *testing.T) bool {
 func httpSupported(t *testing.T) bool {
 	return false
 }
-
-func httpsSupported(t *testing.T) bool {
-	return false
-}

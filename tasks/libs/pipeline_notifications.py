@@ -29,6 +29,8 @@ def get_failed_jobs(project_name, pipeline_id):
     for job_name, jobs in failed_jobs.items():
         # We sort each list per creation date
         jobs.sort(key=lambda x: x["created_at"])
+        # We truncate the job name to increase readability
+        job_name = truncate_job_name(job_name)
         # Check the final job in the list: it contains the current status of the job
         # This excludes jobs that were retried and succeeded
         final_status = {
@@ -61,6 +63,14 @@ def get_job_failure_reason(job_log):
         if log in job_log:
             return FailedJobReason.INFRA_FAILURE
     return FailedJobReason.JOB_FAILURE
+
+
+def truncate_job_name(job_name, max_char_per_job=48):
+    # Job header should be before the colon, if there is no colon this won't change job_name
+    truncated_job_name = job_name.split(":")[0]
+    # We also want to avoid it being too long
+    truncated_job_name = truncated_job_name[:max_char_per_job]
+    return truncated_job_name
 
 
 def read_owners(owners_file):
