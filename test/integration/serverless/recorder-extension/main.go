@@ -29,7 +29,9 @@ import (
 const extensionName = "recorder-extension" // extension name has to match the filename
 var extensionClient = NewClient(os.Getenv("AWS_LAMBDA_RUNTIME_API"))
 var nbHitMetrics = 0
+var nbHitLogs = 0
 var outputSketches = make([]gogen.SketchPayload_Sketch, 0)
+var outputLogs = make([]jsonServerlessPayload, 0)
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -210,7 +212,7 @@ func startHTTPServer(port string) {
 
 		if nbHitMetrics == 3 {
 			// two calls + shutdown
-			fmt.Println("second metric hit, now outputing for snapshot")
+			fmt.Println("third metric hit, now outputing for snapshot")
 			sort.SliceStable(outputSketches, func(i, j int) bool {
 				return outputSketches[i].Metric < outputSketches[j].Metric
 			})
@@ -223,6 +225,7 @@ func startHTTPServer(port string) {
 	})
 
 	http.HandleFunc("/api/v2/logs", func(w http.ResponseWriter, r *http.Request) {
+		nbHitLogs++
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			return
@@ -239,16 +242,19 @@ func startHTTPServer(port string) {
 			sortedTags := strings.Split(log.Tags, ",")
 			sort.Strings(sortedTags)
 			log.Tags = strings.Join(sortedTags, ",")
-			jsonLog, err := json.Marshal(log)
-			if err != nil {
-				fmt.Printf("Error while JSON encoding the Log")
-			}
-			stringJsonLog := string(jsonLog)
-			// if we log an unwanted log, it will be available in the next log api payload -> infinite loop
-			if !strings.Contains(stringJsonLog, "[log]") && !strings.Contains(stringJsonLog, "[metric]") {
-				fmt.Printf("[log] %s\n", stringJsonLog)
-			}
+			outputLogs = append(outputLogs, log)
 		}
+
+		if nbHitLogs == 3 {
+			// two calls + shutdown
+			fmt.Println("third logs hit, now outputing for snapshot")
+			jsonLogs, err := json.Marshal(outputLogs)
+			if err != nil {
+				fmt.Printf("Error while JSON encoding the logs")
+			}
+			fmt.Printf("%s%s%s\n", "BEGINLOG", string(jsonLogs), "ENDLOG")
+		}
+
 	})
 
 	http.HandleFunc("/api/v0.2/traces", func(w http.ResponseWriter, r *http.Request) {
