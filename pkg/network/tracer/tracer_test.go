@@ -57,7 +57,7 @@ const runtimeCompilationEnvVar = "DD_TESTS_RUNTIME_COMPILED"
 func TestMain(m *testing.M) {
 	logLevel := os.Getenv("DD_LOG_LEVEL")
 	if logLevel == "" {
-		logLevel = "warn"
+		logLevel = "debug"
 	}
 	log.SetupLogger(seelog.Default, logLevel)
 	cfg := testConfig()
