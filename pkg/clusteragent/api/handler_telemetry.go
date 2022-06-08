@@ -16,13 +16,13 @@ var apiRequests = telemetry.NewCounterWithOpts("", "api_requests",
 	[]string{"handler", "status", "forwarded"}, "Counter of requests made to the cluster agent API.",
 	telemetry.Options{NoDoubleUnderscoreSep: true})
 
-// TelemetryHandler TODO (<container-integrations>): CONT-3353
+// TelemetryHandler provides a http handler and emits requests telemetry for it.
 type TelemetryHandler struct {
 	handlerName string
 	handler     func(w http.ResponseWriter, r *http.Request)
 }
 
-// WithTelemetryWrapper TODO (<container-integrations>): CONT-3353
+// WithTelemetryWrapper returns a http handler function that emits telemetry.
 func WithTelemetryWrapper(handlerName string, handler func(w http.ResponseWriter, r *http.Request)) func(w http.ResponseWriter, r *http.Request) {
 	th := TelemetryHandler{
 		handlerName: handlerName,
