@@ -60,7 +60,7 @@ type HostMetadata struct {
 
 // For now we simply logs warnings from gohai.
 func logWarnings(warnings []string) {
-	for w := range warnings {
+	for _, w := range warnings {
 		log.Infof("gohai: %s", w)
 	}
 }
