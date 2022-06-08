@@ -4,7 +4,7 @@ import subprocess
 from collections import defaultdict
 
 from .common.gitlab import Gitlab, get_gitlab_token
-from .types import Test
+from .types import FailedJobReason, Test
 
 
 def get_failed_jobs(project_name, pipeline_id):
@@ -32,6 +32,7 @@ def get_failed_jobs(project_name, pipeline_id):
         # We truncate the job name to increase readability
         job_name = truncate_job_name(job_name)
         # Check the final job in the list: it contains the current status of the job
+        # This excludes jobs that were retried and succeeded
         final_status = {
             "name": job_name,
             "id": jobs[-1]["id"],
@@ -40,11 +41,28 @@ def get_failed_jobs(project_name, pipeline_id):
             "allow_failure": jobs[-1]["allow_failure"],
             "url": jobs[-1]["web_url"],
             "retry_summary": [job["status"] for job in jobs],
+            "failure_type": get_job_failure_reason(gitlab.job_log(jobs[-1]["id"])),
         }
+
+        # Also exclude jobs allowed to fail
         if final_status["status"] == "failed" and not final_status["allow_failure"]:
             final_failed_jobs.append(final_status)
 
     return final_failed_jobs
+
+
+def get_job_failure_reason(job_log):
+    infra_failure_logs = [
+        # Gitlab error while pulling image
+        "no basic auth credentials (manager.go:203:0s)",
+        # docker / docker-arm runner init failures
+        "Docker runner job start script failed",
+    ]
+
+    for log in infra_failure_logs:
+        if log in job_log:
+            return FailedJobReason.INFRA_FAILURE
+    return FailedJobReason.JOB_FAILURE
 
 
 def truncate_job_name(job_name, max_char_per_job=48):
@@ -96,8 +114,9 @@ def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
     owners_to_notify = defaultdict(list)
 
     for job in failed_jobs:
-        # Exclude jobs that were retried and succeeded
-        # Also exclude jobs allowed to fail
+        # Exclude jobs that failed due to infrastructure failures
+        if job["failure_type"] == FailedJobReason.INFRA_FAILURE:
+            continue
         job_owners = owners.of(job["name"])
         # job_owners is a list of tuples containing the type of owner (eg. USERNAME, TEAM) and the name of the owner
         # eg. [('TEAM', '@DataDog/agent-platform')]
