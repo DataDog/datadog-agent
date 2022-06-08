@@ -73,9 +73,9 @@ fi
 cd $SERVERLESS_INTEGRATION_TESTS_DIR
 
 ./build_recorder.sh
-#./build_go_functions.sh
-#./build_java_functions.sh
-#./build_csharp_functions.sh
+./build_go_functions.sh
+./build_java_functions.sh
+./build_csharp_functions.sh
 
 if [ -z "$NODE_LAYER_VERSION" ]; then
     export NODE_LAYER_VERSION=$DEFAULT_NODE_LAYER_VERSION
