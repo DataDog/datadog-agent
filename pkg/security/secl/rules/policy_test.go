@@ -28,13 +28,15 @@ func savePolicy(filename string, testPolicy *PolicyDef) error {
 }
 
 func TestMacroMerge(t *testing.T) {
+	var evalOpts eval.Opts
+	evalOpts.WithConstants(testConstants)
+
 	var opts Opts
 	opts.
-		WithConstants(testConstants).
 		WithSupportedDiscarders(testSupportedDiscarders).
 		WithEventTypeEnabled(map[eval.EventType]bool{"*": true})
 
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts, &eval.MacroStore{})
 	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{{
 			ID:         "test_rule",
@@ -87,9 +89,9 @@ func TestMacroMerge(t *testing.T) {
 		t.Error(err)
 	}
 
-	macro := rs.opts.Macros["test_macro"]
+	macro := rs.macroStore.Macros["test_macro"]
 	if macro == nil {
-		t.Fatalf("failed to find test_macro in ruleset: %+v", rs.opts.Macros)
+		t.Fatalf("failed to find test_macro in ruleset: %+v", rs.macroStore.Macros)
 	}
 
 	testPolicy2.Macros[0].Combine = ""
@@ -104,12 +106,14 @@ func TestMacroMerge(t *testing.T) {
 }
 
 func TestRuleMerge(t *testing.T) {
+	var evalOpts eval.Opts
+	evalOpts.WithConstants(testConstants)
+
 	var opts Opts
 	opts.
-		WithConstants(testConstants).
 		WithSupportedDiscarders(testSupportedDiscarders).
 		WithEventTypeEnabled(map[eval.EventType]bool{"*": true})
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts, &eval.MacroStore{})
 
 	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{{
@@ -211,15 +215,19 @@ func TestActionSetVariable(t *testing.T) {
 			}
 		},
 	}
+
+	var evalOpts eval.Opts
+	evalOpts.
+		WithConstants(testConstants).
+		WithVariables(make(map[string]eval.VariableValue))
+
 	var opts Opts
 	opts.
-		WithConstants(testConstants).
 		WithSupportedDiscarders(testSupportedDiscarders).
 		WithEventTypeEnabled(enabled).
-		WithVariables(make(map[string]eval.VariableValue)).
-		WithStateScopes(stateScopes).
-		WithMacros(make(map[eval.MacroID]*eval.Macro))
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
+		WithStateScopes(stateScopes)
+
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts, &eval.MacroStore{})
 
 	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{{
@@ -361,14 +369,18 @@ func TestActionSetVariable(t *testing.T) {
 
 func TestActionSetVariableConflict(t *testing.T) {
 	enabled := map[eval.EventType]bool{"*": true}
+
+	var evalOpts eval.Opts
+	evalOpts.
+		WithConstants(testConstants).
+		WithVariables(make(map[string]eval.VariableValue))
+
 	var opts Opts
 	opts.
-		WithConstants(testConstants).
 		WithSupportedDiscarders(testSupportedDiscarders).
-		WithEventTypeEnabled(enabled).
-		WithVariables(make(map[string]eval.VariableValue)).
-		WithMacros(make(map[eval.MacroID]*eval.Macro))
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
+		WithEventTypeEnabled(enabled)
+
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts, &eval.MacroStore{})
 
 	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{{
@@ -414,14 +426,18 @@ func TestActionSetVariableConflict(t *testing.T) {
 
 func loadPolicy(t *testing.T, testPolicy *PolicyDef) *multierror.Error {
 	enabled := map[eval.EventType]bool{"*": true}
+
+	var evalOpts eval.Opts
+	evalOpts.
+		WithConstants(testConstants).
+		WithVariables(make(map[string]eval.VariableValue))
+
 	var opts Opts
 	opts.
-		WithConstants(testConstants).
 		WithSupportedDiscarders(testSupportedDiscarders).
-		WithEventTypeEnabled(enabled).
-		WithVariables(make(map[string]eval.VariableValue)).
-		WithMacros(make(map[eval.MacroID]*eval.Macro))
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
+		WithEventTypeEnabled(enabled)
+
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts, &eval.MacroStore{})
 
 	tmpDir, err := os.MkdirTemp("", "test-policy")
 	if err != nil {

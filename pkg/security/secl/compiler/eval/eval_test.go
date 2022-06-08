@@ -23,7 +23,6 @@ import (
 func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]Field) *Opts {
 	return &Opts{
 		Constants:    constants,
-		Macros:       make(map[MacroID]*Macro),
 		LegacyFields: legacyFields,
 		Variables: map[string]VariableValue{
 			"pid": NewIntVariable(func(ctx *Context) int {
@@ -46,7 +45,11 @@ func parseRule(expr string, model Model, opts *Opts) (*Rule, error) {
 		return nil, fmt.Errorf("parsing error: %v", err)
 	}
 
-	if err := rule.GenEvaluator(model, opts); err != nil {
+	replCtx := EvalReplacementContext{
+		Opts:       opts,
+		MacroStore: &MacroStore{},
+	}
+	if err := rule.GenEvaluator(model, replCtx); err != nil {
 		return rule, fmt.Errorf("compilation error: %v", err)
 	}
 
@@ -68,6 +71,13 @@ func eval(t *testing.T, event *testEvent, expr string) (bool, *ast.Rule, error) 
 	return r1, rule.GetAst(), nil
 }
 
+func emptyReplCtx() EvalReplacementContext {
+	return EvalReplacementContext{
+		Opts:       &Opts{},
+		MacroStore: &MacroStore{},
+	}
+}
+
 func TestStringError(t *testing.T) {
 	model := &testModel{}
 
@@ -76,7 +86,7 @@ func TestStringError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = ruleToEvaluator(rule.GetAst(), model, &Opts{})
+	_, err = ruleToEvaluator(rule.GetAst(), model, emptyReplCtx())
 	if err == nil || err.(*ErrAstToEval).Pos.Column != 73 {
 		t.Fatal("should report a string type error")
 	}
@@ -90,7 +100,7 @@ func TestIntError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = ruleToEvaluator(rule.GetAst(), model, &Opts{})
+	_, err = ruleToEvaluator(rule.GetAst(), model, emptyReplCtx())
 	if err == nil || err.(*ErrAstToEval).Pos.Column != 51 {
 		t.Fatal("should report a string type error")
 	}
@@ -104,7 +114,7 @@ func TestBoolError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = ruleToEvaluator(rule.GetAst(), model, &Opts{})
+	_, err = ruleToEvaluator(rule.GetAst(), model, emptyReplCtx())
 	if err == nil || err.(*ErrAstToEval).Pos.Column != 38 {
 		t.Fatal("should report a bool type error")
 	}
@@ -567,18 +577,18 @@ func TestPartial(t *testing.T) {
 func TestMacroList(t *testing.T) {
 	model := &testModel{}
 	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	macroStore := &MacroStore{}
 
 	macro, err := NewMacro(
 		"list",
 		`[ "/etc/shadow", "/etc/password" ]`,
 		model,
-		opts,
+		EvalReplacementContext{Opts: opts, MacroStore: macroStore},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	opts.AddMacro(macro)
+	macroStore.AddMacro(macro)
 
 	expr := `"/etc/shadow" in list`
 	rule, err := parseRule(expr, model, opts)
@@ -596,18 +606,18 @@ func TestMacroList(t *testing.T) {
 func TestMacroExpression(t *testing.T) {
 	model := &testModel{}
 	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	macroStore := &MacroStore{}
 
 	macro, err := NewMacro(
 		"is_passwd",
 		`open.filename in [ "/etc/shadow", "/etc/passwd" ]`,
 		model,
-		opts,
+		EvalReplacementContext{Opts: opts, MacroStore: macroStore},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	opts.AddMacro(macro)
+	macroStore.AddMacro(macro)
 
 	event := &testEvent{
 		process: testProcess{
@@ -634,18 +644,18 @@ func TestMacroExpression(t *testing.T) {
 func TestMacroPartial(t *testing.T) {
 	model := &testModel{}
 	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	macroStore := &MacroStore{}
 
 	macro, err := NewMacro(
 		"is_passwd",
 		`open.filename in [ "/etc/shadow", "/etc/passwd" ]`,
 		model,
-		opts,
+		EvalReplacementContext{Opts: opts, MacroStore: macroStore},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	opts.AddMacro(macro)
+	macroStore.AddMacro(macro)
 
 	event := &testEvent{
 		process: testProcess{
@@ -698,30 +708,29 @@ func TestNestedMacros(t *testing.T) {
 
 	model := &testModel{}
 	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	macroStore := &MacroStore{}
 
 	macro1, err := NewMacro(
 		"sensitive_files",
 		`[ "/etc/shadow", "/etc/passwd" ]`,
 		model,
-		opts,
+		EvalReplacementContext{Opts: opts, MacroStore: macroStore},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	opts.AddMacro(macro1)
+	macroStore.AddMacro(macro1)
 
 	macro2, err := NewMacro(
 		"is_sensitive_opened",
 		`open.filename in sensitive_files`,
 		model,
-		opts,
+		EvalReplacementContext{Opts: opts, MacroStore: macroStore},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	opts.AddMacro(macro2)
+	macroStore.AddMacro(macro2)
 
 	rule, err := parseRule(macro2.ID, model, opts)
 	if err != nil {
@@ -1432,7 +1441,7 @@ func BenchmarkPartial(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	if err := rule.GenEvaluator(model, &Opts{}); err != nil {
+	if err := rule.GenEvaluator(model, emptyReplCtx()); err != nil {
 		b.Fatal(err)
 	}
 

@@ -75,13 +75,16 @@ func addRuleExpr(t *testing.T, rs *RuleSet, exprs ...string) {
 func newRuleSet() *RuleSet {
 	enabled := map[eval.EventType]bool{"*": true}
 
+	var evalOpts eval.Opts
+	evalOpts.
+		WithConstants(testConstants)
+
 	var opts Opts
 	opts.
-		WithConstants(testConstants).
 		WithSupportedDiscarders(testSupportedDiscarders).
 		WithEventTypeEnabled(enabled)
 
-	return NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
+	return NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts, &eval.MacroStore{})
 }
 
 func TestRuleBuckets(t *testing.T) {
