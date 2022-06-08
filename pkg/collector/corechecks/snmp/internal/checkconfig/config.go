@@ -67,8 +67,8 @@ type InitConfig struct {
 	MinCollectionInterval int              `yaml:"min_collection_interval"`
 	Namespace             string           `yaml:"namespace"`
 
-	CollectAllAvailableMetrics bool `yaml:"collect_all_available_metrics"`
-	CollectProfileMetrics      bool `yaml:"collect_profile_metrics"`
+	CollectAllAvailableMetrics Boolean `yaml:"collect_all_available_metrics"`
+	CollectProfileMetrics      Boolean `yaml:"collect_profile_metrics"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -121,6 +121,9 @@ type InstanceConfig struct {
 	DiscoveryWorkers         int      `yaml:"discovery_workers"`
 	Workers                  int      `yaml:"workers"`
 	Namespace                string   `yaml:"namespace"`
+
+	CollectAllAvailableMetrics *Boolean `yaml:"collect_all_available_metrics"`
+	CollectProfileMetrics      *Boolean `yaml:"collect_profile_metrics"`
 }
 
 // CheckConfig holds config needed for an integration instance to run
@@ -281,6 +284,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	// Set defaults before unmarshalling
 	instance.UseGlobalMetrics = true
 	initConfig.CollectDeviceMetadata = true
+	initConfig.CollectProfileMetrics = true
 
 	err := yaml.Unmarshal(rawInitConfig, &initConfig)
 	if err != nil {
@@ -299,8 +303,18 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.IPAddress = instance.IPAddress
 	c.Port = uint16(instance.Port)
 	c.Network = instance.Network
-	c.CollectAllAvailableMetrics = initConfig.CollectAllAvailableMetrics
-	c.CollectProfileMetrics = initConfig.CollectProfileMetrics
+
+	if instance.CollectProfileMetrics != nil {
+		c.CollectProfileMetrics = bool(*instance.CollectProfileMetrics)
+	} else {
+		c.CollectProfileMetrics = bool(initConfig.CollectProfileMetrics)
+	}
+
+	if instance.CollectAllAvailableMetrics != nil {
+		c.CollectAllAvailableMetrics = bool(*instance.CollectAllAvailableMetrics)
+	} else {
+		c.CollectAllAvailableMetrics = bool(initConfig.CollectAllAvailableMetrics)
+	}
 
 	if c.IPAddress == "" && c.Network == "" {
 		return nil, fmt.Errorf("`ip_address` or `network` config must be provided")
@@ -476,7 +490,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		profiles = defaultProfiles
 	}
 
-	log.Warnf("defaultProfiles: %v", profiles)
+	//log.Warnf("defaultProfiles: %v", profiles)
 
 	for _, profileDef := range profiles {
 		normalizeMetrics(profileDef.Metrics)
