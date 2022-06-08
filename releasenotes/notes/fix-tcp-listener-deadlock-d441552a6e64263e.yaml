@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix potential deadlock on Agent shutdown in TCP listener. 
+    Fix potential deadlock when shutting down an Agent with a log TCP listener.
