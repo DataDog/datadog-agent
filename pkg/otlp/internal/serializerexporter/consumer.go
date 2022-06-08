@@ -106,7 +106,7 @@ func (c *serializerConsumer) addTelemetryMetric(hostname string) {
 func (c *serializerConsumer) flush(s serializer.MetricSerializer) error {
 	var serieErr error
 	var sketchesErr error
-	metrics.StartSerialization(
+	metrics.Serialize(
 		metrics.NewIterableSeries(func(se *metrics.Serie) {}, 200, 4000),
 		metrics.NewIterableSketches(func(se *metrics.SketchSeries) {}, 200, 4000),
 		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {

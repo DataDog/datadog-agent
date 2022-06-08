@@ -102,7 +102,7 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	logPayloads := config.Datadog.GetBool("log_payloads")
 	series, sketches := createIterableMetrics(d.flushAndSerializeInParallel, logPayloads, true)
 
-	metrics.StartSerialization(
+	metrics.Serialize(
 		series,
 		sketches,
 		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {

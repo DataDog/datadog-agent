@@ -106,12 +106,12 @@ func (it *iterableMetrics) WaitForValue() bool {
 	return it.ch.WaitForValue()
 }
 
-// StartSerialization starts the serialization for series and sketches.
+// Serialize starts the serialization for series and sketches.
 // `sink` callback is responsible for adding the data. It runs in the current goroutine.
 // `serieSource` callback is responsible for consuming the series. It runs in its OWN goroutine.
 // `sketchesSource` callback is responsible for consuming the sketches. It runs in its OWN goroutine.
 // This function returns when both `sink`, `serieSource` and `sketchesSource` functions are finished.
-func StartSerialization(
+func Serialize(
 	iterableSeries *IterableSeries,
 	iterableSketches *IterableSketches,
 	sink func(SerieSink, SketchesSink),

@@ -16,7 +16,7 @@ import (
 
 func TestIterableSeries(t *testing.T) {
 	var names []string
-	StartSerialization(
+	Serialize(
 		NewIterableSeries(func(*Serie) {}, 10, 1),
 		NewIterableSketches(func(*SketchSeries) {}, 10, 2),
 		func(serieSink SerieSink, _ SketchesSink) {
@@ -63,7 +63,7 @@ func TestIterableSeriesReceiverStopped(t *testing.T) {
 func BenchmarkIterableSeries(b *testing.B) {
 	for bufferSize := 1000; bufferSize <= 8000; bufferSize *= 2 {
 		b.Run(fmt.Sprintf("%v", bufferSize), func(b *testing.B) {
-			StartSerialization(
+			Serialize(
 				NewIterableSeries(func(*Serie) {}, 100, bufferSize),
 				NewIterableSketches(func(*SketchSeries) {}, 10, 2),
 				func(serieSink SerieSink, _ SketchesSink) {
@@ -82,7 +82,7 @@ func BenchmarkIterableSeries(b *testing.B) {
 func TestIterableSeriesSeveralValues(t *testing.T) {
 	var series []*Serie
 	var expected []string
-	StartSerialization(
+	Serialize(
 		NewIterableSeries(func(*Serie) {}, 10, 2),
 		NewIterableSketches(func(*SketchSeries) {}, 10, 2),
 		func(serieSink SerieSink, _ SketchesSink) {

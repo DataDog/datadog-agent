@@ -395,7 +395,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	logPayloads := config.Datadog.GetBool("log_payloads")
 	series, sketches := createIterableMetrics(d.aggregator.flushAndSerializeInParallel, logPayloads, false)
 
-	metrics.StartSerialization(
+	metrics.Serialize(
 		series,
 		sketches,
 		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
