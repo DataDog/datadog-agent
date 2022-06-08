@@ -401,8 +401,6 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 	results, err := r.preparedEvalQuery.Eval(ctx, rego.EvalInput(input))
 	if err != nil {
 		return buildErrorReports(err)
-	} else if len(results) == 0 {
-		return nil
 	}
 
 	log.Debugf("%s: rego evaluation done => %+v\n", r.ruleID, results)
