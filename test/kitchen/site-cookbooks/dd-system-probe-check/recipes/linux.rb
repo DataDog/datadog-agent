@@ -35,6 +35,8 @@ package 'netcat' do
   end
 end
 
+package 'gcc'
+
 package 'openssl-devel' do
   case node[:platform]
   when 'redhat', 'centos', 'fedora'
