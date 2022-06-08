@@ -102,7 +102,6 @@ echo "Using dd-trace-dotnet layer version: $DOTNET_TRACE_LAYER_VERSION"
 
 # random 8-character ID to avoid collisions with other runs
 stage=$(xxd -l 4 -c 4 -p </dev/random)
-stage=e224276f
 
 function remove_stack() {
     echo "NOT Removing stack"
@@ -141,7 +140,18 @@ all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions
 
 # Add a function to this list to skip checking its results
 # This should only be used temporarily while we investigate and fix the test
-functions_to_skip=()
+functions_to_skip=(
+    # Tagging behavior after a timeout is currently known to be flaky
+    "timeout-node"
+    "timeout-python"
+    "timeout-java"
+    "timeout-go"
+    "timeout-csharp"
+    "timeout-proxy"
+    "trace-csharp" # Will be reactivated when the new dotnet layer will be released
+    "trace-proxy" # Will be reactivated when sampling with proxy will be implemented
+)
+
 
 echo "Invoking functions for the first time..."
 set +e # Don't exit this script if an invocation fails or there's a diff
