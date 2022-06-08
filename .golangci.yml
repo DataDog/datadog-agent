@@ -20,8 +20,6 @@ issues:
     - "exported: exported const Exec should have comment \\(or a comment on this block\\) or be unexported" # 'revive' errors in pkg/process/events/model/model_common.go
     - "exported: exported const APIName should have comment \\(or a comment on this block\\) or be unexported" # 'revive' errors in pkg/serverless/trace/inferredspan/constants.go
     - "unnecessary conversion" # 'unconvert' errors in test/integration/utils/certificates_test.go
-    - "SA1019*" # 'staticcheck' errors about SA1019
-    - "SA4011*" # 'staticcheck' errors about SA4011
     - "Error return value of .((os\\.)?std(out|err)\\..*|.*Close|.*Flush|os\\.Remove(All)?|.*print(f|ln)?|os\\.(Un)?Setenv). is not checked"
     - "`eventContext` is unused"
     - "`\\(\\*DatadogLogger\\).changeLogLevel` is unused"
@@ -80,4 +78,5 @@ linters-settings:
              "-SA2001", # TODO: empty critical section, seems to be used for something?
              "-SA6002", # TODO: Fix sync.Pools
              "-SA4025", # TODO: Fix trace unit test
+             "-SA1019", "-SA4011", # Disabling these to re-enable golanci-lint default tests
             ]
