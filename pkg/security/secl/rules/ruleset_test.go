@@ -87,6 +87,13 @@ func newRuleSet() *RuleSet {
 	return NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts, &eval.MacroStore{})
 }
 
+func emptyReplCtx() eval.ReplacementContext {
+	return eval.ReplacementContext{
+		Opts:       &eval.Opts{},
+		MacroStore: &eval.MacroStore{},
+	}
+}
+
 func TestRuleBuckets(t *testing.T) {
 	exprs := []string{
 		`(open.filename =~ "/sbin/*" || open.filename =~ "/usr/sbin/*") && process.uid != 0 && open.flags & O_CREAT > 0`,
@@ -543,7 +550,7 @@ func TestGetRuleEventType(t *testing.T) {
 		ID:         "aaa",
 		Expression: `open.filename == "test"`,
 	}
-	if err := rule.GenEvaluator(&testModel{}, &eval.Opts{}); err != nil {
+	if err := rule.GenEvaluator(&testModel{}, emptyReplCtx()); err != nil {
 		t.Fatal(err)
 	}
 
