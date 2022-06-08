@@ -438,6 +438,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 			sendIterableSeries(d.sharedSerializer, start, serieSource)
 		},
 		func(sketches metrics.SketchesSource) {
+			// Don't send empty sketches payloads
 			if sketches.WaitForValue() {
 				err := d.sharedSerializer.SendSketch(sketches)
 				sketchesCount := sketches.Count()

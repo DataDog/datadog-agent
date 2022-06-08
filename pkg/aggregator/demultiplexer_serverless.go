@@ -121,6 +121,7 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 		}, func(serieSource metrics.SerieSource) {
 			sendIterableSeries(d.serializer, start, serieSource)
 		}, func(sketches metrics.SketchesSource) {
+			// Don't send empty sketches payloads
 			if sketches.WaitForValue() {
 				d.serializer.SendSketch(sketches) //nolint:errcheck
 			}
