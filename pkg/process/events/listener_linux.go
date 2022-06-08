@@ -92,10 +92,12 @@ func (l *SysProbeListener) run() {
 	l.connected.Store(false)
 	logTicker := newLogBackoffTicker()
 
-	for {
+	running := true
+	for running {
 		select {
 		case <-l.exit:
-			return
+			running = false
+			continue
 		default:
 			stream, err := l.client.GetProcessEvents(context.Background(), &api.GetProcessEventParams{})
 			if err != nil {
@@ -123,7 +125,9 @@ func (l *SysProbeListener) run() {
 				select {
 				// If an exit signal is sent, stop consuming from the stream and return
 				case <-l.exit:
-					return
+					readStream = false
+					running = false
+					continue
 				default:
 					in, err := stream.Recv()
 					if err == io.EOF || in == nil {
