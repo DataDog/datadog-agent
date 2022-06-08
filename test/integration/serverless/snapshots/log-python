@@ -57,20 +57,6 @@
   },
   {
     "message": {
-      "message": "[trace] [{\"priority\":1,\"origin\":\"lambda\",\"spans\":[{\"service\":\"integration-tests-service\",\"name\":\"aws.lambda\",\"resource\":\"integration-tests-extension-STAGE-log-python\",\"trace_id\":1127822125113423599,\"span_id\":6398477340651292372,\"parent_id\":0,\"start\":1654724776889640487,\"duration\":1003463326,\"error\":0,\"meta\":{\"_dd.compute_stats\":\"1\",\"_dd.origin\":\"lambda\",\"account_id\":\"601427279990\",\"architecture\":\"x86_64\",\"aws_account\":\"601427279990\",\"cold_start\":\"true\",\"datadog_lambda\":\"3.50.0\",\"dd_extension_version\":\"123\",\"dd_trace\":\"0.55.4\",\"env\":\"integration-tests-env\",\"function.response.body\":\"ok\",\"function_arn\":\"arn:aws:lambda:eu-west-1:601427279990:function:integration-tests-extension-STAGE-log-python\",\"function_version\":\"$LATEST\",\"functionname\":\"integration-tests-extension-STAGE-log-python\",\"memorysize\":\"1024\",\"region\":\"eu-west-1\",\"request_id\":\"XXX\",\"resource_names\":\"integration-tests-extension-STAGE-log-python\",\"runtime\":\"python3.8\",\"runtime-id\":\"c348ca1f24824f6e83c594ac434257b2\",\"service\":\"integration-tests-service\",\"tagA\":\"valueA\",\"tagB\":\"valueB\",\"taga\":\"valuea\",\"tagb\":\"valueb\",\"tagc\":\"valuec\",\"tagd\":\"valued\",\"version\":\"integration-tests-version\"},\"metrics\":{\"_dd.agent_psr\":1,\"_dd.tracer_kr\":1,\"_sampling_priority_v1\":1,\"_top_level\":1,\"function.response.statusCode\":200,\"system.pid\":24},\"type\":\"serverless\"}],\"tags\":null,\"dropped_trace\":false}]\n",
-      "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:601427279990:function:integration-tests-extension-STAGE-log-python",
-        "request_id": "XXX"
-      }
-    },
-    "status": "info",
-    "hostname": "arn:aws:lambda:eu-west-1:601427279990:function:integration-tests-extension-STAGE-log-python",
-    "service": "integration-tests-service",
-    "ddsource": "lambda",
-    "ddtags": "account_id:601427279990,architecture:XXX,aws_account:601427279990,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:601427279990:function:integration-tests-extension-STAGE-log-python,functionname:integration-tests-extension-STAGE-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-STAGE-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version"
-  },
-  {
-    "message": {
       "message": "END RequestId: XXX",
       "lambda": {
         "arn": "arn:aws:lambda:eu-west-1:601427279990:function:integration-tests-extension-STAGE-log-python",
@@ -142,20 +128,6 @@
   {
     "message": {
       "message": "[ERROR]\tTIMESTAMP\tXXX\tXXX LOG 2 XXX\n",
-      "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:601427279990:function:integration-tests-extension-STAGE-log-python",
-        "request_id": "XXX"
-      }
-    },
-    "status": "info",
-    "hostname": "arn:aws:lambda:eu-west-1:601427279990:function:integration-tests-extension-STAGE-log-python",
-    "service": "integration-tests-service",
-    "ddsource": "lambda",
-    "ddtags": "account_id:601427279990,architecture:XXX,aws_account:601427279990,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:601427279990:function:integration-tests-extension-STAGE-log-python,functionname:integration-tests-extension-STAGE-log-python,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-STAGE-log-python,runtime:python3.8,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version"
-  },
-  {
-    "message": {
-      "message": "[trace] [{\"priority\":1,\"origin\":\"lambda\",\"spans\":[{\"service\":\"integration-tests-service\",\"name\":\"aws.lambda\",\"resource\":\"integration-tests-extension-STAGE-log-python\",\"trace_id\":4958316470330286841,\"span_id\":5950906103841068323,\"parent_id\":0,\"start\":1654724834124567324,\"duration\":1004509456,\"error\":0,\"meta\":{\"_dd.compute_stats\":\"1\",\"_dd.origin\":\"lambda\",\"account_id\":\"601427279990\",\"architecture\":\"x86_64\",\"aws_account\":\"601427279990\",\"cold_start\":\"false\",\"datadog_lambda\":\"3.50.0\",\"dd_extension_version\":\"123\",\"dd_trace\":\"0.55.4\",\"env\":\"integration-tests-env\",\"function.request.body\":\"testing request payload\",\"function.response.body\":\"ok\",\"function_arn\":\"arn:aws:lambda:eu-west-1:601427279990:function:integration-tests-extension-STAGE-log-python\",\"function_version\":\"$LATEST\",\"functionname\":\"integration-tests-extension-STAGE-log-python\",\"memorysize\":\"1024\",\"region\":\"eu-west-1\",\"request_id\":\"XXX\",\"resource_names\":\"integration-tests-extension-STAGE-log-python\",\"runtime\":\"python3.8\",\"runtime-id\":\"c348ca1f24824f6e83c594ac434257b2\",\"service\":\"integration-tests-service\",\"tagA\":\"valueA\",\"tagB\":\"valueB\",\"taga\":\"valuea\",\"tagb\":\"valueb\",\"tagc\":\"valuec\",\"tagd\":\"valued\",\"version\":\"integration-tests-version\"},\"metrics\":{\"_dd.agent_psr\":1,\"_dd.tracer_kr\":1,\"_sampling_priority_v1\":1,\"_top_level\":1,\"function.response.statusCode\":200,\"system.pid\":24},\"type\":\"serverless\"}],\"tags\":null,\"dropped_trace\":false}]\n",
       "lambda": {
         "arn": "arn:aws:lambda:eu-west-1:601427279990:function:integration-tests-extension-STAGE-log-python",
         "request_id": "XXX"
