@@ -306,7 +306,7 @@ func (ns *networkState) StoreClosedConnections(closed []ConnectionStats) {
 func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 	for _, client := range ns.clients {
 		for _, c := range conns {
-			key := generateConnectionKey(c, ns.buf, true)
+			key := c.ByteKeyNAT(ns.buf)
 
 			i, ok := client.closedConnectionsKeys[closedKey(key)]
 			if ok {

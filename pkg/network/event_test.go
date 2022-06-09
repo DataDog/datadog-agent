@@ -118,6 +118,98 @@ func TestConnStatsByteKey(t *testing.T) {
 		assert.NotEqual(t, keyA, keyB)
 	}
 }
+func TestByteKeyNAT(t *testing.T) {
+	buf := make([]byte, ConnectionByteKeyMaxLen)
+	for _, test := range []struct {
+		a           ConnectionStats
+		b           ConnectionStats
+		shouldMatch bool
+	}{
+		{
+			a: ConnectionStats{
+				Source: util.AddressFromString("127.0.0.1"),
+				Dest:   util.AddressFromString("127.0.0.2"),
+			},
+			b: ConnectionStats{
+				Source: util.AddressFromString("127.0.0.1"),
+				Dest:   util.AddressFromString("127.0.0.2"),
+			},
+			shouldMatch: true,
+		},
+		{
+			a: ConnectionStats{
+				Source: util.AddressFromString("127.0.0.1"),
+				Dest:   util.AddressFromString("127.0.0.2"),
+			},
+			b: ConnectionStats{
+				Source: util.AddressFromString("127.0.0.3"),
+				Dest:   util.AddressFromString("127.0.0.4"),
+			},
+			shouldMatch: false,
+		},
+		{
+			a: ConnectionStats{
+				Source: util.AddressFromString("127.0.0.1"),
+				Dest:   util.AddressFromString("127.0.0.2"),
+			},
+			b: ConnectionStats{
+				Source: util.AddressFromString("127.0.0.1"),
+				Dest:   util.AddressFromString("127.0.0.2"),
+				IPTranslation: &IPTranslation{
+					ReplSrcIP: util.AddressFromString("1.1.1.1"),
+					ReplDstIP: util.AddressFromString("2.2.2.2"),
+				},
+			},
+			shouldMatch: false,
+		},
+		{
+			a: ConnectionStats{
+				Source: util.AddressFromString("127.0.0.1"),
+				Dest:   util.AddressFromString("127.0.0.2"),
+				IPTranslation: &IPTranslation{
+					ReplSrcIP: util.AddressFromString("1.1.1.1"),
+					ReplDstIP: util.AddressFromString("2.2.2.2"),
+				},
+			},
+			b: ConnectionStats{
+				Source: util.AddressFromString("127.0.0.1"),
+				Dest:   util.AddressFromString("127.0.0.2"),
+				IPTranslation: &IPTranslation{
+					ReplSrcIP: util.AddressFromString("3.3.3.3"),
+					ReplDstIP: util.AddressFromString("4.4.4.4"),
+				},
+			},
+			shouldMatch: false,
+		},
+		{
+			a: ConnectionStats{
+				Source: util.AddressFromString("127.0.0.1"),
+				Dest:   util.AddressFromString("127.0.0.2"),
+				IPTranslation: &IPTranslation{
+					ReplSrcIP: util.AddressFromString("1.1.1.1"),
+					ReplDstIP: util.AddressFromString("2.2.2.2"),
+				},
+			},
+			b: ConnectionStats{
+				Source: util.AddressFromString("127.0.0.3"),
+				Dest:   util.AddressFromString("127.0.0.4"),
+				IPTranslation: &IPTranslation{
+					ReplSrcIP: util.AddressFromString("1.1.1.1"),
+					ReplDstIP: util.AddressFromString("2.2.2.2"),
+				},
+			},
+			shouldMatch: true,
+		},
+	} {
+		var keyA, keyB string
+		keyA = string(test.a.ByteKeyNAT(buf))
+		keyB = string(test.b.ByteKeyNAT(buf))
+		actual := keyA == keyB
+		assert.Equalf(t, test.shouldMatch, actual,
+			"a: %s\nb:%s\nshouldMatch: %v\ngot: %v", test.a, test.b, test.shouldMatch, actual,
+		)
+	}
+}
 
 func TestIsExpired(t *testing.T) {
 	// 10mn

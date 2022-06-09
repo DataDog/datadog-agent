@@ -270,6 +270,14 @@ func (c ConnectionStats) ByteKey(buf []byte) []byte {
 	return generateConnectionKey(c, buf, false)
 }
 
+// ByteKeyNAT returns a unique key for this connection represented as a byte slice.
+// The format is similar to the one emitted by `ByteKey` with the sole difference
+// that the addresses used are translated.
+// Currently this key is used only for the aggregation of ephemeral connections.
+func (c ConnectionStats) ByteKeyNAT(buf []byte) []byte {
+	return generateConnectionKey(c, buf, true)
+}
+
 // IsShortLived returns true when a connection went through its whole lifecycle
 // between two connection checks
 func (c ConnectionStats) IsShortLived() bool {
