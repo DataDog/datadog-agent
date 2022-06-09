@@ -244,7 +244,7 @@ func startHTTPServer(port string) {
 			if !strings.Contains(log.Message.Message, "BEGINLOG") {
 				if strings.HasPrefix(log.Message.Message, "REPORT RequestId:") {
 					log.Message.Message = "REPORT" // avoid dealing with stripping out init duration, duration, memory used etc.
-					nbReport = nbReport + 1
+					nbReport++
 				}
 				sortedTags := strings.Split(log.Tags, ",")
 				sort.Strings(sortedTags)
@@ -268,6 +268,8 @@ func startHTTPServer(port string) {
 	})
 
 	http.HandleFunc("/api/v0.2/traces", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("HIT traces")
+		nbHitTraces++
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			return
@@ -286,7 +288,6 @@ func startHTTPServer(port string) {
 
 		if nbHitTraces == 3 {
 			// two calls + shutdown
-			fmt.Println("third trace hit, now outputing for snapshot")
 			jsonLogs, err := json.Marshal(outputTraces)
 			if err != nil {
 				fmt.Printf("Error while JSON encoding the traces")

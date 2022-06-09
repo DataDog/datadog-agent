@@ -102,9 +102,11 @@ echo "Using dd-trace-dotnet layer version: $DOTNET_TRACE_LAYER_VERSION"
 
 # random 8-character ID to avoid collisions with other runs
 stage=$(xxd -l 4 -c 4 -p </dev/random)
+stage=12341234
 
 function remove_stack() {
-    serverless remove --stage "${stage}"
+    echo "do not remove"
+    #serverless remove --stage "${stage}"
 }
 
 # always remove the stack before exiting, no matter what
@@ -113,51 +115,22 @@ trap remove_stack EXIT
 # deploy the stack
 serverless deploy --stage "${stage}"
 
-metric_functions=(
-    "metric-node"
-    "metric-python"
-    "metric-java"
-    "metric-go"
-    "metric-csharp"
-    "metric-proxy"
-    "timeout-node"
-    "timeout-python"
-    "timeout-java"
-    "timeout-go"
-    "timeout-csharp"
-    "timeout-proxy"
-    "error-python"
-    "error-java"
-    "error-csharp"
-    "error-proxy"
-    "error-node"
+metric_functions=()
+log_functions=()
+trace_functions=(
+    "trace-node"
+    "trace-python"
+    "trace-java"
+    "trace-go"
+    "trace-csharp"
+    "trace-proxy"
 )
-log_functions=(
-    "log-node"
-    "log-python"
-    "log-java"
-    "log-go"
-    "log-csharp"
-    "log-proxy"
-)
-trace_functions=()
 
 all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}")
 
 # Add a function to this list to skip checking its results
 # This should only be used temporarily while we investigate and fix the test
-functions_to_skip=(
-    # Tagging behavior after a timeout is currently known to be flaky
-    "timeout-node"
-    "timeout-python"
-    "timeout-java"
-    "timeout-go"
-    "timeout-csharp"
-    "timeout-proxy"
-    "trace-csharp" # Will be reactivated when the new dotnet layer will be released
-    "trace-proxy" # Will be reactivated when sampling with proxy will be implemented
-    "log-proxy"
-)
+functions_to_skip=()
 
 
 echo "Invoking functions for the first time..."
@@ -179,7 +152,14 @@ for function_name in "${all_functions[@]}"; do
 done
 wait
 
-LOGS_WAIT_MINUTES=8
+# two invocations are needed since enhanced metrics are computed with the REPORT log line (which is created at the end of the first invocation)
+echo "Invoking functions for the second time..."
+for function_name in "${all_functions[@]}"; do
+    serverless invoke --stage "${stage}" -f "${function_name}" -d '{"body": "testing request payload"}' &>/dev/null &
+done
+wait
+
+LOGS_WAIT_MINUTES=1
 END_OF_WAIT_TIME=$(date --date="+"$LOGS_WAIT_MINUTES" minutes" +"%r")
 echo "Waiting $LOGS_WAIT_MINUTES minutes for logs to flush..."
 echo "This will be done at $END_OF_WAIT_TIME"
@@ -263,21 +243,24 @@ for function_name in "${all_functions[@]}"; do
         # Normalize traces
         logs=$(
             echo "$raw_logs" |
-                grep -v "\[log\]" |
-                grep "\[trace\]" |
+                grep "BEGINTRACE" |
+                grep -v "BEGINMETRIC.*" |
+                grep -v "BEGINLOG.*" |
+                perl -p -e "s/BEGINTRACE/\1/g" |
+                perl -p -e "s/ENDTRACE/\1/g" |
                 perl -p -e "s/(ts\":)[0-9]{10}/\1XXX/g" |
-                perl -p -e "s/((startTime|endTime|traceID|trace_id|span_id|parent_id|start|system.pid)\":)[0-9]+/\1XXX/g" |
-                perl -p -e "s/(duration\":)[0-9]+/\1XXX/g" |
+                perl -p -e "s/((startTime|endTime|traceID|trace_id|span_id|parent_id|start|system.pid)\":)[0-9]+/\1null/g" |
+                perl -p -e "s/(duration\":)[0-9]+/\1null/g" |
                 perl -p -e "s/((datadog_lambda|dd_trace)\":\")[0-9]+\.[0-9]+\.[0-9]+/\1X\.X\.X/g" |
-                perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
-                perl -p -e "s/(,\"runtime-id\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
-                perl -p -e "s/(,\"system.pid\":\")[a-zA-Z0-9\-,]+\"/\1XXX\"/g" |
-                perl -p -e "s/(\"_dd.no_p_sr\":)[0-9\.]+/\1XXX/g" |
+                perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"/\1null\"/g" |
+                perl -p -e "s/(,\"runtime-id\":\")[a-zA-Z0-9\-,]+\"/\1null\"/g" |
+                perl -p -e "s/(,\"system.pid\":\")[a-zA-Z0-9\-,]+\"/\1null\"/g" |
+                perl -p -e "s/(\"_dd.no_p_sr\":)[0-9\.]+/\1null/g" |
                 perl -p -e "s/(\"architecture\":)\"(x86_64|arm64)\"/\1\"XXX\"/g" |
-                perl -p -e "s/(\"process_id\":)[0-9]+/\1XXX/g" |
+                perl -p -e "s/(\"process_id\":)[0-9]+/\1null/g" |
                 perl -p -e "s/$stage/XXXXXX/g" |
                 perl -p -e "s/[ ]$//g" |
-                sort
+                node parse-json.js
         )
     fi
 
