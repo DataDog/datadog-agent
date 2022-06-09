@@ -106,11 +106,46 @@ func TestCardinalityLimit(t *testing.T) {
 	}
 }
 
+func TestMultipleTopeLevels(t *testing.T) {
+	assert := assert.New(t)
+	e := NewRareSampler()
+	e.Stop()
+	now := time.Unix(13829192398, 0)
+	trace1 := getTraceChunkWithSpansAndPriority(
+		[]*pb.Span{
+			{Service: "s1", Resource: "r1", Metrics: map[string]float64{"_top_level": 1}},
+		},
+		PriorityNone,
+	)
+	trace2 := getTraceChunkWithSpansAndPriority(
+		[]*pb.Span{
+			{Service: "s1", Resource: "r1", Metrics: map[string]float64{"_top_level": 1}},
+			{Service: "s1", Resource: "r2", Metrics: map[string]float64{"_top_level": 1}},
+		},
+		PriorityNone,
+	)
+
+	// sampled because of `r1`
+	assert.True(e.Sample(now, trace1, "prod"))
+	assert.EqualValues(1, trace1.Spans[0].Metrics["_dd.rare"])
+
+	// sampled because of `r2`
+	// `r1`'s timestamp gets refreshed
+	assert.True(e.Sample(now.Add(defaultTTL), trace2, "prod"))
+	assert.NotContains(trace2.Spans[0].Metrics, "_dd.rare")
+	assert.EqualValues(1, trace2.Spans[1].Metrics["_dd.rare"])
+
+	// not sampled, because `r1` was sampled on the above
+	assert.False(e.Sample(now.Add(defaultTTL+time.Nanosecond), trace1, "prod"))
+}
+
 func getTraceChunkWithSpanAndPriority(span *pb.Span, priority SamplingPriority) *pb.TraceChunk {
+	return getTraceChunkWithSpansAndPriority([]*pb.Span{span}, priority)
+}
+
+func getTraceChunkWithSpansAndPriority(spans []*pb.Span, priority SamplingPriority) *pb.TraceChunk {
 	return &pb.TraceChunk{
 		Priority: int32(priority),
-		Spans: []*pb.Span{
-			span,
-		},
+		Spans:    spans,
 	}
 }
