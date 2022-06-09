@@ -38,9 +38,9 @@ var (
 		PrometheusPortAnnotation,
 	}
 	// OpenmetricsDefaultMetricsV1 containers the wildcard pattern to match all metrics
-	OpenmetricsDefaultMetricsV1 = []string{"*"}
+	OpenmetricsDefaultMetricsV1 = []interface{}{"*"}
 	// OpenmetricsDefaultMetricsV2 containers the match-all regular expression to match all metrics
-	OpenmetricsDefaultMetricsV2 = []string{".*"}
+	OpenmetricsDefaultMetricsV2 = []interface{}{".*"}
 )
 
 func configPrometheusScrapeChecksTransformer(in string) interface{} {
@@ -65,7 +65,7 @@ type PrometheusCheck struct {
 type OpenmetricsInstance struct {
 	PrometheusURL                 string                      `mapstructure:"prometheus_url" yaml:"prometheus_url,omitempty" json:"prometheus_url,omitempty"`
 	Namespace                     string                      `mapstructure:"namespace" yaml:"namespace,omitempty" json:"namespace"`
-	Metrics                       []string                    `mapstructure:"metrics" yaml:"metrics,omitempty" json:"metrics,omitempty"`
+	Metrics                       []interface{}               `mapstructure:"metrics" yaml:"metrics,omitempty" json:"metrics,omitempty"`
 	PromPrefix                    string                      `mapstructure:"prometheus_metrics_prefix" yaml:"prometheus_metrics_prefix,omitempty" json:"prometheus_metrics_prefix,omitempty"`
 	HealthCheck                   *bool                       `mapstructure:"health_service_check" yaml:"health_service_check,omitempty" json:"health_service_check,omitempty"`
 	LabelToHostname               string                      `mapstructure:"label_to_hostname" yaml:"label_to_hostname,omitempty" json:"label_to_hostname,omitempty"`
@@ -149,7 +149,7 @@ func (pc *PrometheusCheck) Init() error {
 
 // initInstances defaults the Instances field in PrometheusCheck
 func (pc *PrometheusCheck) initInstances() {
-	var openmetricsDefaultMetrics []string
+	var openmetricsDefaultMetrics []interface{}
 	version := config.Datadog.GetInt("prometheus_scrape.version")
 	switch version {
 	case 1:
@@ -272,7 +272,7 @@ func (ad *ADConfig) MatchContainer(name string) bool {
 var DefaultPrometheusCheck = &PrometheusCheck{
 	Instances: []*OpenmetricsInstance{
 		{
-			Metrics:   []string{"PLACEHOLDER"},
+			Metrics:   []interface{}{"PLACEHOLDER"},
 			Namespace: openmetricsDefaultNS,
 		},
 	},

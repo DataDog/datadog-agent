@@ -12,6 +12,7 @@ import (
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -39,7 +40,7 @@ func (s *Scheduler) Start(sourceMgr schedulers.SourceManager) {
 		return
 	}
 	// source to collect all logs from all containers
-	source := logsConfig.NewLogSource(logsConfig.ContainerCollectAll, &logsConfig.LogsConfig{
+	source := sources.NewLogSource(logsConfig.ContainerCollectAll, &logsConfig.LogsConfig{
 		Type:    logsConfig.DockerType,
 		Service: "docker",
 		Source:  "docker",

@@ -74,16 +74,16 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
     if (dir != CONN_DIRECTION_UNKNOWN) {
         val->direction = dir;
     } else if (val->direction == CONN_DIRECTION_UNKNOWN) {
-        u8 *state = NULL;
+        u32 *port_count = NULL;
         port_binding_t pb = {};
         pb.port = t->sport;
         if (t->metadata & CONN_TYPE_TCP) {
             pb.netns = t->netns;
-            state = bpf_map_lookup_elem(&port_bindings, &pb);
+            port_count = bpf_map_lookup_elem(&port_bindings, &pb);
         } else {
-            state = bpf_map_lookup_elem(&udp_port_bindings, &pb);
+            port_count = bpf_map_lookup_elem(&udp_port_bindings, &pb);
         }
-        val->direction = (state != NULL) ? CONN_DIRECTION_INCOMING : CONN_DIRECTION_OUTGOING;
+        val->direction = (port_count != NULL && *port_count > 0) ? CONN_DIRECTION_INCOMING : CONN_DIRECTION_OUTGOING;
     }
 }
 

@@ -6,15 +6,15 @@ replace github.com/DataDog/datadog-agent/pkg/quantile => ../../quantile
 
 require (
 	github.com/DataDog/datadog-agent/pkg/quantile v0.37.0-rc.3
+	github.com/DataDog/sketches-go v1.4.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/stretchr/testify v1.7.2
-	go.opentelemetry.io/collector/pdata v0.50.0
-	go.opentelemetry.io/collector/semconv v0.50.0
+	go.opentelemetry.io/collector/pdata v0.51.0
+	go.opentelemetry.io/collector/semconv v0.51.0
 	go.uber.org/zap v1.21.0
 )
 
 require (
-	github.com/DataDog/sketches-go v1.4.1 // indirect
 	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect

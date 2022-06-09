@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/pb"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -28,7 +29,7 @@ func TestRawEncoder(t *testing.T) {
 		Tags:           []string{"foo:bar", "baz"},
 	}
 
-	source := config.NewLogSource("", logsConfig)
+	source := sources.NewLogSource("", logsConfig)
 
 	rawMessage := "message"
 	msg := newMessage([]byte(rawMessage), source, message.StatusError)
@@ -60,7 +61,7 @@ func TestRawEncoderDefaults(t *testing.T) {
 
 	logsConfig := &config.LogsConfig{}
 
-	source := config.NewLogSource("", logsConfig)
+	source := sources.NewLogSource("", logsConfig)
 
 	rawMessage := "a"
 	msg := newMessage([]byte(rawMessage), source, "")
@@ -90,7 +91,7 @@ func TestRawEncoderEmpty(t *testing.T) {
 
 	logsConfig := &config.LogsConfig{}
 
-	source := config.NewLogSource("", logsConfig)
+	source := sources.NewLogSource("", logsConfig)
 
 	rawMessage := ""
 	msg := newMessage([]byte(rawMessage), source, "")
@@ -119,7 +120,7 @@ func TestProtoEncoder(t *testing.T) {
 		Tags:           []string{"foo:bar", "baz"},
 	}
 
-	source := config.NewLogSource("", logsConfig)
+	source := sources.NewLogSource("", logsConfig)
 
 	rawMessage := "message"
 	msg := newMessage([]byte(rawMessage), source, message.StatusError)
@@ -151,7 +152,7 @@ func TestProtoEncoderEmpty(t *testing.T) {
 
 	logsConfig := &config.LogsConfig{}
 
-	source := config.NewLogSource("", logsConfig)
+	source := sources.NewLogSource("", logsConfig)
 
 	rawMessage := ""
 	msg := newMessage([]byte(rawMessage), source, "")
@@ -179,7 +180,7 @@ func TestProtoEncoderEmpty(t *testing.T) {
 
 func TestProtoEncoderHandleInvalidUTF8(t *testing.T) {
 	cfg := &config.LogsConfig{}
-	src := config.NewLogSource("", cfg)
+	src := sources.NewLogSource("", cfg)
 	msg := newMessage([]byte(""), src, "")
 	encoded, err := ProtoEncoder.Encode(msg, []byte("a\xfez"))
 	assert.NotNil(t, encoded)
@@ -194,7 +195,7 @@ func TestJsonEncoder(t *testing.T) {
 		Tags:           []string{"foo:bar", "baz"},
 	}
 
-	source := config.NewLogSource("", logsConfig)
+	source := sources.NewLogSource("", logsConfig)
 
 	rawMessage := "message"
 	msg := newMessage([]byte(rawMessage), source, message.StatusError)
