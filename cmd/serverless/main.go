@@ -154,14 +154,10 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		log.Warn("An API Key has been set in multiple places:", strings.Join(apikeySetIn, ", "))
 	}
 
-	// The agent is going to get any environment variables ending with _KMS_ENCRYPTED and _SECRET_ARN,
-	// get the contents of the environment variable, and query SM/KMS to retrieve the value. This allows us
-	// to read arbitrarily encrypted environment variables and use the decrypted version in the extension.
-	// Right now, this feature is used for dual shipping, since customers need to set DD_LOGS_CONFIGURATION
-	// and a few other variables, which include an API key. The user can set DD_LOGS_CONFIGURATION_SECRET_ARN
-	// or DD_LOGS_CONFIGURATION_KMS_ENCRYPTED, which will get converted in the extension to a plaintext
-	// DD_LOGS_CONFIGURATION, and will have dual shipping enabled without exposing
-	// their API key in plaintext through environment variables.
+	// Set secrets from the environment that are suffixed with
+	// KMS_ENCRYPTED or SECRET_ARN
+	setSecretsFromEnv(os.Environ())
+
 	for envKey, envVal := range getSecretEnvVars(os.Environ(), readAPIKeyFromSecretsManager, readAPIKeyFromKMS) {
 		os.Setenv(envKey, envVal)
 	}
