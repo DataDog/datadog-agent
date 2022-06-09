@@ -34,6 +34,7 @@ var nbHitTraces = 0
 var outputSketches = make([]gogen.SketchPayload_Sketch, 0)
 var outputLogs = make([]jsonServerlessPayload, 0)
 var outputTraces = make([]*pb.TracerPayload, 0)
+var hasBeenOutput = false
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -255,12 +256,13 @@ func startHTTPServer(port string) {
 			}
 		}
 
-		if nbReport == 2 {
+		if nbReport == 2 && !hasBeenOutput {
 			jsonLogs, err := json.Marshal(outputLogs)
 			if err != nil {
 				fmt.Printf("Error while JSON encoding the logs")
 			}
 			fmt.Printf("%s%s%s\n", "BEGINLOG", string(jsonLogs), "ENDLOG")
+			hasBeenOutput = true // make sure not re re-output the logs
 		}
 
 	})

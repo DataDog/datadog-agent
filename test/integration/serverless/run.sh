@@ -244,6 +244,7 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/ENDLOG/\1/g" |
                 perl -p -e "s/(\"timestamp\": )\d{13}/\1\"XXX\"/g" |
                 perl -p -e "s/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/TIMESTAMP/g" |
+                perl -p -e "s/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}:\d{3}/TIMESTAMP/g" |
                 perl -p -e "s/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/TIMESTAMP/g" |
                 perl -p -e "s/\d{4}\/\d{2}\/\d{2}\s\d{2}:\d{2}:\d{2}/TIMESTAMP/g" |
                 perl -p -e "s/\"timestamp\":\d{13},/\1/g" |

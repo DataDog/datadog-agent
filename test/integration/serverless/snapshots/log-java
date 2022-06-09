@@ -14,7 +14,7 @@
   },
   {
     "message": {
-      "message": "[dd.trace TIMESTAMP:299 +0000] [main] INFO datadog.trace.agent.common.writer.WriterFactory - Detected serverless environment. Serverless extension has been detected, using DDAgentWriter\n",
+      "message": "[dd.trace TIMESTAMP +0000] [main] INFO datadog.trace.agent.common.writer.WriterFactory - Detected serverless environment. Serverless extension has been detected, using DDAgentWriter\n",
       "lambda": {
         "arn": ""
       }
