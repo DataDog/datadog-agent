@@ -30,6 +30,7 @@ type RCPolicyProvider struct {
 	lastConfigs          []client.ConfigCWSDD
 }
 
+// NewRCPolicyProvider TODO <agent-security>
 func NewRCPolicyProvider(name string) (*RCPolicyProvider, error) {
 	c, err := remote.NewClient(name, []data.Product{data.ProductCWSDD})
 	if err != nil {
@@ -41,6 +42,7 @@ func NewRCPolicyProvider(name string) (*RCPolicyProvider, error) {
 	}, nil
 }
 
+// Start TODO <agent-security>
 func (r *RCPolicyProvider) Start() {
 	log.Info("remote-config policies provider started")
 
@@ -65,7 +67,7 @@ func normalize(policy *rules.Policy) {
 	}
 }
 
-// LoadPolicy implements the PolicyProvider interface
+// LoadPolicies implements the PolicyProvider interface
 func (r *RCPolicyProvider) LoadPolicies() ([]*rules.Policy, *multierror.Error) {
 	var policies []*rules.Policy
 	var errs *multierror.Error
@@ -88,7 +90,7 @@ func (r *RCPolicyProvider) LoadPolicies() ([]*rules.Policy, *multierror.Error) {
 	return policies, errs
 }
 
-// SetOnNewPolicyReadyCb implements the PolicyProvider interface
+// SetOnNewPoliciesReadyCb implements the PolicyProvider interface
 func (r *RCPolicyProvider) SetOnNewPoliciesReadyCb(cb func()) {
 	r.onNewPoliciesReadyCb = cb
 }
