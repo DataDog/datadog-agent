@@ -23,6 +23,10 @@ var (
 
 // GetHostAliases returns the host aliases from the Kubernetes node annotations
 func GetHostAliases(ctx context.Context) ([]string, error) {
+	if !config.IsFeaturePresent(config.Kubernetes) {
+		return []string{}, nil
+	}
+
 	aliases := []string{}
 
 	annotations, err := hostinfo.GetNodeAnnotations(ctx)

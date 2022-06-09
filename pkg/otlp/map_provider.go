@@ -53,8 +53,9 @@ func buildTracesMap(tracePort uint) (*config.Map, error) {
 		return nil, err
 	}
 	{
-		configMap := config.NewMap()
-		configMap.Set(buildKey("exporters", "otlp", "endpoint"), fmt.Sprintf("%s:%d", "localhost", tracePort))
+		configMap := config.NewMapFromStringMap(map[string]interface{}{
+			buildKey("exporters", "otlp", "endpoint"): fmt.Sprintf("%s:%d", "localhost", tracePort),
+		})
 		err = baseMap.Merge(configMap)
 	}
 	return baseMap, err
@@ -90,8 +91,9 @@ func buildMetricsMap(cfg PipelineConfig) (*config.Map, error) {
 	}
 
 	{
-		configMap := config.NewMap()
-		configMap.Set(buildKey("exporters", "serializer", "metrics"), cfg.Metrics)
+		configMap := config.NewMapFromStringMap(map[string]interface{}{
+			buildKey("exporters", "serializer", "metrics"): cfg.Metrics,
+		})
 		err = baseMap.Merge(configMap)
 	}
 	return baseMap, err

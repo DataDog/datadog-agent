@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/host"
@@ -48,6 +49,7 @@ func getSystemStats() *systemStats {
 		// fill the platform dependent bits of info
 		fillOsVersion(stats, hostInfo)
 		cache.Cache.Set(key, stats, cache.NoExpiration)
+		inventories.SetHostMetadata(inventories.HostOSVersion, getOSVersion(hostInfo))
 	}
 
 	return stats
