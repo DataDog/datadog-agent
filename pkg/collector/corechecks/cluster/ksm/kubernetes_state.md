@@ -362,7 +362,7 @@
 : Number of ingresses. Tags:`kube_namespace`.
 
 `kubernetes_state.ingress.path`
-: Information about the ingress path. Tags:`kube_namespace` `ingress_path` `kube_ingress` `ingress_service_name` `ingress_service_port` `ingress_host` .
+: Information about the ingress path. Tags:`kube_namespace` `kube_ingress_path` `kube_ingress` `kube_service` `kube_service_port` `kube_ingress_host` .
 
 ### Events
 
