@@ -757,8 +757,8 @@ func labelsMapperOverride(metricName string) map[string]string {
 
 	if strings.HasPrefix(metricName, "kube_ingress") {
 		return map[string]string{
-			"host":         "ingress_host",
-			"path":         "ingress_path",
+			"host":         "kube_ingress_host",
+			"path":         "kube_ingress_path",
 			"service_name": "kube_service",
 			"service_port": "kube_service_port",
 		}
