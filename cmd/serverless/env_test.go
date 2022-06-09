@@ -16,6 +16,8 @@ func TestGetSecretEnvVars(t *testing.T) {
 		"=TEST3",
 		"TEST_KMS_KMS_ENCRYPTED=123",
 		"TEST_SM_SECRET_ARN=123",
+		"",
+		"MALFORMED=ENV=VAR",
 	}
 
 	decryptedEnvVars := getSecretEnvVars(testEnvVars, getFunc, getFunc)
