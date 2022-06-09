@@ -1,8 +1,7 @@
 #pragma once
 
-#include "SID.h"
 #include "TargetMachine.h"
-
+#include "SecurityIdentifier.h"
 #include <map>
 #include <Msi.h>
 #include <optional>
@@ -18,8 +17,8 @@ class ICustomActionData
     virtual const std::wstring &UnqualifiedUsername() const = 0;
     virtual const std::wstring &Domain() const = 0;
     virtual const std::wstring &FullyQualifiedUsername() const = 0;
-    virtual PSID Sid() const = 0;
-    virtual void Sid(sid_ptr &sid) = 0;
+    virtual SecurityIdentifier const & Sid() const = 0;
+    virtual void Sid(SecurityIdentifier &&sid) = 0;
     virtual bool installSysprobe() const = 0;
     virtual std::shared_ptr<ITargetMachine> GetTargetMachine() const = 0;
 
@@ -55,8 +54,8 @@ class CustomActionData : ICustomActionData
     const std::wstring &UnqualifiedUsername() const override;
     const std::wstring &FullyQualifiedUsername() const override;
     const std::wstring &Domain() const override;
-    PSID Sid() const override;
-    void Sid(sid_ptr &sid) override;
+    SecurityIdentifier const & Sid() const override;
+    void Sid(SecurityIdentifier &&sid) override;
     bool installSysprobe() const override;
     std::shared_ptr<ITargetMachine> GetTargetMachine() const override;
 
@@ -68,7 +67,7 @@ class CustomActionData : ICustomActionData
     std::map<std::wstring, std::wstring> values;
     User _user;
     std::wstring _fullyQualifiedUsername;
-    sid_ptr _sid;
+    std::unique_ptr<SecurityIdentifier> _sid;
     bool _doInstallSysprobe;
     bool _ddnpmPresent;
     bool _ddUserExists;

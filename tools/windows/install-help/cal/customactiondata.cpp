@@ -2,6 +2,7 @@
 #include "customactiondata.h"
 #include "PropertyReplacer.h"
 #include <utility>
+#include "Error.h"
 
 CustomActionData::CustomActionData(std::shared_ptr<ITargetMachine> targetMachine)
 : _hInstall(NULL)
@@ -111,14 +112,17 @@ const std::wstring &CustomActionData::Domain() const
     return _user.Domain;
 }
 
-PSID CustomActionData::Sid() const
+SecurityIdentifier const & CustomActionData::Sid() const
 {
-    return _sid.get();
+    return *_sid.get();
 }
 
-void CustomActionData::Sid(sid_ptr &sid)
+void CustomActionData::Sid(SecurityIdentifier && sid)
 {
-    _sid = std::move(sid);
+    _sid = std::make_unique<SecurityIdentifier>(std::move(sid));
+    // Use the domain returned by <see cref="LookupAccountName" /> because
+    // it might be != from the one the user passed in.
+    _user.Domain = _sid->GetDomain();
 }
 
 bool CustomActionData::installSysprobe() const
@@ -271,22 +275,12 @@ void CustomActionData::ensureDomainHasCorrectFormat()
             // Compute a temporary fully qualified username to retrieve its SID
             // in order to determine if its prefix starts with NT AUTHORITY.
             auto tempFquname = _user.Domain + L"\\" + _user.Name;
-            auto sidResult = GetSidForUser(nullptr, tempFquname.c_str());
-            if (sidResult.Result != ERROR_NONE_MAPPED)
+            auto tempSid = SecurityIdentifier(tempFquname);
+            if (!tempSid.IsWellKnown(WELL_KNOWN_SID_TYPE::WinLocalSystemSid))
             {
-                const auto ntAuthoritySid = WellKnownSID::NTAuthority();
-                if (!ntAuthoritySid.has_value())
-                {
-                    WcaLog(LOGMSG_STANDARD, "Cannot check user SID against NT AUTHORITY: memory allocation failed");
-                }
-                else if (!EqualPrefixSid(
-                             sidResult.Sid.get(),
-                             ntAuthoritySid.value().get())) // NT Authority should never be considered a "domain".
-                {
-                    WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (\"%S\" != \"%S\")",
-                           _user.Domain.c_str(), _targetMachine->DnsDomainName().c_str());
-                    _domainUser = true;
-                }
+                WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (\"%S\" != \"%S\")",
+                       _user.Domain.c_str(), _targetMachine->DnsDomainName().c_str());
+                _domainUser = true;
             }
         }
     }
@@ -321,29 +315,24 @@ bool CustomActionData::parseUsernameData()
     ensureDomainHasCorrectFormat();
 
     _fullyQualifiedUsername = _user.Domain + L"\\" + _user.Name;
-    auto sidResult = GetSidForUser(nullptr, FullyQualifiedUsername().c_str());
-
-    if (sidResult.Result == ERROR_NONE_MAPPED)
+    try
     {
-        WcaLog(LOGMSG_STANDARD, "No account \"%S\" found.", FullyQualifiedUsername().c_str());
-        _ddUserExists = false;
+        auto sid = SecurityIdentifier(FullyQualifiedUsername());
+        WcaLog(LOGMSG_STANDARD, R"(Found SID "%S" for "%S")", sid.ToString().c_str(), FullyQualifiedUsername().c_str());
+        _ddUserExists = true;
+        Sid(std::move(sid));
     }
-    else
+    catch (Win32Exception &e)
     {
-        if (sidResult.Result == ERROR_SUCCESS && sidResult.Sid != nullptr)
+        if (e.GetErrorCode() == ERROR_NONE_MAPPED)
         {
-            WcaLog(LOGMSG_STANDARD, R"(Found SID for "%S" in "%S")", FullyQualifiedUsername().c_str(), sidResult.Domain.c_str());
-            _ddUserExists = true;
-            _sid = std::move(sidResult.Sid);
-
-            // Use the domain returned by <see cref="LookupAccountName" /> because
-            // it might be != from the one the user passed in.
-            _user.Domain = sidResult.Domain;
+            _ddUserExists = false;
         }
         else
         {
-            WcaLog(LOGMSG_STANDARD, "Looking up SID for \"%S\": %S", FullyQualifiedUsername().c_str(),
-                   FormatErrorMessage(sidResult.Result).c_str());
+            WcaLog(LOGMSG_STANDARD, R"(Error while looking up SID for "%S": %S")",
+                FullyQualifiedUsername().c_str(),
+                FormatErrorMessage(e.GetErrorCode()));
             return false;
         }
     }

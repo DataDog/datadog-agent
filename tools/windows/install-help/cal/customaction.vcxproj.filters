@@ -39,6 +39,12 @@
     <ClCompile Include="TargetMachine.cpp">
       <Filter>helper</Filter>
     </ClCompile>
+    <ClCompile Include="SID.cpp">
+      <Filter>helper</Filter>
+    </ClCompile>
+    <ClCompile Include="SecurityIdentifier.cpp">
+      <Filter>helper</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="customactiondata.h" />
@@ -77,6 +83,9 @@
       <Filter>resources</Filter>
     </ClInclude>
     <ClInclude Include="TargetMachine.h">
+      <Filter>helper</Filter>
+    </ClInclude>
+    <ClInclude Include="SecurityIdentifier.h">
       <Filter>helper</Filter>
     </ClInclude>
   </ItemGroup>

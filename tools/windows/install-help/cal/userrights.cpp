@@ -1,83 +1,6 @@
 #include "stdafx.h"
 
-SidResult GetSidForUser(LPCWSTR host, LPCWSTR user)
-{
-
-    DWORD cbSid = 0;
-    DWORD cchRefDomain = 0;
-    SID_NAME_USE use;
-
-    LookupAccountName(host, user, nullptr, &cbSid, nullptr, &cchRefDomain, &use);
-    sid_ptr newsid = make_sid(cbSid);
-    std::vector<wchar_t> refDomain;
-    // +1 in case cchRefDomain == 0
-    refDomain.resize(cchRefDomain + 1);
-    if (!LookupAccountName(host, user, newsid.get(), &cbSid, &refDomain[0], &cchRefDomain, &use))
-    {
-        return SidResult(GetLastError());
-    }
-
-    if (!IsValidSid(newsid.get()))
-    {
-        return SidResult(ERROR_INVALID_SID);
-    }
-
-    return SidResult(newsid, std::wstring(refDomain.data()), ERROR_SUCCESS);
-}
-
-bool GetNameForSid(LPCWSTR host, PSID sid, std::wstring &namestr)
-{
-    wchar_t *name = NULL;
-    DWORD cchName = 0;
-    LPWSTR refDomain = NULL;
-    DWORD cchRefDomain = 0;
-    SID_NAME_USE use;
-    BOOL success = false;
-    BOOL bRet = LookupAccountSid(host, sid, name, &cchName, refDomain, &cchRefDomain, &use);
-    if (bRet)
-    {
-        // this should *never* happen, because we didn't pass in a buffer large enough for
-        // the sid or the domain name.
-        WcaLog(LOGMSG_STANDARD, "Unexpected success looking up account sid");
-        return false;
-    }
-    DWORD err = GetLastError();
-    if (ERROR_INSUFFICIENT_BUFFER != err)
-    {
-        WcaLog(LOGMSG_STANDARD, "Unexpected failure looking up account sid %d", err);
-        // we don't know what happened
-        return false;
-    }
-    name = (wchar_t *)new wchar_t[cchName];
-    ZeroMemory(name, cchName * sizeof(wchar_t));
-
-    refDomain = new wchar_t[cchRefDomain + 1];
-    ZeroMemory(refDomain, (cchRefDomain + 1) * sizeof(wchar_t));
-
-    // try it again
-    bRet = LookupAccountSid(host, sid, name, &cchName, refDomain, &cchRefDomain, &use);
-    if (!bRet)
-    {
-        WcaLog(LOGMSG_STANDARD, "Failed to lookup account name %d", GetLastError());
-        goto cleanAndDone;
-    }
-    success = true;
-    WcaLog(LOGMSG_STANDARD, "Got account sid from %S\n", refDomain);
-    namestr = name;
-
-cleanAndDone:
-    if (name)
-    {
-        delete[](wchar_t *) name;
-    }
-    if (refDomain)
-    {
-        delete[] refDomain;
-    }
-    return success;
-}
-
-bool RemovePrivileges(PSID AccountSID, LSA_HANDLE PolicyHandle, LPCWSTR rightToAdd)
+bool RemovePrivileges(SecurityIdentifier const &sid, LSA_HANDLE PolicyHandle, LPCWSTR rightToAdd)
 {
     LSA_UNICODE_STRING lucPrivilege;
     NTSTATUS ntsResult;
@@ -90,7 +13,7 @@ bool RemovePrivileges(PSID AccountSID, LSA_HANDLE PolicyHandle, LPCWSTR rightToA
     }
 
     ntsResult = LsaRemoveAccountRights(PolicyHandle, // An open policy handle.
-                                       AccountSID,   // The target SID.
+                                       sid.GetSid(),   // The target SID.
                                        FALSE,
                                        &lucPrivilege, // The privileges.
                                        1              // Number of privileges.
@@ -107,7 +30,7 @@ bool RemovePrivileges(PSID AccountSID, LSA_HANDLE PolicyHandle, LPCWSTR rightToA
     return false;
 }
 
-bool AddPrivileges(PSID AccountSID, LSA_HANDLE PolicyHandle, LPCWSTR rightToAdd)
+bool AddPrivileges(SecurityIdentifier const &sid, LSA_HANDLE PolicyHandle, LPCWSTR rightToAdd)
 {
     LSA_UNICODE_STRING lucPrivilege;
     NTSTATUS ntsResult;
@@ -120,7 +43,7 @@ bool AddPrivileges(PSID AccountSID, LSA_HANDLE PolicyHandle, LPCWSTR rightToAdd)
     }
 
     ntsResult = LsaAddAccountRights(PolicyHandle,  // An open policy handle.
-                                    AccountSID,    // The target SID.
+                                    sid.GetSid(),           // The target SID.
                                     &lucPrivilege, // The privileges.
                                     1              // Number of privileges.
     );
@@ -187,19 +110,20 @@ bool InitLsaString(PLSA_UNICODE_STRING pLsaString, LPCWSTR pwszString)
 
     return TRUE;
 }
-void BuildExplicitAccessWithSid(EXPLICIT_ACCESS_W &data, PSID pSID, DWORD perms, ACCESS_MODE mode, DWORD inheritance)
+void BuildExplicitAccessWithSid(EXPLICIT_ACCESS_W &data, SecurityIdentifier const &sid, DWORD perms, ACCESS_MODE mode,
+                                DWORD inheritance)
 {
     data.grfAccessPermissions = perms;
     data.grfAccessMode = mode;
     data.grfInheritance = inheritance;
-    data.Trustee.pMultipleTrustee = NULL;
+    data.Trustee.pMultipleTrustee = nullptr;
     data.Trustee.MultipleTrusteeOperation = NO_MULTIPLE_TRUSTEE;
     data.Trustee.TrusteeForm = TRUSTEE_IS_SID;
     data.Trustee.TrusteeType = TRUSTEE_IS_USER;
-    data.Trustee.ptstrName = (LPTSTR)pSID;
+    data.Trustee.ptstrName = reinterpret_cast<LPTSTR>(sid.GetSid());
 }
 
-int EnableServiceForUser(PSID sid, const std::wstring &service)
+int EnableServiceForUser(SecurityIdentifier const &sid, const std::wstring &service)
 {
     int ret = 0;
     SC_HANDLE hscm = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS | GENERIC_ALL | READ_CONTROL);
@@ -294,24 +218,19 @@ cleanAndReturn:
 
 void getGroupNameFromSidString(wchar_t *groupSidString, wchar_t *defaultGroupName, std::wstring &groupname)
 {
-    // need to look up the group name by SID; the group name can be localized
-    PSID groupsid = NULL;
-    if (!ConvertStringSidToSid(groupSidString, &groupsid))
+    try
     {
-        WcaLog(LOGMSG_STANDARD, "failed to convert sid string to sid; attempting default");
+        auto sid = SecurityIdentifier::FromString(groupSidString);
+        groupname = sid.GetName();
+    }
+    catch (...)
+    {
+        WcaLog(LOGMSG_STANDARD, "failed to get group name for sid; using default");
         groupname = defaultGroupName;
     }
-    else
-    {
-        if (!GetNameForSid(NULL, groupsid, groupname))
-        {
-            WcaLog(LOGMSG_STANDARD, "failed to get group name for sid; using default");
-            groupname = defaultGroupName;
-        }
-        LocalFree((LPVOID)groupsid);
-    }
 }
-DWORD AddUserToGroup(PSID userSid, wchar_t *groupSidString, wchar_t *defaultGroupName)
+
+DWORD AddUserToGroup(SecurityIdentifier const &sid, wchar_t *groupSidString, wchar_t *defaultGroupName)
 {
 
     DWORD nErr = 0;
@@ -319,7 +238,7 @@ DWORD AddUserToGroup(PSID userSid, wchar_t *groupSidString, wchar_t *defaultGrou
 
     LOCALGROUP_MEMBERS_INFO_0 lmi0;
     memset(&lmi0, 0, sizeof(LOCALGROUP_MEMBERS_INFO_0));
-    lmi0.lgrmi0_sid = userSid;
+    lmi0.lgrmi0_sid = sid.GetSid();
 
     getGroupNameFromSidString(groupSidString, defaultGroupName, groupname);
     WcaLog(LOGMSG_STANDARD, "Attempting to add to group %S", groupname.c_str());
@@ -340,14 +259,14 @@ DWORD AddUserToGroup(PSID userSid, wchar_t *groupSidString, wchar_t *defaultGrou
     return nErr;
 }
 
-DWORD DelUserFromGroup(PSID userSid, wchar_t *groupSidString, wchar_t *defaultGroupName)
+DWORD DelUserFromGroup(SecurityIdentifier const &sid, wchar_t *groupSidString, wchar_t *defaultGroupName)
 {
     DWORD nErr = 0;
     std::wstring groupname;
 
     LOCALGROUP_MEMBERS_INFO_0 lmi0;
     memset(&lmi0, 0, sizeof(LOCALGROUP_MEMBERS_INFO_0));
-    lmi0.lgrmi0_sid = userSid;
+    lmi0.lgrmi0_sid = sid.GetSid();
 
     getGroupNameFromSidString(groupSidString, defaultGroupName, groupname);
     WcaLog(LOGMSG_STANDARD, "Attempting to remove from group %S", groupname.c_str());

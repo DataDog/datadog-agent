@@ -741,7 +741,7 @@ class serviceDef
 static    wchar_t * probeDepsNoNPM = L"datadogagent\0\0";
 static    wchar_t * probeDepsWithNPM = L"datadogagent\0ddnpm\0\0";
 
-int installServices(CustomActionData &data, PSID sid, const wchar_t *password)
+int installServices(CustomActionData &data, SecurityIdentifier const &sid, const wchar_t *password)
 {
     SC_HANDLE hScManager = NULL;
     SC_HANDLE hService = NULL;
@@ -881,7 +881,7 @@ int uninstallServices(CustomActionData &data)
         DWORD rbret = services[i].destroy(hScManager);
         if (rbret != 0)
         {
-            auto lastErrStr = GetErrorMessageStrW(rbret);
+            auto lastErrStr = FormatErrorMessage(rbret);
             WcaLog(LOGMSG_STANDARD, "Failed to uninstall service %S (%d)", lastErrStr.c_str(), rbret);
         }
     }

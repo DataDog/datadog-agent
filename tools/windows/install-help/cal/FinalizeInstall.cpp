@@ -221,14 +221,17 @@ UINT doFinalizeInstall(CustomActionData &data)
                 goto LExit;
             }
 
-            auto sidResult = GetSidForUser(nullptr, data.FullyQualifiedUsername().c_str());
-            if (sidResult.Result != ERROR_SUCCESS)
+            try
             {
-                WcaLog(LOGMSG_STANDARD, "Failed to lookup account name: %d", GetLastError());
+                auto sid = SecurityIdentifier(data.FullyQualifiedUsername());
+                data.Sid(std::move(sid));
+            }
+            catch (Win32Exception &e)
+            {
+                WcaLog(LOGMSG_STANDARD, "Failed to lookup account name: %S", FormatErrorMessage(e.GetErrorCode()));
                 er = ERROR_INSTALL_FAILURE;
                 goto LExit;
             }
-            data.Sid(sidResult.Sid);
 
             // store that we created the user, and store the username so we can
             // delete on rollback/uninstall
@@ -393,7 +396,7 @@ UINT doFinalizeInstall(CustomActionData &data)
         if (!bRet)
         {
             DWORD lastErr = GetLastError();
-            auto lastErrStr = GetErrorMessageStrW(lastErr);
+            auto lastErrStr = FormatErrorMessage(lastErr);
             WcaLog(LOGMSG_STANDARD, "CreateSymbolicLink: %S (%d)", lastErrStr.c_str(), lastErr);
         }
         else

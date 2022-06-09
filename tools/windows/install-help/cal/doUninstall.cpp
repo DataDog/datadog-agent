@@ -121,26 +121,24 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
 
     if (willDeleteUser)
     {
-        auto sidResult = GetSidForUser(nullptr, installedComplete.c_str());
-
-        // Do not try to do anything if we don't find the user.
-        if (sidResult.Result == ERROR_SUCCESS)
+        try
         {
+            auto sid = SecurityIdentifier(installedComplete.c_str());
             // remove dd user from programdata root
-            removeUserPermsFromFile(programdataroot, sidResult.Sid.get());
+            removeUserPermsFromFile(programdataroot, sid);
 
             // remove dd user from log directory
-            removeUserPermsFromFile(logdir, sidResult.Sid.get());
+            removeUserPermsFromFile(logdir, sid);
 
             // remove dd user from conf directory
-            removeUserPermsFromFile(confddir, sidResult.Sid.get());
+            removeUserPermsFromFile(confddir, sid);
 
             // remove dd user from datadog.yaml
-            removeUserPermsFromFile(datadogyamlfile, sidResult.Sid.get());
+            removeUserPermsFromFile(datadogyamlfile, sid);
 
             // remove dd user from Performance monitor users
-            DelUserFromGroup(sidResult.Sid.get(), L"S-1-5-32-558", L"Performance Monitor Users");
-            DelUserFromGroup(sidResult.Sid.get(), L"S-1-5-32-573", L"Event Log Readers");
+            DelUserFromGroup(sid, L"S-1-5-32-558", L"Performance Monitor Users");
+            DelUserFromGroup(sid, L"S-1-5-32-573", L"Event Log Readers");
 
             // remove dd user right for
             //   SE_SERVICE_LOGON NAME
@@ -149,20 +147,20 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
             //   SE_DENY_INTERACTIVE_LOGIN_NAME
             if ((hLsa = GetPolicyHandle()) != NULL)
             {
-                if (!RemovePrivileges(sidResult.Sid.get(), hLsa, SE_DENY_INTERACTIVE_LOGON_NAME))
+                if (!RemovePrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME))
                 {
                     WcaLog(LOGMSG_STANDARD, "failed to remove deny interactive login right");
                 }
 
-                if (!RemovePrivileges(sidResult.Sid.get(), hLsa, SE_DENY_NETWORK_LOGON_NAME))
+                if (!RemovePrivileges(sid, hLsa, SE_DENY_NETWORK_LOGON_NAME))
                 {
                     WcaLog(LOGMSG_STANDARD, "failed to remove deny network login right");
                 }
-                if (!RemovePrivileges(sidResult.Sid.get(), hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME))
+                if (!RemovePrivileges(sid, hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME))
                 {
                     WcaLog(LOGMSG_STANDARD, "failed to remove deny remote interactive login right");
                 }
-                if (!RemovePrivileges(sidResult.Sid.get(), hLsa, SE_SERVICE_LOGON_NAME))
+                if (!RemovePrivileges(sid, hLsa, SE_SERVICE_LOGON_NAME))
                 {
                     WcaLog(LOGMSG_STANDARD, "failed to remove service login right");
                 }
@@ -179,8 +177,13 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
             else
             {
                 // delete the home directory that was left behind
-                DeleteHomeDirectory(installedUser, sidResult.Sid.get());
+                DeleteHomeDirectory(installedUser, sid);
             }
+        }
+        catch (std::exception &e)
+        {
+            // Do not try to do anything if we don't find the user.
+            WcaLog(LOGMSG_STANDARD, "Failed to lookup %S, not doing anything", installedComplete.c_str());
         }
     }
     // remove the auth token file altogether

@@ -71,7 +71,7 @@ bool generatePassword(wchar_t *passbuf, int passbuflen)
     WcaLog(LOGMSG_STANDARD, "Took %d passes to generate the password", times);
     return true;
 }
-DWORD changeRegistryAcls(PSID sid, const wchar_t *name)
+DWORD changeRegistryAcls(SecurityIdentifier const &sid, const wchar_t *name)
 {
 
     WcaLog(LOGMSG_STANDARD, "Changing registry ACL on %S", name);
@@ -86,7 +86,7 @@ DWORD changeRegistryAcls(PSID sid, const wchar_t *name)
     // suser.BuildGrantUser(secretUserUsername.c_str(), GENERIC_READ | GENERIC_EXECUTE | READ_CONTROL | KEY_READ);
 
     ExplicitAccess dduser;
-    dduser.BuildGrantUser((SID *)sid, GENERIC_ALL | KEY_ALL_ACCESS, SUB_CONTAINERS_AND_OBJECTS_INHERIT);
+    dduser.BuildGrantUser(sid.GetSid(), GENERIC_ALL | KEY_ALL_ACCESS, SUB_CONTAINERS_AND_OBJECTS_INHERIT);
 
     WinAcl acl;
     acl.AddToArray(localsystem);
@@ -112,7 +112,7 @@ DWORD changeRegistryAcls(PSID sid, const wchar_t *name)
     return ret;
 }
 
-DWORD addDdUserPermsToFile(PSID sid, std::wstring &filename)
+DWORD addDdUserPermsToFile(SecurityIdentifier const &sid, std::wstring &filename)
 {
 
     if (!PathFileExistsW((LPCWSTR)filename.c_str()))
@@ -123,7 +123,7 @@ DWORD addDdUserPermsToFile(PSID sid, std::wstring &filename)
     }
     WcaLog(LOGMSG_STANDARD, "Changing file permissions on %S", filename.c_str());
     ExplicitAccess dduser;
-    dduser.BuildGrantUser((SID *)sid, FILE_ALL_ACCESS, SUB_CONTAINERS_AND_OBJECTS_INHERIT);
+    dduser.BuildGrantUser(sid.GetSid(), FILE_ALL_ACCESS, SUB_CONTAINERS_AND_OBJECTS_INHERIT);
 
     // get the current ACLs and append, rather than just set; if the file exists,
     // the user may have already set custom ACLs on the file, and we don't want
@@ -166,7 +166,7 @@ DWORD addDdUserPermsToFile(PSID sid, std::wstring &filename)
     return dwRes;
 }
 
-void removeUserPermsFromFile(std::wstring &filename, PSID sidremove)
+void removeUserPermsFromFile(std::wstring &filename, SecurityIdentifier const &sid)
 {
     if (!PathFileExistsW((LPCWSTR)filename.c_str()))
     {
@@ -202,8 +202,8 @@ void removeUserPermsFromFile(std::wstring &filename, PSID sidremove)
 
         if (GetAce(pOldDacl, i, (LPVOID *)&ace))
         {
-            PSID compareSid = (PSID)(&ace->SidStart);
-            if (EqualSid(compareSid, sidremove))
+            PSID compareSid = &ace->SidStart;
+            if (EqualSid(compareSid, sid.GetSid()))
             {
                 WcaLog(LOGMSG_STANDARD, "Matched sid on file %S, removing", filename.c_str());
                 if (!DeleteAce(pOldDacl, i))
@@ -272,15 +272,7 @@ int doCreateUser(const std::wstring &name, const std::wstring &comment, const wc
     }
     else
     {
-        const auto lmErrIt = lmerrors.find(ret - NERR_BASE);
-        if (lmErrIt != lmerrors.end())
-        {
-            WcaLog(LOGMSG_STANDARD, "NetUserAdd: %d = %S", ret, lmErrIt->second.c_str());
-        }
-        else
-        {
-            WcaLog(LOGMSG_STANDARD, "NetUserAdd: %d", ret);
-        }
+        WcaLog(LOGMSG_STANDARD, "NetUserAdd: %d = %S", ret, FormatErrorMessage(ret).c_str());
     }
     return ret;
 }

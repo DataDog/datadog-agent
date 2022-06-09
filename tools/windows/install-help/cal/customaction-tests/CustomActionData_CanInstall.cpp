@@ -18,12 +18,8 @@ DDAGENTUSER_PASSWORD=1234
 
     // Since "different_domain\test" is a bogus domain\user,
     // we allocate a LOCAL_SID that is guaranteed to not match NT_AUTHORITY
-    SID_IDENTIFIER_AUTHORITY sidIdAuthority = SECURITY_LOCAL_SID_AUTHORITY;
-    PSID sid = nullptr;
-    EXPECT_TRUE(AllocateAndInitializeSid(&sidIdAuthority, 1, 0, 0, 0, 0, 0, 0, 0, 0, &sid));
-    sid_ptr sid_ptr(static_cast<SID *>(sid));
     // and set it on the CustomActionData so that the test has a valid SID to use.
-    customActionCtx.Sid(sid_ptr);
+    customActionCtx.Sid(SecurityIdentifier::CreateWellKnown(WELL_KNOWN_SID_TYPE::WinLocalAccountSid));
     bool shouldResetPass;
 
     bool result = canInstall(

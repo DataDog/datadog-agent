@@ -156,7 +156,7 @@ BOOL DeleteFilesInDirectory(const wchar_t *dirname, const wchar_t *ext, bool dir
  * @param userSID  The SID for the aforementioned user
  *
  */
-BOOL DeleteHomeDirectory(const std::wstring &user, PSID userSID)
+BOOL DeleteHomeDirectory(const std::wstring &user, SecurityIdentifier const &sid)
 {
     // first, find the path to the home directories
     bool ret = false;
@@ -248,7 +248,7 @@ BOOL DeleteHomeDirectory(const std::wstring &user, PSID userSID)
                         {
                             ACCESS_ALLOWED_ACE *aaa = (ACCESS_ALLOWED_ACE *)pAce;
                             PSID thisSid = &(aaa->SidStart);
-                            if (EqualSid(userSID, thisSid))
+                            if (EqualSid(sid.GetSid(), thisSid))
                             {
                                 WcaLog(LOGMSG_STANDARD, "User sid has access to %S, scheduling for delete",
                                        fullpath.c_str());

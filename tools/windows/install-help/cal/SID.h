@@ -1,25 +1,26 @@
 #pragma once
-#include <heapapi.h>
+#include <WinBase.h>
 #include <memory>
-#include <optional>
+#include <string>
 
-template <class P> struct heap_deleter
+template <class P> struct LocalDeleter
 {
-    typedef P *pointer;
+    typedef P *Pointer;
 
-    void operator()(pointer ptr) const
+    void operator()(Pointer ptr) const
     {
-        HeapFree(GetProcessHeap(), 0, ptr);
+        LocalFree(ptr);
     }
 };
-typedef std::unique_ptr<SID, heap_deleter<SID>> sid_ptr;
+typedef std::unique_ptr<SID, LocalDeleter<SID>> SidPtr;
 
-inline sid_ptr make_sid(size_t sidLength)
+inline SidPtr MakeSid(size_t sidLength)
 {
-    return sid_ptr(static_cast<sid_ptr::pointer>(HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sidLength)));
+    return SidPtr(static_cast<SidPtr::pointer>(LocalAlloc(LPTR, sidLength)));
 }
 
-namespace WellKnownSID
+namespace WellKnownSid
 {
-std::optional<sid_ptr> NTAuthority();
-} // namespace WellKnownSID
+SidPtr Create(WELL_KNOWN_SID_TYPE sidType);
+std::wstring ToString(WELL_KNOWN_SID_TYPE sidType);
+} // namespace WellKnownSid

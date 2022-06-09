@@ -1,13 +1,20 @@
 #include "stdafx.h"
 #include "SID.h"
 
-std::optional<sid_ptr> WellKnownSID::NTAuthority()
+SidPtr WellKnownSid::Create(WELL_KNOWN_SID_TYPE sidType)
 {
-    SID_IDENTIFIER_AUTHORITY sidIdAuthority = SECURITY_NT_AUTHORITY;
-    sid_ptr sid = make_sid(GetSidLengthRequired(1));
-    if (InitializeSid(sid.get(), &sidIdAuthority, 1))
+    DWORD sidLength = 0;
+    if (!CreateWellKnownSid(sidType, nullptr, nullptr, &sidLength))
     {
-        return sid;
+        auto error = GetLastError();
+        if (error == ERROR_INVALID_PARAMETER || error == ERROR_INSUFFICIENT_BUFFER)
+        {
+            auto ntAuthorityPsId = MakeSid(sidLength);
+            if (CreateWellKnownSid(sidType, nullptr, ntAuthorityPsId.get(), &sidLength))
+            {
+                return ntAuthorityPsId;
+            }
+        }
     }
-    return std::nullopt;
+    throw std::exception("could not create well known sid");
 }

@@ -171,6 +171,7 @@
     <ClCompile Include="FinalizeInstall.cpp" />
     <ClCompile Include="PropertyReplacer.cpp" />
     <ClCompile Include="rollback.cpp" />
+    <ClCompile Include="SecurityIdentifier.cpp" />
     <ClCompile Include="SID.cpp" />
     <ClCompile Include="TargetMachine.cpp" />
     <ClCompile Include="precompiled\stdafx.cpp">
@@ -198,6 +199,7 @@
     <ClInclude Include="lmerr_str.h" />
     <ClInclude Include="PropertyReplacer.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="SecurityIdentifier.h" />
     <ClInclude Include="SID.h" />
     <ClInclude Include="precompiled\stdafx.h" />
     <ClInclude Include="strings.h" />
