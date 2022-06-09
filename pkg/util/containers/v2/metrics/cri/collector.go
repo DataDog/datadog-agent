@@ -11,7 +11,7 @@ package cri
 import (
 	"time"
 
-	"k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
@@ -99,7 +99,7 @@ func (collector *criCollector) GetSelfContainerID() (string, error) {
 	return "", nil
 }
 
-func (collector *criCollector) getCriContainerStats(containerID string) (*v1alpha2.ContainerStats, error) {
+func (collector *criCollector) getCriContainerStats(containerID string) (*v1.ContainerStats, error) {
 	stats, err := collector.client.GetContainerStats(containerID)
 	if err != nil {
 		return nil, err

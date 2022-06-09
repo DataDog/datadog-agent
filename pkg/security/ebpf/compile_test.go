@@ -18,7 +18,6 @@ import (
 
 func TestLoaderCompile(t *testing.T) {
 	cfg := ebpf.NewConfig()
-	var cflags []string
-	_, err := runtime.RuntimeSecurity.Compile(cfg, cflags)
+	_, err := getRuntimeCompiledProbe(cfg, false)
 	require.NoError(t, err)
 }

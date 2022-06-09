@@ -160,6 +160,16 @@ func CreateArchive(local bool, distPath, pyChecksPath string, logFilePaths []str
 }
 
 func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, logFilePaths []string, pdata ProfileData, ipcError error) (string, error) {
+
+	/** WARNING
+	 *
+	 * When adding data to flares, carefully analyze the what is being added
+	 * and ensure that it contains no credentials or unnecessary user-specific
+	 * data.  The ./pkg/util/scrubber package can be useful for scrubbing
+	 * secrets that match pre-programmed patterns, but it is always better to
+	 * not capture data containing secrets, than to scrub that data.
+	 */
+
 	tempDir, err := createTempDir()
 	if err != nil {
 		return "", err
@@ -684,17 +694,10 @@ func zipDiagnose(tempDir, hostname string) error {
 	return writeScrubbedFile(f, b.Bytes())
 }
 
-func zipFile(sourceDir, targetDir, filename string) error {
-	original, err := os.Open(filepath.Join(sourceDir, filename))
+func zipReader(r io.Reader, targetDir, filename string) error {
 	targetPath := filepath.Join(targetDir, filename)
 
-	if err != nil {
-		return err
-	}
-	defer original.Close()
-
-	err = ensureParentDirsExist(targetPath)
-	if err != nil {
+	if err := ensureParentDirsExist(targetPath); err != nil {
 		return err
 	}
 
@@ -708,7 +711,7 @@ func zipFile(sourceDir, targetDir, filename string) error {
 	// see: https://github.com/golang/go/issues/44272
 	buf := make([]byte, 256)
 	for {
-		n, err := original.Read(buf)
+		n, err := r.Read(buf)
 		if err != nil && err != io.EOF {
 			return err
 		}
@@ -721,6 +724,16 @@ func zipFile(sourceDir, targetDir, filename string) error {
 		}
 	}
 	return err
+}
+
+func zipFile(sourceDir, targetDir, filename string) error {
+	original, err := os.Open(filepath.Join(sourceDir, filename))
+	if err != nil {
+		return err
+	}
+	defer original.Close()
+
+	return zipReader(original, targetDir, filename)
 }
 
 func zipRegistryJSON(tempDir, hostname string) error {
@@ -978,6 +991,11 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 
 // writeScrubbedFile writes the given data to the given file, after applying
 // flareScrubber to it.
+//
+// WARNING: while this function applies a scrubber, that scrubber cannot scrub
+// all secrets.  Ensure that the data being written cannot contain user secrets
+// or proprietary information. For example, do not include arbitrary
+// environment variables.
 func writeScrubbedFile(filename string, data []byte) error {
 	scrubbed, err := flareScrubber.ScrubBytes(data)
 	if err != nil {

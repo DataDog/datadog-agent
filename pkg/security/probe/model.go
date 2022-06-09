@@ -17,7 +17,6 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/mailru/easyjson/jwriter"
-	"golang.org/x/sys/unix"
 
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
@@ -76,7 +75,6 @@ type Event struct {
 	model.Event
 
 	resolvers           *Resolvers
-	processCacheEntry   *model.ProcessCacheEntry
 	pathResolutionError error
 	scrubber            *pconfig.DataScrubber
 	probe               *Probe
@@ -84,16 +82,16 @@ type Event struct {
 
 // Retain the event
 func (ev *Event) Retain() Event {
-	if ev.processCacheEntry != nil {
-		ev.processCacheEntry.Retain()
+	if ev.ProcessCacheEntry != nil {
+		ev.ProcessCacheEntry.Retain()
 	}
 	return *ev
 }
 
 // Release the event
 func (ev *Event) Release() {
-	if ev.processCacheEntry != nil {
-		ev.processCacheEntry.Release()
+	if ev.ProcessCacheEntry != nil {
+		ev.ProcessCacheEntry.Release()
 	}
 }
 
@@ -104,19 +102,7 @@ func (ev *Event) GetPathResolutionError() error {
 
 // ResolveFilePath resolves the inode to a full path
 func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
-	// do not try to resolve mmap events when they aren't backed by any file
-	switch ev.GetEventType() {
-	case model.MMapEventType:
-		if ev.MMap.Flags&unix.MAP_ANONYMOUS != 0 {
-			return ""
-		}
-	case model.LoadModuleEventType:
-		if ev.LoadModule.LoadedFromMemory {
-			return ""
-		}
-	}
-
-	if len(f.PathnameStr) == 0 {
+	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
 		path, err := ev.resolvers.resolveFileFieldsPath(&f.FileFields)
 		if err != nil {
 			switch err.(type) {
@@ -127,18 +113,18 @@ func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 				ev.SetPathResolutionError(err)
 			}
 		}
-		f.PathnameStr = path
+		f.SetPathnameStr(path)
 	}
 	return f.PathnameStr
 }
 
 // ResolveFileBasename resolves the inode to a full path
 func (ev *Event) ResolveFileBasename(f *model.FileEvent) string {
-	if len(f.BasenameStr) == 0 {
+	if !f.IsBasenameStrResolved && len(f.BasenameStr) == 0 {
 		if f.PathnameStr != "" {
-			f.BasenameStr = path.Base(f.PathnameStr)
+			f.SetBasenameStr(path.Base(f.PathnameStr))
 		} else {
-			f.BasenameStr = ev.resolvers.resolveBasename(&f.FileFields)
+			f.SetBasenameStr(ev.resolvers.resolveBasename(&f.FileFields))
 		}
 	}
 	return f.BasenameStr
@@ -222,12 +208,9 @@ func (ev *Event) ResolveContainerTags(e *model.ContainerContext) []string {
 	return e.Tags
 }
 
-// UnmarshalProcess unmarshal a Process
-func (ev *Event) UnmarshalProcess(data []byte) (int, error) {
-	// reset the process cache entry of the current event
-	entry := ev.resolvers.ProcessResolver.NewProcessCacheEntry()
-	entry.Pid = ev.ProcessContext.Pid
-	entry.Tid = ev.ProcessContext.Tid
+// UnmarshalProcessCacheEntry unmarshal a Process
+func (ev *Event) UnmarshalProcessCacheEntry(data []byte) (int, error) {
+	entry := ev.resolvers.ProcessResolver.NewProcessCacheEntry(ev.PIDContext)
 
 	n, err := entry.Process.UnmarshalBinary(data)
 	if err != nil {
@@ -235,7 +218,7 @@ func (ev *Event) UnmarshalProcess(data []byte) (int, error) {
 	}
 	entry.Process.ContainerID = ev.ContainerContext.ID
 
-	ev.processCacheEntry = entry
+	ev.ProcessCacheEntry = entry
 
 	return n, nil
 }
@@ -483,16 +466,22 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 	return ev.Timestamp
 }
 
-// ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessCacheEntry of the event
+// ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
 func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
-	if ev.processCacheEntry == nil {
-		ev.processCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.ProcessContext.Pid, ev.ProcessContext.Tid)
-		if ev.processCacheEntry == nil {
-			ev.processCacheEntry = &model.ProcessCacheEntry{}
-		}
+	if ev.ProcessCacheEntry == nil {
+		ev.ProcessCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid)
 	}
 
-	return ev.processCacheEntry
+	if ev.ProcessCacheEntry == nil {
+		// keep the original PIDContext
+		ev.ProcessCacheEntry = model.NewProcessCacheEntry(nil)
+		ev.ProcessCacheEntry.PIDContext = ev.PIDContext
+
+		ev.ProcessCacheEntry.FileEvent.SetPathnameStr("")
+		ev.ProcessCacheEntry.FileEvent.SetBasenameStr("")
+	}
+
+	return ev.ProcessCacheEntry
 }
 
 // GetProcessServiceTag returns the service tag based on the process context

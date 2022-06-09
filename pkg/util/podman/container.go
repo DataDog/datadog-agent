@@ -12,7 +12,7 @@ import (
 	"net"
 	"time"
 
-	cnitypes "github.com/containernetworking/cni/pkg/types/current"
+	cnitypes "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/cri-o/ocicni/pkg/ocicni"
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 )

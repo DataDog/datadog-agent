@@ -14,12 +14,26 @@ import (
 	"io"
 	"time"
 
-	"github.com/coreos/go-systemd/sdjournal"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/coreos/go-systemd/sdjournal"
 )
+
+// Journal interfacae to wrap the functions defined in sdjournal.
+type Journal interface {
+	AddMatch(match string) error
+	AddDisjunction() error
+	SeekTail() error
+	SeekHead() error
+	Wait(timeout time.Duration) int
+	SeekCursor(cursor string) error
+	NextSkip(skip uint64) (uint64, error)
+	Close() error
+	Next() (uint64, error)
+	GetEntry() (*sdjournal.JournalEntry, error)
+	GetCursor() (string, error)
+}
 
 // defaultWaitDuration represents the delay before which we try to collect a new log from the journal
 const (
@@ -29,19 +43,23 @@ const (
 
 // Tailer collects logs from a journal.
 type Tailer struct {
-	source     *config.LogSource
-	outputChan chan *message.Message
-	journal    *sdjournal.Journal
-	blacklist  map[string]bool
-	stop       chan struct{}
-	done       chan struct{}
+	source       *config.LogSource
+	outputChan   chan *message.Message
+	journal      Journal
+	excludeUnits struct {
+		system map[string]bool
+		user   map[string]bool
+	}
+	stop chan struct{}
+	done chan struct{}
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(source *config.LogSource, outputChan chan *message.Message) *Tailer {
+func NewTailer(source *config.LogSource, outputChan chan *message.Message, journal Journal) *Tailer {
 	return &Tailer{
 		source:     source,
 		outputChan: outputChan,
+		journal:    journal,
 		stop:       make(chan struct{}, 1),
 		done:       make(chan struct{}, 1),
 	}
@@ -75,23 +93,13 @@ func (t *Tailer) Stop() {
 // setup configures the tailer
 func (t *Tailer) setup() error {
 	config := t.source.Config
-	var err error
 
 	t.initializeTagger()
 
-	if config.Path == "" {
-		// open the default journal
-		t.journal, err = sdjournal.NewJournal()
-	} else {
-		t.journal, err = sdjournal.NewJournalFromDir(config.Path)
-	}
-	if err != nil {
-		return err
-	}
-
-	for _, unit := range config.IncludeUnits {
-		// add filters to collect only the logs of the units defined in the configuration,
-		// if no units are defined, collect all the logs of the journal by default.
+	// add filters to collect only the logs of the units defined in the configuration,
+	// if no units are defined for both System and User, collect all the logs of the journal by default.
+	for _, unit := range config.IncludeSystemUnits {
+		// add filters to collect only the logs of the system-level units defined in the configuration.
 		match := sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT + "=" + unit
 		err := t.journal.AddMatch(match)
 		if err != nil {
@@ -99,10 +107,33 @@ func (t *Tailer) setup() error {
 		}
 	}
 
-	t.blacklist = make(map[string]bool)
-	for _, unit := range config.ExcludeUnits {
-		// add filters to drop all the logs related to units to exclude.
-		t.blacklist[unit] = true
+	if len(config.IncludeSystemUnits) > 0 && len(config.IncludeUserUnits) > 0 {
+		// add Logical OR if both System and User include filters are used.
+		err := t.journal.AddDisjunction()
+		if err != nil {
+			return fmt.Errorf("could not logical OR in the match list: %s", err)
+		}
+	}
+
+	for _, unit := range config.IncludeUserUnits {
+		// add filters to collect only the logs of the user-level units defined in the configuration.
+		match := sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT + "=" + unit
+		err := t.journal.AddMatch(match)
+		if err != nil {
+			return fmt.Errorf("could not add filter %s: %s", match, err)
+		}
+	}
+
+	t.excludeUnits.system = make(map[string]bool)
+	for _, unit := range config.ExcludeSystemUnits {
+		// add filters to drop all the logs related to system units to exclude.
+		t.excludeUnits.system[unit] = true
+	}
+
+	t.excludeUnits.user = make(map[string]bool)
+	for _, unit := range config.ExcludeUserUnits {
+		// add filters to drop all the logs related to user units to exclude.
+		t.excludeUnits.user[unit] = true
 	}
 
 	return nil
@@ -111,6 +142,16 @@ func (t *Tailer) setup() error {
 // seek seeks to the cursor if it is not empty or the end of the journal,
 // returns an error if the operation failed.
 func (t *Tailer) seek(cursor string) error {
+	mode, _ := config.TailingModeFromString(t.source.Config.TailingMode)
+
+	if mode == config.ForceBeginning {
+		return t.journal.SeekHead()
+	}
+	if mode == config.ForceEnd {
+		return t.journal.SeekTail()
+	}
+
+	// If a position is not forced from the config, try the cursor
 	if cursor != "" {
 		err := t.journal.SeekCursor(cursor)
 		if err != nil {
@@ -119,6 +160,11 @@ func (t *Tailer) seek(cursor string) error {
 		// must skip one entry since the cursor points to the last committed one.
 		_, err = t.journal.NextSkip(1)
 		return err
+	}
+
+	// If there is no cursor and an option is not forced, use the config setting
+	if mode == config.Beginning {
+		return t.journal.SeekHead()
 	}
 	return t.journal.SeekTail()
 }
@@ -136,7 +182,6 @@ func (t *Tailer) tail() {
 			return
 		default:
 			n, err := t.journal.Next()
-			t.source.BytesRead.Add(int64(n))
 			if err != nil && err != io.EOF {
 				err := fmt.Errorf("cant't tail journal %s: %s", t.journalPath(), err)
 				t.source.Status.Error(err)
@@ -156,7 +201,11 @@ func (t *Tailer) tail() {
 			if t.shouldDrop(entry) {
 				continue
 			}
-			t.outputChan <- t.toMessage(entry)
+			select {
+			case <-t.stop:
+				return
+			case t.outputChan <- t.toMessage(entry):
+			}
 		}
 	}
 }
@@ -164,13 +213,25 @@ func (t *Tailer) tail() {
 // shouldDrop returns true if the entry should be dropped,
 // returns false otherwise.
 func (t *Tailer) shouldDrop(entry *sdjournal.JournalEntry) bool {
-	unit, exists := entry.Fields[sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT]
+	sysUnit, exists := entry.Fields[sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT]
 	if !exists {
 		return false
 	}
-	if _, blacklisted := t.blacklist[unit]; blacklisted {
-		// drop the entry
-		return true
+	usrUnit, exists := entry.Fields[sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT]
+	if !exists {
+		// JournalEntry is a System-level unit
+		excludeAllSys := t.excludeUnits.system["*"]
+		if _, excluded := t.excludeUnits.system[sysUnit]; excludeAllSys || excluded {
+			// drop the entry
+			return true
+		}
+	} else {
+		// JournalEntry is a User-level unit
+		excludeAllUsr := t.excludeUnits.user["*"]
+		if _, excluded := t.excludeUnits.user[usrUnit]; excludeAllUsr || excluded {
+			// drop the entry
+			return true
+		}
 	}
 	return false
 }
@@ -214,6 +275,7 @@ func (t *Tailer) getContent(entry *sdjournal.JournalEntry) []byte {
 		value, _ := entry.Fields[sdjournal.SD_JOURNAL_FIELD_MESSAGE]
 		content = []byte(value)
 	}
+	t.source.BytesRead.Add(int64(len(content)))
 
 	return content
 }
@@ -236,6 +298,7 @@ func (t *Tailer) getOrigin(entry *sdjournal.JournalEntry) *message.Origin {
 // applicationKeys represents all the valid attributes used to extract the value of the application name of a journal entry.
 var applicationKeys = []string{
 	sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER, // "SYSLOG_IDENTIFIER"
+	sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT, // "_SYSTEMD_USER_UNIT"
 	sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT,      // "_SYSTEMD_UNIT"
 	sdjournal.SD_JOURNAL_FIELD_COMM,              // "_COMM"
 }

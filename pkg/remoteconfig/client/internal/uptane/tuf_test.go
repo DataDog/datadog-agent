@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package uptane
 
 import (
@@ -20,8 +25,8 @@ type testRepositories struct {
 	directorTargetsKey keys.Signer
 	directorRootKey    keys.Signer
 
-	directorTargetsVersion int
-	directorRootVersion    int
+	directorTargetsVersion int64
+	directorRootVersion    int64
 
 	directorTargets []byte
 	directorRoot    []byte
@@ -29,7 +34,7 @@ type testRepositories struct {
 	targetFiles map[string][]byte
 }
 
-func newTestRepository(version int, configTargets data.TargetFiles, directorTargets data.TargetFiles, targetFiles map[string][]byte) testRepositories {
+func newTestRepository(version int64, configTargets data.TargetFiles, directorTargets data.TargetFiles, targetFiles map[string][]byte) testRepositories {
 	repos := testRepositories{
 		directorTargetsKey: generateKey(),
 		directorRootKey:    generateKey(),
@@ -42,7 +47,7 @@ func newTestRepository(version int, configTargets data.TargetFiles, directorTarg
 	return repos
 }
 
-func generateRoot(key keys.Signer, version int, targetsKey keys.Signer, previousRootKey keys.Signer) []byte {
+func generateRoot(key keys.Signer, version int64, targetsKey keys.Signer, previousRootKey keys.Signer) []byte {
 	root := data.NewRoot()
 	root.Version = version
 	root.Expires = time.Now().Add(1 * time.Hour)
@@ -74,7 +79,7 @@ func generateRoot(key keys.Signer, version int, targetsKey keys.Signer, previous
 	return serializedRoot
 }
 
-func generateTargets(key keys.Signer, version int, targets data.TargetFiles) []byte {
+func generateTargets(key keys.Signer, version int64, targets data.TargetFiles) []byte {
 	meta := data.NewTargets()
 	meta.Expires = time.Now().Add(1 * time.Hour)
 	meta.Version = version

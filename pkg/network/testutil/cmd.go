@@ -24,9 +24,13 @@ func RunCommands(t *testing.T, cmds []string, ignoreErrors bool) []string {
 		c := exec.Command(args[0], args[1:]...)
 		out, err := c.CombinedOutput()
 		output = append(output, string(out))
-		if err != nil && !ignoreErrors {
-			t.Fatalf("%s returned %s: %s", c, err, out)
-			return nil
+		if err != nil {
+			if !ignoreErrors {
+				t.Fatalf("%s returned %s: %s", c, err, out)
+				return nil
+			}
+
+			t.Logf("%s returned %s: %s", c, err, out)
 		}
 	}
 	return output

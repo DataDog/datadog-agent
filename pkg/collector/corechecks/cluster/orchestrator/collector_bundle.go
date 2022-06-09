@@ -54,7 +54,7 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 			APIClient:   chk.apiClient,
 			ClusterID:   chk.clusterID,
 			Config:      chk.orchestratorConfig,
-			MsgGroupRef: &chk.groupID,
+			MsgGroupRef: chk.groupID,
 		},
 		stopCh: make(chan struct{}),
 	}

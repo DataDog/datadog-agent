@@ -19,15 +19,17 @@ import (
 
 var (
 	testConn = ConnectionStats{
-		Pid:                123,
-		Type:               1,
-		Family:             AFINET,
-		Source:             util.AddressFromString("192.168.0.1"),
-		Dest:               util.AddressFromString("192.168.0.103"),
-		SPort:              123,
-		DPort:              35000,
-		MonotonicSentBytes: 123123,
-		MonotonicRecvBytes: 312312,
+		Pid:    123,
+		Type:   1,
+		Family: AFINET,
+		Source: util.AddressFromString("192.168.0.1"),
+		Dest:   util.AddressFromString("192.168.0.103"),
+		SPort:  123,
+		DPort:  35000,
+		Monotonic: StatCounters{
+			SentBytes: 123123,
+			RecvBytes: 312312,
+		},
 	}
 )
 

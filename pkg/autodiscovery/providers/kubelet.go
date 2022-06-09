@@ -79,6 +79,7 @@ func (k *KubeletConfigProvider) listen() {
 	ch := k.workloadmetaStore.Subscribe(name, workloadmeta.NormalPriority, workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
 		workloadmeta.SourceNodeOrchestrator,
+		workloadmeta.EventTypeAll,
 	))
 
 	for {
@@ -146,12 +147,12 @@ func (k *KubeletConfigProvider) generateConfigs() ([]integration.Config, error) 
 			}
 
 			adIdentifier := podContainer.Name
-			if customADID, found := utils.GetCustomCheckID(pod.Annotations, podContainer.Name); found {
+			if customADID, found := utils.ExtractCheckIDFromPodAnnotations(pod.Annotations, podContainer.Name); found {
 				adIdentifier = customADID
 			}
 
 			containerEntity := containers.BuildEntityName(string(container.Runtime), container.ID)
-			c, errors := utils.ExtractTemplatesFromAnnotations(
+			c, errors := utils.ExtractTemplatesFromPodAnnotations(
 				containerEntity,
 				pod.Annotations,
 				adIdentifier,

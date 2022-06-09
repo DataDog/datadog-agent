@@ -10,11 +10,15 @@
 #include <stdint.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/fsuid.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
 #include <errno.h>
+#include <arpa/inet.h>
+#include <linux/un.h>
 
 #define RPC_CMD 0xdeadc001
 #define REGISTER_SPAN_TLS_OP 6
@@ -113,7 +117,7 @@ static void *thread_open(void *data) {
 }
 
 int span_open(int argc, char **argv) {
-    if (argc < 3) {
+    if (argc < 4) {
         fprintf(stderr, "Please pass a span Id and a trace Id to exec_span and a command\n");
         return EXIT_FAILURE;
     }
@@ -178,7 +182,7 @@ int test_signal_eperm(void) {
     return EXIT_SUCCESS;
 }
 
-int test_signal(int argc, char** argv) {
+int test_signal(int argc, char **argv) {
     if (argc != 2) {
         fprintf(stderr, "%s: Please pass a test case in: sigusr, eperm.\n", __FUNCTION__);
         return EXIT_FAILURE;
@@ -193,17 +197,17 @@ int test_signal(int argc, char** argv) {
 }
 
 int test_splice() {
-	const int fd = open("/tmp/splice_test", O_RDONLY | O_CREAT, 0700);
-	if (fd < 0) {
-		fprintf(stderr, "open failed");
-		return EXIT_FAILURE;
-	}
+    const int fd = open("/tmp/splice_test", O_RDONLY | O_CREAT, 0700);
+    if (fd < 0) {
+        fprintf(stderr, "open failed");
+        return EXIT_FAILURE;
+    }
 
-	int p[2];
-	if (pipe(p)) {
+    int p[2];
+    if (pipe(p)) {
         fprintf(stderr, "pipe failed");
         return EXIT_FAILURE;
-	}
+    }
 
     loff_t offset = 1;
     splice(fd, 0, p[1], NULL, 1, 0);
@@ -212,6 +216,195 @@ int test_splice() {
     remove("/tmp/splice_test");
 
     return EXIT_SUCCESS;
+}
+
+int test_mkdirat_error(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "%s: Please pass a path to mkdirat.\n", __FUNCTION__);
+        return EXIT_FAILURE;
+    }
+
+    if (setregid(1, 1) != 0) {
+        fprintf(stderr, "setregid failed");
+        return EXIT_FAILURE;
+    }
+
+    if (setreuid(1, 1) != 0) {
+        fprintf(stderr, "setreuid failed");
+        return EXIT_FAILURE;
+    }
+
+    if (mkdirat(0, argv[1], 0777) == 0) {
+        fprintf(stderr, "mkdirat succeeded even though we expected it to fail");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int test_process_set(int argc, char **argv) {
+    if (argc != 4) {
+        fprintf(stderr, "%s: Please pass a syscall name, real and effective id.\n", __FUNCTION__);
+        return EXIT_FAILURE;
+    }
+
+    int real_id = atoi(argv[2]);
+    int effective_id = atoi(argv[3]);
+
+    char *subcmd = argv[1];
+
+    int res;
+    if (strcmp(subcmd, "setuid") == 0) {
+        res = setuid(real_id);
+    } else if (strcmp(subcmd, "setreuid") == 0) {
+        res = setreuid(real_id, effective_id);
+    } else if (strcmp(subcmd, "setresuid") == 0) {
+        res = setresuid(real_id, effective_id, 0);
+    } else if (strcmp(subcmd, "setfsuid") == 0) {
+        res = setfsuid(real_id);
+    } else if (strcmp(subcmd, "setgid") == 0) {
+        res = setgid(real_id);
+    } else if (strcmp(subcmd, "setregid") == 0) {
+        res = setregid(real_id, effective_id);
+    } else if (strcmp(subcmd, "setresgid") == 0) {
+        res = setresgid(real_id, effective_id, 0);
+    } else if (strcmp(subcmd, "setfsgid") == 0) {
+        res = setfsgid(real_id);
+    } else {
+        fprintf(stderr, "Unknown subcommand `%s`\n", subcmd);
+        return EXIT_FAILURE;
+    }
+
+    if (res != 0) {
+        fprintf(stderr, "%s failed", subcmd);
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int self_exec(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Please pass a command name\n");
+        return EXIT_FAILURE;
+    }
+
+    execv("/proc/self/exe", argv + 1);
+
+    return EXIT_SUCCESS;
+}
+
+int test_bind_af_inet(int argc, char** argv) {
+    int s = socket(PF_INET, SOCK_STREAM, 0);
+    if (s < 0) {
+        perror("socker");
+        return EXIT_FAILURE;
+    }
+
+    if (argc != 2) {
+        fprintf(stderr, "Please speficy an option in the list: any, custom_ip\n");
+        return EXIT_FAILURE;
+    }
+
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+
+    char* ip = argv[1];
+    if (!strcmp(ip, "any")) {
+        addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    } else if (!strcmp(ip, "custom_ip")) {
+        int ip32 = 0;
+        if (inet_pton(AF_INET, "127.0.0.1", &ip32) != 1) {
+            perror("inet_pton");
+            return EXIT_FAILURE;
+        }
+        addr.sin_addr.s_addr = htonl(ip32);
+    } else {
+        fprintf(stderr, "Please speficy an option in the list: any, broadcast, custom_ip\n");
+        return EXIT_FAILURE;
+    }
+
+    addr.sin_port = htons(4242);
+    bind(s, (struct sockaddr*)&addr, sizeof(addr));
+
+    close (s);
+    return EXIT_SUCCESS;
+}
+
+int test_bind_af_inet6(int argc, char** argv) {
+    int s = socket(AF_INET6, SOCK_STREAM, 0);
+    if (s < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+
+    if (argc != 2) {
+        fprintf(stderr, "Please speficy an option in the list: any, custom_ip\n");
+        return EXIT_FAILURE;
+    }
+
+    struct sockaddr_in6 addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin6_family = AF_INET6;
+
+    char* ip = argv[1];
+    if (!strcmp(ip, "any")) {
+        inet_pton(AF_INET6, "::", &addr.sin6_addr);
+    } else if (!strcmp(ip, "custom_ip")) {
+        inet_pton(AF_INET6, "1234:5678:90ab:cdef:0000:0000:1a1a:1337", &addr.sin6_addr);
+    } else {
+        fprintf(stderr, "Please speficy an option in the list: any, broadcast, custom_ip\n");
+        return EXIT_FAILURE;
+    }
+
+    addr.sin6_port = htons(4242);
+    bind(s, (struct sockaddr*)&addr, sizeof(addr));
+
+    close(s);
+    return EXIT_SUCCESS;
+}
+
+#define TEST_BIND_AF_UNIX_SERVER_PATH "/tmp/test_bind_af_unix"
+int test_bind_af_unix(void) {
+    int s = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (s < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+
+    unlink(TEST_BIND_AF_UNIX_SERVER_PATH);
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, TEST_BIND_AF_UNIX_SERVER_PATH, strlen(TEST_BIND_AF_UNIX_SERVER_PATH));
+    int ret = bind(s, (struct sockaddr*)&addr, sizeof(addr));
+    printf("bind retval: %i\n", ret);
+    if (ret)
+        perror("bind");
+
+    close(s);
+    unlink(TEST_BIND_AF_UNIX_SERVER_PATH);
+    return EXIT_SUCCESS;
+}
+
+int test_bind(int argc, char** argv) {
+    if (argc <= 1) {
+        fprintf(stderr, "Please speficy an addr_type\n");
+        return EXIT_FAILURE;
+    }
+
+    char* addr_family = argv[1];
+    if (!strcmp(addr_family, "AF_INET")) {
+        return test_bind_af_inet(argc - 1, argv + 1);
+    } else if  (!strcmp(addr_family, "AF_INET6")) {
+        return test_bind_af_inet6(argc - 1, argv + 1);
+    } else if  (!strcmp(addr_family, "AF_UNIX")) {
+        return test_bind_af_unix();
+    }
+
+    fprintf(stderr, "Specified %s addr_type is not a valid one, try: AF_INET, AF_INET6 or AF_UNIX\n", addr_family);
+    return EXIT_FAILURE;
 }
 
 int main(int argc, char **argv) {
@@ -234,6 +427,14 @@ int main(int argc, char **argv) {
         return test_signal(argc - 1, argv + 1);
     } else if (strcmp(cmd, "splice") == 0) {
         return test_splice();
+    } else if (strcmp(cmd, "mkdirat-error") == 0) {
+        return test_mkdirat_error(argc - 1, argv + 1);
+    } else if (strcmp(cmd, "process-credentials") == 0) {
+        return test_process_set(argc - 1, argv + 1);
+    } else if (strcmp(cmd, "self-exec") == 0) {
+        return self_exec(argc - 1, argv + 1);
+    } else if (strcmp(cmd, "bind") == 0) {
+        return test_bind(argc - 1, argv + 1);
     } else {
         fprintf(stderr, "Unknown command `%s`\n", cmd);
         return EXIT_FAILURE;

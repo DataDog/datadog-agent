@@ -58,6 +58,8 @@ type ContainerdItf interface {
 	TaskPids(ctn containerd.Container) ([]containerd.ProcessInfo, error)
 	Status(ctn containerd.Container) (containerd.ProcessStatus, error)
 	CallWithClientContext(f func(context.Context) error) error
+	Annotations(ctn containerd.Container) (map[string]string, error)
+	IsSandbox(ctn containerd.Container) (bool, error)
 }
 
 // ContainerdUtil is the util used to interact with the Containerd api.
@@ -339,4 +341,37 @@ func (c *ContainerdUtil) Status(ctn containerd.Container) (containerd.ProcessSta
 	}
 
 	return taskStatus.Status, nil
+}
+
+// Annotations returns the container annotations from its spec
+func (c *ContainerdUtil) Annotations(ctn containerd.Container) (map[string]string, error) {
+	spec, err := c.Spec(ctn)
+	if err != nil {
+		return nil, err
+	}
+
+	return spec.Annotations, nil
+}
+
+// IsSandbox returns whether a container is a sandbox (a.k.a pause container).
+// It checks the io.cri-containerd.kind label and the io.kubernetes.cri.container-type annotation.
+// Ref:
+// - https://github.com/containerd/cri/blob/release/1.4/pkg/server/helpers.go#L74
+// - https://github.com/containerd/cri/blob/release/1.4/pkg/annotations/annotations.go#L30
+func (c *ContainerdUtil) IsSandbox(ctn containerd.Container) (bool, error) {
+	labels, err := c.Labels(ctn)
+	if err != nil {
+		return false, err
+	}
+
+	if labels["io.cri-containerd.kind"] == "sandbox" {
+		return true, nil
+	}
+
+	annotations, err := c.Annotations(ctn)
+	if err != nil {
+		return false, err
+	}
+
+	return annotations["io.kubernetes.cri.container-type"] == "sandbox", nil
 }

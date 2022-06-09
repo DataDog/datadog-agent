@@ -109,7 +109,7 @@ func newSocketFilterSnooper(cfg *config.Config, source packetSource) (*socketFil
 }
 
 // Resolve IPs to DNS addresses
-func (s *socketFilterSnooper) Resolve(ips []util.Address) map[util.Address][]string {
+func (s *socketFilterSnooper) Resolve(ips []util.Address) map[util.Address][]Hostname {
 	return s.cache.Get(ips)
 }
 
@@ -221,17 +221,20 @@ func (s *socketFilterSnooper) logDNSStats() {
 	defer ticker.Stop()
 
 	var (
-		queries   int64
-		successes int64
-		errors    int64
+		queries, lastQueries     int64
+		successes, lastSuccesses int64
+		errors, lastErrors       int64
 	)
 	for {
 		select {
 		case <-ticker.C:
-			queries = atomic.SwapInt64(&s.queries, 0)
-			successes = atomic.SwapInt64(&s.successes, 0)
-			errors = atomic.SwapInt64(&s.errors, 0)
-			log.Infof("DNS Stats. Queries :%d, Successes :%d, Errors: %d", queries, successes, errors)
+			queries = atomic.LoadInt64(&s.queries)
+			successes = atomic.LoadInt64(&s.successes)
+			errors = atomic.LoadInt64(&s.errors)
+			log.Infof("DNS Stats. Queries :%d, Successes :%d, Errors: %d", queries-lastQueries, successes-lastSuccesses, errors-lastErrors)
+			lastQueries = queries
+			lastSuccesses = successes
+			lastErrors = errors
 		case <-s.exit:
 			return
 		}

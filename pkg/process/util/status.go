@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package util
 
 import (
@@ -81,6 +86,7 @@ type ProcessExpvars struct {
 	LogFile             string              `json:"log_file"`
 	EnabledChecks       []string            `json:"enabled_checks"`
 	Endpoints           map[string][]string `json:"endpoints"`
+	DropCheckPayloads   []string            `json:"drop_check_payloads"`
 }
 
 // Status holds runtime information from process-agent

@@ -127,6 +127,7 @@ int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr)
 
     struct mmap_event_t event = {
         .syscall.retval = retval,
+        .event.async = 0,
         .file = syscall->mmap.file,
         .addr = addr,
         .offset = syscall->mmap.offset,

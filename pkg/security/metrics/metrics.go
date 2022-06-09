@@ -24,6 +24,10 @@ var (
 	// security-agent was not processing them fast enough
 	// Tags: rule_id
 	MetricEventServerExpired = newRuntimeMetric(".rules.event_server.expired")
+	// MetricProcessEventsServerExpired is the name of the metric used to count the number of process events that
+	// expired because the process-agent was not processing them fast enough
+	// Tags: -
+	MetricProcessEventsServerExpired = newRuntimeMetric(".event_server.process_events_expired")
 
 	// Load controller metrics
 
@@ -168,6 +172,9 @@ var (
 	// MetricRuleSetLoaded is the name of the metric used to report that a new ruleset was loaded
 	// Tags: -
 	MetricRuleSetLoaded = newRuntimeMetric(".ruleset_loaded")
+	// MetricSelfTest is the name of the metric used to report that a self test was performed
+	// Tags: - success, fails
+	MetricSelfTest = newRuntimeMetric(".self_test")
 	// MetricTCProgram is the name of the metric used to report the count of active TC programs
 	// Tags: -
 	MetricTCProgram = newRuntimeMetric(".tc_program")
@@ -185,6 +192,11 @@ var (
 	// MetricSecurityAgentFIMContainersRunning is used to report the count of running containers when the security agent
 	// `FIM` feature is enabled
 	MetricSecurityAgentFIMContainersRunning = newAgentMetric(".fim.containers_running")
+
+	// Event Monitoring metrics
+
+	// MetricEventMonitoringRunning is reported when the runtime-security module is running with event monitoring enabled
+	MetricEventMonitoringRunning = newAgentMetric(".event_monitoring.running")
 
 	// Runtime Compiled Constants metrics
 

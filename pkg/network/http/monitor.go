@@ -12,20 +12,19 @@ import (
 	"fmt"
 
 	"sync"
-	"time"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
-	"github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 )
 
 // HTTPMonitorStats is used for holding two kinds of stats:
 // * requestsStats which are the http data stats
 // * telemetry which are telemetry stats
 type HTTPMonitorStats struct {
-	requestStats map[Key]RequestStats
+	requestStats map[Key]*RequestStats
 	telemetry    telemetry
 }
 
@@ -63,7 +62,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, fmt.Errorf("error initializing http ebpf program: %s", err)
 	}
 
-	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: httpSocketFilter})
+	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFSection: httpSocketFilter, EBPFFuncName: "socket__http_filter", UID: probeUID})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
@@ -84,9 +83,12 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	}
 
 	notificationMap, _, _ := mgr.GetMap(httpNotificationsPerfMap)
-	numCPUs := int(notificationMap.ABI().MaxEntries)
+	numCPUs := int(notificationMap.MaxEntries())
 
-	telemetry := newTelemetry()
+	telemetry, err := newTelemetry()
+	if err != nil {
+		return nil, err
+	}
 	statkeeper := newHTTPStatkeeper(c, telemetry)
 
 	handler := func(transactions []httpTX) {
@@ -121,8 +123,6 @@ func (m *Monitor) Start() error {
 	m.eventLoopWG.Add(1)
 	go func() {
 		defer m.eventLoopWG.Done()
-		report := time.NewTicker(30 * time.Second)
-		defer report.Stop()
 		for {
 			select {
 			case dataEvent, ok := <-m.batchCompletionHandler.DataChannel:
@@ -158,9 +158,6 @@ func (m *Monitor) Start() error {
 					requestStats: m.statkeeper.GetAndResetAllStats(),
 					telemetry:    delta,
 				}
-			case <-report.C:
-				transactions := m.batchManager.GetPendingTransactions()
-				m.process(transactions, nil)
 			}
 		}
 	}()
@@ -170,7 +167,7 @@ func (m *Monitor) Start() error {
 
 // GetHTTPStats returns a map of HTTP stats stored in the following format:
 // [source, dest tuple, request path] -> RequestStats object
-func (m *Monitor) GetHTTPStats() map[Key]RequestStats {
+func (m *Monitor) GetHTTPStats() map[Key]*RequestStats {
 	if m == nil {
 		return nil
 	}
@@ -189,7 +186,7 @@ func (m *Monitor) GetHTTPStats() map[Key]RequestStats {
 	return stats.requestStats
 }
 
-func (m *Monitor) GetStats() map[string]int64 {
+func (m *Monitor) GetStats() map[string]interface{} {
 	if m == nil {
 		return nil
 	}
@@ -204,10 +201,7 @@ func (m *Monitor) GetStats() map[string]int64 {
 		return nil
 	}
 
-	return map[string]int64{
-		"http_requests_dropped": m.telemetrySnapshot.dropped,
-		"http_requests_missed":  m.telemetrySnapshot.misses,
-	}
+	return m.telemetrySnapshot.report()
 }
 
 // Stop HTTP monitoring

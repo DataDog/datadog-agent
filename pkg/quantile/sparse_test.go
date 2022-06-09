@@ -107,9 +107,6 @@ func TestReset(t *testing.T) {
 
 }
 func TestQuantile(t *testing.T) {
-	type opt struct {
-		nbins int
-	}
 	var (
 		c = Default()
 

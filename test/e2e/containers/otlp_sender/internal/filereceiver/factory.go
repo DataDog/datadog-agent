@@ -18,8 +18,7 @@ import (
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/model/otlp"
-	"go.opentelemetry.io/collector/model/pdata"
-	"go.opentelemetry.io/collector/receiver/receiverhelper"
+	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 )
 
@@ -27,10 +26,10 @@ const typeStr = "file"
 
 // NewFactory creates a new OTLP receiver factory.
 func NewFactory() component.ReceiverFactory {
-	return receiverhelper.NewFactory(
+	return component.NewReceiverFactory(
 		typeStr,
 		createDefaultConfig,
-		receiverhelper.WithMetrics(createMetricsReceiver),
+		component.WithMetricsReceiver(createMetricsReceiver),
 	)
 }
 
@@ -73,7 +72,7 @@ var _ component.MetricsReceiver = (*receiver)(nil)
 type receiver struct {
 	config       *Config
 	logger       *zap.Logger
-	unmarshaler  pdata.MetricsUnmarshaler
+	unmarshaler  pmetric.Unmarshaler
 	nextConsumer consumer.Metrics
 	stopCh       chan struct{}
 }

@@ -110,3 +110,35 @@ func Test_injectionMode(t *testing.T) {
 		})
 	}
 }
+
+func TestInjectHostIP(t *testing.T) {
+	pod := fakePodWithContainer("foo-pod", corev1.Container{})
+	pod = withLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true"})
+	err := injectConfig(pod, "", nil)
+	assert.Nil(t, err)
+	assert.Equal(t, pod.Spec.Containers[0].Env[0].Name, "DD_AGENT_HOST")
+	assert.Equal(t, pod.Spec.Containers[0].Env[0].ValueFrom.FieldRef.FieldPath, "status.hostIP")
+}
+
+func TestInjectService(t *testing.T) {
+	pod := fakePodWithContainer("foo-pod", corev1.Container{})
+	pod = withLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "service"})
+	err := injectConfig(pod, "", nil)
+	assert.Nil(t, err)
+	assert.Equal(t, pod.Spec.Containers[0].Env[0].Name, "DD_AGENT_HOST")
+	assert.Equal(t, pod.Spec.Containers[0].Env[0].Value, "datadog.default.svc.cluster.local")
+}
+
+func TestInjectSocket(t *testing.T) {
+	pod := fakePodWithContainer("foo-pod", corev1.Container{})
+	pod = withLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "socket"})
+	err := injectConfig(pod, "", nil)
+	assert.Nil(t, err)
+	assert.Equal(t, pod.Spec.Containers[0].Env[0].Name, "DD_TRACE_AGENT_URL")
+	assert.Equal(t, pod.Spec.Containers[0].Env[0].Value, "unix:///var/run/datadog/apm.socket")
+	assert.Equal(t, pod.Spec.Containers[0].VolumeMounts[0].MountPath, "/var/run/datadog")
+	assert.Equal(t, pod.Spec.Containers[0].VolumeMounts[0].Name, "datadog")
+	assert.Equal(t, pod.Spec.Volumes[0].Name, "datadog")
+	assert.Equal(t, pod.Spec.Volumes[0].VolumeSource.HostPath.Path, "/var/run/datadog")
+	assert.Equal(t, *pod.Spec.Volumes[0].VolumeSource.HostPath.Type, corev1.HostPathDirectoryOrCreate)
+}

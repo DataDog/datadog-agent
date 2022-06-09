@@ -23,11 +23,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// defaultTagger is the shared tagger instance backing the global Tag and Init functions
 var (
+	// defaultTagger is the shared tagger instance backing the global Tag and Init functions
 	defaultTagger Tagger
-	initOnce      sync.Once
-	initErr       error
+
+	// initOnce ensures that the default tagger is only initialized once.  It is reset every
+	// time the default tagger is set.
+	initOnce sync.Once
+
+	// initErr is the error from intializing the default tagger
+	initErr error
 )
 
 // captureTagger is a tagger instance that contains a tagger that will contain the tagger
@@ -134,20 +139,14 @@ func AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb 
 	return defaultTagger.AccumulateTagsFor(entity, cardinality, tb)
 }
 
-// TagWithHash is similar to Tag but it also computes and returns the hash of the tags found
-func TagWithHash(entity string, cardinality collectors.TagCardinality) ([]string, string, error) {
-	tags, err := Tag(entity, cardinality)
-	if err != nil {
-		return tags, "", err
-	}
-	return tags, utils.ComputeTagsHash(tags), nil
-}
-
 // GetEntityHash returns the hash for the tags associated with the given entity
 // Returns an empty string if the tags lookup fails
 func GetEntityHash(entity string, cardinality collectors.TagCardinality) string {
-	_, hash, _ := TagWithHash(entity, cardinality)
-	return hash
+	tags, err := Tag(entity, cardinality)
+	if err != nil {
+		return ""
+	}
+	return utils.ComputeTagsHash(tags)
 }
 
 // StandardTags queries the defaultTagger to get entity
@@ -227,6 +226,8 @@ func List(cardinality collectors.TagCardinality) response.TaggerListResponse {
 
 // SetDefaultTagger sets the global Tagger instance
 func SetDefaultTagger(tagger Tagger) {
+	// reset initOnce so that this new tagger's Init(..) will get called
+	initOnce = sync.Once{}
 	defaultTagger = tagger
 }
 

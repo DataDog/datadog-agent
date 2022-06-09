@@ -12,12 +12,16 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"sync/atomic"
+	"syscall"
 	"time"
 
+	netstats "github.com/DataDog/datadog-agent/pkg/network/stats"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/golang/groupcache/lru"
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 type routeKey struct {
@@ -42,6 +46,13 @@ type routeCache struct {
 	cache  *lru.Cache
 	router Router
 	ttl    time.Duration
+
+	size    uint64 `stats:"atomic"`
+	misses  uint64 `stats:"atomic"`
+	lookups uint64 `stats:"atomic"`
+	expires uint64 `stats:"atomic"`
+
+	reporter netstats.Reporter
 }
 
 const defaultTTL = 2 * time.Minute
@@ -49,11 +60,15 @@ const defaultTTL = 2 * time.Minute
 // RouteCache is the interface to a cache that stores routes for a given (source, destination, net ns) tuple
 type RouteCache interface {
 	Get(source, dest util.Address, netns uint32) (Route, bool)
+	GetStats() map[string]interface{}
+	Close()
 }
 
 // Router is an interface to get a route for a (source, destination, net ns) tuple
 type Router interface {
 	Route(source, dest util.Address, netns uint32) (Route, bool)
+	GetStats() map[string]interface{}
+	Close()
 }
 
 // NewRouteCache creates a new RouteCache
@@ -67,24 +82,41 @@ func newRouteCache(size int, router Router, ttl time.Duration) *routeCache {
 		return nil
 	}
 
-	return &routeCache{
+	rc := &routeCache{
 		cache:  lru.New(size),
 		router: router,
 		ttl:    ttl,
 	}
+
+	var err error
+	rc.reporter, err = netstats.NewReporter(rc)
+	if err != nil {
+		panic("could not create stats reporter for route cache")
+	}
+
+	return rc
+}
+
+func (c *routeCache) Close() {
+	c.router.Close()
 }
 
 func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) {
 	c.Lock()
 	defer c.Unlock()
 
+	atomic.AddUint64(&c.lookups, 1)
 	k := newRouteKey(source, dest, netns)
 	if entry, ok := c.cache.Get(k); ok {
 		if time.Now().Unix() < entry.(*routeTTL).eta {
 			return entry.(*routeTTL).entry, ok
 		}
 
+		atomic.AddUint64(&c.expires, 1)
 		c.cache.Remove(k)
+		atomic.AddUint64(&c.size, ^uint64(0))
+	} else {
+		atomic.AddUint64(&c.misses, 1)
 	}
 
 	if r, ok := c.router.Route(source, dest, netns); ok {
@@ -94,10 +126,17 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 		}
 
 		c.cache.Add(k, entry)
+		atomic.AddUint64(&c.size, 1)
 		return r, true
 	}
 
 	return Route{}, false
+}
+
+func (c *routeCache) GetStats() map[string]interface{} {
+	stats := c.reporter.Report()
+	stats["router"] = c.router.GetStats()
+	return stats
 }
 
 func newRouteKey(source, dest util.Address, netns uint32) routeKey {
@@ -117,27 +156,82 @@ type ifkey struct {
 	netns uint32
 }
 
+type ifEntry struct {
+	index    int
+	loopback bool
+}
+
 type netlinkRouter struct {
-	rootNs  uint32
-	ifcache *lru.Cache
+	rootNs   uint32
+	ioctlFD  int
+	ifcache  *lru.Cache
+	nlHandle *netlink.Handle
+
+	netlinkLookups uint64 `stats:"atomic"`
+	netlinkErrors  uint64 `stats:"atomic"`
+	netlinkMisses  uint64 `stats:"atomic"`
+
+	ifCacheLookups uint64 `stats:"atomic"`
+	ifCacheMisses  uint64 `stats:"atomic"`
+	ifCacheSize    uint64 `stats:"atomic"`
+	ifCacheErrors  uint64 `stats:"atomic"`
+
+	reporter netstats.Reporter
 }
 
 // NewNetlinkRouter create a Router that queries routes via netlink
 func NewNetlinkRouter(procRoot string) (Router, error) {
+	return newNetlinkRouter(procRoot)
+}
+
+func newNetlinkRouter(procRoot string) (*netlinkRouter, error) {
 	rootNs, err := util.GetNetNsInoFromPid(procRoot, 1)
 	if err != nil {
 		return nil, fmt.Errorf("netlink gw cache backing: could not get root net ns: %w", err)
 	}
 
-	return &netlinkRouter{
-		rootNs: rootNs,
+	var fd int
+	var nlHandle *netlink.Handle
+	err = util.WithRootNS(procRoot, func() (sockErr error) {
+		if fd, err = unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0); err != nil {
+			return err
+		}
+
+		nlHandle, err = netlink.NewHandle(unix.NETLINK_ROUTE)
+		return err
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	nr := &netlinkRouter{
+		rootNs:  rootNs,
+		ioctlFD: fd,
 		// ifcache should ideally fit all interfaces on a given node
-		ifcache: lru.New(128),
-	}, nil
+		ifcache:  lru.New(128),
+		nlHandle: nlHandle,
+	}
+
+	nr.reporter, err = netstats.NewReporter(nr)
+	if err != nil {
+		return nil, fmt.Errorf("error creating stats reporter: %w", err)
+	}
+
+	return nr, nil
+}
+
+func (n *netlinkRouter) Close() {
+	unix.Close(n.ioctlFD)
+	n.nlHandle.Close()
+}
+
+func (n *netlinkRouter) GetStats() map[string]interface{} {
+	return n.reporter.Report()
 }
 
 func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, bool) {
-	var iifName string
+	var iifIndex int
 
 	srcBuf := util.IPBufferPool.Get().(*[]byte)
 	dstBuf := util.IPBufferPool.Get().(*[]byte)
@@ -153,24 +247,36 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 		// which interface is associated with the ns
 
 		// get input interface for src ip
-		ifi := n.getInterface(source, srcIP, netns)
-		if ifi == nil {
+		iif := n.getInterface(source, srcIP, netns)
+		if iif == nil || iif.index == 0 {
 			return Route{}, false
 		}
 
-		if ifi.Flags&net.FlagLoopback == 0 {
-			iifName = ifi.Name
+		if !iif.loopback {
+			iifIndex = iif.index
 		}
 	}
 
+	atomic.AddUint64(&n.netlinkLookups, 1)
 	dstIP := util.NetIPFromAddress(dest, *dstBuf)
-	routes, err := netlink.RouteGetWithOptions(
+	routes, err := n.nlHandle.RouteGetWithOptions(
 		dstIP,
 		&netlink.RouteGetOptions{
-			SrcAddr: srcIP,
-			Iif:     iifName,
+			SrcAddr:  srcIP,
+			IifIndex: iifIndex,
 		})
 
+	if err != nil {
+		atomic.AddUint64(&n.netlinkErrors, 1)
+		if iifIndex > 0 {
+			if errno, ok := err.(syscall.Errno); ok && (errno == syscall.EINVAL || errno == syscall.ENODEV) {
+				// invalidate interface cache entry as this may have been the cause of the netlink error
+				n.removeInterface(source, netns)
+			}
+		}
+	} else if len(routes) != 1 {
+		atomic.AddUint64(&n.netlinkMisses, 1)
+	}
 	if err != nil || len(routes) != 1 {
 		log.Tracef("could not get route for src=%s dest=%s err=%s routes=%+v", source, dest, err, routes)
 		return Route{}, false
@@ -184,22 +290,54 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 	}, true
 }
 
-func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netns uint32) *net.Interface {
+func (n *netlinkRouter) removeInterface(srcAddress util.Address, netns uint32) {
+	key := ifkey{ip: srcAddress, netns: netns}
+	n.ifcache.Remove(key)
+}
+
+func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netns uint32) *ifEntry {
+	atomic.AddUint64(&n.ifCacheLookups, 1)
+
 	key := ifkey{ip: srcAddress, netns: netns}
 	if entry, ok := n.ifcache.Get(key); ok {
-		return entry.(*net.Interface)
+		return entry.(*ifEntry)
 	}
+	atomic.AddUint64(&n.ifCacheMisses, 1)
 
-	routes, err := netlink.RouteGet(srcIP)
-	if err != nil || len(routes) != 1 {
-		return nil
-	}
-
-	ifi, err := net.InterfaceByIndex(routes[0].LinkIndex)
+	atomic.AddUint64(&n.netlinkLookups, 1)
+	routes, err := n.nlHandle.RouteGet(srcIP)
 	if err != nil {
+		atomic.AddUint64(&n.netlinkErrors, 1)
+		return nil
+	} else if len(routes) != 1 {
+		atomic.AddUint64(&n.netlinkMisses, 1)
 		return nil
 	}
 
-	n.ifcache.Add(key, ifi)
-	return ifi
+	ifr, err := unix.NewIfreq("")
+	if err != nil {
+		atomic.AddUint64(&n.ifCacheErrors, 1)
+		return nil
+	}
+
+	ifr.SetUint32(uint32(routes[0].LinkIndex))
+	// first get the name of the interface. this is
+	// necessary to make the subsequent request to
+	// get the link flags
+	if err = unix.IoctlIfreq(n.ioctlFD, unix.SIOCGIFNAME, ifr); err != nil {
+		atomic.AddUint64(&n.ifCacheErrors, 1)
+		log.Tracef("error getting interface name for link index %d, src ip %s: %s", routes[0].LinkIndex, srcIP, err)
+		return nil
+	}
+	if err = unix.IoctlIfreq(n.ioctlFD, unix.SIOCGIFFLAGS, ifr); err != nil {
+		atomic.AddUint64(&n.ifCacheErrors, 1)
+		log.Tracef("error getting interface flags for link index %d, src ip %s: %s", routes[0].LinkIndex, srcIP, err)
+		return nil
+	}
+
+	iff := &ifEntry{index: routes[0].LinkIndex, loopback: (ifr.Uint16() & unix.IFF_LOOPBACK) != 0}
+	log.Tracef("adding interface entry, key=%+v, entry=%v", key, *iff)
+	n.ifcache.Add(key, iff)
+	atomic.AddUint64(&n.ifCacheSize, 1)
+	return iff
 }

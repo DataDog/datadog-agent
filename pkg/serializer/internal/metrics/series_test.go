@@ -247,7 +247,7 @@ func TestStreamJSONMarshalerWithDevice(t *testing.T) {
 	}
 
 	stream := jsoniter.NewStream(jsoniter.ConfigDefault, nil, 0)
-	serializer := IterableSeries{IterableSeries: CreateIterableSeries(series)}
+	serializer := IterableSeries{SerieSource: CreateSerieSource(series)}
 	serializer.MoveNext()
 	err := serializer.WriteCurrentItem(stream)
 	assert.NoError(t, err)
@@ -275,7 +275,7 @@ func TestDescribeItem(t *testing.T) {
 		},
 	}
 
-	serializer := IterableSeries{IterableSeries: CreateIterableSeries(series)}
+	serializer := IterableSeries{SerieSource: CreateSerieSource(series)}
 	serializer.MoveNext()
 	desc1 := serializer.DescribeCurrentItem()
 	assert.Equal(t, "name \"test.metrics\", 2 points", desc1)
@@ -299,7 +299,7 @@ func makeSeries(numItems, numPoints int) *IterableSeries {
 			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 		})
 	}
-	return &IterableSeries{IterableSeries: CreateIterableSeries(series)}
+	return &IterableSeries{SerieSource: CreateSerieSource(series)}
 }
 
 func TestMarshalSplitCompress(t *testing.T) {
@@ -372,7 +372,7 @@ func TestPayloadsSeries(t *testing.T) {
 
 	originalLength := len(testSeries)
 	builder := stream.NewJSONPayloadBuilder(true)
-	iterableSeries := &IterableSeries{IterableSeries: CreateIterableSeries(testSeries)}
+	iterableSeries := &IterableSeries{SerieSource: CreateSerieSource(testSeries)}
 	payloads, err := builder.BuildWithOnErrItemTooBigPolicy(iterableSeries, stream.DropItemOnErrItemTooBig)
 	require.Nil(t, err)
 	var splitSeries = []Series{}
@@ -420,7 +420,7 @@ func BenchmarkPayloadsSeries(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		// always record the result of Payloads to prevent
 		// the compiler eliminating the function call.
-		iterableSeries := &IterableSeries{IterableSeries: CreateIterableSeries(testSeries)}
+		iterableSeries := &IterableSeries{SerieSource: CreateSerieSource(testSeries)}
 		r, _ = builder.BuildWithOnErrItemTooBigPolicy(iterableSeries, stream.DropItemOnErrItemTooBig)
 	}
 	// ensure we actually had to split

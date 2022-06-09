@@ -12,29 +12,32 @@ import (
 // LogSources serves as the interface between Schedulers and Launchers, distributing
 // notifications of added/removed LogSources to subscribed Launchers.
 //
-// If more than one Launcher subscribes to the same type, the sources will be
-// distributed randomly to the Launchers.  This is generally undesirable, and the
-// caller should ensure at most one subscriber for each type.
+// Each subscription receives its own unbuffered channel for sources, and should
+// consume from the channel quickly to avoid blocking other goroutines.  There is
+// no means to unsubscribe.
+//
+// If any sources have been added when GetAddedForType is called, then those sources
+// are immediately sent to the channel.
 //
 // This type is threadsafe, and all of its methods can be called concurrently.
 type LogSources struct {
 	mu            sync.Mutex
 	sources       []*LogSource
-	addedByType   map[string]chan *LogSource
-	removedByType map[string]chan *LogSource
+	addedByType   map[string][]chan *LogSource
+	removedByType map[string][]chan *LogSource
 }
 
 // NewLogSources creates a new log sources.
 func NewLogSources() *LogSources {
 	return &LogSources{
-		addedByType:   make(map[string]chan *LogSource),
-		removedByType: make(map[string]chan *LogSource),
+		addedByType:   make(map[string][]chan *LogSource),
+		removedByType: make(map[string][]chan *LogSource),
 	}
 }
 
 // AddSource adds a new source.
 //
-// One of the subscribers registered for this source's type (src.Config.Type) will be
+// All of the subscribers registered for this source's type (src.Config.Type) will be
 // notified.
 func (s *LogSources) AddSource(source *LogSource) {
 	s.mu.Lock()
@@ -43,17 +46,19 @@ func (s *LogSources) AddSource(source *LogSource) {
 		s.mu.Unlock()
 		return
 	}
-	stream, exists := s.addedByType[source.Config.Type]
+	streams, exists := s.addedByType[source.Config.Type]
 	s.mu.Unlock()
 
 	if exists {
-		stream <- source
+		for _, stream := range streams {
+			stream <- source
+		}
 	}
 }
 
 // RemoveSource removes a source.
 //
-// One of the subscribers registered for this source's type (src.Config.Type) will be
+// All of the subscribers registered for this source's type (src.Config.Type) will be
 // notified of its removal.
 func (s *LogSources) RemoveSource(source *LogSource) {
 	s.mu.Lock()
@@ -65,41 +70,75 @@ func (s *LogSources) RemoveSource(source *LogSource) {
 			break
 		}
 	}
-	stream, streamExists := s.removedByType[source.Config.Type]
+	streams, streamExists := s.removedByType[source.Config.Type]
 	s.mu.Unlock()
 
 	if sourceFound && streamExists {
-		stream <- source
+		for _, stream := range streams {
+			stream <- source
+		}
 	}
+}
+
+// SubscribeForType returns two channels carrying notifications of added and
+// removed sources with the given type, respectively.  This guarantees
+// consistency if sources are added or removed concurrently.
+//
+// Any sources added before this call are delivered from a new goroutine.
+func (s *LogSources) SubscribeForType(sourceType string) (added chan *LogSource, removed chan *LogSource) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	added = make(chan *LogSource)
+	removed = make(chan *LogSource)
+
+	if _, exists := s.addedByType[sourceType]; !exists {
+		s.addedByType[sourceType] = []chan *LogSource{}
+	}
+	s.addedByType[sourceType] = append(s.addedByType[sourceType], added)
+
+	if _, exists := s.removedByType[sourceType]; !exists {
+		s.removedByType[sourceType] = []chan *LogSource{}
+	}
+	s.removedByType[sourceType] = append(s.removedByType[sourceType], removed)
+
+	existingSources := append([]*LogSource{}, s.sources...) // clone for goroutine
+	go func() {
+		for _, source := range existingSources {
+			if source.Config.Type == sourceType {
+				added <- source
+			}
+		}
+	}()
+
+	return
 }
 
 // GetAddedForType returns a channel carrying notifications of new sources
 // with the given type.
 //
-// Any sources added before this call are not included.
+// Any sources added before this call are delivered from a new goroutine.
 func (s *LogSources) GetAddedForType(sourceType string) chan *LogSource {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	stream, exists := s.addedByType[sourceType]
+	_, exists := s.addedByType[sourceType]
 	if !exists {
-		stream = make(chan *LogSource)
-		s.addedByType[sourceType] = stream
+		s.addedByType[sourceType] = []chan *LogSource{}
 	}
-	return stream
-}
 
-// GetRemovedForType returns a channel carrying notifications of removed sources
-// with the given type.
-func (s *LogSources) GetRemovedForType(sourceType string) chan *LogSource {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	stream := make(chan *LogSource)
+	s.addedByType[sourceType] = append(s.addedByType[sourceType], stream)
 
-	stream, exists := s.removedByType[sourceType]
-	if !exists {
-		stream = make(chan *LogSource)
-		s.removedByType[sourceType] = stream
-	}
+	existingSources := append([]*LogSource{}, s.sources...) // clone for goroutine
+	go func() {
+		for _, source := range existingSources {
+			if source.Config.Type == sourceType {
+				stream <- source
+			}
+		}
+	}()
+
 	return stream
 }
 

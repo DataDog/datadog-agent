@@ -11,7 +11,6 @@ package netlink
 import (
 	"encoding/binary"
 
-	ct "github.com/florianl/go-conntrack"
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nlenc"
 )
@@ -20,9 +19,9 @@ import (
 func EncodeConn(conn *Con) ([]byte, error) {
 	ae := netlink.NewAttributeEncoder()
 	var err error
-	if conn.Con.Origin != nil {
+	if !conn.Origin.IsZero() {
 		ae.Nested(ctaTupleOrig, func(nae *netlink.AttributeEncoder) error {
-			err = marshalIPTuple(nae, conn.Con.Origin)
+			err = marshalIPTuple(nae, &conn.Origin)
 			return err
 		})
 
@@ -31,9 +30,9 @@ func EncodeConn(conn *Con) ([]byte, error) {
 		}
 	}
 
-	if conn.Con.Reply != nil {
+	if !conn.Reply.IsZero() {
 		ae.Nested(ctaTupleReply, func(nae *netlink.AttributeEncoder) error {
-			err = marshalIPTuple(nae, conn.Con.Reply)
+			err = marshalIPTuple(nae, &conn.Reply)
 			return err
 		})
 
@@ -45,33 +44,35 @@ func EncodeConn(conn *Con) ([]byte, error) {
 	return ae.Encode()
 }
 
-func marshalIPTuple(ae *netlink.AttributeEncoder, tuple *ct.IPTuple) error {
+func marshalIPTuple(ae *netlink.AttributeEncoder, tuple *ConTuple) error {
 	var err error
 	ae.Nested(ctaTupleIP, func(nae *netlink.AttributeEncoder) error {
-		if tuple.Src != nil {
-			i4 := tuple.Src.To4()
-			if i4 != nil {
-				nae.Bytes(ctaIPv4Src, i4)
+		if !tuple.Src.IP().IsZero() {
+			if tuple.Src.IP().Is4() || tuple.Src.IP().Is4in6() {
+				b := tuple.Src.IP().As4()
+				nae.Bytes(ctaIPv4Src, b[:])
 			} else {
-				nae.Bytes(ctaIPv6Src, *tuple.Src)
+				b := tuple.Src.IP().As16()
+				nae.Bytes(ctaIPv6Src, b[:])
 			}
 		}
 
-		if tuple.Dst != nil {
-			i4 := tuple.Dst.To4()
-			if i4 != nil {
-				nae.Bytes(ctaIPv4Dst, i4)
+		if !tuple.Dst.IP().IsZero() {
+			if tuple.Dst.IP().Is4() || tuple.Dst.IP().Is4in6() {
+				b := tuple.Dst.IP().As4()
+				nae.Bytes(ctaIPv4Dst, b[:])
 			} else {
-				nae.Bytes(ctaIPv6Dst, *tuple.Dst)
+				b := tuple.Dst.IP().As16()
+				nae.Bytes(ctaIPv6Dst, b[:])
 			}
 		}
 
 		return nil
 	})
 
-	if tuple.Proto != nil {
+	if tuple.Proto != 0 {
 		ae.Nested(ctaTupleProto, func(nae *netlink.AttributeEncoder) error {
-			err = marshalProto(nae, tuple.Proto)
+			err = marshalProto(nae, tuple)
 			return err
 		})
 
@@ -83,11 +84,11 @@ func marshalIPTuple(ae *netlink.AttributeEncoder, tuple *ct.IPTuple) error {
 	return err
 }
 
-func marshalProto(ae *netlink.AttributeEncoder, proto *ct.ProtoTuple) error {
+func marshalProto(ae *netlink.AttributeEncoder, tuple *ConTuple) error {
 	ae.ByteOrder = binary.BigEndian
-	ae.Uint8(ctaProtoNum, *proto.Number)
-	ae.Uint16(ctaProtoSrcPort, *proto.SrcPort)
-	ae.Uint16(ctaProtoDstPort, *proto.DstPort)
+	ae.Uint8(ctaProtoNum, tuple.Proto)
+	ae.Uint16(ctaProtoSrcPort, tuple.Src.Port())
+	ae.Uint16(ctaProtoDstPort, tuple.Dst.Port())
 	ae.ByteOrder = nlenc.NativeEndian()
 	return nil
 }

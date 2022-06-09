@@ -8,6 +8,7 @@ metadata:
   labels: {}
 spec:
   replicas: 1
+  revisionHistoryLimit: 10
   strategy:
     rollingUpdate:
       maxSurge: 1
@@ -30,7 +31,7 @@ spec:
       serviceAccountName: datadog-cluster-agent
       containers:
         - name: cluster-agent
-          image: "gcr.io/datadoghq/cluster-agent:1.18.0"
+          image: "gcr.io/datadoghq/cluster-agent:1.19.0"
           imagePullPolicy: IfNotPresent
           resources: {}
           ports:
@@ -79,6 +80,10 @@ spec:
               value: "true"
             - name: DD_LEADER_LEASE_DURATION
               value: "15"
+            - name: DD_LEADER_LEASE_NAME
+              value: datadog-leader-election
+            - name: DD_CLUSTER_AGENT_TOKEN_NAME
+              value: datadogtoken
             - name: DD_COLLECT_KUBERNETES_EVENTS
               value: "true"
             - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME

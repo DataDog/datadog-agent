@@ -86,11 +86,18 @@ const (
 	Assured ConnFlags = 0x4
 )
 
-type PortState uint8
+const BatchSize = 0x4
+
+type ConnTag = uint64
 
 const (
-	PortListening PortState = 0x1
-	PortClosed    PortState = 0x0
+	GnuTLS  ConnTag = 0x1
+	OpenSSL ConnTag = 0x2
 )
 
-const BatchSize = 0x4
+var (
+	StaticTags = map[ConnTag]string{
+		GnuTLS:  "tls.library:gnutls",
+		OpenSSL: "tls.library:openssl",
+	}
+)

@@ -11,6 +11,7 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -26,19 +27,16 @@ import (
 //
 // This type implements  pkg/logs/schedulers.Scheduler.
 type Scheduler struct {
-	mgr                schedulers.SourceManager
-	listener           *adlistener.ADListener
-	sourcesByServiceID map[string]*logsConfig.LogSource
+	mgr      schedulers.SourceManager
+	listener *adlistener.ADListener
 }
 
 var _ schedulers.Scheduler = &Scheduler{}
 
 // New creates a new scheduler.
-func New() schedulers.Scheduler {
-	sch := &Scheduler{
-		sourcesByServiceID: make(map[string]*logsConfig.LogSource),
-	}
-	sch.listener = adlistener.NewADListener("logs-agent AD scheduler", sch.Schedule, sch.Unschedule)
+func New(ac *autodiscovery.AutoConfig) schedulers.Scheduler {
+	sch := &Scheduler{}
+	sch.listener = adlistener.NewADListener("logs-agent AD scheduler", ac, sch.Schedule, sch.Unschedule)
 	return sch
 }
 
@@ -77,7 +75,6 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 			}
 			for _, source := range sources {
 				s.mgr.AddSource(source)
-				s.sourcesByServiceID[source.Config.Identifier] = source
 			}
 		case s.newService(config):
 			entityType, _, err := s.parseEntity(config.TaggerEntity)
@@ -118,9 +115,19 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 				log.Warnf("Invalid configuration: %v", err)
 				continue
 			}
-			if source, found := s.sourcesByServiceID[identifier]; found {
-				delete(s.sourcesByServiceID, identifier)
-				s.mgr.RemoveSource(source)
+
+			// remove all the sources for this ServiceID.  This makes the
+			// implicit, and not-quite-correct assumption that we only ever
+			// receive one config for a given ServiceID, and that it generates
+			// the same sources.
+			//
+			// This may also remove sources not added by this scheduler, for
+			// example sources added by other schedulers or sources added by
+			// launchers.
+			for _, source := range s.mgr.GetSources() {
+				if identifier == source.Config.Identifier {
+					s.mgr.RemoveSource(source)
+				}
 			}
 		case s.newService(config):
 			// new service to remove

@@ -59,7 +59,7 @@ func procBindEnvAndSetDefault(config Config, key string, val interface{}) {
 	processConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
 	processAgentKey := strings.Replace(processConfigKey, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
 
-	envs := append([]string{processConfigKey, processAgentKey})
+	envs := []string{processConfigKey, processAgentKey}
 	config.BindEnvAndSetDefault(key, val, envs...)
 }
 
@@ -150,6 +150,8 @@ func setupProcesses(config Config) {
 		"DD_PROCESS_AGENT_DISCOVERY_ENABLED",
 	)
 	procBindEnvAndSetDefault(config, "process_config.process_discovery.interval", 4*time.Hour)
+
+	procBindEnvAndSetDefault(config, "process_config.drop_check_payloads", []string{})
 
 	processesAddOverrideOnce.Do(func() {
 		AddOverrideFunc(loadProcessTransforms)

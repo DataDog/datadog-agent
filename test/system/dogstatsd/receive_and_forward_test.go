@@ -59,7 +59,7 @@ func TestReceiveAndForward(t *testing.T) {
 	require.Len(t, requests, 1)
 
 	sc := []metrics.ServiceCheck{}
-	decompressedBody, err := compression.Decompress(nil, []byte(requests[0]))
+	decompressedBody, err := compression.Decompress([]byte(requests[0]))
 	require.NoError(t, err, "Could not decompress request body")
 	err = json.Unmarshal(decompressedBody, &sc)
 	require.NoError(t, err, fmt.Sprintf("Could not Unmarshal request body: %s", decompressedBody))

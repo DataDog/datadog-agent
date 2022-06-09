@@ -115,6 +115,12 @@ func (dn *dockerNetworkExtension) preRun() {
 }
 
 func (dn *dockerNetworkExtension) processContainer(rawContainer dockerTypes.Container) {
+	// If containerNetworkEntries is nil, it means the generic check was not able to run properly.
+	// It's then useless to run.
+	if dn.containerNetworkEntries == nil {
+		return
+	}
+
 	// We keep excluded containers because pause containers are required as they usually hold
 	// the network configuration for other containers.
 	// However stopped containers are not useful there.
@@ -134,6 +140,12 @@ func (dn *dockerNetworkExtension) processContainer(rawContainer dockerTypes.Cont
 }
 
 func (dn *dockerNetworkExtension) postRun() {
+	// If containerNetworkEntries is nil, it means the generic check was not able to run properly.
+	// It's then useless to run.
+	if dn.containerNetworkEntries == nil {
+		return
+	}
+
 	for _, containerEntry := range dn.containerNetworkEntries {
 		// This is expected as we store excluded containers (like pause containers), created when processing `rawContainer`.
 		// If there was a real failure when gathering NetworkStats, a debug is emitted in `Process()`

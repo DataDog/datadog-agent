@@ -261,6 +261,9 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	if err != nil {
 		return nil, err
 	}
+	if request.Client.State == nil {
+		return &pbgo.ClientGetConfigsResponse{}, nil
+	}
 	if state.DirectorTargetsVersion() == request.Client.State.TargetsVersion {
 		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
@@ -276,10 +279,33 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	if err != nil {
 		return nil, err
 	}
+
+	directorTargets, err := s.uptane.Targets()
+	if err != nil {
+		return nil, err
+	}
+	matchedClientConfigs, err := executeClientPredicates(request.Client, directorTargets)
+	if err != nil {
+		return nil, err
+	}
+
+	// filter files to only return the ones that predicates marked for this client
+	matchedConfigsMap := make(map[string]interface{})
+	for _, configPointer := range matchedClientConfigs {
+		matchedConfigsMap[configPointer] = struct{}{}
+	}
+	filteredFiles := make([]*pbgo.File, 0, len(matchedClientConfigs))
+	for _, targetFile := range targetFiles {
+		if _, ok := matchedConfigsMap[targetFile.Path]; ok {
+			filteredFiles = append(filteredFiles, targetFile)
+		}
+	}
+
 	return &pbgo.ClientGetConfigsResponse{
-		Roots:       roots,
-		Targets:     targetsRaw,
-		TargetFiles: targetFiles,
+		Roots:         roots,
+		Targets:       targetsRaw,
+		TargetFiles:   filteredFiles,
+		ClientConfigs: matchedClientConfigs,
 	}, nil
 }
 

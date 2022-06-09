@@ -139,6 +139,38 @@ func (d *DockerUtil) RawContainerList(ctx context.Context, options types.Contain
 	return d.cli.ContainerList(ctx, options)
 }
 
+// RawContainerListWithFilter is like RawContainerList but with a container filter.
+func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options types.ContainerListOptions, filter *containers.Filter) ([]types.Container, error) {
+	containers, err := d.RawContainerList(ctx, options)
+	if err != nil {
+		return nil, err
+	}
+
+	if filter == nil {
+		return containers, nil
+	}
+
+	isExcluded := func(container types.Container) bool {
+		for _, name := range container.Names {
+			if filter.IsExcluded(name, container.Image, "") {
+				log.Tracef("Container with name %q and image %q is filtered-out", name, container.Image)
+				return true
+			}
+		}
+
+		return false
+	}
+
+	filtered := []types.Container{}
+	for _, container := range containers {
+		if !isExcluded(container) {
+			filtered = append(filtered, container)
+		}
+	}
+
+	return filtered, nil
+}
+
 func (d *DockerUtil) GetHostname(ctx context.Context) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
@@ -323,7 +355,7 @@ func (d *DockerUtil) AllContainerLabels(ctx context.Context) (map[string]map[str
 func (d *DockerUtil) GetContainerStats(ctx context.Context, containerID string) (*types.StatsJSON, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
-	stats, err := d.cli.ContainerStats(ctx, containerID, false)
+	stats, err := d.cli.ContainerStatsOneShot(ctx, containerID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get Docker stats: %s", err)
 	}

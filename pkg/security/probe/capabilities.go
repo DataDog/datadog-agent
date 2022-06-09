@@ -70,7 +70,7 @@ func validateBasenameFilter(value rules.FilterValue) bool {
 	switch value.Type {
 	case eval.ScalarValueType:
 		return true
-	case eval.PatternValueType:
+	case eval.GlobValueType:
 		basename := path.Base(value.Value.(string))
 		if !strings.Contains(basename, "*") {
 			return true
@@ -84,7 +84,7 @@ func oneBasenameCapabilities(event string) Capabilities {
 	return Capabilities{
 		event + ".file.path": {
 			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType | eval.PatternValueType,
+			FieldValueTypes: eval.ScalarValueType | eval.GlobValueType,
 			ValidateFnc:     validateBasenameFilter,
 		},
 		event + ".file.name": {
@@ -98,7 +98,7 @@ func twoBasenameCapabilities(event string, field1, field2 string) Capabilities {
 	return Capabilities{
 		event + "." + field1 + ".path": {
 			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType | eval.PatternValueType,
+			FieldValueTypes: eval.ScalarValueType | eval.GlobValueType,
 			ValidateFnc:     validateBasenameFilter,
 		},
 		event + "." + field1 + ".name": {
@@ -107,7 +107,7 @@ func twoBasenameCapabilities(event string, field1, field2 string) Capabilities {
 		},
 		event + "." + field2 + ".path": {
 			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType | eval.PatternValueType,
+			FieldValueTypes: eval.ScalarValueType | eval.GlobValueType,
 			ValidateFnc:     validateBasenameFilter,
 		},
 		event + "." + field2 + ".name": {

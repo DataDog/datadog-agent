@@ -11,9 +11,8 @@ from distutils.dir_util import copy_tree
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.flavor import AgentFlavor
-
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from .flavor import AgentFlavor
 from .go import deps
 from .utils import (
     REPO_PATH,
@@ -28,7 +27,7 @@ from .utils import (
 # constants
 DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")
 STATIC_BIN_PATH = os.path.join(".", "bin", "static")
-MAX_BINARY_SIZE = 30 * 1024
+MAX_BINARY_SIZE = 32 * 1024
 DOGSTATSD_TAG = "datadog/dogstatsd:master"
 
 

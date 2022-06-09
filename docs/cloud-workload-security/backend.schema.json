@@ -49,6 +49,10 @@
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/NetworkContext"
     },
+    "bind": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/BindEvent"
+    },
     "usr": {
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/UserContext"
@@ -132,6 +136,20 @@
           },
           "type": "array",
           "description": "List of helpers used by the BPF program"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "BindEvent": {
+      "required": [
+        "addr"
+      ],
+      "properties": {
+        "addr": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/IPPortFamily",
+          "description": "Bound address (if any)"
         }
       },
       "additionalProperties": false,
@@ -225,6 +243,10 @@
         "outcome": {
           "type": "string",
           "description": "Event outcome"
+        },
+        "async": {
+          "type": "boolean",
+          "description": "True if the event was asynchronous"
         }
       },
       "additionalProperties": false,
@@ -431,6 +453,29 @@
         "port"
       ],
       "properties": {
+        "ip": {
+          "type": "string",
+          "description": "IP address"
+        },
+        "port": {
+          "type": "integer",
+          "description": "Port number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "IPPortFamily": {
+      "required": [
+        "family",
+        "ip",
+        "port"
+      ],
+      "properties": {
+        "family": {
+          "type": "string",
+          "description": "Address family"
+        },
         "ip": {
           "type": "string",
           "description": "IP address"

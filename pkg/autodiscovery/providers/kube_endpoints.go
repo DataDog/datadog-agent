@@ -217,7 +217,7 @@ func parseServiceAnnotationsForEndpoints(services []*v1.Service) []configInfo {
 
 		endpointsID := apiserver.EntityForEndpoints(svc.Namespace, svc.Name, "")
 
-		endptConf, errors := utils.ExtractTemplatesFromAnnotations(endpointsID, svc.Annotations, kubeEndpointID)
+		endptConf, errors := utils.ExtractTemplatesFromPodAnnotations(endpointsID, svc.Annotations, kubeEndpointID)
 		for _, err := range errors {
 			log.Errorf("Cannot parse endpoint template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}

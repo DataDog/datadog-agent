@@ -22,7 +22,7 @@ import (
 
 // IterableSeries is a serializer for metrics.IterableSeries
 type IterableSeries struct {
-	*metrics.IterableSeries
+	metrics.SerieSource
 }
 
 // WriteHeader writes the payload header for this type
@@ -86,7 +86,7 @@ func (series IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buffe
 // MarshalSplitCompress uses the stream compressor to marshal and compress series payloads.
 // If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
 // compressed protobuf marshaled MetricPayload objects.
-func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
+func marshalSplitCompress(iterator metrics.SerieSource, bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
 	var err error
 	var compressor *stream.Compressor
 	buf := bufferContext.PrecompressionBuf
@@ -309,11 +309,6 @@ func marshalSplitCompress(iterator serieIterator, bufferContext *marshaler.Buffe
 	}
 
 	return payloads, nil
-}
-
-type serieIterator interface {
-	MoveNext() bool
-	Current() *metrics.Serie
 }
 
 // MarshalJSON serializes timeseries to JSON so it can be sent to V1 endpoints

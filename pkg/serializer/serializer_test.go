@@ -114,7 +114,7 @@ func (p *testPayload) MarshalJSON() ([]byte, error) { return jsonString, nil }
 func (p *testPayload) Marshal() ([]byte, error)     { return protobufString, nil }
 func (p *testPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
 	payloads := forwarder.Payloads{}
-	payload, err := compression.Compress(nil, protobufString)
+	payload, err := compression.Compress(protobufString)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +166,7 @@ func mkPayloads(payload []byte, compress bool) (forwarder.Payloads, error) {
 	payloads := forwarder.Payloads{}
 	var err error
 	if compress {
-		payload, err = compression.Compress(nil, payload)
+		payload, err = compression.Compress(payload)
 		if err != nil {
 			return nil, err
 		}
@@ -178,7 +178,7 @@ func mkPayloads(payload []byte, compress bool) (forwarder.Payloads, error) {
 func createJSONPayloadMatcher(prefix string) interface{} {
 	return mock.MatchedBy(func(payloads forwarder.Payloads) bool {
 		for _, compressedPayload := range payloads {
-			if payload, err := compression.Decompress(nil, *compressedPayload); err != nil {
+			if payload, err := compression.Decompress(*compressedPayload); err != nil {
 				return false
 			} else {
 				if strings.HasPrefix(string(payload), prefix) {
@@ -193,7 +193,7 @@ func createJSONPayloadMatcher(prefix string) interface{} {
 func createProtoPayloadMatcher(content []byte) interface{} {
 	return mock.MatchedBy(func(payloads forwarder.Payloads) bool {
 		for _, compressedPayload := range payloads {
-			if payload, err := compression.Decompress(nil, *compressedPayload); err != nil {
+			if payload, err := compression.Decompress(*compressedPayload); err != nil {
 				return false
 			} else {
 				if reflect.DeepEqual(content, payload) {
@@ -277,21 +277,21 @@ func TestSendV1Series(t *testing.T) {
 
 	s := NewSerializer(f, nil, nil)
 
-	err := s.SendIterableSeries(metricsserializer.CreateIterableSeries(metrics.Series{}))
+	err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{}))
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 }
 
 func TestSendSeries(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
-	matcher := createProtoPayloadMatcher([]byte{10, 8, 10, 6, 10, 4, 104, 111, 115, 116})
+	matcher := createProtoPayloadMatcher([]byte{0xa, 0xa, 0xa, 0x6, 0xa, 0x4, 0x68, 0x6f, 0x73, 0x74, 0x28, 0x3})
 	f.On("SubmitSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 	config.Datadog.Set("use_v2_api.series", true)
 	defer config.Datadog.Set("use_v2_api.series", false)
 
 	s := NewSerializer(f, nil, nil)
 
-	err := s.SendIterableSeries(metricsserializer.CreateIterableSeries(metrics.Series{&metrics.Serie{}}))
+	err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{&metrics.Serie{}}))
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 }
@@ -375,7 +375,7 @@ func TestSendWithDisabledKind(t *testing.T) {
 	payload := &testPayload{}
 
 	s.SendEvents(make(metrics.Events, 0))
-	s.SendIterableSeries(metricsserializer.CreateIterableSeries(metrics.Series{}))
+	s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{}))
 	s.SendSketch(make(metrics.SketchSeriesList, 0))
 	s.SendServiceChecks(make(metrics.ServiceChecks, 0))
 	s.SendProcessesMetadata("test")
