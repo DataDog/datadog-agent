@@ -8,5 +8,5 @@
 ---
 features:
   - |
-    The CWS agent now supports filtering events depending on whether they are performed by a thread or not.
+    The CWS agent now supports filtering events depending on whether they are performed by a thread.
     A process is considered a thread if it's a child process that hasn't executed another program.

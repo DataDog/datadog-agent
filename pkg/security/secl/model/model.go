@@ -124,7 +124,7 @@ type ContainerContext struct {
 }
 
 type ThreadContext struct {
-	IsThread bool `field:"is_thread,ResolveIsThread" msg:"is_thread"` // Indicator of whether the process is considered a thread (i.e. a child process that hasn't executed another program)
+	IsThread bool `field:"is_thread,ResolveIsThread" msg:"is_thread"` // Indicator of whether the process is considered a thread (that is, a child process that hasn't executed another program)
 }
 
 // Event represents an event sent from the kernel

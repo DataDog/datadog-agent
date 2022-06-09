@@ -262,7 +262,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.fsuser` | string | FileSystem-user of the process |  |
 | `process.gid` | int | GID of the process |  |
 | `process.group` | string | Group of the process |  |
-| `process.is_thread` | bool | Indicator of whether the process is considered a thread (i.e. a child process that hasn't executed another program) |  |
+| `process.is_thread` | bool | Indicator of whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `process.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `process.ppid` | int | Parent process ID |  |
 | `process.tid` | int | Thread ID of the thread |  |
