@@ -56,7 +56,7 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 	settings := service.ConfigProviderSettings{
 		Locations:     []string{fmt.Sprintf("file:%s", testPath)},
 		MapProviders:  makeConfigMapProviderMap(filemapprovider.New(), envmapprovider.New(), yamlmapprovider.New()),
-		MapConverters: []config.MapConverterFunc{expandmapconverter.New()},
+		MapConverters: []config.MapConverter{expandmapconverter.New()},
 	}
 	defaultProvider, err := service.NewConfigProvider(settings)
 	require.NoError(t, err)

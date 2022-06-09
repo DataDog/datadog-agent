@@ -69,7 +69,7 @@ func NewConfigProviderFromMap(cfg *config.Map) service.ConfigProvider {
 		MapProviders: map[string]config.MapProvider{
 			"map": provider,
 		},
-		MapConverters: []config.MapConverterFunc{},
+		MapConverters: []config.MapConverter{},
 	}
 	cp, err := service.NewConfigProvider(settings)
 	if err != nil {
