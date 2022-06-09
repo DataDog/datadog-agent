@@ -159,7 +159,8 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	// to read arbitrarily encrypted environment variables and use the decrypted version in the extension.
 	// Right now, this feature is used for dual shipping, since customers need to set DD_LOGS_CONFIGURATION
 	// and a few other variables, which include an API key. The user can set DD_LOGS_CONFIGURATION_SECRET_ARN
-	// or DD_LOGS_CONFIGURATION_KMS_ENCRYPTED and be sure to have dual shipping enabled without exposing
+	// or DD_LOGS_CONFIGURATION_KMS_ENCRYPTED, which will get converted in the extension to a plaintext
+	// DD_LOGS_CONFIGURATION, and will have dual shipping enabled without exposing
 	// their API key in plaintext through environment variables.
 	for envKey, envVal := range getSecretEnvVars(os.Environ(), readAPIKeyFromSecretsManager, readAPIKeyFromKMS) {
 		os.Setenv(envKey, envVal)
