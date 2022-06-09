@@ -1251,7 +1251,11 @@ Make sure that milestone is open before trying again.""",
     )
 
 
-@task(help={'redo': "Redo the tag & build for the last RC that was tagged, instead of creating tags for the next RC."})
+@task(
+    help={
+        'redo': "The redo functionality was removed because of dangerous --force functionality. Please build another RC."
+    }
+)
 def build_rc(ctx, major_versions="6,7", patch_version=False, redo=False):
     """
     To be done after the PR created by release.create-rc is merged, with the same options
@@ -1269,8 +1273,13 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, redo=False):
     # Get the version of the highest major: needed for tag_version and to know
     # which tag to target when creating the pipeline.
     if redo:
-        # If redo is enabled, we're moving the current RC tag, so we keep the same version
-        new_version = current_version(ctx, max(list_major_versions))
+        raise Exit(
+            color_message(
+                "The redo functionality was removed because of dangerous --force functionality. Please build another RC.",
+                "red",
+            ),
+            code=1,
+        )
     else:
         new_version = next_rc_version(ctx, max(list_major_versions), patch_version)
 
@@ -1310,8 +1319,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, redo=False):
     # tag_version only takes the highest version (Agent 7 currently), and creates
     # the tags for all supported versions
     # TODO: make it possible to do Agent 6-only or Agent 7-only tags?
-    # Note: if redo is enabled, then we need to set the --force option to move the tags.
-    tag_version(ctx, str(new_version), force=redo)
+    tag_version(ctx, str(new_version), force=False)
 
     print(color_message(f"Waiting until the {new_version} tag appears in Gitlab", "bold"))
     gitlab_tag = None
