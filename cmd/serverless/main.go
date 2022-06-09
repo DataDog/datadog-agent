@@ -154,33 +154,9 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		log.Warn("An API Key has been set in multiple places:", strings.Join(apikeySetIn, ", "))
 	}
 
-	// first, generically parse all _SECRET_ARN and _KMS_KEY variables
-	for _, envVar := range os.Environ() {
-		// TODO: Replace with strings.Cut in Go 1.18
-		tokens := strings.SplitN(envVar, "=", 2)
-		if len(tokens) != 2 {
-			continue
-		}
-		envKey := tokens[0]
-		envVal := tokens[1]
-		if strings.HasSuffix(envKey, kmsKeySuffix) {
-			log.Debugf("Decrypting %v", envVar)
-			secretVal, err := readAPIKeyFromKMS(envVal)
-			if err != nil {
-				log.Debugf("Couldn't read API key from KMS: %v", err)
-				continue
-			}
-			os.Setenv(strings.TrimSuffix(envKey, kmsKeySuffix), secretVal)
-		}
-		if strings.HasSuffix(envKey, secretArnSuffix) {
-			log.Debugf("Retrieving %v from secrets manager", envVar)
-			secretVal, err := readAPIKeyFromSecretsManager(envVal)
-			if err != nil {
-				log.Debugf("Couldn't read API key from KMS: %v", err)
-				continue
-			}
-			os.Setenv(strings.TrimSuffix(envVar, secretArnSuffix), secretVal)
-		}
+	// first, generically parse all _SECRET_ARN and _KMS_KEY variable
+	for envKey, envVal := range getSecretEnvVars(os.Environ(), readAPIKeyFromSecretsManager, readAPIKeyFromKMS) {
+		os.Setenv(envKey, envVal)
 	}
 
 	// try to read API key from KMS

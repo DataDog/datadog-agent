@@ -24,7 +24,7 @@ const encryptionContextKey = "LambdaFunctionName"
 const functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
 
 // kmsKeySuffix is the suffix of all environment variables which should be decrypted by KMS
-const kmsKeySuffix = "_KMS_KEY"
+const kmsKeySuffix = "_KMS_ENCRYPTED"
 
 // secretArnSuffix is the suffix of all environment variables which should be decrypted by secrets manager
 const secretArnSuffix = "_SECRET_ARN"
