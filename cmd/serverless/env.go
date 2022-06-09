@@ -27,7 +27,7 @@ func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc)
 				log.Debugf("Couldn't read API key from KMS: %v", err)
 				continue
 			}
-			decryptedEnvVars[strings.TrimSuffix(envVar, kmsKeySuffix)] = secretVal
+			decryptedEnvVars[strings.TrimSuffix(envKey, kmsKeySuffix)] = secretVal
 		}
 		if strings.HasSuffix(envKey, secretArnSuffix) {
 			log.Debugf("Retrieving %v from secrets manager", envVar)
@@ -36,7 +36,7 @@ func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc)
 				log.Debugf("Couldn't read API key from KMS: %v", err)
 				continue
 			}
-			decryptedEnvVars[strings.TrimSuffix(envVar, secretArnSuffix)] = secretVal
+			decryptedEnvVars[strings.TrimSuffix(envKey, secretArnSuffix)] = secretVal
 		}
 	}
 	return decryptedEnvVars
