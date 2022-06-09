@@ -108,7 +108,7 @@ function remove_stack() {
 }
 
 # always remove the stack before exiting, no matter what
-#trap remove_stack EXIT
+trap remove_stack EXIT
 
 # deploy the stack
 serverless deploy --stage "${stage}"
