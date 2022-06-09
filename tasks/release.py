@@ -1251,6 +1251,7 @@ Make sure that milestone is open before trying again.""",
     )
 
 
+@task
 def build_rc(ctx, major_versions="6,7", patch_version=False):
     """
     To be done after the PR created by release.create-rc is merged, with the same options
