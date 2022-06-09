@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// JMXCheck TODO <agent-core>
+// JMXCheck TODO <agent-core> : IML-199
 type JMXCheck struct {
 	id        check.ID
 	name      string
@@ -42,7 +42,7 @@ func newJMXCheck(config integration.Config, source string) *JMXCheck {
 	return check
 }
 
-// Run TODO <agent-core>
+// Run TODO <agent-core> : IML-199
 func (c *JMXCheck) Run() error {
 	err := state.scheduleCheck(c)
 	if err != nil {
@@ -59,56 +59,56 @@ func (c *JMXCheck) Run() error {
 	return nil
 }
 
-// Stop TODO <agent-core>
+// Stop TODO <agent-core> : IML-199
 func (c *JMXCheck) Stop() {
 	close(c.stop)
 	state.unscheduleCheck(c)
 }
 
-// Cancel TODO <agent-core>
+// Cancel TODO <agent-core> : IML-199
 func (c *JMXCheck) Cancel() {}
 
-// String TODO <agent-core>
+// String TODO <agent-core> : IML-199
 func (c *JMXCheck) String() string {
 	return c.name
 }
 
-// Version TODO <agent-core>
+// Version TODO <agent-core> : IML-199
 func (c *JMXCheck) Version() string {
 	return ""
 }
 
-// ConfigSource TODO <agent-core>
+// ConfigSource TODO <agent-core> : IML-199
 func (c *JMXCheck) ConfigSource() string {
 	return c.source
 }
 
-// Configure TODO <agent-core>
+// Configure TODO <agent-core> : IML-199
 func (c *JMXCheck) Configure(config integration.Data, initConfig integration.Data, source string) error {
 	return nil
 }
 
-// Interval TODO <agent-core>
+// Interval TODO <agent-core> : IML-199
 func (c *JMXCheck) Interval() time.Duration {
 	return 0
 }
 
-// ID TODO <agent-core>
+// ID TODO <agent-core> : IML-199
 func (c *JMXCheck) ID() check.ID {
 	return c.id
 }
 
-// IsTelemetryEnabled TODO <agent-core>
+// IsTelemetryEnabled TODO <agent-core> : IML-199
 func (c *JMXCheck) IsTelemetryEnabled() bool {
 	return c.telemetry
 }
 
-// GetWarnings TODO <agent-core>
+// GetWarnings TODO <agent-core> : IML-199
 func (c *JMXCheck) GetWarnings() []error {
 	return []error{}
 }
 
-// GetSenderStats TODO <agent-core>
+// GetSenderStats TODO <agent-core> : IML-199
 func (c *JMXCheck) GetSenderStats() (check.SenderStats, error) {
 	return check.NewSenderStats(), nil
 }
