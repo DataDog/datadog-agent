@@ -7,8 +7,8 @@ package launchers
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // Launcher implementations launch logs pipelines in response to sources, and
@@ -28,11 +28,11 @@ type Launcher interface {
 
 // SourceProvider is the interface by which launchers subscribe to changes in sources.
 //
-// The *config.LogSources type satisfies this interface.
+// The *sources.LogSources type satisfies this interface.
 type SourceProvider interface {
 	// SubscribeForType returns channels containing the new added and removed sources matching the provided type.
-	SubscribeForType(sourceType string) (added chan *config.LogSource, removed chan *config.LogSource)
+	SubscribeForType(sourceType string) (added chan *sources.LogSource, removed chan *sources.LogSource)
 
 	// GetAddedForType returns channels containing the new added sources matching the provided type.
-	GetAddedForType(sourceType string) chan *config.LogSource
+	GetAddedForType(sourceType string) chan *sources.LogSource
 }

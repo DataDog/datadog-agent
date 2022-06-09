@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/channel"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // Launcher reacts to sources with Config.Type = Channel, by creating a tailer
@@ -19,7 +20,7 @@ import (
 // WARNING: removing a source does not stop the corresponding tailer.
 type Launcher struct {
 	pipelineProvider pipeline.Provider
-	sources          chan *config.LogSource
+	sources          chan *sources.LogSource
 	tailers          []*tailer.Tailer
 	stop             chan struct{}
 }
@@ -38,7 +39,7 @@ func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 	go l.run()
 }
 
-func (l *Launcher) startNewTailer(source *config.LogSource) {
+func (l *Launcher) startNewTailer(source *sources.LogSource) {
 	outputChan := l.pipelineProvider.NextPipelineChan()
 	tailer := tailer.NewTailer(source, source.Config.Channel, outputChan)
 	l.tailers = append(l.tailers, tailer)

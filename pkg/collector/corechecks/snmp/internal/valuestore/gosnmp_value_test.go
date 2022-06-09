@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package gosnmplib
+package valuestore
 
 import (
 	"fmt"
@@ -11,8 +11,6 @@ import (
 
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
 func Test_getValueFromPDU(t *testing.T) {
@@ -20,7 +18,7 @@ func Test_getValueFromPDU(t *testing.T) {
 		caseName          string
 		pduVariable       gosnmp.SnmpPDU
 		expectedName      string
-		expectedSnmpValue valuestore.ResultValue
+		expectedSnmpValue ResultValue
 		expectedErr       error
 	}{
 		{
@@ -31,7 +29,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: 141,
 			},
 			"1.2.3",
-			valuestore.ResultValue{Value: float64(141)},
+			ResultValue{Value: float64(141)},
 			nil,
 		},
 		{
@@ -42,7 +40,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: 141,
 			},
 			"1.2.3",
-			valuestore.ResultValue{Value: float64(141)},
+			ResultValue{Value: float64(141)},
 			nil,
 		},
 		{
@@ -53,7 +51,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: []byte(`myVal`),
 			},
 			"1.2.3",
-			valuestore.ResultValue{Value: []byte(`myVal`)},
+			ResultValue{Value: []byte(`myVal`)},
 			nil,
 		},
 		{
@@ -64,7 +62,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: []byte(`myVal`),
 			},
 			"1.2.3",
-			valuestore.ResultValue{Value: []byte(`myVal`)},
+			ResultValue{Value: []byte(`myVal`)},
 			nil,
 		},
 		{
@@ -75,7 +73,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: "1.2.2",
 			},
 			"1.2.3",
-			valuestore.ResultValue{Value: "1.2.2"},
+			ResultValue{Value: "1.2.2"},
 			nil,
 		},
 		{
@@ -86,7 +84,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: ".1.2.2",
 			},
 			"1.2.3",
-			valuestore.ResultValue{Value: "1.2.2"},
+			ResultValue{Value: "1.2.2"},
 			nil,
 		},
 		{
@@ -97,7 +95,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: "1.2.3.4",
 			},
 			"1.2.3",
-			valuestore.ResultValue{Value: "1.2.3.4"},
+			ResultValue{Value: "1.2.3.4"},
 			nil,
 		},
 		{
@@ -108,7 +106,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: nil,
 			},
 			"1.2.3",
-			valuestore.ResultValue{},
+			ResultValue{},
 			fmt.Errorf("oid .1.2.3: IPAddress should be string type but got type `<nil>` and value `<nil>`"),
 		},
 		{
@@ -119,7 +117,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: nil,
 			},
 			"1.2.3",
-			valuestore.ResultValue{},
+			ResultValue{},
 			fmt.Errorf("oid .1.2.3: invalid type: Null"),
 		},
 		{
@@ -130,7 +128,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: uint(10),
 			},
 			"1.2.3",
-			valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
+			ResultValue{SubmissionType: "counter", Value: float64(10)},
 			nil,
 		},
 		{
@@ -141,7 +139,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: uint(10),
 			},
 			"1.2.3",
-			valuestore.ResultValue{Value: float64(10)},
+			ResultValue{Value: float64(10)},
 			nil,
 		},
 		{
@@ -152,7 +150,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: uint32(10),
 			},
 			"1.2.3",
-			valuestore.ResultValue{Value: float64(10)},
+			ResultValue{Value: float64(10)},
 			nil,
 		},
 		{
@@ -163,7 +161,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: uint64(10),
 			},
 			"1.2.3",
-			valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
+			ResultValue{SubmissionType: "counter", Value: float64(10)},
 			nil,
 		},
 		{
@@ -174,7 +172,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: uint32(10),
 			},
 			"1.2.3",
-			valuestore.ResultValue{Value: float64(10)},
+			ResultValue{Value: float64(10)},
 			nil,
 		},
 		{
@@ -185,7 +183,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: float32(10),
 			},
 			"1.2.3",
-			valuestore.ResultValue{Value: float64(10)},
+			ResultValue{Value: float64(10)},
 			nil,
 		},
 		{
@@ -196,7 +194,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: float64(10),
 			},
 			"1.2.3",
-			valuestore.ResultValue{Value: float64(10)},
+			ResultValue{Value: float64(10)},
 			nil,
 		},
 		{
@@ -207,7 +205,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: nil,
 			},
 			"1.2.3",
-			valuestore.ResultValue{},
+			ResultValue{},
 			fmt.Errorf("oid .1.2.3: invalid type: NoSuchObject"),
 		},
 		{
@@ -218,7 +216,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: nil,
 			},
 			"1.2.3",
-			valuestore.ResultValue{},
+			ResultValue{},
 			fmt.Errorf("oid .1.2.3: invalid type: NoSuchInstance"),
 		},
 		{
@@ -229,7 +227,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: 1.0,
 			},
 			"1.2.3",
-			valuestore.ResultValue{},
+			ResultValue{},
 			fmt.Errorf("oid .1.2.3: OctetString/BitString should be []byte type but got type `float64` and value `1`"),
 		},
 		{
@@ -240,7 +238,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: "abc",
 			},
 			"1.2.3",
-			valuestore.ResultValue{},
+			ResultValue{},
 			fmt.Errorf("oid .1.2.3: OpaqueFloat should be float32 type but got type `string` and value `abc`"),
 		},
 		{
@@ -251,7 +249,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: "abc",
 			},
 			"1.2.3",
-			valuestore.ResultValue{},
+			ResultValue{},
 			fmt.Errorf("oid .1.2.3: OpaqueDouble should be float64 type but got type `string` and value `abc`"),
 		},
 		{
@@ -262,13 +260,13 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: 1,
 			},
 			"1.2.3",
-			valuestore.ResultValue{},
+			ResultValue{},
 			fmt.Errorf("oid .1.2.3: ObjectIdentifier should be string type but got type `int` and value `1`"),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.caseName, func(t *testing.T) {
-			name, value, err := GetValueFromPDU(tt.pduVariable)
+			name, value, err := GetResultValueFromPDU(tt.pduVariable)
 			assert.Equal(t, tt.expectedName, name)
 			assert.Equal(t, tt.expectedSnmpValue, value)
 			assert.Equal(t, tt.expectedErr, err)
@@ -281,7 +279,7 @@ func Test_resultToColumnValues(t *testing.T) {
 		name                string
 		columnOids          []string
 		snmpPacket          *gosnmp.SnmpPacket
-		expectedValues      valuestore.ColumnResultValuesType
+		expectedValues      ColumnResultValuesType
 		expectedNextOidsMap map[string]string
 	}{
 		{
@@ -321,28 +319,28 @@ func Test_resultToColumnValues(t *testing.T) {
 					},
 				},
 			},
-			valuestore.ColumnResultValuesType{
+			ColumnResultValuesType{
 				"1.3.6.1.2.1.2.2.1.14": {
-					"1": valuestore.ResultValue{
+					"1": ResultValue{
 						Value: float64(141),
 					},
-					"2": valuestore.ResultValue{
+					"2": ResultValue{
 						Value: float64(142),
 					},
 				},
 				"1.3.6.1.2.1.2.2.1.2": {
-					"1": valuestore.ResultValue{
+					"1": ResultValue{
 						Value: []byte("desc1"),
 					},
-					"2": valuestore.ResultValue{
+					"2": ResultValue{
 						Value: []byte("desc2"),
 					},
 				},
 				"1.3.6.1.2.1.2.2.1.20": {
-					"1": valuestore.ResultValue{
+					"1": ResultValue{
 						Value: float64(201),
 					},
-					"2": valuestore.ResultValue{
+					"2": ResultValue{
 						Value: float64(202),
 					},
 				},
@@ -379,18 +377,18 @@ func Test_resultToColumnValues(t *testing.T) {
 					},
 				},
 			},
-			valuestore.ColumnResultValuesType{
+			ColumnResultValuesType{
 				"1.3.6.1.2.1.2.2.1.14": {
 					// index 1 not fetched because of gosnmp.NoSuchObject error
-					"2": valuestore.ResultValue{
+					"2": ResultValue{
 						Value: float64(142),
 					},
 				},
 				"1.3.6.1.2.1.2.2.1.2": {
-					"1": valuestore.ResultValue{
+					"1": ResultValue{
 						Value: []byte("desc1"),
 					},
-					"2": valuestore.ResultValue{
+					"2": ResultValue{
 						Value: []byte("desc2"),
 					},
 				},
@@ -414,7 +412,7 @@ func Test_resultToScalarValues(t *testing.T) {
 	tests := []struct {
 		name           string
 		snmpPacket     *gosnmp.SnmpPacket
-		expectedValues valuestore.ScalarResultValuesType
+		expectedValues ScalarResultValuesType
 	}{
 		{
 			"simple case",
@@ -452,7 +450,7 @@ func Test_resultToScalarValues(t *testing.T) {
 					},
 				},
 			},
-			valuestore.ScalarResultValuesType{
+			ScalarResultValuesType{
 				"1.3.6.1.2.1.2.2.1.14.1": {
 					Value: float64(142),
 				},
