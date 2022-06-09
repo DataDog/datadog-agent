@@ -86,6 +86,7 @@ type CCCache struct {
 	appsBatchSize        int
 }
 
+// CCClientI TODO <integrations-tools-and-libraries>: ITL-792
 type CCClientI interface {
 	ListV3AppsByQuery(url.Values) ([]cfclient.V3App, error)
 	ListV3OrganizationsByQuery(url.Values) ([]cfclient.V3Organization, error)
