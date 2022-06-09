@@ -36,7 +36,7 @@ const (
 
 	// These are not all the task-related topics, but enough to detect changes
 	// in the state of the container (only need to know if it's running or not).
-
+	// TaskStartTopic TODO <container-integrations>: CONT-3353
 	TaskStartTopic   = "/tasks/start"
 	TaskOOMTopic     = "/tasks/oom"
 	TaskExitTopic    = "/tasks/exit"

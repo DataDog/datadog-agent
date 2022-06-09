@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// ServiceAPI TODO <container-integrations>: CONT-3353
 type ServiceAPI interface {
 	// List lists all Services
 	ListServices() ([]*v1.Service, error)

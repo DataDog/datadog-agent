@@ -25,6 +25,7 @@ const (
 	metricRetrieverStoreID            string = "mr"
 )
 
+// MetricsRetriever TODO <container-integrations>: CONT-3353
 type MetricsRetriever struct {
 	refreshPeriod int64
 	metricsMaxAge int64
@@ -33,6 +34,7 @@ type MetricsRetriever struct {
 	isLeader      func() bool
 }
 
+// NewMetricsRetriever TODO <container-integrations>: CONT-3353
 func NewMetricsRetriever(refreshPeriod, metricsMaxAge int64, processor autoscalers.ProcessorInterface, isLeader func() bool, store *DatadogMetricsInternalStore) (*MetricsRetriever, error) {
 	return &MetricsRetriever{
 		refreshPeriod: refreshPeriod,
@@ -43,6 +45,7 @@ func NewMetricsRetriever(refreshPeriod, metricsMaxAge int64, processor autoscale
 	}, nil
 }
 
+// Run TODO <container-integrations>: CONT-3353
 func (mr *MetricsRetriever) Run(stopCh <-chan struct{}) {
 	log.Infof("Starting MetricsRetriever")
 	tickerRefreshProcess := time.NewTicker(time.Duration(mr.refreshPeriod) * time.Second)

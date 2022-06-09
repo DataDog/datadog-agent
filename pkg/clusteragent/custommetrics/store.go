@@ -52,6 +52,7 @@ func ExternalMetricValueKeyFunc(val ExternalMetricValue) string {
 	return strings.Join(parts, keyDelimeter)
 }
 
+// DeprecatedExternalMetricValueKeyFunc TODO <container-integrations>: CONT-3353
 func DeprecatedExternalMetricValueKeyFunc(val DeprecatedExternalMetricValue) string {
 	parts := []string{
 		"external_metric",

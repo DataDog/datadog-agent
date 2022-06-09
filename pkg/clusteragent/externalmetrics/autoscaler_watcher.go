@@ -36,6 +36,7 @@ const (
 	autoscalerHPAKindKey        string = "hpa"
 )
 
+// AutoscalerWatcher TODO <container-integrations>: CONT-3353
 type AutoscalerWatcher struct {
 	refreshPeriod           int64
 	autogenExpirationPeriod time.Duration
@@ -103,6 +104,7 @@ func NewAutoscalerWatcher(refreshPeriod, autogenExpirationPeriodHours int64, aut
 	return autoscalerWatcher, nil
 }
 
+// Run TODO <container-integrations>: CONT-3353
 func (w *AutoscalerWatcher) Run(stopCh <-chan struct{}) {
 	log.Infof("Starting AutoscalerWatcher (waiting for cache sync)")
 	if w.autoscalerListerSynced != nil {

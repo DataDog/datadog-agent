@@ -29,6 +29,7 @@ var (
 	once          sync.Once
 )
 
+// CRIClient TODO <container-integrations>: CONT-3353
 type CRIClient interface {
 	ListContainerStats() (map[string]*pb.ContainerStats, error)
 	GetContainerStats(containerID string) (*pb.ContainerStats, error)
@@ -151,10 +152,12 @@ func (c *CRIUtil) GetContainerStatus(containerID string) (*pb.ContainerStatus, e
 	return r.Status, nil
 }
 
+// GetRuntime TODO <container-integrations>: CONT-3353
 func (c *CRIUtil) GetRuntime() string {
 	return c.runtime
 }
 
+// GetRuntimeVersion TODO <container-integrations>: CONT-3353
 func (c *CRIUtil) GetRuntimeVersion() string {
 	return c.runtimeVersion
 }

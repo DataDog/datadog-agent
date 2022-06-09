@@ -16,6 +16,7 @@ const (
 	DockerExit      = "docker.exit"
 )
 
+// DockerConfig TODO <container-integrations>: CONT-3353
 type DockerConfig struct {
 	CollectContainerSize     bool               `yaml:"collect_container_size"`
 	CollectContainerSizeFreq uint64             `yaml:"collect_container_size_frequency"`
@@ -31,6 +32,7 @@ type DockerConfig struct {
 	CappedMetrics            map[string]float64 `yaml:"capped_metrics"`
 }
 
+// Parse TODO <container-integrations>: CONT-3353
 func (c *DockerConfig) Parse(data []byte) error {
 	// default values
 	c.CollectEvent = true

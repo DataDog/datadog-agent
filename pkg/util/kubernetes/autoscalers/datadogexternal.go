@@ -45,6 +45,7 @@ var (
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 )
 
+// Point TODO <container-integrations>: CONT-3353
 type Point struct {
 	Value     float64
 	Timestamp int64

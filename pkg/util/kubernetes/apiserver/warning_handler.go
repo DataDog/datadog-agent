@@ -16,6 +16,7 @@ import (
 
 var supressedWarning = regexp.MustCompile(`.*is deprecated in v.*`)
 
+// CustomWarningLogger TODO <container-integrations>: CONT-3353
 type CustomWarningLogger struct{}
 
 // HandleWarningHeader suppresses some warning logs

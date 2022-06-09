@@ -87,6 +87,7 @@ func (ku *KubeUtil) init() error {
 	return nil
 }
 
+// NewKubeUtil TODO <container-integrations>: CONT-3353
 func NewKubeUtil() *KubeUtil {
 	ku := &KubeUtil{
 		rawConnectionInfo:    make(map[string]string),
@@ -341,6 +342,7 @@ func (ku *KubeUtil) GetSpecForContainerName(pod *Pod, containerName string) (Con
 	return ContainerSpec{}, errors.NewNotFound(fmt.Sprintf("container %s in pod", containerName))
 }
 
+// GetPodFromUID TODO <container-integrations>: CONT-3353
 func (ku *KubeUtil) GetPodFromUID(ctx context.Context, podUID string) (*Pod, error) {
 	if podUID == "" {
 		return nil, fmt.Errorf("pod UID is empty")
@@ -378,6 +380,7 @@ func (ku *KubeUtil) GetPodForEntityID(ctx context.Context, entityID string) (*Po
 	return ku.GetPodForContainerID(ctx, entityID)
 }
 
+// GetLocalStatsSummary TODO <container-integrations>: CONT-3353
 func (ku *KubeUtil) GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error) {
 	data, code, err := ku.QueryKubelet(ctx, kubeletStatsSummary)
 	if err != nil {

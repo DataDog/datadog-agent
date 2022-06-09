@@ -14,6 +14,7 @@ import (
 
 var dogCl autoscalers.DatadogClient
 
+// GetStatus TODO <container-integrations>: CONT-3353
 func GetStatus() map[string]interface{} {
 	return autoscalers.GetStatus(dogCl)
 }

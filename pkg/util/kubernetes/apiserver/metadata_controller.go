@@ -49,6 +49,7 @@ type MetadataController struct {
 	queue workqueue.RateLimitingInterface
 }
 
+// NewMetadataController TODO <container-integrations>: CONT-3353
 func NewMetadataController(nodeInformer coreinformers.NodeInformer, namespaceInformer coreinformers.NamespaceInformer, endpointsInformer coreinformers.EndpointsInformer) *MetadataController {
 	m := &MetadataController{
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "endpoints"),
@@ -75,6 +76,7 @@ func NewMetadataController(nodeInformer coreinformers.NodeInformer, namespaceInf
 	return m
 }
 
+// Run TODO <container-integrations>: CONT-3353
 func (m *MetadataController) Run(stopCh <-chan struct{}) {
 	defer m.queue.ShutDown()
 

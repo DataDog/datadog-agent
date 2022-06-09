@@ -8,6 +8,7 @@
 
 package custommetrics
 
+// ExternalMetricValue TODO <container-integrations>: CONT-3353
 type ExternalMetricValue struct {
 	MetricName string            `json:"metricName"`
 	Labels     map[string]string `json:"labels"`
@@ -17,6 +18,7 @@ type ExternalMetricValue struct {
 	Valid      bool              `json:"valid"`
 }
 
+// DeprecatedExternalMetricValue TODO <container-integrations>: CONT-3353
 type DeprecatedExternalMetricValue struct {
 	MetricName string            `json:"metricName"`
 	Labels     map[string]string `json:"labels"`
@@ -34,6 +36,7 @@ type ObjectReference struct {
 	UID       string `json:"uid"`
 }
 
+// MetricsBundle TODO <container-integrations>: CONT-3353
 type MetricsBundle struct {
 	External   []ExternalMetricValue
 	Deprecated []DeprecatedExternalMetricValue

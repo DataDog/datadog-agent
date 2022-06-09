@@ -65,6 +65,7 @@ func init() {
 	Register(kubeEndpointsName, NewKubeEndpointsListener)
 }
 
+// NewKubeEndpointsListener TODO <container-integrations>: CONT-3353
 func NewKubeEndpointsListener(conf Config) (ServiceListener, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
@@ -93,6 +94,7 @@ func NewKubeEndpointsListener(conf Config) (ServiceListener, error) {
 	}, nil
 }
 
+// Listen TODO <container-integrations>: CONT-3353
 func (l *KubeEndpointsListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	// setup the I/O channels
 	l.newService = newSvc

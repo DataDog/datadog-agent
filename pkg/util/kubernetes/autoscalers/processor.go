@@ -35,6 +35,7 @@ const (
 	extraQueryCharacters = 16
 )
 
+// DatadogClient TODO <container-integrations>: CONT-3353
 type DatadogClient interface {
 	QueryMetrics(from, to int64, query string) ([]datadog.Series, error)
 	GetRateLimitStats() map[string]datadog.RateLimit

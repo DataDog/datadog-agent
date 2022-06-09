@@ -37,6 +37,7 @@ import (
 )
 
 const (
+	// DefaultDBPath TODO <container-integrations>: CONT-3353
 	DefaultDBPath = "/var/lib/containers/storage/libpod/bolt_state.db"
 	ctrName       = "ctr"
 	allCtrsName   = "all-ctrs"
@@ -51,6 +52,7 @@ var (
 	stateKey   = []byte(stateName)
 )
 
+// DBClient TODO <container-integrations>: CONT-3353
 type DBClient struct {
 	DBPath string
 }

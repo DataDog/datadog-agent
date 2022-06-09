@@ -44,8 +44,17 @@ func NewConfig(ns, name, svc string, cert CertConfig) Config {
 	}
 }
 
-func (s *Config) GetName() string                     { return s.name }
-func (s *Config) GetNs() string                       { return s.ns }
-func (s *Config) GetSvc() string                      { return s.svc }
-func (s *Config) GetCertExpiration() time.Duration    { return s.cert.expirationThreshold }
+// GetName TODO <container-integrations>: CONT-3353
+func (s *Config) GetName() string { return s.name }
+
+// GetNs TODO <container-integrations>: CONT-3353
+func (s *Config) GetNs() string { return s.ns }
+
+// GetSvc TODO <container-integrations>: CONT-3353
+func (s *Config) GetSvc() string { return s.svc }
+
+// GetCertExpiration TODO <container-integrations>: CONT-3353
+func (s *Config) GetCertExpiration() time.Duration { return s.cert.expirationThreshold }
+
+// GetCertValidityBound TODO <container-integrations>: CONT-3353
 func (s *Config) GetCertValidityBound() time.Duration { return s.cert.validityBound }

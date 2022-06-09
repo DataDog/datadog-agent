@@ -609,6 +609,7 @@ func (k *KSMCheck) sendTelemetry(s aggregator.Sender) {
 	}
 }
 
+// KubeStateMetricsFactory TODO <container-integrations>: CONT-3353
 func KubeStateMetricsFactory() check.Check {
 	return newKSMCheck(
 		core.NewCheckBase(kubeStateMetricsCheckName),

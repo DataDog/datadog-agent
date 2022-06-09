@@ -16,26 +16,32 @@ import (
 	"github.com/docker/docker/api/types/registry"
 )
 
+// SystemAPIClient TODO <container-integrations>: CONT-3353
 type SystemAPIClient struct {
 	InfoFunc func() (types.Info, error)
 }
 
+// Events TODO <container-integrations>: CONT-3353
 func (c *SystemAPIClient) Events(ctx context.Context, options types.EventsOptions) (<-chan events.Message, <-chan error) {
 	return nil, nil
 }
 
+// Info TODO <container-integrations>: CONT-3353
 func (c *SystemAPIClient) Info(ctx context.Context) (types.Info, error) {
 	return c.InfoFunc()
 }
 
+// RegistryLogin TODO <container-integrations>: CONT-3353
 func (c *SystemAPIClient) RegistryLogin(ctx context.Context, auth types.AuthConfig) (registry.AuthenticateOKBody, error) {
 	return registry.AuthenticateOKBody{}, nil
 }
 
+// DiskUsage TODO <container-integrations>: CONT-3353
 func (c *SystemAPIClient) DiskUsage(ctx context.Context) (types.DiskUsage, error) {
 	return types.DiskUsage{}, nil
 }
 
+// Ping TODO <container-integrations>: CONT-3353
 func (c *SystemAPIClient) Ping(ctx context.Context) (types.Ping, error) {
 	return types.Ping{}, nil
 }

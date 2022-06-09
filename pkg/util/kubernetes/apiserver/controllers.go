@@ -52,6 +52,7 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 	},
 }
 
+// ControllerContext TODO <container-integrations>: CONT-3353
 type ControllerContext struct {
 	informers          map[InformerName]cache.SharedInformer
 	InformerFactory    informers.SharedInformerFactory
