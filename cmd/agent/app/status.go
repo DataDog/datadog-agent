@@ -39,7 +39,7 @@ func redactError(unscrubbedError error) error {
 
 	errMsg := unscrubbedError.Error()
 	scrubbedMsg, scrubOperationErr := scrubber.ScrubBytes([]byte(errMsg))
-	var scrubbedError error = nil
+	var scrubbedError error
 	if scrubOperationErr != nil {
 		scrubbedError = errors.New("[REDACTED] failed to clean error")
 	} else {
