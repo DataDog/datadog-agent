@@ -62,10 +62,9 @@ type pullRequest struct {
 // 		* the store is full. Subsequent Push operations override the data pointed by head and move both head and tail
 //		to the next position
 type RingStore struct {
-	head     int
-	tail     int
-	buffer   []ringNode
-	maxItems int
+	head   int
+	tail   int
+	buffer []ringNode
 
 	dropHandler EventHandler // applied to an event before it's dropped. Used for test's purposes
 	pushReq     chan *pushRequest
@@ -116,7 +115,6 @@ func NewRingStore(client statsd.ClientInterface) (Store, error) {
 		buffer:        make([]ringNode, maxItems),
 		head:          0,
 		tail:          0,
-		maxItems:      maxItems,
 		pushReq:       make(chan *pushRequest, maxPushes),
 		pullReq:       make(chan *pullRequest, maxPulls),
 		exit:          make(chan struct{}),
@@ -172,8 +170,6 @@ func (s *RingStore) Push(e *model.ProcessEvent, done chan bool) error {
 
 // Pull returns all events stored in the RingStore
 func (s *RingStore) Pull(ctx context.Context, timeout time.Duration) ([]*model.ProcessEvent, error) {
-	timer := time.NewTimer(timeout)
-
 	q := &pullRequest{
 		results: make(chan []*model.ProcessEvent),
 	}
@@ -186,6 +182,7 @@ func (s *RingStore) Pull(ctx context.Context, timeout time.Duration) ([]*model.P
 	}
 
 	var batch []*model.ProcessEvent
+	timer := time.NewTimer(timeout)
 	select {
 	case batch = <-q.results:
 		timer.Stop()

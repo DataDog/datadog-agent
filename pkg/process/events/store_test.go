@@ -134,6 +134,8 @@ func TestRingStoreWithDroppedData(t *testing.T) {
 	now := time.Now()
 	ctx := context.Background()
 	timeout := time.Second
+	expectedDrops := make([]*model.ProcessEvent, 0)
+	droppedEvents := make([]*model.ProcessEvent, 0)
 
 	cfg := config.Mock()
 	cfg.Set("process_config.event_collection.store.max_items", 3)
@@ -142,6 +144,9 @@ func TestRingStoreWithDroppedData(t *testing.T) {
 
 	s, ok := store.(*RingStore)
 	require.True(t, ok)
+	s.dropHandler = func(e *model.ProcessEvent) {
+		droppedEvents = append(droppedEvents, e)
+	}
 
 	s.Run()
 	defer s.Stop()
@@ -160,21 +165,23 @@ func TestRingStoreWithDroppedData(t *testing.T) {
 	require.Equal(t, 3, s.size())
 
 	// Pushing new elements should drop old data
-	s.dropHandler = func(e *model.ProcessEvent) {
-		model.AssertProcessEvents(t, e1, e)
-	}
-	pushSync(t, s, e4) // drop e1
+	expectedDrops = append(expectedDrops, e1)
+	pushSync(t, s, e4)
 	require.Equal(t, 1, s.head)
 	require.Equal(t, 1, s.tail)
 	require.Equal(t, 3, s.size())
 
-	s.dropHandler = func(e *model.ProcessEvent) {
-		model.AssertProcessEvents(t, e2, e)
-	}
-	pushSync(t, s, e1) // drop e2
+	expectedDrops = append(expectedDrops, e2)
+	pushSync(t, s, e1)
 	require.Equal(t, 2, s.head)
 	require.Equal(t, 2, s.tail)
 	require.Equal(t, 3, s.size())
+
+	// Assert that the expected events have been dropped
+	require.Equal(t, len(expectedDrops), len(droppedEvents))
+	for i := range droppedEvents {
+		model.AssertProcessEvents(t, expectedDrops[i], droppedEvents[i])
+	}
 
 	data, err := s.Pull(ctx, timeout)
 	assert.NoError(t, err)
