@@ -102,11 +102,9 @@ func (e *RareSampler) handleTrace(now time.Time, env string, t *pb.TraceChunk) b
 			break
 		}
 	}
-
 	if sampled {
 		e.handlePriorityTrace(now, env, t, defaultTTL)
 	}
-
 	return sampled
 }
 
