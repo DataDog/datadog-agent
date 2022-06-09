@@ -60,7 +60,7 @@ type EventHandler interface {
 }
 
 type EventStream interface {
-	Init(*manager.Manager, *Monitor) error
+	Init(*manager.Manager, *Monitor, *config.Config) error
 	Start(*sync.WaitGroup) error
 	Pause() error
 	Resume() error
@@ -141,6 +141,11 @@ func (p *Probe) GetKernelVersion() (*kernel.Version, error) {
 		return nil, err
 	}
 	return p.kernelVersion, nil
+}
+
+// UseRingBuffers returns true if eBPF ring buffers are supported and used
+func (p *Probe) UseRingBuffers() bool {
+	return p.kernelVersion.HaveRingBuffers() && p.config.EventStreamUseRingBuffer
 }
 
 func (p *Probe) sanityChecks() error {
@@ -248,7 +253,7 @@ func (p *Probe) Init() error {
 	}
 	defer bytecodeReader.Close()
 
-	if err := p.eventStream.Init(p.manager, p.monitor); err != nil {
+	if err := p.eventStream.Init(p.manager, p.monitor, p.config); err != nil {
 		return err
 	}
 
@@ -1233,7 +1238,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		log.Warnf("the current environment may be misconfigured: %v", err)
 	}
 
-	useRingBuffers := p.kernelVersion.HaveRingBuffers()
+	useRingBuffers := p.UseRingBuffers()
 	useMmapableMaps := p.kernelVersion.HaveMmapableMaps()
 
 	p.manager = ebpf.NewRuntimeSecurityManager(useRingBuffers)
@@ -1348,7 +1353,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		)
 	}
 
-	if p.kernelVersion.HaveRingBuffers() {
+	if useRingBuffers {
 		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
 			manager.ConstantEditor{
 				Name:  "use_ring_buffer",

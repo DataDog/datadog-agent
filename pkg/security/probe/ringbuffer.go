@@ -11,6 +11,7 @@ package probe
 import (
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/pkg/errors"
 )
@@ -23,7 +24,7 @@ type RingBuffer struct {
 }
 
 // Init the ring buffer
-func (rb *RingBuffer) Init(mgr *manager.Manager, monitor *Monitor) error {
+func (rb *RingBuffer) Init(mgr *manager.Manager, monitor *Monitor, config *config.Config) error {
 	var ok bool
 	if rb.ringBuffer, ok = mgr.GetRingBuffer("events"); !ok {
 		return errors.New("couldn't find events perf map")
@@ -31,6 +32,10 @@ func (rb *RingBuffer) Init(mgr *manager.Manager, monitor *Monitor) error {
 
 	rb.ringBuffer.RingBufferOptions = manager.RingBufferOptions{
 		DataHandler: rb.handleEvent,
+	}
+
+	if config.EventStreamBufferSize != 0 {
+		rb.ringBuffer.RingBufferOptions.RingBufferSize = config.EventStreamBufferSize
 	}
 
 	return nil

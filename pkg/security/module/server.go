@@ -273,7 +273,7 @@ func (a *APIServer) GetStatus(ctx context.Context, params *api.GetStatusParams) 
 
 	if kernel, err := a.probe.GetKernelVersion(); err == nil {
 		apiStatus.Environment.UseMmapableMaps = kernel.HaveMmapableMaps()
-		apiStatus.Environment.UseRingBuffer = kernel.HaveRingBuffers()
+		apiStatus.Environment.UseRingBuffer = a.probe.UseRingBuffers()
 	}
 
 	return apiStatus, nil

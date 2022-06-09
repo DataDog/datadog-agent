@@ -152,7 +152,7 @@ func getMaxEntries(numCPU int, min int, max int) uint32 {
 }
 
 // AllMapSpecEditors returns the list of map editors
-func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize int, supportMmapableMaps, supportsRingBuffers bool) map[string]manager.MapSpecEditor {
+func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize int, supportMmapableMaps, useRingBuffers bool) map[string]manager.MapSpecEditor {
 	if tracedCgroupsCount <= 0 || tracedCgroupsCount > MaxTracedCgroupsCount {
 		tracedCgroupsCount = MaxTracedCgroupsCount
 	}
@@ -187,7 +187,7 @@ func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize in
 			EditorFlag: manager.EditFlags,
 		}
 	}
-	if supportsRingBuffers {
+	if useRingBuffers {
 		editors["events"] = manager.MapSpecEditor{
 			MaxEntries: uint32(EventsRingBufferSize),
 			Type:       ebpf.RingBuf,
