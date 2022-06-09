@@ -1251,12 +1251,7 @@ Make sure that milestone is open before trying again.""",
     )
 
 
-@task(
-    help={
-        'redo': "The redo functionality was removed because of dangerous --force functionality. Please build another RC."
-    }
-)
-def build_rc(ctx, major_versions="6,7", patch_version=False, redo=False):
+def build_rc(ctx, major_versions="6,7", patch_version=False):
     """
     To be done after the PR created by release.create-rc is merged, with the same options
     as release.create-rc.
@@ -1272,16 +1267,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, redo=False):
 
     # Get the version of the highest major: needed for tag_version and to know
     # which tag to target when creating the pipeline.
-    if redo:
-        raise Exit(
-            color_message(
-                "The redo functionality was removed because of dangerous --force functionality. Please build another RC.",
-                "red",
-            ),
-            code=1,
-        )
-    else:
-        new_version = next_rc_version(ctx, max(list_major_versions), patch_version)
+    new_version = next_rc_version(ctx, max(list_major_versions), patch_version)
 
     # Get a string representation of the RC, eg. "6/7.32.0-rc.1"
     versions_string = f"{'/'.join([str(n) for n in list_major_versions[:-1]] + [str(new_version)])}"
