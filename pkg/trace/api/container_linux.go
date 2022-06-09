@@ -18,6 +18,9 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 )
 
 const (
@@ -156,12 +159,10 @@ func getContainerID(req *http.Request) string {
 	if !ok || ucred == nil {
 		return ""
 	}
-	if id, ok := cache.ContainerID(ucred.Pid); ok {
-		return id
+	cid, err := metrics.GetProvider().GetMetaCollector().GetContainerIDForPID(int(ucred.Pid), cacheExpire)
+	if err != nil {
+		log.Debugf("Could not get credentials from provider: %v\n", err)
+		return ""
 	}
-	if cid := readContainerID(createPath(ucred.Pid)); cid != "" {
-		cache.insertID(ucred.Pid, cid)
-		return cid
-	}
-	return ""
+	return cid
 }
