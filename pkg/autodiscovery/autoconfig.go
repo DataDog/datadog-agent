@@ -208,12 +208,25 @@ func (ac *AutoConfig) ForceRanOnceFlag() {
 	ac.ranOnce.Store(true)
 }
 
-// HasRunOnce returns true if the AutoConfig has ran once.
-func (ac *AutoConfig) HasRunOnce() bool {
-	if ac == nil {
-		return false
+// WaitUntilRunOnce will wait until the configs have been loaded.  When this
+// returns, all config providers will have been polled at least once, and any
+// resulting configs scheduled.
+//
+// This function gives up and returns anyway after `ac_load_timeout` ms have
+// elapsed.
+func (ac *AutoConfig) WaitUntilRunOnce() {
+	timeout := time.Millisecond * time.Duration(config.Datadog.GetInt("ac_load_timeout"))
+	now := time.Now()
+	for {
+		time.Sleep(100 * time.Millisecond) // don't hog the CPU
+		if ac.ranOnce.Load() {
+			return
+		}
+		if time.Since(now) > timeout {
+			log.Error("WaitUntilRunOnce timeout after", timeout)
+			return
+		}
 	}
-	return ac.ranOnce.Load()
 }
 
 // GetAllConfigs queries all the providers and returns all the integration

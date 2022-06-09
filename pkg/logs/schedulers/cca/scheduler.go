@@ -6,8 +6,6 @@
 package cca
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -50,28 +48,11 @@ func (s *Scheduler) Start(sourceMgr schedulers.SourceManager) {
 	// that any containers that do have specific configuration get handled first.  This is
 	// a hack!
 	go func() {
-		s.blockUntilAutoConfigRanOnce(
-			time.Millisecond * time.Duration(coreConfig.Datadog.GetInt("ac_load_timeout")))
+		s.ac.WaitUntilRunOnce()
 		log.Debug("Adding ContainerCollectAll source to the Logs Agent")
 		sourceMgr.AddSource(source)
 		close(s.added)
 	}()
-}
-
-// blockUntilAutoConfigRanOnce blocks until the AutoConfig has been run once.
-// It also returns after the given timeout.
-func (s *Scheduler) blockUntilAutoConfigRanOnce(timeout time.Duration) {
-	now := time.Now()
-	for {
-		time.Sleep(100 * time.Millisecond) // don't hog the CPU
-		if s.ac.HasRunOnce() {
-			return
-		}
-		if time.Since(now) > timeout {
-			log.Error("BlockUntilAutoConfigRanOnce timeout after", timeout)
-			return
-		}
-	}
 }
 
 // Stop implements schedulers.Scheduler#Stop.
