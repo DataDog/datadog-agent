@@ -70,7 +70,7 @@ func TestReadInitialTCPState(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		initialPorts, err := ReadInitialState("/proc", TCP, true)
+		initialPorts, err := ReadInitialState("/proc", TCP, true, true)
 		require.NoError(t, err)
 		for _, p := range ports[:2] {
 			if _, ok := initialPorts[PortMapping{testRootNs, p}]; !ok {
@@ -130,7 +130,7 @@ func TestReadInitialUDPState(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		initialPorts, err := ReadInitialState("/proc", UDP, true)
+		initialPorts, err := ReadInitialState("/proc", UDP, true, true)
 		require.NoError(t, err)
 		for _, p := range ports[:2] {
 			if _, ok := initialPorts[PortMapping{testRootNs, p}]; !ok {

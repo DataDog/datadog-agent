@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"go.uber.org/atomic"
 
@@ -79,7 +80,7 @@ func start(ac *autodiscovery.AutoConfig, serverless bool) (*Agent, error) {
 	}
 
 	// setup the sources and the services
-	sources := config.NewLogSources()
+	sources := sources.NewLogSources()
 	services := service.NewServices()
 
 	// setup the server config

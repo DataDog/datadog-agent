@@ -42,7 +42,7 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
     }
 }
 
-static __always_inline void sockaddr_to_addr(struct sockaddr *sa, u64 *addr_h, u64 *addr_l, u16 *port, u32 *metadata) {
+__maybe_unused static __always_inline void sockaddr_to_addr(struct sockaddr *sa, u64 *addr_h, u64 *addr_l, u16 *port, u32 *metadata) {
     if (!sa) {
         return;
     }

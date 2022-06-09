@@ -15,7 +15,7 @@ import (
 )
 
 // VerifyKernelFuncs ensures all kernel functions exist in ksyms located at provided path.
-func VerifyKernelFuncs(path string, requiredKernelFuncs []string) ([]string, error) {
+func VerifyKernelFuncs(path string, requiredKernelFuncs []string) (map[string]struct{}, error) {
 	missing := make(util.SSBytes, len(requiredKernelFuncs))
 	for i, f := range requiredKernelFuncs {
 		missing[i] = []byte(f)
@@ -36,10 +36,9 @@ func VerifyKernelFuncs(path string, requiredKernelFuncs []string) ([]string, err
 		}
 	}
 
-	missingStrs := make([]string, len(missing))
+	missingStrs := make(map[string]struct{}, len(missing))
 	for i := range missing {
-		missingStrs[i] = string(missing[i])
+		missingStrs[string(missing[i])] = struct{}{}
 	}
-
 	return missingStrs, nil
 }

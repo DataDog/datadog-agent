@@ -14,12 +14,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 func TestReadAndForwardShouldSucceedWithSuccessfulRead(t *testing.T) {
 	msgChan := make(chan *message.Message)
 	r, w := net.Pipe()
-	tailer := NewTailer(config.NewLogSource("", &config.LogsConfig{}), r, msgChan, read)
+	tailer := NewTailer(sources.NewLogSource("", &config.LogsConfig{}), r, msgChan, read)
 	tailer.Start()
 
 	var msg *message.Message
@@ -43,7 +44,7 @@ func TestReadShouldFailWithError(t *testing.T) {
 	msgChan := make(chan *message.Message)
 	r, w := net.Pipe()
 	read := func(*Tailer) ([]byte, error) { return nil, errors.New("") }
-	tailer := NewTailer(config.NewLogSource("", &config.LogsConfig{}), r, msgChan, read)
+	tailer := NewTailer(sources.NewLogSource("", &config.LogsConfig{}), r, msgChan, read)
 	tailer.Start()
 
 	w.Write([]byte("foo\n"))

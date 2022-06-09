@@ -18,6 +18,8 @@ import (
 
 const policyExtension = ".policy"
 
+var _ PolicyProvider = (*PoliciesDirProvider)(nil)
+
 // PoliciesDirProvider defines a new policy dir provider
 type PoliciesDirProvider struct {
 	PoliciesDir string
@@ -33,6 +35,8 @@ type PoliciesDirProvider struct {
 func (p *PoliciesDirProvider) SetOnNewPoliciesReadyCb(cb func()) {
 	p.onNewPoliciesReadyCb = cb
 }
+
+func (p *PoliciesDirProvider) Start() {}
 
 func (p *PoliciesDirProvider) loadPolicy(filename string) (*Policy, error) {
 	f, err := os.Open(filename)
@@ -121,8 +125,10 @@ func (p *PoliciesDirProvider) LoadPolicies() ([]*Policy, *multierror.Error) {
 }
 
 // Stop implements the policy provider interface
-func (p *PoliciesDirProvider) Stop() {
+func (p *PoliciesDirProvider) Close() error {
 	p.cancelFnc()
+	p.watcher.Close()
+	return nil
 }
 
 func filesEqual(a []string, b []string) bool {

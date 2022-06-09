@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -57,7 +57,7 @@ type AutoMultilineHandler struct {
 	scoredMatches     []*scoredPattern
 	processFunc       func(message *Message)
 	flushTimeout      time.Duration
-	source            *config.LogSource
+	source            *sources.LogSource
 	timeoutTimer      *time.Timer
 	detectedPattern   *DetectedPattern
 }
@@ -69,7 +69,7 @@ func NewAutoMultilineHandler(
 	matchThreshold float64,
 	matchTimeout time.Duration,
 	flushTimeout time.Duration,
-	source *config.LogSource,
+	source *sources.LogSource,
 	additionalPatterns []*regexp.Regexp,
 	detectedPattern *DetectedPattern,
 ) *AutoMultilineHandler {

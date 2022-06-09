@@ -70,7 +70,6 @@ type Module struct {
 	policiesVersions []string
 	policyProviders  []rules.PolicyProvider
 	policyLoader     *rules.PolicyLoader
-	rcPolicyProvider *rconfig.RCPolicyProvider
 	selfTester       *selftests.SelfTester
 }
 
@@ -163,13 +162,12 @@ func (m *Module) Start() error {
 	}
 
 	// add remote config as config provider if enabled
-	var err error
 	if m.config.RemoteConfigurationEnabled {
-		m.rcPolicyProvider, err = rconfig.NewRCPolicyProvider("security-agent")
+		rcPolicyProvider, err := rconfig.NewRCPolicyProvider("security-agent")
 		if err != nil {
 			log.Errorf("will be unable to load remote policy: %s", err)
 		} else {
-			policyProviders = append(policyProviders, m.rcPolicyProvider)
+			policyProviders = append(policyProviders, rcPolicyProvider)
 		}
 	}
 
@@ -204,9 +202,8 @@ func (m *Module) Start() error {
 		}
 	}()
 
-	// start remote config if needed
-	if m.rcPolicyProvider != nil {
-		m.rcPolicyProvider.Start()
+	for _, provider := range m.policyProviders {
+		provider.Start()
 	}
 
 	return nil
@@ -388,9 +385,8 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 func (m *Module) Close() {
 	close(m.sigupChan)
 
-	// stop remote config provider
-	if m.rcPolicyProvider != nil {
-		m.rcPolicyProvider.Stop()
+	for _, provider := range m.policyProviders {
+		_ = provider.Close()
 	}
 
 	// close the policy loader and all the related providers
@@ -408,7 +404,7 @@ func (m *Module) Close() {
 	}
 
 	if m.selfTester != nil {
-		_ = m.selfTester.Cleanup()
+		_ = m.selfTester.Close()
 	}
 
 	m.probe.Close()

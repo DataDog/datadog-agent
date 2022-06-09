@@ -17,10 +17,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 
 	"github.com/docker/docker/api/types"
 
@@ -82,7 +82,7 @@ func NewTestDecoder() *decoder.Decoder {
 
 func NewTestTailer(reader io.ReadCloser, dockerClient *fakeDockerClient, cancelFunc context.CancelFunc) *Tailer {
 	containerID := "1234567890abcdef"
-	source := config.NewLogSource("foo", nil)
+	source := sources.NewLogSource("foo", nil)
 	tailer := &Tailer{
 		ContainerID:        containerID,
 		outputChan:         make(chan *message.Message, 100),
