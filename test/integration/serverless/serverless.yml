@@ -39,6 +39,8 @@ package:
     - "src"
     - "!src/csharp-tests"
     - "!src/java-tests"
+    - "!recorder-extension"
+    - "!snapshots"
 
 custom:
   ddLambdaPythonLayerFlag:
