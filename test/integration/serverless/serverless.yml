@@ -39,6 +39,7 @@ package:
     - "src"
     - "!src/csharp-tests"
     - "!src/java-tests"
+    - "!src/bin"
     - "!recorder-extension"
     - "!snapshots"
 
@@ -80,6 +81,10 @@ functions:
 
   metric-go:
     runtime: provided.al2
+    package:
+      individually: true
+      patterns:
+        - src/bin/metric
     handler: src/bin/metric
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
@@ -206,6 +211,10 @@ functions:
   timeout-go:
     runtime: provided.al2
     timeout: 1
+    package:
+      individually: true
+      patterns:
+        - src/bin/timeout
     handler: src/bin/timeout
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
@@ -273,6 +282,10 @@ functions:
 
   log-go:
     runtime: provided.al2
+    package:
+      individually: true
+      patterns:
+        - src/bin/log
     handler: src/bin/log
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
