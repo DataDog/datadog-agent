@@ -29,7 +29,7 @@ import (
 const extensionName = "recorder-extension" // extension name has to match the filename
 var extensionClient = NewClient(os.Getenv("AWS_LAMBDA_RUNTIME_API"))
 var nbHitMetrics = 0
-var nbHitLogs = 0
+var nbReport = 0
 var nbHitTraces = 0
 var outputSketches = make([]gogen.SketchPayload_Sketch, 0)
 var outputLogs = make([]jsonServerlessPayload, 0)
@@ -214,7 +214,6 @@ func startHTTPServer(port string) {
 
 		if nbHitMetrics == 3 {
 			// two calls + shutdown
-			fmt.Println("third metric hit, now outputing for snapshot")
 			sort.SliceStable(outputSketches, func(i, j int) bool {
 				return outputSketches[i].Metric < outputSketches[j].Metric
 			})
@@ -227,7 +226,6 @@ func startHTTPServer(port string) {
 	})
 
 	http.HandleFunc("/api/v2/logs", func(w http.ResponseWriter, r *http.Request) {
-		nbHitLogs++
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			return
@@ -240,24 +238,24 @@ func startHTTPServer(port string) {
 		if err := json.Unmarshal(decompressedBody, &messages); err != nil {
 			return
 		}
+
 		for _, log := range messages {
-			if strings.Contains(log.Message.Message, "REPORT RequestId:") {
-				log.Message.Message = "REPORT" // avoid dealing with stripping out init duration, duration, memory used etc.
+			if !strings.Contains(log.Message.Message, "BEGINLOG") {
+				if strings.HasPrefix(log.Message.Message, "REPORT RequestId:") {
+					log.Message.Message = "REPORT" // avoid dealing with stripping out init duration, duration, memory used etc.
+					nbReport = nbReport + 1
+				}
+				sortedTags := strings.Split(log.Tags, ",")
+				sort.Strings(sortedTags)
+				log.Tags = strings.Join(sortedTags, ",")
+				if !strings.Contains(log.Message.Message, "DATADOG TRACER CONFIGURATION") {
+					// skip dd-trace-go tracer configuration output
+					outputLogs = append(outputLogs, log)
+				}
 			}
-			sortedTags := strings.Split(log.Tags, ",")
-			sort.Strings(sortedTags)
-			log.Tags = strings.Join(sortedTags, ",")
-
-			if !strings.Contains(log.Message.Message, "DATADOG TRACER CONFIGURATION") {
-				// skip dd-trace-go tracer configuration output
-				outputLogs = append(outputLogs, log)
-			}
-
 		}
 
-		if nbHitLogs == 3 {
-			// two calls + shutdown
-			fmt.Println("third logs hit, now outputing for snapshot")
+		if nbReport == 2 {
 			jsonLogs, err := json.Marshal(outputLogs)
 			if err != nil {
 				fmt.Printf("Error while JSON encoding the logs")
