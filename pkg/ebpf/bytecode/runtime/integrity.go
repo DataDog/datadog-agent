@@ -14,7 +14,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -44,11 +43,6 @@ func main() {
 		log.Fatalf("error generating integrity: %s", err)
 	}
 	fmt.Printf("successfully generated from %s => %s\n", inputFile, outputFile)
-
-	err = exec.Command("git", "update-index", "--assume-unchanged", outputFile).Run()
-	if err != nil {
-		log.Printf("error ignoring changes in git: %s", err)
-	}
 }
 
 func genIntegrity(inputFile, outputFile, pkg string) error {
