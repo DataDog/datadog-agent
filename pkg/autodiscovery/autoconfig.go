@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"go.uber.org/atomic"
 )
 
 var listenerCandidateIntl = 30 * time.Second
@@ -45,8 +44,11 @@ type AutoConfig struct {
 	cfgMgr             configManager
 	m                  sync.RWMutex
 
-	// ranOnce is set to 1 once the AutoConfig has been executed
-	ranOnce *atomic.Bool
+	// ranOnce is true once LoadAndRun has finished.
+	ranOnce bool
+
+	// ranOnceCond guards ranOnce, using m
+	ranOnceCond *sync.Cond
 }
 
 type listenerCandidate struct {
@@ -87,8 +89,9 @@ func NewAutoConfigNoStart(scheduler *scheduler.MetaScheduler) *AutoConfig {
 		store:              newStore(),
 		cfgMgr:             cfgMgr,
 		scheduler:          scheduler,
-		ranOnce:            atomic.NewBool(false),
+		ranOnce:            false,
 	}
+	ac.ranOnceCond = sync.NewCond(&ac.m)
 	return ac
 }
 
@@ -198,34 +201,35 @@ func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shoul
 func (ac *AutoConfig) LoadAndRun() {
 	scheduleAll := ac.getAllConfigs()
 	ac.applyChanges(scheduleAll)
-	ac.ranOnce.Store(true)
+
 	log.Debug("LoadAndRun done.")
+
+	ac.m.Lock()
+	ac.ranOnce = true
+	ac.ranOnceCond.Broadcast()
+	ac.m.Unlock()
 }
 
 // ForceRanOnceFlag sets the ranOnce flag.  This is used for testing other
 // components that depend on this value.
 func (ac *AutoConfig) ForceRanOnceFlag() {
-	ac.ranOnce.Store(true)
+	ac.m.Lock()
+	ac.ranOnce = true
+	ac.ranOnceCond.Broadcast()
+	ac.m.Unlock()
 }
 
 // WaitUntilRunOnce will wait until the configs have been loaded.  When this
 // returns, all config providers will have been polled at least once, and any
 // resulting configs scheduled.
-//
-// This function gives up and returns anyway after `ac_load_timeout` ms have
-// elapsed.
 func (ac *AutoConfig) WaitUntilRunOnce() {
-	timeout := time.Millisecond * time.Duration(config.Datadog.GetInt("ac_load_timeout"))
-	now := time.Now()
+	ac.m.Lock()
+	defer ac.m.Unlock()
 	for {
-		time.Sleep(100 * time.Millisecond) // don't hog the CPU
-		if ac.ranOnce.Load() {
+		if ac.ranOnce {
 			return
 		}
-		if time.Since(now) > timeout {
-			log.Error("WaitUntilRunOnce timeout after", timeout)
-			return
-		}
+		ac.ranOnceCond.Wait()
 	}
 }
 
