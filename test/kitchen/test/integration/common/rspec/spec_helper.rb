@@ -4,6 +4,7 @@ require 'rspec'
 require 'rbconfig'
 require 'yaml'
 require 'find'
+require 'tempfile'
 
 #
 # this enables RSpec output so that individual tests ("it behaves like...") are
