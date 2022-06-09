@@ -286,8 +286,7 @@ func startHTTPServer(port string) {
 
 		outputTraces = append(outputTraces, pl.TracerPayloads...)
 
-		if nbHitTraces == 3 {
-			// two calls + shutdown
+		if nbHitTraces == 2 {
 			jsonLogs, err := json.Marshal(outputTraces)
 			if err != nil {
 				fmt.Printf("Error while JSON encoding the traces")
