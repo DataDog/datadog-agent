@@ -229,10 +229,19 @@ func (ac *AutoConfig) WaitUntilRunOnce() {
 	}
 }
 
-// GetAllConfigs queries all the providers and returns all the integration
-// configurations found, resolving the ones it can
+// GetAllConfigs waits until all providers have been polled at least once and
+// resulting configurations have been scheduled, then returns all scheduled
+// configs.  This assumes that `LoadAndRun` has been invoked separately.
 func (ac *AutoConfig) GetAllConfigs() []integration.Config {
-	return ac.getAllConfigs().schedule
+	ac.WaitUntilRunOnce()
+	var configs []integration.Config
+	ac.cfgMgr.mapOverLoadedConfigs(func(byDigest map[string]integration.Config) {
+		configs = make([]integration.Config, 0, len(byDigest))
+		for _, cfg := range byDigest {
+			configs = append(configs, cfg)
+		}
+	})
+	return configs
 }
 
 // getAllConfigs queries all the providers and returns all the integration

@@ -189,6 +189,7 @@ func runJmxCommandConsole(command string) error {
 
 	// Note: when no checks are selected, cliSelectedChecks will be the empty slice and thus common.SelectedCheckMatcherBuilder
 	//       will return false, leading WaitForConfigs to timeout before returning all AD configs.
+	common.AC.LoadAndRun()
 	allConfigs := common.WaitForConfigs(time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second,
 		common.SelectedCheckMatcherBuilder(cliSelectedChecks, discoveryMinInstances))
 

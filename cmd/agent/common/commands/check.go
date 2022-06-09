@@ -163,6 +163,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				discoveryRetryInterval = discoveryTimeout
 			}
 
+			common.AC.LoadAndRun()
 			allConfigs := common.WaitForConfigs(time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second,
 				common.SelectedCheckMatcherBuilder([]string{checkName}, discoveryMinInstances))
 
