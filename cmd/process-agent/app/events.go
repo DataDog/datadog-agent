@@ -149,6 +149,7 @@ func runEventStore(cmd *cobra.Command, args []string) error {
 	go util.HandleSignals(exit)
 
 	ticker := time.NewTicker(pullInterval)
+	defer ticker.Stop()
 	go func() {
 		for {
 			select {
