@@ -113,14 +113,14 @@ func TestMultipleTopeLevels(t *testing.T) {
 	now := time.Unix(13829192398, 0)
 	trace1 := getTraceChunkWithSpansAndPriority(
 		[]*pb.Span{
-			&pb.Span{Service: "s1", Resource: "r1", Metrics: map[string]float64{"_top_level": 1}},
+			{Service: "s1", Resource: "r1", Metrics: map[string]float64{"_top_level": 1}},
 		},
 		PriorityNone,
 	)
 	trace2 := getTraceChunkWithSpansAndPriority(
 		[]*pb.Span{
-			&pb.Span{Service: "s1", Resource: "r1", Metrics: map[string]float64{"_top_level": 1}},
-			&pb.Span{Service: "s1", Resource: "r2", Metrics: map[string]float64{"_top_level": 1}},
+			{Service: "s1", Resource: "r1", Metrics: map[string]float64{"_top_level": 1}},
+			{Service: "s1", Resource: "r2", Metrics: map[string]float64{"_top_level": 1}},
 		},
 		PriorityNone,
 	)
