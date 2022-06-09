@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    APM: Fixed trace rare sampler's oversampling behaviour. With this fix, the rare sampler will sample rare traces more accurately.
+    APM: Fixed trace rare sampler's oversampling behavior. With this fix, the rare sampler will sample rare traces more accurately.
