@@ -157,7 +157,7 @@ functions_to_skip=(
     "timeout-proxy"
     "trace-csharp" # Will be reactivated when the new dotnet layer will be released
     "trace-proxy" # Will be reactivated when sampling with proxy will be implemented
-    "log-java" # Need to remove tracer debug info
+    "log-proxy"
 )
 
 
@@ -258,7 +258,7 @@ for function_name in "${all_functions[@]}"; do
                  /An error occurred while attempting to execute your code.: LambdaException/ or \
                  /terminate called after throwing an instance of 'std::logic_error'/ or \
                  /basic_string::_M_construct null not valid/" |
-                 node parse-json.js
+                node parse-json.js
         )
     else
         # Normalize traces
