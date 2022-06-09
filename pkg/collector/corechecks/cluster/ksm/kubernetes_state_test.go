@@ -470,7 +470,7 @@ func TestProcessMetrics(t *testing.T) {
 				{
 					name:     "kubernetes_state.ingress.path",
 					val:      1,
-					tags:     []string{"kube_namespace:default", "kube_ingress:ingress", "ingress_service_name:svc", "ingress_service_port:80", "ingress_host:host", "ingress_path:path"},
+					tags:     []string{"kube_namespace:default", "kube_ingress:ingress", "kube_service:svc", "kube_service_port:80", "ingress_host:host", "ingress_path:path"},
 					hostname: "",
 				},
 			},

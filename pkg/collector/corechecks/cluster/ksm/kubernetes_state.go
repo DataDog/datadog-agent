@@ -759,8 +759,8 @@ func labelsMapperOverride(metricName string) map[string]string {
 		return map[string]string{
 			"host":         "ingress_host",
 			"path":         "ingress_path",
-			"service_name": "ingress_service_name",
-			"service_port": "ingress_service_port",
+			"service_name": "kube_service",
+			"service_port": "kube_service_port",
 		}
 	}
 
