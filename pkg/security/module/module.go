@@ -112,9 +112,7 @@ func (m *Module) Init() error {
 	m.probe.AddEventHandler(model.UnknownEventType, m)
 
 	// initialize extra event monitors
-	if m.config.EventMonitoring {
-		InitEventMonitors(m)
-	}
+	InitEventMonitors(m)
 
 	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
 	// running yet.
@@ -517,7 +515,7 @@ func (m *Module) metricsSender() {
 			}
 
 			// Event monitoring may run independently of CWS products
-			if m.config.EventMonitoring {
+			if m.config.NetworkProcessEventMonitoringEnabled || m.config.ProcessEventMonitoringEnabled {
 				_ = m.statsdClient.Gauge(metrics.MetricEventMonitoringRunning, 1, tags, 1)
 			}
 		case <-m.ctx.Done():

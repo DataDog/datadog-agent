@@ -132,8 +132,6 @@ type Config struct {
 	RuntimeCompiledConstantsEnabled bool
 	// RuntimeCompiledConstantsIsSet is set if the runtime compiled constants option is user-set
 	RuntimeCompiledConstantsIsSet bool
-	// EventMonitoring enables event monitoring
-	EventMonitoring bool
 	// NetworkProcessEventMonitoringEnabled is set to true if `network_config.enable_process_event_monitoring` is set
 	NetworkProcessEventMonitoringEnabled bool
 	// ProcessEventMonitoringEnabled is set to true if ``
@@ -216,9 +214,6 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 	if c.RuntimeEnabled {
 		c.FIMEnabled = true
 	}
-
-	// event monitoring
-	c.EventMonitoring = c.NetworkProcessEventMonitoringEnabled || c.ProcessEventMonitoringEnabled
 
 	if !c.IsEnabled() {
 		return c, nil
