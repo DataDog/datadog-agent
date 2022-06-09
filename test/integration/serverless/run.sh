@@ -284,12 +284,14 @@ for function_name in "${all_functions[@]}"; do
 
     function_snapshot_path="./snapshots/${function_name}"
 
+    jsonLogs="$(echo $logs | node parse-json.js)"
+
     if [ ! -f "$function_snapshot_path" ]; then
         printf "${MAGENTA} CREATE ${END_COLOR} $function_name\n"
-        echo "$logs" >"$function_snapshot_path"
+        echo "$jsonLogs" >"$function_snapshot_path"
     elif [ "$UPDATE_SNAPSHOTS" == "true" ]; then
         printf "${MAGENTA} UPDATE ${END_COLOR} $function_name\n"
-        echo "$(echo $logs | node parse-json.js)" > "$function_snapshot_path"
+        echo "$jsonLogs" > "$function_snapshot_path"
     else
         if [[ " ${functions_to_skip[*]} " =~ " ${function_name} " ]]; then
             printf "${YELLOW} SKIP ${END_COLOR} $function_name\n"
@@ -300,7 +302,7 @@ for function_name in "${all_functions[@]}"; do
             printf "${YELLOW} SKIP ${END_COLOR} $function_name, no .NET support on arm64\n"
             continue
         fi
-        diff_output=$(echo "$logs" | diff - "$function_snapshot_path")
+        diff_output=$(echo "$jsonLogs" | diff - "$function_snapshot_path")
         if [ $? -eq 1 ]; then
             failed_functions+=("$function_name")
 
