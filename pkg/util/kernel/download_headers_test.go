@@ -18,10 +18,8 @@ import (
 	"github.com/DataDog/nikos/types"
 )
 
-const reposDir = "/tmp/apt-repos-%s"
 const reposSource = "%s/sources.list"
-const reposSourceDir = "/tmp/apt-repos-%s/sources.list.d"
-const headerDownloadDir = "%s/headers"
+const reposSourceDir = "%s/sources.list.d"
 
 var _ types.Logger = customLogger{}
 
@@ -114,22 +112,9 @@ var targets = map[string]TargetSetup{
 	},
 }
 
-func genRepoSuffix(target types.Target) string {
-	return target.Distro.Display + "-" + target.Uname.Kernel + "-" + target.Uname.Machine
-}
-
-func mkTargetDirName(target types.Target) string {
-	return fmt.Sprintf(reposDir, genRepoSuffix(target))
-}
-
 func setup(target types.Target, repos []string, dname string) error {
-	// Make directory where apt config is placed
-	if err := os.MkdirAll(dname, 0744); err != nil {
-		return fmt.Errorf("failed to create dir %s: %w", dname, err)
-	}
-
 	// Make source-list.d
-	sources := fmt.Sprintf(reposSourceDir, genRepoSuffix(target))
+	sources := fmt.Sprintf(reposSourceDir, dname)
 	if err := os.MkdirAll(sources, 0744); err != nil {
 		return fmt.Errorf("failed to create dir %s: %w", sources, err)
 	}
@@ -166,9 +151,7 @@ func getBackend(target *types.Target, reposDir string) (backend types.Backend, e
 }
 
 func benchmarkHeaderDownload(ts TargetSetup, b *testing.B) {
-	dname := mkTargetDirName(ts.target)
-	kname := fmt.Sprintf(headerDownloadDir, dname)
-
+	dname := b.TempDir()
 	if err := setup(ts.target, ts.repos, dname); err != nil {
 		b.Errorf("Failed to setup target: %s\n", err)
 	}
@@ -176,29 +159,17 @@ func benchmarkHeaderDownload(ts TargetSetup, b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// create output directory for kernel headers
-		if err := os.MkdirAll(kname, 0744); err != nil {
-			b.Errorf("failed to create directory %s: %w", kname, err)
-		}
+		kname := b.TempDir()
 
 		backend, err := getBackend(&ts.target, dname)
 		if err != nil {
 			b.Errorf("Failed to create backend: %s\n", err)
 		}
 
-		if err := backend.GetKernelHeaders(fmt.Sprintf(headerDownloadDir, dname)); err != nil {
+		if err := backend.GetKernelHeaders(kname); err != nil {
 			b.Errorf("Failed to download kernel headers: %s\n", err)
 		}
 		backend.Close()
-
-		// remove kernel headers directory
-		if err := os.RemoveAll(kname); err != nil {
-			b.Errorf("failed to remove directory %s: %w", kname, err)
-		}
-	}
-
-	// Remove tmp repos directory
-	if err := os.RemoveAll(dname); err != nil {
-		b.Errorf("failed to remove directory: %s\n", err)
 	}
 }
 
