@@ -11,9 +11,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/socket"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // The UDP listener is limited by the size of its read buffer,
@@ -30,13 +30,13 @@ import (
 // A UDPListener opens a new UDP connection, keeps it alive and delegates the read operations to a tailer.
 type UDPListener struct {
 	pipelineProvider pipeline.Provider
-	source           *config.LogSource
+	source           *sources.LogSource
 	frameSize        int
 	tailer           *tailer.Tailer
 }
 
 // NewUDPListener returns an initialized UDPListener
-func NewUDPListener(pipelineProvider pipeline.Provider, source *config.LogSource, frameSize int) *UDPListener {
+func NewUDPListener(pipelineProvider pipeline.Provider, source *sources.LogSource, frameSize int) *UDPListener {
 	return &UDPListener{
 		pipelineProvider: pipelineProvider,
 		source:           source,

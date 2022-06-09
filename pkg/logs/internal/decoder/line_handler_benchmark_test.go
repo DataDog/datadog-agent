@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 func benchmarkSingleLineHandler(b *testing.B, logs int) {
@@ -36,7 +37,7 @@ func benchmarkAutoMultiLineHandler(b *testing.B, logs int, line string) {
 		messages[i] = getDummyMessageWithLF(fmt.Sprintf("%s %d", line, i))
 	}
 
-	source := config.NewLogSource("config", &config.LogsConfig{})
+	source := sources.NewLogSource("config", &config.LogsConfig{})
 	h := NewAutoMultilineHandler(func(*Message) {}, defaultContentLenLimit, 1000, 0.9, 30*time.Second, 1000*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{})
 
 	b.ResetTimer()
