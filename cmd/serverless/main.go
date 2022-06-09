@@ -158,10 +158,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	// KMS_ENCRYPTED or SECRET_ARN
 	setSecretsFromEnv(os.Environ())
 
-	for envKey, envVal := range getSecretEnvVars(os.Environ(), readAPIKeyFromSecretsManager, readAPIKeyFromKMS) {
-		os.Setenv(envKey, envVal)
-	}
-
 	// try to read API key from KMS
 
 	var apiKey string
