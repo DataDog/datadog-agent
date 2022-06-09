@@ -535,18 +535,21 @@ func checkPoliciesInner(dir string) error {
 	// enabled all the rules
 	enabled := map[eval.EventType]bool{"*": true}
 
-	var opts rules.Opts
-	opts.
+	var evalOpts eval.Opts
+	evalOpts.
 		WithConstants(model.SECLConstants).
 		WithVariables(model.SECLVariables).
+		WithLegacyFields(model.SECLLegacyFields)
+
+	var opts rules.Opts
+	opts.
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(enabled).
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
-		WithLegacyFields(model.SECLLegacyFields).
 		WithLogger(&seclog.PatternLogger{})
 
 	model := &model.Model{}
-	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts)
+	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
 
 	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false)
 	if err != nil {
