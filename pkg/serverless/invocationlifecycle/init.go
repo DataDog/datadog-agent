@@ -82,10 +82,6 @@ func (lp *LifecycleProcessor) initFromLambdaFunctionURLEvent(event events.Lambda
 
 // }
 
-// func initFromAppSyncResolverEvent() {
-
-// }
-
 // func initFromEventBridgeEvent() {
 
 // }
