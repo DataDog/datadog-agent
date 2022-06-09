@@ -81,7 +81,7 @@ func (lp *LifecycleProcessor) GetExecutionContext() *ExecutionStartInfo {
 	return lp.requestHandler.executionContext
 }
 
-// DO WE NEED THESE IVAN!>?!??!?!?>!?!?
+// GetInferredSpanContext implements InvocationProcessor
 func (lp *LifecycleProcessor) GetInferredSpanContext() *inferredspan.InferredSpan {
 	return lp.requestHandler.inferredSpanContext
 }
@@ -93,7 +93,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	log.Debugf("[lifecycle] Invocation invokeEvent payload is: %s", startDetails.InvokeEventRawPayload)
 	log.Debug("[lifecycle] ---------------------------------------")
 
-	lambdaPayloadString := parseLambdaPayload(startDetails.InvokeEventRawPayload)
+	lambdaPayloadString := startDetails.InvokeEventRawPayload
 
 	log.Debugf("Parsed payload string: %v", lambdaPayloadString)
 
@@ -181,6 +181,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		errorFunc(err)
 		lp.initFromS3Event(event)
 	case trigger.SNSEvent:
+
 		var event events.SNSEvent
 		err := json.Unmarshal(payloadBytes, &event)
 		errorFunc(err)
@@ -214,7 +215,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 
 	if !lp.DetectLambdaLibrary() {
 		log.Debug("Creating and sending function execution span for invocation")
-		endExecutionSpan(lp.requestHandler.executionContext, lp.ProcessTrace, endDetails.RequestID, endDetails.EndTime, endDetails.IsError, endDetails.ResponseRawPayload)
+		endExecutionSpan(lp.requestHandler.executionContext, lp.requestHandler.triggerTags, lp.ProcessTrace, endDetails.RequestID, endDetails.EndTime, endDetails.IsError, endDetails.ResponseRawPayload)
 
 		if lp.InferredSpansEnabled {
 			log.Debug("[lifecycle] Attempting to complete the inferred span")

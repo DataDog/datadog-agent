@@ -224,6 +224,7 @@ func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 				parentID:         3,
 				SamplingPriority: samplingPriority,
 			},
+			triggerTags: make(map[string]string),
 		},
 	}
 
@@ -286,4 +287,88 @@ func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
 	// not the inferred span start time.
 	completedInferredSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, startInvocationTime.UnixNano(), completedInferredSpan.Start)
+}
+func TestTriggerTypesLifecycleEventForAPIGatewayRest(t *testing.T) {
+
+	var tracePayload *api.Payload
+	mockProcessTrace := func(payload *api.Payload) {
+		tracePayload = payload
+	}
+
+	extraTags, demux, mockDetectLambdaLibrary := triggerTestInitMocks()
+	testProcessor := triggerTypesSetProcessorInit(extraTags, mockProcessTrace, demux, mockDetectLambdaLibrary)
+	startTime, endTime := triggerTypesSetStartEndTimes()
+
+	startDetails := setStartDetailsForTriggerTest(startTime, "api-gateway.json")
+	endDetails := setEndDetailsForTriggerTest(endTime)
+
+	testProcessor.OnInvokeStart(&startDetails)
+	t.Logf("%+v", startDetails.InvokeEventRawPayload)
+	t.Log(testProcessor.requestHandler.triggerTags)
+
+	testProcessor.OnInvokeEnd(&endDetails)
+
+	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	t.Log(span)
+}
+
+func getEventFromFile(filename string) []byte {
+	event, err := os.ReadFile("../trace/testdata/event_samples/" + filename)
+	if err != nil {
+		panic(err)
+	}
+	return event
+}
+
+func triggerTestInitMocks() (*logs.Tags, func() bool, *aggregator.TestAgentDemultiplexer) {
+	extraTags := &logs.Tags{
+		Tags: []string{"functionname:test-function"},
+	}
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	mockDetectLambdaLibrary := func() bool { return false }
+
+	return extraTags, mockDetectLambdaLibrary, demux
+}
+
+func triggerTypesSetProcessorInit(
+	extraTags *logs.Tags,
+	mockProcessTrace func(p *api.Payload),
+	mockDetectLambdaLibrary func() bool,
+	demux *aggregator.TestAgentDemultiplexer) *LifecycleProcessor {
+
+	testProcessor := &LifecycleProcessor{
+		ExtraTags:            extraTags,
+		ProcessTrace:         mockProcessTrace,
+		DetectLambdaLibrary:  mockDetectLambdaLibrary,
+		Demux:                demux,
+		InferredSpansEnabled: false,
+	}
+	return testProcessor
+
+}
+
+func triggerTypesSetStartEndTimes() (time.Time, time.Time) {
+	startInvocationTime := time.Now()
+	duration := 1 * time.Second
+	endInvocationTime := startInvocationTime.Add(duration)
+	return startInvocationTime, endInvocationTime
+}
+
+func setStartDetailsForTriggerTest(startTime time.Time, filename string) InvocationStartDetails {
+	return InvocationStartDetails{
+		StartTime:             startTime,
+		InvokeEventRawPayload: string(getEventFromFile(filename)),
+		InvokeEventHeaders: LambdaInvokeEventHeaders{
+			TraceID:          "100",
+			ParentID:         "50",
+			SamplingPriority: "1",
+		},
+	}
+}
+
+func setEndDetailsForTriggerTest(endTime time.Time) InvocationEndDetails {
+	return InvocationEndDetails{
+		EndTime:   endTime,
+		RequestID: "test-request-id",
+	}
 }
