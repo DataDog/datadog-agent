@@ -149,7 +149,7 @@ func (m *Module) Start() error {
 	}
 
 	if m.config.SelfTestEnabled && m.selfTester != nil {
-		_ = m.RunSelfTest(true)
+		_ = m.RunSelfTest(true, false)
 	}
 
 	var policyProviders []rules.PolicyProvider
@@ -617,16 +617,18 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 }
 
 // RunSelfTest runs the self tests
-func (m *Module) RunSelfTest(sendLoadedReport bool) error {
+func (m *Module) RunSelfTest(sendLoadedReport bool, thenRevertPolicies bool) error {
 	prevProviders, providers := m.policyProviders, m.policyProviders
 
 	// add selftests as provider
 	providers = append(providers, m.selfTester)
-	defer func() {
-		if err := m.LoadPolicies(prevProviders, false); err != nil {
-			log.Errorf("failed to load policies: %s", err)
-		}
-	}()
+	if thenRevertPolicies {
+		defer func() {
+			if err := m.LoadPolicies(prevProviders, false); err != nil {
+				log.Errorf("failed to load policies: %s", err)
+			}
+		}()
+	}
 
 	if err := m.LoadPolicies(providers, false); err != nil {
 		return err
