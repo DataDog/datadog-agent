@@ -8,7 +8,7 @@
 ---
 enhancements:
   - |
-    - Decreases number of `ReadFile` calls when querying the Windows driver.
+    - Decreases number of `ReadFile` calls when querying the NPM Windows driver.
     - Adds `network_config.windows.driver_buffer_entries` configuration
       parameter to `system-probe.yaml`. This value specifies the number
       of entries that the Windows driver can return to the system-probe.
