@@ -358,6 +358,12 @@
 `kubernetes_state.service.type`
 : Service types. Tags:`kube_namespace` `kube_service` `type`.
 
+`kubernetes_state.ingress.count`
+: Number of ingresses. Tags:`kube_namespace`.
+
+`kubernetes_state.ingress.path`
+: Information about the ingress path. Tags:`kube_namespace` `ingress_path` `kube_ingress` `ingress_service_name` `ingress_service_port` `ingress_host` .
+
 ### Events
 
 The Kubernetes State Metrics Core check does not include any events.
