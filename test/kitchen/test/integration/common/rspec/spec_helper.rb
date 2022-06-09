@@ -234,11 +234,9 @@ def integration_freeze
 end
 
 def json_info
-  info_output = `#{agent_command} status -j 2>&1`
-  info_output = info_output.gsub("Getting the status from the agent.", "")
-
-  # removes any stray log lines
-  info_output = info_output.gsub(/[0-9]+[ ]\[[a-zA-Z]+\][a-zA-Z \t%:\\]+$/, "")
+  tmpfile = Tempfile.new('agent-status')
+  `#{agent_command} status -j -o #{tmpfile.path}`
+  info_output = File.read(tmpfile.path)
 
   JSON.parse(info_output)
 end
