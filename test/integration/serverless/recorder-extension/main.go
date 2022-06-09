@@ -241,7 +241,7 @@ func startHTTPServer(port string) {
 		}
 
 		for _, log := range messages {
-			if !strings.Contains(log.Message.Message, "BEGINLOG") {
+			if !strings.Contains(log.Message.Message, "BEGINLOG") && !strings.Contains(log.Message.Message, "BEGINTRACE") {
 				if strings.HasPrefix(log.Message.Message, "REPORT RequestId:") {
 					log.Message.Message = "REPORT" // avoid dealing with stripping out init duration, duration, memory used etc.
 					nbReport++

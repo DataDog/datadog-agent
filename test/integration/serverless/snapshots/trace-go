@@ -2,8 +2,8 @@
   {
     "container_id": "",
     "language_name": "go",
-    "language_version": "1.18",
-    "tracer_version": "v1.37.1",
+    "language_version": null,
+    "tracer_version": null,
     "runtime_id": "",
     "chunks": [
       {
@@ -151,8 +151,8 @@
   {
     "container_id": "",
     "language_name": "go",
-    "language_version": "1.18",
-    "tracer_version": "v1.37.1",
+    "language_version": null,
+    "tracer_version": null,
     "runtime_id": "",
     "chunks": [
       {
