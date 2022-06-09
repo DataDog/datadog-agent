@@ -14,7 +14,7 @@ enhancements:
       of entries that the Windows driver can return to the system-probe.
       This value is dynamically resized (increased or decreased) depending on
       the number of connections the Windows driver is tracking. For example,
-      if the value is `50` then the Windows driver can return information about
+      if the value is `50`, the Windows driver can return information about
       `50` tracked connections at once. If there are more than `50` connections,
       the `system-probe` will re-query the driver to get the remaining connections.
 deprecations:
