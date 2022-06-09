@@ -11,9 +11,7 @@ package http
 import (
 	"os"
 	"regexp"
-	"runtime"
 	"strconv"
-	"strings"
 
 	"github.com/twmb/murmur3"
 
@@ -89,31 +87,29 @@ func (o *sslProgram) ConfigureManager(m *manager.Manager) {
 
 	o.manager = m
 
-	if !runningOnARM() {
-		m.PerfMaps = append(m.PerfMaps, &manager.PerfMap{
-			Map: manager.Map{Name: sharedLibrariesPerfMap},
-			PerfMapOptions: manager.PerfMapOptions{
-				PerfRingBufferSize: 8 * os.Getpagesize(),
-				Watermark:          1,
-				RecordHandler:      o.perfHandler.RecordHandler,
-				LostHandler:        o.perfHandler.LostHandler,
-				RecordGetter:       o.perfHandler.RecordGetter,
-			},
-		})
+	m.PerfMaps = append(m.PerfMaps, &manager.PerfMap{
+		Map: manager.Map{Name: sharedLibrariesPerfMap},
+		PerfMapOptions: manager.PerfMapOptions{
+			PerfRingBufferSize: 8 * os.Getpagesize(),
+			Watermark:          1,
+			RecordHandler:      o.perfHandler.RecordHandler,
+			LostHandler:        o.perfHandler.LostHandler,
+			RecordGetter:       o.perfHandler.RecordGetter,
+		},
+	})
 
-		m.Probes = append(m.Probes,
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  doSysOpen,
-				EBPFFuncName: "kprobe__do_sys_open",
-				UID:          probeUID,
-			}, KProbeMaxActive: maxActive},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  doSysOpenRet,
-				EBPFFuncName: "kretprobe__do_sys_open",
-				UID:          probeUID,
-			}, KProbeMaxActive: maxActive},
-		)
-	}
+	m.Probes = append(m.Probes,
+		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			EBPFSection:  doSysOpen,
+			EBPFFuncName: "kprobe__do_sys_open",
+			UID:          probeUID,
+		}, KProbeMaxActive: maxActive},
+		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			EBPFSection:  doSysOpenRet,
+			EBPFFuncName: "kretprobe__do_sys_open",
+			UID:          probeUID,
+		}, KProbeMaxActive: maxActive},
+	)
 }
 
 func (o *sslProgram) ConfigureOptions(options *manager.Options) {
@@ -127,24 +123,22 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 		EditorFlag: manager.EditMaxEntries,
 	}
 
-	if !runningOnARM() {
-		options.ActivatedProbes = append(options.ActivatedProbes,
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  doSysOpen,
-					EBPFFuncName: "kprobe__do_sys_open",
-					UID:          probeUID,
-				},
+	options.ActivatedProbes = append(options.ActivatedProbes,
+		&manager.ProbeSelector{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  doSysOpen,
+				EBPFFuncName: "kprobe__do_sys_open",
+				UID:          probeUID,
 			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  doSysOpenRet,
-					EBPFFuncName: "kretprobe__do_sys_open",
-					UID:          probeUID,
-				},
+		},
+		&manager.ProbeSelector{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  doSysOpenRet,
+				EBPFFuncName: "kretprobe__do_sys_open",
+				UID:          probeUID,
 			},
-		)
-	}
+		},
+	)
 
 	if options.MapEditors == nil {
 		options.MapEditors = make(map[string]*ebpf.Map)
@@ -253,10 +247,6 @@ func removeHooks(m *manager.Manager, probes map[string]string) func(string) erro
 
 		return nil
 	}
-}
-
-func runningOnARM() bool {
-	return strings.HasPrefix(runtime.GOARCH, "arm")
 }
 
 func getUID(libPath string) string {
