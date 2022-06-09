@@ -102,7 +102,6 @@ echo "Using dd-trace-dotnet layer version: $DOTNET_TRACE_LAYER_VERSION"
 
 # random 8-character ID to avoid collisions with other runs
 stage=$(xxd -l 4 -c 4 -p </dev/random)
-stage=12341234
 
 function remove_stack() {
     echo "do not remove"
@@ -152,14 +151,7 @@ for function_name in "${all_functions[@]}"; do
 done
 wait
 
-# two invocations are needed since enhanced metrics are computed with the REPORT log line (which is created at the end of the first invocation)
-echo "Invoking functions for the second time..."
-for function_name in "${all_functions[@]}"; do
-    serverless invoke --stage "${stage}" -f "${function_name}" -d '{"body": "testing request payload"}' &>/dev/null &
-done
-wait
-
-LOGS_WAIT_MINUTES=1
+LOGS_WAIT_MINUTES=8
 END_OF_WAIT_TIME=$(date --date="+"$LOGS_WAIT_MINUTES" minutes" +"%r")
 echo "Waiting $LOGS_WAIT_MINUTES minutes for logs to flush..."
 echo "This will be done at $END_OF_WAIT_TIME"
