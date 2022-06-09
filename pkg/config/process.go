@@ -45,6 +45,18 @@ const (
 
 	// DefaultProcessEndpoint is the default endpoint for the process agent to send payloads to
 	DefaultProcessEndpoint = "https://process.datadoghq.com"
+
+	// DefaultProcessEventStoreMaxItems is the default maximum amount of events that can be stored in the Event Store
+	DefaultProcessEventStoreMaxItems = 200
+
+	// DefaultProcessEventStoreMaxPendingPushes is the default amount of pending push operations can be handled by the Event Store
+	DefaultProcessEventStoreMaxPendingPushes = 10
+
+	// DefaultProcessEventStoreMaxPendingPulls is the default amount of pending pull operations can be handled by the Event Store
+	DefaultProcessEventStoreMaxPendingPulls = 10
+
+	// DefaultProcessEventStoreStatsInterval is the default frequency at which the event store sends stats about expired events, in seconds
+	DefaultProcessEventStoreStatsInterval = 20
 )
 
 // setupProcesses is meant to be called multiple times for different configs, but overrides apply to all configs, so
@@ -152,6 +164,12 @@ func setupProcesses(config Config) {
 	procBindEnvAndSetDefault(config, "process_config.process_discovery.interval", 4*time.Hour)
 
 	procBindEnvAndSetDefault(config, "process_config.drop_check_payloads", []string{})
+
+	// Process Lifecycle Events
+	procBindEnvAndSetDefault(config, "process_config.event_collection.store.max_items", DefaultProcessEventStoreMaxItems)
+	procBindEnvAndSetDefault(config, "process_config.event_collection.store.max_pending_pushes", DefaultProcessEventStoreMaxPendingPushes)
+	procBindEnvAndSetDefault(config, "process_config.event_collection.store.max_pending_pulls", DefaultProcessEventStoreMaxPendingPulls)
+	procBindEnvAndSetDefault(config, "process_config.event_collection.store.stats_interval", DefaultProcessEventStoreStatsInterval)
 
 	processesAddOverrideOnce.Do(func() {
 		AddOverrideFunc(loadProcessTransforms)
