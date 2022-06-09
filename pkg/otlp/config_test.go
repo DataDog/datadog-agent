@@ -272,7 +272,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT": "0.0.0.0:9999",
 				"DD_OTLP_CONFIG_LOGGING_EXPORTER_LOG_LEVEL":       "hoge",
 			},
-			err: "hoge is not a valid value for OTLP logging exporter log level",
+			err: "hoge is invalid log level, so OTLP logging exporter will be disabled",
 		},
 	}
 	for _, testInstance := range tests {

@@ -84,7 +84,8 @@ func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 		logLevel != config.OTLPLoggingExporterLogLevelInfo &&
 		logLevel != config.OTLPLoggingExporterLogLevelWarn &&
 		logLevel != config.OTLPLoggingExporterLogLevelError {
-		errs = append(errs, fmt.Errorf("%s is not a valid value for OTLP logging exporter log level", logLevel))
+		errs = append(errs, fmt.Errorf("%s is invalid log level, so OTLP logging exporter will be disabled", logLevel))
+		logLevel = config.OTLPLoggingExporterLogLevelDisabled
 	}
 	metricsConfig := readConfigSection(cfg, config.OTLPMetrics)
 
