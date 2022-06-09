@@ -2,8 +2,8 @@
   {
     "container_id": "",
     "language_name": "nodejs",
-    "language_version": "v14.19.2",
-    "tracer_version": "1.1.2",
+    "language_version": null,
+    "tracer_version": null,
     "runtime_id": "",
     "chunks": [
       {
@@ -110,8 +110,8 @@
   {
     "container_id": "",
     "language_name": "nodejs",
-    "language_version": "v14.19.2",
-    "tracer_version": "1.1.2",
+    "language_version": null,
+    "tracer_version": null,
     "runtime_id": "",
     "chunks": [
       {

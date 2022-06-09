@@ -268,7 +268,6 @@ func startHTTPServer(port string) {
 	})
 
 	http.HandleFunc("/api/v0.2/traces", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("HIT traces")
 		nbHitTraces++
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {

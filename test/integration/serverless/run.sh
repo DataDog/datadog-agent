@@ -274,14 +274,12 @@ for function_name in "${all_functions[@]}"; do
                 perl -p -e "s/BEGINTRACE/\1/g" |
                 perl -p -e "s/ENDTRACE/\1/g" |
                 perl -p -e "s/(ts\":)[0-9]{10}/\1XXX/g" |
-                perl -p -e "s/((startTime|endTime|traceID|trace_id|span_id|parent_id|start|system.pid)\":)[0-9]+/\1null/g" |
+                perl -p -e "s/((startTime|endTime|traceID|trace_id|span_id|parent_id|start|system.pid|tracer_version|language_version)\":)[0-9]+/\1null/g" |
                 perl -p -e "s/(duration\":)[0-9]+/\1null/g" |
                 perl -p -e "s/((datadog_lambda|dd_trace)\":\")[0-9]+\.[0-9]+\.[0-9]+/\1X\.X\.X/g" |
                 perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"/\1null\"/g" |
                 perl -p -e "s/(,\"runtime-id\":\")[a-zA-Z0-9\-,]+\"/\1null\"/g" |
                 perl -p -e "s/(,\"system.pid\":\")[a-zA-Z0-9\-,]+\"/\1null\"/g" |
-                perl -p -e "s/(,\"language_version\":\")[a-zA-Z0-9\.\-,]+\"/\1null\"/g" |
-                perl -p -e "s/(,\"tracer_version\":\")[a-zA-Z0-9\.\-,]+\"/\1null\"/g" |
                 perl -p -e "s/(\"_dd.no_p_sr\":)[0-9\.]+/\1null/g" |
                 perl -p -e "s/(\"architecture\":)\"(x86_64|arm64)\"/\1\"XXX\"/g" |
                 perl -p -e "s/(\"process_id\":)[0-9]+/\1null/g" |

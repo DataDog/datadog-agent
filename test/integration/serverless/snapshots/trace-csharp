@@ -2,8 +2,8 @@
   {
     "container_id": "",
     "language_name": ".NET",
-    "language_version": "6.0.5",
-    "tracer_version": "2.7.0.0",
+    "language_version": null,
+    "tracer_version": null,
     "runtime_id": "",
     "chunks": [
       {
@@ -68,8 +68,8 @@
   {
     "container_id": "",
     "language_name": ".NET",
-    "language_version": "6.0.5",
-    "tracer_version": "2.7.0.0",
+    "language_version": null,
+    "tracer_version": null,
     "runtime_id": "",
     "chunks": [
       {

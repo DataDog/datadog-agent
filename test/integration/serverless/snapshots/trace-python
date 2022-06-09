@@ -2,8 +2,8 @@
   {
     "container_id": "",
     "language_name": "python",
-    "language_version": "3.8.13",
-    "tracer_version": "0.55.4",
+    "language_version": null,
+    "tracer_version": null,
     "runtime_id": "",
     "chunks": [
       {
@@ -108,8 +108,8 @@
   {
     "container_id": "",
     "language_name": "python",
-    "language_version": "3.8.13",
-    "tracer_version": "0.55.4",
+    "language_version": null,
+    "tracer_version": null,
     "runtime_id": "",
     "chunks": [
       {

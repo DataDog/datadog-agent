@@ -2,8 +2,8 @@
   {
     "container_id": "",
     "language_name": "java",
-    "language_version": "1.8.0_332",
-    "tracer_version": "0.90.0~32708e53ec",
+    "language_version": null,
+    "tracer_version": null,
     "runtime_id": "",
     "chunks": [
       {
@@ -71,8 +71,8 @@
   {
     "container_id": "",
     "language_name": "java",
-    "language_version": "1.8.0_332",
-    "tracer_version": "0.90.0~32708e53ec",
+    "language_version": null,
+    "tracer_version": null,
     "runtime_id": "",
     "chunks": [
       {
