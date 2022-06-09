@@ -141,20 +141,6 @@
   },
   {
     "message": {
-      "message": "[trace] [{\"priority\":1,\"origin\":\"lambda\",\"spans\":[{\"service\":\"integration-tests-service\",\"name\":\"aws.lambda\",\"resource\":\"integration-tests-extension-STAGE-log-go\",\"trace_id\":8132738106323301658,\"span_id\":8132738106323301658,\"parent_id\":0,\"start\":1654724833994898197,\"duration\":1003670662,\"error\":0,\"meta\":{\"_dd.compute_stats\":\"1\",\"_dd.origin\":\"lambda\",\"_dd.p.upstream_services\":\"YXdzLmxhbWJkYQ|1|1|1.0000\",\"account_id\":\"601427279990\",\"architecture\":\"x86_64\",\"aws_account\":\"601427279990\",\"cold_start\":\"false\",\"datadog_lambda\":\"1.4.0\",\"dd_extension_version\":\"123\",\"dd_trace\":\"1.30.0\",\"env\":\"integration-tests-env\",\"function_arn\":\"arn:aws:lambda:eu-west-1:601427279990:function:integration-tests-extension-STAGE-log-go\",\"function_version\":\"$LATEST\",\"functionname\":\"integration-tests-extension-STAGE-log-go\",\"memorysize\":\"1024\",\"region\":\"eu-west-1\",\"request_id\":\"XXX\",\"resource_names\":\"integration-tests-extension-STAGE-log-go\",\"runtime\":\"provided.al2\",\"runtime-id\":\"XXX\",\"service\":\"integration-tests-service\",\"system.pid\":\"26\",\"tagA\":\"valueA\",\"tagB\":\"valueB\",\"taga\":\"valuea\",\"tagb\":\"valueb\",\"tagc\":\"valuec\",\"tagd\":\"valued\",\"version\":\"integration-tests-version\"},\"metrics\":{\"_dd.agent_psr\":1,\"_dd.top_level\":1,\"_sampling_priority_v1\":1,\"_top_level\":1},\"type\":\"serverless\"}],\"tags\":null,\"dropped_trace\":false}]\n",
-      "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:601427279990:function:integration-tests-extension-STAGE-log-go",
-        "request_id": "XXX"
-      }
-    },
-    "status": "info",
-    "hostname": "arn:aws:lambda:eu-west-1:601427279990:function:integration-tests-extension-STAGE-log-go",
-    "service": "integration-tests-service",
-    "ddsource": "lambda",
-    "ddtags": "account_id:601427279990,architecture:XXX,aws_account:601427279990,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:601427279990:function:integration-tests-extension-STAGE-log-go,functionname:integration-tests-extension-STAGE-log-go,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-STAGE-log-go,runtime:provided.al2,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version"
-  },
-  {
-    "message": {
       "message": "END RequestId: XXX",
       "lambda": {
         "arn": "arn:aws:lambda:eu-west-1:601427279990:function:integration-tests-extension-STAGE-log-go",
