@@ -166,8 +166,7 @@ func InitSystemProbeConfig(cfg Config) {
 	// service monitoring
 	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
 
-	// process event monitoring
-	cfg.BindEnvAndSetDefault(join(netNS, "enable_process_event_monitoring"), false)
+	// process event monitoring data limits for network tracer
 	cfg.BindEnv(join(netNS, "max_processes_tracked"))
 }
 

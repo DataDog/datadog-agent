@@ -37,7 +37,7 @@ func Init() error {
 // HandlerFunc is the prototype for an event handler callback for process events
 type HandlerFunc func(*model.ProcessCacheEntry)
 
-// Registerhandler registers a handler function for getting process events
+// RegisterHandler registers a handler function for getting process events
 func RegisterHandler(handler HandlerFunc) {
 	m := theMonitor.Load().(*eventMonitor)
 	m.RegisterHandler(handler)

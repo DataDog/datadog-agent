@@ -41,11 +41,11 @@ func TestRuntimeSecurityLoad(t *testing.T) {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
 			os.Setenv("DD_RUNTIME_SECURITY_CONFIG_ENABLED", strconv.FormatBool(tc.cws))
 			os.Setenv("DD_RUNTIME_SECURITY_CONFIG_FIM_ENABLED", strconv.FormatBool(tc.fim))
-			os.Setenv("DD_RUNTIME_SECURITY_CONFIG_EVENT_MONITORING_ENABLED", strconv.FormatBool(tc.events))
+			os.Setenv("DD_RUNTIME_SECURITY_CONFIG_EVENT_MONITORING_PROCESS_ENABLED", strconv.FormatBool(tc.events))
 
 			defer os.Unsetenv("DD_RUNTIME_SECURITY_CONFIG_ENABLED")
 			defer os.Unsetenv("DD_RUNTIME_SECURITY_CONFIG_FIM_ENABLED")
-			defer os.Unsetenv("DD_RUNTIME_SECURITY_CONFIG_EVENT_MONITORING_ENABLED")
+			defer os.Unsetenv("DD_RUNTIME_SECURITY_CONFIG_EVENT_MONITORING_PROCESS_ENABLED")
 
 			cfg, err := New("")
 			require.NoError(t, err)

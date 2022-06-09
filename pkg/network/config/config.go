@@ -230,7 +230,7 @@ func New() *Config {
 
 		RecordedQueryTypes: cfg.GetStringSlice(join(netNS, "dns_recorded_query_types")),
 
-		EnableProcessEventMonitoring: cfg.GetBool(join(netNS, "enable_process_event_monitoring")),
+		EnableProcessEventMonitoring: cfg.GetBool(join("runtime_security_config", "event_monitoring", "network_process", "enabled")),
 		MaxProcessesTracked:          cfg.GetInt(join(netNS, "max_processes_tracked")),
 	}
 
@@ -283,7 +283,7 @@ func New() *Config {
 	}
 
 	if c.EnableProcessEventMonitoring {
-		log.Info("process event monitoring enabled")
+		log.Info("network process event monitoring enabled")
 
 		if c.MaxProcessesTracked == 0 {
 			c.MaxProcessesTracked = defaultMaxProcessesTracked

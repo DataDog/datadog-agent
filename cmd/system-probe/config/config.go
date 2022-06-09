@@ -214,14 +214,15 @@ func load(configPath string) (*Config, error) {
 		c.EnabledModules[OOMKillProbeModule] = struct{}{}
 	}
 
-	_, netModuleEnabled := c.EnabledModules[NetworkTracerModule]
-	if netModuleEnabled && cfg.GetBool("network_config.enable_process_event_monitoring") {
-		// enable runtime_security_config.event_monitoring
-		cfg.Set("runtime_security_config.event_monitoring.enabled", true)
+	if _, enabled := c.EnabledModules[NetworkTracerModule]; !enabled {
+		cfg.Set("runtime_security_config.event_monitoring.network_process.enabled", false)
 	}
 
-	if cfg.GetBool("runtime_security_config.enabled") || cfg.GetBool("runtime_security_config.fim_enabled") || cfg.GetBool("runtime_security_config.event_monitoring.enabled") {
-		log.Info("runtime_security_config.enabled or runtime_security_config.fim_enabled detected, enabling system-probe")
+	if cfg.GetBool("runtime_security_config.enabled") ||
+		cfg.GetBool("runtime_security_config.fim_enabled") ||
+		cfg.GetBool("runtime_security_config.event_monitoring.process.enabled") ||
+		cfg.GetBool("runtime_security_config.event_monitoring.network_process.enabled") {
+		log.Info("runtime_security_config.enabled or runtime_security_config.fim_enabled or runtime_securit_config.event_monitoring.process.enabled or runtime_security_config.event_monitoring.network_process.enabled detected, enabling runtime security module and system-probe")
 		c.EnabledModules[SecurityRuntimeModule] = struct{}{}
 	}
 	if cfg.GetBool(key(spNS, "process_config.enabled")) {

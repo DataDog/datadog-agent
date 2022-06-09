@@ -134,6 +134,10 @@ type Config struct {
 	RuntimeCompiledConstantsIsSet bool
 	// EventMonitoring enables event monitoring
 	EventMonitoring bool
+	// NetworkProcessEventMonitoringEnabled is set to true if `network_config.enable_process_event_monitoring` is set
+	NetworkProcessEventMonitoringEnabled bool
+	// ProcessEventMonitoringEnabled is set to true if ``
+	ProcessEventMonitoringEnabled bool
 	// RemoteConfigurationEnabled defines whether to use remote monitoring
 	RemoteConfigurationEnabled bool
 }
@@ -160,7 +164,6 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		Config:                             *ebpf.NewConfig(),
 		RuntimeEnabled:                     aconfig.Datadog.GetBool("runtime_security_config.enabled"),
 		FIMEnabled:                         aconfig.Datadog.GetBool("runtime_security_config.fim_enabled"),
-		EventMonitoring:                    aconfig.Datadog.GetBool("runtime_security_config.event_monitoring.enabled"),
 		EnableKernelFilters:                aconfig.Datadog.GetBool("runtime_security_config.enable_kernel_filters"),
 		EnableApprovers:                    aconfig.Datadog.GetBool("runtime_security_config.enable_approvers"),
 		EnableDiscarders:                   aconfig.Datadog.GetBool("runtime_security_config.enable_discarders"),
@@ -201,16 +204,21 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		NetworkEnabled:                     aconfig.Datadog.GetBool("runtime_security_config.network.enabled"),
 		NetworkLazyInterfacePrefixes:       aconfig.Datadog.GetStringSlice("runtime_security_config.network.lazy_interface_prefixes"),
 		// runtime compilation
-		RuntimeCompilationEnabled:       aconfig.Datadog.GetBool("runtime_security_config.runtime_compilation.enabled"),
-		RuntimeCompiledConstantsEnabled: aconfig.Datadog.GetBool("runtime_security_config.runtime_compilation.compiled_constants_enabled"),
-		RuntimeCompiledConstantsIsSet:   aconfig.Datadog.IsSet("runtime_security_config.runtime_compilation.compiled_constants_enabled"),
-		RemoteConfigurationEnabled:      aconfig.Datadog.GetBool("runtime_security_config.remote_configuration.enabled"),
+		RuntimeCompilationEnabled:            aconfig.Datadog.GetBool("runtime_security_config.runtime_compilation.enabled"),
+		RuntimeCompiledConstantsEnabled:      aconfig.Datadog.GetBool("runtime_security_config.runtime_compilation.compiled_constants_enabled"),
+		RuntimeCompiledConstantsIsSet:        aconfig.Datadog.IsSet("runtime_security_config.runtime_compilation.compiled_constants_enabled"),
+		RemoteConfigurationEnabled:           aconfig.Datadog.GetBool("runtime_security_config.remote_configuration.enabled"),
+		NetworkProcessEventMonitoringEnabled: aconfig.Datadog.GetBool("runtime_security_config.event_monitoring.network_process.enabled"),
+		ProcessEventMonitoringEnabled:        aconfig.Datadog.GetBool("runtime_security_config.event_monitoring.process.enabled"),
 	}
 
 	// if runtime is enabled then we force fim
 	if c.RuntimeEnabled {
 		c.FIMEnabled = true
 	}
+
+	// event monitoring
+	c.EventMonitoring = c.NetworkProcessEventMonitoringEnabled || c.ProcessEventMonitoringEnabled
 
 	if !c.IsEnabled() {
 		return c, nil

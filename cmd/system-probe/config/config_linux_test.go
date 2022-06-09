@@ -30,14 +30,14 @@ func TestNetworkProcessEventMonitoring(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
 			os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", strconv.FormatBool(te.network))
-			os.Setenv("DD_NETWORK_CONFIG_ENABLE_PROCESS_EVENT_MONITORING", strconv.FormatBool(te.netProcEvents))
-			defer os.Unsetenv("DD_NETWORK_CONFIG_ENABLE_PROCESS_EVENT_MONITORING")
+			os.Setenv("DD_RUNTIME_SECURITY_CONFIG_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(te.netProcEvents))
+			defer os.Unsetenv("DD_RUNTIME_SECURITY_CONFIG_EVENT_MONITORING_NETWORK_PROCESS_ENABLED")
 			defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLED")
 
 			cfg, err := New("")
 			require.NoError(t, err)
 			assert.Equal(t, te.enabled, cfg.ModuleIsEnabled(SecurityRuntimeModule))
-			assert.Equal(t, te.enabled, config.Datadog.GetBool("runtime_security_config.event_monitoring.enabled"))
+			assert.Equal(t, te.enabled, config.Datadog.GetBool("runtime_security_config.event_monitoring.network_process.enabled"))
 		})
 	}
 
