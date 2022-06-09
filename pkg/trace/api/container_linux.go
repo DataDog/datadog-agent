@@ -6,16 +6,9 @@
 package api
 
 import (
-	"bufio"
 	"context"
-	"fmt"
-	"io"
 	"net"
 	"net/http"
-	"os"
-	"regexp"
-	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -23,110 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 )
 
-const (
-	// cgroupPath is the path to the cgroup file where we can find the container id if one exists.
-	cgroupPath = "/proc/%d/cgroup"
-)
-
-const (
-	uuidSource      = "[0-9a-f]{8}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{12}"
-	containerSource = "[0-9a-f]{64}"
-	taskSource      = "[0-9a-f]{32}-\\d+"
-)
-
-// ucredKey is used as a context.Context key to store and load the runtime.Ucred we get from the
-// unix socket. The private type is used to ensure we can never conflict with any other value in
-// the context.
 type ucredKey struct{}
 
-var (
-	// expLine matches a line in the /proc/self/cgroup file. It has a submatch for the last element (path), which contains the container ID.
-	expLine = regexp.MustCompile(`^\d+:[^:]*:(.+)$`)
-
-	// expContainerID matches contained IDs and sources. Source: https://github.com/Qard/container-info/blob/master/index.js
-	expContainerID = regexp.MustCompile(fmt.Sprintf(`(%s|%s|%s)(?:.scope)?$`, uuidSource, containerSource, taskSource))
-)
-
-// parseContainerID finds the first container ID reading from r and returns it. R is expected to
-// read a file with the structure described by 'man 7 cgroup' in the section labelled
-// "/proc/[pid]/cgroup", available here: https://www.man7.org/linux/man-pages/man7/cgroups.7.html
-func parseContainerID(r io.Reader) string {
-	scn := bufio.NewScanner(r)
-	for scn.Scan() {
-		path := expLine.FindStringSubmatch(scn.Text())
-		if len(path) != 2 {
-			// invalid entry, continue
-			continue
-		}
-		if parts := expContainerID.FindStringSubmatch(path[1]); len(parts) == 2 {
-			return parts[1]
-		}
-	}
-	return ""
-}
-
-// readContainerID attempts to return the container ID from the provided file path or empty on failure.
-func readContainerID(fpath string) string {
-	f, err := os.Open(fpath)
-	if err != nil {
-		return ""
-	}
-	defer f.Close()
-	return parseContainerID(f)
-}
-
-type cacheVal struct {
-	containerID string
-	accessed    atomic.Value
-}
-
-type containerCache struct {
-	cache map[int32]*cacheVal
-	sync.RWMutex
-}
-
-var cache = containerCache{cache: make(map[int32]*cacheVal)}
-
 const cacheExpire = 5 * time.Minute
-
-func (c *containerCache) ContainerID(pid int32) (string, bool) {
-	c.RLock()
-	defer c.RUnlock()
-	if v, ok := c.cache[pid]; ok {
-		t := v.accessed.Load().(time.Time)
-		if t.Before(time.Now().Add(-cacheExpire)) {
-			// If we haven't seen this pid in 5 minutes,
-			// it should be re-read.
-			return "", false
-		}
-		v.accessed.Store(time.Now())
-		return v.containerID, true
-	}
-	return "", false
-}
-
-// insertID inserts a container ID for a pid into the cache and cleans up stale entries.
-func (c *containerCache) insertID(pid int32, cid string) {
-	c.Lock()
-	defer c.Unlock()
-	// We'll clean the cache whenever we insert a new container ID.
-	for k, v := range c.cache {
-		t := v.accessed.Load().(time.Time)
-		if t.Before(time.Now().Add(-cacheExpire)) {
-			delete(c.cache, k)
-		}
-	}
-	cv := &cacheVal{containerID: cid}
-	cv.accessed.Store(time.Now())
-	c.cache[pid] = cv
-}
-
-// createPath is the function used to generate a cgroup path from a pid in order to read a
-// process's cgroups. This is created as a variable for testing purposes. In the tests this
-// function is replaced by one that returns test paths.
-var createPath = func(pid int32) string {
-	return fmt.Sprintf(cgroupPath, pid)
-}
 
 // connContext is a function that injects a Unix Domain Socket's User Credentials into the
 // context.Context object provided. This is useful as the ConnContext member of an http.Server, to
