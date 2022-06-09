@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix prometheus check Metrics parsing, don't enforce a list of strings
+    Fix prometheus check Metrics parsing by not enforcing a list of strings.
