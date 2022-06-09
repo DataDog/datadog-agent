@@ -61,6 +61,276 @@ layers:
       artifact: ../../../../datadog-lambda-extension/.layers/datadog_extension-${env:ARCHITECTURE}.zip
 
 functions:
+  metric-node:
+    runtime: nodejs14.x
+    handler: src/metric.enhancedMetricTest
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+
+  metric-python:
+    runtime: python3.8
+    handler: datadog_lambda.handler.handler
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38${self:custom.ddLambdaPythonLayerFlag.${env:ARCHITECTURE}}:${env:PYTHON_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_LAMBDA_HANDLER: src/metricPython.metric
+
+  metric-go:
+    runtime: provided.al2
+    package:
+      individually: true
+      patterns:
+        - src/bin/metric
+    handler: src/bin/metric
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+
+  metric-java:
+    runtime: java8.al2
+    handler: Handler
+    package:
+      individually: true
+      artifact: src/java-tests/metric/target/hello-dev.jar
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-java:${env:JAVA_TRACE_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      DD_JMXFETCH_ENABLED: false
+
+  metric-csharp:
+    runtime: dotnet6
+    handler: CsharpHandlers::AwsDotnetCsharp.Handler::Hello
+    package:
+      individually: true
+      artifact: src/csharp-tests/bin/Release/net6.0/handler.zip
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-dotnet:${env:DOTNET_TRACE_LAYER_VERSION}
+    environment:
+      CORECLR_ENABLE_PROFILING: 1
+      CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
+      CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
+      DD_DOTNET_TRACER_HOME: "/opt/datadog"
+
+  metric-proxy:
+    runtime: nodejs14.x
+    handler: src/proxyTestFunctions.noop 
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_EXPERIMENTAL_ENABLE_PROXY: true
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+
+  error-node:
+    runtime: nodejs14.x
+    handler: src/metric.errorTest
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+
+  error-python:
+    runtime: python3.8
+    handler: datadog_lambda.handler.handler
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38${self:custom.ddLambdaPythonLayerFlag.${env:ARCHITECTURE}}:${env:PYTHON_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_LAMBDA_HANDLER: src/metricPython.error
+
+  error-java:
+    runtime: java8.al2
+    handler: ErrorHandler
+    package:
+      individually: true
+      artifact: src/java-tests/error/target/error-dev.jar
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-java:${env:JAVA_TRACE_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      DD_JMXFETCH_ENABLED: false
+
+  error-csharp:
+    runtime: dotnet6
+    handler: CsharpHandlers::AwsDotnetCsharp.Handler::Error
+    package:
+      individually: true
+      artifact: src/csharp-tests/bin/Release/net6.0/handler.zip
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-dotnet:${env:DOTNET_TRACE_LAYER_VERSION}
+    environment:
+      CORECLR_ENABLE_PROFILING: 1
+      CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
+      CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
+      DD_DOTNET_TRACER_HOME: "/opt/datadog"
+
+  error-proxy:
+    runtime: nodejs14.x
+    handler: src/proxyTestFunctions.error 
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_EXPERIMENTAL_ENABLE_PROXY: true
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+
+  timeout-node:
+    runtime: nodejs14.x
+    timeout: 1
+    handler: src/metric.timeoutMetricTest
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+
+  timeout-python:
+    runtime: python3.8
+    timeout: 1
+    handler: datadog_lambda.handler.handler
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38${self:custom.ddLambdaPythonLayerFlag.${env:ARCHITECTURE}}:${env:PYTHON_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_LAMBDA_HANDLER: src/metricPython.timeout
+
+  timeout-go:
+    runtime: provided.al2
+    timeout: 1
+    package:
+      individually: true
+      patterns:
+        - src/bin/timeout
+    handler: src/bin/timeout
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+
+  timeout-java:
+    runtime: java8.al2
+    handler: TimeoutHandler
+    timeout: 1
+    package:
+      individually: true
+      artifact: src/java-tests/timeout/target/timeout-dev.jar
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-java:${env:JAVA_TRACE_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      DD_JMXFETCH_ENABLED: false
+
+  timeout-csharp:
+    runtime: dotnet6
+    handler: CsharpHandlers::AwsDotnetCsharp.Handler::Timeout
+    timeout: 1
+    package:
+      individually: true
+      artifact: src/csharp-tests/bin/Release/net6.0/handler.zip
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-dotnet:${env:DOTNET_TRACE_LAYER_VERSION}
+    environment:
+      CORECLR_ENABLE_PROFILING: 1
+      CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
+      CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
+      DD_DOTNET_TRACER_HOME: "/opt/datadog"
+
+  timeout-proxy:
+    runtime: nodejs14.x
+    handler: src/proxyTestFunctions.timeout 
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_EXPERIMENTAL_ENABLE_PROXY: true
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+
+  log-node:
+    runtime: nodejs14.x
+    handler: src/log.logTest
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+
+  log-python:
+    runtime: python3.8
+    handler: datadog_lambda.handler.handler
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38${self:custom.ddLambdaPythonLayerFlag.${env:ARCHITECTURE}}:${env:PYTHON_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_LAMBDA_HANDLER: src/logPython.log
+
+  log-go:
+    runtime: provided.al2
+    package:
+      individually: true
+      patterns:
+        - src/bin/log
+    handler: src/bin/log
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+
+  log-csharp:
+    runtime: dotnet6
+    handler: CsharpHandlers::AwsDotnetCsharp.Handler::Logs
+    package:
+      individually: true
+      artifact: src/csharp-tests/bin/Release/net6.0/handler.zip
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-dotnet:${env:DOTNET_TRACE_LAYER_VERSION}
+    environment:
+      CORECLR_ENABLE_PROFILING: 1
+      CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
+      CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
+      DD_DOTNET_TRACER_HOME: "/opt/datadog"
+
+  log-java:
+    runtime: java8.al2
+    handler: LogHandler
+    package:
+      individually: true
+      artifact: src/java-tests/log/target/log-dev.jar
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-java:${env:JAVA_TRACE_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      DD_JMXFETCH_ENABLED: false
+  
+  log-proxy:
+    runtime: nodejs14.x
+    handler: src/proxyTestFunctions.log 
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_EXPERIMENTAL_ENABLE_PROXY: true
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+
   trace-node:
     runtime: nodejs14.x
     handler: /opt/nodejs/node_modules/datadog-lambda-js/handler.handler
@@ -124,10 +394,10 @@ functions:
 
   trace-proxy:
     runtime: nodejs14.x
-    handler: src/proxyTestFunctions.noop 
+    handler: src/proxyTestFunctions.noop
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
