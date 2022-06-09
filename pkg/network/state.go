@@ -93,13 +93,11 @@ type telemetry struct {
 
 const minClosedCapacity = 1024
 
-type closedKey string
-
 type client struct {
 	lastFetch time.Time
 
-	// generated with NAT addresses and used exclusively to roll up closed connections
-	closedConnectionsKeys map[closedKey]int
+	// generated via `ByteKeyNAT` and used exclusively to roll up closed connections
+	closedConnectionsKeys map[string]int
 
 	closedConnections []ConnectionStats
 	stats             map[string]*StatCounters
@@ -116,7 +114,7 @@ func (c *client) Reset(active map[string]*ConnectionStats) {
 	}
 
 	c.closedConnections = c.closedConnections[:0]
-	c.closedConnectionsKeys = make(map[closedKey]int)
+	c.closedConnectionsKeys = make(map[string]int)
 	c.dnsStats = make(dns.StatsByKeyByNameByType)
 	c.httpStatsDelta = make(map[http.Key]*http.RequestStats)
 
@@ -308,7 +306,7 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 		for _, c := range conns {
 			key := c.ByteKeyNAT(ns.buf)
 
-			i, ok := client.closedConnectionsKeys[closedKey(key)]
+			i, ok := client.closedConnectionsKeys[string(key)]
 			if ok {
 				addConnections(&client.closedConnections[i], &c)
 				continue
@@ -320,7 +318,7 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 			}
 
 			client.closedConnections = append(client.closedConnections, c)
-			client.closedConnectionsKeys[closedKey(key)] = len(client.closedConnections) - 1
+			client.closedConnectionsKeys[string(key)] = len(client.closedConnections) - 1
 		}
 	}
 }
@@ -431,7 +429,7 @@ func (ns *networkState) getClient(clientID string) *client {
 		lastFetch:             time.Now(),
 		stats:                 map[string]*StatCounters{},
 		closedConnections:     make([]ConnectionStats, 0, minClosedCapacity),
-		closedConnectionsKeys: make(map[closedKey]int),
+		closedConnectionsKeys: make(map[string]int),
 		dnsStats:              dns.StatsByKeyByNameByType{},
 		httpStatsDelta:        map[http.Key]*http.RequestStats{},
 		lastTelemetries:       make(map[ConnTelemetryType]int64),
