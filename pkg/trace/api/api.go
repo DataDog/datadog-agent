@@ -560,15 +560,11 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	atomic.AddInt64(&ts.TracesBytes, req.Body.(*apiutil.LimitedReader).Count)
 	atomic.AddInt64(&ts.PayloadAccepted, 1)
 
-	fmt.Printf("########## CONTAINER ID ##########: %v\n", tp.ContainerID)
 	if ctags := getContainerTags(r.conf.ContainerTags, tp.ContainerID); ctags != "" {
 		if tp.Tags == nil {
 			tp.Tags = make(map[string]string)
 		}
 		tp.Tags[tagContainersTags] = ctags
-		fmt.Printf("########## CONTAINER TAGS ##########\n\t%#v\n", ctags)
-	} else {
-		fmt.Printf("########## NO CONTAINER TAGS ##########\n")
 	}
 
 	payload := &Payload{
