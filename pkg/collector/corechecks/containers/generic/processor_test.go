@@ -40,7 +40,7 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 		"cID100": mock.GetFullSampleContainerEntry(),
 	}
 
-	mockSender, processor, _ := CreateTestProcessor(containersMeta, nil, containersStats, GenericMetricsAdapter{}, nil)
+	mockSender, processor, _ := CreateTestProcessor(containersMeta, containersStats, GenericMetricsAdapter{}, nil)
 	err := processor.Run(mockSender, 0)
 	assert.ErrorIs(t, err, nil)
 
@@ -102,7 +102,7 @@ func TestProcessorRunPartialStats(t *testing.T) {
 		},
 	}
 
-	mockSender, processor, _ := CreateTestProcessor(containersMeta, nil, containersStats, GenericMetricsAdapter{}, nil)
+	mockSender, processor, _ := CreateTestProcessor(containersMeta, containersStats, GenericMetricsAdapter{}, nil)
 	err := processor.Run(mockSender, 0)
 	assert.ErrorIs(t, err, nil)
 
