@@ -43,14 +43,17 @@ type APMCheck struct {
 	telemetry   bool
 }
 
+// String TODO <agent-platform>: AP-1715
 func (c *APMCheck) String() string {
 	return "APM Agent"
 }
 
+// Version TODO <agent-platform>: AP-1715
 func (c *APMCheck) Version() string {
 	return ""
 }
 
+// ConfigSource TODO <agent-platform>: AP-1715
 func (c *APMCheck) ConfigSource() string {
 	return c.source
 }
