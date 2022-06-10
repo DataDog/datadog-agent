@@ -32,7 +32,7 @@ type RCPolicyProvider struct {
 
 var _ rules.PolicyProvider = (*RCPolicyProvider)(nil)
 
-// NewRCPolicyProvider TODO <agent-security>
+// NewRCPolicyProvider returns a new Remote Config based policy provider
 func NewRCPolicyProvider(name string) (*RCPolicyProvider, error) {
 	c, err := remote.NewClient(name, []data.Product{data.ProductCWSDD})
 	if err != nil {
@@ -44,7 +44,7 @@ func NewRCPolicyProvider(name string) (*RCPolicyProvider, error) {
 	}, nil
 }
 
-// Start TODO <agent-security>
+// Start starts the Remote Config policy provider and subscribes to updates
 func (r *RCPolicyProvider) Start() {
 	log.Info("remote-config policies provider started")
 
@@ -97,7 +97,7 @@ func (r *RCPolicyProvider) SetOnNewPoliciesReadyCb(cb func()) {
 	r.onNewPoliciesReadyCb = cb
 }
 
-// Stop the client
+// Close stops the client
 func (r *RCPolicyProvider) Close() error {
 	r.client.Close()
 	return nil
