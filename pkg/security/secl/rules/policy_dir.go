@@ -7,7 +7,6 @@ package rules
 
 import (
 	"context"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -23,7 +22,6 @@ var _ PolicyProvider = (*PoliciesDirProvider)(nil)
 // PoliciesDirProvider defines a new policy dir provider
 type PoliciesDirProvider struct {
 	PoliciesDir string
-	Watch       bool
 
 	onNewPoliciesReadyCb func()
 	cancelFnc            func()
@@ -96,7 +94,7 @@ func (p *PoliciesDirProvider) LoadPolicies() ([]*Policy, *multierror.Error) {
 	}
 
 	// remove oldest watched files
-	if p.Watch {
+	if p.watcher != nil {
 		for _, watched := range p.watchedFiles {
 			_ = p.watcher.Remove(watched)
 		}
@@ -111,7 +109,7 @@ func (p *PoliciesDirProvider) LoadPolicies() ([]*Policy, *multierror.Error) {
 		} else {
 			policies = append(policies, policy)
 
-			if p.Watch {
+			if p.watcher != nil {
 				if err := p.watcher.Add(filename); err != nil {
 					errs = multierror.Append(errs, err)
 				} else {
@@ -126,8 +124,13 @@ func (p *PoliciesDirProvider) LoadPolicies() ([]*Policy, *multierror.Error) {
 
 // Stop implements the policy provider interface
 func (p *PoliciesDirProvider) Close() error {
-	p.cancelFnc()
-	p.watcher.Close()
+	if p.cancelFnc != nil {
+		p.cancelFnc()
+	}
+
+	if p.watcher != nil {
+		p.watcher.Close()
+	}
 	return nil
 }
 
@@ -145,8 +148,6 @@ func filesEqual(a []string, b []string) bool {
 
 func (p *PoliciesDirProvider) watch(ctx context.Context) {
 	go func() {
-		defer p.watcher.Close()
-
 		for {
 			select {
 			case <-ctx.Done():
@@ -175,26 +176,24 @@ func (p *PoliciesDirProvider) watch(ctx context.Context) {
 
 // NewPoliciesDirProvider returns providers for the given policies dir
 func NewPoliciesDirProvider(policiesDir string, watch bool) (*PoliciesDirProvider, error) {
-	ctx, cancelFnc := context.WithCancel(context.Background())
-
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	p := &PoliciesDirProvider{
 		PoliciesDir: policiesDir,
-		Watch:       watch,
-		cancelFnc:   cancelFnc,
-		watcher:     watcher,
 	}
 
 	if watch {
-		err = p.watcher.Add(policiesDir)
-		if err != nil {
+		var err error
+		if p.watcher, err = fsnotify.NewWatcher(); err != nil {
 			return nil, err
 		}
 
+		if err := p.watcher.Add(policiesDir); err != nil {
+			p.watcher.Close()
+			return nil, err
+		}
+
+		var ctx context.Context
+		ctx, p.cancelFnc = context.WithCancel(context.Background())
 		go p.watch(ctx)
 	}
 
