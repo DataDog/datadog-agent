@@ -84,6 +84,7 @@ func (c *KubeASConfig) parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
 }
 
+// NewKubeASCheck returns a new KubeASCheck
 func NewKubeASCheck(base core.CheckBase, instance *KubeASConfig) *KubeASCheck {
 	return &KubeASCheck{
 		CheckBase:       base,

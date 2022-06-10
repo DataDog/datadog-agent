@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -36,10 +37,10 @@ var errCollectAllDisabled = fmt.Errorf("%s disabled", config.ContainerCollectAll
 
 // Launcher looks for new and deleted pods to create or delete one logs-source per container.
 type Launcher struct {
-	sources            *config.LogSources
+	sources            *sourcesPkg.LogSources
 	services           *service.Services
 	cop                containersorpods.Chooser
-	sourcesByContainer map[string]*config.LogSource
+	sourcesByContainer map[string]*sourcesPkg.LogSource
 	stopped            chan struct{}
 	collectAll         bool
 	serviceNameFunc    func(string, string) string // serviceNameFunc gets the service name from the tagger, it is in a separate field for testing purpose
@@ -53,12 +54,12 @@ type Launcher struct {
 }
 
 // NewLauncher returns a new launcher.
-func NewLauncher(sources *config.LogSources, services *service.Services, cop containersorpods.Chooser, collectAll bool) *Launcher {
+func NewLauncher(sources *sourcesPkg.LogSources, services *service.Services, cop containersorpods.Chooser, collectAll bool) *Launcher {
 	launcher := &Launcher{
 		sources:            sources,
 		services:           services,
 		cop:                cop,
-		sourcesByContainer: make(map[string]*config.LogSource),
+		sourcesByContainer: make(map[string]*sourcesPkg.LogSource),
 		stopped:            make(chan struct{}),
 		collectAll:         collectAll,
 		serviceNameFunc:    util.ServiceNameFromTags,
@@ -132,9 +133,9 @@ func (l *Launcher) addSource(svc *service.Service) {
 
 	switch svc.Type {
 	case config.DockerType:
-		source.SetSourceType(config.DockerSourceType)
+		source.SetSourceType(sourcesPkg.DockerSourceType)
 	default:
-		source.SetSourceType(config.KubernetesSourceType)
+		source.SetSourceType(sourcesPkg.KubernetesSourceType)
 	}
 
 	l.sourcesByContainer[svc.GetEntityID()] = source
@@ -153,7 +154,7 @@ func (l *Launcher) removeSource(service *service.Service) {
 // kubernetesIntegration represents the name of the integration.
 const kubernetesIntegration = "kubernetes"
 
-func (l *Launcher) getSource(svc *service.Service) (*config.LogSource, error) {
+func (l *Launcher) getSource(svc *service.Service) (*sourcesPkg.LogSource, error) {
 	containerID := svc.Identifier
 
 	pod, err := l.workloadmetaStore.GetKubernetesPodForContainer(containerID)
@@ -243,7 +244,7 @@ func (l *Launcher) getSource(svc *service.Service) (*config.LogSource, error) {
 
 	sourceName := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, container.Name)
 
-	return config.NewLogSource(sourceName, cfg), nil
+	return sourcesPkg.NewLogSource(sourceName, cfg), nil
 }
 
 // configPath refers to the configuration that can be passed over a pod annotation,

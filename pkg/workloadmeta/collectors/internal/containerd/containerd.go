@@ -37,11 +37,17 @@ const (
 	// These are not all the task-related topics, but enough to detect changes
 	// in the state of the container (only need to know if it's running or not).
 
-	TaskStartTopic   = "/tasks/start"
-	TaskOOMTopic     = "/tasks/oom"
-	TaskExitTopic    = "/tasks/exit"
-	TaskDeleteTopic  = "/tasks/delete"
-	TaskPausedTopic  = "/tasks/paused"
+	// TaskStartTopic represents task start events
+	TaskStartTopic = "/tasks/start"
+	// TaskOOMTopic represents task oom events
+	TaskOOMTopic = "/tasks/oom"
+	// TaskExitTopic represents task exit events
+	TaskExitTopic = "/tasks/exit"
+	// TaskDeleteTopic represents task delete events
+	TaskDeleteTopic = "/tasks/delete"
+	// TaskPausedTopic represents task paused events
+	TaskPausedTopic = "/tasks/paused"
+	// TaskResumedTopic represents task resumed events
 	TaskResumedTopic = "/tasks/resumed"
 )
 

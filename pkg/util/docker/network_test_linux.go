@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
+// TestFindDockerNetworks tests findDockerNetworks
 func TestFindDockerNetworks(t *testing.T) {
 	dummyProcDir, err := testutil.NewTempFolder("test-find-docker-networks")
 	assert.Nil(t, err)
@@ -186,6 +187,7 @@ func TestFindDockerNetworks(t *testing.T) {
 	}
 }
 
+// TestParseContainerNetworkMode tests parseContainerNetworkMode
 func TestParseContainerNetworkMode(t *testing.T) {
 	tests := []struct {
 		name       string

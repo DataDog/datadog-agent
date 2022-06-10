@@ -338,6 +338,7 @@ func TestProcessContext(t *testing.T) {
 
 			argv := strings.Split(args.(string), " ")
 			assert.Equal(t, 2, len(argv), "incorrect number of args: %s", argv)
+			assert.Equal(t, 254, len(argv[1]), "wrong arg length")
 			assert.Equal(t, true, strings.HasSuffix(argv[1], "..."), "args not truncated")
 
 			argv0, err := event.GetFieldValue("exec.argv0")
@@ -347,10 +348,15 @@ func TestProcessContext(t *testing.T) {
 			assert.Equal(t, "ls", argv0, "incorrect argv0: %s", argv0)
 		}))
 
+		var arg string
+		for i := 0; i != 300; i++ {
+			arg += "a"
+		}
+
 		// number of args overflow
 		nArgs, args := 200, []string{"-al"}
 		for i := 0; i != nArgs; i++ {
-			args = append(args, "aaa")
+			args = append(args, arg)
 		}
 
 		test.WaitSignal(t, func() error {
@@ -365,10 +371,7 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			argv := strings.Split(args.(string), " ")
-			n := len(argv)
-			if n == 0 || n > nArgs {
-				t.Errorf("incorrect number of args %d: %s", n, args.(string))
-			}
+			assert.Equal(t, 166, len(argv), "incorrect number of args: %s", argv)
 
 			truncated, err := event.GetFieldValue("exec.args_truncated")
 			if err != nil {
@@ -668,7 +671,7 @@ func TestProcessMutableVariable(t *testing.T) {
 		}, {
 			Set: &rules.SetDefinition{
 				Name:  "var2",
-				Value: "off",
+				Value: "disabled",
 				Scope: "process",
 			},
 		}, {
@@ -700,7 +703,7 @@ func TestProcessMutableVariable(t *testing.T) {
 		Actions: []rules.ActionDefinition{{
 			Set: &rules.SetDefinition{
 				Name:  "var2",
-				Value: "on",
+				Value: "enabled",
 				Scope: "process",
 			},
 		}, {
@@ -715,7 +718,7 @@ func TestProcessMutableVariable(t *testing.T) {
 		ID: "test_rule_test_mutable_vars",
 		Expression: `open.file.path == "{{.Root}}/test-open-3"` +
 			`&& ${process.var1} == true` +
-			`&& ${process.var2} == "on"` +
+			`&& ${process.var2} == "enabled"` +
 			`&& "aaa" in ${process.var3}` +
 			`&& "bbb" in ${process.var3}` +
 			`&& process.file.name == "${var4}"` +

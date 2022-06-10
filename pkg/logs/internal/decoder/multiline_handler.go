@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 )
 
 // MultiLineHandler makes sure that multiple lines from a same content
@@ -26,7 +26,7 @@ type MultiLineHandler struct {
 	linesLen       int
 	status         string
 	timestamp      string
-	countInfo      *config.CountInfo
+	countInfo      *status.CountInfo
 }
 
 // NewMultiLineHandler returns a new MultiLineHandler.
@@ -37,7 +37,7 @@ func NewMultiLineHandler(outputFn func(*Message), newContentRe *regexp.Regexp, f
 		buffer:       bytes.NewBuffer(nil),
 		flushTimeout: flushTimeout,
 		lineLimit:    lineLimit,
-		countInfo:    config.NewCountInfo("MultiLine matches"),
+		countInfo:    status.NewCountInfo("MultiLine matches"),
 	}
 }
 

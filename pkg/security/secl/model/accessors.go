@@ -6067,6 +6067,14 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "unlink.flags":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Unlink.Flags)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "unlink.retval":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -6830,6 +6838,7 @@ func (e *Event) GetFields() []eval.Field {
 		"unlink.file.rights",
 		"unlink.file.uid",
 		"unlink.file.user",
+		"unlink.flags",
 		"unlink.retval",
 		"unload_module.name",
 		"unload_module.retval",
@@ -9432,6 +9441,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Unlink.File.FileFields.UID), nil
 	case "unlink.file.user":
 		return e.Unlink.File.FileFields.User, nil
+	case "unlink.flags":
+		return int(e.Unlink.Flags), nil
 	case "unlink.retval":
 		return int(e.Unlink.SyscallEvent.Retval), nil
 	case "unload_module.name":
@@ -10698,6 +10709,8 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "unlink.file.uid":
 		return "unlink", nil
 	case "unlink.file.user":
+		return "unlink", nil
+	case "unlink.flags":
 		return "unlink", nil
 	case "unlink.retval":
 		return "unlink", nil
@@ -11966,6 +11979,8 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "unlink.file.user":
 		return reflect.String, nil
+	case "unlink.flags":
+		return reflect.Int, nil
 	case "unlink.retval":
 		return reflect.Int, nil
 	case "unload_module.name":
@@ -17608,6 +17623,13 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.User"}
 		}
 		e.Unlink.File.FileFields.User = str
+		return nil
+	case "unlink.flags":
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Unlink.Flags"}
+		}
+		e.Unlink.Flags = uint32(v)
 		return nil
 	case "unlink.retval":
 		v, ok := value.(int)
