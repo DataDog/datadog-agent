@@ -73,7 +73,6 @@ type uptaneClient interface {
 	TargetFile(path string) ([]byte, error)
 	TargetsMeta() ([]byte, error)
 	TargetsCustom() ([]byte, error)
-	DirectorVersionState() (uint64, uint64, error)
 	TUFVersionState() (uptane.TUFVersions, error)
 }
 
@@ -259,17 +258,17 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	s.Lock()
 	defer s.Unlock()
 	s.clients.seen(request.Client)
-	rootVersion, targetVersion, err := s.uptane.DirectorVersionState()
+	tufVersions, err := s.uptane.TUFVersionState()
 	if err != nil {
 		return nil, err
 	}
 	if request.Client.State == nil {
 		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
-	if targetVersion == request.Client.State.TargetsVersion {
+	if tufVersions.DirectorTargets == request.Client.State.TargetsVersion {
 		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
-	roots, err := s.getNewDirectorRoots(request.Client.State.RootVersion, rootVersion)
+	roots, err := s.getNewDirectorRoots(request.Client.State.RootVersion, tufVersions.DirectorRoot)
 	if err != nil {
 		return nil, err
 	}

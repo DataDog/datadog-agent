@@ -93,23 +93,6 @@ func (c *Client) TUFVersionState() (TUFVersions, error) {
 	}, nil
 }
 
-func (c *Client) DirectorVersionState() (uint64, uint64, error) {
-	c.Lock()
-	defer c.Unlock()
-
-	rv, err := c.directorLocalStore.GetMetaVersion("root.json")
-	if err != nil {
-		return 0, 0, err
-	}
-
-	tv, err := c.directorLocalStore.GetMetaVersion("targets.json")
-	if err != nil {
-		return 0, 0, err
-	}
-
-	return rv, tv, nil
-}
-
 // State returns the state of the uptane client
 func (c *Client) State() (State, error) {
 	c.Lock()
