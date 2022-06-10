@@ -533,8 +533,8 @@ func TestMapDeltaHistogramMetrics(t *testing.T) {
 	point := slice.AppendEmpty()
 	point.SetCount(20)
 	point.SetSum(math.Pi)
-	point.SetBucketCounts([]uint64{2, 18})
-	point.SetExplicitBounds([]float64{0})
+	point.SetMBucketCounts([]uint64{2, 18})
+	point.SetMExplicitBounds([]float64{0})
 	point.SetTimestamp(ts)
 
 	dims := newDims("doubleHist.test")
@@ -690,15 +690,15 @@ func TestMapCumulativeHistogramMetrics(t *testing.T) {
 	point := slice.AppendEmpty()
 	point.SetCount(20)
 	point.SetSum(math.Pi)
-	point.SetBucketCounts([]uint64{2, 18})
-	point.SetExplicitBounds([]float64{0})
+	point.SetMBucketCounts([]uint64{2, 18})
+	point.SetMExplicitBounds([]float64{0})
 	point.SetTimestamp(seconds(0))
 
 	point = slice.AppendEmpty()
 	point.SetCount(20 + 30)
 	point.SetSum(math.Pi + 20)
-	point.SetBucketCounts([]uint64{2 + 11, 18 + 19})
-	point.SetExplicitBounds([]float64{0})
+	point.SetMBucketCounts([]uint64{2 + 11, 18 + 19})
+	point.SetMExplicitBounds([]float64{0})
 	point.SetTimestamp(seconds(2))
 
 	dims := newDims("doubleHist.test")
@@ -791,8 +791,8 @@ func TestLegacyBucketsTags(t *testing.T) {
 	tags := make([]string, 0, 10)
 
 	pointOne := pmetric.NewHistogramDataPoint()
-	pointOne.SetBucketCounts([]uint64{2, 18})
-	pointOne.SetExplicitBounds([]float64{0})
+	pointOne.SetMBucketCounts([]uint64{2, 18})
+	pointOne.SetMExplicitBounds([]float64{0})
 	pointOne.SetTimestamp(seconds(0))
 	consumer := &mockTimeSeriesConsumer{}
 	dims := &Dimensions{name: "test.histogram.one", tags: tags}
@@ -800,8 +800,8 @@ func TestLegacyBucketsTags(t *testing.T) {
 	seriesOne := consumer.metrics
 
 	pointTwo := pmetric.NewHistogramDataPoint()
-	pointTwo.SetBucketCounts([]uint64{2, 18})
-	pointTwo.SetExplicitBounds([]float64{1})
+	pointTwo.SetMBucketCounts([]uint64{2, 18})
+	pointTwo.SetMExplicitBounds([]float64{1})
 	pointTwo.SetTimestamp(seconds(0))
 	consumer = &mockTimeSeriesConsumer{}
 	dims = &Dimensions{name: "test.histogram.two", tags: tags}
@@ -1038,8 +1038,8 @@ func createTestMetrics(additionalAttributes map[string]string, name, version str
 	dpDoubleHist := dpsDoubleHist.AppendEmpty()
 	dpDoubleHist.SetCount(20)
 	dpDoubleHist.SetSum(math.Phi)
-	dpDoubleHist.SetBucketCounts([]uint64{2, 18})
-	dpDoubleHist.SetExplicitBounds([]float64{0})
+	dpDoubleHist.SetMBucketCounts([]uint64{2, 18})
+	dpDoubleHist.SetMExplicitBounds([]float64{0})
 	dpDoubleHist.SetTimestamp(seconds(0))
 
 	// Int Sum (cumulative)
@@ -1462,8 +1462,8 @@ func createNaNMetrics() pmetric.Metrics {
 	dpDoubleHist := dpsDoubleHist.AppendEmpty()
 	dpDoubleHist.SetCount(20)
 	dpDoubleHist.SetSum(math.NaN())
-	dpDoubleHist.SetBucketCounts([]uint64{2, 18})
-	dpDoubleHist.SetExplicitBounds([]float64{0})
+	dpDoubleHist.SetMBucketCounts([]uint64{2, 18})
+	dpDoubleHist.SetMExplicitBounds([]float64{0})
 	dpDoubleHist.SetTimestamp(seconds(0))
 
 	// Double Sum (cumulative)
@@ -1769,9 +1769,9 @@ func createTestExponentialHistogram(additionalAttributes map[string]string, name
 	expDeltaHist.SetZeroCount(10)
 	expDeltaHist.SetSum(math.Pi)
 	expDeltaHist.Negative().SetOffset(2)
-	expDeltaHist.Negative().SetBucketCounts([]uint64{3, 2, 5})
+	expDeltaHist.Negative().SetMBucketCounts([]uint64{3, 2, 5})
 	expDeltaHist.Positive().SetOffset(3)
-	expDeltaHist.Positive().SetBucketCounts([]uint64{1, 1, 1, 2, 2, 3})
+	expDeltaHist.Positive().SetMBucketCounts([]uint64{1, 1, 1, 2, 2, 3})
 	expDeltaHist.SetTimestamp(seconds(0))
 
 	// Exponential Histogram (cumulative)
@@ -1786,9 +1786,9 @@ func createTestExponentialHistogram(additionalAttributes map[string]string, name
 	expDeltaHist.SetZeroCount(10)
 	expCumHist.SetSum(math.Pi)
 	expCumHist.Negative().SetOffset(2)
-	expCumHist.Negative().SetBucketCounts([]uint64{3, 2, 5})
+	expCumHist.Negative().SetMBucketCounts([]uint64{3, 2, 5})
 	expCumHist.Positive().SetOffset(3)
-	expCumHist.Positive().SetBucketCounts([]uint64{1, 1, 1, 2, 2, 3})
+	expCumHist.Positive().SetMBucketCounts([]uint64{1, 1, 1, 2, 2, 3})
 	expCumHist.SetTimestamp(seconds(0))
 	return md
 }
