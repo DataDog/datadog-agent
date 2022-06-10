@@ -82,6 +82,7 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_verticalpodautoscaler_spec_resourcepolicy_container_policies_minallowed":             "vpa.spec_container_minallowed",
 		"kube_verticalpodautoscaler_spec_resourcepolicy_container_policies_maxallowed":             "vpa.spec_container_maxallowed",
 		"kube_cronjob_spec_suspend":                                                                "cronjob.spec_suspend",
+		"kube_ingress_path":                                                                        "ingress.path",
 	}
 }
 
@@ -110,6 +111,7 @@ func defaultLabelsMapper() map[string]string {
 		"label_topology_kubernetes_io_zone":   "kube_zone",
 		"label_failure_domain_beta_kubernetes_io_region": "kube_region",
 		"label_failure_domain_beta_kubernetes_io_zone":   "kube_zone",
+		"ingress": "kube_ingress",
 	}
 }
 
