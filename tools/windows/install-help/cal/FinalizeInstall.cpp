@@ -295,14 +295,6 @@ UINT doFinalizeInstall(CustomActionData &data)
         WcaLog(LOGMSG_STANDARD, "attempting to install services");
         if (!passToUse)
         {
-            if (!data.value(propertyDDAgentUserPassword, providedPassword))
-            {
-                // given all the error conditions checked above, this should *never*
-                // happen.  But we'll check anyway
-                WcaLog(LOGMSG_STANDARD, "Don't have password to register service");
-                er = ERROR_INSTALL_FAILURE;
-                goto LExit;
-            }
             passToUse = providedPassword.c_str();
         }
         int ret = installServices(data, data.Sid(), passToUse);

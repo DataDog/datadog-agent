@@ -1,7 +1,10 @@
 #include "stdafx.h"
+#include <utility>
 #include "customactiondata.h"
 #include "PropertyReplacer.h"
-#include <utility>
+#include "LogonCli.h"
+
+static LogonCli logonCli;
 
 CustomActionData::CustomActionData(std::shared_ptr<ITargetMachine> targetMachine)
 : _hInstall(NULL)
@@ -94,6 +97,11 @@ bool CustomActionData::isUserLocalUser() const
 bool CustomActionData::DoesUserExist() const
 {
     return _ddUserExists;
+}
+
+bool CustomActionData::IsServiceAccount() const
+{
+    return _isServiceAccount;
 }
 
 const std::wstring &CustomActionData::UnqualifiedUsername() const
@@ -318,7 +326,17 @@ bool CustomActionData::parseUsernameData()
             WcaLog(LOGMSG_STANDARD, R"(Found SID for "%S" in "%S")", FullyQualifiedUsername().c_str(), sidResult.Domain.c_str());
             _ddUserExists = true;
             _sid = std::move(sidResult.Sid);
-
+            BOOL isServiceAccount;
+            DWORD result = logonCli.NetIsServiceAccount(nullptr, const_cast<wchar_t *>(FullyQualifiedUsername().c_str()), &isServiceAccount);
+            if (result != ERROR_SUCCESS)
+            {
+                WcaLog(LOGMSG_STANDARD, "Could not lookup if \"%S\" is a service account: %S", FullyQualifiedUsername().c_str(),
+                       FormatErrorMessage(result).c_str());
+                return false;
+            }
+            _isServiceAccount = isServiceAccount ? true : false;
+            WcaLog(LOGMSG_STANDARD, R"(Detected that "%S" %S a managed service account)",
+                   FullyQualifiedUsername().c_str(), (_isServiceAccount ? L"is" : L"is not"));
             // Use the domain returned by <see cref="LookupAccountName" /> because
             // it might be != from the one the user passed in.
             _user.Domain = sidResult.Domain;
