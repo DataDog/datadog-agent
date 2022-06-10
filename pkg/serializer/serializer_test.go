@@ -352,7 +352,7 @@ func TestSendProcessesMetadata(t *testing.T) {
 }
 
 func TestSendWithDisabledKind(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 
 	mockConfig.Set("enable_payloads.events", false)
 	mockConfig.Set("enable_payloads.series", false)

@@ -194,7 +194,7 @@ func TestGetPrometheusIncludeAnnotations(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig := config.Mock()
+			mockConfig := config.Mock(t)
 
 			originalChecks := []*types.PrometheusCheck{}
 			err := mockConfig.UnmarshalKey("prometheus_scrape.checks", &originalChecks)

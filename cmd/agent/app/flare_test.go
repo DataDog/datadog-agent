@@ -30,7 +30,7 @@ func TestReadProfileData(t *testing.T) {
 	m := &mockProfileCollector{}
 	defer m.AssertExpectations(t)
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("expvar_port", "1001")
 	mockConfig.Set("apm_config.enabled", true)
 	mockConfig.Set("apm_config.receiver_port", "1002")
@@ -51,7 +51,7 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 	m := &mockProfileCollector{}
 	defer m.AssertExpectations(t)
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("expvar_port", "1001")
 	mockConfig.Set("apm_config.enabled", false)
 	mockConfig.Set("process_config.expvar_port", "1003")
@@ -69,7 +69,7 @@ func TestReadProfileDataErrors(t *testing.T) {
 	m := &mockProfileCollector{}
 	defer m.AssertExpectations(t)
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("expvar_port", "1001")
 	mockConfig.Set("apm_config.enabled", true)
 	mockConfig.Set("apm_config.receiver_port", "1002")

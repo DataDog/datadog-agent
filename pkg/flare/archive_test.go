@@ -67,7 +67,7 @@ func createTestDirStructure(
 
 func TestCreateArchive(t *testing.T) {
 	common.SetupConfig("./test")
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("confd_path", "./test/confd")
 	mockConfig.Set("log_file", "./test/logs/agent.log")
 	zipFilePath := getArchivePath()
@@ -618,7 +618,7 @@ func TestZipProcessAgentChecks(t *testing.T) {
 		assert.True(t, strings.HasPrefix(string(content), "error: process-agent is not running or is unreachable"))
 	})
 	t.Run("with process-agent running", func(t *testing.T) {
-		cfg := config.Mock()
+		cfg := config.Mock(t)
 		cfg.Set("process_config.process_collection.enabled", true)
 		cfg.Set("process_config.container_collection.enabled", true)
 		cfg.Set("process_config.process_discovery.enabled", true)
