@@ -33,7 +33,7 @@ func TestContainerdCheckGenericPart(t *testing.T) {
 	}
 
 	// Inject mock processor in check
-	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, nil, containersStats, metricsAdapter{}, getProcessorFilter(nil))
+	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil))
 	processor.RegisterExtension("containerd-custom-metrics", &containerdCustomMetricsExtension{})
 
 	// Create Docker check

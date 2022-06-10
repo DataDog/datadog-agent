@@ -58,6 +58,8 @@ type SelfTester struct {
 	targetTempDir  string
 }
 
+var _ rules.PolicyProvider = (*SelfTester)(nil)
+
 // NewSelfTester returns a new SelfTester, enabled or not
 func NewSelfTester() (*SelfTester, error) {
 	s := &SelfTester{
@@ -154,10 +156,14 @@ func (t *SelfTester) RunSelfTest() ([]string, []string, error) {
 	return success, fails, nil
 }
 
-// Cleanup removes temp directories and files used by the self tester
-func (t *SelfTester) Cleanup() error {
+func (t *SelfTester) Start() {}
+
+// Close removes temp directories and files used by the self tester
+func (t *SelfTester) Close() error {
 	if t.targetTempDir != "" {
-		return os.RemoveAll(t.targetTempDir)
+		err := os.RemoveAll(t.targetTempDir)
+		t.targetTempDir = ""
+		return err
 	}
 	return nil
 }

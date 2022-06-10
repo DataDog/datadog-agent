@@ -13,6 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -80,12 +82,12 @@ type Decoder struct {
 }
 
 // InitializeDecoder returns a properly initialized Decoder
-func InitializeDecoder(source *config.LogSource, parser parsers.Parser) *Decoder {
+func InitializeDecoder(source *sources.LogSource, parser parsers.Parser) *Decoder {
 	return NewDecoderWithFraming(source, parser, framer.UTF8Newline, nil)
 }
 
 // NewDecoderWithFraming initialize a decoder with given endline strategy.
-func NewDecoderWithFraming(source *config.LogSource, parser parsers.Parser, framing framer.Framing, multiLinePattern *regexp.Regexp) *Decoder {
+func NewDecoderWithFraming(source *sources.LogSource, parser parsers.Parser, framing framer.Framing, multiLinePattern *regexp.Regexp) *Decoder {
 	inputChan := make(chan *Input)
 	outputChan := make(chan *Message)
 	lineLimit := defaultContentLenLimit
@@ -102,7 +104,7 @@ func NewDecoderWithFraming(source *config.LogSource, parser parsers.Parser, fram
 			// Since a single source can have multiple file tailers - each with their own decoder instance,
 			// Make sure we keep track of the multiline match count info from all of the decoders so the
 			// status page displays it correctly.
-			if existingInfo, ok := source.GetInfo(lh.countInfo.InfoKey()).(*config.CountInfo); ok {
+			if existingInfo, ok := source.GetInfo(lh.countInfo.InfoKey()).(*status.CountInfo); ok {
 				// override the new decoders info to the instance we are already using
 				lh.countInfo = existingInfo
 			} else {
@@ -145,7 +147,7 @@ func NewDecoderWithFraming(source *config.LogSource, parser parsers.Parser, fram
 	return New(inputChan, outputChan, framer, lineParser, lineHandler, detectedPattern)
 }
 
-func buildAutoMultilineHandlerFromConfig(outputFn func(*Message), lineLimit int, source *config.LogSource, detectedPattern *DetectedPattern) *AutoMultilineHandler {
+func buildAutoMultilineHandlerFromConfig(outputFn func(*Message), lineLimit int, source *sources.LogSource, detectedPattern *DetectedPattern) *AutoMultilineHandler {
 	linesToSample := source.Config.AutoMultiLineSampleSize
 	if linesToSample <= 0 {
 		linesToSample = dd_conf.Datadog.GetInt("logs_config.auto_multi_line_default_sample_size")

@@ -300,7 +300,7 @@ func StartAgent() error {
 
 	err = manager.ConfigureAutoExit(common.MainCtx)
 	if err != nil {
-		return log.Errorf("Unable to configure auto-exit, err: %w", err)
+		return log.Errorf("Unable to configure auto-exit, err: %v", err)
 	}
 
 	hostname, err := util.GetHostname(context.TODO())

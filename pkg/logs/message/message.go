@@ -9,7 +9,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
@@ -46,7 +46,7 @@ type Lambda struct {
 }
 
 // NewMessageWithSource constructs message with content, status and log source.
-func NewMessageWithSource(content []byte, status string, source *config.LogSource, ingestionTimestamp int64) *Message {
+func NewMessageWithSource(content []byte, status string, source *sources.LogSource, ingestionTimestamp int64) *Message {
 	return NewMessage(content, NewOrigin(source), status, ingestionTimestamp)
 }
 

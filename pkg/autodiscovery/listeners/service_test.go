@@ -5,6 +5,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/assert"
 )
@@ -97,5 +98,49 @@ func TestServiceFilterTemplatesOverriddenChecks(t *testing.T) {
 	t.Run("some checkNames, partial match", func(t *testing.T) {
 		assert.Equal(t, []integration.Config{barTpl},
 			filterDrops(&service{entity: entity, checkNames: []string{"bing", "bar"}}, fooTpl, barTpl, fooNonFileTpl, barNonFileTpl))
+	})
+}
+
+func TestServiceFilterTemplatesCCA(t *testing.T) {
+	filterDrops := func(svc *service, configs ...integration.Config) (dropped []integration.Config) {
+		return filterConfigsDropped(svc.filterTemplatesContainerCollectAll, configs...)
+	}
+
+	// this should match what's given in pkg/autodiscovery/common/utils/container_collect_all.go
+	ccaTpl := integration.Config{Name: "container_collect_all", LogsConfig: []byte("{}")}
+	noLogsTpl := integration.Config{Name: "foo"}
+	logsTpl := integration.Config{Name: "foo", LogsConfig: []byte(`{"source":"foo"}`)}
+	nothingDropped := []integration.Config{}
+
+	t.Run("no CCA config", func(t *testing.T) {
+		mockConfig := config.Mock()
+		mockConfig.Set("logs_config.container_collect_all", true)
+
+		assert.Equal(t, nothingDropped,
+			filterDrops(&service{}, logsTpl, noLogsTpl))
+	})
+
+	t.Run("no other logs config", func(t *testing.T) {
+		mockConfig := config.Mock()
+		mockConfig.Set("logs_config.container_collect_all", true)
+
+		assert.Equal(t, nothingDropped,
+			filterDrops(&service{}, noLogsTpl, ccaTpl))
+	})
+
+	t.Run("other logs config", func(t *testing.T) {
+		mockConfig := config.Mock()
+		mockConfig.Set("logs_config.container_collect_all", true)
+
+		assert.Equal(t, []integration.Config{ccaTpl},
+			filterDrops(&service{}, noLogsTpl, logsTpl, ccaTpl))
+	})
+
+	t.Run("other logs config, CCA disabled", func(t *testing.T) {
+		mockConfig := config.Mock()
+		mockConfig.Set("logs_config.container_collect_all", false)
+
+		assert.Equal(t, nothingDropped,
+			filterDrops(&service{}, noLogsTpl, logsTpl, ccaTpl))
 	})
 }

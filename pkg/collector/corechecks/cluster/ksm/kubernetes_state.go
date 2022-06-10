@@ -698,7 +698,6 @@ func buildDeniedMetricsSet(collectors []string) options.MetricSet {
 		"kube_job_status_.*_time":                          {},
 		"kube_service_spec_external_ip":                    {},
 		"kube_service_status_load_balancer_ingress":        {},
-		"kube_ingress_path":                                {},
 		"kube_statefulset_status_current_revision":         {},
 		"kube_statefulset_status_update_revision":          {},
 		"kube_pod_container_status_last_terminated_reason": {},
@@ -745,17 +744,24 @@ func ownerTags(kind, name string) []string {
 	return tags
 }
 
-// podLabelsMapperOverride defines the label mapper overrides
-// that should be applied on pod metrics only.
-var podLabelsMapperOverride = map[string]string{"phase": "pod_phase"}
-
 // labelsMapperOverride allows overriding the default label mapping for
 // a given metric depending on the metric family.
-// Current use-case:
+// Current use-cases:
 //   - `phase` tag should be mapped to `pod_phase` on pod metrics only.
+//   - Ingress metrics have generic tag names (host/path/service_name/service_port).
+//     It's important to have them in a dedicated mapper override for ingresses.
 func labelsMapperOverride(metricName string) map[string]string {
 	if strings.HasPrefix(metricName, "kube_pod") {
-		return podLabelsMapperOverride
+		return map[string]string{"phase": "pod_phase"}
+	}
+
+	if strings.HasPrefix(metricName, "kube_ingress") {
+		return map[string]string{
+			"host":         "kube_ingress_host",
+			"path":         "kube_ingress_path",
+			"service_name": "kube_service",
+			"service_port": "kube_service_port",
+		}
 	}
 
 	return nil
