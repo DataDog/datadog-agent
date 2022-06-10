@@ -78,5 +78,5 @@ linters-settings:
              "-SA2001", # TODO: empty critical section, seems to be used for something?
              "-SA6002", # TODO: Fix sync.Pools
              "-SA4025", # TODO: Fix trace unit test
-             "-SA1019", "-SA4011", # Disabling these to re-enable golanci-lint default tests
+             "-SA1019", "-SA4011", "-SA4031" # Disabling these to re-enable golanci-lint default tests
             ]
