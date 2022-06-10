@@ -108,9 +108,6 @@ func evpProxyErrorHandler(message string) http.Handler {
 // See also evpProxyTransport below.
 func evpProxyForwarder(conf *config.AgentConfig, endpoints []config.Endpoint, transport http.RoundTripper, logger *stdlog.Logger) http.Handler {
 	director := func(req *http.Request) {
-		if req == nil {
-			return
-		}
 
 		containerID := req.Header.Get("Datadog-Container-ID")
 		contentType := req.Header.Get("Content-Type")
@@ -156,32 +153,24 @@ type evpProxyTransport struct {
 }
 
 func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
+	if req.Body != nil && t.maxPayloadSize > 0 {
+		req.Body = apiutil.NewLimitedReader(req.Body, t.maxPayloadSize)
+	}
 
 	// Metrics with stats for debugging
 	beginTime := time.Now()
 	metricTags := []string{}
-	var contentLength int64
+	if ct := req.Header.Get("Content-Type"); ct != "" {
+		metricTags = append(metricTags, "content_type:"+ct)
+	}
 	defer func() {
 		metrics.Count("datadog.trace_agent.evp_proxy.request", 1, metricTags, 1)
-		metrics.Count("datadog.trace_agent.evp_proxy.request_bytes", contentLength, metricTags, 1)
+		metrics.Count("datadog.trace_agent.evp_proxy.request_bytes", req.ContentLength, metricTags, 1)
 		metrics.Timing("datadog.trace_agent.evp_proxy.request_duration_ms", time.Since(beginTime), metricTags, 1)
 		if rerr != nil {
 			metrics.Count("datadog.trace_agent.evp_proxy.request_error", 1, metricTags, 1)
 		}
 	}()
-
-	if req == nil || req.URL == nil {
-		return nil, fmt.Errorf("EVPProxy: invalid request")
-	}
-
-	if req.Body != nil && t.maxPayloadSize > 0 {
-		req.Body = apiutil.NewLimitedReader(req.Body, t.maxPayloadSize)
-	}
-
-	if ct := req.Header.Get("Content-Type"); ct != "" {
-		metricTags = append(metricTags, "content_type:"+ct)
-	}
-	contentLength = req.ContentLength
 
 	// Parse request path: The first component is the target subdomain, the rest is the target path.
 	inputPath := req.URL.Path
