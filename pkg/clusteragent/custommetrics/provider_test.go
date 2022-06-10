@@ -9,14 +9,15 @@
 package custommetrics
 
 import (
+	"context"
 	"math"
 	"reflect"
 	"testing"
 
-	"github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/provider"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/metrics/pkg/apis/external_metrics"
+	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 )
 
 type metricCompare struct {
@@ -258,7 +259,7 @@ func TestGetExternalMetric(t *testing.T) {
 				isServing:       true,
 				maxAge:          math.MaxInt32, // to avoid flackiness
 			}
-			output, err := dp.GetExternalMetric(test.compared.namespace, test.compared.labels.AsSelector(), test.compared.name)
+			output, err := dp.GetExternalMetric(context.Background(), test.compared.namespace, test.compared.labels.AsSelector(), test.compared.name)
 			require.NoError(t, err)
 			require.Equal(t, len(test.expected), len(output.Items))
 			// GetExternalMetric should only return one metric

@@ -6,9 +6,12 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
@@ -19,6 +22,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+var (
+	pullInterval time.Duration
+)
+
+const (
+	defaultPullInterval = time.Duration(5) * time.Second
 )
 
 // EventsCmd is a command to interact with process lifecycle events
@@ -36,11 +47,20 @@ var EventsListenCmd = &cobra.Command{
 	SilenceUsage: true,
 }
 
-func init() {
-	EventsCmd.AddCommand(EventsListenCmd)
+// EventsPullCmd is a command to pull process lifecycle events
+var EventsPullCmd = &cobra.Command{
+	Use:          "pull",
+	Short:        "Periodically pull process lifecycle events. This feature is currently in alpha version and needs root privilege to run.",
+	RunE:         runEventStore,
+	SilenceUsage: true,
 }
 
-func runEventListener(cmd *cobra.Command, args []string) error {
+func init() {
+	EventsCmd.AddCommand(EventsListenCmd, EventsPullCmd)
+	EventsPullCmd.Flags().DurationVarP(&pullInterval, "tick", "t", defaultPullInterval, "The period between 2 consecutive pulls to fetch process events")
+}
+
+func bootstrapEventsCmd(cmd *cobra.Command) error {
 	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
 
 	configPath := cmd.Flag(flags.CfgPath).Value.String()
@@ -65,13 +85,26 @@ func runEventListener(cmd *cobra.Command, args []string) error {
 		return log.Criticalf("Error parsing config: %s", err)
 	}
 
+	return nil
+}
+
+func printEvent(e *model.ProcessEvent) {
+	b, err := json.MarshalIndent(e, "", "  ")
+	if err != nil {
+		log.Errorf("Error while marshalling process event: %v", err)
+	}
+	fmt.Println(string(b))
+}
+
+func runEventListener(cmd *cobra.Command, args []string) error {
+	err := bootstrapEventsCmd(cmd)
+	if err != nil {
+		return err
+	}
+
 	// Create a handler to print the collected event to stdout
 	handler := func(e *model.ProcessEvent) {
-		b, err := json.MarshalIndent(e, "", "  ")
-		if err != nil {
-			log.Errorf("Error while marshalling process event: %v", err)
-		}
-		fmt.Println(string(b))
+		printEvent(e)
 	}
 
 	l, err := events.NewListener(handler)
@@ -85,6 +118,60 @@ func runEventListener(cmd *cobra.Command, args []string) error {
 
 	<-exit
 	l.Stop()
+	log.Flush()
+
+	return nil
+}
+
+func runEventStore(cmd *cobra.Command, args []string) error {
+	err := bootstrapEventsCmd(cmd)
+	if err != nil {
+		return err
+	}
+
+	store, err := events.NewRingStore(&statsd.NoOpClient{})
+	if err != nil {
+		return err
+	}
+
+	l, err := events.NewListener(func(e *model.ProcessEvent) {
+		// push events to the store asynchronously without checking for errors
+		_ = store.Push(e, nil)
+	})
+	if err != nil {
+		return err
+	}
+
+	store.Run()
+	l.Run()
+
+	exit := make(chan struct{})
+	go util.HandleSignals(exit)
+
+	ticker := time.NewTicker(pullInterval)
+	defer ticker.Stop()
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				events, err := store.Pull(context.Background(), time.Second)
+				if err != nil {
+					log.Error(err)
+					continue
+				}
+
+				for _, e := range events {
+					printEvent(e)
+				}
+			case <-exit:
+				return
+			}
+		}
+	}()
+
+	<-exit
+	l.Stop()
+	store.Stop()
 	log.Flush()
 
 	return nil

@@ -71,9 +71,16 @@ const (
 	// UDPv6RecvMsgReturn traces the return value for the udpv6_recvmsg() system call
 	UDPv6RecvMsgReturn ProbeName = "kretprobe/udpv6_recvmsg"
 
+	// SKBConsumeUDP traces skb_consume_udp()
+	SKBConsumeUDP ProbeName = "kprobe/skb_consume_udp"
+	// SKBFreeDatagramLocked traces skb_free_datagram_locked()
+	SKBFreeDatagramLocked ProbeName = "kprobe/skb_free_datagram_locked"
+	// SKB__FreeDatagramLocked traces __skb_free_datagram_locked()
+	SKB__FreeDatagramLocked ProbeName = "kprobe/__skb_free_datagram_locked"
+
 	// UDPDestroySock traces the udp_destroy_sock() function
 	UDPDestroySock ProbeName = "kprobe/udp_destroy_sock"
-	// UDPDestroySockrReturn traces the return of the udp_destroy_sock() system call
+	// UDPDestroySockReturn traces the return of the udp_destroy_sock() system call
 	UDPDestroySockReturn ProbeName = "kretprobe/udp_destroy_sock"
 
 	// TCPRetransmit traces the return value for the tcp_retransmit_skb() system call
@@ -95,9 +102,6 @@ const (
 
 	// SocketDnsFilter is the socket probe for dns
 	SocketDnsFilter ProbeName = "socket/dns_filter"
-
-	// SockMapFdReturn maps a file descriptor to a kernel sock
-	SockMapFdReturn ProbeName = "kretprobe/sockfd_lookup_light"
 
 	// ConntrackHashInsert is the probe for new conntrack entries
 	ConntrackHashInsert ProbeName = "kprobe/__nf_conntrack_hash_insert"

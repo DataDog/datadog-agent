@@ -28,7 +28,7 @@ func NewDefaultOptions() manager.Options {
 		// DefaultPerfRingBufferSize is the default buffer size of the perf buffers
 		// PLEASE NOTE: for the perf ring buffer usage metrics to be accurate, the provided value must have the
 		// following form: (1 + 2^n) * pages. Checkout https://github.com/DataDog/ebpf for more.
-		DefaultPerfRingBufferSize: 4097 * os.Getpagesize(),
+		DefaultPerfRingBufferSize: 257 * os.Getpagesize(),
 
 		VerifierOptions: ebpf.CollectionOptions{
 			Programs: ebpf.ProgramOptions{

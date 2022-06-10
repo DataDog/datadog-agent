@@ -71,7 +71,7 @@ func NewRareSampler() *RareSampler {
 // Sample a trace and returns true if trace was sampled (should be kept)
 func (e *RareSampler) Sample(now time.Time, t *pb.TraceChunk, env string) bool {
 	if priority, ok := GetSamplingPriority(t); priority > 0 && ok {
-		e.handlePriorityTrace(now, env, t)
+		e.handlePriorityTrace(now, env, t, priorityTTL)
 		return false
 	}
 	return e.handleTrace(now, env, t)
@@ -82,8 +82,8 @@ func (e *RareSampler) Stop() {
 	e.tickStats.Stop()
 }
 
-func (e *RareSampler) handlePriorityTrace(now time.Time, env string, t *pb.TraceChunk) {
-	expire := now.Add(priorityTTL)
+func (e *RareSampler) handlePriorityTrace(now time.Time, env string, t *pb.TraceChunk, ttl time.Duration) {
+	expire := now.Add(ttl)
 	for _, s := range t.Spans {
 		if !traceutil.HasTopLevel(s) && !traceutil.IsMeasured(s) {
 			continue
@@ -94,16 +94,16 @@ func (e *RareSampler) handlePriorityTrace(now time.Time, env string, t *pb.Trace
 
 func (e *RareSampler) handleTrace(now time.Time, env string, t *pb.TraceChunk) bool {
 	var sampled bool
-	expire := now.Add(defaultTTL)
 	for _, s := range t.Spans {
 		if !traceutil.HasTopLevel(s) && !traceutil.IsMeasured(s) {
 			continue
 		}
-		if !sampled {
-			sampled = e.sampleSpan(now, env, s)
-			continue
+		if sampled = e.sampleSpan(now, env, s); sampled {
+			break
 		}
-		e.addSpan(expire, env, s)
+	}
+	if sampled {
+		e.handlePriorityTrace(now, env, t, defaultTTL)
 	}
 	return sampled
 }

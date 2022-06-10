@@ -15,4 +15,7 @@ const defaultPolicyName = "default.policy"
 type PolicyProvider interface {
 	LoadPolicies() ([]*Policy, *multierror.Error)
 	SetOnNewPoliciesReadyCb(func())
+
+	Start()
+	Close() error
 }

@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
-	criTypes "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	criTypes "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 type criCustomMetricsExtension struct {

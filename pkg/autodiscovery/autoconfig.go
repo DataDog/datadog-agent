@@ -450,14 +450,16 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 
 	changes := ac.cfgMgr.processNewService(ADIdentifiers, svc)
 
-	// FIXME: schedule new services as well
-	changes.scheduleConfig(integration.Config{
-		LogsConfig:      integration.Data{},
-		ServiceID:       svc.GetServiceID(),
-		TaggerEntity:    svc.GetTaggerEntity(),
-		MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
-		LogsExcluded:    svc.HasFilter(containers.LogsFilter),
-	})
+	if !util.CcaInAD() {
+		// schedule a "service config" for logs-agent's benefit
+		changes.scheduleConfig(integration.Config{
+			LogsConfig:      integration.Data{},
+			ServiceID:       svc.GetServiceID(),
+			TaggerEntity:    svc.GetTaggerEntity(),
+			MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
+			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
+		})
+	}
 
 	ac.applyChanges(changes)
 }
@@ -468,14 +470,16 @@ func (ac *AutoConfig) processDelService(svc listeners.Service) {
 	changes := ac.cfgMgr.processDelService(svc)
 	ac.store.removeTagsHashForService(svc.GetTaggerEntity())
 
-	// FIXME: unschedule remove services as well
-	changes.unscheduleConfig(integration.Config{
-		LogsConfig:      integration.Data{},
-		ServiceID:       svc.GetServiceID(),
-		TaggerEntity:    svc.GetTaggerEntity(),
-		MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
-		LogsExcluded:    svc.HasFilter(containers.LogsFilter),
-	})
+	if !util.CcaInAD() {
+		// unschedule the "service config"
+		changes.unscheduleConfig(integration.Config{
+			LogsConfig:      integration.Data{},
+			ServiceID:       svc.GetServiceID(),
+			TaggerEntity:    svc.GetTaggerEntity(),
+			MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
+			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
+		})
+	}
 
 	ac.applyChanges(changes)
 }

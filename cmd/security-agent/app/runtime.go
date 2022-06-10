@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -628,7 +629,7 @@ func newRuntimeReporter(stopper startstop.Stopper, sourceName, sourceType string
 	pipelineProvider.Start()
 	stopper.Add(pipelineProvider)
 
-	logSource := config.NewLogSource(
+	logSource := sources.NewLogSource(
 		sourceName,
 		&config.LogsConfig{
 			Type:   sourceType,

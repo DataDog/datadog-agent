@@ -530,12 +530,8 @@ func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 		t.conntracker.DeleteTranslation(*entry)
 
 		// Append the connection key to the keys to remove from the userspace state
-		bk, err := entry.ByteKey(t.buf)
-		if err != nil {
-			log.Warnf("failed to create connection byte_key: %s", err)
-		} else {
-			keys = append(keys, string(bk))
-		}
+		bk := entry.ByteKey(t.buf)
+		keys = append(keys, string(bk))
 	}
 
 	t.state.RemoveConnections(keys)

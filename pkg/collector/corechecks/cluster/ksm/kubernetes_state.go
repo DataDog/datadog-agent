@@ -232,7 +232,7 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 		namespaces = options.DefaultNamespaces
 	}
 
-	builder.WithNamespaces(namespaces)
+	builder.WithNamespaces(namespaces, "")
 
 	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(collectors))
 	if err != nil {
@@ -243,7 +243,7 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 		return err
 	}
 
-	builder.WithAllowDenyList(allowDenyList)
+	builder.WithFamilyGeneratorFilter(allowDenyList)
 
 	// Due to how init is done, we cannot use GetAPIClient in `Run()` method
 	// So we are waiting for a reasonable amount of time here in case.
