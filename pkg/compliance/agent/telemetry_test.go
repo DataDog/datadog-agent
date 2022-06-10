@@ -12,8 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func createRandomContainers(store *workloadmeta.MockStore, n int) {
@@ -43,7 +41,7 @@ func TestReportContainersCount(t *testing.T) {
 	containersCount := 10
 	createRandomContainers(fakeStore, containersCount)
 
-	assert.NoError(t, telemetry.reportContainers())
+	telemetry.reportContainers()
 	mockSender.AssertNumberOfCalls(t, "Gauge", containersCount)
 	for i := 0; i < containersCount; i++ {
 		mockSender.AssertCalled(t, "Gauge", containersCountMetricName, 1.0, "", []string{"container_id:" + strconv.Itoa(i)})

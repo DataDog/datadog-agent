@@ -173,13 +173,13 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, 
 	} else if array.Variable != nil {
 		varName, ok := isVariableName(*array.Variable)
 		if !ok {
-			return nil, array.Pos, NewError(array.Pos, fmt.Sprintf("invalid variable name '%s'", *array.Variable))
+			return nil, array.Pos, NewError(array.Pos, "invalid variable name '%s'", *array.Variable)
 		}
 		return evaluatorFromVariable(varName, array.Pos, opts)
 	} else if array.CIDR != nil {
 		var values CIDRValues
 		if err := values.AppendCIDR(*array.CIDR); err != nil {
-			return nil, array.Pos, NewError(array.Pos, fmt.Sprintf("invalid CIDR '%s'", *array.CIDR))
+			return nil, array.Pos, NewError(array.Pos, "invalid CIDR '%s'", *array.CIDR)
 		}
 
 		evaluator := &CIDRValuesEvaluator{
@@ -192,11 +192,11 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, 
 		for _, member := range array.CIDRMembers {
 			if member.CIDR != nil {
 				if err := values.AppendCIDR(*member.CIDR); err != nil {
-					return nil, array.Pos, NewError(array.Pos, fmt.Sprintf("invalid CIDR '%s'", *member.CIDR))
+					return nil, array.Pos, NewError(array.Pos, "invalid CIDR '%s'", *member.CIDR)
 				}
 			} else if member.IP != nil {
 				if err := values.AppendIP(*member.IP); err != nil {
-					return nil, array.Pos, NewError(array.Pos, fmt.Sprintf("invalid IP '%s'", *member.IP))
+					return nil, array.Pos, NewError(array.Pos, "invalid IP '%s'", *member.IP)
 				}
 			}
 		}
@@ -221,7 +221,7 @@ func isVariableName(str string) (string, bool) {
 func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
 	value, exists := opts.Variables[varname]
 	if !exists {
-		return nil, pos, NewError(pos, fmt.Sprintf("variable '%s' doesn't exist", varname))
+		return nil, pos, NewError(pos, "variable '%s' doesn't exist", varname)
 	}
 
 	return value.GetEvaluator(), pos, nil
@@ -234,7 +234,7 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (in
 		if varname, ok := isVariableName(sub); ok {
 			value, exists := opts.Variables[varname]
 			if !exists {
-				return NewError(pos, fmt.Sprintf("variable '%s' doesn't exist", varname))
+				return NewError(pos, "variable '%s' doesn't exist", varname)
 			}
 
 			evaluator := value.GetEvaluator()
@@ -264,7 +264,7 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (in
 						return strconv.FormatInt(int64(evaluator.EvalFnc(ctx)), 10)
 					}})
 			default:
-				return NewError(pos, fmt.Sprintf("variable type not supported '%s'", varname))
+				return NewError(pos, "variable type not supported '%s'", varname)
 			}
 		} else {
 			evaluators = append(evaluators, &StringEvaluator{Value: sub})
@@ -1095,7 +1095,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 		case obj.Variable != nil:
 			varname, ok := isVariableName(*obj.Variable)
 			if !ok {
-				return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("internal variable error '%s'", varname))
+				return nil, obj.Pos, NewError(obj.Pos, "internal variable error '%s'", varname)
 			}
 
 			return evaluatorFromVariable(varname, obj.Pos, opts)
@@ -1131,7 +1131,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 		case obj.IP != nil:
 			ipnet, err := ParseCIDR(*obj.IP)
 			if err != nil {
-				return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("invalid IP '%s'", *obj.IP))
+				return nil, obj.Pos, NewError(obj.Pos, "invalid IP '%s'", *obj.IP)
 			}
 
 			evaluator := &CIDREvaluator{
@@ -1142,7 +1142,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 		case obj.CIDR != nil:
 			ipnet, err := ParseCIDR(*obj.CIDR)
 			if err != nil {
-				return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("invalid CIDR '%s'", *obj.CIDR))
+				return nil, obj.Pos, NewError(obj.Pos, "invalid CIDR '%s'", *obj.CIDR)
 			}
 
 			evaluator := &CIDREvaluator{
@@ -1153,11 +1153,11 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 		case obj.SubExpression != nil:
 			return nodeToEvaluator(obj.SubExpression, opts, state)
 		default:
-			return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("unknown primary '%s'", reflect.TypeOf(obj)))
+			return nil, obj.Pos, NewError(obj.Pos, "unknown primary '%s'", reflect.TypeOf(obj))
 		}
 	case *ast.Array:
 		return arrayToEvaluator(obj, opts, state)
 	}
 
-	return nil, lexer.Position{}, NewError(lexer.Position{}, fmt.Sprintf("unknown entity '%s'", reflect.TypeOf(obj)))
+	return nil, lexer.Position{}, NewError(lexer.Position{}, "unknown entity '%s'", reflect.TypeOf(obj))
 }

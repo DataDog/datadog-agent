@@ -45,13 +45,11 @@ func (t *telemetry) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-metricsTicker.C:
-			if err := t.reportContainers(); err != nil {
-				log.Debugf("Couldn't report containers: %v", err)
-			}
+			t.reportContainers()
 		}
 	}
 }
 
-func (t *telemetry) reportContainers() error {
-	return t.containers.ReportContainers(containersCountMetricName)
+func (t *telemetry) reportContainers() {
+	t.containers.ReportContainers(containersCountMetricName)
 }

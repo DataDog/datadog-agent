@@ -131,10 +131,12 @@ type DesiredLRP struct {
 	CustomTags         []string
 }
 
+// CFClient TODO <integrations-tools-and-libraries>: ITL-792
 type CFClient struct {
 	*cfclient.Client
 }
 
+// CFApplication TODO <integrations-tools-and-libraries>: ITL-792
 type CFApplication struct {
 	GUID           string
 	Name           string
@@ -153,6 +155,7 @@ type CFApplication struct {
 	Sidecars       []CFSidecar
 }
 
+// CFSidecar TODO <integrations-tools-and-libraries>: ITL-792
 type CFSidecar struct {
 	Name string
 	GUID string
@@ -163,6 +166,7 @@ type listSidecarsResponse struct {
 	Resources  []CFSidecar         `json:"resources"`
 }
 
+// IsolationSegmentRelationshipResponse TODO <integrations-tools-and-libraries>: ITL-792
 type IsolationSegmentRelationshipResponse struct {
 	Data []struct {
 		GUID string `json:"guid"`
@@ -177,6 +181,7 @@ type IsolationSegmentRelationshipResponse struct {
 	} `json:"links"`
 }
 
+// CFOrgQuota TODO <integrations-tools-and-libraries>: ITL-792
 type CFOrgQuota struct {
 	GUID        string
 	MemoryLimit int
@@ -552,6 +557,7 @@ func (a *CFApplication) extractDataFromV3Org(data *cfclient.V3Organization) {
 	}
 }
 
+// NewCFClient TODO <integrations-tools-and-libraries>: ITL-792
 func NewCFClient(config *cfclient.Config) (client *CFClient, err error) {
 	cfc, err := cfclient.NewClient(config)
 	if err != nil {
@@ -561,6 +567,7 @@ func NewCFClient(config *cfclient.Config) (client *CFClient, err error) {
 	return client, nil
 }
 
+// ListSidecarsByApp TODO <integrations-tools-and-libraries>: ITL-792
 func (c *CFClient) ListSidecarsByApp(query url.Values, appGUID string) ([]CFSidecar, error) {
 	var sidecars []CFSidecar
 
@@ -630,10 +637,12 @@ func (c *CFClient) getIsolationSegmentRelationship(resource, guid string) (strin
 	return data.Data[0].GUID, nil
 }
 
+// GetIsolationSegmentSpaceGUID TODO <integrations-tools-and-libraries>: ITL-792
 func (c *CFClient) GetIsolationSegmentSpaceGUID(guid string) (string, error) {
 	return c.getIsolationSegmentRelationship("spaces", guid)
 }
 
+// GetIsolationSegmentOrganizationGUID TODO <integrations-tools-and-libraries>: ITL-792
 func (c *CFClient) GetIsolationSegmentOrganizationGUID(guid string) (string, error) {
 	return c.getIsolationSegmentRelationship("organizations", guid)
 }

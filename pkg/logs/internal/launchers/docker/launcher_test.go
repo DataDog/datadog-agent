@@ -13,7 +13,9 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/docker/docker/api/types"
@@ -24,7 +26,7 @@ func TestOverrideSourceServiceNameOrder(t *testing.T) {
 		name            string
 		sFunc           func(string, string) string
 		container       *Container
-		source          *config.LogSource
+		source          *sources.LogSource
 		wantServiceName string
 	}{
 		{
@@ -38,7 +40,7 @@ func TestOverrideSourceServiceNameOrder(t *testing.T) {
 					},
 				},
 			},
-			source: &config.LogSource{
+			source: &sources.LogSource{
 				Name: "from container",
 				Config: &config.LogsConfig{
 					Service: "configServiceName",
@@ -57,7 +59,7 @@ func TestOverrideSourceServiceNameOrder(t *testing.T) {
 					},
 				},
 			},
-			source: &config.LogSource{
+			source: &sources.LogSource{
 				Name:   "from container",
 				Config: &config.LogsConfig{},
 			},
@@ -81,21 +83,21 @@ func TestNewOverridenSourceServiceNameOrder(t *testing.T) {
 		name            string
 		standardService string
 		shortName       string
-		status          *config.LogStatus
+		status          *status.LogStatus
 		wantServiceName string
 	}{
 		{
 			name:            "standard svc name",
 			standardService: "stdServiceName",
 			shortName:       "fooName",
-			status:          config.NewLogStatus(),
+			status:          status.NewLogStatus(),
 			wantServiceName: "stdServiceName",
 		},
 		{
 			name:            "image name",
 			standardService: "",
 			shortName:       "fooName",
-			status:          config.NewLogStatus(),
+			status:          status.NewLogStatus(),
 			wantServiceName: "fooName",
 		},
 	}
@@ -119,7 +121,7 @@ func TestGetFileSource(t *testing.T) {
 		name            string
 		sFunc           func(string, string) string
 		container       *Container
-		source          *config.LogSource
+		source          *sources.LogSource
 		wantServiceName string
 		wantSourceName  string
 		wantPath        string
@@ -138,7 +140,7 @@ func TestGetFileSource(t *testing.T) {
 				},
 				service: &service.Service{Identifier: "123456"},
 			},
-			source:          config.NewLogSource("from container", &config.LogsConfig{Service: "configServiceName", Source: "configSourceName", Tags: []string{"foo:bar", "foo:baz"}}),
+			source:          sources.NewLogSource("from container", &config.LogsConfig{Service: "configServiceName", Source: "configSourceName", Tags: []string{"foo:bar", "foo:baz"}}),
 			wantServiceName: "configServiceName",
 			wantSourceName:  "configSourceName",
 			wantPath:        "/var/lib/docker/containers/123456/123456-json.log",
@@ -156,7 +158,7 @@ func TestGetFileSource(t *testing.T) {
 				},
 				service: &service.Service{Identifier: "123456"},
 			},
-			source:          config.NewLogSource("from container", &config.LogsConfig{ProcessingRules: testRules, Source: "stdSourceName"}),
+			source:          sources.NewLogSource("from container", &config.LogsConfig{ProcessingRules: testRules, Source: "stdSourceName"}),
 			wantServiceName: "stdServiceName",
 			wantSourceName:  "stdSourceName",
 			wantPath:        "/var/lib/docker/containers/123456/123456-json.log",

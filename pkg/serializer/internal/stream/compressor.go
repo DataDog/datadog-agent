@@ -76,6 +76,7 @@ type Compressor struct {
 	separator           []byte
 }
 
+// NewCompressor TODO <agent-core> : IML-199
 func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedSize int, header, footer []byte, separator []byte) (*Compressor, error) {
 	c := &Compressor{
 		header:              header,
@@ -169,6 +170,7 @@ func (c *Compressor) AddItem(data []byte) error {
 	return nil
 }
 
+// Close TODO <agent-core> : IML-199
 func (c *Compressor) Close() ([]byte, error) {
 	// Flush remaining uncompressed data
 	if c.input.Len() > 0 {
