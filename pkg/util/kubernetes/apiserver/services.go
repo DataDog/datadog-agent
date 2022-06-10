@@ -32,7 +32,7 @@ func (metaBundle *metadataMapperBundle) DeepCopy(old *metadataMapperBundle) *met
 	return metaBundle
 }
 
-// EntityForService TODO <container-integrations>: CONT-3353
+// EntityForService builds entity strings for Service objects
 func EntityForService(svc *v1.Service) string {
 	if svc == nil {
 		return ""
@@ -41,7 +41,7 @@ func EntityForService(svc *v1.Service) string {
 	return EntityForServiceWithNames(svc.ObjectMeta.Namespace, svc.ObjectMeta.Name)
 }
 
-// EntityForServiceWithNames TODO <container-integrations>: CONT-3353
+// EntityForServiceWithNames builds entity strings for Service objects based on the name and the namespace
 func EntityForServiceWithNames(namespace, name string) string {
 	return fmt.Sprintf("%s%s/%s", kubeServiceIDPrefix, namespace, name)
 }

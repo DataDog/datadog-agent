@@ -19,7 +19,7 @@ const (
 	deleteOperation
 )
 
-// DatadogMetricInternalObserverFunc TODO <container-integrations>: CONT-3353
+// DatadogMetricInternalObserverFunc represents observer functions of the datadog metrics store
 type DatadogMetricInternalObserverFunc func(string, string)
 
 // DatadogMetricInternalObserver allows to define functions to watch changes in Store

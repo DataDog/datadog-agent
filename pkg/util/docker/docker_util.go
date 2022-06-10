@@ -171,7 +171,7 @@ func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options typ
 	return filtered, nil
 }
 
-// GetHostname TODO <container-integrations>: CONT-3353
+// GetHostname returns the hostname from the docker api
 func (d *DockerUtil) GetHostname(ctx context.Context) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
@@ -353,7 +353,7 @@ func (d *DockerUtil) AllContainerLabels(ctx context.Context) (map[string]map[str
 	return labelMap, nil
 }
 
-// GetContainerStats TODO <container-integrations>: CONT-3353
+// GetContainerStats returns docker container stats
 func (d *DockerUtil) GetContainerStats(ctx context.Context, containerID string) (*types.StatsJSON, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()

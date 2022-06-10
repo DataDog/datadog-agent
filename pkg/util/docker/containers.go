@@ -191,7 +191,7 @@ func (d *DockerUtil) getContainerMetrics(ctn *containers.Container) {
 	}
 }
 
-// ContainerLogs TODO <container-integrations>: CONT-3353
+// ContainerLogs returns a container logs reader
 func (d *DockerUtil) ContainerLogs(ctx context.Context, container string, options types.ContainerLogsOptions) (io.ReadCloser, error) {
 	return d.cli.ContainerLogs(ctx, container, options)
 }

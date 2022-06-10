@@ -19,7 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-// ProcessorContext TODO <container-app>: CONT-3353
+// ProcessorContext holds resource processing attributes
 type ProcessorContext struct {
 	APIClient  *apiserver.APIClient
 	Cfg        *config.OrchestratorConfig

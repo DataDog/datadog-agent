@@ -33,7 +33,7 @@ const (
 	maxRetries = 10
 )
 
-// PollerConfig TODO <container-integrations>: CONT-3353
+// PollerConfig holds the configuration of the metrics poller
 type PollerConfig struct {
 	gcPeriodSeconds int
 	refreshPeriod   int

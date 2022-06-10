@@ -37,7 +37,7 @@ type datadogMetricProvider struct {
 	autogenNamespace string
 }
 
-// NewDatadogMetricProvider TODO <container-integrations>: CONT-3353
+// NewDatadogMetricProvider configures and returns a new datadogMetricProvider
 func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (provider.ExternalMetricsProvider, error) {
 	if apiCl == nil {
 		return nil, fmt.Errorf("Impossible to create DatadogMetricProvider without valid APIClient")

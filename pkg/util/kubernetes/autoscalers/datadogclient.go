@@ -25,7 +25,7 @@ const (
 	metricsEndpointConfig = "external_metrics_provider.endpoint"
 )
 
-// NewDatadogClient TODO <container-integrations>: CONT-3353
+// NewDatadogClient configures and returns a new DatadogClient
 func NewDatadogClient() (DatadogClient, error) {
 	if config.Datadog.IsSet("external_metrics_provider.endpoints") {
 		var endpoints []config.Endpoint
@@ -212,7 +212,7 @@ func (cl *datadogFallbackClient) GetRateLimitStats() map[string]datadog.RateLimi
 	return map[string]datadog.RateLimit{}
 }
 
-// GetStatus TODO <container-integrations>: CONT-3353
+// GetStatus returns the status of the DatadogClient
 func GetStatus(datadogClient DatadogClient) map[string]interface{} {
 	status := make(map[string]interface{})
 

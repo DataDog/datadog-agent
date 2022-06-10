@@ -98,7 +98,7 @@ func (h *Handler) GetAllEndpointsCheckConfigs() (types.ConfigResponse, error) {
 	return response, err
 }
 
-// RebalanceClusterChecks TODO <container-integrations>: CONT-3353
+// RebalanceClusterChecks triggers an attempt to rebalance cluster checks
 func (h *Handler) RebalanceClusterChecks() ([]types.RebalanceResponse, error) {
 	if !h.dispatcher.advancedDispatching {
 		return nil, fmt.Errorf("no checks to rebalance: advanced dispatching is not enabled")

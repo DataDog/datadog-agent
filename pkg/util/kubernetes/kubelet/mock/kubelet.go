@@ -49,7 +49,7 @@ func (km *KubeletMock) QueryKubelet(ctx context.Context, path string) ([]byte, i
 	return nil, http.StatusNotFound, nil
 }
 
-// GetLocalStatsSummary TODO <container-integrations>: CONT-3353
+// GetLocalStatsSummary is a mock method
 func (km *KubeletMock) GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error) {
 	data, rc, err := km.QueryKubelet(ctx, "/stats/summary")
 	if err != nil {

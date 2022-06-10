@@ -44,17 +44,18 @@ func NewConfig(ns, name, svc string, cert CertConfig) Config {
 	}
 }
 
-// GetName TODO <container-integrations>: CONT-3353
+// GetName returns the secret object name
 func (s *Config) GetName() string { return s.name }
 
-// GetNs TODO <container-integrations>: CONT-3353
+// GetNs returns secret object namespace
 func (s *Config) GetNs() string { return s.ns }
 
-// GetSvc TODO <container-integrations>: CONT-3353
+// GetSvc returns the name of the targeted service
 func (s *Config) GetSvc() string { return s.svc }
 
-// GetCertExpiration TODO <container-integrations>: CONT-3353
+// GetCertExpiration returns the certificate's expiration threshold
+// (how long before its expiration a certificate should be refreshed)
 func (s *Config) GetCertExpiration() time.Duration { return s.cert.expirationThreshold }
 
-// GetCertValidityBound TODO <container-integrations>: CONT-3353
+// GetCertValidityBound returns the validity bound of the certificate
 func (s *Config) GetCertValidityBound() time.Duration { return s.cert.validityBound }

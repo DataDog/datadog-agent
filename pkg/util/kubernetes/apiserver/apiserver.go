@@ -186,7 +186,7 @@ func getClientConfig(timeout time.Duration) (*rest.Config, error) {
 	return clientConfig, nil
 }
 
-// GetKubeClient TODO <container-integrations>: CONT-3353
+// GetKubeClient returns a kubernetes API server client
 func GetKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 	// TODO: Remove custom warning logger when we remove usage of ComponentStatus
 	rest.SetDefaultWarningHandler(CustomWarningLogger{})

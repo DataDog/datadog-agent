@@ -52,7 +52,7 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 	},
 }
 
-// ControllerContext TODO <container-integrations>: CONT-3353
+// ControllerContext holds all the attributes needed by the controllers
 type ControllerContext struct {
 	informers          map[InformerName]cache.SharedInformer
 	InformerFactory    informers.SharedInformerFactory

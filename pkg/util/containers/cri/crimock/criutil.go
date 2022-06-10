@@ -36,12 +36,12 @@ func (m *MockCRIClient) GetContainerStatus(containerID string) (*pb.ContainerSta
 	return args.Get(0).(*pb.ContainerStatus), args.Error(1)
 }
 
-// GetRuntime TODO <container-integrations>: CONT-3353
+// GetRuntime is a mock of GetRuntime
 func (m *MockCRIClient) GetRuntime() string {
 	return "fakeruntime"
 }
 
-// GetRuntimeVersion TODO <container-integrations>: CONT-3353
+// GetRuntimeVersion is a mock of GetRuntimeVersion
 func (m *MockCRIClient) GetRuntimeVersion() string {
 	return "1.0"
 }

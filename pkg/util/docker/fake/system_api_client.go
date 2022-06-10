@@ -16,32 +16,32 @@ import (
 	"github.com/docker/docker/api/types/registry"
 )
 
-// SystemAPIClient TODO <container-integrations>: CONT-3353
+// SystemAPIClient is a mock
 type SystemAPIClient struct {
 	InfoFunc func() (types.Info, error)
 }
 
-// Events TODO <container-integrations>: CONT-3353
+// Events is a mock method
 func (c *SystemAPIClient) Events(ctx context.Context, options types.EventsOptions) (<-chan events.Message, <-chan error) {
 	return nil, nil
 }
 
-// Info TODO <container-integrations>: CONT-3353
+// Info is a mock method
 func (c *SystemAPIClient) Info(ctx context.Context) (types.Info, error) {
 	return c.InfoFunc()
 }
 
-// RegistryLogin TODO <container-integrations>: CONT-3353
+// RegistryLogin is a mock method
 func (c *SystemAPIClient) RegistryLogin(ctx context.Context, auth types.AuthConfig) (registry.AuthenticateOKBody, error) {
 	return registry.AuthenticateOKBody{}, nil
 }
 
-// DiskUsage TODO <container-integrations>: CONT-3353
+// DiskUsage is a mock method
 func (c *SystemAPIClient) DiskUsage(ctx context.Context) (types.DiskUsage, error) {
 	return types.DiskUsage{}, nil
 }
 
-// Ping TODO <container-integrations>: CONT-3353
+// Ping is a mock method
 func (c *SystemAPIClient) Ping(ctx context.Context) (types.Ping, error) {
 	return types.Ping{}, nil
 }
