@@ -23,10 +23,7 @@ CustomActionData::CustomActionData()
 
 CustomActionData::~CustomActionData()
 {
-    if (_logonCli != nullptr)
-    {
-        delete _logonCli;
-    }
+    delete _logonCli;
 }
 
 bool CustomActionData::init(MSIHANDLE hi)

@@ -293,10 +293,6 @@ UINT doFinalizeInstall(CustomActionData &data)
     if (!ddServiceExists)
     {
         WcaLog(LOGMSG_STANDARD, "attempting to install services");
-        if (!passToUse)
-        {
-            passToUse = providedPassword.c_str();
-        }
         int ret = installServices(data, data.Sid(), passToUse);
 
         if (ret != 0)
