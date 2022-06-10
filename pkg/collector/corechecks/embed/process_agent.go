@@ -44,17 +44,17 @@ type ProcessAgentCheck struct {
 	telemetry   bool
 }
 
-// String TODO <agent-platform>: AP-1715
+// String displays the Agent name
 func (c *ProcessAgentCheck) String() string {
 	return "Process Agent"
 }
 
-// Version TODO <agent-platform>: AP-1715
+// Version displays the command's version
 func (c *ProcessAgentCheck) Version() string {
 	return ""
 }
 
-// ConfigSource TODO <agent-platform>: AP-1715
+// ConfigSource displays the command's source
 func (c *ProcessAgentCheck) ConfigSource() string {
 	return c.source
 }
