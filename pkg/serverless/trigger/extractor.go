@@ -9,11 +9,18 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 )
 
-// awsHTTPResponseStruct contains a generic field shared between
+// awsHTTPResponseStructInt contains a generic field shared between
 // all http response payload. Right now, that's API Gateway, ALB,
 // and Function URLs.
-type awsHTTPResponseStruct struct {
+type awsHTTPResponseStructInt struct {
 	StatusCode int `json:"statusCode"`
+}
+
+// awsHTTPResponseStructInt contains a generic field shared between
+// all http response payload. Right now, that's API Gateway, ALB,
+// and Function URLs.
+type awsHTTPResponseStructString struct {
+	StatusCode string `json:"statusCode"`
 }
 
 // getAWSPartitionByRegion parses an AWS region and returns an AWS partition
@@ -152,17 +159,29 @@ func GetTagsFromLambdaFunctionURLRequest(event events.LambdaFunctionURLRequest) 
 	return httpTags
 }
 
-// ExtractStatusCodeFromHTTPResponse parses a generic payload and returns
+// GetStatusCodeFromHTTPResponse parses a generic payload and returns
 // a status code, if it contains one. Returns an empty string if it does not.
-func ExtractStatusCodeFromHTTPResponse(rawPayload []byte) (string, error) {
-	var response awsHTTPResponseStruct
+// Ignore parsing errors silentlys
+func GetStatusCodeFromHTTPResponse(rawPayload []byte) (string, error) {
+	var response map[string]interface{}
 	err := json.Unmarshal(rawPayload, &response)
 	if err != nil {
 		return "", err
 	}
-	if response.StatusCode > 0 {
-		return strconv.Itoa(response.StatusCode), nil
+
+	// datadog-lambda-js checks if 'result' is undefined
+	// so this is presumably the equivalent
+	if len(rawPayload) == 0 {
+		return "", nil
 	}
 
-	return "", nil
+	statusCode := response["statusCode"]
+	switch statusCode.(type) {
+	case float64:
+		return strconv.FormatFloat(statusCode.(float64), 'f', -1, 64), nil
+	case string:
+		return statusCode.(string), nil
+	default:
+		return "", fmt.Errorf("Received unknown type for statusCode")
+	}
 }

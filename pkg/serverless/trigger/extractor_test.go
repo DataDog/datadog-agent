@@ -265,19 +265,22 @@ func TestGetTagsFromALBTargetGroupRequest(t *testing.T) {
 func TestExtractStatusCodeFromHTTPResponse(t *testing.T) {
 	noStatusCodePayload := []byte(`{}`)
 
-	statusCode, err := ExtractStatusCodeFromHTTPResponse(noStatusCodePayload)
-	assert.NoError(t, err)
+	statusCode, _ := GetStatusCodeFromHTTPResponse(noStatusCodePayload)
 	assert.Equal(t, "", statusCode)
 
 	malformedPayload := []byte(`a`)
 
-	statusCode, err = ExtractStatusCodeFromHTTPResponse(malformedPayload)
-	assert.Error(t, err)
+	statusCode, _ = GetStatusCodeFromHTTPResponse(malformedPayload)
 	assert.Equal(t, "", statusCode)
 
 	statusCodePayload := []byte(`{"statusCode":200}`)
 
-	statusCode, err = ExtractStatusCodeFromHTTPResponse(statusCodePayload)
+	statusCode, err := GetStatusCodeFromHTTPResponse(statusCodePayload)
 	assert.NoError(t, err)
+	assert.Equal(t, "200", statusCode)
+
+	statusCodePayloadStr := []byte(`{"statusCode":"200"}`)
+
+	statusCode, _ = GetStatusCodeFromHTTPResponse(statusCodePayloadStr)
 	assert.Equal(t, "200", statusCode)
 }

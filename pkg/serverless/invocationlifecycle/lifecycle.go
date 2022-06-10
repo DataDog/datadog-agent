@@ -155,7 +155,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 	log.Debugf("[lifecycle] Invocation isError is: %v", endDetails.IsError)
 	log.Debug("[lifecycle] ---------------------------------------")
 
-	statusCode, err := trigger.ExtractStatusCodeFromHTTPResponse(endDetails.ResponseRawPayload)
+	statusCode, err := trigger.GetStatusCodeFromHTTPResponse(endDetails.ResponseRawPayload)
 	if err != nil {
 		log.Debugf("[lifecycle] Couldn't parse response payload: %v", err)
 	}
