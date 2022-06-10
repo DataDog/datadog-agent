@@ -59,6 +59,12 @@ type OTLP struct {
 	// MaxRequestBytes specifies the maximum number of bytes that will be read
 	// from an incoming HTTP request.
 	MaxRequestBytes int64 `mapstructure:"-"`
+
+	// UsePreviewHostnameLogic specifies wether to use the 'preview' OpenTelemetry attributes to hostname rules,
+	// controlled in the Datadog exporter by the `exporter.datadog.hostname.preview` feature flag.
+	// The 'preview' rules change the canonical hostname chosen in cloud providers to be consistent with the
+	// one sent by Datadog cloud integrations.
+	UsePreviewHostnameLogic bool `mapstructure:"-"`
 }
 
 // ObfuscationConfig holds the configuration for obfuscating sensitive data
