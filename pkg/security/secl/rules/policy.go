@@ -14,7 +14,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// Policy represents a policy file definition
+// PolicyDef represents a policy file definition
 type PolicyDef struct {
 	Version string             `yaml:"version"`
 	Rules   []*RuleDefinition  `yaml:"rules"`

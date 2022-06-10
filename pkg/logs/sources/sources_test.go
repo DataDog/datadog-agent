@@ -106,6 +106,51 @@ func TestGetAddedForTypeExistingSources(t *testing.T) {
 	assert.Equal(t, sb3, source3)
 }
 
+func TestSubscribeAll(t *testing.T) {
+	sources := NewLogSources()
+	source1 := NewLogSource("one", &config.LogsConfig{Type: "foo"})
+	source2 := NewLogSource("two-bar", &config.LogsConfig{Type: "bar"})
+	source3 := NewLogSource("three", &config.LogsConfig{Type: "foo"})
+
+	go func() { sources.AddSource(source1) }()
+
+	addA, removeA := sources.SubscribeAll()
+	assert.NotNil(t, addA)
+	sa1 := <-addA
+	assert.Equal(t, sa1, source1)
+	assert.Equal(t, 0, len(removeA))
+
+	go func() { sources.AddSource(source2) }()
+
+	sa2 := <-addA
+	assert.Equal(t, sa2, source2)
+	assert.Equal(t, 0, len(removeA))
+
+	addB, removeB := sources.SubscribeAll()
+	assert.NotNil(t, addB)
+	sb1 := <-addB
+	sb2 := <-addB
+	assert.ElementsMatch(t, []*LogSource{source1, source2}, []*LogSource{sb1, sb2})
+	assert.Equal(t, 0, len(removeB))
+
+	go func() { sources.AddSource(source3) }()
+
+	sa3 := <-addA
+	sb3 := <-addB
+	assert.Equal(t, sa3, source3)
+	assert.Equal(t, sb3, source3)
+
+	assert.Equal(t, 0, len(removeA))
+	assert.Equal(t, 0, len(removeB))
+
+	go func() { sources.RemoveSource(source1) }()
+
+	sa1 = <-removeA
+	sb1 = <-removeB
+	assert.Equal(t, sa1, source1)
+	assert.Equal(t, sb1, source1)
+}
+
 func TestSubscribeForType(t *testing.T) {
 	sources := NewLogSources()
 	source1 := NewLogSource("one", &config.LogsConfig{Type: "foo"})

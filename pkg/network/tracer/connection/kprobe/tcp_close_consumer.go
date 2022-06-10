@@ -11,11 +11,13 @@ package kprobe
 import (
 	"sync"
 	"sync/atomic"
+	"time"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
 
@@ -93,6 +95,11 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 		return
 	}
 
+	var (
+		then        time.Time = time.Now()
+		closedCount int
+		lostCount   int
+	)
 	go func() {
 		for {
 			select {
@@ -103,6 +110,7 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				atomic.AddInt64(&c.perfReceived, 1)
 				batch := netebpf.ToBatch(batchData.Data)
 				c.batchManager.ExtractBatchInto(c.buffer, batch, batchData.CPU)
+				closedCount += c.buffer.Len()
 				callback(c.buffer.Connections())
 				c.buffer.Reset()
 			case lostCount, ok := <-c.perfHandler.LostChannel:
@@ -110,6 +118,7 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 					return
 				}
 				atomic.AddInt64(&c.perfLost, int64(lostCount))
+				lostCount += netebpf.BatchSize
 			case request, ok := <-c.requests:
 				if !ok {
 					return
@@ -119,6 +128,20 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				c.batchManager.GetPendingConns(oneTimeBuffer)
 				callback(oneTimeBuffer.Connections())
 				close(request)
+
+				closedCount += oneTimeBuffer.Len()
+				now := time.Now()
+				elapsed := now.Sub(then)
+				then = now
+				log.Debugf(
+					"tcp close summary: closed_count=%d elapsed=%s closed_rate=%.2f/s lost_count=%d",
+					closedCount,
+					elapsed,
+					float64(closedCount)/elapsed.Seconds(),
+					lostCount,
+				)
+				closedCount = 0
+				lostCount = 0
 			}
 		}
 	}()

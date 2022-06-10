@@ -37,6 +37,7 @@ import (
 )
 
 const (
+	// DefaultDBPath is the default path of podman's state database
 	DefaultDBPath = "/var/lib/containers/storage/libpod/bolt_state.db"
 	ctrName       = "ctr"
 	allCtrsName   = "all-ctrs"
@@ -51,6 +52,7 @@ var (
 	stateKey   = []byte(stateName)
 )
 
+// DBClient is a client for the podman's state database
 type DBClient struct {
 	DBPath string
 }
