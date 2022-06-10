@@ -67,6 +67,8 @@ func Handler() sprobe.EventHandler {
 }
 
 type eventMonitor struct {
+	sync.Mutex
+
 	handlers []HandlerFunc
 }
 
@@ -82,6 +84,9 @@ func (e *eventMonitor) HandleEvent(ev *sprobe.Event) {
 		return
 	}
 
+	e.Lock()
+	defer e.Unlock()
+
 	for _, h := range e.handlers {
 		h(entry)
 	}
@@ -92,7 +97,13 @@ func (e *eventMonitor) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomE
 }
 
 func (e *eventMonitor) RegisterHandler(handler HandlerFunc) {
-	if handler != nil {
-		e.handlers = append(e.handlers, handler)
+	if handler == nil {
+		return
 	}
+
+	e.Lock()
+	defer e.Unlock()
+
+	e.handlers = append(e.handlers, handler)
+
 }
