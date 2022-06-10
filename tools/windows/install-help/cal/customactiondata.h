@@ -30,6 +30,8 @@ class ICustomActionData
     }
 };
 
+class LogonCli;
+
 class CustomActionData : ICustomActionData
 {
   private:
@@ -75,6 +77,7 @@ class CustomActionData : ICustomActionData
     bool _ddnpmPresent;
     bool _ddUserExists;
     bool _isServiceAccount;
+    LogonCli *_logonCli;
     std::shared_ptr<ITargetMachine> _targetMachine;
     std::optional<User> findPreviousUserInfo();
     std::optional<User> findSuppliedUserInfo();

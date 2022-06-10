@@ -4,8 +4,6 @@
 #include "PropertyReplacer.h"
 #include "LogonCli.h"
 
-static LogonCli logonCli;
-
 CustomActionData::CustomActionData(std::shared_ptr<ITargetMachine> targetMachine)
 : _hInstall(NULL)
 , _domainUser(false)
@@ -13,6 +11,7 @@ CustomActionData::CustomActionData(std::shared_ptr<ITargetMachine> targetMachine
 , _ddnpmPresent(false)
 , _ddUserExists(false)
 , _targetMachine(std::move(targetMachine))
+, _logonCli(nullptr)
 {
 }
 
@@ -28,7 +27,16 @@ CustomActionData::~CustomActionData()
 
 bool CustomActionData::init(MSIHANDLE hi)
 {
-    this->_hInstall = hi;
+    _hInstall = hi;
+    try
+    {
+        _logonCli = new LogonCli();
+    }
+    catch (std::exception &e)
+    {
+        WcaLog(LOGMSG_STANDARD, "Could not load logonCli.dll: %s", e.what());
+    }
+    
     std::wstring data;
     if (!loadPropertyString(this->_hInstall, propertyCustomActionData.c_str(), data))
     {
@@ -326,17 +334,23 @@ bool CustomActionData::parseUsernameData()
             WcaLog(LOGMSG_STANDARD, R"(Found SID for "%S" in "%S")", FullyQualifiedUsername().c_str(), sidResult.Domain.c_str());
             _ddUserExists = true;
             _sid = std::move(sidResult.Sid);
-            BOOL isServiceAccount;
-            DWORD result = logonCli.NetIsServiceAccount(nullptr, const_cast<wchar_t *>(FullyQualifiedUsername().c_str()), &isServiceAccount);
-            if (result != ERROR_SUCCESS)
+
+            if (_logonCli != nullptr)
             {
-                WcaLog(LOGMSG_STANDARD, "Could not lookup if \"%S\" is a service account: %S", FullyQualifiedUsername().c_str(),
-                       FormatErrorMessage(result).c_str());
-                return false;
+                BOOL isServiceAccount;
+                DWORD result = _logonCli->NetIsServiceAccount(
+                    nullptr, const_cast<wchar_t *>(FullyQualifiedUsername().c_str()), &isServiceAccount);
+                if (result != ERROR_SUCCESS)
+                {
+                    WcaLog(LOGMSG_STANDARD, "Could not lookup if \"%S\" is a service account: %S",
+                           FullyQualifiedUsername().c_str(), FormatErrorMessage(result).c_str());
+                    return false;
+                }
+                _isServiceAccount = isServiceAccount ? true : false;
             }
-            _isServiceAccount = isServiceAccount ? true : false;
+
             WcaLog(LOGMSG_STANDARD, R"(Detected that "%S" %S a managed service account)",
-                   FullyQualifiedUsername().c_str(), (_isServiceAccount ? L"is" : L"is not"));
+                   FullyQualifiedUsername().c_str(), _isServiceAccount ? L"is" : L"is not");
             // Use the domain returned by <see cref="LookupAccountName" /> because
             // it might be != from the one the user passed in.
             _user.Domain = sidResult.Domain;
