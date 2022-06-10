@@ -54,6 +54,62 @@ func (s *State) DirectorTargetsVersion() uint64 {
 	return meta.Version
 }
 
+type TUFVersions struct {
+	DirectorRoot    uint64
+	DirectorTargets uint64
+	ConfigRoot      uint64
+	ConfigSnapshot  uint64
+}
+
+func (c *Client) TUFVersionState() (TUFVersions, error) {
+	c.Lock()
+	defer c.Unlock()
+
+	drv, err := c.directorLocalStore.GetMetaVersion("root.json")
+	if err != nil {
+		return TUFVersions{}, err
+	}
+
+	dtv, err := c.directorLocalStore.GetMetaVersion("targets.json")
+	if err != nil {
+		return TUFVersions{}, err
+	}
+
+	crv, err := c.configLocalStore.GetMetaVersion("root.json")
+	if err != nil {
+		return TUFVersions{}, err
+	}
+
+	csv, err := c.configLocalStore.GetMetaVersion("snapshot.json")
+	if err != nil {
+		return TUFVersions{}, err
+	}
+
+	return TUFVersions{
+		DirectorRoot:    drv,
+		DirectorTargets: dtv,
+		ConfigRoot:      crv,
+		ConfigSnapshot:  csv,
+	}, nil
+}
+
+func (c *Client) DirectorVersionState() (uint64, uint64, error) {
+	c.Lock()
+	defer c.Unlock()
+
+	rv, err := c.directorLocalStore.GetMetaVersion("root.json")
+	if err != nil {
+		return 0, 0, err
+	}
+
+	tv, err := c.directorLocalStore.GetMetaVersion("targets.json")
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return rv, tv, nil
+}
+
 // State returns the state of the uptane client
 func (c *Client) State() (State, error) {
 	c.Lock()
