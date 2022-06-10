@@ -19,17 +19,10 @@ k8s-e2e-dev:
   extends: .k8s_e2e_template
   rules:
     !reference [.on_dev_branch_manual]
-  # Note: pupernetes-dev requires the below jobs to work. However,
-  # we can't explicitly define the dependencies because a job cannot depend on other manual jobs.
-  # Adding the following lines would result in pipelines remaining in a "Running" state forever,
-  # as the pupernetes-dev job waits for manual jobs that may never be triggered.
-  # needs:
-  #   - dev_branch_docker_hub-a6
-  #   - dev_branch_docker_hub-a7
-  # We still want to make the job available as soon as possible. In this case, since it's manual
-  # and requires other manual jobs, it's reasonable make it available from the beginning and let
-  # engineers trigger the correct sequence of jobs when needed.
-  needs: []
+  needs:
+    - dev_branch-a6
+    - dev_branch-a7
+    - dca_dev_branch
   script:
     - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=default
     - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=default
@@ -39,9 +32,10 @@ k8s-e2e-main:
   allow_failure: true # temporary while investigating
   rules:
     !reference [.on_main]
-  # needs:
-  #   - dev_master-a6
-  #   - dev_master-a7
+  needs:
+    - dev_master-a6
+    - dev_master-a7
+    - dca_dev_master
   script:
     - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py2 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=default
     - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=default
@@ -74,7 +68,9 @@ k8s-e2e-cws-dev:
   extends: .k8s_e2e_template
   rules:
     !reference [.on_dev_branch_manual]
-  needs: []
+  needs:
+    - dev_branch-a7
+    - dca_dev_branch
   script:
     - !reference [.k8s-e2e-cws-cspm-init]
     - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=cws
@@ -83,9 +79,9 @@ k8s-e2e-cws-main:
   extends: .k8s_e2e_template
   rules:
     !reference [.on_main]
-  # needs:
-  #   - dev_master-a6
-  #   - dev_master-a7
+  needs:
+    - dev_master-a7
+    - dca_dev_master
   retry: 1
   script:
     - !reference [.k8s-e2e-cws-cspm-init]
@@ -95,7 +91,9 @@ k8s-e2e-cspm-dev:
   extends: .k8s_e2e_template
   rules:
     !reference [.on_dev_branch_manual]
-  needs: []
+  needs:
+    - dev_branch-a7
+    - dca_dev_branch
   script:
     - !reference [.k8s-e2e-cws-cspm-init]
     - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=cspm
@@ -104,9 +102,9 @@ k8s-e2e-cspm-main:
   extends: .k8s_e2e_template
   rules:
     !reference [.on_main]
-  # needs:
-  #   - dev_master-a6
-  #   - dev_master-a7
+  needs:
+    - dev_master-a7
+    - dca_dev_master
   retry: 1
   script:
     - !reference [.k8s-e2e-cws-cspm-init]
@@ -116,7 +114,9 @@ k8s-e2e-otlp-dev:
   extends: .k8s_e2e_template
   rules:
     !reference [.on_dev_branch_manual]
-  needs: [] # See note on k8s-e2e-dev above
+  needs:
+    - dev_branch-a7
+    - dca_dev_branch
   script:
     - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=otlp
 
@@ -124,8 +124,8 @@ k8s-e2e-otlp-main:
   extends: .k8s_e2e_template
   rules:
     !reference [.on_main]
-  # needs:
-  #   - dev_master-a6
-  #   - dev_master-a7
+  needs:
+    - dev_master-a7
+    - dca_dev_master
   script:
     - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=otlp
