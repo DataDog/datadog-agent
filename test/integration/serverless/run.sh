@@ -104,6 +104,7 @@ echo "Using dd-trace-dotnet layer version: $DOTNET_TRACE_LAYER_VERSION"
 stage=$(xxd -l 4 -c 4 -p </dev/random)
 
 function remove_stack() {
+    echo "Removing stack"
     serverless remove --stage "${stage}"
 }
 
