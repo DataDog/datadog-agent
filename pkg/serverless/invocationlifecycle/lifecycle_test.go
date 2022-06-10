@@ -312,10 +312,11 @@ func TestTriggerTypesLifecycleEventForAPIGatewayRest(t *testing.T) {
 
 	testProcessor.OnInvokeStart(startDetails)
 	assert.Equal(t, map[string]string{
-		"function_trigger.event_source": "arn:aws:apigateway:us-east-1::/restapis/1234567890/stages/prod",
-		"http.method":                   "POST",
-		"http.url":                      "70ixmpl4fl.execute-api.us-east-2.amazonaws.com",
-		"http.url_details.path":         "/prod/path/to/resource",
+		"function_trigger.event_source_arn": "arn:aws:apigateway:us-east-1::/restapis/1234567890/stages/prod",
+		"http.method":                       "POST",
+		"http.url":                          "70ixmpl4fl.execute-api.us-east-2.amazonaws.com",
+		"http.url_details.path":             "/prod/path/to/resource",
+		"function_trigger.event_source":     "api-gateway",
 	}, testProcessor.GetTags())
 }
 
@@ -336,12 +337,13 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy(t *testing.T) {
 		ResponseRawPayload: []byte(`{"statusCode": 200}`),
 	})
 	assert.Equal(t, map[string]string{
-		"function_trigger.event_source": "arn:aws:apigateway:us-east-1::/restapis/lgxbo6a518/stages/dev",
-		"http.method":                   "GET",
-		"http.url":                      "lgxbo6a518.execute-api.sa-east-1.amazonaws.com",
-		"http.url_details.path":         "/dev/http/get",
-		"request_id":                    "test-request-id",
-		"http.status_code":              "200",
+		"function_trigger.event_source_arn": "arn:aws:apigateway:us-east-1::/restapis/lgxbo6a518/stages/dev",
+		"http.method":                       "GET",
+		"http.url":                          "lgxbo6a518.execute-api.sa-east-1.amazonaws.com",
+		"http.url_details.path":             "/dev/http/get",
+		"request_id":                        "test-request-id",
+		"http.status_code":                  "200",
+		"function_trigger.event_source":     "api-gateway",
 	}, testProcessor.GetTags())
 }
 
@@ -362,9 +364,10 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket(t *testing.T) {
 		ResponseRawPayload: []byte(`{"statusCode": 200}`),
 	})
 	assert.Equal(t, map[string]string{
-		"function_trigger.event_source": "arn:aws:apigateway:us-east-1::/restapis/p62c47itsb/stages/dev",
-		"request_id":                    "test-request-id",
-		"http.status_code":              "200",
+		"function_trigger.event_source_arn": "arn:aws:apigateway:us-east-1::/restapis/p62c47itsb/stages/dev",
+		"request_id":                        "test-request-id",
+		"http.status_code":                  "200",
+		"function_trigger.event_source":     "api-gateway",
 	}, testProcessor.GetTags())
 }
 
@@ -385,11 +388,12 @@ func TestTriggerTypesLifecycleEventForALB(t *testing.T) {
 		ResponseRawPayload: []byte(`{"statusCode": 200}`),
 	})
 	assert.Equal(t, map[string]string{
-		"function_trigger.event_source": "arn:aws:elasticloadbalancing:us-east-2:123456789012:targetgroup/lambda-xyz/123abc",
-		"request_id":                    "test-request-id",
-		"http.status_code":              "200",
-		"http.method":                   "GET",
-		"http.url_details.path":         "/lambda",
+		"function_trigger.event_source_arn": "arn:aws:elasticloadbalancing:us-east-2:123456789012:targetgroup/lambda-xyz/123abc",
+		"request_id":                        "test-request-id",
+		"http.status_code":                  "200",
+		"http.method":                       "GET",
+		"http.url_details.path":             "/lambda",
+		"function_trigger.event_source":     "application-load-balancer",
 	}, testProcessor.GetTags())
 }
 
@@ -409,8 +413,9 @@ func TestTriggerTypesLifecycleEventForCloudwatch(t *testing.T) {
 		RequestID: "test-request-id",
 	})
 	assert.Equal(t, map[string]string{
-		"function_trigger.event_source": "arn:aws:events:us-east-1:123456789012:rule/ExampleRule",
-		"request_id":                    "test-request-id",
+		"function_trigger.event_source_arn": "arn:aws:events:us-east-1:123456789012:rule/ExampleRule",
+		"request_id":                        "test-request-id",
+		"function_trigger.event_source":     "cloudwatch-events",
 	}, testProcessor.GetTags())
 }
 
@@ -430,8 +435,9 @@ func TestTriggerTypesLifecycleEventForDynamoDB(t *testing.T) {
 		RequestID: "test-request-id",
 	})
 	assert.Equal(t, map[string]string{
-		"function_trigger.event_source": "arn:aws:dynamodb:us-east-1:123456789012:table/ExampleTableWithStream/stream/2015-06-27T00:48:05.899",
-		"request_id":                    "test-request-id",
+		"function_trigger.event_source_arn": "arn:aws:dynamodb:us-east-1:123456789012:table/ExampleTableWithStream/stream/2015-06-27T00:48:05.899",
+		"request_id":                        "test-request-id",
+		"function_trigger.event_source":     "dynamodb",
 	}, testProcessor.GetTags())
 }
 
@@ -451,8 +457,9 @@ func TestTriggerTypesLifecycleEventForKinesis(t *testing.T) {
 		RequestID: "test-request-id",
 	})
 	assert.Equal(t, map[string]string{
-		"function_trigger.event_source": "arn:aws:kinesis:sa-east-1:601427279990:stream/kinesisStream",
-		"request_id":                    "test-request-id",
+		"function_trigger.event_source_arn": "arn:aws:kinesis:sa-east-1:601427279990:stream/kinesisStream",
+		"request_id":                        "test-request-id",
+		"function_trigger.event_source":     "kinesis",
 	}, testProcessor.GetTags())
 }
 
@@ -472,8 +479,9 @@ func TestTriggerTypesLifecycleEventForS3(t *testing.T) {
 		RequestID: "test-request-id",
 	})
 	assert.Equal(t, map[string]string{
-		"function_trigger.event_source": "aws:s3:sample:event:source",
-		"request_id":                    "test-request-id",
+		"function_trigger.event_source_arn": "aws:s3:sample:event:source",
+		"request_id":                        "test-request-id",
+		"function_trigger.event_source":     "s3",
 	}, testProcessor.GetTags())
 }
 
@@ -493,8 +501,9 @@ func TestTriggerTypesLifecycleEventForSNS(t *testing.T) {
 		RequestID: "test-request-id",
 	})
 	assert.Equal(t, map[string]string{
-		"function_trigger.event_source": "arn:aws:sns:sa-east-1:601427279990:serverlessTracingTopicPy",
-		"request_id":                    "test-request-id",
+		"function_trigger.event_source_arn": "arn:aws:sns:sa-east-1:601427279990:serverlessTracingTopicPy",
+		"request_id":                        "test-request-id",
+		"function_trigger.event_source":     "sns",
 	}, testProcessor.GetTags())
 }
 
@@ -514,8 +523,9 @@ func TestTriggerTypesLifecycleEventForSQS(t *testing.T) {
 		RequestID: "test-request-id",
 	})
 	assert.Equal(t, map[string]string{
-		"function_trigger.event_source": "arn:aws:sqs:sa-east-1:601427279990:InferredSpansQueueNode",
-		"request_id":                    "test-request-id",
+		"function_trigger.event_source_arn": "arn:aws:sqs:sa-east-1:601427279990:InferredSpansQueueNode",
+		"request_id":                        "test-request-id",
+		"function_trigger.event_source":     "sqs",
 	}, testProcessor.GetTags())
 }
 

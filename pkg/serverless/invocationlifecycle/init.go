@@ -10,7 +10,8 @@ func (lp *LifecycleProcessor) initFromAPIGatewayEvent(event events.APIGatewayPro
 		lp.GetInferredSpan().EnrichInferredSpanWithAPIGatewayRESTEvent(event)
 	}
 
-	lp.addTag("function_trigger.event_source", trigger.ExtractAPIGatewayEventARN(event, region))
+	lp.addTag("function_trigger.event_source", "api-gateway")
+	lp.addTag("function_trigger.event_source_arn", trigger.ExtractAPIGatewayEventARN(event, region))
 	lp.addTags(trigger.GetTagsFromAPIGatewayEvent(event))
 }
 
@@ -19,7 +20,8 @@ func (lp *LifecycleProcessor) initFromAPIGatewayV2Event(event events.APIGatewayV
 		lp.GetInferredSpan().EnrichInferredSpanWithAPIGatewayHTTPEvent(event)
 	}
 
-	lp.addTag("function_trigger.event_source", trigger.ExtractAPIGatewayV2EventARN(event, region))
+	lp.addTag("function_trigger.event_source", "api-gateway")
+	lp.addTag("function_trigger.event_source_arn", trigger.ExtractAPIGatewayV2EventARN(event, region))
 	lp.addTags(trigger.GetTagsFromAPIGatewayV2HTTPRequest(event))
 }
 
@@ -28,44 +30,52 @@ func (lp *LifecycleProcessor) initFromAPIGatewayWebsocketEvent(event events.APIG
 		lp.GetInferredSpan().EnrichInferredSpanWithAPIGatewayWebsocketEvent(event)
 	}
 
-	lp.addTag("function_trigger.event_source", trigger.ExtractAPIGatewayWebSocketEventARN(event, region))
+	lp.addTag("function_trigger.event_source", "api-gateway")
+	lp.addTag("function_trigger.event_source_arn", trigger.ExtractAPIGatewayWebSocketEventARN(event, region))
 }
 
 func (lp *LifecycleProcessor) initFromALBEvent(event events.ALBTargetGroupRequest) {
-	lp.addTag("function_trigger.event_source", trigger.ExtractAlbEventARN(event))
+	lp.addTag("function_trigger.event_source", "application-load-balancer")
+	lp.addTag("function_trigger.event_source_arn", trigger.ExtractAlbEventARN(event))
 	lp.addTags(trigger.GetTagsFromALBTargetGroupRequest(event))
 }
 
 func (lp *LifecycleProcessor) initFromCloudWatchEvent(event events.CloudWatchEvent) {
-	lp.addTag("function_trigger.event_source", trigger.ExtractCloudwatchEventARN(event))
+	lp.addTag("function_trigger.event_source", "cloudwatch-events")
+	lp.addTag("function_trigger.event_source_arn", trigger.ExtractCloudwatchEventARN(event))
 }
 
 func (lp *LifecycleProcessor) initFromDynamoDBStreamEvent(event events.DynamoDBEvent) {
-	lp.addTag("function_trigger.event_source", trigger.ExtractDynamoDBStreamEventARN(event))
+	lp.addTag("function_trigger.event_source", "dynamodb")
+	lp.addTag("function_trigger.event_source_arn", trigger.ExtractDynamoDBStreamEventARN(event))
 }
 
 func (lp *LifecycleProcessor) initFromKinesisStreamEvent(event events.KinesisEvent) {
-	lp.addTag("function_trigger.event_source", trigger.ExtractKinesisStreamEventARN(event))
+	lp.addTag("function_trigger.event_source", "kinesis")
+	lp.addTag("function_trigger.event_source_arn", trigger.ExtractKinesisStreamEventARN(event))
 }
 
 func (lp *LifecycleProcessor) initFromS3Event(event events.S3Event) {
-	lp.addTag("function_trigger.event_source", trigger.ExtractS3EventArn(event))
+	lp.addTag("function_trigger.event_source", "s3")
+	lp.addTag("function_trigger.event_source_arn", trigger.ExtractS3EventArn(event))
 }
 
 func (lp *LifecycleProcessor) initFromSNSEvent(event events.SNSEvent) {
 	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
 		lp.GetInferredSpan().EnrichInferredSpanWithSNSEvent(event)
 	}
-	lp.addTag("function_trigger.event_source", trigger.ExtractSNSEventArn(event))
+	lp.addTag("function_trigger.event_source", "sns")
+	lp.addTag("function_trigger.event_source_arn", trigger.ExtractSNSEventArn(event))
 }
 
 func (lp *LifecycleProcessor) initFromSQSEvent(event events.SQSEvent) {
-	lp.addTag("function_trigger.event_source", trigger.ExtractSQSEventARN(event))
+	lp.addTag("function_trigger.event_source", "sqs")
+	lp.addTag("function_trigger.event_source_arn", trigger.ExtractSQSEventARN(event))
 
 }
 
 func (lp *LifecycleProcessor) initFromLambdaFunctionURLEvent(event events.LambdaFunctionURLRequest) {
-
+	lp.addTag("function_trigger.event_source", "lambda-function-url")
 }
 
 // TODO: Figure out how to get the event ARN for cloudwatch events
