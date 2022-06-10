@@ -65,22 +65,22 @@ func (c *Client) TUFVersionState() (TUFVersions, error) {
 	c.Lock()
 	defer c.Unlock()
 
-	drv, err := c.directorLocalStore.GetMetaVersion("root.json")
+	drv, err := c.directorLocalStore.GetMetaVersion(metaRoot)
 	if err != nil {
 		return TUFVersions{}, err
 	}
 
-	dtv, err := c.directorLocalStore.GetMetaVersion("targets.json")
+	dtv, err := c.directorLocalStore.GetMetaVersion(metaTargets)
 	if err != nil {
 		return TUFVersions{}, err
 	}
 
-	crv, err := c.configLocalStore.GetMetaVersion("root.json")
+	crv, err := c.configLocalStore.GetMetaVersion(metaRoot)
 	if err != nil {
 		return TUFVersions{}, err
 	}
 
-	csv, err := c.configLocalStore.GetMetaVersion("snapshot.json")
+	csv, err := c.configLocalStore.GetMetaVersion(metaSnapshot)
 	if err != nil {
 		return TUFVersions{}, err
 	}
