@@ -407,8 +407,6 @@ require (
 	k8s.io/apiextensions-apiserver v0.23.5 // indirect
 )
 
-require github.com/containernetworking/plugins v1.1.1 // indirect
-
 require github.com/aws/aws-lambda-go v1.32.0
 
 require (
