@@ -401,6 +401,7 @@ def stress_tests(
 def functional_tests(
     ctx,
     verbose=False,
+    race=False,
     go_version=None,
     arch=CURRENT_ARCH,
     major_version='7',
@@ -417,6 +418,7 @@ def functional_tests(
         output=output,
         bundle_ebpf=bundle_ebpf,
         skip_linters=skip_linters,
+        build_flags="-race" if race else "",
     )
 
     run_functional_tests(
