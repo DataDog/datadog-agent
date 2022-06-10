@@ -94,7 +94,7 @@ func startExecutionSpan(executionContext *ExecutionStartInfo, inferredSpan *infe
 
 // endExecutionSpan builds the function execution span and sends it to the intake.
 // It should be called at the end of the invocation.
-func endExecutionSpan(executionContext *ExecutionStartInfo, processTrace func(p *api.Payload), requestID string, endTime time.Time, isError bool, responsePayload []byte) {
+func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[string]string, processTrace func(p *api.Payload), requestID string, endTime time.Time, isError bool, responsePayload []byte) {
 	duration := endTime.UnixNano() - executionContext.startTime.UnixNano()
 
 	executionSpan := &pb.Span{
@@ -107,10 +107,10 @@ func endExecutionSpan(executionContext *ExecutionStartInfo, processTrace func(p 
 		ParentID: executionContext.parentID,
 		Start:    executionContext.startTime.UnixNano(),
 		Duration: duration,
-		Meta: map[string]string{
-			"request_id": requestID,
-		},
+		Meta:     triggerTags,
 	}
+	executionSpan.Meta["request_id"] = requestID
+
 	captureLambdaPayloadEnabled := config.Datadog.GetBool("capture_lambda_payload")
 	if captureLambdaPayloadEnabled {
 		executionSpan.Meta["function.request"] = executionContext.requestPayload

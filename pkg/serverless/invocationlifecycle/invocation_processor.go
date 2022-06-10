@@ -11,6 +11,6 @@ type InvocationProcessor interface {
 	OnInvokeStart(startDetails *InvocationStartDetails)
 	// OnInvokeEnd is the hook triggered when an invocation has ended
 	OnInvokeEnd(endDetails *InvocationEndDetails)
-	// GetExecutionContext returns the current execution context
-	GetExecutionContext() *ExecutionStartInfo
+	// GetExecutionInfo returns the current execution start information
+	GetExecutionInfo() *ExecutionStartInfo
 }

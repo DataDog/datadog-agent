@@ -72,12 +72,12 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	s.daemon.InvocationProcessor.OnInvokeStart(startDetails)
 
-	if s.daemon.InvocationProcessor.GetExecutionContext().TraceID == 0 {
+	if s.daemon.InvocationProcessor.GetExecutionInfo().TraceID == 0 {
 		log.Debug("no context has been found, the tracer will be responsible for initializing the context")
 	} else {
 		log.Debug("a context has been found, sending the context to the tracer")
-		w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", s.daemon.InvocationProcessor.GetExecutionContext().TraceID))
-		w.Header().Set(invocationlifecycle.SamplingPriorityHeader, fmt.Sprintf("%v", s.daemon.InvocationProcessor.GetExecutionContext().SamplingPriority))
+		w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", s.daemon.InvocationProcessor.GetExecutionInfo().TraceID))
+		w.Header().Set(invocationlifecycle.SamplingPriorityHeader, fmt.Sprintf("%v", s.daemon.InvocationProcessor.GetExecutionInfo().SamplingPriority))
 	}
 }
 
@@ -105,7 +105,7 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Debug(responseBody)
 	log.Debug("Header: %+v", r.Header)
-	executionContext := e.daemon.InvocationProcessor.GetExecutionContext()
+	executionContext := e.daemon.InvocationProcessor.GetExecutionInfo()
 	if executionContext.TraceID == 0 {
 		log.Debug("no context has been found yet, injecting it now via headers from the tracer")
 		invocationlifecycle.InjectContext(executionContext, r.Header)
@@ -120,9 +120,9 @@ type TraceContext struct {
 }
 
 func (tc *TraceContext) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	executionContext := tc.daemon.InvocationProcessor.GetExecutionContext()
+	executionInfo := tc.daemon.InvocationProcessor.GetExecutionInfo()
 	log.Debug("Hit on the serverless.TraceContext route.")
-	w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", executionContext.TraceID))
-	w.Header().Set(invocationlifecycle.SpanIDHeader, fmt.Sprintf("%v", executionContext.SpanID))
-	w.Header().Set(invocationlifecycle.SamplingPriorityHeader, fmt.Sprintf("%v", executionContext.SamplingPriority))
+	w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", executionInfo.TraceID))
+	w.Header().Set(invocationlifecycle.SpanIDHeader, fmt.Sprintf("%v", executionInfo.SpanID))
+	w.Header().Set(invocationlifecycle.SamplingPriorityHeader, fmt.Sprintf("%v", executionInfo.SamplingPriority))
 }

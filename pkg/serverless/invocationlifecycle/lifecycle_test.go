@@ -13,7 +13,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 
 	"github.com/stretchr/testify/assert"
@@ -71,13 +73,13 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 
 	testProcessor.OnInvokeStart(&startDetails)
 
-	assert.NotNil(t, testProcessor.GetExecutionContext())
+	assert.NotNil(t, testProcessor.GetExecutionInfo())
 
-	assert.Equal(t, uint64(0), testProcessor.GetExecutionContext().SpanID)
-	assert.Equal(t, uint64(5736943178450432258), testProcessor.GetExecutionContext().TraceID)
-	assert.Equal(t, uint64(1480558859903409531), testProcessor.GetExecutionContext().parentID)
-	assert.Equal(t, sampler.SamplingPriority(1), testProcessor.GetExecutionContext().SamplingPriority)
-	assert.Equal(t, startInvocationTime, testProcessor.GetExecutionContext().startTime)
+	assert.Equal(t, uint64(0), testProcessor.GetExecutionInfo().SpanID)
+	assert.Equal(t, uint64(5736943178450432258), testProcessor.GetExecutionInfo().TraceID)
+	assert.Equal(t, uint64(1480558859903409531), testProcessor.GetExecutionInfo().parentID)
+	assert.Equal(t, sampler.SamplingPriority(1), testProcessor.GetExecutionInfo().SamplingPriority)
+	assert.Equal(t, startInvocationTime, testProcessor.GetExecutionInfo().startTime)
 }
 
 func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
@@ -99,9 +101,9 @@ func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
 	}
 	testProcessor.OnInvokeStart(&startDetails)
 
-	assert.NotEqual(t, 0, testProcessor.GetExecutionContext().SpanID)
-	assert.NotEqual(t, 0, testProcessor.GetExecutionContext().TraceID)
-	assert.Equal(t, startInvocationTime, testProcessor.GetExecutionContext().startTime)
+	assert.NotEqual(t, 0, testProcessor.GetExecutionInfo().SpanID)
+	assert.NotEqual(t, 0, testProcessor.GetExecutionInfo().TraceID)
+	assert.Equal(t, startInvocationTime, testProcessor.GetExecutionInfo().startTime)
 }
 
 func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
@@ -130,13 +132,14 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
 		Demux:               demux,
 		requestHandler: &RequestHandler{
-			executionContext: &ExecutionStartInfo{
+			executionInfo: &ExecutionStartInfo{
 				startTime:        startInvocationTime,
 				TraceID:          123,
 				SpanID:           1,
 				parentID:         3,
 				SamplingPriority: samplingPriority,
 			},
+			triggerTags: make(map[string]string),
 		},
 	}
 	testProcessor.OnInvokeEnd(&endDetails)
@@ -146,10 +149,10 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 	assert.Equal(t, "aws.lambda", executionSpan.Service)
 	assert.Equal(t, "TestFunction", executionSpan.Resource)
 	assert.Equal(t, "serverless", executionSpan.Type)
-	assert.Equal(t, testProcessor.requestHandler.executionContext.TraceID, executionSpan.TraceID)
-	assert.Equal(t, testProcessor.requestHandler.executionContext.SpanID, executionSpan.SpanID)
-	assert.Equal(t, testProcessor.requestHandler.executionContext.parentID, executionSpan.ParentID)
-	assert.Equal(t, int32(testProcessor.requestHandler.executionContext.SamplingPriority), executionChunkPriority)
+	assert.Equal(t, testProcessor.GetExecutionInfo().TraceID, executionSpan.TraceID)
+	assert.Equal(t, testProcessor.GetExecutionInfo().SpanID, executionSpan.SpanID)
+	assert.Equal(t, testProcessor.GetExecutionInfo().parentID, executionSpan.ParentID)
+	assert.Equal(t, int32(testProcessor.GetExecutionInfo().SamplingPriority), executionChunkPriority)
 	assert.Equal(t, startInvocationTime.UnixNano(), executionSpan.Start)
 	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
 }
@@ -176,11 +179,12 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
 		Demux:               demux,
 		requestHandler: &RequestHandler{
-			executionContext: &ExecutionStartInfo{
+			executionInfo: &ExecutionStartInfo{
 				startTime: startInvocationTime,
 				TraceID:   123,
 				SpanID:    1,
 			},
+			triggerTags: make(map[string]string),
 		},
 	}
 
@@ -217,25 +221,29 @@ func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 		Demux:                demux,
 		InferredSpansEnabled: true,
 		requestHandler: &RequestHandler{
-			executionContext: &ExecutionStartInfo{
+			executionInfo: &ExecutionStartInfo{
 				startTime:        startInvocationTime,
 				TraceID:          123,
 				SpanID:           1,
 				parentID:         3,
 				SamplingPriority: samplingPriority,
 			},
+			triggerTags: make(map[string]string),
+			inferredSpan: &inferredspan.InferredSpan{
+				CurrentInvocationStartTime: startInferredSpan,
+				Span: &pb.Span{
+					TraceID: 123,
+					SpanID:  3,
+					Start:   startInferredSpan.UnixNano(),
+				},
+			},
 		},
 	}
-
-	testProcessor.requestHandler.CreateNewInferredSpan(startInferredSpan)
-	testProcessor.requestHandler.inferredSpanContext.Span.TraceID = 123
-	testProcessor.requestHandler.inferredSpanContext.Span.SpanID = 3
-	testProcessor.requestHandler.inferredSpanContext.Span.Start = startInferredSpan.UnixNano()
 
 	testProcessor.OnInvokeEnd(&endDetails)
 
 	completedInferredSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
-	assert.Equal(t, testProcessor.requestHandler.inferredSpanContext.Span.Start, completedInferredSpan.Start)
+	assert.Equal(t, testProcessor.GetInferredSpan().Span.Start, completedInferredSpan.Start)
 }
 
 func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
@@ -265,19 +273,24 @@ func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
 		Demux:                demux,
 		InferredSpansEnabled: true,
 		requestHandler: &RequestHandler{
-			executionContext: &ExecutionStartInfo{
+			executionInfo: &ExecutionStartInfo{
 				startTime:        startInvocationTime,
 				TraceID:          123,
 				SpanID:           1,
 				parentID:         3,
 				SamplingPriority: samplingPriority,
 			},
+			triggerTags: make(map[string]string),
+			inferredSpan: &inferredspan.InferredSpan{
+				CurrentInvocationStartTime: time.Time{},
+				Span: &pb.Span{
+					TraceID: 123,
+					SpanID:  3,
+					Start:   0,
+				},
+			},
 		},
 	}
-
-	testProcessor.requestHandler.CreateNewInferredSpan(time.Time{})
-	testProcessor.requestHandler.inferredSpanContext.Span.TraceID = 123
-	testProcessor.requestHandler.inferredSpanContext.Span.SpanID = 3
 
 	testProcessor.OnInvokeEnd(&endDetails)
 
@@ -286,4 +299,231 @@ func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
 	// not the inferred span start time.
 	completedInferredSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, startInvocationTime.UnixNano(), completedInferredSpan.Start)
+}
+func TestTriggerTypesLifecycleEventForAPIGatewayRest(t *testing.T) {
+	os.Setenv("AWS_REGION", "us-east-1")
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: string(getEventFromFile("api-gateway.json")),
+	}
+
+	testProcessor := &LifecycleProcessor{
+		DetectLambdaLibrary: func() bool { return false },
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	assert.Equal(t, map[string]string{
+		"function_trigger.event_source": "arn:aws:apigateway:us-east-1::/restapis/1234567890/stages/prod",
+		"http.method":                   "POST",
+		"http.url":                      "70ixmpl4fl.execute-api.us-east-2.amazonaws.com",
+		"http.url_details.path":         "/prod/path/to/resource",
+	}, testProcessor.GetTags())
+}
+
+func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy(t *testing.T) {
+	os.Setenv("AWS_REGION", "us-east-1")
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: string(getEventFromFile("api-gateway-non-proxy.json")),
+	}
+
+	testProcessor := &LifecycleProcessor{
+		DetectLambdaLibrary: func() bool { return false },
+		ProcessTrace:        func(*api.Payload) {},
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		RequestID:          "test-request-id",
+		ResponseRawPayload: []byte(`{"statusCode": 200}`),
+	})
+	assert.Equal(t, map[string]string{
+		"function_trigger.event_source": "arn:aws:apigateway:us-east-1::/restapis/lgxbo6a518/stages/dev",
+		"http.method":                   "GET",
+		"http.url":                      "lgxbo6a518.execute-api.sa-east-1.amazonaws.com",
+		"http.url_details.path":         "/dev/http/get",
+		"request_id":                    "test-request-id",
+		"http.status_code":              "200",
+	}, testProcessor.GetTags())
+}
+
+func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket(t *testing.T) {
+	os.Setenv("AWS_REGION", "us-east-1")
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: string(getEventFromFile("api-gateway-websocket-default.json")),
+	}
+
+	testProcessor := &LifecycleProcessor{
+		DetectLambdaLibrary: func() bool { return false },
+		ProcessTrace:        func(*api.Payload) {},
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		RequestID:          "test-request-id",
+		ResponseRawPayload: []byte(`{"statusCode": 200}`),
+	})
+	assert.Equal(t, map[string]string{
+		"function_trigger.event_source": "arn:aws:apigateway:us-east-1::/restapis/p62c47itsb/stages/dev",
+		"request_id":                    "test-request-id",
+		"http.status_code":              "200",
+	}, testProcessor.GetTags())
+}
+
+func TestTriggerTypesLifecycleEventForALB(t *testing.T) {
+	os.Setenv("AWS_REGION", "us-east-1")
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: string(getEventFromFile("application-load-balancer.json")),
+	}
+
+	testProcessor := &LifecycleProcessor{
+		DetectLambdaLibrary: func() bool { return false },
+		ProcessTrace:        func(*api.Payload) {},
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		RequestID:          "test-request-id",
+		ResponseRawPayload: []byte(`{"statusCode": 200}`),
+	})
+	assert.Equal(t, map[string]string{
+		"function_trigger.event_source": "arn:aws:elasticloadbalancing:us-east-2:123456789012:targetgroup/lambda-xyz/123abc",
+		"request_id":                    "test-request-id",
+		"http.status_code":              "200",
+		"http.method":                   "GET",
+		"http.url_details.path":         "/lambda",
+	}, testProcessor.GetTags())
+}
+
+func TestTriggerTypesLifecycleEventForCloudwatch(t *testing.T) {
+	os.Setenv("AWS_REGION", "us-east-1")
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: string(getEventFromFile("cloudwatch-events.json")),
+	}
+
+	testProcessor := &LifecycleProcessor{
+		DetectLambdaLibrary: func() bool { return false },
+		ProcessTrace:        func(*api.Payload) {},
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		RequestID: "test-request-id",
+	})
+	assert.Equal(t, map[string]string{
+		"function_trigger.event_source": "arn:aws:events:us-east-1:123456789012:rule/ExampleRule",
+		"request_id":                    "test-request-id",
+	}, testProcessor.GetTags())
+}
+
+func TestTriggerTypesLifecycleEventForDynamoDB(t *testing.T) {
+	os.Setenv("AWS_REGION", "us-east-1")
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: string(getEventFromFile("dynamodb.json")),
+	}
+
+	testProcessor := &LifecycleProcessor{
+		DetectLambdaLibrary: func() bool { return false },
+		ProcessTrace:        func(*api.Payload) {},
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		RequestID: "test-request-id",
+	})
+	assert.Equal(t, map[string]string{
+		"function_trigger.event_source": "arn:aws:dynamodb:us-east-1:123456789012:table/ExampleTableWithStream/stream/2015-06-27T00:48:05.899",
+		"request_id":                    "test-request-id",
+	}, testProcessor.GetTags())
+}
+
+func TestTriggerTypesLifecycleEventForKinesis(t *testing.T) {
+	os.Setenv("AWS_REGION", "us-east-1")
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: string(getEventFromFile("kinesis-batch.json")),
+	}
+
+	testProcessor := &LifecycleProcessor{
+		DetectLambdaLibrary: func() bool { return false },
+		ProcessTrace:        func(*api.Payload) {},
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		RequestID: "test-request-id",
+	})
+	assert.Equal(t, map[string]string{
+		"function_trigger.event_source": "arn:aws:kinesis:sa-east-1:601427279990:stream/kinesisStream",
+		"request_id":                    "test-request-id",
+	}, testProcessor.GetTags())
+}
+
+func TestTriggerTypesLifecycleEventForS3(t *testing.T) {
+	os.Setenv("AWS_REGION", "us-east-1")
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: string(getEventFromFile("s3.json")),
+	}
+
+	testProcessor := &LifecycleProcessor{
+		DetectLambdaLibrary: func() bool { return false },
+		ProcessTrace:        func(*api.Payload) {},
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		RequestID: "test-request-id",
+	})
+	assert.Equal(t, map[string]string{
+		"function_trigger.event_source": "aws:s3:sample:event:source",
+		"request_id":                    "test-request-id",
+	}, testProcessor.GetTags())
+}
+
+func TestTriggerTypesLifecycleEventForSNS(t *testing.T) {
+	os.Setenv("AWS_REGION", "us-east-1")
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: string(getEventFromFile("sns-batch.json")),
+	}
+
+	testProcessor := &LifecycleProcessor{
+		DetectLambdaLibrary: func() bool { return false },
+		ProcessTrace:        func(*api.Payload) {},
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		RequestID: "test-request-id",
+	})
+	assert.Equal(t, map[string]string{
+		"function_trigger.event_source": "arn:aws:sns:sa-east-1:601427279990:serverlessTracingTopicPy",
+		"request_id":                    "test-request-id",
+	}, testProcessor.GetTags())
+}
+
+func TestTriggerTypesLifecycleEventForSQS(t *testing.T) {
+	os.Setenv("AWS_REGION", "us-east-1")
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: string(getEventFromFile("sqs-batch.json")),
+	}
+
+	testProcessor := &LifecycleProcessor{
+		DetectLambdaLibrary: func() bool { return false },
+		ProcessTrace:        func(*api.Payload) {},
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		RequestID: "test-request-id",
+	})
+	assert.Equal(t, map[string]string{
+		"function_trigger.event_source": "arn:aws:sqs:sa-east-1:601427279990:InferredSpansQueueNode",
+		"request_id":                    "test-request-id",
+	}, testProcessor.GetTags())
+}
+
+// Helper function for reading test file
+func getEventFromFile(filename string) []byte {
+	event, err := os.ReadFile("../trace/testdata/event_samples/" + filename)
+	if err != nil {
+		panic(err)
+	}
+	return event
 }

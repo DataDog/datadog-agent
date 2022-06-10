@@ -193,7 +193,7 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 		tracePayload = payload
 	}
 
-	endExecutionSpan(currentExecutionInfo, mockProcessTrace, "test-request-id", endTime, isError, []byte(`{"response":"test response payload"}`))
+	endExecutionSpan(currentExecutionInfo, make(map[string]string), mockProcessTrace, "test-request-id", endTime, isError, []byte(`{"response":"test response payload"}`))
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.lambda", executionSpan.Name)
 	assert.Equal(t, "aws.lambda", executionSpan.Service)
@@ -226,7 +226,7 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 		tracePayload = payload
 	}
 
-	endExecutionSpan(currentExecutionInfo, mockProcessTrace, "test-request-id", endTime, isError, []byte(`{"response":"test response payload"}`))
+	endExecutionSpan(currentExecutionInfo, make(map[string]string), mockProcessTrace, "test-request-id", endTime, isError, []byte(`{"response":"test response payload"}`))
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.lambda", executionSpan.Name)
 	assert.Equal(t, "aws.lambda", executionSpan.Service)
@@ -257,7 +257,7 @@ func TestEndExecutionSpanWithError(t *testing.T) {
 		tracePayload = payload
 	}
 
-	endExecutionSpan(currentExecutionInfo, mockProcessTrace, "test-request-id", endTime, isError, []byte("{}"))
+	endExecutionSpan(currentExecutionInfo, make(map[string]string), mockProcessTrace, "test-request-id", endTime, isError, []byte("{}"))
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, executionSpan.Error, int32(1))
 }

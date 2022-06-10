@@ -1,91 +1,168 @@
 package trigger
 
-// ExtractionFunction is the signature of a function which takes in a payload
-// event and returns the ARN or identifier of the event type.
-type ExtractionFunction func(map[string]interface{}) string
+import (
+	"encoding/json"
+	"fmt"
+	"strconv"
+	"strings"
 
-// ExtractEventARN takes in an event and returns the source of the payload,
-// such as SNS, SQS, etc..
-func ExtractEventARN(event map[string]interface{}) (string, error) {
-	eventExtractors := map[AWSEventType]ExtractionFunction{
-		APIGatewayEvent:          extractAPIGatewayEventARN,
-		APIGatewayV2Event:        extractAPIGatewayV2EventARN,
-		APIGatewayWebsocketEvent: extractAPIGatewayWebSocketEventARN,
-		ALBEvent:                 extractAlbEventARN,
-		CloudWatchEvent:          extractCloudwatchEventARN,
-		CloudWatchLogsEvent:      extractCloudwatchLogsEventARN,
-		CloudFrontRequestEvent:   extractCloudFrontRequestEventARN,
-		DynamoDBStreamEvent:      extractDynamoDBStreamEventARN,
-		KinesisStreamEvent:       extractKinesisStreamEventARN,
-		S3Event:                  extractS3EventArn,
-		SNSEvent:                 extractSNSEventArn,
-		SQSEvent:                 extractSQSEventARN,
-		SNSSQSEvent:              extractSNSSQSEventARN,
-		AppSyncResolverEvent:     extractAppSyncResolverEventARN,
-		EventBridgeEvent:         extractEventBridgeEventARN,
+	"github.com/aws/aws-lambda-go/events"
+)
+
+// awsHTTPResponseStruct contains a generic field shared between
+// all http response payload. Right now, that's API Gateway, ALB,
+// and Function URLs.
+type awsHTTPResponseStruct struct {
+	StatusCode int `json:"statusCode"`
+}
+
+// getAWSPartitionByRegion parses an AWS region and returns an AWS partition
+func getAWSPartitionByRegion(region string) string {
+	if strings.HasPrefix(region, "us-gov-") {
+		return "aws-us-gov"
+	} else if strings.HasPrefix(region, "cn-") {
+		return "aws-cn"
+	} else {
+		return "aws"
+	}
+}
+
+// ExtractAPIGatewayEventARN returns an ARN from an APIGatewayProxyRequest
+func ExtractAPIGatewayEventARN(event events.APIGatewayProxyRequest, region string) string {
+	requestContext := event.RequestContext
+	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", getAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
+}
+
+// ExtractAPIGatewayV2EventARN returns an ARN from an APIGatewayV2HTTPRequest
+func ExtractAPIGatewayV2EventARN(event events.APIGatewayV2HTTPRequest, region string) string {
+	requestContext := event.RequestContext
+	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", getAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
+}
+
+// ExtractAPIGatewayWebSocketEventARN returns an ARN from an APIGatewayWebsocketProxyRequest
+func ExtractAPIGatewayWebSocketEventARN(event events.APIGatewayWebsocketProxyRequest, region string) string {
+	requestContext := event.RequestContext
+	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", getAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
+}
+
+// ExtractAlbEventARN returns an ARN from an ALBTargetGroupRequest
+func ExtractAlbEventARN(event events.ALBTargetGroupRequest) string {
+	return event.RequestContext.ELB.TargetGroupArn
+}
+
+// ExtractCloudwatchEventARN returns an ARN from a CloudWatchEvent
+func ExtractCloudwatchEventARN(event events.CloudWatchEvent) string {
+	return event.Resources[0]
+}
+
+// ExtractCloudwatchLogsEventARN returns an ARN from a CloudwatchLogsEvent
+func ExtractCloudwatchLogsEventARN(event events.CloudwatchLogsEvent, region string, accountID string) (string, error) {
+	decodedLog, err := event.AWSLogs.Parse()
+	if err != nil {
+		return "", fmt.Errorf("Couldn't decode Cloudwatch Logs event: %v", err)
+	}
+	return fmt.Sprintf("arn:%v:logs:%v:%v:log-group:%v", getAWSPartitionByRegion(region), region, accountID, decodedLog.LogGroup), nil
+}
+
+// ExtractDynamoDBStreamEventARN returns an ARN from a DynamoDBEvent
+func ExtractDynamoDBStreamEventARN(event events.DynamoDBEvent) string {
+	return event.Records[0].EventSourceArn
+}
+
+// ExtractKinesisStreamEventARN returns an ARN from a KinesisEvent
+func ExtractKinesisStreamEventARN(event events.KinesisEvent) string {
+	return event.Records[0].EventSourceArn
+}
+
+// ExtractS3EventArn returns an ARN from a S3Event
+func ExtractS3EventArn(event events.S3Event) string {
+	return event.Records[0].EventSource
+}
+
+// ExtractSNSEventArn returns an ARN from a SNSEvent
+func ExtractSNSEventArn(event events.SNSEvent) string {
+	return event.Records[0].SNS.TopicArn
+}
+
+// ExtractSQSEventARN returns an ARN from a SQSEvent
+func ExtractSQSEventARN(event events.SQSEvent) string {
+	return event.Records[0].EventSourceARN
+}
+
+// GetTagsFromAPIGatewayEvent returns a tagset containing http tags from an
+// APIGatewayProxyRequest
+func GetTagsFromAPIGatewayEvent(event events.APIGatewayProxyRequest) map[string]string {
+	httpTags := make(map[string]string)
+	if event.RequestContext.DomainName != "" {
+		httpTags["http.url"] = event.RequestContext.DomainName
+	}
+	httpTags["http.url_details.path"] = event.RequestContext.Path
+	httpTags["http.method"] = event.RequestContext.HTTPMethod
+	if event.Headers != nil {
+		if event.Headers["Referer"] != "" {
+			httpTags["http.referer"] = event.Headers["Referer"]
+		}
+	}
+	return httpTags
+}
+
+// GetTagsFromAPIGatewayV2HTTPRequest returns a tagset containing http tags from an
+// APIGatewayProxyRequest
+func GetTagsFromAPIGatewayV2HTTPRequest(event events.APIGatewayV2HTTPRequest) map[string]string {
+	httpTags := make(map[string]string)
+	httpTags["http.url"] = event.RequestContext.DomainName
+	httpTags["http.url_details.path"] = event.RequestContext.HTTP.Path
+	httpTags["http.method"] = event.RequestContext.HTTP.Method
+	if event.Headers != nil {
+		if event.Headers["Referer"] != "" {
+			httpTags["http.referer"] = event.Headers["Referer"]
+		}
+	}
+	return httpTags
+}
+
+// GetTagsFromALBTargetGroupRequest returns a tagset containing http tags from an
+// ALBTargetGroupRequest
+func GetTagsFromALBTargetGroupRequest(event events.ALBTargetGroupRequest) map[string]string {
+	httpTags := make(map[string]string)
+	httpTags["http.url_details.path"] = event.Path
+	httpTags["http.method"] = event.HTTPMethod
+	if event.Headers != nil {
+		if event.Headers["Referer"] != "" {
+			httpTags["http.referer"] = event.Headers["Referer"]
+		}
+	}
+	return httpTags
+}
+
+// GetTagsFromLambdaFunctionURLRequest returns a tagset containing http tags from a
+// LambdaFunctionURLRequest
+func GetTagsFromLambdaFunctionURLRequest(event events.LambdaFunctionURLRequest) map[string]string {
+	httpTags := make(map[string]string)
+	if event.RequestContext.DomainName != "" {
+		httpTags["http.url"] = event.RequestContext.DomainName
+	}
+	httpTags["http.url_details.path"] = event.RequestContext.HTTP.Path
+	httpTags["http.method"] = event.RequestContext.HTTP.Method
+	if event.Headers != nil {
+		if event.Headers["Referer"] != "" {
+			httpTags["http.referer"] = event.Headers["Referer"]
+		}
+	}
+	return httpTags
+}
+
+// ExtractStatusCodeFromHTTPResponse parses a generic payload and returns
+// a status code, if it contains one. Returns an empty string if it does not.
+func ExtractStatusCodeFromHTTPResponse(rawPayload []byte) (string, error) {
+	var response awsHTTPResponseStruct
+	err := json.Unmarshal(rawPayload, &response)
+	if err != nil {
+		return "", err
+	}
+	if response.StatusCode > 0 {
+		return strconv.Itoa(response.StatusCode), nil
 	}
 
-	eventType := GetEventType(event)
-
-	return eventExtractors[eventType](event), nil
-}
-
-func extractAPIGatewayEventARN(event map[string]interface{}) string {
-	return ""
-}
-
-func extractAPIGatewayV2EventARN(event map[string]interface{}) string {
-	return ""
-}
-
-func extractAPIGatewayWebSocketEventARN(event map[string]interface{}) string {
-	return ""
-}
-
-func extractAlbEventARN(event map[string]interface{}) string {
-	return ""
-}
-
-func extractCloudwatchEventARN(event map[string]interface{}) string {
-	return ""
-}
-
-func extractCloudwatchLogsEventARN(event map[string]interface{}) string {
-	return ""
-}
-
-func extractCloudFrontRequestEventARN(event map[string]interface{}) string {
-	return ""
-}
-
-func extractDynamoDBStreamEventARN(event map[string]interface{}) string {
-	return ""
-}
-
-func extractKinesisStreamEventARN(event map[string]interface{}) string {
-	return ""
-}
-
-func extractS3EventArn(event map[string]interface{}) string {
-	return ""
-}
-
-func extractSNSEventArn(event map[string]interface{}) string {
-	return ""
-}
-
-func extractSQSEventARN(event map[string]interface{}) string {
-	return ""
-}
-
-func extractSNSSQSEventARN(event map[string]interface{}) string {
-	return ""
-}
-
-func extractAppSyncResolverEventARN(event map[string]interface{}) string {
-	return ""
-}
-
-func extractEventBridgeEventARN(event map[string]interface{}) string {
-	return ""
+	return "", nil
 }
