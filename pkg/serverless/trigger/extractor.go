@@ -9,20 +9,6 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 )
 
-// awsHTTPResponseStructInt contains a generic field shared between
-// all http response payload. Right now, that's API Gateway, ALB,
-// and Function URLs.
-type awsHTTPResponseStructInt struct {
-	StatusCode int `json:"statusCode"`
-}
-
-// awsHTTPResponseStructInt contains a generic field shared between
-// all http response payload. Right now, that's API Gateway, ALB,
-// and Function URLs.
-type awsHTTPResponseStructString struct {
-	StatusCode string `json:"statusCode"`
-}
-
 // getAWSPartitionByRegion parses an AWS region and returns an AWS partition
 func getAWSPartitionByRegion(region string) string {
 	if strings.HasPrefix(region, "us-gov-") {
