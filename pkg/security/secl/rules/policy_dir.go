@@ -29,11 +29,12 @@ type PoliciesDirProvider struct {
 	watchedFiles         []string
 }
 
-// SetOnNewPolicyReadyCb implements the policy provider interface
+// SetOnNewPoliciesReadyCb implements the policy provider interface
 func (p *PoliciesDirProvider) SetOnNewPoliciesReadyCb(cb func()) {
 	p.onNewPoliciesReadyCb = cb
 }
 
+// Start starts the policy dir provider
 func (p *PoliciesDirProvider) Start() {}
 
 func (p *PoliciesDirProvider) loadPolicy(filename string) (*Policy, error) {
@@ -122,7 +123,7 @@ func (p *PoliciesDirProvider) LoadPolicies() ([]*Policy, *multierror.Error) {
 	return policies, errs
 }
 
-// Stop implements the policy provider interface
+// Close stops policy provider interface
 func (p *PoliciesDirProvider) Close() error {
 	if p.cancelFnc != nil {
 		p.cancelFnc()
