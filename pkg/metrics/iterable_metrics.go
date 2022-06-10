@@ -107,29 +107,29 @@ func (it *iterableMetrics) WaitForValue() bool {
 }
 
 // Serialize starts the serialization for series and sketches.
-// `sink` callback is responsible for adding the data. It runs in the current goroutine.
-// `serieSource` callback is responsible for consuming the series. It runs in its OWN goroutine.
-// `sketchesSource` callback is responsible for consuming the sketches. It runs in its OWN goroutine.
-// This function returns when both `sink`, `serieSource` and `sketchesSource` functions are finished.
+// `producer` callback is responsible for adding the data. It runs in the current goroutine.
+// `serieConsumer` callback is responsible for consuming the series. It runs in its OWN goroutine.
+// `sketchesConsumer` callback is responsible for consuming the sketches. It runs in its OWN goroutine.
+// This function returns when both `producer`, `serieConsumer` and `sketchesConsumer` functions are finished.
 func Serialize(
 	iterableSeries *IterableSeries,
 	iterableSketches *IterableSketches,
-	sink func(SerieSink, SketchesSink),
-	serieSource func(SerieSource),
-	sketchesSource func(SketchesSource)) {
+	producer func(SerieSink, SketchesSink),
+	serieConsumer func(SerieSource),
+	sketchesConsumer func(SketchesSource)) {
 	var waitGroup sync.WaitGroup
 	waitGroup.Add(2)
 	go func() {
 		defer waitGroup.Done()
-		serieSource(iterableSeries)
+		serieConsumer(iterableSeries)
 		iterableSeries.iterationStopped()
 	}()
 	go func() {
 		defer waitGroup.Done()
-		sketchesSource(iterableSketches)
+		sketchesConsumer(iterableSketches)
 		iterableSketches.iterationStopped()
 	}()
-	sink(iterableSeries, iterableSketches)
+	producer(iterableSeries, iterableSketches)
 	iterableSeries.senderStopped()
 	iterableSketches.senderStopped()
 	waitGroup.Wait()
