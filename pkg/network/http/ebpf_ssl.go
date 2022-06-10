@@ -25,6 +25,8 @@ import (
 var openSSLProbes = map[string]string{
 	"uprobe/SSL_do_handshake":    "uprobe__SSL_do_handshake",
 	"uretprobe/SSL_do_handshake": "uretprobe__SSL_do_handshake",
+	"uprobe/SSL_connect":         "uprobe__SSL_connect",
+	"uretprobe/SSL_connect":      "uretprobe__SSL_connect",
 	"uprobe/SSL_set_bio":         "uprobe__SSL_set_bio",
 	"uprobe/SSL_set_fd":          "uprobe__SSL_set_fd",
 	"uprobe/SSL_read":            "uprobe__SSL_read",

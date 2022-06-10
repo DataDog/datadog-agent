@@ -114,7 +114,6 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
     return 0;
 }
 
-
 SEC("uprobe/SSL_do_handshake")
 int uprobe__SSL_do_handshake(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -125,6 +124,21 @@ int uprobe__SSL_do_handshake(struct pt_regs* ctx) {
 
 SEC("uretprobe/SSL_do_handshake")
 int uretprobe__SSL_do_handshake(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
+    return 0;
+}
+
+SEC("uprobe/SSL_connect")
+int uprobe__SSL_connect(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
+    bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
+    return 0;
+}
+
+SEC("uretprobe/SSL_connect")
+int uretprobe__SSL_connect(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
     return 0;
