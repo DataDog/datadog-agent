@@ -236,10 +236,15 @@ end
 
 def json_info
   tmpfile = Tempfile.new('agent-status')
-  `#{agent_command} status -j -o #{tmpfile.path}`
-  info_output = File.read(tmpfile.path)
+  begin
+    `#{agent_command} status -j -o #{tmpfile.path}`
+    info_output = File.read(tmpfile.path)
 
-  JSON.parse(info_output)
+    JSON.parse(info_output)
+  ensure
+    tmpfile.close
+    tmpfile.unlink
+  end
 end
 
 def windows_service_status(service)
