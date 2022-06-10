@@ -68,6 +68,10 @@ func (lp *LifecycleProcessor) initFromLambdaFunctionURLEvent(event events.Lambda
 
 }
 
+// TODO: Figure out how to get the event ARN for cloudwatch events
+// The code in datadog-lambda-js seems to pull the ARN of the invocation function and
+// uses that for the region, which doesn't seem correct.
+//
 // func (lp *LifecycleProcessor) initFromCloudWatchLogsEvent(event events.CloudwatchLogsEvent, region string, accountID string) {
 // 	arn, err := trigger.ExtractCloudwatchLogsEventARN(event, region, accountID)
 // 	if err != nil {
