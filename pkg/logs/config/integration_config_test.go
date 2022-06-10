@@ -53,7 +53,7 @@ func TestValidateShouldFailWithInvalidConfigs(t *testing.T) {
 }
 
 func TestAutoMultilineEnabled(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	decode := func(cfg string) *LogsConfig {
 		lc := LogsConfig{}
 		json.Unmarshal([]byte(cfg), &lc)

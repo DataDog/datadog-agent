@@ -20,7 +20,7 @@ type ConfigTestSuite struct {
 }
 
 func (suite *ConfigTestSuite) SetupTest() {
-	suite.config = coreConfig.Mock()
+	suite.config = coreConfig.Mock(nil)
 }
 
 func (suite *ConfigTestSuite) TestDefaultDatadogConfig() {
