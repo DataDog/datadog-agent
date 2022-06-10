@@ -95,10 +95,7 @@ func NewDefaultContainerProvider() ContainerProvider {
 
 // GetContainers returns containers found on the machine
 func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousContainers map[string]*ContainerRateMetrics) ([]*model.Container, map[string]*ContainerRateMetrics, map[int]string, error) {
-	containersMetadata, err := p.metadataStore.ListContainers()
-	if err != nil {
-		return nil, nil, nil, err
-	}
+	containersMetadata := p.metadataStore.ListContainers()
 
 	hostCPUCount := float64(system.HostCPUCount())
 	processContainers := make([]*model.Container, 0)
