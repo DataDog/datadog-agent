@@ -193,6 +193,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 		return nil, fmt.Errorf("EVPProxy: invalid query string: %s", req.URL.RawQuery)
 	}
 
+	// Configure target URL
 	req.URL.Scheme = "https"
 	setTarget := func(r *http.Request, host, apiKey string) {
 		targetHost := subdomain + ".evp." + host
@@ -201,13 +202,13 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 		r.Header.Set("DD-API-KEY", apiKey)
 	}
 
+	// Special case if we only have one endpoint
 	if len(t.endpoints) == 1 {
 		setTarget(req, t.endpoints[0].Host, t.endpoints[0].APIKey)
 		return t.transport.RoundTrip(req)
 	}
 
 	// There's more than one destination endpoint
-
 	var slurp *[]byte
 	if req.Body != nil {
 		body, err := ioutil.ReadAll(req.Body)
