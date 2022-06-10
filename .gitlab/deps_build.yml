@@ -27,6 +27,10 @@
     - mkdir clang && tar xf clang.src.tar.xz --strip-components=1 --no-same-owner -C clang
     - mkdir llvm && tar xf llvm.src.tar.xz --strip-components=1 --no-same-owner -C llvm
     - mkdir build && cd build
+    # copy llvm cmake modules into the correct directory to ensure discovery
+    # Build runs into this issue if the correct modules cannot be discovered:
+    # https://github.com/llvm/llvm-project/issues/53281
+    - cp ../llvm/Modules/* ../llvm/cmake/modules || echo "LLVM common cmake utils not found in directory 'Modules'"
     # patch references to glibc >= 2.18
     - patch -ruN ../llvm/CMakeLists.txt < $SRC_PATH/pkg/ebpf/c/cmakelists.patch
     - patch -ruN ../llvm/lib/Analysis/ConstantFolding.cpp < $SRC_PATH/pkg/ebpf/c/constant_folding.patch
