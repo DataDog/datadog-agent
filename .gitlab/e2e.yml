@@ -29,7 +29,6 @@ k8s-e2e-dev:
 
 k8s-e2e-main:
   extends: .k8s_e2e_template
-  allow_failure: true # temporary while investigating
   rules:
     !reference [.on_main]
   needs:
