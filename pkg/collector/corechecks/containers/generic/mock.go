@@ -17,17 +17,15 @@ import (
 // MockContainerAccessor is a dummy ContainerLister for tests
 type MockContainerAccessor struct {
 	containers []*workloadmeta.Container
-	err        error
 }
 
 // List returns the mocked containers
-func (l *MockContainerAccessor) List() ([]*workloadmeta.Container, error) {
-	return l.containers, l.err
+func (l *MockContainerAccessor) List() []*workloadmeta.Container {
+	return l.containers
 }
 
 // CreateTestProcessor returns a ready-to-use Processor
 func CreateTestProcessor(listerContainers []*workloadmeta.Container,
-	listerError error,
 	metricsContainers map[string]mock.ContainerEntry,
 	metricsAdapter MetricsAdapter,
 	containerFilter ContainerFilter) (*mocksender.MockSender, *Processor, ContainerAccessor) {
@@ -42,7 +40,6 @@ func CreateTestProcessor(listerContainers []*workloadmeta.Container,
 
 	mockAccessor := MockContainerAccessor{
 		containers: listerContainers,
-		err:        listerError,
 	}
 
 	mockedSender := mocksender.NewMockSender("generic-container")

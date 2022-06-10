@@ -30,6 +30,8 @@ type RCPolicyProvider struct {
 	lastConfigs          []client.ConfigCWSDD
 }
 
+var _ rules.PolicyProvider = (*RCPolicyProvider)(nil)
+
 func NewRCPolicyProvider(name string) (*RCPolicyProvider, error) {
 	c, err := remote.NewClient(name, []data.Product{data.ProductCWSDD})
 	if err != nil {
@@ -94,6 +96,7 @@ func (r *RCPolicyProvider) SetOnNewPoliciesReadyCb(cb func()) {
 }
 
 // Stop the client
-func (r *RCPolicyProvider) Stop() {
+func (r *RCPolicyProvider) Close() error {
 	r.client.Close()
+	return nil
 }

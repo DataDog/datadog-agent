@@ -6,7 +6,6 @@
 package generic
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -55,9 +54,10 @@ func (p *Processor) RegisterExtension(id string, extension ProcessorExtension) {
 
 // Run executes the check
 func (p *Processor) Run(sender aggregator.Sender, cacheValidity time.Duration) error {
-	allContainers, err := p.ctrLister.List()
-	if err != nil {
-		return fmt.Errorf("cannot list containers from metadata store, container metrics will be missing, err: %w", err)
+	allContainers := p.ctrLister.List()
+
+	if len(allContainers) == 0 {
+		return nil
 	}
 
 	collectorsCache := make(map[workloadmeta.ContainerRuntime]metrics.Collector)
@@ -92,7 +92,7 @@ func (p *Processor) Run(sender aggregator.Sender, cacheValidity time.Duration) e
 		entityID := containers.BuildTaggerEntityName(container.ID)
 		tags, err := tagger.Tag(entityID, collectors.HighCardinality)
 		if err != nil {
-			log.Errorf("Could not collect tags for container %q, err: %w", container.ID[:12], err)
+			log.Errorf("Could not collect tags for container %q, err: %v", container.ID[:12], err)
 			continue
 		}
 		tags = p.metricsAdapter.AdaptTags(tags, container)

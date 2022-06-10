@@ -61,7 +61,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			name: "no tags",
 			genMetrics: func(t *testing.T) pmetric.Metrics {
 				h := pmetric.NewHistogramDataPoint()
-				h.SetBucketCounts([]uint64{100})
+				h.SetMBucketCounts([]uint64{100})
 				h.SetCount(100)
 				h.SetSum(0)
 
@@ -76,7 +76,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			name: "metric tags and extra tags",
 			genMetrics: func(t *testing.T) pmetric.Metrics {
 				h := pmetric.NewHistogramDataPoint()
-				h.SetBucketCounts([]uint64{100})
+				h.SetMBucketCounts([]uint64{100})
 				h.SetCount(100)
 				h.SetSum(0)
 				hAttrs := h.Attributes()
@@ -181,8 +181,8 @@ func newMetrics(
 	hdp := hdps.AppendEmpty()
 	hdp.SetCount(histogramDataPoint.Count())
 	hdp.SetSum(histogramDataPoint.Sum())
-	hdp.SetBucketCounts(histogramDataPoint.BucketCounts())
-	hdp.SetExplicitBounds(histogramDataPoint.ExplicitBounds())
+	hdp.SetMBucketCounts(histogramDataPoint.MBucketCounts())
+	hdp.SetMExplicitBounds(histogramDataPoint.MExplicitBounds())
 	hdp.SetTimestamp(histogramDataPoint.Timestamp())
 	hdpAttrs := hdp.Attributes()
 	histogramDataPoint.Attributes().Range(func(k string, v pcommon.Value) bool {

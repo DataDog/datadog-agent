@@ -155,7 +155,7 @@ func (inferredSpan *InferredSpan) GenerateInferredSpan(startTime time.Time) {
 	inferredSpan.Span = &pb.Span{
 		SpanID: random.Random.Uint64(),
 	}
-	log.Debugf("Generated new Inferred span: %s", inferredSpan)
+	log.Debugf("Generated new Inferred span: %+v", inferredSpan)
 }
 
 // IsInferredSpansEnabled is used to determine if we need to

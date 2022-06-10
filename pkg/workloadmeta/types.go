@@ -55,7 +55,7 @@ type Store interface {
 
 	// ListContainers returns metadata about all known containers, equivalent
 	// to all entities with kind KindContainer.
-	ListContainers() ([]*Container, error)
+	ListContainers() []*Container
 
 	// GetKubernetesPod returns metadata about a Kubernetes pod.  It fetches
 	// the entity with kind KindKubernetesPod and the given ID.

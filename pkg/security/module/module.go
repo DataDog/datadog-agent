@@ -70,7 +70,6 @@ type Module struct {
 	policiesVersions []string
 	policyProviders  []rules.PolicyProvider
 	policyLoader     *rules.PolicyLoader
-	rcPolicyProvider *rconfig.RCPolicyProvider
 	selfTester       *selftests.SelfTester
 }
 
@@ -150,7 +149,7 @@ func (m *Module) Start() error {
 	}
 
 	if m.config.SelfTestEnabled && m.selfTester != nil {
-		_ = m.RunSelfTest(true)
+		_ = m.RunSelfTest(true, false)
 	}
 
 	var policyProviders []rules.PolicyProvider
@@ -163,13 +162,12 @@ func (m *Module) Start() error {
 	}
 
 	// add remote config as config provider if enabled
-	var err error
 	if m.config.RemoteConfigurationEnabled {
-		m.rcPolicyProvider, err = rconfig.NewRCPolicyProvider("security-agent")
+		rcPolicyProvider, err := rconfig.NewRCPolicyProvider("security-agent")
 		if err != nil {
 			log.Errorf("will be unable to load remote policy: %s", err)
 		} else {
-			policyProviders = append(policyProviders, m.rcPolicyProvider)
+			policyProviders = append(policyProviders, rcPolicyProvider)
 		}
 	}
 
@@ -204,9 +202,8 @@ func (m *Module) Start() error {
 		}
 	}()
 
-	// start remote config if needed
-	if m.rcPolicyProvider != nil {
-		m.rcPolicyProvider.Start()
+	for _, provider := range m.policyProviders {
+		provider.Start()
 	}
 
 	return nil
@@ -388,8 +385,9 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 func (m *Module) Close() {
 	close(m.sigupChan)
 
-	// stop remote config provider
-	m.rcPolicyProvider.Stop()
+	for _, provider := range m.policyProviders {
+		_ = provider.Close()
+	}
 
 	// close the policy loader and all the related providers
 	m.policyLoader.Close()
@@ -406,7 +404,7 @@ func (m *Module) Close() {
 	}
 
 	if m.selfTester != nil {
-		_ = m.selfTester.Cleanup()
+		_ = m.selfTester.Close()
 	}
 
 	m.probe.Close()
@@ -619,16 +617,18 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 }
 
 // RunSelfTest runs the self tests
-func (m *Module) RunSelfTest(sendLoadedReport bool) error {
+func (m *Module) RunSelfTest(sendLoadedReport bool, thenRevertPolicies bool) error {
 	prevProviders, providers := m.policyProviders, m.policyProviders
 
 	// add selftests as provider
 	providers = append(providers, m.selfTester)
-	defer func() {
-		if err := m.LoadPolicies(prevProviders, false); err != nil {
-			log.Errorf("failed to load policies: %s", err)
-		}
-	}()
+	if thenRevertPolicies {
+		defer func() {
+			if err := m.LoadPolicies(prevProviders, false); err != nil {
+				log.Errorf("failed to load policies: %s", err)
+			}
+		}()
+	}
 
 	if err := m.LoadPolicies(providers, false); err != nil {
 		return err

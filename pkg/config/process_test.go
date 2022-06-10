@@ -94,6 +94,22 @@ func TestProcessDefaultConfig(t *testing.T) {
 			key:          "process_config.cmd_port",
 			defaultValue: DefaultProcessCmdPort,
 		},
+		{
+			key:          "process_config.event_collection.store.max_items",
+			defaultValue: DefaultProcessEventStoreMaxItems,
+		},
+		{
+			key:          "process_config.event_collection.store.max_pending_pushes",
+			defaultValue: DefaultProcessEventStoreMaxPendingPushes,
+		},
+		{
+			key:          "process_config.event_collection.store.max_pending_pulls",
+			defaultValue: DefaultProcessEventStoreMaxPendingPulls,
+		},
+		{
+			key:          "process_config.event_collection.store.stats_interval",
+			defaultValue: DefaultProcessEventStoreStatsInterval,
+		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
 			assert.Equal(t, tc.defaultValue, cfg.Get(tc.key))
@@ -346,6 +362,30 @@ func TestEnvVarOverride(t *testing.T) {
 			value:    "true",
 			expType:  "boolean",
 			expected: true,
+		},
+		{
+			key:      "process_config.event_collection.store.max_items",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_STORE_MAX_ITEMS",
+			value:    "400",
+			expected: 400,
+		},
+		{
+			key:      "process_config.event_collection.store.max_pending_pushes",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_STORE_MAX_PENDING_PUSHES",
+			value:    "100",
+			expected: 100,
+		},
+		{
+			key:      "process_config.event_collection.store.max_pending_pulls",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_STORE_MAX_PENDING_PULLS",
+			value:    "50",
+			expected: 50,
+		},
+		{
+			key:      "process_config.event_collection.store.stats_interval",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_STORE_STATS_INTERVAL",
+			value:    "60",
+			expected: 60,
 		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {

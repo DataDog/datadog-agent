@@ -12,45 +12,15 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-func newProcessMonitoringEvent(argCount int) *ProcessMonitoringEvent {
+func newBenchmarkProcessEvent(argCount int) *ProcessMonitoringEvent {
 	args := make([]string, 0, argCount)
 	for i := 0; i < argCount; i++ {
 		args = append(args, fmt.Sprintf("arg_%d", i))
 	}
 
-	return &ProcessMonitoringEvent{
-		EventType:      "exit",
-		CollectionTime: time.Now(),
-		ProcessCacheEntry: &model.ProcessCacheEntry{
-			ProcessContext: model.ProcessContext{
-				Process: model.Process{
-					PIDContext: model.PIDContext{
-						Pid: 42,
-					},
-					PPid: 1,
-					Credentials: model.Credentials{
-						UID:   100,
-						GID:   100,
-						User:  "dog",
-						Group: "dd-agent",
-					},
-					FileEvent: model.FileEvent{
-						PathnameStr: "/usr/bin/exe",
-					},
-					ArgsEntry: &model.ArgsEntry{
-						Values: args,
-					},
-					ForkTime: time.Now().Add(-time.Minute),
-					ExecTime: time.Now().Add(-time.Minute),
-					ExitTime: time.Now().Add(-time.Second),
-				},
-			},
-		},
-	}
+	return NewMockedProcessMonitoringEvent(Exit, time.Now(), 42, "/usr/bin/exe", args)
 }
 
 // Benchmark between JSON and messagePack serialization changing the command-line length of the collected event
@@ -62,7 +32,7 @@ func BenchmarkProcessEventsJSON1000(b *testing.B)    { benchmarkProcessEventsJSO
 func BenchmarkProcessEventsMsgPack1000(b *testing.B) { benchmarkProcessEventsMsgPack(b, 1000) }
 
 func benchmarkProcessEventsJSON(b *testing.B, argCount int) {
-	evt := newProcessMonitoringEvent(argCount)
+	evt := newBenchmarkProcessEvent(argCount)
 	for i := 0; i < b.N; i++ {
 		data, err := json.Marshal(evt)
 		require.NoError(b, err)
@@ -74,7 +44,7 @@ func benchmarkProcessEventsJSON(b *testing.B, argCount int) {
 }
 
 func benchmarkProcessEventsMsgPack(b *testing.B, argCount int) {
-	evt := newProcessMonitoringEvent(argCount)
+	evt := newBenchmarkProcessEvent(argCount)
 	for i := 0; i < b.N; i++ {
 		data, err := evt.MarshalMsg(nil)
 		require.NoError(b, err)

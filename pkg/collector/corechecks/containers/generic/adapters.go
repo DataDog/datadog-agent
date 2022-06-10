@@ -19,14 +19,14 @@ type MetricsAdapter interface {
 
 // ContainerAccessor abstracts away how to list all known containers
 type ContainerAccessor interface {
-	List() ([]*workloadmeta.Container, error)
+	List() []*workloadmeta.Container
 }
 
 // MetadataContainerAccessor implements ContainerLister interface using Workload meta service
 type MetadataContainerAccessor struct{}
 
 // List returns all known containers
-func (l MetadataContainerAccessor) List() ([]*workloadmeta.Container, error) {
+func (l MetadataContainerAccessor) List() []*workloadmeta.Container {
 	return workloadmeta.GetGlobalStore().ListContainers()
 }
 
