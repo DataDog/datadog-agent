@@ -108,8 +108,7 @@ func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain 
 
 // createEndpointUrl joins a domain with an endpoint
 func createEndpointURL(domain string, endpointInfo endpointInfo) string {
-	url := domain + endpointInfo.Endpoint.Route
-	return url
+	return domain + endpointInfo.Endpoint.Route
 }
 
 func verifyEndpointResponse(statusCode int, responseBody []byte, err error) {

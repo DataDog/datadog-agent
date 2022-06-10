@@ -41,9 +41,9 @@ var (
 	v1MetadataEndpointInfo  = endpointInfo{endpoints.V1MetadataEndpoint, "POST", emptyPayload}
 
 	// v2 endpoints
-	SeriesEndpointInfo       = endpointInfo{endpoints.SeriesEndpoint, "POST", emptyPayload}
-	SketchSeriesEndpointInfo = endpointInfo{endpoints.SketchSeriesEndpoint, "POST", emptyPayload}
+	seriesEndpointInfo       = endpointInfo{endpoints.SeriesEndpoint, "POST", emptyPayload}
+	sketchSeriesEndpointInfo = endpointInfo{endpoints.SketchSeriesEndpoint, "POST", emptyPayload}
 
 	endpointsInfo = []endpointInfo{v1SeriesEndpointInfo, v1CheckRunsEndpointInfo, v1MetadataEndpointInfo, v1IntakeEndpointInfo,
-		SeriesEndpointInfo, SketchSeriesEndpointInfo, v1ValidateEndpointInfo}
+		seriesEndpointInfo, sketchSeriesEndpointInfo, v1ValidateEndpointInfo}
 )
