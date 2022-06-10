@@ -119,7 +119,7 @@ func verifyEndpointResponse(statusCode int, responseBody []byte, err error) {
 	}
 
 	statusString := color.GreenString("PASS")
-	if statusCode >= http.StatusBadRequest {
+	if statusCode >= 400 {
 		statusString = color.RedString("FAIL")
 		fmt.Printf("Received response : '%v'\n", string(responseBody))
 	}
