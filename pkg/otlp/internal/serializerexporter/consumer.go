@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"go.uber.org/multierr"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/translator"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
@@ -122,13 +123,5 @@ func (c *serializerConsumer) flush(s serializer.MetricSerializer) error {
 			sketchesErr = s.SendSketch(sketchesSource)
 		})
 
-	if serieErr != nil && sketchesErr != nil {
-		return fmt.Errorf("serie: %v, sketches: %v", serieErr, sketchesErr)
-	}
-
-	if serieErr != nil {
-		return serieErr
-	}
-
-	return sketchesErr
+	return multierr.Append(serieErr, sketchesErr)
 }
