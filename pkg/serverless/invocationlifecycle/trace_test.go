@@ -97,7 +97,7 @@ func TestStartExecutionSpanWithoutPayload(t *testing.T) {
 }
 
 func TestStartExecutionSpanWithPayload(t *testing.T) {
-	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"-1","x-datadog-trace-id":"5736943178450432258"}}0`
+	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"-1","x-datadog-trace-id":"5736943178450432258"}}`
 	startTime := timeNow()
 	currentExecutionInfo := &ExecutionStartInfo{}
 	startExecutionSpan(currentExecutionInfo, nil, startTime, testString, LambdaInvokeEventHeaders{}, false)
@@ -110,7 +110,7 @@ func TestStartExecutionSpanWithPayload(t *testing.T) {
 
 func TestStartExecutionSpanWithPayloadAndLambdaContextHeaders(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
-	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}0`
+	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}`
 	lambdaInvokeContext := LambdaInvokeEventHeaders{
 		TraceID:          "5736943178450432258",
 		ParentID:         "1480558859903409531",
@@ -127,7 +127,7 @@ func TestStartExecutionSpanWithPayloadAndLambdaContextHeaders(t *testing.T) {
 
 func TestStartExecutionSpanWithPayloadAndInvalidIDs(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
-	invalidTestString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"INVALID","x-datadog-sampling-priority":"-1","x-datadog-trace-id":"INVALID"}}0`
+	invalidTestString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"INVALID","x-datadog-sampling-priority":"-1","x-datadog-trace-id":"INVALID"}}`
 	startTime := time.Now()
 	startExecutionSpan(currentExecutionInfo, nil, startTime, invalidTestString, LambdaInvokeEventHeaders{}, false)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
@@ -139,7 +139,7 @@ func TestStartExecutionSpanWithPayloadAndInvalidIDs(t *testing.T) {
 
 func TestStartExecutionSpanWithNoHeadersAndInferredSpan(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
-	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}0`
+	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}`
 	startTime := time.Now()
 
 	inferredSpan := &inferredspan.InferredSpan{}
@@ -158,7 +158,7 @@ func TestStartExecutionSpanWithNoHeadersAndInferredSpan(t *testing.T) {
 
 func TestStartExecutionSpanWithHeadersAndInferredSpan(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
-	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
+	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
 	startTime := time.Now()
 	inferredSpan := &inferredspan.InferredSpan{}
 	inferredSpan.Span = &pb.Span{
@@ -181,7 +181,7 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 	defer os.Unsetenv("DD_CAPTURE_LAMBDA_PAYLOAD")
 	os.Setenv(functionNameEnvVar, "TestFunction")
 	os.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "true")
-	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
+	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
 	startTime := time.Now()
 	startExecutionSpan(currentExecutionInfo, nil, startTime, testString, LambdaInvokeEventHeaders{}, false)
 
@@ -193,7 +193,7 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 		tracePayload = payload
 	}
 
-	endExecutionSpan(currentExecutionInfo, make(map[string]string), mockProcessTrace, "test-request-id", endTime, isError, []byte(`{"response":"test response payload"}`))
+	endExecutionSpan(currentExecutionInfo, make(map[string]string), mockProcessTrace, "test-request-id", endTime, isError, `{"response":"test response payload"}`)
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.lambda", executionSpan.Name)
 	assert.Equal(t, "aws.lambda", executionSpan.Service)
@@ -213,7 +213,7 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 	defer os.Unsetenv("DD_CAPTURE_LAMBDA_PAYLOAD")
 	os.Setenv(functionNameEnvVar, "TestFunction")
 	os.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "INVALID_INPUT")
-	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
+	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
 	startTime := time.Now()
 	currentExecutionInfo := &ExecutionStartInfo{}
 	startExecutionSpan(currentExecutionInfo, nil, startTime, testString, LambdaInvokeEventHeaders{}, false)
@@ -226,7 +226,7 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 		tracePayload = payload
 	}
 
-	endExecutionSpan(currentExecutionInfo, make(map[string]string), mockProcessTrace, "test-request-id", endTime, isError, []byte(`{"response":"test response payload"}`))
+	endExecutionSpan(currentExecutionInfo, make(map[string]string), mockProcessTrace, "test-request-id", endTime, isError, `{"response":"test response payload"}`)
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.lambda", executionSpan.Name)
 	assert.Equal(t, "aws.lambda", executionSpan.Service)
@@ -245,7 +245,7 @@ func TestEndExecutionSpanWithError(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
 	defer os.Unsetenv(functionNameEnvVar)
 	os.Setenv(functionNameEnvVar, "TestFunction")
-	testString := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
+	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
 	startTime := time.Now()
 	startExecutionSpan(currentExecutionInfo, nil, startTime, testString, LambdaInvokeEventHeaders{}, false)
 
@@ -257,14 +257,14 @@ func TestEndExecutionSpanWithError(t *testing.T) {
 		tracePayload = payload
 	}
 
-	endExecutionSpan(currentExecutionInfo, make(map[string]string), mockProcessTrace, "test-request-id", endTime, isError, []byte("{}"))
+	endExecutionSpan(currentExecutionInfo, make(map[string]string), mockProcessTrace, "test-request-id", endTime, isError, "{}")
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, executionSpan.Error, int32(1))
 }
 
 func TestConvertRawPayloadWithHeaders(t *testing.T) {
 
-	s := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
+	s := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
 
 	expectedPayload := invocationPayload{}
 	expectedPayload.Headers = map[string]string{"Accept": "*/*", "Accept-Encoding": "gzip", "x-datadog-parent-id": "1480558859903409531", "x-datadog-sampling-priority": "1", "x-datadog-trace-id": "5736943178450432258"}
@@ -276,11 +276,24 @@ func TestConvertRawPayloadWithHeaders(t *testing.T) {
 
 func TestConvertRawPayloadWithOutHeaders(t *testing.T) {
 
-	s := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}0`
+	s := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}`
 
 	expectedPayload := invocationPayload{}
 
 	p := convertRawPayload(s)
 
 	assert.Equal(t, p, expectedPayload)
+}
+
+func TestParseLambdaPayload(t *testing.T) {
+	assert.Equal(t, "", parseLambdaPayload(""))
+	assert.Equal(t, "{}", parseLambdaPayload("{}"))
+	assert.Equal(t, "{}", parseLambdaPayload("a{}a"))
+	assert.Equal(t, "{a}", parseLambdaPayload("{a}a"))
+	assert.Equal(t, "{a}", parseLambdaPayload("a{a}"))
+	assert.Equal(t, "{a}", parseLambdaPayload("}{a}a{"))
+	assert.Equal(t, "{}{}", parseLambdaPayload("{}{}"))
+	assert.Equal(t, "{a}", parseLambdaPayload("a{a}a"))
+	assert.Equal(t, "{", parseLambdaPayload("{"))
+	assert.Equal(t, "}", parseLambdaPayload("}"))
 }

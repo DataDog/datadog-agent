@@ -185,3 +185,12 @@ func GetStatusCodeFromHTTPResponse(rawPayload []byte) (string, error) {
 		return "", fmt.Errorf("Received unknown type for statusCode")
 	}
 }
+
+// ParseArn parses an AWS ARN and returns the region and account
+func ParseArn(arn string) (string, string, error) {
+	arnTokens := strings.Split(arn, ":")
+	if len(arnTokens) < 5 {
+		return "", "", fmt.Errorf("Malformed arn %v provided", arn)
+	}
+	return arnTokens[3], arnTokens[4], nil
+}

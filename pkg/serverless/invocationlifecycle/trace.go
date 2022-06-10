@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
-	"regexp"
 	"strconv"
 	"time"
 
@@ -37,7 +36,7 @@ type ExecutionStartInfo struct {
 }
 
 type invocationPayload struct {
-	Headers map[string]string `json:"headers" mapstructure:"payload"`
+	Headers map[string]string `json:"headers"`
 }
 
 // startExecutionSpan records information from the start of the invocation.
@@ -94,7 +93,7 @@ func startExecutionSpan(executionContext *ExecutionStartInfo, inferredSpan *infe
 
 // endExecutionSpan builds the function execution span and sends it to the intake.
 // It should be called at the end of the invocation.
-func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[string]string, processTrace func(p *api.Payload), requestID string, endTime time.Time, isError bool, responsePayload []byte) {
+func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[string]string, processTrace func(p *api.Payload), requestID string, endTime time.Time, isError bool, responsePayload string) {
 	duration := endTime.UnixNano() - executionContext.startTime.UnixNano()
 
 	executionSpan := &pb.Span{
@@ -114,7 +113,7 @@ func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[stri
 	captureLambdaPayloadEnabled := config.Datadog.GetBool("capture_lambda_payload")
 	if captureLambdaPayloadEnabled {
 		executionSpan.Meta["function.request"] = executionContext.requestPayload
-		executionSpan.Meta["function.response"] = string(responsePayload)
+		executionSpan.Meta["function.response"] = responsePayload
 	}
 
 	if isError {
@@ -136,16 +135,41 @@ func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[stri
 	})
 }
 
+// parseLambdaFunction removes extra data sent by the proxy that surrounds
+// a JSON payload. For example, for `a5a{"event":"aws_lambda"...}0` it would remove
+// a5a at the front and 0 at the end, and just leave a correct JSON payload.
 func parseLambdaPayload(rawPayload string) string {
-	// Removes the beginning and end identifiers for a lambda payload
-	reg := regexp.MustCompile(`{(?:|(.*))*}`)
-	return reg.FindString(rawPayload)
+	leftFound, rightFound := false, false
+	leftIndex, rightIndex := 0, 0
+	for i, char := range rawPayload {
+		if char == '{' {
+			leftIndex = i
+			leftFound = true
+			break
+		}
+	}
+	for i := range rawPayload {
+		if rawPayload[len(rawPayload)-i-1] == '}' {
+			rightIndex = len(rawPayload) - i - 1
+			rightFound = true
+			break
+		}
+	}
+	// If we can't find a valid json string, just return
+	// the actual payload
+	if leftFound == false || rightFound == false {
+		return rawPayload
+	}
+	if rightIndex <= leftIndex {
+		return rawPayload
+	}
+	return rawPayload[leftIndex : rightIndex+1]
 }
 
 func convertRawPayload(payloadString string) invocationPayload {
 	payload := invocationPayload{}
 
-	err := json.Unmarshal([]byte(parseLambdaPayload(payloadString)), &payload)
+	err := json.Unmarshal([]byte(payloadString), &payload)
 	if err != nil {
 		log.Debug("Could not unmarshal the invocation event payload")
 	}

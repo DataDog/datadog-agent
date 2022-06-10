@@ -2,6 +2,7 @@ package invocationlifecycle
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-lambda-go/events"
 )
 
@@ -45,6 +46,16 @@ func (lp *LifecycleProcessor) initFromCloudWatchEvent(event events.CloudWatchEve
 	lp.addTag("function_trigger.event_source_arn", trigger.ExtractCloudwatchEventARN(event))
 }
 
+func (lp *LifecycleProcessor) initFromCloudWatchLogsEvent(event events.CloudwatchLogsEvent, region string, accountID string) {
+	arn, err := trigger.ExtractCloudwatchLogsEventARN(event, region, accountID)
+	if err != nil {
+		log.Debugf("Error parsing event ARN from cloudwatch logs event: %v", err)
+		return
+	}
+	lp.addTag("function_trigger.event_source", "cloudwatch-logs")
+	lp.addTag("function_trigger.event_source_arn", arn)
+}
+
 func (lp *LifecycleProcessor) initFromDynamoDBStreamEvent(event events.DynamoDBEvent) {
 	lp.addTag("function_trigger.event_source", "dynamodb")
 	lp.addTag("function_trigger.event_source_arn", trigger.ExtractDynamoDBStreamEventARN(event))
@@ -77,16 +88,3 @@ func (lp *LifecycleProcessor) initFromSQSEvent(event events.SQSEvent) {
 func (lp *LifecycleProcessor) initFromLambdaFunctionURLEvent(event events.LambdaFunctionURLRequest) {
 	lp.addTag("function_trigger.event_source", "lambda-function-url")
 }
-
-// TODO: Figure out how to get the event ARN for cloudwatch events
-// The code in datadog-lambda-js seems to pull the ARN of the invocation function and
-// uses that for the region, which doesn't seem correct.
-//
-// func (lp *LifecycleProcessor) initFromCloudWatchLogsEvent(event events.CloudwatchLogsEvent, region string, accountID string) {
-// 	arn, err := trigger.ExtractCloudwatchLogsEventARN(event, region, accountID)
-// 	if err != nil {
-// 		log.Errorf("Error parsing event ARN from cloudwatch logs event: %v", err)
-// 		return
-// 	}
-// 	lp.requestHandler.AddTag("function_trigger.event_source", arn)
-// }

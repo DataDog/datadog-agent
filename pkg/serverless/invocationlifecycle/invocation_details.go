@@ -17,6 +17,7 @@ type InvocationStartDetails struct {
 	StartTime             time.Time
 	InvokeEventRawPayload string
 	InvokeEventHeaders    LambdaInvokeEventHeaders
+	InvokedFunctionARN    string
 	InferredSpan          inferredspan.InferredSpan
 }
 
@@ -35,5 +36,5 @@ type InvocationEndDetails struct {
 	EndTime            time.Time
 	IsError            bool
 	RequestID          string
-	ResponseRawPayload []byte
+	ResponseRawPayload string
 }

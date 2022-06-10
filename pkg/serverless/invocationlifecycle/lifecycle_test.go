@@ -62,7 +62,11 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 
 	eventPayload := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
 	startInvocationTime := time.Now()
-	startDetails := InvocationStartDetails{StartTime: startInvocationTime, InvokeEventRawPayload: eventPayload}
+	startDetails := InvocationStartDetails{
+		StartTime:             startInvocationTime,
+		InvokeEventRawPayload: eventPayload,
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+	}
 
 	testProcessor := LifecycleProcessor{
 		ExtraTags:           extraTags,
@@ -91,7 +95,10 @@ func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
 	mockDetectLambdaLibrary := func() bool { return true }
 
 	startInvocationTime := time.Now()
-	startDetails := InvocationStartDetails{StartTime: startInvocationTime}
+	startDetails := InvocationStartDetails{
+		StartTime:          startInvocationTime,
+		InvokedFunctionARN: "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+	}
 
 	testProcessor := LifecycleProcessor{
 		ExtraTags:           extraTags,
@@ -301,9 +308,9 @@ func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
 	assert.Equal(t, startInvocationTime.UnixNano(), completedInferredSpan.Start)
 }
 func TestTriggerTypesLifecycleEventForAPIGatewayRest(t *testing.T) {
-	os.Setenv("AWS_REGION", "us-east-1")
 	startDetails := &InvocationStartDetails{
-		InvokeEventRawPayload: string(getEventFromFile("api-gateway.json")),
+		InvokeEventRawPayload: getEventFromFile("api-gateway.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 	}
 
 	testProcessor := &LifecycleProcessor{
@@ -321,9 +328,9 @@ func TestTriggerTypesLifecycleEventForAPIGatewayRest(t *testing.T) {
 }
 
 func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy(t *testing.T) {
-	os.Setenv("AWS_REGION", "us-east-1")
 	startDetails := &InvocationStartDetails{
-		InvokeEventRawPayload: string(getEventFromFile("api-gateway-non-proxy.json")),
+		InvokeEventRawPayload: getEventFromFile("api-gateway-non-proxy.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 	}
 
 	testProcessor := &LifecycleProcessor{
@@ -334,7 +341,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy(t *testing.T) {
 	testProcessor.OnInvokeStart(startDetails)
 	testProcessor.OnInvokeEnd(&InvocationEndDetails{
 		RequestID:          "test-request-id",
-		ResponseRawPayload: []byte(`{"statusCode": 200}`),
+		ResponseRawPayload: `{"statusCode": 200}`,
 	})
 	assert.Equal(t, map[string]string{
 		"function_trigger.event_source_arn": "arn:aws:apigateway:us-east-1::/restapis/lgxbo6a518/stages/dev",
@@ -348,9 +355,9 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy(t *testing.T) {
 }
 
 func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket(t *testing.T) {
-	os.Setenv("AWS_REGION", "us-east-1")
 	startDetails := &InvocationStartDetails{
-		InvokeEventRawPayload: string(getEventFromFile("api-gateway-websocket-default.json")),
+		InvokeEventRawPayload: getEventFromFile("api-gateway-websocket-default.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 	}
 
 	testProcessor := &LifecycleProcessor{
@@ -361,7 +368,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket(t *testing.T) {
 	testProcessor.OnInvokeStart(startDetails)
 	testProcessor.OnInvokeEnd(&InvocationEndDetails{
 		RequestID:          "test-request-id",
-		ResponseRawPayload: []byte(`{"statusCode": 200}`),
+		ResponseRawPayload: `{"statusCode": 200}`,
 	})
 	assert.Equal(t, map[string]string{
 		"function_trigger.event_source_arn": "arn:aws:apigateway:us-east-1::/restapis/p62c47itsb/stages/dev",
@@ -372,9 +379,9 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket(t *testing.T) {
 }
 
 func TestTriggerTypesLifecycleEventForALB(t *testing.T) {
-	os.Setenv("AWS_REGION", "us-east-1")
 	startDetails := &InvocationStartDetails{
-		InvokeEventRawPayload: string(getEventFromFile("application-load-balancer.json")),
+		InvokeEventRawPayload: getEventFromFile("application-load-balancer.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 	}
 
 	testProcessor := &LifecycleProcessor{
@@ -385,7 +392,7 @@ func TestTriggerTypesLifecycleEventForALB(t *testing.T) {
 	testProcessor.OnInvokeStart(startDetails)
 	testProcessor.OnInvokeEnd(&InvocationEndDetails{
 		RequestID:          "test-request-id",
-		ResponseRawPayload: []byte(`{"statusCode": 200}`),
+		ResponseRawPayload: `{"statusCode": 200}`,
 	})
 	assert.Equal(t, map[string]string{
 		"function_trigger.event_source_arn": "arn:aws:elasticloadbalancing:us-east-2:123456789012:targetgroup/lambda-xyz/123abc",
@@ -398,9 +405,9 @@ func TestTriggerTypesLifecycleEventForALB(t *testing.T) {
 }
 
 func TestTriggerTypesLifecycleEventForCloudwatch(t *testing.T) {
-	os.Setenv("AWS_REGION", "us-east-1")
 	startDetails := &InvocationStartDetails{
-		InvokeEventRawPayload: string(getEventFromFile("cloudwatch-events.json")),
+		InvokeEventRawPayload: getEventFromFile("cloudwatch-events.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 	}
 
 	testProcessor := &LifecycleProcessor{
@@ -419,10 +426,32 @@ func TestTriggerTypesLifecycleEventForCloudwatch(t *testing.T) {
 	}, testProcessor.GetTags())
 }
 
-func TestTriggerTypesLifecycleEventForDynamoDB(t *testing.T) {
-	os.Setenv("AWS_REGION", "us-east-1")
+func TestTriggerTypesLifecycleEventForCloudwatchLogs(t *testing.T) {
 	startDetails := &InvocationStartDetails{
-		InvokeEventRawPayload: string(getEventFromFile("dynamodb.json")),
+		InvokeEventRawPayload: getEventFromFile("cloudwatch-logs.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+	}
+
+	testProcessor := &LifecycleProcessor{
+		DetectLambdaLibrary: func() bool { return false },
+		ProcessTrace:        func(*api.Payload) {},
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		RequestID: "test-request-id",
+	})
+	assert.Equal(t, map[string]string{
+		"function_trigger.event_source_arn": "arn:aws:logs:us-east-1:123456789012:log-group:testLogGroup",
+		"request_id":                        "test-request-id",
+		"function_trigger.event_source":     "cloudwatch-logs",
+	}, testProcessor.GetTags())
+}
+
+func TestTriggerTypesLifecycleEventForDynamoDB(t *testing.T) {
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: getEventFromFile("dynamodb.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 	}
 
 	testProcessor := &LifecycleProcessor{
@@ -442,9 +471,9 @@ func TestTriggerTypesLifecycleEventForDynamoDB(t *testing.T) {
 }
 
 func TestTriggerTypesLifecycleEventForKinesis(t *testing.T) {
-	os.Setenv("AWS_REGION", "us-east-1")
 	startDetails := &InvocationStartDetails{
-		InvokeEventRawPayload: string(getEventFromFile("kinesis-batch.json")),
+		InvokeEventRawPayload: getEventFromFile("kinesis-batch.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 	}
 
 	testProcessor := &LifecycleProcessor{
@@ -464,9 +493,9 @@ func TestTriggerTypesLifecycleEventForKinesis(t *testing.T) {
 }
 
 func TestTriggerTypesLifecycleEventForS3(t *testing.T) {
-	os.Setenv("AWS_REGION", "us-east-1")
 	startDetails := &InvocationStartDetails{
-		InvokeEventRawPayload: string(getEventFromFile("s3.json")),
+		InvokeEventRawPayload: getEventFromFile("s3.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 	}
 
 	testProcessor := &LifecycleProcessor{
@@ -486,9 +515,9 @@ func TestTriggerTypesLifecycleEventForS3(t *testing.T) {
 }
 
 func TestTriggerTypesLifecycleEventForSNS(t *testing.T) {
-	os.Setenv("AWS_REGION", "us-east-1")
 	startDetails := &InvocationStartDetails{
-		InvokeEventRawPayload: string(getEventFromFile("sns-batch.json")),
+		InvokeEventRawPayload: getEventFromFile("sns-batch.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 	}
 
 	testProcessor := &LifecycleProcessor{
@@ -508,9 +537,9 @@ func TestTriggerTypesLifecycleEventForSNS(t *testing.T) {
 }
 
 func TestTriggerTypesLifecycleEventForSQS(t *testing.T) {
-	os.Setenv("AWS_REGION", "us-east-1")
 	startDetails := &InvocationStartDetails{
-		InvokeEventRawPayload: string(getEventFromFile("sqs-batch.json")),
+		InvokeEventRawPayload: getEventFromFile("sqs-batch.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 	}
 
 	testProcessor := &LifecycleProcessor{
@@ -530,10 +559,10 @@ func TestTriggerTypesLifecycleEventForSQS(t *testing.T) {
 }
 
 // Helper function for reading test file
-func getEventFromFile(filename string) []byte {
+func getEventFromFile(filename string) string {
 	event, err := os.ReadFile("../trace/testdata/event_samples/" + filename)
 	if err != nil {
 		panic(err)
 	}
-	return event
+	return "a5a" + string(event) + "0"
 }

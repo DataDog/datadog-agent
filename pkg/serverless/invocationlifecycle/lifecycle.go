@@ -7,7 +7,6 @@ package invocationlifecycle
 
 import (
 	"encoding/json"
-	"os"
 	"strings"
 	"time"
 
@@ -49,7 +48,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	log.Debugf("[lifecycle] Invocation invokeEvent payload is: %s", startDetails.InvokeEventRawPayload)
 	log.Debug("[lifecycle] ---------------------------------------")
 
-	lambdaPayloadString := startDetails.InvokeEventRawPayload
+	lambdaPayloadString := parseLambdaPayload(startDetails.InvokeEventRawPayload)
 
 	log.Debugf("Parsed payload string: %v", lambdaPayloadString)
 
@@ -67,79 +66,74 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	lp.newRequest(startDetails.InvokeEventRawPayload, startDetails.StartTime)
 
 	payloadBytes := []byte(lambdaPayloadString)
-	region := os.Getenv("AWS_REGION")
-
-	errorFunc := func(err error) {
-		if err != nil {
-			log.Errorf("Error parsing lambda payload: %v", err)
-		}
+	region, account, arnParseErr := trigger.ParseArn(startDetails.InvokedFunctionARN)
+	if err != nil {
+		log.Debugf("[lifecycle] Error parsing ARN: %v", err)
 	}
 
 	switch eventType {
 	case trigger.APIGatewayEvent:
 		var event events.APIGatewayProxyRequest
-		err := json.Unmarshal(payloadBytes, &event)
-		errorFunc(err)
-		lp.initFromAPIGatewayEvent(event, region)
+		if err := json.Unmarshal(payloadBytes, &event); err == nil {
+			lp.initFromAPIGatewayEvent(event, region)
+		}
 	case trigger.APIGatewayV2Event:
 		var event events.APIGatewayV2HTTPRequest
-		err := json.Unmarshal(payloadBytes, &event)
-		errorFunc(err)
-		lp.initFromAPIGatewayV2Event(event, region)
+		if err := json.Unmarshal(payloadBytes, &event); err == nil {
+			lp.initFromAPIGatewayV2Event(event, region)
+		}
 	case trigger.APIGatewayWebsocketEvent:
 		var event events.APIGatewayWebsocketProxyRequest
-		err := json.Unmarshal(payloadBytes, &event)
-		errorFunc(err)
-		lp.initFromAPIGatewayWebsocketEvent(event, region)
+		if err := json.Unmarshal(payloadBytes, &event); err == nil {
+			lp.initFromAPIGatewayWebsocketEvent(event, region)
+		}
 	case trigger.ALBEvent:
 		var event events.ALBTargetGroupRequest
-		err := json.Unmarshal(payloadBytes, &event)
-		errorFunc(err)
-		lp.initFromALBEvent(event)
+		if err := json.Unmarshal(payloadBytes, &event); err == nil {
+			lp.initFromALBEvent(event)
+		}
 	case trigger.CloudWatchEvent:
 		var event events.CloudWatchEvent
-		err := json.Unmarshal(payloadBytes, &event)
-		errorFunc(err)
-		lp.initFromCloudWatchEvent(event)
+		if err := json.Unmarshal(payloadBytes, &event); err == nil {
+			lp.initFromCloudWatchEvent(event)
+		}
 	case trigger.CloudWatchLogsEvent:
-		// We can't parse Cloudwatch logs because we don't have access
-		// to the accountID nor the region of the triggering event
-		// var event events.CloudwatchLogsEvent
-		// err := json.Unmarshal(payloadBytes, &event)
-		// errorFunc(err)
-		// lp.initFromCloudWatchLogsEvent(event, region, accountID)
+		var event events.CloudwatchLogsEvent
+		if err := json.Unmarshal(payloadBytes, &event); err == nil && arnParseErr == nil {
+			lp.initFromCloudWatchLogsEvent(event, region, account)
+		}
 	case trigger.DynamoDBStreamEvent:
 		var event events.DynamoDBEvent
-		err := json.Unmarshal(payloadBytes, &event)
-		errorFunc(err)
-		lp.initFromDynamoDBStreamEvent(event)
+		if err := json.Unmarshal(payloadBytes, &event); err == nil {
+			lp.initFromDynamoDBStreamEvent(event)
+		}
 	case trigger.KinesisStreamEvent:
 		var event events.KinesisEvent
-		err := json.Unmarshal(payloadBytes, &event)
-		errorFunc(err)
-		lp.initFromKinesisStreamEvent(event)
+		if err := json.Unmarshal(payloadBytes, &event); err == nil {
+			lp.initFromKinesisStreamEvent(event)
+		}
 	case trigger.S3Event:
 		var event events.S3Event
-		err := json.Unmarshal(payloadBytes, &event)
-		errorFunc(err)
-		lp.initFromS3Event(event)
+		if err := json.Unmarshal(payloadBytes, &event); err == nil {
+			lp.initFromS3Event(event)
+		}
 	case trigger.SNSEvent:
 		var event events.SNSEvent
-		err := json.Unmarshal(payloadBytes, &event)
-		errorFunc(err)
-		lp.initFromSNSEvent(event)
+		if err := json.Unmarshal(payloadBytes, &event); err == nil {
+			lp.initFromSNSEvent(event)
+		}
 	case trigger.SQSEvent:
 		var event events.SQSEvent
-		err := json.Unmarshal(payloadBytes, &event)
-		errorFunc(err)
-		lp.initFromSQSEvent(event)
+		if err := json.Unmarshal(payloadBytes, &event); err == nil {
+			lp.initFromSQSEvent(event)
+		}
 	case trigger.LambdaFunctionURLEvent:
 		var event events.LambdaFunctionURLRequest
-		err := json.Unmarshal(payloadBytes, &event)
-		errorFunc(err)
-		lp.initFromLambdaFunctionURLEvent(event)
+		if err := json.Unmarshal(payloadBytes, &event); err == nil {
+			lp.initFromLambdaFunctionURLEvent(event)
+		}
 	default:
-		log.Debug("Skipping trigger types and inferred spans as a non-supported payload was received.")
+		log.Debug("Skipping adding trigger types and inferred spans as a non-supported payload was received.")
 	}
 
 	if !lp.DetectLambdaLibrary() {
@@ -155,7 +149,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 	log.Debugf("[lifecycle] Invocation isError is: %v", endDetails.IsError)
 	log.Debug("[lifecycle] ---------------------------------------")
 
-	statusCode, err := trigger.GetStatusCodeFromHTTPResponse(endDetails.ResponseRawPayload)
+	statusCode, err := trigger.GetStatusCodeFromHTTPResponse([]byte(parseLambdaPayload(string(endDetails.ResponseRawPayload))))
 	if err != nil {
 		log.Debugf("[lifecycle] Couldn't parse response payload: %v", err)
 	}

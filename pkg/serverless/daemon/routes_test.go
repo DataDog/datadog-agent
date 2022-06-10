@@ -123,6 +123,9 @@ func TestTraceContext(t *testing.T) {
 	request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/start-invocation", port), body)
 	assert.Nil(err)
 	_, err = client.Do(request)
+	if err != nil {
+		panic(err)
+	}
 	assert.Nil(err)
 	request, err = http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/trace-context", port), nil)
 	assert.Nil(err)
