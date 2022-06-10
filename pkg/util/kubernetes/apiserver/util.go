@@ -47,6 +47,7 @@ func SyncInformers(informers map[InformerName]cache.SharedInformer, extraWait ti
 	return g.Wait()
 }
 
+// UnstructuredIntoWPA converts an unstructured into a WPA
 func UnstructuredIntoWPA(obj interface{}, structDest *v1alpha1.WatermarkPodAutoscaler) error {
 	unstrObj, ok := obj.(*unstructured.Unstructured)
 	if !ok {
@@ -55,6 +56,7 @@ func UnstructuredIntoWPA(obj interface{}, structDest *v1alpha1.WatermarkPodAutos
 	return runtime.DefaultUnstructuredConverter.FromUnstructured(unstrObj.UnstructuredContent(), structDest)
 }
 
+// UnstructuredFromWPA converts a WPA object into an Unstructured
 func UnstructuredFromWPA(structIn *v1alpha1.WatermarkPodAutoscaler, unstructOut *unstructured.Unstructured) error {
 	content, err := runtime.DefaultUnstructuredConverter.ToUnstructured(structIn)
 	if err != nil {

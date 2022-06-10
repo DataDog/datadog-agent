@@ -23,7 +23,9 @@ import (
 type LogSources struct {
 	mu            sync.Mutex
 	sources       []*LogSource
+	added         []chan *LogSource
 	addedByType   map[string][]chan *LogSource
+	removed       []chan *LogSource
 	removedByType map[string][]chan *LogSource
 }
 
@@ -46,13 +48,16 @@ func (s *LogSources) AddSource(source *LogSource) {
 		s.mu.Unlock()
 		return
 	}
-	streams, exists := s.addedByType[source.Config.Type]
+	streams := s.added
+	streamsForType := s.addedByType[source.Config.Type]
 	s.mu.Unlock()
 
-	if exists {
-		for _, stream := range streams {
-			stream <- source
-		}
+	for _, stream := range streams {
+		stream <- source
+	}
+
+	for _, stream := range streamsForType {
+		stream <- source
 	}
 }
 
@@ -70,14 +75,43 @@ func (s *LogSources) RemoveSource(source *LogSource) {
 			break
 		}
 	}
-	streams, streamExists := s.removedByType[source.Config.Type]
+	streams := s.removed
+	streamsForType := s.removedByType[source.Config.Type]
 	s.mu.Unlock()
 
-	if sourceFound && streamExists {
+	if sourceFound {
 		for _, stream := range streams {
 			stream <- source
 		}
+		for _, stream := range streamsForType {
+			stream <- source
+		}
 	}
+}
+
+// SubscribeAll returns two channels carrying notifications of all added and
+// removed sources, respectively.  This guarantees consistency if sources are
+// added or removed concurrently.
+//
+// Any sources added before this call are delivered from a new goroutine.
+func (s *LogSources) SubscribeAll() (added chan *LogSource, removed chan *LogSource) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	added = make(chan *LogSource)
+	removed = make(chan *LogSource)
+
+	s.added = append(s.added, added)
+	s.removed = append(s.removed, removed)
+
+	existingSources := append([]*LogSource{}, s.sources...) // clone for goroutine
+	go func() {
+		for _, source := range existingSources {
+			added <- source
+		}
+	}()
+
+	return
 }
 
 // SubscribeForType returns two channels carrying notifications of added and

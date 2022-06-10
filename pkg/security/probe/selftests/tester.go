@@ -32,7 +32,7 @@ const (
 // EventPredicate defines a self test event validation predicate
 type EventPredicate func(event selfTestEvent) bool
 
-// SelfTestFunction represent one self test, with its ID and func
+// FileSelfTest represent one self test, with its ID and func
 type FileSelfTest interface {
 	GetRuleDefinition(filename string) *rules.RuleDefinition
 	GenerateEvent(filename string) (EventPredicate, error)
@@ -82,7 +82,7 @@ func (t *SelfTester) GetStatus() *api.SelfTestsStatus {
 	}
 }
 
-// LoadPolicy implements the PolicyProvider interface
+// LoadPolicies implements the PolicyProvider interface
 func (t *SelfTester) LoadPolicies() ([]*rules.Policy, *multierror.Error) {
 	p := &rules.Policy{
 		Name:    policyName,
@@ -97,7 +97,7 @@ func (t *SelfTester) LoadPolicies() ([]*rules.Policy, *multierror.Error) {
 	return []*rules.Policy{p}, nil
 }
 
-// SetOnPolicyChangedCb implements the PolicyProvider interface
+// SetOnNewPoliciesReadyCb implements the PolicyProvider interface
 func (t *SelfTester) SetOnNewPoliciesReadyCb(cb func()) {
 }
 
@@ -156,6 +156,7 @@ func (t *SelfTester) RunSelfTest() ([]string, []string, error) {
 	return success, fails, nil
 }
 
+// Start starts the self tester policy provider
 func (t *SelfTester) Start() {}
 
 // Close removes temp directories and files used by the self tester
