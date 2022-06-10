@@ -828,7 +828,7 @@ func getContainerTags(fn func(string) ([]string, error), containerID string) str
 		log.Warn("ContainerTags not configured")
 		return ""
 	}
-	list, err := fn("container_id://" + containerID)
+	list, err := fn(containerID)
 	if err != nil {
 		log.Tracef("Getting container tags for ID %q: %v", containerID, err)
 		return ""
