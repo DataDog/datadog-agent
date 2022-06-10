@@ -7,6 +7,7 @@ package invocationlifecycle
 
 import (
 	"encoding/json"
+	"os"
 	"strings"
 	"time"
 
@@ -22,49 +23,6 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 )
 
-type RequestHandler struct {
-	executionContext    *ExecutionStartInfo
-	inferredSpanContext *inferredspan.InferredSpan
-	triggerTags         map[string]string
-}
-
-func (r *RequestHandler) GetExecutionContext() *ExecutionStartInfo {
-	return r.executionContext
-}
-
-func (r *RequestHandler) GetInferredSpanContext() *inferredspan.InferredSpan {
-	return r.inferredSpanContext
-}
-
-func (r *RequestHandler) CreateNewExecutionContext(lambdaPayloadString string, startTime time.Time) {
-	r.executionContext = &ExecutionStartInfo{
-		requestPayload: lambdaPayloadString,
-		startTime:      startTime,
-	}
-}
-
-func (r *RequestHandler) CreateNewInferredSpan(currentInvocationStartTime time.Time) {
-	r.inferredSpanContext = &inferredspan.InferredSpan{
-		CurrentInvocationStartTime: currentInvocationStartTime,
-		Span: &pb.Span{
-			SpanID: random.Random.Uint64(),
-		},
-	}
-}
-
-func (r *RequestHandler) AddTags(tagSet map[string]string) {
-	for k, v := range tagSet {
-		r.triggerTags[k] = v
-	}
-}
-
-func (r *RequestHandler) AddTag(key string, value string) {
-	if value == "" {
-		return
-	}
-	r.triggerTags[key] = value
-}
-
 // LifecycleProcessor is a InvocationProcessor implementation
 type LifecycleProcessor struct {
 	ExtraTags            *serverlessLog.Tags
@@ -76,14 +34,12 @@ type LifecycleProcessor struct {
 	requestHandler *RequestHandler
 }
 
-// GetExecutionContext implements InvocationProcessor
-func (lp *LifecycleProcessor) GetExecutionContext() *ExecutionStartInfo {
-	return lp.requestHandler.executionContext
-}
-
-// GetInferredSpanContext implements InvocationProcessor
-func (lp *LifecycleProcessor) GetInferredSpanContext() *inferredspan.InferredSpan {
-	return lp.requestHandler.inferredSpanContext
+// RequestHandler is the struct that stores information about the trace,
+// inferred span, and tags about the current invocation
+type RequestHandler struct {
+	executionInfo *ExecutionStartInfo
+	inferredSpan  *inferredspan.InferredSpan
+	triggerTags   map[string]string
 }
 
 // OnInvokeStart is the hook triggered when an invocation has started
@@ -107,32 +63,17 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		log.Debugf("[lifecycle] Failed to extract event type: %v", err)
 	}
 
-	// Singleton instance of request handler
-	if lp.requestHandler == nil {
-		lp.requestHandler = &RequestHandler{}
-	}
+	// Initialize basic values in the request handler
+	lp.newRequest(startDetails.InvokeEventRawPayload, startDetails.StartTime)
 
-	// Each new request will get a new execution context and inferred span.
-	// We're guaranteed by the lambda API that each invocation runs sequentially,
-	// so we don't need to worry about race conditions here.
-	lp.requestHandler.CreateNewExecutionContext(startDetails.InvokeEventRawPayload, startDetails.StartTime)
-	lp.requestHandler.CreateNewInferredSpan(startDetails.StartTime)
-	lp.requestHandler.triggerTags = make(map[string]string)
+	payloadBytes := []byte(lambdaPayloadString)
+	region := os.Getenv("AWS_REGION")
 
 	errorFunc := func(err error) {
 		if err != nil {
 			log.Errorf("Error parsing lambda payload: %v", err)
 		}
 	}
-
-	payloadBytes := []byte(lambdaPayloadString)
-
-	// TODO: Fix to use context value from tracer
-	// ctx := context.Background()
-	// splitFunctionArn := ...ctx.Value(X)...
-	splitFunctionArn := strings.Split("arn:partition:service:region:namespace:relative-id", ":")
-	region := splitFunctionArn[3]
-	accountID := splitFunctionArn[4]
 
 	switch eventType {
 	case trigger.APIGatewayEvent:
@@ -161,10 +102,12 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		errorFunc(err)
 		lp.initFromCloudWatchEvent(event)
 	case trigger.CloudWatchLogsEvent:
-		var event events.CloudwatchLogsEvent
-		err := json.Unmarshal(payloadBytes, &event)
-		errorFunc(err)
-		lp.initFromCloudWatchLogsEvent(event, region, accountID)
+		// We can't parse Cloudwatch logs because we don't have access
+		// to the accountID nor the region of the triggering event
+		// var event events.CloudwatchLogsEvent
+		// err := json.Unmarshal(payloadBytes, &event)
+		// errorFunc(err)
+		// lp.initFromCloudWatchLogsEvent(event, region, accountID)
 	case trigger.DynamoDBStreamEvent:
 		var event events.DynamoDBEvent
 		err := json.Unmarshal(payloadBytes, &event)
@@ -181,7 +124,6 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		errorFunc(err)
 		lp.initFromS3Event(event)
 	case trigger.SNSEvent:
-
 		var event events.SNSEvent
 		err := json.Unmarshal(payloadBytes, &event)
 		errorFunc(err)
@@ -202,7 +144,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 
 	if !lp.DetectLambdaLibrary() {
 		// TODO: pull this functionality out and add it into the init functions
-		startExecutionSpan(lp.requestHandler.executionContext, lp.requestHandler.inferredSpanContext, startDetails.StartTime, lambdaPayloadString, startDetails.InvokeEventHeaders, lp.InferredSpansEnabled)
+		startExecutionSpan(lp.GetExecutionInfo(), lp.GetInferredSpan(), startDetails.StartTime, lambdaPayloadString, startDetails.InvokeEventHeaders, lp.InferredSpansEnabled)
 	}
 }
 
@@ -213,16 +155,25 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 	log.Debugf("[lifecycle] Invocation isError is: %v", endDetails.IsError)
 	log.Debug("[lifecycle] ---------------------------------------")
 
+	statusCode, err := trigger.ExtractStatusCodeFromHTTPResponse(endDetails.ResponseRawPayload)
+	if err != nil {
+		log.Debugf("[lifecycle] Couldn't parse response payload: %v", err)
+	}
+
+	// This will only add the status code if it comes from an HTTP-like
+	// response struct
+	lp.addTag("http.status_code", statusCode)
+
 	if !lp.DetectLambdaLibrary() {
 		log.Debug("Creating and sending function execution span for invocation")
-		endExecutionSpan(lp.requestHandler.executionContext, lp.requestHandler.triggerTags, lp.ProcessTrace, endDetails.RequestID, endDetails.EndTime, endDetails.IsError, endDetails.ResponseRawPayload)
+		endExecutionSpan(lp.GetExecutionInfo(), lp.requestHandler.triggerTags, lp.ProcessTrace, endDetails.RequestID, endDetails.EndTime, endDetails.IsError, endDetails.ResponseRawPayload)
 
 		if lp.InferredSpansEnabled {
 			log.Debug("[lifecycle] Attempting to complete the inferred span")
-			log.Debugf("[lifecycle] Inferred span context: %+v", lp.requestHandler.inferredSpanContext.Span)
-			if lp.requestHandler.inferredSpanContext.Span.Start != 0 {
-				lp.requestHandler.inferredSpanContext.CompleteInferredSpan(lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, lp.requestHandler.executionContext.TraceID, lp.requestHandler.executionContext.SamplingPriority)
-				log.Debugf("[lifecycle] The inferred span attributes are: %v", lp.requestHandler.inferredSpanContext)
+			log.Debugf("[lifecycle] Inferred span context: %+v", lp.GetInferredSpan().Span)
+			if lp.GetInferredSpan().Span.Start != 0 {
+				lp.GetInferredSpan().CompleteInferredSpan(lp.ProcessTrace, lp.GetTags(), endDetails.EndTime, endDetails.IsError, lp.GetExecutionInfo().TraceID, lp.GetExecutionInfo().SamplingPriority)
+				log.Debugf("[lifecycle] The inferred span attributes are: %v", lp.GetInferredSpan())
 			} else {
 				log.Debug("[lifecyle] Failed to complete inferred span due to a missing start time. Please check that the event payload was received with the appropriate data")
 			}
@@ -234,4 +185,53 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 			lp.ExtraTags.Tags, endDetails.EndTime, lp.Demux,
 		)
 	}
+}
+
+// GetTags returns the tagset of the currently executing lambda function
+func (lp *LifecycleProcessor) GetTags() map[string]string {
+	return lp.requestHandler.triggerTags
+}
+
+// GetExecutionInfo returns the trace and payload information of
+// the currently executing lambda function
+func (lp *LifecycleProcessor) GetExecutionInfo() *ExecutionStartInfo {
+	return lp.requestHandler.executionInfo
+}
+
+// GetInferredSpan returns the generated inferred span of the
+// currently executing lambda function
+func (lp *LifecycleProcessor) GetInferredSpan() *inferredspan.InferredSpan {
+	return lp.requestHandler.inferredSpan
+}
+
+// NewRequest initializes basic information about the current request
+// on the LifecycleProcessor
+func (lp *LifecycleProcessor) newRequest(lambdaPayloadString string, startTime time.Time) {
+	if lp.requestHandler == nil {
+		lp.requestHandler = &RequestHandler{}
+	}
+	lp.requestHandler.executionInfo = &ExecutionStartInfo{
+		requestPayload: lambdaPayloadString,
+		startTime:      startTime,
+	}
+	lp.requestHandler.inferredSpan = &inferredspan.InferredSpan{
+		CurrentInvocationStartTime: startTime,
+		Span: &pb.Span{
+			SpanID: random.Random.Uint64(),
+		},
+	}
+	lp.requestHandler.triggerTags = make(map[string]string)
+}
+
+func (lp *LifecycleProcessor) addTags(tagSet map[string]string) {
+	for k, v := range tagSet {
+		lp.requestHandler.triggerTags[k] = v
+	}
+}
+
+func (lp *LifecycleProcessor) addTag(key string, value string) {
+	if value == "" {
+		return
+	}
+	lp.requestHandler.triggerTags[key] = value
 }

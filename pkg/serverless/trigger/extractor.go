@@ -1,20 +1,22 @@
 package trigger
 
 import (
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
 )
 
-func isHTTPTriggerEvent(eventSource AWSEventType) bool {
-	return eventSource == APIGatewayEvent ||
-		eventSource == APIGatewayV2Event ||
-		eventSource == APIGatewayWebsocketEvent ||
-		eventSource == ALBEvent ||
-		eventSource == LambdaFunctionURLEvent
+// awsHTTPResponseStruct contains a generic field shared between
+// all http response payload. Right now, that's API Gateway, ALB,
+// and Function URLs.
+type awsHTTPResponseStruct struct {
+	StatusCode int `json:"statusCode"`
 }
 
+// getAWSPartitionByRegion parses an AWS region and returns an AWS partition
 func getAWSPartitionByRegion(region string) string {
 	if strings.HasPrefix(region, "us-gov-") {
 		return "aws-us-gov"
@@ -25,29 +27,35 @@ func getAWSPartitionByRegion(region string) string {
 	}
 }
 
+// ExtractAPIGatewayEventARN returns an ARN from an APIGatewayProxyRequest
 func ExtractAPIGatewayEventARN(event events.APIGatewayProxyRequest, region string) string {
 	requestContext := event.RequestContext
 	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", getAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
 }
 
+// ExtractAPIGatewayV2EventARN returns an ARN from an APIGatewayV2HTTPRequest
 func ExtractAPIGatewayV2EventARN(event events.APIGatewayV2HTTPRequest, region string) string {
 	requestContext := event.RequestContext
 	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", getAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
 }
 
+// ExtractAPIGatewayWebSocketEventARN returns an ARN from an APIGatewayWebsocketProxyRequest
 func ExtractAPIGatewayWebSocketEventARN(event events.APIGatewayWebsocketProxyRequest, region string) string {
 	requestContext := event.RequestContext
 	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", getAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
 }
 
+// ExtractAlbEventARN returns an ARN from an ALBTargetGroupRequest
 func ExtractAlbEventARN(event events.ALBTargetGroupRequest) string {
 	return event.RequestContext.ELB.TargetGroupArn
 }
 
+// ExtractCloudwatchEventARN returns an ARN from a CloudWatchEvent
 func ExtractCloudwatchEventARN(event events.CloudWatchEvent) string {
 	return event.Resources[0]
 }
 
+// ExtractCloudwatchLogsEventARN returns an ARN from a CloudwatchLogsEvent
 func ExtractCloudwatchLogsEventARN(event events.CloudwatchLogsEvent, region string, accountID string) (string, error) {
 	decodedLog, err := event.AWSLogs.Parse()
 	if err != nil {
@@ -56,26 +64,33 @@ func ExtractCloudwatchLogsEventARN(event events.CloudwatchLogsEvent, region stri
 	return fmt.Sprintf("arn:%v:logs:%v:%v:log-group:%v", getAWSPartitionByRegion(region), region, accountID, decodedLog.LogGroup), nil
 }
 
+// ExtractDynamoDBStreamEventARN returns an ARN from a DynamoDBEvent
 func ExtractDynamoDBStreamEventARN(event events.DynamoDBEvent) string {
 	return event.Records[0].EventSourceArn
 }
 
+// ExtractKinesisStreamEventARN returns an ARN from a KinesisEvent
 func ExtractKinesisStreamEventARN(event events.KinesisEvent) string {
 	return event.Records[0].EventSourceArn
 }
 
+// ExtractS3EventArn returns an ARN from a S3Event
 func ExtractS3EventArn(event events.S3Event) string {
 	return event.Records[0].EventSource
 }
 
+// ExtractSNSEventArn returns an ARN from a SNSEvent
 func ExtractSNSEventArn(event events.SNSEvent) string {
 	return event.Records[0].SNS.TopicArn
 }
 
+// ExtractSQSEventARN returns an ARN from a SQSEvent
 func ExtractSQSEventARN(event events.SQSEvent) string {
 	return event.Records[0].EventSourceARN
 }
 
+// GetTagsFromAPIGatewayEvent returns a tagset containing http tags from an
+// APIGatewayProxyRequest
 func GetTagsFromAPIGatewayEvent(event events.APIGatewayProxyRequest) map[string]string {
 	httpTags := make(map[string]string)
 	if event.RequestContext.DomainName != "" {
@@ -91,6 +106,8 @@ func GetTagsFromAPIGatewayEvent(event events.APIGatewayProxyRequest) map[string]
 	return httpTags
 }
 
+// GetTagsFromAPIGatewayV2HTTPRequest returns a tagset containing http tags from an
+// APIGatewayProxyRequest
 func GetTagsFromAPIGatewayV2HTTPRequest(event events.APIGatewayV2HTTPRequest) map[string]string {
 	httpTags := make(map[string]string)
 	httpTags["http.url"] = event.RequestContext.DomainName
@@ -104,6 +121,8 @@ func GetTagsFromAPIGatewayV2HTTPRequest(event events.APIGatewayV2HTTPRequest) ma
 	return httpTags
 }
 
+// GetTagsFromALBTargetGroupRequest returns a tagset containing http tags from an
+// ALBTargetGroupRequest
 func GetTagsFromALBTargetGroupRequest(event events.ALBTargetGroupRequest) map[string]string {
 	httpTags := make(map[string]string)
 	httpTags["http.url_details.path"] = event.Path
@@ -116,6 +135,8 @@ func GetTagsFromALBTargetGroupRequest(event events.ALBTargetGroupRequest) map[st
 	return httpTags
 }
 
+// GetTagsFromLambdaFunctionURLRequest returns a tagset containing http tags from a
+// LambdaFunctionURLRequest
 func GetTagsFromLambdaFunctionURLRequest(event events.LambdaFunctionURLRequest) map[string]string {
 	httpTags := make(map[string]string)
 	if event.RequestContext.DomainName != "" {
@@ -131,20 +152,17 @@ func GetTagsFromLambdaFunctionURLRequest(event events.LambdaFunctionURLRequest) 
 	return httpTags
 }
 
-// TODO: Support for Appsync? Not in the JS library
+// ExtractStatusCodeFromHTTPResponse parses a generic payload and returns
+// a status code, if it contains one. Returns an empty string if it does not.
+func ExtractStatusCodeFromHTTPResponse(rawPayload []byte) (string, error) {
+	var response awsHTTPResponseStruct
+	err := json.Unmarshal(rawPayload, &response)
+	if err != nil {
+		return "", err
+	}
+	if response.StatusCode > 0 {
+		return strconv.Itoa(response.StatusCode), nil
+	}
 
-// TODO: Where is Cloudfront?
-// This looks like it's not in aws-lambda-go because this is a lambda@edge function, which can't run
-// extensions anwyays?
-// func extractCloudFrontRequestEventARN(event events.CloudFrontRequestEvent) string {
-// 	return
-// }
-
-// TODO: Where is SNSSQSEvent?
-// Is this a special case, or is it just an SQS message wrapped in a
-// SNS event/SNS message wrapped in a SQS event?
-
-// TODO: Where is EventBridge?
-// It looks like EventBridge is an OpenAPI spec with a few different schemas? Not
-// sure how to handle this.
-// https://github.com/aws/aws-lambda-go/issues/51#issuecomment-662256535
+	return "", nil
+}

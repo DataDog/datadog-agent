@@ -284,10 +284,3 @@ func TestConvertRawPayloadWithOutHeaders(t *testing.T) {
 
 	assert.Equal(t, p, expectedPayload)
 }
-
-func TestParseLambdaPayload(t *testing.T) {
-	str := `a5a{cccaaaac}`
-
-	assert.Equal(t, str, parseLambdaPayload(str))
-
-}

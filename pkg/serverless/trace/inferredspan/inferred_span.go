@@ -97,6 +97,7 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 // as an API payload to be processed by the trace agent
 func (inferredSpan *InferredSpan) CompleteInferredSpan(
 	processTrace func(p *api.Payload),
+	triggerTags map[string]string,
 	endTime time.Time,
 	isError bool,
 	traceID uint64,
@@ -117,6 +118,7 @@ func (inferredSpan *InferredSpan) CompleteInferredSpan(
 		Origin:   "lambda",
 		Spans:    []*pb.Span{inferredSpan.Span},
 		Priority: int32(samplingPriority),
+		Tags:     triggerTags,
 	}
 
 	tracerPayload := &pb.TracerPayload{

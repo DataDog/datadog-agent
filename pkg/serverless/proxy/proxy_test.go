@@ -21,7 +21,7 @@ import (
 
 type testProcessorResponseValid struct{}
 
-func (tp *testProcessorResponseValid) GetExecutionContext() *invocationlifecycle.ExecutionStartInfo {
+func (tp *testProcessorResponseValid) GetExecutionInfo() *invocationlifecycle.ExecutionStartInfo {
 	return nil
 }
 
@@ -60,7 +60,7 @@ func (tp *testProcessorResponseError) OnInvokeEnd(endDetails *invocationlifecycl
 	}
 }
 
-func (tp *testProcessorResponseError) GetExecutionContext() *invocationlifecycle.ExecutionStartInfo {
+func (tp *testProcessorResponseError) GetExecutionInfo() *invocationlifecycle.ExecutionStartInfo {
 	return nil
 }
 

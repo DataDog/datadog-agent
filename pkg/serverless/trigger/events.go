@@ -165,7 +165,7 @@ func isAPIGatewayV2Event(event map[string]interface{}) bool {
 
 func isAPIGatewayWebsocketEvent(event map[string]interface{}) bool {
 	return json.GetNestedValue(event, "requestcontext") != nil &&
-		json.GetNestedValue(event, "messagedirection") != nil
+		json.GetNestedValue(event, "requestcontext", "messagedirection") != nil
 }
 
 func isALBEvent(event map[string]interface{}) bool {
