@@ -85,7 +85,7 @@ func TestConfigsForService(t *testing.T) {
 				Instances: []*types.OpenmetricsInstance{
 					{
 						OpenMetricsEndpoint: "foo/bar",
-						Metrics:             []string{".*"},
+						Metrics:             []interface{}{".*"},
 						Namespace:           "",
 					},
 				},
@@ -117,7 +117,7 @@ func TestConfigsForService(t *testing.T) {
 				Instances: []*types.OpenmetricsInstance{
 					{
 						PrometheusURL: "foo/bar",
-						Metrics:       []string{"*"},
+						Metrics:       []interface{}{"*"},
 						Namespace:     "",
 					},
 				},
@@ -168,6 +168,38 @@ func TestConfigsForService(t *testing.T) {
 				},
 			},
 			want: nil,
+		},
+		{
+			name: "metrics key value",
+			check: &types.PrometheusCheck{
+				Instances: []*types.OpenmetricsInstance{
+					{
+						PrometheusURL: "foo/bar",
+						Metrics:       []interface{}{map[string]string{"foo": "bar"}},
+						Namespace:     "",
+					},
+				},
+			},
+			version: 2,
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID:         k8stypes.UID("foo-uid"),
+					Name:        "svc-foo",
+					Annotations: map[string]string{"prometheus.io/scrape": "true"},
+					Namespace:   "ns",
+				},
+			},
+			want: []integration.Config{
+				{
+					Name:          "openmetrics",
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data(`{"prometheus_url":"foo/bar","namespace":"","metrics":[{"foo":"bar"}]}`)},
+					ClusterCheck:  true,
+					Provider:      names.PrometheusServices,
+					Source:        "prometheus_services:kube_service://ns/svc-foo",
+					ADIdentifiers: []string{"kube_service://ns/svc-foo"},
+				},
+			},
 		},
 	}
 	for _, tt := range tests {

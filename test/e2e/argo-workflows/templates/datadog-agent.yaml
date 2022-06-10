@@ -15,7 +15,7 @@ spec:
           - name: cluster-agent-image-repository
           - name: cluster-agent-image-tag
       script:
-        image: alpine/helm
+        image: alpine/helm:3.9.0
         envFrom:
           - secretRef:
               name: dd-keys
@@ -139,7 +139,7 @@ spec:
         parameters:
           - name: namespace
       container:
-        image: alpine/helm
+        image: alpine/helm:3.9.0
         args: ["--namespace", "{{inputs.parameters.namespace}}", "uninstall", "datadog-agent"]
 
     - name: health

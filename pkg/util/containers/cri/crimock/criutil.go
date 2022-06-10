@@ -10,7 +10,7 @@ package crimock
 
 import (
 	"github.com/stretchr/testify/mock"
-	pb "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	pb "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 // MockCRIClient is used for tests

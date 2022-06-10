@@ -9,14 +9,6 @@ import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.utils import (
-    DEFAULT_BRANCH,
-    get_all_allowed_repo_branches,
-    is_allowed_repo_branch,
-    nightly_entry_for,
-    release_entry_for,
-)
-
 from .libs.common.color import color_message
 from .libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
 from .libs.pipeline_notifications import (
@@ -34,6 +26,13 @@ from .libs.pipeline_tools import (
     wait_for_pipeline,
 )
 from .libs.types import SlackMessage, TeamMessage
+from .utils import (
+    DEFAULT_BRANCH,
+    get_all_allowed_repo_branches,
+    is_allowed_repo_branch,
+    nightly_entry_for,
+    release_entry_for,
+)
 
 # Tasks to trigger pipelines
 

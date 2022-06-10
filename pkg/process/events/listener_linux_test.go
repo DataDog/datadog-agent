@@ -23,42 +23,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/api/mocks"
 )
 
-// assertProcessEvents compares two ProcessEvents. Two events can't be compared using directly assert.Equal
-// due to the embedded time fields
-func assertProcessEvents(t *testing.T, expected, actual *model.ProcessEvent) {
-	t.Helper()
-
-	assert.Equal(t, expected.EventType, actual.EventType)
-	assert.WithinDuration(t, expected.CollectionTime, actual.CollectionTime, 0)
-	assert.Equal(t, expected.Pid, actual.Pid)
-	assert.Equal(t, expected.Ppid, actual.Ppid)
-	assert.Equal(t, expected.UID, actual.UID)
-	assert.Equal(t, expected.GID, actual.GID)
-	assert.Equal(t, expected.Username, actual.Username)
-	assert.Equal(t, expected.Group, actual.Group)
-	assert.Equal(t, expected.Exe, actual.Exe)
-	assert.Equal(t, expected.Cmdline, actual.Cmdline)
-	assert.WithinDuration(t, expected.ForkTime, actual.ForkTime, 0)
-	assert.WithinDuration(t, expected.ExecTime, actual.ExecTime, 0)
-	assert.WithinDuration(t, expected.ExitTime, actual.ExitTime, 0)
-}
-
 // TestProcessEventFiltering asserts that sysProbeListener collects only expected events and drops everything else
 func TestProcessEventFiltering(t *testing.T) {
 	rawEvents := make([]*model.ProcessMonitoringEvent, 0)
 	handlers := make([]EventHandler, 0)
 
 	// The listener should drop unexpected events and not call the EventHandler for it
-	rawEvents = append(rawEvents, model.NewProcessMonitoringEvent(model.Fork, time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"}))
+	rawEvents = append(rawEvents, model.NewMockedProcessMonitoringEvent(model.Fork, time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"}))
 
 	// Verify that expected events are correctly consumed
-	rawEvents = append(rawEvents, model.NewProcessMonitoringEvent(model.Exec, time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"}))
+	rawEvents = append(rawEvents, model.NewMockedProcessMonitoringEvent(model.Exec, time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"}))
 	handlers = append(handlers, func(e *model.ProcessEvent) {
 		require.Equal(t, model.Exec, e.EventType)
 		require.Equal(t, uint32(23), e.Pid)
 	})
 
-	rawEvents = append(rawEvents, model.NewProcessMonitoringEvent(model.Exit, time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"}))
+	rawEvents = append(rawEvents, model.NewMockedProcessMonitoringEvent(model.Exit, time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"}))
 	handlers = append(handlers, func(e *model.ProcessEvent) {
 		require.Equal(t, model.Exit, e.EventType)
 		require.Equal(t, uint32(23), e.Pid)
@@ -128,7 +108,7 @@ func TestProcessEventHandling(t *testing.T) {
 			t.Error("should not have received more process events")
 		}
 
-		assertProcessEvents(t, events[i], e)
+		model.AssertProcessEvents(t, events[i], e)
 		// all message have been consumed
 		if i == len(events)-1 {
 			close(rcvMessage)
