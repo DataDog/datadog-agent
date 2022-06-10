@@ -19,6 +19,20 @@ var mkdirProbes = []*manager.Probe{
 			EBPFFuncName: "kprobe_vfs_mkdir",
 		},
 	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/do_mkdirat",
+			EBPFFuncName: "kprobe_do_mkdirat",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kretprobe/do_mkdirat",
+			EBPFFuncName: "kretprobe_do_mkdirat",
+		},
+	},
 }
 
 func getMkdirProbes() []*manager.Probe {

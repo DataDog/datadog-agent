@@ -36,10 +36,15 @@ type Socket struct {
 	// A 32KB buffer which we use for polling the socket.
 	// Since a netlink message can't exceed that size
 	// (in *theory* they can be as large as 4GB (u32), but see link below)
-	// we can avoid message peeks and and essentially cut recvmsg syscalls by half
+	// we can avoid message peeks and essentially cut recvmsg syscalls by half
 	// which is currently a perf bottleneck in certain workloads.
 	// https://www.spinics.net/lists/netdev/msg431592.html
 	recvbuf []byte
+	oobbuf  []byte
+
+	n       int
+	oobn    int
+	readErr error
 }
 
 // NewSocket creates a new NETLINK socket
@@ -86,6 +91,7 @@ func NewSocket() (*Socket, error) {
 		pid:     pid,
 		conn:    conn,
 		recvbuf: make([]byte, 32*1024),
+		oobbuf:  make([]byte, unix.CmsgSpace(24)),
 	}
 	return socket, nil
 }
@@ -118,40 +124,28 @@ func (s *Socket) Receive() ([]netlink.Message, error) {
 }
 
 // ReceiveInto reads one or more netlink.Messages off the socket
-func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, int32, error) {
-	oob := make([]byte, unix.CmsgSpace(24))
-	n, oobn, err := s.recvmsg(s.recvbuf, oob, 0)
+func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, uint32, error) {
+	n, oobn, err := s.recvmsg()
 	if err != nil {
 		return nil, 0, os.NewSyscallError("recvmsg", err)
 	}
 
 	n = nlmsgAlign(n)
-	// If we cannot fit the date into the suplied buffer,  we allocate a slice
+	// If we cannot fit the date into the supplied buffer,  we allocate a slice
 	// with enough capacity. This should happen very rarely.
 	if n > len(b) {
 		b = make([]byte, n)
 	}
 	copy(b, s.recvbuf[:n])
 
-	raw, err := syscall.ParseNetlinkMessage(b[:n])
+	msgs, err := ParseNetlinkMessage(b[:n])
 	if err != nil {
 		return nil, 0, err
 	}
 
-	msgs := make([]netlink.Message, 0, len(raw))
-	for _, r := range raw {
-		m := netlink.Message{
-			Header: sysToHeader(r.Header),
-			Data:   r.Data,
-		}
-
-		msgs = append(msgs, m)
-	}
-
-	var netns int32
+	var netns uint32
 	if oobn > 0 {
-		oob = oob[:oobn]
-		scms, err := unix.ParseSocketControlMessage(oob)
+		scms, err := unix.ParseSocketControlMessage(s.oobbuf[:oobn])
 		if err != nil {
 			return nil, 0, err
 		}
@@ -162,13 +156,43 @@ func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, int32, error) {
 	return msgs, netns, nil
 }
 
-func parseNetNS(scms []unix.SocketControlMessage) int32 {
+// ParseNetlinkMessage parses b as an array of netlink messages and
+// returns the slice containing the netlink.Message structures.
+func ParseNetlinkMessage(b []byte) ([]netlink.Message, error) {
+	var msgs []netlink.Message
+	for len(b) >= unix.NLMSG_HDRLEN {
+		h, dbuf, dlen, err := netlinkMessageHeaderAndData(b)
+		if err != nil {
+			return nil, err
+		}
+		m := netlink.Message{Header: *h, Data: dbuf[:int(h.Length)-unix.NLMSG_HDRLEN]}
+		msgs = append(msgs, m)
+		b = b[dlen:]
+	}
+	return msgs, nil
+}
+
+func netlinkMessageHeaderAndData(b []byte) (*netlink.Header, []byte, int, error) {
+	h := (*netlink.Header)(unsafe.Pointer(&b[0]))
+	l := nlmAlignOf(int(h.Length))
+	if int(h.Length) < unix.NLMSG_HDRLEN || l > len(b) {
+		return nil, nil, 0, unix.EINVAL
+	}
+	return h, b[unix.NLMSG_HDRLEN:], l, nil
+}
+
+// Round the length of a netlink message up to align it properly.
+func nlmAlignOf(msglen int) int {
+	return (msglen + unix.NLMSG_ALIGNTO - 1) & ^(unix.NLMSG_ALIGNTO - 1)
+}
+
+func parseNetNS(scms []unix.SocketControlMessage) uint32 {
 	for _, m := range scms {
 		if m.Header.Level != unix.SOL_NETLINK || m.Header.Type != unix.NETLINK_LISTEN_ALL_NSID {
 			continue
 		}
 
-		return *(*int32)(unsafe.Pointer(&m.Data[0]))
+		return *(*uint32)(unsafe.Pointer(&m.Data[0]))
 	}
 
 	return 0
@@ -259,23 +283,17 @@ func (s *Socket) SetBPF(filter []bpf.RawInstruction) error {
 	return err
 }
 
-func (s *Socket) recvmsg(b []byte, oob []byte, flags int) (int, int, error) {
-	var (
-		n    int
-		oobn int
-		err  error
-	)
-
-	ctrlErr := s.conn.Read(func(fd uintptr) bool {
-		n, oobn, _, _, err = unix.Recvmsg(int(fd), b, oob, flags)
-		return ready(err)
-	})
-
+func (s *Socket) recvmsg() (int, int, error) {
+	ctrlErr := s.conn.Read(s.rawread)
 	if ctrlErr != nil {
 		return 0, 0, ctrlErr
 	}
+	return s.n, s.oobn, s.readErr
+}
 
-	return n, oobn, err
+func (s *Socket) rawread(fd uintptr) bool {
+	s.n, s.oobn, _, s.readErr = noallocRecvmsg(int(fd), s.recvbuf, s.oobbuf, unix.MSG_DONTWAIT)
+	return ready(s.readErr)
 }
 
 // Copied from github.com/mdlayher/netlink
@@ -299,11 +317,4 @@ func ready(err error) bool {
 		// Ready whether there was error or no error.
 		return true
 	}
-}
-
-// sysToHeader converts a syscall.NlMsghdr to a Header.
-func sysToHeader(r syscall.NlMsghdr) netlink.Header {
-	// NB: the memory layout of Header and syscall.NlMsgHdr must be
-	// exactly the same for this unsafe cast to work
-	return *(*netlink.Header)(unsafe.Pointer(&r))
 }

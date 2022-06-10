@@ -11,7 +11,7 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
-func validatePacket(p *gosnmp.SnmpPacket, c *Config) error {
+func validatePacket(p *gosnmp.SnmpPacket, c Config) error {
 	if p.Version == gosnmp.Version3 {
 		// v3 Packets are already decrypted and validated by gosnmp
 		return nil

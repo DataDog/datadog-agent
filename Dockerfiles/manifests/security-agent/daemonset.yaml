@@ -7,6 +7,7 @@ metadata:
   namespace: default
   labels: {}
 spec:
+  revisionHistoryLimit: 10
   selector:
     matchLabels:
       app: datadog
@@ -23,10 +24,12 @@ spec:
         container.apparmor.security.beta.kubernetes.io/system-probe: unconfined
         container.seccomp.security.alpha.kubernetes.io/system-probe: localhost/system-probe
     spec:
+      securityContext:
+        runAsUser: 0
       hostPID: true
       containers:
         - name: agent
-          image: "gcr.io/datadoghq/agent:7.34.0"
+          image: "gcr.io/datadoghq/agent:7.36.1"
           imagePullPolicy: IfNotPresent
           command: ["agent", "run"]
           resources: {}
@@ -135,7 +138,7 @@ spec:
             successThreshold: 1
             timeoutSeconds: 5
         - name: process-agent
-          image: "gcr.io/datadoghq/agent:7.34.0"
+          image: "gcr.io/datadoghq/agent:7.36.1"
           imagePullPolicy: IfNotPresent
           command: ["process-agent", "-config=/etc/datadog-agent/datadog.yaml"]
           resources: {}
@@ -206,7 +209,7 @@ spec:
               mountPath: /etc/datadog-agent/system-probe.yaml
               subPath: system-probe.yaml
         - name: system-probe
-          image: "gcr.io/datadoghq/agent:7.34.0"
+          image: "gcr.io/datadoghq/agent:7.36.1"
           imagePullPolicy: IfNotPresent
           securityContext:
             capabilities:
@@ -276,7 +279,7 @@ spec:
               mountPropagation: None
               readOnly: true
         - name: security-agent
-          image: "gcr.io/datadoghq/agent:7.34.0"
+          image: "gcr.io/datadoghq/agent:7.36.1"
           imagePullPolicy: IfNotPresent
           securityContext:
             capabilities:
@@ -317,11 +320,15 @@ spec:
                   key: token
             - name: DD_RUNTIME_SECURITY_CONFIG_ENABLED
               value: "true"
+            - name: DD_RUNTIME_SECURITY_CONFIG_FIM_ENABLED
+              value: "false"
             - name: DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR
               value: "/etc/datadog-agent/runtime-security.d"
             - name: DD_RUNTIME_SECURITY_CONFIG_SOCKET
               value: /var/run/sysprobe/runtime-security.sock
             - name: DD_RUNTIME_SECURITY_CONFIG_SYSCALL_MONITOR_ENABLED
+              value: "false"
+            - name: DD_RUNTIME_SECURITY_CONFIG_NETWORK_ENABLED
               value: "false"
             - name: DD_DOGSTATSD_SOCKET
               value: "/var/run/datadog/dsd.socket"
@@ -363,7 +370,7 @@ spec:
               subPath: system-probe.yaml
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/agent:7.34.0"
+          image: "gcr.io/datadoghq/agent:7.36.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -373,7 +380,7 @@ spec:
               mountPath: /opt/datadog-agent
           resources: {}
         - name: init-config
-          image: "gcr.io/datadoghq/agent:7.34.0"
+          image: "gcr.io/datadoghq/agent:7.36.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -411,7 +418,7 @@ spec:
               value: "yes"
           resources: {}
         - name: seccomp-setup
-          image: "gcr.io/datadoghq/agent:7.34.0"
+          image: "gcr.io/datadoghq/agent:7.36.1"
           command:
             - cp
             - /etc/config/system-probe-seccomp.json
@@ -485,7 +492,7 @@ spec:
           name: runtimesocketdir
       tolerations:
       affinity: {}
-      serviceAccountName: datadog
+      serviceAccountName: "datadog"
       nodeSelector:
         kubernetes.io/os: linux
   updateStrategy:

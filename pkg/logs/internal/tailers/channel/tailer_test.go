@@ -6,6 +6,7 @@
 package channel
 
 import (
+	"os"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -18,4 +19,37 @@ func TestComputeServiceName(t *testing.T) {
 	assert.Equal(t, "my-service-name", computeServiceName(lambdaConfig, "my-service-name"))
 	assert.Equal(t, "my-service-name", computeServiceName(lambdaConfig, "MY-SERVICE-NAME"))
 	assert.Equal(t, "", computeServiceName(lambdaConfig, ""))
+}
+
+func TestComputeServiceNameFromCloudRunRevision(t *testing.T) {
+	os.Setenv("K_REVISION", "version-abc")
+	defer os.Unsetenv("K_REVISION")
+	os.Setenv("K_SERVICE", "superService")
+	assert.Equal(t, "service-value", computeServiceName(nil, "service-value"))
+	assert.Equal(t, "superservice", computeServiceName(nil, ""))
+}
+
+func TestNotServerlessModeKVersionUndefined(t *testing.T) {
+	os.Setenv("K_SERVICE", "superService")
+	defer os.Unsetenv("K_SERVICE")
+	assert.False(t, isServerlessOrigin(nil))
+}
+
+func TestNotServerlessModeKServiceUndefined(t *testing.T) {
+	os.Setenv("K_REVISION", "version-abc")
+	defer os.Unsetenv("K_REVISION")
+	assert.False(t, isServerlessOrigin(nil))
+}
+
+func TestServerlessModeCloudRun(t *testing.T) {
+	os.Setenv("K_REVISION", "version-abc")
+	defer os.Unsetenv("K_REVISION")
+	os.Setenv("K_SERVICE", "superService")
+	defer os.Unsetenv("K_SERVICE")
+	assert.True(t, isServerlessOrigin(nil))
+}
+
+func TestServerlessModeLambda(t *testing.T) {
+	lambdaConfig := &config.Lambda{}
+	assert.True(t, isServerlessOrigin(lambdaConfig))
 }

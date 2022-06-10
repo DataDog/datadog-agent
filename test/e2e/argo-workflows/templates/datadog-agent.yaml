@@ -15,7 +15,7 @@ spec:
           - name: cluster-agent-image-repository
           - name: cluster-agent-image-tag
       script:
-        image: alpine/helm
+        image: alpine/helm:3.9.0
         envFrom:
           - secretRef:
               name: dd-keys
@@ -57,6 +57,8 @@ spec:
                 enabled: true
               runtime:
                 enabled: true
+                network:
+                  enabled: true
 
             confd:
               memory.yaml: |
@@ -119,6 +121,8 @@ spec:
             token: c9e21a248434a400b1de021dbdd554d790983a1212a5eac0ba36e79346ec52fd
             metricsProvider:
               enabled: true
+            admissionController:
+              enabled: true
             env:
               - name: DATADOG_HOST
                 value: {{inputs.parameters.dd-url}}
@@ -135,7 +139,7 @@ spec:
         parameters:
           - name: namespace
       container:
-        image: alpine/helm
+        image: alpine/helm:3.9.0
         args: ["--namespace", "{{inputs.parameters.namespace}}", "uninstall", "datadog-agent"]
 
     - name: health
@@ -197,7 +201,7 @@ spec:
           set -euo pipefail
           set -x
 
-          until kubectl --namespace {{inputs.parameters.namespace}} get cm datadog-leader-election -o jsonpath={.metadata.annotations."control-plane\.alpha\.kubernetes\.io/leader"}; do
+          until kubectl --namespace {{inputs.parameters.namespace}} get cm datadog-agent-leader-election -o jsonpath={.metadata.annotations."control-plane\.alpha\.kubernetes\.io/leader"}; do
             sleep 1
           done
 

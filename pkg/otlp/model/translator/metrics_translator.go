@@ -20,12 +20,14 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/quantile"
-	"go.opentelemetry.io/collector/model/pdata"
-	"go.uber.org/zap"
-
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/internal/instrumentationlibrary"
+	"github.com/DataDog/datadog-agent/pkg/quantile"
+	"github.com/DataDog/sketches-go/ddsketch"
+	"github.com/DataDog/sketches-go/ddsketch/mapping"
+	"github.com/DataDog/sketches-go/ddsketch/store"
+	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.uber.org/zap"
 )
 
 const metricName string = "metric name"
@@ -67,10 +69,10 @@ func New(logger *zap.Logger, options ...Option) (*Translator, error) {
 }
 
 // isCumulativeMonotonic checks if a metric is a cumulative monotonic metric
-func isCumulativeMonotonic(md pdata.Metric) bool {
+func isCumulativeMonotonic(md pmetric.Metric) bool {
 	switch md.DataType() {
-	case pdata.MetricDataTypeSum:
-		return md.Sum().AggregationTemporality() == pdata.MetricAggregationTemporalityCumulative &&
+	case pmetric.MetricDataTypeSum:
+		return md.Sum().AggregationTemporality() == pmetric.MetricAggregationTemporalityCumulative &&
 			md.Sum().IsMonotonic()
 	}
 	return false
@@ -92,7 +94,7 @@ func (t *Translator) mapNumberMetrics(
 	consumer TimeSeriesConsumer,
 	dims *Dimensions,
 	dt MetricDataType,
-	slice pdata.NumberDataPointSlice,
+	slice pmetric.NumberDataPointSlice,
 ) {
 
 	for i := 0; i < slice.Len(); i++ {
@@ -100,9 +102,9 @@ func (t *Translator) mapNumberMetrics(
 		pointDims := dims.WithAttributeMap(p.Attributes())
 		var val float64
 		switch p.ValueType() {
-		case pdata.MetricValueTypeDouble:
+		case pmetric.NumberDataPointValueTypeDouble:
 			val = p.DoubleVal()
-		case pdata.MetricValueTypeInt:
+		case pmetric.NumberDataPointValueTypeInt:
 			val = float64(p.IntVal())
 		}
 
@@ -119,7 +121,7 @@ func (t *Translator) mapNumberMonotonicMetrics(
 	ctx context.Context,
 	consumer TimeSeriesConsumer,
 	dims *Dimensions,
-	slice pdata.NumberDataPointSlice,
+	slice pmetric.NumberDataPointSlice,
 ) {
 	for i := 0; i < slice.Len(); i++ {
 		p := slice.At(i)
@@ -129,9 +131,9 @@ func (t *Translator) mapNumberMonotonicMetrics(
 
 		var val float64
 		switch p.ValueType() {
-		case pdata.MetricValueTypeDouble:
+		case pmetric.NumberDataPointValueTypeDouble:
 			val = p.DoubleVal()
-		case pdata.MetricValueTypeInt:
+		case pmetric.NumberDataPointValueTypeInt:
 			val = float64(p.IntVal())
 		}
 
@@ -145,15 +147,15 @@ func (t *Translator) mapNumberMonotonicMetrics(
 	}
 }
 
-func getBounds(p pdata.HistogramDataPoint, idx int) (lowerBound float64, upperBound float64) {
+func getBounds(p pmetric.HistogramDataPoint, idx int) (lowerBound float64, upperBound float64) {
 	// See https://github.com/open-telemetry/opentelemetry-proto/blob/v0.10.0/opentelemetry/proto/metrics/v1/metrics.proto#L427-L439
 	lowerBound = math.Inf(-1)
 	upperBound = math.Inf(1)
 	if idx > 0 {
-		lowerBound = p.ExplicitBounds()[idx-1]
+		lowerBound = p.MExplicitBounds()[idx-1]
 	}
-	if idx < len(p.ExplicitBounds()) {
-		upperBound = p.ExplicitBounds()[idx]
+	if idx < len(p.MExplicitBounds()) {
+		upperBound = p.MExplicitBounds()[idx]
 	}
 	return
 }
@@ -171,19 +173,19 @@ func (t *Translator) getSketchBuckets(
 	ctx context.Context,
 	consumer SketchConsumer,
 	pointDims *Dimensions,
-	p pdata.HistogramDataPoint,
+	p pmetric.HistogramDataPoint,
 	histInfo histogramInfo,
 	delta bool,
 ) {
 	startTs := uint64(p.StartTimestamp())
 	ts := uint64(p.Timestamp())
 	as := &quantile.Agent{}
-	for j := range p.BucketCounts() {
+	for j := range p.MBucketCounts() {
 		lowerBound, upperBound := getBounds(p, j)
 
 		// Compute temporary bucketTags to have unique keys in the t.prevPts cache for each bucket
 		// The bucketTags are computed from the bounds before the InsertInterpolate fix is done,
-		// otherwise in the case where p.ExplicitBounds() has a size of 1 (eg. [0]), the two buckets
+		// otherwise in the case where p.MExplicitBounds() has a size of 1 (eg. [0]), the two buckets
 		// would have the same bucketTags (lower_bound:0 and upper_bound:0), resulting in a buggy behavior.
 		bucketDims := pointDims.AddTags(
 			fmt.Sprintf("lower_bound:%s", formatFloat(lowerBound)),
@@ -198,7 +200,7 @@ func (t *Translator) getSketchBuckets(
 			lowerBound = upperBound
 		}
 
-		count := p.BucketCounts()[j]
+		count := p.MBucketCounts()[j]
 		if delta {
 			as.InsertInterpolate(lowerBound, upperBound, uint(count))
 		} else if dx, ok := t.prevPts.Diff(bucketDims, startTs, ts, float64(count)); ok {
@@ -223,7 +225,7 @@ func (t *Translator) getLegacyBuckets(
 	ctx context.Context,
 	consumer TimeSeriesConsumer,
 	pointDims *Dimensions,
-	p pdata.HistogramDataPoint,
+	p pmetric.HistogramDataPoint,
 	delta bool,
 ) {
 	startTs := uint64(p.StartTimestamp())
@@ -231,7 +233,7 @@ func (t *Translator) getLegacyBuckets(
 	// We have a single metric, 'bucket', which is tagged with the bucket bounds. See:
 	// https://github.com/DataDog/integrations-core/blob/7.30.1/datadog_checks_base/datadog_checks/base/checks/openmetrics/v2/transformers/histogram.py
 	baseBucketDims := pointDims.WithSuffix("bucket")
-	for idx, val := range p.BucketCounts() {
+	for idx, val := range p.MBucketCounts() {
 		lowerBound, upperBound := getBounds(p, idx)
 		bucketDims := baseBucketDims.AddTags(
 			fmt.Sprintf("lower_bound:%s", formatFloat(lowerBound)),
@@ -264,7 +266,7 @@ func (t *Translator) mapHistogramMetrics(
 	ctx context.Context,
 	consumer Consumer,
 	dims *Dimensions,
-	slice pdata.HistogramDataPointSlice,
+	slice pmetric.HistogramDataPointSlice,
 	delta bool,
 ) {
 	for i := 0; i < slice.Len(); i++ {
@@ -312,6 +314,130 @@ func (t *Translator) mapHistogramMetrics(
 	}
 }
 
+// mapExponentialHistogramMetrics maps exponential histogram metrics slices to Datadog metrics
+//
+// An ExponentialHistogram metric has:
+// - The count of values in the population
+// - The sum of values in the population
+// - A scale, from which the base of the exponential histogram is computed
+// - Two bucket stores, each with:
+//     - an offset
+//     - a list of bucket counts
+// - A count of zero values in the population
+func (t *Translator) mapExponentialHistogramMetrics(
+	ctx context.Context,
+	consumer Consumer,
+	dims *Dimensions,
+	slice pmetric.ExponentialHistogramDataPointSlice,
+	delta bool,
+) {
+	for i := 0; i < slice.Len(); i++ {
+		p := slice.At(i)
+		startTs := uint64(p.StartTimestamp())
+		ts := uint64(p.Timestamp())
+		pointDims := dims.WithAttributeMap(p.Attributes())
+
+		histInfo := histogramInfo{ok: true}
+
+		countDims := pointDims.WithSuffix("count")
+		if delta {
+			histInfo.count = p.Count()
+		} else if dx, ok := t.prevPts.Diff(countDims, startTs, ts, float64(p.Count())); ok {
+			histInfo.count = uint64(dx)
+		} else { // not ok
+			histInfo.ok = false
+		}
+
+		sumDims := pointDims.WithSuffix("sum")
+		if !t.isSkippable(sumDims.name, p.Sum()) {
+			if delta {
+				histInfo.sum = p.Sum()
+			} else if dx, ok := t.prevPts.Diff(sumDims, startTs, ts, p.Sum()); ok {
+				histInfo.sum = dx
+			} else { // not ok
+				histInfo.ok = false
+			}
+		} else { // skippable
+			histInfo.ok = false
+		}
+
+		if t.cfg.SendCountSum && histInfo.ok {
+			// We only send the sum and count if both values were ok.
+			consumer.ConsumeTimeSeries(ctx, countDims, Count, ts, float64(histInfo.count))
+			consumer.ConsumeTimeSeries(ctx, sumDims, Count, ts, histInfo.sum)
+		}
+
+		expHistDDSketch, err := t.exponentialHistogramToDDSketch(p, delta)
+		if err != nil {
+			t.logger.Debug("Failed to convert ExponentialHistogram into DDSketch",
+				zap.String("metric name", dims.name),
+				zap.Error(err),
+			)
+			continue
+		}
+
+		agentSketch, err := quantile.ConvertDDSketchIntoSketch(expHistDDSketch)
+		if err != nil {
+			t.logger.Debug("Failed to convert DDSketch into Sketch",
+				zap.String("metric name", dims.name),
+				zap.Error(err),
+			)
+		}
+
+		if histInfo.ok {
+			// override approximate sum, count and average in sketch with exact values if available.
+			agentSketch.Basic.Cnt = int64(histInfo.count)
+			agentSketch.Basic.Sum = histInfo.sum
+			agentSketch.Basic.Avg = agentSketch.Basic.Sum / float64(agentSketch.Basic.Cnt)
+		}
+
+		consumer.ConsumeSketch(ctx, pointDims, ts, agentSketch)
+	}
+}
+
+func (t *Translator) exponentialHistogramToDDSketch(
+	p pmetric.ExponentialHistogramDataPoint,
+	delta bool,
+) (*ddsketch.DDSketch, error) {
+	if !delta {
+		return nil, fmt.Errorf("cumulative exponential histograms are not supported")
+	}
+
+	// Create the DDSketch stores
+	positiveStore := toStore(p.Positive())
+	negativeStore := toStore(p.Negative())
+
+	// Create the DDSketch mapping that corresponds to the ExponentialHistogram settings
+	gamma := math.Pow(2, math.Pow(2, float64(-p.Scale())))
+	mapping, err := mapping.NewLogarithmicMappingWithGamma(gamma, 0)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't create LogarithmicMapping for DDSketch: %w", err)
+	}
+
+	// Create DDSketch with the above mapping and stores
+	sketch := ddsketch.NewDDSketch(mapping, positiveStore, negativeStore)
+	err = sketch.AddWithCount(0, float64(p.ZeroCount()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to add ZeroCount to DDSketch: %w", err)
+	}
+
+	return sketch, nil
+}
+
+func toStore(b pmetric.Buckets) store.Store {
+	offset := b.Offset()
+	bucketCounts := b.MBucketCounts()
+
+	store := store.NewDenseStore()
+	for j, count := range bucketCounts {
+		// Find the real index of the bucket by adding the offset
+		index := j + int(offset)
+
+		store.AddWithCount(index, float64(count))
+	}
+	return store
+}
+
 // formatFloat formats a float number as close as possible to what
 // we do on the Datadog Agent Python OpenMetrics check, which, in turn, tries to
 // follow https://github.com/OpenObservability/OpenMetrics/blob/v1.0.0/specification/OpenMetrics.md#considerations-canonical-numbers
@@ -344,7 +470,7 @@ func (t *Translator) mapSummaryMetrics(
 	ctx context.Context,
 	consumer TimeSeriesConsumer,
 	dims *Dimensions,
-	slice pdata.SummaryDataPointSlice,
+	slice pmetric.SummaryDataPointSlice,
 ) {
 
 	for i := 0; i < slice.Len(); i++ {
@@ -388,7 +514,7 @@ func (t *Translator) mapSummaryMetrics(
 }
 
 // MapMetrics maps OTLP metrics into the DataDog format
-func (t *Translator) MapMetrics(ctx context.Context, md pdata.Metrics, consumer Consumer) error {
+func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consumer Consumer) error {
 	rms := md.ResourceMetrics()
 	for i := 0; i < rms.Len(); i++ {
 		rm := rms.At(i)
@@ -420,14 +546,14 @@ func (t *Translator) MapMetrics(ctx context.Context, md pdata.Metrics, consumer 
 			}
 		}
 
-		ilms := rm.InstrumentationLibraryMetrics()
+		ilms := rm.ScopeMetrics()
 		for j := 0; j < ilms.Len(); j++ {
 			ilm := ilms.At(j)
 			metricsArray := ilm.Metrics()
 
 			var additionalTags []string
 			if t.cfg.InstrumentationLibraryMetadataAsTags {
-				additionalTags = append(attributeTags, instrumentationlibrary.TagsFromInstrumentationLibraryMetadata(ilm.InstrumentationLibrary())...)
+				additionalTags = append(attributeTags, instrumentationlibrary.TagsFromInstrumentationLibraryMetadata(ilm.Scope())...)
 			} else {
 				additionalTags = attributeTags
 			}
@@ -441,40 +567,52 @@ func (t *Translator) MapMetrics(ctx context.Context, md pdata.Metrics, consumer 
 					originID: attributes.OriginIDFromAttributes(rm.Resource().Attributes()),
 				}
 				switch md.DataType() {
-				case pdata.MetricDataTypeGauge:
+				case pmetric.MetricDataTypeGauge:
 					t.mapNumberMetrics(ctx, consumer, baseDims, Gauge, md.Gauge().DataPoints())
-				case pdata.MetricDataTypeSum:
+				case pmetric.MetricDataTypeSum:
 					switch md.Sum().AggregationTemporality() {
-					case pdata.MetricAggregationTemporalityCumulative:
+					case pmetric.MetricAggregationTemporalityCumulative:
 						if t.cfg.SendMonotonic && isCumulativeMonotonic(md) {
 							t.mapNumberMonotonicMetrics(ctx, consumer, baseDims, md.Sum().DataPoints())
 						} else {
 							t.mapNumberMetrics(ctx, consumer, baseDims, Gauge, md.Sum().DataPoints())
 						}
-					case pdata.MetricAggregationTemporalityDelta:
+					case pmetric.MetricAggregationTemporalityDelta:
 						t.mapNumberMetrics(ctx, consumer, baseDims, Count, md.Sum().DataPoints())
-					default: // pdata.AggregationTemporalityUnspecified or any other not supported type
+					default: // pmetric.AggregationTemporalityUnspecified or any other not supported type
 						t.logger.Debug("Unknown or unsupported aggregation temporality",
 							zap.String(metricName, md.Name()),
 							zap.Any("aggregation temporality", md.Sum().AggregationTemporality()),
 						)
 						continue
 					}
-				case pdata.MetricDataTypeHistogram:
+				case pmetric.MetricDataTypeHistogram:
 					switch md.Histogram().AggregationTemporality() {
-					case pdata.MetricAggregationTemporalityCumulative, pdata.MetricAggregationTemporalityDelta:
-						delta := md.Histogram().AggregationTemporality() == pdata.MetricAggregationTemporalityDelta
+					case pmetric.MetricAggregationTemporalityCumulative, pmetric.MetricAggregationTemporalityDelta:
+						delta := md.Histogram().AggregationTemporality() == pmetric.MetricAggregationTemporalityDelta
 						t.mapHistogramMetrics(ctx, consumer, baseDims, md.Histogram().DataPoints(), delta)
-					default: // pdata.AggregationTemporalityUnspecified or any other not supported type
+					default: // pmetric.AggregationTemporalityUnspecified or any other not supported type
 						t.logger.Debug("Unknown or unsupported aggregation temporality",
 							zap.String("metric name", md.Name()),
 							zap.Any("aggregation temporality", md.Histogram().AggregationTemporality()),
 						)
 						continue
 					}
-				case pdata.MetricDataTypeSummary:
+				case pmetric.MetricDataTypeExponentialHistogram:
+					switch md.ExponentialHistogram().AggregationTemporality() {
+					case pmetric.MetricAggregationTemporalityDelta:
+						delta := md.ExponentialHistogram().AggregationTemporality() == pmetric.MetricAggregationTemporalityDelta
+						t.mapExponentialHistogramMetrics(ctx, consumer, baseDims, md.ExponentialHistogram().DataPoints(), delta)
+					default: // pmetric.MetricAggregationTemporalityCumulative, pmetric.AggregationTemporalityUnspecified or any other not supported type
+						t.logger.Debug("Unknown or unsupported aggregation temporality",
+							zap.String("metric name", md.Name()),
+							zap.Any("aggregation temporality", md.ExponentialHistogram().AggregationTemporality()),
+						)
+						continue
+					}
+				case pmetric.MetricDataTypeSummary:
 					t.mapSummaryMetrics(ctx, consumer, baseDims, md.Summary().DataPoints())
-				default: // pdata.MetricDataTypeNone or any other not supported type
+				default: // pmetric.MetricDataTypeNone or any other not supported type
 					t.logger.Debug("Unknown or unsupported metric type", zap.String(metricName, md.Name()), zap.Any("data type", md.DataType()))
 					continue
 				}

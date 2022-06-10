@@ -24,11 +24,11 @@ import (
 // For name translation only please use metricNamesMapper instead
 type metricTransformerFunc = func(aggregator.Sender, string, ksmstore.DDMetric, string, []string, time.Time)
 
-var (
-	// metricTransformers contains KSM metric names and their corresponding transformer functions
-	// These metrics require more than a name translation to generate Datadog metrics, as opposed to the metrics in metricNamesMapper
-	// For reference see METRIC_TRANSFORMERS in KSM check V1
-	metricTransformers = map[string]metricTransformerFunc{
+// defaultMetricTransformers returns a map that contains KSM metric names and their corresponding transformer functions
+// These metrics require more than a name translation to generate Datadog metrics, as opposed to the metrics in defaultMetricNamesMapper
+// For reference see METRIC_TRANSFORMERS in KSM check V1
+func defaultMetricTransformers() map[string]metricTransformerFunc {
+	return map[string]metricTransformerFunc{
 		"kube_pod_created":                            podCreationTransformer,
 		"kube_pod_start_time":                         podStartTimeTransformer,
 		"kube_pod_status_phase":                       podPhaseTransformer,
@@ -52,7 +52,7 @@ var (
 		"kube_persistentvolume_status_phase":          pvPhaseTransformer,
 		"kube_service_spec_type":                      serviceTypeTransformer,
 	}
-)
+}
 
 // nodeConditionTransformer generates service checks based on the metric kube_node_status_condition
 // It also submit the metric kubernetes_state.node.by_condition

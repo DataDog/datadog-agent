@@ -21,8 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
@@ -85,6 +87,7 @@ func (ku *KubeUtil) init() error {
 	return nil
 }
 
+// NewKubeUtil returns a new KubeUtil
 func NewKubeUtil() *KubeUtil {
 	ku := &KubeUtil{
 		rawConnectionInfo:    make(map[string]string),
@@ -211,6 +214,14 @@ func (ku *KubeUtil) GetLocalPodList(ctx context.Context) ([]*Pod, error) {
 	tmpSlice := make([]*Pod, 0, len(pods.Items))
 	for _, pod := range pods.Items {
 		if pod != nil {
+			// Validate allocation size.
+			// Limits hardcoded here are huge enough to never be hit.
+			if len(pod.Spec.Containers) > 10000 ||
+				len(pod.Spec.InitContainers) > 10000 {
+				log.Errorf("pod %s has a crazy number of containers: %d or init containers: %d. Skipping it!",
+					pod.Metadata.UID, len(pod.Spec.Containers), len(pod.Spec.InitContainers))
+				continue
+			}
 			allContainers := make([]ContainerStatus, 0, len(pod.Status.InitContainers)+len(pod.Status.Containers))
 			allContainers = append(allContainers, pod.Status.InitContainers...)
 			allContainers = append(allContainers, pod.Status.Containers...)
@@ -331,6 +342,7 @@ func (ku *KubeUtil) GetSpecForContainerName(pod *Pod, containerName string) (Con
 	return ContainerSpec{}, errors.NewNotFound(fmt.Sprintf("container %s in pod", containerName))
 }
 
+// GetPodFromUID fetches pods by UID
 func (ku *KubeUtil) GetPodFromUID(ctx context.Context, podUID string) (*Pod, error) {
 	if podUID == "" {
 		return nil, fmt.Errorf("pod UID is empty")
@@ -368,6 +380,7 @@ func (ku *KubeUtil) GetPodForEntityID(ctx context.Context, entityID string) (*Po
 	return ku.GetPodForContainerID(ctx, entityID)
 }
 
+// GetLocalStatsSummary returns node and pod stats from kubelet
 func (ku *KubeUtil) GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error) {
 	data, code, err := ku.QueryKubelet(ctx, kubeletStatsSummary)
 	if err != nil {
@@ -398,6 +411,7 @@ func (ku *KubeUtil) GetKubeletAPIEndpoint() string {
 }
 
 // GetRawConnectionInfo returns a map containging the url and credentials to connect to the kubelet
+// It refreshes the auth token on each call.
 // Possible map entries:
 //   - url: full url with scheme (required)
 //   - verify_tls: "true" or "false" string
@@ -406,6 +420,15 @@ func (ku *KubeUtil) GetKubeletAPIEndpoint() string {
 //   - client_crt: path to the client cert if set
 //   - client_key: path to the client key if set
 func (ku *KubeUtil) GetRawConnectionInfo() map[string]string {
+	if ku.kubeletClient.config.scheme == "https" && ku.kubeletClient.config.token != "" {
+		token, err := kubernetes.GetBearerToken(ku.kubeletClient.config.tokenPath)
+		if err != nil {
+			log.Warnf("Couldn't read auth token defined in %q: %v", ku.kubeletClient.config.tokenPath, err)
+		} else {
+			ku.rawConnectionInfo["token"] = token
+		}
+	}
+
 	return ku.rawConnectionInfo
 }
 

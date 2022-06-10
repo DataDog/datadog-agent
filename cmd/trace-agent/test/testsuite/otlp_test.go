@@ -18,8 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
 	"github.com/stretchr/testify/assert"
-	"go.opentelemetry.io/collector/model/otlpgrpc"
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 
 	"google.golang.org/grpc"
 )
@@ -56,7 +56,7 @@ apm_config:
 		if err != nil {
 			log.Fatal("Error dialing: ", err)
 		}
-		client := otlpgrpc.NewTracesClient(conn)
+		client := ptraceotlp.NewClient(conn)
 		now := uint64(time.Now().UnixNano())
 		pack := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 			{
@@ -66,7 +66,7 @@ apm_config:
 				Spans: []*testutil.OTLPSpan{
 					{
 						Name:       "/path",
-						Kind:       pdata.SpanKindServer,
+						Kind:       ptrace.SpanKindServer,
 						Start:      now,
 						End:        now + 200000000,
 						Attributes: map[string]interface{}{"name": "john"},
@@ -110,7 +110,7 @@ apm_config:
 		if err != nil {
 			log.Fatal("Error dialing: ", err)
 		}
-		client := otlpgrpc.NewTracesClient(conn)
+		client := ptraceotlp.NewClient(conn)
 		now := uint64(time.Now().UnixNano())
 		pack := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 			{
@@ -122,7 +122,7 @@ apm_config:
 						TraceID: testutil.OTLPFixedTraceID.Bytes(),
 						SpanID:  testutil.OTLPFixedSpanID.Bytes(),
 						Name:    "/path",
-						Kind:    pdata.SpanKindServer,
+						Kind:    ptrace.SpanKindServer,
 						Start:   now,
 						End:     now + 200000000,
 					},
@@ -130,7 +130,7 @@ apm_config:
 						TraceID: testutil.OTLPFixedTraceID.Bytes(),
 						SpanID:  testutil.OTLPFixedSpanID.Bytes(),
 						Name:    "/path",
-						Kind:    pdata.SpanKindServer,
+						Kind:    ptrace.SpanKindServer,
 						Start:   now,
 						End:     now + 200000000,
 					},

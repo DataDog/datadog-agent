@@ -124,21 +124,23 @@ variables:
   S3_CP_CMD: aws s3 cp $S3_CP_OPTIONS
   S3_ARTIFACTS_URI: s3://dd-ci-artefacts-build-stable/$CI_PROJECT_NAME/$CI_PIPELINE_ID
   S3_PERMANENT_ARTIFACTS_URI: s3://dd-ci-persistent-artefacts-build-stable/$CI_PROJECT_NAME
+  S3_SBOM_STORAGE_URI: s3://sbom-root-us1-ddbuild-io/$CI_PROJECT_NAME/$CI_PIPELINE_ID
   ## comment out both lines below (S3_OMNIBUS_CACHE_BUCKET and USE_S3_CACHING) to allow
   ## build to succeed with S3 caching disabled.
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
   USE_S3_CACHING: --omnibus-s3-cache
   ## comment out the line below to disable integration wheels cache
   INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
+  GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
-  DATADOG_AGENT_BUILDIMAGES: v7341670-fda66f1
-  DATADOG_AGENT_BUILDERS: v6814105-5ec7b27
-  DATADOG_AGENT_WINBUILDIMAGES: v7341670-fda66f1
-  DATADOG_AGENT_ARMBUILDIMAGES: v7341670-fda66f1
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v7341670-fda66f1
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v7341670-fda66f1
+  DATADOG_AGENT_BUILDIMAGES: v8334078-66730ef
+  DATADOG_AGENT_BUILDERS: v8333476-cd1c34b
+  DATADOG_AGENT_WINBUILDIMAGES: v8334078-66730ef
+  DATADOG_AGENT_ARMBUILDIMAGES: v8334078-66730ef
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v8334078-66730ef
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v8334078-66730ef
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DOCKER_X64_BUILDER: v2718644-9ce6565-18.09.6-py3
   NIKOS_INSTALL_DIR: /opt/datadog-agent/embedded/nikos

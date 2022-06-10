@@ -58,7 +58,7 @@ func TestConfigEndpoint(t *testing.T) {
 			grpc := mockAgentSecureServer{}
 			rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil)
 			mux := http.NewServeMux()
-			mux.Handle("/v0.7/config", remoteConfigHandler(rcv, &grpc, ""))
+			mux.Handle("/v0.7/config", remoteConfigHandler(rcv, &grpc, "", nil))
 			server := httptest.NewServer(mux)
 			if tc.valid {
 				var request pbgo.ClientGetConfigsRequest
@@ -75,6 +75,75 @@ func TestConfigEndpoint(t *testing.T) {
 			assert.Equal(tc.expectedStatusCode, resp.StatusCode)
 			assert.Equal(tc.response, string(body))
 		})
+	}
+}
+
+func TestTags(t *testing.T) {
+
+	var tcs = []struct {
+		name                    string
+		tracerReq               string
+		cfg                     *config.AgentConfig
+		expectedUpstreamRequest string
+	}{
+		{
+			name:      "both tracer and container tags",
+			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["foo:bar"]}}}`,
+			cfg: &config.AgentConfig{
+				ContainerTags: func(cid string) ([]string, error) {
+					return []string{"baz:qux"}, nil
+				},
+			},
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["foo:bar","baz:qux"]}}}`,
+		},
+		{
+			name:                    "tracer tags only",
+			tracerReq:               `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["foo:bar"]}}}`,
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["foo:bar"]}}}`,
+		},
+		{
+			name:      "container tags only",
+			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{}}}`,
+			cfg: &config.AgentConfig{
+				ContainerTags: func(cid string) ([]string, error) {
+					return []string{"baz:qux"}, nil
+				},
+			},
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["baz:qux"]}}}`,
+		},
+		{
+			name:                    "no tracer",
+			tracerReq:               `{"client":{"id":"test_client"}}`,
+			expectedUpstreamRequest: `{"client":{"id":"test_client"}}`,
+		},
+	}
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+			grpc := mockAgentSecureServer{}
+			rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil)
+
+			var request pbgo.ClientGetConfigsRequest
+			err := json.Unmarshal([]byte(tc.expectedUpstreamRequest), &request)
+			assert.NoError(err)
+			grpc.On("ClientGetConfigs", mock.Anything, &request, mock.Anything).Return(&pbgo.ClientGetConfigsResponse{Targets: []byte("test")}, nil)
+
+			mux := http.NewServeMux()
+			mux.Handle("/v0.7/config", remoteConfigHandler(rcv, &grpc, "", tc.cfg))
+			server := httptest.NewServer(mux)
+
+			req, _ := http.NewRequest("POST", server.URL+"/v0.7/config", strings.NewReader(tc.tracerReq))
+			req.Header.Set("Content-Type", "application/msgpack")
+			req.Header.Set("Datadog-Container-ID", "cid")
+			resp, err := http.DefaultClient.Do(req)
+			assert.Nil(err)
+			body, err := ioutil.ReadAll(resp.Body)
+			assert.Nil(err)
+			assert.Equal(200, resp.StatusCode)
+			assert.Equal(`{"targets":"dGVzdA=="}`, string(body))
+
+		})
+
 	}
 }
 

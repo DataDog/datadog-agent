@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
@@ -33,7 +34,7 @@ type AgentTestSuite struct {
 	testLogFile string
 	fakeLogs    int64
 
-	source *config.LogSource
+	source *sources.LogSource
 }
 
 func (suite *AgentTestSuite) SetupTest() {
@@ -57,7 +58,7 @@ func (suite *AgentTestSuite) SetupTest() {
 		Path:       suite.testLogFile,
 		Identifier: "test", // As it was from service-discovery to force the tailer to read from the start.
 	}
-	suite.source = config.NewLogSource("", &logConfig)
+	suite.source = sources.NewLogSource("", &logConfig)
 
 	mockConfig.Set("logs_config.run_path", suite.testDir)
 	// Shorter grace period for tests.
@@ -75,9 +76,9 @@ func (suite *AgentTestSuite) TearDownTest() {
 	metrics.DestinationLogsDropped.Init()
 }
 
-func createAgent(endpoints *config.Endpoints) (*Agent, *config.LogSources, *service.Services) {
+func createAgent(endpoints *config.Endpoints) (*Agent, *sources.LogSources, *service.Services) {
 	// setup the sources and the services
-	sources := config.NewLogSources()
+	sources := sources.NewLogSources()
 	services := service.NewServices()
 
 	// setup and start the agent
@@ -127,14 +128,13 @@ func (suite *AgentTestSuite) TestAgentHttp() {
 
 	server := http.NewTestServer(200)
 	defer server.Stop()
-	server.Endpoint.IsReliable = true
 	endpoints := config.NewEndpoints(server.Endpoint, nil, false, true)
 
 	suite.testAgent(endpoints)
 }
 
 func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
-	endpoint := config.Endpoint{Host: "fake:", Port: 0, IsReliable: true}
+	endpoint := config.Endpoint{Host: "fake:", Port: 0}
 	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{}, true, false)
 
 	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})

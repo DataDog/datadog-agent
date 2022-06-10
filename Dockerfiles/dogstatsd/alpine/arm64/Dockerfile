@@ -13,6 +13,7 @@ RUN ALPINE_RELEASE=$(cat /etc/alpine-release | sed "s/^\(\d\+\.\d\+\).\+$/\1/") 
 RUN apk add --no-cache ca-certificates
 
 COPY entrypoint.sh probe.sh /
+RUN chmod 755 /entrypoint.sh /probe.sh
 COPY dogstatsd.yaml /etc/datadog-agent/dogstatsd.yaml
 COPY install_info /etc/datadog-agent/install_info
 COPY static/dogstatsd /dogstatsd

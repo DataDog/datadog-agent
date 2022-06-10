@@ -10,9 +10,8 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func createRandomContainers(store *workloadmeta.MockStore, n int) {
@@ -33,16 +32,27 @@ func TestReportContainersCount(t *testing.T) {
 
 	fakeStore := workloadmeta.NewMockStore()
 	telemetry := &telemetry{
-		sender:        mockSender,
-		metadataStore: fakeStore,
+		containers: &common.ContainersTelemetry{
+			Sender:        mockSender,
+			MetadataStore: fakeStore,
+		},
 	}
 
-	containersCount := 10
-	createRandomContainers(fakeStore, containersCount)
+	runningContainersCount := 10
+	createRandomContainers(fakeStore, runningContainersCount)
 
-	assert.NoError(t, telemetry.reportContainers())
-	mockSender.AssertNumberOfCalls(t, "Gauge", containersCount)
-	for i := 0; i < containersCount; i++ {
+	// Create a non-running container. It should not appear in the result
+	fakeStore.SetEntity(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   strconv.FormatInt(int64(runningContainersCount), 10),
+		},
+		State: workloadmeta.ContainerState{Running: false},
+	})
+
+	telemetry.reportContainers()
+	mockSender.AssertNumberOfCalls(t, "Gauge", runningContainersCount)
+	for i := 0; i < runningContainersCount; i++ {
 		mockSender.AssertCalled(t, "Gauge", containersCountMetricName, 1.0, "", []string{"container_id:" + strconv.Itoa(i)})
 	}
 }

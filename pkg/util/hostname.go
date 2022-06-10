@@ -92,10 +92,12 @@ func isOSHostnameUsable(ctx context.Context) (osHostnameUsable bool) {
 	// Check hostNetwork from kubernetes
 	// because kubernetes sets UTS namespace to host if and only if hostNetwork = true:
 	// https://github.com/kubernetes/kubernetes/blob/cf16e4988f58a5b816385898271e70c3346b9651/pkg/kubelet/dockershim/security_context.go#L203-L205
-	hostNetwork, err := isAgentKubeHostNetwork()
-	if err == nil && !hostNetwork {
-		log.Debug("Agent is running in a POD without hostNetwork: OS-provided hostnames cannot be used for hostname resolution.")
-		return false
+	if config.IsFeaturePresent(config.Kubernetes) {
+		hostNetwork, err := isAgentKubeHostNetwork()
+		if err == nil && !hostNetwork {
+			log.Debug("Agent is running in a POD without hostNetwork: OS-provided hostnames cannot be used for hostname resolution.")
+			return false
+		}
 	}
 
 	return true
@@ -269,15 +271,20 @@ func GetHostnameData(ctx context.Context) (HostnameData, error) {
 	// at this point we've either the hostname from the os or an empty string
 	// ------------------------
 
-	// We use the instance id if we're on an ECS cluster or we're on EC2
-	// and the hostname is one of the default ones
+	// We use the instance id if we're on an ECS cluster or we're on EC2 and the hostname is one of the default ones
+	// or ec2_prioritize_instance_id_as_hostname is set to true
+	prioritizeEC2Hostname := config.Datadog.GetBool("ec2_prioritize_instance_id_as_hostname")
 	if getEC2Hostname := hostname.GetProvider("ec2"); getEC2Hostname != nil {
 		log.Debug("GetHostname trying EC2 metadata...")
 
-		if ecs.IsECSInstance() || ec2.IsDefaultHostname(hostName) {
+		if ecs.IsECSInstance() || ec2.IsDefaultHostname(hostName) || prioritizeEC2Hostname {
 			ec2Hostname, err := getValidEC2Hostname(ctx, getEC2Hostname)
 
 			if err == nil {
+				if prioritizeEC2Hostname {
+					return saveHostnameData(cacheHostnameKey, ec2Hostname, "aws"), nil
+				}
+
 				hostName = ec2Hostname
 				provider = "aws"
 			} else {
@@ -307,6 +314,10 @@ func GetHostnameData(ctx context.Context) (HostnameData, error) {
 				}
 			}
 		}
+	} else if prioritizeEC2Hostname {
+		expErr := new(expvar.String)
+		expErr.Set("ec2 hostname provider is not enabled despite ec2_prioritize_instance_id_as_hostname being set to true")
+		hostnameErrors.Set("forced EC2 hostname", expErr)
 	}
 
 	if getAzureHostname := hostname.GetProvider("azure"); getAzureHostname != nil {
@@ -341,7 +352,7 @@ func GetHostnameData(ctx context.Context) (HostnameData, error) {
 	if hostName == "" {
 		err = fmt.Errorf("unable to reliably determine the host name. You can define one in the agent config file or in your hosts file")
 		expErr := new(expvar.String)
-		expErr.Set(fmt.Sprintf(err.Error()))
+		expErr.Set(err.Error())
 		hostnameErrors.Set("all", expErr)
 		return HostnameData{}, err
 	}

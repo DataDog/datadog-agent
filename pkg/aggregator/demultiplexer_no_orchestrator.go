@@ -13,7 +13,7 @@ import "github.com/DataDog/datadog-agent/pkg/forwarder"
 // buildOrchestratorForwarder builds the orchestrator forwarder.
 // This func has been extracted in this file to not include all the orchestrator
 // dependencies (k8s, several MBs) while building binaries not needing these.
-func buildOrchestratorForwarder() *forwarder.DefaultForwarder {
+func buildOrchestratorForwarder() forwarder.Forwarder {
 	// do not return any forwarder for builds without the orchestrator tag
 	return nil
 }

@@ -1,9 +1,14 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package workloadmeta
 
 import "fmt"
 
 func ExampleStore_Subscribe() {
-	filter := NewFilter([]Kind{KindContainer}, SourceRuntime)
+	filter := NewFilter([]Kind{KindContainer}, SourceRuntime, EventTypeAll)
 	ch := GetGlobalStore().Subscribe("test", NormalPriority, filter)
 
 	go func() {

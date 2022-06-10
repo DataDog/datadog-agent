@@ -1,0 +1,132 @@
+#!/bin/sh
+#
+# Perform necessary datadog-agent setup steps after package is installed.
+#
+
+INSTALL_DIR=/opt/datadog-agent
+
+# macOS-specific variables
+OPT_APP_DIR="$INSTALL_DIR/Datadog Agent.app"
+APP_DIR="/Applications/Datadog Agent.app"
+CONF_DIR=$INSTALL_DIR/etc
+RUN_DIR=$INSTALL_DIR/run
+
+# On Mac, the real log folder is located under /opt/datadog-agent/logs, because MacOS upgrades delete /var/log
+# /var/log log folder now becomes a symbolic link to the new folder.
+LOG_DIR=/opt/datadog-agent/logs
+
+# Let's log the standard outputs of this script
+LOG_FILE="$LOG_DIR/postinstall.log"
+mkdir -vp $LOG_DIR
+exec > $LOG_FILE 2>&1
+
+# Let's talk to our user installing the Agent a bit
+echo "# State at the beginning"
+echo "## Agent version"
+datadog-agent version || echo "No datadog-agent binary version (agent 6)"
+echo "## $INSTALL_DIR"
+ls -al $INSTALL_DIR || "No agent installed"
+echo "## $APP_DIR/Contents/Resources"
+ls -al "$APP_DIR/Contents/Resources" || echo "No app installed"
+
+# Determine current user if he is using the Graphical installer
+# shellcheck disable=SC2009
+INSTALL_USER=$(ps aux | grep "CoreServices/Installer" | grep -v grep | awk '{print $1;}')
+
+# Otherwise, we hope he is using the install script and try to use this user
+# If it fails, no choice but to use root :'(
+if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
+    SCRIPT_INSTALL="yes"
+    INSTALL_USER=`cat /tmp/datadog-install-user || echo 'root'`
+    rm -v /tmp/datadog-install-user || true
+fi
+echo "INSTALL_USER: $INSTALL_USER"
+
+echo "# Preparing log dir"
+chown -vR "${INSTALL_USER}:admin" "$LOG_DIR"
+chmod -v 755 $LOG_DIR
+
+echo "# Installing the app"
+mv -v "$OPT_APP_DIR" /Applications || echo "App already installed"
+
+# Set the run directory for the agent
+mkdir -vp "$RUN_DIR"
+chown -vR "${INSTALL_USER}:admin" "$RUN_DIR"
+chmod -v 755 "$RUN_DIR"
+
+echo "# Copying conf"
+mkdir -vp $CONF_DIR/checks.d
+
+if [ -e "/tmp/datadog.conf" ] || [ -e "/tmp/datadog.yaml" ]; then
+    mv -vf /tmp/datadog.conf /tmp/datadog.yaml $CONF_DIR
+    cp -vfR /tmp/conf.d/* $CONF_DIR/conf.d
+    cp -vn /tmp/checks.d/* $CONF_DIR/checks.d
+    rm -vrf /tmp/datadog.conf /tmp/conf.d /tmp/checks.d
+fi
+# Or copying default
+if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
+    sed -E 's/^api_key:$/api_key: APIKEY/' $CONF_DIR/datadog.yaml.example > $CONF_DIR/datadog.yaml
+fi
+
+install_info_content="---
+install_method:
+  tool: macos_dmg
+  tool_version: macos_dmg
+  installer_version: macos_dmg
+"
+echo "$install_info_content" > $CONF_DIR/install_info
+
+echo "# Setting correct rights on conf"
+chown -vR "${INSTALL_USER}:admin" $CONF_DIR
+
+# `datadog-agent` command line
+mkdir -vp /usr/local/bin
+ln -vs $INSTALL_DIR/bin/agent/agent /usr/local/bin/datadog-agent
+
+# Link for conf files (let's ease the user's life)
+USER_HOME=$(sudo -Hu "$INSTALL_USER" sh -c 'echo $HOME')
+sudo -Hu "$INSTALL_USER" mkdir -vp "$USER_HOME/.datadog-agent"
+rm -vf "$USER_HOME/.datadog-agent/conf.d" "$USER_HOME/.datadog-agent/datadog.yaml" "$USER_HOME/.datadog-agent/checks.d"
+sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/conf.d "$USER_HOME/.datadog-agent/conf.d"
+sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/datadog.yaml "$USER_HOME/.datadog-agent/datadog.yaml"
+sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/checks.d "$USER_HOME/.datadog-agent/checks.d"
+
+# Error if app not properly installed or root
+if [ "$INSTALL_USER" = "root" ]; then
+    echo 'INSTALL_USER is set to root, Datadog Agent app has been installed'
+    echo 'but is not configured. Running Datadog Agent as root is not advised!'
+    exit 1
+fi
+
+echo "# Configuring the agent as a launchd service for the current user (LaunchAgent)"
+sudo -Hu "$INSTALL_USER" mkdir -vp "$USER_HOME/Library/LaunchAgents"
+sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.agent.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
+sudo -Hu "$INSTALL_USER" launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
+
+if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
+    exit 1
+fi
+
+# Start the app only if it's not a script install
+if [ -z "$SCRIPT_INSTALL" ]; then
+    echo "# Starting the app"
+    # -a for application, -F for fresh, do not restore old app
+    TMPDIR=$(sudo -u "$INSTALL_USER" getconf DARWIN_USER_TEMP_DIR)
+    export TMPDIR
+    sudo -u "$INSTALL_USER" open -Fa 'Datadog Agent'
+fi
+
+echo "# Configuring the login launch of the app"
+sudo -u "$INSTALL_USER" osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/Datadog Agent.app", name:"Datadog Agent", hidden:false}'
+
+# A little debriefing won't hurt
+echo "# State at the end"
+echo "## Agent version"
+grep AGENT_VERSION $INSTALL_DIR/agent/config.py || echo "No config.py file (agent 5)"
+datadog-agent version || echo "No datadog-agent binary version (agent 6)"
+echo "## $INSTALL_DIR"
+ls -al $INSTALL_DIR || echo "No agent installed :("
+echo "## $APP_DIR/Contents/Resources"
+ls -al "$APP_DIR/Contents/Resources" || echo "No app installed ;-("
+
+exit 0

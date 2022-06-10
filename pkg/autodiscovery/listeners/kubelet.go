@@ -38,6 +38,7 @@ func NewKubeletListener(Config) (ServiceListener, error) {
 	f := workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
 		workloadmeta.SourceNodeOrchestrator,
+		workloadmeta.EventTypeAll,
 	)
 
 	var err error
@@ -175,7 +176,7 @@ func (l *KubeletListener) createContainerService(
 	}
 
 	adIdentifier := containerName
-	if customADID, found := utils.GetCustomCheckID(pod.Annotations, containerName); found {
+	if customADID, found := utils.ExtractCheckIDFromPodAnnotations(pod.Annotations, containerName); found {
 		adIdentifier = customADID
 		svc.adIdentifiers = append(svc.adIdentifiers, customADID)
 	}
@@ -187,7 +188,7 @@ func (l *KubeletListener) createContainerService(
 	}
 
 	var err error
-	svc.checkNames, err = utils.ExtractCheckNames(pod.Annotations, adIdentifier)
+	svc.checkNames, err = utils.ExtractCheckNamesFromPodAnnotations(pod.Annotations, adIdentifier)
 	if err != nil {
 		log.Error(err.Error())
 	}

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -253,7 +254,7 @@ func TestMultiLineHandlerSendsRawInvalidMessages(t *testing.T) {
 func TestAutoMultiLineHandlerStaysSingleLineMode(t *testing.T) {
 
 	outputFn, outputChan := lineHandlerChans()
-	source := config.NewLogSource("config", &config.LogsConfig{})
+	source := sources.NewLogSource("config", &config.LogsConfig{})
 	detectedPattern := &DetectedPattern{}
 	h := NewAutoMultilineHandler(outputFn, 100, 5, 1.0, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{}, detectedPattern)
 
@@ -268,7 +269,7 @@ func TestAutoMultiLineHandlerStaysSingleLineMode(t *testing.T) {
 
 func TestAutoMultiLineHandlerSwitchesToMultiLineMode(t *testing.T) {
 	outputFn, outputChan := lineHandlerChans()
-	source := config.NewLogSource("config", &config.LogsConfig{})
+	source := sources.NewLogSource("config", &config.LogsConfig{})
 	detectedPattern := &DetectedPattern{}
 	h := NewAutoMultilineHandler(outputFn, 100, 5, 1.0, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{}, detectedPattern)
 
@@ -284,7 +285,7 @@ func TestAutoMultiLineHandlerSwitchesToMultiLineMode(t *testing.T) {
 
 func TestAutoMultiLineHandlerHandelsMessage(t *testing.T) {
 	outputFn, outputChan := lineHandlerChans()
-	source := config.NewLogSource("config", &config.LogsConfig{})
+	source := sources.NewLogSource("config", &config.LogsConfig{})
 	h := NewAutoMultilineHandler(outputFn, 500, 1, 1.0, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{})
 
 	h.process(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message 1"))
@@ -302,7 +303,7 @@ func TestAutoMultiLineHandlerHandelsMessage(t *testing.T) {
 
 func TestAutoMultiLineHandlerHandelsMessageConflictingPatterns(t *testing.T) {
 	outputFn, outputChan := lineHandlerChans()
-	source := config.NewLogSource("config", &config.LogsConfig{})
+	source := sources.NewLogSource("config", &config.LogsConfig{})
 	h := NewAutoMultilineHandler(outputFn, 500, 4, 0.75, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{})
 
 	// we will match both patterns, but one will win with a threshold of 0.75
@@ -327,7 +328,7 @@ func TestAutoMultiLineHandlerHandelsMessageConflictingPatterns(t *testing.T) {
 
 func TestAutoMultiLineHandlerHandelsMessageConflictingPatternsNoWinner(t *testing.T) {
 	outputFn, outputChan := lineHandlerChans()
-	source := config.NewLogSource("config", &config.LogsConfig{})
+	source := sources.NewLogSource("config", &config.LogsConfig{})
 	h := NewAutoMultilineHandler(outputFn, 500, 4, 0.75, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{})
 
 	// we will match both patterns, but neither will win because it doesn't meet the threshold

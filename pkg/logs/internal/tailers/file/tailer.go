@@ -13,12 +13,12 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
-	"sync/atomic"
 	"time"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
@@ -37,14 +37,12 @@ import (
 // This component translates the decoder.Messages into message.Messages and
 // sends them to the tailer's output channel.
 type Tailer struct {
-	// lastReadOffset is the last file offset that was read.  This value must
-	// be accessed atomically after the tailer is started (via
-	// getLastReadOffset, setLastReadOffset, and incrementLastReadOffset)
-	lastReadOffset int64
+	// lastReadOffset is the last file offset that was read.
+	lastReadOffset *atomic.Int64
 
 	// decodedOffset is the offset in the file at which the latest decoded message
-	// ends.  TODO(dustin): this field is accessed both atomically and non-atomically.
-	decodedOffset int64
+	// ends.
+	decodedOffset *atomic.Int64
 
 	// bytesRead is the number of bytes successfully read from the file by this
 	// tailer.  This may be smaller than lastReadOffset if the tailer did not
@@ -79,17 +77,25 @@ type Tailer struct {
 	// sleepDuration is the time between polls of the underlying file.
 	sleepDuration time.Duration
 
-	// closeTimeout is the duration the tailer will remain active after its file
-	// has been rotated.  This allows the tailer to complete reading and processing
-	// any remaining log lines in the file.
+	// closeTimeout (UNIX only) is the duration the tailer will remain active
+	// after its file has been rotated.  This allows the tailer to complete
+	// reading and processing any remaining log lines in the file.
 	closeTimeout time.Duration
 
-	// isFinished is an atomic value, set to 1 when the tailer has closed its input
-	// and flushed all messages.
-	isFinished int32
+	// windowsOpenFileTimeout (Windows only) is the duration the tailer will
+	// hold a file open while waiting for the downstream logs pipeline to
+	// clear.  Setting this to too short a time may result in data in rotated
+	// logfiles being lost when the pipeline is briefly stalled; setting this
+	// to too long a value may result in the agent holding a rotated file open
+	// at a time that the application producing the logs would like to delete
+	// it.
+	windowsOpenFileTimeout time.Duration
 
-	// didFileRotate is an atomic value, used to determine hasFileRotated.
-	didFileRotate int32
+	// isFinished is true when the tailer has closed its input and flushed all messages.
+	isFinished *atomic.Bool
+
+	// didFileRotate is true when we are tailing a file after it has been rotated
+	didFileRotate *atomic.Bool
 
 	// stop is monitored by the readForever component, and causes it to stop reading
 	// and close the channel to the decoder.
@@ -129,19 +135,24 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 
 	forwardContext, stopForward := context.WithCancel(context.Background())
 	closeTimeout := coreConfig.Datadog.GetDuration("logs_config.close_timeout") * time.Second
+	windowsOpenFileTimeout := coreConfig.Datadog.GetDuration("logs_config.windows_open_file_timeout") * time.Second
 
 	return &Tailer{
-		file:           file,
-		outputChan:     outputChan,
-		decoder:        decoder,
-		tagProvider:    tagProvider,
-		lastReadOffset: 0,
-		sleepDuration:  sleepDuration,
-		closeTimeout:   closeTimeout,
-		stop:           make(chan struct{}, 1),
-		done:           make(chan struct{}, 1),
-		forwardContext: forwardContext,
-		stopForward:    stopForward,
+		file:                   file,
+		outputChan:             outputChan,
+		decoder:                decoder,
+		tagProvider:            tagProvider,
+		lastReadOffset:         atomic.NewInt64(0),
+		decodedOffset:          atomic.NewInt64(0),
+		sleepDuration:          sleepDuration,
+		closeTimeout:           closeTimeout,
+		windowsOpenFileTimeout: windowsOpenFileTimeout,
+		stop:                   make(chan struct{}, 1),
+		done:                   make(chan struct{}, 1),
+		forwardContext:         forwardContext,
+		stopForward:            stopForward,
+		isFinished:             atomic.NewBool(false),
+		didFileRotate:          atomic.NewBool(false),
 	}
 }
 
@@ -197,8 +208,10 @@ func (t *Tailer) Stop() {
 
 // StopAfterFileRotation prepares the tailer to stop after a timeout
 // to finish reading its file that has been log-rotated
+//
+// This is only used on UNIX.
 func (t *Tailer) StopAfterFileRotation() {
-	t.fileHasRotated()
+	t.didFileRotate.Store(true)
 	go func() {
 		time.Sleep(t.closeTimeout)
 		t.stopForward()
@@ -225,7 +238,7 @@ func (t *Tailer) readForever() {
 
 		select {
 		case <-t.stop:
-			if n != 0 && t.hasFileRotated() {
+			if n != 0 && t.didFileRotate.Load() {
 				log.Warn("Tailer stopped after rotation close timeout with remaining unread data")
 			}
 			// stop reading data from file
@@ -252,24 +265,24 @@ func (t *Tailer) buildTailerTags() []string {
 // channel, either because it has been stopped or because of an error reading from
 // the input file.
 func (t *Tailer) IsFinished() bool {
-	return atomic.LoadInt32(&t.isFinished) != 0
+	return t.isFinished.Load()
 }
 
 // forwardMessages lets the Tailer forward log messages to the output channel
 func (t *Tailer) forwardMessages() {
 	defer func() {
 		// the decoder has successfully been flushed
-		atomic.StoreInt32(&t.isFinished, 1)
+		t.isFinished.Store(true)
 		close(t.done)
 	}()
 	for output := range t.decoder.OutputChan {
-		offset := t.decodedOffset + int64(output.RawDataLen)
+		offset := t.decodedOffset.Load() + int64(output.RawDataLen)
 		identifier := t.Identifier()
-		if t.hasFileRotated() {
+		if t.didFileRotate.Load() {
 			offset = 0
 			identifier = ""
 		}
-		t.decodedOffset = offset
+		t.decodedOffset.Store(offset)
 		origin := message.NewOrigin(t.file.Source)
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
@@ -289,30 +302,9 @@ func (t *Tailer) forwardMessages() {
 	}
 }
 
-// incrementLastReadOffset increments the lastReadOffset field, atomically.
-func (t *Tailer) incrementLastReadOffset(n int) {
-	atomic.AddInt64(&t.lastReadOffset, int64(n))
-}
-
-// getLastReadOffset gets the value of lastReadOffset, atomically.
-func (t *Tailer) getLastReadOffset() int64 {
-	return atomic.LoadInt64(&t.lastReadOffset)
-}
-
 // GetDetectedPattern returns the decoder's detected pattern.
 func (t *Tailer) GetDetectedPattern() *regexp.Regexp {
 	return t.decoder.GetDetectedPattern()
-}
-
-// fileHasRotated causes subsequent calls to hasFileRotated to return true.
-func (t *Tailer) fileHasRotated() {
-	atomic.StoreInt32(&t.didFileRotate, 1)
-}
-
-// hasFileRotated returns true if the file has been rotated, and this tailer replaced
-// with a new tailer for the new file.
-func (t *Tailer) hasFileRotated() bool {
-	return atomic.LoadInt32(&t.didFileRotate) != 0
 }
 
 // wait lets the tailer sleep for a bit

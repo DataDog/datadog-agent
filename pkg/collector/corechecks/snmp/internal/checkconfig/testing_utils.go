@@ -36,6 +36,7 @@ func copyProfileDefinition(profileDef profileDefinition) profileDefinition {
 	newDef := profileDefinition{}
 	newDef.Metrics = append(newDef.Metrics, profileDef.Metrics...)
 	newDef.MetricTags = append(newDef.MetricTags, profileDef.MetricTags...)
+	newDef.StaticTags = append(newDef.StaticTags, profileDef.StaticTags...)
 	newDef.Metadata = make(MetadataConfig)
 	newDef.Device = profileDef.Device
 	newDef.Extends = append(newDef.Extends, profileDef.Extends...)

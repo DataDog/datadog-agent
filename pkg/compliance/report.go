@@ -21,8 +21,10 @@ type Report struct {
 	Aggregated bool
 	// Evaluator defines the eval engine that was used to generate this report
 	Evaluator string
-	// Error of th check evaluation
+	// Error of the check evaluation
 	Error error
+	// UserProvidedError indicates if the error was provided by the user rule
+	UserProvidedError bool
 }
 
 // ReportResource holds the id and type of the resource associated with a report

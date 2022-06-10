@@ -51,6 +51,13 @@ func TestMProtectEvent(t *testing.T) {
 			assert.Equal(t, "mprotect", event.GetType(), "wrong event type")
 			assert.NotEqual(t, 0, event.MProtect.VMProtection&(unix.PROT_READ|unix.PROT_WRITE), fmt.Sprintf("wrong initial protection: %s", model.Protection(event.MProtect.VMProtection)))
 			assert.NotEqual(t, 0, event.MProtect.ReqProtection&(unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC), fmt.Sprintf("wrong requested protection: %s", model.Protection(event.MProtect.ReqProtection)))
+			assert.Equal(t, event.Async, false)
+
+			executable, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertFieldEqual(t, event, "process.file.path", executable)
 
 			if !validateMProtectSchema(t, event) {
 				t.Error(event.String())

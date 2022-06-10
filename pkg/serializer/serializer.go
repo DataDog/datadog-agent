@@ -87,7 +87,7 @@ func initExtraHeaders() {
 type MetricSerializer interface {
 	SendEvents(e metrics.Events) error
 	SendServiceChecks(serviceChecks metrics.ServiceChecks) error
-	SendIterableSeries(series *metrics.IterableSeries) error
+	SendIterableSeries(serieSource metrics.SerieSource) error
 	SendSketch(sketches metrics.SketchSeriesList) error
 	SendMetadata(m marshaler.JSONMarshaler) error
 	SendHostMetadata(m marshaler.JSONMarshaler) error
@@ -297,13 +297,13 @@ func (s *Serializer) SendServiceChecks(serviceChecks metrics.ServiceChecks) erro
 }
 
 // SendIterableSeries serializes a list of series and sends the payload to the forwarder
-func (s *Serializer) SendIterableSeries(series *metrics.IterableSeries) error {
+func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	if !s.enableSeries {
 		log.Debug("series payloads are disabled: dropping it")
 		return nil
 	}
 
-	seriesSerializer := metricsserializer.IterableSeries{IterableSeries: series}
+	seriesSerializer := metricsserializer.IterableSeries{SerieSource: serieSource}
 	useV1API := !config.Datadog.GetBool("use_v2_api.series")
 
 	var seriesPayloads forwarder.Payloads
@@ -401,7 +401,7 @@ func (s *Serializer) SendProcessesMetadata(data interface{}) error {
 	if err != nil {
 		return fmt.Errorf("could not serialize processes metadata payload: %s", err)
 	}
-	compressedPayload, err := compression.Compress(nil, payload)
+	compressedPayload, err := compression.Compress(payload)
 	if err != nil {
 		return fmt.Errorf("could not compress processes metadata payload: %s", err)
 	}
@@ -460,13 +460,15 @@ func (s *Serializer) SendContainerLifecycleEvent(msgs []ContainerLifecycleMessag
 		msg.Host = hostname
 		encoded, err := proto.Marshal(&msg)
 		if err != nil {
-			return log.Errorf("Unable to encode message: %w", err)
+			return log.Errorf("Unable to encode message: %v", err)
 		}
 
 		payloads := forwarder.Payloads{&encoded}
 		if err := s.contlcycleForwarder.SubmitContainerLifecycleEvents(payloads, extraHeaders); err != nil {
-			return log.Errorf("Unable to submit container lifecycle payload: %w", err)
+			return log.Errorf("Unable to submit container lifecycle payload: %v", err)
 		}
+
+		log.Tracef("Sent container lifecycle event %+v", msg)
 	}
 
 	return nil

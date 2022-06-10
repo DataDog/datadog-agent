@@ -20,7 +20,7 @@ The first part has an architecture like this:
              | │   Scheduler  │   │ ad.Scheduler │ … |
                └──────────────┘   └──────────────┘
              └ - - - - - - - - - - - - - - - - - - - ┘
-              config.LogSource│    │service.Service
+             sources.LogSource│    │service.Service
                               │    │
                               ▼    ▼
                      ┌─────────┐  ┌──────────┐
@@ -69,7 +69,6 @@ Several Launchers are quite simple, translating sources into a tailers.
 For example:
 
 * The listener launcher creates a new tailer for each configured UDP port, or for each incoming connection on a configured TCP port.
-* The "traps" launcher (`pkg/internal/launchers/traps`) creates a tailer that produces logs messages for each SNMP trap from the configured SNMP device(s).
 
 The launchers depicted separately in the diagram above have some additional behaviors.
 
@@ -88,7 +87,7 @@ The logs-agent delays startup of the `container_collect_all` support until after
 
 The agent can use two mechanisms to capture log messages from a Docker container (configured with `logs_config.docker_container_use_file` and `logs_config.docker_container_force_use_file`):
  * Docker API - the launcher creates a tailer which reads from the Docker API socket and sends messages into the logging pipeline.
- * File - the launcher determines the on-disk filename of the container's logfile and creates a "child" `config.LogSource`  with `source.Config.Type = "file"`.
+ * File - the launcher determines the on-disk filename of the container's logfile and creates a "child" `sources.LogSource`  with `source.Config.Type = "file"`.
    The file launcher receives this source from the sources store and tails the logfile.
 
 ##### kubernetes.Launcher

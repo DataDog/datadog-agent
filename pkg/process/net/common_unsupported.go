@@ -45,3 +45,8 @@ func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
 func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPermByPID, error) {
 	return nil, ebpf.ErrNotImplemented
 }
+
+// Register is not supported
+func (r *RemoteSysProbeUtil) Register(clientID string) error {
+	return ebpf.ErrNotImplemented
+}

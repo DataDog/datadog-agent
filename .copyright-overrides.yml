@@ -37,7 +37,7 @@ go.opentelemetry.io/*: Copyright The OpenTelemetry Authors
 gopkg.in/DataDog/*: Copyright 2016-Present Datadog, Inc.
 k8s.io/*: Copyright 2014 The Kubernetes Authors.
 sigs.k8s.io/*: Copyright 2017 The Kubernetes Authors.
-contrib.go.opencensus.io/exporter/prometheus: Copyright 2020, OpenCensus Authors 
+contrib.go.opencensus.io/exporter/prometheus: Copyright 2020, OpenCensus Authors
 go.opencensus.io: Copyright 2018, OpenCensus Authors
 go.opencensus.io/*: Copyright 2018, OpenCensus Authors
 github.com/grpc-ecosystem/*: Copyright 2016 Michal Witkowski. All Rights Reserved.
@@ -95,7 +95,7 @@ github.com/xeipuuv/gojsonpointer: Copyright 2015 xeipuuv ( https://github.com/xe
 github.com/xeipuuv/gojsonreference: Copyright 2015 xeipuuv ( https://github.com/xeipuuv )
 github.com/xeipuuv/gojsonschema: Copyright 2015 xeipuuv
 github.com/open-policy-agent/opa: Copyright 2016 The OPA Authors.  All rights reserved.
-github.com/containernetworking/cni: Copyright 2019 CNI authors
+github.com/containernetworking/*: Copyright 2019 CNI authors
 
 # These have large AUTHORS/CONTRIBUTORS files but attribute copyright as a group
 github.com/aptly-dev/aptly: Copyright 2013-2015 aptly authors. All rights reserved.

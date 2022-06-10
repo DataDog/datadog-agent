@@ -25,6 +25,7 @@ var _ translator.Consumer = (*serializerConsumer)(nil)
 
 type serializerConsumer struct {
 	cardinality collectors.TagCardinality
+	extraTags   []string
 	series      metrics.Series
 	sketches    metrics.SketchSeriesList
 }
@@ -32,7 +33,8 @@ type serializerConsumer struct {
 // enrichedTags of a given dimension.
 // In the OTLP pipeline, 'contexts' are kept within the translator and function differently than DogStatsD/check metrics.
 func (c *serializerConsumer) enrichedTags(dimensions *translator.Dimensions) []string {
-	enrichedTags := make([]string, 0, len(dimensions.Tags()))
+	enrichedTags := make([]string, 0, len(c.extraTags)+len(dimensions.Tags()))
+	enrichedTags = append(enrichedTags, c.extraTags...)
 	enrichedTags = append(enrichedTags, dimensions.Tags()...)
 
 	entityTags, err := tagger.Tag(dimensions.OriginID(), c.cardinality)
@@ -105,18 +107,17 @@ func (c *serializerConsumer) flush(s serializer.MetricSerializer) error {
 	if err := s.SendSketch(c.sketches); err != nil {
 		return err
 	}
-	iterableSeries := metrics.NewIterableSeries(func(se *metrics.Serie) {}, 200, 4000)
-	done := make(chan struct{})
+
 	var err error
-	go func() {
-		err = s.SendIterableSeries(iterableSeries)
-		iterableSeries.IterationStopped()
-		close(done)
-	}()
-	for _, serie := range c.series {
-		iterableSeries.Append(serie)
-	}
-	iterableSeries.SenderStopped()
-	<-done
+	metrics.StartIteration(
+		metrics.NewIterableSeries(func(se *metrics.Serie) {}, 200, 4000),
+		func(seriesSink metrics.SerieSink) {
+			for _, serie := range c.series {
+				seriesSink.Append(serie)
+			}
+		}, func(serieSource metrics.SerieSource) {
+			err = s.SendIterableSeries(serieSource)
+		})
+
 	return err
 }

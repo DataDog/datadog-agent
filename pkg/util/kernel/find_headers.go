@@ -276,6 +276,7 @@ func getSysfsHeaderDirs(v Version) ([]string, error) {
 			_ = os.RemoveAll(tmpPath)
 			return nil, fmt.Errorf("header version %s does not match expected host version %s", v, hv)
 		}
+		log.Debugf("found valid kernel headers at %s", tmpPath)
 		return []string{tmpPath}, nil
 	}
 

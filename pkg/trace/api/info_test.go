@@ -81,7 +81,6 @@ func TestInfoHandler(t *testing.T) {
 		},
 		StatsdHost:                  "stastd.localhost",
 		StatsdPort:                  123,
-		LogLevel:                    "WARN",
 		LogFilePath:                 "/path/to/logfile",
 		LogThrottling:               false,
 		MaxMemory:                   1000000,
@@ -248,7 +247,7 @@ func TestInfoHandler(t *testing.T) {
 			if rec.Body.String() != tt.expected {
 				t.Fatalf("Output of /info has changed. Changing the keys "+
 					"is not allowed because the client rely on them and "+
-					"is considered a breaking change:\n\n%s", rec.Body.String())
+					"is considered a breaking change:\n\n%v", rec.Body.String())
 			}
 		})
 	}

@@ -15,6 +15,7 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"unsafe"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -47,6 +48,7 @@ type DentryResolver struct {
 	erpc                  *ERPC
 	erpcSegment           []byte
 	erpcSegmentSize       int
+	useBPFProgWriteUser   bool
 	erpcRequest           ERPCRequest
 	erpcStatsZero         []eRPCStats
 	numCPU                int
@@ -517,22 +519,27 @@ func (dr *DentryResolver) markSegmentAsZero() {
 	model.ByteOrder.PutUint64(dr.erpcSegment[0:8], 0)
 }
 
-// GetNameFromERPC resolves the name of the provided inode / mount id / path id
-func (dr *DentryResolver) GetNameFromERPC(mountID uint32, inode uint64, pathID uint32) (string, error) {
+func (dr *DentryResolver) requestResolve(op uint8, mountID uint32, inode uint64, pathID uint32) (uint32, error) {
 	// create eRPC request
 	challenge := rand.Uint32()
-	dr.erpcRequest.OP = ResolveSegmentOp
+	dr.erpcRequest.OP = op
 	model.ByteOrder.PutUint64(dr.erpcRequest.Data[0:8], inode)
 	model.ByteOrder.PutUint32(dr.erpcRequest.Data[8:12], mountID)
 	model.ByteOrder.PutUint32(dr.erpcRequest.Data[12:16], pathID)
-	model.ByteOrder.PutUint64(dr.erpcRequest.Data[16:24], uint64(uintptr(unsafe.Pointer(&dr.erpcSegment[0]))))
-	model.ByteOrder.PutUint32(dr.erpcRequest.Data[24:28], uint32(dr.erpcSegmentSize))
 	model.ByteOrder.PutUint32(dr.erpcRequest.Data[28:32], challenge)
 
 	// if we don't try to access the segment, the eBPF program can't write to it ... (major page fault)
-	dr.preventSegmentMajorPageFault()
+	if dr.useBPFProgWriteUser {
+		dr.preventSegmentMajorPageFault()
+	}
 
-	if err := dr.erpc.Request(&dr.erpcRequest); err != nil {
+	return challenge, dr.erpc.Request(&dr.erpcRequest)
+}
+
+// GetNameFromERPC resolves the name of the provided inode / mount id / path id
+func (dr *DentryResolver) GetNameFromERPC(mountID uint32, inode uint64, pathID uint32) (string, error) {
+	challenge, err := dr.requestResolve(ResolveSegmentOp, mountID, inode, pathID)
+	if err != nil {
 		atomic.AddInt64(dr.missCounters[metrics.SegmentResolutionTag][metrics.ERPCTag], 1)
 		return "", errors.Wrapf(err, "unable to get the name of mountID `%d` and inode `%d` with eRPC", mountID, inode)
 	}
@@ -577,21 +584,10 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 	var err, resolutionErr error
 	var cacheKey PathKey
 	depth := int64(0)
-	challenge := rand.Uint32()
 
 	// create eRPC request
-	dr.erpcRequest.OP = ResolvePathOp
-	model.ByteOrder.PutUint64(dr.erpcRequest.Data[0:8], inode)
-	model.ByteOrder.PutUint32(dr.erpcRequest.Data[8:12], mountID)
-	model.ByteOrder.PutUint32(dr.erpcRequest.Data[12:16], pathID)
-	model.ByteOrder.PutUint64(dr.erpcRequest.Data[16:24], uint64(uintptr(unsafe.Pointer(&dr.erpcSegment[0]))))
-	model.ByteOrder.PutUint32(dr.erpcRequest.Data[24:28], uint32(dr.erpcSegmentSize))
-	model.ByteOrder.PutUint32(dr.erpcRequest.Data[28:32], challenge)
-
-	// if we don't try to access the segment, the eBPF program can't write to it ... (major page fault)
-	dr.preventSegmentMajorPageFault()
-
-	if err = dr.erpc.Request(&dr.erpcRequest); err != nil {
+	challenge, err := dr.requestResolve(ResolvePathOp, mountID, inode, pathID)
+	if err != nil {
 		atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.ERPCTag], 1)
 		return "", errors.Wrapf(err, "unable to resolve the path of mountID `%d` and inode `%d` with eRPC", mountID, inode)
 	}
@@ -688,19 +684,8 @@ func (dr *DentryResolver) resolveParentFromCache(mountID uint32, inode uint64) (
 
 func (dr *DentryResolver) resolveParentFromERPC(mountID uint32, inode uint64, pathID uint32) (uint32, uint64, error) {
 	// create eRPC request
-	challenge := rand.Uint32()
-	dr.erpcRequest.OP = ResolveParentOp
-	model.ByteOrder.PutUint64(dr.erpcRequest.Data[0:8], inode)
-	model.ByteOrder.PutUint32(dr.erpcRequest.Data[8:12], mountID)
-	model.ByteOrder.PutUint32(dr.erpcRequest.Data[12:16], pathID)
-	model.ByteOrder.PutUint64(dr.erpcRequest.Data[16:24], uint64(uintptr(unsafe.Pointer(&dr.erpcSegment[0]))))
-	model.ByteOrder.PutUint32(dr.erpcRequest.Data[24:28], uint32(dr.erpcSegmentSize))
-	model.ByteOrder.PutUint32(dr.erpcRequest.Data[28:32], challenge)
-
-	// if we don't try to access the segment, the eBPF program can't write to it ... (major page fault)
-	dr.preventSegmentMajorPageFault()
-
-	if err := dr.erpc.Request(&dr.erpcRequest); err != nil {
+	challenge, err := dr.requestResolve(ResolveParentOp, mountID, inode, pathID)
+	if err != nil {
 		atomic.AddInt64(dr.missCounters[metrics.ParentResolutionTag][metrics.ERPCTag], 1)
 		return 0, 0, errors.Wrapf(err, "unable to resolve the parent of mountID `%d` and inode `%d` with eRPC", mountID, inode)
 	}
@@ -776,6 +761,32 @@ func (dr *DentryResolver) Start(probe *Probe) error {
 	}
 	dr.bufferSelector = bufferSelector
 
+	erpcBuffer, err := probe.Map("dr_erpc_buffer")
+	if err != nil {
+		return err
+	}
+
+	if erpcBuffer.Flags()&unix.BPF_F_MMAPABLE != 0 {
+		dr.erpcSegment, err = syscall.Mmap(erpcBuffer.FD(), 0, 8*4096, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+		if err != nil {
+			return fmt.Errorf("failed to mmap dr_erpc_buffer map: %w", err)
+		}
+	}
+
+	if dr.erpcSegment == nil {
+		// We need at least 7 memory pages for the eRPC segment method to work.
+		// For each segment of a path, we write 16 bytes to store (inode, mount_id, path_id), and then at least 2 bytes to
+		// store the smallest possible path (segment of size 1 + trailing 0). 18 * 1500 = 27 000.
+		// Then, 27k + 256 / page_size < 7.
+		dr.erpcSegment = make([]byte, 7*4096)
+		dr.useBPFProgWriteUser = true
+
+		model.ByteOrder.PutUint64(dr.erpcRequest.Data[16:24], uint64(uintptr(unsafe.Pointer(&dr.erpcSegment[0]))))
+	}
+
+	dr.erpcSegmentSize = len(dr.erpcSegment)
+	model.ByteOrder.PutUint32(dr.erpcRequest.Data[24:28], uint32(dr.erpcSegmentSize))
+
 	return nil
 }
 
@@ -840,12 +851,6 @@ var errDentryPathKeyNotFound ErrDentryPathKeyNotFound
 
 // NewDentryResolver returns a new dentry resolver
 func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
-	// We need at least 7 memory pages for the eRPC segment method to work.
-	// For each segment of a path, we write 16 bytes to store (inode, mount_id, path_id), and then at least 2 bytes to
-	// store the smallest possible path (segment of size 1 + trailing 0). 18 * 1500 = 27 000.
-	// Then, 27k + 256 / page_size < 7.
-	segment := make([]byte, 7*os.Getpagesize())
-
 	hitsCounters := make(map[string]map[string]*int64)
 	missCounters := make(map[string]map[string]*int64)
 	for _, resolution := range metrics.AllResolutionsTags {
@@ -874,17 +879,15 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 	}
 
 	return &DentryResolver{
-		config:          probe.config,
-		statsdClient:    probe.statsdClient,
-		cache:           make(map[uint32]*lru.Cache),
-		erpc:            probe.erpc,
-		erpcSegment:     segment,
-		erpcSegmentSize: len(segment),
-		erpcRequest:     ERPCRequest{},
-		erpcStatsZero:   make([]eRPCStats, numCPU),
-		hitsCounters:    hitsCounters,
-		missCounters:    missCounters,
-		numCPU:          numCPU,
-		pathEntryPool:   pathEntryPool,
+		config:        probe.config,
+		statsdClient:  probe.statsdClient,
+		cache:         make(map[uint32]*lru.Cache),
+		erpc:          probe.erpc,
+		erpcRequest:   ERPCRequest{},
+		erpcStatsZero: make([]eRPCStats, numCPU),
+		hitsCounters:  hitsCounters,
+		missCounters:  missCounters,
+		numCPU:        numCPU,
+		pathEntryPool: pathEntryPool,
 	}, nil
 }
