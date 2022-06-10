@@ -41,7 +41,6 @@ func initNetworkProcessMonitor(module *Module) {
 	m := netevents.Handler()
 	module.probe.AddEventHandler(model.ForkEventType, m)
 	module.probe.AddEventHandler(model.ExecEventType, m)
-	module.probe.AddEventHandler(model.ExitEventType, m)
 
 	log.Info("network process monitoring initialized")
 }

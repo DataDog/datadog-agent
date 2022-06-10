@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/gopsutil/host"
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 )
@@ -335,12 +336,26 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	t.state.StoreClosedConnections(connections)
 }
 
+func monotonicToWallTime(t uint64) (uint64, error) {
+	bt, err := host.BootTime()
+	if err != nil {
+		return 0, err
+	}
+
+	return uint64((time.Duration(bt) * time.Second).Nanoseconds()) + t, nil
+}
+
 func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	if t.processCache == nil {
 		return
 	}
 
-	p, ok := t.processCache.Process(c.Pid)
+	ts, err := monotonicToWallTime(c.LastUpdateEpoch)
+	if err != nil {
+		return
+	}
+
+	p, ok := t.processCache.get(c.Pid, int64(ts))
 	if !ok {
 		return
 	}
