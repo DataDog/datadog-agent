@@ -4,6 +4,7 @@ require 'rspec'
 require 'rbconfig'
 require 'yaml'
 require 'find'
+require 'tempfile'
 
 #
 # this enables RSpec output so that individual tests ("it behaves like...") are
@@ -234,13 +235,16 @@ def integration_freeze
 end
 
 def json_info
-  info_output = `#{agent_command} status -j 2>&1`
-  info_output = info_output.gsub("Getting the status from the agent.", "")
+  tmpfile = Tempfile.new('agent-status')
+  begin
+    `#{agent_command} status -j -o #{tmpfile.path}`
+    info_output = File.read(tmpfile.path)
 
-  # removes any stray log lines
-  info_output = info_output.gsub(/[0-9]+[ ]\[[a-zA-Z]+\][a-zA-Z \t%:\\]+$/, "")
-
-  JSON.parse(info_output)
+    JSON.parse(info_output)
+  ensure
+    tmpfile.close
+    tmpfile.unlink
+  end
 end
 
 def windows_service_status(service)
