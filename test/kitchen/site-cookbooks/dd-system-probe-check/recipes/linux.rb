@@ -37,6 +37,10 @@ end
 
 package 'socat'
 
+package 'wget'
+
+package 'curl'
+
 # Enable IPv6 support
 kernel_module 'ipv6' do
   action :load
