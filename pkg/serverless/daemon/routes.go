@@ -104,8 +104,6 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		RequestID:          ecs.LastRequestID,
 		ResponseRawPayload: string(responseBody),
 	}
-	log.Debug(responseBody)
-	log.Debug("Header: %+v", r.Header)
 	executionContext := e.daemon.InvocationProcessor.GetExecutionInfo()
 	if executionContext.TraceID == 0 {
 		log.Debug("no context has been found yet, injecting it now via headers from the tracer")
