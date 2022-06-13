@@ -38,6 +38,7 @@ type OrchestratorConfig struct {
 	Scrubber                       *redact.DataScrubber
 	OrchestratorEndpoints          []apicfg.Endpoint
 	MaxPerMessage                  int
+	MaxWeightPerMessageBytes       int
 	PodQueueBytes                  int // The total number of bytes that can be enqueued for delivery to the orchestrator endpoint
 	ExtraTags                      []string
 }
@@ -51,10 +52,11 @@ func NewDefaultOrchestratorConfig() *OrchestratorConfig {
 		panic(err)
 	}
 	oc := OrchestratorConfig{
-		Scrubber:              redact.NewDefaultDataScrubber(),
-		MaxPerMessage:         100,
-		OrchestratorEndpoints: []apicfg.Endpoint{{Endpoint: orchestratorEndpoint}},
-		PodQueueBytes:         15 * 1000 * 1000,
+		Scrubber:                 redact.NewDefaultDataScrubber(),
+		MaxPerMessage:            100,
+		MaxWeightPerMessageBytes: 10000000,
+		OrchestratorEndpoints:    []apicfg.Endpoint{{Endpoint: orchestratorEndpoint}},
+		PodQueueBytes:            15 * 1000 * 1000,
 	}
 	return &oc
 }

@@ -100,6 +100,7 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (messages [
 
 	resourceList := p.h.ResourceList(ctx, list)
 	resourceModels := make([]interface{}, 0, len(resourceList))
+	resourceYaml := make([][]byte, 0, len(resourceList))
 
 	for _, resource := range resourceList {
 		// Scrub before extraction.
@@ -142,29 +143,17 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (messages [
 		}
 
 		resourceModels = append(resourceModels, resourceModel)
+		resourceYaml = append(resourceYaml, yaml)
 	}
 
 	// Split messages in chunks
-	chunkCount := orchestrator.GroupSize(len(resourceModels), ctx.Cfg.MaxPerMessage)
-	chunks := chunkResources(resourceModels, chunkCount, ctx.Cfg.MaxPerMessage)
+	chunker := &collectorOrchestratorMetadataChunker{}
+	chunkOrchestratorMetadataBySizeAndWeight(resourceModels, resourceYaml, ctx.Cfg.MaxPerMessage, ctx.Cfg.MaxWeightPerMessageBytes, chunker)
 
-	messages = make([]model.MessageBody, 0, chunkCount)
-	for i := 0; i < chunkCount; i++ {
-		messages = append(messages, p.h.BuildMessageBody(ctx, chunks[i], chunkCount))
+	messages = make([]model.MessageBody, 0, len(chunker.collectorOrchestratorMetadataList))
+	for _, orchestratorMetadata := range chunker.collectorOrchestratorMetadataList {
+		messages = append(messages, p.h.BuildMessageBody(ctx, orchestratorMetadata, len(orchestratorMetadata)))
 	}
 
 	return messages, len(resourceModels)
-}
-
-// chunkResources splits messages into groups of messages called chunks, knowing
-// the expected chunk count and size.
-func chunkResources(resources []interface{}, chunkCount, chunkSize int) [][]interface{} {
-	chunks := make([][]interface{}, 0, chunkCount)
-
-	for counter := 1; counter <= chunkCount; counter++ {
-		chunkStart, chunkEnd := orchestrator.ChunkRange(len(resources), chunkCount, chunkSize, counter)
-		chunks = append(chunks, resources[chunkStart:chunkEnd])
-	}
-
-	return chunks
 }
