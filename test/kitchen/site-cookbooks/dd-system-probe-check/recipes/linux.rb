@@ -21,9 +21,7 @@ end
 kernel_version = `uname -r`.strip
 package 'kernel headers' do
   case node[:platform]
-  when 'amazon'
-    package_name "kernel-devel"
-  when 'redhat', 'centos', 'fedora'
+  when 'redhat', 'centos', 'fedora', 'amazon'
     package_name "kernel-devel-#{kernel_version}"
   when 'ubuntu', 'debian'
     package_name "linux-headers-#{kernel_version}"
