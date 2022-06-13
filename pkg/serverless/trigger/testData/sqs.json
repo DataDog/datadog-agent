@@ -12,7 +12,9 @@
             },
             "messageAttributes": {},
             "md5OfBody": "{{{md5_of_body}}}",
-            "eventSource": "aws:sqs",
+            "eventSource": "aws:sqs1",
+            "eventsource": "aws:sqs2",
+            "EVENTSOURCE": "aws:sqs",
             "eventSourceARN": "arn:aws:sqs:us-east-1:123456789012:MyQueue",
             "awsRegion": "us-east-1"
         }
