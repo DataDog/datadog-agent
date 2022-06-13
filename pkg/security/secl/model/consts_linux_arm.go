@@ -13,6 +13,8 @@ import (
 )
 
 var (
+	// ptraceArchConstants are the supported ptrace commands for the ptrace syscall on arm
+	// generate_constants:Ptrace constants,Ptrace constants are the supported ptrace commands for the ptrace syscall.
 	ptraceArchConstants = map[string]uint32{
 		"PTRACE_GETCRUNCHREGS":   unix.PTRACE_GETCRUNCHREGS,
 		"PTRACE_GETFDPIC":        unix.PTRACE_GETFDPIC,

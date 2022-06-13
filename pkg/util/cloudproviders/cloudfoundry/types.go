@@ -11,8 +11,12 @@ package cloudfoundry
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"net/url"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -127,6 +131,12 @@ type DesiredLRP struct {
 	CustomTags         []string
 }
 
+// CFClient TODO <integrations-tools-and-libraries>: ITL-792
+type CFClient struct {
+	*cfclient.Client
+}
+
+// CFApplication TODO <integrations-tools-and-libraries>: ITL-792
 type CFApplication struct {
 	GUID           string
 	Name           string
@@ -142,8 +152,36 @@ type CFApplication struct {
 	TotalMemory    int
 	Labels         map[string]string
 	Annotations    map[string]string
+	Sidecars       []CFSidecar
 }
 
+// CFSidecar TODO <integrations-tools-and-libraries>: ITL-792
+type CFSidecar struct {
+	Name string
+	GUID string
+}
+
+type listSidecarsResponse struct {
+	Pagination cfclient.Pagination `json:"pagination"`
+	Resources  []CFSidecar         `json:"resources"`
+}
+
+// IsolationSegmentRelationshipResponse TODO <integrations-tools-and-libraries>: ITL-792
+type IsolationSegmentRelationshipResponse struct {
+	Data []struct {
+		GUID string `json:"guid"`
+	} `json:"data"`
+	Links struct {
+		Self struct {
+			Href string `json:"href"`
+		} `json:"self"`
+		Related struct {
+			Href string `json:"href"`
+		} `json:"related"`
+	} `json:"links"`
+}
+
+// CFOrgQuota TODO <integrations-tools-and-libraries>: ITL-792
 type CFOrgQuota struct {
 	GUID        string
 	MemoryLimit int
@@ -275,6 +313,21 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 				orgName = org.Name
 			} else {
 				log.Debugf("Could not find org %s in cc cache", orgGUID)
+			}
+			if ccCache.advancedTagging {
+				if sidecars, err := ccCache.GetSidecars(appGUID); err == nil && len(sidecars) > 0 {
+					customTags = append(customTags, fmt.Sprintf("%s:%s", SidecarPresentTagKey, "true"))
+					customTags = append(customTags, fmt.Sprintf("%s:%d", SidecarCountTagKey, len(sidecars)))
+				} else {
+					customTags = append(customTags, fmt.Sprintf("%s:%s", SidecarPresentTagKey, "false"))
+				}
+				if segment, err := ccCache.GetIsolationSegmentForOrg(orgGUID); err == nil {
+					customTags = append(customTags, fmt.Sprintf("%s:%s", SegmentIDTagKey, segment.GUID))
+					customTags = append(customTags, fmt.Sprintf("%s:%s", SegmentNameTagKey, segment.Name))
+				} else if segment, err := ccCache.GetIsolationSegmentForSpace(spaceGUID); err == nil {
+					customTags = append(customTags, fmt.Sprintf("%s:%s", SegmentIDTagKey, segment.GUID))
+					customTags = append(customTags, fmt.Sprintf("%s:%s", SegmentNameTagKey, segment.Name))
+				}
 			}
 		}
 	} else {
@@ -502,4 +555,94 @@ func (a *CFApplication) extractDataFromV3Org(data *cfclient.V3Organization) {
 			a.Labels[key] = value
 		}
 	}
+}
+
+// NewCFClient TODO <integrations-tools-and-libraries>: ITL-792
+func NewCFClient(config *cfclient.Config) (client *CFClient, err error) {
+	cfc, err := cfclient.NewClient(config)
+	if err != nil {
+		return nil, err
+	}
+	client = &CFClient{cfc}
+	return client, nil
+}
+
+// ListSidecarsByApp TODO <integrations-tools-and-libraries>: ITL-792
+func (c *CFClient) ListSidecarsByApp(query url.Values, appGUID string) ([]CFSidecar, error) {
+	var sidecars []CFSidecar
+
+	requestURL := "/v3/apps/" + appGUID + "/sidecars"
+	for page := 1; ; page++ {
+		query.Set("page", strconv.Itoa(page))
+		r := c.NewRequest("GET", requestURL+"?"+query.Encode())
+		resp, err := c.DoRequest(r)
+		if err != nil {
+			return nil, fmt.Errorf("Error requesting sidecars for app: %s", err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("Error listing sidecars, response code: %d", resp.StatusCode)
+		}
+
+		defer resp.Body.Close()
+		resBody, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("Error reading sidecars response for app %s for page %d: %s", appGUID, page, err)
+		}
+
+		var data listSidecarsResponse
+		err = json.Unmarshal(resBody, &data)
+		if err != nil {
+			return nil, fmt.Errorf("Error unmarshalling sidecars response for app %s for page %d: %s", appGUID, page, err)
+		}
+
+		sidecars = append(sidecars, data.Resources...)
+
+		if data.Pagination.TotalPages <= page {
+			break
+		}
+	}
+	return sidecars, nil
+}
+
+func (c *CFClient) getIsolationSegmentRelationship(resource, guid string) (string, error) {
+	requestURL := "/v3/isolation_segments/" + guid + "/relationships/" + resource
+	r := c.NewRequest("GET", requestURL)
+
+	resp, err := c.DoRequest(r)
+	if err != nil {
+		return "", fmt.Errorf("Error requesting isolation segment %s: %s", resource, err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("Error listing isolation segment %s, response code: %d", resource, resp.StatusCode)
+	}
+
+	defer resp.Body.Close()
+	resBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("Error reading isolation segment %s response: %s", resource, err)
+	}
+
+	var data IsolationSegmentRelationshipResponse
+	err = json.Unmarshal(resBody, &data)
+	if err != nil {
+		return "", fmt.Errorf("Error unmarshalling isolation segment %s response: %s", resource, err)
+	}
+
+	if len(data.Data) == 0 {
+		return "", nil
+	}
+
+	return data.Data[0].GUID, nil
+}
+
+// GetIsolationSegmentSpaceGUID TODO <integrations-tools-and-libraries>: ITL-792
+func (c *CFClient) GetIsolationSegmentSpaceGUID(guid string) (string, error) {
+	return c.getIsolationSegmentRelationship("spaces", guid)
+}
+
+// GetIsolationSegmentOrganizationGUID TODO <integrations-tools-and-libraries>: ITL-792
+func (c *CFClient) GetIsolationSegmentOrganizationGUID(guid string) (string, error) {
+	return c.getIsolationSegmentRelationship("organizations", guid)
 }

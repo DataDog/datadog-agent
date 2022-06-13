@@ -13,12 +13,17 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestBPFEventLoad(t *testing.T) {
+	checkKernelCompatibility(t, "< 4.15 kernels", func(kv *kernel.Version) bool {
+		return !kv.IsRH7Kernel() && kv.Code < kernel.Kernel4_15
+	})
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_prog_load",
@@ -52,6 +57,10 @@ func TestBPFEventLoad(t *testing.T) {
 }
 
 func TestBPFEventMap(t *testing.T) {
+	checkKernelCompatibility(t, "< 4.15 kernels", func(kv *kernel.Version) bool {
+		return !kv.IsRH7Kernel() && kv.Code < kernel.Kernel4_15
+	})
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_map_create",

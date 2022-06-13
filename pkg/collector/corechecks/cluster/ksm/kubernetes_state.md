@@ -358,11 +358,20 @@
 `kubernetes_state.service.type`
 : Service types. Tags:`kube_namespace` `kube_service` `type`.
 
+`kubernetes_state.ingress.count`
+: Number of ingresses. Tags:`kube_namespace`.
+
+`kubernetes_state.ingress.path`
+: Information about the ingress path. Tags:`kube_namespace` `kube_ingress_path` `kube_ingress` `kube_service` `kube_service_port` `kube_ingress_host` .
+
 ### Events
 
 The Kubernetes State Metrics Core check does not include any events.
 
 ### Service Checks
+
+`kubernetes_state.cronjob.complete`
+: Whether the last job of the cronjob is failed or not. Tags:`kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.cronjob.on_schedule_check`
 : Alert if the cronjob's next schedule is in the past. Tags:`kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels).

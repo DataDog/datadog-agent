@@ -13,11 +13,11 @@ import (
 )
 
 var metricsNameMapping = map[string]string{
-	"container.uptime":     "cri.uptime",
-	"container.cpu.usage":  "cri.cpu.usage",
-	"container.memory.rss": "cri.mem.rss",
-	"cri.disk.used":        "cri.disk.used",   // Passthrough for custom metrics extension
-	"cri.disk.inodes":      "cri.disk.inodes", // Passthrough for custom metrics extension
+	"container.uptime":       "cri.uptime",
+	"container.cpu.usage":    "cri.cpu.usage",
+	"container.memory.usage": "cri.mem.rss",
+	"cri.disk.used":          "cri.disk.used",   // Passthrough for custom metrics extension
+	"cri.disk.inodes":        "cri.disk.inodes", // Passthrough for custom metrics extension
 }
 
 // metricsAdapter implements the generic.MetricsAdapter interface

@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux || windows
+// +build linux windows
+
 package config
 
 import (
@@ -16,27 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
-// Remember to also register feature in init()
 const (
-	// Docker socket present
-	Docker Feature = "docker"
-	// Containerd socket present
-	Containerd Feature = "containerd"
-	// Cri is any cri socket present
-	Cri Feature = "cri"
-	// Kubernetes environment
-	Kubernetes Feature = "kubernetes"
-	// ECSFargate environment
-	ECSFargate Feature = "ecsfargate"
-	// EKSFargate environment
-	EKSFargate Feature = "eksfargate"
-	// KubeOrchestratorExplorer can be enabled
-	KubeOrchestratorExplorer Feature = "orchestratorexplorer"
-	// CloudFoundry socket present
-	CloudFoundry Feature = "cloudfoundry"
-	// Podman containers storage path accessible
-	Podman Feature = "podman"
-
 	defaultLinuxDockerSocket           = "/var/run/docker.sock"
 	defaultWindowsDockerSocketPath     = "//./pipe/docker_engine"
 	defaultLinuxContainerdSocket       = "/var/run/containerd/containerd.sock"
@@ -149,8 +132,21 @@ func detectContainerd(features FeatureMap) {
 
 	// Merge containerd_namespace with containerd_namespaces
 	namespaces := merge(Datadog.GetStringSlice("containerd_namespaces"), Datadog.GetStringSlice("containerd_namespace"))
-	AddOverride("containerd_namespace", namespaces)
-	AddOverride("containerd_namespaces", namespaces)
+
+	// Workaround: convert to []interface{}.
+	// The MergeConfigOverride func in "github.com/DataDog/viper" (tested in
+	// v1.10.0) raises an error if we send a []string{} in AddOverride():
+	// "svType != tvType; key=containerd_namespace, st=[]interface {}, tt=[]string, sv=[], tv=[]"
+	// The reason is that when reading from a config file, all the arrays are
+	// considered as []interface{} by Viper, and the merge fails when the types
+	// are different.
+	convertedNamespaces := make([]interface{}, len(namespaces))
+	for i, namespace := range namespaces {
+		convertedNamespaces[i] = namespace
+	}
+
+	AddOverride("containerd_namespace", convertedNamespaces)
+	AddOverride("containerd_namespaces", convertedNamespaces)
 }
 
 func isCriSupported() bool {

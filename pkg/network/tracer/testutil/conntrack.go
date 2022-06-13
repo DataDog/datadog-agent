@@ -37,7 +37,7 @@ func (ctr *delayedConntracker) GetTranslationForConn(c network.ConnectionStats) 
 	ctr.mux.Lock()
 	defer ctr.mux.Unlock()
 
-	key, _ := c.ByteKey(make([]byte, 64))
+	key := c.ByteKey(make([]byte, 64))
 	delays := ctr.delayPerConn[string(key)]
 	if delays < ctr.numDelays {
 		ctr.delayPerConn[string(key)]++

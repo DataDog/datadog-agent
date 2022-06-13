@@ -13,6 +13,9 @@ var (
 	// ErrNotEnoughData is returned when the buffer is too small to unmarshal the event
 	ErrNotEnoughData = errors.New("not enough data")
 
+	// ErrNotEnoughSpace is returned when the provided buffer is too small to marshal the event
+	ErrNotEnoughSpace = errors.New("not enough space")
+
 	// ErrStringArrayOverflow returned when there is a string array overflow
 	ErrStringArrayOverflow = errors.New("string array overflow")
 

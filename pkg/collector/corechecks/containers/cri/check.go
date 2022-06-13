@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -75,7 +76,7 @@ func (c *CRICheck) Configure(config, initConfig integration.Data, source string)
 
 	containerFilter, err := containers.GetSharedMetricFilter()
 	if err != nil {
-		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %w", err)
+		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
 	}
 
 	c.processor = generic.NewProcessor(metrics.GetProvider(), generic.MetadataContainerAccessor{}, metricsAdapter{}, getProcessorFilter(containerFilter))
@@ -90,13 +91,13 @@ func (c *CRICheck) Configure(config, initConfig integration.Data, source string)
 
 // Run executes the check
 func (c *CRICheck) Run() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}
 	defer sender.Commit()
 
-	return c.processor.Run(sender, cacheValidity)
+	return c.runProcessor(sender)
 }
 
 func (c *CRICheck) runProcessor(sender aggregator.Sender) error {
@@ -108,7 +109,7 @@ func getProcessorFilter(legacyFilter *containers.Filter) generic.ContainerFilter
 	return generic.ANDContainerFilter{
 		Filters: []generic.ContainerFilter{
 			generic.FuncContainerFilter(func(container *workloadmeta.Container) bool {
-				return container.Labels["io.kubernetes.pod.namespace"] == ""
+				return container.Labels[kubernetes.CriContainerNamespaceLabel] == ""
 			}),
 			generic.LegacyContainerFilter{OldFilter: legacyFilter},
 		},

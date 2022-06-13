@@ -8,7 +8,6 @@ package checks
 import (
 	"context"
 	"errors"
-	"sync/atomic"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -20,12 +19,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/cpu"
+	"go.uber.org/atomic"
 )
 
 const emptyCtrID = ""
 
 // Process is a singleton ProcessCheck.
-var Process = &ProcessCheck{}
+var Process = &ProcessCheck{
+	createTimes: &atomic.Value{},
+}
 
 var _ CheckWithRealTime = (*ProcessCheck)(nil)
 
@@ -37,14 +39,14 @@ var errEmptyCPUTime = errors.New("empty CPU time information returned")
 type ProcessCheck struct {
 	probe procutil.Probe
 
-	sysInfo            *model.SystemInfo
-	lastCPUTime        cpu.TimesStat
-	lastProcs          map[int32]*procutil.Process
-	lastRun            time.Time
-	containerProvider  util.ContainerProvider
-	lastContainerRates map[string]*util.ContainerRateMetrics
-	lastContainerRun   time.Time
-	networkID          string
+	sysInfo                    *model.SystemInfo
+	lastCPUTime                cpu.TimesStat
+	lastProcs                  map[int32]*procutil.Process
+	lastRun                    time.Time
+	containerProvider          util.ContainerProvider
+	lastContainerRates         map[string]*util.ContainerRateMetrics
+	realtimeLastContainerRates map[string]*util.ContainerRateMetrics
+	networkID                  string
 
 	realtimeLastCPUTime cpu.TimesStat
 	realtimeLastProcs   map[int32]*procutil.Stats
@@ -57,7 +59,7 @@ type ProcessCheck struct {
 	lastPIDs []int32
 
 	// Create times by PID used in the network check
-	createTimes atomic.Value
+	createTimes *atomic.Value
 
 	// SysprobeProcessModuleEnabled tells the process check wheither to use the RemoteSystemProbeUtil to gather privileged process stats
 	SysprobeProcessModuleEnabled bool
@@ -152,10 +154,13 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 	var containers []*model.Container
 	var pidToCid map[int]string
 	var lastContainerRates map[string]*util.ContainerRateMetrics
-	containerTime := time.Now()
-	containers, lastContainerRates, pidToCid, err = p.containerProvider.GetContainers(cacheValidityNoRT, p.lastContainerRates, p.lastContainerRun, containerTime)
+	cacheValidity := cacheValidityNoRT
+	if collectRealTime {
+		cacheValidity = cacheValidityRT
+	}
+
+	containers, lastContainerRates, pidToCid, err = p.containerProvider.GetContainers(cacheValidity, p.lastContainerRates)
 	if err == nil {
-		p.lastContainerRun = containerTime
 		p.lastContainerRates = lastContainerRates
 	} else {
 		log.Debugf("Unable to gather stats for containers, err: %v", err)
@@ -295,15 +300,11 @@ func chunkProcessesAndContainers(
 
 	chunkProcessesBySizeAndWeight(procsByCtr[emptyCtrID], nil, maxChunkSize, maxChunkWeight, chunker)
 
-	totalContainers := 0
+	totalContainers := len(containers)
 	for _, ctr := range containers {
 		procs := procsByCtr[ctr.Id]
-		if len(procs) == 0 {
-			// can happen if a process is skipped (e.g. disallowlisted)
-			continue
-		}
 		totalProcs += len(procs)
-		totalContainers++
+
 		chunkProcessesBySizeAndWeight(procs, ctr, maxChunkSize, maxChunkWeight, chunker)
 	}
 	return chunker.collectorProcs, totalProcs, totalContainers

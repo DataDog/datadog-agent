@@ -15,15 +15,11 @@ import (
 	"time"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ContainerCollectAll is the name of the docker integration that collect logs from all containers
 const ContainerCollectAll = "container_collect_all"
-
-// SnmpTraps is the name of the integration that collects logs from SNMP traps received by the Agent
-const SnmpTraps = "snmp_traps"
 
 // logs-intake endpoint prefix.
 const (
@@ -59,32 +55,6 @@ var (
 	HTTPConnectivityFailure HTTPConnectivity = false
 )
 
-// ContainerCollectAllSource returns a source to collect all logs from all containers.
-func ContainerCollectAllSource() *LogSource {
-	if coreConfig.Datadog.GetBool("logs_config.container_collect_all") {
-		// source to collect all logs from all containers
-		return NewLogSource(ContainerCollectAll, &LogsConfig{
-			Type:    DockerType,
-			Service: "docker",
-			Source:  "docker",
-		})
-	}
-	return nil
-}
-
-// SNMPTrapsSource returs a source to forward SNMP traps as logs.
-func SNMPTrapsSource() *LogSource {
-	if traps.IsEnabled() && traps.IsRunning() {
-		// source to forward SNMP traps as logs.
-		return NewLogSource(SnmpTraps, &LogsConfig{
-			Type:    SnmpTrapsType,
-			Service: "snmp",
-			Source:  "snmp",
-		})
-	}
-	return nil
-}
-
 // GlobalProcessingRules returns the global processing rules to apply to all logs.
 func GlobalProcessingRules() ([]*ProcessingRule, error) {
 	var rules []*ProcessingRule
@@ -112,10 +82,26 @@ func GlobalProcessingRules() ([]*ProcessingRule, error) {
 	return rules, nil
 }
 
+// HasMultiLineRule returns true if the rule set contains a multi_line rule
+func HasMultiLineRule(rules []*ProcessingRule) bool {
+	for _, rule := range rules {
+		if rule.Type == MultiLine {
+			return true
+		}
+	}
+	return false
+}
+
 // BuildEndpoints returns the endpoints to send logs.
 func BuildEndpoints(httpConnectivity HTTPConnectivity, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
 	coreConfig.SanitizeAPIKeyConfig(coreConfig.Datadog, "logs_config.api_key")
 	return BuildEndpointsWithConfig(defaultLogsConfigKeys(), httpEndpointPrefix, httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
+}
+
+// BuildEndpointsWithVectorOverride returns the endpoints to send logs and enforce Vector override config keys
+func BuildEndpointsWithVectorOverride(httpConnectivity HTTPConnectivity, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
+	coreConfig.SanitizeAPIKeyConfig(coreConfig.Datadog, "logs_config.api_key")
+	return BuildEndpointsWithConfig(defaultLogsConfigKeysWithVectorOverride(), httpEndpointPrefix, httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
 }
 
 // BuildEndpointsWithConfig returns the endpoints to send logs.
@@ -130,7 +116,7 @@ func BuildEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix string,
 	log.Warnf("You are currently sending Logs to Datadog through TCP (either because %s or %s is set or the HTTP connectivity test has failed) "+
 		"To benefit from increased reliability and better network performances, "+
 		"we strongly encourage switching over to compressed HTTPS which is now the default protocol.",
-		logsConfig.getConfigKey("use_tcp"), logsConfig.getConfigKey("socks5_proxy_address"))
+		logsConfig.getConfigKey("force_use_tcp"), logsConfig.getConfigKey("socks5_proxy_address"))
 	return buildTCPEndpoints(logsConfig)
 }
 
@@ -157,7 +143,6 @@ func buildTCPEndpoints(logsConfig *LogsConfigKeys) (*Endpoints, error) {
 		APIKey:                  logsConfig.getLogsAPIKey(),
 		ProxyAddress:            proxyAddress,
 		ConnectionResetInterval: logsConfig.connectionResetInterval(),
-		IsReliable:              true,
 	}
 
 	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
@@ -201,6 +186,11 @@ func BuildHTTPEndpoints(intakeTrackType IntakeTrackType, intakeProtocol IntakePr
 	return BuildHTTPEndpointsWithConfig(defaultLogsConfigKeys(), httpEndpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 }
 
+// BuildHTTPEndpointsWithVectorOverride returns the HTTP endpoints to send logs to.
+func BuildHTTPEndpointsWithVectorOverride(intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
+	return BuildHTTPEndpointsWithConfig(defaultLogsConfigKeysWithVectorOverride(), httpEndpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
+}
+
 // BuildHTTPEndpointsWithConfig uses two arguments that instructs it how to access configuration parameters, then returns the HTTP endpoints to send logs to. This function is able to default to the 'classic' BuildHTTPEndpoints() w ldHTTPEndpointsWithConfigdefault variables logsConfigDefaultKeys and httpEndpointPrefix
 func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
 	// Provide default values for legacy settings when the configuration key does not exist
@@ -216,7 +206,6 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 		BackoffFactor:           logsConfig.senderBackoffFactor(),
 		RecoveryInterval:        logsConfig.senderRecoveryInterval(),
 		RecoveryReset:           logsConfig.senderRecoveryReset(),
-		IsReliable:              true,
 	}
 
 	if logsConfig.useV2API() && intakeTrackType != "" {

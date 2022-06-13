@@ -256,14 +256,14 @@ type testRepositories struct {
 	directorSnapshotKey  keys.Signer
 	directorRootKey      keys.Signer
 
-	configTimestampVersion   int
-	configTargetsVersion     int
-	configSnapshotVersion    int
-	configRootVersion        int
-	directorTimestampVersion int
-	directorTargetsVersion   int
-	directorSnapshotVersion  int
-	directorRootVersion      int
+	configTimestampVersion   int64
+	configTargetsVersion     int64
+	configSnapshotVersion    int64
+	configRootVersion        int64
+	directorTimestampVersion int64
+	directorTargetsVersion   int64
+	directorSnapshotVersion  int64
+	directorRootVersion      int64
 
 	configTimestamp   []byte
 	configTargets     []byte
@@ -277,7 +277,7 @@ type testRepositories struct {
 	targetFiles []*pbgo.File
 }
 
-func newTestRepository(version int, configTargets data.TargetFiles, directorTargets data.TargetFiles, targetFiles []*pbgo.File) testRepositories {
+func newTestRepository(version int64, configTargets data.TargetFiles, directorTargets data.TargetFiles, targetFiles []*pbgo.File) testRepositories {
 	repos := testRepositories{
 		configTimestampKey:   generateKey(),
 		configTargetsKey:     generateKey(),
@@ -297,11 +297,11 @@ func newTestRepository(version int, configTargets data.TargetFiles, directorTarg
 	repos.directorTimestampVersion = 20 + version
 	repos.directorTargetsVersion = 200 + version
 	repos.directorSnapshotVersion = 2000 + version
-	repos.configRoot = generateRoot(repos.configRootKey, version, repos.configTimestampKey, repos.configTargetsKey, repos.configSnapshotKey)
+	repos.configRoot = generateRoot(repos.configRootKey, version, repos.configTimestampKey, repos.configTargetsKey, repos.configSnapshotKey, nil)
 	repos.configTargets = generateTargets(repos.configTargetsKey, 100+version, configTargets)
 	repos.configSnapshot = generateSnapshot(repos.configSnapshotKey, 1000+version, repos.configTargetsVersion)
 	repos.configTimestamp = generateTimestamp(repos.configTimestampKey, 10+version, repos.configSnapshotVersion, repos.configSnapshot)
-	repos.directorRoot = generateRoot(repos.directorRootKey, version, repos.directorTimestampKey, repos.directorTargetsKey, repos.directorSnapshotKey)
+	repos.directorRoot = generateRoot(repos.directorRootKey, version, repos.directorTimestampKey, repos.directorTargetsKey, repos.directorSnapshotKey, nil)
 	repos.directorTargets = generateTargets(repos.directorTargetsKey, 200+version, directorTargets)
 	repos.directorSnapshot = generateSnapshot(repos.directorSnapshotKey, 2000+version, repos.directorTargetsVersion)
 	repos.directorTimestamp = generateTimestamp(repos.directorTimestampKey, 20+version, repos.directorSnapshotVersion, repos.directorSnapshot)
@@ -326,7 +326,7 @@ func (r testRepositories) toUpdate() *pbgo.LatestConfigsResponse {
 	}
 }
 
-func generateRoot(key keys.Signer, version int, timestampKey keys.Signer, targetsKey keys.Signer, snapshotKey keys.Signer) []byte {
+func generateRoot(key keys.Signer, version int64, timestampKey keys.Signer, targetsKey keys.Signer, snapshotKey keys.Signer, previousRootKey keys.Signer) []byte {
 	root := data.NewRoot()
 	root.Version = version
 	root.Expires = time.Now().Add(1 * time.Hour)
@@ -350,12 +350,18 @@ func generateRoot(key keys.Signer, version int, timestampKey keys.Signer, target
 		KeyIDs:    snapshotKey.PublicData().IDs(),
 		Threshold: 1,
 	}
-	signedRoot, _ := sign.Marshal(&root, key)
+
+	rootSigners := []keys.Signer{key}
+	if previousRootKey != nil {
+		rootSigners = append(rootSigners, previousRootKey)
+	}
+
+	signedRoot, _ := sign.Marshal(&root, rootSigners...)
 	serializedRoot, _ := json.Marshal(signedRoot)
 	return serializedRoot
 }
 
-func generateTimestamp(key keys.Signer, version int, snapshotVersion int, snapshot []byte) []byte {
+func generateTimestamp(key keys.Signer, version int64, snapshotVersion int64, snapshot []byte) []byte {
 	meta := data.NewTimestamp()
 	meta.Expires = time.Now().Add(1 * time.Hour)
 	meta.Version = version
@@ -367,7 +373,7 @@ func generateTimestamp(key keys.Signer, version int, snapshotVersion int, snapsh
 	return serialized
 }
 
-func generateTargets(key keys.Signer, version int, targets data.TargetFiles) []byte {
+func generateTargets(key keys.Signer, version int64, targets data.TargetFiles) []byte {
 	meta := data.NewTargets()
 	meta.Expires = time.Now().Add(1 * time.Hour)
 	meta.Version = version
@@ -377,7 +383,7 @@ func generateTargets(key keys.Signer, version int, targets data.TargetFiles) []b
 	return serialized
 }
 
-func generateSnapshot(key keys.Signer, version int, targetsVersion int) []byte {
+func generateSnapshot(key keys.Signer, version int64, targetsVersion int64) []byte {
 	meta := data.NewSnapshot()
 	meta.Expires = time.Now().Add(1 * time.Hour)
 	meta.Version = version

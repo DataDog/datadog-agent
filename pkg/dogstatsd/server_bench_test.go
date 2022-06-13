@@ -50,7 +50,7 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 
 	demux := aggregator.InitTestAgentDemultiplexer()
 	defer demux.Stop(false)
-	s, _ := NewServer(demux, nil)
+	s, _ := NewServer(demux, false)
 	defer s.Stop()
 
 	done := make(chan struct{})
@@ -63,7 +63,7 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 	defer close(done)
 
 	b.RunParallel(func(pb *testing.PB) {
-		batcher := newBatcher(demux)
+		batcher := newBatcher(demux.AgentDemultiplexer)
 		parser := newParser(newFloat64ListPool())
 		packet := packets.Packet{
 			Contents: rawPacket,
@@ -96,7 +96,7 @@ func BenchmarkPbarseMetricMessage(b *testing.B) {
 	config.SetupLogger("", "off", "", "", false, true, false)
 
 	demux := aggregator.InitTestAgentDemultiplexer()
-	s, _ := NewServer(demux, nil)
+	s, _ := NewServer(demux, false)
 	defer s.Stop()
 
 	done := make(chan struct{})
@@ -153,7 +153,7 @@ func BenchmarkMapperControl(b *testing.B) {
 	config.SetupLogger("", "off", "", "", false, true, false)
 
 	demux := aggregator.InitTestAgentDemultiplexer()
-	s, _ := NewServer(demux, nil)
+	s, _ := NewServer(demux, false)
 	defer s.Stop()
 
 	done := make(chan struct{})
@@ -165,7 +165,7 @@ func BenchmarkMapperControl(b *testing.B) {
 	}()
 	defer close(done)
 
-	batcher := newBatcher(demux)
+	batcher := newBatcher(demux.AgentDemultiplexer)
 	parser := newParser(newFloat64ListPool())
 
 	samples := make([]metrics.MetricSample, 0, 512)

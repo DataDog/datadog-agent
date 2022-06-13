@@ -6,17 +6,17 @@
 package generic
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -24,10 +24,6 @@ const (
 	// NetworkExtensionID uniquely identifies network extensions
 	NetworkExtensionID = "network"
 )
-
-var defaultExtensions = map[string]ProcessorExtension{
-	NetworkExtensionID: NewProcessorNetwork(),
-}
 
 // Processor contains the core logic of the generic check, allowing reusability
 type Processor struct {
@@ -45,7 +41,9 @@ func NewProcessor(provider metrics.Provider, lister ContainerAccessor, adapter M
 		ctrLister:       lister,
 		metricsAdapter:  adapter,
 		ctrFilter:       filter,
-		extensions:      defaultExtensions,
+		extensions: map[string]ProcessorExtension{
+			NetworkExtensionID: NewProcessorNetwork(),
+		},
 	}
 }
 
@@ -56,9 +54,10 @@ func (p *Processor) RegisterExtension(id string, extension ProcessorExtension) {
 
 // Run executes the check
 func (p *Processor) Run(sender aggregator.Sender, cacheValidity time.Duration) error {
-	allContainers, err := p.ctrLister.List()
-	if err != nil {
-		return fmt.Errorf("cannot list containers from metadata store, container metrics will be missing, err: %w", err)
+	allContainers := p.ctrLister.ListRunning()
+
+	if len(allContainers) == 0 {
+		return nil
 	}
 
 	collectorsCache := make(map[workloadmeta.ContainerRuntime]metrics.Collector)
@@ -80,20 +79,15 @@ func (p *Processor) Run(sender aggregator.Sender, cacheValidity time.Duration) e
 	}
 
 	for _, container := range allContainers {
-		// We surely won't get stats for not running containers
-		if !container.State.Running {
-			continue
-		}
-
 		if p.ctrFilter != nil && p.ctrFilter.IsExcluded(container) {
-			log.Tracef("Container excluded due to filter, name: %s - image: %s - namespace: %s", container.Name, container.Image.Name, container.Labels["io.kubernetes.pod.namespace"])
+			log.Tracef("Container excluded due to filter, name: %s - image: %s - namespace: %s", container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel])
 			continue
 		}
 
 		entityID := containers.BuildTaggerEntityName(container.ID)
 		tags, err := tagger.Tag(entityID, collectors.HighCardinality)
 		if err != nil {
-			log.Errorf("Could not collect tags for container %q, err: %w", container.ID[:12], err)
+			log.Errorf("Could not collect tags for container %q, err: %v", container.ID[:12], err)
 			continue
 		}
 		tags = p.metricsAdapter.AdaptTags(tags, container)
@@ -104,15 +98,22 @@ func (p *Processor) Run(sender aggregator.Sender, cacheValidity time.Duration) e
 			continue
 		}
 
-		containerStats, err := collector.GetContainerStats(container.ID, cacheValidity)
+		containerStats, err := collector.GetContainerStats(container.Namespace, container.ID, cacheValidity)
 		if err != nil {
-			log.Debugf("Container stats for: %v not available through collector %q, err: %w", container, collector.ID(), err)
+			log.Debugf("Container stats for: %v not available through collector %q, err: %v", container, collector.ID(), err)
 			continue
 		}
 
 		if err := p.processContainer(sender, tags, container, containerStats); err != nil {
-			log.Debugf("Generating metrics for container: %v failed, metrics may be missing, err: %w", container, err)
+			log.Debugf("Generating metrics for container: %v failed, metrics may be missing, err: %v", container, err)
 			continue
+		}
+
+		openFiles, err := collector.GetContainerOpenFilesCount(container.Namespace, container.ID, cacheValidity)
+		if err == nil {
+			p.sendMetric(sender.Gauge, "container.pid.open_files", pointer.UIntPtrToFloatPtr(openFiles), tags)
+		} else {
+			log.Debugf("OpenFiles count for: %v not available through collector %q, err: %v", container, collector.ID(), err)
 		}
 
 		// TODO: Implement container stats. We currently don't have enough information from Metadata service to do it.
@@ -134,7 +135,7 @@ func (p *Processor) Run(sender aggregator.Sender, cacheValidity time.Duration) e
 
 func (p *Processor) processContainer(sender aggregator.Sender, tags []string, container *workloadmeta.Container, containerStats *metrics.ContainerStats) error {
 	if uptime := time.Since(container.State.StartedAt); uptime > 0 {
-		p.sendMetric(sender.Gauge, "container.uptime", util.Float64Ptr(uptime.Seconds()), tags)
+		p.sendMetric(sender.Gauge, "container.uptime", pointer.Float64Ptr(uptime.Seconds()), tags)
 	}
 
 	if containerStats.CPU != nil {
@@ -145,7 +146,7 @@ func (p *Processor) processContainer(sender aggregator.Sender, tags []string, co
 		p.sendMetric(sender.Rate, "container.cpu.throttled.periods", containerStats.CPU.ThrottledPeriods, tags)
 		// Convert CPU Limit to nanoseconds to allow easy percentage computation in the App.
 		if containerStats.CPU.Limit != nil {
-			p.sendMetric(sender.Gauge, "container.cpu.limit", util.Float64Ptr(*containerStats.CPU.Limit*float64(time.Second/100)), tags)
+			p.sendMetric(sender.Gauge, "container.cpu.limit", pointer.Float64Ptr(*containerStats.CPU.Limit*float64(time.Second/100)), tags)
 		}
 	}
 
@@ -183,7 +184,6 @@ func (p *Processor) processContainer(sender aggregator.Sender, tags []string, co
 	if containerStats.PID != nil {
 		p.sendMetric(sender.Gauge, "container.pid.thread_count", containerStats.PID.ThreadCount, tags)
 		p.sendMetric(sender.Gauge, "container.pid.thread_limit", containerStats.PID.ThreadLimit, tags)
-		p.sendMetric(sender.Gauge, "container.pid.open_files", containerStats.PID.OpenFiles, tags)
 	}
 
 	return nil

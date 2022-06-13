@@ -17,7 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/metricsserializer"
+	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
@@ -66,7 +67,7 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 			Name:     fmt.Sprintf("test.metrics%d", i),
 			Interval: 1,
 			Host:     "localHost",
-			Tags:     []string{"tag1", "tag2:yes"},
+			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 		}
 		testSeries = append(testSeries, &point)
 	}
@@ -80,7 +81,7 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 		var s = map[string]metricsserializer.Series{}
 
 		if compress {
-			*payload, err = compression.Decompress(nil, *payload)
+			*payload, err = compression.Decompress(*payload)
 			require.Nil(t, err)
 		}
 
@@ -112,7 +113,7 @@ func BenchmarkSplitPayloadsSeries(b *testing.B) {
 			Name:     fmt.Sprintf("test.metrics%d", i),
 			Interval: 1,
 			Host:     "localHost",
-			Tags:     []string{"tag1", "tag2:yes"},
+			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 		}
 		testSeries = append(testSeries, &point)
 	}
@@ -192,7 +193,7 @@ func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 		var s map[string]interface{}
 
 		if compress {
-			*payload, err = compression.Decompress(nil, *payload)
+			*payload, err = compression.Decompress(*payload)
 			require.Nil(t, err)
 		}
 
@@ -257,7 +258,7 @@ func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) 
 		var s []interface{}
 
 		if compress {
-			*payload, err = compression.Decompress(nil, *payload)
+			*payload, err = compression.Decompress(*payload)
 			require.Nil(t, err)
 		}
 
@@ -311,7 +312,7 @@ func testSplitPayloadsSketches(t *testing.T, numPoints int, compress bool) {
 		var s = map[string]metricsserializer.SketchSeriesList{}
 
 		if compress {
-			*payload, err = compression.Decompress(nil, *payload)
+			*payload, err = compression.Decompress(*payload)
 			require.Nil(t, err)
 		}
 

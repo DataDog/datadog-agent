@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
+	procmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -563,5 +564,100 @@ process_config:
 		content, err := ioutil.ReadFile(filepath.Join(dir, "process_agent_runtime_config_dump.yaml"))
 		require.NoError(t, err)
 		assert.Equal(t, exp, string(content))
+	})
+}
+
+func TestZipProcessAgentChecks(t *testing.T) {
+	expectedProcesses := []procmodel.MessageBody{
+		&procmodel.CollectorProc{
+			Processes: []*procmodel.Process{
+				{
+					Pid: 1337,
+				},
+			},
+		},
+	}
+	expectedProcessesJSON, err := json.Marshal(&expectedProcesses)
+	require.NoError(t, err)
+
+	expectedContainers := []procmodel.MessageBody{
+		&procmodel.CollectorContainer{
+			Containers: []*procmodel.Container{
+				{
+					Id: "yeet",
+				},
+			},
+		},
+	}
+	expectedContainersJSON, err := json.Marshal(&expectedContainers)
+	require.NoError(t, err)
+
+	expectedProcessDiscoveries := []procmodel.MessageBody{
+		&procmodel.CollectorProcDiscovery{
+			ProcessDiscoveries: []*procmodel.ProcessDiscovery{
+				{
+					Pid: 9001,
+				},
+			},
+		},
+	}
+	expectedProcessDiscoveryJSON, err := json.Marshal(&expectedProcessDiscoveries)
+	require.NoError(t, err)
+
+	t.Run("without process-agent running", func(t *testing.T) {
+		dir, err := ioutil.TempDir("", "TestZipProcessAgentCheckOutput")
+		require.NoError(t, err)
+		defer os.RemoveAll(dir)
+		fmt.Println(dir)
+
+		err = zipProcessChecks(dir, "", func() (string, error) { return "fake:1337", nil })
+		require.NoError(t, err)
+
+		content, err := ioutil.ReadFile(filepath.Join(dir, "process_check_output.json"))
+		require.NoError(t, err)
+		assert.True(t, strings.HasPrefix(string(content), "error: process-agent is not running or is unreachable"))
+	})
+	t.Run("with process-agent running", func(t *testing.T) {
+		cfg := config.Mock()
+		cfg.Set("process_config.process_collection.enabled", true)
+		cfg.Set("process_config.container_collection.enabled", true)
+		cfg.Set("process_config.process_discovery.enabled", true)
+
+		handler := func(w http.ResponseWriter, r *http.Request) {
+			var err error
+			switch r.URL.Path {
+			case "/check/process":
+				_, err = w.Write(expectedProcessesJSON)
+			case "/check/container":
+				_, err = w.Write(expectedContainersJSON)
+			case "/check/process_discovery":
+				_, err = w.Write(expectedProcessDiscoveryJSON)
+			default:
+				t.Error("Unexpected url endpoint", r.URL.Path)
+			}
+			require.NoError(t, err)
+		}
+
+		srv := httptest.NewServer(http.HandlerFunc(handler))
+		defer srv.Close()
+
+		dir, err := ioutil.TempDir("", "TestZipProcessAgentCheckOutput")
+		require.NoError(t, err)
+		defer os.RemoveAll(dir)
+
+		err = zipProcessChecks(dir, "", func() (string, error) { return strings.TrimPrefix(srv.URL, "http://"), nil })
+		require.NoError(t, err)
+
+		content, err := ioutil.ReadFile(filepath.Join(dir, "process_check_output.json"))
+		require.NoError(t, err)
+		assert.Equal(t, expectedProcessesJSON, content)
+
+		content, err = ioutil.ReadFile(filepath.Join(dir, "container_check_output.json"))
+		require.NoError(t, err)
+		assert.Equal(t, expectedContainersJSON, content)
+
+		content, err = ioutil.ReadFile(filepath.Join(dir, "process_discovery_check_output.json"))
+		require.NoError(t, err)
+		assert.Equal(t, expectedProcessDiscoveryJSON, content)
 	})
 }

@@ -6,23 +6,50 @@
 package metrics
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"bytes"
+	"encoding/json"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // A SketchSeries is a timeseries of quantile sketches.
 type SketchSeries struct {
-	Name       string          `json:"metric"`
-	Tags       []string        `json:"tags"`
-	Host       string          `json:"host"`
-	Interval   int64           `json:"interval"`
-	Points     []SketchPoint   `json:"points"`
-	ContextKey ckey.ContextKey `json:"-"`
+	Name       string               `json:"metric"`
+	Tags       tagset.CompositeTags `json:"tags"`
+	Host       string               `json:"host"`
+	Interval   int64                `json:"interval"`
+	Points     []SketchPoint        `json:"points"`
+	ContextKey ckey.ContextKey      `json:"-"`
 }
 
 // A SketchPoint represents a quantile sketch at a specific time
 type SketchPoint struct {
 	Sketch *quantile.Sketch `json:"sketch"`
 	Ts     int64            `json:"ts"`
+}
+
+// SketchSeriesList is a collection of SketchSeries
+type SketchSeriesList []SketchSeries
+
+// MarshalJSON serializes sketch series to JSON.
+func (sl SketchSeriesList) MarshalJSON() ([]byte, error) {
+	type SketchSeriesAlias SketchSeriesList
+	data := map[string]SketchSeriesAlias{
+		"sketches": SketchSeriesAlias(sl),
+	}
+	reqBody := &bytes.Buffer{}
+	err := json.NewEncoder(reqBody).Encode(data)
+	return reqBody.Bytes(), err
+}
+
+// String returns the JSON representation of a SketchSeriesList as a string
+// or an empty string in case of an error
+func (sl SketchSeriesList) String() string {
+	json, err := sl.MarshalJSON()
+	if err != nil {
+		return ""
+	}
+	return string(json)
 }

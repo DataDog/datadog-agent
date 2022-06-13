@@ -9,6 +9,7 @@ import (
 	"compress/gzip"
 	"math"
 	"math/rand"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -17,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tinylib/msgp/msgp"
@@ -118,6 +119,7 @@ func TestStatsWriter(t *testing.T) {
 				Sequence:         34,
 				AgentAggregation: "aggregation",
 				Service:          "service",
+				ContainerID:      "container-id",
 				Stats: []pb.ClientStatsBucket{
 					testutil.RandomBucket(5),
 					testutil.RandomBucket(5),
@@ -180,6 +182,30 @@ func TestStatsWriter(t *testing.T) {
 		assert.Equal(5, len(s[0].Stats[1].Stats))
 		assert.Equal(5, len(s[0].Stats[2].Stats))
 	})
+}
+
+func TestStatsResetBuffer(t *testing.T) {
+	w, _, _ := testStatsSyncWriter()
+
+	runtime.GC()
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	assert.Less(t, m.HeapInuse, uint64(50*1e6))
+
+	bigPayload := pb.StatsPayload{
+		AgentHostname: string(make([]byte, 50*1e6)),
+	}
+
+	w.payloads = append(w.payloads, bigPayload)
+
+	runtime.GC()
+	runtime.ReadMemStats(&m)
+	assert.Greater(t, m.HeapInuse, uint64(50*1e6))
+
+	w.resetBuffer()
+	runtime.GC()
+	runtime.ReadMemStats(&m)
+	assert.Less(t, m.HeapInuse, uint64(50*1e6))
 }
 
 func TestStatsSyncWriter(t *testing.T) {
@@ -256,8 +282,9 @@ func testStatsWriter() (*StatsWriter, chan pb.StatsPayload, *testServer) {
 	// other end.
 	in := make(chan pb.StatsPayload)
 	cfg := &config.AgentConfig{
-		Endpoints:   []*config.Endpoint{{Host: srv.URL, APIKey: "123"}},
-		StatsWriter: &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
+		Endpoints:     []*config.Endpoint{{Host: srv.URL, APIKey: "123"}},
+		StatsWriter:   &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
+		ContainerTags: func(cid string) ([]string, error) { return nil, nil },
 	}
 	return NewStatsWriter(cfg, in), in, srv
 }

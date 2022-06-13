@@ -15,14 +15,13 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/internal/mapper"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -31,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/atomic"
 )
 
 var (
@@ -178,8 +178,7 @@ type metricStat struct {
 
 type dsdServerDebug struct {
 	sync.Mutex
-	// Enabled is an atomic int used as a boolean
-	Enabled uint64                         `json:"enabled"`
+	Enabled *atomic.Bool
 	Stats   map[ckey.ContextKey]metricStat `json:"stats"`
 	// counting number of metrics processed last X seconds
 	metricsCounts metricsCountBuckets
@@ -198,8 +197,7 @@ type metricsCountBuckets struct {
 }
 
 // NewServer returns a running DogStatsD server.
-// If extraTags is nil, they will be read from DD_DOGSTATSD_TAGS if set.
-func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Server, error) {
+func NewServer(demultiplexer aggregator.Demultiplexer, serverless bool) (*Server, error) {
 	// This needs to be done after the configuration is loaded
 	once.Do(initLatencyTelemetry)
 
@@ -214,10 +212,10 @@ func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Ser
 		dogstatsdExpvars.Set("PacketsLastSecond", &dogstatsdPacketsLastSec)
 	}
 
-	var metricsStatsEnabled uint64 // we're using an uint64 for its atomic capacity
+	metricsStatsEnabled := false
 	if config.Datadog.GetBool("dogstatsd_metrics_stats_enable") == true {
 		log.Info("Dogstatsd: metrics statistics will be stored.")
-		metricsStatsEnabled = 1
+		metricsStatsEnabled = true
 	}
 
 	packetsChannel := make(chan packets.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
@@ -284,9 +282,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Ser
 	histToDist := config.Datadog.GetBool("histogram_copy_to_distribution")
 	histToDistPrefix := config.Datadog.GetString("histogram_copy_to_distribution_prefix")
 
-	if extraTags == nil {
-		extraTags = config.Datadog.GetStringSlice("dogstatsd_tags")
-	}
+	extraTags := config.Datadog.GetStringSlice("dogstatsd_tags")
 
 	// if the server is running in a context where static tags are required, add those
 	// to extraTags.
@@ -339,7 +335,8 @@ func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Ser
 		entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 		disableVerboseLogs:        config.Datadog.GetBool("dogstatsd_disable_verbose_logs"),
 		Debug: &dsdServerDebug{
-			Stats: make(map[ckey.ContextKey]metricStat),
+			Enabled: atomic.NewBool(false),
+			Stats:   make(map[ckey.ContextKey]metricStat),
 			metricsCounts: metricsCountBuckets{
 				counts:     [5]uint64{0, 0, 0, 0, 0},
 				metricChan: make(chan struct{}),
@@ -350,6 +347,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Ser
 		TCapture:           capture,
 		UdsListenerRunning: udsListenerRunning,
 		cachedTlmOriginIds: make(map[string]cachedTagsOriginMap),
+		ServerlessMode:     serverless,
 	}
 
 	// packets forwarding
@@ -376,7 +374,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Ser
 	// start the debug loop
 	// ----------------------
 
-	if metricsStatsEnabled == 1 {
+	if metricsStatsEnabled {
 		s.EnableMetricsStats()
 	}
 
@@ -455,7 +453,7 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan packets.Packets) {
 func (s *Server) ServerlessFlush() {
 	log.Debug("Received a Flush trigger")
 
-	// make all workers flush their aggregated data (in the batchers) to the aggregator.
+	// make all workers flush their aggregated data (in the batchers) into the time samplers
 	s.serverlessFlushChan <- true
 
 	start := time.Now()
@@ -557,7 +555,7 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 				var err error
 				samples = samples[0:0]
 
-				debugEnabled := atomic.LoadUint64(&s.Debug.Enabled) == 1
+				debugEnabled := s.Debug.Enabled.Load()
 
 				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, debugEnabled)
 				if err != nil {
@@ -751,11 +749,11 @@ func (s *Server) EnableMetricsStats() {
 	defer s.Debug.Unlock()
 
 	// already enabled?
-	if atomic.LoadUint64(&s.Debug.Enabled) == 1 {
+	if s.Debug.Enabled.Load() {
 		return
 	}
 
-	atomic.StoreUint64(&s.Debug.Enabled, 1)
+	s.Debug.Enabled.Store(true)
 	go func() {
 		ticker := time.NewTicker(time.Millisecond * 100)
 		var closed bool
@@ -815,8 +813,8 @@ func (s *Server) DisableMetricsStats() {
 	s.Debug.Lock()
 	defer s.Debug.Unlock()
 
-	if atomic.LoadUint64(&s.Debug.Enabled) == 1 {
-		atomic.StoreUint64(&s.Debug.Enabled, 0)
+	if s.Debug.Enabled.Load() {
+		s.Debug.Enabled.Store(false)
 		s.Debug.metricsCounts.closeChan <- struct{}{}
 	}
 

@@ -29,6 +29,7 @@ type Payload struct {
 	Timestamp     int64          `json:"timestamp"`
 	CheckMetadata *CheckMetadata `json:"check_metadata"`
 	AgentMetadata *AgentMetadata `json:"agent_metadata"`
+	HostMetadata  *HostMetadata  `json:"host_metadata"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -40,9 +41,4 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 // SplitPayload breaks the payload into times number of pieces
 func (p *Payload) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	return nil, fmt.Errorf("Inventories Payload splitting is not implemented")
-}
-
-// MarshalSplitCompress not implemented
-func (p *Payload) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
-	return nil, fmt.Errorf("Inventories MarshalSplitCompress is not implemented")
 }

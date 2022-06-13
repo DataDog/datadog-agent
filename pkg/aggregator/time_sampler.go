@@ -7,10 +7,9 @@ package aggregator
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/metricsserializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -111,7 +110,7 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 	return ss
 }
 
-func (s *TimeSampler) flushSeries(cutoffTime int64, series metricsserializer.SerieSink) {
+func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink) {
 	// Map to hold the expired contexts that will need to be deleted after the flush so that we stop sending zeros
 	counterContextsToDelete := map[ckey.ContextKey]struct{}{}
 	contextMetricsFlusher := metrics.NewContextMetricsFlusher()
@@ -155,7 +154,7 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metricsserializer.Ser
 
 func (s *TimeSampler) dedupSerieBySerieSignature(
 	rawSeries []*metrics.Serie,
-	serieSink metricsserializer.SerieSink,
+	serieSink metrics.SerieSink,
 	serieBySignature map[SerieSignature]*metrics.Serie) {
 
 	// clear the map. Reuse serieBySignature
@@ -190,9 +189,9 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 	}
 }
 
-func (s *TimeSampler) flushSketches(cutoffTime int64) metricsserializer.SketchSeriesList {
+func (s *TimeSampler) flushSketches(cutoffTime int64) metrics.SketchSeriesList {
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
-	sketches := make(metricsserializer.SketchSeriesList, 0, len(pointsByCtx))
+	sketches := make(metrics.SketchSeriesList, 0, len(pointsByCtx))
 
 	s.sketchMap.flushBefore(cutoffTime, func(ck ckey.ContextKey, p metrics.SketchPoint) {
 		if p.Sketch == nil {
@@ -207,7 +206,7 @@ func (s *TimeSampler) flushSketches(cutoffTime int64) metricsserializer.SketchSe
 	return sketches
 }
 
-func (s *TimeSampler) flush(timestamp float64, series metricsserializer.SerieSink) metricsserializer.SketchSeriesList {
+func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink) metrics.SketchSeriesList {
 	// Compute a limit timestamp
 	cutoffTime := s.calculateBucketStart(timestamp)
 
@@ -218,8 +217,17 @@ func (s *TimeSampler) flush(timestamp float64, series metricsserializer.SerieSin
 	s.contextResolver.expireContexts(timestamp - config.Datadog.GetFloat64("dogstatsd_context_expiry_seconds"))
 	s.lastCutOffTime = cutoffTime
 
-	aggregatorDogstatsdContexts.Set(int64(s.contextResolver.length()))
-	tlmDogstatsdContexts.Set(float64(s.contextResolver.length()))
+	totalContexts := s.contextResolver.length()
+	aggregatorDogstatsdContexts.Set(int64(totalContexts))
+	tlmDogstatsdContexts.Set(float64(totalContexts))
+
+	byMtype := s.contextResolver.countsByMtype()
+	for i, count := range byMtype {
+		mtype := metrics.MetricType(i).String()
+		aggregatorDogstatsdContextsByMtype[i].Set(int64(count))
+		tlmDogstatsdContextsByMtype.Set(float64(count), mtype)
+	}
+
 	return sketches
 }
 

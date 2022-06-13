@@ -28,8 +28,9 @@ import (
 )
 
 const (
-	minimalRefreshInterval = time.Second * 5
-	defaultClientsTTL      = 10 * time.Second
+	minimalRefreshInterval = 5 * time.Second
+	defaultClientsTTL      = 30 * time.Second
+	maxClientsTTL          = 60 * time.Second
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -72,6 +73,7 @@ type uptaneClient interface {
 	TargetFile(path string) ([]byte, error)
 	TargetsMeta() ([]byte, error)
 	TargetsCustom() ([]byte, error)
+	TUFVersionState() (uptane.TUFVersions, error)
 }
 
 // NewService instantiates a new remote configuration management service
@@ -123,8 +125,7 @@ func NewService() (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	backendURL := config.Datadog.GetString("remote_configuration.endpoint")
-	http := api.NewHTTPClient(backendURL, apiKey, remoteConfigKey.AppKey)
+	http := api.NewHTTPClient(apiKey, remoteConfigKey.AppKey)
 
 	dbPath := path.Join(config.Datadog.GetString("run_path"), "remote-config.db")
 	db, err := openCacheDB(dbPath)
@@ -137,9 +138,9 @@ func NewService() (*Service, error) {
 		return nil, err
 	}
 
-	clientsTTL := time.Second * config.Datadog.GetDuration("remote_configuration.clients.ttl_seconds")
-	if clientsTTL <= 5*time.Second || clientsTTL >= 60*time.Second {
-		log.Warnf("Configured clients ttl is not within accepted range (%ds - %ds): %s. Defaulting to %s", 5, 10, clientsTTL, defaultClientsTTL)
+	clientsTTL := config.Datadog.GetDuration("remote_configuration.clients.ttl_seconds")
+	if clientsTTL <= minimalRefreshInterval || clientsTTL >= maxClientsTTL {
+		log.Warnf("Configured clients ttl is not within accepted range (%s - %s): %s. Defaulting to %s", minimalRefreshInterval, maxClientsTTL, clientsTTL, defaultClientsTTL)
 		clientsTTL = defaultClientsTTL
 	}
 	clock := clock.New()
@@ -168,13 +169,13 @@ func (s *Service) Start(ctx context.Context) error {
 
 		for {
 			refreshInterval := s.calculateRefreshInterval()
-
+			err := s.refresh()
+			if err != nil {
+				log.Errorf("could not refresh remote-config: %v", err)
+			}
 			select {
 			case <-s.clock.After(refreshInterval):
-				err := s.refresh()
-				if err != nil {
-					log.Errorf("could not refresh remote-config: %v", err)
-				}
+				continue
 			case <-ctx.Done():
 				return
 			}
@@ -194,12 +195,12 @@ func (s *Service) refresh() error {
 	defer s.Unlock()
 	activeClients := s.clients.activeClients()
 	s.refreshProducts(activeClients)
-	previousState, err := s.uptane.State()
+	previousState, err := s.uptane.TUFVersionState()
 	if err != nil {
-		log.Warnf("could not get previous state: %v", err)
+		log.Warnf("could not get previous TUF version state: %v", err)
 	}
 	if s.forceRefresh() || err != nil {
-		previousState = uptane.State{}
+		previousState = uptane.TUFVersions{}
 	}
 	clientState, err := s.getClientState()
 	if err != nil {
@@ -257,14 +258,17 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	s.Lock()
 	defer s.Unlock()
 	s.clients.seen(request.Client)
-	state, err := s.uptane.State()
+	tufVersions, err := s.uptane.TUFVersionState()
 	if err != nil {
 		return nil, err
 	}
-	if state.DirectorTargetsVersion() == request.Client.State.TargetsVersion {
+	if request.Client.State == nil {
 		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
-	roots, err := s.getNewDirectorRoots(request.Client.State.RootVersion, state.DirectorRootVersion())
+	if tufVersions.DirectorTargets == request.Client.State.TargetsVersion {
+		return &pbgo.ClientGetConfigsResponse{}, nil
+	}
+	roots, err := s.getNewDirectorRoots(request.Client.State.RootVersion, tufVersions.DirectorRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -276,13 +280,33 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	if err != nil {
 		return nil, err
 	}
+
+	directorTargets, err := s.uptane.Targets()
+	if err != nil {
+		return nil, err
+	}
+	matchedClientConfigs, err := executeClientPredicates(request.Client, directorTargets)
+	if err != nil {
+		return nil, err
+	}
+
+	// filter files to only return the ones that predicates marked for this client
+	matchedConfigsMap := make(map[string]interface{})
+	for _, configPointer := range matchedClientConfigs {
+		matchedConfigsMap[configPointer] = struct{}{}
+	}
+	filteredFiles := make([]*pbgo.File, 0, len(matchedClientConfigs))
+	for _, targetFile := range targetFiles {
+		if _, ok := matchedConfigsMap[targetFile.Path]; ok {
+			filteredFiles = append(filteredFiles, targetFile)
+		}
+	}
+
 	return &pbgo.ClientGetConfigsResponse{
-		Roots: roots,
-		Targets: &pbgo.TopMeta{
-			Version: state.DirectorTargetsVersion(),
-			Raw:     targetsRaw,
-		},
-		TargetFiles: targetFiles,
+		Roots:         roots,
+		Targets:       targetsRaw,
+		TargetFiles:   filteredFiles,
+		ClientConfigs: matchedClientConfigs,
 	}, nil
 }
 
@@ -314,17 +338,14 @@ func (s *Service) ConfigGetState() (*pbgo.GetStateConfigResponse, error) {
 	return response, nil
 }
 
-func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) ([]*pbgo.TopMeta, error) {
-	var roots []*pbgo.TopMeta
+func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) ([][]byte, error) {
+	var roots [][]byte
 	for i := currentVersion + 1; i <= newVersion; i++ {
 		root, err := s.uptane.DirectorRoot(i)
 		if err != nil {
 			return nil, err
 		}
-		roots = append(roots, &pbgo.TopMeta{
-			Raw:     root,
-			Version: i,
-		})
+		roots = append(roots, root)
 	}
 	return roots, nil
 }
@@ -351,11 +372,11 @@ func (s *Service) getTargetFiles(products []rdata.Product, cachedTargetFiles []*
 	}
 	var configFiles []*pbgo.File
 	for targetPath, targetMeta := range targets {
-		configFileMeta, err := rdata.ParseFilePathMeta(targetPath)
+		configPathMeta, err := rdata.ParseConfigPath(targetPath)
 		if err != nil {
 			return nil, err
 		}
-		if _, inClientProducts := productSet[configFileMeta.Product]; inClientProducts {
+		if _, inClientProducts := productSet[rdata.Product(configPathMeta.Product)]; inClientProducts {
 			if notEqualErr := tufutil.FileMetaEqual(cachedTargets[targetPath], targetMeta.FileMeta); notEqualErr == nil {
 				continue
 			}

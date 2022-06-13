@@ -62,8 +62,9 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     bpf_get_current_comm(&syscall.comm, sizeof(syscall.comm));
 
     struct bpf_map_def *noisy_processes = select_buffer(&noisy_processes_fb, &noisy_processes_bb, SYSCALL_MONITOR_KEY);
-    if (noisy_processes == NULL)
+    if (noisy_processes == NULL) {
         return 0;
+    }
 
     u64 zero = 0;
     u64 *count = bpf_map_lookup_or_try_init(noisy_processes, &syscall, &zero);
@@ -75,8 +76,9 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
 
     u32 key = CONCURRENT_SYSCALLS_COUNTER;
     long *concurrent_syscalls_counter = bpf_map_lookup_elem(&concurrent_syscalls, &key);
-    if (concurrent_syscalls_counter == NULL)
+    if (concurrent_syscalls_counter == NULL) {
         return 0;
+    }
 
     __sync_fetch_and_add(concurrent_syscalls_counter, 1);
 
@@ -87,8 +89,9 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
 // cf. https://elixir.bootlin.com/linux/latest/source/arch/x86/include/asm/ftrace.h#L106
 int __attribute__((always_inline)) handle_sys_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
     bpf_tail_call_compat(args, &sys_exit_progs, syscall->type);
     return 0;
@@ -108,8 +111,9 @@ int sys_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     if (enabled) {
         u32 key = CONCURRENT_SYSCALLS_COUNTER;
         long *concurrent_syscalls_counter = bpf_map_lookup_elem(&concurrent_syscalls, &key);
-        if (concurrent_syscalls_counter == NULL)
+        if (concurrent_syscalls_counter == NULL) {
             return 0;
+        }
 
         __sync_fetch_and_add(concurrent_syscalls_counter, -1);
         if (*concurrent_syscalls_counter < 0) {

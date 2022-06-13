@@ -84,6 +84,7 @@ func (c *KubeASConfig) parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
 }
 
+// NewKubeASCheck returns a new KubeASCheck
 func NewKubeASCheck(base core.CheckBase, instance *KubeASConfig) *KubeASCheck {
 	return &KubeASCheck{
 		CheckBase:       base,
@@ -137,7 +138,7 @@ func convertFilter(conf []string) string {
 
 // Run executes the check.
 func (k *KubeASCheck) Run() error {
-	sender, err := aggregator.GetSender(k.ID())
+	sender, err := k.GetSender()
 	if err != nil {
 		return err
 	}

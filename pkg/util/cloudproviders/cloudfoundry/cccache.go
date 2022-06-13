@@ -52,6 +52,15 @@ type CCCacheI interface {
 
 	// GetCFApplications returns all CF applications in the cache
 	GetCFApplications() ([]*CFApplication, error)
+
+	// GetSidecars returns all sidecars for the given application GUID in the cache
+	GetSidecars(string) ([]*CFSidecar, error)
+
+	// GetIsolationSegmentForSpace returns an isolation segment for the given GUID in the cache
+	GetIsolationSegmentForSpace(string) (*cfclient.IsolationSegment, error)
+
+	// GetIsolationSegmentForOrg returns an isolation segment for the given GUID in the cache
+	GetIsolationSegmentForOrg(string) (*cfclient.IsolationSegment, error)
 }
 
 // CCCache is a simple structure that caches and automatically refreshes data from Cloud Foundry API
@@ -60,6 +69,7 @@ type CCCache struct {
 	cancelContext        context.Context
 	configured           bool
 	serveNozzleData      bool
+	advancedTagging      bool
 	ccAPIClient          CCClientI
 	pollInterval         time.Duration
 	lastUpdated          time.Time
@@ -70,21 +80,29 @@ type CCCache struct {
 	spacesByGUID         map[string]*cfclient.V3Space
 	processesByAppGUID   map[string][]*cfclient.Process
 	cfApplicationsByGUID map[string]*CFApplication
+	sidecarsByAppGUID    map[string][]*CFSidecar
+	segmentBySpaceGUID   map[string]*cfclient.IsolationSegment
+	segmentByOrgGUID     map[string]*cfclient.IsolationSegment
 	appsBatchSize        int
 }
 
+// CCClientI TODO <integrations-tools-and-libraries>: ITL-792
 type CCClientI interface {
 	ListV3AppsByQuery(url.Values) ([]cfclient.V3App, error)
 	ListV3OrganizationsByQuery(url.Values) ([]cfclient.V3Organization, error)
 	ListV3SpacesByQuery(url.Values) ([]cfclient.V3Space, error)
 	ListAllProcessesByQuery(url.Values) ([]cfclient.Process, error)
 	ListOrgQuotasByQuery(url.Values) ([]cfclient.OrgQuota, error)
+	ListSidecarsByApp(url.Values, string) ([]CFSidecar, error)
+	ListIsolationSegmentsByQuery(url.Values) ([]cfclient.IsolationSegment, error)
+	GetIsolationSegmentSpaceGUID(string) (string, error)
+	GetIsolationSegmentOrganizationGUID(string) (string, error)
 }
 
 var globalCCCache = &CCCache{}
 
 // ConfigureGlobalCCCache configures the global instance of CCCache from provided config
-func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecret string, skipSSLValidation bool, pollInterval time.Duration, appsBatchSize int, serveNozzleData bool, testing CCClientI) (*CCCache, error) {
+func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecret string, skipSSLValidation bool, pollInterval time.Duration, appsBatchSize int, serveNozzleData, advancedTagging bool, testing CCClientI) (*CCCache, error) {
 	globalCCCache.Lock()
 	defer globalCCCache.Unlock()
 
@@ -100,9 +118,10 @@ func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecr
 			ClientID:          ccClientID,
 			ClientSecret:      ccClientSecret,
 			SkipSslValidation: skipSSLValidation,
+			UserAgent:         "datadog-cluster-agent",
 		}
 		var err error
-		globalCCCache.ccAPIClient, err = cfclient.NewClient(clientConfig)
+		globalCCCache.ccAPIClient, err = NewCFClient(clientConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -115,6 +134,7 @@ func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecr
 	globalCCCache.cancelContext = ctx
 	globalCCCache.configured = true
 	globalCCCache.serveNozzleData = serveNozzleData
+	globalCCCache.advancedTagging = advancedTagging
 
 	go globalCCCache.start()
 
@@ -205,6 +225,18 @@ func (ccc *CCCache) GetCFApplication(guid string) (*CFApplication, error) {
 	return cfapp, nil
 }
 
+// GetSidecars looks for sidecars of an app with the given GUID in the cache
+func (ccc *CCCache) GetSidecars(guid string) ([]*CFSidecar, error) {
+	ccc.RLock()
+	defer ccc.RUnlock()
+
+	sidecars, ok := ccc.sidecarsByAppGUID[guid]
+	if !ok {
+		return nil, fmt.Errorf("could not find sidecars for app %s in cloud controller cache", guid)
+	}
+	return sidecars, nil
+}
+
 // GetApp looks for an app with the given GUID in the cache
 func (ccc *CCCache) GetApp(guid string) (*cfclient.V3App, error) {
 	ccc.RLock()
@@ -239,6 +271,28 @@ func (ccc *CCCache) GetOrg(guid string) (*cfclient.V3Organization, error) {
 	return org, nil
 }
 
+// GetIsolationSegmentForSpace returns an isolation segment for the given GUID in the cache
+func (ccc *CCCache) GetIsolationSegmentForSpace(guid string) (*cfclient.IsolationSegment, error) {
+	ccc.RLock()
+	defer ccc.RUnlock()
+	segment, ok := ccc.segmentBySpaceGUID[guid]
+	if !ok {
+		return nil, fmt.Errorf("could not find isolation segment for space %s in cloud controller cache", guid)
+	}
+	return segment, nil
+}
+
+// GetIsolationSegmentForOrg returns an isolation segment for the given GUID in the cache
+func (ccc *CCCache) GetIsolationSegmentForOrg(guid string) (*cfclient.IsolationSegment, error) {
+	ccc.RLock()
+	defer ccc.RUnlock()
+	segment, ok := ccc.segmentByOrgGUID[guid]
+	if !ok {
+		return nil, fmt.Errorf("could not find isolation segment for organization %s in cloud controller cache", guid)
+	}
+	return segment, nil
+}
+
 func (ccc *CCCache) start() {
 	ccc.readData()
 	dataRefreshTicker := time.NewTicker(ccc.pollInterval)
@@ -263,6 +317,8 @@ func (ccc *CCCache) readData() {
 	var appsByGUID map[string]*cfclient.V3App
 	var apps []cfclient.V3App
 
+	var sidecarsByAppGUID map[string][]*CFSidecar
+
 	go func() {
 		defer wg.Done()
 		query := url.Values{}
@@ -273,9 +329,25 @@ func (ccc *CCCache) readData() {
 			return
 		}
 		appsByGUID = make(map[string]*cfclient.V3App, len(apps))
+		sidecarsByAppGUID = make(map[string][]*CFSidecar)
 		for _, app := range apps {
 			v3App := app
 			appsByGUID[app.GUID] = &v3App
+
+			if ccc.advancedTagging {
+				// list app sidecars
+				var allSidecars []*CFSidecar
+				sidecars, err := ccc.ccAPIClient.ListSidecarsByApp(query, app.GUID)
+				if err != nil {
+					log.Errorf("Failed listing sidecars from cloud controller: %v", err)
+					return
+				}
+				for _, sidecar := range sidecars {
+					s := sidecar
+					allSidecars = append(allSidecars, &s)
+				}
+				sidecarsByAppGUID[app.GUID] = allSidecars
+			}
 		}
 	}()
 
@@ -368,11 +440,53 @@ func (ccc *CCCache) readData() {
 		}
 	}()
 
-	// put new data in cache
+	var segmentBySpaceGUID map[string]*cfclient.IsolationSegment
+	var segmentByOrgGUID map[string]*cfclient.IsolationSegment
+
+	if ccc.advancedTagging {
+		// List isolation segments
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+			query := url.Values{}
+			query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
+			segments, err := ccc.ccAPIClient.ListIsolationSegmentsByQuery(query)
+			if err != nil {
+				log.Errorf("Failed listing isolation segments from cloud controller: %v", err)
+				return
+			}
+			segmentBySpaceGUID = make(map[string]*cfclient.IsolationSegment)
+			segmentByOrgGUID = make(map[string]*cfclient.IsolationSegment)
+			for _, segment := range segments {
+				s := segment
+				spaceGUID, err := ccc.ccAPIClient.GetIsolationSegmentSpaceGUID(segment.GUID)
+				if err == nil {
+					if spaceGUID != "" {
+						segmentBySpaceGUID[spaceGUID] = &s
+					}
+				} else {
+					log.Errorf("Failed listing isolation segment space for segment %s: %v", segment.Name, err)
+				}
+
+				orgGUID, err := ccc.ccAPIClient.GetIsolationSegmentOrganizationGUID(segment.GUID)
+				if err == nil {
+					if orgGUID != "" {
+						segmentByOrgGUID[orgGUID] = &s
+					}
+				} else {
+					log.Errorf("Failed listing isolation segment organization for segment %s: %v", segment.Name, err)
+				}
+
+			}
+		}()
+	}
+
+	// wait for resources acquisition
 	wg.Wait()
 
+	// prepare CFApplications
 	var cfApplicationsByGUID map[string]*CFApplication
-
 	if ccc.serveNozzleData {
 		cfApplicationsByGUID = make(map[string]*CFApplication, len(apps))
 		// Populate cfApplications
@@ -401,13 +515,20 @@ func (ccc *CCCache) readData() {
 			} else {
 				log.Infof("could not fetch org info for org guid %s", orgGUID)
 			}
+			for _, sidecar := range sidecarsByAppGUID[appGUID] {
+				updatedApp.Sidecars = append(updatedApp.Sidecars, *sidecar)
+			}
 			cfApplicationsByGUID[appGUID] = &updatedApp
 		}
 	}
 
+	// put new data in cache
 	ccc.Lock()
 	defer ccc.Unlock()
 
+	ccc.segmentBySpaceGUID = segmentBySpaceGUID
+	ccc.segmentByOrgGUID = segmentByOrgGUID
+	ccc.sidecarsByAppGUID = sidecarsByAppGUID
 	ccc.appsByGUID = appsByGUID
 	ccc.spacesByGUID = spacesByGUID
 	ccc.orgsByGUID = orgsByGUID

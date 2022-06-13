@@ -11,10 +11,10 @@ package probe
 import (
 	"context"
 	"os"
+	"runtime"
 	"sort"
 	"strings"
 
-	"github.com/avast/retry-go"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -33,6 +33,7 @@ type Resolvers struct {
 	ProcessResolver   *ProcessResolver
 	UserGroupResolver *UserGroupResolver
 	TagsResolver      *TagsResolver
+	NamespaceResolver *NamespaceResolver
 }
 
 // NewResolvers creates a new instance of Resolvers
@@ -57,6 +58,11 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
+	namespaceResolver, err := NewNamespaceResolver(probe)
+	if err != nil {
+		return nil, err
+	}
+
 	resolvers := &Resolvers{
 		probe:             probe,
 		DentryResolver:    dentryResolver,
@@ -65,9 +71,10 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		ContainerResolver: &ContainerResolver{},
 		UserGroupResolver: userGroupResolver,
 		TagsResolver:      NewTagsResolver(config),
+		NamespaceResolver: namespaceResolver,
 	}
 
-	processResolver, err := NewProcessResolver(probe, resolvers, probe.statsdClient, NewProcessResolverOpts(probe.config.CookieCacheSize))
+	processResolver, err := NewProcessResolver(probe, resolvers, NewProcessResolverOpts(probe.config.CookieCacheSize))
 	if err != nil {
 		return nil, err
 	}
@@ -169,6 +176,14 @@ func (r *Resolvers) ResolveCredentialsFSGroup(e *model.Credentials) string {
 	return e.FSGroup
 }
 
+// ResolvePCEContainerTags resolves the container tags of a ProcessCacheEntry
+func (r *Resolvers) ResolvePCEContainerTags(e *model.ProcessCacheEntry) []string {
+	if len(e.ContainerTags) == 0 && len(e.ContainerID) > 0 {
+		e.ContainerTags = r.TagsResolver.Resolve(e.ContainerID)
+	}
+	return e.ContainerTags
+}
+
 // Start the resolvers
 func (r *Resolvers) Start(ctx context.Context) error {
 	if err := r.ProcessResolver.Start(ctx); err != nil {
@@ -180,22 +195,33 @@ func (r *Resolvers) Start(ctx context.Context) error {
 		return err
 	}
 
-	return r.DentryResolver.Start(r.probe)
+	if err := r.DentryResolver.Start(r.probe); err != nil {
+		return err
+	}
+
+	return r.NamespaceResolver.Start(ctx)
 }
 
 // Snapshot collects data on the current state of the system to populate user space and kernel space caches.
 func (r *Resolvers) Snapshot() error {
-	if err := retry.Do(r.snapshot, retry.Delay(0), retry.Attempts(5)); err != nil {
+	if err := r.snapshot(); err != nil {
 		return errors.Wrap(err, "unable to snapshot processes")
 	}
 
 	r.ProcessResolver.SetState(snapshotted)
+	r.NamespaceResolver.SetState(snapshotted)
 
 	selinuxStatusMap, err := r.probe.Map("selinux_enforce_status")
 	if err != nil {
 		return errors.Wrap(err, "unable to snapshot SELinux")
 	}
-	return snapshotSELinux(selinuxStatusMap)
+
+	if err := snapshotSELinux(selinuxStatusMap); err != nil {
+		return err
+	}
+
+	runtime.GC()
+	return nil
 }
 
 // snapshot internal version of Snapshot. Calls the relevant resolvers to sync their caches.
@@ -228,8 +254,6 @@ func (r *Resolvers) snapshot() error {
 		return createA < createB
 	})
 
-	cacheModified := false
-
 	for _, proc := range processes {
 		ppid, err := proc.Ppid()
 		if err != nil {
@@ -241,23 +265,17 @@ func (r *Resolvers) snapshot() error {
 		}
 
 		// Start with the mount resolver because the process resolver might need it to resolve paths
-		if err := r.MountResolver.SyncCache(proc); err != nil {
+		if err = r.MountResolver.SyncCache(proc); err != nil {
 			if !os.IsNotExist(err) {
-				log.Debug(errors.Wrapf(err, "snapshot failed for %d: couldn't sync mount points", proc.Pid))
+				log.Debugf("snapshot failed for %d: couldn't sync mount points: %s", proc.Pid, err)
 			}
 		}
 
 		// Sync the process cache
-		if r.ProcessResolver.SyncCache(proc) {
-			cacheModified = true
-		}
-	}
+		r.ProcessResolver.SyncCache(proc)
 
-	// There is a possible race condition when a process starts right after we called process.AllProcesses
-	// and before we inserted the cache entry of its parent. Call Snapshot again until we do not modify the
-	// process cache anymore
-	if cacheModified {
-		return errors.New("cache modified")
+		// Sync the namespace cache
+		r.NamespaceResolver.SyncCache(proc)
 	}
 
 	return nil

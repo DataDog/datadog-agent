@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent"
@@ -85,17 +86,19 @@ func StartServer() error {
 
 	tlsConfig := tls.Config{
 		Certificates: []tls.Certificate{rootTLSCert},
+		MinVersion:   tls.VersionTLS13,
 	}
 
-	if config.Datadog.GetBool("force_tls_12") {
-		tlsConfig.MinVersion = tls.VersionTLS12
+	if config.Datadog.GetBool("cluster_agent.allow_legacy_tls") {
+		tlsConfig.MinVersion = tls.VersionTLS10
 	}
+
+	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
+	logWriter, _ := config.NewLogWriter(4, seelog.WarnLvl)
 
 	srv := &http.Server{
-		Handler: router,
-		ErrorLog: stdLog.New(&config.ErrorLogWriter{
-			AdditionalDepth: 4, // Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-		}, "Error from the agent http API server: ", 0), // log errors to seelog,
+		Handler:      router,
+		ErrorLog:     stdLog.New(logWriter, "Error from the agent http API server: ", 0), // log errors to seelog,
 		TLSConfig:    &tlsConfig,
 		ReadTimeout:  config.Datadog.GetDuration("cluster_agent.server.read_timeout_seconds") * time.Second,
 		WriteTimeout: config.Datadog.GetDuration("cluster_agent.server.write_timeout_seconds") * time.Second,

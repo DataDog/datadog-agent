@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -17,22 +17,20 @@ import (
 // MockContainerAccessor is a dummy ContainerLister for tests
 type MockContainerAccessor struct {
 	containers []*workloadmeta.Container
-	err        error
 }
 
-// List returns the mocked containers
-func (l *MockContainerAccessor) List() ([]*workloadmeta.Container, error) {
-	return l.containers, l.err
+// ListRunning returns the mocked containers
+func (l *MockContainerAccessor) ListRunning() []*workloadmeta.Container {
+	return l.containers
 }
 
 // CreateTestProcessor returns a ready-to-use Processor
 func CreateTestProcessor(listerContainers []*workloadmeta.Container,
-	listerError error,
-	metricsContainers map[string]metrics.MockContainerEntry,
+	metricsContainers map[string]mock.ContainerEntry,
 	metricsAdapter MetricsAdapter,
 	containerFilter ContainerFilter) (*mocksender.MockSender, *Processor, ContainerAccessor) {
-	mockProvider := metrics.NewMockMetricsProvider()
-	mockCollector := metrics.NewMockCollector("testCollector")
+	mockProvider := mock.NewMetricsProvider()
+	mockCollector := mock.NewCollector("testCollector")
 	for _, runtime := range provider.AllLinuxRuntimes {
 		mockProvider.RegisterConcreteCollector(runtime, mockCollector)
 	}
@@ -42,7 +40,6 @@ func CreateTestProcessor(listerContainers []*workloadmeta.Container,
 
 	mockAccessor := MockContainerAccessor{
 		containers: listerContainers,
-		err:        listerError,
 	}
 
 	mockedSender := mocksender.NewMockSender("generic-container")

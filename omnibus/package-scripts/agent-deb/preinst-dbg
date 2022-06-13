@@ -1,0 +1,9 @@
+#!/bin/sh
+#
+# Perform necessary datadog-agent setup steps before package is installed.
+#
+# .deb: STEP 2 of 5
+
+## NOTHING HERE
+
+exit 0

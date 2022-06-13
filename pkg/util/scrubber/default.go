@@ -42,6 +42,11 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Hints: []string{"app_key", "appkey", "application_key"},
 		Repl:  []byte(`$1***********************************$2`),
 	}
+	hintedBearerReplacer := Replacer{
+		Regex: regexp.MustCompile(`\bBearer [a-fA-F0-9]{59}([a-fA-F0-9]{5})\b`),
+		Hints: []string{"Bearer"},
+		Repl:  []byte(`Bearer ***********************************************************$1`),
+	}
 	apiKeyReplacer := Replacer{
 		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
 		Repl:  []byte(`***************************$1`),
@@ -83,6 +88,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	}
 	scrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
+	scrubber.AddReplacer(SingleLine, hintedBearerReplacer)
 	scrubber.AddReplacer(SingleLine, apiKeyReplacer)
 	scrubber.AddReplacer(SingleLine, appKeyReplacer)
 	scrubber.AddReplacer(SingleLine, uriPasswordReplacer)
@@ -123,21 +129,24 @@ func matchCert() *regexp.Regexp {
 //    def]
 func matchYAMLKeyWithListValue(key string) *regexp.Regexp {
 	/*
-		Example 1:
-		snmp_traps_config:
-		  community_strings:
-		    - 'pass1'
-		    - 'pass2'
+				Example 1:
+				network_devices:
+		  		  snmp_traps:
+		            community_strings:
+				    - 'pass1'
+				    - 'pass2'
 
-		Example 2:
-		snmp_traps_config:
-		  community_strings: ['pass1', 'pass2']
+				Example 2:
+				network_devices:
+		  		  snmp_traps:
+				    community_strings: ['pass1', 'pass2']
 
-		Example 3:
-		snmp_traps_config:
-		  community_strings: [
-		    'pass1',
-		    'pass2']
+				Example 3:
+				network_devices:
+		  		  snmp_traps:
+				    community_strings: [
+				    'pass1',
+				    'pass2']
 	*/
 	return regexp.MustCompile(
 		fmt.Sprintf(`(\s*%s\s*:)\s*(?:\n(?:\s+-\s+.*)*|\[(?:\n?.*?)*?\])`, key),

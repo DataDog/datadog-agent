@@ -5,12 +5,6 @@
 
 package config
 
-import (
-	"net"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
 // OTLP configuration paths.
 const (
 	OTLPSection               = "otlp_config"
@@ -41,53 +35,9 @@ func SetupOTLP(config Config) {
 	config.SetKnown(OTLPReceiverSection)
 	// Set all subkeys of otlp.receiver as known
 	config.SetKnown(OTLPReceiverSection + ".*")
+
 	// set environment variables for selected fields
 	setupOTLPEnvironmentVariables(config)
-}
-
-// promoteExperimentalOTLP checks if "experimental.otlp" is set and promotes it to the top level
-// "otlp" configuration if unset.
-//
-// TODO(gbbr): This is to keep backwards compatibility while we've gone public beta and should
-// be completely removed once 7.35.0 is out.
-func promoteExperimentalOTLP(cfg Config) {
-	if !cfg.IsSet("experimental.otlp") {
-		return
-	}
-	log.Warn(`OpenTelemetry OTLP receiver configuration is now public beta and has been moved out of the "experimental" section. ` +
-		`This section will be deprecated in a future Datadog Agent release. Please use the "otlp_config" section instead.`)
-	if k := "experimental.otlp.metrics"; cfg.IsSet(k) {
-		for key, val := range cfg.GetStringMap(k) {
-			cfg.Set(OTLPMetrics+"."+key, val)
-		}
-	}
-	if k := "experimental.otlp.metrics_enabled"; cfg.IsSet(k) {
-		cfg.Set(OTLPMetricsEnabled, cfg.GetBool(k))
-	}
-	if k := "experimental.otlp.tag_cardinality"; cfg.IsSet(k) {
-		cfg.Set(OTLPTagCardinalityKey, cfg.GetString(k))
-	}
-	if k := "experimental.otlp.traces_enabled"; cfg.IsSet(k) {
-		cfg.Set(OTLPTracesEnabled, cfg.GetBool(k))
-	}
-	if v := cfg.GetString("experimental.otlp.internal_traces_port"); v != "" {
-		cfg.Set(OTLPTracePort, v)
-	}
-	if v, ok := cfg.GetStringMap("experimental.otlp")[OTLPReceiverSubSectionKey]; ok {
-		if v == nil {
-			cfg.Set(OTLPReceiverSection, nil)
-		} else {
-			for key, val := range cfg.GetStringMap("experimental.otlp.receiver") {
-				cfg.Set(OTLPReceiverSection+"."+key, val)
-			}
-		}
-	}
-	if v := cfg.GetString("experimental.otlp.http_port"); v != "" {
-		cfg.Set(OTLPReceiverSection+".protocols.http.endpoint", net.JoinHostPort(getBindHost(cfg), v))
-	}
-	if v := cfg.GetString("experimental.otlp.grpc_port"); v != "" {
-		cfg.Set(OTLPReceiverSection+".protocols.grpc.endpoint", net.JoinHostPort(getBindHost(cfg), v))
-	}
 }
 
 // setupOTLPEnvironmentVariables sets up the environment variables associated with different OTLP ingest settings:
@@ -107,18 +57,22 @@ func setupOTLPEnvironmentVariables(config Config) {
 	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.write_buffer_size")
 	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.include_metadata")
 
+	// Traces settingds
+	config.BindEnvAndSetDefault("otlp_config.traces.span_name_remappings", map[string]string{})
+	config.BindEnv("otlp_config.traces.span_name_as_resource_name")
+
 	// HTTP settings
 	config.BindEnv(OTLPSection + ".receiver.protocols.http.endpoint")
 	config.BindEnv(OTLPSection + ".receiver.protocols.http.max_request_body_size")
 	config.BindEnv(OTLPSection + ".receiver.protocols.http.include_metadata")
 
 	// Metrics settings
-	config.BindEnv(OTLPSection + ".metrics.report_quantiles")
-	config.BindEnv(OTLPSection + ".metrics.send_monotonic_counter")
 	config.BindEnv(OTLPSection + ".metrics.delta_ttl")
 	config.BindEnv(OTLPSection + ".metrics.resource_attributes_as_tags")
 	config.BindEnv(OTLPSection + ".metrics.instrumentation_library_metadata_as_tags")
 	config.BindEnv(OTLPSection + ".metrics.tag_cardinality")
 	config.BindEnv(OTLPSection + ".metrics.histograms.mode")
 	config.BindEnv(OTLPSection + ".metrics.histograms.send_count_sum_metrics")
+	config.BindEnv(OTLPSection + ".metrics.sums.cumulative_monotonic_mode")
+	config.BindEnv(OTLPSection + ".metrics.summaries.mode")
 }

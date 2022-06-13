@@ -8,184 +8,95 @@ package rules
 import (
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
-	"regexp"
-	"sort"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
-	"gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v2"
 )
 
-const defaultPolicy = "default.policy"
-
-// Policy represents a policy file which is composed of a list of rules and macros
-type Policy struct {
-	Name    string
+// PolicyDef represents a policy file definition
+type PolicyDef struct {
 	Version string             `yaml:"version"`
 	Rules   []*RuleDefinition  `yaml:"rules"`
 	Macros  []*MacroDefinition `yaml:"macros"`
 }
 
-var ruleIDPattern = `^([a-zA-Z0-9]*_*)*$`
-
-func checkRuleID(ruleID string) bool {
-	pattern := regexp.MustCompile(ruleIDPattern)
-	return pattern.MatchString(ruleID)
+// Policy represents a policy file which is composed of a list of rules and macros
+type Policy struct {
+	Name    string
+	Source  string
+	Version string
+	Rules   []*RuleDefinition
+	Macros  []*MacroDefinition
 }
 
-// GetValidMacroAndRules returns valid macro, rules definitions
-func (p *Policy) GetValidMacroAndRules() ([]*MacroDefinition, []*RuleDefinition, *multierror.Error) {
-	var (
-		result *multierror.Error
-		macros []*MacroDefinition
-		rules  []*RuleDefinition
-	)
+// AddMacro add a macro to the policy
+func (p *Policy) AddMacro(def *MacroDefinition) {
+	p.Macros = append(p.Macros, def)
+}
 
-	for _, macroDef := range p.Macros {
+// AddRule add a rule to the policy
+func (p *Policy) AddRule(def *RuleDefinition) {
+	def.Policy = p
+	p.Rules = append(p.Rules, def)
+}
+
+func parsePolicyDef(name string, source string, def *PolicyDef) (*Policy, *multierror.Error) {
+	var errs *multierror.Error
+
+	policy := &Policy{
+		Name:    name,
+		Source:  source,
+		Version: def.Version,
+	}
+
+	for _, macroDef := range def.Macros {
 		if macroDef.ID == "" {
-			result = multierror.Append(result, &ErrMacroLoad{Err: fmt.Errorf("no ID defined for macro with expression `%s`", macroDef.Expression)})
+			errs = multierror.Append(errs, &ErrMacroLoad{Err: fmt.Errorf("no ID defined for macro with expression `%s`", macroDef.Expression)})
 			continue
 		}
 		if !checkRuleID(macroDef.ID) {
-			result = multierror.Append(result, &ErrMacroLoad{Definition: macroDef, Err: fmt.Errorf("ID does not match pattern `%s`", ruleIDPattern)})
+			errs = multierror.Append(errs, &ErrMacroLoad{Definition: macroDef, Err: fmt.Errorf("ID does not match pattern `%s`", ruleIDPattern)})
 			continue
 		}
 
-		macros = append(macros, macroDef)
+		policy.AddMacro(macroDef)
 	}
 
-	for _, ruleDef := range p.Rules {
-		ruleDef.Policy = p
-
+	for _, ruleDef := range def.Rules {
 		if ruleDef.ID == "" {
-			result = multierror.Append(result, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("no ID defined for rule with expression `%s`", ruleDef.Expression)})
+			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("no ID defined for rule with expression `%s`", ruleDef.Expression)})
 			continue
 		}
 		if !checkRuleID(ruleDef.ID) {
-			result = multierror.Append(result, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("ID does not match pattern `%s`", ruleIDPattern)})
+			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("ID does not match pattern `%s`", ruleIDPattern)})
 			continue
 		}
 
 		if ruleDef.Expression == "" && !ruleDef.Disabled {
-			result = multierror.Append(result, &ErrRuleLoad{Definition: ruleDef, Err: errors.New("no expression defined")})
+			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: errors.New("no expression defined")})
 			continue
 		}
 
-		rules = append(rules, ruleDef)
+		policy.AddRule(ruleDef)
 	}
 
-	return macros, rules, result
+	return policy, errs
 }
 
-// LoadPolicy loads a YAML file and returns a new policy
-func LoadPolicy(r io.Reader, name string) (*Policy, error) {
-	policy := &Policy{Name: name}
+// LoadPolicy load a policy
+func LoadPolicy(name string, source string, reader io.Reader) (*Policy, error) {
+	var def PolicyDef
 
-	decoder := yaml.NewDecoder(r)
-	if err := decoder.Decode(policy); err != nil {
+	decoder := yaml.NewDecoder(reader)
+	if err := decoder.Decode(&def); err != nil {
 		return nil, &ErrPolicyLoad{Name: name, Err: err}
 	}
 
+	policy, errs := parsePolicyDef(name, source, &def)
+	if errs.ErrorOrNil() != nil {
+		return nil, errs.ErrorOrNil()
+	}
+
 	return policy, nil
-}
-
-// LoadPolicies loads the policies listed in the configuration and apply them to the given ruleset
-func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
-	var (
-		result     *multierror.Error
-		allRules   []*RuleDefinition
-		allMacros  []*MacroDefinition
-		macroIndex = make(map[string]*MacroDefinition)
-		ruleIndex  = make(map[string]*RuleDefinition)
-	)
-
-	policyFiles, err := os.ReadDir(policiesDir)
-	if err != nil {
-		return multierror.Append(result, ErrPoliciesLoad{Name: policiesDir, Err: err})
-	}
-	sort.Slice(policyFiles, func(i, j int) bool {
-		switch {
-		case policyFiles[i].Name() == defaultPolicy:
-			return true
-		case policyFiles[j].Name() == defaultPolicy:
-			return false
-		default:
-			return policyFiles[i].Name() < policyFiles[j].Name()
-		}
-	})
-
-	// Load and parse policies
-	for _, policyPath := range policyFiles {
-		filename := policyPath.Name()
-
-		// policy path extension check
-		if filepath.Ext(filename) != ".policy" {
-			ruleSet.logger.Debugf("ignoring file `%s` wrong extension `%s`", policyPath.Name(), filepath.Ext(filename))
-			continue
-		}
-
-		// Open policy path
-		f, err := os.Open(filepath.Join(policiesDir, filename))
-		if err != nil {
-			result = multierror.Append(result, &ErrPolicyLoad{Name: filename, Err: err})
-			continue
-		}
-		defer f.Close()
-
-		// Parse policy file
-		policy, err := LoadPolicy(f, filepath.Base(filename))
-		if err != nil {
-			result = multierror.Append(result, err)
-			continue
-		}
-
-		// Add policy version for logging purposes
-		ruleSet.AddPolicyVersion(filename, policy.Version)
-
-		macros, rules, mErr := policy.GetValidMacroAndRules()
-		if mErr.ErrorOrNil() != nil {
-			result = multierror.Append(result, mErr)
-		}
-
-		if len(macros) > 0 {
-			for _, macro := range macros {
-				if existingMacro := macroIndex[macro.ID]; existingMacro != nil {
-					if err := existingMacro.MergeWith(macro); err != nil {
-						result = multierror.Append(result, err)
-					}
-				} else {
-					macroIndex[macro.ID] = macro
-					allMacros = append(allMacros, macro)
-				}
-			}
-		}
-
-		// aggregates them as we may need to have all the macro before compiling
-		if len(rules) > 0 {
-			for _, rule := range rules {
-				if existingRule := ruleIndex[rule.ID]; existingRule != nil {
-					if err := existingRule.MergeWith(rule); err != nil {
-						result = multierror.Append(result, err)
-					}
-				} else {
-					ruleIndex[rule.ID] = rule
-					allRules = append(allRules, rule)
-				}
-			}
-		}
-	}
-
-	// Add the macros to the ruleset and generate macros evaluators
-	if mErr := ruleSet.AddMacros(allMacros); mErr.ErrorOrNil() != nil {
-		result = multierror.Append(result, err)
-	}
-
-	// Add rules to the ruleset and generate rules evaluators
-	if err := ruleSet.AddRules(allRules); err.ErrorOrNil() != nil {
-		result = multierror.Append(result, err)
-	}
-
-	return result
 }

@@ -9,6 +9,7 @@
 package modules
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -38,7 +39,8 @@ const inactivityRestartDuration = 20 * time.Minute
 
 // NetworkTracer is a factory for NPM's tracer
 var NetworkTracer = module.Factory{
-	Name: config.NetworkTracerModule,
+	Name:             config.NetworkTracerModule,
+	ConfigNamespaces: []string{"network_config", "service_monitoring_config"},
 	Fn: func(cfg *config.Config) (module.Module, error) {
 		ncfg := networkconfig.New()
 
@@ -88,6 +90,18 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 		count := atomic.AddUint64(&runCounter, 1)
 		logRequests(id, count, len(cs.Conns), start)
+	}))
+
+	httpMux.HandleFunc("/network_tracer/register", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+		id := getClientID(req)
+		err := nt.tracer.RegisterClient(id)
+		log.Debugf("Got request on /network_tracer/register?client_id=%s", id)
+		if err != nil {
+			log.Errorf("unable to register client: %s", err)
+			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
 	}))
 
 	httpMux.HandleFunc("/debug/net_maps", func(w http.ResponseWriter, req *http.Request) {
@@ -142,6 +156,32 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 
 		utils.WriteAsJSON(w, ebpfMaps)
+	})
+
+	httpMux.HandleFunc("/debug/conntrack/cached", func(w http.ResponseWriter, req *http.Request) {
+		ctx, cancelFunc := context.WithTimeout(req.Context(), 30*time.Second)
+		defer cancelFunc()
+		table, err := nt.tracer.DebugCachedConntrack(ctx)
+		if err != nil {
+			log.Errorf("unable to retrieve cached conntrack table: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, table)
+	})
+
+	httpMux.HandleFunc("/debug/conntrack/host", func(w http.ResponseWriter, req *http.Request) {
+		ctx, cancelFunc := context.WithTimeout(req.Context(), 30*time.Second)
+		defer cancelFunc()
+		table, err := nt.tracer.DebugHostConntrack(ctx)
+		if err != nil {
+			log.Errorf("unable to retrieve host conntrack table: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, table)
 	})
 
 	// Convenience logging if nothing has made any requests to the system-probe in some time, let's log something.

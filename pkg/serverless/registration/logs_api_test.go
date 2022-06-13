@@ -74,7 +74,7 @@ func TestSubscribeLogsSuccess(t *testing.T) {
 		w.WriteHeader(200)
 	}))
 	defer ts.Close()
-
+	time.Sleep(100 * time.Millisecond)
 	err := subscribeLogs("myId", ts.URL, registerLogsTimeout, payload)
 	assert.Nil(t, err)
 }
@@ -84,7 +84,7 @@ func TestSubscribeLogsTimeout(t *testing.T) {
 	//fake the register route
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// timeout
-		time.Sleep(registerLogsTimeout + 10*time.Millisecond)
+		time.Sleep(registerLogsTimeout + 100*time.Millisecond)
 		w.WriteHeader(200)
 	}))
 	defer ts.Close()

@@ -12,7 +12,6 @@ import (
 	"fmt"
 
 	"sync"
-	"time"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -20,6 +19,14 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 )
+
+// HTTPMonitorStats is used for holding two kinds of stats:
+// * requestsStats which are the http data stats
+// * telemetry which are telemetry stats
+type HTTPMonitorStats struct {
+	requestStats map[Key]*RequestStats
+	telemetry    telemetry
+}
 
 // Monitor is responsible for:
 // * Creating a raw socket and attaching an eBPF filter to it;
@@ -33,7 +40,8 @@ type Monitor struct {
 	batchManager           *batchManager
 	batchCompletionHandler *ddebpf.PerfHandler
 	telemetry              *telemetry
-	pollRequests           chan chan map[Key]RequestStats
+	telemetrySnapshot      *telemetry
+	pollRequests           chan chan HTTPMonitorStats
 	statkeeper             *httpStatKeeper
 
 	// termination
@@ -54,7 +62,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, fmt.Errorf("error initializing http ebpf program: %s", err)
 	}
 
-	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFSection: httpSocketFilter, EBPFFuncName: "socket__http_filter"})
+	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFSection: httpSocketFilter, EBPFFuncName: "socket__http_filter", UID: probeUID})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
@@ -77,7 +85,10 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	notificationMap, _, _ := mgr.GetMap(httpNotificationsPerfMap)
 	numCPUs := int(notificationMap.MaxEntries())
 
-	telemetry := newTelemetry()
+	telemetry, err := newTelemetry()
+	if err != nil {
+		return nil, err
+	}
 	statkeeper := newHTTPStatkeeper(c, telemetry)
 
 	handler := func(transactions []httpTX) {
@@ -92,7 +103,8 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		batchManager:           newBatchManager(batchMap, batchStateMap, numCPUs),
 		batchCompletionHandler: mgr.batchCompletionHandler,
 		telemetry:              telemetry,
-		pollRequests:           make(chan chan map[Key]RequestStats),
+		telemetrySnapshot:      nil,
+		pollRequests:           make(chan chan HTTPMonitorStats),
 		closeFilterFn:          closeFilterFn,
 		statkeeper:             statkeeper,
 	}, nil
@@ -111,8 +123,6 @@ func (m *Monitor) Start() error {
 	m.eventLoopWG.Add(1)
 	go func() {
 		defer m.eventLoopWG.Done()
-		report := time.NewTicker(30 * time.Second)
-		defer report.Stop()
 		for {
 			select {
 			case dataEvent, ok := <-m.batchCompletionHandler.DataChannel:
@@ -138,15 +148,16 @@ func (m *Monitor) Start() error {
 				transactions := m.batchManager.GetPendingTransactions()
 				m.process(transactions, nil)
 
-				stats := m.statkeeper.GetAndResetAllStats()
-
 				delta := m.telemetry.reset()
+
+				// For now, we still want to report the telemetry as it contains more information than what
+				// we're extracting via network tracer.
 				delta.report()
 
-				reply <- stats
-			case <-report.C:
-				transactions := m.batchManager.GetPendingTransactions()
-				m.process(transactions, nil)
+				reply <- HTTPMonitorStats{
+					requestStats: m.statkeeper.GetAndResetAllStats(),
+					telemetry:    delta,
+				}
 			}
 		}
 	}()
@@ -156,7 +167,7 @@ func (m *Monitor) Start() error {
 
 // GetHTTPStats returns a map of HTTP stats stored in the following format:
 // [source, dest tuple, request path] -> RequestStats object
-func (m *Monitor) GetHTTPStats() map[Key]RequestStats {
+func (m *Monitor) GetHTTPStats() map[Key]*RequestStats {
 	if m == nil {
 		return nil
 	}
@@ -167,10 +178,30 @@ func (m *Monitor) GetHTTPStats() map[Key]RequestStats {
 		return nil
 	}
 
-	reply := make(chan map[Key]RequestStats, 1)
+	reply := make(chan HTTPMonitorStats, 1)
 	defer close(reply)
 	m.pollRequests <- reply
-	return <-reply
+	stats := <-reply
+	m.telemetrySnapshot = &stats.telemetry
+	return stats.requestStats
+}
+
+func (m *Monitor) GetStats() map[string]interface{} {
+	if m == nil {
+		return nil
+	}
+
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if m.stopped {
+		return nil
+	}
+
+	if m.telemetrySnapshot == nil {
+		return nil
+	}
+
+	return m.telemetrySnapshot.report()
 }
 
 // Stop HTTP monitoring

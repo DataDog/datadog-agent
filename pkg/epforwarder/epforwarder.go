@@ -18,9 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 const (
@@ -30,6 +30,12 @@ const (
 
 	// EventTypeNetworkDevicesMetadata is the event type for network devices metadata
 	EventTypeNetworkDevicesMetadata = "network-devices-metadata"
+
+	// EventTypeSnmpTraps is the event type for snmp traps
+	EventTypeSnmpTraps = "network-devices-snmp-traps"
+
+	// EventTypeNetworkDevicesNetFlow is the event type for network devices NetFlow data
+	EventTypeNetworkDevicesNetFlow = "network-devices-netflow"
 )
 
 var passthroughPipelineDescs = []passthroughPipelineDesc{
@@ -71,6 +77,24 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+	},
+	{
+		eventType:                     EventTypeSnmpTraps,
+		endpointsConfigPrefix:         "network_devices.snmp_traps.forwarder.",
+		hostnameEndpointPrefix:        "snmp-traps-intake.",
+		intakeTrackType:               "ndmtraps",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+	},
+	{
+		eventType:                     EventTypeNetworkDevicesNetFlow,
+		endpointsConfigPrefix:         "network_devices.netflow.forwarder.",
+		hostnameEndpointPrefix:        "ndmflow-intake.",
+		intakeTrackType:               "ndmflow",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    20e6,  // max 20Mb uncompressed size per payload
+		defaultBatchMaxSize:           10000, // max 10k events per payload
 	},
 }
 
@@ -135,7 +159,7 @@ func (s *defaultEventPlatformForwarder) Start() {
 
 func (s *defaultEventPlatformForwarder) Stop() {
 	log.Debugf("shutting down event platform forwarder")
-	stopper := restart.NewParallelStopper()
+	stopper := startstop.NewParallelStopper()
 	for _, p := range s.pipelines {
 		stopper.Add(p)
 	}

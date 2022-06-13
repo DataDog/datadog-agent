@@ -20,4 +20,6 @@ var (
 	protConstants             = map[string]int{}
 	mmapFlagConstants         = map[string]int{}
 	mmapFlagArchConstants     = map[string]int{}
+	signalConstants           = map[string]int{}
+	addressFamilyConstants    = map[string]uint16{}
 )

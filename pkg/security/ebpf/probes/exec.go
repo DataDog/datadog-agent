@@ -124,6 +124,20 @@ var execProbes = []*manager.Probe{
 			EBPFFuncName: "kretprobe__task_pid_nr_ns",
 		},
 	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kretprobe/alloc_pid",
+			EBPFFuncName: "kretprobe_alloc_pid",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/switch_task_namespaces",
+			EBPFFuncName: "kprobe_switch_task_namespaces",
+		},
+	},
 }
 
 func getExecProbes() []*manager.Probe {
@@ -138,6 +152,30 @@ func getExecProbes() []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "execveat",
+	}, Entry)...)
+	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "fork",
+	}, Entry)...)
+	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "vfork",
+	}, Entry)...)
+	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "clone",
+	}, Entry)...)
+	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "clone3",
 	}, Entry)...)
 
 	for _, name := range []string{

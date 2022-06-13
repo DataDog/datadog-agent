@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -48,11 +47,6 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 	config.DetectFeatures()
 	containers.ResetSharedFilter()
 
-	workloadmeta.GetGlobalStore().Start(context.Background())
-
-	tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
-	tagger.Init()
-
 	config.SetupLogger(
 		config.LoggerName("test"),
 		"debug",
@@ -62,6 +56,12 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		true,
 		false,
 	)
+
+	store := workloadmeta.GetGlobalStore()
+	store.Start(context.Background())
+
+	tagger.SetDefaultTagger(local.NewTagger(store))
+	tagger.Init(context.Background())
 
 	var err error
 	suite.dockerutil, err = docker.GetDockerUtil()
@@ -224,9 +224,8 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 		expectedTags, found := expectedADIDs[entity]
 		assert.True(suite.T(), found, "entity not found in expected ones")
 
-		tags, hash, err := service.GetTags()
+		tags, err := service.GetTags()
 		assert.Nil(suite.T(), err)
-		assert.NotEqual(suite.T(), "", hash)
 		assert.Contains(suite.T(), tags, "docker_image:datadog/docker-library:redis_3_2_11-alpine")
 		assert.Contains(suite.T(), tags, "image_name:datadog/docker-library")
 		assert.Contains(suite.T(), tags, "image_tag:redis_3_2_11-alpine")

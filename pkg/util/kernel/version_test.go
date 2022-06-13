@@ -29,6 +29,20 @@ func TestLinuxKernelVersionCode(t *testing.T) {
 	assert.Equal(t, Version(263168).String(), "4.4.0")
 }
 
+func TestUbuntuKernelVersion(t *testing.T) {
+	ubuntuVersion := "5.13.0-35-generic-lpae"
+	ukv, err := NewUbuntuKernelVersion(ubuntuVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, ukv.Major, 5)
+	assert.Equal(t, ukv.Minor, 13)
+	assert.Equal(t, ukv.Patch, 0)
+	assert.Equal(t, ukv.Abi, 35)
+	assert.Equal(t, ukv.Flavor, "generic-lpae")
+}
+
 var testData = []struct {
 	succeed       bool
 	releaseString string
@@ -54,7 +68,7 @@ var testData = []struct {
 
 func TestParseReleaseString(t *testing.T) {
 	for _, test := range testData {
-		version, err := parseReleaseString(test.releaseString)
+		version, err := ParseReleaseString(test.releaseString)
 		if err != nil && test.succeed {
 			t.Errorf("expected %q to succeed: %s", test.releaseString, err)
 		} else if err == nil && !test.succeed {

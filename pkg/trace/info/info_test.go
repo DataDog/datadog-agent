@@ -119,6 +119,7 @@ func testInit(t *testing.T) *config.AgentConfig {
 	conf.Endpoints[0].APIKey = "key1"
 	conf.Endpoints = append(conf.Endpoints, &config.Endpoint{Host: "ABC", APIKey: "key2"})
 	conf.TelemetryConfig.Endpoints[0].APIKey = "key1"
+	conf.Proxy = nil
 	assert.NotNil(conf)
 
 	err := InitInfo(conf)
@@ -293,8 +294,12 @@ func TestInfoReceiverStats(t *testing.T) {
 	stats := NewReceiverStats()
 	t1 := &TagStats{
 		Tags{Lang: "python"},
-		Stats{TracesReceived: 23, TracesBytes: 3244, SpansReceived: 213, SpansDropped: 14},
+		Stats{},
 	}
+	t1.Stats.TracesReceived.Store(23)
+	t1.Stats.TracesBytes.Store(3244)
+	t1.Stats.SpansReceived.Store(213)
+	t1.Stats.SpansDropped.Store(14)
 	t2 := &TagStats{
 		Tags{Lang: "go"},
 		Stats{},
@@ -334,7 +339,7 @@ func TestInfoReceiverStats(t *testing.T) {
 	default:
 		t.Errorf("bad stats type: %v", s)
 	}
-	stats.Stats[t1.Tags].TracesReceived++
+	stats.Stats[t1.Tags].TracesReceived.Inc()
 	UpdateReceiverStats(stats)
 	s = publishReceiverStats()
 	switch s := s.(type) {
@@ -367,6 +372,7 @@ func TestInfoConfig(t *testing.T) {
 		assert.Equal("", e.APIKey, "API Keys should *NEVER* be exported")
 		conf.TelemetryConfig.Endpoints[i].APIKey = "" // make conf equal to confCopy to assert equality of other fields
 	}
+	conf.ContainerTags = nil
 
 	assert.Equal(*conf, confCopy) // ensure all fields have been exported then parsed correctly
 }

@@ -14,7 +14,7 @@ Process Agent
   Build arch: {{ .core.build_arch }}
   Log Level: {{ .core.config.log_level }}
   Enabled Checks: {{ .expvars.enabled_checks }}
-  Allocated Memory: {{ .expvars.memstats.alloc }} bytes
+  Allocated Memory: {{ humanize .expvars.memstats.alloc }} bytes
   Hostname: {{ .core.metadata.meta.hostname }}
 
   =================
@@ -45,5 +45,5 @@ Process Agent
     Process Bytes enqueued: {{.expvars.process_queue_bytes}}
     RTProcess Bytes enqueued: {{.expvars.rtprocess_queue_bytes}}
     Pod Bytes enqueued: {{.expvars.pod_queue_bytes}}
+    Drop Check Payloads: {{.expvars.drop_check_payloads}}
 {{- end }}
-

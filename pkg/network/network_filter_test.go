@@ -53,7 +53,7 @@ func TestParseConnectionFilters(t *testing.T) {
 	assert.True(t, IsExcludedConnection(sourceList, destList, &ConnectionStats{Source: util.AddressFromString("*"), SPort: uint16(9000), Type: TCP})) // only port 9000
 	assert.True(t, IsExcludedConnection(sourceList, destList, &ConnectionStats{Source: util.AddressFromString("10.0.1.24"), SPort: uint16(9000), Type: TCP}))
 	assert.True(t, IsExcludedConnection(sourceList, destList, &ConnectionStats{Source: util.AddressFromString("::7f00:35:0:0"), SPort: uint16(443), Type: TCP})) // ipv6
-	assert.True(t, IsExcludedConnection(sourceList, destList, &ConnectionStats{Source: util.AddressFromString("0"), SPort: uint16(443), Type: TCP}))             // 0 == ::7f00:35:0:0
+	assert.True(t, IsExcludedConnection(sourceList, destList, &ConnectionStats{Source: util.AddressFromString("::"), SPort: uint16(443), Type: TCP}))            // 0 == ::7f00:35:0:0
 	assert.True(t, IsExcludedConnection(sourceList, destList, &ConnectionStats{Source: util.AddressFromString("10.0.0.10"), SPort: uint16(6666), Type: TCP}))    // port wildcard
 	assert.True(t, IsExcludedConnection(sourceList, destList, &ConnectionStats{Source: util.AddressFromString("10.0.0.10"), SPort: uint16(33), Type: TCP}))
 	assert.False(t, IsExcludedConnection(sourceList, destList, &ConnectionStats{Source: util.AddressFromString("10.0.0.25"), SPort: uint16(30), Type: TCP})) // bad config

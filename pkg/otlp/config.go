@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	colConfig "go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/confmap"
 	"go.uber.org/multierr"
 )
 
@@ -26,7 +26,7 @@ func portToUint(v int) (port uint, err error) {
 }
 
 // readConfigSection from a config.Config object.
-func readConfigSection(cfg config.Config, section string) *colConfig.Map {
+func readConfigSection(cfg config.Config, section string) *confmap.Conf {
 	// Viper doesn't work well when getting subsections, since it
 	// ignores environment variables and nil-but-present sections.
 	// To work around this, we do the following two steps:
@@ -45,9 +45,9 @@ func readConfigSection(cfg config.Config, section string) *colConfig.Map {
 	// `GetStringMap` it will fail to cast `interface{}` nil to
 	// `map[string]interface{}` nil; we use `Get` and cast manually.
 	rawVal := cfg.Get(section)
-	cfgMap := colConfig.NewMap()
-	if stringMap, ok := rawVal.(map[string]interface{}); ok {
-		cfgMap = colConfig.NewMapFromStringMap(stringMap)
+	stringMap := map[string]interface{}{}
+	if val, ok := rawVal.(map[string]interface{}); ok {
+		stringMap = val
 	}
 
 	// Step two works around https://github.com/spf13/viper/issues/1012
@@ -56,15 +56,15 @@ func readConfigSection(cfg config.Config, section string) *colConfig.Map {
 	prefix := section + "."
 	for _, key := range cfg.AllKeys() {
 		if strings.HasPrefix(key, prefix) && cfg.IsSet(key) {
-			mapKey := strings.ReplaceAll(key[len(prefix):], ".", colConfig.KeyDelimiter)
-			cfgMap.Set(mapKey, cfg.Get(key))
+			mapKey := strings.ReplaceAll(key[len(prefix):], ".", confmap.KeyDelimiter)
+			stringMap[mapKey] = cfg.Get(key)
 		}
 	}
-	return cfgMap
+	return confmap.NewFromStringMap(stringMap)
 }
 
-// fromConfig builds a PipelineConfig from the configuration.
-func fromConfig(cfg config.Config) (PipelineConfig, error) {
+// FromAgentConfig builds a pipeline configuration from an Agent configuration.
+func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 	var errs []error
 	otlpConfig := readConfigSection(cfg, config.OTLPReceiverSection)
 
@@ -101,8 +101,7 @@ func IsEnabled(cfg config.Config) bool {
 	return ok
 }
 
-// FromAgentConfig builds a pipeline configuration from an Agent configuration.
-func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
-	// TODO (AP-1267): Check stable config too
-	return fromConfig(cfg)
+// IsDisplayed checks if the OTLP section should be rendered in the Agent
+func IsDisplayed() bool {
+	return true
 }

@@ -8,8 +8,8 @@ package aggregator
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/metricsserializer"
 )
 
 // The timeSamplerWorker runs the process loop for a TimeSampler:
@@ -27,7 +27,7 @@ type timeSamplerWorker struct {
 	flushInterval time.Duration
 
 	// parallel serialization configuration
-	parallelSerialization flushAndSerializeInParallel
+	parallelSerialization FlushAndSerializeInParallel
 
 	// samplesChan is used to communicate between from the processLoop receiving the
 	// samples and the TimeSampler.
@@ -36,11 +36,14 @@ type timeSamplerWorker struct {
 	flushChan chan flushTrigger
 	// use this chan to stop the timeSamplerWorker
 	stopChan chan struct{}
+
+	// tagsStore shard used to store tag slices for this worker
+	tagsStore *tags.Store
 }
 
 func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, bufferSize int,
 	metricSamplePool *metrics.MetricSamplePool,
-	parallelSerialization flushAndSerializeInParallel) *timeSamplerWorker {
+	parallelSerialization FlushAndSerializeInParallel, tagsStore *tags.Store) *timeSamplerWorker {
 	return &timeSamplerWorker{
 		sampler: sampler,
 
@@ -52,6 +55,8 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 		samplesChan: make(chan []metrics.MetricSample, bufferSize),
 		stopChan:    make(chan struct{}),
 		flushChan:   make(chan flushTrigger),
+
+		tagsStore: tagsStore,
 	}
 }
 
@@ -76,6 +81,7 @@ func (w *timeSamplerWorker) run() {
 			w.metricSamplePool.PutBatch(ms)
 		case trigger := <-w.flushChan:
 			w.triggerFlush(trigger)
+			w.tagsStore.Shrink()
 		}
 	}
 }
@@ -85,20 +91,9 @@ func (w *timeSamplerWorker) stop() {
 }
 
 func (w *timeSamplerWorker) triggerFlush(trigger flushTrigger) {
-	if w.parallelSerialization.enabled {
-		sketches := w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink)
-		if len(sketches) > 0 {
-			*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
-		}
-	} else {
-		var series metricsserializer.Series
-		sketches := w.sampler.flush(float64(trigger.time.Unix()), &series)
-		if len(series) > 0 {
-			*trigger.flushedSeries = append(*trigger.flushedSeries, series)
-		}
-		if len(sketches) > 0 {
-			*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
-		}
+	sketches := w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink)
+	if len(sketches) > 0 {
+		*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
 	}
 	trigger.blockChan <- struct{}{}
 }

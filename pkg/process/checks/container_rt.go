@@ -28,14 +28,13 @@ type RTContainerCheck struct {
 	sysInfo           *model.SystemInfo
 	containerProvider util.ContainerProvider
 	lastRates         map[string]*util.ContainerRateMetrics
-	lastRun           time.Time
 }
 
 // Init initializes a RTContainerCheck instance.
 func (r *RTContainerCheck) Init(_ *config.AgentConfig, sysInfo *model.SystemInfo) {
-	r.sysInfo = sysInfo
-
 	r.maxBatchSize = getMaxBatchSize()
+	r.sysInfo = sysInfo
+	r.containerProvider = util.GetSharedContainerProvider()
 }
 
 // Name returns the name of the RTContainerCheck.
@@ -46,14 +45,11 @@ func (r *RTContainerCheck) RealTime() bool { return true }
 
 // Run runs the real-time container check getting container-level stats from the Cgroups and Docker APIs.
 func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
-	startTime := time.Now()
-
 	var err error
 	var containers []*model.Container
 	var lastRates map[string]*util.ContainerRateMetrics
-	containers, lastRates, _, err = r.containerProvider.GetContainers(cacheValidityNoRT, r.lastRates, r.lastRun, startTime)
+	containers, lastRates, _, err = r.containerProvider.GetContainers(cacheValidityRT, r.lastRates)
 	if err == nil {
-		r.lastRun = startTime
 		r.lastRates = lastRates
 	} else {
 		log.Debugf("Unable to gather stats for containers, err: %v", err)

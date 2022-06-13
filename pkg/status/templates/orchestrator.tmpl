@@ -55,9 +55,9 @@ Orchestrator Explorer
       Last Run: (Hits: {{$element.CacheHits}} Miss: {{$element.CacheMiss}}) | Total: (Hits: {{$element.TotalHits}} Miss: {{$element.TotalMiss}})
 {{end}}
 {{- if .CLCEnabled }}
-  ===========
+  ==================================================
   Dispatched Configurations on Cluster Check Runners
-  ===========
+  ==================================================
     To print orchestrator check details run agent clusterchecks --check orchestrator
 {{end}}
 {{else}}

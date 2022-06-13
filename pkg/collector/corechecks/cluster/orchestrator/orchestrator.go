@@ -14,7 +14,6 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -25,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/atomic"
 
 	"gopkg.in/yaml.v2"
 )
@@ -62,7 +62,7 @@ type OrchestratorCheck struct {
 	collectorBundle    *CollectorBundle
 	stopCh             chan struct{}
 	clusterID          string
-	groupID            int32
+	groupID            *atomic.Int32
 	isCLCRunner        bool
 	apiClient          *apiserver.APIClient
 }
@@ -73,7 +73,7 @@ func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *
 		orchestratorConfig: orchcfg.NewDefaultOrchestratorConfig(),
 		instance:           instance,
 		stopCh:             make(chan struct{}),
-		groupID:            rand.Int31(),
+		groupID:            atomic.NewInt32(rand.Int31()),
 		isCLCRunner:        config.IsCLCRunner(),
 	}
 }
@@ -146,7 +146,7 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 // Run runs the orchestrator check
 func (o *OrchestratorCheck) Run() error {
 	// access serializer
-	sender, err := aggregator.GetSender(o.ID())
+	sender, err := o.GetSender()
 	if err != nil {
 		return err
 	}

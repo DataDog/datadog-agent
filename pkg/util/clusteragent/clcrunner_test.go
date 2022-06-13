@@ -127,8 +127,8 @@ func (suite *clcRunnerSuite) TestGetCLCRunnerStats() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	ts, p, err := clcRunner.StartTLS()
-	defer ts.Close()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+	defer ts.Close()
 
 	c, err := GetCLCRunnerClient()
 	c.(*CLCRunnerClient).clcRunnerPort = p
@@ -160,8 +160,8 @@ func (suite *clcRunnerSuite) TestGetCLCRunnerVersion() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	ts, p, err := clcRunner.StartTLS()
-	defer ts.Close()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+	defer ts.Close()
 
 	c, err := GetCLCRunnerClient()
 	c.(*CLCRunnerClient).clcRunnerPort = p

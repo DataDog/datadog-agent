@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -424,8 +425,8 @@ func (suite *clusterAgentSuite) TestGetKubernetesNodeLabels() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	ts, p, err := dca.StartTLS()
-	defer ts.Close()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+	defer ts.Close()
 
 	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
@@ -456,7 +457,7 @@ func (suite *clusterAgentSuite) TestGetKubernetesNodeLabels() {
 		{
 			nodeName: "fake",
 			expected: nil,
-			errors:   fmt.Errorf("unexpected status code from cluster agent: 404"),
+			errors:   errors.NewRemoteServiceError(fmt.Sprintf("https://127.0.0.1:%d/api/v1/tags/node/fake", p), "404 Not Found"),
 		},
 	}
 	for _, testCase := range testSuite {
@@ -477,8 +478,8 @@ func (suite *clusterAgentSuite) TestGetKubernetesNodeAnnotations() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	ts, p, err := dca.StartTLS()
-	defer ts.Close()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+	defer ts.Close()
 
 	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
@@ -501,7 +502,7 @@ func (suite *clusterAgentSuite) TestGetKubernetesNodeAnnotations() {
 		{
 			nodeName: "fake",
 			expected: nil,
-			errors:   fmt.Errorf("unexpected status code from cluster agent: 404"),
+			errors:   errors.NewRemoteServiceError(fmt.Sprintf("https://127.0.0.1:%d/api/v1/annotations/node/fake", p), "404 Not Found"),
 		},
 	}
 	for _, testCase := range testSuite {
@@ -522,8 +523,8 @@ func (suite *clusterAgentSuite) TestGetKubernetesMetadataNames() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	ts, p, err := dca.StartTLS()
-	defer ts.Close()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+	defer ts.Close()
 
 	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
@@ -592,8 +593,8 @@ func (suite *clusterAgentSuite) TestGetCFAppsMetadataForNode() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	ts, p, err := dca.StartTLS()
-	defer ts.Close()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+	defer ts.Close()
 
 	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
@@ -634,8 +635,8 @@ func (suite *clusterAgentSuite) TestGetPodsMetadataForNode() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	ts, p, err := dca.StartTLS()
-	defer ts.Close()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+	defer ts.Close()
 
 	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
@@ -673,7 +674,7 @@ func (suite *clusterAgentSuite) TestGetPodsMetadataForNode() {
 		{
 			name:        "error case: node not found",
 			nodeName:    "node3",
-			expectedErr: fmt.Errorf("unexpected status code from cluster agent: 404"),
+			expectedErr: errors.NewRemoteServiceError(fmt.Sprintf("https://127.0.0.1:%d/api/v1/tags/pod/node3", p), "404 Not Found"),
 		},
 	}
 
@@ -706,8 +707,8 @@ func (suite *clusterAgentSuite) TestGetKubernetesClusterID() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	ts, p, err := dca.StartTLS()
-	defer ts.Close()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+	defer ts.Close()
 
 	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 

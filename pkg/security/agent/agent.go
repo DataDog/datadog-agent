@@ -15,23 +15,25 @@ import (
 
 	"github.com/cenkalti/backoff"
 	"github.com/pkg/errors"
+	uatomic "go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // RuntimeSecurityAgent represents the main wrapper for the Runtime Security product
 type RuntimeSecurityAgent struct {
 	hostname      string
-	reporter      event.Reporter
+	reporter      common.RawReporter
 	client        *RuntimeSecurityClient
-	running       atomic.Value
+	running       uatomic.Bool
 	wg            sync.WaitGroup
-	connected     atomic.Value
+	connected     uatomic.Bool
 	eventReceived uint64
 	telemetry     *telemetry
 	endpoints     *config.Endpoints
@@ -39,7 +41,7 @@ type RuntimeSecurityAgent struct {
 }
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(hostname string, reporter event.Reporter, endpoints *config.Endpoints) (*RuntimeSecurityAgent, error) {
+func NewRuntimeSecurityAgent(hostname string) (*RuntimeSecurityAgent, error) {
 	client, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err
@@ -52,15 +54,16 @@ func NewRuntimeSecurityAgent(hostname string, reporter event.Reporter, endpoints
 
 	return &RuntimeSecurityAgent{
 		client:    client,
-		reporter:  reporter,
 		hostname:  hostname,
 		telemetry: telemetry,
-		endpoints: endpoints,
 	}, nil
 }
 
 // Start the runtime security agent
-func (rsa *RuntimeSecurityAgent) Start() {
+func (rsa *RuntimeSecurityAgent) Start(reporter event.Reporter, endpoints *config.Endpoints) {
+	rsa.reporter = reporter
+	rsa.endpoints = endpoints
+
 	ctx, cancel := context.WithCancel(context.Background())
 	rsa.cancel = cancel
 
@@ -88,7 +91,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 	logTicker := newLogBackoffTicker()
 
 	rsa.running.Store(true)
-	for rsa.running.Load() == true {
+	for rsa.running.Load() {
 		stream, err := rsa.client.GetEvents()
 		if err != nil {
 			rsa.connected.Store(false)
@@ -113,7 +116,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 			continue
 		}
 
-		if rsa.connected.Load() != true {
+		if !rsa.connected.Load() {
 			rsa.connected.Store(true)
 
 			log.Info("Successfully connected to the runtime security module")
@@ -137,17 +140,48 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 
 // DispatchEvent dispatches a security event message to the subsytems of the runtime security agent
 func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
-	// For now simply log to Datadog
+	if rsa.reporter == nil {
+		return
+	}
 	rsa.reporter.ReportRaw(evt.GetData(), evt.Service, evt.GetTags()...)
 }
 
 // GetStatus returns the current status on the agent
 func (rsa *RuntimeSecurityAgent) GetStatus() map[string]interface{} {
-	return map[string]interface{}{
+	base := map[string]interface{}{
 		"connected":     rsa.connected.Load(),
 		"eventReceived": atomic.LoadUint64(&rsa.eventReceived),
-		"endpoints":     rsa.endpoints.GetStatus(),
 	}
+
+	if rsa.endpoints != nil {
+		base["endpoints"] = rsa.endpoints.GetStatus()
+	}
+
+	if rsa.client != nil {
+		cfStatus, err := rsa.client.GetStatus()
+		if err == nil {
+			if cfStatus.Environment != nil {
+				environment := map[string]interface{}{
+					"warnings":       cfStatus.Environment.Warnings,
+					"kernelLockdown": cfStatus.Environment.KernelLockdown,
+				}
+				if cfStatus.Environment.Constants != nil {
+					environment["constantFetchers"] = cfStatus.Environment.Constants
+				}
+				base["environment"] = environment
+			}
+			if cfStatus.SelfTests != nil {
+				selfTests := map[string]interface{}{
+					"LastTimestamp": cfStatus.SelfTests.LastTimestamp,
+					"Success":       cfStatus.SelfTests.Success,
+					"Fails":         cfStatus.SelfTests.Fails,
+				}
+				base["selfTests"] = selfTests
+			}
+		}
+	}
+
+	return base
 }
 
 // newLogBackoffTicker returns a ticker based on an exponential backoff, used to trigger connect error logs

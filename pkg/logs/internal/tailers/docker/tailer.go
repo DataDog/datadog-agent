@@ -20,9 +20,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerstream"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/tag"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 
 	"github.com/docker/docker/api/types"
 )
@@ -48,7 +51,7 @@ type Tailer struct {
 	outputChan  chan *message.Message
 	decoder     *decoder.Decoder
 	dockerutil  dockerContainerLogInterface
-	Source      *config.LogSource
+	Source      *sources.LogSource
 	tagProvider tag.Provider
 
 	readTimeout   time.Duration
@@ -76,11 +79,11 @@ type Tailer struct {
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(cli *dockerutil.DockerUtil, containerID string, source *config.LogSource, outputChan chan *message.Message, erroredContainerID chan string, readTimeout time.Duration) *Tailer {
+func NewTailer(cli *dockerutil.DockerUtil, containerID string, source *sources.LogSource, outputChan chan *message.Message, erroredContainerID chan string, readTimeout time.Duration) *Tailer {
 	return &Tailer{
 		ContainerID:        containerID,
 		outputChan:         outputChan,
-		decoder:            InitializeDecoder(source, containerID),
+		decoder:            decoder.NewDecoderWithFraming(source, dockerstream.New(containerID), framer.DockerStream, nil),
 		Source:             source,
 		tagProvider:        tag.NewProvider(dockerutil.ContainerIDToTaggerEntityName(containerID)),
 		dockerutil:         cli,

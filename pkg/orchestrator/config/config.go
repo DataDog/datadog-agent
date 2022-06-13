@@ -63,7 +63,7 @@ func key(pieces ...string) string {
 	return strings.Join(pieces, ".")
 }
 
-// Load load orchestrator-specific configuration
+// Load loads orchestrator-specific configuration
 // at this point secrets should already be resolved by the core/process/cluster agent
 func (oc *OrchestratorConfig) Load() error {
 	URL, err := extractOrchestratorDDUrl()
@@ -159,7 +159,7 @@ func extractOrchestratorDDUrl() (*url.URL, error) {
 
 // NewOrchestratorForwarder returns an orchestratorForwarder
 // if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
-func NewOrchestratorForwarder() *forwarder.DefaultForwarder {
+func NewOrchestratorForwarder() forwarder.Forwarder {
 	if !config.Datadog.GetBool(key(orchestratorNS, "enabled")) {
 		return nil
 	}

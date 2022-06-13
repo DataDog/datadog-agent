@@ -4,6 +4,7 @@ require 'rspec'
 require 'rbconfig'
 require 'yaml'
 require 'find'
+require 'tempfile'
 
 #
 # this enables RSpec output so that individual tests ("it behaves like...") are
@@ -234,13 +235,16 @@ def integration_freeze
 end
 
 def json_info
-  info_output = `#{agent_command} status -j 2>&1`
-  info_output = info_output.gsub("Getting the status from the agent.", "")
+  tmpfile = Tempfile.new('agent-status')
+  begin
+    `#{agent_command} status -j -o #{tmpfile.path}`
+    info_output = File.read(tmpfile.path)
 
-  # removes any stray log lines
-  info_output = info_output.gsub(/[0-9]+[ ]\[[a-zA-Z]+\][a-zA-Z \t%:\\]+$/, "")
-
-  JSON.parse(info_output)
+    JSON.parse(info_output)
+  ensure
+    tmpfile.close
+    tmpfile.unlink
+  end
 end
 
 def windows_service_status(service)
@@ -269,7 +273,7 @@ def is_windows_service_installed(service)
   raise "is_windows_service_installed is only for windows" unless os == :windows
   return windows_service_status(service) != "NOTINSTALLED"
 end
-  
+
 def is_flavor_running?(flavor)
   is_service_running?(get_service_name(flavor))
 end
@@ -442,14 +446,30 @@ shared_examples_for "an installed Agent" do
 
       program_files = safe_program_files
       verify_signature_files = [
+        # TODO: Uncomment this when we start shipping the security agent on Windows
+        # "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\security-agent.exe",
         "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\process-agent.exe",
         "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\trace-agent.exe",
         "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\ddtray.exe",
-        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent.exe"
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\libdatadog-agent-three.dll",
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent.exe",
+        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python.exe",
+        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\pythonw.exe",
+        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python3.dll",
+        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python38.dll"
       ]
+      libdatadog_agent_two = "#{program_files}\\DataDog\\Datadog Agent\\bin\\libdatadog-agent-two.dll"
+      if File.file?(libdatadog_agent_two)
+        verify_signature_files += [
+          libdatadog_agent_two,
+          "#{program_files}\\DataDog\\Datadog Agent\\embedded2\\python.exe",
+          "#{program_files}\\DataDog\\Datadog Agent\\embedded2\\pythonw.exe",
+          "#{program_files}\\DataDog\\Datadog Agent\\embedded2\\python27.dll"
+        ]
+      end
+
       verify_signature_files.each do |vf|
-        is_signed = is_file_signed(vf)
-        expect(is_signed).to be_truthy
+        expect(is_file_signed(vf)).to be_truthy
       end
     end
   end
@@ -841,8 +861,9 @@ shared_examples_for 'an Agent with process enabled' do
   it 'has process enabled' do
     confYaml = read_conf_file()
     expect(confYaml).to have_key("process_config")
-    expect(confYaml["process_config"]).to have_key("enabled")
-    expect(confYaml["process_config"]["enabled"]).to be_truthy
+    expect(confYaml["process_config"]).to have_key("process_collection")
+    expect(confYaml["process_config"]["process_collection"]).to have_key("enabled")
+    expect(confYaml["process_config"]["process_collection"]["enabled"]).to be_truthy
   end
   it 'has the process agent running' do
     expect(is_process_running?("process-agent.exe")).to be_truthy
@@ -878,7 +899,7 @@ shared_examples_for 'an upgraded Agent with the expected version' do
     # Match the first line of the manifest file
     expect(File.open(version_manifest_file) {|f| f.readline.strip}).to match "agent #{agent_expected_version}"
   end
-end 
+end
 
 def get_user_sid(uname)
   output = `powershell -command "(New-Object System.Security.Principal.NTAccount('#{uname}')).Translate([System.Security.Principal.SecurityIdentifier]).value"`.strip

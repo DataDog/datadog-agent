@@ -2,6 +2,52 @@
 Release Notes
 =============
 
+.. _Release Notes_installscript-1.9.0:
+
+installscript-1.9.0
+===================
+
+.. _Release Notes_installscript-1.9.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Since datadog-agent 6.36/7.36, Debian 7 (Wheezy) is no longer supported,
+  ``install_script.sh`` now installs 6.35/7.35 when the minor version is unpinned,
+  and ``DD_AGENT_FLAVOR`` doesn't specify a version.
+
+- Allow nightly builds install on non-prod repos.
+
+.. _Release Notes_installscript-1.8.0:
+
+installscript-1.8.0
+===================
+
+.. _Release Notes_installscript-1.8.0_New Features:
+
+New Features
+------------
+
+- Enable installation of the datadog-dogstatsd package.
+
+
+.. _Release Notes_installscript-1.8.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Don't require ``DD_API_KEY`` when the configuration file already exists.
+
+
+.. _Release Notes_installscript-1.8.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Zypper repofile is now created correctly with only one gpgkey entry
+  on OpenSUSE 42.
+
+
 .. _Release Notes_installscript-1.7.1:
 
 installscript-1.7.1

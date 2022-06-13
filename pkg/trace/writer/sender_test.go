@@ -18,17 +18,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
 
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 const testAPIKey = "123"
 
 func TestMain(m *testing.M) {
-	log.SetupLogger(seelog.Disabled, "error")
+	log.SetLogger(log.NoopLogger)
 	os.Exit(m.Run())
 }
 
@@ -57,14 +57,10 @@ func TestSender(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		client := httputils.NewResetClient(
-			0,
-			func() *http.Client {
-				return &http.Client{}
-			},
-		)
+		cfg := config.New()
+		cfg.ConnectionResetInterval = 0
 		return &senderConfig{
-			client:    client,
+			client:    cfg.NewHTTPClient(),
 			url:       url,
 			maxConns:  climit,
 			maxQueued: 40,
@@ -111,9 +107,17 @@ func TestSender(t *testing.T) {
 	})
 
 	t.Run("Push", func(t *testing.T) {
-		s := &sender{cfg: &senderConfig{}, queue: make(chan *payload, 4)}
+		s := &sender{
+			cfg:      &senderConfig{},
+			queue:    make(chan *payload, 4),
+			inflight: atomic.NewInt32(0),
+			attempt:  atomic.NewInt32(0),
+		}
 		p := func(n string) *payload {
-			return &payload{body: bytes.NewBufferString(n)}
+			return &payload{
+				body:    bytes.NewBufferString(n),
+				retries: atomic.NewInt32(0),
+			}
 		}
 
 		s.Push(p("1"))

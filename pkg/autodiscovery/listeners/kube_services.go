@@ -21,6 +21,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -29,8 +31,8 @@ import (
 )
 
 const (
-	kubeServiceAnnotationFormat = "ad.datadoghq.com/service.instances"
-	kubeServicesName            = "kube_services"
+	kubeServiceID    = "service"
+	kubeServicesName = "kube_services"
 )
 
 // KubeServiceListener listens to kubernetes service creation
@@ -59,6 +61,26 @@ func init() {
 	Register(kubeServicesName, NewKubeServiceListener)
 }
 
+// isServiceAnnotated returns true if the Service has an annotation with a given key
+func isServiceAnnotated(ksvc *v1.Service, annotationKey string) bool {
+	if ksvc == nil {
+		return false
+	}
+
+	annotations := ksvc.GetAnnotations()
+
+	if _, found := annotations[utils.KubeAnnotationPrefix+annotationKey+".checks"]; found {
+		return true
+	}
+
+	if _, found := annotations[utils.KubeAnnotationPrefix+annotationKey+".instances"]; found {
+		return true
+	}
+
+	return false
+}
+
+// NewKubeServiceListener returns the kube service implementation of the ServiceListener interface
 func NewKubeServiceListener(conf Config) (ServiceListener, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
@@ -79,6 +101,7 @@ func NewKubeServiceListener(conf Config) (ServiceListener, error) {
 	}, nil
 }
 
+// Listen starts watching service events
 func (l *KubeServiceListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	// setup the I/O channels
 	l.newService = newSvc
@@ -152,7 +175,7 @@ func servicesDiffer(first, second *v1.Service) bool {
 		return false
 	}
 	// AD annotations - check templates
-	if isServiceAnnotated(first, kubeServiceAnnotationFormat) != isServiceAnnotated(second, kubeServiceAnnotationFormat) {
+	if isServiceAnnotated(first, kubeServiceID) != isServiceAnnotated(second, kubeServiceID) {
 		return true
 	}
 	// AD labels - standard tags
@@ -185,7 +208,7 @@ func (l *KubeServiceListener) shouldIgnore(ksvc *v1.Service) bool {
 	}
 
 	// Ignore services with no AD or Prometheus AD include annotation
-	return !isServiceAnnotated(ksvc, kubeServiceAnnotationFormat) && !l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations())
+	return !isServiceAnnotated(ksvc, kubeServiceID) && !l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations())
 }
 
 func (l *KubeServiceListener) createService(ksvc *v1.Service) {
@@ -293,8 +316,8 @@ func (s *KubeServiceService) GetPorts(context.Context) ([]ContainerPort, error) 
 }
 
 // GetTags retrieves tags
-func (s *KubeServiceService) GetTags() ([]string, string, error) {
-	return s.tags, "", nil
+func (s *KubeServiceService) GetTags() ([]string, error) {
+	return s.tags, nil
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet
@@ -320,6 +343,10 @@ func (s *KubeServiceService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig isn't supported
-func (s *KubeServiceService) GetExtraConfig(key []byte) ([]byte, error) {
-	return []byte{}, ErrNotSupported
+func (s *KubeServiceService) GetExtraConfig(key string) (string, error) {
+	return "", ErrNotSupported
+}
+
+// FilterTemplates does nothing.
+func (s *KubeServiceService) FilterTemplates(map[string]integration.Config) {
 }

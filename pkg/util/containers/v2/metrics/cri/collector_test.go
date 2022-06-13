@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	pb "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	pb "k8s.io/cri-api/pkg/apis/runtime/v1"
 
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri/crimock"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestGetContainerStats(t *testing.T) {
@@ -46,16 +46,16 @@ func TestGetContainerStats(t *testing.T) {
 		client: mockedCriClient,
 	}
 
-	stats, err := collector.GetContainerStats(containerID, 10*time.Second)
+	stats, err := collector.GetContainerStats("", containerID, 10*time.Second)
 	assert.NoError(t, err)
 
-	assert.Equal(t, util.UIntToFloatPtr(1000), stats.CPU.Total)
-	assert.Equal(t, util.UIntToFloatPtr(1024), stats.Memory.RSS)
+	assert.Equal(t, pointer.UIntToFloatPtr(1000), stats.CPU.Total)
+	assert.Equal(t, pointer.UIntToFloatPtr(1024), stats.Memory.UsageTotal)
 }
 
 func TestGetContainerNetworkStats(t *testing.T) {
 	collector := criCollector{}
-	stats, err := collector.GetContainerNetworkStats("123", time.Second)
+	stats, err := collector.GetContainerNetworkStats("", "123", time.Second)
 	assert.NoError(t, err)
 	assert.Nil(t, stats) // The CRI collector does not return any network data
 }

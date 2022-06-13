@@ -1,9 +1,16 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package util
 
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"runtime"
+	"sync"
 	"time"
 
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
@@ -13,6 +20,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+// httpClients should be reused instead of created as needed. They keep cached TCP connections
+// that may leak otherwise
+var (
+	httpClient     *http.Client
+	clientInitOnce sync.Once
+)
+
+func getHTTPClient() *http.Client {
+	clientInitOnce.Do(func() {
+		httpClient = apiutil.GetClient(false)
+	})
+
+	return httpClient
+}
 
 // CoreStatus holds core info about the process-agent
 type CoreStatus struct {
@@ -64,6 +86,7 @@ type ProcessExpvars struct {
 	LogFile             string              `json:"log_file"`
 	EnabledChecks       []string            `json:"enabled_checks"`
 	Endpoints           map[string][]string `json:"endpoints"`
+	DropCheckPayloads   []string            `json:"drop_check_payloads"`
 }
 
 // Status holds runtime information from process-agent
@@ -115,8 +138,8 @@ func getCoreStatus() (s CoreStatus) {
 }
 
 func getExpvars(expVarURL string) (s ProcessExpvars, err error) {
-	httpClient := apiutil.GetClient(false)
-	b, err := apiutil.DoGet(httpClient, expVarURL)
+	client := getHTTPClient()
+	b, err := apiutil.DoGet(client, expVarURL, apiutil.CloseConnection)
 	if err != nil {
 		return s, ConnectionError{err}
 	}

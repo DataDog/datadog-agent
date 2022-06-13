@@ -18,7 +18,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"golang.org/x/sys/unix"
 )
 
 // CompilationResult enumerates runtime compilation success & failure modes
@@ -99,11 +99,17 @@ func (a *RuntimeAsset) GetInputReader(config *ebpf.Config, tm *RuntimeCompilatio
 	return inputReader, nil
 }
 
-func (a *RuntimeAsset) GetOutputFilePath(config *ebpf.Config, kernelVersion kernel.Version, flagHash string, tm *RuntimeCompilationTelemetry) (string, error) {
+func (a *RuntimeAsset) GetOutputFilePath(config *ebpf.Config, uname *unix.Utsname, flagHash string, tm *RuntimeCompilationTelemetry) (string, error) {
 	// filename includes kernel version, input file hash, and cflags hash
 	// this ensures we re-compile when either of the input changes
 	baseName := strings.TrimSuffix(a.filename, filepath.Ext(a.filename))
-	outputFile := filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("%s-%d-%s-%s.o", baseName, kernelVersion, a.hash, flagHash))
+
+	unameHash, err := UnameHash(uname)
+	if err != nil {
+		return "", err
+	}
+
+	outputFile := filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("%s-%s-%s-%s.o", baseName, unameHash, a.hash, flagHash))
 	return outputFile, nil
 }
 

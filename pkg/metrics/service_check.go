@@ -8,6 +8,9 @@ package metrics
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strconv"
+	"strings"
 )
 
 // ServiceCheckStatus represents the status associated with a service check
@@ -72,4 +75,46 @@ func (sc ServiceCheck) String() string {
 		return ""
 	}
 	return string(s)
+}
+
+// ServiceChecks is a collection of ServiceCheck
+type ServiceChecks []*ServiceCheck
+
+// MarshalStrings converts the service checks to a sorted slice of string slices
+func (sc ServiceChecks) MarshalStrings() ([]string, [][]string) {
+	var headers = []string{"Check", "Hostname", "Timestamp", "Status", "Message", "Tags"}
+	var payload = make([][]string, len(sc))
+
+	for _, c := range sc {
+		payload = append(payload, []string{
+			c.CheckName,
+			c.Host,
+			strconv.FormatInt(c.Ts, 10),
+			c.Status.String(),
+			c.Message,
+			strings.Join(c.Tags, ", "),
+		})
+	}
+
+	sort.Slice(payload, func(i, j int) bool {
+		// edge cases
+		if len(payload[i]) == 0 && len(payload[j]) == 0 {
+			return false
+		}
+		if len(payload[i]) == 0 || len(payload[j]) == 0 {
+			return len(payload[i]) == 0
+		}
+		// sort by service check name
+		if payload[i][0] != payload[j][0] {
+			return payload[i][0] < payload[j][0]
+		}
+		// then by timestamp
+		if payload[i][2] != payload[j][2] {
+			return payload[i][2] < payload[j][2]
+		}
+		// finally by tags (last field) as tie breaker
+		return payload[i][len(payload[i])-1] < payload[j][len(payload[j])-1]
+	})
+
+	return headers, payload
 }

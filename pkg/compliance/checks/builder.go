@@ -11,7 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 	"time"
 
@@ -147,7 +147,9 @@ func (c *kubeClient) ClusterID() (string, error) {
 		Version:  "v1",
 	})
 
-	resource, err := resourceDef.Get(context.TODO(), "kube-system", metav1.GetOptions{})
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+	resource, err := resourceDef.Get(ctx, "kube-system", metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -220,7 +222,7 @@ func WithNodeLabels(nodeLabels map[string]string) BuilderOption {
 // of a file instead of the current environment
 func WithRegoInput(regoInputPath string) BuilderOption {
 	return func(b *builder) error {
-		content, err := ioutil.ReadFile(regoInputPath)
+		content, err := os.ReadFile(regoInputPath)
 		if err != nil {
 			return err
 		}
@@ -232,6 +234,14 @@ func WithRegoInput(regoInputPath string) BuilderOption {
 func WithRegoInputDumpPath(regoInputDumpPath string) BuilderOption {
 	return func(b *builder) error {
 		b.regoInputDumpPath = regoInputDumpPath
+		return nil
+	}
+}
+
+// WithRegoEvalSkip configures a builder to skip the rego evaluation, while still building the input
+func WithRegoEvalSkip(regoEvalSkip bool) BuilderOption {
+	return func(b *builder) error {
+		b.regoEvalSkip = regoEvalSkip
 		return nil
 	}
 }
@@ -296,6 +306,7 @@ type builder struct {
 
 	regoInputOverride map[string]eval.RegoInputMap
 	regoInputDumpPath string
+	regoEvalSkip      bool
 
 	status *status
 }
@@ -736,6 +747,10 @@ func (b *builder) ProvidedInput(ruleID string) eval.RegoInputMap {
 
 func (b *builder) DumpInputPath() string {
 	return b.regoInputDumpPath
+}
+
+func (b *builder) ShouldSkipRegoEval() bool {
+	return b.regoEvalSkip
 }
 
 func (b *builder) Hostname() string {

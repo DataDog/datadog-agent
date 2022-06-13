@@ -53,7 +53,6 @@ func TestHTTPMonitorIntegrationWithNAT(t *testing.T) {
 
 	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 	netlink.SetupDNAT(t)
-	defer netlink.TeardownDNAT(t)
 
 	targetAddr := "2.2.2.2:8080"
 	serverAddr := "1.1.1.1:8080"
@@ -78,7 +77,6 @@ func TestUnknownMethodRegression(t *testing.T) {
 
 	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 	netlink.SetupDNAT(t)
-	defer netlink.TeardownDNAT(t)
 
 	targetAddr := "2.2.2.2:8080"
 	serverAddr := "1.1.1.1:8080"
@@ -107,6 +105,14 @@ func TestUnknownMethodRegression(t *testing.T) {
 			t.Error("detected HTTP request with method unknown")
 		}
 	}
+
+	telemetry := monitor.GetStats()
+	require.NotEmpty(t, telemetry)
+	_, ok := telemetry["dropped"]
+	require.True(t, ok)
+	_, ok = telemetry["misses"]
+	require.True(t, ok)
+
 }
 
 func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o testutil.Options) {
@@ -160,11 +166,10 @@ func requestGenerator(t *testing.T, targetAddr string) func() *nethttp.Request {
 	}
 }
 
-func includesRequest(t *testing.T, allStats map[Key]RequestStats, req *nethttp.Request) {
+func includesRequest(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.Request) {
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	for key, stats := range allStats {
-		i := expectedStatus/100 - 1
-		if key.Path == req.URL.Path && stats[i].Count == 1 {
+		if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
 			return
 		}
 	}

@@ -12,10 +12,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/metricsserializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -118,6 +117,7 @@ var (
 	aggregatorOrchestratorMetadata             = expvar.Int{}
 	aggregatorOrchestratorMetadataErrors       = expvar.Int{}
 	aggregatorDogstatsdContexts                = expvar.Int{}
+	aggregatorDogstatsdContextsByMtype         = []expvar.Int{}
 	aggregatorEventPlatformEvents              = expvar.Map{}
 	aggregatorEventPlatformEventsErrors        = expvar.Map{}
 	aggregatorContainerLifecycleEvents         = expvar.Int{}
@@ -131,9 +131,11 @@ var (
 		nil, "Count of hostname update")
 	tlmDogstatsdContexts = telemetry.NewGauge("aggregator", "dogstatsd_contexts",
 		nil, "Count the number of dogstatsd contexts in the aggregator")
+	tlmDogstatsdContextsByMtype = telemetry.NewGauge("aggregator", "dogstatsd_contexts_by_mtype",
+		[]string{"metric_type"}, "Count the number of dogstatsd contexts in the aggregator, by metric type")
 
 	// Hold series to be added to aggregated series on each flush
-	recurrentSeries     metricsserializer.Series
+	recurrentSeries     metrics.Series
 	recurrentSeriesLock sync.Mutex
 )
 
@@ -174,6 +176,15 @@ func init() {
 	aggregatorExpvars.Set("ContainerLifecycleEvents", &aggregatorContainerLifecycleEvents)
 	aggregatorExpvars.Set("ContainerLifecycleEventsErrors", &aggregatorContainerLifecycleEventsErrors)
 
+	contextsByMtypeMap := expvar.Map{}
+	aggregatorDogstatsdContextsByMtype = make([]expvar.Int, int(metrics.NumMetricTypes))
+	for i := 0; i < int(metrics.NumMetricTypes); i++ {
+		mtype := metrics.MetricType(i).String()
+		aggregatorDogstatsdContextsByMtype[i] = expvar.Int{}
+		contextsByMtypeMap.Set(mtype, &aggregatorDogstatsdContextsByMtype[i])
+	}
+	aggregatorExpvars.Set("DogstatsdContextsByMtype", &contextsByMtypeMap)
+
 	tagsetTlm = newTagsetTelemetry([]uint64{90, 100})
 
 	aggregatorExpvars.Set("MetricTags", expvar.Func(expMetricTags))
@@ -213,8 +224,8 @@ type BufferedAggregator struct {
 
 	tagsStore              *tags.Store
 	checkSamplers          map[check.ID]*CheckSampler
-	serviceChecks          metricsserializer.ServiceChecks
-	events                 metricsserializer.Events
+	serviceChecks          metrics.ServiceChecks
+	events                 metrics.Events
 	flushInterval          time.Duration
 	mu                     sync.Mutex // to protect the checkSamplers field
 	flushMutex             sync.Mutex // to start multiple flushes in parallel
@@ -232,13 +243,21 @@ type BufferedAggregator struct {
 	tlmContainerTagsEnabled bool                                              // Whether we should call the tagger to tag agent telemetry metrics
 	agentTags               func(collectors.TagCardinality) ([]string, error) // This function gets the agent tags from the tagger (defined as a struct field to ease testing)
 
-	flushAndSerializeInParallel flushAndSerializeInParallel
+	flushAndSerializeInParallel FlushAndSerializeInParallel
 }
 
-type flushAndSerializeInParallel struct {
-	enabled     bool
-	channelSize int
-	bufferSize  int
+// FlushAndSerializeInParallel contains options for flushing metrics and serializing in parallel.
+type FlushAndSerializeInParallel struct {
+	ChannelSize int
+	BufferSize  int
+}
+
+// NewFlushAndSerializeInParallel creates a new instance of FlushAndSerializeInParallel.
+func NewFlushAndSerializeInParallel(config config.Config) FlushAndSerializeInParallel {
+	return FlushAndSerializeInParallel{
+		BufferSize:  config.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size"),
+		ChannelSize: config.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_chan_size"),
+	}
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
@@ -276,25 +295,21 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		contLcycleBuffer:  make(chan senderContainerLifecycleEvent, bufferSize),
 		contLcycleStopper: make(chan struct{}),
 
-		tagsStore:               tagsStore,
-		checkSamplers:           make(map[check.ID]*CheckSampler),
-		flushInterval:           flushInterval,
-		serializer:              s,
-		eventPlatformForwarder:  eventPlatformForwarder,
-		hostname:                hostname,
-		hostnameUpdate:          make(chan string),
-		hostnameUpdateDone:      make(chan struct{}),
-		flushChan:               make(chan flushTrigger),
-		stopChan:                make(chan struct{}),
-		health:                  health.RegisterLiveness("aggregator"),
-		agentName:               agentName,
-		tlmContainerTagsEnabled: config.Datadog.GetBool("basic_telemetry_add_container_tags"),
-		agentTags:               tagger.AgentTags,
-		flushAndSerializeInParallel: flushAndSerializeInParallel{
-			enabled:     config.Datadog.GetBool("aggregator_flush_metrics_and_serialize_in_parallel") && s != nil && s.IsIterableSeriesSupported(),
-			bufferSize:  config.Datadog.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size"),
-			channelSize: config.Datadog.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_chan_size"),
-		},
+		tagsStore:                   tagsStore,
+		checkSamplers:               make(map[check.ID]*CheckSampler),
+		flushInterval:               flushInterval,
+		serializer:                  s,
+		eventPlatformForwarder:      eventPlatformForwarder,
+		hostname:                    hostname,
+		hostnameUpdate:              make(chan string),
+		hostnameUpdateDone:          make(chan struct{}),
+		flushChan:                   make(chan flushTrigger),
+		stopChan:                    make(chan struct{}),
+		health:                      health.RegisterLiveness("aggregator"),
+		agentName:                   agentName,
+		tlmContainerTagsEnabled:     config.Datadog.GetBool("basic_telemetry_add_container_tags"),
+		agentTags:                   tagger.AgentTags,
+		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(config.Datadog),
 	}
 
 	return aggregator
@@ -346,6 +361,9 @@ func (agg *BufferedAggregator) registerSender(id check.ID) error {
 
 func (agg *BufferedAggregator) deregisterSender(id check.ID) {
 	agg.mu.Lock()
+	if cs, ok := agg.checkSamplers[id]; ok {
+		cs.release()
+	}
 	delete(agg.checkSamplers, id)
 	agg.mu.Unlock()
 }
@@ -418,8 +436,8 @@ func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 // GetSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
-func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metricsserializer.Series, metricsserializer.SketchSeriesList) {
-	var series metricsserializer.Series
+func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.Series, metrics.SketchSeriesList) {
+	var series metrics.Series
 	sketches := agg.getSeriesAndSketches(before, &series)
 	return series, sketches
 }
@@ -427,11 +445,11 @@ func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metricsse
 // getSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
-func (agg *BufferedAggregator) getSeriesAndSketches(before time.Time, series metricsserializer.SerieSink) metricsserializer.SketchSeriesList {
+func (agg *BufferedAggregator) getSeriesAndSketches(before time.Time, series metrics.SerieSink) metrics.SketchSeriesList {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 
-	var sketches metricsserializer.SketchSeriesList
+	var sketches metrics.SketchSeriesList
 	for _, checkSampler := range agg.checkSamplers {
 		checkSeries, sk := checkSampler.flush()
 		for _, s := range checkSeries {
@@ -467,7 +485,7 @@ func updateSketchTelemetry(start time.Time, sketchesCount uint64, err error) {
 	tlmFlush.Add(float64(sketchesCount), "sketches", state)
 }
 
-func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metricsserializer.SerieSink) {
+func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metrics.SerieSink) {
 	recurrentSeriesLock.Lock()
 	// Adding recurrentSeries to the flushed ones
 	for _, extra := range recurrentSeries {
@@ -478,7 +496,7 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 			extra.SourceTypeName = "System"
 		}
 
-		tags := append(extra.Tags, agg.tags(false)...)
+		tags := tagset.CombineCompositeTagsAndSlice(extra.Tags, agg.tags(false))
 		newSerie := &metrics.Serie{
 			Name:           extra.Name,
 			Tags:           tags,
@@ -506,7 +524,7 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 	series.Append(&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", agg.agentName),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-		Tags:           agg.tags(true),
+		Tags:           tagset.CompositeTagsFromSlice(agg.tags(true)),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
@@ -516,7 +534,7 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 	series.Append(&metrics.Serie{
 		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", agg.agentName),
 		Points:         []metrics.Point{{Value: float64(split.GetPayloadDrops()), Ts: float64(start.Unix())}},
-		Tags:           agg.tags(false),
+		Tags:           tagset.CompositeTagsFromSlice(agg.tags(false)),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
@@ -524,29 +542,16 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 }
 
 func (agg *BufferedAggregator) flushSeriesAndSketches(trigger flushTrigger) {
-	if !agg.flushAndSerializeInParallel.enabled {
+	sketches := agg.getSeriesAndSketches(trigger.time, trigger.seriesSink)
+	agg.appendDefaultSeries(trigger.time, trigger.seriesSink)
 
-		series, sketches := agg.GetSeriesAndSketches(trigger.time)
-		agg.appendDefaultSeries(trigger.time, &series)
-
-		if len(series) > 0 {
-			*trigger.flushedSeries = append(*trigger.flushedSeries, series)
-		}
-		if len(sketches) > 0 {
-			*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
-		}
-	} else {
-		sketches := agg.getSeriesAndSketches(trigger.time, trigger.seriesSink)
-		agg.appendDefaultSeries(trigger.time, trigger.seriesSink)
-
-		if len(sketches) > 0 {
-			*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
-		}
+	if len(sketches) > 0 {
+		*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
 	}
 }
 
 // GetServiceChecks grabs all the service checks from the queue and clears the queue
-func (agg *BufferedAggregator) GetServiceChecks() metricsserializer.ServiceChecks {
+func (agg *BufferedAggregator) GetServiceChecks() metrics.ServiceChecks {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 	// Clear the current service check slice
@@ -555,7 +560,7 @@ func (agg *BufferedAggregator) GetServiceChecks() metricsserializer.ServiceCheck
 	return serviceChecks
 }
 
-func (agg *BufferedAggregator) sendServiceChecks(start time.Time, serviceChecks metricsserializer.ServiceChecks) {
+func (agg *BufferedAggregator) sendServiceChecks(start time.Time, serviceChecks metrics.ServiceChecks) {
 	log.Debugf("Flushing %d service checks to the forwarder", len(serviceChecks))
 	state := stateOk
 	if err := agg.serializer.SendServiceChecks(serviceChecks); err != nil {
@@ -596,7 +601,7 @@ func (agg *BufferedAggregator) flushServiceChecks(start time.Time, waitForSerial
 }
 
 // GetEvents grabs the events from the queue and clears it
-func (agg *BufferedAggregator) GetEvents() metricsserializer.Events {
+func (agg *BufferedAggregator) GetEvents() metrics.Events {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 	events := agg.events
@@ -610,7 +615,7 @@ func (agg *BufferedAggregator) GetEventPlatformEvents() map[string][]*message.Me
 	return agg.eventPlatformForwarder.Purge()
 }
 
-func (agg *BufferedAggregator) sendEvents(start time.Time, events metricsserializer.Events) {
+func (agg *BufferedAggregator) sendEvents(start time.Time, events metrics.Events) {
 	log.Debugf("Flushing %d events to the forwarder", len(events))
 	err := agg.serializer.SendEvents(events)
 	state := stateOk
@@ -768,7 +773,7 @@ func (agg *BufferedAggregator) dequeueContainerLifecycleEvents() {
 		case event := <-agg.contLcycleBuffer:
 			if err := agg.serializer.SendContainerLifecycleEvent(event.msgs, agg.hostname); err != nil {
 				aggregatorContainerLifecycleEventsErrors.Add(1)
-				log.Warnf("Error submitting container lifecycle data: %w", err)
+				log.Warnf("Error submitting container lifecycle data: %v", err)
 			}
 		case <-agg.contLcycleStopper:
 			return

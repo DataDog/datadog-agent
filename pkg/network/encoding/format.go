@@ -11,7 +11,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/gogo/protobuf/proto"
 )
@@ -46,7 +45,7 @@ func (ipc ipCache) Get(addr util.Address) string {
 func FormatConnection(
 	conn network.ConnectionStats,
 	routes map[string]RouteIdx,
-	httpStats *model.HTTPAggregations,
+	httpEncoder *httpEncoder,
 	dnsFormatter *dnsFormatter,
 	ipc ipCache,
 	tagsSet *network.TagsSet,
@@ -59,11 +58,11 @@ func FormatConnection(
 	c.Type = formatType(conn.Type)
 	c.IsLocalPortEphemeral = formatEphemeralType(conn.SPortIsEphemeral)
 	c.PidCreateTime = 0
-	c.LastBytesSent = conn.LastSentBytes
-	c.LastBytesReceived = conn.LastRecvBytes
-	c.LastPacketsSent = conn.LastSentPackets
-	c.LastPacketsReceived = conn.LastRecvPackets
-	c.LastRetransmits = conn.LastRetransmits
+	c.LastBytesSent = conn.Last.SentBytes
+	c.LastBytesReceived = conn.Last.RecvBytes
+	c.LastPacketsSent = conn.Last.SentPackets
+	c.LastPacketsReceived = conn.Last.RecvPackets
+	c.LastRetransmits = conn.Last.Retransmits
 	c.Direction = formatDirection(conn.Direction)
 	c.NetNS = conn.NetNS
 	c.RemoteNetworkId = ""
@@ -71,39 +70,21 @@ func FormatConnection(
 	c.Rtt = conn.RTT
 	c.RttVar = conn.RTTVar
 	c.IntraHost = conn.IntraHost
-	c.LastTcpEstablished = conn.LastTCPEstablished
-	c.LastTcpClosed = conn.LastTCPClosed
+	c.LastTcpEstablished = conn.Last.TCPEstablished
+	c.LastTcpClosed = conn.Last.TCPClosed
 
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
 	dnsFormatter.FormatConnectionDNS(conn, c)
-	c.Tags = formatTags(tagsSet, conn)
 
+	httpStats, tags := httpEncoder.GetHTTPAggregationsAndTags(conn)
 	if httpStats != nil {
 		c.HttpAggregations, _ = proto.Marshal(httpStats)
 	}
 
+	conn.Tags |= tags
+	c.Tags = formatTags(tagsSet, conn)
+
 	return c
-}
-
-// FormatConnTelemetry converts telemetry from its internal representation to a protobuf message
-func FormatConnTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTelemetry {
-	if tel == nil {
-		return nil
-	}
-
-	t := new(model.ConnectionsTelemetry)
-	t.MonotonicKprobesTriggered = tel.MonotonicKprobesTriggered
-	t.MonotonicKprobesMissed = tel.MonotonicKprobesMissed
-	t.MonotonicConntrackRegisters = tel.MonotonicConntrackRegisters
-	t.MonotonicConntrackRegistersDropped = tel.MonotonicConntrackRegistersDropped
-	t.MonotonicDnsPacketsProcessed = tel.MonotonicDNSPacketsProcessed
-	t.MonotonicConnsClosed = tel.MonotonicConnsClosed
-	t.ConnsBpfMapSize = tel.ConnsBpfMapSize
-	t.MonotonicUdpSendsProcessed = tel.MonotonicUDPSendsProcessed
-	t.MonotonicUdpSendsMissed = tel.MonotonicUDPSendsMissed
-	t.ConntrackSamplingPercent = tel.ConntrackSamplingPercent
-	t.DnsStatsDropped = tel.DNSStatsDropped
-	return t
 }
 
 // FormatCompilationTelemetry converts telemetry from its internal representation to a protobuf message
@@ -124,78 +105,17 @@ func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilation
 	return ret
 }
 
-// FormatHTTPStats converts the HTTP map into a suitable format for serialization
-func FormatHTTPStats(httpData map[http.Key]http.RequestStats) (map[http.Key]*model.HTTPAggregations, map[http.Key]uint64) {
-	var (
-		aggregationsByKey = make(map[http.Key]*model.HTTPAggregations, len(httpData))
-		tagsByKey         = make(map[http.Key]uint64, len(httpData))
-
-		// Pre-allocate some of the objects
-		dataPool = make([]model.HTTPStats_Data, len(httpData)*http.NumStatusClasses)
-		ptrPool  = make([]*model.HTTPStats_Data, len(httpData)*http.NumStatusClasses)
-		poolIdx  = 0
-	)
-
-	for key, stats := range httpData {
-		path := key.Path
-		method := key.Method
-		key.Path = ""
-		key.Method = http.MethodUnknown
-
-		httpAggregations, ok := aggregationsByKey[key]
-		if !ok {
-			httpAggregations = &model.HTTPAggregations{
-				EndpointAggregations: make([]*model.HTTPStats, 0, 10),
-			}
-
-			aggregationsByKey[key] = httpAggregations
-		}
-
-		ms := &model.HTTPStats{
-			Path:                  path,
-			Method:                model.HTTPMethod(method),
-			StatsByResponseStatus: ptrPool[poolIdx : poolIdx+http.NumStatusClasses],
-		}
-
-		var tags uint64
-		for i := 0; i < len(stats); i++ {
-			data := &dataPool[poolIdx+i]
-			ms.StatsByResponseStatus[i] = data
-			data.Count = uint32(stats[i].Count)
-
-			if latencies := stats[i].Latencies; latencies != nil {
-				blob, _ := proto.Marshal(latencies.ToProto())
-				data.Latencies = blob
-			} else {
-				data.FirstLatencySample = stats[i].FirstLatencySample
-			}
-			tags |= stats[i].Tags
-		}
-		tagsByKey[key] |= tags
-
-		poolIdx += http.NumStatusClasses
-		httpAggregations.EndpointAggregations = append(httpAggregations.EndpointAggregations, ms)
+// FormatConnectionTelemetry converts telemetry from its internal representation to a protobuf message
+func FormatConnectionTelemetry(tel map[network.ConnTelemetryType]int64) map[string]int64 {
+	if tel == nil {
+		return nil
 	}
 
-	return aggregationsByKey, tagsByKey
-}
-
-// Build the key for the http map based on whether the local or remote side is http.
-func httpKeyFromConn(c network.ConnectionStats) http.Key {
-	// Retrieve translated addresses
-	laddr, lport := network.GetNATLocalAddress(c)
-	raddr, rport := network.GetNATRemoteAddress(c)
-
-	// HTTP data is always indexed as (client, server), so we account for that when generating the
-	// the lookup key using the port range heuristic.
-	// In the rare cases where both ports are within the same range we ensure that sport < dport
-	// to mimic the normalization heuristic done in the eBPF side (see `port_range.h`)
-	if (network.IsEphemeralPort(int(lport)) && !network.IsEphemeralPort(int(rport))) ||
-		(network.IsEphemeralPort(int(lport)) == network.IsEphemeralPort(int(rport)) && lport < rport) {
-		return http.NewKey(laddr, raddr, lport, rport, "", http.MethodUnknown)
+	ret := make(map[string]int64)
+	for k, v := range tel {
+		ret[string(k)] = v
 	}
-
-	return http.NewKey(raddr, laddr, rport, lport, "", http.MethodUnknown)
+	return ret
 }
 
 func returnToPool(c *model.Connections) {
@@ -214,7 +134,7 @@ func returnToPool(c *model.Connections) {
 }
 
 func formatAddr(addr util.Address, port uint16, ipc ipCache) *model.Addr {
-	if addr == nil {
+	if addr.IsZero() {
 		return nil
 	}
 

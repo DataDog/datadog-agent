@@ -42,7 +42,7 @@ func TestSELinux(t *testing.T) {
 		},
 	}
 
-	if cmd := exec.Command("sudo", "-n", "sestatus"); cmd.Run() != nil {
+	if !isSELinuxEnabled() {
 		t.Skipf("SELinux is not available, skipping tests")
 	}
 
@@ -166,7 +166,7 @@ func TestSELinuxCommitBools(t *testing.T) {
 	}
 	defer test.Close()
 
-	if cmd := exec.Command("sudo", "-n", "sestatus"); cmd.Run() != nil {
+	if !isSELinuxEnabled() {
 		t.Skipf("SELinux is not available, skipping tests")
 	}
 
@@ -210,6 +210,11 @@ func rawSudoWrite(filePath, writeContent string, ignoreRunError bool) error {
 		return err
 	}
 	return nil
+}
+
+func isSELinuxEnabled() bool {
+	cmd := exec.Command("sudo", "-n", "selinuxenabled")
+	return cmd.Run() == nil && cmd.ProcessState.Success()
 }
 
 func getBoolValue(boolName string) (bool, error) {

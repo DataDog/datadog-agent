@@ -19,6 +19,7 @@ from lib.stepper import Step
 class TestE2EKubernetes(unittest.TestCase):
     namespace = "default"
     in_cluster = False
+    hostname = "k8s-e2e-tests-control-plane"
 
     def setUp(self):
         warnings.simplefilter("ignore", category=ResourceWarning)
@@ -29,19 +30,16 @@ class TestE2EKubernetes(unittest.TestCase):
         self.agent_rule_id = None
         self.policies = None
 
-        self.App = App()
+        self.app = App()
         self.kubernetes_helper = KubernetesHelper(namespace=self.namespace, in_cluster=self.in_cluster)
         self.policy_loader = PolicyLoader()
 
     def tearDown(self):
         if self.agent_rule_id:
-            self.App.delete_agent_rule(self.agent_rule_id)
+            self.app.delete_agent_rule(self.agent_rule_id)
 
         if self.signal_rule_id:
-            self.App.delete_signal_rule(self.signal_rule_id)
-
-        if self.policies:
-            os.remove(self.policies)
+            self.app.delete_signal_rule(self.signal_rule_id)
 
     def test_open_signal(self):
         print("")
@@ -56,28 +54,18 @@ class TestE2EKubernetes(unittest.TestCase):
         agent_rule_name = f"e2e_agent_rule_{test_id}"
 
         with Step(msg=f"check agent rule({test_id}) creation", emoji=":straight_ruler:"):
-            self.agent_rule_id = self.App.create_cws_agent_rule(
+            self.agent_rule_id = self.app.create_cws_agent_rule(
                 agent_rule_name,
                 desc,
                 f'open.file.path == "{filename}"',
             )
 
         with Step(msg=f"check signal rule({test_id}) creation", emoji=":straight_ruler:"):
-            self.signal_rule_id = self.App.create_cws_signal_rule(
+            self.signal_rule_id = self.app.create_cws_signal_rule(
                 desc,
                 "signal rule for e2e testing",
                 agent_rule_name,
             )
-
-        with Step(msg="check policies download", emoji=":file_folder:"):
-            self.policies = self.App.download_policies()
-            data = self.policy_loader.load(self.policies)
-            self.assertIsNotNone(data, msg="unable to load policy")
-
-        with Step(msg="check rule presence in policies", emoji=":bullseye:"):
-            rule = self.policy_loader.get_rule_by_desc(desc)
-            self.assertIsNotNone(rule, msg="unable to find e2e rule")
-            self.assertEqual(rule["id"], agent_rule_name)
 
         with Step(msg="select pod", emoji=":man_running:"):
             self.kubernetes_helper.select_pod_name("app=datadog-agent")
@@ -88,15 +76,47 @@ class TestE2EKubernetes(unittest.TestCase):
         with Step(msg="check system-probe start", emoji=":customs:"):
             wait_agent_log("system-probe", self.kubernetes_helper, SYS_PROBE_START_LOG)
 
+        with Step(msg="check ruleset_loaded", emoji=":delivery_truck:"):
+            event = self.app.wait_app_log("rule_id:ruleset_loaded")
+            attributes = event["data"][-1]["attributes"]["attributes"]
+            start_date = attributes["date"]
+            self.app.check_for_ignored_policies(self, attributes)
+
         with Step(msg="wait for host tags (3m)", emoji=":alarm_clock:"):
             time.sleep(3 * 60)
 
-        with Step(msg="upload policies", emoji=":down_arrow:"):
-            self.kubernetes_helper.cp_to_agent("system-probe", self.policies, "/tmp/runtime-security.d/default.policy")
+        with Step(msg="check policies download", emoji=":file_folder:"):
+            self.policies = self.kubernetes_helper.download_policies()
+            self.assertNotEqual(self.policies, "", msg="check policy download failed")
+            data = self.policy_loader.load(self.policies)
+            self.assertIsNotNone(data, msg="unable to load policy")
 
-        with Step(msg="restart system-probe", emoji=":rocket:"):
-            self.kubernetes_helper.kill_agent("system-probe", "-HUP")
-            time.sleep(60)
+        with Step(msg="check rule presence in policies", emoji=":bullseye:"):
+            rule = self.policy_loader.get_rule_by_desc(desc)
+            self.assertIsNotNone(rule, msg="unable to find e2e rule")
+            self.assertEqual(rule["id"], agent_rule_name)
+
+        with Step(msg="push policies", emoji=":envelope:"):
+            self.kubernetes_helper.push_policies(self.policies)
+
+        with Step(msg="reload policies", emoji=":rocket:"):
+            self.kubernetes_helper.reload_policies()
+
+        with Step(msg="check ruleset_loaded", emoji=":delivery_truck:"):
+            for _i in range(60):  # retry 60 times
+                event = self.app.wait_app_log("rule_id:ruleset_loaded")
+                attributes = event["data"][-1]["attributes"]["attributes"]
+                restart_date = attributes["date"]
+                # search for restart log until the timestamp differs
+                if restart_date != start_date:
+                    break
+                time.sleep(1)
+            else:
+                self.fail("check ruleset_loaded timeouted")
+            self.app.check_for_ignored_policies(self, attributes)
+
+        with Step(msg="wait for datadog.security_agent.runtime.running metric", emoji="\N{beer mug}"):
+            self.app.wait_for_metric("datadog.security_agent.runtime.running", host=TestE2EKubernetes.hostname)
 
         with Step(msg="check agent event", emoji=":check_mark_button:"):
             os.system(f"touch {filename}")
@@ -114,7 +134,7 @@ class TestE2EKubernetes(unittest.TestCase):
             )
 
         with Step(msg="check app event", emoji=":chart_increasing_with_yen:"):
-            event = self.App.wait_app_log(f"rule_id:{agent_rule_name}")
+            event = self.app.wait_app_log(f"rule_id:{agent_rule_name}")
             attributes = event["data"][0]["attributes"]
 
             self.assertIn("tag1", attributes["tags"], "unable to find tag")
@@ -122,7 +142,7 @@ class TestE2EKubernetes(unittest.TestCase):
 
         with Step(msg="check app signal", emoji=":1st_place_medal:"):
             tag = f"rule_id:{agent_rule_name}"
-            signal = self.App.wait_app_signal(tag)
+            signal = self.app.wait_app_signal(tag)
             attributes = signal["data"][0]["attributes"]
 
             self.assertIn(tag, attributes["tags"], "unable to find rule_id tag")
@@ -130,6 +150,11 @@ class TestE2EKubernetes(unittest.TestCase):
                 agent_rule_name,
                 attributes["attributes"]["agent"]["rule_id"],
                 "unable to find rule_id tag attribute",
+            )
+
+        with Step(msg="wait for datadog.security_agent.runtime.containers_running metric", emoji="\N{beer mug}"):
+            self.app.wait_for_metric(
+                "datadog.security_agent.runtime.containers_running", host=TestE2EKubernetes.hostname
             )
 
         print(emoji.emojize(":heart_on_fire:"), flush=True)

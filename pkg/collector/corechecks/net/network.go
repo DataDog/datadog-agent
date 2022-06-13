@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/shirou/gopsutil/net"
+	"github.com/shirou/gopsutil/v3/net"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -118,7 +118,7 @@ func (n defaultNetworkStats) NetstatTCPExtCounters() (map[string]int64, error) {
 
 // Run executes the check
 func (c *NetworkCheck) Run() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}

@@ -10,7 +10,6 @@ package k8s
 
 import (
 	"context"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
@@ -73,7 +72,7 @@ func (c *IngressCollector) IsAvailable() bool {
 		RetryCount:    3,               // try 3 times
 		RetryDelay:    1 * time.Second, // with 1 sec interval
 	}); err != nil {
-		log.Errorf("Couldn't setup api retrier: %w", err)
+		log.Errorf("Couldn't setup api retrier: %v", err)
 		return false
 	}
 
@@ -96,7 +95,7 @@ func (c *IngressCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors
 		APIClient:  rcfg.APIClient,
 		Cfg:        rcfg.Config,
 		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: atomic.AddInt32(rcfg.MsgGroupRef, 1),
+		MsgGroupID: rcfg.MsgGroupRef.Inc(),
 		NodeType:   c.metadata.NodeType,
 	}
 
