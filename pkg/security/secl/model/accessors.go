@@ -854,7 +854,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).Exec.Process.IsThread
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 	case "exec.pid":
 		return &eval.IntEvaluator{
@@ -2838,7 +2838,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).ProcessContext.Process.IsThread
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 	case "process.pid":
 		return &eval.IntEvaluator{
@@ -3960,7 +3960,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.IsThread
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 	case "ptrace.tracee.pid":
 		return &eval.IntEvaluator{
@@ -5839,7 +5839,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).Signal.Target.Process.IsThread
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 	case "signal.target.pid":
 		return &eval.IntEvaluator{

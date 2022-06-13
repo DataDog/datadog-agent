@@ -855,10 +855,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.is_thread":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
-				return (*Event)(ctx.Object).ResolveProcessIsThread((*Event)(ctx.Object).Exec.Process)
+				return (*Event)(ctx.Object).Exec.Process.IsThread
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 	case "exec.pid":
 		return &eval.IntEvaluator{
@@ -2658,7 +2658,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				value := iterator.Front(ctx)
 				for value != nil {
 					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessIsThread(&element.ProcessContext.Process)
+					result := element.ProcessContext.Process.IsThread
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3115,10 +3115,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.is_thread":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
-				return (*Event)(ctx.Object).ResolveProcessIsThread(&(*Event)(ctx.Object).ProcessContext.Process)
+				return (*Event)(ctx.Object).ProcessContext.Process.IsThread
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 	case "process.pid":
 		return &eval.IntEvaluator{
@@ -4056,7 +4056,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				value := iterator.Front(ctx)
 				for value != nil {
 					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessIsThread(&element.ProcessContext.Process)
+					result := element.ProcessContext.Process.IsThread
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -4513,10 +4513,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.is_thread":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
-				return (*Event)(ctx.Object).ResolveProcessIsThread(&(*Event)(ctx.Object).PTrace.Tracee.Process)
+				return (*Event)(ctx.Object).PTrace.Tracee.Process.IsThread
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 	case "ptrace.tracee.pid":
 		return &eval.IntEvaluator{
@@ -6211,7 +6211,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				value := iterator.Front(ctx)
 				for value != nil {
 					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessIsThread(&element.ProcessContext.Process)
+					result := element.ProcessContext.Process.IsThread
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -6668,10 +6668,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.is_thread":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
-				return (*Event)(ctx.Object).ResolveProcessIsThread(&(*Event)(ctx.Object).Signal.Target.Process)
+				return (*Event)(ctx.Object).Signal.Target.Process.IsThread
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 	case "signal.target.pid":
 		return &eval.IntEvaluator{
@@ -7981,7 +7981,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "exec.group":
 		return e.Exec.Process.Credentials.Group, nil
 	case "exec.is_thread":
-		return e.ResolveProcessIsThread(e.Exec.Process), nil
+		return e.Exec.Process.IsThread, nil
 	case "exec.pid":
 		return int(e.Exec.Process.PIDContext.Pid), nil
 	case "exec.ppid":
@@ -8687,7 +8687,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
 			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessIsThread(&element.ProcessContext.Process)
+			result := element.ProcessContext.Process.IsThread
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -8843,7 +8843,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "process.group":
 		return e.ProcessContext.Process.Credentials.Group, nil
 	case "process.is_thread":
-		return e.ResolveProcessIsThread(&e.ProcessContext.Process), nil
+		return e.ProcessContext.Process.IsThread, nil
 	case "process.pid":
 		return int(e.ProcessContext.Process.PIDContext.Pid), nil
 	case "process.ppid":
@@ -9335,7 +9335,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
 			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessIsThread(&element.ProcessContext.Process)
+			result := element.ProcessContext.Process.IsThread
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -9491,7 +9491,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "ptrace.tracee.group":
 		return e.PTrace.Tracee.Process.Credentials.Group, nil
 	case "ptrace.tracee.is_thread":
-		return e.ResolveProcessIsThread(&e.PTrace.Tracee.Process), nil
+		return e.PTrace.Tracee.Process.IsThread, nil
 	case "ptrace.tracee.pid":
 		return int(e.PTrace.Tracee.Process.PIDContext.Pid), nil
 	case "ptrace.tracee.ppid":
@@ -10171,7 +10171,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
 			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessIsThread(&element.ProcessContext.Process)
+			result := element.ProcessContext.Process.IsThread
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -10327,7 +10327,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "signal.target.group":
 		return e.Signal.Target.Process.Credentials.Group, nil
 	case "signal.target.is_thread":
-		return e.ResolveProcessIsThread(&e.Signal.Target.Process), nil
+		return e.Signal.Target.Process.IsThread, nil
 	case "signal.target.pid":
 		return int(e.Signal.Target.Process.PIDContext.Pid), nil
 	case "signal.target.ppid":
