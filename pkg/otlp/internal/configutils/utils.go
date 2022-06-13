@@ -12,14 +12,11 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/config"
-	"go.opentelemetry.io/collector/config/configmapprovider"
-	"go.opentelemetry.io/collector/config/configunmarshaler"
 	"go.opentelemetry.io/collector/service"
 	"gopkg.in/yaml.v2"
 )
 
 // NewMapFromYAMLString creates a config.Map from a YAML-formatted configuration string.
-// Adapted from: https://github.com/open-telemetry/opentelemetry-collector/blob/v0.41.0/config/configmapprovider/inmemory.go
 func NewMapFromYAMLString(cfg string) (*config.Map, error) {
 	inp := strings.NewReader(cfg)
 	content, err := ioutil.ReadAll(inp)
@@ -40,21 +37,19 @@ const (
 	mapLocation   = "map:hardcoded"
 )
 
-var _ configmapprovider.Provider = (*mapProvider)(nil)
+var _ config.MapProvider = (*mapProvider)(nil)
 
 type mapProvider struct {
 	cfg *config.Map
 }
 
-func (m *mapProvider) Retrieve(_ context.Context, location string, _ configmapprovider.WatcherFunc) (configmapprovider.Retrieved, error) {
+func (m *mapProvider) Retrieve(_ context.Context, location string, _ config.WatcherFunc) (config.Retrieved, error) {
 	// We only support the constant location 'map:hardcoded'
 	if location != mapLocation {
 		return nil, fmt.Errorf("%v location is not supported by %v provider", location, mapSchemeName)
 	}
 
-	return configmapprovider.NewRetrieved(func(context.Context) (*config.Map, error) {
-		return m.cfg, nil
-	})
+	return config.NewRetrievedFromMap(m.cfg)
 }
 
 func (m *mapProvider) Shutdown(context.Context) error {
@@ -66,10 +61,10 @@ func NewConfigProviderFromMap(cfg *config.Map) service.ConfigProvider {
 	provider := &mapProvider{cfg}
 	return service.MustNewConfigProvider(
 		[]string{mapLocation},
-		map[string]configmapprovider.Provider{
+		map[string]config.MapProvider{
 			"map": provider,
 		},
 		[]config.MapConverterFunc{},
-		configunmarshaler.NewDefault(),
+		config.NewDefault(),
 	)
 }

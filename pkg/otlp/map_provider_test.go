@@ -11,13 +11,11 @@ package otlp
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config"
-	"go.opentelemetry.io/collector/config/configunmarshaler"
-
-	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
 func TestNewMap(t *testing.T) {
@@ -266,7 +264,7 @@ func TestUnmarshal(t *testing.T) {
 	components, err := getComponents(&serializer.MockSerializer{})
 	require.NoError(t, err)
 
-	cu := configunmarshaler.NewDefault()
+	cu := config.NewDefault()
 	_, err = cu.Unmarshal(cfg, components)
 	require.NoError(t, err)
 }
