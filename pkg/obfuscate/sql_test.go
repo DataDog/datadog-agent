@@ -1173,49 +1173,49 @@ func TestPGJSONOperators(t *testing.T) {
 			"select users.custom #> '{a,b}' from users",
 			"select users.custom #> ? from users",
 			SQLConfig{
-				DBMS: DBMSPostgresql,
+				DBMS: DBMSPostgres,
 			},
 		},
 		{
 			"select users.custom #>> '{a,b}' from users",
 			"select users.custom #>> ? from users",
 			SQLConfig{
-				DBMS: DBMSPostgresql,
+				DBMS: DBMSPostgres,
 			},
 		},
 		{
 			"select users.custom #- '{a,b}' from users",
 			"select users.custom #- ? from users",
 			SQLConfig{
-				DBMS: DBMSPostgresql,
+				DBMS: DBMSPostgres,
 			},
 		},
 		{
 			"select users.custom -> 'foo' from users",
 			"select users.custom -> ? from users",
 			SQLConfig{
-				DBMS: DBMSPostgresql,
+				DBMS: DBMSPostgres,
 			},
 		},
 		{
 			"select users.custom ->> 'foo' from users",
 			"select users.custom ->> ? from users",
 			SQLConfig{
-				DBMS: DBMSPostgresql,
+				DBMS: DBMSPostgres,
 			},
 		},
 		{
 			"select * from users where user.custom @> '{a,b}'",
 			"select * from users where user.custom @> ?",
 			SQLConfig{
-				DBMS: DBMSPostgresql,
+				DBMS: DBMSPostgres,
 			},
 		},
 		{
 			`SELECT a FROM foo WHERE value<@name`,
 			`SELECT a FROM foo WHERE value <@ name`,
 			SQLConfig{
-				DBMS: DBMSPostgresql,
+				DBMS: DBMSPostgres,
 			},
 		},
 		// Ensure that in a non-postgresql dbms, ident<@ident should parse
@@ -1240,7 +1240,7 @@ func TestPGJSONOperators(t *testing.T) {
 			"select * from users where user.custom ?| array [ '1', '2' ]",
 			"select * from users where user.custom ?| array [ ? ]",
 			SQLConfig{
-				DBMS: DBMSPostgresql,
+				DBMS: DBMSPostgres,
 			},
 		},
 
@@ -1248,7 +1248,7 @@ func TestPGJSONOperators(t *testing.T) {
 			"select * from users where user.custom ?& array [ '1', '2' ]",
 			"select * from users where user.custom ?& array [ ? ]",
 			SQLConfig{
-				DBMS: DBMSPostgresql,
+				DBMS: DBMSPostgres,
 			},
 		},
 	} {

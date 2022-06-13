@@ -175,8 +175,8 @@ func (k TokenKind) String() string {
 
 const (
 	// DBMSSQLServer is a MS SQL Server
-	DBMSSQLServer  = "mssql"
-	DBMSPostgreSQL = "postgresql"
+	DBMSSQLServer = "mssql"
+	DBMSPostgres  = "postgresql"
 )
 
 const escapeCharacter = '\\'
@@ -305,7 +305,7 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				return TokenKind(ch), tkn.bytes()
 			}
 		case '?':
-			if tkn.cfg.DBMS == DBMSPostgresql {
+			if tkn.cfg.DBMS == DBMSPostgres {
 				switch tkn.lastChar {
 				case '|':
 					tkn.advance()
@@ -317,7 +317,7 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 					return JSONKeyExists, tkn.bytes()
 				}
 			}
-			return TokenKind(ch), tkn.bytes()
+			fallthrough
 		case '=', ',', ';', '(', ')', '+', '*', '&', '|', '^', '[', ']':
 			return TokenKind(ch), tkn.bytes()
 		case '.':
@@ -341,15 +341,18 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 			case tkn.lastChar == '-':
 				tkn.advance()
 				return tkn.scanCommentType1("--")
-			case tkn.lastChar == '>' && tkn.cfg.DBMS == DBMSPostgresql:
-				tkn.advance()
-				switch tkn.lastChar {
-				case '>':
+			case tkn.lastChar == '>':
+				if tkn.cfg.DBMS == DBMSPostgres {
 					tkn.advance()
-					return JSONSelectText, []byte("->>")
-				default:
-					return JSONSelect, []byte("->")
+					switch tkn.lastChar {
+					case '>':
+						tkn.advance()
+						return JSONSelectText, []byte("->>")
+					default:
+						return JSONSelect, []byte("->")
+					}
 				}
+				fallthrough
 			case isDigit(tkn.lastChar):
 				kind, tokenBytes := tkn.scanNumber(false)
 				return kind, append([]byte{'-'}, tokenBytes...)
@@ -366,10 +369,10 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				return TokenKind(ch), tkn.bytes()
 			}
 		case '#':
-			if tkn.cfg.DBMS == DBMSSQLServer {
+			switch tkn.cfg.DBMS {
+			case DBMSSQLServer:
 				return tkn.scanIdentifier()
-			}
-			if tkn.cfg.DBMS == DBMSPostgresql {
+			case DBMSPostgres:
 				switch tkn.lastChar {
 				case '>':
 					tkn.advance()
@@ -386,9 +389,10 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				default:
 					return TokenKind(ch), tkn.bytes()
 				}
+			default:
+				tkn.advance()
+				return tkn.scanCommentType1("#")
 			}
-			tkn.advance()
-			return tkn.scanCommentType1("#")
 		case '<':
 			switch tkn.lastChar {
 			case '>':
@@ -405,7 +409,7 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				}
 			// Check for the postgres left jsonb contains operator <@
 			case '@':
-				if tkn.cfg.DBMS == DBMSPostgresql {
+				if tkn.cfg.DBMS == DBMSPostgres {
 					tkn.advance()
 					return JSONContainsLeft, []byte("<@")
 				}
@@ -476,11 +480,11 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 			}
 			return kind, tok
 		case '@':
-			// For postgres the @ symbol is reserved as an operator
-			// https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-OPERATORS
-			// And is used as a json operator
-			// https://www.postgresql.org/docs/9.5/functions-json.html
-			if tkn.cfg.DBMS == DBMSPostgresql {
+			if tkn.cfg.DBMS == DBMSPostgres {
+				// For postgres the @ symbol is reserved as an operator
+				// https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-OPERATORS
+				// And is used as a json operator
+				// https://www.postgresql.org/docs/9.5/functions-json.html
 				switch tkn.lastChar {
 				case '>':
 					tkn.advance()
