@@ -54,12 +54,12 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/DataDog/agent-payload/v5 v5.0.22
 	github.com/DataDog/btf-internals v0.0.0-20220424171854-ebe6bce9afb0
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.37.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.37.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/quantile v0.37.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.37.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.37.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/trace v0.37.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.37.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.37.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/quantile v0.37.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.37.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.37.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/trace v0.37.0-rc.7
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf-manager v0.0.0-20220406140358-68e6b7f54dde
