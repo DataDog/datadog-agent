@@ -137,7 +137,6 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	}
 
 	if !lp.DetectLambdaLibrary() {
-		// TODO: pull this functionality out and add it into the init functions
 		startExecutionSpan(lp.GetExecutionInfo(), lp.GetInferredSpan(), startDetails.StartTime, lambdaPayloadString, startDetails.InvokeEventHeaders, lp.InferredSpansEnabled)
 	}
 }
