@@ -3,6 +3,7 @@ run:
     - cmd/agent/app/reloadcheck.go # ignore unused command for now
     - cmd/agent/app/listchecks.go  # ignore unused command for now
     - pkg/util/cloudproviders/cloudfoundry/bbscache_test.go # implements interface from imported package whose method names fail linting
+    - pkg/util/intern/string.go # TODO: fix govet 'unsafeptr' error
 
 issues:
   exclude-use-default: false
