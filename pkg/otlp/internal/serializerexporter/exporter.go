@@ -66,6 +66,7 @@ type exporter struct {
 	tr          *translator.Translator
 	s           serializer.MetricSerializer
 	hostname    string
+	extraTags   []string
 	cardinality collectors.TagCardinality
 }
 
@@ -129,16 +130,25 @@ func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporte
 		return nil, err
 	}
 
+	var extraTags []string
+
+	// if the server is running in a context where static tags are required, add those
+	// to extraTags.
+	if tags := util.GetStaticTagsSlice(context.TODO()); tags != nil {
+		extraTags = append(extraTags, tags...)
+	}
+
 	return &exporter{
 		tr:          tr,
 		s:           s,
 		hostname:    hostname,
+		extraTags:   extraTags,
 		cardinality: cardinality,
 	}, nil
 }
 
 func (e *exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
-	consumer := &serializerConsumer{cardinality: e.cardinality}
+	consumer := &serializerConsumer{cardinality: e.cardinality, extraTags: e.extraTags}
 	err := e.tr.MapMetrics(ctx, ld, consumer)
 	if err != nil {
 		return err

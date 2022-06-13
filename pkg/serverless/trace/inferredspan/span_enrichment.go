@@ -13,10 +13,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// EnrichInferredSpanWithAPIGatewayRESTEvent uses the parsed event
+// enrichInferredSpanWithAPIGatewayRESTEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a REST event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayRESTEvent(attributes EventKeys) {
+func (inferredSpan *InferredSpan) enrichInferredSpanWithAPIGatewayRESTEvent(attributes EventKeys) {
 
 	log.Debug("Enriching an inferred span for a REST API Gateway")
 	requestContext := attributes.RequestContext
@@ -43,10 +43,10 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayRESTEvent(attr
 	inferredSpan.IsAsync = isAsyncEvent(attributes)
 }
 
-// EnrichInferredSpanWithAPIGatewayHTTPEvent uses the parsed event
+// enrichInferredSpanWithAPIGatewayHTTPEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a HTTP event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayHTTPEvent(attributes EventKeys) {
+func (inferredSpan *InferredSpan) enrichInferredSpanWithAPIGatewayHTTPEvent(attributes EventKeys) {
 	log.Debug("Enriching an inferred span for a HTTP API Gateway")
 	requestContext := attributes.RequestContext
 	http := requestContext.HTTP
@@ -75,10 +75,10 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayHTTPEvent(attr
 	inferredSpan.IsAsync = isAsyncEvent(attributes)
 }
 
-// EnrichInferredSpanWithAPIGatewayWebsocketEvent uses the parsed event
+// enrichInferredSpanWithAPIGatewayWebsocketEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a Websocket event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayWebsocketEvent(attributes EventKeys) {
+func (inferredSpan *InferredSpan) enrichInferredSpanWithAPIGatewayWebsocketEvent(attributes EventKeys) {
 	log.Debug("Enriching an inferred span for a Websocket API Gateway")
 	requestContext := attributes.RequestContext
 	endpoint := requestContext.RouteKey
@@ -107,7 +107,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayWebsocketEvent
 	inferredSpan.IsAsync = isAsyncEvent(attributes)
 }
 
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithSNSEvent(attributes EventKeys) {
+func (inferredSpan *InferredSpan) enrichInferredSpanWithSNSEvent(attributes EventKeys) {
 	eventRecord := *attributes.Records[0]
 	snsMessage := eventRecord.SNS
 	splitArn := strings.Split(snsMessage.TopicArn, ":")

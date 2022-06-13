@@ -8,7 +8,6 @@ package agent
 import (
 	"context"
 	"runtime"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
@@ -217,11 +216,11 @@ func (a *Agent) Process(p *api.Payload) {
 		}
 
 		tracen := int64(len(chunk.Spans))
-		atomic.AddInt64(&ts.SpansReceived, tracen)
+		ts.SpansReceived.Add(tracen)
 		err := normalizeTrace(p.Source, chunk.Spans)
 		if err != nil {
 			log.Debugf("Dropping invalid trace: %s", err)
-			atomic.AddInt64(&ts.SpansDropped, tracen)
+			ts.SpansDropped.Add(tracen)
 			p.RemoveChunk(i)
 			continue
 		}
@@ -231,16 +230,16 @@ func (a *Agent) Process(p *api.Payload) {
 		normalizeChunk(chunk, root)
 		if !a.Blacklister.Allows(root) {
 			log.Debugf("Trace rejected by ignore resources rules. root: %v", root)
-			atomic.AddInt64(&ts.TracesFiltered, 1)
-			atomic.AddInt64(&ts.SpansFiltered, tracen)
+			ts.TracesFiltered.Inc()
+			ts.SpansFiltered.Add(tracen)
 			p.RemoveChunk(i)
 			continue
 		}
 
 		if filteredByTags(root, a.conf.RequireTags, a.conf.RejectTags) {
 			log.Debugf("Trace rejected as it fails to meet tag requirements. root: %v", root)
-			atomic.AddInt64(&ts.TracesFiltered, 1)
-			atomic.AddInt64(&ts.SpansFiltered, tracen)
+			ts.TracesFiltered.Inc()
+			ts.SpansFiltered.Add(tracen)
 			p.RemoveChunk(i)
 			continue
 		}
@@ -438,7 +437,7 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedT
 	if hasPriority {
 		ts.TracesPerSamplingPriority.CountSamplingPriority(priority)
 	} else {
-		atomic.AddInt64(&ts.TracesPriorityNone, 1)
+		ts.TracesPriorityNone.Inc()
 	}
 
 	if priority < 0 {
@@ -455,8 +454,8 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedT
 	}
 	numEvents, numExtracted := a.EventProcessor.Process(pt.Root, filteredChunk)
 
-	atomic.AddInt64(&ts.EventsExtracted, numExtracted)
-	atomic.AddInt64(&ts.EventsSampled, numEvents)
+	ts.EventsExtracted.Add(numExtracted)
+	ts.EventsSampled.Add(numEvents)
 
 	return numEvents, sampled, filteredChunk
 }

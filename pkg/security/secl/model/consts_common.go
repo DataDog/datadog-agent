@@ -15,6 +15,8 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+
+	lru "github.com/hashicorp/golang-lru"
 )
 
 const (
@@ -39,6 +41,8 @@ const (
 )
 
 var (
+	// vmConstants is the list of protection flags for a virtual memory segment
+	// generate_constants:Virtual Memory flags,Virtual Memory flags define the protection of a virtual memory segment.
 	vmConstants = map[string]int{
 		"VM_NONE":         0x0,
 		"VM_READ":         0x1,
@@ -75,6 +79,7 @@ var (
 	}
 
 	// BPFCmdConstants is the list of BPF commands
+	// generate_constants:BPF commands,BPF commands are used to specify a command to a bpf syscall.
 	BPFCmdConstants = map[string]BPFCmd{
 		"BPF_MAP_CREATE":                  BpfMapCreateCmd,
 		"BPF_MAP_LOOKUP_ELEM":             BpfMapLookupElemCmd,
@@ -116,6 +121,7 @@ var (
 	}
 
 	// BPFHelperFuncConstants is the list of BPF helper func constants
+	// generate_constants:BPF helper functions,BPF helper functions are the supported BPF helper functions.
 	BPFHelperFuncConstants = map[string]BPFHelperFunc{
 		"BPF_UNSPEC":                         BpfUnspec,
 		"BPF_MAP_LOOKUP_ELEM":                BpfMapLookupElem,
@@ -286,6 +292,7 @@ var (
 	}
 
 	// BPFMapTypeConstants is the list of BPF map type constants
+	// generate_constants:BPF map types,BPF map types are the supported eBPF map types.
 	BPFMapTypeConstants = map[string]BPFMapType{
 		"BPF_MAP_TYPE_UNSPEC":                BpfMapTypeUnspec,
 		"BPF_MAP_TYPE_HASH":                  BpfMapTypeHash,
@@ -320,6 +327,7 @@ var (
 	}
 
 	// BPFProgramTypeConstants is the list of BPF program type constants
+	// generate_constants:BPF program types,BPF program types are the supported eBPF program types.
 	BPFProgramTypeConstants = map[string]BPFProgramType{
 		"BPF_PROG_TYPE_UNSPEC":                  BpfProgTypeUnspec,
 		"BPF_PROG_TYPE_SOCKET_FILTER":           BpfProgTypeSocketFilter,
@@ -355,6 +363,7 @@ var (
 	}
 
 	// BPFAttachTypeConstants is the list of BPF attach type constants
+	// generate_constants:BPF attach types,BPF attach types are the supported eBPF program attach types.
 	BPFAttachTypeConstants = map[string]BPFAttachType{
 		"BPF_CGROUP_INET_INGRESS":      BpfCgroupInetIngress,
 		"BPF_CGROUP_INET_EGRESS":       BpfCgroupInetEgress,
@@ -398,6 +407,7 @@ var (
 	}
 
 	// PipeBufFlagConstants is the list of pipe buffer flags
+	// generate_constants:Pipe buffer flags,Pipe buffer flags are the supported flags for a pipe buffer.
 	PipeBufFlagConstants = map[string]PipeBufFlag{
 		"PIPE_BUF_FLAG_LRU":       PipeBufFlagLRU,
 		"PIPE_BUF_FLAG_ATOMIC":    PipeBufFlagAtomic,
@@ -409,6 +419,7 @@ var (
 	}
 
 	// DNSQTypeConstants see https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml
+	// generate_constants:DNS qtypes,DNS qtypes are the supported DNS query types.
 	DNSQTypeConstants = map[string]int{
 		"None":       0,
 		"A":          1,
@@ -497,6 +508,7 @@ var (
 	}
 
 	// DNSQClassConstants see https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml
+	// generate_constants:DNS qclasses,DNS qclasses are the supported DNS query classes.
 	DNSQClassConstants = map[string]int{
 		"CLASS_INET":   1,
 		"CLASS_CSNET":  2,
@@ -506,7 +518,8 @@ var (
 		"CLASS_ANY":    255,
 	}
 
-	// SECLConstants are constants available in runtime security agent rules
+	// SECLConstants are constants supported in runtime security agent rules
+	// generate_constants:SecL constants,SecL constants are the supported generic SecL constants.
 	SECLConstants = map[string]interface{}{
 		// boolean
 		"true":  &eval.BoolEvaluator{Value: true},
@@ -514,6 +527,7 @@ var (
 	}
 
 	// L3ProtocolConstants is the list of supported L3 protocols
+	// generate_constants:L3 protocols,L3 protocols are the supported Layer 3 protocols.
 	L3ProtocolConstants = map[string]L3Protocol{
 		"ETH_P_LOOP":            EthPLOOP,
 		"ETH_P_PUP":             EthPPUP,
@@ -608,6 +622,7 @@ var (
 	}
 
 	// L4ProtocolConstants is the list of supported L4 protocols
+	// generate_constants:L4 protocols,L4 protocols are the supported Layer 4 protocols.
 	L4ProtocolConstants = map[string]L4Protocol{
 		"IP_PROTO_IP":      IPProtoIP,
 		"IP_PROTO_ICMP":    IPProtoICMP,
@@ -659,6 +674,7 @@ var (
 	dnsQClassStrings          = map[uint32]string{}
 	l3ProtocolStrings         = map[L3Protocol]string{}
 	l4ProtocolStrings         = map[L4Protocol]string{}
+	addressFamilyStrings      = map[uint16]string{}
 )
 
 // File flags
@@ -834,6 +850,16 @@ func initL4ProtocolConstants() {
 	}
 }
 
+func initAddressFamilyConstants() {
+	for k, v := range addressFamilyConstants {
+		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+	}
+
+	for k, v := range addressFamilyConstants {
+		addressFamilyStrings[v] = k
+	}
+}
+
 func initConstants() {
 	initErrorConstants()
 	initOpenConstants()
@@ -855,6 +881,7 @@ func initConstants() {
 	initDNSQTypeConstants()
 	initL3ProtocolConstants()
 	initL4ProtocolConstants()
+	initAddressFamilyConstants()
 }
 
 func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
@@ -959,8 +986,11 @@ func (f RetValError) String() string {
 	return ""
 }
 
+var capsStringArrayCache *lru.Cache
+
 func init() {
 	initConstants()
+	capsStringArrayCache, _ = lru.New(4)
 }
 
 // KernelCapability represents a kernel capability bitmask value
@@ -972,7 +1002,12 @@ func (kc KernelCapability) String() string {
 
 // StringArray returns the kernel capabilities as an array of strings
 func (kc KernelCapability) StringArray() []string {
-	return bitmaskU64ToStringArray(uint64(kc), kernelCapabilitiesStrings)
+	if value, ok := capsStringArrayCache.Get(kc); ok {
+		return value.([]string)
+	}
+	computed := bitmaskU64ToStringArray(uint64(kc), kernelCapabilitiesStrings)
+	capsStringArrayCache.Add(kc, computed)
+	return computed
 }
 
 // BPFCmd represents a BPF command
@@ -1683,6 +1718,13 @@ type PipeBufFlag int
 
 func (pbf PipeBufFlag) String() string {
 	return bitmaskToString(int(pbf), pipeBufFlagStrings)
+}
+
+// AddressFamily represents a family address (AF_INET, AF_INET6, AF_UNIX etc)
+type AddressFamily int
+
+func (af AddressFamily) String() string {
+	return addressFamilyStrings[uint16(af)]
 }
 
 const (

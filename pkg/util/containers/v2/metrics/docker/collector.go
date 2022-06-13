@@ -121,7 +121,7 @@ func (d *dockerCollector) GetContainerIDForPID(pid int, cacheValidity time.Durat
 		return "", err
 	}
 
-	// Use harcoded cacheValidity as input one could be 0
+	// Use hardcoded cacheValidity as input one could be 0
 	cID, found, _ = d.pidCache.Get(currentTime, strPid, time.Second)
 	if found {
 		return cID.(string), nil
@@ -174,11 +174,7 @@ func (d *dockerCollector) refreshPIDCache(currentTime time.Time, cacheValidity t
 	}
 
 	// Full refresh
-	containers, err := d.metadataStore.ListContainers()
-	if err != nil {
-		d.pidCache.Store(currentTime, pidCacheFullRefreshKey, struct{}{}, err)
-		return err
-	}
+	containers := d.metadataStore.ListContainers()
 
 	for _, container := range containers {
 		if container.Runtime == workloadmeta.ContainerRuntimeDocker && container.PID != 0 {

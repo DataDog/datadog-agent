@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 
+	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/Masterminds/semver"
 	"github.com/theupdateframework/go-tuf/data"
 )
 
+// DirectorTargetsCustomMetadata TODO (<remote-config>): RCM-228
 type DirectorTargetsCustomMetadata struct {
 	Predicates *pbgo.TracerPredicates `json:"tracer-predicates,omitempty"`
 }
@@ -22,20 +23,28 @@ func executeClientPredicates(
 ) ([]string, error) {
 	configs := make([]string, 0)
 
+	productsMap := make(map[string]struct{})
+	for _, product := range client.Products {
+		productsMap[product] = struct{}{}
+	}
+
 	for path, meta := range directorTargets {
+		pathMeta, err := rdata.ParseConfigPath(path)
+		if err != nil {
+			return nil, err
+		}
+		if _, productRequested := productsMap[pathMeta.Product]; !productRequested {
+			continue
+		}
 		tracerPredicates, err := parsePredicates(meta.Custom)
 		if err != nil {
 			return nil, err
 		}
 
 		var matched bool
-		nullPredicates := tracerPredicates == nil || tracerPredicates.TracerPredicates == nil
+		nullPredicates := tracerPredicates == nil || tracerPredicates.TracerPredicatesV1 == nil
 		if !nullPredicates {
-			if tracerPredicates.Version != 0 {
-				log.Infof("Unsupported predicate version %d for products %s", tracerPredicates.Version)
-				continue
-			}
-			matched, err = executePredicate(client, tracerPredicates.TracerPredicates)
+			matched, err = executePredicate(client, tracerPredicates.TracerPredicatesV1)
 			if err != nil {
 				return nil, err
 			}
@@ -62,7 +71,7 @@ func parsePredicates(customJSON *json.RawMessage) (*pbgo.TracerPredicates, error
 	return metadata.Predicates, nil
 }
 
-func executePredicate(client *pbgo.Client, predicates []*pbgo.TracerPredicate) (bool, error) {
+func executePredicate(client *pbgo.Client, predicates []*pbgo.TracerPredicateV1) (bool, error) {
 	for _, predicate := range predicates {
 		if client.IsTracer {
 			tracer := client.ClientTracer

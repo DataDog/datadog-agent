@@ -10,6 +10,7 @@ package host
 
 import (
 	"runtime"
+	"strings"
 
 	"github.com/shirou/gopsutil/v3/host"
 )
@@ -20,4 +21,8 @@ const osName = runtime.GOOS
 
 func fillOsVersion(stats *systemStats, info *host.InfoStat) {
 	stats.Nixver = osVersion{info.Platform, info.PlatformVersion, ""}
+}
+
+func getOSVersion(info *host.InfoStat) string {
+	return strings.Trim(info.Platform+" "+info.PlatformVersion, " ")
 }

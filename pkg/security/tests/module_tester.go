@@ -94,12 +94,14 @@ runtime_security_config:
 {{end}}
   erpc_dentry_resolution_enabled: {{ .ErpcDentryResolutionEnabled }}
   map_dentry_resolution_enabled: {{ .MapDentryResolutionEnabled }}
+  self_test:
+    enabled: false
 
   policies:
     dir: {{.TestPoliciesDir}}
   log_patterns:
   {{range .LogPatterns}}
-    - {{.}}
+    - "{{.}}"
   {{end}}
   log_tags:
   {{range .LogTags}}
@@ -582,7 +584,6 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		return nil, errors.Wrap(err, "failed to load config")
 	}
 
-	config.SelfTestEnabled = false
 	config.ERPCDentryResolutionEnabled = !opts.disableERPCDentryResolution
 	config.MapDentryResolutionEnabled = !opts.disableMapDentryResolution
 
@@ -707,7 +708,12 @@ func (tm *testModule) reloadConfiguration() error {
 	log.Debugf("reload configuration with testDir: %s", tm.Root())
 	tm.config.PoliciesDir = tm.Root()
 
-	if err := tm.module.Reload(); err != nil {
+	provider, err := rules.NewPoliciesDirProvider(tm.config.PoliciesDir, false)
+	if err != nil {
+		return err
+	}
+
+	if err := tm.module.LoadPolicies([]rules.PolicyProvider{provider}, true); err != nil {
 		return errors.Wrap(err, "failed to reload test module")
 	}
 

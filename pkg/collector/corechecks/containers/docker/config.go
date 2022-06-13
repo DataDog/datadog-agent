@@ -16,6 +16,7 @@ const (
 	DockerExit      = "docker.exit"
 )
 
+// DockerConfig holds the docker check configuration
 type DockerConfig struct {
 	CollectContainerSize     bool               `yaml:"collect_container_size"`
 	CollectContainerSizeFreq uint64             `yaml:"collect_container_size_frequency"`
@@ -31,6 +32,7 @@ type DockerConfig struct {
 	CappedMetrics            map[string]float64 `yaml:"capped_metrics"`
 }
 
+// Parse reads the docker check configuration
 func (c *DockerConfig) Parse(data []byte) error {
 	// default values
 	c.CollectEvent = true

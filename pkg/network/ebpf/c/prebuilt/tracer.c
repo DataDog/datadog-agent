@@ -11,6 +11,7 @@
 #include "bpf_endian.h"
 #include "ip.h"
 #include "ipv6.h"
+#include "port.h"
 
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>
@@ -23,15 +24,19 @@
 
 #include "sock.h"
 
-static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk) {
+static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u8 state) {
     u32 rtt = 0;
     u32 rtt_var = 0;
     bpf_probe_read(&rtt, sizeof(rtt), ((char*)sk) + offset_rtt());
     bpf_probe_read(&rtt_var, sizeof(rtt_var), ((char*)sk) + offset_rtt_var());
 
     tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
+    if (state > 0) {
+        stats.state_transitions = (1 << state);
+    }
     update_tcp_stats(t, stats);
 }
+
 static __always_inline void get_tcp_segment_counts(struct sock* skp, __u32* packets_in, __u32* packets_out) {
     // counting segments/packets not currently supported on prebuilt
     // to implement, would need to do the offset-guess on the following
@@ -88,7 +93,7 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
         return 0;
     }
 
-    handle_tcp_stats(&t, skp);
+    handle_tcp_stats(&t, skp, 0);
 
     __u32 packets_in = 0;
     __u32 packets_out = 0;
@@ -113,6 +118,7 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs* ctx) {
         return 0;
     }
 
+    handle_tcp_stats(&t, sk, 0);
     return handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE);
 }
 
@@ -431,15 +437,13 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
-    handle_tcp_stats(&t, sk);
+    handle_tcp_stats(&t, sk, TCP_ESTABLISHED);
     handle_message(&t, 0, 0, CONN_DIRECTION_INCOMING, 0, 0, PACKET_COUNT_NONE);
 
     port_binding_t pb = {};
     pb.netns = t.netns;
     pb.port = t.sport;
-    __u8 state = PORT_LISTENING;
-    bpf_map_update_elem(&port_bindings, &pb, &state, BPF_NOEXIST);
-
+    add_port_bind(&pb, &port_bindings);
     log_debug("kretprobe/inet_csk_accept: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
     return 0;
 }
@@ -453,12 +457,11 @@ int kprobe__inet_csk_listen_stop(struct pt_regs* ctx) {
         return 0;
     }
 
-    port_binding_t t = {};
-    t.netns = get_netns_from_sock(sk);
-    t.port = lport;
-    bpf_map_delete_elem(&port_bindings, &t);
-
-    log_debug("kprobe/inet_csk_listen_stop: net ns: %u, lport: %u\n", t.netns, t.port);
+    port_binding_t pb = {};
+    pb.netns = get_netns_from_sock(sk);
+    pb.port = lport;
+    remove_port_bind(&pb, &port_bindings);
+    log_debug("kprobe/inet_csk_listen_stop: net ns: %u, lport: %u\n", pb.netns, pb.port);
     return 0;
 }
 
@@ -486,10 +489,10 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
     // although we have net ns info, we don't use it in the key
     // since we don't have it everywhere for udp port bindings
     // (see sys_enter_bind/sys_exit_bind below)
-    port_binding_t t = {};
-    t.netns = 0;
-    t.port = lport;
-    bpf_map_delete_elem(&udp_port_bindings, &t);
+    port_binding_t pb = {};
+    pb.netns = 0;
+    pb.port = lport;
+    remove_port_bind(&pb, &udp_port_bindings);
 
     log_debug("kprobe/udp_destroy_sock: port %d marked as closed\n", lport);
 
@@ -584,11 +587,10 @@ static __always_inline int sys_exit_bind(__s64 ret) {
     }
 
     __u16 sin_port = args->port;
-    __u8 port_state = PORT_LISTENING;
-    port_binding_t t = {};
-    t.netns = 0; // don't have net ns info in this context
-    t.port = sin_port;
-    bpf_map_update_elem(&udp_port_bindings, &t, &port_state, BPF_ANY);
+    port_binding_t pb = {};
+    pb.netns = 0; // don't have net ns info in this context
+    pb.port = sin_port;
+    add_port_bind(&pb, &udp_port_bindings);
     log_debug("sys_exit_bind: bound UDP port %u\n", sin_port);
 
     return 0;

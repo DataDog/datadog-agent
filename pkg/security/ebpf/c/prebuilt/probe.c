@@ -63,6 +63,7 @@
 #include "tc.h"
 #include "module.h"
 #include "signal.h"
+#include "bind.h"
 #include "net_device.h"
 #include "procfs.h"
 #include "offset.h"

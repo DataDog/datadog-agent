@@ -25,6 +25,7 @@ var _ translator.Consumer = (*serializerConsumer)(nil)
 
 type serializerConsumer struct {
 	cardinality collectors.TagCardinality
+	extraTags   []string
 	series      metrics.Series
 	sketches    metrics.SketchSeriesList
 }
@@ -32,7 +33,8 @@ type serializerConsumer struct {
 // enrichedTags of a given dimension.
 // In the OTLP pipeline, 'contexts' are kept within the translator and function differently than DogStatsD/check metrics.
 func (c *serializerConsumer) enrichedTags(dimensions *translator.Dimensions) []string {
-	enrichedTags := make([]string, 0, len(dimensions.Tags()))
+	enrichedTags := make([]string, 0, len(c.extraTags)+len(dimensions.Tags()))
+	enrichedTags = append(enrichedTags, c.extraTags...)
 	enrichedTags = append(enrichedTags, dimensions.Tags()...)
 
 	entityTags, err := tagger.Tag(dimensions.OriginID(), c.cardinality)

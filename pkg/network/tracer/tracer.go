@@ -9,6 +9,7 @@
 package tracer
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -529,12 +530,8 @@ func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 		t.conntracker.DeleteTranslation(*entry)
 
 		// Append the connection key to the keys to remove from the userspace state
-		bk, err := entry.ByteKey(t.buf)
-		if err != nil {
-			log.Warnf("failed to create connection byte_key: %s", err)
-		} else {
-			keys = append(keys, string(bk))
-		}
+		bk := entry.ByteKey(t.buf)
+		keys = append(keys, string(bk))
 	}
 
 	t.state.RemoveConnections(keys)
@@ -730,6 +727,58 @@ func (t *Tracer) retryConntrack(connections []network.ConnectionStats) {
 			}
 		}
 	}
+}
+
+// DebugCachedConntrack dumps the cached NAT conntrack data
+func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) {
+	rootNSHandle, err := util.GetRootNetNamespace(t.config.ProcRoot)
+	if err != nil {
+		return nil, err
+	}
+	defer rootNSHandle.Close()
+
+	rootNS, err := util.GetInoForNs(rootNSHandle)
+	if err != nil {
+		return nil, err
+	}
+	table, err := t.conntracker.DumpCachedTable(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return struct {
+		RootNS  uint32
+		Entries map[uint32][]netlink.DebugConntrackEntry
+	}{
+		RootNS:  rootNS,
+		Entries: table,
+	}, nil
+}
+
+// DebugHostConntrack dumps the NAT conntrack data obtained from the host via netlink.
+func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
+	rootNSHandle, err := util.GetRootNetNamespace(t.config.ProcRoot)
+	if err != nil {
+		return nil, err
+	}
+	defer rootNSHandle.Close()
+
+	rootNS, err := util.GetInoForNs(rootNSHandle)
+	if err != nil {
+		return nil, err
+	}
+	table, err := netlink.DumpHostTable(ctx, t.config.ProcRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	return struct {
+		RootNS  uint32
+		Entries map[uint32][]netlink.DebugConntrackEntry
+	}{
+		RootNS:  rootNS,
+		Entries: table,
+	}, nil
 }
 
 func newHTTPMonitor(supported bool, c *config.Config, tracer connection.Tracer, offsets []manager.ConstantEditor) *http.Monitor {

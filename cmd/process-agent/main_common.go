@@ -93,7 +93,7 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 }
 
 func init() {
-	rootCmd.AddCommand(configCommand, app.StatusCmd, app.VersionCmd, app.CheckCmd)
+	rootCmd.AddCommand(configCommand, app.StatusCmd, app.VersionCmd, app.CheckCmd, app.EventsCmd)
 }
 
 const (

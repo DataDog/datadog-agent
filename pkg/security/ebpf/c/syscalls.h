@@ -201,6 +201,12 @@ struct syscall_cache_t {
             u32 pipe_entry_flag;
             u32 pipe_exit_flag;
         } splice;
+
+        struct {
+            u64 addr[2];
+            u16 family;
+            u16 port;
+        } bind;
     };
 };
 

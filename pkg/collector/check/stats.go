@@ -26,6 +26,7 @@ var EventPlatformNameTranslations = map[string]string{
 	"dbm-metrics":                "Database Monitoring Query Metrics",
 	"dbm-activity":               "Database Monitoring Activity Samples",
 	"network-devices-metadata":   "Network Devices Metadata",
+	"network-devices-netflow":    "Network Devices NetFlow",
 	"network-devices-snmp-traps": "SNMP Traps",
 }
 

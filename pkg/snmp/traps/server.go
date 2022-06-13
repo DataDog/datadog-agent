@@ -28,7 +28,7 @@ type PacketsChannel = chan *SnmpPacket
 // TrapServer manages an SNMP trap listener.
 type TrapServer struct {
 	Addr     string
-	config   *Config
+	config   Config
 	listener *TrapListener
 	sender   *TrapForwarder
 }
@@ -40,6 +40,10 @@ var (
 
 // StartServer starts the global trap server.
 func StartServer(agentHostname string, demux aggregator.Demultiplexer) error {
+	config, err := ReadConfig(agentHostname)
+	if err != nil {
+		return err
+	}
 	sender, err := demux.GetDefaultSender()
 	if err != nil {
 		return err
@@ -48,11 +52,11 @@ func StartServer(agentHostname string, demux aggregator.Demultiplexer) error {
 	if err != nil {
 		return err
 	}
-	formatter, err := NewJSONFormatter(oidResolver)
+	formatter, err := NewJSONFormatter(oidResolver, config.Namespace)
 	if err != nil {
 		return err
 	}
-	server, err := NewTrapServer(agentHostname, formatter, sender)
+	server, err := NewTrapServer(*config, formatter, sender)
 	serverInstance = server
 	startError = err
 	return err
@@ -72,24 +76,11 @@ func IsRunning() bool {
 	return serverInstance != nil
 }
 
-// GetNamespace returns the device namespace for the traps listener.
-func GetNamespace() string {
-	if serverInstance != nil {
-		return serverInstance.config.Namespace
-	}
-	return defaultNamespace
-}
-
 // NewTrapServer configures and returns a running SNMP traps server.
-func NewTrapServer(agentHostname string, formatter Formatter, aggregator aggregator.Sender) (*TrapServer, error) {
-	config, err := ReadConfig(agentHostname)
-	if err != nil {
-		return nil, err
-	}
-
+func NewTrapServer(config Config, formatter Formatter, aggregator aggregator.Sender) (*TrapServer, error) {
 	packets := make(PacketsChannel, packetsChanSize)
 
-	listener, err := startSNMPTrapListener(*config, packets)
+	listener, err := startSNMPTrapListener(config, packets)
 	if err != nil {
 		return nil, err
 	}

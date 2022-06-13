@@ -34,6 +34,8 @@ type Config struct {
 	RuntimeEnabled bool
 	// PoliciesDir defines the folder in which the policy files are located
 	PoliciesDir string
+	// WatchPoliciesDir activate policy dir inotify
+	WatchPoliciesDir bool
 	// EnableKernelFilters defines if in-kernel filtering should be activated or not
 	EnableKernelFilters bool
 	// EnableApprovers defines if in-kernel approvers should be activated or not
@@ -92,8 +94,6 @@ type Config struct {
 	LogTags []string
 	// SelfTestEnabled defines if the self tests should be executed at startup or not
 	SelfTestEnabled bool
-	// EnableRemoteConfig defines if the agent configuration should be fetched from the backend
-	EnableRemoteConfig bool
 	// ActivityDumpEnabled defines if the activity dump manager should be enabled
 	ActivityDumpEnabled bool
 	// ActivityDumpCleanupPeriod defines the period at which the activity dump manager should perform its cleanup
@@ -132,8 +132,10 @@ type Config struct {
 	RuntimeCompiledConstantsEnabled bool
 	// RuntimeCompiledConstantsIsSet is set if the runtime compiled constants option is user-set
 	RuntimeCompiledConstantsIsSet bool
-	// EventMonitoring enabled event monitoring
+	// EventMonitoring enables event monitoring
 	EventMonitoring bool
+	// RemoteConfigurationEnabled defines whether to use remote monitoring
+	RemoteConfigurationEnabled bool
 }
 
 // IsEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -166,6 +168,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		SocketPath:                         aconfig.Datadog.GetString("runtime_security_config.socket"),
 		SyscallMonitor:                     aconfig.Datadog.GetBool("runtime_security_config.syscall_monitor.enabled"),
 		PoliciesDir:                        aconfig.Datadog.GetString("runtime_security_config.policies.dir"),
+		WatchPoliciesDir:                   aconfig.Datadog.GetBool("runtime_security_config.policies.watch_dir"),
 		EventServerBurst:                   aconfig.Datadog.GetInt("runtime_security_config.event_server.burst"),
 		EventServerRate:                    aconfig.Datadog.GetInt("runtime_security_config.event_server.rate"),
 		EventServerRetention:               aconfig.Datadog.GetInt("runtime_security_config.event_server.retention"),
@@ -186,7 +189,6 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		LogPatterns:                        aconfig.Datadog.GetStringSlice("runtime_security_config.log_patterns"),
 		LogTags:                            aconfig.Datadog.GetStringSlice("runtime_security_config.log_tags"),
 		SelfTestEnabled:                    aconfig.Datadog.GetBool("runtime_security_config.self_test.enabled"),
-		EnableRemoteConfig:                 aconfig.Datadog.GetBool("runtime_security_config.enable_remote_configuration"),
 		ActivityDumpEnabled:                aconfig.Datadog.GetBool("runtime_security_config.activity_dump.enabled"),
 		ActivityDumpCleanupPeriod:          time.Duration(aconfig.Datadog.GetInt("runtime_security_config.activity_dump.cleanup_period")) * time.Second,
 		ActivityDumpTagsResolutionPeriod:   time.Duration(aconfig.Datadog.GetInt("runtime_security_config.activity_dump.tags_resolution_period")) * time.Second,
@@ -202,6 +204,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		RuntimeCompilationEnabled:       aconfig.Datadog.GetBool("runtime_security_config.runtime_compilation.enabled"),
 		RuntimeCompiledConstantsEnabled: aconfig.Datadog.GetBool("runtime_security_config.runtime_compilation.compiled_constants_enabled"),
 		RuntimeCompiledConstantsIsSet:   aconfig.Datadog.IsSet("runtime_security_config.runtime_compilation.compiled_constants_enabled"),
+		RemoteConfigurationEnabled:      aconfig.Datadog.GetBool("runtime_security_config.remote_configuration.enabled"),
 	}
 
 	// if runtime is enabled then we force fim

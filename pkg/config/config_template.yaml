@@ -2210,15 +2210,10 @@ api_key:
   #
   # kubernetes_service_name: "datadog-cluster-agent"
 
-  ## @param max_leader_connections - integer - optional - default: 500
+  ## @param max_leader_connections - integer - optional - default: 100
   ## Maximum number of connections between a follower and a leader.
   #
-  # max_leader_connections: 500
-
-  ## @param max_leader_idle_connections - integer - optional - default: 50
-  ## Maximum number of idle connections between a follower and a leader.
-  #
-  # max_leader_idle_connections: 50
+  # max_leader_connections: 100
 
   ## @param client_reconnect_period_seconds - integer - optional - default: 1200
   ## Set the refersh period for Agent to Cluster Agent connection (new connection is created, old connection is closed).
@@ -2689,6 +2684,16 @@ api_key:
 #
 # containerd_namespaces:
 #   - k8s.io
+#
+## @param containerd_exclude_namespaces - list of strings - optional - default: ["moby"]
+## @env DD_CONTAINERD_EXCLUDE_NAMESPACES - space separated list of strings - optional - default: ["moby"]
+## When containerd_namespaces is set to [], containerd_exclude_namespaces
+## allows the exclusion of containers from specific namespaces. By default it
+## excludes "moby", to prevent Docker containers from being detected as
+## containerd containers.
+#
+# containerd_exclude_namespaces:
+#   - moby
 
 {{ end -}}
 {{- if .Kubelet }}
@@ -3055,9 +3060,8 @@ api_key:
   # namespace: default
 
   ## @param snmp_traps - custom object - optional
-  ## This section configures SNMP traps collection. Traps are forwarded as logs to Datadog.
-  ## NOTE: This feature is currently **EXPERIMENTAL**. Both behavior and configuration options may
-  ## change in the future.
+  ## This section configures SNMP traps collection.
+  ## Traps are forwarded as logs and can be found in the logs explorer with a source:snmp-traps query
   #
   # snmp_traps:
 

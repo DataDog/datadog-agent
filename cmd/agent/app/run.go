@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	"github.com/DataDog/datadog-agent/pkg/netflow"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
@@ -300,7 +301,7 @@ func StartAgent() error {
 
 	err = manager.ConfigureAutoExit(common.MainCtx)
 	if err != nil {
-		return log.Errorf("Unable to configure auto-exit, err: %w", err)
+		return log.Errorf("Unable to configure auto-exit, err: %v", err)
 	}
 
 	hostname, err := util.GetHostname(context.TODO())
@@ -363,18 +364,6 @@ func StartAgent() error {
 	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
 	opts.UseContainerLifecycleForwarder = config.Datadog.GetBool("container_lifecycle.enabled")
 	demux = aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
-	demux.AddAgentStartupTelemetry(version.AgentVersion)
-
-	// start dogstatsd
-	if config.Datadog.GetBool("use_dogstatsd") {
-		var err error
-		common.DSD, err = dogstatsd.NewServer(demux, false)
-		if err != nil {
-			log.Errorf("Could not start dogstatsd: %s", err)
-		} else {
-			log.Debugf("dogstatsd started")
-		}
-	}
 
 	// Setup stats telemetry handler
 	if sender, err := demux.GetDefaultSender(); err == nil {
@@ -396,16 +385,9 @@ func StartAgent() error {
 
 	// Start SNMP trap server
 	if traps.IsEnabled() {
-		if config.Datadog.GetBool("logs_enabled") {
-			err = traps.StartServer(hostname, demux)
-			if err != nil {
-				log.Errorf("Failed to start snmp-traps server: %s", err)
-			}
-		} else {
-			log.Warn(
-				"snmp-traps server did not start, as log collection is disabled. " +
-					"Please enable log collection to collect and forward traps.",
-			)
+		err = traps.StartServer(hostname, demux)
+		if err != nil {
+			log.Errorf("Failed to start snmp-traps server: %s", err)
 		}
 	}
 
@@ -422,6 +404,19 @@ func StartAgent() error {
 	// create and setup the Autoconfig instance
 	common.LoadComponents(common.MainCtx, config.Datadog.GetString("confd_path"))
 
+	demux.AddAgentStartupTelemetry(version.AgentVersion)
+
+	// start dogstatsd
+	if config.Datadog.GetBool("use_dogstatsd") {
+		var err error
+		common.DSD, err = dogstatsd.NewServer(demux, false)
+		if err != nil {
+			log.Errorf("Could not start dogstatsd: %s", err)
+		} else {
+			log.Debugf("dogstatsd started")
+		}
+	}
+
 	// start logs-agent.  This must happen after AutoConfig is set up (via common.LoadComponents)
 	if config.Datadog.GetBool("logs_enabled") || config.Datadog.GetBool("log_enabled") {
 		if config.Datadog.GetBool("log_enabled") {
@@ -432,6 +427,21 @@ func StartAgent() error {
 		}
 	} else {
 		log.Info("logs-agent disabled")
+	}
+
+	// Start NetFlow server
+	// This must happen after LoadComponents is set up (via common.LoadComponents).
+	// netflow.StartServer uses AgentDemultiplexer, that uses ContextResolver, that uses the tagger (initialized by LoadComponents)
+	if netflow.IsEnabled() {
+		sender, err := demux.GetDefaultSender()
+		if err != nil {
+			log.Errorf("Failed to get default sender for NetFlow server: %s", err)
+		} else {
+			err = netflow.StartServer(sender)
+			if err != nil {
+				log.Errorf("Failed to start NetFlow server: %s", err)
+			}
+		}
 	}
 
 	// load and run all configs in AD
@@ -487,6 +497,7 @@ func StopAgent() {
 		common.MetadataScheduler.Stop()
 	}
 	traps.StopServer()
+	netflow.StopServer()
 	api.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()

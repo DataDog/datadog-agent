@@ -121,7 +121,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
   error-node:
     runtime: nodejs14.x
@@ -179,7 +179,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
   timeout-node:
     runtime: nodejs14.x
@@ -249,7 +249,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
   log-node:
     runtime: nodejs14.x
@@ -314,7 +314,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
   trace-node:
     runtime: nodejs14.x
@@ -381,4 +381,4 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper

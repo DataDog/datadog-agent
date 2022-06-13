@@ -61,7 +61,7 @@ type statsd struct {
 
 type forwarders struct {
 	shared             forwarder.Forwarder
-	orchestrator       *forwarder.DefaultForwarder
+	orchestrator       forwarder.Forwarder
 	eventPlatform      epforwarder.EventPlatformForwarder
 	containerLifecycle *forwarder.DefaultForwarder
 }
@@ -96,8 +96,10 @@ func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *Agen
 
 	log.Debugf("Creating forwarders")
 	// orchestrator forwarder
-	var orchestratorForwarder *forwarder.DefaultForwarder
-	if options.UseOrchestratorForwarder {
+	var orchestratorForwarder forwarder.Forwarder
+	if options.UseNoopOrchestratorForwarder {
+		orchestratorForwarder = new(forwarder.NoopForwarder)
+	} else if options.UseOrchestratorForwarder {
 		orchestratorForwarder = buildOrchestratorForwarder()
 	}
 
@@ -238,7 +240,7 @@ func (d *AgentDemultiplexer) Run() {
 		// container lifecycle forwarder
 		if d.forwarders.containerLifecycle != nil {
 			if err := d.forwarders.containerLifecycle.Start(); err != nil {
-				log.Errorf("error starting container lifecycle forwarder: %w", err)
+				log.Errorf("error starting container lifecycle forwarder: %v", err)
 			}
 		} else {
 			log.Debug("not starting the container lifecycle forwarder")
@@ -270,7 +272,7 @@ func (d *AgentDemultiplexer) flushLoop() {
 	if d.options.FlushInterval > 0 {
 		flushTicker = time.NewTicker(d.options.FlushInterval).C
 	} else {
-		log.Debugf("flushInterval set to 0: will never flush automatically")
+		log.Debug("flushInterval set to 0: will never flush automatically")
 	}
 
 	for {

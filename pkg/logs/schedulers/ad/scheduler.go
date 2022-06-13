@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/adlistener"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -27,18 +28,15 @@ import (
 //
 // This type implements  pkg/logs/schedulers.Scheduler.
 type Scheduler struct {
-	mgr                schedulers.SourceManager
-	listener           *adlistener.ADListener
-	sourcesByServiceID map[string]*logsConfig.LogSource
+	mgr      schedulers.SourceManager
+	listener *adlistener.ADListener
 }
 
 var _ schedulers.Scheduler = &Scheduler{}
 
 // New creates a new scheduler.
 func New(ac *autodiscovery.AutoConfig) schedulers.Scheduler {
-	sch := &Scheduler{
-		sourcesByServiceID: make(map[string]*logsConfig.LogSource),
-	}
+	sch := &Scheduler{}
 	sch.listener = adlistener.NewADListener("logs-agent AD scheduler", ac, sch.Schedule, sch.Unschedule)
 	return sch
 }
@@ -78,7 +76,6 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 			}
 			for _, source := range sources {
 				s.mgr.AddSource(source)
-				s.sourcesByServiceID[source.Config.Identifier] = source
 			}
 		case s.newService(config):
 			entityType, _, err := s.parseEntity(config.TaggerEntity)
@@ -119,9 +116,19 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 				log.Warnf("Invalid configuration: %v", err)
 				continue
 			}
-			if source, found := s.sourcesByServiceID[identifier]; found {
-				delete(s.sourcesByServiceID, identifier)
-				s.mgr.RemoveSource(source)
+
+			// remove all the sources for this ServiceID.  This makes the
+			// implicit, and not-quite-correct assumption that we only ever
+			// receive one config for a given ServiceID, and that it generates
+			// the same sources.
+			//
+			// This may also remove sources not added by this scheduler, for
+			// example sources added by other schedulers or sources added by
+			// launchers.
+			for _, source := range s.mgr.GetSources() {
+				if identifier == source.Config.Identifier {
+					s.mgr.RemoveSource(source)
+				}
 			}
 		case s.newService(config):
 			// new service to remove
@@ -172,7 +179,7 @@ func (s *Scheduler) configName(config integration.Config) string {
 
 // toSources creates new sources from an integration config,
 // returns an error if the parsing failed.
-func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSource, error) {
+func (s *Scheduler) toSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 	var configs []*logsConfig.LogsConfig
 	var err error
 
@@ -213,7 +220,7 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 	}
 
 	configName := s.configName(config)
-	var sources []*logsConfig.LogSource
+	var sources []*sourcesPkg.LogSource
 	for _, cfg := range configs {
 		// if no service is set fall back to the global one
 		if cfg.Service == "" && globalServiceDefined {
@@ -233,7 +240,7 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 			}
 		}
 
-		source := logsConfig.NewLogSource(configName, cfg)
+		source := sourcesPkg.NewLogSource(configName, cfg)
 		sources = append(sources, source)
 		if err := cfg.Validate(); err != nil {
 			log.Warnf("Invalid logs configuration: %v", err)
