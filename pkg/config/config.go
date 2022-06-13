@@ -667,8 +667,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.serve_nozzle_data", false)
 	config.BindEnvAndSetDefault("cluster_agent.advanced_tagging", false)
 	config.BindEnvAndSetDefault("cluster_agent.token_name", "datadogtoken")
-	config.BindEnvAndSetDefault("cluster_agent.max_leader_connections", 500)
-	config.BindEnvAndSetDefault("cluster_agent.max_leader_idle_connections", 50)
+	config.BindEnvAndSetDefault("cluster_agent.max_leader_connections", 100)
 	config.BindEnvAndSetDefault("cluster_agent.client_reconnect_period_seconds", 1200)
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 
