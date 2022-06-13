@@ -12,7 +12,11 @@ func GetNestedValue(inputMap map[string]interface{}, keys ...string) interface{}
 		if len(keys) == 1 {
 			return val
 		}
-		return GetNestedValue(val.(map[string]interface{}), keys[1:]...)
+		innerMap, ok := val.(map[string]interface{})
+		if !ok {
+			return nil
+		}
+		return GetNestedValue(innerMap, keys[1:]...)
 	}
 
 	return nil

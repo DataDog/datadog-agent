@@ -22,7 +22,7 @@ func TestGetNestedValueExistsNested(t *testing.T) {
 	err := json.Unmarshal(rawJSON, &jsonMap)
 	assert.Nil(t, err)
 
-	assert.Equal(t, "val2", GetNestedValue(jsonMap, []string{"key2", "key3", "key4"}...))
+	assert.Equal(t, "val2", GetNestedValue(jsonMap, "key2", "key3", "key4"))
 }
 
 func TestGetNestedValueExistsStruct(t *testing.T) {
@@ -33,7 +33,7 @@ func TestGetNestedValueExistsStruct(t *testing.T) {
 
 	assert.Equal(t, map[string]interface{}{
 		"key4": "val2",
-	}, GetNestedValue(jsonMap, []string{"key2", "key3"}...))
+	}, GetNestedValue(jsonMap, "key2", "key3"))
 }
 
 func TestGetNestedValueDoesntExist(t *testing.T) {
@@ -42,7 +42,7 @@ func TestGetNestedValueDoesntExist(t *testing.T) {
 	err := json.Unmarshal(rawJSON, &jsonMap)
 	assert.Nil(t, err)
 
-	assert.Equal(t, nil, GetNestedValue(jsonMap, []string{"doesnt_exist", "key3"}...))
+	assert.Equal(t, nil, GetNestedValue(jsonMap, "doesnt_exist", "key3"))
 }
 
 func TestGetNestedValueDoesntExistNested(t *testing.T) {
@@ -51,5 +51,14 @@ func TestGetNestedValueDoesntExistNested(t *testing.T) {
 	err := json.Unmarshal(rawJSON, &jsonMap)
 	assert.Nil(t, err)
 
-	assert.Equal(t, nil, GetNestedValue(jsonMap, []string{"key5", "doesnt_exist"}...))
+	assert.Equal(t, nil, GetNestedValue(jsonMap, "key5", "doesnt_exist"))
+}
+
+func TestGetNestedValueExistsEarly(t *testing.T) {
+	rawJSON := []byte(`{"key":"val", "key2": "val"}`)
+	jsonMap := make(map[string]interface{})
+	err := json.Unmarshal(rawJSON, &jsonMap)
+	assert.Nil(t, err)
+
+	assert.Equal(t, nil, GetNestedValue(jsonMap, "key2", "key1"))
 }
