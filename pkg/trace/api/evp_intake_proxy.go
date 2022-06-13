@@ -107,37 +107,12 @@ func evpProxyErrorHandler(message string) http.Handler {
 // Headers are not proxied, instead we add our own known set of headers.
 // See also evpProxyTransport below.
 func evpProxyForwarder(conf *config.AgentConfig, endpoints []config.Endpoint, transport http.RoundTripper, logger *stdlog.Logger) http.Handler {
-	director := func(req *http.Request) {
-
-		containerID := req.Header.Get("Datadog-Container-ID")
-		contentType := req.Header.Get("Content-Type")
-		userAgent := req.Header.Get("User-Agent")
-
-		// Clear all received headers
-		req.Header = http.Header{}
-
-		// Standard headers
-		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", info.Version))
-		if contentType != "" {
-			req.Header.Set("Content-Type", contentType)
-		}
-		req.Header.Set("User-Agent", userAgent) // Set even if an empty string so Go doesn't set its default
-		req.Header["X-Forwarded-For"] = nil     // Prevent setting X-Forwarded-For
-
-		// Datadog headers
-		if ctags := getContainerTags(conf.ContainerTags, containerID); ctags != "" {
-			req.Header.Set("X-Datadog-Container-Tags", ctags)
-		}
-		req.Header.Set("X-Datadog-Hostname", conf.Hostname)
-		req.Header.Set("X-Datadog-AgentDefaultEnv", conf.DefaultEnv)
-
-		// URL, Host and the API key header are set in the transport for each outbound request
-	}
-
 	return &httputil.ReverseProxy{
-		Director:  director,
+		Director: func(req *http.Request) {
+			req.Header["X-Forwarded-For"] = nil // Prevent setting X-Forwarded-For
+		},
 		ErrorLog:  logger,
-		Transport: &evpProxyTransport{transport, endpoints, conf.EVPProxy.MaxPayloadSize},
+		Transport: &evpProxyTransport{transport, endpoints, conf},
 	}
 }
 
@@ -147,14 +122,14 @@ func evpProxyForwarder(conf *config.AgentConfig, endpoints []config.Endpoint, tr
 // is proxied back to the client, while for all aditional endpoints the
 // response is discarded.
 type evpProxyTransport struct {
-	transport      http.RoundTripper
-	endpoints      []config.Endpoint
-	maxPayloadSize int64
+	transport http.RoundTripper
+	endpoints []config.Endpoint
+	conf      *config.AgentConfig
 }
 
 func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
-	if req.Body != nil && t.maxPayloadSize > 0 {
-		req.Body = apiutil.NewLimitedReader(req.Body, t.maxPayloadSize)
+	if req.Body != nil && t.conf.EVPProxy.MaxPayloadSize > 0 {
+		req.Body = apiutil.NewLimitedReader(req.Body, t.conf.EVPProxy.MaxPayloadSize)
 	}
 
 	// Metrics with stats for debugging
@@ -172,14 +147,11 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 		}
 	}()
 
-	// Parse request path: The first component is the target subdomain, the rest is the target path.
-	inputPath := req.URL.Path
-	parts := strings.SplitN(inputPath, "/", 3)
-	if len(parts) != 3 || parts[0] != "" || parts[1] == "" || parts[2] == "" {
-		return nil, fmt.Errorf("EVPProxy: invalid path: '%s'", inputPath)
-	}
-	subdomain := parts[1]
-	req.URL.Path = strings.TrimPrefix(req.URL.Path, "/"+subdomain)
+	// Read the input headers
+	subdomain := req.Header.Get("X-Datadog-EVP-Subdomain")
+	containerID := req.Header.Get("Datadog-Container-ID")
+	contentType := req.Header.Get("Content-Type")
+	userAgent := req.Header.Get("User-Agent")
 
 	// Sanitize the input
 	if !isValidSubdomain(subdomain) {
@@ -193,7 +165,24 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 		return nil, fmt.Errorf("EVPProxy: invalid query string: %s", req.URL.RawQuery)
 	}
 
-	// Configure target URL
+	// Clear all received headers
+	req.Header = http.Header{}
+
+	// Set standard headers
+	req.Header.Set("Via", fmt.Sprintf("trace-agent %s", info.Version))
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	req.Header.Set("User-Agent", userAgent) // Set even if an empty string so Go doesn't set its default
+
+	// Set Datadog headers, except API key which is set per-endpoint
+	if ctags := getContainerTags(t.conf.ContainerTags, containerID); ctags != "" {
+		req.Header.Set("X-Datadog-Container-Tags", ctags)
+	}
+	req.Header.Set("X-Datadog-Hostname", t.conf.Hostname)
+	req.Header.Set("X-Datadog-AgentDefaultEnv", t.conf.DefaultEnv)
+
+	// Set target URL & API key header
 	req.URL.Scheme = "https"
 	setTarget := func(r *http.Request, host, apiKey string) {
 		targetHost := subdomain + "." + host
@@ -202,7 +191,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 		r.Header.Set("DD-API-KEY", apiKey)
 	}
 
-	// Special case if we only have one endpoint
+	// Shortcut if we only have one endpoint
 	if len(t.endpoints) == 1 {
 		setTarget(req, t.endpoints[0].Host, t.endpoints[0].APIKey)
 		return t.transport.RoundTrip(req)
