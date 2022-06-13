@@ -1166,7 +1166,7 @@ func TestProcessIsThread(t *testing.T) {
 			assert.Equal(t, openTriggerFilename, event.Open.File.BasenameStr, "wrong opened file basename")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.FileEvent.BasenameStr, "wrong process file basename")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.Ancestor.ProcessContext.FileEvent.BasenameStr, "wrong parent process file basename")
-			assert.True(t, event.ThreadContext.IsThread, "process should be marked as being a thread")
+			assert.True(t, event.ProcessContext.IsThread, "process should be marked as being a thread")
 		})
 	})
 
@@ -1181,7 +1181,7 @@ func TestProcessIsThread(t *testing.T) {
 			assert.Equal(t, openTriggerFilename, event.Open.File.BasenameStr, "wrong opened file basename")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.FileEvent.BasenameStr, "wrong process file basename")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.Ancestor.ProcessContext.FileEvent.BasenameStr, "wrong parent process file basename")
-			assert.False(t, event.ThreadContext.IsThread, "process should be marked as not being a thread")
+			assert.False(t, event.ProcessContext.IsThread, "process should be marked as not being a thread")
 		})
 	})
 }

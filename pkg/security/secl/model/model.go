@@ -123,10 +123,6 @@ type ContainerContext struct {
 	Tags []string `field:"tags,ResolveContainerTags:9999"` // Tags of the container
 }
 
-type ThreadContext struct {
-	IsThread bool `field:"is_thread,ResolveIsThread" msg:"is_thread"` // Indicator of whether the process is considered a thread (that is, a child process that hasn't executed another program)
-}
-
 // Event represents an event sent from the kernel
 //msgp:ignore Event
 // genaccessors
@@ -144,7 +140,6 @@ type Event struct {
 	ProcessContext    *ProcessContext    `field:"process" event:"*"`
 	ContainerContext  ContainerContext   `field:"container"`
 	NetworkContext    NetworkContext     `field:"network"`
-	ThreadContext     ThreadContext      `field:"process"`
 
 	// fim events
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
@@ -323,6 +318,8 @@ type Process struct {
 	ScrubbedArgv          []string       `field:"-" msg:"-"`
 	ScrubbedArgsTruncated bool           `field:"-" msg:"-"`
 	Variables             eval.Variables `field:"-" msg:"-"`
+
+	IsThread bool `field:"is_thread,ResolveProcessIsThread" msg:"is_thread"` // Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)
 }
 
 // SpanContext describes a span context

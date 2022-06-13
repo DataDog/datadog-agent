@@ -132,6 +132,7 @@ type ProcessSerializer struct {
 	ArgsTruncated       bool                          `json:"args_truncated,omitempty" jsonschema_description:"Indicator of arguments truncation"`
 	Envs                []string                      `json:"envs,omitempty" jsonschema_description:"Environment variables of the process"`
 	EnvsTruncated       bool                          `json:"envs_truncated,omitempty" jsonschema_description:"Indicator of environments variable truncation"`
+	IsThread            bool                          `json:"is_thread,omitempty" jsonschema_description:"Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)"`
 }
 
 // ContainerContextSerializer serializes a container context to JSON
@@ -160,7 +161,6 @@ type EventContextSerializer struct {
 	Category string `json:"category,omitempty" jsonschema_description:"Event category"`
 	Outcome  string `json:"outcome,omitempty" jsonschema_description:"Event outcome"`
 	Async    bool   `json:"async,omitempty" jsonschema_description:"True if the event was asynchronous"`
-	IsThread bool   `json:"is_thread,omitempty" jsonschema_description:"Indicates whether the event was triggered by a thread"`
 }
 
 // ProcessContextSerializer serializes a process context to JSON
@@ -453,6 +453,7 @@ func newProcessSerializer(ps *model.Process, e *Event) *ProcessSerializer {
 		ArgsTruncated: argvTruncated,
 		Envs:          envs,
 		EnvsTruncated: EnvsTruncated,
+		IsThread:      ps.IsThread,
 	}
 
 	credsSerializer := newCredentialsSerializer(&ps.Credentials)
@@ -754,8 +755,7 @@ func NewEventSerializer(event *Event) *EventSerializer {
 
 	s := &EventSerializer{
 		EventContextSerializer: EventContextSerializer{
-			Name:     model.EventType(event.Type).String(),
-			IsThread: event.ThreadContext.IsThread,
+			Name: model.EventType(event.Type).String(),
 		},
 		ProcessContextSerializer: newProcessContextSerializer(&pc, event, event.resolvers),
 		DDContextSerializer:      newDDContextSerializer(event),
