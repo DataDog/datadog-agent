@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -139,28 +140,9 @@ func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[stri
 // a JSON payload. For example, for `a5a{"event":"aws_lambda"...}0` it would remove
 // a5a at the front and 0 at the end, and just leave a correct JSON payload.
 func parseLambdaPayload(rawPayload string) string {
-	leftFound, rightFound := false, false
-	leftIndex, rightIndex := 0, 0
-	for i, char := range rawPayload {
-		if char == '{' {
-			leftIndex = i
-			leftFound = true
-			break
-		}
-	}
-	for i := range rawPayload {
-		if rawPayload[len(rawPayload)-i-1] == '}' {
-			rightIndex = len(rawPayload) - i - 1
-			rightFound = true
-			break
-		}
-	}
-	// If we can't find a valid json string, just return
-	// the actual payload
-	if leftFound == false || rightFound == false {
-		return rawPayload
-	}
-	if rightIndex <= leftIndex {
+	leftIndex := strings.Index(rawPayload, "{")
+	rightIndex := strings.LastIndex(rawPayload, "}")
+	if leftIndex == -1 || rightIndex == -1 {
 		return rawPayload
 	}
 	return rawPayload[leftIndex : rightIndex+1]
