@@ -643,6 +643,11 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.stop_timeout", 5) // in seconds
 	config.SetKnown("network_devices.snmp_traps.users")
 
+	// NetFlow
+	config.SetKnown("network_devices.netflow")
+	config.BindEnvAndSetDefault("network_devices.netflow.enabled", "false")
+	bindEnvAndSetLogsConfigKeys(config, "network_devices.netflow.forwarder.")
+
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
 	config.BindEnvAndSetDefault("kubernetes_apiserver_ca_path", "")

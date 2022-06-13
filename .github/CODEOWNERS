@@ -213,6 +213,7 @@
 /pkg/compliance/                        @DataDog/agent-security
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
+/pkg/netflow/                           @DataDog/infrastructure-integrations
 /pkg/snmp/                              @DataDog/infrastructure-integrations
 /pkg/trace/appsec/                      @DataDog/agent-appsec
 /pkg/config/appsec.go                   @DataDog/agent-appsec
