@@ -289,12 +289,17 @@ type AgentConfig struct {
 	ExtraAggregators []string
 
 	// Sampler configuration
-	ExtraSampleRate    float64
-	TargetTPS          float64
-	ErrorTPS           float64
-	DisableRareSampler bool
-	MaxEPS             float64
-	MaxRemoteTPS       float64
+	ExtraSampleRate float64
+	TargetTPS       float64
+	ErrorTPS        float64
+	MaxEPS          float64
+	MaxRemoteTPS    float64
+
+	// Rare Sampler configuation
+	DisableRareSampler        bool
+	RareSamplerTPS            int
+	RareSamplerCooldownPeriod time.Duration
+	RareSamplerCardinality    int
 
 	// Receiver
 	ReceiverHost    string
@@ -425,6 +430,11 @@ func New() *AgentConfig {
 		ErrorTPS:        10,
 		MaxEPS:          200,
 		MaxRemoteTPS:    100,
+
+		DisableRareSampler:        false,
+		RareSamplerTPS:            5,
+		RareSamplerCooldownPeriod: 5 * time.Minute,
+		RareSamplerCardinality:    200,
 
 		ReceiverHost:           "localhost",
 		ReceiverPort:           8126,

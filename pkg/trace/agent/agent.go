@@ -88,7 +88,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		Replacer:              filters.NewReplacer(conf.ReplaceTags),
 		PrioritySampler:       sampler.NewPrioritySampler(conf, dynConf),
 		ErrorsSampler:         sampler.NewErrorsSampler(conf),
-		RareSampler:           sampler.NewRareSampler(),
+		RareSampler:           sampler.NewRareSampler(conf),
 		NoPrioritySampler:     sampler.NewNoPrioritySampler(conf),
 		EventProcessor:        newEventProcessor(conf),
 		TraceWriter:           writer.NewTraceWriter(conf),

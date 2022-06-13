@@ -812,7 +812,7 @@ func TestSampling(t *testing.T) {
 			NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
 			ErrorsSampler:     sampler.NewErrorsSampler(cfg),
 			PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
-			RareSampler:       sampler.NewRareSampler(),
+			RareSampler:       sampler.NewRareSampler(config.New()),
 			conf:              cfg,
 		}
 		if ac.errorsSampled {
@@ -952,7 +952,7 @@ func TestPartialSamplingFree(t *testing.T) {
 		ErrorsSampler:     sampler.NewErrorsSampler(cfg),
 		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
 		EventProcessor:    newEventProcessor(cfg),
-		RareSampler:       sampler.NewRareSampler(),
+		RareSampler:       sampler.NewRareSampler(config.New()),
 		TraceWriter:       &writer.TraceWriter{In: writerChan},
 		conf:              cfg,
 	}
