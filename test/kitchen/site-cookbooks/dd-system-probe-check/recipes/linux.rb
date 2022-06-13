@@ -7,6 +7,17 @@ case node[:platform]
     apt_update
 end
 
+execute "update yum repositories" do
+  command "yum -y update"
+  user "root"
+  case node[:platform]
+  when 'amazon'
+    action :run
+  else
+    action :nothing
+  end
+end
+
 kernel_version = `uname -r`.strip
 package 'kernel headers' do
   case node[:platform]
