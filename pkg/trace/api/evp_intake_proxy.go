@@ -90,7 +90,7 @@ func (r *HTTPReceiver) evpProxyHandler() http.Handler {
 	transport := r.conf.NewHTTPTransport()
 	logger := stdlog.New(log.NewThrottled(5, 10*time.Second), "EVPProxy: ", 0) // limit to 5 messages every 10 seconds
 	handler := evpProxyForwarder(r.conf, endpoints, transport, logger)
-	return http.StripPrefix("/evp_proxy/v1/input", handler)
+	return http.StripPrefix("/evp_proxy/v1", handler)
 }
 
 // evpProxyErrorHandler returns an HTTP handler that will always return
