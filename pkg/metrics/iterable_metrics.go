@@ -110,7 +110,7 @@ func (it *iterableMetrics) WaitForValue() bool {
 // `producer` callback is responsible for adding the data. It runs in the current goroutine.
 // `serieConsumer` callback is responsible for consuming the series. It runs in its OWN goroutine.
 // `sketchesConsumer` callback is responsible for consuming the sketches. It runs in its OWN goroutine.
-// This function returns when both `producer`, `serieConsumer` and `sketchesConsumer` functions are finished.
+// This function returns when all three `producer`, `serieConsumer` and `sketchesConsumer` functions are finished.
 func Serialize(
 	iterableSeries *IterableSeries,
 	iterableSketches *IterableSketches,
