@@ -154,6 +154,9 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	userAgent := req.Header.Get("User-Agent")
 
 	// Sanitize the input
+	if len(subdomain) == 0 {
+		return nil, fmt.Errorf("EVPProxy: no subdomain specified")
+	}
 	if !isValidSubdomain(subdomain) {
 		return nil, fmt.Errorf("EVPProxy: invalid subdomain: %s", subdomain)
 	}

@@ -170,6 +170,28 @@ func TestEVPProxyForwarder(t *testing.T) {
 		assert.Equal(t, "", logs)
 	})
 
+	t.Run("no subdomain", func(t *testing.T) {
+		stats.Reset()
+
+		conf := newTestReceiverConfig()
+		conf.Site = "us3.datadoghq.com"
+		conf.Endpoints[0].APIKey = "test_api_key"
+
+		req := httptest.NewRequest("POST", "/mypath/mysubpath", nil)
+		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
+
+		require.Len(t, proxyreqs, 0)
+		require.Equal(t, http.StatusBadGateway, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
+		require.Contains(t, logs, "no subdomain")
+
+		// check metrics
+		require.Len(t, stats.CountCalls, 3)
+		assert.Equal(t, "datadog.trace_agent.evp_proxy.request_error", stats.CountCalls[2].Name)
+		assert.Equal(t, float64(1), stats.CountCalls[2].Value)
+		assert.Equal(t, float64(1), stats.CountCalls[2].Rate)
+		assert.Len(t, stats.CountCalls[2].Tags, 0)
+	})
+
 	t.Run("invalid subdomain", func(t *testing.T) {
 		stats.Reset()
 
