@@ -672,8 +672,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.serve_nozzle_data", false)
 	config.BindEnvAndSetDefault("cluster_agent.advanced_tagging", false)
 	config.BindEnvAndSetDefault("cluster_agent.token_name", "datadogtoken")
-	config.BindEnvAndSetDefault("cluster_agent.max_leader_connections", 500)
-	config.BindEnvAndSetDefault("cluster_agent.max_leader_idle_connections", 50)
+	config.BindEnvAndSetDefault("cluster_agent.max_leader_connections", 100)
 	config.BindEnvAndSetDefault("cluster_agent.client_reconnect_period_seconds", 1200)
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 
@@ -1016,6 +1015,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.map_dentry_resolution_enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.dentry_cache_size", 1024)
 	config.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
+	config.BindEnvAndSetDefault("runtime_security_config.policies.watch_dir", false)
 	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 	config.BindEnvAndSetDefault("runtime_security_config.enable_approvers", true)
 	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)

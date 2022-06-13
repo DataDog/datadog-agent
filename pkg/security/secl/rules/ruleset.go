@@ -589,6 +589,7 @@ func (rs *RuleSet) generatePartials() error {
 	return nil
 }
 
+// LoadPolicies loads policies from the provided policy loader
 func (rs *RuleSet) LoadPolicies(loader *PolicyLoader) *multierror.Error {
 	var (
 		errs       *multierror.Error

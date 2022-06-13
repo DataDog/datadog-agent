@@ -75,5 +75,7 @@ func (t *telemetry) reportContainers() error {
 		return nil
 	}
 
-	return t.containers.ReportContainers(metricName)
+	t.containers.ReportContainers(metricName)
+
+	return nil
 }

@@ -240,7 +240,7 @@ func (d *AgentDemultiplexer) Run() {
 		// container lifecycle forwarder
 		if d.forwarders.containerLifecycle != nil {
 			if err := d.forwarders.containerLifecycle.Start(); err != nil {
-				log.Errorf("error starting container lifecycle forwarder: %w", err)
+				log.Errorf("error starting container lifecycle forwarder: %v", err)
 			}
 		} else {
 			log.Debug("not starting the container lifecycle forwarder")
