@@ -41,13 +41,6 @@ const (
 	defaultZypperReposDirSuffix = "/zypp/repos.d"
 
 	defaultOffsetThreshold = 400
-
-	// DefaultDriverBufferSize (deprecated, Windows) is the default size (bytes) of the system-probe's usermode buffer.
-	// Exported for consistent buffer adjustment calculation.
-	DefaultDriverBufferSize = 1024
-
-	// DefaultFlowEntries (Windows) is the default number of flow entries system-probe's buffer can receive from the driver
-	DefaultFlowEntries = 50
 )
 
 func isSystemProbeConfigInit(cfg Config) bool {
@@ -160,9 +153,6 @@ func InitSystemProbeConfig(cfg Config) {
 
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)
-	cfg.BindEnvAndSetDefault(join(spNS, "windows.driver_buffer_size"), DefaultDriverBufferSize)
-	cfg.BindEnvAndSetDefault(join(netNS, "windows.driver_buffer_size"), DefaultDriverBufferSize)
-	cfg.BindEnvAndSetDefault(join(netNS, "windows.driver_buffer_entries"), DefaultFlowEntries)
 
 	// oom_kill module
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_oom_kill"), false)

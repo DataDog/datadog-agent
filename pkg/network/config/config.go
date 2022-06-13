@@ -150,12 +150,6 @@ type Config struct {
 	// EnableMonotonicCount (Windows only) determines if we will calculate send/recv bytes of connections with headers and retransmits
 	EnableMonotonicCount bool
 
-	// DriverBufferSize (Windows only, deprecated) determines the size (in bytes) of the buffer we pass to the driver when reading flows
-	DriverBufferSize int
-
-	// DriverBufferEntries (Windows only) determines the number of flow entries the buffer we pass to the driver can receive
-	DriverBufferEntries int
-
 	// EnableGatewayLookup enables looking up gateway information for connection destinations
 	EnableGatewayLookup bool
 
@@ -221,8 +215,6 @@ func New() *Config {
 		EnableGatewayLookup: cfg.GetBool(join(netNS, "enable_gateway_lookup")),
 
 		EnableMonotonicCount: cfg.GetBool(join(spNS, "windows.enable_monotonic_count")),
-		DriverBufferSize:     cfg.GetInt(join(netNS, "windows.driver_buffer_size")),
-		DriverBufferEntries:  cfg.GetInt(join(netNS, "windows.driver_buffer_entries")),
 
 		RecordedQueryTypes: cfg.GetStringSlice(join(netNS, "dns_recorded_query_types")),
 	}
@@ -265,16 +257,5 @@ func New() *Config {
 			c.EnableHTTPSMonitoring = true
 		}
 	}
-
-	// For backwards compatibility, check to see if system_probe.windows.driver_buffer_size differs
-	// from its default (indicating it got set by the user). If so, use it in place of
-	// network_config.windows.driver_buffer_size
-	deprecatedDriverBufferSize := cfg.GetInt(join(spNS, "windows.driver_buffer_size"))
-	if deprecatedDriverBufferSize != ddconfig.DefaultDriverBufferSize {
-		log.Debugf("Detected use of deprecated configuration parameter (%s:%d) overriding newer parameter (%s)",
-			join(spNS, "windows.driver_buffer_size"), deprecatedDriverBufferSize, join(netNS, "windows.driver_buffer_size"))
-		c.DriverBufferSize = deprecatedDriverBufferSize
-	}
-
 	return c
 }

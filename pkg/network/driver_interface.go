@@ -15,7 +15,6 @@ import (
 	"sync/atomic"
 	"unsafe"
 
-	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,6 +36,10 @@ const (
 	// these are only sort-of honored for now
 	defaultMaxOpenFlows   = uint64(32767)
 	defaultMaxClosedFlows = uint64(32767)
+
+	// starting number of entries usermode flow buffer can contain
+	defaultFlowEntries      = 50
+	defaultDriverBufferSize = defaultFlowEntries * driver.PerFlowDataSize
 )
 
 // DriverExpvarNames is a list of all the DriverExpvar names returned from GetStats
@@ -65,37 +68,13 @@ type DriverInterface struct {
 	cfg *config.Config
 }
 
-func calcDriverBufferSize(configured_size int, configured_entries int) (bufferSize int) {
-
-	num_flow_entries := 0
-
-	// the only time we would want to use driver_buffer_size is when:
-	// driver_buffer_size differs from its default and driver_buffer_entries does not
-	if configured_size != mainconfig.DefaultDriverBufferSize && configured_entries == mainconfig.DefaultFlowEntries {
-		// round up and determine figure out how many flow entries we can hold as specified by config
-		log.Debugf("Detected non-default buffer size (%d) and default entry size (%d); using buffer size",
-			configured_size, configured_entries)
-		num_flow_entries = int(math.Ceil(float64(configured_size) / float64(driver.PerFlowDataSize)))
-	} else {
-		// use configured_entries
-		log.Debugf("Detected buffer size (%d) and entry size (%d); Using entry size", configured_size, configured_entries)
-		num_flow_entries = configured_entries
-	}
-	bufferSize = num_flow_entries * driver.PerFlowDataSize
-
-	log.Debugf("Final DriverBufferSize: %d", bufferSize)
-	return
-}
-
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
 func NewDriverInterface(cfg *config.Config) (*DriverInterface, error) {
-
-	cfg.DriverBufferSize = calcDriverBufferSize(cfg.DriverBufferSize, cfg.DriverBufferEntries)
 	dc := &DriverInterface{
 		cfg:                   cfg,
 		enableMonotonicCounts: cfg.EnableMonotonicCount,
-		readBuffer:            make([]byte, cfg.DriverBufferSize),
-		bufferSize:            int64(cfg.DriverBufferSize),
+		readBuffer:            make([]byte, defaultDriverBufferSize),
+		bufferSize:            int64(defaultDriverBufferSize),
 		maxOpenFlows:          uint64(cfg.MaxTrackedConnections),
 		maxClosedFlows:        uint64(cfg.MaxClosedConnectionsBuffered),
 	}
