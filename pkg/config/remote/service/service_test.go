@@ -74,6 +74,11 @@ func (m *mockUptane) TargetsCustom() ([]byte, error) {
 	return args.Get(0).([]byte), args.Error(1)
 }
 
+func (m *mockUptane) TUFVersionState() (uptane.TUFVersions, error) {
+	args := m.Called()
+	return args.Get(0).(uptane.TUFVersions), args.Error(1)
+}
+
 var (
 	testRCKey = msgpgo.RemoteConfigKey{
 		AppKey:     "fake_key",
@@ -116,7 +121,7 @@ func TestServiceBackoffFailure(t *testing.T) {
 		Products:                     []string{},
 		NewProducts:                  []string{},
 	}).Return(lastConfigResponse, errors.New("simulated HTTP error"))
-	uptaneClient.On("State").Return(uptane.State{}, nil)
+	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	uptaneClient.On("TargetsCustom").Return([]byte{}, nil)
 
@@ -175,7 +180,7 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 		Products:                     []string{},
 		NewProducts:                  []string{},
 	}).Return(lastConfigResponse, nil)
-	uptaneClient.On("State").Return(uptane.State{}, nil)
+	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	uptaneClient.On("TargetsCustom").Return([]byte{}, nil)
 	service.api = api
@@ -232,7 +237,7 @@ func TestService(t *testing.T) {
 		Products:                     []string{},
 		NewProducts:                  []string{},
 	}).Return(lastConfigResponse, nil)
-	uptaneClient.On("State").Return(uptane.State{}, nil)
+	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	uptaneClient.On("TargetsCustom").Return([]byte{}, nil)
 
@@ -281,6 +286,12 @@ func TestService(t *testing.T) {
 			"root.json":    {Version: 4},
 			"targets.json": {Version: 5},
 		},
+	}, nil)
+	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{
+		ConfigRoot:      1,
+		ConfigSnapshot:  2,
+		DirectorRoot:    4,
+		DirectorTargets: 5,
 	}, nil)
 	uptaneClient.On("DirectorRoot", uint64(3)).Return(root3, nil)
 	uptaneClient.On("DirectorRoot", uint64(4)).Return(root4, nil)
@@ -377,12 +388,9 @@ func TestServiceClientPredicates(t *testing.T) {
 		})}}},
 		nil,
 	)
-	uptaneClient.On("State").Return(uptane.State{
-		ConfigState: map[string]uptane.MetaState{},
-		DirectorState: map[string]uptane.MetaState{
-			"root.json":    {Version: 1},
-			"targets.json": {Version: 5},
-		},
+	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{
+		DirectorRoot:    1,
+		DirectorTargets: 5,
 	}, nil)
 	uptaneClient.On("TargetFile", "datadog/2/APM_SAMPLING/id/1").Return([]byte(``), nil)
 	uptaneClient.On("TargetFile", "datadog/2/APM_SAMPLING/id/2").Return([]byte(``), nil)
