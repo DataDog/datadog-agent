@@ -74,7 +74,7 @@ const (
 	TableName
 	ColonCast
 
-	// Postgres Specific JSON operators
+	// PostgreSQL specific JSON operators
 	JSONSelect
 	JSONSelectText
 	JSONSelectPath
@@ -176,7 +176,7 @@ func (k TokenKind) String() string {
 const (
 	// DBMSSQLServer is a MS SQL Server
 	DBMSSQLServer  = "mssql"
-	DBMSPostgresql = "postgresql"
+	DBMSPostgreSQL = "postgresql"
 )
 
 const escapeCharacter = '\\'
