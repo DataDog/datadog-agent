@@ -8,4 +8,4 @@
 ---
 security:
   - |
-    The agent is built with go1.17.11.
+    The Agent is built with Go 1.17.11.
