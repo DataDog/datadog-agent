@@ -460,12 +460,12 @@ func (s *Serializer) SendContainerLifecycleEvent(msgs []ContainerLifecycleMessag
 		msg.Host = hostname
 		encoded, err := proto.Marshal(&msg)
 		if err != nil {
-			return log.Errorf("Unable to encode message: %w", err)
+			return log.Errorf("Unable to encode message: %v", err)
 		}
 
 		payloads := forwarder.Payloads{&encoded}
 		if err := s.contlcycleForwarder.SubmitContainerLifecycleEvents(payloads, extraHeaders); err != nil {
-			return log.Errorf("Unable to submit container lifecycle payload: %w", err)
+			return log.Errorf("Unable to submit container lifecycle payload: %v", err)
 		}
 
 		log.Tracef("Sent container lifecycle event %+v", msg)

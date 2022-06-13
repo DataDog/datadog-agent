@@ -7,7 +7,6 @@ package rules
 
 import (
 	"context"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -18,10 +17,11 @@ import (
 
 const policyExtension = ".policy"
 
+var _ PolicyProvider = (*PoliciesDirProvider)(nil)
+
 // PoliciesDirProvider defines a new policy dir provider
 type PoliciesDirProvider struct {
 	PoliciesDir string
-	Watch       bool
 
 	onNewPoliciesReadyCb func()
 	cancelFnc            func()
@@ -29,10 +29,13 @@ type PoliciesDirProvider struct {
 	watchedFiles         []string
 }
 
-// SetOnNewPolicyReadyCb implements the policy provider interface
+// SetOnNewPoliciesReadyCb implements the policy provider interface
 func (p *PoliciesDirProvider) SetOnNewPoliciesReadyCb(cb func()) {
 	p.onNewPoliciesReadyCb = cb
 }
+
+// Start starts the policy dir provider
+func (p *PoliciesDirProvider) Start() {}
 
 func (p *PoliciesDirProvider) loadPolicy(filename string) (*Policy, error) {
 	f, err := os.Open(filename)
@@ -92,7 +95,7 @@ func (p *PoliciesDirProvider) LoadPolicies() ([]*Policy, *multierror.Error) {
 	}
 
 	// remove oldest watched files
-	if p.Watch {
+	if p.watcher != nil {
 		for _, watched := range p.watchedFiles {
 			_ = p.watcher.Remove(watched)
 		}
@@ -107,7 +110,7 @@ func (p *PoliciesDirProvider) LoadPolicies() ([]*Policy, *multierror.Error) {
 		} else {
 			policies = append(policies, policy)
 
-			if p.Watch {
+			if p.watcher != nil {
 				if err := p.watcher.Add(filename); err != nil {
 					errs = multierror.Append(errs, err)
 				} else {
@@ -120,9 +123,16 @@ func (p *PoliciesDirProvider) LoadPolicies() ([]*Policy, *multierror.Error) {
 	return policies, errs
 }
 
-// Stop implements the policy provider interface
-func (p *PoliciesDirProvider) Stop() {
-	p.cancelFnc()
+// Close stops policy provider interface
+func (p *PoliciesDirProvider) Close() error {
+	if p.cancelFnc != nil {
+		p.cancelFnc()
+	}
+
+	if p.watcher != nil {
+		p.watcher.Close()
+	}
+	return nil
 }
 
 func filesEqual(a []string, b []string) bool {
@@ -139,8 +149,6 @@ func filesEqual(a []string, b []string) bool {
 
 func (p *PoliciesDirProvider) watch(ctx context.Context) {
 	go func() {
-		defer p.watcher.Close()
-
 		for {
 			select {
 			case <-ctx.Done():
@@ -169,26 +177,24 @@ func (p *PoliciesDirProvider) watch(ctx context.Context) {
 
 // NewPoliciesDirProvider returns providers for the given policies dir
 func NewPoliciesDirProvider(policiesDir string, watch bool) (*PoliciesDirProvider, error) {
-	ctx, cancelFnc := context.WithCancel(context.Background())
-
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	p := &PoliciesDirProvider{
 		PoliciesDir: policiesDir,
-		Watch:       watch,
-		cancelFnc:   cancelFnc,
-		watcher:     watcher,
 	}
 
 	if watch {
-		err = p.watcher.Add(policiesDir)
-		if err != nil {
+		var err error
+		if p.watcher, err = fsnotify.NewWatcher(); err != nil {
 			return nil, err
 		}
 
+		if err := p.watcher.Add(policiesDir); err != nil {
+			p.watcher.Close()
+			return nil, err
+		}
+
+		var ctx context.Context
+		ctx, p.cancelFnc = context.WithCancel(context.Background())
 		go p.watch(ctx)
 	}
 

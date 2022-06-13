@@ -42,7 +42,7 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 	// pre-populate aggregation map with keys for all existent connections
 	// this allows us to skip encoding orphan HTTP objects that can't be matched to a connection
 	for _, conn := range payload.Conns {
-		encoder.aggregations[httpKeyTupleFromConn(conn)] = nil
+		encoder.aggregations[network.HTTPKeyTupleFromConn(conn)] = nil
 	}
 
 	encoder.buildAggregations(payload)
@@ -54,7 +54,7 @@ func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats) (*mo
 		return nil, 0
 	}
 
-	keyTuple := httpKeyTupleFromConn(c)
+	keyTuple := network.HTTPKeyTupleFromConn(c)
 	return e.aggregations[keyTuple], e.tags[keyTuple]
 }
 
@@ -118,22 +118,4 @@ func (e *httpEncoder) getDataSlice() []*model.HTTPStats_Data {
 	}
 	e.poolIdx += http.NumStatusClasses
 	return ptrs
-}
-
-// Build the key for the http map based on whether the local or remote side is http.
-func httpKeyTupleFromConn(c network.ConnectionStats) http.KeyTuple {
-	// Retrieve translated addresses
-	laddr, lport := network.GetNATLocalAddress(c)
-	raddr, rport := network.GetNATRemoteAddress(c)
-
-	// HTTP data is always indexed as (client, server), so we account for that when generating the
-	// the lookup key using the port range heuristic.
-	// In the rare cases where both ports are within the same range we ensure that sport < dport
-	// to mimic the normalization heuristic done in the eBPF side (see `port_range.h`)
-	if (network.IsEphemeralPort(int(lport)) && !network.IsEphemeralPort(int(rport))) ||
-		(network.IsEphemeralPort(int(lport)) == network.IsEphemeralPort(int(rport)) && lport < rport) {
-		return http.NewKeyTuple(laddr, raddr, lport, rport)
-	}
-
-	return http.NewKeyTuple(raddr, laddr, rport, lport)
 }

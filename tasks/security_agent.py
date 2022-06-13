@@ -300,6 +300,7 @@ def build_functional_tests(
     bundle_ebpf=True,
     static=False,
     skip_linters=False,
+    race=False,
 ):
     ldflags, _, env = get_build_flags(
         ctx, major_version=major_version, nikos_embedded_path=nikos_embedded_path, static=static
@@ -327,6 +328,9 @@ def build_functional_tests(
     # linters have a hard time with dnf, so we add the build tag after running them
     if nikos_embedded_path:
         build_tags.append("dnf")
+
+    if race:
+        build_flags += " -race"
 
     build_tags = ",".join(build_tags)
     cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
@@ -401,6 +405,7 @@ def stress_tests(
 def functional_tests(
     ctx,
     verbose=False,
+    race=False,
     go_version=None,
     arch=CURRENT_ARCH,
     major_version='7',
@@ -417,6 +422,7 @@ def functional_tests(
         output=output,
         bundle_ebpf=bundle_ebpf,
         skip_linters=skip_linters,
+        race=race,
     )
 
     run_functional_tests(

@@ -12,6 +12,7 @@ import (
 	"sort"
 
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/file"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -40,7 +41,7 @@ func newFileProvider(filesLimit int) *fileProvider {
 // it cannot return more than filesLimit Files.
 // For now, there is no way to prioritize specific Files over others,
 // they are just returned in reverse lexicographical order, see `searchFiles`
-func (p *fileProvider) filesToTail(sources []*config.LogSource) []*tailer.File {
+func (p *fileProvider) filesToTail(sources []*sources.LogSource) []*tailer.File {
 	var filesToTail []*tailer.File
 	shouldLogErrors := p.shouldLogErrors
 	p.shouldLogErrors = false // Let's log errors on first run only
@@ -92,7 +93,7 @@ func (p *fileProvider) filesToTail(sources []*config.LogSource) []*tailer.File {
 }
 
 // collectFiles returns all the files matching the source path.
-func (p *fileProvider) collectFiles(source *config.LogSource) ([]*tailer.File, error) {
+func (p *fileProvider) collectFiles(source *sources.LogSource) ([]*tailer.File, error) {
 	path := source.Config.Path
 	_, err := os.Stat(path)
 	switch {
@@ -109,7 +110,7 @@ func (p *fileProvider) collectFiles(source *config.LogSource) ([]*tailer.File, e
 }
 
 // searchFiles returns all the files matching the source path pattern.
-func (p *fileProvider) searchFiles(pattern string, source *config.LogSource) ([]*tailer.File, error) {
+func (p *fileProvider) searchFiles(pattern string, source *sources.LogSource) ([]*tailer.File, error) {
 	paths, err := filepath.Glob(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("malformed pattern, could not find any file: %s", pattern)

@@ -70,6 +70,7 @@ type JSONPayloadBuilder struct {
 	mu                            sync.Mutex
 }
 
+// NewJSONPayloadBuilder TODO <agent-core> : IML-199
 func NewJSONPayloadBuilder(shareAndLockBuffers bool) *JSONPayloadBuilder {
 	if shareAndLockBuffers {
 		return &JSONPayloadBuilder{

@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
@@ -74,15 +75,15 @@ func (m *MockJournal) GetCursor() (string, error) {
 
 func TestIdentifier(t *testing.T) {
 	var tailer *Tailer
-	var source *config.LogSource
+	var source *sources.LogSource
 
 	// expect default identifier
-	source = config.NewLogSource("", &config.LogsConfig{})
+	source = sources.NewLogSource("", &config.LogsConfig{})
 	tailer = NewTailer(source, nil, nil)
 	assert.Equal(t, "journald:default", tailer.Identifier())
 
 	// expect identifier to be overidden
-	source = config.NewLogSource("", &config.LogsConfig{Path: "any_path"})
+	source = sources.NewLogSource("", &config.LogsConfig{Path: "any_path"})
 	tailer = NewTailer(source, nil, nil)
 	assert.Equal(t, "journald:any_path", tailer.Identifier())
 }
@@ -90,12 +91,12 @@ func TestIdentifier(t *testing.T) {
 func TestShouldDropEntry(t *testing.T) {
 	// System-level service units do not have SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT
 	// User-level service units may have a common value for SD_JOURNAL_FIELD_SYSTEMD_UNIT
-	var source *config.LogSource
+	var source *sources.LogSource
 	var tailer *Tailer
 	var err error
 
 	// expect only the specified service units to be dropped
-	source = config.NewLogSource("", &config.LogsConfig{ExcludeSystemUnits: []string{"foo", "bar"}, ExcludeUserUnits: []string{"baz", "qux"}})
+	source = sources.NewLogSource("", &config.LogsConfig{ExcludeSystemUnits: []string{"foo", "bar"}, ExcludeUserUnits: []string{"baz", "qux"}})
 	tailer = NewTailer(source, nil, nil)
 	err = tailer.setup()
 	assert.Nil(t, err)
@@ -146,7 +147,7 @@ func TestShouldDropEntry(t *testing.T) {
 		}))
 
 	// expect all System-level service units to be dropped
-	source = config.NewLogSource("", &config.LogsConfig{ExcludeSystemUnits: []string{"*"}})
+	source = sources.NewLogSource("", &config.LogsConfig{ExcludeSystemUnits: []string{"*"}})
 	tailer = NewTailer(source, nil, nil)
 	err = tailer.setup()
 	assert.Nil(t, err)
@@ -182,7 +183,7 @@ func TestShouldDropEntry(t *testing.T) {
 		}))
 
 	// expect all User-level service units to be dropped
-	source = config.NewLogSource("", &config.LogsConfig{ExcludeUserUnits: []string{"*"}})
+	source = sources.NewLogSource("", &config.LogsConfig{ExcludeUserUnits: []string{"*"}})
 	tailer = NewTailer(source, nil, nil)
 	err = tailer.setup()
 	assert.Nil(t, err)
@@ -219,7 +220,7 @@ func TestShouldDropEntry(t *testing.T) {
 }
 
 func TestApplicationName(t *testing.T) {
-	source := config.NewLogSource("", &config.LogsConfig{})
+	source := sources.NewLogSource("", &config.LogsConfig{})
 	tailer := NewTailer(source, nil, nil)
 
 	assert.Equal(t, "foo", tailer.getApplicationName(
@@ -263,7 +264,7 @@ func TestApplicationName(t *testing.T) {
 }
 
 func TestContent(t *testing.T) {
-	source := config.NewLogSource("", &config.LogsConfig{})
+	source := sources.NewLogSource("", &config.LogsConfig{})
 	tailer := NewTailer(source, nil, nil)
 
 	assert.Equal(t, []byte(`{"journald":{"_A":"foo.service"},"message":"bar"}`), tailer.getContent(
@@ -288,7 +289,7 @@ func TestContent(t *testing.T) {
 }
 
 func TestSeverity(t *testing.T) {
-	source := config.NewLogSource("", &config.LogsConfig{})
+	source := sources.NewLogSource("", &config.LogsConfig{})
 	tailer := NewTailer(source, nil, nil)
 
 	priorityValues := []string{"0", "1", "2", "3", "4", "5", "6", "7", "foo"}
@@ -305,7 +306,7 @@ func TestSeverity(t *testing.T) {
 }
 
 func TestApplicationNameShouldBeDockerForContainerEntries(t *testing.T) {
-	source := config.NewLogSource("", &config.LogsConfig{})
+	source := sources.NewLogSource("", &config.LogsConfig{})
 	tailer := NewTailer(source, nil, nil)
 
 	assert.Equal(t, "docker", tailer.getApplicationName(
@@ -323,7 +324,7 @@ func TestApplicationNameShouldBeDockerForContainerEntries(t *testing.T) {
 func TestApplicationNameShouldBeShortImageForContainerEntries(t *testing.T) {
 	containerID := "bar"
 
-	source := config.NewLogSource("", &config.LogsConfig{ContainerMode: true})
+	source := sources.NewLogSource("", &config.LogsConfig{ContainerMode: true})
 	tailer := NewTailer(source, nil, nil)
 
 	assert.Equal(t, "testImage", tailer.getApplicationName(
@@ -345,7 +346,7 @@ func TestApplicationNameShouldBeShortImageForContainerEntries(t *testing.T) {
 func TestApplicationNameShouldBeDockerWhenTagNotFound(t *testing.T) {
 	containerID := "bar2"
 
-	source := config.NewLogSource("", &config.LogsConfig{ContainerMode: true})
+	source := sources.NewLogSource("", &config.LogsConfig{ContainerMode: true})
 	tailer := NewTailer(source, nil, nil)
 
 	assert.Equal(t, "docker", tailer.getApplicationName(
@@ -370,7 +371,7 @@ func TestWrongTypeFromCache(t *testing.T) {
 	// Store wrong type in cache, verify we ignore the value
 	cache.Cache.Set(getImageCacheKey(containerID), 10, 30*time.Second)
 
-	source := config.NewLogSource("", &config.LogsConfig{ContainerMode: true})
+	source := sources.NewLogSource("", &config.LogsConfig{ContainerMode: true})
 	tailer := NewTailer(source, nil, nil)
 
 	assert.Equal(t, "testImage", tailer.getApplicationName(
@@ -413,7 +414,7 @@ func TestTailingMode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockJournal := &MockJournal{m: m}
-			source := config.NewLogSource("", tt.config)
+			source := sources.NewLogSource("", tt.config)
 			tailer := NewTailer(source, nil, mockJournal)
 			tailer.Start(tt.cursor)
 
@@ -426,7 +427,7 @@ func TestTailingMode(t *testing.T) {
 func TestTailerCanTailJournal(t *testing.T) {
 
 	mockJournal := &MockJournal{m: &sync.Mutex{}, next: 1}
-	source := config.NewLogSource("", &config.LogsConfig{})
+	source := sources.NewLogSource("", &config.LogsConfig{})
 	tailer := NewTailer(source, make(chan *message.Message, 1), mockJournal)
 
 	mockJournal.entry = &sdjournal.JournalEntry{Fields: map[string]string{"MESSAGE": "foobar"}}

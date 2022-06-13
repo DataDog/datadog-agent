@@ -55,7 +55,11 @@ type Store interface {
 
 	// ListContainers returns metadata about all known containers, equivalent
 	// to all entities with kind KindContainer.
-	ListContainers() ([]*Container, error)
+	ListContainers() []*Container
+
+	// ListContainersWithFilter returns all the containers for which the passed
+	// filter evaluates to true.
+	ListContainersWithFilter(filter ContainerFilterFunc) []*Container
 
 	// GetKubernetesPod returns metadata about a Kubernetes pod.  It fetches
 	// the entity with kind KindKubernetesPod and the given ID.
@@ -421,6 +425,12 @@ func (c Container) String(verbose bool) string {
 }
 
 var _ Entity = &Container{}
+
+// ContainerFilterFunc is a function used to filter containers.
+type ContainerFilterFunc func(container *Container) bool
+
+// GetRunningContainers is a function that evaluates to true for running containers.
+var GetRunningContainers ContainerFilterFunc = func(container *Container) bool { return container.State.Running }
 
 // KubernetesPod is an Entity representing a Kubernetes Pod.
 type KubernetesPod struct {

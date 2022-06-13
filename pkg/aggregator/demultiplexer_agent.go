@@ -240,7 +240,7 @@ func (d *AgentDemultiplexer) Run() {
 		// container lifecycle forwarder
 		if d.forwarders.containerLifecycle != nil {
 			if err := d.forwarders.containerLifecycle.Start(); err != nil {
-				log.Errorf("error starting container lifecycle forwarder: %w", err)
+				log.Errorf("error starting container lifecycle forwarder: %v", err)
 			}
 		} else {
 			log.Debug("not starting the container lifecycle forwarder")
@@ -272,7 +272,7 @@ func (d *AgentDemultiplexer) flushLoop() {
 	if d.options.FlushInterval > 0 {
 		flushTicker = time.NewTicker(d.options.FlushInterval).C
 	} else {
-		log.Debugf("flushInterval set to 0: will never flush automatically")
+		log.Debug("flushInterval set to 0: will never flush automatically")
 	}
 
 	for {
