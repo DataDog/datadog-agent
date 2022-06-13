@@ -83,8 +83,8 @@ func TestEVPProxyForwarder(t *testing.T) {
 		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
 		require.Len(t, proxyreqs, 1)
 		proxyreq := proxyreqs[0]
-		assert.Equal(t, "my.subdomain.evp.us3.datadoghq.com", proxyreq.Host)
-		assert.Equal(t, "my.subdomain.evp.us3.datadoghq.com", proxyreq.URL.Host)
+		assert.Equal(t, "my.subdomain.us3.datadoghq.com", proxyreq.Host)
+		assert.Equal(t, "my.subdomain.us3.datadoghq.com", proxyreq.URL.Host)
 		assert.Equal(t, "/mypath/mysubpath", proxyreq.URL.Path)
 		assert.Equal(t, "arg=test", proxyreq.URL.RawQuery)
 		assert.Equal(t, "test_api_key", proxyreq.Header.Get("DD-API-KEY"))
@@ -149,20 +149,20 @@ func TestEVPProxyForwarder(t *testing.T) {
 		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
 		require.Len(t, proxyreqs, 3)
 
-		assert.Equal(t, "my.subdomain.evp.us3.datadoghq.com", proxyreqs[0].Host)
-		assert.Equal(t, "my.subdomain.evp.us3.datadoghq.com", proxyreqs[0].URL.Host)
+		assert.Equal(t, "my.subdomain.us3.datadoghq.com", proxyreqs[0].Host)
+		assert.Equal(t, "my.subdomain.us3.datadoghq.com", proxyreqs[0].URL.Host)
 		assert.Equal(t, "/mypath/mysubpath", proxyreqs[0].URL.Path)
 		assert.Equal(t, "arg=test", proxyreqs[0].URL.RawQuery)
 		assert.Equal(t, "test_api_key", proxyreqs[0].Header.Get("DD-API-KEY"))
 
-		assert.Equal(t, "my.subdomain.evp.datadoghq.eu", proxyreqs[1].Host)
-		assert.Equal(t, "my.subdomain.evp.datadoghq.eu", proxyreqs[1].URL.Host)
+		assert.Equal(t, "my.subdomain.datadoghq.eu", proxyreqs[1].Host)
+		assert.Equal(t, "my.subdomain.datadoghq.eu", proxyreqs[1].URL.Host)
 		assert.Equal(t, "/mypath/mysubpath", proxyreqs[1].URL.Path)
 		assert.Equal(t, "arg=test", proxyreqs[1].URL.RawQuery)
 		assert.Equal(t, "test_api_key_1", proxyreqs[1].Header.Get("DD-API-KEY"))
 
-		assert.Equal(t, "my.subdomain.evp.datadoghq.eu", proxyreqs[2].Host)
-		assert.Equal(t, "my.subdomain.evp.datadoghq.eu", proxyreqs[2].URL.Host)
+		assert.Equal(t, "my.subdomain.datadoghq.eu", proxyreqs[2].Host)
+		assert.Equal(t, "my.subdomain.datadoghq.eu", proxyreqs[2].URL.Host)
 		assert.Equal(t, "test_api_key_2", proxyreqs[2].Header.Get("DD-API-KEY"))
 
 		assert.Equal(t, "", logs)
