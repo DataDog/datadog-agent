@@ -4,11 +4,9 @@ package json
 // where each value is another depth level in the map.
 // Returns nil if the map doesn't contain the nested key.
 func GetNestedValue(inputMap map[string]interface{}, keys ...string) interface{} {
-	if _, exists := inputMap[keys[0]]; !exists {
+	if val, exists := inputMap[keys[0]]; !exists {
 		return nil
-	}
-
-	if val, exists := inputMap[keys[0]]; exists {
+	} else {
 		if len(keys) == 1 {
 			return val
 		}
@@ -18,6 +16,4 @@ func GetNestedValue(inputMap map[string]interface{}, keys ...string) interface{}
 		}
 		return GetNestedValue(innerMap, keys[1:]...)
 	}
-
-	return nil
 }
