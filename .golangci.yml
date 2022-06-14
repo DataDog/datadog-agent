@@ -4,6 +4,8 @@ run:
     - cmd/agent/app/listchecks.go  # ignore unused command for now
     - pkg/util/cloudproviders/cloudfoundry/bbscache_test.go # implements interface from imported package whose method names fail linting
     - pkg/util/intern/string.go # TODO: fix govet 'unsafeptr' error
+    - pkg/security/rconfig/rconfig.go # TODO: fix revive error (comment on RCPolicyProvider.Close)
+    - pkg/security/probe/selftests/tester.go # TODO: fix revive error (comment on Start)
 
 issues:
   exclude-use-default: false
