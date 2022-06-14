@@ -19,10 +19,12 @@
   script:
     # use tmpdir to prevent git remote capture by clang build
     - mkdir /tmp/clangbuild && cd /tmp/clangbuild
+    - CLANG_LLVM_VER=14.0.3
+    - CLANG_MAJOR_VER=14
     - CLANG_SHA256SUM=f85c55f192cb35b9d6af1f998b7d5abe90e369f8b16445503ffab1b02e75a6f0
     - LLVM_SHA256SUM=1e09e8c26e1b67bc94a128b62e9b9c24b70c697a2436a479c9e5eedc4ae29654
-    - wget ${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/llvm/clang-14.0.3.src.tar.xz -O clang.src.tar.xz
-    - wget ${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/llvm/llvm-14.0.3.src.tar.xz -O llvm.src.tar.xz
+    - wget ${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/llvm/clang-${CLANG_LLVM_VER}.src.tar.xz -O clang.src.tar.xz
+    - wget ${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/llvm/llvm-${CLANG_LLVM_VER}.src.tar.xz -O llvm.src.tar.xz
     - echo -e "${LLVM_SHA256SUM} llvm.src.tar.xz\n${CLANG_SHA256SUM} clang.src.tar.xz" | sha256sum --check -
     - mkdir clang && tar xf clang.src.tar.xz --strip-components=1 --no-same-owner -C clang
     - mkdir llvm && tar xf llvm.src.tar.xz --strip-components=1 --no-same-owner -C llvm
@@ -53,17 +55,17 @@
       ../llvm
     - cmake --build . --target install
     # fail if references to glibc >= 2.18
-    - objdump -p $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-14 | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
+    - objdump -p $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
     - objdump -p $DATADOG_AGENT_EMBEDDED_PATH/bin/llc | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
     # fail if clang or llc targets anything other than bpf
-    - $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-14 -print-targets > clang_targets.txt
+    - $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} -print-targets > clang_targets.txt
     - diff $SRC_PATH/pkg/ebpf/c/expected_targets.txt clang_targets.txt
     - $DATADOG_AGENT_EMBEDDED_PATH/bin/llc --version | tail -n +7 > llc_targets.txt # remove first 6 lines of llc version output; we only care about the registered targets
     - diff $SRC_PATH/pkg/ebpf/c/expected_targets.txt llc_targets.txt
-    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-14 $S3_PERMANENT_ARTIFACTS_URI/clang-14.0.3.${ARCH}
-    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $S3_PERMANENT_ARTIFACTS_URI/llc-14.0.3.${ARCH}
+    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $S3_PERMANENT_ARTIFACTS_URI/clang-${CLANG_LLVM_VER}.${ARCH}
+    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $S3_PERMANENT_ARTIFACTS_URI/llc-${CLANG_LLVM_VER}.${ARCH}
     - mkdir -p $CI_PROJECT_DIR/.tmp
-    - cp $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-14 $CI_PROJECT_DIR/.tmp/clang
+    - cp $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $CI_PROJECT_DIR/.tmp/clang
     - cp $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $CI_PROJECT_DIR/.tmp/llc
   timeout: 2h 00m
   artifacts:
