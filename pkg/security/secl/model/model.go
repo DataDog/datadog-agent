@@ -102,7 +102,7 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 type ChmodEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode;file.destination.rights" constants:"Chmod mode constants"` // New mode/rights of the chmod-ed file
+	Mode uint32    `field:"file.destination.mode; file.destination.rights" constants:"Chmod mode constants"` // New mode/rights of the chmod-ed file
 }
 
 // ChownEvent represents a chown event
@@ -110,17 +110,17 @@ type ChmodEvent struct {
 type ChownEvent struct {
 	SyscallEvent
 	File  FileEvent `field:"file"`
-	UID   int64     `field:"file.destination.uid"`                   // New UID of the chown-ed file's owner
-	User  string    `field:"file.destination.user,ResolveChownUID"`  // New user of the chown-ed file's owner
-	GID   int64     `field:"file.destination.gid"`                   // New GID of the chown-ed file's owner
-	Group string    `field:"file.destination.group,ResolveChownGID"` // New group of the chown-ed file's owner
+	UID   int64     `field:"file.destination.uid"`                           // New UID of the chown-ed file's owner
+	User  string    `field:"file.destination.user,handler:ResolveChownUID"`  // New user of the chown-ed file's owner
+	GID   int64     `field:"file.destination.gid"`                           // New GID of the chown-ed file's owner
+	Group string    `field:"file.destination.group,handler:ResolveChownGID"` // New group of the chown-ed file's owner
 }
 
 // ContainerContext holds the container context of an event
 //msgp:ignore ContainerContext
 type ContainerContext struct {
-	ID   string   `field:"id,ResolveContainerID"`          // ID of the container
-	Tags []string `field:"tags,ResolveContainerTags:9999"` // Tags of the container
+	ID   string   `field:"id,handler:ResolveContainerID"`                 // ID of the container
+	Tags []string `field:"tags,handler:ResolveContainerTags,weight:9999"` // Tags of the container
 }
 
 // Event represents an event sent from the kernel
@@ -215,23 +215,23 @@ func (e *Event) GetPointer() unsafe.Pointer {
 // SetuidEvent represents a setuid event
 //msgp:ignore SetuidEvent
 type SetuidEvent struct {
-	UID    uint32 `field:"uid"`                        // New UID of the process
-	User   string `field:"user,ResolveSetuidUser"`     // New user of the process
-	EUID   uint32 `field:"euid"`                       // New effective UID of the process
-	EUser  string `field:"euser,ResolveSetuidEUser"`   // New effective user of the process
-	FSUID  uint32 `field:"fsuid"`                      // New FileSystem UID of the process
-	FSUser string `field:"fsuser,ResolveSetuidFSUser"` // New FileSystem user of the process
+	UID    uint32 `field:"uid"`                                // New UID of the process
+	User   string `field:"user,handler:ResolveSetuidUser"`     // New user of the process
+	EUID   uint32 `field:"euid"`                               // New effective UID of the process
+	EUser  string `field:"euser,handler:ResolveSetuidEUser"`   // New effective user of the process
+	FSUID  uint32 `field:"fsuid"`                              // New FileSystem UID of the process
+	FSUser string `field:"fsuser,handler:ResolveSetuidFSUser"` // New FileSystem user of the process
 }
 
 // SetgidEvent represents a setgid event
 //msgp:ignore SetgidEvent
 type SetgidEvent struct {
-	GID     uint32 `field:"gid"`                          // New GID of the process
-	Group   string `field:"group,ResolveSetgidGroup"`     // New group of the process
-	EGID    uint32 `field:"egid"`                         // New effective GID of the process
-	EGroup  string `field:"egroup,ResolveSetgidEGroup"`   // New effective group of the process
-	FSGID   uint32 `field:"fsgid"`                        // New FileSystem GID of the process
-	FSGroup string `field:"fsgroup,ResolveSetgidFSGroup"` // New FileSystem group of the process
+	GID     uint32 `field:"gid"`                                  // New GID of the process
+	Group   string `field:"group,handler:ResolveSetgidGroup"`     // New group of the process
+	EGID    uint32 `field:"egid"`                                 // New effective GID of the process
+	EGroup  string `field:"egroup,handler:ResolveSetgidEGroup"`   // New effective group of the process
+	FSGID   uint32 `field:"fsgid"`                                // New FileSystem GID of the process
+	FSGroup string `field:"fsgroup,handler:ResolveSetgidFSGroup"` // New FileSystem group of the process
 }
 
 // CapsetEvent represents a capset event
@@ -290,7 +290,7 @@ type Process struct {
 	ExitTime time.Time `field:"-" msg:"exit_time"`
 	ExecTime time.Time `field:"-" msg:"exec_time"`
 
-	CreatedAt uint64 `field:"created_at,ResolveProcessCreatedAt" msg:"created_at"` // Timestamp of the creation of the process
+	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt" msg:"created_at"` // Timestamp of the creation of the process
 
 	Cookie uint32 `field:"cookie" msg:"cookie"` // Cookie of the process
 	PPid   uint32 `field:"ppid" msg:"ppid"`     // Parent process ID
@@ -305,13 +305,13 @@ type Process struct {
 	EnvsEntry *EnvsEntry `field:"-" msg:"envs"`
 
 	// defined to generate accessors, ArgsTruncated and EnvsTruncated are used during by unmarshaller
-	Argv0         string   `field:"argv0,ResolveProcessArgv0:100" msg:"-"`                                                                                                                     // First argument of the process
-	Args          string   `field:"args,ResolveProcessArgs:100" msg:"-"`                                                                                                                       // Arguments of the process (as a string)
-	Argv          []string `field:"argv,ResolveProcessArgv:100;args_flags,ResolveProcessArgsFlags,,cacheless_resolution;args_options,ResolveProcessArgsOptions,,cacheless_resolution" msg:"-"` // Arguments of the process (as an array)
-	ArgsTruncated bool     `field:"args_truncated,ResolveProcessArgsTruncated" msg:"-"`                                                                                                        // Indicator of arguments truncation
-	Envs          []string `field:"envs,ResolveProcessEnvs:100" msg:"-"`                                                                                                                       // Environment variable names of the process
-	Envp          []string `field:"envp,ResolveProcessEnvp:100" msg:"-"`                                                                                                                       // Environment variables of the process
-	EnvsTruncated bool     `field:"envs_truncated,ResolveProcessEnvsTruncated" msg:"-"`                                                                                                        // Indicator of environment variables truncation
+	Argv0         string   `field:"argv0,handler:ResolveProcessArgv0,weight:100" msg:"-"`                                                                                                                                               // First argument of the process
+	Args          string   `field:"args,handler:ResolveProcessArgs,weight:100" msg:"-"`                                                                                                                                                 // Arguments of the process (as a string)
+	Argv          []string `field:"argv,handler:ResolveProcessArgv,weight:100; args_flags,handler:ResolveProcessArgsFlags,opts:cacheless_resolution; args_options,handler:ResolveProcessArgsOptions,opts:cacheless_resolution" msg:"-"` // Arguments of the process (as an array)
+	ArgsTruncated bool     `field:"args_truncated,handler:ResolveProcessArgsTruncated" msg:"-"`                                                                                                                                         // Indicator of arguments truncation
+	Envs          []string `field:"envs,handler:ResolveProcessEnvs:100" msg:"-"`                                                                                                                                                        // Environment variable names of the process
+	Envp          []string `field:"envp,handler:ResolveProcessEnvp:100" msg:"-"`                                                                                                                                                        // Environment variables of the process
+	EnvsTruncated bool     `field:"envs_truncated,handler:ResolveProcessEnvsTruncated" msg:"-"`                                                                                                                                         // Indicator of environment variables truncation
 
 	// cache version
 	ScrubbedArgvResolved  bool           `field:"-" msg:"-"`
@@ -334,17 +334,17 @@ type ExecEvent struct {
 
 // FileFields holds the information required to identify a file
 type FileFields struct {
-	UID   uint32 `field:"uid" msg:"uid"`                                                                               // UID of the file's owner
-	User  string `field:"user,ResolveFileFieldsUser" msg:"user"`                                                       // User of the file's owner
-	GID   uint32 `field:"gid" msg:"gid"`                                                                               // GID of the file's owner
-	Group string `field:"group,ResolveFileFieldsGroup" msg:"group"`                                                    // Group of the file's owner
-	Mode  uint16 `field:"mode;rights,ResolveRights,,cacheless_resolution" msg:"mode" constants:"Chmod mode constants"` // Mode/rights of the file
-	CTime uint64 `field:"change_time" msg:"ctime"`                                                                     // Change time of the file
-	MTime uint64 `field:"modification_time" msg:"mtime"`                                                               // Modification time of the file
+	UID   uint32 `field:"uid" msg:"uid"`                                                                                            // UID of the file's owner
+	User  string `field:"user,handler:ResolveFileFieldsUser" msg:"user"`                                                            // User of the file's owner
+	GID   uint32 `field:"gid" msg:"gid"`                                                                                            // GID of the file's owner
+	Group string `field:"group,handler:ResolveFileFieldsGroup" msg:"group"`                                                         // Group of the file's owner
+	Mode  uint16 `field:"mode; rights,handler:ResolveRights,opts:cacheless_resolution" msg:"mode" constants:"Chmod mode constants"` // Mode/rights of the file
+	CTime uint64 `field:"change_time" msg:"ctime"`                                                                                  // Change time of the file
+	MTime uint64 `field:"modification_time" msg:"mtime"`                                                                            // Modification time of the file
 
-	MountID      uint32 `field:"mount_id" msg:"mount_id"`                                           // Mount ID of the file
-	Inode        uint64 `field:"inode" msg:"inode"`                                                 // Inode of the file
-	InUpperLayer bool   `field:"in_upper_layer,ResolveFileFieldsInUpperLayer" msg:"in_upper_layer"` // Indicator of the file layer, in an OverlayFS for example
+	MountID      uint32 `field:"mount_id" msg:"mount_id"`                                                   // Mount ID of the file
+	Inode        uint64 `field:"inode" msg:"inode"`                                                         // Inode of the file
+	InUpperLayer bool   `field:"in_upper_layer,handler:ResolveFileFieldsInUpperLayer" msg:"in_upper_layer"` // Indicator of the file layer, in an OverlayFS for example
 
 	NLink  uint32 `field:"-" msg:"-"`
 	PathID uint32 `field:"-" msg:"-"`
@@ -370,9 +370,9 @@ func (f *FileFields) GetInUpperLayer() bool {
 type FileEvent struct {
 	FileFields
 
-	PathnameStr string `field:"path,ResolveFilePath" msg:"path" op_override:"eval.GlobCmp"` // File's path
-	BasenameStr string `field:"name,ResolveFileBasename" msg:"name"`                        // File's basename
-	Filesystem  string `field:"filesystem,ResolveFileFilesystem" msg:"filesystem"`          // File's filesystem
+	PathnameStr string `field:"path,handler:ResolveFilePath" msg:"path" op_override:"eval.GlobCmp"` // File's path
+	BasenameStr string `field:"name,handler:ResolveFileBasename" msg:"name"`                        // File's basename
+	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem" msg:"filesystem"`          // File's filesystem
 
 	PathResolutionError error `field:"-" msg:"-"`
 
@@ -429,7 +429,7 @@ type LinkEvent struct {
 type MkdirEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode;file.destination.rights" constants:"Chmod mode constants"` // Mode/rights of the new directory
+	Mode uint32    `field:"file.destination.mode; file.destination.rights" constants:"Chmod mode constants"` // Mode/rights of the new directory
 }
 
 // ArgsEnvsEvent defines a args/envs event
@@ -511,10 +511,10 @@ const (
 type SELinuxEvent struct {
 	File            FileEvent        `field:"-"`
 	EventKind       SELinuxEventKind `field:"-"`
-	BoolName        string           `field:"bool.name,ResolveSELinuxBoolName"` // SELinux boolean name
-	BoolChangeValue string           `field:"bool.state"`                       // SELinux boolean new value
-	BoolCommitValue bool             `field:"bool_commit.state"`                // Indicator of a SELinux boolean commit operation
-	EnforceStatus   string           `field:"enforce.status"`                   // SELinux enforcement status (one of "enforcing", "permissive", "disabled"")
+	BoolName        string           `field:"bool.name,handler:ResolveSELinuxBoolName"` // SELinux boolean name
+	BoolChangeValue string           `field:"bool.state"`                               // SELinux boolean new value
+	BoolCommitValue bool             `field:"bool_commit.state"`                        // Indicator of a SELinux boolean commit operation
+	EnforceStatus   string           `field:"enforce.status"`                           // SELinux enforcement status (one of "enforcing", "permissive", "disabled"")
 }
 
 var zeroProcessContext ProcessContext
@@ -596,7 +596,7 @@ func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
 type ProcessContext struct {
 	Process
 
-	Ancestor *ProcessCacheEntry `field:"ancestors,,ProcessAncestorsIterator" msg:"ancestor"`
+	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator" msg:"ancestor"`
 }
 
 // PIDContext holds the process context of an kernel event
@@ -628,8 +628,8 @@ type RmdirEvent struct {
 type SetXAttrEvent struct {
 	SyscallEvent
 	File      FileEvent `field:"file"`
-	Namespace string    `field:"file.destination.namespace,ResolveXAttrNamespace"` // Namespace of the extended attribute
-	Name      string    `field:"file.destination.name,ResolveXAttrName"`           // Name of the extended attribute
+	Namespace string    `field:"file.destination.namespace,handler:ResolveXAttrNamespace"` // Namespace of the extended attribute
+	Name      string    `field:"file.destination.name,handler:ResolveXAttrName"`           // Name of the extended attribute
 
 	NameRaw [200]byte `field:"-"`
 }
@@ -685,12 +685,12 @@ type BPFMap struct {
 // BPFProgram represents a BPF program
 //msgp:ignore BPFProgram
 type BPFProgram struct {
-	ID         uint32   `field:"-"`                                                       // ID of the eBPF program
-	Type       uint32   `field:"type" constants:"BPF program types"`                      // Type of the eBPF program
-	AttachType uint32   `field:"attach_type" constants:"BPF attach types"`                // Attach type of the eBPF program
-	Helpers    []uint32 `field:"helpers,ResolveHelpers" constants:"BPF helper functions"` // eBPF helpers used by the eBPF program (added in 7.35)
-	Name       string   `field:"name"`                                                    // Name of the eBPF program (added in 7.35)
-	Tag        string   `field:"tag"`                                                     // Hash (sha1) of the eBPF program (added in 7.35)
+	ID         uint32   `field:"-"`                                                               // ID of the eBPF program
+	Type       uint32   `field:"type" constants:"BPF program types"`                              // Type of the eBPF program
+	AttachType uint32   `field:"attach_type" constants:"BPF attach types"`                        // Attach type of the eBPF program
+	Helpers    []uint32 `field:"helpers,handler:ResolveHelpers" constants:"BPF helper functions"` // eBPF helpers used by the eBPF program (added in 7.35)
+	Name       string   `field:"name"`                                                            // Name of the eBPF program (added in 7.35)
+	Tag        string   `field:"tag"`                                                             // Hash (sha1) of the eBPF program (added in 7.35)
 }
 
 // PTraceEvent represents a ptrace event
@@ -777,8 +777,8 @@ type CgroupTracingEvent struct {
 //msgp:ignore NetworkDeviceContext
 type NetworkDeviceContext struct {
 	NetNS   uint32 `field:"-"`
-	IfIndex uint32 `field:"ifindex"`                           // interface ifindex
-	IfName  string `field:"ifname,ResolveNetworkDeviceIfName"` // interface ifname
+	IfIndex uint32 `field:"ifindex"`                                   // interface ifindex
+	IfName  string `field:"ifname,handler:ResolveNetworkDeviceIfName"` // interface ifname
 }
 
 // IPPortContext is used to hold an IP and Port
