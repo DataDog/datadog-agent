@@ -3194,11 +3194,20 @@ api_key:
     #
     # resource_attributes_as_tags: false
 
+    ## Deprecated - use `instrumentation_scope_metadata_as_tags` instead in favor of
+    ## https://github.com/open-telemetry/opentelemetry-proto/releases/tag/v0.15.0
+    ## Both must not be set at the same time.
     ## @param instrumentation_library_metadata_as_tags - boolean - optional - default: false
     ## @env DD_OTLP_CONFIG_METRICS_INSTRUMENTATION_LIBRARY_METADATA_AS_TAGS - boolean - optional - default: false
     ## Set to true to add metadata about the instrumentation library that created a metric.
     #
     # instrumentation_library_metadata_as_tags: false
+
+    ## @param instrumentation_scope_metadata_as_tags - boolean - optional - default: false
+    ## @env DD_OTLP_CONFIG_METRICS_INSTRUMENTATION_SCOPE_METADATA_AS_TAGS - boolean - optional - default: false
+    ## Set to true to add metadata about the instrumentation scope that created a metric.
+    #
+    # instrumentation_scope_metadata_as_tags: false
 
     ## @param tag_cardinality - string - optional - default: low
     ## @env DD_OTLP_CONFIG_METRICS_TAG_CARDINALITY - string - optional - default: low

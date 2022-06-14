@@ -11,6 +11,7 @@ otlp_config:
     tag_cardinality: orchestrator
     resource_attributes_as_tags: true
     instrumentation_library_metadata_as_tags: true
+    instrumentation_scope_metadata_as_tags: true
     histograms:
       mode: counters
       send_count_sum_metrics: true
