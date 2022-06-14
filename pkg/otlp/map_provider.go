@@ -12,11 +12,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/otlp/internal/configutils"
+	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/service"
 	"go.uber.org/multierr"
-
-	"github.com/DataDog/datadog-agent/pkg/otlp/internal/configutils"
 )
 
 // buildKey creates a key for referencing a nested field.
