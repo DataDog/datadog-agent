@@ -115,6 +115,15 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) (*manager.M
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.SKB__FreeDatagramLocked), EBPFFuncName: altProbes[probes.SKB__FreeDatagramLocked], UID: probeUID}},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.SKBConsumeUDP), EBPFFuncName: altProbes[probes.SKBConsumeUDP], UID: probeUID}},
 		)
+
+		kv, err := kernel.HostVersion()
+		if err != nil {
+			return nil, fmt.Errorf("error getting kernel version: %w", err)
+		}
+
+		if kv >= kernel.VersionCode(4, 10, 0) {
+			mgr.Maps = append(mgr.Maps, &manager.Map{Name: string(probes.CgroupNames)})
+		}
 	} else {
 		// the runtime compiled tracer has no need for separate probes targeting specific kernel versions, since it can
 		// do that with #ifdefs inline. Thus, the following probes should only be declared as existing in the prebuilt
@@ -126,15 +135,6 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) (*manager.M
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.UDPv6RecvMsgPre410), EBPFFuncName: altProbes[probes.UDPv6RecvMsgPre410], UID: probeUID}, MatchFuncName: "^udpv6_recvmsg$"},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPSendMsgPre410), EBPFFuncName: altProbes[probes.TCPSendMsgPre410], UID: probeUID}, MatchFuncName: "^tcp_sendmsg$"},
 		)
-	} else {
-		kv, err := kernel.HostVersion()
-		if err != nil {
-			return nil, fmt.Errorf("error getting kernel version: %w", err)
-		}
-
-		if kv >= kernel.VersionCode(4, 10, 0) {
-			mgr.Maps = append(mgr.Maps, &manager.Map{Name: string(probes.CgroupNames)})
-		}
 	}
 
 	return mgr, nil

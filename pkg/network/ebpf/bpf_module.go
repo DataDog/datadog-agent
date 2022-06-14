@@ -21,12 +21,7 @@ func ReadBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 		file = "tracer-debug.o"
 	}
 
-	ebpfReader, err := bytecode.GetReader(bpfDir, file)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't find asset: %s", err)
-	}
-
-	return ebpfReader, nil
+	return readAsset(bpfDir, file)
 }
 
 // ReadHTTPModule from the asset file
@@ -36,12 +31,7 @@ func ReadHTTPModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 		file = "http-debug.o"
 	}
 
-	ebpfReader, err := bytecode.GetReader(bpfDir, file)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't find asset: %s", err)
-	}
-
-	return ebpfReader, nil
+	return readAsset(bpfDir, file)
 }
 
 // ReadDNSModule from the asset file
@@ -51,12 +41,7 @@ func ReadDNSModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 		file = "dns-debug.o"
 	}
 
-	ebpfReader, err := bytecode.GetReader(bpfDir, file)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't find asset: %s", err)
-	}
-
-	return ebpfReader, nil
+	return readAsset(bpfDir, file)
 }
 
 // ReadOffsetBPFModule from the asset file
@@ -66,9 +51,22 @@ func ReadOffsetBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error
 		file = "offset-guess-debug.o"
 	}
 
-	ebpfReader, err := bytecode.GetReader(bpfDir, file)
+	return readAsset(bpfDir, file)
+}
+
+func ReadProcessModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
+	file := "process.o"
+	if debug {
+		file = "process-debug.o"
+	}
+
+	return readAsset(bpfDir, file)
+}
+
+func readAsset(bpfDir, name string) (bytecode.AssetReader, error) {
+	ebpfReader, err := bytecode.GetReader(bpfDir, name)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't find asset: %s", err)
+		return nil, fmt.Errorf("couldn't find asset: %w", err)
 	}
 
 	return ebpfReader, nil

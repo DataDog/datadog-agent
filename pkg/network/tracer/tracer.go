@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	"github.com/DataDog/datadog-agent/pkg/network/process"
 	"github.com/DataDog/datadog-agent/pkg/network/stats"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
@@ -48,12 +49,13 @@ const (
 )
 
 type Tracer struct {
-	config      *config.Config
-	state       network.State
-	conntracker netlink.Conntracker
-	reverseDNS  dns.ReverseDNS
-	httpMonitor *http.Monitor
-	ebpfTracer  connection.Tracer
+	config         *config.Config
+	state          network.State
+	conntracker    netlink.Conntracker
+	reverseDNS     dns.ReverseDNS
+	httpMonitor    *http.Monitor
+	ebpfTracer     connection.Tracer
+	processMonitor *process.Monitor
 
 	// Telemetry
 	skippedConns int64 `stats:"atomic"`
@@ -181,6 +183,12 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		ebpfTracer:                 ebpfTracer,
 	}
 
+	if tr.processMonitor, err = process.NewMonitor(config); err != nil {
+		return nil, fmt.Errorf("could not create process monitor: %w", err)
+	} else if tr.processMonitor != nil {
+		log.Infof("network process monitoring enabled")
+	}
+
 	tr.cgroups.Map = ebpfTracer.GetMap(string(probes.CgroupNames))
 	if tr.cgroups.Map != nil {
 		tr.cgroups.NameBuffer = make([]byte, containerIDLen)
@@ -197,7 +205,13 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	}
 
 	if err = tr.reverseDNS.Start(); err != nil {
+		tr.Stop()
 		return nil, fmt.Errorf("could not start reverse dns monitor: %w", err)
+	}
+
+	if err = tr.processMonitor.Start(); err != nil {
+		tr.Stop()
+		return nil, fmt.Errorf("could not start process monitor: %w", err)
 	}
 
 	return tr, nil
@@ -347,6 +361,7 @@ func (t *Tracer) Stop() {
 	t.ebpfTracer.Stop()
 	t.httpMonitor.Stop()
 	t.conntracker.Close()
+	t.processMonitor.Stop()
 }
 
 func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
