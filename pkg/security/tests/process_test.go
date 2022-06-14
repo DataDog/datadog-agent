@@ -123,6 +123,10 @@ func TestProcessContext(t *testing.T) {
 			ID:         "test_self_exec",
 			Expression: `exec.file.name == "syscall_tester" && exec.argv0 == "selfexec123" && process.comm == "exe"`,
 		},
+		{
+			ID:         "test_exec_argv0",
+			Expression: `exec.file.name == "/tmp/sym-test"`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
@@ -601,6 +605,23 @@ func TestProcessContext(t *testing.T) {
 			return nil
 		}, validateExecEvent(t, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_self_exec")
+		}))
+	})
+
+	t.Run("exec-argv0", func(t *testing.T) {
+		lsExecutable := which(t, "ls")
+		target := "/tmp/sym-test"
+
+		if err := os.Symlink(lsExecutable, target); err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(target)
+
+		test.WaitSignal(t, func() error {
+			cmd := exec.Command(target, "--author")
+			return cmd.Run()
+		}, validateExecEvent(t, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_exec_argv0")
 		}))
 	})
 }
