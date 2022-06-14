@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -125,6 +126,16 @@ func init() {
 
 	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
 	SecurityAgentCmd.AddCommand(startCmd)
+}
+
+// Run starts the security-agent
+func Run() {
+	// set the Agent flavor
+	flavor.SetFlavor(flavor.SecurityAgent)
+
+	if err := SecurityAgentCmd.Execute(); err != nil {
+		os.Exit(-1)
+	}
 }
 
 func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string, intakeTrackType config.IntakeTrackType, intakeOrigin config.IntakeOrigin, intakeProtocol config.IntakeProtocol) (*config.Endpoints, *client.DestinationsContext, error) {

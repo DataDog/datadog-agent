@@ -9,21 +9,12 @@
 package main
 
 import (
-	"os"
-
 	_ "expvar"         // Blank import used because this isn't directly used in this file
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
-
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app"
 )
 
 func main() {
-	// set the Agent flavor
-	flavor.SetFlavor(flavor.SecurityAgent)
-
-	if err := app.SecurityAgentCmd.Execute(); err != nil {
-		os.Exit(-1)
-	}
+	app.Run()
 }

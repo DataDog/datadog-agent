@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package app
 
 import (
 	"bytes"
@@ -59,7 +59,6 @@ func remoteConfigHandler(r *api.HTTPReceiver, client pbgo.AgentSecureClient, tok
 		_, err := io.Copy(buf, req.Body)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
-
 		}
 		var configsRequest pbgo.ClientGetConfigsRequest
 		err = json.Unmarshal(buf.Bytes(), &configsRequest)
@@ -98,7 +97,6 @@ func remoteConfigHandler(r *api.HTTPReceiver, client pbgo.AgentSecureClient, tok
 			return
 		}
 		w.Write(content)
-
 	})
 }
 

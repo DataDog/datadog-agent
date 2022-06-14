@@ -38,7 +38,8 @@ var Win = struct {
 	Foreground       bool
 }{}
 
-func init() {
+// RegisterFlags register default flags for trace-agent
+func RegisterFlags() {
 	flag.StringVar(&ConfigPath, "config", DefaultConfigPath, "Datadog Agent config file location")
 	flag.StringVar(&PIDFilePath, "pid", "", "Path to set pidfile for process")
 	flag.BoolVar(&Version, "version", false, "Show version information and exit")
