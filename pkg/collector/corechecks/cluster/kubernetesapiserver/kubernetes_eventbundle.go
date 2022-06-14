@@ -10,19 +10,18 @@ package kubernetesapiserver
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
-	"math"
-
 	cache "github.com/patrickmn/go-cache"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 type kubernetesEventBundle struct {
@@ -50,13 +49,6 @@ func newKubernetesEventBundler(event *v1.Event) *kubernetesEventBundle {
 }
 
 func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
-	// As some fields are optional, we want to avoid evaluating empty values.
-	if event == nil || event.InvolvedObject.Kind == "" {
-		return errors.New("could not retrieve some parent attributes of the event")
-	}
-	if event.Reason == "" || event.Message == "" || event.InvolvedObject.Name == "" {
-		return errors.New("could not retrieve some attributes of the event")
-	}
 	if event.InvolvedObject.UID != b.objUID {
 		return fmt.Errorf("mismatching Object UIDs: %s != %s", event.InvolvedObject.UID, b.objUID)
 	}
@@ -70,13 +62,13 @@ func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 	b.lastTimestamp = math.Max(b.lastTimestamp, float64(event.LastTimestamp.Unix()))
 
 	b.countByAction[fmt.Sprintf("**%s**: %s\n", event.Reason, event.Message)] += int(event.Count)
-	b.readableKey = fmt.Sprintf("%s %s", event.InvolvedObject.Name, event.InvolvedObject.Kind)
 	b.kind = event.InvolvedObject.Kind
 	b.name = event.InvolvedObject.Name
 
 	if event.InvolvedObject.Kind == "Pod" || event.InvolvedObject.Kind == "Node" {
 		b.nodename = event.Source.Host
 	}
+
 	if event.InvolvedObject.Namespace == "" {
 		b.readableKey = fmt.Sprintf("%s %s", event.InvolvedObject.Kind, event.InvolvedObject.Name)
 	} else {
@@ -91,7 +83,11 @@ func (b *kubernetesEventBundle) formatEvents(clusterName string, providerIDCache
 		return metrics.Event{}, errors.New("no event to export")
 	}
 
-	tags := []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name)}
+	tags := []string{
+		fmt.Sprintf("source_component:%s", b.component),
+		fmt.Sprintf("kubernetes_kind:%s", b.kind),
+		fmt.Sprintf("name:%s", b.name),
+	}
 
 	if kindTag := getKindTag(b.kind, b.name); kindTag != "" {
 		tags = append(tags, kindTag)
@@ -117,6 +113,15 @@ func (b *kubernetesEventBundle) formatEvents(clusterName string, providerIDCache
 		}
 	}
 
+	if b.namespace != "" {
+		tags = append(tags,
+			// TODO remove the deprecated namespace tag, we should
+			// only rely on kube_namespace
+			fmt.Sprintf("namespace:%s", b.namespace),
+			fmt.Sprintf("kube_namespace:%s", b.namespace),
+		)
+	}
+
 	// If hostname was not defined, the aggregator will then set the local hostname
 	output := metrics.Event{
 		Title:          fmt.Sprintf("Events from the %s", b.readableKey),
@@ -128,13 +133,15 @@ func (b *kubernetesEventBundle) formatEvents(clusterName string, providerIDCache
 		Tags:           tags,
 		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", b.objUID),
 		AlertType:      b.alertType,
+		Text: fmt.Sprintf(
+			"%%%%%% \n%s \n _Events emitted by the %s seen at %s since %s_ \n\n %%%%%%",
+			formatStringIntMap(b.countByAction),
+			b.component,
+			time.Unix(int64(b.lastTimestamp), 0),
+			time.Unix(int64(b.timeStamp), 0),
+		),
 	}
-	if b.namespace != "" {
-		// TODO remove the deprecated namespace tag, we should only rely on kube_namespace
-		output.Tags = append(output.Tags, fmt.Sprintf("namespace:%s", b.namespace))
-		output.Tags = append(output.Tags, fmt.Sprintf("kube_namespace:%s", b.namespace))
-	}
-	output.Text = "%%% \n" + fmt.Sprintf("%s \n _Events emitted by the %s seen at %s since %s_ \n", formatStringIntMap(b.countByAction), b.component, time.Unix(int64(b.lastTimestamp), 0), time.Unix(int64(b.timeStamp), 0)) + "\n %%%"
+
 	return output, nil
 }
 
