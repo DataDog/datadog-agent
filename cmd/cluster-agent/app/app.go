@@ -37,6 +37,7 @@ import (
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -283,6 +284,7 @@ func start(cmd *cobra.Command, args []string) error {
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 	// create and setup the Autoconfig instance
 	common.LoadComponents(mainCtx, config.Datadog.GetString("confd_path"))
+	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll), true)
 	// start the autoconfig, this will immediately run any configured check
 	common.AC.LoadAndRun()
 
