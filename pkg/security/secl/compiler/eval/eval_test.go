@@ -290,6 +290,9 @@ func TestStringMatcher(t *testing.T) {
 			name:  "/usr/bin/c$t",
 			argv0: "http://example.com",
 		},
+		open: testOpen{
+			filename: "dGVzdA==.dGVzdA==.dGVzdA==.dGVzdA==.dGVzdA==.example.com",
+		},
 	}
 
 	tests := []struct {
@@ -333,6 +336,7 @@ func TestStringMatcher(t *testing.T) {
 		{Expr: `r".*/bin/.*" == process.name`, Expected: true},
 		{Expr: `process.argv0 =~ "http://*"`, Expected: true},
 		{Expr: `process.argv0 =~ "*example.com"`, Expected: true},
+		{Expr: `open.filename == r"^((?:[A-Za-z\d+]{4})*(?:[A-Za-z\d+]{3}=|[A-Za-z\d+]{2}==)\.)*(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$"`, Expected: true},
 	}
 
 	for _, test := range tests {
