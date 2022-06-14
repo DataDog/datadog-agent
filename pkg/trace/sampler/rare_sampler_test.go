@@ -28,11 +28,11 @@ func TestSpanSeenTTLExpiration(t *testing.T) {
 	testCases := []testCase{
 		{"blocked-p1", false, testTime, map[string]float64{"_top_level": 1}, PriorityAutoKeep},
 		{"p0-blocked-by-p1", false, testTime, map[string]float64{"_top_level": 1}, PriorityNone},
-		{"p1-ttl-before-expiration", false, testTime.Add(c.RareSamplerCooldownPeriod), map[string]float64{"_top_level": 1}, PriorityNone},
-		{"p1-ttl-expired", true, testTime.Add(c.RareSamplerCooldownPeriod + time.Nanosecond), map[string]float64{"_top_level": 1}, PriorityNone},
-		{"p0-ttl-active", false, testTime.Add(c.RareSamplerCooldownPeriod + time.Nanosecond), map[string]float64{"_top_level": 1}, PriorityNone},
-		{"p0-ttl-before-expiration", false, testTime.Add(2*c.RareSamplerCooldownPeriod + time.Nanosecond), map[string]float64{"_top_level": 1}, PriorityNone},
-		{"p0-ttl-expired", true, testTime.Add(2*c.RareSamplerCooldownPeriod + 2*time.Nanosecond), map[string]float64{"_dd.measured": 1}, PriorityNone},
+		{"p1-ttl-before-expiration", false, testTime.Add(priorityTTL), map[string]float64{"_top_level": 1}, PriorityNone},
+		{"p1-ttl-expired", true, testTime.Add(priorityTTL + time.Nanosecond), map[string]float64{"_top_level": 1}, PriorityNone},
+		{"p0-ttl-active", false, testTime.Add(priorityTTL + time.Nanosecond), map[string]float64{"_top_level": 1}, PriorityNone},
+		{"p0-ttl-before-expiration", false, testTime.Add(priorityTTL + c.RareSamplerCooldownPeriod + time.Nanosecond), map[string]float64{"_top_level": 1}, PriorityNone},
+		{"p0-ttl-expired", true, testTime.Add(priorityTTL + c.RareSamplerCooldownPeriod + 2*time.Nanosecond), map[string]float64{"_dd.measured": 1}, PriorityNone},
 	}
 
 	e := NewRareSampler(c)

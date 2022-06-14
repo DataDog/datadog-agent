@@ -18,6 +18,8 @@ import (
 )
 
 const (
+	// priorityTTL allows to blacklist p1 spans that are sampled entirely, for this period.
+	priorityTTL = 10 * time.Minute
 	// ttlRenewalPeriod specifies the frequency at which we will upload cached entries.
 	ttlRenewalPeriod = 1 * time.Minute
 	// rareSamplerBurst sizes the token store used by the rate limiter.
@@ -40,6 +42,7 @@ type RareSampler struct {
 	tickStats   *time.Ticker
 	limiter     *rate.Limiter
 	ttl         time.Duration
+	priorityTTL time.Duration
 	cardinality int
 	seen        map[Signature]*seenSpans
 }
@@ -53,9 +56,13 @@ func NewRareSampler(conf *config.AgentConfig) *RareSampler {
 		shrinks:     atomic.NewInt64(0),
 		limiter:     rate.NewLimiter(rate.Limit(conf.RareSamplerTPS), rareSamplerBurst),
 		ttl:         conf.RareSamplerCooldownPeriod,
+		priorityTTL: priorityTTL,
 		cardinality: conf.RareSamplerCardinality,
 		seen:        make(map[Signature]*seenSpans),
 		tickStats:   time.NewTicker(10 * time.Second),
+	}
+	if e.ttl > e.priorityTTL {
+		e.priorityTTL = e.ttl
 	}
 	go func() {
 		for range e.tickStats.C {
@@ -68,7 +75,7 @@ func NewRareSampler(conf *config.AgentConfig) *RareSampler {
 // Sample a trace and returns true if trace was sampled (should be kept)
 func (e *RareSampler) Sample(now time.Time, t *pb.TraceChunk, env string) bool {
 	if priority, ok := GetSamplingPriority(t); priority > 0 && ok {
-		e.handlePriorityTrace(now, env, t)
+		e.handlePriorityTrace(now, env, t, e.priorityTTL)
 		return false
 	}
 	return e.handleTrace(now, env, t)
@@ -79,8 +86,8 @@ func (e *RareSampler) Stop() {
 	e.tickStats.Stop()
 }
 
-func (e *RareSampler) handlePriorityTrace(now time.Time, env string, t *pb.TraceChunk) {
-	expire := now.Add(e.ttl)
+func (e *RareSampler) handlePriorityTrace(now time.Time, env string, t *pb.TraceChunk, ttl time.Duration) {
+	expire := now.Add(ttl)
 	for _, s := range t.Spans {
 		if !traceutil.HasTopLevel(s) && !traceutil.IsMeasured(s) {
 			continue
@@ -100,7 +107,7 @@ func (e *RareSampler) handleTrace(now time.Time, env string, t *pb.TraceChunk) b
 		}
 	}
 	if sampled {
-		e.handlePriorityTrace(now, env, t)
+		e.handlePriorityTrace(now, env, t, e.ttl)
 	}
 	return sampled
 }
