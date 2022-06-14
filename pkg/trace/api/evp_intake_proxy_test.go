@@ -57,7 +57,6 @@ func sendRequestThroughForwarder(conf *config.AgentConfig, inReq *http.Request) 
 }
 
 func TestEVPProxyForwarder(t *testing.T) {
-
 	randBodyBuf := make([]byte, 1024)
 	rand.Read(randBodyBuf)
 
@@ -126,7 +125,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 			return []string{"container:" + cid}, nil
 		}
 
-		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", nil)
+		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", bytes.NewReader(randBodyBuf))
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
 		req.Header.Set("Datadog-Container-ID", "myid")
 		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
@@ -144,7 +143,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		conf.EVPProxy.AdditionalEndpoints = map[string][]string{
 			"datadoghq.eu": {"test_api_key_1", "test_api_key_2"},
 		}
-		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", nil)
+		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", bytes.NewReader(randBodyBuf))
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
 		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
 
@@ -177,7 +176,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		conf.Site = "us3.datadoghq.com"
 		conf.Endpoints[0].APIKey = "test_api_key"
 
-		req := httptest.NewRequest("POST", "/mypath/mysubpath", nil)
+		req := httptest.NewRequest("POST", "/mypath/mysubpath", bytes.NewReader(randBodyBuf))
 		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
 
 		require.Len(t, proxyreqs, 0)
@@ -199,7 +198,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		conf.Site = "us3.datadoghq.com"
 		conf.Endpoints[0].APIKey = "test_api_key"
 
-		req := httptest.NewRequest("POST", "/mypath/mysubpath", nil)
+		req := httptest.NewRequest("POST", "/mypath/mysubpath", bytes.NewReader(randBodyBuf))
 		req.Header.Set("X-Datadog-EVP-Subdomain", "/google.com%3Fattack=")
 		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
 
@@ -222,7 +221,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		conf.Site = "us3.datadoghq.com"
 		conf.Endpoints[0].APIKey = "test_api_key"
 
-		req := httptest.NewRequest("POST", "/mypath/my%20subpath", nil)
+		req := httptest.NewRequest("POST", "/mypath/my%20subpath", bytes.NewReader(randBodyBuf))
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
 		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
 
@@ -248,7 +247,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		conf.Site = "us3.datadoghq.com"
 		conf.Endpoints[0].APIKey = "test_api_key"
 
-		req := httptest.NewRequest("POST", "/mypath/mysubpath?test=bad%20arg", nil)
+		req := httptest.NewRequest("POST", "/mypath/mysubpath?test=bad%20arg", bytes.NewReader(randBodyBuf))
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
 		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
 

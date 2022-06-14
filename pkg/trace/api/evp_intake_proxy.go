@@ -132,7 +132,6 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 		req.Body = apiutil.NewLimitedReader(req.Body, t.conf.EVPProxy.MaxPayloadSize)
 	}
 
-	// Metrics with stats for debugging
 	beginTime := time.Now()
 	metricTags := []string{}
 	if ct := req.Header.Get("Content-Type"); ct != "" {
@@ -147,13 +146,12 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 		}
 	}()
 
-	// Read the input headers
 	subdomain := req.Header.Get("X-Datadog-EVP-Subdomain")
 	containerID := req.Header.Get("Datadog-Container-ID")
 	contentType := req.Header.Get("Content-Type")
 	userAgent := req.Header.Get("User-Agent")
 
-	// Sanitize the input
+	// Sanitize the input, don't accept any valid URL but just some limited subset
 	if len(subdomain) == 0 {
 		return nil, fmt.Errorf("EVPProxy: no subdomain specified")
 	}
@@ -168,7 +166,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 		return nil, fmt.Errorf("EVPProxy: invalid query string: %s", req.URL.RawQuery)
 	}
 
-	// Clear all received headers
+	// We don't want to forward arbitrary headers, clear them
 	req.Header = http.Header{}
 
 	// Set standard headers
@@ -185,7 +183,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	req.Header.Set("X-Datadog-Hostname", t.conf.Hostname)
 	req.Header.Set("X-Datadog-AgentDefaultEnv", t.conf.DefaultEnv)
 
-	// Set target URL & API key header
+	// Set target URL and API key header (per domain)
 	req.URL.Scheme = "https"
 	setTarget := func(r *http.Request, host, apiKey string) {
 		targetHost := subdomain + "." + host
