@@ -20,6 +20,8 @@ import (
 // Without FILE_SHARE_DELETE, other users cannot rename/remove the file while
 // this handle is open. Adding this flag allows the agent to have the file open,
 // while not preventing it from being rotated/deleted.
+//
+// On non-Windows platforms, this calls through to os.Open directly.
 func OpenShared(path string) (*os.File, error) {
 	pathp, err := windows.UTF16PtrFromString(path)
 	if err != nil {
