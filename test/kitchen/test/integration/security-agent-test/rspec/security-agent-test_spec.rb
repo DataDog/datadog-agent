@@ -2,6 +2,7 @@ require 'spec_helper'
 
 print `cat /etc/os-release`
 print `cat /etc/lsb-release`
+print `/usr/bin/lsb_release -a`
 print `uname -a`
 
 describe 'successfully run functional test' do
