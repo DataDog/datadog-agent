@@ -262,9 +262,6 @@ func (ev *Event) ResolveChownGID(e *model.ChownEvent) string {
 
 // ResolveProcessCreatedAt resolves process creation time
 func (ev *Event) ResolveProcessCreatedAt(e *model.Process) uint64 {
-	if e.ExecTime.IsZero() {
-		return 0
-	}
 	return uint64(e.ExecTime.UnixNano())
 }
 

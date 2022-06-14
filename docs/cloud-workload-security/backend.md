@@ -427,7 +427,7 @@ CWS logs have the following JSON schema:
         },
         "code": {
             "type": "integer",
-            "description": "Exit code of the process"
+            "description": "Exit code of the process or number of the signal that caused the process to terminate"
         }
     },
     "additionalProperties": false,
@@ -439,7 +439,7 @@ CWS logs have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `cause` | Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED) |
-| `code` | Exit code of the process |
+| `code` | Exit code of the process or number of the signal that caused the process to terminate |
 
 
 ## `File`

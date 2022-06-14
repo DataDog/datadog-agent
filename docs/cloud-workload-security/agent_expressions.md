@@ -440,7 +440,7 @@ A process terminated
 | `exit.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
 | `exit.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
 | `exit.cause` | int | Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED) |  |
-| `exit.code` | int | Exit code of the process |  |
+| `exit.code` | int | Exit code of the process or number of the signal that caused the process to terminate |  |
 | `exit.comm` | string | Comm attribute of the process |  |
 | `exit.container.id` | string | Container ID |  |
 | `exit.cookie` | int | Cookie of the process |  |

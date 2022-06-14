@@ -268,7 +268,7 @@
         },
         "code": {
           "type": "integer",
-          "description": "Exit code of the process"
+          "description": "Exit code of the process or number of the signal that caused the process to terminate"
         }
       },
       "additionalProperties": false,

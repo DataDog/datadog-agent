@@ -338,7 +338,7 @@ type BindEventSerializer struct {
 // easyjson:json
 type ExitEventSerializer struct {
 	Cause string `json:"cause" jsonschema_description:"Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)"`
-	Code  uint32 `json:"code" jsonschema_description:"Exit code of the process"`
+	Code  uint32 `json:"code" jsonschema_description:"Exit code of the process or number of the signal that caused the process to terminate"`
 }
 
 // EventSerializer serializes an event to JSON

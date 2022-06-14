@@ -1196,35 +1196,27 @@ func TestProcessExit(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_exit_ok",
-			Expression: fmt.Sprintf(`exit.file.path == "%s" && exit.envp in ["%s"] && exit.cause == EXITED && exit.code == 0`, sleepExec, envpExitSleep),
+			Expression: fmt.Sprintf(`exit.cause == EXITED && exit.code == 0 && process.file.path == "%s" && process.envp in ["%s"]`, sleepExec, envpExitSleep),
 		},
 		{
 			ID:         "test_exit_error",
-			Expression: fmt.Sprintf(`exit.file.path == "%s" && exit.envp in ["%s"] && exit.cause == EXITED && exit.code == 1`, sleepExec, envpExitSleep),
+			Expression: fmt.Sprintf(`exit.cause == EXITED && exit.code == 1 && process.file.path == "%s" && process.envp in ["%s"]`, sleepExec, envpExitSleep),
 		},
 		{
 			ID:         "test_exit_coredump",
-			Expression: fmt.Sprintf(`exit.file.path == "%s" && exit.envp in ["%s"] && exit.cause == COREDUMPED && exit.code == SIGQUIT`, sleepExec, envpExitSleep),
+			Expression: fmt.Sprintf(`exit.cause == COREDUMPED && exit.code == SIGQUIT && process.file.path == "%s" && process.envp in ["%s"]`, sleepExec, envpExitSleep),
 		},
 		{
 			ID:         "test_exit_signal",
-			Expression: fmt.Sprintf(`exit.file.path == "%s" && exit.envp in ["%s"] && exit.cause == SIGNALED && exit.code == SIGKILL`, sleepExec, envpExitSleep),
+			Expression: fmt.Sprintf(`exit.cause == SIGNALED && exit.code == SIGKILL && process.file.path == "%s" && process.envp in ["%s"]`, sleepExec, envpExitSleep),
 		},
 		{
 			ID:         "test_exit_time_1",
-			Expression: fmt.Sprintf(`exit.file.path == "%s" && exit.envp in ["%s"] && exit.cause == EXITED && exit.code == 0 && exit.created_at < 2s`, sleepExec, envpExitSleepTime),
+			Expression: fmt.Sprintf(`exit.cause == EXITED && exit.code == 0 && process.created_at < 2s && process.file.path == "%s" && process.envp in ["%s"]`, sleepExec, envpExitSleepTime),
 		},
 		{
 			ID:         "test_exit_time_2",
-			Expression: fmt.Sprintf(`exit.file.path == "%s" && exit.envp in ["%s"] && exit.cause == EXITED && exit.code == 0 && exit.created_at > 2s`, sleepExec, envpExitSleepTime),
-		},
-		{
-			ID:         "test_exit_fork",
-			Expression: `exit.file.name == "syscall_tester" && exit.cause == EXITED && process.ancestors.file.name == "syscall_tester" && exit.created_at == 0`,
-		},
-		{
-			ID:         "test_exit_fork_exec",
-			Expression: `exit.file.name == "syscall_tester" && exit.cause == EXITED && process.ancestors.file.name == "syscall_tester" && exit.created_at != 0`,
+			Expression: fmt.Sprintf(`exit.cause == EXITED && exit.code == 0 && process.created_at > 2s && process.file.path == "%s" && process.envp in ["%s"]`, sleepExec, envpExitSleepTime),
 		},
 	}
 
@@ -1234,17 +1226,12 @@ func TestProcessExit(t *testing.T) {
 	}
 	defer test.Close()
 
-	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	t.Run("exit-ok", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			args := []string{"--preserve-status", "--signal=SIGKILL", "1", sleepExec, "0"}
+			args := []string{"0"}
 			envp := []string{envpExitSleep}
 
-			cmd := exec.Command(timeoutExec, args...)
+			cmd := exec.Command(sleepExec, args...)
 			cmd.Env = envp
 			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -1257,10 +1244,10 @@ func TestProcessExit(t *testing.T) {
 
 	t.Run("exit-error", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			args := []string{"--preserve-status", "--signal=SIGKILL", "1", sleepExec} // sleep with no argument should exit with return code 1
+			args := []string{} // sleep with no argument should exit with return code 1
 			envp := []string{envpExitSleep}
 
-			cmd := exec.Command(timeoutExec, args...)
+			cmd := exec.Command(sleepExec, args...)
 			cmd.Env = envp
 			_ = cmd.Run()
 			return nil
@@ -1272,7 +1259,7 @@ func TestProcessExit(t *testing.T) {
 		})
 	})
 
-	t.Run("exit-coredump", func(t *testing.T) {
+	t.Run("exit-coredumped", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			args := []string{"--preserve-status", "--signal=SIGQUIT", "0.1", sleepExec, "1"}
 			envp := []string{envpExitSleep}
@@ -1289,7 +1276,7 @@ func TestProcessExit(t *testing.T) {
 		})
 	})
 
-	t.Run("exit-signal", func(t *testing.T) {
+	t.Run("exit-signaled", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			args := []string{"--preserve-status", "--signal=SIGKILL", "0.1", sleepExec, "1"}
 			envp := []string{envpExitSleep}
@@ -1335,38 +1322,6 @@ func TestProcessExit(t *testing.T) {
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
-		})
-	})
-
-	t.Run("exit-fork", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
-			args := []string{"exit-fork"}
-
-			cmd := exec.Command(syscallTester, args...)
-			_ = cmd.Run()
-			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_exit_fork")
-			assertFieldEqual(t, event, "exit.file.name", path.Base(syscallTester))
-			assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"syscall_tester"}, "process is not a child of syscall_tester")
-			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
-			assert.True(t, event.Exit.Process.ExecTime.IsZero(), "the exec time of a process that didn't exec should be zero")
-		})
-	})
-
-	t.Run("exit-fork-exec", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
-			args := []string{"exit-fork", "exec"}
-
-			cmd := exec.Command(syscallTester, args...)
-			_ = cmd.Run()
-			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_exit_fork_exec")
-			assertFieldEqual(t, event, "exit.file.name", path.Base(syscallTester))
-			assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"syscall_tester"}, "process is not a child of syscall_tester")
-			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
-			assert.False(t, event.Exit.Process.ExecTime.IsZero(), "the exec time of a process that called exec*() shouldn't be zero")
 		})
 	})
 }

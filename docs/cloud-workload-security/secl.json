@@ -1372,7 +1372,7 @@
         {
           "name": "exit.code",
           "type": "int",
-          "definition": "Exit code of the process",
+          "definition": "Exit code of the process or number of the signal that caused the process to terminate",
           "constants": ""
         },
         {

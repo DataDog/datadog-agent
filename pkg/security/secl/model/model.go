@@ -340,7 +340,7 @@ type ExecEvent struct {
 type ExitEvent struct {
 	*Process
 	Cause uint32 `field:"cause" msg:"exit_cause"` // Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)
-	Code  uint32 `field:"code" msg:"exit_code"`   // Exit code of the process
+	Code  uint32 `field:"code" msg:"exit_code"`   // Exit code of the process or number of the signal that caused the process to terminate
 }
 
 // FileFields holds the information required to identify a file
