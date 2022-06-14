@@ -25,7 +25,7 @@ type translatorConfig struct {
 	ResourceAttributesAsTags bool
 	// Deprecated: use InstrumentationScopeMetadataAsTags instead in favor of
 	// https://github.com/open-telemetry/opentelemetry-proto/releases/tag/v0.15.0
-	// Both must be set at the same time.
+	// Both must not be set at the same time.
 	InstrumentationLibraryMetadataAsTags bool
 	InstrumentationScopeMetadataAsTags   bool
 

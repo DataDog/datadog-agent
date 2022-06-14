@@ -148,7 +148,7 @@ type metricsExporterConfig struct {
 
 	// Deprecated: Use InstrumentationScopeMetadataAsTags favor of in favor of
 	// https://github.com/open-telemetry/opentelemetry-proto/releases/tag/v0.15.0
-	// Both  must not be set at the same time.
+	// Both must not be set at the same time.
 	// InstrumentationLibraryMetadataAsTags, if set to true, adds the name and version of the
 	// instrumentation library that created a metric to the metric tags
 	InstrumentationLibraryMetadataAsTags bool `mapstructure:"instrumentation_library_metadata_as_tags"`
