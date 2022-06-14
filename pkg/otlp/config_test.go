@@ -206,10 +206,11 @@ func TestFromEnvironmentVariables(t *testing.T) {
 		{
 			name: "HTTP + gRPC, metrics config",
 			env: map[string]string{
-				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT": "0.0.0.0:9995",
-				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT": "0.0.0.0:9996",
-				"DD_OTLP_CONFIG_METRICS_DELTA_TTL":                "2400",
-				"DD_OTLP_CONFIG_METRICS_HISTOGRAMS_MODE":          "counters",
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT":               "0.0.0.0:9995",
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT":               "0.0.0.0:9996",
+				"DD_OTLP_CONFIG_METRICS_DELTA_TTL":                              "2400",
+				"DD_OTLP_CONFIG_METRICS_HISTOGRAMS_MODE":                        "counters",
+				"DD_OTLP_CONFIG_METRICS_INSTRUMENTATION_SCOPE_METADATA_AS_TAGS": "true",
 			},
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{
@@ -226,9 +227,10 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				TracesEnabled:  true,
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
-					"enabled":         true,
-					"tag_cardinality": "low",
-					"delta_ttl":       "2400",
+					"enabled":                                true,
+					"instrumentation_scope_metadata_as_tags": "true",
+					"tag_cardinality":                        "low",
+					"delta_ttl":                              "2400",
 					"histograms": map[string]interface{}{
 						"mode": "counters",
 					},
@@ -271,6 +273,7 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 					"delta_ttl":                   2400,
 					"resource_attributes_as_tags": true,
 					"instrumentation_library_metadata_as_tags": true,
+					"instrumentation_scope_metadata_as_tags":   true,
 					"tag_cardinality":                          "orchestrator",
 					"histograms": map[string]interface{}{
 						"mode":                   "counters",

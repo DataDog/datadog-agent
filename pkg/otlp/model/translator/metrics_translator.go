@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/internal/instrumentationlibrary"
+	"github.com/DataDog/datadog-agent/pkg/otlp/model/internal/instrumentationscope"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
@@ -552,7 +553,9 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 			metricsArray := ilm.Metrics()
 
 			var additionalTags []string
-			if t.cfg.InstrumentationLibraryMetadataAsTags {
+			if t.cfg.InstrumentationScopeMetadataAsTags {
+				additionalTags = append(attributeTags, instrumentationscope.TagsFromInstrumentationScopeMetadata(ilm.Scope())...)
+			} else if t.cfg.InstrumentationLibraryMetadataAsTags {
 				additionalTags = append(attributeTags, instrumentationlibrary.TagsFromInstrumentationLibraryMetadata(ilm.Scope())...)
 			} else {
 				additionalTags = attributeTags
