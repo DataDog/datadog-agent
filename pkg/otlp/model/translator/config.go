@@ -18,12 +18,16 @@ import "fmt"
 
 type translatorConfig struct {
 	// metrics export behavior
-	HistMode                             HistogramMode
-	SendCountSum                         bool
-	Quantiles                            bool
-	SendMonotonic                        bool
-	ResourceAttributesAsTags             bool
+	HistMode                 HistogramMode
+	SendCountSum             bool
+	Quantiles                bool
+	SendMonotonic            bool
+	ResourceAttributesAsTags bool
+	// Deprecated: use InstrumentationScopeMetadataAsTags instead in favor of
+	// https://github.com/open-telemetry/opentelemetry-proto/releases/tag/v0.15.0
+	// Both must not be set at the same time.
 	InstrumentationLibraryMetadataAsTags bool
+	InstrumentationScopeMetadataAsTags   bool
 
 	// cache configuration
 	sweepInterval int64
@@ -81,6 +85,14 @@ func WithResourceAttributesAsTags() Option {
 func WithInstrumentationLibraryMetadataAsTags() Option {
 	return func(t *translatorConfig) error {
 		t.InstrumentationLibraryMetadataAsTags = true
+		return nil
+	}
+}
+
+// WithInstrumentationScopeMetadataAsTags sets instrumentation scope metadata as tags.
+func WithInstrumentationScopeMetadataAsTags() Option {
+	return func(t *translatorConfig) error {
+		t.InstrumentationScopeMetadataAsTags = true
 		return nil
 	}
 }

@@ -15,6 +15,7 @@ class ICustomActionData
     virtual bool isUserDomainUser() const = 0;
     virtual bool isUserLocalUser() const = 0;
     virtual bool DoesUserExist() const = 0;
+    virtual bool IsServiceAccount() const = 0;
     virtual const std::wstring &UnqualifiedUsername() const = 0;
     virtual const std::wstring &Domain() const = 0;
     virtual const std::wstring &FullyQualifiedUsername() const = 0;
@@ -28,6 +29,8 @@ class ICustomActionData
     {
     }
 };
+
+class LogonCli;
 
 class CustomActionData : ICustomActionData
 {
@@ -52,6 +55,7 @@ class CustomActionData : ICustomActionData
     bool isUserDomainUser() const override;
     bool isUserLocalUser() const override;
     bool DoesUserExist() const override;
+    bool IsServiceAccount() const override;
     const std::wstring &UnqualifiedUsername() const override;
     const std::wstring &FullyQualifiedUsername() const override;
     const std::wstring &Domain() const override;
@@ -72,6 +76,8 @@ class CustomActionData : ICustomActionData
     bool _doInstallSysprobe;
     bool _ddnpmPresent;
     bool _ddUserExists;
+    bool _isServiceAccount;
+    LogonCli *_logonCli;
     std::shared_ptr<ITargetMachine> _targetMachine;
     std::optional<User> findPreviousUserInfo();
     std::optional<User> findSuppliedUserInfo();

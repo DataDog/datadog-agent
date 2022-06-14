@@ -52,7 +52,10 @@ func TestRename(t *testing.T) {
 	defer os.Remove(testNewFile)
 	defer os.Remove(testOldFile)
 
+	renameSyscallIsSupported := false
 	t.Run("rename", ifSyscallSupported("SYS_RENAME", func(t *testing.T, syscallNB uintptr) {
+		renameSyscallIsSupported = true
+
 		test.WaitSignal(t, func() error {
 			_, _, errno := syscall.Syscall(syscallNB, uintptr(testOldFilePtr), uintptr(testNewFilePtr), 0)
 			if errno != 0 {
@@ -77,8 +80,10 @@ func TestRename(t *testing.T) {
 		})
 	}))
 
-	if err := os.Rename(testNewFile, testOldFile); err != nil {
-		t.Fatal(err)
+	if renameSyscallIsSupported {
+		if err := os.Rename(testNewFile, testOldFile); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	t.Run("renameat", func(t *testing.T) {
