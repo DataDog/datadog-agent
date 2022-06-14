@@ -221,6 +221,16 @@ func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: false}
 	samplingPriority := sampler.SamplingPriority(1)
 
+	var inferredSpanSlice [2]*inferredspan.InferredSpan
+	inferredSpanSlice[0] = &inferredspan.InferredSpan{
+		CurrentInvocationStartTime: startInferredSpan,
+		Span: &pb.Span{
+			TraceID: 123,
+			SpanID:  3,
+			Start:   startInferredSpan.UnixNano(),
+		},
+	}
+
 	testProcessor := LifecycleProcessor{
 		ExtraTags:            extraTags,
 		ProcessTrace:         mockProcessTrace,
@@ -235,15 +245,8 @@ func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 				parentID:         3,
 				SamplingPriority: samplingPriority,
 			},
-			triggerTags: make(map[string]string),
-			inferredSpan: &inferredspan.InferredSpan{
-				CurrentInvocationStartTime: startInferredSpan,
-				Span: &pb.Span{
-					TraceID: 123,
-					SpanID:  3,
-					Start:   startInferredSpan.UnixNano(),
-				},
-			},
+			triggerTags:   make(map[string]string),
+			inferredSpans: inferredSpanSlice,
 		},
 	}
 
@@ -273,6 +276,16 @@ func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
 	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: false}
 	samplingPriority := sampler.SamplingPriority(1)
 
+	var inferredSpanSlice [2]*inferredspan.InferredSpan
+	inferredSpanSlice[0] = &inferredspan.InferredSpan{
+		CurrentInvocationStartTime: time.Time{},
+		Span: &pb.Span{
+			TraceID: 123,
+			SpanID:  3,
+			Start:   0,
+		},
+	}
+
 	testProcessor := LifecycleProcessor{
 		ExtraTags:            extraTags,
 		ProcessTrace:         mockProcessTrace,
@@ -287,15 +300,8 @@ func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
 				parentID:         3,
 				SamplingPriority: samplingPriority,
 			},
-			triggerTags: make(map[string]string),
-			inferredSpan: &inferredspan.InferredSpan{
-				CurrentInvocationStartTime: time.Time{},
-				Span: &pb.Span{
-					TraceID: 123,
-					SpanID:  3,
-					Start:   0,
-				},
-			},
+			triggerTags:   make(map[string]string),
+			inferredSpans: inferredSpanSlice,
 		},
 	}
 
@@ -556,6 +562,47 @@ func TestTriggerTypesLifecycleEventForSQS(t *testing.T) {
 		"request_id":                        "test-request-id",
 		"function_trigger.event_source":     "sqs",
 	}, testProcessor.GetTags())
+}
+
+func TestTriggerTypesLifecycleEventForSNSSQS(t *testing.T) {
+
+	startInvocationTime := time.Now()
+	duration := 1 * time.Second
+	endInvocationTime := startInvocationTime.Add(duration)
+
+	var tracePayload *api.Payload
+
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: getEventFromFile("snssqs.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		StartTime:             startInvocationTime,
+	}
+
+	testProcessor := &LifecycleProcessor{
+		DetectLambdaLibrary:  func() bool { return false },
+		ProcessTrace:         func(payload *api.Payload) { tracePayload = payload },
+		InferredSpansEnabled: true,
+		requestHandler: &RequestHandler{
+			executionInfo: &ExecutionStartInfo{
+				TraceID:          123,
+				SamplingPriority: 1,
+			},
+		},
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		RequestID: "test-request-id",
+		EndTime:   endInvocationTime,
+		IsError:   false,
+	})
+
+	snsSpan := testProcessor.requestHandler.inferredSpans[1].Span
+	sqsSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+
+	assert.Equal(t, snsSpan.SpanID, sqsSpan.ParentID)
+
+	t.Logf("%+v", tracePayload)
 }
 
 // Helper function for reading test file

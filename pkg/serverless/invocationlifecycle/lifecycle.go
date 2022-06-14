@@ -35,9 +35,10 @@ type LifecycleProcessor struct {
 
 // RequestHandler is the struct that stores information about the trace,
 // inferred span, and tags about the current invocation
+// inferred spans may contain a secondary inferred span in certain cases like SNS from SQS
 type RequestHandler struct {
 	executionInfo *ExecutionStartInfo
-	inferredSpan  *inferredspan.InferredSpan
+	inferredSpans [2]*inferredspan.InferredSpan
 	triggerTags   map[string]string
 }
 
@@ -165,7 +166,13 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 			log.Debug("[lifecycle] Attempting to complete the inferred span")
 			log.Debugf("[lifecycle] Inferred span context: %+v", lp.GetInferredSpan().Span)
 			if lp.GetInferredSpan().Span.Start != 0 {
-				lp.GetInferredSpan().CompleteInferredSpan(lp.ProcessTrace, lp.GetTags(), endDetails.EndTime, endDetails.IsError, lp.GetExecutionInfo().TraceID, lp.GetExecutionInfo().SamplingPriority)
+				if lp.requestHandler.inferredSpans[1] != nil {
+					lp.setParentIDForMultipleInferredSpans()
+					lp.requestHandler.inferredSpans[1].AddTagToInferredSpan("http.status_code", statusCode)
+					lp.requestHandler.inferredSpans[1].CompleteInferredSpan(lp.ProcessTrace, lp.GetInferredSpanStart(), endDetails.IsError, lp.GetExecutionInfo().TraceID, lp.GetExecutionInfo().SamplingPriority)
+					log.Debug("[lifecycle] The secondary inferred span attributes are %v", lp.requestHandler.inferredSpans[1])
+				}
+				lp.GetInferredSpan().CompleteInferredSpan(lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, lp.GetExecutionInfo().TraceID, lp.GetExecutionInfo().SamplingPriority)
 				log.Debugf("[lifecycle] The inferred span attributes are: %v", lp.GetInferredSpan())
 			} else {
 				log.Debug("[lifecyle] Failed to complete inferred span due to a missing start time. Please check that the event payload was received with the appropriate data")
@@ -194,7 +201,11 @@ func (lp *LifecycleProcessor) GetExecutionInfo() *ExecutionStartInfo {
 // GetInferredSpan returns the generated inferred span of the
 // currently executing lambda function
 func (lp *LifecycleProcessor) GetInferredSpan() *inferredspan.InferredSpan {
-	return lp.requestHandler.inferredSpan
+	return lp.requestHandler.inferredSpans[0]
+}
+
+func (lp *LifecycleProcessor) GetInferredSpanStart() time.Time {
+	return time.Unix(lp.GetInferredSpan().Span.Start, 0)
 }
 
 // NewRequest initializes basic information about the current request
@@ -207,7 +218,7 @@ func (lp *LifecycleProcessor) newRequest(lambdaPayloadString string, startTime t
 		requestPayload: lambdaPayloadString,
 		startTime:      startTime,
 	}
-	lp.requestHandler.inferredSpan = &inferredspan.InferredSpan{
+	lp.requestHandler.inferredSpans[0] = &inferredspan.InferredSpan{
 		CurrentInvocationStartTime: startTime,
 		Span: &pb.Span{
 			SpanID: random.Random.Uint64(),
@@ -227,4 +238,10 @@ func (lp *LifecycleProcessor) addTag(key string, value string) {
 		return
 	}
 	lp.requestHandler.triggerTags[key] = value
+}
+
+// adjusts the parent and span IDs for multiple inferred spans
+func (lp *LifecycleProcessor) setParentIDForMultipleInferredSpans() {
+	lp.requestHandler.inferredSpans[1].Span.ParentID = lp.requestHandler.inferredSpans[0].Span.ParentID
+	lp.requestHandler.inferredSpans[0].Span.ParentID = lp.requestHandler.inferredSpans[1].Span.SpanID
 }

@@ -135,6 +135,27 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSNSEvent(eventPayload ev
 	}
 }
 
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload events.SQSEvent) {
+	eventRecord := eventPayload.Records[0]
+	splitArn := strings.Split(eventRecord.EventSourceARN, ":")
+	parsedQueueName := splitArn[len(splitArn)-1]
+	startTime := calculateStartTime(convertStringTimestamp(eventRecord.Attributes[sentTimestamp]))
+	inferredSpan.IsAsync = true
+	inferredSpan.Span.Name = "aws.sqs"
+	inferredSpan.Span.Service = "sqs"
+	inferredSpan.Span.Start = startTime
+	inferredSpan.Span.Resource = parsedQueueName
+	inferredSpan.Span.Type = "web"
+	inferredSpan.Span.Meta = map[string]string{
+		operationName:  "aws.sqs",
+		resourceNames:  parsedQueueName,
+		queueName:      parsedQueueName,
+		eventSourceArn: eventRecord.EventSourceARN,
+		receiptHandle:  eventRecord.ReceiptHandle,
+		senderID:       eventRecord.Attributes["SenderId"],
+	}
+}
+
 // CalculateStartTime converts AWS event timeEpochs to nanoseconds
 func calculateStartTime(epoch int64) int64 {
 	return epoch * 1e6

@@ -1,7 +1,14 @@
 package invocationlifecycle
 
 import (
+	"encoding/json"
+	"strings"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/serverless/random"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-lambda-go/events"
 )
@@ -80,8 +87,38 @@ func (lp *LifecycleProcessor) initFromSNSEvent(event events.SNSEvent) {
 }
 
 func (lp *LifecycleProcessor) initFromSQSEvent(event events.SQSEvent) {
+
+	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
+		lp.GetInferredSpan().EnrichInferredSpanWithSQSEvent(event)
+	}
 	lp.addTag("function_trigger.event_source", "sqs")
 	lp.addTag("function_trigger.event_source_arn", trigger.ExtractSQSEventARN(event))
+
+	// test for SNS
+	var snsEntity events.SNSEntity
+	if err := json.Unmarshal([]byte(event.Records[0].Body), &snsEntity); err != nil {
+		return
+	}
+
+	isSNS := strings.ToLower(snsEntity.Type) == "notification" && snsEntity.TopicArn != ""
+
+	if !isSNS {
+		return
+	}
+
+	// sns span
+	lp.requestHandler.inferredSpans[1] = &inferredspan.InferredSpan{
+		CurrentInvocationStartTime: time.Unix(lp.requestHandler.inferredSpans[0].Span.Start, 0),
+		Span: &pb.Span{
+			SpanID: random.Random.Uint64(),
+		},
+	}
+
+	var snsEvent events.SNSEvent
+	snsEvent.Records = make([]events.SNSEventRecord, 1)
+	snsEvent.Records[0].SNS = snsEntity
+
+	lp.requestHandler.inferredSpans[1].EnrichInferredSpanWithSNSEvent(snsEvent)
 
 }
 
