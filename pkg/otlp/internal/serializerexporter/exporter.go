@@ -34,6 +34,7 @@ func newDefaultConfig() config.Exporter {
 			ExporterConfig: metricsExporterConfig{
 				ResourceAttributesAsTags:             false,
 				InstrumentationLibraryMetadataAsTags: false,
+				InstrumentationScopeMetadataAsTags:   false,
 			},
 			TagCardinality: collectors.LowCardinalityString,
 			HistConfig: histogramConfig{
@@ -99,6 +100,10 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 	}
 
 	if cfg.Metrics.ExporterConfig.InstrumentationLibraryMetadataAsTags {
+		options = append(options, translator.WithInstrumentationLibraryMetadataAsTags())
+	}
+
+	if cfg.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags {
 		options = append(options, translator.WithInstrumentationLibraryMetadataAsTags())
 	}
 
