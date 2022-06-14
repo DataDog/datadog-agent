@@ -9,6 +9,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -217,7 +218,7 @@ func newMessage(name, typ, source, service string) message.Message {
 		Source:  source,
 		Service: service,
 	}
-	src := config.NewLogSource(name, cfg)
+	src := sources.NewLogSource(name, cfg)
 	origin := message.NewOrigin(src)
 	return *message.NewMessage([]byte("a"), origin, "", 0)
 }

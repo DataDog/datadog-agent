@@ -67,7 +67,6 @@ linters-settings:
              "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022", # These ones are disabled by default on staticcheck
              "-ST1013", # Use HTTP code enums instead of integers
              # Actual issues that should be fixed eventually
-             "-SA2001", # TODO: empty critical section, seems to be used for something?
              "-SA6002", # TODO: Fix sync.Pools
              "-SA4025", # TODO: Fix trace unit test
             ]

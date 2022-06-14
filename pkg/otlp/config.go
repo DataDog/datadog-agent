@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	colConfig "go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/confmap"
 	"go.uber.org/multierr"
 )
 
@@ -26,7 +26,7 @@ func portToUint(v int) (port uint, err error) {
 }
 
 // readConfigSection from a config.Config object.
-func readConfigSection(cfg config.Config, section string) *colConfig.Map {
+func readConfigSection(cfg config.Config, section string) *confmap.Conf {
 	// Viper doesn't work well when getting subsections, since it
 	// ignores environment variables and nil-but-present sections.
 	// To work around this, we do the following two steps:
@@ -56,11 +56,11 @@ func readConfigSection(cfg config.Config, section string) *colConfig.Map {
 	prefix := section + "."
 	for _, key := range cfg.AllKeys() {
 		if strings.HasPrefix(key, prefix) && cfg.IsSet(key) {
-			mapKey := strings.ReplaceAll(key[len(prefix):], ".", colConfig.KeyDelimiter)
+			mapKey := strings.ReplaceAll(key[len(prefix):], ".", confmap.KeyDelimiter)
 			stringMap[mapKey] = cfg.Get(key)
 		}
 	}
-	return colConfig.NewMapFromStringMap(stringMap)
+	return confmap.NewFromStringMap(stringMap)
 }
 
 // FromAgentConfig builds a pipeline configuration from an Agent configuration.

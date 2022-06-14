@@ -33,5 +33,6 @@ data:
         - poddisruptionbudgets
         - storageclasses
         - volumeattachments
+        - ingresses
         labels_as_tags:
             {}

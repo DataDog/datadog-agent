@@ -272,7 +272,7 @@ func (d *AgentDemultiplexer) flushLoop() {
 	if d.options.FlushInterval > 0 {
 		flushTicker = time.NewTicker(d.options.FlushInterval).C
 	} else {
-		log.Debugf("flushInterval set to 0: will never flush automatically")
+		log.Debug("flushInterval set to 0: will never flush automatically")
 	}
 
 	for {

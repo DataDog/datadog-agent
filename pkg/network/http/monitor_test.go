@@ -53,7 +53,6 @@ func TestHTTPMonitorIntegrationWithNAT(t *testing.T) {
 
 	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 	netlink.SetupDNAT(t)
-	defer netlink.TeardownDNAT(t)
 
 	targetAddr := "2.2.2.2:8080"
 	serverAddr := "1.1.1.1:8080"
@@ -78,7 +77,6 @@ func TestUnknownMethodRegression(t *testing.T) {
 
 	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 	netlink.SetupDNAT(t)
-	defer netlink.TeardownDNAT(t)
 
 	targetAddr := "2.2.2.2:8080"
 	serverAddr := "1.1.1.1:8080"

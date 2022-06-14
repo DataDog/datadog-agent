@@ -54,6 +54,45 @@ func (s *State) DirectorTargetsVersion() uint64 {
 	return meta.Version
 }
 
+type TUFVersions struct {
+	DirectorRoot    uint64
+	DirectorTargets uint64
+	ConfigRoot      uint64
+	ConfigSnapshot  uint64
+}
+
+func (c *Client) TUFVersionState() (TUFVersions, error) {
+	c.Lock()
+	defer c.Unlock()
+
+	drv, err := c.directorLocalStore.GetMetaVersion(metaRoot)
+	if err != nil {
+		return TUFVersions{}, err
+	}
+
+	dtv, err := c.directorLocalStore.GetMetaVersion(metaTargets)
+	if err != nil {
+		return TUFVersions{}, err
+	}
+
+	crv, err := c.configLocalStore.GetMetaVersion(metaRoot)
+	if err != nil {
+		return TUFVersions{}, err
+	}
+
+	csv, err := c.configLocalStore.GetMetaVersion(metaSnapshot)
+	if err != nil {
+		return TUFVersions{}, err
+	}
+
+	return TUFVersions{
+		DirectorRoot:    drv,
+		DirectorTargets: dtv,
+		ConfigRoot:      crv,
+		ConfigSnapshot:  csv,
+	}, nil
+}
+
 // State returns the state of the uptane client
 func (c *Client) State() (State, error) {
 	c.Lock()

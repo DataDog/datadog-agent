@@ -447,6 +447,34 @@ func TestProcessMetrics(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:   "ingress metric",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_pod_status_phase": {
+					{
+						Type: "*networking.k8s.io/v1.Ingress",
+						Name: "kube_ingress_path",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"namespace": "default", "ingress": "ingress", "service_name": "svc", "service_port": "80", "host": "host", "path": "path"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet:       []ksmstore.DDMetricsFam{},
+			metricTransformers: defaultMetricTransformers(),
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.ingress.path",
+					val:      1,
+					tags:     []string{"kube_namespace:default", "kube_ingress:ingress", "kube_service:svc", "kube_service_port:80", "kube_ingress_host:host", "kube_ingress_path:path"},
+					hostname: "",
+				},
+			},
+		},
 	}
 	for _, test := range tests {
 		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), test.config)

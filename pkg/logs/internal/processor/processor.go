@@ -79,6 +79,7 @@ func (p *Processor) run() {
 	for msg := range p.inputChan {
 		p.processMessage(msg)
 		p.mu.Lock() // block here if we're trying to flush synchronously
+		//nolint:staticcheck
 		p.mu.Unlock()
 	}
 }

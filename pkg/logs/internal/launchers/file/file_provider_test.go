@@ -17,6 +17,8 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
 
@@ -27,8 +29,8 @@ type ProviderTestSuite struct {
 }
 
 // newLogSources returns a new log source initialized with the right path.
-func (suite *ProviderTestSuite) newLogSources(path string) []*config.LogSource {
-	return []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})}
+func (suite *ProviderTestSuite) newLogSources(path string) []*sources.LogSource {
+	return []*sources.LogSource{sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})}
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
@@ -78,7 +80,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFile() {
 	path := fmt.Sprintf("%s/1/1.log", suite.testDir)
 	fileProvider := newFileProvider(suite.filesLimit)
 	logSources := suite.newLogSources(path)
-	config.CreateSources(logSources)
+	util.CreateSources(logSources)
 	files := fileProvider.filesToTail(logSources)
 
 	suite.Equal(1, len(files))
@@ -91,7 +93,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromDirectory() {
 	path := fmt.Sprintf("%s/1/*.log", suite.testDir)
 	fileProvider := newFileProvider(suite.filesLimit)
 	logSources := suite.newLogSources(path)
-	status.InitStatus(config.CreateSources(logSources))
+	status.InitStatus(util.CreateSources(logSources))
 	files := fileProvider.filesToTail(logSources)
 
 	suite.Equal(3, len(files))
@@ -138,7 +140,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromAnyDirectoryWi
 	path := fmt.Sprintf("%s/*/*1.log", suite.testDir)
 	fileProvider := newFileProvider(suite.filesLimit)
 	logSources := suite.newLogSources(path)
-	config.CreateSources(logSources)
+	util.CreateSources(logSources)
 	files := fileProvider.filesToTail(logSources)
 
 	suite.Equal(2, len(files))
@@ -153,7 +155,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFileWithWildcard()
 	path := fmt.Sprintf("%s/1/?.log", suite.testDir)
 	fileProvider := newFileProvider(suite.filesLimit)
 	logSources := suite.newLogSources(path)
-	status.InitStatus(config.CreateSources(logSources))
+	status.InitStatus(util.CreateSources(logSources))
 	files := fileProvider.filesToTail(logSources)
 
 	suite.Equal(3, len(files))
@@ -193,7 +195,7 @@ func (suite *ProviderTestSuite) TestNumberOfFilesToTailDoesNotExceedLimit() {
 	path := fmt.Sprintf("%s/*/*.log", suite.testDir)
 	fileProvider := newFileProvider(suite.filesLimit)
 	logSources := suite.newLogSources(path)
-	status.InitStatus(config.CreateSources(logSources))
+	status.InitStatus(util.CreateSources(logSources))
 	files := fileProvider.filesToTail(logSources)
 	suite.Equal(suite.filesLimit, len(files))
 	suite.Equal([]string{"3 files tailed out of 5 files matching"}, logSources[0].Messages.GetMessages())
@@ -208,11 +210,11 @@ func (suite *ProviderTestSuite) TestNumberOfFilesToTailDoesNotExceedLimit() {
 func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 	filesLimit := 2
 	fileProvider := newFileProvider(filesLimit)
-	logSources := []*config.LogSource{
-		config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/1/*.log", suite.testDir)}),
-		config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/2/*.log", suite.testDir)}),
+	logSources := []*sources.LogSource{
+		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/1/*.log", suite.testDir)}),
+		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/2/*.log", suite.testDir)}),
 	}
-	status.InitStatus(config.CreateSources(logSources))
+	status.InitStatus(util.CreateSources(logSources))
 	files := fileProvider.filesToTail(logSources)
 	suite.Equal(2, len(files))
 	suite.Equal([]string{"2 files tailed out of 3 files matching"}, logSources[0].Messages.GetMessages())
@@ -259,8 +261,8 @@ func (suite *ProviderTestSuite) TestExcludePath() {
 	path := fmt.Sprintf("%s/*/*.log", suite.testDir)
 	excludePaths := []string{fmt.Sprintf("%s/2/*.log", suite.testDir)}
 	fileProvider := newFileProvider(filesLimit)
-	logSources := []*config.LogSource{
-		config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, ExcludePaths: excludePaths}),
+	logSources := []*sources.LogSource{
+		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, ExcludePaths: excludePaths}),
 	}
 
 	files := fileProvider.filesToTail(logSources)
