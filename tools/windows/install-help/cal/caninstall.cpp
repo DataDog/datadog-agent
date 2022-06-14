@@ -76,7 +76,7 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
             WcaLog(LOGMSG_STANDARD, "(Configuration Error) Invalid configuration; no DD user, but service exists");
             bRet = false;
         }
-        if (!ddUserExists || !ddServiceExists)
+        if ((!ddUserExists || !ddServiceExists) && !data.IsServiceAccount())
         {
             // case (4) and case (2)
             if (!data.present(propertyDDAgentUserPassword) && !isNtAuthority)
