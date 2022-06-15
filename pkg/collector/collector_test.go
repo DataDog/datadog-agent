@@ -79,6 +79,7 @@ type CollectorTestSuite struct {
 
 func (suite *CollectorTestSuite) SetupTest() {
 	suite.c = NewCollector()
+	suite.c.Start()
 }
 
 func (suite *CollectorTestSuite) TearDownTest() {

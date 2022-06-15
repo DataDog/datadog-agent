@@ -404,7 +404,10 @@ func StartAgent() error {
 
 	// create and setup the Autoconfig instance
 	common.LoadComponents(common.MainCtx, config.Datadog.GetString("confd_path"))
+
+	// Set up check collector
 	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll), true)
+	common.Coll.Start()
 
 	demux.AddAgentStartupTelemetry(version.AgentVersion)
 

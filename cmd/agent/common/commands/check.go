@@ -153,6 +153,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 
 			common.LoadComponents(context.Background(), config.Datadog.GetString("confd_path"))
 			common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll), true)
+			// NOTE: we do not start the collector
 
 			if config.Datadog.GetBool("inventories_enabled") {
 				metadata.SetupInventoriesExpvar(common.AC, common.Coll)

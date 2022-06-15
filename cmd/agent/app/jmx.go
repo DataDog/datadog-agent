@@ -181,7 +181,10 @@ func runJmxCommandConsole(command string) error {
 	}
 
 	common.LoadComponents(context.Background(), config.Datadog.GetString("confd_path"))
+
+	// Set up check collector
 	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll), true)
+	common.Coll.Start()
 
 	if discoveryRetryInterval > discoveryTimeout {
 		fmt.Println("The discovery retry interval", discoveryRetryInterval, "is higher than the discovery timeout", discoveryTimeout)

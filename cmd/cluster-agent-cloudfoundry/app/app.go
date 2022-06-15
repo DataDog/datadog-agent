@@ -193,7 +193,11 @@ func run(cmd *cobra.Command, args []string) error {
 
 	// create and setup the Autoconfig instance
 	common.LoadComponents(mainCtx, config.Datadog.GetString("confd_path"))
+
+	// Set up check collector
 	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll), true)
+	common.Coll.Start()
+
 	// start the autoconfig, this will immediately run any configured check
 	common.AC.LoadAndRun()
 
