@@ -9,6 +9,7 @@
 package process
 
 import (
+	"errors"
 	"math"
 	"os"
 	"sync"
@@ -19,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	manager "github.com/DataDog/ebpf-manager"
 	"golang.org/x/sys/unix"
 )
@@ -33,37 +34,34 @@ const (
 )
 
 var (
-	syscalls = []struct {
-		s       string
-		enabled bool
-	}{
-		{"execve", true},
-		{"execveat", true},
-		{"fork", true},
-		{"clone", true},
-		{"clone3", true},
-		{"vfork", true},
+	syscalls = []string{
+		"execve",
+		"execveat",
+		"fork",
+		"clone",
+		"vfork",
 	}
 
-	kprobes = []struct {
-		f                      string
-		enabled                bool
-		minVersion, maxVersion kernel.Version
-	}{
-		{f: "kernel_clone", enabled: true, minVersion: kernel.VersionCode(5, 10, 0)},
-		{f: "_do_fork", enabled: true, maxVersion: kernel.VersionCode(5, 8, 0)},
-		{f: "do_exit", enabled: true},
-		{f: "do_dentry_open", enabled: true},
+	kprobes = []string{
+		"do_exit",
+		"do_dentry_open",
 	}
 
 	tracepoints = []struct {
 		section string
 		f       string
-		enabled bool
 	}{
-		{"tracepoint/sched/sched_process_fork", "sched_process_fork", true},
+		{"tracepoint/sched/sched_process_fork", "sched_process_fork"},
 	}
+
+	ErrNotSupported = errors.New("not supported")
+
+	kv *kernel.Version
 )
+
+func init() {
+	kv, _ = kernel.NewKernelVersion()
+}
 
 type ebpfProgram struct {
 	sync.Mutex
@@ -84,6 +82,10 @@ type ebpfProgram struct {
 }
 
 func newEbpfProgram(c *config.Config, execHandler func(*ebpf.ProcessExecEvent), exitHandler func(*ebpf.ProcessExitEvent)) (*ebpfProgram, error) {
+	if !lruHashAvailable() {
+		return nil, ErrNotSupported
+	}
+
 	bc, err := netebpf.ReadProcessModule(c.BPFDir, c.BPFDebug)
 	if err != nil {
 		return nil, err
@@ -108,27 +110,18 @@ func newEbpfProgram(c *config.Config, execHandler func(*ebpf.ProcessExecEvent), 
 		mgr.Probes = append(mgr.Probes, &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          probeUID,
-				EBPFFuncName: "kprobe__sys_" + s.s,
-				EBPFSection:  "kprobe/sys_" + s.s,
+				EBPFFuncName: "kprobe__sys_" + s,
+				EBPFSection:  "kprobe/sys_" + s,
 			},
-			SyscallFuncName: s.s,
-			Enabled:         s.enabled,
+			SyscallFuncName: s,
+			Enabled:         true,
 		})
 	}
 
-	kv, err := kernel.HostVersion()
-	if err != nil {
-		return nil, err
-	}
-
 	for _, k := range kprobes {
-		if k.maxVersion == 0 {
-			k.maxVersion = math.MaxUint32
-		}
-
 		mgr.Probes = append(mgr.Probes, &manager.Probe{
-			ProbeIdentificationPair: kprobePair(k.f),
-			Enabled:                 k.enabled && kv >= k.minVersion && kv <= k.maxVersion,
+			ProbeIdentificationPair: kprobePair(k),
+			Enabled:                 true,
 		})
 	}
 
@@ -139,10 +132,12 @@ func newEbpfProgram(c *config.Config, execHandler func(*ebpf.ProcessExecEvent), 
 				EBPFFuncName: t.f,
 				EBPFSection:  t.section,
 			},
-			KProbeMaxActive: int(512),
-			Enabled:         t.enabled,
+			Enabled: true,
 		})
 	}
+
+	// special cases
+	specialProbes(mgr)
 
 	p := &ebpfProgram{
 		mgr:         mgr,
@@ -157,6 +152,53 @@ func newEbpfProgram(c *config.Config, execHandler func(*ebpf.ProcessExecEvent), 
 	return p, nil
 }
 
+func lruHashAvailable() bool {
+	return kv != nil && (kv.Code >= kernel.Kernel4_10 || kv.IsRH7Kernel())
+}
+
+func specialProbes(mgr *manager.Manager) {
+	clone3(mgr)
+	doForkOrKernelClone(mgr)
+}
+
+func clone3(mgr *manager.Manager) {
+	// clone3 syscall
+	if !clone3Available() {
+		return
+	}
+
+	mgr.Probes = append(mgr.Probes, &manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          probeUID,
+			EBPFFuncName: "kprobe__sys_clone3",
+			EBPFSection:  "kprobe/sys_clone3",
+		},
+		SyscallFuncName: "clone3",
+		Enabled:         true,
+	})
+}
+
+func doForkOrKernelClone(mgr *manager.Manager) {
+	// either _do_fork or kernel_clone
+	f := "kernel_clone"
+	if useDoFork() {
+		f = "_do_fork"
+	}
+
+	mgr.Probes = append(mgr.Probes, &manager.Probe{
+		ProbeIdentificationPair: kprobePair(f),
+		Enabled:                 true,
+	})
+}
+
+func clone3Available() bool {
+	return kv != nil && kv.Code >= kernel.Kernel5_3
+}
+
+func useDoFork() bool {
+	return kv != nil && (kv.Code < kernel.Kernel5_10 || kv.IsRH7Kernel())
+}
+
 func (p *ebpfProgram) Init() error {
 	p.Lock()
 	defer p.Unlock()
@@ -167,13 +209,8 @@ func (p *ebpfProgram) Init() error {
 
 	defer p.bc.Close()
 
-	kv, err := kernel.HostVersion()
-	if p.lastErr = err; p.lastErr != nil {
-		return p.lastErr
-	}
-
 	forkInput := uint64(0)
-	if kv >= kernel.VersionCode(5, 3, 0) {
+	if kv.Code >= kernel.Kernel5_3 {
 		forkInput = 1
 	}
 
