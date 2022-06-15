@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    APM: Updated Rare Sampler default configuration values to reduce the noises when there is an instrumentation issue.
+    APM: Updated Rare Sampler default configuration values to sample traces more uniformly across environments and services.
