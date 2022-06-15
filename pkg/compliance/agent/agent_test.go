@@ -158,11 +158,13 @@ func TestRunK8s(t *testing.T) {
 	agent.Stop()
 
 	st := agent.builder.GetCheckStatus()
-	assert.Len(st, 2)
+	assert.Len(st, 3)
 	assert.Equal("cis-docker-1", st[0].RuleID)
 	assert.Nil(st[0].LastEvent)
-	assert.Equal("cis-kubernetes-1", st[1].RuleID)
-	assert.Equal("failed", st[1].LastEvent.Result)
+	assert.Equal("cis-docker-2", st[1].RuleID)
+	assert.Nil(st[1].LastEvent)
+	assert.Equal("cis-kubernetes-1", st[2].RuleID)
+	assert.Equal("failed", st[2].LastEvent.Result)
 
 	v, err := json.Marshal(st)
 	assert.NoError(err)
@@ -189,6 +191,22 @@ func TestRunDocker(t *testing.T) {
 			eventMatcher(
 				eventMatch{
 					ruleID:       "cis-docker-1",
+					frameworkID:  "cis-docker",
+					resourceID:   "the-host_daemon",
+					resourceType: "docker_daemon",
+					result:       "passed",
+					path:         "/files/daemon.json",
+					permissions:  0644,
+				},
+			),
+		),
+	).Once()
+	reporter.On(
+		"Report",
+		mock.MatchedBy(
+			eventMatcher(
+				eventMatch{
+					ruleID:       "cis-docker-2",
 					frameworkID:  "cis-docker",
 					resourceID:   "the-host_daemon",
 					resourceType: "docker_daemon",
@@ -233,11 +251,13 @@ func TestRunDocker(t *testing.T) {
 	agent.Stop()
 
 	st := agent.builder.GetCheckStatus()
-	assert.Len(st, 2)
+	assert.Len(st, 3)
 	assert.Equal("cis-docker-1", st[0].RuleID)
 	assert.Equal("passed", st[0].LastEvent.Result)
-	assert.Equal("cis-kubernetes-1", st[1].RuleID)
-	assert.Nil(st[1].LastEvent)
+	assert.Equal("cis-docker-2", st[1].RuleID)
+	assert.Equal("passed", st[1].LastEvent.Result)
+	assert.Equal("cis-kubernetes-1", st[2].RuleID)
+	assert.Nil(st[2].LastEvent)
 
 	v, err := json.Marshal(st)
 	assert.NoError(err)
