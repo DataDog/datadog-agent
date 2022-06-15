@@ -52,12 +52,10 @@ func evpProxyEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
 }
 
 func (r *HTTPReceiver) evpProxyHandler() http.Handler {
-	// r.conf is populated by cmd/trace-agent/config/config.go
 	if !r.conf.EVPProxy.Enabled {
 		return evpProxyErrorHandler("Has been disabled in config")
 	}
-	endpoints := evpProxyEndpointsFromConfig(r.conf)
-	handler := evpProxyForwarder(r.conf, endpoints)
+	handler := evpProxyForwarder(r.conf)
 	return http.StripPrefix("/evp_proxy/v1", handler)
 }
 
@@ -74,8 +72,8 @@ func evpProxyErrorHandler(message string) http.Handler {
 // one or more endpoints, based on the request received and the Agent configuration.
 // Headers are not proxied, instead we add our own known set of headers.
 // See also evpProxyTransport below.
-func evpProxyForwarder(conf *config.AgentConfig, endpoints []config.Endpoint) http.Handler {
-	transport := conf.NewHTTPTransport()
+func evpProxyForwarder(conf *config.AgentConfig) http.Handler {
+	endpoints := evpProxyEndpointsFromConfig(conf)
 	logger := stdlog.New(log.NewThrottled(5, 10*time.Second), "EVPProxy: ", 0) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
@@ -84,7 +82,7 @@ func evpProxyForwarder(conf *config.AgentConfig, endpoints []config.Endpoint) ht
 			req.Header["X-Forwarded-For"] = nil
 		},
 		ErrorLog:  logger,
-		Transport: &evpProxyTransport{transport, endpoints, conf},
+		Transport: &evpProxyTransport{conf.NewHTTPTransport(), endpoints, conf},
 	}
 }
 

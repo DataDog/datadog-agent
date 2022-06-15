@@ -49,7 +49,7 @@ func sendRequestThroughForwarder(conf *config.AgentConfig, inReq *http.Request) 
 			Body:       ioutil.NopCloser(bytes.NewBuffer([]byte("ok_resprino"))),
 		}, nil
 	})
-	handler := evpProxyForwarder(conf, evpProxyEndpointsFromConfig(conf))
+	handler := evpProxyForwarder(conf)
 	var loggerBuffer bytes.Buffer
 	handler.(*httputil.ReverseProxy).ErrorLog = log.New(io.Writer(&loggerBuffer), "", 0)
 	handler.(*httputil.ReverseProxy).Transport.(*evpProxyTransport).transport = mockRoundTripper
@@ -66,7 +66,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 	defer func(old metrics.StatsClient) { metrics.Client = old }(metrics.Client)
 	metrics.Client = stats
 
-	t.Run("happy case", func(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
 		stats.Reset()
 
 		conf := newTestReceiverConfig()
@@ -119,7 +119,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		assert.ElementsMatch(t, expectedTags, stats.CountCalls[1].Tags)
 	})
 
-	t.Run("with containerid", func(t *testing.T) {
+	t.Run("containerID", func(t *testing.T) {
 		conf := newTestReceiverConfig()
 		conf.Site = "us3.datadoghq.com"
 		conf.Endpoints[0].APIKey = "test_api_key"
@@ -138,7 +138,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		assert.Equal(t, "", logs)
 	})
 
-	t.Run("dual shipping", func(t *testing.T) {
+	t.Run("dual-shipping", func(t *testing.T) {
 		conf := newTestReceiverConfig()
 		conf.Site = "us3.datadoghq.com"
 		conf.Endpoints[0].APIKey = "test_api_key"
@@ -171,7 +171,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		assert.Equal(t, "", logs)
 	})
 
-	t.Run("no subdomain", func(t *testing.T) {
+	t.Run("no-subdomain", func(t *testing.T) {
 		stats.Reset()
 
 		conf := newTestReceiverConfig()
@@ -193,7 +193,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		assert.Len(t, stats.CountCalls[2].Tags, 0)
 	})
 
-	t.Run("invalid subdomain", func(t *testing.T) {
+	t.Run("invalid-subdomain", func(t *testing.T) {
 		stats.Reset()
 
 		conf := newTestReceiverConfig()
@@ -216,7 +216,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		assert.Len(t, stats.CountCalls[2].Tags, 0)
 	})
 
-	t.Run("invalid path", func(t *testing.T) {
+	t.Run("invalid-path", func(t *testing.T) {
 		stats.Reset()
 
 		conf := newTestReceiverConfig()
@@ -242,7 +242,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		assert.ElementsMatch(t, expectedTags, stats.CountCalls[2].Tags)
 	})
 
-	t.Run("invalid query string", func(t *testing.T) {
+	t.Run("invalid-query", func(t *testing.T) {
 		stats.Reset()
 
 		conf := newTestReceiverConfig()
@@ -268,7 +268,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		assert.ElementsMatch(t, expectedTags, stats.CountCalls[2].Tags)
 	})
 
-	t.Run("max payload size reached", func(t *testing.T) {
+	t.Run("maxpayloadsize", func(t *testing.T) {
 		stats.Reset()
 
 		conf := newTestReceiverConfig()
@@ -295,7 +295,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		assert.ElementsMatch(t, expectedTags, stats.CountCalls[2].Tags)
 	})
 
-	t.Run("config override ddurl and apikey", func(t *testing.T) {
+	t.Run("ddurl", func(t *testing.T) {
 		conf := newTestReceiverConfig()
 		conf.Site = "us3.datadoghq.com"
 		conf.Endpoints[0].APIKey = "test_api_key"
