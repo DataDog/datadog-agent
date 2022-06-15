@@ -701,6 +701,10 @@ CWS logs have the following JSON schema:
                 "envs_truncated": {
                     "type": "boolean",
                     "description": "Indicator of environments variable truncation"
+                },
+                "is_thread": {
+                    "type": "boolean",
+                    "description": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)"
                 }
             },
             "additionalProperties": false,
@@ -805,6 +809,10 @@ CWS logs have the following JSON schema:
                 "envs_truncated": {
                     "type": "boolean",
                     "description": "Indicator of environments variable truncation"
+                },
+                "is_thread": {
+                    "type": "boolean",
+                    "description": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)"
                 },
                 "parent": {
                     "$ref": "#/$defs/Process",
