@@ -95,7 +95,7 @@ func isOSHostnameUsable(ctx context.Context) (osHostnameUsable bool) {
 	if config.IsFeaturePresent(config.Kubernetes) {
 		hostNetwork, err := isAgentKubeHostNetwork(ctx)
 		if err != nil {
-			log.Errorf("Cannot determine whether agent is running on host network: %s", err.Error())
+			log.Errorf("Cannot determine whether agent is in a POD with hostNetwork: %s", err.Error())
 		} else {
 			if hostNetwork {
 				log.Infof("Agent is running in a POD with hostNetwork")
