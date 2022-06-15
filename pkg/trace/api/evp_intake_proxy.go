@@ -29,33 +29,6 @@ const (
 	validPathQueryStringSymbols = "/_-+@?&=.:\""
 )
 
-func isValidSubdomain(s string) bool {
-	for _, c := range s {
-		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && !strings.ContainsRune(validSubdomainSymbols, c) {
-			return false
-		}
-	}
-	return true
-}
-
-func isValidPath(s string) bool {
-	for _, c := range s {
-		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && !strings.ContainsRune(validPathSymbols, c) {
-			return false
-		}
-	}
-	return true
-}
-
-func isValidQueryString(s string) bool {
-	for _, c := range s {
-		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && !strings.ContainsRune(validPathQueryStringSymbols, c) {
-			return false
-		}
-	}
-	return true
-}
-
 // evpProxyEndpointsFromConfig returns the configured list of endpoints to forward payloads to.
 func evpProxyEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
 	apiKey := conf.EVPProxy.APIKey
@@ -66,8 +39,7 @@ func evpProxyEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
 	if endpoint == "" {
 		endpoint = conf.Site
 	}
-	mainEndpoint := config.Endpoint{Host: endpoint, APIKey: apiKey}
-	endpoints := []config.Endpoint{mainEndpoint}
+	endpoints := []config.Endpoint{{Host: endpoint, APIKey: apiKey}} // main endpoint
 	for host, keys := range conf.EVPProxy.AdditionalEndpoints {
 		for _, key := range keys {
 			endpoints = append(endpoints, config.Endpoint{
@@ -79,17 +51,13 @@ func evpProxyEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
 	return endpoints
 }
 
-// evpProxyHandler returns an HTTP handler for the /evp_proxy API.
-// Depending on the config, this is a proxying handler or a noop handler.
 func (r *HTTPReceiver) evpProxyHandler() http.Handler {
 	// r.conf is populated by cmd/trace-agent/config/config.go
 	if !r.conf.EVPProxy.Enabled {
 		return evpProxyErrorHandler("Has been disabled in config")
 	}
 	endpoints := evpProxyEndpointsFromConfig(r.conf)
-	transport := r.conf.NewHTTPTransport()
-	logger := stdlog.New(log.NewThrottled(5, 10*time.Second), "EVPProxy: ", 0) // limit to 5 messages every 10 seconds
-	handler := evpProxyForwarder(r.conf, endpoints, transport, logger)
+	handler := evpProxyForwarder(r.conf, endpoints)
 	return http.StripPrefix("/evp_proxy/v1", handler)
 }
 
@@ -106,10 +74,14 @@ func evpProxyErrorHandler(message string) http.Handler {
 // one or more endpoints, based on the request received and the Agent configuration.
 // Headers are not proxied, instead we add our own known set of headers.
 // See also evpProxyTransport below.
-func evpProxyForwarder(conf *config.AgentConfig, endpoints []config.Endpoint, transport http.RoundTripper, logger *stdlog.Logger) http.Handler {
+func evpProxyForwarder(conf *config.AgentConfig, endpoints []config.Endpoint) http.Handler {
+	transport := conf.NewHTTPTransport()
+	logger := stdlog.New(log.NewThrottled(5, 10*time.Second), "EVPProxy: ", 0) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
-			req.Header["X-Forwarded-For"] = nil // Prevent setting X-Forwarded-For
+			// The X-Forwarded-For header can be abused to fake the origin of requests and we don't need it,
+			// so we set it to null to tell ReverseProxy to not set it.
+			req.Header["X-Forwarded-For"] = nil
 		},
 		ErrorLog:  logger,
 		Transport: &evpProxyTransport{transport, endpoints, conf},
@@ -131,23 +103,22 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	if req.Body != nil && t.conf.EVPProxy.MaxPayloadSize > 0 {
 		req.Body = apiutil.NewLimitedReader(req.Body, t.conf.EVPProxy.MaxPayloadSize)
 	}
-
-	beginTime := time.Now()
-	metricTags := []string{}
+	start := time.Now()
+	tags := []string{} // these tags are only for the debug metrics, not the payloads we forward
 	if ct := req.Header.Get("Content-Type"); ct != "" {
-		metricTags = append(metricTags, "content_type:"+ct)
+		tags = append(tags, "content_type:"+ct)
 	}
 	defer func() {
-		metrics.Count("datadog.trace_agent.evp_proxy.request", 1, metricTags, 1)
-		metrics.Count("datadog.trace_agent.evp_proxy.request_bytes", req.ContentLength, metricTags, 1)
-		metrics.Timing("datadog.trace_agent.evp_proxy.request_duration_ms", time.Since(beginTime), metricTags, 1)
+		metrics.Count("datadog.trace_agent.evp_proxy.request", 1, tags, 1)
+		metrics.Count("datadog.trace_agent.evp_proxy.request_bytes", req.ContentLength, tags, 1)
+		metrics.Timing("datadog.trace_agent.evp_proxy.request_duration_ms", time.Since(start), tags, 1)
 		if rerr != nil {
-			metrics.Count("datadog.trace_agent.evp_proxy.request_error", 1, metricTags, 1)
+			metrics.Count("datadog.trace_agent.evp_proxy.request_error", 1, tags, 1)
 		}
 	}()
 
 	subdomain := req.Header.Get("X-Datadog-EVP-Subdomain")
-	containerID := req.Header.Get("Datadog-Container-ID")
+	containerID := req.Header.Get(headerContainerID)
 	contentType := req.Header.Get("Content-Type")
 	userAgent := req.Header.Get("User-Agent")
 
@@ -158,7 +129,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	if !isValidSubdomain(subdomain) {
 		return nil, fmt.Errorf("EVPProxy: invalid subdomain: %s", subdomain)
 	}
-	metricTags = append(metricTags, "subdomain:"+subdomain)
+	tags = append(tags, "subdomain:"+subdomain)
 	if !isValidPath(req.URL.Path) {
 		return nil, fmt.Errorf("EVPProxy: invalid target path: %s", req.URL.Path)
 	}
@@ -229,4 +200,33 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 		}
 	}
 	return rresp, rerr
+}
+
+// We don't want to accept any valid URL, we are strict in what we accept as a subdomain, path
+// or query string to prevent abusing this API for other purposes than forwarding evp payloads.
+func isValidSubdomain(s string) bool {
+	for _, c := range s {
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && !strings.ContainsRune(validSubdomainSymbols, c) {
+			return false
+		}
+	}
+	return true
+}
+
+func isValidPath(s string) bool {
+	for _, c := range s {
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && !strings.ContainsRune(validPathSymbols, c) {
+			return false
+		}
+	}
+	return true
+}
+
+func isValidQueryString(s string) bool {
+	for _, c := range s {
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && !strings.ContainsRune(validPathQueryStringSymbols, c) {
+			return false
+		}
+	}
+	return true
 }

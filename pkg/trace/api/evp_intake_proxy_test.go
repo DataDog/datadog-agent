@@ -14,6 +14,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
 
 	"testing"
 
@@ -48,9 +49,10 @@ func sendRequestThroughForwarder(conf *config.AgentConfig, inReq *http.Request) 
 			Body:       ioutil.NopCloser(bytes.NewBuffer([]byte("ok_resprino"))),
 		}, nil
 	})
+	handler := evpProxyForwarder(conf, evpProxyEndpointsFromConfig(conf))
 	var loggerBuffer bytes.Buffer
-	mockLogger := log.New(io.Writer(&loggerBuffer), "", 0)
-	handler := evpProxyForwarder(conf, evpProxyEndpointsFromConfig(conf), mockRoundTripper, mockLogger)
+	handler.(*httputil.ReverseProxy).ErrorLog = log.New(io.Writer(&loggerBuffer), "", 0)
+	handler.(*httputil.ReverseProxy).Transport.(*evpProxyTransport).transport = mockRoundTripper
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, inReq)
 	return outReqs, rec.Result(), loggerBuffer.String()
