@@ -2,12 +2,12 @@ package flowaggregator
 
 import (
 	"encoding/json"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
@@ -23,21 +23,23 @@ type FlowAggregator struct {
 	sender            aggregator.Sender
 	stopChan          chan struct{}
 	logPayload        bool
-	receivedFlowCount uint64
-	flushedFlowCount  uint64
+	receivedFlowCount *atomic.Uint64
+	flushedFlowCount  *atomic.Uint64
 	hostname          string
 }
 
 // NewFlowAggregator returns a new FlowAggregator
 func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig, hostname string) *FlowAggregator {
 	return &FlowAggregator{
-		flowIn:        make(chan *common.Flow, config.AggregatorBufferSize),
-		flowAcc:       newFlowAccumulator(time.Duration(config.AggregatorFlushInterval) * time.Second),
-		flushInterval: flowAggregatorFlushInterval,
-		sender:        sender,
-		stopChan:      make(chan struct{}),
-		logPayload:    config.LogPayloads,
-		hostname:      hostname,
+		flowIn:            make(chan *common.Flow, config.AggregatorBufferSize),
+		flowAcc:           newFlowAccumulator(time.Duration(config.AggregatorFlushInterval) * time.Second),
+		flushInterval:     flowAggregatorFlushInterval,
+		sender:            sender,
+		stopChan:          make(chan struct{}),
+		logPayload:        config.LogPayloads,
+		receivedFlowCount: atomic.NewUint64(0),
+		flushedFlowCount:  atomic.NewUint64(0),
+		hostname:          hostname,
 	}
 }
 
@@ -65,7 +67,7 @@ func (agg *FlowAggregator) run() {
 			log.Info("Stopping aggregator")
 			return
 		case flow := <-agg.flowIn:
-			atomic.AddUint64(&agg.receivedFlowCount, 1)
+			agg.receivedFlowCount.Inc()
 			agg.flowAcc.add(flow)
 		}
 	}
@@ -120,9 +122,9 @@ func (agg *FlowAggregator) flush() int {
 
 	agg.sendFlows(flowsToFlush)
 
-	atomic.AddUint64(&agg.flushedFlowCount, uint64(len(flowsToFlush)))
-	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_received", float64(atomic.LoadUint64(&agg.receivedFlowCount)), "", nil)
-	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_flushed", float64(atomic.LoadUint64(&agg.flushedFlowCount)), "", nil)
+	agg.flushedFlowCount.Add(uint64(len(flowsToFlush)))
+	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_received", float64(agg.receivedFlowCount.Load()), "", nil)
+	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_flushed", float64(agg.flushedFlowCount.Load()), "", nil)
 
 	return len(flowsToFlush)
 }
