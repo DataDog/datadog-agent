@@ -1029,6 +1029,7 @@ api_key:
   ## @param receiver_port - integer - optional - default: 8126
   ## @env DD_APM_RECEIVER_PORT - integer - optional - default: 8126
   ## The port that the trace receiver should listen on.
+  ## Set to 0 to disable the HTTP receiver.
   #
   # receiver_port: 8126
 
@@ -1144,6 +1145,13 @@ api_key:
   ## Limits the total number of warnings and errors to 10 for every 10 second interval.
   #
   # log_throttling: true
+
+  ## @param connection_limit - integer - default: 2000
+  ## @env DD_APM_CONNECTION_LIMIT - integer - default: 2000
+  ## The APM connection limit for the Agent.
+  ## See https://docs.datadoghq.com/tracing/troubleshooting/agent_rate_limits/#max-connection-limit
+  #
+  # connection_limit: 2000
 
   {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
@@ -2202,6 +2210,17 @@ api_key:
   #
   # kubernetes_service_name: "datadog-cluster-agent"
 
+  ## @param max_leader_connections - integer - optional - default: 100
+  ## Maximum number of connections between a follower and a leader.
+  #
+  # max_leader_connections: 100
+
+  ## @param client_reconnect_period_seconds - integer - optional - default: 1200
+  ## Set the refersh period for Agent to Cluster Agent connection (new connection is created, old connection is closed).
+  ## Set to 0 to disable periodic reconnection.
+  #
+  # client_reconnect_period_seconds: 1200
+
   ## @param tagging_fallback - boolean - optional - default: false
   ## Set to true to enabled fallback to local metamapper when the connection with the Cluster Agent fails.
   #
@@ -2416,6 +2435,13 @@ api_key:
     ## Configure Datadog Agent's socket path. Only applicable in "socket" mode.
     #
     # socket_path: /var/run/datadog
+
+    ## @param trace_agent_socket - string - optional - default: unix:///var/run/datadog/apm.socket
+    ## @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_TRACE_AGENT_SOCKET - string - optional - default: unix:///var/run/datadog/apm.socket
+    ## Configure Trace Agent's socket path in the app container (DD_TRACE_AGENT_URL).
+    ## Only applicable in "socket" mode.
+    #
+    # trace_agent_socket: unix:///var/run/datadog/apm.socket
 
   ## @param inject_tags - custom object - optional
   ## Tags injection parameters.
@@ -2658,6 +2684,16 @@ api_key:
 #
 # containerd_namespaces:
 #   - k8s.io
+#
+## @param containerd_exclude_namespaces - list of strings - optional - default: ["moby"]
+## @env DD_CONTAINERD_EXCLUDE_NAMESPACES - space separated list of strings - optional - default: ["moby"]
+## When containerd_namespaces is set to [], containerd_exclude_namespaces
+## allows the exclusion of containers from specific namespaces. By default it
+## excludes "moby", to prevent Docker containers from being detected as
+## containerd containers.
+#
+# containerd_exclude_namespaces:
+#   - moby
 
 {{ end -}}
 {{- if .Kubelet }}
@@ -2844,6 +2880,15 @@ api_key:
 #
 # DD_KUBERNETES_NODE_LABELS_AS_TAGS='{"NODE_LABEL": "TAG_KEY"}'
 
+## @param kubernetes_node_annotations_as_tags - map - optional
+## @env DD_KUBERNETES_NODE_ANNOTATIONS_AS_TAGS - json - optional
+## Configure node annotationss that should be collected and their name as host tags.
+#
+# kubernetes_node_annotations_as_tags:
+#   cluster.k8s.io/machine: machine
+#
+# DD_KUBERNETES_NODE_ANNOTATIONS_AS_TAGS='{"NODE_ANNOTATION": "TAG_KEY"}'
+
 ## @param kubernetes_node_annotations_as_host_aliases - list - optional
 ## @env DD_KUBERNETES_NODE_ANNOTATIONS_AS_HOST_ALIASES - list - optional
 ## Configure node annotations that should be collected and used as host aliases.
@@ -3014,65 +3059,65 @@ api_key:
   #
   # namespace: default
 
-## @param snmp_traps_enabled - boolean - optional - default: false
-## Set to true to enable collection of traps.
-#
-# snmp_traps_enabled: false
-
-## @param snmp_traps_config - custom object - optional
-## This section configures SNMP traps collection. Traps are forwarded as logs to Datadog.
-## NOTE: This feature is currently **EXPERIMENTAL**. Both behavior and configuration options may
-## change in the future.
-#
-# snmp_traps_config:
-
-  ## @param port - integer - optional - default: 162
-  ## The UDP port to use when listening for incoming trap packets.
+  ## @param snmp_traps - custom object - optional
+  ## This section configures SNMP traps collection.
+  ## Traps are forwarded as logs and can be found in the logs explorer with a source:snmp-traps query
   #
-  # port: 162
+  # snmp_traps:
 
-  ## @param community_strings - list of strings - required
-  ## A list of known SNMP community strings that devices can use to send traps to the Agent.
-  ## Traps with an unknown community string are ignored.
-  ## Enclose the community string with single quote like below (to avoid special characters being interpreted).
-  ## Must be non-empty.
-  #
-  # community_strings:
-  #   - '<COMMUNITY_1>'
-  #   - '<COMMUNITY_2>'
+    ## @param enabled - boolean - optional - default: false
+    ## Set to true to enable collection of traps.
+    #
+    # enabled: false
 
-  ## @param users - list of custom objects - optional
-  ## List of SNMPv3 users that can be used to listen for traps.
-  ## NOTE: Currently the Datadog Agent only supports having a
-  ## single user in this list.
-  ## Each user can contain:
-  ##  * username     - string - The username used by devices when sending Traps to the Agent.
-  ##  * authKey      - string - (Optional) The passphrase to use with the given user and authProtocol
-  ##  * authProtocol - string - (Optional) The authentication protocol to use when listening for traps from this user.
-  ##                            Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512.
-  ##                            Defaults to MD5 when authKey is set.
-  ##  * privKey      - string - (Optional) The passphrase to use with the given user privacy protocol.
-  ##  * privProtocol - string - (Optional) The privacy protocol to use when listening for traps from this user.
-  ##                            Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C.
-  ##                            Defaults to DES when privKey is set.
-  #
-  # users:
-  # - username: <USERNAME>
-  #   authKey: <AUTHENTICATION_KEY>
-  #   authProtocol: <AUTHENTICATION_PROTOCOL>
-  #   privKey: <PRIVACY_KEY>
-  #   privProtocol: <PRIVACY_PROTOCOL>
+    ## @param port - integer - optional - default: 9162
+    ## The UDP port to use when listening for incoming trap packets.
+    ## Because the Datadog Agent does not run as root, the port cannot be below 1024.
+    #
+    # port: 9162
 
-  ## @param bind_host - string - optional
-  ## The hostname to listen on for incoming trap packets.
-  ## Defaults to the global `bind_host` config option value.
-  #
-  # bind_host: <BIND_HOST>
+    ## @param community_strings - list of strings - required
+    ## A list of known SNMP community strings that devices can use to send traps to the Agent.
+    ## Traps with an unknown community string are ignored.
+    ## Enclose the community string with single quote like below (to avoid special characters being interpreted).
+    ## Must be non-empty.
+    #
+    # community_strings:
+    #   - '<COMMUNITY_1>'
+    #   - '<COMMUNITY_2>'
 
-  ## stop_timeout - float - optional - default: 5.0
-  ## The maximum number of seconds to wait for the trap server to stop when the Agent shuts down.
-  #
-  # stop_timeout: 5.0
+    ## @param users - list of custom objects - optional
+    ## List of SNMPv3 users that can be used to listen for traps.
+    ## NOTE: Currently the Datadog Agent only supports having a
+    ## single user in this list.
+    ## Each user can contain:
+    ##  * username     - string - The username used by devices when sending Traps to the Agent.
+    ##  * authKey      - string - (Optional) The passphrase to use with the given user and authProtocol
+    ##  * authProtocol - string - (Optional) The authentication protocol to use when listening for traps from this user.
+    ##                            Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512.
+    ##                            Defaults to MD5 when authKey is set.
+    ##  * privKey      - string - (Optional) The passphrase to use with the given user privacy protocol.
+    ##  * privProtocol - string - (Optional) The privacy protocol to use when listening for traps from this user.
+    ##                            Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C.
+    ##                            Defaults to DES when privKey is set.
+    #
+    # users:
+    # - username: <USERNAME>
+    #   authKey: <AUTHENTICATION_KEY>
+    #   authProtocol: <AUTHENTICATION_PROTOCOL>
+    #   privKey: <PRIVACY_KEY>
+    #   privProtocol: <PRIVACY_PROTOCOL>
+
+    ## @param bind_host - string - optional
+    ## The hostname to listen on for incoming trap packets.
+    ## Binds to 0.0.0.0 by default (accepting all packets).
+    #
+    # bind_host: 0.0.0.0
+
+    ## stop_timeout - float - optional - default: 5.0
+    ## The maximum number of seconds to wait for the trap server to stop when the Agent shuts down.
+    #
+    # stop_timeout: 5.0
 
 {{end -}}
 
@@ -3131,13 +3176,13 @@ api_key:
 
   ## @param metrics - custom object - optional
   ## Metrics-specific configuration for OTLP ingest in the Datadog Agent.
-  ## Note that these configuration options may change in future minor Agent versions.
   #
   # metrics:
 
     ## @param enabled - boolean - optional - default: true
     ## @env DD_OTLP_CONFIG_METRICS_ENABLED - boolean - optional - default: true
-    ## Whether to ingest metrics through the OTLP endpoint. Set to false to disable OTLP metrics ingest.
+    ## Set to false to disable metrics support in the OTLP ingest endpoint.
+    ## To enable the OTLP ingest, the otlp_config.receiver section must be set.
     #
     # enabled: true
 
@@ -3149,11 +3194,20 @@ api_key:
     #
     # resource_attributes_as_tags: false
 
+    ## Deprecated - use `instrumentation_scope_metadata_as_tags` instead in favor of
+    ## https://github.com/open-telemetry/opentelemetry-proto/releases/tag/v0.15.0
+    ## Both must not be set at the same time.
     ## @param instrumentation_library_metadata_as_tags - boolean - optional - default: false
     ## @env DD_OTLP_CONFIG_METRICS_INSTRUMENTATION_LIBRARY_METADATA_AS_TAGS - boolean - optional - default: false
     ## Set to true to add metadata about the instrumentation library that created a metric.
     #
     # instrumentation_library_metadata_as_tags: false
+
+    ## @param instrumentation_scope_metadata_as_tags - boolean - optional - default: false
+    ## @env DD_OTLP_CONFIG_METRICS_INSTRUMENTATION_SCOPE_METADATA_AS_TAGS - boolean - optional - default: false
+    ## Set to true to add metadata about the instrumentation scope that created a metric.
+    #
+    # instrumentation_scope_metadata_as_tags: false
 
     ## @param tag_cardinality - string - optional - default: low
     ## @env DD_OTLP_CONFIG_METRICS_TAG_CARDINALITY - string - optional - default: low
@@ -3165,23 +3219,6 @@ api_key:
     ## (one per container instead of one per host). This may impact your custom metrics billing.
     #
     # tag_cardinality: low
-
-    ## @param report_quantiles - boolean - optional - default: true
-    ## @env DD_OTLP_CONFIG_METRICS_REPORT_QUANTILES - boolean - optional - default: true
-    ## DEPRECATED: [v7.36 / v6.36] Use `summaries.mode` instead. Will be removed in v7.37 / 6.36.
-    ## Whether to report quantile metrics for OTLP Summary points.
-    ## See https://docs.datadoghq.com/metrics/otlp/?tab=summary for more details.
-    #
-    # report_quantiles: true
-
-    ## @param send_monotonic_counter - boolean - optional - default: false
-    ## @env DD_OTLP_CONFIG_METRICS_SEND_MONOTONIC_COUNTER - boolean - optional - default: false
-    ## DEPRECATED: [v7.36] Use `sums.cumulative_monotonic_mode` instead. Will be removed in v7.37.
-    ## Whether to report monotonic metrics as counters or gauges (raw value).
-    ## See https://docs.datadoghq.com/integrations/guide/prometheus-metrics/#counter
-    ## for further details.
-    #
-    # send_monotonic_counter: true
 
     ## @param delta_ttl - int - optional - default: 3600
     ## @env DD_OTLP_CONFIG_METRICS_DELTA_TTL - int - optional - default: 3600
@@ -3243,6 +3280,26 @@ api_key:
 
     ## @param enabled - boolean - optional - default: true
     ## @env DD_OTLP_CONFIG_TRACES_ENABLED - boolean - optional - default: true
-    ## Whether to ingest traces through the OTLP endpoint. Set to false to disable OTLP traces ingest.
+    ## Set to false to disable traces support in the OTLP ingest endpoint.
+    ## To enable the OTLP ingest, the otlp_config.receiver section must be set.
     #
     # enabled: true
+
+    ## @param span_name_as_resource_name - boolean - optional - default: false
+    ## @env DD_OTLP_CONFIG_TRACES_SPAN_NAME_AS_RESOURCE_NAME - boolean - optional - default: false
+    ## If set to true the OpenTelemetry span name will used in the Datadog resource name.
+    ## If set to false the resource name will be filled with the instrumentation library name + span kind.
+    #
+    # span_name_as_resource_name: false
+
+    ## @param span_name_remappings - map - optional
+    ## @env DD_OTLP_CONFIG_TRACES_SPAN_NAME_REMAPPINGS - boolean - optional
+    ## Defines a map of span names and preferred names to map to. This can be used to automatically map Datadog Span
+    ## Operation Names to an updated value.
+    ## span_name_remappings:
+    ##   "io.opentelemetry.javaagent.spring.client": "spring.client"
+    ##   "instrumentation:express.server": "express"
+    ##   "go.opentelemetry.io_contrib_instrumentation_net_http_otelhttp.client": "http.client"
+    #
+    # span_name_remappings:
+    #   <OLD_NAME>: <NEW_NAME>

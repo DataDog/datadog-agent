@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 )
 
@@ -30,12 +30,11 @@ func newDefaultConfig() config.Exporter {
 		QueueSettings: exporterhelper.NewDefaultQueueSettings(),
 
 		Metrics: metricsConfig{
-			SendMonotonic: true,
-			DeltaTTL:      3600,
-			Quantiles:     true,
+			DeltaTTL: 3600,
 			ExporterConfig: metricsExporterConfig{
 				ResourceAttributesAsTags:             false,
 				InstrumentationLibraryMetadataAsTags: false,
+				InstrumentationScopeMetadataAsTags:   false,
 			},
 			TagCardinality: collectors.LowCardinalityString,
 			HistConfig: histogramConfig{
@@ -68,6 +67,7 @@ type exporter struct {
 	tr          *translator.Translator
 	s           serializer.MetricSerializer
 	hostname    string
+	extraTags   []string
 	cardinality collectors.TagCardinality
 }
 
@@ -99,7 +99,15 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 		options = append(options, translator.WithResourceAttributesAsTags())
 	}
 
+	if cfg.Metrics.ExporterConfig.InstrumentationLibraryMetadataAsTags && cfg.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags {
+		return nil, fmt.Errorf("cannot use both instrumentation_library_metadata_as_tags(deprecated) and instrumentation_scope_metadata_as_tags")
+	}
+
 	if cfg.Metrics.ExporterConfig.InstrumentationLibraryMetadataAsTags {
+		options = append(options, translator.WithInstrumentationLibraryMetadataAsTags())
+	}
+
+	if cfg.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags {
 		options = append(options, translator.WithInstrumentationLibraryMetadataAsTags())
 	}
 
@@ -116,10 +124,6 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 }
 
 func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporterConfig) (*exporter, error) {
-	for _, err := range cfg.warnings {
-		logger.Warn(fmt.Sprintf("Deprecated: %v", err))
-	}
-
 	tr, err := translatorFromConfig(logger, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
@@ -135,16 +139,25 @@ func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporte
 		return nil, err
 	}
 
+	var extraTags []string
+
+	// if the server is running in a context where static tags are required, add those
+	// to extraTags.
+	if tags := util.GetStaticTagsSlice(context.TODO()); tags != nil {
+		extraTags = append(extraTags, tags...)
+	}
+
 	return &exporter{
 		tr:          tr,
 		s:           s,
 		hostname:    hostname,
+		extraTags:   extraTags,
 		cardinality: cardinality,
 	}, nil
 }
 
-func (e *exporter) ConsumeMetrics(ctx context.Context, ld pdata.Metrics) error {
-	consumer := &serializerConsumer{cardinality: e.cardinality}
+func (e *exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
+	consumer := &serializerConsumer{cardinality: e.cardinality, extraTags: e.extraTags}
 	err := e.tr.MapMetrics(ctx, ld, consumer)
 	if err != nil {
 		return err

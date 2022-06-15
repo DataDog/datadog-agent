@@ -21,22 +21,12 @@ type exporterConfig struct {
 	exporterhelper.QueueSettings   `mapstructure:",squash"`
 
 	Metrics metricsConfig `mapstructure:"metrics"`
-
-	warnings []error
 }
 
 // metricsConfig defines the metrics exporter specific configuration options
 type metricsConfig struct {
 	// Enabled reports whether Metrics should be enabled.
 	Enabled bool `mapstructure:"enabled"`
-
-	// Quantiles states whether to report quantiles from summary metrics.
-	// By default, the minimum, maximum and average are reported.
-	Quantiles bool `mapstructure:"report_quantiles"`
-
-	// SendMonotonic states whether to report cumulative monotonic metrics as counters
-	// or gauges
-	SendMonotonic bool `mapstructure:"send_monotonic_counter"`
 
 	// DeltaTTL defines the time that previous points of a cumulative monotonic
 	// metric are kept in memory to calculate deltas
@@ -156,27 +146,19 @@ type metricsExporterConfig struct {
 	// resource attributes into metric labels, which are then converted into tags
 	ResourceAttributesAsTags bool `mapstructure:"resource_attributes_as_tags"`
 
+	// Deprecated: Use InstrumentationScopeMetadataAsTags favor of in favor of
+	// https://github.com/open-telemetry/opentelemetry-proto/releases/tag/v0.15.0
+	// Both must not be set at the same time.
 	// InstrumentationLibraryMetadataAsTags, if set to true, adds the name and version of the
 	// instrumentation library that created a metric to the metric tags
 	InstrumentationLibraryMetadataAsTags bool `mapstructure:"instrumentation_library_metadata_as_tags"`
+
+	// InstrumentationScopeMetadataAsTags, if set to true, adds the name and version of the
+	// instrumentation scope that created a metric to the metric tags
+	InstrumentationScopeMetadataAsTags bool `mapstructure:"instrumentation_scope_metadata_as_tags"`
 }
 
 // Validate configuration
 func (e *exporterConfig) Validate() error {
 	return e.QueueSettings.Validate()
-}
-
-func (e *exporterConfig) Unmarshal(cfgMap *config.Map) error {
-	err := cfgMap.UnmarshalExact(e)
-	if err != nil {
-		return err
-	}
-
-	warnings, err := handleRenamedSettings(cfgMap, e)
-	if err != nil {
-		return err
-	}
-	e.warnings = append(e.warnings, warnings...)
-
-	return nil
 }

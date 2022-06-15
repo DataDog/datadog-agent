@@ -25,7 +25,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/tinylib/msgp/msgp"
@@ -72,7 +71,6 @@ type HTTPReceiver struct {
 	statsProcessor StatsProcessor
 	appsecHandler  http.Handler
 
-	debug               bool
 	rateLimiterResponse int // HTTP status code when refusing
 
 	wg   sync.WaitGroup // waits for all requests to be processed
@@ -99,7 +97,6 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		dynConf:        dynConf,
 		appsecHandler:  appsecHandler,
 
-		debug:               strings.ToLower(conf.LogLevel) == "debug",
 		rateLimiterResponse: rateLimiterResponse,
 
 		exit: make(chan struct{}),
@@ -134,7 +131,10 @@ func replyWithVersion(hash string, h http.Handler) http.Handler {
 
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
-	mux := r.buildMux()
+	if r.conf.ReceiverPort == 0 {
+		log.Debug("HTTP receiver disabled by config (apm_config.receiver_port: 0).")
+		return
+	}
 
 	timeout := 5 * time.Second
 	if r.conf.ReceiverTimeout > 0 {
@@ -145,7 +145,7 @@ func (r *HTTPReceiver) Start() {
 		ReadTimeout:  timeout,
 		WriteTimeout: timeout,
 		ErrorLog:     stdlog.New(httpLogger, "http.Server: ", 0),
-		Handler:      mux,
+		Handler:      r.buildMux(),
 	}
 
 	addr := fmt.Sprintf("%s:%d", r.conf.ReceiverHost, r.conf.ReceiverPort)
@@ -253,7 +253,7 @@ func (r *HTTPReceiver) listenUnix(path string) (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.Chmod(path, 0722); err != nil {
+	if err := os.Chmod(path, 0o722); err != nil {
 		return nil, fmt.Errorf("error setting socket permissions: %v", err)
 	}
 	return NewMeasuredListener(ln, "uds_connections"), err
@@ -278,6 +278,9 @@ func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
 
 // Stop stops the receiver and shuts down the HTTP server.
 func (r *HTTPReceiver) Stop() error {
+	if r.conf.ReceiverPort == 0 {
+		return nil
+	}
 	r.exit <- struct{}{}
 	<-r.exit
 
@@ -309,17 +312,16 @@ func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.Respons
 	}
 }
 
+var errInvalidHeaderTraceCountValue = fmt.Errorf("%q header value is not a number", headerTraceCount)
+
 func traceCount(req *http.Request) (int64, error) {
-	if _, ok := req.Header[headerTraceCount]; !ok {
-		return 0, fmt.Errorf("HTTP header %q not found", headerTraceCount)
-	}
 	str := req.Header.Get(headerTraceCount)
 	if str == "" {
-		return 0, fmt.Errorf("HTTP header %q value not set", headerTraceCount)
+		return 0, fmt.Errorf("HTTP header %q not found", headerTraceCount)
 	}
 	n, err := strconv.Atoi(str)
 	if err != nil {
-		return 0, fmt.Errorf("HTTP header %q can not be parsed: %v", headerTraceCount, err)
+		return 0, errInvalidHeaderTraceCountValue
 	}
 	return int64(n), nil
 }
@@ -513,28 +515,31 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		io.Copy(ioutil.Discard, req.Body) //nolint:errcheck
 		w.WriteHeader(r.rateLimiterResponse)
 		r.replyOK(req, v, w)
-		atomic.AddInt64(&ts.PayloadRefused, 1)
+		ts.PayloadRefused.Inc()
 		return
+	}
+	if err == errInvalidHeaderTraceCountValue {
+		log.Errorf("Failed to count traces: %s", err)
 	}
 
 	start := time.Now()
+	tp, ranHook, err := decodeTracerPayload(v, req, ts)
 	defer func(err error) {
 		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
 		metrics.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)
 	}(err)
-	tp, ranHook, err := decodeTracerPayload(v, req, ts)
 	if err != nil {
 		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w)
 		switch err {
 		case apiutil.ErrLimitedReaderLimitReached:
-			atomic.AddInt64(&ts.TracesDropped.PayloadTooLarge, tracen)
+			ts.TracesDropped.PayloadTooLarge.Add(tracen)
 		case io.EOF, io.ErrUnexpectedEOF, msgp.ErrShortBytes:
-			atomic.AddInt64(&ts.TracesDropped.EOF, tracen)
+			ts.TracesDropped.EOF.Add(tracen)
 		default:
 			if err, ok := err.(net.Error); ok && err.Timeout() {
-				atomic.AddInt64(&ts.TracesDropped.Timeout, tracen)
+				ts.TracesDropped.Timeout.Add(tracen)
 			} else {
-				atomic.AddInt64(&ts.TracesDropped.DecodingError, tracen)
+				ts.TracesDropped.DecodingError.Add(tracen)
 			}
 		}
 		log.Errorf("Cannot decode %s traces payload: %v", v, err)
@@ -555,9 +560,9 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		metrics.Histogram("datadog.trace_agent.receiver.rate_response_bytes", float64(n), tags, 1)
 	}
 
-	atomic.AddInt64(&ts.TracesReceived, int64(len(tp.Chunks)))
-	atomic.AddInt64(&ts.TracesBytes, req.Body.(*apiutil.LimitedReader).Count)
-	atomic.AddInt64(&ts.PayloadAccepted, 1)
+	ts.TracesReceived.Add(int64(len(tp.Chunks)))
+	ts.TracesBytes.Add(req.Body.(*apiutil.LimitedReader).Count)
+	ts.PayloadAccepted.Inc()
 
 	if ctags := getContainerTags(r.conf.ContainerTags, tp.ContainerID); ctags != "" {
 		if tp.Tags == nil {
@@ -614,13 +619,13 @@ func droppedTracesFromHeader(h http.Header, ts *info.TagStats) int64 {
 		count, err := strconv.ParseInt(v, 10, 64)
 		if err == nil {
 			dropped = count
-			atomic.AddInt64(&ts.ClientDroppedP0Traces, count)
+			ts.ClientDroppedP0Traces.Add(count)
 		}
 	}
 	if v := h.Get(headerDroppedP0Spans); v != "" {
 		count, err := strconv.ParseInt(v, 10, 64)
 		if err == nil {
-			atomic.AddInt64(&ts.ClientDroppedP0Spans, count)
+			ts.ClientDroppedP0Spans.Add(count)
 		}
 	}
 	return dropped
@@ -717,7 +722,7 @@ func (r *HTTPReceiver) watchdog(now time.Time) {
 	if r.conf.MaxCPU > 0 {
 		rateCPU = computeRateLimitingRate(r.conf.MaxCPU, wi.CPU.UserAvg, r.RateLimiter.RealRate())
 		if rateCPU < 1 {
-			log.Warnf("CPU threshold exceeded (apm_config.max_cpu_percent: %.0f): %.0f", r.conf.MaxCPU*100, wi.CPU.UserAvg)
+			log.Warnf("CPU threshold exceeded (apm_config.max_cpu_percent: %.0f): %.0f", r.conf.MaxCPU*100, wi.CPU.UserAvg*100)
 		}
 	}
 
@@ -827,7 +832,7 @@ func getContainerTags(fn func(string) ([]string, error), containerID string) str
 		log.Warn("ContainerTags not configured")
 		return ""
 	}
-	list, err := fn("container_id://" + containerID)
+	list, err := fn(containerID)
 	if err != nil {
 		log.Tracef("Getting container tags for ID %q: %v", containerID, err)
 		return ""

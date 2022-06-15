@@ -93,6 +93,15 @@ logs_config: null
 	assert.Equal(t, config.String(), expected)
 }
 
+func TestDump(t *testing.T) {
+	config := &Config{}
+	config.Name = "foo"
+	config.InitConfig = Data("fooBarBaz: test")
+	config.Instances = []Data{Data("justFoo")}
+	dump := config.Dump()
+	assert.Contains(t, dump, `[]byte("justFoo")`)
+}
+
 func TestMergeAdditionalTags(t *testing.T) {
 	config := &Config{}
 	assert.False(t, config.Equal(nil))

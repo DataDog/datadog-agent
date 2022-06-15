@@ -224,9 +224,8 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 		expectedTags, found := expectedADIDs[entity]
 		assert.True(suite.T(), found, "entity not found in expected ones")
 
-		tags, hash, err := service.GetTags()
+		tags, err := service.GetTags()
 		assert.Nil(suite.T(), err)
-		assert.NotEqual(suite.T(), "", hash)
 		assert.Contains(suite.T(), tags, "docker_image:datadog/docker-library:redis_3_2_11-alpine")
 		assert.Contains(suite.T(), tags, "image_name:datadog/docker-library")
 		assert.Contains(suite.T(), tags, "image_tag:redis_3_2_11-alpine")

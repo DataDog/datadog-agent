@@ -2,6 +2,268 @@
 Release Notes
 =============
 
+.. _Release Notes_7.36.1:
+
+7.36.1 / 6.36.1
+======
+
+.. _Release Notes_7.36.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-05-31
+
+- Please refer to the `7.36.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7361>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.36.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes issue where proxy config was ignored by the trace-agent.
+
+- This fixes a regression introduced in ``7.36.0`` where some logs sources attached to a container/pod would not be
+  unscheduled on container/pod stop if multiple logs configs were attached to the container/pod.
+  This could lead to duplicate log entries being created on container/pod restart as there would
+  be more than one tailer tailing the targeted source.
+
+
+.. _Release Notes_7.36.0:
+
+7.36.0 / 6.36.0
+======
+
+.. _Release Notes_7.36.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-05-24
+
+- Please refer to the `7.36.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7360>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.36.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Debian packages are now built on Debian 8. Newly built DEBs are supported
+  on Debian >= 8 and Ubuntu >= 14.
+
+- The OTLP endpoint will no longer enable the legacy OTLP/HTTP endpoint ``0.0.0.0:55681`` by default. To keep using the legacy endpoint, explicitly declare it via the ``otlp_config.receiver.protocols.http.endpoint`` configuration setting or its associated environment variable, ``DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT``.
+
+- Package signing keys were rotated:
+  
+  * DEB packages are now signed with key ``AD9589B7``, a signing subkey of key `F14F620E <https://keys.datadoghq.com/DATADOG_APT_KEY_F14F620E.public>`_
+  * RPM packages are now signed with key `FD4BF915 <https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public>`_
+
+
+.. _Release Notes_7.36.0_New Features:
+
+New Features
+------------
+
+- Adding support for IBM cloud. The agent will now detect that we're running on IBM cloud and collect host aliases
+  (vm name and ID).
+
+- Added event collection in the Helm check. The feature is disabled by default. To enable it, set the ``collect_events`` option to true.
+
+- Adds a service check for the Helm check. The check fails for a release when its latest revision is in "failed" state.
+
+- Adds a ``kube_qos`` (quality of service) tag to metrics associated with
+  kubernetes pods and their containers.
+
+- CWS can now track network devices creation and load TC classifiers dynamically.
+
+- CWS can now track network namespaces.
+
+- The DNS event type was added to CWS.
+
+- The OTLP ingest endpoint is now considered GA for metrics.
+
+.. _Release Notes_7.36.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Traps OIDs are now resolved to names using user-provided 'traps db' files in ``snmp.d/traps_db/``.
+
+- The Agent now supports a single ``ad.datadoghq.com/$IDENTIFIER.checks``
+  annotation in Kubernetes Pods and Services to configure Autodiscovery
+  checks. It merges the contents of the existing "check_names",
+  ``init_configs`` (now optional), and ``instances`` annotations into a single
+  JSON value.
+
+- ``DD_URL`` environment variable can now be used to set the Datadog intake URL just like ``DD_DD_URL``.
+  If both ``DD_DD_URL`` and `DD_URL` are set, ``DD_DD_URL`` will be used to avoid breaking change.
+
+- Added a ``process-agent version`` command, and made the output mimic the core agent.
+
+- Windows: Add Datadog registry to Flare.
+
+- Add ``--service`` flag to ``stream-logs`` command to filter
+  streamed logs in detail.
+
+- Support a simple date pattern for automatic multiline detection
+
+- APM: The OTLP ingest stringification of non-standard Datadog values such as Arrays and KeyValues is now consistent with OpenTelemetry attribute stringification.
+
+- APM: Connections to upload profiles to the Datadog intake are now closed
+  after 47 seconds of idleness. Common tracer setups send one profile every
+  60 seconds, which coincides with the intake's connection timeout and would
+  occasionally lead to errors.
+
+- The Cluster Agent now exposes a new metric ``cluster_checks_configs_info``.
+  It exposes the node and the check ID as tags.
+
+- KSM core check: add a new ``kubernetes_state.cronjob.complete``
+  service check that returns the status of the most recent job for
+  a cronjob.
+
+- Retry more HTTP status codes for the logs agent HTTP destination. 
+
+- ``COPYRIGHT-3rdparty.csv`` now contains each copyright statement exactly as it is shown on the original component.
+
+- Adds ``sidecar_present`` and ``sidecar_count`` tags on Cloud Foundry containers
+  that run apps with sidecar processes.
+
+- Agent flare now includes output from the ``process`` and ``container`` checks.
+
+- Add the ``--cfgpath`` parameter in the Process Agent replacing ``--config``.
+
+- Add the ``check`` subcommand in the Process Agent replacing ``--check`` (``-check``).
+  Only warn once if the ``-version`` flag is used.
+
+- Adds human readable output of process and container data in the ``check`` command
+  for the Process Agent.
+
+- The Agent flare command now collects Process Agent performance profile data in the flare bundle when the ``--profile`` flag is used.
+
+
+.. _Release Notes_7.36.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- Deprecated ``process-agent --vesion`` in favor of ``process-agent version``.
+
+- The logs configuration ``use_http`` and ``use_tcp`` flags have been deprecated in favor of ``force_use_http`` and ``force_use_tcp``.
+
+- OTLP ingest: ``metrics.send_monotonic_counter`` has been deprecated in favor of ``metrics.sums.cumulative_monotonic_mode``. ``metrics.send_monotonic_counter`` will be removed in v7.37.
+
+- OTLP ingest: ``metrics.report_quantiles`` has been deprecated in favor of ``metrics.summaries.mode``. ``metrics.report_quantiles`` will be removed in v7.37 / v6.37.
+
+- Remove the unused ``--ddconfig`` (``-ddconfig``) parameter.
+  Deprecate the ``--config`` (``-config``) parameter (show warning on usage).
+
+- Deprecate the ``--check`` (``-check``) parameter (show warning on usage).
+
+
+.. _Release Notes_7.36.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Bump GoSNMP to fix incomplete support of SNMP v3 INFORMs.
+
+- APM: OTLP: Fixes an issue where attributes from different spans were merged leading to spans containing incorrect attributes.
+
+- APM: OTLP: Fixed an inconsistency where the error message was left empty in cases where the "exception" event was not found. Now, the span status message is used as a fallback.
+
+- Fixes an issue where some data coming from the Agent when running in ECS
+  Fargate did not have ``task_*``, ``ecs_cluster_name``, ``region``, and
+  ``availability_zone`` tags.
+
+- Collect the "0" value for resourceRequirements if it has been set
+
+- Fix a bug introduced in 7.33 that could prevent auto-discovery variable ``%%port_<name>%%`` to not be resolved properly.
+
+- Fix a panic in the Docker check when a failure happens early (when listing containers)
+
+- Fix missing ``docker.memory.limit`` (and ``docker.memory.in_use``) on Windows
+
+- Fixes a conflict preventing NPM/USM and the TCP Queue Length check from being enabled at the same time.
+
+- Fix permission of "/readsecret.sh" script in the agent Dockerfile when
+  executing with dd-agent user (for cluster check runners)
+
+- For Windows, fixes problem in upgrade wherein NPM driver is not automatically started by system probe.
+
+- Fix Gohai not being able to fetch network information when running on a non-English windows (when the output of
+  commands like ``ipconfig`` were not in English). ``gohai`` no longer relies on system commands but uses Golang ``net`` package
+  instead (same as Linux hosts).
+  This bug had the side effect of preventing network monitoring data to be linked back to the host.
+
+- Time-based metrics (for example, ``kubernetes_state.pod.age``, ``kubernetes_state.pod.uptime``) are now comparable in the Kubernetes state core check.
+
+- Fix a risk of panic when multiple KSM Core check instances run concurrently.
+
+- For Windows, includes NPM driver 1.3.2, which has a fix for a BSOD on system probe shutdown.
+
+- Adds new ``--json`` flag to ``check``. ``process-agent check --json`` now outputs valid json.
+
+- On Windows, includes NPM driver update which fixes performance
+  problem when host is under high connection load.
+
+- Previously, the Agent could not log the start or end of a check properly after the first five check runs. The Agent now can log the start and end of a check correctly.
+
+
+.. _Release Notes_7.36.0_Other Notes:
+
+Other Notes
+-----------
+
+- Include pre-generated trap db file in the ``conf.d/snmp.d/traps_db/`` folder.
+
+- Gohai dependency has been upgraded. This brings a newer version of gopsutil and a fix when fetching network
+  information in non-english Windows (see ``fixes`` section).
+
+
+.. _Release Notes_7.35.2:
+
+7.35.2 / 6.35.2
+======
+
+.. _Release Notes_7.35.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-05-05
+
+.. _Release Notes_7.35.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a regression impacting CSPM metering
+
+.. _Release Notes_7.35.1:
+
+7.35.1 / 6.35.1
+======
+
+.. _Release Notes_7.35.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-04-12
+
+
+.. _Release Notes_7.35.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The weak dependency of datadog-agent, datadog-iot-agent and dogstatsd deb
+  packages on the datadog-signing-keys package has been fixed to ensure
+  proper upgrade to version 1:1.1.0.
+
+
 .. _Release Notes_7.35.0:
 
 7.35.0 / 6.35.0
@@ -42,7 +304,7 @@ Upgrade Notes
   0% of traces to Datadog, instead of 100% in previous Agent versions. 
 
 - The OTLP ingest endpoint is now considered stable for traces.
-  Its configuration is located in the `top-level ``otlp_config`` section <https://github.com/DataDog/datadog-agent/blob/7.35.0/pkg/config/config_template.yaml#L2915-L2918>`_.
+  Its configuration is located in the top-level `otlp_config section <https://github.com/DataDog/datadog-agent/blob/7.35.0/pkg/config/config_template.yaml#L2915-L2918>`_.
   
   Support for the deprecated ``experimental.otlp`` section and the ``DD_OTLP_GRPC_PORT`` and ``DD_OTLP_HTTP_PORT``
   environment variables will be removed in Agent 7.37. Use the ``otlp_config`` section or the
@@ -61,120 +323,109 @@ New Features
 
 - The security Agent now offers a command to directly download the policy file from the API.
 
-- Policy can now define macros with items specified as a YAML list
-  instead of a SECL expression, as
+- CWS: Policy can now define macros with items specified as a YAML list
+  instead of a SECL expression, as:::
   
-    ```
     - my_macro:
       values:
         - value1
         - value2
-    ```
   
   In addition, macros and rules can now be updated in later loaded policies
-  (`default.policy` is loaded first, the other policies in the folder are loaded
+  (``default.policy`` is loaded first, the other policies in the folder are loaded
   in alphabetical order).
   
-  The previous macro can be modified with:
+  The previous macro can be modified with:::
   
-    ```
     - my_macro:
       combine: merge
       values:
         - value3
-    ```
   
-  It can also be overriden with:
+  It can also be overriden with:::
   
-    ```
     - my_macro:
       combine: override
       values:
         - my-single-value
-    ```
   
-  Rules can now also be disabled with:
-    ```
+  Rules can now also be disabled with:::
+  
     - my_rule:
       disabled: true
-    ````
 
 - Cloud Workload Security now works on Google's Container Optimized OS LTS versions, starting
   from v81.
 
-- Allow setting variables to store states through rule actions.
-  Action rules can now be defined as follows:
+- CWS: Allow setting variables to store states through rule actions.
+  Action rules can now be defined as follows:::
   
-  ```
-  - id: my_rule
-    expression: ...
-    actions:
-      - set:
-          name: my_boolean_variable
-          value: true
-      - set:
-          name: my_string_variable
-          value: a string
-      - set:
-          name: my_other_variable
-          field: process.file.name
-  ```
+    - id: my_rule
+      expression: ...
+      actions:
+        - set:
+            name: my_boolean_variable
+            value: true
+        - set:
+            name: my_string_variable
+            value: a string
+        - set:
+            name: my_other_variable
+            field: process.file.name
   
   These actions will be executed when the rule is triggered by an event.
-  Right now, only `set` actions can be defined.
-  `name` is the name of the variable that will be set by the actions.
+  Right now, only ``set`` actions can be defined.
+  ``name`` is the name of the variable that will be set by the actions.
   The value for the variable can be specified by using:
-  - `value` for a predefined value
+
+  - ``value`` for a predefined value
     (strings, integers, booleans, array of strings and array of integers are currently supported).
-  - `field` for the value of an event field.
+  - ``field`` for the value of an event field.
   
-  Variable arrays can be modified by specifying `append: true`.
+  Variable arrays can be modified by specifying ``append: true``.
   
-  Variables can be reused in rule expressions like a regular variable:
+  Variables can be reused in rule expressions like a regular variable:::
+
+    - id: my_other_rule
+      expression: |-
+        open.file.path == ${my_other_variable}
+
+  By default, variables are global. They can be bounded to a specific process by using the ``process``
+  scope as follows:::
+
+    - set:
+        name: my_scoped_variable
+        scope: process
+        value: true
   
-  ```
-  - id: my_other_rule
-    expression: |-
-      open.file.path == ${my_other_variable}
-  ```
-  
-  By default, variables are global. They can be bounded to a specific process by using the `process`
-  scope as follows:
-  
-  ```
-  - set:
-      name: my_scoped_variable
-      scope: process
-      value: true
-  ```
-  
-  The variable can be referenced in other expressions as `${process.my_scoped_variable}`. When the process dies, the
+  The variable can be referenced in other expressions as ``${process.my_scoped_variable}``. When the process dies, the
   variable with be automatically freed.
 
-- Configuration `process_config.enabled` is now split into two settings: `process_config.process_collection.enabled` and `process_config.container_collection.enabled`. This will allow better control over the process Agent.
-  `process_config.enabled` now translates to these new settings:
-  * `process_config.enabled=true`: `process_config.process_collection.enabled=true`
-  * `process_config.enabled=false`: `process_config.container_collection.enabled=true` and `process_config.process_collection.enabled=false`
-  * `process_config.enabled=disabled`: `process_config.container_collection.enabled=false` and `process_config.process_collection.enabled=false`
+- Configuration ``process_config.enabled`` is now split into two settings: ``process_config.process_collection.enabled`` and ``process_config.container_collection.enabled``. This will allow better control over the process Agent.
+  ``process_config.enabled`` now translates to these new settings:
+
+  * ``process_config.enabled=true``: ``process_config.process_collection.enabled=true``
+  * ``process_config.enabled=false``: ``process_config.container_collection.enabled=true`` and ``process_config.process_collection.enabled=false``
+  * ``process_config.enabled=disabled``: ``process_config.container_collection.enabled=false`` and ``process_config.process_collection.enabled=false``
 
 - Expose additional CloudFoundry metadata in the DCA API that the
   PCF firehose nozzles can use to reduce the load on the CC API.
 
 - Added new "Helm" cluster check that collects information about the Helm releases deployed in the cluster.
 
-- Add the `process_agent_runtime_config_dump.yaml` file to the core Agent flare with `process-agent` runtime settings.
+- Add the ``process_agent_runtime_config_dump.yaml`` file to the core Agent flare with ``process-agent`` runtime settings.
 
-- Add `process-agent status` output to the core Agent status command.
+- Add ``process-agent status`` output to the core Agent status command.
 
-- Added new `process-agent status` command to help with troubleshooting and for better consistency with the core Agent. This command is intended to eventually replace `process-agent --info`.
+- Added new ``process-agent status`` command to help with troubleshooting and for better consistency with the core Agent. This command is intended to eventually replace `process-agent --info`.
 
 - CWS rules can now be written on kernel module loading and deletion events.
 
 - The splice event type was added to CWS. It can be used to detect the Dirty Pipe vulnerability.
 
 - Add two options under a new config prefix to send logs
-  to Vector instead of Datadog. `vector.logs.enabled`
-  must be set to true, along with `vector.logs.url` that
+  to Vector instead of Datadog. ``vector.logs.enabled``
+  must be set to true, along with ``vector.logs.url`` that
   should be set to point to a Vector configured accordingly.
   This overrides the main endpoints, additional endpoints
   remains fully functional.
@@ -292,17 +543,17 @@ Deprecation Notes
 - The security Agent commands ``check-policies`` and ``reload`` are deprecated.
   Use ``runtime policy check`` and ``runtime policy reload`` respectively instead.
 
-- Configuration `process_config.enabled` is now deprecated.  Use `process_config.process_collection.enabled` and `process_config.container_collection.enabled` settings instead to control container and process collection in the process Agent.
+- Configuration ``process_config.enabled`` is now deprecated.  Use ``process_config.process_collection.enabled`` and ``process_config.container_collection.enabled`` settings instead to control container and process collection in the process Agent.
 
-- Removed `API_KEY` environment variable from the process agent. Use `DD_API_KEY` instead
+- Removed ``API_KEY`` environment variable from the process agent. Use ``DD_API_KEY`` instead
 
-- Removes the `DD_PROCESS_AGENT_CONTAINER_SOURCE` environment variable from the Process Agent. The list of container sources now entirely depends on the activated features.
+- Removes the ``DD_PROCESS_AGENT_CONTAINER_SOURCE`` environment variable from the Process Agent. The list of container sources now entirely depends on the activated features.
 
-- Removed unused `process_config.windows.args_refresh_interval` config setting
+- Removed unused ``process_config.windows.args_refresh_interval`` config setting
 
-- Removed unused `process_config.windows.add_new_args` config setting
+- Removed unused ``process_config.windows.add_new_args`` config setting
 
-- Removes the process_config.max_ctr_procs_per_message setting.
+- Removes the ``process_config.max_ctr_procs_per_message`` setting.
 
 
 .. _Release Notes_7.35.0_Bug Fixes:

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package workloadmeta
 
 import (
@@ -79,4 +84,18 @@ func (e *cachedEntity) computeCache() {
 	}
 
 	e.cached = merged
+}
+
+func (e *cachedEntity) copy() *cachedEntity {
+	newEntity := newCachedEntity()
+
+	newEntity.cached = e.cached.DeepCopy()
+
+	copy(newEntity.sortedSources, e.sortedSources)
+
+	for source, entity := range e.sources {
+		newEntity.sources[source] = entity
+	}
+
+	return newEntity
 }

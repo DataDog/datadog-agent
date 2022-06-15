@@ -64,11 +64,12 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname stri
 			return
 		}
 		file, err := os.Open(archivePath)
-		defer file.Close()
 		if err != nil {
 			bodyWriter.CloseWithError(err) //nolint:errcheck
 			return
 		}
+		defer file.Close()
+
 		_, err = io.Copy(p, file)
 		if err != nil {
 			bodyWriter.CloseWithError(err) //nolint:errcheck

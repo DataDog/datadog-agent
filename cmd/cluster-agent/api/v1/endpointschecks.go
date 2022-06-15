@@ -14,12 +14,13 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 )
 
 // Install registers v1 API endpoints for endpoints checks
 func installEndpointsCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) {
-	r.HandleFunc("/endpointschecks/configs/{nodeName}", getEndpointsCheckConfigs(sc)).Methods("GET")
-	r.HandleFunc("/endpointschecks/configs", getAllEndpointsCheckConfigs(sc)).Methods("GET")
+	r.HandleFunc("/endpointschecks/configs/{nodeName}", api.WithTelemetryWrapper("getEndpointsConfigs", getEndpointsCheckConfigs(sc))).Methods("GET")
+	r.HandleFunc("/endpointschecks/configs", api.WithTelemetryWrapper("getAllEndpointsCheckConfigs", getAllEndpointsCheckConfigs(sc))).Methods("GET")
 }
 
 // getEndpointsCheckConfigs is used by the node-agent's config provider
@@ -29,7 +30,7 @@ func getEndpointsCheckConfigs(sc clusteragent.ServerContext) func(w http.Respons
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !shouldHandle(w, r, sc.ClusterCheckHandler, "getEndpointsCheckConfigs") {
+		if sc.ClusterCheckHandler.RejectOrForwardLeaderQuery(w, r) {
 			return
 		}
 
@@ -38,11 +39,10 @@ func getEndpointsCheckConfigs(sc clusteragent.ServerContext) func(w http.Respons
 		response, err := sc.ClusterCheckHandler.GetEndpointsConfigs(nodeName)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			incrementRequestMetric("GetEndpointsConfigs", http.StatusInternalServerError)
 			return
 		}
 
-		writeJSONResponse(w, response, "GetEndpointsConfigs")
+		writeJSONResponse(w, response)
 	}
 }
 
@@ -56,10 +56,9 @@ func getAllEndpointsCheckConfigs(sc clusteragent.ServerContext) func(w http.Resp
 		response, err := sc.ClusterCheckHandler.GetAllEndpointsCheckConfigs()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			incrementRequestMetric("GetEndpointsChecksState", http.StatusInternalServerError)
 			return
 		}
 
-		writeJSONResponse(w, response, "GetEndpointsChecksState")
+		writeJSONResponse(w, response)
 	}
 }

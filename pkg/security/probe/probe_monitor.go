@@ -10,6 +10,7 @@ package probe
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -18,7 +19,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -198,12 +198,6 @@ func (m *Monitor) ProcessEvent(event *Event, size uint64, CPU int, perfMap *mana
 	}
 }
 
-// ProcessLostEvent processes a lost event through the various monitors and controllers of the probe
-func (m *Monitor) ProcessLostEvent(count uint64, cpu int, perfMap *manager.PerfMap) {
-	seclog.Tracef("lost %d events\n", count)
-	m.perfBufferMonitor.CountLostEvent(count, perfMap, cpu)
-}
-
 // RuleSetLoadedReport represents the rule and the custom event related to a RuleSetLoaded event, ready to be dispatched
 type RuleSetLoadedReport struct {
 	Rule  *rules.Rule
@@ -222,6 +216,29 @@ func (m *Monitor) ReportRuleSetLoaded(report RuleSetLoadedReport) {
 		log.Error(errors.Wrap(err, "failed to send ruleset_loaded metric"))
 	}
 
+	m.probe.DispatchCustomEvent(report.Rule, report.Event)
+}
+
+// SelfTestReport represents the rule and the custom event related to a SelfTest event; ready to be dispatched
+type SelfTestReport struct {
+	Rule  *rules.Rule
+	Event *CustomEvent
+}
+
+// ReportSelfTest reports to Datadog that a self test was performed
+func (m *Monitor) ReportSelfTest(success []string, fails []string) {
+	// send metric with number of success and fails
+	tags := []string{
+		fmt.Sprintf("success:%d", len(success)),
+		fmt.Sprintf("fails:%d", len(fails)),
+	}
+	if err := m.probe.statsdClient.Count(metrics.MetricSelfTest, 1, tags, 1.0); err != nil {
+		log.Error(errors.Wrap(err, "failed to send self_test metric"))
+	}
+
+	// send the custom event with the list of succeed and failed self tests
+	r, ev := NewSelfTestEvent(success, fails)
+	report := SelfTestReport{Rule: r, Event: ev}
 	m.probe.DispatchCustomEvent(report.Rule, report.Event)
 }
 

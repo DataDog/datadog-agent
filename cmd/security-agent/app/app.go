@@ -43,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -270,12 +271,16 @@ func RunAgent(ctx context.Context) (err error) {
 
 	stopper = startstop.NewSerialStopper()
 
-	// Retrieve statsd host and port from the datadog agent configuration file
-	statsdHost := coreconfig.GetBindHost()
-	statsdPort := coreconfig.Datadog.GetInt("dogstatsd_port")
-
 	// Create a statsd Client
-	statsdAddr := fmt.Sprintf("%s:%d", statsdHost, statsdPort)
+	statsdAddr := os.Getenv("STATSD_URL")
+	if statsdAddr == "" {
+		// Retrieve statsd host and port from the datadog agent configuration file
+		statsdHost := coreconfig.GetBindHost()
+		statsdPort := coreconfig.Datadog.GetInt("dogstatsd_port")
+
+		statsdAddr = fmt.Sprintf("%s:%d", statsdHost, statsdPort)
+	}
+
 	statsdClient, err := ddgostatsd.New(statsdAddr)
 	if err != nil {
 		return log.Criticalf("Error creating statsd Client: %s", err)
@@ -289,6 +294,10 @@ func RunAgent(ctx context.Context) (err error) {
 			log.Errorf("failed to start the tagger: %s", err)
 		}
 	}
+
+	// Start workloadmeta store
+	store := workloadmeta.GetGlobalStore()
+	store.Start(ctx)
 
 	complianceAgent, err := startCompliance(hostname, stopper, statsdClient)
 	if err != nil {

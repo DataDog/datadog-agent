@@ -24,6 +24,11 @@ func (g *Glob) contains(filename string) bool {
 		return false
 	}
 
+	// pattern "/"
+	if len(g.elements) == 2 && g.elements[1] == "" {
+		return true
+	}
+
 	// normalize */ == /*/
 	if g.elements[0] == "*" {
 		filename = filename[1:]

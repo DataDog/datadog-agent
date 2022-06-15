@@ -58,7 +58,7 @@ message LatestConfigsResponse {
   repeated File target_files = 3;
 }
 
-// Client defintions
+// Client definitions
 
 message Client {
   ClientState state = 1;
@@ -69,6 +69,7 @@ message Client {
   ClientTracer client_tracer = 7;
   bool is_agent = 8;
   ClientAgent client_agent = 9;
+  uint64 last_seen = 10;
 }
 
 message ClientTracer {
@@ -78,6 +79,7 @@ message ClientTracer {
   string service = 4;
   string env = 5;
   string app_version = 6;
+  repeated string tags = 7;
 }
 
 message ClientAgent {
@@ -97,7 +99,7 @@ message ClientState {
   repeated ConfigState config_states = 3;
   bool has_error = 4;
   string error = 5;
-  bytes backend_client_state = 6; 
+  bytes backend_client_state = 6;
 }
 
 // Client queries
@@ -122,6 +124,7 @@ message ClientGetConfigsResponse {
   repeated bytes roots = 1;
   bytes targets = 2;
   repeated File target_files = 3;
+  repeated string client_configs = 4;
 }
 
 // Full state
@@ -135,4 +138,18 @@ message GetStateConfigResponse {
   map<string, FileMetaState> config_state = 1;
   map<string, FileMetaState> director_state = 2;
   map<string, string> target_filenames = 3;
+}
+
+
+message TracerPredicateV1 {
+	string runtimeID = 1;
+	string service = 2;
+	string environment = 3;
+	string appVersion = 4;
+	string tracerVersion = 5;
+	string language = 6;
+}
+
+message TracerPredicates {
+	repeated TracerPredicateV1 tracer_predicates_v1 = 1;
 }

@@ -38,8 +38,8 @@ func (suite *clusterAgentSuite) TestClusterChecksNominal() {
 	dca.rawResponses["/api/v1/clusterchecks/configs/mynode"] = dummyConfigs
 
 	ts, p, err := dca.StartTLS()
-	defer ts.Close()
 	require.NoError(suite.T(), err)
+	defer ts.Close()
 	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
 	ca, err := GetClusterAgentClient()
@@ -66,8 +66,8 @@ func (suite *clusterAgentSuite) TestClusterChecksRedirect() {
 	leader.rawResponses["/api/v1/clusterchecks/status/mynode"] = `{"isuptodate": true}`
 	leader.rawResponses["/api/v1/clusterchecks/configs/mynode"] = dummyConfigs
 	ts, p, err := leader.StartTLS()
-	defer ts.Close()
 	require.NoError(suite.T(), err)
+	defer ts.Close()
 
 	// Follower redirects to the leader
 	follower, err := newDummyClusterAgent()
@@ -76,8 +76,8 @@ func (suite *clusterAgentSuite) TestClusterChecksRedirect() {
 	follower.rawResponses["/api/v1/clusterchecks/status/mynode"] = `{"isuptodate": false}`
 	follower.rawResponses["/api/v1/clusterchecks/configs/mynode"] = dummyConfigs
 	ts, p, err = follower.StartTLS()
-	defer ts.Close()
 	require.NoError(suite.T(), err)
+	defer ts.Close()
 
 	// Make sure both DCAs have the same token
 	assert.Equal(suite.T(), follower.token, leader.token)
@@ -86,6 +86,7 @@ func (suite *clusterAgentSuite) TestClusterChecksRedirect() {
 	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 	ca, err := GetClusterAgentClient()
 	require.NoError(suite.T(), err)
+	ca.(*DCAClient).initLeaderClient()
 
 	// checking version on init
 	assert.NotNil(suite.T(), follower.PopRequest(), "request did not go through follower")

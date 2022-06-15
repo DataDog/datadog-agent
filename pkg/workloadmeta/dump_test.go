@@ -26,6 +26,12 @@ func TestDump(t *testing.T) {
 			Name: "ctr-image",
 		},
 		Runtime: ContainerRuntimeDocker,
+		EnvVars: map[string]string{
+			"DD_SERVICE":  "my-svc",
+			"DD_ENV":      "prod",
+			"DD_VERSION":  "v1",
+			"NOT_ALLOWED": "not-allowed",
+		},
 	}
 
 	ctrToMerge := &Container{
@@ -105,7 +111,7 @@ Health:
 Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
-Env Variables: 
+Allowed env variables: DD_SERVICE:my-svc DD_ENV:prod DD_VERSION:v1 
 Hostname: 
 Network IPs: 
 PID: 0
@@ -131,7 +137,7 @@ Health:
 Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
-Env Variables: 
+Allowed env variables: 
 Hostname: 
 Network IPs: 
 PID: 1
@@ -157,7 +163,7 @@ Health:
 Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
-Env Variables: 
+Allowed env variables: DD_SERVICE:my-svc DD_ENV:prod DD_VERSION:v1 
 Hostname: 
 Network IPs: 
 PID: 1

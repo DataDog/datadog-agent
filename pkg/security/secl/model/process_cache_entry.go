@@ -13,9 +13,28 @@ import (
 	"time"
 )
 
-// SetAncestor set the ancestor
+const (
+	maxArgEnvSize = 256
+)
+
+// SetSpan sets the span
+func (pc *ProcessCacheEntry) SetSpan(spanID uint64, traceID uint64) {
+	pc.SpanID = spanID
+	pc.TraceID = traceID
+}
+
+// SetAncestor sets the ancestor
 func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
+	if pc.Ancestor == parent {
+		return
+	}
+
+	if pc.Ancestor != nil {
+		pc.Ancestor.Release()
+	}
+
 	pc.Ancestor = parent
+	pc.IsThread = false
 	parent.Retain()
 }
 
@@ -78,23 +97,30 @@ func (pc *ProcessCacheEntry) ShareArgsEnvs(childEntry *ProcessCacheEntry) {
 	}
 }
 
+// SetParent set the parent of a fork child
+func (pc *ProcessCacheEntry) SetParent(parent *ProcessCacheEntry) {
+	pc.SetAncestor(parent)
+	parent.ShareArgsEnvs(pc)
+	pc.IsThread = true
+}
+
 // Fork returns a copy of the current ProcessCacheEntry
 func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
-	childEntry.SetAncestor(pc)
-
 	childEntry.PPid = pc.Pid
 	childEntry.TTYName = pc.TTYName
 	childEntry.Comm = pc.Comm
-	childEntry.FileFields = pc.FileFields
-	childEntry.PathnameStr = pc.PathnameStr
-	childEntry.BasenameStr = pc.BasenameStr
-	childEntry.Filesystem = pc.Filesystem
+	childEntry.FileEvent = pc.FileEvent
 	childEntry.ContainerID = pc.ContainerID
 	childEntry.ExecTime = pc.ExecTime
 	childEntry.Credentials = pc.Credentials
 	childEntry.Cookie = pc.Cookie
 
-	pc.ShareArgsEnvs(childEntry)
+	childEntry.SetParent(pc)
+}
+
+// Equals returns whether process cache entries share the same values for comm and args/envs
+func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
+	return pc.Comm == entry.Comm && pc.ArgsEntry.Equals(entry.ArgsEntry) && pc.EnvsEntry.Equals(entry.EnvsEntry)
 }
 
 /*func (pc *ProcessCacheEntry) String() string {
@@ -115,13 +141,14 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 type ArgsEnvs struct {
 	ID        uint32
 	Size      uint32
-	ValuesRaw [256]byte
+	ValuesRaw [maxArgEnvSize]byte
 }
 
 // ArgsEnvsCacheEntry defines a args/envs base entry
 //msgp:ignore ArgsEnvsCacheEntry
 type ArgsEnvsCacheEntry struct {
-	ArgsEnvs
+	Size      uint32
+	ValuesRaw []byte
 
 	Container *list.Element
 
@@ -138,6 +165,8 @@ func (p *ArgsEnvsCacheEntry) release() {
 	for entry != nil {
 		next := entry.next
 
+		entry.Size = 0
+		entry.ValuesRaw = nil
 		entry.next = nil
 		entry.last = nil
 		entry.refCount = 0
@@ -194,7 +223,7 @@ func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 
 	for entry != nil {
 		v, err := UnmarshalStringArray(entry.ValuesRaw[:entry.Size])
-		if err != nil || entry.Size == 128 {
+		if err != nil || entry.Size == maxArgEnvSize {
 			if len(v) > 0 {
 				v[len(v)-1] = v[len(v)-1] + "..."
 			}
@@ -203,6 +232,7 @@ func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 		if len(v) > 0 {
 			values = append(values, v...)
 		}
+		entry.ValuesRaw = nil
 
 		entry = entry.next
 	}
@@ -253,7 +283,7 @@ func (p *ArgsEntry) ToArray() ([]string, bool) {
 func (p *ArgsEntry) Equals(o *ArgsEntry) bool {
 	if p == o {
 		return true
-	} else if o == nil {
+	} else if p == nil || o == nil {
 		return false
 	}
 
@@ -309,6 +339,10 @@ func (p *EnvsEntry) Keys() ([]string, bool) {
 	var i int
 	for _, value := range values {
 		kv := strings.SplitN(value, "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+
 		p.keys[i] = kv[0]
 		i++
 	}
@@ -330,8 +364,6 @@ func (p *EnvsEntry) toMap() {
 
 		if len(kv) == 2 {
 			p.kv[k] = kv[1]
-		} else {
-			p.kv[k] = ""
 		}
 	}
 }

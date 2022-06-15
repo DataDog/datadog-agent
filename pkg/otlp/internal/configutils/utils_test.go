@@ -14,6 +14,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
+	"go.opentelemetry.io/collector/confmap/provider/envprovider"
+	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
+	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/collector/service"
@@ -48,10 +53,13 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 	mapProvider := NewConfigProviderFromMap(cfgMap)
 
 	// build default provider from same data
-	defaultProvider := service.MustNewDefaultConfigProvider(
-		[]string{fmt.Sprintf("file:%s", testPath)},
-		[]string{},
-	)
+	settings := service.ConfigProviderSettings{
+		Locations:     []string{fmt.Sprintf("file:%s", testPath)},
+		MapProviders:  makeConfigMapProviderMap(fileprovider.New(), envprovider.New(), yamlprovider.New()),
+		MapConverters: []confmap.Converter{expandconverter.New()},
+	}
+	defaultProvider, err := service.NewConfigProvider(settings)
+	require.NoError(t, err)
 
 	// Get config.Config from both
 	factories := buildTestFactories(t)
@@ -61,4 +69,12 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, cfg, defaultCfg, "Custom constant provider does not provide same config as default provider.")
+}
+
+func makeConfigMapProviderMap(providers ...confmap.Provider) map[string]confmap.Provider {
+	ret := make(map[string]confmap.Provider, len(providers))
+	for _, provider := range providers {
+		ret[provider.Scheme()] = provider
+	}
+	return ret
 }

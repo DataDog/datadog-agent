@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	pb "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	pb "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri/crimock"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"

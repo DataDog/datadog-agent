@@ -471,9 +471,9 @@ func (z *FileEvent) DecodeMsg(dc *msgp.Reader) (err error) {
 				return
 			}
 		case "filesystem":
-			z.Filesytem, err = dc.ReadString()
+			z.Filesystem, err = dc.ReadString()
 			if err != nil {
-				err = msgp.WrapError(err, "Filesytem")
+				err = msgp.WrapError(err, "Filesystem")
 				return
 			}
 		default:
@@ -525,9 +525,9 @@ func (z *FileEvent) EncodeMsg(en *msgp.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	err = en.WriteString(z.Filesytem)
+	err = en.WriteString(z.Filesystem)
 	if err != nil {
-		err = msgp.WrapError(err, "Filesytem")
+		err = msgp.WrapError(err, "Filesystem")
 		return
 	}
 	return
@@ -552,7 +552,7 @@ func (z *FileEvent) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.AppendString(o, z.BasenameStr)
 	// string "filesystem"
 	o = append(o, 0xaa, 0x66, 0x69, 0x6c, 0x65, 0x73, 0x79, 0x73, 0x74, 0x65, 0x6d)
-	o = msgp.AppendString(o, z.Filesytem)
+	o = msgp.AppendString(o, z.Filesystem)
 	return
 }
 
@@ -593,9 +593,9 @@ func (z *FileEvent) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 		case "filesystem":
-			z.Filesytem, bts, err = msgp.ReadStringBytes(bts)
+			z.Filesystem, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Filesytem")
+				err = msgp.WrapError(err, "Filesystem")
 				return
 			}
 		default:
@@ -612,7 +612,7 @@ func (z *FileEvent) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *FileEvent) Msgsize() (s int) {
-	s = 1 + 11 + z.FileFields.Msgsize() + 5 + msgp.StringPrefixSize + len(z.PathnameStr) + 5 + msgp.StringPrefixSize + len(z.BasenameStr) + 11 + msgp.StringPrefixSize + len(z.Filesytem)
+	s = 1 + 11 + z.FileFields.Msgsize() + 5 + msgp.StringPrefixSize + len(z.PathnameStr) + 5 + msgp.StringPrefixSize + len(z.BasenameStr) + 11 + msgp.StringPrefixSize + len(z.Filesystem)
 	return
 }
 
@@ -945,6 +945,134 @@ func (z *FileFields) Msgsize() (s int) {
 }
 
 // DecodeMsg implements msgp.Decodable
+func (z *PIDContext) DecodeMsg(dc *msgp.Reader) (err error) {
+	var field []byte
+	_ = field
+	var zb0001 uint32
+	zb0001, err = dc.ReadMapHeader()
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for zb0001 > 0 {
+		zb0001--
+		field, err = dc.ReadMapKeyPtr()
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "pid":
+			z.Pid, err = dc.ReadUint32()
+			if err != nil {
+				err = msgp.WrapError(err, "Pid")
+				return
+			}
+		case "tid":
+			z.Tid, err = dc.ReadUint32()
+			if err != nil {
+				err = msgp.WrapError(err, "Tid")
+				return
+			}
+		default:
+			err = dc.Skip()
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	return
+}
+
+// EncodeMsg implements msgp.Encodable
+func (z PIDContext) EncodeMsg(en *msgp.Writer) (err error) {
+	// map header, size 2
+	// write "pid"
+	err = en.Append(0x82, 0xa3, 0x70, 0x69, 0x64)
+	if err != nil {
+		return
+	}
+	err = en.WriteUint32(z.Pid)
+	if err != nil {
+		err = msgp.WrapError(err, "Pid")
+		return
+	}
+	// write "tid"
+	err = en.Append(0xa3, 0x74, 0x69, 0x64)
+	if err != nil {
+		return
+	}
+	err = en.WriteUint32(z.Tid)
+	if err != nil {
+		err = msgp.WrapError(err, "Tid")
+		return
+	}
+	return
+}
+
+// MarshalMsg implements msgp.Marshaler
+func (z PIDContext) MarshalMsg(b []byte) (o []byte, err error) {
+	o = msgp.Require(b, z.Msgsize())
+	// map header, size 2
+	// string "pid"
+	o = append(o, 0x82, 0xa3, 0x70, 0x69, 0x64)
+	o = msgp.AppendUint32(o, z.Pid)
+	// string "tid"
+	o = append(o, 0xa3, 0x74, 0x69, 0x64)
+	o = msgp.AppendUint32(o, z.Tid)
+	return
+}
+
+// UnmarshalMsg implements msgp.Unmarshaler
+func (z *PIDContext) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	var field []byte
+	_ = field
+	var zb0001 uint32
+	zb0001, bts, err = msgp.ReadMapHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for zb0001 > 0 {
+		zb0001--
+		field, bts, err = msgp.ReadMapKeyZC(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "pid":
+			z.Pid, bts, err = msgp.ReadUint32Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Pid")
+				return
+			}
+		case "tid":
+			z.Tid, bts, err = msgp.ReadUint32Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Tid")
+				return
+			}
+		default:
+			bts, err = msgp.Skip(bts)
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	o = bts
+	return
+}
+
+// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
+func (z PIDContext) Msgsize() (s int) {
+	s = 1 + 4 + msgp.Uint32Size + 4 + msgp.Uint32Size
+	return
+}
+
+// DecodeMsg implements msgp.Decodable
 func (z *Process) DecodeMsg(dc *msgp.Reader) (err error) {
 	var field []byte
 	_ = field
@@ -962,40 +1090,45 @@ func (z *Process) DecodeMsg(dc *msgp.Reader) (err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
+		case "PIDContext":
+			var zb0002 uint32
+			zb0002, err = dc.ReadMapHeader()
+			if err != nil {
+				err = msgp.WrapError(err, "PIDContext")
+				return
+			}
+			for zb0002 > 0 {
+				zb0002--
+				field, err = dc.ReadMapKeyPtr()
+				if err != nil {
+					err = msgp.WrapError(err, "PIDContext")
+					return
+				}
+				switch msgp.UnsafeString(field) {
+				case "pid":
+					z.PIDContext.Pid, err = dc.ReadUint32()
+					if err != nil {
+						err = msgp.WrapError(err, "PIDContext", "Pid")
+						return
+					}
+				case "tid":
+					z.PIDContext.Tid, err = dc.ReadUint32()
+					if err != nil {
+						err = msgp.WrapError(err, "PIDContext", "Tid")
+						return
+					}
+				default:
+					err = dc.Skip()
+					if err != nil {
+						err = msgp.WrapError(err, "PIDContext")
+						return
+					}
+				}
+			}
 		case "file":
-			err = z.FileFields.DecodeMsg(dc)
+			err = z.FileEvent.DecodeMsg(dc)
 			if err != nil {
-				err = msgp.WrapError(err, "FileFields")
-				return
-			}
-		case "pid":
-			z.Pid, err = dc.ReadUint32()
-			if err != nil {
-				err = msgp.WrapError(err, "Pid")
-				return
-			}
-		case "tid":
-			z.Tid, err = dc.ReadUint32()
-			if err != nil {
-				err = msgp.WrapError(err, "Tid")
-				return
-			}
-		case "path":
-			z.PathnameStr, err = dc.ReadString()
-			if err != nil {
-				err = msgp.WrapError(err, "PathnameStr")
-				return
-			}
-		case "name":
-			z.BasenameStr, err = dc.ReadString()
-			if err != nil {
-				err = msgp.WrapError(err, "BasenameStr")
-				return
-			}
-		case "filesystem":
-			z.Filesystem, err = dc.ReadString()
-			if err != nil {
-				err = msgp.WrapError(err, "Filesystem")
+				err = msgp.WrapError(err, "FileEvent")
 				return
 			}
 		case "container_id":
@@ -1005,16 +1138,16 @@ func (z *Process) DecodeMsg(dc *msgp.Reader) (err error) {
 				return
 			}
 		case "container_tags":
-			var zb0002 uint32
-			zb0002, err = dc.ReadArrayHeader()
+			var zb0003 uint32
+			zb0003, err = dc.ReadArrayHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "ContainerTags")
 				return
 			}
-			if cap(z.ContainerTags) >= int(zb0002) {
-				z.ContainerTags = (z.ContainerTags)[:zb0002]
+			if cap(z.ContainerTags) >= int(zb0003) {
+				z.ContainerTags = (z.ContainerTags)[:zb0003]
 			} else {
-				z.ContainerTags = make([]string, zb0002)
+				z.ContainerTags = make([]string, zb0003)
 			}
 			for za0001 := range z.ContainerTags {
 				z.ContainerTags[za0001], err = dc.ReadString()
@@ -1022,6 +1155,18 @@ func (z *Process) DecodeMsg(dc *msgp.Reader) (err error) {
 					err = msgp.WrapError(err, "ContainerTags", za0001)
 					return
 				}
+			}
+		case "span_id":
+			z.SpanID, err = dc.ReadUint64()
+			if err != nil {
+				err = msgp.WrapError(err, "SpanID")
+				return
+			}
+		case "trace_id":
+			z.TraceID, err = dc.ReadUint64()
+			if err != nil {
+				err = msgp.WrapError(err, "TraceID")
+				return
 			}
 		case "tty":
 			z.TTYName, err = dc.ReadString()
@@ -1113,6 +1258,12 @@ func (z *Process) DecodeMsg(dc *msgp.Reader) (err error) {
 					return
 				}
 			}
+		case "is_thread":
+			z.IsThread, err = dc.ReadBool()
+			if err != nil {
+				err = msgp.WrapError(err, "IsThread")
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -1126,25 +1277,21 @@ func (z *Process) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 19
-	// write "file"
-	err = en.Append(0xde, 0x0, 0x13, 0xa4, 0x66, 0x69, 0x6c, 0x65)
+	// map header, size 18
+	// write "PIDContext"
+	err = en.Append(0xde, 0x0, 0x12, 0xaa, 0x50, 0x49, 0x44, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74)
 	if err != nil {
 		return
 	}
-	err = z.FileFields.EncodeMsg(en)
-	if err != nil {
-		err = msgp.WrapError(err, "FileFields")
-		return
-	}
+	// map header, size 2
 	// write "pid"
-	err = en.Append(0xa3, 0x70, 0x69, 0x64)
+	err = en.Append(0x82, 0xa3, 0x70, 0x69, 0x64)
 	if err != nil {
 		return
 	}
-	err = en.WriteUint32(z.Pid)
+	err = en.WriteUint32(z.PIDContext.Pid)
 	if err != nil {
-		err = msgp.WrapError(err, "Pid")
+		err = msgp.WrapError(err, "PIDContext", "Pid")
 		return
 	}
 	// write "tid"
@@ -1152,39 +1299,19 @@ func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	err = en.WriteUint32(z.Tid)
+	err = en.WriteUint32(z.PIDContext.Tid)
 	if err != nil {
-		err = msgp.WrapError(err, "Tid")
+		err = msgp.WrapError(err, "PIDContext", "Tid")
 		return
 	}
-	// write "path"
-	err = en.Append(0xa4, 0x70, 0x61, 0x74, 0x68)
-	if err != nil {
-		return
-	}
-	err = en.WriteString(z.PathnameStr)
-	if err != nil {
-		err = msgp.WrapError(err, "PathnameStr")
-		return
-	}
-	// write "name"
-	err = en.Append(0xa4, 0x6e, 0x61, 0x6d, 0x65)
+	// write "file"
+	err = en.Append(0xa4, 0x66, 0x69, 0x6c, 0x65)
 	if err != nil {
 		return
 	}
-	err = en.WriteString(z.BasenameStr)
+	err = z.FileEvent.EncodeMsg(en)
 	if err != nil {
-		err = msgp.WrapError(err, "BasenameStr")
-		return
-	}
-	// write "filesystem"
-	err = en.Append(0xaa, 0x66, 0x69, 0x6c, 0x65, 0x73, 0x79, 0x73, 0x74, 0x65, 0x6d)
-	if err != nil {
-		return
-	}
-	err = en.WriteString(z.Filesystem)
-	if err != nil {
-		err = msgp.WrapError(err, "Filesystem")
+		err = msgp.WrapError(err, "FileEvent")
 		return
 	}
 	// write "container_id"
@@ -1213,6 +1340,26 @@ func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
 			err = msgp.WrapError(err, "ContainerTags", za0001)
 			return
 		}
+	}
+	// write "span_id"
+	err = en.Append(0xa7, 0x73, 0x70, 0x61, 0x6e, 0x5f, 0x69, 0x64)
+	if err != nil {
+		return
+	}
+	err = en.WriteUint64(z.SpanID)
+	if err != nil {
+		err = msgp.WrapError(err, "SpanID")
+		return
+	}
+	// write "trace_id"
+	err = en.Append(0xa8, 0x74, 0x72, 0x61, 0x63, 0x65, 0x5f, 0x69, 0x64)
+	if err != nil {
+		return
+	}
+	err = en.WriteUint64(z.TraceID)
+	if err != nil {
+		err = msgp.WrapError(err, "TraceID")
+		return
 	}
 	// write "tty"
 	err = en.Append(0xa3, 0x74, 0x74, 0x79)
@@ -1338,35 +1485,39 @@ func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
 			return
 		}
 	}
+	// write "is_thread"
+	err = en.Append(0xa9, 0x69, 0x73, 0x5f, 0x74, 0x68, 0x72, 0x65, 0x61, 0x64)
+	if err != nil {
+		return
+	}
+	err = en.WriteBool(z.IsThread)
+	if err != nil {
+		err = msgp.WrapError(err, "IsThread")
+		return
+	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
 func (z *Process) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 19
-	// string "file"
-	o = append(o, 0xde, 0x0, 0x13, 0xa4, 0x66, 0x69, 0x6c, 0x65)
-	o, err = z.FileFields.MarshalMsg(o)
-	if err != nil {
-		err = msgp.WrapError(err, "FileFields")
-		return
-	}
+	// map header, size 18
+	// string "PIDContext"
+	o = append(o, 0xde, 0x0, 0x12, 0xaa, 0x50, 0x49, 0x44, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74)
+	// map header, size 2
 	// string "pid"
-	o = append(o, 0xa3, 0x70, 0x69, 0x64)
-	o = msgp.AppendUint32(o, z.Pid)
+	o = append(o, 0x82, 0xa3, 0x70, 0x69, 0x64)
+	o = msgp.AppendUint32(o, z.PIDContext.Pid)
 	// string "tid"
 	o = append(o, 0xa3, 0x74, 0x69, 0x64)
-	o = msgp.AppendUint32(o, z.Tid)
-	// string "path"
-	o = append(o, 0xa4, 0x70, 0x61, 0x74, 0x68)
-	o = msgp.AppendString(o, z.PathnameStr)
-	// string "name"
-	o = append(o, 0xa4, 0x6e, 0x61, 0x6d, 0x65)
-	o = msgp.AppendString(o, z.BasenameStr)
-	// string "filesystem"
-	o = append(o, 0xaa, 0x66, 0x69, 0x6c, 0x65, 0x73, 0x79, 0x73, 0x74, 0x65, 0x6d)
-	o = msgp.AppendString(o, z.Filesystem)
+	o = msgp.AppendUint32(o, z.PIDContext.Tid)
+	// string "file"
+	o = append(o, 0xa4, 0x66, 0x69, 0x6c, 0x65)
+	o, err = z.FileEvent.MarshalMsg(o)
+	if err != nil {
+		err = msgp.WrapError(err, "FileEvent")
+		return
+	}
 	// string "container_id"
 	o = append(o, 0xac, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x5f, 0x69, 0x64)
 	o = msgp.AppendString(o, z.ContainerID)
@@ -1376,6 +1527,12 @@ func (z *Process) MarshalMsg(b []byte) (o []byte, err error) {
 	for za0001 := range z.ContainerTags {
 		o = msgp.AppendString(o, z.ContainerTags[za0001])
 	}
+	// string "span_id"
+	o = append(o, 0xa7, 0x73, 0x70, 0x61, 0x6e, 0x5f, 0x69, 0x64)
+	o = msgp.AppendUint64(o, z.SpanID)
+	// string "trace_id"
+	o = append(o, 0xa8, 0x74, 0x72, 0x61, 0x63, 0x65, 0x5f, 0x69, 0x64)
+	o = msgp.AppendUint64(o, z.TraceID)
 	// string "tty"
 	o = append(o, 0xa3, 0x74, 0x74, 0x79)
 	o = msgp.AppendString(o, z.TTYName)
@@ -1429,6 +1586,9 @@ func (z *Process) MarshalMsg(b []byte) (o []byte, err error) {
 			return
 		}
 	}
+	// string "is_thread"
+	o = append(o, 0xa9, 0x69, 0x73, 0x5f, 0x74, 0x68, 0x72, 0x65, 0x61, 0x64)
+	o = msgp.AppendBool(o, z.IsThread)
 	return
 }
 
@@ -1450,40 +1610,45 @@ func (z *Process) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
+		case "PIDContext":
+			var zb0002 uint32
+			zb0002, bts, err = msgp.ReadMapHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "PIDContext")
+				return
+			}
+			for zb0002 > 0 {
+				zb0002--
+				field, bts, err = msgp.ReadMapKeyZC(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "PIDContext")
+					return
+				}
+				switch msgp.UnsafeString(field) {
+				case "pid":
+					z.PIDContext.Pid, bts, err = msgp.ReadUint32Bytes(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "PIDContext", "Pid")
+						return
+					}
+				case "tid":
+					z.PIDContext.Tid, bts, err = msgp.ReadUint32Bytes(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "PIDContext", "Tid")
+						return
+					}
+				default:
+					bts, err = msgp.Skip(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "PIDContext")
+						return
+					}
+				}
+			}
 		case "file":
-			bts, err = z.FileFields.UnmarshalMsg(bts)
+			bts, err = z.FileEvent.UnmarshalMsg(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "FileFields")
-				return
-			}
-		case "pid":
-			z.Pid, bts, err = msgp.ReadUint32Bytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "Pid")
-				return
-			}
-		case "tid":
-			z.Tid, bts, err = msgp.ReadUint32Bytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "Tid")
-				return
-			}
-		case "path":
-			z.PathnameStr, bts, err = msgp.ReadStringBytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "PathnameStr")
-				return
-			}
-		case "name":
-			z.BasenameStr, bts, err = msgp.ReadStringBytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "BasenameStr")
-				return
-			}
-		case "filesystem":
-			z.Filesystem, bts, err = msgp.ReadStringBytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "Filesystem")
+				err = msgp.WrapError(err, "FileEvent")
 				return
 			}
 		case "container_id":
@@ -1493,16 +1658,16 @@ func (z *Process) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 		case "container_tags":
-			var zb0002 uint32
-			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			var zb0003 uint32
+			zb0003, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "ContainerTags")
 				return
 			}
-			if cap(z.ContainerTags) >= int(zb0002) {
-				z.ContainerTags = (z.ContainerTags)[:zb0002]
+			if cap(z.ContainerTags) >= int(zb0003) {
+				z.ContainerTags = (z.ContainerTags)[:zb0003]
 			} else {
-				z.ContainerTags = make([]string, zb0002)
+				z.ContainerTags = make([]string, zb0003)
 			}
 			for za0001 := range z.ContainerTags {
 				z.ContainerTags[za0001], bts, err = msgp.ReadStringBytes(bts)
@@ -1510,6 +1675,18 @@ func (z *Process) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					err = msgp.WrapError(err, "ContainerTags", za0001)
 					return
 				}
+			}
+		case "span_id":
+			z.SpanID, bts, err = msgp.ReadUint64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "SpanID")
+				return
+			}
+		case "trace_id":
+			z.TraceID, bts, err = msgp.ReadUint64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "TraceID")
+				return
 			}
 		case "tty":
 			z.TTYName, bts, err = msgp.ReadStringBytes(bts)
@@ -1599,6 +1776,12 @@ func (z *Process) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					return
 				}
 			}
+		case "is_thread":
+			z.IsThread, bts, err = msgp.ReadBoolBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "IsThread")
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -1613,11 +1796,11 @@ func (z *Process) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Process) Msgsize() (s int) {
-	s = 3 + 5 + z.FileFields.Msgsize() + 4 + msgp.Uint32Size + 4 + msgp.Uint32Size + 5 + msgp.StringPrefixSize + len(z.PathnameStr) + 5 + msgp.StringPrefixSize + len(z.BasenameStr) + 11 + msgp.StringPrefixSize + len(z.Filesystem) + 13 + msgp.StringPrefixSize + len(z.ContainerID) + 15 + msgp.ArrayHeaderSize
+	s = 3 + 11 + 1 + 4 + msgp.Uint32Size + 4 + msgp.Uint32Size + 5 + z.FileEvent.Msgsize() + 13 + msgp.StringPrefixSize + len(z.ContainerID) + 15 + msgp.ArrayHeaderSize
 	for za0001 := range z.ContainerTags {
 		s += msgp.StringPrefixSize + len(z.ContainerTags[za0001])
 	}
-	s += 4 + msgp.StringPrefixSize + len(z.TTYName) + 5 + msgp.StringPrefixSize + len(z.Comm) + 10 + msgp.TimeSize + 10 + msgp.TimeSize + 10 + msgp.TimeSize + 11 + msgp.Uint64Size + 7 + msgp.Uint32Size + 5 + msgp.Uint32Size + 12 + z.Credentials.Msgsize() + 5
+	s += 8 + msgp.Uint64Size + 9 + msgp.Uint64Size + 4 + msgp.StringPrefixSize + len(z.TTYName) + 5 + msgp.StringPrefixSize + len(z.Comm) + 10 + msgp.TimeSize + 10 + msgp.TimeSize + 10 + msgp.TimeSize + 11 + msgp.Uint64Size + 7 + msgp.Uint32Size + 5 + msgp.Uint32Size + 12 + z.Credentials.Msgsize() + 5
 	if z.ArgsEntry == nil {
 		s += msgp.NilSize
 	} else {
@@ -1629,6 +1812,7 @@ func (z *Process) Msgsize() (s int) {
 	} else {
 		s += z.EnvsEntry.Msgsize()
 	}
+	s += 10 + msgp.BoolSize
 	return
 }
 

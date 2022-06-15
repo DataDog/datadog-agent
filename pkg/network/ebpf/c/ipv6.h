@@ -7,7 +7,9 @@
  * in the most significant 32 bits of part saddr_l and daddr_l.
  * Meanwhile the end of the mask is stored in the least significant 32 bits.
  */
-static __always_inline bool is_ipv4_mapped_ipv6(__u64 saddr_h, __u64 saddr_l, __u64 daddr_h, __u64 daddr_l) {
+// On older kernels, clang can generate Wunused-function warnings on static inline functions defined in 
+// header files, even if they are later used in source files. __maybe_unused prevents that issue
+__maybe_unused static __always_inline bool is_ipv4_mapped_ipv6(__u64 saddr_h, __u64 saddr_l, __u64 daddr_h, __u64 daddr_l) {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
     return ((saddr_h == 0 && ((__u32)saddr_l == 0xFFFF0000)) || (daddr_h == 0 && ((__u32)daddr_l == 0xFFFF0000)));
 #elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__

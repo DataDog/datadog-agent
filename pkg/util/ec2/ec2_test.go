@@ -113,6 +113,50 @@ func TestGetInstanceID(t *testing.T) {
 	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
 }
 
+func TestGetHostAliases(t *testing.T) {
+	tests := []struct {
+		name          string
+		instanceID    string
+		expectedHosts []string
+	}{
+		{
+			name:          "Instance ID found",
+			instanceID:    "i-0b22a22eec53b9321",
+			expectedHosts: []string{"i-0b22a22eec53b9321"},
+		},
+		{
+			name:          "No Instance ID found",
+			expectedHosts: []string{},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/plain")
+				var responseCode int
+				if tc.instanceID != "" {
+					responseCode = http.StatusOK
+				} else {
+					responseCode = http.StatusInternalServerError
+				}
+				w.WriteHeader(responseCode)
+				_, _ = io.WriteString(w, tc.instanceID)
+			}))
+			defer ts.Close()
+
+			metadataURL = ts.URL
+			config.Datadog.Set("ec2_metadata_timeout", 1000)
+			defer resetPackageVars()
+
+			ctx := context.Background()
+			aliases, err := GetHostAliases(ctx)
+			assert.Equal(t, tc.expectedHosts, aliases)
+			assert.NoError(t, err)
+		})
+	}
+}
+
 func TestGetHostname(t *testing.T) {
 	ctx := context.Background()
 	expected := "ip-10-10-10-10.ec2.internal"
