@@ -32,7 +32,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
-	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -383,164 +382,6 @@ func (suite *KubeletTestSuite) TestPodlistCache() {
 	require.Equal(suite.T(), "/pods", r.URL.Path)
 }
 
-func (suite *KubeletTestSuite) TestGetPodForContainerID() {
-	ctx := context.Background()
-	mockConfig := config.Mock()
-
-	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
-	require.Nil(suite.T(), err)
-	ts, kubeletPort, err := kubelet.Start()
-	require.Nil(suite.T(), err)
-	defer ts.Close()
-
-	mockConfig.Set("kubernetes_kubelet_host", "localhost")
-	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.Set("kubernetes_https_kubelet_port", -1)
-
-	kubeutil := suite.getCustomKubeUtil()
-	kubelet.dropRequests() // Throwing away first GETs
-
-	// Empty container ID
-	pod, err := kubeutil.GetPodForContainerID(ctx, "")
-	<-kubelet.Requests // cache the first /pods request
-	require.Nil(suite.T(), pod)
-	require.NotNil(suite.T(), err)
-	require.Contains(suite.T(), err.Error(), "containerID is empty")
-
-	// Invalid container ID
-	pod, err = kubeutil.GetPodForContainerID(ctx, "invalid")
-	// The /pods request is still cached
-	require.Nil(suite.T(), pod)
-	require.NotNil(suite.T(), err)
-	require.True(suite.T(), errors.IsNotFound(err))
-
-	// Valid container ID
-	pod, err = kubeutil.GetPodForContainerID(ctx, "container_id://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
-	// The /pods request is still cached
-	require.Nil(suite.T(), err)
-	require.NotNil(suite.T(), pod)
-	require.Equal(suite.T(), "kube-proxy-rnd5q", pod.Metadata.Name)
-}
-
-func (suite *KubeletTestSuite) TestGetPodFromUID() {
-	ctx := context.Background()
-	mockConfig := config.Mock()
-
-	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
-	require.Nil(suite.T(), err)
-	ts, kubeletPort, err := kubelet.Start()
-	require.Nil(suite.T(), err)
-	defer ts.Close()
-
-	mockConfig.Set("kubernetes_kubelet_host", "localhost")
-	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.Set("kubernetes_https_kubelet_port", -1)
-
-	kubeutil := suite.getCustomKubeUtil()
-	kubelet.dropRequests() // Throwing away first GETs
-
-	// Empty Pod UID
-	pod, err := kubeutil.GetPodFromUID(ctx, "")
-	require.Nil(suite.T(), pod)
-	require.NotNil(suite.T(), err)
-	require.Contains(suite.T(), err.Error(), "pod UID is empty")
-
-	// Not found Pod UID
-	pod, err = kubeutil.GetPodFromUID(ctx, "invalid")
-	require.Nil(suite.T(), pod)
-	require.NotNil(suite.T(), err)
-	require.True(suite.T(), errors.IsNotFound(err))
-
-	// Valid Pod UID
-	pod, err = kubeutil.GetPodFromUID(ctx, "e42b42ec-0749-11e8-a2b8-000c29dea4f6")
-	require.Nil(suite.T(), err)
-	require.NotNil(suite.T(), pod)
-	require.Equal(suite.T(), "kube-proxy-rnd5q", pod.Metadata.Name)
-}
-
-func (suite *KubeletTestSuite) TestGetPodWaitForContainer() {
-	ctx := context.Background()
-	mockConfig := config.Mock()
-
-	kubelet, err := newDummyKubelet("./testdata/podlist_empty.json")
-	require.NoError(suite.T(), err)
-	ts, kubeletPort, err := kubelet.Start()
-	require.NoError(suite.T(), err)
-	defer ts.Close()
-
-	mockConfig.Set("kubernetes_kubelet_host", "localhost")
-	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.Set("kubernetes_https_kubelet_port", -1)
-	mockConfig.Set("kubelet_wait_on_missing_container", 1)
-
-	kubeutil := suite.getCustomKubeUtil()
-	kubelet.dropRequests() // Throwing away first GETs
-
-	requests := 0
-	var requestsMutex sync.Mutex
-	go func() {
-		for r := range kubelet.Requests {
-			if r.URL.Path != "/pods" {
-				continue
-			}
-			requestsMutex.Lock()
-			requests++
-			requestsMutex.Unlock()
-			if requests == 4 { // Initial + cache invalidation + 2 timed retries
-				err := kubelet.loadPodList("./testdata/podlist_1.8-2.json")
-				assert.NoError(suite.T(), err)
-			}
-		}
-	}()
-
-	// Valid container ID
-	pod, err := kubeutil.GetPodForContainerID(ctx, "docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
-	require.NoError(suite.T(), err)
-	require.NotNil(suite.T(), pod)
-	assert.Equal(suite.T(), "kube-proxy-rnd5q", pod.Metadata.Name)
-	requestsMutex.Lock()
-	assert.Equal(suite.T(), 5, requests)
-	requestsMutex.Unlock()
-}
-
-func (suite *KubeletTestSuite) TestGetPodDontWaitForContainer() {
-	ctx := context.Background()
-	mockConfig := config.Mock()
-
-	kubelet, err := newDummyKubelet("./testdata/podlist_empty.json")
-	require.NoError(suite.T(), err)
-	ts, kubeletPort, err := kubelet.Start()
-	require.NoError(suite.T(), err)
-	defer ts.Close()
-
-	mockConfig.Set("kubernetes_kubelet_host", "localhost")
-	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.Set("kubernetes_https_kubelet_port", -1)
-	mockConfig.Set("kubelet_wait_on_missing_container", 0)
-
-	kubeutil := suite.getCustomKubeUtil()
-	kubelet.dropRequests() // Throwing away first GETs
-
-	requests := 0
-	var requestsMutex sync.Mutex
-	go func() {
-		for r := range kubelet.Requests {
-			if r.URL.Path == "/pods" {
-				requestsMutex.Lock()
-				requests++
-				requestsMutex.Unlock()
-			}
-		}
-	}()
-
-	// We should fail after two requests only (initial + nocache)
-	_, err = kubeutil.GetPodForContainerID(ctx, "docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
-	require.Error(suite.T(), err)
-	requestsMutex.Lock()
-	assert.Equal(suite.T(), 2, requests)
-	requestsMutex.Unlock()
-}
-
 func (suite *KubeletTestSuite) TestKubeletInitFailOnToken() {
 	mockConfig := config.Mock()
 
@@ -795,7 +636,9 @@ func (suite *KubeletTestSuite) TestPodListNoExpire() {
 	require.NotNil(suite.T(), kubeutil)
 	kubelet.dropRequests() // Throwing away first GETs
 
-	pods, err := kubeutil.ForceGetLocalPodList(ctx)
+	resetCache()
+
+	pods, err := kubeutil.GetLocalPodList(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
 	require.Len(suite.T(), pods, 4)
@@ -833,7 +676,9 @@ func (suite *KubeletTestSuite) TestPodListExpire() {
 		return t
 	}
 
-	pods, err := kubeutil.ForceGetLocalPodList(ctx)
+	resetCache()
+
+	pods, err := kubeutil.GetLocalPodList(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
 	require.Len(suite.T(), pods, 3)
@@ -860,98 +705,6 @@ func TestKubeletTestSuite(t *testing.T) {
 	suite.Run(t, new(KubeletTestSuite))
 }
 
-func TestGetStatusForContainerID(t *testing.T) {
-	k := NewKubeUtil()
-
-	containerFoo := ContainerStatus{
-		Name:  "fooName",
-		Image: "fooImage",
-		ID:    "docker://fooID",
-	}
-	containerBar := ContainerStatus{
-		Name:  "barName",
-		Image: "barImage",
-		ID:    "docker://barID",
-	}
-	pod := &Pod{
-		Metadata: PodMetadata{
-			Name:      "podName",
-			Namespace: "podNamespace",
-			UID:       "podUID",
-			Annotations: map[string]string{
-				"ad.datadoghq.com/fooName.logs": `[{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}]`,
-			},
-		},
-		Status: Status{
-			Containers:    []ContainerStatus{containerFoo, containerBar},
-			AllContainers: []ContainerStatus{containerFoo, containerBar},
-		},
-	}
-
-	serviceFoo := &service.Service{
-		Type:       "docker",
-		Identifier: "fooID",
-	}
-	serviceBaz := &service.Service{
-		Type:       "docker",
-		Identifier: "bazID",
-	}
-
-	container, _ := k.GetStatusForContainerID(pod, serviceFoo.GetEntityID())
-	assert.Equal(t, containerFoo, container)
-
-	_, err := k.GetStatusForContainerID(pod, serviceBaz.GetEntityID())
-	assert.EqualError(t, err, `"container docker://bazID in pod" not found`)
-}
-
-func TestGetSpecForContainerName(t *testing.T) {
-	k := NewKubeUtil()
-
-	specA := ContainerSpec{
-		Name:  "fooNameA",
-		Image: "fooImage",
-	}
-
-	specB := ContainerSpec{
-		Name:  "fooNameB",
-		Image: "fooPrefix:fooImage",
-	}
-
-	specC := ContainerSpec{
-		Name:  "fooInitC",
-		Image: "fooInitPrefix:fooInitImage",
-	}
-
-	pod := &Pod{
-		Spec: Spec{
-			Containers: []ContainerSpec{specA, specB},
-		},
-	}
-
-	podWithInit := &Pod{
-		Spec: Spec{
-			InitContainers: []ContainerSpec{specC},
-			Containers:     []ContainerSpec{specA, specB},
-		},
-	}
-
-	containerSpec, err := k.GetSpecForContainerName(pod, specA.Name)
-	assert.Equal(t, specA, containerSpec)
-	assert.Nil(t, err)
-
-	containerSpec, err = k.GetSpecForContainerName(pod, specB.Name)
-	assert.Equal(t, specB, containerSpec)
-	assert.Nil(t, err)
-
-	containerSpec, err = k.GetSpecForContainerName(podWithInit, specC.Name)
-	assert.Equal(t, specC, containerSpec)
-	assert.Nil(t, err)
-
-	containerSpec, err = k.GetSpecForContainerName(pod, "noMatch")
-	assert.Equal(t, ContainerSpec{}, containerSpec)
-	assert.NotNil(t, err)
-}
-
 func (suite *KubeletTestSuite) TestPodListWithNullPod() {
 	ctx := context.Background()
 	mockConfig := config.Mock()
@@ -971,7 +724,9 @@ func (suite *KubeletTestSuite) TestPodListWithNullPod() {
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
 
-	pods, err := kubeutil.ForceGetLocalPodList(ctx)
+	resetCache()
+
+	pods, err := kubeutil.GetLocalPodList(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
 	require.Len(suite.T(), pods, 1)
@@ -1000,7 +755,9 @@ func (suite *KubeletTestSuite) TestPodListOnKubeletInit() {
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
 
-	pods, err := kubeutil.ForceGetLocalPodList(ctx)
+	resetCache()
+
+	pods, err := kubeutil.GetLocalPodList(ctx)
 	require.NotNil(suite.T(), err)
 	require.Nil(suite.T(), pods)
 }
@@ -1024,7 +781,9 @@ func (suite *KubeletTestSuite) TestPodListWithPersistentVolumeClaim() {
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
 
-	pods, err := kubeutil.ForceGetLocalPodList(ctx)
+	resetCache()
+
+	pods, err := kubeutil.GetLocalPodList(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
 	require.Len(suite.T(), pods, 9)

@@ -13,7 +13,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -111,8 +110,8 @@ func ResetGlobalKubeUtil() {
 	globalKubeUtil = nil
 }
 
-// ResetCache deletes existing kubeutil related cache
-func ResetCache() {
+// resetCache deletes existing kubeutil related cache
+func resetCache() {
 	cache.Cache.Delete(podListCacheKey)
 }
 
@@ -237,149 +236,6 @@ func (ku *KubeUtil) GetLocalPodList(ctx context.Context) ([]*Pod, error) {
 	return pods.Items, nil
 }
 
-// ForceGetLocalPodList reset podList cache and call GetLocalPodList
-func (ku *KubeUtil) ForceGetLocalPodList(ctx context.Context) ([]*Pod, error) {
-	ResetCache()
-	return ku.GetLocalPodList(ctx)
-}
-
-// GetPodForContainerID fetches the podList and returns the pod running
-// a given container on the node. Reset the cache if needed.
-// Returns a nil pointer if not found.
-func (ku *KubeUtil) GetPodForContainerID(ctx context.Context, containerID string) (*Pod, error) {
-	// Best case scenario
-	pods, err := ku.GetLocalPodList(ctx)
-	if err != nil {
-		return nil, err
-	}
-	pod, err := ku.searchPodForContainerID(pods, containerID)
-	if err == nil {
-		return pod, nil
-	}
-
-	// Retry with cache invalidation
-	if err != nil && errors.IsNotFound(err) {
-		log.Debugf("Cannot get container %q: %s, retrying without cache...", containerID, err)
-		pods, err = ku.ForceGetLocalPodList(ctx)
-		if err != nil {
-			return nil, err
-		}
-		pod, err = ku.searchPodForContainerID(pods, containerID)
-		if err == nil {
-			return pod, nil
-		}
-	}
-
-	// On some kubelet versions, containers can take up to a second to
-	// register in the podlist, retry a few times before failing
-	if ku.waitOnMissingContainer == 0 {
-		log.Tracef("Still cannot get container %q, wait disabled", containerID)
-		return pod, err
-	}
-	timeout := time.NewTimer(ku.waitOnMissingContainer)
-	defer timeout.Stop()
-	retryTicker := time.NewTicker(250 * time.Millisecond)
-	defer retryTicker.Stop()
-	for {
-		log.Tracef("Still cannot get container %q: %s, retrying in 250ms", containerID, err)
-		select {
-		case <-retryTicker.C:
-			pods, err = ku.ForceGetLocalPodList(ctx)
-			if err != nil {
-				continue
-			}
-			pod, err = ku.searchPodForContainerID(pods, containerID)
-			if err != nil {
-				continue
-			}
-			return pod, nil
-		case <-timeout.C:
-			// Return the latest error on timeout
-			return nil, err
-		}
-	}
-}
-
-func (ku *KubeUtil) searchPodForContainerID(podList []*Pod, containerID string) (*Pod, error) {
-	if containerID == "" {
-		return nil, fmt.Errorf("containerID is empty")
-	}
-
-	// We will match only on the id itself, without runtime identifier, it should be quite unlikely on a Kube node
-	// to have a container in the runtime used by Kube to match a container in another runtime...
-	if containers.IsEntityName(containerID) {
-		containerID = containers.ContainerIDForEntity(containerID)
-	}
-
-	for _, pod := range podList {
-		for _, container := range pod.Status.GetAllContainers() {
-			if container.ID != "" && containers.ContainerIDForEntity(container.ID) == containerID {
-				return pod, nil
-			}
-		}
-	}
-	return nil, errors.NewNotFound(fmt.Sprintf("container %s in PodList", containerID))
-}
-
-// GetStatusForContainerID returns the container status from the pod given an ID
-func (ku *KubeUtil) GetStatusForContainerID(pod *Pod, containerID string) (ContainerStatus, error) {
-	for _, container := range pod.Status.GetAllContainers() {
-		if containerID == container.ID {
-			return container, nil
-		}
-	}
-	return ContainerStatus{}, errors.NewNotFound(fmt.Sprintf("container %s in pod", containerID))
-}
-
-// GetSpecForContainerName returns the container spec from the pod given a name
-// It searches spec.containers then spec.initContainers
-func (ku *KubeUtil) GetSpecForContainerName(pod *Pod, containerName string) (ContainerSpec, error) {
-	for _, containerSpec := range append(pod.Spec.Containers, pod.Spec.InitContainers...) {
-		if containerName == containerSpec.Name {
-			return containerSpec, nil
-		}
-	}
-	return ContainerSpec{}, errors.NewNotFound(fmt.Sprintf("container %s in pod", containerName))
-}
-
-// GetPodFromUID fetches pods by UID
-func (ku *KubeUtil) GetPodFromUID(ctx context.Context, podUID string) (*Pod, error) {
-	if podUID == "" {
-		return nil, fmt.Errorf("pod UID is empty")
-	}
-	pods, err := ku.GetLocalPodList(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for _, pod := range pods {
-		if pod.Metadata.UID == podUID {
-			return pod, nil
-		}
-	}
-	log.Debugf("cannot get the pod uid %q: %s, retrying without cache...", podUID, err)
-
-	pods, err = ku.ForceGetLocalPodList(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for _, pod := range pods {
-		if pod.Metadata.UID == podUID {
-			return pod, nil
-		}
-	}
-	return nil, errors.NewNotFound(fmt.Sprintf("pod %s in podlist", podUID))
-}
-
-// GetPodForEntityID returns a pointer to the pod that corresponds to an entity ID.
-// If the pod is not found it returns nil and an error.
-func (ku *KubeUtil) GetPodForEntityID(ctx context.Context, entityID string) (*Pod, error) {
-	if strings.HasPrefix(entityID, KubePodPrefix) {
-		uid := strings.TrimPrefix(entityID, KubePodPrefix)
-		return ku.GetPodFromUID(ctx, uid)
-	}
-	return ku.GetPodForContainerID(ctx, entityID)
-}
-
 // GetLocalStatsSummary returns node and pod stats from kubelet
 func (ku *KubeUtil) GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error) {
 	data, code, err := ku.QueryKubelet(ctx, kubeletStatsSummary)
@@ -443,20 +299,6 @@ func (ku *KubeUtil) GetRawMetrics(ctx context.Context) ([]byte, error) {
 	}
 
 	return data, nil
-}
-
-// IsAgentHostNetwork returns whether the agent is running inside a container with `hostNetwork` or not
-func (ku *KubeUtil) IsAgentHostNetwork(ctx context.Context, agentContainerID string) (bool, error) {
-	if agentContainerID == "" {
-		return false, fmt.Errorf("unable to determine self container id")
-	}
-
-	pod, err := ku.GetPodForContainerID(ctx, agentContainerID)
-	if err != nil {
-		return false, err
-	}
-
-	return pod.Spec.HostNetwork, nil
 }
 
 // IsPodReady return a bool if the Pod is ready
