@@ -12,7 +12,9 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/Masterminds/semver"
 	"github.com/hashicorp/go-multierror"
+	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -412,7 +414,7 @@ func TestActionSetVariableConflict(t *testing.T) {
 	}
 }
 
-func loadPolicy(t *testing.T, testPolicy *PolicyDef) *multierror.Error {
+func loadPolicy(t *testing.T, testPolicy *PolicyDef, agentVersion *semver.Version) (*RuleSet, *multierror.Error) {
 	enabled := map[eval.EventType]bool{"*": true}
 	var opts Opts
 	opts.
@@ -432,14 +434,75 @@ func loadPolicy(t *testing.T, testPolicy *PolicyDef) *multierror.Error {
 		t.Fatal(err)
 	}
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false, nil)
+	provider, err := NewPoliciesDirProvider(tmpDir, false, agentVersion)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	loader := NewPolicyLoader(provider)
 
-	return rs.LoadPolicies(loader)
+	return rs, rs.LoadPolicies(loader)
+}
+
+func TestRuleAgentConstraint(t *testing.T) {
+
+	testEntries := []struct {
+		name           string
+		agentVersion   string
+		ruleConstraint string
+		expectLoad     bool
+	}{
+		{
+			name:           "basic",
+			agentVersion:   "7.38",
+			ruleConstraint: "< 7.37",
+			expectLoad:     false,
+		},
+		{
+			name:           "basic2",
+			agentVersion:   "7.35",
+			ruleConstraint: "< 7.37",
+			expectLoad:     true,
+		},
+		{
+			name:           "range",
+			agentVersion:   "7.35",
+			ruleConstraint: ">= 7.30, < 7.37",
+			expectLoad:     true,
+		},
+		{
+			name:           "range_not",
+			agentVersion:   "7.35",
+			ruleConstraint: ">= 7.30, < 7.37, != 7.35",
+			expectLoad:     false,
+		},
+	}
+
+	for _, entry := range testEntries {
+		t.Run(entry.name, func(t *testing.T) {
+			ruleID := fmt.Sprintf("test_rule_%s", entry.name)
+
+			testPolicy := &PolicyDef{
+				Rules: []*RuleDefinition{{
+					ID:                     ruleID,
+					Expression:             `open.filename == "/tmp/test"`,
+					AgentVersionConstraint: entry.ruleConstraint,
+				}},
+			}
+
+			agentVersion, err := semver.NewVersion(entry.agentVersion)
+			assert.Nil(t, err)
+
+			rs, err := loadPolicy(t, testPolicy, agentVersion)
+			assert.Nil(t, err)
+
+			if entry.expectLoad {
+				assert.Contains(t, rs.rules, ruleID)
+			} else {
+				assert.NotContains(t, rs.rules, ruleID)
+			}
+		})
+	}
 }
 
 func TestActionSetVariableInvalid(t *testing.T) {
@@ -458,7 +521,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if err := loadPolicy(t, testPolicy); err == nil {
+		if _, err := loadPolicy(t, testPolicy, nil); err == nil {
 			t.Error("policy should fail to load")
 		} else {
 			t.Log(err)
@@ -483,7 +546,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if err := loadPolicy(t, testPolicy); err == nil {
+		if _, err := loadPolicy(t, testPolicy, nil); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -508,7 +571,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if err := loadPolicy(t, testPolicy); err == nil {
+		if _, err := loadPolicy(t, testPolicy, nil); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -529,7 +592,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if err := loadPolicy(t, testPolicy); err == nil {
+		if _, err := loadPolicy(t, testPolicy, nil); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -561,7 +624,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if err := loadPolicy(t, testPolicy); err == nil {
+		if _, err := loadPolicy(t, testPolicy, nil); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -592,7 +655,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if err := loadPolicy(t, testPolicy); err == nil {
+		if _, err := loadPolicy(t, testPolicy, nil); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -624,7 +687,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if err := loadPolicy(t, testPolicy); err == nil {
+		if _, err := loadPolicy(t, testPolicy, nil); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
