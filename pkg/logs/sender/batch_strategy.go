@@ -74,6 +74,9 @@ func (s *batchStrategy) Stop() {
 	<-s.stopChan
 }
 
+// Flush is a no-op for this strategy
+func (s *batchStrategy) Flush() {}
+
 // Start reads the incoming messages and accumulates them to a buffer. The buffer is
 // encoded (optionally compressed) and written to a Payload which goes to the next
 // step in the pipeline.

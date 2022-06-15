@@ -45,3 +45,6 @@ func (s *streamStrategy) Stop() {
 	close(s.inputChan)
 	<-s.done
 }
+
+// Flush is a no-op for this strategy
+func (s *streamStrategy) Flush() {}

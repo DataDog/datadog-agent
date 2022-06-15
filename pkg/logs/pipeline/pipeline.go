@@ -85,6 +85,7 @@ func (p *Pipeline) Stop() {
 // Flush flushes synchronously the processor and sender managed by this pipeline.
 func (p *Pipeline) Flush(ctx context.Context) {
 	p.processor.Flush(ctx) // flush messages in the processor into the sender
+	p.strategy.Flush()
 }
 
 func getDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineID int) *client.Destinations {
@@ -116,6 +117,9 @@ func getStrategy(inputChan chan *message.Message, outputChan chan *message.Paylo
 		encoder := sender.IdentityContentType
 		if endpoints.Main.UseCompression {
 			encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
+		}
+		if serverless {
+			return sender.NewManualBatchStrategy(inputChan, outputChan, sender.ArraySerializer, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
 		}
 		return sender.NewBatchStrategy(inputChan, outputChan, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
 	}

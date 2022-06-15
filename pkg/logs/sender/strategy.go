@@ -13,4 +13,5 @@ package sender
 type Strategy interface {
 	Start()
 	Stop()
+	Flush()
 }

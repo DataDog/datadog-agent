@@ -6,11 +6,14 @@
 package pipeline
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"go.uber.org/atomic"
+	"gotest.tools/assert"
 
 	"github.com/stretchr/testify/suite"
 
@@ -65,4 +68,31 @@ func (suite *ProviderTestSuite) TestProvider() {
 
 func TestProviderTestSuite(t *testing.T) {
 	suite.Run(t, new(ProviderTestSuite))
+}
+
+func TestGetServerlessStrategy(t *testing.T) {
+	endpointConfig := &config.Endpoints{
+		UseHTTP: true,
+	}
+	serverless := true
+	strategy := getStrategy(make(chan *message.Message), make(chan *message.Payload), endpointConfig, serverless, 1234)
+	assert.Equal(t, "*sender.manualBatchStrategy", fmt.Sprintf("%T", strategy))
+}
+
+func TestGetBatchStrategy(t *testing.T) {
+	endpointConfig := &config.Endpoints{
+		UseHTTP: true,
+	}
+	serverless := false
+	strategy := getStrategy(make(chan *message.Message), make(chan *message.Payload), endpointConfig, serverless, 1234)
+	assert.Equal(t, "*sender.batchStrategy", fmt.Sprintf("%T", strategy))
+}
+
+func TestGetStreamStrategy(t *testing.T) {
+	endpointConfig := &config.Endpoints{
+		UseHTTP: false,
+	}
+	serverless := false
+	strategy := getStrategy(make(chan *message.Message), make(chan *message.Payload), endpointConfig, serverless, 1234)
+	assert.Equal(t, "*sender.streamStrategy", fmt.Sprintf("%T", strategy))
 }
