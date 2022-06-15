@@ -21,6 +21,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"go.uber.org/atomic"
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app/standalone"
@@ -80,7 +81,7 @@ func setupCmd(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&fullSketches, "full-sketches", false, "output sketches with bins information")
 	cmd.Flags().BoolVarP(&saveFlare, "flare", "", false, "save check results to the log dir so it may be reported in a flare")
 	cmd.Flags().UintVarP(&discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
-	cmd.Flags().UintVarP(&discoveryRetryInterval, "discovery-retry-interval", "", 1, "duration between retries until Autodiscovery resolves the check template (in seconds)")
+	cmd.Flags().UintVarP(&discoveryRetryInterval, "discovery-retry-interval", "", 1, "(unused)")
 	cmd.Flags().UintVarP(&discoveryMinInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
 	config.Datadog.BindPFlag("cmd.check.fullsketches", cmd.Flags().Lookup("full-sketches")) //nolint:errcheck
 
@@ -152,8 +153,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
 
 			common.LoadComponents(context.Background(), config.Datadog.GetString("confd_path"))
-			common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll), true)
-			// NOTE: we do not start the collector
+			common.AC.LoadAndRun()
 
 			if config.Datadog.GetBool("inventories_enabled") {
 				metadata.SetupInventoriesExpvar(common.AC, common.Coll)
@@ -165,8 +165,13 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				discoveryRetryInterval = discoveryTimeout
 			}
 
-			allConfigs := common.WaitForConfigs(time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second,
-				common.SelectedCheckMatcherBuilder([]string{checkName}, discoveryMinInstances))
+			// Create the CheckScheduler, but do not attach it to
+			// AutoDiscovery.  NOTE: we do not start common.Coll, either.
+			collector.InitCheckScheduler(common.Coll)
+
+			waitForConfigsFromADCtx, cancelTimeout := context.WithTimeout(context.Background(), time.Duration(discoveryTimeout)*time.Second)
+			allConfigs := waitForConfigsFromAD(waitForConfigsFromADCtx, checkName, int(discoveryMinInstances))
+			cancelTimeout()
 
 			// make sure the checks in cs are not JMX checks
 			for idx := range allConfigs {
@@ -449,6 +454,65 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 	}
 	setupCmd(cmd)
 	return cmd
+}
+
+// schedulerFunc is a type alias to allow a function to be used as an AD scheduler
+type schedulerFunc func([]integration.Config)
+
+// Schedule implements scheduler.Scheduler#Schedule.
+func (sf schedulerFunc) Schedule(configs []integration.Config) {
+	sf(configs)
+}
+
+// Unschedule implements scheduler.Scheduler#Unschedule.
+func (sf schedulerFunc) Unschedule(configs []integration.Config) {
+	// (do nothing)
+}
+
+// Stop implements scheduler.Scheduler#Stop.
+func (sf schedulerFunc) Stop() {
+}
+
+// waitForConfigsFromAD waits until a count of discoveryMinInstances configs
+// with name checkName are scheduled by AD, and returns the matches.  It does
+// so by subscribing to the AD metascheduler.  If the context is cancelled
+// then any accumulated configs are returned, even if that is fewer than
+// discoveryMinInstances.
+func waitForConfigsFromAD(ctx context.Context, checkName string, discoveryMinInstances int) (configs []integration.Config) {
+	configChan := make(chan integration.Config)
+
+	// signal to the scheduler when we are no longer waiting, so we do not continue
+	// to push items to configChan
+	waiting := atomic.NewBool(true)
+	defer func() {
+		waiting.Store(false)
+		select {
+		case <-configChan:
+		default:
+		}
+	}()
+
+	// add the scheduler in a goroutine, since it will schedule any "catch-up" immediately,
+	// placing items in configChan
+	go common.AC.AddScheduler("check-cmd", schedulerFunc(func(configs []integration.Config) {
+		for _, cfg := range configs {
+			if cfg.Name == checkName {
+				if waiting.Load() {
+					configChan <- cfg
+				}
+			}
+		}
+	}), true)
+
+	for len(configs) < discoveryMinInstances {
+		select {
+		case cfg := <-configChan:
+			configs = append(configs, cfg)
+		case <-ctx.Done():
+			return
+		}
+	}
+	return
 }
 
 func runCheck(c check.Check, demux aggregator.Demultiplexer) *check.Stats {
