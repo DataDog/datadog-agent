@@ -96,9 +96,9 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 		}
 	}
 }
-func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) metrics.SketchSeries {
+func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
 	ctx, _ := s.contextResolver.get(ck)
-	ss := metrics.SketchSeries{
+	ss := &metrics.SketchSeries{
 		Name:       ctx.Name,
 		Tags:       ctx.Tags(),
 		Host:       ctx.Host,
@@ -189,9 +189,8 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 	}
 }
 
-func (s *TimeSampler) flushSketches(cutoffTime int64) metrics.SketchSeriesList {
+func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.SketchesSink) {
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
-	sketches := make(metrics.SketchSeriesList, 0, len(pointsByCtx))
 
 	s.sketchMap.flushBefore(cutoffTime, func(ck ckey.ContextKey, p metrics.SketchPoint) {
 		if p.Sketch == nil {
@@ -200,18 +199,16 @@ func (s *TimeSampler) flushSketches(cutoffTime int64) metrics.SketchSeriesList {
 		pointsByCtx[ck] = append(pointsByCtx[ck], p)
 	})
 	for ck, points := range pointsByCtx {
-		sketches = append(sketches, s.newSketchSeries(ck, points))
+		sketchesSink.Append(s.newSketchSeries(ck, points))
 	}
-
-	return sketches
 }
 
-func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink) metrics.SketchSeriesList {
+func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketches metrics.SketchesSink) {
 	// Compute a limit timestamp
 	cutoffTime := s.calculateBucketStart(timestamp)
 
 	s.flushSeries(cutoffTime, series)
-	sketches := s.flushSketches(cutoffTime)
+	s.flushSketches(cutoffTime, sketches)
 
 	// expiring contexts
 	s.contextResolver.expireContexts(timestamp - config.Datadog.GetFloat64("dogstatsd_context_expiry_seconds"))
@@ -227,8 +224,6 @@ func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink) metrics
 		aggregatorDogstatsdContextsByMtype[i].Set(int64(count))
 		tlmDogstatsdContextsByMtype.Set(float64(count), mtype)
 	}
-
-	return sketches
 }
 
 // flushContextMetrics flushes the contextMetrics inside contextMetricsFlusher, handles its errors,
