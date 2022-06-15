@@ -13,10 +13,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-func isAgentKubeHostNetwork() (bool, error) {
+func isAgentKubeHostNetwork(ctx context.Context) (bool, error) {
 	store := workloadmeta.GetGlobalStore()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
 	// wait until workloadmeta has started all collectors, to prevent

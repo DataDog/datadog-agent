@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/cihub/seelog"
 	"github.com/spf13/cobra"
 )
@@ -122,6 +123,10 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 	if len(args) != 0 {
 		ruleID = args[0]
 	}
+
+	// Start workloadmeta store
+	store := workloadmeta.GetGlobalStore()
+	store.Start(context.TODO())
 
 	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {

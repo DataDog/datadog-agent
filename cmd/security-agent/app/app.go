@@ -247,6 +247,10 @@ func RunAgent(ctx context.Context) (err error) {
 		}
 	}()
 
+	// Start workloadmeta store
+	store := workloadmeta.GetGlobalStore()
+	store.Start(ctx)
+
 	// get hostname
 	// FIXME: use gRPC cross-agent communication API to retrieve hostname
 	hostname, err := util.GetHostname(context.TODO())
@@ -294,10 +298,6 @@ func RunAgent(ctx context.Context) (err error) {
 			log.Errorf("failed to start the tagger: %s", err)
 		}
 	}
-
-	// Start workloadmeta store
-	store := workloadmeta.GetGlobalStore()
-	store.Start(ctx)
 
 	complianceAgent, err := startCompliance(hostname, stopper, statsdClient)
 	if err != nil {

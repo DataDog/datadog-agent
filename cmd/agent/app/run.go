@@ -304,12 +304,6 @@ func StartAgent() error {
 		return log.Errorf("Unable to configure auto-exit, err: %v", err)
 	}
 
-	hostname, err := util.GetHostname(context.TODO())
-	if err != nil {
-		return log.Errorf("Error while getting hostname, exiting: %v", err)
-	}
-	log.Infof("Hostname is: %s", hostname)
-
 	// HACK: init host metadata module (CPU) early to avoid any
 	//       COM threading model conflict with the python checks
 	err = host.InitHostMetadata()
@@ -358,6 +352,17 @@ func StartAgent() error {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
 
+	// configures common Agent components: workloadmeta, tagger, collector,
+	// scheduler and autodiscovery. must happen before util.GetHostname, as
+	// it depends on workloadmeta.
+	common.LoadComponents(common.MainCtx, config.Datadog.GetString("confd_path"))
+
+	hostname, err := util.GetHostname(context.TODO())
+	if err != nil {
+		return log.Errorf("Error while getting hostname, exiting: %v", err)
+	}
+	log.Infof("Hostname is: %s", hostname)
+
 	forwarderOpts := forwarder.NewOptions(keysPerDomain)
 	// Enable core agent specific features like persistence-to-disk
 	forwarderOpts.EnabledFeatures = forwarder.SetFeature(forwarderOpts.EnabledFeatures, forwarder.CoreFeatures)
@@ -400,9 +405,6 @@ func StartAgent() error {
 
 	// Append version and timestamp to version history log file if this Agent is different than the last run version
 	util.LogVersionHistory()
-
-	// create and setup the Autoconfig instance
-	common.LoadComponents(common.MainCtx, config.Datadog.GetString("confd_path"))
 
 	demux.AddAgentStartupTelemetry(version.AgentVersion)
 

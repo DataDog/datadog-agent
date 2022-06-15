@@ -22,7 +22,7 @@ import (
 )
 
 // LoadComponents configures several common Agent components:
-// tagger, collector, scheduler and autodiscovery
+// workloadmeta, tagger, collector, scheduler and autodiscovery
 func LoadComponents(ctx context.Context, confdPath string) {
 	if flavor.GetFlavor() != flavor.ClusterAgent {
 		store := workloadmeta.GetGlobalStore()

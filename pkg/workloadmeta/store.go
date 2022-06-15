@@ -7,6 +7,7 @@ package workloadmeta
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -52,6 +53,8 @@ type store struct {
 	collectors   map[string]Collector
 
 	eventCh chan []CollectorEvent
+
+	started bool
 }
 
 var _ Store = &store{}
@@ -79,6 +82,8 @@ func newStore(catalog map[string]collectorFactory) *store {
 
 // Start starts the workload metadata store.
 func (s *store) Start(ctx context.Context) {
+	s.started = true
+
 	go func() {
 		health := health.RegisterLiveness("workloadmeta-store")
 		for {
@@ -317,6 +322,13 @@ func (s *store) Notify(events []CollectorEvent) {
 
 // WaitForCollectors implements Store#WaitForCollectors
 func (s *store) WaitForCollectors(ctx context.Context) error {
+	if !s.started {
+		str := "calling WaitForCollectors on a store that hasn't been started"
+		log.Warnf(str)
+
+		return fmt.Errorf(str)
+	}
+
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 

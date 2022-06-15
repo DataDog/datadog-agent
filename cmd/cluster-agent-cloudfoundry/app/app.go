@@ -154,6 +154,9 @@ func run(cmd *cobra.Command, args []string) error {
 		log.Debugf("Health check listening on port %d", healthPort)
 	}
 
+	// create and setup the Autoconfig instance
+	common.LoadComponents(mainCtx, config.Datadog.GetString("confd_path"))
+
 	// get hostname
 	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
@@ -189,9 +192,6 @@ func run(cmd *cobra.Command, args []string) error {
 	if err = initializeBBSCache(mainCtx); err != nil {
 		return err
 	}
-
-	// create and setup the Autoconfig instance
-	common.LoadComponents(mainCtx, config.Datadog.GetString("confd_path"))
 	// start the autoconfig, this will immediately run any configured check
 	common.AC.LoadAndRun()
 

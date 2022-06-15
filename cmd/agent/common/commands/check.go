@@ -137,6 +137,8 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				return nil
 			}
 
+			common.LoadComponents(context.Background(), config.Datadog.GetString("confd_path"))
+
 			hostname, err := util.GetHostname(context.TODO())
 			if err != nil {
 				fmt.Printf("Cannot get hostname, exiting: %v\n", err)
@@ -150,8 +152,6 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			opts.UseNoopEventPlatformForwarder = true
 			opts.UseNoopOrchestratorForwarder = true
 			demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
-
-			common.LoadComponents(context.Background(), config.Datadog.GetString("confd_path"))
 
 			if config.Datadog.GetBool("inventories_enabled") {
 				metadata.SetupInventoriesExpvar(common.AC, common.Coll)

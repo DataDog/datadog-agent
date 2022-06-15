@@ -197,6 +197,17 @@ func runAgent(ctx context.Context) (err error) {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
 
+	store := workloadmeta.GetGlobalStore()
+	store.Start(ctx)
+
+	// container tagging initialisation if origin detection is on
+	if config.Datadog.GetBool("dogstatsd_origin_detection") {
+		tagger.SetDefaultTagger(local.NewTagger(store))
+		if err := tagger.Init(ctx); err != nil {
+			log.Errorf("failed to start the tagger: %s", err)
+		}
+	}
+
 	forwarderOpts := forwarder.NewOptions(keysPerDomain)
 	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
 	opts.UseOrchestratorForwarder = false
@@ -221,17 +232,6 @@ func runAgent(ctx context.Context) (err error) {
 	if config.Datadog.GetBool("inventories_enabled") {
 		if err = metadata.SetupInventories(metaScheduler, nil, nil); err != nil {
 			return
-		}
-	}
-
-	// container tagging initialisation if origin detection is on
-	if config.Datadog.GetBool("dogstatsd_origin_detection") {
-		store := workloadmeta.GetGlobalStore()
-		store.Start(ctx)
-
-		tagger.SetDefaultTagger(local.NewTagger(store))
-		if err := tagger.Init(ctx); err != nil {
-			log.Errorf("failed to start the tagger: %s", err)
 		}
 	}
 
