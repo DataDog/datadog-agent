@@ -9,6 +9,7 @@ import (
 	"errors"
 	"runtime"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -41,6 +42,10 @@ type memoryUsage interface {
 
 var memBasedRateLimiterTml = newMemBasedRateLimiterTelemetry()
 
+// Ballast is a way to trick the GC. `ballast` is never read or written.
+var ballast []byte //nolint:unused
+var ballastOnce sync.Once
+
 // BuildMemBasedRateLimiter builds a new instance of *MemBasedRateLimiter
 func BuildMemBasedRateLimiter() (*MemBasedRateLimiter, error) {
 	var memoryUsage memoryUsage
@@ -52,6 +57,14 @@ func BuildMemBasedRateLimiter() (*MemBasedRateLimiter, error) {
 		log.Infof("cgroup limits not detected")
 		log.Debugf("cgroup limits not detected: %v", err)
 	}
+
+	ballastOnce.Do(func() {
+		ballastSize := config.Datadog.GetInt("dogstatsd_mem_based_rate_limiter.memory_balast")
+		if ballastSize != 0 {
+			ballast = make([]byte, 0, ballastSize)
+			log.Infof("ballast size %vMB", ballastSize/1024/1024)
+		}
+	})
 
 	usage, limit, err := memoryUsage.getMemoryStats()
 	if err != nil {
