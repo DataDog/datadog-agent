@@ -126,6 +126,7 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 		// Clean up the process check state only after the connections check is executed
 		cleanups = append(cleanups, checks.Process.Cleanup)
 	}
+
 	names := make([]string, 0, len(checks.All))
 	for _, ch := range checks.All {
 		names = append(names, ch.Name())
