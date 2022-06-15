@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    APM: Add configurations in Rare Sampler.
+    APM: Updated Rare Sampler default configuration values to reduce the noises when there is an instrumentation issue.
