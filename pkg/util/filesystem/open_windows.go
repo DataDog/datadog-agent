@@ -6,7 +6,7 @@
 //go:build windows
 // +build windows
 
-package file
+package filesystem
 
 import (
 	"os"
@@ -14,11 +14,15 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// openFile reimplements the os.Open function for Windows because the default
+// OpenShared reimplements the os.Open function for Windows because the default
 // implementation opens files without the FILE_SHARE_DELETE flag.
 // cf: https://github.com/golang/go/blob/release-branch.go1.11/src/syscall/syscall_windows.go#L271
-// This prevents users from moving/removing files when the tailer is reading the file.
-func openFile(path string) (*os.File, error) {
+// Without FILE_SHARE_DELETE, other users cannot rename/remove the file while
+// this handle is open. Adding this flag allows the agent to have the file open,
+// while not preventing it from being rotated/deleted.
+//
+// On non-Windows platforms, this calls through to os.Open directly.
+func OpenShared(path string) (*os.File, error) {
 	pathp, err := windows.UTF16PtrFromString(path)
 	if err != nil {
 		return nil, err
