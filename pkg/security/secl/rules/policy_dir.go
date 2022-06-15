@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/Masterminds/semver"
 	"github.com/fsnotify/fsnotify"
 	"github.com/hashicorp/go-multierror"
 )
@@ -21,7 +22,8 @@ var _ PolicyProvider = (*PoliciesDirProvider)(nil)
 
 // PoliciesDirProvider defines a new policy dir provider
 type PoliciesDirProvider struct {
-	PoliciesDir string
+	PoliciesDir  string
+	agentVersion *semver.Version
 
 	onNewPoliciesReadyCb func()
 	cancelFnc            func()
@@ -46,7 +48,7 @@ func (p *PoliciesDirProvider) loadPolicy(filename string) (*Policy, error) {
 
 	name := filepath.Base(filename)
 
-	policy, err := LoadPolicy(name, "file", f)
+	policy, err := LoadPolicy(name, "file", f, p.agentVersion)
 	if err != nil {
 		return nil, &ErrPolicyLoad{Name: name, Err: err}
 	}
@@ -61,9 +63,9 @@ func (p *PoliciesDirProvider) getPolicyFiles() ([]string, error) {
 	}
 	sort.Slice(files, func(i, j int) bool {
 		switch {
-		case files[i].Name() == defaultPolicyName:
+		case files[i].Name() == DefaultPolicyName:
 			return true
-		case files[j].Name() == defaultPolicyName:
+		case files[j].Name() == DefaultPolicyName:
 			return false
 		default:
 			return files[i].Name() < files[j].Name()
@@ -176,7 +178,7 @@ func (p *PoliciesDirProvider) watch(ctx context.Context) {
 }
 
 // NewPoliciesDirProvider returns providers for the given policies dir
-func NewPoliciesDirProvider(policiesDir string, watch bool) (*PoliciesDirProvider, error) {
+func NewPoliciesDirProvider(policiesDir string, watch bool, agentVersion *semver.Version) (*PoliciesDirProvider, error) {
 
 	p := &PoliciesDirProvider{
 		PoliciesDir: policiesDir,

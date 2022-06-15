@@ -77,7 +77,7 @@ func TestMacroMerge(t *testing.T) {
 		},
 	})
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	provider, err := NewPoliciesDirProvider(tmpDir, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestRuleMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	provider, err := NewPoliciesDirProvider(tmpDir, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -314,7 +314,7 @@ func TestActionSetVariable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	provider, err := NewPoliciesDirProvider(tmpDir, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -401,7 +401,7 @@ func TestActionSetVariableConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	provider, err := NewPoliciesDirProvider(tmpDir, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -432,7 +432,7 @@ func loadPolicy(t *testing.T, testPolicy *PolicyDef) *multierror.Error {
 		t.Fatal(err)
 	}
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	provider, err := NewPoliciesDirProvider(tmpDir, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

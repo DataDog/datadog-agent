@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-const defaultPolicyName = "default.policy"
+const DefaultPolicyName = "default.policy"
 
 // PolicyProvider defines a rule provider
 type PolicyProvider interface {
