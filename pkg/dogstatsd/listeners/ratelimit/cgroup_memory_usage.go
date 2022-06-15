@@ -20,6 +20,6 @@ func newCgroupMemoryUsage() (*cgroupMemoryUsage, error) {
 	return nil, errors.New("not supported")
 }
 
-func (c *cgroupMemoryUsage) getMemoryUsageRate() (float64, error) {
-	return 0, errors.New("not supported")
+func (c *cgroupMemoryUsage) getMemoryStats() (float64, float64, error) {
+	return 0, 0, errors.New("not supported")
 }

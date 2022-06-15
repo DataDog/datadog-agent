@@ -40,20 +40,24 @@ func TestMemBasedRateLimiter(t *testing.T) {
 }
 
 type memoryUsageMock struct {
-	rateValues []float64
+	memStats []float64 // Store memUsage1, memLimit1, memUsage2, memLimit2, ...
 }
 
-func (m *memoryUsageMock) setRates(values ...float64) {
-	m.rateValues = values
-}
-
-func (m *memoryUsageMock) getMemoryUsageRate() (float64, error) {
-	if len(m.rateValues) == 0 {
-		return 0, errors.New("no rate")
+func (m *memoryUsageMock) setRates(rates ...float64) {
+	m.memStats = nil
+	for _, rate := range rates {
+		m.memStats = append(m.memStats, 1, 1/rate)
 	}
-	v := m.rateValues[0]
-	m.rateValues = m.rateValues[1:]
-	return v, nil
+}
+
+func (m *memoryUsageMock) getMemoryStats() (float64, float64, error) {
+	if len(m.memStats) < 2 {
+		return 0, 0, errors.New("memoryUsageMock: not enough values")
+	}
+	memUsage := m.memStats[0]
+	memLimit := m.memStats[1]
+	m.memStats = m.memStats[2:]
+	return memUsage, memLimit, nil
 }
 
 type telemetryMock struct {

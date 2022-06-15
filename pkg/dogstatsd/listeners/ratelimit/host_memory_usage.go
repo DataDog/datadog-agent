@@ -17,11 +17,11 @@ func newHostMemoryUsage() *hostMemoryUsage {
 	return &hostMemoryUsage{}
 }
 
-func (m *hostMemoryUsage) getMemoryUsageRate() (float64, error) {
+func (m *hostMemoryUsage) getMemoryStats() (float64, float64, error) {
 	memoryStats, err := mem.VirtualMemory()
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 
-	return float64(memoryStats.Used) / float64(memoryStats.Total), nil
+	return float64(memoryStats.Used), float64(memoryStats.Total), nil
 }

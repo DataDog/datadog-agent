@@ -6,6 +6,7 @@
 package ratelimit
 
 import (
+	"errors"
 	"runtime"
 	"runtime/debug"
 	"time"
@@ -35,7 +36,7 @@ type MemBasedRateLimiter struct {
 }
 
 type memoryUsage interface {
-	getMemoryUsageRate() (float64, error)
+	getMemoryStats() (float64, float64, error)
 }
 
 var memBasedRateLimiterTml = newMemBasedRateLimiterTelemetry()
@@ -51,6 +52,12 @@ func BuildMemBasedRateLimiter() (*MemBasedRateLimiter, error) {
 		log.Infof("cgroup limits not detected")
 		log.Debugf("cgroup limits not detected: %v", err)
 	}
+
+	usage, limit, err := memoryUsage.getMemoryStats()
+	if err != nil {
+		return nil, err
+	}
+	log.Infof("Memory usage:%v limit:%v", usage, limit)
 
 	return NewMemBasedRateLimiter(
 		memBasedRateLimiterTml,
@@ -108,7 +115,7 @@ func (m *MemBasedRateLimiter) Wait() error {
 	}
 	m.telemetry.incWait()
 
-	rate, err := m.memoryUsage.getMemoryUsageRate()
+	rate, err := m.getMemoryUsageRate()
 	if err != nil {
 		return err
 	}
@@ -134,11 +141,22 @@ func (m *MemBasedRateLimiter) waitWhileHighLimit(rate float64) (float64, error) 
 		runtime.GC()
 		debug.FreeOSMemory()
 		var err error
-		if rate, err = m.memoryUsage.getMemoryUsageRate(); err != nil {
+		if rate, err = m.getMemoryUsageRate(); err != nil {
 			return 0, err
 		}
 	}
 	return rate, nil
+}
+
+func (m *MemBasedRateLimiter) getMemoryUsageRate() (float64, error) {
+	usage, limit, err := m.memoryUsage.getMemoryStats()
+	if err != nil {
+		return 0, err
+	}
+	if limit == 0 {
+		return 0, errors.New("cgroup memory limit is 0")
+	}
+	return usage / limit, nil
 }
 
 func (m *MemBasedRateLimiter) waitOnceLowLimit(rate float64) bool {
