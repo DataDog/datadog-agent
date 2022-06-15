@@ -94,9 +94,15 @@ func isOSHostnameUsable(ctx context.Context) (osHostnameUsable bool) {
 	// https://github.com/kubernetes/kubernetes/blob/cf16e4988f58a5b816385898271e70c3346b9651/pkg/kubelet/dockershim/security_context.go#L203-L205
 	if config.IsFeaturePresent(config.Kubernetes) {
 		hostNetwork, err := isAgentKubeHostNetwork()
-		if err == nil && !hostNetwork {
-			log.Debug("Agent is running in a POD without hostNetwork: OS-provided hostnames cannot be used for hostname resolution.")
-			return false
+		if err != nil {
+			log.Errorf("Cannot determine whether agent is running on host network: %s", err.Error())
+		} else {
+			if hostNetwork {
+				log.Infof("Agent is running in a POD with hostNetwork")
+			} else {
+				log.Infof("Agent is running in a POD without hostNetwork: OS-provided hostnames cannot be used for hostname resolution.")
+				return false
+			}
 		}
 	}
 
