@@ -77,7 +77,7 @@ func (k *KubeletConfigProvider) listen() {
 	}()
 	k.Unlock()
 
-	ch := k.workloadmetaStore.Subscribe(name, workloadmeta.NormalPriority, workloadmeta.NewFilter(
+	ch := k.workloadmetaStore.Subscribe(name, workloadmeta.ConfigProviderPriority, workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
 		workloadmeta.SourceNodeOrchestrator,
 		workloadmeta.EventTypeAll,

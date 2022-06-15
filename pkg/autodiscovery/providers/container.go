@@ -85,7 +85,7 @@ func (d *ContainerConfigProvider) listen() {
 	}()
 	d.Unlock()
 
-	workloadmetaEventsChannel := d.workloadmetaStore.Subscribe("ad-containerprovider", workloadmeta.NormalPriority, workloadmeta.NewFilter(
+	workloadmetaEventsChannel := d.workloadmetaStore.Subscribe("ad-containerprovider", workloadmeta.ConfigProviderPriority, workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindContainer},
 		workloadmeta.SourceRuntime,
 		workloadmeta.EventTypeAll,
