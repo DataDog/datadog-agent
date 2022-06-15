@@ -2034,7 +2034,7 @@ const (
 	IPProtoRAW L4Protocol = 255
 )
 
-// ExitCaise represents the cause of a process termination
+// ExitCause represents the cause of a process termination
 type ExitCause uint32
 
 func (cause ExitCause) String() string {
