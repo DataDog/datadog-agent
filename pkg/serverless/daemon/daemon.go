@@ -321,6 +321,20 @@ func (d *Daemon) TellDaemonRuntimeStarted() {
 func (d *Daemon) TellDaemonRuntimeDone() {
 	d.runtimeStateMutex.Lock()
 	defer d.runtimeStateMutex.Unlock()
+	defer func() {
+		if r := recover(); r != nil {
+			log.Debugf("Encountered a panic in TellDaemonRuntimeDone: %v.\nThis is likely because of a timeout on a cold start.", r)
+		}
+	}()
+	if d.TellDaemonRuntimeDoneOnce == nil {
+		// d.TellDaemonRuntimeDoneOnce should be initialized by TellDaemonRuntimeStart before we get here, but if it
+		// isn't, we want to initialize it. There's a possibility that will bring RuntimeWg negative, so we recover from
+		// the resulting panic above. The only time we've ever seen a nil d.TellDaemonRuntimeOnce has been during a
+		// timeout on a lambda function cold start, so the Lambda runtime was in the process of shutting down the
+		// extension anyway. The alternative is *not* running d.RuntimeWg.Done(), which could result in d.RuntimeWg.Wait()
+		// blocking forever, which would be problematic.
+		d.TellDaemonRuntimeDoneOnce = &sync.Once{}
+	}
 	d.TellDaemonRuntimeDoneOnce.Do(func() {
 		d.RuntimeWg.Done()
 	})
