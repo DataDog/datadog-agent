@@ -181,7 +181,8 @@ func (p *PoliciesDirProvider) watch(ctx context.Context) {
 func NewPoliciesDirProvider(policiesDir string, watch bool, agentVersion *semver.Version) (*PoliciesDirProvider, error) {
 
 	p := &PoliciesDirProvider{
-		PoliciesDir: policiesDir,
+		PoliciesDir:  policiesDir,
+		agentVersion: agentVersion,
 	}
 
 	if watch {

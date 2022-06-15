@@ -42,7 +42,8 @@ func NewRCPolicyProvider(name string, agentVersion *semver.Version) (*RCPolicyPr
 	}
 
 	return &RCPolicyProvider{
-		client: c,
+		client:       c,
+		agentVersion: agentVersion,
 	}, nil
 }
 
