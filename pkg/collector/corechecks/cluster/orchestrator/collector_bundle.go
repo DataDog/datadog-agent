@@ -153,6 +153,8 @@ func (cb *CollectorBundle) Run(sender aggregator.Sender) {
 
 		orchestrator.SetCacheStats(result.ResourcesListed, len(result.Metadata), collector.Metadata().NodeType)
 		sender.OrchestratorMetadata(result.Metadata, cb.check.clusterID, int(collector.Metadata().NodeType))
-		sender.OrchestratorManifest(result.Manifests, cb.check.clusterID)
+		if cb.runCfg.Config.IsManifestCollectionEnabled {
+			sender.OrchestratorManifest(result.Manifests, cb.check.clusterID)
+		}
 	}
 }
