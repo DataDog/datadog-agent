@@ -640,7 +640,6 @@ func TestDebugStats(t *testing.T) {
 	// test ingestion and ingestion time
 	s.storeMetricStats(sample1)
 	s.storeMetricStats(sample2)
-	time.Sleep(10 * time.Millisecond)
 	s.storeMetricStats(sample1)
 
 	data, err := s.GetJSONDebugStats()
@@ -656,7 +655,6 @@ func TestDebugStats(t *testing.T) {
 	require.True(t, stats[hash1].LastSeen.After(stats[hash2].LastSeen), "some.metric1 should have appeared again after some.metric2")
 
 	s.storeMetricStats(sample3)
-	time.Sleep(10 * time.Millisecond)
 	s.storeMetricStats(sample1)
 
 	s.storeMetricStats(sample4)
