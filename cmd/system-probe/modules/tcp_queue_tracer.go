@@ -11,7 +11,6 @@ package modules
 import (
 	"fmt"
 	"net/http"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -19,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"go.uber.org/atomic"
 )
 
 // TCPQueueLength Factory
@@ -35,16 +35,18 @@ var TCPQueueLength = module.Factory{
 	},
 }
 
-var _ module.Module = &tcpQueueLengthModule{}
+var _ module.Module = &tcpQueueLengthModule{
+	lastCheck: atomic.NewInt64(0),
+}
 
 type tcpQueueLengthModule struct {
 	*probe.TCPQueueLengthTracer
-	lastCheck int64
+	lastCheck *atomic.Int64
 }
 
 func (t *tcpQueueLengthModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", func(w http.ResponseWriter, req *http.Request) {
-		atomic.StoreInt64(&t.lastCheck, time.Now().Unix())
+		t.lastCheck.Store(time.Now().Unix())
 		stats := t.TCPQueueLengthTracer.GetAndFlush()
 		utils.WriteAsJSON(w, stats)
 	})
@@ -54,6 +56,6 @@ func (t *tcpQueueLengthModule) Register(httpMux *module.Router) error {
 
 func (t *tcpQueueLengthModule) GetStats() map[string]interface{} {
 	return map[string]interface{}{
-		"last_check": atomic.LoadInt64(&t.lastCheck),
+		"last_check": t.lastCheck.Load(),
 	}
 }
