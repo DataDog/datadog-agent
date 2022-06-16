@@ -451,6 +451,8 @@ func (t *testCheck) Run(_ *config.AgentConfig, _ int32) ([]process.MessageBody, 
 	return nil, nil
 }
 
+func (t *testCheck) Cleanup() {}
+
 var _ checks.Check = &testCheck{}
 
 type request struct {
