@@ -1,0 +1,4 @@
+features:
+  - |
+    The agent now generates a metric, ``datadog.agent.checks.runs``, giving the
+    number of runs of each check, by state (``fail`` or ``ok``).

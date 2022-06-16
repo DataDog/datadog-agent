@@ -6,13 +6,14 @@
 package check
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -62,46 +63,26 @@ func TestNewStats(t *testing.T) {
 	assert.Equal(t, stats.CheckConfigSource, "checkConfigSrc")
 }
 
-func TestNewStatsStateTelemetryIgnoredWhenGloballyDisabled(t *testing.T) {
-	mockConfig := agentConfig.Mock(t)
-	mockConfig.Set("telemetry.enabled", false)
-	mockConfig.Set("telemetry.checks", "*")
-
-	NewStats(newMockCheck())
-
-	tlmData, err := getTelemetryData()
-	if !assert.NoError(t, err) {
-		return
-	}
-
-	// Assert that no telemetry is recorded
-	assert.NotContains(t, tlmData, "checkString")
-	assert.NotContains(t, tlmData, "state=\"fail\"")
-	assert.NotContains(t, tlmData, "state=\"ok\"")
+type testStatsTelemetrySender struct {
+	counts []string
 }
 
-func TestNewStatsStateTelemetryInitializedWhenGloballyEnabled(t *testing.T) {
-	mockConfig := agentConfig.Mock(t)
-	mockConfig.Set("telemetry.enabled", true)
-	mockConfig.Set("telemetry.checks", "*")
+func (tsp *testStatsTelemetrySender) Count(metric string, value float64, hostname string, tags []string) {
+	tsp.counts = append(tsp.counts, fmt.Sprintf("%s on %s: %f %s", metric, hostname, value, strings.Join(tags, ",")))
+}
+
+func (tsp *testStatsTelemetrySender) Gauge(metric string, value float64, hostname string, tags []string) {
+	// not used
+}
+
+func TestNewStatsStateTelemetryInitialized(t *testing.T) {
+	sender := &testStatsTelemetrySender{}
+	telemetry.RegisterStatsSender(sender)
 
 	NewStats(newMockCheck())
 
-	tlmData, err := getTelemetryData()
-	if !assert.NoError(t, err) {
-		return
-	}
-
-	assert.Contains(
-		t,
-		tlmData,
-		"checks__runs{check_name=\"checkString\",state=\"fail\"} 0",
-	)
-	assert.Contains(
-		t,
-		tlmData,
-		"checks__runs{check_name=\"checkString\",state=\"ok\"} 0",
-	)
+	assert.Contains(t, sender.counts, "datadog.agent.checks.runs on : 0.000000 check_name:checkString,state:ok")
+	assert.Contains(t, sender.counts, "datadog.agent.checks.runs on : 0.000000 check_name:checkString,state:fail")
 }
 
 func TestTranslateEventPlatformEventTypes(t *testing.T) {
