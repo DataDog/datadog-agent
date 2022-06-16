@@ -219,11 +219,11 @@ func (s *Service) refresh() error {
 		}
 	}
 	response, err := s.api.Fetch(s.ctx, buildLatestConfigsRequest(s.hostname, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState))
+	s.lastUpdateErr = nil
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
 		return err
 	}
-	s.lastUpdateErr = nil
 	err = s.uptane.Update(response)
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
