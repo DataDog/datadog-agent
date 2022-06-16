@@ -51,7 +51,7 @@ struct process_event_t {
     u32 args_truncated;
     u32 envs_id;
     u32 envs_truncated;
-    struct path_key_t symlink_arg0;
+    struct path_key_t symlink;
 };
 
 struct exit_event_t {
@@ -381,15 +381,11 @@ int kprobe_pick_link(struct pt_regs *ctx) {
     struct path *path = (struct path *)PT_REGS_PARM2(ctx);
     struct inode *inode = (struct inode *)PT_REGS_PARM3(ctx);
 
-    syscall->exec.symlink_arg0 = get_inode_key_path(inode, path);
+    syscall->exec.symlink = get_inode_key_path(inode, path);
 
     struct dentry *dentry = get_path_dentry(path);
 
-    char name[64];
-    get_dentry_name(dentry, &name, sizeof(name));
-    bpf_printk("follow_link: %s %d %d\n", name, syscall->exec.symlink_arg0.ino, syscall->exec.symlink_arg0.mount_id);
-
-    syscall->resolver.key = syscall->exec.symlink_arg0;
+    syscall->resolver.key = syscall->exec.symlink;
     syscall->resolver.dentry = dentry;
     syscall->resolver.discarder_type = 0;
     syscall->resolver.callback = DR_NO_CALLBACK;
@@ -693,8 +689,7 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
             copy_span_context(&syscall->exec.span_context, &event.span);
             fill_args_envs(&event, syscall);
 
-            // symlink arg0
-            event.symlink_arg0 = syscall->exec.symlink_arg0;
+            event.symlink = syscall->exec.symlink;
 
             // [activity_dump] check if this process should be traced
             should_trace_new_process(ctx, now, tgid, event.proc_entry.container.container_id, event.proc_entry.comm);

@@ -270,11 +270,27 @@ func (e *Process) GetPathResolutionError() string {
 	return ""
 }
 
+// SetPathnameStr set and mark as resolved
+func (e *Process) SetPathnameStr(str string) {
+	e.PathnameStr = str
+	e.FileEvent.IsPathnameStrResolved = true
+}
+
+// SetBasenameStr set and mark as resolved
+func (e *Process) SetBasenameStr(str string) {
+	e.BasenameStr = str
+	e.FileEvent.IsPathnameStrResolved = true
+}
+
 // Process represents a process
 type Process struct {
 	PIDContext
 
 	FileEvent FileEvent `field:"file" msg:"file"`
+
+	// override the common FileEvent path/basename in order to use another operator override
+	PathnameStr string `field:"file.path" msg:"path" op_override:"ProcessSymlinkPathname"` // File's path
+	BasenameStr string `field:"file.name" msg:"name" op_override:"ProcessSymlinkBasename"` // File's basename
 
 	ContainerID   string   `field:"container.id" msg:"container_id"` // Container ID
 	ContainerTags []string `field:"-" msg:"container_tags"`
@@ -314,9 +330,9 @@ type Process struct {
 	EnvsTruncated bool     `field:"envs_truncated,handler:ResolveProcessEnvsTruncated" msg:"-"`                                                                                                                                         // Indicator of environment variables truncation
 
 	// symlink to the process binary
-	SymlinkArg0PathKey     PathKey `field:"-" msg:"-"`
-	SymlinkArg0PathnameStr string  `field:"-" msg:"-"`
-	SymlinkArg0BasenameStr string  `field:"-" msg:"-"`
+	SymlinkPathKey     PathKey `field:"-" msg:"-"`
+	SymlinkPathnameStr string  `field:"-" msg:"-"`
+	SymlinkBasenameStr string  `field:"-" msg:"-"`
 
 	// cache version
 	ScrubbedArgvResolved  bool           `field:"-" msg:"-"`
@@ -385,9 +401,6 @@ type FileEvent struct {
 	// used to mark as already resolved, can be used in case of empty path
 	IsPathnameStrResolved bool `field:"-" msg:"-"`
 	IsBasenameStrResolved bool `field:"-" msg:"-"`
-
-	SymlinkPathnameStrs [3]PathKey `field:"-" msg:"-"`
-	SymlinkBasenameStrs [3]PathKey `field:"-" msg:"-"`
 }
 
 // SetPathnameStr set and mark as resolved

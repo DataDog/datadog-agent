@@ -552,32 +552,38 @@ func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	return nil
 }
 
-// SetProcessPath resolves process file path
+// SetProcessS resolves process file path
 func (p *ProcessResolver) SetProcessPath(entry *model.ProcessCacheEntry) error {
 	if entry.FileEvent.IsNull() {
-		entry.FileEvent.SetPathnameStr("")
-		entry.FileEvent.SetBasenameStr("")
+		entry.SetPathnameStr("")
+		entry.SetBasenameStr("")
 
 		return &model.ErrInvalidPathKey{Inode: entry.FileEvent.Inode, MountID: entry.FileEvent.MountID}
 	}
 	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&entry.FileEvent.FileFields)
 	if err != nil {
-		entry.FileEvent.SetPathnameStr("")
-		entry.FileEvent.SetBasenameStr("")
+		entry.SetPathnameStr("")
+		entry.SetBasenameStr("")
 
 		return &model.ErrInvalidPathKey{Inode: entry.FileEvent.Inode, MountID: entry.FileEvent.MountID}
 	}
-	entry.FileEvent.SetPathnameStr(pathnameStr)
-	entry.FileEvent.SetBasenameStr(path.Base(entry.FileEvent.PathnameStr))
+	entry.SetPathnameStr(pathnameStr)
+	entry.SetBasenameStr(path.Base(entry.FileEvent.PathnameStr))
 
-	// set symlink arg0 if available, best effort
-	if !entry.SymlinkArg0PathKey.IsNull() {
-		pathKey := entry.SymlinkArg0PathKey
-		pathnameStr, err := p.resolvers.DentryResolver.Resolve(pathKey.MountID, pathKey.Inode, pathKey.PathID, true)
-		if err == nil {
-			entry.SymlinkArg0PathnameStr = pathnameStr
-			entry.SymlinkArg0BasenameStr = path.Base(pathnameStr)
-		}
+	return nil
+}
+
+// SetProcessSymlink resolves process file symlink path
+func (p *ProcessResolver) SetProcessSymlink(entry *model.ProcessCacheEntry) error {
+	// try to resolve symlink if possible
+	if entry.SymlinkPathKey.IsNull() {
+		return nil
+	}
+	pathKey := entry.SymlinkPathKey
+	pathnameStr, err := p.resolvers.DentryResolver.Resolve(pathKey.MountID, pathKey.Inode, pathKey.PathID, true)
+	if err == nil {
+		entry.SymlinkPathnameStr = pathnameStr
+		entry.SymlinkBasenameStr = path.Base(pathnameStr)
 	}
 
 	return nil
@@ -633,6 +639,10 @@ func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheE
 func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry) error {
 	if err := p.SetProcessPath(entry); err != nil {
 		return fmt.Errorf("failed to resolve exec path: %w", err)
+	}
+
+	if err := p.SetProcessSymlink(entry); err != nil {
+		return fmt.Errorf("failed to resolve exec symlink path: %w", err)
 	}
 
 	p.SetProcessArgs(entry)

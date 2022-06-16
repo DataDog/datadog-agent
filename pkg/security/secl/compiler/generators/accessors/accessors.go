@@ -524,9 +524,18 @@ func newField(allFields map[string]*common.StructField, field *common.StructFiel
 	return result
 }
 
+func packageIfy(str string, mock bool) string {
+	if !mock && !strings.Contains(str, ".") {
+		return "model." + str
+	}
+
+	return str
+}
+
 var funcMap = map[string]interface{}{
 	"TrimPrefix": strings.TrimPrefix,
 	"NewField":   newField,
+	"PackageIfy": packageIfy,
 }
 
 //go:embed accessors.tmpl

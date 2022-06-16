@@ -47,7 +47,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "{{$Name}}":
 		return &{{$Field.GetEvaluatorType}}{
 			{{- if $Field.OpOverrides}}
-			OpOverrides: {{$Field.OpOverrides}},
+			OpOverrides: {{$Mock | PackageIfy $Field.OpOverrides}},
 			{{- end}}
 			{{- if $Field.Iterator}}
 				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {

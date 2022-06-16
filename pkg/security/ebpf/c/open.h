@@ -354,53 +354,6 @@ int kprobe_filp_close(struct pt_regs *ctx) {
     return 0;
 }
 
-/*
-SEC("kprobe/security_inode_follow_link")
-int kprobe__security_inode_follow_link(struct pt_regs *ctx) {
-    struct dentry *dentry = (struct dentry *) PT_REGS_PARM1(ctx);
-    
-    char name[64];
-    get_dentry_name(dentry, &name, sizeof(name));
-
-    bpf_printk("follow_link: %s\n", name);
-
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
-    if (!syscall)
-        return 0;
-
-    if (syscall->exec.argv0.ino) {
-        return 0;
-    }
-
-
-
-    struct dentry *dentry = get_path_dentry(path);
-
-    syscall->open.dentry = dentry;
-    syscall->open.file.path_key = get_dentry_key_path(syscall->open.dentry, path);
-
-    u8 symlink_num = syscall->open.symlink_num;
-    if (symlink_num >= MAX_SYMLINKS)
-        return 0;
-
-    // need to approve all the symlinks
-
-    syscall->open.symlink_num++;
-
-    syscall->resolver.key = syscall->open.symlink_keys[symlink_num&(MAX_SYMLINKS - 1)];
-    syscall->resolver.dentry = dentry;
-    syscall->resolver.discarder_type = 0;
-    syscall->resolver.callback = DR_NO_CALLBACK;
-    syscall->resolver.iteration = 0;
-    syscall->resolver.ret = 0;
-
-    // tail call
-    resolve_dentry(ctx, DR_KPROBE);
-    return 0;
-}
-
-*/
-
 int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
     if (!syscall) {

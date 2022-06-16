@@ -208,7 +208,7 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	e.EnvsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
 	read += 8
 
-	n, err = UnmarshalBinary(data[read:], &e.SymlinkArg0PathKey)
+	n, err = UnmarshalBinary(data[read:], &e.SymlinkPathKey)
 	if err != nil {
 		return 0, err
 	}
