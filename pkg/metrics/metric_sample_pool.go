@@ -25,6 +25,9 @@ var (
 // to avoid constant reallocation in high throughput pipelines.
 type MetricSampleBatch []MetricSample
 
+// TODO(remy): document me
+type HistoricalMetricsBatch []MetricSample
+
 // MetricSamplePool is a pool of metrics sample
 type MetricSamplePool struct {
 	pool *sync.Pool

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -57,6 +58,10 @@ type statsd struct {
 	workers        []*timeSamplerWorker
 	// shared metric sample pool between the dogstatsd server & the time sampler
 	metricSamplePool *metrics.MetricSamplePool
+
+	// historical metrics parsed from messages are stored in this buffer
+	// before a flush is triggered.
+	historicalMetrics metrics.HistoricalMetrics
 }
 
 type forwarders struct {
@@ -417,6 +422,34 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 				<-t.trigger.blockChan
 			}
 
+			// flush the historical metrics if any
+			// -------------------------------------
+
+			if len(d.historicalMetrics) > 0 {
+				// XXX(remy): move this in its own instance if needed? since it
+				// XXX(remy): only used in this serialization, we may not even need it for the two buffers
+				taggerBuffer := tagset.NewHashlessTagsAccumulator()
+				metricBuffer := tagset.NewHashlessTagsAccumulator()
+				for _, sample := range d.historicalMetrics {
+					// enrich metric sample tags
+					sample.GetTags(taggerBuffer, metricBuffer)
+					metricBuffer.AppendHashlessAccumulator(taggerBuffer)
+
+					// turns this metric sample into a serie
+					var serie metrics.Serie
+					serie.Name = sample.Name
+					// TODO(remy): we may have to sort uniq them?
+					// XXX(remy): do we really need to copy here?
+					serie.Tags = tagset.CompositeTagsFromSlice(metricBuffer.Copy())
+					serie.Host = sample.Host
+					serie.Interval = 0 // TODO(remy): document me
+					seriesSink.Append(&serie)
+
+					taggerBuffer.Reset()
+					metricBuffer.Reset()
+				}
+			}
+
 			// flush the aggregator (check samplers)
 			// -------------------------------------
 
@@ -457,10 +490,16 @@ func (d *AgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*metric
 	return d.aggregator.GetBufferedChannels()
 }
 
+// AddHistoricalMetrics buffers a bunch of historical metrics. This data will be directly
+// transmitted "as-is" (i.e. no sampling) to the serializer when a flush is triggered.
+func (d *AgentDemultiplexer) AddHistoricalMetrics(samples metrics.HistoricalMetrics) {
+	d.historicalMetrics = append(d.historicalMetrics, samples...)
+}
+
 // AddTimeSampleBatch adds a batch of MetricSample into the given time sampler shard.
 // If you have to submit a single metric sample see `AddTimeSample`.
 func (d *AgentDemultiplexer) AddTimeSampleBatch(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
-	// distribute the samples on the different statsd samplers using a channel
+	// distribute the samples on the different statsd samplers  using a channel
 	// (in the time sampler implementation) for latency reasons:
 	// its buffering + the fact that it is another goroutine processing the samples,
 	// it should get back to the caller as fast as possible once the samples are

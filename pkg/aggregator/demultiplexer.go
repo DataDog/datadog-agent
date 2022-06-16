@@ -54,6 +54,10 @@ type Demultiplexer interface {
 	// sampler shard.
 	// Implementation not supporting sharding may ignore the `shard` parameter.
 	AddTimeSampleBatch(shard TimeSamplerID, samples metrics.MetricSampleBatch)
+
+	// TODO(remy): document me
+	AddHistoricalMetrics(metrics metrics.HistoricalMetrics)
+
 	// AddCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
 	AddCheckSample(sample metrics.MetricSample)
 	// ForceFlushToSerializer flushes all the aggregated data from the different samplers to

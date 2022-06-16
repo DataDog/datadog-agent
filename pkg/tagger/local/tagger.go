@@ -83,7 +83,7 @@ func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) (
 }
 
 // AccumulateTagsFor appends tags for a given entity from the tagger to the TagAccumulator
-func (t *Tagger) AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
+func (t *Tagger) AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagsAccumulator) error {
 	tags, err := t.getTags(entity, cardinality)
 	tb.AppendHashed(tags)
 	return err

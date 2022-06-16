@@ -147,8 +147,13 @@ func (d *ServerlessDemultiplexer) AddTimeSampleBatch(shard TimeSamplerID, sample
 	d.statsdWorker.samplesChan <- samples
 }
 
-// AddCheckSample doesn't do anything in the Serverless Agent implementation.
+// AddCheckSample is not supported in the Serverless Agent implementation.
 func (d *ServerlessDemultiplexer) AddCheckSample(sample metrics.MetricSample) {
+	panic("not implemented.")
+}
+
+// AddHistoricalMetrics is not supported in the Serverless Agent implementation.
+func (d *ServerlessDemultiplexer) AddHistoricalMetrics(samples metrics.HistoricalMetrics) {
 	panic("not implemented.")
 }
 
