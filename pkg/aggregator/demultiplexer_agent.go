@@ -393,11 +393,12 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	}
 
 	logPayloads := config.Datadog.GetBool("log_payloads")
-	flushedSketches := make([]metrics.SketchSeriesList, 0)
+	series, sketches := createIterableMetrics(d.aggregator.flushAndSerializeInParallel, logPayloads, false)
 
-	metrics.StartIteration(
-		createIterableSeries(d.aggregator.flushAndSerializeInParallel, logPayloads),
-		func(seriesSink metrics.SerieSink) {
+	metrics.Serialize(
+		series,
+		sketches,
+		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
 			// flush DogStatsD pipelines (statsd/time samplers)
 			// ------------------------------------------------
 
@@ -408,8 +409,8 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 						time:      start,
 						blockChan: make(chan struct{}),
 					},
-					flushedSketches: &flushedSketches,
-					seriesSink:      seriesSink,
+					sketchesSink: sketchesSink,
+					seriesSink:   seriesSink,
 				}
 
 				worker.flushChan <- t
@@ -426,8 +427,8 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 						blockChan:         make(chan struct{}),
 						waitForSerializer: waitForSerializer,
 					},
-					flushedSketches: &flushedSketches,
-					seriesSink:      seriesSink,
+					sketchesSink: sketchesSink,
+					seriesSink:   seriesSink,
 				}
 
 				d.aggregator.flushChan <- t
@@ -435,37 +436,17 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 			}
 		}, func(serieSource metrics.SerieSource) {
 			sendIterableSeries(d.sharedSerializer, start, serieSource)
+		},
+		func(sketches metrics.SketchesSource) {
+			// Don't send empty sketches payloads
+			if sketches.WaitForValue() {
+				err := d.sharedSerializer.SendSketch(sketches)
+				sketchesCount := sketches.Count()
+				log.Debugf("Flushing %d sketches to the serializer", sketchesCount)
+				updateSketchTelemetry(start, sketchesCount, err)
+				addFlushCount("Sketches", int64(sketchesCount))
+			}
 		})
-
-	// collect the series and sketches that the multiple samplers may have reported
-	// ------------------------------------------------------
-
-	var sketches metrics.SketchSeriesList
-
-	for _, s := range flushedSketches {
-		sketches = append(sketches, s...)
-	}
-
-	// debug flag to log payloads
-	// --------------------------
-
-	if logPayloads {
-		log.Debug("Flushing the following Sketches:")
-		for _, s := range sketches {
-			log.Debugf("%v", s)
-		}
-	}
-
-	// send these to the serializer
-	// ----------------------------
-
-	addFlushCount("Sketches", int64(len(sketches)))
-	if len(sketches) > 0 {
-		log.Debugf("Flushing %d sketches to the serializer", len(sketches))
-		err := d.sharedSerializer.SendSketch(sketches)
-		updateSketchTelemetry(start, uint64(len(sketches)), err)
-		tagsetTlm.updateHugeSketchesTelemetry(&sketches)
-	}
 
 	addFlushTime("MainFlushTime", int64(time.Since(start)))
 	aggregatorNumberOfFlush.Add(1)

@@ -32,7 +32,7 @@ func TestRingStoreWithoutLoop(t *testing.T) {
 	ctx := context.Background()
 	timeout := time.Second
 
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 	cfg.Set("process_config.event_collection.store.max_items", 4)
 	store, err := NewRingStore(&statsd.NoOpClient{})
 	require.NoError(t, err)
@@ -84,7 +84,7 @@ func TestRingStoreWithLoop(t *testing.T) {
 	ctx := context.Background()
 	timeout := time.Second
 
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 	cfg.Set("process_config.event_collection.store.max_items", 3)
 	store, err := NewRingStore(&statsd.NoOpClient{})
 	require.NoError(t, err)
@@ -137,7 +137,7 @@ func TestRingStoreWithDroppedData(t *testing.T) {
 	expectedDrops := make([]*model.ProcessEvent, 0)
 	droppedEvents := make([]*model.ProcessEvent, 0)
 
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 	cfg.Set("process_config.event_collection.store.max_items", 3)
 	store, err := NewRingStore(&statsd.NoOpClient{})
 	require.NoError(t, err)
@@ -196,7 +196,7 @@ func TestRingStoreAsynchronousPush(t *testing.T) {
 	ctx := context.Background()
 	timeout := time.Second
 
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 	cfg.Set("process_config.event_collection.store.max_items", 3)
 	store, err := NewRingStore(&statsd.NoOpClient{})
 	require.NoError(t, err)
@@ -235,7 +235,7 @@ func TestRingStorePullErrors(t *testing.T) {
 	ctx := context.Background()
 	timeout := 10 * time.Millisecond // simulate timeout for all pending requests
 
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 	maxPulls := 2
 	cfg.Set("process_config.event_collection.store.max_pending_pulls", maxPulls)
 	store, err := NewRingStore(&statsd.NoOpClient{})
@@ -263,7 +263,7 @@ func TestRingStorePullErrors(t *testing.T) {
 }
 
 func TestRingStorePushErrors(t *testing.T) {
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 	maxPushes := 2
 	cfg.Set("process_config.event_collection.store.max_pending_pushes", 2)
 	store, err := NewRingStore(&statsd.NoOpClient{})

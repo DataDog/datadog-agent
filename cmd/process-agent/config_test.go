@@ -20,7 +20,7 @@ import (
 
 func TestProcessDiscovery(t *testing.T) {
 	scfg, ocfg := &sysconfig.Config{}, &oconfig.OrchestratorConfig{}
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 
 	// Make sure the process_discovery check can be enabled
 	t.Run("enabled", func(t *testing.T) {
@@ -47,7 +47,7 @@ func TestProcessDiscovery(t *testing.T) {
 
 func TestContainerCheck(t *testing.T) {
 	scfg, ocfg := &sysconfig.Config{}, &oconfig.OrchestratorConfig{}
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 
 	// Make sure the container check can be enabled if the process check is disabled
 	t.Run("containers enabled; rt enabled", func(t *testing.T) {
@@ -95,7 +95,7 @@ func TestContainerCheck(t *testing.T) {
 }
 
 func TestProcessCheck(t *testing.T) {
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 
 	scfg, err := sysconfig.New("")
 	assert.NoError(t, err)
@@ -117,7 +117,7 @@ func TestProcessCheck(t *testing.T) {
 }
 
 func TestSysprobeProcessModule(t *testing.T) {
-	cfg, ocfg := config.Mock(), &oconfig.OrchestratorConfig{}
+	cfg, ocfg := config.Mock(t), &oconfig.OrchestratorConfig{}
 	cfg.Set("process_config.process_collection.enabled", true)
 	cfg.Set("system_probe_config.enabled", true)
 
@@ -141,7 +141,7 @@ func TestSysprobeProcessModule(t *testing.T) {
 }
 
 func TestConnectionsCheck(t *testing.T) {
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 	ocfg := &oconfig.OrchestratorConfig{}
 	cfg.Set("system_probe_config.enabled", true)
 
@@ -165,7 +165,7 @@ func TestConnectionsCheck(t *testing.T) {
 }
 
 func TestPodCheck(t *testing.T) {
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 
 	t.Run("enabled", func(t *testing.T) {
 		cfg.Set("orchestrator_explorer.enabled", true)
@@ -259,7 +259,7 @@ func TestGetAPIEndpoints(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := config.Mock()
+			cfg := config.Mock(t)
 			cfg.Set("api_key", tc.apiKey)
 			if tc.ddURL != "" {
 				cfg.Set("process_config.process_dd_url", tc.ddURL)
@@ -301,7 +301,7 @@ func TestGetAPIEndpointsSite(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := config.Mock()
+			cfg := config.Mock(t)
 			if tc.site != "" {
 				cfg.Set("site", tc.site)
 			}

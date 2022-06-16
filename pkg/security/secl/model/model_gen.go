@@ -1258,6 +1258,12 @@ func (z *Process) DecodeMsg(dc *msgp.Reader) (err error) {
 					return
 				}
 			}
+		case "is_thread":
+			z.IsThread, err = dc.ReadBool()
+			if err != nil {
+				err = msgp.WrapError(err, "IsThread")
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -1271,9 +1277,9 @@ func (z *Process) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 17
+	// map header, size 18
 	// write "PIDContext"
-	err = en.Append(0xde, 0x0, 0x11, 0xaa, 0x50, 0x49, 0x44, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74)
+	err = en.Append(0xde, 0x0, 0x12, 0xaa, 0x50, 0x49, 0x44, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74)
 	if err != nil {
 		return
 	}
@@ -1479,15 +1485,25 @@ func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
 			return
 		}
 	}
+	// write "is_thread"
+	err = en.Append(0xa9, 0x69, 0x73, 0x5f, 0x74, 0x68, 0x72, 0x65, 0x61, 0x64)
+	if err != nil {
+		return
+	}
+	err = en.WriteBool(z.IsThread)
+	if err != nil {
+		err = msgp.WrapError(err, "IsThread")
+		return
+	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
 func (z *Process) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 17
+	// map header, size 18
 	// string "PIDContext"
-	o = append(o, 0xde, 0x0, 0x11, 0xaa, 0x50, 0x49, 0x44, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74)
+	o = append(o, 0xde, 0x0, 0x12, 0xaa, 0x50, 0x49, 0x44, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74)
 	// map header, size 2
 	// string "pid"
 	o = append(o, 0x82, 0xa3, 0x70, 0x69, 0x64)
@@ -1570,6 +1586,9 @@ func (z *Process) MarshalMsg(b []byte) (o []byte, err error) {
 			return
 		}
 	}
+	// string "is_thread"
+	o = append(o, 0xa9, 0x69, 0x73, 0x5f, 0x74, 0x68, 0x72, 0x65, 0x61, 0x64)
+	o = msgp.AppendBool(o, z.IsThread)
 	return
 }
 
@@ -1757,6 +1776,12 @@ func (z *Process) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					return
 				}
 			}
+		case "is_thread":
+			z.IsThread, bts, err = msgp.ReadBoolBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "IsThread")
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -1787,6 +1812,7 @@ func (z *Process) Msgsize() (s int) {
 	} else {
 		s += z.EnvsEntry.Msgsize()
 	}
+	s += 10 + msgp.BoolSize
 	return
 }
 

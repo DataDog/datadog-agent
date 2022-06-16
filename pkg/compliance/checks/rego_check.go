@@ -356,7 +356,7 @@ func findingsToReports(findings []regoFinding) []*compliance.Report {
 				Evaluator: regoEvaluator,
 			}
 		default:
-			return buildErrorReports(fmt.Errorf("unknown finding status: %s", finding.Status))
+			return buildRegoErrorReports(fmt.Errorf("unknown finding status: %s", finding.Status))
 		}
 
 		reports = append(reports, report)
@@ -378,7 +378,7 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 	} else {
 		normalInput, err := r.buildNormalInput(env)
 		if err != nil {
-			return buildErrorReports(err)
+			return buildRegoErrorReports(err)
 		}
 
 		input = normalInput
@@ -400,20 +400,18 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 
 	results, err := r.preparedEvalQuery.Eval(ctx, rego.EvalInput(input))
 	if err != nil {
-		return buildErrorReports(err)
-	} else if len(results) == 0 {
-		return nil
+		return buildRegoErrorReports(err)
 	}
 
-	log.Debugf("%s: rego evaluation done => %+v\n", r.ruleID, results)
+	log.Debugf("%s: rego evaluation done => %+v", r.ruleID, results)
 
 	if len(results) == 0 || len(results[0].Expressions) == 0 {
-		return buildErrorReports(errors.New("failed to collect result expression"))
+		return buildRegoErrorReports(errors.New("failed to collect result expression"))
 	}
 
 	findings, err := parseFindings(results[0].Expressions[0].Value)
 	if err != nil {
-		return buildErrorReports(err)
+		return buildRegoErrorReports(err)
 	}
 
 	reports := findingsToReports(findings)
@@ -512,7 +510,8 @@ func checkFindingRequiredFields(metadata *mapstructure.Metadata) error {
 	return nil
 }
 
-func buildErrorReports(err error) []*compliance.Report {
+func buildRegoErrorReports(err error) []*compliance.Report {
+	log.Debugf("building rego error report: %v", err)
 	report := compliance.BuildReportForError(err)
 	report.Evaluator = regoEvaluator
 	return []*compliance.Report{report}

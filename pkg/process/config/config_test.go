@@ -559,7 +559,7 @@ func TestProcessDiscoveryInterval(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := config.Mock()
+			cfg := config.Mock(t)
 			cfg.Set("process_config.process_discovery.interval", tc.interval)
 
 			agentCfg := NewDefaultAgentConfig()

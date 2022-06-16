@@ -126,7 +126,7 @@ func TestDisableRealTime(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock()
+			mockConfig := ddconfig.Mock(t)
 			mockConfig.Set("process_config.disable_realtime_checks", tc.disableRealtime)
 			mockConfig.Set("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
 
@@ -162,7 +162,7 @@ func TestDisableRealTimeProcessCheck(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock()
+			mockConfig := ddconfig.Mock(t)
 			mockConfig.Set("process_config.disable_realtime_checks", tc.disableRealtime)
 
 			c, err := NewCollector(cfg, expectedChecks)
@@ -211,7 +211,7 @@ func TestNewCollectorQueueSize(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock()
+			mockConfig := ddconfig.Mock(t)
 			if tc.override {
 				mockConfig.Set("process_config.queue_size", tc.queueSize)
 			}
@@ -262,7 +262,7 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock()
+			mockConfig := ddconfig.Mock(t)
 			if tc.override {
 				mockConfig.Set("process_config.rt_queue_size", tc.queueSize)
 			}
@@ -312,7 +312,7 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock()
+			mockConfig := ddconfig.Mock(t)
 			if tc.override {
 				mockConfig.Set("process_config.process_queue_bytes", tc.queueBytes)
 			}
