@@ -45,7 +45,7 @@ type apiserverSuite struct {
 }
 
 func TestSuiteAPIServer(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	s := &apiserverSuite{}
 
 	// Start compose stack

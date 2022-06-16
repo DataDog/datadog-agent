@@ -18,7 +18,7 @@ import (
 )
 
 func Test_shouldInjectConf(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	tests := []struct {
 		name        string
 		pod         *corev1.Pod

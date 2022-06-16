@@ -226,7 +226,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 		rattr[k] = v.AsString()
 		return true
 	})
-	hostname, hostok := attributes.HostnameFromAttributes(attr)
+	hostname, hostok := attributes.HostnameFromAttributes(attr, o.conf.OTLPReceiver.UsePreviewHostnameLogic)
 	hostFromMap := func(m map[string]string, key string) {
 		// hostFromMap sets the hostname to m[key] if it is set.
 		if v, ok := m[key]; ok {
