@@ -138,7 +138,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	}
 
 	if !lp.DetectLambdaLibrary() {
-		startExecutionSpan(lp.GetExecutionInfo(), lp.GetInferredSpan(), startDetails.StartTime, lambdaPayloadString, startDetails.InvokeEventHeaders, lp.InferredSpansEnabled)
+		startExecutionSpan(lp.GetExecutionInfo(), lp.GetInferredSpan(), lambdaPayloadString, startDetails, lp.InferredSpansEnabled)
 	}
 }
 
@@ -149,18 +149,18 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 	log.Debugf("[lifecycle] Invocation isError is: %v", endDetails.IsError)
 	log.Debug("[lifecycle] ---------------------------------------")
 
-	statusCode, err := trigger.GetStatusCodeFromHTTPResponse([]byte(parseLambdaPayload(endDetails.ResponseRawPayload)))
-	if err != nil {
-		log.Debugf("[lifecycle] Couldn't parse response payload: %v", err)
-	}
+	// statusCode, err := trigger.GetStatusCodeFromHTTPResponse([]byte(parseLambdaPayload(endDetails.ResponseRawPayload)))
+	// if err != nil {
+	// 	log.Debugf("[lifecycle] Couldn't parse response payload: %v", err)
+	// }
 
 	// This will only add the status code if it comes from an HTTP-like
 	// response struct
-	lp.addTag("http.status_code", statusCode)
+	// lp.addTag("http.status_code", statusCode)
 
 	if !lp.DetectLambdaLibrary() {
 		log.Debug("Creating and sending function execution span for invocation")
-		endExecutionSpan(lp.GetExecutionInfo(), lp.requestHandler.triggerTags, lp.ProcessTrace, endDetails.RequestID, endDetails.EndTime, endDetails.IsError, endDetails.ResponseRawPayload)
+		endExecutionSpan(lp.GetExecutionInfo(), lp.requestHandler.triggerTags, lp.ProcessTrace, endDetails)
 
 		if lp.InferredSpansEnabled {
 			log.Debug("[lifecycle] Attempting to complete the inferred span")
@@ -168,7 +168,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 			if lp.GetInferredSpan().Span.Start != 0 {
 				if lp.requestHandler.inferredSpans[1] != nil {
 					lp.setParentIDForMultipleInferredSpans()
-					lp.requestHandler.inferredSpans[1].AddTagToInferredSpan("http.status_code", statusCode)
+					// lp.requestHandler.inferredSpans[1].AddTagToInferredSpan("http.status_code", statusCode)
 					lp.requestHandler.inferredSpans[1].CompleteInferredSpan(lp.ProcessTrace, lp.GetInferredSpanStart(), endDetails.IsError, lp.GetExecutionInfo().TraceID, lp.GetExecutionInfo().SamplingPriority)
 					log.Debug("[lifecycle] The secondary inferred span attributes are %v", lp.requestHandler.inferredSpans[1])
 				}

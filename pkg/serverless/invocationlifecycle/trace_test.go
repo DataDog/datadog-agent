@@ -89,7 +89,11 @@ func TestInjectSpanIDWithContext(t *testing.T) {
 
 func TestStartExecutionSpanWithoutPayload(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
-	startExecutionSpan(currentExecutionInfo, nil, timeNow(), "", LambdaInvokeEventHeaders{}, false)
+	startDetails := &InvocationStartDetails{
+		StartTime:          timeNow(),
+		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+	}
+	startExecutionSpan(currentExecutionInfo, nil, "", startDetails, false)
 	assert.Equal(t, currentExecutionInfo.startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(0), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(0), currentExecutionInfo.SpanID)
@@ -100,7 +104,11 @@ func TestStartExecutionSpanWithPayload(t *testing.T) {
 	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"-1","x-datadog-trace-id":"5736943178450432258"}}`
 	startTime := timeNow()
 	currentExecutionInfo := &ExecutionStartInfo{}
-	startExecutionSpan(currentExecutionInfo, nil, startTime, testString, LambdaInvokeEventHeaders{}, false)
+	startDetails := &InvocationStartDetails{
+		StartTime:          startTime,
+		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+	}
+	startExecutionSpan(currentExecutionInfo, nil, testString, startDetails, false)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
@@ -116,8 +124,13 @@ func TestStartExecutionSpanWithPayloadAndLambdaContextHeaders(t *testing.T) {
 		ParentID:         "1480558859903409531",
 		SamplingPriority: "1",
 	}
-	startTime := time.Now()
-	startExecutionSpan(currentExecutionInfo, nil, startTime, testString, lambdaInvokeContext, false)
+
+	startTime := timeNow()
+	startDetails := &InvocationStartDetails{
+		StartTime:          startTime,
+		InvokeEventHeaders: lambdaInvokeContext,
+	}
+	startExecutionSpan(currentExecutionInfo, nil, testString, startDetails, false)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
@@ -128,8 +141,12 @@ func TestStartExecutionSpanWithPayloadAndLambdaContextHeaders(t *testing.T) {
 func TestStartExecutionSpanWithPayloadAndInvalidIDs(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
 	invalidTestString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"INVALID","x-datadog-sampling-priority":"-1","x-datadog-trace-id":"INVALID"}}`
-	startTime := time.Now()
-	startExecutionSpan(currentExecutionInfo, nil, startTime, invalidTestString, LambdaInvokeEventHeaders{}, false)
+	startTime := timeNow()
+	startDetails := &InvocationStartDetails{
+		StartTime:          startTime,
+		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+	}
+	startExecutionSpan(currentExecutionInfo, nil, invalidTestString, startDetails, false)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.NotEqual(t, 9, currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(0), currentExecutionInfo.parentID)
@@ -140,8 +157,11 @@ func TestStartExecutionSpanWithPayloadAndInvalidIDs(t *testing.T) {
 func TestStartExecutionSpanWithNoHeadersAndInferredSpan(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
 	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}`
-	startTime := time.Now()
-
+	startTime := timeNow()
+	startDetails := &InvocationStartDetails{
+		StartTime:          startTime,
+		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+	}
 	inferredSpan := &inferredspan.InferredSpan{}
 
 	inferredSpan.Span = &pb.Span{
@@ -149,7 +169,7 @@ func TestStartExecutionSpanWithNoHeadersAndInferredSpan(t *testing.T) {
 		SpanID:  1304592378509342580,
 		Start:   startTime.UnixNano(),
 	}
-	startExecutionSpan(currentExecutionInfo, inferredSpan, startTime, testString, LambdaInvokeEventHeaders{}, true)
+	startExecutionSpan(currentExecutionInfo, inferredSpan, testString, startDetails, true)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(2350923428932752492), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(1304592378509342580), currentExecutionInfo.parentID)
@@ -159,13 +179,17 @@ func TestStartExecutionSpanWithNoHeadersAndInferredSpan(t *testing.T) {
 func TestStartExecutionSpanWithHeadersAndInferredSpan(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
 	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
-	startTime := time.Now()
+	startTime := timeNow()
+	startDetails := &InvocationStartDetails{
+		StartTime:          startTime,
+		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+	}
 	inferredSpan := &inferredspan.InferredSpan{}
 	inferredSpan.Span = &pb.Span{
 		SpanID: 1304592378509342580,
 		Start:  startTime.UnixNano(),
 	}
-	startExecutionSpan(currentExecutionInfo, inferredSpan, startTime, testString, LambdaInvokeEventHeaders{}, true)
+	startExecutionSpan(currentExecutionInfo, inferredSpan, testString, startDetails, true)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(1304592378509342580), currentExecutionInfo.parentID)
@@ -183,17 +207,28 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 	os.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "true")
 	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
 	startTime := time.Now()
-	startExecutionSpan(currentExecutionInfo, nil, startTime, testString, LambdaInvokeEventHeaders{}, false)
+
+	startDetails := &InvocationStartDetails{
+		StartTime:          startTime,
+		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+	}
+	startExecutionSpan(currentExecutionInfo, nil, testString, startDetails, false)
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
-	isError := false
 	var tracePayload *api.Payload
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
 
-	endExecutionSpan(currentExecutionInfo, make(map[string]string), mockProcessTrace, "test-request-id", endTime, isError, `{"response":"test response payload"}`)
+	endDetails := &InvocationEndDetails{
+		EndTime:            endTime,
+		IsError:            false,
+		RequestID:          "test-request-id",
+		ResponseRawPayload: `{"response":"test response payload"}`,
+	}
+
+	endExecutionSpan(currentExecutionInfo, make(map[string]string), mockProcessTrace, endDetails)
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.lambda", executionSpan.Name)
 	assert.Equal(t, "aws.lambda", executionSpan.Service)
@@ -216,17 +251,28 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
 	startTime := time.Now()
 	currentExecutionInfo := &ExecutionStartInfo{}
-	startExecutionSpan(currentExecutionInfo, nil, startTime, testString, LambdaInvokeEventHeaders{}, false)
+	startDetails := &InvocationStartDetails{
+		StartTime:          startTime,
+		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+	}
+	startExecutionSpan(currentExecutionInfo, nil, testString, startDetails, false)
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
-	isError := false
+
 	var tracePayload *api.Payload
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
 
-	endExecutionSpan(currentExecutionInfo, make(map[string]string), mockProcessTrace, "test-request-id", endTime, isError, `{"response":"test response payload"}`)
+	endDetails := &InvocationEndDetails{
+		EndTime:            endTime,
+		IsError:            false,
+		RequestID:          "test-request-id",
+		ResponseRawPayload: `{"response":"test response payload"}`,
+	}
+
+	endExecutionSpan(currentExecutionInfo, make(map[string]string), mockProcessTrace, endDetails)
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.lambda", executionSpan.Name)
 	assert.Equal(t, "aws.lambda", executionSpan.Service)
@@ -247,17 +293,26 @@ func TestEndExecutionSpanWithError(t *testing.T) {
 	os.Setenv(functionNameEnvVar, "TestFunction")
 	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
 	startTime := time.Now()
-	startExecutionSpan(currentExecutionInfo, nil, startTime, testString, LambdaInvokeEventHeaders{}, false)
+	startDetails := &InvocationStartDetails{
+		StartTime:          startTime,
+		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+	}
+	startExecutionSpan(currentExecutionInfo, nil, testString, startDetails, false)
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
-	isError := true
 	var tracePayload *api.Payload
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
 
-	endExecutionSpan(currentExecutionInfo, make(map[string]string), mockProcessTrace, "test-request-id", endTime, isError, "{}")
+	endDetails := &InvocationEndDetails{
+		EndTime:            endTime,
+		IsError:            true,
+		RequestID:          "test-request-id",
+		ResponseRawPayload: `{}`,
+	}
+	endExecutionSpan(currentExecutionInfo, make(map[string]string), mockProcessTrace, endDetails)
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, executionSpan.Error, int32(1))
 }
