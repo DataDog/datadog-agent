@@ -62,6 +62,8 @@ type Service struct {
 	products    map[rdata.Product]struct{}
 	newProducts map[rdata.Product]struct{}
 	clients     *clients
+
+	lastUpdateErr error
 }
 
 // uptaneClient is used to mock the uptane component for testing
@@ -198,6 +200,11 @@ func (s *Service) refresh() error {
 	previousState, err := s.uptane.TUFVersionState()
 	if err != nil {
 		log.Warnf("could not get previous TUF version state: %v", err)
+		if s.lastUpdateErr != nil {
+			s.lastUpdateErr = fmt.Errorf("%v: %v", err, s.lastUpdateErr)
+		} else {
+			s.lastUpdateErr = err
+		}
 	}
 	if s.forceRefresh() || err != nil {
 		previousState = uptane.TUFVersions{}
@@ -205,15 +212,22 @@ func (s *Service) refresh() error {
 	clientState, err := s.getClientState()
 	if err != nil {
 		log.Warnf("could not get previous backend client state: %v", err)
+		if s.lastUpdateErr != nil {
+			s.lastUpdateErr = fmt.Errorf("%v: %v", err, s.lastUpdateErr)
+		} else {
+			s.lastUpdateErr = err
+		}
 	}
-	response, err := s.api.Fetch(s.ctx, buildLatestConfigsRequest(s.hostname, previousState, activeClients, s.products, s.newProducts, clientState))
+	response, err := s.api.Fetch(s.ctx, buildLatestConfigsRequest(s.hostname, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState))
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
 		return err
 	}
+	s.lastUpdateErr = nil
 	err = s.uptane.Update(response)
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
+		s.lastUpdateErr = err
 		return err
 	}
 	s.firstUpdate = false
