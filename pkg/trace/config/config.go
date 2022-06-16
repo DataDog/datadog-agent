@@ -258,6 +258,20 @@ type ProfilingProxyConfig struct {
 	AdditionalEndpoints map[string][]string
 }
 
+// EVPProxy contains the settings for the EVPProxy proxy.
+type EVPProxy struct {
+	// Enabled reports whether EVPProxy is enabled (true by default).
+	Enabled bool
+	// DDURL is the Datadog site to forward payloads to (defaults to the Site setting if not set).
+	DDURL string
+	// APIKey is the main API Key (defaults to the main API key).
+	APIKey string
+	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
+	AdditionalEndpoints map[string][]string
+	// MaxPayloadSize indicates the size at which payloads will be rejected, in bytes.
+	MaxPayloadSize int64
+}
+
 // DebuggerProxyConfig ...
 type DebuggerProxyConfig struct {
 	// DDURL ...
@@ -379,6 +393,9 @@ type AgentConfig struct {
 	// AppSec contains AppSec configuration.
 	AppSec AppSecConfig
 
+	// EVPProxy contains the settings for the EVPProxy proxy.
+	EVPProxy EVPProxy
+
 	// DebuggerProxy contains the settings for the Live Debugger proxy.
 	DebuggerProxy DebuggerProxyConfig
 
@@ -466,6 +483,10 @@ func New() *AgentConfig {
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
 		},
 		AppSec: AppSecConfig{
+			Enabled:        true,
+			MaxPayloadSize: 5 * 1024 * 1024,
+		},
+		EVPProxy: EVPProxy{
 			Enabled:        true,
 			MaxPayloadSize: 5 * 1024 * 1024,
 		},
