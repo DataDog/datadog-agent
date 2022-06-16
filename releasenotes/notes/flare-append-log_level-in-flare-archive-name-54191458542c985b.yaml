@@ -9,5 +9,5 @@
 
 enhancements:
   - |
-    The `log_level` of the agent, is now appended
-    to the flare archive name, upon its creation.
+    The `log_level` of the agent is now appended
+    to the flare archive name upon its creation.
