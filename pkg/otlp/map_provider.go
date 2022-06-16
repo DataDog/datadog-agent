@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/internal/configutils"
-	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/service"
 	"go.uber.org/multierr"
@@ -123,19 +122,30 @@ func buildMap(cfg PipelineConfig) (*confmap.Conf, error) {
 		errs = append(errs, err)
 	}
 	if cfg.LoggingExporterLogLevel != "" {
-		if cfg.MetricsEnabled {
-			appendConfigMapValue(retMap, buildKey("service", "pipelines", "metrics", "exporters"), []interface{}{"logging"})
-		}
-		if cfg.TracesEnabled {
-			appendConfigMapValue(retMap, buildKey("service", "pipelines", "traces", "exporters"), []interface{}{"logging"})
-		}
-		errs = append(errs, retMap.Merge(config.NewMapFromStringMap(map[string]interface{}{
+		m := map[string]interface{}{
 			"exporters": map[string]interface{}{
 				"logging": map[string]interface{}{
 					"loglevel": cfg.LoggingExporterLogLevel,
 				},
 			},
-		})))
+		}
+		if cfg.MetricsEnabled {
+			key := buildKey("service", "pipelines", "metrics", "exporters")
+			if v, ok := retMap.Get(key).([]interface{}); ok {
+				m[key] = append(v, "logging")
+			} else {
+				m[key] = []interface{}{"logging"}
+			}
+		}
+		if cfg.TracesEnabled {
+			key := buildKey("service", "pipelines", "traces", "exporters")
+			if v, ok := retMap.Get(key).([]interface{}); ok {
+				m[key] = append(v, "logging")
+			} else {
+				m[key] = []interface{}{"logging"}
+			}
+		}
+		retMap.Merge(confmap.NewFromStringMap(m))
 	}
 
 	err := retMap.Merge(buildReceiverMap(cfg.OTLPReceiverConfig))
@@ -151,10 +161,4 @@ func newMapProvider(cfg PipelineConfig) (service.ConfigProvider, error) {
 		return nil, err
 	}
 	return configutils.NewConfigProviderFromMap(cfgMap), nil
-}
-
-// appendConfigMapValue appends given value to given config.Map associated to given key.
-func appendConfigMapValue(m *config.Map, key string, value []interface{}) {
-	v, _ := m.Get(key).([]interface{})
-	m.Set(key, append(v, value...))
 }
