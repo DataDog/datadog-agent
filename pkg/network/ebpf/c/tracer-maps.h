@@ -54,6 +54,19 @@ struct bpf_map_def SEC("maps/conn_close_batch") conn_close_batch = {
     .namespace = "",
 };
 
+/*
+ * Map to hold struct sock parameter for tcp_sendmsg calls
+ * to be used in kretprobe/tcp_sendmsg
+ */
+struct bpf_map_def SEC("maps/tcp_sendmsg_args") tcp_sendmsg_args = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u64),
+    .value_size = sizeof(struct sock*),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
 /* This map is used to match the kprobe & kretprobe of udp_recvmsg */
 /* This is a key/value store with the keys being a pid
  * and the values being a udp_recv_sock_t
@@ -89,7 +102,7 @@ struct bpf_map_def SEC("maps/udpv6_recv_sock") udpv6_recv_sock = {
 struct bpf_map_def SEC("maps/port_bindings") port_bindings = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(port_binding_t),
-    .value_size = sizeof(__u8),
+    .value_size = sizeof(__u32),
     .max_entries = 0, // This will get overridden at runtime using max_tracked_connections
     .pinning = 0,
     .namespace = "",
@@ -102,7 +115,7 @@ struct bpf_map_def SEC("maps/port_bindings") port_bindings = {
 struct bpf_map_def SEC("maps/udp_port_bindings") udp_port_bindings = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(port_binding_t),
-    .value_size = sizeof(__u8),
+    .value_size = sizeof(__u32),
     .max_entries = 0, // This will get overridden at runtime using max_tracked_connections
     .pinning = 0,
     .namespace = "",

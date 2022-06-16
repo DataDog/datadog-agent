@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package util
 
 import (
@@ -9,7 +14,7 @@ import (
 )
 
 func TestStaticTags(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("eks_fargate", true) // pretend this is a hostless environment
 	mockConfig.Set("kubernetes_kubelet_nodename", "eksnode")
 	defer mockConfig.Set("eks_fargate", false)
@@ -51,7 +56,7 @@ func TestStaticTags(t *testing.T) {
 }
 
 func TestStaticTagsSlice(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("eks_fargate", true) // pretend this is a hostless environment
 	mockConfig.Set("kubernetes_kubelet_nodename", "eksnode")
 	defer mockConfig.Set("eks_fargate", false)

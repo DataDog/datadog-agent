@@ -9,14 +9,18 @@
 package http
 
 import (
+	"strconv"
 	"sync/atomic"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type httpStatKeeper struct {
-	stats      map[Key]RequestStats
-	incomplete map[Key]httpTX
+	stats      map[Key]*RequestStats
+	incomplete *incompleteBuffer
 	maxEntries int
 	telemetry  *telemetry
 
@@ -29,24 +33,28 @@ type httpStatKeeper struct {
 	// map containing interned path strings
 	// this is rotated  with the stats map
 	interned map[string]string
+
+	oversizedLogLimit *util.LogLimit
 }
 
 func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
 	return &httpStatKeeper{
-		stats:        make(map[Key]RequestStats),
-		incomplete:   make(map[Key]httpTX),
-		maxEntries:   c.MaxHTTPStatsBuffered,
-		replaceRules: c.HTTPReplaceRules,
-		buffer:       make([]byte, HTTPBufferSize),
-		interned:     make(map[string]string),
-		telemetry:    telemetry,
+		stats:             make(map[Key]*RequestStats),
+		incomplete:        newIncompleteBuffer(c, telemetry),
+		maxEntries:        c.MaxHTTPStatsBuffered,
+		replaceRules:      c.HTTPReplaceRules,
+		buffer:            make([]byte, HTTPBufferSize),
+		interned:          make(map[string]string),
+		telemetry:         telemetry,
+		oversizedLogLimit: util.NewLogLimit(10, time.Minute*10),
 	}
 }
 
 func (h *httpStatKeeper) Process(transactions []httpTX) {
-	for _, tx := range transactions {
+	for i := range transactions {
+		tx := &transactions[i]
 		if tx.Incomplete() {
-			h.handleIncomplete(tx)
+			h.incomplete.Add(tx)
 			continue
 		}
 
@@ -56,104 +64,110 @@ func (h *httpStatKeeper) Process(transactions []httpTX) {
 	atomic.StoreInt64(&h.telemetry.aggregations, int64(len(h.stats)))
 }
 
-func (h *httpStatKeeper) GetAndResetAllStats() map[Key]RequestStats {
+func (h *httpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
+	for _, tx := range h.incomplete.Flush(time.Now()) {
+		h.add(tx)
+	}
+
 	ret := h.stats // No deep copy needed since `h.stats` gets reset
-	h.stats = make(map[Key]RequestStats)
-	h.incomplete = make(map[Key]httpTX)
+	h.stats = make(map[Key]*RequestStats)
 	h.interned = make(map[string]string)
 	return ret
 }
 
-func (h *httpStatKeeper) add(tx httpTX) {
-	rawPath := tx.Path(h.buffer)
+func (h *httpStatKeeper) add(tx *httpTX) {
+	rawPath, fullPath := tx.Path(h.buffer)
 	if rawPath == nil {
 		atomic.AddInt64(&h.telemetry.malformed, 1)
 		return
 	}
-	path, rejected := h.processHTTPPath(rawPath)
+
+	path, rejected := h.processHTTPPath(tx, rawPath)
 	if rejected {
-		atomic.AddInt64(&h.telemetry.rejected, 1)
 		return
 	}
 
-	key := h.newKey(tx, path)
-	stats, ok := h.stats[key]
-	if !ok && len(h.stats) >= h.maxEntries {
-		atomic.AddInt64(&h.telemetry.dropped, 1)
-		return
-	}
-
-	stats.AddRequest(tx.StatusClass(), tx.RequestLatency())
-	h.stats[key] = stats
-}
-
-// handleIncomplete is responsible for handling incomplete transactions
-// (eg. httpTX objects that have either only the request or response information)
-// this happens only in the context of localhost traffic with NAT and these disjoint
-// parts of the transactions are joined here by src port
-func (h *httpStatKeeper) handleIncomplete(tx httpTX) {
-	key := Key{
-		SrcIPHigh: uint64(tx.tup.saddr_h),
-		SrcIPLow:  uint64(tx.tup.saddr_l),
-		SrcPort:   uint16(tx.tup.sport),
-	}
-
-	otherHalf, ok := h.incomplete[key]
-	if !ok {
-		if len(h.incomplete) >= h.maxEntries {
-			atomic.AddInt64(&h.telemetry.dropped, 1)
-		} else {
-			h.incomplete[key] = tx
+	if Method(tx.request_method) == MethodUnknown {
+		atomic.AddInt64(&h.telemetry.malformed, 1)
+		if h.oversizedLogLimit.ShouldLog() {
+			log.Warnf("method should never be unknown: %s", tx.String())
 		}
-
 		return
 	}
 
-	request, response := tx, otherHalf
-	if response.StatusClass() == 0 {
-		request, response = response, request
-	}
-
-	if request.request_started == 0 || response.response_status_code == 0 || request.request_started > response.response_last_seen {
-		// This means we can't join these parts as they don't belong to the same transaction.
-		// In this case, as a best-effort we override the incomplete entry with the latest one
-		// we got from eBPF, so it can be joined by it's other half at a later moment.
-		// This can happen because we can get out-of-order half transactions from eBPF
-		atomic.AddInt64(&h.telemetry.dropped, 1)
-		h.incomplete[key] = tx
+	latency := tx.RequestLatency()
+	if latency <= 0 {
+		atomic.AddInt64(&h.telemetry.malformed, 1)
+		if h.oversizedLogLimit.ShouldLog() {
+			log.Warnf("latency should never be equal to 0: %s", tx.String())
+		}
 		return
 	}
 
-	// Merge response into request
-	request.response_status_code = response.response_status_code
-	request.response_last_seen = response.response_last_seen
-	h.add(request)
-	delete(h.incomplete, key)
+	key := h.newKey(tx, path, fullPath)
+	stats, ok := h.stats[key]
+	if !ok {
+		if len(h.stats) >= h.maxEntries {
+			atomic.AddInt64(&h.telemetry.dropped, 1)
+			return
+		}
+		stats = new(RequestStats)
+		h.stats[key] = stats
+	}
+
+	stats.AddRequest(tx.StatusClass(), latency, tx.Tags())
 }
 
-func (h *httpStatKeeper) newKey(tx httpTX, path string) Key {
+func (h *httpStatKeeper) newKey(tx *httpTX, path string, fullPath bool) Key {
 	return Key{
-		SrcIPHigh: uint64(tx.tup.saddr_h),
-		SrcIPLow:  uint64(tx.tup.saddr_l),
-		SrcPort:   uint16(tx.tup.sport),
-		DstIPHigh: uint64(tx.tup.daddr_h),
-		DstIPLow:  uint64(tx.tup.daddr_l),
-		DstPort:   uint16(tx.tup.dport),
-		Path:      path,
-		Method:    Method(tx.request_method),
+		KeyTuple: KeyTuple{
+			SrcIPHigh: uint64(tx.tup.saddr_h),
+			SrcIPLow:  uint64(tx.tup.saddr_l),
+			SrcPort:   uint16(tx.tup.sport),
+			DstIPHigh: uint64(tx.tup.daddr_h),
+			DstIPLow:  uint64(tx.tup.daddr_l),
+			DstPort:   uint16(tx.tup.dport),
+		},
+		Path: Path{
+			Content:  path,
+			FullPath: fullPath,
+		},
+		Method: Method(tx.request_method),
 	}
 }
 
-func (h *httpStatKeeper) processHTTPPath(path []byte) (pathStr string, rejected bool) {
+func pathIsMalformed(fullPath []byte) bool {
+	for _, r := range fullPath {
+		if !strconv.IsPrint(rune(r)) {
+			return true
+		}
+	}
+	return false
+}
+
+func (h *httpStatKeeper) processHTTPPath(tx *httpTX, path []byte) (pathStr string, rejected bool) {
+	match := false
 	for _, r := range h.replaceRules {
 		if r.Re.Match(path) {
 			if r.Repl == "" {
 				// this is a "drop" rule
+				atomic.AddInt64(&h.telemetry.rejected, 1)
 				return "", true
 			}
 
 			path = r.Re.ReplaceAll(path, []byte(r.Repl))
+			match = true
 		}
+	}
+
+	// If the user didn't specify a rule matching this particular path, we can check for its format.
+	// Otherwise, we don't want the custom path to be rejected by our path formatting check.
+	if !match && pathIsMalformed(path) {
+		if h.oversizedLogLimit.ShouldLog() {
+			log.Warnf("http path malformed: %s", tx.String())
+		}
+		atomic.AddInt64(&h.telemetry.malformed, 1)
+		return "", true
 	}
 
 	return h.intern(path), false

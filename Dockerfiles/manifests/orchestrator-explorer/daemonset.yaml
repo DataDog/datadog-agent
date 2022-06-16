@@ -7,6 +7,7 @@ metadata:
   namespace: default
   labels: {}
 spec:
+  revisionHistoryLimit: 10
   selector:
     matchLabels:
       app: datadog
@@ -21,9 +22,11 @@ spec:
       name: datadog
       annotations: {}
     spec:
+      securityContext:
+        runAsUser: 0
       containers:
         - name: agent
-          image: "gcr.io/datadoghq/agent:7.34.0"
+          image: "gcr.io/datadoghq/agent:7.36.1"
           imagePullPolicy: IfNotPresent
           command: ["agent", "run"]
           resources: {}
@@ -126,7 +129,7 @@ spec:
             successThreshold: 1
             timeoutSeconds: 5
         - name: process-agent
-          image: "gcr.io/datadoghq/agent:7.34.0"
+          image: "gcr.io/datadoghq/agent:7.36.1"
           imagePullPolicy: IfNotPresent
           command: ["process-agent", "-config=/etc/datadog-agent/datadog.yaml"]
           resources: {}
@@ -192,7 +195,7 @@ spec:
               readOnly: true
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/agent:7.34.0"
+          image: "gcr.io/datadoghq/agent:7.36.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -202,7 +205,7 @@ spec:
               mountPath: /opt/datadog-agent
           resources: {}
         - name: init-config
-          image: "gcr.io/datadoghq/agent:7.34.0"
+          image: "gcr.io/datadoghq/agent:7.36.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -266,7 +269,7 @@ spec:
           name: runtimesocketdir
       tolerations:
       affinity: {}
-      serviceAccountName: datadog
+      serviceAccountName: "datadog"
       nodeSelector:
         kubernetes.io/os: linux
   updateStrategy:

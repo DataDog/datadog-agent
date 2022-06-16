@@ -121,7 +121,7 @@ func (d *dockerCollector) GetContainerIDForPID(pid int, cacheValidity time.Durat
 		return "", err
 	}
 
-	// Use harcoded cacheValidity as input one could be 0
+	// Use hardcoded cacheValidity as input one could be 0
 	cID, found, _ = d.pidCache.Get(currentTime, strPid, time.Second)
 	if found {
 		return cID.(string), nil
@@ -174,11 +174,7 @@ func (d *dockerCollector) refreshPIDCache(currentTime time.Time, cacheValidity t
 	}
 
 	// Full refresh
-	containers, err := d.metadataStore.ListContainers()
-	if err != nil {
-		d.pidCache.Store(currentTime, pidCacheFullRefreshKey, struct{}{}, err)
-		return err
-	}
+	containers := d.metadataStore.ListContainers()
 
 	for _, container := range containers {
 		if container.Runtime == workloadmeta.ContainerRuntimeDocker && container.PID != 0 {
@@ -204,6 +200,17 @@ func fillStatsFromSpec(containerStats *provider.ContainerStats, spec *types.Cont
 	}
 
 	computeCPULimit(containerStats, spec)
+	computeMemoryLimit(containerStats, spec)
+}
+
+func computeMemoryLimit(containerStats *provider.ContainerStats, spec *types.ContainerJSON) {
+	if spec == nil || spec.HostConfig == nil || containerStats.Memory == nil {
+		return
+	}
+
+	if spec.HostConfig.Memory > 0 {
+		containerStats.Memory.Limit = pointer.IntToFloatPtr(spec.HostConfig.Memory)
+	}
 }
 
 func convertNetworkStats(stats *types.StatsJSON) *provider.ContainerNetworkStats {

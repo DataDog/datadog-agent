@@ -11,6 +11,7 @@ import (
 
 // Services provides new and removed services.
 type Services struct {
+	services       []*Service
 	addedPerType   map[string][]chan *Service
 	removedPerType map[string][]chan *Service
 	allAdded       []chan *Service
@@ -31,6 +32,8 @@ func (s *Services) AddService(service *Service) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	s.services = append(s.services, service)
+
 	added, _ := s.addedPerType[service.Type]
 	for _, ch := range append(added, s.allAdded...) {
 		ch <- service
@@ -42,6 +45,12 @@ func (s *Services) RemoveService(service *Service) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	for i, svc := range s.services {
+		if svc.Type == service.Type && svc.Identifier == service.Identifier {
+			s.services = append(s.services[:i], s.services[i+1:]...)
+		}
+	}
+
 	removed, _ := s.removedPerType[service.Type]
 	for _, ch := range append(removed, s.allRemoved...) {
 		ch <- service
@@ -49,12 +58,23 @@ func (s *Services) RemoveService(service *Service) {
 }
 
 // GetAddedServicesForType returns a stream of new services for a given type.
+//
+// Any services added before this call are delivered from a new goroutine.
 func (s *Services) GetAddedServicesForType(serviceType string) chan *Service {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	added := make(chan *Service)
 	s.addedPerType[serviceType] = append(s.addedPerType[serviceType], added)
+
+	existingServices := append([]*Service{}, s.services...) // clone for goroutine
+	go func() {
+		for _, svc := range existingServices {
+			if svc.Type == serviceType {
+				added <- svc
+			}
+		}
+	}()
 
 	return added
 }
@@ -71,12 +91,21 @@ func (s *Services) GetRemovedServicesForType(serviceType string) chan *Service {
 }
 
 // GetAllAddedServices registers the channel to receive all added services.
+//
+// Any services added before this call are delivered from a new goroutine.
 func (s *Services) GetAllAddedServices() chan *Service {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	added := make(chan *Service)
 	s.allAdded = append(s.allAdded, added)
+
+	existingServices := append([]*Service{}, s.services...) // clone for goroutine
+	go func() {
+		for _, svc := range existingServices {
+			added <- svc
+		}
+	}()
 
 	return added
 }

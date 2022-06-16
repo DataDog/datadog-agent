@@ -14,7 +14,7 @@ typedef enum
     CONN_DIRECTION_OUTGOING = 0b10,
 } conn_direction_t;
 
-typedef enum 
+typedef enum
 {
     PACKET_COUNT_NONE = 0,
     PACKET_COUNT_ABSOLUTE = 1,
@@ -97,8 +97,8 @@ typedef struct {
 // This struct is populated by calling `read_conn_tuple_skb` from a program type
 // that manipulates a `__sk_buff` object.
 typedef struct {
-    conn_tuple_t tup;
     __u32 data_off;
+    __u32 tcp_seq;
     __u8 tcp_flags;
 } skb_info_t;
 
@@ -128,9 +128,6 @@ typedef struct {
     __u64 udp_sends_missed;
     __u64 conn_stats_max_entries_hit;
 } telemetry_t;
-
-#define PORT_LISTENING 1
-#define PORT_CLOSED 0
 
 typedef struct {
     __u16 port;

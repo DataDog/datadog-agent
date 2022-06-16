@@ -332,7 +332,7 @@ func testSketch(t *testing.T, store *tags.Store) {
 		}
 
 		_, flushed := flushSerie(sampler, now)
-		metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+		metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
 			Name:     name,
 			Tags:     tagset.CompositeTagsFromSlice(tags),
 			Host:     host,
@@ -383,7 +383,7 @@ func testSketchBucketSampling(t *testing.T, store *tags.Store) {
 	expSketch.Insert(quantile.Default(), 1, 2)
 
 	assert.Equal(t, 1, len(flushed))
-	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
 		Name:     "test.metric.name",
 		Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
 		Interval: 10,
@@ -430,7 +430,7 @@ func testSketchContextSampling(t *testing.T, store *tags.Store) {
 		return flushed[i].Name < flushed[j].Name
 	})
 
-	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
 		Name:     "test.metric.name1",
 		Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
 		Interval: 10,
@@ -440,7 +440,7 @@ func testSketchContextSampling(t *testing.T, store *tags.Store) {
 		ContextKey: generateContextKey(&mSample1),
 	}, flushed[0])
 
-	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
 		Name:     "test.metric.name2",
 		Tags:     tagset.CompositeTagsFromSlice([]string{"a", "c"}),
 		Interval: 10,
@@ -498,7 +498,7 @@ func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
 	expSketch := &quantile.Sketch{}
 	expSketch.Insert(quantile.Default(), 1)
 
-	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
 		Name:     "distribution.metric.name1",
 		Tags:     tagset.CompositeTagsFromSlice([]string{"a", "b"}),
 		Interval: 10,
@@ -534,6 +534,8 @@ func BenchmarkTimeSampler(b *testing.B) {
 
 func flushSerie(sampler *TimeSampler, timestamp float64) (metrics.Series, metrics.SketchSeriesList) {
 	var series metrics.Series
-	sketches := sampler.flush(timestamp, &series)
+	var sketches metrics.SketchSeriesList
+
+	sampler.flush(timestamp, &series, &sketches)
 	return series, sketches
 }

@@ -65,8 +65,10 @@ func newTestReceiverConfig() *config.AgentConfig {
 
 func TestMain(m *testing.M) {
 	defer func(old func(string, ...interface{})) { killProcess = old }(killProcess)
-	killProcess = func(_ string, _ ...interface{}) {}
-
+	killProcess = func(format string, args ...interface{}) {
+		fmt.Printf(format, args...)
+		fmt.Println()
+	}
 	os.Exit(m.Run())
 }
 
@@ -406,7 +408,7 @@ func TestReceiverDecodingError(t *testing.T) {
 		resp, err := client.Do(req)
 		assert.NoError(err)
 		assert.Equal(400, resp.StatusCode)
-		assert.EqualValues(0, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError)
+		assert.EqualValues(0, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError.Load())
 	})
 
 	t.Run("with-header", func(t *testing.T) {
@@ -419,7 +421,7 @@ func TestReceiverDecodingError(t *testing.T) {
 		resp, err := client.Do(req)
 		assert.NoError(err)
 		assert.Equal(400, resp.StatusCode)
-		assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError)
+		assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError.Load())
 	})
 }
 
@@ -449,7 +451,7 @@ func TestReceiverUnexpectedEOF(t *testing.T) {
 	assert.NoError(err)
 
 	assert.Equal(400, resp.StatusCode)
-	assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.5"}).TracesDropped.EOF)
+	assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.5"}).TracesDropped.EOF.Load())
 }
 
 func TestTraceCount(t *testing.T) {
@@ -461,19 +463,19 @@ func TestTraceCount(t *testing.T) {
 			delete(req.Header, k)
 		}
 		_, err := traceCount(req)
-		assert.Contains(t, err.Error(), "not found")
+		assert.EqualError(t, err, fmt.Sprintf("HTTP header %q not found", headerTraceCount))
 	})
 
 	t.Run("value-empty", func(t *testing.T) {
 		req.Header.Set(headerTraceCount, "")
 		_, err := traceCount(req)
-		assert.Contains(t, err.Error(), "value not set")
+		assert.EqualError(t, err, fmt.Sprintf("HTTP header %q not found", headerTraceCount))
 	})
 
 	t.Run("value-bad", func(t *testing.T) {
 		req.Header.Set(headerTraceCount, "qwe")
 		_, err := traceCount(req)
-		assert.Contains(t, err.Error(), "can not be parsed")
+		assert.Equal(t, err, errInvalidHeaderTraceCountValue)
 	})
 
 	t.Run("ok", func(t *testing.T) {
@@ -749,8 +751,8 @@ func TestHandleTraces(t *testing.T) {
 	for _, lang := range langs {
 		ts, ok := rs.Stats[info.Tags{Lang: lang, EndpointVersion: "v0.4"}]
 		assert.True(ok)
-		assert.Equal(int64(20), ts.TracesReceived)
-		assert.Equal(int64(61822), ts.TracesBytes)
+		assert.Equal(int64(20), ts.TracesReceived.Load())
+		assert.Equal(int64(61822), ts.TracesBytes.Load())
 	}
 	// make sure we have all our languages registered
 	assert.Equal("C#|go|java|python|ruby", receiver.Languages())

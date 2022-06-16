@@ -171,6 +171,7 @@ func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options typ
 	return filtered, nil
 }
 
+// GetHostname returns the hostname from the docker api
 func (d *DockerUtil) GetHostname(ctx context.Context) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
@@ -352,10 +353,11 @@ func (d *DockerUtil) AllContainerLabels(ctx context.Context) (map[string]map[str
 	return labelMap, nil
 }
 
+// GetContainerStats returns docker container stats
 func (d *DockerUtil) GetContainerStats(ctx context.Context, containerID string) (*types.StatsJSON, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
-	stats, err := d.cli.ContainerStats(ctx, containerID, false)
+	stats, err := d.cli.ContainerStatsOneShot(ctx, containerID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get Docker stats: %s", err)
 	}

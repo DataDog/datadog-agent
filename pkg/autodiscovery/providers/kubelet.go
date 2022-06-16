@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -79,6 +80,7 @@ func (k *KubeletConfigProvider) listen() {
 	ch := k.workloadmetaStore.Subscribe(name, workloadmeta.NormalPriority, workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
 		workloadmeta.SourceNodeOrchestrator,
+		workloadmeta.EventTypeAll,
 	))
 
 	for {
@@ -163,6 +165,10 @@ func (k *KubeletConfigProvider) generateConfigs() ([]integration.Config, error) 
 					errs = append(errs, err)
 				}
 				continue
+			}
+
+			if util.CcaInAD() {
+				c = utils.AddContainerCollectAllConfigs(c, containerEntity)
 			}
 
 			containerIdentifiers[adIdentifier] = struct{}{}

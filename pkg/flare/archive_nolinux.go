@@ -12,7 +12,11 @@ func zipLinuxKernelSymbols(tempDir, hostname string) error {
 	return nil
 }
 
-func zipLinuxKrobeEvents(tempDir, hostname string) error {
+func zipLinuxKprobeEvents(tempDir, hostname string) error {
+	return nil
+}
+
+func zipLinuxDmesg(tempDir, hostname string) error {
 	return nil
 }
 

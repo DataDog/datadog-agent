@@ -19,10 +19,11 @@ int __attribute__((always_inline)) unlink_approvers(struct syscall_cache_t *sysc
     return basename_approver(syscall, syscall->unlink.dentry, EVENT_UNLINK);
 }
 
-int __attribute__((always_inline)) trace__sys_unlink(int flags) {
+int __attribute__((always_inline)) trace__sys_unlink(u8 async, int flags) {
     struct syscall_cache_t syscall = {
         .type = EVENT_UNLINK,
         .policy = fetch_policy(EVENT_UNLINK),
+        .async = async,
         .unlink = {
             .flags = flags,
         }
@@ -34,11 +35,20 @@ int __attribute__((always_inline)) trace__sys_unlink(int flags) {
 }
 
 SYSCALL_KPROBE0(unlink) {
-    return trace__sys_unlink(0);
+    return trace__sys_unlink(SYNC_SYSCALL, 0);
 }
 
 SYSCALL_KPROBE3(unlinkat, int, dirfd, const char*, filename, int, flags) {
-    return trace__sys_unlink(flags);
+    return trace__sys_unlink(SYNC_SYSCALL, flags);
+}
+
+SEC("kprobe/do_unlinkat")
+int kprobe_do_unlinkat(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
+    if (!syscall) {
+        return trace__sys_unlink(ASYNC_SYSCALL, 0);
+    }
+    return 0;
 }
 
 SEC("kprobe/vfs_unlink")
@@ -117,6 +127,7 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
         if (syscall->unlink.flags & AT_REMOVEDIR) {
             struct rmdir_event_t event = {
                 .syscall.retval = retval,
+                .event.async = syscall->async,
                 .file = syscall->unlink.file,
             };
 
@@ -128,6 +139,7 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
         } else {
             struct unlink_event_t event = {
                 .syscall.retval = retval,
+                .event.async = syscall->async,
                 .file = syscall->unlink.file,
                 .flags = syscall->unlink.flags,
             };
@@ -145,6 +157,12 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
     }
 
     return 0;
+}
+
+SEC("kretprobe/do_unlinkat")
+int kretprobe_do_unlinkat(struct pt_regs *ctx) {
+    int retval = PT_REGS_RC(ctx);
+    return sys_unlink_ret(ctx, retval);
 }
 
 int __attribute__((always_inline)) kprobe_sys_unlink_ret(struct pt_regs *ctx) {

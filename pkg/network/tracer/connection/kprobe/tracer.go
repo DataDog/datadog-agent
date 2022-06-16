@@ -32,6 +32,8 @@ import (
 
 const (
 	defaultClosedChannelSize = 500
+
+	probeUID = "net"
 )
 
 type kprobeTracer struct {
@@ -131,6 +133,7 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  string(probeName),
 					EBPFFuncName: funcName,
+					UID:          probeUID,
 				},
 			})
 	}
@@ -374,37 +377,35 @@ func (t *kprobeTracer) DumpMaps(maps ...string) (string, error) {
 }
 
 func initializePortBindingMaps(config *config.Config, m *manager.Manager) error {
-	if tcpPorts, err := network.ReadInitialState(config.ProcRoot, network.TCP, config.CollectIPv6Conns); err != nil {
+	if tcpPorts, err := network.ReadInitialState(config.ProcRoot, network.TCP, config.CollectIPv6Conns, true); err != nil {
 		return fmt.Errorf("failed to read initial TCP pid->port mapping: %s", err)
 	} else {
 		tcpPortMap, _, err := m.GetMap(string(probes.PortBindingsMap))
 		if err != nil {
 			return fmt.Errorf("failed to get TCP port binding map: %w", err)
 		}
-		for p := range tcpPorts {
+		for p, count := range tcpPorts {
 			log.Debugf("adding initial TCP port binding: netns: %d port: %d", p.Ino, p.Port)
 			pb := netebpf.PortBinding{Netns: p.Ino, Port: p.Port}
-			state := netebpf.PortListening
-			err = tcpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&state), ebpf.UpdateNoExist)
+			err = tcpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&count), ebpf.UpdateNoExist)
 			if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
 				return fmt.Errorf("failed to update TCP port binding map: %w", err)
 			}
 		}
 	}
 
-	if udpPorts, err := network.ReadInitialState(config.ProcRoot, network.UDP, config.CollectIPv6Conns); err != nil {
+	if udpPorts, err := network.ReadInitialState(config.ProcRoot, network.UDP, config.CollectIPv6Conns, false); err != nil {
 		return fmt.Errorf("failed to read initial UDP pid->port mapping: %s", err)
 	} else {
 		udpPortMap, _, err := m.GetMap(string(probes.UdpPortBindingsMap))
 		if err != nil {
 			return fmt.Errorf("failed to get UDP port binding map: %w", err)
 		}
-		for p := range udpPorts {
+		for p, count := range udpPorts {
 			log.Debugf("adding initial UDP port binding: netns: %d port: %d", p.Ino, p.Port)
 			// UDP port bindings currently do not have network namespace numbers
 			pb := netebpf.PortBinding{Netns: 0, Port: p.Port}
-			state := netebpf.PortListening
-			err = udpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&state), ebpf.UpdateNoExist)
+			err = udpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&count), ebpf.UpdateNoExist)
 			if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
 				return fmt.Errorf("failed to update UDP port binding map: %w", err)
 			}
@@ -417,9 +418,9 @@ func updateTCPStats(conn *network.ConnectionStats, tcpStats *netebpf.TCPStats) {
 	if conn.Type != network.TCP {
 		return
 	}
-	conn.MonotonicRetransmits = tcpStats.Retransmits
-	conn.MonotonicTCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
-	conn.MonotonicTCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
+	conn.Monotonic.Retransmits = tcpStats.Retransmits
+	conn.Monotonic.TCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
+	conn.Monotonic.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
 	conn.RTT = tcpStats.Rtt
 	conn.RTTVar = tcpStats.Rtt_var
 }
@@ -452,19 +453,21 @@ func (t *kprobeTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnT
 
 func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *netebpf.ConnStats) {
 	*stats = network.ConnectionStats{
-		Pid:                  t.Pid,
-		NetNS:                t.Netns,
-		Source:               t.SourceAddress(),
-		Dest:                 t.DestAddress(),
-		SPort:                t.Sport,
-		DPort:                t.Dport,
-		SPortIsEphemeral:     network.IsPortInEphemeralRange(t.Sport),
-		MonotonicSentBytes:   s.Sent_bytes,
-		MonotonicRecvBytes:   s.Recv_bytes,
-		MonotonicSentPackets: s.Sent_packets,
-		MonotonicRecvPackets: s.Recv_packets,
-		LastUpdateEpoch:      s.Timestamp,
-		IsAssured:            s.IsAssured(),
+		Pid:              t.Pid,
+		NetNS:            t.Netns,
+		Source:           t.SourceAddress(),
+		Dest:             t.DestAddress(),
+		SPort:            t.Sport,
+		DPort:            t.Dport,
+		SPortIsEphemeral: network.IsPortInEphemeralRange(t.Sport),
+		Monotonic: network.StatCounters{
+			SentBytes:   s.Sent_bytes,
+			RecvBytes:   s.Recv_bytes,
+			SentPackets: s.Sent_packets,
+			RecvPackets: s.Recv_packets,
+		},
+		LastUpdateEpoch: s.Timestamp,
+		IsAssured:       s.IsAssured(),
 	}
 
 	if t.Type() == netebpf.TCP {

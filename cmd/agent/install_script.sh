@@ -6,7 +6,7 @@
 # using the package manager and Datadog repositories.
 
 set -e
-install_script_version=1.8.0.post
+install_script_version=1.9.0.post
 logfile="ddagent-install.log"
 support_email=support@datadoghq.com
 
@@ -270,8 +270,13 @@ fi
 
 agent_dist_channel=stable
 if [ -n "$DD_AGENT_DIST_CHANNEL" ]; then
-  if [ "$DD_AGENT_DIST_CHANNEL" != "stable" ] && [ "$DD_AGENT_DIST_CHANNEL" != "beta" ]; then
-    echo "DD_AGENT_DIST_CHANNEL must be either 'stable' or 'beta'. Current value: $DD_AGENT_DIST_CHANNEL"
+  if [ "$repository_url" == "datadoghq.com" ]; then
+    if [ "$DD_AGENT_DIST_CHANNEL" != "stable" ] && [ "$DD_AGENT_DIST_CHANNEL" != "beta" ]; then
+      echo "DD_AGENT_DIST_CHANNEL must be either 'stable' or 'beta'. Current value: $DD_AGENT_DIST_CHANNEL"
+      exit 1;
+    fi
+  elif [ "$DD_AGENT_DIST_CHANNEL" != "stable" ] && [ "$DD_AGENT_DIST_CHANNEL" != "beta" ] && [ "$DD_AGENT_DIST_CHANNEL" != "nightly" ]; then
+    echo "DD_AGENT_DIST_CHANNEL must be either 'stable', 'beta' or 'nightly' on custom repos. Current value: $DD_AGENT_DIST_CHANNEL"
     exit 1;
   fi
   agent_dist_channel=$DD_AGENT_DIST_CHANNEL
@@ -467,8 +472,8 @@ elif [ "$OS" = "Debian" ]; then
           fi
       else
           if ! echo "$agent_flavor" | grep '[0-9]' > /dev/null; then
-              echo -e "  \033[33m$nice_flavor $agent_major_version.35 will be the last supported version on $DISTRIBUTION $release_version. Installing $agent_major_version.34 now.\n\033[0m"
-              agent_minor_version=34
+              echo -e "  \033[33m$nice_flavor $agent_major_version.35 is the last supported version on $DISTRIBUTION $release_version. Installing $agent_major_version.35 now.\n\033[0m"
+              agent_minor_version=35
           fi
       fi
     fi
@@ -489,7 +494,7 @@ determine the cause.
 If the cause is unclear, please contact Datadog support.
 *****
 "
-    
+
     if [ -n "$agent_minor_version" ]; then
         # Example: datadog-agent=1:7.20.2-1
         pkg_pattern="([[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
@@ -569,7 +574,7 @@ elif [ "$OS" = "SUSE" ]; then
 
   echo -e "\033[34m\n* Refreshing repositories\n\033[0m"
   $sudo_cmd zypper --non-interactive --no-gpg-checks refresh datadog
-  
+
   echo -e "\033[34m\n* Installing the $nice_flavor package\n\033[0m"
 
   # ".32" is the latest version supported for OpenSUSE < 15 and SLES < 12

@@ -9,6 +9,7 @@
 package tracer
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -113,7 +114,11 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	defer offsetBuf.Close()
 
 	// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
-	needsOffsets := !config.EnableRuntimeCompiler || config.AllowPrecompiledFallback
+	needsOffsets := (!config.EnableRuntimeCompiler ||
+		config.AllowPrecompiledFallback ||
+		// hotfix: always force offset guessing for kernel < 4.5 when HTTPS monitoring is enabled
+		(config.EnableHTTPSMonitoring && currKernelVersion < kernel.VersionCode(4, 5, 0)))
+
 	var constantEditors []manager.ConstantEditor
 	if needsOffsets {
 		for i := 0; i < 5; i++ {
@@ -154,7 +159,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	tr := &Tracer{
 		config:                     config,
 		state:                      state,
-		reverseDNS:                 newReverseDNS(!pre410Kernel, config),
+		reverseDNS:                 newReverseDNS(config),
 		httpMonitor:                newHTTPMonitor(!pre410Kernel, config, ebpfTracer, constantEditors),
 		activeBuffer:               network.NewConnectionBuffer(512, 256),
 		conntracker:                conntracker,
@@ -219,12 +224,8 @@ func newConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	return c, nil
 }
 
-func newReverseDNS(supported bool, c *config.Config) dns.ReverseDNS {
+func newReverseDNS(c *config.Config) dns.ReverseDNS {
 	if !c.DNSInspection {
-		return dns.NewNullReverseDNS()
-	}
-	if !supported {
-		log.Warnf("DNS inspection not supported by kernel versions < 4.1.0. Please see https://docs.datadoghq.com/network_performance_monitoring/installation for more details.")
 		return dns.NewNullReverseDNS()
 	}
 
@@ -264,6 +265,7 @@ func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manag
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  string(probeName),
 					EBPFFuncName: funcName,
+					UID:          "offset",
 				},
 			})
 	}
@@ -418,6 +420,7 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 	telemetryByAsset := map[string]map[string]int64{
 		"tracer":          runtime.Tracer.GetTelemetry(),
 		"conntrack":       runtime.Conntrack.GetTelemetry(),
+		"http":            runtime.Http.GetTelemetry(),
 		"oomKill":         runtime.OomKill.GetTelemetry(),
 		"runtimeSecurity": runtime.RuntimeSecurity.GetTelemetry(),
 		"tcpQueueLength":  runtime.TcpQueueLength.GetTelemetry(),
@@ -527,12 +530,8 @@ func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 		t.conntracker.DeleteTranslation(*entry)
 
 		// Append the connection key to the keys to remove from the userspace state
-		bk, err := entry.ByteKey(t.buf)
-		if err != nil {
-			log.Warnf("failed to create connection byte_key: %s", err)
-		} else {
-			keys = append(keys, string(bk))
-		}
+		bk := entry.ByteKey(t.buf)
+		keys = append(keys, string(bk))
 	}
 
 	t.state.RemoveConnections(keys)
@@ -728,6 +727,58 @@ func (t *Tracer) retryConntrack(connections []network.ConnectionStats) {
 			}
 		}
 	}
+}
+
+// DebugCachedConntrack dumps the cached NAT conntrack data
+func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) {
+	rootNSHandle, err := util.GetRootNetNamespace(t.config.ProcRoot)
+	if err != nil {
+		return nil, err
+	}
+	defer rootNSHandle.Close()
+
+	rootNS, err := util.GetInoForNs(rootNSHandle)
+	if err != nil {
+		return nil, err
+	}
+	table, err := t.conntracker.DumpCachedTable(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return struct {
+		RootNS  uint32
+		Entries map[uint32][]netlink.DebugConntrackEntry
+	}{
+		RootNS:  rootNS,
+		Entries: table,
+	}, nil
+}
+
+// DebugHostConntrack dumps the NAT conntrack data obtained from the host via netlink.
+func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
+	rootNSHandle, err := util.GetRootNetNamespace(t.config.ProcRoot)
+	if err != nil {
+		return nil, err
+	}
+	defer rootNSHandle.Close()
+
+	rootNS, err := util.GetInoForNs(rootNSHandle)
+	if err != nil {
+		return nil, err
+	}
+	table, err := netlink.DumpHostTable(ctx, t.config.ProcRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	return struct {
+		RootNS  uint32
+		Entries map[uint32][]netlink.DebugConntrackEntry
+	}{
+		RootNS:  rootNS,
+		Entries: table,
+	}, nil
 }
 
 func newHTTPMonitor(supported bool, c *config.Config, tracer connection.Tracer, offsets []manager.ConstantEditor) *http.Monitor {

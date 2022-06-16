@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"sort"
 
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -58,7 +57,7 @@ func initF() {
 
 func testNewFlushTrigger(start time.Time, waitForSerializer bool) flushTrigger {
 	seriesSink := metrics.NewIterableSeries(func(se *metrics.Serie) {}, 1000, 1000)
-	flushedSketches := make([]metrics.SketchSeriesList, 0)
+	flushedSketches := make(metrics.SketchSeriesList, 0)
 
 	return flushTrigger{
 		trigger: trigger{
@@ -66,8 +65,8 @@ func testNewFlushTrigger(start time.Time, waitForSerializer bool) flushTrigger {
 			blockChan:         nil,
 			waitForSerializer: waitForSerializer,
 		},
-		flushedSketches: &flushedSketches,
-		seriesSink:      seriesSink,
+		sketchesSink: &flushedSketches,
+		seriesSink:   seriesSink,
 	}
 }
 
@@ -75,7 +74,7 @@ func getAggregator() *BufferedAggregator {
 	if demultiplexerInstance == nil {
 		initF()
 	}
-	return demultiplexerInstance.Aggregator()
+	return demultiplexerInstance.(*AgentDemultiplexer).Aggregator()
 }
 
 func TestRegisterCheckSampler(t *testing.T) {
@@ -260,7 +259,7 @@ func TestDefaultData(t *testing.T) {
 	s.AssertNotCalled(t, "SendSketch")
 
 	// not counted as huge for (just checking the first threshold..)
-	assert.Equal(t, uint64(0), atomic.LoadUint64(&tagsetTlm.hugeSeriesCount[0]))
+	assert.Equal(t, uint64(0), tagsetTlm.hugeSeriesCount[0].Load())
 }
 
 func TestSeriesTooManyTags(t *testing.T) {
@@ -309,7 +308,7 @@ func TestSeriesTooManyTags(t *testing.T) {
 
 			expMap := map[string]uint64{}
 			for i, thresh := range tagsetTlm.sizeThresholds {
-				assert.Equal(t, expHugeCounts[i], atomic.LoadUint64(&tagsetTlm.hugeSeriesCount[i]))
+				assert.Equal(t, expHugeCounts[i], tagsetTlm.hugeSeriesCount[i].Load())
 				expMap[fmt.Sprintf("Above%d", thresh)] = expHugeCounts[i]
 			}
 			gotMap := aggregatorExpvars.Get("MetricTags").(expvar.Func).Value().(map[string]map[string]uint64)["Series"]
@@ -374,7 +373,7 @@ func TestDistributionsTooManyTags(t *testing.T) {
 
 			expMap := map[string]uint64{}
 			for i, thresh := range tagsetTlm.sizeThresholds {
-				assert.Equal(t, expHugeCounts[i], atomic.LoadUint64(&tagsetTlm.hugeSketchesCount[i]))
+				assert.Equal(t, expHugeCounts[i], tagsetTlm.hugeSketchesCount[i].Load())
 				expMap[fmt.Sprintf("Above%d", thresh)] = expHugeCounts[i]
 			}
 			gotMap := aggregatorExpvars.Get("MetricTags").(expvar.Func).Value().(map[string]map[string]uint64)["Sketches"]
@@ -566,11 +565,9 @@ type MockSerializerIterableSerie struct {
 	serializer.MockSerializer
 }
 
-func (s *MockSerializerIterableSerie) SendIterableSeries(iterableSerie *metrics.IterableSeries) error {
-	defer iterableSerie.IterationStopped()
-
-	for iterableSerie.MoveNext() {
-		s.series = append(s.series, iterableSerie.Current())
+func (s *MockSerializerIterableSerie) SendIterableSeries(seriesSource metrics.SerieSource) error {
+	for seriesSource.MoveNext() {
+		s.series = append(s.series, seriesSource.Current())
 	}
 	return nil
 }

@@ -53,6 +53,9 @@ CWS logs have the following JSON schema:
         "network": {
             "$ref": "#/definitions/NetworkContext"
         },
+        "bind": {
+            "$ref": "#/definitions/BindEvent"
+        },
         "usr": {
             "$ref": "#/definitions/UserContext"
         },
@@ -90,6 +93,7 @@ CWS logs have the following JSON schema:
 | `splice` | $ref | Please see [SpliceEvent](#spliceevent) |
 | `dns` | $ref | Please see [DNSEvent](#dnsevent) |
 | `network` | $ref | Please see [NetworkContext](#networkcontext) |
+| `bind` | $ref | Please see [BindEvent](#bindevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
@@ -206,6 +210,34 @@ CWS logs have the following JSON schema:
 | `attach_type` | Attach type of the BPF program |
 | `helpers` | List of helpers used by the BPF program |
 
+
+## `BindEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "addr"
+    ],
+    "properties": {
+        "addr": {
+            "$ref": "#/definitions/IPPortFamily",
+            "description": "Bound address (if any)"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `addr` | Bound address (if any) |
+
+| References |
+| ---------- |
+| [IPPortFamily](#ipportfamily) |
 
 ## `ContainerContext`
 
@@ -355,6 +387,10 @@ CWS logs have the following JSON schema:
         "outcome": {
             "type": "string",
             "description": "Event outcome"
+        },
+        "async": {
+            "type": "boolean",
+            "description": "True if the event was asynchronous"
         }
     },
     "additionalProperties": false,
@@ -368,6 +404,7 @@ CWS logs have the following JSON schema:
 | `name` | Event name |
 | `category` | Event category |
 | `outcome` | Event outcome |
+| `async` | True if the event was asynchronous |
 
 
 ## `File`
@@ -655,6 +692,43 @@ CWS logs have the following JSON schema:
 
 | Field | Description |
 | ----- | ----------- |
+| `ip` | IP address |
+| `port` | Port number |
+
+
+## `IPPortFamily`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "family",
+        "ip",
+        "port"
+    ],
+    "properties": {
+        "family": {
+            "type": "string",
+            "description": "Address family"
+        },
+        "ip": {
+            "type": "string",
+            "description": "IP address"
+        },
+        "port": {
+            "type": "integer",
+            "description": "Port number"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `family` | Address family |
 | `ip` | IP address |
 | `port` | Port number |
 
@@ -1018,6 +1092,10 @@ CWS logs have the following JSON schema:
         "envs_truncated": {
             "type": "boolean",
             "description": "Indicator of environments variable truncation"
+        },
+        "is_thread": {
+            "type": "boolean",
+            "description": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)"
         }
     },
     "additionalProperties": false,
@@ -1049,6 +1127,7 @@ CWS logs have the following JSON schema:
 | `args_truncated` | Indicator of arguments truncation |
 | `envs` | Environment variables of the process |
 | `envs_truncated` | Indicator of environments variable truncation |
+| `is_thread` | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 
 | References |
 | ---------- |
@@ -1159,6 +1238,10 @@ CWS logs have the following JSON schema:
             "type": "boolean",
             "description": "Indicator of environments variable truncation"
         },
+        "is_thread": {
+            "type": "boolean",
+            "description": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)"
+        },
         "parent": {
             "$ref": "#/definitions/Process",
             "description": "Parent process"
@@ -1200,6 +1283,7 @@ CWS logs have the following JSON schema:
 | `args_truncated` | Indicator of arguments truncation |
 | `envs` | Environment variables of the process |
 | `envs_truncated` | Indicator of environments variable truncation |
+| `is_thread` | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | `parent` | Parent process |
 | `ancestors` | Ancestor processes |
 

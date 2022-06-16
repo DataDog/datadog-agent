@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package testutil
 
 import (
@@ -47,8 +52,8 @@ type OTLPResourceSpan struct {
 	Spans      []*OTLPSpan
 }
 
-// SetOTLPSpan configures span based on s.
-func SetOTLPSpan(span ptrace.Span, s *OTLPSpan) {
+// setOTLPSpan configures span based on s.
+func setOTLPSpan(span ptrace.Span, s *OTLPSpan) {
 	if isZero(s.TraceID[:]) {
 		span.SetTraceID(OTLPFixedTraceID)
 	} else {
@@ -89,7 +94,7 @@ func SetOTLPSpan(span ptrace.Span, s *OTLPSpan) {
 // NewOTLPSpan creates a new OTLP Span with the given options.
 func NewOTLPSpan(s *OTLPSpan) ptrace.Span {
 	span := ptrace.NewSpan()
-	SetOTLPSpan(span, s)
+	setOTLPSpan(span, s)
 	return span
 }
 
@@ -106,12 +111,11 @@ func NewOTLPTracesRequest(defs []OTLPResourceSpan) ptraceotlp.Request {
 		insertAttributes(rspan.Resource().Attributes(), def.Attributes)
 		for _, spandef := range def.Spans {
 			span := ilibspan.Spans().AppendEmpty()
-			SetOTLPSpan(span, spandef)
+			setOTLPSpan(span, spandef)
 		}
 	}
 
-	tr := ptraceotlp.NewRequest()
-	tr.SetTraces(td)
+	tr := ptraceotlp.NewRequestFromTraces(td)
 	return tr
 }
 

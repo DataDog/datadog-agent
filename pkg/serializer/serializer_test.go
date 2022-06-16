@@ -277,21 +277,21 @@ func TestSendV1Series(t *testing.T) {
 
 	s := NewSerializer(f, nil, nil)
 
-	err := s.SendIterableSeries(metricsserializer.CreateIterableSeries(metrics.Series{}))
+	err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{}))
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 }
 
 func TestSendSeries(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
-	matcher := createProtoPayloadMatcher([]byte{10, 8, 10, 6, 10, 4, 104, 111, 115, 116})
+	matcher := createProtoPayloadMatcher([]byte{0xa, 0xa, 0xa, 0x6, 0xa, 0x4, 0x68, 0x6f, 0x73, 0x74, 0x28, 0x3})
 	f.On("SubmitSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 	config.Datadog.Set("use_v2_api.series", true)
 	defer config.Datadog.Set("use_v2_api.series", false)
 
 	s := NewSerializer(f, nil, nil)
 
-	err := s.SendIterableSeries(metricsserializer.CreateIterableSeries(metrics.Series{&metrics.Serie{}}))
+	err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{&metrics.Serie{}}))
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 }
@@ -303,7 +303,7 @@ func TestSendSketch(t *testing.T) {
 	f.On("SubmitSketchSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 
 	s := NewSerializer(f, nil, nil)
-	err := s.SendSketch(metrics.SketchSeriesList{})
+	err := s.SendSketch(metrics.NewSketchesSourceTest())
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 }
@@ -352,7 +352,7 @@ func TestSendProcessesMetadata(t *testing.T) {
 }
 
 func TestSendWithDisabledKind(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 
 	mockConfig.Set("enable_payloads.events", false)
 	mockConfig.Set("enable_payloads.series", false)
@@ -375,8 +375,8 @@ func TestSendWithDisabledKind(t *testing.T) {
 	payload := &testPayload{}
 
 	s.SendEvents(make(metrics.Events, 0))
-	s.SendIterableSeries(metricsserializer.CreateIterableSeries(metrics.Series{}))
-	s.SendSketch(make(metrics.SketchSeriesList, 0))
+	s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{}))
+	s.SendSketch(metrics.NewSketchesSourceTest())
 	s.SendServiceChecks(make(metrics.ServiceChecks, 0))
 	s.SendProcessesMetadata("test")
 

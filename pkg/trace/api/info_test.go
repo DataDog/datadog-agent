@@ -81,7 +81,6 @@ func TestInfoHandler(t *testing.T) {
 		},
 		StatsdHost:                  "stastd.localhost",
 		StatsdPort:                  123,
-		LogLevel:                    "WARN",
 		LogFilePath:                 "/path/to/logfile",
 		LogThrottling:               false,
 		MaxMemory:                   1000000,
@@ -129,6 +128,7 @@ func TestInfoHandler(t *testing.T) {
 		"/v0.6/stats",
 		"/v0.1/pipeline_stats",
 		"/appsec/proxy/",
+		"/evp_proxy/v1/",
 		"/debugger/v1/input"
 	],
 	"feature_flags": [
@@ -188,6 +188,7 @@ func TestInfoHandler(t *testing.T) {
 		"/v0.6/stats",
 		"/v0.1/pipeline_stats",
 		"/appsec/proxy/",
+		"/evp_proxy/v1/",
 		"/debugger/v1/input"
 	],
 	"feature_flags": [
@@ -246,9 +247,9 @@ func TestInfoHandler(t *testing.T) {
 			h.ServeHTTP(rec, req)
 			assert.Equal(t, rec.Body.String(), tt.expected)
 			if rec.Body.String() != tt.expected {
-				t.Fatal("Output of /info has changed. Changing the keys "+
+				t.Fatalf("Output of /info has changed. Changing the keys "+
 					"is not allowed because the client rely on them and "+
-					"is considered a breaking change:\n\n%f", rec.Body.String())
+					"is considered a breaking change:\n\n%v", rec.Body.String())
 			}
 		})
 	}

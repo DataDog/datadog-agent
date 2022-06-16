@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 var chanSize = 10
@@ -39,7 +40,7 @@ type TailerTestSuite struct {
 
 	tailer     *Tailer
 	outputChan chan *message.Message
-	source     *config.LogSource
+	source     *sources.LogSource
 }
 
 func (suite *TailerTestSuite) SetupTest() {
@@ -52,7 +53,7 @@ func (suite *TailerTestSuite) SetupTest() {
 	suite.Nil(err)
 	suite.testFile = f
 	suite.outputChan = make(chan *message.Message, chanSize)
-	suite.source = config.NewLogSource("", &config.LogsConfig{
+	suite.source = sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
 		Path: suite.testPath,
 	})
@@ -243,13 +244,14 @@ func (suite *TailerTestSuite) TestOriginTagsWhenTailingFiles() {
 
 	msg := <-suite.outputChan
 	tags := msg.Origin.Tags()
-	suite.Equal(1, len(tags))
-	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
+	suite.ElementsMatch([]string{
+		"filename:" + filepath.Base(suite.testFile.Name()),
+	}, tags)
 }
 
 func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 
-	dirTaggedSource := config.NewLogSource("", &config.LogsConfig{
+	dirTaggedSource := sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
 		Path: suite.testPath,
 	})
@@ -262,13 +264,14 @@ func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 
 	msg := <-suite.outputChan
 	tags := msg.Origin.Tags()
-	suite.Equal(2, len(tags))
-	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
-	suite.Equal("dirname:"+filepath.Dir(suite.testFile.Name()), tags[1])
+	suite.ElementsMatch([]string{
+		"filename:" + filepath.Base(suite.testFile.Name()),
+		"dirname:" + filepath.Dir(suite.testFile.Name()),
+	}, tags)
 }
 
 func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
-	dirTaggedSource := config.NewLogSource("", &config.LogsConfig{
+	dirTaggedSource := sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
 		Path: suite.testPath,
 	})
@@ -278,12 +281,13 @@ func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
 	suite.tailer.StartFromBeginning()
 
 	tags := suite.tailer.buildTailerTags()
-	suite.Equal(1, len(tags))
-	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
+	suite.ElementsMatch([]string{
+		"filename:" + filepath.Base(suite.testFile.Name()),
+	}, tags)
 }
 
 func (suite *TailerTestSuite) TestBuildTagsFileDir() {
-	dirTaggedSource := config.NewLogSource("", &config.LogsConfig{
+	dirTaggedSource := sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
 		Path: suite.testPath,
 	})
@@ -292,9 +296,10 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 	suite.tailer.StartFromBeginning()
 
 	tags := suite.tailer.buildTailerTags()
-	suite.Equal(2, len(tags))
-	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
-	suite.Equal("dirname:"+filepath.Dir(suite.testFile.Name()), tags[1])
+	suite.ElementsMatch([]string{
+		"filename:" + filepath.Base(suite.testFile.Name()),
+		"dirname:" + filepath.Dir(suite.testFile.Name()),
+	}, tags)
 }
 
 func (suite *TailerTestSuite) TestMutliLineAutoDetect() {

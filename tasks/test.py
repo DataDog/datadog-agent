@@ -15,13 +15,12 @@ from typing import Dict, List
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.flavor import AgentFlavor
-
 from .agent import integration_tests as agent_integration_tests
 from .build_tags import compute_build_tags_for_flavor
 from .cluster_agent import integration_tests as dca_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
-from .go import fmt, golangci_lint, ineffassign, lint, misspell, staticcheck, vet
+from .flavor import AgentFlavor
+from .go import golangci_lint
 from .libs.copyright import CopyrightLinter
 from .libs.junit_upload import add_flavor_to_junitxml, junit_upload_from_tgz, produce_junit_tar
 from .modules import DEFAULT_MODULES, GoModule
@@ -77,17 +76,13 @@ def environ(env):
 
 
 TOOL_LIST = [
-    'github.com/client9/misspell/cmd/misspell',
     'github.com/frapposelli/wwhrd',
-    'github.com/fzipp/gocyclo',
     'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
     'github.com/golangci/golangci-lint/cmd/golangci-lint',
-    'github.com/gordonklaus/ineffassign',
     'github.com/goware/modvendor',
     'github.com/mgechev/revive',
     'github.com/stormcat24/protodep',
     'gotest.tools/gotestsum',
-    'honnef.co/go/tools/cmd/staticcheck',
     'github.com/vektra/mockery/v2',
 ]
 
@@ -123,47 +118,12 @@ def install_tools(ctx):
                     ctx.run(f"go install {tool}")
 
 
-# TODO: transform this & the linter functions to be able to run all linters with a single
-# for_each(modules: List[GoModule], callback: Callable[GoModule, *Args], *args)
-# call.
-def lint_common(ctx, modules: List[GoModule], fail_on_fmt: bool):
-    """
-    Runs linters that are flavor-independent (because they don't rely on build tags).
-    """
-    # Until all packages whitelisted in .golangci.yml are fixed and removed
-    # from the 'skip-dirs' list we need to keep using the old functions that
-    # lint without build flags (linting some files is better than no linting).
-    print("--- Common: linters (legacy)")
-    for module in modules:
-        print(f"----- Module '{module.full_path()}'")
-        if not module.condition():
-            print("----- Skipped")
-            continue
-
-        with ctx.cd(module.full_path()):
-            fmt(ctx, targets=module.targets, fail_on_fmt=fail_on_fmt)
-            lint(ctx, targets=module.targets)
-            misspell(ctx, targets=module.targets)
-            ineffassign(ctx, targets=module.targets)
-
-
 def lint_flavor(
     ctx, modules: List[GoModule], flavor: AgentFlavor, build_tags: List[str], arch: str, rtloader_root: bool
 ):
     """
     Runs linters for given flavor, build tags, and modules.
     """
-    print(f"--- Flavor {flavor.name}: vet and staticcheck (legacy)")
-    for module in modules:
-        print(f"----- Module '{module.full_path()}'")
-        if not module.condition():
-            print("----- Skipped")
-            continue
-
-        with ctx.cd(module.full_path()):
-            vet(ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch)
-            staticcheck(ctx, targets=module.targets, build_tags=build_tags, arch=arch)
-
     # For now we only run golangci_lint on Unix as the Windows env needs more work
     if sys.platform != 'win32':
         print(f"--- Flavor {flavor.name}: golangci_lint")
@@ -252,7 +212,6 @@ def test(
     verbose=False,
     race=False,
     profile=False,
-    fail_on_fmt=False,
     rtloader_root=None,
     python_home_2=None,
     python_home_3=None,
@@ -316,7 +275,6 @@ def test(
     if skip_linters:
         print("--- [skipping Go linters]")
     else:
-        lint_common(ctx, modules=modules, fail_on_fmt=fail_on_fmt)
         for flavor, build_tags in flavors_build_tags.items():
             lint_flavor(
                 ctx, modules=modules, flavor=flavor, build_tags=build_tags, arch=arch, rtloader_root=rtloader_root
@@ -474,7 +432,9 @@ def lint_teamassignment(_):
                 print(f"Team Assignment: {label}")
                 return
 
-        print(f"PR {pr_url} requires team assignment")
+        print(f"PR {pr_url} requires team assignment label (team/...); got labels:")
+        for label in labels:
+            print(f" {label}")
         raise Exit(code=1)
 
     # No PR is associated with this build: given that we have the "run only on PRs" setting activated,

@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,6 +29,7 @@ const (
 	CfServiceContainerIP = "container-ip"
 )
 
+// CloudFoundryListener TODO <integrations-tools-and-libraries>: ITL-792
 type CloudFoundryListener struct {
 	sync.RWMutex
 	newService    chan<- Service
@@ -39,6 +41,7 @@ type CloudFoundryListener struct {
 	bbsCache      cloudfoundry.BBSCacheI
 }
 
+// CloudFoundryService TODO <integrations-tools-and-libraries>: ITL-792
 type CloudFoundryService struct {
 	tags           []string
 	adIdentifier   cloudfoundry.ADIdentifier
@@ -251,6 +254,10 @@ func (s *CloudFoundryService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig isn't supported
-func (s *CloudFoundryService) GetExtraConfig(key []byte) ([]byte, error) {
-	return []byte{}, ErrNotSupported
+func (s *CloudFoundryService) GetExtraConfig(key string) (string, error) {
+	return "", ErrNotSupported
+}
+
+// FilterTemplates does nothing.
+func (s *CloudFoundryService) FilterTemplates(map[string]integration.Config) {
 }

@@ -65,10 +65,10 @@ func CollectSystemInfo(cfg *config.AgentConfig) (*model.SystemInfo, error) {
 	m := &model.SystemInfo{
 		Uuid: "",
 		Os: &model.OSInfo{
-			Name:          hi["kernel_name"].(string),
-			Platform:      hi["os"].(string),
-			Family:        hi["family"].(string),
-			Version:       hi["kernel_release"].(string),
+			Name:          hi["kernel_name"],
+			Platform:      hi["os"],
+			Family:        hi["family"],
+			Version:       hi["kernel_release"],
 			KernelVersion: "",
 		},
 		Cpus:        cpus,

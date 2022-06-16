@@ -10,9 +10,17 @@ import (
 )
 
 // Scheduler is the interface that should be implemented if you want to schedule and
-// unschedule integrations
+// unschedule integrations.  Values implementing this interface can be passed to the
+// MetaScheduler's Register method (or AutoConf.AddScheduler).
 type Scheduler interface {
+	// Schedule zero or more new configurations.
 	Schedule([]integration.Config)
+
+	// Unschedule zero or more configurations that were previously scheduled.
 	Unschedule([]integration.Config)
+
+	// Stop the scheduler.  This method is called from the MetaScheduler's Stop
+	// method.  Note that currently-scheduled configs are _not_ unscheduled when
+	// the MetaScheduler stops.
 	Stop()
 }

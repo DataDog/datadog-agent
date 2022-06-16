@@ -147,7 +147,9 @@ func (c *kubeClient) ClusterID() (string, error) {
 		Version:  "v1",
 	})
 
-	resource, err := resourceDef.Get(context.TODO(), "kube-system", metav1.GetOptions{})
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+	resource, err := resourceDef.Get(ctx, "kube-system", metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -236,6 +238,14 @@ func WithRegoInputDumpPath(regoInputDumpPath string) BuilderOption {
 	}
 }
 
+// WithRegoEvalSkip configures a builder to skip the rego evaluation, while still building the input
+func WithRegoEvalSkip(regoEvalSkip bool) BuilderOption {
+	return func(b *builder) error {
+		b.regoEvalSkip = regoEvalSkip
+		return nil
+	}
+}
+
 // IsFramework matches a compliance suite by the name of the framework
 func IsFramework(framework string) SuiteMatcher {
 	return func(s *compliance.SuiteMeta) bool {
@@ -296,6 +306,7 @@ type builder struct {
 
 	regoInputOverride map[string]eval.RegoInputMap
 	regoInputDumpPath string
+	regoEvalSkip      bool
 
 	status *status
 }
@@ -736,6 +747,10 @@ func (b *builder) ProvidedInput(ruleID string) eval.RegoInputMap {
 
 func (b *builder) DumpInputPath() string {
 	return b.regoInputDumpPath
+}
+
+func (b *builder) ShouldSkipRegoEval() bool {
+	return b.regoEvalSkip
 }
 
 func (b *builder) Hostname() string {

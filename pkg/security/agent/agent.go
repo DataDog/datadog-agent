@@ -22,13 +22,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // RuntimeSecurityAgent represents the main wrapper for the Runtime Security product
 type RuntimeSecurityAgent struct {
 	hostname      string
-	reporter      event.Reporter
+	reporter      common.RawReporter
 	client        *RuntimeSecurityClient
 	running       uatomic.Bool
 	wg            sync.WaitGroup
@@ -40,7 +41,7 @@ type RuntimeSecurityAgent struct {
 }
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(hostname string, reporter event.Reporter, endpoints *config.Endpoints) (*RuntimeSecurityAgent, error) {
+func NewRuntimeSecurityAgent(hostname string) (*RuntimeSecurityAgent, error) {
 	client, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err
@@ -53,15 +54,16 @@ func NewRuntimeSecurityAgent(hostname string, reporter event.Reporter, endpoints
 
 	return &RuntimeSecurityAgent{
 		client:    client,
-		reporter:  reporter,
 		hostname:  hostname,
 		telemetry: telemetry,
-		endpoints: endpoints,
 	}, nil
 }
 
 // Start the runtime security agent
-func (rsa *RuntimeSecurityAgent) Start() {
+func (rsa *RuntimeSecurityAgent) Start(reporter event.Reporter, endpoints *config.Endpoints) {
+	rsa.reporter = reporter
+	rsa.endpoints = endpoints
+
 	ctx, cancel := context.WithCancel(context.Background())
 	rsa.cancel = cancel
 
@@ -89,7 +91,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 	logTicker := newLogBackoffTicker()
 
 	rsa.running.Store(true)
-	for rsa.running.Load() == true {
+	for rsa.running.Load() {
 		stream, err := rsa.client.GetEvents()
 		if err != nil {
 			rsa.connected.Store(false)
@@ -138,7 +140,9 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 
 // DispatchEvent dispatches a security event message to the subsytems of the runtime security agent
 func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
-	// For now simply log to Datadog
+	if rsa.reporter == nil {
+		return
+	}
 	rsa.reporter.ReportRaw(evt.GetData(), evt.Service, evt.GetTags()...)
 }
 
@@ -147,7 +151,10 @@ func (rsa *RuntimeSecurityAgent) GetStatus() map[string]interface{} {
 	base := map[string]interface{}{
 		"connected":     rsa.connected.Load(),
 		"eventReceived": atomic.LoadUint64(&rsa.eventReceived),
-		"endpoints":     rsa.endpoints.GetStatus(),
+	}
+
+	if rsa.endpoints != nil {
+		base["endpoints"] = rsa.endpoints.GetStatus()
 	}
 
 	if rsa.client != nil {
@@ -162,6 +169,14 @@ func (rsa *RuntimeSecurityAgent) GetStatus() map[string]interface{} {
 					environment["constantFetchers"] = cfStatus.Environment.Constants
 				}
 				base["environment"] = environment
+			}
+			if cfStatus.SelfTests != nil {
+				selfTests := map[string]interface{}{
+					"LastTimestamp": cfStatus.SelfTests.LastTimestamp,
+					"Success":       cfStatus.SelfTests.Success,
+					"Fails":         cfStatus.SelfTests.Fails,
+				}
+				base["selfTests"] = selfTests
 			}
 		}
 	}

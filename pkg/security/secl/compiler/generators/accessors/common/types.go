@@ -25,7 +25,8 @@ type Module struct {
 	SourcePkg       string
 	TargetPkg       string
 	BuildTags       []string
-	Fields          map[string]*StructField
+	Fields          map[string]*StructField // only exposed fields by SECL
+	AllFields       map[string]*StructField
 	Iterators       map[string]*StructField
 	EventTypes      map[string]*EventTypeMetadata
 	Mock            bool
@@ -48,6 +49,7 @@ type StructField struct {
 	Weight              int64
 	CommentText         string
 	OpOverrides         string
+	Constants           string
 }
 
 // GetEvaluatorType returns the evaluator type name
@@ -63,7 +65,7 @@ func (sf *StructField) GetEvaluatorType() string {
 		if sf.Iterator != nil || sf.IsArray {
 			evaluatorType = "eval.BoolArrayEvaluator"
 		}
-	} else if sf.ReturnType == "net.IP" {
+	} else if sf.ReturnType == "net.IPNet" {
 		evaluatorType = "eval.CIDREvaluator"
 		if sf.IsArray {
 			evaluatorType = "eval.CIDRValuesEvaluator"

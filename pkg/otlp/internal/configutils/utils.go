@@ -11,15 +11,14 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"go.opentelemetry.io/collector/config"
-	"go.opentelemetry.io/collector/config/configunmarshaler"
+	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/service"
 	"gopkg.in/yaml.v2"
 )
 
-// NewMapFromYAMLString creates a config.Map from a YAML-formatted configuration string.
+// NewMapFromYAMLString creates a confmap.Conf from a YAML-formatted configuration string.
 // Adapted from: https://github.com/open-telemetry/opentelemetry-collector/blob/v0.41.0/config/configmapprovider/inmemory.go
-func NewMapFromYAMLString(cfg string) (*config.Map, error) {
+func NewMapFromYAMLString(cfg string) (*confmap.Conf, error) {
 	inp := strings.NewReader(cfg)
 	content, err := ioutil.ReadAll(inp)
 	if err != nil {
@@ -31,7 +30,7 @@ func NewMapFromYAMLString(cfg string) (*config.Map, error) {
 		return nil, fmt.Errorf("unable to parse yaml: %w", err)
 	}
 
-	return config.NewMapFromStringMap(data), nil
+	return confmap.NewFromStringMap(data), nil
 }
 
 const (
@@ -39,19 +38,19 @@ const (
 	mapLocation   = "map:hardcoded"
 )
 
-var _ config.MapProvider = (*mapProvider)(nil)
+var _ confmap.Provider = (*mapProvider)(nil)
 
 type mapProvider struct {
-	cfg *config.Map
+	cfg *confmap.Conf
 }
 
-func (m *mapProvider) Retrieve(_ context.Context, uri string, _ config.WatcherFunc) (config.Retrieved, error) {
+func (m *mapProvider) Retrieve(_ context.Context, uri string, _ confmap.WatcherFunc) (confmap.Retrieved, error) {
 	// We only support the constant location 'map:hardcoded'
 	if uri != mapLocation {
-		return config.Retrieved{}, fmt.Errorf("%v location is not supported by %v provider", uri, mapSchemeName)
+		return confmap.Retrieved{}, fmt.Errorf("%v location is not supported by %v provider", uri, mapSchemeName)
 	}
 
-	return config.Retrieved{Map: m.cfg}, nil
+	return confmap.NewRetrieved(m.cfg.ToStringMap())
 }
 
 func (m *mapProvider) Scheme() string {
@@ -62,16 +61,15 @@ func (m *mapProvider) Shutdown(context.Context) error {
 	return nil
 }
 
-// NewConfigProviderFromMap creates a service.ConfigProvider with a single constant provider `map`, built from a given *config.Map.
-func NewConfigProviderFromMap(cfg *config.Map) service.ConfigProvider {
+// NewConfigProviderFromMap creates a service.ConfigProvider with a single constant provider `map`, built from a given *confmap.Conf.
+func NewConfigProviderFromMap(cfg *confmap.Conf) service.ConfigProvider {
 	provider := &mapProvider{cfg}
 	settings := service.ConfigProviderSettings{
 		Locations: []string{mapLocation},
-		MapProviders: map[string]config.MapProvider{
+		MapProviders: map[string]confmap.Provider{
 			"map": provider,
 		},
-		MapConverters: []config.MapConverterFunc{},
-		Unmarshaler:   configunmarshaler.NewDefault(),
+		MapConverters: []confmap.Converter{},
 	}
 	cp, err := service.NewConfigProvider(settings)
 	if err != nil {

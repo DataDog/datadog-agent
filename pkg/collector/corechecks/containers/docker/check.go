@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	dockerTypes "github.com/docker/docker/api/types"
 )
@@ -70,7 +71,12 @@ func (d *DockerCheck) Configure(config, initConfig integration.Data, source stri
 	d.instance.Parse(config) //nolint:errcheck
 
 	if len(d.instance.FilteredEventType) == 0 {
-		d.instance.FilteredEventType = []string{"top", "exec_create", "exec_start", "exec_die"}
+		d.instance.FilteredEventType = []string{
+			"top",
+			"exec_create",
+			"exec_start",
+			"exec_die",
+		}
 	}
 
 	// Use the same hostname as the agent so that host tags (like `availability-zone:us-east-1b`)
@@ -187,7 +193,7 @@ func (d *DockerCheck) runDockerCustom(sender aggregator.Sender, du docker.Client
 		if len(rawContainer.Names) > 0 {
 			containerName = rawContainer.Names[0]
 		}
-		isContainerExcluded := d.containerFilter.IsExcluded(containerName, resolvedImageName, rawContainer.Labels["io.kubernetes.pod.namespace"])
+		isContainerExcluded := d.containerFilter.IsExcluded(containerName, resolvedImageName, rawContainer.Labels[kubernetes.CriContainerNamespaceLabel])
 		isContainerRunning := rawContainer.State == containers.ContainerRunningState
 		taggerEntityID := containers.BuildTaggerEntityName(rawContainer.ID)
 

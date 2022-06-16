@@ -48,6 +48,11 @@ func fakePodWithContainer(name string, containers ...corev1.Container) *corev1.P
 	}
 }
 
+func withLabels(pod *corev1.Pod, labels map[string]string) *corev1.Pod {
+	pod.Labels = labels
+	return pod
+}
+
 func fakePodWithLabel(k, v string) *corev1.Pod {
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{

@@ -226,15 +226,18 @@ enum event_type
     EVENT_DNS,
     EVENT_NET_DEVICE,
     EVENT_VETH_PAIR,
+    EVENT_BIND,
     EVENT_MAX, // has to be the last one
 
-    EVENT_ALL = 0xffffffffffffffff // used as a mask for all the events
+    EVENT_ALL = 0xffffffff // used as a mask for all the events
 };
 
 struct kevent_t {
     u64 cpu;
     u64 timestamp;
-    u64 type;
+    u32 type;
+    u8 async;
+    u8 padding[3];
 };
 
 struct syscall_t {

@@ -174,7 +174,7 @@ func (c *collector) parsePods(ctx context.Context, pods []*kubelet.Pod) ([]workl
 	now := time.Now()
 
 	for _, pod := range pods {
-		if pod.Spec.HostNetwork || !kubelet.IsPodReady(pod) || pod.Metadata.UID == "" {
+		if pod.Metadata.UID == "" {
 			continue
 		}
 
@@ -183,17 +183,21 @@ func (c *collector) parsePods(ctx context.Context, pods []*kubelet.Pod) ([]workl
 			log.Debugf("Could not fetch metadata for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
 		}
 
+		// Skip `kube_service` label for pods that are not ready (since their endpoint will be disabled from the service)
+		// Skip pods with hostNetwork because we cannot use their IP to match endpoints.
 		services := []string{}
-		for _, data := range metadata {
-			d := strings.Split(data, ":")
-			switch len(d) {
-			case 1:
-				// c.dcaClient.GetPodsMetadataForNode returns only a list of services without tag key
-				services = append(services, d[0])
-			case 2:
-				services = append(services, d[1])
-			default:
-				continue
+		if !pod.Spec.HostNetwork && kubelet.IsPodReady(pod) {
+			for _, data := range metadata {
+				d := strings.Split(data, ":")
+				switch len(d) {
+				case 1:
+					// c.dcaClient.GetPodsMetadataForNode returns only a list of services without tag key
+					services = append(services, d[0])
+				case 2:
+					services = append(services, d[1])
+				default:
+					continue
+				}
 			}
 		}
 

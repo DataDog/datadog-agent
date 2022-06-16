@@ -32,7 +32,7 @@ func (suite *InsecureTestSuite) SetupTest() {
 
 func (suite *InsecureTestSuite) TestHTTP() {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(nil)
 
 	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
 
@@ -69,7 +69,7 @@ func (suite *InsecureTestSuite) TestHTTP() {
 
 func (suite *InsecureTestSuite) TestInsecureHTTPS() {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(nil)
 
 	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
 	mockConfig.Set("kubernetes_https_kubelet_port", 10250)

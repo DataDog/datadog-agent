@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"go.uber.org/multierr"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/translator"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
@@ -25,6 +26,7 @@ var _ translator.Consumer = (*serializerConsumer)(nil)
 
 type serializerConsumer struct {
 	cardinality collectors.TagCardinality
+	extraTags   []string
 	series      metrics.Series
 	sketches    metrics.SketchSeriesList
 }
@@ -32,7 +34,8 @@ type serializerConsumer struct {
 // enrichedTags of a given dimension.
 // In the OTLP pipeline, 'contexts' are kept within the translator and function differently than DogStatsD/check metrics.
 func (c *serializerConsumer) enrichedTags(dimensions *translator.Dimensions) []string {
-	enrichedTags := make([]string, 0, len(dimensions.Tags()))
+	enrichedTags := make([]string, 0, len(c.extraTags)+len(dimensions.Tags()))
+	enrichedTags = append(enrichedTags, c.extraTags...)
 	enrichedTags = append(enrichedTags, dimensions.Tags()...)
 
 	entityTags, err := tagger.Tag(dimensions.OriginID(), c.cardinality)
@@ -53,7 +56,7 @@ func (c *serializerConsumer) enrichedTags(dimensions *translator.Dimensions) []s
 }
 
 func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *translator.Dimensions, ts uint64, qsketch *quantile.Sketch) {
-	c.sketches = append(c.sketches, metrics.SketchSeries{
+	c.sketches = append(c.sketches, &metrics.SketchSeries{
 		Name:     dimensions.Name(),
 		Tags:     tagset.CompositeTagsFromSlice(c.enrichedTags(dimensions)),
 		Host:     dimensions.Host(),
@@ -102,21 +105,23 @@ func (c *serializerConsumer) addTelemetryMetric(hostname string) {
 
 // flush all metrics and sketches in consumer.
 func (c *serializerConsumer) flush(s serializer.MetricSerializer) error {
-	if err := s.SendSketch(c.sketches); err != nil {
-		return err
-	}
-	iterableSeries := metrics.NewIterableSeries(func(se *metrics.Serie) {}, 200, 4000)
-	done := make(chan struct{})
-	var err error
-	go func() {
-		err = s.SendIterableSeries(iterableSeries)
-		iterableSeries.IterationStopped()
-		close(done)
-	}()
-	for _, serie := range c.series {
-		iterableSeries.Append(serie)
-	}
-	iterableSeries.SenderStopped()
-	<-done
-	return err
+	var serieErr error
+	var sketchesErr error
+	metrics.Serialize(
+		metrics.NewIterableSeries(func(se *metrics.Serie) {}, 200, 4000),
+		metrics.NewIterableSketches(func(se *metrics.SketchSeries) {}, 200, 4000),
+		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+			for _, serie := range c.series {
+				seriesSink.Append(serie)
+			}
+			for _, sketch := range c.sketches {
+				sketchesSink.Append(sketch)
+			}
+		}, func(serieSource metrics.SerieSource) {
+			serieErr = s.SendIterableSeries(serieSource)
+		}, func(sketchesSource metrics.SketchesSource) {
+			sketchesErr = s.SendSketch(sketchesSource)
+		})
+
+	return multierr.Append(serieErr, sketchesErr)
 }

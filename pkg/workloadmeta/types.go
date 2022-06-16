@@ -55,7 +55,11 @@ type Store interface {
 
 	// ListContainers returns metadata about all known containers, equivalent
 	// to all entities with kind KindContainer.
-	ListContainers() ([]*Container, error)
+	ListContainers() []*Container
+
+	// ListContainersWithFilter returns all the containers for which the passed
+	// filter evaluates to true.
+	ListContainersWithFilter(filter ContainerFilterFunc) []*Container
 
 	// GetKubernetesPod returns metadata about a Kubernetes pod.  It fetches
 	// the entity with kind KindKubernetesPod and the given ID.
@@ -163,8 +167,12 @@ const (
 type EventType int
 
 const (
+	// EventTypeAll matches any event type. Should not be returned by
+	// collectors, as it is only meant to be used in filters.
+	EventTypeAll EventType = iota
+
 	// EventTypeSet indicates that an entity has been added or updated.
-	EventTypeSet EventType = iota
+	EventTypeSet
 
 	// EventTypeUnset indicates that an entity has been removed.  If multiple
 	// sources provide data for an entity, this message is only sent when the
@@ -400,7 +408,7 @@ func (c Container) String(verbose bool) string {
 	_, _ = fmt.Fprint(&sb, c.State.String(verbose))
 
 	if verbose {
-		_, _ = fmt.Fprintln(&sb, "Env Variables:", mapToString(c.EnvVars))
+		_, _ = fmt.Fprintln(&sb, "Allowed env variables:", filterAndFormatEnvVars(c.EnvVars))
 		_, _ = fmt.Fprintln(&sb, "Hostname:", c.Hostname)
 		_, _ = fmt.Fprintln(&sb, "Network IPs:", mapToString(c.NetworkIPs))
 		_, _ = fmt.Fprintln(&sb, "PID:", c.PID)
@@ -417,6 +425,12 @@ func (c Container) String(verbose bool) string {
 }
 
 var _ Entity = &Container{}
+
+// ContainerFilterFunc is a function used to filter containers.
+type ContainerFilterFunc func(container *Container) bool
+
+// GetRunningContainers is a function that evaluates to true for running containers.
+var GetRunningContainers ContainerFilterFunc = func(container *Container) bool { return container.State.Running }
 
 // KubernetesPod is an Entity representing a Kubernetes Pod.
 type KubernetesPod struct {

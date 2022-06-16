@@ -223,6 +223,15 @@ func New() *Config {
 		RecordedQueryTypes: cfg.GetStringSlice(join(netNS, "dns_recorded_query_types")),
 	}
 
+	if !cfg.IsSet(join(spNS, "max_closed_connections_buffered")) {
+		// make sure max_closed_connections_buffered is equal to
+		// max_tracked_connections, since the former is not set.
+		// this helps with lowering or eliminating dropped
+		// closed connections in environments with mostly short-lived
+		// connections
+		c.MaxClosedConnectionsBuffered = int(c.MaxTrackedConnections)
+	}
+
 	httpRRKey := join(netNS, "http_replace_rules")
 	rr, err := parseReplaceRules(cfg, httpRRKey)
 	if err != nil {

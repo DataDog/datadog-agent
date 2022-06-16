@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package client
 
 import (
@@ -9,6 +14,8 @@ import (
 const (
 	// ProductAPMSampling is the apm sampling product
 	ProductAPMSampling = "APM_SAMPLING"
+	// ProductCWSDD is the cloud workload security product managed by datadog employees
+	ProductCWSDD = "CWS_DD"
 )
 
 // ConfigAPMSamling is an apm sampling config
@@ -18,6 +25,15 @@ type ConfigAPMSamling struct {
 	ID      string
 	Version uint64
 	Config  apmsampling.APMSampling
+}
+
+// ConfigCWSDD is a CWS DD config
+type ConfigCWSDD struct {
+	c config
+
+	ID      string
+	Version uint64
+	Config  []byte
 }
 
 func parseConfigAPMSampling(config config) (ConfigAPMSamling, error) {
@@ -31,5 +47,14 @@ func parseConfigAPMSampling(config config) (ConfigAPMSamling, error) {
 		ID:      config.meta.path.ConfigID,
 		Version: *config.meta.custom.Version,
 		Config:  apmConfig,
+	}, nil
+}
+
+func parseConfigCWSDD(config config) (ConfigCWSDD, error) {
+	return ConfigCWSDD{
+		c:       config,
+		ID:      config.meta.path.ConfigID,
+		Version: *config.meta.custom.Version,
+		Config:  config.contents,
 	}, nil
 }

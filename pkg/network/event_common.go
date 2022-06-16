@@ -117,10 +117,10 @@ type BufferedData struct {
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
 	BufferedData
-	DNS                         map[util.Address][]string
+	DNS                         map[util.Address][]dns.Hostname
 	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
-	HTTP                        map[http.Key]http.RequestStats
+	HTTP                        map[http.Key]*http.RequestStats
 	DNSStats                    dns.StatsByKeyByNameByType
 }
 
@@ -184,43 +184,39 @@ type RuntimeCompilationTelemetry struct {
 	RuntimeCompilationDuration int64
 }
 
+// StatCounters represents all the per-connection stats we collect
+type StatCounters struct {
+	SentBytes   uint64
+	RecvBytes   uint64
+	SentPackets uint64
+	RecvPackets uint64
+	Retransmits uint32
+	// TCPEstablished indicates whether the TCP connection was established
+	// after system-probe initialization.
+	// * A value of 0 means that this connection was established before system-probe was initialized;
+	// * Value 1 represents a connection that was established after system-probe started;
+	// * Values greater than 1 should be rare, but can occur when multiple connections
+	//   are established with the same tuple between two agent checks;
+	TCPEstablished uint32
+	TCPClosed      uint32
+}
+
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
 type ConnectionStats struct {
 	Source util.Address
 	Dest   util.Address
 
-	MonotonicSentBytes uint64
-	LastSentBytes      uint64
+	IPTranslation *IPTranslation
+	Via           *Via
 
-	MonotonicRecvBytes uint64
-	LastRecvBytes      uint64
-
-	MonotonicSentPackets uint64
-	LastSentPackets      uint64
-
-	MonotonicRecvPackets uint64
-	LastRecvPackets      uint64
+	Monotonic StatCounters
+	Last      StatCounters
 
 	// Last time the stats for this connection were updated
 	LastUpdateEpoch uint64
 
-	MonotonicRetransmits uint32
-	LastRetransmits      uint32
-
 	RTT    uint32 // Stored in µs
 	RTTVar uint32
-
-	// MonotonicTCPEstablished indicates whether or not the TCP connection was established
-	// after system-probe initialization.
-	// * A value of 0 means that this connection was established before system-probe was initialized;
-	// * Value 1 represents a connection that was established after system-probe started;
-	// * Values greater than 1 should be rare, but can occur when multiple connections
-	//   are established with the same tuple betweeen two agent checks;
-	MonotonicTCPEstablished uint32
-	LastTCPEstablished      uint32
-
-	MonotonicTCPClosed uint32
-	LastTCPClosed      uint32
 
 	Pid   uint32
 	NetNS uint32
@@ -231,10 +227,9 @@ type ConnectionStats struct {
 	Family           ConnectionFamily
 	Direction        ConnectionDirection
 	SPortIsEphemeral EphemeralPortType
-	IPTranslation    *IPTranslation
-	IntraHost        bool
-	Via              *Via
+	Tags             uint64
 
+	IntraHost bool
 	IsAssured bool
 }
 
@@ -265,33 +260,28 @@ func (c ConnectionStats) IsExpired(now uint64, timeout uint64) bool {
 	return c.LastUpdateEpoch+timeout <= now
 }
 
-// ByteKey returns a unique key for this connection represented as a byte array
+// ByteKey returns a unique key for this connection represented as a byte slice
 // It's as following:
 //
 //     4B      2B      2B     .5B     .5B      4/16B        4/16B   = 17/41B
 //    32b     16b     16b      4b      4b     32/128b      32/128b
 // |  PID  | SPORT | DPORT | Family | Type |  SrcAddr  |  DestAddr
-func (c ConnectionStats) ByteKey(buf []byte) ([]byte, error) {
-	n := 0
-	// Byte-packing to improve creation speed
-	// PID (32 bits) + SPort (16 bits) + DPort (16 bits) = 64 bits
-	p0 := uint64(c.Pid)<<32 | uint64(c.SPort)<<16 | uint64(c.DPort)
-	binary.LittleEndian.PutUint64(buf[0:], p0)
-	n += 8
+func (c ConnectionStats) ByteKey(buf []byte) []byte {
+	return generateConnectionKey(c, buf, false)
+}
 
-	// Family (4 bits) + Type (4 bits) = 8 bits
-	buf[n] = uint8(c.Family)<<4 | uint8(c.Type)
-	n++
-
-	n += c.Source.WriteTo(buf[n:]) // 4 or 16 bytes
-	n += c.Dest.WriteTo(buf[n:])   // 4 or 16 bytes
-	return buf[:n], nil
+// ByteKeyNAT returns a unique key for this connection represented as a byte slice.
+// The format is similar to the one emitted by `ByteKey` with the sole difference
+// that the addresses used are translated.
+// Currently this key is used only for the aggregation of ephemeral connections.
+func (c ConnectionStats) ByteKeyNAT(buf []byte) []byte {
+	return generateConnectionKey(c, buf, true)
 }
 
 // IsShortLived returns true when a connection went through its whole lifecycle
 // between two connection checks
 func (c ConnectionStats) IsShortLived() bool {
-	return c.LastTCPEstablished >= 1 && c.LastTCPClosed >= 1
+	return c.Last.TCPEstablished >= 1 && c.Last.TCPClosed >= 1
 }
 
 const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"
@@ -332,7 +322,7 @@ func BeautifyKey(key string) string {
 }
 
 // ConnectionSummary returns a string summarizing a connection
-func ConnectionSummary(c *ConnectionStats, names map[util.Address][]string) string {
+func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname) string {
 	str := fmt.Sprintf(
 		"[%s%s] [PID: %d] [%v:%d ⇄ %v:%d] ",
 		c.Type,
@@ -355,14 +345,14 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]string) stri
 
 	str += fmt.Sprintf("(%s) %s sent (+%s), %s received (+%s)",
 		c.Direction,
-		humanize.Bytes(c.MonotonicSentBytes), humanize.Bytes(c.LastSentBytes),
-		humanize.Bytes(c.MonotonicRecvBytes), humanize.Bytes(c.LastRecvBytes),
+		humanize.Bytes(c.Monotonic.SentBytes), humanize.Bytes(c.Last.SentBytes),
+		humanize.Bytes(c.Monotonic.RecvBytes), humanize.Bytes(c.Last.RecvBytes),
 	)
 
 	if c.Type == TCP {
 		str += fmt.Sprintf(
 			", %d retransmits (+%d), RTT %s (± %s)",
-			c.MonotonicRetransmits, c.LastRetransmits,
+			c.Monotonic.Retransmits, c.Last.Retransmits,
 			time.Duration(c.RTT)*time.Microsecond,
 			time.Duration(c.RTTVar)*time.Microsecond,
 		)
@@ -371,10 +361,58 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]string) stri
 	return str
 }
 
-func printAddress(address util.Address, names []string) string {
+func printAddress(address util.Address, names []dns.Hostname) string {
 	if len(names) == 0 {
 		return address.String()
 	}
 
-	return strings.Join(names, ",")
+	var b strings.Builder
+	b.WriteString(dns.ToString(names[0]))
+	for _, s := range names[1:] {
+		b.WriteString(",")
+		b.WriteString(dns.ToString(s))
+	}
+	return b.String()
+}
+
+// HTTPKeyTupleFromConn build the key for the http map based on whether the local or remote side is http.
+func HTTPKeyTupleFromConn(c ConnectionStats) http.KeyTuple {
+	// Retrieve translated addresses
+	laddr, lport := GetNATLocalAddress(c)
+	raddr, rport := GetNATRemoteAddress(c)
+
+	// HTTP data is always indexed as (client, server), so we account for that when generating the
+	// the lookup key using the port range heuristic.
+	// In the rare cases where both ports are within the same range we ensure that sport < dport
+	// to mimic the normalization heuristic done in the eBPF side (see `port_range.h`)
+	if (IsEphemeralPort(int(lport)) && !IsEphemeralPort(int(rport))) ||
+		(IsEphemeralPort(int(lport)) == IsEphemeralPort(int(rport)) && lport < rport) {
+		return http.NewKeyTuple(laddr, raddr, lport, rport)
+	}
+
+	return http.NewKeyTuple(raddr, laddr, rport, lport)
+}
+
+func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {
+	laddr, sport := c.Source, c.SPort
+	raddr, dport := c.Dest, c.DPort
+	if useNAT {
+		laddr, sport = GetNATLocalAddress(c)
+		raddr, dport = GetNATRemoteAddress(c)
+	}
+
+	n := 0
+	// Byte-packing to improve creation speed
+	// PID (32 bits) + SPort (16 bits) + DPort (16 bits) = 64 bits
+	p0 := uint64(c.Pid)<<32 | uint64(sport)<<16 | uint64(dport)
+	binary.LittleEndian.PutUint64(buf[0:], p0)
+	n += 8
+
+	// Family (4 bits) + Type (4 bits) = 8 bits
+	buf[n] = uint8(c.Family)<<4 | uint8(c.Type)
+	n++
+
+	n += laddr.WriteTo(buf[n:]) // 4 or 16 bytes
+	n += raddr.WriteTo(buf[n:]) // 4 or 16 bytes
+	return buf[:n]
 }

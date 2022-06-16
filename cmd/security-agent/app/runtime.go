@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -547,7 +548,14 @@ func checkPoliciesInner(dir string) error {
 	model := &model.Model{}
 	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts)
 
-	if err := rules.LoadPolicies(cfg.PoliciesDir, ruleSet); err.ErrorOrNil() != nil {
+	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false)
+	if err != nil {
+		return err
+	}
+
+	loader := rules.NewPolicyLoader(provider)
+
+	if err := ruleSet.LoadPolicies(loader); err.ErrorOrNil() != nil {
 		return err
 	}
 
@@ -621,7 +629,7 @@ func newRuntimeReporter(stopper startstop.Stopper, sourceName, sourceType string
 	pipelineProvider.Start()
 	stopper.Add(pipelineProvider)
 
-	logSource := config.NewLogSource(
+	logSource := sources.NewLogSource(
 		sourceName,
 		&config.LogsConfig{
 			Type:   sourceType,
@@ -644,6 +652,14 @@ func startRuntimeSecurity(hostname string, stopper startstop.Stopper, statsdClie
 		return nil, nil
 	}
 
+	// start/stop order is important, agent need to be stopped first and started after all the others
+	// components
+	agent, err := secagent.NewRuntimeSecurityAgent(hostname)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to create a runtime security agent instance")
+	}
+	stopper.Add(agent)
+
 	endpoints, context, err := newLogContextRuntime()
 	if err != nil {
 		log.Error(err)
@@ -655,13 +671,7 @@ func startRuntimeSecurity(hostname string, stopper startstop.Stopper, statsdClie
 		return nil, err
 	}
 
-	agent, err := secagent.NewRuntimeSecurityAgent(hostname, reporter, endpoints)
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to create a runtime security agent instance")
-	}
-	agent.Start()
-
-	stopper.Add(agent)
+	agent.Start(reporter, endpoints)
 
 	log.Info("Datadog runtime security agent is now running")
 

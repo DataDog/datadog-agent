@@ -46,6 +46,7 @@ int __attribute__((always_inline)) sys_ptrace_ret(void *ctx, int retval) {
 
     struct ptrace_event_t event = {
         .syscall.retval = retval,
+        .event.async = 0,
         .request = syscall->ptrace.request,
         .pid = namespace_nr,
         .addr = syscall->ptrace.addr,

@@ -11,6 +11,7 @@ package tests
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -30,7 +31,9 @@ import (
 	"unsafe"
 
 	"github.com/cihub/seelog"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/go-multierror"
+	"github.com/oliveagle/jsonpath"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
@@ -77,10 +80,8 @@ runtime_security_config:
     - "*custom*"
   socket: /tmp/test-security-probe.sock
   flush_discarder_window: 0
-{{if .EnableNetwork}}
   network:
-    enabled: true
-{{end}}
+    enabled: {{ .EnableNetwork }}
   load_controller:
     events_count_threshold: {{ .EventsCountThreshold }}
 {{if .DisableFilters}}
@@ -91,12 +92,14 @@ runtime_security_config:
 {{end}}
   erpc_dentry_resolution_enabled: {{ .ErpcDentryResolutionEnabled }}
   map_dentry_resolution_enabled: {{ .MapDentryResolutionEnabled }}
+  self_test:
+    enabled: false
 
   policies:
     dir: {{.TestPoliciesDir}}
   log_patterns:
   {{range .LogPatterns}}
-    - {{.}}
+    - "{{.}}"
   {{end}}
   log_tags:
   {{range .LogTags}}
@@ -238,14 +241,8 @@ func (h *testProbeHandler) HandleEvent(event *sprobe.Event) {
 	h.RLock()
 	defer h.RUnlock()
 
-	if h.module == nil {
-		return
-	}
-
 	h.reloading.Lock()
 	defer h.reloading.Unlock()
-
-	h.module.HandleEvent(event)
 
 	if h.eventHandler != nil && h.eventHandler.callback != nil {
 		h.eventHandler.callback(event)
@@ -378,6 +375,123 @@ func assertFieldStringArrayIndexedOneOf(t *testing.T, e *sprobe.Event, field str
 	return false
 }
 
+//nolint:deadcode,unused
+func validateProcessContextLineage(tb testing.TB, event *sprobe.Event) bool {
+	var data interface{}
+	if err := json.Unmarshal([]byte(event.String()), &data); err != nil {
+		tb.Error(err)
+	}
+
+	json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors")
+	if err != nil {
+		tb.Errorf("should have a process context with ancestors, got %+v (%s)", json, spew.Sdump(data))
+		return false
+	}
+
+	var prevPID, prevPPID float64
+
+	for _, entry := range json.([]interface{}) {
+		pce, ok := entry.(map[string]interface{})
+		if !ok {
+			tb.Errorf("invalid process cache entry, %+v", entry)
+			return false
+		}
+
+		pid, ok := pce["pid"].(float64)
+		if !ok || pid == 0 {
+			tb.Errorf("invalid pid, %+v", pce)
+			return false
+		}
+
+		// check lineage, exec should have the exact same pid, fork pid/ppid relationship
+		if prevPID != 0 && pid != prevPID && pid != prevPPID {
+			tb.Errorf("invalid process tree, parent/child broken (%f -> %f/%f), %+v", pid, prevPID, prevPPID, json)
+			return false
+		}
+		prevPID = pid
+
+		if pid != 1 {
+			ppid, ok := pce["ppid"].(float64)
+			if !ok {
+				tb.Errorf("invalid pid, %+v", pce)
+				return false
+			}
+
+			prevPPID = ppid
+		}
+	}
+
+	if prevPID != 1 {
+		tb.Errorf("invalid process tree, last ancestor should be pid 1, %+v", json)
+	}
+
+	return true
+}
+
+//nolint:deadcode,unused
+func validateProcessContextSECL(tb testing.TB, event *sprobe.Event) bool {
+	fields := []string{
+		"process.file.path",
+		"process.file.name",
+		"process.ancestors.file.path",
+		"process.ancestors.file.name",
+	}
+
+	for _, field := range fields {
+		fieldValue, err := event.GetFieldValue(field)
+		if err != nil {
+			tb.Errorf("failed to get field '%s': %s", field, err)
+			return false
+		}
+
+		switch value := fieldValue.(type) {
+		case string:
+			if len(value) == 0 {
+				tb.Errorf("empty value for '%s'", field)
+				return false
+			}
+		case []string:
+			for _, v := range value {
+				if len(v) == 0 {
+					tb.Errorf("empty value for '%s'", field)
+					return false
+				}
+			}
+		default:
+			tb.Errorf("unknown type value for '%s'", field)
+			return false
+		}
+	}
+
+	return true
+}
+
+//nolint:deadcode,unused
+func validateEvent(tb testing.TB, validate func(event *sprobe.Event, rule *rules.Rule)) func(event *sprobe.Event, rule *rules.Rule) {
+	return func(event *sprobe.Event, rule *rules.Rule) {
+		validate(event, rule)
+
+		if !validateProcessContextLineage(tb, event) {
+			tb.Error(event.String())
+		}
+
+		if !validateProcessContextSECL(tb, event) {
+			tb.Error(event.String())
+		}
+	}
+}
+
+//nolint:deadcode,unused
+func validateExecEvent(t *testing.T, validate func(event *sprobe.Event, rule *rules.Rule)) func(event *sprobe.Event, rule *rules.Rule) {
+	return func(event *sprobe.Event, rule *rules.Rule) {
+		validate(event, rule)
+
+		if !validateExecSchema(t, event) {
+			t.Error(event.String())
+		}
+	}
+}
+
 func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (string, error) {
 	testPolicyFile, err := os.CreateTemp(dir, "secagent-policy.*.policy")
 	if err != nil {
@@ -468,7 +582,6 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		return nil, errors.Wrap(err, "failed to load config")
 	}
 
-	config.SelfTestEnabled = false
 	config.ERPCDentryResolutionEnabled = !opts.disableERPCDentryResolution
 	config.MapDentryResolutionEnabled = !opts.disableMapDentryResolution
 
@@ -567,7 +680,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, errors.Wrap(err, "failed to init module")
 	}
 
-	testMod.probe.SetEventHandler(testMod.probeHandler)
+	testMod.probe.AddEventHandler(model.UnknownEventType, testMod.probeHandler)
 
 	if err := testMod.module.Start(); err != nil {
 		return nil, errors.Wrap(err, "failed to start module")
@@ -593,7 +706,12 @@ func (tm *testModule) reloadConfiguration() error {
 	log.Debugf("reload configuration with testDir: %s", tm.Root())
 	tm.config.PoliciesDir = tm.Root()
 
-	if err := tm.module.Reload(); err != nil {
+	provider, err := rules.NewPoliciesDirProvider(tm.config.PoliciesDir, false)
+	if err != nil {
+		return err
+	}
+
+	if err := tm.module.LoadPolicies([]rules.PolicyProvider{provider}, true); err != nil {
 		return errors.Wrap(err, "failed to reload test module")
 	}
 
@@ -695,7 +813,7 @@ func GetStatusMetrics(probe *sprobe.Probe) string {
 	var status strings.Builder
 	status.WriteString(fmt.Sprintf("%d lost", perfBufferMonitor.GetKernelLostCount("events", -1)))
 
-	for i := model.UnknownEventType + 1; i < model.MaxEventType; i++ {
+	for i := model.UnknownEventType + 1; i < model.MaxKernelEventType; i++ {
 		stats, kernelStats := perfBufferMonitor.GetEventStats(i, "events", -1)
 		if stats.Count == 0 && kernelStats.Count == 0 && kernelStats.Lost == 0 {
 			continue
@@ -747,7 +865,7 @@ func (err ErrSkipTest) Error() string {
 func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb ruleHandler) {
 	tb.Helper()
 
-	if err := tm.GetSignal(tb, action, cb); err != nil {
+	if err := tm.GetSignal(tb, action, validateEvent(tb, cb)); err != nil {
 		if _, ok := err.(ErrSkipTest); ok {
 			tb.Skip(err)
 		} else {

@@ -9,11 +9,15 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"syscall"
 	"testing"
 
+	"github.com/iceber/iouring-go"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/sys/unix"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -59,6 +63,7 @@ func TestMkdir(t *testing.T) {
 			assertRights(t, event.Mkdir.File.Mode, expectedMode)
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
+			assert.Equal(t, event.Async, false)
 		})
 	}))
 
@@ -82,6 +87,66 @@ func TestMkdir(t *testing.T) {
 			assertRights(t, event.Mkdir.File.Mode&expectedMode, expectedMode)
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
+			assert.Equal(t, event.Async, false)
+		})
+	})
+
+	t.Run("io_uring", func(t *testing.T) {
+		testatFile, _, err := test.Path("testat-mkdir")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer syscall.Rmdir(testatFile)
+
+		iour, err := iouring.New(1)
+		if err != nil {
+			if errors.Is(err, unix.ENOTSUP) {
+				t.Fatal(err)
+			}
+			t.Skip("io_uring not supported")
+		}
+		defer iour.Close()
+
+		prepRequest, err := iouring.Mkdirat(unix.AT_FDCWD, testatFile, 0777)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ch := make(chan iouring.Result, 1)
+
+		test.WaitSignal(t, func() error {
+			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
+				return err
+			}
+
+			result := <-ch
+			ret, err := result.ReturnInt()
+			if err != nil {
+				if err == syscall.EBADF || err == syscall.EINVAL {
+					return ErrSkipTest{"mkdirat not supported by io_uring"}
+				}
+				return err
+			}
+
+			if ret < 0 {
+				return fmt.Errorf("failed to create directory with io_uring: %d", ret)
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_mkdirat")
+			assert.Equal(t, getInode(t, testatFile), event.Mkdir.File.Inode, "wrong inode")
+			assertRights(t, uint16(event.Mkdir.Mode), 0777)
+			assert.Equal(t, getInode(t, testatFile), event.Mkdir.File.Inode, "wrong inode")
+			assertRights(t, event.Mkdir.File.Mode&expectedMode, expectedMode)
+			assertNearTime(t, event.Mkdir.File.MTime)
+			assertNearTime(t, event.Mkdir.File.CTime)
+			assert.Equal(t, event.Async, true)
+
+			executable, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertFieldEqual(t, event, "process.file.path", executable)
 		})
 	})
 }
@@ -119,7 +184,7 @@ func TestMkdirError(t *testing.T) {
 			return runSyscallTesterFunc(t, syscallTester, "mkdirat-error", testatFile)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdirat_error")
-			assertReturnValue(t, event.Mkdir.Retval, -int64(syscall.EACCES))
+			assert.Equal(t, event.Mkdir.Retval, -int64(syscall.EACCES))
 		})
 	})
 }

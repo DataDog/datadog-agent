@@ -173,7 +173,7 @@ func TestAdmissionControllerFailureModeFailV1beta1(t *testing.T) {
 }
 
 func TestGenerateTemplatesV1beta1(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	defaultReinvocationPolicy := admiv1beta1.IfNeededReinvocationPolicy
 	failurePolicy := admiv1beta1.Ignore
 	matchPolicy := admiv1beta1.Exact
@@ -440,7 +440,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupConfig()
-			defer mockConfig.Set("admission_controller.add_aks_selectors", false) // Reset to default
+			defer resetMockConfig(mockConfig) // Reset to default
 
 			c := &ControllerV1beta1{}
 			c.config = tt.configFunc()

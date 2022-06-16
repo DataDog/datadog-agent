@@ -48,8 +48,8 @@ type conntrack struct {
 
 func (c *conntrack) Exists(conn *Con) (bool, error) {
 	var family byte = unix.AF_INET
-	if (conn.Con.Origin != nil && conn.Con.Origin.Src != nil && conn.Con.Origin.Src.To4() == nil) ||
-		(conn.Con.Reply != nil && conn.Con.Reply.Src != nil && conn.Con.Reply.Src.To4() == nil) {
+	if (!conn.Origin.IsZero() && !conn.Origin.Src.IsZero() && conn.Origin.Src.IP().Is6() && !conn.Origin.Src.IP().Is4in6()) ||
+		(!conn.Reply.IsZero() && !conn.Reply.Src.IsZero() && conn.Reply.Src.IP().Is6() && !conn.Reply.Src.IP().Is4in6()) {
 		family = unix.AF_INET6
 	}
 

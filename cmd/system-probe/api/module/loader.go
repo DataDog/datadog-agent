@@ -138,7 +138,7 @@ func Close() {
 func updateStats() {
 	start := time.Now()
 	then := time.Now()
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(15 * time.Second)
 	for now := range ticker.C {
 		l.Lock()
 		if l.closed {

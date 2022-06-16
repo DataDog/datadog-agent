@@ -8,7 +8,6 @@ package checks
 import (
 	"context"
 	"errors"
-	"sync/atomic"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -20,12 +19,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/cpu"
+	"go.uber.org/atomic"
 )
 
 const emptyCtrID = ""
 
 // Process is a singleton ProcessCheck.
-var Process = &ProcessCheck{}
+var Process = &ProcessCheck{
+	createTimes: &atomic.Value{},
+}
 
 var _ CheckWithRealTime = (*ProcessCheck)(nil)
 
@@ -57,7 +59,7 @@ type ProcessCheck struct {
 	lastPIDs []int32
 
 	// Create times by PID used in the network check
-	createTimes atomic.Value
+	createTimes *atomic.Value
 
 	// SysprobeProcessModuleEnabled tells the process check wheither to use the RemoteSystemProbeUtil to gather privileged process stats
 	SysprobeProcessModuleEnabled bool
@@ -108,6 +110,9 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 
 	return result.Standard, nil
 }
+
+// Cleanup frees any resource held by the ProcessCheck before the agent exits
+func (p *ProcessCheck) Cleanup() {}
 
 func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTime bool) (*RunResult, error) {
 	start := time.Now()

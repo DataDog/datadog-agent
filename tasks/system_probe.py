@@ -27,8 +27,6 @@ DNF_TAG = "dnf"
 CLANG_CMD = "clang {flags} -c '{c_file}' -o '{bc_file}'"
 LLC_CMD = "llc -march=bpf -filetype=obj -o '{obj_file}' '{bc_file}'"
 
-DATADOG_AGENT_EMBEDDED_PATH = '/opt/datadog-agent/embedded'
-
 KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
 TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/...", "./pkg/collector/corechecks/ebpf/..."]
@@ -58,7 +56,6 @@ def build(
     go_mod="mod",
     windows=is_windows,
     arch=CURRENT_ARCH,
-    embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
     compile_ebpf=True,
     nikos_embedded_path=None,
     bundle_ebpf=False,
@@ -92,7 +89,6 @@ def build(
         ctx,
         major_version=major_version,
         python_runtimes=python_runtimes,
-        embedded_path=embedded_path,
         nikos_embedded_path=nikos_embedded_path,
     )
 
@@ -131,6 +127,7 @@ def test(
     run=None,
     windows=is_windows,
     parallel_build=True,
+    failfast=False,
 ):
     """
     Run tests on eBPF parts
@@ -163,14 +160,15 @@ def test(
         "output_params": "-c -o " + output_path if output_path else "",
         "pkgs": packages,
         "run": "-run " + run if run else "",
+        "failfast": "-failfast" if failfast else "",
     }
 
     _, _, env = get_build_flags(ctx)
-    env['DD_SYSTEM_PROBE_BPF_DIR'] = os.path.normpath(os.path.join(os.getcwd(), "pkg", "ebpf", "bytecode", "build"))
+    env['DD_SYSTEM_PROBE_BPF_DIR'] = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
     if runtime_compiled:
         env['DD_TESTS_RUNTIME_COMPILED'] = "1"
 
-    cmd = 'go test -mod=mod -v -tags "{build_tags}" {output_params} {pkgs} {run}'
+    cmd = 'go test -mod=mod -v {failfast} -tags "{build_tags}" {output_params} {pkgs} {run}'
     if not windows and not output_path and not is_root():
         cmd = 'sudo -E ' + cmd
 
@@ -346,12 +344,20 @@ def clang_tidy(ctx, fix=False, fail_on_issue=False):
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_files = list(base_files)
-    network_files.extend(glob.glob(network_c_dir + "/**/*.c"))
+    network_files.extend(glob.glob(network_c_dir + "/**/*[!http].c"))
+    network_files.append(os.path.join(network_c_dir, "runtime", "http.c"))
     network_flags = list(build_flags)
     network_flags.append(f"-I{network_c_dir}")
     network_flags.append(f"-I{os.path.join(network_c_dir, 'prebuilt')}")
     network_flags.append(f"-I{os.path.join(network_c_dir, 'runtime')}")
     run_tidy(ctx, files=network_files, build_flags=network_flags, fix=fix, fail_on_issue=fail_on_issue)
+
+    # special treatment for prebuilt/http.c
+    http_files = [os.path.join(network_c_dir, "prebuilt", "http.c")]
+    http_flags = get_http_prebuilt_build_flags(network_c_dir)
+    http_flags.append(f"-I{network_c_dir}")
+    http_flags.append(f"-I{os.path.join(network_c_dir, 'prebuilt')}")
+    run_tidy(ctx, files=http_files, build_flags=http_flags, fix=fix, fail_on_issue=fail_on_issue)
 
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_files = list(base_files)
@@ -499,16 +505,18 @@ def get_ebpf_build_flags(target=None):
     return flags
 
 
-def build_network_ebpf_compile_file(ctx, parallel_build, build_dir, p, debug, network_prebuilt_dir, network_flags):
+def build_network_ebpf_compile_file(
+    ctx, parallel_build, build_dir, p, debug, network_prebuilt_dir, network_flags, extension=".bc"
+):
     src_file = os.path.join(network_prebuilt_dir, f"{p}.c")
     if not debug:
-        bc_file = os.path.join(build_dir, f"{p}.bc")
+        bc_file = os.path.join(build_dir, f"{p}{extension}")
         return ctx.run(
             CLANG_CMD.format(flags=" ".join(network_flags), bc_file=bc_file, c_file=src_file),
             asynchronous=parallel_build,
         )
     else:
-        debug_bc_file = os.path.join(build_dir, f"{p}-debug.bc")
+        debug_bc_file = os.path.join(build_dir, f"{p}-debug{extension}")
         return ctx.run(
             CLANG_CMD.format(flags=" ".join(network_flags + ["-DDEBUG=1"]), bc_file=debug_bc_file, c_file=src_file),
             asynchronous=parallel_build,
@@ -532,15 +540,44 @@ def build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, netwo
         )
 
 
+def get_http_prebuilt_build_flags(network_c_dir):
+    uname_m = check_output("uname -m", shell=True).decode('utf-8').strip()
+    flags = get_ebpf_build_flags(target=["-target", "bpf"])
+    flags.append(f"-I{network_c_dir}")
+    flags.append(f"-D__{uname_m}__")
+    flags.append(f"-isystem /usr/include/{uname_m}-linux-gnu")
+    return flags
+
+
+def build_http_ebpf_files(ctx, build_dir):
+    network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
+    network_c_dir = os.path.join(network_bpf_dir, "c")
+    network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
+
+    network_flags = get_http_prebuilt_build_flags(network_c_dir)
+
+    build_network_ebpf_compile_file(
+        ctx, False, build_dir, "http", True, network_prebuilt_dir, network_flags, extension=".o"
+    )
+    build_network_ebpf_compile_file(
+        ctx, False, build_dir, "http", False, network_prebuilt_dir, network_flags, extension=".o"
+    )
+
+
+def get_network_build_flags(network_c_dir):
+    flags = get_ebpf_build_flags()
+    flags.append(f"-I{network_c_dir}")
+    return flags
+
+
 def build_network_ebpf_files(ctx, build_dir, parallel_build=True):
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
-    compiled_programs = ["dns", "http", "offset-guess", "tracer"]
+    compiled_programs = ["dns", "offset-guess", "tracer"]
 
-    network_flags = get_ebpf_build_flags()
-    network_flags.append(f"-I{network_c_dir}")
+    network_flags = get_network_build_flags(network_c_dir)
 
     flavor = []
     for prog in compiled_programs:
@@ -668,17 +705,31 @@ def build_object_files(ctx, parallel_build):
     print("checking for clang executable...")
     ctx.run("which clang")
 
-    bpf_dir = os.path.join(".", "pkg", "ebpf")
-    build_dir = os.path.join(bpf_dir, "bytecode", "build")
+    build_dir = os.path.join(".", "pkg", "ebpf", "bytecode", "build")
     build_runtime_dir = os.path.join(build_dir, "runtime")
 
     ctx.run(f"mkdir -p {build_dir}")
     ctx.run(f"mkdir -p {build_runtime_dir}")
 
     build_network_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build)
+    build_http_ebpf_files(ctx, build_dir=build_dir)
     build_security_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build)
 
     generate_runtime_files(ctx)
+
+    # We need to copy the bpf files out of the mounted build directory in order to be able to
+    # change their ownership to root
+    src_files = os.path.join(build_dir, "*")
+    bpf_dir = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
+
+    if not is_root():
+        ctx.sudo(f"mkdir -p {bpf_dir}")
+        ctx.sudo(f"cp -R {src_files} {bpf_dir}")
+        ctx.sudo(f"chown root:root -R {bpf_dir}")
+    else:
+        ctx.run(f"mkdir -p {bpf_dir}")
+        ctx.run(f"cp -R {src_files} {bpf_dir}")
+        ctx.run(f"chown root:root -R {bpf_dir}")
 
 
 @task
@@ -695,14 +746,14 @@ def generate_runtime_files(ctx):
         ctx.run(f"go generate -mod=mod -tags {BPF_TAG} {f}")
 
 
-def replace_cgo_tag_absolute_path(file_path):
+def replace_cgo_tag_absolute_path(file_path, windows=is_windows):
     # read
     f = open(file_path)
     lines = []
     for line in f:
-        if line.startswith("// cgo -godefs"):
+        if (windows and line.startswith("// cgo.exe -godefs")) or (not windows and line.startswith("// cgo -godefs")):
             path = line.split()[-1]
-            if path.startswith("/"):
+            if os.path.isabs(path):
                 _, filename = os.path.split(path)
                 lines.append(line.replace(path, filename))
                 continue
@@ -739,7 +790,7 @@ def generate_cgo_types(ctx, windows=is_windows, replace_absolutes=True):
             ctx.run(f"gofmt -w -s {output_file}")
             if replace_absolutes:
                 # replace absolute path with relative ones in generated file
-                replace_cgo_tag_absolute_path(os.path.join(fdir, output_file))
+                replace_cgo_tag_absolute_path(file_path=os.path.join(fdir, output_file), windows=windows)
 
 
 def is_root():

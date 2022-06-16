@@ -10,11 +10,11 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
 type sqlTestCase struct {
@@ -1148,6 +1148,10 @@ LIMIT 1
 			query:    `SELECT * FROM dbo.Items WHERE id = 1 or /*!obfuscation*/ 1 = 1`,
 			expected: `SELECT * FROM dbo.Items WHERE id = ? or ? = ?`,
 		},
+		{
+			query:    `SELECT * FROM Items WHERE id = -1 OR id = -01 OR id = -108 OR id = -.018 OR id = -.08 OR id = -908129`,
+			expected: `SELECT * FROM Items WHERE id = ? OR id = ? OR id = ? OR id = ? OR id = ? OR id = ?`,
+		},
 	}
 	o := NewObfuscator(Config{})
 	for _, c := range cases {
@@ -1741,9 +1745,9 @@ func BenchmarkObfuscateSQLString(b *testing.B) {
 
 	b.Run("random", func(b *testing.B) {
 		b.ReportAllocs()
-		var j uint64
+		var j atomic.Uint64
 		for i := 0; i < b.N; i++ {
-			_, err := obf.ObfuscateSQLString(fmt.Sprintf("SELECT * FROM users WHERE id=%d", atomic.AddUint64(&j, 1)))
+			_, err := obf.ObfuscateSQLString(fmt.Sprintf("SELECT * FROM users WHERE id=%d", j.Inc()))
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -1770,7 +1774,7 @@ func BenchmarkQueryCacheTippingPoint(b *testing.B) {
 		return func(b *testing.B) {
 			o := NewObfuscator(Config{})
 			hitcount := int(float64(queries) * hitrate)
-			var idx uint64
+			var idx atomic.Uint64
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				for n := 0; n < hitcount; n++ {
@@ -1779,7 +1783,7 @@ func BenchmarkQueryCacheTippingPoint(b *testing.B) {
 					}
 				}
 				for n := 0; n < queries-hitcount; n++ {
-					if _, err := fn(o, fmt.Sprintf(queryfmt, atomic.AddUint64(&idx, 1))); err != nil {
+					if _, err := fn(o, fmt.Sprintf(queryfmt, idx.Inc())); err != nil {
 						b.Fatal(err)
 					}
 				}

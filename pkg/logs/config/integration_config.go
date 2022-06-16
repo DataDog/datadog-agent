@@ -21,7 +21,6 @@ const (
 	DockerType        = "docker"
 	JournaldType      = "journald"
 	WindowsEventType  = "windows_event"
-	SnmpTrapsType     = "snmp_traps"
 	StringChannelType = "string_channel"
 
 	// UTF16BE for UTF-16 Big endian encoding
@@ -55,8 +54,9 @@ type LogsConfig struct {
 	Label string // Docker
 	// Name contains the container name
 	Name string // Docker
-	// Identifier contains the container ID
-	Identifier string // Docker
+	// Identifier contains the container ID.  This is also set for File sources and used to
+	// determine the appropriate tags for the logs.
+	Identifier string // Docker, File
 
 	ChannelPath string `mapstructure:"channel_path" json:"channel_path"` // Windows Event
 	Query       string // Windows Event
@@ -81,6 +81,64 @@ type LogsConfig struct {
 	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection"`
 	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size"`
 	AutoMultiLineMatchThreshold float64 `mapstructure:"auto_multi_line_match_threshold" json:"auto_multi_line_match_threshold"`
+}
+
+// Dump dumps the contents of this struct to a string, for debugging purposes.
+func (c *LogsConfig) Dump() string {
+	var b strings.Builder
+	if c == nil {
+		return "&LogsConfig(nil)"
+	}
+	fmt.Fprintf(&b, "&LogsConfig{\n")
+	fmt.Fprintf(&b, "\tType: %#v,\n", c.Type)
+	switch c.Type {
+	case TCPType:
+		fmt.Fprintf(&b, "\tPort: %d,\n", c.Port)
+		fmt.Fprintf(&b, "\tIdleTimeout: %#v,\n", c.IdleTimeout)
+	case UDPType:
+		fmt.Fprintf(&b, "\tPort: %d,\n", c.Port)
+		fmt.Fprintf(&b, "\tIdleTimeout: %#v,\n", c.IdleTimeout)
+	case FileType:
+		fmt.Fprintf(&b, "\tPath: %#v,\n", c.Path)
+		fmt.Fprintf(&b, "\tEncoding: %#v,\n", c.Encoding)
+		fmt.Fprintf(&b, "\tIdentifier: %#v,\n", c.Identifier)
+		fmt.Fprintf(&b, "\tExcludePaths: %#v,\n", c.ExcludePaths)
+		fmt.Fprintf(&b, "\tTailingMode: %#v,\n", c.TailingMode)
+	case DockerType:
+		fmt.Fprintf(&b, "\tImage: %#v,\n", c.Image)
+		fmt.Fprintf(&b, "\tLabel: %#v,\n", c.Label)
+		fmt.Fprintf(&b, "\tName: %#v,\n", c.Name)
+		fmt.Fprintf(&b, "\tIdentifier: %#v,\n", c.Identifier)
+	case JournaldType:
+		fmt.Fprintf(&b, "\tPath: %#v,\n", c.Path)
+		fmt.Fprintf(&b, "\tIncludeSystemUnits: %#v,\n", c.IncludeSystemUnits)
+		fmt.Fprintf(&b, "\tExcludeSystemUnits: %#v,\n", c.ExcludeSystemUnits)
+		fmt.Fprintf(&b, "\tIncludeUserUnits: %#v,\n", c.IncludeUserUnits)
+		fmt.Fprintf(&b, "\tExcludeUserUnits: %#v,\n", c.ExcludeUserUnits)
+		fmt.Fprintf(&b, "\tContainerMode: %t,\n", c.ContainerMode)
+	case WindowsEventType:
+		fmt.Fprintf(&b, "\tChannelPath: %#v,\n", c.ChannelPath)
+		fmt.Fprintf(&b, "\tQuery: %#v,\n", c.Query)
+	case StringChannelType:
+		fmt.Fprintf(&b, "\tChannel: %p,\n", c.Channel)
+		c.ChannelTagsMutex.Lock()
+		fmt.Fprintf(&b, "\tChannelTags: %#v,\n", c.ChannelTags)
+		c.ChannelTagsMutex.Unlock()
+	}
+	fmt.Fprintf(&b, "\tService: %#v,\n", c.Service)
+	fmt.Fprintf(&b, "\tSource: %#v,\n", c.Source)
+	fmt.Fprintf(&b, "\tSourceCategory: %#v,\n", c.SourceCategory)
+	fmt.Fprintf(&b, "\tTags: %#v,\n", c.Tags)
+	fmt.Fprintf(&b, "\tProcessingRules: %#v,\n", c.ProcessingRules)
+	if c.AutoMultiLine != nil {
+		fmt.Fprintf(&b, "\tAutoMultiLine: %t,\n", *c.AutoMultiLine)
+	} else {
+		fmt.Fprintf(&b, "\tAutoMultiLine: nil,\n")
+	}
+	fmt.Fprintf(&b, "\tAutoMultiLineSampleSize: %d,\n", c.AutoMultiLineSampleSize)
+	fmt.Fprintf(&b, "\tAutoMultiLineMatchThreshold: %f,\n", c.AutoMultiLineMatchThreshold)
+	fmt.Fprintf(&b, "}")
+	return b.String()
 }
 
 // TailingMode type

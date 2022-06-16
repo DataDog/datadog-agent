@@ -16,7 +16,7 @@ provider:
     DD_API_KEY: NO_NEED_TO_BE_VALID
     DD_LOGS_CONFIG_LOGS_DD_URL: 127.0.0.1:3333
     DD_LOGS_CONFIG_LOGS_NO_SSL: true
-    DD_LOGS_INJECTION: true
+    DD_LOGS_INJECTION: false
     DD_MERGE_XRAY_TRACES: false
     DD_TRACE_ENABLED: true
     DD_APM_DD_URL: http://127.0.0.1:3333
@@ -25,6 +25,7 @@ provider:
     DD_SERVICE: integration-tests-service
     DD_TAGS: tagA:valueA tagB:valueB
     DD_EXTRA_TAGS: tagC:valueC tagD:valueD
+    DD_CAPTURE_LAMBDA_PAYLOAD: true
   timeout: 15
   deploymentBucket:
     name: integration-tests-deployment-bucket-lambda-extension
@@ -38,6 +39,9 @@ package:
     - "src"
     - "!src/csharp-tests"
     - "!src/java-tests"
+    - "!src/bin"
+    - "!recorder-extension"
+    - "!snapshots"
 
 custom:
   ddLambdaPythonLayerFlag:
@@ -77,6 +81,10 @@ functions:
 
   metric-go:
     runtime: provided.al2
+    package:
+      individually: true
+      patterns:
+        - src/bin/metric
     handler: src/bin/metric
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
@@ -97,11 +105,11 @@ functions:
       DD_JMXFETCH_ENABLED: false
 
   metric-csharp:
-    runtime: dotnetcore3.1
+    runtime: dotnet6
     handler: CsharpHandlers::AwsDotnetCsharp.Handler::Hello
     package:
       individually: true
-      artifact: src/csharp-tests/bin/Release/netcoreapp3.1/handler.zip
+      artifact: src/csharp-tests/bin/Release/net6.0/handler.zip
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
@@ -120,7 +128,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
   error-node:
     runtime: nodejs14.x
@@ -155,11 +163,11 @@ functions:
       DD_JMXFETCH_ENABLED: false
 
   error-csharp:
-    runtime: dotnetcore3.1
+    runtime: dotnet6
     handler: CsharpHandlers::AwsDotnetCsharp.Handler::Error
     package:
       individually: true
-      artifact: src/csharp-tests/bin/Release/netcoreapp3.1/handler.zip
+      artifact: src/csharp-tests/bin/Release/net6.0/handler.zip
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
@@ -178,7 +186,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
   timeout-node:
     runtime: nodejs14.x
@@ -203,6 +211,10 @@ functions:
   timeout-go:
     runtime: provided.al2
     timeout: 1
+    package:
+      individually: true
+      patterns:
+        - src/bin/timeout
     handler: src/bin/timeout
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
@@ -224,12 +236,12 @@ functions:
       DD_JMXFETCH_ENABLED: false
 
   timeout-csharp:
-    runtime: dotnetcore3.1
+    runtime: dotnet6
     handler: CsharpHandlers::AwsDotnetCsharp.Handler::Timeout
     timeout: 1
     package:
       individually: true
-      artifact: src/csharp-tests/bin/Release/netcoreapp3.1/handler.zip
+      artifact: src/csharp-tests/bin/Release/net6.0/handler.zip
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
@@ -248,7 +260,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
   log-node:
     runtime: nodejs14.x
@@ -270,17 +282,21 @@ functions:
 
   log-go:
     runtime: provided.al2
+    package:
+      individually: true
+      patterns:
+        - src/bin/log
     handler: src/bin/log
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
 
   log-csharp:
-    runtime: dotnetcore3.1
+    runtime: dotnet6
     handler: CsharpHandlers::AwsDotnetCsharp.Handler::Logs
     package:
       individually: true
-      artifact: src/csharp-tests/bin/Release/netcoreapp3.1/handler.zip
+      artifact: src/csharp-tests/bin/Release/net6.0/handler.zip
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
@@ -313,7 +329,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
   trace-node:
     runtime: nodejs14.x
@@ -337,6 +353,10 @@ functions:
 
   trace-go:
     runtime: provided.al2
+    package:
+      individually: true
+      patterns:
+        - src/bin/trace
     handler: src/bin/trace
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
@@ -357,11 +377,11 @@ functions:
       DD_JMXFETCH_ENABLED: false
 
   trace-csharp:
-    runtime: dotnetcore3.1
+    runtime: dotnet6
     handler: CsharpHandlers::AwsDotnetCsharp.Handler::Trace
     package:
       individually: true
-      artifact: src/csharp-tests/bin/Release/netcoreapp3.1/handler.zip
+      artifact: src/csharp-tests/bin/Release/net6.0/handler.zip
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
@@ -374,10 +394,10 @@ functions:
 
   trace-proxy:
     runtime: nodejs14.x
-    handler: src/proxyTestFunctions.noop 
+    handler: src/proxyTestFunctions.noop
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper

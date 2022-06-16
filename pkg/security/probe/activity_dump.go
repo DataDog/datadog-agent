@@ -105,7 +105,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) (*Acti
 	}
 
 	// generate counters
-	for i := model.EventType(0); i < model.MaxEventType; i++ {
+	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
 		processed := uint64(0)
 		ad.processedCount[i] = &processed
 		runtime := uint64(0)
@@ -884,7 +884,7 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 		}
 
 		evt := NewEvent(ad.adm.probe.resolvers, ad.adm.probe.scrubber, ad.adm.probe)
-		evt.Event.Type = uint64(model.FileOpenEventType)
+		evt.Event.Type = uint32(model.FileOpenEventType)
 
 		resolvedPath, err = filepath.EvalSymlinks(f)
 		if err != nil {

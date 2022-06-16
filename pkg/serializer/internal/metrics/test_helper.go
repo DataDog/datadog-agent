@@ -18,9 +18,9 @@ import (
 )
 
 // Makeseries creates a metrics.SketchSeries with i+5 Sketch Points
-func Makeseries(i int) metrics.SketchSeries {
+func Makeseries(i int) *metrics.SketchSeries {
 	// Makeseries is deterministic so that we can test for mutation.
-	ss := metrics.SketchSeries{
+	ss := &metrics.SketchSeries{
 		Name: fmt.Sprintf("name.%d", i),
 		Tags: tagset.CompositeTagsFromSlice([]string{
 			fmt.Sprintf("a:%d", i),
@@ -52,11 +52,27 @@ func makesketch(n int) *quantile.Sketch {
 	return s
 }
 
-func CreateIterableSeries(series metrics.Series) *metrics.IterableSeries {
-	iterableSeries := metrics.NewIterableSeries(func(*metrics.Serie) {}, 1000, 1000)
-	for _, serie := range series {
-		iterableSeries.Append(serie)
+type serieSourceMock struct {
+	series metrics.Series
+	index  int
+}
+
+func (s *serieSourceMock) MoveNext() bool {
+	s.index++
+	return s.index < len(s.series)
+}
+
+func (s *serieSourceMock) Current() *metrics.Serie {
+	return s.series[s.index]
+}
+
+func (s *serieSourceMock) Count() uint64 {
+	return uint64(len(s.series))
+}
+
+func CreateSerieSource(series metrics.Series) metrics.SerieSource {
+	return &serieSourceMock{
+		series: series,
+		index:  -1,
 	}
-	iterableSeries.SenderStopped()
-	return iterableSeries
 }

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package cca
 
 import (
@@ -13,14 +18,14 @@ import (
 
 func setup() (scheduler *Scheduler, ac *autodiscovery.AutoConfig, spy *schedulers.MockSourceManager) {
 	ac = autodiscovery.NewAutoConfigNoStart(nil)
-	scheduler = New(func() *autodiscovery.AutoConfig { return ac }).(*Scheduler)
+	scheduler = New(ac).(*Scheduler)
 	spy = &schedulers.MockSourceManager{}
 	return
 }
 
 func TestNothingWhenNoConfig(t *testing.T) {
 	scheduler, _, spy := setup()
-	config := coreConfig.Mock()
+	config := coreConfig.Mock(t)
 	config.Set("logs_config.container_collect_all", false)
 
 	scheduler.Start(spy)
@@ -30,7 +35,7 @@ func TestNothingWhenNoConfig(t *testing.T) {
 
 func TestAfterACStarts(t *testing.T) {
 	scheduler, ac, spy := setup()
-	config := coreConfig.Mock()
+	config := coreConfig.Mock(t)
 	config.Set("logs_config.container_collect_all", true)
 
 	scheduler.Start(spy)

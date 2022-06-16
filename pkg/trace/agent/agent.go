@@ -8,7 +8,6 @@ package agent
 import (
 	"context"
 	"runtime"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
@@ -54,6 +53,9 @@ type Agent struct {
 	// tags based on their type.
 	obfuscator     *obfuscate.Obfuscator
 	cardObfuscator *ccObfuscator
+
+	// DiscardSpan will be called on all spans, if non-nil. If it returns true, the span will be deleted before processing.
+	DiscardSpan func(*pb.Span) bool
 
 	// ModifySpan will be called on all spans, if non-nil.
 	ModifySpan func(*pb.Span)
@@ -202,6 +204,9 @@ func (a *Agent) Process(p *api.Payload) {
 	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.ClientComputedStats, a.conf)
 
 	p.TracerPayload.Env = traceutil.NormalizeTag(p.TracerPayload.Env)
+
+	a.discardSpans(p)
+
 	for i := 0; i < len(p.Chunks()); {
 		chunk := p.Chunk(i)
 		if len(chunk.Spans) == 0 {
@@ -211,11 +216,11 @@ func (a *Agent) Process(p *api.Payload) {
 		}
 
 		tracen := int64(len(chunk.Spans))
-		atomic.AddInt64(&ts.SpansReceived, tracen)
+		ts.SpansReceived.Add(tracen)
 		err := normalizeTrace(p.Source, chunk.Spans)
 		if err != nil {
 			log.Debugf("Dropping invalid trace: %s", err)
-			atomic.AddInt64(&ts.SpansDropped, tracen)
+			ts.SpansDropped.Add(tracen)
 			p.RemoveChunk(i)
 			continue
 		}
@@ -225,16 +230,16 @@ func (a *Agent) Process(p *api.Payload) {
 		normalizeChunk(chunk, root)
 		if !a.Blacklister.Allows(root) {
 			log.Debugf("Trace rejected by ignore resources rules. root: %v", root)
-			atomic.AddInt64(&ts.TracesFiltered, 1)
-			atomic.AddInt64(&ts.SpansFiltered, tracen)
+			ts.TracesFiltered.Inc()
+			ts.SpansFiltered.Add(tracen)
 			p.RemoveChunk(i)
 			continue
 		}
 
 		if filteredByTags(root, a.conf.RequireTags, a.conf.RejectTags) {
 			log.Debugf("Trace rejected as it fails to meet tag requirements. root: %v", root)
-			atomic.AddInt64(&ts.TracesFiltered, 1)
-			atomic.AddInt64(&ts.SpansFiltered, tracen)
+			ts.TracesFiltered.Inc()
+			ts.SpansFiltered.Add(tracen)
 			p.RemoveChunk(i)
 			continue
 		}
@@ -349,6 +354,28 @@ func newChunksArray(chunks []*pb.TraceChunk) []*pb.TraceChunk {
 
 var _ api.StatsProcessor = (*Agent)(nil)
 
+// discardSpans removes all spans for which the provided DiscardFunction function returns true
+func (a *Agent) discardSpans(p *api.Payload) {
+	if a.DiscardSpan == nil {
+		return
+	}
+	for _, chunk := range p.Chunks() {
+		n := 0
+		for _, span := range chunk.Spans {
+			if !a.DiscardSpan(span) {
+				chunk.Spans[n] = span
+				n++
+			}
+		}
+		// set everything at the back of the array to nil to avoid memory leaking
+		// since we're going to have garbage elements at the back of the slice.
+		for i := n; i < len(chunk.Spans); i++ {
+			chunk.Spans[i] = nil
+		}
+		chunk.Spans = chunk.Spans[:n]
+	}
+}
+
 func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion string) pb.ClientStatsPayload {
 	enableContainers := features.Has("enable_cid_stats") || (a.conf.FargateOrchestrator != config.OrchestratorUnknown)
 	if !enableContainers || features.Has("disable_cid_stats") {
@@ -410,7 +437,7 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedT
 	if hasPriority {
 		ts.TracesPerSamplingPriority.CountSamplingPriority(priority)
 	} else {
-		atomic.AddInt64(&ts.TracesPriorityNone, 1)
+		ts.TracesPriorityNone.Inc()
 	}
 
 	if priority < 0 {
@@ -427,8 +454,8 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedT
 	}
 	numEvents, numExtracted := a.EventProcessor.Process(pt.Root, filteredChunk)
 
-	atomic.AddInt64(&ts.EventsExtracted, numExtracted)
-	atomic.AddInt64(&ts.EventsSampled, numEvents)
+	ts.EventsExtracted.Add(numExtracted)
+	ts.EventsSampled.Add(numEvents)
 
 	return numEvents, sampled, filteredChunk
 }
@@ -446,16 +473,20 @@ func (a *Agent) runSamplers(now time.Time, pt traceutil.ProcessedTrace, hasPrior
 // ErrorSampler are run in parallel. The RareSampler catches traces with rare top-level
 // or measured spans that are not caught by PrioritySampler and ErrorSampler.
 func (a *Agent) samplePriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
+	var rare bool
+	if a.conf.DisableRareSampler {
+		rare = false
+	} else {
+		// run this early to make sure the signature gets counted by the RareSampler.
+		rare = a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv)
+	}
 	if a.PrioritySampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0sWeight) {
 		return true
 	}
 	if traceContainsError(pt.TraceChunk.Spans) {
 		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
 	}
-	if a.conf.DisableRareSampler {
-		return false
-	}
-	return a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv)
+	return rare
 }
 
 // sampleNoPriorityTrace samples traces with no priority set on them. The traces

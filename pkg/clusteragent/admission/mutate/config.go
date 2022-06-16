@@ -28,6 +28,7 @@ const (
 	// Env vars
 	agentHostEnvVarName  = "DD_AGENT_HOST"
 	ddEntityIDEnvVarName = "DD_ENTITY_ID"
+	traceURLEnvVarName   = "DD_TRACE_AGENT_URL"
 
 	// Config injection modes
 	hostIP  = "hostip"
@@ -57,6 +58,11 @@ var (
 				FieldPath: "metadata.uid",
 			},
 		},
+	}
+
+	traceURLEnvVar = corev1.EnvVar{
+		Name:  traceURLEnvVarName,
+		Value: config.Datadog.GetString("admission_controller.inject_config.trace_agent_socket"),
 	}
 
 	agentServiceEnvVar = corev1.EnvVar{
@@ -94,7 +100,9 @@ func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 		injectedConfig = injectEnv(pod, agentServiceEnvVar)
 	case socket:
 		volume, volumeMount := buildVolume(datadogVolumeName, config.Datadog.GetString("admission_controller.inject_config.socket_path"))
-		injectedConfig = injectVolume(pod, volume, volumeMount)
+		injectedVol := injectVolume(pod, volume, volumeMount)
+		injectedEnv := injectEnv(pod, traceURLEnvVar)
+		injectedConfig = injectedEnv || injectedVol
 	default:
 		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "unknown mode")
 		return fmt.Errorf("invalid injection mode %q", mode)

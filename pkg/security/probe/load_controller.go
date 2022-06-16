@@ -16,11 +16,16 @@ import (
 
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
+	"golang.org/x/time/rate"
 
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	defaultRateLimit = 1 // per second
 )
 
 type eventCounterLRUKey struct {
@@ -40,6 +45,8 @@ type LoadController struct {
 	EventsCountThreshold int64
 	DiscarderTimeout     time.Duration
 	ControllerPeriod     time.Duration
+
+	NoisyProcessCustomEventRate *rate.Limiter
 }
 
 // NewLoadController instantiates a new load controller
@@ -57,6 +64,8 @@ func NewLoadController(probe *Probe) (*LoadController, error) {
 		EventsCountThreshold: probe.config.LoadControllerEventsCountThreshold,
 		DiscarderTimeout:     probe.config.LoadControllerDiscarderTimeout,
 		ControllerPeriod:     probe.config.LoadControllerControlPeriod,
+
+		NoisyProcessCustomEventRate: rate.NewLimiter(rate.Every(time.Second), defaultRateLimit),
 	}
 	return lc, nil
 }
@@ -140,25 +149,26 @@ func (lc *LoadController) discardNoisiestProcess() {
 
 	atomic.AddInt64(&lc.pidDiscardersCount, 1)
 
-	// fetch noisy process metadata
-	process := lc.probe.resolvers.ProcessResolver.Resolve(maxKey.Pid, maxKey.Pid)
-	if process == nil {
-		log.Warnf("Unable to resolve process with pid: %d", maxKey.Pid)
-		return
-	}
+	if lc.NoisyProcessCustomEventRate.Allow() {
+		process := lc.probe.resolvers.ProcessResolver.Resolve(maxKey.Pid, maxKey.Pid)
+		if process == nil {
+			log.Warnf("Unable to resolve process with pid: %d", maxKey.Pid)
+			return
+		}
 
-	ts := time.Now()
-	lc.probe.DispatchCustomEvent(
-		NewNoisyProcessEvent(
-			oldMaxCount,
-			lc.EventsCountThreshold,
-			lc.ControllerPeriod,
-			ts.Add(lc.DiscarderTimeout),
-			process,
-			lc.probe.GetResolvers(),
-			ts,
-		),
-	)
+		ts := time.Now()
+		lc.probe.DispatchCustomEvent(
+			NewNoisyProcessEvent(
+				oldMaxCount,
+				lc.EventsCountThreshold,
+				lc.ControllerPeriod,
+				ts.Add(lc.DiscarderTimeout),
+				maxKey.Pid,
+				process.Comm,
+				ts,
+			),
+		)
+	}
 }
 
 // cleanupCounter resets the internal counter of the provided pid

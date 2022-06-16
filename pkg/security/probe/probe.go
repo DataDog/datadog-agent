@@ -27,6 +27,7 @@ import (
 	"github.com/moby/sys/mountinfo"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
+	"golang.org/x/time/rate"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
@@ -67,7 +68,7 @@ type Probe struct {
 	cancelFnc      context.CancelFunc
 	wg             sync.WaitGroup
 	// Events section
-	handler   EventHandler
+	handlers  [model.MaxAllEventType][]EventHandler
 	monitor   *Monitor
 	resolvers *Resolvers
 	event     *Event
@@ -76,12 +77,13 @@ type Probe struct {
 	scrubber  *pconfig.DataScrubber
 
 	// Approvers / discarders section
-	erpc               *ERPC
-	discarderReq       *ERPCRequest
-	pidDiscarders      *pidDiscarders
-	inodeDiscarders    *inodeDiscarders
-	flushingDiscarders int64
-	approvers          map[eval.EventType]activeApprovers
+	erpc                 *ERPC
+	discarderReq         *ERPCRequest
+	pidDiscarders        *pidDiscarders
+	inodeDiscarders      *inodeDiscarders
+	flushingDiscarders   int64
+	approvers            map[eval.EventType]activeApprovers
+	discarderRateLimiter *rate.Limiter
 
 	constantOffsets map[string]uint64
 
@@ -133,13 +135,6 @@ func (p *Probe) sanityChecks() error {
 
 	if utilkernel.GetLockdownMode() == utilkernel.Confidentiality {
 		return errors.New("eBPF not supported in lockdown `confidentiality` mode")
-	}
-
-	isWriteUserNotSupported := p.kernelVersion.Code >= kernel.Kernel5_13 && utilkernel.GetLockdownMode() == utilkernel.Integrity
-
-	if p.config.ERPCDentryResolutionEnabled && isWriteUserNotSupported {
-		log.Warn("eRPC path resolution is not supported in lockdown `integrity` mode")
-		p.config.ERPCDentryResolutionEnabled = false
 	}
 
 	if p.config.NetworkEnabled && p.kernelVersion.IsRH7Kernel() {
@@ -309,17 +304,23 @@ func (p *Probe) Start() {
 	go p.reOrderer.Start(&p.wg)
 }
 
-// SetEventHandler set the probe event handler
-func (p *Probe) SetEventHandler(handler EventHandler) {
-	p.handler = handler
+// AddEventHandler set the probe event handler
+func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler) {
+	p.handlers[eventType] = append(p.handlers[eventType], handler)
 }
 
 // DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manager.PerfMap) {
 	seclog.TraceTagf(event.GetEventType(), "Dispatching event %s", event)
 
-	if p.handler != nil {
-		p.handler.HandleEvent(event)
+	// send wildcard first
+	for _, handler := range p.handlers[model.UnknownEventType] {
+		handler.HandleEvent(event)
+	}
+
+	// send specific event
+	for _, handler := range p.handlers[event.GetEventType()] {
+		handler.HandleEvent(event)
 	}
 
 	// Process after evaluation because some monitors need the DentryResolver to have been called first.
@@ -330,8 +331,17 @@ func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manag
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *CustomEvent) {
 	seclog.TraceTagf(event.GetEventType(), "Dispatching custom event %s", event)
 
-	if p.handler != nil && p.config.AgentMonitoringEvents {
-		p.handler.HandleCustomEvent(rule, event)
+	// send specific event
+	if p.config.AgentMonitoringEvents {
+		// send wildcard first
+		for _, handler := range p.handlers[model.UnknownEventType] {
+			handler.HandleCustomEvent(rule, event)
+		}
+
+		// send specific event
+		for _, handler := range p.handlers[event.GetEventType()] {
+			handler.HandleCustomEvent(rule, event)
+		}
 	}
 }
 
@@ -367,7 +377,7 @@ func (p *Probe) zeroEvent() *Event {
 }
 
 func (p *Probe) unmarshalContexts(data []byte, event *Event) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.ProcessContext, &event.SpanContext, &event.ContainerContext)
+	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, &event.ContainerContext)
 	if err != nil {
 		return 0, err
 	}
@@ -459,8 +469,8 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	offset += read
 
 	// save netns handle if applicable
-	nsPath := utils.NetNSPathFromPid(event.ProcessContext.Pid)
-	_, _ = p.resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(event.ProcessContext.NetNS, nsPath)
+	nsPath := utils.NetNSPathFromPid(event.PIDContext.Pid)
+	_, _ = p.resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(event.PIDContext.NetNS, nsPath)
 
 	if model.GetEventTypeCategory(eventType.String()) == model.NetworkCategory {
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
@@ -590,55 +600,53 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 	case model.ForkEventType:
-		if _, err = event.UnmarshalProcess(data[offset:]); err != nil {
+		if _, err = event.UnmarshalProcessCacheEntry(data[offset:]); err != nil {
 			log.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 
-		if IsKThread(event.processCacheEntry.PPid, event.processCacheEntry.Pid) {
+		if IsKThread(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
 			return
 		}
 
-		p.resolvers.ProcessResolver.ApplyBootTime(event.processCacheEntry)
-		event.processCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
+		p.resolvers.ProcessResolver.ApplyBootTime(event.ProcessCacheEntry)
+		event.ProcessCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
 
-		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessContext.Pid, event.processCacheEntry)
+		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessCacheEntry)
 	case model.ExecEventType:
 		// unmarshal and fill event.processCacheEntry
-		if _, err = event.UnmarshalProcess(data[offset:]); err != nil {
+		if _, err = event.UnmarshalProcessCacheEntry(data[offset:]); err != nil {
 			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 
-		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntryContext(event.processCacheEntry); err != nil {
+		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry); err != nil {
 			log.Debugf("failed to resolve new process cache entry context: %s", err)
 		}
 
-		p.resolvers.ProcessResolver.AddExecEntry(event.ProcessContext.Pid, event.processCacheEntry)
+		p.resolvers.ProcessResolver.AddExecEntry(event.ProcessCacheEntry)
 
-		// copy some of the field from the entry
-		event.Exec.Process = event.processCacheEntry.Process
-		event.Exec.FileEvent = event.processCacheEntry.Process.FileEvent
+		event.Exec.Process = &event.ProcessCacheEntry.Process
 	case model.ExitEventType:
-		// do nothing
+		// nothing to do here
 	case model.SetuidEventType:
 		if _, err = event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode setuid event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		defer p.resolvers.ProcessResolver.UpdateUID(event.ProcessContext.Pid, event)
+		defer p.resolvers.ProcessResolver.UpdateUID(event.PIDContext.Pid, event)
 	case model.SetgidEventType:
 		if _, err = event.SetGID.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode setgid event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		defer p.resolvers.ProcessResolver.UpdateGID(event.ProcessContext.Pid, event)
+		defer p.resolvers.ProcessResolver.UpdateGID(event.PIDContext.Pid, event)
 	case model.CapsetEventType:
 		if _, err = event.Capset.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode capset event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		defer p.resolvers.ProcessResolver.UpdateCapset(event.ProcessContext.Pid, event)
+		defer p.resolvers.ProcessResolver.UpdateCapset(event.PIDContext.Pid, event)
 	case model.SELinuxEventType:
 		if _, err = event.SELinux.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode selinux event: %s (offset %d, len %d)", err, offset, len(data))
@@ -657,7 +665,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		// resolve tracee process context
 		cacheEntry := event.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID)
 		if cacheEntry != nil {
-			event.PTrace.Tracee = cacheEntry.ProcessContext
+			event.PTrace.Tracee = &cacheEntry.ProcessContext
 		}
 	case model.MMapEventType:
 		if _, err = event.MMap.UnmarshalBinary(data[offset:]); err != nil {
@@ -667,8 +675,8 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 
 		if event.MMap.Flags&unix.MAP_ANONYMOUS != 0 {
 			// no need to trigger a dentry resolver, not backed by any file
-			event.MMap.File.IsPathnameStrResolved = true
-			event.MMap.File.IsBasenameStrResolved = true
+			event.MMap.File.SetPathnameStr("")
+			event.MMap.File.SetBasenameStr("")
 		}
 	case model.MProtectEventType:
 		if _, err = event.MProtect.UnmarshalBinary(data[offset:]); err != nil {
@@ -683,8 +691,8 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 
 		if event.LoadModule.LoadedFromMemory {
 			// no need to trigger a dentry resolver, not backed by any file
-			event.MMap.File.IsPathnameStrResolved = true
-			event.MMap.File.IsBasenameStrResolved = true
+			event.LoadModule.File.SetPathnameStr("")
+			event.LoadModule.File.SetBasenameStr("")
 		}
 	case model.UnloadModuleEventType:
 		if _, err = event.UnloadModule.UnmarshalBinary(data[offset:]); err != nil {
@@ -698,7 +706,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		// resolve target process context
 		cacheEntry := event.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID)
 		if cacheEntry != nil {
-			event.Signal.Target = cacheEntry.ProcessContext
+			event.Signal.Target = &cacheEntry.ProcessContext
 		}
 	case model.SpliceEventType:
 		if _, err = event.Splice.UnmarshalBinary(data[offset:]); err != nil {
@@ -722,21 +730,28 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.BindEventType:
+		if _, err = event.Bind.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode bind event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	default:
 		log.Errorf("unsupported event type %d", eventType)
 		return
 	}
 
-	// resolve event context
-	if eventType != model.ExitEventType {
-		event.ResolveProcessCacheEntry()
-		event.ProcessContext = event.processCacheEntry.ProcessContext
-	} else {
-		if IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
-			return
-		}
+	// resolve the process cache entry
+	event.ProcessCacheEntry = event.ResolveProcessCacheEntry()
 
-		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTimestamp())
+	// use ProcessCacheEntry process context as process context
+	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
+
+	if IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
+		return
+	}
+
+	if eventType == model.ExitEventType {
+		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessCacheEntry.Pid, event.ResolveEventTimestamp())
 	}
 
 	p.DispatchEvent(event, dataLen, int(CPU), p.perfMap)
@@ -760,6 +775,11 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 	}
 
 	if atomic.LoadInt64(&p.flushingDiscarders) == 1 {
+		return nil
+	}
+
+	fakeTime := time.Unix(0, int64(event.TimestampRaw))
+	if !p.discarderRateLimiter.AllowN(fakeTime, 1) {
 		return nil
 	}
 
@@ -953,10 +973,10 @@ func (p *Probe) FlushDiscarders() error {
 	// Sleeping a bit to avoid races with executing kprobes and setting discarders
 	time.Sleep(time.Second)
 
-	var discardedInodes []inodeDiscarder
+	var discardedInodes []inodeDiscarderMapEntry
 	var mapValue [256]byte
 
-	var inode inodeDiscarder
+	var inode inodeDiscarderMapEntry
 	for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, unsafe.Pointer(&mapValue[0])); {
 		discardedInodes = append(discardedInodes, inode)
 	}
@@ -1161,16 +1181,17 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	ctx, cancel := context.WithCancel(context.Background())
 
 	p := &Probe{
-		config:         config,
-		approvers:      make(map[eval.EventType]activeApprovers),
-		manager:        ebpf.NewRuntimeSecurityManager(),
-		managerOptions: ebpf.NewDefaultOptions(),
-		ctx:            ctx,
-		cancelFnc:      cancel,
-		erpc:           erpc,
-		discarderReq:   newDiscarderRequest(),
-		tcPrograms:     make(map[NetDeviceKey]*manager.Probe),
-		statsdClient:   statsdClient,
+		config:               config,
+		approvers:            make(map[eval.EventType]activeApprovers),
+		manager:              ebpf.NewRuntimeSecurityManager(),
+		managerOptions:       ebpf.NewDefaultOptions(),
+		ctx:                  ctx,
+		cancelFnc:            cancel,
+		erpc:                 erpc,
+		discarderReq:         newDiscarderRequest(),
+		tcPrograms:           make(map[NetDeviceKey]*manager.Probe),
+		statsdClient:         statsdClient,
+		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second), 100),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -1192,11 +1213,13 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 
 	p.ensureConfigDefaults()
 
+	supportMmapableMaps := haveMmapableMaps() == nil
+
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse CPU count")
 	}
-	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(numCPU, p.config.ActivityDumpTracedCgroupsCount, p.config.ActivityDumpCgroupWaitListSize)
+	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(numCPU, p.config.ActivityDumpTracedCgroupsCount, p.config.ActivityDumpCgroupWaitListSize, supportMmapableMaps)
 
 	if !p.config.EnableKernelFilters {
 		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
@@ -1303,11 +1326,12 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	}
 
 	// tail calls
-	p.managerOptions.TailCallRouter = probes.AllTailRoutes(p.config.ERPCDentryResolutionEnabled, p.config.NetworkEnabled)
-	if !p.config.ERPCDentryResolutionEnabled {
+	p.managerOptions.TailCallRouter = probes.AllTailRoutes(p.config.ERPCDentryResolutionEnabled, p.config.NetworkEnabled, supportMmapableMaps)
+	if !p.config.ERPCDentryResolutionEnabled || supportMmapableMaps {
 		// exclude the programs that use the bpf_probe_write_user helper
 		p.managerOptions.ExcludedFunctions = probes.AllBPFProbeWriteUserProgramFunctions()
 	}
+
 	if !p.config.NetworkEnabled {
 		// prevent all TC classifiers from loading
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
@@ -1323,10 +1347,11 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		p.handleEvent,
 		ExtractEventInfo,
 		ReOrdererOpts{
-			QueueSize:  10000,
-			Rate:       50 * time.Millisecond,
-			Retention:  5,
-			MetricRate: 5 * time.Second,
+			QueueSize:       10000,
+			Rate:            50 * time.Millisecond,
+			Retention:       5,
+			MetricRate:      5 * time.Second,
+			HeapShrinkDelta: 1000,
 		})
 
 	p.scrubber = pconfig.NewDefaultDataScrubber()

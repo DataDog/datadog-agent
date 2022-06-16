@@ -15,9 +15,12 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/iceber/iouring-go"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -49,7 +52,10 @@ func TestRename(t *testing.T) {
 	defer os.Remove(testNewFile)
 	defer os.Remove(testOldFile)
 
+	renameSyscallIsSupported := false
 	t.Run("rename", ifSyscallSupported("SYS_RENAME", func(t *testing.T, syscallNB uintptr) {
+		renameSyscallIsSupported = true
+
 		test.WaitSignal(t, func() error {
 			_, _, errno := syscall.Syscall(syscallNB, uintptr(testOldFilePtr), uintptr(testNewFilePtr), 0)
 			if errno != 0 {
@@ -66,16 +72,19 @@ func TestRename(t *testing.T) {
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
+			assert.Equal(t, event.Async, false)
 
 			if !validateRenameSchema(t, event) {
 				t.Error(event.String())
 			}
 		})
+	}))
 
+	if renameSyscallIsSupported {
 		if err := os.Rename(testNewFile, testOldFile); err != nil {
 			t.Fatal(err)
 		}
-	}))
+	}
 
 	t.Run("renameat", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
@@ -94,6 +103,7 @@ func TestRename(t *testing.T) {
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
+			assert.Equal(t, event.Async, false)
 
 			if !validateRenameSchema(t, event) {
 				t.Error(event.String())
@@ -125,10 +135,70 @@ func TestRename(t *testing.T) {
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
+			assert.Equal(t, event.Async, false)
 
 			if !validateRenameSchema(t, event) {
 				t.Error(event.String())
 			}
+		})
+	})
+
+	if err := os.Rename(testNewFile, testOldFile); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("io_uring", func(t *testing.T) {
+		iour, err := iouring.New(1)
+		if err != nil {
+			if errors.Is(err, unix.ENOTSUP) {
+				t.Fatal(err)
+			}
+			t.Skip("io_uring not supported")
+		}
+		defer iour.Close()
+
+		prepRequest, err := iouring.Renameat(unix.AT_FDCWD, testOldFile, unix.AT_FDCWD, testNewFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ch := make(chan iouring.Result, 1)
+
+		test.WaitSignal(t, func() error {
+			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
+				return err
+			}
+
+			result := <-ch
+			ret, err := result.ReturnInt()
+			if err != nil {
+				if err == syscall.EBADF || err == syscall.EINVAL {
+					return ErrSkipTest{"renameat not supported by io_uring"}
+				}
+				return err
+			}
+
+			if ret < 0 {
+				return fmt.Errorf("failed to rename file with io_uring: %d", ret)
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assert.Equal(t, "rename", event.GetType(), "wrong event type")
+			assert.Equal(t, getInode(t, testNewFile), event.Rename.New.Inode, "wrong inode")
+			assertFieldEqual(t, event, "rename.file.destination.inode", int(getInode(t, testNewFile)), "wrong inode")
+			assertRights(t, event.Rename.Old.Mode, expectedMode)
+			assertNearTime(t, event.Rename.Old.MTime)
+			assertNearTime(t, event.Rename.Old.CTime)
+			assertRights(t, event.Rename.New.Mode, expectedMode)
+			assertNearTime(t, event.Rename.New.MTime)
+			assertNearTime(t, event.Rename.New.CTime)
+			assert.Equal(t, event.Async, true)
+
+			executable, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertFieldEqual(t, event, "process.file.path", executable)
 		})
 	})
 }
@@ -184,6 +254,12 @@ func TestRenameInvalidate(t *testing.T) {
 }
 
 func TestRenameReuseInode(t *testing.T) {
+	// xfs has changed the inode reuse feature in 5.15
+	// https://lkml.iu.edu/hypermail/linux/kernel/2108.3/07604.html
+	checkKernelCompatibility(t, ">= 5.15 kernels", func(kv *kernel.Version) bool {
+		return kv.Code >= kernel.Kernel5_15
+	})
+
 	ruleDefs := []*rules.RuleDefinition{{
 		ID:         "test_rule",
 		Expression: `open.file.path == "{{.Root}}/test-rename-reuse-inode"`,

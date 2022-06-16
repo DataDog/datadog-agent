@@ -58,6 +58,8 @@ type ContainerdItf interface {
 	TaskPids(ctn containerd.Container) ([]containerd.ProcessInfo, error)
 	Status(ctn containerd.Container) (containerd.ProcessStatus, error)
 	CallWithClientContext(f func(context.Context) error) error
+	Annotations(ctn containerd.Container) (map[string]string, error)
+	IsSandbox(ctn containerd.Container) (bool, error)
 }
 
 // ContainerdUtil is the util used to interact with the Containerd api.
@@ -102,24 +104,29 @@ func NewContainerdUtil() (ContainerdItf, error) {
 	return containerdUtil, nil
 }
 
+// CheckConnectivity tries to connect to containerd api
 func (c *ContainerdUtil) CheckConnectivity() *retry.Error {
 	return c.initRetry.TriggerRetry()
 }
 
+// CurrentNamespace returns the current containerd namespace
 func (c *ContainerdUtil) CurrentNamespace() string {
 	return c.namespace
 }
 
+// SetCurrentNamespace sets the current containerd namespace
 func (c *ContainerdUtil) SetCurrentNamespace(namespace string) {
 	c.namespace = namespace
 }
 
+// Namespaces lists the containerd namespaces
 func (c *ContainerdUtil) Namespaces(ctx context.Context) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.queryTimeout)
 	defer cancel()
 	return c.cl.NamespaceService().List(ctx)
 }
 
+// CallWithClientContext allows passing an additional context when calling the containerd api
 func (c *ContainerdUtil) CallWithClientContext(f func(context.Context) error) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
 	defer cancel()
@@ -199,6 +206,7 @@ func (c *ContainerdUtil) Containers() ([]containerd.Container, error) {
 	return c.cl.Containers(ctxNamespace)
 }
 
+// EnvVars returns the env variables of a containerd container
 func (c *ContainerdUtil) EnvVars(ctn containerd.Container) (map[string]string, error) {
 	spec, err := c.Spec(ctn)
 	if err != nil {
@@ -339,4 +347,37 @@ func (c *ContainerdUtil) Status(ctn containerd.Container) (containerd.ProcessSta
 	}
 
 	return taskStatus.Status, nil
+}
+
+// Annotations returns the container annotations from its spec
+func (c *ContainerdUtil) Annotations(ctn containerd.Container) (map[string]string, error) {
+	spec, err := c.Spec(ctn)
+	if err != nil {
+		return nil, err
+	}
+
+	return spec.Annotations, nil
+}
+
+// IsSandbox returns whether a container is a sandbox (a.k.a pause container).
+// It checks the io.cri-containerd.kind label and the io.kubernetes.cri.container-type annotation.
+// Ref:
+// - https://github.com/containerd/cri/blob/release/1.4/pkg/server/helpers.go#L74
+// - https://github.com/containerd/cri/blob/release/1.4/pkg/annotations/annotations.go#L30
+func (c *ContainerdUtil) IsSandbox(ctn containerd.Container) (bool, error) {
+	labels, err := c.Labels(ctn)
+	if err != nil {
+		return false, err
+	}
+
+	if labels["io.cri-containerd.kind"] == "sandbox" {
+		return true, nil
+	}
+
+	annotations, err := c.Annotations(ctn)
+	if err != nil {
+		return false, err
+	}
+
+	return annotations["io.kubernetes.cri.container-type"] == "sandbox", nil
 }

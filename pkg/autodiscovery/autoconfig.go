@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -43,6 +44,7 @@ type AutoConfig struct {
 	store              *store
 	cfgMgr             configManager
 	m                  sync.RWMutex
+
 	// ranOnce is set to 1 once the AutoConfig has been executed
 	ranOnce *atomic.Bool
 }
@@ -68,6 +70,12 @@ func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 
 // NewAutoConfigNoStart creates an AutoConfig instance.
 func NewAutoConfigNoStart(scheduler *scheduler.MetaScheduler) *AutoConfig {
+	var cfgMgr configManager
+	if util.CcaInAD() {
+		cfgMgr = newReconcilingConfigManager()
+	} else {
+		cfgMgr = newSimpleConfigManager()
+	}
 	ac := &AutoConfig{
 		providers:          make([]*configPoller, 0, 9),
 		listenerCandidates: make(map[string]*listenerCandidate),
@@ -77,7 +85,7 @@ func NewAutoConfigNoStart(scheduler *scheduler.MetaScheduler) *AutoConfig {
 		newService:         make(chan listeners.Service),
 		delService:         make(chan listeners.Service),
 		store:              newStore(),
-		cfgMgr:             newSimpleConfigManager(),
+		cfgMgr:             cfgMgr,
 		scheduler:          scheduler,
 		ranOnce:            atomic.NewBool(false),
 	}
@@ -366,19 +374,16 @@ func (ac *AutoConfig) retryListenerCandidates() {
 	}
 }
 
-// AddScheduler allows to register a new scheduler to receive configurations.
-// Previously emitted configurations can be replayed with the replayConfigs flag.
+// AddScheduler a new scheduler to receive configurations.
+//
+// Previously scheduled configurations that have not subsequently been
+// unscheduled can be replayed with the replayConfigs flag.  This replay occurs
+// immediately, before the AddScheduler call returns.
 func (ac *AutoConfig) AddScheduler(name string, s scheduler.Scheduler, replayConfigs bool) {
 	ac.m.Lock()
 	defer ac.m.Unlock()
 
-	ac.scheduler.Register(name, s)
-	if !replayConfigs {
-		return
-	}
-
-	configs := ac.LoadedConfigs()
-	s.Schedule(configs)
+	ac.scheduler.Register(name, s, replayConfigs)
 }
 
 // RemoveScheduler allows to remove a scheduler from the AD system.
@@ -432,6 +437,7 @@ func (ac *AutoConfig) GetUnresolvedTemplates() map[string][]integration.Config {
 // triggers scheduling events if it finds a valid config for it.
 func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Service) {
 	// in any case, register the service and store its tag hash
+	ac.store.setServiceForEntity(svc, svc.GetServiceID())
 	ac.store.setTagsHashForService(
 		svc.GetTaggerEntity(),
 		tagger.GetEntityHash(svc.GetTaggerEntity(), tagger.ChecksCardinality),
@@ -446,31 +452,36 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 
 	changes := ac.cfgMgr.processNewService(ADIdentifiers, svc)
 
-	// FIXME: schedule new services as well
-	changes.scheduleConfig(integration.Config{
-		LogsConfig:      integration.Data{},
-		ServiceID:       svc.GetServiceID(),
-		TaggerEntity:    svc.GetTaggerEntity(),
-		MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
-		LogsExcluded:    svc.HasFilter(containers.LogsFilter),
-	})
+	if !util.CcaInAD() {
+		// schedule a "service config" for logs-agent's benefit
+		changes.scheduleConfig(integration.Config{
+			LogsConfig:      integration.Data{},
+			ServiceID:       svc.GetServiceID(),
+			TaggerEntity:    svc.GetTaggerEntity(),
+			MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
+			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
+		})
+	}
 
 	ac.applyChanges(changes)
 }
 
 // processDelService takes a service, stops its associated checks, and updates the cache
 func (ac *AutoConfig) processDelService(svc listeners.Service) {
+	ac.store.removeServiceForEntity(svc.GetServiceID())
 	changes := ac.cfgMgr.processDelService(svc)
 	ac.store.removeTagsHashForService(svc.GetTaggerEntity())
 
-	// FIXME: unschedule remove services as well
-	changes.unscheduleConfig(integration.Config{
-		LogsConfig:      integration.Data{},
-		ServiceID:       svc.GetServiceID(),
-		TaggerEntity:    svc.GetTaggerEntity(),
-		MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
-		LogsExcluded:    svc.HasFilter(containers.LogsFilter),
-	})
+	if !util.CcaInAD() {
+		// unschedule the "service config"
+		changes.unscheduleConfig(integration.Config{
+			LogsConfig:      integration.Data{},
+			ServiceID:       svc.GetServiceID(),
+			TaggerEntity:    svc.GetTaggerEntity(),
+			MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
+			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
+		})
+	}
 
 	ac.applyChanges(changes)
 }

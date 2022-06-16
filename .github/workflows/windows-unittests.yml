@@ -25,7 +25,7 @@ jobs:
       - name: Install go
         uses: actions/setup-go@v2
         with:
-          go-version: '1.17.6'
+          go-version: '1.17.11'
 
       - name: Set up runner
         run: |
@@ -51,5 +51,5 @@ jobs:
           inv -e rtloader.install
           # FIXME: skipping rtloader tests because they fail with a DLL-not-found error
           # inv -e rtloader.test
-          inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --profile --fail-on-fmt --python-home-3=$pythonLocation
+          inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --profile --python-home-3=$pythonLocation
           codecov -f profile.cov -F windows

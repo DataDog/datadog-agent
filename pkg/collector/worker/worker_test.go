@@ -8,12 +8,12 @@ package worker
 import (
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -33,12 +33,12 @@ type testCheck struct {
 	longRunning bool
 	t           *testing.T
 	runFunc     func(id check.ID)
-	runCount    uint64
+	runCount    *atomic.Uint64
 }
 
 func (c *testCheck) ID() check.ID   { return check.ID(c.id) }
 func (c *testCheck) String() string { return check.IDToCheckName(c.ID()) }
-func (c *testCheck) RunCount() int  { return int(c.runCount) }
+func (c *testCheck) RunCount() int  { return int(c.runCount.Load()) }
 
 func (c *testCheck) Interval() time.Duration {
 	if c.longRunning {
@@ -61,7 +61,7 @@ func (c *testCheck) Run() error {
 		c.runFunc(c.ID())
 	}
 
-	atomic.AddUint64(&c.runCount, 1)
+	c.runCount.Inc()
 
 	c.Lock()
 	defer c.Unlock()
@@ -96,10 +96,11 @@ func AssertAsyncWorkerCount(t *testing.T, count int) {
 
 func newCheck(t *testing.T, id string, doErr bool, runFunc func(check.ID)) *testCheck {
 	return &testCheck{
-		doErr:   doErr,
-		t:       t,
-		id:      id,
-		runFunc: runFunc,
+		doErr:    doErr,
+		t:        t,
+		id:       id,
+		runFunc:  runFunc,
+		runCount: atomic.NewUint64(0),
 	}
 }
 
@@ -261,7 +262,12 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 	mockShouldAddStatsFunc := func(id check.ID) bool { return true }
 
 	blockingCheck := newCheck(t, "testing:123", false, nil)
-	longRunningCheck := &testCheck{t: t, id: "mycheck", longRunning: true}
+	longRunningCheck := &testCheck{
+		t:           t,
+		id:          "mycheck",
+		longRunning: true,
+		runCount:    atomic.NewUint64(0),
+	}
 
 	blockingCheck.Lock()
 	longRunningCheck.Lock()
@@ -420,6 +426,7 @@ func TestWorkerStatsAddition(t *testing.T) {
 		t:           t,
 		id:          "mycheck_noerr_nowarn",
 		longRunning: true,
+		runCount:    atomic.NewUint64(0),
 	}
 
 	longRunningCheckWithError := &testCheck{
@@ -427,6 +434,7 @@ func TestWorkerStatsAddition(t *testing.T) {
 		id:          "mycheck_witherr",
 		longRunning: true,
 		doErr:       true,
+		runCount:    atomic.NewUint64(0),
 	}
 
 	longRunningCheckWithWarnings := &testCheck{
@@ -434,6 +442,7 @@ func TestWorkerStatsAddition(t *testing.T) {
 		id:          "mycheck_withwarn",
 		longRunning: true,
 		doWarn:      true,
+		runCount:    atomic.NewUint64(0),
 	}
 	squelchedStatsCheck := newCheck(t, "squelched:123", false, nil)
 
@@ -472,9 +481,10 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 	goodCheck := newCheck(t, "goodcheck:123", false, nil)
 	checkWithError := newCheck(t, "check_witherr:123", true, nil)
 	checkWithWarnings := &testCheck{
-		t:      t,
-		id:     "check_withwarn:123",
-		doWarn: true,
+		t:        t,
+		id:       "check_withwarn:123",
+		doWarn:   true,
+		runCount: atomic.NewUint64(0),
 	}
 
 	pendingChecksChan <- goodCheck
@@ -588,6 +598,7 @@ func TestWorkerServiceCheckSendingLongRunningTasks(t *testing.T) {
 		t:           t,
 		id:          "mycheck",
 		longRunning: true,
+		runCount:    atomic.NewUint64(0),
 	}
 
 	pendingChecksChan <- longRunningCheck

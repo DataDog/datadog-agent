@@ -144,7 +144,7 @@ func TestUnknownVarsWarning(t *testing.T) {
 			if unknown {
 				exp = append(exp, v)
 			}
-			assert.Equal(t, exp, findUnknownEnvVars(Mock(), env))
+			assert.Equal(t, exp, findUnknownEnvVars(Mock(t), env))
 		}
 	}
 	t.Run("DD_API_KEY", test("DD_API_KEY", false))
@@ -907,32 +907,6 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	assert.Equal(t, expectedKeysPerDomain, keysPerDomain)
 }
 
-func TestExperimentalOTLP(t *testing.T) {
-	checkConf := func(t *testing.T, conf Config) {
-		assert.Equal(t, 789, conf.GetInt(OTLPTracePort))
-		assert.Equal(t, map[string]interface{}{"a": 1, "b": 2, "c": map[string]interface{}{"d": interface{}(nil)}}, conf.GetStringMap(OTLPReceiverSection))
-		assert.Equal(t, map[string]interface{}{"c": 3, "d": 4, "enabled": false, "tag_cardinality": "medium"}, conf.GetStringMap(OTLPMetrics))
-		assert.False(t, conf.GetBool(OTLPMetricsEnabled))
-		assert.Equal(t, "medium", conf.GetString(OTLPTagCardinalityKey))
-	}
-
-	t.Run("main", func(t *testing.T) {
-		conf := setupConf()
-		conf.SetConfigFile("./tests/otlp_main.yaml")
-		_, err := load(conf, "otlp_main.yaml", true)
-		assert.NoError(t, err)
-		checkConf(t, conf)
-	})
-
-	t.Run("experimental", func(t *testing.T) {
-		conf := setupConf()
-		conf.SetConfigFile("./tests/otlp_experimental.yaml")
-		_, err := load(conf, "otlp_experimental.yaml", true)
-		assert.NoError(t, err)
-		checkConf(t, conf)
-	})
-}
-
 func TestNumWorkers(t *testing.T) {
 	config := setupConf()
 
@@ -1120,23 +1094,23 @@ network_devices:
 }
 
 func TestGetInventoriesMinInterval(t *testing.T) {
-	Mock().Set("inventories_min_interval", 6)
+	Mock(t).Set("inventories_min_interval", 6)
 	assert.EqualValues(t, 6*time.Second, GetInventoriesMinInterval())
 }
 
 func TestGetInventoriesMinIntervalInvalid(t *testing.T) {
 	// an invalid integer results in a value of 0 from Viper (with a logged warning)
-	Mock().Set("inventories_min_interval", 0)
+	Mock(t).Set("inventories_min_interval", 0)
 	assert.EqualValues(t, DefaultInventoriesMinInterval*time.Second, GetInventoriesMinInterval())
 }
 
 func TestGetInventoriesMaxInterval(t *testing.T) {
-	Mock().Set("inventories_max_interval", 6)
+	Mock(t).Set("inventories_max_interval", 6)
 	assert.EqualValues(t, 6*time.Second, GetInventoriesMaxInterval())
 }
 
 func TestGetInventoriesMaxIntervalInvalid(t *testing.T) {
 	// an invalid integer results in a value of 0 from Viper (with a logged warning)
-	Mock().Set("inventories_max_interval", 0)
+	Mock(t).Set("inventories_max_interval", 0)
 	assert.EqualValues(t, DefaultInventoriesMaxInterval*time.Second, GetInventoriesMaxInterval())
 }

@@ -11,9 +11,9 @@
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
     # Pull base images
-    - inv -e docker.pull-base-images $BUILD_CONTEXT/$ARCH/Dockerfile --no-signed-pull # FIXME: currently --no-signed-pull as ubuntu:21.10 is not properly signed on DockerHub
+    - inv -e docker.pull-base-images $BUILD_CONTEXT/$ARCH/Dockerfile
     # Build image
-    - docker build --build-arg CIBUILD=true $BUILD_ARG --file $BUILD_CONTEXT/$ARCH/Dockerfile --tag ${TARGET_TAG}-unsquashed $BUILD_CONTEXT
+    - docker build --build-arg CIBUILD=true --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} $BUILD_ARG --file $BUILD_CONTEXT/$ARCH/Dockerfile --tag ${TARGET_TAG}-unsquashed $BUILD_CONTEXT
     # Squash image, test, and push to ECR
     - docker-squash ${TARGET_TAG}-unsquashed -t ${TARGET_TAG}
     - test "$TEST_IMG" && docker run -v `pwd`/$BUILD_CONTEXT:/tmp/build ${TARGET_TAG} python /tmp/build/test_image_contents.py
@@ -181,6 +181,8 @@ docker_build_cluster_agent_amd64:
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
+  before_script:
+    - cp -Rvf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
 
 docker_build_cluster_agent_arm64:
   extends: .docker_build_job_definition_arm64
@@ -192,6 +194,8 @@ docker_build_cluster_agent_arm64:
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
+  before_script:
+    - cp -Rvf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
 
 # build the dogstatsd image
 docker_build_dogstatsd_amd64:

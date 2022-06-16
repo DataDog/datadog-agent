@@ -9,7 +9,7 @@ from subprocess import check_output
 from invoke import task
 
 from .build_tags import get_default_build_tags
-from .go import golangci_lint, staticcheck, vet
+from .go import golangci_lint
 from .system_probe import CLANG_CMD as CLANG_BPF_CMD
 from .system_probe import CURRENT_ARCH, get_ebpf_build_flags
 from .utils import (
@@ -142,25 +142,29 @@ def gen_mocks(ctx):
     Generate mocks.
     """
 
-    interfaces = [
-        "AuditClient",
-        "Builder",
-        "Clients",
-        "Configuration",
-        "DockerClient",
-        "Env",
-        "Evaluatable",
-        "Iterator",
-        "KubeClient",
-        "RegoConfiguration",
-        "Reporter",
-        "Scheduler",
-    ]
+    interfaces = {
+        "./pkg/compliance": [
+            "AuditClient",
+            "Builder",
+            "Clients",
+            "Configuration",
+            "DockerClient",
+            "Env",
+            "Evaluatable",
+            "Iterator",
+            "KubeClient",
+            "RegoConfiguration",
+            "Reporter",
+            "Scheduler",
+        ],
+        "./pkg/security/api": ["SecurityModuleServer", "SecurityModuleClient", "SecurityModule_GetProcessEventsClient"],
+    }
 
-    interface_regex = "|".join(f"^{i}\\$" for i in interfaces)
+    for path, names in interfaces.items():
+        interface_regex = "|".join(f"^{i}\\$" for i in names)
 
-    with ctx.cd("./pkg/compliance"):
-        ctx.run(f"mockery --case snake -r --name=\"{interface_regex}\"")
+        with ctx.cd(path):
+            ctx.run(f"mockery --case snake -r --name=\"{interface_regex}\"")
 
 
 @task
@@ -296,6 +300,7 @@ def build_functional_tests(
     bundle_ebpf=True,
     static=False,
     skip_linters=False,
+    race=False,
 ):
     ldflags, _, env = get_build_flags(
         ctx, major_version=major_version, nikos_embedded_path=nikos_embedded_path, static=static
@@ -315,19 +320,17 @@ def build_functional_tests(
 
     if static:
         build_tags.extend(["osusergo", "netgo"])
-        if "CGO_CPPFLAGS" not in env:
-            env["CGO_CPPFLAGS"] = ""
-        env["CGO_CPPFLAGS"] += "-DSKIP_GLIBC_WRAPPER"
 
     if not skip_linters:
         targets = ['./pkg/security/tests']
-        vet(ctx, targets=targets, build_tags=build_tags, arch=arch)
         golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
-        staticcheck(ctx, targets=targets, build_tags=build_tags, arch=arch)
 
     # linters have a hard time with dnf, so we add the build tag after running them
     if nikos_embedded_path:
         build_tags.append("dnf")
+
+    if race:
+        build_flags += " -race"
 
     build_tags = ",".join(build_tags)
     cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
@@ -402,6 +405,7 @@ def stress_tests(
 def functional_tests(
     ctx,
     verbose=False,
+    race=False,
     go_version=None,
     arch=CURRENT_ARCH,
     major_version='7',
@@ -418,6 +422,7 @@ def functional_tests(
         output=output,
         bundle_ebpf=bundle_ebpf,
         skip_linters=skip_linters,
+        race=race,
     )
 
     run_functional_tests(
@@ -489,8 +494,12 @@ ENV DOCKER_DD_AGENT=yes
 RUN dpkg --add-architecture i386
 
 RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends xfsprogs ca-certificates \
+    && apt-get install -y --no-install-recommends xfsprogs ca-certificates iproute2 clang-11 llvm-11 \
     && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /opt/datadog-agent/embedded/bin
+RUN ln -s $(which clang-11) /opt/datadog-agent/embedded/bin/clang-bpf
+RUN ln -s $(which llc-11) /opt/datadog-agent/embedded/bin/llc-bpf
     """
 
     docker_image_tag_name = "docker-functional-tests"

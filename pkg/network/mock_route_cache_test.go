@@ -42,6 +42,18 @@ func (m *MockRouteCache) EXPECT() *MockRouteCacheMockRecorder {
 	return m.recorder
 }
 
+// Close mocks base method.
+func (m *MockRouteCache) Close() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Close")
+}
+
+// Close indicates an expected call of Close.
+func (mr *MockRouteCacheMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockRouteCache)(nil).Close))
+}
+
 // Get mocks base method.
 func (m *MockRouteCache) Get(source, dest util.Address, netns uint32) (Route, bool) {
 	m.ctrl.T.Helper()
@@ -92,6 +104,18 @@ func NewMockRouter(ctrl *gomock.Controller) *MockRouter {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockRouter) EXPECT() *MockRouterMockRecorder {
 	return m.recorder
+}
+
+// Close mocks base method.
+func (m *MockRouter) Close() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Close")
+}
+
+// Close indicates an expected call of Close.
+func (mr *MockRouterMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockRouter)(nil).Close))
 }
 
 // GetStats mocks base method.
