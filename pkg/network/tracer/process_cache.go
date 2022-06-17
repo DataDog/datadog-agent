@@ -11,7 +11,9 @@ package tracer
 import (
 	"strings"
 	"sync"
+	"sync/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/network/stats"
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	lru "github.com/hashicorp/golang-lru"
 )
@@ -22,6 +24,12 @@ var defaultFilteredEnvs = []string{
 	"DD_SERVICE",
 }
 
+const (
+	maxProcessQueueLen = 100
+	// maxProcessListSize is the max size of a processList
+	maxProcessListSize = 5
+)
+
 type process struct {
 	Pid         uint32
 	Envs        map[string]string
@@ -30,9 +38,6 @@ type process struct {
 }
 
 type processList []*process
-
-// maxProcessListSize is the max size of a processList
-const maxProcessListSize = 5
 
 type processCache struct {
 	sync.Mutex
@@ -48,6 +53,19 @@ type processCache struct {
 	// that a process in the cache must have; empty filteredEnvs
 	// means no filter, and any process can be inserted the cache
 	filteredEnvs []string
+
+	in      chan *process
+	stopped chan struct{}
+	stop    sync.Once
+
+	stats struct {
+		cacheEvicts   uint64 `stats:"atomic"`
+		cacheLength   uint64 `stats:"atomic"`
+		eventsDropped uint64 `stats:"atomic"`
+		eventsSkipped uint64 `stats:"atomic"`
+
+		reporter stats.Reporter
+	}
 }
 
 type processCacheKey struct {
@@ -56,7 +74,12 @@ type processCacheKey struct {
 }
 
 func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error) {
-	pc := &processCache{filteredEnvs: filteredEnvs, cacheByPid: map[uint32]processList{}}
+	pc := &processCache{
+		filteredEnvs: filteredEnvs,
+		cacheByPid:   map[uint32]processList{},
+		in:           make(chan *process, maxProcessQueueLen),
+		stopped:      make(chan struct{}),
+	}
 	var err error
 	pc.cache, err = lru.NewWithEvict(maxProcs, func(key, value interface{}) {
 		p := value.(*process)
@@ -73,10 +96,47 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 		return nil, err
 	}
 
+	if pc.stats.reporter, err = stats.NewReporter(&pc.stats); err != nil {
+		return nil, err
+	}
+
+	go func() {
+		for {
+			select {
+			case <-pc.stopped:
+				return
+			case p := <-pc.in:
+				pc.add(p)
+			}
+		}
+	}()
+
 	return pc, nil
 }
 
 func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
+
+	select {
+	case <-pc.stopped:
+		return
+	default:
+	}
+
+	p := pc.processEvent(entry)
+	if p == nil {
+		atomic.AddUint64(&pc.stats.eventsSkipped, 1)
+		return
+	}
+
+	select {
+	case pc.in <- p:
+	default:
+		// dropped
+		atomic.AddUint64(&pc.stats.eventsDropped, 1)
+	}
+}
+
+func (pc *processCache) processEvent(entry *smodel.ProcessCacheEntry) *process {
 	var envs map[string]string
 	if entry.EnvsEntry != nil {
 		for _, v := range entry.EnvsEntry.Values {
@@ -109,22 +169,59 @@ func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
 	}
 
 	if len(envs) == 0 && len(pc.filteredEnvs) > 0 && entry.ContainerID == "" {
+		return nil
+	}
+
+	return &process{
+		Pid:         entry.Pid,
+		Envs:        envs,
+		ContainerID: entry.ContainerID,
+		StartTime:   entry.ExecTime.UnixNano(),
+	}
+}
+
+func (pc *processCache) Stop() {
+	if pc == nil {
 		return
 	}
 
-	pc.add(&process{Pid: entry.Pid, Envs: envs, ContainerID: entry.ContainerID, StartTime: entry.ExecTime.UnixNano()})
+	pc.stop.Do(func() { close(pc.stopped) })
 }
 
 func (pc *processCache) add(p *process) {
+	if pc == nil {
+		return
+	}
+
 	pc.Lock()
 	defer pc.Unlock()
 
-	pc.cache.Add(processCacheKey{pid: p.Pid, startTime: p.StartTime}, p)
+	evicted := pc.cache.Add(processCacheKey{pid: p.Pid, startTime: p.StartTime}, p)
 	pl, _ := pc.cacheByPid[p.Pid]
 	pc.cacheByPid[p.Pid] = pl.update(p)
+
+	if evicted {
+		atomic.AddUint64(&pc.stats.cacheEvicts, 1)
+	}
 }
 
-func (pc *processCache) get(pid uint32, ts int64) (*process, bool) {
+func (pc *processCache) GetStats() map[string]interface{} {
+	if pc == nil {
+		return map[string]interface{}{}
+	}
+
+	pc.Lock()
+	defer pc.Unlock()
+
+	atomic.StoreUint64(&pc.stats.cacheLength, uint64(pc.cache.Len()))
+	return pc.stats.reporter.Report()
+}
+
+func (pc *processCache) Get(pid uint32, ts int64) (*process, bool) {
+	if pc == nil {
+		return nil, false
+	}
+
 	pc.Lock()
 	defer pc.Unlock()
 
@@ -137,11 +234,15 @@ func (pc *processCache) get(pid uint32, ts int64) (*process, bool) {
 	return nil, false
 }
 
-func (pc *processCache) dump() (interface{}, error) {
+func (pc *processCache) Dump() (interface{}, error) {
+	res := map[uint32]interface{}{}
+	if pc == nil {
+		return res, nil
+	}
+
 	pc.Lock()
 	defer pc.Unlock()
 
-	res := map[uint32]interface{}{}
 	for pid, pl := range pc.cacheByPid {
 		res[pid] = pl
 	}

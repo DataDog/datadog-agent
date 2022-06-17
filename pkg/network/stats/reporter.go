@@ -27,7 +27,7 @@ type statsInfo struct {
 
 const statsTag = "stats"
 
-// NewReporter create a new Reporter
+// NewReporter creates a new Reporter
 func NewReporter(v interface{}) (Reporter, error) {
 	r := Reporter{
 		stats: map[string]statsInfo{},

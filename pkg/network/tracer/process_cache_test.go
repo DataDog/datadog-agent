@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestProcessCacheHandleProcessEvent(t *testing.T) {
+func TestProcessCacheProcessEvent(t *testing.T) {
 
 	const ddService = "DD_SERVICE"
 	const ddVersion = "DD_VERSION"
@@ -65,14 +65,11 @@ func TestProcessCacheHandleProcessEvent(t *testing.T) {
 				for _, e := range te.envs {
 					entry.EnvsEntry.Values = append(entry.EnvsEntry.Values, e+"="+envs[e])
 				}
-				pc.handleProcessEvent(entry)
 
-				p, ok := pc.get(entry.Pid, 0)
+				p := pc.processEvent(entry)
 				if entry.ContainerID == "" && len(te.filter) > 0 && len(te.filtered) == 0 {
-					assert.False(t, ok)
 					assert.Nil(t, p)
 				} else {
-					assert.True(t, ok)
 					assert.NotNil(t, p)
 					assert.Equal(t, entry.Pid, p.Pid)
 					if entry.ContainerID != "" {
@@ -88,6 +85,8 @@ func TestProcessCacheHandleProcessEvent(t *testing.T) {
 						assert.Equal(t, envs[e], p.Envs[e])
 					}
 				}
+
+				pc.Stop()
 			})
 		}
 	}
@@ -135,7 +134,7 @@ func TestProcessCacheAdd(t *testing.T) {
 			StartTime: 1,
 		})
 
-		p, ok := pc.get(1234, 1)
+		p, ok := pc.Get(1234, 1)
 		require.True(t, ok)
 		require.NotNil(t, p)
 		assert.Equal(t, uint32(1234), p.Pid)
@@ -154,12 +153,12 @@ func TestProcessCacheAdd(t *testing.T) {
 			})
 		}
 
-		p, ok := pc.get(1234, 0)
+		p, ok := pc.Get(1234, 0)
 		require.False(t, ok)
 		require.Nil(t, p)
 
 		for i := 1; i < maxProcessListSize+1; i++ {
-			p, ok = pc.get(1234, int64(i))
+			p, ok = pc.Get(1234, int64(i))
 			require.True(t, ok)
 			assert.Equal(t, uint32(1234), p.Pid)
 			assert.Equal(t, int64(i), p.StartTime)
@@ -186,12 +185,12 @@ func TestProcessCacheAdd(t *testing.T) {
 			StartTime: 3,
 		})
 
-		p, ok := pc.get(1234, 1)
+		p, ok := pc.Get(1234, 1)
 		assert.False(t, ok)
 		assert.Nil(t, p)
 
 		for _, startTime := range []int64{2, 3} {
-			p, ok = pc.get(1234, startTime)
+			p, ok = pc.Get(1234, startTime)
 			assert.True(t, ok)
 			require.NotNil(t, p)
 			assert.Equal(t, uint32(1234), p.Pid)
@@ -210,7 +209,7 @@ func TestProcessCacheAdd(t *testing.T) {
 		})
 
 		for _, startTime := range []int64{1, 2, 3} {
-			p, ok = pc.get(1234, startTime)
+			p, ok = pc.Get(1234, startTime)
 			assert.False(t, ok)
 			assert.Nil(t, p)
 		}
@@ -231,11 +230,11 @@ func TestProcessCacheAdd(t *testing.T) {
 			StartTime: 2,
 		})
 
-		p, ok := pc.get(1234, 1)
+		p, ok := pc.Get(1234, 1)
 		assert.False(t, ok)
 		assert.Nil(t, p)
 
-		p, ok = pc.get(1235, 2)
+		p, ok = pc.Get(1235, 2)
 		assert.True(t, ok)
 		require.NotNil(t, p)
 		assert.Equal(t, uint32(1235), p.Pid)
@@ -255,7 +254,7 @@ func TestProcessCacheAdd(t *testing.T) {
 			},
 		})
 
-		p, ok := pc.get(1234, 1)
+		p, ok := pc.Get(1234, 1)
 		assert.True(t, ok)
 		require.NotNil(t, p)
 		assert.Equal(t, uint32(1234), p.Pid)
@@ -268,7 +267,7 @@ func TestProcessCacheAdd(t *testing.T) {
 			Envs:      map[string]string{"bar": "foo"},
 		})
 
-		p, ok = pc.get(1234, 1)
+		p, ok = pc.Get(1234, 1)
 		assert.True(t, ok)
 		require.NotNil(t, p)
 		assert.Equal(t, uint32(1234), p.Pid)
@@ -299,7 +298,7 @@ func TestProcessCacheGet(t *testing.T) {
 	})
 
 	t.Run("pid not found", func(t *testing.T) {
-		p, ok := pc.get(1235, 0)
+		p, ok := pc.Get(1235, 0)
 		assert.False(t, ok)
 		assert.Nil(t, p)
 	})
@@ -323,7 +322,7 @@ func TestProcessCacheGet(t *testing.T) {
 
 	for i, te := range tests {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
-			p, ok := pc.get(1234, te.ts)
+			p, ok := pc.Get(1234, te.ts)
 			assert.Equal(t, te.ok, ok)
 			if !te.ok {
 				assert.Nil(t, p)

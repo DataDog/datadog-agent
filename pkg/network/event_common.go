@@ -232,6 +232,9 @@ type ConnectionStats struct {
 
 	IntraHost bool
 	IsAssured bool
+
+	ContainerID string
+	PidExecTime int64
 }
 
 // Via has info about the routing decision for a flow

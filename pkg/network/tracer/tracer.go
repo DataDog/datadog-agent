@@ -355,7 +355,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		return
 	}
 
-	p, ok := t.processCache.get(c.Pid, int64(ts))
+	p, ok := t.processCache.Get(c.Pid, int64(ts))
 	if !ok {
 		return
 	}
@@ -374,6 +374,9 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	addTag("env", p.Envs["DD_ENV"])
 	addTag("version", p.Envs["DD_VERSION"])
 	addTag("service", p.Envs["DD_SERVICE"])
+
+	c.ContainerID = p.ContainerID
+	c.PidExecTime = p.StartTime
 }
 
 func (t *Tracer) Stop() {
@@ -381,6 +384,7 @@ func (t *Tracer) Stop() {
 	t.ebpfTracer.Stop()
 	t.httpMonitor.Stop()
 	t.conntracker.Close()
+	t.processCache.Stop()
 }
 
 func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
@@ -636,6 +640,7 @@ const (
 	kprobesStats
 	stateStats
 	tracerStats
+	processCacheStats
 )
 
 var allStats = []statsComp{
@@ -647,6 +652,7 @@ var allStats = []statsComp{
 	kprobesStats,
 	stateStats,
 	tracerStats,
+	processCacheStats,
 }
 
 func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
@@ -681,6 +687,8 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			tracerStats := t.statsReporter.Report()
 			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
 			ret["tracer"] = tracerStats
+		case processCacheStats:
+			ret["process_cache"] = t.processCache.GetStats()
 		}
 	}
 
@@ -847,7 +855,7 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 // DebugDumpProcessCache dumps the process cache
 func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error) {
 	if t.processCache != nil {
-		return t.processCache.dump()
+		return t.processCache.Dump()
 	}
 
 	return nil, nil
