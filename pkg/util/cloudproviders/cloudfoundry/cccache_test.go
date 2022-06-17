@@ -11,6 +11,7 @@ package cloudfoundry
 import (
 	"net/url"
 	"testing"
+	"sort"
 
 	"github.com/cloudfoundry-community/go-cfclient"
 	"github.com/stretchr/testify/assert"
@@ -105,6 +106,9 @@ func TestCCCache_GetCFApplication(t *testing.T) {
 func TestCCCache_GetCFApplications(t *testing.T) {
 	cc.readData()
 	cfapps, _ := cc.GetCFApplications()
+	sort.Slice(cfapps, func(i, j int) bool {
+		return cfapps[i].GUID > cfapps[j].GUID
+	})
 	assert.EqualValues(t, 2, len(cfapps))
 	assert.EqualValues(t, &cfApp1, cfapps[0])
 	assert.EqualValues(t, &cfApp2, cfapps[1])
