@@ -129,6 +129,12 @@ func (c *ConnectionsCheck) enrichConnections(conns []*model.Connection) []*model
 	// Process create-times required to construct unique process hash keys on the backend
 	createTimeForPID := Process.createTimesforPIDs(connectionPIDs(conns))
 	for _, conn := range conns {
+		// pid create time may be set by system-probe if process monitoring
+		// is enabled
+		if conn.PidCreateTime != 0 {
+			continue
+		}
+
 		if _, ok := createTimeForPID[conn.Pid]; !ok {
 			createTimeForPID[conn.Pid] = 0
 		}
