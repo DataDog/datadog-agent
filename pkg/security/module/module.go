@@ -191,21 +191,6 @@ func (m *Module) Start() error {
 		}
 	}()
 
-	m.wg.Add(1)
-	go func() {
-		defer m.wg.Done()
-
-		for range m.policyLoader.NewPolicyReady() {
-			if err := m.ReloadPolicies(); err != nil {
-				log.Errorf("failed to reload policies: %s", err)
-			}
-		}
-	}()
-
-	for _, provider := range m.policyProviders {
-		provider.Start()
-	}
-
 	return nil
 }
 

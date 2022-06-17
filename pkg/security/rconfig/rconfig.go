@@ -12,12 +12,14 @@ import (
 	"bytes"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/hashicorp/go-multierror"
 )
 
@@ -27,14 +29,14 @@ type RCPolicyProvider struct {
 
 	client               *remote.Client
 	onNewPoliciesReadyCb func()
-	lastConfigs          []client.ConfigCWSDD
+	lastConfigs          map[string]state.ConfigCWSDD
 }
 
 var _ rules.PolicyProvider = (*RCPolicyProvider)(nil)
 
 // NewRCPolicyProvider returns a new Remote Config based policy provider
 func NewRCPolicyProvider(name string) (*RCPolicyProvider, error) {
-	c, err := remote.NewClient(name, []data.Product{data.ProductCWSDD})
+	c, err := remote.NewClient(name, version.AgentVersion, []data.Product{data.ProductCWSDD}, time.Second*1)
 	if err != nil {
 		return nil, err
 	}
@@ -48,17 +50,17 @@ func NewRCPolicyProvider(name string) (*RCPolicyProvider, error) {
 func (r *RCPolicyProvider) Start() {
 	log.Info("remote-config policies provider started")
 
-	go func() {
-		for configs := range r.client.CWSDDUpdates() {
-			r.Lock()
-			r.lastConfigs = configs
-			r.Unlock()
+	r.client.RegisterCWSDDUpdate(r.rcConfigUpdateCallback)
+}
 
-			log.Debug("new policies from remote-config policy provider")
+func (r *RCPolicyProvider) rcConfigUpdateCallback(configs map[string]state.ConfigCWSDD) {
+	r.Lock()
+	r.lastConfigs = configs
+	r.Unlock()
 
-			r.onNewPoliciesReadyCb()
-		}
-	}()
+	log.Debug("new policies from remote-config policy provider")
+
+	r.onNewPoliciesReadyCb()
 }
 
 func normalize(policy *rules.Policy) {
@@ -77,10 +79,10 @@ func (r *RCPolicyProvider) LoadPolicies() ([]*rules.Policy, *multierror.Error) {
 	r.RLock()
 	defer r.RUnlock()
 
-	for _, c := range r.lastConfigs {
+	for id, c := range r.lastConfigs {
 		reader := bytes.NewReader(c.Config)
 
-		policy, err := rules.LoadPolicy(c.ID, "remote-config", reader)
+		policy, err := rules.LoadPolicy(id, "remote-config", reader)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		} else {
