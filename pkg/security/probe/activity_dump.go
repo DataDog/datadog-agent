@@ -481,6 +481,17 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 	return node
 }
 
+// FindFirstMatchingNode return the first matching node of requested comm
+func (ad *ActivityDump) FindFirstMatchingNode(comm string) *ProcessActivityNode {
+	for _, node := range ad.ProcessActivityTree {
+		if node.Process.Comm == comm {
+			return node
+		}
+	}
+
+	return nil
+}
+
 // GetSelectorStr returns a string representation of the profile selector
 func (ad *ActivityDump) GetSelectorStr() string {
 	var tags []string
