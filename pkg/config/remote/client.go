@@ -7,6 +7,7 @@ package remote
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"sync"
 	"time"
@@ -15,96 +16,112 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client"
-	agentgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/pkg/errors"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
 
 // Client is a remote-configuration client to obtain configurations from the local API
 type Client struct {
-	m     sync.Mutex
-	ctx   context.Context
-	close func()
+	m sync.Mutex
+
+	ID string
+
+	startupSync sync.Once
+	ctx         context.Context
+	close       context.CancelFunc
 
 	agentName    string
+	agentVersion string
 	products     []string
-	pollInterval time.Duration
 
-	grpc           pbgo.AgentSecureClient
-	stateClient    *client.Client
-	currentConfigs client.Configs
+	pollInterval    time.Duration
+	lastUpdateError error
 
-	lastPollErr error
+	state *state.Repository
 
-	apmSamplingUpdates chan []client.ConfigAPMSamling
-	cwsDDUpdates       chan []client.ConfigCWSDD
+	grpc pbgo.AgentSecureClient
+
+	// Listeners
+	apmListeners []func(update map[string]state.APMSamplingConfig)
+	cwsListeners []func(update map[string]state.ConfigCWSDD)
 }
 
 // NewClient creates a new client
-func NewClient(agentName string, products []data.Product) (*Client, error) {
-	client, err := newClient(agentName, products)
-	if err != nil {
-		return nil, err
-	}
-	go client.pollLoop()
-	return client, nil
-}
-
-func newClient(agentName string, products []data.Product, dialOpts ...grpc.DialOption) (*Client, error) {
+func NewClient(agentName string, agentVersion string, products []data.Product, pollInterval time.Duration) (*Client, error) {
 	ctx, close := context.WithCancel(context.Background())
-	grpcClient, err := agentgrpc.GetDDAgentSecureClient(ctx, dialOpts...)
+	grpcClient, err := grpc.GetDDAgentSecureClient(ctx)
 	if err != nil {
 		close()
 		return nil, err
 	}
-	stateClient := client.NewClient(meta.RootsDirector().Last(), data.ProductListToString(products))
+	repository, err := state.NewRepository(meta.RootsDirector().Last())
+	if err != nil {
+		close()
+		return nil, err
+	}
+
 	return &Client{
-		ctx:                ctx,
-		agentName:          agentName,
-		products:           data.ProductListToString(products),
-		grpc:               grpcClient,
-		close:              close,
-		pollInterval:       1 * time.Second,
-		stateClient:        stateClient,
-		apmSamplingUpdates: make(chan []client.ConfigAPMSamling, 8),
-		cwsDDUpdates:       make(chan []client.ConfigCWSDD, 8),
+		ID:           generateID(),
+		startupSync:  sync.Once{},
+		ctx:          ctx,
+		close:        close,
+		agentName:    agentName,
+		products:     data.ProductListToString(products),
+		grpc:         grpcClient,
+		state:        repository,
+		pollInterval: pollInterval,
+		apmListeners: make([]func(update map[string]state.APMSamplingConfig), 0),
+		cwsListeners: make([]func(update map[string]state.ConfigCWSDD), 0),
 	}, nil
 }
 
-// Close closes the client
-func (c *Client) Close() {
-	c.close()
-	close(c.apmSamplingUpdates)
-	close(c.cwsDDUpdates)
+// Start starts the client's poll loop.
+//
+// If the client is already started, this is a no-op. At this time, a client that has been stopped cannot
+// be restarted.
+func (c *Client) Start() {
+	c.startupSync.Do(c.startFn)
 }
 
+// Close terminates the client's poll loop.
+//
+// A client that has been closed cannot be restarted
+func (c *Client) Close() {
+	c.close()
+}
+
+func (c *Client) startFn() {
+	go c.pollLoop()
+}
+
+// pollLoop is the main polling loop of the client.
+//
+// pollLoop should never be called manually and only be called via the client's `sync.Once`
+// structure in startFn.
 func (c *Client) pollLoop() {
 	for {
 		select {
 		case <-c.ctx.Done():
 			return
 		case <-time.After(c.pollInterval):
-			c.lastPollErr = c.poll()
-			if c.lastPollErr != nil {
-				log.Errorf("could not poll remote-config agent service: %v", c.lastPollErr)
+			c.lastUpdateError = c.update()
+			if c.lastUpdateError != nil {
+				log.Errorf("could not update remote-config state: %v", c.lastUpdateError)
 			}
-			c.updateConfigs()
 		}
 	}
 }
 
-func (c *Client) poll() error {
-	c.m.Lock()
-	defer c.m.Unlock()
-	state := c.stateClient.State()
-	lastPollErr := ""
-	if c.lastPollErr != nil {
-		lastPollErr = c.lastPollErr.Error()
-	}
+// update requests a config updates from the agent via the secure grpc channel and
+// applies that update, informing any registered listeners of any config state changes
+// that occurred.
+func (c *Client) update() error {
+	// This client is running, at the moment, in the trace-agent or the security-agent. The auth token is handled
+	// by the core-agent, running independently. It's not guaranteed it starts before us, or that if it restarts that
+	// the auth token remains the same. Thus we need to do this every request.
 	token, err := security.FetchAuthToken()
 	if err != nil {
 		return errors.Wrap(err, "could not acquire agent auth token")
@@ -113,76 +130,169 @@ func (c *Client) poll() error {
 		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
 	}
 	ctx := metadata.NewOutgoingContext(c.ctx, md)
-	response, err := c.grpc.ClientGetConfigs(ctx, &pbgo.ClientGetConfigsRequest{
-		Client: &pbgo.Client{
-			Id:      c.stateClient.ID(),
-			IsAgent: true,
-			ClientAgent: &pbgo.ClientAgent{
-				Name:    c.agentName,
-				Version: version.AgentVersion,
-			},
-			State: &pbgo.ClientState{
-				RootVersion:    uint64(state.RootVersion),
-				TargetsVersion: uint64(state.TargetsVersion),
-				ConfigStates:   c.configStates(),
-				HasError:       c.lastPollErr != nil,
-				Error:          lastPollErr,
-			},
-			Products: c.products,
-		},
-	})
+
+	req, err := c.newUpdateRequest()
 	if err != nil {
 		return err
 	}
-	targetFiles := make(map[string][]byte, len(response.TargetFiles))
-	for _, targetFile := range response.TargetFiles {
-		targetFiles[targetFile.Path] = targetFile.Raw
+	response, err := c.grpc.ClientGetConfigs(ctx, req)
+	if err != nil {
+		return err
 	}
-	return c.stateClient.Update(client.Update{
-		Roots:       response.Roots,
-		Targets:     response.Targets,
-		TargetFiles: targetFiles,
-	})
+	// If there isn't a new update for us, the TargetFiles field will
+	// be nil and we can stop processing this update.
+	if response.TargetFiles == nil {
+		return nil
+	}
+
+	changedProducts, err := c.applyUpdate(response)
+	if err != nil {
+		return err
+	}
+	// We don't want to force the products to reload config if nothing changed
+	// in the latest update.
+	if len(changedProducts) == 0 {
+		return nil
+	}
+
+	c.m.Lock()
+	defer c.m.Unlock()
+	if containsProduct(changedProducts, state.ProductAPMSampling) {
+		for _, listener := range c.apmListeners {
+			listener(c.state.APMConfigs())
+		}
+	}
+	if containsProduct(changedProducts, state.ProductCWSDD) {
+		for _, listener := range c.cwsListeners {
+			listener(c.state.CWSDDConfigs())
+		}
+	}
+
+	return nil
 }
 
-func (c *Client) updateConfigs() {
-	newConfigs := c.stateClient.GetConfigs(time.Now().Unix())
-	updatedProducts := newConfigs.Diff(c.currentConfigs)
-	c.currentConfigs = newConfigs
-	if updatedProducts.APMSampling {
-		c.apmSamplingUpdates <- newConfigs.APMSamplingConfigs
+func containsProduct(products []string, product string) bool {
+	for _, p := range products {
+		if product == p {
+			return true
+		}
 	}
-	if updatedProducts.CWSDD {
-		c.cwsDDUpdates <- newConfigs.CWSDDConfigs
-	}
+
+	return false
 }
 
-func (c *Client) configStates() []*pbgo.ConfigState {
-	var configStates []*pbgo.ConfigState
-	configs := c.currentConfigs
-	for _, config := range configs.APMSamplingConfigs {
-		configStates = append(configStates, &pbgo.ConfigState{
-			Product: string(data.ProductAPMSampling),
-			Id:      config.ID,
-			Version: config.Version,
+// RegisterAPMUpdate registers a callback function to be called after a successful client update that will
+// contain the current state of the APMSampling product.
+func (c *Client) RegisterAPMUpdate(fn func(update map[string]state.APMSamplingConfig)) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.apmListeners = append(c.apmListeners, fn)
+	fn(c.state.APMConfigs())
+}
+
+// RegisterCWSDDUpdate registers a callback function to be called after a successful client update that will
+// contain the current state of the CWSDD product.
+func (c *Client) RegisterCWSDDUpdate(fn func(update map[string]state.ConfigCWSDD)) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.cwsListeners = append(c.cwsListeners, fn)
+	fn(c.state.CWSDDConfigs())
+}
+
+func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) ([]string, error) {
+	fileMap := make(map[string][]byte, len(pbUpdate.TargetFiles))
+	for _, f := range pbUpdate.TargetFiles {
+		fileMap[f.Path] = f.Raw
+	}
+
+	update := state.Update{
+		TUFRoots:      pbUpdate.Roots,
+		TUFTargets:    pbUpdate.Targets,
+		TargetFiles:   fileMap,
+		ClientConfigs: pbUpdate.ClientConfigs,
+	}
+
+	return c.state.Update(update)
+}
+
+// newUpdateRequests builds a new request for the agent based on the current state of the
+// remote config repository.
+func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
+	state, err := c.state.CurrentState()
+	if err != nil {
+		return nil, err
+	}
+
+	pbCachedFiles := make([]*pbgo.TargetFileMeta, 0, len(state.CachedFiles))
+	for _, f := range state.CachedFiles {
+		pbHashes := make([]*pbgo.TargetFileHash, 0, len(f.Hashes))
+		for alg, hash := range f.Hashes {
+			pbHashes = append(pbHashes, &pbgo.TargetFileHash{
+				Algorithm: alg,
+				Hash:      hash,
+			})
+		}
+		pbCachedFiles = append(pbCachedFiles, &pbgo.TargetFileMeta{
+			Path:   f.Path,
+			Length: int64(f.Length),
+			Hashes: pbHashes,
 		})
 	}
-	for _, config := range configs.CWSDDConfigs {
-		configStates = append(configStates, &pbgo.ConfigState{
-			Product: string(data.ProductCWSDD),
-			Id:      config.ID,
-			Version: config.Version,
+
+	hasError := c.lastUpdateError != nil
+	errMsg := ""
+	if hasError {
+		errMsg = c.lastUpdateError.Error()
+	}
+
+	pbConfigState := make([]*pbgo.ConfigState, 0, len(state.Configs))
+	for _, f := range state.Configs {
+		pbConfigState = append(pbConfigState, &pbgo.ConfigState{
+			Id:      f.ID,
+			Version: f.Version,
+			Product: f.Product,
 		})
 	}
-	return configStates
+
+	req := &pbgo.ClientGetConfigsRequest{
+		Client: &pbgo.Client{
+			State: &pbgo.ClientState{
+				RootVersion:    uint64(state.RootsVersion),
+				TargetsVersion: uint64(state.TargetsVersion),
+				ConfigStates:   pbConfigState,
+				HasError:       hasError,
+				Error:          errMsg,
+			},
+			Id:       c.ID,
+			Products: c.products,
+			IsAgent:  true,
+			IsTracer: false,
+			ClientAgent: &pbgo.ClientAgent{
+				Name:    c.agentName,
+				Version: c.agentVersion,
+			},
+		},
+		CachedTargetFiles: pbCachedFiles,
+	}
+
+	return req, nil
 }
 
-// APMSamplingUpdates returns a chan to consume apm sampling updates
-func (c *Client) APMSamplingUpdates() <-chan []client.ConfigAPMSamling {
-	return c.apmSamplingUpdates
-}
+var (
+	idSize     = 21
+	idAlphabet = []rune("_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+)
 
-// CWSDDUpdates returns a chan to consume cws dd updates
-func (c *Client) CWSDDUpdates() <-chan []client.ConfigCWSDD {
-	return c.cwsDDUpdates
+// generateID creates a new random ID for a new client instance
+func generateID() string {
+	bytes := make([]byte, idSize)
+	_, err := rand.Read(bytes)
+	if err != nil {
+		panic(err)
+	}
+	id := make([]rune, idSize)
+	for i := 0; i < idSize; i++ {
+		id[i] = idAlphabet[bytes[i]&63]
+	}
+	return string(id[:idSize])
 }

@@ -25,7 +25,7 @@ COPYRIGHT_REGEX = [
 # These path patterns are excluded from checks
 PATH_EXCLUSION_REGEX = [
     # These are auto-generated files but without headers to indicate it
-    '/pkg/remoteconfig/client/products/apmsampling/.*_gen(_test){,1}.go',
+    '/pkg/remoteconfig/state/products/apmsampling/.*_gen(_test){,1}.go',
     '/pkg/proto/msgpgo/.*_gen(_test){,1}.go',
     '/pkg/security/probe/accessors.go',
     '/pkg/security/probe/activity_dump_gen_linux.go',

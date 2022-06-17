@@ -42,7 +42,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ./pkg/obfuscate
 	github.com/DataDog/datadog-agent/pkg/otlp/model => ./pkg/otlp/model
 	github.com/DataDog/datadog-agent/pkg/quantile => ./pkg/quantile
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/client => ./pkg/remoteconfig/client
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ./pkg/remoteconfig/state
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/trace => ./pkg/trace
 )
@@ -56,7 +56,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.37.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.37.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/quantile v0.37.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.37.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.37.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/trace v0.37.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
@@ -418,6 +417,8 @@ require google.golang.org/grpc/credentials/insecure v0.0.0 // indirect
 require github.com/netsampler/goflow2 v1.1.0
 
 require github.com/libp2p/go-reuseport v0.1.0 // indirect
+
+require github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.0.0-00010101000000-000000000000
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
