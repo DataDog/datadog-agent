@@ -158,12 +158,6 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				metadata.SetupInventoriesExpvar(common.AC, common.Coll)
 			}
 
-			if discoveryRetryInterval > discoveryTimeout {
-				fmt.Println("The discovery retry interval", discoveryRetryInterval, "is higher than the discovery timeout", discoveryTimeout)
-				fmt.Println("Setting the discovery retry interval to", discoveryTimeout)
-				discoveryRetryInterval = discoveryTimeout
-			}
-
 			// Create the CheckScheduler, but do not attach it to
 			// AutoDiscovery.  NOTE: we do not start common.Coll, either.
 			collector.InitCheckScheduler(common.Coll)
