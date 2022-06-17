@@ -5,6 +5,7 @@ import (
 	"strconv"
 )
 
+// FormatMask TODO <infrastructure-integrations>
 func FormatMask(ipAddr []byte, maskRawValue uint32) string {
 	maskSuffix := "/" + strconv.Itoa(int(maskRawValue))
 

@@ -54,6 +54,7 @@ func (s *State) DirectorTargetsVersion() uint64 {
 	return meta.Version
 }
 
+// TUFVersions TODO <remote-config>
 type TUFVersions struct {
 	DirectorRoot    uint64
 	DirectorTargets uint64
@@ -61,6 +62,7 @@ type TUFVersions struct {
 	ConfigSnapshot  uint64
 }
 
+// TUFVersionState TODO <remote-config>
 func (c *Client) TUFVersionState() (TUFVersions, error) {
 	c.Lock()
 	defer c.Unlock()
