@@ -68,14 +68,17 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		StartTime:             startTime,
 		InvokeEventRawPayload: string(reqBody),
 		InvokeEventHeaders:    lambdaInvokeContext,
+		InvokedFunctionARN:    s.daemon.ExecutionContext.GetCurrentState().ARN,
 	}
+
 	s.daemon.InvocationProcessor.OnInvokeStart(startDetails)
-	if invocationlifecycle.TraceID() == 0 {
+
+	if s.daemon.InvocationProcessor.GetExecutionInfo().TraceID == 0 {
 		log.Debug("no context has been found, the tracer will be responsible for initializing the context")
 	} else {
 		log.Debug("a context has been found, sending the context to the tracer")
-		w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", invocationlifecycle.TraceID()))
-		w.Header().Set(invocationlifecycle.SamplingPriorityHeader, fmt.Sprintf("%v", invocationlifecycle.SamplingPriority()))
+		w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", s.daemon.InvocationProcessor.GetExecutionInfo().TraceID))
+		w.Header().Set(invocationlifecycle.SamplingPriorityHeader, fmt.Sprintf("%v", s.daemon.InvocationProcessor.GetExecutionInfo().SamplingPriority))
 	}
 }
 
@@ -99,23 +102,26 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		EndTime:            endTime,
 		IsError:            r.Header.Get(invocationlifecycle.InvocationErrorHeader) == "true",
 		RequestID:          ecs.LastRequestID,
-		ResponseRawPayload: responseBody,
+		ResponseRawPayload: string(responseBody),
 	}
-	if invocationlifecycle.TraceID() == 0 {
+	executionContext := e.daemon.InvocationProcessor.GetExecutionInfo()
+	if executionContext.TraceID == 0 {
 		log.Debug("no context has been found yet, injecting it now via headers from the tracer")
-		invocationlifecycle.InjectContext(r.Header)
+		invocationlifecycle.InjectContext(executionContext, r.Header)
 	}
-	invocationlifecycle.InjectSpanID(r.Header)
+	invocationlifecycle.InjectSpanID(executionContext, r.Header)
 	e.daemon.InvocationProcessor.OnInvokeEnd(&endDetails)
 }
 
 // TraceContext is a route called by tracer so it can retrieve the tracing context
 type TraceContext struct {
+	daemon *Daemon
 }
 
 func (tc *TraceContext) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	executionInfo := tc.daemon.InvocationProcessor.GetExecutionInfo()
 	log.Debug("Hit on the serverless.TraceContext route.")
-	w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", invocationlifecycle.TraceID()))
-	w.Header().Set(invocationlifecycle.SpanIDHeader, fmt.Sprintf("%v", invocationlifecycle.SpanID()))
-	w.Header().Set(invocationlifecycle.SamplingPriorityHeader, fmt.Sprintf("%v", invocationlifecycle.SamplingPriority()))
+	w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", executionInfo.TraceID))
+	w.Header().Set(invocationlifecycle.SpanIDHeader, fmt.Sprintf("%v", executionInfo.SpanID))
+	w.Header().Set(invocationlifecycle.SamplingPriorityHeader, fmt.Sprintf("%v", executionInfo.SamplingPriority))
 }
