@@ -32,6 +32,14 @@ const (
 	OTLPDebugLogLevelError    = "error"
 )
 
+var OTLPDebugLogLevelMap = map[string]struct{}{
+	OTLPDebugLogLevelDisabled: {},
+	OTLPDebugLogLevelDebug:    {},
+	OTLPDebugLogLevelInfo:     {},
+	OTLPDebugLogLevelWarn:     {},
+	OTLPDebugLogLevelError:    {},
+}
+
 // SetupOTLP related configuration.
 func SetupOTLP(config Config) {
 	config.BindEnvAndSetDefault(OTLPTracePort, 5003)
