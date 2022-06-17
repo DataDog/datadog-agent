@@ -886,6 +886,279 @@ def build_object_files(
         ctx.run(f"{sudo} cp -R {build_dir}/* {EMBEDDED_SHARE_DIR}")
         ctx.run(f"{sudo} chown root:root -R {EMBEDDED_SHARE_DIR}")
 
+def build_http_ebpf_files(ctx, build_dir, kernel_release=None, strip_object_files=False):
+    network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
+    network_c_dir = os.path.join(network_bpf_dir, "c")
+    network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
+
+    network_flags = get_http_prebuilt_build_flags(network_c_dir, kernel_release=kernel_release)
+
+    build_network_ebpf_compile_file(ctx, False, build_dir, "http", True, network_prebuilt_dir, network_flags)
+    build_network_ebpf_link_file(ctx, False, build_dir, "http", True, network_flags)
+    if strip_object_files:
+        strip_network_ebpf_obj_file(ctx, False, build_dir, "http", True)
+
+    build_network_ebpf_compile_file(ctx, False, build_dir, "http", False, network_prebuilt_dir, network_flags)
+    build_network_ebpf_link_file(ctx, False, build_dir, "http", False, network_flags)
+    if strip_object_files:
+        strip_network_ebpf_obj_file(ctx, False, build_dir, "http", False)
+
+
+def get_network_build_flags(network_c_dir, kernel_release=None):
+    flags = get_network_agent_ebpf_build_flags(kernel_release=kernel_release)
+    flags.append(f"-I{network_c_dir}")
+    return flags
+
+
+def strip_network_ebpf_obj_file(ctx, parallel_build, build_dir, p, debug):
+
+    if not debug:
+        obj_file = os.path.join(build_dir, f"{p}.o")
+        return ctx.run(f"llvm-strip -g {obj_file}", asynchronous=parallel_build)
+    else:
+        debug_obj_file = os.path.join(build_dir, f"{p}-debug.o")
+        return ctx.run(f"llvm-strip -g {debug_obj_file}", asynchronous=parallel_build)
+
+
+def build_network_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None, strip_object_files=False):
+    network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
+    network_c_dir = os.path.join(network_bpf_dir, "c")
+    network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
+
+    compiled_programs = ["dns", "offset-guess", "tracer"]
+
+    network_flags = get_network_build_flags(network_c_dir, kernel_release=kernel_release)
+
+    flavor = []
+    for prog in compiled_programs:
+        for debug in [False, True]:
+            flavor.append((prog, debug))
+
+    promises = []
+    for p, debug in flavor:
+        promises.append(
+            build_network_ebpf_compile_file(
+                ctx, parallel_build, build_dir, p, debug, network_prebuilt_dir, network_flags
+            )
+        )
+        if not parallel_build:
+            build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, network_flags)
+
+    if not parallel_build:
+        return
+
+    promises_link = []
+    for i, promise in enumerate(promises):
+        promise.join()
+        (p, debug) = flavor[i]
+        promises_link.append(build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, network_flags))
+
+    if not strip_object_files:
+        return
+
+    promises_strip = []
+    for i, promise in enumerate(promises_link):
+        promise.join()
+        (p, debug) = flavor[i]
+        promises_strip.append(strip_network_ebpf_obj_file(ctx, parallel_build, build_dir, p, debug))
+
+    for promise in promises_strip:
+        promise.join()
+
+
+def get_security_agent_build_flags(security_agent_c_dir, kernel_release=None, minimal_kernel_release=None, debug=False):
+    security_flags = get_ebpf_build_flags(kernel_release=kernel_release, minimal_kernel_release=minimal_kernel_release)
+    security_flags.append(f"-I{security_agent_c_dir}")
+    if debug:
+        security_flags.append("-DDEBUG=1")
+    return security_flags
+
+
+def build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=None, debug=False):
+    security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
+    security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
+    security_c_file = os.path.join(security_agent_prebuilt_dir, "offset-guesser.c")
+    security_bc_file = os.path.join(build_dir, "runtime-security-offset-guesser.bc")
+    security_agent_obj_file = os.path.join(build_dir, "runtime-security-offset-guesser.o")
+
+    security_flags = get_security_agent_build_flags(
+        security_agent_c_dir,
+        kernel_release=kernel_release,
+        minimal_kernel_release=CWS_PREBUILT_MINIMUM_KERNEL_VERSION,
+        debug=debug,
+    )
+
+    ctx.run(
+        CLANG_CMD.format(
+            flags=" ".join(security_flags),
+            c_file=security_c_file,
+            bc_file=security_bc_file,
+        ),
+    )
+    ctx.run(
+        LLC_CMD.format(flags=" ".join(security_flags), bc_file=security_bc_file, obj_file=security_agent_obj_file),
+    )
+
+
+def build_security_probe_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None, debug=False):
+    security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
+    security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
+    security_c_file = os.path.join(security_agent_prebuilt_dir, "probe.c")
+    security_bc_file = os.path.join(build_dir, "runtime-security.bc")
+    security_agent_obj_file = os.path.join(build_dir, "runtime-security.o")
+
+    security_flags = get_security_agent_build_flags(
+        security_agent_c_dir,
+        kernel_release=kernel_release,
+        minimal_kernel_release=CWS_PREBUILT_MINIMUM_KERNEL_VERSION,
+        debug=debug,
+    )
+
+    # compile
+    promises = []
+    promises.append(
+        ctx.run(
+            CLANG_CMD.format(
+                flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=0"]),
+                c_file=security_c_file,
+                bc_file=security_bc_file,
+            ),
+            asynchronous=parallel_build,
+        )
+    )
+    security_agent_syscall_wrapper_bc_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.bc")
+    promises.append(
+        ctx.run(
+            CLANG_CMD.format(
+                flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=1"]),
+                c_file=security_c_file,
+                bc_file=security_agent_syscall_wrapper_bc_file,
+            ),
+            asynchronous=parallel_build,
+        )
+    )
+
+    if parallel_build:
+        for p in promises:
+            p.join()
+
+    # link
+    promises = []
+    promises.append(
+        ctx.run(
+            LLC_CMD.format(flags=" ".join(security_flags), bc_file=security_bc_file, obj_file=security_agent_obj_file),
+            asynchronous=parallel_build,
+        )
+    )
+
+    security_agent_syscall_wrapper_obj_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.o")
+    promises.append(
+        ctx.run(
+            LLC_CMD.format(
+                flags=" ".join(security_flags),
+                bc_file=security_agent_syscall_wrapper_bc_file,
+                obj_file=security_agent_syscall_wrapper_obj_file,
+            ),
+            asynchronous=parallel_build,
+        )
+    )
+
+    if parallel_build:
+        for p in promises:
+            p.join()
+
+
+def build_security_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None, debug=False):
+    build_security_probe_ebpf_files(ctx, build_dir, parallel_build, kernel_release=kernel_release, debug=debug)
+    build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=kernel_release, debug=debug)
+
+
+def setup_clang(ctx, target):
+    # check if correct version is running
+    res = ctx.run("/opt/datadog-agent/embedded/bin/clang-bpf --version", warn=True)
+    if res.ok:
+        version_str = res.stdout.split("\n")[0].split(" ")[2].strip()
+        if version_str == target:
+            return
+
+    if platform.machine() != "amd64":
+        arch = arch_mapping.get(platform.machine())
+    else:
+        arch = arch_mapping.get(platform.machine())
+
+
+    # setup correct version
+    clang_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/clang-{target}.{arch}"
+    ctx.run(f"sudo wget -q {clang_url} -O /opt/datadog-agent/embedded/bin/clang-{target}")
+    ctx.run(f"sudo chmod 0755 /opt/datadog-agent/embedded/bin/clang-{target}")
+
+    llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{target}.{arch}"
+    ctx.run(f"sudo wget -q {llc_url} -O /opt/datadog-agent/embedded/bin/llc-{target}")
+    ctx.run(f"sudo chmod 0755 /opt/datadog-agent/embedded/bin/llc-{target}")
+    
+    # make bpf symlinks
+    ctx.run("sudo rm /opt/datadog-agent/embedded/bin/clang-bpf", warn=True)
+    ctx.run(f"sudo ln -s /opt/datadog-agent/embedded/bin/clang-{target} /opt/datadog-agent/embedded/bin/clang-bpf")
+    ctx.run("sudo rm /opt/datadog-agent/embedded/bin/llc-bpf", warn=True)
+    ctx.run(f"sudo ln -s /opt/datadog-agent/embedded/bin/llc-{target} /opt/datadog-agent/embedded/bin/llc-bpf")
+
+import os
+def build_object_files(ctx, parallel_build, kernel_release=None, debug=False, strip_object_files=False):
+    """build_object_files builds only the eBPF object"""
+    setup_clang(ctx, bpf_clang_version)
+
+    # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
+    print("checking for clang executable...")
+    ctx.run("which clang")
+
+    if strip_object_files:
+        print("checking for llvm-strip...")
+        ctx.run("which llvm-strip")
+
+    promises_check = []
+    for f in get_ebpf_targets():
+        promises_check.append(ebpf_check_source_file(ctx, parallel_build, f))
+
+    if parallel_build:
+        for promise in promises_check:
+            promise.join()
+
+    build_dir = os.path.join(".", "pkg", "ebpf", "bytecode", "build")
+    build_runtime_dir = os.path.join(build_dir, "runtime")
+
+    ctx.run(f"mkdir -p {build_dir}")
+    ctx.run(f"mkdir -p {build_runtime_dir}")
+
+    build_network_ebpf_files(
+        ctx,
+        build_dir=build_dir,
+        parallel_build=parallel_build,
+        kernel_release=kernel_release,
+        strip_object_files=strip_object_files,
+    )
+    build_http_ebpf_files(
+        ctx, build_dir=build_dir, kernel_release=kernel_release, strip_object_files=strip_object_files
+    )
+    build_security_ebpf_files(
+        ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release, debug=debug
+    )
+
+    generate_runtime_files(ctx)
+
+    # We need to copy the bpf files out of the mounted build directory in order to be able to
+    # change their ownership to root
+    src_files = os.path.join(build_dir, "*")
+    bpf_dir = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
+
+    if not is_root():
+        ctx.sudo(f"mkdir -p {bpf_dir}")
+        ctx.sudo(f"cp -R {src_files} {bpf_dir}")
+        ctx.sudo(f"chown root:root -R {bpf_dir}")
+    else:
+        ctx.run(f"mkdir -p {bpf_dir}")
+        ctx.run(f"cp -R {src_files} {bpf_dir}")
+        ctx.run(f"chown root:root -R {bpf_dir}")
+
 
 def build_cws_object_files(
     ctx, major_version='7', arch=CURRENT_ARCH, kernel_release=None, debug=False, strip_object_files=False
