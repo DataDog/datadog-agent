@@ -16,6 +16,7 @@
 # These whole classes of package names have fixed copyright
 cloud.google.com/*: Copyright 2019 Google LLC
 code.cloudfoundry.org/*: Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved.
+github.com/aws/aws-lambda-go: Copyright 2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 github.com/aws/aws-sdk-go: ["Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved.", "Copyright 2014-2015 Stripe, Inc."]
 github.com/containerd/*: Copyright 2012-2015 Docker, Inc.
 github.com/coreos/*: Copyright 2017 CoreOS, Inc

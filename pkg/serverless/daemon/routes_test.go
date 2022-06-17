@@ -23,6 +23,10 @@ type mockLifecycleProcessor struct {
 	isError             bool
 }
 
+func (m *mockLifecycleProcessor) GetExecutionInfo() *invocationlifecycle.ExecutionStartInfo {
+	return &invocationlifecycle.ExecutionStartInfo{}
+}
+
 func (m *mockLifecycleProcessor) OnInvokeStart(*invocationlifecycle.InvocationStartDetails) {
 	m.OnInvokeStartCalled = true
 }
@@ -124,9 +128,9 @@ func TestTraceContext(t *testing.T) {
 	assert.Nil(err)
 	res, err := client.Do(request)
 	assert.Nil(err)
-	assert.Equal("2222", fmt.Sprintf("%v", invocationlifecycle.TraceID()))
+	assert.Equal("2222", fmt.Sprintf("%v", d.InvocationProcessor.GetExecutionInfo().TraceID))
 	if res != nil {
-		assert.Equal(res.Header.Get("x-datadog-trace-id"), fmt.Sprintf("%v", invocationlifecycle.TraceID()))
-		assert.Equal(res.Header.Get("x-datadog-span-id"), fmt.Sprintf("%v", invocationlifecycle.SpanID()))
+		assert.Equal(res.Header.Get("x-datadog-trace-id"), fmt.Sprintf("%v", d.InvocationProcessor.GetExecutionInfo().TraceID))
+		assert.Equal(res.Header.Get("x-datadog-span-id"), fmt.Sprintf("%v", d.InvocationProcessor.GetExecutionInfo().SpanID))
 	}
 }
