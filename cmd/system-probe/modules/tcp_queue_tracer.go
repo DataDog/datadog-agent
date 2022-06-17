@@ -31,13 +31,14 @@ var TCPQueueLength = module.Factory{
 			return nil, fmt.Errorf("unable to start the TCP queue length tracer: %w", err)
 		}
 
-		return &tcpQueueLengthModule{TCPQueueLengthTracer: t}, nil
+		return &tcpQueueLengthModule{
+			TCPQueueLengthTracer: t,
+			lastCheck:            atomic.NewInt64(0),
+		}, nil
 	},
 }
 
-var _ module.Module = &tcpQueueLengthModule{
-	lastCheck: atomic.NewInt64(0),
-}
+var _ module.Module = &tcpQueueLengthModule{}
 
 type tcpQueueLengthModule struct {
 	*probe.TCPQueueLengthTracer

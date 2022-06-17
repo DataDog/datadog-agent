@@ -32,13 +32,14 @@ var OOMKillProbe = module.Factory{
 		if err != nil {
 			return nil, fmt.Errorf("unable to start the OOM kill probe: %w", err)
 		}
-		return &oomKillModule{OOMKillProbe: okp}, nil
+		return &oomKillModule{
+			OOMKillProbe: okp,
+			lastCheck:    atomic.NewInt64(0),
+		}, nil
 	},
 }
 
-var _ module.Module = &oomKillModule{
-	lastCheck: atomic.NewInt64(0),
-}
+var _ module.Module = &oomKillModule{}
 
 type oomKillModule struct {
 	*probe.OOMKillProbe

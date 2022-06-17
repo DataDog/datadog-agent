@@ -38,13 +38,14 @@ var Process = module.Factory{
 
 		// we disable returning zero values for stats to reduce parsing work on process-agent side
 		p := procutil.NewProcessProbe(procutil.WithReturnZeroPermStats(false))
-		return &process{probe: p}, nil
+		return &process{
+			probe:     p,
+			lastCheck: atomic.NewInt64(0),
+		}, nil
 	},
 }
 
-var _ module.Module = &process{
-	lastCheck: atomic.NewInt64(0),
-}
+var _ module.Module = &process{}
 
 type process struct {
 	probe     procutil.Probe
