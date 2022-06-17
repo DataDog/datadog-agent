@@ -699,10 +699,8 @@ def build_security_ebpf_files(ctx, build_dir, parallel_build=True):
     build_security_offset_guesser_ebpf_files(ctx, build_dir)
 
 
-<<<<<<< HEAD
-=======
 def setup_clang(ctx, target):
-    # check if correct version is running
+    # check if correct version is already present
     res = ctx.run("/opt/datadog-agent/embedded/bin/clang-bpf --version", warn=True)
     if res.ok:
         version_str = res.stdout.split("\n")[0].split(" ")[2].strip()
@@ -715,7 +713,7 @@ def setup_clang(ctx, target):
         arch = arch_mapping.get(platform.machine())
 
 
-    # setup correct version
+    # download correct version from dd-agent-omnibus S3 bucket
     clang_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/clang-{target}.{arch}"
     ctx.run(f"sudo wget -q {clang_url} -O /opt/datadog-agent/embedded/bin/clang-{target}")
     ctx.run(f"sudo chmod 0755 /opt/datadog-agent/embedded/bin/clang-{target}")
@@ -724,23 +722,18 @@ def setup_clang(ctx, target):
     ctx.run(f"sudo wget -q {llc_url} -O /opt/datadog-agent/embedded/bin/llc-{target}")
     ctx.run(f"sudo chmod 0755 /opt/datadog-agent/embedded/bin/llc-{target}")
     
-    # make bpf symlinks
+    # make symlinks to the target binary
     ctx.run("sudo rm /opt/datadog-agent/embedded/bin/clang-bpf", warn=True)
     ctx.run(f"sudo ln -s /opt/datadog-agent/embedded/bin/clang-{target} /opt/datadog-agent/embedded/bin/clang-bpf")
     ctx.run("sudo rm /opt/datadog-agent/embedded/bin/llc-bpf", warn=True)
     ctx.run(f"sudo ln -s /opt/datadog-agent/embedded/bin/llc-{target} /opt/datadog-agent/embedded/bin/llc-bpf")
 
-import os
 def build_object_files(ctx, parallel_build, bpf_clang_version):
     """build_object_files builds only the eBPF object"""
 
     setup_clang(ctx, bpf_clang_version)
 
->>>>>>> 2e0794300 (copying clang-bpf and llc-bpf from dd-agent-omnibus)
-def build_object_files(ctx, parallel_build):
-    """build_object_files builds only the eBPF object"""
-
-# if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
+    # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
     print("checking for clang executable...")
     ctx.run("which clang")
 
