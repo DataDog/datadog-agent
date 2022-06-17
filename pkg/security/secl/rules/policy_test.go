@@ -444,8 +444,35 @@ func loadPolicy(t *testing.T, testPolicy *PolicyDef, agentVersion *semver.Versio
 	return rs, rs.LoadPolicies(loader)
 }
 
-func TestRuleAgentConstraint(t *testing.T) {
+func TestRuleErrorLoading(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{
+			{
+				ID:         "testA",
+				Expression: `open.filename == "/tmp/test"`,
+			},
+			{
+				ID:         "testB",
+				Expression: `open.filename =-= "/tmp/test"`,
+			},
+			{
+				ID:         "testA",
+				Expression: `open.filename == "/tmp/toto"`,
+			},
+		},
+	}
 
+	rs, err := loadPolicy(t, testPolicy, nil)
+	assert.NotNil(t, err)
+	assert.Len(t, err.Errors, 2)
+	assert.ErrorContains(t, err.Errors[0], "rule `testA` definition error: internal rule ID conflict")
+	assert.ErrorContains(t, err.Errors[1], "rule `testB` definition error: syntax error: 1:16: unexpected token")
+
+	assert.Contains(t, rs.rules, "testA")
+	assert.NotContains(t, rs.rules, "testB")
+}
+
+func TestRuleAgentConstraint(t *testing.T) {
 	testEntries := []struct {
 		name           string
 		agentVersion   string
