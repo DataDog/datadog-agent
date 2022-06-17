@@ -206,7 +206,7 @@ func (sf schedulerFunc) Stop() {
 // so by subscribing to the AD metascheduler.  If the context is cancelled
 // then any accumulated configs are returned, even if that is fewer than
 // discoveryMinInstances.
-func WaitForConfigsFromAD(ctx context.Context, checkName string, discoveryMinInstances int) (configs []integration.Config) {
+func WaitForConfigsFromAD(ctx context.Context, checkNames []string, discoveryMinInstances int) (configs []integration.Config) {
 	configChan := make(chan integration.Config)
 
 	// signal to the scheduler when we are no longer waiting, so we do not continue
@@ -225,10 +225,15 @@ func WaitForConfigsFromAD(ctx context.Context, checkName string, discoveryMinIns
 	// placing items in configChan
 	go AC.AddScheduler("check-cmd", schedulerFunc(func(configs []integration.Config) {
 		for _, cfg := range configs {
-			if cfg.Name == checkName {
-				if waiting.Load() {
-					configChan <- cfg
+			found := false
+			for _, checkName := range checkNames {
+				if cfg.Name == checkName {
+					found = true
+					break
 				}
+			}
+			if found && waiting.Load() {
+				configChan <- cfg
 			}
 		}
 	}), true)
