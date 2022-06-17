@@ -146,7 +146,7 @@ func TestResolveValueFrom(t *testing.T) {
 			expression: `process.flag("buddy", "--path")`,
 			setup: func(t *testing.T) {
 				processFetcher = func() (processes, error) {
-					return []*CSPMProcess{NewCSPMFakeProcess(42, "buddy", []string{"--path=/home/root/hiya-buddy.txt"})}, nil
+					return []*CheckedProcess{NewCheckedFakeProcess(42, "buddy", []string{"--path=/home/root/hiya-buddy.txt"})}, nil
 				}
 			},
 			expectValue: "/home/root/hiya-buddy.txt",
@@ -166,7 +166,7 @@ func TestResolveValueFrom(t *testing.T) {
 			expression: `process.flag("buddy", "--path")`,
 			setup: func(t *testing.T) {
 				processFetcher = func() (processes, error) {
-					return []*CSPMProcess{NewCSPMFakeProcess(42, "buddy", nil)}, nil
+					return []*CheckedProcess{NewCheckedFakeProcess(42, "buddy", nil)}, nil
 				}
 			},
 			expectValue: "",

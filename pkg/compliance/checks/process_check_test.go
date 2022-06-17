@@ -62,7 +62,7 @@ func TestProcessCheck(t *testing.T) {
 				Condition: `process.flag("--path") == "foo"`,
 			},
 			processes: processes{
-				NewCSPMFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+				NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
 			},
 			expectReport: &compliance.Report{
 				Passed: true,
@@ -99,8 +99,8 @@ func TestProcessCheck(t *testing.T) {
 				},
 			},
 			processes: processes{
-				NewCSPMFakeProcess(42, "proc1", []string{"arg1"}),
-				NewCSPMFakeProcess(38, "proc2", []string{"arg1", "--tlsverify"}),
+				NewCheckedFakeProcess(42, "proc1", []string{"arg1"}),
+				NewCheckedFakeProcess(38, "proc2", []string{"arg1", "--tlsverify"}),
 			},
 			expectReport: &compliance.Report{
 				Passed: true,
@@ -126,8 +126,8 @@ func TestProcessCheck(t *testing.T) {
 				Condition: `process.flag("--path") == "foo"`,
 			},
 			processes: processes{
-				NewCSPMFakeProcess(42, "proc2", []string{"arg1", "--path=foo"}),
-				NewCSPMFakeProcess(43, "proc3", []string{"arg1", "--path=foo"}),
+				NewCheckedFakeProcess(42, "proc2", []string{"arg1", "--path=foo"}),
+				NewCheckedFakeProcess(43, "proc3", []string{"arg1", "--path=foo"}),
 			},
 			expectReport: &compliance.Report{
 				Passed: false,
@@ -144,7 +144,7 @@ func TestProcessCheck(t *testing.T) {
 				Condition: `process.flag("--path") == "foo"`,
 			},
 			processes: processes{
-				NewCSPMFakeProcess(42, "proc1", []string{"arg1", "--paths=foo"}),
+				NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--paths=foo"}),
 			},
 			expectReport: &compliance.Report{
 				Passed: false,
@@ -180,7 +180,7 @@ func TestProcessCheckCache(t *testing.T) {
 			Condition: `process.flag("--path") == "foo"`,
 		},
 		processes: processes{
-			NewCSPMFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+			NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
 		},
 		expectReport: &compliance.Report{
 			Passed: true,

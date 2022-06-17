@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type CSPMProcess struct {
+type CheckedProcess struct {
 	inner        *process.Process
 	pid          int32
 	name         string
@@ -23,8 +23,8 @@ type CSPMProcess struct {
 	cmdLineSlice []string
 }
 
-func NewCSPMProcess(p *process.Process) *CSPMProcess {
-	return &CSPMProcess{
+func NewCheckedProcess(p *process.Process) *CheckedProcess {
+	return &CheckedProcess{
 		inner:        p,
 		pid:          p.Pid,
 		name:         "",
@@ -32,8 +32,8 @@ func NewCSPMProcess(p *process.Process) *CSPMProcess {
 	}
 }
 
-func NewCSPMFakeProcess(pid int32, name string, cmdLineSlice []string) *CSPMProcess {
-	return &CSPMProcess{
+func NewCheckedFakeProcess(pid int32, name string, cmdLineSlice []string) *CheckedProcess {
+	return &CheckedProcess{
 		inner:        nil,
 		pid:          pid,
 		name:         name,
@@ -41,11 +41,11 @@ func NewCSPMFakeProcess(pid int32, name string, cmdLineSlice []string) *CSPMProc
 	}
 }
 
-func (p *CSPMProcess) Pid() int32 {
+func (p *CheckedProcess) Pid() int32 {
 	return p.pid
 }
 
-func (p *CSPMProcess) Name() (string, error) {
+func (p *CheckedProcess) Name() (string, error) {
 	if p.name != "" || p.inner == nil {
 		return p.name, nil
 	}
@@ -58,7 +58,7 @@ func (p *CSPMProcess) Name() (string, error) {
 	return innerName, nil
 }
 
-func (p *CSPMProcess) Exe() (string, error) {
+func (p *CheckedProcess) Exe() (string, error) {
 	if p.exe != "" || p.inner == nil {
 		return p.exe, nil
 	}
@@ -71,7 +71,7 @@ func (p *CSPMProcess) Exe() (string, error) {
 	return innerExe, nil
 }
 
-func (p *CSPMProcess) CmdlineSlice() ([]string, error) {
+func (p *CheckedProcess) CmdlineSlice() ([]string, error) {
 	if p.cmdLineSlice != nil || p.inner == nil {
 		return p.cmdLineSlice, nil
 	}
@@ -84,7 +84,7 @@ func (p *CSPMProcess) CmdlineSlice() ([]string, error) {
 	return innerCmdLine, nil
 }
 
-type processes []*CSPMProcess
+type processes []*CheckedProcess
 
 const (
 	processCacheKey string = "compliance-processes"
@@ -94,8 +94,8 @@ var (
 	processFetcher = fetchProcesses
 )
 
-func (p processes) findProcessesByName(name string) []*CSPMProcess {
-	return p.findProcesses(func(p *CSPMProcess) bool {
+func (p processes) findProcessesByName(name string) []*CheckedProcess {
+	return p.findProcesses(func(p *CheckedProcess) bool {
 		pname, err := p.Name()
 		if err != nil {
 			return false
@@ -104,8 +104,8 @@ func (p processes) findProcessesByName(name string) []*CSPMProcess {
 	})
 }
 
-func (p processes) findProcesses(matchFunc func(*CSPMProcess) bool) []*CSPMProcess {
-	var results = make([]*CSPMProcess, 0)
+func (p processes) findProcesses(matchFunc func(*CheckedProcess) bool) []*CheckedProcess {
+	var results = make([]*CheckedProcess, 0)
 	for _, process := range p {
 		if matchFunc(process) {
 			results = append(results, process)
@@ -121,9 +121,9 @@ func fetchProcesses() (processes, error) {
 		return nil, err
 	}
 
-	res := make([]*CSPMProcess, 0, len(inners))
+	res := make([]*CheckedProcess, 0, len(inners))
 	for _, p := range inners {
-		res = append(res, NewCSPMProcess(p))
+		res = append(res, NewCheckedProcess(p))
 	}
 	return res, nil
 }
