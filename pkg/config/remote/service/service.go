@@ -15,6 +15,8 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/theupdateframework/go-tuf/data"
 	tufutil "github.com/theupdateframework/go-tuf/util"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
@@ -257,13 +259,16 @@ func (s *Service) getClientState() ([]byte, error) {
 func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	s.Lock()
 	defer s.Unlock()
+	if request.Client == nil {
+		return &pbgo.ClientGetConfigsResponse{}, status.Error(codes.InvalidArgument, "client is a required field for client config update requests")
+	}
 	s.clients.seen(request.Client)
 	tufVersions, err := s.uptane.TUFVersionState()
 	if err != nil {
 		return nil, err
 	}
 	if request.Client.State == nil {
-		return &pbgo.ClientGetConfigsResponse{}, nil
+		return &pbgo.ClientGetConfigsResponse{}, status.Error(codes.InvalidArgument, "client.state is a required field for client config update requests")
 	}
 	if tufVersions.DirectorTargets == request.Client.State.TargetsVersion {
 		return &pbgo.ClientGetConfigsResponse{}, nil

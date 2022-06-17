@@ -24,6 +24,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/theupdateframework/go-tuf/data"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type mockAPI struct {
@@ -217,6 +219,31 @@ func customMeta(tracerPredicates []*pbgo.TracerPredicateV1) *json.RawMessage {
 
 	raw := json.RawMessage(data)
 	return &raw
+}
+
+// TestClientGetConfigsRequestMissingState sets up just enough of a mock server to validate
+// that if a client request does NOT include the Client object or the
+// Client.State object the request results in an error equivalent to
+// gRPC's InvalidArgument status code.
+func TestClientGetConfigsRequestMissingField(t *testing.T) {
+	api := &mockAPI{}
+	uptaneClient := &mockUptane{}
+	clock := clock.NewMock()
+	service := newTestService(t, api, uptaneClient, clock)
+
+	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
+
+	// The Client object is missing
+	req := &pbgo.ClientGetConfigsRequest{}
+	_, err := service.ClientGetConfigs(req)
+	assert.Error(t, err)
+	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
+
+	// The Client object is present, but State is missing
+	req.Client = &pbgo.Client{}
+	_, err = service.ClientGetConfigs(req)
+	assert.Error(t, err)
+	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
 }
 
 func TestService(t *testing.T) {
