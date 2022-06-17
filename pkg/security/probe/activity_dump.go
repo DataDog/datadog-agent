@@ -474,17 +474,19 @@ func (ad *ActivityDump) generateDNSRule(dns *DNSNode, activityNode *ProcessActiv
 	var rules []ProfileRule
 
 	if dns != nil {
-		rule := NewProfileRule(fmt.Sprintf(
-			"dns.question.name == \"%s\" && dns.question.type == \"%s\"",
-			dns.Name,
-			model.QType(dns.Type).String()),
-			ruleIDPrefix,
-		)
-		rule.Expression += fmt.Sprintf(" && process.file.path == \"%s\"", activityNode.Process.FileEvent.PathnameStr)
-		for _, parent := range ancestors {
-			rule.Expression += fmt.Sprintf(" && process.ancestors.file.path == \"%s\"", parent.Process.FileEvent.PathnameStr)
+		for _, req := range dns.requests {
+			rule := NewProfileRule(fmt.Sprintf(
+				"dns.question.name == \"%s\" && dns.question.type == \"%s\"",
+				req.Name,
+				model.QType(req.Type).String()),
+				ruleIDPrefix,
+			)
+			rule.Expression += fmt.Sprintf(" && process.file.path == \"%s\"", activityNode.Process.FileEvent.PathnameStr)
+			for _, parent := range ancestors {
+				rule.Expression += fmt.Sprintf(" && process.ancestors.file.path == \"%s\"", parent.Process.FileEvent.PathnameStr)
+			}
+			rules = append(rules, rule)
 		}
-		rules = append(rules, rule)
 	}
 
 	return rules
@@ -943,8 +945,17 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 
 // InsertDNSEvent inserts
 func (pan *ProcessActivityNode) InsertDNSEvent(evt *model.DNSEvent) bool {
-	if _, ok := pan.DNSNames[evt.Name]; ok {
-		return false
+	if dnsNode, ok := pan.DNSNames[evt.Name]; ok {
+		// look for the DNS request type
+		for _, req := range dnsNode.requests {
+			if req.Type == evt.Type {
+				return false
+			}
+		}
+
+		// insert the new request
+		dnsNode.requests = append(dnsNode.requests, *evt)
+		return true
 	}
 	pan.DNSNames[evt.Name] = NewDNSNode(evt)
 	return true
@@ -1057,14 +1068,14 @@ func (fan *FileActivityNode) debug(prefix string) {
 
 // DNSNode is used to store a DNS node
 type DNSNode struct {
-	model.DNSEvent
-	id string
+	requests []model.DNSEvent `msg:"requests"`
+	id       string
 }
 
 // NewDNSNode returns a new DNSNode instance
 func NewDNSNode(event *model.DNSEvent) *DNSNode {
 	return &DNSNode{
-		DNSEvent: *event,
+		requests: []model.DNSEvent{*event},
 	}
 }
 

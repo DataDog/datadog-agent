@@ -525,12 +525,6 @@ func (z *DNSNode) DecodeMsg(dc *msgp.Reader) (err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
-		case "DNSEvent":
-			err = z.DNSEvent.DecodeMsg(dc)
-			if err != nil {
-				err = msgp.WrapError(err, "DNSEvent")
-				return
-			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -543,32 +537,20 @@ func (z *DNSNode) DecodeMsg(dc *msgp.Reader) (err error) {
 }
 
 // EncodeMsg implements msgp.Encodable
-func (z *DNSNode) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 1
-	// write "DNSEvent"
-	err = en.Append(0x81, 0xa8, 0x44, 0x4e, 0x53, 0x45, 0x76, 0x65, 0x6e, 0x74)
+func (z DNSNode) EncodeMsg(en *msgp.Writer) (err error) {
+	// map header, size 0
+	err = en.Append(0x80)
 	if err != nil {
-		return
-	}
-	err = z.DNSEvent.EncodeMsg(en)
-	if err != nil {
-		err = msgp.WrapError(err, "DNSEvent")
 		return
 	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
-func (z *DNSNode) MarshalMsg(b []byte) (o []byte, err error) {
+func (z DNSNode) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 1
-	// string "DNSEvent"
-	o = append(o, 0x81, 0xa8, 0x44, 0x4e, 0x53, 0x45, 0x76, 0x65, 0x6e, 0x74)
-	o, err = z.DNSEvent.MarshalMsg(o)
-	if err != nil {
-		err = msgp.WrapError(err, "DNSEvent")
-		return
-	}
+	// map header, size 0
+	o = append(o, 0x80)
 	return
 }
 
@@ -590,12 +572,6 @@ func (z *DNSNode) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
-		case "DNSEvent":
-			bts, err = z.DNSEvent.UnmarshalMsg(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "DNSEvent")
-				return
-			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -609,8 +585,8 @@ func (z *DNSNode) UnmarshalMsg(bts []byte) (o []byte, err error) {
 }
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
-func (z *DNSNode) Msgsize() (s int) {
-	s = 1 + 9 + z.DNSEvent.Msgsize()
+func (z DNSNode) Msgsize() (s int) {
+	s = 1
 	return
 }
 
@@ -1606,12 +1582,6 @@ func (z *ProcessActivityNode) DecodeMsg(dc *msgp.Reader) (err error) {
 							return
 						}
 						switch msgp.UnsafeString(field) {
-						case "DNSEvent":
-							err = za0004.DNSEvent.DecodeMsg(dc)
-							if err != nil {
-								err = msgp.WrapError(err, "DNSNames", za0003, "DNSEvent")
-								return
-							}
 						default:
 							err = dc.Skip()
 							if err != nil {
@@ -1764,15 +1734,9 @@ func (z *ProcessActivityNode) EncodeMsg(en *msgp.Writer) (err error) {
 					return
 				}
 			} else {
-				// map header, size 1
-				// write "DNSEvent"
-				err = en.Append(0x81, 0xa8, 0x44, 0x4e, 0x53, 0x45, 0x76, 0x65, 0x6e, 0x74)
+				// map header, size 0
+				err = en.Append(0x80)
 				if err != nil {
-					return
-				}
-				err = za0004.DNSEvent.EncodeMsg(en)
-				if err != nil {
-					err = msgp.WrapError(err, "DNSNames", za0003, "DNSEvent")
 					return
 				}
 			}
@@ -1866,14 +1830,8 @@ func (z *ProcessActivityNode) MarshalMsg(b []byte) (o []byte, err error) {
 			if za0004 == nil {
 				o = msgp.AppendNil(o)
 			} else {
-				// map header, size 1
-				// string "DNSEvent"
-				o = append(o, 0x81, 0xa8, 0x44, 0x4e, 0x53, 0x45, 0x76, 0x65, 0x6e, 0x74)
-				o, err = za0004.DNSEvent.MarshalMsg(o)
-				if err != nil {
-					err = msgp.WrapError(err, "DNSNames", za0003, "DNSEvent")
-					return
-				}
+				// map header, size 0
+				o = append(o, 0x80)
 			}
 		}
 	}
@@ -2018,12 +1976,6 @@ func (z *ProcessActivityNode) UnmarshalMsg(bts []byte) (o []byte, err error) {
 							return
 						}
 						switch msgp.UnsafeString(field) {
-						case "DNSEvent":
-							bts, err = za0004.DNSEvent.UnmarshalMsg(bts)
-							if err != nil {
-								err = msgp.WrapError(err, "DNSNames", za0003, "DNSEvent")
-								return
-							}
 						default:
 							bts, err = msgp.Skip(bts)
 							if err != nil {
@@ -2099,7 +2051,7 @@ func (z *ProcessActivityNode) Msgsize() (s int) {
 			if za0004 == nil {
 				s += msgp.NilSize
 			} else {
-				s += 1 + 9 + za0004.DNSEvent.Msgsize()
+				s += 1
 			}
 		}
 	}

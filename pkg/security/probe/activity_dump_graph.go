@@ -15,6 +15,8 @@ import (
 	"text/template"
 
 	"github.com/tinylib/msgp/msgp"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 var (
@@ -141,9 +143,19 @@ func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data 
 }
 
 func (ad *ActivityDump) prepareDNSNode(n *DNSNode, data *graph, processID string) {
+	if len(n.requests) == 0 {
+		// save guard, this should never happen
+		return
+	}
+	name := n.requests[0].Name + " (" + (model.QType(n.requests[0].Type).String())
+	for _, req := range n.requests[1:] {
+		name += ", " + model.QType(req.Type).String()
+	}
+	name += ")"
+
 	dnsNode := node{
 		ID:        processID + n.GetID(),
-		Label:     n.Name,
+		Label:     name,
 		Size:      30,
 		Color:     dnsColor,
 		FillColor: dnsRuntimeColor,
