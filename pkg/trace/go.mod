@@ -3,9 +3,9 @@ module github.com/DataDog/datadog-agent/pkg/trace
 go 1.17
 
 require (
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.37.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.37.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.37.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.37.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.37.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-go/v5 v5.1.0
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/Microsoft/go-winio v0.5.1
@@ -58,5 +58,5 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ../obfuscate
 	github.com/DataDog/datadog-agent/pkg/otlp/model => ../otlp/model
 	github.com/DataDog/datadog-agent/pkg/quantile => ../quantile
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/client => ../remoteconfig/client
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../remoteconfig/state
 )

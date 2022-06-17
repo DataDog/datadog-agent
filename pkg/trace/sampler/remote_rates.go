@@ -9,7 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -38,8 +39,7 @@ type RemoteRates struct {
 	tpsVersion         *atomic.Uint64 // version of the loaded tpsTargets
 	duplicateTargetTPS *atomic.Uint64 // count of duplicate received targetTPS
 
-	client  config.RemoteClient
-	stopped chan struct{}
+	client config.RemoteClient
 }
 
 type remoteSampler struct {
@@ -57,24 +57,23 @@ func newRemoteRates(client config.RemoteClient, maxTPS float64, agentVersion str
 		samplers:           make(map[Signature]*remoteSampler),
 		tpsVersion:         atomic.NewUint64(0),
 		duplicateTargetTPS: atomic.NewUint64(0),
-		stopped:            make(chan struct{}),
 	}
 }
 
-func (r *RemoteRates) onUpdate(update config.SamplingUpdate) {
+func (r *RemoteRates) onUpdate(update map[string]state.APMSamplingConfig) {
 	// TODO: We don't have a version per product, yet. But, we will have it in the next version.
 	// In the meantime we will just use a version of one of the config files.
 	var version uint64
-	for _, c := range update.Configs {
-		if c.Version > version {
-			version = c.Version
+	for _, c := range update {
+		if c.Metadata.Version > version {
+			version = c.Metadata.Version
 		}
 		break
 	}
 
 	log.Debugf("fetched config version %d from remote config management", version)
 	tpsTargets := make(map[Signature]apmsampling.TargetTPS, len(r.tpsTargets))
-	for _, rates := range update.Configs {
+	for _, rates := range update {
 		for _, targetTPS := range rates.Config.TargetTPS {
 			if targetTPS.Value > r.maxSigTPS {
 				targetTPS.Value = r.maxSigTPS
@@ -134,18 +133,15 @@ func (r *RemoteRates) updateTPS(tpsTargets map[Signature]apmsampling.TargetTPS) 
 
 // Start runs and adjust rates per signature following remote TPS targets
 func (r *RemoteRates) Start() {
-	go func() {
-		for update := range r.client.SamplingUpdates() {
-			r.onUpdate(update)
-		}
-		close(r.stopped)
-	}()
+	// Make sure the remote client is running, if the client is already started
+	// this is a nop so this is fine.
+	r.client.Start()
+	r.client.RegisterAPMUpdate(r.onUpdate)
 }
 
 // Stop stops RemoteRates main loop
 func (r *RemoteRates) Stop() {
 	r.client.Close()
-	<-r.stopped
 }
 
 func (r *RemoteRates) getSampler(sig Signature) (*remoteSampler, bool) {

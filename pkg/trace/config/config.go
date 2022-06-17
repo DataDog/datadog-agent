@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
@@ -384,23 +384,19 @@ type AgentConfig struct {
 	// catalog. If not set (0) it will default to 5000.
 	MaxCatalogEntries int
 
-	// RemoteSamplingClient ...
+	// RemoteSamplingClient retrieves sampling updates from the remote config backend
 	RemoteSamplingClient RemoteClient
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
 }
 
-// RemoteClient client is used to APM Sampling Updates from a remote source. Within the Datadog Agent
-// the implementation is (cmd/trace-agent.remoteClient).
+// RemoteClient client is used to APM Sampling Updates from a remote source.
+// This is an interface around the client provided by pkg/config/remote to allow for easier testing.
 type RemoteClient interface {
-	SamplingUpdates() <-chan SamplingUpdate
 	Close()
-}
-
-// SamplingUpdate ...
-type SamplingUpdate struct {
-	Configs map[string]client.ConfigAPMSamling
+	Start()
+	RegisterAPMUpdate(func(update map[string]state.APMSamplingConfig))
 }
 
 // Tag represents a key/value pair.
