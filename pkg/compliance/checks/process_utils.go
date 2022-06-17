@@ -9,13 +9,82 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/gopsutil/process"
+	"github.com/shirou/gopsutil/v3/process"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type processes map[int32]*process.FilledProcess
+type CSPMProcess struct {
+	inner        *process.Process
+	pid          int32
+	name         string
+	exe          string
+	cmdLineSlice []string
+}
+
+func NewCSPMProcess(p *process.Process) *CSPMProcess {
+	return &CSPMProcess{
+		inner:        p,
+		pid:          p.Pid,
+		name:         "",
+		cmdLineSlice: nil,
+	}
+}
+
+func NewCSPMFakeProcess(pid int32, name string, cmdLineSlice []string) *CSPMProcess {
+	return &CSPMProcess{
+		inner:        nil,
+		pid:          pid,
+		name:         name,
+		cmdLineSlice: cmdLineSlice,
+	}
+}
+
+func (p *CSPMProcess) Pid() int32 {
+	return p.pid
+}
+
+func (p *CSPMProcess) Name() (string, error) {
+	if p.name != "" || p.inner == nil {
+		return p.name, nil
+	}
+
+	innerName, err := p.inner.Name()
+	if err != nil {
+		return "", err
+	}
+	p.name = innerName
+	return innerName, nil
+}
+
+func (p *CSPMProcess) Exe() (string, error) {
+	if p.exe != "" || p.inner == nil {
+		return p.exe, nil
+	}
+
+	innerExe, err := p.inner.Exe()
+	if err != nil {
+		return "", err
+	}
+	p.exe = innerExe
+	return innerExe, nil
+}
+
+func (p *CSPMProcess) CmdlineSlice() ([]string, error) {
+	if p.cmdLineSlice != nil || p.inner == nil {
+		return p.cmdLineSlice, nil
+	}
+
+	innerCmdLine, err := p.inner.CmdlineSlice()
+	if err != nil {
+		return nil, err
+	}
+	p.cmdLineSlice = innerCmdLine
+	return innerCmdLine, nil
+}
+
+type processes []*CSPMProcess
 
 const (
 	processCacheKey string = "compliance-processes"
@@ -25,14 +94,18 @@ var (
 	processFetcher = fetchProcesses
 )
 
-func (p processes) findProcessesByName(name string) []*process.FilledProcess {
-	return p.findProcesses(func(process *process.FilledProcess) bool {
-		return process.Name == name
+func (p processes) findProcessesByName(name string) []*CSPMProcess {
+	return p.findProcesses(func(p *CSPMProcess) bool {
+		pname, err := p.Name()
+		if err != nil {
+			return false
+		}
+		return pname == name
 	})
 }
 
-func (p processes) findProcesses(matchFunc func(*process.FilledProcess) bool) []*process.FilledProcess {
-	var results = make([]*process.FilledProcess, 0)
+func (p processes) findProcesses(matchFunc func(*CSPMProcess) bool) []*CSPMProcess {
+	var results = make([]*CSPMProcess, 0)
 	for _, process := range p {
 		if matchFunc(process) {
 			results = append(results, process)
@@ -43,7 +116,16 @@ func (p processes) findProcesses(matchFunc func(*process.FilledProcess) bool) []
 }
 
 func fetchProcesses() (processes, error) {
-	return process.AllProcesses()
+	inners, err := process.Processes()
+	if err != nil {
+		return nil, err
+	}
+
+	res := make([]*CSPMProcess, 0, len(inners))
+	for _, p := range inners {
+		res = append(res, NewCSPMProcess(p))
+	}
+	return res, nil
 }
 
 func getProcesses(maxAge time.Duration) (processes, error) {
