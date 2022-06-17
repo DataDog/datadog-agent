@@ -1,4 +1,4 @@
-FROM ubuntu:22.04 AS baseimage
+FROM ubuntu:21.10 AS baseimage
 ARG CIBUILD
 # NOTE about APT mirrorlists:
 # It seems that this feature could use some improvement. If you just get mirrorlist
@@ -14,10 +14,11 @@ RUN if [ "$CIBUILD" = "true" ]; then \
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt update
 
-FROM baseimage AS nosys-seccomp
-COPY nosys-seccomp/nosys.c /tmp/nosys.c
-RUN apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
-RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -o /tmp/nosys.so /tmp/nosys.c -lseccomp
+FROM baseimage AS faccessat
+COPY faccessat/faccessat.c   /tmp/faccessat.c
+COPY faccessat/faccessat.sym /tmp/faccessat.sym
+RUN apt install --no-install-recommends -y gcc libc6-dev
+RUN gcc -pipe -Wall -Wextra -O2 -shared -o /tmp/libfaccessat.so /tmp/faccessat.c -Wl,--version-script=/tmp/faccessat.sym
 
 ############################################
 #  Preparation stage: extract and cleanup  #
@@ -123,8 +124,7 @@ RUN apt full-upgrade -y \
   # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
   # this can be removed
   # Install libssl-dev as it's required by some Python checks and we rely on system version
-  # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install -y iproute2 libssl-dev libseccomp2 \
+  && apt install -y iproute2 libssl-dev \
   # https://security-tracker.debian.org/tracker/CVE-2016-2779
   && rm -f /usr/sbin/runuser \
   # https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-6954
@@ -198,10 +198,9 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=2 \
 # Leave following directories RW to allow use of kubernetes readonlyrootfs flag
 VOLUME ["/var/run/s6", "/var/log/datadog"]
 
-# Ensure the glibc doesn't try to call syscalls that may not be supported
-COPY --from=nosys-seccomp /tmp/nosys.so /lib/x86_64-linux-gnu/nosys.so
-ENV LD_PRELOAD=/lib/x86_64-linux-gnu/nosys.so \
-    NOSYS_SYSCALLS=faccessat2,clone3
+# Ensure the glibc doesn't try to call the `faccessat2` syscall
+COPY --from=faccessat /tmp/libfaccessat.so /lib/x86_64-linux-gnu/libfaccessat.so
+ENV LD_PRELOAD /lib/x86_64-linux-gnu/libfaccessat.so
 
 # Single entrypoint
 COPY entrypoint.sh /bin/entrypoint.sh
