@@ -11,6 +11,7 @@ package probes
 import (
 	"math"
 	"os"
+	"runtime"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -21,8 +22,9 @@ const (
 	minPathnamesEntries = 64000 // ~27 MB
 	maxPathnamesEntries = 96000
 
-	minProcEntries = 16394
-	maxProcEntries = 131072
+	minProcEntries          = 16394
+	maxProcEntries          = 131072
+	maxEventsRingBufferSize = 64 * 1024 * 1024 // 64 MB
 )
 
 var (
@@ -33,8 +35,14 @@ var (
 	// following form: (1 + 2^n) * pages. Checkout https://github.com/DataDog/ebpf for more.
 	EventsPerfRingBufferSize = 257 * os.Getpagesize()
 	// EventsRingBufferSize is the default buffer size of the ring buffers for events.
-	EventsRingBufferSize = 4096 * os.Getpagesize()
+	EventsRingBufferSize int
 )
+
+func init() {
+	if EventsRingBufferSize = 4096 * os.Getpagesize() * runtime.NumCPU(); EventsRingBufferSize > maxEventsRingBufferSize {
+		EventsPerfRingBufferSize = maxEventsRingBufferSize
+	}
+}
 
 // AllProbes returns the list of all the probes of the runtime security module
 func AllProbes() []*manager.Probe {
