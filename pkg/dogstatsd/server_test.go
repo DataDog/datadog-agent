@@ -618,6 +618,8 @@ func TestDebugStats(t *testing.T) {
 	demux := mockDemultiplexer()
 	defer demux.Stop(false)
 	s, err := NewServer(demux, false)
+	clk := clock.NewMock()
+	s.Debug = newDSDServerDebugWithClock(clk)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -640,6 +642,7 @@ func TestDebugStats(t *testing.T) {
 	// test ingestion and ingestion time
 	s.storeMetricStats(sample1)
 	s.storeMetricStats(sample2)
+	clk.Add(10 * time.Millisecond)
 	s.storeMetricStats(sample1)
 
 	data, err := s.GetJSONDebugStats()
@@ -655,6 +658,7 @@ func TestDebugStats(t *testing.T) {
 	require.True(t, stats[hash1].LastSeen.After(stats[hash2].LastSeen), "some.metric1 should have appeared again after some.metric2")
 
 	s.storeMetricStats(sample3)
+	clk.Add(10 * time.Millisecond)
 	s.storeMetricStats(sample1)
 
 	s.storeMetricStats(sample4)
