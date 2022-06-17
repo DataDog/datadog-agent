@@ -1071,6 +1071,7 @@ func InitConfig(config Config) {
 	setAssetFs(config)
 	setupAPM(config)
 	setupAppSec(config)
+	setupEvpProxy(config)
 	SetupOTLP(config)
 	setupProcesses(config)
 }
