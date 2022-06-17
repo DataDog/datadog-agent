@@ -63,7 +63,7 @@ func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) erro
 		subRouter, err := makeSubrouter(httpMux, string(factory.Name))
 		if err != nil {
 			l.errors[factory.Name] = err
-			log.Error("error making router for module %s error: %s", factory.Name, err)
+			log.Errorf("error making router for module %s error: %s", factory.Name, err)
 			continue
 		}
 

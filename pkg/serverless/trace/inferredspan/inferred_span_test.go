@@ -104,7 +104,7 @@ func TestCompleteInferredSpanWithNoError(t *testing.T) {
 	inferredSpan.Span.Resource = "test-function"
 	inferredSpan.Span.Type = "http"
 	inferredSpan.Span.Meta = map[string]string{
-		Stage: "dev",
+		stage: "dev",
 	}
 
 	duration := 1 * time.Second
@@ -115,7 +115,7 @@ func TestCompleteInferredSpanWithNoError(t *testing.T) {
 		tracePayload = payload
 	}
 
-	inferredSpan.CompleteInferredSpan(mockProcessTrace, endTime, isError, 1234, sampler.PriorityAutoKeep)
+	inferredSpan.CompleteInferredSpan(mockProcessTrace, make(map[string]string), endTime, isError, 1234, sampler.PriorityAutoKeep)
 	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.mock", span.Name)
 	assert.Equal(t, "aws.mock", span.Service)
@@ -141,7 +141,7 @@ func TestCompleteInferredSpanWithError(t *testing.T) {
 	inferredSpan.Span.Resource = "test-function"
 	inferredSpan.Span.Type = "http"
 	inferredSpan.Span.Meta = map[string]string{
-		Stage: "dev",
+		stage: "dev",
 	}
 
 	duration := 1 * time.Second
@@ -152,7 +152,7 @@ func TestCompleteInferredSpanWithError(t *testing.T) {
 		tracePayload = payload
 	}
 
-	inferredSpan.CompleteInferredSpan(mockProcessTrace, endTime, isError, 1234, sampler.PriorityAutoKeep)
+	inferredSpan.CompleteInferredSpan(mockProcessTrace, make(map[string]string), endTime, isError, 1234, sampler.PriorityAutoKeep)
 	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.mock", span.Name)
 	assert.Equal(t, "aws.mock", span.Service)
@@ -182,7 +182,7 @@ func TestCompleteInferredSpanWithAsync(t *testing.T) {
 	inferredSpan.Span.Resource = "test-function"
 	inferredSpan.Span.Type = "http"
 	inferredSpan.Span.Meta = map[string]string{
-		Stage: "dev",
+		stage: "dev",
 	}
 	isError := false
 	var tracePayload *api.Payload
@@ -190,7 +190,7 @@ func TestCompleteInferredSpanWithAsync(t *testing.T) {
 		tracePayload = payload
 	}
 
-	inferredSpan.CompleteInferredSpan(mockProcessTrace, time.Now(), isError, 1234, sampler.PriorityAutoKeep)
+	inferredSpan.CompleteInferredSpan(mockProcessTrace, make(map[string]string), time.Now(), isError, 1234, sampler.PriorityAutoKeep)
 	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.mock", span.Name)
 	assert.Equal(t, "aws.mock", span.Service)
