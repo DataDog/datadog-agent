@@ -61,6 +61,10 @@ func NewMonitor(cfg *config.Config) (*Monitor, error) {
 }
 
 func (pm *Monitor) Start() error {
+	if pm == nil {
+		return nil
+	}
+
 	if err := pm.program.Init(); err != nil {
 		return err
 	}
@@ -69,10 +73,18 @@ func (pm *Monitor) Start() error {
 }
 
 func (pm *Monitor) Stop() error {
+	if pm == nil {
+		return nil
+	}
+
 	return pm.program.Stop()
 }
 
 func (pm *Monitor) AddHandler(h Handler) {
+	if pm == nil {
+		return
+	}
+
 	if h == nil {
 		return
 	}

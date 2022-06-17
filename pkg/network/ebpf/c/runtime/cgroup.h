@@ -3,16 +3,16 @@
 
 #include <linux/version.h>
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+#include "bpf_helpers.h"
 
 #include <linux/bpf.h>
 #include <linux/cgroup.h>
 
-#include "bpf_helpers.h"
-
 #define CONTAINER_ID_LEN 64
 
 #define CGROUP_ID_NOT_FOUND ((u64)-1)
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 
 typedef char cgroup_name_t[CONTAINER_ID_LEN+1];
 

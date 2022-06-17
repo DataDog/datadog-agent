@@ -39,12 +39,16 @@ int __attribute__((always_inline)) trace__sys_execveat(struct pt_regs *ctx, cons
 }
 
 SEC("kprobe/sys_execve")
-int BPF_KPROBE(kprobe__sys_execve, const char * filename, const char ** argv, const char ** env) {
+int kprobe__sys_execve(struct pt_regs *ctx) {
+    const char ** argv = (const char**) PT_REGS_PARM2(ctx);
+    const char ** env = (const char**) PT_REGS_PARM3(ctx);
     return trace__sys_execveat(ctx, argv, env);
 }
 
 SEC("kprobe/sys_execveat")
-int BPF_KPROBE(kprobe__sys_execveat, int fd, const char * filename, const char ** argv, const char ** env) {
+int kprobe__sys_execveat(struct pt_regs *ctx) {
+    const char ** argv = (const char**) PT_REGS_PARM2(ctx);
+    const char ** env = (const char**) PT_REGS_PARM3(ctx);
     return trace__sys_execveat(ctx, argv, env);
 }
 

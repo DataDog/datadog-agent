@@ -184,7 +184,11 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	}
 
 	if tr.processMonitor, err = process.NewMonitor(config); err != nil {
-		return nil, fmt.Errorf("could not create process monitor: %w", err)
+		if err != process.ErrNotSupported {
+			return nil, fmt.Errorf("could not create process monitor: %w", err)
+		}
+
+		log.Warnf("could not create process monitor: %s", err)
 	} else if tr.processMonitor != nil {
 		log.Infof("network process monitoring enabled")
 	}
