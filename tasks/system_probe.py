@@ -276,7 +276,9 @@ def kitchen_test(ctx, target=None, provider="virtualbox"):
 
 
 @task
-def kitchen_genconfig(ctx, ssh_key, platform, osversions=[], image_size=None, provider="azure", arch=None, azure_sub_id=None):
+def kitchen_genconfig(
+    ctx, ssh_key, platform, osversions, image_size=None, provider="azure", arch=None, azure_sub_id=None
+):
     if not arch:
         arch = CURRENT_ARCH
 
@@ -285,7 +287,7 @@ def kitchen_genconfig(ctx, ssh_key, platform, osversions=[], image_size=None, pr
     elif arch == "arm64":
         arch = "arm64"
     else:
-        raise UnexpectedExit("arch must be specified")
+        raise UnexpectedExit("unsupported arch specified")
 
     if not image_size and provider == "azure":
         image_size = "Standard_D2_v2"
@@ -296,7 +298,7 @@ def kitchen_genconfig(ctx, ssh_key, platform, osversions=[], image_size=None, pr
     if azure_sub_id is None and provider == "azure":
         raise Exit("azure subscription id must be specified with --azure-sub-id")
 
-    env={
+    env = {
         "KITCHEN_RSA_SSH_KEY_PATH": ssh_key,
     }
     if azure_sub_id:
@@ -304,7 +306,7 @@ def kitchen_genconfig(ctx, ssh_key, platform, osversions=[], image_size=None, pr
 
     with ctx.cd(KITCHEN_DIR):
         ctx.run(
-            f"inv -e kitchen.genconfig --platform={platform} --osversions={','.join(osversions)} --provider={provider} --arch={arch} --imagesize={image_size} --testfiles=system-probe-test --platformfile=platforms.json",
+            f"inv -e kitchen.genconfig --platform={platform} --osversions={osversions} --provider={provider} --arch={arch} --imagesize={image_size} --testfiles=system-probe-test --platformfile=platforms.json",
             env=env,
         )
 
