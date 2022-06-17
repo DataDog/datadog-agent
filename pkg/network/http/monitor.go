@@ -187,18 +187,19 @@ func (m *Monitor) GetHTTPStats() map[Key]*RequestStats {
 }
 
 func (m *Monitor) GetStats() map[string]interface{} {
+	empty := map[string]interface{}{}
 	if m == nil {
-		return nil
+		return empty
 	}
 
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	if m.stopped {
-		return nil
+		return empty
 	}
 
 	if m.telemetrySnapshot == nil {
-		return nil
+		return empty
 	}
 
 	return m.telemetrySnapshot.report()

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"sync"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
@@ -163,6 +164,7 @@ type RuleSet struct {
 	fieldEvaluators  map[string]eval.Evaluator
 	model            eval.Model
 	eventCtor        func() eval.Event
+	listenersLock    sync.RWMutex
 	listeners        []RuleSetListener
 	globalVariables  eval.GlobalVariables
 	scopedVariables  map[Scope]VariableProvider
@@ -358,6 +360,9 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 
 // NotifyRuleMatch notifies all the ruleset listeners that an event matched a rule
 func (rs *RuleSet) NotifyRuleMatch(rule *Rule, event eval.Event) {
+	rs.listenersLock.RLock()
+	defer rs.listenersLock.RUnlock()
+
 	for _, listener := range rs.listeners {
 		listener.RuleMatch(rule, event)
 	}
@@ -365,6 +370,9 @@ func (rs *RuleSet) NotifyRuleMatch(rule *Rule, event eval.Event) {
 
 // NotifyDiscarderFound notifies all the ruleset listeners that a discarder was found for an event
 func (rs *RuleSet) NotifyDiscarderFound(event eval.Event, field eval.Field, eventType eval.EventType) {
+	rs.listenersLock.RLock()
+	defer rs.listenersLock.RUnlock()
+
 	for _, listener := range rs.listeners {
 		listener.EventDiscarderFound(rs, event, field, eventType)
 	}
@@ -372,6 +380,9 @@ func (rs *RuleSet) NotifyDiscarderFound(event eval.Event, field eval.Field, even
 
 // AddListener adds a listener on the ruleset
 func (rs *RuleSet) AddListener(listener RuleSetListener) {
+	rs.listenersLock.Lock()
+	defer rs.listenersLock.Unlock()
+
 	rs.listeners = append(rs.listeners, listener)
 }
 

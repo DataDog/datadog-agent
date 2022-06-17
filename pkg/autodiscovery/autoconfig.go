@@ -374,9 +374,11 @@ func (ac *AutoConfig) retryListenerCandidates() {
 	}
 }
 
-// AddScheduler allows to register a new scheduler to receive configurations.
+// AddScheduler a new scheduler to receive configurations.
+//
 // Previously scheduled configurations that have not subsequently been
-// unscheduled can be replayed with the replayConfigs flag.
+// unscheduled can be replayed with the replayConfigs flag.  This replay occurs
+// immediately, before the AddScheduler call returns.
 func (ac *AutoConfig) AddScheduler(name string, s scheduler.Scheduler, replayConfigs bool) {
 	ac.m.Lock()
 	defer ac.m.Unlock()

@@ -17,7 +17,7 @@ import (
 
 func TestGetClusterName(t *testing.T) {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	data := newClusterNameData()
 
 	var testClusterName = "laika"

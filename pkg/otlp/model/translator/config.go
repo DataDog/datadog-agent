@@ -18,19 +18,24 @@ import "fmt"
 
 type translatorConfig struct {
 	// metrics export behavior
-	HistMode                             HistogramMode
-	SendCountSum                         bool
-	Quantiles                            bool
-	SendMonotonic                        bool
-	ResourceAttributesAsTags             bool
+	HistMode                 HistogramMode
+	SendCountSum             bool
+	Quantiles                bool
+	SendMonotonic            bool
+	ResourceAttributesAsTags bool
+	// Deprecated: use InstrumentationScopeMetadataAsTags instead in favor of
+	// https://github.com/open-telemetry/opentelemetry-proto/releases/tag/v0.15.0
+	// Both must not be set at the same time.
 	InstrumentationLibraryMetadataAsTags bool
+	InstrumentationScopeMetadataAsTags   bool
 
 	// cache configuration
 	sweepInterval int64
 	deltaTTL      int64
 
 	// hostname provider configuration
-	fallbackHostnameProvider HostnameProvider
+	previewHostnameFromAttributes bool
+	fallbackHostnameProvider      HostnameProvider
 }
 
 // Option is a translator creation option.
@@ -61,6 +66,14 @@ func WithFallbackHostnameProvider(provider HostnameProvider) Option {
 	}
 }
 
+// WithPreviewHostnameFromAttributes enables the preview hostname algorithm.
+func WithPreviewHostnameFromAttributes() Option {
+	return func(t *translatorConfig) error {
+		t.previewHostnameFromAttributes = true
+		return nil
+	}
+}
+
 // WithQuantiles enables quantiles exporting for summary metrics.
 func WithQuantiles() Option {
 	return func(t *translatorConfig) error {
@@ -81,6 +94,14 @@ func WithResourceAttributesAsTags() Option {
 func WithInstrumentationLibraryMetadataAsTags() Option {
 	return func(t *translatorConfig) error {
 		t.InstrumentationLibraryMetadataAsTags = true
+		return nil
+	}
+}
+
+// WithInstrumentationScopeMetadataAsTags sets instrumentation scope metadata as tags.
+func WithInstrumentationScopeMetadataAsTags() Option {
+	return func(t *translatorConfig) error {
+		t.InstrumentationScopeMetadataAsTags = true
 		return nil
 	}
 }

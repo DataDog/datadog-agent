@@ -35,7 +35,7 @@ func TestHostnameProvider(t *testing.T) {
 	defer config.SetDetectedFeatures(nil)
 
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 
 	ku := &kubeUtilMock{}
 
@@ -69,7 +69,7 @@ func TestHostnameProviderInvalid(t *testing.T) {
 	defer config.SetDetectedFeatures(nil)
 
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 
 	ku := &kubeUtilMock{}
 

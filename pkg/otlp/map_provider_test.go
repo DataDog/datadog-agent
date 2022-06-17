@@ -12,12 +12,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config"
-
-	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
 func TestNewMap(t *testing.T) {
@@ -74,6 +73,7 @@ func TestNewMap(t *testing.T) {
 					"delta_ttl":                                2000,
 					"resource_attributes_as_tags":              true,
 					"instrumentation_library_metadata_as_tags": true,
+					"instrumentation_scope_metadata_as_tags":   true,
 					"histograms": map[string]interface{}{
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
@@ -108,6 +108,7 @@ func TestNewMap(t *testing.T) {
 							"delta_ttl":                                2000,
 							"resource_attributes_as_tags":              true,
 							"instrumentation_library_metadata_as_tags": true,
+							"instrumentation_scope_metadata_as_tags":   true,
 							"histograms": map[string]interface{}{
 								"mode":                   "counters",
 								"send_count_sum_metrics": true,
@@ -181,6 +182,7 @@ func TestNewMap(t *testing.T) {
 					"delta_ttl":                                1500,
 					"resource_attributes_as_tags":              false,
 					"instrumentation_library_metadata_as_tags": false,
+					"instrumentation_scope_metadata_as_tags":   false,
 					"histograms": map[string]interface{}{
 						"mode":                   "nobuckets",
 						"send_count_sum_metrics": true,
@@ -208,6 +210,7 @@ func TestNewMap(t *testing.T) {
 							"delta_ttl":                                1500,
 							"resource_attributes_as_tags":              false,
 							"instrumentation_library_metadata_as_tags": false,
+							"instrumentation_scope_metadata_as_tags":   false,
 							"histograms": map[string]interface{}{
 								"mode":                   "nobuckets",
 								"send_count_sum_metrics": true,
@@ -249,6 +252,7 @@ func TestUnmarshal(t *testing.T) {
 			"delta_ttl":                                2000,
 			"resource_attributes_as_tags":              true,
 			"instrumentation_library_metadata_as_tags": true,
+			"instrumentation_scope_metadata_as_tags":   true,
 			"histograms": map[string]interface{}{
 				"mode":                   "counters",
 				"send_count_sum_metrics": true,

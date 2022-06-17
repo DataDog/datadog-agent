@@ -73,6 +73,7 @@ type uptaneClient interface {
 	TargetFile(path string) ([]byte, error)
 	TargetsMeta() ([]byte, error)
 	TargetsCustom() ([]byte, error)
+	TUFVersionState() (uptane.TUFVersions, error)
 }
 
 // NewService instantiates a new remote configuration management service
@@ -194,12 +195,12 @@ func (s *Service) refresh() error {
 	defer s.Unlock()
 	activeClients := s.clients.activeClients()
 	s.refreshProducts(activeClients)
-	previousState, err := s.uptane.State()
+	previousState, err := s.uptane.TUFVersionState()
 	if err != nil {
-		log.Warnf("could not get previous state: %v", err)
+		log.Warnf("could not get previous TUF version state: %v", err)
 	}
 	if s.forceRefresh() || err != nil {
-		previousState = uptane.State{}
+		previousState = uptane.TUFVersions{}
 	}
 	clientState, err := s.getClientState()
 	if err != nil {
@@ -257,17 +258,17 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	s.Lock()
 	defer s.Unlock()
 	s.clients.seen(request.Client)
-	state, err := s.uptane.State()
+	tufVersions, err := s.uptane.TUFVersionState()
 	if err != nil {
 		return nil, err
 	}
 	if request.Client.State == nil {
 		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
-	if state.DirectorTargetsVersion() == request.Client.State.TargetsVersion {
+	if tufVersions.DirectorTargets == request.Client.State.TargetsVersion {
 		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
-	roots, err := s.getNewDirectorRoots(request.Client.State.RootVersion, state.DirectorRootVersion())
+	roots, err := s.getNewDirectorRoots(request.Client.State.RootVersion, tufVersions.DirectorRoot)
 	if err != nil {
 		return nil, err
 	}

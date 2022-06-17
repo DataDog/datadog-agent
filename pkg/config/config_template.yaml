@@ -2210,15 +2210,10 @@ api_key:
   #
   # kubernetes_service_name: "datadog-cluster-agent"
 
-  ## @param max_leader_connections - integer - optional - default: 500
+  ## @param max_leader_connections - integer - optional - default: 100
   ## Maximum number of connections between a follower and a leader.
   #
-  # max_leader_connections: 500
-
-  ## @param max_leader_idle_connections - integer - optional - default: 50
-  ## Maximum number of idle connections between a follower and a leader.
-  #
-  # max_leader_idle_connections: 50
+  # max_leader_connections: 100
 
   ## @param client_reconnect_period_seconds - integer - optional - default: 1200
   ## Set the refersh period for Agent to Cluster Agent connection (new connection is created, old connection is closed).
@@ -3199,11 +3194,20 @@ api_key:
     #
     # resource_attributes_as_tags: false
 
+    ## Deprecated - use `instrumentation_scope_metadata_as_tags` instead in favor of
+    ## https://github.com/open-telemetry/opentelemetry-proto/releases/tag/v0.15.0
+    ## Both must not be set at the same time.
     ## @param instrumentation_library_metadata_as_tags - boolean - optional - default: false
     ## @env DD_OTLP_CONFIG_METRICS_INSTRUMENTATION_LIBRARY_METADATA_AS_TAGS - boolean - optional - default: false
     ## Set to true to add metadata about the instrumentation library that created a metric.
     #
     # instrumentation_library_metadata_as_tags: false
+
+    ## @param instrumentation_scope_metadata_as_tags - boolean - optional - default: false
+    ## @env DD_OTLP_CONFIG_METRICS_INSTRUMENTATION_SCOPE_METADATA_AS_TAGS - boolean - optional - default: false
+    ## Set to true to add metadata about the instrumentation scope that created a metric.
+    #
+    # instrumentation_scope_metadata_as_tags: false
 
     ## @param tag_cardinality - string - optional - default: low
     ## @env DD_OTLP_CONFIG_METRICS_TAG_CARDINALITY - string - optional - default: low

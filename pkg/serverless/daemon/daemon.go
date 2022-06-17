@@ -117,7 +117,7 @@ func StartDaemon(addr string) *Daemon {
 	mux.Handle("/lambda/flush", &Flush{daemon})
 	mux.Handle("/lambda/start-invocation", &StartInvocation{daemon})
 	mux.Handle("/lambda/end-invocation", &EndInvocation{daemon})
-	mux.Handle("/trace-context", &TraceContext{})
+	mux.Handle("/trace-context", &TraceContext{daemon})
 
 	// start the HTTP server used to communicate with the runtime and the Lambda platform
 	go func() {
