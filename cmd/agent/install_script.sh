@@ -678,9 +678,10 @@ else
       formatted_host_tags="['""$( echo "$host_tags" | sed "s/,/','/g" )""']"  # format `env:prod,foo:bar` to yaml-compliant `['env:prod','foo:bar']`
       $sudo_cmd sh -c "sed -i \"s/# tags:.*/tags: ""$formatted_host_tags""/\" $config_file"
   fi
-  $sudo_cmd chown dd-agent:dd-agent "$config_file"
-  $sudo_cmd chmod 640 "$config_file"
 fi
+
+$sudo_cmd chown dd-agent:dd-agent "$config_file"
+$sudo_cmd chmod 640 "$config_file"
 
 # Creating or overriding the install information
 install_info_content="---
