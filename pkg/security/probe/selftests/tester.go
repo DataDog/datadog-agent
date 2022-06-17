@@ -156,6 +156,7 @@ func (t *SelfTester) RunSelfTest() ([]string, []string, error) {
 	return success, fails, nil
 }
 
+// Start starts the self tester policy provider
 func (t *SelfTester) Start() {}
 
 // Close removes temp directories and files used by the self tester

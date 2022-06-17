@@ -29,7 +29,7 @@ func initMockConf(t *testing.T) string {
 	f, err := ioutil.TempFile(testDir, "fake-datadog-yaml-")
 	require.Nil(t, err, fmt.Errorf("%v", err))
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.SetConfigFile(f.Name())
 	mockConfig.Set("auth_token", "")
 

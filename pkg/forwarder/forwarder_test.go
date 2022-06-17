@@ -274,7 +274,7 @@ func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
 }
 
 func TestArbitraryTagsHTTPHeader(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("allow_arbitrary_tags", true)
 	defer mockConfig.Set("allow_arbitrary_tags", false)
 
@@ -346,7 +346,7 @@ func TestForwarderEndtoEnd(t *testing.T) {
 		requests.Inc()
 		w.WriteHeader(http.StatusOK)
 	}))
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	ddURL := mockConfig.Get("dd_url")
 	mockConfig.Set("dd_url", ts.URL)
 	defer mockConfig.Set("dd_url", ddURL)
@@ -407,7 +407,7 @@ func TestTransactionEventHandlers(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ts.Close()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	ddURL := mockConfig.Get("dd_url")
 	mockConfig.Set("dd_url", ts.URL)
 	defer mockConfig.Set("dd_url", ddURL)
@@ -465,7 +465,7 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	ddURL := mockConfig.Get("dd_url")
 	mockConfig.Set("dd_url", ts.URL)
 	defer mockConfig.Set("dd_url", ddURL)
@@ -519,7 +519,7 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	ddURL := mockConfig.Get("dd_url")
 	mockConfig.Set("dd_url", ts.URL)
 	defer mockConfig.Set("dd_url", ddURL)
@@ -569,7 +569,7 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ts.Close()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	ddURL := mockConfig.Get("dd_url")
 	numWorkers := mockConfig.Get("forwarder_num_workers")
 	responseTimeout := defaultResponseTimeout
@@ -672,7 +672,7 @@ func TestCustomCompletionHandler(t *testing.T) {
 	defer srv.Close()
 
 	// Point agent configuration to it
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 	prevURL := cfg.Get("dd_url")
 	defer cfg.Set("dd_url", prevURL)
 	cfg.Set("dd_url", srv.URL)

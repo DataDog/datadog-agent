@@ -503,6 +503,7 @@ core,github.com/klauspost/pgzip,MIT,Copyright (c) 2014 Klaus Post
 core,github.com/knadh/koanf,MIT,"Copyright (c) 2019, Kailash Nadh. https://github.com/knadh"
 core,github.com/knadh/koanf/maps,MIT,"Copyright (c) 2019, Kailash Nadh. https://github.com/knadh"
 core,github.com/knadh/koanf/providers/confmap,MIT,"Copyright (c) 2019, Kailash Nadh. https://github.com/knadh"
+core,github.com/libp2p/go-reuseport,ISC,Copyright (c) 2013 Conformal Systems LLC
 core,github.com/lufia/plan9stats,BSD-3-Clause,"Copyright (c) 2019, KADOTA, Kyohei"
 core,github.com/lxn/walk,BSD-3-Clause,Copyright (c) 2010 The Walk Authors. All rights reserved.
 core,github.com/lxn/win,BSD-3-Clause,Copyright (c) 2010 The win Authors. All rights reserved.
@@ -537,6 +538,16 @@ core,github.com/mostynb/go-grpc-compression/snappy,Apache-2.0,Copyright 2017 gRP
 core,github.com/mostynb/go-grpc-compression/zstd,Apache-2.0,Copyright 2020 Mostyn Bramley-Moore. | Copyright 2020 Mostyn Bramley-Moore.
 core,github.com/munnerz/goautoneg,BSD-3-Clause,"Copyright (c) 2011, Open Knowledge Foundation Ltd"
 core,github.com/mxk/go-flowrate/flowrate,BSD-3-Clause,Copyright (c) 2014 The Go-FlowRate Authors. All rights reserved
+core,github.com/netsampler/goflow2/decoders,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
+core,github.com/netsampler/goflow2/decoders/netflow,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
+core,github.com/netsampler/goflow2/decoders/netflowlegacy,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
+core,github.com/netsampler/goflow2/decoders/sflow,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
+core,github.com/netsampler/goflow2/decoders/utils,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
+core,github.com/netsampler/goflow2/format,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
+core,github.com/netsampler/goflow2/pb,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
+core,github.com/netsampler/goflow2/producer,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
+core,github.com/netsampler/goflow2/transport,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
+core,github.com/netsampler/goflow2/utils,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/nwaples/rardecode,BSD-2-Clause,"Copyright (c) 2015, Nicholas Waples"
 core,github.com/olekukonko/tablewriter,MIT,Copyright (C) 2014 by Oleku Konko
 core,github.com/oliveagle/jsonpath,MIT,Copyright (c) 2015 oliver

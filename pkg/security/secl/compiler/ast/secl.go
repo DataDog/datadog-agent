@@ -8,6 +8,7 @@ package ast
 import (
 	"bytes"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/alecthomas/participle"
@@ -39,12 +40,9 @@ any = "\u0000"…"\uffff" .
 )
 
 func unquotePattern(t lexer.Token) (lexer.Token, error) {
-	unquoted, err := strconv.Unquote(t.Value[1:])
-	if err != nil {
-		return t, participle.Errorf(t.Pos, "invalid pattern string %q: %s", t.Value, err)
-	}
+	unquoted := strings.TrimSpace(t.Value[1:])
+	unquoted = unquoted[1 : len(unquoted)-1]
 	t.Value = unquoted
-
 	return t, nil
 }
 

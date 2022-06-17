@@ -44,7 +44,7 @@ class GithubApp:
         import jwt
 
         token_payload = self.gen_token_payload()
-        bearer_token = jwt.encode(token_payload, base64.b64decode(self.key_b64), algorithm='RS256').decode()
+        bearer_token = jwt.encode(token_payload, base64.b64decode(self.key_b64), algorithm='RS256')
         headers = {
             'Authorization': f'Bearer {bearer_token}',
             'Accept': 'application/vnd.github.v3+json',

@@ -88,7 +88,7 @@ func (p *PolicyLoader) notifyListeners() {
 	}
 }
 
-// Stop the loader
+// Close stops the loader
 func (p *PolicyLoader) Close() {
 	p.RLock()
 	defer p.RUnlock()

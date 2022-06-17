@@ -31,6 +31,11 @@ type Launcher interface {
 // The *sources.LogSources type satisfies this interface.
 type SourceProvider interface {
 	// SubscribeForType returns channels containing the new added and removed sources matching the provided type.
+	//
+	// Removed sources are pointer-equal to previously-added sources.
+	//
+	// Sources are not automatically removed when the agent shuts down.  Consumers should handle any
+	// required shutdwon of running sources in their own Stop methods.
 	SubscribeForType(sourceType string) (added chan *sources.LogSource, removed chan *sources.LogSource)
 
 	// GetAddedForType returns channels containing the new added sources matching the provided type.

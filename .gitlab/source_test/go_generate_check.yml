@@ -15,5 +15,6 @@ security_go_generate_check:
     - inv -e security-agent.cws-go-generate
     - inv -e security-agent.generate-cws-documentation
     - inv -e security-agent.gen-mocks
+    - inv -e system-probe.generate-runtime-files
     - git status --porcelain
     - test -z "$(git status --porcelain)"

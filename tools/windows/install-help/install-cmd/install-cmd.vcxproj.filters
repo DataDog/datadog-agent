@@ -40,6 +40,7 @@
     <ClCompile Include="..\cal\Error.cpp">
       <Filter>cal_imported</Filter>
     </ClCompile>
+    <ClCompile Include="..\cal\Logoncli.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="cmdargs.h" />

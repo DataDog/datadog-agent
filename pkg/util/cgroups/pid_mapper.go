@@ -21,7 +21,7 @@ import (
 	"github.com/karrick/godirwalk"
 )
 
-// IdentiferFromCgroupReferences returns container id extracted from <proc>/<pid>/cgroup
+// IdentiferFromCgroupReferences returns cgroup identifier extracted from <proc>/<pid>/cgroup
 func IdentiferFromCgroupReferences(procPath, pid, baseCgroupController string, filter ReaderFilter) (string, error) {
 	var identifier string
 

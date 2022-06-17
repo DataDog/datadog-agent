@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/internal/instrumentationlibrary"
+	"github.com/DataDog/datadog-agent/pkg/otlp/model/internal/instrumentationscope"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
@@ -522,7 +523,7 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 		// Fetch tags from attributes.
 		attributeTags := attributes.TagsFromAttributes(rm.Resource().Attributes())
 
-		host, ok := attributes.HostnameFromAttributes(rm.Resource().Attributes())
+		host, ok := attributes.HostnameFromAttributes(rm.Resource().Attributes(), t.cfg.previewHostnameFromAttributes)
 		if !ok {
 			var err error
 			host, err = t.cfg.fallbackHostnameProvider.Hostname(context.Background())
@@ -552,7 +553,9 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 			metricsArray := ilm.Metrics()
 
 			var additionalTags []string
-			if t.cfg.InstrumentationLibraryMetadataAsTags {
+			if t.cfg.InstrumentationScopeMetadataAsTags {
+				additionalTags = append(attributeTags, instrumentationscope.TagsFromInstrumentationScopeMetadata(ilm.Scope())...)
+			} else if t.cfg.InstrumentationLibraryMetadataAsTags {
 				additionalTags = append(attributeTags, instrumentationlibrary.TagsFromInstrumentationLibraryMetadata(ilm.Scope())...)
 			} else {
 				additionalTags = attributeTags
@@ -579,7 +582,7 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 						}
 					case pmetric.MetricAggregationTemporalityDelta:
 						t.mapNumberMetrics(ctx, consumer, baseDims, Count, md.Sum().DataPoints())
-					default: // pmetric.AggregationTemporalityUnspecified or any other not supported type
+					default: // pmetric.MetricAggregationTemporalityUnspecified or any other not supported type
 						t.logger.Debug("Unknown or unsupported aggregation temporality",
 							zap.String(metricName, md.Name()),
 							zap.Any("aggregation temporality", md.Sum().AggregationTemporality()),
@@ -591,7 +594,7 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 					case pmetric.MetricAggregationTemporalityCumulative, pmetric.MetricAggregationTemporalityDelta:
 						delta := md.Histogram().AggregationTemporality() == pmetric.MetricAggregationTemporalityDelta
 						t.mapHistogramMetrics(ctx, consumer, baseDims, md.Histogram().DataPoints(), delta)
-					default: // pmetric.AggregationTemporalityUnspecified or any other not supported type
+					default: // pmetric.MetricAggregationTemporalityUnspecified or any other not supported type
 						t.logger.Debug("Unknown or unsupported aggregation temporality",
 							zap.String("metric name", md.Name()),
 							zap.Any("aggregation temporality", md.Histogram().AggregationTemporality()),
@@ -603,7 +606,7 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 					case pmetric.MetricAggregationTemporalityDelta:
 						delta := md.ExponentialHistogram().AggregationTemporality() == pmetric.MetricAggregationTemporalityDelta
 						t.mapExponentialHistogramMetrics(ctx, consumer, baseDims, md.ExponentialHistogram().DataPoints(), delta)
-					default: // pmetric.MetricAggregationTemporalityCumulative, pmetric.AggregationTemporalityUnspecified or any other not supported type
+					default: // pmetric.MetricAggregationTemporalityCumulative, pmetric.MetricAggregationTemporalityUnspecified or any other not supported type
 						t.logger.Debug("Unknown or unsupported aggregation temporality",
 							zap.String("metric name", md.Name()),
 							zap.Any("aggregation temporality", md.ExponentialHistogram().AggregationTemporality()),

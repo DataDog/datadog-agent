@@ -1130,3 +1130,58 @@ func parseCapIntoSet(capabilities uint64, flag capability.CapType, c capability.
 		}
 	}
 }
+
+func TestProcessIsThread(t *testing.T) {
+	const openTriggerFilename = "test-isthread"
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_process_fork_is_thread",
+			Expression: fmt.Sprintf(`open.file.name == "%s" && process.file.name == "syscall_tester" && process.ancestors.file.name == "syscall_tester" && process.is_thread`, openTriggerFilename),
+		},
+		{
+			ID:         "test_process_exec_is_not_thread",
+			Expression: fmt.Sprintf(`open.file.name == "%s" && process.file.name == "syscall_tester" && process.ancestors.file.name == "syscall_tester" && !process.is_thread`, openTriggerFilename),
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("fork-isthread", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			args := []string{"fork", openTriggerFilename}
+			cmd := exec.Command(syscallTester, args...)
+			_ = cmd.Run()
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_process_fork_is_thread")
+			assert.Equal(t, openTriggerFilename, event.Open.File.BasenameStr, "wrong opened file basename")
+			assert.Equal(t, "syscall_tester", event.ProcessContext.FileEvent.BasenameStr, "wrong process file basename")
+			assert.Equal(t, "syscall_tester", event.ProcessContext.Ancestor.ProcessContext.FileEvent.BasenameStr, "wrong parent process file basename")
+			assert.True(t, event.ProcessContext.IsThread, "process should be marked as being a thread")
+		})
+	})
+
+	t.Run("exec-isnotthread", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			args := []string{"fork", "exec", openTriggerFilename}
+			cmd := exec.Command(syscallTester, args...)
+			_ = cmd.Run()
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_process_exec_is_not_thread")
+			assert.Equal(t, openTriggerFilename, event.Open.File.BasenameStr, "wrong opened file basename")
+			assert.Equal(t, "syscall_tester", event.ProcessContext.FileEvent.BasenameStr, "wrong process file basename")
+			assert.Equal(t, "syscall_tester", event.ProcessContext.Ancestor.ProcessContext.FileEvent.BasenameStr, "wrong parent process file basename")
+			assert.False(t, event.ProcessContext.IsThread, "process should be marked as not being a thread")
+		})
+	})
+}

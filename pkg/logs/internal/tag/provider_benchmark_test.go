@@ -13,7 +13,7 @@ import (
 )
 
 func setupConfig(tags []string) (*config.MockConfig, time.Time) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(nil)
 
 	startTime := config.StartTime
 	config.StartTime = time.Now()

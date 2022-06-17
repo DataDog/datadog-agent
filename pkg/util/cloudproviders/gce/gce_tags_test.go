@@ -131,7 +131,7 @@ func TestGetHostTagsSuccessThenError(t *testing.T) {
 
 func TestGetHostTagsWithNonDefaultTagFilters(t *testing.T) {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	defaultExclude := mockConfig.GetStringSlice("exclude_gce_tags")
 	defer mockConfig.Set("exclude_gce_tags", defaultExclude)
 

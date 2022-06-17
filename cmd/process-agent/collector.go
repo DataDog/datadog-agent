@@ -409,6 +409,11 @@ func (l *Collector) run(exit chan struct{}) error {
 	<-exit
 	wg.Wait()
 
+	for _, check := range l.enabledChecks {
+		log.Debugf("Cleaning up %s check", check.Name())
+		check.Cleanup()
+	}
+
 	processForwarder.Stop()
 	rtProcessForwarder.Stop()
 	podForwarder.Stop()

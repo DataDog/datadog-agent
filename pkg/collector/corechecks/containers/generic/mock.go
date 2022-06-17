@@ -19,8 +19,8 @@ type MockContainerAccessor struct {
 	containers []*workloadmeta.Container
 }
 
-// List returns the mocked containers
-func (l *MockContainerAccessor) List() []*workloadmeta.Container {
+// ListRunning returns the mocked containers
+func (l *MockContainerAccessor) ListRunning() []*workloadmeta.Container {
 	return l.containers
 }
 

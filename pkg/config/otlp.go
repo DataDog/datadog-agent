@@ -70,6 +70,7 @@ func setupOTLPEnvironmentVariables(config Config) {
 	config.BindEnv(OTLPSection + ".metrics.delta_ttl")
 	config.BindEnv(OTLPSection + ".metrics.resource_attributes_as_tags")
 	config.BindEnv(OTLPSection + ".metrics.instrumentation_library_metadata_as_tags")
+	config.BindEnv(OTLPSection + ".metrics.instrumentation_scope_metadata_as_tags")
 	config.BindEnv(OTLPSection + ".metrics.tag_cardinality")
 	config.BindEnv(OTLPSection + ".metrics.histograms.mode")
 	config.BindEnv(OTLPSection + ".metrics.histograms.send_count_sum_metrics")
