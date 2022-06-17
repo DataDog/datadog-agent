@@ -75,7 +75,9 @@ type DumpMetadata struct {
 	Size                uint64        `msg:"activity_dump_size,omitempty" json:"activity_dump_size,omitempty"`
 }
 
-// ActivityDump holds the activity tree for the workload defined by the provided list of tags
+// ActivityDump holds the activity tree for the workload defined by the provided list of tags. The encoding described by
+// the `msg` annotation is used to generate the activity dump file while the encoding described by the `json` annotation
+// is used to generate the activity dump metadata sent to the event platform.
 // easyjson:json
 type ActivityDump struct {
 	sync.Mutex         `msg:"-"`
@@ -482,7 +484,11 @@ func (ad *ActivityDump) GetSelectorStr() string {
 		tags = append(tags, fmt.Sprintf("comm:%s", ad.DumpMetadata.Comm))
 	}
 	if len(ad.Tags) > 0 {
-		tags = append(tags, ad.Tags...)
+		for _, tag := range ad.Tags {
+			if !strings.HasPrefix(tag, "container_id") {
+				tags = append(tags, tag)
+			}
+		}
 	}
 	if len(tags) == 0 {
 		return "empty_selector"

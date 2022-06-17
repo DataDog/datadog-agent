@@ -480,7 +480,7 @@ func (adm *ActivityDumpManager) snapshotTracedCgroups() {
 	containerIDB := make([]byte, model.ContainerIDLen)
 	iterator := adm.tracedCgroupsMap.Iterate()
 
-	for iterator.Next(containerIDB, &event.TimeoutRaw) {
+	for iterator.Next(&containerIDB, &event.TimeoutRaw) {
 		if _, err = event.ContainerContext.UnmarshalBinary(containerIDB[:]); err != nil {
 			continue
 		}
