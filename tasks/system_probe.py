@@ -230,10 +230,10 @@ def kitchen_prepare(ctx, windows=is_windows):
             if os.path.isdir(extra_path):
                 shutil.copytree(extra_path, os.path.join(target_path, extra))
 
-    if os.path.exists(f"/opt/datadog-agent/embedded/bin/clang-bpf"):
-        shutil.copy(f"/opt/datadog-agent/embedded/bin/clang-bpf", os.path.join(KITCHEN_ARTIFACT_DIR, ".."))
-    if os.path.exists(f"/opt/datadog-agent/embedded/bin/llc-bpf"):
-        shutil.copy(f"/opt/datadog-agent/embedded/bin/llc-bpf", os.path.join(KITCHEN_ARTIFACT_DIR, ".."))
+    if os.path.exists("/opt/datadog-agent/embedded/bin/clang-bpf"):
+        shutil.copy("/opt/datadog-agent/embedded/bin/clang-bpf", os.path.join(KITCHEN_ARTIFACT_DIR, ".."))
+    if os.path.exists("/opt/datadog-agent/embedded/bin/llc-bpf"):
+        shutil.copy("/opt/datadog-agent/embedded/bin/llc-bpf", os.path.join(KITCHEN_ARTIFACT_DIR, ".."))
 
 
 @task
@@ -276,13 +276,16 @@ def kitchen_test(ctx, target=None, provider="virtualbox"):
 
 
 @task
-def kitchen_genconfig(ctx, ssh_key, platform, osversions=[], image_size=None, provider="azure", arch=CURRENT_ARCH):
+def kitchen_genconfig(ctx, ssh_key, platform, osversions=[], image_size=None, provider="azure", arch=None, azure_sub_id=None):
+    if not arch:
+        arch = CURRENT_ARCH
+
     if arch == "x64":
         arch = "x86_64"
     elif arch == "arm64":
         arch = "arm64"
     else:
-        raise Exit(f"Unsupported vagrant arch for {arch}", code=1)
+        raise UnexpectedExit("arch must be specified")
 
     if not image_size and provider == "azure":
         image_size = "Standard_D2_v2"
@@ -290,21 +293,14 @@ def kitchen_genconfig(ctx, ssh_key, platform, osversions=[], image_size=None, pr
     if not image_size:
         raise UnexpectedExit("Image size must be specified")
 
-    sub_id = ""
-    if provider == "azure":
-        # "compute sandbox" subscription
-        res = ctx.run("az login", hide="out")
-        subs = json.loads(res.stdout)
-        for s in subs:
-            if s["name"] == "compute sandbox":
-                sub_id = s["id"]
-                break
+    if azure_sub_id is None and provider == "azure":
+        raise Exit("azure subscription id must be specified with --azure-sub-id")
 
     env={
         "KITCHEN_RSA_SSH_KEY_PATH": ssh_key,
     }
-    if sub_id:
-        env["AZURE_SUBSCRIPTION_ID"] = sub_id
+    if azure_sub_id:
+        env["AZURE_SUBSCRIPTION_ID"] = azure_sub_id
 
     with ctx.cd(KITCHEN_DIR):
         ctx.run(
