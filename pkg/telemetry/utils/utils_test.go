@@ -16,7 +16,7 @@ import (
 func TestIsCheckEnabled(t *testing.T) {
 	assert := assert.New(t)
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("telemetry.enabled", false)
 
 	assert.False(IsCheckEnabled("cpu"))

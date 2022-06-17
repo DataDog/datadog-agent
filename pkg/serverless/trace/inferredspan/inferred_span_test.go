@@ -56,7 +56,7 @@ func TestFilterFunctionTags(t *testing.T) {
 		"aws_account":               "test",
 	}
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("tags", []string{"tag1:value1"})
 	mockConfig.Set("extra_tags", []string{"extra:tag"})
 

@@ -1016,7 +1016,13 @@ func getArchivePath() string {
 	dir := os.TempDir()
 	t := time.Now().UTC()
 	timeString := strings.ReplaceAll(t.Format(time.RFC3339), ":", "-")
-	fileName := strings.Join([]string{"datadog", "agent", timeString}, "-")
+	fileName := ""
+	lvl, err := log.GetLogLevel()
+	if err == nil {
+		fileName = strings.Join([]string{"datadog", "agent", timeString, lvl.String()}, "-")
+	} else {
+		fileName = strings.Join([]string{"datadog", "agent", timeString}, "-")
+	}
 	fileName = strings.Join([]string{fileName, "zip"}, ".")
 	filePath := filepath.Join(dir, fileName)
 	return filePath

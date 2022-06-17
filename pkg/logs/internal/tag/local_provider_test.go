@@ -18,7 +18,7 @@ import (
 
 func TestLocalProviderShouldReturnEmptyList(t *testing.T) {
 
-	mockConfig := coreConfig.Mock()
+	mockConfig := coreConfig.Mock(t)
 
 	tags := []string{"tag1:value1", "tag2", "tag3"}
 
@@ -32,7 +32,7 @@ func TestLocalProviderShouldReturnEmptyList(t *testing.T) {
 }
 
 func TestLocalProviderExpectedTags(t *testing.T) {
-	mockConfig := coreConfig.Mock()
+	mockConfig := coreConfig.Mock(t)
 	clock := clock.NewMock()
 
 	oldStartTime := coreConfig.StartTime

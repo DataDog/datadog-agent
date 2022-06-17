@@ -113,10 +113,18 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 
 	check := args[0]
 
+	cleanups := make([]func(), 0)
+	defer func() {
+		for _, c := range cleanups {
+			c()
+		}
+	}()
 	// Connections check requires process-check to have occurred first (for process creation ts),
 	if check == checks.Connections.Name() {
 		checks.Process.Init(cfg, sysInfo)
 		checks.Process.Run(cfg, 0) //nolint:errcheck
+		// Clean up the process check state only after the connections check is executed
+		cleanups = append(cleanups, checks.Process.Cleanup)
 	}
 
 	names := make([]string, 0, len(checks.All))
@@ -125,12 +133,14 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 
 		if ch.Name() == check {
 			ch.Init(cfg, sysInfo)
+			cleanups = append(cleanups, ch.Cleanup)
 			return runCheck(cfg, ch)
 		}
 
 		withRealTime, ok := ch.(checks.CheckWithRealTime)
 		if ok && withRealTime.RealTimeName() == check {
 			withRealTime.Init(cfg, sysInfo)
+			cleanups = append(cleanups, withRealTime.Cleanup)
 			return runCheckAsRealTime(cfg, withRealTime)
 		}
 	}
