@@ -12,6 +12,13 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/otlp/internal/serializerexporter"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/loggingexporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
@@ -22,14 +29,6 @@ import (
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/otlp/internal/serializerexporter"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
@@ -98,11 +97,20 @@ type PipelineConfig struct {
 	MetricsEnabled bool
 	// TracesEnabled states whether OTLP traces support is enabled.
 	TracesEnabled bool
-	// LoggingExporterLogLevel states log level of OTLP logging exporter.
-	LoggingExporterLogLevel string
+	// Debug contains debug configurations.
+	Debug map[string]interface{}
 
 	// Metrics contains configuration options for the serializer metrics exporter
 	Metrics map[string]interface{}
+}
+
+func (p *PipelineConfig) DebugLogEnabled() bool {
+	if v, ok := p.Debug["log_level"]; ok {
+		if s, ok := v.(string); ok {
+			return s != config.OTLPDebugLogLevelDisabled
+		}
+	}
+	return false
 }
 
 // Pipeline is an OTLP pipeline.

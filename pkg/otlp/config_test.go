@@ -61,7 +61,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"enabled":         true,
 					"tag_cardinality": "low",
 				},
-				LoggingExporterLogLevel: "",
+				Debug: map[string]interface{}{
+					"log_level": "info",
+				},
 			},
 		},
 		{
@@ -80,7 +82,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"enabled":         true,
 					"tag_cardinality": "low",
 				},
-				LoggingExporterLogLevel: "",
+				Debug: map[string]interface{}{
+					"log_level": "info",
+				},
 			},
 		},
 		{
@@ -99,7 +103,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"enabled":         true,
 					"tag_cardinality": "low",
 				},
-				LoggingExporterLogLevel: "",
+				Debug: map[string]interface{}{
+					"log_level": "info",
+				},
 			},
 		},
 		{
@@ -133,7 +139,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"enabled":         true,
 					"tag_cardinality": "low",
 				},
-				LoggingExporterLogLevel: "",
+				Debug: map[string]interface{}{
+					"log_level": "info",
+				},
 			},
 		},
 	}
@@ -179,7 +187,9 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"enabled":         true,
 					"tag_cardinality": "low",
 				},
-				LoggingExporterLogLevel: "",
+				Debug: map[string]interface{}{
+					"log_level": "info",
+				},
 			},
 		},
 		{
@@ -206,7 +216,9 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"enabled":         true,
 					"tag_cardinality": "low",
 				},
-				LoggingExporterLogLevel: "",
+				Debug: map[string]interface{}{
+					"log_level": "info",
+				},
 			},
 		},
 		{
@@ -241,14 +253,16 @@ func TestFromEnvironmentVariables(t *testing.T) {
 						"mode": "counters",
 					},
 				},
-				LoggingExporterLogLevel: "",
+				Debug: map[string]interface{}{
+					"log_level": "info",
+				},
 			},
 		},
 		{
-			name: "only gRPC, logging info",
+			name: "only gRPC, disabled logging",
 			env: map[string]string{
 				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT": "0.0.0.0:9999",
-				"DD_OTLP_CONFIG_LOGGING_EXPORTER_LOG_LEVEL":       "info",
+				"DD_OTLP_CONFIG_DEBUG_LOG_LEVEL":                  "disabled",
 			},
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{
@@ -265,16 +279,10 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"enabled":         true,
 					"tag_cardinality": "low",
 				},
-				LoggingExporterLogLevel: "info",
+				Debug: map[string]interface{}{
+					"log_level": "disabled",
+				},
 			},
-		},
-		{
-			name: "only gRPC, invalid logging level",
-			env: map[string]string{
-				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT": "0.0.0.0:9999",
-				"DD_OTLP_CONFIG_LOGGING_EXPORTER_LOG_LEVEL":       "hoge",
-			},
-			err: "hoge is invalid log level, so OTLP logging exporter will be disabled",
 		},
 	}
 	for _, testInstance := range tests {
@@ -319,7 +327,9 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 						"send_count_sum_metrics": true,
 					},
 				},
-				LoggingExporterLogLevel: "info",
+				Debug: map[string]interface{}{
+					"log_level": "debug",
+				},
 			},
 		},
 	}

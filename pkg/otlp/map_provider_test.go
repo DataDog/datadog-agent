@@ -31,6 +31,9 @@ func TestNewMap(t *testing.T) {
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
 				TracePort:          5003,
 				TracesEnabled:      true,
+				Debug: map[string]interface{}{
+					"log_level": "disabled",
+				},
 			},
 			ocfg: map[string]interface{}{
 				"receivers": map[string]interface{}{
@@ -78,6 +81,9 @@ func TestNewMap(t *testing.T) {
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
 					},
+				},
+				Debug: map[string]interface{}{
+					"log_level": "disabled",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -138,6 +144,9 @@ func TestNewMap(t *testing.T) {
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 1234, 5678),
 				TracePort:          5003,
 				TracesEnabled:      true,
+				Debug: map[string]interface{}{
+					"log_level": "disabled",
+				},
 			},
 			ocfg: map[string]interface{}{
 				"receivers": map[string]interface{}{
@@ -188,6 +197,9 @@ func TestNewMap(t *testing.T) {
 						"send_count_sum_metrics": true,
 					},
 				},
+				Debug: map[string]interface{}{
+					"log_level": "disabled",
+				},
 			},
 			ocfg: map[string]interface{}{
 				"receivers": map[string]interface{}{
@@ -231,69 +243,14 @@ func TestNewMap(t *testing.T) {
 			},
 		},
 		{
-			name: "only HTTP, only metrics, disabling logging",
-			pcfg: PipelineConfig{
-				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
-				TracePort:          5003,
-				MetricsEnabled:     true,
-				Metrics: map[string]interface{}{
-					"delta_ttl":                                1500,
-					"resource_attributes_as_tags":              false,
-					"instrumentation_library_metadata_as_tags": false,
-					"histograms": map[string]interface{}{
-						"mode":                   "nobuckets",
-						"send_count_sum_metrics": true,
-					},
-				},
-				LoggingExporterLogLevel: "",
-			},
-			ocfg: map[string]interface{}{
-				"receivers": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"protocols": map[string]interface{}{
-							"http": map[string]interface{}{
-								"endpoint": "bindhost:1234",
-							},
-						},
-					},
-				},
-				"processors": map[string]interface{}{
-					"batch": map[string]interface{}{
-						"timeout": "10s",
-					},
-				},
-				"exporters": map[string]interface{}{
-					"serializer": map[string]interface{}{
-						"metrics": map[string]interface{}{
-							"delta_ttl":                                1500,
-							"resource_attributes_as_tags":              false,
-							"instrumentation_library_metadata_as_tags": false,
-							"histograms": map[string]interface{}{
-								"mode":                   "nobuckets",
-								"send_count_sum_metrics": true,
-							},
-						},
-					},
-				},
-				"service": map[string]interface{}{
-					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
-					"pipelines": map[string]interface{}{
-						"metrics": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"serializer"},
-						},
-					},
-				},
-			},
-		},
-		{
 			name: "only gRPC, only Traces, logging info",
 			pcfg: PipelineConfig{
-				OTLPReceiverConfig:      testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
-				TracePort:               5003,
-				TracesEnabled:           true,
-				LoggingExporterLogLevel: "info",
+				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
+				TracePort:          5003,
+				TracesEnabled:      true,
+				Debug: map[string]interface{}{
+					"log_level": "info",
+				},
 			},
 			ocfg: map[string]interface{}{
 				"receivers": map[string]interface{}{
@@ -343,7 +300,9 @@ func TestNewMap(t *testing.T) {
 						"send_count_sum_metrics": true,
 					},
 				},
-				LoggingExporterLogLevel: "debug",
+				Debug: map[string]interface{}{
+					"log_level": "debug",
+				},
 			},
 			ocfg: map[string]interface{}{
 				"receivers": map[string]interface{}{
@@ -404,7 +363,9 @@ func TestNewMap(t *testing.T) {
 						"send_count_sum_metrics": true,
 					},
 				},
-				LoggingExporterLogLevel: "warn",
+				Debug: map[string]interface{}{
+					"log_level": "warn",
+				},
 			},
 			ocfg: map[string]interface{}{
 				"receivers": map[string]interface{}{

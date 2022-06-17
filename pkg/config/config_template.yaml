@@ -3304,9 +3304,14 @@ api_key:
     # span_name_remappings:
     #   <OLD_NAME>: <NEW_NAME>
 
-  ## @param logging_exporter_log_level - string - optional - default: ""
-  ## @env DD_OTLP_CONFIG_LOGGING_EXPORTER_LOG_LEVEL - string - optional - default: ""
-  ## Configuration for log level of the logging exporter. Options are debug, info, warn, error.
-  ## If not set, disabling the logging exporter.
+  ## @param debug - custom object - optional
+  ## Debug-specific configuration for OTLP ingest in the Datadog Agent.
   #
-  # logging_exporter_log_level: ""
+  # debug:
+
+    ## @param log_level - string - optional - default: info
+    ## @env DD_OTLP_CONFIG_DEBUG_LOG_LEVEL - string - optional - default: info
+    ## Loglevel for logs when Datadog Agent receives otlp traces/metrics.
+    ## Options are disabled, debug, info, error, warn.
+    #
+    # log_level: info

@@ -1,5 +1,4 @@
 otlp_config:
-  logging_exporter_log_level: info
   receiver:
     protocols:
       http:
@@ -15,3 +14,5 @@ otlp_config:
     histograms:
       mode: counters
       send_count_sum_metrics: true
+  debug:
+    log_level: debug

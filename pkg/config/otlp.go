@@ -7,27 +7,29 @@ package config
 
 // OTLP configuration paths.
 const (
-	OTLPSection                 = "otlp_config"
-	OTLPTracesSubSectionKey     = "traces"
-	OTLPTracePort               = OTLPSection + "." + OTLPTracesSubSectionKey + ".internal_port"
-	OTLPTracesEnabled           = OTLPSection + "." + OTLPTracesSubSectionKey + ".enabled"
-	OTLPReceiverSubSectionKey   = "receiver"
-	OTLPReceiverSection         = OTLPSection + "." + OTLPReceiverSubSectionKey
-	OTLPMetricsSubSectionKey    = "metrics"
-	OTLPMetrics                 = OTLPSection + "." + OTLPMetricsSubSectionKey
-	OTLPMetricsEnabled          = OTLPSection + "." + OTLPMetricsSubSectionKey + ".enabled"
-	OTLPTagCardinalityKey       = OTLPMetrics + ".tag_cardinality"
-	OTLPLoggingExporterLogLevel = OTLPSection + ".logging_exporter_log_level"
+	OTLPSection               = "otlp_config"
+	OTLPTracesSubSectionKey   = "traces"
+	OTLPTracePort             = OTLPSection + "." + OTLPTracesSubSectionKey + ".internal_port"
+	OTLPTracesEnabled         = OTLPSection + "." + OTLPTracesSubSectionKey + ".enabled"
+	OTLPReceiverSubSectionKey = "receiver"
+	OTLPReceiverSection       = OTLPSection + "." + OTLPReceiverSubSectionKey
+	OTLPMetricsSubSectionKey  = "metrics"
+	OTLPMetrics               = OTLPSection + "." + OTLPMetricsSubSectionKey
+	OTLPMetricsEnabled        = OTLPSection + "." + OTLPMetricsSubSectionKey + ".enabled"
+	OTLPTagCardinalityKey     = OTLPMetrics + ".tag_cardinality"
+	OTLPDebugKey              = "debug"
+	OTLPDebug                 = OTLPSection + "." + OTLPDebugKey
+	OTLPDebugLogLevel         = OTLPDebug + ".log_level"
 )
 
 // Following consts define log level of the logging exporter.
 // see: https://github.com/open-telemetry/opentelemetry-collector/blob/6fb884b2dbdc37ef2e1aea924040822ce38584bd/exporter/loggingexporter/config.go#L27-L28
 const (
-	OTLPLoggingExporterLogLevelDisabled = ""
-	OTLPLoggingExporterLogLevelDebug    = "debug"
-	OTLPLoggingExporterLogLevelInfo     = "info"
-	OTLPLoggingExporterLogLevelWarn     = "warn"
-	OTLPLoggingExporterLogLevelError    = "error"
+	OTLPDebugLogLevelDisabled = "disabled"
+	OTLPDebugLogLevelDebug    = "debug"
+	OTLPDebugLogLevelInfo     = "info"
+	OTLPDebugLogLevelWarn     = "warn"
+	OTLPDebugLogLevelError    = "error"
 )
 
 // SetupOTLP related configuration.
@@ -35,7 +37,7 @@ func SetupOTLP(config Config) {
 	config.BindEnvAndSetDefault(OTLPTracePort, 5003)
 	config.BindEnvAndSetDefault(OTLPMetricsEnabled, true)
 	config.BindEnvAndSetDefault(OTLPTracesEnabled, true)
-	config.BindEnvAndSetDefault(OTLPLoggingExporterLogLevel, "")
+	config.BindEnvAndSetDefault(OTLPDebugLogLevel, "info")
 
 	// NOTE: This only partially works.
 	// The environment variable is also manually checked in pkg/otlp/config.go
@@ -89,6 +91,6 @@ func setupOTLPEnvironmentVariables(config Config) {
 	config.BindEnv(OTLPSection + ".metrics.sums.cumulative_monotonic_mode")
 	config.BindEnv(OTLPSection + ".metrics.summaries.mode")
 
-	// Logging Exporter settings
-	config.BindEnv(OTLPSection + ".logging_exporter_log_level")
+	// Debug setting
+	config.BindEnv(OTLPSection + ".debug.log_level")
 }
