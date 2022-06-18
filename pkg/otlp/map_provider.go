@@ -145,7 +145,7 @@ func buildMap(cfg PipelineConfig) (*confmap.Conf, error) {
 				m[key] = []interface{}{"logging"}
 			}
 		}
-		retMap.Merge(confmap.NewFromStringMap(m))
+		errs = append(errs, retMap.Merge(confmap.NewFromStringMap(m)))
 	}
 
 	err := retMap.Merge(buildReceiverMap(cfg.OTLPReceiverConfig))
