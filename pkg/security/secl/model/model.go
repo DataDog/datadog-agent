@@ -305,13 +305,13 @@ type Process struct {
 	EnvsEntry *EnvsEntry `field:"-" msg:"-"`
 
 	// defined to generate accessors, ArgsTruncated and EnvsTruncated are used during by unmarshaller
-	Argv0         string   `field:"argv0,handler:ResolveProcessArgv0,weight:100" msg:"argv0"`                                                                                                                 // First argument of the process
+	Argv0         string   `field:"argv0,handler:ResolveProcessArgv0,weight:100" msg:"argv0"`                                                                                                                                           // First argument of the process
 	Args          string   `field:"args,handler:ResolveProcessArgs,weight:100" msg:"-"`                                                                                                                                                 // Arguments of the process (as a string)
 	Argv          []string `field:"argv,handler:ResolveProcessArgv,weight:100; args_flags,handler:ResolveProcessArgsFlags,opts:cacheless_resolution; args_options,handler:ResolveProcessArgsOptions,opts:cacheless_resolution" msg:"-"` // Arguments of the process (as an array)
 	ArgsTruncated bool     `field:"args_truncated,handler:ResolveProcessArgsTruncated" msg:"-"`                                                                                                                                         // Indicator of arguments truncation
-	Envs          []string `field:"envs,handler:ResolveProcessEnvs:100" msg:"envs,omitempty"`                                                                                                          // Environment variable names of the process
+	Envs          []string `field:"envs,handler:ResolveProcessEnvs:100" msg:"envs,omitempty"`                                                                                                                                           // Environment variable names of the process
 	Envp          []string `field:"envp,handler:ResolveProcessEnvp:100" msg:"-"`                                                                                                                                                        // Environment variables of the process
-	EnvsTruncated bool     `field:"envs_truncated,handler:ResolveProcessEnvsTruncated" msg:"envs_truncated"`                                                                                           // Indicator of environment variables truncation
+	EnvsTruncated bool     `field:"envs_truncated,handler:ResolveProcessEnvsTruncated" msg:"envs_truncated"`                                                                                                                            // Indicator of environment variables truncation
 
 	// cache version
 	ScrubbedArgvResolved  bool           `field:"-" msg:"-"`
@@ -336,13 +336,13 @@ type ExecEvent struct {
 
 // FileFields holds the information required to identify a file
 type FileFields struct {
-	UID   uint32 `field:"uid" msg:"uid"`                                                                                            // UID of the file's owner
-	User  string `field:"user,handler:ResolveFileFieldsUser" msg:"user,omitempty"`            // User of the file's owner
-	GID   uint32 `field:"gid" msg:"gid"`                                              // GID of the file's owner
-	Group string `field:"group,handler:ResolveFileFieldsGroup" msg:"group,omitempty"`         // Group of the file's owner
+	UID   uint32 `field:"uid" msg:"uid"`                                                                                           // UID of the file's owner
+	User  string `field:"user,handler:ResolveFileFieldsUser" msg:"user,omitempty"`                                                 // User of the file's owner
+	GID   uint32 `field:"gid" msg:"gid"`                                                                                           // GID of the file's owner
+	Group string `field:"group,handler:ResolveFileFieldsGroup" msg:"group,omitempty"`                                              // Group of the file's owner
 	Mode  uint16 `field:"mode;rights,handler:ResolveRights,opts:cacheless_resolution" msg:"mode" constants:"Chmod mode constants"` // Mode/rights of the file
-	CTime uint64 `field:"change_time" msg:"ctime"`                                                                                  // Change time of the file
-	MTime uint64 `field:"modification_time" msg:"mtime"`                                                                            // Modification time of the file
+	CTime uint64 `field:"change_time" msg:"ctime"`                                                                                 // Change time of the file
+	MTime uint64 `field:"modification_time" msg:"mtime"`                                                                           // Modification time of the file
 
 	MountID      uint32 `field:"mount_id" msg:"mount_id"`                                                   // Mount ID of the file
 	Inode        uint64 `field:"inode" msg:"inode"`                                                         // Inode of the file

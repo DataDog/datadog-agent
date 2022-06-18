@@ -3,10 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-// +build linux
-
-//go:generate go run github.com/tinylib/msgp -o=model_gen_linux.go -tests=false
+//go:generate go run github.com/tinylib/msgp -o=model_gen.go -tests=false
 
 package dump
 

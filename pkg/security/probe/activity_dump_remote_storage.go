@@ -17,12 +17,13 @@ import (
 	"net/textproto"
 	"strings"
 
+	"github.com/mailru/easyjson/jwriter"
+
 	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	ddhttputil "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/mailru/easyjson/jwriter"
 )
 
 func getEndpointURL(endpoint logsconfig.Endpoint, uri string) string {
@@ -177,7 +178,7 @@ func (storage *ActivityDumpRemoteStorage) Persist(request dump.StorageRequest, a
 
 	for i, url := range storage.urls {
 		if err := storage.sendToEndpoint(url, storage.apiKeys[i], request, writer, body); err != nil {
-			seclog.Errorf("couldn't sent activity dump to [%s]: %w", url, err)
+			seclog.Errorf("couldn't sent activity dump to [%s]: %v", url, err)
 		} else {
 			seclog.Infof("[%s] file for activity dump [%s] successfully sent to [%s]", request.Format, ad.GetSelectorStr(), url)
 		}

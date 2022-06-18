@@ -206,14 +206,14 @@ func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStrea
 		compressedRaw := bytes.NewBuffer(msg.GetData())
 		gzipReader, err := gzip.NewReader(compressedRaw)
 		if err != nil {
-			log.Errorf("couldn't create gzip reader: %w", err)
+			log.Errorf("couldn't create gzip reader: %v", err)
 			return
 		}
 		defer gzipReader.Close()
 
 		_, err = io.Copy(raw, gzipReader)
 		if err != nil {
-			log.Errorf("couldn't unzip: %w", err)
+			log.Errorf("couldn't unzip: %v", err)
 			return
 		}
 	} else {
