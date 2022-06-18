@@ -10,8 +10,8 @@ package cloudfoundry
 
 import (
 	"net/url"
-	"testing"
 	"sort"
+	"testing"
 
 	"github.com/cloudfoundry-community/go-cfclient"
 	"github.com/stretchr/testify/assert"
