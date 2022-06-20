@@ -26,7 +26,10 @@ import (
 
 // RunDatadogConnectivityDiagnose sends requests to all known endpoints for all domains
 // to check if there are connectivity issues between Datadog and these endpoints
-func RunDatadogConnectivityDiagnose(noTrace bool) error {
+func RunDatadogConnectivityDiagnose(w io.Writer, noTrace bool) error {
+
+	writer := &writerWrapper{w: w}
+
 	// Create domain resolvers
 	keysPerDomain, err := config.GetMultipleEndpoints()
 	if err != nil {
@@ -38,16 +41,16 @@ func RunDatadogConnectivityDiagnose(noTrace bool) error {
 	client := forwarder.NewHTTPClient()
 
 	// Send requests to all endpoints for all domains
-	fmt.Println("\n================ Starting connectivity diagnosis ================")
+	fmt.Fprintln(writer.w, "\n================ Starting connectivity diagnosis ================")
 	for _, domainResolver := range domainResolvers {
-		sendRequestToAllEndpointOfADomain(client, domainResolver, noTrace)
+		sendRequestToAllEndpointOfADomain(writer, client, domainResolver, noTrace)
 	}
 
 	return nil
 }
 
 // sendRequestToAllEndpointOfADomain sends HTTP request on all endpoints for a given domain
-func sendRequestToAllEndpointOfADomain(client *http.Client, domainResolver resolver.DomainResolver, noTrace bool) {
+func sendRequestToAllEndpointOfADomain(writer *writerWrapper, client *http.Client, domainResolver resolver.DomainResolver, noTrace bool) {
 
 	// Go through all API Keys of a domain and send an HTTP request on each endpoint
 	for _, apiKey := range domainResolver.GetAPIKeys() {
@@ -58,24 +61,24 @@ func sendRequestToAllEndpointOfADomain(client *http.Client, domainResolver resol
 
 			ctx := context.Background()
 			if !noTrace {
-				ctx = httptrace.WithClientTrace(context.Background(), createDiagnoseTrace())
+				ctx = httptrace.WithClientTrace(context.Background(), createDiagnoseTrace(writer))
 			}
 
-			statusCode, responseBody, err := sendHTTPRequestToEndpoint(ctx, client, domain, endpointInfo, apiKey)
+			statusCode, responseBody, err := sendHTTPRequestToEndpoint(writer, ctx, client, domain, endpointInfo, apiKey)
 
 			// Check if there is a response and if it's valid
-			verifyEndpointResponse(statusCode, responseBody, err)
+			verifyEndpointResponse(writer, statusCode, responseBody, err)
 		}
 	}
 }
 
 // sendHTTPRequestToEndpoint creates an URL based on the domain and the endpoint information
 // then sends an HTTP Request with the method and payload inside the endpoint information
-func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain string, endpointInfo endpointInfo, apiKey string) (int, []byte, error) {
+func sendHTTPRequestToEndpoint(writer *writerWrapper, ctx context.Context, client *http.Client, domain string, endpointInfo endpointInfo, apiKey string) (int, []byte, error) {
 	url := createEndpointURL(domain, endpointInfo)
 	logURL := scrubber.ScrubLine(url)
 
-	fmt.Printf("\n======== '%v' ========\n", color.BlueString(logURL))
+	fmt.Fprintf(writer.w, "\n======== '%v' ========\n", color.BlueString(logURL))
 
 	// Create a request for the backend
 	reader := bytes.NewReader(endpointInfo.Payload)
@@ -100,7 +103,7 @@ func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain 
 	// Get the endpoint response
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return 0, nil, fmt.Errorf("fail to read the response Body: %s", err)
+		return 0, nil, fmt.Errorf("fail to read the response Body: %s", scrubber.ScrubLine(err.Error()))
 	}
 
 	return resp.StatusCode, body, nil
@@ -111,17 +114,17 @@ func createEndpointURL(domain string, endpointInfo endpointInfo) string {
 	return domain + endpointInfo.Endpoint.Route
 }
 
-func verifyEndpointResponse(statusCode int, responseBody []byte, err error) {
+func verifyEndpointResponse(writer *writerWrapper, statusCode int, responseBody []byte, err error) {
 
 	if err != nil {
-		fmt.Printf("could not get a response from the endpoint : %v\n", err)
+		fmt.Fprintf(writer.w, "could not get a response from the endpoint : %v\n", scrubber.ScrubLine(err.Error()))
 		return
 	}
 
 	statusString := color.GreenString("PASS")
 	if statusCode >= 400 {
 		statusString = color.RedString("FAIL")
-		fmt.Printf("Received response : '%v'\n", string(responseBody))
+		fmt.Fprintf(writer.w, "Received response : '%v'\n", scrubber.ScrubLine(string(responseBody)))
 	}
-	fmt.Printf("Received status code %v from the endpoint ====> %v\n", statusCode, statusString)
+	fmt.Fprintf(writer.w, "Received status code %v from the endpoint ====> %v\n", statusCode, scrubber.ScrubLine(statusString))
 }

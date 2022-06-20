@@ -29,6 +29,7 @@ import (
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -268,6 +269,11 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 	err = zipDiagnose(tempDir, hostname)
 	if err != nil {
 		log.Errorf("Could not zip diagnose: %s", err)
+	}
+
+	err = zipDatadogConnectivity(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not zip diagnose datadog-connectivity: %s", err)
 	}
 
 	err = zipRegistryJSON(tempDir, hostname)
@@ -686,6 +692,22 @@ func zipDiagnose(tempDir, hostname string) error {
 	writer.Flush()
 
 	f := filepath.Join(tempDir, hostname, "diagnose.log")
+	err := ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+
+	return writeScrubbedFile(f, b.Bytes())
+}
+
+func zipDatadogConnectivity(tempDir, hostname string) error {
+	var b bytes.Buffer
+
+	writer := bufio.NewWriter(&b)
+	connectivity.RunDatadogConnectivityDiagnose(writer, false) //nolint:errcheck
+	writer.Flush()
+
+	f := filepath.Join(tempDir, hostname, "connectivity.log")
 	err := ensureParentDirsExist(f)
 	if err != nil {
 		return err

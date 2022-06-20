@@ -66,7 +66,7 @@ func doDiagnoseDatadogConnectivity(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return connectivity.RunDatadogConnectivityDiagnose(noTrace)
+	return connectivity.RunDatadogConnectivityDiagnose(color.Output, noTrace)
 }
 
 func configAndLogSetup() error {
