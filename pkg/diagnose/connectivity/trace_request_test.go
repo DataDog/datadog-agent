@@ -17,27 +17,24 @@ import (
 )
 
 var (
-	apiKey                    = "api_key1"
-	endpointInfoWithAPIKey    = endpointInfo{Endpoint: endpoints.V1ValidateEndpoint, APIKeyInQueryString: true}
-	endpointInfoWithoutAPIKey = endpointInfo{Endpoint: endpoints.V1SeriesEndpoint, APIKeyInQueryString: false}
+	apiKey1 = "api_key1"
+	apiKey2 = "api_key2"
+
+	endpointInfoTest = endpointInfo{Endpoint: endpoints.V1ValidateEndpoint}
 )
 
 func TestCreateEndpointUrl(t *testing.T) {
 
-	urlWithAPIKey := createEndpointURL("https://domain", endpointInfoWithAPIKey, apiKey)
-	urlWithoutAPIKey := createEndpointURL("https://domain2", endpointInfoWithoutAPIKey, apiKey)
-
-	assert.Equal(t, urlWithAPIKey, "https://domain/api/v1/validate?api_key=api_key1")
-	assert.Equal(t, urlWithoutAPIKey, "https://domain2/api/v1/series")
+	url := createEndpointURL("https://domain", endpointInfoTest)
+	assert.Equal(t, url, "https://domain/api/v1/validate")
 }
 
 func TestSendHTTPRequestToEndpoint(t *testing.T) {
 
-	// Create a fake server that send a 200 Response if there is 'api_key1' in the query string
-	// or a 400 response otherwise.
+	// Create a fake server that send a 200 Response if there the 'DD-API-KEY' header has value 'api_key1'
 	ts1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
-		if r.Form.Get("api_key") == "api_key1" {
+		if r.Header.Get("DD-API-KEY") == "api_key1" {
 			w.Write([]byte("OK"))
 		} else {
 			w.WriteHeader(http.StatusBadRequest)
@@ -48,14 +45,14 @@ func TestSendHTTPRequestToEndpoint(t *testing.T) {
 
 	client := forwarder.NewHTTPClient()
 
-	// With the API Key, it should be a 200
-	statusCodeWithKey, responseBodyWithKey, errWithKey := sendHTTPRequestToEndpoint(context.Background(), client, ts1.URL, endpointInfoWithAPIKey, apiKey)
+	// With the correct API Key, it should be a 200
+	statusCodeWithKey, responseBodyWithKey, errWithKey := sendHTTPRequestToEndpoint(context.Background(), client, ts1.URL, endpointInfoTest, apiKey1)
 	assert.Nil(t, errWithKey)
 	assert.Equal(t, statusCodeWithKey, 200)
 	assert.Equal(t, string(responseBodyWithKey), "OK")
 
-	// Without the API Key, it should be a 400
-	statusCode, responseBody, err := sendHTTPRequestToEndpoint(context.Background(), client, ts1.URL, endpointInfoWithoutAPIKey, apiKey)
+	// With the wrong API Key, it should be a 400
+	statusCode, responseBody, err := sendHTTPRequestToEndpoint(context.Background(), client, ts1.URL, endpointInfoTest, apiKey2)
 	assert.Nil(t, err)
 	assert.Equal(t, statusCode, 400)
 	assert.Equal(t, string(responseBody), "Bad Request")
