@@ -265,12 +265,15 @@ func TestService(t *testing.T) {
 	targets := []byte(`testtargets`)
 	testTargetsCustom := []byte(`{"client_state":"test_state"}`)
 	client := &pbgo.Client{
+		Id: "foo",
 		State: &pbgo.ClientState{
 			RootVersion: 2,
 		},
 		Products: []string{
 			string(rdata.ProductAPMSampling),
 		},
+		IsAgent:     true,
+		ClientAgent: &pbgo.ClientAgent{},
 	}
 	fileAPM1 := []byte(`testapm1`)
 	fileAPM2 := []byte(`testapm2`)
@@ -364,6 +367,7 @@ func TestServiceClientPredicates(t *testing.T) {
 	service := newTestService(t, api, uptaneClient, clock)
 
 	client := &pbgo.Client{
+		Id: "foo",
 		State: &pbgo.ClientState{
 			RootVersion: 2,
 		},
@@ -437,4 +441,26 @@ func TestServiceClientPredicates(t *testing.T) {
 
 	api.AssertExpectations(t)
 	uptaneClient.AssertExpectations(t)
+}
+
+func TestClientValidation(t *testing.T) {
+	assert := assert.New(t)
+	clock := clock.NewMock()
+	uptaneClient := &mockUptane{}
+	api := &mockAPI{}
+	service := newTestService(t, api, uptaneClient, clock)
+
+	tcs := []*pbgo.Client{
+		nil,
+		{Id: "foo"},
+		{Id: "foo", IsAgent: true},
+		{Id: "foo", IsTracer: true},
+	}
+
+	for _, tc := range tcs {
+		t.Run("", func(t *testing.T) {
+			_, err := service.ClientGetConfigs(&pbgo.ClientGetConfigsRequest{Client: tc})
+			assert.Error(err)
+		})
+	}
 }

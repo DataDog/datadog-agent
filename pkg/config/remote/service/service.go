@@ -271,6 +271,10 @@ func (s *Service) getClientState() ([]byte, error) {
 func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	s.Lock()
 	defer s.Unlock()
+	if !isValidClient(request.Client) {
+		return nil, fmt.Errorf("invalid client: %v", request.Client)
+	}
+
 	s.clients.seen(request.Client)
 	tufVersions, err := s.uptane.TUFVersionState()
 	if err != nil {
@@ -322,6 +326,12 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 		TargetFiles:   filteredFiles,
 		ClientConfigs: matchedClientConfigs,
 	}, nil
+}
+
+func isValidClient(c *pbgo.Client) bool {
+	return c != nil &&
+		c.Id != "" &&
+		((c.IsTracer && c.ClientTracer != nil) || (c.IsAgent && c.ClientAgent != nil))
 }
 
 // ConfigGetState returns the state of the configuration and the director repos in the local store
