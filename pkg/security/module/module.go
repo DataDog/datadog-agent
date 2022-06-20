@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -154,8 +155,13 @@ func (m *Module) Start() error {
 
 	var policyProviders []rules.PolicyProvider
 
+	agentVersion, err := utils.GetAgentSemverVersion()
+	if err != nil {
+		log.Errorf("failed to parse agent version: %v", err)
+	}
+
 	// directory policy provider
-	if provider, err := rules.NewPoliciesDirProvider(m.config.PoliciesDir, m.config.WatchPoliciesDir); err != nil {
+	if provider, err := rules.NewPoliciesDirProvider(m.config.PoliciesDir, m.config.WatchPoliciesDir, agentVersion); err != nil {
 		log.Errorf("failed to load policies: %s", err)
 	} else {
 		policyProviders = append(policyProviders, provider)
@@ -163,7 +169,7 @@ func (m *Module) Start() error {
 
 	// add remote config as config provider if enabled
 	if m.config.RemoteConfigurationEnabled {
-		rcPolicyProvider, err := rconfig.NewRCPolicyProvider("security-agent")
+		rcPolicyProvider, err := rconfig.NewRCPolicyProvider("security-agent", agentVersion)
 		if err != nil {
 			log.Errorf("will be unable to load remote policy: %s", err)
 		} else {

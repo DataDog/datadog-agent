@@ -68,15 +68,16 @@ var ruleIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_]*$`)
 
 // RuleDefinition holds the definition of a rule
 type RuleDefinition struct {
-	ID          RuleID             `yaml:"id"`
-	Version     string             `yaml:"version"`
-	Expression  string             `yaml:"expression"`
-	Description string             `yaml:"description"`
-	Tags        map[string]string  `yaml:"tags"`
-	Disabled    bool               `yaml:"disabled"`
-	Combine     CombinePolicy      `yaml:"combine"`
-	Actions     []ActionDefinition `yaml:"actions"`
-	Policy      *Policy
+	ID                     RuleID             `yaml:"id"`
+	Version                string             `yaml:"version"`
+	Expression             string             `yaml:"expression"`
+	Description            string             `yaml:"description"`
+	Tags                   map[string]string  `yaml:"tags"`
+	AgentVersionConstraint string             `yaml:"agent_version"`
+	Disabled               bool               `yaml:"disabled"`
+	Combine                CombinePolicy      `yaml:"combine"`
+	Actions                []ActionDefinition `yaml:"actions"`
+	Policy                 *Policy
 }
 
 func checkRuleID(ruleID string) bool {

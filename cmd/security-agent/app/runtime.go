@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -548,7 +549,12 @@ func checkPoliciesInner(dir string) error {
 	model := &model.Model{}
 	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts)
 
-	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false)
+	agentVersion, err := utils.GetAgentSemverVersion()
+	if err != nil {
+		return err
+	}
+
+	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false, agentVersion)
 	if err != nil {
 		return err
 	}
