@@ -13,8 +13,11 @@ import (
 )
 
 const (
+	// Exec TODO <processes>
 	Exec = "exec"
+	// Fork TODO <processes>
 	Fork = "fork"
+	// Exit TODO <processes>
 	Exit = "exit"
 )
 
