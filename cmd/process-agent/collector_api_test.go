@@ -218,7 +218,7 @@ func TestSendProcessEventMessage(t *testing.T) {
 
 		agentVersion, err := version.Agent()
 		require.NoError(t, err)
-		assert.Equal(t, agentVersion.String(), req.headers.Get(headers.ProcessVersionHeader))
+		assert.Equal(t, agentVersion.GetNumber(), req.headers.Get(headers.ProcessVersionHeader))
 
 		reqBody, err := process.DecodeMessage(req.body)
 		require.NoError(t, err)
