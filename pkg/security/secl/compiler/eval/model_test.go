@@ -400,23 +400,23 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 			},
 			Field: field,
 			OpOverrides: &OpOverrides{
-				StringValuesContains: func(a *StringEvaluator, b *StringValuesEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
+				StringValuesContains: func(a *StringEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
 						EvalFnc: func(ctx *Context) *StringValues {
 							return (*testEvent)(ctx.Object).process.orNameValues()
 						},
 					}
 
-					return StringValuesContains(a, &evaluator, replCtx, state)
+					return StringValuesContains(a, &evaluator, state)
 				},
-				StringEquals: func(a *StringEvaluator, b *StringEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
+				StringEquals: func(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
 						EvalFnc: func(ctx *Context) *StringValues {
 							return (*testEvent)(ctx.Object).process.orNameValues()
 						},
 					}
 
-					return StringValuesContains(a, &evaluator, replCtx, state)
+					return StringValuesContains(a, &evaluator, state)
 				},
 			},
 		}, nil
@@ -435,23 +435,23 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 			},
 			Field: field,
 			OpOverrides: &OpOverrides{
-				StringArrayContains: func(a *StringEvaluator, b *StringArrayEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
+				StringArrayContains: func(a *StringEvaluator, b *StringArrayEvaluator, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
 						EvalFnc: func(ctx *Context) *StringValues {
 							return (*testEvent)(ctx.Object).process.orArrayValues()
 						},
 					}
 
-					return StringArrayMatches(b, &evaluator, replCtx, state)
+					return StringArrayMatches(b, &evaluator, state)
 				},
-				StringArrayMatches: func(a *StringArrayEvaluator, b *StringValuesEvaluator, replCtx ReplacementContext, state *State) (*BoolEvaluator, error) {
+				StringArrayMatches: func(a *StringArrayEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
 						EvalFnc: func(ctx *Context) *StringValues {
 							return (*testEvent)(ctx.Object).process.orArrayValues()
 						},
 					}
 
-					return StringArrayMatches(a, &evaluator, replCtx, state)
+					return StringArrayMatches(a, &evaluator, state)
 				},
 			},
 		}, nil

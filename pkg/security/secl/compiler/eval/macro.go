@@ -98,18 +98,18 @@ func macroToEvaluator(macro *ast.Macro, model Model, replCtx ReplacementContext,
 	for id, macro := range replCtx.Macros {
 		macros[id] = macro.evaluator
 	}
-	state := NewState(model, field, macros)
+	state := NewState(model, field, macros, replCtx)
 
 	var eval interface{}
 	var err error
 
 	switch {
 	case macro.Expression != nil:
-		eval, _, err = nodeToEvaluator(macro.Expression, replCtx, state)
+		eval, _, err = nodeToEvaluator(macro.Expression, state)
 	case macro.Array != nil:
-		eval, _, err = nodeToEvaluator(macro.Array, replCtx, state)
+		eval, _, err = nodeToEvaluator(macro.Array, state)
 	case macro.Primary != nil:
-		eval, _, err = nodeToEvaluator(macro.Primary, replCtx, state)
+		eval, _, err = nodeToEvaluator(macro.Primary, state)
 	}
 
 	if err != nil {

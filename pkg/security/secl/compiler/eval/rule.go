@@ -137,9 +137,9 @@ func ruleToEvaluator(rule *ast.Rule, model Model, replCtx ReplacementContext) (*
 	for id, macro := range replCtx.Macros {
 		macros[id] = macro.evaluator
 	}
-	state := NewState(model, "", macros)
+	state := NewState(model, "", macros, replCtx)
 
-	eval, _, err := nodeToEvaluator(rule.BooleanExpression, replCtx, state)
+	eval, _, err := nodeToEvaluator(rule.BooleanExpression, state)
 	if err != nil {
 		return nil, err
 	}
@@ -231,8 +231,8 @@ func (r *Rule) GenPartials() error {
 	}
 
 	for _, field := range r.GetFields() {
-		state := NewState(r.Model, field, macroPartials[field])
-		pEval, _, err := nodeToEvaluator(r.ast.BooleanExpression, r.ReplacementCtx, state)
+		state := NewState(r.Model, field, macroPartials[field], r.ReplacementCtx)
+		pEval, _, err := nodeToEvaluator(r.ast.BooleanExpression, state)
 		if err != nil {
 			return errors.Wrapf(err, "couldn't generate partial for field %s and rule %s", field, r.ID)
 		}
