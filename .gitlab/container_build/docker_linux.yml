@@ -192,8 +192,6 @@ docker_build_cluster_agent_arm64:
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
-  before_script:
-    - cp -Rvf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
 
 # build the dogstatsd image
 docker_build_dogstatsd_amd64:
