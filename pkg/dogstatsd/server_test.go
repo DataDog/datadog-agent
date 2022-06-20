@@ -592,6 +592,8 @@ func TestDebugStatsSpike(t *testing.T) {
 
 	// stop the debug loop to avoid data race
 	s.DisableMetricsStats()
+	time.Sleep(1 * time.Millisecond)
+
 	assert.Eventually(s.hasSpike, 10*time.Millisecond, 2*time.Millisecond)
 
 	s.EnableMetricsStats()
@@ -606,6 +608,7 @@ func TestDebugStatsSpike(t *testing.T) {
 
 	// stop the debug loop to avoid data race
 	s.DisableMetricsStats()
+	time.Sleep(1 * time.Millisecond)
 
 	hasNoSpike := func() bool {
 		return !s.hasSpike()
