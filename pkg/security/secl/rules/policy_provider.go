@@ -9,6 +9,8 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
+// DefaultPolicyName is the name of the default policy
+// the default policy has a slightly privileged position when loading the rules
 const DefaultPolicyName = "default.policy"
 
 // PolicyProvider defines a rule provider
