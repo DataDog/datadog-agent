@@ -1061,6 +1061,13 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("serverless.trace_enabled", false, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", false, "DD_TRACE_MANAGED_SERVICES")
 
+	// trace-agent's evp_proxy
+	config.BindEnv("evp_proxy_config.enabled")
+	config.BindEnv("evp_proxy_config.dd_url")
+	config.BindEnv("evp_proxy_config.api_key")
+	config.BindEnv("evp_proxy_config.additional_endpoints")
+	config.BindEnv("evp_proxy_config.max_payload_size")
+
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
 
