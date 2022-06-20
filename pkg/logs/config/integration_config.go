@@ -97,7 +97,7 @@ func (c *LogsConfig) Dump(multiline bool) string {
 		return " " + fmt
 	}
 
-	fmt.Fprintf(&b, ws("&LogsConfig{"))
+	fmt.Fprint(&b, ws("&LogsConfig{"))
 	fmt.Fprintf(&b, ws("Type: %#v,"), c.Type)
 	switch c.Type {
 	case TCPType:
@@ -141,7 +141,7 @@ func (c *LogsConfig) Dump(multiline bool) string {
 	if c.AutoMultiLine != nil {
 		fmt.Fprintf(&b, ws("AutoMultiLine: %t,"), *c.AutoMultiLine)
 	} else {
-		fmt.Fprintf(&b, ws("AutoMultiLine: nil,"))
+		fmt.Fprint(&b, ws("AutoMultiLine: nil,"))
 	}
 	fmt.Fprintf(&b, ws("AutoMultiLineSampleSize: %d,"), c.AutoMultiLineSampleSize)
 	fmt.Fprintf(&b, ws("AutoMultiLineMatchThreshold: %f}"), c.AutoMultiLineMatchThreshold)

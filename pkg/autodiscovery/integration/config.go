@@ -437,16 +437,16 @@ func (c *Config) Dump(multiline bool) string {
 		return " " + fmt
 	}
 
-	fmt.Fprintf(&b, "integration.Config = {")
+	fmt.Fprint(&b, "integration.Config = {")
 	fmt.Fprintf(&b, ws("Name: %#v,"), c.Name)
 	if c.Instances == nil {
-		fmt.Fprintf(&b, ws("Instances: nil,"))
+		fmt.Fprint(&b, ws("Instances: nil,"))
 	} else {
-		fmt.Fprintf(&b, ws("Instances: {"))
+		fmt.Fprint(&b, ws("Instances: {"))
 		for _, inst := range c.Instances {
 			fmt.Fprintf(&b, ws("%s,"), dataField(inst))
 		}
-		fmt.Fprintf(&b, ws("}"))
+		fmt.Fprint(&b, ws("}"))
 	}
 	fmt.Fprintf(&b, ws("InitConfig: %s,"), dataField(c.InitConfig))
 	fmt.Fprintf(&b, ws("MetricConfig: %s,"), dataField(c.MetricConfig))
