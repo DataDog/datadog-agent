@@ -23,6 +23,7 @@ import (
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,6 +41,19 @@ func setProcessEndpointsForTest(config ddconfig.Config, eps ...apicfg.Endpoint) 
 		}
 	}
 	config.Set("process_config.additional_endpoints", additionalEps)
+}
+
+func setProcessEventsEndpointsForTest(config ddconfig.Config, eps ...apicfg.Endpoint) {
+	additionalEps := make(map[string][]string)
+	for i, ep := range eps {
+		if i == 0 {
+			config.Set("api_key", ep.APIKey)
+			config.Set("process_config.events_dd_url", ep.Endpoint)
+		} else {
+			additionalEps[ep.Endpoint.String()] = append(additionalEps[ep.Endpoint.String()], ep.APIKey)
+		}
+	}
+	config.Set("process_config.events_additional_endpoints", additionalEps)
 }
 
 func TestSendConnectionsMessage(t *testing.T) {
@@ -62,6 +76,10 @@ func TestSendConnectionsMessage(t *testing.T) {
 		apiEps, err := getAPIEndpoints()
 		assert.NoError(t, err)
 		assert.Equal(t, apiEps[0].APIKey, req.headers.Get("DD-Api-Key"))
+
+		// process-events specific headers should not be set
+		assert.Equal(t, "", req.headers.Get(headers.EVPOriginHeader))
+		assert.Equal(t, "", req.headers.Get(headers.EVPOriginVersionHeader))
 
 		reqBody, err := process.DecodeMessage(req.body)
 		require.NoError(t, err)
@@ -99,6 +117,10 @@ func TestSendContainerMessage(t *testing.T) {
 		assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
 		assert.Equal(t, "1", req.headers.Get(headers.ContainerCountHeader))
 
+		// process-events specific headers should not be set
+		assert.Equal(t, "", req.headers.Get(headers.EVPOriginHeader))
+		assert.Equal(t, "", req.headers.Get(headers.EVPOriginVersionHeader))
+
 		reqBody, err := process.DecodeMessage(req.body)
 		require.NoError(t, err)
 
@@ -133,6 +155,10 @@ func TestSendProcMessage(t *testing.T) {
 		assert.Equal(t, "1", req.headers.Get(headers.ContainerCountHeader))
 		assert.Equal(t, "1", req.headers.Get("X-DD-Agent-Attempts"))
 		assert.NotEmpty(t, req.headers.Get(headers.TimestampHeader))
+
+		// process-events specific headers should not be set
+		assert.Equal(t, "", req.headers.Get(headers.EVPOriginHeader))
+		assert.Equal(t, "", req.headers.Get(headers.EVPOriginVersionHeader))
 
 		reqBody, err := process.DecodeMessage(req.body)
 		require.NoError(t, err)
@@ -169,6 +195,10 @@ func TestSendProcessDiscoveryMessage(t *testing.T) {
 		assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
 		assert.Equal(t, "1", req.headers.Get("X-DD-Agent-Attempts"))
 		assert.NotEmpty(t, req.headers.Get(headers.TimestampHeader))
+
+		// process-events specific headers should not be set
+		assert.Equal(t, "", req.headers.Get(headers.EVPOriginHeader))
+		assert.Equal(t, "", req.headers.Get(headers.EVPOriginVersionHeader))
 
 		reqBody, err := process.DecodeMessage(req.body)
 		require.NoError(t, err)
@@ -208,7 +238,7 @@ func TestSendProcessEventMessage(t *testing.T) {
 		assert.Equal(t, "/api/v2/proclcycle", req.uri)
 
 		assert.Equal(t, cfg.HostName, req.headers.Get(headers.HostHeader))
-		eps, err := getAPIEndpoints()
+		eps, err := getEventsAPIEndpoints()
 		assert.NoError(t, err)
 		assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
 		assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
@@ -220,12 +250,15 @@ func TestSendProcessEventMessage(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, agentVersion.GetNumber(), req.headers.Get(headers.ProcessVersionHeader))
 
-		reqBody, err := process.DecodeMessage(req.body)
-		require.NoError(t, err)
+		// Check events-specific headers
+		assert.Equal(t, "process-agent", req.headers.Get(headers.EVPOriginHeader))
+		assert.Equal(t, version.AgentVersion, req.headers.Get(headers.EVPOriginVersionHeader))
 
-		b, ok := reqBody.Body.(*process.CollectorProcEvent)
-		require.True(t, ok)
-		assert.Equal(t, m, b)
+		// ProcessEvents payloads are encoded as plain protobuf
+		msg := &process.CollectorProcEvent{}
+		err = proto.Unmarshal(req.body, msg)
+		require.NoError(t, err)
+		assert.Equal(t, m, msg)
 	})
 }
 
@@ -442,7 +475,7 @@ func runCollectorTest(t *testing.T, check checks.Check, cfg *config.AgentConfig,
 
 func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, cfg *config.AgentConfig, epConfig *endpointConfig, apiKeys, orchAPIKeys []string, mockConfig ddconfig.Config, tc func(cfg *config.AgentConfig, ep *mockEndpoint)) {
 	ep := newMockEndpoint(t, epConfig)
-	collectorAddr, orchestratorAddr := ep.start()
+	collectorAddr, eventsAddr, orchestratorAddr := ep.start()
 	defer ep.stop()
 
 	var eps []apicfg.Endpoint
@@ -450,6 +483,12 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, cfg *config.A
 		eps = append(eps, apicfg.Endpoint{APIKey: key, Endpoint: collectorAddr})
 	}
 	setProcessEndpointsForTest(mockConfig, eps...)
+
+	var eventsEps []apicfg.Endpoint
+	for _, key := range apiKeys {
+		eventsEps = append(eventsEps, apicfg.Endpoint{APIKey: key, Endpoint: eventsAddr})
+	}
+	setProcessEventsEndpointsForTest(mockConfig, eventsEps...)
 
 	cfg.Orchestrator.OrchestratorEndpoints = make([]apicfg.Endpoint, len(orchAPIKeys))
 	for index, key := range orchAPIKeys {
@@ -519,6 +558,7 @@ type endpointConfig struct {
 type mockEndpoint struct {
 	t                  *testing.T
 	collectorServer    *http.Server
+	eventsServer       *http.Server
 	orchestratorServer *http.Server
 	stopper            sync.WaitGroup
 	Requests           chan request
@@ -539,20 +579,23 @@ func newMockEndpoint(t *testing.T, config *endpointConfig) *mockEndpoint {
 	collectorMux.HandleFunc("/api/v1/collector", m.handle)
 	collectorMux.HandleFunc("/api/v1/container", m.handle)
 	collectorMux.HandleFunc("/api/v1/discovery", m.handle)
-	collectorMux.HandleFunc("/api/v2/proclcycle", m.handle)
+
+	eventsMux := http.NewServeMux()
+	eventsMux.HandleFunc("/api/v2/proclcycle", m.handleEvents)
 
 	orchestratorMux := http.NewServeMux()
 	orchestratorMux.HandleFunc("/api/v1/validate", m.handleValidate)
 	orchestratorMux.HandleFunc("/api/v2/orch", m.handle)
 
 	m.collectorServer = &http.Server{Addr: ":", Handler: collectorMux}
+	m.eventsServer = &http.Server{Addr: ":", Handler: eventsMux}
 	m.orchestratorServer = &http.Server{Addr: ":", Handler: orchestratorMux}
 
 	return m
 }
 
 // start starts the http endpoints and returns (collector server url, orchestrator server url)
-func (m *mockEndpoint) start() (*url.URL, *url.URL) {
+func (m *mockEndpoint) start() (*url.URL, *url.URL, *url.URL) {
 	addrC := make(chan net.Addr, 1)
 
 	m.stopper.Add(1)
@@ -578,6 +621,20 @@ func (m *mockEndpoint) start() (*url.URL, *url.URL) {
 
 		addrC <- listener.Addr()
 
+		_ = m.eventsServer.Serve(listener)
+	}()
+
+	eventsAddr := <-addrC
+
+	m.stopper.Add(1)
+	go func() {
+		defer m.stopper.Done()
+
+		listener, err := net.Listen("tcp", ":")
+		require.NoError(m.t, err)
+
+		addrC <- listener.Addr()
+
 		_ = m.orchestratorServer.Serve(listener)
 	}()
 
@@ -588,14 +645,20 @@ func (m *mockEndpoint) start() (*url.URL, *url.URL) {
 	collectorEndpoint, err := url.Parse(fmt.Sprintf("http://%s", collectorAddr.String()))
 	require.NoError(m.t, err)
 
+	eventsEndpoint, err := url.Parse(fmt.Sprintf("http://%s", eventsAddr.String()))
+	require.NoError(m.t, err)
+
 	orchestratorEndpoint, err := url.Parse(fmt.Sprintf("http://%s", orchestratorAddr.String()))
 	require.NoError(m.t, err)
 
-	return collectorEndpoint, orchestratorEndpoint
+	return collectorEndpoint, eventsEndpoint, orchestratorEndpoint
 }
 
 func (m *mockEndpoint) stop() {
 	err := m.collectorServer.Close()
+	require.NoError(m.t, err)
+
+	err = m.eventsServer.Close()
 	require.NoError(m.t, err)
 
 	err = m.orchestratorServer.Close()
@@ -649,5 +712,27 @@ func (m *mockEndpoint) handle(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 
 	_, err = w.Write(out)
+	require.NoError(m.t, err)
+}
+
+func (m *mockEndpoint) handleEvents(w http.ResponseWriter, req *http.Request) {
+	body, err := ioutil.ReadAll(req.Body)
+	require.NoError(m.t, err)
+
+	err = req.Body.Close()
+	require.NoError(m.t, err)
+
+	m.Requests <- request{headers: req.Header, body: body, uri: req.RequestURI}
+
+	if m.errorCount != m.errorsSent {
+		w.WriteHeader(http.StatusInternalServerError)
+		m.errorsSent++
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+
+	// process-events endpoint returns an empty body for valid posted payloads
+	_, err = w.Write([]byte{})
 	require.NoError(m.t, err)
 }

@@ -7,6 +7,7 @@ package api
 
 import (
 	"fmt"
+	"github.com/gogo/protobuf/proto"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -29,12 +30,17 @@ func EncodePayload(m model.MessageBody) ([]byte, error) {
 	typeTag := "type:" + msgType.String()
 	tlmBytesIn.Add(float64(m.Size()), typeTag)
 
-	encoded, err := model.EncodeMessage(model.Message{
-		Header: model.MessageHeader{
-			Version:  model.MessageV3,
-			Encoding: model.MessageEncodingZstdPB,
-			Type:     msgType,
-		}, Body: m})
+	var encoded []byte
+	if msgType == model.TypeCollectorProcEvent {
+		encoded, err = proto.Marshal(m)
+	} else {
+		encoded, err = model.EncodeMessage(model.Message{
+			Header: model.MessageHeader{
+				Version:  model.MessageV3,
+				Encoding: model.MessageEncodingZstdPB,
+				Type:     msgType,
+			}, Body: m})
+	}
 
 	tlmBytesOut.Add(float64(len(encoded)), typeTag)
 

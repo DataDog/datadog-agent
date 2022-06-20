@@ -325,3 +325,23 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 		})
 	}
 }
+
+func TestSkipResponseBody(t *testing.T) {
+	for _, tc := range []struct {
+		checkName string
+		skip      bool
+	}{
+		{checkName: checks.Process.Name(), skip: false},
+		{checkName: checks.Process.RealTimeName(), skip: false},
+		{checkName: checks.ProcessDiscovery.Name(), skip: false},
+		{checkName: checks.Container.Name(), skip: false},
+		{checkName: checks.RTContainer.Name(), skip: false},
+		{checkName: checks.Pod.Name(), skip: true},
+		{checkName: checks.Connections.Name(), skip: false},
+		{checkName: checks.ProcessEvents.Name(), skip: true},
+	} {
+		t.Run(tc.checkName, func(t *testing.T) {
+			assert.Equal(t, tc.skip, skipBodyDecoding(tc.checkName))
+		})
+	}
+}
