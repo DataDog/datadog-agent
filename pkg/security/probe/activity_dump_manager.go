@@ -34,16 +34,12 @@ func getCgroupDumpTimeout(p *Probe) uint64 {
 // ActivityDumpManager is used to manage ActivityDumps
 type ActivityDumpManager struct {
 	sync.RWMutex
-	cleanupPeriod        time.Duration
-	tagsResolutionPeriod time.Duration
-	probe                *Probe
-	tracedPIDsMap        *ebpf.Map
-	tracedCommsMap       *ebpf.Map
-	tracedEventTypesMap  *ebpf.Map
-	tracedCgroupsMap     *ebpf.Map
-	cgroupWaitListMap    *ebpf.Map
-	tracedEventTypes     []model.EventType
-	outputDirectory      string
+	probe               *Probe
+	tracedPIDsMap       *ebpf.Map
+	tracedCommsMap      *ebpf.Map
+	tracedEventTypesMap *ebpf.Map
+	tracedCgroupsMap    *ebpf.Map
+	cgroupWaitListMap   *ebpf.Map
 
 	activeDumps   []*ActivityDump
 	snapshotQueue chan *ActivityDump
@@ -56,10 +52,10 @@ func (adm *ActivityDumpManager) Start(ctx context.Context, wg *sync.WaitGroup) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	ticker := time.NewTicker(adm.cleanupPeriod)
+	ticker := time.NewTicker(adm.probe.config.ActivityDumpCleanupPeriod)
 	defer ticker.Stop()
 
-	tagsTicker := time.NewTicker(adm.tagsResolutionPeriod)
+	tagsTicker := time.NewTicker(adm.probe.config.ActivityDumpTagsResolutionPeriod)
 	defer tagsTicker.Stop()
 
 	for {
@@ -151,17 +147,13 @@ func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 	}
 
 	return &ActivityDumpManager{
-		probe:                p,
-		tracedPIDsMap:        tracedPIDs,
-		tracedCommsMap:       tracedComms,
-		tracedEventTypesMap:  tracedEventTypesMap,
-		tracedCgroupsMap:     tracedCgroupsMap,
-		tracedEventTypes:     p.config.ActivityDumpTracedEventTypes,
-		cgroupWaitListMap:    cgroupWaitList,
-		cleanupPeriod:        p.config.ActivityDumpCleanupPeriod,
-		tagsResolutionPeriod: p.config.ActivityDumpTagsResolutionPeriod,
-		snapshotQueue:        make(chan *ActivityDump, 100),
-		outputDirectory:      p.config.ActivityDumpCgroupOutputDirectory,
+		probe:               p,
+		tracedPIDsMap:       tracedPIDs,
+		tracedCommsMap:      tracedComms,
+		tracedEventTypesMap: tracedEventTypesMap,
+		tracedCgroupsMap:    tracedCgroupsMap,
+		cgroupWaitListMap:   cgroupWaitList,
+		snapshotQueue:       make(chan *ActivityDump, 100),
 	}, nil
 }
 
@@ -236,9 +228,9 @@ func (adm *ActivityDumpManager) HandleCgroupTracingEvent(event *model.CgroupTrac
 	newDump, err := NewActivityDump(adm, func(ad *ActivityDump) {
 		ad.ContainerID = event.ContainerContext.ID
 		ad.Timeout = adm.probe.resolvers.TimeResolver.ResolveMonotonicTimestamp(event.TimeoutRaw).Sub(time.Now())
-		ad.DifferentiateArgs = true
-		ad.WithGraph = true
-		ad.OutputDirectory = adm.outputDirectory
+		ad.DifferentiateArgs = adm.probe.config.ActivityDumpCgroupDifferentiateGraphs
+		ad.WithGraph = adm.probe.config.ActivityDumpCgroupGenerateGraph
+		ad.OutputDirectory = adm.probe.config.ActivityDumpCgroupOutputDirectory
 		ad.OutputFormat = MSGP
 	})
 	if err != nil {

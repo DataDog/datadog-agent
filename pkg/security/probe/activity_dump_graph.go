@@ -15,16 +15,24 @@ import (
 	"text/template"
 
 	"github.com/tinylib/msgp/msgp"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 var (
 	processColor         = "#8fbbff"
 	processRuntimeColor  = "#edf3ff"
 	processSnapshotColor = "white"
+	processShape         = "record"
 
 	fileColor         = "#77bf77"
 	fileRuntimeColor  = "#e9f3e7"
 	fileSnapshotColor = "white"
+	fileShape         = "record"
+
+	dnsColor        = "#ff9800"
+	dnsRuntimeColor = "#ffebcd"
+	dnsShape        = "record"
 )
 
 type node struct {
@@ -33,6 +41,7 @@ type node struct {
 	Size      int
 	Color     string
 	FillColor string
+	Shape     string
 }
 
 type edge struct {
@@ -61,7 +70,7 @@ func (ad *ActivityDump) generateGraph() error {
 		edge [penwidth=2]
 
 		{{ range .Nodes }}
-		{{ .ID }} [label="{{ .Label }}", fontsize={{ .Size }}, shape=record, fontname = "arial", color="{{ .Color }}", fillcolor="{{ .FillColor }}", style="filled"]{{ end }}
+		{{ .ID }} [label="{{ .Label }}", fontsize={{ .Size }}, shape={{ .Shape }}, fontname = "arial", color="{{ .Color }}", fillcolor="{{ .FillColor }}", style="filled"]{{ end }}
 
 		{{ range .Edges }}
 		{{ .Link }} [arrowhead=none, color="{{ .Color }}"]
@@ -100,6 +109,7 @@ func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data 
 		Label: fmt.Sprintf("%s %s", p.Process.FileEvent.PathnameStr, args),
 		Size:  60,
 		Color: processColor,
+		Shape: processShape,
 	}
 	switch p.GenerationType {
 	case Runtime:
@@ -109,6 +119,13 @@ func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data 
 	}
 	data.Nodes[p.GetID()] = pan
 
+	for _, n := range p.DNSNames {
+		data.Edges = append(data.Edges, edge{
+			Link:  p.GetID() + " -> " + p.GetID() + n.GetID(),
+			Color: dnsColor,
+		})
+		ad.prepareDNSNode(n, data, p.GetID())
+	}
 	for _, f := range p.Files {
 		data.Edges = append(data.Edges, edge{
 			Link:  p.GetID() + " -> " + p.GetID() + f.GetID(),
@@ -125,6 +142,28 @@ func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data 
 	}
 }
 
+func (ad *ActivityDump) prepareDNSNode(n *DNSNode, data *graph, processID string) {
+	if len(n.requests) == 0 {
+		// save guard, this should never happen
+		return
+	}
+	name := n.requests[0].Name + " (" + (model.QType(n.requests[0].Type).String())
+	for _, req := range n.requests[1:] {
+		name += ", " + model.QType(req.Type).String()
+	}
+	name += ")"
+
+	dnsNode := node{
+		ID:        processID + n.GetID(),
+		Label:     name,
+		Size:      30,
+		Color:     dnsColor,
+		FillColor: dnsRuntimeColor,
+		Shape:     dnsShape,
+	}
+	data.Nodes[dnsNode.ID] = dnsNode
+}
+
 func (ad *ActivityDump) prepareFileNode(f *FileActivityNode, data *graph, prefix string, processID string) {
 	mergedID := processID + f.GetID()
 	fn := node{
@@ -132,6 +171,7 @@ func (ad *ActivityDump) prepareFileNode(f *FileActivityNode, data *graph, prefix
 		Label: f.getNodeLabel(),
 		Size:  30,
 		Color: fileColor,
+		Shape: fileShape,
 	}
 	switch f.GenerationType {
 	case Runtime:
