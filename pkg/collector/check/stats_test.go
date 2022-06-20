@@ -7,8 +7,6 @@ package check
 
 import (
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -39,18 +37,6 @@ func newMockCheck() Check {
 		stringVal: "checkString",
 		version:   "checkVersion",
 	}
-}
-
-func getTelemetryData() (string, error) {
-	req, err := http.NewRequest("GET", "/", nil)
-	if err != nil {
-		return "", err
-	}
-
-	rec := httptest.NewRecorder()
-	telemetry.Handler().ServeHTTP(rec, req)
-
-	return rec.Body.String(), nil
 }
 
 func TestNewStats(t *testing.T) {
