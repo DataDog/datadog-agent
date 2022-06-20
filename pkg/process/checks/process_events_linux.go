@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	payload "github.com/DataDog/agent-payload/v5/process"
@@ -28,6 +29,8 @@ var ProcessEvents = &ProcessEventsCheck{}
 
 // ProcessEventsCheck collects process lifecycle events such as exec and exit signals
 type ProcessEventsCheck struct {
+	initMutex sync.Mutex
+
 	store    events.Store
 	listener *events.SysProbeListener
 	sysInfo  *payload.SystemInfo
@@ -37,6 +40,14 @@ type ProcessEventsCheck struct {
 
 // Init initializes the ProcessEventsCheck.
 func (e *ProcessEventsCheck) Init(_ *config.AgentConfig, info *payload.SystemInfo) {
+	e.initMutex.Lock()
+	defer e.initMutex.Unlock()
+
+	if e.store != nil || e.listener != nil {
+		log.Error("process_events check has already been initialized")
+		return
+	}
+
 	log.Info("Initializing process_events check")
 	e.sysInfo = info
 	e.maxBatchSize = getMaxBatchSize()

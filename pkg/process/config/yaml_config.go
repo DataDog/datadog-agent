@@ -57,9 +57,10 @@ func (a *AgentConfig) LoadAgentConfig(path string) error {
 	a.CheckIntervals[DiscoveryCheckName] = discoveryInterval
 
 	eventsInterval := config.Datadog.GetDuration("process_config.event_collection.interval")
-	if eventsInterval <= 0 {
+	if eventsInterval < config.DefaultProcessEventsMinCheckInterval {
 		eventsInterval = config.DefaultProcessEventsCheckInterval
-		_ = log.Warnf("Invalid interval for process_events check (<=0) using default value of %s", config.DefaultProcessEventsCheckInterval.String())
+		_ = log.Warnf("Invalid interval for process_events check (<=%s) using default value of %s",
+			config.DefaultProcessEventsMinCheckInterval.String(), config.DefaultProcessEventsCheckInterval.String())
 	}
 	a.CheckIntervals[ProcessEventsCheckName] = eventsInterval
 

@@ -58,6 +58,9 @@ const (
 	// DefaultProcessEventStoreStatsInterval is the default frequency at which the event store sends stats about expired events, in seconds
 	DefaultProcessEventStoreStatsInterval = 20
 
+	// DefaultProcessEventsMinCheckInterval is the minimum interval allowed for the process_events check
+	DefaultProcessEventsMinCheckInterval = time.Second
+
 	// DefaultProcessEventsCheckInterval is the default interval used by the process_events check
 	DefaultProcessEventsCheckInterval = 10 * time.Second
 )
