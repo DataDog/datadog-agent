@@ -376,11 +376,7 @@ SEC("kprobe/do_sys_open")
 int kprobe__do_sys_open(struct pt_regs* ctx) {
     char *path_argument = (char *)PT_REGS_PARM2(ctx);
     lib_path_t path = {0};
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
-    bpf_probe_read_user(path.buf, sizeof(path.buf), path_argument);
-#else
-    bpf_probe_read(path.buf, sizeof(path.buf), path_argument);
-#endif
+    bpf_probe_read_from_user(path.buf, sizeof(path.buf), path_argument);
     // Find the null character and clean up the garbage following it
 #pragma unroll
     for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
