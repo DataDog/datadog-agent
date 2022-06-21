@@ -32,7 +32,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:          5003,
 				TracesEnabled:      true,
 				Debug: map[string]interface{}{
-					"log_level": "disabled",
+					"logLevel": "disabled",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -83,7 +83,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"log_level": "disabled",
+					"logLevel": "disabled",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -139,7 +139,7 @@ func TestNewMap(t *testing.T) {
 			},
 		},
 		{
-			name: "only HTTP, metrics and traces, invalid log_level(ignored)",
+			name: "only HTTP, metrics and traces, invalid logLevel(ignored)",
 			pcfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
 				TracePort:          5003,
@@ -156,7 +156,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"log_level": "foo",
+					"logLevel": "foo",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -218,7 +218,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:          5003,
 				TracesEnabled:      true,
 				Debug: map[string]interface{}{
-					"log_level": "disabled",
+					"logLevel": "disabled",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -271,7 +271,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"log_level": "disabled",
+					"logLevel": "disabled",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -322,7 +322,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:          5003,
 				TracesEnabled:      true,
 				Debug: map[string]interface{}{
-					"log_level": "info",
+					"logLevel": "info",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -374,7 +374,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"log_level": "debug",
+					"logLevel": "debug",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -437,7 +437,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"log_level": "warn",
+					"logLevel": "warn",
 				},
 			},
 			ocfg: map[string]interface{}{

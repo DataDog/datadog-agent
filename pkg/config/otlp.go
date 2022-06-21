@@ -19,7 +19,7 @@ const (
 	OTLPTagCardinalityKey     = OTLPMetrics + ".tag_cardinality"
 	OTLPDebugKey              = "debug"
 	OTLPDebug                 = OTLPSection + "." + OTLPDebugKey
-	OTLPDebugLogLevel         = OTLPDebug + ".log_level"
+	OTLPDebugLogLevel         = OTLPDebug + ".logLevel"
 )
 
 // Following consts define log level of the logging exporter.
@@ -100,5 +100,5 @@ func setupOTLPEnvironmentVariables(config Config) {
 	config.BindEnv(OTLPSection + ".metrics.summaries.mode")
 
 	// Debug setting
-	config.BindEnv(OTLPSection + ".debug.log_level")
+	config.BindEnv(OTLPSection + ".debug.logLevel")
 }

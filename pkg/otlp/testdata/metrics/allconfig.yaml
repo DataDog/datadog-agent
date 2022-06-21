@@ -15,4 +15,4 @@ otlp_config:
       mode: counters
       send_count_sum_metrics: true
   debug:
-    log_level: debug
+    logLevel: debug

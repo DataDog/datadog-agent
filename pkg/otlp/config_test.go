@@ -62,7 +62,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"tag_cardinality": "low",
 				},
 				Debug: map[string]interface{}{
-					"log_level": "info",
+					"logLevel": "info",
 				},
 			},
 		},
@@ -83,7 +83,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"tag_cardinality": "low",
 				},
 				Debug: map[string]interface{}{
-					"log_level": "info",
+					"logLevel": "info",
 				},
 			},
 		},
@@ -104,7 +104,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"tag_cardinality": "low",
 				},
 				Debug: map[string]interface{}{
-					"log_level": "info",
+					"logLevel": "info",
 				},
 			},
 		},
@@ -140,7 +140,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"tag_cardinality": "low",
 				},
 				Debug: map[string]interface{}{
-					"log_level": "info",
+					"logLevel": "info",
 				},
 			},
 		},
@@ -188,7 +188,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"tag_cardinality": "low",
 				},
 				Debug: map[string]interface{}{
-					"log_level": "info",
+					"logLevel": "info",
 				},
 			},
 		},
@@ -217,7 +217,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"tag_cardinality": "low",
 				},
 				Debug: map[string]interface{}{
-					"log_level": "info",
+					"logLevel": "info",
 				},
 			},
 		},
@@ -254,7 +254,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"log_level": "info",
+					"logLevel": "info",
 				},
 			},
 		},
@@ -262,7 +262,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 			name: "only gRPC, disabled logging",
 			env: map[string]string{
 				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT": "0.0.0.0:9999",
-				"DD_OTLP_CONFIG_DEBUG_LOG_LEVEL":                  "disabled",
+				"DD_OTLP_CONFIG_DEBUG_LOGLEVEL":                  "disabled",
 			},
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{
@@ -280,7 +280,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"tag_cardinality": "low",
 				},
 				Debug: map[string]interface{}{
-					"log_level": "disabled",
+					"logLevel": "disabled",
 				},
 			},
 		},
@@ -328,7 +328,7 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"log_level": "debug",
+					"logLevel": "debug",
 				},
 			},
 		},

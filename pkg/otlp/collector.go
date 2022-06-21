@@ -104,10 +104,10 @@ type PipelineConfig struct {
 	Metrics map[string]interface{}
 }
 
-// DebugLogEnabled returns whether debug logging is enabled. If invalid log_level value is set,
+// DebugLogEnabled returns whether debug logging is enabled. If invalid logLevel value is set,
 // it assume debug logging is disabled.
 func (p *PipelineConfig) DebugLogEnabled() bool {
-	if v, ok := p.Debug["log_level"]; ok {
+	if v, ok := p.Debug["logLevel"]; ok {
 		if s, ok := v.(string); ok {
 			_, ok := config.OTLPDebugLogLevelMap[s]
 			if ok {

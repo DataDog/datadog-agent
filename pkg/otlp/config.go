@@ -86,7 +86,7 @@ func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 		MetricsEnabled:     metricsEnabled,
 		TracesEnabled:      tracesEnabled,
 		Metrics:            metricsConfig.ToStringMap(),
-		Debug:              map[string]interface{}{"log_level": cfg.GetString(config.OTLPDebugLogLevel)},
+		Debug:              map[string]interface{}{"logLevel": cfg.GetString(config.OTLPDebugLogLevel)},
 	}, multierr.Combine(errs...)
 }
 
