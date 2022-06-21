@@ -148,7 +148,7 @@ var (
 
 const (
 	// HostEnvironment TODO <agent-security>
-	HostEnvironment   = "host"
+	HostEnvironment = "host"
 	// DockerEnvironment TODO <agent-security>
 	DockerEnvironment = "docker"
 )
