@@ -268,7 +268,13 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 
 	switch ch := tkn.lastChar; {
 	case isLeadingLetter(ch):
-		return tkn.scanIdentifier()
+		if tkn.cfg.DBMS != DBMSPostgres || tkn.lastChar != '@' {
+			// The @ symbol should not be considered part of an identifier in
+			// postgres, so we fallthrough and parse @ as an operator
+			// later on.
+			return tkn.scanIdentifier()
+		}
+		fallthrough
 	case isDigit(ch):
 		return tkn.scanNumber(false)
 	default:
@@ -877,7 +883,7 @@ func (tkn *SQLTokenizer) Position() int {
 }
 
 func isLeadingLetter(ch rune) bool {
-	return unicode.IsLetter(ch) || ch == '_'
+	return unicode.IsLetter(ch) || ch == '_' || ch == '&'
 }
 
 func isLetter(ch rune) bool {
