@@ -385,7 +385,7 @@ SEC("kprobe/do_sys_open")
 int kprobe__do_sys_open(struct pt_regs* ctx) {
     char *path_argument = (char *)PT_REGS_PARM2(ctx);
     lib_path_t path = {0};
-    bpf_probe_read_kernel(path.buf, sizeof(path.buf), path_argument);
+    bpf_probe_read_user(path.buf, sizeof(path.buf), path_argument);
 
     // Find the null character and clean up the garbage following it
 #pragma unroll

@@ -37,6 +37,7 @@ static int (*bpf_map_update_elem)(void* map, void* key, void* value,
     = (void*)BPF_FUNC_map_update_elem;
 static int (*bpf_map_delete_elem)(void* map, void* key) = (void*)BPF_FUNC_map_delete_elem;
 static int (*bpf_probe_read)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read;
+//#define bpf_probe_read(dst, size, unsafe_ptr) __call_explicitly_bpf_probe_read_user_or_bpf_probe_read_kernel_loader_will_fix_the_call
 static unsigned long long (*bpf_ktime_get_ns)(void) = (void*)BPF_FUNC_ktime_get_ns;
 static int (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*)BPF_FUNC_trace_printk;
 static unsigned long long (*bpf_get_smp_processor_id)(void) = (void*)BPF_FUNC_get_smp_processor_id;
@@ -82,17 +83,16 @@ static int (*bpf_probe_read_user_str)(void* dst, int size, void* unsafe_ptr) = (
 static int (*bpf_probe_read_kernel_str)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_kernel_str;
 static int (*bpf_probe_read_user)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_user;
 static int (*bpf_probe_read_kernel)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_kernel;
-#endif
-
-/* bpf_probe_read_from_user is an helper to use bpf_probe_read_user() on kernel >= 5.5.0
- * but will use bpf_probe_read() on older and prebuild build.
- */
-#ifdef DD_PREBUILD
-#define bpf_probe_read_from_user(dst, size, unsafe_ptr) bpf_probe_read(dst, size, unsafe_ptr)
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
-#define bpf_probe_read_from_user(dst, size, unsafe_ptr) bpf_probe_read_user(dst, size, unsafe_ptr)
 #else
-#define bpf_probe_read_from_user(dst, size, unsafe_ptr) bpf_probe_read(dst, size, unsafe_ptr)
+/* cilium/ebpf loader will fixup bpf_probe_read_{user,kernel} call to bpf_probe_read on kernel older than 5.5.0
+   but our runtime compilation would need to do that here as BPF_FUNC_xxx would not be defined in uapi headers
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+static int (*bpf_probe_read_user_str)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_str;
+static int (*bpf_probe_read_kernel_str)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_str;
+#endif
+static int (*bpf_probe_read_user)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read;
+static int (*bpf_probe_read_kernel)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read;
 #endif
 
 #pragma clang diagnostic pop
