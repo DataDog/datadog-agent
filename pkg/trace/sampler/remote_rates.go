@@ -133,8 +133,6 @@ func (r *RemoteRates) updateTPS(tpsTargets map[Signature]apmsampling.TargetTPS) 
 
 // Start runs and adjust rates per signature following remote TPS targets
 func (r *RemoteRates) Start() {
-	// Make sure the remote client is running, if the client is already started
-	// this is a nop so this is fine.
 	r.client.Start()
 	r.client.RegisterAPMUpdate(r.onUpdate)
 }
