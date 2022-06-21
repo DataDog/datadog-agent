@@ -11,6 +11,7 @@ import (
 	"net"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
@@ -134,7 +135,7 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		return nil, errors.New("runtime_security_config.socket must be set")
 	}
 
-	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
+	conn, err := grpc.Dial(socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
 		return net.Dial("unix", url)
 	}))
 	if err != nil {
