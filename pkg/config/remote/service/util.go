@@ -85,7 +85,7 @@ func buildLatestConfigsRequest(hostname string, state uptane.TUFVersions, active
 }
 
 type targetsCustom struct {
-	ClientState json.RawMessage `json:"client_state"`
+	OpaqueBackendState []byte `json:"opaque_backend_state"`
 }
 
 func parseTargetsCustom(rawTargetsCustom []byte) (targetsCustom, error) {
