@@ -8,6 +8,8 @@ package app
 import (
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"log"
@@ -19,9 +21,7 @@ import (
 const (
 	defaultVersion = "1"
 	defaultOID     = "1.3.6.1.2.1.1"
-	defaultHost    = "127.0.0.1"
-	defaultPort    = 1161
-	// defaultAddress = "127.0.0.1:1161"
+	defaultPort    = 161
 
 	// snmp v1 & v2c
 	defaultCommunityString = "public"
@@ -41,10 +41,13 @@ const (
 var (
 	// general
 	snmpVersion string
+	address     string
 	deviceIP    string
 	oid         string
 	port        uint16
-	version_    gosnmp.SnmpVersion
+	value       uint64
+	setVersion  gosnmp.SnmpVersion
+	snmp        gosnmp.GoSNMP
 
 	// v1 & v2c
 	communityString string
@@ -60,9 +63,6 @@ var (
 	retries int
 	timeout int
 
-	results []gosnmp.SnmpPDU
-	snmp    gosnmp.GoSNMP
-
 	// TODO: debugging
 	// pingDevice  bool
 	// checkConfig bool
@@ -72,11 +72,6 @@ var (
 func init() {
 	AgentCmd.AddCommand(snmpwalkCmd)
 	snmpwalkCmd.Flags().StringVarP(&snmpVersion, "snmp-version", "v", defaultVersion, "Specify SNMP version to use")
-
-	// TODO: remove from flags and pass as mandatory args to match the snmpwalk command
-	snmpwalkCmd.Flags().StringVarP(&deviceIP, "ip-address", "i", defaultHost, "Set the host IP address")
-	snmpwalkCmd.Flags().Uint16VarP(&port, "port", "p", defaultPort, "Set the port")
-	snmpwalkCmd.Flags().StringVarP(&oid, "OID", "o", defaultOID, "Set the root OID")
 
 	// snmp v1 or v2c specific
 	snmpwalkCmd.Flags().StringVarP(&communityString, "community-string", "C", defaultCommunityString, "Set the community string for version 1 or 2c")
@@ -96,14 +91,55 @@ func init() {
 	// snmpwalkCmd.Flags().BoolVarP(&pingDevice, "ping", "P", false, "Ping the device before performing the snmpwalk") // connectivity check
 	// snmpwalkCmd.Flags().BoolVarP(&checkConfig, "config", "", false, "Load device configuration") // config check
 
-	snmpwalkCmd.SetArgs([]string{})
+	snmpwalkCmd.SetArgs([]string{"ipAddress"})
 }
 
 var snmpwalkCmd = &cobra.Command{
-	Use:   "snmpwalk",
+	Use:   "snmpwalk ipAddress",
 	Short: "Perform a snmpwalk",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Get args
+		if len(args) == 0 {
+			fmt.Print("Missing argument: IP address\n")
+			os.Exit(1)
+		} else if len(args) == 1 {
+			address = args[0]
+			oid = defaultOID
+		} else if len(args) == 2 {
+			address = args[0]
+			oid = args[1]
+		} else {
+			fmt.Printf("The number of arguments must be between 1 and 2. %d arguments were given.\n", len(args))
+			os.Exit(1)
+		}
+		if strings.Contains(address, ":") {
+			deviceIP = address[:strings.Index(address, ":")]
+			value, _ = strconv.ParseUint(address[strings.Index(address, ":")+1:], 0, 16)
+			port = uint16(value)
+		} else {
+			deviceIP = address
+			port = defaultPort
+		}
+		// TODO: add authentication check
+		// if communityString == "" && user == "" {
+		// 	fmt.Printf("No authentication mechanism specified")
+		// 	os.Exit(1)
+		// }
+
+		// Set the snmp version
+		if snmpVersion == "1" {
+			setVersion = gosnmp.Version1
+		} else if snmpVersion == "2c" || (snmpVersion == "" && communityString != "") {
+			setVersion = gosnmp.Version2c
+			// TODO: v3
+			// } else if snmpVersion == "3" || (snmpVersion == "" && user != "") {
+			// 	setVersion = gosnmp.Version3
+		} else {
+			fmt.Printf("SNMP version not supported: %s, using default version 1.", snmpVersion)
+			setVersion = gosnmp.Version1
+		}
+
 		// Set the default values
 		if port == 0 {
 			port = defaultPort
@@ -115,32 +151,16 @@ var snmpwalkCmd = &cobra.Command{
 			retries = defaultRetries
 		}
 
-		// TODO: add authentication check
-		// if communityString == "" && user == "" {
-		// 	fmt.Printf("No authentication mechanism specified")
-		// 	os.Exit(1)
-		// }
-
-		if snmpVersion == "1" {
-			version_ = gosnmp.Version1
-		} else if snmpVersion == "2c" || (snmpVersion == "" && communityString != "") {
-			version_ = gosnmp.Version2c
-			// TODO: v3
-			// } else if snmpVersion == "3" || (snmpVersion == "" && user != "") {
-			// 	version = gosnmp.Version3
-		} else {
-			fmt.Printf("SNMP version not supported: %s, using default version 1.", snmpVersion)
-			version_ = gosnmp.Version1
-		}
 		// Set SNMP parameters
 		snmp = gosnmp.GoSNMP{
 			Target:    deviceIP,
 			Port:      port,
 			Community: communityString,
 			Transport: "udp",
-			Version:   version_,
+			Version:   setVersion,
 			Timeout:   time.Duration(10 * time.Second), // Timeout better suited to walking
 			Retries:   retries,
+			// TODO: v3
 			// SecurityParameters: &gosnmp.UsmSecurityParameters{
 			// 	UserName:                 user,
 			// 	AuthenticationProtocol:   authProtocol,
