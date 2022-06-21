@@ -11,13 +11,17 @@ package http
 import (
 	"os"
 	"regexp"
+	"runtime"
 	"strconv"
+	"strings"
 
 	"github.com/twmb/murmur3"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 )
@@ -87,6 +91,10 @@ func (o *sslProgram) ConfigureManager(m *manager.Manager) {
 
 	o.manager = m
 
+	if !o.httpsSupported() {
+		return
+	}
+
 	m.PerfMaps = append(m.PerfMaps, &manager.PerfMap{
 		Map: manager.Map{Name: sharedLibrariesPerfMap},
 		PerfMapOptions: manager.PerfMapOptions{
@@ -114,6 +122,10 @@ func (o *sslProgram) ConfigureManager(m *manager.Manager) {
 
 func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 	if o == nil {
+		return
+	}
+
+	if !o.httpsSupported() {
 		return
 	}
 
@@ -257,4 +269,28 @@ func getUID(libPath string) string {
 	}
 
 	return libPath
+}
+
+func runningOnARM() bool {
+	return strings.HasPrefix(runtime.GOARCH, "arm")
+}
+
+// We only support ARM with kernel >= 5.5.0 and with runtime compilation enabled
+func (o *sslProgram) httpsSupported() bool {
+	if !runningOnARM() {
+		return true
+	}
+
+	kversion, err := kernel.HostVersion()
+	if err != nil {
+		log.Warn("could not determine the current kernel version. https monitoring disabled.")
+		return false
+	}
+
+	if !o.cfg.EnableRuntimeCompiler {
+		log.Warn("you will need runtime compilation enabled to support https monitoring on arm64.")
+		return false
+	}
+
+	return kversion >= kernel.VersionCode(5, 5, 0)
 }

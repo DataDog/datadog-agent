@@ -48,6 +48,15 @@ func httpSupported(t *testing.T) bool {
 	return currKernelVersion >= kernel.VersionCode(4, 1, 0)
 }
 
+func httpsSupported(t *testing.T) bool {
+	currKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if runningOnARM() {
+		return currKernelVersion >= kernel.VersionCode(5, 5, 0)
+	}
+	return httpSupported(t)
+}
+
 func TestTCPRemoveEntries(t *testing.T) {
 	config := testConfig()
 	config.TCPConnTimeout = 100 * time.Millisecond
