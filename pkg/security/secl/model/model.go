@@ -161,7 +161,7 @@ type Event struct {
 	SetGID SetgidEvent `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
 	Capset CapsetEvent `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
 	Signal SignalEvent `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
-	Exit   ExitEvent   `field:"exit" event:"exit"`     // [7.38] [Process] A process terminated
+	Exit   ExitEvent   `field:"exit" event:"exit"`     // [7.38] [Process] A process was terminated
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
@@ -355,7 +355,7 @@ type FileFields struct {
 
 	MountID      uint32 `field:"mount_id" msg:"mount_id"`                                                   // Mount ID of the file
 	Inode        uint64 `field:"inode" msg:"inode"`                                                         // Inode of the file
-	InUpperLayer bool   `field:"in_upper_layer,handler:ResolveFileFieldsInUpperLayer" msg:"in_upper_layer"` // Indicator of the file layer, in an OverlayFS for example
+	InUpperLayer bool   `field:"in_upper_layer,handler:ResolveFileFieldsInUpperLayer" msg:"in_upper_layer"` // Indicator of the file layer, for example, in an OverlayFS
 
 	NLink  uint32 `field:"-" msg:"-"`
 	PathID uint32 `field:"-" msg:"-"`

@@ -39,7 +39,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `chown` | File | A file’s owner was changed | 7.27 |
 | `dns` | Network | A DNS request was sent | 7.36 |
 | `exec` | Process | A process was executed or forked | 7.27 |
-| `exit` | Process | A process terminated | 7.38 |
+| `exit` | Process | A process was terminated | 7.38 |
 | `link` | File | Create a new name/alias for a file | 7.27 |
 | `load_module` | Kernel | A new kernel module was loaded | 7.35 |
 | `mkdir` | File | A directory was created | 7.27 |
@@ -202,7 +202,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.ancestors.file.filesystem` | string | File's filesystem |  |
 | `process.ancestors.file.gid` | int | GID of the file's owner |  |
 | `process.ancestors.file.group` | string | Group of the file's owner |  |
-| `process.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `process.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `process.ancestors.file.inode` | int | Inode of the file |  |
 | `process.ancestors.file.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `process.ancestors.file.modification_time` | int | Modification time of the file |  |
@@ -248,7 +248,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.file.filesystem` | string | File's filesystem |  |
 | `process.file.gid` | int | GID of the file's owner |  |
 | `process.file.group` | string | Group of the file's owner |  |
-| `process.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `process.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `process.file.inode` | int | Inode of the file |  |
 | `process.file.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `process.file.modification_time` | int | Modification time of the file |  |
@@ -322,7 +322,7 @@ A file’s permissions were changed
 | `chmod.file.filesystem` | string | File's filesystem |  |
 | `chmod.file.gid` | int | GID of the file's owner |  |
 | `chmod.file.group` | string | Group of the file's owner |  |
-| `chmod.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `chmod.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `chmod.file.inode` | int | Inode of the file |  |
 | `chmod.file.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `chmod.file.modification_time` | int | Modification time of the file |  |
@@ -348,7 +348,7 @@ A file’s owner was changed
 | `chown.file.filesystem` | string | File's filesystem |  |
 | `chown.file.gid` | int | GID of the file's owner |  |
 | `chown.file.group` | string | Group of the file's owner |  |
-| `chown.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `chown.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `chown.file.inode` | int | Inode of the file |  |
 | `chown.file.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `chown.file.modification_time` | int | Modification time of the file |  |
@@ -401,7 +401,7 @@ A process was executed or forked
 | `exec.file.filesystem` | string | File's filesystem |  |
 | `exec.file.gid` | int | GID of the file's owner |  |
 | `exec.file.group` | string | Group of the file's owner |  |
-| `exec.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `exec.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `exec.file.inode` | int | Inode of the file |  |
 | `exec.file.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `exec.file.modification_time` | int | Modification time of the file |  |
@@ -427,7 +427,7 @@ A process was executed or forked
 
 ### Event `exit`
 
-A process terminated
+A process was terminated
 
 | Property | Type | Definition | Constants |
 | -------- | ---- | ---------- | --------- |
@@ -456,7 +456,7 @@ A process terminated
 | `exit.file.filesystem` | string | File's filesystem |  |
 | `exit.file.gid` | int | GID of the file's owner |  |
 | `exit.file.group` | string | Group of the file's owner |  |
-| `exit.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `exit.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `exit.file.inode` | int | Inode of the file |  |
 | `exit.file.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `exit.file.modification_time` | int | Modification time of the file |  |
@@ -491,7 +491,7 @@ Create a new name/alias for a file
 | `link.file.destination.filesystem` | string | File's filesystem |  |
 | `link.file.destination.gid` | int | GID of the file's owner |  |
 | `link.file.destination.group` | string | Group of the file's owner |  |
-| `link.file.destination.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `link.file.destination.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `link.file.destination.inode` | int | Inode of the file |  |
 | `link.file.destination.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `link.file.destination.modification_time` | int | Modification time of the file |  |
@@ -504,7 +504,7 @@ Create a new name/alias for a file
 | `link.file.filesystem` | string | File's filesystem |  |
 | `link.file.gid` | int | GID of the file's owner |  |
 | `link.file.group` | string | Group of the file's owner |  |
-| `link.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `link.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `link.file.inode` | int | Inode of the file |  |
 | `link.file.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `link.file.modification_time` | int | Modification time of the file |  |
@@ -526,7 +526,7 @@ A new kernel module was loaded
 | `load_module.file.filesystem` | string | File's filesystem |  |
 | `load_module.file.gid` | int | GID of the file's owner |  |
 | `load_module.file.group` | string | Group of the file's owner |  |
-| `load_module.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `load_module.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `load_module.file.inode` | int | Inode of the file |  |
 | `load_module.file.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `load_module.file.modification_time` | int | Modification time of the file |  |
@@ -552,7 +552,7 @@ A directory was created
 | `mkdir.file.filesystem` | string | File's filesystem |  |
 | `mkdir.file.gid` | int | GID of the file's owner |  |
 | `mkdir.file.group` | string | Group of the file's owner |  |
-| `mkdir.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `mkdir.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `mkdir.file.inode` | int | Inode of the file |  |
 | `mkdir.file.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `mkdir.file.modification_time` | int | Modification time of the file |  |
@@ -574,7 +574,7 @@ A mmap command was executed
 | `mmap.file.filesystem` | string | File's filesystem |  |
 | `mmap.file.gid` | int | GID of the file's owner |  |
 | `mmap.file.group` | string | Group of the file's owner |  |
-| `mmap.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `mmap.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `mmap.file.inode` | int | Inode of the file |  |
 | `mmap.file.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `mmap.file.modification_time` | int | Modification time of the file |  |
@@ -609,7 +609,7 @@ A file was opened
 | `open.file.filesystem` | string | File's filesystem |  |
 | `open.file.gid` | int | GID of the file's owner |  |
 | `open.file.group` | string | Group of the file's owner |  |
-| `open.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `open.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `open.file.inode` | int | Inode of the file |  |
 | `open.file.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `open.file.modification_time` | int | Modification time of the file |  |
@@ -653,7 +653,7 @@ A ptrace command was executed
 | `ptrace.tracee.ancestors.file.filesystem` | string | File's filesystem |  |
 | `ptrace.tracee.ancestors.file.gid` | int | GID of the file's owner |  |
 | `ptrace.tracee.ancestors.file.group` | string | Group of the file's owner |  |
-| `ptrace.tracee.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `ptrace.tracee.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `ptrace.tracee.ancestors.file.inode` | int | Inode of the file |  |
 | `ptrace.tracee.ancestors.file.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `ptrace.tracee.ancestors.file.modification_time` | int | Modification time of the file |  |
@@ -699,7 +699,7 @@ A ptrace command was executed
 | `ptrace.tracee.file.filesystem` | string | File's filesystem |  |
 | `ptrace.tracee.file.gid` | int | GID of the file's owner |  |
 | `ptrace.tracee.file.group` | string | Group of the file's owner |  |
-| `ptrace.tracee.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `ptrace.tracee.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `ptrace.tracee.file.inode` | int | Inode of the file |  |
 | `ptrace.tracee.file.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `ptrace.tracee.file.modification_time` | int | Modification time of the file |  |
@@ -735,7 +735,7 @@ Remove extended attributes
 | `removexattr.file.filesystem` | string | File's filesystem |  |
 | `removexattr.file.gid` | int | GID of the file's owner |  |
 | `removexattr.file.group` | string | Group of the file's owner |  |
-| `removexattr.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `removexattr.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `removexattr.file.inode` | int | Inode of the file |  |
 | `removexattr.file.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `removexattr.file.modification_time` | int | Modification time of the file |  |
@@ -758,7 +758,7 @@ A file/directory was renamed
 | `rename.file.destination.filesystem` | string | File's filesystem |  |
 | `rename.file.destination.gid` | int | GID of the file's owner |  |
 | `rename.file.destination.group` | string | Group of the file's owner |  |
-| `rename.file.destination.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `rename.file.destination.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `rename.file.destination.inode` | int | Inode of the file |  |
 | `rename.file.destination.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `rename.file.destination.modification_time` | int | Modification time of the file |  |
@@ -771,7 +771,7 @@ A file/directory was renamed
 | `rename.file.filesystem` | string | File's filesystem |  |
 | `rename.file.gid` | int | GID of the file's owner |  |
 | `rename.file.group` | string | Group of the file's owner |  |
-| `rename.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `rename.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `rename.file.inode` | int | Inode of the file |  |
 | `rename.file.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `rename.file.modification_time` | int | Modification time of the file |  |
@@ -793,7 +793,7 @@ A directory was removed
 | `rmdir.file.filesystem` | string | File's filesystem |  |
 | `rmdir.file.gid` | int | GID of the file's owner |  |
 | `rmdir.file.group` | string | Group of the file's owner |  |
-| `rmdir.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `rmdir.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `rmdir.file.inode` | int | Inode of the file |  |
 | `rmdir.file.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `rmdir.file.modification_time` | int | Modification time of the file |  |
@@ -854,7 +854,7 @@ Set exteneded attributes
 | `setxattr.file.filesystem` | string | File's filesystem |  |
 | `setxattr.file.gid` | int | GID of the file's owner |  |
 | `setxattr.file.group` | string | Group of the file's owner |  |
-| `setxattr.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `setxattr.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `setxattr.file.inode` | int | Inode of the file |  |
 | `setxattr.file.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `setxattr.file.modification_time` | int | Modification time of the file |  |
@@ -897,7 +897,7 @@ A signal was sent
 | `signal.target.ancestors.file.filesystem` | string | File's filesystem |  |
 | `signal.target.ancestors.file.gid` | int | GID of the file's owner |  |
 | `signal.target.ancestors.file.group` | string | Group of the file's owner |  |
-| `signal.target.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `signal.target.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `signal.target.ancestors.file.inode` | int | Inode of the file |  |
 | `signal.target.ancestors.file.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `signal.target.ancestors.file.modification_time` | int | Modification time of the file |  |
@@ -943,7 +943,7 @@ A signal was sent
 | `signal.target.file.filesystem` | string | File's filesystem |  |
 | `signal.target.file.gid` | int | GID of the file's owner |  |
 | `signal.target.file.group` | string | Group of the file's owner |  |
-| `signal.target.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `signal.target.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `signal.target.file.inode` | int | Inode of the file |  |
 | `signal.target.file.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `signal.target.file.modification_time` | int | Modification time of the file |  |
@@ -978,7 +978,7 @@ A splice command was executed
 | `splice.file.filesystem` | string | File's filesystem |  |
 | `splice.file.gid` | int | GID of the file's owner |  |
 | `splice.file.group` | string | Group of the file's owner |  |
-| `splice.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `splice.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `splice.file.inode` | int | Inode of the file |  |
 | `splice.file.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `splice.file.modification_time` | int | Modification time of the file |  |
@@ -1002,7 +1002,7 @@ A file was deleted
 | `unlink.file.filesystem` | string | File's filesystem |  |
 | `unlink.file.gid` | int | GID of the file's owner |  |
 | `unlink.file.group` | string | Group of the file's owner |  |
-| `unlink.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `unlink.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `unlink.file.inode` | int | Inode of the file |  |
 | `unlink.file.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `unlink.file.modification_time` | int | Modification time of the file |  |
@@ -1034,7 +1034,7 @@ Change file access/modification times
 | `utimes.file.filesystem` | string | File's filesystem |  |
 | `utimes.file.gid` | int | GID of the file's owner |  |
 | `utimes.file.group` | string | Group of the file's owner |  |
-| `utimes.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |  |
+| `utimes.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `utimes.file.inode` | int | Inode of the file |  |
 | `utimes.file.mode` | int | Mode/rights of the file | Chmod mode constants |
 | `utimes.file.modification_time` | int | Modification time of the file |  |

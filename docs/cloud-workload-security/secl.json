@@ -220,7 +220,7 @@
         {
           "name": "process.ancestors.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -496,7 +496,7 @@
         {
           "name": "process.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -796,7 +796,7 @@
         {
           "name": "chmod.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -919,7 +919,7 @@
         {
           "name": "chown.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -1171,7 +1171,7 @@
         {
           "name": "exec.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -1310,7 +1310,7 @@
     },
     {
       "name": "exit",
-      "definition": "A process terminated",
+      "definition": "A process was terminated",
       "type": "Process",
       "from_agent_version": "7.38",
       "experimental": false,
@@ -1468,7 +1468,7 @@
         {
           "name": "exit.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -1645,7 +1645,7 @@
         {
           "name": "link.file.destination.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -1723,7 +1723,7 @@
         {
           "name": "link.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -1822,7 +1822,7 @@
         {
           "name": "load_module.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -1945,7 +1945,7 @@
         {
           "name": "mkdir.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -2044,7 +2044,7 @@
         {
           "name": "mmap.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -2188,7 +2188,7 @@
         {
           "name": "open.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -2419,7 +2419,7 @@
         {
           "name": "ptrace.tracee.ancestors.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -2695,7 +2695,7 @@
         {
           "name": "ptrace.tracee.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -2878,7 +2878,7 @@
         {
           "name": "removexattr.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -2983,7 +2983,7 @@
         {
           "name": "rename.file.destination.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -3061,7 +3061,7 @@
         {
           "name": "rename.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -3160,7 +3160,7 @@
         {
           "name": "rmdir.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -3394,7 +3394,7 @@
         {
           "name": "setxattr.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -3619,7 +3619,7 @@
         {
           "name": "signal.target.ancestors.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -3895,7 +3895,7 @@
         {
           "name": "signal.target.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -4072,7 +4072,7 @@
         {
           "name": "splice.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -4183,7 +4183,7 @@
         {
           "name": "unlink.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -4309,7 +4309,7 @@
         {
           "name": "utimes.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
