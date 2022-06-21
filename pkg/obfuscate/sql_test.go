@@ -1254,6 +1254,7 @@ func TestPGJSONOperators(t *testing.T) {
 	} {
 		t.Run(tt.cfg.DBMS, func(t *testing.T) {
 			oq, err := NewObfuscator(Config{SQL: tt.cfg}).ObfuscateSQLString(tt.in)
+			fmt.Println(err)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
 		})

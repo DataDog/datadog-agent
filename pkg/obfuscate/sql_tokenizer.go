@@ -267,14 +267,12 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 	tkn.SkipBlank()
 
 	switch ch := tkn.lastChar; {
-	case isLeadingLetter(ch):
-		if tkn.cfg.DBMS != DBMSPostgres || tkn.lastChar != '@' {
-			// The @ symbol should not be considered part of an identifier in
-			// postgres, so we fallthrough and parse @ as an operator
-			// later on.
-			return tkn.scanIdentifier()
-		}
-		fallthrough
+	case isLeadingLetter(ch) &&
+		(tkn.cfg.DBMS != DBMSPostgres || ch != '@'):
+		// The '@' symbol should not be considered part of an identifier in
+		// postgres, so we skip this in the case where the DBMS is postgres
+		// and ch is '@'.
+		return tkn.scanIdentifier()
 	case isDigit(ch):
 		return tkn.scanNumber(false)
 	default:
@@ -419,7 +417,7 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 					tkn.advance()
 					return JSONContainsLeft, []byte("<@")
 				}
-				return TokenKind(ch), tkn.bytes()
+				fallthrough
 			default:
 				return TokenKind(ch), tkn.bytes()
 			}
@@ -499,7 +497,7 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 					return TokenKind(ch), tkn.bytes()
 				}
 			}
-			return tkn.scanIdentifier()
+			fallthrough
 		case '{':
 			if tkn.pos == 1 || tkn.curlys > 0 {
 				// Do not fully obfuscate top-level SQL escape sequences like {{[?=]call procedure-name[([parameter][,parameter]...)]}.
