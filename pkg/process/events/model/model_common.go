@@ -26,6 +26,7 @@ type ProcessEvent struct {
 	EventType      string    `json:"event_type"`
 	CollectionTime time.Time `json:"collection_time"`
 	Pid            uint32    `json:"pid"`
+	ContainerID    string    `json:"container_id"`
 	Ppid           uint32    `json:"ppid"`
 	UID            uint32    `json:"uid"`
 	GID            uint32    `json:"gid"`
@@ -54,6 +55,7 @@ func NewMockedProcessEvent(evtType string, ts time.Time, pid uint32, exe string,
 		EventType:      evtType,
 		CollectionTime: time.Now(),
 		Pid:            pid,
+		ContainerID:    "01234567890abcedf",
 		Ppid:           1,
 		UID:            100,
 		GID:            100,
@@ -75,6 +77,7 @@ func AssertProcessEvents(t *testing.T, expected, actual *ProcessEvent) {
 	assert.Equal(t, expected.EventType, actual.EventType)
 	assert.WithinDuration(t, expected.CollectionTime, actual.CollectionTime, 0)
 	assert.Equal(t, expected.Pid, actual.Pid)
+	assert.Equal(t, expected.ContainerID, actual.ContainerID)
 	assert.Equal(t, expected.Ppid, actual.Ppid)
 	assert.Equal(t, expected.UID, actual.UID)
 	assert.Equal(t, expected.GID, actual.GID)

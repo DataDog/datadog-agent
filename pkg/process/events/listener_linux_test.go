@@ -76,6 +76,7 @@ func TestProcessEventHandling(t *testing.T) {
 		EventType:      model.Exec,
 		CollectionTime: now,
 		Pid:            32,
+		ContainerID:    "01234567890abcdef",
 		Ppid:           1,
 		UID:            124,
 		GID:            2,
