@@ -1084,7 +1084,7 @@ def setup_clang(ctx, target):
     if platform.machine() != "amd64":
         arch = arch_mapping.get(platform.machine())
     else:
-        arch = arch_mapping.get(platform.machine())
+        arch = "amd64"
 
 
     clang_present = ctx.run(f"stat /opt/datadog-agent/embedded/bin/clang-{target}", warn=True)
