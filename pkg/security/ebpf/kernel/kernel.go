@@ -17,6 +17,7 @@ import (
 
 	"github.com/acobaugh/osrelease"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
@@ -278,17 +279,10 @@ func (k *Version) HaveRingBuffers() bool {
 		return *k.haveRingBuffers
 	}
 
-	// This checks ring buffer maps, which appeared in ???.
-	m, err := sys.MapCreate(&sys.MapCreateAttr{
-		MapType:    sys.MapType(ebpf.RingBuf),
-		MaxEntries: 4096 * 16,
-	})
+	// This checks ring buffer maps, which appeared in 5.8
+	err := features.HaveMapType(ebpf.RingBuf)
 	k.haveRingBuffers = new(bool)
 	*k.haveRingBuffers = err == nil
 
-	if err != nil {
-		return false
-	}
-	_ = m.Close()
-	return true
+	return *k.haveRingBuffers
 }
