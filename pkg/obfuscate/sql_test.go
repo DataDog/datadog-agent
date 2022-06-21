@@ -1190,6 +1190,22 @@ func TestPGJSONOperators(t *testing.T) {
 				DBMS: DBMSPostgres,
 			},
 		},
+		// When no DBMS is specified # should be interpreted as
+		// a comment and removed.
+		{
+			"select users.custom #- '{a,b}' from users",
+			"select users.custom",
+			SQLConfig{},
+		},
+		// When SQL Server DBMS is specified # should be interpreted as
+		// an identifier.
+		{
+			"select users.custom from #temptable",
+			"select users.custom from #temptable",
+			SQLConfig{
+				DBMS: DBMSSQLServer,
+			},
+		},
 		{
 			"select users.custom -> 'foo' from users",
 			"select users.custom -> ? from users",
@@ -1227,6 +1243,11 @@ func TestPGJSONOperators(t *testing.T) {
 				DBMS: DBMSSQLServer,
 			},
 		},
+		{
+			`SELECT a FROM foo WHERE value<@name`,
+			`SELECT a FROM foo WHERE value < @name`,
+			SQLConfig{},
+		},
 		// Ensure that in a non-postgresql dbms, global variables denoted
 		// as @@ident are parsed as identifiers
 		{
@@ -1235,6 +1256,11 @@ func TestPGJSONOperators(t *testing.T) {
 			SQLConfig{
 				DBMS: DBMSSQLServer,
 			},
+		},
+		{
+			`SELECT @@foo`,
+			`SELECT @@foo`,
+			SQLConfig{},
 		},
 		{
 			"select * from users where user.custom ?| array [ '1', '2' ]",
@@ -1254,7 +1280,6 @@ func TestPGJSONOperators(t *testing.T) {
 	} {
 		t.Run(tt.cfg.DBMS, func(t *testing.T) {
 			oq, err := NewObfuscator(Config{SQL: tt.cfg}).ObfuscateSQLString(tt.in)
-			fmt.Println(err)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
 		})
