@@ -592,7 +592,7 @@ func TestDebugStatsSpike(t *testing.T) {
 
 	// stop the debug loop to avoid data race
 	s.DisableMetricsStats()
-	time.Sleep(1 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 
 	assert.Eventually(s.hasSpike, 10*time.Millisecond, 2*time.Millisecond)
 
@@ -601,14 +601,14 @@ func TestDebugStatsSpike(t *testing.T) {
 	// If we remove the sleep, the debug loop ticker will not be triggered by the clk.Add() call and the 500 samples
 	// added with 'send(500)' will be considered as if they had been added in the same second as the previous 500 samples.
 	// This will lead to a spike because we have 1000 samples in 1 second instead of having 500 and 500 in 2 different seconds.
-	time.Sleep(1 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	clk.Add(1050 * time.Millisecond)
 	send(500)
 
 	// stop the debug loop to avoid data race
 	s.DisableMetricsStats()
-	time.Sleep(1 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 
 	hasNoSpike := func() bool {
 		return !s.hasSpike()
