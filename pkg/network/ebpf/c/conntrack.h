@@ -13,7 +13,7 @@
 
 static __always_inline u32 ct_status(const struct nf_conn *ct) {
     u32 status = 0;
-    bpf_probe_read(&status, sizeof(status), (void *)&ct->status);
+    bpf_probe_read_kernel(&status, sizeof(status), (void *)&ct->status);
     return status;
 }
 
