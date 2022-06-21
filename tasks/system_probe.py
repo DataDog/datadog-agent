@@ -60,7 +60,7 @@ def build(
     nikos_embedded_path=None,
     bundle_ebpf=False,
     parallel_build=True,
-    kernel_release='',
+    kernel_release=None,
 ):
     """
     Build the system_probe
@@ -444,7 +444,7 @@ def get_ebpf_targets():
     return files
 
 
-def get_linux_header_dirs(kernel_release=''):
+def get_linux_header_dirs(kernel_release=None):
     if not kernel_release:
         os_info = os.uname()
         kernel_release = os_info.release
@@ -510,7 +510,7 @@ def get_linux_header_dirs(kernel_release=''):
     return dirs
 
 
-def get_ebpf_build_flags(target=None, kernel_release=''):
+def get_ebpf_build_flags(target=None, kernel_release=None):
     bpf_dir = os.path.join(".", "pkg", "ebpf")
     c_dir = os.path.join(bpf_dir, "c")
     if not target:
@@ -652,7 +652,7 @@ def build_network_ebpf_files(ctx, build_dir, parallel_build=True):
         promise.join()
 
 
-def build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=''):
+def build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=None):
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
     security_c_file = os.path.join(security_agent_prebuilt_dir, "offset-guesser.c")
@@ -674,7 +674,7 @@ def build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=''):
     )
 
 
-def build_security_probe_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=''):
+def build_security_probe_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None):
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
     security_c_file = os.path.join(security_agent_prebuilt_dir, "probe.c")
@@ -738,12 +738,12 @@ def build_security_probe_ebpf_files(ctx, build_dir, parallel_build=True, kernel_
             p.join()
 
 
-def build_security_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=''):
+def build_security_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None):
     build_security_probe_ebpf_files(ctx, build_dir, parallel_build, kernel_release=kernel_release)
     build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=kernel_release)
 
 
-def build_object_files(ctx, parallel_build, kernel_release=''):
+def build_object_files(ctx, parallel_build, kernel_release=None):
     """build_object_files builds only the eBPF object"""
 
     # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
