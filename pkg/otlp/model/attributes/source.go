@@ -77,14 +77,15 @@ func hostnameFromAttributes(attrs pcommon.Map, usePreviewRules bool) (string, bo
 }
 
 func k8sHostnameFromAttributes(attrs pcommon.Map) (string, bool) {
-	if k8sNodeName, ok := attrs.Get(AttributeK8sNodeName); ok {
-		if k8sClusterName, ok := getClusterName(attrs); ok {
-			return k8sNodeName.StringVal() + "-" + k8sClusterName, true
-		}
-		return k8sNodeName.StringVal(), true
+	node, ok := attrs.Get(AttributeK8sNodeName)
+	if !ok {
+		return "", false
 	}
 
-	return "", false
+	if cluster, ok := getClusterName(attrs); ok {
+		return node.StringVal() + "-" + cluster, true
+	}
+	return node.StringVal(), true
 }
 
 func unsanitizedHostnameFromAttributes(attrs pcommon.Map, usePreviewRules bool) (string, bool) {
@@ -101,6 +102,8 @@ func unsanitizedHostnameFromAttributes(attrs pcommon.Map, usePreviewRules bool) 
 	// Kubernetes: node-cluster if cluster name is available, else node
 	k8sName, k8sOk := k8sHostnameFromAttributes(attrs)
 
+	// If not using the preview rules, return the Kubernetes node name
+	// before cloud provider names to preserve the current behavior.
 	if !usePreviewRules && k8sOk {
 		return k8sName, true
 	}
@@ -114,6 +117,8 @@ func unsanitizedHostnameFromAttributes(attrs pcommon.Map, usePreviewRules bool) 
 		return azure.HostnameFromAttributes(attrs, usePreviewRules)
 	}
 
+	// If using the preview rules, the cloud provider names take precedence.
+	// This is to report the same hostname as Datadog cloud integrations.
 	if usePreviewRules && k8sOk {
 		return k8sName, true
 	}
