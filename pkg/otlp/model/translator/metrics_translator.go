@@ -34,11 +34,12 @@ import (
 
 const metricName string = "metric name"
 
-var _ source.Provider = (*noSourceProvider)(nil)
+var _ source.Provider = (*unknownSourceProvider)(nil)
 
-type noSourceProvider struct{}
+// unknownSourceProvider sets an empty hostname as a source.
+type unknownSourceProvider struct{}
 
-func (*noSourceProvider) Source(context.Context) (source.Source, error) {
+func (*unknownSourceProvider) Source(context.Context) (source.Source, error) {
 	return source.Source{Kind: source.HostnameKind, Identifier: ""}, nil
 }
 
@@ -60,7 +61,7 @@ func New(logger *zap.Logger, options ...Option) (*Translator, error) {
 		InstrumentationLibraryMetadataAsTags: false,
 		sweepInterval:                        1800,
 		deltaTTL:                             3600,
-		fallbackSourceProvider:               &noSourceProvider{},
+		fallbackSourceProvider:               &unknownSourceProvider{},
 	}
 
 	for _, opt := range options {
