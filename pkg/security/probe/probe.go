@@ -32,6 +32,7 @@ import (
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	kernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -46,6 +47,11 @@ import (
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// ActivityDumpHandler represents an handler for the activity dumps sent by the probe
+type ActivityDumpHandler interface {
+	HandleActivityDump(dump *api.ActivityDumpStreamMessage)
+}
 
 // EventHandler represents an handler for the events sent by the probe
 type EventHandler interface {
@@ -75,6 +81,9 @@ type Probe struct {
 	perfMap   *manager.PerfMap
 	reOrderer *ReOrderer
 	scrubber  *pconfig.DataScrubber
+
+	// ActivityDumps section
+	activityDumpHandler ActivityDumpHandler
 
 	// Approvers / discarders section
 	erpc                 *ERPC
@@ -304,6 +313,11 @@ func (p *Probe) Start() {
 	go p.reOrderer.Start(&p.wg)
 }
 
+// AddActivityDumpHandler set the probe activity dump handler
+func (p *Probe) AddActivityDumpHandler(handler ActivityDumpHandler) {
+	p.activityDumpHandler = handler
+}
+
 // AddEventHandler set the probe event handler
 func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler) {
 	p.handlers[eventType] = append(p.handlers[eventType], handler)
@@ -325,6 +339,13 @@ func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manag
 
 	// Process after evaluation because some monitors need the DentryResolver to have been called first.
 	p.monitor.ProcessEvent(event, size, CPU, perfMap)
+}
+
+// DispatchActivityDump sends an activity dump to the probe activity dump handler
+func (p *Probe) DispatchActivityDump(dump *api.ActivityDumpStreamMessage) {
+	if handler := p.activityDumpHandler; handler != nil {
+		handler.HandleActivityDump(dump)
+	}
 }
 
 // DispatchCustomEvent sends a custom event to the probe event handler

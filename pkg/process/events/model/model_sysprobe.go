@@ -22,11 +22,6 @@ type ProcessMonitoringEvent struct {
 
 // ProcessMonitoringToProcessEvent converts a ProcessMonitoringEvent to a generic ProcessEvent
 func ProcessMonitoringToProcessEvent(e *ProcessMonitoringEvent) *ProcessEvent {
-	var cmdline []string
-	if e.ArgsEntry != nil {
-		cmdline = e.ArgsEntry.Values
-	}
-
 	return &ProcessEvent{
 		EventType:      e.EventType,
 		CollectionTime: e.CollectionTime,
@@ -37,7 +32,7 @@ func ProcessMonitoringToProcessEvent(e *ProcessMonitoringEvent) *ProcessEvent {
 		Username:       e.User,
 		Group:          e.Group,
 		Exe:            e.FileEvent.PathnameStr, // FileEvent is not a pointer, so it can be directly accessed
-		Cmdline:        cmdline,
+		Cmdline:        e.ScrubbedArgv,
 		ForkTime:       e.ForkTime,
 		ExecTime:       e.ExecTime,
 		ExitTime:       e.ExitTime,
@@ -66,12 +61,10 @@ func ProcessEventToProcessMonitoringEvent(e *ProcessEvent) *ProcessMonitoringEve
 					FileEvent: model.FileEvent{
 						PathnameStr: e.Exe,
 					},
-					ArgsEntry: &model.ArgsEntry{
-						Values: e.Cmdline,
-					},
-					ForkTime: e.ForkTime,
-					ExecTime: e.ExecTime,
-					ExitTime: e.ExitTime,
+					ScrubbedArgv: e.Cmdline,
+					ForkTime:     e.ForkTime,
+					ExecTime:     e.ExecTime,
+					ExitTime:     e.ExitTime,
 				},
 			},
 		},
@@ -109,12 +102,10 @@ func NewMockedProcessMonitoringEvent(evtType string, ts time.Time, pid uint32, e
 					FileEvent: model.FileEvent{
 						PathnameStr: exe,
 					},
-					ArgsEntry: &model.ArgsEntry{
-						Values: args,
-					},
-					ForkTime: forkTime,
-					ExecTime: execTime,
-					ExitTime: exitTime,
+					ScrubbedArgv: args,
+					ForkTime:     forkTime,
+					ExecTime:     execTime,
+					ExitTime:     exitTime,
 				},
 			},
 		},
