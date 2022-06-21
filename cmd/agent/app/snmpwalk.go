@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	defaultVersion = "2c"
+	defaultVersion = "1"
 	defaultOID     = "1.3.6.1.2.1.1"
 	defaultHost    = "127.0.0.1"
 	defaultPort    = 1161
@@ -83,7 +83,7 @@ func init() {
 
 	// TODO: snmp v3 specific
 	// snmpwalkCmd.Flags().StringVarP(&user, "user-name", "u", defaultUserName, "Set the user name for v3")
-	// snmpwalkCmd.Flags().StringVarP(&authProtocol, "auth-protocol", "a", defaultAuthProtocol, "Set the authenticaton protocol for v3")
+	// snmpwalkCmd.Flags().StringVarP(&authProtocol, "auth-protocol", "a", defaultAuthProtocol, "Set the authentication protocol for v3")
 	// snmpwalkCmd.Flags().StringVarP(&authKey, "auth-key", "A", defaultAuthKey, "Set the authentication passphrase for v3")
 	// snmpwalkCmd.Flags().StringVarP(&privProtocol, "priv-protocol", "x", defaultPrivProtocol, "Set the privacy protocol for v3")
 	// snmpwalkCmd.Flags().StringVarP(&privKey, "priv-key", "X", defaultprivKey, "Set the privacy passphrase for v3")
@@ -129,20 +129,9 @@ var snmpwalkCmd = &cobra.Command{
 			// } else if snmpVersion == "3" || (snmpVersion == "" && user != "") {
 			// 	version = gosnmp.Version3
 		} else {
-			fmt.Printf("SNMP version not supported: %s, using default version 2c.", snmpVersion)
-			version_ = gosnmp.Version2c
+			fmt.Printf("SNMP version not supported: %s, using default version 1.", snmpVersion)
+			version_ = gosnmp.Version1
 		}
-
-		// TODO: version 3 authentication
-		// case "3":
-		// 	snmp.Version = gosnmp.Version3
-		// 	snmp.SecurityParameters = &gosnmp.UsmSecurityParameters{
-		// 		UserName:                 user,
-		// 		AuthenticationProtocol:   authProtocol,
-		// 		AuthenticationPassphrase: AuthKey,
-		// 		PrivacyProtocol:          privProtocol,
-		// 		PrivacyPassphrase:        privKey}
-
 		// Set SNMP parameters
 		snmp = gosnmp.GoSNMP{
 			Target:    deviceIP,
@@ -159,7 +148,6 @@ var snmpwalkCmd = &cobra.Command{
 			// 	PrivacyProtocol:          privProtocol,
 			// 	PrivacyPassphrase:        privKey,
 		}
-
 		// Estbalish connection
 		err := snmp.Connect()
 		if err != nil {
