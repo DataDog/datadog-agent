@@ -109,40 +109,46 @@ func (w *soWatcher) Start() {
 				// this is to avoid a feedback-loop since the shared libraries here monitored
 				// end up being opened by system-probe
 				if int(lib.pid) == thisPID {
+					event.Done()
 					break
 				}
 
 				path := lib.Bytes()
 				for _, r := range w.rules {
-					if r.re.Match(path) {
-						var (
-							libPath = string(path)
-							pidPath = fmt.Sprintf("%s/%d", w.procRoot, lib.pid)
-						)
+					if !r.re.Match(path) {
+						continue
+					}
 
-						// resolving paths is expensive so we cache the libraries we've already seen
-						k := seenKey{pidPath, libPath}
-						if _, ok := seen[k]; ok {
-							break
-						}
-						seen[k] = struct{}{}
+					var (
+						libPath = string(path)
+						pidPath = fmt.Sprintf("%s/%d", w.procRoot, lib.pid)
+					)
 
-						// resolve namespaced path to host path
-						pathResolver := psfilepath.NewResolver(w.procRoot)
-						pathResolver.LoadPIDMounts(pidPath)
-						if hostPath := pathResolver.Resolve(libPath); hostPath != "" {
-							libPath = hostPath
-						}
-
-						libPath = w.canonicalizePath(libPath)
-						if _, registered := w.registered[libPath]; registered {
-							break
-						}
-
-						w.register(libPath, r)
+					// resolving paths is expensive so we cache the libraries we've already seen
+					k := seenKey{pidPath, libPath}
+					if _, ok := seen[k]; ok {
 						break
 					}
+					seen[k] = struct{}{}
+
+					// resolve namespaced path to host path
+					pathResolver := psfilepath.NewResolver(w.procRoot)
+					pathResolver.LoadPIDMounts(pidPath)
+					if hostPath := pathResolver.Resolve(libPath); hostPath != "" {
+						libPath = hostPath
+					}
+
+					libPath = w.canonicalizePath(libPath)
+					if _, registered := w.registered[libPath]; registered {
+						break
+					}
+
+					w.register(libPath, r)
+					break
 				}
+
+				event.Done()
+
 			case <-w.loadEvents.LostChannel:
 				// Nothing to do in this case
 				break

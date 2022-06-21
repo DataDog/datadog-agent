@@ -134,6 +134,7 @@ func (m *Monitor) Start() error {
 				notification := toHTTPNotification(dataEvent.Data)
 				transactions, err := m.batchManager.GetTransactionsFrom(notification)
 				m.process(transactions, err)
+				dataEvent.Done()
 			case _, ok := <-m.batchCompletionHandler.LostChannel:
 				if !ok {
 					return
