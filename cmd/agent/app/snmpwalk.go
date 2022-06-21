@@ -20,7 +20,7 @@ import (
 
 const (
 	defaultVersion = "1"
-	defaultOID     = "1.3.6.1.2.1.1"
+	defaultOID     = ""
 	defaultPort    = 161
 
 	// snmp v1 & v2c
