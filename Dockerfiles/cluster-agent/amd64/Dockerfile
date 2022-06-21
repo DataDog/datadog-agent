@@ -2,7 +2,7 @@
 # Preparation stage: layout and chmods #
 ########################################
 
-FROM ubuntu:22.04 as builder
+FROM ubuntu:21.10 as builder
 
 WORKDIR /output
 
@@ -21,17 +21,11 @@ RUN chmod 755 entrypoint.sh \
     && chmod +x opt/datadog-agent/bin/datadog-cluster-agent \
     && ln -s /opt/datadog-agent/bin/datadog-cluster-agent opt/datadog-agent/bin/agent
 
-FROM builder AS nosys-seccomp
-COPY nosys-seccomp/nosys.c /tmp/nosys.c
-ENV DEBIAN_FRONTEND=noninteractive
-RUN apt update && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
-RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -o /tmp/nosys.so /tmp/nosys.c -lseccomp
-
 ####################################
 # Actual docker image construction #
 ####################################
 
-FROM ubuntu:22.04
+FROM ubuntu:21.10
 
 LABEL maintainer "Datadog <package@datadoghq.com>"
 
@@ -55,7 +49,7 @@ ENV PATH="/opt/datadog-agent/bin/:$PATH" \
 
 RUN apt-get update \
     && apt full-upgrade -y \
-    && apt-get install --no-install-recommends -y ca-certificates curl libseccomp2 \
+    && apt-get install --no-install-recommends -y ca-certificates curl \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 COPY --from=builder /output /
@@ -73,11 +67,6 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
     && touch /tmp/.placeholder \
     && chown -R dd-agent:root /etc/datadog-agent/ /var/log/datadog/ /conf.d /tmp/ \
     && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /var/log/datadog/ /conf.d /tmp/
-
-# Ensure the glibc doesn't try to call syscalls that may not be supported
-COPY --from=nosys-seccomp /tmp/nosys.so /lib/x86_64-linux-gnu/nosys.so
-ENV LD_PRELOAD=/lib/x86_64-linux-gnu/nosys.so \
-    NOSYS_SYSCALLS=faccessat2,clone3
 
 # Incompatible with the custom metrics API on port 443
 # Set DD_EXTERNAL_METRICS_PROVIDER_PORT to a higher value to run as non-root

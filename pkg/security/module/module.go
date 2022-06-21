@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -110,6 +111,7 @@ func (m *Module) Init() error {
 	m.apiServer.Start(m.ctx)
 
 	m.probe.AddEventHandler(model.UnknownEventType, m)
+	m.probe.AddActivityDumpHandler(m)
 
 	// initialize extra event monitors
 	InitEventMonitors(m)
@@ -152,8 +154,13 @@ func (m *Module) Start() error {
 
 	var policyProviders []rules.PolicyProvider
 
+	agentVersion, err := utils.GetAgentSemverVersion()
+	if err != nil {
+		log.Errorf("failed to parse agent version: %v", err)
+	}
+
 	// directory policy provider
-	if provider, err := rules.NewPoliciesDirProvider(m.config.PoliciesDir, m.config.WatchPoliciesDir); err != nil {
+	if provider, err := rules.NewPoliciesDirProvider(m.config.PoliciesDir, m.config.WatchPoliciesDir, agentVersion); err != nil {
 		log.Errorf("failed to load policies: %s", err)
 	} else {
 		policyProviders = append(policyProviders, provider)
@@ -161,7 +168,7 @@ func (m *Module) Start() error {
 
 	// add remote config as config provider if enabled
 	if m.config.RemoteConfigurationEnabled {
-		rcPolicyProvider, err := rconfig.NewRCPolicyProvider("security-agent")
+		rcPolicyProvider, err := rconfig.NewRCPolicyProvider("security-agent", agentVersion)
 		if err != nil {
 			log.Errorf("will be unable to load remote policy: %s", err)
 		} else {
@@ -292,14 +299,17 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 		probeVariables[name] = value
 	}
 
-	var opts rules.Opts
-	opts.
+	var evalOpts eval.Opts
+	evalOpts.
 		WithConstants(model.SECLConstants).
 		WithVariables(probeVariables).
+		WithLegacyFields(model.SECLLegacyFields)
+
+	var opts rules.Opts
+	opts.
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(m.getEventTypeEnabled()).
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
-		WithLegacyFields(model.SECLLegacyFields).
 		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
 			"process": func() rules.VariableProvider {
 				return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
@@ -311,16 +321,16 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 
 	// approver ruleset
 	model := &model.Model{}
-	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts)
+	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
 
 	// switch SECLVariables to use the real Event structure and not the mock model.Event one
-	opts.WithVariables(sprobe.SECLVariables)
+	evalOpts.WithVariables(sprobe.SECLVariables)
 	opts.WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
 		"process": m.probe.GetResolvers().ProcessResolver.NewProcessVariables,
 	})
 
 	// standard ruleset
-	ruleSet := m.probe.NewRuleSet(&opts)
+	ruleSet := m.probe.NewRuleSet(&opts, &evalOpts, &eval.MacroStore{})
 
 	// load policies
 	m.policyLoader.SetProviders(policyProviders)
@@ -472,6 +482,11 @@ func (m *Module) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []str
 	} else {
 		seclog.Tracef("Event on rule %s was dropped due to rate limiting", rule.ID)
 	}
+}
+
+// HandleActivityDump sends an activity dump to the backend
+func (m *Module) HandleActivityDump(dump *sapi.ActivityDumpStreamMessage) {
+	m.apiServer.SendActivityDump(dump)
 }
 
 func (m *Module) metricsSender() {

@@ -51,7 +51,7 @@ func parseRemoteConfigKey(serializedKey string) (*msgpgo.RemoteConfigKey, error)
 	return &key, nil
 }
 
-func buildLatestConfigsRequest(hostname string, state uptane.TUFVersions, activeClients []*pbgo.Client, products map[data.Product]struct{}, newProducts map[data.Product]struct{}, clientState []byte) *pbgo.LatestConfigsRequest {
+func buildLatestConfigsRequest(hostname string, state uptane.TUFVersions, activeClients []*pbgo.Client, products map[data.Product]struct{}, newProducts map[data.Product]struct{}, lastUpdateErr error, clientState []byte) *pbgo.LatestConfigsRequest {
 	productsList := make([]data.Product, len(products))
 	i := 0
 	for k := range products {
@@ -64,6 +64,11 @@ func buildLatestConfigsRequest(hostname string, state uptane.TUFVersions, active
 		newProductsList[i] = k
 		i++
 	}
+
+	lastUpdateErrString := ""
+	if lastUpdateErr != nil {
+		lastUpdateErrString = lastUpdateErr.Error()
+	}
 	return &pbgo.LatestConfigsRequest{
 		Hostname:                     hostname,
 		AgentVersion:                 version.AgentVersion,
@@ -74,6 +79,8 @@ func buildLatestConfigsRequest(hostname string, state uptane.TUFVersions, active
 		CurrentDirectorRootVersion:   state.DirectorRoot,
 		ActiveClients:                activeClients,
 		BackendClientState:           clientState,
+		HasError:                     lastUpdateErr != nil,
+		Error:                        lastUpdateErrString,
 	}
 }
 

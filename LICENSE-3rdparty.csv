@@ -96,11 +96,13 @@ core,github.com/Microsoft/hcsshim/internal/hcs/schema2,MIT,Copyright (c) 2015 Mi
 core,github.com/Microsoft/hcsshim/internal/hcserror,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/internal/hns,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/internal/interop,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
+core,github.com/Microsoft/hcsshim/internal/jobobject,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/internal/log,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/internal/logfields,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/internal/longpath,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/internal/mergemaps,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/internal/oc,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
+core,github.com/Microsoft/hcsshim/internal/queue,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/internal/safefile,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/internal/timeout,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/internal/vmcompute,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
@@ -248,6 +250,7 @@ core,github.com/containerd/containerd/namespaces,Apache-2.0,"Copyright 2012-2015
 core,github.com/containerd/containerd/oci,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/pkg/cap,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/pkg/dialer,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/pkg/kmutex,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/pkg/userns,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/platforms,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/plugin,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -299,7 +302,6 @@ core,github.com/dgraph-io/ristretto/z/simd,MIT,"Copyright (c) 2014 Andreas Bries
 core,github.com/dgryski/go-jump,MIT,Copyright (c) 2014 Damian Gryski <damian@gryski.com>
 core,github.com/docker/distribution/digestset,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/distribution/reference,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
-core,github.com/docker/distribution/registry/api/errcode,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types/blkiodev,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
@@ -384,8 +386,6 @@ core,github.com/golang/protobuf/jsonpb,BSD-3-Clause,Copyright (c) 2009 The Go Au
 core,github.com/golang/protobuf/proto,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/protoc-gen-go,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/protoc-gen-go/descriptor,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
-core,github.com/golang/protobuf/protoc-gen-go/generator,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
-core,github.com/golang/protobuf/protoc-gen-go/generator/internal/remap,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/protoc-gen-go/plugin,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/ptypes,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/ptypes/any,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
@@ -436,11 +436,12 @@ core,github.com/grpc-ecosystem/go-grpc-middleware/util/metautils,Apache-2.0,Copy
 core,github.com/grpc-ecosystem/go-grpc-prometheus,Apache-2.0,Copyright 2016 Michal Witkowski. All Rights Reserved.
 core,github.com/grpc-ecosystem/grpc-gateway/codegenerator,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
 core,github.com/grpc-ecosystem/grpc-gateway/internal,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
+core,github.com/grpc-ecosystem/grpc-gateway/internal/casing,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
 core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
 core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/descriptor,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
 core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/generator,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/gengateway,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
 core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/httprule,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
+core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/internal/gengateway,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
 core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
 core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/genswagger,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
 core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
@@ -532,6 +533,7 @@ core,github.com/mitchellh/reflectwalk,MIT,Copyright (c) 2013 Mitchell Hashimoto
 core,github.com/mkrautz/goar,BSD-3-Clause,Copyright (c) 2011 Mikkel Krautz
 core,github.com/moby/locker,Apache-2.0,"Copyright 2013-2018 Docker, Inc"
 core,github.com/moby/sys/mountinfo,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
+core,github.com/moby/sys/signal,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 core,github.com/modern-go/concurrent,Apache-2.0,Copyright (c) 2018 Tao Wen
 core,github.com/modern-go/reflect2,Apache-2.0,Copyright (c) 2018 Tao Wen
 core,github.com/mohae/deepcopy,MIT,Copyright (c) 2014 Joel
@@ -1019,13 +1021,14 @@ core,google.golang.org/grpc/attributes,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/backoff,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/base,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/balancer/grpclb/state,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/roundrobin,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/binarylog/grpc_binarylog_v1,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/channelz,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/codes,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/connectivity,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/credentials,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/credentials/insecure,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/credentials/internal,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/encoding,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/encoding/gzip,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/encoding/proto,Apache-2.0,Copyright 2014 gRPC authors.
@@ -1033,22 +1036,30 @@ core,google.golang.org/grpc/grpclog,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/health/grpc_health_v1,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/backoff,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/internal/balancer/gracefulswitch,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/balancerload,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/binarylog,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/buffer,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/channelz,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/internal/credentials,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/envconfig,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/grpclog,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/grpcrand,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/grpcsync,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/grpcutil,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/internal/metadata,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/internal/pretty,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/internal/resolver,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/resolver/dns,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/resolver/passthrough,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/internal/resolver/unix,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/internal/serviceconfig,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/internal/status,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/syscall,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/transport,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/internal/transport/networktype,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/keepalive,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/metadata,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/naming,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/peer,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/resolver,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/resolver/manual,Apache-2.0,Copyright 2014 gRPC authors.

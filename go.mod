@@ -26,18 +26,6 @@ replace (
 	github.com/ugorji/go => github.com/ugorji/go v1.1.7
 )
 
-// pinned to grpc v1.28.0 - this pin is required due to k8s.io/apiserver (and other) pins being set to v0.23.5
-//                          the kubernetes pins are required at this time. We will bump grpc once k8s releases
-//                          v1.24 or v1.25. Keep in sync with the version in internal/patch/grpc-go-insecure.
-replace (
-	github.com/grpc-ecosystem/grpc-gateway => github.com/grpc-ecosystem/grpc-gateway v1.12.2
-	google.golang.org/grpc => github.com/grpc/grpc-go v1.28.0
-)
-
-// HACK: Add `insecure` package (added on grpc-go v1.34) to support packages using it (notably go.opentelemetry/collector)
-// See internal/patch/grpc-go-insecure/README.md for more details.
-replace google.golang.org/grpc/credentials/insecure => ./internal/patch/grpc-go-insecure
-
 replace (
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ./pkg/obfuscate
 	github.com/DataDog/datadog-agent/pkg/otlp/model => ./pkg/otlp/model
@@ -73,7 +61,7 @@ require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/Microsoft/go-winio v0.5.1
-	github.com/Microsoft/hcsshim v0.9.2
+	github.com/Microsoft/hcsshim v0.9.3
 	github.com/acobaugh/osrelease v0.1.0
 	github.com/alecthomas/jsonschema v0.0.0-20210526225647-edb03dcab7bc
 	github.com/alecthomas/participle v0.7.1
@@ -92,16 +80,16 @@ require (
 	github.com/cilium/ebpf v0.8.2-0.20220404151855-0d439865ca15
 	github.com/clbanning/mxj v1.8.4
 	github.com/cloudfoundry-community/go-cfclient v0.0.0-20210621174645-7773f7e22665
-	github.com/containerd/cgroups v1.0.2
-	github.com/containerd/containerd v1.5.10
+	github.com/containerd/cgroups v1.0.3
+	github.com/containerd/containerd v1.6.6
 	github.com/containerd/typeurl v1.0.2
-	github.com/containernetworking/cni v1.0.1
+	github.com/containernetworking/cni v1.1.1
 	github.com/coreos/go-semver v0.3.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/cri-o/ocicni v0.3.0
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/davecgh/go-spew v1.1.1
-	github.com/docker/docker v20.10.14+incompatible
+	github.com/docker/docker v20.10.17+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/docker/libnetwork v0.5.6
 	github.com/dustin/go-humanize v1.0.0
@@ -196,18 +184,18 @@ require (
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	gotest.tools v2.2.0+incompatible
 	inet.af/netaddr v0.0.0-20211027220019-c74959edd3b6
-	k8s.io/api v0.23.5
-	k8s.io/apimachinery v0.23.5
-	k8s.io/apiserver v0.23.5
+	k8s.io/api v0.23.8
+	k8s.io/apimachinery v0.23.8
+	k8s.io/apiserver v0.23.8
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.10.0
-	k8s.io/client-go v0.23.5
-	k8s.io/cri-api v0.23.5
+	k8s.io/client-go v0.23.8
+	k8s.io/cri-api v0.23.8
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
 	k8s.io/klog/v2 v2.60.1
 	k8s.io/kube-openapi v0.0.0-20220124234850-424119656bbf
 	k8s.io/kube-state-metrics/v2 v2.4.2
-	k8s.io/kubelet v0.23.5
-	k8s.io/metrics v0.23.5
+	k8s.io/kubelet v0.23.8
+	k8s.io/metrics v0.23.8
 	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
 	sigs.k8s.io/custom-metrics-apiserver v1.23.0
 
@@ -253,7 +241,7 @@ require (
 	github.com/bmizerany/pat v0.0.0-20170815010413-6226ea591a40 // indirect
 	github.com/cenkalti/backoff/v4 v4.1.3 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
-	github.com/containerd/continuity v0.1.0 // indirect
+	github.com/containerd/continuity v0.2.2 // indirect
 	github.com/containerd/fifo v1.0.0 // indirect
 	github.com/containerd/ttrpc v1.1.0 // indirect
 	github.com/containernetworking/plugins v1.1.1 // indirect
@@ -279,7 +267,7 @@ require (
 	github.com/go-openapi/jsonreference v0.20.0 // indirect
 	github.com/go-openapi/swag v0.21.1 // indirect
 	github.com/go-test/deep v1.0.5 // indirect
-	github.com/godbus/dbus/v5 v5.0.4 // indirect
+	github.com/godbus/dbus/v5 v5.0.6 // indirect
 	github.com/gogo/googleapis v1.4.0 // indirect
 	github.com/golang/glog v1.0.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
@@ -323,6 +311,7 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/mkrautz/goar v0.0.0-20150919110319-282caa8bd9da // indirect
 	github.com/moby/locker v1.0.1 // indirect
+	github.com/moby/sys/signal v0.6.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mostynb/go-grpc-compression v1.1.16 // indirect
@@ -332,9 +321,9 @@ require (
 	github.com/nwaples/rardecode v1.1.0 // indirect
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852
 	github.com/opencontainers/go-digest v1.0.0 // indirect
-	github.com/opencontainers/image-spec v1.0.2
-	github.com/opencontainers/runc v1.0.3 // indirect
-	github.com/opencontainers/selinux v1.9.1 // indirect
+	github.com/opencontainers/image-spec v1.0.3-0.20211202183452-c5a74bcca799
+	github.com/opencontainers/runc v1.1.3 // indirect
+	github.com/opencontainers/selinux v1.10.1 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pelletier/go-toml v1.9.4 // indirect
 	github.com/philhofer/fwd v1.1.1 // indirect
@@ -403,8 +392,8 @@ require (
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
-	k8s.io/apiextensions-apiserver v0.23.5 // indirect
-	k8s.io/component-base v0.23.5 // indirect
+	k8s.io/apiextensions-apiserver v0.23.8 // indirect
+	k8s.io/component-base v0.23.8 // indirect
 	k8s.io/gengo v0.0.0-20210813121822-485abfe95c7c // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.30 // indirect
 	sigs.k8s.io/controller-runtime v0.11.2 // indirect
@@ -412,9 +401,6 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
-
-// See internal/patch/grpc-go-insecure/README.md for more details.
-require google.golang.org/grpc/credentials/insecure v0.0.0 // indirect
 
 require github.com/netsampler/goflow2 v1.1.0
 
