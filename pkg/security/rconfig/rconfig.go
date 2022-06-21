@@ -86,7 +86,7 @@ func (r *RCPolicyProvider) LoadPolicies() ([]*rules.Policy, *multierror.Error) {
 	for id, c := range r.lastConfigs {
 		reader := bytes.NewReader(c.Config)
 
-		policy, err := rules.LoadPolicy(c.ID, "remote-config", reader, r.agentVersion)
+		policy, err := rules.LoadPolicy(c.Metadata.ID, "remote-config", reader, r.agentVersion)
 
 		if err != nil {
 			errs = multierror.Append(errs, err)
