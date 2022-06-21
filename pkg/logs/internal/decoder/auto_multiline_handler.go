@@ -176,7 +176,9 @@ func (h *AutoMultilineHandler) switchToMultilineHandler(r *regexp.Regexp) {
 	h.singleLineHandler = nil
 
 	// Build and start a multiline-handler
-	h.multiLineHandler = NewMultiLineHandler(h.outputFn, r, h.flushTimeout, h.lineLimit)
+	h.multiLineHandler = NewMultiLineHandler(h.outputFn, r, h.flushTimeout, h.lineLimit, true)
+	h.source.RegisterInfo(h.multiLineHandler.countInfo)
+	h.source.RegisterInfo(h.multiLineHandler.linesCombinedInfo)
 	// stay with the multiline handler
 	h.processFunc = h.multiLineHandler.process
 }
