@@ -49,17 +49,20 @@ func resolveProcess(_ context.Context, e env.Env, id string, res compliance.Reso
 	for _, mp := range matchedProcesses {
 		name, err := mp.Name()
 		if err != nil {
-			return nil, log.Errorf("%s: Unable to fetch process name: %v", id, err)
+			log.Errorf("%s: Unable to fetch process name: %v", id, err)
+			continue
 		}
 
 		exe, err := mp.Exe()
 		if err != nil {
-			return nil, log.Errorf("%s: Unable to fetch process exe: %v", id, err)
+			log.Errorf("%s: Unable to fetch process exe: %v", id, err)
+			continue
 		}
 
 		cmdLine, err := mp.CmdlineSlice()
 		if err != nil {
-			return nil, log.Errorf("%s: Unable to parse cmd line: %v", id, err)
+			log.Errorf("%s: Unable to parse cmd line: %v", id, err)
+			continue
 		}
 
 		flagValues := parseProcessCmdLine(cmdLine)
