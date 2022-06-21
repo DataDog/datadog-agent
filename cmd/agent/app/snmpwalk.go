@@ -158,27 +158,11 @@ var snmpwalkCmd = &cobra.Command{
 
 		defer timeTrack(time.Now(), snmp.Version)
 
-		// Perform a snmpwalk
-		switch snmp.Version {
-		case gosnmp.Version1:
-			results, err = snmp.WalkAll(oid)
-			if err != nil {
-				fmt.Printf("Walk Error: %v\n", err)
-				os.Exit(1)
-			}
-			for _, pdu := range results {
-				printValue(pdu)
-			}
-		case gosnmp.Version2c, gosnmp.Version3:
-			err = snmp.BulkWalk(oid, printValue)
-			if err != nil {
-				fmt.Printf("Walk Error: %v\n", err)
-				os.Exit(1)
-			}
-			// default:
-			// 	fmt.Printf("SNMP version not supported: %s", snmp.Version)
-			// 	os.Exit(1)
-
+		// Perform a snmpwalk using Walk for all versions
+		err = snmp.Walk(oid, printValue)
+		if err != nil {
+			fmt.Printf("Walk Error: %v\n", err)
+			os.Exit(1)
 		}
 
 		return nil
