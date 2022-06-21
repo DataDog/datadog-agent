@@ -311,20 +311,19 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 		env = o.conf.DefaultEnv
 	}
 
-	// Get the hostname or set to empty
-	// if source is empty
+	// Get the hostname or set to empty if source is empty
 	var hostname string
 	if srcok {
 		switch src.Kind {
 		case source.HostnameKind:
 			hostname = src.Identifier
 		default:
+			// We are not on a hostname (serverless), hence the hostname is empty
 			hostname = ""
 		}
 	} else {
 		hostname = o.conf.Hostname
 	}
-
 	p.TracerPayload = &pb.TracerPayload{
 		Hostname:        hostname,
 		Chunks:          traceChunks,
