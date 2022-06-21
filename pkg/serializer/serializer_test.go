@@ -303,7 +303,7 @@ func TestSendSketch(t *testing.T) {
 	f.On("SubmitSketchSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 
 	s := NewSerializer(f, nil, nil)
-	err := s.SendSketch(metrics.SketchSeriesList{})
+	err := s.SendSketch(metrics.NewSketchesSourceTest())
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 }
@@ -352,7 +352,7 @@ func TestSendProcessesMetadata(t *testing.T) {
 }
 
 func TestSendWithDisabledKind(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 
 	mockConfig.Set("enable_payloads.events", false)
 	mockConfig.Set("enable_payloads.series", false)
@@ -376,7 +376,7 @@ func TestSendWithDisabledKind(t *testing.T) {
 
 	s.SendEvents(make(metrics.Events, 0))
 	s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{}))
-	s.SendSketch(make(metrics.SketchSeriesList, 0))
+	s.SendSketch(metrics.NewSketchesSourceTest())
 	s.SendServiceChecks(make(metrics.ServiceChecks, 0))
 	s.SendProcessesMetadata("test")
 

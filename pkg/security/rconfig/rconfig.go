@@ -19,13 +19,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/Masterminds/semver"
 	"github.com/hashicorp/go-multierror"
 )
+
+const securityAgentRCPollInterval = time.Second * 1
 
 // RCPolicyProvider defines a remote config policy provider
 type RCPolicyProvider struct {
 	sync.RWMutex
+	agentVersion *semver.Version
 
 	client               *remote.Client
 	onNewPoliciesReadyCb func()
@@ -35,14 +38,15 @@ type RCPolicyProvider struct {
 var _ rules.PolicyProvider = (*RCPolicyProvider)(nil)
 
 // NewRCPolicyProvider returns a new Remote Config based policy provider
-func NewRCPolicyProvider(name string) (*RCPolicyProvider, error) {
-	c, err := remote.NewClient(name, version.AgentVersion, []data.Product{data.ProductCWSDD}, time.Second*1)
+func NewRCPolicyProvider(name string, agentVersion *semver.Version) (*RCPolicyProvider, error) {
+	c, err := remote.NewClient(name, agentVersion.String(), []data.Product{data.ProductCWSDD}, securityAgentRCPollInterval)
 	if err != nil {
 		return nil, err
 	}
 
 	return &RCPolicyProvider{
-		client: c,
+		client:       c,
+		agentVersion: agentVersion,
 	}, nil
 }
 
@@ -82,7 +86,8 @@ func (r *RCPolicyProvider) LoadPolicies() ([]*rules.Policy, *multierror.Error) {
 	for id, c := range r.lastConfigs {
 		reader := bytes.NewReader(c.Config)
 
-		policy, err := rules.LoadPolicy(id, "remote-config", reader)
+		policy, err := rules.LoadPolicy(c.ID, "remote-config", reader, r.agentVersion)
+
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		} else {

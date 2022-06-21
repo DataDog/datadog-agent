@@ -20,7 +20,7 @@ type EndpointsTestSuite struct {
 }
 
 func (suite *EndpointsTestSuite) SetupTest() {
-	suite.config = coreConfig.Mock()
+	suite.config = coreConfig.Mock(nil)
 }
 
 func (suite *EndpointsTestSuite) TestLogsEndpointConfig() {

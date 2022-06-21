@@ -34,6 +34,7 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 	}
 
 	pc.Ancestor = parent
+	pc.IsThread = false
 	parent.Retain()
 }
 
@@ -100,6 +101,7 @@ func (pc *ProcessCacheEntry) ShareArgsEnvs(childEntry *ProcessCacheEntry) {
 func (pc *ProcessCacheEntry) SetParent(parent *ProcessCacheEntry) {
 	pc.SetAncestor(parent)
 	parent.ShareArgsEnvs(pc)
+	pc.IsThread = true
 }
 
 // Fork returns a copy of the current ProcessCacheEntry

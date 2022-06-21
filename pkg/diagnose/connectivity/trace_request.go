@@ -72,7 +72,7 @@ func sendRequestToAllEndpointOfADomain(client *http.Client, domainResolver resol
 // sendHTTPRequestToEndpoint creates an URL based on the domain and the endpoint information
 // then sends an HTTP Request with the method and payload inside the endpoint information
 func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain string, endpointInfo endpointInfo, apiKey string) (int, []byte, error) {
-	url := createEndpointURL(domain, endpointInfo, apiKey)
+	url := createEndpointURL(domain, endpointInfo)
 	logURL := scrubber.ScrubLine(url)
 
 	fmt.Printf("\n======== '%v' ========\n", color.BlueString(logURL))
@@ -87,6 +87,9 @@ func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain 
 
 	// Add tracing and send the request
 	req = req.WithContext(ctx)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("DD-API-KEY", apiKey)
+
 	resp, err := client.Do(req)
 
 	if err != nil {
@@ -103,16 +106,9 @@ func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain 
 	return resp.StatusCode, body, nil
 }
 
-// createEndpointUrl joins a domain with an endpoint and adds the apiKey to the query
-// string if it is necessary for the given endpoint
-func createEndpointURL(domain string, endpointInfo endpointInfo, apiKey string) string {
-	url := domain + endpointInfo.Endpoint.Route
-
-	if endpointInfo.APIKeyInQueryString {
-		url = fmt.Sprintf("%s?api_key=%s", url, apiKey)
-	}
-
-	return url
+// createEndpointUrl joins a domain with an endpoint
+func createEndpointURL(domain string, endpointInfo endpointInfo) string {
+	return domain + endpointInfo.Endpoint.Route
 }
 
 func verifyEndpointResponse(statusCode int, responseBody []byte, err error) {
@@ -123,7 +119,7 @@ func verifyEndpointResponse(statusCode int, responseBody []byte, err error) {
 	}
 
 	statusString := color.GreenString("PASS")
-	if statusCode != http.StatusOK {
+	if statusCode >= 400 {
 		statusString = color.RedString("FAIL")
 		fmt.Printf("Received response : '%v'\n", string(responseBody))
 	}
