@@ -89,6 +89,10 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 		// if process monitoring is enabled in the system-probe,
 		// then laddr container id may be set, so check that
 		// first
+		if conn.Laddr == nil {
+			continue
+		}
+
 		var cid string
 		if cid = conn.Laddr.ContainerId; cid == "" {
 			cid, _ = l.ctrForPid[int(conn.Pid)]
