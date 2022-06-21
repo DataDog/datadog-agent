@@ -83,7 +83,7 @@ func (r *RCPolicyProvider) LoadPolicies() ([]*rules.Policy, *multierror.Error) {
 	r.RLock()
 	defer r.RUnlock()
 
-	for id, c := range r.lastConfigs {
+	for _, c := range r.lastConfigs {
 		reader := bytes.NewReader(c.Config)
 
 		policy, err := rules.LoadPolicy(c.Metadata.ID, "remote-config", reader, r.agentVersion)
