@@ -64,7 +64,7 @@ func sendRequestToAllEndpointOfADomain(writer *writerWrapper, client *http.Clien
 				ctx = httptrace.WithClientTrace(context.Background(), createDiagnoseTrace(writer))
 			}
 
-			statusCode, responseBody, err := sendHTTPRequestToEndpoint(writer, ctx, client, domain, endpointInfo, apiKey)
+			statusCode, responseBody, err := sendHTTPRequestToEndpoint(ctx, writer, client, domain, endpointInfo, apiKey)
 
 			// Check if there is a response and if it's valid
 			verifyEndpointResponse(writer, statusCode, responseBody, err)
@@ -74,7 +74,7 @@ func sendRequestToAllEndpointOfADomain(writer *writerWrapper, client *http.Clien
 
 // sendHTTPRequestToEndpoint creates an URL based on the domain and the endpoint information
 // then sends an HTTP Request with the method and payload inside the endpoint information
-func sendHTTPRequestToEndpoint(writer *writerWrapper, ctx context.Context, client *http.Client, domain string, endpointInfo endpointInfo, apiKey string) (int, []byte, error) {
+func sendHTTPRequestToEndpoint(ctx context.Context, writer *writerWrapper, client *http.Client, domain string, endpointInfo endpointInfo, apiKey string) (int, []byte, error) {
 	url := createEndpointURL(domain, endpointInfo)
 	logURL := scrubber.ScrubLine(url)
 
