@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Add `otlp_config.debug.logLevel` to determine log level when the OTLP Agent receives metrics/traces for debugging use cases.
+    Add `otlp_config.debug.loglevel` to determine log level when the OTLP Agent receives metrics/traces for debugging use cases.

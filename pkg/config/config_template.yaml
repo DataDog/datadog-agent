@@ -3315,9 +3315,9 @@ api_key:
   #
   # debug:
 
-    ## @param logLevel - string - optional - default: info
+    ## @param loglevel - string - optional - default: info
     ## @env DD_OTLP_CONFIG_DEBUG_LOGLEVEL - string - optional - default: info
     ## Loglevel for logs when Datadog Agent receives otlp traces/metrics.
     ## Options are disabled, debug, info, error, warn.
     #
-    # logLevel: info
+    # loglevel: info

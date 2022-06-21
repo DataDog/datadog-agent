@@ -125,7 +125,7 @@ func buildMap(cfg PipelineConfig) (*confmap.Conf, error) {
 		m := map[string]interface{}{
 			"exporters": map[string]interface{}{
 				"logging": map[string]interface{}{
-					"loglevel": cfg.Debug["logLevel"],
+					"loglevel": cfg.Debug["loglevel"],
 				},
 			},
 		}
