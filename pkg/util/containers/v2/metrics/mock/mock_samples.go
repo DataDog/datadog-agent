@@ -14,7 +14,7 @@ import (
 func GetFullSampleContainerEntry() ContainerEntry {
 	return ContainerEntry{
 		Error: nil,
-		NetworkStats: metrics.ContainerNetworkStats{
+		NetworkStats: &metrics.ContainerNetworkStats{
 			BytesSent:   pointer.Float64Ptr(42),
 			BytesRcvd:   pointer.Float64Ptr(43),
 			PacketsSent: pointer.Float64Ptr(420),
@@ -28,7 +28,7 @@ func GetFullSampleContainerEntry() ContainerEntry {
 				},
 			},
 		},
-		ContainerStats: metrics.ContainerStats{
+		ContainerStats: &metrics.ContainerStats{
 			CPU: &metrics.ContainerCPUStats{
 				Total:            pointer.Float64Ptr(100),
 				System:           pointer.Float64Ptr(200),
