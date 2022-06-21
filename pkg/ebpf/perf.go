@@ -34,8 +34,6 @@ func (d *DataEvent) Done() {
 	recordPool.Put(d.r)
 }
 
-const sampleSize = 500
-
 var recordPool = sync.Pool{
 	New: func() interface{} {
 		return &perf.Record{}
@@ -59,7 +57,7 @@ func (c *PerfHandler) LostHandler(CPU int, lostCount uint64, perfMap *manager.Pe
 	c.LostChannel <- lostCount
 }
 
-func (c *PerfHandler) RecordHandler(record *perf.Record, perfMap *manager.PerfMap, _ *manager.Manager) {
+func (c *PerfHandler) RecordHandler(record *perf.Record, perfMap *manager.PerfMap, manager *manager.Manager) {
 	if c.closed {
 		return
 	}
