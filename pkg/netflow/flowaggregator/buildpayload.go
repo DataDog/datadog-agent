@@ -13,7 +13,7 @@ func buildPayload(aggFlow *common.Flow, hostname string) payload.FlowPayload {
 		FlowType:     string(aggFlow.FlowType),
 		SamplingRate: aggFlow.SamplingRate,
 		Direction:    enrichment.RemapDirection(aggFlow.Direction),
-		Exporter: payload.Exporter{
+		Device: payload.Device{
 			IP: common.IPBytesToString(aggFlow.ExporterAddr),
 		},
 		Start:      aggFlow.StartTimestamp,

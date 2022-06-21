@@ -12,7 +12,7 @@ type Flow struct {
 	SamplingRate uint64
 	Direction    uint32
 
-	// Exporter information
+	// Device information
 	ExporterAddr []byte
 
 	// Flow time

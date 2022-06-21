@@ -51,7 +51,7 @@ func Test_buildPayload(t *testing.T) {
 				Packets:      2,
 				EtherType:    "IPv4",
 				IPProtocol:   "TCP",
-				Exporter: payload.Exporter{
+				Device: payload.Device{
 					IP: "127.0.0.1",
 				},
 				Source: payload.Endpoint{
