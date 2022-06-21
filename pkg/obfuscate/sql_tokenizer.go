@@ -883,7 +883,7 @@ func (tkn *SQLTokenizer) Position() int {
 }
 
 func isLeadingLetter(ch rune) bool {
-	return unicode.IsLetter(ch) || ch == '_' || ch == '&'
+	return unicode.IsLetter(ch) || ch == '_' || ch == '@'
 }
 
 func isLetter(ch rune) bool {
