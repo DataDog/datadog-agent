@@ -803,7 +803,6 @@ type NetworkContext struct {
 }
 
 // DNSEvent represents a DNS event
-//msgp:ignore DNSEvent
 type DNSEvent struct {
 	ID    uint16 `field:"-" msg:"-"`
 	Name  string `field:"question.name" msg:"name" op_override:"eval.DNSNameCmp"` // the queried domain name

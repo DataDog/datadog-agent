@@ -343,7 +343,7 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 
 	// check if this event type is traced
 	var traced bool
-	for _, evtType := range ad.adm.tracedEventTypes {
+	for _, evtType := range ad.adm.probe.config.ActivityDumpTracedEventTypes {
 		if evtType == event.GetEventType() {
 			traced = true
 		}
@@ -363,6 +363,8 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	switch event.GetEventType() {
 	case model.FileOpenEventType:
 		return node.InsertFileEvent(&event.Open.File, event, Runtime)
+	case model.DNSEventType:
+		return node.InsertDNSEvent(&event.DNS)
 	}
 	return false
 }
@@ -468,6 +470,28 @@ func NewProfileRule(expression string, ruleIDPrefix string) ProfileRule {
 	}
 }
 
+func (ad *ActivityDump) generateDNSRule(dns *DNSNode, activityNode *ProcessActivityNode, ancestors []*ProcessActivityNode, ruleIDPrefix string) []ProfileRule {
+	var rules []ProfileRule
+
+	if dns != nil {
+		for _, req := range dns.requests {
+			rule := NewProfileRule(fmt.Sprintf(
+				"dns.question.name == \"%s\" && dns.question.type == \"%s\"",
+				req.Name,
+				model.QType(req.Type).String()),
+				ruleIDPrefix,
+			)
+			rule.Expression += fmt.Sprintf(" && process.file.path == \"%s\"", activityNode.Process.FileEvent.PathnameStr)
+			for _, parent := range ancestors {
+				rule.Expression += fmt.Sprintf(" && process.ancestors.file.path == \"%s\"", parent.Process.FileEvent.PathnameStr)
+			}
+			rules = append(rules, rule)
+		}
+	}
+
+	return rules
+}
+
 func (ad *ActivityDump) generateFIMRules(file *FileActivityNode, activityNode *ProcessActivityNode, ancestors []*ProcessActivityNode, ruleIDPrefix string) []ProfileRule {
 	var rules []ProfileRule
 
@@ -521,6 +545,12 @@ func (ad *ActivityDump) generateRules(node *ProcessActivityNode, ancestors []*Pr
 	for _, file := range node.Files {
 		fimRules := ad.generateFIMRules(file, node, ancestors, ruleIDPrefix)
 		rules = append(rules, fimRules...)
+	}
+
+	// add DNS rules
+	for _, dns := range node.DNSNames {
+		dnsRules := ad.generateDNSRule(dns, node, ancestors, ruleIDPrefix)
+		rules = append(rules, dnsRules...)
 	}
 
 	// add children rules recursively
@@ -662,6 +692,7 @@ type ProcessActivityNode struct {
 	GenerationType NodeGenerationType `msg:"generation_type"`
 
 	Files    map[string]*FileActivityNode `msg:"files,omitempty"`
+	DNSNames map[string]*DNSNode          `msg:"dns,omitempty"`
 	Children []*ProcessActivityNode       `msg:"children,omitempty"`
 }
 
@@ -679,6 +710,7 @@ func NewProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeG
 		Process:        entry.Process,
 		GenerationType: generationType,
 		Files:          make(map[string]*FileActivityNode),
+		DNSNames:       make(map[string]*DNSNode),
 	}
 	_ = pan.GetID()
 	pan.retain()
@@ -829,7 +861,7 @@ func (pan *ProcessActivityNode) snapshot(ad *ActivityDump) error {
 		return nil
 	}
 
-	for _, eventType := range ad.adm.tracedEventTypes {
+	for _, eventType := range ad.adm.probe.config.ActivityDumpTracedEventTypes {
 		switch eventType {
 		case model.FileOpenEventType:
 			if err = pan.snapshotFiles(p, ad); err != nil {
@@ -909,6 +941,24 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 		}
 	}
 	return nil
+}
+
+// InsertDNSEvent inserts
+func (pan *ProcessActivityNode) InsertDNSEvent(evt *model.DNSEvent) bool {
+	if dnsNode, ok := pan.DNSNames[evt.Name]; ok {
+		// look for the DNS request type
+		for _, req := range dnsNode.requests {
+			if req.Type == evt.Type {
+				return false
+			}
+		}
+
+		// insert the new request
+		dnsNode.requests = append(dnsNode.requests, *evt)
+		return true
+	}
+	pan.DNSNames[evt.Name] = NewDNSNode(evt)
+	return true
 }
 
 // FileActivityNode holds a tree representation of a list of files
@@ -1014,4 +1064,25 @@ func (fan *FileActivityNode) debug(prefix string) {
 	for _, child := range fan.Children {
 		child.debug("\t" + prefix)
 	}
+}
+
+// DNSNode is used to store a DNS node
+type DNSNode struct {
+	requests []model.DNSEvent `msg:"requests"`
+	id       string
+}
+
+// NewDNSNode returns a new DNSNode instance
+func NewDNSNode(event *model.DNSEvent) *DNSNode {
+	return &DNSNode{
+		requests: []model.DNSEvent{*event},
+	}
+}
+
+// GetID returns the ID of the current DNS node
+func (n *DNSNode) GetID() string {
+	if len(n.id) == 0 {
+		n.id = eval.RandString(5)
+	}
+	return n.id
 }

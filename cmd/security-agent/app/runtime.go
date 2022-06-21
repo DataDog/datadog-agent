@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
@@ -38,12 +39,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -208,13 +209,13 @@ func init() {
 	activityDumpGenerateDumpCmd.Flags().BoolVar(
 		&activityDumpArgs.withGraph,
 		"graph",
-		false,
+		true,
 		"generate a graph from the generated dump",
 	)
 	activityDumpGenerateDumpCmd.Flags().BoolVar(
 		&activityDumpArgs.differentiateArgs,
 		"differentiate-args",
-		false,
+		true,
 		"add the arguments in the process node merge algorithm",
 	)
 	activityDumpGenerateDumpCmd.Flags().StringVar(
@@ -535,20 +536,28 @@ func checkPoliciesInner(dir string) error {
 	// enabled all the rules
 	enabled := map[eval.EventType]bool{"*": true}
 
-	var opts rules.Opts
-	opts.
+	var evalOpts eval.Opts
+	evalOpts.
 		WithConstants(model.SECLConstants).
 		WithVariables(model.SECLVariables).
+		WithLegacyFields(model.SECLLegacyFields)
+
+	var opts rules.Opts
+	opts.
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(enabled).
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
-		WithLegacyFields(model.SECLLegacyFields).
 		WithLogger(&seclog.PatternLogger{})
 
 	model := &model.Model{}
-	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts)
+	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
 
-	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false)
+	agentVersion, err := utils.GetAgentSemverVersion()
+	if err != nil {
+		return err
+	}
+
+	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false, agentVersion)
 	if err != nil {
 		return err
 	}

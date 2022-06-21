@@ -118,6 +118,11 @@ type Config struct {
 	// ActivityDumpCgroupOutputDirectory defines the output directory for the cgroup activity dumps and graphs. Leave
 	// this field empty to prevent writing any output to disk.
 	ActivityDumpCgroupOutputDirectory string
+	// ActivityDumpCgroupGenerateGraph defines if system-probe should generate a graph for cgroup dumps.
+	ActivityDumpCgroupGenerateGraph bool
+	// ActivityDumpCgroupDifferentiateGraphs defines if system-probe should differentiate process nodes using process
+	// arguments for dumps.
+	ActivityDumpCgroupDifferentiateGraphs bool
 	// RuntimeMonitor defines if the runtime monitor should be enabled
 	RuntimeMonitor bool
 	// NetworkEnabled defines if the network probes should be activated
@@ -189,22 +194,27 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		LogPatterns:                        aconfig.Datadog.GetStringSlice("runtime_security_config.log_patterns"),
 		LogTags:                            aconfig.Datadog.GetStringSlice("runtime_security_config.log_tags"),
 		SelfTestEnabled:                    aconfig.Datadog.GetBool("runtime_security_config.self_test.enabled"),
-		ActivityDumpEnabled:                aconfig.Datadog.GetBool("runtime_security_config.activity_dump.enabled"),
-		ActivityDumpCleanupPeriod:          time.Duration(aconfig.Datadog.GetInt("runtime_security_config.activity_dump.cleanup_period")) * time.Second,
-		ActivityDumpTagsResolutionPeriod:   time.Duration(aconfig.Datadog.GetInt("runtime_security_config.activity_dump.tags_resolution_period")) * time.Second,
-		ActivityDumpTracedCgroupsCount:     aconfig.Datadog.GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
-		ActivityDumpTracedEventTypes:       model.ParseEventTypeStringSlice(aconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
-		ActivityDumpCgroupDumpTimeout:      time.Duration(aconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_dump_timeout")) * time.Minute,
-		ActivityDumpCgroupWaitListSize:     aconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_wait_list_size"),
-		ActivityDumpCgroupOutputDirectory:  aconfig.Datadog.GetString("runtime_security_config.activity_dump.cgroup_output_directory"),
 		RuntimeMonitor:                     aconfig.Datadog.GetBool("runtime_security_config.runtime_monitor.enabled"),
 		NetworkEnabled:                     aconfig.Datadog.GetBool("runtime_security_config.network.enabled"),
 		NetworkLazyInterfacePrefixes:       aconfig.Datadog.GetStringSlice("runtime_security_config.network.lazy_interface_prefixes"),
+		RemoteConfigurationEnabled:         aconfig.Datadog.GetBool("runtime_security_config.remote_configuration.enabled"),
+
 		// runtime compilation
 		RuntimeCompilationEnabled:       aconfig.Datadog.GetBool("runtime_security_config.runtime_compilation.enabled"),
 		RuntimeCompiledConstantsEnabled: aconfig.Datadog.GetBool("runtime_security_config.runtime_compilation.compiled_constants_enabled"),
 		RuntimeCompiledConstantsIsSet:   aconfig.Datadog.IsSet("runtime_security_config.runtime_compilation.compiled_constants_enabled"),
-		RemoteConfigurationEnabled:      aconfig.Datadog.GetBool("runtime_security_config.remote_configuration.enabled"),
+
+		// activity dump
+		ActivityDumpEnabled:                   aconfig.Datadog.GetBool("runtime_security_config.activity_dump.enabled"),
+		ActivityDumpCleanupPeriod:             time.Duration(aconfig.Datadog.GetInt("runtime_security_config.activity_dump.cleanup_period")) * time.Second,
+		ActivityDumpTagsResolutionPeriod:      time.Duration(aconfig.Datadog.GetInt("runtime_security_config.activity_dump.tags_resolution_period")) * time.Second,
+		ActivityDumpTracedCgroupsCount:        aconfig.Datadog.GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
+		ActivityDumpTracedEventTypes:          model.ParseEventTypeStringSlice(aconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
+		ActivityDumpCgroupDumpTimeout:         time.Duration(aconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_dump_timeout")) * time.Minute,
+		ActivityDumpCgroupWaitListSize:        aconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_wait_list_size"),
+		ActivityDumpCgroupOutputDirectory:     aconfig.Datadog.GetString("runtime_security_config.activity_dump.cgroup_output_directory"),
+		ActivityDumpCgroupGenerateGraph:       aconfig.Datadog.GetBool("runtime_security_config.activity_dump.cgroup_generate_graph"),
+		ActivityDumpCgroupDifferentiateGraphs: aconfig.Datadog.GetBool("runtime_security_config.activity_dump.cgroup_differentiate_args"),
 	}
 
 	// if runtime is enabled then we force fim

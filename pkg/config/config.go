@@ -21,10 +21,9 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -1046,10 +1045,12 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", 30)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.tags_resolution_period", 60)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_cgroups_count", -1)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_event_types", []string{"exec", "open"})
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_event_types", []string{"exec", "open", "dns"})
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_dump_timeout", 30)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_wait_list_size", 10)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_output_directory", "")
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_generate_graph", false)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_differentiate_args", true)
 	config.BindEnvAndSetDefault("runtime_security_config.network.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.network.lazy_interface_prefixes", []string{})
 	config.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", false)
@@ -1060,6 +1061,13 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("capture_lambda_payload", false)
 	config.BindEnvAndSetDefault("serverless.trace_enabled", false, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", false, "DD_TRACE_MANAGED_SERVICES")
+
+	// trace-agent's evp_proxy
+	config.BindEnv("evp_proxy_config.enabled")
+	config.BindEnv("evp_proxy_config.dd_url")
+	config.BindEnv("evp_proxy_config.api_key")
+	config.BindEnv("evp_proxy_config.additional_endpoints")
+	config.BindEnv("evp_proxy_config.max_payload_size")
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
