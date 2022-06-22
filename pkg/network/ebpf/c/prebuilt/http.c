@@ -14,12 +14,13 @@
 #define HTTPS_PORT 443
 #define SO_SUFFIX_SIZE 3
 
-static __always_inline void read_into_buffer_skb(char *buffer, struct __sk_buff* skb, skb_info_t *info) {
-    u64 offset = (u64)info->data_off;
-
+static __always_inline void read_into_buffer_skb(struct __sk_buff* skb,
+                                                 u64 offset,
+                                                 char *buffer,
+                                                 const u32 rlen) {
 #define BLK_SIZE (4)
-    const u32 iter = HTTP_BUFFER_SIZE / BLK_SIZE;
-    const u32 len = HTTP_BUFFER_SIZE < (skb->len - (u32)offset) ? (u32)offset + HTTP_BUFFER_SIZE : skb->len;
+    const u32 iter = rlen / BLK_SIZE;
+    const u32 len = rlen < (skb->len - (u32)offset) ? (u32)offset + rlen : skb->len;
 
     unsigned i = 0;
 
@@ -94,9 +95,18 @@ int socket__http_filter(struct __sk_buff* skb) {
     http.owned_by_src_port = http.tup.sport;
     normalize_tuple(&http.tup);
 
-    read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
-    http_process(&http, &skb_info, NO_TAGS);
-    return 0;
+    read_into_buffer_skb(skb, skb_info.data_off, (char *)http.request_fragment, 16);
+    // read_into_buffer_skb(skb, skb_info.data_off, (char *)http.request_fragment, HTTP_BUFFER_SIZE);
+    http_packet_t packet_type = HTTP_PACKET_UNKNOWN;
+    http_method_t method = HTTP_METHOD_UNKNOWN;
+    http_parse_data((char *)http.request_fragment, &packet_type, &method);
+
+    http_transaction_t *http_fetched = http_fetch_state(&http, &skb_info, packet_type);
+    if (http_fetched == NULL) return 0;
+
+    read_into_buffer_skb(skb, skb_info.data_off, (char *)http.request_fragment, HTTP_BUFFER_SIZE);
+
+    return http_process_fetched(&http, http_fetched, &skb_info, packet_type, method, NO_TAGS);
 }
 
 SEC("kprobe/tcp_sendmsg")
