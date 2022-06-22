@@ -531,7 +531,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.enabled", false)
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.low_soft_limit", 0.7)
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.high_soft_limit", 0.8)
-	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.go_gc", 0) // 0 means don't call SetGCPercent
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.go_gc", 1) // 0 means don't call SetGCPercent
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.memory_ballast", 1024*1024*1024*8)
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.rate_check.min", 0.01)
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.rate_check.max", 1)
