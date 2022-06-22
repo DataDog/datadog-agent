@@ -125,7 +125,7 @@
       "required": [
         "id"
       ],
-      "description": "DNSEventSerializer serializes a dns event to JSON"
+      "description": "DNSEventSerializer serializes a DNS event to JSON"
     },
     "DNSQuestion": {
       "properties": {
@@ -442,7 +442,7 @@
         "ip",
         "port"
       ],
-      "description": "IPPortFamilySerializer is used to serialize an IP, Port and address family context to JSON"
+      "description": "IPPortFamilySerializer is used to serialize an IP, port, and address family context to JSON"
     },
     "MMapEvent": {
       "properties": {
@@ -533,11 +533,11 @@
         },
         "l3_protocol": {
           "type": "string",
-          "description": "l3_protocol is the layer 3 procotocol name"
+          "description": "l3_protocol is the layer 3 protocol name"
         },
         "l4_protocol": {
           "type": "string",
-          "description": "l4_protocol is the layer 4 procotocol name"
+          "description": "l4_protocol is the layer 4 protocol name"
         },
         "source": {
           "$ref": "#/$defs/IPPort",

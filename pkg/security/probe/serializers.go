@@ -391,7 +391,7 @@ type IPPortSerializer struct {
 	Port uint16 `json:"port"`
 }
 
-// IPPortFamilySerializer is used to serialize an IP, Port and address family context to JSON
+// IPPortFamilySerializer is used to serialize an IP, port, and address family context to JSON
 // easyjson:json
 type IPPortFamilySerializer struct {
 	// Address family
@@ -408,9 +408,9 @@ type NetworkContextSerializer struct {
 	// device is the network device on which the event was captured
 	Device *NetworkDeviceSerializer `json:"device,omitempty"`
 
-	// l3_protocol is the layer 3 procotocol name
+	// l3_protocol is the layer 3 protocol name
 	L3Protocol string `json:"l3_protocol"`
-	// l4_protocol is the layer 4 procotocol name
+	// l4_protocol is the layer 4 protocol name
 	L4Protocol string `json:"l4_protocol"`
 	// source is the emitter of the network event
 	Source *IPPortSerializer `json:"source"`
@@ -435,7 +435,7 @@ type DNSQuestionSerializer struct {
 	Count uint16 `json:"count"`
 }
 
-// DNSEventSerializer serializes a dns event to JSON
+// DNSEventSerializer serializes a DNS event to JSON
 // easyjson:json
 type DNSEventSerializer struct {
 	// id is the unique identifier of the DNS request
