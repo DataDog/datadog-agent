@@ -194,7 +194,6 @@ func (s *Service) calculateRefreshInterval() time.Duration {
 
 func (s *Service) refresh() error {
 	s.Lock()
-	defer s.Unlock()
 	activeClients := s.clients.activeClients()
 	s.refreshProducts(activeClients)
 	previousState, err := s.uptane.TUFVersionState()
@@ -218,7 +217,11 @@ func (s *Service) refresh() error {
 			s.lastUpdateErr = err
 		}
 	}
-	response, err := s.api.Fetch(s.ctx, buildLatestConfigsRequest(s.hostname, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState))
+	request := buildLatestConfigsRequest(s.hostname, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
+	s.Unlock()
+	response, err := s.api.Fetch(s.ctx, request)
+	s.Lock()
+	defer s.Unlock()
 	s.lastUpdateErr = nil
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
