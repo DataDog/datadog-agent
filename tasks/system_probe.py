@@ -1086,25 +1086,24 @@ def setup_clang(ctx, target):
     else:
         arch = "amd64"
 
-
     clang_present = ctx.run(f"stat /opt/datadog-agent/embedded/bin/clang-{target}", warn=True)
     llc_present = ctx.run(f"stat /opt/datadog-agent/embedded/bin/llc-{target}", warn=True)
 
     if clang_present.failed or llc_present.failed:
         # download correct version from dd-agent-omnibus S3 bucket
         clang_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/clang-{target}.{arch}"
-        ctx.run(f"sudo wget -q {clang_url} -O /opt/datadog-agent/embedded/bin/clang-{target}")
-        ctx.run(f"sudo chmod 0755 /opt/datadog-agent/embedded/bin/clang-{target}")
-    
+        ctx.sudo(f"wget -q {clang_url} -O /opt/datadog-agent/embedded/bin/clang-{target}")
+        ctx.sudo(f"chmod 0755 /opt/datadog-agent/embedded/bin/clang-{target}")
+
         llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{target}.{arch}"
-        ctx.run(f"sudo wget -q {llc_url} -O /opt/datadog-agent/embedded/bin/llc-{target}")
-        ctx.run(f"sudo chmod 0755 /opt/datadog-agent/embedded/bin/llc-{target}")
-    
+        ctx.sudo(f"wget -q {llc_url} -O /opt/datadog-agent/embedded/bin/llc-{target}")
+        ctx.sudo(f"chmod 0755 /opt/datadog-agent/embedded/bin/llc-{target}")
+
     # make symlinks to the target binary
-    ctx.run("sudo rm /opt/datadog-agent/embedded/bin/clang-bpf", warn=True)
-    ctx.run(f"sudo ln -s /opt/datadog-agent/embedded/bin/clang-{target} /opt/datadog-agent/embedded/bin/clang-bpf")
-    ctx.run("sudo rm /opt/datadog-agent/embedded/bin/llc-bpf", warn=True)
-    ctx.run(f"sudo ln -s /opt/datadog-agent/embedded/bin/llc-{target} /opt/datadog-agent/embedded/bin/llc-bpf")
+    ctx.sudo("rm /opt/datadog-agent/embedded/bin/clang-bpf", warn=True)
+    ctx.sudo(f"ln -s /opt/datadog-agent/embedded/bin/clang-{target} /opt/datadog-agent/embedded/bin/clang-bpf")
+    ctx.sudo("rm /opt/datadog-agent/embedded/bin/llc-bpf", warn=True)
+    ctx.sudo(f"ln -s /opt/datadog-agent/embedded/bin/llc-{target} /opt/datadog-agent/embedded/bin/llc-bpf")
 
 import os
 def build_object_files(ctx, parallel_build, kernel_release=None, debug=False, strip_object_files=False):
