@@ -62,9 +62,11 @@ func mockedData(t *testing.T) []*eventTestData {
 							FileEvent: secmodel.FileEvent{
 								PathnameStr: "/usr/bin/curl",
 							},
-							ScrubbedArgv: []string{
-								"curl",
-								"localhost:6062/debug/vars",
+							ArgsEntry: &secmodel.ArgsEntry{
+								Values: []string{
+									"curl",
+									"localhost:6062/debug/vars",
+								},
 							},
 							ForkTime: parseRFC3339Time(t, "2022-06-12T12:00:01Z"),
 							ExecTime: parseRFC3339Time(t, "2022-06-12T12:00:02Z"),
@@ -115,9 +117,11 @@ func mockedData(t *testing.T) []*eventTestData {
 							FileEvent: secmodel.FileEvent{
 								PathnameStr: "/usr/bin/curl",
 							},
-							ScrubbedArgv: []string{
-								"curl",
-								"localhost:6062/debug/vars",
+							ArgsEntry: &secmodel.ArgsEntry{
+								Values: []string{
+									"curl",
+									"localhost:6062/debug/vars",
+								},
 							},
 							ForkTime: parseRFC3339Time(t, "2022-06-12T12:00:01Z"),
 							ExecTime: parseRFC3339Time(t, "2022-06-12T12:00:02Z"),
