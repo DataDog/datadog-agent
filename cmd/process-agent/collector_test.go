@@ -329,19 +329,19 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 func TestIgnoreResponseBody(t *testing.T) {
 	for _, tc := range []struct {
 		checkName string
-		skip      bool
+		ignore    bool
 	}{
-		{checkName: checks.Process.Name(), skip: false},
-		{checkName: checks.Process.RealTimeName(), skip: false},
-		{checkName: checks.ProcessDiscovery.Name(), skip: false},
-		{checkName: checks.Container.Name(), skip: false},
-		{checkName: checks.RTContainer.Name(), skip: false},
-		{checkName: checks.Pod.Name(), skip: true},
-		{checkName: checks.Connections.Name(), skip: false},
-		{checkName: checks.ProcessEvents.Name(), skip: true},
+		{checkName: checks.Process.Name(), ignore: false},
+		{checkName: checks.Process.RealTimeName(), ignore: false},
+		{checkName: checks.ProcessDiscovery.Name(), ignore: false},
+		{checkName: checks.Container.Name(), ignore: false},
+		{checkName: checks.RTContainer.Name(), ignore: false},
+		{checkName: checks.Pod.Name(), ignore: true},
+		{checkName: checks.Connections.Name(), ignore: false},
+		{checkName: checks.ProcessEvents.Name(), ignore: true},
 	} {
 		t.Run(tc.checkName, func(t *testing.T) {
-			assert.Equal(t, tc.skip, ignoreResponseBody(tc.checkName))
+			assert.Equal(t, tc.ignore, ignoreResponseBody(tc.checkName))
 		})
 	}
 }
