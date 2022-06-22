@@ -1,106 +1,28 @@
 {
-  "$schema": "http://json-schema.org/draft-04/schema#",
-  "properties": {
-    "evt": {
-      "$schema": "http://json-schema.org/draft-04/schema#",
-      "$ref": "#/definitions/EventContext"
-    },
-    "file": {
-      "$schema": "http://json-schema.org/draft-04/schema#",
-      "$ref": "#/definitions/FileEvent"
-    },
-    "selinux": {
-      "$schema": "http://json-schema.org/draft-04/schema#",
-      "$ref": "#/definitions/SELinuxEvent"
-    },
-    "bpf": {
-      "$schema": "http://json-schema.org/draft-04/schema#",
-      "$ref": "#/definitions/BPFEvent"
-    },
-    "mmap": {
-      "$schema": "http://json-schema.org/draft-04/schema#",
-      "$ref": "#/definitions/MMapEvent"
-    },
-    "mprotect": {
-      "$schema": "http://json-schema.org/draft-04/schema#",
-      "$ref": "#/definitions/MProtectEvent"
-    },
-    "ptrace": {
-      "$schema": "http://json-schema.org/draft-04/schema#",
-      "$ref": "#/definitions/PTraceEvent"
-    },
-    "module": {
-      "$schema": "http://json-schema.org/draft-04/schema#",
-      "$ref": "#/definitions/ModuleEvent"
-    },
-    "signal": {
-      "$schema": "http://json-schema.org/draft-04/schema#",
-      "$ref": "#/definitions/SignalEvent"
-    },
-    "splice": {
-      "$schema": "http://json-schema.org/draft-04/schema#",
-      "$ref": "#/definitions/SpliceEvent"
-    },
-    "dns": {
-      "$schema": "http://json-schema.org/draft-04/schema#",
-      "$ref": "#/definitions/DNSEvent"
-    },
-    "network": {
-      "$schema": "http://json-schema.org/draft-04/schema#",
-      "$ref": "#/definitions/NetworkContext"
-    },
-    "bind": {
-      "$schema": "http://json-schema.org/draft-04/schema#",
-      "$ref": "#/definitions/BindEvent"
-    },
-    "exit": {
-      "$schema": "http://json-schema.org/draft-04/schema#",
-      "$ref": "#/definitions/ExitEvent"
-    },
-    "usr": {
-      "$schema": "http://json-schema.org/draft-04/schema#",
-      "$ref": "#/definitions/UserContext"
-    },
-    "process": {
-      "$ref": "#/definitions/ProcessContext"
-    },
-    "dd": {
-      "$schema": "http://json-schema.org/draft-04/schema#",
-      "$ref": "#/definitions/DDContext"
-    },
-    "container": {
-      "$ref": "#/definitions/ContainerContext"
-    },
-    "date": {
-      "type": "string",
-      "format": "date-time"
-    }
-  },
-  "additionalProperties": false,
-  "type": "object",
-  "definitions": {
+  "$schema": "http://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/DataDog/datadog-agent/pkg/security/probe/event",
+  "$defs": {
     "BPFEvent": {
-      "required": [
-        "cmd"
-      ],
       "properties": {
         "cmd": {
           "type": "string",
           "description": "BPF command"
         },
         "map": {
-          "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/BPFMap",
+          "$ref": "#/$defs/BPFMap",
           "description": "BPF map"
         },
         "program": {
-          "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/BPFProgram",
+          "$ref": "#/$defs/BPFProgram",
           "description": "BPF program"
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "required": [
+        "cmd"
+      ],
+      "description": "BPFEventSerializer serializes a BPF event to JSON"
     },
     "BPFMap": {
       "properties": {
@@ -114,7 +36,8 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "BPFMapSerializer serializes a BPF map to JSON"
     },
     "BPFProgram": {
       "properties": {
@@ -143,21 +66,22 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "BPFProgramSerializer serializes a BPF map to JSON"
     },
     "BindEvent": {
-      "required": [
-        "addr"
-      ],
       "properties": {
         "addr": {
-          "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/IPPortFamily",
+          "$ref": "#/$defs/IPPortFamily",
           "description": "Bound address (if any)"
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "required": [
+        "addr"
+      ],
+      "description": "BindEventSerializer serializes a bind event to JSON"
     },
     "ContainerContext": {
       "properties": {
@@ -167,7 +91,8 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "ContainerContextSerializer serializes a container context to JSON"
     },
     "DDContext": {
       "properties": {
@@ -181,34 +106,28 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "DDContextSerializer serializes a span context to JSON"
     },
     "DNSEvent": {
-      "required": [
-        "id"
-      ],
       "properties": {
         "id": {
           "type": "integer",
           "description": "id is the unique identifier of the DNS request"
         },
         "question": {
-          "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/DNSQuestion",
+          "$ref": "#/$defs/DNSQuestion",
           "description": "question is a DNS question for the DNS request"
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "description": "DNSEventSerializer serializes a DNS event to JSON"
     },
     "DNSQuestion": {
-      "required": [
-        "class",
-        "type",
-        "name",
-        "size",
-        "count"
-      ],
       "properties": {
         "class": {
           "type": "string",
@@ -232,7 +151,15 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "required": [
+        "class",
+        "type",
+        "name",
+        "size",
+        "count"
+      ],
+      "description": "DNSQuestionSerializer serializes a DNS question to JSON"
     },
     "EventContext": {
       "properties": {
@@ -254,13 +181,10 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "EventContextSerializer serializes an event context to JSON"
     },
     "ExitEvent": {
-      "required": [
-        "cause",
-        "code"
-      ],
       "properties": {
         "cause": {
           "type": "string",
@@ -272,13 +196,14 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "required": [
+        "cause",
+        "code"
+      ],
+      "description": "ExitEventSerializer serializes an exit event to JSON"
     },
     "File": {
-      "required": [
-        "uid",
-        "gid"
-      ],
       "properties": {
         "path": {
           "type": "string",
@@ -345,27 +270,29 @@
         },
         "access_time": {
           "type": "string",
-          "format": "date-time"
+          "format": "date-time",
+          "description": "File access time"
         },
         "modification_time": {
           "type": "string",
-          "description": "File modified time",
-          "format": "date-time"
+          "format": "date-time",
+          "description": "File modified time"
         },
         "change_time": {
           "type": "string",
-          "description": "File change time",
-          "format": "date-time"
+          "format": "date-time",
+          "description": "File change time"
         }
       },
       "additionalProperties": false,
-      "type": "object"
-    },
-    "FileEvent": {
+      "type": "object",
       "required": [
         "uid",
         "gid"
       ],
+      "description": "FileSerializer serializes a file to JSON"
+    },
+    "FileEvent": {
       "properties": {
         "path": {
           "type": "string",
@@ -432,21 +359,21 @@
         },
         "access_time": {
           "type": "string",
-          "format": "date-time"
+          "format": "date-time",
+          "description": "File access time"
         },
         "modification_time": {
           "type": "string",
-          "description": "File modified time",
-          "format": "date-time"
+          "format": "date-time",
+          "description": "File modified time"
         },
         "change_time": {
           "type": "string",
-          "description": "File change time",
-          "format": "date-time"
+          "format": "date-time",
+          "description": "File change time"
         },
         "destination": {
-          "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/File",
+          "$ref": "#/$defs/File",
           "description": "Target file information"
         },
         "new_mount_id": {
@@ -467,13 +394,14 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "required": [
+        "uid",
+        "gid"
+      ],
+      "description": "FileEventSerializer serializes a file event to JSON"
     },
     "IPPort": {
-      "required": [
-        "ip",
-        "port"
-      ],
       "properties": {
         "ip": {
           "type": "string",
@@ -485,14 +413,14 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
-    },
-    "IPPortFamily": {
+      "type": "object",
       "required": [
-        "family",
         "ip",
         "port"
       ],
+      "description": "IPPortSerializer is used to serialize an IP and Port context to JSON"
+    },
+    "IPPortFamily": {
       "properties": {
         "family": {
           "type": "string",
@@ -508,16 +436,15 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "required": [
+        "family",
+        "ip",
+        "port"
+      ],
+      "description": "IPPortFamilySerializer is used to serialize an IP, port, and address family context to JSON"
     },
     "MMapEvent": {
-      "required": [
-        "address",
-        "offset",
-        "length",
-        "protection",
-        "flags"
-      ],
       "properties": {
         "address": {
           "type": "string",
@@ -541,15 +468,17 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "required": [
+        "address",
+        "offset",
+        "length",
+        "protection",
+        "flags"
+      ],
+      "description": "MMapEventSerializer serializes a mmap event to JSON"
     },
     "MProtectEvent": {
-      "required": [
-        "vm_start",
-        "vm_end",
-        "vm_protection",
-        "req_protection"
-      ],
       "properties": {
         "vm_start": {
           "type": "string",
@@ -569,12 +498,16 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "required": [
+        "vm_start",
+        "vm_end",
+        "vm_protection",
+        "req_protection"
+      ],
+      "description": "MProtectEventSerializer serializes a mmap event to JSON"
     },
     "ModuleEvent": {
-      "required": [
-        "name"
-      ],
       "properties": {
         "name": {
           "type": "string",
@@ -586,37 +519,32 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "description": "ModuleEventSerializer serializes a module event to JSON"
     },
     "NetworkContext": {
-      "required": [
-        "l3_protocol",
-        "l4_protocol",
-        "source",
-        "destination",
-        "size"
-      ],
       "properties": {
         "device": {
-          "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/NetworkDevice",
+          "$ref": "#/$defs/NetworkDevice",
           "description": "device is the network device on which the event was captured"
         },
         "l3_protocol": {
           "type": "string",
-          "description": "l3_protocol is the layer 3 procotocol name"
+          "description": "l3_protocol is the layer 3 protocol name"
         },
         "l4_protocol": {
           "type": "string",
-          "description": "l4_protocol is the layer 4 procotocol name"
+          "description": "l4_protocol is the layer 4 protocol name"
         },
         "source": {
-          "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/IPPort",
+          "$ref": "#/$defs/IPPort",
           "description": "source is the emitter of the network event"
         },
         "destination": {
-          "$ref": "#/definitions/IPPort",
+          "$ref": "#/$defs/IPPort",
           "description": "destination is the receiver of the network event"
         },
         "size": {
@@ -625,14 +553,17 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "required": [
+        "l3_protocol",
+        "l4_protocol",
+        "source",
+        "destination",
+        "size"
+      ],
+      "description": "NetworkContextSerializer serializes the network context to JSON"
     },
     "NetworkDevice": {
-      "required": [
-        "netns",
-        "ifindex",
-        "ifname"
-      ],
       "properties": {
         "netns": {
           "type": "integer",
@@ -648,13 +579,15 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "required": [
+        "netns",
+        "ifindex",
+        "ifname"
+      ],
+      "description": "NetworkDeviceSerializer serializes the network device context to JSON"
     },
     "PTraceEvent": {
-      "required": [
-        "request",
-        "address"
-      ],
       "properties": {
         "request": {
           "type": "string",
@@ -665,19 +598,19 @@
           "description": "address at which the ptrace request was executed"
         },
         "tracee": {
-          "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/ProcessContext",
+          "$ref": "#/$defs/ProcessContext",
           "description": "process context of the tracee"
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "required": [
+        "request",
+        "address"
+      ],
+      "description": "PTraceEventSerializer serializes a mmap event to JSON"
     },
     "Process": {
-      "required": [
-        "uid",
-        "gid"
-      ],
       "properties": {
         "pid": {
           "type": "integer",
@@ -721,29 +654,29 @@
         },
         "fork_time": {
           "type": "string",
-          "description": "Fork time of the process",
-          "format": "date-time"
+          "format": "date-time",
+          "description": "Fork time of the process"
         },
         "exec_time": {
           "type": "string",
-          "description": "Exec time of the process",
-          "format": "date-time"
+          "format": "date-time",
+          "description": "Exec time of the process"
         },
         "exit_time": {
           "type": "string",
-          "description": "Exit time of the process",
-          "format": "date-time"
+          "format": "date-time",
+          "description": "Exit time of the process"
         },
         "credentials": {
-          "$ref": "#/definitions/ProcessCredentials",
+          "$ref": "#/$defs/ProcessCredentials",
           "description": "Credentials associated with the process"
         },
         "executable": {
-          "$ref": "#/definitions/File",
+          "$ref": "#/$defs/File",
           "description": "File information of the executable"
         },
         "container": {
-          "$ref": "#/definitions/ContainerContext",
+          "$ref": "#/$defs/ContainerContext",
           "description": "Container context"
         },
         "argv0": {
@@ -778,13 +711,14 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
-    },
-    "ProcessContext": {
+      "type": "object",
       "required": [
         "uid",
         "gid"
       ],
+      "description": "ProcessSerializer serializes a process to JSON"
+    },
+    "ProcessContext": {
       "properties": {
         "pid": {
           "type": "integer",
@@ -828,31 +762,29 @@
         },
         "fork_time": {
           "type": "string",
-          "description": "Fork time of the process",
-          "format": "date-time"
+          "format": "date-time",
+          "description": "Fork time of the process"
         },
         "exec_time": {
           "type": "string",
-          "description": "Exec time of the process",
-          "format": "date-time"
+          "format": "date-time",
+          "description": "Exec time of the process"
         },
         "exit_time": {
           "type": "string",
-          "description": "Exit time of the process",
-          "format": "date-time"
+          "format": "date-time",
+          "description": "Exit time of the process"
         },
         "credentials": {
-          "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/ProcessCredentials",
+          "$ref": "#/$defs/ProcessCredentials",
           "description": "Credentials associated with the process"
         },
         "executable": {
-          "$ref": "#/definitions/File",
+          "$ref": "#/$defs/File",
           "description": "File information of the executable"
         },
         "container": {
-          "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/ContainerContext",
+          "$ref": "#/$defs/ContainerContext",
           "description": "Container context"
         },
         "argv0": {
@@ -886,32 +818,26 @@
           "description": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)"
         },
         "parent": {
-          "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/Process",
+          "$ref": "#/$defs/Process",
           "description": "Parent process"
         },
         "ancestors": {
           "items": {
-            "$ref": "#/definitions/Process"
+            "$ref": "#/$defs/Process"
           },
           "type": "array",
           "description": "Ancestor processes"
         }
       },
       "additionalProperties": false,
-      "type": "object"
-    },
-    "ProcessCredentials": {
+      "type": "object",
       "required": [
         "uid",
-        "gid",
-        "euid",
-        "egid",
-        "fsuid",
-        "fsgid",
-        "cap_effective",
-        "cap_permitted"
+        "gid"
       ],
+      "description": "ProcessContextSerializer serializes a process context to JSON"
+    },
+    "ProcessCredentials": {
       "properties": {
         "uid": {
           "type": "integer",
@@ -966,22 +892,32 @@
             "type": "string"
           },
           "type": "array",
-          "description": "Effective Capacity set"
+          "description": "Effective Capability set"
         },
         "cap_permitted": {
           "items": {
             "type": "string"
           },
           "type": "array",
-          "description": "Permitted Capacity set"
+          "description": "Permitted Capability set"
         },
         "destination": {
-          "additionalProperties": true,
           "description": "Credentials after the operation"
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "required": [
+        "uid",
+        "gid",
+        "euid",
+        "egid",
+        "fsuid",
+        "fsgid",
+        "cap_effective",
+        "cap_permitted"
+      ],
+      "description": "ProcessCredentialsSerializer serializes the process credentials to JSON"
     },
     "SELinuxBoolChange": {
       "properties": {
@@ -1020,29 +956,23 @@
     "SELinuxEvent": {
       "properties": {
         "bool": {
-          "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/SELinuxBoolChange",
+          "$ref": "#/$defs/SELinuxBoolChange",
           "description": "SELinux boolean operation"
         },
         "enforce": {
-          "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/SELinuxEnforceStatus",
+          "$ref": "#/$defs/SELinuxEnforceStatus",
           "description": "SELinux enforcement change"
         },
         "bool_commit": {
-          "$schema": "http://json-schema.org/draft-04/schema#",
-          "$ref": "#/definitions/SELinuxBoolCommit",
+          "$ref": "#/$defs/SELinuxBoolCommit",
           "description": "SELinux boolean commit"
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "SELinuxEventSerializer serializes a SELinux context to JSON"
     },
     "SignalEvent": {
-      "required": [
-        "type",
-        "pid"
-      ],
       "properties": {
         "type": {
           "type": "string",
@@ -1053,18 +983,19 @@
           "description": "signal target pid"
         },
         "target": {
-          "$ref": "#/definitions/ProcessContext",
+          "$ref": "#/$defs/ProcessContext",
           "description": "process context of the signal target"
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "required": [
+        "type",
+        "pid"
+      ],
+      "description": "SignalEventSerializer serializes a signal event to JSON"
     },
     "SpliceEvent": {
-      "required": [
-        "pipe_entry_flag",
-        "pipe_exit_flag"
-      ],
       "properties": {
         "pipe_entry_flag": {
           "type": "string",
@@ -1076,7 +1007,12 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "required": [
+        "pipe_entry_flag",
+        "pipe_exit_flag"
+      ],
+      "description": "SpliceEventSerializer serializes a splice event to JSON"
     },
     "UserContext": {
       "properties": {
@@ -1090,7 +1026,71 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "UserContextSerializer serializes a user context to JSON"
     }
-  }
+  },
+  "properties": {
+    "evt": {
+      "$ref": "#/$defs/EventContext"
+    },
+    "file": {
+      "$ref": "#/$defs/FileEvent"
+    },
+    "selinux": {
+      "$ref": "#/$defs/SELinuxEvent"
+    },
+    "bpf": {
+      "$ref": "#/$defs/BPFEvent"
+    },
+    "mmap": {
+      "$ref": "#/$defs/MMapEvent"
+    },
+    "mprotect": {
+      "$ref": "#/$defs/MProtectEvent"
+    },
+    "ptrace": {
+      "$ref": "#/$defs/PTraceEvent"
+    },
+    "module": {
+      "$ref": "#/$defs/ModuleEvent"
+    },
+    "signal": {
+      "$ref": "#/$defs/SignalEvent"
+    },
+    "splice": {
+      "$ref": "#/$defs/SpliceEvent"
+    },
+    "dns": {
+      "$ref": "#/$defs/DNSEvent"
+    },
+    "network": {
+      "$ref": "#/$defs/NetworkContext"
+    },
+    "bind": {
+      "$ref": "#/$defs/BindEvent"
+    },
+    "exit": {
+      "$ref": "#/$defs/ExitEvent"
+    },
+    "usr": {
+      "$ref": "#/$defs/UserContext"
+    },
+    "process": {
+      "$ref": "#/$defs/ProcessContext"
+    },
+    "dd": {
+      "$ref": "#/$defs/DDContext"
+    },
+    "container": {
+      "$ref": "#/$defs/ContainerContext"
+    },
+    "date": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "description": "EventSerializer serializes an event to JSON"
 }
