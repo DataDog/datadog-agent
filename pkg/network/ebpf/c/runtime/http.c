@@ -387,8 +387,7 @@ int uprobe__gnutls_deinit(struct pt_regs* ctx) {
     return 0;
 }
 
-SEC("kprobe/do_sys_open")
-int kprobe__do_sys_open(struct pt_regs* ctx) {
+static inline int kprobe__do_sys_open_helper(struct pt_regs* ctx) {
     char *path_argument = (char *)PT_REGS_PARM2(ctx);
     lib_path_t path = {0};
 
@@ -411,8 +410,17 @@ int kprobe__do_sys_open(struct pt_regs* ctx) {
     return 0;
 }
 
-SEC("kretprobe/do_sys_open")
-int kretprobe__do_sys_open(struct pt_regs* ctx) {
+SEC("kprobe/do_sys_open")
+int kprobe__do_sys_open(struct pt_regs* ctx) {
+    return kprobe__do_sys_open_helper(ctx);
+}
+
+SEC("kprobe/do_sys_openat2")
+int kprobe__do_sys_openat2(struct pt_regs* ctx) {
+    return kprobe__do_sys_open_helper(ctx);
+}
+
+static inline int kretprobe__do_sys_open_helper(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // If file couldn't be opened, bail out
@@ -448,6 +456,16 @@ int kretprobe__do_sys_open(struct pt_regs* ctx) {
  cleanup:
     bpf_map_delete_elem(&open_at_args, &pid_tgid);
     return 0;
+}
+
+SEC("kretprobe/do_sys_open")
+int kretprobe__do_sys_open(struct pt_regs* ctx) {
+    return kretprobe__do_sys_open_helper(ctx);
+}
+
+SEC("kretprobe/do_sys_openat2")
+int kretprobe__do_sys_openat2(struct pt_regs* ctx) {
+    return kretprobe__do_sys_open_helper(ctx);
 }
 
 // This number will be interpreted by elf-loader to set the current running kernel version

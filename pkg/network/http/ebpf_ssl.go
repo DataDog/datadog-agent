@@ -60,8 +60,10 @@ const (
 	sharedLibrariesPerfMap = "shared_libraries"
 
 	// probe used for streaming shared library events
-	doSysOpen    = "kprobe/do_sys_open"
-	doSysOpenRet = "kretprobe/do_sys_open"
+	doSysOpen       = "kprobe/do_sys_open"
+	doSysOpenRet    = "kretprobe/do_sys_open"
+	doSysOpenAt2    = "kprobe/do_sys_openat2"
+	doSysOpenAt2Ret = "kretprobe/do_sys_openat2"
 )
 
 type sslProgram struct {
@@ -120,6 +122,21 @@ func (o *sslProgram) ConfigureManager(m *manager.Manager) {
 			UID:          probeUID,
 		}, KProbeMaxActive: maxActive},
 	)
+
+	if runningOnARM() {
+		m.Probes = append(m.Probes,
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  doSysOpenAt2,
+				EBPFFuncName: "kprobe__do_sys_openat2",
+				UID:          probeUID,
+			}, KProbeMaxActive: maxActive},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  doSysOpenAt2Ret,
+				EBPFFuncName: "kretprobe__do_sys_openat2",
+				UID:          probeUID,
+			}, KProbeMaxActive: maxActive},
+		)
+	}
 }
 
 func (o *sslProgram) ConfigureOptions(options *manager.Options) {
@@ -153,6 +170,25 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 			},
 		},
 	)
+
+	if runningOnARM() {
+		options.ActivatedProbes = append(options.ActivatedProbes,
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  doSysOpenAt2,
+					EBPFFuncName: "kprobe__do_sys_openat2",
+					UID:          probeUID,
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  doSysOpenAt2Ret,
+					EBPFFuncName: "kretprobe__do_sys_openat2",
+					UID:          probeUID,
+				},
+			},
+		)
+	}
 
 	if options.MapEditors == nil {
 		options.MapEditors = make(map[string]*ebpf.Map)
