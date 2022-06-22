@@ -46,7 +46,7 @@ def presentable_top_node(top_node):
 
 
 def extract_ref_name_and_anchor(ref):
-    prefix = "#/definitions/"
+    prefix = "#/$defs/"
     if ref.startswith(prefix):
         name = ref[len(prefix) :]
     return name, name.lower()
@@ -75,7 +75,7 @@ if __name__ == "__main__":
     definitions = []
     definitions.sort(key=lambda d: d.name)
 
-    for name, definition in json_top_node["definitions"].items():
+    for name, definition in json_top_node["$defs"].items():
         references = []
         descriptions = []
         for prop_name, prop in definition["properties"].items():

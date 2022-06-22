@@ -20,7 +20,7 @@ func Test_buildPayload(t *testing.T) {
 				FlowType:        common.TypeNetFlow9,
 				SamplingRate:    10,
 				Direction:       1,
-				ExporterAddr:    []byte{127, 0, 0, 1},
+				DeviceAddr:      []byte{127, 0, 0, 1},
 				StartTimestamp:  1234568,
 				EndTimestamp:    1234569,
 				Bytes:           10,
@@ -51,7 +51,7 @@ func Test_buildPayload(t *testing.T) {
 				Packets:      2,
 				EtherType:    "IPv4",
 				IPProtocol:   "TCP",
-				Exporter: payload.Exporter{
+				Device: payload.Device{
 					IP: "127.0.0.1",
 				},
 				Source: payload.Endpoint{

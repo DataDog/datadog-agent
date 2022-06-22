@@ -107,12 +107,14 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				if !ok {
 					return
 				}
+
 				atomic.AddInt64(&c.perfReceived, 1)
 				batch := netebpf.ToBatch(batchData.Data)
 				c.batchManager.ExtractBatchInto(c.buffer, batch, batchData.CPU)
 				closedCount += c.buffer.Len()
 				callback(c.buffer.Connections())
 				c.buffer.Reset()
+				batchData.Done()
 			case lostCount, ok := <-c.perfHandler.LostChannel:
 				if !ok {
 					return

@@ -3299,7 +3299,7 @@ api_key:
     # span_name_as_resource_name: false
 
     ## @param span_name_remappings - map - optional
-    ## @env DD_OTLP_CONFIG_TRACES_SPAN_NAME_REMAPPINGS - boolean - optional
+    ## @env DD_OTLP_CONFIG_TRACES_SPAN_NAME_REMAPPINGS - json - optional
     ## Defines a map of span names and preferred names to map to. This can be used to automatically map Datadog Span
     ## Operation Names to an updated value.
     ## span_name_remappings:
