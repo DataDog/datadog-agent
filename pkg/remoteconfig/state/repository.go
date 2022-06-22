@@ -7,6 +7,7 @@ package state
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -23,10 +24,11 @@ var (
 // RepositoryState contains all of the information about the current config files
 // stored by the client to be able to make an update request to an Agent
 type RepositoryState struct {
-	Configs        []ConfigState
-	CachedFiles    []CachedFile
-	TargetsVersion int64
-	RootsVersion   int64
+	Configs            []ConfigState
+	CachedFiles        []CachedFile
+	TargetsVersion     int64
+	RootsVersion       int64
+	OpaqueBackendState []byte
 }
 
 // ConfigState describes an applied config by the agent client.
@@ -63,8 +65,9 @@ type Update struct {
 // remote config updates from an Agent.
 type Repository struct {
 	// TUF related data
-	latestTargets  *data.Targets
-	tufRootsClient *tufRootsClient
+	latestTargets      *data.Targets
+	tufRootsClient     *tufRootsClient
+	opaqueBackendState []byte
 
 	// Config file storage
 	metadata map[string]Metadata
@@ -186,12 +189,11 @@ func (r *Repository) Update(update Update) ([]string, error) {
 		result.changed[parsedPath.Product][path] = config
 	}
 
-	// 4.a: Store the new targets.signed.custom.client_state
+	// 4.a: Store the new targets.signed.custom.opaque_client_state
 	// TUF: Store the updated roots now that everything has validated
-	// This data is contained within the TUF Targets file so storing that
-	// covers this as well.
 	r.latestTargets = updatedTargets
 	r.tufRootsClient = tmpRootClient
+	r.opaqueBackendState = extractOpaqueBackendState(*r.latestTargets.Custom)
 
 	// Upstream may not want to take any actions if the update result doesn't
 	// change any configs.
@@ -263,10 +265,11 @@ func (r *Repository) CurrentState() (RepositoryState, error) {
 	}
 
 	return RepositoryState{
-		Configs:        configs,
-		CachedFiles:    cached,
-		TargetsVersion: r.latestTargets.Version,
-		RootsVersion:   latestRoot.Version,
+		Configs:            configs,
+		CachedFiles:        cached,
+		TargetsVersion:     r.latestTargets.Version,
+		RootsVersion:       latestRoot.Version,
+		OpaqueBackendState: r.opaqueBackendState,
 	}, nil
 }
 
@@ -341,4 +344,17 @@ func hashesEqual(tufHashes data.Hashes, storedHashes map[string][]byte) bool {
 	}
 
 	return true
+}
+
+func extractOpaqueBackendState(targetsCustom []byte) []byte {
+	state := struct {
+		State []byte `json:"opaque_backend_state"`
+	}{nil}
+
+	err := json.Unmarshal(targetsCustom, &state)
+	if err != nil {
+		return []byte{}
+	}
+
+	return state.State
 }

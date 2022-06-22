@@ -15,6 +15,10 @@ import (
 	"github.com/theupdateframework/go-tuf/util"
 )
 
+var (
+	testOpaqueBackendStateContents = []byte(`{"foo": "bar"}`)
+)
+
 type testArtifacts struct {
 	key            keys.Signer
 	signedBaseRoot []byte
@@ -75,8 +79,19 @@ func newTestArtifacts() testArtifacts {
 		panic(err)
 	}
 
+	state := struct {
+		State []byte `json:"opaque_backend_state"`
+	}{[]byte(testOpaqueBackendStateContents)}
+
+	b, err := json.Marshal(&state)
+	if err != nil {
+		panic(err)
+	}
+	rm := json.RawMessage(b)
+
 	targets := data.NewTargets()
 	targets.Version = 1
+	targets.Custom = &rm
 
 	return testArtifacts{
 		key:            key,
