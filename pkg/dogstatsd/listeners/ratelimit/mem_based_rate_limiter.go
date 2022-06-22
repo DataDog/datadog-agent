@@ -17,8 +17,8 @@ import (
 )
 
 // MemBasedRateLimiter is a rate limiter based on memory usage.
-// While the high memory limit is reached, Wait() blocks and try to release memory.
-// When the low memory limit is reached, Wait() blocks once and may try to release memory.
+// While the high memory limit is reached, MayWait() blocks and try to release memory.
+// When the low memory limit is reached, MayWait() blocks once and may try to release memory.
 // The memory limits are defined as soft limits.
 //
 // `memoryRateLimiter` provides a way to dynamically update the rate at which the memory limit
@@ -59,7 +59,7 @@ func BuildMemBasedRateLimiter() (*MemBasedRateLimiter, error) {
 	}
 
 	ballastOnce.Do(func() {
-		ballastSize := config.Datadog.GetInt("dogstatsd_mem_based_rate_limiter.memory_balast")
+		ballastSize := config.Datadog.GetInt("dogstatsd_mem_based_rate_limiter.memory_ballast")
 		if ballastSize != 0 {
 			ballast = make([]byte, 0, ballastSize)
 			log.Infof("ballast size %vMB", ballastSize/1024/1024)
@@ -121,7 +121,7 @@ func NewMemBasedRateLimiter(
 }
 
 // Wait and try to release the memory. See MemBasedRateLimiter for more information.
-func (m *MemBasedRateLimiter) Wait() error {
+func (m *MemBasedRateLimiter) MayWait() error {
 	if !m.memoryRateLimiter.keep() {
 		m.telemetry.incNoWait()
 		return nil

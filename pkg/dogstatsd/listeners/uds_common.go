@@ -177,7 +177,7 @@ func (l *UDSListener) Listen() {
 			var oobn int
 
 			if rateLimiter != nil {
-				if err = rateLimiter.Wait(); err != nil {
+				if err = rateLimiter.MayWait(); err != nil {
 					log.Error(err)
 				}
 			}
@@ -218,7 +218,7 @@ func (l *UDSListener) Listen() {
 			l.oobPoolManager.Put(oob)
 		} else {
 			if rateLimiter != nil {
-				if err = rateLimiter.Wait(); err != nil {
+				if err = rateLimiter.MayWait(); err != nil {
 					log.Error(err)
 				}
 			}

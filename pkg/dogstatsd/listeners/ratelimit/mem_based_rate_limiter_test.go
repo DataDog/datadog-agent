@@ -21,19 +21,19 @@ func TestMemBasedRateLimiter(t *testing.T) {
 	r.NoError(err)
 
 	memoryUsage.setRates(0.5)
-	rateLimiter.Wait()
+	rateLimiter.MayWait()
 	r.Equal(1, telemetry.wait)
 	r.Equal(0, telemetry.highLimit)
 	r.Equal(0, telemetry.lowLimit)
 
 	memoryUsage.setRates(0.7)
-	rateLimiter.Wait()
+	rateLimiter.MayWait()
 	r.Equal(2, telemetry.wait)
 	r.Equal(0, telemetry.highLimit)
 	r.Equal(1, telemetry.lowLimit)
 
 	memoryUsage.setRates(0.9, 0.9, 0.9, 0.7)
-	rateLimiter.Wait()
+	rateLimiter.MayWait()
 	r.Equal(3, telemetry.wait)
 	r.Equal(3, telemetry.highLimit)
 	r.Equal(2, telemetry.lowLimit)
