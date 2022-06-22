@@ -431,7 +431,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	offset += read
 
 	eventType := event.GetEventType()
-	p.monitor.perfBufferMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, eventStreamMap, int(CPU))
+	p.monitor.perfBufferMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, eventStreamMap, CPU)
 
 	// no need to dispatch events
 	switch eventType {
