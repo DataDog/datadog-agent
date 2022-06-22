@@ -48,7 +48,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.37.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/trace v0.37.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
-	github.com/DataDog/datadog-operator v0.7.0
+	github.com/DataDog/datadog-operator v0.8.0
 	github.com/DataDog/ebpf-manager v0.0.0-20220620150645-6cb8b3fd1984
 	github.com/DataDog/gohai v0.0.0-20220607152458-544032c46ded
 	github.com/DataDog/gopsutil v0.0.0-20220308095538-d086941833e3
@@ -384,7 +384,6 @@ require (
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5 // indirect
 	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171 // indirect
 	golang.org/x/xerrors v0.0.0-20220411194840-2f41105eb62f // indirect
-	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	gomodules.xyz/orderedmap v0.1.0 // indirect
 	google.golang.org/api v0.75.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
@@ -392,7 +391,6 @@ require (
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
-	k8s.io/apiextensions-apiserver v0.23.8 // indirect
 	k8s.io/component-base v0.23.8 // indirect
 	k8s.io/gengo v0.0.0-20210813121822-485abfe95c7c // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.30 // indirect
@@ -404,7 +402,10 @@ require (
 
 require github.com/netsampler/goflow2 v1.1.0
 
-require github.com/libp2p/go-reuseport v0.1.0 // indirect
+require (
+	github.com/go-openapi/spec v0.20.3 // indirect
+	github.com/libp2p/go-reuseport v0.1.0 // indirect
+)
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
