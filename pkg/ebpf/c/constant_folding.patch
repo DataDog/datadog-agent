@@ -18,7 +18,7 @@
 +#error Unknown architecture
 +#endif
 +
-+#define symver_wrap_d(func)                                     \
++#define symver_wrap_d1(func)                                     \
 +double __ ## func ## _prior_glibc(double x);                    \
 +                                                                \
 +asm(".symver __" #func "_prior_glibc, " #func "@" GLIBC_VERS);  \
@@ -27,7 +27,7 @@
 +  return __ ## func ## _prior_glibc(x);                         \
 +}
 +
-+#define symver_wrap_f(func)                                     \
++#define symver_wrap_f1(func)                                     \
 +float __ ## func ## _prior_glibc(float x);                      \
 +                                                                \
 +asm(".symver __" #func "_prior_glibc, " #func "@" GLIBC_VERS);  \
@@ -40,14 +40,14 @@
 +
 +// Use functions directly for non-GLIBC environments.
 +
-+#define symver_wrap_d(func)                                     \
++#define symver_wrap_d1(func)                                     \
 +double func(double x);                                          \
 +                                                                \
 +double __wrap_ ## func (double x) {                             \
 +  return func(x);                                               \
 +}
 +
-+#define symver_wrap_f(func)                                     \
++#define symver_wrap_f1(func)                                     \
 +float func(float x);                                            \
 +                                                                \
 +float __wrap_ ## func (float x) {                               \
@@ -57,10 +57,10 @@
 +#endif
 +
 +
-+symver_wrap_d(exp)
-+symver_wrap_d(log)
-+symver_wrap_d(log2)
-+symver_wrap_f(log2f)
++symver_wrap_d1(exp)
++symver_wrap_d1(log)
++symver_wrap_d1(log2)
++symver_wrap_f1(log2f)
 +
 +#ifdef __cplusplus
 +}
