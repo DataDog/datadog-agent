@@ -418,12 +418,7 @@ func zipStatusFile(tempDir, hostname string) error {
 
 func writeStatusFile(tempDir, hostname string, data []byte) error {
 	f := filepath.Join(tempDir, hostname, "status.log")
-	err := ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
-
-	return writeScrubbedFile(f, data)
+	return writeScrubbedFileSafe(f, data)
 }
 
 func addParentPerms(dirPath string, permsInfos permissionsInfos) {
@@ -501,12 +496,7 @@ func zipExpVar(tempDir, hostname string) error {
 		}
 
 		f := filepath.Join(tempDir, hostname, "expvar", key)
-		err = ensureParentDirsExist(f)
-		if err != nil {
-			return err
-		}
-
-		err = writeScrubbedFile(f, yamlValue)
+		err = writeScrubbedFileSafe(f, yamlValue)
 		if err != nil {
 			return err
 		}
@@ -577,12 +567,7 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 	}
 
 	f := filepath.Join(tempDir, hostname, "runtime_config_dump.yaml")
-	err = ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
-
-	err = writeScrubbedFile(f, c)
+	err = writeScrubbedFileSafe(f, c)
 	if err != nil {
 		return err
 	}
@@ -634,12 +619,8 @@ func zipSecrets(tempDir, hostname string) error {
 	writer.Flush()
 
 	f := filepath.Join(tempDir, hostname, "secrets.log")
-	err = ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
 
-	return writeScrubbedFile(f, b.Bytes())
+	return writeScrubbedFileSafe(f, b.Bytes())
 }
 
 func zipProcessChecks(tempDir, hostname string, getAddressPort func() (url string, err error)) error {
@@ -692,12 +673,8 @@ func zipDiagnose(tempDir, hostname string) error {
 	writer.Flush()
 
 	f := filepath.Join(tempDir, hostname, "diagnose.log")
-	err := ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
 
-	return writeScrubbedFile(f, b.Bytes())
+	return writeScrubbedFileSafe(f, b.Bytes())
 }
 
 func zipDatadogConnectivity(tempDir, hostname string) error {
@@ -708,12 +685,8 @@ func zipDatadogConnectivity(tempDir, hostname string) error {
 	writer.Flush()
 
 	f := filepath.Join(tempDir, hostname, "connectivity.log")
-	err := ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
 
-	return writeScrubbedFile(f, b.Bytes())
+	return writeScrubbedFileSafe(f, b.Bytes())
 }
 
 func zipReader(r io.Reader, targetDir, filename string) error {
@@ -782,12 +755,8 @@ func zipConfigCheck(tempDir, hostname string) error {
 
 func writeConfigCheck(tempDir, hostname string, data []byte) error {
 	f := filepath.Join(tempDir, hostname, "config-check.log")
-	err := ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
 
-	return writeScrubbedFile(f, data)
+	return writeScrubbedFileSafe(f, data)
 }
 
 // Used for testing mock HTTP server
@@ -812,21 +781,16 @@ func zipTaggerList(tempDir, hostname string) error {
 
 	f := filepath.Join(tempDir, hostname, "tagger-list.json")
 
-	err = ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
-
 	// Pretty print JSON output
 	var b bytes.Buffer
 	writer := bufio.NewWriter(&b)
 	err = json.Indent(&b, r, "", "\t")
 	if err != nil {
-		return writeScrubbedFile(f, r)
+		return writeScrubbedFileSafe(f, r)
 	}
 	writer.Flush()
 
-	return writeScrubbedFile(f, b.Bytes())
+	return writeScrubbedFileSafe(f, b.Bytes())
 }
 
 // workloadListURL allows mocking the agent HTTP server
@@ -861,12 +825,8 @@ func zipWorkloadList(tempDir, hostname string) error {
 	_ = writer.Flush()
 
 	f := filepath.Join(tempDir, hostname, "workload-list.log")
-	err = ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
 
-	return writeScrubbedFile(f, b.Bytes())
+	return writeScrubbedFileSafe(f, b.Bytes())
 }
 
 func zipHealth(tempDir, hostname string) error {
@@ -880,12 +840,8 @@ func zipHealth(tempDir, hostname string) error {
 	}
 
 	f := filepath.Join(tempDir, hostname, "health.yaml")
-	err = ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
 
-	return writeScrubbedFile(f, yamlValue)
+	return writeScrubbedFileSafe(f, yamlValue)
 }
 
 func zipInstallInfo(tempDir, hostname string) error {
@@ -920,18 +876,14 @@ func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 	}
 	defer resp.Body.Close()
 
-	f := filepath.Join(tempDir, hostname, filename)
-	err = ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
-
 	// read the entire body, so that it can be scrubbed in its entirety
 	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
-	return writeScrubbedFile(f, data)
+
+	f := filepath.Join(tempDir, hostname, filename)
+	return writeScrubbedFileSafe(f, data)
 }
 
 func zipPerformanceProfile(tempDir, hostname string, pdata ProfileData) error {
@@ -969,10 +921,6 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 			if cnfFileExtRx.Match([]byte(firstSuffix)) || cnfFileExtRx.Match([]byte(ext)) {
 				baseName := strings.Replace(src, filePath, "", 1)
 				f := filepath.Join(tempDir, hostname, "etc", "confd", prefix, baseName)
-				err := ensureParentDirsExist(f)
-				if err != nil {
-					return err
-				}
 
 				data, err := ioutil.ReadFile(src)
 				if err != nil {
@@ -981,7 +929,7 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 					}
 					return err
 				}
-				err = writeScrubbedFile(f, data)
+				err = writeScrubbedFileSafe(f, data)
 				if err != nil {
 					return err
 				}
@@ -1026,6 +974,15 @@ func writeScrubbedFile(filename string, data []byte) error {
 	return ioutil.WriteFile(filename, scrubbed, os.ModePerm)
 }
 
+// writeScrubbedFileSafe verify that the folder exists before calling writeScrubbedFile()
+func writeScrubbedFileSafe(filename string, data []byte) error {
+	err := ensureParentDirsExist(filename)
+	if err != nil {
+		return err
+	}
+	return writeScrubbedFile(filename, data)
+}
+
 func ensureParentDirsExist(p string) error {
 	return os.MkdirAll(filepath.Dir(p), os.ModePerm)
 }
@@ -1064,17 +1021,14 @@ func createConfigFiles(filePath, tempDir, hostname string, permsInfos permission
 	// Check if the file exists
 	_, err := os.Stat(filePath)
 	if err == nil {
-		f := filepath.Join(tempDir, hostname, "etc", filepath.Base(filePath))
-		err := ensureParentDirsExist(f)
-		if err != nil {
-			return err
-		}
 
 		data, err := ioutil.ReadFile(filePath)
 		if err != nil {
 			return err
 		}
-		err = writeScrubbedFile(f, data)
+
+		f := filepath.Join(tempDir, hostname, "etc", filepath.Base(filePath))
+		err = writeScrubbedFileSafe(f, data)
 		if err != nil {
 			return err
 		}
