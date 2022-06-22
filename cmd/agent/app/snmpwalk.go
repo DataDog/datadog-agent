@@ -26,12 +26,14 @@ const (
 	// snmp v1 & v2c
 	defaultCommunityString = "public"
 
-	// TODO: snmp v3
-	// defaultUserName        = ""
-	// defaultAuthProtocol    = ""
-	// defaultAuthKey         = ""
-	// defaultPrivProtocol    = ""
-	// defaultprivKey         = ""
+	// snmp v3
+	defaultUserName      = ""
+	defaultAuthProtocol  = ""
+	defaultAuthKey       = ""
+	defaultPrivProtocol  = ""
+	defaultprivKey       = ""
+	defaultcontext       = "public"
+	defaultSecurityLevel = ""
 
 	// general communication options
 	defaultTimeout = 5
@@ -52,12 +54,17 @@ var (
 	// v1 & v2c
 	communityString string
 
-	// TODO: v3
-	// user         string
-	// authProtocol gosnmp.SnmpV3AuthProtocol
-	// authKey      string
-	// privProtocol gosnmp.SnmpV3PrivProtocol
-	// privKey      string
+	// v3
+	user          string
+	authProtocol  gosnmp.SnmpV3AuthProtocol
+	authProt      string
+	authKey       string
+	privProtocol  gosnmp.SnmpV3PrivProtocol
+	privProt      string
+	privKey       string
+	snmpContext   string
+	msgFlags      gosnmp.SnmpV3MsgFlags
+	securityLevel string
 
 	// TODO: communication
 	retries int
@@ -74,14 +81,16 @@ func init() {
 	snmpwalkCmd.Flags().StringVarP(&snmpVersion, "snmp-version", "v", defaultVersion, "Specify SNMP version to use")
 
 	// snmp v1 or v2c specific
-	snmpwalkCmd.Flags().StringVarP(&communityString, "community-string", "C", defaultCommunityString, "Set the community string for version 1 or 2c")
+	snmpwalkCmd.Flags().StringVarP(&communityString, "community-string", "C", defaultCommunityString, "Set the community string")
 
-	// TODO: snmp v3 specific
-	// snmpwalkCmd.Flags().StringVarP(&user, "user-name", "u", defaultUserName, "Set the user name for v3")
-	// snmpwalkCmd.Flags().StringVarP(&authProtocol, "auth-protocol", "a", defaultAuthProtocol, "Set the authentication protocol for v3")
-	// snmpwalkCmd.Flags().StringVarP(&authKey, "auth-key", "A", defaultAuthKey, "Set the authentication passphrase for v3")
-	// snmpwalkCmd.Flags().StringVarP(&privProtocol, "priv-protocol", "x", defaultPrivProtocol, "Set the privacy protocol for v3")
-	// snmpwalkCmd.Flags().StringVarP(&privKey, "priv-key", "X", defaultprivKey, "Set the privacy passphrase for v3")
+	// snmp v3 specific
+	snmpwalkCmd.Flags().StringVarP(&authProt, "auth-protocol", "a", defaultAuthProtocol, "Set authentication protocol (MD5|SHA|SHA-224|SHA-256|SHA-384|SHA-512)")
+	snmpwalkCmd.Flags().StringVarP(&authKey, "auth-key", "A", defaultAuthKey, "Set authentication protocol pass phrase")
+	snmpwalkCmd.Flags().StringVarP(&securityLevel, "security-level", "l", defaultSecurityLevel, "set security level (noAuthNoPriv|authNoPriv|authPriv)")
+	snmpwalkCmd.Flags().StringVarP(&snmpContext, "context", "N", defaultcontext, "Set context name")
+	snmpwalkCmd.Flags().StringVarP(&user, "user-name", "u", defaultUserName, "Set security name")
+	snmpwalkCmd.Flags().StringVarP(&privProt, "priv-protocol", "x", defaultPrivProtocol, "Set privacy protocol (DES|AES|AES192|AES192C|AES256|AES256C)")
+	snmpwalkCmd.Flags().StringVarP(&privKey, "priv-key", "X", defaultprivKey, "Set privacy protocol pass phrase")
 
 	// general communication options
 	snmpwalkCmd.Flags().IntVarP(&retries, "retries", "r", defaultRetries, "Set the number of retries")
@@ -121,23 +130,87 @@ var snmpwalkCmd = &cobra.Command{
 			deviceIP = address
 			port = defaultPort
 		}
-		// TODO: add authentication check
-		// if communityString == "" && user == "" {
-		// 	fmt.Printf("No authentication mechanism specified")
-		// 	os.Exit(1)
-		// }
+		// authentication check
+		if communityString == "" && user == "" {
+			fmt.Printf("No authentication mechanism specified")
+			os.Exit(1)
+		}
 
 		// Set the snmp version
 		if snmpVersion == "1" {
 			setVersion = gosnmp.Version1
 		} else if snmpVersion == "2c" || (snmpVersion == "" && communityString != "") {
 			setVersion = gosnmp.Version2c
-			// TODO: v3
-			// } else if snmpVersion == "3" || (snmpVersion == "" && user != "") {
-			// 	setVersion = gosnmp.Version3
+		} else if snmpVersion == "3" || (snmpVersion == "" && user != "") {
+			setVersion = gosnmp.Version3
 		} else {
 			fmt.Printf("SNMP version not supported: %s, using default version 1.", snmpVersion)
 			setVersion = gosnmp.Version1
+		}
+		// Set v3 security parameters
+		if setVersion == gosnmp.Version3 {
+			// Authentication Protocol
+			switch strings.ToLower(authProt) {
+			case "":
+				authProtocol = gosnmp.NoAuth
+			case "md5":
+				authProtocol = gosnmp.MD5
+			case "sha":
+				authProtocol = gosnmp.SHA
+			case "sha224":
+				authProtocol = gosnmp.SHA224
+			case "sha256":
+				authProtocol = gosnmp.SHA256
+			case "sha384":
+				authProtocol = gosnmp.SHA384
+			case "sha512":
+				authProtocol = gosnmp.SHA512
+			default:
+				fmt.Printf("Unsupported authentication protocol: %s", authProt)
+				os.Exit(1)
+			}
+
+			// Privacy Protocol
+			switch strings.ToLower(privProt) {
+			case "":
+				privProtocol = gosnmp.NoPriv
+			case "des":
+				privProtocol = gosnmp.DES
+			case "aes":
+				privProtocol = gosnmp.AES
+			case "aes192":
+				privProtocol = gosnmp.AES192
+			case "aes192c":
+				privProtocol = gosnmp.AES192C
+			case "aes256":
+				privProtocol = gosnmp.AES256
+			case "aes256c":
+				privProtocol = gosnmp.AES256C
+			default:
+				fmt.Printf("Unsupported privacy protocol: %s", privProt)
+				os.Exit(1)
+			}
+
+			// MsgFlags
+			switch strings.ToLower(securityLevel) {
+			case "":
+				msgFlags = gosnmp.NoAuthNoPriv
+				if privKey != "" {
+					msgFlags = gosnmp.AuthPriv
+				} else if authKey != "" {
+					msgFlags = gosnmp.AuthNoPriv
+				}
+
+			case "noauthnopriv":
+				msgFlags = gosnmp.NoAuthNoPriv
+			case "authpriv":
+				msgFlags = gosnmp.AuthPriv
+			case "authnopriv":
+				msgFlags = gosnmp.AuthNoPriv
+			default:
+				fmt.Printf("Unsupported security level: %s", securityLevel)
+				os.Exit(1)
+			}
 		}
 
 		// Set the default values
@@ -161,12 +234,16 @@ var snmpwalkCmd = &cobra.Command{
 			Timeout:   time.Duration(10 * time.Second), // Timeout better suited to walking
 			Retries:   retries,
 			// TODO: v3
-			// SecurityParameters: &gosnmp.UsmSecurityParameters{
-			// 	UserName:                 user,
-			// 	AuthenticationProtocol:   authProtocol,
-			// 	AuthenticationPassphrase: AuthKey,
-			// 	PrivacyProtocol:          privProtocol,
-			// 	PrivacyPassphrase:        privKey,
+			SecurityModel: gosnmp.UserSecurityModel,
+			ContextName:   snmpContext,
+			MsgFlags:      msgFlags,
+			SecurityParameters: &gosnmp.UsmSecurityParameters{
+				UserName:                 user,
+				AuthenticationProtocol:   authProtocol,
+				AuthenticationPassphrase: authKey,
+				PrivacyProtocol:          privProtocol,
+				PrivacyPassphrase:        privKey,
+			},
 		}
 		// Estbalish connection
 		err := snmp.Connect()
