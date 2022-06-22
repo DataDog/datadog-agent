@@ -37,6 +37,11 @@ func (cext *containerdCustomMetricsExtension) Process(tags []string, container *
 		return
 	}
 
+	if containerStats == nil {
+		log.Debugf("Metrics provider returned nil stats for container: %v", container)
+		return
+	}
+
 	if containerStats.IO != nil {
 		for deviceName, deviceStats := range containerStats.IO.Devices {
 			readDeviceTags := taggerUtils.ConcatenateStringTags(tags, "device:"+deviceName, "device_name:"+deviceName, "operation:read")

@@ -195,16 +195,35 @@ __attribute__((always_inline)) void cleanup_traced_state(u32 pid) {
 #define NO_ACTIVITY_DUMP       0
 #define IGNORE_DISCARDER_CHECK 1
 
+struct ad_container_id_comm {
+    char container_id[CONTAINER_ID_LEN];
+    char comm[TASK_COMM_LEN];
+};
+
+struct bpf_map_def SEC("maps/ad_container_id_comm_gen") ad_container_id_comm_gen = {
+    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct ad_container_id_comm),
+    .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
+};
+
 __attribute__((always_inline)) void fill_activity_dump_discarder_state(void *ctx, struct is_discarded_by_inode_t *params) {
     struct proc_cache_t *proc_entry = get_proc_cache(params->tgid);
     if (proc_entry != NULL) {
         // prepare cgroup and comm (for compatibility with old kernels)
-        char cgroup[CONTAINER_ID_LEN] = {};
-        bpf_probe_read(&cgroup, sizeof(cgroup), proc_entry->container.container_id);
-        char comm[TASK_COMM_LEN] = {};
-        bpf_probe_read(&comm, sizeof(comm), proc_entry->comm);
+        u32 key = 0;
+        struct ad_container_id_comm *buffer = bpf_map_lookup_elem(&ad_container_id_comm_gen, &key);
+        if (!buffer) {
+            return;
+        }
+        memset(buffer, 0, sizeof(struct ad_container_id_comm));
 
-        should_trace_new_process(ctx, params->now, params->tgid, cgroup, comm);
+        bpf_probe_read(&buffer->container_id, sizeof(buffer->container_id), proc_entry->container.container_id);
+        bpf_probe_read(&buffer->comm, sizeof(buffer->comm), proc_entry->comm);
+
+        should_trace_new_process(ctx, params->now, params->tgid, &buffer->container_id[0], &buffer->comm[0]);
     }
 
     u64 timeout = lookup_or_delete_traced_pid_timeout(params->tgid, params->now);

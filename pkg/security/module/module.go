@@ -111,6 +111,7 @@ func (m *Module) Init() error {
 	m.apiServer.Start(m.ctx)
 
 	m.probe.AddEventHandler(model.UnknownEventType, m)
+	m.probe.AddActivityDumpHandler(m)
 
 	// initialize extra event monitors
 	if m.config.EventMonitoring {
@@ -483,6 +484,11 @@ func (m *Module) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []str
 	} else {
 		seclog.Tracef("Event on rule %s was dropped due to rate limiting", rule.ID)
 	}
+}
+
+// HandleActivityDump sends an activity dump to the backend
+func (m *Module) HandleActivityDump(dump *sapi.ActivityDumpStreamMessage) {
+	m.apiServer.SendActivityDump(dump)
 }
 
 func (m *Module) metricsSender() {

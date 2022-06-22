@@ -106,12 +106,12 @@ func TestDockerNetworkExtension(t *testing.T) {
 	// container4 is a normal docker container connected to 2 networks 0 linked to PID 200
 	container1 := generic.CreateContainerMeta("docker", "kube-host-network")
 	mockCollector.SetContainerEntry(container1.ID, mock.ContainerEntry{
-		ContainerStats: provider.ContainerStats{
+		ContainerStats: &provider.ContainerStats{
 			PID: &provider.ContainerPIDStats{
 				PIDs: []int{100},
 			},
 		},
-		NetworkStats: provider.ContainerNetworkStats{
+		NetworkStats: &provider.ContainerNetworkStats{
 			Interfaces: map[string]provider.InterfaceNetStats{
 				"eth0": {
 					BytesSent:   pointer.Float64Ptr(1),
@@ -158,12 +158,12 @@ func TestDockerNetworkExtension(t *testing.T) {
 
 	container2 := generic.CreateContainerMeta("docker", "kube-app")
 	mockCollector.SetContainerEntry(container2.ID, mock.ContainerEntry{
-		ContainerStats: provider.ContainerStats{
+		ContainerStats: &provider.ContainerStats{
 			PID: &provider.ContainerPIDStats{
 				PIDs: []int{101},
 			},
 		},
-		NetworkStats: provider.ContainerNetworkStats{
+		NetworkStats: &provider.ContainerNetworkStats{
 			Interfaces: map[string]provider.InterfaceNetStats{
 				"eth0": {
 					BytesSent:   pointer.Float64Ptr(5),
@@ -204,12 +204,12 @@ func TestDockerNetworkExtension(t *testing.T) {
 
 	container4 := generic.CreateContainerMeta("docker", "docker-app")
 	mockCollector.SetContainerEntry(container4.ID, mock.ContainerEntry{
-		ContainerStats: provider.ContainerStats{
+		ContainerStats: &provider.ContainerStats{
 			PID: &provider.ContainerPIDStats{
 				PIDs: []int{200},
 			},
 		},
-		NetworkStats: provider.ContainerNetworkStats{
+		NetworkStats: &provider.ContainerNetworkStats{
 			Interfaces: map[string]provider.InterfaceNetStats{
 				"eth0": {
 					BytesSent:   pointer.Float64Ptr(6),
