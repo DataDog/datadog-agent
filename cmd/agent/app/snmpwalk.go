@@ -91,11 +91,11 @@ func init() {
 	// snmpwalkCmd.Flags().BoolVarP(&pingDevice, "ping", "P", false, "Ping the device before performing the snmpwalk") // connectivity check
 	// snmpwalkCmd.Flags().BoolVarP(&checkConfig, "config", "", false, "Load device configuration") // config check
 
-	snmpwalkCmd.SetArgs([]string{"ipAddress"})
+	snmpwalkCmd.SetArgs([]string{})
 }
 
 var snmpwalkCmd = &cobra.Command{
-	Use:   "snmpwalk ipAddress",
+	Use:   "snmpwalk <IP Address> <OID> [OPTIONS]",
 	Short: "Perform a snmpwalk",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
