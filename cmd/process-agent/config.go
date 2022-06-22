@@ -40,6 +40,10 @@ func getChecks(sysCfg *sysconfig.Config, oCfg *oconfig.OrchestratorConfig, canAc
 		}
 	}
 
+	if ddconfig.Datadog.GetBool("process_config.event_collection.enabled") {
+		checkCfg = append(checkCfg, checks.ProcessEvents)
+	}
+
 	// activate the pod collection if enabled and we have the cluster name set
 	if oCfg.OrchestrationCollectionEnabled {
 		if oCfg.KubeClusterName != "" {
