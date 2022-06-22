@@ -649,7 +649,13 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 
 		event.Exec.Process = &event.ProcessCacheEntry.Process
 	case model.ExitEventType:
-		// nothing to do here
+		if _, err = event.Exit.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode exit event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+
+		event.ProcessCacheEntry = event.ResolveProcessCacheEntry()
+		event.Exit.Process = &event.ProcessCacheEntry.Process
 	case model.SetuidEventType:
 		if _, err = event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode setuid event: %s (offset %d, len %d)", err, offset, len(data))

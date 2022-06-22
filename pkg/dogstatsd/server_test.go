@@ -594,14 +594,14 @@ func TestDebugStatsSpike(t *testing.T) {
 	s.DisableMetricsStats()
 	time.Sleep(500 * time.Millisecond)
 
-	assert.Eventually(s.hasSpike, 10*time.Millisecond, 2*time.Millisecond)
+	assert.True(s.hasSpike())
 
 	s.EnableMetricsStats()
 	// This sleep is necessary as we need to wait for the goroutine function within 'EnableMetricsStats' to start.
 	// If we remove the sleep, the debug loop ticker will not be triggered by the clk.Add() call and the 500 samples
 	// added with 'send(500)' will be considered as if they had been added in the same second as the previous 500 samples.
 	// This will lead to a spike because we have 1000 samples in 1 second instead of having 500 and 500 in 2 different seconds.
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(1050 * time.Millisecond)
 
 	clk.Add(1050 * time.Millisecond)
 	send(500)
@@ -610,11 +610,8 @@ func TestDebugStatsSpike(t *testing.T) {
 	s.DisableMetricsStats()
 	time.Sleep(500 * time.Millisecond)
 
-	hasNoSpike := func() bool {
-		return !s.hasSpike()
-	}
 	// it is no more considered a spike because we had another second with 500 metrics
-	assert.Eventually(hasNoSpike, 10*time.Millisecond, 2*time.Millisecond)
+	assert.False(s.hasSpike())
 }
 
 func TestDebugStats(t *testing.T) {

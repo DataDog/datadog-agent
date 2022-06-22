@@ -161,6 +161,7 @@ type Event struct {
 	SetGID SetgidEvent `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
 	Capset CapsetEvent `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
 	Signal SignalEvent `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
+	Exit   ExitEvent   `field:"exit" event:"exit"`     // [7.38] [Process] A process was terminated
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
@@ -301,8 +302,8 @@ type Process struct {
 	ArgsID uint32 `field:"-" msg:"-"`
 	EnvsID uint32 `field:"-" msg:"-"`
 
-	ArgsEntry *ArgsEntry `field:"-" msg:"-"`
-	EnvsEntry *EnvsEntry `field:"-" msg:"-"`
+	ArgsEntry *ArgsEntry `field:"-" msg:"args_entry,omitempty"`
+	EnvsEntry *EnvsEntry `field:"-" msg:"envs_entry,omitempty"`
 
 	// defined to generate accessors, ArgsTruncated and EnvsTruncated are used during by unmarshaller
 	Argv0         string   `field:"argv0,handler:ResolveProcessArgv0,weight:100" msg:"argv0"`                                                                                                                                           // First argument of the process
@@ -311,12 +312,12 @@ type Process struct {
 	ArgsTruncated bool     `field:"args_truncated,handler:ResolveProcessArgsTruncated" msg:"-"`                                                                                                                                         // Indicator of arguments truncation
 	Envs          []string `field:"envs,handler:ResolveProcessEnvs:100" msg:"envs,omitempty"`                                                                                                                                           // Environment variable names of the process
 	Envp          []string `field:"envp,handler:ResolveProcessEnvp:100" msg:"-"`                                                                                                                                                        // Environment variables of the process
-	EnvsTruncated bool     `field:"envs_truncated,handler:ResolveProcessEnvsTruncated" msg:"envs_truncated"`                                                                                                                            // Indicator of environment variables truncation
+	EnvsTruncated bool     `field:"envs_truncated,handler:ResolveProcessEnvsTruncated" msg:"envs_truncated,omitempty"`                                                                                                                  // Indicator of environment variables truncation
 
 	// cache version
 	ScrubbedArgvResolved  bool           `field:"-" msg:"-"`
 	ScrubbedArgv          []string       `field:"-" msg:"argv,omitempty"`
-	ScrubbedArgsTruncated bool           `field:"-" msg:"argv_truncated"`
+	ScrubbedArgsTruncated bool           `field:"-" msg:"argv_truncated,omitempty"`
 	Variables             eval.Variables `field:"-" msg:"-"`
 
 	IsThread bool `field:"is_thread" msg:"is_thread"` // Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)
@@ -334,6 +335,14 @@ type ExecEvent struct {
 	*Process
 }
 
+// ExitEvent represents a process exit event
+//msgp:ignore ExitEvent
+type ExitEvent struct {
+	*Process
+	Cause uint32 `field:"cause"` // Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)
+	Code  uint32 `field:"code"`  // Exit code of the process or number of the signal that caused the process to terminate
+}
+
 // FileFields holds the information required to identify a file
 type FileFields struct {
 	UID   uint32 `field:"uid" msg:"uid"`                                                                                           // UID of the file's owner
@@ -346,7 +355,7 @@ type FileFields struct {
 
 	MountID      uint32 `field:"mount_id" msg:"mount_id"`                                                   // Mount ID of the file
 	Inode        uint64 `field:"inode" msg:"inode"`                                                         // Inode of the file
-	InUpperLayer bool   `field:"in_upper_layer,handler:ResolveFileFieldsInUpperLayer" msg:"in_upper_layer"` // Indicator of the file layer, in an OverlayFS for example
+	InUpperLayer bool   `field:"in_upper_layer,handler:ResolveFileFieldsInUpperLayer" msg:"in_upper_layer"` // Indicator of the file layer, for example, in an OverlayFS
 
 	NLink  uint32 `field:"-" msg:"-"`
 	PathID uint32 `field:"-" msg:"-"`

@@ -39,7 +39,7 @@ func TestAggregator(t *testing.T) {
 	flow := &common.Flow{
 		Namespace:      "my-ns",
 		FlowType:       common.TypeNetFlow9,
-		ExporterAddr:   []byte{127, 0, 0, 1},
+		DeviceAddr:     []byte{127, 0, 0, 1},
 		StartTimestamp: 1234568,
 		EndTimestamp:   1234569,
 		Bytes:          20,
@@ -78,7 +78,7 @@ func TestAggregator(t *testing.T) {
   "packets": 4,
   "ether_type": "IPv4",
   "ip_protocol": "TCP",
-  "exporter": {
+  "device": {
     "ip": "127.0.0.1"
   },
   "source": {
