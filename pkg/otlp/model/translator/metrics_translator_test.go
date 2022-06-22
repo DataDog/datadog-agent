@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
+	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/quantile/summary"
 	gocache "github.com/patrickmn/go-cache"
@@ -89,15 +90,20 @@ func TestIsCumulativeMonotonic(t *testing.T) {
 	}
 }
 
+var _ source.Provider = (*testProvider)(nil)
+
 type testProvider string
 
-func (t testProvider) Hostname(context.Context) (string, error) {
-	return string(t), nil
+func (t testProvider) Source(context.Context) (source.Source, error) {
+	return source.Source{
+		Kind:       source.HostnameKind,
+		Identifier: string(t),
+	}, nil
 }
 
 func newTranslator(t *testing.T, logger *zap.Logger, opts ...Option) *Translator {
 	options := append([]Option{
-		WithFallbackHostnameProvider(testProvider("fallbackHostname")),
+		WithFallbackSourceProvider(testProvider("fallbackHostname")),
 		WithHistogramMode(HistogramModeDistributions),
 		WithNumberMode(NumberModeCumulativeToDelta),
 	}, opts...)
@@ -870,7 +876,7 @@ func TestMapSummaryMetrics(t *testing.T) {
 		c := newTestCache()
 		c.cache.Set((&Dimensions{name: "summary.example.count", tags: tags}).String(), numberCounter{0, 0, 1}, gocache.NoExpiration)
 		c.cache.Set((&Dimensions{name: "summary.example.sum", tags: tags}).String(), numberCounter{0, 0, 1}, gocache.NoExpiration)
-		options := []Option{WithFallbackHostnameProvider(testProvider("fallbackHostname"))}
+		options := []Option{WithFallbackSourceProvider(testProvider("fallbackHostname"))}
 		if quantiles {
 			options = append(options, WithQuantiles())
 		}

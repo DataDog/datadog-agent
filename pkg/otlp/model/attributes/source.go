@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes/azure"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes/ec2"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes/gcp"
+	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
 )
 
 const (
@@ -55,7 +56,7 @@ func getClusterName(attrs pcommon.Map) (string, bool) {
 //   6. the host.name attribute.
 //
 //  It returns a boolean value indicated if any name was found
-func HostnameFromAttributes(attrs pcommon.Map, usePreviewRules bool) (string, bool) {
+func hostnameFromAttributes(attrs pcommon.Map, usePreviewRules bool) (string, bool) {
 	// Check if the host is localhost or 0.0.0.0, if so discard it.
 	// We don't do the more strict validation done for metadata,
 	// to avoid breaking users existing invalid-but-accepted hostnames.
@@ -75,6 +76,18 @@ func HostnameFromAttributes(attrs pcommon.Map, usePreviewRules bool) (string, bo
 	return candidateHost, ok
 }
 
+func k8sHostnameFromAttributes(attrs pcommon.Map) (string, bool) {
+	node, ok := attrs.Get(AttributeK8sNodeName)
+	if !ok {
+		return "", false
+	}
+
+	if cluster, ok := getClusterName(attrs); ok {
+		return node.StringVal() + "-" + cluster, true
+	}
+	return node.StringVal(), true
+}
+
 func unsanitizedHostnameFromAttributes(attrs pcommon.Map, usePreviewRules bool) (string, bool) {
 	// Custom hostname: useful for overriding in k8s/cloud envs
 	if customHostname, ok := attrs.Get(AttributeDatadogHostname); ok {
@@ -82,16 +95,17 @@ func unsanitizedHostnameFromAttributes(attrs pcommon.Map, usePreviewRules bool) 
 	}
 
 	if launchType, ok := attrs.Get(conventions.AttributeAWSECSLaunchtype); ok && launchType.StringVal() == conventions.AttributeAWSECSLaunchtypeFargate {
-		// If on AWS ECS Fargate, return a valid but empty hostname
-		return "", true
+		// If on AWS ECS Fargate, we don't have a hostname
+		return "", false
 	}
 
 	// Kubernetes: node-cluster if cluster name is available, else node
-	if k8sNodeName, ok := attrs.Get(AttributeK8sNodeName); ok {
-		if k8sClusterName, ok := getClusterName(attrs); ok {
-			return k8sNodeName.StringVal() + "-" + k8sClusterName, true
-		}
-		return k8sNodeName.StringVal(), true
+	k8sName, k8sOk := k8sHostnameFromAttributes(attrs)
+
+	// If not using the preview rules, return the Kubernetes node name
+	// before cloud provider names to preserve the current behavior.
+	if !usePreviewRules && k8sOk {
+		return k8sName, true
 	}
 
 	cloudProvider, ok := attrs.Get(conventions.AttributeCloudProvider)
@@ -101,6 +115,12 @@ func unsanitizedHostnameFromAttributes(attrs pcommon.Map, usePreviewRules bool) 
 		return gcp.HostnameFromAttributes(attrs, usePreviewRules)
 	} else if ok && cloudProvider.StringVal() == conventions.AttributeCloudProviderAzure {
 		return azure.HostnameFromAttributes(attrs, usePreviewRules)
+	}
+
+	// If using the preview rules, the cloud provider names take precedence.
+	// This is to report the same hostname as Datadog cloud integrations.
+	if usePreviewRules && k8sOk {
+		return k8sName, true
 	}
 
 	// host id from cloud provider
@@ -121,4 +141,19 @@ func unsanitizedHostnameFromAttributes(attrs pcommon.Map, usePreviewRules bool) 
 	}
 
 	return "", false
+}
+
+// SourceFromAttributes gets a telemetry signal source from its attributes.
+func SourceFromAttributes(attrs pcommon.Map, usePreviewRules bool) (source.Source, bool) {
+	if launchType, ok := attrs.Get(conventions.AttributeAWSECSLaunchtype); ok && launchType.StringVal() == conventions.AttributeAWSECSLaunchtypeFargate {
+		if taskARN, ok := attrs.Get(conventions.AttributeAWSECSTaskARN); ok {
+			return source.Source{Kind: source.AWSECSFargateKind, Identifier: taskARN.StringVal()}, true
+		}
+	}
+
+	if host, ok := hostnameFromAttributes(attrs, usePreviewRules); ok {
+		return source.Source{Kind: source.HostnameKind, Identifier: host}, true
+	}
+
+	return source.Source{}, false
 }
