@@ -804,6 +804,8 @@ func (pan *ProcessActivityNode) scrubAndReleaseArgsEnvs(resolver *ProcessResolve
 	if pan.Process.EnvsEntry != nil && pan.Process.EnvsEntry.ArgsEnvsCacheEntry != nil {
 		pan.Process.EnvsEntry.Release()
 	}
+	pan.Process.ArgsEntry = nil
+	pan.Process.EnvsEntry = nil
 }
 
 // Matches return true if the process fields used to generate the dump are identical with the provided ProcessCacheEntry

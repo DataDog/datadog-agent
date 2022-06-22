@@ -302,8 +302,8 @@ type Process struct {
 	ArgsID uint32 `field:"-" msg:"-"`
 	EnvsID uint32 `field:"-" msg:"-"`
 
-	ArgsEntry *ArgsEntry `field:"-" msg:"-"`
-	EnvsEntry *EnvsEntry `field:"-" msg:"-"`
+	ArgsEntry *ArgsEntry `field:"-" msg:"args_entry,omitempty"`
+	EnvsEntry *EnvsEntry `field:"-" msg:"envs_entry,omitempty"`
 
 	// defined to generate accessors, ArgsTruncated and EnvsTruncated are used during by unmarshaller
 	Argv0         string   `field:"argv0,handler:ResolveProcessArgv0,weight:100" msg:"argv0"`                                                                                                                                           // First argument of the process
@@ -312,12 +312,12 @@ type Process struct {
 	ArgsTruncated bool     `field:"args_truncated,handler:ResolveProcessArgsTruncated" msg:"-"`                                                                                                                                         // Indicator of arguments truncation
 	Envs          []string `field:"envs,handler:ResolveProcessEnvs:100" msg:"envs,omitempty"`                                                                                                                                           // Environment variable names of the process
 	Envp          []string `field:"envp,handler:ResolveProcessEnvp:100" msg:"-"`                                                                                                                                                        // Environment variables of the process
-	EnvsTruncated bool     `field:"envs_truncated,handler:ResolveProcessEnvsTruncated" msg:"envs_truncated"`                                                                                                                            // Indicator of environment variables truncation
+	EnvsTruncated bool     `field:"envs_truncated,handler:ResolveProcessEnvsTruncated" msg:"envs_truncated,omitempty"`                                                                                                                  // Indicator of environment variables truncation
 
 	// cache version
 	ScrubbedArgvResolved  bool           `field:"-" msg:"-"`
 	ScrubbedArgv          []string       `field:"-" msg:"argv,omitempty"`
-	ScrubbedArgsTruncated bool           `field:"-" msg:"argv_truncated"`
+	ScrubbedArgsTruncated bool           `field:"-" msg:"argv_truncated,omitempty"`
 	Variables             eval.Variables `field:"-" msg:"-"`
 
 	IsThread bool `field:"is_thread" msg:"is_thread"` // Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)

@@ -1460,6 +1460,42 @@ func (z *Process) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Credentials")
 				return
 			}
+		case "args_entry":
+			if dc.IsNil() {
+				err = dc.ReadNil()
+				if err != nil {
+					err = msgp.WrapError(err, "ArgsEntry")
+					return
+				}
+				z.ArgsEntry = nil
+			} else {
+				if z.ArgsEntry == nil {
+					z.ArgsEntry = new(ArgsEntry)
+				}
+				err = z.ArgsEntry.DecodeMsg(dc)
+				if err != nil {
+					err = msgp.WrapError(err, "ArgsEntry")
+					return
+				}
+			}
+		case "envs_entry":
+			if dc.IsNil() {
+				err = dc.ReadNil()
+				if err != nil {
+					err = msgp.WrapError(err, "EnvsEntry")
+					return
+				}
+				z.EnvsEntry = nil
+			} else {
+				if z.EnvsEntry == nil {
+					z.EnvsEntry = new(EnvsEntry)
+				}
+				err = z.EnvsEntry.DecodeMsg(dc)
+				if err != nil {
+					err = msgp.WrapError(err, "EnvsEntry")
+					return
+				}
+			}
 		case "argv0":
 			z.Argv0, err = dc.ReadString()
 			if err != nil {
@@ -1536,8 +1572,8 @@ func (z *Process) DecodeMsg(dc *msgp.Reader) (err error) {
 // EncodeMsg implements msgp.Encodable
 func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
 	// omitempty: check for empty values
-	zb0001Len := uint32(20)
-	var zb0001Mask uint32 /* 20 bits */
+	zb0001Len := uint32(22)
+	var zb0001Mask uint32 /* 22 bits */
 	if z.ContainerID == "" {
 		zb0001Len--
 		zb0001Mask |= 0x4
@@ -1562,13 +1598,29 @@ func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
 		zb0001Len--
 		zb0001Mask |= 0x800
 	}
-	if z.Envs == nil {
+	if z.ArgsEntry == nil {
+		zb0001Len--
+		zb0001Mask |= 0x4000
+	}
+	if z.EnvsEntry == nil {
 		zb0001Len--
 		zb0001Mask |= 0x8000
 	}
-	if z.ScrubbedArgv == nil {
+	if z.Envs == nil {
 		zb0001Len--
 		zb0001Mask |= 0x20000
+	}
+	if z.EnvsTruncated == false {
+		zb0001Len--
+		zb0001Mask |= 0x40000
+	}
+	if z.ScrubbedArgv == nil {
+		zb0001Len--
+		zb0001Mask |= 0x80000
+	}
+	if z.ScrubbedArgsTruncated == false {
+		zb0001Len--
+		zb0001Mask |= 0x100000
 	}
 	// variable map header, size zb0001Len
 	err = en.WriteMapHeader(zb0001Len)
@@ -1753,6 +1805,44 @@ func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Credentials")
 		return
 	}
+	if (zb0001Mask & 0x4000) == 0 { // if not empty
+		// write "args_entry"
+		err = en.Append(0xaa, 0x61, 0x72, 0x67, 0x73, 0x5f, 0x65, 0x6e, 0x74, 0x72, 0x79)
+		if err != nil {
+			return
+		}
+		if z.ArgsEntry == nil {
+			err = en.WriteNil()
+			if err != nil {
+				return
+			}
+		} else {
+			err = z.ArgsEntry.EncodeMsg(en)
+			if err != nil {
+				err = msgp.WrapError(err, "ArgsEntry")
+				return
+			}
+		}
+	}
+	if (zb0001Mask & 0x8000) == 0 { // if not empty
+		// write "envs_entry"
+		err = en.Append(0xaa, 0x65, 0x6e, 0x76, 0x73, 0x5f, 0x65, 0x6e, 0x74, 0x72, 0x79)
+		if err != nil {
+			return
+		}
+		if z.EnvsEntry == nil {
+			err = en.WriteNil()
+			if err != nil {
+				return
+			}
+		} else {
+			err = z.EnvsEntry.EncodeMsg(en)
+			if err != nil {
+				err = msgp.WrapError(err, "EnvsEntry")
+				return
+			}
+		}
+	}
 	// write "argv0"
 	err = en.Append(0xa5, 0x61, 0x72, 0x67, 0x76, 0x30)
 	if err != nil {
@@ -1763,7 +1853,7 @@ func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Argv0")
 		return
 	}
-	if (zb0001Mask & 0x8000) == 0 { // if not empty
+	if (zb0001Mask & 0x20000) == 0 { // if not empty
 		// write "envs"
 		err = en.Append(0xa4, 0x65, 0x6e, 0x76, 0x73)
 		if err != nil {
@@ -1782,17 +1872,19 @@ func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
 			}
 		}
 	}
-	// write "envs_truncated"
-	err = en.Append(0xae, 0x65, 0x6e, 0x76, 0x73, 0x5f, 0x74, 0x72, 0x75, 0x6e, 0x63, 0x61, 0x74, 0x65, 0x64)
-	if err != nil {
-		return
+	if (zb0001Mask & 0x40000) == 0 { // if not empty
+		// write "envs_truncated"
+		err = en.Append(0xae, 0x65, 0x6e, 0x76, 0x73, 0x5f, 0x74, 0x72, 0x75, 0x6e, 0x63, 0x61, 0x74, 0x65, 0x64)
+		if err != nil {
+			return
+		}
+		err = en.WriteBool(z.EnvsTruncated)
+		if err != nil {
+			err = msgp.WrapError(err, "EnvsTruncated")
+			return
+		}
 	}
-	err = en.WriteBool(z.EnvsTruncated)
-	if err != nil {
-		err = msgp.WrapError(err, "EnvsTruncated")
-		return
-	}
-	if (zb0001Mask & 0x20000) == 0 { // if not empty
+	if (zb0001Mask & 0x80000) == 0 { // if not empty
 		// write "argv"
 		err = en.Append(0xa4, 0x61, 0x72, 0x67, 0x76)
 		if err != nil {
@@ -1811,15 +1903,17 @@ func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
 			}
 		}
 	}
-	// write "argv_truncated"
-	err = en.Append(0xae, 0x61, 0x72, 0x67, 0x76, 0x5f, 0x74, 0x72, 0x75, 0x6e, 0x63, 0x61, 0x74, 0x65, 0x64)
-	if err != nil {
-		return
-	}
-	err = en.WriteBool(z.ScrubbedArgsTruncated)
-	if err != nil {
-		err = msgp.WrapError(err, "ScrubbedArgsTruncated")
-		return
+	if (zb0001Mask & 0x100000) == 0 { // if not empty
+		// write "argv_truncated"
+		err = en.Append(0xae, 0x61, 0x72, 0x67, 0x76, 0x5f, 0x74, 0x72, 0x75, 0x6e, 0x63, 0x61, 0x74, 0x65, 0x64)
+		if err != nil {
+			return
+		}
+		err = en.WriteBool(z.ScrubbedArgsTruncated)
+		if err != nil {
+			err = msgp.WrapError(err, "ScrubbedArgsTruncated")
+			return
+		}
 	}
 	// write "is_thread"
 	err = en.Append(0xa9, 0x69, 0x73, 0x5f, 0x74, 0x68, 0x72, 0x65, 0x61, 0x64)
@@ -1838,8 +1932,8 @@ func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
 func (z *Process) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// omitempty: check for empty values
-	zb0001Len := uint32(20)
-	var zb0001Mask uint32 /* 20 bits */
+	zb0001Len := uint32(22)
+	var zb0001Mask uint32 /* 22 bits */
 	if z.ContainerID == "" {
 		zb0001Len--
 		zb0001Mask |= 0x4
@@ -1864,13 +1958,29 @@ func (z *Process) MarshalMsg(b []byte) (o []byte, err error) {
 		zb0001Len--
 		zb0001Mask |= 0x800
 	}
-	if z.Envs == nil {
+	if z.ArgsEntry == nil {
+		zb0001Len--
+		zb0001Mask |= 0x4000
+	}
+	if z.EnvsEntry == nil {
 		zb0001Len--
 		zb0001Mask |= 0x8000
 	}
-	if z.ScrubbedArgv == nil {
+	if z.Envs == nil {
 		zb0001Len--
 		zb0001Mask |= 0x20000
+	}
+	if z.EnvsTruncated == false {
+		zb0001Len--
+		zb0001Mask |= 0x40000
+	}
+	if z.ScrubbedArgv == nil {
+		zb0001Len--
+		zb0001Mask |= 0x80000
+	}
+	if z.ScrubbedArgsTruncated == false {
+		zb0001Len--
+		zb0001Mask |= 0x100000
 	}
 	// variable map header, size zb0001Len
 	o = msgp.AppendMapHeader(o, zb0001Len)
@@ -1948,10 +2058,36 @@ func (z *Process) MarshalMsg(b []byte) (o []byte, err error) {
 		err = msgp.WrapError(err, "Credentials")
 		return
 	}
+	if (zb0001Mask & 0x4000) == 0 { // if not empty
+		// string "args_entry"
+		o = append(o, 0xaa, 0x61, 0x72, 0x67, 0x73, 0x5f, 0x65, 0x6e, 0x74, 0x72, 0x79)
+		if z.ArgsEntry == nil {
+			o = msgp.AppendNil(o)
+		} else {
+			o, err = z.ArgsEntry.MarshalMsg(o)
+			if err != nil {
+				err = msgp.WrapError(err, "ArgsEntry")
+				return
+			}
+		}
+	}
+	if (zb0001Mask & 0x8000) == 0 { // if not empty
+		// string "envs_entry"
+		o = append(o, 0xaa, 0x65, 0x6e, 0x76, 0x73, 0x5f, 0x65, 0x6e, 0x74, 0x72, 0x79)
+		if z.EnvsEntry == nil {
+			o = msgp.AppendNil(o)
+		} else {
+			o, err = z.EnvsEntry.MarshalMsg(o)
+			if err != nil {
+				err = msgp.WrapError(err, "EnvsEntry")
+				return
+			}
+		}
+	}
 	// string "argv0"
 	o = append(o, 0xa5, 0x61, 0x72, 0x67, 0x76, 0x30)
 	o = msgp.AppendString(o, z.Argv0)
-	if (zb0001Mask & 0x8000) == 0 { // if not empty
+	if (zb0001Mask & 0x20000) == 0 { // if not empty
 		// string "envs"
 		o = append(o, 0xa4, 0x65, 0x6e, 0x76, 0x73)
 		o = msgp.AppendArrayHeader(o, uint32(len(z.Envs)))
@@ -1959,10 +2095,12 @@ func (z *Process) MarshalMsg(b []byte) (o []byte, err error) {
 			o = msgp.AppendString(o, z.Envs[za0002])
 		}
 	}
-	// string "envs_truncated"
-	o = append(o, 0xae, 0x65, 0x6e, 0x76, 0x73, 0x5f, 0x74, 0x72, 0x75, 0x6e, 0x63, 0x61, 0x74, 0x65, 0x64)
-	o = msgp.AppendBool(o, z.EnvsTruncated)
-	if (zb0001Mask & 0x20000) == 0 { // if not empty
+	if (zb0001Mask & 0x40000) == 0 { // if not empty
+		// string "envs_truncated"
+		o = append(o, 0xae, 0x65, 0x6e, 0x76, 0x73, 0x5f, 0x74, 0x72, 0x75, 0x6e, 0x63, 0x61, 0x74, 0x65, 0x64)
+		o = msgp.AppendBool(o, z.EnvsTruncated)
+	}
+	if (zb0001Mask & 0x80000) == 0 { // if not empty
 		// string "argv"
 		o = append(o, 0xa4, 0x61, 0x72, 0x67, 0x76)
 		o = msgp.AppendArrayHeader(o, uint32(len(z.ScrubbedArgv)))
@@ -1970,9 +2108,11 @@ func (z *Process) MarshalMsg(b []byte) (o []byte, err error) {
 			o = msgp.AppendString(o, z.ScrubbedArgv[za0003])
 		}
 	}
-	// string "argv_truncated"
-	o = append(o, 0xae, 0x61, 0x72, 0x67, 0x76, 0x5f, 0x74, 0x72, 0x75, 0x6e, 0x63, 0x61, 0x74, 0x65, 0x64)
-	o = msgp.AppendBool(o, z.ScrubbedArgsTruncated)
+	if (zb0001Mask & 0x100000) == 0 { // if not empty
+		// string "argv_truncated"
+		o = append(o, 0xae, 0x61, 0x72, 0x67, 0x76, 0x5f, 0x74, 0x72, 0x75, 0x6e, 0x63, 0x61, 0x74, 0x65, 0x64)
+		o = msgp.AppendBool(o, z.ScrubbedArgsTruncated)
+	}
 	// string "is_thread"
 	o = append(o, 0xa9, 0x69, 0x73, 0x5f, 0x74, 0x68, 0x72, 0x65, 0x61, 0x64)
 	o = msgp.AppendBool(o, z.IsThread)
@@ -2123,6 +2263,40 @@ func (z *Process) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Credentials")
 				return
 			}
+		case "args_entry":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				if err != nil {
+					return
+				}
+				z.ArgsEntry = nil
+			} else {
+				if z.ArgsEntry == nil {
+					z.ArgsEntry = new(ArgsEntry)
+				}
+				bts, err = z.ArgsEntry.UnmarshalMsg(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "ArgsEntry")
+					return
+				}
+			}
+		case "envs_entry":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				if err != nil {
+					return
+				}
+				z.EnvsEntry = nil
+			} else {
+				if z.EnvsEntry == nil {
+					z.EnvsEntry = new(EnvsEntry)
+				}
+				bts, err = z.EnvsEntry.UnmarshalMsg(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "EnvsEntry")
+					return
+				}
+			}
 		case "argv0":
 			z.Argv0, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
@@ -2203,7 +2377,19 @@ func (z *Process) Msgsize() (s int) {
 	for za0001 := range z.ContainerTags {
 		s += msgp.StringPrefixSize + len(z.ContainerTags[za0001])
 	}
-	s += 8 + msgp.Uint64Size + 9 + msgp.Uint64Size + 4 + msgp.StringPrefixSize + len(z.TTYName) + 5 + msgp.StringPrefixSize + len(z.Comm) + 10 + msgp.TimeSize + 10 + msgp.TimeSize + 10 + msgp.TimeSize + 7 + msgp.Uint32Size + 5 + msgp.Uint32Size + 12 + z.Credentials.Msgsize() + 6 + msgp.StringPrefixSize + len(z.Argv0) + 5 + msgp.ArrayHeaderSize
+	s += 8 + msgp.Uint64Size + 9 + msgp.Uint64Size + 4 + msgp.StringPrefixSize + len(z.TTYName) + 5 + msgp.StringPrefixSize + len(z.Comm) + 10 + msgp.TimeSize + 10 + msgp.TimeSize + 10 + msgp.TimeSize + 7 + msgp.Uint32Size + 5 + msgp.Uint32Size + 12 + z.Credentials.Msgsize() + 11
+	if z.ArgsEntry == nil {
+		s += msgp.NilSize
+	} else {
+		s += z.ArgsEntry.Msgsize()
+	}
+	s += 11
+	if z.EnvsEntry == nil {
+		s += msgp.NilSize
+	} else {
+		s += z.EnvsEntry.Msgsize()
+	}
+	s += 6 + msgp.StringPrefixSize + len(z.Argv0) + 5 + msgp.ArrayHeaderSize
 	for za0002 := range z.Envs {
 		s += msgp.StringPrefixSize + len(z.Envs[za0002])
 	}
