@@ -5,6 +5,7 @@ import (
 	"strconv"
 )
 
+// FormatMask formats mask raw value (uint32) into CIDR format (e.g. `192.1.128.64/26`)
 func FormatMask(ipAddr []byte, maskRawValue uint32) string {
 	maskSuffix := "/" + strconv.Itoa(int(maskRawValue))
 
