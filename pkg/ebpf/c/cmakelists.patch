@@ -3,7 +3,7 @@
 @@ -68,6 +68,9 @@ if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
    set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build type (default Debug)" FORCE)
  endif()
- 
+
 +add_compile_options("-Wl,--wrap=exp -Wl,--wrap=log -Wl,--wrap=log2 -Wl,--wrap=log2f")
 +link_libraries("-Wl,--wrap=exp -Wl,--wrap=log -Wl,--wrap=log2 -Wl,--wrap=log2f")
 +
