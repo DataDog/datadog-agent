@@ -208,7 +208,7 @@ func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in pt
 	}
 }
 
-// ReceiveResourceSpans processes the given rspans and sends them to writer.
+// ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
 func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header http.Header, protocol string) source.Source {
 	// each rspans is coming from a different resource and should be considered
 	// a separate payload; typically there is only one item in this slice
