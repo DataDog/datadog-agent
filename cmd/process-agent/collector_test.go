@@ -326,7 +326,7 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 	}
 }
 
-func TestSkipResponseBody(t *testing.T) {
+func TestIgnoreResponseBody(t *testing.T) {
 	for _, tc := range []struct {
 		checkName string
 		skip      bool
@@ -341,7 +341,7 @@ func TestSkipResponseBody(t *testing.T) {
 		{checkName: checks.ProcessEvents.Name(), skip: true},
 	} {
 		t.Run(tc.checkName, func(t *testing.T) {
-			assert.Equal(t, tc.skip, skipBodyDecoding(tc.checkName))
+			assert.Equal(t, tc.skip, ignoreResponseBody(tc.checkName))
 		})
 	}
 }

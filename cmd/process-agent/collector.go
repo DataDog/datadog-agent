@@ -354,19 +354,10 @@ func (l *Collector) run(exit chan struct{}) error {
 			case <-heartbeat.C:
 				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
 			case <-queueSizeTicker.C:
-				updateQueueBytes(l.processResults.Weight(), l.rtProcessResults.Weight(), l.eventResults.Weight(), l.podResults.Weight())
-				updateQueueSize(l.processResults.Len(), l.rtProcessResults.Len(), l.eventResults.Len(), l.podResults.Len())
+				updateQueueBytes(l.queueBytesInfo())
+				updateQueueSize(l.queueSizeInfo())
 			case <-queueLogTicker.C:
-				processSize, rtProcessSize, eventSize, podSize := l.processResults.Len(), l.rtProcessResults.Len(), l.eventResults.Len(), l.podResults.Len()
-				if processSize > 0 || rtProcessSize > 0 || eventSize > 0 || podSize > 0 {
-					log.Infof(
-						"Delivery queues: process[size=%d, weight=%d], rtprocess [size=%d, weight=%d], event [size=%d, weight=%d], pod[size=%d, weight=%d]",
-						processSize, l.processResults.Weight(),
-						rtProcessSize, l.rtProcessResults.Weight(),
-						eventSize, l.eventResults.Weight(),
-						podSize, l.podResults.Weight(),
-					)
-				}
+				l.logQueuesSize()
 			case <-exit:
 				return
 			}
@@ -640,6 +631,37 @@ func (l *Collector) updateRTStatus(statuses []*model.CollectorStatus) {
 	}
 }
 
+func (l *Collector) queueBytesInfo() *queueBytesInfo {
+	return &queueBytesInfo{
+		processQueueBytes:   l.processResults.Weight(),
+		rtProcessQueueBytes: l.rtProcessResults.Weight(),
+		eventQueueBytes:     l.eventResults.Weight(),
+		podQueueBytes:       l.podResults.Weight(),
+	}
+}
+
+func (l *Collector) queueSizeInfo() *queueSizeInfo {
+	return &queueSizeInfo{
+		processQueueSize:   l.processResults.Len(),
+		rtProcessQueueSize: l.rtProcessResults.Len(),
+		eventQueueSize:     l.eventResults.Len(),
+		podQueueSize:       l.podResults.Len(),
+	}
+}
+
+func (l *Collector) logQueuesSize() {
+	processSize, rtProcessSize, eventSize, podSize := l.processResults.Len(), l.rtProcessResults.Len(), l.eventResults.Len(), l.podResults.Len()
+	if processSize > 0 || rtProcessSize > 0 || eventSize > 0 || podSize > 0 {
+		log.Infof(
+			"Delivery queues: process[size=%d, weight=%d], rtprocess [size=%d, weight=%d], event [size=%d, weight=%d], pod[size=%d, weight=%d]",
+			processSize, l.processResults.Weight(),
+			rtProcessSize, l.rtProcessResults.Weight(),
+			eventSize, l.eventResults.Weight(),
+			podSize, l.podResults.Weight(),
+		)
+	}
+}
+
 // getContainerCount returns the number of containers in the message body
 func getContainerCount(mb model.MessageBody) int {
 	switch v := mb.(type) {
@@ -672,7 +694,7 @@ func readResponseStatuses(checkName string, responses <-chan forwarder.Response)
 		}
 
 		// some checks don't receive a response with a status used to enable RT mode
-		if skipBodyDecoding(checkName) {
+		if ignoreResponseBody(checkName) {
 			continue
 		}
 
@@ -698,7 +720,7 @@ func readResponseStatuses(checkName string, responses <-chan forwarder.Response)
 	return statuses
 }
 
-func skipBodyDecoding(checkName string) bool {
+func ignoreResponseBody(checkName string) bool {
 	switch checkName {
 	case checks.Pod.Name(), checks.ProcessEvents.Name():
 		return true

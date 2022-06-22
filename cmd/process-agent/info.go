@@ -160,13 +160,20 @@ func updateProcContainerCount(msgs []model.MessageBody) {
 	infoContainerCount = containerCount
 }
 
-func updateQueueSize(processQueueSize, rtProcessQueueSize, eventQueueSize, podQueueSize int) {
+type queueSizeInfo struct {
+	processQueueSize   int
+	rtProcessQueueSize int
+	eventQueueSize     int
+	podQueueSize       int
+}
+
+func updateQueueSize(i *queueSizeInfo) {
 	infoMutex.Lock()
 	defer infoMutex.Unlock()
-	infoProcessQueueSize = processQueueSize
-	infoRTProcessQueueSize = rtProcessQueueSize
-	infoEventQueueSize = eventQueueSize
-	infoPodQueueSize = podQueueSize
+	infoProcessQueueSize = i.processQueueSize
+	infoRTProcessQueueSize = i.rtProcessQueueSize
+	infoEventQueueSize = i.eventQueueSize
+	infoPodQueueSize = i.podQueueSize
 }
 
 func updateEnabledChecks(enabledChecks []string) {
@@ -205,13 +212,20 @@ func publishEventQueueSize() interface{} {
 	return infoEventQueueSize
 }
 
-func updateQueueBytes(processQueueBytes, rtProcessQueueBytes, eventQueueBytes, podQueueBytes int64) {
+type queueBytesInfo struct {
+	processQueueBytes   int64
+	rtProcessQueueBytes int64
+	eventQueueBytes     int64
+	podQueueBytes       int64
+}
+
+func updateQueueBytes(i *queueBytesInfo) {
 	infoMutex.Lock()
 	defer infoMutex.Unlock()
-	infoProcessQueueBytes = int(processQueueBytes)
-	infoRTProcessQueueBytes = int(rtProcessQueueBytes)
-	infoEventQueueBytes = int(eventQueueBytes)
-	infoPodQueueBytes = int(podQueueBytes)
+	infoProcessQueueBytes = int(i.processQueueBytes)
+	infoRTProcessQueueBytes = int(i.rtProcessQueueBytes)
+	infoEventQueueBytes = int(i.eventQueueBytes)
+	infoPodQueueBytes = int(i.podQueueBytes)
 }
 
 func publishProcessQueueBytes() interface{} {
