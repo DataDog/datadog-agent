@@ -93,8 +93,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		hostnameEndpointPrefix:        "ndmflow-intake.",
 		intakeTrackType:               "ndmflow",
 		defaultBatchMaxConcurrentSend: 10,
-		defaultBatchMaxContentSize:    20e6,  // max 20Mb uncompressed size per payload
-		defaultBatchMaxSize:           10000, // max 10k events per payload
+		defaultBatchMaxContentSize:    20e6, // max 20Mb uncompressed size per payload
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
 	},
 }
 

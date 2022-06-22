@@ -92,7 +92,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		logRequests(id, count, len(cs.Conns), start)
 	}))
 
-	httpMux.HandleFunc("/network_tracer/register", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+	httpMux.HandleFunc("/register", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
 		id := getClientID(req)
 		err := nt.tracer.RegisterClient(id)
 		log.Debugf("Got request on /network_tracer/register?client_id=%s", id)

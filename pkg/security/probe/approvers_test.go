@@ -20,15 +20,18 @@ import (
 func TestApproverAncestors1(t *testing.T) {
 	enabled := map[eval.EventType]bool{"*": true}
 
+	var evalOpts eval.Opts
+	evalOpts.
+		WithConstants(model.SECLConstants).
+		WithLegacyFields(model.SECLLegacyFields)
+
 	var opts rules.Opts
 	opts.
-		WithConstants(model.SECLConstants).
 		WithEventTypeEnabled(enabled).
-		WithLegacyFields(model.SECLLegacyFields).
 		WithLogger(&seclog.PatternLogger{})
 
 	m := &model.Model{}
-	rs := rules.NewRuleSet(m, m.NewEvent, &opts)
+	rs := rules.NewRuleSet(m, m.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
 	addRuleExpr(t, rs, `open.file.path == "/etc/passwd" && process.ancestors.file.name == "vipw"`, `open.file.path == "/etc/shadow" && process.ancestors.file.name == "vipw"`)
 
 	capabilities, exists := allCapabilities["open"]
@@ -49,15 +52,18 @@ func TestApproverAncestors1(t *testing.T) {
 func TestApproverAncestors2(t *testing.T) {
 	enabled := map[eval.EventType]bool{"*": true}
 
+	var evalOpts eval.Opts
+	evalOpts.
+		WithConstants(model.SECLConstants).
+		WithLegacyFields(model.SECLLegacyFields)
+
 	var opts rules.Opts
 	opts.
-		WithConstants(model.SECLConstants).
 		WithEventTypeEnabled(enabled).
-		WithLegacyFields(model.SECLLegacyFields).
 		WithLogger(&seclog.PatternLogger{})
 
 	m := &model.Model{}
-	rs := rules.NewRuleSet(m, m.NewEvent, &opts)
+	rs := rules.NewRuleSet(m, m.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
 	addRuleExpr(t, rs, `(open.file.path == "/etc/shadow" || open.file.path == "/etc/gshadow") && process.ancestors.file.path not in ["/usr/bin/dpkg"]`)
 	capabilities, exists := allCapabilities["open"]
 	if !exists {

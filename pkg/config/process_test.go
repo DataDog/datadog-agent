@@ -110,6 +110,14 @@ func TestProcessDefaultConfig(t *testing.T) {
 			key:          "process_config.event_collection.store.stats_interval",
 			defaultValue: DefaultProcessEventStoreStatsInterval,
 		},
+		{
+			key:          "process_config.event_collection.enabled",
+			defaultValue: false,
+		},
+		{
+			key:          "process_config.event_collection.interval",
+			defaultValue: DefaultProcessEventsCheckInterval,
+		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
 			assert.Equal(t, tc.defaultValue, cfg.Get(tc.key))
@@ -386,6 +394,18 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_STORE_STATS_INTERVAL",
 			value:    "60",
 			expected: 60,
+		},
+		{
+			key:      "process_config.event_collection.enabled",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_ENABLED",
+			value:    "true",
+			expected: true,
+		},
+		{
+			key:      "process_config.event_collection.interval",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_INTERVAL",
+			value:    "20s",
+			expected: 20 * time.Second,
 		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {

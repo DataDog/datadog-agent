@@ -64,8 +64,8 @@ func (mp *MetricsProvider) Clear() {
 
 // ContainerEntry allows to customize mock responses
 type ContainerEntry struct {
-	ContainerStats provider.ContainerStats
-	NetworkStats   provider.ContainerNetworkStats
+	ContainerStats *provider.ContainerStats
+	NetworkStats   *provider.ContainerNetworkStats
 	OpenFiles      *uint64
 	Error          error
 }
@@ -107,7 +107,7 @@ func (mp *Collector) Clear() {
 // GetContainerStats returns stats from MockContainerEntry
 func (mp *Collector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	if entry, found := mp.containers[containerID]; found {
-		return &entry.ContainerStats, entry.Error
+		return entry.ContainerStats, entry.Error
 	}
 
 	return nil, fmt.Errorf("container not found")
@@ -125,7 +125,7 @@ func (mp *Collector) GetContainerOpenFilesCount(containerNS, containerID string,
 // GetContainerNetworkStats returns stats from MockContainerEntry
 func (mp *Collector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
 	if entry, found := mp.containers[containerID]; found {
-		return &entry.NetworkStats, entry.Error
+		return entry.NetworkStats, entry.Error
 	}
 
 	return nil, fmt.Errorf("container not found")
