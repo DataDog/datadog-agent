@@ -33,12 +33,14 @@ type eventTestData struct {
 }
 
 func parseRFC3339Time(t *testing.T, s string) time.Time {
+	t.Helper()
 	parsed, err := time.Parse(time.RFC3339Nano, s)
 	require.NoError(t, err)
 	return parsed
 }
 
 func mockedData(t *testing.T) []*eventTestData {
+	t.Helper()
 	return []*eventTestData{
 		{
 			rawEvent: &model.ProcessMonitoringEvent{
@@ -60,11 +62,9 @@ func mockedData(t *testing.T) []*eventTestData {
 							FileEvent: secmodel.FileEvent{
 								PathnameStr: "/usr/bin/curl",
 							},
-							ArgsEntry: &secmodel.ArgsEntry{
-								Values: []string{
-									"curl",
-									"localhost:6062/debug/vars",
-								},
+							ScrubbedArgv: []string{
+								"curl",
+								"localhost:6062/debug/vars",
 							},
 							ForkTime: parseRFC3339Time(t, "2022-06-12T12:00:01Z"),
 							ExecTime: parseRFC3339Time(t, "2022-06-12T12:00:02Z"),
@@ -115,11 +115,9 @@ func mockedData(t *testing.T) []*eventTestData {
 							FileEvent: secmodel.FileEvent{
 								PathnameStr: "/usr/bin/curl",
 							},
-							ArgsEntry: &secmodel.ArgsEntry{
-								Values: []string{
-									"curl",
-									"localhost:6062/debug/vars",
-								},
+							ScrubbedArgv: []string{
+								"curl",
+								"localhost:6062/debug/vars",
 							},
 							ForkTime: parseRFC3339Time(t, "2022-06-12T12:00:01Z"),
 							ExecTime: parseRFC3339Time(t, "2022-06-12T12:00:02Z"),

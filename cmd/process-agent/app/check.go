@@ -30,8 +30,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
+var (
+	waitInterval time.Duration
+)
+
+const (
+	defaultWaitInterval = time.Second
+)
+
 func init() {
 	CheckCmd.Flags().BoolVar(&checkOutputJSON, "json", false, "Output check results in JSON")
+	CheckCmd.Flags().DurationVarP(&waitInterval, "wait", "w", defaultWaitInterval, "How long to wait before running the check")
 }
 
 // CheckCmd is a command that runs the process-agent version data
@@ -153,12 +162,8 @@ func runCheck(cfg *config.AgentConfig, ch checks.Check) error {
 		return fmt.Errorf("collection error: %s", err)
 	}
 
-	if ch.Name() == checks.ProcessEvents.Name() {
-		log.Info("Listening for process_events during 10s before running the check")
-		time.Sleep(10 * time.Second)
-	} else {
-		time.Sleep(1 * time.Second)
-	}
+	log.Infof("Waiting %s before running the check", waitInterval.String())
+	time.Sleep(waitInterval)
 
 	if !checkOutputJSON {
 		printResultsBanner(ch.Name())
@@ -190,7 +195,8 @@ func runCheckAsRealTime(cfg *config.AgentConfig, ch checks.CheckWithRealTime) er
 		return fmt.Errorf("collection error: %s", err)
 	}
 
-	time.Sleep(1 * time.Second)
+	log.Infof("Waiting %s before running the check", waitInterval.String())
+	time.Sleep(waitInterval)
 
 	if !checkOutputJSON {
 		printResultsBanner(ch.RealTimeName())
