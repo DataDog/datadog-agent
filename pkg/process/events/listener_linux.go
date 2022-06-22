@@ -59,11 +59,11 @@ func NewListener(handler EventHandler) (*SysProbeListener, error) {
 	}
 
 	client := api.NewSecurityModuleClient(conn)
-	return NewSysProbeListener(conn, client, handler)
+	return newSysProbeListener(conn, client, handler)
 }
 
-// NewSysProbeListener returns a new SysPobeListener
-func NewSysProbeListener(conn *grpc.ClientConn, client api.SecurityModuleClient, handler EventHandler) (*SysProbeListener, error) {
+// newSysProbeListener returns a new SysPobeListener
+func newSysProbeListener(conn *grpc.ClientConn, client api.SecurityModuleClient, handler EventHandler) (*SysProbeListener, error) {
 	if handler == nil {
 		return nil, errors.New("can't create a Listener without an EventHandler")
 	}
