@@ -49,7 +49,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace v0.37.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
-	github.com/DataDog/ebpf-manager v0.0.0-20220406140358-68e6b7f54dde
+	github.com/DataDog/ebpf-manager v0.0.0-20220620150645-6cb8b3fd1984
 	github.com/DataDog/gohai v0.0.0-20220607152458-544032c46ded
 	github.com/DataDog/gopsutil v0.0.0-20220308095538-d086941833e3
 	github.com/DataDog/nikos v1.7.6
@@ -76,7 +76,7 @@ require (
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/cilium/ebpf v0.8.2-0.20220404151855-0d439865ca15
+	github.com/cilium/ebpf v0.9.0
 	github.com/clbanning/mxj v1.8.4
 	github.com/cloudfoundry-community/go-cfclient v0.0.0-20210621174645-7773f7e22665
 	github.com/containerd/cgroups v1.0.3
