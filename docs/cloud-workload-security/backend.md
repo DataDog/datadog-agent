@@ -141,7 +141,7 @@ CWS logs have the following JSON schema:
             "required": [
                 "id"
             ],
-            "description": "DNSEventSerializer serializes a dns event to JSON"
+            "description": "DNSEventSerializer serializes a DNS event to JSON"
         },
         "DNSQuestion": {
             "properties": {
@@ -458,7 +458,7 @@ CWS logs have the following JSON schema:
                 "ip",
                 "port"
             ],
-            "description": "IPPortFamilySerializer is used to serialize an IP, Port and address family context to JSON"
+            "description": "IPPortFamilySerializer is used to serialize an IP, port, and address family context to JSON"
         },
         "MMapEvent": {
             "properties": {
@@ -549,11 +549,11 @@ CWS logs have the following JSON schema:
                 },
                 "l3_protocol": {
                     "type": "string",
-                    "description": "l3_protocol is the layer 3 procotocol name"
+                    "description": "l3_protocol is the layer 3 protocol name"
                 },
                 "l4_protocol": {
                     "type": "string",
-                    "description": "l4_protocol is the layer 4 procotocol name"
+                    "description": "l4_protocol is the layer 4 protocol name"
                 },
                 "source": {
                     "$ref": "#/$defs/IPPort",
@@ -1349,7 +1349,7 @@ CWS logs have the following JSON schema:
     "required": [
         "id"
     ],
-    "description": "DNSEventSerializer serializes a dns event to JSON"
+    "description": "DNSEventSerializer serializes a DNS event to JSON"
 }
 
 {{< /code-block >}}
@@ -1805,7 +1805,7 @@ CWS logs have the following JSON schema:
         "ip",
         "port"
     ],
-    "description": "IPPortFamilySerializer is used to serialize an IP, Port and address family context to JSON"
+    "description": "IPPortFamilySerializer is used to serialize an IP, port, and address family context to JSON"
 }
 
 {{< /code-block >}}
@@ -1954,11 +1954,11 @@ CWS logs have the following JSON schema:
         },
         "l3_protocol": {
             "type": "string",
-            "description": "l3_protocol is the layer 3 procotocol name"
+            "description": "l3_protocol is the layer 3 protocol name"
         },
         "l4_protocol": {
             "type": "string",
-            "description": "l4_protocol is the layer 4 procotocol name"
+            "description": "l4_protocol is the layer 4 protocol name"
         },
         "source": {
             "$ref": "#/$defs/IPPort",
@@ -1990,8 +1990,8 @@ CWS logs have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `device` | device is the network device on which the event was captured |
-| `l3_protocol` | l3_protocol is the layer 3 procotocol name |
-| `l4_protocol` | l4_protocol is the layer 4 procotocol name |
+| `l3_protocol` | l3_protocol is the layer 3 protocol name |
+| `l4_protocol` | l4_protocol is the layer 4 protocol name |
 | `source` | source is the emitter of the network event |
 | `destination` | destination is the receiver of the network event |
 | `size` | size is the size in bytes of the network event |
