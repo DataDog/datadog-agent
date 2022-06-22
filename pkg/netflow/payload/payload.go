@@ -5,7 +5,7 @@
 
 package payload
 
-// Device contains exporter details
+// Device contains device (exporter) details
 type Device struct {
 	IP string `json:"ip"`
 }
@@ -44,7 +44,7 @@ type FlowPayload struct {
 	Packets      uint64           `json:"packets"`
 	EtherType    string           `json:"ether_type,omitempty"`
 	IPProtocol   string           `json:"ip_protocol"`
-	Device       Device           `json:"exporter"`
+	Device       Device           `json:"device"`
 	Source       Endpoint         `json:"source"`
 	Destination  Endpoint         `json:"destination"`
 	Ingress      ObservationPoint `json:"ingress"`
