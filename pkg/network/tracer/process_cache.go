@@ -39,6 +39,15 @@ type process struct {
 
 type processList []*process
 
+type _processCacheStats struct {
+	cacheEvicts   uint64 `stats:"atomic"`
+	cacheLength   uint64 `stats:"atomic"`
+	eventsDropped uint64 `stats:"atomic"`
+	eventsSkipped uint64 `stats:"atomic"`
+
+	reporter stats.Reporter
+}
+
 type processCache struct {
 	sync.Mutex
 
@@ -58,14 +67,7 @@ type processCache struct {
 	stopped chan struct{}
 	stop    sync.Once
 
-	stats struct {
-		cacheEvicts   uint64 `stats:"atomic"`
-		cacheLength   uint64 `stats:"atomic"`
-		eventsDropped uint64 `stats:"atomic"`
-		eventsSkipped uint64 `stats:"atomic"`
-
-		reporter stats.Reporter
-	}
+	stats *_processCacheStats
 }
 
 type processCacheKey struct {
@@ -79,6 +81,7 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 		cacheByPid:   map[uint32]processList{},
 		in:           make(chan *process, maxProcessQueueLen),
 		stopped:      make(chan struct{}),
+		stats:        &_processCacheStats{},
 	}
 	var err error
 	pc.cache, err = lru.NewWithEvict(maxProcs, func(key, value interface{}) {
@@ -96,7 +99,7 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 		return nil, err
 	}
 
-	if pc.stats.reporter, err = stats.NewReporter(&pc.stats); err != nil {
+	if pc.stats.reporter, err = stats.NewReporter(pc.stats); err != nil {
 		return nil, err
 	}
 
