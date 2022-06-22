@@ -190,6 +190,28 @@ func TestPodCheck(t *testing.T) {
 	})
 }
 
+func TestProcessEventsCheck(t *testing.T) {
+	scfg, ocfg := &sysconfig.Config{}, &oconfig.OrchestratorConfig{}
+	cfg := config.Mock(t)
+
+	t.Run("default", func(t *testing.T) {
+		enabledChecks := getChecks(scfg, ocfg, false)
+		assert.NotContains(t, enabledChecks, checks.ProcessEvents)
+	})
+
+	t.Run("enabled", func(t *testing.T) {
+		cfg.Set("process_config.event_collection.enabled", true)
+		enabledChecks := getChecks(scfg, ocfg, false)
+		assert.Contains(t, enabledChecks, checks.ProcessEvents)
+	})
+
+	t.Run("disabled", func(t *testing.T) {
+		cfg.Set("process_config.event_collection.enabled", false)
+		enabledChecks := getChecks(scfg, ocfg, false)
+		assert.NotContains(t, enabledChecks, checks.ProcessEvents)
+	})
+}
+
 func TestGetAPIEndpoints(t *testing.T) {
 	mkurl := func(rawurl string) *url.URL {
 		urlResult, err := url.Parse(rawurl)

@@ -129,8 +129,8 @@ github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03
 github.com/BurntSushi/toml v0.4.1 h1:GaI7EiDXDRfa8VshkTj7Fym7ha+y8/XxIgD2okUIjLw=
 github.com/BurntSushi/toml v0.4.1/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
-github.com/DataDog/agent-payload/v5 v5.0.22 h1:XaMYtdvdjRWLwvoQhZM3Se0YmOeMYgEvdKVLwPsxEaU=
-github.com/DataDog/agent-payload/v5 v5.0.22/go.mod h1:2gapp8p4Vd548JI+axD8kCExklNvVI6AMF5/+IfN/4g=
+github.com/DataDog/agent-payload/v5 v5.0.23 h1:T+xalP3F9XOMZRSokcG4pK1hqyDBbEDPxp68tSBmfhc=
+github.com/DataDog/agent-payload/v5 v5.0.23/go.mod h1:2gapp8p4Vd548JI+axD8kCExklNvVI6AMF5/+IfN/4g=
 github.com/DataDog/btf-internals v0.0.0-20220424171854-ebe6bce9afb0 h1:01FWXvRqmUWsh9dWSWA0PkRK3XSBftQVj/tQ0yq9Z50=
 github.com/DataDog/btf-internals v0.0.0-20220424171854-ebe6bce9afb0/go.mod h1:cBVVIJ/f6XtwFL/U9QI5QDA/LcaiSiI8B4ipyGXzc1s=
 github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3 h1:SobA9WYm4K/MUtWlbKaomWTmnuYp1KhIm8Wlx3vmpsg=
