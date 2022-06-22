@@ -200,6 +200,25 @@ CWS logs have the following JSON schema:
             "type": "object",
             "description": "EventContextSerializer serializes an event context to JSON"
         },
+        "ExitEvent": {
+            "properties": {
+                "cause": {
+                    "type": "string",
+                    "description": "Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)"
+                },
+                "code": {
+                    "type": "integer",
+                    "description": "Exit code of the process or number of the signal that caused the process to terminate"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "cause",
+                "code"
+            ],
+            "description": "ExitEventSerializer serializes an exit event to JSON"
+        },
         "File": {
             "properties": {
                 "path": {
@@ -1068,7 +1087,7 @@ CWS logs have the following JSON schema:
             "$ref": "#/$defs/BindEvent"
         },
         "exit": {
-            "$ref": "#/definitions/ExitEvent"
+            "$ref": "#/$defs/ExitEvent"
         },
         "usr": {
             "$ref": "#/$defs/UserContext"
@@ -1437,10 +1456,6 @@ CWS logs have the following JSON schema:
 
 {{< code-block lang="json" collapsible="true" >}}
 {
-    "required": [
-        "cause",
-        "code"
-    ],
     "properties": {
         "cause": {
             "type": "string",
@@ -1452,7 +1467,12 @@ CWS logs have the following JSON schema:
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "required": [
+        "cause",
+        "code"
+    ],
+    "description": "ExitEventSerializer serializes an exit event to JSON"
 }
 
 {{< /code-block >}}
