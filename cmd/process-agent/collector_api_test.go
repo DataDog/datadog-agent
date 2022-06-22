@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -174,56 +173,6 @@ func TestSendProcessDiscoveryMessage(t *testing.T) {
 		require.NoError(t, err)
 
 		b, ok := reqBody.Body.(*process.CollectorProcDiscovery)
-		require.True(t, ok)
-		assert.Equal(t, m, b)
-	})
-}
-
-func TestSendProcessEventMessage(t *testing.T) {
-	m := &process.CollectorProcEvent{
-		Hostname:  testHostName,
-		GroupId:   1,
-		GroupSize: 1,
-		Events: []*process.ProcessEvent{
-			{
-				Type: process.ProcEventType_exec,
-				Pid:  42,
-				Command: &process.Command{
-					Exe:  "/usr/bin/curl",
-					Args: []string{"curl", "localhost:6062/debug/vars"},
-					Ppid: 1,
-				},
-			},
-		},
-	}
-
-	check := &testCheck{
-		name: checks.ProcessEvents.Name(),
-		data: [][]process.MessageBody{{m}},
-	}
-
-	runCollectorTest(t, check, config.NewDefaultAgentConfig(), &endpointConfig{}, ddconfig.Mock(t), func(cfg *config.AgentConfig, ep *mockEndpoint) {
-		req := <-ep.Requests
-
-		assert.Equal(t, "/api/v2/proclcycle", req.uri)
-
-		assert.Equal(t, cfg.HostName, req.headers.Get(headers.HostHeader))
-		eps, err := getAPIEndpoints()
-		assert.NoError(t, err)
-		assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
-		assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
-		assert.Equal(t, "1", req.headers.Get("X-DD-Agent-Attempts"))
-		assert.NotEmpty(t, req.headers.Get(headers.TimestampHeader))
-		assert.Equal(t, headers.ProtobufContentType, req.headers.Get(headers.ContentTypeHeader))
-
-		agentVersion, err := version.Agent()
-		require.NoError(t, err)
-		assert.Equal(t, agentVersion.GetNumber(), req.headers.Get(headers.ProcessVersionHeader))
-
-		reqBody, err := process.DecodeMessage(req.body)
-		require.NoError(t, err)
-
-		b, ok := reqBody.Body.(*process.CollectorProcEvent)
 		require.True(t, ok)
 		assert.Equal(t, m, b)
 	})
@@ -539,7 +488,6 @@ func newMockEndpoint(t *testing.T, config *endpointConfig) *mockEndpoint {
 	collectorMux.HandleFunc("/api/v1/collector", m.handle)
 	collectorMux.HandleFunc("/api/v1/container", m.handle)
 	collectorMux.HandleFunc("/api/v1/discovery", m.handle)
-	collectorMux.HandleFunc("/api/v2/proclcycle", m.handle)
 
 	orchestratorMux := http.NewServeMux()
 	orchestratorMux.HandleFunc("/api/v1/validate", m.handleValidate)

@@ -51,5 +51,4 @@ var All = []Check{
 	Connections,
 	Pod,
 	ProcessDiscovery,
-	ProcessEvents,
 }
