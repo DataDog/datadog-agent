@@ -16,14 +16,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
-
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
 	dd_config "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
@@ -92,13 +91,13 @@ func (m *OOMKillCheck) Run() error {
 		return err
 	}
 
-	data, err := sysProbeUtil.GetCheck("oom_kill")
+	data, err := sysProbeUtil.GetCheck(sysconfig.OOMKillProbeModule)
 	if err != nil {
 		return err
 	}
 
 	// sender is just what is used to submit the data
-	sender, err := aggregator.GetSender(m.ID())
+	sender, err := m.GetSender()
 	if err != nil {
 		return err
 	}

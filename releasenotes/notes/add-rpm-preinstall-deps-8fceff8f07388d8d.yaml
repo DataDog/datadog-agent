@@ -6,6 +6,19 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
+upgrade:
   - |
     Agent, Dogstatsd and IOT Agent RPMs now have proper preinstall dependencies.
+    On AlmaLinux, Amazon Linux, CentOS, Fedora, RHEL and Rocky Linux, these are:
+    
+    - ``coreutils`` (provided by package ``coreutils-single`` on certain platforms)
+    - ``grep``
+    - ``glibc-common``
+    - ``shadow-utils``
+    
+    On OpenSUSE and SUSE, these are:
+    
+    - ``coreutils``
+    - ``grep``
+    - ``glibc``
+    - ``shadow``

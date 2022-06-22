@@ -9,6 +9,8 @@
 package http
 
 import (
+	"encoding/hex"
+	"strings"
 	"unsafe"
 )
 
@@ -42,7 +44,7 @@ func (k *httpBatchKey) Prepare(n httpNotification) {
 // GET variables excluded.
 // Example:
 // For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
-func (tx *httpTX) Path(buffer []byte) []byte {
+func (tx *httpTX) Path(buffer []byte) ([]byte, bool) {
 	b := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.request_fragment))
 
 	// b might contain a null terminator in the middle
@@ -54,15 +56,17 @@ func (tx *httpTX) Path(buffer []byte) []byte {
 
 	i++
 
+	if i >= bLen || (b[i] != '/' && b[i] != '*') {
+		return nil, false
+	}
+
 	for j = i; j < bLen && b[j] != ' ' && b[j] != '?'; j++ {
 	}
 
-	if i < j && j <= bLen {
-		n := copy(buffer, b[i:j])
-		return buffer[:n]
-	}
-
-	return nil
+	// no bound check necessary here as we know we at least have '/' character
+	n := copy(buffer, b[i:j])
+	fullPath := j < bLen || (j == HTTPBufferSize-1 && b[j] == ' ')
+	return buffer[:n], fullPath
 }
 
 // StatusClass returns an integer representing the status code class
@@ -73,6 +77,9 @@ func (tx *httpTX) StatusClass() int {
 
 // RequestLatency returns the latency of the request in nanoseconds
 func (tx *httpTX) RequestLatency() float64 {
+	if uint64(tx.request_started) == 0 || uint64(tx.response_last_seen) == 0 {
+		return 0
+	}
 	return nsTimestampToFloat(uint64(tx.response_last_seen - tx.request_started))
 }
 
@@ -86,6 +93,16 @@ func (tx *httpTX) Incomplete() bool {
 // Tags are defined here : pkg/network/ebpf/kprobe_types.go
 func (tx *httpTX) Tags() uint64 {
 	return uint64(tx.tags)
+}
+
+func (tx *httpTX) String() string {
+	var output strings.Builder
+	fragment := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.request_fragment))
+	output.WriteString("httpTX{")
+	output.WriteString("Method: '" + Method(tx.request_method).String() + "', ")
+	output.WriteString("Fragment: '" + hex.EncodeToString(fragment[:]) + "', ")
+	output.WriteString("}")
+	return output.String()
 }
 
 // IsDirty detects whether the batch page we're supposed to read from is still

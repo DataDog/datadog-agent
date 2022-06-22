@@ -1,7 +1,8 @@
 #include "stdafx.h"
+#include <utility>
 #include "customactiondata.h"
 #include "PropertyReplacer.h"
-#include <utility>
+#include "LogonCli.h"
 
 CustomActionData::CustomActionData(std::shared_ptr<ITargetMachine> targetMachine)
 : _hInstall(NULL)
@@ -10,22 +11,33 @@ CustomActionData::CustomActionData(std::shared_ptr<ITargetMachine> targetMachine
 , _ddnpmPresent(false)
 , _ddUserExists(false)
 , _targetMachine(std::move(targetMachine))
+, _logonCli(nullptr)
 {
 }
 
 CustomActionData::CustomActionData()
 : CustomActionData(std::make_shared<TargetMachine>())
 {
-    
+
 }
 
 CustomActionData::~CustomActionData()
 {
+    delete _logonCli;
 }
 
 bool CustomActionData::init(MSIHANDLE hi)
 {
-    this->_hInstall = hi;
+    _hInstall = hi;
+    try
+    {
+        _logonCli = new LogonCli();
+    }
+    catch (std::exception &e)
+    {
+        WcaLog(LOGMSG_STANDARD, "Could not load logonCli.dll: %s", e.what());
+    }
+    
     std::wstring data;
     if (!loadPropertyString(this->_hInstall, propertyCustomActionData.c_str(), data))
     {
@@ -96,6 +108,11 @@ bool CustomActionData::DoesUserExist() const
     return _ddUserExists;
 }
 
+bool CustomActionData::IsServiceAccount() const
+{
+    return _isServiceAccount;
+}
+
 const std::wstring &CustomActionData::UnqualifiedUsername() const
 {
     return _user.Name;
@@ -145,6 +162,7 @@ bool CustomActionData::parseSysprobeData()
     std::wstring sysprobePresent;
     std::wstring addlocal;
     std::wstring npm;
+    std::wstring npmFeature;
     this->_doInstallSysprobe = false;
     this->_ddnpmPresent = false;
     if (!this->value(L"SYSPROBE_PRESENT", sysprobePresent))
@@ -166,30 +184,26 @@ bool CustomActionData::parseSysprobeData()
     {
         WcaLog(LOGMSG_STANDARD, "NPM property not present");
     }
-    else 
+    else
     {
         WcaLog(LOGMSG_STANDARD, "NPM enabled via NPM property");
         this->_ddnpmPresent = true;
     }
 
-    // now check to see if we're installing the driver
-    if (!this->value(L"ADDLOCAL", addlocal))
-    {
-        // should never happen.  But if the addlocalkey isn't there,
-        // don't bother trying
-        WcaLog(LOGMSG_STANDARD, "ADDLOCAL not present");
 
-        return true;
-    }
-    WcaLog(LOGMSG_STANDARD, "ADDLOCAL is (%S)", addlocal.c_str());
-    if (_wcsicmp(addlocal.c_str(), L"ALL") == 0)
+    if (this->value(L"NPMFEATURE", npmFeature))
     {
-        // installing all components, do it
-        this->_ddnpmPresent = true;
-        WcaLog(LOGMSG_STANDARD, "ADDLOCAL is ALL");
-    } else if (addlocal.find(L"NPM") != std::wstring::npos) {
-        WcaLog(LOGMSG_STANDARD, "ADDLOCAL contains NPM %S", addlocal.c_str());
-        this->_ddnpmPresent = true;
+        // this property is set to "on" or "off" depending on the desired installed state
+        // of the NPM feature.
+        WcaLog(LOGMSG_STANDARD, "NPMFEATURE key is present and (%S)", npmFeature.c_str());
+        if (_wcsicmp(npmFeature.c_str(), L"on") == 0)
+        {
+            this->_ddnpmPresent = true;
+        }
+    }
+    else
+    {
+        WcaLog(LOGMSG_STANDARD, "NPMFEATURE not present");
     }
 
     return true;
@@ -271,9 +285,26 @@ void CustomActionData::ensureDomainHasCorrectFormat()
         }
         else
         {
-            WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (\"%S\" != \"%S\")", _user.Domain.c_str(),
-                   _targetMachine->DnsDomainName().c_str());
-            _domainUser = true;
+            // Compute a temporary fully qualified username to retrieve its SID
+            // in order to determine if its prefix starts with NT AUTHORITY.
+            auto tempFquname = _user.Domain + L"\\" + _user.Name;
+            auto sidResult = GetSidForUser(nullptr, tempFquname.c_str());
+            if (sidResult.Result != ERROR_NONE_MAPPED)
+            {
+                const auto ntAuthoritySid = WellKnownSID::NTAuthority();
+                if (!ntAuthoritySid.has_value())
+                {
+                    WcaLog(LOGMSG_STANDARD, "Cannot check user SID against NT AUTHORITY: memory allocation failed");
+                }
+                else if (!EqualPrefixSid(
+                             sidResult.Sid.get(),
+                             ntAuthoritySid.value().get())) // NT Authority should never be considered a "domain".
+                {
+                    WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (\"%S\" != \"%S\")",
+                           _user.Domain.c_str(), _targetMachine->DnsDomainName().c_str());
+                    _domainUser = true;
+                }
+            }
         }
     }
 }
@@ -322,6 +353,21 @@ bool CustomActionData::parseUsernameData()
             _ddUserExists = true;
             _sid = std::move(sidResult.Sid);
 
+            if (_logonCli != nullptr)
+            {
+                BOOL isServiceAccount = FALSE;
+                DWORD result = _logonCli->NetIsServiceAccount(
+                    nullptr, const_cast<wchar_t *>(FullyQualifiedUsername().c_str()), &isServiceAccount);
+                if (result != ERROR_SUCCESS)
+                {
+                    WcaLog(LOGMSG_STANDARD, "Could not lookup if \"%S\" is a service account: %S",
+                           FullyQualifiedUsername().c_str(), FormatErrorMessage(result).c_str());
+                }
+                _isServiceAccount = isServiceAccount ? true : false;
+            }
+
+            WcaLog(LOGMSG_STANDARD, R"("%S" %S a managed service account)",
+                   FullyQualifiedUsername().c_str(), _isServiceAccount ? L"is" : L"is not");
             // Use the domain returned by <see cref="LookupAccountName" /> because
             // it might be != from the one the user passed in.
             _user.Domain = sidResult.Domain;

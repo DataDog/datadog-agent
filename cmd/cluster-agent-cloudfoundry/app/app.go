@@ -43,7 +43,7 @@ import (
 // loggerName is the name of the cluster agent logger
 const loggerName config.LoggerName = "CLUSTER"
 
-// FIXME: move LoadComponents and StartAutoConfig in their own package so we don't import cmd/agent
+// FIXME: move LoadComponents and LoadAndRun in their own package so we don't import cmd/agent
 var (
 	ClusterAgentCmd = &cobra.Command{
 		Use:   "datadog-cluster-agent-cloudfoundry [command]",
@@ -180,20 +180,20 @@ func run(cmd *cobra.Command, args []string) error {
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 
-	// initialize BBS Cache before starting provider/listener
-	if err = initializeBBSCache(mainCtx); err != nil {
-		return err
-	}
-
 	// initialize CC Cache
 	if err = initializeCCCache(mainCtx); err != nil {
 		_ = log.Errorf("Error initializing Cloud Foundry CCAPI cache, some advanced tagging features may be missing: %v", err)
 	}
 
+	// initialize BBS Cache before starting provider/listener
+	if err = initializeBBSCache(mainCtx); err != nil {
+		return err
+	}
+
 	// create and setup the Autoconfig instance
 	common.LoadComponents(mainCtx, config.Datadog.GetString("confd_path"))
 	// start the autoconfig, this will immediately run any configured check
-	common.StartAutoConfig()
+	common.AC.LoadAndRun()
 
 	if err = api.StartServer(); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
@@ -239,6 +239,8 @@ func initializeCCCache(ctx context.Context) error {
 		config.Datadog.GetBool("cloud_foundry_cc.skip_ssl_validation"),
 		pollInterval,
 		config.Datadog.GetInt("cloud_foundry_cc.apps_batch_size"),
+		config.Datadog.GetBool("cluster_agent.serve_nozzle_data"),
+		config.Datadog.GetBool("cluster_agent.advanced_tagging"),
 		nil,
 	)
 	if err != nil {

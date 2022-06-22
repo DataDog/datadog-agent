@@ -14,20 +14,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var (
 	testConn = ConnectionStats{
-		Pid:                123,
-		Type:               1,
-		Family:             AFINET,
-		Source:             util.AddressFromString("192.168.0.1"),
-		Dest:               util.AddressFromString("192.168.0.103"),
-		SPort:              123,
-		DPort:              35000,
-		MonotonicSentBytes: 123123,
-		MonotonicRecvBytes: 312312,
+		Pid:    123,
+		Type:   1,
+		Family: AFINET,
+		Source: util.AddressFromString("192.168.0.1"),
+		Dest:   util.AddressFromString("192.168.0.103"),
+		SPort:  123,
+		DPort:  35000,
+		Monotonic: StatCounters{
+			SentBytes: 123123,
+			RecvBytes: 312312,
+		},
 	}
 )
 
@@ -55,8 +56,7 @@ func TestBeautifyKey(t *testing.T) {
 			DPort:     443,
 		},
 	} {
-		bk, err := c.ByteKey(buf)
-		require.NoError(t, err)
+		bk := c.ByteKey(buf)
 		expected := fmt.Sprintf(keyFmt, c.Pid, c.Source.String(), c.SPort, c.Dest.String(), c.DPort, c.Family, c.Type)
 		assert.Equal(t, expected, BeautifyKey(string(bk)))
 	}
@@ -113,13 +113,101 @@ func TestConnStatsByteKey(t *testing.T) {
 		},
 	} {
 		var keyA, keyB string
-		if b, err := test.a.ByteKey(buf); assert.NoError(t, err) {
-			keyA = string(b)
-		}
-		if b, err := test.b.ByteKey(buf); assert.NoError(t, err) {
-			keyB = string(b)
-		}
+		keyA = string(test.a.ByteKey(buf))
+		keyB = string(test.b.ByteKey(buf))
 		assert.NotEqual(t, keyA, keyB)
+	}
+}
+func TestByteKeyNAT(t *testing.T) {
+	buf := make([]byte, ConnectionByteKeyMaxLen)
+	for _, test := range []struct {
+		a           ConnectionStats
+		b           ConnectionStats
+		shouldMatch bool
+	}{
+		{
+			a: ConnectionStats{
+				Source: util.AddressFromString("127.0.0.1"),
+				Dest:   util.AddressFromString("127.0.0.2"),
+			},
+			b: ConnectionStats{
+				Source: util.AddressFromString("127.0.0.1"),
+				Dest:   util.AddressFromString("127.0.0.2"),
+			},
+			shouldMatch: true,
+		},
+		{
+			a: ConnectionStats{
+				Source: util.AddressFromString("127.0.0.1"),
+				Dest:   util.AddressFromString("127.0.0.2"),
+			},
+			b: ConnectionStats{
+				Source: util.AddressFromString("127.0.0.3"),
+				Dest:   util.AddressFromString("127.0.0.4"),
+			},
+			shouldMatch: false,
+		},
+		{
+			a: ConnectionStats{
+				Source: util.AddressFromString("127.0.0.1"),
+				Dest:   util.AddressFromString("127.0.0.2"),
+			},
+			b: ConnectionStats{
+				Source: util.AddressFromString("127.0.0.1"),
+				Dest:   util.AddressFromString("127.0.0.2"),
+				IPTranslation: &IPTranslation{
+					ReplSrcIP: util.AddressFromString("1.1.1.1"),
+					ReplDstIP: util.AddressFromString("2.2.2.2"),
+				},
+			},
+			shouldMatch: false,
+		},
+		{
+			a: ConnectionStats{
+				Source: util.AddressFromString("127.0.0.1"),
+				Dest:   util.AddressFromString("127.0.0.2"),
+				IPTranslation: &IPTranslation{
+					ReplSrcIP: util.AddressFromString("1.1.1.1"),
+					ReplDstIP: util.AddressFromString("2.2.2.2"),
+				},
+			},
+			b: ConnectionStats{
+				Source: util.AddressFromString("127.0.0.1"),
+				Dest:   util.AddressFromString("127.0.0.2"),
+				IPTranslation: &IPTranslation{
+					ReplSrcIP: util.AddressFromString("3.3.3.3"),
+					ReplDstIP: util.AddressFromString("4.4.4.4"),
+				},
+			},
+			shouldMatch: false,
+		},
+		{
+			a: ConnectionStats{
+				Source: util.AddressFromString("127.0.0.1"),
+				Dest:   util.AddressFromString("127.0.0.2"),
+				IPTranslation: &IPTranslation{
+					ReplSrcIP: util.AddressFromString("1.1.1.1"),
+					ReplDstIP: util.AddressFromString("2.2.2.2"),
+				},
+			},
+			b: ConnectionStats{
+				Source: util.AddressFromString("127.0.0.3"),
+				Dest:   util.AddressFromString("127.0.0.4"),
+				IPTranslation: &IPTranslation{
+					ReplSrcIP: util.AddressFromString("1.1.1.1"),
+					ReplDstIP: util.AddressFromString("2.2.2.2"),
+				},
+			},
+			shouldMatch: true,
+		},
+	} {
+		var keyA, keyB string
+		keyA = string(test.a.ByteKeyNAT(buf))
+		keyB = string(test.b.ByteKeyNAT(buf))
+		actual := keyA == keyB
+		assert.Equalf(t, test.shouldMatch, actual,
+			"a: %s\nb:%s\nshouldMatch: %v\ngot: %v", test.a, test.b, test.shouldMatch, actual,
+		)
 	}
 }
 
@@ -160,7 +248,7 @@ func BenchmarkByteKey(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = c.ByteKey(buf)
+		_ = c.ByteKey(buf)
 	}
 	runtime.KeepAlive(buf)
 }

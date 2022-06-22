@@ -16,12 +16,13 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	pb "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	"google.golang.org/grpc/credentials/insecure"
+	pb "k8s.io/cri-api/pkg/apis/runtime/v1"
 
+	"github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/cri/remote/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"github.com/DataDog/datadog-agent/third_party/kubernetes/pkg/kubelet/cri/remote/util"
 )
 
 var (
@@ -29,6 +30,7 @@ var (
 	once          sync.Once
 )
 
+// CRIClient abstracts the CRI client methods
 type CRIClient interface {
 	ListContainerStats() (map[string]*pb.ContainerStats, error)
 	GetContainerStats(containerID string) (*pb.ContainerStats, error)
@@ -71,14 +73,16 @@ func (c *CRIUtil) init() error {
 		return fmt.Errorf("failed to get dialer: %s", err)
 	}
 
-	conn, err := grpc.Dial(c.socketPath, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(c.connectionTimeout), grpc.WithContextDialer(dialer))
+	ctx, cancel := context.WithTimeout(context.Background(), c.connectionTimeout)
+	defer cancel()
+	conn, err := grpc.DialContext(ctx, c.socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock(), grpc.WithContextDialer(dialer))
 	if err != nil {
 		return fmt.Errorf("failed to dial: %v", err)
 	}
 
 	c.client = pb.NewRuntimeServiceClient(conn)
 	// validating the connection by fetching the version
-	ctx, cancel := context.WithTimeout(context.Background(), c.connectionTimeout)
+	ctx, cancel = context.WithTimeout(context.Background(), c.connectionTimeout)
 	defer cancel()
 	request := &pb.VersionRequest{}
 	r, err := c.client.Version(ctx, request)
@@ -149,10 +153,12 @@ func (c *CRIUtil) GetContainerStatus(containerID string) (*pb.ContainerStatus, e
 	return r.Status, nil
 }
 
+// GetRuntime returns the CRI runtime
 func (c *CRIUtil) GetRuntime() string {
 	return c.runtime
 }
 
+// GetRuntimeVersion returns the CRI runtime version
 func (c *CRIUtil) GetRuntimeVersion() string {
 	return c.runtimeVersion
 }

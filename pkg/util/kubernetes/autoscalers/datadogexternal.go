@@ -45,6 +45,7 @@ var (
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 )
 
+// Point represents a metric data point
 type Point struct {
 	Value     float64
 	Timestamp int64
@@ -148,7 +149,7 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, bucketSize int64) (
 
 	// If we add no series at all, return an error on top of invalid metrics
 	if len(seriesSlice) == 0 {
-		return processedMetrics, log.Errorf("Returned series slice empty")
+		return processedMetrics, log.Warnf("none of the queries %s returned any point, there might be an issue with them", query)
 	}
 
 	return processedMetrics, nil

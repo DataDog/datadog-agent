@@ -6,37 +6,33 @@
 package provider
 
 import (
-	"sync"
+	"strconv"
 	"time"
 )
 
 const (
-	contStatsCachePrefix    = "cs-"
-	contNetStatsCachePrefix = "cns-"
-	gcInterval              = 30 * time.Second
-)
+	contCoreStatsCachePrefix = "cs-"
+	contOpenFilesCachePrefix = "of-"
+	contNetStatsCachePrefix  = "cns-"
+	contPidToCidCachePrefix  = "pid-"
 
-type cacheEntry struct {
-	value     interface{}
-	err       error
-	timestamp time.Time
-}
+	cacheGCInterval = 30 * time.Second
+)
 
 // collectorCache is a wrapper handling cache for collectors.
 // this cache is fully synchronized to minimize locking. If a method is called multiple times in parallel for the same cachey key,
 // it may result in multiple calls to the underlying collector
 type collectorCache struct {
-	collector   Collector
-	cache       map[string]cacheEntry
-	cacheLock   sync.RWMutex
-	gcTimestamp time.Time
+	collector            Collector
+	cache                *Cache
+	selfContainerIDCache string
 }
 
 // NewCollectorCache returns a new cache dedicated to a collector
 func NewCollectorCache(collector Collector) Collector {
 	return &collectorCache{
 		collector: collector,
-		cache:     make(map[string]cacheEntry),
+		cache:     NewCache(cacheGCInterval),
 	}
 }
 
@@ -47,89 +43,122 @@ func (cc *collectorCache) ID() string {
 
 // GetContainerStats returns the stats if in cache and within cacheValidity
 // errors are cached as well to avoid hammering underlying collector
-func (cc *collectorCache) GetContainerStats(containerID string, cacheValidity time.Duration) (*ContainerStats, error) {
+func (cc *collectorCache) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*ContainerStats, error) {
 	currentTime := time.Now()
-	cacheKey := contStatsCachePrefix + containerID
+	cacheKey := contCoreStatsCachePrefix + containerNS + containerID
 
-	if cacheValidity > 0 {
-		entry, found, err := cc.getCacheEntry(currentTime, cacheKey, cacheValidity)
-		if found {
-			if err != nil {
-				return nil, err
-			}
-
-			return entry.(*ContainerStats), nil
+	entry, found, err := cc.cache.Get(currentTime, cacheKey, cacheValidity)
+	if found {
+		if err != nil {
+			return nil, err
 		}
+
+		return entry.(*ContainerStats), nil
 	}
 
 	// No cache, cacheValidity is 0 or too old value
-	cstats, err := cc.collector.GetContainerStats(containerID, cacheValidity)
+	cstats, err := cc.collector.GetContainerStats(containerNS, containerID, cacheValidity)
 	if err != nil {
-		cc.storeCacheEntry(currentTime, cacheKey, nil, err)
+		cc.cache.Store(currentTime, cacheKey, nil, err)
 		return nil, err
 	}
 
-	cc.storeCacheEntry(currentTime, cacheKey, cstats, nil)
+	cc.cache.Store(currentTime, cacheKey, cstats, nil)
 	return cstats, nil
+}
+
+// GetContainerOpenFilesCount returns the count of open files if in cache and within cacheValidity
+// errors are cached as well to avoid hammering underlying collector
+func (cc *collectorCache) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
+	// Generics could be useful. Meanwhile copy-paste.
+	currentTime := time.Now()
+	cacheKey := contOpenFilesCachePrefix + containerNS + containerID
+
+	entry, found, err := cc.cache.Get(currentTime, cacheKey, cacheValidity)
+	if found {
+		if err != nil {
+			return nil, err
+		}
+
+		return entry.(*uint64), nil
+	}
+
+	// No cache, cacheValidity is 0 or too old value
+	openFilesCount, err := cc.collector.GetContainerOpenFilesCount(containerNS, containerID, cacheValidity)
+	if err != nil {
+		cc.cache.Store(currentTime, cacheKey, nil, err)
+		return nil, err
+	}
+
+	cc.cache.Store(currentTime, cacheKey, openFilesCount, nil)
+	return openFilesCount, nil
 }
 
 // GetContainerNetworkStats returns the stats if in cache and within cacheValidity
 // errors are cached as well to avoid hammering underlying collector
-func (cc *collectorCache) GetContainerNetworkStats(containerID string, cacheValidity time.Duration) (*ContainerNetworkStats, error) {
+func (cc *collectorCache) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*ContainerNetworkStats, error) {
 	// Generics could be useful. Meanwhile copy-paste.
 	currentTime := time.Now()
-	cacheKey := contNetStatsCachePrefix + containerID
+	cacheKey := contNetStatsCachePrefix + containerNS + containerID
 
-	if cacheValidity > 0 {
-		entry, found, err := cc.getCacheEntry(currentTime, cacheKey, cacheValidity)
-		if found {
-			if err != nil {
-				return nil, err
-			}
-
-			return entry.(*ContainerNetworkStats), nil
+	entry, found, err := cc.cache.Get(currentTime, cacheKey, cacheValidity)
+	if found {
+		if err != nil {
+			return nil, err
 		}
+
+		return entry.(*ContainerNetworkStats), nil
 	}
 
 	// No cache, cacheValidity is 0 or too old value
-	val, err := cc.collector.GetContainerNetworkStats(containerID, cacheValidity)
+	val, err := cc.collector.GetContainerNetworkStats(containerNS, containerID, cacheValidity)
 	if err != nil {
-		cc.storeCacheEntry(currentTime, cacheKey, nil, err)
+		cc.cache.Store(currentTime, cacheKey, nil, err)
 		return nil, err
 	}
 
-	cc.storeCacheEntry(currentTime, cacheKey, val, nil)
+	cc.cache.Store(currentTime, cacheKey, val, nil)
 	return val, nil
 }
 
-func (cc *collectorCache) getCacheEntry(currentTime time.Time, key string, cacheValidity time.Duration) (interface{}, bool, error) {
-	cc.cacheLock.RLock()
-	entry, found := cc.cache[key]
-	cc.cacheLock.RUnlock()
+// GetContainerIDForPID returns the container ID for given PID
+// errors are cached as well to avoid hammering underlying collector
+func (cc *collectorCache) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
+	// Generics could be useful. Meanwhile copy-paste.
+	currentTime := time.Now()
+	cacheKey := contPidToCidCachePrefix + strconv.FormatInt(int64(pid), 10)
 
-	if !found {
-		return nil, false, nil
+	entry, found, err := cc.cache.Get(currentTime, cacheKey, cacheValidity)
+	if found {
+		if err != nil {
+			return "", err
+		}
+
+		return entry.(string), nil
 	}
 
-	if currentTime.Sub(entry.timestamp) > cacheValidity {
-		return nil, false, nil
+	// No cache, cacheValidity is 0 or too old value
+	val, err := cc.collector.GetContainerIDForPID(pid, cacheValidity)
+	if err != nil {
+		cc.cache.Store(currentTime, cacheKey, nil, err)
+		return "", err
 	}
 
-	if entry.err != nil {
-		return nil, true, entry.err
-	}
-
-	return entry.value, true, nil
+	cc.cache.Store(currentTime, cacheKey, val, nil)
+	return val, nil
 }
 
-func (cc *collectorCache) storeCacheEntry(currentTime time.Time, key string, value interface{}, err error) {
-	cc.cacheLock.Lock()
-	defer cc.cacheLock.Unlock()
-
-	if currentTime.Sub(cc.gcTimestamp) > gcInterval {
-		cc.cache = make(map[string]cacheEntry, len(cc.cache))
-		cc.gcTimestamp = currentTime
+// GetSelfContainerID returns current process container ID
+// No caching as it's not supposed to change
+func (cc *collectorCache) GetSelfContainerID() (string, error) {
+	if cc.selfContainerIDCache != "" {
+		return cc.selfContainerIDCache, nil
 	}
 
-	cc.cache[key] = cacheEntry{value: value, timestamp: currentTime, err: err}
+	selfID, err := cc.collector.GetSelfContainerID()
+	if err == nil {
+		cc.selfContainerIDCache = selfID
+	}
+
+	return selfID, err
 }

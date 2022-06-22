@@ -19,6 +19,7 @@ const (
 	deleteOperation
 )
 
+// DatadogMetricInternalObserverFunc represents observer functions of the datadog metrics store
 type DatadogMetricInternalObserverFunc func(string, string)
 
 // DatadogMetricInternalObserver allows to define functions to watch changes in Store

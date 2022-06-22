@@ -30,6 +30,33 @@ const (
 	// DefaultProcessQueueBytes is the default amount of process-agent check data (in bytes) that can be buffered in memory
 	// Allow buffering up to 60 megabytes of payload data in total
 	DefaultProcessQueueBytes = 60 * 1000 * 1000
+
+	// DefaultProcessMaxPerMessage is the default maximum number of processes, or containers per message. Note: Only change if the defaults are causing issues.
+	DefaultProcessMaxPerMessage = 100
+
+	// DefaultProcessMaxMessageBytes is the default max for size of a message containing processes or container data. Note: Only change if the defaults are causing issues.
+	DefaultProcessMaxMessageBytes = 1000000
+
+	// DefaultProcessExpVarPort is the default port used by the process-agent expvar server
+	DefaultProcessExpVarPort = 6062
+
+	// DefaultProcessCmdPort is the default port used by process-agent to run a runtime settings server
+	DefaultProcessCmdPort = 6162
+
+	// DefaultProcessEndpoint is the default endpoint for the process agent to send payloads to
+	DefaultProcessEndpoint = "https://process.datadoghq.com"
+
+	// DefaultProcessEventStoreMaxItems is the default maximum amount of events that can be stored in the Event Store
+	DefaultProcessEventStoreMaxItems = 200
+
+	// DefaultProcessEventStoreMaxPendingPushes is the default amount of pending push operations can be handled by the Event Store
+	DefaultProcessEventStoreMaxPendingPushes = 10
+
+	// DefaultProcessEventStoreMaxPendingPulls is the default amount of pending pull operations can be handled by the Event Store
+	DefaultProcessEventStoreMaxPendingPulls = 10
+
+	// DefaultProcessEventStoreStatsInterval is the default frequency at which the event store sends stats about expired events, in seconds
+	DefaultProcessEventStoreStatsInterval = 20
 )
 
 // setupProcesses is meant to be called multiple times for different configs, but overrides apply to all configs, so
@@ -44,7 +71,7 @@ func procBindEnvAndSetDefault(config Config, key string, val interface{}) {
 	processConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
 	processAgentKey := strings.Replace(processConfigKey, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
 
-	envs := append([]string{processConfigKey, processAgentKey})
+	envs := []string{processConfigKey, processAgentKey}
 	config.BindEnvAndSetDefault(key, val, envs...)
 }
 
@@ -73,33 +100,56 @@ func setupProcesses(config Config) {
 	procBindEnvAndSetDefault(config, "process_config.container_collection.enabled", true)
 	procBindEnvAndSetDefault(config, "process_config.process_collection.enabled", false)
 
-	config.BindEnv("process_config.process_dd_url", "")
+	config.BindEnv("process_config.process_dd_url",
+		"DD_PROCESS_CONFIG_PROCESS_DD_URL",
+		"DD_PROCESS_AGENT_PROCESS_DD_URL",
+		"DD_PROCESS_AGENT_URL",
+		"DD_PROCESS_CONFIG_URL",
+	)
 	config.SetKnown("process_config.dd_agent_env")
-	config.SetKnown("process_config.enabled")
 	config.SetKnown("process_config.intervals.process_realtime")
 	procBindEnvAndSetDefault(config, "process_config.queue_size", DefaultProcessQueueSize)
 	procBindEnvAndSetDefault(config, "process_config.process_queue_bytes", DefaultProcessQueueBytes)
 	procBindEnvAndSetDefault(config, "process_config.rt_queue_size", DefaultProcessRTQueueSize)
-	config.SetKnown("process_config.max_per_message")
-	config.SetKnown("process_config.max_ctr_procs_per_message")
-	config.SetKnown("process_config.cmd_port")
+	procBindEnvAndSetDefault(config, "process_config.max_per_message", DefaultProcessMaxPerMessage)
+	procBindEnvAndSetDefault(config, "process_config.max_message_bytes", DefaultProcessMaxMessageBytes)
+	procBindEnvAndSetDefault(config, "process_config.cmd_port", DefaultProcessCmdPort)
 	config.SetKnown("process_config.intervals.process")
 	config.SetKnown("process_config.blacklist_patterns")
 	config.SetKnown("process_config.intervals.container")
 	config.SetKnown("process_config.intervals.container_realtime")
 	procBindEnvAndSetDefault(config, "process_config.dd_agent_bin", DefaultDDAgentBin)
-	config.SetKnown("process_config.custom_sensitive_words")
-	config.SetKnown("process_config.scrub_args")
-	config.SetKnown("process_config.strip_proc_arguments")
-	config.SetKnown("process_config.windows.args_refresh_interval")
-	config.SetKnown("process_config.windows.add_new_args")
-	config.SetKnown("process_config.windows.use_perf_counters")
-	config.SetKnown("process_config.additional_endpoints.*")
-	config.SetKnown("process_config.container_source")
+	config.BindEnv("process_config.custom_sensitive_words",
+		"DD_CUSTOM_SENSITIVE_WORDS",
+		"DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS",
+		"DD_PROCESS_AGENT_CUSTOM_SENSITIVE_WORDS")
+	config.SetEnvKeyTransformer("process_config.custom_sensitive_words", func(val string) interface{} {
+		// historically we accept DD_CUSTOM_SENSITIVE_WORDS as "w1,w2,..." but Viper expects the user to set a list as ["w1","w2",...]
+		if strings.HasPrefix(val, "[") && strings.HasSuffix(val, "]") {
+			return val
+		}
+
+		return strings.Split(val, ",")
+	})
+	config.BindEnv("process_config.scrub_args",
+		"DD_SCRUB_ARGS",
+		"DD_PROCESS_CONFIG_SCRUB_ARGS",
+		"DD_PROCESS_AGENT_SCRUB_ARGS")
+	config.BindEnv("process_config.strip_proc_arguments",
+		"DD_STRIP_PROCESS_ARGS",
+		"DD_PROCESS_CONFIG_STRIP_PROC_ARGUMENTS",
+		"DD_PROCESS_AGENT_STRIP_PROC_ARGUMENTS")
+	// Use PDH API to collect performance counter data for process check on Windows
+	procBindEnvAndSetDefault(config, "process_config.windows.use_perf_counters", false)
+	config.BindEnvAndSetDefault("process_config.additional_endpoints", make(map[string][]string),
+		"DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS",
+		"DD_PROCESS_AGENT_ADDITIONAL_ENDPOINTS",
+		"DD_PROCESS_ADDITIONAL_ENDPOINTS",
+	)
 	config.SetKnown("process_config.intervals.connections")
-	config.SetKnown("process_config.expvar_port")
+	procBindEnvAndSetDefault(config, "process_config.expvar_port", DefaultProcessExpVarPort)
 	procBindEnvAndSetDefault(config, "process_config.log_file", DefaultProcessAgentLogFile)
-	config.SetKnown("process_config.internal_profiling.enabled")
+	procBindEnvAndSetDefault(config, "process_config.internal_profiling.enabled", false)
 	procBindEnvAndSetDefault(config, "process_config.grpc_connection_timeout_secs", DefaultGRPCConnectionTimeoutSecs)
 	procBindEnvAndSetDefault(config, "process_config.remote_tagger", false)
 	procBindEnvAndSetDefault(config, "process_config.disable_realtime_checks", false)
@@ -112,6 +162,14 @@ func setupProcesses(config Config) {
 		"DD_PROCESS_AGENT_DISCOVERY_ENABLED",
 	)
 	procBindEnvAndSetDefault(config, "process_config.process_discovery.interval", 4*time.Hour)
+
+	procBindEnvAndSetDefault(config, "process_config.drop_check_payloads", []string{})
+
+	// Process Lifecycle Events
+	procBindEnvAndSetDefault(config, "process_config.event_collection.store.max_items", DefaultProcessEventStoreMaxItems)
+	procBindEnvAndSetDefault(config, "process_config.event_collection.store.max_pending_pushes", DefaultProcessEventStoreMaxPendingPushes)
+	procBindEnvAndSetDefault(config, "process_config.event_collection.store.max_pending_pulls", DefaultProcessEventStoreMaxPendingPulls)
+	procBindEnvAndSetDefault(config, "process_config.event_collection.store.stats_interval", DefaultProcessEventStoreStatsInterval)
 
 	processesAddOverrideOnce.Do(func() {
 		AddOverrideFunc(loadProcessTransforms)

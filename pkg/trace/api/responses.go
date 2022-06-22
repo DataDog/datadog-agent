@@ -11,13 +11,13 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"sync/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/atomic"
 )
 
 const (
@@ -28,8 +28,8 @@ const (
 // should we add another fied.
 type traceResponse struct {
 	// All the sampling rates recommended, by service
-	Rates      map[string]float64              `json:"rate_by_service"`
-	Mechanisms map[string]pb.SamplingMechanism `json:"mechanism,omitempty"`
+	Rates      map[string]float64                       `json:"rate_by_service"`
+	Mechanisms map[string]apmsampling.SamplingMechanism `json:"mechanism,omitempty"`
 }
 
 // httpFormatError is used for payload format errors
@@ -75,19 +75,22 @@ func httpOK(w http.ResponseWriter) (n uint64, ok bool) {
 
 type writeCounter struct {
 	w io.Writer
-	n uint64
+	n *atomic.Uint64
 }
 
 func newWriteCounter(w io.Writer) *writeCounter {
-	return &writeCounter{w: w}
+	return &writeCounter{
+		w: w,
+		n: atomic.NewUint64(0),
+	}
 }
 
 func (wc *writeCounter) Write(p []byte) (n int, err error) {
-	atomic.AddUint64(&wc.n, uint64(len(p)))
+	wc.n.Add(uint64(len(p)))
 	return wc.w.Write(p)
 }
 
-func (wc *writeCounter) N() uint64 { return atomic.LoadUint64(&wc.n) }
+func (wc *writeCounter) N() uint64 { return wc.n.Load() }
 
 // httpRateByService outputs, as a JSON, the recommended sampling rates for all services.
 // It returns the number of bytes written and a boolean specifying whether the write was

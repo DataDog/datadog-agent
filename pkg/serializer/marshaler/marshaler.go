@@ -11,12 +11,6 @@ import (
 	jsoniter "github.com/json-iterator/go"
 )
 
-// Marshaler is an interface for metrics that are able to serialize themselves to JSON and protobuf
-type Marshaler interface {
-	JSONMarshaler
-	ProtoMarshaler
-}
-
 // JSONMarshaler is a AbstractMarshaler that implement JSON marshaling.
 type JSONMarshaler interface {
 	AbstractMarshaler
@@ -37,14 +31,10 @@ type ProtoMarshaler interface {
 type AbstractMarshaler interface {
 	// SplitPayload breaks the payload into times number of pieces
 	SplitPayload(int) ([]AbstractMarshaler, error)
-
-	// MarshalSplitCompress uses the stream compressor to marshal and compress payloads.
-	MarshalSplitCompress(*BufferContext) ([]*[]byte, error)
 }
 
 // StreamJSONMarshaler is an interface for metrics that are able to serialize themselves in a stream
 type StreamJSONMarshaler interface {
-	JSONMarshaler
 	WriteHeader(*jsoniter.Stream) error
 	WriteFooter(*jsoniter.Stream) error
 	WriteItem(*jsoniter.Stream, int) error
@@ -52,17 +42,10 @@ type StreamJSONMarshaler interface {
 	DescribeItem(i int) string
 }
 
-// IterableMarshaler provides both IterableStreamJSONMarshaler and V2 marshaler.
-type IterableMarshaler interface {
-	IterableStreamJSONMarshaler
-	MarshalSplitCompress(*BufferContext) ([]*[]byte, error)
-}
-
 // IterableStreamJSONMarshaler is an interface for iterable metrics that are able to
 // serialize themselves in a stream.
 // Expected usage:
 //
-//  defer m.IterationStopped()
 //	m.WriteHeader(stream)
 //	for m.MoveNext() {
 //		m.WriteCurrentItem(stream)
@@ -74,7 +57,6 @@ type IterableStreamJSONMarshaler interface {
 	WriteCurrentItem(*jsoniter.Stream) error
 	DescribeCurrentItem() string
 	MoveNext() bool
-	IterationStopped()
 }
 
 // BufferContext contains the buffers used for MarshalSplitCompress so they can be shared between invocations

@@ -33,6 +33,7 @@ const (
 	maxRetries = 10
 )
 
+// PollerConfig holds the configuration of the metrics poller
 type PollerConfig struct {
 	gcPeriodSeconds int
 	refreshPeriod   int

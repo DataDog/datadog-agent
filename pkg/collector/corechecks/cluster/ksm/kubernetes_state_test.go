@@ -11,6 +11,7 @@ package ksm
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -40,7 +41,7 @@ func TestProcessMetrics(t *testing.T) {
 	}{
 		{
 			name:   "one metric family, default label mapper",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_pod_container_status_running": {
 					{
@@ -66,7 +67,7 @@ func TestProcessMetrics(t *testing.T) {
 				},
 			},
 			metricsToGet:       []ksmstore.DDMetricsFam{},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected: []metricsExpected{
 				{
 					name: "kubernetes_state.container.running",
@@ -82,7 +83,7 @@ func TestProcessMetrics(t *testing.T) {
 		},
 		{
 			name:   "host tag via label join, default label mapper, default label joins",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, LabelJoins: defaultLabelJoins},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_pod_container_status_running": {
 					{
@@ -103,7 +104,7 @@ func TestProcessMetrics(t *testing.T) {
 					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"created_by_kind": "ReplicaSet", "created_by_name": "kube-state-metrics-b7fbc487d", "host_ip": "192.168.99.100", "namespace": "default", "node": "minikube", "pod": "kube-state-metrics-b7fbc487d-4phhj", "pod_ip": "172.17.0.7"}}},
 				},
 			},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected: []metricsExpected{
 				{
 					name:     "kubernetes_state.container.running",
@@ -115,7 +116,7 @@ func TestProcessMetrics(t *testing.T) {
 		},
 		{
 			name:   "metadata metric, ignored",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_pod_info": {
 					{
@@ -131,12 +132,12 @@ func TestProcessMetrics(t *testing.T) {
 				},
 			},
 			metricsToGet:       []ksmstore.DDMetricsFam{},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected:           []metricsExpected{},
 		},
 		{
 			name:   "datadog standard tags via label join, default label mapper, default label joins (deployment)",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, LabelJoins: defaultLabelJoins},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_deployment_status_replicas": {
 					{
@@ -157,7 +158,7 @@ func TestProcessMetrics(t *testing.T) {
 					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"namespace": "default", "deployment": "redis", "label_tags_datadoghq_com_env": "dev", "label_tags_datadoghq_com_service": "redis", "label_tags_datadoghq_com_version": "v1"}}},
 				},
 			},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected: []metricsExpected{
 				{
 					name:     "kubernetes_state.deployment.replicas",
@@ -168,8 +169,63 @@ func TestProcessMetrics(t *testing.T) {
 			},
 		},
 		{
+			name:   "kubernetes standard tags via label join, default label mapper, default label joins (deployment)",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_deployment_status_replicas": {
+					{
+						Type: "*v1.Deployment",
+						Name: "kube_deployment_status_replicas",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"namespace": "default", "deployment": "mysql"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name: "kube_deployment_labels",
+					ListMetrics: []ksmstore.DDMetric{
+						{
+							Labels: map[string]string{
+								"namespace":                          "default",
+								"deployment":                         "mysql",
+								"label_app_kubernetes_io_name":       "mysql",
+								"label_app_kubernetes_io_instance":   "mysql-123",
+								"label_app_kubernetes_io_version":    "5.7",
+								"label_app_kubernetes_io_component":  "db",
+								"label_app_kubernetes_io_part_of":    "my-app",
+								"label_app_kubernetes_io_managed_by": "helm",
+							},
+						},
+					},
+				},
+			},
+			metricTransformers: defaultMetricTransformers(),
+			expected: []metricsExpected{
+				{
+					name: "kubernetes_state.deployment.replicas",
+					val:  1,
+					tags: []string{
+						"kube_namespace:default",
+						"kube_deployment:mysql",
+						"kube_app_name:mysql",
+						"kube_app_instance:mysql-123",
+						"kube_app_version:5.7",
+						"kube_app_component:db",
+						"kube_app_part_of:my-app",
+						"kube_app_managed_by:helm",
+					},
+					hostname: "",
+				},
+			},
+		},
+		{
 			name:   "datadog standard tags via label join, default label mapper, default label joins (statefulset)",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, LabelJoins: defaultLabelJoins},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_statefulset_replicas": {
 					{
@@ -190,7 +246,7 @@ func TestProcessMetrics(t *testing.T) {
 					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"namespace": "default", "statefulset": "redis", "label_tags_datadoghq_com_env": "dev", "label_tags_datadoghq_com_service": "redis", "label_tags_datadoghq_com_version": "v1"}}},
 				},
 			},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected: []metricsExpected{
 				{
 					name:     "kubernetes_state.statefulset.replicas_desired",
@@ -202,7 +258,7 @@ func TestProcessMetrics(t *testing.T) {
 		},
 		{
 			name:   "only consider datadog standard tags in label join",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, LabelJoins: defaultLabelJoins},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_deployment_status_replicas": {
 					{
@@ -223,7 +279,7 @@ func TestProcessMetrics(t *testing.T) {
 					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"namespace": "default", "deployment": "redis", "label_tags_datadoghq_com_env": "dev", "ignore": "this_label"}}},
 				},
 			},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected: []metricsExpected{
 				{
 					name:     "kubernetes_state.deployment.replicas",
@@ -235,7 +291,7 @@ func TestProcessMetrics(t *testing.T) {
 		},
 		{
 			name:   "honour metric transformers",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_pod_status_phase": {
 					{
@@ -252,7 +308,7 @@ func TestProcessMetrics(t *testing.T) {
 			},
 			metricsToGet: []ksmstore.DDMetricsFam{},
 			metricTransformers: map[string]metricTransformerFunc{
-				"kube_pod_status_phase": func(s aggregator.Sender, n string, m ksmstore.DDMetric, h string, t []string) {
+				"kube_pod_status_phase": func(s aggregator.Sender, n string, m ksmstore.DDMetric, h string, t []string, c time.Time) {
 					s.Gauge("kube_pod_status_phase_transformed", 1, "", []string{"transformed:tag"})
 				},
 			},
@@ -267,7 +323,7 @@ func TestProcessMetrics(t *testing.T) {
 		},
 		{
 			name:   "unknown metric",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_pod_unknown_metric": {
 					{
@@ -293,12 +349,12 @@ func TestProcessMetrics(t *testing.T) {
 				},
 			},
 			metricsToGet:       []ksmstore.DDMetricsFam{},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected:           []metricsExpected{},
 		},
 		{
 			name:   "kube_zone and kube_region tags from default label joins",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, LabelJoins: defaultLabelJoins},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_node_status_capacity": {
 					{
@@ -319,7 +375,7 @@ func TestProcessMetrics(t *testing.T) {
 					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "label_foo": "bar", "label_topology_kubernetes_io_region": "europe-west1", "label_topology_kubernetes_io_zone": "europe-west1-b"}}},
 				},
 			},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected: []metricsExpected{
 				{
 					name:     "kubernetes_state.node.cpu_capacity",
@@ -331,7 +387,7 @@ func TestProcessMetrics(t *testing.T) {
 		},
 		{
 			name:   "node info tags from default label joins",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, LabelJoins: defaultLabelJoins},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_node_status_capacity": {
 					{
@@ -352,7 +408,7 @@ func TestProcessMetrics(t *testing.T) {
 					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"}}},
 				},
 			},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected: []metricsExpected{
 				{
 					name:     "kubernetes_state.node.cpu_capacity",
@@ -364,7 +420,7 @@ func TestProcessMetrics(t *testing.T) {
 		},
 		{
 			name:   "phase tag for pod",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_pod_status_phase": {
 					{
@@ -380,7 +436,7 @@ func TestProcessMetrics(t *testing.T) {
 				},
 			},
 			metricsToGet:       []ksmstore.DDMetricsFam{},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected: []metricsExpected{
 				{
 					name:     "kubernetes_state.pod.status_phase",
@@ -392,7 +448,7 @@ func TestProcessMetrics(t *testing.T) {
 		},
 		{
 			name:   "phase tag for pvc",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_persistentvolumeclaim_status_phase": {
 					{
@@ -408,7 +464,7 @@ func TestProcessMetrics(t *testing.T) {
 				},
 			},
 			metricsToGet:       []ksmstore.DDMetricsFam{},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected: []metricsExpected{
 				{
 					name:     "kubernetes_state.persistentvolumeclaim.status",
@@ -420,7 +476,7 @@ func TestProcessMetrics(t *testing.T) {
 		},
 		{
 			name:   "phase tag for ns",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_namespace_status_phase": {
 					{
@@ -436,12 +492,40 @@ func TestProcessMetrics(t *testing.T) {
 				},
 			},
 			metricsToGet:       []ksmstore.DDMetricsFam{},
-			metricTransformers: metricTransformers,
+			metricTransformers: defaultMetricTransformers(),
 			expected: []metricsExpected{
 				{
 					name:     "kubernetes_state.namespace.count",
 					val:      1,
 					tags:     []string{"phase:Active"},
+					hostname: "",
+				},
+			},
+		},
+		{
+			name:   "ingress metric",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_pod_status_phase": {
+					{
+						Type: "*networking.k8s.io/v1.Ingress",
+						Name: "kube_ingress_path",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"namespace": "default", "ingress": "ingress", "service_name": "svc", "service_port": "80", "host": "host", "path": "path"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet:       []ksmstore.DDMetricsFam{},
+			metricTransformers: defaultMetricTransformers(),
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.ingress.path",
+					val:      1,
+					tags:     []string{"kube_namespace:default", "kube_ingress:ingress", "kube_service:svc", "kube_service_port:80", "kube_ingress_host:host", "kube_ingress_path:path"},
 					hostname: "",
 				},
 			},
@@ -452,12 +536,12 @@ func TestProcessMetrics(t *testing.T) {
 		mocked := mocksender.NewMockSender(kubeStateMetricsSCheck.ID())
 		mocked.SetupAcceptAll()
 
-		metricTransformers = test.metricTransformers
+		kubeStateMetricsSCheck.metricTransformers = test.metricTransformers
 		labelJoiner := newLabelJoiner(test.config.LabelJoins)
 		for _, metricFam := range test.metricsToGet {
 			labelJoiner.insertFamily(metricFam)
 		}
-		kubeStateMetricsSCheck.processMetrics(mocked, test.metricsToProcess, labelJoiner)
+		kubeStateMetricsSCheck.processMetrics(mocked, test.metricsToProcess, labelJoiner, time.Now())
 		t.Run(test.name, func(t *testing.T) {
 			for _, expectMetric := range test.expected {
 				mocked.AssertMetric(t, "Gauge", expectMetric.name, expectMetric.val, expectMetric.hostname, expectMetric.tags)
@@ -480,7 +564,7 @@ func TestProcessTelemetry(t *testing.T) {
 	}{
 		{
 			name:   "pod metrics",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, Telemetry: true},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), Telemetry: true},
 			metrics: map[string][]ksmstore.DDMetricsFam{
 				"kube_pod_container_status_running": {
 					{
@@ -517,7 +601,7 @@ func TestProcessTelemetry(t *testing.T) {
 		},
 		{
 			name:   "deployment metric",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, Telemetry: true},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), Telemetry: true},
 			metrics: map[string][]ksmstore.DDMetricsFam{
 				"kube_deployment_status_replicas": {
 					{
@@ -540,7 +624,7 @@ func TestProcessTelemetry(t *testing.T) {
 		},
 		{
 			name:   "telemetry disabled",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
 			metrics: map[string][]ksmstore.DDMetricsFam{
 				"kube_deployment_status_replicas": {
 					{
@@ -563,7 +647,7 @@ func TestProcessTelemetry(t *testing.T) {
 		},
 		{
 			name:   "unknown metric",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, Telemetry: true},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), Telemetry: true},
 			metrics: map[string][]ksmstore.DDMetricsFam{
 				"kube_unknown_metric": {
 					{
@@ -586,7 +670,7 @@ func TestProcessTelemetry(t *testing.T) {
 		},
 		{
 			name:   "pod, deployment and unknown metrics",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, Telemetry: true},
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), Telemetry: true},
 			metrics: map[string][]ksmstore.DDMetricsFam{
 				"kube_pod_container_status_running": {
 					{
@@ -1155,8 +1239,9 @@ var metadataMetrics = []string{
 }
 
 func TestMetadataMetricsRegex(t *testing.T) {
+	check := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), &KSMConfig{})
 	for _, m := range metadataMetrics {
-		assert.True(t, metadataMetricsRegex.MatchString(m))
+		assert.True(t, check.metadataMetricsRegex.MatchString(m))
 	}
 }
 
@@ -1194,13 +1279,13 @@ func TestAllowDeny(t *testing.T) {
 	}
 
 	// Make sure we don't exclude metrics by mistake
-	for metric := range metricNamesMapper {
+	for metric := range defaultMetricNamesMapper() {
 		assert.True(t, allowDenyList.IsIncluded(metric))
 		assert.False(t, allowDenyList.IsExcluded(metric))
 	}
 
 	// Make sure we don't exclude metric transformers
-	for metric := range metricTransformers {
+	for metric := range defaultMetricTransformers() {
 		assert.True(t, allowDenyList.IsIncluded(metric))
 		assert.False(t, allowDenyList.IsExcluded(metric))
 	}
@@ -1253,7 +1338,7 @@ func lenMetrics(metricsToProcess map[string][]ksmstore.DDMetricsFam) int {
 }
 
 func TestKSMCheckInitTags(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	type fields struct {
 		instance    *KSMConfig
 		clusterName string

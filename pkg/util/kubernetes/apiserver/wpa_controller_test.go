@@ -665,7 +665,7 @@ type testWriter struct {
 
 func (tw testWriter) Write(p []byte) (n int, err error) {
 	line := string(p)
-	strings.TrimRight(line, "\r\n")
+	line = strings.TrimRight(line, "\r\n")
 	tw.t.Log(line)
 	return len(p), nil
 }

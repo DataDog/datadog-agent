@@ -35,7 +35,7 @@ func GetNodeLabels(ctx context.Context) (map[string]string, error) {
 		}
 		return cl.GetNodeLabels(nodeName)
 	}
-	return apiserverNodeLabels(nodeName)
+	return apiserverNodeLabels(ctx, nodeName)
 }
 
 // GetNodeClusterNameLabel returns clustername by fetching a node label

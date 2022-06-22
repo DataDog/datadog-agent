@@ -7,8 +7,10 @@ package service
 
 import (
 	"encoding/base32"
+	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
@@ -32,6 +34,7 @@ func openCacheDB(path string) (*bbolt.DB, error) {
 }
 
 func parseRemoteConfigKey(serializedKey string) (*msgpgo.RemoteConfigKey, error) {
+	serializedKey = strings.TrimPrefix(serializedKey, "DDRCM_")
 	encoding := base32.StdEncoding.WithPadding(base32.NoPadding)
 	rawKey, err := encoding.DecodeString(serializedKey)
 	if err != nil {
@@ -48,7 +51,7 @@ func parseRemoteConfigKey(serializedKey string) (*msgpgo.RemoteConfigKey, error)
 	return &key, nil
 }
 
-func buildLatestConfigsRequest(hostname string, state uptane.State, activeClients []*pbgo.Client, products map[data.Product]struct{}, newProducts map[data.Product]struct{}) *pbgo.LatestConfigsRequest {
+func buildLatestConfigsRequest(hostname string, state uptane.TUFVersions, activeClients []*pbgo.Client, products map[data.Product]struct{}, newProducts map[data.Product]struct{}, lastUpdateErr error, clientState []byte) *pbgo.LatestConfigsRequest {
 	productsList := make([]data.Product, len(products))
 	i := 0
 	for k := range products {
@@ -62,14 +65,34 @@ func buildLatestConfigsRequest(hostname string, state uptane.State, activeClient
 		i++
 	}
 
+	lastUpdateErrString := ""
+	if lastUpdateErr != nil {
+		lastUpdateErrString = lastUpdateErr.Error()
+	}
 	return &pbgo.LatestConfigsRequest{
 		Hostname:                     hostname,
 		AgentVersion:                 version.AgentVersion,
 		Products:                     data.ProductListToString(productsList),
 		NewProducts:                  data.ProductListToString(newProductsList),
-		CurrentConfigSnapshotVersion: state.ConfigSnapshotVersion,
-		CurrentConfigRootVersion:     state.ConfigRootVersion,
-		CurrentDirectorRootVersion:   state.DirectorRootVersion,
+		CurrentConfigSnapshotVersion: state.ConfigSnapshot,
+		CurrentConfigRootVersion:     state.ConfigRoot,
+		CurrentDirectorRootVersion:   state.DirectorRoot,
 		ActiveClients:                activeClients,
+		BackendClientState:           clientState,
+		HasError:                     lastUpdateErr != nil,
+		Error:                        lastUpdateErrString,
 	}
+}
+
+type targetsCustom struct {
+	ClientState json.RawMessage `json:"client_state"`
+}
+
+func parseTargetsCustom(rawTargetsCustom []byte) (targetsCustom, error) {
+	var custom targetsCustom
+	err := json.Unmarshal(rawTargetsCustom, &custom)
+	if err != nil {
+		return targetsCustom{}, err
+	}
+	return custom, nil
 }

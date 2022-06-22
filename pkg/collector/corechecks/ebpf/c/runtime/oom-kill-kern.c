@@ -1,6 +1,4 @@
-#include <linux/compiler.h>
-#include <linux/kconfig.h>
-#include <linux/ptrace.h>
+#include "kconfig.h"
 #include <linux/types.h>
 #include <linux/version.h>
 #include <linux/oom.h>
@@ -31,7 +29,7 @@ struct bpf_map_def SEC("maps/oom_stats") oom_stats = {
 
 SEC("kprobe/oom_kill_process")
 int kprobe__oom_kill_process(struct pt_regs *ctx) {
-    struct oom_control *oc = PT_REGS_PARM1(ctx);
+    struct oom_control *oc = (struct oom_control*)PT_REGS_PARM1(ctx);
 
     struct oom_stats zero = {};
     u32 pid = bpf_get_current_pid_tgid() >> 32;

@@ -5,7 +5,7 @@
 #include <linux/types.h>
 
 // This map is used to to temporarily store function arguments (sockfd) for
-// sockfd_lookup_light function calls, so they can be acessed by the corresponding kretprobe.
+// sockfd_lookup_light function calls, so they can be accessed by the corresponding kretprobe.
 // * Key is the pid_tgid;
 // * Value the socket FD;
 struct bpf_map_def SEC("maps/sockfd_lookup_args") sockfd_lookup_args = {
@@ -35,7 +35,9 @@ struct bpf_map_def SEC("maps/pid_fd_by_sock") pid_fd_by_sock = {
     .namespace = "",
 };
 
-static __always_inline void clear_sockfd_maps(struct sock* sock) {
+// On older kernels, clang can generate Wunused-function warnings on static inline functions defined in 
+// header files, even if they are later used in source files. __maybe_unused prevents that issue
+__maybe_unused static __always_inline void clear_sockfd_maps(struct sock* sock) {
     if (sock == NULL) {
         return;
     }

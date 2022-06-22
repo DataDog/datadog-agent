@@ -6,20 +6,19 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
-	"strings"
 	"time"
 
-	"github.com/DataDog/agent-payload/v5/process"
+	"github.com/spf13/cobra"
+
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/app"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -27,24 +26,21 @@ import (
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
-	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	// register all workloadmeta collectors
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
-
-	"github.com/spf13/cobra"
 )
 
 const loggerName ddconfig.LoggerName = "PROCESS"
@@ -54,19 +50,8 @@ var opts struct {
 	sysProbeConfigPath string
 	pidfilePath        string
 	debug              bool
-	version            bool
-	check              string
 	info               bool
 }
-
-// version info sourced from build flags
-var (
-	Version   string
-	GitCommit string
-	GitBranch string
-	BuildDate string
-	GoVersion string
-)
 
 var (
 	rootCmd = &cobra.Command{
@@ -86,14 +71,20 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 			return nil, err
 		}
 	}
-	err := cfg.LoadProcessYamlConfig(opts.configPath, false)
+	err := cfg.LoadAgentConfig(opts.configPath)
 	if err != nil {
 		return nil, err
 	}
 
 	httpClient := apiutil.GetClient(false)
 	ipcAddress, err := ddconfig.GetIPCAddress()
-	ipcAddressWithPort := fmt.Sprintf("http://%s:%d/config", ipcAddress, ddconfig.Datadog.GetInt("process_config.cmd_port"))
+
+	port := ddconfig.Datadog.GetInt("process_config.cmd_port")
+	if port <= 0 {
+		return nil, fmt.Errorf("invalid process_config.cmd_port -- %d", port)
+	}
+
+	ipcAddressWithPort := fmt.Sprintf("http://%s:%d/config", ipcAddress, port)
 	if err != nil {
 		return nil, err
 	}
@@ -102,51 +93,7 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 }
 
 func init() {
-	rootCmd.AddCommand(configCommand)
-}
-
-// fixDeprecatedFlags modifies os.Args so that non-posix flags are converted to posix flags
-// it also displays a warning when a non-posix flag is found
-func fixDeprecatedFlags() {
-	deprecatedFlags := []string{
-		// Global flags
-		"-config", "-ddconfig", "-sysprobe-config", "-pid", "-info", "-version", "-check",
-		// Windows flags
-		"-install-service", "-uninstall-service", "-start-service", "-stop-service", "-foreground",
-	}
-
-	for i, arg := range os.Args {
-		for _, f := range deprecatedFlags {
-			if !strings.HasPrefix(arg, f) {
-				continue
-			}
-			fmt.Printf("WARNING: `%s` argument is deprecated and will be removed in a future version. Please use `-%[1]s` instead.\n", f)
-			os.Args[i] = "-" + os.Args[i]
-		}
-	}
-}
-
-// versionString returns the version information filled in at build time
-func versionString(sep string) string {
-	var buf bytes.Buffer
-
-	if Version != "" {
-		fmt.Fprintf(&buf, "Version: %s%s", Version, sep)
-	}
-	if GitCommit != "" {
-		fmt.Fprintf(&buf, "Git hash: %s%s", GitCommit, sep)
-	}
-	if GitBranch != "" {
-		fmt.Fprintf(&buf, "Git branch: %s%s", GitBranch, sep)
-	}
-	if BuildDate != "" {
-		fmt.Fprintf(&buf, "Build date: %s%s", BuildDate, sep)
-	}
-	if GoVersion != "" {
-		fmt.Fprintf(&buf, "Go Version: %s%s", GoVersion, sep)
-	}
-
-	return buf.String()
+	rootCmd.AddCommand(configCommand, app.StatusCmd, app.VersionCmd, app.CheckCmd, app.EventsCmd)
 }
 
 const (
@@ -160,16 +107,11 @@ Exiting.`
 )
 
 func runAgent(exit chan struct{}) {
-	if opts.version {
-		fmt.Print(versionString("\n"))
-		cleanupAndExit(0)
-	}
-
 	if err := ddutil.SetupCoreDump(); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	if opts.check == "" && !opts.info && opts.pidfilePath != "" {
+	if !opts.info && opts.pidfilePath != "" {
 		err := pidfile.WritePID(opts.pidfilePath)
 		if err != nil {
 			log.Errorf("Error while writing PID file, exiting: %v", err)
@@ -187,8 +129,6 @@ func runAgent(exit chan struct{}) {
 	// "Unknown environment variable" warning will show up whenever valid system probe environment variables are defined.
 	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
 
-	// `GetContainers` will panic when running in docker if the config hasn't called `DetectFeatures`.
-	// `LoadConfigIfExists` does the job of loading the config and calling `DetectFeatures` so that we can detect containers.
 	if err := config.LoadConfigIfExists(opts.configPath); err != nil {
 		_ = log.Criticalf("Error parsing config: %s", err)
 		cleanupAndExit(1)
@@ -203,11 +143,7 @@ func runAgent(exit chan struct{}) {
 
 	config.InitRuntimeSettings()
 
-	// Note: This only considers container sources that are already setup. It's possible that container sources may
-	//       need a few minutes to be ready on newly provisioned hosts.
-	_, err = util.GetContainers()
-	canAccessContainers := err == nil
-	cfg, err := config.NewAgentConfig(loggerName, opts.configPath, syscfg, canAccessContainers)
+	cfg, err := config.NewAgentConfig(loggerName, opts.configPath, syscfg)
 	if err != nil {
 		log.Criticalf("Error parsing config: %s", err)
 		cleanupAndExit(1)
@@ -224,20 +160,22 @@ func runAgent(exit chan struct{}) {
 	// Now that the logger is configured log host info
 	hostInfo := host.GetStatusInformation()
 	log.Infof("running on platform: %s", hostInfo.Platform)
-	log.Infof("running version: %s", versionString(", "))
+	agentVersion, _ := version.Agent()
+	log.Infof("running version: %s", agentVersion.GetNumberAndPre())
+
+	// Start workload metadata store before tagger (used for containerCollection)
+	store := workloadmeta.GetGlobalStore()
+	store.Start(mainCtx)
 
 	// Tagger must be initialized after agent config has been setup
 	var t tagger.Tagger
 	if ddconfig.Datadog.GetBool("process_config.remote_tagger") {
 		t = remote.NewTagger()
 	} else {
-		// Start workload metadata store before tagger
-		workloadmeta.GetGlobalStore().Start(context.Background())
-
-		t = local.NewTagger(collectors.DefaultCatalog)
+		t = local.NewTagger(store)
 	}
 	tagger.SetDefaultTagger(t)
-	err = tagger.Init()
+	err = tagger.Init(mainCtx)
 	if err != nil {
 		log.Errorf("failed to start the tagger: %s", err)
 	}
@@ -248,13 +186,16 @@ func runAgent(exit chan struct{}) {
 		log.Criticalf("Error initializing info: %s", err)
 		cleanupAndExit(1)
 	}
+
 	if err := statsd.Configure(ddconfig.GetBindHost(), ddconfig.Datadog.GetInt("dogstatsd_port")); err != nil {
 		log.Criticalf("Error configuring statsd: %s", err)
 		cleanupAndExit(1)
 	}
 
-	// Exit if agent is not enabled and we're not debugging a check.
-	if len(cfg.EnabledChecks) == 0 && opts.check == "" {
+	enabledChecks := getChecks(syscfg, cfg.Orchestrator, ddconfig.IsAnyContainerFeaturePresent())
+
+	// Exit if agent is not enabled.
+	if len(enabledChecks) == 0 {
 		log.Infof(agent6DisabledMessage)
 
 		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
@@ -273,8 +214,33 @@ func runAgent(exit chan struct{}) {
 	// we just pass down empty string
 	updateDockerSocket(dockerSock)
 
-	if cfg.ProfilingSettings != nil {
-		if err := profiling.Start(*cfg.ProfilingSettings); err != nil {
+	// use `internal_profiling.enabled` field in `process_config` section to enable/disable profiling for process-agent,
+	// but use the configuration from main agent to fill the settings
+	if ddconfig.Datadog.GetBool("process_config.internal_profiling.enabled") {
+		// allow full url override for development use
+		site := ddconfig.Datadog.GetString("internal_profiling.profile_dd_url")
+		if site == "" {
+			s := ddconfig.Datadog.GetString("site")
+			if s == "" {
+				s = ddconfig.DefaultSite
+			}
+			site = fmt.Sprintf(profiling.ProfilingURLTemplate, s)
+		}
+
+		v, _ := version.Agent()
+		profilingSettings := profiling.Settings{
+			ProfilingURL:         site,
+			Env:                  ddconfig.Datadog.GetString("env"),
+			Service:              "process-agent",
+			Period:               ddconfig.Datadog.GetDuration("internal_profiling.period"),
+			CPUDuration:          ddconfig.Datadog.GetDuration("internal_profiling.cpu_duration"),
+			MutexProfileFraction: ddconfig.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
+			BlockProfileRate:     ddconfig.Datadog.GetInt("internal_profiling.block_profile_rate"),
+			WithGoroutineProfile: ddconfig.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
+			Tags:                 []string{fmt.Sprintf("version:%v", v)},
+		}
+
+		if err := profiling.Start(profilingSettings); err != nil {
 			log.Warnf("failed to enable profiling: %s", err)
 		} else {
 			log.Info("start profiling process-agent")
@@ -283,20 +249,16 @@ func runAgent(exit chan struct{}) {
 	}
 
 	log.Debug("Running process-agent with DEBUG logging enabled")
-	if opts.check != "" {
-		err := debugCheckResults(cfg, opts.check)
-		if err != nil {
-			fmt.Println(err)
-			cleanupAndExit(1)
-		} else {
-			cleanupAndExit(0)
-		}
-		return
+
+	expVarPort := ddconfig.Datadog.GetInt("process_config.expvar_port")
+	if expVarPort <= 0 {
+		log.Warnf("Invalid process_config.expvar_port -- %d, using default port %d", expVarPort, ddconfig.DefaultProcessExpVarPort)
+		expVarPort = ddconfig.DefaultProcessExpVarPort
 	}
 
 	if opts.info {
 		// using the debug port to get info to work
-		url := fmt.Sprintf("http://localhost:%d/debug/vars", cfg.ProcessExpVarPort)
+		url := fmt.Sprintf("http://localhost:%d/debug/vars", expVarPort)
 		if err := Info(os.Stdout, cfg, url); err != nil {
 			cleanupAndExit(1)
 		}
@@ -304,13 +266,13 @@ func runAgent(exit chan struct{}) {
 	}
 
 	// Run a profile & telemetry server.
+	if ddconfig.Datadog.GetBool("telemetry.enabled") {
+		http.Handle("/telemetry", telemetry.Handler())
+	}
+	srv := &http.Server{Addr: fmt.Sprintf("localhost:%d", expVarPort), Handler: http.DefaultServeMux}
 	go func() {
-		if ddconfig.Datadog.GetBool("telemetry.enabled") {
-			http.Handle("/telemetry", telemetry.Handler())
-		}
-		err := http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.ProcessExpVarPort), nil)
-		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("Error creating expvar server on port %v: %v", cfg.ProcessExpVarPort, err)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Errorf("Error creating expvar server on port %v: %v", expVarPort, err)
 		}
 	}()
 
@@ -320,7 +282,7 @@ func runAgent(exit chan struct{}) {
 		_ = log.Error(err)
 	}
 
-	cl, err := NewCollector(cfg)
+	cl, err := NewCollector(cfg, enabledChecks)
 	if err != nil {
 		log.Criticalf("Error creating collector: %s", err)
 		cleanupAndExit(1)
@@ -334,101 +296,10 @@ func runAgent(exit chan struct{}) {
 
 	for range exit {
 	}
-}
 
-func debugCheckResults(cfg *config.AgentConfig, check string) error {
-	sysInfo, err := checks.CollectSystemInfo(cfg)
-	if err != nil {
-		return err
+	if err := srv.Shutdown(context.Background()); err != nil {
+		log.Errorf("Error shutting down expvar server on port %v: %v", expVarPort, err)
 	}
-
-	// Connections check requires process-check to have occurred first (for process creation ts),
-	if check == checks.Connections.Name() {
-		checks.Process.Init(cfg, sysInfo)
-		checks.Process.Run(cfg, 0) //nolint:errcheck
-	}
-
-	names := make([]string, 0, len(checks.All))
-	for _, ch := range checks.All {
-		names = append(names, ch.Name())
-
-		if ch.Name() == check {
-			ch.Init(cfg, sysInfo)
-			return runCheck(cfg, ch)
-		}
-
-		withRealTime, ok := ch.(checks.CheckWithRealTime)
-		if ok && withRealTime.RealTimeName() == check {
-			withRealTime.Init(cfg, sysInfo)
-			return runCheckAsRealTime(cfg, withRealTime)
-		}
-	}
-	return fmt.Errorf("invalid check '%s', choose from: %v", check, names)
-}
-
-func runCheck(cfg *config.AgentConfig, ch checks.Check) error {
-	// Run the check once to prime the cache.
-	if _, err := ch.Run(cfg, 0); err != nil {
-		return fmt.Errorf("collection error: %s", err)
-	}
-
-	time.Sleep(1 * time.Second)
-
-	printResultsBanner(ch.Name())
-
-	msgs, err := ch.Run(cfg, 1)
-	if err != nil {
-		return fmt.Errorf("collection error: %s", err)
-	}
-	return printResults(msgs)
-}
-
-func runCheckAsRealTime(cfg *config.AgentConfig, ch checks.CheckWithRealTime) error {
-	options := checks.RunOptions{
-		RunStandard: true,
-		RunRealTime: true,
-	}
-	var (
-		groupID     int32
-		nextGroupID = func() int32 {
-			groupID++
-			return groupID
-		}
-	)
-
-	// We need to run the check twice in order to initialize the stats
-	// Rate calculations rely on having two datapoints
-	if _, err := ch.RunWithOptions(cfg, nextGroupID, options); err != nil {
-		return fmt.Errorf("collection error: %s", err)
-	}
-
-	time.Sleep(1 * time.Second)
-
-	printResultsBanner(ch.RealTimeName())
-
-	run, err := ch.RunWithOptions(cfg, nextGroupID, options)
-	if err != nil {
-		return fmt.Errorf("collection error: %s", err)
-	}
-
-	return printResults(run.RealTime)
-}
-
-func printResultsBanner(name string) {
-	fmt.Printf("-----------------------------\n\n")
-	fmt.Printf("\nResults for check %s\n", name)
-	fmt.Printf("-----------------------------\n\n")
-}
-
-func printResults(msgs []process.MessageBody) error {
-	for _, m := range msgs {
-		b, err := json.MarshalIndent(m, "", "  ")
-		if err != nil {
-			return fmt.Errorf("marshal error: %s", err)
-		}
-		fmt.Println(string(b))
-	}
-	return nil
 }
 
 // cleanupAndExit cleans all resources allocated by the agent before calling

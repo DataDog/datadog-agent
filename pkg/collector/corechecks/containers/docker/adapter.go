@@ -45,6 +45,8 @@ var metricsNameMapping = map[string]string{
 	"docker.net.bytes_rcvd":           "docker.net.bytes_rcvd", // Passthrough for custom network extension
 	"docker.mem.in_use":               "docker.mem.in_use",     // Passthrough for custom metrics extension
 	"docker.cpu.shares":               "docker.cpu.shares",     // Passthrough for custom metrics extension
+	"docker.mem.sw_limit":             "docker.mem.sw_limit",   // Passthrough for custom metrics extension
+	"docker.mem.rss":                  "docker.mem.rss",        // Passthrough for custom metrics extension
 }
 
 var metricsValuesConverter = map[string]func(float64) float64{

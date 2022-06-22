@@ -10,32 +10,35 @@ package file
 
 import (
 	"os"
+
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 // DidRotate returns true if the file has been log-rotated.
-// When a log rotation occurs, the file can be either:
+//
+// On *nix, when a log rotation occurs, the file can be either:
 // - renamed and recreated
 // - removed and recreated
 // - truncated
-func DidRotate(file *os.File, lastReadOffset int64) (bool, error) {
-	f, err := openFile(file.Name())
-	defer f.Close()
+func (t *Tailer) DidRotate() (bool, error) {
+	f, err := filesystem.OpenShared(t.osFile.Name())
 	if err != nil {
 		return false, err
 	}
+	defer f.Close()
 
 	fi1, err := f.Stat()
 	if err != nil {
 		return false, err
 	}
 
-	fi2, err := file.Stat()
+	fi2, err := t.osFile.Stat()
 	if err != nil {
 		return true, nil
 	}
 
 	recreated := !os.SameFile(fi1, fi2)
-	truncated := fi1.Size() < lastReadOffset
+	truncated := fi1.Size() < t.lastReadOffset.Load()
 
 	return recreated || truncated, nil
 }

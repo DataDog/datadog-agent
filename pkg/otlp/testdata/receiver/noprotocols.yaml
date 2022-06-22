@@ -1,3 +1,2 @@
-experimental:
-  otlp:
-    receiver:
+otlp_config:
+  receiver:

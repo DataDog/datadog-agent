@@ -38,35 +38,35 @@ const defaultMinAge = 30 * time.Second
 // request segment at "t0" with response segment "t3". This is why we buffer data here for 30 seconds
 // and then sort all events by their timestamps before joining them.
 type incompleteBuffer struct {
-	data       map[Key]*txParts
+	data       map[KeyTuple]*txParts
 	maxEntries int
 	telemetry  *telemetry
 	minAgeNano int64
 }
 
 type txParts struct {
-	requests  []httpTX
-	responses []httpTX
+	requests  []*httpTX
+	responses []*httpTX
 }
 
 func newTXParts() *txParts {
 	return &txParts{
-		requests:  make([]httpTX, 0, 5),
-		responses: make([]httpTX, 0, 5),
+		requests:  make([]*httpTX, 0, 5),
+		responses: make([]*httpTX, 0, 5),
 	}
 }
 
 func newIncompleteBuffer(c *config.Config, telemetry *telemetry) *incompleteBuffer {
 	return &incompleteBuffer{
-		data:       make(map[Key]*txParts),
+		data:       make(map[KeyTuple]*txParts),
 		maxEntries: c.MaxHTTPStatsBuffered,
 		telemetry:  telemetry,
 		minAgeNano: (defaultMinAge.Nanoseconds()),
 	}
 }
 
-func (b *incompleteBuffer) Add(tx httpTX) {
-	key := Key{
+func (b *incompleteBuffer) Add(tx *httpTX) {
+	key := KeyTuple{
 		SrcIPHigh: uint64(tx.tup.saddr_h),
 		SrcIPLow:  uint64(tx.tup.saddr_l),
 		SrcPort:   uint16(tx.tup.sport),
@@ -97,7 +97,7 @@ func (b *incompleteBuffer) Flush(now time.Time) []*httpTX {
 		nowUnix  = now.UnixNano()
 	)
 
-	b.data = make(map[Key]*txParts)
+	b.data = make(map[KeyTuple]*txParts)
 	for key, parts := range previous {
 		// TODO: in this loop we're sorting all transactions at once, but we could also
 		// consider sorting data during insertion time (using a tree-like structure, for example)
@@ -107,8 +107,8 @@ func (b *incompleteBuffer) Flush(now time.Time) []*httpTX {
 		i := 0
 		j := 0
 		for i < len(parts.requests) && j < len(parts.responses) {
-			request := &parts.requests[i]
-			response := &parts.responses[j]
+			request := parts.requests[i]
+			response := parts.responses[j]
 			if request.request_started > response.response_last_seen {
 				j++
 				continue
@@ -125,7 +125,7 @@ func (b *incompleteBuffer) Flush(now time.Time) []*httpTX {
 		// now that we have finished matching requests and responses
 		// we check if we should keep orphan requests a little bit longer
 		for i < len(parts.requests) {
-			if b.shouldKeep(&parts.requests[i], nowUnix) {
+			if b.shouldKeep(parts.requests[i], nowUnix) {
 				keep := parts.requests[i:]
 				parts := newTXParts()
 				parts.requests = append(parts.requests, keep...)
@@ -144,13 +144,13 @@ func (b *incompleteBuffer) shouldKeep(tx *httpTX, now int64) bool {
 	return (now - then) < b.minAgeNano
 }
 
-type byRequestTime []httpTX
+type byRequestTime []*httpTX
 
 func (rt byRequestTime) Len() int           { return len(rt) }
 func (rt byRequestTime) Swap(i, j int)      { rt[i], rt[j] = rt[j], rt[i] }
 func (rt byRequestTime) Less(i, j int) bool { return rt[i].request_started < rt[j].request_started }
 
-type byResponseTime []httpTX
+type byResponseTime []*httpTX
 
 func (rt byResponseTime) Len() int      { return len(rt) }
 func (rt byResponseTime) Swap(i, j int) { rt[i], rt[j] = rt[j], rt[i] }

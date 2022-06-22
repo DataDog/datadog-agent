@@ -9,10 +9,10 @@ import (
 	"math"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
+	"go.uber.org/atomic"
 )
 
 // DynamicConfig contains configuration items which may change
@@ -33,7 +33,7 @@ func NewDynamicConfig() *DynamicConfig {
 // State specifies the current state of DynamicConfig
 type State struct {
 	Rates      map[string]float64
-	Mechanisms map[string]pb.SamplingMechanism
+	Mechanisms map[string]apmsampling.SamplingMechanism
 	Version    string
 }
 
@@ -101,7 +101,7 @@ func (rbs *RateByService) GetNewState(version string) State {
 	}
 	ret := State{
 		Rates:      make(map[string]float64, len(rbs.rates)),
-		Mechanisms: make(map[string]pb.SamplingMechanism, len(rbs.rates)),
+		Mechanisms: make(map[string]apmsampling.SamplingMechanism, len(rbs.rates)),
 		Version:    rbs.version,
 	}
 	for k, v := range rbs.rates {
@@ -114,8 +114,8 @@ func (rbs *RateByService) GetNewState(version string) State {
 	return ret
 }
 
-var localVersion int64
+var localVersion atomic.Int64
 
 func newVersion() string {
-	return strconv.FormatInt(time.Now().Unix(), 16) + "-" + strconv.FormatInt(atomic.AddInt64(&localVersion, 1), 16)
+	return strconv.FormatInt(time.Now().Unix(), 16) + "-" + strconv.FormatInt(localVersion.Inc(), 16)
 }

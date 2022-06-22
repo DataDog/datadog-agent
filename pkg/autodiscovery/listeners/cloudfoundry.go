@@ -29,6 +29,7 @@ const (
 	CfServiceContainerIP = "container-ip"
 )
 
+// CloudFoundryListener TODO <integrations-tools-and-libraries>: ITL-792
 type CloudFoundryListener struct {
 	sync.RWMutex
 	newService    chan<- Service
@@ -40,12 +41,12 @@ type CloudFoundryListener struct {
 	bbsCache      cloudfoundry.BBSCacheI
 }
 
+// CloudFoundryService TODO <integrations-tools-and-libraries>: ITL-792
 type CloudFoundryService struct {
 	tags           []string
 	adIdentifier   cloudfoundry.ADIdentifier
 	containerIPs   map[string]string
 	containerPorts []ContainerPort
-	creationTime   integration.CreationTime
 }
 
 // Make sure CloudFoundryService implements the Service interface
@@ -72,20 +73,20 @@ func (l *CloudFoundryListener) Listen(newSvc chan<- Service, delSvc chan<- Servi
 	l.delService = delSvc
 
 	go func() {
-		l.refreshServices(true)
+		l.refreshServices()
 		for {
 			select {
 			case <-l.stop:
 				l.refreshTicker.Stop()
 				return
 			case <-l.refreshTicker.C:
-				l.refreshServices(false)
+				l.refreshServices()
 			}
 		}
 	}()
 }
 
-func (l *CloudFoundryListener) refreshServices(firstRun bool) {
+func (l *CloudFoundryListener) refreshServices() {
 	log.Debug("Refreshing services via CloudFoundryListener")
 	// make sure that we can't have two simultaneous runs of this function
 	l.Lock()
@@ -110,7 +111,7 @@ func (l *CloudFoundryListener) refreshServices(firstRun bool) {
 			delete(notSeen, strID)
 			continue
 		}
-		svc := l.createService(id, firstRun)
+		svc := l.createService(id)
 		// if the container is not in RUNNING state, we can't populate ports, thus createService would return nil
 		if svc != nil {
 			l.newService <- svc
@@ -123,12 +124,7 @@ func (l *CloudFoundryListener) refreshServices(firstRun bool) {
 	}
 }
 
-func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier, firstRun bool) *CloudFoundryService {
-	crTime := integration.After
-	if firstRun {
-		crTime = integration.Before
-	}
-
+func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier) *CloudFoundryService {
 	var svc *CloudFoundryService
 	aLRP := adID.GetActualLRP()
 	if aLRP == nil {
@@ -140,7 +136,6 @@ func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier, fir
 			adIdentifier:   adID,
 			containerIPs:   map[string]string{},
 			containerPorts: []ContainerPort{},
-			creationTime:   crTime,
 			tags:           dLRP.GetTagsFromDLRP(),
 		}
 	} else {
@@ -170,7 +165,6 @@ func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier, fir
 			adIdentifier:   adID,
 			containerIPs:   ips,
 			containerPorts: ports,
-			creationTime:   crTime,
 		}
 	}
 	l.services[adID.String()] = svc
@@ -204,8 +198,8 @@ func (l *CloudFoundryListener) Stop() {
 	l.stop <- true
 }
 
-// GetEntity returns the unique entity name linked to that service
-func (s *CloudFoundryService) GetEntity() string {
+// GetServiceID returns the unique entity name linked to that service
+func (s *CloudFoundryService) GetServiceID() string {
 	return s.adIdentifier.String()
 }
 
@@ -230,8 +224,8 @@ func (s *CloudFoundryService) GetPorts(context.Context) ([]ContainerPort, error)
 }
 
 // GetTags returns the list of container tags
-func (s *CloudFoundryService) GetTags() ([]string, string, error) {
-	return s.tags, "", nil
+func (s *CloudFoundryService) GetTags() ([]string, error) {
+	return s.tags, nil
 }
 
 // GetPid returns nil and an error because pids are currently not supported in CF
@@ -242,11 +236,6 @@ func (s *CloudFoundryService) GetPid(context.Context) (int, error) {
 // GetHostname returns nil and an error because hostnames are not supported in CF
 func (s *CloudFoundryService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported
-}
-
-// GetCreationTime returns the creation time of the container
-func (s *CloudFoundryService) GetCreationTime() integration.CreationTime {
-	return s.creationTime
 }
 
 // IsReady always returns true on CF
@@ -265,6 +254,10 @@ func (s *CloudFoundryService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig isn't supported
-func (s *CloudFoundryService) GetExtraConfig(key []byte) ([]byte, error) {
-	return []byte{}, ErrNotSupported
+func (s *CloudFoundryService) GetExtraConfig(key string) (string, error) {
+	return "", ErrNotSupported
+}
+
+// FilterTemplates does nothing.
+func (s *CloudFoundryService) FilterTemplates(map[string]integration.Config) {
 }

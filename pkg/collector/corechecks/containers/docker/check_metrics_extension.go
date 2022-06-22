@@ -31,15 +31,31 @@ func (dn *dockerCustomMetricsExtension) PreProcess(sender generic.SenderFunc, ag
 func (dn *dockerCustomMetricsExtension) Process(tags []string, container *workloadmeta.Container, collector provider.Collector, cacheValidity time.Duration) {
 	// Duplicate call with generic.Processor, but cache should allow for a fast response.
 	// We only need it for PIDs
-	containerStats, err := collector.GetContainerStats(container.ID, cacheValidity)
+	containerStats, err := collector.GetContainerStats(container.Namespace, container.ID, cacheValidity)
 	if err != nil {
-		log.Debugf("Gathering container metrics for container: %v failed, metrics may be missing, err: %w", container, err)
+		log.Debugf("Gathering container metrics for container: %v failed, metrics may be missing, err: %v", container, err)
 		return
 	}
 
-	if containerStats.Memory != nil && containerStats.Memory.UsageTotal != nil && containerStats.Memory.Limit != nil && *containerStats.Memory.Limit > 0 {
-		memoryPct := *containerStats.Memory.UsageTotal / *containerStats.Memory.Limit
-		dn.sender(dn.aggSender.Gauge, "docker.mem.in_use", &memoryPct, tags)
+	if containerStats == nil {
+		log.Debugf("Metrics provider returned nil stats for container: %v", container)
+		return
+	}
+
+	if containerStats.Memory != nil {
+		// Re-implement Docker check behaviour: PrivateWorkingSet is mapped to RSS
+		if containerStats.Memory.PrivateWorkingSet != nil {
+			dn.sender(dn.aggSender.Gauge, "docker.mem.rss", containerStats.Memory.PrivateWorkingSet, tags)
+		}
+
+		if containerStats.Memory.SwapLimit != nil {
+			dn.sender(dn.aggSender.Gauge, "docker.mem.sw_limit", containerStats.Memory.SwapLimit, tags)
+		}
+
+		if containerStats.Memory.UsageTotal != nil && containerStats.Memory.Limit != nil && *containerStats.Memory.Limit > 0 {
+			memoryPct := *containerStats.Memory.UsageTotal / *containerStats.Memory.Limit
+			dn.sender(dn.aggSender.Gauge, "docker.mem.in_use", &memoryPct, tags)
+		}
 	}
 
 	if containerStats.CPU != nil {

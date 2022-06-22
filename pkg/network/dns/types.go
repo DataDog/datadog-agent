@@ -7,9 +7,29 @@ package dns
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/google/gopacket/layers"
-	"go4.org/intern"
 )
+
+var si = intern.NewStringInterner()
+
+// Hostname represents a DNS hostname (aka domain name)
+type Hostname = *intern.StringValue
+
+// ToString converts a dns.Hostname to a string
+func ToString(h Hostname) string {
+	return h.Get()
+}
+
+// HostnameFromBytes converts a byte slice representing a hostname to a dns.Hostname
+func HostnameFromBytes(b []byte) Hostname {
+	return si.Get(b)
+}
+
+// ToHostname converts from a string to a dns.Hostname
+func ToHostname(s string) Hostname {
+	return si.GetString(s)
+}
 
 // QueryType is the DNS record type
 type QueryType layers.DNSType
@@ -40,13 +60,14 @@ const (
 
 // StatsByKeyByNameByType provides a type name for the map of
 // DNS stats based on the host key->the lookup name->querytype
-type StatsByKeyByNameByType map[Key]map[*intern.Value]map[QueryType]Stats
+type StatsByKeyByNameByType map[Key]map[Hostname]map[QueryType]Stats
 
 // ReverseDNS translates IPs to names
 type ReverseDNS interface {
-	Resolve([]util.Address) map[util.Address][]string
+	Resolve([]util.Address) map[util.Address][]Hostname
 	GetDNSStats() StatsByKeyByNameByType
 	GetStats() map[string]int64
+	Start() error
 	Close()
 }
 

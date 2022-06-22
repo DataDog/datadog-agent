@@ -56,11 +56,13 @@ bool updateYamlConfig(CustomActionData &customActionData)
     std::wstring inputConfig;
     inputConfig.reserve(fileSize);
     inputConfigExampleStream.seekg(0, std::ios::beg);
-    inputConfig.assign(std::istreambuf_iterator<wchar_t>(inputConfigExampleStream), std::istreambuf_iterator<wchar_t>());
+    inputConfig.assign(std::istreambuf_iterator<wchar_t>(inputConfigExampleStream),
+                       std::istreambuf_iterator<wchar_t>());
 
     std::vector<std::wstring> failedToReplace;
-    inputConfig =
-        replace_yaml_properties(inputConfig, [&customActionData](std::wstring const &propertyName) -> std::optional<std::wstring> {
+    inputConfig = replace_yaml_properties(
+        inputConfig,
+        [&customActionData](std::wstring const &propertyName) -> std::optional<std::wstring> {
             std::wstring propertyValue;
             if (customActionData.value(propertyName, propertyValue))
             {
@@ -112,7 +114,7 @@ std::optional<std::wstring> GetInstallMethod(const CustomActionData &customActio
             customInstallMethod = L"windows_msi_quiet";
         }
     }
-    return std::optional<std::wstring> (customInstallMethod);
+    return std::optional<std::wstring>(customInstallMethod);
 }
 
 bool writeInstallInfo(const CustomActionData &customActionData)
@@ -291,18 +293,6 @@ UINT doFinalizeInstall(CustomActionData &data)
     if (!ddServiceExists)
     {
         WcaLog(LOGMSG_STANDARD, "attempting to install services");
-        if (!passToUse)
-        {
-            if (!data.value(propertyDDAgentUserPassword, providedPassword))
-            {
-                // given all the error conditions checked above, this should *never*
-                // happen.  But we'll check anyway
-                WcaLog(LOGMSG_STANDARD, "Don't have password to register service");
-                er = ERROR_INSTALL_FAILURE;
-                goto LExit;
-            }
-            passToUse = providedPassword.c_str();
-        }
         int ret = installServices(data, data.Sid(), passToUse);
 
         if (ret != 0)
@@ -342,8 +332,7 @@ UINT doFinalizeInstall(CustomActionData &data)
 
 #ifndef _CONSOLE
     {
-        std::array<std::filesystem::path, 2> embeddedArchiveLocations =
-        {
+        std::array<std::filesystem::path, 2> embeddedArchiveLocations = {
             installdir + L"\\embedded2.7z",
             installdir + L"\\embedded3.7z",
         };

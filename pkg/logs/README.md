@@ -11,17 +11,18 @@ There are two major "parts" of the logs agent: what to log, and the mechanics of
 The first part has an architecture like this:
 
 ```
-                          Autodiscovery
-                                │
-                                │integration.Config
-                                │
-                                ▼
-                          ┌────────────┐
-                          │ Scheduler  │
-                          └──┬──────┬──┘
-             config.LogSource│      │service.Service
-                             │      │
-                             ▼      ▼
+                                  Autodiscovery
+                                        │
+                                        │integration.Config
+                                        │
+             ┌ -Schedulers - - - - - - -▼- - - - - - ┐
+               ┌──────────────┐   ┌──────────────┐
+             | │   Scheduler  │   │ ad.Scheduler │ … |
+               └──────────────┘   └──────────────┘
+             └ - - - - - - - - - - - - - - - - - - - ┘
+             sources.LogSource│    │service.Service
+                              │    │
+                              ▼    ▼
                      ┌─────────┐  ┌──────────┐
             ┌────────┤ Sources │  │ Services │
             ▼        └┬──┬─────┘  └─┬──────┬─┘
@@ -44,14 +45,19 @@ tailers
 
 #### Scheduling
 
-The Autodiscovery component (`pkg/autodiscovery`) provides a sequence of configs (`integration.Config`) to the logs *Scheduler*.
-The scheduler categorizes each config as either
+The logs agent maintains a collection of *schedulers*, which are responsible for managing logs sources and logs services.
+Schedulers add and remove sources and services dynamically during agent runtime.
 
- * *Source* - an integration with LogsConfig that immediately provides a source of log messages to be handled.
- * *Service* - a container
+A *Source* is an integration with LogsConfig that describes a source of log messages to be handled.
+A *Service* is a container, used to support `container_collect_all`.
 
-These go into two separate stores of active sources and active services.
-The remaining components of the logs agent subscribe to these stores.
+Sources and services go into separate stores of active sources and active services.
+The remaining components of the logs agent subscribe to these stores and take appropriate action.
+
+Schedulers can be implemented outside of the logs-agent, but some built-in schedulers are in sub-packages of `pkg/logs/schedulers`.
+One particularly important scheduler is the *AD scheduler* in `pkg/logs/schedulers/ad`.
+The Autodiscovery component (`pkg/autodiscovery`) provides a sequence of configs (`integration.Config`) to the AD scheduler.
+The AD scheduler categorizes each config as either a source or a service and submits it accordingly.
 
 #### Launchers
 
@@ -63,7 +69,6 @@ Several Launchers are quite simple, translating sources into a tailers.
 For example:
 
 * The listener launcher creates a new tailer for each configured UDP port, or for each incoming connection on a configured TCP port.
-* The "traps" launcher (`pkg/internal/launchers/traps`) creates a tailer that produces logs messages for each SNMP trap from the configured SNMP device(s).
 
 The launchers depicted separately in the diagram above have some additional behaviors.
 
@@ -82,7 +87,7 @@ The logs-agent delays startup of the `container_collect_all` support until after
 
 The agent can use two mechanisms to capture log messages from a Docker container (configured with `logs_config.docker_container_use_file` and `logs_config.docker_container_force_use_file`):
  * Docker API - the launcher creates a tailer which reads from the Docker API socket and sends messages into the logging pipeline.
- * File - the launcher determines the on-disk filename of the container's logfile and creates a "child" `config.LogSource`  with `source.Config.Type = "file"`.
+ * File - the launcher determines the on-disk filename of the container's logfile and creates a "child" `sources.LogSource`  with `source.Config.Type = "file"`.
    The file launcher receives this source from the sources store and tails the logfile.
 
 ##### kubernetes.Launcher
@@ -136,6 +141,9 @@ The second portion of the logs agent looks like this:
 
 Each input is composed of a tailer and (sometimes) a decoder, as created by the portion described above.
 One such input exists for each source of logs -- potentially many in a single agent.
+
+A decoder translates a sequence of byte buffers (such as from a file or a network socket) into log messages.
+Decoders and their components are defined in `pkg/logs/decoder`.
 
 In many cases, an input consists only of a tailer, so inputs are sometimes referred to as tailers.
 

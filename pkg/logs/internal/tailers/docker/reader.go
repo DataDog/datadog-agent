@@ -15,6 +15,10 @@ import (
 
 var errReaderNotInitialized = errors.New("reader not initialized")
 
+// safeReader wraps an io.ReadCloser in such a way that a nil reader is
+// treated as a recoverable error and does not cause a panic.  This is a
+// belt-and-suspenders way to avoid such nil-pointer panics; see
+// https://github.com/DataDog/datadog-agent/pull/2817
 type safeReader struct {
 	reader io.ReadCloser
 }

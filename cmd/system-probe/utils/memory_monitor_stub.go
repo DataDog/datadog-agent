@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !linux
 // +build !linux
 
 package utils
@@ -11,7 +12,7 @@ package utils
 type MemoryMonitor struct{}
 
 // NewMemoryMonitor instantiates a new memory monitor
-func NewMemoryMonitor(pressureLevels map[string]string, thresholds map[string]string) (*MemoryMonitor, error) {
+func NewMemoryMonitor(kind string, pressureLevels map[string]string, thresholds map[string]string) (*MemoryMonitor, error) {
 	return &MemoryMonitor{}, nil
 }
 

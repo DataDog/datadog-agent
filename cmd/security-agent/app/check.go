@@ -10,6 +10,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -20,11 +21,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/cihub/seelog"
 	"github.com/spf13/cobra"
 )
@@ -38,6 +39,7 @@ var (
 		overrideRegoInput string
 		dumpRegoInput     string
 		dumpReports       string
+		skipRegoEval      bool
 	}{}
 )
 
@@ -49,6 +51,7 @@ func setupCheckCmd(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&checkArgs.overrideRegoInput, "override-rego-input", "", "", "Rego input to use when running rego checks")
 	cmd.Flags().StringVarP(&checkArgs.dumpRegoInput, "dump-rego-input", "", "", "Path to file where to dump the Rego input JSON")
 	cmd.Flags().StringVarP(&checkArgs.dumpReports, "dump-reports", "", "", "Path to file where to dump reports")
+	cmd.Flags().BoolVarP(&checkArgs.skipRegoEval, "skip-rego-eval", "", false, "Skip rego evaluation")
 }
 
 // CheckCmd returns a cobra command to run security agent checks
@@ -69,6 +72,10 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 	err := configureLogger()
 	if err != nil {
 		return err
+	}
+
+	if checkArgs.skipRegoEval && checkArgs.dumpReports != "" {
+		return errors.New("skipping the rego evaluation does not allow the generation of reports")
 	}
 
 	// We need to set before calling `SetupConfig`
@@ -123,7 +130,7 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 
 	options = append(options, checks.WithHostname(hostname))
 
-	stopper = restart.NewSerialStopper()
+	stopper = startstop.NewSerialStopper()
 	defer stopper.Stop()
 
 	reporter, err := NewCheckReporter(stopper, checkArgs.report, checkArgs.dumpReports)
@@ -149,6 +156,8 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 	if checkArgs.dumpRegoInput != "" {
 		options = append(options, checks.WithRegoInputDumpPath(checkArgs.dumpRegoInput))
 	}
+
+	options = append(options, checks.WithRegoEvalSkip(checkArgs.skipRegoEval))
 
 	if checkArgs.file != "" {
 		err = agent.RunChecksFromFile(reporter, checkArgs.file, options...)
@@ -195,7 +204,7 @@ type RunCheckReporter struct {
 	dumpReportsPath string
 }
 
-func NewCheckReporter(stopper restart.Stopper, report bool, dumpReportsPath string) (*RunCheckReporter, error) {
+func NewCheckReporter(stopper startstop.Stopper, report bool, dumpReportsPath string) (*RunCheckReporter, error) {
 	r := &RunCheckReporter{}
 
 	if report {

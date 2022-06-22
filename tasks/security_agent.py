@@ -9,9 +9,9 @@ from subprocess import check_output
 from invoke import task
 
 from .build_tags import get_default_build_tags
-from .go import golangci_lint, staticcheck, vet
+from .go import golangci_lint
 from .system_probe import CLANG_CMD as CLANG_BPF_CMD
-from .system_probe import get_ebpf_build_flags
+from .system_probe import CURRENT_ARCH, get_ebpf_build_flags
 from .utils import (
     REPO_PATH,
     bin_name,
@@ -52,11 +52,11 @@ def build(
     ctx,
     race=False,
     go_version=None,
-    incremental_build=False,
+    incremental_build=True,
     major_version='7',
     # arch is never used here; we keep it to have a
     # consistent CLI on the build task for all agents.
-    arch="x64",  # noqa: U100
+    arch=CURRENT_ARCH,  # noqa: U100
     go_mod="mod",
     skip_assets=False,
 ):
@@ -142,25 +142,29 @@ def gen_mocks(ctx):
     Generate mocks.
     """
 
-    interfaces = [
-        "AuditClient",
-        "Builder",
-        "Clients",
-        "Configuration",
-        "DockerClient",
-        "Env",
-        "Evaluatable",
-        "Iterator",
-        "KubeClient",
-        "RegoConfiguration",
-        "Reporter",
-        "Scheduler",
-    ]
+    interfaces = {
+        "./pkg/compliance": [
+            "AuditClient",
+            "Builder",
+            "Clients",
+            "Configuration",
+            "DockerClient",
+            "Env",
+            "Evaluatable",
+            "Iterator",
+            "KubeClient",
+            "RegoConfiguration",
+            "Reporter",
+            "Scheduler",
+        ],
+        "./pkg/security/api": ["SecurityModuleServer", "SecurityModuleClient", "SecurityModule_GetProcessEventsClient"],
+    }
 
-    interface_regex = "|".join(f"^{i}\\$" for i in interfaces)
+    for path, names in interfaces.items():
+        interface_regex = "|".join(f"^{i}\\$" for i in names)
 
-    with ctx.cd("./pkg/compliance"):
-        ctx.run(f"mockery --case snake -r --name=\"{interface_regex}\"")
+        with ctx.cd(path):
+            ctx.run(f"mockery --case snake -r --name=\"{interface_regex}\"")
 
 
 @task
@@ -224,6 +228,36 @@ def build_c_syscall_tester_common(ctx, file_name, build_dir, flags=None, libs=No
     return syscall_tester_exe_file
 
 
+def build_c_latency_common(ctx, file_name, build_dir, flags=None, libs=None, static=True):
+    if flags is None:
+        flags = []
+    if libs is None:
+        libs = []
+
+    latency_c_dir = os.path.join(".", "pkg", "security", "tests", "latency", "c")
+    latency_c_file = os.path.join(latency_c_dir, f"{file_name}.c")
+    latency_exe_file = os.path.join(build_dir, file_name)
+
+    if static:
+        flags.append("-static")
+
+    flags_arg = " ".join(flags)
+    libs_arg = " ".join(libs)
+    ctx.run(CLANG_EXE_CMD.format(flags=flags_arg, libs=libs_arg, c_file=latency_c_file, out_file=latency_exe_file))
+    return latency_exe_file
+
+
+def build_latency_tools(ctx, build_dir, static=True):
+    return build_c_latency_common(ctx, "bench_net_DNS", build_dir, libs=["-lpthread"], static=static)
+
+
+@task
+def build_embed_latency_tools(ctx, static=True):
+    build_dir = os.path.join(".", "pkg", "security", "tests", "latency", "bin")
+    create_dir_if_needed(build_dir)
+    build_latency_tools(ctx, build_dir, static=static)
+
+
 def build_syscall_x86_tester(ctx, build_dir, static=True):
     return build_c_syscall_tester_common(ctx, "syscall_x86_tester", build_dir, flags=["-m32"], static=static)
 
@@ -241,7 +275,7 @@ def create_dir_if_needed(dir):
 
 
 @task
-def build_embed_syscall_tester(ctx, arch="x64", static=True):
+def build_embed_syscall_tester(ctx, arch=CURRENT_ARCH, static=True):
     build_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "bin")
     go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
     create_dir_if_needed(build_dir)
@@ -258,7 +292,7 @@ def build_functional_tests(
     ctx,
     output='pkg/security/tests/testsuite',
     go_version=None,
-    arch="x64",
+    arch=CURRENT_ARCH,
     major_version='7',
     build_tags='functionaltests',
     build_flags='',
@@ -266,13 +300,8 @@ def build_functional_tests(
     bundle_ebpf=True,
     static=False,
     skip_linters=False,
+    race=False,
 ):
-    if not skip_linters:
-        targets = ['./pkg/security/tests']
-        vet(ctx, targets=targets, build_tags=[build_tags], arch=arch)
-        golangci_lint(ctx, targets=targets, build_tags=[build_tags], arch=arch)
-        staticcheck(ctx, targets=targets, build_tags=[build_tags], arch=arch)
-
     ldflags, _, env = get_build_flags(
         ctx, major_version=major_version, nikos_embedded_path=nikos_embedded_path, static=static
     )
@@ -284,19 +313,26 @@ def build_functional_tests(
     if arch == "x86":
         env["GOARCH"] = "386"
 
-    build_tags = "linux_bpf," + build_tags
+    build_tags = build_tags.split(",")
+    build_tags.append("linux_bpf")
     if bundle_ebpf:
-        build_tags = "ebpf_bindata," + build_tags
+        build_tags.append("ebpf_bindata")
 
     if static:
-        build_tags += ',osusergo,netgo'
-        if "CGO_CPPFLAGS" not in env:
-            env["CGO_CPPFLAGS"] = ""
-        env["CGO_CPPFLAGS"] += "-DSKIP_GLIBC_WRAPPER"
+        build_tags.extend(["osusergo", "netgo"])
 
+    if not skip_linters:
+        targets = ['./pkg/security/tests']
+        golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
+
+    # linters have a hard time with dnf, so we add the build tag after running them
     if nikos_embedded_path:
-        build_tags += ",dnf"
+        build_tags.append("dnf")
 
+    if race:
+        build_flags += " -race"
+
+    build_tags = ",".join(build_tags)
     cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
     cmd += '{build_flags} {repo_path}/pkg/security/tests'
 
@@ -316,7 +352,7 @@ def build_stress_tests(
     ctx,
     output='pkg/security/tests/stresssuite',
     go_version=None,
-    arch="x64",
+    arch=CURRENT_ARCH,
     major_version='7',
     bundle_ebpf=True,
     skip_linters=False,
@@ -338,13 +374,15 @@ def stress_tests(
     ctx,
     verbose=False,
     go_version=None,
-    arch="x64",
+    arch=CURRENT_ARCH,
     major_version='7',
     output='pkg/security/tests/stresssuite',
     bundle_ebpf=True,
     testflags='',
     skip_linters=False,
 ):
+    build_embed_latency_tools(ctx)
+
     build_stress_tests(
         ctx,
         go_version=go_version,
@@ -367,8 +405,9 @@ def stress_tests(
 def functional_tests(
     ctx,
     verbose=False,
+    race=False,
     go_version=None,
-    arch="x64",
+    arch=CURRENT_ARCH,
     major_version='7',
     output='pkg/security/tests/testsuite',
     bundle_ebpf=True,
@@ -383,6 +422,7 @@ def functional_tests(
         output=output,
         bundle_ebpf=bundle_ebpf,
         skip_linters=skip_linters,
+        race=race,
     )
 
     run_functional_tests(
@@ -398,6 +438,7 @@ def kitchen_functional_tests(
     ctx,
     verbose=False,
     go_version=None,
+    arch=CURRENT_ARCH,
     major_version='7',
     build_tests=False,
     testflags='',
@@ -407,19 +448,9 @@ def kitchen_functional_tests(
             ctx,
             verbose=verbose,
             go_version=go_version,
-            arch="x64",
+            arch=arch,
             major_version=major_version,
             output="test/kitchen/site-cookbooks/dd-security-agent-check/files/testsuite",
-            testflags=testflags,
-        )
-
-        functional_tests(
-            ctx,
-            verbose=verbose,
-            go_version=go_version,
-            major_version=major_version,
-            output="test/kitchen/site-cookbooks/dd-security-agent-check/files/testsuite32",
-            arch="x86",
             testflags=testflags,
         )
 
@@ -437,10 +468,11 @@ def docker_functional_tests(
     ctx,
     verbose=False,
     go_version=None,
-    arch="x64",
+    arch=CURRENT_ARCH,
     major_version='7',
     testflags='',
     static=False,
+    bundle_ebpf=True,
     skip_linters=False,
 ):
     build_functional_tests(
@@ -449,7 +481,7 @@ def docker_functional_tests(
         arch=arch,
         major_version=major_version,
         output="pkg/security/tests/testsuite",
-        bundle_ebpf=True,
+        bundle_ebpf=bundle_ebpf,
         static=static,
         skip_linters=skip_linters,
     )
@@ -457,11 +489,17 @@ def docker_functional_tests(
     dockerfile = """
 FROM debian:bullseye
 
+ENV DOCKER_DD_AGENT=yes
+
 RUN dpkg --add-architecture i386
 
 RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends xfsprogs libc6:i386 \
+    && apt-get install -y --no-install-recommends xfsprogs ca-certificates iproute2 clang-11 llvm-11 \
     && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /opt/datadog-agent/embedded/bin
+RUN ln -s $(which clang-11) /opt/datadog-agent/embedded/bin/clang-bpf
+RUN ln -s $(which llc-11) /opt/datadog-agent/embedded/bin/llc-bpf
     """
 
     docker_image_tag_name = "docker-functional-tests"
@@ -478,19 +516,23 @@ RUN apt-get update -y \
     container_name = 'security-agent-tests'
     capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
 
-    cmd = 'docker run --name {container_name} {caps} --privileged -d --pid=host '
+    cmd = 'docker run --name {container_name} {caps} --privileged -d '
     cmd += '-v /dev:/dev '
     cmd += '-v /proc:/host/proc -e HOST_PROC=/host/proc '
-    cmd += '-v /:/host/root -e HOST_ROOT=/host/root '
     cmd += '-v /etc:/host/etc -e HOST_ETC=/host/etc '
+    cmd += '-v /sys:/host/sys -e HOST_SYS=/host/sys '
+    cmd += '-v /etc/os-release:/host/etc/os-release '
+    cmd += '-v /usr/lib/os-release:/host/usr/lib/os-release '
+    cmd += '-v /etc/passwd:/etc/passwd '
+    cmd += '-v /etc/group:/etc/group '
     cmd += '-v {GOPATH}/src/{REPO_PATH}/pkg/security/tests:/tests {image_tag} sleep 3600'
 
     args = {
         "GOPATH": get_gopath(ctx),
         "REPO_PATH": REPO_PATH,
         "container_name": container_name,
-        "caps": ' '.join(['--cap-add ' + cap for cap in capabilities]),
-        "image_tag": docker_image_tag_name + ":latest",
+        "caps": ' '.join(f"--cap-add {cap}" for cap in capabilities),
+        "image_tag": f"{docker_image_tag_name}:latest",
     }
 
     ctx.run(cmd.format(**args))
@@ -527,4 +569,14 @@ def generate_cws_documentation(ctx, go_generate=False):
 def cws_go_generate(ctx):
     with ctx.cd("./pkg/security/secl"):
         ctx.run("go generate ./...")
+    ctx.run("cp ./pkg/security/probe/serializers_easyjson.mock ./pkg/security/probe/serializers_easyjson.go")
+    ctx.run("cp ./pkg/security/probe/activity_dump_easyjson.mock ./pkg/security/probe/activity_dump_easyjson.go")
     ctx.run("go generate ./pkg/security/...")
+
+
+@task
+def generate_btfhub_constants(ctx, archive_path):
+    output_path = "./pkg/security/probe/constantfetch/btfhub/constants.json"
+    ctx.run(
+        f"go run ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path}",
+    )

@@ -28,10 +28,10 @@ type factory struct {
 func NewFactory(s serializer.MetricSerializer) component.ExporterFactory {
 	f := &factory{s}
 
-	return exporterhelper.NewFactory(
+	return component.NewExporterFactory(
 		TypeStr,
 		newDefaultConfig,
-		exporterhelper.WithMetrics(f.createMetricExporter),
+		component.WithMetricsExporter(f.createMetricExporter),
 	)
 }
 

@@ -10,14 +10,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessTags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	// Latest Lambda pricing per https://aws.amazon.com/lambda/pricing/
 	baseLambdaInvocationPrice = 0.0000002
-	lambdaPricePerGbSecond    = 0.0000166667
+	x86LambdaPricePerGbSecond = 0.0000166667
+	armLambdaPricePerGbSecond = 0.0000133334
 	msToSec                   = 0.001
 
 	// Enhanced metrics
@@ -31,7 +34,8 @@ const (
 	// OutOfMemoryMetric is the name of the out of memory enhanced Lambda metric
 	OutOfMemoryMetric = "aws.lambda.enhanced.out_of_memory"
 	timeoutsMetric    = "aws.lambda.enhanced.timeouts"
-	errorsMetric      = "aws.lambda.enhanced.errors"
+	// ErrorsMetric is the name of the errors enhanced Lambda metric
+	ErrorsMetric      = "aws.lambda.enhanced.errors"
 	invocationsMetric = "aws.lambda.enhanced.invocations"
 )
 
@@ -48,37 +52,37 @@ func getOutOfMemorySubstrings() []string {
 }
 
 // GenerateRuntimeDurationMetric generates the runtime duration metric
-func GenerateRuntimeDurationMetric(start time.Time, end time.Time, status string, tags []string, metricsChan chan []metrics.MetricSample) {
+func GenerateRuntimeDurationMetric(start time.Time, end time.Time, status string, tags []string, demux aggregator.Demultiplexer) {
 	// first check if both date are set
 	if start.IsZero() || end.IsZero() {
 		log.Debug("Impossible to compute aws.lambda.enhanced.runtime_duration due to an invalid interval")
 	} else {
 		duration := end.Sub(start).Milliseconds()
-		metricsChan <- []metrics.MetricSample{{
+		demux.AddTimeSample(metrics.MetricSample{
 			Name:       runtimeDurationMetric,
 			Value:      float64(duration),
 			Mtype:      metrics.DistributionType,
 			Tags:       tags,
 			SampleRate: 1,
-			Timestamp:  float64(end.UnixNano()),
-		}}
+			Timestamp:  float64(end.UnixNano()) / float64(time.Second),
+		})
 	}
 }
 
 // GenerateEnhancedMetricsFromFunctionLog generates enhanced metrics from a LogTypeFunction message
-func GenerateEnhancedMetricsFromFunctionLog(logString string, time time.Time, tags []string, metricsChan chan []metrics.MetricSample) {
+func GenerateEnhancedMetricsFromFunctionLog(logString string, time time.Time, tags []string, demux aggregator.Demultiplexer) {
 	for _, substring := range getOutOfMemorySubstrings() {
 		if strings.Contains(logString, substring) {
-			SendOutOfMemoryEnhancedMetric(tags, time, metricsChan)
-			SendErrorsEnhancedMetric(tags, time, metricsChan)
+			SendOutOfMemoryEnhancedMetric(tags, time, demux)
+			SendErrorsEnhancedMetric(tags, time, demux)
 			return
 		}
 	}
 }
 
 // GenerateEnhancedMetricsFromReportLog generates enhanced metrics from a LogTypePlatformReport log message
-func GenerateEnhancedMetricsFromReportLog(initDurationMs float64, durationMs float64, billedDurationMs int, memorySizeMb int, maxMemoryUsedMb int, time time.Time, tags []string, metricsChan chan []metrics.MetricSample) {
-	timestamp := float64(time.UnixNano())
+func GenerateEnhancedMetricsFromReportLog(initDurationMs float64, durationMs float64, billedDurationMs int, memorySizeMb int, maxMemoryUsedMb int, t time.Time, tags []string, demux aggregator.Demultiplexer) {
+	timestamp := float64(t.UnixNano()) / float64(time.Second)
 	billedDuration := float64(billedDurationMs)
 	memorySize := float64(memorySizeMb)
 	enhancedMetrics := []metrics.MetricSample{{
@@ -111,7 +115,7 @@ func GenerateEnhancedMetricsFromReportLog(initDurationMs float64, durationMs flo
 		Timestamp:  timestamp,
 	}, {
 		Name:       estimatedCostMetric,
-		Value:      calculateEstimatedCost(billedDuration, memorySize),
+		Value:      calculateEstimatedCost(billedDuration, memorySize, serverlessTags.ResolveRuntimeArch()),
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
@@ -128,47 +132,62 @@ func GenerateEnhancedMetricsFromReportLog(initDurationMs float64, durationMs flo
 		}
 		enhancedMetrics = append(enhancedMetrics, initDurationMetric)
 	}
-	metricsChan <- enhancedMetrics
+
+	for _, metric := range enhancedMetrics {
+		demux.AddTimeSample(metric)
+	}
 }
 
 // SendOutOfMemoryEnhancedMetric sends an enhanced metric representing a function running out of memory at a given time
-func SendOutOfMemoryEnhancedMetric(tags []string, time time.Time, metricsChan chan []metrics.MetricSample) {
-	incrementEnhancedMetric(OutOfMemoryMetric, tags, float64(time.UnixNano()), metricsChan)
+func SendOutOfMemoryEnhancedMetric(tags []string, t time.Time, demux aggregator.Demultiplexer) {
+	incrementEnhancedMetric(OutOfMemoryMetric, tags, float64(t.UnixNano())/float64(time.Second), demux)
 }
 
 // SendErrorsEnhancedMetric sends an enhanced metric representing an error at a given time
-func SendErrorsEnhancedMetric(tags []string, time time.Time, metricsChan chan []metrics.MetricSample) {
-	incrementEnhancedMetric(errorsMetric, tags, float64(time.UnixNano()), metricsChan)
+func SendErrorsEnhancedMetric(tags []string, t time.Time, demux aggregator.Demultiplexer) {
+	incrementEnhancedMetric(ErrorsMetric, tags, float64(t.UnixNano())/float64(time.Second), demux)
 }
 
 // SendTimeoutEnhancedMetric sends an enhanced metric representing a timeout at the current time
-func SendTimeoutEnhancedMetric(tags []string, metricsChan chan []metrics.MetricSample) {
-	incrementEnhancedMetric(timeoutsMetric, tags, float64(time.Now().UnixNano()), metricsChan)
+func SendTimeoutEnhancedMetric(tags []string, demux aggregator.Demultiplexer) {
+	incrementEnhancedMetric(timeoutsMetric, tags, float64(time.Now().UnixNano())/float64(time.Second), demux)
 }
 
 // SendInvocationEnhancedMetric sends an enhanced metric representing an invocation at the current time
-func SendInvocationEnhancedMetric(tags []string, metricsChan chan []metrics.MetricSample) {
-	incrementEnhancedMetric(invocationsMetric, tags, float64(time.Now().UnixNano()), metricsChan)
+func SendInvocationEnhancedMetric(tags []string, demux aggregator.Demultiplexer) {
+	incrementEnhancedMetric(invocationsMetric, tags, float64(time.Now().UnixNano())/float64(time.Second), demux)
 }
 
 // incrementEnhancedMetric sends an enhanced metric with a value of 1 to the metrics channel
-func incrementEnhancedMetric(name string, tags []string, timestamp float64, metricsChan chan []metrics.MetricSample) {
-	metricsChan <- []metrics.MetricSample{{
+func incrementEnhancedMetric(name string, tags []string, timestamp float64, demux aggregator.Demultiplexer) {
+	demux.AddTimeSample(metrics.MetricSample{
 		Name:       name,
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
-	}}
+	})
 }
 
 // calculateEstimatedCost returns the estimated cost in USD of a Lambda invocation
-func calculateEstimatedCost(billedDurationMs float64, memorySizeMb float64) float64 {
+func calculateEstimatedCost(billedDurationMs float64, memorySizeMb float64, architecture string) float64 {
 	billedDurationSeconds := billedDurationMs / 1000.0
 	memorySizeGb := memorySizeMb / 1024.0
 	gbSeconds := billedDurationSeconds * memorySizeGb
 	// round the final float result because float math could have float point imprecision
 	// on some arch. (i.e. 1.00000000000002 values)
-	return math.Round((baseLambdaInvocationPrice+(gbSeconds*lambdaPricePerGbSecond))*10e12) / 10e12
+	return math.Round((baseLambdaInvocationPrice+(gbSeconds*getLambdaPricePerGbSecond(architecture)))*10e12) / 10e12
+}
+
+// get the lambda price per Gb second based on the runtime platform
+func getLambdaPricePerGbSecond(architecture string) float64 {
+	switch architecture {
+	case serverlessTags.ArmLambdaPlatform:
+		// for arm64
+		return armLambdaPricePerGbSecond
+	default:
+		// for x86 and amd64
+		return x86LambdaPricePerGbSecond
+	}
 }

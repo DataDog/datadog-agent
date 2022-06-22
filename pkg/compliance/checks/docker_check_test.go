@@ -7,7 +7,7 @@ package checks
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"os"
 	"testing"
 
@@ -28,7 +28,7 @@ func loadTestJSON(path string, obj interface{}) error {
 	if err != nil {
 		return err
 	}
-	b, err := ioutil.ReadAll(jsonFile)
+	b, err := io.ReadAll(jsonFile)
 	if err != nil {
 		return err
 	}

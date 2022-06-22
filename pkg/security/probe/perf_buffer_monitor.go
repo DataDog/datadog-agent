@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
 	"github.com/pkg/errors"
@@ -47,8 +47,6 @@ func (s *PerfMapStats) UnmarshalBinary(data []byte) error {
 type PerfBufferMonitor struct {
 	// probe is a pointer to the Probe
 	probe *Probe
-	// statsdClient is a pointer to the statsdClient used to report the metrics of the perf buffer monitor
-	statsdClient *statsd.Client
 	// numCPU holds the current count of CPU
 	numCPU int
 	// perfBufferStatsMaps holds the pointers to the statistics kernel maps
@@ -62,13 +60,13 @@ type PerfBufferMonitor struct {
 	statsMapsNameToPerfBufferMapName map[string]string
 
 	// stats holds the collected user space metrics
-	stats map[string][][model.MaxEventType]PerfMapStats
+	stats map[string][][model.MaxKernelEventType]PerfMapStats
 	// kernelStats holds the aggregated kernel space metrics
-	kernelStats map[string][][model.MaxEventType]PerfMapStats
+	kernelStats map[string][][model.MaxKernelEventType]PerfMapStats
 	// readLostEvents is the count of lost events, collected by reading the perf buffer
 	readLostEvents map[string][]uint64
 	// sortingErrorStats holds the count of events that indicate that at least 1 event is miss ordered
-	sortingErrorStats map[string][model.MaxEventType]*int64
+	sortingErrorStats map[string][model.MaxKernelEventType]*int64
 
 	// lastTimestamp is used to track the timestamp of the last event retrieved from the perf map
 	lastTimestamp uint64
@@ -77,20 +75,19 @@ type PerfBufferMonitor struct {
 }
 
 // NewPerfBufferMonitor instantiates a new event statistics counter
-func NewPerfBufferMonitor(p *Probe, client *statsd.Client) (*PerfBufferMonitor, error) {
+func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 	pbm := PerfBufferMonitor{
 		probe:               p,
-		statsdClient:        client,
 		perfBufferStatsMaps: make(map[string]*lib.Map),
 		perfBufferSize:      make(map[string]float64),
 
 		perfBufferMapNameToStatsMapsName: probes.GetPerfBufferStatisticsMaps(),
 		statsMapsNameToPerfBufferMapName: make(map[string]string),
 
-		stats:             make(map[string][][model.MaxEventType]PerfMapStats),
-		kernelStats:       make(map[string][][model.MaxEventType]PerfMapStats),
+		stats:             make(map[string][][model.MaxKernelEventType]PerfMapStats),
+		kernelStats:       make(map[string][][model.MaxKernelEventType]PerfMapStats),
 		readLostEvents:    make(map[string][]uint64),
-		sortingErrorStats: make(map[string][model.MaxEventType]*int64),
+		sortingErrorStats: make(map[string][model.MaxKernelEventType]*int64),
 	}
 	numCPU, err := utils.NumCPU()
 	if err != nil {
@@ -120,17 +117,17 @@ func NewPerfBufferMonitor(p *Probe, client *statsd.Client) (*PerfBufferMonitor, 
 
 	// Prepare user space counters
 	for _, m := range p.manager.PerfMaps {
-		var stats, kernelStats [][model.MaxEventType]PerfMapStats
+		var stats, kernelStats [][model.MaxKernelEventType]PerfMapStats
 		var usrLostEvents []uint64
-		var sortingErrorStats [model.MaxEventType]*int64
+		var sortingErrorStats [model.MaxKernelEventType]*int64
 
 		for i := 0; i < pbm.numCPU; i++ {
-			stats = append(stats, [model.MaxEventType]PerfMapStats{})
-			kernelStats = append(kernelStats, [model.MaxEventType]PerfMapStats{})
+			stats = append(stats, [model.MaxKernelEventType]PerfMapStats{})
+			kernelStats = append(kernelStats, [model.MaxKernelEventType]PerfMapStats{})
 			usrLostEvents = append(usrLostEvents, 0)
 		}
 
-		for i := 0; i < int(model.MaxEventType); i++ {
+		for i := 0; i < int(model.MaxKernelEventType); i++ {
 			zero := int64(0)
 			sortingErrorStats[i] = &zero
 		}
@@ -145,7 +142,7 @@ func NewPerfBufferMonitor(p *Probe, client *statsd.Client) (*PerfBufferMonitor, 
 			pbm.perfBufferSize[m.Name] = float64(m.PerfRingBufferSize)
 		}
 	}
-	log.Debugf("monitoring perf ring buffer on %d CPU, %d events", pbm.numCPU, model.MaxEventType)
+	log.Debugf("monitoring perf ring buffer on %d CPU, %d events", pbm.numCPU, model.MaxKernelEventType)
 	return &pbm, nil
 }
 
@@ -268,7 +265,7 @@ func (pbm *PerfBufferMonitor) GetEventStats(eventType model.EventType, perfMap s
 	var stats, kernelStats PerfMapStats
 	var maps []string
 
-	if eventType >= model.MaxEventType {
+	if eventType >= model.MaxKernelEventType {
 		return stats, kernelStats
 	}
 
@@ -349,7 +346,7 @@ func (pbm *PerfBufferMonitor) CountEvent(eventType model.EventType, timestamp ui
 	atomic.AddUint64(&pbm.stats[m.Name][cpu][eventType].Bytes, size)
 }
 
-func (pbm *PerfBufferMonitor) sendEventsAndBytesReadStats(client *statsd.Client) error {
+func (pbm *PerfBufferMonitor) sendEventsAndBytesReadStats(client statsd.ClientInterface) error {
 	var count int64
 	var err error
 	tags := []string{pbm.probe.config.StatsTagsCardinality, "", ""}
@@ -374,7 +371,7 @@ func (pbm *PerfBufferMonitor) sendEventsAndBytesReadStats(client *statsd.Client)
 				}
 
 				if count = pbm.getAndResetSortingErrorCount(evtType, m); count > 0 {
-					if err = pbm.statsdClient.Count(metrics.MetricPerfBufferSortingError, count, tags, 1.0); err != nil {
+					if err = pbm.probe.statsdClient.Count(metrics.MetricPerfBufferSortingError, count, tags, 1.0); err != nil {
 						return err
 					}
 				}
@@ -384,7 +381,7 @@ func (pbm *PerfBufferMonitor) sendEventsAndBytesReadStats(client *statsd.Client)
 	return nil
 }
 
-func (pbm *PerfBufferMonitor) sendLostEventsReadStats(client *statsd.Client) error {
+func (pbm *PerfBufferMonitor) sendLostEventsReadStats(client statsd.ClientInterface) error {
 	tags := []string{pbm.probe.config.StatsTagsCardinality, ""}
 
 	for m := range pbm.readLostEvents {
@@ -400,16 +397,17 @@ func (pbm *PerfBufferMonitor) sendLostEventsReadStats(client *statsd.Client) err
 			}
 		}
 
-		if total > 0 {
-			pbm.probe.DispatchCustomEvent(
-				NewEventLostReadEvent(m, total),
-			)
-		}
+		// Disable custom event for now
+		// if total > 0 {
+		// 	pbm.probe.DispatchCustomEvent(
+		// 		NewEventLostReadEvent(m, total),
+		// 	)
+		// }
 	}
 	return nil
 }
 
-func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client *statsd.Client) error {
+func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInterface) error {
 	var (
 		id       uint32
 		iterator *lib.MapIterator
@@ -434,7 +432,7 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client *statsd.Client) e
 			}
 
 			// retrieve event type from key
-			evtType := model.EventType(id % uint32(model.MaxEventType))
+			evtType := model.EventType(id % uint32(model.MaxKernelEventType))
 			tags[2] = fmt.Sprintf("event_type:%s", evtType)
 
 			// loop over each cpu entry
@@ -486,12 +484,17 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client *statsd.Client) e
 			pbm.probe.DispatchCustomEvent(
 				NewEventLostWriteEvent(perfMapName, perEvent),
 			)
+
+			// snapshot traced cgroups if a CgroupTracing event was lost
+			if pbm.probe.config.ActivityDumpEnabled && perEvent[model.CgroupTracingEventType.String()] > 0 {
+				pbm.probe.monitor.activityDumpManager.snapshotTracedCgroups()
+			}
 		}
 	}
 	return nil
 }
 
-func (pbm *PerfBufferMonitor) sendKernelStats(client *statsd.Client, stats PerfMapStats, tags []string) error {
+func (pbm *PerfBufferMonitor) sendKernelStats(client statsd.ClientInterface, stats PerfMapStats, tags []string) error {
 	if stats.Count > 0 {
 		if err := client.Count(metrics.MetricPerfBufferEventsWrite, int64(stats.Count), tags, 1.0); err != nil {
 			return err
@@ -515,7 +518,7 @@ func (pbm *PerfBufferMonitor) sendKernelStats(client *statsd.Client, stats PerfM
 
 // SendStats send event stats using the provided statsd client
 func (pbm *PerfBufferMonitor) SendStats() error {
-	if err := pbm.collectAndSendKernelStats(pbm.statsdClient); err != nil {
+	if err := pbm.collectAndSendKernelStats(pbm.probe.statsdClient); err != nil {
 		return err
 	}
 
@@ -523,9 +526,9 @@ func (pbm *PerfBufferMonitor) SendStats() error {
 		pbm.probe.resolvers.DentryResolver.BumpCacheGenerations()
 	}
 
-	if err := pbm.sendEventsAndBytesReadStats(pbm.statsdClient); err != nil {
+	if err := pbm.sendEventsAndBytesReadStats(pbm.probe.statsdClient); err != nil {
 		return err
 	}
 
-	return pbm.sendLostEventsReadStats(pbm.statsdClient)
+	return pbm.sendLostEventsReadStats(pbm.probe.statsdClient)
 }

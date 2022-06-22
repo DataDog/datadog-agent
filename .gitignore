@@ -40,6 +40,7 @@ cloudfoundry.yaml
 Dockerfiles/cluster-agent/datadog-cluster.yaml
 Dockerfiles/cluster-agent/dist
 Dockerfiles/cluster-agent/security-agent-policies
+pkg/status/template.go
 
 # jetbrains IDE directory
 /.idea/
@@ -52,7 +53,6 @@ datadog-agent*_amd64.deb
 pkg/process/config/testdata/secret
 
 auth_token
-/test/e2e/scripts/run-instance/argo
 /test/e2e/scripts/setup-instance/instance-id.json
 /test/e2e/scripts/setup-instance/specification.json
 /test/e2e/scripts/setup-instance/spot-instance-request.json
@@ -158,3 +158,12 @@ pkg/network/netlink/testdata/message_dump*
 # serverless
 .layers
 .extension
+
+# Emacs
+*~
+
+# etags
+TAGS
+
+# cscope
+cscope.out

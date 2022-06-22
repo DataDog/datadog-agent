@@ -1,8 +1,12 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2021-present Datadog, Inc.
+
 package utils
 
 import (
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -48,7 +52,7 @@ func TestWithConcurrencyLimit(t *testing.T) {
 		w := httptest.NewRecorder()
 		handler(w, r)
 		resp := w.Result()
-		io.Copy(ioutil.Discard, resp.Body)
+		io.Copy(io.Discard, resp.Body)
 		assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
 	}
 
@@ -59,7 +63,7 @@ func TestWithConcurrencyLimit(t *testing.T) {
 	// Verify that they were processed by the original handler
 	for _, recorder := range recorders {
 		resp := recorder.Result()
-		io.Copy(ioutil.Discard, resp.Body)
+		io.Copy(io.Discard, resp.Body)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	}
 }

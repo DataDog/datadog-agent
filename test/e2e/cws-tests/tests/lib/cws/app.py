@@ -1,6 +1,8 @@
+import datetime
 import os
 import tempfile
 
+import lib.common.app as common
 import requests
 from datadog_api_client.v2 import ApiClient, ApiException, Configuration
 from datadog_api_client.v2.api import cloud_workload_security_api, logs_api, security_monitoring_api
@@ -29,7 +31,6 @@ from datadog_api_client.v2.models import (
     SecurityMonitoringSignalListRequestPage,
     SecurityMonitoringSignalsSort,
 )
-from dateutil.parser import parse as dateutil_parser
 from retry.api import retry_call
 
 
@@ -56,12 +57,15 @@ def get_app_log(api_client, query):
 
 
 def get_app_signal(api_client, query):
+    now = datetime.datetime.now(datetime.timezone.utc)
+    query_from = now - datetime.timedelta(minutes=15)
+
     api_instance = security_monitoring_api.SecurityMonitoringApi(api_client)
     body = SecurityMonitoringSignalListRequest(
         filter=SecurityMonitoringSignalListRequestFilter(
-            _from=dateutil_parser("2021-01-01T00:00:00.00Z"),
+            _from=query_from.isoformat(),
             query=query,
-            to=dateutil_parser("2050-01-01T00:00:00.00Z"),
+            to=now.isoformat(),
         ),
         page=SecurityMonitoringSignalListRequestPage(
             limit=25,
@@ -75,8 +79,10 @@ def get_app_signal(api_client, query):
     return api_response
 
 
-class App:
+class App(common.App):
     def __init__(self):
+        common.App.__init__(self)
+
         configuration = Configuration()
         configuration.unstable_operations["search_security_monitoring_signals"] = True
 
@@ -182,3 +188,11 @@ class App:
 
     def wait_app_signal(self, query, tries=30, delay=10):
         return retry_call(get_app_signal, fargs=[self.api_client, query], tries=tries, delay=delay)
+
+    def check_for_ignored_policies(self, test_case, policies):
+        if "policies_ignored" in policies:
+            test_case.assertEqual(len(policies["policies_ignored"]), 0)
+        if "policies" in policies:
+            for policy in policies["policies"]:
+                if "rules_ignored" in policy:
+                    test_case.assertEqual(len(policy["rules_ignored"]), 0)

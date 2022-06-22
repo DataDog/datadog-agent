@@ -67,12 +67,15 @@ def build(
     cmd = f"go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
     cmd += f"-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/trace-agent"
 
-    ctx.run(f"go generate -mod={go_mod} {REPO_PATH}/pkg/trace/info", env=env)
+    # go generate only works if you are in the module the target file is in, so we
+    # need to move into the pkg/trace module.
+    with ctx.cd("./pkg/trace"):
+        ctx.run(f"go generate -mod={go_mod} {REPO_PATH}/pkg/trace/info", env=env)
     ctx.run(cmd, env=env)
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod"):
+def integration_tests(ctx, install_deps=False, race=False, go_mod="mod"):
     """
     Run integration tests for trace agent
     """
@@ -81,23 +84,9 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
 
     go_build_tags = " ".join(get_default_build_tags(build="test"))
     race_opt = "-race" if race else ""
-    exec_opts = ""
 
-    # since Go 1.13, the -exec flag of go test could add some parameters such as -test.timeout
-    # to the call, we don't want them because while calling invoke below, invoke
-    # thinks that the parameters are for it to interpret.
-    # we're calling an intermediate script which only pass the binary name to the invoke task.
-    if remote_docker:
-        exec_opts = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
-
-    go_cmd = f'INTEGRATION=yes go test -mod={go_mod} {race_opt} -v -tags "{go_build_tags}" {exec_opts}'
-
-    prefixes = [
-        "./pkg/trace/test/testsuite/...",
-    ]
-
-    for prefix in prefixes:
-        ctx.run(f"{go_cmd} {prefix}")
+    go_cmd = f'go test -mod={go_mod} {race_opt} -v -tags "{go_build_tags}"'
+    ctx.run(f"{go_cmd} ./cmd/trace-agent/test/testsuite/...", env={"INTEGRATION": "yes"})
 
 
 @task

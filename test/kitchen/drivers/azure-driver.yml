@@ -17,9 +17,13 @@
 provisioner:
   name: chef_solo
   product_name: chef
-  # allow overriding of chef version since we need >= 15 for arm64 testing
+  # There is no arm64 distribution of Chef 14 for Debian. Use the Ubuntu package instead
+  <% if ENV['KITCHEN_PLATFORM'] == "debian" && ENV['KITCHEN_ARCH'] == "arm64" %>
+  download_url: https://packages.chef.io/files/stable/chef/14.15.6/ubuntu/18.04/chef_14.15.6-1_arm64.deb
+  product_version: 14.15.6
+  <% else %>
   product_version: <%= ENV['CHEF_VERSION'] ||= '14.12.9' %>
-  chef_license: accept
+  <% end %>
   install_strategy: always
   # the following settings make it possible to do a reboot during setup
   # (necessary for FIPS tests which reboot to enable FIPS mode)
@@ -39,6 +43,12 @@ driver_config:
   <% else %>
   azure_resource_group_suffix: plnone
   <% end %>
+  custom_data: |
+    #cloud-config
+    runcmd:
+      - mkdir /mnt/kitchen
+      - chmod a+rwx /mnt/kitchen
+      - ln -s /mnt/kitchen /tmp/kitchen
 
 platforms:
 # Loop through two lists and output a total matrix of all possible platform + chef versions,
@@ -50,10 +60,16 @@ platforms:
     # TEST_PLATFORMS syntax is `short_name1,parent vhd folder,parent_vhd_name|...`
     azure_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
 
-    sizes = [
-      "Standard_D1_v2",
-      "Standard_A1_v2",
-    ]
+    if ENV['TEST_IMAGE_SIZE'] != ""
+      sizes = [
+        ENV['TEST_IMAGE_SIZE']
+      ]
+    else
+      sizes = [
+        "Standard_D1_v2",
+        "Standard_A1_v2",
+      ]
+    end
 
     windows_sizes = [
       "Standard_D2_v4"
@@ -94,6 +110,15 @@ platforms:
         end
         size = sizes[idx % sizes.length]
       end
+
+      # Check if we should use an ed25519 key, an rsa key or the default key
+      # Some newer platforms don't support rsa, while some older platforms don't support ed25519
+      # In Azure, ed25519 is not supported, but the default key created by the driver works
+      default_key_platforms = ["ubuntu-22-04"]
+      use_default_key = default_key_platforms.any? { |p| platform_name.include?(p) }
+
+      ed25519_platforms = []
+      use_ed25519 = ed25519_platforms.any? { |p| platform_name.include?(p) }
 
       vm_username = ENV['VM_USERNAME'] ? ENV['VM_USERNAME'] : "datadog"
       vm_password = ENV['SERVER_PASSWORD']
@@ -138,7 +163,13 @@ platforms:
     <% else %>
     connection_retries: 30
     connection_retry_sleep: 2
-    ssh_key: <%= ENV['KITCHEN_SSH_KEY_PATH'] %>
+    <% if use_default_key %>
+    ssh_key:
+    <% elsif use_ed25519 %>
+    ssh_key: <%= ENV['KITCHEN_ED25519_SSH_KEY_PATH'] %>
+    <% else %>
+    ssh_key: <%= ENV['KITCHEN_RSA_SSH_KEY_PATH'] %>
+    <% end %>
     <% end %>
 
 <% end %>

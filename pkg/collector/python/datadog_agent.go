@@ -233,6 +233,10 @@ type sqlConfig struct {
 	CollectComments bool `json:"collect_comments"`
 	// ReplaceDigits specifies whether digits in table names and identifiers should be obfuscated.
 	ReplaceDigits bool `json:"replace_digits"`
+	// KeepSQLAlias specifies whether or not to strip sql aliases while obfuscating.
+	KeepSQLAlias bool `json:"keep_sql_alias"`
+	// DollarQuotedFunc specifies whether or not to remove $func$ strings in postgres.
+	DollarQuotedFunc bool `json:"dollar_quoted_func"`
 	// ReturnJSONMetadata specifies whether the stub will return metadata as JSON.
 	ReturnJSONMetadata bool `json:"return_json_metadata"`
 }
@@ -253,11 +257,13 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 	}
 	s := C.GoString(rawQuery)
 	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLStringWithOptions(s, &obfuscate.SQLConfig{
-		DBMS:            sqlOpts.DBMS,
-		TableNames:      sqlOpts.TableNames,
-		CollectCommands: sqlOpts.CollectCommands,
-		CollectComments: sqlOpts.CollectComments,
-		ReplaceDigits:   sqlOpts.ReplaceDigits,
+		DBMS:             sqlOpts.DBMS,
+		TableNames:       sqlOpts.TableNames,
+		CollectCommands:  sqlOpts.CollectCommands,
+		CollectComments:  sqlOpts.CollectComments,
+		ReplaceDigits:    sqlOpts.ReplaceDigits,
+		KeepSQLAlias:     sqlOpts.KeepSQLAlias,
+		DollarQuotedFunc: sqlOpts.DollarQuotedFunc,
 	})
 	if err != nil {
 		// memory will be freed by caller

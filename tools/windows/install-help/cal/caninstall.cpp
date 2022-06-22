@@ -21,6 +21,17 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
 {
     bResetPassword = false;
     bool bRet = true;
+    bool isNtAuthority = false;
+    const auto ntAuthoritySid = WellKnownSID::NTAuthority();
+    if (!ntAuthoritySid.has_value())
+    {
+        WcaLog(LOGMSG_STANDARD, "Cannot check user SID against NT AUTHORITY: memory allocation failed");
+    }
+    else
+    {
+        isNtAuthority = ddUserExists && EqualPrefixSid(data.Sid(), ntAuthoritySid.value().get());
+    }
+
     ///////////////////////////////////////////////////////////////////////////
     //
     // If domain controller:
@@ -28,7 +39,7 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
     //     if service is present:
     //        (1) this is an upgrade.
     //     if service is not present
-    //        (2) this is new install on this machine
+    //        (2) this is a new install on this machine
     //        dd user has already been created in domain
     //        must have password for registering service
     //   If user is NOT present
@@ -65,10 +76,10 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
             WcaLog(LOGMSG_STANDARD, "(Configuration Error) Invalid configuration; no DD user, but service exists");
             bRet = false;
         }
-        if (!ddUserExists || !ddServiceExists)
+        if ((!ddUserExists || !ddServiceExists) && !data.IsServiceAccount())
         {
             // case (4) and case (2)
-            if (!data.present(propertyDDAgentUserPassword))
+            if (!data.present(propertyDDAgentUserPassword) && !isNtAuthority)
             {
                 // error case of case 2 & 4.  Must have the password to create the user in the domain,
                 // because it must be reused by other domain controllers in domain.
@@ -121,7 +132,10 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
                 {
                     // case (6)
                     WcaLog(LOGMSG_STANDARD, "dd user exists %S, but not service.  Continuing", data.FullyQualifiedUsername().c_str());
-                    bResetPassword = true;
+                    if (!isNtAuthority) // Don't reset password for NT AUTHORITY\* users
+                    {
+                        bResetPassword = true;
+                    }
                 }
             }
         }

@@ -7,7 +7,7 @@ package compliance
 
 import (
 	"errors"
-	"io/ioutil"
+	"os"
 
 	"github.com/Masterminds/semver"
 	"gopkg.in/yaml.v2"
@@ -80,7 +80,7 @@ func ParseSuite(config string) (*Suite, error) {
 		return nil, err
 	}
 
-	f, err := ioutil.ReadFile(config)
+	f, err := os.ReadFile(config)
 	if err != nil {
 		return nil, err
 	}

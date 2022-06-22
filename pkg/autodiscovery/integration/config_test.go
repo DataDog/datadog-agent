@@ -93,6 +93,15 @@ logs_config: null
 	assert.Equal(t, config.String(), expected)
 }
 
+func TestDump(t *testing.T) {
+	config := &Config{}
+	config.Name = "foo"
+	config.InitConfig = Data("fooBarBaz: test")
+	config.Instances = []Data{Data("justFoo")}
+	dump := config.Dump()
+	assert.Contains(t, dump, `[]byte("justFoo")`)
+}
+
 func TestMergeAdditionalTags(t *testing.T) {
 	config := &Config{}
 	assert.False(t, config.Equal(nil))
@@ -213,14 +222,14 @@ func TestDigest(t *testing.T) {
 	configWithEntity := &Config{
 		Name:       "foo",
 		InitConfig: Data(""),
-		Entity:     "docker://f556178a47cf65fb70cd5772a9e80e661f71e021da49d3dc99565b861707041c",
+		ServiceID:  "docker://f556178a47cf65fb70cd5772a9e80e661f71e021da49d3dc99565b861707041c",
 	}
 	assert.Equal(t, "6f0d4b04bfbf4321", configWithEntity.Digest())
 
 	configWithAnotherEntity := &Config{
 		Name:       "foo",
 		InitConfig: Data(""),
-		Entity:     "docker://ddcd8a64616772f7ad4524f09fd75c9e3a265144050fc077563e63ea2eb46db0",
+		ServiceID:  "docker://ddcd8a64616772f7ad4524f09fd75c9e3a265144050fc077563e63ea2eb46db0",
 	}
 	assert.Equal(t, "22e040015f8c50b1", configWithAnotherEntity.Digest())
 

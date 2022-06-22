@@ -9,17 +9,20 @@
 package probe
 
 import (
+	"fmt"
 	"path"
 	"strings"
 	"syscall"
 	"time"
 
-	"golang.org/x/sys/unix"
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf/perf"
+	"github.com/mailru/easyjson/jwriter"
 
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/mailru/easyjson/jwriter"
 )
 
 const (
@@ -32,11 +35,40 @@ var eventZero Event
 // Model describes the data model for the runtime security agent probe events
 type Model struct {
 	model.Model
+	probe *Probe
+}
+
+// ValidateField validates the value of a field
+func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
+	if err := m.Model.ValidateField(field, fieldValue); err != nil {
+		return err
+	}
+
+	switch field {
+	case "bpf.map.name":
+		if offset, found := m.probe.constantOffsets["bpf_map_name_offset"]; !found || offset == constantfetch.ErrorSentinel {
+			return fmt.Errorf("%s is not available on this kernel version", field)
+		}
+
+	case "bpf.prog.name":
+		if offset, found := m.probe.constantOffsets["bpf_prog_aux_name_offset"]; !found || offset == constantfetch.ErrorSentinel {
+			return fmt.Errorf("%s is not available on this kernel version", field)
+		}
+	}
+
+	return nil
 }
 
 // NewEvent returns a new Event
 func (m *Model) NewEvent() eval.Event {
-	return &Event{Event: model.Event{}}
+	return &Event{}
+}
+
+// NetDeviceKey is used to uniquely identify a network device
+type NetDeviceKey struct {
+	IfIndex          uint32
+	NetNS            uint32
+	NetworkDirection manager.TrafficType
 }
 
 // Event describes a probe event
@@ -44,23 +76,23 @@ type Event struct {
 	model.Event
 
 	resolvers           *Resolvers
-	processCacheEntry   *model.ProcessCacheEntry
 	pathResolutionError error
 	scrubber            *pconfig.DataScrubber
+	probe               *Probe
 }
 
 // Retain the event
 func (ev *Event) Retain() Event {
-	if ev.processCacheEntry != nil {
-		ev.processCacheEntry.Retain()
+	if ev.ProcessCacheEntry != nil {
+		ev.ProcessCacheEntry.Retain()
 	}
 	return *ev
 }
 
 // Release the event
 func (ev *Event) Release() {
-	if ev.processCacheEntry != nil {
-		ev.processCacheEntry.Release()
+	if ev.ProcessCacheEntry != nil {
+		ev.ProcessCacheEntry.Release()
 	}
 }
 
@@ -71,14 +103,7 @@ func (ev *Event) GetPathResolutionError() error {
 
 // ResolveFilePath resolves the inode to a full path
 func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
-	// do not try to resolve mmap events when they aren't backed by any file
-	if ev.GetEventType() == model.MMapEventType {
-		if ev.MMap.Flags&unix.MAP_ANONYMOUS != 0 {
-			return ""
-		}
-	}
-
-	if len(f.PathnameStr) == 0 {
+	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
 		path, err := ev.resolvers.resolveFileFieldsPath(&f.FileFields)
 		if err != nil {
 			switch err.(type) {
@@ -89,18 +114,18 @@ func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 				ev.SetPathResolutionError(err)
 			}
 		}
-		f.PathnameStr = path
+		f.SetPathnameStr(path)
 	}
 	return f.PathnameStr
 }
 
 // ResolveFileBasename resolves the inode to a full path
 func (ev *Event) ResolveFileBasename(f *model.FileEvent) string {
-	if len(f.BasenameStr) == 0 {
+	if !f.IsBasenameStrResolved && len(f.BasenameStr) == 0 {
 		if f.PathnameStr != "" {
-			f.BasenameStr = path.Base(f.PathnameStr)
+			f.SetBasenameStr(path.Base(f.PathnameStr))
 		} else {
-			f.BasenameStr = ev.resolvers.resolveBasename(&f.FileFields)
+			f.SetBasenameStr(ev.resolvers.resolveBasename(&f.FileFields))
 		}
 	}
 	return f.BasenameStr
@@ -184,12 +209,9 @@ func (ev *Event) ResolveContainerTags(e *model.ContainerContext) []string {
 	return e.Tags
 }
 
-// UnmarshalProcess unmarshal a Process
-func (ev *Event) UnmarshalProcess(data []byte) (int, error) {
-	// reset the process cache entry of the current event
-	entry := ev.resolvers.ProcessResolver.NewProcessCacheEntry()
-	entry.Pid = ev.ProcessContext.Pid
-	entry.Tid = ev.ProcessContext.Tid
+// UnmarshalProcessCacheEntry unmarshal a Process
+func (ev *Event) UnmarshalProcessCacheEntry(data []byte) (int, error) {
+	entry := ev.resolvers.ProcessResolver.NewProcessCacheEntry(ev.PIDContext)
 
 	n, err := entry.Process.UnmarshalBinary(data)
 	if err != nil {
@@ -197,7 +219,7 @@ func (ev *Event) UnmarshalProcess(data []byte) (int, error) {
 	}
 	entry.Process.ContainerID = ev.ContainerContext.ID
 
-	ev.processCacheEntry = entry
+	ev.ProcessCacheEntry = entry
 
 	return n, nil
 }
@@ -259,6 +281,12 @@ func (ev *Event) ResolveProcessArgs(process *model.Process) string {
 func (ev *Event) ResolveProcessArgv(process *model.Process) []string {
 	argv, _ := ev.resolvers.ProcessResolver.GetProcessArgv(process)
 	return argv
+}
+
+// ResolveProcessEnvp resolves the envp of the event as an array
+func (ev *Event) ResolveProcessEnvp(process *model.Process) []string {
+	envp, _ := ev.resolvers.ProcessResolver.GetProcessEnvp(process)
+	return envp
 }
 
 // ResolveProcessArgsTruncated returns whether the args are truncated
@@ -420,12 +448,12 @@ func (ev *Event) MarshalJSON() ([]byte, error) {
 }
 
 // ExtractEventInfo extracts cpu and timestamp from the raw data event
-func ExtractEventInfo(data []byte) (uint64, uint64, error) {
-	if len(data) < 16 {
+func ExtractEventInfo(record *perf.Record) (uint64, uint64, error) {
+	if len(record.RawSample) < 16 {
 		return 0, 0, model.ErrNotEnoughData
 	}
 
-	return model.ByteOrder.Uint64(data[0:8]), model.ByteOrder.Uint64(data[8:16]), nil
+	return model.ByteOrder.Uint64(record.RawSample[0:8]), model.ByteOrder.Uint64(record.RawSample[8:16]), nil
 }
 
 // ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time
@@ -439,16 +467,22 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 	return ev.Timestamp
 }
 
-// ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessCacheEntry of the event
+// ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
 func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
-	if ev.processCacheEntry == nil {
-		ev.processCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.ProcessContext.Pid, ev.ProcessContext.Tid)
-		if ev.processCacheEntry == nil {
-			ev.processCacheEntry = &model.ProcessCacheEntry{}
-		}
+	if ev.ProcessCacheEntry == nil {
+		ev.ProcessCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid)
 	}
 
-	return ev.processCacheEntry
+	if ev.ProcessCacheEntry == nil {
+		// keep the original PIDContext
+		ev.ProcessCacheEntry = model.NewProcessCacheEntry(nil)
+		ev.ProcessCacheEntry.PIDContext = ev.PIDContext
+
+		ev.ProcessCacheEntry.FileEvent.SetPathnameStr("")
+		ev.ProcessCacheEntry.FileEvent.SetBasenameStr("")
+	}
+
+	return ev.ProcessCacheEntry
 }
 
 // GetProcessServiceTag returns the service tag based on the process context
@@ -483,11 +517,38 @@ func (ev *Event) GetProcessServiceTag() string {
 	return ""
 }
 
+// ResolveNetworkDeviceIfName returns the network iterface name from the network context
+func (ev *Event) ResolveNetworkDeviceIfName(device *model.NetworkDeviceContext) string {
+	if len(device.IfName) == 0 && ev.probe != nil {
+		key := NetDeviceKey{
+			NetNS:            device.NetNS,
+			IfIndex:          device.IfIndex,
+			NetworkDirection: manager.Egress,
+		}
+
+		ev.probe.tcProgramsLock.RLock()
+		defer ev.probe.tcProgramsLock.RUnlock()
+
+		tcProbe, ok := ev.probe.tcPrograms[key]
+		if !ok {
+			key.NetworkDirection = manager.Ingress
+			tcProbe = ev.probe.tcPrograms[key]
+		}
+
+		if tcProbe != nil {
+			device.IfName = tcProbe.IfName
+		}
+	}
+
+	return device.IfName
+}
+
 // NewEvent returns a new event
-func NewEvent(resolvers *Resolvers, scrubber *pconfig.DataScrubber) *Event {
+func NewEvent(resolvers *Resolvers, scrubber *pconfig.DataScrubber, probe *Probe) *Event {
 	return &Event{
 		Event:     model.Event{},
 		resolvers: resolvers,
 		scrubber:  scrubber,
+		probe:     probe,
 	}
 }

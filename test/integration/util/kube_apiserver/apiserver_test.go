@@ -40,8 +40,11 @@ type testSuite struct {
 }
 
 func TestSuiteKube(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	s := &testSuite{}
+
+	// Env detection
+	config.DetectFeatures()
 
 	// Start compose stack
 	compose, err := initAPIServerCompose()
@@ -93,7 +96,7 @@ func (suite *testSuite) SetupTest() {
 }
 
 func (suite *testSuite) TestKubeEvents() {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(nil)
 	resVer := ""
 	eventReadTimeout := int64(1)
 	lastList := time.Now()
@@ -164,7 +167,7 @@ func (suite *testSuite) TestKubeEvents() {
 
 func (suite *testSuite) TestHostnameProvider() {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(nil)
 
 	// Init own client to write the events
 	mockConfig.Set("kubernetes_kubeconfig_path", suite.kubeConfigPath)

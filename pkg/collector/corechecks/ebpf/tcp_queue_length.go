@@ -15,7 +15,7 @@ package ebpf
 import (
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -88,12 +88,12 @@ func (t *TCPQueueLengthCheck) Run() error {
 		return err
 	}
 
-	data, err := sysProbeUtil.GetCheck("tcp_queue_length")
+	data, err := sysProbeUtil.GetCheck(sysconfig.TCPQueueLengthTracerModule)
 	if err != nil {
 		return err
 	}
 
-	sender, err := aggregator.GetSender(t.ID())
+	sender, err := t.GetSender()
 	if err != nil {
 		return err
 	}

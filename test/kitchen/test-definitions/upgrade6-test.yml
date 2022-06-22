@@ -24,7 +24,7 @@ suites:
     dd-agent-upgrade:
       add_new_repo: true
       <% dd_agent_config.each do |key, value| %>
-      <%= key %>: <%= value %>
+      <%= key %>: "<%= value %>"
       <% end %>
       <% if ENV['AGENT_VERSION'] %>
       windows_version: "<%= ENV['AGENT_VERSION'] %>"

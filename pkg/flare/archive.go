@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -52,6 +53,7 @@ var (
 		config.Datadog.GetString("expvar_port"))
 	telemetryURL = fmt.Sprintf("http://127.0.0.1:%s/telemetry",
 		config.Datadog.GetString("expvar_port"))
+	procStatusURL string
 
 	// Match .yaml and .yml to ship configuration files in the flare.
 	cnfFileExtRx = regexp.MustCompile(`(?i)\.ya?ml`)
@@ -137,7 +139,7 @@ func CreatePerformanceProfile(prefix, debugURL string, cpusec int, target *Profi
 			URL:  debugURL + "/block",
 		},
 	} {
-		b, err := apiutil.DoGet(c, prof.URL)
+		b, err := apiutil.DoGet(c, prof.URL, apiutil.LeaveConnectionOpen)
 		if err != nil {
 			return err
 		}
@@ -158,6 +160,16 @@ func CreateArchive(local bool, distPath, pyChecksPath string, logFilePaths []str
 }
 
 func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, logFilePaths []string, pdata ProfileData, ipcError error) (string, error) {
+
+	/** WARNING
+	 *
+	 * When adding data to flares, carefully analyze the what is being added
+	 * and ensure that it contains no credentials or unnecessary user-specific
+	 * data.  The ./pkg/util/scrubber package can be useful for scrubbing
+	 * secrets that match pre-programmed patterns, but it is always better to
+	 * not capture data containing secrets, than to scrub that data.
+	 */
+
 	tempDir, err := createTempDir()
 	if err != nil {
 		return "", err
@@ -223,6 +235,11 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 		err = zipWorkloadList(tempDir, hostname)
 		if err != nil {
 			log.Errorf("Could not zip workload list: %s", err)
+		}
+
+		err = zipProcessChecks(tempDir, hostname, api.GetAPIAddressPort)
+		if err != nil {
+			log.Errorf("Could not zip process agent checks: %s", err)
 		}
 	}
 
@@ -333,6 +350,10 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 	err = zipServiceStatus(tempDir, hostname)
 	if err != nil {
 		log.Errorf("Could not export Windows driver status: %s", err)
+	}
+	err = zipDatadogRegistry(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not export Windows Datadog Registry: %s", err)
 	}
 
 	// force a log flush before zipping them
@@ -525,6 +546,24 @@ func zipSystemProbeStats(tempDir, hostname string) error {
 	return writeScrubbedFile(sysProbeFile, sysProbeBuf)
 }
 
+// zipProcessAgentFullConfig fetches process-agent runtime config as YAML and writes it to process_agent_runtime_config_dump.yaml
+func zipProcessAgentFullConfig(tempDir, hostname string) error {
+	// procStatusURL can be manually set for test purposes
+	if procStatusURL == "" {
+		addressPort, err := api.GetAPIAddressPort()
+		if err != nil {
+			return fmt.Errorf("wrong configuration to connect to process-agent")
+		}
+
+		procStatusURL = fmt.Sprintf("http://%s/config/all", addressPort)
+	}
+
+	cfgB := status.GetProcessAgentRuntimeConfig(procStatusURL)
+	f := filepath.Join(tempDir, hostname, "process_agent_runtime_config_dump.yaml")
+
+	return writeScrubbedFile(f, cfgB)
+}
+
 func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {
 	c, err := yaml.Marshal(config.Datadog.AllSettings())
 	if err != nil {
@@ -540,6 +579,12 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 	err = writeScrubbedFile(f, c)
 	if err != nil {
 		return err
+	}
+
+	// Use best effort to write process-agent runtime configs
+	err = zipProcessAgentFullConfig(tempDir, hostname)
+	if err != nil {
+		log.Warnf("could not zip process_agent_runtime_config_dump.yaml: %s", err)
 	}
 
 	err = walkConfigFilePaths(tempDir, hostname, confSearchPaths, permsInfos)
@@ -591,6 +636,48 @@ func zipSecrets(tempDir, hostname string) error {
 	return writeScrubbedFile(f, b.Bytes())
 }
 
+func zipProcessChecks(tempDir, hostname string, getAddressPort func() (url string, err error)) error {
+	addressPort, err := getAddressPort()
+	if err != nil {
+		return fmt.Errorf("wrong configuration to connect to process-agent: %s", err.Error())
+	}
+	checkURL := fmt.Sprintf("http://%s/check/", addressPort)
+
+	zipCheck := func(checkName, setting string) error {
+		if !config.Datadog.GetBool(setting) {
+			return nil
+		}
+
+		filename := fmt.Sprintf("%s_check_output.json", checkName)
+		if err := zipHTTPCallContent(tempDir, hostname, filename, checkURL+checkName); err != nil {
+			_ = log.Error(err)
+			err = ioutil.WriteFile(
+				filepath.Join(tempDir, hostname, "process_check_output.json"),
+				[]byte(fmt.Sprintf("error: process-agent is not running or is unreachable: %s", err.Error())),
+				os.ModePerm,
+			)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	if err := zipCheck("process", "process_config.process_collection.enabled"); err != nil {
+		return err
+	}
+
+	if err := zipCheck("container", "process_config.container_collection.enabled"); err != nil {
+		return err
+	}
+
+	if err := zipCheck("process_discovery", "process_config.process_discovery.enabled"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func zipDiagnose(tempDir, hostname string) error {
 	var b bytes.Buffer
 
@@ -607,19 +694,14 @@ func zipDiagnose(tempDir, hostname string) error {
 	return writeScrubbedFile(f, b.Bytes())
 }
 
-func zipFile(originalPath, zippedPath string) error {
-	original, err := os.Open(originalPath)
-	if err != nil {
-		return err
-	}
-	defer original.Close()
+func zipReader(r io.Reader, targetDir, filename string) error {
+	targetPath := filepath.Join(targetDir, filename)
 
-	err = ensureParentDirsExist(zippedPath)
-	if err != nil {
+	if err := ensureParentDirsExist(targetPath); err != nil {
 		return err
 	}
 
-	zipped, err := os.OpenFile(zippedPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
+	zipped, err := os.OpenFile(targetPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -629,7 +711,7 @@ func zipFile(originalPath, zippedPath string) error {
 	// see: https://github.com/golang/go/issues/44272
 	buf := make([]byte, 256)
 	for {
-		n, err := original.Read(buf)
+		n, err := r.Read(buf)
 		if err != nil && err != io.EOF {
 			return err
 		}
@@ -644,16 +726,26 @@ func zipFile(originalPath, zippedPath string) error {
 	return err
 }
 
+func zipFile(sourceDir, targetDir, filename string) error {
+	original, err := os.Open(filepath.Join(sourceDir, filename))
+	if err != nil {
+		return err
+	}
+	defer original.Close()
+
+	return zipReader(original, targetDir, filename)
+}
+
 func zipRegistryJSON(tempDir, hostname string) error {
-	originalPath := filepath.Join(config.Datadog.GetString("logs_config.run_path"), "registry.json")
-	zippedPath := filepath.Join(tempDir, hostname, "registry.json")
-	return zipFile(originalPath, zippedPath)
+	originalPath := config.Datadog.GetString("logs_config.run_path")
+	targetPath := filepath.Join(tempDir, hostname)
+	return zipFile(originalPath, targetPath, "registry.json")
 }
 
 func zipVersionHistory(tempDir, hostname string) error {
-	originalPath := filepath.Join(config.Datadog.GetString("run_path"), "version-history.json")
-	zippedPath := filepath.Join(tempDir, hostname, "version-history.json")
-	return zipFile(originalPath, zippedPath)
+	originalPath := config.Datadog.GetString("run_path")
+	targetPath := filepath.Join(tempDir, hostname)
+	return zipFile(originalPath, targetPath, "version-history.json")
 }
 
 func zipConfigCheck(tempDir, hostname string) error {
@@ -691,12 +783,13 @@ func zipTaggerList(tempDir, hostname string) error {
 
 	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
 
-	r, err := apiutil.DoGet(c, taggerListURL)
+	r, err := apiutil.DoGet(c, taggerListURL, apiutil.LeaveConnectionOpen)
 	if err != nil {
 		return err
 	}
 
 	f := filepath.Join(tempDir, hostname, "tagger-list.json")
+
 	err = ensureParentDirsExist(f)
 	if err != nil {
 		return err
@@ -729,7 +822,7 @@ func zipWorkloadList(tempDir, hostname string) error {
 
 	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
 
-	r, err := apiutil.DoGet(c, workloadListURL)
+	r, err := apiutil.DoGet(c, workloadListURL, apiutil.LeaveConnectionOpen)
 	if err != nil {
 		return err
 	}
@@ -774,9 +867,8 @@ func zipHealth(tempDir, hostname string) error {
 }
 
 func zipInstallInfo(tempDir, hostname string) error {
-	originalPath := filepath.Join(config.FileUsedDir(), "install_info")
-	zippedPath := filepath.Join(tempDir, hostname, "install_info")
-	return zipFile(originalPath, zippedPath)
+	targetPath := filepath.Join(tempDir, hostname)
+	return zipFile(config.FileUsedDir(), targetPath, "install_info")
 }
 
 func zipTelemetry(tempDir, hostname string) error {
@@ -899,6 +991,11 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 
 // writeScrubbedFile writes the given data to the given file, after applying
 // flareScrubber to it.
+//
+// WARNING: while this function applies a scrubber, that scrubber cannot scrub
+// all secrets.  Ensure that the data being written cannot contain user secrets
+// or proprietary information. For example, do not include arbitrary
+// environment variables.
 func writeScrubbedFile(filename string, data []byte) error {
 	scrubbed, err := flareScrubber.ScrubBytes(data)
 	if err != nil {
@@ -919,7 +1016,13 @@ func getArchivePath() string {
 	dir := os.TempDir()
 	t := time.Now().UTC()
 	timeString := strings.ReplaceAll(t.Format(time.RFC3339), ":", "-")
-	fileName := strings.Join([]string{"datadog", "agent", timeString}, "-")
+	fileName := ""
+	lvl, err := log.GetLogLevel()
+	if err == nil {
+		fileName = strings.Join([]string{"datadog", "agent", timeString, lvl.String()}, "-")
+	} else {
+		fileName = strings.Join([]string{"datadog", "agent", timeString}, "-")
+	}
 	fileName = strings.Join([]string{fileName, "zip"}, ".")
 	filePath := filepath.Join(dir, fileName)
 	return filePath

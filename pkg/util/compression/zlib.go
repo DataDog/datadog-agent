@@ -19,7 +19,7 @@ import (
 var ContentEncoding = "deflate"
 
 // Compress will compress the data with zlib
-func Compress(dst []byte, src []byte) ([]byte, error) {
+func Compress(src []byte) ([]byte, error) {
 	var b bytes.Buffer
 	w := zlib.NewWriter(&b)
 	_, err := w.Write(src)
@@ -30,19 +30,19 @@ func Compress(dst []byte, src []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	dst = b.Bytes()
+	dst := b.Bytes()
 	return dst, nil
 }
 
 // Decompress will decompress the data with zlib
-func Decompress(dst []byte, src []byte) ([]byte, error) {
+func Decompress(src []byte) ([]byte, error) {
 	r, err := zlib.NewReader(bytes.NewReader(src))
 	if err != nil {
 		return nil, err
 	}
 	defer r.Close()
 
-	dst, err = ioutil.ReadAll(r)
+	dst, err := ioutil.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}

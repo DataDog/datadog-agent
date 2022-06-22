@@ -14,17 +14,26 @@ if [ -f "$(pwd)/ssh-key.pub" ]; then
   rm ssh-key.pub
 fi
 
-ssh-keygen -f "$(pwd)/ssh-key" -P "" -t rsa -b 2048
-KITCHEN_SSH_KEY_PATH="$(pwd)/ssh-key"
-export KITCHEN_SSH_KEY_PATH
+ssh-keygen -f "$(pwd)/ed25519-key" -P "" -a 100 -t ed25519
+KITCHEN_ED25519_SSH_KEY_PATH="$(pwd)/ed25519-key"
+export KITCHEN_ED25519_SSH_KEY_PATH
 
-# show that the ssh key is there
-echo "$(pwd)/ssh-key"
-echo "$KITCHEN_SSH_KEY_PATH"
+# show that the ed25519 ssh key is there
+echo "$(pwd)/ed25519-key"
+echo "$KITCHEN_ED25519_SSH_KEY_PATH"
 
-# start the ssh-agent and add the key
+ssh-keygen -f "$(pwd)/rsa-key" -P "" -t rsa -b 2048
+KITCHEN_RSA_SSH_KEY_PATH="$(pwd)/rsa-key"
+export KITCHEN_RSA_SSH_KEY_PATH
+
+# show that the rsa ssh key is there
+echo "$(pwd)/rsa-key"
+echo "$KITCHEN_RSA_SSH_KEY_PATH"
+
+# start the ssh-agent and add the keys
 eval "$(ssh-agent -s)"
-ssh-add "$KITCHEN_SSH_KEY_PATH"
+ssh-add "$KITCHEN_RSA_SSH_KEY_PATH"
+ssh-add "$KITCHEN_ED25519_SSH_KEY_PATH"
 
 # in docker we cannot interact to do this so we must disable it
 mkdir -p ~/.ssh
@@ -37,25 +46,25 @@ if [ "$KITCHEN_PROVIDER" == "azure" ]; then
   # These should not be printed out
   set +x
   if [ -z ${AZURE_CLIENT_ID+x} ]; then
-    AZURE_CLIENT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_client_id --with-decryption --query "Parameter.Value" --out text)
+    AZURE_CLIENT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_client_id --with-decryption --query "Parameter.Value" --out text)
     # make sure whitespace is removed
     AZURE_CLIENT_ID="$(echo -e "${AZURE_CLIENT_ID}" | tr -d '[:space:]')"
     export AZURE_CLIENT_ID
   fi
   if [ -z ${AZURE_CLIENT_SECRET+x} ]; then
-    AZURE_CLIENT_SECRET=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_client_secret --with-decryption --query "Parameter.Value" --out text)
+    AZURE_CLIENT_SECRET=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_client_secret --with-decryption --query "Parameter.Value" --out text)
     # make sure whitespace is removed
     AZURE_CLIENT_SECRET="$(echo -e "${AZURE_CLIENT_SECRET}" | tr -d '[:space:]')"
     export AZURE_CLIENT_SECRET
   fi
   if [ -z ${AZURE_TENANT_ID+x} ]; then
-    AZURE_TENANT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_tenant_id --with-decryption --query "Parameter.Value" --out text)
+    AZURE_TENANT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_tenant_id --with-decryption --query "Parameter.Value" --out text)
     # make sure whitespace is removed
     AZURE_TENANT_ID="$(echo -e "${AZURE_TENANT_ID}" | tr -d '[:space:]')"
     export AZURE_TENANT_ID
   fi
   if [ -z ${AZURE_SUBSCRIPTION_ID+x} ]; then
-    AZURE_SUBSCRIPTION_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_subscription_id --with-decryption --query "Parameter.Value" --out text)
+    AZURE_SUBSCRIPTION_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_subscription_id --with-decryption --query "Parameter.Value" --out text)
     # make sure whitespace is removed
     AZURE_SUBSCRIPTION_ID="$(echo -e "${AZURE_SUBSCRIPTION_ID}" | tr -d '[:space:]')"
     export AZURE_SUBSCRIPTION_ID
@@ -104,7 +113,9 @@ if [ -z ${AGENT_VERSION+x} ]; then
   popd
 fi
 
-invoke -e kitchen.genconfig --platform="$KITCHEN_PLATFORM" --osversions="$KITCHEN_OSVERS" --provider="$KITCHEN_PROVIDER" --arch="${KITCHEN_ARCH:-x86_64}" --testfiles="$1" ${KITCHEN_FIPS:+--fips} --platformfile=platforms.json
+KITCHEN_IMAGE_SIZE="${KITCHEN_IMAGE_SIZE:-}"
+
+invoke -e kitchen.genconfig --platform="$KITCHEN_PLATFORM" --osversions="$KITCHEN_OSVERS" --provider="$KITCHEN_PROVIDER" --arch="${KITCHEN_ARCH:-x86_64}" --imagesize="${KITCHEN_IMAGE_SIZE}" --testfiles="$1" ${KITCHEN_FIPS:+--fips} --platformfile=platforms.json
 
 bundle exec kitchen diagnose --no-instances --loader
 

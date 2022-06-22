@@ -50,7 +50,7 @@ func NewForwarder() *forwarder.DefaultForwarder {
 
 	keysPerDomain, err := buildKeysPerDomains(config.Datadog)
 	if err != nil {
-		log.Errorf("Cannot build keys per domains: %w")
+		log.Errorf("Cannot build keys per domains: %v", err)
 		return nil
 	}
 

@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
@@ -32,7 +33,7 @@ func TestUDSPassCred(t *testing.T) {
 	defer os.RemoveAll(dir) // clean up
 	socketPath := filepath.Join(dir, "dsd.socket")
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("dogstatsd_socket", socketPath)
 	mockConfig.Set("dogstatsd_origin_detection", true)
 
@@ -46,8 +47,8 @@ func TestUDSPassCred(t *testing.T) {
 
 	// Test socket has PASSCRED option set to 1
 	f, err := s.conn.File()
+	require.Nil(t, err)
 	defer f.Close()
-	assert.Nil(t, err)
 
 	enabled, err := unix.GetsockoptInt(int(f.Fd()), unix.SOL_SOCKET, unix.SO_PASSCRED)
 	assert.Nil(t, err)

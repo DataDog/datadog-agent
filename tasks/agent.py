@@ -59,6 +59,7 @@ AGENT_CORECHECKS = [
     "systemd",
     "tcp_queue_length",
     "uptime",
+    "winkmem",
     "winproc",
     "jetson",
 ]
@@ -127,6 +128,20 @@ def build(
         major_version=major_version,
         python_runtimes=python_runtimes,
     )
+
+    if sys.platform == 'darwin' and platform.machine() == 'arm64':
+        if not flavor.is_iot():
+            m1_error_msg = "It seems that you're running a Mac M1. Building the agent on M1 is not supported for now."
+            m1_workaround_msg = "As a workaround you can build the IoT Agent with: inv -e agent.build --flavor=iot"
+            m1_explain_msg = "Note that the IoT Agent doesn't run any Python integration/check."
+            raise Exit(f"{m1_error_msg}\n{m1_workaround_msg}\n{m1_explain_msg}", code=2)
+        print("It seems that you're running a Mac M1. Cross-compiling for amd64 then.")
+        # Compiling the Agent for arm64 isn't possible yet until gopsutil is updated :
+        # https://github.com/kubernetes/minikube/pull/10115
+        # Let's use amd64 for now then.
+        env["GOARCH"] = "amd64"
+        # Important for x-compiling
+        env["CGO_ENABLED"] = "1"
 
     if sys.platform == 'win32':
         py_runtime_var = get_win_py_runtime_var(python_runtimes)
@@ -256,6 +271,7 @@ def run(
     build_exclude=None,
     flavor=AgentFlavor.base.name,
     skip_build=False,
+    config_path=None,
 ):
     """
     Execute the agent binary.
@@ -266,7 +282,9 @@ def run(
     if not skip_build:
         build(ctx, rebuild, race, build_include, build_exclude, flavor)
 
-    ctx.run(os.path.join(BIN_PATH, bin_name("agent")))
+    agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
+    config_path = os.path.join(BIN_PATH, "dist", "datadog.yaml") if not config_path else config_path
+    ctx.run(f"{agent_bin} run -c {config_path}")
 
 
 @task
@@ -627,22 +645,49 @@ def omnibus_manifest(
 
 
 @task
-def check_supports_python_version(_, filename, python):
+def check_supports_python_version(_, check_dir, python):
     """
-    Check if a setup.py file states support for a given major Python version.
+    Check if a Python project states support for a given major Python version.
     """
+    import toml
+    from packaging.specifiers import SpecifierSet
+
     if python not in ['2', '3']:
         raise Exit("invalid Python version", code=2)
 
-    with open(filename, 'r') as f:
-        tree = ast.parse(f.read(), filename=filename)
+    project_file = os.path.join(check_dir, 'pyproject.toml')
+    setup_file = os.path.join(check_dir, 'setup.py')
+    if os.path.isfile(project_file):
+        with open(project_file, 'r') as f:
+            data = toml.loads(f.read())
 
-    prefix = f'Programming Language :: Python :: {python}'
-    for node in ast.walk(tree):
-        if isinstance(node, ast.keyword) and node.arg == "classifiers":
-            classifiers = ast.literal_eval(node.value)
-            print(any(cls.startswith(prefix) for cls in classifiers), end="")
+        project_metadata = data['project']
+        if 'requires-python' not in project_metadata:
+            print('True', end='')
             return
+
+        specifier = SpecifierSet(project_metadata['requires-python'])
+        # It might be e.g. `>=3.8` which would not immediatelly contain `3`
+        for minor_version in range(100):
+            if specifier.contains(f'{python}.{minor_version}'):
+                print('True', end='')
+                return
+        else:
+            print('False', end='')
+    elif os.path.isfile(setup_file):
+        with open(setup_file, 'r') as f:
+            tree = ast.parse(f.read(), filename=setup_file)
+
+        prefix = f'Programming Language :: Python :: {python}'
+        for node in ast.walk(tree):
+            if isinstance(node, ast.keyword) and node.arg == 'classifiers':
+                classifiers = ast.literal_eval(node.value)
+                print(any(cls.startswith(prefix) for cls in classifiers), end='')
+                return
+        else:
+            print('False', end='')
+    else:
+        raise Exit('not a Python project', code=1)
 
 
 @task

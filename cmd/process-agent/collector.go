@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type checkResult struct {
@@ -77,33 +78,24 @@ type Collector struct {
 
 	// Enables running realtime checks
 	runRealTime bool
+
+	// Drop payloads from specified checks
+	dropCheckPayloads []string
 }
 
 // NewCollector creates a new Collector
-func NewCollector(cfg *config.AgentConfig) (Collector, error) {
+func NewCollector(cfg *config.AgentConfig, enabledChecks []checks.Check) (Collector, error) {
 	sysInfo, err := checks.CollectSystemInfo(cfg)
 	if err != nil {
 		return Collector{}, err
 	}
 
-	enabledChecks := make([]checks.Check, 0)
 	runRealTime := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
-	for _, c := range checks.All {
-		if !runRealTime && isRealTimeCheck(c.Name()) {
-			log.Infof("Skip enabling check '%s': realtime disabled", c.Name())
-			continue
-		}
-		if cfg.CheckIsEnabled(c.Name()) {
-			c.Init(cfg, sysInfo)
-			enabledChecks = append(enabledChecks, c)
-		}
+	for _, c := range enabledChecks {
+		c.Init(cfg, sysInfo)
 	}
 
 	return NewCollectorWithChecks(cfg, enabledChecks, runRealTime), nil
-}
-
-func isRealTimeCheck(checkName string) bool {
-	return checkName == config.RTProcessCheckName || checkName == config.RTContainerCheckName
 }
 
 // NewCollectorWithChecks creates a new Collector
@@ -136,6 +128,11 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 	podResults := api.NewWeightedQueue(queueSize, int64(cfg.Orchestrator.PodQueueBytes))
 	log.Debugf("Creating pod check queue with max_size=%d and max_weight=%d", podResults.MaxSize(), podResults.MaxWeight())
 
+	dropCheckPayloads := ddconfig.Datadog.GetStringSlice("process_config.drop_check_payloads")
+	if len(dropCheckPayloads) > 0 {
+		log.Debugf("Dropping payloads from checks: %v", dropCheckPayloads)
+	}
+
 	return Collector{
 		rtIntervalCh:  make(chan time.Duration),
 		cfg:           cfg,
@@ -153,6 +150,8 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 		forwarderRetryQueueMaxBytes: queueBytes,
 
 		runRealTime: runRealTime,
+
+		dropCheckPayloads: dropCheckPayloads,
 	}
 }
 
@@ -167,6 +166,7 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 		return
 	}
+	checks.StoreCheckOutput(c.Name(), messages)
 	l.messagesToResults(start, c.Name(), messages, results)
 
 	if !c.RealTime() {
@@ -186,10 +186,14 @@ func (l *Collector) runCheckWithRealTime(c checks.CheckWithRealTime, results, rt
 		return
 	}
 	l.messagesToResults(start, c.Name(), run.Standard, results)
-	l.messagesToResults(start, c.RealTimeName(), run.RealTime, rtResults)
-
 	if options.RunStandard {
+		checks.StoreCheckOutput(c.Name(), run.Standard)
 		logCheckDuration(c.Name(), start, runCounter)
+	}
+
+	l.messagesToResults(start, c.RealTimeName(), run.RealTime, rtResults)
+	if options.RunRealTime {
+		checks.StoreCheckOutput(c.RealTimeName(), run.RealTime)
 	}
 }
 
@@ -233,16 +237,20 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 			continue
 		}
 
+		agentVersion, _ := version.Agent()
 		extraHeaders := make(http.Header)
 		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(start.Unix())))
 		extraHeaders.Set(headers.HostHeader, l.cfg.HostName)
-		extraHeaders.Set(headers.ProcessVersionHeader, Version)
+		extraHeaders.Set(headers.ProcessVersionHeader, agentVersion.GetNumber())
 		extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
+		extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
 
 		if l.cfg.Orchestrator.OrchestrationCollectionEnabled {
 			if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
 				extraHeaders.Set(headers.ClusterIDHeader, cid)
 			}
+			extraHeaders.Set(headers.EVPOriginHeader, "process-agent")
+			extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
 		}
 
 		payloads = append(payloads, checkPayload{
@@ -264,15 +272,33 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 }
 
 func (l *Collector) run(exit chan struct{}) error {
-	eps := make([]string, 0, len(l.cfg.APIEndpoints))
-	for _, e := range l.cfg.APIEndpoints {
+	processAPIEndpoints, err := getAPIEndpoints()
+	if err != nil {
+		return err
+	}
+
+	eps := make([]string, 0, len(processAPIEndpoints))
+	for _, e := range processAPIEndpoints {
 		eps = append(eps, e.Endpoint.String())
 	}
 	orchestratorEps := make([]string, 0, len(l.cfg.Orchestrator.OrchestratorEndpoints))
 	for _, e := range l.cfg.Orchestrator.OrchestratorEndpoints {
 		orchestratorEps = append(orchestratorEps, e.Endpoint.String())
 	}
-	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, l.cfg.EnabledChecks)
+
+	var checkNames []string
+	for _, check := range l.enabledChecks {
+		checkNames = append(checkNames, check.Name())
+
+		// Append `process_rt` if process check is enabled, and rt is enabled, so the customer doesn't get confused if
+		// process_rt doesn't show up in the enabled checks
+		if check.Name() == checks.Process.Name() && !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks") {
+			checkNames = append(checkNames, checks.Process.RealTimeName())
+		}
+	}
+	updateEnabledChecks(checkNames)
+	updateDropCheckPayloads(l.dropCheckPayloads)
+	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, checkNames)
 
 	go util.HandleSignals(exit)
 
@@ -298,9 +324,10 @@ func (l *Collector) run(exit chan struct{}) error {
 		queueLogTicker := time.NewTicker(time.Minute)
 		defer queueLogTicker.Stop()
 
+		agentVersion, _ := version.Agent()
 		tags := []string{
-			fmt.Sprintf("version:%s", Version),
-			fmt.Sprintf("revision:%s", GitCommit),
+			fmt.Sprintf("version:%s", agentVersion.GetNumberAndPre()),
+			fmt.Sprintf("revision:%s", agentVersion.Commit),
 		}
 		for {
 			select {
@@ -323,7 +350,7 @@ func (l *Collector) run(exit chan struct{}) error {
 		}
 	}()
 
-	processForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(l.cfg.APIEndpoints)))
+	processForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(processAPIEndpoints)))
 	processForwarderOpts.DisableAPIKeyChecking = true
 	processForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.forwarderRetryQueueMaxBytes // Allow more in-flight requests than the default
 	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
@@ -381,6 +408,11 @@ func (l *Collector) run(exit chan struct{}) error {
 
 	<-exit
 	wg.Wait()
+
+	for _, check := range l.enabledChecks {
+		log.Debugf("Cleaning up %s check", check.Name())
+		check.Cleanup()
+	}
 
 	processForwarder.Stop()
 	rtProcessForwarder.Stop()
@@ -456,6 +488,16 @@ func (l *Collector) basicRunner(c checks.Check, results *api.WeightedQueue, exit
 	}
 }
 
+func (l *Collector) shouldDropPayload(check string) bool {
+	for _, d := range l.dropCheckPayloads {
+		if d == check {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Forwarder) {
 	for {
 		// results.Poll() will return ok=false when stopped
@@ -471,6 +513,10 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 				err              error
 				updateRTStatus   = l.runRealTime
 			)
+
+			if l.shouldDropPayload(result.name) {
+				continue
+			}
 
 			switch result.name {
 			case checks.Process.Name():
@@ -579,6 +625,11 @@ func readResponseStatuses(checkName string, responses <-chan forwarder.Response)
 
 		if response.StatusCode >= 300 {
 			log.Errorf("[%s] Invalid response from %s: %d -> %s", checkName, response.Domain, response.StatusCode, response.Err)
+			continue
+		}
+
+		// we don't need to decode the body in case of the pod check
+		if checkName == checks.Pod.Name() {
 			continue
 		}
 

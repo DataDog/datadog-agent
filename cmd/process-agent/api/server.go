@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
 
@@ -18,10 +19,13 @@ import (
 )
 
 func setupHandlers(r *mux.Router) {
-	r.HandleFunc("/config", settingshttp.Server.GetFull("process_config")).Methods("GET")
+	r.HandleFunc("/config", settingshttp.Server.GetFull("process_config")).Methods("GET") // Get only settings in the process_config namespace
+	r.HandleFunc("/config/all", settingshttp.Server.GetFull("")).Methods("GET")           // Get all fields from process-agent Config object
 	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
+	r.HandleFunc("/agent/status", statusHandler).Methods("GET")
+	r.HandleFunc("/check/{check}", checkHandler).Methods("GET")
 }
 
 // StartServer starts the config server
@@ -30,15 +34,18 @@ func StartServer() error {
 	r := mux.NewRouter()
 	setupHandlers(r)
 
-	addr, err := getIPCAddressPort()
+	addr, err := GetAPIAddressPort()
 	if err != nil {
 		return err
 	}
 	log.Infof("API server listening on %s", addr)
-
+	timeout := time.Duration(ddconfig.Datadog.GetInt("server_timeout")) * time.Second
 	srv := &http.Server{
-		Handler: r,
-		Addr:    addr,
+		Handler:      r,
+		Addr:         addr,
+		ReadTimeout:  timeout,
+		WriteTimeout: timeout,
+		IdleTimeout:  timeout,
 	}
 
 	go func() {
@@ -50,12 +57,19 @@ func StartServer() error {
 	return nil
 }
 
-// getIPCAddressPort returns a listening connection
-func getIPCAddressPort() (string, error) {
+// GetAPIAddressPort returns a listening connection
+func GetAPIAddressPort() (string, error) {
 	address, err := ddconfig.GetIPCAddress()
 	if err != nil {
 		return "", err
 	}
-	addrPort := net.JoinHostPort(address, strconv.Itoa(ddconfig.Datadog.GetInt("process_config.cmd_port")))
+
+	port := ddconfig.Datadog.GetInt("process_config.cmd_port")
+	if port <= 0 {
+		log.Warnf("Invalid process_config.cmd_port -- %d, using default port %d", port, ddconfig.DefaultProcessCmdPort)
+		port = ddconfig.DefaultProcessCmdPort
+	}
+
+	addrPort := net.JoinHostPort(address, strconv.Itoa(port))
 	return addrPort, nil
 }

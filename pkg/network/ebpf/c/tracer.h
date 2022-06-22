@@ -31,7 +31,6 @@ typedef struct {
     __u8 direction;
     __u64 sent_packets;
     __u64 recv_packets;
-    __u64 tags;
 } conn_stats_ts_t;
 
 // Connection flags
@@ -129,9 +128,6 @@ typedef struct {
     __u64 udp_sends_missed;
     __u64 conn_stats_max_entries_hit;
 } telemetry_t;
-
-#define PORT_LISTENING 1
-#define PORT_CLOSED 0
 
 typedef struct {
     __u16 port;

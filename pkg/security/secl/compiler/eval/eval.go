@@ -33,11 +33,16 @@ const (
 // BoolEvalFnc describe a eval function return a boolean
 type BoolEvalFnc = func(ctx *Context) bool
 
-func extractField(field string) (Field, Field, RegisterID, error) {
-	var regID RegisterID
+func extractField(field string, state *State) (Field, Field, RegisterID, error) {
+	if state.regexpCache.arraySubscriptFindRE == nil {
+		state.regexpCache.arraySubscriptFindRE = regexp.MustCompile(`\[([^\]]*)\]`)
+	}
+	if state.regexpCache.arraySubscriptReplaceRE == nil {
+		state.regexpCache.arraySubscriptReplaceRE = regexp.MustCompile(`(.+)\[[^\]]+\](.*)`)
+	}
 
-	re := regexp.MustCompile(`\[([^\]]*)\]`)
-	ids := re.FindStringSubmatch(field)
+	var regID RegisterID
+	ids := state.regexpCache.arraySubscriptFindRE.FindStringSubmatch(field)
 
 	switch len(ids) {
 	case 0:
@@ -48,10 +53,10 @@ func extractField(field string) (Field, Field, RegisterID, error) {
 		return "", "", "", fmt.Errorf("wrong register format for fields: %s", field)
 	}
 
-	re = regexp.MustCompile(`(.+)\[[^\]]+\](.*)`)
-	field, itField := re.ReplaceAllString(field, `$1$2`), re.ReplaceAllString(field, `$1`)
+	resField := state.regexpCache.arraySubscriptReplaceRE.ReplaceAllString(field, `$1$2`)
+	itField := state.regexpCache.arraySubscriptReplaceRE.ReplaceAllString(field, `$1`)
 
-	return field, itField, regID, nil
+	return resField, itField, regID, nil
 }
 
 type ident struct {
@@ -59,8 +64,13 @@ type ident struct {
 	Ident *string
 }
 
-func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.Position, error) {
-	if accessor, ok := opts.Constants[*obj.Ident]; ok {
+type ReplacementContext struct {
+	*Opts
+	*MacroStore
+}
+
+func identToEvaluator(obj *ident, state *State) (interface{}, lexer.Position, error) {
+	if accessor, ok := state.replCtx.Opts.Constants[*obj.Ident]; ok {
 		return accessor, obj.Pos, nil
 	}
 
@@ -70,17 +80,17 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 		}
 	}
 
-	field, itField, regID, err := extractField(*obj.Ident)
+	field, itField, regID, err := extractField(*obj.Ident, state)
 	if err != nil {
 		return nil, obj.Pos, err
 	}
 
 	// transform extracted field to support legacy SECL fields
-	if opts.LegacyFields != nil {
-		if newField, ok := opts.LegacyFields[field]; ok {
+	if state.replCtx.Opts.LegacyFields != nil {
+		if newField, ok := state.replCtx.Opts.LegacyFields[field]; ok {
 			field = newField
 		}
-		if newField, ok := opts.LegacyFields[field]; ok {
+		if newField, ok := state.replCtx.Opts.LegacyFields[field]; ok {
 			itField = newField
 		}
 	}
@@ -147,16 +157,14 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 	return accessor, obj.Pos, nil
 }
 
-func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, lexer.Position, error) {
+func arrayToEvaluator(array *ast.Array, state *State) (interface{}, lexer.Position, error) {
 	if len(array.Numbers) != 0 {
 		var evaluator IntArrayEvaluator
 		evaluator.AppendValues(array.Numbers...)
 		return &evaluator, array.Pos, nil
 	} else if len(array.StringMembers) != 0 {
 		var evaluator StringValuesEvaluator
-		if err := evaluator.AppendMembers(array.StringMembers...); err != nil {
-			return nil, array.Pos, NewError(array.Pos, err.Error())
-		}
+		evaluator.AppendMembers(array.StringMembers...)
 		return &evaluator, array.Pos, nil
 	} else if array.Ident != nil {
 		if state.macros != nil {
@@ -166,10 +174,46 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, 
 		}
 
 		// could be an iterator
-		return identToEvaluator(&ident{Pos: array.Pos, Ident: array.Ident}, opts, state)
+		return identToEvaluator(&ident{Pos: array.Pos, Ident: array.Ident}, state)
+	} else if array.Variable != nil {
+		varName, ok := isVariableName(*array.Variable)
+		if !ok {
+			return nil, array.Pos, NewError(array.Pos, "invalid variable name '%s'", *array.Variable)
+		}
+		return evaluatorFromVariable(varName, array.Pos, state.replCtx)
+	} else if array.CIDR != nil {
+		var values CIDRValues
+		if err := values.AppendCIDR(*array.CIDR); err != nil {
+			return nil, array.Pos, NewError(array.Pos, "invalid CIDR '%s'", *array.CIDR)
+		}
+
+		evaluator := &CIDRValuesEvaluator{
+			Value:     values,
+			ValueType: IPNetValueType,
+		}
+		return evaluator, array.Pos, nil
+	} else if len(array.CIDRMembers) != 0 {
+		var values CIDRValues
+		for _, member := range array.CIDRMembers {
+			if member.CIDR != nil {
+				if err := values.AppendCIDR(*member.CIDR); err != nil {
+					return nil, array.Pos, NewError(array.Pos, "invalid CIDR '%s'", *member.CIDR)
+				}
+			} else if member.IP != nil {
+				if err := values.AppendIP(*member.IP); err != nil {
+					return nil, array.Pos, NewError(array.Pos, "invalid IP '%s'", *member.IP)
+				}
+			}
+		}
+
+		evaluator := &CIDRValuesEvaluator{
+			Value:     values,
+			ValueType: IPNetValueType,
+		}
+		return evaluator, array.Pos, nil
 	}
 
-	return nil, array.Pos, NewError(array.Pos, "unknow array element type")
+	return nil, array.Pos, NewError(array.Pos, "unknown array element type")
 }
 
 func isVariableName(str string) (string, bool) {
@@ -179,45 +223,53 @@ func isVariableName(str string) (string, bool) {
 	return "", false
 }
 
-func intEvaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
-	value, exists := opts.Variables[varname]
+func evaluatorFromVariable(varname string, pos lexer.Position, replCtx ReplacementContext) (interface{}, lexer.Position, error) {
+	value, exists := replCtx.Opts.Variables[varname]
 	if !exists {
-		return nil, pos, NewError(pos, fmt.Sprintf("variable '%s' doesn't exist", varname))
+		return nil, pos, NewError(pos, "variable '%s' doesn't exist", varname)
 	}
 
-	if value.IntFnc == nil {
-		return nil, pos, NewError(pos, fmt.Sprintf("variable type not supported '%s'", varname))
-	}
-	return &IntEvaluator{
-		EvalFnc: func(ctx *Context) int {
-			return value.IntFnc(ctx)
-		},
-	}, pos, nil
+	return value.GetEvaluator(), pos, nil
 }
 
-func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
+func stringEvaluatorFromVariable(str string, pos lexer.Position, replCtx ReplacementContext) (interface{}, lexer.Position, error) {
 	var evaluators []*StringEvaluator
 
 	doLoc := func(sub string) error {
 		if varname, ok := isVariableName(sub); ok {
-			value, exists := opts.Variables[varname]
+			value, exists := replCtx.Opts.Variables[varname]
 			if !exists {
-				return NewError(pos, fmt.Sprintf("variable '%s' doesn't exist", varname))
+				return NewError(pos, "variable '%s' doesn't exist", varname)
 			}
-			if value.IntFnc != nil {
+
+			evaluator := value.GetEvaluator()
+			switch evaluator := evaluator.(type) {
+			case *StringArrayEvaluator:
 				evaluators = append(evaluators, &StringEvaluator{
 					EvalFnc: func(ctx *Context) string {
-						return strconv.FormatInt(int64(value.IntFnc(ctx)), 10)
-					},
-				})
-			} else if value.StringFnc != nil {
+						return strings.Join(evaluator.EvalFnc(ctx), ",")
+					}})
+			case *IntArrayEvaluator:
 				evaluators = append(evaluators, &StringEvaluator{
 					EvalFnc: func(ctx *Context) string {
-						return value.StringFnc(ctx)
-					},
-				})
-			} else {
-				return NewError(pos, fmt.Sprintf("variable type not supported '%s'", varname))
+						var result string
+						for i, number := range evaluator.EvalFnc(ctx) {
+							if i != 0 {
+								result += ","
+							}
+							result += strconv.FormatInt(int64(number), 10)
+						}
+						return result
+					}})
+			case *StringEvaluator:
+				evaluators = append(evaluators, evaluator)
+			case *IntEvaluator:
+				evaluators = append(evaluators, &StringEvaluator{
+					EvalFnc: func(ctx *Context) string {
+						return strconv.FormatInt(int64(evaluator.EvalFnc(ctx)), 10)
+					}})
+			default:
+				return NewError(pos, "variable type not supported '%s'", varname)
 			}
 		} else {
 			evaluators = append(evaluators, &StringEvaluator{Value: sub})
@@ -261,16 +313,16 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (in
 }
 
 // StringEqualsWrapper makes use of operator overrides
-func StringEqualsWrapper(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func StringEqualsWrapper(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEvaluator, error) {
 	var evaluator *BoolEvaluator
 	var err error
 
 	if a.OpOverrides != nil && a.OpOverrides.StringEquals != nil {
-		evaluator, err = a.OpOverrides.StringEquals(a, b, opts, state)
+		evaluator, err = a.OpOverrides.StringEquals(a, b, state)
 	} else if b.OpOverrides != nil && b.OpOverrides.StringEquals != nil {
-		evaluator, err = b.OpOverrides.StringEquals(a, b, opts, state)
+		evaluator, err = b.OpOverrides.StringEquals(a, b, state)
 	} else {
-		evaluator, err = StringEquals(a, b, opts, state)
+		evaluator, err = StringEquals(a, b, state)
 	}
 	if err != nil {
 		return nil, err
@@ -280,16 +332,16 @@ func StringEqualsWrapper(a *StringEvaluator, b *StringEvaluator, opts *Opts, sta
 }
 
 // StringArrayContainsWrapper makes use of operator overrides
-func StringArrayContainsWrapper(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func StringArrayContainsWrapper(a *StringEvaluator, b *StringArrayEvaluator, state *State) (*BoolEvaluator, error) {
 	var evaluator *BoolEvaluator
 	var err error
 
 	if a.OpOverrides != nil && a.OpOverrides.StringArrayContains != nil {
-		evaluator, err = a.OpOverrides.StringArrayContains(a, b, opts, state)
+		evaluator, err = a.OpOverrides.StringArrayContains(a, b, state)
 	} else if b.OpOverrides != nil && b.OpOverrides.StringArrayContains != nil {
-		evaluator, err = b.OpOverrides.StringArrayContains(a, b, opts, state)
+		evaluator, err = b.OpOverrides.StringArrayContains(a, b, state)
 	} else {
-		evaluator, err = StringArrayContains(a, b, opts, state)
+		evaluator, err = StringArrayContains(a, b, state)
 	}
 	if err != nil {
 		return nil, err
@@ -299,14 +351,14 @@ func StringArrayContainsWrapper(a *StringEvaluator, b *StringArrayEvaluator, opt
 }
 
 // StringValuesContainsWrapper makes use of operator overrides
-func StringValuesContainsWrapper(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func StringValuesContainsWrapper(a *StringEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 	var evaluator *BoolEvaluator
 	var err error
 
 	if a.OpOverrides != nil && a.OpOverrides.StringValuesContains != nil {
-		evaluator, err = a.OpOverrides.StringValuesContains(a, b, opts, state)
+		evaluator, err = a.OpOverrides.StringValuesContains(a, b, state)
 	} else {
-		evaluator, err = StringValuesContains(a, b, opts, state)
+		evaluator, err = StringValuesContains(a, b, state)
 	}
 	if err != nil {
 		return nil, err
@@ -316,14 +368,14 @@ func StringValuesContainsWrapper(a *StringEvaluator, b *StringValuesEvaluator, o
 }
 
 // StringArrayMatchesWrapper makes use of operator overrides
-func StringArrayMatchesWrapper(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+func StringArrayMatchesWrapper(a *StringArrayEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 	var evaluator *BoolEvaluator
 	var err error
 
 	if a.OpOverrides != nil && a.OpOverrides.StringArrayMatches != nil {
-		evaluator, err = a.OpOverrides.StringArrayMatches(a, b, opts, state)
+		evaluator, err = a.OpOverrides.StringArrayMatches(a, b, state)
 	} else {
-		evaluator, err = StringArrayMatches(a, b, opts, state)
+		evaluator, err = StringArrayMatches(a, b, state)
 	}
 	if err != nil {
 		return nil, err
@@ -332,7 +384,7 @@ func StringArrayMatchesWrapper(a *StringArrayEvaluator, b *StringValuesEvaluator
 	return evaluator, nil
 }
 
-func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, lexer.Position, error) {
+func nodeToEvaluator(obj interface{}, state *State) (interface{}, lexer.Position, error) {
 	var err error
 	var boolEvaluator *BoolEvaluator
 	var pos lexer.Position
@@ -340,9 +392,9 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 
 	switch obj := obj.(type) {
 	case *ast.BooleanExpression:
-		return nodeToEvaluator(obj.Expression, opts, state)
+		return nodeToEvaluator(obj.Expression, state)
 	case *ast.Expression:
-		cmp, pos, err = nodeToEvaluator(obj.Comparison, opts, state)
+		cmp, pos, err = nodeToEvaluator(obj.Comparison, state)
 		if err != nil {
 			return nil, pos, err
 		}
@@ -353,7 +405,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				return nil, obj.Pos, NewTypeError(obj.Pos, reflect.Bool)
 			}
 
-			next, pos, err = nodeToEvaluator(obj.Next, opts, state)
+			next, pos, err = nodeToEvaluator(obj.Next, state)
 			if err != nil {
 				return nil, pos, err
 			}
@@ -365,13 +417,13 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 
 			switch *obj.Op {
 			case "||", "or":
-				boolEvaluator, err = Or(cmpBool, nextBool, opts, state)
+				boolEvaluator, err = Or(cmpBool, nextBool, state)
 				if err != nil {
 					return nil, obj.Pos, err
 				}
 				return boolEvaluator, obj.Pos, nil
 			case "&&", "and":
-				boolEvaluator, err = And(cmpBool, nextBool, opts, state)
+				boolEvaluator, err = And(cmpBool, nextBool, state)
 				if err != nil {
 					return nil, obj.Pos, err
 				}
@@ -381,7 +433,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 		}
 		return cmp, obj.Pos, nil
 	case *ast.BitOperation:
-		unary, pos, err = nodeToEvaluator(obj.Unary, opts, state)
+		unary, pos, err = nodeToEvaluator(obj.Unary, state)
 		if err != nil {
 			return nil, pos, err
 		}
@@ -392,7 +444,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				return nil, obj.Pos, NewTypeError(obj.Pos, reflect.Int)
 			}
 
-			next, pos, err = nodeToEvaluator(obj.Next, opts, state)
+			next, pos, err = nodeToEvaluator(obj.Next, state)
 			if err != nil {
 				return nil, pos, err
 			}
@@ -404,19 +456,19 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 
 			switch *obj.Op {
 			case "&":
-				intEvaluator, err := IntAnd(bitInt, nextInt, opts, state)
+				intEvaluator, err := IntAnd(bitInt, nextInt, state)
 				if err != nil {
 					return nil, pos, err
 				}
 				return intEvaluator, obj.Pos, nil
 			case "|":
-				IntEvaluator, err := IntOr(bitInt, nextInt, opts, state)
+				IntEvaluator, err := IntOr(bitInt, nextInt, state)
 				if err != nil {
 					return nil, pos, err
 				}
 				return IntEvaluator, obj.Pos, nil
 			case "^":
-				IntEvaluator, err := IntXor(bitInt, nextInt, opts, state)
+				IntEvaluator, err := IntXor(bitInt, nextInt, state)
 				if err != nil {
 					return nil, pos, err
 				}
@@ -427,13 +479,13 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 		return unary, obj.Pos, nil
 
 	case *ast.Comparison:
-		unary, pos, err = nodeToEvaluator(obj.BitOperation, opts, state)
+		unary, pos, err = nodeToEvaluator(obj.BitOperation, state)
 		if err != nil {
 			return nil, pos, err
 		}
 
 		if obj.ArrayComparison != nil {
-			next, pos, err = nodeToEvaluator(obj.ArrayComparison, opts, state)
+			next, pos, err = nodeToEvaluator(obj.ArrayComparison, state)
 			if err != nil {
 				return nil, pos, err
 			}
@@ -442,12 +494,12 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			case *BoolEvaluator:
 				switch nextBool := next.(type) {
 				case *BoolArrayEvaluator:
-					boolEvaluator, err = ArrayBoolContains(unary, nextBool, opts, state)
+					boolEvaluator, err = ArrayBoolContains(unary, nextBool, state)
 					if err != nil {
 						return nil, pos, err
 					}
 					if *obj.ArrayComparison.Op == "notin" {
-						return Not(boolEvaluator, opts, state), obj.Pos, nil
+						return Not(boolEvaluator, state), obj.Pos, nil
 					}
 					return boolEvaluator, obj.Pos, nil
 				default:
@@ -456,12 +508,12 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			case *StringEvaluator:
 				switch nextString := next.(type) {
 				case *StringArrayEvaluator:
-					boolEvaluator, err = StringArrayContainsWrapper(unary, nextString, opts, state)
+					boolEvaluator, err = StringArrayContainsWrapper(unary, nextString, state)
 					if err != nil {
 						return nil, pos, err
 					}
 				case *StringValuesEvaluator:
-					boolEvaluator, err = StringValuesContainsWrapper(unary, nextString, opts, state)
+					boolEvaluator, err = StringValuesContainsWrapper(unary, nextString, state)
 					if err != nil {
 						return nil, pos, err
 					}
@@ -469,18 +521,18 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 					return nil, pos, NewArrayTypeError(pos, reflect.Array, reflect.String)
 				}
 				if *obj.ArrayComparison.Op == "notin" {
-					return Not(boolEvaluator, opts, state), obj.Pos, nil
+					return Not(boolEvaluator, state), obj.Pos, nil
 				}
 				return boolEvaluator, obj.Pos, nil
 			case *StringValuesEvaluator:
 				switch nextStringArray := next.(type) {
 				case *StringArrayEvaluator:
-					boolEvaluator, err = StringArrayMatchesWrapper(nextStringArray, unary, opts, state)
+					boolEvaluator, err = StringArrayMatchesWrapper(nextStringArray, unary, state)
 					if err != nil {
 						return nil, pos, err
 					}
 					if *obj.ArrayComparison.Op == "notin" {
-						return Not(boolEvaluator, opts, state), obj.Pos, nil
+						return Not(boolEvaluator, state), obj.Pos, nil
 					}
 					return boolEvaluator, obj.Pos, nil
 				default:
@@ -489,12 +541,12 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			case *StringArrayEvaluator:
 				switch nextStringArray := next.(type) {
 				case *StringValuesEvaluator:
-					boolEvaluator, err = StringArrayMatchesWrapper(unary, nextStringArray, opts, state)
+					boolEvaluator, err = StringArrayMatchesWrapper(unary, nextStringArray, state)
 					if err != nil {
 						return nil, pos, err
 					}
 					if *obj.ArrayComparison.Op == "notin" {
-						return Not(boolEvaluator, opts, state), obj.Pos, nil
+						return Not(boolEvaluator, state), obj.Pos, nil
 					}
 					return boolEvaluator, obj.Pos, nil
 				default:
@@ -503,12 +555,12 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			case *IntEvaluator:
 				switch nextInt := next.(type) {
 				case *IntArrayEvaluator:
-					boolEvaluator, err = IntArrayEquals(unary, nextInt, opts, state)
+					boolEvaluator, err = IntArrayEquals(unary, nextInt, state)
 					if err != nil {
 						return nil, pos, err
 					}
 					if *obj.ArrayComparison.Op == "notin" {
-						return Not(boolEvaluator, opts, state), obj.Pos, nil
+						return Not(boolEvaluator, state), obj.Pos, nil
 					}
 					return boolEvaluator, obj.Pos, nil
 				default:
@@ -517,22 +569,146 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			case *IntArrayEvaluator:
 				switch nextIntArray := next.(type) {
 				case *IntArrayEvaluator:
-					boolEvaluator, err = IntArrayMatches(unary, nextIntArray, opts, state)
+					boolEvaluator, err = IntArrayMatches(unary, nextIntArray, state)
 					if err != nil {
 						return nil, pos, err
 					}
 					if *obj.ArrayComparison.Op == "notin" {
-						return Not(boolEvaluator, opts, state), obj.Pos, nil
+						return Not(boolEvaluator, state), obj.Pos, nil
 					}
 					return boolEvaluator, obj.Pos, nil
 				default:
 					return nil, pos, NewArrayTypeError(pos, reflect.Array, reflect.Int)
 				}
+			case *CIDREvaluator:
+				switch nextCIDR := next.(type) {
+				case *CIDREvaluator:
+					nextIP, ok := next.(*CIDREvaluator)
+					if !ok {
+						return nil, pos, NewTypeError(pos, reflect.TypeOf(CIDREvaluator{}).Kind())
+					}
+
+					boolEvaluator, err = CIDREquals(unary, nextIP, state)
+					if err != nil {
+						return nil, obj.Pos, err
+					}
+					switch *obj.ArrayComparison.Op {
+					case "in", "allin":
+						return boolEvaluator, obj.Pos, nil
+					case "notin":
+						return Not(boolEvaluator, state), obj.Pos, nil
+					}
+					return nil, pos, NewOpUnknownError(obj.Pos, *obj.ArrayComparison.Op)
+				case *CIDRValuesEvaluator:
+					switch *obj.ArrayComparison.Op {
+					case "in", "allin":
+						boolEvaluator, err = CIDRValuesContains(unary, nextCIDR, state)
+						if err != nil {
+							return nil, pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case "notin":
+						boolEvaluator, err = CIDRValuesContains(unary, nextCIDR, state)
+						if err != nil {
+							return nil, pos, err
+						}
+						return Not(boolEvaluator, state), obj.Pos, nil
+					}
+					return nil, pos, NewOpUnknownError(obj.Pos, *obj.ArrayComparison.Op)
+				case *CIDRArrayEvaluator:
+					switch *obj.ArrayComparison.Op {
+					case "in", "allin":
+						boolEvaluator, err = CIDRArrayContains(unary, nextCIDR, state)
+						if err != nil {
+							return nil, pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case "notin":
+						boolEvaluator, err = CIDRArrayContains(unary, nextCIDR, state)
+						if err != nil {
+							return nil, pos, err
+						}
+						return Not(boolEvaluator, state), obj.Pos, nil
+					}
+					return nil, pos, NewOpUnknownError(obj.Pos, *obj.ArrayComparison.Op)
+				default:
+					return nil, pos, NewCIDRTypeError(pos, reflect.Array, next)
+				}
+			case *CIDRArrayEvaluator:
+				switch nextCIDR := next.(type) {
+				case *CIDRValuesEvaluator:
+					switch *obj.ArrayComparison.Op {
+					case "in":
+						boolEvaluator, err = CIDRArrayMatches(unary, nextCIDR, state)
+						if err != nil {
+							return nil, pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case "allin":
+						boolEvaluator, err = CIDRArrayMatchesAll(unary, nextCIDR, state)
+						if err != nil {
+							return nil, pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case "notin":
+						boolEvaluator, err = CIDRArrayMatches(unary, nextCIDR, state)
+						if err != nil {
+							return nil, pos, err
+						}
+						return Not(boolEvaluator, state), obj.Pos, nil
+					}
+					return nil, pos, NewOpUnknownError(obj.Pos, *obj.ArrayComparison.Op)
+				default:
+					return nil, pos, NewCIDRTypeError(pos, reflect.Array, next)
+				}
+			case *CIDRValuesEvaluator:
+				switch nextCIDR := next.(type) {
+				case *CIDREvaluator:
+					switch *obj.ArrayComparison.Op {
+					case "in", "allin":
+						boolEvaluator, err = CIDRValuesContains(nextCIDR, unary, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case "notin":
+						boolEvaluator, err = CIDRValuesContains(nextCIDR, unary, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return Not(boolEvaluator, state), obj.Pos, nil
+					}
+					return nil, pos, NewOpUnknownError(obj.Pos, *obj.ArrayComparison.Op)
+				case *CIDRArrayEvaluator:
+					switch *obj.ArrayComparison.Op {
+					case "allin":
+						boolEvaluator, err = CIDRArrayMatchesAll(nextCIDR, unary, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case "in":
+						boolEvaluator, err = CIDRArrayMatches(nextCIDR, unary, state)
+						if err != nil {
+							return nil, pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case "notin":
+						boolEvaluator, err = CIDRArrayMatches(nextCIDR, unary, state)
+						if err != nil {
+							return nil, pos, err
+						}
+						return Not(boolEvaluator, state), obj.Pos, nil
+					}
+					return nil, pos, NewOpUnknownError(obj.Pos, *obj.ArrayComparison.Op)
+				default:
+					return nil, pos, NewCIDRTypeError(pos, reflect.Array, next)
+				}
 			default:
 				return nil, pos, NewTypeError(pos, reflect.Array)
 			}
 		} else if obj.ScalarComparison != nil {
-			next, pos, err = nodeToEvaluator(obj.ScalarComparison, opts, state)
+			next, pos, err = nodeToEvaluator(obj.ScalarComparison, state)
 			if err != nil {
 				return nil, pos, err
 			}
@@ -546,13 +722,13 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 
 				switch *obj.ScalarComparison.Op {
 				case "!=":
-					boolEvaluator, err = BoolEquals(unary, nextBool, opts, state)
+					boolEvaluator, err = BoolEquals(unary, nextBool, state)
 					if err != nil {
 						return nil, pos, err
 					}
-					return Not(boolEvaluator, opts, state), obj.Pos, nil
+					return Not(boolEvaluator, state), obj.Pos, nil
 				case "==":
-					boolEvaluator, err = BoolEquals(unary, nextBool, opts, state)
+					boolEvaluator, err = BoolEquals(unary, nextBool, state)
 					if err != nil {
 						return nil, pos, err
 					}
@@ -567,13 +743,13 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 
 				switch *obj.ScalarComparison.Op {
 				case "!=":
-					boolEvaluator, err = BoolArrayEquals(nextBool, unary, opts, state)
+					boolEvaluator, err = BoolArrayEquals(nextBool, unary, state)
 					if err != nil {
 						return nil, pos, err
 					}
-					return Not(boolEvaluator, opts, state), obj.Pos, nil
+					return Not(boolEvaluator, state), obj.Pos, nil
 				case "==":
-					boolEvaluator, err = BoolArrayEquals(nextBool, unary, opts, state)
+					boolEvaluator, err = BoolArrayEquals(nextBool, unary, state)
 					if err != nil {
 						return nil, pos, err
 					}
@@ -588,11 +764,11 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 
 				switch *obj.ScalarComparison.Op {
 				case "!=":
-					boolEvaluator, err = StringEqualsWrapper(unary, nextString, opts, state)
+					boolEvaluator, err = StringEqualsWrapper(unary, nextString, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
-					return Not(boolEvaluator, opts, state), obj.Pos, nil
+					return Not(boolEvaluator, state), obj.Pos, nil
 				case "!~":
 					if nextString.EvalFnc != nil {
 						return nil, obj.Pos, &ErrNonStaticPattern{Field: nextString.Field}
@@ -603,17 +779,13 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 						nextString.ValueType = PatternValueType
 					}
 
-					if err := nextString.Compile(); err != nil {
-						return nil, obj.Pos, NewError(obj.Pos, err.Error())
-					}
-
-					boolEvaluator, err = StringEqualsWrapper(unary, nextString, opts, state)
+					boolEvaluator, err = StringEqualsWrapper(unary, nextString, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
-					return Not(boolEvaluator, opts, state), obj.Pos, nil
+					return Not(boolEvaluator, state), obj.Pos, nil
 				case "==":
-					boolEvaluator, err = StringEqualsWrapper(unary, nextString, opts, state)
+					boolEvaluator, err = StringEqualsWrapper(unary, nextString, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
@@ -628,17 +800,37 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 						nextString.ValueType = PatternValueType
 					}
 
-					if err := nextString.Compile(); err != nil {
-						return nil, obj.Pos, NewError(obj.Pos, err.Error())
-					}
-
-					boolEvaluator, err = StringEqualsWrapper(unary, nextString, opts, state)
+					boolEvaluator, err = StringEqualsWrapper(unary, nextString, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
 					return boolEvaluator, obj.Pos, nil
 				}
 				return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
+			case *CIDREvaluator:
+				switch next.(type) {
+				case *CIDREvaluator:
+					nextIP, ok := next.(*CIDREvaluator)
+					if !ok {
+						return nil, pos, NewTypeError(pos, reflect.TypeOf(CIDREvaluator{}).Kind())
+					}
+
+					switch *obj.ScalarComparison.Op {
+					case "!=":
+						boolEvaluator, err = CIDREquals(unary, nextIP, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return Not(boolEvaluator, state), obj.Pos, nil
+					case "==":
+						boolEvaluator, err = CIDREquals(unary, nextIP, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					}
+					return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
+				}
 			case *StringArrayEvaluator:
 				nextString, ok := next.(*StringEvaluator)
 				if !ok {
@@ -647,13 +839,13 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 
 				switch *obj.ScalarComparison.Op {
 				case "!=":
-					boolEvaluator, err = StringArrayContainsWrapper(nextString, unary, opts, state)
+					boolEvaluator, err = StringArrayContainsWrapper(nextString, unary, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
-					return Not(boolEvaluator, opts, state), obj.Pos, nil
+					return Not(boolEvaluator, state), obj.Pos, nil
 				case "==":
-					boolEvaluator, err = StringArrayContainsWrapper(nextString, unary, opts, state)
+					boolEvaluator, err = StringArrayContainsWrapper(nextString, unary, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
@@ -668,15 +860,11 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 						nextString.ValueType = PatternValueType
 					}
 
-					if err := nextString.Compile(); err != nil {
-						return nil, obj.Pos, NewError(obj.Pos, err.Error())
-					}
-
-					boolEvaluator, err = StringArrayContainsWrapper(nextString, unary, opts, state)
+					boolEvaluator, err = StringArrayContainsWrapper(nextString, unary, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
-					return Not(boolEvaluator, opts, state), obj.Pos, nil
+					return Not(boolEvaluator, state), obj.Pos, nil
 				case "=~":
 					if nextString.EvalFnc != nil {
 						return nil, obj.Pos, &ErrNonStaticPattern{Field: nextString.Field}
@@ -687,11 +875,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 						nextString.ValueType = PatternValueType
 					}
 
-					if err := nextString.Compile(); err != nil {
-						return nil, obj.Pos, NewError(obj.Pos, err.Error())
-					}
-
-					boolEvaluator, err = StringArrayContainsWrapper(nextString, unary, opts, state)
+					boolEvaluator, err = StringArrayContainsWrapper(nextString, unary, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
@@ -703,25 +887,25 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 					if nextInt.isDuration {
 						switch *obj.ScalarComparison.Op {
 						case "<":
-							boolEvaluator, err = DurationLesserThan(unary, nextInt, opts, state)
+							boolEvaluator, err = DurationLesserThan(unary, nextInt, state)
 							if err != nil {
 								return nil, obj.Pos, err
 							}
 							return boolEvaluator, obj.Pos, nil
 						case "<=":
-							boolEvaluator, err = DurationLesserOrEqualThan(unary, nextInt, opts, state)
+							boolEvaluator, err = DurationLesserOrEqualThan(unary, nextInt, state)
 							if err != nil {
 								return nil, obj.Pos, err
 							}
 							return boolEvaluator, obj.Pos, nil
 						case ">":
-							boolEvaluator, err = DurationGreaterThan(unary, nextInt, opts, state)
+							boolEvaluator, err = DurationGreaterThan(unary, nextInt, state)
 							if err != nil {
 								return nil, obj.Pos, err
 							}
 							return boolEvaluator, obj.Pos, nil
 						case ">=":
-							boolEvaluator, err = DurationGreaterOrEqualThan(unary, nextInt, opts, state)
+							boolEvaluator, err = DurationGreaterOrEqualThan(unary, nextInt, state)
 							if err != nil {
 								return nil, obj.Pos, err
 							}
@@ -730,38 +914,38 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 					} else {
 						switch *obj.ScalarComparison.Op {
 						case "<":
-							boolEvaluator, err = LesserThan(unary, nextInt, opts, state)
+							boolEvaluator, err = LesserThan(unary, nextInt, state)
 							if err != nil {
 								return nil, obj.Pos, err
 							}
 							return boolEvaluator, obj.Pos, nil
 						case "<=":
-							boolEvaluator, err = LesserOrEqualThan(unary, nextInt, opts, state)
+							boolEvaluator, err = LesserOrEqualThan(unary, nextInt, state)
 							if err != nil {
 								return nil, obj.Pos, err
 							}
 							return boolEvaluator, obj.Pos, nil
 						case ">":
-							boolEvaluator, err = GreaterThan(unary, nextInt, opts, state)
+							boolEvaluator, err = GreaterThan(unary, nextInt, state)
 							if err != nil {
 								return nil, obj.Pos, err
 							}
 							return boolEvaluator, obj.Pos, nil
 						case ">=":
-							boolEvaluator, err = GreaterOrEqualThan(unary, nextInt, opts, state)
+							boolEvaluator, err = GreaterOrEqualThan(unary, nextInt, state)
 							if err != nil {
 								return nil, obj.Pos, err
 							}
 							return boolEvaluator, obj.Pos, nil
 						case "!=":
-							boolEvaluator, err = IntEquals(unary, nextInt, opts, state)
+							boolEvaluator, err = IntEquals(unary, nextInt, state)
 							if err != nil {
 								return nil, obj.Pos, err
 							}
 
-							return Not(boolEvaluator, opts, state), obj.Pos, nil
+							return Not(boolEvaluator, state), obj.Pos, nil
 						case "==":
-							boolEvaluator, err = IntEquals(unary, nextInt, opts, state)
+							boolEvaluator, err = IntEquals(unary, nextInt, state)
 							if err != nil {
 								return nil, obj.Pos, err
 							}
@@ -775,37 +959,37 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 
 					switch *obj.ScalarComparison.Op {
 					case "<":
-						boolEvaluator, err = IntArrayLesserThan(unary, nextIntArray, opts, state)
+						boolEvaluator, err = IntArrayLesserThan(unary, nextIntArray, state)
 						if err != nil {
 							return nil, obj.Pos, err
 						}
 						return boolEvaluator, obj.Pos, nil
 					case "<=":
-						boolEvaluator, err = IntArrayLesserOrEqualThan(unary, nextIntArray, opts, state)
+						boolEvaluator, err = IntArrayLesserOrEqualThan(unary, nextIntArray, state)
 						if err != nil {
 							return nil, obj.Pos, err
 						}
 						return boolEvaluator, obj.Pos, nil
 					case ">":
-						boolEvaluator, err = IntArrayGreaterThan(unary, nextIntArray, opts, state)
+						boolEvaluator, err = IntArrayGreaterThan(unary, nextIntArray, state)
 						if err != nil {
 							return nil, obj.Pos, err
 						}
 						return boolEvaluator, obj.Pos, nil
 					case ">=":
-						boolEvaluator, err = IntArrayGreaterOrEqualThan(unary, nextIntArray, opts, state)
+						boolEvaluator, err = IntArrayGreaterOrEqualThan(unary, nextIntArray, state)
 						if err != nil {
 							return nil, obj.Pos, err
 						}
 						return boolEvaluator, obj.Pos, nil
 					case "!=":
-						boolEvaluator, err = IntArrayEquals(unary, nextIntArray, opts, state)
+						boolEvaluator, err = IntArrayEquals(unary, nextIntArray, state)
 						if err != nil {
 							return nil, obj.Pos, err
 						}
-						return Not(boolEvaluator, opts, state), obj.Pos, nil
+						return Not(boolEvaluator, state), obj.Pos, nil
 					case "==":
-						boolEvaluator, err = IntArrayEquals(unary, nextIntArray, opts, state)
+						boolEvaluator, err = IntArrayEquals(unary, nextIntArray, state)
 						if err != nil {
 							return nil, obj.Pos, err
 						}
@@ -823,37 +1007,37 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 
 				switch *obj.ScalarComparison.Op {
 				case "<":
-					boolEvaluator, err = IntArrayGreaterThan(nextInt, unary, opts, state)
+					boolEvaluator, err = IntArrayGreaterThan(nextInt, unary, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
 					return boolEvaluator, obj.Pos, nil
 				case "<=":
-					boolEvaluator, err = IntArrayGreaterOrEqualThan(nextInt, unary, opts, state)
+					boolEvaluator, err = IntArrayGreaterOrEqualThan(nextInt, unary, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
 					return boolEvaluator, obj.Pos, nil
 				case ">":
-					boolEvaluator, err = IntArrayLesserThan(nextInt, unary, opts, state)
+					boolEvaluator, err = IntArrayLesserThan(nextInt, unary, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
 					return boolEvaluator, obj.Pos, nil
 				case ">=":
-					boolEvaluator, err = IntArrayLesserOrEqualThan(nextInt, unary, opts, state)
+					boolEvaluator, err = IntArrayLesserOrEqualThan(nextInt, unary, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
 					return boolEvaluator, obj.Pos, nil
 				case "!=":
-					boolEvaluator, err = IntArrayEquals(nextInt, unary, opts, state)
+					boolEvaluator, err = IntArrayEquals(nextInt, unary, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
-					return Not(boolEvaluator, opts, state), obj.Pos, nil
+					return Not(boolEvaluator, state), obj.Pos, nil
 				case "==":
-					boolEvaluator, err = IntArrayEquals(nextInt, unary, opts, state)
+					boolEvaluator, err = IntArrayEquals(nextInt, unary, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
@@ -866,14 +1050,14 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 		}
 
 	case *ast.ArrayComparison:
-		return nodeToEvaluator(obj.Array, opts, state)
+		return nodeToEvaluator(obj.Array, state)
 
 	case *ast.ScalarComparison:
-		return nodeToEvaluator(obj.Next, opts, state)
+		return nodeToEvaluator(obj.Next, state)
 
 	case *ast.Unary:
 		if obj.Op != nil {
-			unary, pos, err = nodeToEvaluator(obj.Unary, opts, state)
+			unary, pos, err = nodeToEvaluator(obj.Unary, state)
 			if err != nil {
 				return nil, pos, err
 			}
@@ -885,41 +1069,41 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 					return nil, pos, NewTypeError(pos, reflect.Bool)
 				}
 
-				return Not(unaryBool, opts, state), obj.Pos, nil
+				return Not(unaryBool, state), obj.Pos, nil
 			case "-":
 				unaryInt, ok := unary.(*IntEvaluator)
 				if !ok {
 					return nil, pos, NewTypeError(pos, reflect.Int)
 				}
 
-				return Minus(unaryInt, opts, state), pos, nil
+				return Minus(unaryInt, state), pos, nil
 			case "^":
 				unaryInt, ok := unary.(*IntEvaluator)
 				if !ok {
 					return nil, pos, NewTypeError(pos, reflect.Int)
 				}
 
-				return IntNot(unaryInt, opts, state), pos, nil
+				return IntNot(unaryInt, state), pos, nil
 			}
 			return nil, pos, NewOpUnknownError(obj.Pos, *obj.Op)
 		}
 
-		return nodeToEvaluator(obj.Primary, opts, state)
+		return nodeToEvaluator(obj.Primary, state)
 	case *ast.Primary:
 		switch {
 		case obj.Ident != nil:
-			return identToEvaluator(&ident{Pos: obj.Pos, Ident: obj.Ident}, opts, state)
+			return identToEvaluator(&ident{Pos: obj.Pos, Ident: obj.Ident}, state)
 		case obj.Number != nil:
 			return &IntEvaluator{
 				Value: *obj.Number,
 			}, obj.Pos, nil
-		case obj.NumberVariable != nil:
-			varname, ok := isVariableName(*obj.NumberVariable)
+		case obj.Variable != nil:
+			varname, ok := isVariableName(*obj.Variable)
 			if !ok {
-				return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("internal variable error '%s'", varname))
+				return nil, obj.Pos, NewError(obj.Pos, "internal variable error '%s'", varname)
 			}
 
-			return intEvaluatorFromVariable(varname, obj.Pos, opts)
+			return evaluatorFromVariable(varname, obj.Pos, state.replCtx)
 		case obj.Duration != nil:
 			return &IntEvaluator{
 				Value:      *obj.Duration,
@@ -930,7 +1114,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 
 			// contains variables
 			if len(variableRegex.FindAllIndex([]byte(str), -1)) > 0 {
-				return stringEvaluatorFromVariable(str, obj.Pos, opts)
+				return stringEvaluatorFromVariable(str, obj.Pos, state.replCtx)
 			}
 
 			return &StringEvaluator{
@@ -942,27 +1126,43 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				Value:     *obj.Pattern,
 				ValueType: PatternValueType,
 			}
-			if err := evaluator.Compile(); err != nil {
-				return nil, obj.Pos, NewError(obj.Pos, err.Error())
-			}
 			return evaluator, obj.Pos, nil
 		case obj.Regexp != nil:
 			evaluator := &StringEvaluator{
 				Value:     *obj.Regexp,
 				ValueType: RegexpValueType,
 			}
-			if err := evaluator.Compile(); err != nil {
-				return nil, obj.Pos, NewError(obj.Pos, err.Error())
+			return evaluator, obj.Pos, nil
+		case obj.IP != nil:
+			ipnet, err := ParseCIDR(*obj.IP)
+			if err != nil {
+				return nil, obj.Pos, NewError(obj.Pos, "invalid IP '%s'", *obj.IP)
+			}
+
+			evaluator := &CIDREvaluator{
+				Value:     *ipnet,
+				ValueType: IPNetValueType,
+			}
+			return evaluator, obj.Pos, nil
+		case obj.CIDR != nil:
+			ipnet, err := ParseCIDR(*obj.CIDR)
+			if err != nil {
+				return nil, obj.Pos, NewError(obj.Pos, "invalid CIDR '%s'", *obj.CIDR)
+			}
+
+			evaluator := &CIDREvaluator{
+				Value:     *ipnet,
+				ValueType: IPNetValueType,
 			}
 			return evaluator, obj.Pos, nil
 		case obj.SubExpression != nil:
-			return nodeToEvaluator(obj.SubExpression, opts, state)
+			return nodeToEvaluator(obj.SubExpression, state)
 		default:
-			return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("unknown primary '%s'", reflect.TypeOf(obj)))
+			return nil, obj.Pos, NewError(obj.Pos, "unknown primary '%s'", reflect.TypeOf(obj))
 		}
 	case *ast.Array:
-		return arrayToEvaluator(obj, opts, state)
+		return arrayToEvaluator(obj, state)
 	}
 
-	return nil, lexer.Position{}, NewError(lexer.Position{}, fmt.Sprintf("unknown entity '%s'", reflect.TypeOf(obj)))
+	return nil, lexer.Position{}, NewError(lexer.Position{}, "unknown entity '%s'", reflect.TypeOf(obj))
 }

@@ -6,6 +6,7 @@
 package daemon
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"reflect"
@@ -14,12 +15,15 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestWaitForDaemonBlocking(t *testing.T) {
 	assert := assert.New(t)
-	d := StartDaemon("127.0.0.1:8124")
+	port := testutil.FreeTCPPort(t)
+	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
+	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 
 	d.TellDaemonRuntimeStarted()
@@ -40,7 +44,9 @@ func GetValueSyncOnce(so *sync.Once) uint64 {
 
 func TestTellDaemonRuntimeDoneOnceStartOnly(t *testing.T) {
 	assert := assert.New(t)
-	d := StartDaemon("127.0.0.1:8124")
+	port := testutil.FreeTCPPort(t)
+	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
+	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 
 	d.TellDaemonRuntimeStarted()
@@ -49,7 +55,9 @@ func TestTellDaemonRuntimeDoneOnceStartOnly(t *testing.T) {
 
 func TestTellDaemonRuntimeDoneOnceStartAndEnd(t *testing.T) {
 	assert := assert.New(t)
-	d := StartDaemon("127.0.0.1:8124")
+	port := testutil.FreeTCPPort(t)
+	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
+	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 
 	d.TellDaemonRuntimeStarted()
@@ -62,11 +70,13 @@ func TestTellDaemonRuntimeDoneIfLocalTest(t *testing.T) {
 	os.Setenv(localTestEnvVar, "1")
 	defer os.Unsetenv(localTestEnvVar)
 	assert := assert.New(t)
-	d := StartDaemon("127.0.0.1:8200")
+	port := testutil.FreeTCPPort(t)
+	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
+	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 	d.TellDaemonRuntimeStarted()
 	client := &http.Client{Timeout: 1 * time.Second}
-	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8200/lambda/flush", nil)
+	request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/flush", port), nil)
 	assert.Nil(err)
 	_, err = client.Do(request)
 	assert.Nil(err)
@@ -89,7 +99,9 @@ func wrapWait(wg *sync.WaitGroup) <-chan struct{} {
 
 func TestTellDaemonRuntimeNotDoneIf(t *testing.T) {
 	assert := assert.New(t)
-	d := StartDaemon("127.0.0.1:8124")
+	port := testutil.FreeTCPPort(t)
+	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
+	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 	d.TellDaemonRuntimeStarted()
 	assert.Equal(uint64(0), GetValueSyncOnce(d.TellDaemonRuntimeDoneOnce))
@@ -97,7 +109,9 @@ func TestTellDaemonRuntimeNotDoneIf(t *testing.T) {
 
 func TestTellDaemonRuntimeDoneOnceStartAndEndAndTimeout(t *testing.T) {
 	assert := assert.New(t)
-	d := StartDaemon("127.0.0.1:8124")
+	port := testutil.FreeTCPPort(t)
+	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
+	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 
 	d.TellDaemonRuntimeStarted()
@@ -108,7 +122,9 @@ func TestTellDaemonRuntimeDoneOnceStartAndEndAndTimeout(t *testing.T) {
 }
 
 func TestRaceTellDaemonRuntimeStartedVersusTellDaemonRuntimeDone(t *testing.T) {
-	d := StartDaemon("127.0.0.1:8124")
+	port := testutil.FreeTCPPort(t)
+	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
+	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 
 	d.TellDaemonRuntimeStarted()
@@ -161,30 +177,4 @@ func TestSetTraceTagOk(t *testing.T) {
 		TraceAgent: agent,
 	}
 	assert.True(t, d.setTraceTags(tagsMap))
-}
-
-func TestSetExecutionContextUppercase(t *testing.T) {
-	assert := assert.New(t)
-	d := StartDaemon("127.0.0.1:8124")
-	defer d.Stop()
-	testArn := "arn:aws:lambda:us-east-1:123456789012:function:MY-SUPER-function"
-	testRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
-	d.SetExecutionContext(testArn, testRequestID)
-	assert.Equal("arn:aws:lambda:us-east-1:123456789012:function:my-super-function", d.ExecutionContext.ARN)
-	assert.Equal(testRequestID, d.ExecutionContext.LastRequestID)
-	assert.Equal(true, d.ExecutionContext.Coldstart)
-	assert.Equal(testRequestID, d.ExecutionContext.ColdstartRequestID)
-}
-
-func TestSetExecutionContextNoColdstart(t *testing.T) {
-	assert := assert.New(t)
-	d := StartDaemon("127.0.0.1:8124")
-	defer d.Stop()
-	d.ExecutionContext.ColdstartRequestID = "coldstart-request-id"
-	testArn := "arn:aws:lambda:us-east-1:123456789012:function:MY-SUPER-function"
-	testRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
-	d.SetExecutionContext(testArn, testRequestID)
-	assert.Equal("arn:aws:lambda:us-east-1:123456789012:function:my-super-function", d.ExecutionContext.ARN)
-	assert.Equal(testRequestID, d.ExecutionContext.LastRequestID)
-	assert.Equal(false, d.ExecutionContext.Coldstart)
 }

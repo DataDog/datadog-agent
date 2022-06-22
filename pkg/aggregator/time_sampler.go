@@ -7,7 +7,7 @@ package aggregator
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -20,6 +20,9 @@ type SerieSignature struct {
 	nameSuffix string
 }
 
+// TimeSamplerID is a type ID for sharded time samplers.
+type TimeSamplerID int
+
 // TimeSampler aggregates metrics by buckets of 'interval' seconds
 type TimeSampler struct {
 	interval                    int64
@@ -28,20 +31,30 @@ type TimeSampler struct {
 	counterLastSampledByContext map[ckey.ContextKey]float64
 	lastCutOffTime              int64
 	sketchMap                   sketchMap
+
+	// id is a number to differentiate multiple time samplers
+	// since we start running more than one with the demultiplexer introduction
+	id TimeSamplerID
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
-func NewTimeSampler(interval int64, cache *tags.Store) *TimeSampler {
+func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store) *TimeSampler {
 	if interval == 0 {
 		interval = bucketSize
 	}
-	return &TimeSampler{
+
+	log.Infof("Creating TimeSampler #%d", id)
+
+	s := &TimeSampler{
 		interval:                    interval,
 		contextResolver:             newTimestampContextResolver(cache),
 		metricsByTimestamp:          map[int64]metrics.ContextMetrics{},
 		counterLastSampledByContext: map[ckey.ContextKey]float64{},
 		sketchMap:                   make(sketchMap),
+		id:                          id,
 	}
+
+	return s
 }
 
 func (s *TimeSampler) calculateBucketStart(timestamp float64) int64 {
@@ -52,8 +65,12 @@ func (s *TimeSampler) isBucketStillOpen(bucketStartTimestamp, timestamp int64) b
 	return bucketStartTimestamp+s.interval > timestamp
 }
 
-// Add the metricSample to the correct bucket
-func (s *TimeSampler) addSample(metricSample *metrics.MetricSample, timestamp float64) {
+func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float64) {
+	// use the timestamp provided in the sample if any
+	if metricSample.Timestamp > 0 {
+		timestamp = metricSample.Timestamp
+	}
+
 	// Keep track of the context
 	contextKey := s.contextResolver.trackContext(metricSample, timestamp)
 	bucketStart := s.calculateBucketStart(timestamp)
@@ -75,14 +92,13 @@ func (s *TimeSampler) addSample(metricSample *metrics.MetricSample, timestamp fl
 
 		// Add sample to bucket
 		if err := bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval, nil); err != nil {
-			log.Debugf("Ignoring sample '%s' on host '%s' and tags '%s': %s", metricSample.Name, metricSample.Host, metricSample.Tags, err)
+			log.Debugf("TimeSampler #%d Ignoring sample '%s' on host '%s' and tags '%s': %s", s.id, metricSample.Name, metricSample.Host, metricSample.Tags, err)
 		}
 	}
 }
-
-func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) metrics.SketchSeries {
+func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
 	ctx, _ := s.contextResolver.get(ck)
-	ss := metrics.SketchSeries{
+	ss := &metrics.SketchSeries{
 		Name:       ctx.Name,
 		Tags:       ctx.Tags(),
 		Host:       ctx.Host,
@@ -156,7 +172,7 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 			// Resolve context and populate new Serie
 			context, ok := s.contextResolver.get(serie.ContextKey)
 			if !ok {
-				log.Errorf("Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", serie.ContextKey)
+				log.Errorf("TimeSampler #%d Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", s.id, serie.ContextKey)
 				continue
 			}
 			serie.Name = context.Name + serie.NameSuffix
@@ -173,9 +189,8 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 	}
 }
 
-func (s *TimeSampler) flushSketches(cutoffTime int64) metrics.SketchSeriesList {
+func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.SketchesSink) {
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
-	sketches := make(metrics.SketchSeriesList, 0, len(pointsByCtx))
 
 	s.sketchMap.flushBefore(cutoffTime, func(ck ckey.ContextKey, p metrics.SketchPoint) {
 		if p.Sketch == nil {
@@ -184,26 +199,31 @@ func (s *TimeSampler) flushSketches(cutoffTime int64) metrics.SketchSeriesList {
 		pointsByCtx[ck] = append(pointsByCtx[ck], p)
 	})
 	for ck, points := range pointsByCtx {
-		sketches = append(sketches, s.newSketchSeries(ck, points))
+		sketchesSink.Append(s.newSketchSeries(ck, points))
 	}
-
-	return sketches
 }
 
-func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink) metrics.SketchSeriesList {
+func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketches metrics.SketchesSink) {
 	// Compute a limit timestamp
 	cutoffTime := s.calculateBucketStart(timestamp)
 
 	s.flushSeries(cutoffTime, series)
-	sketches := s.flushSketches(cutoffTime)
+	s.flushSketches(cutoffTime, sketches)
 
 	// expiring contexts
 	s.contextResolver.expireContexts(timestamp - config.Datadog.GetFloat64("dogstatsd_context_expiry_seconds"))
 	s.lastCutOffTime = cutoffTime
 
-	aggregatorDogstatsdContexts.Set(int64(s.contextResolver.length()))
-	tlmDogstatsdContexts.Set(float64(s.contextResolver.length()))
-	return sketches
+	totalContexts := s.contextResolver.length()
+	aggregatorDogstatsdContexts.Set(int64(totalContexts))
+	tlmDogstatsdContexts.Set(float64(totalContexts))
+
+	byMtype := s.contextResolver.countsByMtype()
+	for i, count := range byMtype {
+		mtype := metrics.MetricType(i).String()
+		aggregatorDogstatsdContextsByMtype[i].Set(int64(count))
+		tlmDogstatsdContextsByMtype.Set(float64(count), mtype)
+	}
 }
 
 // flushContextMetrics flushes the contextMetrics inside contextMetricsFlusher, handles its errors,

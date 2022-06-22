@@ -118,6 +118,76 @@ func (m *SecurityEventMessage) GetService() string {
 	return ""
 }
 
+type GetProcessEventParams struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetProcessEventParams) Reset()         { *m = GetProcessEventParams{} }
+func (m *GetProcessEventParams) String() string { return proto.CompactTextString(m) }
+func (*GetProcessEventParams) ProtoMessage()    {}
+func (*GetProcessEventParams) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{2}
+}
+
+func (m *GetProcessEventParams) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GetProcessEventParams.Unmarshal(m, b)
+}
+func (m *GetProcessEventParams) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GetProcessEventParams.Marshal(b, m, deterministic)
+}
+func (m *GetProcessEventParams) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetProcessEventParams.Merge(m, src)
+}
+func (m *GetProcessEventParams) XXX_Size() int {
+	return xxx_messageInfo_GetProcessEventParams.Size(m)
+}
+func (m *GetProcessEventParams) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetProcessEventParams.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetProcessEventParams proto.InternalMessageInfo
+
+type SecurityProcessEventMessage struct {
+	Data                 []byte   `protobuf:"bytes,1,opt,name=Data,proto3" json:"Data,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *SecurityProcessEventMessage) Reset()         { *m = SecurityProcessEventMessage{} }
+func (m *SecurityProcessEventMessage) String() string { return proto.CompactTextString(m) }
+func (*SecurityProcessEventMessage) ProtoMessage()    {}
+func (*SecurityProcessEventMessage) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{3}
+}
+
+func (m *SecurityProcessEventMessage) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_SecurityProcessEventMessage.Unmarshal(m, b)
+}
+func (m *SecurityProcessEventMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_SecurityProcessEventMessage.Marshal(b, m, deterministic)
+}
+func (m *SecurityProcessEventMessage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SecurityProcessEventMessage.Merge(m, src)
+}
+func (m *SecurityProcessEventMessage) XXX_Size() int {
+	return xxx_messageInfo_SecurityProcessEventMessage.Size(m)
+}
+func (m *SecurityProcessEventMessage) XXX_DiscardUnknown() {
+	xxx_messageInfo_SecurityProcessEventMessage.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SecurityProcessEventMessage proto.InternalMessageInfo
+
+func (m *SecurityProcessEventMessage) GetData() []byte {
+	if m != nil {
+		return m.Data
+	}
+	return nil
+}
+
 type DumpProcessCacheParams struct {
 	WithArgs             bool     `protobuf:"varint,1,opt,name=WithArgs,proto3" json:"WithArgs,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -129,7 +199,7 @@ func (m *DumpProcessCacheParams) Reset()         { *m = DumpProcessCacheParams{}
 func (m *DumpProcessCacheParams) String() string { return proto.CompactTextString(m) }
 func (*DumpProcessCacheParams) ProtoMessage()    {}
 func (*DumpProcessCacheParams) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce049ba84fb5261a, []int{2}
+	return fileDescriptor_ce049ba84fb5261a, []int{4}
 }
 
 func (m *DumpProcessCacheParams) XXX_Unmarshal(b []byte) error {
@@ -168,7 +238,7 @@ func (m *SecurityDumpProcessCacheMessage) Reset()         { *m = SecurityDumpPro
 func (m *SecurityDumpProcessCacheMessage) String() string { return proto.CompactTextString(m) }
 func (*SecurityDumpProcessCacheMessage) ProtoMessage()    {}
 func (*SecurityDumpProcessCacheMessage) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce049ba84fb5261a, []int{3}
+	return fileDescriptor_ce049ba84fb5261a, []int{5}
 }
 
 func (m *SecurityDumpProcessCacheMessage) XXX_Unmarshal(b []byte) error {
@@ -196,6 +266,100 @@ func (m *SecurityDumpProcessCacheMessage) GetFilename() string {
 	return ""
 }
 
+type DumpNetworkNamespaceParams struct {
+	SnapshotInterfaces   bool     `protobuf:"varint,1,opt,name=SnapshotInterfaces,proto3" json:"SnapshotInterfaces,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DumpNetworkNamespaceParams) Reset()         { *m = DumpNetworkNamespaceParams{} }
+func (m *DumpNetworkNamespaceParams) String() string { return proto.CompactTextString(m) }
+func (*DumpNetworkNamespaceParams) ProtoMessage()    {}
+func (*DumpNetworkNamespaceParams) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{6}
+}
+
+func (m *DumpNetworkNamespaceParams) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DumpNetworkNamespaceParams.Unmarshal(m, b)
+}
+func (m *DumpNetworkNamespaceParams) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DumpNetworkNamespaceParams.Marshal(b, m, deterministic)
+}
+func (m *DumpNetworkNamespaceParams) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DumpNetworkNamespaceParams.Merge(m, src)
+}
+func (m *DumpNetworkNamespaceParams) XXX_Size() int {
+	return xxx_messageInfo_DumpNetworkNamespaceParams.Size(m)
+}
+func (m *DumpNetworkNamespaceParams) XXX_DiscardUnknown() {
+	xxx_messageInfo_DumpNetworkNamespaceParams.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DumpNetworkNamespaceParams proto.InternalMessageInfo
+
+func (m *DumpNetworkNamespaceParams) GetSnapshotInterfaces() bool {
+	if m != nil {
+		return m.SnapshotInterfaces
+	}
+	return false
+}
+
+type DumpNetworkNamespaceMessage struct {
+	Error                string   `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty"`
+	DumpFilename         string   `protobuf:"bytes,2,opt,name=DumpFilename,proto3" json:"DumpFilename,omitempty"`
+	GraphFilename        string   `protobuf:"bytes,3,opt,name=GraphFilename,proto3" json:"GraphFilename,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DumpNetworkNamespaceMessage) Reset()         { *m = DumpNetworkNamespaceMessage{} }
+func (m *DumpNetworkNamespaceMessage) String() string { return proto.CompactTextString(m) }
+func (*DumpNetworkNamespaceMessage) ProtoMessage()    {}
+func (*DumpNetworkNamespaceMessage) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{7}
+}
+
+func (m *DumpNetworkNamespaceMessage) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DumpNetworkNamespaceMessage.Unmarshal(m, b)
+}
+func (m *DumpNetworkNamespaceMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DumpNetworkNamespaceMessage.Marshal(b, m, deterministic)
+}
+func (m *DumpNetworkNamespaceMessage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DumpNetworkNamespaceMessage.Merge(m, src)
+}
+func (m *DumpNetworkNamespaceMessage) XXX_Size() int {
+	return xxx_messageInfo_DumpNetworkNamespaceMessage.Size(m)
+}
+func (m *DumpNetworkNamespaceMessage) XXX_DiscardUnknown() {
+	xxx_messageInfo_DumpNetworkNamespaceMessage.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DumpNetworkNamespaceMessage proto.InternalMessageInfo
+
+func (m *DumpNetworkNamespaceMessage) GetError() string {
+	if m != nil {
+		return m.Error
+	}
+	return ""
+}
+
+func (m *DumpNetworkNamespaceMessage) GetDumpFilename() string {
+	if m != nil {
+		return m.DumpFilename
+	}
+	return ""
+}
+
+func (m *DumpNetworkNamespaceMessage) GetGraphFilename() string {
+	if m != nil {
+		return m.GraphFilename
+	}
+	return ""
+}
+
 type GetConfigParams struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -206,7 +370,7 @@ func (m *GetConfigParams) Reset()         { *m = GetConfigParams{} }
 func (m *GetConfigParams) String() string { return proto.CompactTextString(m) }
 func (*GetConfigParams) ProtoMessage()    {}
 func (*GetConfigParams) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce049ba84fb5261a, []int{4}
+	return fileDescriptor_ce049ba84fb5261a, []int{8}
 }
 
 func (m *GetConfigParams) XXX_Unmarshal(b []byte) error {
@@ -239,7 +403,7 @@ func (m *SecurityConfigMessage) Reset()         { *m = SecurityConfigMessage{} }
 func (m *SecurityConfigMessage) String() string { return proto.CompactTextString(m) }
 func (*SecurityConfigMessage) ProtoMessage()    {}
 func (*SecurityConfigMessage) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce049ba84fb5261a, []int{5}
+	return fileDescriptor_ce049ba84fb5261a, []int{9}
 }
 
 func (m *SecurityConfigMessage) XXX_Unmarshal(b []byte) error {
@@ -284,7 +448,7 @@ func (m *RunSelfTestParams) Reset()         { *m = RunSelfTestParams{} }
 func (m *RunSelfTestParams) String() string { return proto.CompactTextString(m) }
 func (*RunSelfTestParams) ProtoMessage()    {}
 func (*RunSelfTestParams) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce049ba84fb5261a, []int{6}
+	return fileDescriptor_ce049ba84fb5261a, []int{10}
 }
 
 func (m *RunSelfTestParams) XXX_Unmarshal(b []byte) error {
@@ -315,7 +479,7 @@ func (m *ReloadPoliciesParams) Reset()         { *m = ReloadPoliciesParams{} }
 func (m *ReloadPoliciesParams) String() string { return proto.CompactTextString(m) }
 func (*ReloadPoliciesParams) ProtoMessage()    {}
 func (*ReloadPoliciesParams) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce049ba84fb5261a, []int{7}
+	return fileDescriptor_ce049ba84fb5261a, []int{11}
 }
 
 func (m *ReloadPoliciesParams) XXX_Unmarshal(b []byte) error {
@@ -346,7 +510,7 @@ func (m *ReloadPoliciesResultMessage) Reset()         { *m = ReloadPoliciesResul
 func (m *ReloadPoliciesResultMessage) String() string { return proto.CompactTextString(m) }
 func (*ReloadPoliciesResultMessage) ProtoMessage()    {}
 func (*ReloadPoliciesResultMessage) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce049ba84fb5261a, []int{8}
+	return fileDescriptor_ce049ba84fb5261a, []int{12}
 }
 
 func (m *ReloadPoliciesResultMessage) XXX_Unmarshal(b []byte) error {
@@ -379,7 +543,7 @@ func (m *SecuritySelfTestResultMessage) Reset()         { *m = SecuritySelfTestR
 func (m *SecuritySelfTestResultMessage) String() string { return proto.CompactTextString(m) }
 func (*SecuritySelfTestResultMessage) ProtoMessage()    {}
 func (*SecuritySelfTestResultMessage) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce049ba84fb5261a, []int{9}
+	return fileDescriptor_ce049ba84fb5261a, []int{13}
 }
 
 func (m *SecuritySelfTestResultMessage) XXX_Unmarshal(b []byte) error {
@@ -414,52 +578,1178 @@ func (m *SecuritySelfTestResultMessage) GetError() string {
 	return ""
 }
 
+type GetStatusParams struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetStatusParams) Reset()         { *m = GetStatusParams{} }
+func (m *GetStatusParams) String() string { return proto.CompactTextString(m) }
+func (*GetStatusParams) ProtoMessage()    {}
+func (*GetStatusParams) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{14}
+}
+
+func (m *GetStatusParams) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GetStatusParams.Unmarshal(m, b)
+}
+func (m *GetStatusParams) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GetStatusParams.Marshal(b, m, deterministic)
+}
+func (m *GetStatusParams) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetStatusParams.Merge(m, src)
+}
+func (m *GetStatusParams) XXX_Size() int {
+	return xxx_messageInfo_GetStatusParams.Size(m)
+}
+func (m *GetStatusParams) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetStatusParams.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetStatusParams proto.InternalMessageInfo
+
+type ConstantValueAndSource struct {
+	ID                   string   `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
+	Value                uint64   `protobuf:"varint,2,opt,name=Value,proto3" json:"Value,omitempty"`
+	Source               string   `protobuf:"bytes,3,opt,name=Source,proto3" json:"Source,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ConstantValueAndSource) Reset()         { *m = ConstantValueAndSource{} }
+func (m *ConstantValueAndSource) String() string { return proto.CompactTextString(m) }
+func (*ConstantValueAndSource) ProtoMessage()    {}
+func (*ConstantValueAndSource) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{15}
+}
+
+func (m *ConstantValueAndSource) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ConstantValueAndSource.Unmarshal(m, b)
+}
+func (m *ConstantValueAndSource) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ConstantValueAndSource.Marshal(b, m, deterministic)
+}
+func (m *ConstantValueAndSource) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ConstantValueAndSource.Merge(m, src)
+}
+func (m *ConstantValueAndSource) XXX_Size() int {
+	return xxx_messageInfo_ConstantValueAndSource.Size(m)
+}
+func (m *ConstantValueAndSource) XXX_DiscardUnknown() {
+	xxx_messageInfo_ConstantValueAndSource.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ConstantValueAndSource proto.InternalMessageInfo
+
+func (m *ConstantValueAndSource) GetID() string {
+	if m != nil {
+		return m.ID
+	}
+	return ""
+}
+
+func (m *ConstantValueAndSource) GetValue() uint64 {
+	if m != nil {
+		return m.Value
+	}
+	return 0
+}
+
+func (m *ConstantValueAndSource) GetSource() string {
+	if m != nil {
+		return m.Source
+	}
+	return ""
+}
+
+type SelfTestsStatus struct {
+	LastTimestamp        string   `protobuf:"bytes,1,opt,name=LastTimestamp,proto3" json:"LastTimestamp,omitempty"`
+	Success              []string `protobuf:"bytes,2,rep,name=Success,proto3" json:"Success,omitempty"`
+	Fails                []string `protobuf:"bytes,3,rep,name=Fails,proto3" json:"Fails,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *SelfTestsStatus) Reset()         { *m = SelfTestsStatus{} }
+func (m *SelfTestsStatus) String() string { return proto.CompactTextString(m) }
+func (*SelfTestsStatus) ProtoMessage()    {}
+func (*SelfTestsStatus) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{16}
+}
+
+func (m *SelfTestsStatus) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_SelfTestsStatus.Unmarshal(m, b)
+}
+func (m *SelfTestsStatus) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_SelfTestsStatus.Marshal(b, m, deterministic)
+}
+func (m *SelfTestsStatus) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SelfTestsStatus.Merge(m, src)
+}
+func (m *SelfTestsStatus) XXX_Size() int {
+	return xxx_messageInfo_SelfTestsStatus.Size(m)
+}
+func (m *SelfTestsStatus) XXX_DiscardUnknown() {
+	xxx_messageInfo_SelfTestsStatus.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SelfTestsStatus proto.InternalMessageInfo
+
+func (m *SelfTestsStatus) GetLastTimestamp() string {
+	if m != nil {
+		return m.LastTimestamp
+	}
+	return ""
+}
+
+func (m *SelfTestsStatus) GetSuccess() []string {
+	if m != nil {
+		return m.Success
+	}
+	return nil
+}
+
+func (m *SelfTestsStatus) GetFails() []string {
+	if m != nil {
+		return m.Fails
+	}
+	return nil
+}
+
+type Status struct {
+	Environment          *EnvironmentStatus `protobuf:"bytes,1,opt,name=Environment,proto3" json:"Environment,omitempty"`
+	SelfTests            *SelfTestsStatus   `protobuf:"bytes,2,opt,name=SelfTests,proto3" json:"SelfTests,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
+	XXX_unrecognized     []byte             `json:"-"`
+	XXX_sizecache        int32              `json:"-"`
+}
+
+func (m *Status) Reset()         { *m = Status{} }
+func (m *Status) String() string { return proto.CompactTextString(m) }
+func (*Status) ProtoMessage()    {}
+func (*Status) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{17}
+}
+
+func (m *Status) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_Status.Unmarshal(m, b)
+}
+func (m *Status) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_Status.Marshal(b, m, deterministic)
+}
+func (m *Status) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Status.Merge(m, src)
+}
+func (m *Status) XXX_Size() int {
+	return xxx_messageInfo_Status.Size(m)
+}
+func (m *Status) XXX_DiscardUnknown() {
+	xxx_messageInfo_Status.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Status proto.InternalMessageInfo
+
+func (m *Status) GetEnvironment() *EnvironmentStatus {
+	if m != nil {
+		return m.Environment
+	}
+	return nil
+}
+
+func (m *Status) GetSelfTests() *SelfTestsStatus {
+	if m != nil {
+		return m.SelfTests
+	}
+	return nil
+}
+
+type ConstantFetcherStatus struct {
+	Fetchers             []string                  `protobuf:"bytes,1,rep,name=Fetchers,proto3" json:"Fetchers,omitempty"`
+	Values               []*ConstantValueAndSource `protobuf:"bytes,2,rep,name=Values,proto3" json:"Values,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                  `json:"-"`
+	XXX_unrecognized     []byte                    `json:"-"`
+	XXX_sizecache        int32                     `json:"-"`
+}
+
+func (m *ConstantFetcherStatus) Reset()         { *m = ConstantFetcherStatus{} }
+func (m *ConstantFetcherStatus) String() string { return proto.CompactTextString(m) }
+func (*ConstantFetcherStatus) ProtoMessage()    {}
+func (*ConstantFetcherStatus) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{18}
+}
+
+func (m *ConstantFetcherStatus) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ConstantFetcherStatus.Unmarshal(m, b)
+}
+func (m *ConstantFetcherStatus) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ConstantFetcherStatus.Marshal(b, m, deterministic)
+}
+func (m *ConstantFetcherStatus) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ConstantFetcherStatus.Merge(m, src)
+}
+func (m *ConstantFetcherStatus) XXX_Size() int {
+	return xxx_messageInfo_ConstantFetcherStatus.Size(m)
+}
+func (m *ConstantFetcherStatus) XXX_DiscardUnknown() {
+	xxx_messageInfo_ConstantFetcherStatus.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ConstantFetcherStatus proto.InternalMessageInfo
+
+func (m *ConstantFetcherStatus) GetFetchers() []string {
+	if m != nil {
+		return m.Fetchers
+	}
+	return nil
+}
+
+func (m *ConstantFetcherStatus) GetValues() []*ConstantValueAndSource {
+	if m != nil {
+		return m.Values
+	}
+	return nil
+}
+
+type EnvironmentStatus struct {
+	Warnings             []string               `protobuf:"bytes,1,rep,name=Warnings,proto3" json:"Warnings,omitempty"`
+	Constants            *ConstantFetcherStatus `protobuf:"bytes,2,opt,name=Constants,proto3" json:"Constants,omitempty"`
+	KernelLockdown       string                 `protobuf:"bytes,3,opt,name=KernelLockdown,proto3" json:"KernelLockdown,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}               `json:"-"`
+	XXX_unrecognized     []byte                 `json:"-"`
+	XXX_sizecache        int32                  `json:"-"`
+}
+
+func (m *EnvironmentStatus) Reset()         { *m = EnvironmentStatus{} }
+func (m *EnvironmentStatus) String() string { return proto.CompactTextString(m) }
+func (*EnvironmentStatus) ProtoMessage()    {}
+func (*EnvironmentStatus) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{19}
+}
+
+func (m *EnvironmentStatus) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_EnvironmentStatus.Unmarshal(m, b)
+}
+func (m *EnvironmentStatus) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_EnvironmentStatus.Marshal(b, m, deterministic)
+}
+func (m *EnvironmentStatus) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_EnvironmentStatus.Merge(m, src)
+}
+func (m *EnvironmentStatus) XXX_Size() int {
+	return xxx_messageInfo_EnvironmentStatus.Size(m)
+}
+func (m *EnvironmentStatus) XXX_DiscardUnknown() {
+	xxx_messageInfo_EnvironmentStatus.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_EnvironmentStatus proto.InternalMessageInfo
+
+func (m *EnvironmentStatus) GetWarnings() []string {
+	if m != nil {
+		return m.Warnings
+	}
+	return nil
+}
+
+func (m *EnvironmentStatus) GetConstants() *ConstantFetcherStatus {
+	if m != nil {
+		return m.Constants
+	}
+	return nil
+}
+
+func (m *EnvironmentStatus) GetKernelLockdown() string {
+	if m != nil {
+		return m.KernelLockdown
+	}
+	return ""
+}
+
+type StorageRequestParams struct {
+	LocalStorageDirectory    string   `protobuf:"bytes,1,opt,name=LocalStorageDirectory,proto3" json:"LocalStorageDirectory,omitempty"`
+	LocalStorageFormats      []string `protobuf:"bytes,2,rep,name=LocalStorageFormats,proto3" json:"LocalStorageFormats,omitempty"`
+	LocalStorageCompression  bool     `protobuf:"varint,3,opt,name=LocalStorageCompression,proto3" json:"LocalStorageCompression,omitempty"`
+	RemoteStorageFormats     []string `protobuf:"bytes,4,rep,name=RemoteStorageFormats,proto3" json:"RemoteStorageFormats,omitempty"`
+	RemoteStorageCompression bool     `protobuf:"varint,5,opt,name=RemoteStorageCompression,proto3" json:"RemoteStorageCompression,omitempty"`
+	XXX_NoUnkeyedLiteral     struct{} `json:"-"`
+	XXX_unrecognized         []byte   `json:"-"`
+	XXX_sizecache            int32    `json:"-"`
+}
+
+func (m *StorageRequestParams) Reset()         { *m = StorageRequestParams{} }
+func (m *StorageRequestParams) String() string { return proto.CompactTextString(m) }
+func (*StorageRequestParams) ProtoMessage()    {}
+func (*StorageRequestParams) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{20}
+}
+
+func (m *StorageRequestParams) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_StorageRequestParams.Unmarshal(m, b)
+}
+func (m *StorageRequestParams) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_StorageRequestParams.Marshal(b, m, deterministic)
+}
+func (m *StorageRequestParams) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_StorageRequestParams.Merge(m, src)
+}
+func (m *StorageRequestParams) XXX_Size() int {
+	return xxx_messageInfo_StorageRequestParams.Size(m)
+}
+func (m *StorageRequestParams) XXX_DiscardUnknown() {
+	xxx_messageInfo_StorageRequestParams.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_StorageRequestParams proto.InternalMessageInfo
+
+func (m *StorageRequestParams) GetLocalStorageDirectory() string {
+	if m != nil {
+		return m.LocalStorageDirectory
+	}
+	return ""
+}
+
+func (m *StorageRequestParams) GetLocalStorageFormats() []string {
+	if m != nil {
+		return m.LocalStorageFormats
+	}
+	return nil
+}
+
+func (m *StorageRequestParams) GetLocalStorageCompression() bool {
+	if m != nil {
+		return m.LocalStorageCompression
+	}
+	return false
+}
+
+func (m *StorageRequestParams) GetRemoteStorageFormats() []string {
+	if m != nil {
+		return m.RemoteStorageFormats
+	}
+	return nil
+}
+
+func (m *StorageRequestParams) GetRemoteStorageCompression() bool {
+	if m != nil {
+		return m.RemoteStorageCompression
+	}
+	return false
+}
+
+type ActivityDumpParams struct {
+	Comm                 string                `protobuf:"bytes,1,opt,name=comm,proto3" json:"comm,omitempty"`
+	Timeout              int32                 `protobuf:"varint,2,opt,name=timeout,proto3" json:"timeout,omitempty"`
+	DifferentiateArgs    bool                  `protobuf:"varint,4,opt,name=DifferentiateArgs,proto3" json:"DifferentiateArgs,omitempty"`
+	Storage              *StorageRequestParams `protobuf:"bytes,5,opt,name=Storage,proto3" json:"Storage,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
+	XXX_unrecognized     []byte                `json:"-"`
+	XXX_sizecache        int32                 `json:"-"`
+}
+
+func (m *ActivityDumpParams) Reset()         { *m = ActivityDumpParams{} }
+func (m *ActivityDumpParams) String() string { return proto.CompactTextString(m) }
+func (*ActivityDumpParams) ProtoMessage()    {}
+func (*ActivityDumpParams) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{21}
+}
+
+func (m *ActivityDumpParams) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ActivityDumpParams.Unmarshal(m, b)
+}
+func (m *ActivityDumpParams) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ActivityDumpParams.Marshal(b, m, deterministic)
+}
+func (m *ActivityDumpParams) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ActivityDumpParams.Merge(m, src)
+}
+func (m *ActivityDumpParams) XXX_Size() int {
+	return xxx_messageInfo_ActivityDumpParams.Size(m)
+}
+func (m *ActivityDumpParams) XXX_DiscardUnknown() {
+	xxx_messageInfo_ActivityDumpParams.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ActivityDumpParams proto.InternalMessageInfo
+
+func (m *ActivityDumpParams) GetComm() string {
+	if m != nil {
+		return m.Comm
+	}
+	return ""
+}
+
+func (m *ActivityDumpParams) GetTimeout() int32 {
+	if m != nil {
+		return m.Timeout
+	}
+	return 0
+}
+
+func (m *ActivityDumpParams) GetDifferentiateArgs() bool {
+	if m != nil {
+		return m.DifferentiateArgs
+	}
+	return false
+}
+
+func (m *ActivityDumpParams) GetStorage() *StorageRequestParams {
+	if m != nil {
+		return m.Storage
+	}
+	return nil
+}
+
+type ActivityDumpMetadataMessage struct {
+	AgentVersion         string   `protobuf:"bytes,1,opt,name=AgentVersion,proto3" json:"AgentVersion,omitempty"`
+	AgentCommit          string   `protobuf:"bytes,2,opt,name=AgentCommit,proto3" json:"AgentCommit,omitempty"`
+	KernelVersion        string   `protobuf:"bytes,3,opt,name=KernelVersion,proto3" json:"KernelVersion,omitempty"`
+	LinuxDistribution    string   `protobuf:"bytes,4,opt,name=LinuxDistribution,proto3" json:"LinuxDistribution,omitempty"`
+	Name                 string   `protobuf:"bytes,5,opt,name=Name,proto3" json:"Name,omitempty"`
+	ActivityDumpVersion  string   `protobuf:"bytes,6,opt,name=ActivityDumpVersion,proto3" json:"ActivityDumpVersion,omitempty"`
+	DifferentiateArgs    bool     `protobuf:"varint,7,opt,name=DifferentiateArgs,proto3" json:"DifferentiateArgs,omitempty"`
+	Comm                 string   `protobuf:"bytes,8,opt,name=Comm,proto3" json:"Comm,omitempty"`
+	ContainerID          string   `protobuf:"bytes,9,opt,name=ContainerID,proto3" json:"ContainerID,omitempty"`
+	Start                string   `protobuf:"bytes,10,opt,name=Start,proto3" json:"Start,omitempty"`
+	Timeout              string   `protobuf:"bytes,11,opt,name=Timeout,proto3" json:"Timeout,omitempty"`
+	Size                 uint64   `protobuf:"varint,12,opt,name=Size,proto3" json:"Size,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ActivityDumpMetadataMessage) Reset()         { *m = ActivityDumpMetadataMessage{} }
+func (m *ActivityDumpMetadataMessage) String() string { return proto.CompactTextString(m) }
+func (*ActivityDumpMetadataMessage) ProtoMessage()    {}
+func (*ActivityDumpMetadataMessage) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{22}
+}
+
+func (m *ActivityDumpMetadataMessage) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ActivityDumpMetadataMessage.Unmarshal(m, b)
+}
+func (m *ActivityDumpMetadataMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ActivityDumpMetadataMessage.Marshal(b, m, deterministic)
+}
+func (m *ActivityDumpMetadataMessage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ActivityDumpMetadataMessage.Merge(m, src)
+}
+func (m *ActivityDumpMetadataMessage) XXX_Size() int {
+	return xxx_messageInfo_ActivityDumpMetadataMessage.Size(m)
+}
+func (m *ActivityDumpMetadataMessage) XXX_DiscardUnknown() {
+	xxx_messageInfo_ActivityDumpMetadataMessage.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ActivityDumpMetadataMessage proto.InternalMessageInfo
+
+func (m *ActivityDumpMetadataMessage) GetAgentVersion() string {
+	if m != nil {
+		return m.AgentVersion
+	}
+	return ""
+}
+
+func (m *ActivityDumpMetadataMessage) GetAgentCommit() string {
+	if m != nil {
+		return m.AgentCommit
+	}
+	return ""
+}
+
+func (m *ActivityDumpMetadataMessage) GetKernelVersion() string {
+	if m != nil {
+		return m.KernelVersion
+	}
+	return ""
+}
+
+func (m *ActivityDumpMetadataMessage) GetLinuxDistribution() string {
+	if m != nil {
+		return m.LinuxDistribution
+	}
+	return ""
+}
+
+func (m *ActivityDumpMetadataMessage) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
+func (m *ActivityDumpMetadataMessage) GetActivityDumpVersion() string {
+	if m != nil {
+		return m.ActivityDumpVersion
+	}
+	return ""
+}
+
+func (m *ActivityDumpMetadataMessage) GetDifferentiateArgs() bool {
+	if m != nil {
+		return m.DifferentiateArgs
+	}
+	return false
+}
+
+func (m *ActivityDumpMetadataMessage) GetComm() string {
+	if m != nil {
+		return m.Comm
+	}
+	return ""
+}
+
+func (m *ActivityDumpMetadataMessage) GetContainerID() string {
+	if m != nil {
+		return m.ContainerID
+	}
+	return ""
+}
+
+func (m *ActivityDumpMetadataMessage) GetStart() string {
+	if m != nil {
+		return m.Start
+	}
+	return ""
+}
+
+func (m *ActivityDumpMetadataMessage) GetTimeout() string {
+	if m != nil {
+		return m.Timeout
+	}
+	return ""
+}
+
+func (m *ActivityDumpMetadataMessage) GetSize() uint64 {
+	if m != nil {
+		return m.Size
+	}
+	return 0
+}
+
+type StorageRequestMessage struct {
+	Type                 string   `protobuf:"bytes,1,opt,name=Type,proto3" json:"Type,omitempty"`
+	Format               string   `protobuf:"bytes,2,opt,name=Format,proto3" json:"Format,omitempty"`
+	Compression          bool     `protobuf:"varint,3,opt,name=Compression,proto3" json:"Compression,omitempty"`
+	File                 string   `protobuf:"bytes,4,opt,name=File,proto3" json:"File,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *StorageRequestMessage) Reset()         { *m = StorageRequestMessage{} }
+func (m *StorageRequestMessage) String() string { return proto.CompactTextString(m) }
+func (*StorageRequestMessage) ProtoMessage()    {}
+func (*StorageRequestMessage) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{23}
+}
+
+func (m *StorageRequestMessage) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_StorageRequestMessage.Unmarshal(m, b)
+}
+func (m *StorageRequestMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_StorageRequestMessage.Marshal(b, m, deterministic)
+}
+func (m *StorageRequestMessage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_StorageRequestMessage.Merge(m, src)
+}
+func (m *StorageRequestMessage) XXX_Size() int {
+	return xxx_messageInfo_StorageRequestMessage.Size(m)
+}
+func (m *StorageRequestMessage) XXX_DiscardUnknown() {
+	xxx_messageInfo_StorageRequestMessage.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_StorageRequestMessage proto.InternalMessageInfo
+
+func (m *StorageRequestMessage) GetType() string {
+	if m != nil {
+		return m.Type
+	}
+	return ""
+}
+
+func (m *StorageRequestMessage) GetFormat() string {
+	if m != nil {
+		return m.Format
+	}
+	return ""
+}
+
+func (m *StorageRequestMessage) GetCompression() bool {
+	if m != nil {
+		return m.Compression
+	}
+	return false
+}
+
+func (m *StorageRequestMessage) GetFile() string {
+	if m != nil {
+		return m.File
+	}
+	return ""
+}
+
+type ActivityDumpMessage struct {
+	Host                 string                       `protobuf:"bytes,1,opt,name=Host,proto3" json:"Host,omitempty"`
+	Source               string                       `protobuf:"bytes,2,opt,name=Source,proto3" json:"Source,omitempty"`
+	Service              string                       `protobuf:"bytes,3,opt,name=Service,proto3" json:"Service,omitempty"`
+	Tags                 []string                     `protobuf:"bytes,4,rep,name=Tags,proto3" json:"Tags,omitempty"`
+	Storage              []*StorageRequestMessage     `protobuf:"bytes,5,rep,name=Storage,proto3" json:"Storage,omitempty"`
+	Metadata             *ActivityDumpMetadataMessage `protobuf:"bytes,6,opt,name=Metadata,proto3" json:"Metadata,omitempty"`
+	Error                string                       `protobuf:"bytes,7,opt,name=Error,proto3" json:"Error,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                     `json:"-"`
+	XXX_unrecognized     []byte                       `json:"-"`
+	XXX_sizecache        int32                        `json:"-"`
+}
+
+func (m *ActivityDumpMessage) Reset()         { *m = ActivityDumpMessage{} }
+func (m *ActivityDumpMessage) String() string { return proto.CompactTextString(m) }
+func (*ActivityDumpMessage) ProtoMessage()    {}
+func (*ActivityDumpMessage) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{24}
+}
+
+func (m *ActivityDumpMessage) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ActivityDumpMessage.Unmarshal(m, b)
+}
+func (m *ActivityDumpMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ActivityDumpMessage.Marshal(b, m, deterministic)
+}
+func (m *ActivityDumpMessage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ActivityDumpMessage.Merge(m, src)
+}
+func (m *ActivityDumpMessage) XXX_Size() int {
+	return xxx_messageInfo_ActivityDumpMessage.Size(m)
+}
+func (m *ActivityDumpMessage) XXX_DiscardUnknown() {
+	xxx_messageInfo_ActivityDumpMessage.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ActivityDumpMessage proto.InternalMessageInfo
+
+func (m *ActivityDumpMessage) GetHost() string {
+	if m != nil {
+		return m.Host
+	}
+	return ""
+}
+
+func (m *ActivityDumpMessage) GetSource() string {
+	if m != nil {
+		return m.Source
+	}
+	return ""
+}
+
+func (m *ActivityDumpMessage) GetService() string {
+	if m != nil {
+		return m.Service
+	}
+	return ""
+}
+
+func (m *ActivityDumpMessage) GetTags() []string {
+	if m != nil {
+		return m.Tags
+	}
+	return nil
+}
+
+func (m *ActivityDumpMessage) GetStorage() []*StorageRequestMessage {
+	if m != nil {
+		return m.Storage
+	}
+	return nil
+}
+
+func (m *ActivityDumpMessage) GetMetadata() *ActivityDumpMetadataMessage {
+	if m != nil {
+		return m.Metadata
+	}
+	return nil
+}
+
+func (m *ActivityDumpMessage) GetError() string {
+	if m != nil {
+		return m.Error
+	}
+	return ""
+}
+
+type ActivityDumpListParams struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ActivityDumpListParams) Reset()         { *m = ActivityDumpListParams{} }
+func (m *ActivityDumpListParams) String() string { return proto.CompactTextString(m) }
+func (*ActivityDumpListParams) ProtoMessage()    {}
+func (*ActivityDumpListParams) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{25}
+}
+
+func (m *ActivityDumpListParams) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ActivityDumpListParams.Unmarshal(m, b)
+}
+func (m *ActivityDumpListParams) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ActivityDumpListParams.Marshal(b, m, deterministic)
+}
+func (m *ActivityDumpListParams) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ActivityDumpListParams.Merge(m, src)
+}
+func (m *ActivityDumpListParams) XXX_Size() int {
+	return xxx_messageInfo_ActivityDumpListParams.Size(m)
+}
+func (m *ActivityDumpListParams) XXX_DiscardUnknown() {
+	xxx_messageInfo_ActivityDumpListParams.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ActivityDumpListParams proto.InternalMessageInfo
+
+type ActivityDumpListMessage struct {
+	Dumps                []*ActivityDumpMessage `protobuf:"bytes,1,rep,name=Dumps,proto3" json:"Dumps,omitempty"`
+	Error                string                 `protobuf:"bytes,2,opt,name=Error,proto3" json:"Error,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}               `json:"-"`
+	XXX_unrecognized     []byte                 `json:"-"`
+	XXX_sizecache        int32                  `json:"-"`
+}
+
+func (m *ActivityDumpListMessage) Reset()         { *m = ActivityDumpListMessage{} }
+func (m *ActivityDumpListMessage) String() string { return proto.CompactTextString(m) }
+func (*ActivityDumpListMessage) ProtoMessage()    {}
+func (*ActivityDumpListMessage) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{26}
+}
+
+func (m *ActivityDumpListMessage) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ActivityDumpListMessage.Unmarshal(m, b)
+}
+func (m *ActivityDumpListMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ActivityDumpListMessage.Marshal(b, m, deterministic)
+}
+func (m *ActivityDumpListMessage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ActivityDumpListMessage.Merge(m, src)
+}
+func (m *ActivityDumpListMessage) XXX_Size() int {
+	return xxx_messageInfo_ActivityDumpListMessage.Size(m)
+}
+func (m *ActivityDumpListMessage) XXX_DiscardUnknown() {
+	xxx_messageInfo_ActivityDumpListMessage.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ActivityDumpListMessage proto.InternalMessageInfo
+
+func (m *ActivityDumpListMessage) GetDumps() []*ActivityDumpMessage {
+	if m != nil {
+		return m.Dumps
+	}
+	return nil
+}
+
+func (m *ActivityDumpListMessage) GetError() string {
+	if m != nil {
+		return m.Error
+	}
+	return ""
+}
+
+type ActivityDumpStopParams struct {
+	Comm                 string   `protobuf:"bytes,2,opt,name=Comm,proto3" json:"Comm,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ActivityDumpStopParams) Reset()         { *m = ActivityDumpStopParams{} }
+func (m *ActivityDumpStopParams) String() string { return proto.CompactTextString(m) }
+func (*ActivityDumpStopParams) ProtoMessage()    {}
+func (*ActivityDumpStopParams) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{27}
+}
+
+func (m *ActivityDumpStopParams) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ActivityDumpStopParams.Unmarshal(m, b)
+}
+func (m *ActivityDumpStopParams) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ActivityDumpStopParams.Marshal(b, m, deterministic)
+}
+func (m *ActivityDumpStopParams) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ActivityDumpStopParams.Merge(m, src)
+}
+func (m *ActivityDumpStopParams) XXX_Size() int {
+	return xxx_messageInfo_ActivityDumpStopParams.Size(m)
+}
+func (m *ActivityDumpStopParams) XXX_DiscardUnknown() {
+	xxx_messageInfo_ActivityDumpStopParams.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ActivityDumpStopParams proto.InternalMessageInfo
+
+func (m *ActivityDumpStopParams) GetComm() string {
+	if m != nil {
+		return m.Comm
+	}
+	return ""
+}
+
+type ActivityDumpStopMessage struct {
+	Error                string   `protobuf:"bytes,1,opt,name=Error,proto3" json:"Error,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ActivityDumpStopMessage) Reset()         { *m = ActivityDumpStopMessage{} }
+func (m *ActivityDumpStopMessage) String() string { return proto.CompactTextString(m) }
+func (*ActivityDumpStopMessage) ProtoMessage()    {}
+func (*ActivityDumpStopMessage) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{28}
+}
+
+func (m *ActivityDumpStopMessage) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ActivityDumpStopMessage.Unmarshal(m, b)
+}
+func (m *ActivityDumpStopMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ActivityDumpStopMessage.Marshal(b, m, deterministic)
+}
+func (m *ActivityDumpStopMessage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ActivityDumpStopMessage.Merge(m, src)
+}
+func (m *ActivityDumpStopMessage) XXX_Size() int {
+	return xxx_messageInfo_ActivityDumpStopMessage.Size(m)
+}
+func (m *ActivityDumpStopMessage) XXX_DiscardUnknown() {
+	xxx_messageInfo_ActivityDumpStopMessage.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ActivityDumpStopMessage proto.InternalMessageInfo
+
+func (m *ActivityDumpStopMessage) GetError() string {
+	if m != nil {
+		return m.Error
+	}
+	return ""
+}
+
+type TranscodingRequestParams struct {
+	ActivityDumpFile     string                `protobuf:"bytes,1,opt,name=ActivityDumpFile,proto3" json:"ActivityDumpFile,omitempty"`
+	Storage              *StorageRequestParams `protobuf:"bytes,2,opt,name=Storage,proto3" json:"Storage,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
+	XXX_unrecognized     []byte                `json:"-"`
+	XXX_sizecache        int32                 `json:"-"`
+}
+
+func (m *TranscodingRequestParams) Reset()         { *m = TranscodingRequestParams{} }
+func (m *TranscodingRequestParams) String() string { return proto.CompactTextString(m) }
+func (*TranscodingRequestParams) ProtoMessage()    {}
+func (*TranscodingRequestParams) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{29}
+}
+
+func (m *TranscodingRequestParams) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_TranscodingRequestParams.Unmarshal(m, b)
+}
+func (m *TranscodingRequestParams) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_TranscodingRequestParams.Marshal(b, m, deterministic)
+}
+func (m *TranscodingRequestParams) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TranscodingRequestParams.Merge(m, src)
+}
+func (m *TranscodingRequestParams) XXX_Size() int {
+	return xxx_messageInfo_TranscodingRequestParams.Size(m)
+}
+func (m *TranscodingRequestParams) XXX_DiscardUnknown() {
+	xxx_messageInfo_TranscodingRequestParams.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TranscodingRequestParams proto.InternalMessageInfo
+
+func (m *TranscodingRequestParams) GetActivityDumpFile() string {
+	if m != nil {
+		return m.ActivityDumpFile
+	}
+	return ""
+}
+
+func (m *TranscodingRequestParams) GetStorage() *StorageRequestParams {
+	if m != nil {
+		return m.Storage
+	}
+	return nil
+}
+
+type TranscodingRequestMessage struct {
+	Error                string                   `protobuf:"bytes,1,opt,name=Error,proto3" json:"Error,omitempty"`
+	Storage              []*StorageRequestMessage `protobuf:"bytes,2,rep,name=Storage,proto3" json:"Storage,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                 `json:"-"`
+	XXX_unrecognized     []byte                   `json:"-"`
+	XXX_sizecache        int32                    `json:"-"`
+}
+
+func (m *TranscodingRequestMessage) Reset()         { *m = TranscodingRequestMessage{} }
+func (m *TranscodingRequestMessage) String() string { return proto.CompactTextString(m) }
+func (*TranscodingRequestMessage) ProtoMessage()    {}
+func (*TranscodingRequestMessage) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{30}
+}
+
+func (m *TranscodingRequestMessage) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_TranscodingRequestMessage.Unmarshal(m, b)
+}
+func (m *TranscodingRequestMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_TranscodingRequestMessage.Marshal(b, m, deterministic)
+}
+func (m *TranscodingRequestMessage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TranscodingRequestMessage.Merge(m, src)
+}
+func (m *TranscodingRequestMessage) XXX_Size() int {
+	return xxx_messageInfo_TranscodingRequestMessage.Size(m)
+}
+func (m *TranscodingRequestMessage) XXX_DiscardUnknown() {
+	xxx_messageInfo_TranscodingRequestMessage.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TranscodingRequestMessage proto.InternalMessageInfo
+
+func (m *TranscodingRequestMessage) GetError() string {
+	if m != nil {
+		return m.Error
+	}
+	return ""
+}
+
+func (m *TranscodingRequestMessage) GetStorage() []*StorageRequestMessage {
+	if m != nil {
+		return m.Storage
+	}
+	return nil
+}
+
+type ActivityDumpStreamParams struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ActivityDumpStreamParams) Reset()         { *m = ActivityDumpStreamParams{} }
+func (m *ActivityDumpStreamParams) String() string { return proto.CompactTextString(m) }
+func (*ActivityDumpStreamParams) ProtoMessage()    {}
+func (*ActivityDumpStreamParams) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{31}
+}
+
+func (m *ActivityDumpStreamParams) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ActivityDumpStreamParams.Unmarshal(m, b)
+}
+func (m *ActivityDumpStreamParams) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ActivityDumpStreamParams.Marshal(b, m, deterministic)
+}
+func (m *ActivityDumpStreamParams) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ActivityDumpStreamParams.Merge(m, src)
+}
+func (m *ActivityDumpStreamParams) XXX_Size() int {
+	return xxx_messageInfo_ActivityDumpStreamParams.Size(m)
+}
+func (m *ActivityDumpStreamParams) XXX_DiscardUnknown() {
+	xxx_messageInfo_ActivityDumpStreamParams.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ActivityDumpStreamParams proto.InternalMessageInfo
+
+type ActivityDumpStreamMessage struct {
+	Dump                 *ActivityDumpMessage `protobuf:"bytes,1,opt,name=Dump,proto3" json:"Dump,omitempty"`
+	IsCompressed         bool                 `protobuf:"varint,2,opt,name=IsCompressed,proto3" json:"IsCompressed,omitempty"`
+	Data                 []byte               `protobuf:"bytes,3,opt,name=Data,proto3" json:"Data,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
+	XXX_unrecognized     []byte               `json:"-"`
+	XXX_sizecache        int32                `json:"-"`
+}
+
+func (m *ActivityDumpStreamMessage) Reset()         { *m = ActivityDumpStreamMessage{} }
+func (m *ActivityDumpStreamMessage) String() string { return proto.CompactTextString(m) }
+func (*ActivityDumpStreamMessage) ProtoMessage()    {}
+func (*ActivityDumpStreamMessage) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{32}
+}
+
+func (m *ActivityDumpStreamMessage) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ActivityDumpStreamMessage.Unmarshal(m, b)
+}
+func (m *ActivityDumpStreamMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ActivityDumpStreamMessage.Marshal(b, m, deterministic)
+}
+func (m *ActivityDumpStreamMessage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ActivityDumpStreamMessage.Merge(m, src)
+}
+func (m *ActivityDumpStreamMessage) XXX_Size() int {
+	return xxx_messageInfo_ActivityDumpStreamMessage.Size(m)
+}
+func (m *ActivityDumpStreamMessage) XXX_DiscardUnknown() {
+	xxx_messageInfo_ActivityDumpStreamMessage.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ActivityDumpStreamMessage proto.InternalMessageInfo
+
+func (m *ActivityDumpStreamMessage) GetDump() *ActivityDumpMessage {
+	if m != nil {
+		return m.Dump
+	}
+	return nil
+}
+
+func (m *ActivityDumpStreamMessage) GetIsCompressed() bool {
+	if m != nil {
+		return m.IsCompressed
+	}
+	return false
+}
+
+func (m *ActivityDumpStreamMessage) GetData() []byte {
+	if m != nil {
+		return m.Data
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterType((*GetEventParams)(nil), "api.GetEventParams")
 	proto.RegisterType((*SecurityEventMessage)(nil), "api.SecurityEventMessage")
+	proto.RegisterType((*GetProcessEventParams)(nil), "api.GetProcessEventParams")
+	proto.RegisterType((*SecurityProcessEventMessage)(nil), "api.SecurityProcessEventMessage")
 	proto.RegisterType((*DumpProcessCacheParams)(nil), "api.DumpProcessCacheParams")
 	proto.RegisterType((*SecurityDumpProcessCacheMessage)(nil), "api.SecurityDumpProcessCacheMessage")
+	proto.RegisterType((*DumpNetworkNamespaceParams)(nil), "api.DumpNetworkNamespaceParams")
+	proto.RegisterType((*DumpNetworkNamespaceMessage)(nil), "api.DumpNetworkNamespaceMessage")
 	proto.RegisterType((*GetConfigParams)(nil), "api.GetConfigParams")
 	proto.RegisterType((*SecurityConfigMessage)(nil), "api.SecurityConfigMessage")
 	proto.RegisterType((*RunSelfTestParams)(nil), "api.RunSelfTestParams")
 	proto.RegisterType((*ReloadPoliciesParams)(nil), "api.ReloadPoliciesParams")
 	proto.RegisterType((*ReloadPoliciesResultMessage)(nil), "api.ReloadPoliciesResultMessage")
 	proto.RegisterType((*SecuritySelfTestResultMessage)(nil), "api.SecuritySelfTestResultMessage")
+	proto.RegisterType((*GetStatusParams)(nil), "api.GetStatusParams")
+	proto.RegisterType((*ConstantValueAndSource)(nil), "api.ConstantValueAndSource")
+	proto.RegisterType((*SelfTestsStatus)(nil), "api.SelfTestsStatus")
+	proto.RegisterType((*Status)(nil), "api.Status")
+	proto.RegisterType((*ConstantFetcherStatus)(nil), "api.ConstantFetcherStatus")
+	proto.RegisterType((*EnvironmentStatus)(nil), "api.EnvironmentStatus")
+	proto.RegisterType((*StorageRequestParams)(nil), "api.StorageRequestParams")
+	proto.RegisterType((*ActivityDumpParams)(nil), "api.ActivityDumpParams")
+	proto.RegisterType((*ActivityDumpMetadataMessage)(nil), "api.ActivityDumpMetadataMessage")
+	proto.RegisterType((*StorageRequestMessage)(nil), "api.StorageRequestMessage")
+	proto.RegisterType((*ActivityDumpMessage)(nil), "api.ActivityDumpMessage")
+	proto.RegisterType((*ActivityDumpListParams)(nil), "api.ActivityDumpListParams")
+	proto.RegisterType((*ActivityDumpListMessage)(nil), "api.ActivityDumpListMessage")
+	proto.RegisterType((*ActivityDumpStopParams)(nil), "api.ActivityDumpStopParams")
+	proto.RegisterType((*ActivityDumpStopMessage)(nil), "api.ActivityDumpStopMessage")
+	proto.RegisterType((*TranscodingRequestParams)(nil), "api.TranscodingRequestParams")
+	proto.RegisterType((*TranscodingRequestMessage)(nil), "api.TranscodingRequestMessage")
+	proto.RegisterType((*ActivityDumpStreamParams)(nil), "api.ActivityDumpStreamParams")
+	proto.RegisterType((*ActivityDumpStreamMessage)(nil), "api.ActivityDumpStreamMessage")
 }
 
 func init() { proto.RegisterFile("pkg/security/api/api.proto", fileDescriptor_ce049ba84fb5261a) }
 
 var fileDescriptor_ce049ba84fb5261a = []byte{
-	// 464 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x74, 0x93, 0x5f, 0x6b, 0xdb, 0x3c,
-	0x14, 0xc6, 0xf3, 0xa7, 0x6f, 0xdf, 0xe4, 0x6c, 0x78, 0xe9, 0x69, 0x16, 0x3c, 0x95, 0x6e, 0x41,
-	0x8c, 0x91, 0xab, 0x76, 0x6c, 0xbb, 0x1d, 0x63, 0x6b, 0xd2, 0x52, 0x46, 0x48, 0x50, 0x0a, 0x85,
-	0xdd, 0x0c, 0xd5, 0x39, 0x75, 0x45, 0x1c, 0xdb, 0x48, 0x76, 0x61, 0x1f, 0x61, 0xdf, 0x7a, 0x44,
-	0xb6, 0x4a, 0xec, 0x79, 0x17, 0x06, 0x9d, 0xc7, 0x47, 0x8f, 0x1f, 0xeb, 0x77, 0x04, 0x2c, 0xdd,
-	0x84, 0xe7, 0x86, 0x82, 0x5c, 0xab, 0xec, 0xd7, 0xb9, 0x4c, 0xd5, 0xee, 0x39, 0x4b, 0x75, 0x92,
-	0x25, 0xd8, 0x95, 0xa9, 0xe2, 0x03, 0xf0, 0xae, 0x28, 0x9b, 0x3d, 0x52, 0x9c, 0x2d, 0xa5, 0x96,
-	0x5b, 0xc3, 0x53, 0x18, 0xae, 0xca, 0x0d, 0x56, 0x9e, 0x93, 0x31, 0x32, 0x24, 0x1c, 0xc1, 0xa1,
-	0xc8, 0x23, 0xba, 0x9e, 0xfa, 0xed, 0x71, 0x7b, 0xd2, 0x17, 0x65, 0x85, 0x08, 0x07, 0x53, 0x99,
-	0x49, 0xbf, 0x33, 0x6e, 0x4f, 0x9e, 0x0b, 0xbb, 0xde, 0x69, 0x37, 0x32, 0x34, 0x7e, 0x77, 0xdc,
-	0x9d, 0xf4, 0x85, 0x5d, 0xa3, 0x0f, 0xff, 0xaf, 0x48, 0x3f, 0xaa, 0x80, 0xfc, 0x03, 0x6b, 0xe0,
-	0x4a, 0xfe, 0x09, 0x46, 0xd3, 0x7c, 0x9b, 0x2e, 0x75, 0x12, 0x90, 0x31, 0x17, 0x32, 0x78, 0xa0,
-	0x22, 0x0b, 0x32, 0xe8, 0xdd, 0xaa, 0xec, 0xe1, 0xab, 0x0e, 0x8d, 0xfd, 0x6a, 0x4f, 0x3c, 0xd5,
-	0xfc, 0x33, 0xbc, 0x71, 0x39, 0xeb, 0xbb, 0x5d, 0x64, 0x06, 0xbd, 0x4b, 0x15, 0x51, 0x2c, 0xb7,
-	0x54, 0x86, 0x7e, 0xaa, 0xf9, 0x11, 0xbc, 0xb8, 0xa2, 0xec, 0x22, 0x89, 0xef, 0x55, 0x58, 0xfe,
-	0xf9, 0x4f, 0x78, 0xe9, 0x1c, 0x0b, 0xdd, 0xf9, 0xbc, 0x03, 0x4f, 0xe4, 0x71, 0xa6, 0xb6, 0x34,
-	0x8b, 0xe5, 0x5d, 0x44, 0xeb, 0x32, 0x4c, 0x4d, 0xc5, 0xd7, 0x00, 0x97, 0xd7, 0x73, 0xd7, 0xd3,
-	0xb1, 0x3d, 0x7b, 0x0a, 0x3f, 0x86, 0x23, 0x91, 0xc7, 0x2b, 0x8a, 0xee, 0x6f, 0xc8, 0xb8, 0xf3,
-	0x1e, 0xc1, 0x50, 0x50, 0x94, 0xc8, 0xf5, 0x32, 0x89, 0x54, 0xa0, 0xc8, 0x94, 0xfa, 0x29, 0x9c,
-	0x54, 0x75, 0x41, 0x26, 0x8f, 0x1c, 0x0e, 0x3e, 0x83, 0x53, 0x17, 0xd6, 0x19, 0x56, 0x1a, 0xd0,
-	0x83, 0xce, 0x62, 0x53, 0x06, 0xed, 0x2c, 0x36, 0x38, 0x84, 0xff, 0x66, 0x5a, 0x27, 0xda, 0xe6,
-	0xea, 0x8b, 0xa2, 0xf8, 0xf0, 0xbb, 0x0b, 0x9e, 0xf3, 0x99, 0x27, 0xeb, 0x3c, 0x22, 0xfc, 0x02,
-	0x7d, 0x37, 0x12, 0x06, 0x8f, 0xcf, 0x76, 0x03, 0x53, 0x1d, 0x11, 0xf6, 0xca, 0x8a, 0x4d, 0x53,
-	0xc2, 0x5b, 0xef, 0xdb, 0x78, 0x0b, 0x83, 0x3a, 0x11, 0x3c, 0xb1, 0x5b, 0x9a, 0x31, 0xb3, 0xb7,
-	0x15, 0xbf, 0x7f, 0xd0, 0xe4, 0xad, 0x32, 0x59, 0xc1, 0x06, 0x87, 0x2e, 0xd9, 0x3e, 0x43, 0xc6,
-	0x2a, 0x56, 0x15, 0x8c, 0xbc, 0x85, 0xdf, 0xe1, 0xd9, 0x1e, 0x00, 0x1c, 0xd9, 0xe6, 0xbf, 0x90,
-	0x30, 0x5e, 0x31, 0x69, 0x3c, 0x5e, 0xde, 0xc2, 0x05, 0x78, 0x55, 0x40, 0x58, 0x9c, 0x4b, 0x13,
-	0x4d, 0x36, 0x6e, 0x78, 0x55, 0x33, 0xfc, 0x86, 0x3f, 0x06, 0xf5, 0xeb, 0x7a, 0x77, 0x68, 0xef,
-	0xea, 0xc7, 0x3f, 0x01, 0x00, 0x00, 0xff, 0xff, 0xd0, 0xff, 0xb1, 0x35, 0xc9, 0x03, 0x00, 0x00,
+	// 1518 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x58, 0xcb, 0x6f, 0x1b, 0x37,
+	0x13, 0xd7, 0xcb, 0x0f, 0x8d, 0xfc, 0x39, 0x36, 0x23, 0xdb, 0x9b, 0xf5, 0x97, 0xc4, 0x20, 0x82,
+	0x0f, 0xc1, 0x87, 0xc0, 0x49, 0x95, 0x1c, 0x82, 0xa2, 0x45, 0xe1, 0x4a, 0xb6, 0x6b, 0xc4, 0x4e,
+	0x8c, 0x95, 0x9a, 0x00, 0xe9, 0x21, 0x60, 0x56, 0xb4, 0xbc, 0xb0, 0x76, 0xa9, 0x72, 0xb9, 0x4e,
+	0xdd, 0xa2, 0x87, 0x1e, 0x7b, 0xec, 0x1f, 0x11, 0xa0, 0xff, 0x62, 0x6f, 0x05, 0x5f, 0x2b, 0xae,
+	0xb4, 0x32, 0x72, 0x10, 0xb0, 0xf3, 0xe0, 0x6f, 0x86, 0x33, 0xc3, 0xe1, 0x50, 0xe0, 0x4f, 0xae,
+	0x46, 0x4f, 0x53, 0x1a, 0x66, 0x3c, 0x12, 0x37, 0x4f, 0xc9, 0x24, 0x92, 0xbf, 0xfd, 0x09, 0x67,
+	0x82, 0xa1, 0x3a, 0x99, 0x44, 0x78, 0x03, 0xd6, 0x8f, 0xa9, 0x38, 0xbc, 0xa6, 0x89, 0x38, 0x27,
+	0x9c, 0xc4, 0x29, 0x9e, 0x40, 0xbb, 0x6f, 0x16, 0x28, 0xf6, 0x19, 0x4d, 0x53, 0x32, 0xa2, 0x68,
+	0x1b, 0x96, 0x83, 0x6c, 0x4c, 0x4f, 0x7a, 0x5e, 0x75, 0xaf, 0xfa, 0xb8, 0x19, 0x18, 0x0a, 0x21,
+	0x68, 0xf4, 0x88, 0x20, 0x5e, 0x6d, 0xaf, 0xfa, 0x78, 0x2d, 0x50, 0xdf, 0x92, 0x37, 0x20, 0xa3,
+	0xd4, 0xab, 0xef, 0xd5, 0x1f, 0x37, 0x03, 0xf5, 0x8d, 0x3c, 0x58, 0xe9, 0x53, 0x7e, 0x1d, 0x85,
+	0xd4, 0x6b, 0x28, 0x00, 0x4b, 0xe2, 0x1d, 0xd8, 0x3a, 0xa6, 0xe2, 0x9c, 0xb3, 0x90, 0xa6, 0xa9,
+	0xeb, 0xca, 0x57, 0xb0, 0x6b, 0x5d, 0x71, 0xa5, 0xd6, 0x23, 0x6b, 0xb9, 0x3a, 0xb5, 0x8c, 0x5f,
+	0xc0, 0x76, 0x2f, 0x8b, 0x27, 0x46, 0xbd, 0x4b, 0xc2, 0x4b, 0xaa, 0xc1, 0x90, 0x0f, 0xab, 0xef,
+	0x22, 0x71, 0x79, 0xc0, 0x47, 0xa9, 0x5a, 0xb1, 0x1a, 0xe4, 0x34, 0xfe, 0x16, 0x1e, 0x5a, 0x43,
+	0xb3, 0xab, 0xad, 0x31, 0x1f, 0x56, 0x8f, 0xa2, 0x31, 0x4d, 0x48, 0x4c, 0x4d, 0x00, 0x72, 0x1a,
+	0x9f, 0x82, 0x2f, 0x97, 0xbd, 0xa6, 0xe2, 0x13, 0xe3, 0x57, 0xaf, 0x49, 0x4c, 0xd3, 0x09, 0x09,
+	0xad, 0xe1, 0x7d, 0x40, 0xfd, 0x84, 0x4c, 0xd2, 0x4b, 0x26, 0x4e, 0x12, 0x41, 0xf9, 0x05, 0x09,
+	0xa9, 0x75, 0xa1, 0x44, 0x82, 0x7f, 0x87, 0xdd, 0x32, 0x34, 0xeb, 0x48, 0x1b, 0x96, 0x28, 0xe7,
+	0x8c, 0x1b, 0x2f, 0x34, 0x81, 0x30, 0xac, 0xc9, 0x45, 0xb9, 0x8b, 0x35, 0x25, 0x2c, 0xf0, 0xd0,
+	0x23, 0xf8, 0xcf, 0x31, 0x27, 0x93, 0xcb, 0x5c, 0xa9, 0xae, 0x94, 0x8a, 0x4c, 0xbc, 0x09, 0x77,
+	0x8e, 0xa9, 0xe8, 0xb2, 0xe4, 0x22, 0x1a, 0x99, 0x3c, 0x7c, 0x80, 0x2d, 0x1b, 0x1e, 0xcd, 0xb7,
+	0xbe, 0xfc, 0x0f, 0xd6, 0x83, 0x2c, 0x11, 0x51, 0x4c, 0x0f, 0x13, 0xf2, 0x71, 0x4c, 0x87, 0x66,
+	0x5b, 0x33, 0x5c, 0xf4, 0x00, 0xe0, 0xe8, 0xe4, 0xcc, 0xea, 0xd4, 0x94, 0x8e, 0xc3, 0xc1, 0x77,
+	0x61, 0x33, 0xc8, 0x92, 0x3e, 0x1d, 0x5f, 0x0c, 0x68, 0x6a, 0xb3, 0xbf, 0x0d, 0xed, 0x80, 0x8e,
+	0x19, 0x19, 0x9e, 0xb3, 0x71, 0x14, 0x46, 0x34, 0x35, 0xfc, 0xfb, 0xb0, 0x5b, 0xe4, 0x07, 0x34,
+	0xcd, 0xc6, 0xb6, 0x2a, 0xf0, 0x21, 0xdc, 0xb7, 0xce, 0x5a, 0xc0, 0x82, 0x02, 0x5a, 0x87, 0xda,
+	0x9b, 0x2b, 0xe3, 0x68, 0xed, 0xcd, 0x95, 0x0c, 0xe8, 0xa1, 0x0a, 0xa8, 0x8e, 0x99, 0x26, 0x4c,
+	0x18, 0xfa, 0x82, 0x88, 0xcc, 0x1a, 0x7e, 0x0b, 0xdb, 0x5d, 0x96, 0xa4, 0x82, 0x24, 0xe2, 0x2d,
+	0x19, 0x67, 0xf4, 0x20, 0x19, 0xf6, 0x59, 0xc6, 0x43, 0x05, 0x99, 0x9f, 0x8b, 0xda, 0x49, 0x4f,
+	0x42, 0x2a, 0x0d, 0x05, 0xd9, 0x08, 0x34, 0x21, 0x4f, 0x90, 0xd6, 0x37, 0x81, 0x37, 0x14, 0x1e,
+	0xc1, 0x1d, 0xeb, 0x69, 0xaa, 0x0d, 0xca, 0x54, 0x9d, 0x92, 0x54, 0x0c, 0xa2, 0x98, 0xa6, 0x82,
+	0xc4, 0x13, 0x83, 0x5d, 0x64, 0xaa, 0x23, 0x95, 0x85, 0xb2, 0x54, 0xbd, 0x9a, 0x3a, 0x69, 0x96,
+	0x94, 0x0e, 0x1c, 0x91, 0x68, 0x6c, 0x4f, 0xa0, 0x26, 0xf0, 0x35, 0x2c, 0x1b, 0xfc, 0x97, 0xd0,
+	0x3a, 0x4c, 0xae, 0x23, 0xce, 0x92, 0x98, 0x26, 0x42, 0xa1, 0xb7, 0x3a, 0xdb, 0xfb, 0xb2, 0x39,
+	0x38, 0x7c, 0xad, 0x1c, 0xb8, 0xaa, 0xa8, 0x03, 0xcd, 0xdc, 0x59, 0xb5, 0xbd, 0x56, 0xa7, 0xad,
+	0xd6, 0xcd, 0x6c, 0x21, 0x98, 0xaa, 0xe1, 0x4b, 0xd8, 0xb2, 0x81, 0x3b, 0xa2, 0x22, 0xbc, 0xa4,
+	0xdc, 0xb8, 0x21, 0x0f, 0x95, 0x66, 0xc8, 0x03, 0x51, 0x57, 0x87, 0xca, 0xd0, 0xe8, 0x39, 0x2c,
+	0xab, 0xb0, 0xe9, 0xbd, 0xb5, 0x3a, 0xbb, 0xca, 0x4a, 0x79, 0x02, 0x02, 0xa3, 0x8a, 0xff, 0xaa,
+	0xc2, 0xe6, 0xdc, 0x06, 0xd4, 0xd1, 0x27, 0x3c, 0x89, 0x92, 0x51, 0x6e, 0xc6, 0xd2, 0xe8, 0x25,
+	0x34, 0x2d, 0xa6, 0xdd, 0x8f, 0x5f, 0xb0, 0x54, 0xf0, 0x38, 0x98, 0x2a, 0xcb, 0xe2, 0x7f, 0x45,
+	0x79, 0x42, 0xc7, 0xa7, 0x2c, 0xbc, 0x1a, 0xb2, 0x4f, 0x89, 0x49, 0xeb, 0x0c, 0x17, 0xff, 0x5d,
+	0x83, 0x76, 0x5f, 0x30, 0x4e, 0x46, 0x34, 0xa0, 0x3f, 0x67, 0x79, 0x81, 0xa3, 0x17, 0xb0, 0x75,
+	0xca, 0x42, 0x32, 0x36, 0xc2, 0x5e, 0xc4, 0x69, 0x28, 0x18, 0xbf, 0x31, 0xc9, 0x2e, 0x17, 0xa2,
+	0x67, 0x70, 0xd7, 0x15, 0x1c, 0x31, 0x1e, 0x13, 0x61, 0x0b, 0xa0, 0x4c, 0x84, 0x5e, 0xc2, 0x8e,
+	0xcb, 0xee, 0xb2, 0x78, 0xc2, 0x69, 0x9a, 0x46, 0x4c, 0x7b, 0xbc, 0x1a, 0x2c, 0x12, 0xa3, 0x8e,
+	0x3c, 0x82, 0x31, 0x13, 0x74, 0xc6, 0x58, 0x43, 0x19, 0x2b, 0x95, 0xa1, 0xaf, 0xc1, 0x2b, 0xf0,
+	0x5d, 0x73, 0x4b, 0xca, 0xdc, 0x42, 0x39, 0xfe, 0x5c, 0x05, 0x74, 0x10, 0x8a, 0xe8, 0xda, 0x36,
+	0x62, 0x1d, 0x28, 0x04, 0x8d, 0x90, 0xc5, 0xb1, 0x89, 0x8b, 0xfa, 0x96, 0xb5, 0x2f, 0x3b, 0x0c,
+	0xcb, 0x84, 0xca, 0xda, 0x52, 0x60, 0x49, 0xf4, 0x04, 0x36, 0x7b, 0xd1, 0xc5, 0x05, 0xe5, 0x34,
+	0x11, 0x11, 0x11, 0x54, 0x75, 0xfc, 0x86, 0xb2, 0x3c, 0x2f, 0x40, 0xcf, 0x61, 0xc5, 0x38, 0xa2,
+	0xbc, 0x6b, 0x75, 0xee, 0xe9, 0x6a, 0x2e, 0x49, 0x58, 0x60, 0x35, 0xf1, 0xe7, 0x3a, 0xec, 0xba,
+	0x7e, 0x9e, 0x51, 0x41, 0x86, 0x44, 0x10, 0xdb, 0x62, 0x30, 0xac, 0x1d, 0x8c, 0x68, 0x22, 0xde,
+	0x52, 0xae, 0xf6, 0xad, 0x1d, 0x2f, 0xf0, 0xd0, 0x1e, 0xb4, 0x14, 0xdd, 0x65, 0x71, 0x1c, 0x09,
+	0xd3, 0x7c, 0x5c, 0x96, 0x6c, 0x02, 0xba, 0x94, 0x2c, 0x8c, 0xe9, 0xd7, 0x05, 0xa6, 0xdc, 0xee,
+	0x69, 0x94, 0x64, 0xbf, 0xf4, 0xa2, 0x54, 0xf0, 0xe8, 0x63, 0x26, 0xa4, 0xa6, 0xbe, 0x61, 0xe7,
+	0x05, 0x32, 0x94, 0xf2, 0x46, 0x51, 0x7b, 0x6d, 0x06, 0xea, 0x5b, 0x56, 0x94, 0xbb, 0x19, 0x6b,
+	0x6d, 0x59, 0xa9, 0x94, 0x89, 0xca, 0x43, 0xbc, 0xb2, 0x28, 0xc4, 0x08, 0x1a, 0x72, 0x47, 0xde,
+	0xaa, 0xb6, 0x29, 0xbf, 0xe5, 0xee, 0xbb, 0x2c, 0x11, 0x24, 0x4a, 0x28, 0x3f, 0xe9, 0x79, 0x4d,
+	0xbd, 0x7b, 0x87, 0x25, 0x5b, 0x58, 0x5f, 0x10, 0x2e, 0x3c, 0xd0, 0x6d, 0x59, 0x11, 0x32, 0xed,
+	0x03, 0x93, 0xf6, 0x96, 0x9e, 0x22, 0x0c, 0x29, 0xad, 0xf4, 0xa3, 0x5f, 0xa9, 0xb7, 0xa6, 0x5a,
+	0xae, 0xfa, 0xc6, 0x37, 0xb0, 0x55, 0x4c, 0xa4, 0x33, 0x3a, 0x0c, 0x6e, 0x26, 0xf6, 0x26, 0x57,
+	0xdf, 0xb2, 0x3d, 0xeb, 0x1a, 0x36, 0xb9, 0x30, 0x94, 0x76, 0x75, 0xf6, 0xc8, 0xb8, 0x2c, 0x89,
+	0x26, 0xaf, 0x4f, 0x13, 0x75, 0xf5, 0x8d, 0xff, 0xa9, 0x16, 0xa3, 0xea, 0x58, 0xfe, 0x81, 0xa5,
+	0xc2, 0x5a, 0x96, 0xdf, 0xce, 0xc5, 0x50, 0x73, 0x2f, 0x06, 0x77, 0x64, 0xaa, 0x17, 0x46, 0xa6,
+	0x7c, 0xc0, 0x6a, 0x38, 0x03, 0xd6, 0x0b, 0xb7, 0x92, 0xeb, 0x79, 0x1f, 0x2b, 0x0d, 0x40, 0x5e,
+	0xca, 0xe8, 0x1b, 0x58, 0xb5, 0xd5, 0xab, 0x32, 0xde, 0xea, 0xec, 0xa9, 0x65, 0xb7, 0x94, 0x77,
+	0x90, 0xaf, 0x98, 0xde, 0x9d, 0x2b, 0xee, 0xdd, 0xe9, 0xc1, 0xb6, 0xbb, 0xfc, 0x34, 0xca, 0xef,
+	0xf4, 0x0f, 0xb0, 0x33, 0x2b, 0xb1, 0x81, 0xd9, 0x87, 0x25, 0xc9, 0xd2, 0x1d, 0xba, 0xd5, 0xf1,
+	0x4a, 0xbc, 0xd0, 0xd6, 0xb5, 0xda, 0x82, 0x6b, 0xfb, 0x49, 0xd1, 0x74, 0x5f, 0x30, 0xa7, 0x89,
+	0xa8, 0x2a, 0xac, 0x4d, 0xab, 0x10, 0x3f, 0x2d, 0xba, 0x23, 0xb5, 0x9d, 0x31, 0xeb, 0xd0, 0x1d,
+	0xb3, 0x34, 0xfc, 0x6f, 0xe0, 0x0d, 0x38, 0x49, 0xd2, 0x90, 0x0d, 0xa3, 0x64, 0x54, 0x6c, 0xe7,
+	0xff, 0x87, 0x0d, 0x17, 0x4c, 0x55, 0x84, 0x5e, 0x3c, 0xc7, 0x77, 0xbb, 0x4e, 0xed, 0x8b, 0xbb,
+	0xce, 0x08, 0xee, 0xcd, 0x1b, 0xbf, 0xd5, 0x5f, 0xb7, 0x26, 0x6a, 0x5f, 0x5c, 0x13, 0xd8, 0x07,
+	0xaf, 0x18, 0x16, 0x4e, 0x49, 0x6c, 0x32, 0xf8, 0x47, 0x15, 0xee, 0xcd, 0x0b, 0xad, 0x17, 0x4f,
+	0xa0, 0x21, 0x99, 0x66, 0xa0, 0x58, 0x9c, 0x43, 0xa5, 0x25, 0xdb, 0xe4, 0x49, 0x6a, 0x0f, 0x52,
+	0x3e, 0x18, 0x16, 0x78, 0xf9, 0x90, 0x5f, 0x9f, 0x0e, 0xf9, 0x9d, 0x3f, 0x57, 0x61, 0xdd, 0xce,
+	0x78, 0x67, 0x6c, 0x98, 0x8d, 0x29, 0xfa, 0x0e, 0x9a, 0xf6, 0x1d, 0x93, 0xa2, 0xbb, 0xca, 0x6e,
+	0xf1, 0x5d, 0xe3, 0x9b, 0x08, 0x97, 0x3c, 0x6d, 0x70, 0xe5, 0x59, 0x15, 0x0d, 0x60, 0x63, 0xe6,
+	0x11, 0x92, 0x22, 0xdf, 0xe2, 0xcc, 0xbf, 0x4d, 0xfc, 0xbd, 0x02, 0x5c, 0xc9, 0xf3, 0x44, 0xa1,
+	0xbe, 0x83, 0x8d, 0xd9, 0x07, 0x05, 0xd2, 0x83, 0x4c, 0xf9, 0x2b, 0xc5, 0x7f, 0x54, 0x80, 0x5d,
+	0xf0, 0x18, 0xc1, 0x15, 0xb3, 0x5f, 0x3d, 0x8d, 0xa3, 0xb6, 0xf5, 0xd3, 0x9d, 0xda, 0x7d, 0xbf,
+	0x00, 0x55, 0x18, 0xdc, 0x71, 0x05, 0x3d, 0x53, 0x00, 0x66, 0x40, 0xca, 0x01, 0xdc, 0x79, 0xd7,
+	0x6f, 0x99, 0x5a, 0x91, 0x2c, 0x5c, 0x41, 0xaf, 0xa0, 0xe5, 0x0c, 0xe9, 0x48, 0x4f, 0x8b, 0x73,
+	0x63, 0xbb, 0x8f, 0x0b, 0x66, 0x4b, 0x47, 0x70, 0x5c, 0x41, 0x6f, 0x60, 0xbd, 0x38, 0xc4, 0x23,
+	0x9d, 0x9f, 0xb2, 0x89, 0xdf, 0xc4, 0xfa, 0xb6, 0xa1, 0xbf, 0x82, 0x7e, 0x82, 0x76, 0xd9, 0xab,
+	0x09, 0x3d, 0xcc, 0xa3, 0x5d, 0xfe, 0x3c, 0x33, 0xe0, 0xb7, 0xbc, 0xb8, 0x70, 0x05, 0x75, 0xf5,
+	0xeb, 0xca, 0x56, 0x32, 0xda, 0x99, 0x2b, 0x6c, 0x03, 0xb6, 0xb0, 0xe2, 0x71, 0x05, 0x9d, 0xcb,
+	0x8b, 0x3a, 0x15, 0xae, 0x30, 0x35, 0xc5, 0x50, 0xde, 0x2d, 0xfd, 0xff, 0x96, 0x0a, 0xdd, 0x20,
+	0x6e, 0xc8, 0x96, 0xe5, 0x2a, 0x94, 0x00, 0x4e, 0x7b, 0x60, 0x09, 0xa0, 0xd3, 0xf2, 0x70, 0x05,
+	0xfd, 0x08, 0x68, 0xbe, 0xc3, 0xa0, 0xfb, 0x6a, 0xd5, 0xa2, 0xbe, 0xe7, 0x3f, 0x58, 0x20, 0x9e,
+	0xc2, 0xbe, 0x57, 0x0f, 0xfc, 0xf9, 0xae, 0x61, 0x90, 0x17, 0xf5, 0x1a, 0x83, 0xbc, 0xb0, 0xdb,
+	0xc8, 0x13, 0xf6, 0x3d, 0x7a, 0xbf, 0x31, 0xfb, 0x1f, 0xc7, 0xc7, 0x65, 0xf5, 0x07, 0xc7, 0xf3,
+	0x7f, 0x03, 0x00, 0x00, 0xff, 0xff, 0xcb, 0x98, 0xb0, 0x60, 0xfe, 0x10, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -475,10 +1765,19 @@ const _ = grpc.SupportPackageIsVersion4
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type SecurityModuleClient interface {
 	GetEvents(ctx context.Context, in *GetEventParams, opts ...grpc.CallOption) (SecurityModule_GetEventsClient, error)
+	GetProcessEvents(ctx context.Context, in *GetProcessEventParams, opts ...grpc.CallOption) (SecurityModule_GetProcessEventsClient, error)
 	DumpProcessCache(ctx context.Context, in *DumpProcessCacheParams, opts ...grpc.CallOption) (*SecurityDumpProcessCacheMessage, error)
 	GetConfig(ctx context.Context, in *GetConfigParams, opts ...grpc.CallOption) (*SecurityConfigMessage, error)
+	GetStatus(ctx context.Context, in *GetStatusParams, opts ...grpc.CallOption) (*Status, error)
 	RunSelfTest(ctx context.Context, in *RunSelfTestParams, opts ...grpc.CallOption) (*SecuritySelfTestResultMessage, error)
 	ReloadPolicies(ctx context.Context, in *ReloadPoliciesParams, opts ...grpc.CallOption) (*ReloadPoliciesResultMessage, error)
+	DumpNetworkNamespace(ctx context.Context, in *DumpNetworkNamespaceParams, opts ...grpc.CallOption) (*DumpNetworkNamespaceMessage, error)
+	// Activity dumps
+	DumpActivity(ctx context.Context, in *ActivityDumpParams, opts ...grpc.CallOption) (*ActivityDumpMessage, error)
+	ListActivityDumps(ctx context.Context, in *ActivityDumpListParams, opts ...grpc.CallOption) (*ActivityDumpListMessage, error)
+	StopActivityDump(ctx context.Context, in *ActivityDumpStopParams, opts ...grpc.CallOption) (*ActivityDumpStopMessage, error)
+	TranscodingRequest(ctx context.Context, in *TranscodingRequestParams, opts ...grpc.CallOption) (*TranscodingRequestMessage, error)
+	GetActivityDumpStream(ctx context.Context, in *ActivityDumpStreamParams, opts ...grpc.CallOption) (SecurityModule_GetActivityDumpStreamClient, error)
 }
 
 type securityModuleClient struct {
@@ -521,6 +1820,38 @@ func (x *securityModuleGetEventsClient) Recv() (*SecurityEventMessage, error) {
 	return m, nil
 }
 
+func (c *securityModuleClient) GetProcessEvents(ctx context.Context, in *GetProcessEventParams, opts ...grpc.CallOption) (SecurityModule_GetProcessEventsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_SecurityModule_serviceDesc.Streams[1], "/api.SecurityModule/GetProcessEvents", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &securityModuleGetProcessEventsClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type SecurityModule_GetProcessEventsClient interface {
+	Recv() (*SecurityProcessEventMessage, error)
+	grpc.ClientStream
+}
+
+type securityModuleGetProcessEventsClient struct {
+	grpc.ClientStream
+}
+
+func (x *securityModuleGetProcessEventsClient) Recv() (*SecurityProcessEventMessage, error) {
+	m := new(SecurityProcessEventMessage)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func (c *securityModuleClient) DumpProcessCache(ctx context.Context, in *DumpProcessCacheParams, opts ...grpc.CallOption) (*SecurityDumpProcessCacheMessage, error) {
 	out := new(SecurityDumpProcessCacheMessage)
 	err := c.cc.Invoke(ctx, "/api.SecurityModule/DumpProcessCache", in, out, opts...)
@@ -533,6 +1864,15 @@ func (c *securityModuleClient) DumpProcessCache(ctx context.Context, in *DumpPro
 func (c *securityModuleClient) GetConfig(ctx context.Context, in *GetConfigParams, opts ...grpc.CallOption) (*SecurityConfigMessage, error) {
 	out := new(SecurityConfigMessage)
 	err := c.cc.Invoke(ctx, "/api.SecurityModule/GetConfig", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *securityModuleClient) GetStatus(ctx context.Context, in *GetStatusParams, opts ...grpc.CallOption) (*Status, error) {
+	out := new(Status)
+	err := c.cc.Invoke(ctx, "/api.SecurityModule/GetStatus", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -557,13 +1897,99 @@ func (c *securityModuleClient) ReloadPolicies(ctx context.Context, in *ReloadPol
 	return out, nil
 }
 
+func (c *securityModuleClient) DumpNetworkNamespace(ctx context.Context, in *DumpNetworkNamespaceParams, opts ...grpc.CallOption) (*DumpNetworkNamespaceMessage, error) {
+	out := new(DumpNetworkNamespaceMessage)
+	err := c.cc.Invoke(ctx, "/api.SecurityModule/DumpNetworkNamespace", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *securityModuleClient) DumpActivity(ctx context.Context, in *ActivityDumpParams, opts ...grpc.CallOption) (*ActivityDumpMessage, error) {
+	out := new(ActivityDumpMessage)
+	err := c.cc.Invoke(ctx, "/api.SecurityModule/DumpActivity", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *securityModuleClient) ListActivityDumps(ctx context.Context, in *ActivityDumpListParams, opts ...grpc.CallOption) (*ActivityDumpListMessage, error) {
+	out := new(ActivityDumpListMessage)
+	err := c.cc.Invoke(ctx, "/api.SecurityModule/ListActivityDumps", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *securityModuleClient) StopActivityDump(ctx context.Context, in *ActivityDumpStopParams, opts ...grpc.CallOption) (*ActivityDumpStopMessage, error) {
+	out := new(ActivityDumpStopMessage)
+	err := c.cc.Invoke(ctx, "/api.SecurityModule/StopActivityDump", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *securityModuleClient) TranscodingRequest(ctx context.Context, in *TranscodingRequestParams, opts ...grpc.CallOption) (*TranscodingRequestMessage, error) {
+	out := new(TranscodingRequestMessage)
+	err := c.cc.Invoke(ctx, "/api.SecurityModule/TranscodingRequest", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *securityModuleClient) GetActivityDumpStream(ctx context.Context, in *ActivityDumpStreamParams, opts ...grpc.CallOption) (SecurityModule_GetActivityDumpStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_SecurityModule_serviceDesc.Streams[2], "/api.SecurityModule/GetActivityDumpStream", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &securityModuleGetActivityDumpStreamClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type SecurityModule_GetActivityDumpStreamClient interface {
+	Recv() (*ActivityDumpStreamMessage, error)
+	grpc.ClientStream
+}
+
+type securityModuleGetActivityDumpStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *securityModuleGetActivityDumpStreamClient) Recv() (*ActivityDumpStreamMessage, error) {
+	m := new(ActivityDumpStreamMessage)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // SecurityModuleServer is the server API for SecurityModule service.
 type SecurityModuleServer interface {
 	GetEvents(*GetEventParams, SecurityModule_GetEventsServer) error
+	GetProcessEvents(*GetProcessEventParams, SecurityModule_GetProcessEventsServer) error
 	DumpProcessCache(context.Context, *DumpProcessCacheParams) (*SecurityDumpProcessCacheMessage, error)
 	GetConfig(context.Context, *GetConfigParams) (*SecurityConfigMessage, error)
+	GetStatus(context.Context, *GetStatusParams) (*Status, error)
 	RunSelfTest(context.Context, *RunSelfTestParams) (*SecuritySelfTestResultMessage, error)
 	ReloadPolicies(context.Context, *ReloadPoliciesParams) (*ReloadPoliciesResultMessage, error)
+	DumpNetworkNamespace(context.Context, *DumpNetworkNamespaceParams) (*DumpNetworkNamespaceMessage, error)
+	// Activity dumps
+	DumpActivity(context.Context, *ActivityDumpParams) (*ActivityDumpMessage, error)
+	ListActivityDumps(context.Context, *ActivityDumpListParams) (*ActivityDumpListMessage, error)
+	StopActivityDump(context.Context, *ActivityDumpStopParams) (*ActivityDumpStopMessage, error)
+	TranscodingRequest(context.Context, *TranscodingRequestParams) (*TranscodingRequestMessage, error)
+	GetActivityDumpStream(*ActivityDumpStreamParams, SecurityModule_GetActivityDumpStreamServer) error
 }
 
 // UnimplementedSecurityModuleServer can be embedded to have forward compatible implementations.
@@ -573,17 +1999,41 @@ type UnimplementedSecurityModuleServer struct {
 func (*UnimplementedSecurityModuleServer) GetEvents(req *GetEventParams, srv SecurityModule_GetEventsServer) error {
 	return status.Errorf(codes.Unimplemented, "method GetEvents not implemented")
 }
+func (*UnimplementedSecurityModuleServer) GetProcessEvents(req *GetProcessEventParams, srv SecurityModule_GetProcessEventsServer) error {
+	return status.Errorf(codes.Unimplemented, "method GetProcessEvents not implemented")
+}
 func (*UnimplementedSecurityModuleServer) DumpProcessCache(ctx context.Context, req *DumpProcessCacheParams) (*SecurityDumpProcessCacheMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DumpProcessCache not implemented")
 }
 func (*UnimplementedSecurityModuleServer) GetConfig(ctx context.Context, req *GetConfigParams) (*SecurityConfigMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetConfig not implemented")
 }
+func (*UnimplementedSecurityModuleServer) GetStatus(ctx context.Context, req *GetStatusParams) (*Status, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetStatus not implemented")
+}
 func (*UnimplementedSecurityModuleServer) RunSelfTest(ctx context.Context, req *RunSelfTestParams) (*SecuritySelfTestResultMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RunSelfTest not implemented")
 }
 func (*UnimplementedSecurityModuleServer) ReloadPolicies(ctx context.Context, req *ReloadPoliciesParams) (*ReloadPoliciesResultMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReloadPolicies not implemented")
+}
+func (*UnimplementedSecurityModuleServer) DumpNetworkNamespace(ctx context.Context, req *DumpNetworkNamespaceParams) (*DumpNetworkNamespaceMessage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DumpNetworkNamespace not implemented")
+}
+func (*UnimplementedSecurityModuleServer) DumpActivity(ctx context.Context, req *ActivityDumpParams) (*ActivityDumpMessage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DumpActivity not implemented")
+}
+func (*UnimplementedSecurityModuleServer) ListActivityDumps(ctx context.Context, req *ActivityDumpListParams) (*ActivityDumpListMessage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListActivityDumps not implemented")
+}
+func (*UnimplementedSecurityModuleServer) StopActivityDump(ctx context.Context, req *ActivityDumpStopParams) (*ActivityDumpStopMessage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StopActivityDump not implemented")
+}
+func (*UnimplementedSecurityModuleServer) TranscodingRequest(ctx context.Context, req *TranscodingRequestParams) (*TranscodingRequestMessage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TranscodingRequest not implemented")
+}
+func (*UnimplementedSecurityModuleServer) GetActivityDumpStream(req *ActivityDumpStreamParams, srv SecurityModule_GetActivityDumpStreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method GetActivityDumpStream not implemented")
 }
 
 func RegisterSecurityModuleServer(s *grpc.Server, srv SecurityModuleServer) {
@@ -608,6 +2058,27 @@ type securityModuleGetEventsServer struct {
 }
 
 func (x *securityModuleGetEventsServer) Send(m *SecurityEventMessage) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _SecurityModule_GetProcessEvents_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(GetProcessEventParams)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(SecurityModuleServer).GetProcessEvents(m, &securityModuleGetProcessEventsServer{stream})
+}
+
+type SecurityModule_GetProcessEventsServer interface {
+	Send(*SecurityProcessEventMessage) error
+	grpc.ServerStream
+}
+
+type securityModuleGetProcessEventsServer struct {
+	grpc.ServerStream
+}
+
+func (x *securityModuleGetProcessEventsServer) Send(m *SecurityProcessEventMessage) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -643,6 +2114,24 @@ func _SecurityModule_GetConfig_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(SecurityModuleServer).GetConfig(ctx, req.(*GetConfigParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SecurityModule_GetStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetStatusParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecurityModuleServer).GetStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.SecurityModule/GetStatus",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecurityModuleServer).GetStatus(ctx, req.(*GetStatusParams))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -683,6 +2172,117 @@ func _SecurityModule_ReloadPolicies_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SecurityModule_DumpNetworkNamespace_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DumpNetworkNamespaceParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecurityModuleServer).DumpNetworkNamespace(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.SecurityModule/DumpNetworkNamespace",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecurityModuleServer).DumpNetworkNamespace(ctx, req.(*DumpNetworkNamespaceParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SecurityModule_DumpActivity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ActivityDumpParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecurityModuleServer).DumpActivity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.SecurityModule/DumpActivity",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecurityModuleServer).DumpActivity(ctx, req.(*ActivityDumpParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SecurityModule_ListActivityDumps_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ActivityDumpListParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecurityModuleServer).ListActivityDumps(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.SecurityModule/ListActivityDumps",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecurityModuleServer).ListActivityDumps(ctx, req.(*ActivityDumpListParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SecurityModule_StopActivityDump_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ActivityDumpStopParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecurityModuleServer).StopActivityDump(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.SecurityModule/StopActivityDump",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecurityModuleServer).StopActivityDump(ctx, req.(*ActivityDumpStopParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SecurityModule_TranscodingRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TranscodingRequestParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecurityModuleServer).TranscodingRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.SecurityModule/TranscodingRequest",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecurityModuleServer).TranscodingRequest(ctx, req.(*TranscodingRequestParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SecurityModule_GetActivityDumpStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ActivityDumpStreamParams)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(SecurityModuleServer).GetActivityDumpStream(m, &securityModuleGetActivityDumpStreamServer{stream})
+}
+
+type SecurityModule_GetActivityDumpStreamServer interface {
+	Send(*ActivityDumpStreamMessage) error
+	grpc.ServerStream
+}
+
+type securityModuleGetActivityDumpStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *securityModuleGetActivityDumpStreamServer) Send(m *ActivityDumpStreamMessage) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 var _SecurityModule_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "api.SecurityModule",
 	HandlerType: (*SecurityModuleServer)(nil),
@@ -696,6 +2296,10 @@ var _SecurityModule_serviceDesc = grpc.ServiceDesc{
 			Handler:    _SecurityModule_GetConfig_Handler,
 		},
 		{
+			MethodName: "GetStatus",
+			Handler:    _SecurityModule_GetStatus_Handler,
+		},
+		{
 			MethodName: "RunSelfTest",
 			Handler:    _SecurityModule_RunSelfTest_Handler,
 		},
@@ -703,11 +2307,41 @@ var _SecurityModule_serviceDesc = grpc.ServiceDesc{
 			MethodName: "ReloadPolicies",
 			Handler:    _SecurityModule_ReloadPolicies_Handler,
 		},
+		{
+			MethodName: "DumpNetworkNamespace",
+			Handler:    _SecurityModule_DumpNetworkNamespace_Handler,
+		},
+		{
+			MethodName: "DumpActivity",
+			Handler:    _SecurityModule_DumpActivity_Handler,
+		},
+		{
+			MethodName: "ListActivityDumps",
+			Handler:    _SecurityModule_ListActivityDumps_Handler,
+		},
+		{
+			MethodName: "StopActivityDump",
+			Handler:    _SecurityModule_StopActivityDump_Handler,
+		},
+		{
+			MethodName: "TranscodingRequest",
+			Handler:    _SecurityModule_TranscodingRequest_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "GetEvents",
 			Handler:       _SecurityModule_GetEvents_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "GetProcessEvents",
+			Handler:       _SecurityModule_GetProcessEvents_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "GetActivityDumpStream",
+			Handler:       _SecurityModule_GetActivityDumpStream_Handler,
 			ServerStreams: true,
 		},
 	},

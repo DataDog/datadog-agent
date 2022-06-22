@@ -17,6 +17,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientsetscheme "k8s.io/client-go/kubernetes/scheme"
+	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
 // KubeUtilInterface defines the interface for kubelet api
@@ -27,24 +28,19 @@ type KubeUtilInterface interface {
 	GetLocalPodList(ctx context.Context) ([]*Pod, error)
 	ForceGetLocalPodList(ctx context.Context) ([]*Pod, error)
 	GetPodForContainerID(ctx context.Context, containerID string) (*Pod, error)
-	GetStatusForContainerID(pod *Pod, containerID string) (ContainerStatus, error)
-	GetSpecForContainerName(pod *Pod, containerName string) (ContainerSpec, error)
-	GetPodFromUID(ctx context.Context, podUID string) (*Pod, error)
-	GetPodForEntityID(ctx context.Context, entityID string) (*Pod, error)
 	QueryKubelet(ctx context.Context, path string) ([]byte, int, error)
-	GetKubeletAPIEndpoint() string
 	GetRawConnectionInfo() map[string]string
 	GetRawMetrics(ctx context.Context) ([]byte, error)
 	ListContainers(ctx context.Context) ([]*containers.Container, error)
-	IsAgentHostNetwork(ctx context.Context) (bool, error)
+	IsAgentHostNetwork(ctx context.Context, agentContainerID string) (bool, error)
 	UpdateContainerMetrics(ctrList []*containers.Container) error
 	GetRawLocalPodList(ctx context.Context) ([]*v1.Pod, error)
+	GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error)
 }
 
 // GetRawLocalPodList returns the unfiltered pod list from the kubelet
 func (ku *KubeUtil) GetRawLocalPodList(ctx context.Context) ([]*v1.Pod, error) {
 	data, code, err := ku.QueryKubelet(ctx, kubeletPodPath)
-
 	if err != nil {
 		return nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.kubeletClient.kubeletURL, kubeletPodPath, err)
 	}

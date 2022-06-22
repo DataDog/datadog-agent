@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -81,7 +81,6 @@ func TestInfoHandler(t *testing.T) {
 		},
 		StatsdHost:                  "stastd.localhost",
 		StatsdPort:                  123,
-		LogLevel:                    "WARN",
 		LogFilePath:                 "/path/to/logfile",
 		LogThrottling:               false,
 		MaxMemory:                   1000000,
@@ -108,9 +107,8 @@ func TestInfoHandler(t *testing.T) {
 	}
 
 	var testCases = []struct {
-		name                 string
-		expected             string
-		enableConfigEndpoint bool
+		name     string
+		expected string
 	}{
 		{
 			name: "default",
@@ -130,12 +128,15 @@ func TestInfoHandler(t *testing.T) {
 		"/v0.6/stats",
 		"/v0.1/pipeline_stats",
 		"/appsec/proxy/",
+		"/evp_proxy/v1/",
 		"/debugger/v1/input"
 	],
 	"feature_flags": [
 		"feature_flag"
 	],
 	"client_drop_p0s": true,
+	"span_meta_structs": true,
+	"long_running_spans": true,
 	"config": {
 		"default_env": "prod",
 		"target_tps": 11,
@@ -170,8 +171,7 @@ func TestInfoHandler(t *testing.T) {
 }`,
 		},
 		{
-			name:                 "debug",
-			enableConfigEndpoint: true,
+			name: "debug",
 			expected: `{
 	"version": "0.99.0",
 	"git_commit": "fab047e10",
@@ -188,13 +188,15 @@ func TestInfoHandler(t *testing.T) {
 		"/v0.6/stats",
 		"/v0.1/pipeline_stats",
 		"/appsec/proxy/",
-		"/debugger/v1/input",
-		"/v0.7/config"
+		"/evp_proxy/v1/",
+		"/debugger/v1/input"
 	],
 	"feature_flags": [
-		"config_endpoint"
+		"feature_flag"
 	],
 	"client_drop_p0s": true,
+	"span_meta_structs": true,
+	"long_running_spans": true,
 	"config": {
 		"default_env": "prod",
 		"target_tps": 11,
@@ -232,11 +234,7 @@ func TestInfoHandler(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			rcv := newTestReceiverFromConfig(conf)
-			if tt.enableConfigEndpoint {
-				defer testutil.WithFeatures("config_endpoint")()
-			} else {
-				defer testutil.WithFeatures("feature_flag")()
-			}
+			defer testutil.WithFeatures("feature_flag")()
 			defer func(old string) { info.Version = old }(info.Version)
 			defer func(old string) { info.GitCommit = old }(info.GitCommit)
 			defer func(old string) { info.BuildDate = old }(info.BuildDate)
@@ -249,9 +247,9 @@ func TestInfoHandler(t *testing.T) {
 			h.ServeHTTP(rec, req)
 			assert.Equal(t, rec.Body.String(), tt.expected)
 			if rec.Body.String() != tt.expected {
-				t.Fatal("Output of /info has changed. Changing the keys "+
+				t.Fatalf("Output of /info has changed. Changing the keys "+
 					"is not allowed because the client rely on them and "+
-					"is considered a breaking change:\n\n%f", rec.Body.String())
+					"is considered a breaking change:\n\n%v", rec.Body.String())
 			}
 		})
 	}

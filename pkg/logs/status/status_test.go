@@ -13,14 +13,16 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 func initStatus() {
-	InitStatus(config.CreateSources([]*config.LogSource{
-		config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),
-		config.NewLogSource("bar", &config.LogsConfig{Type: "foo"}),
-		config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),
+	InitStatus(util.CreateSources([]*sources.LogSource{
+		sources.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),
+		sources.NewLogSource("bar", &config.LogsConfig{Type: "foo"}),
+		sources.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),
 	}))
 }
 

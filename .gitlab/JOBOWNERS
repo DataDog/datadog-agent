@@ -14,9 +14,10 @@ golang_deps_generate                 @DataDog/agent-core
 
 # Binary build
 build_system-probe*                  @DataDog/agent-network
-cluster_agent_cloudfoundry-build*    @Datadog/integrations-tools-and-libs
+cluster_agent_cloudfoundry-build*    @Datadog/integrations-tools-and-libraries
 cluster_agent-build*                 @DataDog/container-integrations
 build_serverless*                    @DataDog/serverless
+check_serverless_*                   @DataDog/serverless
 
 # Image build
 docker_build*                        @DataDog/container-integrations
@@ -30,14 +31,23 @@ dca_scan_*_docker_hub*               @DataDog/container-integrations
 # deploy pipelines
 check_already_deployed_version_*     @DataDog/do-not-notify
 
-# Image deploy
-dev_*_docker_hub*                    @DataDog/container-integrations
-dev_*_google_container_repository*   @DataDog/container-integrations
-docker_trigger_internal*             @DataDog/container-integrations
+# Dev container deploy
+# HACK: Silenced for now, uncomment and remove the next section once
+# public-images is fixed.
+# dca_dev_branch*                      @DataDog/container-integrations
+# dev_branch*                          @DataDog/container-integrations
+# dev_master*                          @DataDog/container-integrations
+# dev_nightly*                         @DataDog/container-integrations
+# docker_trigger_internal*             @DataDog/container-integrations
+
+dca_dev_branch*                      @DataDog/do-not-notify
+dev_branch*                          @DataDog/do-not-notify
+dev_master*                          @DataDog/do-not-notify
+dev_nightly*                         @DataDog/do-not-notify
+docker_trigger_internal*             @DataDog/do-not-notify
 
 # Deploy
-deploy_*docker_hub*                  @DataDog/container-integrations
-deploy_*google_container_repository* @DataDog/container-integrations
+deploy_containers*                   @DataDog/container-integrations
 
 # Functional test
 kitchen_*_system_probe*                        @DataDog/agent-network

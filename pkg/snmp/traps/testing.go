@@ -25,41 +25,98 @@ import (
 // List of variables for a NetSNMP::ExampleHeartBeatNotification trap message.
 // See: http://www.circitor.fr/Mibs/Html/N/NET-SNMP-EXAMPLES-MIB.php#netSnmpExampleHeartbeatNotification
 var (
-	NetSNMPExampleHeartbeatNotificationVariables = []gosnmp.SnmpPDU{
-		// sysUpTimeInstance
-		{Name: "1.3.6.1.2.1.1.3.0", Type: gosnmp.TimeTicks, Value: uint32(1000)},
-		// snmpTrapOID
-		{Name: "1.3.6.1.6.3.1.1.4.1.0", Type: gosnmp.OctetString, Value: "1.3.6.1.4.1.8072.2.3.0.1"},
-		// heartBeatRate
-		{Name: "1.3.6.1.4.1.8072.2.3.2.1", Type: gosnmp.Integer, Value: 1024},
-		// heartBeatName
-		{Name: "1.3.6.1.4.1.8072.2.3.2.2", Type: gosnmp.OctetString, Value: "test"},
+	NetSNMPExampleHeartbeatNotification = gosnmp.SnmpTrap{
+		Variables: []gosnmp.SnmpPDU{
+			// sysUpTimeInstance
+			{Name: "1.3.6.1.2.1.1.3.0", Type: gosnmp.TimeTicks, Value: uint32(1000)},
+			// snmpTrapOID
+			{Name: "1.3.6.1.6.3.1.1.4.1.0", Type: gosnmp.OctetString, Value: "1.3.6.1.4.1.8072.2.3.0.1"},
+			// heartBeatRate
+			{Name: "1.3.6.1.4.1.8072.2.3.2.1", Type: gosnmp.Integer, Value: 1024},
+			// heartBeatName
+			{Name: "1.3.6.1.4.1.8072.2.3.2.2", Type: gosnmp.OctetString, Value: "test"},
+		},
+	}
+	LinkDownv1GenericTrap = gosnmp.SnmpTrap{
+		AgentAddress: "127.0.0.1",
+		Enterprise:   ".1.3.6.1.6.3.1.1.5",
+		GenericTrap:  2,
+		SpecificTrap: 0,
+		Timestamp:    1000,
+		Variables: []gosnmp.SnmpPDU{
+			// ifIndex
+			{Name: ".1.3.6.1.2.1.2.2.1.1", Type: gosnmp.Integer, Value: 2},
+			// ifAdminStatus
+			{Name: ".1.3.6.1.2.1.2.2.1.7", Type: gosnmp.Integer, Value: 1},
+			// ifOperStatusjq
+			{Name: ".1.3.6.1.2.1.2.2.1.8", Type: gosnmp.Integer, Value: 2},
+		},
+	}
+	AlarmActiveStatev1SpecificTrap = gosnmp.SnmpTrap{
+		AgentAddress: "127.0.0.1",
+		Enterprise:   ".1.3.6.1.2.1.118",
+		GenericTrap:  6,
+		SpecificTrap: 2,
+		Timestamp:    1000,
+		Variables: []gosnmp.SnmpPDU{
+			// alarmActiveModelPointer
+			{Name: ".1.3.6.1.2.1.118.1.2.2.1.13", Type: gosnmp.OctetString, Value: []uint8{0x66, 0x6f, 0x6f}},
+			// alarmActiveResourceId
+			{Name: ".1.3.6.1.2.1.118.1.2.2.1.10", Type: gosnmp.OctetString, Value: []uint8{0x62, 0x61, 0x72}},
+		},
 	}
 )
 
-func parsePort(t *testing.T, addr string) uint16 {
-	_, portString, err := net.SplitHostPort(addr)
-	require.NoError(t, err)
-
-	port, err := strconv.ParseUint(portString, 10, 16)
-	require.NoError(t, err)
-
-	return uint16(port)
+func getFreePort() uint16 {
+	var port uint16
+	for i := 0; i < 5; i++ {
+		conn, err := net.ListenPacket("udp", ":0")
+		if err != nil {
+			continue
+		}
+		conn.Close()
+		port, err = parsePort(conn.LocalAddr().String())
+		if err != nil {
+			continue
+		}
+		listener, err := startSNMPTrapListener(Config{Port: port}, nil)
+		if err != nil {
+			continue
+		}
+		listener.Stop()
+		return port
+	}
+	panic("unable to find free port for starting the trap listener")
 }
 
-// GetPort requests a random UDP port number and makes sure it is available
-func GetPort(t *testing.T) uint16 {
-	conn, err := net.ListenPacket("udp", ":0")
-	require.NoError(t, err)
-	defer conn.Close()
-	return parsePort(t, conn.LocalAddr().String())
+func parsePort(addr string) (uint16, error) {
+	_, portString, err := net.SplitHostPort(addr)
+	if err != nil {
+		return 0, err
+	}
+
+	port, err := strconv.ParseUint(portString, 10, 16)
+	if err != nil {
+		return 0, err
+	}
+	return uint16(port), nil
 }
 
 // Configure sets Datadog Agent configuration from a config object.
 func Configure(t *testing.T, trapConfig Config) {
-	datadogYaml := map[string]interface{}{
-		"snmp_traps_enabled": true,
-		"snmp_traps_config":  trapConfig,
+	ConfigureWithGlobalNamespace(t, trapConfig, "")
+}
+
+// ConfigureWithGlobalNamespace sets Datadog Agent configuration from a config object and a namespace
+func ConfigureWithGlobalNamespace(t *testing.T, trapConfig Config, globalNamespace string) {
+	trapConfig.Enabled = true
+	datadogYaml := map[string]map[string]interface{}{
+		"network_devices": {
+			"snmp_traps": trapConfig,
+		},
+	}
+	if globalNamespace != "" {
+		datadogYaml["network_devices"]["namespace"] = globalNamespace
 	}
 
 	config.Datadog.SetConfigType("yaml")
@@ -70,32 +127,77 @@ func Configure(t *testing.T, trapConfig Config) {
 	require.NoError(t, err)
 }
 
+func sendTestV1GenericTrap(t *testing.T, trapConfig Config, community string) *gosnmp.GoSNMP {
+	params, err := trapConfig.BuildSNMPParams()
+	require.NoError(t, err)
+	params.Community = community
+	params.Timeout = 1 * time.Second // Must be non-zero when sending traps.
+	params.Retries = 1               // Must be non-zero when sending traps.
+	params.Version = gosnmp.Version1
+
+	err = params.Connect()
+	require.NoError(t, err)
+	defer params.Conn.Close()
+
+	_, err = params.SendTrap(LinkDownv1GenericTrap)
+	require.NoError(t, err)
+
+	return params
+}
+
+func sendTestV1SpecificTrap(t *testing.T, trapConfig Config, community string) *gosnmp.GoSNMP {
+	params, err := trapConfig.BuildSNMPParams()
+	require.NoError(t, err)
+	params.Community = community
+	params.Timeout = 1 * time.Second // Must be non-zero when sending traps.
+	params.Retries = 1               // Must be non-zero when sending traps.
+	params.Version = gosnmp.Version1
+
+	err = params.Connect()
+	require.NoError(t, err)
+	defer params.Conn.Close()
+
+	_, err = params.SendTrap(AlarmActiveStatev1SpecificTrap)
+	require.NoError(t, err)
+
+	return params
+}
+
 func sendTestV2Trap(t *testing.T, trapConfig Config, community string) *gosnmp.GoSNMP {
-	params := trapConfig.BuildV2Params()
+	params, err := trapConfig.BuildSNMPParams()
+	require.NoError(t, err)
 	params.Community = community
 	params.Timeout = 1 * time.Second // Must be non-zero when sending traps.
 	params.Retries = 1               // Must be non-zero when sending traps.
 
-	err := params.Connect()
+	err = params.Connect()
 	require.NoError(t, err)
 	defer params.Conn.Close()
 
-	trap := gosnmp.SnmpTrap{Variables: NetSNMPExampleHeartbeatNotificationVariables}
+	trap := NetSNMPExampleHeartbeatNotification
 	_, err = params.SendTrap(trap)
 	require.NoError(t, err)
 
 	return params
 }
 
-// receivePacket waits for a received trap packet and returns it.
-func receivePacket(t *testing.T) *SnmpPacket {
-	select {
-	case packet := <-GetPacketsChannel():
-		return packet
-	case <-time.After(3 * time.Second):
-		t.Error("Trap not received")
-		return nil
-	}
+func sendTestV3Trap(t *testing.T, trapConfig Config, securityParams *gosnmp.UsmSecurityParameters) *gosnmp.GoSNMP {
+	params, err := trapConfig.BuildSNMPParams()
+	require.NoError(t, err)
+	params.MsgFlags = gosnmp.AuthPriv
+	params.SecurityParameters = securityParams
+	params.Timeout = 1 * time.Second // Must be non-zero when sending traps.
+	params.Retries = 1               // Must be non-zero when sending traps.
+
+	err = params.Connect()
+	require.NoError(t, err)
+	defer params.Conn.Close()
+
+	trap := NetSNMPExampleHeartbeatNotification
+	_, err = params.SendTrap(trap)
+	require.NoError(t, err)
+
+	return params
 }
 
 func assertIsValidV2Packet(t *testing.T, packet *SnmpPacket, trapConfig Config) {
@@ -109,7 +211,7 @@ func assertIsValidV2Packet(t *testing.T, packet *SnmpPacket, trapConfig Config) 
 	require.True(t, communityValid)
 }
 
-func assertV2Variables(t *testing.T, packet *SnmpPacket) {
+func assertVariables(t *testing.T, packet *SnmpPacket) {
 	variables := packet.Content.Variables
 	assert.Equal(t, 4, len(variables))
 
@@ -131,13 +233,4 @@ func assertV2Variables(t *testing.T, packet *SnmpPacket) {
 	assert.Equal(t, ".1.3.6.1.4.1.8072.2.3.2.2", heartBeatName.Name)
 	assert.Equal(t, gosnmp.OctetString, heartBeatName.Type)
 	assert.Equal(t, "test", string(heartBeatName.Value.([]byte)))
-}
-
-func assertNoPacketReceived(t *testing.T) {
-	select {
-	case <-GetPacketsChannel():
-		t.Error("Unexpectedly received an unauthorized packet")
-	case <-time.After(100 * time.Millisecond):
-		break
-	}
 }

@@ -49,6 +49,9 @@ message LatestConfigsRequest {
   repeated string products = 4;
   repeated string new_products = 5;
   repeated Client active_clients = 6;
+  bytes backend_client_state = 10;
+  bool has_error = 11;
+  string error = 12;
 }
 
 message LatestConfigsResponse {
@@ -57,38 +60,48 @@ message LatestConfigsResponse {
   repeated File target_files = 3;
 }
 
-// Client defintions
+// Client definitions
 
 message Client {
   ClientState state = 1;
   string id = 2;
   repeated string products = 3;
-  string name = 4;
-  string version = 5;
+  reserved 4, 5;
   bool is_tracer = 6;
-  TracerClient tracer_client = 7;
+  ClientTracer client_tracer = 7;
+  bool is_agent = 8;
+  ClientAgent client_agent = 9;
+  uint64 last_seen = 10;
 }
 
-message TracerClient {
+message ClientTracer {
   string runtime_id = 1;
   string language = 2;
   string tracer_version = 3;
   string service = 4;
   string env = 5;
   string app_version = 6;
+  repeated string tags = 7;
 }
 
-message Config {
+message ClientAgent {
+  string name = 1;
+  string version = 2;
+}
+
+message ConfigState {
   string id = 1;
   uint64 version = 2;
+  string product = 3;
 }
 
 message ClientState {
   uint64 root_version = 1;
   uint64 targets_version = 2;
-  repeated Config configs = 3;
+  repeated ConfigState config_states = 3;
   bool has_error = 4;
   string error = 5;
+  bytes backend_client_state = 6;
 }
 
 // Client queries
@@ -110,7 +123,35 @@ message ClientGetConfigsRequest {
 }
 
 message ClientGetConfigsResponse {
-  repeated TopMeta roots = 1;
-  TopMeta targets = 2;
+  repeated bytes roots = 1;
+  bytes targets = 2;
   repeated File target_files = 3;
+  repeated string client_configs = 4;
+}
+
+// Full state
+
+message FileMetaState {
+  uint64 version = 1;
+  string hash = 2;
+}
+
+message GetStateConfigResponse {
+  map<string, FileMetaState> config_state = 1;
+  map<string, FileMetaState> director_state = 2;
+  map<string, string> target_filenames = 3;
+}
+
+
+message TracerPredicateV1 {
+	string runtimeID = 1;
+	string service = 2;
+	string environment = 3;
+	string appVersion = 4;
+	string tracerVersion = 5;
+	string language = 6;
+}
+
+message TracerPredicates {
+	repeated TracerPredicateV1 tracer_predicates_v1 = 1;
 }

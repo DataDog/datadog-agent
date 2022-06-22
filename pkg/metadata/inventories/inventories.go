@@ -45,6 +45,8 @@ var (
 	checkMetadataMutex = &sync.Mutex{}
 	agentMetadata      = make(AgentMetadata)
 	agentMetadataMutex = &sync.Mutex{}
+	hostMetadata       = make(AgentMetadata)
+	hostMetadataMutex  = &sync.Mutex{}
 
 	agentStartupTime = timeNow()
 
@@ -91,9 +93,14 @@ const (
 	AgentProcessEnabled                AgentMetadataName = "feature_process_enabled"
 	AgentProcessesContainerEnabled     AgentMetadataName = "feature_processes_container_enabled"
 	AgentNetworksEnabled               AgentMetadataName = "feature_networks_enabled"
+	AgentNetworksHTTPEnabled           AgentMetadataName = "feature_networks_http_enabled"
+	AgentNetworksHTTPSEnabled          AgentMetadataName = "feature_networks_https_enabled"
 	AgentLogsEnabled                   AgentMetadataName = "feature_logs_enabled"
 	AgentCSPMEnabled                   AgentMetadataName = "feature_cspm_enabled"
 	AgentAPMEnabled                    AgentMetadataName = "feature_apm_enabled"
+
+	// key for the host metadata cache. See host_metadata.go
+	HostOSVersion AgentMetadataName = "os_version"
 )
 
 // SetAgentMetadata updates the agent metadata value in the cache
@@ -103,6 +110,21 @@ func SetAgentMetadata(name AgentMetadataName, value interface{}) {
 
 	if !reflect.DeepEqual(agentMetadata[string(name)], value) {
 		agentMetadata[string(name)] = value
+
+		select {
+		case metadataUpdatedC <- nil:
+		default: // To make sure this call is not blocking
+		}
+	}
+}
+
+// SetHostMetadata updates the host metadata value in the cache
+func SetHostMetadata(name AgentMetadataName, value interface{}) {
+	agentMetadataMutex.Lock()
+	defer agentMetadataMutex.Unlock()
+
+	if !reflect.DeepEqual(hostMetadata[string(name)], value) {
+		hostMetadata[string(name)] = value
 
 		select {
 		case metadataUpdatedC <- nil:
@@ -159,8 +181,8 @@ func createCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceM
 	return &checkInstanceMetadata
 }
 
-// CreatePayload fills and returns the inventory metadata payload
-func CreatePayload(ctx context.Context, hostname string, ac AutoConfigInterface, coll CollectorInterface) *Payload {
+// createPayload fills and returns the inventory metadata payload
+func createPayload(ctx context.Context, hostname string, ac AutoConfigInterface, coll CollectorInterface) *Payload {
 	checkMetadataMutex.Lock()
 	defer checkMetadataMutex.Unlock()
 
@@ -193,7 +215,6 @@ func CreatePayload(ctx context.Context, hostname string, ac AutoConfigInterface,
 	}
 
 	agentMetadataMutex.Lock()
-	defer agentMetadataMutex.Unlock()
 
 	// Create a static copy of agentMetadata for the payload
 	payloadAgentMeta := make(AgentMetadata)
@@ -201,11 +222,14 @@ func CreatePayload(ctx context.Context, hostname string, ac AutoConfigInterface,
 		payloadAgentMeta[k] = v
 	}
 
+	agentMetadataMutex.Unlock()
+
 	return &Payload{
 		Hostname:      hostname,
 		Timestamp:     timeNow().UnixNano(),
 		CheckMetadata: &payloadCheckMeta,
 		AgentMetadata: &payloadAgentMeta,
+		HostMetadata:  getHostMetadata(),
 	}
 }
 
@@ -215,7 +239,7 @@ func GetPayload(ctx context.Context, hostname string, ac AutoConfigInterface, co
 	defer lastGetPayloadMutex.Unlock()
 	lastGetPayload = timeNow()
 
-	lastPayload = CreatePayload(ctx, hostname, ac, coll)
+	lastPayload = createPayload(ctx, hostname, ac, coll)
 	return lastPayload
 }
 
@@ -264,12 +288,16 @@ func initializeConfig(cfg config.Config) {
 		return string(cleanBytes)
 	}
 
-	cleanSlice := func(ss []string) []string {
-		rv := make([]string, len(ss))
-		for i, s := range ss {
-			rv[i] = clean(s)
+	cfgSlice := func(name string) []string {
+		if cfg.IsSet(name) {
+			ss := cfg.GetStringSlice(name)
+			rv := make([]string, len(ss))
+			for i, s := range ss {
+				rv[i] = clean(s)
+			}
+			return rv
 		}
-		return rv
+		return []string{}
 	}
 
 	SetAgentMetadata(AgentConfigAPMDDURL, clean(cfg.GetString("apm_config.apm_dd_url")))
@@ -277,7 +305,7 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentConfigSite, clean(cfg.GetString("dd_site")))
 	SetAgentMetadata(AgentConfigLogsDDURL, clean(cfg.GetString("logs_config.logs_dd_url")))
 	SetAgentMetadata(AgentConfigLogsSocks5ProxyAddress, clean(cfg.GetString("logs_config.socks5_proxy_address")))
-	SetAgentMetadata(AgentConfigNoProxy, cleanSlice(cfg.GetStringSlice("proxy.no_proxy")))
+	SetAgentMetadata(AgentConfigNoProxy, cfgSlice("proxy.no_proxy"))
 	SetAgentMetadata(AgentConfigProcessDDURL, clean(cfg.GetString("process_config.process_dd_url")))
 	SetAgentMetadata(AgentConfigProxyHTTP, clean(cfg.GetString("proxy.http")))
 	SetAgentMetadata(AgentConfigProxyHTTPS, clean(cfg.GetString("proxy.https")))
@@ -285,6 +313,8 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentProcessEnabled, config.Datadog.GetBool("process_config.process_collection.enabled"))
 	SetAgentMetadata(AgentProcessesContainerEnabled, config.Datadog.GetBool("process_config.container_collection.enabled"))
 	SetAgentMetadata(AgentNetworksEnabled, config.Datadog.GetBool("network_config.enabled"))
+	SetAgentMetadata(AgentNetworksHTTPEnabled, config.Datadog.GetBool("network_config.enable_http_monitoring"))
+	SetAgentMetadata(AgentNetworksHTTPSEnabled, config.Datadog.GetBool("network_config.enable_https_monitoring"))
 	SetAgentMetadata(AgentLogsEnabled, config.Datadog.GetBool("logs_enabled"))
 	SetAgentMetadata(AgentCSPMEnabled, config.Datadog.GetBool("compliance_config.enabled"))
 	SetAgentMetadata(AgentAPMEnabled, config.Datadog.GetBool("apm_config.enabled"))

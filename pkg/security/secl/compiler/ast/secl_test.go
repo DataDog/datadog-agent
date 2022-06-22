@@ -194,6 +194,13 @@ func TestRegexp(t *testing.T) {
 	}
 
 	print(t, rule)
+
+	rule, err = ParseRule(`process.name == r"^((?:[A-Za-z\d+]{4})*(?:[A-Za-z\d+]{3}=|[A-Za-z\d+]{2}==)\.)*(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z1-9])$" `)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
 }
 
 func TestArrayRegexp(t *testing.T) {
@@ -216,6 +223,114 @@ func TestDuration(t *testing.T) {
 
 func TestNumberVariable(t *testing.T) {
 	rule, err := ParseRule(`process.pid == ${pid}`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}
+
+func TestIPv4(t *testing.T) {
+	rule, err := ParseRule(`network.source.ip == 127.0.0.1`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}
+
+func TestIPv4Raw(t *testing.T) {
+	rule, err := ParseRule(`127.0.0.2 == 127.0.0.1`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}
+
+func TestIPv6Localhost(t *testing.T) {
+	rule, err := ParseRule(`network.source.ip == ::1`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}
+
+func TestIPv6(t *testing.T) {
+	rule, err := ParseRule(`network.source.ip == 2001:0000:0eab:DEAD:0000:00A0:ABCD:004E`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}
+
+func TestIPv6Short(t *testing.T) {
+	rule, err := ParseRule(`network.source.ip == 2001:0:0eab:dead::a0:abcd:4e`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}
+
+func TestIPArray(t *testing.T) {
+	rule, err := ParseRule(`network.source.ip in [ ::1, 2001:0:0eab:dead::a0:abcd:4e, 127.0.0.1 ]`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}
+
+func TestIPv4CIDR(t *testing.T) {
+	rule, err := ParseRule(`network.source.ip in 192.168.0.0/24`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}
+
+func TestIPv6CIDR(t *testing.T) {
+	rule, err := ParseRule(`network.source.ip in ::1/128`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}
+
+func TestCIDRArray(t *testing.T) {
+	rule, err := ParseRule(`network.source.ip in [ ::1/128, 2001:0:0eab:dead::a0:abcd:4e/24, 127.0.0.1/32 ]`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}
+
+func TestIPAndCIDRArray(t *testing.T) {
+	rule, err := ParseRule(`network.source.ip in [ ::1, 2001:0:0eab:dead::a0:abcd:4e, 127.0.0.1, ::1/128, 2001:0:0eab:dead::a0:abcd:4e/24, 127.0.0.1/32 ]`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}
+
+func TestCIDRMatches(t *testing.T) {
+	rule, err := ParseRule(`network.source.cidr allin 192.168.0.0/24`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}
+
+func TestCIDRArrayMatches(t *testing.T) {
+	rule, err := ParseRule(`network.source.cidr allin [ 192.168.0.0/24, ::1/128 ]`)
 	if err != nil {
 		t.Error(err)
 	}

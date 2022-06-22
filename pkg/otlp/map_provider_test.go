@@ -3,21 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
-//go:build test
-// +build test
+//go:build otlp && test
+// +build otlp,test
 
 package otlp
 
 import (
+	"context"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/config"
-	"go.opentelemetry.io/collector/config/configunmarshaler"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config"
 )
 
 func TestNewMap(t *testing.T) {
@@ -48,7 +47,8 @@ func TestNewMap(t *testing.T) {
 						"tls": map[string]interface{}{
 							"insecure": true,
 						},
-						"endpoint": "localhost:5003",
+						"compression": "none",
+						"endpoint":    "localhost:5003",
 					},
 				},
 				"service": map[string]interface{}{
@@ -71,10 +71,9 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:     true,
 				Metrics: map[string]interface{}{
 					"delta_ttl":                                2000,
-					"report_quantiles":                         false,
-					"send_monotonic_counter":                   true,
 					"resource_attributes_as_tags":              true,
 					"instrumentation_library_metadata_as_tags": true,
+					"instrumentation_scope_metadata_as_tags":   true,
 					"histograms": map[string]interface{}{
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
@@ -101,15 +100,15 @@ func TestNewMap(t *testing.T) {
 						"tls": map[string]interface{}{
 							"insecure": true,
 						},
-						"endpoint": "localhost:5003",
+						"compression": "none",
+						"endpoint":    "localhost:5003",
 					},
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
 							"delta_ttl":                                2000,
-							"report_quantiles":                         false,
-							"send_monotonic_counter":                   true,
 							"resource_attributes_as_tags":              true,
 							"instrumentation_library_metadata_as_tags": true,
+							"instrumentation_scope_metadata_as_tags":   true,
 							"histograms": map[string]interface{}{
 								"mode":                   "counters",
 								"send_count_sum_metrics": true,
@@ -158,7 +157,8 @@ func TestNewMap(t *testing.T) {
 						"tls": map[string]interface{}{
 							"insecure": true,
 						},
-						"endpoint": "localhost:5003",
+						"compression": "none",
+						"endpoint":    "localhost:5003",
 					},
 				},
 				"service": map[string]interface{}{
@@ -180,10 +180,9 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:     true,
 				Metrics: map[string]interface{}{
 					"delta_ttl":                                1500,
-					"report_quantiles":                         true,
-					"send_monotonic_counter":                   false,
 					"resource_attributes_as_tags":              false,
 					"instrumentation_library_metadata_as_tags": false,
+					"instrumentation_scope_metadata_as_tags":   false,
 					"histograms": map[string]interface{}{
 						"mode":                   "nobuckets",
 						"send_count_sum_metrics": true,
@@ -209,10 +208,9 @@ func TestNewMap(t *testing.T) {
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
 							"delta_ttl":                                1500,
-							"report_quantiles":                         true,
-							"send_monotonic_counter":                   false,
 							"resource_attributes_as_tags":              false,
 							"instrumentation_library_metadata_as_tags": false,
+							"instrumentation_scope_metadata_as_tags":   false,
 							"histograms": map[string]interface{}{
 								"mode":                   "nobuckets",
 								"send_count_sum_metrics": true,
@@ -245,17 +243,16 @@ func TestNewMap(t *testing.T) {
 }
 
 func TestUnmarshal(t *testing.T) {
-	cfg, err := buildMap(PipelineConfig{
+	provider, err := newMapProvider(PipelineConfig{
 		OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 4317, 4318),
 		TracePort:          5001,
 		MetricsEnabled:     true,
 		TracesEnabled:      true,
 		Metrics: map[string]interface{}{
 			"delta_ttl":                                2000,
-			"report_quantiles":                         false,
-			"send_monotonic_counter":                   true,
 			"resource_attributes_as_tags":              true,
 			"instrumentation_library_metadata_as_tags": true,
+			"instrumentation_scope_metadata_as_tags":   true,
 			"histograms": map[string]interface{}{
 				"mode":                   "counters",
 				"send_count_sum_metrics": true,
@@ -266,7 +263,6 @@ func TestUnmarshal(t *testing.T) {
 	components, err := getComponents(&serializer.MockSerializer{})
 	require.NoError(t, err)
 
-	cu := configunmarshaler.NewDefault()
-	_, err = cu.Unmarshal(cfg, components)
+	_, err = provider.Get(context.Background(), components)
 	require.NoError(t, err)
 }
