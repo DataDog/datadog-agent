@@ -69,6 +69,7 @@ func NewClient(agentName string, agentVersion string, products []data.Product, p
 		ctx:          ctx,
 		close:        close,
 		agentName:    agentName,
+		agentVersion: agentVersion,
 		products:     data.ProductListToString(products),
 		grpc:         grpcClient,
 		state:        repository,
