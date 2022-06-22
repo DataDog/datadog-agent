@@ -1197,6 +1197,16 @@ func TestPGJSONOperators(t *testing.T) {
 			"select users.custom",
 			SQLConfig{},
 		},
+		{
+			"select users.custom #> '{a,b}' from users",
+			"select users.custom",
+			SQLConfig{},
+		},
+		{
+			"select users.custom #>> '{a,b}' from users",
+			"select users.custom",
+			SQLConfig{},
+		},
 		// When SQL Server DBMS is specified # should be interpreted as
 		// an identifier.
 		{
