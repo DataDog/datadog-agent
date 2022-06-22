@@ -19,7 +19,6 @@
   script:
     # use tmpdir to prevent git remote capture by clang build
     - mkdir /tmp/clangbuild && cd /tmp/clangbuild
-    - CLANG_LLVM_VER=14.0.5
     - CLANG_MAJOR_VER=$(echo "${CLANG_LLVM_VER}" | cut -d '.' -f 1)
     - CLANG_SHA256SUM=a8e2e3ce217f4c2682c3fe2d2691f826cf1f0ab0a1dff4b5b8f6264baa1f2a79
     - LLVM_SHA256SUM=234c8ed02ed1338aa4f0ffa955e45eb13abe7ba0032569d6bc17ae9334257b02
