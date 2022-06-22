@@ -8,5 +8,4 @@
 ---
 enhancements:
   - |
-    Enable https monitoring on arm64 with kernel >= 5.5.0,
-    runtime compilation is required.
+    Enable https monitoring on arm64 with kernel >= 5.5.0.

@@ -1640,9 +1640,6 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 	if !httpsSupported(t) {
 		t.Skip("HTTPS feature not available on ARM pre 5.5.0 kernels")
 	}
-	if runningOnARM() && !cfg.EnableRuntimeCompiler {
-		t.Skip("HTTPS feature is only available on ARM with runtime compilation enabled")
-	}
 
 	tlsLibs := []*regexp.Regexp{
 		regexp.MustCompile(`/[^\ ]+libssl.so[^\ ]*`),

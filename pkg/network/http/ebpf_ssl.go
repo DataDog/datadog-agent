@@ -325,10 +325,5 @@ func (o *sslProgram) httpsSupported() bool {
 		return false
 	}
 
-	if !o.cfg.EnableRuntimeCompiler {
-		log.Warn("you will need runtime compilation enabled to support https monitoring on arm64.")
-		return false
-	}
-
 	return kversion >= kernel.VersionCode(5, 5, 0)
 }
