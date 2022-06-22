@@ -9,4 +9,4 @@
 enhancements:
   - |
     Report lines matched by auto multiline detection as metrics
-    and on the status page. 
+    and show on the status page. 
