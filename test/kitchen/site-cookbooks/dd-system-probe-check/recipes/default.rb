@@ -27,6 +27,11 @@ remote_directory testdir do
   end
 end
 
+file ::File.join(testdir, 'color_idx') do
+  content node[:color_idx].to_s
+  mode 644
+end
+
 if platform?('windows')
   include_recipe "::windows"
 else
