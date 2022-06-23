@@ -21,10 +21,12 @@ var (
 	namespaceColor        = "#8fbbff"
 	lonelyNamespaceColor  = "#edf3ff"
 	activeNamespacetColor = "white"
+	namespaceShape        = "record"
 
 	deviceColor       = "#77bf77"
 	queuedDeviceColor = "#e9f3e7"
 	activeDeviceColor = "white"
+	deviceShape       = "record"
 )
 
 func (nr *NamespaceResolver) generateGraph(dump []NetworkNamespaceDump, graphFile *os.File) error {
@@ -67,6 +69,7 @@ func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDu
 			ID:    utils.RandString(10),
 			Label: fmt.Sprintf("%v [fd:%d][handle:%v]", netns.NsID, netns.HandleFD, netns.HandlePath),
 			Color: namespaceColor,
+			Shape: namespaceShape,
 			Size:  60,
 		}
 		if netns.LonelyTimeout.Equal(time.Time{}) {
@@ -83,6 +86,7 @@ func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDu
 				Label:     fmt.Sprintf("%s [%d]", dev.IfName, dev.IfIndex),
 				FillColor: activeDeviceColor,
 				Color:     deviceColor,
+				Shape:     deviceShape,
 				Size:      50,
 			}
 			g.Nodes[devNode.ID] = devNode
@@ -99,6 +103,7 @@ func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDu
 				Label:     fmt.Sprintf("%s [%d]", dev.IfName, dev.IfIndex),
 				FillColor: queuedDeviceColor,
 				Color:     deviceColor,
+				Shape:     deviceShape,
 				Size:      50,
 			}
 			g.Nodes[devNode.ID] = devNode

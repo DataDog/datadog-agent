@@ -41,7 +41,7 @@ type IngressCollector struct {
 func NewIngressCollector() *IngressCollector {
 	return &IngressCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: false,
+			IsStable: true,
 			Name:     "ingresses",
 			NodeType: orchestrator.K8sIngress,
 		},

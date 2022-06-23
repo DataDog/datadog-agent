@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners/ratelimit"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -46,6 +47,8 @@ type UDSListener struct {
 	oobPoolManager          *packets.PoolManager
 	trafficCapture          *replay.TrafficCapture
 	OriginDetection         bool
+
+	dogstatsdMemBasedRateLimiter bool
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
@@ -101,8 +104,9 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 		conn:            conn,
 		packetsBuffer: packets.NewBuffer(uint(config.Datadog.GetInt("dogstatsd_packet_buffer_size")),
 			config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout"), packetOut),
-		sharedPacketPoolManager: sharedPacketPoolManager,
-		trafficCapture:          capture,
+		sharedPacketPoolManager:      sharedPacketPoolManager,
+		trafficCapture:               capture,
+		dogstatsdMemBasedRateLimiter: config.Datadog.GetBool("dogstatsd_mem_based_rate_limiter.enabled"),
 	}
 
 	if listener.trafficCapture != nil {
@@ -140,6 +144,19 @@ func (l *UDSListener) Listen() {
 	t1 := time.Now()
 	var t2 time.Time
 	log.Infof("dogstatsd-uds: starting to listen on %s", l.conn.LocalAddr())
+
+	var rateLimiter *ratelimit.MemBasedRateLimiter
+	if l.dogstatsdMemBasedRateLimiter {
+		var err error
+		rateLimiter, err = ratelimit.BuildMemBasedRateLimiter()
+		if err != nil {
+			log.Errorf("Cannot use DogStatsD rate limiter: %v", err)
+			rateLimiter = nil
+		} else {
+			log.Info("DogStatsD rate limiter enabled")
+		}
+	}
+
 	for {
 		var n int
 		var err error
@@ -161,6 +178,12 @@ func (l *UDSListener) Listen() {
 			oob := l.oobPoolManager.Get().(*[]byte)
 			oobS := *oob
 			var oobn int
+
+			if rateLimiter != nil {
+				if err = rateLimiter.MayWait(); err != nil {
+					log.Error(err)
+				}
+			}
 
 			t2 = time.Now()
 			tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "uds")
@@ -197,6 +220,12 @@ func (l *UDSListener) Listen() {
 			// Return the buffer back to the pool for reuse
 			l.oobPoolManager.Put(oob)
 		} else {
+			if rateLimiter != nil {
+				if err = rateLimiter.MayWait(); err != nil {
+					log.Error(err)
+				}
+			}
+
 			t2 = time.Now()
 			tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "uds")
 

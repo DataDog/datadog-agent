@@ -8,15 +8,20 @@
 
 package net
 
-import "fmt"
+import (
+	"fmt"
+
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+)
 
 const (
-	connectionsURL = "http://localhost:3333/connections"
+	connectionsURL = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/connections"
+	registerURL    = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/register"
 	statsURL       = "http://localhost:3333/debug/stats"
+	netType        = "tcp"
+
 	// procStatsURL is not used in windows, the value is added to avoid compilation error in windows
-	procStatsURL = "http://localhost:3333/proc/stats"
-	registerURL  = "http://localhost:3333/network_tracer/register"
-	netType      = "tcp"
+	procStatsURL = "http://localhost:3333/" + string(sysconfig.ProcessModule) + "stats"
 )
 
 // CheckPath is used to make sure the globalSocketPath has been set before attempting to connect

@@ -37,7 +37,7 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	container1 := createContainerMeta("docker", "1")
 	fakeTagger.SetTags(containers.BuildTaggerEntityName(container1.ID), "foo", []string{"low:common"}, []string{"orch:common12"}, []string{"id:container1"}, nil)
 	mockCollector.SetContainerEntry(container1.ID, mock.ContainerEntry{
-		NetworkStats: metrics.ContainerNetworkStats{
+		NetworkStats: &metrics.ContainerNetworkStats{
 			BytesSent:   pointer.Float64Ptr(12),
 			BytesRcvd:   pointer.Float64Ptr(12),
 			PacketsSent: pointer.Float64Ptr(12),
@@ -58,7 +58,7 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	container2 := createContainerMeta("docker", "2")
 	fakeTagger.SetTags(containers.BuildTaggerEntityName(container2.ID), "foo", []string{"low:common"}, []string{"orch:common12"}, []string{"id:container2"}, nil)
 	mockCollector.SetContainerEntry(container2.ID, mock.ContainerEntry{
-		NetworkStats: metrics.ContainerNetworkStats{
+		NetworkStats: &metrics.ContainerNetworkStats{
 			BytesSent:   pointer.Float64Ptr(12),
 			BytesRcvd:   pointer.Float64Ptr(12),
 			PacketsSent: pointer.Float64Ptr(12),
@@ -79,7 +79,7 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	container3 := createContainerMeta("docker", "3")
 	fakeTagger.SetTags(containers.BuildTaggerEntityName(container3.ID), "foo", []string{"low:common"}, []string{"orch:standalone3"}, []string{"id:container3"}, nil)
 	mockCollector.SetContainerEntry(container3.ID, mock.ContainerEntry{
-		NetworkStats: metrics.ContainerNetworkStats{
+		NetworkStats: &metrics.ContainerNetworkStats{
 			BytesSent:   pointer.Float64Ptr(3),
 			BytesRcvd:   pointer.Float64Ptr(3),
 			PacketsSent: pointer.Float64Ptr(3),
@@ -98,7 +98,7 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	container4 := createContainerMeta("docker", "4")
 	fakeTagger.SetTags(containers.BuildTaggerEntityName(container4.ID), "foo", []string{"low:common"}, []string{"orch:standalone4"}, []string{"id:container4"}, nil)
 	mockCollector.SetContainerEntry(container4.ID, mock.ContainerEntry{
-		NetworkStats: metrics.ContainerNetworkStats{
+		NetworkStats: &metrics.ContainerNetworkStats{
 			BytesSent:   pointer.Float64Ptr(4),
 			BytesRcvd:   pointer.Float64Ptr(4),
 			PacketsSent: pointer.Float64Ptr(4),
@@ -119,7 +119,7 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	container5 := createContainerMeta("docker", "5")
 	fakeTagger.SetTags(containers.BuildTaggerEntityName(container5.ID), "foo", []string{"low:common"}, []string{"orch:standalone5"}, []string{"id:container5"}, nil)
 	mockCollector.SetContainerEntry(container5.ID, mock.ContainerEntry{
-		NetworkStats: metrics.ContainerNetworkStats{
+		NetworkStats: &metrics.ContainerNetworkStats{
 			BytesSent:   pointer.Float64Ptr(5),
 			BytesRcvd:   pointer.Float64Ptr(5),
 			PacketsSent: pointer.Float64Ptr(5),

@@ -6,6 +6,7 @@ run:
     - pkg/util/intern/string.go # TODO: fix govet 'unsafeptr' error
     - pkg/security/rconfig/rconfig.go # TODO: fix revive error (comment on RCPolicyProvider.Close)
     - pkg/security/probe/selftests/tester.go # TODO: fix revive error (comment on Start)
+    - pkg/serverless/trace/inferredspan/constants.go # TODO: fox revive exported const error
 
 issues:
   exclude-use-default: false

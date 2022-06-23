@@ -220,6 +220,7 @@ func semverToPEP440(version *semver.Version) string {
 	return pep440
 }
 
+// PEP440ToSemver TODO <agent-integrations>
 func PEP440ToSemver(pep440 string) (*semver.Version, error) {
 	// Note: this is a simplified version that more closely fits how integrations are versioned.
 	matches := pep440VersionStringRe.FindStringSubmatch(pep440)

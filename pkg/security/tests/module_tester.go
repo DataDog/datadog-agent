@@ -147,7 +147,9 @@ var (
 )
 
 const (
-	HostEnvironment   = "host"
+	// HostEnvironment TODO <agent-security>
+	HostEnvironment = "host"
+	// DockerEnvironment TODO <agent-security>
 	DockerEnvironment = "docker"
 )
 
@@ -706,7 +708,7 @@ func (tm *testModule) reloadConfiguration() error {
 	log.Debugf("reload configuration with testDir: %s", tm.Root())
 	tm.config.PoliciesDir = tm.Root()
 
-	provider, err := rules.NewPoliciesDirProvider(tm.config.PoliciesDir, false)
+	provider, err := rules.NewPoliciesDirProvider(tm.config.PoliciesDir, false, nil)
 	if err != nil {
 		return err
 	}
@@ -1341,6 +1343,7 @@ func waitForOpenProbeEvent(test *testModule, action func() error, filename strin
 	return waitForProbeEvent(test, action, "open.file.path", filename, model.FileOpenEventType)
 }
 
+// TestEnv TODO <agent-security>
 func TestEnv(t *testing.T) {
 	if testEnvironment != "" && testEnvironment != HostEnvironment && testEnvironment != DockerEnvironment {
 		t.Error("invalid environment")
@@ -1348,6 +1351,7 @@ func TestEnv(t *testing.T) {
 	}
 }
 
+// TestMain TODO <agent-security>
 func TestMain(m *testing.M) {
 	flag.Parse()
 	retCode := m.Run()

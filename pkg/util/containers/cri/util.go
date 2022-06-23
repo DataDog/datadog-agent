@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	pb "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	"github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/cri/remote/util"
@@ -74,7 +75,7 @@ func (c *CRIUtil) init() error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), c.connectionTimeout)
 	defer cancel()
-	conn, err := grpc.DialContext(ctx, c.socketPath, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithContextDialer(dialer))
+	conn, err := grpc.DialContext(ctx, c.socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock(), grpc.WithContextDialer(dialer))
 	if err != nil {
 		return fmt.Errorf("failed to dial: %v", err)
 	}

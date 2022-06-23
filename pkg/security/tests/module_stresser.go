@@ -97,6 +97,7 @@ func (s *StressFlag) Parse(usage func()) []string {
 	return []string{s.Path}
 }
 
+// StressReports TODO <agent-security>
 type StressReports map[string]*StressReport
 
 // StressReport defines a Stresser report
@@ -167,7 +168,7 @@ func (s *StressReport) Print(t *testing.T) {
 	fmt.Println()
 }
 
-// Write the report information for delta computation
+// Save writes the report information for delta computation
 func (s *StressReport) Save(filename string, name string) error {
 	var reports StressReports
 	if err := reports.Load(filename); err != nil {

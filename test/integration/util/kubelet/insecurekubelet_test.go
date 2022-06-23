@@ -45,7 +45,6 @@ func (suite *InsecureTestSuite) TestHTTP() {
 
 	ku, err := kubelet.GetKubeUtil()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
-	assert.Equal(suite.T(), "http://127.0.0.1:10255", ku.GetKubeletAPIEndpoint())
 	b, code, err := ku.QueryKubelet(ctx, "/healthz")
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	assert.Equal(suite.T(), 200, code)
@@ -79,7 +78,6 @@ func (suite *InsecureTestSuite) TestInsecureHTTPS() {
 
 	ku, err := kubelet.GetKubeUtil()
 	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), "https://127.0.0.1:10250", ku.GetKubeletAPIEndpoint())
 	b, code, err := ku.QueryKubelet(ctx, "/healthz")
 	assert.Equal(suite.T(), 200, code)
 	require.NoError(suite.T(), err)

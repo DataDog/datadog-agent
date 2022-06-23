@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/internal/instrumentationlibrary"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/internal/instrumentationscope"
+	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
@@ -32,6 +33,15 @@ import (
 )
 
 const metricName string = "metric name"
+
+var _ source.Provider = (*unknownSourceProvider)(nil)
+
+// unknownSourceProvider sets an empty hostname as a source.
+type unknownSourceProvider struct{}
+
+func (*unknownSourceProvider) Source(context.Context) (source.Source, error) {
+	return source.Source{Kind: source.HostnameKind, Identifier: ""}, nil
+}
 
 // Translator is a metrics translator.
 type Translator struct {
@@ -51,7 +61,7 @@ func New(logger *zap.Logger, options ...Option) (*Translator, error) {
 		InstrumentationLibraryMetadataAsTags: false,
 		sweepInterval:                        1800,
 		deltaTTL:                             3600,
-		fallbackHostnameProvider:             &noHostProvider{},
+		fallbackSourceProvider:               &unknownSourceProvider{},
 	}
 
 	for _, opt := range options {
@@ -523,27 +533,25 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 		// Fetch tags from attributes.
 		attributeTags := attributes.TagsFromAttributes(rm.Resource().Attributes())
 
-		host, ok := attributes.HostnameFromAttributes(rm.Resource().Attributes(), t.cfg.previewHostnameFromAttributes)
+		src, ok := attributes.SourceFromAttributes(rm.Resource().Attributes(), t.cfg.previewHostnameFromAttributes)
 		if !ok {
 			var err error
-			host, err = t.cfg.fallbackHostnameProvider.Hostname(context.Background())
+			src, err = t.cfg.fallbackSourceProvider.Source(context.Background())
 			if err != nil {
 				return fmt.Errorf("failed to get fallback host: %w", err)
 			}
 		}
 
-		if host != "" {
-			// Track hosts if the consumer is a HostConsumer.
+		var host string
+		switch src.Kind {
+		case source.HostnameKind:
+			host = src.Identifier
 			if c, ok := consumer.(HostConsumer); ok {
 				c.ConsumeHost(host)
 			}
-		} else {
-			// Track task ARN if the consumer is a TagsConsumer.
+		case source.AWSECSFargateKind:
 			if c, ok := consumer.(TagsConsumer); ok {
-				tags := attributes.RunningTagsFromAttributes(rm.Resource().Attributes())
-				for _, tag := range tags {
-					c.ConsumeTag(tag)
-				}
+				c.ConsumeTag(src.Tag())
 			}
 		}
 

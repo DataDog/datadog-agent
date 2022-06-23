@@ -163,7 +163,7 @@ func (h *AutoMultilineHandler) processAndTry(message *Message) {
 			h.detectedPattern.Set(topMatch.regexp)
 			h.switchToMultilineHandler(topMatch.regexp)
 		} else {
-			log.Debug("No pattern met the line match threshold during multiline autosensing - using single line handler")
+			log.Debugf("No pattern met the line match threshold: %f during multiline auto detection. Top match was %v with a match ratio of: %f - using single line handler", h.matchThreshold, topMatch.regexp.String(), matchRatio)
 			telemetry.GetStatsTelemetryProvider().Count(autoMultiLineTelemetryMetricName, 1, []string{"success:false"})
 			// Stay with the single line handler and no longer attempt to detect multiline matches.
 			h.processFunc = h.singleLineHandler.process
@@ -176,7 +176,9 @@ func (h *AutoMultilineHandler) switchToMultilineHandler(r *regexp.Regexp) {
 	h.singleLineHandler = nil
 
 	// Build and start a multiline-handler
-	h.multiLineHandler = NewMultiLineHandler(h.outputFn, r, h.flushTimeout, h.lineLimit)
+	h.multiLineHandler = NewMultiLineHandler(h.outputFn, r, h.flushTimeout, h.lineLimit, true)
+	h.source.RegisterInfo(h.multiLineHandler.countInfo)
+	h.source.RegisterInfo(h.multiLineHandler.linesCombinedInfo)
 	// stay with the multiline handler
 	h.processFunc = h.multiLineHandler.process
 }
