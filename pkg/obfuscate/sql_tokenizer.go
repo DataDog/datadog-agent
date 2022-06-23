@@ -175,7 +175,8 @@ func (k TokenKind) String() string {
 const (
 	// DBMSSQLServer is a MS SQL Server
 	DBMSSQLServer = "mssql"
-	DBMSPostgres  = "postgresql"
+	// DBMSPostgres is a PostgreSQL Server
+	DBMSPostgres = "postgresql"
 )
 
 const escapeCharacter = '\\'
