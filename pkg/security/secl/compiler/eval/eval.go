@@ -64,6 +64,7 @@ type ident struct {
 	Ident *string
 }
 
+// ReplacementContext TODO <agent-security>
 type ReplacementContext struct {
 	*Opts
 	*MacroStore
