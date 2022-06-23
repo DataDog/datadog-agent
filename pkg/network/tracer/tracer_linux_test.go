@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -41,6 +42,10 @@ import (
 	"github.com/stretchr/testify/require"
 	vnetns "github.com/vishvananda/netns"
 )
+
+func runningOnARM() bool {
+	return strings.HasPrefix(runtime.GOARCH, "arm")
+}
 
 func httpSupported(t *testing.T) bool {
 	currKernelVersion, err := kernel.HostVersion()

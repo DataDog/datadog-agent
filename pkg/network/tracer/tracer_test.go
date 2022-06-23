@@ -68,10 +68,6 @@ var (
 // runtimeCompilationEnvVar forces use of the runtime compiler for ebpf functionality
 const runtimeCompilationEnvVar = "DD_TESTS_RUNTIME_COMPILED"
 
-func runningOnARM() bool {
-	return strings.HasPrefix(runtime.GOARCH, "arm")
-}
-
 func TestMain(m *testing.M) {
 	logLevel := os.Getenv("DD_LOG_LEVEL")
 	if logLevel == "" {
@@ -1632,8 +1628,6 @@ func TestHTTPStats(t *testing.T) {
 }
 
 func TestHTTPSViaLibraryIntegration(t *testing.T) {
-	cfg := testConfig()
-
 	if !httpSupported(t) {
 		t.Skip("HTTPS feature not available on pre 4.1.0 kernels")
 	}
@@ -1689,7 +1683,7 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 					t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
 				}
 
-				testHTTPSLibrary(t, cfg, test.fetchCmd)
+				testHTTPSLibrary(t, test.fetchCmd)
 
 			})
 		}
@@ -1697,8 +1691,9 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 	}
 }
 
-func testHTTPSLibrary(t *testing.T, cfg *config.Config, fetchCmd []string) {
+func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 	// Start tracer with HTTPS support
+	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTPSMonitoring = true
 	tr, err := NewTracer(cfg)
