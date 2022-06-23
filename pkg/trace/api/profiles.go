@@ -110,7 +110,7 @@ func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string
 			// See https://codereview.appspot.com/7532043
 			req.Header.Set("User-Agent", "")
 		}
-		containerID := req.Header.Get(headerContainerID)
+		containerID := getContainerID(req)
 		if ctags := getContainerTags(conf.ContainerTags, containerID); ctags != "" {
 			req.Header.Set("X-Datadog-Container-Tags", ctags)
 		}

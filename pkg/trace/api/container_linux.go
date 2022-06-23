@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016 Datadog, Inc.
+// Copyright 2022-present Datadog, Inc.
 
 package api
 
@@ -18,11 +18,18 @@ import (
 
 type ucredKey struct{}
 
-const cacheExpire = 5 * time.Minute
+// cacheDuration determines how long a pid->container ID mapping is considered valid. This value is
+// somewhat arbitrarily chosen, but just needs to be large enough to reduce latency and I/O load
+// caused by frequently reading mappings, and small enough that pid-reuse doesn't cause mismatching
+// of pids with container ids. A one minute cache means the latency and I/O should be low, and
+// there would have to be thousands of containers spawned and dying per second to cause a mismatch.
+const cacheDuration = time.Minute
 
 // connContext is a function that injects a Unix Domain Socket's User Credentials into the
 // context.Context object provided. This is useful as the ConnContext member of an http.Server, to
 // provide User Credentials to HTTP handlers.
+//
+// If the connection c is not a *net.UnixConn, the unchanged context is returned.
 func connContext(ctx context.Context, c net.Conn) context.Context {
 	s, ok := c.(*net.UnixConn)
 	if !ok {
@@ -34,8 +41,7 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 	}
 	fd := int(file.Fd())
 	acct, err := syscall.GetsockoptUcred(fd, syscall.SOL_SOCKET, syscall.SO_PEERCRED)
-	ctx = context.WithValue(ctx, ucredKey{}, acct)
-	return ctx
+	return context.WithValue(ctx, ucredKey{}, acct)
 }
 
 // getContainerID attempts first to read the container ID set by the client in the request header.
@@ -51,7 +57,15 @@ func getContainerID(req *http.Request) string {
 	if !ok || ucred == nil {
 		return ""
 	}
-	cid, err := metrics.GetProvider().GetMetaCollector().GetContainerIDForPID(int(ucred.Pid), cacheExpire)
+	provider := metrics.GetProvider()
+	if provider == nil {
+		return ""
+	}
+	collector := provider.GetMetaCollector()
+	if collector == nil {
+		return ""
+	}
+	cid, err := collector.GetContainerIDForPID(int(ucred.Pid), cacheDuration)
 	if err != nil {
 		log.Debugf("Could not get credentials from provider: %v\n", err)
 		return ""

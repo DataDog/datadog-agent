@@ -106,7 +106,7 @@ func getContainerTags(req *http.Request, cfg *config.AgentConfig) []string {
 	if cfg == nil || cfg.ContainerTags == nil {
 		return nil
 	}
-	if cid := req.Header.Get(headerContainerID); cid != "" {
+	if cid := getContainerID(req); cid != "" {
 		containerTags, err := cfg.ContainerTags(cid)
 		if err != nil {
 			_ = log.Error("Failed getting container tags", err)
