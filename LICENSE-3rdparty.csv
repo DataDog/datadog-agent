@@ -792,7 +792,6 @@ core,go.opentelemetry.io/collector/config/confignet,Apache-2.0,Copyright The Ope
 core,go.opentelemetry.io/collector/config/configtelemetry,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configtls,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/confmap,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/confmap/confmaptest,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/confmap/converter/expandconverter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/confmap/converter/overwritepropertiesconverter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/confmap/provider/envprovider,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -805,15 +804,14 @@ core,go.opentelemetry.io/collector/consumer/consumertest,Apache-2.0,Copyright Th
 core,go.opentelemetry.io/collector/exporter/exporterhelper,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/exporterhelper/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/loggingexporter,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/exporter/loggingexporter/internal/otlptext,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/otlpexporter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/extension/ballastextension,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/extension/experimental/storage,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/cgroups,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/iruntime,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/internal/middleware,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/obsreportconfig,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/obsreportconfig/obsmetrics,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/internal/otlptext,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/sharedcomponent,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/testdata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/obsreport,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -846,11 +844,11 @@ core,go.opentelemetry.io/collector/semconv/v1.6.1,Apache-2.0,Copyright The OpenT
 core,go.opentelemetry.io/collector/service,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/featuregate,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/service/internal/builder,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/components,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/configunmarshaler,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/extensions,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/fanoutconsumer,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/service/internal/pipelines,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/runtimeinfo,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/telemetry,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/telemetrylogs,Apache-2.0,Copyright The OpenTelemetry Authors

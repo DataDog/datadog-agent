@@ -8,9 +8,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/quantile v0.37.0-rc.3
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/stretchr/testify v1.7.2
-	go.opentelemetry.io/collector/pdata v0.53.0
-	go.opentelemetry.io/collector/semconv v0.53.0
+	github.com/stretchr/testify v1.7.4
+	go.opentelemetry.io/collector/pdata v0.54.0
+	go.opentelemetry.io/collector/semconv v0.54.0
 	go.uber.org/zap v1.21.0
 )
 
@@ -32,3 +32,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+// Temporarily downgrade testify to v1.7.2 to work around https://github.com/stretchr/testify/issues/1208
+replace github.com/stretchr/testify => github.com/stretchr/testify v1.7.2

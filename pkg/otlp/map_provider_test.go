@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/confmap"
 )
 
 func TestNewMap(t *testing.T) {
@@ -500,7 +500,7 @@ func TestNewMap(t *testing.T) {
 		t.Run(testInstance.name, func(t *testing.T) {
 			cfg, err := buildMap(testInstance.pcfg)
 			require.NoError(t, err)
-			tcfg := config.NewMapFromStringMap(testInstance.ocfg)
+			tcfg := confmap.NewFromStringMap(testInstance.ocfg)
 			assert.Equal(t, tcfg.ToStringMap(), cfg.ToStringMap())
 		})
 	}
