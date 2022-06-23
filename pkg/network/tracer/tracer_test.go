@@ -1731,7 +1731,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 			// debian 10 have curl binary linked with openssl and gnutls but use only openssl during tls query (there no runtime flag available)
 			// this make harder to map lib and tags, one set of tag should match but not both
 			foundPathAndHTTPTag := false
-			if key.Path.Content == "/200/foobar" && ((statsTags&tagGnuTLS) > 0 || (statsTags == tagOpenSSL) > 0) {
+			if key.Path.Content == "/200/foobar" && ((statsTags&tagGnuTLS) > 0 || (statsTags&tagOpenSSL) > 0) {
 				foundPathAndHTTPTag = true
 				t.Logf("found tag 0x%x %s", statsTags, staticTags[statsTags])
 			}
