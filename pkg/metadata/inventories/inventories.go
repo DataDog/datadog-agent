@@ -68,33 +68,34 @@ type AgentMetadataName string
 // pkg/metadata/inventories/README.md and any additions should
 // be updated there as well.
 const (
-	AgentCloudProvider                 AgentMetadataName = "cloud_provider"
-	AgentHostnameSource                AgentMetadataName = "hostname_source"
-	AgentVersion                       AgentMetadataName = "agent_version"
-	AgentFlavor                        AgentMetadataName = "flavor"
-	AgentConfigAPMDDURL                AgentMetadataName = "config_apm_dd_url"
-	AgentConfigDDURL                   AgentMetadataName = "config_dd_url"
-	AgentConfigSite                    AgentMetadataName = "config_site"
-	AgentConfigLogsDDURL               AgentMetadataName = "config_logs_dd_url"
-	AgentConfigLogsSocks5ProxyAddress  AgentMetadataName = "config_logs_socks5_proxy_address"
-	AgentConfigNoProxy                 AgentMetadataName = "config_no_proxy"
-	AgentConfigProcessDDURL            AgentMetadataName = "config_process_dd_url"
-	AgentConfigProxyHTTP               AgentMetadataName = "config_proxy_http"
-	AgentConfigProxyHTTPS              AgentMetadataName = "config_proxy_https"
-	AgentInstallMethodInstallerVersion AgentMetadataName = "install_method_installer_version"
-	AgentInstallMethodTool             AgentMetadataName = "install_method_tool"
-	AgentInstallMethodToolVersion      AgentMetadataName = "install_method_tool_version"
-	AgentLogsTransport                 AgentMetadataName = "logs_transport"
-	AgentCWSEnabled                    AgentMetadataName = "feature_cws_enabled"
-	AgentOTLPEnabled                   AgentMetadataName = "feature_otlp_enabled"
-	AgentProcessEnabled                AgentMetadataName = "feature_process_enabled"
-	AgentProcessesContainerEnabled     AgentMetadataName = "feature_processes_container_enabled"
-	AgentNetworksEnabled               AgentMetadataName = "feature_networks_enabled"
-	AgentNetworksHTTPEnabled           AgentMetadataName = "feature_networks_http_enabled"
-	AgentNetworksHTTPSEnabled          AgentMetadataName = "feature_networks_https_enabled"
-	AgentLogsEnabled                   AgentMetadataName = "feature_logs_enabled"
-	AgentCSPMEnabled                   AgentMetadataName = "feature_cspm_enabled"
-	AgentAPMEnabled                    AgentMetadataName = "feature_apm_enabled"
+	AgentCloudProvider                  AgentMetadataName = "cloud_provider"
+	AgentHostnameSource                 AgentMetadataName = "hostname_source"
+	AgentVersion                        AgentMetadataName = "agent_version"
+	AgentFlavor                         AgentMetadataName = "flavor"
+	AgentConfigAPMDDURL                 AgentMetadataName = "config_apm_dd_url"
+	AgentConfigDDURL                    AgentMetadataName = "config_dd_url"
+	AgentConfigSite                     AgentMetadataName = "config_site"
+	AgentConfigLogsDDURL                AgentMetadataName = "config_logs_dd_url"
+	AgentConfigLogsSocks5ProxyAddress   AgentMetadataName = "config_logs_socks5_proxy_address"
+	AgentConfigNoProxy                  AgentMetadataName = "config_no_proxy"
+	AgentConfigProcessDDURL             AgentMetadataName = "config_process_dd_url"
+	AgentConfigProxyHTTP                AgentMetadataName = "config_proxy_http"
+	AgentConfigProxyHTTPS               AgentMetadataName = "config_proxy_https"
+	AgentInstallMethodInstallerVersion  AgentMetadataName = "install_method_installer_version"
+	AgentInstallMethodTool              AgentMetadataName = "install_method_tool"
+	AgentInstallMethodToolVersion       AgentMetadataName = "install_method_tool_version"
+	AgentLogsTransport                  AgentMetadataName = "logs_transport"
+	AgentCWSEnabled                     AgentMetadataName = "feature_cws_enabled"
+	AgentOTLPEnabled                    AgentMetadataName = "feature_otlp_enabled"
+	AgentProcessEnabled                 AgentMetadataName = "feature_process_enabled"
+	AgentProcessesContainerEnabled      AgentMetadataName = "feature_processes_container_enabled"
+	AgentNetworksEnabled                AgentMetadataName = "feature_networks_enabled"
+	AgentNetworksHTTPEnabled            AgentMetadataName = "feature_networks_http_enabled"
+	AgentNetworksHTTPSEnabled           AgentMetadataName = "feature_networks_https_enabled"
+	AgentNetworksHTTPHTTPSViaETWEnabled AgentMetadataName = "feature_networks_http_https_via_etw_enabled"
+	AgentLogsEnabled                    AgentMetadataName = "feature_logs_enabled"
+	AgentCSPMEnabled                    AgentMetadataName = "feature_cspm_enabled"
+	AgentAPMEnabled                     AgentMetadataName = "feature_apm_enabled"
 
 	// Those are reserved fields for the agentMetadata payload.
 	agentProvidedConf AgentMetadataName = "provided_configuration"
@@ -369,6 +370,7 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentNetworksEnabled, config.Datadog.GetBool("network_config.enabled"))
 	SetAgentMetadata(AgentNetworksHTTPEnabled, config.Datadog.GetBool("network_config.enable_http_monitoring"))
 	SetAgentMetadata(AgentNetworksHTTPSEnabled, config.Datadog.GetBool("network_config.enable_https_monitoring"))
+	SetAgentMetadata(AgentNetworksHTTPHTTPSViaETWEnabled, config.Datadog.GetBool("network_config.enable_http_https_monitoring_via_etw"))
 	SetAgentMetadata(AgentLogsEnabled, config.Datadog.GetBool("logs_enabled"))
 	SetAgentMetadata(AgentCSPMEnabled, config.Datadog.GetBool("compliance_config.enabled"))
 	SetAgentMetadata(AgentAPMEnabled, config.Datadog.GetBool("apm_config.enabled"))

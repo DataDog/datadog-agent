@@ -92,9 +92,9 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	}
 	statkeeper := newHTTPStatkeeper(c, telemetry)
 
-	handler := func(transactions []httpTX) {
+	handler := func(txs []httpTX) {
 		if statkeeper != nil {
-			statkeeper.Process(transactions)
+			statkeeper.Process(txs)
 		}
 	}
 

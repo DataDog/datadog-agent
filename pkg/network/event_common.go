@@ -380,22 +380,19 @@ func printAddress(address util.Address, names []dns.Hostname) string {
 	return b.String()
 }
 
-// HTTPKeyTupleFromConn build the key for the http map based on whether the local or remote side is http.
-func HTTPKeyTupleFromConn(c ConnectionStats) http.KeyTuple {
+// HTTPKeyTuplesFromConn builds possible keys for the http map based on the given conn
+func HTTPKeyTuplesFromConn(c ConnectionStats) [2]http.KeyTuple {
 	// Retrieve translated addresses
 	laddr, lport := GetNATLocalAddress(c)
 	raddr, rport := GetNATRemoteAddress(c)
 
-	// HTTP data is always indexed as (client, server), so we account for that when generating the
-	// the lookup key using the port range heuristic.
-	// In the rare cases where both ports are within the same range we ensure that sport < dport
-	// to mimic the normalization heuristic done in the eBPF side (see `port_range.h`)
-	if (IsEphemeralPort(int(lport)) && !IsEphemeralPort(int(rport))) ||
-		(IsEphemeralPort(int(lport)) == IsEphemeralPort(int(rport)) && lport < rport) {
-		return http.NewKeyTuple(laddr, raddr, lport, rport)
+	// HTTP data is always indexed as (client, server), but we don't know which is the remote
+	// and which is the local address. To account for this, we'll construct 2 possible
+	// http keys and check for both of them in our http aggregations map.
+	return [2]http.KeyTuple{
+		http.NewKeyTuple(laddr, raddr, lport, rport),
+		http.NewKeyTuple(raddr, laddr, rport, lport),
 	}
-
-	return http.NewKeyTuple(raddr, laddr, rport, lport)
 }
 
 func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {

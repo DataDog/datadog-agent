@@ -89,10 +89,46 @@ func (tx *httpTX) Incomplete() bool {
 	return tx.request_started == 0 || tx.response_status_code == 0
 }
 
+func (tx *httpTX) SrcIPHigh() uint64 {
+	return uint64(tx.tup.saddr_h)
+}
+
+func (tx *httpTX) SrcIPLow() uint64 {
+	return uint64(tx.tup.saddr_l)
+}
+
+func (tx *httpTX) SrcPort() uint16 {
+	return uint16(tx.tup.sport)
+}
+
+func (tx *httpTX) DstIPHigh() uint64 {
+	return uint64(tx.tup.daddr_h)
+}
+
+func (tx *httpTX) DstIPLow() uint64 {
+	return uint64(tx.tup.daddr_l)
+}
+
+func (tx *httpTX) DstPort() uint16 {
+	return uint16(tx.tup.dport)
+}
+
+func (tx *httpTX) Method() Method {
+	return Method(tx.request_method)
+}
+
+func (tx *httpTX) StatusCode() uint16 {
+	return uint16(tx.response_status_code)
+}
+
 // Tags returns an uint64 representing the tags bitfields
 // Tags are defined here : pkg/network/ebpf/kprobe_types.go
-func (tx *httpTX) Tags() uint64 {
+func (tx *httpTX) StaticTags() uint64 {
 	return uint64(tx.tags)
+}
+
+func (tx *httpTX) DynamicTags() []string {
+	return nil
 }
 
 func (tx *httpTX) String() string {
@@ -130,14 +166,4 @@ func nsTimestampToFloat(ns uint64) float64 {
 		shift++
 	}
 	return float64(ns << shift)
-}
-
-// strlen returns the length of a null-terminated string
-func strlen(str []byte) int {
-	for i := 0; i < len(str); i++ {
-		if str[i] == 0 {
-			return i
-		}
-	}
-	return len(str)
 }
