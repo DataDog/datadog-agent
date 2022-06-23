@@ -337,7 +337,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	return s.Forwarder.SubmitSeries(seriesPayloads, extraHeaders)
 }
 
-// AreSeriesEnabled returns whether sketches are enabled for serialization
+// AreSketchesEnabled returns whether sketches are enabled for serialization
 func (s *Serializer) AreSketchesEnabled() bool {
 	return s.enableSketches
 }
