@@ -7,6 +7,8 @@ package app
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"time"
 
@@ -94,15 +96,31 @@ func bootstrapEventsCmd(cmd *cobra.Command) error {
 }
 
 func printEvents(events ...*model.ProcessEvent) error {
+	// Return early to avoid printing new lines without any event
+	if len(events) == 0 {
+		return nil
+	}
+
+	if eventsOutputJSON {
+		return printEventsJSON(events)
+	}
+
 	fmtEvents := checks.FmtProcessEvents(events)
 	procCollector := &payload.CollectorProcEvent{Events: fmtEvents}
 	msgs := []payload.MessageBody{procCollector}
+	return checks.HumanFormatProcessEvents(msgs, os.Stdout, false)
+}
 
-	if eventsOutputJSON {
-		return printResultsJSON(msgs)
+func printEventsJSON(events []*model.ProcessEvent) error {
+	for _, e := range events {
+		b, err := json.MarshalIndent(e, "", "  ")
+		if err != nil {
+			return fmt.Errorf("marshal error: %s", err)
+		}
+		fmt.Println(string(b))
 	}
 
-	return checks.HumanFormatProcessEvents(msgs, os.Stdout, false)
+	return nil
 }
 
 func runEventListener(cmd *cobra.Command, args []string) error {

@@ -1,4 +1,5 @@
-{{ if .CheckOutput -}}
+{{- $checkOutput := .CheckOutput }}
+{{- if $checkOutput -}}
 Host Info
 =========
 Hostname: {{ .Hostname }}
@@ -6,7 +7,10 @@ Hostname: {{ .Hostname }}
 Process Lifecyle Events
 =======================
 {{- end }}
-{{- range $e := .Events }}
+{{- range $index, $event := .Events -}}
+{{- if or ($checkOutput) (ne 0 $index) }}
+{{/* force a new line if check output banner was printed or it's not the first event */}}
+{{- end -}}
 > Type: {{ .Type }}
   Collection Time: {{ timeNano .CollectionTime }}
   PID: {{ .Pid }} PPID: {{ .Command.Ppid }}

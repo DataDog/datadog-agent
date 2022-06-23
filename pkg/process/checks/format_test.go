@@ -665,8 +665,7 @@ Process Lifecyle Events
   ExitCode: 0
 `
 
-	const expectEventsHumanFormat = `
-> Type: exec
+	const expectEventsHumanFormat = `> Type: exec
   Collection Time: 2022-06-12T12:00:10Z
   PID: 42 PPID: 1
   ContainerID: abc8392
