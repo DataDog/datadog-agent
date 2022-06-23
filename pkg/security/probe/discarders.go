@@ -169,8 +169,8 @@ type discarderParams struct {
 }
 
 type discarderStats struct {
-	discardersAdded uint64
-	eventDiscarded  uint64
+	DiscardersAdded uint64
+	EventDiscarded  uint64
 }
 
 func recentlyAddedIndex(mountID uint32, inode uint64) uint64 {

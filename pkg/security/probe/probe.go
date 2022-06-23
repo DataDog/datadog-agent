@@ -1042,7 +1042,7 @@ func (p *Probe) DumpDiscarders() (string, error) {
 	fmt.Fprintf(dump, "\nDiscarder Stats FB\n")
 	statsFbMap, _, statsFBErr := p.manager.GetMap("discarder_stats_fb")
 	if statsFBErr != nil {
-		_ = log.Errorf("could not get discarder_stats_fb map: %w", statsFBErr)
+		_ = log.Errorf("could not get discarder_stats_fb map: %s", statsFBErr)
 	} else {
 		var fbStat uint32
 		for entries := statsFbMap.Iterate(); entries.Next(&fbStat, &dStats); {
@@ -1053,7 +1053,7 @@ func (p *Probe) DumpDiscarders() (string, error) {
 	fmt.Fprintf(dump, "\nDiscarder Stats BB\n")
 	statsBbMap, _, statsBBErr := p.manager.GetMap("discarder_stats_bb")
 	if err != nil {
-		_ = log.Errorf("could not get discarder_stats_bb map: %w", statsBBErr)
+		_ = log.Errorf("could not get discarder_stats_bb map: %s", statsBBErr)
 	} else {
 		var bbStat uint32
 		for entries := statsBbMap.Iterate(); entries.Next(&bbStat, &dStats); {

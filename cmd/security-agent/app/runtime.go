@@ -201,7 +201,6 @@ var (
 	}
 
 	/*Discarders*/
-
 	discardersCmd = &cobra.Command{
 		Use:   "discarders",
 		Short: "discarders commands",
