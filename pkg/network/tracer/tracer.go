@@ -229,14 +229,14 @@ func newConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	return c, nil
 }
 
-func newPacketsClassifier(c *config.Config, ebpfTracer connection.Tracer) classifier.Classifier {
+func newPacketsClassifier(supported bool, c *config.Config, ebpfTracer connection.Tracer) classifier.Classifier {
 	if !c.PacketsInspection {
 		return classifier.NewNullClassifier()
 	}
-	//	if !supported {
-	//	log.Warnf("Packets inspection not supported by kernel versions < 4.1.0. Please see https://docs.datadoghq.com/network_performance_monitoring/installation for more details.")
-	//	return classifier.NewNullClassifier()
-	//}
+	if !supported {
+		log.Warnf("Packets inspection not supported by kernel versions < 4.1.0. Please see https://docs.datadoghq.com/network_performance_monitoring/installation for more details.")
+		return classifier.NewNullClassifier()
+	}
 	connMap := ebpfTracer.GetMap(string(probes.ConnMap))
 	telemetryMap := ebpfTracer.GetMap(string(probes.TelemetryMap))
 	packetsClassifier, err := classifier.NewClassifier(c, connMap, telemetryMap)
@@ -606,6 +606,7 @@ const (
 	kprobesStats
 	stateStats
 	tracerStats
+	classifierStats
 )
 
 var allStats = []statsComp{
@@ -617,6 +618,7 @@ var allStats = []statsComp{
 	kprobesStats,
 	stateStats,
 	tracerStats,
+	classifierStats,
 }
 
 func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
@@ -628,7 +630,6 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 		comps = allStats
 	}
 
-<<<<<<< HEAD
 	ret := map[string]interface{}{}
 	for _, c := range comps {
 		switch c {
@@ -650,20 +651,9 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			tracerStats := atomicstats.Report(t)
 			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
 			ret["tracer"] = tracerStats
+		case classifierStats:
+			ret["classifier"] = t.packetsClassifier.GetStats()
 		}
-=======
-	stateStats := t.state.GetStats()
-	conntrackStats := t.conntracker.GetStats()
-
-	ret := map[string]interface{}{
-		"conntrack":  conntrackStats,
-		"state":      stateStats["telemetry"],
-		"tracer":     tracerStats,
-		"ebpf":       t.ebpfTracer.GetTelemetry(),
-		"kprobes":    ddebpf.GetProbeStats(),
-		"dns":        t.reverseDNS.GetStats(),
-		"classifier": t.packetsClassifier.GetStats(),
->>>>>>> aa1dbf9168e5 ([network/TLS] add TLS support)
 	}
 
 	return ret, nil
