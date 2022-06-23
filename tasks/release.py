@@ -849,15 +849,73 @@ def update_modules(ctx, agent_version, verify=True):
             ctx.run(f"go mod edit -require={dependency_mod.dependency_path(agent_version)} {module.go_mod_path()}")
 
 
+def __get_force_option(force: bool) -> str:
+    """Get flag to pass to git tag depending on if we want forcing or not."""
+    force_option = ""
+    if force:
+        print(color_message("--force option enabled. This will allow the task to overwrite existing tags.", "orange"))
+        result = yes_no_question("Please confirm the use of the --force option.", color="orange", default=False)
+        if result:
+            print("Continuing with the --force option.")
+            force_option = " --force"
+        else:
+            print("Continuing without the --force option.")
+    return force_option
+
+
+def __tag_single_module(ctx, module, agent_version, commit, push, force_option):
+    """Tag a given module."""
+    for tag in module.tag(agent_version):
+        ok = try_git_command(
+            ctx,
+            f"git tag -m {tag} {tag} {commit}{force_option}",
+        )
+        if not ok:
+            message = f"Could not create tag {tag}. Please rerun the task to retry creating the tags (you may need the --force option)"
+            raise Exit(color_message(message, "red"), code=1)
+        print(f"Created tag {tag}")
+        if push:
+            ctx.run(f"git push origin {tag}{force_option}")
+            print(f"Pushed tag {tag}")
+
+
 @task
-def tag_version(ctx, agent_version, commit="HEAD", verify=True, tag_modules=True, push=True, force=False):
+def tag_modules(ctx, agent_version, commit="HEAD", verify=True, push=True, force=False):
+    """
+    Create tags for Go nested modules for a given Datadog Agent version.
+    The version should be given as an Agent 7 version.
+
+    * --commit COMMIT will tag COMMIT with the tags (default HEAD)
+    * --verify checks for correctness on the Agent version (on by default).
+    * --push will push the tags to the origin remote (on by default).
+    * --force will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
+
+    Examples:
+    inv -e release.tag-modules 7.27.0                 # Create tags and push them to origin
+    inv -e release.tag-modules 7.27.0-rc.3 --no-push  # Create tags locally; don't push them
+    inv -e release.tag-modules 7.29.0-rc.3 --force    # Create tags (overwriting existing tags with the same name), force-push them to origin
+
+    """
+    if verify:
+        check_version(agent_version)
+
+    force_option = __get_force_option(force)
+    for module in DEFAULT_MODULES.values():
+        # Skip main module; this is tagged at tag_version via __tag_single_module.
+        if module.should_tag and module.path != ".":
+            __tag_single_module(ctx, module, agent_version, commit, push, force_option)
+
+    print(f"Created module tags for version {agent_version}")
+
+
+@task
+def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force=False):
     """
     Create tags for a given Datadog Agent version.
     The version should be given as an Agent 7 version.
 
     * --commit COMMIT will tag COMMIT with the tags (default HEAD)
     * --verify checks for correctness on the Agent version (on by default).
-    * --tag_modules tags Go modules in addition to the agent repository
     * --push will push the tags to the origin remote (on by default).
     * --force will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
 
@@ -869,32 +927,10 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, tag_modules=True
     if verify:
         check_version(agent_version)
 
-    force_option = ""
-    if force:
-        print(color_message("--force option enabled. This will allow the task to overwrite existing tags.", "orange"))
-        result = yes_no_question("Please confirm the use of the --force option.", color="orange", default=False)
-        if result:
-            print("Continuing with the --force option.")
-            force_option = " --force"
-        else:
-            print("Continuing without the --force option.")
-
-    for module in DEFAULT_MODULES.values():
-        if (tag_modules or module.path == ".") and module.should_tag:
-            for tag in module.tag(agent_version):
-                ok = try_git_command(
-                    ctx,
-                    f"git tag -m {tag} {tag} {commit}{force_option}",
-                )
-                if not ok:
-                    message = f"Could not create tag {tag}. Please rerun the task to retry creating the tags (you may need the --force option)"
-                    raise Exit(color_message(message, "red"), code=1)
-                print(f"Created tag {tag}")
-                if push:
-                    ctx.run(f"git push origin {tag}{force_option}")
-                    print(f"Pushed tag {tag}")
-
-    print(f"Created all tags for version {agent_version}")
+    # Always tag the main module
+    force_option = __get_force_option(force)
+    __tag_single_module(ctx, DEFAULT_MODULES["."], agent_version, commit, push, force_option)
+    print(f"Created tags for version {agent_version}")
 
 
 def current_version(ctx, major_version) -> Version:
@@ -1307,6 +1343,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False):
     # the tags for all supported versions
     # TODO: make it possible to do Agent 6-only or Agent 7-only tags?
     tag_version(ctx, str(new_version), force=False)
+    tag_modules(ctx, str(new_version), force=False)
 
     print(color_message(f"Waiting until the {new_version} tag appears in Gitlab", "bold"))
     gitlab_tag = None
