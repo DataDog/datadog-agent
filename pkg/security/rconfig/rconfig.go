@@ -18,12 +18,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/Masterminds/semver"
 	"github.com/hashicorp/go-multierror"
 )
 
 // RCPolicyProvider defines a remote config policy provider
 type RCPolicyProvider struct {
 	sync.RWMutex
+	agentVersion *semver.Version
 
 	client               *remote.Client
 	onNewPoliciesReadyCb func()
@@ -32,17 +34,20 @@ type RCPolicyProvider struct {
 
 var _ rules.PolicyProvider = (*RCPolicyProvider)(nil)
 
-func NewRCPolicyProvider(name string) (*RCPolicyProvider, error) {
+// NewRCPolicyProvider returns a new Remote Config based policy provider
+func NewRCPolicyProvider(name string, agentVersion *semver.Version) (*RCPolicyProvider, error) {
 	c, err := remote.NewClient(name, []data.Product{data.ProductCWSDD})
 	if err != nil {
 		return nil, err
 	}
 
 	return &RCPolicyProvider{
-		client: c,
+		client:       c,
+		agentVersion: agentVersion,
 	}, nil
 }
 
+// Start starts the Remote Config policy provider and subscribes to updates
 func (r *RCPolicyProvider) Start() {
 	log.Info("remote-config policies provider started")
 
@@ -67,7 +72,7 @@ func normalize(policy *rules.Policy) {
 	}
 }
 
-// LoadPolicy implements the PolicyProvider interface
+// LoadPolicies implements the PolicyProvider interface
 func (r *RCPolicyProvider) LoadPolicies() ([]*rules.Policy, *multierror.Error) {
 	var policies []*rules.Policy
 	var errs *multierror.Error
@@ -78,7 +83,7 @@ func (r *RCPolicyProvider) LoadPolicies() ([]*rules.Policy, *multierror.Error) {
 	for _, c := range r.lastConfigs {
 		reader := bytes.NewReader(c.Config)
 
-		policy, err := rules.LoadPolicy(c.ID, "remote-config", reader)
+		policy, err := rules.LoadPolicy(c.ID, "remote-config", reader, r.agentVersion)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		} else {
@@ -90,12 +95,12 @@ func (r *RCPolicyProvider) LoadPolicies() ([]*rules.Policy, *multierror.Error) {
 	return policies, errs
 }
 
-// SetOnNewPolicyReadyCb implements the PolicyProvider interface
+// SetOnNewPoliciesReadyCb implements the PolicyProvider interface
 func (r *RCPolicyProvider) SetOnNewPoliciesReadyCb(cb func()) {
 	r.onNewPoliciesReadyCb = cb
 }
 
-// Stop the client
+// Close stops the client
 func (r *RCPolicyProvider) Close() error {
 	r.client.Close()
 	return nil

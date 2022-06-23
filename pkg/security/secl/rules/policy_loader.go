@@ -46,7 +46,7 @@ func (p *PolicyLoader) LoadPolicies() ([]*Policy, *multierror.Error) {
 		}
 
 		for _, policy := range policies {
-			if policy.Name == defaultPolicyName {
+			if policy.Name == DefaultPolicyName {
 				defaultPolicy = policy
 			} else {
 				allPolicies = append(allPolicies, policy)
@@ -88,7 +88,7 @@ func (p *PolicyLoader) notifyListeners() {
 	}
 }
 
-// Stop the loader
+// Close stops the loader
 func (p *PolicyLoader) Close() {
 	p.RLock()
 	defer p.RUnlock()

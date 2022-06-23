@@ -33,7 +33,11 @@ func NewMetaScheduler() *MetaScheduler {
 	}
 }
 
-// Register a scheduler in the meta scheduler to dispatch to
+// Register a new scheduler to receive configurations.
+//
+// Previously scheduled configurations that have not subsequently been
+// unscheduled can be replayed with the replayConfigs flag.  This replay occurs
+// immediately, before the AddScheduler call returns.
 func (ms *MetaScheduler) Register(name string, s Scheduler, replayConfigs bool) {
 	ms.m.Lock()
 	defer ms.m.Unlock()

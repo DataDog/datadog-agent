@@ -39,7 +39,7 @@ func (suite *SecureTestSuite) SetupTest() {
 // - cacert
 func (suite *SecureTestSuite) TestWithTLSCA() {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(nil)
 
 	mockConfig.Set("kubernetes_https_kubelet_port", 10250)
 	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
@@ -50,7 +50,6 @@ func (suite *SecureTestSuite) TestWithTLSCA() {
 
 	ku, err := kubelet.GetKubeUtil()
 	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), "https://127.0.0.1:10250", ku.GetKubeletAPIEndpoint())
 	b, code, err := ku.QueryKubelet(ctx, "/healthz")
 	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), 200, code)
@@ -79,7 +78,7 @@ func (suite *SecureTestSuite) TestWithTLSCA() {
 // - tls_verify
 // - WITHOUT cacert (expecting failure)
 func (suite *SecureTestSuite) TestTLSWithoutCA() {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(nil)
 
 	mockConfig.Set("kubernetes_https_kubelet_port", 10250)
 	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
@@ -102,7 +101,7 @@ func (suite *SecureTestSuite) TestTLSWithoutCA() {
 // - certificate
 func (suite *SecureTestSuite) TestTLSWithCACertificate() {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(nil)
 
 	mockConfig.Set("kubernetes_https_kubelet_port", 10250)
 	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
@@ -115,7 +114,6 @@ func (suite *SecureTestSuite) TestTLSWithCACertificate() {
 
 	ku, err := kubelet.GetKubeUtil()
 	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), "https://127.0.0.1:10250", ku.GetKubeletAPIEndpoint())
 	b, code, err := ku.QueryKubelet(ctx, "/healthz")
 	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), 200, code)

@@ -62,6 +62,8 @@ type Service struct {
 	products    map[rdata.Product]struct{}
 	newProducts map[rdata.Product]struct{}
 	clients     *clients
+
+	lastUpdateErr error
 }
 
 // uptaneClient is used to mock the uptane component for testing
@@ -73,6 +75,7 @@ type uptaneClient interface {
 	TargetFile(path string) ([]byte, error)
 	TargetsMeta() ([]byte, error)
 	TargetsCustom() ([]byte, error)
+	TUFVersionState() (uptane.TUFVersions, error)
 }
 
 // NewService instantiates a new remote configuration management service
@@ -191,21 +194,35 @@ func (s *Service) calculateRefreshInterval() time.Duration {
 
 func (s *Service) refresh() error {
 	s.Lock()
-	defer s.Unlock()
 	activeClients := s.clients.activeClients()
 	s.refreshProducts(activeClients)
-	previousState, err := s.uptane.State()
+	previousState, err := s.uptane.TUFVersionState()
 	if err != nil {
-		log.Warnf("could not get previous state: %v", err)
+		log.Warnf("could not get previous TUF version state: %v", err)
+		if s.lastUpdateErr != nil {
+			s.lastUpdateErr = fmt.Errorf("%v: %v", err, s.lastUpdateErr)
+		} else {
+			s.lastUpdateErr = err
+		}
 	}
 	if s.forceRefresh() || err != nil {
-		previousState = uptane.State{}
+		previousState = uptane.TUFVersions{}
 	}
 	clientState, err := s.getClientState()
 	if err != nil {
 		log.Warnf("could not get previous backend client state: %v", err)
+		if s.lastUpdateErr != nil {
+			s.lastUpdateErr = fmt.Errorf("%v: %v", err, s.lastUpdateErr)
+		} else {
+			s.lastUpdateErr = err
+		}
 	}
-	response, err := s.api.Fetch(s.ctx, buildLatestConfigsRequest(s.hostname, previousState, activeClients, s.products, s.newProducts, clientState))
+	request := buildLatestConfigsRequest(s.hostname, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
+	s.Unlock()
+	response, err := s.api.Fetch(s.ctx, request)
+	s.Lock()
+	defer s.Unlock()
+	s.lastUpdateErr = nil
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
 		return err
@@ -213,6 +230,7 @@ func (s *Service) refresh() error {
 	err = s.uptane.Update(response)
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
+		s.lastUpdateErr = err
 		return err
 	}
 	s.firstUpdate = false
@@ -249,7 +267,7 @@ func (s *Service) getClientState() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return custom.ClientState, nil
+	return custom.OpaqueBackendState, nil
 }
 
 // ClientGetConfigs is the polling API called by tracers and agents to get the latest configurations
@@ -257,17 +275,17 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	s.Lock()
 	defer s.Unlock()
 	s.clients.seen(request.Client)
-	state, err := s.uptane.State()
+	tufVersions, err := s.uptane.TUFVersionState()
 	if err != nil {
 		return nil, err
 	}
 	if request.Client.State == nil {
 		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
-	if state.DirectorTargetsVersion() == request.Client.State.TargetsVersion {
+	if tufVersions.DirectorTargets == request.Client.State.TargetsVersion {
 		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
-	roots, err := s.getNewDirectorRoots(request.Client.State.RootVersion, state.DirectorRootVersion())
+	roots, err := s.getNewDirectorRoots(request.Client.State.RootVersion, tufVersions.DirectorRoot)
 	if err != nil {
 		return nil, err
 	}

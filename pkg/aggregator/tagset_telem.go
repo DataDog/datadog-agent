@@ -61,48 +61,26 @@ func newTagsetTelemetry(thresholds []uint64) *tagsetTelemetry {
 }
 
 // updateTelemetry implements common behavior fof the update*Telemetry methods.
-func (t *tagsetTelemetry) updateTelemetry(tagsetSizes []uint64, atomicCounts []*atomic.Uint64, tlms []telemetry.Counter) {
-	counts := make([]uint64, t.size)
-	var found bool
-
-	for _, tagsetSize := range tagsetSizes {
-		for i, thresh := range t.sizeThresholds {
-			if tagsetSize > thresh {
-				counts[i]++
-				found = true
-			}
-		}
-	}
-
-	if found {
-		for i, count := range counts {
-			if count > 0 {
-				atomicCounts[i].Add(count)
-				tlms[i].Add(float64(count))
-			}
+func (t *tagsetTelemetry) updateTelemetry(tagsetSize uint64, atomicCounts []*atomic.Uint64, tlms []telemetry.Counter) {
+	for i, thresh := range t.sizeThresholds {
+		if tagsetSize > thresh {
+			atomicCounts[i].Inc()
+			tlms[i].Add(1)
 		}
 	}
 }
 
 // updateHugeSketches huge and almost-huge series in the given value
-func (t *tagsetTelemetry) updateHugeSketchesTelemetry(sketches *metrics.SketchSeriesList) {
-	tagsetSizes := make([]uint64, len(*sketches))
-	for i, s := range *sketches {
-		tagsetSizes[i] = uint64(s.Tags.Len())
-	}
-	t.updateTelemetry(tagsetSizes, t.hugeSketchesCount, t.tlmHugeSketches)
+func (t *tagsetTelemetry) updateHugeSketchesTelemetry(sketches *metrics.SketchSeries) {
+	tagsetSize := uint64(sketches.Tags.Len())
+	t.updateTelemetry(tagsetSize, t.hugeSketchesCount, t.tlmHugeSketches)
 }
 
 // updateHugeSerieTelemetry increments huge and almost-huge counters.
 // Same as updateHugeSeriesTelemetry but for a single serie.
 func (t *tagsetTelemetry) updateHugeSerieTelemetry(serie *metrics.Serie) {
 	tagsetSize := uint64(serie.Tags.Len())
-	for i, thresh := range t.sizeThresholds {
-		if tagsetSize > thresh {
-			t.hugeSeriesCount[i].Inc()
-			t.tlmHugeSeries[i].Add(1)
-		}
-	}
+	t.updateTelemetry(tagsetSize, t.hugeSeriesCount, t.tlmHugeSeries)
 }
 
 func (t *tagsetTelemetry) exp() interface{} {

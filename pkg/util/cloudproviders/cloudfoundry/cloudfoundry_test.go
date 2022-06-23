@@ -18,7 +18,7 @@ import (
 
 func TestHostAliasDisable(t *testing.T) {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 
 	mockConfig.Set("cloud_foundry", false)
 	mockConfig.Set("bosh_id", "ID_CF")
@@ -31,7 +31,7 @@ func TestHostAliasDisable(t *testing.T) {
 func TestHostAlias(t *testing.T) {
 	ctx := context.Background()
 	defer func() { getFqdn = util.Fqdn }()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 
 	mockConfig.Set("cloud_foundry", true)
 	mockConfig.Set("bosh_id", "ID_CF")
@@ -70,7 +70,7 @@ func TestHostAlias(t *testing.T) {
 
 func TestHostAliasDefault(t *testing.T) {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 
 	mockConfig.Set("cloud_foundry", true)
 	mockConfig.Set("bosh_id", nil)

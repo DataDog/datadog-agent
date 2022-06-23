@@ -137,22 +137,22 @@ func (l *PatternLogger) Tracef(format string, params ...interface{}) {
 
 // Debugf is used to print a trace level log
 func (l *PatternLogger) Debugf(format string, params ...interface{}) {
-	log.Debugf(format, params...)
+	log.DebugStackDepth(depth-1, fmt.Sprintf(format, params...))
 }
 
 // Errorf is used to print an error
 func (l *PatternLogger) Errorf(format string, params ...interface{}) {
-	_ = log.Errorf(format, params...)
+	_ = log.ErrorStackDepth(depth-1, fmt.Sprintf(format, params...))
 }
 
 // Warnf is used to print a warn
 func (l *PatternLogger) Warnf(format string, params ...interface{}) {
-	log.Warnf(format, params...)
+	log.WarnStackDepth(depth-1, fmt.Sprintf(format, params...))
 }
 
 // Infof is used to print an error
 func (l *PatternLogger) Infof(format string, params ...interface{}) {
-	log.Infof(format, params...)
+	log.InfoStackDepth(depth-1, fmt.Sprintf(format, params...))
 }
 
 // AddTags add new tags

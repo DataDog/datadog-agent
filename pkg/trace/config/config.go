@@ -59,6 +59,12 @@ type OTLP struct {
 	// MaxRequestBytes specifies the maximum number of bytes that will be read
 	// from an incoming HTTP request.
 	MaxRequestBytes int64 `mapstructure:"-"`
+
+	// UsePreviewHostnameLogic specifies wether to use the 'preview' OpenTelemetry attributes to hostname rules,
+	// controlled in the Datadog exporter by the `exporter.datadog.hostname.preview` feature flag.
+	// The 'preview' rules change the canonical hostname chosen in cloud providers to be consistent with the
+	// one sent by Datadog cloud integrations.
+	UsePreviewHostnameLogic bool `mapstructure:"-"`
 }
 
 // ObfuscationConfig holds the configuration for obfuscating sensitive data
@@ -252,6 +258,20 @@ type ProfilingProxyConfig struct {
 	AdditionalEndpoints map[string][]string
 }
 
+// EVPProxy contains the settings for the EVPProxy proxy.
+type EVPProxy struct {
+	// Enabled reports whether EVPProxy is enabled (true by default).
+	Enabled bool
+	// DDURL is the Datadog site to forward payloads to (defaults to the Site setting if not set).
+	DDURL string
+	// APIKey is the main API Key (defaults to the main API key).
+	APIKey string
+	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
+	AdditionalEndpoints map[string][]string
+	// MaxPayloadSize indicates the size at which payloads will be rejected, in bytes.
+	MaxPayloadSize int64
+}
+
 // DebuggerProxyConfig ...
 type DebuggerProxyConfig struct {
 	// DDURL ...
@@ -378,6 +398,9 @@ type AgentConfig struct {
 	// AppSec contains AppSec configuration.
 	AppSec AppSecConfig
 
+	// EVPProxy contains the settings for the EVPProxy proxy.
+	EVPProxy EVPProxy
+
 	// DebuggerProxy contains the settings for the Live Debugger proxy.
 	DebuggerProxy DebuggerProxyConfig
 
@@ -470,6 +493,10 @@ func New() *AgentConfig {
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
 		},
 		AppSec: AppSecConfig{
+			Enabled:        true,
+			MaxPayloadSize: 5 * 1024 * 1024,
+		},
+		EVPProxy: EVPProxy{
 			Enabled:        true,
 			MaxPayloadSize: 5 * 1024 * 1024,
 		},

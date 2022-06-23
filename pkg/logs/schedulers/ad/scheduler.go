@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
+	ddUtil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -77,7 +78,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 			for _, source := range sources {
 				s.mgr.AddSource(source)
 			}
-		case s.newService(config):
+		case !ddUtil.CcaInAD() && s.newService(config):
 			entityType, _, err := s.parseEntity(config.TaggerEntity)
 			if err != nil {
 				log.Warnf("Invalid service: %v", err)
@@ -130,7 +131,7 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 					s.mgr.RemoveSource(source)
 				}
 			}
-		case s.newService(config):
+		case !ddUtil.CcaInAD() && s.newService(config):
 			// new service to remove
 			entityType, _, err := s.parseEntity(config.TaggerEntity)
 			if err != nil {

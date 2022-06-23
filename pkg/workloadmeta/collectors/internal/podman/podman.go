@@ -13,20 +13,17 @@ import (
 	"errors"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/podman"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/util"
 )
 
 const (
 	collectorID   = "podman"
 	componentName = "workloadmeta-podman"
-	expireFreq    = 10 * time.Second
 )
 
 type podmanClient interface {
@@ -36,12 +33,14 @@ type podmanClient interface {
 type collector struct {
 	client podmanClient
 	store  workloadmeta.Store
-	expire *util.Expire
+	seen   map[workloadmeta.EntityID]struct{}
 }
 
 func init() {
 	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
-		return &collector{}
+		return &collector{
+			seen: make(map[workloadmeta.EntityID]struct{}),
+		}
 	})
 }
 
@@ -52,7 +51,6 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Store) error {
 
 	c.client = podman.NewDBClient(podman.DefaultDBPath)
 	c.store = store
-	c.expire = util.NewExpire(expireFreq)
 
 	return nil
 }
@@ -63,15 +61,30 @@ func (c *collector) Pull(_ context.Context) error {
 		return err
 	}
 
-	var events []workloadmeta.CollectorEvent
+	seen := make(map[workloadmeta.EntityID]struct{})
+	events := make([]workloadmeta.CollectorEvent, 0, len(containers))
 
 	for _, container := range containers {
 		event := convertToEvent(&container)
-		c.expire.Update(event.Entity.GetID(), time.Now())
+		seen[event.Entity.GetID()] = struct{}{}
 		events = append(events, event)
 	}
 
-	events = append(events, c.expiredEvents()...)
+	for seenID := range c.seen {
+		if _, ok := seen[seenID]; ok {
+			continue
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Type:   workloadmeta.EventTypeUnset,
+			Source: workloadmeta.SourceRuntime,
+			Entity: &workloadmeta.Container{
+				EntityID: seenID,
+			},
+		})
+	}
+
+	c.seen = seen
 
 	c.store.Notify(events)
 
@@ -141,22 +154,6 @@ func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {
 			},
 		},
 	}
-}
-
-func (c *collector) expiredEvents() []workloadmeta.CollectorEvent {
-	var res []workloadmeta.CollectorEvent
-
-	for _, expired := range c.expire.ComputeExpires() {
-		res = append(res, workloadmeta.CollectorEvent{
-			Type:   workloadmeta.EventTypeUnset,
-			Source: workloadmeta.SourceRuntime,
-			Entity: &workloadmeta.Container{
-				EntityID: expired,
-			},
-		})
-	}
-
-	return res
 }
 
 func getShortID(container *podman.Container) (containerID string) {

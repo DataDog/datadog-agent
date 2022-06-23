@@ -168,22 +168,50 @@ type seclField struct {
 	iterator            string
 	handler             string
 	cachelessResolution bool
+	weight              int64
 }
 
-func parseHandler(handler string) (string, int64) {
-	els := strings.Split(handler, ":")
-	handler = els[0]
+func parseFieldDef(def string) (seclField, error) {
+	def = strings.TrimSpace(def)
+	splitted := strings.SplitN(def, ",", 2)
 
-	var weight int64
-	var err error
-	if len(els) > 1 {
-		weight, err = strconv.ParseInt(els[1], 10, 64)
-		if err != nil {
-			log.Panicf("unable to parse weight: %s", els[1])
+	alias := splitted[0]
+	field := seclField{name: alias}
+
+	if alias == "-" {
+		return field, nil
+	}
+
+	// arguments
+	if len(splitted) > 1 {
+		for _, el := range strings.Split(splitted[1], ",") {
+			kv := strings.Split(el, ":")
+
+			key, value := kv[0], kv[1]
+
+			switch key {
+			case "handler":
+				field.handler = value
+			case "weight":
+				weight, err := strconv.ParseInt(value, 10, 64)
+				if err != nil {
+					return field, err
+				}
+				field.weight = weight
+			case "iterator":
+				field.iterator = value
+			case "opts":
+				for _, opt := range strings.Split(value, "|") {
+					switch opt {
+					case "cacheless_resolution":
+						field.cachelessResolution = true
+					}
+				}
+			}
 		}
 	}
 
-	return handler, weight
+	return field, nil
 }
 
 func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, prefix, aliasPrefix, event string, iterator *common.StructField, dejavu map[string]bool) {
@@ -228,27 +256,20 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 					var fields []seclField
 					fieldType, isPointer, isArray := getFieldIdentName(field.Type)
 
-					var weight int64
 					if tags, err := structtag.Parse(string(tag)); err == nil && len(tags.Tags()) != 0 {
 						for _, tag := range tags.Tags() {
 							switch tag.Key {
 							case "field":
-								fieldGroups := strings.Split(tag.Value(), ";")
-								for _, fieldGroup := range fieldGroups {
-									splitted := strings.SplitN(fieldGroup, ",", 4)
-									alias := splitted[0]
-									if alias == "-" {
+
+								fieldDefs := strings.Split(tag.Value(), ";")
+								for _, fieldDef := range fieldDefs {
+									field, err := parseFieldDef(fieldDef)
+									if err != nil {
+										log.Panicf("unable to parse field definition: %s", err)
+									}
+
+									if field.name == "-" {
 										continue FIELD
-									}
-									field := seclField{name: alias}
-									if len(splitted) > 1 {
-										field.handler, weight = parseHandler(splitted[1])
-									}
-									if len(splitted) > 2 {
-										field.iterator, weight = parseHandler(splitted[2])
-									}
-									if len(splitted) > 3 {
-										field.cachelessResolution = splitted[3] == "cacheless_resolution"
 									}
 
 									fields = append(fields, field)
@@ -294,7 +315,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								OrigType:            qualifiedType(module, fieldType),
 								IsOrigTypePtr:       isPointer,
 								IsArray:             isArray,
-								Weight:              weight,
+								Weight:              seclField.weight,
 								CommentText:         fieldCommentText,
 								OpOverrides:         opOverrides,
 								Constants:           constants,
@@ -320,7 +341,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								OrigType:            fieldType,
 								Iterator:            fieldIterator,
 								IsArray:             isArray,
-								Weight:              weight,
+								Weight:              seclField.weight,
 								CommentText:         fieldCommentText,
 								OpOverrides:         opOverrides,
 								Constants:           constants,

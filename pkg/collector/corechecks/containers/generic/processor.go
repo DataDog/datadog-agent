@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -54,7 +54,7 @@ func (p *Processor) RegisterExtension(id string, extension ProcessorExtension) {
 
 // Run executes the check
 func (p *Processor) Run(sender aggregator.Sender, cacheValidity time.Duration) error {
-	allContainers := p.ctrLister.List()
+	allContainers := p.ctrLister.ListRunning()
 
 	if len(allContainers) == 0 {
 		return nil
@@ -79,11 +79,6 @@ func (p *Processor) Run(sender aggregator.Sender, cacheValidity time.Duration) e
 	}
 
 	for _, container := range allContainers {
-		// We surely won't get stats for not running containers
-		if !container.State.Running {
-			continue
-		}
-
 		if p.ctrFilter != nil && p.ctrFilter.IsExcluded(container) {
 			log.Tracef("Container excluded due to filter, name: %s - image: %s - namespace: %s", container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel])
 			continue
@@ -141,6 +136,11 @@ func (p *Processor) Run(sender aggregator.Sender, cacheValidity time.Duration) e
 func (p *Processor) processContainer(sender aggregator.Sender, tags []string, container *workloadmeta.Container, containerStats *metrics.ContainerStats) error {
 	if uptime := time.Since(container.State.StartedAt); uptime > 0 {
 		p.sendMetric(sender.Gauge, "container.uptime", pointer.Float64Ptr(uptime.Seconds()), tags)
+	}
+
+	if containerStats == nil {
+		log.Debugf("Metrics provider returned nil stats for container: %v", container)
+		return nil
 	}
 
 	if containerStats.CPU != nil {

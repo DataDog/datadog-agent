@@ -609,6 +609,7 @@ func (k *KSMCheck) sendTelemetry(s aggregator.Sender) {
 	}
 }
 
+// KubeStateMetricsFactory returns a new KSMCheck
 func KubeStateMetricsFactory() check.Check {
 	return newKSMCheck(
 		core.NewCheckBase(kubeStateMetricsCheckName),

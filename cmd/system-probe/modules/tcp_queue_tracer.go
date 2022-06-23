@@ -43,7 +43,7 @@ type tcpQueueLengthModule struct {
 }
 
 func (t *tcpQueueLengthModule) Register(httpMux *module.Router) error {
-	httpMux.HandleFunc("/check/tcp_queue_length", func(w http.ResponseWriter, req *http.Request) {
+	httpMux.HandleFunc("/check", func(w http.ResponseWriter, req *http.Request) {
 		atomic.StoreInt64(&t.lastCheck, time.Now().Unix())
 		stats := t.TCPQueueLengthTracer.GetAndFlush()
 		utils.WriteAsJSON(w, stats)
