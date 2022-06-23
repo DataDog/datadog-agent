@@ -26,25 +26,27 @@ import (
 // During a request, the http.Client will call the functions of the ClientTrace at specific moments
 // This is useful to get extra information about what is happening and if there are errors during
 // connection establishment, DNS resolution or TLS handshake for instance
-func createDiagnoseTrace(writer *writerWrapper) *httptrace.ClientTrace {
+func createDiagnoseTrace(writer io.Writer) *httptrace.ClientTrace {
+
+	hooks := &connectivityHooks{w: writer}
 
 	return &httptrace.ClientTrace{
 
 		// Hooks called before and after creating or retrieving a connection
-		GetConn: writer.getConnHook,
-		GotConn: writer.gotConnHook,
+		GetConn: hooks.getConnHook,
+		GotConn: hooks.gotConnHook,
 
 		// Hooks for connection establishment
-		ConnectStart: writer.connectStartHook,
-		ConnectDone:  writer.connectDoneHook,
+		ConnectStart: hooks.connectStartHook,
+		ConnectDone:  hooks.connectDoneHook,
 
 		// Hooks for DNS resolution
-		DNSStart: writer.dnsStartHook,
-		DNSDone:  writer.dnsDoneHook,
+		DNSStart: hooks.dnsStartHook,
+		DNSDone:  hooks.dnsDoneHook,
 
 		// Hooks for TLS Handshake
-		TLSHandshakeStart: writer.tlsHandshakeStartHook,
-		TLSHandshakeDone:  writer.tlsHandshakeDoneHook,
+		TLSHandshakeStart: hooks.tlsHandshakeStartHook,
+		TLSHandshakeDone:  hooks.tlsHandshakeDoneHook,
 	}
 }
 
@@ -56,19 +58,19 @@ var (
 // writeWrapper is used to pass a io.Writer variable to the hooks so that they
 // can output into a terminal if the command is used via CLI or into a buffer
 // when requesting a flare
-type writerWrapper struct {
+type connectivityHooks struct {
 	w io.Writer
 }
 
 // connectStartHook is called when the http.Client is establishing a new connection to 'addr'
 // However, it is not called when a connection is reused (see gotConnHook)
-func (writer *writerWrapper) connectStartHook(network, addr string) {
+func (writer *connectivityHooks) connectStartHook(network, addr string) {
 	fmt.Fprintf(writer.w, "~~~ Starting a new connection ~~~\n")
 }
 
 // connectDoneHook is called when the new connection to 'addr' completes
 // It displays the error message if there is one and indicates if this step was successful
-func (writer *writerWrapper) connectDoneHook(network, addr string, err error) {
+func (writer *connectivityHooks) connectDoneHook(network, addr string, err error) {
 	statusString := color.GreenString("OK")
 	if err != nil {
 		statusString = color.RedString("ERROR")
@@ -81,7 +83,7 @@ func (writer *writerWrapper) connectDoneHook(network, addr string, err error) {
 // This is called before :
 // 		- Creating a new connection 		: getConnHook ---> connectStartHook
 //		- Retrieving an existing connection : getConnHook ---> gotConnHook
-func (writer *writerWrapper) getConnHook(hostPort string) {
+func (writer *connectivityHooks) getConnHook(hostPort string) {
 	fmt.Fprintf(writer.w, "=== Retrieving or creating a new connection ===\n")
 }
 
@@ -91,20 +93,20 @@ func (writer *writerWrapper) getConnHook(hostPort string) {
 // 		- Previous connection retrieved : getConnHook     ---> gotConnHook
 // This function only displays when a connection is retrieved.
 // Information about new connection are reported by connectDoneHook
-func (writer *writerWrapper) gotConnHook(gci httptrace.GotConnInfo) {
+func (writer *connectivityHooks) gotConnHook(gci httptrace.GotConnInfo) {
 	if gci.Reused {
 		fmt.Fprint(writer.w, color.CyanString("Reusing a previous connection that was idle for %v\n", gci.IdleTime))
 	}
 }
 
 // dnsStartHook is called when starting the DNS lookup
-func (writer *writerWrapper) dnsStartHook(di httptrace.DNSStartInfo) {
+func (writer *connectivityHooks) dnsStartHook(di httptrace.DNSStartInfo) {
 	fmt.Fprint(writer.w, dnsColorFunc("--- Starting DNS lookup to resolve '%v' ---\n", di.Host))
 }
 
 // dnsDoneHook is called after the DNS lookup
 // It displays the error message if there is one and indicates if this step was successful
-func (writer *writerWrapper) dnsDoneHook(di httptrace.DNSDoneInfo) {
+func (writer *connectivityHooks) dnsDoneHook(di httptrace.DNSDoneInfo) {
 	statusString := color.GreenString("OK")
 	if di.Err != nil {
 		statusString = color.RedString("ERROR")
@@ -114,13 +116,13 @@ func (writer *writerWrapper) dnsDoneHook(di httptrace.DNSDoneInfo) {
 }
 
 // tlsHandshakeStartHook is called when starting the TLS Handshake
-func (writer *writerWrapper) tlsHandshakeStartHook() {
+func (writer *connectivityHooks) tlsHandshakeStartHook() {
 	fmt.Fprint(writer.w, tlsColorFunc("### Starting TLS Handshake ###\n"))
 }
 
 // tlsHandshakeDoneHook is called after the TLS Handshake
 // It displays the error message if there is one and indicates if this step was successful
-func (writer *writerWrapper) tlsHandshakeDoneHook(cs tls.ConnectionState, err error) {
+func (writer *connectivityHooks) tlsHandshakeDoneHook(cs tls.ConnectionState, err error) {
 	statusString := color.GreenString("OK")
 	if err != nil {
 		statusString = color.RedString("ERROR")
