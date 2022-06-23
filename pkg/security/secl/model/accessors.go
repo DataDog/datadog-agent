@@ -90,14 +90,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "bind.addr.protocol":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).Bind.Protocol)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "bind.retval":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -11380,7 +11372,6 @@ func (e *Event) GetFields() []eval.Field {
 		"bind.addr.family",
 		"bind.addr.ip",
 		"bind.addr.port",
-		"bind.addr.protocol",
 		"bind.retval",
 		"bpf.cmd",
 		"bpf.map.name",
@@ -12461,8 +12452,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return e.Bind.Addr.IPNet, nil
 	case "bind.addr.port":
 		return int(e.Bind.Addr.Port), nil
-	case "bind.addr.protocol":
-		return int(e.Bind.Protocol), nil
 	case "bind.retval":
 		return int(e.Bind.SyscallEvent.Retval), nil
 	case "bpf.cmd":
@@ -16566,8 +16555,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "bind", nil
 	case "bind.addr.port":
 		return "bind", nil
-	case "bind.addr.protocol":
-		return "bind", nil
 	case "bind.retval":
 		return "bind", nil
 	case "bpf.cmd":
@@ -18716,8 +18703,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "bind.addr.ip":
 		return reflect.Struct, nil
 	case "bind.addr.port":
-		return reflect.Int, nil
-	case "bind.addr.protocol":
 		return reflect.Int, nil
 	case "bind.retval":
 		return reflect.Int, nil
@@ -20886,13 +20871,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Bind.Addr.Port"}
 		}
 		e.Bind.Addr.Port = uint16(v)
-		return nil
-	case "bind.addr.protocol":
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Bind.Protocol"}
-		}
-		e.Bind.Protocol = uint8(v)
 		return nil
 	case "bind.retval":
 		v, ok := value.(int)

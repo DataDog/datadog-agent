@@ -1,7 +1,7 @@
 #ifndef _SOCKET_H_
 #define _SOCKET_H_
 
-#define DECLARE_EQUAL_TO_SUFFIXED(suffix, s) static inline int equal_to_##suffix(char *str) { \
+#define DECLARE_EQUAL_TO_SUFFIXED(suffix, s) static __attribute__((always_inline)) int equal_to_##suffix(char *str) { \
         char s1[sizeof(#s)];                                            \
         bpf_probe_read(&s1, sizeof(s1), str);                           \
         char s2[] = #s;                                                 \

@@ -110,9 +110,13 @@ int kprobe_security_socket_bind(struct pt_regs *ctx) {
     if (key.port != 0) {
         u64 id = bpf_get_current_pid_tgid();
         u32 tid = (u32) id;
+        u8 protocol;
 
         // add netns information
-        key.netns = get_netns_from_socket(sk);
+        key.netns = get_netns_and_protocol_from_socket(sk, &protocol);
+        if (syscall) {
+            syscall->bind.protocol = protocol;
+        }
         if (key.netns != 0) {
             bpf_map_update_elem(&netns_cache, &tid, &key.netns, BPF_ANY);
         }

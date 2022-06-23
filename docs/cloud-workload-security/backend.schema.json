@@ -433,10 +433,6 @@
         "port": {
           "type": "integer",
           "description": "Port number"
-        },
-        "protocol": {
-          "type": "string",
-          "description": "Socket protocol"
         }
       },
       "additionalProperties": false,
@@ -444,8 +440,7 @@
       "required": [
         "family",
         "ip",
-        "port",
-        "protocol"
+        "port"
       ],
       "description": "IPPortFamilyProtocolSerializer is used to serialize an IP, Port, address family and protocol context to JSON"
     },

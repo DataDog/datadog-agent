@@ -2400,8 +2400,6 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe20(in *jl
 			out.IP = string(in.String())
 		case "port":
 			out.Port = uint16(in.Uint16())
-		case "protocol":
-			out.Protocol = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -2430,11 +2428,6 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe20(out *j
 		const prefix string = ",\"port\":"
 		out.RawString(prefix)
 		out.Uint16(uint16(in.Port))
-	}
-	{
-		const prefix string = ",\"protocol\":"
-		out.RawString(prefix)
-		out.String(string(in.Protocol))
 	}
 	out.RawByte('}')
 }

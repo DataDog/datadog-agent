@@ -404,7 +404,7 @@ type IPPortFamilyProtocolSerializer struct {
 	Family   string `json:"family" jsonschema_description:"Address family"`
 	IP       string `json:"ip" jsonschema_description:"IP address"`
 	Port     uint16 `json:"port" jsonschema_description:"Port number"`
-	Protocol string `json:"protocol" jsonschema_description:"Socket protocol"`
+	Protocol string `json:"-" jsonschema_description:"Socket protocol"`
 }
 
 // NetworkContextSerializer serializes the network context to JSON
