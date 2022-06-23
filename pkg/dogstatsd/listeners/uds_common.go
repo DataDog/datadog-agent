@@ -47,6 +47,8 @@ type UDSListener struct {
 	oobPoolManager          *packets.PoolManager
 	trafficCapture          *replay.TrafficCapture
 	OriginDetection         bool
+
+	dogstatsdMemBasedRateLimiter bool
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
@@ -102,8 +104,9 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 		conn:            conn,
 		packetsBuffer: packets.NewBuffer(uint(config.Datadog.GetInt("dogstatsd_packet_buffer_size")),
 			config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout"), packetOut),
-		sharedPacketPoolManager: sharedPacketPoolManager,
-		trafficCapture:          capture,
+		sharedPacketPoolManager:      sharedPacketPoolManager,
+		trafficCapture:               capture,
+		dogstatsdMemBasedRateLimiter: config.Datadog.GetBool("dogstatsd_mem_based_rate_limiter.enabled"),
 	}
 
 	if listener.trafficCapture != nil {
@@ -143,7 +146,7 @@ func (l *UDSListener) Listen() {
 	log.Infof("dogstatsd-uds: starting to listen on %s", l.conn.LocalAddr())
 
 	var rateLimiter *ratelimit.MemBasedRateLimiter
-	if config.Datadog.GetBool("dogstatsd_mem_based_rate_limiter.enabled") {
+	if l.dogstatsdMemBasedRateLimiter {
 		var err error
 		rateLimiter, err = ratelimit.BuildMemBasedRateLimiter()
 		if err != nil {
