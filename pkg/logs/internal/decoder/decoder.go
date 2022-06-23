@@ -86,6 +86,24 @@ func InitializeDecoder(source *sources.LogSource, parser parsers.Parser) *Decode
 	return NewDecoderWithFraming(source, parser, framer.UTF8Newline, nil)
 }
 
+// Since a single source can have multiple file tailers - each with their own decoder instance:
+// make sure we sync info providers from all of the decoders so the status page displays it correctly.
+func syncSourceInfo(source *sources.LogSource, lh *MultiLineHandler) {
+	if existingInfo, ok := source.GetInfo(lh.countInfo.InfoKey()).(*status.CountInfo); ok {
+		// override the new decoders info to the instance we are already using
+		lh.countInfo = existingInfo
+	} else {
+		// this is the first decoder we have seen for this source - use it's count info
+		source.RegisterInfo(lh.countInfo)
+	}
+	// Same as above for linesCombinedInfo
+	if existingInfo, ok := source.GetInfo(lh.linesCombinedInfo.InfoKey()).(*status.CountInfo); ok {
+		lh.linesCombinedInfo = existingInfo
+	} else {
+		source.RegisterInfo(lh.linesCombinedInfo)
+	}
+}
+
 // NewDecoderWithFraming initialize a decoder with given endline strategy.
 func NewDecoderWithFraming(source *sources.LogSource, parser parsers.Parser, framing framer.Framing, multiLinePattern *regexp.Regexp) *Decoder {
 	inputChan := make(chan *Input)
@@ -99,18 +117,8 @@ func NewDecoderWithFraming(source *sources.LogSource, parser parsers.Parser, fra
 	var lineHandler LineHandler
 	for _, rule := range source.Config.ProcessingRules {
 		if rule.Type == config.MultiLine {
-			lh := NewMultiLineHandler(outputFn, rule.Regex, config.AggregationTimeout(), lineLimit)
-
-			// Since a single source can have multiple file tailers - each with their own decoder instance,
-			// Make sure we keep track of the multiline match count info from all of the decoders so the
-			// status page displays it correctly.
-			if existingInfo, ok := source.GetInfo(lh.countInfo.InfoKey()).(*status.CountInfo); ok {
-				// override the new decoders info to the instance we are already using
-				lh.countInfo = existingInfo
-			} else {
-				// this is the first decoder we have seen for this source - use it's count info
-				source.RegisterInfo(lh.countInfo)
-			}
+			lh := NewMultiLineHandler(outputFn, rule.Regex, config.AggregationTimeout(), lineLimit, false)
+			syncSourceInfo(source, lh)
 			lineHandler = lh
 		}
 	}
@@ -124,7 +132,9 @@ func NewDecoderWithFraming(source *sources.LogSource, parser parsers.Parser, fra
 				// Save the pattern again for the next rotation
 				detectedPattern.Set(multiLinePattern)
 
-				lineHandler = NewMultiLineHandler(outputFn, multiLinePattern, config.AggregationTimeout(), lineLimit)
+				lh := NewMultiLineHandler(outputFn, multiLinePattern, config.AggregationTimeout(), lineLimit, true)
+				syncSourceInfo(source, lh)
+				lineHandler = lh
 			} else {
 				lineHandler = buildAutoMultilineHandlerFromConfig(outputFn, lineLimit, source, detectedPattern)
 			}

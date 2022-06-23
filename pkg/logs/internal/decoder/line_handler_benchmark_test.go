@@ -54,7 +54,7 @@ func benchmarkMultiLineHandler(b *testing.B, logs int, line string) {
 		messages[i] = getDummyMessageWithLF(fmt.Sprintf("%s %d", line, i))
 	}
 
-	h := NewMultiLineHandler(func(*Message) {}, regexp.MustCompile(`^[A-Za-z_]+ \d+, \d+ \d+:\d+:\d+ (AM|PM)`), 1000*time.Millisecond, 100)
+	h := NewMultiLineHandler(func(*Message) {}, regexp.MustCompile(`^[A-Za-z_]+ \d+, \d+ \d+:\d+:\d+ (AM|PM)`), 1000*time.Millisecond, 100, false)
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
