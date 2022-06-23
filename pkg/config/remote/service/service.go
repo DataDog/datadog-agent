@@ -15,6 +15,8 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/theupdateframework/go-tuf/data"
 	tufutil "github.com/theupdateframework/go-tuf/util"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
@@ -274,13 +276,14 @@ func (s *Service) getClientState() ([]byte, error) {
 func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	s.Lock()
 	defer s.Unlock()
+	err := validateRequest(request)
+	if err != nil {
+		return nil, err
+	}
 	s.clients.seen(request.Client)
 	tufVersions, err := s.uptane.TUFVersionState()
 	if err != nil {
 		return nil, err
-	}
-	if request.Client.State == nil {
-		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
 	if tufVersions.DirectorTargets == request.Client.State.TargetsVersion {
 		return &pbgo.ClientGetConfigsResponse{}, nil
@@ -408,4 +411,36 @@ func (s *Service) getTargetFiles(products []rdata.Product, cachedTargetFiles []*
 		}
 	}
 	return configFiles, nil
+}
+
+func validateRequest(request *pbgo.ClientGetConfigsRequest) error {
+	if request.Client == nil {
+		return status.Error(codes.InvalidArgument, "client is a required field for client config update requests")
+	}
+
+	if request.Client.State == nil {
+		return status.Error(codes.InvalidArgument, "client.state is a required field for client config update requests")
+	}
+
+	if request.Client.State.RootVersion <= 0 {
+		return status.Error(codes.InvalidArgument, "client.state.root_version must be >= 1 (clients must start with the base TUF director root)")
+	}
+
+	if request.Client.IsAgent && request.Client.ClientAgent == nil {
+		return status.Error(codes.InvalidArgument, "client.client_agent is a required field for agent client config update requests")
+	}
+
+	if request.Client.IsTracer && request.Client.ClientTracer == nil {
+		return status.Error(codes.InvalidArgument, "client.client_tracer is a required field for tracer client config update requests")
+	}
+
+	if request.Client.IsTracer && request.Client.IsAgent {
+		return status.Error(codes.InvalidArgument, "client.is_tracer and client.is_agent cannot both be true")
+	}
+
+	if !request.Client.IsTracer && !request.Client.IsAgent {
+		return status.Error(codes.InvalidArgument, "agents only support remote config updates from tracer or agent at this time")
+	}
+
+	return nil
 }
