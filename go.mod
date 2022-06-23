@@ -408,7 +408,10 @@ require (
 	k8s.io/apiextensions-apiserver v0.23.5 // indirect
 )
 
-require github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.38.0-rc.3
+require (
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.38.0-rc.3
+	github.com/shirou/gopsutil v3.21.11+incompatible
+)
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible

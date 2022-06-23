@@ -138,23 +138,6 @@ func (dh *Handle) SetDataFilters(filters []FilterDefinition) error {
 	return nil
 }
 
-// SetHTTPFilters installs the provided filters for http messages
-func (dh *Handle) SetHTTPFilters(filters []FilterDefinition) error {
-	var id int64
-	for _, filter := range filters {
-		err := windows.DeviceIoControl(dh.Handle,
-			SetHTTPFilterIOCTL,
-			(*byte)(unsafe.Pointer(&filter)),
-			uint32(unsafe.Sizeof(filter)),
-			(*byte)(unsafe.Pointer(&id)),
-			uint32(unsafe.Sizeof(id)), nil, nil)
-		if err != nil {
-			return fmt.Errorf("failed to set filter: %v", err)
-		}
-	}
-	return nil
-}
-
 // GetStatsForHandle gets the relevant stats depending on the handle type
 func (dh *Handle) GetStatsForHandle() (map[string]map[string]int64, error) {
 	var (

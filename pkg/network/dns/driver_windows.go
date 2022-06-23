@@ -12,15 +12,11 @@ package dns
 import "C"
 import (
 	"fmt"
-	"net"
 	"time"
 	"unsafe"
 
-	"github.com/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"golang.org/x/sys/windows"
-
-	"github.com/DataDog/datadog-agent/pkg/network/driver"
 )
 
 const (

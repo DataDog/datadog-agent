@@ -10,96 +10,246 @@ package http
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
-	"time"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/network/etw"
 	"golang.org/x/sys/windows"
 )
 
 const HTTPBufferSize = driver.HttpBufferSize
 const HTTPBatchSize = driver.HttpBatchSize
 
-type httpTX driver.HttpTransactionType
+type httpTX interface {
+	ReqFragment() []byte
+	StatusClass() int
+	RequestLatency() float64
+	isIPV4() bool
+	SrcIPLow() uint64
+	SrcIPHigh() uint64
+	SrcPort() uint16
+	DstIPLow() uint64
+	DstIPHigh() uint64
+	DstPort() uint16
+	Method() Method
+	StatusCode() uint16
+	StaticTags() uint64
+	DynamicTags() []string
+	String() string
+	Incomplete() bool
+}
+
+type etwHttpTX struct {
+	//	httpTX
+	*etw.Http
+}
 
 // errLostBatch isn't a valid error in windows
 var errLostBatch = errors.New("invalid error")
 
+// StatusClass returns an integer representing the status code class
+// Example: a 404 would return 400
+func statusClass(statusCode uint16) int {
+	return (int(statusCode) / 100) * 100
+}
+
+func requestLatency(responseLastSeen uint64, requestStarted uint64) float64 {
+	return nsTimestampToFloat(uint64(responseLastSeen - requestStarted))
+}
+
+func isIPV4(tup *driver.ConnTupleType) bool {
+	return tup.Family == windows.AF_INET
+}
+
+func ipLow(isIp4 bool, addr [16]uint8) uint64 {
+	// Source & dest IP are given to us as a 16-byte slices in network byte order (BE). To convert to
+	// low/high representation, we must convert to host byte order (LE).
+	if isIp4 {
+		return uint64(binary.LittleEndian.Uint32(addr[:4]))
+	}
+	return binary.LittleEndian.Uint64(addr[8:])
+}
+
+func ipHigh(isIp4 bool, addr [16]uint8) uint64 {
+	if isIp4 {
+		return uint64(0)
+	}
+	return binary.LittleEndian.Uint64(addr[:8])
+}
+
+func srcIPLow(tup *driver.ConnTupleType) uint64 {
+	return ipLow(isIPV4(tup), tup.CliAddr)
+}
+
+func srcIPHigh(tup *driver.ConnTupleType) uint64 {
+	return ipHigh(isIPV4(tup), tup.CliAddr)
+}
+
+func dstIPLow(tup *driver.ConnTupleType) uint64 {
+	return ipLow(isIPV4(tup), tup.SrvAddr)
+}
+
+func dstIPHigh(tup *driver.ConnTupleType) uint64 {
+	return ipHigh(isIPV4(tup), tup.SrvAddr)
+}
+
+// --------------------------
+//
+// driverHttpTX interface
+//
+
 // ReqFragment returns a byte slice containing the first HTTPBufferSize bytes of the request
-func (tx *httpTX) ReqFragment() []byte {
+func (tx *FullHttpTransaction) ReqFragment() []byte {
 	return tx.RequestFragment[:]
 }
 
-// StatusClass returns an integer representing the status code class
-// Example: a 404 would return 400
-func (tx *httpTX) StatusClass() int {
-	return (int(tx.ResponseStatusCode) / 100) * 100
+func (tx *FullHttpTransaction) StatusClass() int {
+	return statusClass(tx.Txn.ResponseStatusCode)
 }
 
-// RequestLatency returns the latency of the request in nanoseconds
-func (tx *httpTX) RequestLatency() float64 {
-	return nsTimestampToFloat(uint64(tx.ResponseLastSeen - tx.RequestStarted))
+func (tx *FullHttpTransaction) RequestLatency() float64 {
+	return requestLatency(tx.Txn.ResponseLastSeen, tx.Txn.RequestStarted)
 }
 
-func (tx *httpTX) isIPV4() bool {
-	return tx.Tup.Family == windows.AF_INET
+func (tx *FullHttpTransaction) isIPV4() bool {
+	return isIPV4(&tx.Txn.Tup)
 }
 
-func (tx *httpTX) SrcIPLow() uint64 {
-	// Source & dest IP are given to us as a 16-byte slices in network byte order (BE). To convert to
-	// low/high representation, we must convert to host byte order (LE).
-	if tx.isIPV4() {
-		return uint64(binary.LittleEndian.Uint32(tx.Tup.CliAddr[:4]))
-	}
-	return binary.LittleEndian.Uint64(tx.Tup.CliAddr[8:])
+func (tx *FullHttpTransaction) SrcIPLow() uint64 {
+	return srcIPLow(&tx.Txn.Tup)
 }
 
-func (tx *httpTX) SrcIPHigh() uint64 {
-	if tx.isIPV4() {
-		return uint64(0)
-	}
-	return binary.LittleEndian.Uint64(tx.Tup.CliAddr[:8])
+func (tx *FullHttpTransaction) SrcIPHigh() uint64 {
+	return srcIPHigh(&tx.Txn.Tup)
 }
 
-func (tx *httpTX) SrcPort() uint16 {
-	return tx.Tup.CliPort
+func (tx *FullHttpTransaction) SrcPort() uint16 {
+	return tx.Txn.Tup.CliPort
 }
 
-func (tx *httpTX) DstIPLow() uint64 {
-	if tx.isIPV4() {
-		return uint64(binary.LittleEndian.Uint32(tx.Tup.SrvAddr[:4]))
-	}
-	return binary.LittleEndian.Uint64(tx.Tup.SrvAddr[8:])
+func (tx *FullHttpTransaction) DstIPLow() uint64 {
+	return dstIPLow(&tx.Txn.Tup)
 }
 
-func (tx *httpTX) DstIPHigh() uint64 {
-	if tx.isIPV4() {
-		return uint64(0)
-	}
-	return binary.LittleEndian.Uint64(tx.Tup.SrvAddr[:8])
+func (tx *FullHttpTransaction) DstIPHigh() uint64 {
+	return dstIPHigh(&tx.Txn.Tup)
 }
 
-func (tx *httpTX) DstPort() uint16 {
-	return tx.Tup.SrvPort
+func (tx *FullHttpTransaction) DstPort() uint16 {
+	return tx.Txn.Tup.SrvPort
 }
 
-func (tx *httpTX) Method() Method {
-	return Method(tx.RequestMethod)
+func (tx *FullHttpTransaction) Method() Method {
+	return Method(tx.Txn.RequestMethod)
 }
 
-func (tx *httpTX) StatusCode() uint16 {
-	return tx.ResponseStatusCode
+func (tx *FullHttpTransaction) StatusCode() uint16 {
+	return tx.Txn.ResponseStatusCode
 }
 
-// Tags are not part of windows http transactions
-func (tx *httpTX) Tags() uint64 {
+// Static Tags are not part of windows driver http transactions
+func (tx *FullHttpTransaction) StaticTags() uint64 {
 	return 0
 }
 
+// Dynamic Tags are not part of windows driver http transactions
+func (tx *FullHttpTransaction) DynamicTags() []string {
+	return nil
+}
+
+func (tx *FullHttpTransaction) String() string {
+	var output strings.Builder
+	output.WriteString("httpTX{")
+	output.WriteString("Method: '" + tx.Method().String() + "', ")
+	output.WriteString("Fragment: '" + hex.EncodeToString(tx.RequestFragment[:]) + "', ")
+	output.WriteString("}")
+	return output.String()
+}
+
+// Windows does not have incomplete http transactions because flows in the windows driver
+// see both directions of traffic
+func (tx *FullHttpTransaction) Incomplete() bool {
+	return false
+}
+
+// --------------------------
+//
+// etwHttpTX interface
+//
+
+// ReqFragment returns a byte slice containing the first HTTPBufferSize bytes of the request
+func (tx *etwHttpTX) ReqFragment() []byte {
+	return tx.RequestFragment[:]
+}
+
+func (tx *etwHttpTX) StatusClass() int {
+	return statusClass(tx.ResponseStatusCode)
+}
+
+func (tx *etwHttpTX) RequestLatency() float64 {
+	return requestLatency(tx.ResponseLastSeen, tx.RequestStarted)
+}
+
+func (tx *etwHttpTX) isIPV4() bool {
+	return isIPV4(&tx.Tup)
+}
+
+func (tx *etwHttpTX) SrcIPLow() uint64 {
+	return srcIPLow(&tx.Tup)
+}
+
+func (tx *etwHttpTX) SrcIPHigh() uint64 {
+	return srcIPHigh(&tx.Tup)
+}
+
+func (tx *etwHttpTX) SrcPort() uint16 {
+	return tx.Tup.CliPort
+}
+
+func (tx *etwHttpTX) DstIPLow() uint64 {
+	return dstIPLow(&tx.Tup)
+}
+
+func (tx *etwHttpTX) DstIPHigh() uint64 {
+	return dstIPHigh(&tx.Tup)
+}
+
+func (tx *etwHttpTX) DstPort() uint16 {
+	return tx.Tup.SrvPort
+}
+
+func (tx *etwHttpTX) Method() Method {
+	return Method(tx.RequestMethod)
+}
+
+func (tx *etwHttpTX) StatusCode() uint16 {
+	return tx.ResponseStatusCode
+}
+
+// Static Tags are not part of windows http transactions
+func (tx *etwHttpTX) StaticTags() uint64 {
+	return 0
+}
+
+// Dynamic Tags are  part of windows http transactions
+func (tx *etwHttpTX) DynamicTags() []string {
+	return []string{fmt.Sprintf("http.iis.app_pool:%v", tx.AppPool)}
+}
+
+func (tx *etwHttpTX) String() string {
+	var output strings.Builder
+	output.WriteString("httpTX{")
+	output.WriteString("Method: '" + tx.Method().String() + "', ")
+	output.WriteString("Fragment: '" + hex.EncodeToString(tx.RequestFragment[:]) + "', ")
+	output.WriteString("}")
+	return output.String()
+}
+
 // Incomplete transactions does not apply to windows
-func (tx *httpTX) Incomplete() bool {
+func (tx *etwHttpTX) Incomplete() bool {
 	return false
 }
 
@@ -115,31 +265,4 @@ func nsTimestampToFloat(ns uint64) float64 {
 		shift++
 	}
 	return float64(ns << shift)
-}
-
-// generateIPv4HTTPTransaction is a testing helper function required for the http_statkeeper tests
-func generateIPv4HTTPTransaction(client util.Address, server util.Address, cliPort int, srvPort int, path string, code int, latency time.Duration) httpTX {
-	var tx httpTX
-
-	reqFragment := fmt.Sprintf("GET %s HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0", path)
-	latencyNS := uint64(uint64(latency))
-	cli := client.Bytes()
-	srv := server.Bytes()
-
-	tx.RequestStarted = 1
-	tx.ResponseLastSeen = tx.RequestStarted + latencyNS
-	tx.ResponseStatusCode = uint16(code)
-	for i := 0; i < len(tx.RequestFragment) && i < len(reqFragment); i++ {
-		tx.RequestFragment[i] = uint8(reqFragment[i])
-	}
-	for i := 0; i < len(tx.Tup.CliAddr) && i < len(cli); i++ {
-		tx.Tup.CliAddr[i] = cli[i]
-	}
-	for i := 0; i < len(tx.Tup.SrvAddr) && i < len(srv); i++ {
-		tx.Tup.SrvAddr[i] = srv[i]
-	}
-	tx.Tup.CliPort = uint16(cliPort)
-	tx.Tup.SrvPort = uint16(srvPort)
-
-	return tx
 }

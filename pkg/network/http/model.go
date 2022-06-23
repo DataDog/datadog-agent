@@ -102,9 +102,12 @@ func (tx *httpTX) StatusCode() uint16 {
 
 // Tags returns an uint64 representing the tags bitfields
 // Tags are defined here : pkg/network/ebpf/kprobe_types.go
-func (tx *httpTX) Tags() uint64 {
+func (tx *httpTX) StaticTags() uint64 {
 	return uint64(tx.tags)
 }
+
+func (tx *httpTX) DynamicTags() []string {
+	return nil
 
 func (tx *httpTX) String() string {
 	var output strings.Builder
@@ -142,4 +145,3 @@ func nsTimestampToFloat(ns uint64) float64 {
 	}
 	return float64(ns << shift)
 }
-

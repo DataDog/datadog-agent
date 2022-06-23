@@ -49,23 +49,21 @@ func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
 	}
 }
 
-func (h *httpStatKeeper) Process(transactions []httpTX) {
-	for i := range transactions {
-		tx := &transactions[i]
-		if tx.Incomplete() {
-			h.incomplete.Add(tx)
-			continue
-		}
-
+func (h *httpStatKeeper) Process(tx httpTX) {
+	if tx.Incomplete() {
+		h.incomplete.Add(tx)
+	} else {
 		h.add(tx)
 	}
+}
 
+func (h *httpStatKeeper) ProcessCompleted() {
 	h.telemetry.aggregations.Store(int64(len(h.stats)))
 }
 
 func (h *httpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	for _, tx := range h.incomplete.Flush(time.Now()) {
-		h.add(tx)
+		h.add(*tx)
 	}
 
 	ret := h.stats // No deep copy needed since `h.stats` gets reset
@@ -74,7 +72,7 @@ func (h *httpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	return ret
 }
 
-func (h *httpStatKeeper) add(tx *httpTX) {
+func (h *httpStatKeeper) add(tx httpTX) {
 	rawPath, fullPath := getPath(tx.ReqFragment(), h.buffer)
 	if rawPath == nil {
 		h.telemetry.malformed.Inc()
@@ -114,10 +112,10 @@ func (h *httpStatKeeper) add(tx *httpTX) {
 		h.stats[key] = stats
 	}
 
-	stats.AddRequest(tx.StatusClass(), latency, tx.Tags())
+	stats.AddRequest(tx.StatusClass(), latency, tx.StaticTags(), tx.DynamicTags())
 }
 
-func (h *httpStatKeeper) newKey(tx *httpTX, path string, fullPath bool) Key {
+func (h *httpStatKeeper) newKey(tx httpTX, path string, fullPath bool) Key {
 	return Key{
 		KeyTuple: KeyTuple{
 			SrcIPHigh: tx.SrcIPHigh(),
@@ -144,7 +142,7 @@ func pathIsMalformed(fullPath []byte) bool {
 	return false
 }
 
-func (h *httpStatKeeper) processHTTPPath(tx *httpTX, path []byte) (pathStr string, rejected bool) {
+func (h *httpStatKeeper) processHTTPPath(tx httpTX, path []byte) (pathStr string, rejected bool) {
 	match := false
 	for _, r := range h.replaceRules {
 		if r.Re.Match(path) {
