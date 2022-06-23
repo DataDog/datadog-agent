@@ -7,6 +7,7 @@ package inferredspan
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -140,6 +141,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 	splitArn := strings.Split(eventRecord.EventSourceARN, ":")
 	parsedQueueName := splitArn[len(splitArn)-1]
 	startTime := calculateStartTime(convertStringTimestamp(eventRecord.Attributes[sentTimestamp]))
+
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.Name = "aws.sqs"
 	inferredSpan.Span.Service = "sqs"
@@ -171,4 +173,13 @@ func formatISOStartTime(isotime string) int64 {
 		return 0
 	}
 	return startTime.UnixNano()
+}
+
+func convertStringTimestamp(timestamp string) int64 {
+	t, err := strconv.ParseInt(timestamp, 0, 64)
+	if err != nil {
+		log.Debug("Could not parse timestamp from string")
+		return 0
+	}
+	return t
 }

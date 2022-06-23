@@ -102,8 +102,12 @@ func (inferredSpan *InferredSpan) CompleteInferredSpan(
 	traceID uint64,
 	samplingPriority sampler.SamplingPriority) {
 
+	durationIsSet := inferredSpan.Span.Duration != 0
 	if inferredSpan.IsAsync {
-		inferredSpan.Span.Duration = inferredSpan.CurrentInvocationStartTime.UnixNano() - inferredSpan.Span.Start
+		// SNSSQS span duration is set in invocationlifecycle/init.go
+		if !durationIsSet {
+			inferredSpan.Span.Duration = inferredSpan.CurrentInvocationStartTime.UnixNano() - inferredSpan.Span.Start
+		}
 	} else {
 		inferredSpan.Span.Duration = endTime.UnixNano() - inferredSpan.Span.Start
 	}
