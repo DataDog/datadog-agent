@@ -263,7 +263,7 @@ func TestService(t *testing.T) {
 	root3 := []byte(`testroot3`)
 	root4 := []byte(`testroot4`)
 	targets := []byte(`testtargets`)
-	testTargetsCustom := []byte(`{"client_state":"test_state"}`)
+	testTargetsCustom := []byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ=="}`)
 	client := &pbgo.Client{
 		State: &pbgo.ClientState{
 			RootVersion: 2,
@@ -319,7 +319,7 @@ func TestService(t *testing.T) {
 			string(rdata.ProductAPMSampling),
 		},
 		ActiveClients:      []*pbgo.Client{client},
-		BackendClientState: []byte(`"test_state"`),
+		BackendClientState: []byte(`test_state`),
 		HasError:           false,
 		Error:              "",
 	}).Return(lastConfigResponse, nil)
@@ -376,7 +376,7 @@ func TestServiceClientPredicates(t *testing.T) {
 		},
 	}
 	uptaneClient.On("TargetsMeta").Return([]byte(`testtargets`), nil)
-	uptaneClient.On("TargetsCustom").Return([]byte(`{"client_state":"test_state"}`), nil)
+	uptaneClient.On("TargetsCustom").Return([]byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ=="}`), nil)
 
 	wrongServiceName := "wrong-service"
 	uptaneClient.On("Targets").Return(data.TargetFiles{
@@ -418,7 +418,7 @@ func TestServiceClientPredicates(t *testing.T) {
 			string(rdata.ProductAPMSampling),
 		},
 		ActiveClients:      []*pbgo.Client{client},
-		BackendClientState: []byte(`"test_state"`),
+		BackendClientState: []byte(`test_state`),
 		HasError:           false,
 		Error:              "",
 	}).Return(lastConfigResponse, nil)

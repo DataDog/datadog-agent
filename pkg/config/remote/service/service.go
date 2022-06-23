@@ -267,7 +267,7 @@ func (s *Service) getClientState() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return custom.ClientState, nil
+	return custom.OpaqueBackendState, nil
 }
 
 // ClientGetConfigs is the polling API called by tracers and agents to get the latest configurations
