@@ -653,7 +653,7 @@ func (l *Collector) logQueuesSize() {
 	processSize, rtProcessSize, eventSize, podSize := l.processResults.Len(), l.rtProcessResults.Len(), l.eventResults.Len(), l.podResults.Len()
 	if processSize > 0 || rtProcessSize > 0 || eventSize > 0 || podSize > 0 {
 		log.Infof(
-			"Delivery queues: process[size=%d, weight=%d], rtprocess [size=%d, weight=%d], event [size=%d, weight=%d], pod[size=%d, weight=%d]",
+			"Delivery queues: process[size=%d, weight=%d], rtprocess[size=%d, weight=%d], event[size=%d, weight=%d], pod[size=%d, weight=%d]",
 			processSize, l.processResults.Weight(),
 			rtProcessSize, l.rtProcessResults.Weight(),
 			eventSize, l.eventResults.Weight(),
