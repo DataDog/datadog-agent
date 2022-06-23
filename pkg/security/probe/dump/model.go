@@ -107,6 +107,8 @@ var (
 	JSON StorageFormat = "json"
 	// MSGP is used to request the message pack format
 	MSGP StorageFormat = "msgp"
+	// PROTOBUF is used to request the protobuf format
+	PROTOBUF StorageFormat = "protobuf"
 	// DOT is used to request the dot format
 	DOT StorageFormat = "dot"
 	// Profile is used to request the Secl profile format
@@ -117,7 +119,7 @@ var (
 
 // AllStorageFormats returns the list of supported formats
 func AllStorageFormats() []StorageFormat {
-	return []StorageFormat{JSON, MSGP, DOT, Profile}
+	return []StorageFormat{JSON, MSGP, PROTOBUF, DOT, Profile}
 }
 
 // ParseStorageFormat returns a storage format from a string input

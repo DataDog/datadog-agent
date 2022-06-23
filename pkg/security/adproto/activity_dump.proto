@@ -1,0 +1,123 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "pkg/security/adproto";
+
+package adproto;
+
+message ActivityDump {
+    string Host = 1;
+    string Service = 2;
+    string Source = 3;
+    repeated string Tags = 4;
+    repeated ProcessActivityNode Tree = 5;
+}
+
+message ProcessActivityNode {
+    ProcessInfo Process = 1;
+    string GenerationType = 2;
+
+    repeated FileActivityNode Files = 3;
+    repeated DNSNode DNSNames = 4;
+    repeated ProcessActivityNode Children = 5;
+}
+
+message ProcessInfo {
+    uint32 Pid = 1;
+    uint32 Tid = 2;
+    uint32 Ppid = 3;
+    uint32 Cookie = 4;
+    bool IsThread = 5;
+
+    FileInfo File = 6;
+
+    string ContainerID = 7;
+
+    uint64 SpanID = 8;
+    uint64 TraceID = 9;
+
+    string TTY = 10;
+    string Comm = 11;
+
+    google.protobuf.Timestamp ForkTime = 12;
+    google.protobuf.Timestamp ExitTime = 13;
+    google.protobuf.Timestamp ExecTime = 14;
+
+    Credentials Credentials = 15;
+
+    repeated string Args = 16;
+    string Argv0 = 17;
+    bool ArgsTruncated = 18;
+    repeated string Envs = 19;
+    bool EnvsTruncated = 20;
+}
+
+message FileActivityNode {
+    string Name = 1;
+    FileInfo File = 2;
+    string GenerationType = 3;
+    google.protobuf.Timestamp FirstSeen = 4;
+
+    OpenNode Open = 5;
+
+    repeated FileActivityNode Children = 6;
+}
+
+message OpenNode {
+    sint64 Retval = 1;
+    uint32 Flags = 2;
+    uint32 Mode = 3;
+}
+
+message DNSNode {
+    repeated DNSInfo Requests = 1;
+}
+
+message DNSInfo {
+    string Name = 1;
+    uint32 Type = 2;
+    uint32 Class = 3;
+    uint32 Size = 4;
+    uint32 Count = 5;
+}
+
+message FileInfo {
+    uint32 UID = 1;
+    string User = 2;
+    uint32 GID = 3;
+    string Group = 4;
+
+    uint32 Mode = 5; // TODO: check conversion with uint16
+
+    uint32 CTime = 6;
+    uint32 MTime = 7;
+
+    uint32 MountID = 8;
+    uint64 INode = 9;
+    bool InUpperLayer = 10;
+
+    string Path = 11;
+    string Basename = 12;
+    string FileSystem = 13;
+}
+
+message Credentials {
+    uint32 UID = 1;
+    uint32 GID = 2;
+    string User = 3;
+    string Group = 4;
+
+    uint32 EffectiveUID = 5;
+    uint32 EffectiveGID = 6;
+    string EffectiveUser = 7;
+    string EffectiveGroup = 8;
+
+    uint32 FSUID = 9;
+    uint32 FSGID = 10;
+    string FSUser = 11;
+    string FSGroup = 12;
+
+    uint64 CapEffective = 13;
+    uint64 CapPermitted = 14;
+}
