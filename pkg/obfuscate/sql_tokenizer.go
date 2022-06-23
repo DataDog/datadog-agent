@@ -75,17 +75,16 @@ const (
 	ColonCast
 
 	// PostgreSQL specific JSON operators
-	JSONSelect
-	JSONSelectText
-	JSONSelectPath
-	JSONSelectPathText
-
-	JSONContains
-	JSONContainsLeft
-	JSONKeyExists
-	JSONAnyKeysExist
-	JSONAllKeysExist
-	JSONDelete
+	JSONSelect         // ->
+	JSONSelectText     // ->>
+	JSONSelectPath     // #>
+	JSONSelectPathText // #>>
+	JSONContains       // @>
+	JSONContainsLeft   // <@
+	JSONKeyExists      // ?
+	JSONAnyKeysExist   // ?|
+	JSONAllKeysExist   // ?&
+	JSONDelete         // #-
 
 	// FilteredGroupable specifies that the given token has been discarded by one of the
 	// token filters and that it is groupable together with consecutive FilteredGroupable
@@ -268,7 +267,7 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 
 	switch ch := tkn.lastChar; {
 	case isLeadingLetter(ch) &&
-		(tkn.cfg.DBMS != DBMSPostgres || ch != '@'):
+		!(tkn.cfg.DBMS == DBMSPostgres && ch == '@'):
 		// The '@' symbol should not be considered part of an identifier in
 		// postgres, so we skip this in the case where the DBMS is postgres
 		// and ch is '@'.
@@ -411,9 +410,9 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				default:
 					return LE, []byte("<=")
 				}
-			// Check for the postgres left jsonb contains operator <@
 			case '@':
 				if tkn.cfg.DBMS == DBMSPostgres {
+					// Check for the postgres left jsonb contains operator <@
 					tkn.advance()
 					return JSONContainsLeft, []byte("<@")
 				}

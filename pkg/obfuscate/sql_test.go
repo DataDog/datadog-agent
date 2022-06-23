@@ -1076,6 +1076,26 @@ ORDER BY [b].[Name]`,
 			`SELECT id, name FROM emp WHERE name LIKE ?`,
 		},
 		{
+			"select users.custom #- '{a,b}' from users",
+			"select users.custom",
+		},
+		{
+			"select users.custom #> '{a,b}' from users",
+			"select users.custom",
+		},
+		{
+			"select users.custom #>> '{a,b}' from users",
+			"select users.custom",
+		},
+		{
+			`SELECT a FROM foo WHERE value<@name`,
+			`SELECT a FROM foo WHERE value < @name`,
+		},
+		{
+			`SELECT @@foo`,
+			`SELECT @@foo`,
+		},
+		{
 			`DROP TABLE IF EXISTS django_site;
 DROP TABLE IF EXISTS knowledgebase_article;
 
@@ -1167,129 +1187,54 @@ func TestPGJSONOperators(t *testing.T) {
 	assert := assert.New(t)
 	for _, tt := range []struct {
 		in, out string
-		cfg     SQLConfig
 	}{
 		{
 			"select users.custom #> '{a,b}' from users",
 			"select users.custom #> ? from users",
-			SQLConfig{
-				DBMS: DBMSPostgres,
-			},
 		},
 		{
 			"select users.custom #>> '{a,b}' from users",
 			"select users.custom #>> ? from users",
-			SQLConfig{
-				DBMS: DBMSPostgres,
-			},
 		},
 		{
 			"select users.custom #- '{a,b}' from users",
 			"select users.custom #- ? from users",
-			SQLConfig{
-				DBMS: DBMSPostgres,
-			},
-		},
-		// When no DBMS is specified # should be interpreted as
-		// a comment and removed.
-		{
-			"select users.custom #- '{a,b}' from users",
-			"select users.custom",
-			SQLConfig{},
-		},
-		{
-			"select users.custom #> '{a,b}' from users",
-			"select users.custom",
-			SQLConfig{},
-		},
-		{
-			"select users.custom #>> '{a,b}' from users",
-			"select users.custom",
-			SQLConfig{},
-		},
-		// When SQL Server DBMS is specified # should be interpreted as
-		// an identifier.
-		{
-			"select users.custom from #temptable",
-			"select users.custom from #temptable",
-			SQLConfig{
-				DBMS: DBMSSQLServer,
-			},
 		},
 		{
 			"select users.custom -> 'foo' from users",
 			"select users.custom -> ? from users",
-			SQLConfig{
-				DBMS: DBMSPostgres,
-			},
 		},
 		{
 			"select users.custom ->> 'foo' from users",
 			"select users.custom ->> ? from users",
-			SQLConfig{
-				DBMS: DBMSPostgres,
-			},
 		},
 		{
 			"select * from users where user.custom @> '{a,b}'",
 			"select * from users where user.custom @> ?",
-			SQLConfig{
-				DBMS: DBMSPostgres,
-			},
 		},
 		{
 			`SELECT a FROM foo WHERE value<@name`,
 			`SELECT a FROM foo WHERE value <@ name`,
-			SQLConfig{
-				DBMS: DBMSPostgres,
-			},
-		},
-		// Ensure that in a non-postgresql dbms, ident<@ident should parse
-		// as ident < @ident, (ident less than @ident) not as a postgres json operator
-		{
-			`SELECT a FROM foo WHERE value<@name`,
-			`SELECT a FROM foo WHERE value < @name`,
-			SQLConfig{
-				DBMS: DBMSSQLServer,
-			},
 		},
 		{
-			`SELECT a FROM foo WHERE value<@name`,
-			`SELECT a FROM foo WHERE value < @name`,
-			SQLConfig{},
-		},
-		// Ensure that in a non-postgresql dbms, global variables denoted
-		// as @@ident are parsed as identifiers
-		{
-			`SELECT @@foo`,
-			`SELECT @@foo`,
-			SQLConfig{
-				DBMS: DBMSSQLServer,
-			},
-		},
-		{
-			`SELECT @@foo`,
-			`SELECT @@foo`,
-			SQLConfig{},
+			"select * from users where user.custom ? 'foo'",
+			"select * from users where user.custom ? ?",
 		},
 		{
 			"select * from users where user.custom ?| array [ '1', '2' ]",
 			"select * from users where user.custom ?| array [ ? ]",
-			SQLConfig{
-				DBMS: DBMSPostgres,
-			},
 		},
-
 		{
 			"select * from users where user.custom ?& array [ '1', '2' ]",
 			"select * from users where user.custom ?& array [ ? ]",
-			SQLConfig{
-				DBMS: DBMSPostgres,
-			},
 		},
 	} {
-		t.Run(tt.cfg.DBMS, func(t *testing.T) {
-			oq, err := NewObfuscator(Config{SQL: tt.cfg}).ObfuscateSQLString(tt.in)
+		t.Run("PostgreSQL JSON Operator", func(t *testing.T) {
+			oq, err := NewObfuscator(Config{
+				SQL: SQLConfig{
+					DBMS: DBMSPostgres,
+				},
+			}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
 		})
