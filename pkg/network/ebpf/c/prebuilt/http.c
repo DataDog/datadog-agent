@@ -381,18 +381,35 @@ int uprobe__gnutls_deinit(struct pt_regs* ctx) {
     return 0;
 }
 
-static inline int kprobe__do_sys_open_helper(struct pt_regs* ctx) {
-    char *path_argument = (char *)PT_REGS_PARM2(ctx);
-    lib_path_t path = {0};
-
+static __always_inline int fill_path_safe(lib_path_t *path, char *path_argument) {
 #pragma unroll
     for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
-	bpf_probe_read_user(&path.buf[i], 1, &path_argument[i]);
-        if (path.buf[i] == 0) {
-            path.len = i;
+	bpf_probe_read_user(&path->buf[i], 1, &path_argument[i]);
+        if (path->buf[i] == 0) {
+            path->len = i;
 	    break;
         }
     }
+    return 0;
+}
+
+static __always_inline int kprobe__do_sys_open_helper(struct pt_regs* ctx) {
+    char *path_argument = (char *)PT_REGS_PARM2(ctx);
+    lib_path_t path = {0};
+    if (bpf_probe_read_user(path.buf, sizeof(path.buf), path_argument) >= 0) {
+// Find the null character and clean up the garbage following it
+#pragma unroll
+        for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
+	    if (path.len) {
+                path.buf[i] = 0;
+            } else if (path.buf[i] == 0) {
+                path.len = i;
+            }
+        }
+    } else {
+        fill_path_safe(&path, path_argument);
+    }
+
     // Bail out if the path size is larger than our buffer
     if (!path.len) {
         return 0;
