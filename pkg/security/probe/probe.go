@@ -1015,58 +1015,61 @@ func (p *Probe) DumpDiscarders() (string, error) {
 	}
 
 	fmt.Fprintf(dump, "Discarder Dump\n%s\n", time.Now().UTC().String())
-
 	fmt.Fprintf(dump, "\nInode Discarders\n")
 
-	var mapValue [256]byte
-
-	inodeCount := 0
+	discardedInodeCount := 0
 	var inode inodeDiscarderMapEntry
-	var inodeDiscarderParams inodeDiscarderParams
-
-	mapInfo, err := p.inodeDiscarders.Info()
-	if err != nil {
-		return "", err
-	}
-	log.Infof("%+v", mapInfo)
-
-	for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, unsafe.Pointer(&mapValue[0])); {
-		inodeCount++
-		if inodeCount < 20 {
-			fmt.Fprintf(dump, "%d: %+v\n", inodeCount, inode)
-			fmt.Fprintf(dump, "%d: %+v\n", inodeCount, unsafe.Pointer(&mapValue[0]))
-		}
-	}
-
-	fmt.Fprintf(dump, "\nInode Discarders New Type\n")
-
-	for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, *(*inodeDiscarderParams)(unsafe.Pointer(&mapValue[0])); {
-		inodeCount++
-		if inodeCount < 20 {
-			fmt.Fprintf(dump, "%d: %+v\n", inodeCount, inode)
-			fmt.Fprintf(dump, "%d: %+v\n", inodeCount, inodeDiscarderParams)
-		}
+	var inodeParams inodeDiscarderParams
+	for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, &inodeParams); {
+		discardedInodeCount++
+		fmt.Fprintf(dump, "%d: %+v\n", discardedInodeCount, inode)
+		fmt.Fprintf(dump, "%d: %+v\n", discardedInodeCount, inodeParams)
 	}
 
 	fmt.Fprintf(dump, "\nProcess Discarders\n")
 
-	pidCount := 0
-	for pid, entries := uint32(0), p.pidDiscarders.Iterate(); entries.Next(&pid, unsafe.Pointer(&mapValue[0])); {
-		pidCount++
-		fmt.Fprintf(dump, "%d: %+v\n", pidCount, pid)
-		fmt.Fprintf(dump, "%d: %+v\n", pidCount, unsafe.Pointer(&mapValue[0]))
+	discardedPIDCount := 0
+	var pid uint32
+	var pidParams pidDiscarderParams
+	for entries := p.pidDiscarders.Iterate(); entries.Next(&pid, &pidParams); {
+		discardedPIDCount++
+		fmt.Fprintf(dump, "%d: %+v\n", discardedPIDCount, pid)
+		fmt.Fprintf(dump, "%d: %+v\n", discardedPIDCount, pidParams)
 	}
 
-	discarderCount := inodeCount + pidCount
+	var dStats discarderStats
+
+	fmt.Fprintf(dump, "\nDiscarder Stats FB\n")
+	statsFbMap, _, statsFBErr := p.manager.GetMap("discarder_stats_fb")
+	if statsFBErr != nil {
+		_ = log.Errorf("could not get discarder_stats_fb map: %w", statsFBErr)
+	} else {
+		var fbStat uint32
+		for entries := statsFbMap.Iterate(); entries.Next(&fbStat, &dStats); {
+			fmt.Fprintf(dump, "%d: %+v\n", fbStat, dStats)
+		}
+	}
+
+	fmt.Fprintf(dump, "\nDiscarder Stats BB\n")
+	statsBbMap, _, statsBBErr := p.manager.GetMap("discarder_stats_bb")
+	if err != nil {
+		_ = log.Errorf("could not get discarder_stats_bb map: %w", statsBBErr)
+	} else {
+		var bbStat uint32
+		for entries := statsBbMap.Iterate(); entries.Next(&bbStat, &dStats); {
+			fmt.Fprintf(dump, "%d: %+v\n", bbStat, dStats)
+		}
+	}
+
+	fmt.Fprintf(dump, "\nEnd Discarder Dump\n")
+
+	discarderCount := discardedInodeCount + discardedPIDCount
 	if discarderCount == 0 {
 		log.Infof("No discarders found")
-		return dump.Name(), err
 	}
 
-	log.Debugf("%d discarders found", discarderCount)
-	fmt.Fprintf(dump, "\nEnd Discarder Dump")
-
-	return dump.Name(), err
+	log.Debugf("%d inode discarders found, %d pid discarders found", discardedInodeCount, discardedPIDCount)
+	return dump.Name(), nil
 }
 
 // FlushDiscarders removes all the discarders

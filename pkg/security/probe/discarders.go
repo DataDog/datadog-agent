@@ -157,11 +157,20 @@ type inodeDiscarderParams struct {
 	Revision        uint32
 }
 
+type pidDiscarderParams struct {
+	DiscarderParams discarderParams
+}
+
 type discarderParams struct {
 	EventMask  uint64
-	Timestamps []uint64
+	Timestamps [model.LastDiscarderEventType - model.FirstDiscarderEventType]uint64
 	ExpireAt   uint64
 	IsRetained uint32
+}
+
+type discarderStats struct {
+	discardersAdded uint64
+	eventDiscarded  uint64
 }
 
 func recentlyAddedIndex(mountID uint32, inode uint64) uint64 {
