@@ -198,14 +198,14 @@ func configureLogger() error {
 	return nil
 }
 
-// RunCheckReporter TODO <agent-security>
+// RunCheckReporter represents a reporter used for reporting RunChecks
 type RunCheckReporter struct {
 	reporter        event.Reporter
 	events          map[string][]*event.Event
 	dumpReportsPath string
 }
 
-// NewCheckReporter TODO <agent-security>
+// NewCheckReporter creates a new RunCheckReporter
 func NewCheckReporter(stopper startstop.Stopper, report bool, dumpReportsPath string) (*RunCheckReporter, error) {
 	r := &RunCheckReporter{}
 
@@ -230,7 +230,7 @@ func NewCheckReporter(stopper startstop.Stopper, report bool, dumpReportsPath st
 	return r, nil
 }
 
-// Report TODO <agent-security>
+// Report reports the event
 func (r *RunCheckReporter) Report(event *event.Event) {
 	r.events[event.AgentRuleID] = append(r.events[event.AgentRuleID], event)
 
@@ -247,7 +247,7 @@ func (r *RunCheckReporter) Report(event *event.Event) {
 	}
 }
 
-// ReportRaw TODO <agent-security>
+// ReportRaw reports the raw content
 func (r *RunCheckReporter) ReportRaw(content []byte, service string, tags ...string) {
 	fmt.Println(string(content))
 }
