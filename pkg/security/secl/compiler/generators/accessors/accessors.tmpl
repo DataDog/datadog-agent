@@ -4,6 +4,8 @@
 
 package {{.Name}}
 
+{{$Mock := .Mock}}
+
 import (
 	"net"
 	"reflect"
@@ -11,14 +13,16 @@ import (
 
 	{{if ne $.SourcePkg $.TargetPkg}}"{{.SourcePkg}}"{{end}}
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+
+	{{if not $Mock}}
+	_ "github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	{{end}}
 )
 
 // suppress unused package warning
 var (
 	_ *unsafe.Pointer
 )
-
-{{$Mock := .Mock}}
 
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	switch field {
@@ -47,7 +51,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "{{$Name}}":
 		return &{{$Field.GetEvaluatorType}}{
 			{{- if $Field.OpOverrides}}
-			OpOverrides: {{$Field.OpOverrides}},
+			OpOverrides: {{$Mock | Override $Field.OpOverrides}},
 			{{- end}}
 			{{- if $Field.Iterator}}
 				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {

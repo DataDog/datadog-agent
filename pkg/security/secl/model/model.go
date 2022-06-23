@@ -314,6 +314,10 @@ type Process struct {
 	Envp          []string `field:"envp,handler:ResolveProcessEnvp:100" msg:"-"`                                                                                                                                                        // Environment variables of the process
 	EnvsTruncated bool     `field:"envs_truncated,handler:ResolveProcessEnvsTruncated" msg:"envs_truncated,omitempty"`                                                                                                                  // Indicator of environment variables truncation
 
+	// symlink to the process binary
+	SymlinkPathnameStr [MaxSymlinks]string `field:"-" msg:"-"`
+	SymlinkBasenameStr string              `field:"-" msg:"-"`
+
 	// cache version
 	ScrubbedArgvResolved  bool           `field:"-" msg:"-"`
 	ScrubbedArgv          []string       `field:"-" msg:"argv,omitempty"`
@@ -381,9 +385,9 @@ func (f *FileFields) GetInUpperLayer() bool {
 type FileEvent struct {
 	FileFields
 
-	PathnameStr string `field:"path,handler:ResolveFilePath" msg:"path" op_override:"eval.GlobCmp"` // File's path
-	BasenameStr string `field:"name,handler:ResolveFileBasename" msg:"name"`                        // File's basename
-	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem" msg:"filesystem"`          // File's filesystem
+	PathnameStr string `field:"path,handler:ResolveFilePath" msg:"path" op_override:"ProcessSymlinkPathname"`     // File's path
+	BasenameStr string `field:"name,handler:ResolveFileBasename" msg:"name" op_override:"ProcessSymlinkBasename"` // File's basename
+	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem" msg:"filesystem"`                        // File's filesystem
 
 	PathResolutionError error `field:"-" msg:"-"`
 
