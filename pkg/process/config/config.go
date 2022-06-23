@@ -40,14 +40,13 @@ const defaultProxyPort = 3128
 
 // Name for check performed by process-agent or system-probe
 const (
-	ProcessCheckName       = "process"
-	RTProcessCheckName     = "rtprocess"
-	ContainerCheckName     = "container"
-	RTContainerCheckName   = "rtcontainer"
-	ConnectionsCheckName   = "connections"
-	PodCheckName           = "pod"
-	DiscoveryCheckName     = "process_discovery"
-	ProcessEventsCheckName = "process_events"
+	ProcessCheckName     = "process"
+	RTProcessCheckName   = "rtprocess"
+	ContainerCheckName   = "container"
+	RTContainerCheckName = "rtcontainer"
+	ConnectionsCheckName = "connections"
+	PodCheckName         = "pod"
+	DiscoveryCheckName   = "process_discovery"
 
 	ProcessCheckDefaultInterval          = 10 * time.Second
 	RTProcessCheckDefaultInterval        = 2 * time.Second
@@ -134,14 +133,13 @@ func NewDefaultAgentConfig() *AgentConfig {
 
 		// Check config
 		CheckIntervals: map[string]time.Duration{
-			ProcessCheckName:       ProcessCheckDefaultInterval,
-			RTProcessCheckName:     RTProcessCheckDefaultInterval,
-			ContainerCheckName:     ContainerCheckDefaultInterval,
-			RTContainerCheckName:   RTContainerCheckDefaultInterval,
-			ConnectionsCheckName:   ConnectionsCheckDefaultInterval,
-			PodCheckName:           PodCheckDefaultInterval,
-			DiscoveryCheckName:     ProcessDiscoveryCheckDefaultInterval,
-			ProcessEventsCheckName: config.DefaultProcessEventsCheckInterval,
+			ProcessCheckName:     ProcessCheckDefaultInterval,
+			RTProcessCheckName:   RTProcessCheckDefaultInterval,
+			ContainerCheckName:   ContainerCheckDefaultInterval,
+			RTContainerCheckName: RTContainerCheckDefaultInterval,
+			ConnectionsCheckName: ConnectionsCheckDefaultInterval,
+			PodCheckName:         PodCheckDefaultInterval,
+			DiscoveryCheckName:   ProcessDiscoveryCheckDefaultInterval,
 		},
 
 		// DataScrubber to hide command line sensitive words

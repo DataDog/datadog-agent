@@ -151,6 +151,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	}
 	req.Header.Set("X-Datadog-Hostname", t.conf.Hostname)
 	req.Header.Set("X-Datadog-AgentDefaultEnv", t.conf.DefaultEnv)
+	req.Header.Set(headerContainerID, containerID)
 
 	// Set target URL and API key header (per domain)
 	req.URL.Scheme = "https"

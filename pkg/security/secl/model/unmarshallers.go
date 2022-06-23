@@ -810,7 +810,9 @@ func (e *NetworkContext) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	srcIP, dstIP := data[read:read+16], data[read+16:read+32]
+	var srcIP, dstIP [16]byte
+	SliceToArray(data[read:read+16], unsafe.Pointer(&srcIP))
+	SliceToArray(data[read+16:read+32], unsafe.Pointer(&dstIP))
 	e.Source.Port = binary.BigEndian.Uint16(data[read+32 : read+34])
 	e.Destination.Port = binary.BigEndian.Uint16(data[read+34 : read+36])
 	// padding 4 bytes
@@ -825,8 +827,8 @@ func (e *NetworkContext) UnmarshalBinary(data []byte) (int, error) {
 		e.Source.IPNet = *eval.IPNetFromIP(srcIP[0:4])
 		e.Destination.IPNet = *eval.IPNetFromIP(dstIP[0:4])
 	default:
-		e.Source.IPNet = *eval.IPNetFromIP(srcIP)
-		e.Destination.IPNet = *eval.IPNetFromIP(dstIP)
+		e.Source.IPNet = *eval.IPNetFromIP(srcIP[:])
+		e.Destination.IPNet = *eval.IPNetFromIP(dstIP[:])
 	}
 	return read + 48, nil
 }
@@ -940,7 +942,8 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	ipRaw := data[read : read+16]
+	var ipRaw [16]byte
+	SliceToArray(data[read:read+16], unsafe.Pointer(&ipRaw))
 	e.AddrFamily = ByteOrder.Uint16(data[read+16 : read+18])
 	e.Addr.Port = binary.BigEndian.Uint16(data[read+18 : read+20])
 
@@ -949,7 +952,7 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 	case 0x2: // unix.AF_INET
 		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw[0:4])
 	case 0xa: // unix.AF_INET6
-		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw)
+		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw[:])
 	}
 
 	return read + 20, nil

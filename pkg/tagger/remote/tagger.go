@@ -225,6 +225,9 @@ func (t *Tagger) run() {
 		var response *pb.StreamTagsResponse
 		err := grpcutil.DoWithTimeout(func() error {
 			var err error
+			if t.stream == nil {
+				return errors.New("stream not initialized")
+			}
 			response, err = t.stream.Recv()
 			return err
 		}, streamRecvTimeout)
