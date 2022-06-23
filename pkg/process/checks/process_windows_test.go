@@ -27,7 +27,7 @@ func TestPerfCountersConfigSetting(t *testing.T) {
 		resetOnce()
 		defer resetOnce()
 
-		cfg := config.Mock()
+		cfg := config.Mock(t)
 		cfg.Set("process_config.windows.use_perf_counters", false)
 		probe := getProcessProbe()
 		assert.IsType(t, procutil.NewWindowsToolhelpProbe(), probe)
@@ -37,7 +37,7 @@ func TestPerfCountersConfigSetting(t *testing.T) {
 		resetOnce()
 		defer resetOnce()
 
-		cfg := config.Mock()
+		cfg := config.Mock(t)
 		cfg.Set("process_config.windows.use_perf_counters", true)
 		probe := getProcessProbe()
 		assert.IsType(t, procutil.NewProcessProbe(), probe)

@@ -75,13 +75,23 @@ func addRuleExpr(t *testing.T, rs *RuleSet, exprs ...string) {
 func newRuleSet() *RuleSet {
 	enabled := map[eval.EventType]bool{"*": true}
 
+	var evalOpts eval.Opts
+	evalOpts.
+		WithConstants(testConstants)
+
 	var opts Opts
 	opts.
-		WithConstants(testConstants).
 		WithSupportedDiscarders(testSupportedDiscarders).
 		WithEventTypeEnabled(enabled)
 
-	return NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
+	return NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts, &eval.MacroStore{})
+}
+
+func emptyReplCtx() eval.ReplacementContext {
+	return eval.ReplacementContext{
+		Opts:       &eval.Opts{},
+		MacroStore: &eval.MacroStore{},
+	}
 }
 
 func TestRuleBuckets(t *testing.T) {
@@ -540,7 +550,7 @@ func TestGetRuleEventType(t *testing.T) {
 		ID:         "aaa",
 		Expression: `open.filename == "test"`,
 	}
-	if err := rule.GenEvaluator(&testModel{}, &eval.Opts{}); err != nil {
+	if err := rule.GenEvaluator(&testModel{}, emptyReplCtx()); err != nil {
 		t.Fatal(err)
 	}
 

@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
+	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/quantile/summary"
 	gocache "github.com/patrickmn/go-cache"
@@ -89,15 +90,20 @@ func TestIsCumulativeMonotonic(t *testing.T) {
 	}
 }
 
+var _ source.Provider = (*testProvider)(nil)
+
 type testProvider string
 
-func (t testProvider) Hostname(context.Context) (string, error) {
-	return string(t), nil
+func (t testProvider) Source(context.Context) (source.Source, error) {
+	return source.Source{
+		Kind:       source.HostnameKind,
+		Identifier: string(t),
+	}, nil
 }
 
 func newTranslator(t *testing.T, logger *zap.Logger, opts ...Option) *Translator {
 	options := append([]Option{
-		WithFallbackHostnameProvider(testProvider("fallbackHostname")),
+		WithFallbackSourceProvider(testProvider("fallbackHostname")),
 		WithHistogramMode(HistogramModeDistributions),
 		WithNumberMode(NumberModeCumulativeToDelta),
 	}, opts...)
@@ -870,7 +876,7 @@ func TestMapSummaryMetrics(t *testing.T) {
 		c := newTestCache()
 		c.cache.Set((&Dimensions{name: "summary.example.count", tags: tags}).String(), numberCounter{0, 0, 1}, gocache.NoExpiration)
 		c.cache.Set((&Dimensions{name: "summary.example.sum", tags: tags}).String(), numberCounter{0, 0, 1}, gocache.NoExpiration)
-		options := []Option{WithFallbackHostnameProvider(testProvider("fallbackHostname"))}
+		options := []Option{WithFallbackSourceProvider(testProvider("fallbackHostname"))}
 		if quantiles {
 			options = append(options, WithQuantiles())
 		}
@@ -1145,16 +1151,21 @@ func TestMapMetrics(t *testing.T) {
 		"env:dev",
 	}
 
-	ilName := "instrumentation_library"
-	ilVersion := "1.0.0"
+	instrumentationName := "foo"
+	instrumentationVersion := "1.0.0"
 	ilTags := []string{
-		fmt.Sprintf("instrumentation_library:%s", ilName),
-		fmt.Sprintf("instrumentation_library_version:%s", ilVersion),
+		fmt.Sprintf("instrumentation_library:%s", instrumentationName),
+		fmt.Sprintf("instrumentation_library_version:%s", instrumentationVersion),
+	}
+	isTags := []string{
+		fmt.Sprintf("instrumentation_scope:%s", instrumentationName),
+		fmt.Sprintf("instrumentation_scope_version:%s", instrumentationVersion),
 	}
 
 	tests := []struct {
 		resourceAttributesAsTags                  bool
 		instrumentationLibraryMetadataAsTags      bool
+		instrumentationScopeMetadataAsTags        bool
 		withCountSum                              bool
 		expectedMetrics                           []metric
 		expectedSketches                          []sketch
@@ -1164,6 +1175,7 @@ func TestMapMetrics(t *testing.T) {
 		{
 			resourceAttributesAsTags:             false,
 			instrumentationLibraryMetadataAsTags: false,
+			instrumentationScopeMetadataAsTags:   false,
 			withCountSum:                         false,
 			expectedMetrics: []metric{
 				newGaugeWithHostname("int.gauge", 1, attrTags),
@@ -1194,6 +1206,7 @@ func TestMapMetrics(t *testing.T) {
 		{
 			resourceAttributesAsTags:             true,
 			instrumentationLibraryMetadataAsTags: false,
+			instrumentationScopeMetadataAsTags:   false,
 			withCountSum:                         false,
 			expectedMetrics: []metric{
 				newGaugeWithHostname("int.gauge", 1, attrTags),
@@ -1222,8 +1235,40 @@ func TestMapMetrics(t *testing.T) {
 			expectedUnsupportedAggregationTemporality: 2,
 		},
 		{
+			resourceAttributesAsTags:             true,
+			instrumentationLibraryMetadataAsTags: false,
+			instrumentationScopeMetadataAsTags:   true,
+			withCountSum:                         false,
+			expectedMetrics: []metric{
+				newGaugeWithHostname("int.gauge", 1, append(attrTags, isTags...)),
+				newGaugeWithHostname("double.gauge", math.Pi, append(attrTags, isTags...)),
+				newCountWithHostname("int.delta.sum", 2, 0, append(attrTags, isTags...)),
+				newCountWithHostname("double.delta.sum", math.E, 0, append(attrTags, isTags...)),
+				newCountWithHostname("int.delta.monotonic.sum", 2, 0, append(attrTags, isTags...)),
+				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, append(attrTags, isTags...)),
+				newGaugeWithHostname("int.cumulative.sum", 4, append(attrTags, isTags...)),
+				newGaugeWithHostname("double.cumulative.sum", 4, append(attrTags, isTags...)),
+				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, append(attrTags, isTags...)),
+				newCountWithHostname("double.cumulative.monotonic.sum", math.Pi, 2, append(attrTags, isTags...)),
+				newCountWithHostname("summary.count", 100, 2, append(attrTags, isTags...)),
+				newCountWithHostname("summary.sum", 10_000, 2, append(attrTags, isTags...)),
+			},
+			expectedSketches: []sketch{
+				newSketchWithHostname("double.histogram", summary.Summary{
+					Min: 0,
+					Max: 0,
+					Sum: math.Phi,
+					Avg: math.Phi / 20.0,
+					Cnt: 20,
+				}, append(attrTags, isTags...)),
+			},
+			expectedUnknownMetricType:                 1,
+			expectedUnsupportedAggregationTemporality: 2,
+		},
+		{
 			resourceAttributesAsTags:             false,
 			instrumentationLibraryMetadataAsTags: false,
+			instrumentationScopeMetadataAsTags:   false,
 			withCountSum:                         true,
 			expectedMetrics: []metric{
 				newGaugeWithHostname("int.gauge", 1, attrTags),
@@ -1256,6 +1301,7 @@ func TestMapMetrics(t *testing.T) {
 		{
 			resourceAttributesAsTags:             false,
 			instrumentationLibraryMetadataAsTags: true,
+			instrumentationScopeMetadataAsTags:   false,
 			withCountSum:                         false,
 			expectedMetrics: []metric{
 				newGaugeWithHostname("int.gauge", 1, append(attrTags, ilTags...)),
@@ -1286,6 +1332,7 @@ func TestMapMetrics(t *testing.T) {
 		{
 			resourceAttributesAsTags:             false,
 			instrumentationLibraryMetadataAsTags: true,
+			instrumentationScopeMetadataAsTags:   false,
 			withCountSum:                         true,
 			expectedMetrics: []metric{
 				newGaugeWithHostname("int.gauge", 1, append(attrTags, ilTags...)),
@@ -1318,6 +1365,7 @@ func TestMapMetrics(t *testing.T) {
 		{
 			resourceAttributesAsTags:             true,
 			instrumentationLibraryMetadataAsTags: true,
+			instrumentationScopeMetadataAsTags:   false,
 			withCountSum:                         false,
 			expectedMetrics: []metric{
 				newGaugeWithHostname("int.gauge", 1, append(attrTags, ilTags...)),
@@ -1348,6 +1396,7 @@ func TestMapMetrics(t *testing.T) {
 		{
 			resourceAttributesAsTags:             true,
 			instrumentationLibraryMetadataAsTags: true,
+			instrumentationScopeMetadataAsTags:   false,
 			withCountSum:                         true,
 			expectedMetrics: []metric{
 				newGaugeWithHostname("int.gauge", 1, append(attrTags, ilTags...)),
@@ -1377,13 +1426,46 @@ func TestMapMetrics(t *testing.T) {
 			expectedUnknownMetricType:                 1,
 			expectedUnsupportedAggregationTemporality: 2,
 		},
+		{
+			resourceAttributesAsTags:             true,
+			instrumentationLibraryMetadataAsTags: true,
+			instrumentationScopeMetadataAsTags:   true,
+			withCountSum:                         true,
+			expectedMetrics: []metric{
+				newGaugeWithHostname("int.gauge", 1, append(attrTags, isTags...)),
+				newGaugeWithHostname("double.gauge", math.Pi, append(attrTags, isTags...)),
+				newCountWithHostname("int.delta.sum", 2, 0, append(attrTags, isTags...)),
+				newCountWithHostname("double.delta.sum", math.E, 0, append(attrTags, isTags...)),
+				newCountWithHostname("int.delta.monotonic.sum", 2, 0, append(attrTags, isTags...)),
+				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, append(attrTags, isTags...)),
+				newCountWithHostname("double.histogram.count", 20, 0, append(attrTags, isTags...)),
+				newCountWithHostname("double.histogram.sum", 1.618033988749895, 0, append(attrTags, isTags...)),
+				newGaugeWithHostname("int.cumulative.sum", 4, append(attrTags, isTags...)),
+				newGaugeWithHostname("double.cumulative.sum", 4, append(attrTags, isTags...)),
+				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, append(attrTags, isTags...)),
+				newCountWithHostname("double.cumulative.monotonic.sum", math.Pi, 2, append(attrTags, isTags...)),
+				newCountWithHostname("summary.count", 100, 2, append(attrTags, isTags...)),
+				newCountWithHostname("summary.sum", 10_000, 2, append(attrTags, isTags...)),
+			},
+			expectedSketches: []sketch{
+				newSketchWithHostname("double.histogram", summary.Summary{
+					Min: 0,
+					Max: 0,
+					Sum: math.Phi,
+					Avg: math.Phi / 20,
+					Cnt: 20,
+				}, append(attrTags, isTags...)),
+			},
+			expectedUnknownMetricType:                 1,
+			expectedUnsupportedAggregationTemporality: 2,
+		},
 	}
 
 	for _, testInstance := range tests {
-		tName := fmt.Sprintf("resourceAttributesAsTags: %t, instrumentationLibraryMetadataAsTags: %t, withCountSum: %t",
-			testInstance.resourceAttributesAsTags, testInstance.instrumentationLibraryMetadataAsTags, testInstance.withCountSum)
+		tName := fmt.Sprintf("resourceAttributesAsTags: %t, instrumentationLibraryMetadataAsTags: %t, instrumentationScopeMetadataAsTags: %t, withCountSum: %t",
+			testInstance.resourceAttributesAsTags, testInstance.instrumentationLibraryMetadataAsTags, testInstance.instrumentationScopeMetadataAsTags, testInstance.withCountSum)
 		t.Run(tName, func(t *testing.T) {
-			md := createTestMetrics(attrs, ilName, ilVersion)
+			md := createTestMetrics(attrs, instrumentationName, instrumentationVersion)
 
 			core, observed := observer.New(zapcore.DebugLevel)
 			testLogger := zap.New(core)
@@ -1396,6 +1478,9 @@ func TestMapMetrics(t *testing.T) {
 			}
 			if testInstance.instrumentationLibraryMetadataAsTags {
 				options = append(options, WithInstrumentationLibraryMetadataAsTags())
+			}
+			if testInstance.instrumentationScopeMetadataAsTags {
+				options = append(options, WithInstrumentationScopeMetadataAsTags())
 			}
 			if testInstance.withCountSum {
 				options = append(options, WithCountSumMetrics())
@@ -1548,16 +1633,21 @@ func TestMapExponentialHistogram(t *testing.T) {
 		"env:dev",
 	}
 
-	ilName := "instrumentation_library"
-	ilVersion := "1.0.0"
+	instrumentationName := "foo"
+	instrumentationVersion := "1.0.0"
 	ilTags := []string{
-		fmt.Sprintf("instrumentation_library:%s", ilName),
-		fmt.Sprintf("instrumentation_library_version:%s", ilVersion),
+		fmt.Sprintf("instrumentation_library:%s", instrumentationName),
+		fmt.Sprintf("instrumentation_library_version:%s", instrumentationVersion),
+	}
+	isTags := []string{
+		fmt.Sprintf("instrumentation_scope:%s", instrumentationName),
+		fmt.Sprintf("instrumentation_scope_version:%s", instrumentationVersion),
 	}
 
 	tests := []struct {
 		resourceAttributesAsTags                  bool
 		instrumentationLibraryMetadataAsTags      bool
+		instrumentationScopeMetadataAsTags        bool
 		withCountSum                              bool
 		expectedMetrics                           []metric
 		expectedSketches                          []sketch
@@ -1567,6 +1657,7 @@ func TestMapExponentialHistogram(t *testing.T) {
 		{
 			resourceAttributesAsTags:             false,
 			instrumentationLibraryMetadataAsTags: false,
+			instrumentationScopeMetadataAsTags:   false,
 			withCountSum:                         false,
 			expectedMetrics:                      nil,
 			expectedSketches: []sketch{
@@ -1584,6 +1675,7 @@ func TestMapExponentialHistogram(t *testing.T) {
 		{
 			resourceAttributesAsTags:             true,
 			instrumentationLibraryMetadataAsTags: false,
+			instrumentationScopeMetadataAsTags:   false,
 			withCountSum:                         false,
 			expectedMetrics:                      nil,
 			expectedSketches: []sketch{
@@ -1601,6 +1693,7 @@ func TestMapExponentialHistogram(t *testing.T) {
 		{
 			resourceAttributesAsTags:             false,
 			instrumentationLibraryMetadataAsTags: false,
+			instrumentationScopeMetadataAsTags:   false,
 			withCountSum:                         true,
 			expectedMetrics: []metric{
 				newCountWithHostname("double.exponential.delta.histogram.count", 30, 0, attrTags),
@@ -1621,6 +1714,7 @@ func TestMapExponentialHistogram(t *testing.T) {
 		{
 			resourceAttributesAsTags:             false,
 			instrumentationLibraryMetadataAsTags: true,
+			instrumentationScopeMetadataAsTags:   false,
 			withCountSum:                         false,
 			expectedMetrics:                      nil,
 			expectedSketches: []sketch{
@@ -1637,7 +1731,26 @@ func TestMapExponentialHistogram(t *testing.T) {
 		},
 		{
 			resourceAttributesAsTags:             false,
+			instrumentationLibraryMetadataAsTags: false,
+			instrumentationScopeMetadataAsTags:   true,
+			withCountSum:                         false,
+			expectedMetrics:                      nil,
+			expectedSketches: []sketch{
+				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
+					Min: -1.0475797592879845,
+					Max: 1.0974563270357618,
+					Sum: math.Pi,
+					Avg: 0.10471975511965977,
+					Cnt: 30,
+				}, append(attrTags, isTags...)),
+			},
+			expectedUnknownMetricType:                 1,
+			expectedUnsupportedAggregationTemporality: 1,
+		},
+		{
+			resourceAttributesAsTags:             false,
 			instrumentationLibraryMetadataAsTags: true,
+			instrumentationScopeMetadataAsTags:   false,
 			withCountSum:                         true,
 			expectedMetrics: []metric{
 				newCountWithHostname("double.exponential.delta.histogram.count", 30, 0, append(attrTags, ilTags...)),
@@ -1658,6 +1771,7 @@ func TestMapExponentialHistogram(t *testing.T) {
 		{
 			resourceAttributesAsTags:             true,
 			instrumentationLibraryMetadataAsTags: true,
+			instrumentationScopeMetadataAsTags:   false,
 			withCountSum:                         false,
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
@@ -1674,6 +1788,7 @@ func TestMapExponentialHistogram(t *testing.T) {
 		{
 			resourceAttributesAsTags:             true,
 			instrumentationLibraryMetadataAsTags: true,
+			instrumentationScopeMetadataAsTags:   false,
 			withCountSum:                         true,
 			expectedMetrics: []metric{
 				newCountWithHostname("double.exponential.delta.histogram.count", 30, 0, append(attrTags, ilTags...)),
@@ -1691,13 +1806,34 @@ func TestMapExponentialHistogram(t *testing.T) {
 			expectedUnknownMetricType:                 1,
 			expectedUnsupportedAggregationTemporality: 1,
 		},
+		{
+			resourceAttributesAsTags:             true,
+			instrumentationLibraryMetadataAsTags: true,
+			instrumentationScopeMetadataAsTags:   true,
+			withCountSum:                         true,
+			expectedMetrics: []metric{
+				newCountWithHostname("double.exponential.delta.histogram.count", 30, 0, append(attrTags, isTags...)),
+				newCountWithHostname("double.exponential.delta.histogram.sum", math.Pi, 0, append(attrTags, isTags...)),
+			},
+			expectedSketches: []sketch{
+				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
+					Min: -1.0475797592879845,
+					Max: 1.0974563270357618,
+					Sum: math.Pi,
+					Avg: 0.10471975511965977,
+					Cnt: 30,
+				}, append(attrTags, isTags...)),
+			},
+			expectedUnknownMetricType:                 1,
+			expectedUnsupportedAggregationTemporality: 1,
+		},
 	}
 
 	for _, testInstance := range tests {
-		tName := fmt.Sprintf("resourceAttributesAsTags: %t, instrumentationLibraryMetadataAsTags: %t, withCountSum: %t",
-			testInstance.resourceAttributesAsTags, testInstance.instrumentationLibraryMetadataAsTags, testInstance.withCountSum)
+		tName := fmt.Sprintf("resourceAttributesAsTags: %t, instrumentationLibraryMetadataAsTags: %t, instrumentationScopeMetadataAsTags: %t, withCountSum: %t",
+			testInstance.resourceAttributesAsTags, testInstance.instrumentationLibraryMetadataAsTags, testInstance.instrumentationScopeMetadataAsTags, testInstance.withCountSum)
 		t.Run(tName, func(t *testing.T) {
-			md := createTestExponentialHistogram(attrs, ilName, ilVersion)
+			md := createTestExponentialHistogram(attrs, instrumentationName, instrumentationVersion)
 
 			core, observed := observer.New(zapcore.DebugLevel)
 			testLogger := zap.New(core)
@@ -1710,6 +1846,9 @@ func TestMapExponentialHistogram(t *testing.T) {
 			}
 			if testInstance.instrumentationLibraryMetadataAsTags {
 				options = append(options, WithInstrumentationLibraryMetadataAsTags())
+			}
+			if testInstance.instrumentationScopeMetadataAsTags {
+				options = append(options, WithInstrumentationScopeMetadataAsTags())
 			}
 			if testInstance.withCountSum {
 				options = append(options, WithCountSumMetrics())

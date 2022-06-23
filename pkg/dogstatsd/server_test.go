@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -557,7 +558,11 @@ func TestDebugStatsSpike(t *testing.T) {
 	assert := assert.New(t)
 	demux := mockDemultiplexer()
 	defer demux.Stop(false)
+
 	s, err := NewServer(demux, false)
+	clk := clock.NewMock()
+	s.Debug = newDSDServerDebugWithClock(clk)
+
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 	require.NoError(t, err, "cannot start DSD")
@@ -572,27 +577,39 @@ func TestDebugStatsSpike(t *testing.T) {
 	}
 
 	send(10)
-	time.Sleep(1050 * time.Millisecond)
+
+	clk.Add(1050 * time.Millisecond)
 	send(10)
-	time.Sleep(1050 * time.Millisecond)
+
+	clk.Add(1050 * time.Millisecond)
 	send(10)
-	time.Sleep(1050 * time.Millisecond)
+
+	clk.Add(1050 * time.Millisecond)
 	send(10)
-	time.Sleep(1050 * time.Millisecond)
+
+	clk.Add(1050 * time.Millisecond)
 	send(500)
 
 	// stop the debug loop to avoid data race
 	s.DisableMetricsStats()
 	time.Sleep(500 * time.Millisecond)
+
 	assert.True(s.hasSpike())
 
 	s.EnableMetricsStats()
+	// This sleep is necessary as we need to wait for the goroutine function within 'EnableMetricsStats' to start.
+	// If we remove the sleep, the debug loop ticker will not be triggered by the clk.Add() call and the 500 samples
+	// added with 'send(500)' will be considered as if they had been added in the same second as the previous 500 samples.
+	// This will lead to a spike because we have 1000 samples in 1 second instead of having 500 and 500 in 2 different seconds.
 	time.Sleep(1050 * time.Millisecond)
+
+	clk.Add(1050 * time.Millisecond)
 	send(500)
 
 	// stop the debug loop to avoid data race
 	s.DisableMetricsStats()
 	time.Sleep(500 * time.Millisecond)
+
 	// it is no more considered a spike because we had another second with 500 metrics
 	assert.False(s.hasSpike())
 }
@@ -601,6 +618,8 @@ func TestDebugStats(t *testing.T) {
 	demux := mockDemultiplexer()
 	defer demux.Stop(false)
 	s, err := NewServer(demux, false)
+	clk := clock.NewMock()
+	s.Debug = newDSDServerDebugWithClock(clk)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -623,7 +642,7 @@ func TestDebugStats(t *testing.T) {
 	// test ingestion and ingestion time
 	s.storeMetricStats(sample1)
 	s.storeMetricStats(sample2)
-	time.Sleep(10 * time.Millisecond)
+	clk.Add(10 * time.Millisecond)
 	s.storeMetricStats(sample1)
 
 	data, err := s.GetJSONDebugStats()
@@ -639,7 +658,7 @@ func TestDebugStats(t *testing.T) {
 	require.True(t, stats[hash1].LastSeen.After(stats[hash2].LastSeen), "some.metric1 should have appeared again after some.metric2")
 
 	s.storeMetricStats(sample3)
-	time.Sleep(10 * time.Millisecond)
+	clk.Add(10 * time.Millisecond)
 	s.storeMetricStats(sample1)
 
 	s.storeMetricStats(sample4)

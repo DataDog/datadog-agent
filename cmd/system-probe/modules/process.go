@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -58,7 +59,7 @@ func (t *process) GetStats() map[string]interface{} {
 // Register registers endpoints for the module to expose data
 func (t *process) Register(httpMux *module.Router) error {
 	var runCounter uint64
-	httpMux.HandleFunc("/proc/stats", func(w http.ResponseWriter, req *http.Request) {
+	httpMux.HandleFunc("/stats", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		atomic.StoreInt64(&t.lastCheck, start.Unix())
 		pids, err := getPids(req)
@@ -93,8 +94,8 @@ func (t *process) Close() {
 }
 
 func logProcTracerRequests(count uint64, statsCount int, start time.Time) {
-	args := []interface{}{count, statsCount, time.Now().Sub(start)}
-	msg := "Got request on /proc/stats (count: %d): retrieved %d stats in %s"
+	args := []interface{}{string(sysconfig.ProcessModule), count, statsCount, time.Now().Sub(start)}
+	msg := "Got request on /%s/stats (count: %d): retrieved %d stats in %s"
 	switch {
 	case count <= 5, count%20 == 0:
 		log.Infof(msg, args...)
@@ -113,7 +114,7 @@ func writeStats(w http.ResponseWriter, marshaler encoding.Marshaler, stats map[i
 
 	w.Header().Set("Content-type", marshaler.ContentType())
 	w.Write(buf)
-	log.Tracef("/proc/stats: %d stats, %d bytes", len(stats), len(buf))
+	log.Tracef("/%s/stats: %d stats, %d bytes", string(sysconfig.ProcessModule), len(stats), len(buf))
 }
 
 func getPids(r *http.Request) ([]int32, error) {

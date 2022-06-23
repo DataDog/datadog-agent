@@ -95,8 +95,9 @@ func (o *sslProgram) ConfigureManager(m *manager.Manager) {
 			PerfMapOptions: manager.PerfMapOptions{
 				PerfRingBufferSize: 8 * os.Getpagesize(),
 				Watermark:          1,
-				DataHandler:        o.perfHandler.DataHandler,
+				RecordHandler:      o.perfHandler.RecordHandler,
 				LostHandler:        o.perfHandler.LostHandler,
+				RecordGetter:       o.perfHandler.RecordGetter,
 			},
 		})
 

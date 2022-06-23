@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	"github.com/DataDog/datadog-agent/pkg/netflow"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
@@ -428,6 +429,21 @@ func StartAgent() error {
 		log.Info("logs-agent disabled")
 	}
 
+	// Start NetFlow server
+	// This must happen after LoadComponents is set up (via common.LoadComponents).
+	// netflow.StartServer uses AgentDemultiplexer, that uses ContextResolver, that uses the tagger (initialized by LoadComponents)
+	if netflow.IsEnabled() {
+		sender, err := demux.GetDefaultSender()
+		if err != nil {
+			log.Errorf("Failed to get default sender for NetFlow server: %s", err)
+		} else {
+			err = netflow.StartServer(sender)
+			if err != nil {
+				log.Errorf("Failed to start NetFlow server: %s", err)
+			}
+		}
+	}
+
 	// load and run all configs in AD
 	common.AC.LoadAndRun()
 
@@ -481,6 +497,7 @@ func StopAgent() {
 		common.MetadataScheduler.Stop()
 	}
 	traps.StopServer()
+	netflow.StopServer()
 	api.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()

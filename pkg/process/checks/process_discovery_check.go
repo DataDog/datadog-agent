@@ -76,6 +76,9 @@ func (d *ProcessDiscoveryCheck) Run(cfg *config.AgentConfig, groupID int32) ([]m
 	return payload, nil
 }
 
+// Cleanup frees any resource held by the ProcessDiscoveryCheck before the agent exits
+func (d *ProcessDiscoveryCheck) Cleanup() {}
+
 func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process) []*model.ProcessDiscovery {
 	pd := make([]*model.ProcessDiscovery, 0, len(pidMap))
 	for _, proc := range pidMap {

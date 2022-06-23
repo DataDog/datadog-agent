@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/cihub/seelog"
 )
 
 const (
@@ -26,7 +27,7 @@ const (
 
 // LeaderForwarder allows to forward queries from follower to leader
 type LeaderForwarder struct {
-	transport *http.Transport
+	transport http.RoundTripper
 	logger    *stdLog.Logger
 	proxy     *httputil.ReverseProxy
 	proxyLock sync.RWMutex
@@ -34,7 +35,10 @@ type LeaderForwarder struct {
 }
 
 // NewLeaderForwarder returns a new LeaderForwarder
-func NewLeaderForwarder(apiPort, maxConnections, maxIdleConnections int) *LeaderForwarder {
+func NewLeaderForwarder(apiPort, maxConnections int) *LeaderForwarder {
+	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
+	logWriter, _ := config.NewLogWriter(4, seelog.DebugLvl)
+
 	lf := &LeaderForwarder{
 		apiPort: strconv.Itoa(apiPort),
 		transport: &http.Transport{
@@ -45,15 +49,15 @@ func NewLeaderForwarder(apiPort, maxConnections, maxIdleConnections int) *Leader
 			}).DialContext,
 			ForceAttemptHTTP2:     false,
 			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
-			TLSHandshakeTimeout:   2 * time.Second,
+			TLSHandshakeTimeout:   5 * time.Second,
 			MaxConnsPerHost:       maxConnections,
-			MaxIdleConns:          maxIdleConnections,
-			IdleConnTimeout:       30 * time.Second,
+			MaxIdleConnsPerHost:   maxConnections,
+			MaxIdleConns:          0,
+			IdleConnTimeout:       120 * time.Second,
+			ResponseHeaderTimeout: 5 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
 		},
-		logger: stdLog.New(&config.ErrorLogWriter{
-			AdditionalDepth: 4, // Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-		}, "Error while forwarding to leader DCA: ", 0), // log errors to seelog,
+		logger: stdLog.New(logWriter, "Error while forwarding to leader DCA: ", 0), // log errors to seelog,
 	}
 
 	return lf
@@ -77,6 +81,7 @@ func (lf *LeaderForwarder) Forward(rw http.ResponseWriter, req *http.Request) {
 		http.Error(rw, "", http.StatusServiceUnavailable)
 		return
 	}
+
 	currentProxy.ServeHTTP(rw, req)
 }
 
@@ -87,6 +92,7 @@ func (lf *LeaderForwarder) SetLeaderIP(leaderIP string) {
 
 	if leaderIP == "" {
 		lf.proxy = nil
+		return
 	}
 
 	lf.proxy = &httputil.ReverseProxy{
