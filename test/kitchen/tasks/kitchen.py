@@ -10,6 +10,7 @@ from invoke.exceptions import Exit
 
 WINDOWS_SKIP_IF_TESTSIGNING = ['.*cn']
 
+
 @task(iterable=['platlist'])
 def genconfig(
     ctx,
@@ -178,9 +179,9 @@ def load_targets(_, targethash, selections, platform):
     commentpattern = re.compile("^comment")
 
     if platform == "windows":
-        if 'WINDOWS_DDNPM_DRIVER' in os.environ.keys() and  os.environ['WINDOWS_DDNPM_DRIVER'] == 'testsigned':
+        if 'WINDOWS_DDNPM_DRIVER' in os.environ.keys() and os.environ['WINDOWS_DDNPM_DRIVER'] == 'testsigned':
             for skip in WINDOWS_SKIP_IF_TESTSIGNING:
-                skiplist.append(re.compile(skip)) 
+                skiplist.append(re.compile(skip))
 
     for selection in selections.split(","):
         selectionpattern = re.compile(f"^{selection}$")
@@ -196,7 +197,7 @@ def load_targets(_, targethash, selections, platform):
                         matched = True
                         break
                 else:
-                    # will only execute if there's not a break in the previous for 
+                    # will only execute if there's not a break in the previous for
                     # loop.
                     matched = True
                     if key not in returnlist:
