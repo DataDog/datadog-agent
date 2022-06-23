@@ -59,7 +59,7 @@ func BuildMemBasedRateLimiter() (*MemBasedRateLimiter, error) {
 	}
 
 	ballastOnce.Do(func() {
-		ballastSize := config.Datadog.GetInt("dogstatsd_mem_based_rate_limiter.memory_ballast")
+		ballastSize := config.Datadog.GetInt64("dogstatsd_mem_based_rate_limiter.memory_ballast")
 		if ballastSize != 0 {
 			ballast = make([]byte, 0, ballastSize)
 			log.Infof("ballast size %vMB", ballastSize/1024/1024)
