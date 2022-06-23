@@ -88,7 +88,10 @@ type MetricSerializer interface {
 	SendEvents(e metrics.Events) error
 	SendServiceChecks(serviceChecks metrics.ServiceChecks) error
 	SendIterableSeries(serieSource metrics.SerieSource) error
+	AreSeriesEnabled() bool
 	SendSketch(sketches metrics.SketchesSource) error
+	AreSketchesEnabled() bool
+
 	SendMetadata(m marshaler.JSONMarshaler) error
 	SendHostMetadata(m marshaler.JSONMarshaler) error
 	SendProcessesMetadata(data interface{}) error
@@ -143,10 +146,10 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder, contlcy
 	if !s.enableEvents {
 		log.Warn("event payloads are disabled: all events will be dropped")
 	}
-	if !s.enableSeries {
+	if !s.AreSeriesEnabled() {
 		log.Warn("series payloads are disabled: all series will be dropped")
 	}
-	if !s.enableServiceChecks {
+	if !s.AreSketchesEnabled() {
 		log.Warn("service_checks payloads are disabled: all service_checks will be dropped")
 	}
 	if !s.enableSketches {
@@ -296,9 +299,14 @@ func (s *Serializer) SendServiceChecks(serviceChecks metrics.ServiceChecks) erro
 	return s.Forwarder.SubmitV1CheckRuns(serviceCheckPayloads, extraHeaders)
 }
 
+// AreSeriesEnabled returns whether series are enabled for serialization
+func (s *Serializer) AreSeriesEnabled() bool {
+	return s.enableSeries
+}
+
 // SendIterableSeries serializes a list of series and sends the payload to the forwarder
 func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
-	if !s.enableSeries {
+	if !s.AreSeriesEnabled() {
 		log.Debug("series payloads are disabled: dropping it")
 		return nil
 	}
@@ -329,9 +337,14 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	return s.Forwarder.SubmitSeries(seriesPayloads, extraHeaders)
 }
 
+// AreSeriesEnabled returns whether sketches are enabled for serialization
+func (s *Serializer) AreSketchesEnabled() bool {
+	return s.enableSketches
+}
+
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder
 func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
-	if !s.enableSketches {
+	if !s.AreSketchesEnabled() {
 		log.Debug("sketches payloads are disabled: dropping it")
 		return nil
 	}

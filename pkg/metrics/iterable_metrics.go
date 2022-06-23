@@ -118,19 +118,44 @@ func Serialize(
 	serieConsumer func(SerieSource),
 	sketchesConsumer func(SketchesSource)) {
 	var waitGroup sync.WaitGroup
-	waitGroup.Add(2)
-	go func() {
-		defer waitGroup.Done()
-		serieConsumer(iterableSeries)
-		iterableSeries.iterationStopped()
-	}()
-	go func() {
-		defer waitGroup.Done()
-		sketchesConsumer(iterableSketches)
-		iterableSketches.iterationStopped()
-	}()
-	producer(iterableSeries, iterableSketches)
-	iterableSeries.senderStopped()
-	iterableSketches.senderStopped()
+	var serieSink SerieSink = noOpSerieSink{}
+	var sketchesSink SketchesSink = noOpSketchesSink{}
+	if iterableSeries != nil {
+		serieSink = iterableSeries
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			serieConsumer(iterableSeries)
+			iterableSeries.iterationStopped()
+		}()
+	}
+	if iterableSketches != nil {
+		sketchesSink = iterableSketches
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			sketchesConsumer(iterableSketches)
+			iterableSketches.iterationStopped()
+		}()
+	}
+	producer(serieSink, sketchesSink)
+	if iterableSeries != nil {
+		iterableSeries.senderStopped()
+	}
+	if iterableSketches != nil {
+		iterableSketches.senderStopped()
+	}
 	waitGroup.Wait()
 }
+
+var _ SerieSink = noOpSerieSink{}
+
+type noOpSerieSink struct{}
+
+func (noOpSerieSink) Append(*Serie) {}
+
+var _ SketchesSink = noOpSketchesSink{}
+
+type noOpSketchesSink struct{}
+
+func (noOpSketchesSink) Append(*SketchSeries) {}
