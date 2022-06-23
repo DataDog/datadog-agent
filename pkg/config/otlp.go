@@ -32,6 +32,7 @@ const (
 	OTLPDebugLogLevelError    = "error"
 )
 
+// OTLPDebugLogLevelMap TODO <agent-core>
 var OTLPDebugLogLevelMap = map[string]struct{}{
 	OTLPDebugLogLevelDisabled: {},
 	OTLPDebugLogLevelDebug:    {},

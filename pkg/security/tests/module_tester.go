@@ -147,7 +147,9 @@ var (
 )
 
 const (
-	HostEnvironment   = "host"
+	// HostEnvironment TODO <agent-security>
+	HostEnvironment = "host"
+	// DockerEnvironment TODO <agent-security>
 	DockerEnvironment = "docker"
 )
 
@@ -1341,6 +1343,7 @@ func waitForOpenProbeEvent(test *testModule, action func() error, filename strin
 	return waitForProbeEvent(test, action, "open.file.path", filename, model.FileOpenEventType)
 }
 
+// TestEnv TODO <agent-security>
 func TestEnv(t *testing.T) {
 	if testEnvironment != "" && testEnvironment != HostEnvironment && testEnvironment != DockerEnvironment {
 		t.Error("invalid environment")
@@ -1348,6 +1351,7 @@ func TestEnv(t *testing.T) {
 	}
 }
 
+// TestMain TODO <agent-security>
 func TestMain(m *testing.M) {
 	flag.Parse()
 	retCode := m.Run()

@@ -22,7 +22,7 @@ func NewIterableSketches(callback func(*SketchSeries), chanSize int, bufferSize 
 	}
 }
 
-// Wait until a value is available for MoveNext() or until senderStopped() is called
+// WaitForValue waits until a value is available for MoveNext() or until senderStopped() is called
 // Returns true if a value is available, false otherwise
 func (it *IterableSketches) WaitForValue() bool {
 	return it.iterableMetrics.WaitForValue()

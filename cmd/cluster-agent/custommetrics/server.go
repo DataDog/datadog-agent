@@ -33,6 +33,7 @@ var cmd *DatadogMetricsAdapter
 
 var stopCh chan struct{}
 
+// DatadogMetricsAdapter TODO  <container-integrations>
 type DatadogMetricsAdapter struct {
 	basecmd.AdapterBase
 }

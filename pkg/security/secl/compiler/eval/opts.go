@@ -5,6 +5,7 @@
 
 package eval
 
+// MacroStore TODO <agent-security>
 type MacroStore struct {
 	Macros map[MacroID]*Macro
 }

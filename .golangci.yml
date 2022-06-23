@@ -3,8 +3,11 @@ run:
     - cmd/agent/app/reloadcheck.go # ignore unused command for now
     - cmd/agent/app/listchecks.go  # ignore unused command for now
     - pkg/util/cloudproviders/cloudfoundry/bbscache_test.go # implements interface from imported package whose method names fail linting
+    - pkg/util/intern/string.go # TODO: fix govet 'unsafeptr' error
+    - pkg/serverless/trace/inferredspan/constants.go # TODO: fox revive exported const error
 
 issues:
+  exclude-use-default: false
   # Do not limit the number of issues per linter.
   max-issues-per-linter: 0
 
@@ -12,6 +15,11 @@ issues:
   max-same-issues: 0
 
   exclude:
+    - "`RandomString|TimeNowNano|InitLogging|SetHostname` is unused" # 'deadcode' errors in test/benchmarks/util.go
+    - "Error return value of `io.WriteString` is not checked" # 'errcheck' errors in tools/dep_tree_resolver/go_deps.go
+    - "Error return value of `pem.Encode` is not checked" # 'errcheck' errors in test/integration/utils/certificates.go
+    - "unnecessary conversion" # 'unconvert' errors in test/integration/utils/certificates_test.go
+    - "Error return value of .((os\\.)?std(out|err)\\..*|.*Close|.*Flush|os\\.Remove(All)?|.*print(f|ln)?|os\\.(Un)?Setenv). is not checked"
     - "`eventContext` is unused"
     - "`\\(\\*DatadogLogger\\).changeLogLevel` is unused"
     - "`defaultRetryDuration` is unused" # used by APM and Process
@@ -69,6 +77,7 @@ linters-settings:
              # Actual issues that should be fixed eventually
              "-SA6002", # TODO: Fix sync.Pools
              "-SA4025", # TODO: Fix trace unit test
+             "-SA1019", "-SA4011", "-SA4031" # Disabling these to re-enable golanci-lint default tests
             ]
   govet:
     settings:
