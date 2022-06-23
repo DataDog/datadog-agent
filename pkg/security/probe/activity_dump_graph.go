@@ -224,7 +224,7 @@ func (ad *ActivityDump) prepareSocketNode(n *SocketNode, data *graph, processID 
 	// prepare bind nodes
 	var names []string
 	for _, node := range n.Bind {
-		names = append(names, fmt.Sprintf("[%s]:%d", node.IP, node.Port))
+		names = append(names, fmt.Sprintf("%s[%s]:%d", node.Protocol, node.IP, node.Port))
 	}
 
 	for i, name := range names {

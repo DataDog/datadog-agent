@@ -88,7 +88,7 @@ CWS logs have the following JSON schema:
         "BindEvent": {
             "properties": {
                 "addr": {
-                    "$ref": "#/$defs/IPPortFamily",
+                    "$ref": "#/$defs/IPPortFamilyProtocol",
                     "description": "Bound address (if any)"
                 }
             },
@@ -436,7 +436,7 @@ CWS logs have the following JSON schema:
             ],
             "description": "IPPortSerializer is used to serialize an IP and Port context to JSON"
         },
-        "IPPortFamily": {
+        "IPPortFamilyProtocol": {
             "properties": {
                 "family": {
                     "type": "string",
@@ -449,6 +449,10 @@ CWS logs have the following JSON schema:
                 "port": {
                     "type": "integer",
                     "description": "Port number"
+                },
+                "protocol": {
+                    "type": "string",
+                    "description": "Socket protocol"
                 }
             },
             "additionalProperties": false,
@@ -456,9 +460,10 @@ CWS logs have the following JSON schema:
             "required": [
                 "family",
                 "ip",
-                "port"
+                "port",
+                "protocol"
             ],
-            "description": "IPPortFamilySerializer is used to serialize an IP, port, and address family context to JSON"
+            "description": "IPPortFamilyProtocolSerializer is used to serialize an IP, Port, address family and protocol context to JSON"
         },
         "MMapEvent": {
             "properties": {
@@ -1329,7 +1334,7 @@ CWS logs have the following JSON schema:
 {
     "properties": {
         "addr": {
-            "$ref": "#/$defs/IPPortFamily",
+            "$ref": "#/$defs/IPPortFamilyProtocol",
             "description": "Bound address (if any)"
         }
     },
@@ -1349,7 +1354,7 @@ CWS logs have the following JSON schema:
 
 | References |
 | ---------- |
-| [IPPortFamily](#ipportfamily) |
+| [IPPortFamilyProtocol](#ipportfamilyprotocol) |
 
 ## `ContainerContext`
 
@@ -1852,7 +1857,7 @@ CWS logs have the following JSON schema:
 | `port` | Port number |
 
 
-## `IPPortFamily`
+## `IPPortFamilyProtocol`
 
 
 {{< code-block lang="json" collapsible="true" >}}
@@ -1869,6 +1874,10 @@ CWS logs have the following JSON schema:
         "port": {
             "type": "integer",
             "description": "Port number"
+        },
+        "protocol": {
+            "type": "string",
+            "description": "Socket protocol"
         }
     },
     "additionalProperties": false,
@@ -1876,9 +1885,10 @@ CWS logs have the following JSON schema:
     "required": [
         "family",
         "ip",
-        "port"
+        "port",
+        "protocol"
     ],
-    "description": "IPPortFamilySerializer is used to serialize an IP, port, and address family context to JSON"
+    "description": "IPPortFamilyProtocolSerializer is used to serialize an IP, Port, address family and protocol context to JSON"
 }
 
 {{< /code-block >}}
@@ -1888,6 +1898,7 @@ CWS logs have the following JSON schema:
 | `family` | Address family |
 | `ip` | IP address |
 | `port` | Port number |
+| `protocol` | Socket protocol |
 
 
 ## `MMapEvent`

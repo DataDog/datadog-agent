@@ -1162,7 +1162,7 @@ func (ad *ActivityDump) snapshotProcess(pan *ProcessActivityNode) error {
 	return nil
 }
 
-func (ad *ActivityDump) insertSnapshotedSocket(pan *ProcessActivityNode, p *process.Process, family uint16, ip net.IP, port uint16) {
+func (ad *ActivityDump) insertSnapshotedSocket(pan *ProcessActivityNode, p *process.Process, family uint16, ip net.IP, port uint16, protocol uint8) {
 	evt := NewEvent(ad.adm.resolvers, ad.adm.scrubber, ad.adm.probe)
 	evt.Event.Type = uint32(model.BindEventType)
 
@@ -1175,6 +1175,7 @@ func (ad *ActivityDump) insertSnapshotedSocket(pan *ProcessActivityNode, p *proc
 		evt.Bind.Addr.IPNet.Mask = net.CIDRMask(128, 128)
 	}
 	evt.Bind.Addr.Port = port
+	evt.Bind.Protocol = protocol
 
 	if ad.InsertBindEvent(pan, &evt.Bind) {
 		// count this new entry
@@ -1235,25 +1236,25 @@ func (pan *ProcessActivityNode) snapshotBoundSockets(p *process.Process, ad *Act
 	for _, s := range sockets {
 		for _, sock := range TCP {
 			if sock.Inode == s {
-				ad.insertSnapshotedSocket(pan, p, unix.AF_INET, sock.LocalAddr, uint16(sock.LocalPort))
+				ad.insertSnapshotedSocket(pan, p, unix.AF_INET, sock.LocalAddr, uint16(sock.LocalPort), unix.IPPROTO_TCP)
 				break
 			}
 		}
 		for _, sock := range UDP {
 			if sock.Inode == s {
-				ad.insertSnapshotedSocket(pan, p, unix.AF_INET, sock.LocalAddr, uint16(sock.LocalPort))
+				ad.insertSnapshotedSocket(pan, p, unix.AF_INET, sock.LocalAddr, uint16(sock.LocalPort), unix.IPPROTO_UDP)
 				break
 			}
 		}
 		for _, sock := range TCP6 {
 			if sock.Inode == s {
-				ad.insertSnapshotedSocket(pan, p, unix.AF_INET6, sock.LocalAddr, uint16(sock.LocalPort))
+				ad.insertSnapshotedSocket(pan, p, unix.AF_INET6, sock.LocalAddr, uint16(sock.LocalPort), unix.IPPROTO_TCP)
 				break
 			}
 		}
 		for _, sock := range UDP6 {
 			if sock.Inode == s {
-				ad.insertSnapshotedSocket(pan, p, unix.AF_INET6, sock.LocalAddr, uint16(sock.LocalPort))
+				ad.insertSnapshotedSocket(pan, p, unix.AF_INET6, sock.LocalAddr, uint16(sock.LocalPort), unix.IPPROTO_UDP)
 				break
 			}
 		}
@@ -1629,8 +1630,9 @@ func NewDNSNode(event *model.DNSEvent, nodeStats *ActivityDumpNodeStats) *DNSNod
 
 // BindNode is used to store a bind node
 type BindNode struct {
-	Port uint16
-	IP   string
+	Port     uint16
+	IP       string
+	Protocol string
 }
 
 // SocketNode is used to store a Socket node and associated events
@@ -1646,17 +1648,19 @@ func (n *SocketNode) InsertBindEvent(evt *model.BindEvent) bool {
 		return false
 	}
 	evtIP := evt.Addr.IPNet.IP.String()
+	evtProto := model.L4Protocol(evt.Protocol).String()
 
 	for _, n := range n.Bind {
-		if evt.Addr.Port == n.Port && evtIP == n.IP {
+		if evt.Addr.Port == n.Port && evtIP == n.IP && evtProto == n.Protocol {
 			return false
 		}
 	}
 
 	// insert bind event now
 	n.Bind = append(n.Bind, &BindNode{
-		Port: evt.Addr.Port,
-		IP:   evtIP,
+		Port:     evt.Addr.Port,
+		IP:       evtIP,
+		Protocol: evtProto,
 	})
 	return true
 }

@@ -387,6 +387,7 @@ A bind was executed
 | `bind.addr.family` | int | Address family |  |
 | `bind.addr.ip` | IP/CIDR | IP address |  |
 | `bind.addr.port` | int | Port number |  |
+| `bind.addr.protocol` | int | Socket protocol |  |
 | `bind.retval` | int | Return value of the syscall | Error Constants |
 
 ### Event `bpf`

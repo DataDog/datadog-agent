@@ -2375,7 +2375,7 @@ func (v IPPortSerializer) MarshalEasyJSON(w *jwriter.Writer) {
 func (v *IPPortSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe19(l, v)
 }
-func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe20(in *jlexer.Lexer, out *IPPortFamilySerializer) {
+func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe20(in *jlexer.Lexer, out *IPPortFamilyProtocolSerializer) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -2400,6 +2400,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe20(in *jl
 			out.IP = string(in.String())
 		case "port":
 			out.Port = uint16(in.Uint16())
+		case "protocol":
+			out.Protocol = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -2410,7 +2412,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe20(in *jl
 		in.Consumed()
 	}
 }
-func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe20(out *jwriter.Writer, in IPPortFamilySerializer) {
+func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe20(out *jwriter.Writer, in IPPortFamilyProtocolSerializer) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -2429,16 +2431,21 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe20(out *j
 		out.RawString(prefix)
 		out.Uint16(uint16(in.Port))
 	}
+	{
+		const prefix string = ",\"protocol\":"
+		out.RawString(prefix)
+		out.String(string(in.Protocol))
+	}
 	out.RawByte('}')
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
-func (v IPPortFamilySerializer) MarshalEasyJSON(w *jwriter.Writer) {
+func (v IPPortFamilyProtocolSerializer) MarshalEasyJSON(w *jwriter.Writer) {
 	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe20(w, v)
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
-func (v *IPPortFamilySerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
+func (v *IPPortFamilyProtocolSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe20(l, v)
 }
 func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe21(in *jlexer.Lexer, out *FileSerializer) {
@@ -4330,7 +4337,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe32(in *jl
 				out.Addr = nil
 			} else {
 				if out.Addr == nil {
-					out.Addr = new(IPPortFamilySerializer)
+					out.Addr = new(IPPortFamilyProtocolSerializer)
 				}
 				(*out.Addr).UnmarshalEasyJSON(in)
 			}

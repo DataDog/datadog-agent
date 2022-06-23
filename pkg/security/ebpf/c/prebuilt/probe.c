@@ -24,6 +24,7 @@
 
 #include "defs.h"
 #include "buffer_selector.h"
+#include "socket.h"
 #include "process.h"
 #include "filters.h"
 #include "activity_dump.h"

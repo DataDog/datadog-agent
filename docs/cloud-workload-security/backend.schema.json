@@ -72,7 +72,7 @@
     "BindEvent": {
       "properties": {
         "addr": {
-          "$ref": "#/$defs/IPPortFamily",
+          "$ref": "#/$defs/IPPortFamilyProtocol",
           "description": "Bound address (if any)"
         }
       },
@@ -420,7 +420,7 @@
       ],
       "description": "IPPortSerializer is used to serialize an IP and Port context to JSON"
     },
-    "IPPortFamily": {
+    "IPPortFamilyProtocol": {
       "properties": {
         "family": {
           "type": "string",
@@ -433,6 +433,10 @@
         "port": {
           "type": "integer",
           "description": "Port number"
+        },
+        "protocol": {
+          "type": "string",
+          "description": "Socket protocol"
         }
       },
       "additionalProperties": false,
@@ -440,9 +444,10 @@
       "required": [
         "family",
         "ip",
-        "port"
+        "port",
+        "protocol"
       ],
-      "description": "IPPortFamilySerializer is used to serialize an IP, port, and address family context to JSON"
+      "description": "IPPortFamilyProtocolSerializer is used to serialize an IP, Port, address family and protocol context to JSON"
     },
     "MMapEvent": {
       "properties": {

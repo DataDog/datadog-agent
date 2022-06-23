@@ -1277,6 +1277,12 @@
           "constants": ""
         },
         {
+          "name": "bind.addr.protocol",
+          "type": "int",
+          "definition": "Socket protocol",
+          "constants": ""
+        },
+        {
           "name": "bind.retval",
           "type": "int",
           "definition": "Return value of the syscall",

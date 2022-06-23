@@ -217,6 +217,7 @@ struct syscall_cache_t {
             u64 addr[2];
             u16 family;
             u16 port;
+            u8 protocol;
         } bind;
 
         struct {

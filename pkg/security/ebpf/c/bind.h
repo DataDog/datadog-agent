@@ -11,6 +11,7 @@ struct bind_event_t {
     u64 addr[2];
     u16 family;
     u16 port;
+    u8 protocol;
 };
 
 SYSCALL_KPROBE3(bind, int, socket, struct sockaddr*, addr, unsigned int, addr_len) {
@@ -48,6 +49,7 @@ int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
         .addr[1] = syscall->bind.addr[1],
         .family = syscall->bind.family,
         .port = syscall->bind.port,
+        .protocol = syscall->bind.protocol,
     };
 
     struct proc_cache_t *entry = fill_process_context(&event.process);

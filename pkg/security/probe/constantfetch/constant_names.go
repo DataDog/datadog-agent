@@ -52,6 +52,8 @@ const (
 	OffsetNameFlowI6StructSADDR         = "flowi6_saddr_offset"
 	OffsetNameFlowI4StructULI           = "flowi4_uli_offset"
 	OffsetNameFlowI6StructULI           = "flowi6_uli_offset"
+	OffsetNameProtoName                 = "proto_name_offset"
+	OffsetNameSockCommonStructSkcProt   = "sock_common_skc_prot_offset"
 
 	// Interpreter constants
 	OffsetNameLinuxBinprmStructFile = "binprm_file_offset"

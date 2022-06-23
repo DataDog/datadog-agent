@@ -30,7 +30,8 @@
                             "required": [
                                 "family",
                                 "ip",
-                                "port"
+                                "port",
+                                "protocol"
                             ],
                             "properties": {
                                 "family": {
@@ -41,6 +42,9 @@
                                 },
                                 "port": {
                                     "type": "integer"
+                                },
+                                "protocol": {
+                                    "type": "string"
                                 }
                             }
                         }

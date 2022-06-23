@@ -1564,6 +1564,8 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI6StructSADDR, "struct flowi6", "saddr", "net/flow.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI6StructULI, "struct flowi6", "uli", "net/flow.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSocketStructSK, "struct socket", "sk", "linux/net.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameProtoName, "struct proto", "name", "net/sock.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSockCommonStructSkcProt, "struct sock_common", "skc_prot", "net/sock.h")
 
 	// Interpreter constants
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmStructFile, "struct linux_binprm", "file", "linux/binfmts.h")
