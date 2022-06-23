@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -24,6 +23,7 @@ import (
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/atomic"
 )
 
 // ErrProcessUnsupported is an error type indicating that the process module is not support in the running environment
@@ -38,7 +38,10 @@ var Process = module.Factory{
 
 		// we disable returning zero values for stats to reduce parsing work on process-agent side
 		p := procutil.NewProcessProbe(procutil.WithReturnZeroPermStats(false))
-		return &process{probe: p}, nil
+		return &process{
+			probe:     p,
+			lastCheck: atomic.NewInt64(0),
+		}, nil
 	},
 }
 
@@ -46,22 +49,22 @@ var _ module.Module = &process{}
 
 type process struct {
 	probe     procutil.Probe
-	lastCheck int64
+	lastCheck *atomic.Int64
 }
 
 // GetStats returns stats for the module
 func (t *process) GetStats() map[string]interface{} {
 	return map[string]interface{}{
-		"last_check": atomic.LoadInt64(&t.lastCheck),
+		"last_check": t.lastCheck.Load(),
 	}
 }
 
 // Register registers endpoints for the module to expose data
 func (t *process) Register(httpMux *module.Router) error {
-	var runCounter uint64
+	runCounter := atomic.NewUint64(0)
 	httpMux.HandleFunc("/stats", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
-		atomic.StoreInt64(&t.lastCheck, start.Unix())
+		t.lastCheck.Store(start.Unix())
 		pids, err := getPids(req)
 		if err != nil {
 			log.Errorf("Unable to get PIDs from request: %s", err)
@@ -79,7 +82,7 @@ func (t *process) Register(httpMux *module.Router) error {
 		marshaler := encoding.GetMarshaler(contentType)
 		writeStats(w, marshaler, stats)
 
-		count := atomic.AddUint64(&runCounter, 1)
+		count := runCounter.Inc()
 		logProcTracerRequests(count, len(stats), start)
 	}).Methods("POST")
 
