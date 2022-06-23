@@ -60,3 +60,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/quantile => ../quantile
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/client => ../remoteconfig/client
 )
+
+// Temporarily downgrade testify to v1.7.2 to work around https://github.com/stretchr/testify/issues/1208
+replace github.com/stretchr/testify => github.com/stretchr/testify v1.7.2

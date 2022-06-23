@@ -32,3 +32,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+// Temporarily downgrade testify to v1.7.2 to work around https://github.com/stretchr/testify/issues/1208
+replace github.com/stretchr/testify => github.com/stretchr/testify v1.7.2
