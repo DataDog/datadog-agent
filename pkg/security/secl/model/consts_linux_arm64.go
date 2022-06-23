@@ -22,5 +22,5 @@ var (
 		"PTRACE_SYSEMU_SINGLESTEP": unix.PTRACE_SYSEMU_SINGLESTEP,
 	}
 
-	mmapFlagArchConstants = map[string]int{}
+	mmapFlagArchConstants = map[string]uint64{}
 )
