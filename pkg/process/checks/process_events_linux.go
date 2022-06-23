@@ -127,6 +127,7 @@ func (e *ProcessEventsCheck) Cleanup() {
 	log.Info("process_events check cleaned up")
 }
 
+// IsCheckCorrectlySetup TODO <processes>
 func (e *ProcessEventsCheck) IsCheckCorrectlySetup() bool {
 	return e.store != nil && e.listener != nil
 }
