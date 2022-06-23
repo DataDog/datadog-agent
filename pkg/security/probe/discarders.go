@@ -152,6 +152,18 @@ type inodeDiscarderEntry struct {
 	Timestamp uint64
 }
 
+type inodeDiscarderParams struct {
+	DiscarderParams discarderParams
+	Revision        uint32
+}
+
+type discarderParams struct {
+	EventMask  uint64
+	Timestamps []uint64
+	ExpireAt   uint64
+	IsRetained uint32
+}
+
 func recentlyAddedIndex(mountID uint32, inode uint64) uint64 {
 	return (uint64(mountID)<<32 | inode) % maxRecentlyAddedCacheSize
 }

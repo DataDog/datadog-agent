@@ -1000,6 +1000,75 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	return p.manager.UpdateActivatedProbes(activatedProbes)
 }
 
+// DumpDiscarders removes all the discarders
+func (p *Probe) DumpDiscarders() (string, error) {
+	log.Debug("Dumping discarders")
+
+	dump, err := os.CreateTemp("/tmp", "discarder-dump-")
+	if err != nil {
+		return "", err
+	}
+	defer dump.Close()
+
+	if err := os.Chmod(dump.Name(), 0400); err != nil {
+		return "", err
+	}
+
+	fmt.Fprintf(dump, "Discarder Dump\n%s\n", time.Now().UTC().String())
+
+	fmt.Fprintf(dump, "\nInode Discarders\n")
+
+	var mapValue [256]byte
+
+	inodeCount := 0
+	var inode inodeDiscarderMapEntry
+	var inodeDiscarderParams inodeDiscarderParams
+
+	mapInfo, err := p.inodeDiscarders.Info()
+	if err != nil {
+		return "", err
+	}
+	log.Infof("%+v", mapInfo)
+
+	for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, unsafe.Pointer(&mapValue[0])); {
+		inodeCount++
+		if inodeCount < 20 {
+			fmt.Fprintf(dump, "%d: %+v\n", inodeCount, inode)
+			fmt.Fprintf(dump, "%d: %+v\n", inodeCount, unsafe.Pointer(&mapValue[0]))
+		}
+	}
+
+	fmt.Fprintf(dump, "\nInode Discarders New Type\n")
+
+	for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, *(*inodeDiscarderParams)(unsafe.Pointer(&mapValue[0])); {
+		inodeCount++
+		if inodeCount < 20 {
+			fmt.Fprintf(dump, "%d: %+v\n", inodeCount, inode)
+			fmt.Fprintf(dump, "%d: %+v\n", inodeCount, inodeDiscarderParams)
+		}
+	}
+
+	fmt.Fprintf(dump, "\nProcess Discarders\n")
+
+	pidCount := 0
+	for pid, entries := uint32(0), p.pidDiscarders.Iterate(); entries.Next(&pid, unsafe.Pointer(&mapValue[0])); {
+		pidCount++
+		fmt.Fprintf(dump, "%d: %+v\n", pidCount, pid)
+		fmt.Fprintf(dump, "%d: %+v\n", pidCount, unsafe.Pointer(&mapValue[0]))
+	}
+
+	discarderCount := inodeCount + pidCount
+	if discarderCount == 0 {
+		log.Infof("No discarders found")
+		return dump.Name(), err
+	}
+
+	log.Debugf("%d discarders found", discarderCount)
+	fmt.Fprintf(dump, "\nEnd Discarder Dump")
+
+	return dump.Name(), err
+}
+
 // FlushDiscarders removes all the discarders
 func (p *Probe) FlushDiscarders() error {
 	log.Debug("Freezing discarders")
