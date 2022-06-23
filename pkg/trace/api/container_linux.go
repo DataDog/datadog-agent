@@ -37,11 +37,12 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 	}
 	file, err := s.File()
 	if err != nil {
+		log.Debugf("Failed to obtain unix socket file: %v\n", err)
 		return ctx
 	}
 	fd := int(file.Fd())
-	acct, err := syscall.GetsockoptUcred(fd, syscall.SOL_SOCKET, syscall.SO_PEERCRED)
-	return context.WithValue(ctx, ucredKey{}, acct)
+	ucred, err := syscall.GetsockoptUcred(fd, syscall.SOL_SOCKET, syscall.SO_PEERCRED)
+	return context.WithValue(ctx, ucredKey{}, ucred)
 }
 
 // getContainerID attempts first to read the container ID set by the client in the request header.
