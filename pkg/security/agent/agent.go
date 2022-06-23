@@ -6,6 +6,8 @@
 package agent
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
@@ -23,21 +25,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // RuntimeSecurityAgent represents the main wrapper for the Runtime Security product
 type RuntimeSecurityAgent struct {
-	hostname      string
-	reporter      common.RawReporter
-	client        *RuntimeSecurityClient
-	running       uatomic.Bool
-	wg            sync.WaitGroup
-	connected     uatomic.Bool
-	eventReceived uint64
-	telemetry     *telemetry
-	endpoints     *config.Endpoints
-	cancel        context.CancelFunc
+	hostname             string
+	reporter             common.RawReporter
+	client               *RuntimeSecurityClient
+	running              uatomic.Bool
+	wg                   sync.WaitGroup
+	connected            uatomic.Bool
+	eventReceived        uint64
+	activityDumpReceived uint64
+	telemetry            *telemetry
+	endpoints            *config.Endpoints
+	cancel               context.CancelFunc
+
+	// activity dump
+	storage *probe.ActivityDumpStorageManager
 }
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
@@ -52,10 +59,16 @@ func NewRuntimeSecurityAgent(hostname string) (*RuntimeSecurityAgent, error) {
 		return nil, errors.Errorf("failed to initialize the telemetry reporter")
 	}
 
+	storage, err := probe.NewSecurityAgentStorageManager()
+	if err != nil {
+		return nil, err
+	}
+
 	return &RuntimeSecurityAgent{
 		client:    client,
 		hostname:  hostname,
 		telemetry: telemetry,
+		storage:   storage,
 	}, nil
 }
 
@@ -69,6 +82,8 @@ func (rsa *RuntimeSecurityAgent) Start(reporter event.Reporter, endpoints *confi
 
 	// Start the system-probe events listener
 	go rsa.StartEventListener()
+	// Start activity dumps listener
+	go rsa.StartActivityDumpListener()
 	// Send Runtime Security Agent telemetry
 	go rsa.telemetry.run(ctx)
 }
@@ -138,6 +153,36 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 	}
 }
 
+// StartActivityDumpListener starts listening for new activity dumps from system-probe
+func (rsa *RuntimeSecurityAgent) StartActivityDumpListener() {
+	rsa.wg.Add(1)
+	defer rsa.wg.Done()
+
+	rsa.running.Store(true)
+	for rsa.running.Load() {
+		stream, err := rsa.client.GetActivityDumpStream()
+		if err != nil {
+			// retry in 2 seconds
+			time.Sleep(2 * time.Second)
+			continue
+		}
+
+		for {
+			// Get new activity dump from stream
+			msg, err := stream.Recv()
+			if err == io.EOF || msg == nil {
+				break
+			}
+			log.Tracef("Got activity dump [%s]", msg.GetDump().GetMetadata().GetName())
+
+			atomic.AddUint64(&rsa.activityDumpReceived, 1)
+
+			// Dispatch activity dump
+			rsa.DispatchActivityDump(msg)
+		}
+	}
+}
+
 // DispatchEvent dispatches a security event message to the subsytems of the runtime security agent
 func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 	if rsa.reporter == nil {
@@ -146,11 +191,48 @@ func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 	rsa.reporter.ReportRaw(evt.GetData(), evt.Service, evt.GetTags()...)
 }
 
+// DispatchActivityDump forwards an activity dump message to the backend
+func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStreamMessage) {
+	// parse dump from message
+	dump, err := probe.NewActivityDumpFromMessage(msg.GetDump())
+	if err != nil {
+		log.Errorf("%v", err)
+		return
+	}
+	raw := bytes.NewBuffer(nil)
+
+	// uncompress if needed
+	if msg.GetIsCompressed() {
+		compressedRaw := bytes.NewBuffer(msg.GetData())
+		gzipReader, err := gzip.NewReader(compressedRaw)
+		if err != nil {
+			log.Errorf("couldn't create gzip reader: %v", err)
+			return
+		}
+		defer gzipReader.Close()
+
+		_, err = io.Copy(raw, gzipReader)
+		if err != nil {
+			log.Errorf("couldn't unzip: %v", err)
+			return
+		}
+	} else {
+		raw = bytes.NewBuffer(msg.GetData())
+	}
+
+	for _, requests := range dump.StorageRequests {
+		if err := rsa.storage.PersistRaw(requests, dump, raw); err != nil {
+			log.Errorf("%v", err)
+		}
+	}
+}
+
 // GetStatus returns the current status on the agent
 func (rsa *RuntimeSecurityAgent) GetStatus() map[string]interface{} {
 	base := map[string]interface{}{
-		"connected":     rsa.connected.Load(),
-		"eventReceived": atomic.LoadUint64(&rsa.eventReceived),
+		"connected":            rsa.connected.Load(),
+		"eventReceived":        atomic.LoadUint64(&rsa.eventReceived),
+		"activityDumpReceived": atomic.LoadUint64(&rsa.activityDumpReceived),
 	}
 
 	if rsa.endpoints != nil {

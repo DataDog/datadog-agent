@@ -11,7 +11,6 @@ package ecs
 import (
 	"context"
 	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -21,22 +20,20 @@ import (
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	v3or4 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/util"
 )
 
 const (
 	collectorID   = "ecs"
 	componentName = "workloadmeta-ecs"
-	expireFreq    = 15 * time.Second
 )
 
 type collector struct {
 	store           workloadmeta.Store
-	expire          *util.Expire
 	metaV1          *v1.Client
 	clusterName     string
 	hasResourceTags bool
 	resourceTags    map[string]resourceTags
+	seen            map[workloadmeta.EntityID]struct{}
 }
 
 type resourceTags struct {
@@ -48,6 +45,7 @@ func init() {
 	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
 		return &collector{
 			resourceTags: make(map[string]resourceTags),
+			seen:         make(map[workloadmeta.EntityID]struct{}),
 		}
 	})
 }
@@ -64,7 +62,6 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	var err error
 
 	c.store = store
-	c.expire = util.NewExpire(expireFreq)
 	c.metaV1, err = ecsmeta.V1()
 	if err != nil {
 		return err
@@ -92,41 +89,14 @@ func (c *collector) Pull(ctx context.Context) error {
 	// immutable: the list of containers in the task changes as containers
 	// don't get added until they actually start running, and killed
 	// containers will get re-created.
-	events := c.parseTasks(ctx, tasks)
+	c.store.Notify(c.parseTasks(ctx, tasks))
 
-	expires := c.expire.ComputeExpires()
-	for _, expired := range expires {
-		if c.hasResourceTags && expired.Kind == workloadmeta.KindECSTask {
-			delete(c.resourceTags, expired.ID)
-		}
-
-		var entity workloadmeta.Entity
-		switch expired.Kind {
-		case workloadmeta.KindECSTask:
-			entity = &workloadmeta.ECSTask{EntityID: expired}
-		case workloadmeta.KindContainer:
-			entity = &workloadmeta.Container{EntityID: expired}
-		default:
-			log.Errorf("cannot handle expired entity of kind %q, skipping", expired.Kind)
-			continue
-		}
-
-		events = append(events, workloadmeta.CollectorEvent{
-			Type:   workloadmeta.EventTypeUnset,
-			Source: workloadmeta.SourceNodeOrchestrator,
-			Entity: entity,
-		})
-	}
-
-	c.store.Notify(events)
-
-	return err
+	return nil
 }
 
 func (c *collector) parseTasks(ctx context.Context, tasks []v1.Task) []workloadmeta.CollectorEvent {
 	events := []workloadmeta.CollectorEvent{}
-
-	now := time.Now()
+	seen := make(map[workloadmeta.EntityID]struct{})
 
 	for _, task := range tasks {
 		// We only want to collect tasks without a STOPPED status.
@@ -139,11 +109,11 @@ func (c *collector) parseTasks(ctx context.Context, tasks []v1.Task) []workloadm
 			ID:   task.Arn,
 		}
 
-		c.expire.Update(entityID, now)
+		seen[entityID] = struct{}{}
 
 		arnParts := strings.Split(task.Arn, "/")
 		taskID := arnParts[len(arnParts)-1]
-		taskContainers, containerEvents := c.parseTaskContainers(task)
+		taskContainers, containerEvents := c.parseTaskContainers(task, seen)
 
 		entity := &workloadmeta.ECSTask{
 			EntityID: entityID,
@@ -171,14 +141,44 @@ func (c *collector) parseTasks(ctx context.Context, tasks []v1.Task) []workloadm
 		})
 	}
 
+	for seenID := range c.seen {
+		if _, ok := seen[seenID]; ok {
+			continue
+		}
+
+		if c.hasResourceTags && seenID.Kind == workloadmeta.KindECSTask {
+			delete(c.resourceTags, seenID.ID)
+		}
+
+		var entity workloadmeta.Entity
+		switch seenID.Kind {
+		case workloadmeta.KindECSTask:
+			entity = &workloadmeta.ECSTask{EntityID: seenID}
+		case workloadmeta.KindContainer:
+			entity = &workloadmeta.Container{EntityID: seenID}
+		default:
+			log.Errorf("cannot handle expired entity of kind %q, skipping", seenID.Kind)
+			continue
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Type:   workloadmeta.EventTypeUnset,
+			Source: workloadmeta.SourceNodeOrchestrator,
+			Entity: entity,
+		})
+	}
+
+	c.seen = seen
+
 	return events
 }
 
-func (c *collector) parseTaskContainers(task v1.Task) ([]workloadmeta.OrchestratorContainer, []workloadmeta.CollectorEvent) {
+func (c *collector) parseTaskContainers(
+	task v1.Task,
+	seen map[workloadmeta.EntityID]struct{},
+) ([]workloadmeta.OrchestratorContainer, []workloadmeta.CollectorEvent) {
 	taskContainers := make([]workloadmeta.OrchestratorContainer, 0, len(task.Containers))
 	events := make([]workloadmeta.CollectorEvent, 0, len(task.Containers))
-
-	now := time.Now()
 
 	for _, container := range task.Containers {
 		containerID := container.DockerID
@@ -191,7 +191,7 @@ func (c *collector) parseTaskContainers(task v1.Task) ([]workloadmeta.Orchestrat
 			ID:   containerID,
 		}
 
-		c.expire.Update(entityID, now)
+		seen[entityID] = struct{}{}
 
 		events = append(events, workloadmeta.CollectorEvent{
 			Source: workloadmeta.SourceNodeOrchestrator,

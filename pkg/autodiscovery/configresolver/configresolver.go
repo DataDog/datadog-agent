@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -463,15 +464,22 @@ func tagsAdder(tags []string) func(interface{}) error {
 					}
 				}
 			}
+
 			for _, t := range tags {
 				tagSet[t] = struct{}{}
 			}
-			typedTree["tags"] = make([]string, len(tagSet))
+
+			allTags := make([]string, len(tagSet))
+
 			i := 0
 			for k := range tagSet {
-				typedTree["tags"].([]string)[i] = k
+				allTags[i] = k
 				i++
 			}
+
+			sort.Strings(allTags)
+
+			typedTree["tags"] = allTags
 		}
 		return nil
 	}

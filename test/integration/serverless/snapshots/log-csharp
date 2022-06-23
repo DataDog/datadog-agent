@@ -1,19 +1,6 @@
 [
   {
     "message": {
-      "message": "",
-      "lambda": {
-        "arn": ""
-      }
-    },
-    "status": "info",
-    "hostname": "",
-    "service": "integration-tests-service",
-    "ddsource": "lambda",
-    "ddtags": ""
-  },
-  {
-    "message": {
       "message": "START RequestId: XXX Version: $LATEST",
       "lambda": {
         "arn": "arn:aws:lambda:eu-west-1:601427279990:function:integration-tests-extension-STAGE-log-csharp",

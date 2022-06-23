@@ -277,7 +277,7 @@ type clusterAgentSuite struct {
 	authTokenPath string
 }
 
-var mockConfig = config.Mock()
+var mockConfig = config.Mock(nil)
 
 const (
 	clusterAgentServiceName = "DATADOG_CLUSTER_AGENT"

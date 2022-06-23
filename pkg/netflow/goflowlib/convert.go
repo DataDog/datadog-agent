@@ -13,7 +13,7 @@ func ConvertFlow(srcFlow *flowpb.FlowMessage, namespace string) *common.Flow {
 		FlowType:        convertFlowType(srcFlow.Type),
 		SamplingRate:    srcFlow.SamplingRate,
 		Direction:       srcFlow.FlowDirection,
-		ExporterAddr:    srcFlow.SamplerAddress,
+		DeviceAddr:      srcFlow.SamplerAddress, // Sampler is renamed to Device since it's a device in most cases
 		StartTimestamp:  srcFlow.TimeFlowStart,
 		EndTimestamp:    srcFlow.TimeFlowEnd,
 		Bytes:           srcFlow.Bytes,
@@ -32,6 +32,7 @@ func ConvertFlow(srcFlow *flowpb.FlowMessage, namespace string) *common.Flow {
 		OutputInterface: srcFlow.OutIf,
 		Tos:             srcFlow.IPTos,
 		NextHop:         srcFlow.NextHop,
+		TCPFlags:        srcFlow.TCPFlags,
 	}
 }
 

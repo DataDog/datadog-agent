@@ -123,7 +123,7 @@ func TestSkipSecretDecrypt(t *testing.T) {
 	mockDecrypt := MockSecretDecrypt{t, makeSharedScenarios()}
 	defer mockDecrypt.install()()
 
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 	cfg.Set("secret_backend_skip_checks", true)
 	defer cfg.Set("secret_backend_skip_checks", false)
 

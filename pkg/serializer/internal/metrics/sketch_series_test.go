@@ -43,13 +43,14 @@ func check(t *testing.T, in metrics.SketchPoint, pb gogen.SketchPayload_Sketch_D
 }
 
 func TestSketchSeriesListMarshal(t *testing.T) {
-	sl := make(SketchSeriesList, 2)
+	sl := metrics.NewSketchesSourceTest()
 
-	for i := range sl {
-		sl[i] = Makeseries(i)
+	for i := 0; i < 2; i++ {
+		sl.Append(Makeseries(i))
 	}
 
-	b, err := sl.Marshal()
+	serializer := SketchSeriesList{SketchesSource: sl}
+	b, err := serializer.Marshal()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,10 +60,10 @@ func TestSketchSeriesListMarshal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	require.Len(t, pl.Sketches, len(sl))
+	require.Len(t, pl.Sketches, int(sl.Count()))
 
 	for i, pb := range pl.Sketches {
-		in := sl[i]
+		in := sl.Get(i)
 		require.Equal(t, Makeseries(i), in, "make sure we don't modify input")
 
 		assert.Equal(t, in.Host, pb.Host)
@@ -82,26 +83,9 @@ func TestSketchSeriesListMarshal(t *testing.T) {
 	}
 }
 
-func TestSketchSeriesListJSONMarshal(t *testing.T) {
-	sl := make(SketchSeriesList, 2)
-
-	for i := range sl {
-		sl[i] = Makeseries(i)
-	}
-
-	json, err := sl.MarshalJSON()
-	assert.NoError(t, err)
-	assert.JSONEq(t, string(json), `{"sketches":[{"metric":"name.0","tags":["a:0","b:0"],"host":"host.0","interval":0,"points":[{"sketch":{"summary":{"Min":0,"Max":0,"Sum":0,"Avg":0,"Cnt":0}},"ts":0},{"sketch":{"summary":{"Min":0,"Max":0,"Sum":0,"Avg":0,"Cnt":1}},"ts":10},{"sketch":{"summary":{"Min":0,"Max":1,"Sum":1,"Avg":0.5,"Cnt":2}},"ts":20},{"sketch":{"summary":{"Min":0,"Max":2,"Sum":3,"Avg":1,"Cnt":3}},"ts":30},{"sketch":{"summary":{"Min":0,"Max":3,"Sum":6,"Avg":1.5,"Cnt":4}},"ts":40}]},{"metric":"name.1","tags":["a:1","b:1"],"host":"host.1","interval":1,"points":[{"sketch":{"summary":{"Min":0,"Max":0,"Sum":0,"Avg":0,"Cnt":0}},"ts":0},{"sketch":{"summary":{"Min":0,"Max":0,"Sum":0,"Avg":0,"Cnt":1}},"ts":10},{"sketch":{"summary":{"Min":0,"Max":1,"Sum":1,"Avg":0.5,"Cnt":2}},"ts":20},{"sketch":{"summary":{"Min":0,"Max":2,"Sum":3,"Avg":1,"Cnt":3}},"ts":30},{"sketch":{"summary":{"Min":0,"Max":3,"Sum":6,"Avg":1.5,"Cnt":4}},"ts":40},{"sketch":{"summary":{"Min":0,"Max":4,"Sum":10,"Avg":2,"Cnt":5}},"ts":50}]}]}`)
-
-	config.Datadog.Set("cmd.check.fullsketches", true)
-	json, err = sl.MarshalJSON()
-	assert.NoError(t, err)
-	assert.JSONEq(t, string(json), `{"sketches":[{"host":"host.0","interval":0,"metric":"name.0","points":[{"bins":"","binsCount":0,"sketch":{"summary":{"Avg":0,"Cnt":0,"Max":0,"Min":0,"Sum":0}},"ts":0},{"bins":"0:1","binsCount":1,"sketch":{"summary":{"Avg":0,"Cnt":1,"Max":0,"Min":0,"Sum":0}},"ts":10},{"bins":"0:1 1338:1","binsCount":2,"sketch":{"summary":{"Avg":0.5,"Cnt":2,"Max":1,"Min":0,"Sum":1}},"ts":20},{"bins":"0:1 1338:1 1383:1","binsCount":3,"sketch":{"summary":{"Avg":1,"Cnt":3,"Max":2,"Min":0,"Sum":3}},"ts":30},{"bins":"0:1 1338:1 1383:1 1409:1","binsCount":4,"sketch":{"summary":{"Avg":1.5,"Cnt":4,"Max":3,"Min":0,"Sum":6}},"ts":40}],"tags":["a:0","b:0"]},{"host":"host.1","interval":1,"metric":"name.1","points":[{"bins":"","binsCount":0,"sketch":{"summary":{"Avg":0,"Cnt":0,"Max":0,"Min":0,"Sum":0}},"ts":0},{"bins":"0:1","binsCount":1,"sketch":{"summary":{"Avg":0,"Cnt":1,"Max":0,"Min":0,"Sum":0}},"ts":10},{"bins":"0:1 1338:1","binsCount":2,"sketch":{"summary":{"Avg":0.5,"Cnt":2,"Max":1,"Min":0,"Sum":1}},"ts":20},{"bins":"0:1 1338:1 1383:1","binsCount":3,"sketch":{"summary":{"Avg":1,"Cnt":3,"Max":2,"Min":0,"Sum":3}},"ts":30},{"bins":"0:1 1338:1 1383:1 1409:1","binsCount":4,"sketch":{"summary":{"Avg":1.5,"Cnt":4,"Max":3,"Min":0,"Sum":6}},"ts":40},{"bins":"0:1 1338:1 1383:1 1409:1 1427:1","binsCount":5,"sketch":{"summary":{"Avg":2,"Cnt":5,"Max":4,"Min":0,"Sum":10}},"ts":50}],"tags":["a:1","b:1"]}]}`)
-}
-
 func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 
-	sl := SketchSeriesList{}
+	sl := SketchSeriesList{SketchesSource: metrics.NewSketchesSourceTest()}
 	payload, _ := sl.Marshal()
 	payloads, err := sl.MarshalSplitCompress(marshaler.DefaultBufferContext())
 
@@ -122,19 +106,20 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 	defer config.Datadog.Set("serializer_max_uncompressed_payload_size", oldSetting)
 	config.Datadog.Set("serializer_max_uncompressed_payload_size", 100)
 
-	sl := make(SketchSeriesList, 2)
+	sl := metrics.NewSketchesSourceTest()
 	// A big item (to be dropped)
-	sl[0] = Makeseries(0)
+	sl.Append(Makeseries(0))
 
 	// A small item (no dropped)
-	sl[1] = metrics.SketchSeries{
+	sl.Append(&metrics.SketchSeries{
 		Name:     "small",
 		Tags:     tagset.CompositeTagsFromSlice([]string{}),
 		Host:     "",
 		Interval: 0,
-	}
+	})
 
-	payloads, err := sl.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	serializer := SketchSeriesList{SketchesSource: sl}
+	payloads, err := serializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
 
 	assert.Nil(t, err)
 
@@ -153,14 +138,17 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 }
 
 func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
-	sl := make(SketchSeriesList, 2)
+	sl := metrics.NewSketchesSourceTest()
 
-	for i := range sl {
-		sl[i] = Makeseries(i)
+	for i := 0; i < 2; i++ {
+		sl.Append(Makeseries(i))
 	}
 
-	payload, _ := sl.Marshal()
-	payloads, err := sl.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	serializer1 := SketchSeriesList{SketchesSource: sl}
+	payload, _ := serializer1.Marshal()
+	sl.Reset()
+	serializer2 := SketchSeriesList{SketchesSource: sl}
+	payloads, err := serializer2.MarshalSplitCompress(marshaler.DefaultBufferContext())
 	require.NoError(t, err)
 
 	reader := bytes.NewReader(*payloads[0])
@@ -175,10 +163,10 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 	err = pl.Unmarshal(decompressed)
 	require.NoError(t, err)
 
-	require.Len(t, pl.Sketches, len(sl))
+	require.Len(t, pl.Sketches, int(sl.Count()))
 
 	for i, pb := range pl.Sketches {
-		in := sl[i]
+		in := sl.Get(i)
 		require.Equal(t, Makeseries(i), in, "make sure we don't modify input")
 
 		assert.Equal(t, in.Host, pb.Host)
@@ -199,13 +187,14 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 	defer config.Datadog.Set("serializer_max_uncompressed_payload_size", oldSetting)
 	config.Datadog.Set("serializer_max_uncompressed_payload_size", 2000)
 
-	sl := make(SketchSeriesList, 20)
+	sl := metrics.NewSketchesSourceTest()
 
-	for i := range sl {
-		sl[i] = Makeseries(i)
+	for i := 0; i < 20; i++ {
+		sl.Append(Makeseries(i))
 	}
 
-	payloads, err := sl.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	serializer := SketchSeriesList{SketchesSource: sl}
+	payloads, err := serializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
 	assert.Nil(t, err)
 
 	recoveredSketches := []gogen.SketchPayload{}
@@ -224,13 +213,13 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 		recoveredCount += len(pl.Sketches)
 	}
 
-	assert.Equal(t, recoveredCount, len(sl))
+	assert.Equal(t, recoveredCount, int(sl.Count()))
 	assert.Greater(t, len(recoveredSketches), 1)
 
 	i := 0
 	for _, pl := range recoveredSketches {
 		for _, pb := range pl.Sketches {
-			in := sl[i]
+			in := sl.Get(i)
 			require.Equal(t, Makeseries(i), in, "make sure we don't modify input")
 
 			assert.Equal(t, in.Host, pb.Host)

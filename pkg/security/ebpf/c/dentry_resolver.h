@@ -112,6 +112,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         .tgid = bpf_get_current_pid_tgid() >> 32,
         .now = bpf_ktime_get_ns(),
     };
+
     // check if we should ignore the normal discarder check because of an activity dump
     fill_activity_dump_discarder_state(ctx, &params);
 

@@ -33,7 +33,7 @@ func TestUDSPassCred(t *testing.T) {
 	defer os.RemoveAll(dir) // clean up
 	socketPath := filepath.Join(dir, "dsd.socket")
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("dogstatsd_socket", socketPath)
 	mockConfig.Set("dogstatsd_origin_detection", true)
 

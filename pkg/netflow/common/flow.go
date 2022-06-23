@@ -12,8 +12,8 @@ type Flow struct {
 	SamplingRate uint64
 	Direction    uint32
 
-	// Exporter information
-	ExporterAddr []byte
+	// Device information
+	DeviceAddr []byte
 
 	// Flow time
 	StartTimestamp uint64 // in seconds
@@ -32,6 +32,9 @@ type Flow struct {
 
 	// Layer 4 protocol
 	IPProtocol uint32 // FLOW KEY
+
+	// Flags
+	TCPFlags uint32 `json:"tcp_flags"`
 
 	// Ports for UDP and TCP
 	SrcPort uint32 // FLOW KEY
@@ -59,7 +62,7 @@ type Flow struct {
 func (f *Flow) AggregationHash() uint64 {
 	h := fnv.New64()
 	h.Write([]byte(f.Namespace))             //nolint:errcheck
-	h.Write(f.ExporterAddr)                  //nolint:errcheck
+	h.Write(f.DeviceAddr)                    //nolint:errcheck
 	h.Write(f.SrcAddr)                       //nolint:errcheck
 	h.Write(f.DstAddr)                       //nolint:errcheck
 	h.Write(Uint32ToBytes(f.SrcPort))        //nolint:errcheck

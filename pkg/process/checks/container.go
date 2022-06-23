@@ -110,6 +110,9 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	return messages, nil
 }
 
+// Cleanup frees any resource held by the ContainerCheck before the agent exits
+func (c *ContainerCheck) Cleanup() {}
+
 // chunkContainers formats and chunks the ctrList into a slice of chunks using a specific number of chunks.
 func chunkContainers(containers []*model.Container, chunks int) [][]*model.Container {
 	perChunk := (len(containers) / chunks) + 1

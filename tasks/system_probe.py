@@ -10,7 +10,7 @@ import tempfile
 from subprocess import check_output
 
 from invoke import task
-from invoke.exceptions import Exit
+from invoke.exceptions import Exit, UnexpectedExit
 
 from .build_tags import get_default_build_tags
 from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
@@ -230,6 +230,11 @@ def kitchen_prepare(ctx, windows=is_windows):
             if os.path.isdir(extra_path):
                 shutil.copytree(extra_path, os.path.join(target_path, extra))
 
+    if os.path.exists("/opt/datadog-agent/embedded/bin/clang-bpf"):
+        shutil.copy("/opt/datadog-agent/embedded/bin/clang-bpf", os.path.join(KITCHEN_ARTIFACT_DIR, ".."))
+    if os.path.exists("/opt/datadog-agent/embedded/bin/llc-bpf"):
+        shutil.copy("/opt/datadog-agent/embedded/bin/llc-bpf", os.path.join(KITCHEN_ARTIFACT_DIR, ".."))
+
 
 @task
 def kitchen_test(ctx, target=None, provider="virtualbox"):
@@ -268,6 +273,42 @@ def kitchen_test(ctx, target=None, provider="virtualbox"):
             env={"KITCHEN_VAGRANT_PROVIDER": provider},
         )
         ctx.run("kitchen test")
+
+
+@task
+def kitchen_genconfig(
+    ctx, ssh_key, platform, osversions, image_size=None, provider="azure", arch=None, azure_sub_id=None
+):
+    if not arch:
+        arch = CURRENT_ARCH
+
+    if arch == "x64":
+        arch = "x86_64"
+    elif arch == "arm64":
+        arch = "arm64"
+    else:
+        raise UnexpectedExit("unsupported arch specified")
+
+    if not image_size and provider == "azure":
+        image_size = "Standard_D2_v2"
+
+    if not image_size:
+        raise UnexpectedExit("Image size must be specified")
+
+    if azure_sub_id is None and provider == "azure":
+        raise Exit("azure subscription id must be specified with --azure-sub-id")
+
+    env = {
+        "KITCHEN_RSA_SSH_KEY_PATH": ssh_key,
+    }
+    if azure_sub_id:
+        env["AZURE_SUBSCRIPTION_ID"] = azure_sub_id
+
+    with ctx.cd(KITCHEN_DIR):
+        ctx.run(
+            f"inv -e kitchen.genconfig --platform={platform} --osversions={osversions} --provider={provider} --arch={arch} --imagesize={image_size} --testfiles=system-probe-test --platformfile=platforms.json",
+            env=env,
+        )
 
 
 @task

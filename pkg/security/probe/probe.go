@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/perf"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"github.com/pkg/errors"
@@ -32,6 +33,7 @@ import (
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	kernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -46,6 +48,11 @@ import (
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// ActivityDumpHandler represents an handler for the activity dumps sent by the probe
+type ActivityDumpHandler interface {
+	HandleActivityDump(dump *api.ActivityDumpStreamMessage)
+}
 
 // EventHandler represents an handler for the events sent by the probe
 type EventHandler interface {
@@ -68,13 +75,17 @@ type Probe struct {
 	cancelFnc      context.CancelFunc
 	wg             sync.WaitGroup
 	// Events section
-	handlers  [model.MaxAllEventType][]EventHandler
-	monitor   *Monitor
-	resolvers *Resolvers
-	event     *Event
-	perfMap   *manager.PerfMap
-	reOrderer *ReOrderer
-	scrubber  *pconfig.DataScrubber
+	handlers   [model.MaxAllEventType][]EventHandler
+	monitor    *Monitor
+	resolvers  *Resolvers
+	event      *Event
+	perfMap    *manager.PerfMap
+	reOrderer  *ReOrderer
+	scrubber   *pconfig.DataScrubber
+	recordPool *RecordPool
+
+	// ActivityDumps section
+	activityDumpHandler ActivityDumpHandler
 
 	// Approvers / discarders section
 	erpc                 *ERPC
@@ -87,6 +98,7 @@ type Probe struct {
 
 	constantOffsets map[string]uint64
 
+	// network section
 	tcProgramsLock sync.RWMutex
 	tcPrograms     map[NetDeviceKey]*manager.Probe
 }
@@ -238,8 +250,9 @@ func (p *Probe) Init() error {
 	}
 
 	p.perfMap.PerfMapOptions = manager.PerfMapOptions{
-		DataHandler: p.reOrderer.HandleEvent,
-		LostHandler: p.handleLostEvents,
+		RecordHandler: p.reOrderer.HandleEvent,
+		LostHandler:   p.handleLostEvents,
+		RecordGetter:  p.recordPool.Get,
 	}
 
 	if os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true" {
@@ -304,6 +317,11 @@ func (p *Probe) Start() {
 	go p.reOrderer.Start(&p.wg)
 }
 
+// AddActivityDumpHandler set the probe activity dump handler
+func (p *Probe) AddActivityDumpHandler(handler ActivityDumpHandler) {
+	p.activityDumpHandler = handler
+}
+
 // AddEventHandler set the probe event handler
 func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler) {
 	p.handlers[eventType] = append(p.handlers[eventType], handler)
@@ -325,6 +343,13 @@ func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manag
 
 	// Process after evaluation because some monitors need the DentryResolver to have been called first.
 	p.monitor.ProcessEvent(event, size, CPU, perfMap)
+}
+
+// DispatchActivityDump sends an activity dump to the probe activity dump handler
+func (p *Probe) DispatchActivityDump(dump *api.ActivityDumpStreamMessage) {
+	if handler := p.activityDumpHandler; handler != nil {
+		handler.HandleActivityDump(dump)
+	}
 }
 
 // DispatchCustomEvent sends a custom event to the probe event handler
@@ -396,9 +421,13 @@ func (p *Probe) invalidateDentry(mountID uint32, inode uint64) {
 	p.resolvers.DentryResolver.DelCacheEntry(mountID, inode)
 }
 
-func (p *Probe) handleEvent(CPU uint64, data []byte) {
+func (p *Probe) handleEvent(record *perf.Record) {
+	defer p.recordPool.Release(record)
+
 	offset := 0
 	event := p.zeroEvent()
+
+	data := record.RawSample
 	dataLen := uint64(len(data))
 
 	read, err := event.UnmarshalBinary(data)
@@ -409,7 +438,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	offset += read
 
 	eventType := event.GetEventType()
-	p.monitor.perfBufferMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, p.perfMap, int(CPU))
+	p.monitor.perfBufferMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, p.perfMap, record.CPU)
 
 	// no need to dispatch events
 	switch eventType {
@@ -628,7 +657,13 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 
 		event.Exec.Process = &event.ProcessCacheEntry.Process
 	case model.ExitEventType:
-		// nothing to do here
+		if _, err = event.Exit.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode exit event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+
+		event.ProcessCacheEntry = event.ResolveProcessCacheEntry()
+		event.Exit.Process = &event.ProcessCacheEntry.Process
 	case model.SetuidEventType:
 		if _, err = event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode setuid event: %s (offset %d, len %d)", err, offset, len(data))
@@ -754,7 +789,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessCacheEntry.Pid, event.ResolveEventTimestamp())
 	}
 
-	p.DispatchEvent(event, dataLen, int(CPU), p.perfMap)
+	p.DispatchEvent(event, dataLen, record.CPU, p.perfMap)
 
 	// flush exited process
 	p.resolvers.ProcessResolver.DequeueExited()
@@ -1066,13 +1101,13 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 }
 
 // NewRuleSet returns a new rule set
-func (p *Probe) NewRuleSet(opts *rules.Opts) *rules.RuleSet {
+func (p *Probe) NewRuleSet(opts *rules.Opts, evalOpts *eval.Opts, macroStore *eval.MacroStore) *rules.RuleSet {
 	eventCtor := func() eval.Event {
 		return NewEvent(p.resolvers, p.scrubber, p)
 	}
 	opts.WithLogger(&seclog.PatternLogger{})
 
-	return rules.NewRuleSet(&Model{probe: p}, eventCtor, opts)
+	return rules.NewRuleSet(&Model{probe: p}, eventCtor, opts, evalOpts, macroStore)
 }
 
 // QueuedNetworkDeviceError is used to indicate that the new network device was queued until its namespace handle is
@@ -1192,6 +1227,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		tcPrograms:           make(map[NetDeviceKey]*manager.Probe),
 		statsdClient:         statsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second), 100),
+		recordPool:           NewRecordPool(),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
