@@ -87,7 +87,7 @@ func (e *ProcessEventsCheck) RealTime() bool { return false }
 
 // Run fetches process lifecycle events that have been stored in-memory since the last check run
 func (e *ProcessEventsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]payload.MessageBody, error) {
-	if !e.IsCheckCorrectlySetup() {
+	if !e.isCheckCorrectlySetup() {
 		return nil, errors.New("the process_events check hasn't been correctly initialized")
 	}
 
@@ -127,7 +127,7 @@ func (e *ProcessEventsCheck) Cleanup() {
 	log.Info("process_events check cleaned up")
 }
 
-func (e *ProcessEventsCheck) IsCheckCorrectlySetup() bool {
+func (e *ProcessEventsCheck) isCheckCorrectlySetup() bool {
 	return e.store != nil && e.listener != nil
 }
 
