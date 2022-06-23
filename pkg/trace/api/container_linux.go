@@ -67,7 +67,7 @@ func getContainerID(req *http.Request) string {
 	}
 	cid, err := collector.GetContainerIDForPID(int(ucred.Pid), cacheDuration)
 	if err != nil {
-		log.Debugf("Could not get credentials from provider: %v\n", err)
+		log.Debugf("Could not get container ID from pid: %d: %v\n", ucred.Pid, err)
 		return ""
 	}
 	return cid
