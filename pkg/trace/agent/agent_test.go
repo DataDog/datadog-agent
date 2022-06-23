@@ -801,12 +801,12 @@ func TestClientComputedStats(t *testing.T) {
 func TestSampling(t *testing.T) {
 	// agentConfig allows the test to customize how the agent is configured.
 	type agentConfig struct {
-		RareSamplerDisabled, errorsSampled, noPrioritySampled bool
+		rareSamplerDisabled, errorsSampled, noPrioritySampled bool
 	}
 	// configureAgent creates a new agent using the provided configuration.
 	configureAgent := func(ac agentConfig) *Agent {
-		cfg := &config.AgentConfig{RareSamplerDisabled: ac.RareSamplerDisabled}
-		sampledCfg := &config.AgentConfig{ExtraSampleRate: 1, TargetTPS: 5, ErrorTPS: 10, RareSamplerDisabled: ac.RareSamplerDisabled}
+		cfg := &config.AgentConfig{RareSamplerDisabled: ac.rareSamplerDisabled}
+		sampledCfg := &config.AgentConfig{ExtraSampleRate: 1, TargetTPS: 5, ErrorTPS: 10, RareSamplerDisabled: ac.rareSamplerDisabled}
 
 		a := &Agent{
 			NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
@@ -860,7 +860,7 @@ func TestSampling(t *testing.T) {
 			},
 		},
 		"prio-unsampled": {
-			agentConfig: agentConfig{RareSamplerDisabled: true},
+			agentConfig: agentConfig{rareSamplerDisabled: true},
 			testCases: []samplingTestCase{
 				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, false), wantSampled: false},
 			},
@@ -921,7 +921,7 @@ func TestSampling(t *testing.T) {
 			},
 		},
 		"rare-sampler-disabled": {
-			agentConfig: agentConfig{RareSamplerDisabled: true},
+			agentConfig: agentConfig{rareSamplerDisabled: true},
 			testCases: []samplingTestCase{
 				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, false), wantSampled: false},
 			},
