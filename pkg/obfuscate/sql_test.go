@@ -1229,7 +1229,7 @@ func TestPGJSONOperators(t *testing.T) {
 			"select * from users where user.custom ?& array [ ? ]",
 		},
 	} {
-		t.Run("PostgreSQL JSON Operator", func(t *testing.T) {
+		t.Run("", func(t *testing.T) {
 			oq, err := NewObfuscator(Config{
 				SQL: SQLConfig{
 					DBMS: DBMSPostgres,

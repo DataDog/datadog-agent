@@ -412,7 +412,7 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				}
 			case '@':
 				if tkn.cfg.DBMS == DBMSPostgres {
-					// Check for the postgres left jsonb contains operator <@
+					// check for JSONContainsLeft (<@)
 					tkn.advance()
 					return JSONContainsLeft, []byte("<@")
 				}
