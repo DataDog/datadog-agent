@@ -302,7 +302,7 @@ var (
 
 	// mmapFlagConstants are the supported flags for the mmap syscall
 	// generate_constants:MMap flags,MMap flags are the supported flags for the mmap syscall.
-	mmapFlagConstants = map[string]int{
+	mmapFlagConstants = map[string]uint64{
 		"MAP_SHARED":          unix.MAP_SHARED,          /* Share changes */
 		"MAP_PRIVATE":         unix.MAP_PRIVATE,         /* Changes are private */
 		"MAP_SHARED_VALIDATE": unix.MAP_SHARED_VALIDATE, /* share + validate extension flags */

@@ -18,8 +18,8 @@ var (
 	ptraceConstants           = map[string]uint32{}
 	ptraceArchConstants       = map[string]uint32{}
 	protConstants             = map[string]int{}
-	mmapFlagConstants         = map[string]int{}
-	mmapFlagArchConstants     = map[string]int{}
+	mmapFlagConstants         = map[string]uint64{}
+	mmapFlagArchConstants     = map[string]uint64{}
 	signalConstants           = map[string]int{}
 	addressFamilyConstants    = map[string]uint16{}
 )
