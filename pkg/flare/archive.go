@@ -603,18 +603,18 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 }
 
 func zipSecrets(tempDir, hostname string) error {
-	var b bytes.Buffer
 
-	writer := bufio.NewWriter(&b)
-	info, err := secrets.GetDebugInfo()
-	if err != nil {
-		fmt.Fprintf(writer, "%s", err)
-	} else {
-		info.Print(writer)
+	fct := func(writer io.Writer) error {
+		info, err := secrets.GetDebugInfo()
+		if err != nil {
+			fmt.Fprintf(writer, "%s", err)
+		} else {
+			info.Print(writer)
+		}
+		return nil
 	}
-	writer.Flush()
 
-	return joinPathAndWriteScrubbedFile(b.Bytes(), tempDir, hostname, "secrets.log")
+	return zipCommandOutput(fct, tempDir, hostname, "secrets.log")
 }
 
 func zipProcessChecks(tempDir, hostname string, getAddressPort func() (url string, err error)) error {
@@ -660,23 +660,20 @@ func zipProcessChecks(tempDir, hostname string, getAddressPort func() (url strin
 }
 
 func zipDiagnose(tempDir, hostname string) error {
-	var b bytes.Buffer
-
-	writer := bufio.NewWriter(&b)
-	diagnose.RunAll(writer) //nolint:errcheck
-	writer.Flush()
-
-	return joinPathAndWriteScrubbedFile(b.Bytes(), tempDir, hostname, "diagnose.log")
+	return zipCommandOutput(diagnose.RunAll, tempDir, hostname, "diagnose.log")
 }
 
 func zipDatadogConnectivity(tempDir, hostname string) error {
-	var b bytes.Buffer
 
-	writer := bufio.NewWriter(&b)
-	connectivity.RunDatadogConnectivityDiagnose(writer, false) //nolint:errcheck
-	writer.Flush()
+	fct := func(w io.Writer) error {
+		return connectivity.RunDatadogConnectivityDiagnose(w, false)
+	}
+	return zipCommandOutput(fct, tempDir, hostname, "connectivity.log")
+}
 
-	return joinPathAndWriteScrubbedFile(b.Bytes(), tempDir, hostname, "connectivity.log")
+func zipCommandOutput(fct func(w io.Writer) error, tempDir, hostname, filename string) error {
+	bytes := functionOutputToBytes(fct)
+	return joinPathAndWriteScrubbedFile(bytes, tempDir, hostname, filename)
 }
 
 func zipReader(r io.Reader, targetDir, filename string) error {
@@ -734,13 +731,11 @@ func zipVersionHistory(tempDir, hostname string) error {
 }
 
 func zipConfigCheck(tempDir, hostname string) error {
-	var b bytes.Buffer
-
-	writer := bufio.NewWriter(&b)
-	GetConfigCheck(writer, true) //nolint:errcheck
-	writer.Flush()
-
-	return writeConfigCheck(tempDir, hostname, b.Bytes())
+	fct := func(w io.Writer) error {
+		return GetConfigCheck(w, true)
+	}
+	bytes := functionOutputToBytes(fct)
+	return writeConfigCheck(tempDir, hostname, bytes)
 }
 
 func writeConfigCheck(tempDir, hostname string, data []byte) error {
@@ -805,12 +800,11 @@ func zipWorkloadList(tempDir, hostname string) error {
 		return err
 	}
 
-	var b bytes.Buffer
-	writer := bufio.NewWriter(&b)
-	workload.Write(writer)
-	_ = writer.Flush()
-
-	return joinPathAndWriteScrubbedFile(b.Bytes(), tempDir, hostname, "workload-list.log")
+	fct := func(w io.Writer) error {
+		workload.Write(w)
+		return nil
+	}
+	return zipCommandOutput(fct, tempDir, hostname, "workload-list.log")
 }
 
 func zipHealth(tempDir, hostname string) error {
@@ -968,6 +962,21 @@ func writeScrubbedFileSafe(filename string, data []byte) error {
 func joinPathAndWriteScrubbedFile(data []byte, pathComponents ...string) error {
 	filename := filepath.Join(pathComponents...)
 	return writeScrubbedFileSafe(filename, data)
+}
+
+// functionOutputToBytes runs a given function and returns its output in a byte array
+// This is used when we want to capture the output of a function that normally prints on a terminal
+func functionOutputToBytes(fct func(writer io.Writer) error) []byte {
+	var buffer bytes.Buffer
+
+	writer := bufio.NewWriter(&buffer)
+	err := fct(writer)
+	if err != nil {
+		fmt.Fprintf(writer, "%s", err)
+	}
+	writer.Flush()
+
+	return buffer.Bytes()
 }
 
 func ensureParentDirsExist(p string) error {
