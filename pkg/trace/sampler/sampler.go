@@ -36,6 +36,16 @@ const (
 
 	// KeyHTTPStatusCode is the key of the http status code in the meta map
 	KeyHTTPStatusCode = "http.status_code"
+
+	// KeySpanSamplingMechanism is the metric key holding a span sampling rule that a span was kept on
+	KeySpanSamplingMechanism = "_dd.span_sampling.mechanism"
+
+	// KeySpanSamplingRuleRate is the metric key containing the configured sampling probability for the span sampling rule.
+	KeySpanSamplingRuleRate = "_dd.span_sampling.rule_rate"
+
+	// KeySpanSamplingMPS is the metric key contains the configured limit for the span sampling rule that the span matched.
+	// If there is no configured limit, then this tag is omitted.
+	KeySpanSamplingMPS = "_dd.span_sampling.max_per_second"
 )
 
 // SamplingPriority is the type encoding a priority sampling decision.

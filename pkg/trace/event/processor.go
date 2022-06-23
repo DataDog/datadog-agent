@@ -6,6 +6,7 @@
 package event
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
@@ -66,16 +67,18 @@ func (p *Processor) Process(root *pb.Span, t *pb.TraceChunk) (numEvents, numExtr
 		}
 
 		numExtracted++
-
-		sampled, epsRate := p.maxEPSSample(span, priority)
-		if !sampled {
-			continue
+		//event analytics tags shouldn't be set on sampled single spans
+		if !(span.Metrics != nil &&
+			span.Metrics[sampler.KeySpanSamplingMechanism] == float64(apmsampling.SpanSamplingRuleMechanism)) {
+			sampled, epsRate := p.maxEPSSample(span, priority)
+			if !sampled {
+				continue
+			}
+			sampler.SetMaxEPSRate(span, epsRate)
+			sampler.SetClientRate(span, clientSampleRate)
+			sampler.SetPreSampleRate(span, preSampleRate)
+			sampler.SetEventExtractionRate(span, extractionRate)
 		}
-
-		sampler.SetMaxEPSRate(span, epsRate)
-		sampler.SetClientRate(span, clientSampleRate)
-		sampler.SetPreSampleRate(span, preSampleRate)
-		sampler.SetEventExtractionRate(span, extractionRate)
 		sampler.SetAnalyzedSpan(span)
 		if t.DroppedTrace {
 			events = append(events, span)
@@ -83,7 +86,7 @@ func (p *Processor) Process(root *pb.Span, t *pb.TraceChunk) (numEvents, numExtr
 		numEvents++
 	}
 	if t.DroppedTrace {
-		// we are not keeping anything out of this trace, except the events
+		// we are not keeping anything out of this trace, except the events and sampled single spans
 		t.Spans = events
 	}
 	return numEvents, numExtracted

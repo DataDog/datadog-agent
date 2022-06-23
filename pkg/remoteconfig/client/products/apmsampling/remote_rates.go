@@ -14,6 +14,11 @@ package apmsampling
 // This list is not exhaustive.
 type SamplingMechanism uint32
 
+const (
+	//todo(shevchenko): move or add other constants
+	SpanSamplingRuleMechanism SamplingMechanism = 8
+)
+
 // TargetTPS contains the targeted traces per second the agent should try to sample for a particular service and env
 type TargetTPS struct {
 	Service string `msgpack:"0"`
