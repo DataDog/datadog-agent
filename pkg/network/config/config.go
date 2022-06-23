@@ -220,12 +220,9 @@ func New() *Config {
 		EnableHTTPSMonitoring:           cfg.GetBool(join(netNS, "enable_https_monitoring")),
 		EnableHTTPHTTPSMonitoringViaETW: cfg.GetBool(join(netNS, "enable_http_https_monitoring_via_etw")),
 		MaxHTTPStatsBuffered:            100000,
-		MaxTrackedHTTPConnections:       cfg.GetInt64(join(netNS, "max_tracked_http_connections")),
-		HTTPNotificationThreshold:       cfg.GetInt64(join(netNS, "http_notification_threshold")),
-		HTTPMaxRequestFragment:          cfg.GetInt64(join(netNS, "http_max_request_fragment")),
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(netNS, "max_tracked_http_connections")),
-		HTTPNotificationThreshold: cfg.GetInt64(join(netNS, "http_notification_threshhold")),
+		HTTPNotificationThreshold: cfg.GetInt64(join(netNS, "http_notification_threshold")),
 		HTTPMaxRequestFragment:    cfg.GetInt64(join(netNS, "http_max_request_fragment")),
 
 		EnableConntrack:              cfg.GetBool(join(spNS, "enable_conntrack")),
@@ -251,7 +248,7 @@ func New() *Config {
 		c.MaxClosedConnectionsBuffered = int(c.MaxTrackedConnections)
 	}
 	if c.HTTPNotificationThreshold >= c.MaxTrackedHTTPConnections {
-		log.Warnf("Notification threshhold set higher than tracked connections.  %d > %d ; resetting to %d",
+		log.Warnf("Notification threshold set higher than tracked connections.  %d > %d ; resetting to %d",
 			c.HTTPNotificationThreshold, c.MaxTrackedHTTPConnections, c.MaxTrackedHTTPConnections/2)
 		c.HTTPNotificationThreshold = c.MaxTrackedHTTPConnections / 2
 	}

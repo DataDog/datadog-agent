@@ -204,6 +204,10 @@ func (tx *FullHttpTransaction) RequestMethod() uint32 {
 	return tx.Txn.RequestMethod
 }
 
+func (tx *FullHttpTransaction) SetRequestMethod(m uint32) {
+	tx.Txn.RequestMethod = m
+}
+
 // --------------------------
 //
 // etwHttpTX interface
@@ -252,6 +256,10 @@ func (tx *etwHttpTX) DstPort() uint16 {
 
 func (tx *etwHttpTX) Method() Method {
 	return Method(tx.Txn.RequestMethod)
+}
+
+func (tx *etwHttpTX) SetRequestMethod(m uint32) {
+	tx.Txn.RequestMethod = m
 }
 
 func (tx *etwHttpTX) StatusCode() uint16 {

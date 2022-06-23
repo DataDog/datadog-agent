@@ -350,7 +350,7 @@ typedef struct _HttpTransactionType {
 #define USERLAND_HTTP_EVENT_NAME L"\\BaseNamedObjects\\DDNPMHttpTxnReadyEvent"
 typedef struct _HttpConfigurationSettings {
     uint64_t    maxTransactions;        // max list of transactions we'll keep
-    uint64_t    notificationThreshhold; // when to signal to retrieve transactions
+    uint64_t    notificationThreshold; // when to signal to retrieve transactions
     uint16_t    maxRequestFragment;     // max length of request fragment
 } HTTP_CONFIGURATION_SETTINGS;
 #pragma pack()

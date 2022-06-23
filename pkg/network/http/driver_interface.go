@@ -40,18 +40,17 @@ type httpDriverInterface struct {
 	dataChannel chan []FullHttpTransaction
 	eventLoopWG sync.WaitGroup
 	closed      bool
-
 	// configuration entries
 	maxTransactions        uint64
-	notificationThreshhold uint64
+	notificationThreshold uint64
 	maxRequestFragment     uint64
 }
 
 func newDriverInterface(c *config.Config, dh driver.Handle) (*httpDriverInterface, error) {
 	d := &httpDriverInterface{
-		maxTransactions:        uint64(c.MaxTrackedHTTPConnections),
-		notificationThreshold:  uint64(c.HTTPNotificationThreshold),
-		maxRequestFragment:     uint64(c.HTTPMaxRequestFragment),
+		maxTransactions:       uint64(c.MaxTrackedHTTPConnections),
+		notificationThreshold: uint64(c.HTTPNotificationThreshold),
+		maxRequestFragment:    uint64(c.HTTPMaxRequestFragment),
 	}
 	err := d.setupHTTPHandle(dh)
 	if err != nil {
@@ -67,9 +66,9 @@ func (di *httpDriverInterface) setupHTTPHandle(dh driver.Handle) error {
 	di.driverHTTPHandle = dh
 	// enable HTTP on this handle
 	settings := driver.HttpConfigurationSettings{
-		MaxTransactions:        di.maxTransactions,
+		MaxTransactions:       di.maxTransactions,
 		NotificationThreshold: di.notificationThreshold,
-		MaxRequestFragment:     uint16(di.maxRequestFragment),
+		MaxRequestFragment:    uint16(di.maxRequestFragment),
 	}
 
 	err := dh.DeviceIoControl(
