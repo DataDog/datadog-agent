@@ -224,9 +224,11 @@ func (d *Decoder) run() {
 			d.framer.Process(data.content)
 
 		case <-d.lineParser.flushChan():
+			log.Debug("Flushing line parser because the flush timeout has been reached.")
 			d.lineParser.flush()
 
 		case <-d.lineHandler.flushChan():
+			log.Debug("Flushing line handler because the flush timeout has been reached.")
 			d.lineHandler.flush()
 		}
 	}
