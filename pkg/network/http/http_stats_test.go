@@ -17,9 +17,9 @@ import (
 
 func TestAddRequest(t *testing.T) {
 	var stats RequestStats
-	stats.AddRequest(400, 10.0, 1)
-	stats.AddRequest(404, 15.0, 2)
-	stats.AddRequest(405, 20.0, 3)
+	stats.AddRequest(400, 10.0, 1, nil)
+	stats.AddRequest(404, 15.0, 2, nil)
+	stats.AddRequest(405, 20.0, 3, nil)
 
 	for i := 100; i <= 500; i += 100 {
 		s := stats.Stats(i)

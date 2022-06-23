@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -38,6 +39,7 @@ type Tracer struct {
 	stopChan        chan struct{}
 	state           network.State
 	reverseDNS      dns.ReverseDNS
+	httpMonitor     http.Monitor
 
 	activeBuffer *network.ConnectionBuffer
 	closedBuffer *network.ConnectionBuffer
@@ -90,6 +92,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		activeBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		closedBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		reverseDNS:      reverseDNS,
+		httpMonitor:     newHttpMonitor(config, di.GetHandle()),
 		sourceExcludes:  network.ParseConnectionFilters(config.ExcludedSourceConnections),
 		destExcludes:    network.ParseConnectionFilters(config.ExcludedDestinationConnections),
 	}
@@ -217,4 +220,27 @@ func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) 
 // DebugHostConntrack is not implemented on this OS for Tracer
 func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
+}
+
+func newHttpMonitor(c *config.Config, dh driver.Handle) http.Monitor {
+	if !c.EnableHTTPMonitoring {
+		log.Infof("http monitoring has been disabled")
+		return http.NewNoOpMonitor()
+	}
+	log.Infof("http monitoring has been enabled")
+
+	var monitor http.Monitor
+	var err error
+
+	if c.EnableHTTPHTTPSMonitoringViaETW {
+		monitor, err = http.NewEtwMonitor(c)
+	} else {
+		monitor, err = http.NewDriverMonitor(c, dh)
+	}
+	if err != nil {
+		log.Errorf("could not instantiate http monitor: %s", err)
+		return http.NewNoOpMonitor()
+	}
+	monitor.Start()
+	return monitor
 }

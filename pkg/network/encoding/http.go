@@ -14,8 +14,9 @@ import (
 )
 
 type httpEncoder struct {
-	aggregations map[http.KeyTuple]*aggregationWrapper
-	tags         map[http.KeyTuple]uint64
+	aggregations   map[http.KeyTuple]*aggregationWrapper
+	staticTags     map[http.KeyTuple]uint64
+	dynamicTagsSet map[http.KeyTuple]map[string]struct{}
 
 	// pre-allocated objects
 	dataPool []model.HTTPStats_Data
@@ -78,8 +79,9 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 	}
 
 	encoder := &httpEncoder{
-		aggregations: make(map[http.KeyTuple]*aggregationWrapper, len(payload.Conns)),
-		tags:         make(map[http.KeyTuple]uint64, len(payload.Conns)),
+		aggregations:   make(map[http.KeyTuple]*aggregationWrapper, len(payload.Conns)),
+		staticTags:     make(map[http.KeyTuple]uint64, len(payload.Conns)),
+		dynamicTagsSet: make(map[http.KeyTuple]map[string]struct{}, len(payload.Conns)),
 
 		// pre-allocate all data objects at once
 		dataPool: make([]model.HTTPStats_Data, len(payload.HTTP)*http.NumStatusClasses),
@@ -97,13 +99,15 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 	return encoder
 }
 
-func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats) (*model.HTTPAggregations, uint64) {
+func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats) (*model.HTTPAggregations, uint64, map[string]struct{}) {
 	if e == nil {
-		return nil, 0
+		return nil, 0, nil
 	}
 
 	keyTuple := network.HTTPKeyTupleFromConn(c)
-	return e.aggregations[keyTuple].ValueFor(c), e.tags[keyTuple]
+	return e.aggregations[keyTuple].ValueFor(c), e.staticTags[keyTuple], e.dynamicTagsSet[keyTuple]
+
+	return nil, 0, nil
 }
 
 func (e *httpEncoder) buildAggregations(payload *network.Connections) {
@@ -136,7 +140,8 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 			StatsByResponseStatus: e.getDataSlice(),
 		}
 
-		tags := e.tags[key.KeyTuple]
+		staticTags := e.staticTags[key.KeyTuple]
+		var dynamicTags map[string]struct{}
 		for i, data := range ms.StatsByResponseStatus {
 			class := (i + 1) * 100
 			if !stats.HasStats(class) {
@@ -152,10 +157,22 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 				data.FirstLatencySample = s.FirstLatencySample
 			}
 
-			tags |= s.Tags
+			staticTags |= s.StaticTags
+
+			// It is a map to aggregate the same tag
+			if len(s.DynamicTags) > 0 {
+				if dynamicTags == nil {
+					dynamicTags = make(map[string]struct{})
+				}
+
+				for _, dynamicTag := range s.DynamicTags {
+					dynamicTags[dynamicTag] = struct{}{}
+				}
+			}
 		}
 
-		e.tags[key.KeyTuple] = tags
+		e.staticTags[key.KeyTuple] = staticTags
+		e.dynamicTagsSet[key.KeyTuple] = dynamicTags
 
 		aggregation.EndpointAggregations = append(aggregation.EndpointAggregations, ms)
 	}

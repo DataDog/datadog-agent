@@ -92,9 +92,9 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	}
 	statkeeper := newHTTPStatkeeper(c, telemetry)
 
-	handler := func(transactions []httpTX) {
+	handler := func(tx httpTX) {
 		if statkeeper != nil {
-			statkeeper.Process(transactions)
+			statkeeper.Process(tx)
 		}
 	}
 
@@ -225,6 +225,7 @@ func (m *Monitor) Stop() {
 	m.eventLoopWG.Wait()
 	m.stopped = true
 }
+
 
 func (m *Monitor) process(transactions []httpTX, err error) {
 	m.telemetry.aggregate(transactions, err)

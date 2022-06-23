@@ -222,10 +222,13 @@ def get_build_flags(
 
     if os.environ.get("DELVE"):
         gcflags = "all=-N -l"
-        if sys.platform == 'win32':
+        # if sys.platform == 'win32':
             # On windows, need to build with the extra argument -ldflags="-linkmode internal"
             # if you want to be able to use the delve debugger.
-            ldflags += "-linkmode internal "
+            #
+            # Currently the presense of "-linkmode internal " actually causes link error which
+            # is contrary to the assertions stated above and the line is temporary commented out.
+            # ldflags += "-linkmode internal "
     elif os.environ.get("NO_GO_OPT"):
         gcflags = "-N -l"
 

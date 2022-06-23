@@ -93,6 +93,7 @@ The payload is a JSON dict with the following fields
     `network_config.enabled` config option in `system-probe.yaml`).
   - `feature_networks_http_enabled` - **bool**: True if HTTP monitoring is enabled for Network Performance Monitoring (see: `network_config.enable_http_monitoring` config option in `system-proble.yaml`).
   - `feature_networks_https_enabled` - **bool**: True if HTTPS monitoring is enabled for Network Performance Monitoring (see: `network_config.enable_https_monitoring` config option in `system-proble.yaml`).
+  - `feature_networks_https_enabled` - **bool**: True if HTTP or HTTPS monitoring on Windows via ETW is enabled for Network Performance Monitoring (see: `network_config.enable_http_https_via_etw_monitoring` config option in `system-proble.yaml`).
   - `feature_logs_enabled` - **bool**: True if the logs collection is enabled (see: `logs_enabled` config option).
   - `feature_cspm_enabled` - **bool**: True if the Cloud Security Posture Management is enabled (see:
     `compliance_config.enabled` config option).

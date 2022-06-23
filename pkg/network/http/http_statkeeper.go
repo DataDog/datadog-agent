@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
-// +build linux_bpf
+//go:build (windows && npm) || linux_bpf
+// +build windows,npm linux_bpf
 
 package http
 
@@ -52,20 +52,24 @@ func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
 func (h *httpStatKeeper) Process(transactions []httpTX) {
 	for i := range transactions {
 		tx := &transactions[i]
-		if tx.Incomplete() {
-			h.incomplete.Add(tx)
+		if (*tx).Incomplete() {
+			h.incomplete.Add(*tx)
 			continue
 		}
 
-		h.add(tx)
+		h.add(*tx)
 	}
 
 	h.telemetry.aggregations.Store(int64(len(h.stats)))
 }
 
+func (h *httpStatKeeper) ProcessCompleted() {
+	h.telemetry.aggregations.Store(int64(len(h.stats)))
+}
+
 func (h *httpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	for _, tx := range h.incomplete.Flush(time.Now()) {
-		h.add(tx)
+		h.add(*tx)
 	}
 
 	ret := h.stats // No deep copy needed since `h.stats` gets reset
@@ -74,8 +78,8 @@ func (h *httpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	return ret
 }
 
-func (h *httpStatKeeper) add(tx *httpTX) {
-	rawPath, fullPath := tx.Path(h.buffer)
+func (h *httpStatKeeper) add(tx httpTX) {
+	rawPath, fullPath := getPath(tx.ReqFragment(), h.buffer)
 	if rawPath == nil {
 		h.telemetry.malformed.Inc()
 		return
@@ -86,7 +90,7 @@ func (h *httpStatKeeper) add(tx *httpTX) {
 		return
 	}
 
-	if Method(tx.request_method) == MethodUnknown {
+	if tx.Method() == MethodUnknown {
 		h.telemetry.malformed.Inc()
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("method should never be unknown: %s", tx.String())
@@ -114,24 +118,24 @@ func (h *httpStatKeeper) add(tx *httpTX) {
 		h.stats[key] = stats
 	}
 
-	stats.AddRequest(tx.StatusClass(), latency, tx.Tags())
+	stats.AddRequest(tx.StatusClass(), latency, tx.StaticTags(), tx.DynamicTags())
 }
 
-func (h *httpStatKeeper) newKey(tx *httpTX, path string, fullPath bool) Key {
+func (h *httpStatKeeper) newKey(tx httpTX, path string, fullPath bool) Key {
 	return Key{
 		KeyTuple: KeyTuple{
-			SrcIPHigh: uint64(tx.tup.saddr_h),
-			SrcIPLow:  uint64(tx.tup.saddr_l),
-			SrcPort:   uint16(tx.tup.sport),
-			DstIPHigh: uint64(tx.tup.daddr_h),
-			DstIPLow:  uint64(tx.tup.daddr_l),
-			DstPort:   uint16(tx.tup.dport),
+			SrcIPHigh: tx.SrcIPHigh(),
+			SrcIPLow:  tx.SrcIPLow(),
+			SrcPort:   tx.SrcPort(),
+			DstIPHigh: tx.DstIPHigh(),
+			DstIPLow:  tx.DstIPLow(),
+			DstPort:   tx.DstPort(),
 		},
 		Path: Path{
 			Content:  path,
 			FullPath: fullPath,
 		},
-		Method: Method(tx.request_method),
+		Method: tx.Method(),
 	}
 }
 
@@ -144,7 +148,7 @@ func pathIsMalformed(fullPath []byte) bool {
 	return false
 }
 
-func (h *httpStatKeeper) processHTTPPath(tx *httpTX, path []byte) (pathStr string, rejected bool) {
+func (h *httpStatKeeper) processHTTPPath(tx httpTX, path []byte) (pathStr string, rejected bool) {
 	match := false
 	for _, r := range h.replaceRules {
 		if r.Re.Match(path) {
@@ -179,4 +183,40 @@ func (h *httpStatKeeper) intern(b []byte) string {
 		h.interned[v] = v
 	}
 	return v
+}
+
+// getPath returns the URL from a request fragment with GET variables excluded.
+// Example:
+// For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
+func getPath(reqFragment, buffer []byte) ([]byte, bool) {
+	// reqFragment might contain a null terminator in the middle
+	reqLen := strlen(reqFragment[:])
+
+	var i, j int
+	for i = 0; i < reqLen && reqFragment[i] != ' '; i++ {
+	}
+
+	i++
+
+	if i >= reqLen || (reqFragment[i] != '/' && reqFragment[i] != '*') {
+		return nil, false
+	}
+
+	for j = i; j < reqLen && reqFragment[j] != ' ' && reqFragment[j] != '?'; j++ {
+	}
+
+	// no bound check necessary here as we know we at least have '/' character
+	n := copy(buffer, reqFragment[i:j])
+	fullPath := j < reqLen || (j == HTTPBufferSize-1 && reqFragment[j] == ' ')
+	return buffer[:n], fullPath
+}
+
+// strlen returns the length of a null-terminated string
+func strlen(str []byte) int {
+	for i := 0; i < len(str); i++ {
+		if str[i] == 0 {
+			return i
+		}
+	}
+	return len(str)
 }

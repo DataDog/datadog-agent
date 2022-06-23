@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
-// +build linux_bpf
+//go:build (windows && npm) || linux_bpf
+// +build windows,npm linux_bpf
 
 package http
 
@@ -48,22 +48,22 @@ func newTelemetry() (*telemetry, error) {
 	return t, nil
 }
 
-func (t *telemetry) aggregate(txs []httpTX, err error) {
-	for _, tx := range txs {
-		switch tx.StatusClass() {
-		case 100:
-			t.hits1XX.Inc()
-		case 200:
-			t.hits2XX.Inc()
-		case 300:
-			t.hits3XX.Inc()
-		case 400:
-			t.hits4XX.Inc()
-		case 500:
-			t.hits5XX.Inc()
-		}
+func (t *telemetry) aggregate(tx httpTX) {
+	switch tx.StatusClass() {
+	case 100:
+		t.hits1XX.Inc()
+	case 200:
+		t.hits2XX.Inc()
+	case 300:
+		t.hits3XX.Inc()
+	case 400:
+		t.hits4XX.Inc()
+	case 500:
+		t.hits5XX.Inc()
 	}
+}
 
+func (t *telemetry) aggregateErr(err error) {
 	if err == errLostBatch {
 		t.misses.Add(int64(HTTPBatchSize))
 	}
