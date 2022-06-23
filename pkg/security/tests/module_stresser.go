@@ -97,7 +97,7 @@ func (s *StressFlag) Parse(usage func()) []string {
 	return []string{s.Path}
 }
 
-// StressReports TODO <agent-security>
+// StressReports represents a map of StressReport
 type StressReports map[string]*StressReport
 
 // StressReport defines a Stresser report

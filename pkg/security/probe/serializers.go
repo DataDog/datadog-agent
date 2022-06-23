@@ -255,7 +255,7 @@ type ProcessContextSerializer struct {
 	Ancestors []*ProcessSerializer `json:"ancestors,omitempty"`
 }
 
-// SELinuxBoolChangeSerializer TODO <agent-security>
+// SELinuxBoolChangeSerializer serializes a SELinux boolean change to JSON
 // easyjson:json
 type SELinuxBoolChangeSerializer struct {
 	// SELinux boolean name
@@ -264,14 +264,14 @@ type SELinuxBoolChangeSerializer struct {
 	State string `json:"state,omitempty"`
 }
 
-// SELinuxEnforceStatusSerializer TODO <agent-security>
+// SELinuxEnforceStatusSerializer serializes a SELinux enforcement status change to JSON
 // easyjson:json
 type SELinuxEnforceStatusSerializer struct {
 	// SELinux enforcement status (one of 'enforcing', 'permissive' or 'disabled')
 	Status string `json:"status,omitempty"`
 }
 
-// SELinuxBoolCommitSerializer TODO <agent-security>
+// SELinuxBoolCommitSerializer serializes a SELinux boolean commit to JSON
 // easyjson:json
 type SELinuxBoolCommitSerializer struct {
 	// SELinux boolean commit operation

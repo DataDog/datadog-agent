@@ -5,7 +5,7 @@
 
 package eval
 
-// MacroStore TODO <agent-security>
+// MacroStore represents a store of SECL Macros
 type MacroStore struct {
 	Macros map[MacroID]*Macro
 }

@@ -147,9 +147,9 @@ var (
 )
 
 const (
-	// HostEnvironment TODO <agent-security>
+	// HostEnvironment for the Host environment
 	HostEnvironment = "host"
-	// DockerEnvironment TODO <agent-security>
+	// DockerEnvironment for the docker container environment
 	DockerEnvironment = "docker"
 )
 
@@ -1343,15 +1343,7 @@ func waitForOpenProbeEvent(test *testModule, action func() error, filename strin
 	return waitForProbeEvent(test, action, "open.file.path", filename, model.FileOpenEventType)
 }
 
-// TestEnv TODO <agent-security>
-func TestEnv(t *testing.T) {
-	if testEnvironment != "" && testEnvironment != HostEnvironment && testEnvironment != DockerEnvironment {
-		t.Error("invalid environment")
-		return
-	}
-}
-
-// TestMain TODO <agent-security>
+// TestMain is the entry points for functional tests
 func TestMain(m *testing.M) {
 	flag.Parse()
 	retCode := m.Run()

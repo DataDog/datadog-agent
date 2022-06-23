@@ -947,7 +947,8 @@ CWS logs have the following JSON schema:
                 }
             },
             "additionalProperties": false,
-            "type": "object"
+            "type": "object",
+            "description": "SELinuxBoolChangeSerializer serializes a SELinux boolean change to JSON"
         },
         "SELinuxBoolCommit": {
             "properties": {
@@ -957,7 +958,8 @@ CWS logs have the following JSON schema:
                 }
             },
             "additionalProperties": false,
-            "type": "object"
+            "type": "object",
+            "description": "SELinuxBoolCommitSerializer serializes a SELinux boolean commit to JSON"
         },
         "SELinuxEnforceStatus": {
             "properties": {
@@ -967,7 +969,8 @@ CWS logs have the following JSON schema:
                 }
             },
             "additionalProperties": false,
-            "type": "object"
+            "type": "object",
+            "description": "SELinuxEnforceStatusSerializer serializes a SELinux enforcement status change to JSON"
         },
         "SELinuxEvent": {
             "properties": {
@@ -2510,7 +2513,8 @@ CWS logs have the following JSON schema:
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "description": "SELinuxBoolChangeSerializer serializes a SELinux boolean change to JSON"
 }
 
 {{< /code-block >}}
@@ -2533,7 +2537,8 @@ CWS logs have the following JSON schema:
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "description": "SELinuxBoolCommitSerializer serializes a SELinux boolean commit to JSON"
 }
 
 {{< /code-block >}}
@@ -2555,7 +2560,8 @@ CWS logs have the following JSON schema:
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "description": "SELinuxEnforceStatusSerializer serializes a SELinux enforcement status change to JSON"
 }
 
 {{< /code-block >}}
