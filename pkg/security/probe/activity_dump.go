@@ -1286,10 +1286,10 @@ type SocketNode struct {
 	id     string
 }
 
-// NB: Today we only add sockets via bind events. When this struct will contains other
-//     events (basically connect, but maybe others?), bind should became optionnal.
 // NewSocketNode returns a new SocketNode instance
 func NewSocketNode(event *model.BindEvent) *SocketNode {
+	// NB: Today we only add sockets via bind events. When this struct will contains other
+	//     events (basically connect, but maybe others?), bind should became optionnal.
 	return &SocketNode{
 		Family: model.AddressFamily(event.AddrFamily).String(),
 		Bind: BindNode{
