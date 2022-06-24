@@ -42,6 +42,7 @@ func TestEmptyUpdate(t *testing.T) {
 	assert.Equal(t, 0, len(state.CachedFiles))
 	assert.EqualValues(t, 0, state.TargetsVersion)
 	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Nil(t, state.OpaqueBackendState)
 }
 
 func TestUpdateNewConfig(t *testing.T) {
@@ -80,6 +81,7 @@ func TestUpdateNewConfig(t *testing.T) {
 	assert.Equal(t, 1, len(state.CachedFiles))
 	assert.EqualValues(t, 1, state.TargetsVersion)
 	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Equal(t, testOpaqueBackendStateContents, state.OpaqueBackendState)
 	configState := state.Configs[0]
 	assert.Equal(t, ProductCWSDD, configState.Product)
 	assert.Equal(t, "test", configState.ID)
@@ -131,6 +133,7 @@ func TestUpdateNewConfigThenRemove(t *testing.T) {
 	assert.Equal(t, 0, len(state.CachedFiles))
 	assert.EqualValues(t, 2, state.TargetsVersion)
 	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Equal(t, testOpaqueBackendStateContents, state.OpaqueBackendState)
 }
 
 func TestUpdateNewConfigThenModify(t *testing.T) {
@@ -181,6 +184,7 @@ func TestUpdateNewConfigThenModify(t *testing.T) {
 	assert.Equal(t, 1, len(state.CachedFiles))
 	assert.EqualValues(t, 2, state.TargetsVersion)
 	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Equal(t, testOpaqueBackendStateContents, state.OpaqueBackendState)
 	configState := state.Configs[0]
 	assert.Equal(t, ProductCWSDD, configState.Product)
 	assert.Equal(t, "test", configState.ID)
@@ -216,6 +220,7 @@ func TestUpdateWithIncorrectlySignedTargets(t *testing.T) {
 	assert.Equal(t, 0, len(state.CachedFiles))
 	assert.EqualValues(t, 0, state.TargetsVersion)
 	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Nil(t, state.OpaqueBackendState)
 }
 
 func TestUpdateWithMalformedTargets(t *testing.T) {
@@ -239,6 +244,7 @@ func TestUpdateWithMalformedTargets(t *testing.T) {
 	assert.Equal(t, 0, len(state.CachedFiles))
 	assert.EqualValues(t, 0, state.TargetsVersion)
 	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Nil(t, state.OpaqueBackendState)
 }
 
 func TestUpdateWithMalformedExtraRoot(t *testing.T) {
@@ -263,6 +269,7 @@ func TestUpdateWithMalformedExtraRoot(t *testing.T) {
 	assert.Equal(t, 0, len(state.CachedFiles))
 	assert.EqualValues(t, 0, state.TargetsVersion)
 	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Nil(t, state.OpaqueBackendState)
 }
 
 func TestUpdateWithNewRoot(t *testing.T) {
@@ -306,6 +313,7 @@ func TestUpdateWithNewRoot(t *testing.T) {
 	assert.Equal(t, 1, len(state.CachedFiles))
 	assert.EqualValues(t, 1, state.TargetsVersion)
 	assert.EqualValues(t, 2, state.RootsVersion)
+	assert.Equal(t, testOpaqueBackendStateContents, state.OpaqueBackendState)
 	configState := state.Configs[0]
 	assert.Equal(t, ProductCWSDD, configState.Product)
 	assert.Equal(t, "test", configState.ID)
@@ -342,6 +350,7 @@ func TestClientOnlyTakesActionOnFilesInClientConfig(t *testing.T) {
 	assert.Equal(t, 0, len(state.CachedFiles))
 	assert.EqualValues(t, 1, state.TargetsVersion)
 	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Equal(t, testOpaqueBackendStateContents, state.OpaqueBackendState)
 }
 
 func TestUpdateWithTwoProducts(t *testing.T) {
@@ -393,6 +402,7 @@ func TestUpdateWithTwoProducts(t *testing.T) {
 	assert.Equal(t, 2, len(state.CachedFiles))
 	assert.EqualValues(t, 1, state.TargetsVersion)
 	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Equal(t, testOpaqueBackendStateContents, state.OpaqueBackendState)
 
 	expectedConfigStateCWSDD := ConfigState{
 		Product: ProductCWSDD,

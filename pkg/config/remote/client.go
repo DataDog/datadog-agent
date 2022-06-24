@@ -258,11 +258,12 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 	req := &pbgo.ClientGetConfigsRequest{
 		Client: &pbgo.Client{
 			State: &pbgo.ClientState{
-				RootVersion:    uint64(state.RootsVersion),
-				TargetsVersion: uint64(state.TargetsVersion),
-				ConfigStates:   pbConfigState,
-				HasError:       hasError,
-				Error:          errMsg,
+				RootVersion:        uint64(state.RootsVersion),
+				TargetsVersion:     uint64(state.TargetsVersion),
+				ConfigStates:       pbConfigState,
+				HasError:           hasError,
+				Error:              errMsg,
+				BackendClientState: state.OpaqueBackendState,
 			},
 			Id:       c.ID,
 			Products: c.products,
