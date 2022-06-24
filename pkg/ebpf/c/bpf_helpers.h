@@ -37,7 +37,6 @@ static int (*bpf_map_update_elem)(void* map, void* key, void* value,
     = (void*)BPF_FUNC_map_update_elem;
 static int (*bpf_map_delete_elem)(void* map, void* key) = (void*)BPF_FUNC_map_delete_elem;
 static int (*bpf_probe_read)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read;
-//#define bpf_probe_read(dst, size, unsafe_ptr) __call_explicitly_bpf_probe_read_user_or_bpf_probe_read_kernel_loader_will_fix_the_call
 static unsigned long long (*bpf_ktime_get_ns)(void) = (void*)BPF_FUNC_ktime_get_ns;
 static int (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*)BPF_FUNC_trace_printk;
 static unsigned long long (*bpf_get_smp_processor_id)(void) = (void*)BPF_FUNC_get_smp_processor_id;
