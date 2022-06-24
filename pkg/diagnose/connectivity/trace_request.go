@@ -119,9 +119,8 @@ func createEndpointURL(domain string, endpointInfo endpointInfo) string {
 func verifyEndpointResponse(writer io.Writer, statusCode int, responseBody []byte, err error) {
 
 	if err != nil {
-		fmt.Fprintf(writer, "could not get a response from the endpoint : %v\n", scrubber.ScrubLine(err.Error()))
+		fmt.Fprintf(writer, "could not get a response from the endpoint : %v ====> %v\n", scrubber.ScrubLine(err.Error()), color.RedString("FAIL"))
 		noResponseHints(writer, err)
-		fmt.Fprintf(writer, "Could not get a valid response from the backend ====> %v\n", color.RedString("FAIL"))
 		return
 	}
 
