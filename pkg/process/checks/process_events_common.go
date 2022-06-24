@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// FmtProcessEvents formats process lifecyle events to be sent in an agent payload
 func FmtProcessEvents(events []*model.ProcessEvent) []*payload.ProcessEvent {
 	payloadEvents := make([]*payload.ProcessEvent, 0, len(events))
 

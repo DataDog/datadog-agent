@@ -327,6 +327,7 @@ func humanFormatProcessDiscovery(msgs []model.MessageBody, w io.Writer) error {
 	)
 }
 
+// HumanFormatProcessEvents takes the messages produced by a process_events run and outputs them in a human-readable format
 func HumanFormatProcessEvents(msgs []model.MessageBody, w io.Writer, checkOutput bool) error {
 	// ProcessEvent's TypedEvent is an interface
 	// As text/template does not cast an interface to the underlying concrete type, we need to perform the cast before
