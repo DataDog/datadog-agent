@@ -24,7 +24,7 @@ const (
 
 	minProcEntries          = 16394
 	maxProcEntries          = 131072
-	maxEventsRingBufferSize = 64 * 1024 * 1024 // 64 MB
+	maxEventsRingBufferSize = 16 * 1024 // 16384 pages
 )
 
 var (
@@ -39,7 +39,7 @@ var (
 )
 
 func init() {
-	if EventsRingBufferSize = 4096 * os.Getpagesize() * runtime.NumCPU(); EventsRingBufferSize > maxEventsRingBufferSize {
+	if EventsRingBufferSize = runtime.NumCPU() * 1024; EventsRingBufferSize > maxEventsRingBufferSize {
 		EventsPerfRingBufferSize = maxEventsRingBufferSize
 	}
 }
