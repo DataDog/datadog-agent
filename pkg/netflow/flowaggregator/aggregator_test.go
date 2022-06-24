@@ -79,7 +79,8 @@ func TestAggregator(t *testing.T) {
   "ether_type": "IPv4",
   "ip_protocol": "TCP",
   "device": {
-    "ip": "127.0.0.1"
+    "ip": "127.0.0.1",
+    "namespace": "my-ns"
   },
   "source": {
     "ip": "10.10.10.10",
@@ -103,7 +104,6 @@ func TestAggregator(t *testing.T) {
       "index": 0
     }
   },
-  "namespace": "my-ns",
   "host": "my-hostname",
   "tcp_flags": [
     "FIN",
