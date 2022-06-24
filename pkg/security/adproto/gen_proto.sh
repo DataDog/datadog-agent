@@ -6,4 +6,7 @@ set -euxo pipefail
 protoc -I. \
     --go_out=paths=source_relative:. \
     --go-vtproto_out=. --plugin protoc-gen-go-vtproto="${GOPATH}/bin/protoc-gen-go-vtproto" \
+    --go-vtproto_opt=features=pool+marshal+size \
+    --go-vtproto_opt=pool=pkg/security/adproto.ProcessActivityNode \
+    --go-vtproto_opt=pool=pkg/security/adproto.FileActivityNode \
     pkg/security/adproto/activity_dump.proto
