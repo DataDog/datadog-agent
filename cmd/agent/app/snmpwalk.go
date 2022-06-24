@@ -66,7 +66,7 @@ var (
 	msgFlags      gosnmp.SnmpV3MsgFlags
 	securityLevel string
 
-	// TODO: communication
+	// communication
 	retries int
 	timeout int
 
@@ -126,11 +126,25 @@ var snmpwalkCmd = &cobra.Command{
 			deviceIP = address[:strings.Index(address, ":")]
 			value, _ = strconv.ParseUint(address[strings.Index(address, ":")+1:], 0, 16)
 			port = uint16(value)
+			if port == 0 {
+				port = defaultPort
+			}
 		} else {
 			deviceIP = address
 			port = defaultPort
 		}
-		// authentication check
+
+		// Communication options check
+		if timeout == 0 {
+			fmt.Printf("Timeout can not be 0")
+			os.Exit(1)
+		}
+		if retries == 0 {
+			fmt.Printf("The number of retries can not be 0")
+			os.Exit(1)
+		}
+
+		// Authentication check
 		if communityString == "" && user == "" {
 			fmt.Printf("No authentication mechanism specified")
 			os.Exit(1)
@@ -211,17 +225,6 @@ var snmpwalkCmd = &cobra.Command{
 				fmt.Printf("Unsupported security level: %s", securityLevel)
 				os.Exit(1)
 			}
-		}
-
-		// Set the default values
-		if port == 0 {
-			port = defaultPort
-		}
-		if timeout == 0 {
-			timeout = defaultTimeout
-		}
-		if retries == 0 {
-			retries = defaultRetries
 		}
 
 		// Set SNMP parameters
