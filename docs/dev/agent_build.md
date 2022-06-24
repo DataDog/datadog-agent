@@ -51,7 +51,7 @@ We use `pkg-config` to make compilers and linkers aware of Python. If you need
 to adjust the build for your specific configuration, add or edit the files within
 the `pkg-config` folder.
 
-The Agent is actually made up of several binaries, each with its own invoke task to build it:
+The Agent is comprised of several binaries, each with its own invoke task to build it:
 - The 'main' Agent: https://github.com/DataDog/datadog-agent/blob/main/tasks/agent.py
 - The process Agent: https://github.com/DataDog/datadog-agent/blob/main/tasks/process_agent.py
 - The trace Agent: https://github.com/DataDog/datadog-agent/blob/main/tasks/trace_agent.py
