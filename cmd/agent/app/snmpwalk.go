@@ -36,7 +36,7 @@ const (
 	defaultSecurityLevel = ""
 
 	// general communication options
-	defaultTimeout = 5
+	defaultTimeout = 10 // Timeout better suited to walking
 	defaultRetries = 3
 )
 
@@ -217,7 +217,6 @@ var snmpwalkCmd = &cobra.Command{
 				os.Exit(1)
 			}
 		}
-
 		// Set SNMP parameters
 		snmp = gosnmp.GoSNMP{
 			Target:    deviceIP,
@@ -225,7 +224,7 @@ var snmpwalkCmd = &cobra.Command{
 			Community: communityString,
 			Transport: "udp",
 			Version:   setVersion,
-			Timeout:   time.Duration(10 * time.Second), // Timeout better suited to walking
+			Timeout:   time.Duration(timeout * int(time.Second)),
 			Retries:   retries,
 			// v3
 			SecurityModel: gosnmp.UserSecurityModel,
