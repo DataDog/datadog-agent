@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -63,7 +64,7 @@ func makeTestPod() *workloadmeta.KubernetesPod {
 func TestMakeFileSource_docker_success(t *testing.T) {
 	fileTestSetup(t)
 
-	p := path.Join(dockerLogsBasePath, "containers/abc/abc-json.log")
+	p := filepath.FromSlash(path.Join(dockerLogsBasePath, "containers/abc/abc-json.log"))
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
 	require.NoError(t, ioutil.WriteFile(p, []byte("{}"), 0o666))
 
@@ -92,7 +93,7 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 func TestMakeFileSource_docker_no_file(t *testing.T) {
 	fileTestSetup(t)
 
-	p := path.Join(dockerLogsBasePath, "containers/abc/abc-json.log")
+	p := filepath.FromSlash(path.Join(dockerLogsBasePath, "containers/abc/abc-json.log"))
 
 	tf := &factory{
 		pipelineProvider: pipeline.NewMockProvider(),
@@ -107,13 +108,16 @@ func TestMakeFileSource_docker_no_file(t *testing.T) {
 	child, err := tf.makeFileSource(source)
 	require.Nil(t, child)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), p) // error is about the path
+
+	// error is about the path - Windows returns a different error than *nix
+	require.True(t, strings.Contains(err.Error(), p) || strings.Contains(err.Error(), "The system cannot find the path specified."))
 }
 
 func TestMakeK8sSource(t *testing.T) {
 	fileTestSetup(t)
 
-	p := path.Join(podLogsBasePath, "podns_podname_poduuid/cname/*.log")
+	expectedPath := filepath.FromSlash(path.Join(podLogsBasePath, "podns_podname_poduuid/cname/*.log"))
+	p := filepath.FromSlash(path.Join(podLogsBasePath, "podns_podname_poduuid/cname/abc-json.log"))
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
 	require.NoError(t, ioutil.WriteFile(p, []byte("{}"), 0o666))
 
@@ -137,7 +141,7 @@ func TestMakeK8sSource(t *testing.T) {
 	require.Equal(t, "podns/podname/cname", child.Name)
 	require.Equal(t, "file", child.Config.Type)
 	require.Equal(t, "abc", child.Config.Identifier)
-	require.Equal(t, p, child.Config.Path)
+	require.Equal(t, expectedPath, child.Config.Path)
 	require.Equal(t, "src", child.Config.Source)
 	require.Equal(t, "svc", child.Config.Service)
 	require.Equal(t, []string{"tag!"}, child.Config.Tags)
@@ -184,7 +188,7 @@ func TestFindK8sLogPath(t *testing.T) {
 			}()
 
 			gotPattern := findK8sLogPath(makeTestPod(), "cname")
-			require.Equal(t, path.Join(podLogsBasePath, test.expectedPattern), gotPattern)
+			require.Equal(t, filepath.FromSlash(path.Join(podLogsBasePath, test.expectedPattern)), gotPattern)
 		})
 	}
 }
