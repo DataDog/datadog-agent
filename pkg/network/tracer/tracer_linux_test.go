@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -42,10 +43,23 @@ import (
 	vnetns "github.com/vishvananda/netns"
 )
 
+func runningOnARM() bool {
+	return strings.HasPrefix(runtime.GOARCH, "arm")
+}
+
 func httpSupported(t *testing.T) bool {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	return currKernelVersion >= kernel.VersionCode(4, 1, 0)
+}
+
+func httpsSupported(t *testing.T) bool {
+	currKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if runningOnARM() {
+		return currKernelVersion >= kernel.VersionCode(5, 5, 0)
+	}
+	return httpSupported(t)
 }
 
 func TestTCPRemoveEntries(t *testing.T) {

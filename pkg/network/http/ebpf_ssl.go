@@ -20,6 +20,8 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 )
@@ -27,6 +29,8 @@ import (
 var openSSLProbes = map[string]string{
 	"uprobe/SSL_do_handshake":    "uprobe__SSL_do_handshake",
 	"uretprobe/SSL_do_handshake": "uretprobe__SSL_do_handshake",
+	"uprobe/SSL_connect":         "uprobe__SSL_connect",
+	"uretprobe/SSL_connect":      "uretprobe__SSL_connect",
 	"uprobe/SSL_set_bio":         "uprobe__SSL_set_bio",
 	"uprobe/SSL_set_fd":          "uprobe__SSL_set_fd",
 	"uprobe/SSL_read":            "uprobe__SSL_read",
@@ -56,8 +60,10 @@ const (
 	sharedLibrariesPerfMap = "shared_libraries"
 
 	// probe used for streaming shared library events
-	doSysOpen    = "kprobe/do_sys_open"
-	doSysOpenRet = "kretprobe/do_sys_open"
+	doSysOpen       = "kprobe/do_sys_open"
+	doSysOpenRet    = "kretprobe/do_sys_open"
+	doSysOpenAt2    = "kprobe/do_sys_openat2"
+	doSysOpenAt2Ret = "kretprobe/do_sys_openat2"
 )
 
 type sslProgram struct {
@@ -89,27 +95,44 @@ func (o *sslProgram) ConfigureManager(m *manager.Manager) {
 
 	o.manager = m
 
-	if !runningOnARM() {
-		m.PerfMaps = append(m.PerfMaps, &manager.PerfMap{
-			Map: manager.Map{Name: sharedLibrariesPerfMap},
-			PerfMapOptions: manager.PerfMapOptions{
-				PerfRingBufferSize: 8 * os.Getpagesize(),
-				Watermark:          1,
-				RecordHandler:      o.perfHandler.RecordHandler,
-				LostHandler:        o.perfHandler.LostHandler,
-				RecordGetter:       o.perfHandler.RecordGetter,
-			},
-		})
+	if !o.httpsSupported() {
+		return
+	}
 
+	m.PerfMaps = append(m.PerfMaps, &manager.PerfMap{
+		Map: manager.Map{Name: sharedLibrariesPerfMap},
+		PerfMapOptions: manager.PerfMapOptions{
+			PerfRingBufferSize: 8 * os.Getpagesize(),
+			Watermark:          1,
+			RecordHandler:      o.perfHandler.RecordHandler,
+			LostHandler:        o.perfHandler.LostHandler,
+			RecordGetter:       o.perfHandler.RecordGetter,
+		},
+	})
+
+	m.Probes = append(m.Probes,
+		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			EBPFSection:  doSysOpen,
+			EBPFFuncName: "kprobe__do_sys_open",
+			UID:          probeUID,
+		}, KProbeMaxActive: maxActive},
+		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			EBPFSection:  doSysOpenRet,
+			EBPFFuncName: "kretprobe__do_sys_open",
+			UID:          probeUID,
+		}, KProbeMaxActive: maxActive},
+	)
+
+	if runningOnARM() {
 		m.Probes = append(m.Probes,
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  doSysOpen,
-				EBPFFuncName: "kprobe__do_sys_open",
+				EBPFSection:  doSysOpenAt2,
+				EBPFFuncName: "kprobe__do_sys_openat2",
 				UID:          probeUID,
 			}, KProbeMaxActive: maxActive},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  doSysOpenRet,
-				EBPFFuncName: "kretprobe__do_sys_open",
+				EBPFSection:  doSysOpenAt2Ret,
+				EBPFFuncName: "kretprobe__do_sys_openat2",
 				UID:          probeUID,
 			}, KProbeMaxActive: maxActive},
 		)
@@ -121,25 +144,46 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 		return
 	}
 
+	if !o.httpsSupported() {
+		return
+	}
+
 	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
 		MaxEntries: uint32(o.cfg.MaxTrackedConnections),
 		EditorFlag: manager.EditMaxEntries,
 	}
 
-	if !runningOnARM() {
+	options.ActivatedProbes = append(options.ActivatedProbes,
+		&manager.ProbeSelector{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  doSysOpen,
+				EBPFFuncName: "kprobe__do_sys_open",
+				UID:          probeUID,
+			},
+		},
+		&manager.ProbeSelector{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  doSysOpenRet,
+				EBPFFuncName: "kretprobe__do_sys_open",
+				UID:          probeUID,
+			},
+		},
+	)
+
+	if runningOnARM() {
 		options.ActivatedProbes = append(options.ActivatedProbes,
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  doSysOpen,
-					EBPFFuncName: "kprobe__do_sys_open",
+					EBPFSection:  doSysOpenAt2,
+					EBPFFuncName: "kprobe__do_sys_openat2",
 					UID:          probeUID,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  doSysOpenRet,
-					EBPFFuncName: "kretprobe__do_sys_open",
+					EBPFSection:  doSysOpenAt2Ret,
+					EBPFFuncName: "kretprobe__do_sys_openat2",
 					UID:          probeUID,
 				},
 			},
@@ -255,10 +299,6 @@ func removeHooks(m *manager.Manager, probes map[string]string) func(string) erro
 	}
 }
 
-func runningOnARM() bool {
-	return strings.HasPrefix(runtime.GOARCH, "arm")
-}
-
 func getUID(libPath string) string {
 	sum := murmur3.StringSum64(libPath)
 	hash := strconv.FormatInt(int64(sum), 16)
@@ -267,4 +307,23 @@ func getUID(libPath string) string {
 	}
 
 	return libPath
+}
+
+func runningOnARM() bool {
+	return strings.HasPrefix(runtime.GOARCH, "arm")
+}
+
+// We only support ARM with kernel >= 5.5.0 and with runtime compilation enabled
+func (o *sslProgram) httpsSupported() bool {
+	if !runningOnARM() {
+		return true
+	}
+
+	kversion, err := kernel.HostVersion()
+	if err != nil {
+		log.Warn("could not determine the current kernel version. https monitoring disabled.")
+		return false
+	}
+
+	return kversion >= kernel.VersionCode(5, 5, 0)
 }
