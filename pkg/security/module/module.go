@@ -143,7 +143,9 @@ func (m *Module) Start() error {
 		return err
 	}
 
-	m.probe.Start()
+	if err := m.probe.Start(); err != nil {
+		return err
+	}
 
 	// runtime security is disabled but might be used by other component like process
 	if !m.config.IsEnabled() {

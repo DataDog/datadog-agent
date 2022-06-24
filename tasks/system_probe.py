@@ -60,6 +60,7 @@ def build(
     nikos_embedded_path=None,
     bundle_ebpf=False,
     parallel_build=True,
+    kernel_release=None,
 ):
     """
     Build the system_probe
@@ -82,7 +83,7 @@ def build(
         )
     elif compile_ebpf:
         # Only build ebpf files on unix
-        build_object_files(ctx, parallel_build=parallel_build)
+        build_object_files(ctx, parallel_build=parallel_build, kernel_release=kernel_release)
 
     generate_cgo_types(ctx, windows=windows)
     ldflags, gcflags, env = get_build_flags(
@@ -443,18 +444,21 @@ def get_ebpf_targets():
     return files
 
 
-def get_linux_header_dirs():
-    os_info = os.uname()
+def get_linux_header_dirs(kernel_release=None):
+    if not kernel_release:
+        os_info = os.uname()
+        kernel_release = os_info.release
+
     centos_headers_dir = "/usr/src/kernels"
     debian_headers_dir = "/usr/src"
     linux_headers = []
     if os.path.isdir(centos_headers_dir):
         for d in os.listdir(centos_headers_dir):
-            if os_info.release in d:
+            if kernel_release in d:
                 linux_headers.append(os.path.join(centos_headers_dir, d))
     else:
         for d in os.listdir(debian_headers_dir):
-            if d.startswith("linux-") and os_info.release in d:
+            if d.startswith("linux-") and kernel_release in d:
                 linux_headers.append(os.path.join(debian_headers_dir, d))
 
     # fallback to non-filtered version for Docker where `uname -r` is not correct
@@ -506,7 +510,7 @@ def get_linux_header_dirs():
     return dirs
 
 
-def get_ebpf_build_flags(target=None):
+def get_ebpf_build_flags(target=None, kernel_release=None):
     bpf_dir = os.path.join(".", "pkg", "ebpf")
     c_dir = os.path.join(bpf_dir, "c")
     if not target:
@@ -539,7 +543,7 @@ def get_ebpf_build_flags(target=None):
         ]
     )
 
-    header_dirs = get_linux_header_dirs()
+    header_dirs = get_linux_header_dirs(kernel_release=kernel_release)
     for d in header_dirs:
         flags.extend(["-isystem", d])
 
@@ -648,14 +652,14 @@ def build_network_ebpf_files(ctx, build_dir, parallel_build=True):
         promise.join()
 
 
-def build_security_offset_guesser_ebpf_files(ctx, build_dir):
+def build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=None):
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
     security_c_file = os.path.join(security_agent_prebuilt_dir, "offset-guesser.c")
     security_bc_file = os.path.join(build_dir, "runtime-security-offset-guesser.bc")
     security_agent_obj_file = os.path.join(build_dir, "runtime-security-offset-guesser.o")
 
-    security_flags = get_ebpf_build_flags()
+    security_flags = get_ebpf_build_flags(kernel_release=kernel_release)
     security_flags.append(f"-I{security_agent_c_dir}")
 
     ctx.run(
@@ -670,14 +674,14 @@ def build_security_offset_guesser_ebpf_files(ctx, build_dir):
     )
 
 
-def build_security_probe_ebpf_files(ctx, build_dir, parallel_build=True):
+def build_security_probe_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None):
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
     security_c_file = os.path.join(security_agent_prebuilt_dir, "probe.c")
     security_bc_file = os.path.join(build_dir, "runtime-security.bc")
     security_agent_obj_file = os.path.join(build_dir, "runtime-security.o")
 
-    security_flags = get_ebpf_build_flags()
+    security_flags = get_ebpf_build_flags(kernel_release=kernel_release)
     security_flags.append(f"-I{security_agent_c_dir}")
 
     # compile
@@ -734,12 +738,12 @@ def build_security_probe_ebpf_files(ctx, build_dir, parallel_build=True):
             p.join()
 
 
-def build_security_ebpf_files(ctx, build_dir, parallel_build=True):
-    build_security_probe_ebpf_files(ctx, build_dir, parallel_build)
-    build_security_offset_guesser_ebpf_files(ctx, build_dir)
+def build_security_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None):
+    build_security_probe_ebpf_files(ctx, build_dir, parallel_build, kernel_release=kernel_release)
+    build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=kernel_release)
 
 
-def build_object_files(ctx, parallel_build):
+def build_object_files(ctx, parallel_build, kernel_release=None):
     """build_object_files builds only the eBPF object"""
 
     # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
@@ -754,7 +758,7 @@ def build_object_files(ctx, parallel_build):
 
     build_network_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build)
     build_http_ebpf_files(ctx, build_dir=build_dir)
-    build_security_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build)
+    build_security_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release)
 
     generate_runtime_files(ctx)
 
