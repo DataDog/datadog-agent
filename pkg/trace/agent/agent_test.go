@@ -801,18 +801,18 @@ func TestClientComputedStats(t *testing.T) {
 func TestSampling(t *testing.T) {
 	// agentConfig allows the test to customize how the agent is configured.
 	type agentConfig struct {
-		disableRareSampler, errorsSampled, noPrioritySampled bool
+		rareSamplerDisabled, errorsSampled, noPrioritySampled bool
 	}
 	// configureAgent creates a new agent using the provided configuration.
 	configureAgent := func(ac agentConfig) *Agent {
-		cfg := &config.AgentConfig{DisableRareSampler: ac.disableRareSampler}
-		sampledCfg := &config.AgentConfig{ExtraSampleRate: 1, TargetTPS: 5, ErrorTPS: 10, DisableRareSampler: ac.disableRareSampler}
+		cfg := &config.AgentConfig{RareSamplerDisabled: ac.rareSamplerDisabled}
+		sampledCfg := &config.AgentConfig{ExtraSampleRate: 1, TargetTPS: 5, ErrorTPS: 10, RareSamplerDisabled: ac.rareSamplerDisabled}
 
 		a := &Agent{
 			NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
 			ErrorsSampler:     sampler.NewErrorsSampler(cfg),
 			PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
-			RareSampler:       sampler.NewRareSampler(),
+			RareSampler:       sampler.NewRareSampler(config.New()),
 			conf:              cfg,
 		}
 		if ac.errorsSampled {
@@ -860,7 +860,7 @@ func TestSampling(t *testing.T) {
 			},
 		},
 		"prio-unsampled": {
-			agentConfig: agentConfig{disableRareSampler: true},
+			agentConfig: agentConfig{rareSamplerDisabled: true},
 			testCases: []samplingTestCase{
 				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, false), wantSampled: false},
 			},
@@ -921,7 +921,7 @@ func TestSampling(t *testing.T) {
 			},
 		},
 		"rare-sampler-disabled": {
-			agentConfig: agentConfig{disableRareSampler: true},
+			agentConfig: agentConfig{rareSamplerDisabled: true},
 			testCases: []samplingTestCase{
 				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, false), wantSampled: false},
 			},
@@ -939,7 +939,7 @@ func TestSampling(t *testing.T) {
 }
 
 func TestPartialSamplingFree(t *testing.T) {
-	cfg := &config.AgentConfig{DisableRareSampler: true, BucketInterval: 10 * time.Second}
+	cfg := &config.AgentConfig{RareSamplerDisabled: true, BucketInterval: 10 * time.Second}
 	statsChan := make(chan pb.StatsPayload, 100)
 	writerChan := make(chan *writer.SampledChunks, 100)
 	dynConf := sampler.NewDynamicConfig()
@@ -952,7 +952,7 @@ func TestPartialSamplingFree(t *testing.T) {
 		ErrorsSampler:     sampler.NewErrorsSampler(cfg),
 		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
 		EventProcessor:    newEventProcessor(cfg),
-		RareSampler:       sampler.NewRareSampler(),
+		RareSampler:       sampler.NewRareSampler(config.New()),
 		TraceWriter:       &writer.TraceWriter{In: writerChan},
 		conf:              cfg,
 	}

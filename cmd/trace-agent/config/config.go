@@ -201,7 +201,16 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		c.ErrorTPS = coreconfig.Datadog.GetFloat64("apm_config.errors_per_second")
 	}
 	if coreconfig.Datadog.IsSet("apm_config.disable_rare_sampler") {
-		c.DisableRareSampler = coreconfig.Datadog.GetBool("apm_config.disable_rare_sampler")
+		c.RareSamplerDisabled = coreconfig.Datadog.GetBool("apm_config.disable_rare_sampler")
+	}
+	if coreconfig.Datadog.IsSet("apm_config.rare_sampler.tps") {
+		c.RareSamplerTPS = coreconfig.Datadog.GetInt("apm_config.rare_sampler.tps")
+	}
+	if coreconfig.Datadog.IsSet("apm_config.rare_sampler.cooldown") {
+		c.RareSamplerCooldownPeriod = coreconfig.Datadog.GetDuration("apm_config.rare_sampler.cooldown")
+	}
+	if coreconfig.Datadog.IsSet("apm_config.rare_sampler.cardinality") {
+		c.RareSamplerCardinality = coreconfig.Datadog.GetInt("apm_config.rare_sampler.cardinality")
 	}
 
 	if coreconfig.Datadog.IsSet("apm_config.max_remote_traces_per_second") {
