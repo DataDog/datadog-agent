@@ -15,13 +15,17 @@ import (
 )
 
 func adToProto(ad *ActivityDump) *adproto.ActivityDump {
-	pad := &adproto.ActivityDump{
-		Host:    ad.Host,
-		Service: ad.Service,
-		Source:  ad.Source,
-		Tags:    ad.Tags,
-		Tree:    make([]*adproto.ProcessActivityNode, 0, len(ad.ProcessActivityTree)),
+	if ad == nil {
+		return nil
 	}
+
+	pad := adproto.ActivityDumpFromVTPool()
+
+	pad.Host = ad.Host
+	pad.Service = ad.Service
+	pad.Source = ad.Source
+	pad.Tags = ad.Tags
+	pad.Tree = make([]*adproto.ProcessActivityNode, 0, len(ad.ProcessActivityTree))
 
 	for _, tree := range ad.ProcessActivityTree {
 		pad.Tree = append(pad.Tree, panToProto(tree))
@@ -35,13 +39,13 @@ func panToProto(pan *ProcessActivityNode) *adproto.ProcessActivityNode {
 		return nil
 	}
 
-	ppan := &adproto.ProcessActivityNode{
-		Process:        processNodeToProto(&pan.Process),
-		GenerationType: string(pan.GenerationType),
-		Files:          make([]*adproto.FileActivityNode, 0, len(pan.Files)),
-		DNSNames:       make([]*adproto.DNSNode, 0, len(pan.DNSNames)),
-		Children:       make([]*adproto.ProcessActivityNode, 0, len(pan.Children)),
-	}
+	ppan := adproto.ProcessActivityNodeFromVTPool()
+
+	ppan.Process = processNodeToProto(&pan.Process)
+	ppan.GenerationType = string(pan.GenerationType)
+	ppan.Files = make([]*adproto.FileActivityNode, 0, len(pan.Files))
+	ppan.DNSNames = make([]*adproto.DNSNode, 0, len(pan.DNSNames))
+	ppan.Children = make([]*adproto.ProcessActivityNode, 0, len(pan.Children))
 
 	for _, fan := range pan.Files {
 		ppan.Files = append(ppan.Files, fanToProto(fan))
@@ -63,32 +67,34 @@ func processNodeToProto(p *model.Process) *adproto.ProcessInfo {
 		return nil
 	}
 
-	return &adproto.ProcessInfo{
-		Pid:         p.Pid,
-		Tid:         p.Tid,
-		Ppid:        p.PPid,
-		Cookie:      p.Cookie,
-		IsThread:    p.IsThread,
-		File:        fileEventToProto(&p.FileEvent),
-		ContainerID: p.ContainerID,
-		SpanID:      p.SpanID,
-		TraceID:     p.TraceID,
-		TTY:         p.TTYName,
-		Comm:        p.Comm,
+	ppi := adproto.ProcessInfoFromVTPool()
 
-		ForkTime: timestamppb.New(p.ForkTime),
-		ExitTime: timestamppb.New(p.ExitTime),
-		ExecTime: timestamppb.New(p.ExecTime),
+	ppi.Pid = p.Pid
+	ppi.Tid = p.Tid
+	ppi.Ppid = p.PPid
+	ppi.Cookie = p.Cookie
+	ppi.IsThread = p.IsThread
+	ppi.File = fileEventToProto(&p.FileEvent)
+	ppi.ContainerID = p.ContainerID
+	ppi.SpanID = p.SpanID
+	ppi.TraceID = p.TraceID
+	ppi.TTY = p.TTYName
+	ppi.Comm = p.Comm
 
-		Credentials: credentialsToProto(&p.Credentials),
+	ppi.ForkTime = timestamppb.New(p.ForkTime)
+	ppi.ExitTime = timestamppb.New(p.ExitTime)
+	ppi.ExecTime = timestamppb.New(p.ExecTime)
 
-		Args:          p.ScrubbedArgv,
-		Argv0:         p.Argv0,
-		ArgsTruncated: p.ArgsTruncated,
+	ppi.Credentials = credentialsToProto(&p.Credentials)
 
-		Envs:          p.Envs,
-		EnvsTruncated: p.EnvsTruncated,
-	}
+	ppi.Args = p.ScrubbedArgv
+	ppi.Argv0 = p.Argv0
+	ppi.ArgsTruncated = p.ArgsTruncated
+
+	ppi.Envs = p.Envs
+	ppi.EnvsTruncated = p.EnvsTruncated
+
+	return ppi
 }
 
 func credentialsToProto(creds *model.Credentials) *adproto.Credentials {
@@ -96,25 +102,22 @@ func credentialsToProto(creds *model.Credentials) *adproto.Credentials {
 		return nil
 	}
 
-	return &adproto.Credentials{
-		UID:   creds.UID,
-		GID:   creds.GID,
-		User:  creds.User,
-		Group: creds.Group,
-
-		EffectiveUID:   creds.EUID,
-		EffectiveGID:   creds.EGID,
-		EffectiveUser:  creds.EUser,
-		EffectiveGroup: creds.EGroup,
-
-		FSUID:   creds.FSUID,
-		FSGID:   creds.FSGID,
-		FSUser:  creds.FSUser,
-		FSGroup: creds.FSGroup,
-
-		CapEffective: creds.CapEffective,
-		CapPermitted: creds.CapPermitted,
-	}
+	pcreds := &adproto.Credentials{}
+	pcreds.UID = creds.UID
+	pcreds.GID = creds.GID
+	pcreds.User = creds.User
+	pcreds.Group = creds.Group
+	pcreds.EffectiveUID = creds.EUID
+	pcreds.EffectiveGID = creds.EGID
+	pcreds.EffectiveUser = creds.EUser
+	pcreds.EffectiveGroup = creds.EGroup
+	pcreds.FSUID = creds.FSUID
+	pcreds.FSGID = creds.FSGID
+	pcreds.FSUser = creds.FSUser
+	pcreds.FSGroup = creds.FSGroup
+	pcreds.CapEffective = creds.CapEffective
+	pcreds.CapPermitted = creds.CapPermitted
+	return pcreds
 }
 
 func fileEventToProto(fe *model.FileEvent) *adproto.FileInfo {
@@ -122,22 +125,22 @@ func fileEventToProto(fe *model.FileEvent) *adproto.FileInfo {
 		return nil
 	}
 
-	return &adproto.FileInfo{
-		UID:          fe.UID,
-		User:         fe.User,
-		GID:          fe.GID,
-		Group:        fe.Group,
-		Mode:         uint32(fe.Mode),  // yeah sorry
-		CTime:        uint32(fe.CTime), // TODO: discuss this
-		MTime:        uint32(fe.MTime),
-		MountID:      fe.MountID,
-		INode:        fe.Inode,
-		InUpperLayer: fe.InUpperLayer,
+	fi := adproto.FileInfoFromVTPool()
 
-		Path:       fe.PathnameStr,
-		Basename:   fe.BasenameStr,
-		FileSystem: fe.Filesystem,
-	}
+	fi.UID = fe.UID
+	fi.User = fe.User
+	fi.GID = fe.GID
+	fi.Group = fe.Group
+	fi.Mode = uint32(fe.Mode)   // yeah sorry
+	fi.CTime = uint32(fe.CTime) // TODO: discuss this
+	fi.MTime = uint32(fe.MTime)
+	fi.MountID = fe.MountID
+	fi.INode = fe.Inode
+	fi.InUpperLayer = fe.InUpperLayer
+	fi.Path = fe.PathnameStr
+	fi.Basename = fe.BasenameStr
+	fi.FileSystem = fe.Filesystem
+	return fi
 }
 
 func fanToProto(fan *FileActivityNode) *adproto.FileActivityNode {
@@ -145,15 +148,14 @@ func fanToProto(fan *FileActivityNode) *adproto.FileActivityNode {
 		return nil
 	}
 
-	pfan := &adproto.FileActivityNode{
-		Name:           fan.Name,
-		File:           fileEventToProto(fan.File),
-		GenerationType: string(fan.GenerationType),
-		FirstSeen:      timestamppb.New(fan.FirstSeen),
-		Open:           openNodeToProto(fan.Open),
+	pfan := adproto.FileActivityNodeFromVTPool()
 
-		Children: make([]*adproto.FileActivityNode, 0, len(fan.Children)),
-	}
+	pfan.Name = fan.Name
+	pfan.File = fileEventToProto(fan.File)
+	pfan.GenerationType = string(fan.GenerationType)
+	pfan.FirstSeen = timestamppb.New(fan.FirstSeen)
+	pfan.Open = openNodeToProto(fan.Open)
+	pfan.Children = make([]*adproto.FileActivityNode, 0, len(fan.Children))
 
 	for _, child := range fan.Children {
 		pfan.Children = append(pfan.Children, fanToProto(child))
@@ -167,11 +169,11 @@ func openNodeToProto(openNode *OpenNode) *adproto.OpenNode {
 		return nil
 	}
 
-	return &adproto.OpenNode{
-		Retval: openNode.Retval,
-		Flags:  openNode.Flags,
-		Mode:   openNode.Mode,
-	}
+	pon := &adproto.OpenNode{}
+	pon.Retval = openNode.Retval
+	pon.Flags = openNode.Flags
+	pon.Mode = openNode.Mode
+	return pon
 }
 
 func dnsNodeToProto(dn *DNSNode) *adproto.DNSNode {

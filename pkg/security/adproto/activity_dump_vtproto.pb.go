@@ -908,6 +908,30 @@ func encodeVarint(dAtA []byte, offset int, v uint64) int {
 	return base
 }
 
+var vtprotoPool_ActivityDump = sync.Pool{
+	New: func() interface{} {
+		return &ActivityDump{}
+	},
+}
+
+func (m *ActivityDump) ResetVT() {
+	f0 := m.Tags[:0]
+	for _, mm := range m.Tree {
+		mm.ResetVT()
+	}
+	m.Reset()
+	m.Tags = f0
+}
+func (m *ActivityDump) ReturnToVTPool() {
+	if m != nil {
+		m.ResetVT()
+		vtprotoPool_ActivityDump.Put(m)
+	}
+}
+func ActivityDumpFromVTPool() *ActivityDump {
+	return vtprotoPool_ActivityDump.Get().(*ActivityDump)
+}
+
 var vtprotoPool_ProcessActivityNode = sync.Pool{
 	New: func() interface{} {
 		return &ProcessActivityNode{}
@@ -915,6 +939,7 @@ var vtprotoPool_ProcessActivityNode = sync.Pool{
 }
 
 func (m *ProcessActivityNode) ResetVT() {
+	m.Process.ReturnToVTPool()
 	for _, mm := range m.Files {
 		mm.ResetVT()
 	}
@@ -933,6 +958,30 @@ func ProcessActivityNodeFromVTPool() *ProcessActivityNode {
 	return vtprotoPool_ProcessActivityNode.Get().(*ProcessActivityNode)
 }
 
+var vtprotoPool_ProcessInfo = sync.Pool{
+	New: func() interface{} {
+		return &ProcessInfo{}
+	},
+}
+
+func (m *ProcessInfo) ResetVT() {
+	m.File.ReturnToVTPool()
+	f0 := m.Args[:0]
+	f1 := m.Envs[:0]
+	m.Reset()
+	m.Args = f0
+	m.Envs = f1
+}
+func (m *ProcessInfo) ReturnToVTPool() {
+	if m != nil {
+		m.ResetVT()
+		vtprotoPool_ProcessInfo.Put(m)
+	}
+}
+func ProcessInfoFromVTPool() *ProcessInfo {
+	return vtprotoPool_ProcessInfo.Get().(*ProcessInfo)
+}
+
 var vtprotoPool_FileActivityNode = sync.Pool{
 	New: func() interface{} {
 		return &FileActivityNode{}
@@ -940,6 +989,7 @@ var vtprotoPool_FileActivityNode = sync.Pool{
 }
 
 func (m *FileActivityNode) ResetVT() {
+	m.File.ReturnToVTPool()
 	for _, mm := range m.Children {
 		mm.ResetVT()
 	}
@@ -953,6 +1003,25 @@ func (m *FileActivityNode) ReturnToVTPool() {
 }
 func FileActivityNodeFromVTPool() *FileActivityNode {
 	return vtprotoPool_FileActivityNode.Get().(*FileActivityNode)
+}
+
+var vtprotoPool_FileInfo = sync.Pool{
+	New: func() interface{} {
+		return &FileInfo{}
+	},
+}
+
+func (m *FileInfo) ResetVT() {
+	m.Reset()
+}
+func (m *FileInfo) ReturnToVTPool() {
+	if m != nil {
+		m.ResetVT()
+		vtprotoPool_FileInfo.Put(m)
+	}
+}
+func FileInfoFromVTPool() *FileInfo {
+	return vtprotoPool_FileInfo.Get().(*FileInfo)
 }
 func (m *ActivityDump) SizeVT() (n int) {
 	if m == nil {
