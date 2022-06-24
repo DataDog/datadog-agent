@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	defaultVersion = "1" // we are using version 1 as default because this the default version for gosnmp
+	defaultVersion = "2c" // match default version of the core check
 	defaultOID     = ""
 	defaultPort    = 161
 
