@@ -38,6 +38,9 @@ const (
 
 	// ContainerIDLen defines the length of a container ID
 	ContainerIDLen = sha256.Size * 2
+
+	// MaxSymlinks maximum symlinks captured
+	MaxSymlinks = 2
 )
 
 var (

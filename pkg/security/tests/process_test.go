@@ -1325,3 +1325,69 @@ func TestProcessExit(t *testing.T) {
 		})
 	})
 }
+
+func TestProcessBusybox(t *testing.T) {
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_busybox_1",
+			Expression: `exec.file.path == "/usr/bin/whoami"`,
+		},
+		{
+			ID:         "test_busybox_2",
+			Expression: `exec.file.path == "/bin/sync"`,
+		},
+		{
+			ID:         "test_busybox_3",
+			Expression: `exec.file.name == "df"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	wrapper, err := newDockerCmdWrapper(test.Root())
+	if err != nil {
+		t.Skip("docker no available")
+		return
+	}
+	wrapper.SetImage("alpine")
+
+	wrapper.Run(t, "busybox-1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("/usr/bin/whoami", nil, nil)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+			return nil
+		}, validateExecEvent(t, func(event *sprobe.Event, rule *rules.Rule) {
+			assert.Equal(t, "test_busybox_1", rule.ID, "wrong rule triggered")
+		}))
+	})
+
+	wrapper.Run(t, "busybox-2", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("/bin/sync", nil, nil)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+			return nil
+		}, validateExecEvent(t, func(event *sprobe.Event, rule *rules.Rule) {
+			assert.Equal(t, "test_busybox_2", rule.ID, "wrong rule triggered")
+		}))
+	})
+
+	wrapper.Run(t, "busybox-3", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("/bin/df", nil, nil)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+			return nil
+		}, validateExecEvent(t, func(event *sprobe.Event, rule *rules.Rule) {
+			assert.Equal(t, "test_busybox_3", rule.ID, "wrong rule triggered")
+		}))
+	})
+}
