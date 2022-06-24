@@ -218,6 +218,7 @@ func fmtProcessEvents(events []*model.ProcessEvent) []*payload.ProcessEvent {
 		pE := &payload.ProcessEvent{
 			CollectionTime: e.CollectionTime.UnixNano(),
 			Pid:            e.Pid,
+			ContainerId:    e.ContainerID,
 			Command: &payload.Command{
 				Exe:  e.Exe,
 				Args: e.Cmdline,
