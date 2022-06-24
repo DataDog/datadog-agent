@@ -339,6 +339,14 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 		p.TracerPayload.Tags = map[string]string{
 			tagContainersTags: ctags,
 		}
+	} else {
+		// we couldn't obtain any container tags
+		if src.Kind == source.AWSECSFargateKind {
+			// but we have some information from the source provider that we can add
+			p.TracerPayload.Tags = map[string]string{
+				tagContainersTags: src.Tag(),
+			}
+		}
 	}
 	select {
 	case o.out <- &p:
