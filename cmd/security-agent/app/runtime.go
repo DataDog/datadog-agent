@@ -1018,21 +1018,12 @@ func dumpDiscarders(cmd *cobra.Command, args []string) error {
 	}
 	defer runtimeSecurityClient.Close()
 
-	filenames := make(chan string, 1)
-	errs := make(chan error, 1)
+	dumpFilename, dumpErr := runtimeSecurityClient.DumpDiscarders()
 
-	go func() {
-		dumpFilename, dumpErr := runtimeSecurityClient.DumpDiscarders()
-		errs <- dumpErr
-		filenames <- dumpFilename
-	}()
-
-	dumpErr := <-errs
 	if dumpErr != nil {
 		return errors.Wrap(dumpErr, "unable to dump discarders")
 	}
 
-	dumpFilename := <-filenames
 	fmt.Printf("Discarder dump file: %s\n", dumpFilename)
 
 	return nil
