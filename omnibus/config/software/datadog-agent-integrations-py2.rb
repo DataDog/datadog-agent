@@ -98,6 +98,21 @@ agent_requirements_file = 'agent_requirements-py2.txt'
 filtered_agent_requirements_in = 'agent_requirements-py2.in'
 agent_requirements_in = 'agent_requirements.in'
 
+def supported_by_os(manifest_file)
+  manifest = JSON.parse(manifest_file)
+  if manifest.key?("supported_os")
+    return manifest["supported_os"].include?(os)
+  else
+    if os == "mac_os"
+      tag = "Supported OS::macOS"
+    else
+      tag = "Supported OS::#{os.capitalize}"
+    end
+
+    return manifest["tile"]["classifier_tags"].include?(tag)
+  end
+end
+
 build do
   license "BSD-3-Clause"
   license_file "./LICENSE"
@@ -263,8 +278,7 @@ build do
       # contain a working check and move onto the next
       File.exist?(manifest_file_path) || next
 
-      manifest = JSON.parse(File.read(manifest_file_path))
-      manifest['supported_os'].include?(os) || next
+      supported_by_os(File.read(manifest_file_path)) || next
 
       File.file?("#{check_dir}/setup.py") || File.file?("#{check_dir}/pyproject.toml") || next
       # Check if it supports Python 2.
