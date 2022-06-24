@@ -36,6 +36,7 @@ const (
 	ProductASMDD = "ASM_DD"
 )
 
+// ErrNoConfigVersion occurs when a target file's custom meta is missing the config version
 var ErrNoConfigVersion = errors.New("version missing in custom file meta")
 
 func parseConfig(product string, raw []byte, metadata Metadata) (interface{}, error) {
@@ -76,6 +77,7 @@ func parseConfigAPMSampling(data []byte, metadata Metadata) (APMSamplingConfig, 
 	}, nil
 }
 
+// APMConfigs returns the currently active APM configs
 func (r *Repository) APMConfigs() map[string]APMSamplingConfig {
 	typedConfigs := make(map[string]APMSamplingConfig)
 
@@ -108,6 +110,7 @@ func parseConfigCWSDD(data []byte, metadata Metadata) (ConfigCWSDD, error) {
 	}, nil
 }
 
+// CWSDDConfigs returns the currently active CWSDD config files
 func (r *Repository) CWSDDConfigs() map[string]ConfigCWSDD {
 	typedConfigs := make(map[string]ConfigCWSDD)
 
@@ -140,6 +143,7 @@ func parseConfigASMDD(data []byte, metadata Metadata) (ConfigASMDD, error) {
 	}, nil
 }
 
+// ASMDDConfigs returns the currently active ASMDD configs
 func (r *Repository) ASMDDConfigs() map[string]ConfigASMDD {
 	typedConfigs := make(map[string]ConfigASMDD)
 
@@ -165,6 +169,7 @@ type FeaturesConfig struct {
 	Metadata Metadata
 }
 
+// FeaturesData describes the enabled state of features
 type FeaturesData struct {
 	ASM struct {
 		Enabled bool `json:"enabled"`
@@ -185,6 +190,7 @@ func parseFeaturesConfing(data []byte, metadata Metadata) (FeaturesConfig, error
 	}, nil
 }
 
+// FeaturesConfigs returns the currently active Features configs
 func (r *Repository) FeaturesConfigs() map[string]FeaturesConfig {
 	typedConfigs := make(map[string]FeaturesConfig)
 
