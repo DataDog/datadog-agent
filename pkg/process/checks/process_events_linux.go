@@ -97,7 +97,7 @@ func (e *ProcessEventsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]payl
 		return nil, fmt.Errorf("can't pull events from the Event Store: %v", err)
 	}
 
-	payloadEvents := FmtProcessEvents(events)
+	payloadEvents := fmtProcessEvents(events)
 	chunks := chunkProcessEvents(payloadEvents, e.maxBatchSize)
 
 	messages := make([]payload.MessageBody, len(chunks))
@@ -149,4 +149,51 @@ func chunkProcessEvents(events []*payload.ProcessEvent, size int) [][]*payload.P
 	}
 
 	return chunks
+}
+
+// fmtProcessEvents formats process lifecyle events to be sent in an agent payload
+func fmtProcessEvents(events []*model.ProcessEvent) []*payload.ProcessEvent {
+	payloadEvents := make([]*payload.ProcessEvent, 0, len(events))
+
+	for _, e := range events {
+		pE := &payload.ProcessEvent{
+			CollectionTime: e.CollectionTime.UnixNano(),
+			Pid:            e.Pid,
+			Command: &payload.Command{
+				Exe:  e.Exe,
+				Args: e.Cmdline,
+				Ppid: int32(e.Ppid),
+			},
+			User: &payload.ProcessUser{
+				Name: e.Username,
+				Uid:  int32(e.UID),
+				Gid:  int32(e.GID),
+			},
+		}
+
+		switch e.EventType {
+		case model.Exec:
+			pE.Type = payload.ProcEventType_exec
+			exec := &payload.ProcessExec{
+				ForkTime: e.ForkTime.UnixNano(),
+				ExecTime: e.ExecTime.UnixNano(),
+			}
+			pE.TypedEvent = &payload.ProcessEvent_Exec{Exec: exec}
+		case model.Exit:
+			pE.Type = payload.ProcEventType_exit
+			exit := &payload.ProcessExit{
+				ExecTime: e.ExecTime.UnixNano(),
+				ExitTime: e.ExitTime.UnixNano(),
+				ExitCode: 0,
+			}
+			pE.TypedEvent = &payload.ProcessEvent_Exit{Exit: exit}
+		default:
+			log.Error("Unexpected event type, dropping it")
+			continue
+		}
+
+		payloadEvents = append(payloadEvents, pE)
+	}
+
+	return payloadEvents
 }

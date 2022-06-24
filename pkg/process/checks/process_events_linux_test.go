@@ -32,6 +32,13 @@ type eventTestData struct {
 	payloadEvent *payload.ProcessEvent
 }
 
+func parseRFC3339Time(t *testing.T, s string) time.Time {
+	t.Helper()
+	parsed, err := time.Parse(time.RFC3339Nano, s)
+	require.NoError(t, err)
+	return parsed
+}
+
 func mockedData(t *testing.T) []*eventTestData {
 	t.Helper()
 	return []*eventTestData{
