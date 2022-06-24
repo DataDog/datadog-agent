@@ -59,6 +59,7 @@ type EventHandler interface {
 	HandleCustomEvent(rule *rules.Rule, event *CustomEvent)
 }
 
+// EventStream describes the interface implemented by reordered perf maps or ring buffers
 type EventStream interface {
 	Init(*manager.Manager, *Monitor, *config.Config) error
 	Start(*sync.WaitGroup) error

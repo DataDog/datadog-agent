@@ -251,6 +251,7 @@ func (k *Version) IsInRangeCloseOpen(begin kernel.Version, end kernel.Version) b
 	return k.Code != 0 && begin <= k.Code && k.Code < end
 }
 
+// HaveMmapableMaps returns whether the kernel supports mmapable maps.
 func (k *Version) HaveMmapableMaps() bool {
 	if k.haveMmapableMaps != nil {
 		return *k.haveMmapableMaps
@@ -274,6 +275,7 @@ func (k *Version) HaveMmapableMaps() bool {
 	return true
 }
 
+// HaveRingBuffers returns whether the kernel supports ring buffer.
 func (k *Version) HaveRingBuffers() bool {
 	if k.haveRingBuffers != nil {
 		return *k.haveRingBuffers
