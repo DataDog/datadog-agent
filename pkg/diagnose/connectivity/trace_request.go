@@ -140,7 +140,7 @@ func noResponseHints(writer io.Writer, err error) {
 	endpoint := config.GetMainInfraEndpoint()
 	parsedURL, parseErr := url.Parse(endpoint)
 	if parseErr != nil {
-		fmt.Fprintf(writer, "Could not parse url '%v' : %v", scrubber.ScrubLine(endpoint), parseErr)
+		fmt.Fprintf(writer, "Could not parse url '%v' : %v", scrubber.ScrubLine(endpoint), scrubber.ScrubLine(parseErr.Error()))
 		return
 	}
 

@@ -19,6 +19,7 @@ import (
 	"net/http/httptrace"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/fatih/color"
 )
 
@@ -79,7 +80,7 @@ func (writer *connectivityHooks) connectDoneHook(network, addr string, err error
 	statusString := color.GreenString("OK")
 	if err != nil {
 		statusString = color.RedString("ERROR")
-		fmt.Fprintf(writer.w, "Unable to connect to the endpoint : %v\n", err)
+		fmt.Fprintf(writer.w, "Unable to connect to the endpoint : %v\n", scrubber.ScrubLine(err.Error()))
 	}
 	fmt.Fprintf(writer.w, "* Connection to the endpoint [%v]\n\n", statusString)
 }
@@ -115,7 +116,7 @@ func (writer *connectivityHooks) dnsDoneHook(di httptrace.DNSDoneInfo) {
 	statusString := color.GreenString("OK")
 	if di.Err != nil {
 		statusString = color.RedString("ERROR")
-		fmt.Fprint(writer.w, dnsColorFunc("Unable to resolve the address : %v\n", di.Err))
+		fmt.Fprint(writer.w, dnsColorFunc("Unable to resolve the address : %v\n", scrubber.ScrubLine(di.Err.Error())))
 	}
 	fmt.Fprintf(writer.w, "* %v [%v]\n\n", dnsColorFunc("DNS Lookup"), statusString)
 }
@@ -131,7 +132,7 @@ func (writer *connectivityHooks) tlsHandshakeDoneHook(cs tls.ConnectionState, er
 	statusString := color.GreenString("OK")
 	if err != nil {
 		statusString = color.RedString("ERROR")
-		fmt.Fprint(writer.w, tlsColorFunc("Unable to achieve the TLS Handshake : %v\n", err))
+		fmt.Fprint(writer.w, tlsColorFunc("Unable to achieve the TLS Handshake : %v\n", scrubber.ScrubLine(err.Error())))
 
 		writer.getTLSHandshakeHints(err)
 	}
