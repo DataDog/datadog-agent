@@ -322,7 +322,9 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 			hostname = ""
 		}
 	} else {
+		// fallback hostname
 		hostname = o.conf.Hostname
+		src = source.Source{Kind: source.HostnameKind, Identifier: hostname}
 	}
 	p.TracerPayload = &pb.TracerPayload{
 		Hostname:        hostname,
