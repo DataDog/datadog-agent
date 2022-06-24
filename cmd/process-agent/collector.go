@@ -354,8 +354,16 @@ func (l *Collector) run(exit chan struct{}) error {
 			case <-heartbeat.C:
 				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
 			case <-queueSizeTicker.C:
-				updateQueueBytes(l.queueBytesInfo())
-				updateQueueSize(l.queueSizeInfo())
+				updateQueueStats(&queueStats{
+					processQueueSize:    l.processResults.Len(),
+					rtProcessQueueSize:  l.rtProcessResults.Len(),
+					eventQueueSize:      l.eventResults.Len(),
+					podQueueSize:        l.podResults.Len(),
+					processQueueBytes:   l.processResults.Weight(),
+					rtProcessQueueBytes: l.rtProcessResults.Weight(),
+					eventQueueBytes:     l.eventResults.Weight(),
+					podQueueBytes:       l.podResults.Weight(),
+				})
 			case <-queueLogTicker.C:
 				l.logQueuesSize()
 			case <-exit:
@@ -628,24 +636,6 @@ func (l *Collector) updateRTStatus(statuses []*model.CollectorStatus) {
 			l.rtIntervalCh <- l.realTimeInterval
 		}
 		log.Infof("real time interval updated to %s", l.realTimeInterval)
-	}
-}
-
-func (l *Collector) queueBytesInfo() *queueBytesInfo {
-	return &queueBytesInfo{
-		processQueueBytes:   l.processResults.Weight(),
-		rtProcessQueueBytes: l.rtProcessResults.Weight(),
-		eventQueueBytes:     l.eventResults.Weight(),
-		podQueueBytes:       l.podResults.Weight(),
-	}
-}
-
-func (l *Collector) queueSizeInfo() *queueSizeInfo {
-	return &queueSizeInfo{
-		processQueueSize:   l.processResults.Len(),
-		rtProcessQueueSize: l.rtProcessResults.Len(),
-		eventQueueSize:     l.eventResults.Len(),
-		podQueueSize:       l.podResults.Len(),
 	}
 }
 
