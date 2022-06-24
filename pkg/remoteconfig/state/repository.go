@@ -16,6 +16,7 @@ import (
 )
 
 var (
+	// ErrMalformedEmbeddedRoot occurs when the TUF root provided is invalid
 	ErrMalformedEmbeddedRoot = errors.New("malformed embedded TUF root file provided")
 )
 
