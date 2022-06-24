@@ -51,8 +51,8 @@ require (
 	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
 	github.com/DataDog/ebpf-manager v0.0.0-20220620150645-6cb8b3fd1984
 	github.com/DataDog/gohai v0.0.0-20220607152458-544032c46ded
-	github.com/DataDog/gopsutil v0.0.0-20220308095538-d086941833e3
-	github.com/DataDog/nikos v1.7.6
+	github.com/DataDog/gopsutil v1.1.0
+	github.com/DataDog/nikos v1.8.0
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/DataDog/viper v1.9.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.0-rc.1.0.20220530183114-687bca6395e8
@@ -142,7 +142,6 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.12.2
 	github.com/richardartoul/molecule v0.0.0-20210914193524-25d8911bb85b
-	github.com/rogpeppe/go-internal v1.8.0 // indirect
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/shirou/gopsutil/v3 v3.22.5
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
@@ -232,7 +231,6 @@ require (
 	github.com/Sirupsen/logrus v1.0.6 // indirect
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/andybalholm/brotli v1.0.2 // indirect
-	github.com/aptly-dev/aptly v1.4.1-0.20211102140819-ab2f5420c617 // indirect
 	github.com/arduino/go-apt-client v0.0.0-20190812130613-5613f843fdc8 // indirect
 	github.com/armon/go-metrics v0.3.10 // indirect
 	github.com/awalterschulze/gographviz v2.0.1+incompatible // indirect
@@ -352,7 +350,7 @@ require (
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/tklauser/numcpus v0.5.0 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75 // indirect
-	github.com/ugorji/go/codec v1.1.7 // indirect
+	github.com/ugorji/go/codec v1.2.7 // indirect
 	github.com/ulikunitz/xz v0.5.10 // indirect
 	github.com/vito/go-sse v1.0.0 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
@@ -384,7 +382,6 @@ require (
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5 // indirect
 	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171 // indirect
 	golang.org/x/xerrors v0.0.0-20220411194840-2f41105eb62f // indirect
-	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	gomodules.xyz/orderedmap v0.1.0 // indirect
 	google.golang.org/api v0.75.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
@@ -392,7 +389,6 @@ require (
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
-	k8s.io/apiextensions-apiserver v0.23.8 // indirect
 	k8s.io/component-base v0.23.8 // indirect
 	k8s.io/gengo v0.0.0-20210813121822-485abfe95c7c // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.30 // indirect
@@ -404,7 +400,13 @@ require (
 
 require github.com/netsampler/goflow2 v1.1.0
 
-require github.com/libp2p/go-reuseport v0.1.0 // indirect
+require (
+	github.com/DataDog/aptly v1.5.0 // indirect
+	github.com/cavaliergopher/grab/v3 v3.0.1 // indirect
+	github.com/libp2p/go-reuseport v0.1.0 // indirect
+	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
+	k8s.io/apiextensions-apiserver v0.23.5 // indirect
+)
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
