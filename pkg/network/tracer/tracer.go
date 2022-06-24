@@ -415,6 +415,9 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 	if usm, ok := ebpfStats["udp_sends_missed"]; ok {
 		tm[network.MonotonicUDPSendsMissed] = usm
 	}
+	if pl, ok := ebpfStats["closed_conn_polling_lost"]; ok {
+		tm[network.MonotonicPerfLost] = pl
+	}
 
 	stateStats := stats["state"].(map[string]int64)
 	if ccd, ok := stateStats["closed_conn_dropped"]; ok {
