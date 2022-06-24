@@ -55,6 +55,7 @@ type DockerSocketTailer struct {
 	stopped chan struct{}
 }
 
+// NewDockerSocketTailer Creates a new docker socket tailer
 func NewDockerSocketTailer(dockerutil *dockerutilPkg.DockerUtil, containerID string, source *sources.LogSource, pipeline chan *message.Message, readTimeout time.Duration, registry auditor.Registry) *DockerSocketTailer {
 	return &DockerSocketTailer{
 		dockerutil:  dockerutil,

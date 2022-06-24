@@ -27,7 +27,7 @@ func (tt *TestTailer) Start() error {
 	return nil
 }
 
-// Start implements tailerfactory.Tailer#Stop.
+// Stop implements tailerfactory.Tailer#Stop.
 func (tt *TestTailer) Stop() {
 	tt.Stopped = true
 }
