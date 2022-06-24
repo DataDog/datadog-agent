@@ -18,6 +18,6 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 	return ctx
 }
 
-func getContainerID(req *http.Request) string {
-	return req.Header.Get(headerContainerID)
+func getContainerID(h http.Header) string {
+	return h.Get(headerContainerID)
 }

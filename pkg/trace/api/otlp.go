@@ -66,8 +66,9 @@ func (o *OTLPReceiver) Start() {
 	cfg := o.conf.OTLPReceiver
 	if cfg.HTTPPort != 0 {
 		o.httpsrv = &http.Server{
-			Addr:    fmt.Sprintf("%s:%d", cfg.BindHost, cfg.HTTPPort),
-			Handler: o,
+			Addr:        fmt.Sprintf("%s:%d", cfg.BindHost, cfg.HTTPPort),
+			Handler:     o,
+			ConnContext: connContext,
 		}
 		o.wg.Add(1)
 		go func() {
@@ -239,7 +240,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 		containerID = rattr[string(semconv.AttributeK8SPodUID)]
 	}
 	if containerID == "" {
-		containerID = getContainerID(req)
+		containerID = getContainerID(header)
 	}
 	tagstats := &info.TagStats{
 		Tags: info.Tags{
