@@ -16,9 +16,12 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -27,8 +30,11 @@ import (
 
 	"github.com/DataDog/gopsutil/process"
 	"github.com/pkg/errors"
+	"github.com/prometheus/procfs"
 	"github.com/tinylib/msgp/msgp"
+	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -392,6 +398,8 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 		return node.InsertFileEvent(&event.Open.File, event, Runtime)
 	case model.DNSEventType:
 		return node.InsertDNSEvent(&event.DNS)
+	case model.BindEventType:
+		return node.InsertBindEvent(&event.Bind)
 	}
 	return false
 }
@@ -740,6 +748,7 @@ type ProcessActivityNode struct {
 
 	Files    map[string]*FileActivityNode `msg:"files,omitempty"`
 	DNSNames map[string]*DNSNode          `msg:"dns,omitempty"`
+	Sockets  []*SocketNode                `msg:"sockets,omitempty"`
 	Children []*ProcessActivityNode       `msg:"children,omitempty"`
 }
 
@@ -916,7 +925,125 @@ func (pan *ProcessActivityNode) snapshot(ad *ActivityDump) error {
 			if err = pan.snapshotFiles(p, ad); err != nil {
 				return err
 			}
+		case model.BindEventType:
+			if err = pan.snapshotBoundSockets(p, ad); err != nil {
+				return err
+			}
 		}
+	}
+	return nil
+}
+
+func (pan *ProcessActivityNode) insertSnapshotedSocket(p *process.Process, ad *ActivityDump,
+	family uint16, ip net.IP, port uint16) {
+	evt := NewEvent(ad.adm.probe.resolvers, ad.adm.probe.scrubber, ad.adm.probe)
+	evt.Event.Type = uint32(model.BindEventType)
+
+	evt.Bind.SyscallEvent.Retval = 0
+	evt.Bind.AddrFamily = family
+	evt.Bind.Addr.IPNet.IP = ip
+	if family == unix.AF_INET {
+		evt.Bind.Addr.IPNet.Mask = net.CIDRMask(32, 32)
+	} else {
+		evt.Bind.Addr.IPNet.Mask = net.CIDRMask(128, 128)
+	}
+	evt.Bind.Addr.Port = port
+
+	if pan.InsertBindEvent(&evt.Bind) {
+		// count this new entry
+		atomic.AddUint64(ad.addedSnapshotCount[model.BindEventType], 1)
+	}
+}
+
+func (pan *ProcessActivityNode) snapshotBoundSockets(p *process.Process, ad *ActivityDump) error {
+	// list all the file descriptors opened by the process
+	FDs, err := p.OpenFiles()
+	if err != nil {
+		return err
+	}
+
+	// search for sockets only, exprimed in the form of "socket:[inode]"
+	rSocket, err := regexp.Compile("socket:\\[[0-9]+\\]")
+	if err != nil {
+		return err
+	}
+	rInode, err := regexp.Compile("[0-9]+")
+	if err != nil {
+		return err
+	}
+	var sockets []uint64
+	for _, fd := range FDs {
+		if rSocket.MatchString(fd.Path) {
+			sock, err := strconv.Atoi(rInode.FindString(fd.Path))
+			if err != nil {
+				return err
+			}
+			if sock < 0 {
+				continue
+			}
+			sockets = append(sockets, uint64(sock))
+		}
+	}
+	if len(sockets) <= 0 {
+		return nil
+	}
+
+	// init procfs to parse /proc/net/tcp,tcp6,udp,udp6 files, looking for the grabbed
+	// process socket inodes
+	proc, _ := procfs.NewFS(util.HostProc())
+	if err != nil {
+		return err
+	}
+	// looking for AF_INET sockets
+	TCP, err := proc.NetTCP()
+	if err != nil {
+		return err
+	}
+	UDP, err := proc.NetUDP()
+	if err != nil {
+		return err
+	}
+	// looking for AF_INET6 sockets
+	TCP6, err := proc.NetTCP6()
+	if err != nil {
+		return err
+	}
+	UDP6, err := proc.NetUDP6()
+	if err != nil {
+		return err
+	}
+
+	// searching for socket inode
+	for _, s := range sockets {
+		for _, sock := range TCP {
+			if sock.Inode == s {
+				pan.insertSnapshotedSocket(p, ad, unix.AF_INET, sock.LocalAddr,
+					uint16(sock.LocalPort))
+				break
+			}
+		}
+		for _, sock := range UDP {
+			if sock.Inode == s {
+				pan.insertSnapshotedSocket(p, ad, unix.AF_INET, sock.LocalAddr,
+					uint16(sock.LocalPort))
+				break
+			}
+		}
+		for _, sock := range TCP6 {
+			if sock.Inode == s {
+				pan.insertSnapshotedSocket(p, ad, unix.AF_INET6, sock.LocalAddr,
+					uint16(sock.LocalPort))
+				break
+			}
+		}
+		for _, sock := range UDP6 {
+			if sock.Inode == s {
+				pan.insertSnapshotedSocket(p, ad, unix.AF_INET6, sock.LocalAddr,
+					uint16(sock.LocalPort))
+				break
+			}
+		}
+		// not necessary found here, can be also another kind of socket (AF_UNIX, AF_NETLINK, etc)
 	}
 	return nil
 }
@@ -1007,6 +1134,16 @@ func (pan *ProcessActivityNode) InsertDNSEvent(evt *model.DNSEvent) bool {
 		return true
 	}
 	pan.DNSNames[evt.Name] = NewDNSNode(evt)
+	return true
+}
+
+// InsertBindEvent inserts a bind event to the activity dump
+func (pan *ProcessActivityNode) InsertBindEvent(evt *model.BindEvent) bool {
+	if evt.SyscallEvent.Retval != 0 {
+		return false
+	}
+
+	pan.Sockets = append(pan.Sockets, NewSocketNode(evt))
 	return true
 }
 
@@ -1130,6 +1267,40 @@ func NewDNSNode(event *model.DNSEvent) *DNSNode {
 
 // GetID returns the ID of the current DNS node
 func (n *DNSNode) GetID() string {
+	if len(n.id) == 0 {
+		n.id = eval.RandString(5)
+	}
+	return n.id
+}
+
+// BindNode is used to store a bind node
+type BindNode struct {
+	Port uint16 `msg:"port"`
+	IP   string `msg:"ip"`
+}
+
+// SocketNode is used to store a Socket node and associated events
+type SocketNode struct {
+	Family string   `msg:"family"`
+	Bind   BindNode `msg:"bind"`
+	id     string
+}
+
+// NB: Today we only add sockets via bind events. When this struct will contains other
+//     events (basically connect, but maybe others?), bind should became optionnal.
+// NewSocketNode returns a new SocketNode instance
+func NewSocketNode(event *model.BindEvent) *SocketNode {
+	return &SocketNode{
+		Family: model.AddressFamily(event.AddrFamily).String(),
+		Bind: BindNode{
+			Port: event.Addr.Port,
+			IP:   event.Addr.IPNet.IP.String(),
+		},
+	}
+}
+
+// GetID returns the ID of the current Socket node
+func (n *SocketNode) GetID() string {
 	if len(n.id) == 0 {
 		n.id = eval.RandString(5)
 	}

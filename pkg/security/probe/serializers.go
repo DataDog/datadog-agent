@@ -884,7 +884,8 @@ func newNetworkContextSerializer(e *Event) *NetworkContextSerializer {
 
 func newBindEventSerializer(e *Event) *BindEventSerializer {
 	bes := &BindEventSerializer{
-		Addr: newIPPortFamilySerializer(&e.Bind.Addr, model.AddressFamily(e.Bind.AddrFamily).String()),
+		Addr: newIPPortFamilySerializer(&e.Bind.Addr,
+			model.AddressFamily(e.Bind.AddrFamily).String()),
 	}
 	return bes
 }
