@@ -15,6 +15,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -378,7 +379,7 @@ func TestOTLPHostname(t *testing.T) {
 		if tt.span != "" {
 			rattr["_dd.hostname"] = tt.span
 		}
-		rcv.ReceiveResourceSpans(testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+		src := rcv.ReceiveResourceSpans(testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 			{
 				LibName:    "a",
 				LibVersion: "1.2",
@@ -386,6 +387,8 @@ func TestOTLPHostname(t *testing.T) {
 				Spans:      []*testutil.OTLPSpan{{Attributes: sattr}},
 			},
 		}).Traces().ResourceSpans().At(0), http.Header{}, "")
+		assert.Equal(t, src.Kind, source.HostnameKind)
+		assert.Equal(t, src.Identifier, tt.out)
 		timeout := time.After(500 * time.Millisecond)
 		select {
 		case <-timeout:
