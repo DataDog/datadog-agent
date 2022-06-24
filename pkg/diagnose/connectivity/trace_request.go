@@ -15,6 +15,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptrace"
+	"net/url"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
@@ -112,10 +114,13 @@ func createEndpointURL(domain string, endpointInfo endpointInfo) string {
 	return domain + endpointInfo.Endpoint.Route
 }
 
+// vertifyEndpointResponse interprets the endpoint response and displays information on if the connectivity
+// check was successful or not
 func verifyEndpointResponse(writer io.Writer, statusCode int, responseBody []byte, err error) {
 
 	if err != nil {
-		fmt.Fprintf(writer, "could not get a response from the endpoint : %v\n", scrubber.ScrubLine(err.Error()))
+		fmt.Fprintf(writer, "could not get a response from the endpoint : %v ====> %v\n", scrubber.ScrubLine(err.Error()), color.RedString("FAIL"))
+		noResponseHints(writer, err)
 		return
 	}
 
@@ -125,4 +130,23 @@ func verifyEndpointResponse(writer io.Writer, statusCode int, responseBody []byt
 		fmt.Fprintf(writer, "Received response : '%v'\n", scrubber.ScrubLine(string(responseBody)))
 	}
 	fmt.Fprintf(writer, "Received status code %v from the endpoint ====> %v\n", statusCode, scrubber.ScrubLine(statusString))
+}
+
+// noResponseHints aims to give hints when the endpoint did not respond.
+// For instance, when sending an HTTP request to a HAProxy endpoint configured for HTTPS
+// the endpoint send an empty response. As the error 'EOF' is not very informative, it can
+// be interesting to 'wrap' this error to display more context.
+func noResponseHints(writer io.Writer, err error) {
+	endpoint := config.GetMainInfraEndpoint()
+	parsedURL, parseErr := url.Parse(endpoint)
+	if parseErr != nil {
+		fmt.Fprintf(writer, "Could not parse url '%v' : %v", scrubber.ScrubLine(endpoint), scrubber.ScrubLine(parseErr.Error()))
+		return
+	}
+
+	if parsedURL.Scheme == "http" {
+		if strings.Contains(err.Error(), "EOF") {
+			fmt.Fprintln(writer, hintColorFunc("Hint: received an empty reply from the server. You are maybe trying to contact an HTTPS endpoint using an HTTP url : '%v'", scrubber.ScrubLine(endpoint)))
+		}
+	}
 }

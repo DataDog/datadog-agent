@@ -17,7 +17,9 @@ import (
 	"fmt"
 	"io"
 	"net/http/httptrace"
+	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/fatih/color"
 )
 
@@ -51,8 +53,12 @@ func createDiagnoseTrace(writer io.Writer) *httptrace.ClientTrace {
 }
 
 var (
-	dnsColorFunc = color.MagentaString
-	tlsColorFunc = color.YellowString
+	// color functions are defined here to keep consistency when displaying information as it might be
+	// easier to read all the information about a specific section when the information concerning this
+	// section are colored with the same color.
+	dnsColorFunc  = color.MagentaString
+	tlsColorFunc  = color.YellowString
+	hintColorFunc = color.CyanString
 )
 
 // writeWrapper is used to pass a io.Writer variable to the hooks so that they
@@ -74,7 +80,7 @@ func (writer *connectivityHooks) connectDoneHook(network, addr string, err error
 	statusString := color.GreenString("OK")
 	if err != nil {
 		statusString = color.RedString("ERROR")
-		fmt.Fprintf(writer.w, "Unable to connect to the endpoint : %v\n", err)
+		fmt.Fprintf(writer.w, "Unable to connect to the endpoint : %v\n", scrubber.ScrubLine(err.Error()))
 	}
 	fmt.Fprintf(writer.w, "* Connection to the endpoint [%v]\n\n", statusString)
 }
@@ -95,7 +101,7 @@ func (writer *connectivityHooks) getConnHook(hostPort string) {
 // Information about new connection are reported by connectDoneHook
 func (writer *connectivityHooks) gotConnHook(gci httptrace.GotConnInfo) {
 	if gci.Reused {
-		fmt.Fprint(writer.w, color.CyanString("Reusing a previous connection that was idle for %v\n", gci.IdleTime))
+		fmt.Fprint(writer.w, hintColorFunc("Reusing a previous connection that was idle for %v\n", gci.IdleTime))
 	}
 }
 
@@ -110,7 +116,7 @@ func (writer *connectivityHooks) dnsDoneHook(di httptrace.DNSDoneInfo) {
 	statusString := color.GreenString("OK")
 	if di.Err != nil {
 		statusString = color.RedString("ERROR")
-		fmt.Fprint(writer.w, dnsColorFunc("Unable to resolve the address : %v\n", di.Err))
+		fmt.Fprint(writer.w, dnsColorFunc("Unable to resolve the address : %v\n", scrubber.ScrubLine(di.Err.Error())))
 	}
 	fmt.Fprintf(writer.w, "* %v [%v]\n\n", dnsColorFunc("DNS Lookup"), statusString)
 }
@@ -126,7 +132,18 @@ func (writer *connectivityHooks) tlsHandshakeDoneHook(cs tls.ConnectionState, er
 	statusString := color.GreenString("OK")
 	if err != nil {
 		statusString = color.RedString("ERROR")
-		fmt.Fprint(writer.w, tlsColorFunc("Unable to achieve the TLS Handshake : %v\n", err))
+		fmt.Fprint(writer.w, tlsColorFunc("Unable to achieve the TLS Handshake : %v\n", scrubber.ScrubLine(err.Error())))
+
+		writer.getTLSHandshakeHints(err)
 	}
 	fmt.Fprintf(writer.w, "* %v [%v]\n\n", tlsColorFunc("TLS Handshake"), statusString)
+}
+
+// getTLSHandshakeHints is called when the TLS handshake fails.
+// It aims to give more context on why the handshake failed when the error displayed is not clear enough.
+func (writer *connectivityHooks) getTLSHandshakeHints(err error) {
+	if strings.Contains(err.Error(), "first record does not look like a TLS handshake") {
+		fmt.Fprintln(writer.w, hintColorFunc("Hint: you are trying to communicate using HTTPS with an endpoint that does not seem to be configured for HTTPS."+
+			" If you are using a proxy, please verify that it is configured for HTTPS connections."))
+	}
 }
