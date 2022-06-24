@@ -32,7 +32,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
-	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -417,42 +416,6 @@ func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 	// Valid container ID
 	pod, err = kubeutil.GetPodForContainerID(ctx, "container_id://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
 	// The /pods request is still cached
-	require.Nil(suite.T(), err)
-	require.NotNil(suite.T(), pod)
-	require.Equal(suite.T(), "kube-proxy-rnd5q", pod.Metadata.Name)
-}
-
-func (suite *KubeletTestSuite) TestGetPodFromUID() {
-	ctx := context.Background()
-	mockConfig := config.Mock(nil)
-
-	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
-	require.Nil(suite.T(), err)
-	ts, kubeletPort, err := kubelet.Start()
-	require.Nil(suite.T(), err)
-	defer ts.Close()
-
-	mockConfig.Set("kubernetes_kubelet_host", "localhost")
-	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.Set("kubernetes_https_kubelet_port", -1)
-
-	kubeutil := suite.getCustomKubeUtil()
-	kubelet.dropRequests() // Throwing away first GETs
-
-	// Empty Pod UID
-	pod, err := kubeutil.GetPodFromUID(ctx, "")
-	require.Nil(suite.T(), pod)
-	require.NotNil(suite.T(), err)
-	require.Contains(suite.T(), err.Error(), "pod UID is empty")
-
-	// Not found Pod UID
-	pod, err = kubeutil.GetPodFromUID(ctx, "invalid")
-	require.Nil(suite.T(), pod)
-	require.NotNil(suite.T(), err)
-	require.True(suite.T(), errors.IsNotFound(err))
-
-	// Valid Pod UID
-	pod, err = kubeutil.GetPodFromUID(ctx, "e42b42ec-0749-11e8-a2b8-000c29dea4f6")
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pod)
 	require.Equal(suite.T(), "kube-proxy-rnd5q", pod.Metadata.Name)
@@ -858,98 +821,6 @@ func TestKubeletTestSuite(t *testing.T) {
 		false,
 	)
 	suite.Run(t, new(KubeletTestSuite))
-}
-
-func TestGetStatusForContainerID(t *testing.T) {
-	k := NewKubeUtil()
-
-	containerFoo := ContainerStatus{
-		Name:  "fooName",
-		Image: "fooImage",
-		ID:    "docker://fooID",
-	}
-	containerBar := ContainerStatus{
-		Name:  "barName",
-		Image: "barImage",
-		ID:    "docker://barID",
-	}
-	pod := &Pod{
-		Metadata: PodMetadata{
-			Name:      "podName",
-			Namespace: "podNamespace",
-			UID:       "podUID",
-			Annotations: map[string]string{
-				"ad.datadoghq.com/fooName.logs": `[{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}]`,
-			},
-		},
-		Status: Status{
-			Containers:    []ContainerStatus{containerFoo, containerBar},
-			AllContainers: []ContainerStatus{containerFoo, containerBar},
-		},
-	}
-
-	serviceFoo := &service.Service{
-		Type:       "docker",
-		Identifier: "fooID",
-	}
-	serviceBaz := &service.Service{
-		Type:       "docker",
-		Identifier: "bazID",
-	}
-
-	container, _ := k.GetStatusForContainerID(pod, serviceFoo.GetEntityID())
-	assert.Equal(t, containerFoo, container)
-
-	_, err := k.GetStatusForContainerID(pod, serviceBaz.GetEntityID())
-	assert.EqualError(t, err, `"container docker://bazID in pod" not found`)
-}
-
-func TestGetSpecForContainerName(t *testing.T) {
-	k := NewKubeUtil()
-
-	specA := ContainerSpec{
-		Name:  "fooNameA",
-		Image: "fooImage",
-	}
-
-	specB := ContainerSpec{
-		Name:  "fooNameB",
-		Image: "fooPrefix:fooImage",
-	}
-
-	specC := ContainerSpec{
-		Name:  "fooInitC",
-		Image: "fooInitPrefix:fooInitImage",
-	}
-
-	pod := &Pod{
-		Spec: Spec{
-			Containers: []ContainerSpec{specA, specB},
-		},
-	}
-
-	podWithInit := &Pod{
-		Spec: Spec{
-			InitContainers: []ContainerSpec{specC},
-			Containers:     []ContainerSpec{specA, specB},
-		},
-	}
-
-	containerSpec, err := k.GetSpecForContainerName(pod, specA.Name)
-	assert.Equal(t, specA, containerSpec)
-	assert.Nil(t, err)
-
-	containerSpec, err = k.GetSpecForContainerName(pod, specB.Name)
-	assert.Equal(t, specB, containerSpec)
-	assert.Nil(t, err)
-
-	containerSpec, err = k.GetSpecForContainerName(podWithInit, specC.Name)
-	assert.Equal(t, specC, containerSpec)
-	assert.Nil(t, err)
-
-	containerSpec, err = k.GetSpecForContainerName(pod, "noMatch")
-	assert.Equal(t, ContainerSpec{}, containerSpec)
-	assert.NotNil(t, err)
 }
 
 func (suite *KubeletTestSuite) TestPodListWithNullPod() {

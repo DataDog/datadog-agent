@@ -4,15 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"sync"
+	"testing"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"sync"
-	"sync/atomic"
-	"testing"
-	"time"
 )
 
 func TestAggregator(t *testing.T) {
@@ -39,7 +39,7 @@ func TestAggregator(t *testing.T) {
 	flow := &common.Flow{
 		Namespace:      "my-ns",
 		FlowType:       common.TypeNetFlow9,
-		ExporterAddr:   []byte{127, 0, 0, 1},
+		DeviceAddr:     []byte{127, 0, 0, 1},
 		StartTimestamp: 1234568,
 		EndTimestamp:   1234569,
 		Bytes:          20,
@@ -78,8 +78,9 @@ func TestAggregator(t *testing.T) {
   "packets": 4,
   "ether_type": "IPv4",
   "ip_protocol": "TCP",
-  "exporter": {
-    "ip": "127.0.0.1"
+  "device": {
+    "ip": "127.0.0.1",
+    "namespace": "my-ns"
   },
   "source": {
     "ip": "10.10.10.10",
@@ -103,7 +104,6 @@ func TestAggregator(t *testing.T) {
       "index": 0
     }
   },
-  "namespace": "my-ns",
   "host": "my-hostname",
   "tcp_flags": [
     "FIN",
@@ -159,7 +159,7 @@ func waitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Du
 			return fmt.Errorf("timeout error waiting for events")
 		// Got a tick, we should check on doSomething()
 		case <-tick:
-			if atomic.LoadUint64(&aggregator.flushedFlowCount) >= minEvents {
+			if aggregator.flushedFlowCount.Load() >= minEvents {
 				return nil
 			}
 		}

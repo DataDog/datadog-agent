@@ -107,6 +107,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayWebsocketEvent
 	inferredSpan.IsAsync = eventPayload.Headers[invocationType] == "Event"
 }
 
+// EnrichInferredSpanWithSNSEvent TODO <serverless>
 func (inferredSpan *InferredSpan) EnrichInferredSpanWithSNSEvent(eventPayload events.SNSEvent) {
 	eventRecord := eventPayload.Records[0]
 	snsMessage := eventRecord.SNS

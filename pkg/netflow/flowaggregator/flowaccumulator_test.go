@@ -29,7 +29,7 @@ func Test_flowAccumulator_add(t *testing.T) {
 	// Given
 	flowA1 := &common.Flow{
 		FlowType:       common.TypeNetFlow9,
-		ExporterAddr:   []byte{127, 0, 0, 1},
+		DeviceAddr:     []byte{127, 0, 0, 1},
 		StartTimestamp: 1234568,
 		EndTimestamp:   1234569,
 		Bytes:          20,
@@ -43,7 +43,7 @@ func Test_flowAccumulator_add(t *testing.T) {
 	}
 	flowA2 := &common.Flow{
 		FlowType:       common.TypeNetFlow9,
-		ExporterAddr:   []byte{127, 0, 0, 1},
+		DeviceAddr:     []byte{127, 0, 0, 1},
 		StartTimestamp: 1234578,
 		EndTimestamp:   1234579,
 		Bytes:          10,
@@ -57,7 +57,7 @@ func Test_flowAccumulator_add(t *testing.T) {
 	}
 	flowB1 := &common.Flow{
 		FlowType:       common.TypeNetFlow9,
-		ExporterAddr:   []byte{127, 0, 0, 1},
+		DeviceAddr:     []byte{127, 0, 0, 1},
 		StartTimestamp: 1234568,
 		EndTimestamp:   1234569,
 		Bytes:          10,
@@ -101,7 +101,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 	// Given
 	flow := &common.Flow{
 		FlowType:       common.TypeNetFlow9,
-		ExporterAddr:   []byte{127, 0, 0, 1},
+		DeviceAddr:     []byte{127, 0, 0, 1},
 		StartTimestamp: 1234568,
 		EndTimestamp:   1234569,
 		Bytes:          20,

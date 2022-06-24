@@ -37,6 +37,11 @@ func (dn *dockerCustomMetricsExtension) Process(tags []string, container *worklo
 		return
 	}
 
+	if containerStats == nil {
+		log.Debugf("Metrics provider returned nil stats for container: %v", container)
+		return
+	}
+
 	if containerStats.Memory != nil {
 		// Re-implement Docker check behaviour: PrivateWorkingSet is mapped to RSS
 		if containerStats.Memory.PrivateWorkingSet != nil {

@@ -211,7 +211,11 @@ func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketche
 	s.flushSketches(cutoffTime, sketches)
 
 	// expiring contexts
-	s.contextResolver.expireContexts(timestamp - config.Datadog.GetFloat64("dogstatsd_context_expiry_seconds"))
+	s.contextResolver.expireContexts(timestamp-config.Datadog.GetFloat64("dogstatsd_context_expiry_seconds"),
+		func(k ckey.ContextKey) bool {
+			_, ok := s.counterLastSampledByContext[k]
+			return ok
+		})
 	s.lastCutOffTime = cutoffTime
 
 	totalContexts := s.contextResolver.length()

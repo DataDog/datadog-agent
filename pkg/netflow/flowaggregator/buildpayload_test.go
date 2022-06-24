@@ -20,7 +20,7 @@ func Test_buildPayload(t *testing.T) {
 				FlowType:        common.TypeNetFlow9,
 				SamplingRate:    10,
 				Direction:       1,
-				ExporterAddr:    []byte{127, 0, 0, 1},
+				DeviceAddr:      []byte{127, 0, 0, 1},
 				StartTimestamp:  1234568,
 				EndTimestamp:    1234569,
 				Bytes:           10,
@@ -51,8 +51,9 @@ func Test_buildPayload(t *testing.T) {
 				Packets:      2,
 				EtherType:    "IPv4",
 				IPProtocol:   "TCP",
-				Exporter: payload.Exporter{
-					IP: "127.0.0.1",
+				Device: payload.Device{
+					IP:        "127.0.0.1",
+					Namespace: "my-namespace",
 				},
 				Source: payload.Endpoint{
 					IP:   "10.10.10.10",
@@ -65,11 +66,10 @@ func Test_buildPayload(t *testing.T) {
 					Mac:  "00:00:00:00:00:14",
 					Mask: "10.10.0.0/20",
 				},
-				Ingress:   payload.ObservationPoint{Interface: payload.Interface{Index: 10}},
-				Egress:    payload.ObservationPoint{Interface: payload.Interface{Index: 20}},
-				Namespace: "my-namespace",
-				Host:      "my-hostname",
-				TCPFlags:  []string{"FIN", "SYN", "ACK"},
+				Ingress:  payload.ObservationPoint{Interface: payload.Interface{Index: 10}},
+				Egress:   payload.ObservationPoint{Interface: payload.Interface{Index: 20}},
+				Host:     "my-hostname",
+				TCPFlags: []string{"FIN", "SYN", "ACK"},
 				NextHop: payload.NextHop{
 					IP: "10.10.10.30",
 				},

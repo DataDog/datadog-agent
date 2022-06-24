@@ -16,6 +16,7 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf/perf"
 	"github.com/mailru/easyjson/jwriter"
 
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
@@ -447,12 +448,12 @@ func (ev *Event) MarshalJSON() ([]byte, error) {
 }
 
 // ExtractEventInfo extracts cpu and timestamp from the raw data event
-func ExtractEventInfo(data []byte) (uint64, uint64, error) {
-	if len(data) < 16 {
+func ExtractEventInfo(record *perf.Record) (uint64, uint64, error) {
+	if len(record.RawSample) < 16 {
 		return 0, 0, model.ErrNotEnoughData
 	}
 
-	return model.ByteOrder.Uint64(data[0:8]), model.ByteOrder.Uint64(data[8:16]), nil
+	return model.ByteOrder.Uint64(record.RawSample[0:8]), model.ByteOrder.Uint64(record.RawSample[8:16]), nil
 }
 
 // ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time

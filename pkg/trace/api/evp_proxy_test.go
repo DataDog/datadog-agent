@@ -129,12 +129,13 @@ func TestEVPProxyForwarder(t *testing.T) {
 
 		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", bytes.NewReader(randBodyBuf))
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
-		req.Header.Set("Datadog-Container-ID", "myid")
+		req.Header.Set(headerContainerID, "myid")
 		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
 
 		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
 		require.Len(t, proxyreqs, 1)
 		assert.Equal(t, "container:myid", proxyreqs[0].Header.Get("X-Datadog-Container-Tags"))
+		assert.Equal(t, "myid", proxyreqs[0].Header.Get(headerContainerID))
 		assert.Equal(t, "", logs)
 	})
 

@@ -1185,3 +1185,143 @@ func TestProcessIsThread(t *testing.T) {
 		})
 	})
 }
+
+func TestProcessExit(t *testing.T) {
+	sleepExec := which(t, "sleep")
+	timeoutExec := which(t, "timeout")
+
+	const envpExitSleep = "TESTPROCESSEXITSLEEP=1"
+	const envpExitSleepTime = "TESTPROCESSEXITSLEEPTIME=1"
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_exit_ok",
+			Expression: fmt.Sprintf(`exit.cause == EXITED && exit.code == 0 && process.file.path == "%s" && process.envp in ["%s"]`, sleepExec, envpExitSleep),
+		},
+		{
+			ID:         "test_exit_error",
+			Expression: fmt.Sprintf(`exit.cause == EXITED && exit.code == 1 && process.file.path == "%s" && process.envp in ["%s"]`, sleepExec, envpExitSleep),
+		},
+		{
+			ID:         "test_exit_coredump",
+			Expression: fmt.Sprintf(`exit.cause == COREDUMPED && exit.code == SIGQUIT && process.file.path == "%s" && process.envp in ["%s"]`, sleepExec, envpExitSleep),
+		},
+		{
+			ID:         "test_exit_signal",
+			Expression: fmt.Sprintf(`exit.cause == SIGNALED && exit.code == SIGKILL && process.file.path == "%s" && process.envp in ["%s"]`, sleepExec, envpExitSleep),
+		},
+		{
+			ID:         "test_exit_time_1",
+			Expression: fmt.Sprintf(`exit.cause == EXITED && exit.code == 0 && process.created_at < 2s && process.file.path == "%s" && process.envp in ["%s"]`, sleepExec, envpExitSleepTime),
+		},
+		{
+			ID:         "test_exit_time_2",
+			Expression: fmt.Sprintf(`exit.cause == EXITED && exit.code == 0 && process.created_at > 2s && process.file.path == "%s" && process.envp in ["%s"]`, sleepExec, envpExitSleepTime),
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	t.Run("exit-ok", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			args := []string{"0"}
+			envp := []string{envpExitSleep}
+
+			cmd := exec.Command(sleepExec, args...)
+			cmd.Env = envp
+			return cmd.Run()
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_exit_ok")
+			assertFieldEqual(t, event, "exit.file.path", sleepExec)
+			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
+			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
+		})
+	})
+
+	t.Run("exit-error", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			args := []string{} // sleep with no argument should exit with return code 1
+			envp := []string{envpExitSleep}
+
+			cmd := exec.Command(sleepExec, args...)
+			cmd.Env = envp
+			_ = cmd.Run()
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_exit_error")
+			assertFieldEqual(t, event, "exit.file.path", sleepExec)
+			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
+			assert.Equal(t, uint32(1), event.Exit.Code, "wrong exit code")
+		})
+	})
+
+	t.Run("exit-coredumped", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			args := []string{"--preserve-status", "--signal=SIGQUIT", "0.1", sleepExec, "1"}
+			envp := []string{envpExitSleep}
+
+			cmd := exec.Command(timeoutExec, args...)
+			cmd.Env = envp
+			_ = cmd.Run()
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_exit_coredump")
+			assertFieldEqual(t, event, "exit.file.path", sleepExec)
+			assert.Equal(t, uint32(model.ExitCoreDumped), event.Exit.Cause, "wrong exit cause")
+			assert.Equal(t, uint32(syscall.SIGQUIT), event.Exit.Code, "wrong exit code")
+		})
+	})
+
+	t.Run("exit-signaled", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			args := []string{"--preserve-status", "--signal=SIGKILL", "0.1", sleepExec, "1"}
+			envp := []string{envpExitSleep}
+
+			cmd := exec.Command(timeoutExec, args...)
+			cmd.Env = envp
+			_ = cmd.Run()
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_exit_signal")
+			assertFieldEqual(t, event, "exit.file.path", sleepExec)
+			assert.Equal(t, uint32(model.ExitSignaled), event.Exit.Cause, "wrong exit cause")
+			assert.Equal(t, uint32(syscall.SIGKILL), event.Exit.Code, "wrong exit code")
+		})
+	})
+
+	t.Run("exit-time-1", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			args := []string{"--preserve-status", "--signal=SIGKILL", "1", sleepExec, "0.1"}
+			envp := []string{envpExitSleepTime}
+
+			cmd := exec.Command(timeoutExec, args...)
+			cmd.Env = envp
+			return cmd.Run()
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_exit_time_1")
+			assertFieldEqual(t, event, "exit.file.path", sleepExec)
+			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
+			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
+		})
+	})
+
+	t.Run("exit-time-2", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			args := []string{"--preserve-status", "--signal=SIGKILL", "3", sleepExec, "2.1"}
+			envp := []string{envpExitSleepTime}
+
+			cmd := exec.Command(timeoutExec, args...)
+			cmd.Env = envp
+			return cmd.Run()
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_exit_time_2")
+			assertFieldEqual(t, event, "exit.file.path", sleepExec)
+			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
+			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
+		})
+	})
+}

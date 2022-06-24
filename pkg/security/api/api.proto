@@ -55,62 +55,6 @@ message SecuritySelfTestResultMessage {
     string Error = 2;
 }
 
-message DumpActivityParams {
-    string comm = 1;
-    int32 timeout = 2;
-    bool WithGraph = 3;
-    bool DifferentiateArgs = 4;
-    string OutputDirectory = 5;
-    string OutputFormat = 6;
-}
-
-message SecurityActivityDumpMessage {
-    string OutputFilename = 1;
-    string GraphFilename = 2;
-    string Comm = 3;
-    string ContainerID = 4;
-    repeated string Tags = 5;
-    bool WithGraph = 6;
-    bool DifferentiateArgs = 7;
-    string Timeout = 8;
-    string Start = 9;
-    string Left = 10;
-    string Error = 11;
-}
-
-message ListActivityDumpsParams {}
-
-message SecurityActivityDumpListMessage {
-    repeated SecurityActivityDumpMessage Dumps = 1;
-    string Error = 2;
-}
-
-message StopActivityDumpParams {
-    string Comm = 2;
-}
-
-message SecurityActivityDumpStoppedMessage {
-    string Error = 1;
-}
-
-message GenerateProfileParams {
-    string ActivityDumpFile = 1;
-}
-
-message SecurityProfileGeneratedMessage {
-    string ProfilePath = 1;
-    string Error = 2;
-}
-
-message GenerateGraphParams {
-    string ActivityDumpFile = 1;
-}
-
-message SecurityGraphGeneratedMessage {
-    string GraphPath = 1;
-    string Error = 2;
-}
-
 message GetStatusParams {}
 
 message ConstantValueAndSource {
@@ -141,18 +85,103 @@ message EnvironmentStatus {
     string KernelLockdown = 3;
 }
 
+// Activity dump requests
+
+message StorageRequestParams {
+    string LocalStorageDirectory = 1;
+    repeated string LocalStorageFormats = 2;
+    bool LocalStorageCompression = 3;
+    repeated string RemoteStorageFormats = 4;
+    bool RemoteStorageCompression = 5;
+}
+
+message ActivityDumpParams {
+    string comm = 1;
+    int32 timeout = 2;
+    bool DifferentiateArgs = 4;
+    StorageRequestParams Storage = 5;
+}
+
+message ActivityDumpMetadataMessage {
+    string AgentVersion = 1;
+    string AgentCommit = 2;
+    string KernelVersion = 3;
+    string LinuxDistribution = 4;
+
+    string Name = 5;
+    string ActivityDumpVersion = 6;
+    bool DifferentiateArgs = 7;
+    string Comm = 8;
+    string ContainerID = 9;
+    string Start = 10;
+    string Timeout = 11;
+    uint64 Size = 12;
+}
+
+message StorageRequestMessage {
+    string Type = 1;
+    string Format = 2;
+    bool Compression = 3;
+    string File = 4;
+}
+
+message ActivityDumpMessage {
+    string Host = 1;
+    string Source = 2;
+    string Service = 3;
+    repeated string Tags = 4;
+    repeated StorageRequestMessage Storage = 5;
+    ActivityDumpMetadataMessage Metadata = 6;
+    string Error = 7;
+}
+
+message ActivityDumpListParams {}
+
+message ActivityDumpListMessage {
+    repeated ActivityDumpMessage Dumps = 1;
+    string Error = 2;
+}
+
+message ActivityDumpStopParams {
+    string Comm = 2;
+}
+
+message ActivityDumpStopMessage {
+    string Error = 1;
+}
+
+message TranscodingRequestParams {
+    string ActivityDumpFile = 1;
+    StorageRequestParams Storage = 2;
+}
+
+message TranscodingRequestMessage {
+    string Error = 1;
+    repeated StorageRequestMessage Storage = 2;
+}
+
+message ActivityDumpStreamParams {}
+
+message ActivityDumpStreamMessage {
+    ActivityDumpMessage Dump = 1;
+    bool IsCompressed = 2;
+    bytes Data = 3;
+}
+
 service SecurityModule {
     rpc GetEvents(GetEventParams) returns (stream SecurityEventMessage) {}
     rpc GetProcessEvents(GetProcessEventParams) returns (stream SecurityProcessEventMessage) {}
     rpc DumpProcessCache(DumpProcessCacheParams) returns (SecurityDumpProcessCacheMessage) {}
-    rpc DumpActivity(DumpActivityParams) returns (SecurityActivityDumpMessage) {}
-    rpc ListActivityDumps(ListActivityDumpsParams) returns (SecurityActivityDumpListMessage) {}
-    rpc StopActivityDump(StopActivityDumpParams) returns (SecurityActivityDumpStoppedMessage) {}
-    rpc GenerateProfile(GenerateProfileParams) returns (SecurityProfileGeneratedMessage) {}
-    rpc GenerateGraph(GenerateGraphParams) returns (SecurityGraphGeneratedMessage) {}
     rpc GetConfig(GetConfigParams) returns (SecurityConfigMessage) {}
     rpc GetStatus(GetStatusParams) returns (Status) {}
     rpc RunSelfTest(RunSelfTestParams) returns (SecuritySelfTestResultMessage) {}
     rpc ReloadPolicies(ReloadPoliciesParams) returns (ReloadPoliciesResultMessage) {}
     rpc DumpNetworkNamespace(DumpNetworkNamespaceParams) returns (DumpNetworkNamespaceMessage) {}
+
+    // Activity dumps
+    rpc DumpActivity(ActivityDumpParams) returns (ActivityDumpMessage) {}
+    rpc ListActivityDumps(ActivityDumpListParams) returns (ActivityDumpListMessage) {}
+    rpc StopActivityDump(ActivityDumpStopParams) returns (ActivityDumpStopMessage) {}
+    rpc TranscodingRequest(TranscodingRequestParams) returns (TranscodingRequestMessage) {}
+    rpc GetActivityDumpStream(ActivityDumpStreamParams) returns (stream ActivityDumpStreamMessage) {}
 }

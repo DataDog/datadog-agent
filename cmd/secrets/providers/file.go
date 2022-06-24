@@ -22,6 +22,7 @@ const (
 	maxSecretFileSize = 8192
 )
 
+// ReadSecretFile TODO <agent-core>
 func ReadSecretFile(path string) s.Secret {
 	fi, err := os.Lstat(path)
 	if err != nil {

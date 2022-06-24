@@ -132,27 +132,34 @@ func DefaultDemultiplexerOptions(options *forwarder.Options) DemultiplexerOption
 
 func createIterableMetrics(
 	flushAndSerializeInParallel FlushAndSerializeInParallel,
+	serializer serializer.MetricSerializer,
 	logPayloads bool,
 	isServerless bool,
 ) (*metrics.IterableSeries, *metrics.IterableSketches) {
-	series := metrics.NewIterableSeries(func(se *metrics.Serie) {
-		if logPayloads {
-			log.Debugf("Flushing serie: %s", se)
-		}
-		tagsetTlm.updateHugeSerieTelemetry(se)
-	}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
+	var series *metrics.IterableSeries
+	var sketches *metrics.IterableSketches
 
-	seriesSketch := metrics.NewIterableSketches(func(sketch *metrics.SketchSeries) {
-		if logPayloads {
-			log.Debugf("Flushing Sketches: %v", sketch)
-		}
-		if isServerless {
-			log.DebugfServerless("Sending sketches payload : %s", sketch.String())
-		}
-		tagsetTlm.updateHugeSketchesTelemetry(sketch)
-	}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
+	if serializer.AreSeriesEnabled() {
+		series = metrics.NewIterableSeries(func(se *metrics.Serie) {
+			if logPayloads {
+				log.Debugf("Flushing serie: %s", se)
+			}
+			tagsetTlm.updateHugeSerieTelemetry(se)
+		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
+	}
 
-	return series, seriesSketch
+	if serializer.AreSketchesEnabled() {
+		sketches = metrics.NewIterableSketches(func(sketch *metrics.SketchSeries) {
+			if logPayloads {
+				log.Debugf("Flushing Sketches: %v", sketch)
+			}
+			if isServerless {
+				log.DebugfServerless("Sending sketches payload : %s", sketch.String())
+			}
+			tagsetTlm.updateHugeSketchesTelemetry(sketch)
+		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
+	}
+	return series, sketches
 }
 
 // sendIterableSeries is continuously sending series to the serializer, until another routine calls SenderStopped on the

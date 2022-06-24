@@ -1076,6 +1076,26 @@ ORDER BY [b].[Name]`,
 			`SELECT id, name FROM emp WHERE name LIKE ?`,
 		},
 		{
+			"select users.custom #- '{a,b}' from users",
+			"select users.custom",
+		},
+		{
+			"select users.custom #> '{a,b}' from users",
+			"select users.custom",
+		},
+		{
+			"select users.custom #>> '{a,b}' from users",
+			"select users.custom",
+		},
+		{
+			`SELECT a FROM foo WHERE value<@name`,
+			`SELECT a FROM foo WHERE value < @name`,
+		},
+		{
+			`SELECT @@foo`,
+			`SELECT @@foo`,
+		},
+		{
 			`DROP TABLE IF EXISTS django_site;
 DROP TABLE IF EXISTS knowledgebase_article;
 
@@ -1159,6 +1179,64 @@ LIMIT 1
 			oq, err := o.ObfuscateSQLString(c.query)
 			require.NoError(t, err)
 			require.Equal(t, c.expected, oq.Query)
+		})
+	}
+}
+
+func TestPGJSONOperators(t *testing.T) {
+	assert := assert.New(t)
+	for _, tt := range []struct {
+		in, out string
+	}{
+		{
+			"select users.custom #> '{a,b}' from users",
+			"select users.custom #> ? from users",
+		},
+		{
+			"select users.custom #>> '{a,b}' from users",
+			"select users.custom #>> ? from users",
+		},
+		{
+			"select users.custom #- '{a,b}' from users",
+			"select users.custom #- ? from users",
+		},
+		{
+			"select users.custom -> 'foo' from users",
+			"select users.custom -> ? from users",
+		},
+		{
+			"select users.custom ->> 'foo' from users",
+			"select users.custom ->> ? from users",
+		},
+		{
+			"select * from users where user.custom @> '{a,b}'",
+			"select * from users where user.custom @> ?",
+		},
+		{
+			`SELECT a FROM foo WHERE value<@name`,
+			`SELECT a FROM foo WHERE value <@ name`,
+		},
+		{
+			"select * from users where user.custom ? 'foo'",
+			"select * from users where user.custom ? ?",
+		},
+		{
+			"select * from users where user.custom ?| array [ '1', '2' ]",
+			"select * from users where user.custom ?| array [ ? ]",
+		},
+		{
+			"select * from users where user.custom ?& array [ '1', '2' ]",
+			"select * from users where user.custom ?& array [ ? ]",
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			oq, err := NewObfuscator(Config{
+				SQL: SQLConfig{
+					DBMS: DBMSPostgres,
+				},
+			}).ObfuscateSQLString(tt.in)
+			assert.NoError(err)
+			assert.Equal(tt.out, oq.Query)
 		})
 	}
 }

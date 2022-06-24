@@ -80,7 +80,7 @@ func (c *BufferedChan) Get() (interface{}, bool) {
 	return value, true
 }
 
-// Wait until a value is available for Get or until Close is called or when the context is Done
+// WaitForValue waits until a value is available for Get or until Close is called or when the context is Done
 // Returns true if a value is available, false otherwise
 func (c *BufferedChan) WaitForValue() bool {
 	if c.getIndex >= len(c.getSlice) {

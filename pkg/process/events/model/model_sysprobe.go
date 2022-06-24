@@ -31,6 +31,7 @@ func ProcessMonitoringToProcessEvent(e *ProcessMonitoringEvent) *ProcessEvent {
 		EventType:      e.EventType,
 		CollectionTime: e.CollectionTime,
 		Pid:            e.Pid,
+		ContainerID:    e.ContainerID,
 		Ppid:           e.PPid,
 		UID:            e.UID,
 		GID:            e.GID,
@@ -56,7 +57,8 @@ func ProcessEventToProcessMonitoringEvent(e *ProcessEvent) *ProcessMonitoringEve
 					PIDContext: model.PIDContext{
 						Pid: e.Pid,
 					},
-					PPid: e.Ppid,
+					ContainerID: e.ContainerID,
+					PPid:        e.Ppid,
 					Credentials: model.Credentials{
 						UID:   e.UID,
 						GID:   e.GID,

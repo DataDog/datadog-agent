@@ -526,6 +526,19 @@ func InitConfig(config Config) {
 	// Default is 0 - blocking channel
 	config.BindEnvAndSetDefault("dogstatsd_capture_depth", 0)
 
+	// To enable the following feature, GODEBUG must contain `madvdontneed=1`
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.enabled", false)
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.low_soft_limit", 0.7)
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.high_soft_limit", 0.8)
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.go_gc", 1) // 0 means don't call SetGCPercent
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.memory_ballast", int64(1024*1024*1024*8))
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.rate_check.min", 0.01)
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.rate_check.max", 1)
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.rate_check.factor", 2)
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.min", 0.01)
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.max", 0.1)
+	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.factor", 1.5)
+
 	config.BindEnv("dogstatsd_mapper_profiles")
 	config.SetEnvKeyTransformer("dogstatsd_mapper_profiles", func(in string) interface{} {
 		var mappings []MappingProfile
@@ -1041,19 +1054,24 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.runtime_compilation.enabled", false)
 	config.BindEnv("runtime_security_config.runtime_compilation.compiled_constants_enabled")
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", false)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", 30)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.tags_resolution_period", 60)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_cgroups_count", -1)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_event_types", []string{"exec", "open", "dns"})
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_dump_timeout", 30)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_wait_list_size", 10)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_output_directory", "")
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_generate_graph", false)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_differentiate_args", true)
 	config.BindEnvAndSetDefault("runtime_security_config.network.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.network.lazy_interface_prefixes", []string{})
 	config.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", false)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", false)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", 30)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.tags_resolution_period", 60)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_cgroups_count", 10)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_event_types", []string{"exec", "open", "dns", "bind"})
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_dump_timeout", 30)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_wait_list_size", 10)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_differentiate_args", true)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.max_dumps_count", 100)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.output_directory", "/tmp/activity_dumps/")
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.formats", []string{})
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.compression", true)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.formats", []string{"json"})
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.compression", true)
+	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 
 	// Serverless Agent
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
