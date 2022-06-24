@@ -4,15 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"sync"
+	"testing"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"sync"
-	"sync/atomic"
-	"testing"
-	"time"
 )
 
 func TestAggregator(t *testing.T) {
@@ -159,7 +159,7 @@ func waitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Du
 			return fmt.Errorf("timeout error waiting for events")
 		// Got a tick, we should check on doSomething()
 		case <-tick:
-			if atomic.LoadUint64(&aggregator.flushedFlowCount) >= minEvents {
+			if aggregator.flushedFlowCount.Load() >= minEvents {
 				return nil
 			}
 		}
