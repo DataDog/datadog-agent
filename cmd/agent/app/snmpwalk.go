@@ -69,11 +69,6 @@ var (
 	// communication
 	retries int
 	timeout int
-
-	// TODO: debugging
-	// pingDevice  bool
-	// checkConfig bool
-
 )
 
 func init() {
@@ -95,10 +90,6 @@ func init() {
 	// general communication options
 	snmpwalkCmd.Flags().IntVarP(&retries, "retries", "r", defaultRetries, "Set the number of retries")
 	snmpwalkCmd.Flags().IntVarP(&timeout, "timeout", "t", defaultTimeout, "Set the request timeout (in seconds)")
-
-	// TODO: debugging options
-	// snmpwalkCmd.Flags().BoolVarP(&pingDevice, "ping", "P", false, "Ping the device before performing the snmpwalk") // connectivity check
-	// snmpwalkCmd.Flags().BoolVarP(&checkConfig, "config", "", false, "Load device configuration") // config check
 
 	snmpwalkCmd.SetArgs([]string{})
 }
@@ -236,7 +227,7 @@ var snmpwalkCmd = &cobra.Command{
 			Version:   setVersion,
 			Timeout:   time.Duration(10 * time.Second), // Timeout better suited to walking
 			Retries:   retries,
-			// TODO: v3
+			// v3
 			SecurityModel: gosnmp.UserSecurityModel,
 			ContextName:   snmpContext,
 			MsgFlags:      msgFlags,
