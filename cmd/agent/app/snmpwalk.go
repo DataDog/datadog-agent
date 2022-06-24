@@ -31,8 +31,8 @@ const (
 	defaultAuthProtocol  = ""
 	defaultAuthKey       = ""
 	defaultPrivProtocol  = ""
-	defaultprivKey       = ""
-	defaultcontext       = "public"
+	defaultPrivKey       = ""
+	defaultContext       = "public"
 	defaultSecurityLevel = ""
 
 	// general communication options
@@ -87,10 +87,10 @@ func init() {
 	snmpwalkCmd.Flags().StringVarP(&authProt, "auth-protocol", "a", defaultAuthProtocol, "Set authentication protocol (MD5|SHA|SHA-224|SHA-256|SHA-384|SHA-512)")
 	snmpwalkCmd.Flags().StringVarP(&authKey, "auth-key", "A", defaultAuthKey, "Set authentication protocol pass phrase")
 	snmpwalkCmd.Flags().StringVarP(&securityLevel, "security-level", "l", defaultSecurityLevel, "set security level (noAuthNoPriv|authNoPriv|authPriv)")
-	snmpwalkCmd.Flags().StringVarP(&snmpContext, "context", "N", defaultcontext, "Set context name")
+	snmpwalkCmd.Flags().StringVarP(&snmpContext, "context", "N", defaultContext, "Set context name")
 	snmpwalkCmd.Flags().StringVarP(&user, "user-name", "u", defaultUserName, "Set security name")
 	snmpwalkCmd.Flags().StringVarP(&privProt, "priv-protocol", "x", defaultPrivProtocol, "Set privacy protocol (DES|AES|AES192|AES192C|AES256|AES256C)")
-	snmpwalkCmd.Flags().StringVarP(&privKey, "priv-key", "X", defaultprivKey, "Set privacy protocol pass phrase")
+	snmpwalkCmd.Flags().StringVarP(&privKey, "priv-key", "X", defaultPrivKey, "Set privacy protocol pass phrase")
 
 	// general communication options
 	snmpwalkCmd.Flags().IntVarP(&retries, "retries", "r", defaultRetries, "Set the number of retries")
