@@ -46,6 +46,9 @@ const (
 	// DefaultProcessEndpoint is the default endpoint for the process agent to send payloads to
 	DefaultProcessEndpoint = "https://process.datadoghq.com"
 
+	// DefaultProcessEventsEndpoint is the default endpoint for the process agent to send event payloads to
+	DefaultProcessEventsEndpoint = "https://process-events.datadoghq.com"
+
 	// DefaultProcessEventStoreMaxItems is the default maximum amount of events that can be stored in the Event Store
 	DefaultProcessEventStoreMaxItems = 200
 
@@ -112,6 +115,7 @@ func setupProcesses(config Config) {
 		"DD_PROCESS_AGENT_URL",
 		"DD_PROCESS_CONFIG_URL",
 	)
+	procBindEnv(config, "process_config.events_dd_url")
 	config.SetKnown("process_config.dd_agent_env")
 	config.SetKnown("process_config.intervals.process_realtime")
 	procBindEnvAndSetDefault(config, "process_config.queue_size", DefaultProcessQueueSize)
@@ -152,6 +156,7 @@ func setupProcesses(config Config) {
 		"DD_PROCESS_AGENT_ADDITIONAL_ENDPOINTS",
 		"DD_PROCESS_ADDITIONAL_ENDPOINTS",
 	)
+	procBindEnvAndSetDefault(config, "process_config.events_additional_endpoints", make(map[string][]string))
 	config.SetKnown("process_config.intervals.connections")
 	procBindEnvAndSetDefault(config, "process_config.expvar_port", DefaultProcessExpVarPort)
 	procBindEnvAndSetDefault(config, "process_config.log_file", DefaultProcessAgentLogFile)

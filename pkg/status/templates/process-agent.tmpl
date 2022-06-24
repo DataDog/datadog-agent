@@ -41,9 +41,11 @@ Process Agent
     Number of containers: {{.expvars.container_count}}
     Process Queue length: {{.expvars.process_queue_size}}
     RTProcess Queue length: {{.expvars.rtprocess_queue_size}}
+    Event Queue length: {{.expvars.event_queue_size}}
     Pod Queue length: {{.expvars.pod_queue_size}}
     Process Bytes enqueued: {{.expvars.process_queue_bytes}}
     RTProcess Bytes enqueued: {{.expvars.rtprocess_queue_bytes}}
+    Event Bytes enqueued: {{.expvars.event_queue_bytes}}
     Pod Bytes enqueued: {{.expvars.pod_queue_bytes}}
     Drop Check Payloads: {{.expvars.drop_check_payloads}}
 {{- end }}
