@@ -606,8 +606,6 @@ func (ns *networkState) RemoveConnections(keys []string) {
 			ns.telemetry.dnsPidCollisions,
 			ns.telemetry.timeSyncCollisions)
 	}
-
-	ns.telemetry = telemetry{}
 }
 
 // GetStats returns a map of statistics about the current network state
