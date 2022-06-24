@@ -141,6 +141,7 @@
 /pkg/serializer/                        @DataDog/agent-core
 /pkg/serverless/                        @DataDog/serverless
 /pkg/status/                            @DataDog/agent-core
+/pkg/status/templates/process-agent.tmpl    @DataDog/processes
 /pkg/telemetry/                         @DataDog/agent-core
 /pkg/version/                           @DataDog/agent-core
 /pkg/obfuscate/                         @DataDog/agent-apm
