@@ -214,11 +214,9 @@
                         "required": [
                             "PIDContext",
                             "argv0",
-                            "argv_truncated",
                             "comm",
                             "cookie",
                             "credentials",
-                            "envs_truncated",
                             "exec_time",
                             "exit_time",
                             "file",
