@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/DataDog/gopsutil/process"
-	"github.com/gogo/protobuf/proto"
 	"github.com/prometheus/procfs"
 	"github.com/tinylib/msgp/msgp"
 	"go.uber.org/atomic"
@@ -695,8 +694,10 @@ func (ad *ActivityDump) EncodeMSGP() (*bytes.Buffer, error) {
 
 // EncodeProtobuf encodes an activity dump in the Protobuf format
 func (ad *ActivityDump) EncodeProtobuf() (*bytes.Buffer, error) {
-	pad := adToProto(ad)
-	raw, err := proto.Marshal(pad)
+	pad := activityDumpToProto(ad)
+	defer pad.ReturnToVTPool()
+
+	raw, err := pad.MarshalVT()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.PROTOBUF, err)
 	}
