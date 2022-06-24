@@ -111,7 +111,7 @@ DEFAULT_MODULES = {
     "pkg/trace": GoModule("pkg/trace"),
     "pkg/otlp/model": GoModule("pkg/otlp/model"),
     "pkg/security/secl": GoModule("pkg/security/secl"),
-    "pkg/remoteconfig/client": GoModule("pkg/remoteconfig/client"),
+    "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state"),
 }
 
 MAIN_TEMPLATE = """package main

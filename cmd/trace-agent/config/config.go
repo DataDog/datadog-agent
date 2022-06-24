@@ -22,6 +22,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/osutil"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -39,6 +41,14 @@ import (
 const (
 	// apiEndpointPrefix is the URL prefix prepended to the default site value from YamlAgentConfig.
 	apiEndpointPrefix = "https://trace.agent."
+	// rcClientName is the default name for remote configuration clients in the trace agent
+	rcClientName = "trace-agent"
+)
+
+const (
+	// rcClientPollInterval is the default poll interval for remote configuration clients. 1 second ensures that
+	// clients remain up to date without paying too much of a performance cost (polls that contain no updates are cheap)
+	rcClientPollInterval = time.Second * 1
 )
 
 // LoadConfigFile returns a new configuration based on the given path. The path must not necessarily exist
@@ -80,7 +90,8 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 	}
 	cfg.ConfigPath = path
 	if coreconfig.Datadog.GetBool("remote_configuration.enabled") && coreconfig.Datadog.GetBool("remote_configuration.apm_sampling.enabled") {
-		if client, err := newRemoteClient(); err != nil {
+		client, err := remote.NewClient(rcClientName, version.AgentVersion, []data.Product{data.ProductAPMSampling}, rcClientPollInterval)
+		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {
 			cfg.RemoteSamplingClient = client

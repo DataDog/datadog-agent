@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/stretchr/testify/assert"
 )
 

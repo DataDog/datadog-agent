@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent/pkg/remoteconfig/client
+module github.com/DataDog/datadog-agent/pkg/remoteconfig/state
 
 go 1.17
 
