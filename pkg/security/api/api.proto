@@ -83,6 +83,8 @@ message EnvironmentStatus {
     repeated string Warnings = 1;
     ConstantFetcherStatus Constants = 2;
     string KernelLockdown = 3;
+    bool UseMmapableMaps = 4;
+    bool UseRingBuffer = 5;
 }
 
 // Activity dump requests

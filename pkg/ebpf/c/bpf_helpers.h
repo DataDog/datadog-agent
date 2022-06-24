@@ -94,6 +94,10 @@ static int (*bpf_probe_read_user)(void* dst, int size, void* unsafe_ptr) = (void
 static int (*bpf_probe_read_kernel)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read;
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
+static int (*bpf_ringbuf_output)(void *ringbuf, void *data, u64 size, u64 flags) = (void*)BPF_FUNC_ringbuf_output;
+#endif
+
 #pragma clang diagnostic pop
 
 /* llvm builtin functions that eBPF C program may use to

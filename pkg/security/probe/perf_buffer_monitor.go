@@ -13,7 +13,6 @@ import (
 	"sync/atomic"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
 	"github.com/pkg/errors"
 
@@ -112,11 +111,24 @@ func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 
 		pbm.perfBufferStatsMaps[perfMapName] = stats
 		// set default perf buffer size, it will be readjusted in the next loop if needed
-		pbm.perfBufferSize[perfMapName] = float64(p.managerOptions.DefaultPerfRingBufferSize)
+		if stats.Type() == lib.RingBuf {
+			pbm.perfBufferSize[perfMapName] = float64(p.managerOptions.DefaultRingBufferSize)
+		} else {
+			pbm.perfBufferSize[perfMapName] = float64(p.managerOptions.DefaultPerfRingBufferSize)
+		}
+	}
+
+	maps := make(map[string]int, len(p.manager.PerfMaps)+len(p.manager.RingBuffers))
+	for _, pm := range p.manager.PerfMaps {
+		maps[pm.Name] = pm.PerfRingBufferSize
+	}
+
+	for _, rb := range p.manager.RingBuffers {
+		maps[rb.Name] = rb.RingBufferSize
 	}
 
 	// Prepare user space counters
-	for _, m := range p.manager.PerfMaps {
+	for mapName, size := range maps {
 		var stats, kernelStats [][model.MaxKernelEventType]PerfMapStats
 		var usrLostEvents []uint64
 		var sortingErrorStats [model.MaxKernelEventType]*int64
@@ -132,14 +144,14 @@ func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 			sortingErrorStats[i] = &zero
 		}
 
-		pbm.stats[m.Name] = stats
-		pbm.kernelStats[m.Name] = kernelStats
-		pbm.readLostEvents[m.Name] = usrLostEvents
-		pbm.sortingErrorStats[m.Name] = sortingErrorStats
+		pbm.stats[mapName] = stats
+		pbm.kernelStats[mapName] = kernelStats
+		pbm.readLostEvents[mapName] = usrLostEvents
+		pbm.sortingErrorStats[mapName] = sortingErrorStats
 
 		// update perf buffer size if needed
-		if m.PerfRingBufferSize != 0 {
-			pbm.perfBufferSize[m.Name] = float64(m.PerfRingBufferSize)
+		if size != 0 {
+			pbm.perfBufferSize[mapName] = float64(size)
 		}
 	}
 	log.Debugf("monitoring perf ring buffer on %d CPU, %d events", pbm.numCPU, model.MaxKernelEventType)
@@ -319,31 +331,31 @@ func (pbm *PerfBufferMonitor) getAndResetSortingErrorCount(eventType model.Event
 }
 
 // CountLostEvent adds `count` to the counter of lost events
-func (pbm *PerfBufferMonitor) CountLostEvent(count uint64, m *manager.PerfMap, cpu int) {
+func (pbm *PerfBufferMonitor) CountLostEvent(count uint64, mapName string, cpu int) {
 	// sanity check
-	if (pbm.readLostEvents[m.Name] == nil) || (len(pbm.readLostEvents[m.Name]) <= cpu) {
+	if (pbm.readLostEvents[mapName] == nil) || (len(pbm.readLostEvents[mapName]) <= cpu) {
 		return
 	}
-	atomic.AddUint64(&pbm.readLostEvents[m.Name][cpu], count)
+	atomic.AddUint64(&pbm.readLostEvents[mapName][cpu], count)
 }
 
 // CountEvent adds `count` to the counter of received events of the specified type
-func (pbm *PerfBufferMonitor) CountEvent(eventType model.EventType, timestamp uint64, count uint64, size uint64, m *manager.PerfMap, cpu int) {
+func (pbm *PerfBufferMonitor) CountEvent(eventType model.EventType, timestamp uint64, count uint64, size uint64, mapName string, cpu int) {
 	// check event order
 	if timestamp < pbm.lastTimestamp && pbm.lastTimestamp != 0 {
-		atomic.AddInt64(pbm.sortingErrorStats[m.Name][eventType], 1)
+		atomic.AddInt64(pbm.sortingErrorStats[mapName][eventType], 1)
 		atomic.SwapUint64(&pbm.shouldBumpGeneration, 1)
 	} else {
 		pbm.lastTimestamp = timestamp
 	}
 
 	// sanity check
-	if (pbm.stats[m.Name] == nil) || (len(pbm.stats[m.Name]) <= cpu) || (len(pbm.stats[m.Name][cpu]) <= int(eventType)) {
+	if (pbm.stats[mapName] == nil) || (len(pbm.stats[mapName]) <= cpu) || (len(pbm.stats[mapName][cpu]) <= int(eventType)) {
 		return
 	}
 
-	atomic.AddUint64(&pbm.stats[m.Name][cpu][eventType].Count, count)
-	atomic.AddUint64(&pbm.stats[m.Name][cpu][eventType].Bytes, size)
+	atomic.AddUint64(&pbm.stats[mapName][cpu][eventType].Count, count)
+	atomic.AddUint64(&pbm.stats[mapName][cpu][eventType].Bytes, size)
 }
 
 func (pbm *PerfBufferMonitor) sendEventsAndBytesReadStats(client statsd.ClientInterface) error {

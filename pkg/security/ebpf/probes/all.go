@@ -10,8 +10,11 @@ package probes
 
 import (
 	"math"
+	"os"
+	"runtime"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 )
 
@@ -19,12 +22,27 @@ const (
 	minPathnamesEntries = 64000 // ~27 MB
 	maxPathnamesEntries = 96000
 
-	minProcEntries = 16394
-	maxProcEntries = 131072
+	minProcEntries          = 16394
+	maxProcEntries          = 131072
+	maxEventsRingBufferSize = 16 * 1024 // 16384 pages
 )
 
-// allProbes contain the list of all the probes of the runtime security module
-var allProbes []*manager.Probe
+var (
+	// allProbes contain the list of all the probes of the runtime security module
+	allProbes []*manager.Probe
+	// EventsPerfRingBufferSize is the buffer size of the perf buffers used for events.
+	// PLEASE NOTE: for the perf ring buffer usage metrics to be accurate, the provided value must have the
+	// following form: (1 + 2^n) * pages. Checkout https://github.com/DataDog/ebpf for more.
+	EventsPerfRingBufferSize = 257 * os.Getpagesize()
+	// EventsRingBufferSize is the default buffer size of the ring buffers for events.
+	EventsRingBufferSize int
+)
+
+func init() {
+	if EventsRingBufferSize = runtime.NumCPU() * 1024; EventsRingBufferSize > maxEventsRingBufferSize {
+		EventsPerfRingBufferSize = maxEventsRingBufferSize
+	}
+}
 
 // AllProbes returns the list of all the probes of the runtime security module
 func AllProbes() []*manager.Probe {
@@ -142,7 +160,7 @@ func getMaxEntries(numCPU int, min int, max int) uint32 {
 }
 
 // AllMapSpecEditors returns the list of map editors
-func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize int, supportMmapableMaps bool) map[string]manager.MapSpecEditor {
+func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize int, supportMmapableMaps, useRingBuffers bool) map[string]manager.MapSpecEditor {
 	if tracedCgroupsCount <= 0 || tracedCgroupsCount > MaxTracedCgroupsCount {
 		tracedCgroupsCount = MaxTracedCgroupsCount
 	}
@@ -177,12 +195,28 @@ func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize in
 			EditorFlag: manager.EditFlags,
 		}
 	}
+	if useRingBuffers {
+		editors["events"] = manager.MapSpecEditor{
+			MaxEntries: uint32(EventsRingBufferSize),
+			Type:       ebpf.RingBuf,
+			EditorFlag: manager.EditType | manager.EditMaxEntries,
+		}
+	}
 	return editors
 }
 
 // AllPerfMaps returns the list of perf maps of the runtime security module
 func AllPerfMaps() []*manager.PerfMap {
 	return []*manager.PerfMap{
+		{
+			Map: manager.Map{Name: "events"},
+		},
+	}
+}
+
+// AllRingBuffers returns the list of ring buffers of the runtime security module
+func AllRingBuffers() []*manager.RingBuffer {
+	return []*manager.RingBuffer{
 		{
 			Map: manager.Map{Name: "events"},
 		},

@@ -155,6 +155,10 @@ type Config struct {
 	EventMonitoring bool
 	// RemoteConfigurationEnabled defines whether to use remote monitoring
 	RemoteConfigurationEnabled bool
+	// EventStreamUseRingBuffer specifies whether to use eBPF ring buffers when available
+	EventStreamUseRingBuffer bool
+	// EventStreamBufferSize specifies the buffer size of the eBPF map used for events
+	EventStreamBufferSize int
 }
 
 // IsEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -212,6 +216,8 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		NetworkEnabled:                     coreconfig.Datadog.GetBool("runtime_security_config.network.enabled"),
 		NetworkLazyInterfacePrefixes:       coreconfig.Datadog.GetStringSlice("runtime_security_config.network.lazy_interface_prefixes"),
 		RemoteConfigurationEnabled:         coreconfig.Datadog.GetBool("runtime_security_config.remote_configuration.enabled"),
+		EventStreamUseRingBuffer:           coreconfig.Datadog.GetBool("runtime_security_config.event_stream.use_ring_buffer"),
+		EventStreamBufferSize:              coreconfig.Datadog.GetInt("runtime_security_config.event_stream.buffer_size"),
 
 		// runtime compilation
 		RuntimeCompilationEnabled:       coreconfig.Datadog.GetBool("runtime_security_config.runtime_compilation.enabled"),

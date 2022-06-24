@@ -246,6 +246,8 @@ func (rsa *RuntimeSecurityAgent) GetStatus() map[string]interface{} {
 				environment := map[string]interface{}{
 					"warnings":       cfStatus.Environment.Warnings,
 					"kernelLockdown": cfStatus.Environment.KernelLockdown,
+					"mmapableMaps":   cfStatus.Environment.UseMmapableMaps,
+					"ringBuffer":     cfStatus.Environment.UseRingBuffer,
 				}
 				if cfStatus.Environment.Constants != nil {
 					environment["constantFetchers"] = cfStatus.Environment.Constants
