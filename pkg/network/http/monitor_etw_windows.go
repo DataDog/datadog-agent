@@ -12,7 +12,6 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/driver"
 )
 
 type EtwMonitor struct {
@@ -39,18 +38,18 @@ func NewEtwMonitor(c *config.Config) (Monitor, error) {
 
 // Start consuming HTTP events
 func (m *EtwMonitor) Start() {
-	m.ei.startReadingHttpTransaction()
+	m.ei.startReadingHttpFlows()
 
 	m.eventLoopWG.Add(1)
 	go func() {
 		defer m.eventLoopWG.Done()
 		for {
 			select {
-			case transactionBatch, ok := <-m.ei.dataChannel:
+			case httpConns, ok := <-m.ei.dataChannel:
 				if !ok {
 					return
 				}
-				m.process(transactionBatch)
+				m.process(httpConns)
 			}
 		}
 	}()
@@ -58,7 +57,7 @@ func (m *EtwMonitor) Start() {
 	return
 }
 
-func (m *EtwMonitor) process(transactionBatch []driver.HttpTransactionType) {
+func (m *EtwMonitor) process(httpConns []HttpConn) {
 	// transactions, err := m.ei.flushPendingTransactions()
 	// if err != nil {
 	// 	log.Warnf("Failed to flush pending http transactions: %v", err)

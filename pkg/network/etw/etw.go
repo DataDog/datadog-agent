@@ -9,12 +9,12 @@
 package etw
 
 import (
+	"errors"
 	"unsafe"
 )
 
 /*
-#cgo LDFLAGS: -L "./c/etw.c"
-#include "./c/etw.h"
+#include "etw.h"
 
 void etwCallbackC(DD_ETW_EVENT_INFO* eventInfo);
 */
@@ -37,9 +37,16 @@ func StartEtw(subscriptionName string) error {
 	_, err := C.StartEtwSubscription(
 		C.CString(subscriptionName), providers, etwFlags, (C.ETW_EVENT_CALLBACK)(unsafe.Pointer(C.etwCallbackC)))
 
-	return err
+	if err != nil {
+		return errors.New("Error: " + err.Error())
+	}
+
+	return nil
 }
 
 func StopEtw(subscriptionName string) {
 	C.StopEtwSubscription()
+	if (providers & C.DD_ETW_TRACE_PROVIDER_HttpService) == C.DD_ETW_TRACE_PROVIDER_HttpService {
+		StopEtwHttpServiceSubscription()
+	}
 }

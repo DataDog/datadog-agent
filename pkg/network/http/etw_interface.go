@@ -10,29 +10,29 @@ package http
 
 import (
 	"sync"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/network/etw"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type httpEtwInterface struct {
-	dataChannel chan []driver.HttpTransactionType
+	dataChannel chan []etw.ConnHttp
 	eventLoopWG sync.WaitGroup
 }
 
 func newHttpEtwInterface() *httpEtwInterface {
 	hei := &httpEtwInterface{}
-	hei.dataChannel = make(chan []driver.HttpTransactionType)
+	hei.dataChannel = make(chan []etw.ConnHttp)
 	return hei
 }
 
-func (hei *httpEtwInterface) setMaxFlows(maxFlows uint64) error {
+func (hei *httpEtwInterface) setMaxFlows(maxFlows uint64) {
 	log.Debugf("Setting max flows in driver http filter to %v", maxFlows)
-	return nil
+	etw.SetMaxFlows(maxFlows)
 }
 
-func (hei *httpEtwInterface) startReadingHttpTransaction() {
+func (hei *httpEtwInterface) startReadingHttpFlows() {
 	hei.eventLoopWG.Add(2)
 
 	// Currently ETW needs be started on a separate thread
@@ -48,46 +48,24 @@ func (hei *httpEtwInterface) startReadingHttpTransaction() {
 		defer hei.eventLoopWG.Done()
 
 		for {
-			// transactionSize := uint32(driver.HttpTransactionTypeSize)
-			// batchSize := bytesRead / transactionSize
-			// transactionBatch := make([]driver.HttpTransactionType, batchSize)
+			httpConns := etw.ReadConnHttp()
+			if len(httpConns) > 0 {
+				hei.dataChannel <- httpConns
+			}
 
-			// for i := uint32(0); i < batchSize; i++ {
-			// 	transactionBatch[i] = *(*driver.HttpTransactionType)(unsafe.Pointer(&buf.Data[i*transactionSize]))
-			// }
-
-			// hei.dataChannel <- transactionBatch
+			// need a better signalling mechanism
+			time.Sleep(5 * time.Second)
 		}
 	}()
-}
-
-func (hei *httpEtwInterface) flushPendingTransactions() ([]driver.HttpTransactionType, error) {
-	// var (
-	// 	bytesRead uint32
-	// 	buf       = make([]byte, driver.HttpTransactionTypeSize*driver.HttpBatchSize)
-	// )
-
-	// transactionSize := uint32(driver.HttpTransactionTypeSize)
-	// batchSize := bytesRead / transactionSize
-	// transactionBatch := make([]driver.HttpTransactionType, batchSize)
-
-	// for i := uint32(0); i < batchSize; i++ {
-	// 	transactionBatch[i] = *(*driver.HttpTransactionType)(unsafe.Pointer(&buf[i*transactionSize]))
-	// }
-
-	// return transactionBatch, nil
-	return nil, nil
 }
 
 func (hei *httpEtwInterface) getStats() (map[string]int64, error) {
 	return nil, nil
 }
 
-func (hei *httpEtwInterface) close() error {
+func (hei *httpEtwInterface) close() {
 	etw.StopEtw("ddnpm-httpservice")
 
 	hei.eventLoopWG.Wait()
 	close(hei.dataChannel)
-
-	return nil
 }
