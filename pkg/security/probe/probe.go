@@ -542,7 +542,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		if mount != nil && mount.GetFSType() == "nsfs" {
 			nsid := uint32(mount.RootInode)
 			if namespace := p.resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
-				p.resolvers.NamespaceResolver.FlushNetworkNamespace(namespace)
+				p.FlushNetworkNamespace(namespace)
 			}
 		}
 
@@ -875,17 +875,26 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 	return nil
 }
 
-func (p *Probe) selectTCProbes() []manager.ProbesSelector {
+func (p *Probe) selectTCProbes() manager.ProbesSelector {
 	p.tcProgramsLock.RLock()
 	defer p.tcProgramsLock.RUnlock()
 
-	var activatedProbes []manager.ProbesSelector
+	// Although unlikely, a race is still possible with the umount event of a network namespace:
+	//   - a reload event is triggered
+	//   - selectTCProbes is invoked and the list of currently running probes is generated
+	//   - a container exits and the umount event of its network namespace is handled now (= its TC programs are stopped)
+	//   - the manager executes UpdateActivatedProbes
+	// In this setup, if we didn't use the best effort selector, the manager would try to init & attach a program that
+	// was deleted when the container exited.
+	var activatedProbes manager.BestEffort
 	for _, tcProbe := range p.tcPrograms {
-		activatedProbes = append(activatedProbes, &manager.ProbeSelector{
-			ProbeIdentificationPair: tcProbe.ProbeIdentificationPair,
-		})
+		if tcProbe.IsRunning() {
+			activatedProbes.Selectors = append(activatedProbes.Selectors, &manager.ProbeSelector{
+				ProbeIdentificationPair: tcProbe.ProbeIdentificationPair,
+			})
+		}
 	}
-	return activatedProbes
+	return &activatedProbes
 }
 
 // SelectProbes applies the loaded set of rules and returns a report
@@ -914,7 +923,7 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 		}
 	}
 
-	activatedProbes = append(activatedProbes, p.selectTCProbes()...)
+	activatedProbes = append(activatedProbes, p.selectTCProbes())
 
 	// Add syscall monitor probes
 	if p.config.SyscallMonitor {
@@ -1170,8 +1179,29 @@ func (p *Probe) setupNewTCClassifierWithNetNSHandle(device model.NetDevice, netn
 	return combinedErr.ErrorOrNil()
 }
 
-// flushInactiveProbes detaches and deletes inactive probes. This function returns a map containing the count of probes
-// per network interface (ignoring the interfaces that are lazily deleted).
+// flushNetworkNamespace thread unsafe version of FlushNetworkNamespace
+func (p *Probe) flushNetworkNamespace(namespace *NetworkNamespace) {
+	p.tcProgramsLock.Lock()
+	defer p.tcProgramsLock.Unlock()
+	for tcKey, tcProbe := range p.tcPrograms {
+		if tcKey.NetNS == namespace.nsID {
+			_ = p.manager.DetachHook(tcProbe.ProbeIdentificationPair)
+			delete(p.tcPrograms, tcKey)
+		}
+	}
+}
+
+// FlushNetworkNamespace removes all references and stops all TC programs in the provided network namespace. This method
+// flushes the network namespace in the network namespace resolver as well.
+func (p *Probe) FlushNetworkNamespace(namespace *NetworkNamespace) {
+	p.resolvers.NamespaceResolver.FlushNetworkNamespace(namespace)
+
+	// cleanup internal structures
+	p.flushNetworkNamespace(namespace)
+}
+
+// flushInactiveProbes detaches and deletes inactive probes. This function returns a map containing the count of interfaces
+// per network namespace (ignoring the interfaces that are lazily deleted).
 func (p *Probe) flushInactiveProbes() map[uint32]int {
 	p.tcProgramsLock.Lock()
 	defer p.tcProgramsLock.Unlock()

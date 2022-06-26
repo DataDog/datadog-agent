@@ -81,7 +81,7 @@ runtime_security_config:
   socket: /tmp/test-security-probe.sock
   flush_discarder_window: 0
   network:
-    enabled: {{ .EnableNetwork }}
+    enabled: true
   load_controller:
     events_count_threshold: {{ .EventsCountThreshold }}
 {{if .DisableFilters}}
