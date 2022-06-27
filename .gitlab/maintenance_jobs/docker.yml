@@ -14,38 +14,38 @@
 revert_latest_6:
   extends: .docker_publish_job_definition
   rules:
-    !reference [.manual]
+    !reference [.on_main_manual]
   stage: maintenance_jobs
   variables:
     NEW_LATEST_RELEASE_6: ""  # tag name of the non-jmx version, for example "6.21.0"
-    IMG_REGISTRIES: dev
+    IMG_REGISTRIES: public
   parallel:
     matrix:
       - IMG_SOURCES: datadog/agent:${NEW_LATEST_RELEASE_6}
-        IMG_DESTINATIONS: agent-dev:lenaic-6,agent-dev:lenaic-latest-py2
+        IMG_DESTINATIONS: agent:6,agent:latest-py2
       - IMG_SOURCES: datadog/agent:${NEW_LATEST_RELEASE_6}-jmx
-        IMG_DESTINATIONS: agent-dev:lenaic-6-jmx,agent-dev:lenaic-latest-py2-jmx
+        IMG_DESTINATIONS: agent:6-jmx,agent:latest-py2-jmx
 
 revert_latest_7:
   extends: .docker_publish_job_definition
   rules:
-    !reference [.manual]
+    !reference [.on_main_manual]
   stage: maintenance_jobs
   variables:
     NEW_LATEST_RELEASE_7: ""  # tag name of the non-jmx version, for example "7.21.0"
-    IMG_REGISTRIES: dev
+    IMG_REGISTRIES: public
   parallel:
     matrix:
       - IMG_SOURCES: datadog/agent:${NEW_LATEST_RELEASE_7}
-        IMG_DESTINATIONS: agent-dev:lenaic-7,agent-dev:lenaic-latest
+        IMG_DESTINATIONS: agent:7,agent:latest
       - IMG_SOURCES: datadog/agent:${NEW_LATEST_RELEASE_7}-jmx
-        IMG_DESTINATIONS: agent-dev:lenaic-7-jmx,agent-dev:lenaic-latest-jmx
+        IMG_DESTINATIONS: agent:7-jmx,agent:latest-jmx
       - IMG_SOURCES: datadog/agent:${NEW_LATEST_RELEASE_7}-servercore
-        IMG_DESTINATIONS: agent-dev:lenaic-7-servercore,agent-dev:lenaic-latest-servercore
+        IMG_DESTINATIONS: agent:7-servercore,agent:latest-servercore
       - IMG_SOURCES: datadog/agent:${NEW_LATEST_RELEASE_7}-servercore-jmx
-        IMG_DESTINATIONS: agent-dev:lenaic-7-servercore-jmx,agent-dev:lenaic-latest-servercore-jmx
+        IMG_DESTINATIONS: agent:7-servercore-jmx,agent:latest-servercore-jmx
       - IMG_SOURCES: datadog/dogstatsd:${NEW_LATEST_RELEASE_7}
-        IMG_DESTINATIONS: dogstatsd-dev:lenaic-7,dogstatsd-dev:lenaic-latest
+        IMG_DESTINATIONS: dogstatsd:7,dogstatsd:latest
 
 #
 # Use this step to delete a tag of a given image
