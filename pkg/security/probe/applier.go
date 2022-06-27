@@ -11,11 +11,12 @@ package probe
 import (
 	"math"
 
+	"github.com/pkg/errors"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/pkg/errors"
 )
 
 // RuleSetApplier defines a rule set applier. It applies rules using an Applier

@@ -1039,7 +1039,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process, filledProc *process.F
 	if err != nil {
 		seclog.Errorf("couldn't marshal proc_cache entry: %s", err)
 	} else {
-		if err = p.procCacheMap.Put(pid, procCacheEntryB); err != nil {
+		if err = p.procCacheMap.Put(entry.Cookie, procCacheEntryB); err != nil {
 			seclog.Errorf("couldn't push proc_cache entry to kernel space: %s", err)
 		}
 	}
