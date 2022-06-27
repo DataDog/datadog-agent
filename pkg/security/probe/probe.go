@@ -266,7 +266,7 @@ func (p *Probe) Init() error {
 		})
 	}
 
-	if selectors, exists := probes.SelectorsPerEventType["*"]; exists {
+	if selectors, exists := probes.GetSelectorsPerEventType()["*"]; exists {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, selectors...)
 	}
 
@@ -905,7 +905,7 @@ func (p *Probe) selectTCProbes() manager.ProbesSelector {
 func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	var activatedProbes []manager.ProbesSelector
 
-	for eventType, selectors := range probes.SelectorsPerEventType {
+	for eventType, selectors := range probes.GetSelectorsPerEventType() {
 		if eventType == "*" || rs.HasRulesForEventType(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 		}
