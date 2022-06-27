@@ -255,6 +255,7 @@ type ProcessContextSerializer struct {
 	Ancestors []*ProcessSerializer `json:"ancestors,omitempty"`
 }
 
+// SELinuxBoolChangeSerializer serializes a SELinux boolean change to JSON
 // easyjson:json
 type SELinuxBoolChangeSerializer struct {
 	// SELinux boolean name
@@ -263,12 +264,14 @@ type SELinuxBoolChangeSerializer struct {
 	State string `json:"state,omitempty"`
 }
 
+// SELinuxEnforceStatusSerializer serializes a SELinux enforcement status change to JSON
 // easyjson:json
 type SELinuxEnforceStatusSerializer struct {
 	// SELinux enforcement status (one of 'enforcing', 'permissive' or 'disabled')
 	Status string `json:"status,omitempty"`
 }
 
+// SELinuxBoolCommitSerializer serializes a SELinux boolean commit to JSON
 // easyjson:json
 type SELinuxBoolCommitSerializer struct {
 	// SELinux boolean commit operation
@@ -881,7 +884,8 @@ func newNetworkContextSerializer(e *Event) *NetworkContextSerializer {
 
 func newBindEventSerializer(e *Event) *BindEventSerializer {
 	bes := &BindEventSerializer{
-		Addr: newIPPortFamilySerializer(&e.Bind.Addr, model.AddressFamily(e.Bind.AddrFamily).String()),
+		Addr: newIPPortFamilySerializer(&e.Bind.Addr,
+			model.AddressFamily(e.Bind.AddrFamily).String()),
 	}
 	return bes
 }

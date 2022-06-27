@@ -29,6 +29,7 @@ import (
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -270,6 +271,11 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 		log.Errorf("Could not zip diagnose: %s", err)
 	}
 
+	err = zipDatadogConnectivity(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not zip diagnose datadog-connectivity: %s", err)
+	}
+
 	err = zipRegistryJSON(tempDir, hostname)
 	if err != nil {
 		log.Warnf("Could not zip registry.json: %s", err)
@@ -401,6 +407,7 @@ func createTempDir() (string, error) {
 	dirName := hex.EncodeToString(b)
 	return ioutil.TempDir("", dirName)
 }
+
 func zipStatusFile(tempDir, hostname string) error {
 	// Grab the status
 	s, err := status.GetAndFormatStatus()
@@ -411,13 +418,7 @@ func zipStatusFile(tempDir, hostname string) error {
 }
 
 func writeStatusFile(tempDir, hostname string, data []byte) error {
-	f := filepath.Join(tempDir, hostname, "status.log")
-	err := ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
-
-	return writeScrubbedFile(f, data)
+	return joinPathAndWriteScrubbedFile(data, tempDir, hostname, "status.log")
 }
 
 func addParentPerms(dirPath string, permsInfos permissionsInfos) {
@@ -494,13 +495,7 @@ func zipExpVar(tempDir, hostname string) error {
 			return err
 		}
 
-		f := filepath.Join(tempDir, hostname, "expvar", key)
-		err = ensureParentDirsExist(f)
-		if err != nil {
-			return err
-		}
-
-		err = writeScrubbedFile(f, yamlValue)
+		err = joinPathAndWriteScrubbedFile(yamlValue, tempDir, hostname, "expvar", key)
 		if err != nil {
 			return err
 		}
@@ -537,13 +532,12 @@ func zipExpVar(tempDir, hostname string) error {
 
 func zipSystemProbeStats(tempDir, hostname string) error {
 	sysProbeStats := status.GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
-	sysProbeFile := filepath.Join(tempDir, hostname, "expvar", "system-probe")
-
 	sysProbeBuf, err := yaml.Marshal(sysProbeStats)
 	if err != nil {
 		return err
 	}
-	return writeScrubbedFile(sysProbeFile, sysProbeBuf)
+
+	return joinPathAndWriteScrubbedFile(sysProbeBuf, tempDir, hostname, "expvar", "system-probe")
 }
 
 // zipProcessAgentFullConfig fetches process-agent runtime config as YAML and writes it to process_agent_runtime_config_dump.yaml
@@ -559,9 +553,8 @@ func zipProcessAgentFullConfig(tempDir, hostname string) error {
 	}
 
 	cfgB := status.GetProcessAgentRuntimeConfig(procStatusURL)
-	f := filepath.Join(tempDir, hostname, "process_agent_runtime_config_dump.yaml")
 
-	return writeScrubbedFile(f, cfgB)
+	return joinPathAndWriteScrubbedFile(cfgB, tempDir, hostname, "process_agent_runtime_config_dump.yaml")
 }
 
 func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {
@@ -570,13 +563,7 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 		return err
 	}
 
-	f := filepath.Join(tempDir, hostname, "runtime_config_dump.yaml")
-	err = ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
-
-	err = writeScrubbedFile(f, c)
+	err = joinPathAndWriteScrubbedFile(c, tempDir, hostname, "runtime_config_dump.yaml")
 	if err != nil {
 		return err
 	}
@@ -616,24 +603,18 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 }
 
 func zipSecrets(tempDir, hostname string) error {
-	var b bytes.Buffer
 
-	writer := bufio.NewWriter(&b)
-	info, err := secrets.GetDebugInfo()
-	if err != nil {
-		fmt.Fprintf(writer, "%s", err)
-	} else {
-		info.Print(writer)
-	}
-	writer.Flush()
-
-	f := filepath.Join(tempDir, hostname, "secrets.log")
-	err = ensureParentDirsExist(f)
-	if err != nil {
-		return err
+	fct := func(writer io.Writer) error {
+		info, err := secrets.GetDebugInfo()
+		if err != nil {
+			fmt.Fprintf(writer, "%s", err)
+		} else {
+			info.Print(writer)
+		}
+		return nil
 	}
 
-	return writeScrubbedFile(f, b.Bytes())
+	return zipCommandOutput(fct, tempDir, hostname, "secrets.log")
 }
 
 func zipProcessChecks(tempDir, hostname string, getAddressPort func() (url string, err error)) error {
@@ -679,19 +660,20 @@ func zipProcessChecks(tempDir, hostname string, getAddressPort func() (url strin
 }
 
 func zipDiagnose(tempDir, hostname string) error {
-	var b bytes.Buffer
+	return zipCommandOutput(diagnose.RunAll, tempDir, hostname, "diagnose.log")
+}
 
-	writer := bufio.NewWriter(&b)
-	diagnose.RunAll(writer) //nolint:errcheck
-	writer.Flush()
+func zipDatadogConnectivity(tempDir, hostname string) error {
 
-	f := filepath.Join(tempDir, hostname, "diagnose.log")
-	err := ensureParentDirsExist(f)
-	if err != nil {
-		return err
+	fct := func(w io.Writer) error {
+		return connectivity.RunDatadogConnectivityDiagnose(w, false)
 	}
+	return zipCommandOutput(fct, tempDir, hostname, "connectivity.log")
+}
 
-	return writeScrubbedFile(f, b.Bytes())
+func zipCommandOutput(fct func(w io.Writer) error, tempDir, hostname, filename string) error {
+	bytes := functionOutputToBytes(fct)
+	return joinPathAndWriteScrubbedFile(bytes, tempDir, hostname, filename)
 }
 
 func zipReader(r io.Reader, targetDir, filename string) error {
@@ -749,23 +731,15 @@ func zipVersionHistory(tempDir, hostname string) error {
 }
 
 func zipConfigCheck(tempDir, hostname string) error {
-	var b bytes.Buffer
-
-	writer := bufio.NewWriter(&b)
-	GetConfigCheck(writer, true) //nolint:errcheck
-	writer.Flush()
-
-	return writeConfigCheck(tempDir, hostname, b.Bytes())
+	fct := func(w io.Writer) error {
+		return GetConfigCheck(w, true)
+	}
+	bytes := functionOutputToBytes(fct)
+	return writeConfigCheck(tempDir, hostname, bytes)
 }
 
 func writeConfigCheck(tempDir, hostname string, data []byte) error {
-	f := filepath.Join(tempDir, hostname, "config-check.log")
-	err := ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
-
-	return writeScrubbedFile(f, data)
+	return joinPathAndWriteScrubbedFile(data, tempDir, hostname, "config-check.log")
 }
 
 // Used for testing mock HTTP server
@@ -788,23 +762,16 @@ func zipTaggerList(tempDir, hostname string) error {
 		return err
 	}
 
-	f := filepath.Join(tempDir, hostname, "tagger-list.json")
-
-	err = ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
-
 	// Pretty print JSON output
 	var b bytes.Buffer
 	writer := bufio.NewWriter(&b)
 	err = json.Indent(&b, r, "", "\t")
 	if err != nil {
-		return writeScrubbedFile(f, r)
+		return joinPathAndWriteScrubbedFile(r, tempDir, hostname, "tagger-list.json")
 	}
 	writer.Flush()
 
-	return writeScrubbedFile(f, b.Bytes())
+	return joinPathAndWriteScrubbedFile(b.Bytes(), tempDir, hostname, "tagger-list.json")
 }
 
 // workloadListURL allows mocking the agent HTTP server
@@ -833,18 +800,11 @@ func zipWorkloadList(tempDir, hostname string) error {
 		return err
 	}
 
-	var b bytes.Buffer
-	writer := bufio.NewWriter(&b)
-	workload.Write(writer)
-	_ = writer.Flush()
-
-	f := filepath.Join(tempDir, hostname, "workload-list.log")
-	err = ensureParentDirsExist(f)
-	if err != nil {
-		return err
+	fct := func(w io.Writer) error {
+		workload.Write(w)
+		return nil
 	}
-
-	return writeScrubbedFile(f, b.Bytes())
+	return zipCommandOutput(fct, tempDir, hostname, "workload-list.log")
 }
 
 func zipHealth(tempDir, hostname string) error {
@@ -857,13 +817,7 @@ func zipHealth(tempDir, hostname string) error {
 		return err
 	}
 
-	f := filepath.Join(tempDir, hostname, "health.yaml")
-	err = ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
-
-	return writeScrubbedFile(f, yamlValue)
+	return joinPathAndWriteScrubbedFile(yamlValue, tempDir, hostname, "health.yaml")
 }
 
 func zipInstallInfo(tempDir, hostname string) error {
@@ -898,18 +852,13 @@ func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 	}
 	defer resp.Body.Close()
 
-	f := filepath.Join(tempDir, hostname, filename)
-	err = ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
-
 	// read the entire body, so that it can be scrubbed in its entirety
 	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
-	return writeScrubbedFile(f, data)
+
+	return joinPathAndWriteScrubbedFile(data, tempDir, hostname, filename)
 }
 
 func zipPerformanceProfile(tempDir, hostname string, pdata ProfileData) error {
@@ -946,11 +895,6 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 
 			if cnfFileExtRx.Match([]byte(firstSuffix)) || cnfFileExtRx.Match([]byte(ext)) {
 				baseName := strings.Replace(src, filePath, "", 1)
-				f := filepath.Join(tempDir, hostname, "etc", "confd", prefix, baseName)
-				err := ensureParentDirsExist(f)
-				if err != nil {
-					return err
-				}
 
 				data, err := ioutil.ReadFile(src)
 				if err != nil {
@@ -959,7 +903,7 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 					}
 					return err
 				}
-				err = writeScrubbedFile(f, data)
+				err = joinPathAndWriteScrubbedFile(data, tempDir, hostname, "etc", "confd", prefix, baseName)
 				if err != nil {
 					return err
 				}
@@ -1004,6 +948,37 @@ func writeScrubbedFile(filename string, data []byte) error {
 	return ioutil.WriteFile(filename, scrubbed, os.ModePerm)
 }
 
+// writeScrubbedFileSafe verifies that the folder exists before calling writeScrubbedFile()
+func writeScrubbedFileSafe(filename string, data []byte) error {
+	err := ensureParentDirsExist(filename)
+	if err != nil {
+		return err
+	}
+	return writeScrubbedFile(filename, data)
+}
+
+// joinPathAndWriteScrubbedFile joins all the path components into a path and safely
+// writes data to the created path
+func joinPathAndWriteScrubbedFile(data []byte, pathComponents ...string) error {
+	filename := filepath.Join(pathComponents...)
+	return writeScrubbedFileSafe(filename, data)
+}
+
+// functionOutputToBytes runs a given function and returns its output in a byte array
+// This is used when we want to capture the output of a function that normally prints on a terminal
+func functionOutputToBytes(fct func(writer io.Writer) error) []byte {
+	var buffer bytes.Buffer
+
+	writer := bufio.NewWriter(&buffer)
+	err := fct(writer)
+	if err != nil {
+		fmt.Fprintf(writer, "%s", err)
+	}
+	writer.Flush()
+
+	return buffer.Bytes()
+}
+
 func ensureParentDirsExist(p string) error {
 	return os.MkdirAll(filepath.Dir(p), os.ModePerm)
 }
@@ -1042,17 +1017,13 @@ func createConfigFiles(filePath, tempDir, hostname string, permsInfos permission
 	// Check if the file exists
 	_, err := os.Stat(filePath)
 	if err == nil {
-		f := filepath.Join(tempDir, hostname, "etc", filepath.Base(filePath))
-		err := ensureParentDirsExist(f)
-		if err != nil {
-			return err
-		}
 
 		data, err := ioutil.ReadFile(filePath)
 		if err != nil {
 			return err
 		}
-		err = writeScrubbedFile(f, data)
+
+		err = joinPathAndWriteScrubbedFile(data, tempDir, hostname, "etc", filepath.Base(filePath))
 		if err != nil {
 			return err
 		}

@@ -24,6 +24,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/theupdateframework/go-tuf/data"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type mockAPI struct {
@@ -227,6 +229,75 @@ func customMeta(tracerPredicates []*pbgo.TracerPredicateV1) *json.RawMessage {
 	return &raw
 }
 
+// TestClientGetConfigsRequestMissingState sets up just enough of a mock server to validate
+// that if a client request does NOT include the Client object or the
+// Client.State object the request results in an error equivalent to
+// gRPC's InvalidArgument status code.
+func TestClientGetConfigsRequestMissingFields(t *testing.T) {
+	api := &mockAPI{}
+	uptaneClient := &mockUptane{}
+	clock := clock.NewMock()
+	service := newTestService(t, api, uptaneClient, clock)
+
+	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
+
+	// The Client object is missing
+	req := &pbgo.ClientGetConfigsRequest{}
+	_, err := service.ClientGetConfigs(req)
+	assert.Error(t, err)
+	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
+
+	// The Client object is present, but State is missing
+	req.Client = &pbgo.Client{}
+	_, err = service.ClientGetConfigs(req)
+	assert.Error(t, err)
+	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
+
+	// The Client object and State is present, but the root version indicates the client has no initial root
+	req.Client = &pbgo.Client{
+		State: &pbgo.ClientState{},
+	}
+	_, err = service.ClientGetConfigs(req)
+	assert.Error(t, err)
+	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
+
+	// The Client object and State is present but the client is an agent-client with no info
+	req.Client = &pbgo.Client{
+		State: &pbgo.ClientState{
+			RootVersion: 1,
+		},
+		IsAgent: true,
+	}
+	_, err = service.ClientGetConfigs(req)
+	assert.Error(t, err)
+	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
+
+	// The Client object and State is present but the client is a tracer-client with no info
+	req.Client = &pbgo.Client{
+		State: &pbgo.ClientState{
+			RootVersion: 1,
+		},
+		IsTracer: true,
+	}
+	_, err = service.ClientGetConfigs(req)
+	assert.Error(t, err)
+	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
+
+	// The client says its both a tracer and an agent
+	req.Client = &pbgo.Client{
+		State: &pbgo.ClientState{
+			RootVersion: 1,
+		},
+		IsTracer:     true,
+		ClientAgent:  &pbgo.ClientAgent{},
+		IsAgent:      true,
+		ClientTracer: &pbgo.ClientTracer{},
+	}
+	_, err = service.ClientGetConfigs(req)
+	assert.Error(t, err)
+	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
+}
+
 func TestService(t *testing.T) {
 	api := &mockAPI{}
 	uptaneClient := &mockUptane{}
@@ -263,11 +334,13 @@ func TestService(t *testing.T) {
 	root3 := []byte(`testroot3`)
 	root4 := []byte(`testroot4`)
 	targets := []byte(`testtargets`)
-	testTargetsCustom := []byte(`{"client_state":"test_state"}`)
+	testTargetsCustom := []byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ=="}`)
 	client := &pbgo.Client{
 		State: &pbgo.ClientState{
 			RootVersion: 2,
 		},
+		IsAgent:     true,
+		ClientAgent: &pbgo.ClientAgent{},
 		Products: []string{
 			string(rdata.ProductAPMSampling),
 		},
@@ -319,7 +392,7 @@ func TestService(t *testing.T) {
 			string(rdata.ProductAPMSampling),
 		},
 		ActiveClients:      []*pbgo.Client{client},
-		BackendClientState: []byte(`"test_state"`),
+		BackendClientState: []byte(`test_state`),
 		HasError:           false,
 		Error:              "",
 	}).Return(lastConfigResponse, nil)
@@ -376,7 +449,7 @@ func TestServiceClientPredicates(t *testing.T) {
 		},
 	}
 	uptaneClient.On("TargetsMeta").Return([]byte(`testtargets`), nil)
-	uptaneClient.On("TargetsCustom").Return([]byte(`{"client_state":"test_state"}`), nil)
+	uptaneClient.On("TargetsCustom").Return([]byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ=="}`), nil)
 
 	wrongServiceName := "wrong-service"
 	uptaneClient.On("Targets").Return(data.TargetFiles{
@@ -418,7 +491,7 @@ func TestServiceClientPredicates(t *testing.T) {
 			string(rdata.ProductAPMSampling),
 		},
 		ActiveClients:      []*pbgo.Client{client},
-		BackendClientState: []byte(`"test_state"`),
+		BackendClientState: []byte(`test_state`),
 		HasError:           false,
 		Error:              "",
 	}).Return(lastConfigResponse, nil)

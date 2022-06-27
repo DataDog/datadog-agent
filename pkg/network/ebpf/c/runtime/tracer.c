@@ -36,8 +36,8 @@
 static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* skp, u8 state) {
     __u32 rtt = 0;
     __u32 rtt_var = 0;
-    bpf_probe_read(&rtt, sizeof(rtt), &tcp_sk(skp)->srtt_us);
-    bpf_probe_read(&rtt_var, sizeof(rtt_var), &tcp_sk(skp)->mdev_us);
+    bpf_probe_read_kernel(&rtt, sizeof(rtt), &tcp_sk(skp)->srtt_us);
+    bpf_probe_read_kernel(&rtt_var, sizeof(rtt_var), &tcp_sk(skp)->mdev_us);
 
     tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
     if (state > 0) {
@@ -47,8 +47,8 @@ static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* skp, 
 }
 
 static __always_inline void get_tcp_segment_counts(struct sock* skp, __u32* packets_in, __u32* packets_out) {
-    bpf_probe_read(packets_out, sizeof(*packets_out), &tcp_sk(skp)->segs_out);
-    bpf_probe_read(packets_in, sizeof(*packets_in), &tcp_sk(skp)->segs_in);
+    bpf_probe_read_kernel(packets_out, sizeof(*packets_out), &tcp_sk(skp)->segs_out);
+    bpf_probe_read_kernel(packets_in, sizeof(*packets_in), &tcp_sk(skp)->segs_in);
 }
 
 SEC("kprobe/tcp_sendmsg")
@@ -113,8 +113,8 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("kprobe/tcp_cleanup_rbuf: pid_tgid: %d, copied: %d\n", pid_tgid, copied);
 
-    bpf_probe_read(&packets_out, sizeof(packets_out), &tcp_sk(sk)->segs_out);
-    bpf_probe_read(&packets_in, sizeof(packets_in), &tcp_sk(sk)->segs_in);
+    bpf_probe_read_kernel(&packets_out, sizeof(packets_out), &tcp_sk(sk)->segs_out);
+    bpf_probe_read_kernel(&packets_in, sizeof(packets_in), &tcp_sk(sk)->segs_in);
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
@@ -192,8 +192,8 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
             t.metadata |= CONN_V6;
         }
 
-        bpf_probe_read(&t.sport, sizeof(t.sport), &fl6->fl6_sport);
-        bpf_probe_read(&t.dport, sizeof(t.dport), &fl6->fl6_dport);
+        bpf_probe_read_kernel(&t.sport, sizeof(t.sport), &fl6->fl6_sport);
+        bpf_probe_read_kernel(&t.dport, sizeof(t.dport), &fl6->fl6_dport);
 
         if (t.sport == 0 || t.dport == 0) {
             log_debug("ERR(fl6): src/dst port not set: src:%d, dst:%d\n", t.sport, t.dport);
@@ -225,16 +225,16 @@ int kprobe__ip_make_skb(struct pt_regs* ctx) {
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
         struct flowi4* fl4 = (struct flowi4*)PT_REGS_PARM2(ctx);
-        bpf_probe_read(&t.saddr_l, sizeof(__be32), &fl4->saddr);
-        bpf_probe_read(&t.daddr_l, sizeof(__be32), &fl4->daddr);
+        bpf_probe_read_kernel(&t.saddr_l, sizeof(__be32), &fl4->saddr);
+        bpf_probe_read_kernel(&t.daddr_l, sizeof(__be32), &fl4->daddr);
         if (!t.saddr_l || !t.daddr_l) {
             log_debug("ERR(fl4): src/dst addr not set src:%d,dst:%d\n", t.saddr_l, t.daddr_l);
             increment_telemetry_count(udp_send_missed);
             return 0;
         }
 
-        bpf_probe_read(&t.sport, sizeof(t.sport), &fl4->fl4_sport);
-        bpf_probe_read(&t.dport, sizeof(t.dport), &fl4->fl4_dport);
+        bpf_probe_read_kernel(&t.sport, sizeof(t.sport), &fl4->fl4_sport);
+        bpf_probe_read_kernel(&t.dport, sizeof(t.dport), &fl4->fl4_dport);
         t.sport = bpf_ntohs(t.sport);
         t.dport = bpf_ntohs(t.dport);
         if (t.sport == 0 || t.dport == 0) {
@@ -488,7 +488,7 @@ static __always_inline int sys_enter_bind(struct socket* sock, struct sockaddr* 
     __u64 tid = bpf_get_current_pid_tgid();
 
     __u16 type = 0;
-    bpf_probe_read(&type, sizeof(__u16), &sock->type);
+    bpf_probe_read_kernel(&type, sizeof(__u16), &sock->type);
     if ((type & SOCK_DGRAM) == 0) {
         return 0;
     }
@@ -500,11 +500,11 @@ static __always_inline int sys_enter_bind(struct socket* sock, struct sockaddr* 
 
     u16 sin_port = 0;
     sa_family_t family = 0;
-    bpf_probe_read(&family, sizeof(sa_family_t), &addr->sa_family);
+    bpf_probe_read_kernel(&family, sizeof(sa_family_t), &addr->sa_family);
     if (family == AF_INET) {
-        bpf_probe_read(&sin_port, sizeof(u16), &(((struct sockaddr_in*)addr)->sin_port));
+        bpf_probe_read_kernel(&sin_port, sizeof(u16), &(((struct sockaddr_in*)addr)->sin_port));
     } else if (family == AF_INET6) {
-        bpf_probe_read(&sin_port, sizeof(u16), &(((struct sockaddr_in6*)addr)->sin6_port));
+        bpf_probe_read_kernel(&sin_port, sizeof(u16), &(((struct sockaddr_in6*)addr)->sin6_port));
     }
 
     sin_port = bpf_ntohs(sin_port);
@@ -623,23 +623,23 @@ int kretprobe__sockfd_lookup_light(struct pt_regs* ctx) {
     // For now let's only store information for TCP sockets
     struct socket* socket = (struct socket*)PT_REGS_RC(ctx);
     enum sock_type sock_type = 0;
-    bpf_probe_read(&sock_type, sizeof(short), &socket->type);
+    bpf_probe_read_kernel(&sock_type, sizeof(short), &socket->type);
 
     struct proto_ops *proto_ops = NULL;
-    bpf_probe_read(&proto_ops, sizeof(proto_ops), &socket->ops);
+    bpf_probe_read_kernel(&proto_ops, sizeof(proto_ops), &socket->ops);
     if (!proto_ops) {
         goto cleanup;
     }
 
     int family = 0;
-    bpf_probe_read(&family, sizeof(family), &proto_ops->family);
+    bpf_probe_read_kernel(&family, sizeof(family), &proto_ops->family);
     if (sock_type != SOCK_STREAM || !(family == AF_INET || family == AF_INET6)) {
         goto cleanup;
     }
 
     // Retrieve struct sock* pointer from struct socket*
     struct sock *sock = NULL;
-    bpf_probe_read(&sock, sizeof(sock), &socket->sk);
+    bpf_probe_read_kernel(&sock, sizeof(sock), &socket->sk);
 
     pid_fd_t pid_fd = {
         .pid = pid_tgid >> 32,

@@ -64,6 +64,7 @@ type ident struct {
 	Ident *string
 }
 
+// ReplacementContext represents the group of Options and Macro Store used during SECL evaluation
 type ReplacementContext struct {
 	*Opts
 	*MacroStore

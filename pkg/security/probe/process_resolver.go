@@ -573,6 +573,24 @@ func (p *ProcessResolver) SetProcessPath(entry *model.ProcessCacheEntry) (string
 	return entry.FileEvent.PathnameStr, nil
 }
 
+func isBusybox(pathname string) bool {
+	return pathname == "/bin/busybox" || pathname == "/usr/bin/busybox"
+}
+
+// SetProcessSymlink resolves process file symlink path
+func (p *ProcessResolver) SetProcessSymlink(entry *model.ProcessCacheEntry) {
+	// TODO: busybox workaround only for now
+	if isBusybox(entry.FileEvent.PathnameStr) {
+		arg0, _ := p.GetProcessArgv0(&entry.Process)
+		base := path.Base(arg0)
+
+		entry.SymlinkPathnameStr[0] = "/bin/" + base
+		entry.SymlinkPathnameStr[1] = "/usr/bin/" + base
+
+		entry.SymlinkBasenameStr = base
+	}
+}
+
 // SetProcessFilesystem resolves process file system
 func (p *ProcessResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) string {
 	if entry.FileEvent.MountID != 0 {
@@ -631,6 +649,8 @@ func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheE
 	p.SetProcessTTY(entry)
 	p.SetProcessUsersGroups(entry)
 	p.ApplyBootTime(entry)
+
+	p.SetProcessSymlink(entry)
 
 	return nil
 }
@@ -1019,7 +1039,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process, filledProc *process.F
 	if err != nil {
 		seclog.Errorf("couldn't marshal proc_cache entry: %s", err)
 	} else {
-		if err = p.procCacheMap.Put(pid, procCacheEntryB); err != nil {
+		if err = p.procCacheMap.Put(entry.Cookie, procCacheEntryB); err != nil {
 			seclog.Errorf("couldn't push proc_cache entry to kernel space: %s", err)
 		}
 	}

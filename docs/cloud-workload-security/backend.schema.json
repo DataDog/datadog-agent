@@ -931,7 +931,8 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "SELinuxBoolChangeSerializer serializes a SELinux boolean change to JSON"
     },
     "SELinuxBoolCommit": {
       "properties": {
@@ -941,7 +942,8 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "SELinuxBoolCommitSerializer serializes a SELinux boolean commit to JSON"
     },
     "SELinuxEnforceStatus": {
       "properties": {
@@ -951,7 +953,8 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "SELinuxEnforceStatusSerializer serializes a SELinux enforcement status change to JSON"
     },
     "SELinuxEvent": {
       "properties": {

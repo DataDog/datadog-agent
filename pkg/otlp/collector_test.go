@@ -73,9 +73,14 @@ func TestStartPipeline(t *testing.T) {
 }
 
 func TestStartPipelineFromConfig(t *testing.T) {
-	// TODO (AP-1550): Fix this once we can disable changing the gRPC logger
+	// TODO (AP-1723): Disable changing the gRPC logger before re-enabling.
 	if runtime.GOOS == "windows" {
-		t.Skip("Skip on Windows, see AP-1550 for details")
+		t.Skip("Skip on Windows, see AP-1723 for details")
+	}
+
+	// TODO (AP-1723): Update Collector to version 0.55 before re-enabling.
+	if runtime.GOOS == "darwin" {
+		t.Skip("Skip on macOS, see AP-1723 for details")
 	}
 
 	tests := []struct {

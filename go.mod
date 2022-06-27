@@ -30,7 +30,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ./pkg/obfuscate
 	github.com/DataDog/datadog-agent/pkg/otlp/model => ./pkg/otlp/model
 	github.com/DataDog/datadog-agent/pkg/quantile => ./pkg/quantile
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/client => ./pkg/remoteconfig/client
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ./pkg/remoteconfig/state
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/trace => ./pkg/trace
 )
@@ -39,20 +39,19 @@ require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/DataDog/agent-payload/v5 v5.0.22
+	github.com/DataDog/agent-payload/v5 v5.0.23
 	github.com/DataDog/btf-internals v0.0.0-20220424171854-ebe6bce9afb0
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.37.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.37.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/quantile v0.37.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.37.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.37.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/trace v0.37.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.38.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.38.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/quantile v0.38.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.38.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/trace v0.38.0-rc.1
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
-	github.com/DataDog/ebpf-manager v0.0.0-20220620150645-6cb8b3fd1984
+	github.com/DataDog/ebpf-manager v0.0.0-20220627124959-89a32649d1dc
 	github.com/DataDog/gohai v0.0.0-20220607152458-544032c46ded
-	github.com/DataDog/gopsutil v0.0.0-20220308095538-d086941833e3
-	github.com/DataDog/nikos v1.7.6
+	github.com/DataDog/gopsutil v1.1.0
+	github.com/DataDog/nikos v1.8.0
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/DataDog/viper v1.9.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.0-rc.1.0.20220530183114-687bca6395e8
@@ -135,14 +134,13 @@ require (
 	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/open-policy-agent/opa v0.37.2
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.50.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.54.0
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417
 	github.com/openshift/api v3.9.0+incompatible
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.12.2
 	github.com/richardartoul/molecule v0.0.0-20210914193524-25d8911bb85b
-	github.com/rogpeppe/go-internal v1.8.0 // indirect
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/shirou/gopsutil/v3 v3.22.5
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
@@ -150,7 +148,7 @@ require (
 	github.com/spf13/afero v1.8.2
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.7.2
+	github.com/stretchr/testify v1.7.4
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/theupdateframework/go-tuf v0.3.0
 	github.com/tinylib/msgp v1.1.6
@@ -162,8 +160,8 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.etcd.io/bbolt v1.3.6
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
-	go.opentelemetry.io/collector v0.53.0
-	go.opentelemetry.io/collector/pdata v0.53.0
+	go.opentelemetry.io/collector v0.54.0
+	go.opentelemetry.io/collector/pdata v0.54.0
 	go.uber.org/automaxprocs v1.4.0
 	go.uber.org/multierr v1.8.0
 	go.uber.org/zap v1.21.0
@@ -232,7 +230,6 @@ require (
 	github.com/Sirupsen/logrus v1.0.6 // indirect
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/andybalholm/brotli v1.0.2 // indirect
-	github.com/aptly-dev/aptly v1.4.1-0.20211102140819-ab2f5420c617 // indirect
 	github.com/arduino/go-apt-client v0.0.0-20190812130613-5613f843fdc8 // indirect
 	github.com/armon/go-metrics v0.3.10 // indirect
 	github.com/awalterschulze/gographviz v2.0.1+incompatible // indirect
@@ -298,7 +295,7 @@ require (
 	github.com/kjk/lzma v0.0.0-20161016003348-3fd93898850d // indirect
 	github.com/klauspost/compress v1.15.6 // indirect
 	github.com/klauspost/pgzip v1.2.5 // indirect
-	github.com/knadh/koanf v1.4.1 // indirect
+	github.com/knadh/koanf v1.4.2 // indirect
 	github.com/lufia/plan9stats v0.0.0-20220517141722-cf486979b281 // indirect
 	github.com/magiconair/properties v1.8.6 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
@@ -332,7 +329,7 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.34.0 // indirect
-	github.com/prometheus/procfs v0.7.3 // indirect
+	github.com/prometheus/procfs v0.7.3
 	github.com/prometheus/statsd_exporter v0.21.0 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
@@ -345,14 +342,14 @@ require (
 	github.com/smira/go-xz v0.0.0-20150414201226-0c531f070014
 	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
-	github.com/stretchr/objx v0.2.0 // indirect
+	github.com/stretchr/objx v0.4.0 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7 // indirect
 	github.com/tedsuo/ifrit v0.0.0-20191009134036-9a97d0632f00 // indirect
 	github.com/tedsuo/rata v1.0.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/tklauser/numcpus v0.5.0 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75 // indirect
-	github.com/ugorji/go/codec v1.1.7 // indirect
+	github.com/ugorji/go/codec v1.2.7 // indirect
 	github.com/ulikunitz/xz v0.5.10 // indirect
 	github.com/vito/go-sse v1.0.0 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
@@ -367,7 +364,7 @@ require (
 	go.etcd.io/etcd/client/v3 v3.6.0-alpha.0 // indirect
 	go.etcd.io/etcd/server/v3 v3.6.0-alpha.0.0.20220522111935-c3bc4116dcd1 // indirect
 	go.opencensus.io v0.23.0 // indirect
-	go.opentelemetry.io/collector/semconv v0.53.0 // indirect
+	go.opentelemetry.io/collector/semconv v0.54.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.32.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.32.0 // indirect
 	go.opentelemetry.io/otel v1.7.0 // indirect
@@ -384,7 +381,6 @@ require (
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5 // indirect
 	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171 // indirect
 	golang.org/x/xerrors v0.0.0-20220411194840-2f41105eb62f // indirect
-	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	gomodules.xyz/orderedmap v0.1.0 // indirect
 	google.golang.org/api v0.75.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
@@ -392,7 +388,6 @@ require (
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
-	k8s.io/apiextensions-apiserver v0.23.8 // indirect
 	k8s.io/component-base v0.23.8 // indirect
 	k8s.io/gengo v0.0.0-20210813121822-485abfe95c7c // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.30 // indirect
@@ -404,7 +399,15 @@ require (
 
 require github.com/netsampler/goflow2 v1.1.0
 
-require github.com/libp2p/go-reuseport v0.1.0 // indirect
+require (
+	github.com/DataDog/aptly v1.5.0 // indirect
+	github.com/cavaliergopher/grab/v3 v3.0.1 // indirect
+	github.com/libp2p/go-reuseport v0.1.0 // indirect
+	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
+	k8s.io/apiextensions-apiserver v0.23.5 // indirect
+)
+
+require github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.38.0-rc.1
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
@@ -421,3 +424,6 @@ replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20
 // so we created a fork that removed the dependency entirely. This can be
 // removed once k8s.io uses opentelemetry 1.0 or newer
 replace k8s.io/apiserver => github.com/juliogreff/apiserver v0.23.6-0.20220531090536-be42650a25e5
+
+// Temporarily downgrade testify to v1.7.2 to work around https://github.com/stretchr/testify/issues/1208
+replace github.com/stretchr/testify => github.com/stretchr/testify v1.7.2
