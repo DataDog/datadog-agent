@@ -45,6 +45,10 @@ const (
 
 	// inode/mountid that won't be resubmitted
 	maxRecentlyAddedCacheSize = uint64(64)
+
+	// Map names for discarder stats. Discarder stats includes counts of discarders added and events discarded. Look up "multiple buffering" for more details about why there's two buffers.
+	frontBufferDiscarderStatsMapName = "discarder_stats_fb"
+	backBufferDiscarderStatsMapName  = "discarder_stats_bb"
 )
 
 var (
