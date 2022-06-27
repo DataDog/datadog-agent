@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	defaultVersion = "2c" // match default version of the core check
+	defaultVersion = "" // match default version of the core check
 	defaultOID     = ""
 	defaultPort    = 161
 
@@ -74,7 +74,7 @@ func init() {
 	snmpwalkCmd.Flags().StringVarP(&snmpVersion, "snmp-version", "v", defaultVersion, "Specify SNMP version to use")
 
 	// snmp v1 or v2c specific
-	snmpwalkCmd.Flags().StringVarP(&communityString, "community-string", "C", defaultCommunityString, "Set the community string")
+	snmpwalkCmd.Flags().StringVarP(&communityString, "community-string", "C", "", "Set the community string")
 
 	// snmp v3 specific
 	snmpwalkCmd.Flags().StringVarP(&authProt, "auth-protocol", "a", defaultAuthProtocol, "Set authentication protocol (MD5|SHA|SHA-224|SHA-256|SHA-384|SHA-512)")
@@ -149,6 +149,11 @@ var snmpwalkCmd = &cobra.Command{
 		} else {
 			fmt.Printf("SNMP version not supported: %s, using default version 2c.", snmpVersion)
 			setVersion = gosnmp.Version2c
+		}
+
+		// Set default community string if version 1 or 2c and no given community string
+		if (setVersion == gosnmp.Version2c || setVersion == gosnmp.Version1) && communityString == "" {
+			communityString = defaultCommunityString
 		}
 		// Set v3 security parameters
 		if setVersion == gosnmp.Version3 {
