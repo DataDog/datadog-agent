@@ -5,7 +5,6 @@
 package adproto
 
 import (
-	proto "google.golang.org/protobuf/proto"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	bits "math/bits"
 	sync "sync"
@@ -274,71 +273,20 @@ func (m *ProcessInfo) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x7a
 	}
-	if m.ExecTime != nil {
-		if marshalto, ok := interface{}(m.ExecTime).(interface {
-			MarshalToSizedBufferVT([]byte) (int, error)
-		}); ok {
-			size, err := marshalto.MarshalToSizedBufferVT(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarint(dAtA, i, uint64(size))
-		} else {
-			encoded, err := proto.Marshal(m.ExecTime)
-			if err != nil {
-				return 0, err
-			}
-			i -= len(encoded)
-			copy(dAtA[i:], encoded)
-			i = encodeVarint(dAtA, i, uint64(len(encoded)))
-		}
+	if m.ExecTime != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.ExecTime))
 		i--
-		dAtA[i] = 0x72
+		dAtA[i] = 0x70
 	}
-	if m.ExitTime != nil {
-		if marshalto, ok := interface{}(m.ExitTime).(interface {
-			MarshalToSizedBufferVT([]byte) (int, error)
-		}); ok {
-			size, err := marshalto.MarshalToSizedBufferVT(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarint(dAtA, i, uint64(size))
-		} else {
-			encoded, err := proto.Marshal(m.ExitTime)
-			if err != nil {
-				return 0, err
-			}
-			i -= len(encoded)
-			copy(dAtA[i:], encoded)
-			i = encodeVarint(dAtA, i, uint64(len(encoded)))
-		}
+	if m.ExitTime != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.ExitTime))
 		i--
-		dAtA[i] = 0x6a
+		dAtA[i] = 0x68
 	}
-	if m.ForkTime != nil {
-		if marshalto, ok := interface{}(m.ForkTime).(interface {
-			MarshalToSizedBufferVT([]byte) (int, error)
-		}); ok {
-			size, err := marshalto.MarshalToSizedBufferVT(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarint(dAtA, i, uint64(size))
-		} else {
-			encoded, err := proto.Marshal(m.ForkTime)
-			if err != nil {
-				return 0, err
-			}
-			i -= len(encoded)
-			copy(dAtA[i:], encoded)
-			i = encodeVarint(dAtA, i, uint64(len(encoded)))
-		}
+	if m.ForkTime != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.ForkTime))
 		i--
-		dAtA[i] = 0x62
+		dAtA[i] = 0x60
 	}
 	if len(m.Comm) > 0 {
 		i -= len(m.Comm)
@@ -466,27 +414,10 @@ func (m *FileActivityNode) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x2a
 	}
-	if m.FirstSeen != nil {
-		if marshalto, ok := interface{}(m.FirstSeen).(interface {
-			MarshalToSizedBufferVT([]byte) (int, error)
-		}); ok {
-			size, err := marshalto.MarshalToSizedBufferVT(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarint(dAtA, i, uint64(size))
-		} else {
-			encoded, err := proto.Marshal(m.FirstSeen)
-			if err != nil {
-				return 0, err
-			}
-			i -= len(encoded)
-			copy(dAtA[i:], encoded)
-			i = encodeVarint(dAtA, i, uint64(len(encoded)))
-		}
+	if m.FirstSeen != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.FirstSeen))
 		i--
-		dAtA[i] = 0x22
+		dAtA[i] = 0x20
 	}
 	if len(m.GenerationType) > 0 {
 		i -= len(m.GenerationType)
@@ -1140,35 +1071,14 @@ func (m *ProcessInfo) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
-	if m.ForkTime != nil {
-		if size, ok := interface{}(m.ForkTime).(interface {
-			SizeVT() int
-		}); ok {
-			l = size.SizeVT()
-		} else {
-			l = proto.Size(m.ForkTime)
-		}
-		n += 1 + l + sov(uint64(l))
+	if m.ForkTime != 0 {
+		n += 1 + sov(uint64(m.ForkTime))
 	}
-	if m.ExitTime != nil {
-		if size, ok := interface{}(m.ExitTime).(interface {
-			SizeVT() int
-		}); ok {
-			l = size.SizeVT()
-		} else {
-			l = proto.Size(m.ExitTime)
-		}
-		n += 1 + l + sov(uint64(l))
+	if m.ExitTime != 0 {
+		n += 1 + sov(uint64(m.ExitTime))
 	}
-	if m.ExecTime != nil {
-		if size, ok := interface{}(m.ExecTime).(interface {
-			SizeVT() int
-		}); ok {
-			l = size.SizeVT()
-		} else {
-			l = proto.Size(m.ExecTime)
-		}
-		n += 1 + l + sov(uint64(l))
+	if m.ExecTime != 0 {
+		n += 1 + sov(uint64(m.ExecTime))
 	}
 	if m.Credentials != nil {
 		l = m.Credentials.SizeVT()
@@ -1220,15 +1130,8 @@ func (m *FileActivityNode) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
-	if m.FirstSeen != nil {
-		if size, ok := interface{}(m.FirstSeen).(interface {
-			SizeVT() int
-		}); ok {
-			l = size.SizeVT()
-		} else {
-			l = proto.Size(m.FirstSeen)
-		}
-		n += 1 + l + sov(uint64(l))
+	if m.FirstSeen != 0 {
+		n += 1 + sov(uint64(m.FirstSeen))
 	}
 	if m.Open != nil {
 		l = m.Open.SizeVT()

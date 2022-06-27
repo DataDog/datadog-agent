@@ -9,9 +9,10 @@
 package probe
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/security/adproto"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func activityDumpToProto(ad *ActivityDump) *adproto.ActivityDump {
@@ -81,9 +82,9 @@ func processNodeToProto(p *model.Process) *adproto.ProcessInfo {
 	ppi.TTY = p.TTYName
 	ppi.Comm = p.Comm
 
-	ppi.ForkTime = timestamppb.New(p.ForkTime)
-	ppi.ExitTime = timestamppb.New(p.ExitTime)
-	ppi.ExecTime = timestamppb.New(p.ExecTime)
+	ppi.ForkTime = timestamp(&p.ForkTime)
+	ppi.ExitTime = timestamp(&p.ExitTime)
+	ppi.ExecTime = timestamp(&p.ExecTime)
 
 	ppi.Credentials = credentialsToProto(&p.Credentials)
 
@@ -131,9 +132,9 @@ func fileEventToProto(fe *model.FileEvent) *adproto.FileInfo {
 	fi.User = fe.User
 	fi.GID = fe.GID
 	fi.Group = fe.Group
-	fi.Mode = uint32(fe.Mode)   // yeah sorry
-	fi.CTime = uint32(fe.CTime) // TODO: discuss this
-	fi.MTime = uint32(fe.MTime)
+	fi.Mode = uint32(fe.Mode) // yeah sorry
+	fi.CTime = fe.CTime
+	fi.MTime = fe.MTime
 	fi.MountID = fe.MountID
 	fi.INode = fe.Inode
 	fi.InUpperLayer = fe.InUpperLayer
@@ -153,7 +154,7 @@ func fileActivityNodeToProto(fan *FileActivityNode) *adproto.FileActivityNode {
 	pfan.Name = fan.Name
 	pfan.File = fileEventToProto(fan.File)
 	pfan.GenerationType = string(fan.GenerationType)
-	pfan.FirstSeen = timestamppb.New(fan.FirstSeen)
+	pfan.FirstSeen = timestamp(&fan.FirstSeen)
 	pfan.Open = openNodeToProto(fan.Open)
 	pfan.Children = make([]*adproto.FileActivityNode, 0, len(fan.Children))
 
@@ -204,4 +205,8 @@ func dnsEventToProto(ev *model.DNSEvent) *adproto.DNSInfo {
 		Size:  uint32(ev.Size),
 		Count: uint32(ev.Count),
 	}
+}
+
+func timestamp(t *time.Time) uint64 {
+	return uint64(t.Unix())
 }
