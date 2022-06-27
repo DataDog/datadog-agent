@@ -670,7 +670,7 @@ func (ad *ActivityDump) EncodeMSGP() (*bytes.Buffer, error) {
 
 // EncodeProtobuf encodes an activity dump in the Protobuf format
 func (ad *ActivityDump) EncodeProtobuf() (*bytes.Buffer, error) {
-	pad := adToProto(ad)
+	pad := activityDumpToProto(ad)
 	defer pad.ReturnToVTPool()
 
 	raw, err := pad.MarshalVT()

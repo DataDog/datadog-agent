@@ -14,7 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func adToProto(ad *ActivityDump) *adproto.ActivityDump {
+func activityDumpToProto(ad *ActivityDump) *adproto.ActivityDump {
 	if ad == nil {
 		return nil
 	}
@@ -28,13 +28,13 @@ func adToProto(ad *ActivityDump) *adproto.ActivityDump {
 	pad.Tree = make([]*adproto.ProcessActivityNode, 0, len(ad.ProcessActivityTree))
 
 	for _, tree := range ad.ProcessActivityTree {
-		pad.Tree = append(pad.Tree, panToProto(tree))
+		pad.Tree = append(pad.Tree, processActivityNodeToProto(tree))
 	}
 
 	return pad
 }
 
-func panToProto(pan *ProcessActivityNode) *adproto.ProcessActivityNode {
+func processActivityNodeToProto(pan *ProcessActivityNode) *adproto.ProcessActivityNode {
 	if pan == nil {
 		return nil
 	}
@@ -48,7 +48,7 @@ func panToProto(pan *ProcessActivityNode) *adproto.ProcessActivityNode {
 	ppan.Children = make([]*adproto.ProcessActivityNode, 0, len(pan.Children))
 
 	for _, fan := range pan.Files {
-		ppan.Files = append(ppan.Files, fanToProto(fan))
+		ppan.Files = append(ppan.Files, fileActivityNodeToProto(fan))
 	}
 
 	for _, dns := range pan.DNSNames {
@@ -56,7 +56,7 @@ func panToProto(pan *ProcessActivityNode) *adproto.ProcessActivityNode {
 	}
 
 	for _, child := range pan.Children {
-		ppan.Children = append(ppan.Children, panToProto(child))
+		ppan.Children = append(ppan.Children, processActivityNodeToProto(child))
 	}
 
 	return ppan
@@ -143,7 +143,7 @@ func fileEventToProto(fe *model.FileEvent) *adproto.FileInfo {
 	return fi
 }
 
-func fanToProto(fan *FileActivityNode) *adproto.FileActivityNode {
+func fileActivityNodeToProto(fan *FileActivityNode) *adproto.FileActivityNode {
 	if fan == nil {
 		return nil
 	}
@@ -158,7 +158,7 @@ func fanToProto(fan *FileActivityNode) *adproto.FileActivityNode {
 	pfan.Children = make([]*adproto.FileActivityNode, 0, len(fan.Children))
 
 	for _, child := range fan.Children {
-		pfan.Children = append(pfan.Children, fanToProto(child))
+		pfan.Children = append(pfan.Children, fileActivityNodeToProto(child))
 	}
 
 	return pfan
