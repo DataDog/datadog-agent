@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -22,26 +23,30 @@ func getTestDataActivityDump(tb testing.TB) *probe.ActivityDump {
 	return ad
 }
 
-func BenchmarkMsgpackEncoding(b *testing.B) {
+func runEncoding(b *testing.B, encode func(ad *probe.ActivityDump) (*bytes.Buffer, error)) {
+	b.Helper()
 	ad := getTestDataActivityDump(b)
 
+	size := 0
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := ad.EncodeMSGP()
+		raw, err := encode(ad)
 		if err != nil {
 			b.Fatal(err)
 		}
+		size = raw.Len()
 	}
+	b.ReportMetric(float64(size), "output_size")
+}
+
+func BenchmarkMsgpackEncoding(b *testing.B) {
+	runEncoding(b, func(ad *probe.ActivityDump) (*bytes.Buffer, error) {
+		return ad.EncodeMSGP()
+	})
 }
 
 func BenchmarkProtobufEncoding(b *testing.B) {
-	ad := getTestDataActivityDump(b)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err := ad.EncodeProtobuf()
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
+	runEncoding(b, func(ad *probe.ActivityDump) (*bytes.Buffer, error) {
+		return ad.EncodeProtobuf()
+	})
 }
