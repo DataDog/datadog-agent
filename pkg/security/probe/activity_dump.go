@@ -86,7 +86,7 @@ type DumpMetadata struct {
 // is used to generate the activity dump metadata sent to the event platform.
 // easyjson:json
 type ActivityDump struct {
-	sync.Mutex         `msg:"-"`
+	*sync.Mutex        `msg:"-"`
 	state              ActivityDumpStatus
 	adm                *ActivityDumpManager
 	processedCount     map[model.EventType]*uint64
@@ -115,6 +115,7 @@ type WithDumpOption func(ad *ActivityDump)
 // NewActivityDump returns a new instance of an ActivityDump
 func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *ActivityDump {
 	ad := ActivityDump{
+		Mutex: &sync.Mutex{},
 		DumpMetadata: DumpMetadata{
 			AgentVersion:        version.AgentVersion,
 			AgentCommit:         version.Commit,
@@ -168,6 +169,7 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 	}
 
 	ad := ActivityDump{
+		Mutex:              &sync.Mutex{},
 		CookiesNode:        make(map[uint32]*ProcessActivityNode),
 		processedCount:     make(map[model.EventType]*uint64),
 		addedRuntimeCount:  make(map[model.EventType]*uint64),
