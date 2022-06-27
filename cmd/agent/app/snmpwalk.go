@@ -147,8 +147,8 @@ var snmpwalkCmd = &cobra.Command{
 		} else if snmpVersion == "3" || (snmpVersion == "" && user != "") {
 			setVersion = gosnmp.Version3
 		} else {
-			fmt.Printf("SNMP version not supported: %s, using default version 1.", snmpVersion)
-			setVersion = gosnmp.Version1
+			fmt.Printf("SNMP version not supported: %s, using default version 2c.", snmpVersion)
+			setVersion = gosnmp.Version2c
 		}
 		// Set v3 security parameters
 		if setVersion == gosnmp.Version3 {
