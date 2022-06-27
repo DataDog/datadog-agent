@@ -1015,15 +1015,30 @@ func (p *Probe) DumpDiscarders() (string, error) {
 	}
 
 	fmt.Fprintf(dump, "Discarder Dump\n%s\n", time.Now().UTC().String())
+
+	fmt.Fprintf(dump, `Legend:
+Discarder Count: Discardee Info
+Discarder Count: Discardee Parameters`)
+
 	fmt.Fprintf(dump, "\nInode Discarders\n")
 
 	discardedInodeCount := 0
 	var inode inodeDiscarderMapEntry
 	var inodeParams inodeDiscarderParams
-	for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, &inodeParams); {
-		discardedInodeCount++
-		fmt.Fprintf(dump, "%d: %+v\n", discardedInodeCount, inode)
-		fmt.Fprintf(dump, "%d: %+v\n", discardedInodeCount, inodeParams)
+	inodeDiscardersInfo, inodeDiscardersErr := p.inodeDiscarders.Info()
+	if inodeDiscardersErr != nil {
+		log.Errorf("could not get info about inode discarders: %s", inodeDiscardersErr)
+	} else {
+		maxInodeDiscarders := int(inodeDiscardersInfo.MaxEntries)
+		for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, &inodeParams); {
+			discardedInodeCount++
+			fmt.Fprintf(dump, "%d: %+v\n", discardedInodeCount, inode)
+			fmt.Fprintf(dump, "%d: %+v\n", discardedInodeCount, inodeParams)
+			if discardedInodeCount == maxInodeDiscarders {
+				log.Infof("Discarded inode count has reached max discarder map size")
+				break
+			}
+		}
 	}
 
 	fmt.Fprintf(dump, "\nProcess Discarders\n")
@@ -1031,32 +1046,42 @@ func (p *Probe) DumpDiscarders() (string, error) {
 	discardedPIDCount := 0
 	var pid uint32
 	var pidParams pidDiscarderParams
-	for entries := p.pidDiscarders.Iterate(); entries.Next(&pid, &pidParams); {
-		discardedPIDCount++
-		fmt.Fprintf(dump, "%d: %+v\n", discardedPIDCount, pid)
-		fmt.Fprintf(dump, "%d: %+v\n", discardedPIDCount, pidParams)
+	pidDiscardersInfo, pidDiscardersErr := p.pidDiscarders.Info()
+	if pidDiscardersErr != nil {
+		log.Errorf("could not get info about PID discarders: %s", pidDiscardersErr)
+	} else {
+		maxPIDDiscarders := int(pidDiscardersInfo.MaxEntries)
+		for entries := p.pidDiscarders.Iterate(); entries.Next(&pid, &pidParams); {
+			discardedPIDCount++
+			fmt.Fprintf(dump, "%d: %+v\n", discardedPIDCount, pid)
+			fmt.Fprintf(dump, "%d: %+v\n", discardedPIDCount, pidParams)
+			if discardedPIDCount == maxPIDDiscarders {
+				log.Infof("Discarded PID count has reached max discarder map size")
+				break
+			}
+		}
 	}
 
 	var dStats discarderStats
 
-	fmt.Fprintf(dump, "\nDiscarder Stats FB\n")
-	statsFbMap, _, statsFBErr := p.manager.GetMap("discarder_stats_fb")
+	fmt.Fprintf(dump, "\nDiscarder Stats - Front Buffer\n")
+	statsFBMap, _, statsFBErr := p.manager.GetMap("discarder_stats_fb")
 	if statsFBErr != nil {
 		_ = log.Errorf("could not get discarder_stats_fb map: %s", statsFBErr)
 	} else {
 		var fbStat uint32
-		for entries := statsFbMap.Iterate(); entries.Next(&fbStat, &dStats); {
+		for entries := statsFBMap.Iterate(); entries.Next(&fbStat, &dStats); {
 			fmt.Fprintf(dump, "%d: %+v\n", fbStat, dStats)
 		}
 	}
 
-	fmt.Fprintf(dump, "\nDiscarder Stats BB\n")
-	statsBbMap, _, statsBBErr := p.manager.GetMap("discarder_stats_bb")
-	if err != nil {
+	fmt.Fprintf(dump, "\nDiscarder Stats - Back Buffer\n")
+	statsBBMap, _, statsBBErr := p.manager.GetMap("discarder_stats_bb")
+	if statsBBErr != nil {
 		_ = log.Errorf("could not get discarder_stats_bb map: %s", statsBBErr)
 	} else {
 		var bbStat uint32
-		for entries := statsBbMap.Iterate(); entries.Next(&bbStat, &dStats); {
+		for entries := statsBBMap.Iterate(); entries.Next(&bbStat, &dStats); {
 			fmt.Fprintf(dump, "%d: %+v\n", bbStat, dStats)
 		}
 	}
