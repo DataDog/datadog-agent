@@ -50,11 +50,11 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 // there is a valid (not stale) container ID for the given pid, that is returned. Otherwise the
 // container ID is parsed using readContainerID. If none of these methods succeed, getContainerID
 // returns an empty string.
-func GetContainerID(req *http.Request) string {
-	if id := req.Header.Get(headerContainerID); id != "" {
+func GetContainerID(ctx context.Context, h http.Header) string {
+	if id := h.Get(headerContainerID); id != "" {
 		return id
 	}
-	ucred, ok := req.Context().Value(ucredKey{}).(*syscall.Ucred)
+	ucred, ok := ctx.Value(ucredKey{}).(*syscall.Ucred)
 	if !ok || ucred == nil {
 		return ""
 	}

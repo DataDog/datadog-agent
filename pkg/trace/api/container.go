@@ -23,6 +23,6 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 // there is a valid (not stale) container ID for the given pid, that is returned. Otherwise the
 // container ID is parsed using readContainerID. If none of these methods succeed, getContainerID
 // returns an empty string.
-func GetContainerID(h http.Header) string {
+func GetContainerID(ctx context.Context, h http.Header) string {
 	return h.Get(headerContainerID)
 }

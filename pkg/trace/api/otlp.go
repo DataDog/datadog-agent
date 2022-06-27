@@ -122,7 +122,7 @@ func (o *OTLPReceiver) Export(ctx context.Context, in ptraceotlp.Request) (ptrac
 	defer timing.Since("datadog.trace_agent.otlp.process_grpc_request_ms", time.Now())
 	md, _ := metadata.FromIncomingContext(ctx)
 	metrics.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md), otlpProtocolGRPC), 1)
-	o.processRequest(otlpProtocolGRPC, http.Header(md), in)
+	o.processRequest(ctx, otlpProtocolGRPC, http.Header(md), in)
 	return ptraceotlp.NewResponse(), nil
 }
 
@@ -167,7 +167,7 @@ func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 	}
-	o.processRequest(otlpProtocolHTTP, req.Header, in)
+	o.processRequest(req.Context(), otlpProtocolHTTP, req.Header, in)
 }
 
 func tagsFromHeaders(h http.Header, protocol string) []string {
@@ -202,15 +202,15 @@ func fastHeaderGet(h http.Header, canonicalKey string) string {
 
 // processRequest processes the incoming request in. It marks it as received by the given protocol
 // using the given headers.
-func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in ptraceotlp.Request) {
+func (o *OTLPReceiver) processRequest(ctx context.Context, protocol string, header http.Header, in ptraceotlp.Request) {
 	for i := 0; i < in.Traces().ResourceSpans().Len(); i++ {
 		rspans := in.Traces().ResourceSpans().At(i)
-		o.ReceiveResourceSpans(rspans, header, protocol)
+		o.ReceiveResourceSpans(ctx, rspans, header, protocol)
 	}
 }
 
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
-func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header http.Header, protocol string) source.Source {
+func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, header http.Header, protocol string) source.Source {
 	// each rspans is coming from a different resource and should be considered
 	// a separate payload; typically there is only one item in this slice
 	attr := rspans.Resource().Attributes()
@@ -240,7 +240,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 		containerID = rattr[string(semconv.AttributeK8SPodUID)]
 	}
 	if containerID == "" {
-		containerID = GetContainerID(header)
+		containerID = GetContainerID(ctx, header)
 	}
 	tagstats := &info.TagStats{
 		Tags: info.Tags{
