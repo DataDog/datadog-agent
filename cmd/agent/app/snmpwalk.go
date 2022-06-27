@@ -241,7 +241,7 @@ var snmpwalkCmd = &cobra.Command{
 				PrivacyPassphrase:        privKey,
 			},
 		}
-		// Estbalish connection
+		// Establish connection
 		err := snmp.Connect()
 		if err != nil {
 			fmt.Printf("Connect err: %v\n", err)
