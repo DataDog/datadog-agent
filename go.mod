@@ -41,11 +41,11 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/DataDog/agent-payload/v5 v5.0.23
 	github.com/DataDog/btf-internals v0.0.0-20220424171854-ebe6bce9afb0
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.37.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.37.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/quantile v0.37.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.37.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/trace v0.37.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.38.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.38.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/quantile v0.38.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.38.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/trace v0.38.0-rc.1
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
 	github.com/DataDog/ebpf-manager v0.0.0-20220627124959-89a32649d1dc
@@ -407,7 +407,7 @@ require (
 	k8s.io/apiextensions-apiserver v0.23.5 // indirect
 )
 
-require github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.0.0-00010101000000-000000000000
+require github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.38.0-rc.1
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
