@@ -37,11 +37,15 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 	}
 	file, err := s.File()
 	if err != nil {
-		log.Debugf("Failed to obtain unix socket file: %v\n", err)
+		log.Debugf("Failed to obtain unix socket file: %v", err)
 		return ctx
 	}
 	fd := int(file.Fd())
 	ucred, err := syscall.GetsockoptUcred(fd, syscall.SOL_SOCKET, syscall.SO_PEERCRED)
+	if err != nil {
+		log.Debugf("Failed to read credentials from unix socket: %v", err)
+		return ctx
+	}
 	return context.WithValue(ctx, ucredKey{}, ucred)
 }
 
