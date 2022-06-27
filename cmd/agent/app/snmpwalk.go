@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"log"
-
 	"github.com/gosnmp/gosnmp"
 	"github.com/spf13/cobra"
 )
@@ -246,8 +244,6 @@ var snmpwalkCmd = &cobra.Command{
 		}
 		defer snmp.Conn.Close()
 
-		defer timeTrack(time.Now(), snmp.Version)
-
 		// Perform a snmpwalk using Walk for all versions
 		err = snmp.Walk(oid, printValue)
 		if err != nil {
@@ -276,9 +272,4 @@ func printValue(pdu gosnmp.SnmpPDU) error {
 	}
 
 	return nil
-}
-
-func timeTrack(start time.Time, versionName gosnmp.SnmpVersion) {
-	elapsed := time.Since(start)
-	log.Printf("SnmpWalk for version %s took %s", versionName, elapsed)
 }
