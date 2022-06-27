@@ -200,7 +200,7 @@ func (ad *ActivityDump) prepareSocketNode(n *SocketNode, data *graph, processID 
 	if n.Bind.IP != "<nil>" {
 		name = fmt.Sprintf("%s/%s/%d", n.Family, n.Bind.IP, n.Bind.Port)
 	} else { // show other addr families, even if they are not parsed yet
-		name = fmt.Sprintf("%s", n.Family)
+		name = n.Family
 	}
 
 	socketNode := node{
