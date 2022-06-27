@@ -242,6 +242,8 @@ func (lp *LifecycleProcessor) addTag(key string, value string) {
 }
 
 // adjusts the parent and span IDs for multiple inferred spans
+// inferred span of index 1 are generally sent inside of inferred span index 0.
+// Like an SNS event inside an SQS message.
 func (lp *LifecycleProcessor) setParentIDForMultipleInferredSpans() {
 	lp.requestHandler.inferredSpans[1].Span.ParentID = lp.requestHandler.inferredSpans[0].Span.ParentID
 	lp.requestHandler.inferredSpans[0].Span.ParentID = lp.requestHandler.inferredSpans[1].Span.SpanID

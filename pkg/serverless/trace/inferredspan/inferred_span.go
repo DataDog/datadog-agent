@@ -152,5 +152,4 @@ func IsInferredSpansEnabled() bool {
 
 func (inferredSpan *InferredSpan) AddTagToInferredSpan(key string, value string) {
 	inferredSpan.Span.Meta[key] = value
-
 }

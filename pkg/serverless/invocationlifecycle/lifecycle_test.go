@@ -601,8 +601,6 @@ func TestTriggerTypesLifecycleEventForSNSSQS(t *testing.T) {
 	sqsSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 
 	assert.Equal(t, snsSpan.SpanID, sqsSpan.ParentID)
-
-	t.Logf("%+v", tracePayload)
 }
 
 // Helper function for reading test file
