@@ -56,7 +56,7 @@ func (ad *ActivityDump) generateDNSRule(dns *DNSNode, activityNode *ProcessActiv
 	var rules []ProfileRule
 
 	if dns != nil {
-		for _, req := range dns.requests {
+		for _, req := range dns.Requests {
 			rule := NewProfileRule(fmt.Sprintf(
 				"dns.question.name == \"%s\" && dns.question.type == \"%s\"",
 				req.Name,
