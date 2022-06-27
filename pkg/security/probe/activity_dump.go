@@ -957,6 +957,11 @@ func (pan *ProcessActivityNode) insertSnapshotedSocket(p *process.Process, ad *A
 	}
 }
 
+var (
+	socketRe = regexp.MustCompile(`socket:\[[0-9]+\]`)
+	inodeRe  = regexp.MustCompile(`[0-9]+`)
+)
+
 func (pan *ProcessActivityNode) snapshotBoundSockets(p *process.Process, ad *ActivityDump) error {
 	// list all the file descriptors opened by the process
 	FDs, err := p.OpenFiles()
@@ -964,19 +969,10 @@ func (pan *ProcessActivityNode) snapshotBoundSockets(p *process.Process, ad *Act
 		return err
 	}
 
-	// search for sockets only, exprimed in the form of "socket:[inode]"
-	rSocket, err := regexp.Compile("socket:\\[[0-9]+\\]")
-	if err != nil {
-		return err
-	}
-	rInode, err := regexp.Compile("[0-9]+")
-	if err != nil {
-		return err
-	}
 	var sockets []uint64
 	for _, fd := range FDs {
-		if rSocket.MatchString(fd.Path) {
-			sock, err := strconv.Atoi(rInode.FindString(fd.Path))
+		if socketRe.MatchString(fd.Path) {
+			sock, err := strconv.Atoi(inodeRe.FindString(fd.Path))
 			if err != nil {
 				return err
 			}
