@@ -24,10 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	headerContainerID = "Datadog-Container-ID"
-)
-
 var bufferPool = sync.Pool{
 	New: func() interface{} {
 		return new(bytes.Buffer)
