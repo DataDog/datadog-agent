@@ -11,9 +11,8 @@ package tailerfactory
 import (
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
-	"strings"
+	"runtime"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -25,16 +24,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var platformDockerLogsBasePath string
+
 func fileTestSetup(t *testing.T) {
 	dockerutilPkg.EnableTestingMode()
 	tmp := t.TempDir()
-	var oldPodLogsBasePath, oldDockerLogsBasePath, oldPodmanLogsBasePath string
-	oldPodLogsBasePath, podLogsBasePath = podLogsBasePath, path.Join(tmp, "pods")
-	oldDockerLogsBasePath, dockerLogsBasePath = dockerLogsBasePath, path.Join(tmp, "docker")
-	oldPodmanLogsBasePath, podmanLogsBasePath = podmanLogsBasePath, path.Join(tmp, "containers")
+	var oldPodLogsBasePath, oldDockerLogsBasePathNix, oldDockerLogsBasePathWin, oldPodmanLogsBasePath string
+	oldPodLogsBasePath, podLogsBasePath = podLogsBasePath, filepath.Join(tmp, "pods")
+	oldDockerLogsBasePathNix, dockerLogsBasePathNix = dockerLogsBasePathNix, filepath.Join(tmp, "docker-nix")
+	oldDockerLogsBasePathWin, dockerLogsBasePathWin = dockerLogsBasePathWin, filepath.Join(tmp, "docker-win")
+	oldPodmanLogsBasePath, podmanLogsBasePath = podmanLogsBasePath, filepath.Join(tmp, "containers")
+
+	switch runtime.GOOS {
+	case "windows":
+		platformDockerLogsBasePath = dockerLogsBasePathWin
+	default: // linux, darwin
+		platformDockerLogsBasePath = dockerLogsBasePathNix
+	}
+
 	t.Cleanup(func() {
 		podLogsBasePath = oldPodLogsBasePath
-		dockerLogsBasePath = oldDockerLogsBasePath
+		dockerLogsBasePathNix = oldDockerLogsBasePathNix
+		dockerLogsBasePathWin = oldDockerLogsBasePathWin
 		podmanLogsBasePath = oldPodmanLogsBasePath
 	})
 }
@@ -64,7 +75,7 @@ func makeTestPod() *workloadmeta.KubernetesPod {
 func TestMakeFileSource_docker_success(t *testing.T) {
 	fileTestSetup(t)
 
-	p := filepath.FromSlash(path.Join(dockerLogsBasePath, "containers/abc/abc-json.log"))
+	p := filepath.Join(platformDockerLogsBasePath, filepath.FromSlash("containers/abc/abc-json.log"))
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
 	require.NoError(t, ioutil.WriteFile(p, []byte("{}"), 0o666))
 
@@ -93,7 +104,7 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 func TestMakeFileSource_docker_no_file(t *testing.T) {
 	fileTestSetup(t)
 
-	p := filepath.FromSlash(path.Join(dockerLogsBasePath, "containers/abc/abc-json.log"))
+	p := filepath.Join(platformDockerLogsBasePath, filepath.FromSlash("containers/abc/abc-json.log"))
 
 	tf := &factory{
 		pipelineProvider: pipeline.NewMockProvider(),
@@ -108,18 +119,22 @@ func TestMakeFileSource_docker_no_file(t *testing.T) {
 	child, err := tf.makeFileSource(source)
 	require.Nil(t, child)
 	require.Error(t, err)
-
-	// error is about the path - Windows returns a different error than *nix
-	require.True(t, strings.Contains(err.Error(), p) || strings.Contains(err.Error(), "The system cannot find the path specified."))
+	switch runtime.GOOS {
+	case "windows":
+		require.Contains(t, err.Error(), "The system cannot find the path specified")
+	default: // linux, darwin
+		require.Contains(t, err.Error(), p) // error is about the path
+	}
 }
 
 func TestMakeK8sSource(t *testing.T) {
 	fileTestSetup(t)
 
-	expectedPath := filepath.FromSlash(path.Join(podLogsBasePath, "podns_podname_poduuid/cname/*.log"))
-	p := filepath.FromSlash(path.Join(podLogsBasePath, "podns_podname_poduuid/cname/abc-json.log"))
-	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
-	require.NoError(t, ioutil.WriteFile(p, []byte("{}"), 0o666))
+	dir := filepath.Join(podLogsBasePath, filepath.FromSlash("podns_podname_poduuid/cname"))
+	require.NoError(t, os.MkdirAll(dir, 0o777))
+	filename := filepath.Join(dir, "somefile.log")
+	require.NoError(t, ioutil.WriteFile(filename, []byte("{}"), 0o666))
+	wildcard := filepath.Join(dir, "*.log")
 
 	store := workloadmeta.NewMockStore()
 	store.SetEntity(makeTestPod())
@@ -141,7 +156,7 @@ func TestMakeK8sSource(t *testing.T) {
 	require.Equal(t, "podns/podname/cname", child.Name)
 	require.Equal(t, "file", child.Config.Type)
 	require.Equal(t, "abc", child.Config.Identifier)
-	require.Equal(t, expectedPath, child.Config.Path)
+	require.Equal(t, wildcard, child.Config.Path)
 	require.Equal(t, "src", child.Config.Source)
 	require.Equal(t, "svc", child.Config.Service)
 	require.Equal(t, []string{"tag!"}, child.Config.Tags)
@@ -150,7 +165,7 @@ func TestMakeK8sSource(t *testing.T) {
 func TestMakeK8sSource_pod_not_found(t *testing.T) {
 	fileTestSetup(t)
 
-	p := path.Join(dockerLogsBasePath, "containers/abc/abc-json.log")
+	p := filepath.Join(platformDockerLogsBasePath, "containers/abc/abc-json.log")
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
 	require.NoError(t, ioutil.WriteFile(p, []byte("{}"), 0o666))
 
@@ -180,7 +195,9 @@ func TestFindK8sLogPath(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			p := path.Join(podLogsBasePath, test.pathExists)
+			pathExists := filepath.FromSlash(test.pathExists)
+			expectedPattern := filepath.FromSlash(test.expectedPattern)
+			p := filepath.Join(podLogsBasePath, pathExists)
 			require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
 			require.NoError(t, ioutil.WriteFile(p, []byte("xx"), 0o666))
 			defer func() {
@@ -188,7 +205,7 @@ func TestFindK8sLogPath(t *testing.T) {
 			}()
 
 			gotPattern := findK8sLogPath(makeTestPod(), "cname")
-			require.Equal(t, filepath.FromSlash(path.Join(podLogsBasePath, test.expectedPattern)), gotPattern)
+			require.Equal(t, filepath.Join(podLogsBasePath, expectedPattern), gotPattern)
 		})
 	}
 }

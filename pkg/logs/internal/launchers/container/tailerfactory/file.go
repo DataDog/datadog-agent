@@ -31,6 +31,8 @@ import (
 )
 
 var podLogsBasePath = "/var/log/pods"
+var dockerLogsBasePathNix = "/var/lib/docker"
+var dockerLogsBasePathWin = "c:\\programdata\\docker"
 var podmanLogsBasePath = "/var/lib/containers"
 
 // makeFileTailer makes a file-based tailer for the given source, or returns
@@ -139,7 +141,9 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 func (tf *factory) findDockerLogPath(containerID string) string {
 	switch runtime.GOOS {
 	case "windows":
-		return filepath.Join(dockerLogsBasePath, "containers", containerID, fmt.Sprintf("%s-json.log", containerID))
+		return filepath.Join(
+			dockerLogsBasePathWin, "containers", containerID,
+			fmt.Sprintf("%s-json.log", containerID))
 	default: // linux, darwin
 		// this config flag provides temporary support for podman while it is
 		// still recognized by AD as a "docker" runtime.
@@ -149,7 +153,7 @@ func (tf *factory) findDockerLogPath(containerID string) string {
 				"userdata/ctr.log")
 		}
 		return filepath.Join(
-			dockerLogsBasePath, "containers", containerID,
+			dockerLogsBasePathNix, "containers", containerID,
 			fmt.Sprintf("%s-json.log", containerID))
 	}
 }
@@ -178,6 +182,7 @@ func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSou
 	}
 
 	// get the path for the discovered pod and container
+	// TODO: need a different base path on windows?
 	path := findK8sLogPath(pod, container.Name)
 
 	// Note that it's not clear from k8s documentation that the container logs,
