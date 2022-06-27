@@ -16,7 +16,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -26,6 +25,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"github.com/pkg/errors"
+	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
 
@@ -97,7 +97,7 @@ type Probe struct {
 	discarderReq         *ERPCRequest
 	pidDiscarders        *pidDiscarders
 	inodeDiscarders      *inodeDiscarders
-	flushingDiscarders   int64
+	flushingDiscarders   *atomic.Bool
 	approvers            map[eval.EventType]activeApprovers
 	discarderRateLimiter *rate.Limiter
 
@@ -803,7 +803,7 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 		return nil
 	}
 
-	if atomic.LoadInt64(&p.flushingDiscarders) == 1 {
+	if p.flushingDiscarders.Load() {
 		return nil
 	}
 
@@ -995,7 +995,7 @@ func (p *Probe) FlushDiscarders() error {
 	}
 
 	unfreezeDiscarders := func() {
-		atomic.StoreInt64(&p.flushingDiscarders, 0)
+		p.flushingDiscarders.Store(false)
 
 		if err := flushingMap.Put(ebpf.ZeroUint32MapItem, uint32(0)); err != nil {
 			log.Errorf("Failed to reset flush_discarders flag: %s", err)
@@ -1005,7 +1005,7 @@ func (p *Probe) FlushDiscarders() error {
 	}
 	defer unfreezeDiscarders()
 
-	if !atomic.CompareAndSwapInt64(&p.flushingDiscarders, 0, 1) {
+	if p.flushingDiscarders.Swap(true) {
 		return errors.New("already flushing discarders")
 	}
 	// Sleeping a bit to avoid races with executing kprobes and setting discarders
@@ -1250,6 +1250,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		tcPrograms:           make(map[NetDeviceKey]*manager.Probe),
 		statsdClient:         statsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second), 100),
+		flushingDiscarders:   atomic.NewBool(false),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {

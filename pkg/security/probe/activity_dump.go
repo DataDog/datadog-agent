@@ -24,7 +24,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -32,6 +31,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/procfs"
 	"github.com/tinylib/msgp/msgp"
+	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -89,9 +89,9 @@ type ActivityDump struct {
 	sync.Mutex         `msg:"-"`
 	state              ActivityDumpStatus
 	adm                *ActivityDumpManager
-	processedCount     map[model.EventType]*uint64
-	addedRuntimeCount  map[model.EventType]*uint64
-	addedSnapshotCount map[model.EventType]*uint64
+	processedCount     map[model.EventType]*atomic.Uint64
+	addedRuntimeCount  map[model.EventType]*atomic.Uint64
+	addedSnapshotCount map[model.EventType]*atomic.Uint64
 
 	// standard attributes used by the intake
 	Host    string   `msg:"host" json:"host,omitempty"`
@@ -128,9 +128,9 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		Source:             ActivityDumpSource,
 		CookiesNode:        make(map[uint32]*ProcessActivityNode),
 		adm:                adm,
-		processedCount:     make(map[model.EventType]*uint64),
-		addedRuntimeCount:  make(map[model.EventType]*uint64),
-		addedSnapshotCount: make(map[model.EventType]*uint64),
+		processedCount:     make(map[model.EventType]*atomic.Uint64),
+		addedRuntimeCount:  make(map[model.EventType]*atomic.Uint64),
+		addedSnapshotCount: make(map[model.EventType]*atomic.Uint64),
 		StorageRequests:    make(map[dump.StorageFormat][]dump.StorageRequest),
 	}
 
@@ -140,13 +140,9 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 
 	// generate counters
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
-		processed := uint64(0)
-		runtime := uint64(0)
-		snapshot := uint64(0)
-
-		ad.processedCount[i] = &processed
-		ad.addedRuntimeCount[i] = &runtime
-		ad.addedSnapshotCount[i] = &snapshot
+		ad.processedCount[i] = atomic.NewUint64(0)
+		ad.addedRuntimeCount[i] = atomic.NewUint64(0)
+		ad.addedSnapshotCount[i] = atomic.NewUint64(0)
 	}
 	return &ad
 }
@@ -169,9 +165,9 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 
 	ad := ActivityDump{
 		CookiesNode:        make(map[uint32]*ProcessActivityNode),
-		processedCount:     make(map[model.EventType]*uint64),
-		addedRuntimeCount:  make(map[model.EventType]*uint64),
-		addedSnapshotCount: make(map[model.EventType]*uint64),
+		processedCount:     make(map[model.EventType]*atomic.Uint64),
+		addedRuntimeCount:  make(map[model.EventType]*atomic.Uint64),
+		addedSnapshotCount: make(map[model.EventType]*atomic.Uint64),
 		StorageRequests:    make(map[dump.StorageFormat][]dump.StorageRequest),
 		Host:               msg.GetHost(),
 		Service:            msg.GetService(),
@@ -363,7 +359,7 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	defer func() {
 		if newEntry {
 			// this doesn't count the exec events which are counted separately
-			atomic.AddUint64(ad.addedRuntimeCount[event.GetEventType()], 1)
+			ad.addedRuntimeCount[event.GetEventType()].Inc()
 		}
 	}()
 
@@ -390,7 +386,7 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 
 	// the count of processed events is the count of events that matched the activity dump selector = the events for
 	// which we successfully found a process activity node
-	atomic.AddUint64(ad.processedCount[event.GetEventType()], 1)
+	ad.processedCount[event.GetEventType()].Inc()
 
 	// insert the event based on its type
 	switch event.GetEventType() {
@@ -471,9 +467,9 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 	// count new entry
 	switch generationType {
 	case Runtime:
-		atomic.AddUint64(ad.addedRuntimeCount[model.ExecEventType], 1)
+		ad.addedRuntimeCount[model.ExecEventType].Inc()
 	case Snapshot:
-		atomic.AddUint64(ad.addedSnapshotCount[model.ExecEventType], 1)
+		ad.addedSnapshotCount[model.ExecEventType].Inc()
 	}
 
 	// set the pid of the input ProcessCacheEntry as traced
@@ -508,7 +504,7 @@ func (ad *ActivityDump) GetSelectorStr() string {
 func (ad *ActivityDump) SendStats() error {
 	for evtType, count := range ad.processedCount {
 		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
-		if value := atomic.SwapUint64(count, 0); value > 0 {
+		if value := count.Swap(0); value > 0 {
 			if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpEventProcessed, int64(value), tags, 1.0); err != nil {
 				return errors.Wrapf(err, "couldn't send %s metric", metrics.MetricActivityDumpEventProcessed)
 			}
@@ -517,7 +513,7 @@ func (ad *ActivityDump) SendStats() error {
 
 	for evtType, count := range ad.addedRuntimeCount {
 		tags := []string{fmt.Sprintf("event_type:%s", evtType), fmt.Sprintf("generation_type:%s", Runtime)}
-		if value := atomic.SwapUint64(count, 0); value > 0 {
+		if value := count.Swap(0); value > 0 {
 			if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpEventAdded, int64(value), tags, 1.0); err != nil {
 				return errors.Wrapf(err, "couldn't send %s metric", metrics.MetricActivityDumpEventAdded)
 			}
@@ -526,7 +522,7 @@ func (ad *ActivityDump) SendStats() error {
 
 	for evtType, count := range ad.addedSnapshotCount {
 		tags := []string{fmt.Sprintf("event_type:%s", evtType), fmt.Sprintf("generation_type:%s", Snapshot)}
-		if value := atomic.SwapUint64(count, 0); value > 0 {
+		if value := count.Swap(0); value > 0 {
 			if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpEventAdded, int64(value), tags, 1.0); err != nil {
 				return errors.Wrapf(err, "couldn't send %s metric", metrics.MetricActivityDumpEventAdded)
 			}
@@ -951,7 +947,7 @@ func (pan *ProcessActivityNode) insertSnapshotedSocket(p *process.Process, ad *A
 
 	if pan.InsertBindEvent(&evt.Bind) {
 		// count this new entry
-		atomic.AddUint64(ad.addedSnapshotCount[model.BindEventType], 1)
+		ad.addedSnapshotCount[model.BindEventType].Inc()
 	}
 }
 
@@ -1113,7 +1109,7 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 
 		if pan.InsertFileEvent(&evt.Open.File, evt, Snapshot) {
 			// count this new entry
-			atomic.AddUint64(ad.addedSnapshotCount[model.FileOpenEventType], 1)
+			ad.addedSnapshotCount[model.FileOpenEventType].Inc()
 		}
 	}
 	return nil
