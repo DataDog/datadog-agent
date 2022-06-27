@@ -1,7 +1,5 @@
 syntax = "proto3";
 
-import "google/protobuf/timestamp.proto";
-
 option go_package = "pkg/security/adproto";
 
 package adproto;
@@ -40,9 +38,9 @@ message ProcessInfo {
     string TTY = 10;
     string Comm = 11;
 
-    google.protobuf.Timestamp ForkTime = 12;
-    google.protobuf.Timestamp ExitTime = 13;
-    google.protobuf.Timestamp ExecTime = 14;
+    uint64 ForkTime = 12;
+    uint64 ExitTime = 13;
+    uint64 ExecTime = 14;
 
     Credentials Credentials = 15;
 
@@ -57,7 +55,7 @@ message FileActivityNode {
     string Name = 1;
     FileInfo File = 2;
     string GenerationType = 3;
-    google.protobuf.Timestamp FirstSeen = 4;
+    uint64 FirstSeen = 4;
 
     OpenNode Open = 5;
 
@@ -90,8 +88,8 @@ message FileInfo {
 
     uint32 Mode = 5; // TODO: check conversion with uint16
 
-    uint32 CTime = 6;
-    uint32 MTime = 7;
+    uint64 CTime = 6;
+    uint64 MTime = 7;
 
     uint32 MountID = 8;
     uint64 INode = 9;
