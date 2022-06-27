@@ -1016,9 +1016,11 @@ func (p *Probe) DumpDiscarders() (string, error) {
 
 	fmt.Fprintf(dump, "Discarder Dump\n%s\n", time.Now().UTC().String())
 
-	fmt.Fprintf(dump, `Legend:
+	fmt.Fprintf(dump, `
+Legend:
 Discarder Count: Discardee Info
-Discarder Count: Discardee Parameters`)
+Discarder Count: Discardee Parameters
+`)
 
 	fmt.Fprintf(dump, "\nInode Discarders\n")
 
@@ -1072,7 +1074,6 @@ Discarder Count: Discardee Parameters`)
 	backBufferPrintErr := p.printDiscarderStats(dump, backBufferDiscarderStatsMapName)
 	if backBufferPrintErr != nil {
 		_ = log.Errorf("could not dump discarder stats map %s: %s", backBufferDiscarderStatsMapName, backBufferPrintErr)
-
 	}
 
 	fmt.Fprintf(dump, "\nEnd Discarder Dump\n")
