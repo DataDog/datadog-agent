@@ -2,6 +2,27 @@
 Release Notes
 =============
 
+.. _Release Notes_7.37.1:
+
+7.37.1 / 6.37.1
+======
+
+.. _Release Notes_7.37.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-06-28
+
+
+.. _Release Notes_7.37.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes issue where proxy config was ignored by the trace-agent.
+
+
 .. _Release Notes_7.37.0:
 
 7.37.0 / 6.37.0
