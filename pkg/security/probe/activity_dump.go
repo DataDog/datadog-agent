@@ -418,7 +418,7 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	// insert the event based on its type
 	switch event.GetEventType() {
 	case model.FileOpenEventType:
-		return node.InsertFileEvent(&event.Open.File, event, Runtime)
+		return node.InsertFileEvent(&event.Open.File, event, Runtime, ad.adm.probe.config.ActivityDumpPathMergeEnabled)
 	case model.DNSEventType:
 		return node.InsertDNSEvent(&event.DNS)
 	case model.BindEventType:
@@ -986,7 +986,7 @@ func extractFirstParent(path string) (string, int) {
 
 // InsertFileEvent inserts the provided file event in the current node. This function returns true if a new entry was
 // added, false if the event was dropped.
-func (pan *ProcessActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, generationType NodeGenerationType) bool {
+func (pan *ProcessActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, generationType NodeGenerationType, pathMerge bool) bool {
 	parent, nextParentIndex := extractFirstParent(event.ResolveFilePath(fileEvent))
 	if nextParentIndex == 0 {
 		return false
@@ -996,7 +996,7 @@ func (pan *ProcessActivityNode) InsertFileEvent(fileEvent *model.FileEvent, even
 
 	child, ok := pan.Files[parent]
 	if ok {
-		return child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType)
+		return child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, pathMerge)
 	}
 
 	// create new child
@@ -1004,7 +1004,7 @@ func (pan *ProcessActivityNode) InsertFileEvent(fileEvent *model.FileEvent, even
 		pan.Files[parent] = NewFileActivityNode(fileEvent, event, parent, generationType)
 	} else {
 		child := NewFileActivityNode(nil, nil, parent, generationType)
-		child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType)
+		child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, pathMerge)
 		pan.Files[parent] = child
 	}
 	return true
@@ -1211,7 +1211,7 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 		evt.Open.File.Mode = evt.Open.File.FileFields.Mode
 		// TODO: add open flags by parsing `/proc/[pid]/fdinfo/fd` + O_RDONLY|O_CLOEXEC for the shared libs
 
-		if pan.InsertFileEvent(&evt.Open.File, evt, Snapshot) {
+		if pan.InsertFileEvent(&evt.Open.File, evt, Snapshot, ad.adm.probe.config.ActivityDumpPathMergeEnabled) {
 			// count this new entry
 			ad.addedSnapshotCount[model.FileOpenEventType].Inc()
 		}
@@ -1355,20 +1355,20 @@ func (fan *FileActivityNode) enrichFromEvent(event *Event) {
 
 // InsertFileEvent inserts an event in a FileActivityNode. This function returns true if a new entry was added, false if
 // the event was dropped.
-func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, remainingPath string, generationType NodeGenerationType) bool {
+func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, remainingPath string, generationType NodeGenerationType, pathMerge bool) bool {
 	parent, nextParentIndex := extractFirstParent(remainingPath)
 	if nextParentIndex == 0 {
 		fan.enrichFromEvent(event)
 		return false
 	}
 
-	if len(fan.Children) >= 10 {
+	if pathMerge && len(fan.Children) >= 10 {
 		fan.mergeCommonPaths()
 	}
 
 	child, ok := fan.Children[parent]
 	if ok {
-		return child.InsertFileEvent(fileEvent, event, remainingPath[nextParentIndex:], generationType)
+		return child.InsertFileEvent(fileEvent, event, remainingPath[nextParentIndex:], generationType, pathMerge)
 	}
 
 	// create new child
@@ -1376,7 +1376,7 @@ func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *
 		fan.Children[parent] = NewFileActivityNode(fileEvent, event, parent, generationType)
 	} else {
 		child := NewFileActivityNode(nil, nil, parent, generationType)
-		child.InsertFileEvent(fileEvent, event, remainingPath[nextParentIndex:], generationType)
+		child.InsertFileEvent(fileEvent, event, remainingPath[nextParentIndex:], generationType, pathMerge)
 		fan.Children[parent] = child
 	}
 	return true
