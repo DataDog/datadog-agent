@@ -32,7 +32,6 @@ type uptaneClient interface {
 // aspects of the client by making it agnostic to how updates are retrieved.
 type BackendClient struct {
 	// Client information
-	orgID    int32
 	hostname string
 	version  string
 
@@ -51,9 +50,8 @@ type BackendClient struct {
 }
 
 // NewBackendClient creates a new BackendClient
-func NewBackendClient(orgID int32, hostname string, version string, uptaneClient uptaneClient, clientTracker *clients) *BackendClient {
+func NewBackendClient(hostname string, version string, uptaneClient uptaneClient, clientTracker *clients) *BackendClient {
 	return &BackendClient{
-		orgID:             orgID,
 		hostname:          hostname,
 		version:           version,
 		uptane:            uptaneClient,
