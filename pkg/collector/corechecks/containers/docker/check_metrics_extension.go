@@ -52,9 +52,14 @@ func (dn *dockerCustomMetricsExtension) Process(tags []string, container *worklo
 			dn.sender(dn.aggSender.Gauge, "docker.mem.sw_limit", containerStats.Memory.SwapLimit, tags)
 		}
 
-		if containerStats.Memory.UsageTotal != nil && containerStats.Memory.Limit != nil && *containerStats.Memory.Limit > 0 {
-			memoryPct := *containerStats.Memory.UsageTotal / *containerStats.Memory.Limit
-			dn.sender(dn.aggSender.Gauge, "docker.mem.in_use", &memoryPct, tags)
+		if containerStats.Memory.Limit != nil && *containerStats.Memory.Limit > 0 {
+			if containerStats.Memory.RSS != nil {
+				memoryPct := *containerStats.Memory.RSS / *containerStats.Memory.Limit
+				dn.sender(dn.aggSender.Gauge, "docker.mem.in_use", &memoryPct, tags)
+			} else if containerStats.Memory.CommitBytes != nil {
+				memoryPct := *containerStats.Memory.CommitBytes / *containerStats.Memory.Limit
+				dn.sender(dn.aggSender.Gauge, "docker.mem.in_use", &memoryPct, tags)
+			}
 		}
 	}
 
