@@ -139,9 +139,14 @@ var snmpwalkCmd = &cobra.Command{
 
 		// Authentication check
 		if communityString == "" && user == "" {
-			fmt.Printf("No authentication mechanism specified")
-			cmd.Help()
-			os.Exit(1)
+			// Set default community string if version 1 or 2c and no given community string
+			if snmpVersion == "1" || snmpVersion == "2c" {
+				communityString = defaultCommunityString
+			} else {
+				fmt.Printf("No authentication mechanism specified")
+				cmd.Help()
+				os.Exit(1)
+			}
 		}
 
 		// Set the snmp version
@@ -156,10 +161,6 @@ var snmpwalkCmd = &cobra.Command{
 			setVersion = gosnmp.Version2c
 		}
 
-		// Set default community string if version 1 or 2c and no given community string
-		if (setVersion == gosnmp.Version2c || setVersion == gosnmp.Version1) && communityString == "" {
-			communityString = defaultCommunityString
-		}
 		// Set v3 security parameters
 		if setVersion == gosnmp.Version3 {
 			// Authentication Protocol
