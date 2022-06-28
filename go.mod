@@ -48,7 +48,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace v0.38.0-rc.1
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
-	github.com/DataDog/ebpf-manager v0.0.0-20220627124959-89a32649d1dc
+	github.com/DataDog/ebpf-manager v0.0.0-20220627174516-12adb97b679e
 	github.com/DataDog/gohai v0.0.0-20220607152458-544032c46ded
 	github.com/DataDog/gopsutil v1.1.0
 	github.com/DataDog/nikos v1.8.0

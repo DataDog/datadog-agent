@@ -399,7 +399,7 @@ static __always_inline int fill_path_safe(lib_path_t *path, char *path_argument)
     return 0;
 }
 
-static __always_inline int kprobe__do_sys_open_helper(struct pt_regs* ctx) {
+static __always_inline int do_sys_open_helper_enter(struct pt_regs* ctx) {
     char *path_argument = (char *)PT_REGS_PARM2(ctx);
     lib_path_t path = {0};
     if (bpf_probe_read_user(path.buf, sizeof(path.buf), path_argument) >= 0) {
@@ -429,15 +429,15 @@ static __always_inline int kprobe__do_sys_open_helper(struct pt_regs* ctx) {
 
 SEC("kprobe/do_sys_open")
 int kprobe__do_sys_open(struct pt_regs* ctx) {
-    return kprobe__do_sys_open_helper(ctx);
+    return do_sys_open_helper_enter(ctx);
 }
 
 SEC("kprobe/do_sys_openat2")
 int kprobe__do_sys_openat2(struct pt_regs* ctx) {
-    return kprobe__do_sys_open_helper(ctx);
+    return do_sys_open_helper_enter(ctx);
 }
 
-static inline int kretprobe__do_sys_open_helper(struct pt_regs* ctx) {
+static __always_inline int do_sys_open_helper_exit(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // If file couldn't be opened, bail out
@@ -477,12 +477,12 @@ static inline int kretprobe__do_sys_open_helper(struct pt_regs* ctx) {
 
 SEC("kretprobe/do_sys_open")
 int kretprobe__do_sys_open(struct pt_regs* ctx) {
-    return kretprobe__do_sys_open_helper(ctx);
+    return do_sys_open_helper_exit(ctx);
 }
 
 SEC("kretprobe/do_sys_openat2")
 int kretprobe__do_sys_openat2(struct pt_regs* ctx) {
-    return kretprobe__do_sys_open_helper(ctx);
+    return do_sys_open_helper_exit(ctx);
 }
 
 // This number will be interpreted by elf-loader to set the current running kernel version
