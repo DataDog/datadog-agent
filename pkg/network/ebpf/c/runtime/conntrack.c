@@ -1,6 +1,5 @@
 #include "kconfig.h"
 #include <linux/version.h>
-#include <linux/types.h>
 
 #include "bpf_helpers.h"
 #include "bpf_endian.h"
@@ -46,6 +45,15 @@ int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
 
 SEC("kprobe/ctnetlink_fill_info")
 int kprobe_ctnetlink_fill_info(struct pt_regs* ctx) {
+
+    proc_t proc = {};
+    bpf_get_current_comm(&proc.comm, sizeof(proc.comm));
+
+    if (!proc_t_comm_prefix_equals("system-probe", 12, proc)) {
+        log_debug("skipping kprobe/ctnetlink_fill_info invocation from non-system-probe process\n");
+        return 0;
+    }
+
     struct nf_conn *ct = (struct nf_conn*)PT_REGS_PARM5(ctx);
 
     u32 status = ct_status(ct);
