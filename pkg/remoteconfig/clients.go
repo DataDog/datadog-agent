@@ -22,7 +22,7 @@ func (c *client) expired(clock clock.Clock, ttl time.Duration) bool {
 	return clock.Now().After(c.lastSeen.Add(ttl))
 }
 
-type clients struct {
+type ClientTracker struct {
 	m     sync.Mutex
 	clock clock.Clock
 
@@ -30,8 +30,8 @@ type clients struct {
 	clients    map[string]*client
 }
 
-func newClients(clock clock.Clock, clientsTTL time.Duration) *clients {
-	return &clients{
+func NewClientTracker(clock clock.Clock, clientsTTL time.Duration) *ClientTracker {
+	return &ClientTracker{
 		clock:      clock,
 		clientsTTL: clientsTTL,
 		clients:    make(map[string]*client),
@@ -39,7 +39,7 @@ func newClients(clock clock.Clock, clientsTTL time.Duration) *clients {
 }
 
 // seen marks the given client as active
-func (c *clients) seen(pbClient *pbgo.Client) {
+func (c *ClientTracker) Seen(pbClient *pbgo.Client) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	now := c.clock.Now().UTC()
@@ -51,7 +51,7 @@ func (c *clients) seen(pbClient *pbgo.Client) {
 }
 
 // activeClients returns the list of active clients
-func (c *clients) activeClients() []*pbgo.Client {
+func (c *ClientTracker) ActiveClients() []*pbgo.Client {
 	c.m.Lock()
 	defer c.m.Unlock()
 	var activeClients []*pbgo.Client

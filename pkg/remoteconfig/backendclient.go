@@ -13,7 +13,7 @@ import (
 )
 
 // uptaneClient defines what is needed to perform uptane checks and return the current tuf state
-type uptaneClient interface {
+type UptaneClient interface {
 	Update(response *pbgo.LatestConfigsResponse) error
 	State() (uptane.State, error)
 	DirectorRoot(version uint64) ([]byte, error)
@@ -40,21 +40,23 @@ type BackendClient struct {
 	newProducts map[rcdata.Product]struct{}
 
 	// Stores TUF metadata and config files and runs TUF verifications
-	uptane uptaneClient
+	UptaneClient
 
 	// List of downstream clients that this client needs to ask for configs for from the backend
-	downstreamClients *clients
+	downstreamClients *ClientTracker
 
 	// Informs the backend of any recent errors for DD telemetry
 	lastUpdateErr error
 }
 
 // NewBackendClient creates a new BackendClient
-func NewBackendClient(hostname string, version string, uptaneClient uptaneClient, clientTracker *clients) *BackendClient {
+func NewBackendClient(hostname string, version string, uptaneClient UptaneClient, clientTracker *ClientTracker) *BackendClient {
 	return &BackendClient{
 		hostname:          hostname,
 		version:           version,
-		uptane:            uptaneClient,
+		products:          make(map[rcdata.Product]struct{}),
+		newProducts:       make(map[rcdata.Product]struct{}),
+		UptaneClient:      uptaneClient,
 		downstreamClients: clientTracker,
 		lastUpdateErr:     nil,
 	}
@@ -62,22 +64,32 @@ func NewBackendClient(hostname string, version string, uptaneClient uptaneClient
 
 // Apply applies the provided update from the remote config backend
 func (c *BackendClient) Apply(update *pbgo.LatestConfigsResponse) error {
-	err := c.uptane.Update(update)
-	c.lastUpdateErr = err
+	err := c.Update(update)
+	if err != nil {
+		c.lastUpdateErr = err
+		return err
+	}
+
+	for product := range c.newProducts {
+		c.products[product] = struct{}{}
+	}
+	c.newProducts = make(map[rcdata.Product]struct{})
+
 	return err
 }
 
 // BuildUpdateRequest builds a request struct that the remote config backend can process.
 func (c *BackendClient) BuildUpdateRequest(forceRefresh bool) (*pbgo.LatestConfigsRequest, error) {
-	activeClients := c.downstreamClients.activeClients()
+	activeClients := c.downstreamClients.ActiveClients()
 	c.refreshProducts(activeClients)
 
 	previousTUFVersions := uptane.TUFVersions{}
 
 	var err error
 	if !forceRefresh {
-		previousTUFVersions, err = c.uptane.TUFVersionState()
+		previousTUFVersions, err = c.TUFVersionState()
 		if err != nil {
+			fmt.Printf("error in tuf version state\n")
 			log.Warnf("could not get previous TUF version state: %v", err)
 			if c.lastUpdateErr != nil {
 				c.lastUpdateErr = fmt.Errorf("%v: %v", err, c.lastUpdateErr)
@@ -89,6 +101,7 @@ func (c *BackendClient) BuildUpdateRequest(forceRefresh bool) (*pbgo.LatestConfi
 
 	backendState, err := c.getOpaqueBackendState()
 	if err != nil {
+		fmt.Printf("error in get opaque state\n")
 		log.Warnf("could not get previous backend client state: %v", err)
 		if c.lastUpdateErr != nil {
 			c.lastUpdateErr = fmt.Errorf("%v: %v", err, c.lastUpdateErr)
@@ -105,7 +118,7 @@ func (c *BackendClient) BuildUpdateRequest(forceRefresh bool) (*pbgo.LatestConfi
 // TrackDownstreamClient registers the given downstream client so that the BackendClient will ask for
 // configs on its behalf based on its needs.
 func (c *BackendClient) TrackDownstreamClient(client *pbgo.Client) {
-	c.downstreamClients.seen(client)
+	c.downstreamClients.Seen(client)
 }
 
 // refreshProducts goes through the current active client list and determines what products
@@ -129,10 +142,13 @@ func (c *BackendClient) refreshProducts(activeClients []*pbgo.Client) {
 // The backend uses this data for its own tracking purposes and needs it sent back to it
 // on every update request.
 func (c *BackendClient) getOpaqueBackendState() ([]byte, error) {
-	rawTargetsCustom, err := c.uptane.TargetsCustom()
+	rawTargetsCustom, err := c.TargetsCustom()
 	if err != nil {
 		return nil, err
+	} else if len(rawTargetsCustom) == 0 {
+		return nil, nil
 	}
+
 	custom, err := parseTargetsCustom(rawTargetsCustom)
 	if err != nil {
 		return nil, err
