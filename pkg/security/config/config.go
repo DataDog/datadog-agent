@@ -315,6 +315,10 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		}
 	}
 
+	if c.EventStreamBufferSize%os.Getpagesize() != 0 || c.EventStreamBufferSize&(c.EventStreamBufferSize-1) != 0 {
+		return nil, fmt.Errorf("runtime_security_config.event_stream.buffer_size must be a power of 2 and a multiple of %d", os.Getpagesize())
+	}
+
 	setEnv()
 	return c, nil
 }

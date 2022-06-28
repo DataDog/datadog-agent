@@ -1286,6 +1286,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		p.config.ActivityDumpCgroupWaitListSize,
 		useMmapableMaps,
 		useRingBuffers,
+		uint32(p.config.EventStreamBufferSize),
 	)
 
 	if !p.config.EnableKernelFilters {
