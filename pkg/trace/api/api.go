@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/tinylib/msgp/msgp"
@@ -515,7 +516,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		io.Copy(ioutil.Discard, req.Body) //nolint:errcheck
 		w.WriteHeader(r.rateLimiterResponse)
 		r.replyOK(req, v, w)
-		ts.PayloadRefused.Inc()
+		atomic.AddInt64(&ts.PayloadRefused, 1)
 		return
 	}
 	if err == errInvalidHeaderTraceCountValue {
@@ -532,14 +533,14 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w)
 		switch err {
 		case apiutil.ErrLimitedReaderLimitReached:
-			ts.TracesDropped.PayloadTooLarge.Add(tracen)
+			atomic.AddInt64(&ts.TracesDropped.PayloadTooLarge, tracen)
 		case io.EOF, io.ErrUnexpectedEOF, msgp.ErrShortBytes:
-			ts.TracesDropped.EOF.Add(tracen)
+			atomic.AddInt64(&ts.TracesDropped.EOF, tracen)
 		default:
 			if err, ok := err.(net.Error); ok && err.Timeout() {
-				ts.TracesDropped.Timeout.Add(tracen)
+				atomic.AddInt64(&ts.TracesDropped.Timeout, tracen)
 			} else {
-				ts.TracesDropped.DecodingError.Add(tracen)
+				atomic.AddInt64(&ts.TracesDropped.DecodingError, tracen)
 			}
 		}
 		log.Errorf("Cannot decode %s traces payload: %v", v, err)
@@ -560,9 +561,9 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		metrics.Histogram("datadog.trace_agent.receiver.rate_response_bytes", float64(n), tags, 1)
 	}
 
-	ts.TracesReceived.Add(int64(len(tp.Chunks)))
-	ts.TracesBytes.Add(req.Body.(*apiutil.LimitedReader).Count)
-	ts.PayloadAccepted.Inc()
+	atomic.AddInt64(&ts.TracesReceived, int64(len(tp.Chunks)))
+	atomic.AddInt64(&ts.TracesBytes, req.Body.(*apiutil.LimitedReader).Count)
+	atomic.AddInt64(&ts.PayloadAccepted, 1)
 
 	if ctags := getContainerTags(r.conf.ContainerTags, tp.ContainerID); ctags != "" {
 		if tp.Tags == nil {
@@ -619,13 +620,13 @@ func droppedTracesFromHeader(h http.Header, ts *info.TagStats) int64 {
 		count, err := strconv.ParseInt(v, 10, 64)
 		if err == nil {
 			dropped = count
-			ts.ClientDroppedP0Traces.Add(count)
+			atomic.AddInt64(&ts.ClientDroppedP0Traces, count)
 		}
 	}
 	if v := h.Get(headerDroppedP0Spans); v != "" {
 		count, err := strconv.ParseInt(v, 10, 64)
 		if err == nil {
-			ts.ClientDroppedP0Spans.Add(count)
+			atomic.AddInt64(&ts.ClientDroppedP0Spans, count)
 		}
 	}
 	return dropped
