@@ -17,5 +17,5 @@ def _wait_agent_log(agent_name, log_getter, pattern):
     raise LookupError(f"{agent_name} | {pattern}")
 
 
-def wait_agent_log(agent_name, log_getter, pattern, tries=10, delay=5):
+def wait_agent_log(agent_name, log_getter, pattern, tries=20, delay=10):
     return retry_call(_wait_agent_log, fargs=[agent_name, log_getter, pattern], tries=tries, delay=delay)
