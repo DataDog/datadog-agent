@@ -294,12 +294,14 @@ func FetchLoadedModules() (map[string]ProcFSModule, error) {
 
 		newModule.Size, err = strconv.Atoi(split[1])
 		if err != nil {
-			continue
+			// set to 0 by default
+			newModule.Size = 0
 		}
 
 		newModule.InstancesCount, err = strconv.Atoi(split[2])
 		if err != nil {
-			continue
+			// set to 0 by default
+			newModule.InstancesCount = 0
 		}
 
 		if split[3] != "-" {
@@ -312,7 +314,8 @@ func FetchLoadedModules() (map[string]ProcFSModule, error) {
 
 		newModule.Address, err = strconv.ParseInt(strings.Trim(split[5], "0x"), 16, 64)
 		if err != nil {
-			continue
+			// set to 0 by default
+			newModule.Address = 0
 		}
 
 		output[newModule.Name] = newModule
