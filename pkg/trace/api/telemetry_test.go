@@ -11,11 +11,11 @@ import (
 	"net/http/httptest"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/atomic"
 )
 
 // asserting Server starts a TLS Server with provided callback function used to perform assertions
@@ -47,7 +47,7 @@ func recordedResponse(t *testing.T, rec *httptest.ResponseRecorder) string {
 }
 
 func TestTelemetryBasicProxyRequest(t *testing.T) {
-	endpointCalled := atomic.NewUint64(0)
+	var endpointCalled uint64
 	assert := assert.New(t)
 
 	srv := assertingServer(t, func(req *http.Request, body []byte) error {
@@ -59,7 +59,7 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 		assert.Equal("", req.Header.Get("User-Agent"))
 		assert.Regexp(regexp.MustCompile("trace-agent.*"), req.Header.Get("Via"))
 
-		endpointCalled.Inc()
+		atomic.AddUint64(&endpointCalled, 1)
 		return nil
 	})
 
@@ -78,12 +78,12 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 	recv.buildMux().ServeHTTP(rec, req)
 
 	assert.Equal("OK", recordedResponse(t, rec))
-	assert.Equal(uint64(1), endpointCalled.Load())
+	assert.Equal(uint64(1), atomic.LoadUint64(&endpointCalled))
 
 }
 
 func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
-	endpointCalled := atomic.NewUint64(0)
+	var endpointCalled uint64
 	assert := assert.New(t)
 
 	mainBackend := assertingServer(t, func(req *http.Request, body []byte) error {
@@ -94,7 +94,7 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
 
-		endpointCalled.Add(2)
+		atomic.AddUint64(&endpointCalled, 2)
 		return nil
 	})
 	additionalBackend := assertingServer(t, func(req *http.Request, body []byte) error {
@@ -105,7 +105,7 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
 
-		endpointCalled.Add(3)
+		atomic.AddUint64(&endpointCalled, 3)
 		return nil
 	})
 
@@ -135,7 +135,7 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 	// because we use number 2,3 both endpoints must be called to produce 5
 	// just counting number of requests could give false results if first endpoint
 	// was called twice
-	if endpointCalled.Load() != 5 {
+	if atomic.LoadUint64(&endpointCalled) != 5 {
 		t.Fatalf("calling multiple backends failed")
 	}
 }

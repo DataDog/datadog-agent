@@ -136,8 +136,8 @@ func TestProcess(t *testing.T) {
 			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(spanValid)),
 			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
 		})
-		assert.EqualValues(0, want.TracesFiltered.Load())
-		assert.EqualValues(0, want.SpansFiltered.Load())
+		assert.EqualValues(0, want.TracesFiltered)
+		assert.EqualValues(0, want.SpansFiltered)
 
 		agnt.Process(&api.Payload{
 			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpans([]*pb.Span{
@@ -146,8 +146,8 @@ func TestProcess(t *testing.T) {
 			})),
 			Source: want,
 		})
-		assert.EqualValues(1, want.TracesFiltered.Load())
-		assert.EqualValues(2, want.SpansFiltered.Load())
+		assert.EqualValues(1, want.TracesFiltered)
+		assert.EqualValues(2, want.SpansFiltered)
 	})
 
 	t.Run("BlacklistPayload", func(t *testing.T) {
@@ -190,8 +190,8 @@ func TestProcess(t *testing.T) {
 			}),
 			Source: want,
 		})
-		assert.EqualValues(1, want.TracesFiltered.Load())
-		assert.EqualValues(2, want.SpansFiltered.Load())
+		assert.EqualValues(1, want.TracesFiltered)
+		assert.EqualValues(2, want.SpansFiltered)
 		var span *pb.Span
 		select {
 		case ss := <-agnt.TraceWriter.In:
@@ -246,7 +246,7 @@ func TestProcess(t *testing.T) {
 		}
 
 		samplingPriorityTagValues := want.TracesPerSamplingPriority.TagValues()
-		assert.EqualValues(t, 1, want.TracesPriorityNone.Load())
+		assert.EqualValues(t, 1, want.TracesPriorityNone)
 		assert.EqualValues(t, 2, samplingPriorityTagValues["-1"])
 		assert.EqualValues(t, 3, samplingPriorityTagValues["0"])
 		assert.EqualValues(t, 4, samplingPriorityTagValues["1"])
