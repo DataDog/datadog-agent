@@ -208,6 +208,7 @@ func NewNamespaceResolver(probe *Probe) (*NamespaceResolver, error) {
 
 	lru, err := simplelru.NewLRU(1024, func(key interface{}, value interface{}) {
 		nr.flushNetworkNamespace(value.(*NetworkNamespace))
+		nr.probe.flushNetworkNamespace(value.(*NetworkNamespace))
 	})
 	if err != nil {
 		return nil, err
@@ -420,6 +421,7 @@ func (nr *NamespaceResolver) flushNamespaces(ctx context.Context) {
 }
 
 // FlushNetworkNamespace flushes the cached entries for the provided network namespace.
+// (WARNING: you probably want to use probe.FlushNetworkNamespace instead)
 func (nr *NamespaceResolver) FlushNetworkNamespace(netns *NetworkNamespace) {
 	nr.Lock()
 	defer nr.Unlock()
@@ -429,6 +431,11 @@ func (nr *NamespaceResolver) FlushNetworkNamespace(netns *NetworkNamespace) {
 
 // flushNetworkNamespace flushes the cached entries for the provided network namespace.
 func (nr *NamespaceResolver) flushNetworkNamespace(netns *NetworkNamespace) {
+	if _, ok := nr.networkNamespaces.Peek(netns.nsID); ok {
+		// remove the entry now, removing the entry will call this function again
+		_ = nr.networkNamespaces.Remove(netns.nsID)
+		return
+	}
 
 	// if we can, make sure the manager has a valid netlink socket to this handle before removing everything
 	handle, err := netns.getNamespaceHandleDup()
@@ -439,9 +446,6 @@ func (nr *NamespaceResolver) flushNetworkNamespace(netns *NetworkNamespace) {
 
 	// close network namespace handle to release the namespace
 	netns.close()
-
-	// delete map entry
-	nr.networkNamespaces.Remove(netns.nsID)
 
 	// remove all references to this network namespace from the manager
 	_ = nr.probe.manager.CleanupNetworkNamespace(netns.nsID)
@@ -471,6 +475,7 @@ func (nr *NamespaceResolver) preventNetworkNamespaceDrift(probesCount map[uint32
 				deviceCountNoLoopbackNoDummy := nr.snapshotNetworkDevices(netns)
 				if deviceCountNoLoopbackNoDummy == 0 {
 					nr.flushNetworkNamespace(netns)
+					nr.probe.flushNetworkNamespace(netns)
 					netns.Unlock()
 					continue
 				}
