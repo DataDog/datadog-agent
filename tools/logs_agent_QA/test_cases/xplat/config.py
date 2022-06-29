@@ -1,16 +1,17 @@
-from testBuilder import TestCase, Platform
 from test_cases.xplat.helpers import confDir
+from testBuilder import Platform, TestCase
 
 
 class EndpointTests(TestCase):
     name = "[Endpoints] Test endpoint configs"
-    
+
     def build(self, config):
 
         self.step("# Setup")
         self.step(confDir(config))
         path = "/var/log/hello-world.log" if config.platform != Platform.windows else "C:\\tmp\\hello-world.log"
-        self.step(f"""
+        self.step(
+            f"""
 ```
 logs: 
 - type: file
@@ -18,9 +19,11 @@ logs:
     service: test-file-tailing
     source: hello-world
 ``` 
-""")
+"""
+        )
 
-        self.step("""
+        self.step(
+            """
 in your `datadog.yaml`: 
 
 ```
@@ -58,14 +61,16 @@ logs_config:
 logs_config:
     api_key: <A DIFFERENT API KEY>
 ```
-""")
+"""
+        )
 
 
 class DualShipping(TestCase):
     name = "[Dual Shipping] Test that dual shipping works"
-    
-    def build(self, config): # noqa: U100
-        self.step("""
+
+    def build(self, config):  # noqa: U100
+        self.step(
+            """
 
 ### Local QA
 
@@ -125,4 +130,5 @@ docker run -d --name dd-agent \
  ```
 
 Stream some logs and watch the livetail in both orgs for the logs. 
-""")
+"""
+        )

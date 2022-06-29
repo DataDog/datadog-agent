@@ -1,10 +1,12 @@
 from testBuilder import TestCase
 
+
 class Serverless(TestCase):
     name = "[Serverless] Serverless log collection"
 
-    def build(self, config): # noqa: U100
-        self.step(""" 
+    def build(self, config):  # noqa: U100
+        self.step(
+            """ 
 # Setup
 
 Check if the latest Datadog Lambda Extension released has shipped some change from the release currently QAed. If so, validate that it is still capable of emitting logs, that they are visible in Datadog and correctly tagged.
@@ -12,13 +14,16 @@ Check if the latest Datadog Lambda Extension released has shipped some change fr
 # Test
 
 - The Serverless Agent collects logs produced by an AWS lambda function
-""")
+"""
+        )
+
 
 class StreamLogs(TestCase):
     name = "[Troubleshooting] Check that `agent stream-logs` works"
 
-    def build(self, config): # noqa: U100
-        self.step(""" 
+    def build(self, config):  # noqa: U100
+        self.step(
+            """ 
 # Setup
 
 - start the agent
@@ -28,4 +33,5 @@ class StreamLogs(TestCase):
 
 Ensure that the `agent stream-logs` command streams the logs, tags, and metadata
 
-""")
+"""
+        )

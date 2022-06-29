@@ -1,10 +1,12 @@
 from testBuilder import TestCase
 
+
 class K8CollectAllDocker(TestCase):
     name = "[Kubernetes&Docker] Agent collect all the logs from all the container from the Docker socket"
 
-    def build(self, config): # noqa: U100
-        self.step("""
+    def build(self, config):  # noqa: U100
+        self.step(
+            """
 # Setup 
 
 Run an agent pod with and configure the agent to tail docker socket and set:
@@ -23,13 +25,16 @@ DD_LOGS_CONFIG_DOCKER_CONTAINER_USE_FILE=false
 
 Example setup: https://github.com/DataDog/croissant-integration-resources/tree/master/logs-agent/qa/kubernetes/docker-socket
 
-""")
+"""
+        )
+
 
 class K8DockerContainerLabels(TestCase):
     name = "[Kubernetes&Docker] Agent uses AD in Docker container labels"
 
-    def build(self, config): # noqa: U100
-        self.step(""" 
+    def build(self, config):  # noqa: U100
+        self.step(
+            """ 
 # Setup 
 Logs agent AD configured using docker labels on K8s (labels set directly on the container via a Dockerfile, instead of pod annotations).
 
@@ -42,14 +47,16 @@ Logs agent AD configured using docker labels on K8s (labels set directly on the 
 - Collect all disabled => Source and service are properly set and only this container is collected
 - Check that processing rules are working in AD labels:  `com.datadoghq.ad.logs: '[{"source": "java", "service": "myapp", "log_processing_rules": [{"type": "multi_line", "name": "log_start_with_date", "pattern" : "\\d{4}\\-(0?[1-9]|1[012])\\-(0?[1-9]|[12][0-9]|3[01])"}]}]'``
 
-""")
+"""
+        )
 
 
 class K8CollectAll(TestCase):
     name = "[Kubernetes] Agent collect all the logs with the Kubernetes integration"
 
-    def build(self, config): # noqa: U100
-        self.step(""" 
+    def build(self, config):  # noqa: U100
+        self.step(
+            """ 
 
 # Setup
 
@@ -68,14 +75,16 @@ Example setup: https://github.com/DataDog/croissant-integration-resources/tree/m
 - [k8s+docker] Only containers with tags are collected when `DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL` is not set
 - [k8s+docker] Check that lines longer than 16kB are supported and show up intact in the explorer
 
-""")
+"""
+        )
 
 
 class K8PodAnnotation(TestCase):
     name = "[Kubernetes] Agent uses configuration in pod annotations"
 
-    def build(self, config): # noqa: U100
-        self.step(""" 
+    def build(self, config):  # noqa: U100
+        self.step(
+            """ 
 # Setup
 Example setup: https://github.com/DataDog/croissant-integration-resources/tree/master/logs-agent/qa/kubernetes/ad-pod-annotations
 
@@ -88,14 +97,16 @@ Check the following both for the logged pod starting before the agent, and for t
 - containerCollectAll: false => Source and service are properly set and only the annotated container is collected
 - Check that processing rules are working in AD labels (the `logs-source` pod should have `one\ntwo\nthree` in its `agent stream-logs` output)
 
-""")
+"""
+        )
 
 
 class K8FileTailingAnnotation(TestCase):
     name = "[Kubernetes] File tailing from AD/annotation"
 
-    def build(self, config): # noqa: U100
-        self.step(""" 
+    def build(self, config):  # noqa: U100
+        self.step(
+            """ 
 # Setup
 ```
 apiVersion: v1
@@ -122,4 +133,5 @@ Check that the following combination are working as expected:
  * Single log config for the container
 
 Example setup: https://github.com/DataDog/croissant-integration-resources/tree/master/logs-agent/qa/kubernetes/file-tailing-from-ad
-""")
+"""
+        )

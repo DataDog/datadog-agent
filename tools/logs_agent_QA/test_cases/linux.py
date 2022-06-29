@@ -1,25 +1,29 @@
-from testBuilder import TestCase
 from test_cases.xplat.helpers import confDir, filePositionSharedSteps
+from testBuilder import TestCase
+
 
 class TailJounald(TestCase):
     name = "[Journald] Agent collect logs from journald"
-    
+
     def build(self, config):
 
         self.step("# Setup")
         self.step(confDir(config))
 
-        self.step("""
+        self.step(
+            """
 ```
 logs:
   -type: journald
 ``` 
-""")
+"""
+        )
 
         self.step(" - Start the agent")
         self.step(" - generate some logs `echo 'hello world' | systemd-cat`")
 
-        self.step("""# Test
+        self.step(
+            """# Test
 - check that the `hello world` log shows up in app
 
 update the config: 
@@ -34,19 +38,23 @@ logs:
 ```
 
 - confirm in app that you are able to filter by specific units
-""")
+"""
+        )
 
-#TODO: improve test clarity for per unit filtering 
+
+# TODO: improve test clarity for per unit filtering
+
 
 class TailJournaldStartPosition(TestCase):
     name = "[Files] `start_position` defines where to tail from"
-    
+
     def build(self, config):
 
         self.step("# Setup")
         self.step(confDir(config))
 
-        self.step("""
+        self.step(
+            """
 ```
 logs:
     - type: journald
@@ -59,15 +67,18 @@ logs:
 2. generate some logs like `echo 'test message' | systemd-cat`
 3. check the logs show up in app
 4. stop the agent. 
-""")
+"""
+        )
         self.step(filePositionSharedSteps())
+
 
 class SNMPTraps(TestCase):
     name = "[SNMP traps] Check that traps are working"
-    
-    def build(self, config): # noqa: U100
 
-        self.step("""
+    def build(self, config):  # noqa: U100
+
+        self.step(
+            """
 # Setup
 Agent support snmp traps listening:
 
@@ -97,4 +108,5 @@ snmptrap -v 2c -c public localhost:1620 '' NET-SNMP-EXAMPLES-MIB::netSnmpExample
 
 - check livetail/in app that the logs show up
 
-""")
+"""
+        )

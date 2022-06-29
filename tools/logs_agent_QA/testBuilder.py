@@ -1,31 +1,39 @@
 from enum import Enum
 
+
 class Platform(Enum):
     linux = 0
     windows = 1
     mac = 2
 
-class LinuxConfig: 
+
+class LinuxConfig:
     platform = Platform.linux
 
-class WindowsConfig: 
+
+class WindowsConfig:
     platform = Platform.windows
+
 
 class MacConfig:
     platform = Platform.mac
 
+
 class Suite:
-    def __init__(self, config, tests): 
-        self.config = config 
+    def __init__(self, config, tests):
+        self.config = config
         self.tests = tests
 
     def build(self, renderDelegate):
         for test in self.tests:
             t = test()
             renderDelegate(t.name, t.render(self.config))
+
+
 class TestCase:
     name = ""
-    def __init__(self): 
+
+    def __init__(self):
         self.steps = []
 
     def step(self, body):
@@ -34,8 +42,6 @@ class TestCase:
     def render(self, config):
         self.build(config)
         markdown = ""
-        for step in self.steps: 
+        for step in self.steps:
             markdown += step + "\n\n"
         return markdown
-
-

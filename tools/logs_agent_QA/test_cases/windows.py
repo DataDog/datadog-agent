@@ -1,15 +1,17 @@
-from testBuilder import TestCase
 from test_cases.xplat.helpers import confDir
+from testBuilder import TestCase
+
 
 class TestEventLog(TestCase):
     name = "[Windows Event] Agent collect windows event as logs"
-    
+
     def build(self, config):
 
         self.step("# Setup")
         self.step(confDir(config))
 
-        self.step("""
+        self.step(
+            """
 ```
 logs:
   - type: windows_event
@@ -31,5 +33,5 @@ PS C:\\> Write-EventLog -LogName "Testing123" -Source "MyApp" -EventID 3001 -Ent
 # Test
 
 - check that the emitted logs show up in app. Only the `Testing123` should appear. 
-""")
-
+"""
+        )
