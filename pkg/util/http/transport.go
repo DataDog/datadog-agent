@@ -55,6 +55,33 @@ func warnOnce(warnMap map[string]bool, key string, format string, params ...inte
 	}
 }
 
+// minTLSVersionFromConfig determines the minimum TLS version defined by the given
+// config, accounting for defaults and deprecated configuration parameters.
+//
+// The returned result is one of the `tls.VersionTLSxxx` constants.
+func minTLSVersionFromConfig(cfg config.Config) uint16 {
+	var min uint16
+	switch cfg.GetString("min_tls_version") {
+	case "1.0":
+		min = tls.VersionTLS10
+	case "1.1":
+		min = tls.VersionTLS11
+	case "1.2":
+		min = tls.VersionTLS12
+	case "1.3":
+		min = tls.VersionTLS13
+	case "": // default
+		if cfg.GetBool("force_tls_12") {
+			min = tls.VersionTLS12
+		} else {
+			min = tls.VersionTLS10
+		}
+	default:
+		log.Warnf("Invalid `min_tls_version` %#v", cfg.GetString("min_tls_version"))
+	}
+	return min
+}
+
 // CreateHTTPTransport creates an *http.Transport for use in the agent
 func CreateHTTPTransport() *http.Transport {
 	// It’s OK to reuse the same file for all the http.Transport objects we create
@@ -76,9 +103,7 @@ func CreateHTTPTransport() *http.Transport {
 		InsecureSkipVerify: config.Datadog.GetBool("skip_ssl_validation"),
 	}
 
-	if config.Datadog.GetBool("force_tls_12") {
-		tlsConfig.MinVersion = tls.VersionTLS12
-	}
+	tlsConfig.MinVersion = minTLSVersionFromConfig(config.Datadog)
 
 	// Most of the following timeouts are a copy of Golang http.DefaultTransport
 	// They are mostly used to act as safeguards in case we forget to add a general

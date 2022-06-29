@@ -63,12 +63,15 @@ api_key:
 # sslkeylogfile: ""
 
 
-## @param force_tls_12 - boolean - optional - default: false
-## @env DD_FORCE_TLS_12 - boolean - optional - default: false
-## Setting this option to "true" forces the Agent to only use TLS 1.2 when
+## @param min_tls_version - string - optional - default: "1.0" or "1.2"
+## @env DD_MIN_TLS_VERSION - string - optional - default: "1.0" or "1.2"
+## This option defines the minimum TLS version that will be used when
 ## pushing data to the Datadog intake specified in "site" or "dd_url".
+## This parameter defaults to "1.0", but if the deprecated configuration
+## parameter `force_tls_12` is set then it defaults to "1.2".  Always use
+## double quotes with this value.
 #
-# force_tls_12: false
+# min_tls_version: "1.0"
 
 ## @param hostname - string - optional - default: auto-detected
 ## @env DD_HOSTNAME - string - optional - default: auto-detected
