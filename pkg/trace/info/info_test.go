@@ -20,7 +20,9 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type testServerHandler struct {
@@ -371,4 +373,118 @@ func TestInfoConfig(t *testing.T) {
 	conf.ContainerTags = nil
 
 	assert.Equal(*conf, confCopy) // ensure all fields have been exported then parsed correctly
+}
+
+func TestPublishUptime(t *testing.T) {
+	up := publishUptime()
+	// just test the type, as the time itself is nondeterministic
+	_, ok := up.(int)
+	require.True(t, ok)
+}
+
+func TestPublishReceiverStats(t *testing.T) {
+	receiverStats = []TagStats{{
+		Tags: Tags{
+			Lang: "go",
+		},
+		Stats: Stats{
+			TracesReceived:     1,
+			TracesDropped:      &TracesDropped{1, 2, 3, 4, 5, 6, 7, 8},
+			SpansMalformed:     &SpansMalformed{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12},
+			TracesFiltered:     4,
+			TracesPriorityNone: 5,
+			TracesPerSamplingPriority: samplingPriorityStats{
+				[maxAbsPriority*2 + 1]int64{
+					maxAbsPriority + 0: 1,
+					maxAbsPriority + 1: 2,
+					maxAbsPriority + 2: 3,
+					maxAbsPriority + 3: 4,
+					maxAbsPriority + 4: 5,
+				},
+			},
+			ClientDroppedP0Traces: 7,
+			ClientDroppedP0Spans:  8,
+			TracesBytes:           9,
+			SpansReceived:         10,
+			SpansDropped:          11,
+			SpansFiltered:         12,
+			EventsExtracted:       13,
+			EventsSampled:         14,
+			PayloadAccepted:       15,
+			PayloadRefused:        16,
+		},
+	}}
+
+	testExpvarPublish(t, publishReceiverStats,
+		[]interface{}{map[string]interface{}{
+			"ClientDroppedP0Spans":  8.0,
+			"ClientDroppedP0Traces": 7.0,
+			"EndpointVersion":       "",
+			"EventsExtracted":       13.0,
+			"EventsSampled":         14.0,
+			"Interpreter":           "",
+			"Lang":                  "go",
+			"LangVendor":            "",
+			"LangVersion":           "",
+			"PayloadAccepted":       15.0,
+			"PayloadRefused":        16.0,
+			"SpansDropped":          11.0,
+			"SpansFiltered":         12.0,
+			"SpansMalformed": map[string]interface{}{
+				"DuplicateSpanID":       1.0,
+				"ServiceEmpty":          2.0,
+				"ServiceTruncate":       3.0,
+				"ServiceInvalid":        4.0,
+				"SpanNameEmpty":         5.0,
+				"SpanNameTruncate":      6.0,
+				"SpanNameInvalid":       7.0,
+				"ResourceEmpty":         8.0,
+				"TypeTruncate":          9.0,
+				"InvalidStartDate":      10.0,
+				"InvalidDuration":       11.0,
+				"InvalidHTTPStatusCode": 12.0,
+			},
+			"SpansReceived": 10.0,
+			"TracerVersion": "",
+			"TracesBytes":   9.0,
+			"TracesDropped": map[string]interface{}{
+				"DecodingError":   1.0,
+				"PayloadTooLarge": 2.0,
+				"EmptyTrace":      3.0,
+				"TraceIDZero":     4.0,
+				"SpanIDZero":      5.0,
+				"ForeignSpan":     6.0,
+				"Timeout":         7.0,
+				"EOF":             8.0,
+			},
+			"TracesFiltered":            4.0,
+			"TracesPerSamplingPriority": map[string]interface{}{},
+			"TracesPriorityNone":        5.0,
+			"TracesReceived":            1.0,
+		}})
+}
+
+func TestPublishWatchdogInfo(t *testing.T) {
+	watchdogInfo = watchdog.Info{
+		CPU: watchdog.CPUInfo{UserAvg: 1.2},
+		Mem: watchdog.MemInfo{Alloc: 1000},
+	}
+
+	testExpvarPublish(t, publishWatchdogInfo,
+		map[string]interface{}{
+			"CPU": map[string]interface{}{"UserAvg": 1.2},
+			"Mem": map[string]interface{}{"Alloc": 1000.0},
+		})
+}
+
+func TestPublishRateLimiterStats(t *testing.T) {
+	rateLimiterStats = RateLimiterStats{1.0, 2.0, 3.0, 4.0}
+
+	testExpvarPublish(t, publishRateLimiterStats,
+		map[string]interface{}{
+			"TargetRate":          1.0,
+			"RecentPayloadsSeen":  2.0,
+			"RecentTracesSeen":    3.0,
+			"RecentTracesDropped": 4.0,
+		})
 }
