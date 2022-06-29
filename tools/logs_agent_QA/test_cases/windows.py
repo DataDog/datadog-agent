@@ -1,5 +1,5 @@
-from testBuilder import *
-from test_cases.xplat.helpers import *
+from testBuilder import TestCase
+from test_cases.xplat.helpers import confDir
 
 class TestEventLog(TestCase):
     name = "[Windows Event] Agent collect windows event as logs"
@@ -24,8 +24,8 @@ logs:
 
 https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.management/write-eventlog
 ```
-PS C:\> New-EventLog -LogName Testing123 -Source MyApp
-PS C:\> Write-EventLog -LogName "Testing123" -Source "MyApp" -EventID 3001 -EntryType Information -Message "This is a test event!" -Category 1 -RawData 10,20
+PS C:\\> New-EventLog -LogName Testing123 -Source MyApp
+PS C:\\> Write-EventLog -LogName "Testing123" -Source "MyApp" -EventID 3001 -EntryType Information -Message "This is a test event!" -Category 1 -RawData 10,20
 ```
 
 # Test

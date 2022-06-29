@@ -1,5 +1,5 @@
-from testBuilder import *
-from test_cases.xplat.helpers import *
+from testBuilder import TestCase
+from test_cases.xplat.helpers import confDir, filePositionSharedSteps
 
 class TailJounald(TestCase):
     name = "[Journald] Agent collect logs from journald"
@@ -46,16 +46,15 @@ class TailJournaldStartPosition(TestCase):
         self.step("# Setup")
         self.step(confDir(config))
 
-        path = "/var/log/hello-world.log" if config.platform != Platform.windows else "C:\\tmp\\hello-world.log"
         self.step("""
 ```
 logs:
     - type: journald
       start_position: beginning
 ``` 
-""".format(path = path))
 
-        self.step("""# Test
+# Test
+
 1. start the agent
 2. generate some logs like `echo 'test message' | systemd-cat`
 3. check the logs show up in app

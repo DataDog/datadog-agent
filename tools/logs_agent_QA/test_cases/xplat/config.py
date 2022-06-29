@@ -1,5 +1,5 @@
-from testBuilder import *
-from test_cases.xplat.helpers import *
+from testBuilder import TestCase, Platform
+from test_cases.xplat.helpers import confDir
 
 
 class EndpointTests(TestCase):

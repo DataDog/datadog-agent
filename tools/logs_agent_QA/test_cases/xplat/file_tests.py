@@ -1,5 +1,5 @@
-from testBuilder import *
-from test_cases.xplat.helpers import *
+from testBuilder import TestCase, Platform
+from test_cases.xplat.helpers import confDir, filePositionSharedSteps
 
 class TailFile(TestCase):
     name = "[Files] Agent can tail a file"
@@ -51,7 +51,7 @@ logs:
     log_processing_rules:
       - type: multi_line
         name: new_log_start_with_date
-        pattern: \d{{4}}\-(0?[1-9]|1[012])\-(0?[1-9]|[12][0-9]|3[01])
+        pattern: \\d{{4}}\\-(0?[1-9]|1[012])\\-(0?[1-9]|[12][0-9]|3[01])
 ``` 
 """.format(path = path))
 

@@ -1,5 +1,4 @@
-from testBuilder import *
-from test_cases.xplat.helpers import *
+from testBuilder import TestCase
 
 class K8CollectAllDocker(TestCase):
     name = "[Kubernetes&Docker] Agent collect all the logs from all the container from the Docker socket"
@@ -41,7 +40,7 @@ Logs agent AD configured using docker labels on K8s (labels set directly on the 
 
 - Collect all activated => Source and service are properly set 
 - Collect all disabled => Source and service are properly set and only this container is collected
-- Check that processing rules are working in AD labels:  `com.datadoghq.ad.logs: '[{"source": "java", "service": "myapp", "log_processing_rules": [{"type": "multi_line", "name": "log_start_with_date", "pattern" : "\\d{4}\-(0?[1-9]|1[012])\-(0?[1-9]|[12][0-9]|3[01])"}]}]'``
+- Check that processing rules are working in AD labels:  `com.datadoghq.ad.logs: '[{"source": "java", "service": "myapp", "log_processing_rules": [{"type": "multi_line", "name": "log_start_with_date", "pattern" : "\\d{4}\\-(0?[1-9]|1[012])\\-(0?[1-9]|[12][0-9]|3[01])"}]}]'``
 
 """)
 

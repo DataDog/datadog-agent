@@ -1,5 +1,4 @@
-from testBuilder import *
-from test_cases.xplat.helpers import *
+from testBuilder import TestCase
 
 class ContainerTailJounald(TestCase):
     name = "[Journald] Agent collect docker logs through journald"
@@ -82,7 +81,7 @@ chentex/random-logger:<AGENT_IMAGE>
 
 - Collect all activated => Source and service are properly set 
 - Collect all disabled => Source and service are properly set and only this container is collected
-- Check that processing rules are working in AD labels:  `com.datadoghq.ad.logs: '[{"source": "java", "service": "myapp", "log_processing_rules": [{"type": "multi_line", "name": "log_start_with_date", "pattern" : "\d{4}\-(0?[1-9]|1[012])\-(0?[1-9]|[12][0-9]|3[01])"}]}]'``
+- Check that processing rules are working in AD labels:  `com.datadoghq.ad.logs: '[{"source": "java", "service": "myapp", "log_processing_rules": [{"type": "multi_line", "name": "log_start_with_date", "pattern" : "\\d{4}\\-(0?[1-9]|1[012])\\-(0?[1-9]|[12][0-9]|3[01])"}]}]'``
 - `DD_LOGS_CONFIG_DOCKER_CONTAINER_USE_FILE=false` uses docker socket to collect logs
 """)
 
@@ -103,7 +102,7 @@ logs_config:
 Run a container with
 
 ```
-docker run --log-driver json-file --log-opt max-size=10k --log-opt max-file=1 -d centos bash -c "i=1; while ((++i)); do echo \$i hello alex; sleep 0.5; done"
+docker run --log-driver json-file --log-opt max-size=10k --log-opt max-file=1 -d centos bash -c "i=1; while ((++i)); do echo \\$i hello alex; sleep 0.5; done"
 ```
 
 ## Test
@@ -166,7 +165,7 @@ docker run -d -e DD_API_KEY=xxxxxxxxxxxxxx \
 -e DD_EXTRA_LISTENERS=docker \
 -v /var/run/docker.sock:/var/run/docker.sock:ro \
 -v /proc/:/host/proc/:ro \
--v /opt/datadog-agent/run:/opt/datadog-agent/run:rw \ 
+-v /opt/datadog-agent/run:/opt/datadog-agent/run:rw \
 -v /sys/fs/cgroup/:/host/sys/fs/cgroup:ro \
 -v /var/lib/docker/containers:/var/lib/docker/containers:ro \
 datadog/agent:<AGENT_IMAGE>

@@ -2,15 +2,15 @@ import sys
 from trello import TrelloClient
 import os
 from dotenv import load_dotenv
-from testBuilder import *
-from test_cases.xplat.file_tests import *
-from test_cases.xplat.network import *
-from test_cases.xplat.config import *
-from test_cases.linux import *
-from test_cases.windows import *
-from test_cases.containers import *
-from test_cases.kubernetes import *
-from test_cases.misc import *
+from testBuilder import LinuxConfig, MacConfig, Suite, WindowsConfig
+from test_cases.xplat.file_tests import TailFile, TailFileMultiLine, TailFileStartPosition, TailFileUTF16, TailFileWildcard
+from test_cases.xplat.network import TailTCPUDP
+from test_cases.xplat.config import DualShipping, EndpointTests
+from test_cases.linux import TailJounald, TailJournaldStartPosition, SNMPTraps
+from test_cases.windows import TestEventLog
+from test_cases.containers import ContainerCollectAll, AgentUsesAdLabels, ContainerTailJounald, DockerFileTail, DockerFileTailingAD, DockerMaxFile, PodmanFileTail, PodmanSocketTail
+from test_cases.kubernetes import K8CollectAll, K8CollectAllDocker, K8DockerContainerLabels, K8FileTailingAnnotation, K8PodAnnotation
+from test_cases.misc import Serverless, StreamLogs
 
 if len(sys.argv) < 2:
     print("Usage: python releaseQA.py <AGENT_VERSON>")

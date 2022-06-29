@@ -1,5 +1,4 @@
-from testBuilder import *
-from test_cases.xplat.helpers import *
+from testBuilder import TestCase
 
 class Serverless(TestCase):
     name = "[Serverless] Serverless log collection"

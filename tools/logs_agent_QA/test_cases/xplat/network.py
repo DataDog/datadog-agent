@@ -1,5 +1,5 @@
-from testBuilder import *
-from test_cases.xplat.helpers import *
+from testBuilder import TestCase
+from test_cases.xplat.helpers import confDir
 
 # TODO - add windows specific commands
 class TailTCPUDP(TestCase):
