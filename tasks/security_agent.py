@@ -584,7 +584,7 @@ def generate_btfhub_constants(ctx, archive_path):
 
 
 @task
-def generate_ad_proto(ctx):
+def generate_cws_proto(ctx):
     # The general view of which structures to pool is to currently pool the big ones.
     # During testing/benchmarks we saw that enabling pooling for small/leaf nodes had a negative effect
     # on both performance and memory.
@@ -603,6 +603,7 @@ def generate_ad_proto(ctx):
             ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.0")
             ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.3.0")
 
+            # Activity dumps
             pool_opts = " ".join(
                 f"--go-vtproto_opt=pool=pkg/security/adproto/v1.{struct_name}" for struct_name in pool_structs
             )
@@ -610,3 +611,6 @@ def generate_ad_proto(ctx):
             ctx.run(
                 f"protoc -I. --go_out=paths=source_relative:. --go-vtproto_out=. {plugin_opts} --go-vtproto_opt=features=pool+marshal+unmarshal+size {pool_opts} pkg/security/adproto/v1/activity_dump.proto"
             )
+
+            # API
+            ctx.run("protoc -I. --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative pkg/security/api/api.proto")
