@@ -1653,6 +1653,7 @@ core,k8s.io/component-base/metrics/prometheus/workqueue,Apache-2.0,Copyright 201
 core,k8s.io/component-base/metrics/testutil,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/component-base/version,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/cri-api/pkg/apis/runtime/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/cri-api/pkg/apis/runtime/v1alpha2,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/cri-api/pkg/apis/testing,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/gengo/args,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/gengo/examples/set-gen/sets,Apache-2.0,Copyright 2014 The Kubernetes Authors.
