@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/atomic"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/atomic"
 )
 
 const defaultEnv = "testEnv"
@@ -110,7 +110,7 @@ func TestTargetTPS(t *testing.T) {
 	initPeriods := 2
 	periods := 10
 
-	s.targetTPS = atomic.NewFloat64(targetTPS)
+	s.targetTPS = atomic.NewFloat(targetTPS)
 	periodSeconds := bucketDuration.Seconds()
 	tracesPerPeriod := generatedTPS * periodSeconds
 
