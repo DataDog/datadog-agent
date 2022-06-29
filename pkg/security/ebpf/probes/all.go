@@ -36,7 +36,6 @@ var (
 	// defaultEventsRingBufferSize is the default buffer size of the ring buffers for events.
 	// Must be a power of 2 and a multiple of the page size
 	defaultEventsRingBufferSize uint32
-	maxEventsRingBufferSize     = uint32(64 * 256 * os.Getpagesize()) // 67108864
 )
 
 func init() {
@@ -45,13 +44,10 @@ func init() {
 		numCPU = 1
 	}
 
-	defaultEventsRingBufferSize = uint32(1)
-	for defaultEventsRingBufferSize < uint32(numCPU*os.Getpagesize()) {
-		defaultEventsRingBufferSize *= 2
-	}
-
-	if defaultEventsRingBufferSize > maxEventsRingBufferSize {
-		defaultEventsRingBufferSize = maxEventsRingBufferSize
+	if numCPU < 64 {
+		defaultEventsRingBufferSize = uint32(64 * 256 * os.Getpagesize())
+	} else {
+		defaultEventsRingBufferSize = uint32(128 * 256 * os.Getpagesize())
 	}
 }
 
