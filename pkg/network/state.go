@@ -134,8 +134,9 @@ type networkState struct {
 	sync.Mutex
 
 	// clients is a map of the connection id string to the client structure
-	clients   map[string]*client
-	telemetry telemetry
+	clients       map[string]*client
+	telemetry     telemetry // Monotonic state telemetry
+	lastTelemetry telemetry // Old telemetry state; used for logging
 
 	buf             []byte // Shared buffer
 	latestTimeEpoch uint64
@@ -246,6 +247,8 @@ func (ns *networkState) saveTelemetry(telemetry map[ConnTelemetryType]int64) {
 }
 
 func (ns *networkState) getTelemetryDelta(id string, telemetry map[ConnTelemetryType]int64) map[ConnTelemetryType]int64 {
+	ns.logMetrics()
+
 	var res = make(map[ConnTelemetryType]int64)
 	client := ns.getClient(id)
 	ns.saveTelemetry(telemetry)
@@ -268,6 +271,40 @@ func (ns *networkState) getTelemetryDelta(id string, telemetry map[ConnTelemetry
 	}
 
 	return res
+}
+
+func (ns *networkState) logMetrics() {
+	delta := telemetry{
+		closedConnDropped:  ns.telemetry.closedConnDropped - ns.lastTelemetry.closedConnDropped,
+		connDropped:        ns.telemetry.connDropped - ns.lastTelemetry.connDropped,
+		statsResets:        ns.telemetry.statsResets - ns.lastTelemetry.statsResets,
+		timeSyncCollisions: ns.telemetry.timeSyncCollisions - ns.lastTelemetry.timeSyncCollisions,
+		dnsStatsDropped:    ns.telemetry.dnsStatsDropped - ns.lastTelemetry.dnsStatsDropped,
+		httpStatsDropped:   ns.telemetry.httpStatsDropped - ns.lastTelemetry.httpStatsDropped,
+		dnsPidCollisions:   ns.telemetry.dnsPidCollisions - ns.lastTelemetry.dnsPidCollisions,
+	}
+
+	// Flush log line if any metric is non zero
+	if delta.statsResets > 0 || delta.closedConnDropped > 0 || delta.connDropped > 0 || delta.timeSyncCollisions > 0 {
+		s := "state telemetry: "
+		s += " [%d stats stats_resets]"
+		s += " [%d connections dropped due to stats]"
+		s += " [%d closed connections dropped]"
+		s += " [%d dns stats dropped]"
+		s += " [%d HTTP stats dropped]"
+		s += " [%d DNS pid collisions]"
+		s += " [%d time sync collisions]"
+		log.Warnf(s,
+			delta.statsResets,
+			delta.connDropped,
+			delta.closedConnDropped,
+			delta.dnsStatsDropped,
+			delta.httpStatsDropped,
+			delta.dnsPidCollisions,
+			delta.timeSyncCollisions)
+	}
+
+	ns.lastTelemetry = ns.telemetry
 }
 
 // RegisterClient registers a client before it first gets stream of data.
@@ -585,26 +622,6 @@ func (ns *networkState) RemoveConnections(keys []string) {
 		for _, key := range keys {
 			delete(c.stats, key)
 		}
-	}
-
-	// Flush log line if any metric is non zero
-	if ns.telemetry.statsResets > 0 || ns.telemetry.closedConnDropped > 0 || ns.telemetry.connDropped > 0 || ns.telemetry.timeSyncCollisions > 0 {
-		s := "state telemetry: "
-		s += " [%d stats stats_resets]"
-		s += " [%d connections dropped due to stats]"
-		s += " [%d closed connections dropped]"
-		s += " [%d dns stats dropped]"
-		s += " [%d HTTP stats dropped]"
-		s += " [%d DNS pid collisions]"
-		s += " [%d time sync collisions]"
-		log.Warnf(s,
-			ns.telemetry.statsResets,
-			ns.telemetry.connDropped,
-			ns.telemetry.closedConnDropped,
-			ns.telemetry.dnsStatsDropped,
-			ns.telemetry.httpStatsDropped,
-			ns.telemetry.dnsPidCollisions,
-			ns.telemetry.timeSyncCollisions)
 	}
 }
 
