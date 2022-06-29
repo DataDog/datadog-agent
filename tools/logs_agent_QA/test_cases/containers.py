@@ -3,7 +3,7 @@ from testBuilder import TestCase
 class ContainerTailJounald(TestCase):
     name = "[Journald] Agent collect docker logs through journald"
 
-    def build(self, config):
+    def build(self, config): # noqa: U100
         self.step(""" # Setup
 Mount /etc/machine-id and use the following configuration
 
@@ -35,7 +35,7 @@ docker run -d --name agent -e DD_API_KEY=... \\
 class ContainerCollectAll(TestCase):
     name = "[Docker] Test Container Collect All"
 
-    def build(self, config):
+    def build(self, config): # noqa: U100
         self.step(""" # Setup
 ```
 docker run -d -e DD_API_KEY=xxxxxxxxxxxxxx \\
@@ -66,7 +66,7 @@ docker run -d -e DD_API_KEY=xxxxxxxxxxxxxx \\
 class AgentUsesAdLabels(TestCase):
     name = "[Docker] Agent uses AD in container labels"
 
-    def build(self, config):
+    def build(self, config): # noqa: U100
         self.step(""" # Setup
 Run a container with an AD label:
 
@@ -89,7 +89,7 @@ chentex/random-logger:<AGENT_IMAGE>
 class DockerMaxFile(TestCase):
     name = "[Docker] Agent collects logs with max-file=1"
 
-    def build(self, config):
+    def build(self, config): # noqa: U100
         self.step(""" # Setup
 Run the agent locally on your computer with
 
@@ -126,7 +126,7 @@ docker run --log-driver json-file -d centos bash -c "echo '1'; echo '2'; sleep 9
 class DockerFileTailingAD(TestCase):
     name = "[Docker] File from volume tailing with AD / container label"
 
-    def build(self, config):
+    def build(self, config): # noqa: U100
         self.step(""" # Setup
 With the docker listener & provider activated start a container with a file log config.
 
@@ -156,7 +156,7 @@ $ docker run -d --rm -v /tmp/share:/tmp/share  -l com.datadoghq.ad.logs='[{"type
 class DockerFileTail(TestCase):
     name = "[Docker] Tailing Docker container from file is supported"
 
-    def build(self, config):
+    def build(self, config): # noqa: U100
         self.step(""" # Setup
 ```
 docker run -d -e DD_API_KEY=xxxxxxxxxxxxxx \
@@ -184,7 +184,7 @@ datadog/agent:<AGENT_IMAGE>
 class PodmanFileTail(TestCase):
     name = "[Podman] Tailing podman containers from file is supported"
 
-    def build(self, config):
+    def build(self, config): # noqa: U100
         self.step(""" # Setup
 ```
 Run the containerized agent in podman to enable AD to identify podman.  Note that podman can be installed on a mac (brew install podman) or in a VM.  Install at least podman-3.2.1, which is what the first customer using this functionality began with.
@@ -233,7 +233,7 @@ dd7ad06a44e6  docker.io/library/bash:latest                            -c while 
 class PodmanSocketTail(TestCase):
     name = "[Podman] Tailing podman containers via API is supported"
 
-    def build(self, config):
+    def build(self, config): # noqa: U100
         self.step(""" # Setup
 
 Run the containerized agent in podman to enable AD to identify podman.  Note that podman can be installed on a mac (brew install podman) or in a VM.  Install at least podman-3.3.1, which is the first version known to support this functionality.

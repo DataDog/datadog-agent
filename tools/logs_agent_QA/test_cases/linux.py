@@ -65,7 +65,7 @@ logs:
 class SNMPTraps(TestCase):
     name = "[SNMP traps] Check that traps are working"
     
-    def build(self, config):
+    def build(self, config): # noqa: U100
 
         self.step("""
 # Setup

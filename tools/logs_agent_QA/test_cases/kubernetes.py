@@ -3,7 +3,7 @@ from testBuilder import TestCase
 class K8CollectAllDocker(TestCase):
     name = "[Kubernetes&Docker] Agent collect all the logs from all the container from the Docker socket"
 
-    def build(self, config):
+    def build(self, config): # noqa: U100
         self.step("""
 # Setup 
 
@@ -28,7 +28,7 @@ Example setup: https://github.com/DataDog/croissant-integration-resources/tree/m
 class K8DockerContainerLabels(TestCase):
     name = "[Kubernetes&Docker] Agent uses AD in Docker container labels"
 
-    def build(self, config):
+    def build(self, config): # noqa: U100
         self.step(""" 
 # Setup 
 Logs agent AD configured using docker labels on K8s (labels set directly on the container via a Dockerfile, instead of pod annotations).
@@ -48,7 +48,7 @@ Logs agent AD configured using docker labels on K8s (labels set directly on the 
 class K8CollectAll(TestCase):
     name = "[Kubernetes] Agent collect all the logs with the Kubernetes integration"
 
-    def build(self, config):
+    def build(self, config): # noqa: U100
         self.step(""" 
 
 # Setup
@@ -74,7 +74,7 @@ Example setup: https://github.com/DataDog/croissant-integration-resources/tree/m
 class K8PodAnnotation(TestCase):
     name = "[Kubernetes] Agent uses configuration in pod annotations"
 
-    def build(self, config):
+    def build(self, config): # noqa: U100
         self.step(""" 
 # Setup
 Example setup: https://github.com/DataDog/croissant-integration-resources/tree/master/logs-agent/qa/kubernetes/ad-pod-annotations
@@ -94,7 +94,7 @@ Check the following both for the logged pod starting before the agent, and for t
 class K8FileTailingAnnotation(TestCase):
     name = "[Kubernetes] File tailing from AD/annotation"
 
-    def build(self, config):
+    def build(self, config): # noqa: U100
         self.step(""" 
 # Setup
 ```

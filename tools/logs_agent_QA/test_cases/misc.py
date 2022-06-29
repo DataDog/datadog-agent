@@ -3,7 +3,7 @@ from testBuilder import TestCase
 class Serverless(TestCase):
     name = "[Serverless] Serverless log collection"
 
-    def build(self, config):
+    def build(self, config): # noqa: U100
         self.step(""" 
 # Setup
 
@@ -17,7 +17,7 @@ Check if the latest Datadog Lambda Extension released has shipped some change fr
 class StreamLogs(TestCase):
     name = "[Troubleshooting] Check that `agent stream-logs` works"
 
-    def build(self, config):
+    def build(self, config): # noqa: U100
         self.step(""" 
 # Setup
 

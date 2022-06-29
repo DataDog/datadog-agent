@@ -14,11 +14,11 @@ class EndpointTests(TestCase):
 ```
 logs: 
 - type: file
-    path: {path}
+    path: %s
     service: test-file-tailing
     source: hello-world
 ``` 
-""".format(path = path))
+""" % path)
 
         self.step("""
 in your `datadog.yaml`: 
@@ -64,7 +64,7 @@ logs_config:
 class DualShipping(TestCase):
     name = "[Dual Shipping] Test that dual shipping works"
     
-    def build(self, config):
+    def build(self, config): # noqa: U100
         self.step("""
 
 ### Local QA
