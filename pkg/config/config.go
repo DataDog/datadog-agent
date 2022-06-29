@@ -656,7 +656,11 @@ func InitConfig(config Config) {
 	config.SetKnown("network_devices.snmp_traps.users")
 
 	// NetFlow
-	config.SetKnown("network_devices.netflow")
+	config.SetKnown("network_devices.netflow.listeners")
+	config.SetKnown("network_devices.netflow.stop_timeout")
+	config.SetKnown("network_devices.netflow.aggregator_buffer_size")
+	config.SetKnown("network_devices.netflow.aggregator_flush_interval")
+	config.SetKnown("network_devices.netflow.log_payloads")
 	config.BindEnvAndSetDefault("network_devices.netflow.enabled", "false")
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.netflow.forwarder.")
 
