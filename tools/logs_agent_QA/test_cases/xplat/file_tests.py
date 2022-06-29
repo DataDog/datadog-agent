@@ -10,7 +10,7 @@ class TailFile(TestCase):
         self.step(confDir(config))
 
         path = "/var/log/hello-world.log" if config.platform != Platform.windows else "C:\\tmp\\hello-world.log"
-        self.step("""
+        self.step(f"""
 ```
 logs: 
 - type: file
@@ -18,7 +18,7 @@ logs:
     service: test-file-tailing
     source: hello-world
 ``` 
-""".format(path = path))
+""")
 
         self.step("""
 - Start the agent")
@@ -41,7 +41,7 @@ class TailFileMultiLine(TestCase):
         self.step(confDir(config))
 
         path = "/var/log/hello-world.log" if config.platform != Platform.windows else "C:\\tmp\\hello-world.log"
-        self.step("""
+        self.step(f"""
 ```
 logs: 
 - type: file
@@ -53,7 +53,7 @@ logs:
         name: new_log_start_with_date
         pattern: \\d{{4}}\\-(0?[1-9]|1[012])\\-(0?[1-9]|[12][0-9]|3[01])
 ``` 
-""".format(path = path))
+""")
 
         self.step("""
 - Start the agent
@@ -72,7 +72,7 @@ class TailFileUTF16(TestCase):
         self.step(confDir(config))
 
         path = "/var/log/hello-utf16.log" if config.platform != Platform.windows else "C:\\tmp\\hello-utf16.log"
-        self.step("""
+        self.step(f"""
 ```
 logs: 
 - type: file
@@ -81,7 +81,7 @@ logs:
     source: hello-world
     encoding: utf-16-le
 ``` 
-""".format(path = path))
+""")
 
         self.step("""
 - Start the agent
@@ -103,7 +103,7 @@ class TailFileWildcard(TestCase):
         self.step(confDir(config))
 
         path = "/var/log/*.log" if config.platform != Platform.windows else "C:\\tmp\\*.log"
-        self.step("""
+        self.step(f"""
 ```
 logs:
   -type: file
@@ -111,7 +111,7 @@ logs:
     service: test-wildcard
     source: wildcard
 ``` 
-""".format(path = path))
+""")
 
         self.step(" - Start the agent")
         self.step(""" - generate some logs in multiple files:
@@ -134,7 +134,7 @@ class TailFileStartPosition(TestCase):
         self.step(confDir(config))
 
         path = "/var/log/hello-world.log" if config.platform != Platform.windows else "C:\\tmp\\hello-world.log"
-        self.step("""
+        self.step(f"""
 ```
 logs:
   - type: file
@@ -143,7 +143,7 @@ logs:
     source: hello-world
     start_position: beginning
 ``` 
-""".format(path = path))
+""")
 
         self.step("""# Test
 1. start the agent

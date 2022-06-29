@@ -10,15 +10,15 @@ class EndpointTests(TestCase):
         self.step("# Setup")
         self.step(confDir(config))
         path = "/var/log/hello-world.log" if config.platform != Platform.windows else "C:\\tmp\\hello-world.log"
-        self.step("""
+        self.step(f"""
 ```
 logs: 
 - type: file
-    path: %s
+    path: {path}
     service: test-file-tailing
     source: hello-world
 ``` 
-""" % path)
+""")
 
         self.step("""
 in your `datadog.yaml`: 
