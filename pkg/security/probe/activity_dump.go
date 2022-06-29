@@ -665,15 +665,13 @@ func (ad *ActivityDump) Encode(format dump.StorageFormat) (*bytes.Buffer, error)
 
 // EncodeJSON encodes an activity dump in the JSON format
 func (ad *ActivityDump) EncodeJSON() (*bytes.Buffer, error) {
-	ad.Lock()
-	defer ad.Unlock()
-
-	msgpRaw, err := ad.MarshalMsg(nil)
+	msgpRaw, err := ad.EncodeMSGP()
 	if err != nil {
-		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.MSGP, err)
+		return nil, err
 	}
+
 	raw := bytes.NewBuffer(nil)
-	_, err = msgp.UnmarshalAsJSON(raw, msgpRaw)
+	_, err = msgp.UnmarshalAsJSON(raw, msgpRaw.Bytes())
 	if err != nil {
 		return nil, fmt.Errorf("couldn't encode %s: %v", dump.JSON, err)
 	}
