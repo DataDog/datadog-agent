@@ -10,6 +10,7 @@ package tests
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -49,4 +50,55 @@ func BenchmarkProtobufEncoding(b *testing.B) {
 	runEncoding(b, func(ad *probe.ActivityDump) (*bytes.Buffer, error) {
 		return ad.EncodeProtobuf()
 	})
+}
+
+func TestActivityDumpElementCount(t *testing.T) {
+	ad := getTestDataActivityDump(t)
+
+	// msgpack JSON
+	msgpJSONBuffer, err := ad.EncodeJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var msgpJSON interface{}
+	json.Unmarshal(msgpJSONBuffer.Bytes(), &msgpJSON)
+
+	// protobuf JSON
+	protoJSONBuffer, err := ad.EncodeProtobufJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var protoJSON interface{}
+	json.Unmarshal(protoJSONBuffer.Bytes(), &protoJSON)
+
+	t.Log(countElements(msgpJSON))
+	t.Log(countElements(protoJSON))
+
+	out, err := json.MarshalIndent(protoJSON, "", "\t")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log(string(out))
+}
+
+func countElements(m interface{}) uint64 {
+	switch real := m.(type) {
+	case map[string]interface{}:
+		var count uint64
+		for _, value := range real {
+			count += countElements(value)
+		}
+		return count
+	case []interface{}:
+		var count uint64
+		for _, sub := range real {
+			count += countElements(sub)
+		}
+		return count
+	case string:
+		return 1
+	default:
+		return 0
+	}
 }
