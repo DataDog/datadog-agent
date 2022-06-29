@@ -1003,6 +1003,13 @@ api_key:
   #
   # open_files_limit: 100
 
+  ## @param tagger_warmup_duration - optional - default: 0
+  ## @env DD_LOGS_CONFIG_TAGGER_WARMUP_DURATION - optional - default: 0 
+  ## The number of seconds that the log agent waits for the internal tagger to 
+  ## add the related container/pod tags to the logs before the logs are sent.
+  #
+  # tagger_warmup_duration: 0
+
 {{ end -}}
 {{- if .TraceAgent }}
 
