@@ -127,12 +127,12 @@ var snmpwalkCmd = &cobra.Command{
 
 		// Communication options check
 		if timeout == 0 {
-			fmt.Printf("Timeout can not be 0")
+			fmt.Printf("Timeout can not be 0 \n")
 			cmd.Help()
 			os.Exit(1)
 		}
 		if retries == 0 {
-			fmt.Printf("The number of retries can not be 0")
+			fmt.Printf("The number of retries can not be 0 \n")
 			cmd.Help()
 			os.Exit(1)
 		}
@@ -143,7 +143,7 @@ var snmpwalkCmd = &cobra.Command{
 			if snmpVersion == "1" || snmpVersion == "2c" {
 				communityString = defaultCommunityString
 			} else {
-				fmt.Printf("No authentication mechanism specified")
+				fmt.Printf("No authentication mechanism specified \n")
 				cmd.Help()
 				os.Exit(1)
 			}
@@ -157,7 +157,7 @@ var snmpwalkCmd = &cobra.Command{
 		} else if snmpVersion == "3" || (snmpVersion == "" && user != "") {
 			setVersion = gosnmp.Version3
 		} else {
-			fmt.Printf("SNMP version not supported: %s, using default version 2c.", snmpVersion)
+			fmt.Printf("SNMP version not supported: %s, using default version 2c. \n", snmpVersion)
 			setVersion = gosnmp.Version2c
 		}
 
@@ -180,7 +180,7 @@ var snmpwalkCmd = &cobra.Command{
 			case "sha512":
 				authProtocol = gosnmp.SHA512
 			default:
-				fmt.Printf("Unsupported authentication protocol: %s", authProt)
+				fmt.Printf("Unsupported authentication protocol: %s \n", authProt)
 				cmd.Help()
 				os.Exit(1)
 			}
@@ -202,7 +202,7 @@ var snmpwalkCmd = &cobra.Command{
 			case "aes256c":
 				privProtocol = gosnmp.AES256C
 			default:
-				fmt.Printf("Unsupported privacy protocol: %s", privProt)
+				fmt.Printf("Unsupported privacy protocol: %s \n", privProt)
 				cmd.Help()
 				os.Exit(1)
 			}
@@ -224,7 +224,7 @@ var snmpwalkCmd = &cobra.Command{
 			case "authnopriv":
 				msgFlags = gosnmp.AuthNoPriv
 			default:
-				fmt.Printf("Unsupported security level: %s", securityLevel)
+				fmt.Printf("Unsupported security level: %s \n", securityLevel)
 				cmd.Help()
 				os.Exit(1)
 			}
