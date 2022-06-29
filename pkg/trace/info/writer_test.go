@@ -12,7 +12,16 @@ import (
 func TestPublishTraceWriterInfo(t *testing.T) {
 	traceWriterInfo = TraceWriterInfo{
 		// do not use field names here, to ensure we cover all fields
-		1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+		atom(1),
+		atom(2),
+		atom(3),
+		atom(4),
+		atom(5),
+		atom(6),
+		atom(7),
+		atom(8),
+		atom(9),
+		atom(10),
 	}
 
 	testExpvarPublish(t, publishTraceWriterInfo,
@@ -34,7 +43,14 @@ func TestPublishTraceWriterInfo(t *testing.T) {
 func TestPublishStatsWriterInfo(t *testing.T) {
 	statsWriterInfo = StatsWriterInfo{
 		// do not use field names here, to ensure we cover all fields
-		1, 2, 3, 4, 5, 6, 7, 8,
+		atom(1),
+		atom(2),
+		atom(3),
+		atom(4),
+		atom(5),
+		atom(6),
+		atom(7),
+		atom(8),
 	}
 
 	testExpvarPublish(t, publishStatsWriterInfo,

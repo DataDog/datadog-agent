@@ -10,7 +10,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
+
+// atom is a shorthand to create an atomic value
+func atom(i int64) atomic.Int64 {
+	return *atomic.NewInt64(i)
+}
 
 func testExpvarPublish(t *testing.T, publish func() interface{}, expected interface{}) {
 	raw := publish()

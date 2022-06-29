@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
 type testServerHandler struct {
@@ -392,30 +393,52 @@ func TestPublishReceiverStats(t *testing.T) {
 			Lang: "go",
 		},
 		Stats: Stats{
-			TracesReceived:     1,
-			TracesDropped:      &TracesDropped{1, 2, 3, 4, 5, 6, 7, 8},
-			SpansMalformed:     &SpansMalformed{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12},
-			TracesFiltered:     4,
-			TracesPriorityNone: 5,
+			TracesReceived: atom(1),
+			TracesDropped: &TracesDropped{
+				atom(1),
+				atom(2),
+				atom(3),
+				atom(4),
+				atom(5),
+				atom(6),
+				atom(7),
+				atom(8),
+			},
+			SpansMalformed: &SpansMalformed{
+				atom(1),
+				atom(2),
+				atom(3),
+				atom(4),
+				atom(5),
+				atom(6),
+				atom(7),
+				atom(8),
+				atom(9),
+				atom(10),
+				atom(11),
+				atom(12),
+			},
+			TracesFiltered:     atom(4),
+			TracesPriorityNone: atom(5),
 			TracesPerSamplingPriority: samplingPriorityStats{
-				[maxAbsPriority*2 + 1]int64{
-					maxAbsPriority + 0: 1,
-					maxAbsPriority + 1: 2,
-					maxAbsPriority + 2: 3,
-					maxAbsPriority + 3: 4,
-					maxAbsPriority + 4: 5,
+				[maxAbsPriority*2 + 1]atomic.Int64{
+					maxAbsPriority + 0: atom(1),
+					maxAbsPriority + 1: atom(2),
+					maxAbsPriority + 2: atom(3),
+					maxAbsPriority + 3: atom(4),
+					maxAbsPriority + 4: atom(5),
 				},
 			},
-			ClientDroppedP0Traces: 7,
-			ClientDroppedP0Spans:  8,
-			TracesBytes:           9,
-			SpansReceived:         10,
-			SpansDropped:          11,
-			SpansFiltered:         12,
-			EventsExtracted:       13,
-			EventsSampled:         14,
-			PayloadAccepted:       15,
-			PayloadRefused:        16,
+			ClientDroppedP0Traces: atom(7),
+			ClientDroppedP0Spans:  atom(8),
+			TracesBytes:           atom(9),
+			SpansReceived:         atom(10),
+			SpansDropped:          atom(11),
+			SpansFiltered:         atom(12),
+			EventsExtracted:       atom(13),
+			EventsSampled:         atom(14),
+			PayloadAccepted:       atom(15),
+			PayloadRefused:        atom(16),
 		},
 	}}
 
