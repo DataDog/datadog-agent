@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
-	"github.com/DataDog/datadog-agent/pkg/trace/atomic"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
 func randomTraceID() uint64 {
@@ -70,7 +70,7 @@ func TestPrioritySample(t *testing.T) {
 	s := getTestPrioritySampler()
 
 	assert.Equal(float32(0), s.localRates.totalSeen, "checking fresh backend total score is 0")
-	assert.Equal(int64(0), s.localRates.totalKept, "checkeing fresh backend sampled score is 0")
+	assert.Equal(int64(0), s.localRates.totalKept.Load(), "checkeing fresh backend sampled score is 0")
 
 	s = getTestPrioritySampler()
 	chunk, root := getTestTraceWithService(t, "my-service", s)
@@ -79,7 +79,7 @@ func TestPrioritySample(t *testing.T) {
 	sampled := s.Sample(time.Now(), chunk, root, env, 0)
 	assert.False(sampled, "trace with negative priority is dropped")
 	assert.Equal(float32(0), s.localRates.totalSeen, "sampling a priority -1 trace should *NOT* impact sampler backend")
-	assert.Equal(int64(0), s.localRates.totalKept, "sampling a priority -1 trace should *NOT* impact sampler backend")
+	assert.Equal(int64(0), s.localRates.totalKept.Load(), "sampling a priority -1 trace should *NOT* impact sampler backend")
 
 	s = getTestPrioritySampler()
 	chunk, root = getTestTraceWithService(t, "my-service", s)
@@ -88,7 +88,7 @@ func TestPrioritySample(t *testing.T) {
 	sampled = s.Sample(time.Now(), chunk, root, env, 0)
 	assert.False(sampled, "trace with priority 0 is dropped")
 	assert.True(float32(0) < s.localRates.totalSeen, "sampling a priority 0 trace should increase total score")
-	assert.Equal(int64(0), s.localRates.totalKept, "sampling a priority 0 trace should *NOT* increase sampled score")
+	assert.Equal(int64(0), s.localRates.totalKept.Load(), "sampling a priority 0 trace should *NOT* increase sampled score")
 
 	s = getTestPrioritySampler()
 	chunk, root = getTestTraceWithService(t, "my-service", s)
@@ -97,7 +97,7 @@ func TestPrioritySample(t *testing.T) {
 	sampled = s.Sample(time.Now(), chunk, root, env, 0)
 	assert.True(sampled, "trace with priority 1 is kept")
 	assert.True(float32(0) < s.localRates.totalSeen, "sampling a priority 0 trace should increase total score")
-	assert.True(int64(0) < s.localRates.totalKept, "sampling a priority 0 trace should increase sampled score")
+	assert.True(int64(0) < s.localRates.totalKept.Load(), "sampling a priority 0 trace should increase sampled score")
 
 	s = getTestPrioritySampler()
 	chunk, root = getTestTraceWithService(t, "my-service", s)
@@ -106,7 +106,7 @@ func TestPrioritySample(t *testing.T) {
 	sampled = s.Sample(time.Now(), chunk, root, env, 0)
 	assert.True(sampled, "trace with priority 2 is kept")
 	assert.Equal(float32(0), s.localRates.totalSeen, "sampling a priority 2 trace should *NOT* increase total score")
-	assert.Equal(int64(0), s.localRates.totalKept, "sampling a priority 2 trace should *NOT* increase sampled score")
+	assert.Equal(int64(0), s.localRates.totalKept.Load(), "sampling a priority 2 trace should *NOT* increase sampled score")
 
 	s = getTestPrioritySampler()
 	chunk, root = getTestTraceWithService(t, "my-service", s)
@@ -115,7 +115,7 @@ func TestPrioritySample(t *testing.T) {
 	sampled = s.Sample(time.Now(), chunk, root, env, 0)
 	assert.True(sampled, "trace with high priority is kept")
 	assert.Equal(float32(0), s.localRates.totalSeen, "sampling a high priority trace should *NOT* increase total score")
-	assert.Equal(int64(0), s.localRates.totalKept, "sampling a high priority trace should *NOT* increase sampled score")
+	assert.Equal(int64(0), s.localRates.totalKept.Load(), "sampling a high priority trace should *NOT* increase sampled score")
 
 	chunk.Priority = int32(PriorityNone)
 	sampled = s.Sample(time.Now(), chunk, root, env, 0)
@@ -206,7 +206,7 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 		s.remoteRates.onUpdate(configGenerator(generatedConfigVersion, testCasesRates))
 
 		t.Logf("testing targetTPS=%0.1f generatedTPS=%0.1f localRate=%v clientDrop=%v", tc.targetTPS, tc.generatedTPS, tc.localRate, tc.clientDrop)
-		s.localRates.targetTPS = atomic.NewFloat(tc.targetTPS)
+		s.localRates.targetTPS = atomic.NewFloat64(tc.targetTPS)
 
 		var sampledCount, handledCount int
 		const warmUpDuration, testDuration = 2, 10
