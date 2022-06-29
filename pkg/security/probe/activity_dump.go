@@ -675,18 +675,17 @@ func (ad *ActivityDump) Unzip(inputFile string, ext string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("couldn't open input file: %w", err)
 	}
+	defer f.Close()
 
 	seclog.Infof("unzipping %s", inputFile)
 	gzipReader, err := gzip.NewReader(f)
 	if err != nil {
-		f.Close()
 		return "", fmt.Errorf("couldn't create gzip reader: %w", err)
 	}
 	defer gzipReader.Close()
 
 	outputFile, err := os.Create(strings.TrimSuffix(inputFile, ext))
 	if err != nil {
-		f.Close()
 		return "", fmt.Errorf("couldn't create gzip output file: %w", err)
 	}
 	defer outputFile.Close()
