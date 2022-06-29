@@ -88,3 +88,6 @@ Suite(LinuxConfig(), xplatHostTests + [
     TailJournaldStartPosition,
     SNMPTraps,
 ]).build(lambda name, body: linux.add_card(name, body))
+
+print("Your QA board is ready: ")
+print(board.url)
