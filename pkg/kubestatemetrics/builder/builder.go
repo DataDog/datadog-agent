@@ -22,6 +22,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	ksmbuild "k8s.io/kube-state-metrics/v2/pkg/builder"
 	ksmtypes "k8s.io/kube-state-metrics/v2/pkg/builder/types"
+	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 	metricsstore "k8s.io/kube-state-metrics/v2/pkg/metrics_store"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
@@ -80,6 +81,11 @@ func (b *Builder) WithKubeClient(c clientset.Interface) {
 	b.ksmBuilder.WithKubeClient(c)
 }
 
+// WithCustomResourceClients sets the customResourceClients property of a Builder.
+func (b *Builder) WithCustomResourceClients(clients map[string]interface{}) {
+	b.ksmBuilder.WithCustomResourceClients(clients)
+}
+
 // WithVPAClient sets the vpaClient property of a Builder so that the verticalpodautoscaler collector can query VPA objects.
 func (b *Builder) WithVPAClient(c vpaclientset.Interface) {
 	b.vpaClient = c
@@ -111,6 +117,16 @@ func (b *Builder) DefaultGenerateStoresFunc() ksmtypes.BuildStoresFunc {
 // WithGenerateStoresFunc configures a constom generate store function
 func (b *Builder) WithGenerateStoresFunc(f ksmtypes.BuildStoresFunc) {
 	b.ksmBuilder.WithGenerateStoresFunc(f)
+}
+
+// WithGenerateCustomResourceStoresFunc configures a constom generate store function
+func (b *Builder) WithGenerateCustomResourceStoresFunc(f ksmtypes.BuildCustomResourceStoresFunc) {
+	b.ksmBuilder.WithGenerateCustomResourceStoresFunc(f)
+}
+
+// WithCustomResourceStoreFactories configures a constom store factory
+func (b *Builder) WithCustomResourceStoreFactories(fs ...customresource.RegistryFactory) {
+	b.ksmBuilder.WithCustomResourceStoreFactories(fs...)
 }
 
 // WithAllowLabels configures which labels can be returned for metrics
@@ -162,6 +178,19 @@ func (b *Builder) GenerateStores(
 	}
 
 	return stores
+}
+
+// GenerateCustomResourceStoresFunc use to generate new Metrics Store for Metrics Families
+func (b *Builder) GenerateCustomResourceStoresFunc(
+	resourceName string,
+	metricFamilies []generator.FamilyGenerator,
+	expectedType interface{},
+	listWatchFunc func(kubeClient interface{}, ns string, fieldSelector string) cache.ListerWatcher,
+	useAPIServerCache bool,
+) []cache.Store {
+	return b.GenerateStores(metricFamilies, expectedType, func(kubeClient clientset.Interface, ns string, fieldSelector string) cache.ListerWatcher {
+		return listWatchFunc(kubeClient, ns, fieldSelector)
+	}, useAPIServerCache)
 }
 
 // startReflector creates a Kubernetes client-go reflector with the given
