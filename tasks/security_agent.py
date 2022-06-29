@@ -607,10 +607,13 @@ def generate_cws_proto(ctx):
             pool_opts = " ".join(
                 f"--go-vtproto_opt=pool=pkg/security/adproto/v1.{struct_name}" for struct_name in pool_structs
             )
+            basic_opts = " --go_out=paths=source_relative:."
             plugin_opts = f"--plugin protoc-gen-go=\"{temp_gobin}/protoc-gen-go\" --plugin protoc-gen-go-vtproto=\"{temp_gobin}/protoc-gen-go-vtproto\""
             ctx.run(
-                f"protoc -I. --go_out=paths=source_relative:. --go-vtproto_out=. {plugin_opts} --go-vtproto_opt=features=pool+marshal+unmarshal+size {pool_opts} pkg/security/adproto/v1/activity_dump.proto"
+                f"protoc -I. {basic_opts} --go-vtproto_out=. {plugin_opts} --go-vtproto_opt=features=pool+marshal+unmarshal+size {pool_opts} pkg/security/adproto/v1/activity_dump.proto"
             )
 
             # API
-            ctx.run("protoc -I. --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative pkg/security/api/api.proto")
+            ctx.run(
+                f"protoc -I. {basic_opts} --go-vtproto_out=. {plugin_opts} pkg/security/api/api.proto"
+            )
