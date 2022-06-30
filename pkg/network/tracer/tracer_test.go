@@ -1722,12 +1722,24 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 			t.Fatal(err)
 		}
 
+		httpConn := make(map[http.KeyTuple]ConnectionStats)
+		for _, conn := range payload.Conns {
+			if conn.Tags > 0 {
+				httpKey := HTTPKeyTupleFromConn(conn)
+				httpConn[httpKey] = conn
+			}
+		}
+
 		for key, stats := range payload.HTTP {
 			if !stats.HasStats(200) {
 				continue
 			}
 			statsTags := stats.Stats(200).Tags
-			foundTLSTag := (statsTags & tagTLS) > 0
+			foundTLSTag := false
+			conn, ok := httpConn[key.KeyTuple]
+			if ok {
+				foundTLSTag = (conn.Tags & tagTLS) > 0
+			}
 
 			// debian 10 have curl binary linked with openssl and gnutls but use only openssl during tls query (there no runtime flag available)
 			// this make harder to map lib and tags, one set of tag should match but not both
