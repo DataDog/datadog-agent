@@ -112,7 +112,7 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 	httpReqStats.AddRequest(100, 12.5, 0)
 	httpReqStats.AddRequest(100, 12.5, tagGnuTLS)
 	httpReqStats.AddRequest(405, 3.5, tagOpenSSL)
-	httpReqStats.AddRequest(405, 3.5, 0)
+	httpReqStats.AddRequest(405, 3.5, tagTLS)
 
 	// Verify the latency data is correct prior to serialization
 	latencies := httpReqStats.Stats(int(model.HTTPResponseStatus_Info+1) * 100).Latencies
@@ -157,7 +157,7 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 	assert.Equal(t, "/testpath", endpointAggregations[0].Path)
 	assert.Equal(t, model.HTTPMethod_Get, endpointAggregations[0].Method)
 
-	assert.Equal(t, tagGnuTLS|tagOpenSSL, tags)
+	assert.Equal(t, tagGnuTLS|tagOpenSSL|tagTLS, tags)
 
 	// Deserialize the encoded latency information & confirm it is correct
 	statsByResponseStatus := endpointAggregations[0].StatsByResponseStatus

@@ -431,65 +431,6 @@ func TestSerialization(t *testing.T) {
 	})
 }
 
-func TestFormatHTTPStatsByPath(t *testing.T) {
-	var httpReqStats http.RequestStats
-	httpReqStats.AddRequest(100, 12.5, 0)
-	httpReqStats.AddRequest(100, 12.5, tagGnuTLS)
-	httpReqStats.AddRequest(405, 3.5, tagOpenSSL)
-	httpReqStats.AddRequest(405, 3.5, tagTLS)
-
-	// Verify the latency data is correct prior to serialization
-	latencies := httpReqStats[model.HTTPResponseStatus_Info].Latencies
-	assert.Equal(t, 2.0, latencies.GetCount())
-	verifyQuantile(t, latencies, 0.5, 12.5)
-
-	latencies = httpReqStats[model.HTTPResponseStatus_ClientErr].Latencies
-	assert.Equal(t, 2.0, latencies.GetCount())
-	verifyQuantile(t, latencies, 0.5, 3.5)
-
-	key := http.NewKey(
-		util.AddressFromString("10.1.1.1"),
-		util.AddressFromString("10.2.2.2"),
-		1000,
-		9000,
-		"/testpath",
-		http.MethodGet,
-	)
-	statsByKey := map[http.Key]http.RequestStats{
-		key: httpReqStats,
-	}
-	formattedStats, formattedTags := FormatHTTPStats(statsByKey)
-
-	// Now path will be nested in the map
-	key.Path = ""
-	key.Method = http.MethodUnknown
-
-	endpointAggregations := formattedStats[key].EndpointAggregations
-	require.Len(t, endpointAggregations, 1)
-	assert.Equal(t, "/testpath", endpointAggregations[0].Path)
-	assert.Equal(t, model.HTTPMethod_Get, endpointAggregations[0].Method)
-
-	// Deserialize the encoded latency information & confirm it is correct
-	statsByResponseStatus := endpointAggregations[0].StatsByResponseStatus
-	assert.Len(t, statsByResponseStatus, 5)
-
-	tags := formattedTags[key]
-	assert.Equal(t, tagGnuTLS|tagOpenSSL|tagTLS, tags)
-
-	serializedLatencies := statsByResponseStatus[model.HTTPResponseStatus_Info].Latencies
-	sketch := unmarshalSketch(t, serializedLatencies)
-	assert.Equal(t, 2.0, sketch.GetCount())
-	verifyQuantile(t, sketch, 0.5, 12.5)
-
-	serializedLatencies = statsByResponseStatus[model.HTTPResponseStatus_ClientErr].Latencies
-	sketch = unmarshalSketch(t, serializedLatencies)
-	assert.Equal(t, 2.0, sketch.GetCount())
-	verifyQuantile(t, sketch, 0.5, 3.5)
-
-	serializedLatencies = statsByResponseStatus[model.HTTPResponseStatus_Success].Latencies
-	assert.Nil(t, serializedLatencies)
-}
-
 func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 	var (
 		clientPort = uint16(52800)
