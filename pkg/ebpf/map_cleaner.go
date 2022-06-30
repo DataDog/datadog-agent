@@ -125,7 +125,7 @@ func (mc *MapCleaner) clean(nowTS int64, shouldClean func(nowTS int64, k, v inte
 
 	elapsed := time.Now().Sub(now)
 	log.Debugf(
-		"finished cleaning map=%s entries_checked=%d entries_deleted=%d, elasped=%s",
+		"finished cleaning map=%s entries_checked=%d entries_deleted=%d, elapsed=%s",
 		mc.emap,
 		totalCount,
 		deletedCount,
