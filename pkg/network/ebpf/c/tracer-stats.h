@@ -4,7 +4,7 @@
 #include "tracer.h"
 #include "tracer-maps.h"
 #include "tracer-telemetry.h"
-#include "sock_defines.h"
+#include "sock-defines.h"
 
 static __always_inline conn_stats_ts_t* get_conn_stats(conn_tuple_t *t) {
     // initialize-if-no-exist the connection stat, and load it
