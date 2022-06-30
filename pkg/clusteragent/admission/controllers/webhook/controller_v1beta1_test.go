@@ -226,6 +226,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.Set("admission_controller.inject_config.enabled", true)
 				mockConfig.Set("admission_controller.mutate_unlabelled", true)
 				mockConfig.Set("admission_controller.inject_tags.enabled", false)
+				mockConfig.Set("admission_controller.auto_instru.enabled", false)
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
@@ -247,6 +248,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.Set("admission_controller.inject_config.enabled", true)
 				mockConfig.Set("admission_controller.mutate_unlabelled", false)
 				mockConfig.Set("admission_controller.inject_tags.enabled", false)
+				mockConfig.Set("admission_controller.auto_instru.enabled", false)
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
@@ -264,6 +266,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.Set("admission_controller.inject_config.enabled", false)
 				mockConfig.Set("admission_controller.mutate_unlabelled", true)
 				mockConfig.Set("admission_controller.inject_tags.enabled", true)
+				mockConfig.Set("admission_controller.auto_instru.enabled", false)
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
@@ -285,6 +288,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.Set("admission_controller.inject_config.enabled", false)
 				mockConfig.Set("admission_controller.mutate_unlabelled", false)
 				mockConfig.Set("admission_controller.inject_tags.enabled", true)
+				mockConfig.Set("admission_controller.auto_instru.enabled", false)
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
@@ -297,10 +301,51 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 			},
 		},
 		{
+			name: "lib injection, mutate all",
+			setupConfig: func() {
+				mockConfig.Set("admission_controller.inject_config.enabled", false)
+				mockConfig.Set("admission_controller.mutate_unlabelled", true)
+				mockConfig.Set("admission_controller.inject_tags.enabled", false)
+				mockConfig.Set("admission_controller.auto_instru.enabled", true)
+			},
+			configFunc: func() Config { return NewConfig(false, false) },
+			want: func() []admiv1beta1.MutatingWebhook {
+				webhook := webhook("datadog.webhook.auto.instru", "/injectlib", &metav1.LabelSelector{
+					MatchExpressions: []metav1.LabelSelectorRequirement{
+						{
+							Key:      "admission.datadoghq.com/enabled",
+							Operator: metav1.LabelSelectorOpNotIn,
+							Values:   []string{"false"},
+						},
+					},
+				}, nil)
+				return []admiv1beta1.MutatingWebhook{webhook}
+			},
+		},
+		{
+			name: "lib injection, mutate labelled",
+			setupConfig: func() {
+				mockConfig.Set("admission_controller.inject_config.enabled", false)
+				mockConfig.Set("admission_controller.mutate_unlabelled", false)
+				mockConfig.Set("admission_controller.inject_tags.enabled", false)
+				mockConfig.Set("admission_controller.auto_instru.enabled", true)
+			},
+			configFunc: func() Config { return NewConfig(false, false) },
+			want: func() []admiv1beta1.MutatingWebhook {
+				webhook := webhook("datadog.webhook.auto.instru", "/injectlib", &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"admission.datadoghq.com/enabled": "true",
+					},
+				}, nil)
+				return []admiv1beta1.MutatingWebhook{webhook}
+			},
+		},
+		{
 			name: "config and tags injection, mutate labelled",
 			setupConfig: func() {
 				mockConfig.Set("admission_controller.inject_config.enabled", true)
 				mockConfig.Set("admission_controller.inject_tags.enabled", true)
+				mockConfig.Set("admission_controller.auto_instru.enabled", false)
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
@@ -323,6 +368,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.Set("admission_controller.inject_config.enabled", true)
 				mockConfig.Set("admission_controller.mutate_unlabelled", true)
 				mockConfig.Set("admission_controller.inject_tags.enabled", true)
+				mockConfig.Set("admission_controller.auto_instru.enabled", false)
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
@@ -354,6 +400,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.Set("admission_controller.inject_config.enabled", true)
 				mockConfig.Set("admission_controller.inject_tags.enabled", true)
 				mockConfig.Set("admission_controller.namespace_selector_fallback", true)
+				mockConfig.Set("admission_controller.auto_instru.enabled", false)
 			},
 			configFunc: func() Config { return NewConfig(false, true) },
 			want: func() []admiv1beta1.MutatingWebhook {
@@ -378,6 +425,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.Set("admission_controller.inject_config.enabled", true)
 				mockConfig.Set("admission_controller.mutate_unlabelled", true)
 				mockConfig.Set("admission_controller.inject_tags.enabled", false)
+				mockConfig.Set("admission_controller.auto_instru.enabled", false)
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
@@ -413,6 +461,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.Set("admission_controller.inject_config.enabled", true)
 				mockConfig.Set("admission_controller.mutate_unlabelled", true)
 				mockConfig.Set("admission_controller.inject_tags.enabled", false)
+				mockConfig.Set("admission_controller.auto_instru.enabled", false)
 			},
 			configFunc: func() Config { return NewConfig(false, true) },
 			want: func() []admiv1beta1.MutatingWebhook {
@@ -591,7 +640,7 @@ func (f *fixtureV1beta1) populateWebhooksCache(webhooks ...*admiv1beta1.Mutating
 }
 
 func validateV1beta1(w *admiv1beta1.MutatingWebhookConfiguration, s *corev1.Secret) error {
-	if len(w.Webhooks) != 2 {
+	if len(w.Webhooks) != 3 {
 		return fmt.Errorf("Webhooks should contain 2 entries, got %d", len(w.Webhooks))
 	}
 	for i := 0; i < len(w.Webhooks); i++ {
