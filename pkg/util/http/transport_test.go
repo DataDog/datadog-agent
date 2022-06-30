@@ -205,6 +205,10 @@ func TestMinTLSVersionFromConfig(t *testing.T) {
 		{"tlsv1.2", true, tls.VersionTLS12},
 		{"tlsv1.3", false, tls.VersionTLS13},
 		{"tlsv1.3", true, tls.VersionTLS13},
+		// case-insensitive
+		{"TlSv1.0", false, tls.VersionTLS10},
+		{"TlSv1.3", true, tls.VersionTLS13},
+		// defaults
 		{"", false, tls.VersionTLS10},
 		{"", true, tls.VersionTLS12},
 		// invalid values

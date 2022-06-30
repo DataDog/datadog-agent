@@ -62,7 +62,7 @@ func warnOnce(warnMap map[string]bool, key string, format string, params ...inte
 func minTLSVersionFromConfig(cfg config.Config) uint16 {
 	var min uint16
 	minTLSVersion := cfg.GetString("min_tls_version")
-	switch minTLSVersion {
+	switch strings.ToLower(minTLSVersion) {
 	case "tlsv1.0":
 		min = tls.VersionTLS10
 	case "tlsv1.1":
