@@ -1722,10 +1722,10 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 			t.Fatal(err)
 		}
 
-		httpConn := make(map[http.KeyTuple]ConnectionStats)
+		httpConn := make(map[http.KeyTuple]network.ConnectionStats)
 		for _, conn := range payload.Conns {
 			if conn.Tags > 0 {
-				httpKey := HTTPKeyTupleFromConn(conn)
+				httpKey := network.HTTPKeyTupleFromConn(conn)
 				httpConn[httpKey] = conn
 			}
 		}
