@@ -8,8 +8,9 @@
 #include "http-buffer.h"
 #include "sockfd.h"
 #include "tags-types.h"
-#include "sock.h"
 #include "port_range.h"
+
+#include "sock-impl.h"
 
 #define HTTPS_PORT 443
 #define SO_SUFFIX_SIZE 3

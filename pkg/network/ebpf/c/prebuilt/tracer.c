@@ -6,6 +6,7 @@
 #include "tracer-stats.h"
 #include "tracer-telemetry.h"
 #include "sockfd.h"
+#include "tcp-recv.h"
 
 #include "bpf_helpers.h"
 #include "bpf_endian.h"
@@ -22,28 +23,7 @@
 #include <uapi/linux/tcp.h>
 #include <uapi/linux/udp.h>
 
-#include "sock.h"
-
-static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u8 state) {
-    u32 rtt = 0;
-    u32 rtt_var = 0;
-    bpf_probe_read_kernel(&rtt, sizeof(rtt), ((char*)sk) + offset_rtt());
-    bpf_probe_read_kernel(&rtt_var, sizeof(rtt_var), ((char*)sk) + offset_rtt_var());
-
-    tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
-    if (state > 0) {
-        stats.state_transitions = (1 << state);
-    }
-    update_tcp_stats(t, stats);
-}
-
-static __always_inline void get_tcp_segment_counts(struct sock* skp, __u32* packets_in, __u32* packets_out) {
-    // counting segments/packets not currently supported on prebuilt
-    // to implement, would need to do the offset-guess on the following
-    // fields in the tcp_sk: packets_in & packets_out (respectively)
-    *packets_in = 0;
-    *packets_out = 0;
-}
+#include "sock-impl.h"
 
 SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
@@ -100,83 +80,6 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
     get_tcp_segment_counts(skp, &packets_in, &packets_out);
 
     return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE);
-}
-
-int __always_inline handle_tcp_recv(u64 pid_tgid, struct sock *skp, int recv) {
-    conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
-        return 0;
-    }
-
-    handle_tcp_stats(&t, skp, 0);
-
-    __u32 packets_in = 0;
-    __u32 packets_out = 0;
-    get_tcp_segment_counts(skp, &packets_in, &packets_out);
-
-    return handle_message(&t, 0, recv, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE);
-}
-
-SEC("kprobe/tcp_recvmsg")
-int kprobe__tcp_recvmsg(struct pt_regs *ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    struct sock* skp = (struct sock*) PT_REGS_PARM1(ctx);
-    bpf_map_update_elem(&tcp_recvmsg_args, &pid_tgid, &skp, BPF_ANY);
-    return 0;
-}
-
-SEC("kretprobe/tcp_recvmsg")
-int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    struct sock **skpp = (struct sock**) bpf_map_lookup_elem(&tcp_recvmsg_args, &pid_tgid);
-    if (!skpp) {
-        return 0;
-    }
-
-    bpf_map_delete_elem(&tcp_recvmsg_args, &pid_tgid);
-
-    struct sock *skp = *skpp;
-    if (!skp) {
-        return 0;
-    }
-
-    int recv = PT_REGS_RC(ctx);
-    if (recv < 0) {
-        return 0;
-    }
-
-    return handle_tcp_recv(pid_tgid, skp, recv);
-}
-
-SEC("kprobe/tcp_read_sock")
-int kprobe__tcp_read_sock(struct pt_regs *ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    struct sock* skp = (struct sock*) PT_REGS_PARM1(ctx);
-    bpf_map_update_elem(&tcp_recvmsg_args, &pid_tgid, &skp, BPF_ANY);
-    return 0;
-}
-
-SEC("kretprobe/tcp_read_sock")
-int kretprobe__tcp_read_sock(struct pt_regs *ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    struct sock **skpp = (struct sock**) bpf_map_lookup_elem(&tcp_recvmsg_args, &pid_tgid);
-    if (!skpp) {
-        return 0;
-    }
-
-    bpf_map_delete_elem(&tcp_recvmsg_args, &pid_tgid);
-
-    struct sock *skp = *skpp;
-    if (!skp) {
-        return 0;
-    }
-
-    int recv = PT_REGS_RC(ctx);
-    if (recv < 0) {
-        return 0;
-    }
-
-    return handle_tcp_recv(pid_tgid, skp, recv);
 }
 
 SEC("kprobe/tcp_close")
