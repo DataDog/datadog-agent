@@ -1,7 +1,6 @@
 #ifndef __TRACER_TELEMETRY_H
 #define __TRACER_TELEMETRY_H
 
-#include "tracer-maps.h"
 #include "tracer-telemetry-maps.h"
 
 #include "bpf_endian.h"
