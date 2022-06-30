@@ -351,12 +351,16 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 
 	if c.Type == TCP {
 		str += fmt.Sprintf(
-			", %d retransmits (+%d), RTT %s (± %s)",
+			", %d retransmits (+%d), RTT %s (± %s), %d established (+%d), %d closed (+%d)",
 			c.Monotonic.Retransmits, c.Last.Retransmits,
 			time.Duration(c.RTT)*time.Microsecond,
 			time.Duration(c.RTTVar)*time.Microsecond,
+			c.Monotonic.TCPEstablished, c.Last.TCPEstablished,
+			c.Monotonic.TCPClosed, c.Last.TCPClosed,
 		)
 	}
+
+	str += fmt.Sprintf(", last update epoch: %d", c.LastUpdateEpoch)
 
 	return str
 }
@@ -415,4 +419,49 @@ func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {
 	n += laddr.WriteTo(buf[n:]) // 4 or 16 bytes
 	n += raddr.WriteTo(buf[n:]) // 4 or 16 bytes
 	return buf[:n]
+}
+
+// Sub returns s-other
+func (s StatCounters) Sub(other StatCounters) (sc StatCounters, underflow bool) {
+	if s.RecvBytes < other.RecvBytes ||
+		s.RecvPackets < other.RecvPackets ||
+		(s.Retransmits < other.Retransmits && s.Retransmits > 0) ||
+		s.SentBytes < other.SentBytes ||
+		s.SentPackets < other.SentPackets ||
+		(s.TCPClosed < other.TCPClosed && s.TCPClosed > 0) ||
+		(s.TCPEstablished < other.TCPEstablished && s.TCPEstablished > 0) {
+		return sc, true
+	}
+
+	sc = StatCounters{
+		RecvBytes:   s.RecvBytes - other.RecvBytes,
+		RecvPackets: s.RecvPackets - other.RecvPackets,
+		SentBytes:   s.SentBytes - other.SentBytes,
+		SentPackets: s.SentPackets - other.SentPackets,
+	}
+
+	if s.Retransmits > 0 {
+		sc.Retransmits = s.Retransmits - other.Retransmits
+	}
+	if s.TCPEstablished > 0 {
+		sc.TCPEstablished = s.TCPEstablished - other.TCPEstablished
+	}
+	if s.TCPClosed > 0 {
+		sc.TCPClosed = s.TCPClosed - other.TCPClosed
+	}
+
+	return sc, false
+}
+
+// Add returns s+other
+func (s StatCounters) Add(other StatCounters) StatCounters {
+	return StatCounters{
+		RecvBytes:      s.RecvBytes + other.RecvBytes,
+		RecvPackets:    s.RecvPackets + other.RecvPackets,
+		Retransmits:    s.Retransmits + other.Retransmits,
+		SentBytes:      s.SentBytes + other.SentBytes,
+		SentPackets:    s.SentPackets + other.SentPackets,
+		TCPClosed:      s.TCPClosed + other.TCPClosed,
+		TCPEstablished: s.TCPEstablished + other.TCPEstablished,
+	}
 }

@@ -442,6 +442,7 @@ func (t *kprobeTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnT
 		if _, reported := seen[*tuple]; reported {
 			atomic.AddInt64(&t.pidCollisions, 1)
 			stats.Retransmits = 0
+			stats.State_transitions = 0
 		} else {
 			seen[*tuple] = struct{}{}
 		}

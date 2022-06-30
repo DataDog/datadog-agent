@@ -161,7 +161,7 @@ func TestGetStats(t *testing.T) {
 		"dns_pid_collisions": 0,
 		"dns_stats_dropped": 0,
 		"http_stats_dropped": 0,
-		"stats_resets": 0,
+		"stats_underflows": 0,
 		"time_sync_collisions": 0
       },
       "tracer": {

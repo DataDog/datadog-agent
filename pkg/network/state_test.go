@@ -1107,8 +1107,8 @@ func TestStatsResetOnUnderflow(t *testing.T) {
 	conns = state.GetDelta(client, latestEpochTime(), []ConnectionStats{conn}, nil, nil).Conns
 	require.Len(t, conns, 1)
 	expected := conn
-	expected.Last.SentBytes = 2
-	// We expect the LastStats to be 2
+	expected.Last.SentBytes = 0
+	// We expect the LastStats to be 0
 	assert.Equal(t, expected, conns[0])
 }
 
@@ -1207,7 +1207,7 @@ func TestUnorderedCloseEvent(t *testing.T) {
 	assert.EqualValues(t, 0, conns[0].Last.RecvBytes)
 
 	// Ensure we don't have underflows / unordered conns
-	assert.Zero(t, state.(*networkState).telemetry.statsResets)
+	assert.Zero(t, state.(*networkState).telemetry.statsUnderflows)
 
 	assert.Len(t, state.GetDelta(client, latestEpochTime(), nil, nil, nil).Conns, 0)
 }
