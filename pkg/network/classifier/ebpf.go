@@ -9,12 +9,15 @@
 package classifier
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
@@ -34,9 +37,24 @@ type ebpfProgram struct {
 }
 
 func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
-	bc, err := netebpf.ReadClassifierModule(c.BPFDir, c.BPFDebug)
-	if err != nil {
-		return nil, err
+	var bc bytecode.AssetReader
+	var err error
+
+	if enableRuntimeCompilation(c) {
+		bc, err = getRuntimeCompiledClassifier(c)
+		if err != nil {
+			if !c.AllowPrecompiledFallback {
+				return nil, fmt.Errorf("error compiling network packets classifier: %s", err)
+			}
+			log.Warnf("error compiling network packets classifier, falling back to pre-compiled: %s", err)
+		}
+	}
+
+	if bc == nil {
+		bc, err = netebpf.ReadClassifierModule(c.BPFDir, c.BPFDebug)
+		if err != nil {
+			return nil, fmt.Errorf("could not read bpf module: %s", err)
+		}
 	}
 
 	mgr := &manager.Manager{
@@ -99,4 +117,20 @@ func (e *ebpfProgram) Init(connMap *ebpf.Map, telemetryMap *ebpf.Map) error {
 			},
 		},
 	})
+}
+
+func enableRuntimeCompilation(c *config.Config) bool {
+	if !c.EnableRuntimeCompiler {
+		return false
+	}
+
+	// The runtime-compiled version of HTTP monitoring requires Kernel 4.5
+	// because we use the `bpf_skb_load_bytes` helper.
+	kversion, err := kernel.HostVersion()
+	if err != nil {
+		log.Warn("could not determine the current kernel version. falling back to pre-compiled program.")
+		return false
+	}
+
+	return kversion >= kernel.VersionCode(4, 5, 0)
 }
