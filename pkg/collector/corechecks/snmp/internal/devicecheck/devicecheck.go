@@ -236,7 +236,7 @@ func (d *DeviceCheck) detectMonitoredMetrics(sess session.Session) error {
 }
 
 func (d *DeviceCheck) detectAvailableMetrics(sess session.Session) ([]checkconfig.MetricsConfig, error) {
-	allOids, err := session.FetchAllOids(d.session)
+	allOids, err := session.FetchAllOidsUsingGetNext(d.session)
 	if err != nil {
 		return nil, err
 	}

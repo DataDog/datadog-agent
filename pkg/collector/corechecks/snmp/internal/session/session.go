@@ -8,6 +8,7 @@ package session
 import (
 	"fmt"
 	stdlog "log"
+	"strings"
 	"time"
 
 	"github.com/cihub/seelog"
@@ -166,8 +167,8 @@ func FetchSysObjectID(session Session) (string, error) {
 	return strValue, err
 }
 
-// FetchAllOids fetches all available OIDs
-func FetchAllOids(session Session) ([]string, error) {
+// FetchAllOidsUsingWalk fetches all available OIDs
+func FetchAllOidsUsingWalk(session Session) ([]string, error) {
 	var oids []string
 	fn := func(dataUnit gosnmp.SnmpPDU) error {
 		oids = append(oids, dataUnit.Name)
@@ -175,4 +176,38 @@ func FetchAllOids(session Session) ([]string, error) {
 	}
 	err := session.Walk("1.3", fn)
 	return oids, err
+}
+
+// FetchAllOidsUsingGetNext fetches all available OIDs
+func FetchAllOidsUsingGetNext(session Session) ([]string, error) {
+	var savedOids []string
+	curReqOid := "1.3"
+	for {
+		log.Infof("GETNEXT %s", curReqOid)
+		results, err := session.GetNext([]string{curReqOid})
+		if err != nil {
+			log.Errorf("GetNext error: %s", err)
+			continue
+		}
+		variable := results.Variables[0]
+		if variable.Type == gosnmp.EndOfContents || variable.Type == gosnmp.EndOfMibView {
+			log.Info("No more OIDs")
+			break
+		}
+		log.Infof("variable %+v", variable)
+		oid := strings.TrimLeft(variable.Name, ".")
+		if strings.HasSuffix(oid, ".0") {
+			curReqOid = oid
+		} else {
+			nextColumn, err := GetNextColumnOid(oid)
+			if err != nil {
+				log.Errorf("Invalid column oid: %s", oid)
+				break
+			}
+			curReqOid = nextColumn
+		}
+		savedOids = append(savedOids, oid)
+
+	}
+	return savedOids, nil
 }
