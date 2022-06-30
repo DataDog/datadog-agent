@@ -197,16 +197,21 @@ func TestMinTLSVersionFromConfig(t *testing.T) {
 		forceTLS12    bool
 		expect        uint16
 	}{
-		{"1.0", false, tls.VersionTLS10},
-		{"1.0", true, tls.VersionTLS10},
-		{"1.1", false, tls.VersionTLS11},
-		{"1.1", true, tls.VersionTLS11},
-		{"1.2", false, tls.VersionTLS12},
-		{"1.2", true, tls.VersionTLS12},
-		{"1.3", false, tls.VersionTLS13},
-		{"1.3", true, tls.VersionTLS13},
+		{"tlsv1.0", false, tls.VersionTLS10},
+		{"tlsv1.0", true, tls.VersionTLS10},
+		{"tlsv1.1", false, tls.VersionTLS11},
+		{"tlsv1.1", true, tls.VersionTLS11},
+		{"tlsv1.2", false, tls.VersionTLS12},
+		{"tlsv1.2", true, tls.VersionTLS12},
+		{"tlsv1.3", false, tls.VersionTLS13},
+		{"tlsv1.3", true, tls.VersionTLS13},
 		{"", false, tls.VersionTLS10},
 		{"", true, tls.VersionTLS12},
+		// invalid values
+		{"tlsv1.9", false, tls.VersionTLS10},
+		{"tlsv1.9", true, tls.VersionTLS12},
+		{"blergh", false, tls.VersionTLS10},
+		{"blergh", true, tls.VersionTLS12},
 	}
 
 	for _, test := range tests {
