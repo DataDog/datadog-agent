@@ -669,7 +669,6 @@ def get_security_agent_build_flags(security_agent_c_dir, kernel_release=None, mi
     security_flags.append(f"-I{security_agent_c_dir}")
     if debug:
         security_flags.append("-DDEBUG=1")
-    security_flags.append("-DUSE_RING_BUFFER=1")
     return security_flags
 
 
