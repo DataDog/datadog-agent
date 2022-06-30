@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
@@ -33,6 +34,7 @@ import (
 	"gopkg.in/yaml.v2"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
+	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 )
 
@@ -271,6 +273,18 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 	builder.WithResync(time.Duration(resyncPeriod) * time.Second)
 
 	builder.WithGenerateStoresFunc(builder.GenerateStores)
+
+	factories := []customresource.RegistryFactory{
+		customresources.NewCronJobFactory(),
+		customresources.NewPodDisruptionBudgetFactory(),
+	}
+	builder.WithCustomResourceStoreFactories(factories...)
+	builder.WithCustomResourceClients(map[string]interface{}{
+		"cronjobs":             c.Cl,
+		"poddisruptionbudgets": c.Cl,
+	})
+
+	builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
 
 	// Start the collection process
 	k.allStores = builder.BuildStores()
