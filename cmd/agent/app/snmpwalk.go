@@ -281,6 +281,16 @@ func printValue(pdu gosnmp.SnmpPDU) error {
 		fmt.Printf("OID: %s\n", pdu.Value)
 	case gosnmp.TimeTicks:
 		fmt.Print(pdu.Value, "\n")
+	case gosnmp.Counter32:
+		fmt.Printf("Counter 32: %d\n", pdu.Value.(uint))
+	case gosnmp.Counter64:
+		fmt.Printf("Counter 64: %d\n", pdu.Value.(uint64))
+	case gosnmp.Integer:
+		fmt.Printf("INTEGER: %d\n", pdu.Value.(int))
+	case gosnmp.Gauge32:
+		fmt.Printf("Gauge 32: %d\n", pdu.Value.(uint))
+	case gosnmp.IPAddress:
+		fmt.Printf("IpAddress: %s\n", pdu.Value.(string))
 	default:
 		fmt.Printf("TYPE %d: %d\n", pdu.Type, gosnmp.ToBigInt(pdu.Value))
 	}
