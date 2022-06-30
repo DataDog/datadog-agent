@@ -247,7 +247,7 @@ func (ns *networkState) saveTelemetry(telemetry map[ConnTelemetryType]int64) {
 }
 
 func (ns *networkState) getTelemetryDelta(id string, telemetry map[ConnTelemetryType]int64) map[ConnTelemetryType]int64 {
-	ns.logMetrics()
+	ns.logTelemetry()
 
 	var res = make(map[ConnTelemetryType]int64)
 	client := ns.getClient(id)
@@ -273,7 +273,7 @@ func (ns *networkState) getTelemetryDelta(id string, telemetry map[ConnTelemetry
 	return res
 }
 
-func (ns *networkState) logMetrics() {
+func (ns *networkState) logTelemetry() {
 	delta := telemetry{
 		closedConnDropped:  ns.telemetry.closedConnDropped - ns.lastTelemetry.closedConnDropped,
 		connDropped:        ns.telemetry.connDropped - ns.lastTelemetry.connDropped,
@@ -285,7 +285,8 @@ func (ns *networkState) logMetrics() {
 	}
 
 	// Flush log line if any metric is non zero
-	if delta.statsResets > 0 || delta.closedConnDropped > 0 || delta.connDropped > 0 || delta.timeSyncCollisions > 0 {
+	if delta.statsResets > 0 || delta.closedConnDropped > 0 || delta.connDropped > 0 || delta.timeSyncCollisions > 0 ||
+		delta.dnsStatsDropped > 0 || delta.httpStatsDropped > 0 || delta.dnsPidCollisions > 0 {
 		s := "state telemetry: "
 		s += " [%d stats stats_resets]"
 		s += " [%d connections dropped due to stats]"
