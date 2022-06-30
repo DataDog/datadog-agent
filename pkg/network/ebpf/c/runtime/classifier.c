@@ -2,7 +2,6 @@
 #include "bpf_helpers.h"
 #include "ip.h"
 #include "tls.h"
-#include "defs.h"
 #include "classifier-telemetry.h"
 
 #define PROTO_PROG_TLS 0
