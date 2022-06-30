@@ -17,7 +17,7 @@ import (
 //go:generate go run ../../../pkg/ebpf/bytecode/runtime/integrity.go ../../../pkg/ebpf/bytecode/build/runtime/classifier.c ../../../pkg/ebpf/bytecode/runtime/classifier.go runtime
 
 func getRuntimeCompiledClassifier(config *config.Config) (runtime.CompiledOutput, error) {
-	return runtime.Http.Compile(&config.Config, getCFlags(config))
+	return runtime.Classifier.Compile(&config.Config, getCFlags(config))
 }
 
 func getCFlags(config *config.Config) []string {
