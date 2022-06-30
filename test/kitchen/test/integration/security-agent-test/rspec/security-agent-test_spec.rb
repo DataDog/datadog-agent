@@ -5,7 +5,7 @@ print `uname -a`
 
 describe 'successfully run functional test' do
   it 'displays PASS and returns 0' do
-    output = `sudo /tmp/security-agent/testsuite -test.v -status-metrics 1>&2`
+    output = `DD_TESTS_RUNTIME_COMPILED=1 DD_SYSTEM_PROBE_BPF_DIR=/tmp/security-agent sudo -E /tmp/security-agent/testsuite -test.v -status-metrics 1>&2`
     retval = $?
     expect(retval).to eq(0)
   end
