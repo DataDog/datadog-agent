@@ -102,6 +102,7 @@ type Probe struct {
 	discarderRateLimiter *rate.Limiter
 
 	constantOffsets map[string]uint64
+	runtimeCompiled bool
 
 	// network section
 	tcProgramsLock sync.RWMutex
@@ -250,11 +251,13 @@ func (p *Probe) Init() error {
 	loader := ebpf.NewProbeLoader(p.config, useSyscallWrapper)
 	defer loader.Close()
 
-	bytecodeReader, err := loader.Load()
+	bytecodeReader, runtimeCompiled, err := loader.Load()
 	if err != nil {
 		return err
 	}
 	defer bytecodeReader.Close()
+
+	p.runtimeCompiled = runtimeCompiled
 
 	if err := p.eventStream.Init(p.manager, p.config); err != nil {
 		return err
@@ -303,6 +306,11 @@ func (p *Probe) Init() error {
 	p.eventStream.SetMonitor(p.monitor.perfBufferMonitor)
 
 	return nil
+}
+
+// IsRuntimeCompiled returns true if the eBPF programs where successfully runtime compiled
+func (p *Probe) IsRuntimeCompiled() bool {
+	return p.runtimeCompiled
 }
 
 // Setup the runtime security probe
