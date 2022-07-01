@@ -62,7 +62,7 @@ type State interface {
 	RemoveExpiredClients(now time.Time)
 
 	// RemoveConnections removes the given keys from the state
-	RemoveConnections(keys []string)
+	RemoveConnections(conns []*ConnectionStats)
 
 	// StoreClosedConnections stores a batch of closed connections
 	StoreClosedConnections(connections []ConnectionStats)
@@ -287,7 +287,7 @@ func (ns *networkState) RegisterClient(id string) {
 func getConnsByKey(conns []ConnectionStats, buf []byte) map[string]*ConnectionStats {
 	connsByKey := make(map[string]*ConnectionStats, len(conns))
 	for i, c := range conns {
-		key := c.ByteKey(buf)
+		key := c.ByteKeyNAT(buf)
 		connsByKey[string(key)] = &conns[i]
 	}
 	return connsByKey
@@ -449,7 +449,7 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 	closedKeys := make(map[string]struct{}, len(closed))
 	for i := range closed {
 		closedConn := &closed[i]
-		key := string(closedConn.ByteKey(ns.buf))
+		key := string(closedConn.ByteKeyNAT(ns.buf))
 		closedKeys[key] = struct{}{}
 
 		// If the connection is also active, check the epochs to understand what's going on
@@ -580,13 +580,14 @@ func (ns *networkState) RemoveExpiredClients(now time.Time) {
 	}
 }
 
-func (ns *networkState) RemoveConnections(keys []string) {
+func (ns *networkState) RemoveConnections(conns []*ConnectionStats) {
 	ns.Lock()
 	defer ns.Unlock()
 
-	for _, c := range ns.clients {
-		for _, key := range keys {
-			delete(c.stats, key)
+	for _, cl := range ns.clients {
+		for _, c := range conns {
+			key := c.ByteKeyNAT(ns.buf)
+			delete(cl.stats, string(key))
 		}
 	}
 

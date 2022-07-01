@@ -121,9 +121,6 @@ func TestRemoveConnections(t *testing.T) {
 		IntraHost: true,
 	}
 
-	buf := make([]byte, ConnectionByteKeyMaxLen)
-	key := conn.ByteKey(buf)
-
 	clientID := "1"
 	state := newDefaultState().(*networkState)
 	conns := state.GetDelta(clientID, latestEpochTime(), nil, nil, nil).Conns
@@ -136,7 +133,7 @@ func TestRemoveConnections(t *testing.T) {
 	client := state.clients[clientID]
 	assert.Equal(t, 1, len(client.stats))
 
-	state.RemoveConnections([]string{string(key)})
+	state.RemoveConnections([]*ConnectionStats{&conn})
 	assert.Equal(t, 0, len(client.stats))
 }
 
@@ -1421,7 +1418,7 @@ func TestClosedMergingWithAddressColision(t *testing.T) {
 		// assert that the value returned by the second call to `GetDelta` represents c2 - c1
 		delta := state.GetDelta(client, latestEpochTime(), nil, nil, nil)
 		assert.Len(t, delta.Conns, 1)
-		assert.Equal(t, uint64(50), delta.Conns[0].Last.SentBytes)
+		assert.Equal(t, uint64(150), delta.Conns[0].Last.SentBytes)
 	})
 
 }

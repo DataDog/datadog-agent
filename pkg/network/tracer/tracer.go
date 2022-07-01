@@ -514,7 +514,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 	now := time.Now()
 	// Byte keys of the connections to remove
-	keys := make([]string, 0, len(entries))
+	toRemove := make([]*network.ConnectionStats, 0, len(entries))
 	// Remove the entries from the eBPF Map
 	for i := range entries {
 		entry := &entries[i]
@@ -530,13 +530,12 @@ func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 		t.conntracker.DeleteTranslation(*entry)
 
 		// Append the connection key to the keys to remove from the userspace state
-		bk := entry.ByteKey(t.buf)
-		keys = append(keys, string(bk))
+		toRemove = append(toRemove, entry)
 	}
 
-	t.state.RemoveConnections(keys)
+	t.state.RemoveConnections(toRemove)
 
-	log.Debugf("Removed %d connection entries in %s", len(keys), time.Now().Sub(now))
+	log.Debugf("Removed %d connection entries in %s", len(toRemove), time.Now().Sub(now))
 }
 
 func (t *Tracer) timeoutForConn(c *network.ConnectionStats) uint64 {
