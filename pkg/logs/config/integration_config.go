@@ -19,6 +19,7 @@ const (
 	UDPType           = "udp"
 	FileType          = "file"
 	DockerType        = "docker"
+	ContainerdType    = "containerd"
 	JournaldType      = "journald"
 	WindowsEventType  = "windows_event"
 	StringChannelType = "string_channel"
@@ -112,7 +113,7 @@ func (c *LogsConfig) Dump(multiline bool) string {
 		fmt.Fprintf(&b, ws("Identifier: %#v,"), c.Identifier)
 		fmt.Fprintf(&b, ws("ExcludePaths: %#v,"), c.ExcludePaths)
 		fmt.Fprintf(&b, ws("TailingMode: %#v,"), c.TailingMode)
-	case DockerType:
+	case DockerType, ContainerdType:
 		fmt.Fprintf(&b, ws("Image: %#v,"), c.Image)
 		fmt.Fprintf(&b, ws("Label: %#v,"), c.Label)
 		fmt.Fprintf(&b, ws("Name: %#v,"), c.Name)
