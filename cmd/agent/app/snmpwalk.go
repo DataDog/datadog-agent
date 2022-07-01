@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	defaultVersion = "" // match default version of the core check
+	defaultVersion = ""
 	defaultOID     = ""
 	defaultPort    = 161
 
@@ -132,9 +132,7 @@ var snmpwalkCmd = &cobra.Command{
 			os.Exit(1)
 		}
 		if retries == 0 {
-			fmt.Printf("The number of retries can not be 0 \n")
-			cmd.Help()
-			os.Exit(1)
+			retries = defaultRetries
 		}
 
 		// Authentication check
@@ -157,7 +155,7 @@ var snmpwalkCmd = &cobra.Command{
 		} else if snmpVersion == "3" || (snmpVersion == "" && user != "") {
 			setVersion = gosnmp.Version3
 		} else {
-			fmt.Printf("SNMP version not supported: %s, using default version 2c. \n", snmpVersion)
+			fmt.Printf("SNMP version not supported: %s, using default version 2c. \n", snmpVersion) // match default version of the core check
 			setVersion = gosnmp.Version2c
 		}
 
