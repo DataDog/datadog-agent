@@ -408,6 +408,13 @@ build do
       # We have to run these operations in block, so they get applied after operations
       # from the last block
 
+      # Patch applies to only one file: set it explicitly as a target, no need for -p
+      if windows?
+        patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{python_3_embedded}/Lib/site-packages/psutil/__init__.py"
+      else
+        patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{install_dir}/embedded/lib/python3.8/site-packages/psutil/__init__.py"
+      end
+
       # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
       if windows?
         command "#{python} -m pip check"
