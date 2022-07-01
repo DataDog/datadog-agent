@@ -10,6 +10,7 @@ package http
 
 import (
 	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -117,7 +118,7 @@ func (o *sslProgram) ConfigureManager(m *manager.Manager) {
 	})
 
 	probeSysOpen := doSysOpen
-	if sysOpenAt2Supported() {
+	if o.sysOpenAt2Supported() {
 		probeSysOpen = doSysOpenAt2
 	}
 	for _, kprobe := range kprobeKretprobePrefix {
@@ -147,7 +148,7 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 	}
 
 	probeSysOpen := doSysOpen
-	if sysOpenAt2Supported() {
+	if o.sysOpenAt2Supported() {
 		probeSysOpen = doSysOpenAt2
 	}
 	for _, kprobe := range kprobeKretprobePrefix {
@@ -300,7 +301,12 @@ func httpsSupported() bool {
 	return kversion >= kernel.VersionCode(5, 5, 0)
 }
 
-func sysOpenAt2Supported() bool {
+func (o *sslProgram) sysOpenAt2Supported() bool {
+	ksymPath := filepath.Join(o.cfg.ProcRoot, "kallsyms")
+	missing, err := ddebpf.VerifyKernelFuncs(ksymPath, []string{doSysOpenAt2.function})
+	if err == nil && len(missing) == 0 {
+		return true
+	}
 	kversion, err := kernel.HostVersion()
 	if err != nil {
 		log.Error("could not determine the current kernel version. fallback to do_sys_open")
