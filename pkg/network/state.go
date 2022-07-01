@@ -456,14 +456,17 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 		if activeConn, ok := active[key]; ok {
 			// If closed conn is newer it means that the active connection is outdated, let's ignore it
 			if closedConn.LastUpdateEpoch > activeConn.LastUpdateEpoch {
+				log.Debugf("closed conn newer closedConn: %s activeConn: %s", *closedConn, *activeConn)
 				ns.updateConnWithStats(client, key, closedConn)
 			} else if closedConn.LastUpdateEpoch < activeConn.LastUpdateEpoch {
+				log.Debugf("active conn newer closedConn: %s activeConn: %s", *closedConn, *activeConn)
 				// Else if the active conn is newer, it likely means that it became active again
 				// in this case we aggregate the two
 				addConnections(closedConn, activeConn)
 				ns.createStatsForKey(client, key)
 				ns.updateConnWithStatWithActiveConn(client, key, activeConn, closedConn)
 			} else {
+				log.Debugf("time collision closedConn: %s activeConn: %s", *closedConn, *activeConn)
 				// Else the closed connection and the active connection have the same epoch
 				// XXX: For now we assume that the closed connection is the more recent one but this is not guaranteed
 				// To fix this we should have a way to uniquely identify a connection
