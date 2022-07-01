@@ -44,6 +44,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.38.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.38.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/quantile v0.38.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.38.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.38.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/trace v0.38.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.1.1
@@ -132,6 +133,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/sys/mountinfo v0.6.1
 	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb
+	github.com/netsampler/goflow2 v1.1.0
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/open-policy-agent/opa v0.37.2
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.54.0
@@ -141,6 +143,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.12.2
 	github.com/richardartoul/molecule v0.0.0-20210914193524-25d8911bb85b
+	github.com/robfig/cron v1.2.0
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/shirou/gopsutil/v3 v3.22.5
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
@@ -196,7 +199,6 @@ require (
 	k8s.io/metrics v0.23.8
 	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
 	sigs.k8s.io/custom-metrics-apiserver v1.23.0
-
 )
 
 require (
@@ -395,21 +397,11 @@ require (
 	sigs.k8s.io/json v0.0.0-20211208200746-9f7c6b3444d2 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
-)
-
-require github.com/netsampler/goflow2 v1.1.0
-
-require (
 	github.com/DataDog/aptly v1.5.0 // indirect
 	github.com/cavaliergopher/grab/v3 v3.0.1 // indirect
 	github.com/libp2p/go-reuseport v0.1.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	k8s.io/apiextensions-apiserver v0.23.5 // indirect
-)
-
-require (
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.38.0-rc.2
-	github.com/robfig/cron v1.2.0
 )
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
