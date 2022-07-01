@@ -18,6 +18,8 @@ import (
 )
 
 func TestMapCleaner(t *testing.T) {
+	const numMapEntries = 100
+
 	var (
 		key = new(int64)
 		val = new(int64)
@@ -27,28 +29,28 @@ func TestMapCleaner(t *testing.T) {
 		Type:       cebpf.Hash,
 		KeySize:    8,
 		ValueSize:  8,
-		MaxEntries: 100,
+		MaxEntries: numMapEntries,
 	})
 	require.NoError(t, err)
 
 	cleaner, err := NewMapCleaner(m, key, val)
 	require.NoError(t, err)
-	for i := 0; i < 100; i++ {
+	for i := 0; i < numMapEntries; i++ {
 		*key = int64(i)
 		err := m.Put(key, val)
 		assert.Nilf(t, err, "can't put key=%d: %s", i, err)
 	}
-	defer cleaner.Stop()
 
 	// Clean all the even entries
 	cleaner.Clean(100*time.Millisecond, func(now int64, k, v interface{}) bool {
 		key := k.(*int64)
-		shouldDelete := *key%2 == 0
-		return shouldDelete
+		return *key%2 == 0
 	})
 
 	time.Sleep(1 * time.Second)
-	for i := 0; i < 100; i++ {
+	cleaner.Stop()
+
+	for i := 0; i < numMapEntries; i++ {
 		*key = int64(i)
 		err := m.Lookup(key, val)
 
