@@ -34,7 +34,7 @@ int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
 
     bpf_map_update_elem(&conntrack, &orig, &reply, BPF_ANY);
     bpf_map_update_elem(&conntrack, &reply, &orig, BPF_ANY);
-    increment_telemetry_count(registers);
+    increment_telemetry_registers_count();
 
     return 0;
 }
@@ -66,7 +66,7 @@ int kprobe_ctnetlink_fill_info(struct pt_regs* ctx) {
 
     bpf_map_update_elem(&conntrack, &orig, &reply, BPF_ANY);
     bpf_map_update_elem(&conntrack, &reply, &orig, BPF_ANY);
-    increment_telemetry_count(registers);
+    increment_telemetry_registers_count();
 
     return 0;
 }

@@ -97,20 +97,13 @@ static __always_inline int nf_conntrack_tuple_to_conntrack_tuple(conntrack_tuple
     return 1;
 }
 
-static __always_inline void increment_telemetry_count(enum conntrack_telemetry_counter counter_name) {
+static __always_inline void increment_telemetry_registers_count() {
     u64 key = 0;
     conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
     if (val == NULL) {
         return;
     }
-
-    switch (counter_name) {
-    case registers:
-        __sync_fetch_and_add(&val->registers, 1);
-        break;
-    case registers_dropped:
-        __sync_fetch_and_add(&val->registers_dropped, 1);
-    }
+    __sync_fetch_and_add(&val->registers, 1);
 }
 
 static __always_inline int nf_conn_to_conntrack_tuples(struct nf_conn* ct, conntrack_tuple_t* orig, conntrack_tuple_t* reply) {

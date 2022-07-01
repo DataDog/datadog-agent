@@ -386,9 +386,6 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 	if rt, ok := conntrackStats["registers_total"]; ok {
 		tm[network.MonotonicConntrackRegisters] = rt
 	}
-	if rtd, ok := conntrackStats["registers_dropped"]; ok {
-		tm[network.MonotonicConntrackRegistersDropped] = rtd
-	}
 	if sp, ok := conntrackStats["sampling_pct"]; ok {
 		tm[network.ConntrackSamplingPercent] = sp
 	}

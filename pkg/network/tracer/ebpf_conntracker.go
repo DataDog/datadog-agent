@@ -275,7 +275,6 @@ func (e *ebpfConntracker) GetStats() map[string]int64 {
 		log.Tracef("error retrieving the telemetry struct: %s", err)
 	} else {
 		m["registers_total"] = int64(telemetry.Registers)
-		m["registers_dropped"] = int64(telemetry.Dropped)
 	}
 
 	gets := e.stats.gets.Load()
