@@ -89,7 +89,7 @@ func GetKernelHeaders(downloadEnabled bool, headerDirs []string, headerDownloadD
 	}
 
 	downloadedDirs := validateHeaderDirs(hv, getDownloadedHeaderDirs(headerDownloadDir), false)
-	if !containsCriticalHeaders(downloadedDirs) {
+	if len(downloadedDirs) > 0 && !containsCriticalHeaders(downloadedDirs) {
 		// If this happens, it means we've previously downloaded kernel headers containing broken
 		// symlinks. We'll delete these to prevent them from affecting the next download
 		log.Infof("deleting previously downloaded kernel headers")
@@ -104,7 +104,7 @@ func GetKernelHeaders(downloadEnabled bool, headerDirs []string, headerDownloadD
 	log.Debugf("unable to find downloaded kernel headers: no valid headers found")
 
 	if !downloadEnabled {
-		return nil, headersNotFound, fmt.Errorf("no valid matching kernel header directories found")
+		return nil, headersNotFound, fmt.Errorf("no valid matching kernel header directories found. To download kernel headers, set system_probe_config.enable_kernel_header_download to true")
 	}
 
 	d := headerDownloader{aptConfigDir, yumReposDir, zypperReposDir}
