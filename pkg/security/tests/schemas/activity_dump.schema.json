@@ -231,7 +231,47 @@
                         "type": "object"
                     },
                     "dns": {
-                        "type": "object"
+                        "type": "object",
+                        "patternProperties": {
+                            ".*": {
+                                "type": "object",
+                                "properties": {
+                                    "requests": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "type": {
+                                                    "type": "integer"
+                                                },
+                                                "class": {
+                                                    "type": "integer"
+                                                },
+                                                "size": {
+                                                    "type": "integer"
+                                                },
+                                                "count": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "name",
+                                                "type",
+                                                "class",
+                                                "size",
+                                                "count"
+                                            ]
+                                        }
+                                    }
+                                },
+                                "required": [
+                                    "requests"
+                                ]
+                            }
+                        }
                     },
                     "sockets": {
                         "type": "array",
