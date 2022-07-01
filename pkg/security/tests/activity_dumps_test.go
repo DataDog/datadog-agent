@@ -79,7 +79,7 @@ func TestActivityDumps(t *testing.T) {
 					t.Fatal(err)
 				}
 				if !validateActivityDumpSchema(t, string(content)) {
-					t.Fatal(string(content))
+					t.Error(string(content))
 				}
 				jsonOK = true
 
@@ -102,7 +102,7 @@ func TestActivityDumps(t *testing.T) {
 					}
 				}
 				if msgpOK == false {
-					t.Fatal("Bound socket not found on activity dump")
+					t.Error("Bound socket not found on activity dump")
 				}
 
 			default:
@@ -146,7 +146,7 @@ func TestActivityDumps(t *testing.T) {
 					t.Fatal(err)
 				}
 				if !validateActivityDumpSchema(t, string(content)) {
-					t.Fatal(string(content))
+					t.Error(string(content))
 				}
 				jsonOK = true
 
@@ -169,7 +169,7 @@ func TestActivityDumps(t *testing.T) {
 					}
 				}
 				if msgpOK == false {
-					t.Fatal("DNS request not found on activity dump")
+					t.Error("DNS request not found on activity dump")
 				}
 
 			default:
