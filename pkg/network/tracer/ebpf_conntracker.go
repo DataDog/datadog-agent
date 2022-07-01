@@ -147,21 +147,7 @@ func (e *ebpfConntracker) dumpInitialTables(ctx context.Context, cfg *config.Con
 			return err
 		}
 	}
-
-	go func() {
-		// We'll wait a while before detaching the hook in order to give ebpf ample time to finish processing the dump
-		timer := time.NewTimer(1 * time.Minute)
-		for {
-			select {
-			case <-timer.C:
-				break
-			case <-e.stop:
-				break
-			}
-			e.m.DetachHook(manager.ProbeIdentificationPair{EBPFSection: string(probes.ConntrackFillInfo), EBPFFuncName: "kprobe_ctnetlink_fill_info"})
-		}
-	}()
-
+	e.m.DetachHook(manager.ProbeIdentificationPair{EBPFSection: string(probes.ConntrackFillInfo), EBPFFuncName: "kprobe_ctnetlink_fill_info"})
 	return nil
 }
 
@@ -315,7 +301,6 @@ func (e *ebpfConntracker) GetStats() map[string]int64 {
 }
 
 func (e *ebpfConntracker) Close() {
-	close(e.stop)
 	err := e.m.Stop(manager.CleanAll)
 	if err != nil {
 		log.Warnf("error cleaning up ebpf conntrack: %s", err)
