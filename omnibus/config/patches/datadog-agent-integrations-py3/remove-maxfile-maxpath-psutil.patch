@@ -1,3 +1,4 @@
+Partially reverts https://github.com/giampaolo/psutil/pull/1863 to remove the maxpath / maxfile fetch
 diff --git a/psutil/__init__.py b/psutil/__init__.py
 index 1a113bc3..ce962a61 100644
 --- a/psutil/__init__.py
