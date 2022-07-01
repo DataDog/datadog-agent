@@ -206,6 +206,7 @@ func (e *ebpfProgram) Start() error {
 }
 
 func (e *ebpfProgram) Close() error {
+	e.mapCleaner.Stop()
 	err := e.Manager.Stop(manager.CleanAll)
 	e.batchCompletionHandler.Stop()
 	for _, s := range e.subprograms {
