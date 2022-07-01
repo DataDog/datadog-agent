@@ -99,6 +99,7 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 	require.Equal(t, source.Config.Source, child.Config.Source)
 	require.Equal(t, source.Config.Service, child.Config.Service)
 	require.Equal(t, source.Config.Tags, child.Config.Tags)
+	require.Equal(t, sources.DockerSourceType, child.GetSourceType())
 }
 
 func TestMakeFileSource_docker_no_file(t *testing.T) {
@@ -144,22 +145,32 @@ func TestMakeK8sSource(t *testing.T) {
 		cop:               containersorpods.NewDecidedChooser(containersorpods.LogPods),
 		workloadmetaStore: store,
 	}
-	source := sources.NewLogSource("test", &config.LogsConfig{
-		Type:       "docker",
-		Identifier: "abc",
-		Source:     "src",
-		Service:    "svc",
-		Tags:       []string{"tag!"},
-	})
-	child, err := tf.makeFileSource(source)
-	require.NoError(t, err)
-	require.Equal(t, "podns/podname/cname", child.Name)
-	require.Equal(t, "file", child.Config.Type)
-	require.Equal(t, "abc", child.Config.Identifier)
-	require.Equal(t, wildcard, child.Config.Path)
-	require.Equal(t, "src", child.Config.Source)
-	require.Equal(t, "svc", child.Config.Service)
-	require.Equal(t, []string{"tag!"}, child.Config.Tags)
+	for _, sourceConfigType := range []string{"docker", "containerd"} {
+		t.Run("source.Config.Type="+sourceConfigType, func(t *testing.T) {
+			source := sources.NewLogSource("test", &config.LogsConfig{
+				Type:       sourceConfigType,
+				Identifier: "abc",
+				Source:     "src",
+				Service:    "svc",
+				Tags:       []string{"tag!"},
+			})
+			child, err := tf.makeK8sFileSource(source)
+			require.NoError(t, err)
+			require.Equal(t, "podns/podname/cname", child.Name)
+			require.Equal(t, "file", child.Config.Type)
+			require.Equal(t, "abc", child.Config.Identifier)
+			require.Equal(t, wildcard, child.Config.Path)
+			require.Equal(t, "src", child.Config.Source)
+			require.Equal(t, "svc", child.Config.Service)
+			require.Equal(t, []string{"tag!"}, child.Config.Tags)
+			switch sourceConfigType {
+			case "docker":
+				require.Equal(t, sources.DockerSourceType, child.GetSourceType())
+			case "containerd":
+				require.Equal(t, sources.KubernetesSourceType, child.GetSourceType())
+			}
+		})
+	}
 }
 
 func TestMakeK8sSource_pod_not_found(t *testing.T) {

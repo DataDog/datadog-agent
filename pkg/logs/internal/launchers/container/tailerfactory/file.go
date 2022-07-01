@@ -206,6 +206,15 @@ func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSou
 			ProcessingRules: source.Config.ProcessingRules,
 		})
 
+	switch source.Config.Type {
+	case config.DockerType:
+		// docker runtime uses SourceType "docker"
+		fileSource.SetSourceType(sources.DockerSourceType)
+	default:
+		// containerd runtime uses SourceType "kubernetes"
+		fileSource.SetSourceType(sources.KubernetesSourceType)
+	}
+
 	return fileSource, nil
 }
 
