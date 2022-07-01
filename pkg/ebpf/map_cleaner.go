@@ -80,8 +80,6 @@ func (mc *MapCleaner) Clean(interval time.Duration, shouldClean func(nowTS int64
 			for {
 				select {
 				case <-ticker.C:
-					// TODO: use pkg/security/probe/time_resolver.go to account for
-					// clock drifts when system was suspended
 					now, err := NowNanoseconds()
 					if err != nil {
 						break
