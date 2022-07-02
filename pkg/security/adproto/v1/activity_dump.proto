@@ -39,6 +39,7 @@ message ProcessActivityNode {
     repeated FileActivityNode files = 4;
     repeated DNSNode dns_names = 5;
     repeated SocketNode sockets = 6;
+    repeated uint32 syscalls = 7;
 }
 
 message ProcessInfo {

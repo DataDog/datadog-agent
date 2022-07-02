@@ -2114,33 +2114,52 @@ func (z *ProcessActivityNode) DecodeMsg(dc *msgp.Reader) (err error) {
 					}
 				}
 			}
-		case "children":
+		case "syscalls":
 			var zb0007 uint32
 			zb0007, err = dc.ReadArrayHeader()
+			if err != nil {
+				err = msgp.WrapError(err, "Syscalls")
+				return
+			}
+			if cap(z.Syscalls) >= int(zb0007) {
+				z.Syscalls = (z.Syscalls)[:zb0007]
+			} else {
+				z.Syscalls = make([]int, zb0007)
+			}
+			for za0007 := range z.Syscalls {
+				z.Syscalls[za0007], err = dc.ReadInt()
+				if err != nil {
+					err = msgp.WrapError(err, "Syscalls", za0007)
+					return
+				}
+			}
+		case "children":
+			var zb0008 uint32
+			zb0008, err = dc.ReadArrayHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "Children")
 				return
 			}
-			if cap(z.Children) >= int(zb0007) {
-				z.Children = (z.Children)[:zb0007]
+			if cap(z.Children) >= int(zb0008) {
+				z.Children = (z.Children)[:zb0008]
 			} else {
-				z.Children = make([]*ProcessActivityNode, zb0007)
+				z.Children = make([]*ProcessActivityNode, zb0008)
 			}
-			for za0007 := range z.Children {
+			for za0008 := range z.Children {
 				if dc.IsNil() {
 					err = dc.ReadNil()
 					if err != nil {
-						err = msgp.WrapError(err, "Children", za0007)
+						err = msgp.WrapError(err, "Children", za0008)
 						return
 					}
-					z.Children[za0007] = nil
+					z.Children[za0008] = nil
 				} else {
-					if z.Children[za0007] == nil {
-						z.Children[za0007] = new(ProcessActivityNode)
+					if z.Children[za0008] == nil {
+						z.Children[za0008] = new(ProcessActivityNode)
 					}
-					err = z.Children[za0007].DecodeMsg(dc)
+					err = z.Children[za0008].DecodeMsg(dc)
 					if err != nil {
-						err = msgp.WrapError(err, "Children", za0007)
+						err = msgp.WrapError(err, "Children", za0008)
 						return
 					}
 				}
@@ -2159,8 +2178,8 @@ func (z *ProcessActivityNode) DecodeMsg(dc *msgp.Reader) (err error) {
 // EncodeMsg implements msgp.Encodable
 func (z *ProcessActivityNode) EncodeMsg(en *msgp.Writer) (err error) {
 	// omitempty: check for empty values
-	zb0001Len := uint32(6)
-	var zb0001Mask uint8 /* 6 bits */
+	zb0001Len := uint32(7)
+	var zb0001Mask uint8 /* 7 bits */
 	if z.Files == nil {
 		zb0001Len--
 		zb0001Mask |= 0x4
@@ -2173,9 +2192,13 @@ func (z *ProcessActivityNode) EncodeMsg(en *msgp.Writer) (err error) {
 		zb0001Len--
 		zb0001Mask |= 0x10
 	}
-	if z.Children == nil {
+	if z.Syscalls == nil {
 		zb0001Len--
 		zb0001Mask |= 0x20
+	}
+	if z.Children == nil {
+		zb0001Len--
+		zb0001Mask |= 0x40
 	}
 	// variable map header, size zb0001Len
 	err = en.Append(0x80 | uint8(zb0001Len))
@@ -2307,6 +2330,25 @@ func (z *ProcessActivityNode) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 	if (zb0001Mask & 0x20) == 0 { // if not empty
+		// write "syscalls"
+		err = en.Append(0xa8, 0x73, 0x79, 0x73, 0x63, 0x61, 0x6c, 0x6c, 0x73)
+		if err != nil {
+			return
+		}
+		err = en.WriteArrayHeader(uint32(len(z.Syscalls)))
+		if err != nil {
+			err = msgp.WrapError(err, "Syscalls")
+			return
+		}
+		for za0007 := range z.Syscalls {
+			err = en.WriteInt(z.Syscalls[za0007])
+			if err != nil {
+				err = msgp.WrapError(err, "Syscalls", za0007)
+				return
+			}
+		}
+	}
+	if (zb0001Mask & 0x40) == 0 { // if not empty
 		// write "children"
 		err = en.Append(0xa8, 0x63, 0x68, 0x69, 0x6c, 0x64, 0x72, 0x65, 0x6e)
 		if err != nil {
@@ -2317,16 +2359,16 @@ func (z *ProcessActivityNode) EncodeMsg(en *msgp.Writer) (err error) {
 			err = msgp.WrapError(err, "Children")
 			return
 		}
-		for za0007 := range z.Children {
-			if z.Children[za0007] == nil {
+		for za0008 := range z.Children {
+			if z.Children[za0008] == nil {
 				err = en.WriteNil()
 				if err != nil {
 					return
 				}
 			} else {
-				err = z.Children[za0007].EncodeMsg(en)
+				err = z.Children[za0008].EncodeMsg(en)
 				if err != nil {
-					err = msgp.WrapError(err, "Children", za0007)
+					err = msgp.WrapError(err, "Children", za0008)
 					return
 				}
 			}
@@ -2339,8 +2381,8 @@ func (z *ProcessActivityNode) EncodeMsg(en *msgp.Writer) (err error) {
 func (z *ProcessActivityNode) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// omitempty: check for empty values
-	zb0001Len := uint32(6)
-	var zb0001Mask uint8 /* 6 bits */
+	zb0001Len := uint32(7)
+	var zb0001Mask uint8 /* 7 bits */
 	if z.Files == nil {
 		zb0001Len--
 		zb0001Mask |= 0x4
@@ -2353,9 +2395,13 @@ func (z *ProcessActivityNode) MarshalMsg(b []byte) (o []byte, err error) {
 		zb0001Len--
 		zb0001Mask |= 0x10
 	}
-	if z.Children == nil {
+	if z.Syscalls == nil {
 		zb0001Len--
 		zb0001Mask |= 0x20
+	}
+	if z.Children == nil {
+		zb0001Len--
+		zb0001Mask |= 0x40
 	}
 	// variable map header, size zb0001Len
 	o = append(o, 0x80|uint8(zb0001Len))
@@ -2433,16 +2479,24 @@ func (z *ProcessActivityNode) MarshalMsg(b []byte) (o []byte, err error) {
 		}
 	}
 	if (zb0001Mask & 0x20) == 0 { // if not empty
+		// string "syscalls"
+		o = append(o, 0xa8, 0x73, 0x79, 0x73, 0x63, 0x61, 0x6c, 0x6c, 0x73)
+		o = msgp.AppendArrayHeader(o, uint32(len(z.Syscalls)))
+		for za0007 := range z.Syscalls {
+			o = msgp.AppendInt(o, z.Syscalls[za0007])
+		}
+	}
+	if (zb0001Mask & 0x40) == 0 { // if not empty
 		// string "children"
 		o = append(o, 0xa8, 0x63, 0x68, 0x69, 0x6c, 0x64, 0x72, 0x65, 0x6e)
 		o = msgp.AppendArrayHeader(o, uint32(len(z.Children)))
-		for za0007 := range z.Children {
-			if z.Children[za0007] == nil {
+		for za0008 := range z.Children {
+			if z.Children[za0008] == nil {
 				o = msgp.AppendNil(o)
 			} else {
-				o, err = z.Children[za0007].MarshalMsg(o)
+				o, err = z.Children[za0008].MarshalMsg(o)
 				if err != nil {
-					err = msgp.WrapError(err, "Children", za0007)
+					err = msgp.WrapError(err, "Children", za0008)
 					return
 				}
 			}
@@ -2629,32 +2683,51 @@ func (z *ProcessActivityNode) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					}
 				}
 			}
-		case "children":
+		case "syscalls":
 			var zb0007 uint32
 			zb0007, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Syscalls")
+				return
+			}
+			if cap(z.Syscalls) >= int(zb0007) {
+				z.Syscalls = (z.Syscalls)[:zb0007]
+			} else {
+				z.Syscalls = make([]int, zb0007)
+			}
+			for za0007 := range z.Syscalls {
+				z.Syscalls[za0007], bts, err = msgp.ReadIntBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Syscalls", za0007)
+					return
+				}
+			}
+		case "children":
+			var zb0008 uint32
+			zb0008, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Children")
 				return
 			}
-			if cap(z.Children) >= int(zb0007) {
-				z.Children = (z.Children)[:zb0007]
+			if cap(z.Children) >= int(zb0008) {
+				z.Children = (z.Children)[:zb0008]
 			} else {
-				z.Children = make([]*ProcessActivityNode, zb0007)
+				z.Children = make([]*ProcessActivityNode, zb0008)
 			}
-			for za0007 := range z.Children {
+			for za0008 := range z.Children {
 				if msgp.IsNil(bts) {
 					bts, err = msgp.ReadNilBytes(bts)
 					if err != nil {
 						return
 					}
-					z.Children[za0007] = nil
+					z.Children[za0008] = nil
 				} else {
-					if z.Children[za0007] == nil {
-						z.Children[za0007] = new(ProcessActivityNode)
+					if z.Children[za0008] == nil {
+						z.Children[za0008] = new(ProcessActivityNode)
 					}
-					bts, err = z.Children[za0007].UnmarshalMsg(bts)
+					bts, err = z.Children[za0008].UnmarshalMsg(bts)
 					if err != nil {
-						err = msgp.WrapError(err, "Children", za0007)
+						err = msgp.WrapError(err, "Children", za0008)
 						return
 					}
 				}
@@ -2708,12 +2781,12 @@ func (z *ProcessActivityNode) Msgsize() (s int) {
 			s += z.Sockets[za0006].Msgsize()
 		}
 	}
-	s += 9 + msgp.ArrayHeaderSize
-	for za0007 := range z.Children {
-		if z.Children[za0007] == nil {
+	s += 9 + msgp.ArrayHeaderSize + (len(z.Syscalls) * (msgp.IntSize)) + 9 + msgp.ArrayHeaderSize
+	for za0008 := range z.Children {
+		if z.Children[za0008] == nil {
 			s += msgp.NilSize
 		} else {
-			s += z.Children[za0007].Msgsize()
+			s += z.Children[za0008].Msgsize()
 		}
 	}
 	return

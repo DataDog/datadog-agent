@@ -18,10 +18,12 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	adproto "github.com/DataDog/datadog-agent/pkg/security/adproto/v1"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"google.golang.org/protobuf/proto"
 )
 
 var expectedFormats = []string{"json", "msgp", "protobuf", "protojson"}
@@ -67,7 +69,7 @@ func TestActivityDumps(t *testing.T) {
 		validateActivityDumpOutputs(t, test, expectedFormats, outputFiles, func(ad *probe.ActivityDump) bool {
 			node := ad.FindFirstMatchingNode("syscall_tester")
 			if node == nil {
-				t.Fatal("Node not found on activity dump")
+				t.Fatal("Node not found in activity dump")
 			}
 			for _, s := range node.Sockets {
 				if s.Family == "AF_INET" && s.Bind.Port == 4242 && s.Bind.IP == "0.0.0.0" {
@@ -99,7 +101,7 @@ func TestActivityDumps(t *testing.T) {
 		validateActivityDumpOutputs(t, test, expectedFormats, outputFiles, func(ad *probe.ActivityDump) bool {
 			node := ad.FindFirstMatchingNode("testsuite")
 			if node == nil {
-				t.Fatal("Node not found on activity dump")
+				t.Fatal("Node not found in activity dump")
 			}
 			for name := range node.DNSNames {
 				if name == "foo.bar" {
@@ -136,7 +138,7 @@ func TestActivityDumps(t *testing.T) {
 		validateActivityDumpOutputs(t, test, expectedFormats, outputFiles, func(ad *probe.ActivityDump) bool {
 			node := ad.FindFirstMatchingNode("testsuite")
 			if node == nil {
-				t.Fatal("Node not found on activity dump")
+				t.Fatal("Node not found in activity dump")
 			}
 
 			current := node.Files
@@ -152,6 +154,52 @@ func TestActivityDumps(t *testing.T) {
 			}
 
 			return true
+		})
+	})
+
+	test.Run(t, "activity-dump-comm-syscalls", func(t *testing.T, kind wrapperType,
+		cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+
+		outputFiles, err := test.StartActivityDumpComm(t, "syscall_tester", outputDir, expectedFormats)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		args := []string{"bind", "AF_INET", "any", "tcp"}
+		envs := []string{}
+		cmd := cmdFunc(syscallTester, args, envs)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatal(fmt.Errorf("%s: %w", out, err))
+		}
+
+		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
+
+		err = test.StopActivityDumpComm(t, "syscall_tester")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		validateActivityDumpOutputs(t, test, expectedFormats, outputFiles, func(ad *probe.ActivityDump) bool {
+			node := ad.FindFirstMatchingNode("syscall_tester")
+			if node == nil {
+				t.Fatal("Node not found in activity dump")
+			}
+			var exitOK, execveOK bool
+			for _, s := range node.Syscalls {
+				if s == int(model.SysExit) || s == int(model.SysExitGroup) {
+					exitOK = true
+				}
+				if s == int(model.SysExecve) || s == int(model.SysExecveat) {
+					execveOK = true
+				}
+			}
+			if !exitOK {
+				t.Errorf("exit syscall not found in activity dump: %+v", node.Syscalls)
+			}
+			if !execveOK {
+				t.Errorf("execve syscall not found in activity dump: %+v", node.Syscalls)
+			}
+			return exitOK && execveOK
 		})
 	})
 }

@@ -69,6 +69,7 @@ func protoDecodeProcessActivityNode(pan *adproto.ProcessActivityNode) *ProcessAc
 		Files:          make(map[string]*FileActivityNode, len(pan.Files)),
 		DNSNames:       make(map[string]*DNSNode, len(pan.DnsNames)),
 		Sockets:        make([]*SocketNode, 0, len(pan.Sockets)),
+		Syscalls:       make([]int, 0, len(pan.Syscalls)),
 	}
 
 	for _, child := range pan.Children {
@@ -90,6 +91,10 @@ func protoDecodeProcessActivityNode(pan *adproto.ProcessActivityNode) *ProcessAc
 
 	for _, socket := range pan.Sockets {
 		ppan.Sockets = append(ppan.Sockets, protoDecodeProtoSocket(socket))
+	}
+
+	for _, sysc := range pan.Syscalls {
+		ppan.Syscalls = append(ppan.Syscalls, int(sysc))
 	}
 
 	return ppan

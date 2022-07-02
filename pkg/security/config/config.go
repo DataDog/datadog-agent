@@ -50,8 +50,6 @@ type Config struct {
 	FlushDiscarderWindow int
 	// SocketPath is the path to the socket that is used to communicate with the security agent
 	SocketPath string
-	// SyscallMonitor defines if the syscall monitor should be activated or not
-	SyscallMonitor bool
 	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
 	EventServerBurst int
 	// EventServerRate defines the grpc server rate at which events can be sent
@@ -136,6 +134,11 @@ type Config struct {
 	ActivityDumpRemoteStorageFormats []dump.StorageFormat
 	// ActivityDumpRemoteStorageCompression defines if the remote storage should compress the persisted data.
 	ActivityDumpRemoteStorageCompression bool
+	// ActivityDumpSyscallMonitor defines if activity dumps should collect syscalls or not
+	ActivityDumpSyscallMonitor bool
+	// ActivityDumpSyscallMonitorPeriod defines the minimum amount of time to wait between 2 syscalls event for the same
+	// process.
+	ActivityDumpSyscallMonitorPeriod time.Duration
 
 	// RuntimeMonitor defines if the runtime monitor should be enabled
 	RuntimeMonitor bool
@@ -189,7 +192,6 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		EnableDiscarders:                   coreconfig.Datadog.GetBool("runtime_security_config.enable_discarders"),
 		FlushDiscarderWindow:               coreconfig.Datadog.GetInt("runtime_security_config.flush_discarder_window"),
 		SocketPath:                         coreconfig.Datadog.GetString("runtime_security_config.socket"),
-		SyscallMonitor:                     coreconfig.Datadog.GetBool("runtime_security_config.syscall_monitor.enabled"),
 		PoliciesDir:                        coreconfig.Datadog.GetString("runtime_security_config.policies.dir"),
 		WatchPoliciesDir:                   coreconfig.Datadog.GetBool("runtime_security_config.policies.watch_dir"),
 		EventServerBurst:                   coreconfig.Datadog.GetInt("runtime_security_config.event_server.burst"),
@@ -237,6 +239,8 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpLocalStorageMaxDumpsCount: coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.local_storage.max_dumps_count"),
 		ActivityDumpLocalStorageCompression:   coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.local_storage.compression"),
 		ActivityDumpRemoteStorageCompression:  coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.remote_storage.compression"),
+		ActivityDumpSyscallMonitor:            coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.syscall_monitor.enabled"),
+		ActivityDumpSyscallMonitorPeriod:      time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.syscall_monitor.period")) * time.Second,
 	}
 
 	// if runtime is enabled then we force fim
