@@ -20,3 +20,9 @@ driver:
   name: gce
   project: datadog-sandbox
   zone: <%= location %>
+
+platforms:
+  - name: ubuntu-20.04
+    driver:
+      image_project: ubuntu-os-cloud
+      image_family: ubuntu-2004-lts
