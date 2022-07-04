@@ -21,7 +21,7 @@ type dbBucket map[string][]byte
 // All reads first read the in-memory data and fallback to the on disk one.
 // A call to `commit` will flush all changes to the DB in a single transaction.
 type transactionalStore struct {
-	// underlying database where we apply nany changes atomicallt
+	// underlying database where we apply many changes atomically
 	db *bbolt.DB
 
 	// lock to access the cached data and bbolt db
