@@ -10,6 +10,7 @@ package kubernetesapiserver
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,12 +25,10 @@ import (
 func TestFormatEvent(t *testing.T) {
 	ev1 := createEvent(2, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", "Normal", 709662600)
 	ev2 := createEvent(3, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Started", "Started container", "Normal", 709662600)
-	// ev3 := createEvent(3, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Failed", "Error: error response: filepath: ~file~", "Normal", 709662600)
 
 	eventList := []*v1.Event{
 		ev1,
 		ev2,
-		// ev3,
 	}
 	b := &kubernetesEventBundle{
 		name:          "dca-789976f5d7-2ljx6",
@@ -61,7 +60,38 @@ func TestFormatEvent(t *testing.T) {
 }
 
 func TestFormatEventEscapeCharacter(t *testing.T) {
-	assert.Equal(1, 2)
+	event := createEvent(3, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Failed", "Error: error response: filepath: ~file~", "Normal", 709662600)
+
+	b := &kubernetesEventBundle{
+		name:          "dca-789976f5d7-2ljx6",
+		objUID:        types.UID("e6417a7f-f566-11e7-9749-0e4863e1cbf4"),
+		component:     "Pod",
+		kind:          "Pod",
+		countByAction: make(map[string]int),
+	}
+
+	assert.NoError(t, b.addEvent(event))
+
+	expectedOutput := metrics.Event{
+		Title:          fmt.Sprintf("Events from the %s", b.readableKey),
+		Priority:       metrics.EventPriorityNormal,
+		Host:           "",
+		SourceTypeName: "kubernetes",
+		EventType:      kubernetesAPIServerCheckName,
+		Ts:             int64(b.lastTimestamp),
+		Tags:           []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name), fmt.Sprintf("pod_name:%s", b.name), fmt.Sprintf("namespace:%s", "default"), fmt.Sprintf("kube_namespace:%s", "default")},
+		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", b.objUID),
+	}
+
+	expectedOutput.Text = "%%% \n" + fmt.Sprintf("%s \n _Events emitted by the %s seen at %s since %s_ \n", formatStringIntMap(b.countByAction), b.component, time.Unix(int64(b.lastTimestamp), 0), time.Unix(int64(b.timeStamp), 0)) + "\n %%%"
+	expectedOutput.Text = strings.ReplaceAll(expectedOutput.Text, "~", "\\~")
+
+	providerIDCache := cache.New(defaultCacheExpire, defaultCachePurge)
+	output, err := b.formatEvents("", providerIDCache)
+
+	assert.Nil(t, err, "not nil")
+	assert.Equal(t, expectedOutput.Text, output.Text)
+	assert.ElementsMatch(t, expectedOutput.Tags, output.Tags)
 }
 
 func TestFormatEventWithNodename(t *testing.T) {
