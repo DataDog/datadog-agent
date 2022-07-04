@@ -9,6 +9,7 @@ import "github.com/DataDog/datadog-agent/pkg/networkdiscovery/common"
 
 // NetworkDiscoveryConfig contains configuration for NetFlow collector.
 type NetworkDiscoveryConfig struct {
+	// TODO: Declare configs in agent config.go
 	StopTimeout int `mapstructure:"stop_timeout"`
 }
 
