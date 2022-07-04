@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/networkdiscovery"
 	"net/http"
 	"os"
 	"os/signal"
@@ -444,6 +445,21 @@ func StartAgent() error {
 		}
 	}
 
+	// Start NetworkDiscovery server
+	// This must happen after LoadComponents is set up (via common.LoadComponents).
+	// netflow.StartServer uses AgentDemultiplexer, that uses ContextResolver, that uses the tagger (initialized by LoadComponents)
+	if networkdiscovery.IsEnabled() {
+		sender, err := demux.GetDefaultSender()
+		if err != nil {
+			log.Errorf("Failed to get default sender for NetworkDiscovery server: %s", err)
+		} else {
+			err = networkdiscovery.StartServer(sender)
+			if err != nil {
+				log.Errorf("Failed to start NetworkDiscovery server: %s", err)
+			}
+		}
+	}
+
 	// load and run all configs in AD
 	common.AC.LoadAndRun()
 
@@ -498,6 +514,7 @@ func StopAgent() {
 	}
 	traps.StopServer()
 	netflow.StopServer()
+	networkdiscovery.StopServer()
 	api.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
