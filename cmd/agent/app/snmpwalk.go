@@ -257,6 +257,7 @@ var snmpwalkCmd = &cobra.Command{
 		if err != nil {
 			fmt.Printf("Connect err: %v\n", err)
 			os.Exit(1)
+			return nil
 		}
 		defer snmp.Conn.Close()
 
