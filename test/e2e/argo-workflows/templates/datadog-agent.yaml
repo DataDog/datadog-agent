@@ -14,6 +14,9 @@ spec:
           - name: agent-image-tag
           - name: cluster-agent-image-repository
           - name: cluster-agent-image-tag
+          - name: ci_commit_short_sha
+          - name: ci_pipeline_id
+          - name: ci_job_id
       script:
         image: alpine/helm:3.9.0
         envFrom:
@@ -33,9 +36,14 @@ spec:
             site: {{inputs.parameters.site}}
             apiKey: $DD_API_KEY
             appKey: $DD_APP_KEY
+            additional_endpoints:
+              https://agent.datadoghq.com.: $DD_DDDEV_API_KEY
             tags:
               - tag1
               - tag2
+              - ci_commit_short_sha:{{inputs.parameters.ci_commit_short_sha}}
+              - ci_pipeline_id:{{inputs.parameters.ci_pipeline_id}}
+              - ci_job_id:{{inputs.parameters.ci_job_id}}
             kubelet:
               tlsVerify: false
             env:
