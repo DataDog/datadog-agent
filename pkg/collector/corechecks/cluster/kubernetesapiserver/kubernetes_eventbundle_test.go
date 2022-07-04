@@ -10,7 +10,6 @@ package kubernetesapiserver
 import (
 	"fmt"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -82,9 +81,10 @@ func TestFormatEventEscapeCharacter(t *testing.T) {
 		Tags:           []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name), fmt.Sprintf("pod_name:%s", b.name), fmt.Sprintf("namespace:%s", "default"), fmt.Sprintf("kube_namespace:%s", "default")},
 		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", b.objUID),
 	}
-
-	expectedOutput.Text = "%%% \n" + fmt.Sprintf("%s \n _Events emitted by the %s seen at %s since %s_ \n", formatStringIntMap(b.countByAction), b.component, time.Unix(int64(b.lastTimestamp), 0), time.Unix(int64(b.timeStamp), 0)) + "\n %%%"
-	expectedOutput.Text = strings.ReplaceAll(expectedOutput.Text, "~", "\\~")
+	expectedOutput.Text = "%%% \n" +
+		"3 **Failed**: Error: error response: filepath: \\~file\\~\n" +
+		fmt.Sprintf(" \n _Events emitted by the %s seen at %s since %s_ \n", b.component, time.Unix(int64(b.lastTimestamp), 0), time.Unix(int64(b.timeStamp), 0)) + "\n" +
+		" %%%"
 
 	providerIDCache := cache.New(defaultCacheExpire, defaultCachePurge)
 	output, err := b.formatEvents("", providerIDCache)
