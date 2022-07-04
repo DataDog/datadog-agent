@@ -92,6 +92,7 @@ type Payload struct {
 	RequestID          string         `json:"requestId"`
 }
 
+// FlushableAgent allows flushing
 type FlushableAgent interface {
 	Flush()
 }
