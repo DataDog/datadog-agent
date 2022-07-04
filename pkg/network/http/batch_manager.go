@@ -129,5 +129,9 @@ func (m *batchManager) GetPendingTransactions() []httpTX {
 		}
 	}
 
+	for _, tx := range transactions {
+		tx.PostProcess()
+	}
+
 	return transactions
 }

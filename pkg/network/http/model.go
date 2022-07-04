@@ -40,6 +40,23 @@ func (k *httpBatchKey) Prepare(n httpNotification) {
 	k.page_num = C.uint(int(n.batch_idx) % HTTPBatchPages)
 }
 
+func (tx *httpTX) PostProcess() {
+	b := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.request_fragment))
+	fSz := tx.fragmentSize()
+
+	postProcessFragment(b, fSz)
+}
+
+func (tx *httpTX) fragmentSize() int {
+	return int(tx.fragment_sz)
+}
+
+func postProcessFragment(b [HTTPBufferSize]byte, fSz int) {
+	for i := fSz; i < HTTPBufferSize; i++ {
+		b[i] = 0
+	}
+}
+
 // Path returns the URL from the request fragment captured in eBPF with
 // GET variables excluded.
 // Example:
