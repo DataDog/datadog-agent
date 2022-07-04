@@ -4,8 +4,4 @@
 
 package runtime
 
-<<<<<<< HEAD
 var Http = NewRuntimeAsset("http.c", "6fea06a64a16b29bdbcf55dca1d5001485b437da7344d2e4002853c05667cd39")
-=======
-var Http = NewRuntimeAsset("http.c", "d627e4b84011bbd2f1713a414039e692443f50278c63321bafcea5aaa3ccc601")
->>>>>>> 9c42228dc (reading complete size in fragment buffer, and post processing later)

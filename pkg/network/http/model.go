@@ -41,17 +41,16 @@ func (k *httpBatchKey) Prepare(n httpNotification) {
 }
 
 func (tx *httpTX) PostProcess() {
-	b := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.request_fragment))
-	fSz := tx.fragmentSize()
-
-	postProcessFragment(b, fSz)
+	postProcessFragment(tx)
 }
 
 func (tx *httpTX) fragmentSize() int {
 	return int(tx.fragment_sz)
 }
 
-func postProcessFragment(b [HTTPBufferSize]byte, fSz int) {
+func postProcessFragment(tx *httpTX) {
+	b := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.request_fragment))
+	fSz := tx.fragmentSize()
 	for i := fSz; i < HTTPBufferSize; i++ {
 		b[i] = 0
 	}

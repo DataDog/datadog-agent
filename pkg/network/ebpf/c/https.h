@@ -16,8 +16,7 @@ static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t 
     http_transaction_t http;
     __builtin_memset(&http, 0, sizeof(http));
     __builtin_memcpy(&http.tup, t, sizeof(conn_tuple_t));
-    size_t fsz = read_into_buffer((char *)http.request_fragment, buffer, len);
-    http.fragment_sz = fsz;
+    http.fragment_sz = read_into_buffer((char *)http.request_fragment, buffer, len);
     http.owned_by_src_port = http.tup.sport;
     http_process(&http, NULL, tags);
 }
