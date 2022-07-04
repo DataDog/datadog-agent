@@ -102,6 +102,7 @@ var snmpwalkCmd = &cobra.Command{
 			fmt.Print("Missing argument: IP address\n")
 			cmd.Help()
 			os.Exit(1)
+			return nil
 		} else if len(args) == 1 {
 			address = args[0]
 			oid = defaultOID
@@ -112,6 +113,7 @@ var snmpwalkCmd = &cobra.Command{
 			fmt.Printf("The number of arguments must be between 1 and 2. %d arguments were given.\n", len(args))
 			cmd.Help()
 			os.Exit(1)
+			return nil
 		}
 		if strings.Contains(address, ":") {
 			deviceIP = address[:strings.Index(address, ":")]
@@ -130,6 +132,7 @@ var snmpwalkCmd = &cobra.Command{
 			fmt.Printf("Timeout can not be 0 \n")
 			cmd.Help()
 			os.Exit(1)
+			return nil
 		}
 
 		// Authentication check
@@ -141,6 +144,7 @@ var snmpwalkCmd = &cobra.Command{
 				fmt.Printf("No authentication mechanism specified \n")
 				cmd.Help()
 				os.Exit(1)
+				return nil
 			}
 		}
 
@@ -178,6 +182,7 @@ var snmpwalkCmd = &cobra.Command{
 				fmt.Printf("Unsupported authentication protocol: %s \n", authProt)
 				cmd.Help()
 				os.Exit(1)
+				return nil
 			}
 
 			// Privacy Protocol
@@ -200,6 +205,7 @@ var snmpwalkCmd = &cobra.Command{
 				fmt.Printf("Unsupported privacy protocol: %s \n", privProt)
 				cmd.Help()
 				os.Exit(1)
+				return nil
 			}
 
 			// MsgFlags
@@ -222,6 +228,7 @@ var snmpwalkCmd = &cobra.Command{
 				fmt.Printf("Unsupported security level: %s \n", securityLevel)
 				cmd.Help()
 				os.Exit(1)
+				return nil
 			}
 		}
 		// Set SNMP parameters
