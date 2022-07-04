@@ -35,12 +35,14 @@ type info struct {
 	value   string
 }
 
+// Metadata holds the container's metadata
 type Metadata struct {
 	containerID *info
 	region      *info
 	projectID   *info
 }
 
+// TagMap returns the container's metadata in a map
 func (metadata *Metadata) TagMap() map[string]string {
 	tagMap := map[string]string{}
 	if metadata.containerID != nil {
@@ -55,6 +57,7 @@ func (metadata *Metadata) TagMap() map[string]string {
 	return tagMap
 }
 
+// GetDefaultConfig returns the medatadata's default config
 func GetDefaultConfig() *Config {
 	return &Config{
 		containerIDURL: fmt.Sprintf("%s%s", defaultBaseURL, defaultContainerIDURL),
@@ -64,6 +67,7 @@ func GetDefaultConfig() *Config {
 	}
 }
 
+// GetMetaData returns the container's metadata
 func GetMetaData(config *Config) *Metadata {
 	wg := sync.WaitGroup{}
 	wg.Add(3)

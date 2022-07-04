@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Run is the entrypoint of the init process. It will spawn the customer process
 func Run(logConfig *serverlessLog.Config, metricAgent *metrics.ServerlessMetricAgent, traceAgent *trace.ServerlessTraceAgent, args []string) {
 	serverlessLog.Write(logConfig, []byte(fmt.Sprintf("[datadog init process] running cmd = >%v<", args)))
 	err := execute(logConfig, metricAgent, traceAgent, args)

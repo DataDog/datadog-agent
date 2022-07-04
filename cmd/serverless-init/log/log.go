@@ -28,6 +28,7 @@ const (
 	sourceName          = "Google Cloud Run"
 )
 
+// Config holds the log configuration
 type Config struct {
 	FlushTimeout time.Duration
 	Metadata     *metadata.Metadata
@@ -37,10 +38,12 @@ type Config struct {
 	isEnabled    bool
 }
 
+// CustomWriter wraps the log config to allow stdout/stderr redirection
 type CustomWriter struct {
 	LogConfig *Config
 }
 
+// CreateConfig builds and returns a log config
 func CreateConfig(metadata *metadata.Metadata) *Config {
 	return &Config{
 		FlushTimeout: defaultFlushTimeout,
@@ -52,6 +55,7 @@ func CreateConfig(metadata *metadata.Metadata) *Config {
 	}
 }
 
+// Write writes the log message to the log message channel for processing
 func Write(conf *Config, msgToSend []byte) {
 	if conf.isEnabled {
 		logMessage := &logConfig.ChannelMessage{
@@ -61,6 +65,7 @@ func Write(conf *Config, msgToSend []byte) {
 	}
 }
 
+// SetupLog creates the log agent and sets the base tags
 func SetupLog(conf *Config) {
 	if err := config.SetupLogger(
 		conf.loggerName,

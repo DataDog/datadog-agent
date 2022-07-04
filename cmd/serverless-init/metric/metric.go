@@ -12,10 +12,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
+// AddColdStartMetric adds the coldstart metric to the demultiplexer
 func AddColdStartMetric(tags []string, timestamp time.Time, demux aggregator.Demultiplexer) {
 	add("gcp.run.enhanced.cold_start", tags, time.Now(), demux)
 }
 
+// AddShutdownMetric adds the shutdown metric to the demultiplexer
 func AddShutdownMetric(tags []string, timestamp time.Time, demux aggregator.Demultiplexer) {
 	add("gcp.run.enhanced.shutdown", tags, time.Now(), demux)
 }
