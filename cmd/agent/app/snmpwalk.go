@@ -100,7 +100,7 @@ var snmpwalkCmd = &cobra.Command{
 		// Get args
 		if len(args) == 0 {
 			fmt.Print("Missing argument: IP address\n")
-			cmd.Help()
+			cmd.Help() //nolint:errcheck
 			os.Exit(1)
 			return nil
 		} else if len(args) == 1 {
@@ -111,7 +111,7 @@ var snmpwalkCmd = &cobra.Command{
 			oid = args[1]
 		} else {
 			fmt.Printf("The number of arguments must be between 1 and 2. %d arguments were given.\n", len(args))
-			cmd.Help()
+			cmd.Help() //nolint:errcheck
 			os.Exit(1)
 			return nil
 		}
@@ -130,7 +130,7 @@ var snmpwalkCmd = &cobra.Command{
 		// Communication options check
 		if timeout == 0 {
 			fmt.Printf("Timeout can not be 0 \n")
-			cmd.Help()
+			cmd.Help() //nolint:errcheck
 			os.Exit(1)
 			return nil
 		}
@@ -142,7 +142,7 @@ var snmpwalkCmd = &cobra.Command{
 				communityString = defaultCommunityString
 			} else {
 				fmt.Printf("No authentication mechanism specified \n")
-				cmd.Help()
+				cmd.Help() //nolint:errcheck
 				os.Exit(1)
 				return nil
 			}
@@ -180,7 +180,7 @@ var snmpwalkCmd = &cobra.Command{
 				authProtocol = gosnmp.SHA512
 			default:
 				fmt.Printf("Unsupported authentication protocol: %s \n", authProt)
-				cmd.Help()
+				cmd.Help() //nolint:errcheck
 				os.Exit(1)
 				return nil
 			}
@@ -203,7 +203,7 @@ var snmpwalkCmd = &cobra.Command{
 				privProtocol = gosnmp.AES256C
 			default:
 				fmt.Printf("Unsupported privacy protocol: %s \n", privProt)
-				cmd.Help()
+				cmd.Help() //nolint:errcheck
 				os.Exit(1)
 				return nil
 			}
@@ -226,7 +226,7 @@ var snmpwalkCmd = &cobra.Command{
 				msgFlags = gosnmp.AuthNoPriv
 			default:
 				fmt.Printf("Unsupported security level: %s \n", securityLevel)
-				cmd.Help()
+				cmd.Help() //nolint:errcheck
 				os.Exit(1)
 				return nil
 			}
