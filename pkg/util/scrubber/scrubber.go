@@ -118,9 +118,9 @@ func (c *Scrubber) scrubReader(file io.Reader) ([]byte, error) {
 	first := true
 	for scanner.Scan() {
 		b := scanner.Bytes()
-		if len(b) == 0 {
+		if blankRegex.Match(b) || string(b) == "" {
 			cleanedFile = append(cleanedFile, byte('\n'))
-		} else if !commentRegex.Match(b) && !blankRegex.Match(b) && string(b) != "" {
+		} else if !commentRegex.Match(b) {
 			b = c.scrub(b, c.singleLineReplacers)
 			if !first {
 				cleanedFile = append(cleanedFile, byte('\n'))
