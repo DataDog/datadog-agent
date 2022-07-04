@@ -1,7 +1,8 @@
 #include "stdafx.h"
+#include <utility>
 #include "customactiondata.h"
 #include "PropertyReplacer.h"
-#include <utility>
+#include "LogonCli.h"
 
 CustomActionData::CustomActionData(std::shared_ptr<ITargetMachine> targetMachine)
 : _hInstall(NULL)
@@ -10,6 +11,7 @@ CustomActionData::CustomActionData(std::shared_ptr<ITargetMachine> targetMachine
 , _ddnpmPresent(false)
 , _ddUserExists(false)
 , _targetMachine(std::move(targetMachine))
+, _logonCli(nullptr)
 {
 }
 
@@ -21,11 +23,21 @@ CustomActionData::CustomActionData()
 
 CustomActionData::~CustomActionData()
 {
+    delete _logonCli;
 }
 
 bool CustomActionData::init(MSIHANDLE hi)
 {
-    this->_hInstall = hi;
+    _hInstall = hi;
+    try
+    {
+        _logonCli = new LogonCli();
+    }
+    catch (std::exception &e)
+    {
+        WcaLog(LOGMSG_STANDARD, "Could not load logonCli.dll: %s", e.what());
+    }
+    
     std::wstring data;
     if (!loadPropertyString(this->_hInstall, propertyCustomActionData.c_str(), data))
     {
@@ -94,6 +106,11 @@ bool CustomActionData::isUserLocalUser() const
 bool CustomActionData::DoesUserExist() const
 {
     return _ddUserExists;
+}
+
+bool CustomActionData::IsServiceAccount() const
+{
+    return _isServiceAccount;
 }
 
 const std::wstring &CustomActionData::UnqualifiedUsername() const
@@ -266,11 +283,28 @@ void CustomActionData::ensureDomainHasCorrectFormat()
             WcaLog(LOGMSG_STANDARD, "Supplied domain name \"%S\"", _user.Domain.c_str());
             _domainUser = true;
         }
-        else if (_wcsicmp(_user.Domain.c_str(), L"NT AUTHORITY") != 0) // NT Authority should never be considered a "domain".
+        else
         {
-            WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (\"%S\" != \"%S\")", _user.Domain.c_str(),
-                   _targetMachine->DnsDomainName().c_str());
-            _domainUser = true;
+            // Compute a temporary fully qualified username to retrieve its SID
+            // in order to determine if its prefix starts with NT AUTHORITY.
+            auto tempFquname = _user.Domain + L"\\" + _user.Name;
+            auto sidResult = GetSidForUser(nullptr, tempFquname.c_str());
+            if (sidResult.Result != ERROR_NONE_MAPPED)
+            {
+                const auto ntAuthoritySid = WellKnownSID::NTAuthority();
+                if (!ntAuthoritySid.has_value())
+                {
+                    WcaLog(LOGMSG_STANDARD, "Cannot check user SID against NT AUTHORITY: memory allocation failed");
+                }
+                else if (!EqualPrefixSid(
+                             sidResult.Sid.get(),
+                             ntAuthoritySid.value().get())) // NT Authority should never be considered a "domain".
+                {
+                    WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (\"%S\" != \"%S\")",
+                           _user.Domain.c_str(), _targetMachine->DnsDomainName().c_str());
+                    _domainUser = true;
+                }
+            }
         }
     }
 }
@@ -319,6 +353,21 @@ bool CustomActionData::parseUsernameData()
             _ddUserExists = true;
             _sid = std::move(sidResult.Sid);
 
+            if (_logonCli != nullptr)
+            {
+                BOOL isServiceAccount = FALSE;
+                DWORD result = _logonCli->NetIsServiceAccount(
+                    nullptr, const_cast<wchar_t *>(FullyQualifiedUsername().c_str()), &isServiceAccount);
+                if (result != ERROR_SUCCESS)
+                {
+                    WcaLog(LOGMSG_STANDARD, "Could not lookup if \"%S\" is a service account: %S",
+                           FullyQualifiedUsername().c_str(), FormatErrorMessage(result).c_str());
+                }
+                _isServiceAccount = isServiceAccount ? true : false;
+            }
+
+            WcaLog(LOGMSG_STANDARD, R"("%S" %S a managed service account)",
+                   FullyQualifiedUsername().c_str(), _isServiceAccount ? L"is" : L"is not");
             // Use the domain returned by <see cref="LookupAccountName" /> because
             // it might be != from the one the user passed in.
             _user.Domain = sidResult.Domain;

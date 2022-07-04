@@ -92,10 +92,12 @@ func isOSHostnameUsable(ctx context.Context) (osHostnameUsable bool) {
 	// Check hostNetwork from kubernetes
 	// because kubernetes sets UTS namespace to host if and only if hostNetwork = true:
 	// https://github.com/kubernetes/kubernetes/blob/cf16e4988f58a5b816385898271e70c3346b9651/pkg/kubelet/dockershim/security_context.go#L203-L205
-	hostNetwork, err := isAgentKubeHostNetwork()
-	if err == nil && !hostNetwork {
-		log.Debug("Agent is running in a POD without hostNetwork: OS-provided hostnames cannot be used for hostname resolution.")
-		return false
+	if config.IsFeaturePresent(config.Kubernetes) {
+		hostNetwork, err := isAgentKubeHostNetwork()
+		if err == nil && !hostNetwork {
+			log.Debug("Agent is running in a POD without hostNetwork: OS-provided hostnames cannot be used for hostname resolution.")
+			return false
+		}
 	}
 
 	return true

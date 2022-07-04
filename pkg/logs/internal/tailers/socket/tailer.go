@@ -11,16 +11,16 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // Tailer reads data from a net.Conn.  It uses a `read` callback to be generic
 // over types of connections.
 type Tailer struct {
-	source     *config.LogSource
+	source     *sources.LogSource
 	Conn       net.Conn
 	outputChan chan *message.Message
 	read       func(*Tailer) ([]byte, error)
@@ -30,7 +30,7 @@ type Tailer struct {
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(source *config.LogSource, conn net.Conn, outputChan chan *message.Message, read func(*Tailer) ([]byte, error)) *Tailer {
+func NewTailer(source *sources.LogSource, conn net.Conn, outputChan chan *message.Message, read func(*Tailer) ([]byte, error)) *Tailer {
 	return &Tailer{
 		source:     source,
 		Conn:       conn,

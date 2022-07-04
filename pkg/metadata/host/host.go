@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -106,8 +107,9 @@ func GetPythonVersion() string {
 
 func getPublicIPv4(ctx context.Context) (string, error) {
 	publicIPFetcher := map[string]func(context.Context) (string, error){
-		"EC2": ec2.GetPublicIPv4,
-		"GCE": gce.GetPublicIPv4,
+		"EC2":   ec2.GetPublicIPv4,
+		"GCE":   gce.GetPublicIPv4,
+		"Azure": azure.GetPublicIPv4,
 	}
 	for name, fetcher := range publicIPFetcher {
 		publicIPv4, err := fetcher(ctx)

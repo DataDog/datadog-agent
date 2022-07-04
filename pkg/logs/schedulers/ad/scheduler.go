@@ -18,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/adlistener"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
+	ddUtil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -76,7 +78,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 			for _, source := range sources {
 				s.mgr.AddSource(source)
 			}
-		case s.newService(config):
+		case !ddUtil.CcaInAD() && s.newService(config):
 			entityType, _, err := s.parseEntity(config.TaggerEntity)
 			if err != nil {
 				log.Warnf("Invalid service: %v", err)
@@ -129,7 +131,7 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 					s.mgr.RemoveSource(source)
 				}
 			}
-		case s.newService(config):
+		case !ddUtil.CcaInAD() && s.newService(config):
 			// new service to remove
 			entityType, _, err := s.parseEntity(config.TaggerEntity)
 			if err != nil {
@@ -178,7 +180,7 @@ func (s *Scheduler) configName(config integration.Config) string {
 
 // toSources creates new sources from an integration config,
 // returns an error if the parsing failed.
-func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSource, error) {
+func (s *Scheduler) toSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 	var configs []*logsConfig.LogsConfig
 	var err error
 
@@ -219,7 +221,7 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 	}
 
 	configName := s.configName(config)
-	var sources []*logsConfig.LogSource
+	var sources []*sourcesPkg.LogSource
 	for _, cfg := range configs {
 		// if no service is set fall back to the global one
 		if cfg.Service == "" && globalServiceDefined {
@@ -239,7 +241,7 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 			}
 		}
 
-		source := logsConfig.NewLogSource(configName, cfg)
+		source := sourcesPkg.NewLogSource(configName, cfg)
 		sources = append(sources, source)
 		if err := cfg.Validate(); err != nil {
 			log.Warnf("Invalid logs configuration: %v", err)

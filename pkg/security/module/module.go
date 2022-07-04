@@ -12,11 +12,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
@@ -25,22 +23,21 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
-	"github.com/skydive-project/go-debouncer"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
+	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -57,25 +54,24 @@ type Opts struct {
 // Module represents the system-probe module for the runtime security agent
 type Module struct {
 	sync.RWMutex
-	wg                 sync.WaitGroup
-	probe              *sprobe.Probe
-	config             *sconfig.Config
-	currentRuleSet     *atomic.Value
-	reloading          *atomic.Bool
-	statsdClient       statsd.ClientInterface
-	apiServer          *APIServer
-	grpcServer         *grpc.Server
-	remoteConfigClient *remote.Client
-	listener           net.Listener
-	rateLimiter        *RateLimiter
-	sigupChan          chan os.Signal
-	ctx                context.Context
-	cancelFnc          context.CancelFunc
-	rulesLoaded        func(rs *rules.RuleSet, err *multierror.Error)
-	policiesVersions   []string
-
-	selfTester *sprobe.SelfTester
-	reloader   *debouncer.Debouncer
+	wg               sync.WaitGroup
+	probe            *sprobe.Probe
+	config           *sconfig.Config
+	currentRuleSet   *atomic.Value
+	reloading        *atomic.Bool
+	statsdClient     statsd.ClientInterface
+	apiServer        *APIServer
+	grpcServer       *grpc.Server
+	listener         net.Listener
+	rateLimiter      *RateLimiter
+	sigupChan        chan os.Signal
+	ctx              context.Context
+	cancelFnc        context.CancelFunc
+	rulesLoaded      func(rs *rules.RuleSet, err *multierror.Error)
+	policiesVersions []string
+	policyProviders  []rules.PolicyProvider
+	policyLoader     *rules.PolicyLoader
+	selfTester       *selftests.SelfTester
 }
 
 // Register the runtime security agent module
@@ -115,6 +111,7 @@ func (m *Module) Init() error {
 	m.apiServer.Start(m.ctx)
 
 	m.probe.AddEventHandler(model.UnknownEventType, m)
+	m.probe.AddActivityDumpHandler(m)
 
 	// initialize extra event monitors
 	if m.config.EventMonitoring {
@@ -126,6 +123,9 @@ func (m *Module) Init() error {
 	if err := m.probe.Init(); err != nil {
 		return errors.Wrap(err, "failed to init probe")
 	}
+
+	// policy loader
+	m.policyLoader = rules.NewPolicyLoader()
 
 	return nil
 }
@@ -143,16 +143,45 @@ func (m *Module) Start() error {
 		return err
 	}
 
-	m.probe.Start()
-	m.reloader.Start()
-
-	if err := m.Reload(m.config.PoliciesDir); err != nil {
+	if err := m.probe.Start(); err != nil {
 		return err
 	}
 
-	// launch the self tests and send the result report
-	if m.config.SelfTestEnabled {
-		_ = m.RunSelfTestAndReport()
+	// runtime security is disabled but might be used by other component like process
+	if !m.config.IsEnabled() {
+		return nil
+	}
+
+	if m.config.SelfTestEnabled && m.selfTester != nil {
+		_ = m.RunSelfTest(true, false)
+	}
+
+	var policyProviders []rules.PolicyProvider
+
+	agentVersion, err := utils.GetAgentSemverVersion()
+	if err != nil {
+		log.Errorf("failed to parse agent version: %v", err)
+	}
+
+	// directory policy provider
+	if provider, err := rules.NewPoliciesDirProvider(m.config.PoliciesDir, m.config.WatchPoliciesDir, agentVersion); err != nil {
+		log.Errorf("failed to load policies: %s", err)
+	} else {
+		policyProviders = append(policyProviders, provider)
+	}
+
+	// add remote config as config provider if enabled
+	if m.config.RemoteConfigurationEnabled {
+		rcPolicyProvider, err := rconfig.NewRCPolicyProvider("security-agent", agentVersion)
+		if err != nil {
+			log.Errorf("will be unable to load remote policy: %s", err)
+		} else {
+			policyProviders = append(policyProviders, rcPolicyProvider)
+		}
+	}
+
+	if err := m.LoadPolicies(policyProviders, true); err != nil {
+		log.Errorf("failed to load policies: %s", err)
 	}
 
 	m.wg.Add(1)
@@ -165,55 +194,28 @@ func (m *Module) Start() error {
 		defer m.wg.Done()
 
 		for range m.sigupChan {
-			m.triggerReload()
+			if err := m.ReloadPolicies(); err != nil {
+				log.Errorf("failed to reload policies: %s", err)
+			}
 		}
 	}()
 
-	if m.config.RemoteConfigurationEnabled {
-		c, err := remote.NewClient("security-agent", []data.Product{data.ProductCWSDD})
-		if err != nil {
-			return err
-		}
-		m.remoteConfigClient = c
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
 
-		go func() {
-			for configs := range c.CWSDDUpdates() {
-				err := m.processRemoteConfigsUpdate(configs)
-				if err != nil {
-					log.Debugf("could not process remote-config update: %v", err)
-				}
+		for range m.policyLoader.NewPolicyReady() {
+			if err := m.ReloadPolicies(); err != nil {
+				log.Errorf("failed to reload policies: %s", err)
 			}
-		}()
+		}
+	}()
+
+	for _, provider := range m.policyProviders {
+		provider.Start()
 	}
 
 	return nil
-}
-
-func (m *Module) processRemoteConfigsUpdate(configs []client.ConfigCWSDD) error {
-	if len(configs) == 0 {
-		return errors.New("no remote configuration")
-	}
-
-	policiesDir, err := ioutil.TempDir("", "cws-rc-config")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(policiesDir)
-
-	for _, c := range configs {
-		policyFile, err := os.Create(filepath.Join(policiesDir, c.ID))
-		if err != nil {
-			return err
-		}
-
-		if _, err = policyFile.Write(c.Config); err != nil {
-			return err
-		}
-
-		_ = policyFile.Close()
-	}
-
-	return m.Reload(policiesDir)
 }
 
 func (m *Module) displayReport(report *sprobe.Report) {
@@ -277,19 +279,16 @@ func getPoliciesVersions(rs *rules.RuleSet) []string {
 	return versions
 }
 
-func (m *Module) triggerReload() {
-	log.Info("Reload configuration")
-	if err := m.Reload(m.config.PoliciesDir); err != nil {
-		log.Errorf("failed to reload configuration: %s", err)
-	}
+// ReloadPolicies reloads the policies
+func (m *Module) ReloadPolicies() error {
+	log.Info("reload policies")
+
+	return m.LoadPolicies(m.policyProviders, true)
 }
 
-// Reload the rule set
-func (m *Module) Reload(policiesDir string) error {
-	// not enabled, do not reload rule
-	if !m.config.IsEnabled() {
-		return nil
-	}
+// LoadPolicies loads the policies
+func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoadedReport bool) error {
+	log.Info("load policies")
 
 	m.Lock()
 	defer m.Unlock()
@@ -304,14 +303,17 @@ func (m *Module) Reload(policiesDir string) error {
 		probeVariables[name] = value
 	}
 
-	var opts rules.Opts
-	opts.
+	var evalOpts eval.Opts
+	evalOpts.
 		WithConstants(model.SECLConstants).
 		WithVariables(probeVariables).
+		WithLegacyFields(model.SECLLegacyFields)
+
+	var opts rules.Opts
+	opts.
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(m.getEventTypeEnabled()).
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
-		WithLegacyFields(model.SECLLegacyFields).
 		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
 			"process": func() rules.VariableProvider {
 				return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
@@ -321,46 +323,49 @@ func (m *Module) Reload(policiesDir string) error {
 		}).
 		WithLogger(&seclog.PatternLogger{})
 
+	// approver ruleset
 	model := &model.Model{}
-	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts)
-	loadApproversErr := rules.LoadPolicies(policiesDir, approverRuleSet)
+	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
 
 	// switch SECLVariables to use the real Event structure and not the mock model.Event one
-	opts.WithVariables(sprobe.SECLVariables)
+	evalOpts.WithVariables(sprobe.SECLVariables)
 	opts.WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
 		"process": m.probe.GetResolvers().ProcessResolver.NewProcessVariables,
 	})
 
-	ruleSet := m.probe.NewRuleSet(&opts)
-	loadErr := rules.LoadPolicies(policiesDir, ruleSet)
+	// standard ruleset
+	ruleSet := m.probe.NewRuleSet(&opts, &evalOpts, &eval.MacroStore{})
 
-	if loadErr.ErrorOrNil() != nil {
-		seclog.RuleLoadingErrors("error while loading policies: %+v", loadErr)
-	} else if loadApproversErr.ErrorOrNil() != nil {
-		seclog.RuleLoadingErrors("error while loading policies for Approvers: %+v", loadApproversErr)
+	// load policies
+	m.policyLoader.SetProviders(policyProviders)
+
+	loadErrs := approverRuleSet.LoadPolicies(m.policyLoader)
+	loadApproversErrs := ruleSet.LoadPolicies(m.policyLoader)
+
+	// non fatal error, just log
+	if loadErrs.ErrorOrNil() != nil {
+		logLoadingErrors("error while loading policies: %+v", loadErrs)
+	} else if loadApproversErrs.ErrorOrNil() != nil {
+		logLoadingErrors("error while loading policies for Approvers: %+v", loadApproversErrs)
 	}
-
-	monitor := m.probe.GetMonitor()
-	ruleSetLoadedReport := monitor.PrepareRuleSetLoadedReport(ruleSet, loadErr)
-
-	if err := m.selfTester.CreateTargetFileIfNeeded(); err != nil {
-		log.Errorf("failed to create self-test target file: %+v", err)
-	}
-	m.selfTester.AddSelfTestRulesToRuleSets(ruleSet, approverRuleSet)
 
 	approvers, err := approverRuleSet.GetApprovers(sprobe.GetCapababilities())
 	if err != nil {
 		return err
 	}
 
+	// update current policies related module attributes
 	m.policiesVersions = getPoliciesVersions(ruleSet)
+	m.policyProviders = policyProviders
+	m.currentRuleSet.Store(ruleSet)
 
-	ruleSet.AddListener(m)
+	// notify listeners
 	if m.rulesLoaded != nil {
-		m.rulesLoaded(ruleSet, loadErr)
+		m.rulesLoaded(ruleSet, loadErrs)
 	}
 
-	m.currentRuleSet.Store(ruleSet)
+	// add module as listener for ruleset events
+	ruleSet.AddListener(m)
 
 	// analyze the ruleset, push default policies in the kernel and generate the policy report
 	report, err := rsa.Apply(ruleSet, approvers)
@@ -378,20 +383,26 @@ func (m *Module) Reload(policiesDir string) error {
 
 	m.displayReport(report)
 
-	// report that a new policy was loaded
-	monitor.ReportRuleSetLoaded(ruleSetLoadedReport)
+	if sendLoadedReport {
+		// report that a new policy was loaded
+		monitor := m.probe.GetMonitor()
+		ruleSetLoadedReport := monitor.PrepareRuleSetLoadedReport(ruleSet, loadErrs)
+		monitor.ReportRuleSetLoaded(ruleSetLoadedReport)
+	}
 
 	return nil
 }
 
 // Close the module
 func (m *Module) Close() {
-	m.reloader.Stop()
-
 	close(m.sigupChan)
-	if m.remoteConfigClient != nil {
-		m.remoteConfigClient.Close()
+
+	for _, provider := range m.policyProviders {
+		_ = provider.Close()
 	}
+
+	// close the policy loader and all the related providers
+	m.policyLoader.Close()
 
 	m.cancelFnc()
 
@@ -405,7 +416,7 @@ func (m *Module) Close() {
 	}
 
 	if m.selfTester != nil {
-		_ = m.selfTester.Cleanup()
+		_ = m.selfTester.Close()
 	}
 
 	m.probe.Close()
@@ -462,7 +473,8 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 		return append(tags, m.probe.GetResolvers().TagsResolver.Resolve(id)...)
 	}
 
-	if !m.selfTester.IsExpectedEvent(rule, event) {
+	// send if not selftest related events
+	if m.selfTester == nil || !m.selfTester.IsExpectedEvent(rule, event) {
 		m.SendEvent(rule, event, extTagsCb, service)
 	}
 }
@@ -474,6 +486,11 @@ func (m *Module) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []str
 	} else {
 		seclog.Tracef("Event on rule %s was dropped due to rate limiting", rule.ID)
 	}
+}
+
+// HandleActivityDump sends an activity dump to the backend
+func (m *Module) HandleActivityDump(dump *sapi.ActivityDumpStreamMessage) {
+	m.apiServer.SendActivityDump(dump)
 }
 
 func (m *Module) metricsSender() {
@@ -587,7 +604,10 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 	// custom limiters
 	limits := make(map[rules.RuleID]Limit)
 
-	var selfTester = sprobe.NewSelfTester()
+	selfTester, err := selftests.NewSelfTester()
+	if err != nil {
+		log.Errorf("unable to instantiate self tests: %s", err)
+	}
 
 	m := &Module{
 		config:         cfg,
@@ -604,7 +624,6 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 		selfTester:     selfTester,
 	}
 	m.apiServer.module = m
-	m.reloader = debouncer.New(3*time.Second, m.triggerReload)
 
 	seclog.SetPatterns(cfg.LogPatterns...)
 	seclog.SetTags(cfg.LogTags...)
@@ -614,10 +633,22 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 	return m, nil
 }
 
-// RunSelfTestAndReport runs the self tests, and send a result report
-func (m *Module) RunSelfTestAndReport() error {
-	if !m.config.IsEnabled() {
-		return nil
+// RunSelfTest runs the self tests
+func (m *Module) RunSelfTest(sendLoadedReport bool, thenRevertPolicies bool) error {
+	prevProviders, providers := m.policyProviders, m.policyProviders
+
+	// add selftests as provider
+	providers = append(providers, m.selfTester)
+	if thenRevertPolicies {
+		defer func() {
+			if err := m.LoadPolicies(prevProviders, false); err != nil {
+				log.Errorf("failed to load policies: %s", err)
+			}
+		}()
+	}
+
+	if err := m.LoadPolicies(providers, false); err != nil {
+		return err
 	}
 
 	success, fails, err := m.selfTester.RunSelfTest()
@@ -629,4 +660,21 @@ func (m *Module) RunSelfTestAndReport() error {
 	monitor := m.probe.GetMonitor()
 	monitor.ReportSelfTest(success, fails)
 	return err
+}
+
+func logLoadingErrors(msg string, m *multierror.Error) {
+	var errorLevel bool
+	for _, err := range m.Errors {
+		if rErr, ok := err.(*rules.ErrRuleLoad); ok {
+			if !errors.Is(rErr.Err, rules.ErrEventTypeNotEnabled) {
+				errorLevel = true
+			}
+		}
+	}
+
+	if errorLevel {
+		log.Errorf(msg, m.Error())
+	} else {
+		log.Warnf(msg, m.Error())
+	}
 }

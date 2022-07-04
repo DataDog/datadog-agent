@@ -248,19 +248,25 @@ func (s *store) GetContainer(id string) (*Container, error) {
 }
 
 // ListContainers implements Store#ListContainers.
-func (s *store) ListContainers() ([]*Container, error) {
-	entities, err := s.listEntitiesByKind(KindContainer)
-	if err != nil {
-		return nil, err
-	}
+func (s *store) ListContainers() []*Container {
+	return s.ListContainersWithFilter(nil)
+}
+
+// ListContainersWithFilter implements Store#ListContainersWithFilter
+func (s *store) ListContainersWithFilter(filter ContainerFilterFunc) []*Container {
+	entities := s.listEntitiesByKind(KindContainer)
 
 	// Not very efficient
 	containers := make([]*Container, 0, len(entities))
 	for _, entity := range entities {
-		containers = append(containers, entity.(*Container))
+		container := entity.(*Container)
+
+		if filter == nil || filter(container) {
+			containers = append(containers, container)
+		}
 	}
 
-	return containers, nil
+	return containers
 }
 
 // GetKubernetesPod implements Store#GetKubernetesPod
@@ -496,13 +502,13 @@ func (s *store) getEntityByKind(kind Kind, id string) (Entity, error) {
 	return entity.cached, nil
 }
 
-func (s *store) listEntitiesByKind(kind Kind) ([]Entity, error) {
+func (s *store) listEntitiesByKind(kind Kind) []Entity {
 	s.storeMut.RLock()
 	defer s.storeMut.RUnlock()
 
 	entitiesOfKind, ok := s.store[kind]
 	if !ok {
-		return nil, errors.NewNotFound(string(kind))
+		return nil
 	}
 
 	entities := make([]Entity, 0, len(entitiesOfKind))
@@ -510,7 +516,7 @@ func (s *store) listEntitiesByKind(kind Kind) ([]Entity, error) {
 		entities = append(entities, entity.cached)
 	}
 
-	return entities, nil
+	return entities
 }
 
 func (s *store) unsubscribeAll() {

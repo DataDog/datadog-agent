@@ -5,7 +5,7 @@ RUN apt-get update
 RUN DEBIAN_FRONTEND=noninteractiv TZ=Etc/UTC apt-get install -y gdb build-essential strace less vim
 
 # Install go
-RUN curl -fSL -o golang.tgz https://go.dev/dl/go1.17.6.linux-amd64.tar.gz
+RUN curl -fSL -o golang.tgz https://go.dev/dl/go1.17.11.linux-amd64.tar.gz
 RUN tar xzvf golang.tgz
 RUN ln -s /go /goroot
 

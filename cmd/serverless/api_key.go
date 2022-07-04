@@ -23,6 +23,12 @@ const encryptionContextKey = "LambdaFunctionName"
 // functionNameEnvVar is the environment variable that stores the function name.
 const functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
 
+// kmsKeySuffix is the suffix of all environment variables which should be decrypted by KMS
+const kmsKeySuffix = "_KMS_ENCRYPTED"
+
+// secretArnSuffix is the suffix of all environment variables which should be decrypted by secrets manager
+const secretArnSuffix = "_SECRET_ARN"
+
 // decryptKMS decodes and deciphers the base64-encoded ciphertext given as a parameter using KMS.
 // For this to work properly, the Lambda function must have the appropriate IAM permissions.
 func decryptKMS(kmsClient kmsiface.KMSAPI, ciphertext string) (string, error) {
@@ -63,12 +69,10 @@ func decryptKMS(kmsClient kmsiface.KMSAPI, ciphertext string) (string, error) {
 
 // readAPIKeyFromKMS gets and decrypts an API key encrypted with KMS if the env var DD_KMS_API_KEY has been set.
 // If none has been set, it returns an empty string and a nil error.
-func readAPIKeyFromKMS() (string, error) {
-	cipherText := os.Getenv(kmsAPIKeyEnvVar)
+func readAPIKeyFromKMS(cipherText string) (string, error) {
 	if cipherText == "" {
 		return "", nil
 	}
-	log.Debugf("Found %s, trying to decipher it.", kmsAPIKeyEnvVar)
 	sess, err := session.NewSession(nil)
 	if err != nil {
 		return "", err
@@ -83,12 +87,11 @@ func readAPIKeyFromKMS() (string, error) {
 
 // readAPIKeyFromSecretsManager reads an API Key from AWS Secrets Manager if the env var DD_API_KEY_SECRET_ARN has been set.
 // If none has been set, it returns an empty string and a nil error.
-func readAPIKeyFromSecretsManager() (string, error) {
-	arn := os.Getenv(secretsManagerAPIKeyEnvVar)
+func readAPIKeyFromSecretsManager(arn string) (string, error) {
 	if arn == "" {
 		return "", nil
 	}
-	log.Debugf("Found %s value, trying to use it.", secretsManagerAPIKeyEnvVar)
+	log.Debugf("Found %s value, trying to use it.", arn)
 	sess, err := session.NewSession(nil)
 	if err != nil {
 		return "", err

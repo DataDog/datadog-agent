@@ -10,7 +10,7 @@
 
 #define MAX_PERF_STR_BUFF_LEN 256
 #define MAX_STR_BUFF_LEN (1 << 15)
-#define MAX_ARRAY_ELEMENT_PER_TAIL 28
+#define MAX_ARRAY_ELEMENT_PER_TAIL 23
 #define MAX_ARRAY_ELEMENT_SIZE 4096
 #define MAX_ARGS_ELEMENTS 140
 
@@ -58,6 +58,7 @@ struct exit_event_t {
     struct process_context_t process;
     struct span_context_t span;
     struct container_context_t container;
+    u32 exit_code;
 };
 
 struct _tracepoint_sched_process_fork {
@@ -148,37 +149,37 @@ void __attribute__((always_inline)) parse_str_array(struct pt_regs *ctx, struct 
 
     int i = 0;
     int n = 0;
-    int buff_offset = 0;
-    int perf_offset = 0;
+
+    void *perf_ptr = &buff->value[0];
 
 #pragma unroll
     for (i = 0; i < MAX_ARRAY_ELEMENT_PER_TAIL; i++) {
-        void *ptr = &(buff->value[(buff_offset + sizeof(n)) & (MAX_STR_BUFF_LEN - MAX_ARRAY_ELEMENT_SIZE - 1)]);
+        void *ptr = &(buff->value[(event.size + sizeof(n)) & (MAX_STR_BUFF_LEN - MAX_ARRAY_ELEMENT_SIZE - 1)]);
 
         n = bpf_probe_read_str(ptr, MAX_ARRAY_ELEMENT_SIZE, (void *)str);
         if (n > 0) {
             n--; // remove trailing 0
 
-            int len = n + sizeof(n);
-            bpf_probe_read(&(buff->value[buff_offset&(MAX_STR_BUFF_LEN - MAX_ARRAY_ELEMENT_SIZE - 1)]), sizeof(n), &n);
-            buff_offset += len;
+            // insert size before the string
+            bpf_probe_read(&(buff->value[event.size&(MAX_STR_BUFF_LEN - MAX_ARRAY_ELEMENT_SIZE - 1)]), sizeof(n), &n);
 
+            int len = n + sizeof(n);
             if (event.size + len >= MAX_PERF_STR_BUFF_LEN) {
-                void *perf_ptr = &(buff->value[perf_offset&(MAX_STR_BUFF_LEN - MAX_ARRAY_ELEMENT_SIZE - 1)]);
+                // copy value to the event
                 bpf_probe_read(&event.value, MAX_PERF_STR_BUFF_LEN, perf_ptr);
 
-                if (event.size == 0 || len > MAX_PERF_STR_BUFF_LEN) {
+                // an only one argument overflow the limit
+                if (event.size == 0) {
                     event.size = MAX_PERF_STR_BUFF_LEN;
-                    perf_offset = buff_offset;
-                    len = 0;
-                } else {
-                    perf_offset += event.size;
+                    index++;
                 }
+
                 send_event(ctx, event_type, event);
                 event.size = 0;
+            } else {
+                event.size += len;
+                index++;
             }
-            event.size += len;
-            index++;
 
             bpf_probe_read(&str, sizeof(str), (void *)&array[index]);
         } else {
@@ -191,12 +192,8 @@ void __attribute__((always_inline)) parse_str_array(struct pt_regs *ctx, struct 
 
     // flush remaining values
     if (event.size > 0) {
-        void *perf_ptr = &(buff->value[perf_offset&(MAX_STR_BUFF_LEN - MAX_ARRAY_ELEMENT_SIZE - 1)]);
         bpf_probe_read(&event.value, MAX_PERF_STR_BUFF_LEN, perf_ptr);
 
-        if (event.size > MAX_PERF_STR_BUFF_LEN) {
-            event.size = MAX_PERF_STR_BUFF_LEN;
-        }
         send_event(ctx, event_type, event);
     }
 }
@@ -212,6 +209,7 @@ int kprobe_parse_args_envs(struct pt_regs *ctx) {
     if (syscall->exec.next_tail > MAX_ARGS_ELEMENTS / MAX_ARRAY_ELEMENT_PER_TAIL) {
         array = &syscall->exec.envs;
     }
+
     parse_str_array(ctx, array, EVENT_ARGS_ENVS);
 
     syscall->exec.next_tail++;
@@ -561,6 +559,7 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         struct proc_cache_t *cache_entry = fill_process_context(&event.process);
         fill_container_context(cache_entry, &event.container);
         fill_span_context(&event.span);
+        event.exit_code = (u32)PT_REGS_PARM1(ctx);
         send_event(ctx, EVENT_EXIT, event);
 
         unregister_span_memory();

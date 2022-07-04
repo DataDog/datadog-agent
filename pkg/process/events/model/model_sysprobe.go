@@ -20,8 +20,8 @@ type ProcessMonitoringEvent struct {
 	CollectionTime time.Time `json:"CollectionTime" msg:"collection_time"`
 }
 
-// ProcessMonitoringtoProcessEvent converts a ProcessMonitoringEvent to a generic ProcessEvent
-func ProcessMonitoringtoProcessEvent(e *ProcessMonitoringEvent) *ProcessEvent {
+// ProcessMonitoringToProcessEvent converts a ProcessMonitoringEvent to a generic ProcessEvent
+func ProcessMonitoringToProcessEvent(e *ProcessMonitoringEvent) *ProcessEvent {
 	var cmdline []string
 	if e.ArgsEntry != nil {
 		cmdline = e.ArgsEntry.Values
@@ -31,15 +31,94 @@ func ProcessMonitoringtoProcessEvent(e *ProcessMonitoringEvent) *ProcessEvent {
 		EventType:      e.EventType,
 		CollectionTime: e.CollectionTime,
 		Pid:            e.Pid,
+		ContainerID:    e.ContainerID,
 		Ppid:           e.PPid,
 		UID:            e.UID,
 		GID:            e.GID,
 		Username:       e.User,
 		Group:          e.Group,
-		Exe:            e.FileEvent.PathnameStr,
+		Exe:            e.FileEvent.PathnameStr, // FileEvent is not a pointer, so it can be directly accessed
 		Cmdline:        cmdline,
 		ForkTime:       e.ForkTime,
 		ExecTime:       e.ExecTime,
 		ExitTime:       e.ExitTime,
+	}
+}
+
+// ProcessEventToProcessMonitoringEvent converts a ProcessEvent to a ProcessMonitoringEvent
+// It's used during tests to mock a ProcessMonitoringEvent message
+func ProcessEventToProcessMonitoringEvent(e *ProcessEvent) *ProcessMonitoringEvent {
+	return &ProcessMonitoringEvent{
+		EventType:      e.EventType,
+		CollectionTime: e.CollectionTime,
+		ProcessCacheEntry: &model.ProcessCacheEntry{
+			ProcessContext: model.ProcessContext{
+				Process: model.Process{
+					PIDContext: model.PIDContext{
+						Pid: e.Pid,
+					},
+					ContainerID: e.ContainerID,
+					PPid:        e.Ppid,
+					Credentials: model.Credentials{
+						UID:   e.UID,
+						GID:   e.GID,
+						User:  e.Username,
+						Group: e.Group,
+					},
+					FileEvent: model.FileEvent{
+						PathnameStr: e.Exe,
+					},
+					ArgsEntry: &model.ArgsEntry{
+						Values: e.Cmdline,
+					},
+					ForkTime: e.ForkTime,
+					ExecTime: e.ExecTime,
+					ExitTime: e.ExitTime,
+				},
+			},
+		},
+	}
+}
+
+// NewMockedProcessMonitoringEvent returns a new mocked ProcessMonitoringEvent
+func NewMockedProcessMonitoringEvent(evtType string, ts time.Time, pid uint32, exe string, args []string) *ProcessMonitoringEvent {
+	var forkTime, execTime, exitTime time.Time
+	switch evtType {
+	case Fork:
+		forkTime = ts
+	case Exec:
+		execTime = ts
+	case Exit:
+		exitTime = ts
+	}
+
+	return &ProcessMonitoringEvent{
+		EventType:      evtType,
+		CollectionTime: time.Now(),
+		ProcessCacheEntry: &model.ProcessCacheEntry{
+			ProcessContext: model.ProcessContext{
+				Process: model.Process{
+					PIDContext: model.PIDContext{
+						Pid: pid,
+					},
+					PPid: 1,
+					Credentials: model.Credentials{
+						UID:   100,
+						GID:   100,
+						User:  "dog",
+						Group: "dd-agent",
+					},
+					FileEvent: model.FileEvent{
+						PathnameStr: exe,
+					},
+					ArgsEntry: &model.ArgsEntry{
+						Values: args,
+					},
+					ForkTime: forkTime,
+					ExecTime: execTime,
+					ExitTime: exitTime,
+				},
+			},
+		},
 	}
 }

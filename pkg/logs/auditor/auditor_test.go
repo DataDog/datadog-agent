@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 var testpath = "testpath"
@@ -28,7 +29,7 @@ type AuditorTestSuite struct {
 	testPath string
 
 	a      *RegistryAuditor
-	source *config.LogSource
+	source *sources.LogSource
 }
 
 func (suite *AuditorTestSuite) SetupTest() {
@@ -44,7 +45,7 @@ func (suite *AuditorTestSuite) SetupTest() {
 
 	suite.a = New("", DefaultRegistryFilename, time.Hour, health.RegisterLiveness("fake"))
 	suite.a.registryPath = suite.testPath
-	suite.source = config.NewLogSource("", &config.LogsConfig{Path: testpath})
+	suite.source = sources.NewLogSource("", &config.LogsConfig{Path: testpath})
 }
 
 func (suite *AuditorTestSuite) TearDownTest() {
@@ -98,7 +99,7 @@ func (suite *AuditorTestSuite) TestAuditorRecoversRegistryForOffset() {
 	offset := suite.a.GetOffset(suite.source.Config.Path)
 	suite.Equal("42", offset)
 
-	othersource := config.NewLogSource("", &config.LogsConfig{Path: "anotherpath"})
+	othersource := sources.NewLogSource("", &config.LogsConfig{Path: "anotherpath"})
 	offset = suite.a.GetOffset(othersource.Config.Path)
 	suite.Equal("", offset)
 }

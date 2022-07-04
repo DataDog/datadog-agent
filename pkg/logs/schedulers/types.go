@@ -6,8 +6,8 @@
 package schedulers
 
 import (
-	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // Scheduler implementations manage logs-agent sources.
@@ -30,16 +30,16 @@ type SourceManager interface {
 	// AddSource adds a new source to the logs agent.  The new source is
 	// distributed to all active launchers, which may create appropriate
 	// tailers and begin forwarding messages.
-	AddSource(source *logsConfig.LogSource)
+	AddSource(source *sources.LogSource)
 
 	// RemoveSource removes an existing source from the logs agent.  The
 	// source is recognized by pointer equality.
-	RemoveSource(source *logsConfig.LogSource)
+	RemoveSource(source *sources.LogSource)
 
 	// GetSources returns all the sources currently held.  The result is copied and
 	// will not be modified after it is returned, and represents a "snapshot" of the
 	// state when the function was called.
-	GetSources() []*logsConfig.LogSource
+	GetSources() []*sources.LogSource
 
 	// AddService adds a new service to the logs agent.
 	AddService(service *service.Service)

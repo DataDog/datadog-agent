@@ -8,21 +8,30 @@ package api
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
-var apiRequests = telemetry.NewCounterWithOpts("", "api_requests",
-	[]string{"handler", "status", "forwarded"}, "Counter of requests made to the cluster agent API.",
-	telemetry.Options{NoDoubleUnderscoreSep: true})
+var (
+	apiRequests = telemetry.NewCounterWithOpts("", "api_requests",
+		[]string{"handler", "status", "forwarded"}, "Counter of requests made to the cluster agent API.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 
-// TelemetryHandler TODO (<container-integrations>): CONT-3353
+	apiElapsed = telemetry.NewHistogramWithOpts("", "api_elapsed",
+		[]string{"handler", "status", "forwarded"}, "Poll duration distribution by config provider (in seconds).",
+		prometheus.DefBuckets,
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+)
+
+// TelemetryHandler provides a http handler and emits requests telemetry for it.
 type TelemetryHandler struct {
 	handlerName string
 	handler     func(w http.ResponseWriter, r *http.Request)
 }
 
-// WithTelemetryWrapper TODO (<container-integrations>): CONT-3353
+// WithTelemetryWrapper returns a http handler function that emits telemetry.
 func WithTelemetryWrapper(handlerName string, handler func(w http.ResponseWriter, r *http.Request)) func(w http.ResponseWriter, r *http.Request) {
 	th := TelemetryHandler{
 		handlerName: handlerName,
@@ -32,13 +41,14 @@ func WithTelemetryWrapper(handlerName string, handler func(w http.ResponseWriter
 }
 
 func (t *TelemetryHandler) handle(w http.ResponseWriter, r *http.Request) {
-	t.handler(&telemetryWriterWrapper{ResponseWriter: w, handlerName: t.handlerName}, r)
+	t.handler(&telemetryWriterWrapper{ResponseWriter: w, handlerName: t.handlerName, startTime: time.Now()}, r)
 }
 
 // Could be made generic, overwite http.ResponseWriter/WriteHeader
 type telemetryWriterWrapper struct {
 	http.ResponseWriter
 	handlerName string
+	startTime   time.Time
 }
 
 func (w *telemetryWriterWrapper) WriteHeader(statusCode int) {
@@ -47,5 +57,6 @@ func (w *telemetryWriterWrapper) WriteHeader(statusCode int) {
 		forwarded = "false"
 	}
 
+	apiElapsed.Observe(time.Since(w.startTime).Seconds(), w.handlerName, strconv.Itoa(statusCode), forwarded)
 	apiRequests.Inc(w.handlerName, strconv.Itoa(statusCode), forwarded)
 }

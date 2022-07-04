@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -137,12 +138,15 @@ func TestGetPayload(t *testing.T) {
 	startNow = startNow.Add(1000 * time.Second)
 	SetCheckMetadata("check1_instance1", "check_provided_key1", 456)
 
+	resetFunc := setupHostMetadataMock()
+	defer resetFunc()
+
 	p = GetPayload(ctx, "testHostname", &mockAutoConfig{}, &mockCollector{})
 
 	assert.Equal(t, startNow.UnixNano(), p.Timestamp) //updated startNow is returned
 
 	agentMetadata = *p.AgentMetadata
-	assert.Len(t, agentMetadata, 1)
+	assert.Len(t, agentMetadata, 2)
 	assert.Equal(t, true, agentMetadata["test"])
 
 	checkMetadata = *p.CheckMetadata
@@ -210,10 +214,37 @@ func TestGetPayload(t *testing.T) {
 		},
 		"agent_metadata":
 		{
+			"cloud_provider": "some_cloud_provider",
 			"test": true
+		},
+		"host_metadata":
+		{
+			"cpu_cores": 6,
+			"cpu_logical_processors": 6,
+			"cpu_vendor": "GenuineIntel",
+			"cpu_model": "Intel_i7-8750H",
+			"cpu_model_id": "158",
+			"cpu_family": "6",
+			"cpu_stepping": "10",
+			"cpu_frequency": 2208.006,
+			"cpu_cache_size": 9437184,
+			"kernel_name": "Linux",
+			"kernel_release": "5.17.0-1-amd64",
+			"kernel_version": "Debian_5.17.3-1",
+			"os": "GNU/Linux",
+			"python_version": "3.10.4",
+			"cpu_architecture": "unknown",
+			"memory_total_kb": 1205632,
+			"memory_swap_total_kb": 1205632,
+			"ip_address": "192.168.24.138",
+			"ipv6_address": "fe80::20c:29ff:feb6:d232",
+			"mac_address": "00:0c:29:b6:d2:32",
+			"agent_version": "%v",
+			"cloud_provider": "some_cloud_provider",
+			"os_version": "testOS"
 		}
 	}`
-	jsonString = fmt.Sprintf(jsonString, startNow.UnixNano(), startNow.UnixNano(), agentStartupTime.UnixNano(), originalStartNow.UnixNano(), originalStartNow.UnixNano())
+	jsonString = fmt.Sprintf(jsonString, startNow.UnixNano(), startNow.UnixNano(), agentStartupTime.UnixNano(), originalStartNow.UnixNano(), originalStartNow.UnixNano(), version.AgentVersion)
 	jsonString = strings.Join(strings.Fields(jsonString), "") // Removes whitespaces and new lines
 	assert.Equal(t, jsonString, string(marshaled))
 

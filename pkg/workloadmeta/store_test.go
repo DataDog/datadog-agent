@@ -555,6 +555,90 @@ func TestSubscribe(t *testing.T) {
 	}
 }
 
+func TestListContainers(t *testing.T) {
+	container := &Container{
+		EntityID: EntityID{
+			Kind: KindContainer,
+			ID:   "abc",
+		},
+	}
+
+	tests := []struct {
+		name               string
+		preEvents          []CollectorEvent
+		expectedContainers []*Container
+	}{
+		{
+			name: "some containers stored",
+			preEvents: []CollectorEvent{
+				{
+					Type:   EventTypeSet,
+					Source: fooSource,
+					Entity: container,
+				},
+			},
+			expectedContainers: []*Container{container},
+		},
+		{
+			name:               "no containers stored",
+			preEvents:          nil,
+			expectedContainers: []*Container{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testStore := newTestStore()
+			testStore.handleEvents(test.preEvents)
+
+			containers := testStore.ListContainers()
+
+			assert.DeepEqual(t, test.expectedContainers, containers)
+		})
+	}
+}
+
+func TestListContainersWithFilter(t *testing.T) {
+	runningContainer := &Container{
+		EntityID: EntityID{
+			Kind: KindContainer,
+			ID:   "1",
+		},
+		State: ContainerState{
+			Running: true,
+		},
+	}
+
+	nonRunningContainer := &Container{
+		EntityID: EntityID{
+			Kind: KindContainer,
+			ID:   "2",
+		},
+		State: ContainerState{
+			Running: false,
+		},
+	}
+
+	testStore := newTestStore()
+
+	testStore.handleEvents([]CollectorEvent{
+		{
+			Type:   EventTypeSet,
+			Source: fooSource,
+			Entity: runningContainer,
+		},
+		{
+			Type:   EventTypeSet,
+			Source: fooSource,
+			Entity: nonRunningContainer,
+		},
+	})
+
+	runningContainers := testStore.ListContainersWithFilter(GetRunningContainers)
+
+	assert.DeepEqual(t, []*Container{runningContainer}, runningContainers)
+}
+
 func newTestStore() *store {
 	return &store{
 		store: make(map[Kind]map[string]*cachedEntity),

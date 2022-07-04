@@ -260,27 +260,22 @@ func (c ConnectionStats) IsExpired(now uint64, timeout uint64) bool {
 	return c.LastUpdateEpoch+timeout <= now
 }
 
-// ByteKey returns a unique key for this connection represented as a byte array
+// ByteKey returns a unique key for this connection represented as a byte slice
 // It's as following:
 //
 //     4B      2B      2B     .5B     .5B      4/16B        4/16B   = 17/41B
 //    32b     16b     16b      4b      4b     32/128b      32/128b
 // |  PID  | SPORT | DPORT | Family | Type |  SrcAddr  |  DestAddr
-func (c ConnectionStats) ByteKey(buf []byte) ([]byte, error) {
-	n := 0
-	// Byte-packing to improve creation speed
-	// PID (32 bits) + SPort (16 bits) + DPort (16 bits) = 64 bits
-	p0 := uint64(c.Pid)<<32 | uint64(c.SPort)<<16 | uint64(c.DPort)
-	binary.LittleEndian.PutUint64(buf[0:], p0)
-	n += 8
+func (c ConnectionStats) ByteKey(buf []byte) []byte {
+	return generateConnectionKey(c, buf, false)
+}
 
-	// Family (4 bits) + Type (4 bits) = 8 bits
-	buf[n] = uint8(c.Family)<<4 | uint8(c.Type)
-	n++
-
-	n += c.Source.WriteTo(buf[n:]) // 4 or 16 bytes
-	n += c.Dest.WriteTo(buf[n:])   // 4 or 16 bytes
-	return buf[:n], nil
+// ByteKeyNAT returns a unique key for this connection represented as a byte slice.
+// The format is similar to the one emitted by `ByteKey` with the sole difference
+// that the addresses used are translated.
+// Currently this key is used only for the aggregation of ephemeral connections.
+func (c ConnectionStats) ByteKeyNAT(buf []byte) []byte {
+	return generateConnectionKey(c, buf, true)
 }
 
 // IsShortLived returns true when a connection went through its whole lifecycle
@@ -378,4 +373,46 @@ func printAddress(address util.Address, names []dns.Hostname) string {
 		b.WriteString(dns.ToString(s))
 	}
 	return b.String()
+}
+
+// HTTPKeyTupleFromConn build the key for the http map based on whether the local or remote side is http.
+func HTTPKeyTupleFromConn(c ConnectionStats) http.KeyTuple {
+	// Retrieve translated addresses
+	laddr, lport := GetNATLocalAddress(c)
+	raddr, rport := GetNATRemoteAddress(c)
+
+	// HTTP data is always indexed as (client, server), so we account for that when generating the
+	// the lookup key using the port range heuristic.
+	// In the rare cases where both ports are within the same range we ensure that sport < dport
+	// to mimic the normalization heuristic done in the eBPF side (see `port_range.h`)
+	if (IsEphemeralPort(int(lport)) && !IsEphemeralPort(int(rport))) ||
+		(IsEphemeralPort(int(lport)) == IsEphemeralPort(int(rport)) && lport < rport) {
+		return http.NewKeyTuple(laddr, raddr, lport, rport)
+	}
+
+	return http.NewKeyTuple(raddr, laddr, rport, lport)
+}
+
+func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {
+	laddr, sport := c.Source, c.SPort
+	raddr, dport := c.Dest, c.DPort
+	if useNAT {
+		laddr, sport = GetNATLocalAddress(c)
+		raddr, dport = GetNATRemoteAddress(c)
+	}
+
+	n := 0
+	// Byte-packing to improve creation speed
+	// PID (32 bits) + SPort (16 bits) + DPort (16 bits) = 64 bits
+	p0 := uint64(c.Pid)<<32 | uint64(sport)<<16 | uint64(dport)
+	binary.LittleEndian.PutUint64(buf[0:], p0)
+	n += 8
+
+	// Family (4 bits) + Type (4 bits) = 8 bits
+	buf[n] = uint8(c.Family)<<4 | uint8(c.Type)
+	n++
+
+	n += laddr.WriteTo(buf[n:]) // 4 or 16 bytes
+	n += raddr.WriteTo(buf[n:]) // 4 or 16 bytes
+	return buf[:n]
 }

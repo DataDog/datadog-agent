@@ -6,8 +6,7 @@
 package launchers
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // MockSourceProvider is a fake SourceProvider that can be used to provide fake sources.
@@ -16,22 +15,22 @@ import (
 type MockSourceProvider struct {
 	// SourceChan is the unbuffered channel returned from all source-related methods.
 	// Send LogSources to it to trigger behavior from launchers.
-	SourceChan chan *logsConfig.LogSource
+	SourceChan chan *sources.LogSource
 }
 
 // NewMockSourceProvider creates a new MockSource Provider.
 func NewMockSourceProvider() *MockSourceProvider {
 	return &MockSourceProvider{
-		SourceChan: make(chan *logsConfig.LogSource),
+		SourceChan: make(chan *sources.LogSource),
 	}
 }
 
 // SubscribeForType implements SourceProvider#SubscribeForType.
-func (sp *MockSourceProvider) SubscribeForType(sourceType string) (chan *config.LogSource, chan *config.LogSource) {
+func (sp *MockSourceProvider) SubscribeForType(sourceType string) (chan *sources.LogSource, chan *sources.LogSource) {
 	return sp.SourceChan, sp.SourceChan
 }
 
 // GetAddedForType implements SourceProvider#GetAddedForType.
-func (sp *MockSourceProvider) GetAddedForType(sourceType string) chan *config.LogSource {
+func (sp *MockSourceProvider) GetAddedForType(sourceType string) chan *sources.LogSource {
 	return sp.SourceChan
 }

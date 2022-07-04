@@ -295,14 +295,22 @@ int self_exec(int argc, char **argv) {
 }
 
 int test_bind_af_inet(int argc, char** argv) {
-    int s = socket(PF_INET, SOCK_STREAM, 0);
-    if (s < 0) {
-        perror("socker");
+
+    if (argc != 3) {
+        fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
+        fprintf(stderr, "Arg1: an option for the addr in the list: any, custom_ip\n");
+        fprintf(stderr, "Arg2: an option for the protocol in the list: tcp, udp\n");
         return EXIT_FAILURE;
     }
 
-    if (argc != 2) {
-        fprintf(stderr, "Please speficy an option in the list: any, custom_ip\n");
+    char* proto = argv[2];
+    int s;
+    if (!strcmp(proto, "udp"))
+        s = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    else
+        s = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (s < 0) {
+        perror("socket");
         return EXIT_FAILURE;
     }
 
@@ -407,6 +415,48 @@ int test_bind(int argc, char** argv) {
     return EXIT_FAILURE;
 }
 
+int test_forkexec(int argc, char **argv) {
+    if (argc == 3) {
+        char *subcmd = argv[1];
+        char *open_trigger_filename = argv[2];
+        if (strcmp(subcmd, "exec") == 0) {
+            int child = fork();
+            if (child == 0) {
+                char *const args[] = {"syscall_tester", "fork", "open", open_trigger_filename, NULL};
+                execv("/proc/self/exe", args);
+            } else if (child > 0) {
+                wait(NULL);
+            }
+            return EXIT_SUCCESS;
+        } else if (strcmp(subcmd, "open") == 0) {
+            int fd = open(open_trigger_filename, O_RDONLY|O_CREAT, 0444);
+            if (fd >= 0) {
+                close(fd);
+                unlink(open_trigger_filename);
+            }
+            return EXIT_SUCCESS;
+        }
+    } else if (argc == 2) {
+        char *open_trigger_filename = argv[1];
+        int child = fork();
+        if (child == 0) {
+            int fd = open(open_trigger_filename, O_RDONLY|O_CREAT, 0444);
+            if (fd >= 0) {
+                close(fd);
+                unlink(open_trigger_filename);
+            }
+            return EXIT_SUCCESS;
+        } else if (child > 0) {
+            wait(NULL);
+        }
+        return EXIT_SUCCESS;
+    } else {
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please pass a command\n");
@@ -435,6 +485,8 @@ int main(int argc, char **argv) {
         return self_exec(argc - 1, argv + 1);
     } else if (strcmp(cmd, "bind") == 0) {
         return test_bind(argc - 1, argv + 1);
+    } else if (strcmp(cmd, "fork") == 0) {
+        return test_forkexec(argc - 1, argv + 1);
     } else {
         fprintf(stderr, "Unknown command `%s`\n", cmd);
         return EXIT_FAILURE;

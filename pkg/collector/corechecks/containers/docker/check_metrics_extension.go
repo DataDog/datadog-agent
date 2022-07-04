@@ -37,6 +37,11 @@ func (dn *dockerCustomMetricsExtension) Process(tags []string, container *worklo
 		return
 	}
 
+	if containerStats == nil {
+		log.Debugf("Metrics provider returned nil stats for container: %v", container)
+		return
+	}
+
 	if containerStats.Memory != nil {
 		// Re-implement Docker check behaviour: PrivateWorkingSet is mapped to RSS
 		if containerStats.Memory.PrivateWorkingSet != nil {
@@ -47,9 +52,14 @@ func (dn *dockerCustomMetricsExtension) Process(tags []string, container *worklo
 			dn.sender(dn.aggSender.Gauge, "docker.mem.sw_limit", containerStats.Memory.SwapLimit, tags)
 		}
 
-		if containerStats.Memory.UsageTotal != nil && containerStats.Memory.Limit != nil && *containerStats.Memory.Limit > 0 {
-			memoryPct := *containerStats.Memory.UsageTotal / *containerStats.Memory.Limit
-			dn.sender(dn.aggSender.Gauge, "docker.mem.in_use", &memoryPct, tags)
+		if containerStats.Memory.Limit != nil && *containerStats.Memory.Limit > 0 {
+			if containerStats.Memory.RSS != nil {
+				memoryPct := *containerStats.Memory.RSS / *containerStats.Memory.Limit
+				dn.sender(dn.aggSender.Gauge, "docker.mem.in_use", &memoryPct, tags)
+			} else if containerStats.Memory.CommitBytes != nil {
+				memoryPct := *containerStats.Memory.CommitBytes / *containerStats.Memory.Limit
+				dn.sender(dn.aggSender.Gauge, "docker.mem.in_use", &memoryPct, tags)
+			}
 		}
 	}
 

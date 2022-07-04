@@ -46,7 +46,7 @@ void cleanupFolders()
         remove_all(folderPath, ec);
         if (ec)
         {
-            WcaLog(LOGMSG_STANDARD, "Could not delete folder %s: %s", folderPath.c_str(), ec.message().c_str());
+            WcaLog(LOGMSG_STANDARD, "Could not delete folder %S: %s", folderPath.c_str(), ec.message().c_str());
         }
     }
 
@@ -54,7 +54,7 @@ void cleanupFolders()
     std::filesystem::remove(installPath, ec);
     if (ec)
     {
-        WcaLog(LOGMSG_STANDARD, "Could not delete folder %s: %s", installPath.c_str(), ec.message().c_str());
+        WcaLog(LOGMSG_STANDARD, "Could not delete folder %S: %s", installPath.c_str(), ec.message().c_str());
     }
 }
 

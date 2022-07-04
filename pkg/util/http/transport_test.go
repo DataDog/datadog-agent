@@ -149,7 +149,7 @@ func TestBadScheme(t *testing.T) {
 }
 
 func TestCreateHTTPTransport(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 
 	skipSSL := config.Datadog.GetBool("skip_ssl_validation")
 	forceTLS := config.Datadog.GetBool("force_tls_12")

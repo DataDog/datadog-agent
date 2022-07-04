@@ -153,7 +153,7 @@ func TestHandlerRun(t *testing.T) {
 		dispatcher:           newDispatcher(),
 		leaderStatusCallback: le.get,
 		port:                 5005,
-		leaderForwarder:      api.NewLeaderForwarder(testPort, 10, 1),
+		leaderForwarder:      api.NewLeaderForwarder(testPort, 10),
 	}
 
 	//

@@ -31,7 +31,7 @@ spec:
       serviceAccountName: datadog-cluster-agent
       containers:
         - name: cluster-agent
-          image: "gcr.io/datadoghq/cluster-agent:1.19.0"
+          image: "gcr.io/datadoghq/cluster-agent:1.20.0"
           imagePullPolicy: IfNotPresent
           resources: {}
           ports:
@@ -68,6 +68,14 @@ spec:
               value: "false"
             - name: DD_EXTERNAL_METRICS_AGGREGATOR
               value: "avg"
+            - name: DD_ADMISSION_CONTROLLER_ENABLED
+              value: "true"
+            - name: DD_ADMISSION_CONTROLLER_MUTATE_UNLABELLED
+              value: "false"
+            - name: DD_ADMISSION_CONTROLLER_SERVICE_NAME
+              value: datadog-cluster-agent-admission-controller
+            - name: DD_ADMISSION_CONTROLLER_FAILURE_POLICY
+              value: "Ignore"
             - name: DD_CLUSTER_CHECKS_ENABLED
               value: "true"
             - name: DD_EXTRA_CONFIG_PROVIDERS

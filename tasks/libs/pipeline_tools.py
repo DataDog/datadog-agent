@@ -4,8 +4,7 @@ import platform
 import sys
 from time import sleep, time
 
-from tasks.utils import DEFAULT_BRANCH
-
+from ..utils import DEFAULT_BRANCH
 from .common.color import color_message
 from .common.user_interactions import yes_no_question
 

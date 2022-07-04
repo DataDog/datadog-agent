@@ -71,7 +71,12 @@ func (d *DockerCheck) Configure(config, initConfig integration.Data, source stri
 	d.instance.Parse(config) //nolint:errcheck
 
 	if len(d.instance.FilteredEventType) == 0 {
-		d.instance.FilteredEventType = []string{"top", "exec_create", "exec_start", "exec_die"}
+		d.instance.FilteredEventType = []string{
+			"top",
+			"exec_create",
+			"exec_start",
+			"exec_die",
+		}
 	}
 
 	// Use the same hostname as the agent so that host tags (like `availability-zone:us-east-1b`)

@@ -14,7 +14,7 @@ import (
 )
 
 func TestGetPayload(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("api_key", "foo")
 
 	p := GetPayload("hostname")

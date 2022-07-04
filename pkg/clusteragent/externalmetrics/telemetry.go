@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
-	datadoghq "github.com/DataDog/datadog-operator/api/v1alpha1"
+	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
 )
 
 const (

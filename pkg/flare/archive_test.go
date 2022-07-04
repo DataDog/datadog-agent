@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -65,9 +66,35 @@ func createTestDirStructure(
 	return srcDir, dstDir, nil
 }
 
+func TestArchiveName(t *testing.T) {
+
+	//test with No log level set
+	zipFilePath := getArchivePath()
+	assert.Contains(t, zipFilePath, "Z.zip")
+	assert.NotContains(t, zipFilePath, "info")
+
+	// init and configure logger at runtime
+	config.SetupLogger("TEST", "debug", "", "", true, true, true)
+	ll := settings.LogLevelRuntimeSetting{}
+
+	// set 'trace' level logging
+	err := ll.Set("trace")
+	assert.Nil(t, err)
+
+	// Verify the runtime setting is set to 'trace'
+	v, err := ll.Get()
+	assert.Equal(t, "trace", v)
+	assert.Nil(t, err)
+
+	// verify filePath string ends with the correct log_level
+	zipFilePath = getArchivePath()
+	assert.Contains(t, zipFilePath, "-trace.zip")
+	assert.NotContains(t, zipFilePath, "Z.zip")
+}
+
 func TestCreateArchive(t *testing.T) {
 	common.SetupConfig("./test")
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("confd_path", "./test/confd")
 	mockConfig.Set("log_file", "./test/logs/agent.log")
 	zipFilePath := getArchivePath()
@@ -618,7 +645,7 @@ func TestZipProcessAgentChecks(t *testing.T) {
 		assert.True(t, strings.HasPrefix(string(content), "error: process-agent is not running or is unreachable"))
 	})
 	t.Run("with process-agent running", func(t *testing.T) {
-		cfg := config.Mock()
+		cfg := config.Mock(t)
 		cfg.Set("process_config.process_collection.enabled", true)
 		cfg.Set("process_config.container_collection.enabled", true)
 		cfg.Set("process_config.process_discovery.enabled", true)

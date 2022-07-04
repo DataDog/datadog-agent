@@ -34,19 +34,24 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 	containersMeta := []*workloadmeta.Container{
 		// Container with full stats
 		createContainerMeta("docker", "cID100"),
+		// Container with no stats (returns nil)
+		createContainerMeta("docker", "cID101"),
 	}
 
 	containersStats := map[string]mock.ContainerEntry{
 		"cID100": mock.GetFullSampleContainerEntry(),
+		"cID101": {
+			ContainerStats: nil,
+		},
 	}
 
-	mockSender, processor, _ := CreateTestProcessor(containersMeta, nil, containersStats, GenericMetricsAdapter{}, nil)
+	mockSender, processor, _ := CreateTestProcessor(containersMeta, containersStats, GenericMetricsAdapter{}, nil)
 	err := processor.Run(mockSender, 0)
 	assert.ErrorIs(t, err, nil)
 
 	expectedTags := []string{"runtime:docker"}
 	mockSender.AssertNumberOfCalls(t, "Rate", 17)
-	mockSender.AssertNumberOfCalls(t, "Gauge", 13)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 14)
 
 	mockSender.AssertMetricInRange(t, "Gauge", "container.uptime", 0, 600, "", expectedTags)
 	mockSender.AssertMetric(t, "Rate", "container.cpu.usage", 100, "", expectedTags)
@@ -102,7 +107,7 @@ func TestProcessorRunPartialStats(t *testing.T) {
 		},
 	}
 
-	mockSender, processor, _ := CreateTestProcessor(containersMeta, nil, containersStats, GenericMetricsAdapter{}, nil)
+	mockSender, processor, _ := CreateTestProcessor(containersMeta, containersStats, GenericMetricsAdapter{}, nil)
 	err := processor.Run(mockSender, 0)
 	assert.ErrorIs(t, err, nil)
 

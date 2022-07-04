@@ -530,12 +530,8 @@ func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 		t.conntracker.DeleteTranslation(*entry)
 
 		// Append the connection key to the keys to remove from the userspace state
-		bk, err := entry.ByteKey(t.buf)
-		if err != nil {
-			log.Warnf("failed to create connection byte_key: %s", err)
-		} else {
-			keys = append(keys, string(bk))
-		}
+		bk := entry.ByteKey(t.buf)
+		keys = append(keys, string(bk))
 	}
 
 	t.state.RemoveConnections(keys)
@@ -609,9 +605,7 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 		case epbfStats:
 			ret["ebpf"] = t.ebpfTracer.GetTelemetry()
 		case gatewayLookupStats:
-			if t.gwLookup != nil {
-				ret["gateway_lookup"] = t.gwLookup.GetStats()
-			}
+			ret["gateway_lookup"] = t.gwLookup.GetStats()
 		case httpStats:
 			ret["http"] = t.httpMonitor.GetStats()
 		case kprobesStats:

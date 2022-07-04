@@ -18,6 +18,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -149,7 +150,7 @@ func fetchAuthToken(tokenCreationAllowed bool) (string, error) {
 	}
 
 	// Do some basic validation
-	authToken := string(authTokenRaw)
+	authToken := strings.TrimSpace(string(authTokenRaw))
 	if len(authToken) < authTokenMinimalLen {
 		return "", fmt.Errorf("invalid authentication token: must be at least %d characters in length", authTokenMinimalLen)
 	}

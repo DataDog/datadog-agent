@@ -137,7 +137,7 @@ build do
     # Prepare the build env, these dependencies are only needed to build and
     # install the core integrations.
     #
-    command "#{pip} download --dest #{build_deps_dir} hatchling==0.22.0"
+    command "#{pip} download --dest #{build_deps_dir} hatchling==0.25.0"
     command "#{pip} download --dest #{build_deps_dir} setuptools==40.9.0" # Version from ./setuptools3.rb
     command "#{pip} install wheel==0.34.1"
     command "#{pip} install pip-tools==6.4.0"
@@ -210,7 +210,7 @@ build do
     # Increasing pip max retries (default: 5 times) and pip timeout (default 15 seconds) to avoid blocking network errors
     pip_max_retries = 20
     pip_timeout = 20
-    
+
     # Use pip-compile to create the final requirements file. Notice when we invoke `pip` through `python -m pip <...>`,
     # there's no need to refer to `pip`, the interpreter will pick the right script.
     if windows?
@@ -269,7 +269,17 @@ build do
       File.exist?(manifest_file_path) || next
 
       manifest = JSON.parse(File.read(manifest_file_path))
-      manifest['supported_os'].include?(os) || next
+      if manifest.key?("supported_os")
+        manifest["supported_os"].include?(os) || next
+      else
+        if os == "mac_os"
+          tag = "Supported OS::macOS"
+        else
+          tag = "Supported OS::#{os.capitalize}"
+        end
+
+        manifest["tile"]["classifier_tags"].include?(tag) || next
+      end
 
       File.file?("#{check_dir}/setup.py") || File.file?("#{check_dir}/pyproject.toml") || next
       # Check if it supports Python 3.

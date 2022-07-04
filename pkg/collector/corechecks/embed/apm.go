@@ -43,14 +43,17 @@ type APMCheck struct {
 	telemetry   bool
 }
 
+// String displays the Agent name
 func (c *APMCheck) String() string {
 	return "APM Agent"
 }
 
+// Version displays the command's version
 func (c *APMCheck) Version() string {
 	return ""
 }
 
+// ConfigSource displays the command's source
 func (c *APMCheck) ConfigSource() string {
 	return c.source
 }

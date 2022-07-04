@@ -99,11 +99,49 @@ int socket__http_filter(struct __sk_buff* skb) {
     return 0;
 }
 
-// This kprobe is used to send batch completion notification to userspace
-// because perf events can't be sent from socket filter programs
+SEC("kprobe/tcp_sendmsg")
+int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
+    // map connection tuple during SSL_do_handshake(ctx)
+    init_ssl_sock_from_do_handshake((struct sock*)PT_REGS_PARM1(ctx));
+    return 0;
+}
+
 SEC("kretprobe/tcp_sendmsg")
 int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
+    // send batch completion notification to userspace
+    // because perf events can't be sent from socket filter programs
     http_notify_batch(ctx);
+    return 0;
+}
+
+
+SEC("uprobe/SSL_do_handshake")
+int uprobe__SSL_do_handshake(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
+    bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
+    return 0;
+}
+
+SEC("uretprobe/SSL_do_handshake")
+int uretprobe__SSL_do_handshake(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
+    return 0;
+}
+
+SEC("uprobe/SSL_connect")
+int uprobe__SSL_connect(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
+    bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
+    return 0;
+}
+
+SEC("uretprobe/SSL_connect")
+int uretprobe__SSL_connect(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
     return 0;
 }
 
@@ -138,7 +176,7 @@ int uretprobe__BIO_new_socket(struct pt_regs* ctx) {
     }
     u32 fd = *socket_fd; // copy map value into stack (required by older Kernels)
     bpf_map_update_elem(&fd_by_ssl_bio, &bio, &fd, BPF_ANY);
- cleanup:
+cleanup:
     bpf_map_delete_elem(&bio_new_socket_args, &pid_tgid);
     return 0;
 }
@@ -182,7 +220,7 @@ int uretprobe__SSL_read(struct pt_regs* ctx) {
 
     u32 len = (u32)PT_REGS_RC(ctx);
     https_process(t, args->buf, len, LIBSSL);
- cleanup:
+cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
 }
@@ -212,6 +250,7 @@ int uprobe__SSL_shutdown(struct pt_regs* ctx) {
     }
 
     https_finish(t);
+    bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
     return 0;
 }
 
@@ -292,7 +331,7 @@ int uretprobe__gnutls_record_recv(struct pt_regs* ctx) {
     }
 
     https_process(t, args->buf, read_len, LIBGNUTLS);
- cleanup:
+cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
 }
@@ -342,20 +381,33 @@ int uprobe__gnutls_deinit(struct pt_regs* ctx) {
     return 0;
 }
 
-SEC("kprobe/do_sys_open")
-int kprobe__do_sys_open(struct pt_regs* ctx) {
-    char *path_argument = (char *)PT_REGS_PARM2(ctx);
-    lib_path_t path = {0};
-    bpf_probe_read(path.buf, sizeof(path.buf), path_argument);
-
-    // Find the null character and clean up the garbage following it
+static __always_inline int fill_path_safe(lib_path_t *path, char *path_argument) {
 #pragma unroll
     for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
-        if (path.len) {
-            path.buf[i] = 0;
-        } else if (path.buf[i] == 0) {
-            path.len = i;
+        bpf_probe_read_user(&path->buf[i], 1, &path_argument[i]);
+        if (path->buf[i] == 0) {
+            path->len = i;
+            break;
         }
+    }
+    return 0;
+}
+
+static __always_inline int do_sys_open_helper_enter(struct pt_regs* ctx) {
+    char *path_argument = (char *)PT_REGS_PARM2(ctx);
+    lib_path_t path = {0};
+    if (bpf_probe_read_user(path.buf, sizeof(path.buf), path_argument) >= 0) {
+// Find the null character and clean up the garbage following it
+#pragma unroll
+        for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
+            if (path.len) {
+                path.buf[i] = 0;
+            } else if (path.buf[i] == 0) {
+                path.len = i;
+            }
+        }
+    } else {
+        fill_path_safe(&path, path_argument);
     }
 
     // Bail out if the path size is larger than our buffer
@@ -369,8 +421,17 @@ int kprobe__do_sys_open(struct pt_regs* ctx) {
     return 0;
 }
 
-SEC("kretprobe/do_sys_open")
-int kretprobe__do_sys_open(struct pt_regs* ctx) {
+SEC("kprobe/do_sys_open")
+int kprobe__do_sys_open(struct pt_regs* ctx) {
+    return do_sys_open_helper_enter(ctx);
+}
+
+SEC("kprobe/do_sys_openat2")
+int kprobe__do_sys_openat2(struct pt_regs* ctx) {
+    return do_sys_open_helper_enter(ctx);
+}
+
+static __always_inline int do_sys_open_helper_exit(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // If file couldn't be opened, bail out
@@ -403,9 +464,19 @@ int kretprobe__do_sys_open(struct pt_regs* ctx) {
 
     u32 cpu = bpf_get_smp_processor_id();
     bpf_perf_event_output(ctx, &shared_libraries, cpu, &lib_path, sizeof(lib_path));
- cleanup:
+cleanup:
     bpf_map_delete_elem(&open_at_args, &pid_tgid);
     return 0;
+}
+
+SEC("kretprobe/do_sys_open")
+int kretprobe__do_sys_open(struct pt_regs* ctx) {
+    return do_sys_open_helper_exit(ctx);
+}
+
+SEC("kretprobe/do_sys_openat2")
+int kretprobe__do_sys_openat2(struct pt_regs* ctx) {
+    return do_sys_open_helper_exit(ctx);
 }
 
 // This number will be interpreted by elf-loader to set the current running kernel version

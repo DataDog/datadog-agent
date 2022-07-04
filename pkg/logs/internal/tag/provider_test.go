@@ -16,7 +16,7 @@ import (
 )
 
 func TestProviderExpectedTags(t *testing.T) {
-	m := coreConfig.Mock()
+	m := coreConfig.Mock(t)
 	clock := clock.NewMock()
 
 	oldStartTime := coreConfig.StartTime

@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -17,8 +18,8 @@ import (
 type Launcher struct {
 	pipelineProvider pipeline.Provider
 	frameSize        int
-	tcpSources       chan *config.LogSource
-	udpSources       chan *config.LogSource
+	tcpSources       chan *sources.LogSource
+	udpSources       chan *sources.LogSource
 	listeners        []startstop.StartStoppable
 	stop             chan struct{}
 }

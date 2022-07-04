@@ -75,6 +75,10 @@ func TestProcessDefaultConfig(t *testing.T) {
 			defaultValue: make(map[string][]string),
 		},
 		{
+			key:          "process_config.events_additional_endpoints",
+			defaultValue: make(map[string][]string),
+		},
+		{
 			key:          "process_config.internal_profiling.enabled",
 			defaultValue: false,
 		},
@@ -93,6 +97,30 @@ func TestProcessDefaultConfig(t *testing.T) {
 		{
 			key:          "process_config.cmd_port",
 			defaultValue: DefaultProcessCmdPort,
+		},
+		{
+			key:          "process_config.event_collection.store.max_items",
+			defaultValue: DefaultProcessEventStoreMaxItems,
+		},
+		{
+			key:          "process_config.event_collection.store.max_pending_pushes",
+			defaultValue: DefaultProcessEventStoreMaxPendingPushes,
+		},
+		{
+			key:          "process_config.event_collection.store.max_pending_pulls",
+			defaultValue: DefaultProcessEventStoreMaxPendingPulls,
+		},
+		{
+			key:          "process_config.event_collection.store.stats_interval",
+			defaultValue: DefaultProcessEventStoreStatsInterval,
+		},
+		{
+			key:          "process_config.event_collection.enabled",
+			defaultValue: false,
+		},
+		{
+			key:          "process_config.event_collection.interval",
+			defaultValue: DefaultProcessEventsCheckInterval,
 		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
@@ -262,6 +290,12 @@ func TestEnvVarOverride(t *testing.T) {
 			expected: "datacat.com",
 		},
 		{
+			key:      "process_config.events_dd_url",
+			env:      "DD_PROCESS_CONFIG_EVENTS_DD_URL",
+			value:    "datacat.com",
+			expected: "datacat.com",
+		},
+		{
 			key:      "process_config.internal_profiling.enabled",
 			env:      "DD_PROCESS_CONFIG_INTERNAL_PROFILING_ENABLED",
 			value:    "true",
@@ -347,6 +381,42 @@ func TestEnvVarOverride(t *testing.T) {
 			expType:  "boolean",
 			expected: true,
 		},
+		{
+			key:      "process_config.event_collection.store.max_items",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_STORE_MAX_ITEMS",
+			value:    "400",
+			expected: 400,
+		},
+		{
+			key:      "process_config.event_collection.store.max_pending_pushes",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_STORE_MAX_PENDING_PUSHES",
+			value:    "100",
+			expected: 100,
+		},
+		{
+			key:      "process_config.event_collection.store.max_pending_pulls",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_STORE_MAX_PENDING_PULLS",
+			value:    "50",
+			expected: 50,
+		},
+		{
+			key:      "process_config.event_collection.store.stats_interval",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_STORE_STATS_INTERVAL",
+			value:    "60",
+			expected: 60,
+		},
+		{
+			key:      "process_config.event_collection.enabled",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_ENABLED",
+			value:    "true",
+			expected: true,
+		},
+		{
+			key:      "process_config.event_collection.interval",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_INTERVAL",
+			value:    "20s",
+			expected: 20 * time.Second,
+		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
 			reset := setEnvForTest(tc.env, tc.value)
@@ -373,6 +443,16 @@ func TestEnvVarOverride(t *testing.T) {
 				"fakeAPIKey",
 			},
 		}, cfg.GetStringMapStringSlice("process_config.additional_endpoints"))
+		reset()
+	})
+
+	t.Run("DD_PROCESS_CONFIG_EVENTS_ADDITIONAL_ENDPOINTS", func(t *testing.T) {
+		reset := setEnvForTest("DD_PROCESS_CONFIG_EVENTS_ADDITIONAL_ENDPOINTS", `{"https://process-events.datadoghq.io": ["fakeAPIKey"]}`)
+		assert.Equal(t, map[string][]string{
+			"https://process-events.datadoghq.io": {
+				"fakeAPIKey",
+			},
+		}, cfg.GetStringMapStringSlice("process_config.events_additional_endpoints"))
 		reset()
 	})
 }

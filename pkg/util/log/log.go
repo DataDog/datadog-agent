@@ -70,7 +70,6 @@ func SetupJMXLogger(i seelog.LoggerInterface, level string) {
 }
 
 func setupCommonLogger(i seelog.LoggerInterface, level string) *DatadogLogger {
-
 	l := &DatadogLogger{
 		inner: i,
 		extra: make(map[string]seelog.LoggerInterface),
@@ -689,7 +688,7 @@ func JMXError(v ...interface{}) error {
 	return logWithError(seelog.ErrorLvl, func() { JMXError(v...) }, jmxLogger.error, true, v...)
 }
 
-//JMXInfo Logs
+// JMXInfo Logs
 func JMXInfo(v ...interface{}) {
 	log(seelog.InfoLvl, func() { JMXInfo(v...) }, jmxLogger.info, v...)
 }

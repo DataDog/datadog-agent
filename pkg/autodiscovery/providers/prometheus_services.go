@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// ServiceAPI abstracts the dependency on the Kubernetes API (useful for testing)
 type ServiceAPI interface {
 	// List lists all Services
 	ListServices() ([]*v1.Service, error)

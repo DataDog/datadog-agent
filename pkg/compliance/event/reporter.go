@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,7 +30,7 @@ type Reporter interface {
 }
 
 type reporter struct {
-	logSource *config.LogSource
+	logSource *sources.LogSource
 	logChan   chan *message.Message
 }
 
@@ -48,7 +49,7 @@ func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath s
 	stopper.Add(pipelineProvider)
 	stopper.Add(auditor)
 
-	logSource := config.NewLogSource(
+	logSource := sources.NewLogSource(
 		sourceName,
 		&config.LogsConfig{
 			Type:    sourceType,
@@ -61,7 +62,7 @@ func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath s
 }
 
 // NewReporter returns an instance of Reporter
-func NewReporter(logSource *config.LogSource, logChan chan *message.Message) Reporter {
+func NewReporter(logSource *sources.LogSource, logChan chan *message.Message) Reporter {
 	return &reporter{
 		logSource: logSource,
 		logChan:   logChan,
