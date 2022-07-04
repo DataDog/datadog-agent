@@ -66,7 +66,7 @@ func TestCleanFile(t *testing.T) {
 	})
 	res, err := scrubber.ScrubFile(filename)
 	require.NoError(t, err)
-	require.Equal(t, "a line with bar\na line with bar", string(res))
+	require.Equal(t, "a line with bar\n\na line with bar", string(res))
 }
 
 func TestScrubLine(t *testing.T) {
