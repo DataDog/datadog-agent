@@ -56,7 +56,7 @@ type Demultiplexer interface {
 	AddTimeSampleBatch(shard TimeSamplerID, samples metrics.MetricSampleBatch)
 
 	// TODO(remy): document me
-	AddHistoricalMetrics(metrics metrics.HistoricalMetrics)
+	AddLateMetrics(metrics metrics.MetricSampleBatch)
 
 	// AddCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
 	AddCheckSample(sample metrics.MetricSample)

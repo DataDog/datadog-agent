@@ -8,6 +8,7 @@ package dogstatsd
 import (
 	"bytes"
 	"fmt"
+	"time"
 )
 
 type metricType int
@@ -31,6 +32,7 @@ var (
 
 	tagsFieldPrefix       = []byte("#")
 	sampleRateFieldPrefix = []byte("@")
+	timestampFieldPrefix  = []byte("T") // TODO(remy): maybe go with something smaller
 )
 
 type dogstatsdMetricSample struct {
@@ -46,6 +48,8 @@ type dogstatsdMetricSample struct {
 	tags       []string
 	// containerID represents the container ID of the sender (optional).
 	containerID []byte
+	// timestamp read in the message if any
+	ts time.Time
 }
 
 // sanity checks a given message against the metric sample format
@@ -54,7 +58,7 @@ func hasMetricSampleFormat(message []byte) bool {
 		return false
 	}
 	separatorCount := bytes.Count(message, fieldSeparator)
-	if separatorCount < 1 || separatorCount > 3 {
+	if separatorCount < 1 || separatorCount > 4 {
 		return false
 	}
 	return true

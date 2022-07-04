@@ -152,8 +152,8 @@ func (d *ServerlessDemultiplexer) AddCheckSample(sample metrics.MetricSample) {
 	panic("not implemented.")
 }
 
-// AddHistoricalMetrics is not supported in the Serverless Agent implementation.
-func (d *ServerlessDemultiplexer) AddHistoricalMetrics(samples metrics.HistoricalMetrics) {
+// AddLateMetrics is not supported in the Serverless Agent implementation.
+func (d *ServerlessDemultiplexer) AddLateMetrics(samples metrics.MetricSampleBatch) {
 	panic("not implemented.")
 }
 

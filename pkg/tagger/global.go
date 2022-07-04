@@ -121,7 +121,7 @@ func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
 }
 
 // AccumulateTagsFor queries the defaultTagger to get entity tags from cache or
-// sources and appends them to the TagAccumulator.  It can return tags at high
+// sources and appends them to the TagsAccumulator.  It can return tags at high
 // cardinality (with tags about individual containers), or at orchestrator
 // cardinality (pod/task level).
 func AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagsAccumulator) error {
@@ -198,7 +198,7 @@ func GlobalTags(cardinality collectors.TagCardinality) ([]string, error) {
 }
 
 // globalTagBuilder queries global tags that should apply to all data coming
-// from the agent and appends them to the TagAccumulator
+// from the agent and appends them to the TagsAccumulator
 func globalTagBuilder(cardinality collectors.TagCardinality, tb tagset.TagsAccumulator) error {
 	mux.RLock()
 	if captureTagger != nil {

@@ -23,10 +23,9 @@ var (
 
 // MetricSampleBatch is a slice of MetricSample. It is used by the MetricSamplePool
 // to avoid constant reallocation in high throughput pipelines.
+//
+// Can be used for both "on-time" and for "late" metrics.
 type MetricSampleBatch []MetricSample
-
-// TODO(remy): document me
-type HistoricalMetricsBatch []MetricSample
 
 // MetricSamplePool is a pool of metrics sample
 type MetricSamplePool struct {

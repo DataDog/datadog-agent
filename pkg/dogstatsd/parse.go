@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 	"strconv"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -99,6 +100,7 @@ func (p *parser) parseTags(rawTags []byte) []string {
 	return tagsList
 }
 
+// parseMetricSample parses the given message and return the dogstatsdMetricSample read.
 func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error) {
 	// fast path to eliminate most of the gibberish
 	// especially important here since all the unidentified garbage gets
@@ -119,11 +121,13 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 		return dogstatsdMetricSample{}, err
 	}
 
+	// read metric values
+
 	var setValue []byte
 	var values []float64
 	var value float64
 	if metricType == setType {
-		setValue = rawValue
+		setValue = rawValue // special case for the set type, we obviously don't support multiple values for this type
 	} else {
 		// In case the list contains only one value, dogstatsd 1.0
 		// protocol, we directly parse it as a float64. This avoids
@@ -139,20 +143,32 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 		}
 	}
 
+	// now, look for extra fields supported by dogstatsd
+	// sample rate, tags, container ID, timestamp, ...
+
 	sampleRate := 1.0
 	var tags []string
 	var containerID []byte
 	var optionalField []byte
+	var timestamp time.Time
 	for message != nil {
 		optionalField, message = nextField(message)
 		switch {
+		// tags
 		case bytes.HasPrefix(optionalField, tagsFieldPrefix):
 			tags = p.parseTags(optionalField[1:])
+		// sample rate
 		case bytes.HasPrefix(optionalField, sampleRateFieldPrefix):
 			sampleRate, err = parseMetricSampleSampleRate(optionalField[1:])
 			if err != nil {
 				return dogstatsdMetricSample{}, fmt.Errorf("could not parse dogstatsd sample rate %q", optionalField)
 			}
+		// timestamp
+		case bytes.HasPrefix(optionalField, timestampFieldPrefix):
+			if ts, err := strconv.ParseInt(string(optionalField[len(timestampFieldPrefix):]), 10, 0); err == nil {
+				timestamp = time.Unix(ts, 0)
+			}
+		// container ID
 		case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, containerIDFieldPrefix):
 			containerID = p.extractContainerID(optionalField)
 		}
@@ -167,6 +183,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 		sampleRate:  sampleRate,
 		tags:        tags,
 		containerID: containerID,
+		ts:          timestamp,
 	}, nil
 }
 

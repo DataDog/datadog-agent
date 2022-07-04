@@ -7,6 +7,7 @@ package dogstatsd
 
 import (
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -130,7 +131,16 @@ func isMetricBlocklisted(metricName string, metricBlocklist []string) bool {
 	return false
 }
 
-func enrichMetricSample(metricSamples []metrics.MetricSample, ddSample dogstatsdMetricSample, namespace string, excludedNamespaces []string,
+func tsToFloatForSamples(ts time.Time) float64 {
+	// XXX(remy): we may see this call appear in profiles
+	if ts.IsZero() { // avoid a conversion
+		// for on-time samples, we don't want to write any value in there
+		return 0.0
+	}
+	return float64(ts.Unix())
+}
+
+func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, namespace string, excludedNamespaces []string,
 	metricBlocklist []string, defaultHostname string, origin string, entityIDPrecedenceEnabled bool, serverlessMode bool) []metrics.MetricSample {
 	metricName := ddSample.name
 	tags, hostnameFromTags, udsOrigin, clientOrigin, cardinality := extractTagsMetadata(ddSample.tags, defaultHostname, origin, ddSample.containerID, entityIDPrecedenceEnabled)
@@ -154,7 +164,7 @@ func enrichMetricSample(metricSamples []metrics.MetricSample, ddSample dogstatsd
 	// we will use 'ddSample.value'and return a single MetricSample
 	if len(ddSample.values) > 0 {
 		for idx := range ddSample.values {
-			metricSamples = append(metricSamples,
+			dest = append(dest,
 				metrics.MetricSample{
 					Host:             hostnameFromTags,
 					Name:             metricName,
@@ -163,16 +173,17 @@ func enrichMetricSample(metricSamples []metrics.MetricSample, ddSample dogstatsd
 					Value:            ddSample.values[idx],
 					SampleRate:       ddSample.sampleRate,
 					RawValue:         ddSample.setValue,
+					Timestamp:        tsToFloatForSamples(ddSample.ts),
 					OriginFromUDS:    udsOrigin,
 					OriginFromClient: clientOrigin,
 					Cardinality:      cardinality,
 				})
 		}
-		return metricSamples
+		return dest
 	}
 
 	// only one value contained, simple append it
-	return append(metricSamples, metrics.MetricSample{
+	return append(dest, metrics.MetricSample{
 		Host:             hostnameFromTags,
 		Name:             metricName,
 		Tags:             tags,
@@ -180,6 +191,7 @@ func enrichMetricSample(metricSamples []metrics.MetricSample, ddSample dogstatsd
 		Value:            ddSample.value,
 		SampleRate:       ddSample.sampleRate,
 		RawValue:         ddSample.setValue,
+		Timestamp:        tsToFloatForSamples(ddSample.ts),
 		OriginFromUDS:    udsOrigin,
 		OriginFromClient: clientOrigin,
 		Cardinality:      cardinality,

@@ -59,9 +59,9 @@ type statsd struct {
 	// shared metric sample pool between the dogstatsd server & the time sampler
 	metricSamplePool *metrics.MetricSamplePool
 
-	// historical metrics parsed from messages are stored in this buffer
+	// late metrics parsed from messages are stored in this buffer
 	// before a flush is triggered.
-	historicalMetrics metrics.HistoricalMetrics
+	lateMetrics metrics.MetricSampleBatch
 }
 
 type forwarders struct {
@@ -393,7 +393,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	defer d.m.Unlock()
 
 	if d.aggregator == nil {
-		// NOTE(remy): we could consider flushing only the time samplers
+		// NOTE(remy): we could consider flushing only the time samplers and the late metrics
 		return
 	}
 
@@ -425,12 +425,13 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 			// flush the historical metrics if any
 			// -------------------------------------
 
-			if len(d.historicalMetrics) > 0 {
+			if len(d.statsd.lateMetrics) > 0 {
+				log.Infof("---------------------------- will flush %d late metrics", len(d.statsd.lateMetrics))
 				// XXX(remy): move this in its own instance if needed? since it
 				// XXX(remy): only used in this serialization, we may not even need it for the two buffers
 				taggerBuffer := tagset.NewHashlessTagsAccumulator()
 				metricBuffer := tagset.NewHashlessTagsAccumulator()
-				for _, sample := range d.historicalMetrics {
+				for _, sample := range d.statsd.lateMetrics {
 					// enrich metric sample tags
 					sample.GetTags(taggerBuffer, metricBuffer)
 					metricBuffer.AppendHashlessAccumulator(taggerBuffer)
@@ -440,6 +441,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 					serie.Name = sample.Name
 					// TODO(remy): we may have to sort uniq them?
 					// XXX(remy): do we really need to copy here?
+					serie.Points = []metrics.Point{{Ts: sample.Timestamp, Value: sample.Value}}
 					serie.Tags = tagset.CompositeTagsFromSlice(metricBuffer.Copy())
 					serie.Host = sample.Host
 					serie.Interval = 0 // TODO(remy): document me
@@ -448,6 +450,9 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 					taggerBuffer.Reset()
 					metricBuffer.Reset()
 				}
+
+				d.statsd.lateMetrics = d.statsd.lateMetrics[0:0]
+				log.Infof("----------------- After the flush: %d", len(d.statsd.lateMetrics))
 			}
 
 			// flush the aggregator (check samplers)
@@ -490,10 +495,10 @@ func (d *AgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*metric
 	return d.aggregator.GetBufferedChannels()
 }
 
-// AddHistoricalMetrics buffers a bunch of historical metrics. This data will be directly
+// AddLateMetrics buffers a bunch of late metrics. This data will be directly
 // transmitted "as-is" (i.e. no sampling) to the serializer when a flush is triggered.
-func (d *AgentDemultiplexer) AddHistoricalMetrics(samples metrics.HistoricalMetrics) {
-	d.historicalMetrics = append(d.historicalMetrics, samples...)
+func (d *AgentDemultiplexer) AddLateMetrics(samples metrics.MetricSampleBatch) {
+	d.statsd.lateMetrics = append(d.statsd.lateMetrics, samples...)
 }
 
 // AddTimeSampleBatch adds a batch of MetricSample into the given time sampler shard.

@@ -537,7 +537,7 @@ func (s *Server) eolEnabled(sourceType packets.SourceType) bool {
 }
 
 // workers are running this function in their goroutine
-func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*packets.Packet, samples []metrics.MetricSample) []metrics.MetricSample {
+func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*packets.Packet, samples metrics.MetricSampleBatch) metrics.MetricSampleBatch {
 	for _, packet := range packets {
 		log.Tracef("Dogstatsd receive: %q", packet.Contents)
 		for {
@@ -570,6 +570,7 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 				batcher.appendEvent(event)
 			case metricSampleType:
 				var err error
+
 				samples = samples[0:0]
 
 				debugEnabled := s.Debug.Enabled.Load()
@@ -584,7 +585,13 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 					if debugEnabled {
 						s.storeMetricStats(samples[idx])
 					}
-					batcher.appendSample(samples[idx])
+
+					if samples[idx].Timestamp > 0.0 {
+						batcher.appendLateSample(samples[idx])
+					} else {
+						batcher.appendSample(samples[idx])
+					}
+
 					if s.histToDist && samples[idx].Mtype == metrics.HistogramType {
 						distSample := samples[idx].Copy()
 						distSample.Name = s.histToDistPrefix + distSample.Name
@@ -639,6 +646,11 @@ func (s *Server) createOriginTagMaps(origin string) cachedTagsOriginMap {
 	return maps
 }
 
+// XXX comment
+// TODO(remy): for performance purpose, we may need this method to deal with both a metricSamples slice and a lateMetricSamples
+//             slice, in order to not having to test multiple times if a metric sample is a late one using the Timestamp attribute,
+//             which will be slower when processing millions of samples.
+//             It could use a boolean returned by `parseMetricSample` which is the first part aware of processing a late metric.
 func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string, telemetry bool) ([]metrics.MetricSample, error) {
 	okCnt := tlmProcessedOk
 	errorCnt := tlmProcessedError
@@ -667,6 +679,7 @@ func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 			sample.tags = append(sample.tags, mapResult.Tags...)
 		}
 	}
+
 	metricSamples = enrichMetricSample(metricSamples, sample, s.metricPrefix, s.metricPrefixBlacklist, s.metricBlocklist, s.defaultHostname, origin, s.entityIDPrecedenceEnabled, s.ServerlessMode)
 
 	if len(sample.values) > 0 {
