@@ -212,10 +212,6 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 		collectors = options.DefaultResources.AsSlice()
 	}
 
-	if err := builder.WithEnabledResources(collectors); err != nil {
-		return err
-	}
-
 	// Enable exposing resource labels explicitly for kube_<resource>_labels metadata metrics.
 	// Equivalent to configuring --metric-labels-allowlist.
 	allowedLabels := map[string][]string{}
@@ -275,16 +271,25 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 	builder.WithGenerateStoresFunc(builder.GenerateStores)
 
 	factories := []customresource.RegistryFactory{
+		customresources.NewJobFactory(),
 		customresources.NewCronJobFactory(),
 		customresources.NewPodDisruptionBudgetFactory(),
 	}
-	builder.WithCustomResourceStoreFactories(factories...)
-	builder.WithCustomResourceClients(map[string]interface{}{
-		"cronjobs":             c.Cl,
-		"poddisruptionbudgets": c.Cl,
-	})
 
+	clients := make(map[string]interface{}, len(factories))
+	for _, f := range factories {
+		clients[f.Name()] = c.Cl
+	}
+
+	builder.WithCustomResourceStoreFactories(factories...)
+	builder.WithCustomResourceClients(clients)
 	builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
+
+	// must call WithEnabledResources after custom resources have been
+	// registered, otherwise they will fail with "resource does not exist"
+	if err := builder.WithEnabledResources(collectors); err != nil {
+		return err
+	}
 
 	// Start the collection process
 	k.allStores = builder.BuildStores()
