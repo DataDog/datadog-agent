@@ -34,7 +34,7 @@ func TestNewNoSSLWorker(t *testing.T) {
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction)
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("skip_ssl_validation", true)
 	defer mockConfig.Set("skip_ssl_validation", false)
 

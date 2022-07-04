@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Add support for new types of CI Visibility payloads to the Trace Agent, so
+    features that until now were Agentless-only are available as well when using
+    the Agent.

@@ -38,12 +38,15 @@ const (
 
 	// ContainerIDLen defines the length of a container ID
 	ContainerIDLen = sha256.Size * 2
+
+	// MaxSymlinks maximum symlinks captured
+	MaxSymlinks = 2
 )
 
 var (
 	// vmConstants is the list of protection flags for a virtual memory segment
 	// generate_constants:Virtual Memory flags,Virtual Memory flags define the protection of a virtual memory segment.
-	vmConstants = map[string]int{
+	vmConstants = map[string]uint64{
 		"VM_NONE":         0x0,
 		"VM_READ":         0x1,
 		"VM_WRITE":        0x2,
@@ -652,6 +655,13 @@ var (
 		"IP_PROTO_MPLS":    IPProtoMPLS,
 		"IP_PROTO_RAW":     IPProtoRAW,
 	}
+
+	// exitCauseConstants is the list of supported Exit causes
+	exitCauseConstants = map[string]ExitCause{
+		"EXITED":     ExitExited,
+		"COREDUMPED": ExitCoreDumped,
+		"SIGNALED":   ExitSignaled,
+	}
 )
 
 var (
@@ -665,9 +675,9 @@ var (
 	bpfProgramTypeStrings     = map[uint32]string{}
 	bpfAttachTypeStrings      = map[uint32]string{}
 	ptraceFlagsStrings        = map[uint32]string{}
-	vmStrings                 = map[int]string{}
+	vmStrings                 = map[uint64]string{}
 	protStrings               = map[int]string{}
-	mmapFlagStrings           = map[int]string{}
+	mmapFlagStrings           = map[uint64]string{}
 	signalStrings             = map[int]string{}
 	pipeBufFlagStrings        = map[int]string{}
 	dnsQTypeStrings           = map[uint32]string{}
@@ -675,6 +685,7 @@ var (
 	l3ProtocolStrings         = map[L3Protocol]string{}
 	l4ProtocolStrings         = map[L4Protocol]string{}
 	addressFamilyStrings      = map[uint16]string{}
+	exitCauseStrings          = map[ExitCause]string{}
 )
 
 // File flags
@@ -773,7 +784,7 @@ func initPtraceConstants() {
 
 func initVMConstants() {
 	for k, v := range vmConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
 	}
 
 	for k, v := range vmConstants {
@@ -797,7 +808,7 @@ func initMMapFlagsConstants() {
 	}
 
 	for k, v := range mmapFlagConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
 	}
 
 	for k, v := range mmapFlagConstants {
@@ -860,6 +871,13 @@ func initAddressFamilyConstants() {
 	}
 }
 
+func initExitCauseConstants() {
+	for k, v := range exitCauseConstants {
+		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		exitCauseStrings[v] = k
+	}
+}
+
 func initConstants() {
 	initErrorConstants()
 	initOpenConstants()
@@ -882,6 +900,7 @@ func initConstants() {
 	initL3ProtocolConstants()
 	initL4ProtocolConstants()
 	initAddressFamilyConstants()
+	initExitCauseConstants()
 }
 
 func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
@@ -1686,10 +1705,10 @@ func (f PTraceRequest) String() string {
 }
 
 // VMFlag represents a VM_* bitmask value
-type VMFlag int
+type VMFlag uint64
 
 func (vmf VMFlag) String() string {
-	return bitmaskToString(int(vmf), vmStrings)
+	return bitmaskU64ToString(uint64(vmf), vmStrings)
 }
 
 // Protection represents a virtual memory protection bitmask value
@@ -1700,10 +1719,10 @@ func (p Protection) String() string {
 }
 
 // MMapFlag represents a mmap flag value
-type MMapFlag int
+type MMapFlag uint64
 
 func (mmf MMapFlag) String() string {
-	return bitmaskToString(int(mmf), mmapFlagStrings)
+	return bitmaskU64ToString(uint64(mmf), mmapFlagStrings)
 }
 
 // Signal represents a type of unix signal (ie, SIGKILL, SIGSTOP etc)
@@ -2016,4 +2035,20 @@ const (
 	IPProtoMPLS L4Protocol = 137
 	// IPProtoRAW Raw IP packets
 	IPProtoRAW L4Protocol = 255
+)
+
+// ExitCause represents the cause of a process termination
+type ExitCause uint32
+
+func (cause ExitCause) String() string {
+	return exitCauseStrings[cause]
+}
+
+const (
+	// ExitExited Process exited normally
+	ExitExited ExitCause = iota
+	// ExitCoreDumped Process was terminated with a coredump signal
+	ExitCoreDumped
+	// ExitSignaled Process was terminated with a signal other than a coredump
+	ExitSignaled
 )

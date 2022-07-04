@@ -173,7 +173,7 @@ func TestAdmissionControllerFailureModeFail(t *testing.T) {
 }
 
 func TestGenerateTemplatesV1(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	defaultReinvocationPolicy := admiv1.IfNeededReinvocationPolicy
 	failurePolicy := admiv1.Ignore
 	matchPolicy := admiv1.Exact

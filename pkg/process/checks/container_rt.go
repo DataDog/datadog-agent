@@ -81,6 +81,9 @@ func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	return messages, nil
 }
 
+// Cleanup frees any resource held by the RTContainerCheck before the agent exits
+func (r *RTContainerCheck) Cleanup() {}
+
 func convertAndChunkContainers(containers []*model.Container, chunks int) [][]*model.ContainerStat {
 	perChunk := (len(containers) / chunks) + 1
 	chunked := make([][]*model.ContainerStat, chunks)

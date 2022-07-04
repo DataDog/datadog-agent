@@ -355,19 +355,18 @@ bool CustomActionData::parseUsernameData()
 
             if (_logonCli != nullptr)
             {
-                BOOL isServiceAccount;
+                BOOL isServiceAccount = FALSE;
                 DWORD result = _logonCli->NetIsServiceAccount(
                     nullptr, const_cast<wchar_t *>(FullyQualifiedUsername().c_str()), &isServiceAccount);
                 if (result != ERROR_SUCCESS)
                 {
                     WcaLog(LOGMSG_STANDARD, "Could not lookup if \"%S\" is a service account: %S",
                            FullyQualifiedUsername().c_str(), FormatErrorMessage(result).c_str());
-                    return false;
                 }
                 _isServiceAccount = isServiceAccount ? true : false;
             }
 
-            WcaLog(LOGMSG_STANDARD, R"(Detected that "%S" %S a managed service account)",
+            WcaLog(LOGMSG_STANDARD, R"("%S" %S a managed service account)",
                    FullyQualifiedUsername().c_str(), _isServiceAccount ? L"is" : L"is not");
             // Use the domain returned by <see cref="LookupAccountName" /> because
             // it might be != from the one the user passed in.

@@ -35,7 +35,7 @@ const (
 // we can't just `netcat` to the socket, that's why we run a custom python
 // script that will stay up after sending packets.
 func testUDSOriginDetection(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(nil)
 
 	// Detect whether we are containerised and set the socket path accordingly
 	var socketVolume string

@@ -232,7 +232,6 @@ func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 		if len(v) > 0 {
 			values = append(values, v...)
 		}
-		entry.ValuesRaw = nil
 
 		entry = entry.next
 	}

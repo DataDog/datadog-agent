@@ -2,6 +2,7 @@
 #define __OFFSET_GUESS_H
 
 #include <linux/types.h>
+#include <linux/sched.h>
 
 #ifndef TASK_COMM_LEN
 #define TASK_COMM_LEN 16

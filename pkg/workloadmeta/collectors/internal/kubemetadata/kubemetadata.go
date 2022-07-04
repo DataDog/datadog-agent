@@ -23,30 +23,30 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/util"
 )
 
 const (
 	collectorID   = "kube_metadata"
 	componentName = "workloadmeta-kube_metadata"
-	expireFreq    = 5 * time.Minute
 )
 
 type collector struct {
 	store                  workloadmeta.Store
+	seen                   map[workloadmeta.EntityID]struct{}
 	kubeUtil               kubelet.KubeUtilInterface
 	apiClient              *apiserver.APIClient
 	dcaClient              clusteragent.DCAClientInterface
 	dcaEnabled             bool
 	updateFreq             time.Duration
 	lastUpdate             time.Time
-	expire                 *util.Expire
 	collectNamespaceLabels bool
 }
 
 func init() {
 	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
-		return &collector{}
+		return &collector{
+			seen: make(map[workloadmeta.EntityID]struct{}),
+		}
 	})
 }
 
@@ -99,7 +99,6 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Store) error {
 	}
 
 	c.updateFreq = time.Duration(config.Datadog.GetInt("kubernetes_metadata_tag_update_freq")) * time.Second
-	c.expire = util.NewExpire(expireFreq)
 	c.collectNamespaceLabels = len(config.Datadog.GetStringMapString("kubernetes_namespace_labels_as_tags")) > 0
 
 	return err
@@ -127,21 +126,27 @@ func (c *collector) Pull(ctx context.Context) error {
 		}
 	}
 
-	events, err := c.parsePods(ctx, pods)
+	seen := make(map[workloadmeta.EntityID]struct{})
+	events, err := c.parsePods(ctx, pods, seen)
 	if err != nil {
 		return err
 	}
 
-	expires := c.expire.ComputeExpires()
-	for _, expired := range expires {
+	for seenID := range c.seen {
+		if _, ok := seen[seenID]; ok {
+			continue
+		}
+
 		events = append(events, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeUnset,
 			Source: workloadmeta.SourceClusterOrchestrator,
 			Entity: &workloadmeta.KubernetesPod{
-				EntityID: expired,
+				EntityID: seenID,
 			},
 		})
 	}
+
+	c.seen = seen
 
 	c.store.Notify(events)
 
@@ -151,7 +156,11 @@ func (c *collector) Pull(ctx context.Context) error {
 }
 
 // parsePods returns collection events based on a given podlist.
-func (c *collector) parsePods(ctx context.Context, pods []*kubelet.Pod) ([]workloadmeta.CollectorEvent, error) {
+func (c *collector) parsePods(
+	ctx context.Context,
+	pods []*kubelet.Pod,
+	seen map[workloadmeta.EntityID]struct{},
+) ([]workloadmeta.CollectorEvent, error) {
 	events := []workloadmeta.CollectorEvent{}
 
 	var err error
@@ -170,8 +179,6 @@ func (c *collector) parsePods(ctx context.Context, pods []*kubelet.Pod) ([]workl
 			return events, err
 		}
 	}
-
-	now := time.Now()
 
 	for _, pod := range pods {
 		if pod.Metadata.UID == "" {
@@ -212,7 +219,7 @@ func (c *collector) parsePods(ctx context.Context, pods []*kubelet.Pod) ([]workl
 			ID:   pod.Metadata.UID,
 		}
 
-		c.expire.Update(entityID, now)
+		seen[entityID] = struct{}{}
 
 		entity := &workloadmeta.KubernetesPod{
 			EntityID:        entityID,

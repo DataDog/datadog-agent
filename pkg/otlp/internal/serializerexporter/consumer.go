@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"go.uber.org/multierr"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/translator"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
@@ -55,7 +56,7 @@ func (c *serializerConsumer) enrichedTags(dimensions *translator.Dimensions) []s
 }
 
 func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *translator.Dimensions, ts uint64, qsketch *quantile.Sketch) {
-	c.sketches = append(c.sketches, metrics.SketchSeries{
+	c.sketches = append(c.sketches, &metrics.SketchSeries{
 		Name:     dimensions.Name(),
 		Tags:     tagset.CompositeTagsFromSlice(c.enrichedTags(dimensions)),
 		Host:     dimensions.Host(),
@@ -104,20 +105,23 @@ func (c *serializerConsumer) addTelemetryMetric(hostname string) {
 
 // flush all metrics and sketches in consumer.
 func (c *serializerConsumer) flush(s serializer.MetricSerializer) error {
-	if err := s.SendSketch(c.sketches); err != nil {
-		return err
-	}
-
-	var err error
-	metrics.StartIteration(
+	var serieErr error
+	var sketchesErr error
+	metrics.Serialize(
 		metrics.NewIterableSeries(func(se *metrics.Serie) {}, 200, 4000),
-		func(seriesSink metrics.SerieSink) {
+		metrics.NewIterableSketches(func(se *metrics.SketchSeries) {}, 200, 4000),
+		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
 			for _, serie := range c.series {
 				seriesSink.Append(serie)
 			}
+			for _, sketch := range c.sketches {
+				sketchesSink.Append(sketch)
+			}
 		}, func(serieSource metrics.SerieSource) {
-			err = s.SendIterableSeries(serieSource)
+			serieErr = s.SendIterableSeries(serieSource)
+		}, func(sketchesSource metrics.SketchesSource) {
+			sketchesErr = s.SendSketch(sketchesSource)
 		})
 
-	return err
+	return multierr.Append(serieErr, sketchesErr)
 }

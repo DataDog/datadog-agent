@@ -16,20 +16,20 @@ type SecurityModuleServer struct {
 }
 
 // DumpActivity provides a mock function with given fields: _a0, _a1
-func (_m *SecurityModuleServer) DumpActivity(_a0 context.Context, _a1 *api.DumpActivityParams) (*api.SecurityActivityDumpMessage, error) {
+func (_m *SecurityModuleServer) DumpActivity(_a0 context.Context, _a1 *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
 	ret := _m.Called(_a0, _a1)
 
-	var r0 *api.SecurityActivityDumpMessage
-	if rf, ok := ret.Get(0).(func(context.Context, *api.DumpActivityParams) *api.SecurityActivityDumpMessage); ok {
+	var r0 *api.ActivityDumpMessage
+	if rf, ok := ret.Get(0).(func(context.Context, *api.ActivityDumpParams) *api.ActivityDumpMessage); ok {
 		r0 = rf(_a0, _a1)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.SecurityActivityDumpMessage)
+			r0 = ret.Get(0).(*api.ActivityDumpMessage)
 		}
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, *api.DumpActivityParams) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *api.ActivityDumpParams) error); ok {
 		r1 = rf(_a0, _a1)
 	} else {
 		r1 = ret.Error(1)
@@ -84,50 +84,18 @@ func (_m *SecurityModuleServer) DumpProcessCache(_a0 context.Context, _a1 *api.D
 	return r0, r1
 }
 
-// GenerateGraph provides a mock function with given fields: _a0, _a1
-func (_m *SecurityModuleServer) GenerateGraph(_a0 context.Context, _a1 *api.GenerateGraphParams) (*api.SecurityGraphGeneratedMessage, error) {
+// GetActivityDumpStream provides a mock function with given fields: _a0, _a1
+func (_m *SecurityModuleServer) GetActivityDumpStream(_a0 *api.ActivityDumpStreamParams, _a1 api.SecurityModule_GetActivityDumpStreamServer) error {
 	ret := _m.Called(_a0, _a1)
 
-	var r0 *api.SecurityGraphGeneratedMessage
-	if rf, ok := ret.Get(0).(func(context.Context, *api.GenerateGraphParams) *api.SecurityGraphGeneratedMessage); ok {
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*api.ActivityDumpStreamParams, api.SecurityModule_GetActivityDumpStreamServer) error); ok {
 		r0 = rf(_a0, _a1)
 	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.SecurityGraphGeneratedMessage)
-		}
+		r0 = ret.Error(0)
 	}
 
-	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, *api.GenerateGraphParams) error); ok {
-		r1 = rf(_a0, _a1)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// GenerateProfile provides a mock function with given fields: _a0, _a1
-func (_m *SecurityModuleServer) GenerateProfile(_a0 context.Context, _a1 *api.GenerateProfileParams) (*api.SecurityProfileGeneratedMessage, error) {
-	ret := _m.Called(_a0, _a1)
-
-	var r0 *api.SecurityProfileGeneratedMessage
-	if rf, ok := ret.Get(0).(func(context.Context, *api.GenerateProfileParams) *api.SecurityProfileGeneratedMessage); ok {
-		r0 = rf(_a0, _a1)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.SecurityProfileGeneratedMessage)
-		}
-	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, *api.GenerateProfileParams) error); ok {
-		r1 = rf(_a0, _a1)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
+	return r0
 }
 
 // GetConfig provides a mock function with given fields: _a0, _a1
@@ -205,20 +173,20 @@ func (_m *SecurityModuleServer) GetStatus(_a0 context.Context, _a1 *api.GetStatu
 }
 
 // ListActivityDumps provides a mock function with given fields: _a0, _a1
-func (_m *SecurityModuleServer) ListActivityDumps(_a0 context.Context, _a1 *api.ListActivityDumpsParams) (*api.SecurityActivityDumpListMessage, error) {
+func (_m *SecurityModuleServer) ListActivityDumps(_a0 context.Context, _a1 *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
 	ret := _m.Called(_a0, _a1)
 
-	var r0 *api.SecurityActivityDumpListMessage
-	if rf, ok := ret.Get(0).(func(context.Context, *api.ListActivityDumpsParams) *api.SecurityActivityDumpListMessage); ok {
+	var r0 *api.ActivityDumpListMessage
+	if rf, ok := ret.Get(0).(func(context.Context, *api.ActivityDumpListParams) *api.ActivityDumpListMessage); ok {
 		r0 = rf(_a0, _a1)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.SecurityActivityDumpListMessage)
+			r0 = ret.Get(0).(*api.ActivityDumpListMessage)
 		}
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, *api.ListActivityDumpsParams) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *api.ActivityDumpListParams) error); ok {
 		r1 = rf(_a0, _a1)
 	} else {
 		r1 = ret.Error(1)
@@ -274,20 +242,43 @@ func (_m *SecurityModuleServer) RunSelfTest(_a0 context.Context, _a1 *api.RunSel
 }
 
 // StopActivityDump provides a mock function with given fields: _a0, _a1
-func (_m *SecurityModuleServer) StopActivityDump(_a0 context.Context, _a1 *api.StopActivityDumpParams) (*api.SecurityActivityDumpStoppedMessage, error) {
+func (_m *SecurityModuleServer) StopActivityDump(_a0 context.Context, _a1 *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
 	ret := _m.Called(_a0, _a1)
 
-	var r0 *api.SecurityActivityDumpStoppedMessage
-	if rf, ok := ret.Get(0).(func(context.Context, *api.StopActivityDumpParams) *api.SecurityActivityDumpStoppedMessage); ok {
+	var r0 *api.ActivityDumpStopMessage
+	if rf, ok := ret.Get(0).(func(context.Context, *api.ActivityDumpStopParams) *api.ActivityDumpStopMessage); ok {
 		r0 = rf(_a0, _a1)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.SecurityActivityDumpStoppedMessage)
+			r0 = ret.Get(0).(*api.ActivityDumpStopMessage)
 		}
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, *api.StopActivityDumpParams) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *api.ActivityDumpStopParams) error); ok {
+		r1 = rf(_a0, _a1)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// TranscodingRequest provides a mock function with given fields: _a0, _a1
+func (_m *SecurityModuleServer) TranscodingRequest(_a0 context.Context, _a1 *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
+	ret := _m.Called(_a0, _a1)
+
+	var r0 *api.TranscodingRequestMessage
+	if rf, ok := ret.Get(0).(func(context.Context, *api.TranscodingRequestParams) *api.TranscodingRequestMessage); ok {
+		r0 = rf(_a0, _a1)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.TranscodingRequestMessage)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, *api.TranscodingRequestParams) error); ok {
 		r1 = rf(_a0, _a1)
 	} else {
 		r1 = ret.Error(1)

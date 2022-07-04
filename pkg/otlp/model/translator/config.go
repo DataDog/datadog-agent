@@ -14,7 +14,11 @@
 
 package translator
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
+)
 
 type translatorConfig struct {
 	// metrics export behavior
@@ -34,7 +38,8 @@ type translatorConfig struct {
 	deltaTTL      int64
 
 	// hostname provider configuration
-	fallbackHostnameProvider HostnameProvider
+	previewHostnameFromAttributes bool
+	fallbackSourceProvider        source.Provider
 }
 
 // Option is a translator creation option.
@@ -56,11 +61,19 @@ func WithDeltaTTL(deltaTTL int64) Option {
 	}
 }
 
-// WithFallbackHostnameProvider sets the fallback hostname provider.
+// WithFallbackSourceProvider sets the fallback hostname provider.
 // By default, an empty hostname is used as a fallback.
-func WithFallbackHostnameProvider(provider HostnameProvider) Option {
+func WithFallbackSourceProvider(provider source.Provider) Option {
 	return func(t *translatorConfig) error {
-		t.fallbackHostnameProvider = provider
+		t.fallbackSourceProvider = provider
+		return nil
+	}
+}
+
+// WithPreviewHostnameFromAttributes enables the preview hostname algorithm.
+func WithPreviewHostnameFromAttributes() Option {
+	return func(t *translatorConfig) error {
+		t.previewHostnameFromAttributes = true
 		return nil
 	}
 }

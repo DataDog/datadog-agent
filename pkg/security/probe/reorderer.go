@@ -14,6 +14,7 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf/perf"
 )
 
 type reOrdererNodePool struct {
@@ -24,7 +25,7 @@ func (p *reOrdererNodePool) alloc() *reOrdererNode {
 	node := p.head
 	if node != nil && node.timestamp == 0 {
 		p.head = node.nextFree
-		node.data = nil
+		node.record = nil
 		return node
 	}
 
@@ -33,7 +34,7 @@ func (p *reOrdererNodePool) alloc() *reOrdererNode {
 
 func (p *reOrdererNodePool) free(node *reOrdererNode) {
 	node.timestamp = 0
-	node.data = nil
+	node.record = nil
 
 	if p.head == nil {
 		p.head = node
@@ -44,9 +45,8 @@ func (p *reOrdererNodePool) free(node *reOrdererNode) {
 }
 
 type reOrdererNode struct {
-	cpu        uint64
 	timestamp  uint64
-	data       []byte
+	record     *perf.Record
 	nextFree   *reOrdererNode
 	generation uint64
 }
@@ -108,11 +108,10 @@ func (h *reOrdererHeap) down(i int, n int, metric *ReOrdererMetric) {
 	}
 }
 
-func (h *reOrdererHeap) enqueue(cpu uint64, data []byte, tm uint64, generation uint64, metric *ReOrdererMetric) {
+func (h *reOrdererHeap) enqueue(record *perf.Record, tm uint64, generation uint64, metric *ReOrdererMetric) {
 	node := h.pool.alloc()
 	node.timestamp = tm
-	node.data = data
-	node.cpu = cpu
+	node.record = record
 	node.generation = generation
 
 	metric.TotalOp++
@@ -121,7 +120,7 @@ func (h *reOrdererHeap) enqueue(cpu uint64, data []byte, tm uint64, generation u
 	h.up(node, len(h.heap)-1, metric)
 }
 
-func (h *reOrdererHeap) dequeue(handler func(cpu uint64, data []byte), generation uint64, metric *ReOrdererMetric, opts *ReOrdererOpts) {
+func (h *reOrdererHeap) dequeue(handler func(record *perf.Record), generation uint64, metric *ReOrdererMetric, opts *ReOrdererOpts) {
 	var n, i int
 	var node *reOrdererNode
 
@@ -142,7 +141,7 @@ func (h *reOrdererHeap) dequeue(handler func(cpu uint64, data []byte), generatio
 		h.heap[i] = nil
 
 		metric.TotalOp++
-		handler(node.cpu, node.data)
+		handler(node.record)
 
 		h.pool.free(node)
 
@@ -182,10 +181,10 @@ type ReOrdererMetric struct {
 // ReOrderer defines an event re-orderer
 type ReOrderer struct {
 	ctx         context.Context
-	queue       chan []byte
-	handler     func(cpu uint64, data []byte)
+	queue       chan *perf.Record
+	handler     func(*perf.Record)
 	heap        *reOrdererHeap
-	extractInfo func(data []byte) (uint64, uint64, error) // cpu, timestamp
+	extractInfo func(*perf.Record) (uint64, uint64, error) // timestamp
 	opts        ReOrdererOpts
 	metric      ReOrdererMetric
 	Metrics     chan ReOrdererMetric
@@ -202,14 +201,14 @@ func (r *ReOrderer) Start(wg *sync.WaitGroup) {
 	metricTicker := time.NewTicker(r.opts.MetricRate)
 	defer metricTicker.Stop()
 
-	var lastTm, tm, cpu uint64
+	var lastTm, tm uint64
 	var err error
 
 	for {
 		select {
-		case data := <-r.queue:
-			if len(data) > 0 {
-				if cpu, tm, err = r.extractInfo(data); err != nil {
+		case record := <-r.queue:
+			if len(record.RawSample) > 0 {
+				if _, tm, err = r.extractInfo(record); err != nil {
 					continue
 				}
 			} else {
@@ -222,9 +221,9 @@ func (r *ReOrderer) Start(wg *sync.WaitGroup) {
 			lastTm = tm
 
 			if r.heap.len() > r.opts.QueueSize*10 {
-				r.handler(cpu, data)
+				r.handler(record)
 			} else {
-				r.heap.enqueue(cpu, data, tm, r.generation, &r.metric)
+				r.heap.enqueue(record, tm, r.generation, &r.metric)
 			}
 			r.heap.dequeue(r.handler, r.generation-r.opts.Retention, &r.metric, &r.opts)
 		case <-flushTicker.C:
@@ -248,9 +247,9 @@ func (r *ReOrderer) Start(wg *sync.WaitGroup) {
 }
 
 // HandleEvent handle event form perf ring
-func (r *ReOrderer) HandleEvent(CPU int, data []byte, perfMap *manager.PerfMap, manager *manager.Manager) {
+func (r *ReOrderer) HandleEvent(record *perf.Record, perfMap *manager.PerfMap, manager *manager.Manager) {
 	select {
-	case r.queue <- data:
+	case r.queue <- record:
 		return
 	case <-r.ctx.Done():
 		return
@@ -258,10 +257,10 @@ func (r *ReOrderer) HandleEvent(CPU int, data []byte, perfMap *manager.PerfMap, 
 }
 
 // NewReOrderer returns a new ReOrderer
-func NewReOrderer(ctx context.Context, handler func(cpu uint64, data []byte), extractInfo func(data []byte) (uint64, uint64, error), opts ReOrdererOpts) *ReOrderer {
+func NewReOrderer(ctx context.Context, handler func(record *perf.Record), extractInfo func(record *perf.Record) (uint64, uint64, error), opts ReOrdererOpts) *ReOrderer {
 	return &ReOrderer{
 		ctx:     ctx,
-		queue:   make(chan []byte, opts.QueueSize),
+		queue:   make(chan *perf.Record, opts.QueueSize),
 		handler: handler,
 		heap: &reOrdererHeap{
 			pool: &reOrdererNodePool{},

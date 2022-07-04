@@ -64,7 +64,6 @@ func CheckIsInferredSpan(span *pb.Span) bool {
 
 // FilterFunctionTags filters out DD tags & function specific tags
 func FilterFunctionTags(input map[string]string) map[string]string {
-
 	if input == nil {
 		return nil
 	}
@@ -94,27 +93,11 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 	return output
 }
 
-// DispatchInferredSpan decodes the event and routes it to the correct
-// enrichment function for that event source
-func (inferredSpan *InferredSpan) DispatchInferredSpan(event string) {
-	attributes := parseEvent(event)
-	eventSource := attributes.extractEventSource()
-	switch eventSource {
-	case APIGATEWAY:
-		inferredSpan.enrichInferredSpanWithAPIGatewayRESTEvent(attributes)
-	case HTTPAPI:
-		inferredSpan.enrichInferredSpanWithAPIGatewayHTTPEvent(attributes)
-	case WEBSOCKET:
-		inferredSpan.enrichInferredSpanWithAPIGatewayWebsocketEvent(attributes)
-	case SNS:
-		inferredSpan.enrichInferredSpanWithSNSEvent(attributes)
-	}
-}
-
 // CompleteInferredSpan finishes the inferred span and passes it
 // as an API payload to be processed by the trace agent
 func (inferredSpan *InferredSpan) CompleteInferredSpan(
 	processTrace func(p *api.Payload),
+	triggerTags map[string]string,
 	endTime time.Time,
 	isError bool,
 	traceID uint64,
@@ -135,6 +118,7 @@ func (inferredSpan *InferredSpan) CompleteInferredSpan(
 		Origin:   "lambda",
 		Spans:    []*pb.Span{inferredSpan.Span},
 		Priority: int32(samplingPriority),
+		Tags:     triggerTags,
 	}
 
 	tracerPayload := &pb.TracerPayload{

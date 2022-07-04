@@ -16,18 +16,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/util"
 )
 
 const (
 	collectorID   = "cloudfoundry"
 	componentName = "workloadmeta-cloudfoundry"
-	expireFreq    = 15 * time.Second
 )
 
 type collector struct {
-	store  workloadmeta.Store
-	expire *util.Expire
+	store workloadmeta.Store
+	seen  map[workloadmeta.EntityID]struct{}
 
 	gardenUtil cloudfoundry.GardenUtilInterface
 	nodeName   string
@@ -38,7 +36,9 @@ type collector struct {
 
 func init() {
 	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
-		return &collector{}
+		return &collector{
+			seen: make(map[workloadmeta.EntityID]struct{}),
+		}
 	})
 }
 
@@ -48,7 +48,6 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	}
 
 	c.store = store
-	c.expire = util.NewExpire(expireFreq)
 
 	// Detect if we're on a compute VM by trying to connect to the local garden API
 	var err error
@@ -93,6 +92,8 @@ func (c *collector) Pull(ctx context.Context) error {
 
 	currentTime := time.Now()
 	events := make([]workloadmeta.CollectorEvent, 0, len(handles))
+	seen := make(map[workloadmeta.EntityID]struct{})
+
 	for id, containerInfo := range containersInfo {
 		if containerInfo.Err != nil {
 			log.Debugf("Failed to retrieve info for garden container: %s, err: %v", id, containerInfo.Err.Err)
@@ -106,9 +107,10 @@ func (c *collector) Pull(ctx context.Context) error {
 			Kind: workloadmeta.KindContainer,
 			ID:   id,
 		}
-		c.expire.Update(entityID, currentTime)
 
-		// Create contaier based on containerInfo + containerMetrics
+		seen[entityID] = struct{}{}
+
+		// Create container based on containerInfo + containerMetrics
 		containerEntity := &workloadmeta.Container{
 			EntityID: entityID,
 			EntityMeta: workloadmeta.EntityMeta{
@@ -159,16 +161,21 @@ func (c *collector) Pull(ctx context.Context) error {
 		})
 	}
 
-	expires := c.expire.ComputeExpires()
-	for _, expired := range expires {
+	for seenID := range c.seen {
+		if _, ok := seen[seenID]; ok {
+			continue
+		}
+
 		events = append(events, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeUnset,
 			Source: workloadmeta.SourceClusterOrchestrator,
 			Entity: &workloadmeta.Container{
-				EntityID: expired,
+				EntityID: seenID,
 			},
 		})
 	}
+
+	c.seen = seen
 
 	c.store.Notify(events)
 

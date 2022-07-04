@@ -14,7 +14,7 @@ import (
 )
 
 func TestStaticTags(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("eks_fargate", true) // pretend this is a hostless environment
 	mockConfig.Set("kubernetes_kubelet_nodename", "eksnode")
 	defer mockConfig.Set("eks_fargate", false)
@@ -56,7 +56,7 @@ func TestStaticTags(t *testing.T) {
 }
 
 func TestStaticTagsSlice(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("eks_fargate", true) // pretend this is a hostless environment
 	mockConfig.Set("kubernetes_kubelet_nodename", "eksnode")
 	defer mockConfig.Set("eks_fargate", false)

@@ -18,29 +18,35 @@
             }
         },
         {
-            "bind": {
-                "type": "object",
-                "required": [
-                    "request"
-                ],
-                "properties": {
-                    "request": {
-                        "type": "string"
-                    },
-                    "addr_family": {
-                        "type": "integer"
-                    },
-                    "addr_port": {
-                        "type": "integer"
-                    },
-                    "addr": {
-                        "type": "string"
+            "properties": {
+                "bind": {
+                    "type": "object",
+                    "required": [
+                        "addr"
+                    ],
+                    "properties": {
+                        "addr": {
+                            "type": "object",
+                            "required": [
+                                "family",
+                                "ip",
+                                "port"
+                            ],
+                            "properties": {
+                                "family": {
+                                    "type": "string"
+                                },
+                                "ip": {
+                                    "type": "string"
+                                },
+                                "port": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
                     }
                 }
-            },
-            "required": [
-                "bind"
-            ]
+            }
         }
     ]
 }

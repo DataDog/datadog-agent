@@ -8,11 +8,12 @@ package sampler
 import (
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	ddatomic "github.com/DataDog/datadog-agent/pkg/trace/atomic"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	"go.uber.org/atomic"
 )
 
 const (
@@ -46,12 +47,12 @@ type Sampler struct {
 	muRates sync.RWMutex
 
 	// Maximum limit to the total number of traces per second to sample
-	targetTPS *atomic.Float64
+	targetTPS *ddatomic.Float64
 	// extraRate is an extra raw sampling rate to apply on top of the sampler rate
 	extraRate float64
 
 	totalSeen float32
-	totalKept *atomic.Int64
+	totalKept int64
 
 	tags    []string
 	exit    chan struct{}
@@ -64,10 +65,8 @@ func newSampler(extraRate float64, targetTPS float64, tags []string) *Sampler {
 		seen: make(map[Signature][numBuckets]float32),
 
 		extraRate: extraRate,
-		targetTPS: atomic.NewFloat64(targetTPS),
+		targetTPS: ddatomic.NewFloat(targetTPS),
 		tags:      tags,
-
-		totalKept: atomic.NewInt64(0),
 
 		exit:    make(chan struct{}),
 		stopped: make(chan struct{}),
@@ -246,7 +245,7 @@ func zeroAndGetMax(buckets [numBuckets]float32, previousBucket, newBucket int64)
 
 // countSample counts a trace sampled by the sampler.
 func (s *Sampler) countSample() {
-	s.totalKept.Inc()
+	atomic.AddInt64(&s.totalKept, 1)
 }
 
 // getSignatureSampleRate returns the sampling rate to apply to a signature
@@ -311,7 +310,7 @@ func (s *Sampler) report() {
 	seen := int64(s.totalSeen)
 	s.totalSeen = 0
 	s.muSeen.Unlock()
-	kept := s.totalKept.Swap(0)
+	kept := atomic.SwapInt64(&s.totalKept, 0)
 	metrics.Count("datadog.trace_agent.sampler.kept", kept, s.tags, 1)
 	metrics.Count("datadog.trace_agent.sampler.seen", seen, s.tags, 1)
 	metrics.Gauge("datadog.trace_agent.sampler.size", float64(s.size()), s.tags, 1)

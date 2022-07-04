@@ -86,8 +86,9 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 				PerfMapOptions: manager.PerfMapOptions{
 					PerfRingBufferSize: 8 * os.Getpagesize(),
 					Watermark:          1,
-					DataHandler:        closedHandler.DataHandler,
+					RecordHandler:      closedHandler.RecordHandler,
 					LostHandler:        closedHandler.LostHandler,
+					RecordGetter:       closedHandler.RecordGetter,
 				},
 			},
 		},

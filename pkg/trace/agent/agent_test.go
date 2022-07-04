@@ -136,8 +136,8 @@ func TestProcess(t *testing.T) {
 			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(spanValid)),
 			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
 		})
-		assert.EqualValues(0, want.TracesFiltered.Load())
-		assert.EqualValues(0, want.SpansFiltered.Load())
+		assert.EqualValues(0, want.TracesFiltered)
+		assert.EqualValues(0, want.SpansFiltered)
 
 		agnt.Process(&api.Payload{
 			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpans([]*pb.Span{
@@ -146,8 +146,8 @@ func TestProcess(t *testing.T) {
 			})),
 			Source: want,
 		})
-		assert.EqualValues(1, want.TracesFiltered.Load())
-		assert.EqualValues(2, want.SpansFiltered.Load())
+		assert.EqualValues(1, want.TracesFiltered)
+		assert.EqualValues(2, want.SpansFiltered)
 	})
 
 	t.Run("BlacklistPayload", func(t *testing.T) {
@@ -190,8 +190,8 @@ func TestProcess(t *testing.T) {
 			}),
 			Source: want,
 		})
-		assert.EqualValues(1, want.TracesFiltered.Load())
-		assert.EqualValues(2, want.SpansFiltered.Load())
+		assert.EqualValues(1, want.TracesFiltered)
+		assert.EqualValues(2, want.SpansFiltered)
 		var span *pb.Span
 		select {
 		case ss := <-agnt.TraceWriter.In:
@@ -246,7 +246,7 @@ func TestProcess(t *testing.T) {
 		}
 
 		samplingPriorityTagValues := want.TracesPerSamplingPriority.TagValues()
-		assert.EqualValues(t, 1, want.TracesPriorityNone.Load())
+		assert.EqualValues(t, 1, want.TracesPriorityNone)
 		assert.EqualValues(t, 2, samplingPriorityTagValues["-1"])
 		assert.EqualValues(t, 3, samplingPriorityTagValues["0"])
 		assert.EqualValues(t, 4, samplingPriorityTagValues["1"])
@@ -801,18 +801,18 @@ func TestClientComputedStats(t *testing.T) {
 func TestSampling(t *testing.T) {
 	// agentConfig allows the test to customize how the agent is configured.
 	type agentConfig struct {
-		disableRareSampler, errorsSampled, noPrioritySampled bool
+		rareSamplerDisabled, errorsSampled, noPrioritySampled bool
 	}
 	// configureAgent creates a new agent using the provided configuration.
 	configureAgent := func(ac agentConfig) *Agent {
-		cfg := &config.AgentConfig{DisableRareSampler: ac.disableRareSampler}
-		sampledCfg := &config.AgentConfig{ExtraSampleRate: 1, TargetTPS: 5, ErrorTPS: 10, DisableRareSampler: ac.disableRareSampler}
+		cfg := &config.AgentConfig{RareSamplerDisabled: ac.rareSamplerDisabled}
+		sampledCfg := &config.AgentConfig{ExtraSampleRate: 1, TargetTPS: 5, ErrorTPS: 10, RareSamplerDisabled: ac.rareSamplerDisabled}
 
 		a := &Agent{
 			NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
 			ErrorsSampler:     sampler.NewErrorsSampler(cfg),
 			PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
-			RareSampler:       sampler.NewRareSampler(),
+			RareSampler:       sampler.NewRareSampler(config.New()),
 			conf:              cfg,
 		}
 		if ac.errorsSampled {
@@ -860,7 +860,7 @@ func TestSampling(t *testing.T) {
 			},
 		},
 		"prio-unsampled": {
-			agentConfig: agentConfig{disableRareSampler: true},
+			agentConfig: agentConfig{rareSamplerDisabled: true},
 			testCases: []samplingTestCase{
 				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, false), wantSampled: false},
 			},
@@ -921,7 +921,7 @@ func TestSampling(t *testing.T) {
 			},
 		},
 		"rare-sampler-disabled": {
-			agentConfig: agentConfig{disableRareSampler: true},
+			agentConfig: agentConfig{rareSamplerDisabled: true},
 			testCases: []samplingTestCase{
 				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, false), wantSampled: false},
 			},
@@ -939,7 +939,7 @@ func TestSampling(t *testing.T) {
 }
 
 func TestPartialSamplingFree(t *testing.T) {
-	cfg := &config.AgentConfig{DisableRareSampler: true, BucketInterval: 10 * time.Second}
+	cfg := &config.AgentConfig{RareSamplerDisabled: true, BucketInterval: 10 * time.Second}
 	statsChan := make(chan pb.StatsPayload, 100)
 	writerChan := make(chan *writer.SampledChunks, 100)
 	dynConf := sampler.NewDynamicConfig()
@@ -952,7 +952,7 @@ func TestPartialSamplingFree(t *testing.T) {
 		ErrorsSampler:     sampler.NewErrorsSampler(cfg),
 		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
 		EventProcessor:    newEventProcessor(cfg),
-		RareSampler:       sampler.NewRareSampler(),
+		RareSampler:       sampler.NewRareSampler(config.New()),
 		TraceWriter:       &writer.TraceWriter{In: writerChan},
 		conf:              cfg,
 	}

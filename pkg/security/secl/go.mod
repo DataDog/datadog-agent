@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/security/secl
 go 1.17
 
 require (
+	github.com/Masterminds/semver v1.5.0
 	github.com/alecthomas/participle v0.7.1
 	github.com/davecgh/go-spew v1.1.1
 	github.com/fatih/structtag v1.2.0

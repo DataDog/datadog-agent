@@ -18,7 +18,7 @@ type SecurityModuleClient struct {
 }
 
 // DumpActivity provides a mock function with given fields: ctx, in, opts
-func (_m *SecurityModuleClient) DumpActivity(ctx context.Context, in *api.DumpActivityParams, opts ...grpc.CallOption) (*api.SecurityActivityDumpMessage, error) {
+func (_m *SecurityModuleClient) DumpActivity(ctx context.Context, in *api.ActivityDumpParams, opts ...grpc.CallOption) (*api.ActivityDumpMessage, error) {
 	_va := make([]interface{}, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
@@ -28,17 +28,17 @@ func (_m *SecurityModuleClient) DumpActivity(ctx context.Context, in *api.DumpAc
 	_ca = append(_ca, _va...)
 	ret := _m.Called(_ca...)
 
-	var r0 *api.SecurityActivityDumpMessage
-	if rf, ok := ret.Get(0).(func(context.Context, *api.DumpActivityParams, ...grpc.CallOption) *api.SecurityActivityDumpMessage); ok {
+	var r0 *api.ActivityDumpMessage
+	if rf, ok := ret.Get(0).(func(context.Context, *api.ActivityDumpParams, ...grpc.CallOption) *api.ActivityDumpMessage); ok {
 		r0 = rf(ctx, in, opts...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.SecurityActivityDumpMessage)
+			r0 = ret.Get(0).(*api.ActivityDumpMessage)
 		}
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, *api.DumpActivityParams, ...grpc.CallOption) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *api.ActivityDumpParams, ...grpc.CallOption) error); ok {
 		r1 = rf(ctx, in, opts...)
 	} else {
 		r1 = ret.Error(1)
@@ -107,8 +107,8 @@ func (_m *SecurityModuleClient) DumpProcessCache(ctx context.Context, in *api.Du
 	return r0, r1
 }
 
-// GenerateGraph provides a mock function with given fields: ctx, in, opts
-func (_m *SecurityModuleClient) GenerateGraph(ctx context.Context, in *api.GenerateGraphParams, opts ...grpc.CallOption) (*api.SecurityGraphGeneratedMessage, error) {
+// GetActivityDumpStream provides a mock function with given fields: ctx, in, opts
+func (_m *SecurityModuleClient) GetActivityDumpStream(ctx context.Context, in *api.ActivityDumpStreamParams, opts ...grpc.CallOption) (api.SecurityModule_GetActivityDumpStreamClient, error) {
 	_va := make([]interface{}, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
@@ -118,47 +118,17 @@ func (_m *SecurityModuleClient) GenerateGraph(ctx context.Context, in *api.Gener
 	_ca = append(_ca, _va...)
 	ret := _m.Called(_ca...)
 
-	var r0 *api.SecurityGraphGeneratedMessage
-	if rf, ok := ret.Get(0).(func(context.Context, *api.GenerateGraphParams, ...grpc.CallOption) *api.SecurityGraphGeneratedMessage); ok {
+	var r0 api.SecurityModule_GetActivityDumpStreamClient
+	if rf, ok := ret.Get(0).(func(context.Context, *api.ActivityDumpStreamParams, ...grpc.CallOption) api.SecurityModule_GetActivityDumpStreamClient); ok {
 		r0 = rf(ctx, in, opts...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.SecurityGraphGeneratedMessage)
+			r0 = ret.Get(0).(api.SecurityModule_GetActivityDumpStreamClient)
 		}
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, *api.GenerateGraphParams, ...grpc.CallOption) error); ok {
-		r1 = rf(ctx, in, opts...)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// GenerateProfile provides a mock function with given fields: ctx, in, opts
-func (_m *SecurityModuleClient) GenerateProfile(ctx context.Context, in *api.GenerateProfileParams, opts ...grpc.CallOption) (*api.SecurityProfileGeneratedMessage, error) {
-	_va := make([]interface{}, len(opts))
-	for _i := range opts {
-		_va[_i] = opts[_i]
-	}
-	var _ca []interface{}
-	_ca = append(_ca, ctx, in)
-	_ca = append(_ca, _va...)
-	ret := _m.Called(_ca...)
-
-	var r0 *api.SecurityProfileGeneratedMessage
-	if rf, ok := ret.Get(0).(func(context.Context, *api.GenerateProfileParams, ...grpc.CallOption) *api.SecurityProfileGeneratedMessage); ok {
-		r0 = rf(ctx, in, opts...)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.SecurityProfileGeneratedMessage)
-		}
-	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, *api.GenerateProfileParams, ...grpc.CallOption) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *api.ActivityDumpStreamParams, ...grpc.CallOption) error); ok {
 		r1 = rf(ctx, in, opts...)
 	} else {
 		r1 = ret.Error(1)
@@ -288,7 +258,7 @@ func (_m *SecurityModuleClient) GetStatus(ctx context.Context, in *api.GetStatus
 }
 
 // ListActivityDumps provides a mock function with given fields: ctx, in, opts
-func (_m *SecurityModuleClient) ListActivityDumps(ctx context.Context, in *api.ListActivityDumpsParams, opts ...grpc.CallOption) (*api.SecurityActivityDumpListMessage, error) {
+func (_m *SecurityModuleClient) ListActivityDumps(ctx context.Context, in *api.ActivityDumpListParams, opts ...grpc.CallOption) (*api.ActivityDumpListMessage, error) {
 	_va := make([]interface{}, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
@@ -298,17 +268,17 @@ func (_m *SecurityModuleClient) ListActivityDumps(ctx context.Context, in *api.L
 	_ca = append(_ca, _va...)
 	ret := _m.Called(_ca...)
 
-	var r0 *api.SecurityActivityDumpListMessage
-	if rf, ok := ret.Get(0).(func(context.Context, *api.ListActivityDumpsParams, ...grpc.CallOption) *api.SecurityActivityDumpListMessage); ok {
+	var r0 *api.ActivityDumpListMessage
+	if rf, ok := ret.Get(0).(func(context.Context, *api.ActivityDumpListParams, ...grpc.CallOption) *api.ActivityDumpListMessage); ok {
 		r0 = rf(ctx, in, opts...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.SecurityActivityDumpListMessage)
+			r0 = ret.Get(0).(*api.ActivityDumpListMessage)
 		}
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, *api.ListActivityDumpsParams, ...grpc.CallOption) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *api.ActivityDumpListParams, ...grpc.CallOption) error); ok {
 		r1 = rf(ctx, in, opts...)
 	} else {
 		r1 = ret.Error(1)
@@ -378,7 +348,7 @@ func (_m *SecurityModuleClient) RunSelfTest(ctx context.Context, in *api.RunSelf
 }
 
 // StopActivityDump provides a mock function with given fields: ctx, in, opts
-func (_m *SecurityModuleClient) StopActivityDump(ctx context.Context, in *api.StopActivityDumpParams, opts ...grpc.CallOption) (*api.SecurityActivityDumpStoppedMessage, error) {
+func (_m *SecurityModuleClient) StopActivityDump(ctx context.Context, in *api.ActivityDumpStopParams, opts ...grpc.CallOption) (*api.ActivityDumpStopMessage, error) {
 	_va := make([]interface{}, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
@@ -388,17 +358,47 @@ func (_m *SecurityModuleClient) StopActivityDump(ctx context.Context, in *api.St
 	_ca = append(_ca, _va...)
 	ret := _m.Called(_ca...)
 
-	var r0 *api.SecurityActivityDumpStoppedMessage
-	if rf, ok := ret.Get(0).(func(context.Context, *api.StopActivityDumpParams, ...grpc.CallOption) *api.SecurityActivityDumpStoppedMessage); ok {
+	var r0 *api.ActivityDumpStopMessage
+	if rf, ok := ret.Get(0).(func(context.Context, *api.ActivityDumpStopParams, ...grpc.CallOption) *api.ActivityDumpStopMessage); ok {
 		r0 = rf(ctx, in, opts...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.SecurityActivityDumpStoppedMessage)
+			r0 = ret.Get(0).(*api.ActivityDumpStopMessage)
 		}
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, *api.StopActivityDumpParams, ...grpc.CallOption) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *api.ActivityDumpStopParams, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// TranscodingRequest provides a mock function with given fields: ctx, in, opts
+func (_m *SecurityModuleClient) TranscodingRequest(ctx context.Context, in *api.TranscodingRequestParams, opts ...grpc.CallOption) (*api.TranscodingRequestMessage, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *api.TranscodingRequestMessage
+	if rf, ok := ret.Get(0).(func(context.Context, *api.TranscodingRequestParams, ...grpc.CallOption) *api.TranscodingRequestMessage); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.TranscodingRequestMessage)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, *api.TranscodingRequestParams, ...grpc.CallOption) error); ok {
 		r1 = rf(ctx, in, opts...)
 	} else {
 		r1 = ret.Error(1)
