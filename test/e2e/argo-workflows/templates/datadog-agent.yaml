@@ -25,6 +25,10 @@ spec:
 
           cat > /tmp/values.yaml <<EOF
           datadog:
+            kubeStateMetricsEnabled: false
+            kubeStateMetricsCore:
+              enabled: true
+
             dd_url: {{inputs.parameters.dd-url}}
             site: {{inputs.parameters.site}}
             apiKey: $DD_API_KEY
