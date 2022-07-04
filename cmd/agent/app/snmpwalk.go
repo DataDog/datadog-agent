@@ -131,9 +131,6 @@ var snmpwalkCmd = &cobra.Command{
 			cmd.Help()
 			os.Exit(1)
 		}
-		if retries == 0 {
-			retries = defaultRetries
-		}
 
 		// Authentication check
 		if communityString == "" && user == "" {
