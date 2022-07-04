@@ -76,7 +76,7 @@ func SetupLog(conf *Config) {
 
 	if logLevel := os.Getenv(logLevelEnvVar); len(logLevel) > 0 {
 		if err := config.ChangeLogLevel(logLevel); err != nil {
-			log.Errorf("While changing the loglevel: %s", err)
+			log.Errorf("Unable to change the log level: %s", err)
 		}
 	}
 	serverlessLogs.SetupLogAgent(conf.channel, sourceName, source)
