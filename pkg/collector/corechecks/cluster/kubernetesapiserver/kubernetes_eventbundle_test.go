@@ -10,6 +10,7 @@ package kubernetesapiserver
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -226,3 +227,28 @@ func TestEventsTagging(t *testing.T) {
 		})
 	}
 }
+
+func benchmarkEscapeEventMessage(nbEvents int, b *testing.B) {
+	eventMessage := "~" + strings.Repeat("event message ", 10) + "~"
+
+	var bundle *kubernetesEventBundle
+
+	for i := 0; i < nbEvents; i++ {
+		eventReason := fmt.Sprintf("Reason %d", i)
+		event := createEvent(2, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", eventReason, eventMessage, "Normal", 709662600)
+
+		if i == 0 {
+			bundle = newKubernetesEventBundler(event)
+		}
+		bundle.addEvent(event)
+	}
+
+	for n := 0; n < b.N; n++ {
+		bundle.formatEventText()
+	}
+}
+
+func BenchmarkEscapeEventMessage1(b *testing.B)  { benchmarkEscapeEventMessage(1, b) }
+func BenchmarkEscapeEventMessage2(b *testing.B)  { benchmarkEscapeEventMessage(2, b) }
+func BenchmarkEscapeEventMessage5(b *testing.B)  { benchmarkEscapeEventMessage(5, b) }
+func BenchmarkEscapeEventMessage10(b *testing.B) { benchmarkEscapeEventMessage(10, b) }
