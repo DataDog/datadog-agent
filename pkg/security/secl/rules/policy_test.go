@@ -519,6 +519,12 @@ func TestRuleAgentConstraint(t *testing.T) {
 			ruleConstraint: ">= 7.30, < 7.37, != 7.35",
 			expectLoad:     false,
 		},
+		{
+			name:           "rc_prerelease",
+			agentVersion:   "7.38.0-rc.2",
+			ruleConstraint: ">= 7.38",
+			expectLoad:     true,
+		},
 	}
 
 	for _, entry := range testEntries {
