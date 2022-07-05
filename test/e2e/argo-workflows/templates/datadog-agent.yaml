@@ -36,8 +36,6 @@ spec:
             site: {{inputs.parameters.site}}
             apiKey: $DD_API_KEY
             appKey: $DD_APP_KEY
-            additional_endpoints:
-              https://agent.datadoghq.com.: $DD_DDDEV_API_KEY
             tags:
               - tag1
               - tag2
@@ -47,6 +45,8 @@ spec:
             kubelet:
               tlsVerify: false
             env:
+              - name: DD_ADDITIONAL_ENDPOINTS
+                value: "{https://agent.datadoghq.com.: $DD_DDDEV_API_KEY}"
               - name: DD_HOSTNAME
                 value: k8s-e2e-tests-control-plane
               - name: DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT
@@ -60,8 +60,8 @@ spec:
             processAgent:
               enabled: true
             systemProbe:
-              enableTCPQueueLength: true
-              enableOOMKill: true
+              enableTCPQueueLength: false
+              enableOOMKill: false
             networkMonitoring:
               enabled: true
             securityAgent:
@@ -257,7 +257,7 @@ spec:
           while (1) {
             var nb = db.series.find({
             metric: "kubernetes_state.daemonset.ready",
-            tags: { $all: ["namespace:{{inputs.parameters.namespace}}", "daemonset:datadog-agent"] },
+            tags: { $all: ["kube_namespace:{{inputs.parameters.namespace}}", "kube_daemonset:datadog-agent"] },
             "points.0.1": { $eq: 1 } }).count();
             print("find: " + nb)
             if (nb != 0) {
