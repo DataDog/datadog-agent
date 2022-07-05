@@ -123,6 +123,10 @@ spec:
             customAgentConfig:
               additional_endpoints:
                 https://agent.datadoghq.com.: $DD_DDDEV_API_KEY
+              logs_config:
+                additional_endpoints:
+                  - host: https://agent.datadoghq.com.
+                    api_key: $DD_DDDEV_API_KEY
 
           clusterAgent:
             enabled: true
