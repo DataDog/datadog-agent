@@ -8,4 +8,7 @@ package common
 const (
 	// DefaultStopTimeout is the default stop timeout in seconds
 	DefaultStopTimeout = 5
+
+	// DefaultMinCollectionInterval is the default minimal collection interval
+	DefaultMinCollectionInterval = 10
 )

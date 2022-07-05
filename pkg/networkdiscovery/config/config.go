@@ -10,7 +10,8 @@ import "github.com/DataDog/datadog-agent/pkg/networkdiscovery/common"
 // NetworkDiscoveryConfig contains configuration for NetFlow collector.
 type NetworkDiscoveryConfig struct {
 	// TODO: Declare configs in agent config.go
-	StopTimeout int `mapstructure:"stop_timeout"`
+	StopTimeout           int `mapstructure:"stop_timeout"`
+	MinCollectionInterval int `mapstructure:"min_collection_interval"`
 }
 
 // ReadConfig builds and returns configuration from Agent configuration.
@@ -19,6 +20,9 @@ func ReadConfig() (*NetworkDiscoveryConfig, error) {
 
 	if mainConfig.StopTimeout == 0 {
 		mainConfig.StopTimeout = common.DefaultStopTimeout
+	}
+	if mainConfig.MinCollectionInterval == 0 {
+		mainConfig.MinCollectionInterval = common.DefaultMinCollectionInterval
 	}
 	return &mainConfig, nil
 }

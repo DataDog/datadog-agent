@@ -6,19 +6,22 @@
 package networkdiscovery
 
 import (
+	"context"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/config"
+	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/discoverycollector"
+	coreutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/netflow/config"
 )
 
 var serverInstance *Server
 
 // Server manages netflow listeners.
 type Server struct {
-	Addr   string
-	config *config.NetflowConfig
+	Addr      string
+	config    *config.NetworkDiscoveryConfig
+	collector *discoverycollector.DiscoveryCollector
 }
 
 // NewNetworkDiscoveryServer configures and returns a running SNMP traps server.
@@ -28,8 +31,18 @@ func NewNetworkDiscoveryServer(sender aggregator.Sender) (*Server, error) {
 		return nil, err
 	}
 
+	hostname, err := coreutil.GetHostname(context.TODO())
+	if err != nil {
+		log.Warnf("Error getting the hostname: %v", err)
+		hostname = ""
+	}
+
+	collector := discoverycollector.NewDiscoveryCollector(sender, mainConfig, hostname)
+	go collector.Start()
+
 	return &Server{
-		config: mainConfig,
+		config:    mainConfig,
+		collector: collector,
 	}, nil
 }
 
