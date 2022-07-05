@@ -16,9 +16,10 @@ message ProcessActivityNode {
     ProcessInfo Process = 1;
     string GenerationType = 2;
 
-    repeated FileActivityNode Files = 3;
-    repeated DNSNode DNSNames = 4;
-    repeated ProcessActivityNode Children = 5;
+    repeated ProcessActivityNode Children = 3;
+    repeated FileActivityNode Files = 4;
+    repeated DNSNode DNSNames = 5;
+    repeated SocketNode Sockets = 6;
 }
 
 message ProcessInfo {
@@ -118,4 +119,14 @@ message Credentials {
 
     uint64 CapEffective = 13;
     uint64 CapPermitted = 14;
+}
+
+message SocketNode {
+    string Family = 1;
+    BindNode Bind = 2;
+}
+
+message BindNode {
+    uint32 Port = 1;
+    string IP = 2;
 }

@@ -45,9 +45,14 @@ func processActivityNodeToProto(pan *ProcessActivityNode) *adproto.ProcessActivi
 	*ppan = adproto.ProcessActivityNode{
 		Process:        processNodeToProto(&pan.Process),
 		GenerationType: string(pan.GenerationType),
+		Children:       make([]*adproto.ProcessActivityNode, 0, len(pan.Children)),
 		Files:          make([]*adproto.FileActivityNode, 0, len(pan.Files)),
 		DNSNames:       make([]*adproto.DNSNode, 0, len(pan.DNSNames)),
-		Children:       make([]*adproto.ProcessActivityNode, 0, len(pan.Children)),
+		Sockets:        make([]*adproto.SocketNode, 0, len(pan.Sockets)),
+	}
+
+	for _, child := range pan.Children {
+		ppan.Children = append(ppan.Children, processActivityNodeToProto(child))
 	}
 
 	for _, fan := range pan.Files {
@@ -58,8 +63,8 @@ func processActivityNodeToProto(pan *ProcessActivityNode) *adproto.ProcessActivi
 		ppan.DNSNames = append(ppan.DNSNames, dnsNodeToProto(dns))
 	}
 
-	for _, child := range pan.Children {
-		ppan.Children = append(ppan.Children, processActivityNodeToProto(child))
+	for _, socket := range pan.Sockets {
+		ppan.Sockets = append(ppan.Sockets, socketNodeToProto(socket))
 	}
 
 	return ppan
@@ -214,6 +219,20 @@ func dnsEventToProto(ev *model.DNSEvent) *adproto.DNSInfo {
 		Class: uint32(ev.Class),
 		Size:  uint32(ev.Size),
 		Count: uint32(ev.Count),
+	}
+}
+
+func socketNodeToProto(sn *SocketNode) *adproto.SocketNode {
+	if sn == nil {
+		return nil
+	}
+
+	return &adproto.SocketNode{
+		Family: sn.Family,
+		Bind: &adproto.BindNode{
+			Port: uint32(sn.Bind.Port),
+			IP:   sn.Bind.IP,
+		},
 	}
 }
 
