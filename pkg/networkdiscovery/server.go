@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/config"
-	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/discoverycollector"
+	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/discoveryscheduler"
 	coreutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -21,7 +21,7 @@ var serverInstance *Server
 type Server struct {
 	Addr      string
 	config    *config.NetworkDiscoveryConfig
-	collector *discoverycollector.DiscoveryCollector
+	collector *discoveryscheduler.DiscoveryScheduler
 }
 
 // NewNetworkDiscoveryServer configures and returns a running SNMP traps server.
@@ -37,7 +37,7 @@ func NewNetworkDiscoveryServer(sender aggregator.Sender) (*Server, error) {
 		hostname = ""
 	}
 
-	collector := discoverycollector.NewDiscoveryCollector(sender, mainConfig, hostname)
+	collector := discoveryscheduler.NewDiscoveryScheduler(sender, mainConfig, hostname)
 	go collector.Start()
 
 	return &Server{
