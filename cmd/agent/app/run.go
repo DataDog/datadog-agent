@@ -48,6 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/spf13/cobra"
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
@@ -465,6 +466,22 @@ func StartAgent() error {
 	// start dependent services
 	go startDependentServices()
 
+	// TODO(juliogreff): remove before merging, just for testing
+	store := workloadmeta.GetGlobalStore()
+	ch := store.Subscribe("test", workloadmeta.NormalPriority, nil)
+	go func() {
+		for evBundle := range ch {
+			for _, ev := range evBundle.Events {
+				id := ev.Entity.GetID()
+				log.Infof("type: %d, kind: %s, id: %s -- %+v", ev.Type, id.Kind, id.ID, ev.Entity)
+			}
+
+			close(evBundle.Ch)
+		}
+
+		log.Infof("workloadmeta stopped, bailing")
+	}()
+
 	return nil
 }
 
@@ -478,6 +495,14 @@ func StopAgent() {
 	} else if len(health.Unhealthy) > 0 {
 		log.Warnf("Some components were unhealthy: %v", health.Unhealthy)
 	}
+
+	if config.Datadog.GetBool("collect_container_events_during_shutdown") {
+		store := workloadmeta.GetGlobalStore()
+		store.StopAndWait()
+	}
+
+	// gracefully shut down any component
+	common.MainCtxCancel()
 
 	if common.ExpvarServer != nil {
 		if err := common.ExpvarServer.Shutdown(context.Background()); err != nil {
@@ -511,9 +536,6 @@ func StopAgent() {
 	profiler.Stop()
 
 	os.Remove(pidfilePath)
-
-	// gracefully shut down any component
-	common.MainCtxCancel()
 
 	log.Info("See ya!")
 	log.Flush()

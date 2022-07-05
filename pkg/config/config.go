@@ -279,6 +279,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 	config.BindEnvAndSetDefault("remote_tagger_timeout_seconds", 30)
+	config.BindEnvAndSetDefault("collect_container_events_during_shutdown", false)
+	config.BindEnvAndSetDefault("collect_container_events_during_shutdown_timeout", 5)
 
 	// Remote config
 	config.BindEnvAndSetDefault("remote_configuration.enabled", false)

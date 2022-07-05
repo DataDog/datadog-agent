@@ -136,6 +136,11 @@ func (s *Store) Start(ctx context.Context) {
 	panic("not implemented")
 }
 
+// StopAndWait is not implemented in the testing store.
+func (s *Store) StopAndWait() {
+	panic("not implemented")
+}
+
 // Subscribe is not implemented in the testing store.
 func (s *Store) Subscribe(name string, _ workloadmeta.SubscriberPriority, filter *workloadmeta.Filter) chan workloadmeta.EventBundle {
 	panic("not implemented")

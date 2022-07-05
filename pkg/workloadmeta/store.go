@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -52,6 +53,9 @@ type store struct {
 	collectors   map[string]Collector
 
 	eventCh chan []CollectorEvent
+
+	stopPuller context.CancelFunc
+	stopStore  context.CancelFunc
 }
 
 var _ Store = &store{}
@@ -79,6 +83,10 @@ func newStore(catalog map[string]collectorFactory) *store {
 
 // Start starts the workload metadata store.
 func (s *store) Start(ctx context.Context) {
+	var pullerCtx, storeCtx context.Context
+	pullerCtx, s.stopPuller = context.WithCancel(ctx)
+	storeCtx, s.stopStore = context.WithCancel(ctx)
+
 	go func() {
 		health := health.RegisterLiveness("workloadmeta-store")
 		for {
@@ -88,11 +96,15 @@ func (s *store) Start(ctx context.Context) {
 			case evs := <-s.eventCh:
 				s.handleEvents(evs)
 
-			case <-ctx.Done():
+			case <-storeCtx.Done():
 				err := health.Deregister()
 				if err != nil {
 					log.Warnf("error de-registering health check: %s", err)
 				}
+
+				s.unsubscribeAll()
+
+				log.Infof("stopped workloadmeta store")
 
 				return
 			}
@@ -103,7 +115,7 @@ func (s *store) Start(ctx context.Context) {
 		retryTicker := time.NewTicker(retryCollectorInterval)
 		pullTicker := time.NewTicker(pullCollectorInterval)
 		health := health.RegisterLiveness("workloadmeta-puller")
-		pullCtx, pullCancel := context.WithTimeout(ctx, pullCollectorInterval)
+		pullCtx, pullCancel := context.WithTimeout(pullerCtx, pullCollectorInterval)
 
 		// Start a pull immediately to fill the store without waiting for the
 		// next tick.
@@ -119,17 +131,17 @@ func (s *store) Start(ctx context.Context) {
 				// pullCtx, so we cancel just as good practice
 				pullCancel()
 
-				pullCtx, pullCancel = context.WithTimeout(ctx, pullCollectorInterval)
+				pullCtx, pullCancel = context.WithTimeout(pullerCtx, pullCollectorInterval)
 				s.pull(pullCtx)
 
 			case <-retryTicker.C:
-				stop := s.startCandidates(ctx)
+				stop := s.startCandidates(pullerCtx)
 
 				if stop {
 					retryTicker.Stop()
 				}
 
-			case <-ctx.Done():
+			case <-pullerCtx.Done():
 				retryTicker.Stop()
 				pullTicker.Stop()
 
@@ -140,9 +152,7 @@ func (s *store) Start(ctx context.Context) {
 					log.Warnf("error de-registering health check: %s", err)
 				}
 
-				s.unsubscribeAll()
-
-				log.Infof("stopped workloadmeta store")
+				log.Infof("stopped workloadmeta puller")
 
 				return
 			}
@@ -152,6 +162,44 @@ func (s *store) Start(ctx context.Context) {
 	s.startCandidates(ctx)
 
 	log.Info("workloadmeta store initialized successfully")
+}
+
+// StopAndWait stops workloadmeta and blocks until one last pull is attempted
+// on collectors. This is useful to pick up events from containers in the same
+// pod/task as the agent itself when it is shutting down.
+func (s *store) StopAndWait() {
+	s.stopPuller()
+
+	log.Infof("pulling last time before during shutdown...")
+
+	sleep := config.Datadog.GetInt("collect_container_events_during_shutdown_sleep")
+	time.Sleep(time.Duration(sleep) * time.Second)
+
+	ctx, cancel := context.WithTimeout(context.Background(), pullCollectorInterval)
+	defer cancel()
+
+	wg := s.pull(ctx)
+	wg.Wait()
+
+	log.Infof("pull completed. waiting for %d events to be processed...", len(s.eventCh))
+
+	for len(s.eventCh) > 0 {
+		log.Info("still waiting for events to be processed...")
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	s.stopStore()
+
+	s.subscribersMut.RLock()
+	for len(s.subscribers) > 0 {
+		log.Info("still waiting for subscribers to be cleared...")
+		s.subscribersMut.RUnlock()
+		time.Sleep(100 * time.Millisecond)
+		s.subscribersMut.RLock()
+	}
+	s.subscribersMut.RUnlock()
+
+	log.Infof("wait finished, goodbye!")
 }
 
 // Subscribe returns a channel where workload metadata events will be streamed
@@ -346,14 +394,20 @@ func (s *store) startCandidates(ctx context.Context) bool {
 	return len(s.candidates) == 0
 }
 
-func (s *store) pull(ctx context.Context) {
+func (s *store) pull(ctx context.Context) *sync.WaitGroup {
 	s.collectorMut.RLock()
 	defer s.collectorMut.RUnlock()
 
+	var wg sync.WaitGroup
+
 	for id, c := range s.collectors {
+		wg.Add(1)
+
 		// Run each pull in its own separate goroutine to reduce
 		// latency and unlock the main goroutine to do other work.
 		go func(id string, c Collector) {
+			defer wg.Done()
+
 			err := c.Pull(ctx)
 			if err != nil {
 				log.Warnf("error pulling from collector %q: %s", id, err.Error())
@@ -361,11 +415,14 @@ func (s *store) pull(ctx context.Context) {
 			}
 		}(id, c)
 	}
+
+	return &wg
 }
 
 func (s *store) handleEvents(evs []CollectorEvent) {
 	s.storeMut.Lock()
 	s.subscribersMut.RLock()
+	defer s.subscribersMut.RUnlock()
 
 	filteredEvents := make(map[subscriber][]Event, len(s.subscribers))
 	for _, sub := range s.subscribers {
@@ -472,8 +529,6 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 			}
 		}
 	}
-
-	s.subscribersMut.RUnlock()
 
 	// unlock the store before notifying subscribers, as they might need to
 	// read it for related entities (such as a pod's containers) while they

@@ -118,10 +118,20 @@ func (c *Check) Run() error {
 
 	for {
 		select {
-		case eventBundle := <-contEventsCh:
+		case eventBundle, ok := <-contEventsCh:
+			if !ok {
+				continue
+			}
+
 			c.processor.processEvents(eventBundle)
-		case eventBundle := <-podEventsCh:
+
+		case eventBundle, ok := <-podEventsCh:
+			if !ok {
+				continue
+			}
+
 			c.processor.processEvents(eventBundle)
+
 		case <-c.stopCh:
 			stopProcessor()
 			return nil
