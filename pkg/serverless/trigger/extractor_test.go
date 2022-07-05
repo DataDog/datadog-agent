@@ -197,6 +197,29 @@ func TestExtractSQSEventARN(t *testing.T) {
 	assert.Equal(t, "test-arn", arn)
 }
 
+func TestExtractFunctionURLEventARN(t *testing.T) {
+	event := events.APIGatewayProxyRequest{
+		Headers: map[string]string{
+			"key":     "val",
+			"Referer": "referer",
+		},
+		RequestContext: events.APIGatewayProxyRequestContext{
+			DomainName: "domain-name",
+			Path:       "path",
+			HTTPMethod: "http-method",
+		},
+	}
+
+	httpTags := GetTagsFromAPIGatewayEvent(event)
+
+	assert.Equal(t, map[string]string{
+		"http.url":              "domain-name",
+		"http.url_details.path": "path",
+		"http.method":           "http-method",
+		"http.referer":          "referer",
+	}, httpTags)
+}
+
 func TestGetTagsFromAPIGatewayEvent(t *testing.T) {
 	event := events.APIGatewayProxyRequest{
 		Headers: map[string]string{

@@ -173,10 +173,13 @@ func GetStatusCodeFromHTTPResponse(rawPayload []byte) (string, error) {
 }
 
 // ParseArn parses an AWS ARN and returns the region and account
-func ParseArn(arn string) (string, string, error) {
+func ParseArn(arn string) (string, string, string, error) {
 	arnTokens := strings.Split(arn, ":")
 	if len(arnTokens) < 5 {
-		return "", "", fmt.Errorf("Malformed arn %v provided", arn)
+		return "", "", "", fmt.Errorf("Malformed arn %v provided", arn)
 	}
-	return arnTokens[3], arnTokens[4], nil
+	if len(arnTokens) >= 7 {
+		return arnTokens[3], arnTokens[4], arnTokens[6], nil
+	}
+	return arnTokens[3], arnTokens[4], "", nil
 }
