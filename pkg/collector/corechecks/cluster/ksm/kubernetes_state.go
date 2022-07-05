@@ -52,6 +52,10 @@ const (
 	ownerNameKey = "owner_name"
 )
 
+var extendedCollectors = map[string]string{
+	"jobs": "jobs_extended",
+}
+
 // KSMConfig contains the check config parameters
 type KSMConfig struct {
 	// Collectors defines the resource type collectors.
@@ -284,6 +288,14 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 	builder.WithCustomResourceStoreFactories(factories...)
 	builder.WithCustomResourceClients(clients)
 	builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
+
+	// automatically add extended collectors if their standard ones are
+	// enabled
+	for _, c := range collectors {
+		if extended, ok := extendedCollectors[c]; ok {
+			collectors = append(collectors, extended)
+		}
+	}
 
 	// must call WithEnabledResources after custom resources have been
 	// registered, otherwise they will fail with "resource does not exist"
