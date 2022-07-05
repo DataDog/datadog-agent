@@ -32,7 +32,7 @@ type OrderedPerfMap struct {
 }
 
 // Init the event stream.
-func (m *OrderedPerfMap) Init(mgr *manager.Manager, monitor *Monitor, config *config.Config) error {
+func (m *OrderedPerfMap) Init(mgr *manager.Manager, config *config.Config) error {
 	var ok bool
 	if m.perfMap, ok = mgr.GetPerfMap(eventStreamMap); !ok {
 		return errors.New("couldn't find events perf map")
@@ -48,13 +48,19 @@ func (m *OrderedPerfMap) Init(mgr *manager.Manager, monitor *Monitor, config *co
 		m.perfMap.PerfMapOptions.PerfRingBufferSize = config.EventStreamBufferSize
 	}
 
-	m.monitor = monitor
 	return nil
 }
 
 func (m *OrderedPerfMap) handleLostEvents(CPU int, count uint64, perfMap *manager.PerfMap, manager *manager.Manager) {
 	seclog.Tracef("lost %d events", count)
-	m.monitor.perfBufferMonitor.CountLostEvent(count, perfMap.Name, CPU)
+	if m.monitor.perfBufferMonitor != nil {
+		m.monitor.perfBufferMonitor.CountLostEvent(count, perfMap.Name, CPU)
+	}
+}
+
+// SetMonitor set the monitor
+func (m *OrderedPerfMap) SetMonitor(monitor *Monitor) {
+	m.monitor = monitor
 }
 
 // Start the event stream.

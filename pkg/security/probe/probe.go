@@ -61,7 +61,8 @@ type EventHandler interface {
 
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
 type EventStream interface {
-	Init(*manager.Manager, *Monitor, *config.Config) error
+	Init(*manager.Manager, *config.Config) error
+	SetMonitor(*Monitor)
 	Start(*sync.WaitGroup) error
 	Pause() error
 	Resume() error
@@ -254,7 +255,7 @@ func (p *Probe) Init() error {
 	}
 	defer bytecodeReader.Close()
 
-	if err := p.eventStream.Init(p.manager, p.monitor, p.config); err != nil {
+	if err := p.eventStream.Init(p.manager, p.config); err != nil {
 		return err
 	}
 
@@ -301,6 +302,8 @@ func (p *Probe) Init() error {
 	if err != nil {
 		return err
 	}
+
+	p.eventStream.SetMonitor(p.monitor)
 
 	return nil
 }
