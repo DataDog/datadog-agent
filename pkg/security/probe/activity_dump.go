@@ -405,9 +405,7 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 
 // findOrCreateProcessActivityNode finds or a create a new process activity node in the activity dump if the entry
 // matches the activity dump selector.
-func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType) *ProcessActivityNode {
-	var node *ProcessActivityNode
-
+func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType) (node *ProcessActivityNode) {
 	if entry == nil {
 		return node
 	}
@@ -420,6 +418,13 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 			return node
 		}
 	}
+
+	defer func() {
+		// if a node was found, and if the entry has a valid cookie, insert a cookie shortcut
+		if entry.Cookie > 0 && node != nil {
+			ad.CookiesNode[entry.Cookie] = node
+		}
+	}()
 
 	// find or create a ProcessActivityNode for the parent of the input ProcessCacheEntry. If the parent is a fork entry,
 	// jump immediately to the next ancestor.
@@ -460,11 +465,6 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 		node = NewProcessActivityNode(entry, generationType)
 		// insert in the list of root entries
 		parentNode.Children = append(parentNode.Children, node)
-	}
-
-	// insert new cookie shortcut
-	if entry.Cookie > 0 {
-		ad.CookiesNode[entry.Cookie] = node
 	}
 
 	// count new entry
