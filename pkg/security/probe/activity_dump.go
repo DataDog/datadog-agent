@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/DataDog/gopsutil/process"
-	"github.com/golang/protobuf/jsonpb"
 	"github.com/pkg/errors"
 	"github.com/prometheus/procfs"
 	"github.com/tinylib/msgp/msgp"
@@ -677,19 +676,6 @@ func (ad *ActivityDump) EncodeProtobuf() (*bytes.Buffer, error) {
 		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.PROTOBUF, err)
 	}
 	return bytes.NewBuffer(raw), nil
-}
-
-// EncodeProtobuf encodes an activity dump in the JSON format, using protobuf fields definition
-func (ad *ActivityDump) EncodeProtobufJSON() (*bytes.Buffer, error) {
-	pad := activityDumpToProto(ad)
-	defer pad.ReturnToVTPool()
-
-	marshaller := jsonpb.Marshaler{}
-	s, err := marshaller.MarshalToString(pad)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.PROTOBUF, err)
-	}
-	return bytes.NewBufferString(s), nil
 }
 
 // Unzip decompresses a compressed input file
