@@ -126,7 +126,7 @@ spec:
               logs_config:
                 use_http: true
                 additional_endpoints:
-                  - host: agent.datadoghq.com.
+                  - host: agent-http-intake.logs.datadoghq.com.
                     api_key: $DD_DDDEV_API_KEY
                     is_reliable: true
 
