@@ -16,7 +16,7 @@ type SamplingMechanism uint32
 
 const (
 	//todo(shevchenko): move or add other constants
-	SpanSamplingRuleMechanism SamplingMechanism = 8
+	SamplingMechanismSingleSpan SamplingMechanism = 8
 )
 
 // TargetTPS contains the targeted traces per second the agent should try to sample for a particular service and env

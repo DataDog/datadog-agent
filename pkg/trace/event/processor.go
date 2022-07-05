@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // Processor is responsible for all the logic surrounding extraction and sampling of APM events from processed traces.
@@ -67,13 +68,12 @@ func (p *Processor) Process(root *pb.Span, t *pb.TraceChunk) (numEvents, numExtr
 		}
 
 		numExtracted++
-		//event analytics tags shouldn't be set on sampled single spans
-		if !(span.Metrics != nil &&
-			span.Metrics[sampler.KeySpanSamplingMechanism] == float64(apmsampling.SpanSamplingRuleMechanism)) {
+		if traceutil.GetSamplingMechanism(span) != apmsampling.SamplingMechanismSingleSpan {
 			sampled, epsRate := p.maxEPSSample(span, priority)
 			if !sampled {
 				continue
 			}
+			// event analytics tags shouldn't be set on sampled single spans
 			sampler.SetMaxEPSRate(span, epsRate)
 			sampler.SetClientRate(span, clientSampleRate)
 			sampler.SetPreSampleRate(span, preSampleRate)

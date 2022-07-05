@@ -8,7 +8,9 @@ package traceutil
 import (
 	"bytes"
 
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 
 	"github.com/tinylib/msgp/msgp"
 )
@@ -131,4 +133,12 @@ func GetMetaStruct(s *pb.Span, key string) (interface{}, bool) {
 		return val, ok
 	}
 	return nil, false
+}
+
+// GetSamplingMechanism gets the sampling mechanism of the span.
+func GetSamplingMechanism(s *pb.Span) apmsampling.SamplingMechanism {
+	if s.Metrics == nil {
+		return 0
+	}
+	return apmsampling.SamplingMechanism(s.Metrics[sampler.KeySpanSamplingMechanism])
 }

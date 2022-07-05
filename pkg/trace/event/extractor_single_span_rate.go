@@ -11,8 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
-// singleSpanRateExtractor is a single span extractor that decides whether to extract spans from trace chunks based on
-// availability of single span sampling tags, e.g. KeySpanSamplingMechanism.
+// singleSpanRateExtractor extracts spans that have been sampled using the single span sampling mechanism.
 type singleSpanRateExtractor struct{}
 
 func NewSingleSpanExtractor() Extractor {
@@ -25,7 +24,7 @@ func (e *singleSpanRateExtractor) Extract(s *pb.Span, _ sampler.SamplingPriority
 		return 0, false
 	}
 	m, ok := s.Metrics[sampler.KeySpanSamplingMechanism]
-	if !ok || m != float64(apmsampling.SpanSamplingRuleMechanism) {
+	if !ok || m != float64(apmsampling.SamplingMechanismSingleSpan) {
 		return 0, false
 	}
 	extractionRate, ok := s.Metrics[sampler.KeySpanSamplingRuleRate]
