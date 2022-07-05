@@ -48,8 +48,7 @@ type factory struct {
 	// containers or pods.
 	cop containersorpods.Chooser
 
-	// dockerutil memoizes a DockerUtil instance; fetch this with
-	// getDockerUtil().
+	// dockerutil memoizes a DockerUtil instance; fetch this with getDockerUtil().
 	dockerutil *dockerutilPkg.DockerUtil
 }
 
