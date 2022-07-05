@@ -45,8 +45,6 @@ spec:
             kubelet:
               tlsVerify: false
             env:
-              - name: DD_ADDITIONAL_ENDPOINTS
-                value: "{\"https://agent.datadoghq.com.\": \"$DD_DDDEV_API_KEY\"}"
               - name: DD_HOSTNAME
                 value: k8s-e2e-tests-control-plane
               - name: DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT
@@ -121,6 +119,10 @@ spec:
                   capabilities:
                     drop:
                       - all
+            useConfigMap: true
+            customAgentConfig:
+              additional_endpoints:
+                https://agent.datadoghq.com.: $DD_DDDEV_API_KEY
 
           clusterAgent:
             enabled: true
