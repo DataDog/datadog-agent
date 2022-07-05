@@ -1,0 +1,130 @@
+namespace pkg.security.adfb;
+
+table ActivityDump {
+    host: string;
+    service: string;
+    source: string;
+    tags: [string];
+    tree: [ProcessActivityNode];
+}
+
+root_type ActivityDump;
+
+table ProcessActivityNode {
+    process: ProcessInfo;
+    generation_type: string;
+
+    children: [ProcessActivityNode];
+    files: [FileActivityNode];
+    dns_names: [DNSNode];
+    sockets: [SocketNode];
+}
+
+table ProcessInfo {
+    pid: uint;
+    tid: uint;
+    ppid: uint;
+    cookie: uint;
+    is_thread: bool;
+
+    file: FileInfo;
+
+    container_id: string;
+
+    span_id: ulong;
+    trace_id: ulong;
+
+    tty: string;
+    comm: string;
+
+    fork_time: ulong;
+    exit_time: ulong;
+    exec_time: ulong;
+
+    credentials: Credentials;
+
+    args: [string];
+    argv0: string;
+    args_truncated: bool;
+    envs: [string];
+    envs_truncated: bool;
+}
+
+table FileActivityNode {
+    name: string;
+    file: FileInfo;
+    generation_type: string;
+    first_seen: ulong;
+
+    open: OpenNode;
+
+    children: [FileActivityNode];
+}
+
+table OpenNode {
+    retval: long;
+    flags: uint;
+    mode: uint;
+}
+
+table DNSNode {
+    requests: [DNSInfo];
+}
+
+table DNSInfo {
+    name: string;
+    type: ushort;
+    class: ushort;
+    size: ushort;
+    count: ushort;
+}
+
+table FileInfo {
+    uid: uint;
+    user: string;
+    gid: uint;
+    group: string;
+
+    mode: ushort;
+
+    ctime: ulong;
+    mtime: ulong;
+
+    mount_id: uint;
+    inode: ulong;
+    in_upper_layer: bool;
+
+    path: string;
+    basename: string;
+    filesystem: string;
+}
+
+table Credentials {
+    uid: uint;
+    gid: uint;
+    user: string;
+    group: string;
+
+    effective_uid: uint;
+    effective_gid: uint;
+    effective_user: string;
+    effective_group: string;
+
+    fs_uid: uint;
+    fs_gid: uint;
+    fs_user: string;
+    fs_group: string;
+
+    cap_effective: ulong;
+    cap_permitted: ulong;
+}
+
+table SocketNode {
+    family: string;
+    bind: BindNode;
+}
+
+table BindNode {
+    port: uint;
+    ip: string;
+}

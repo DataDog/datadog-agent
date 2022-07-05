@@ -13,3 +13,5 @@ protoc -I. \
     --go-vtproto_opt=pool=pkg/security/adproto.FileInfo \
     --go-vtproto_opt=pool=pkg/security/adproto.ProcessInfo \
     pkg/security/adproto/activity_dump.proto
+
+flatc -g ./pkg/security/adfb/activity_dump.fbs

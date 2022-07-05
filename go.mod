@@ -409,6 +409,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.38.0-rc.3
+	github.com/google/flatbuffers v1.12.1
 	github.com/robfig/cron v1.2.0
 )
 

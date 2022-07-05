@@ -109,6 +109,8 @@ var (
 	MSGP StorageFormat = "msgp"
 	// PROTOBUF is used to request the protobuf format
 	PROTOBUF StorageFormat = "protobuf"
+	// FBS is used to request the flatbuffers format
+	FBS StorageFormat = "fbs"
 	// DOT is used to request the dot format
 	DOT StorageFormat = "dot"
 	// Profile is used to request the Secl profile format
