@@ -125,7 +125,7 @@ spec:
                 https://agent.datadoghq.com.: $DD_DDDEV_API_KEY
               logs_config:
                 additional_endpoints:
-                  - host: https://agent.datadoghq.com.
+                  - host: agent.datadoghq.com.
                     api_key: $DD_DDDEV_API_KEY
 
           clusterAgent:
