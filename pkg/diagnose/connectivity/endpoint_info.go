@@ -39,8 +39,9 @@ var (
 	v1SeriesEndpointInfo    = endpointInfo{endpoints.V1SeriesEndpoint, "POST", emptyPayload}
 	v1CheckRunsEndpointInfo = endpointInfo{endpoints.V1CheckRunsEndpoint, "POST", checkRunPayload}
 	v1IntakeEndpointInfo    = endpointInfo{endpoints.V1IntakeEndpoint, "POST", emptyPayload}
-	v1ValidateEndpointInfo  = endpointInfo{endpoints.V1ValidateEndpoint, "GET", nil}
-	v1MetadataEndpointInfo  = endpointInfo{endpoints.V1MetadataEndpoint, "POST", emptyPayload}
+	// This endpoint behaves differently depending on `site` when using `emptyPayload`. Do not modify `nil` here !
+	v1ValidateEndpointInfo = endpointInfo{endpoints.V1ValidateEndpoint, "GET", nil}
+	v1MetadataEndpointInfo = endpointInfo{endpoints.V1MetadataEndpoint, "POST", emptyPayload}
 
 	// v2 endpoints
 	seriesEndpointInfo       = endpointInfo{endpoints.SeriesEndpoint, "POST", emptyPayload}
