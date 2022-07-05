@@ -87,4 +87,5 @@ func (lp *LifecycleProcessor) initFromSQSEvent(event events.SQSEvent) {
 
 func (lp *LifecycleProcessor) initFromLambdaFunctionURLEvent(event events.LambdaFunctionURLRequest) {
 	lp.addTag("function_trigger.event_source", "lambda-function-url")
+	lp.addTags(trigger.GetTagsFromLambdaFunctionURLRequest(event))
 }
