@@ -30,6 +30,8 @@ type endpointInfo struct {
 }
 
 var (
+	// Each added/modified endpointInfo should be tested on all sites.
+
 	emptyPayload    = []byte("{}")
 	checkRunPayload = []byte("{\"check\": \"test\", \"status\": 0}")
 
@@ -37,7 +39,7 @@ var (
 	v1SeriesEndpointInfo    = endpointInfo{endpoints.V1SeriesEndpoint, "POST", emptyPayload}
 	v1CheckRunsEndpointInfo = endpointInfo{endpoints.V1CheckRunsEndpoint, "POST", checkRunPayload}
 	v1IntakeEndpointInfo    = endpointInfo{endpoints.V1IntakeEndpoint, "POST", emptyPayload}
-	v1ValidateEndpointInfo  = endpointInfo{endpoints.V1ValidateEndpoint, "GET", emptyPayload}
+	v1ValidateEndpointInfo  = endpointInfo{endpoints.V1ValidateEndpoint, "GET", nil}
 	v1MetadataEndpointInfo  = endpointInfo{endpoints.V1MetadataEndpoint, "POST", emptyPayload}
 
 	// v2 endpoints
