@@ -127,6 +127,7 @@ spec:
                 additional_endpoints:
                   - host: agent.datadoghq.com.
                     api_key: $DD_DDDEV_API_KEY
+                    is_reliable: true
 
           clusterAgent:
             enabled: true
