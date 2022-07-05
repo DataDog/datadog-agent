@@ -25,7 +25,7 @@ func NewDiscoveryScheduler(sender aggregator.Sender, config *config.NetworkDisco
 		sender:        sender,
 		stopChan:      make(chan struct{}),
 		hostname:      hostname,
-		collector:     discoverycollector.NewDiscoveryCollector(sender, hostname),
+		collector:     discoverycollector.NewDiscoveryCollector(sender, hostname, config),
 	}
 }
 

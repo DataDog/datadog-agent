@@ -11,4 +11,6 @@ const (
 
 	// DefaultMinCollectionInterval is the default minimal collection interval
 	DefaultMinCollectionInterval = 10
+
+	DefautOidBatchSize = 10
 )
