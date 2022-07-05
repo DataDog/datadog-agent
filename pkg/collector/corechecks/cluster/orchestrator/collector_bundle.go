@@ -122,11 +122,12 @@ func (cb *CollectorBundle) Initialize() error {
 
 		availableCollectors = append(availableCollectors, collector)
 
+		// TODO: potentially the informer already has been started somewhere else or is at a race condition to start
 		informer := collector.Informer()
 		informersToSync[apiserver.InformerName(collector.Metadata().Name)] = informer
 
-		// we run each enabled informer individually as starting them through the factory
-		// would prevent us to restarting them again if the check is unscheduled/rescheduled
+		// we run each enabled informer individually because starting them through the factory
+		// would prevent us from restarting them again if the check is unscheduled/rescheduled
 		// see https://github.com/kubernetes/client-go/blob/3511ef41b1fbe1152ef5cab2c0b950dfd607eea7/informers/factory.go#L64-L66
 		go informer.Run(cb.stopCh)
 	}
