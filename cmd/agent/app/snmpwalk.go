@@ -93,7 +93,7 @@ func init() {
 }
 
 var snmpwalkCmd = &cobra.Command{
-	Use:   "snmpwalk <IP Address> <OID> [OPTIONS]",
+	Use:   "snmpwalk <IP Address>[:Port] [OID] [OPTIONS]",
 	Short: "Perform a snmpwalk",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
