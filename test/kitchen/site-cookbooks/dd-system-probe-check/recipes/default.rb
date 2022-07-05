@@ -29,7 +29,9 @@ end
 
 file ::File.join(testdir, 'color_idx') do
   content node[:color_idx].to_s
-  mode 644
+  when !platform?('windows')
+    mode 644
+  end
 end
 
 if platform?('windows')
