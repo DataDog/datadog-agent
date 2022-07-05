@@ -11,6 +11,7 @@ passed into each test.
 
 from enum import Enum
 
+
 class Platform(Enum):
     linux = 0
     windows = 1
