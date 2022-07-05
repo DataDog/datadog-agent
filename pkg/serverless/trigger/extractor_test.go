@@ -262,6 +262,31 @@ func TestGetTagsFromALBTargetGroupRequest(t *testing.T) {
 	}, httpTags)
 }
 
+func TestGetTagsFromFunctionURLRequest(t *testing.T) {
+	event := events.LambdaFunctionURLRequest{
+		Headers: map[string]string{
+			"key":     "val",
+			"Referer": "referer",
+		},
+		RequestContext: events.LambdaFunctionURLRequestContext{
+			DomainName: "test-domain",
+			HTTP: events.LambdaFunctionURLRequestContextHTTPDescription{
+				Path:   "asd",
+				Method: "GET",
+			},
+		},
+	}
+
+	httpTags := GetTagsFromLambdaFunctionURLRequest(event)
+
+	assert.Equal(t, map[string]string{
+		"http.url_details.path": "asd",
+		"http.method":           "GET",
+		"http.referer":          "referer",
+		"http.url":              "test-domain",
+	}, httpTags)
+}
+
 func TestExtractStatusCodeFromHTTPResponse(t *testing.T) {
 	noStatusCodePayload := []byte(`{}`)
 
