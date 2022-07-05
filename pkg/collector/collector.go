@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/atomic"
 )
@@ -156,6 +157,7 @@ func (c *Collector) StopCheck(id check.ID) error {
 
 	// remove the check from the stats map
 	expvars.RemoveCheckStats(id)
+	inventories.RemoveCheckMetadata(string(id))
 
 	// vaporize the check
 	c.delete(id)
