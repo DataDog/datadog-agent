@@ -2,6 +2,7 @@ import os
 import sys
 
 from dotenv import load_dotenv
+from test_builder import LinuxConfig, MacConfig, Suite, WindowsConfig
 from test_cases.containers import (
     AgentUsesAdLabels,
     ContainerCollectAll,
@@ -31,7 +32,6 @@ from test_cases.xplat.file_tests import (
     TailFileWildcard,
 )
 from test_cases.xplat.network import TailTCPUDP
-from test_builder import LinuxConfig, MacConfig, Suite, WindowsConfig
 from trello import TrelloClient
 
 if len(sys.argv) < 2:

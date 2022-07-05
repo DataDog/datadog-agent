@@ -1,5 +1,5 @@
-from test_cases.xplat.helpers import confDir
 from test_builder import TestCase
+from test_cases.xplat.helpers import confDir
 
 
 class TestEventLog(TestCase):

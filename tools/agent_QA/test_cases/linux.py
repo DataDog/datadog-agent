@@ -1,5 +1,5 @@
-from test_cases.xplat.helpers import confDir, filePositionSharedSteps
 from test_builder import TestCase
+from test_cases.xplat.helpers import confDir, filePositionSharedSteps
 
 
 class TailJounald(TestCase):
