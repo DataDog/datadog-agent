@@ -95,7 +95,7 @@ func (z *ActivityDump) DecodeMsg(dc *msgp.Reader) (err error) {
 					}
 				}
 			}
-		case "DumpMetadata":
+		case "metadata":
 			err = z.DumpMetadata.DecodeMsg(dc)
 			if err != nil {
 				err = msgp.WrapError(err, "DumpMetadata")
@@ -214,8 +214,8 @@ func (z *ActivityDump) EncodeMsg(en *msgp.Writer) (err error) {
 			}
 		}
 	}
-	// write "DumpMetadata"
-	err = en.Append(0xac, 0x44, 0x75, 0x6d, 0x70, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61)
+	// write "metadata"
+	err = en.Append(0xa8, 0x6d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61)
 	if err != nil {
 		return
 	}
@@ -285,8 +285,8 @@ func (z *ActivityDump) MarshalMsg(b []byte) (o []byte, err error) {
 			}
 		}
 	}
-	// string "DumpMetadata"
-	o = append(o, 0xac, 0x44, 0x75, 0x6d, 0x70, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61)
+	// string "metadata"
+	o = append(o, 0xa8, 0x6d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61)
 	o, err = z.DumpMetadata.MarshalMsg(o)
 	if err != nil {
 		err = msgp.WrapError(err, "DumpMetadata")
@@ -380,7 +380,7 @@ func (z *ActivityDump) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					}
 				}
 			}
-		case "DumpMetadata":
+		case "metadata":
 			bts, err = z.DumpMetadata.UnmarshalMsg(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "DumpMetadata")
@@ -412,7 +412,7 @@ func (z *ActivityDump) Msgsize() (s int) {
 			s += z.ProcessActivityTree[za0002].Msgsize()
 		}
 	}
-	s += 13 + z.DumpMetadata.Msgsize()
+	s += 9 + z.DumpMetadata.Msgsize()
 	return
 }
 
