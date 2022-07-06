@@ -1,6 +1,7 @@
 package discoverycollector
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/common"
@@ -48,15 +49,52 @@ func (dc *DiscoveryCollector) Collect() {
 	}
 	defer session.Close()
 
+	log.Info("=== lldpLocPortTable\t\t ===")
+	// INDEX { lldpLocPortNum }
+	columns := []string{
+		"1.0.8802.1.1.2.1.3.7.1.2", // lldpLocPortIdSubtype
+		"1.0.8802.1.1.2.1.3.7.1.3", // lldpLocPortId
+		"1.0.8802.1.1.2.1.4.2.1.4", // lldpLocPortDesc
+	}
+	columnValues := dc.collectColumnsOids(columns, session)
+	lldpLocPortId := columnValues["1.0.8802.1.1.2.1.3.7.1.3"]
+
+	var locPorts []common.LldpLocPort
+	for fullIndex, value := range lldpLocPortId {
+		localPortNum, _ := strconv.Atoi(fullIndex)
+		portIdStr, _ := value.ToString()
+		var portIdType int
+
+		if strings.HasPrefix(portIdStr, "0x") && len(portIdStr) == 14 {
+			// TODO: need better way to detect the portId type
+			newValue, _ := enrichment.FormatValue(value, "mac_address")
+			portIdStr, _ = newValue.ToString()
+			portIdType = 3 // macAddress
+		}
+		locPort := common.LldpLocPort{
+			PortNum:       localPortNum,
+			PortIdSubType: portIdType,
+			PortId:        portIdStr,
+		}
+		locPorts = append(locPorts, locPort)
+	}
+	for _, locPort := range locPorts {
+		log.Infof("\t->")
+		log.Infof("\t\t PortNum: %d", locPort.PortNum)
+		log.Infof("\t\t PortIdSubType: %d", locPort.PortIdSubType)
+		log.Infof("\t\t PortId: %s", locPort.PortId)
+		log.Infof("\t\t PortDesc: %s", locPort.PortDesc)
+	}
+
 	log.Info("=== lldpRemManAddrTable\t ===")
 	// INDEX { lldpRemTimeMark, lldpRemLocalPortNum, lldpRemIndex, lldpRemManAddrSubtype, lldpRemManAddr }
 	// lldpRemManAddrSubtype: ipv4(1), ipv6(2), etc see more here: http://www.mibdepot.com/cgi-bin/getmib3.cgi?win=mib_a&i=1&n=LLDP-MIB&r=cisco&f=LLDP-MIB-V1SMI.my&v=v1&t=tab&o=lldpRemManAddrSubtype
-	columns := []string{
+	columns = []string{
 		"1.0.8802.1.1.2.1.4.2.1.3", // lldpRemManAddrIfSubtype unknown(1), ifIndex(2), systemPortNumber(3)
 		"1.0.8802.1.1.2.1.4.2.1.4", // lldpRemManAddrIfId
 		"1.0.8802.1.1.2.1.4.2.1.5", // lldpRemManAddrOID
 	}
-	columnValues := dc.collectColumnsOids(columns, session)
+	columnValues = dc.collectColumnsOids(columns, session)
 
 	ifSubType := columnValues["1.0.8802.1.1.2.1.4.2.1.3"]
 
@@ -162,8 +200,14 @@ func (dc *DiscoveryCollector) Collect() {
 		floatVal, _ = PortIdSubtype.ToFloat64()
 		remote.PortIdSubType = int(floatVal)
 
-		strVal, _ = PortId.ToString()
-		remote.PortId = strVal
+		if remote.PortIdSubType == 3 {
+			newVal, _ := enrichment.FormatValue(PortId, "mac_address")
+			strVal, _ = newVal.ToString()
+			remote.PortId = strVal
+		} else {
+			strVal, _ = PortId.ToString()
+			remote.PortId = strVal
+		}
 
 		strVal, _ = PortDesc.ToString()
 		remote.PortDesc = strVal
@@ -186,6 +230,12 @@ func (dc *DiscoveryCollector) Collect() {
 		} else {
 			remote.RemoteManagement = remoteMan
 		}
+		localPort, err := findLocPort(locPorts, remote.LocalPortNum)
+		if err != nil {
+			log.Infof("\t\t Local port not found for %+v", remote)
+		} else {
+			remote.LocalPort = localPort
+		}
 
 		remotes = append(remotes, remote)
 	}
@@ -207,13 +257,33 @@ func (dc *DiscoveryCollector) Collect() {
 		if remote.RemoteManagement != nil {
 			log.Infof("\t\t ManAddr: %s", remote.RemoteManagement.ManAddr)
 		}
+		if remote.LocalPort != nil {
+			log.Infof("\t\t LocalPort.PortId: %s", remote.LocalPort.PortId)
+		}
 	}
+
+	payload := buildPayload(remotes, "agent_hostname")
+	payloadBytes, err := json.MarshalIndent(payload, "", "    ")
+	if err != nil {
+		log.Errorf("Error marshalling device metadata: %s", err)
+		return
+	}
+	log.Infof("topology payload | %s", string(payloadBytes))
 }
 
 func findRemote(mans []common.LldpRemoteManagement, remote common.LldpRemote) (*common.LldpRemoteManagement, error) {
 	for _, remoteMan := range mans {
 		if remoteMan.LocalPortNum == remote.LocalPortNum && remoteMan.Index == remote.Index {
 			return &remoteMan, nil
+		}
+	}
+	return nil, fmt.Errorf("not found")
+}
+
+func findLocPort(locPorts []common.LldpLocPort, locPortNum int) (*common.LldpLocPort, error) {
+	for _, locPort := range locPorts {
+		if locPort.PortNum == locPortNum {
+			return &locPort, nil
 		}
 	}
 	return nil, fmt.Errorf("not found")

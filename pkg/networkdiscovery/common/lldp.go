@@ -14,6 +14,7 @@ type LldpRemote struct {
 	SysCapSupported  string // TODO: should be converted into flags/states
 	SysCapEnabled    string // TODO: should be converted into flags/states
 	RemoteManagement *LldpRemoteManagement
+	LocalPort        *LldpLocPort
 }
 
 type LldpRemoteManagement struct {
@@ -23,6 +24,13 @@ type LldpRemoteManagement struct {
 	ManAddrSubtype   int
 	ManAddr          string
 	ManAddrIfSubtype int
+}
+
+type LldpLocPort struct {
+	PortNum       int
+	PortIdSubType int
+	PortId        string
+	PortDesc      string
 }
 
 var ChassisIdSubtypeMap = map[int]string{
