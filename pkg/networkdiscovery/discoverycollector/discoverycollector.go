@@ -4,6 +4,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/common"
 	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/config"
+	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/enrichment"
 	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/fetch"
 	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/session"
 	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/valuestore"
@@ -69,35 +70,84 @@ func (dc *DiscoveryCollector) Collect() {
 			valuesByIndexByColumn[fullIndex][columnOid] = value
 		}
 	}
+	dc.collectColumnsOids(columns, session)
 
 	for fullIndex, colValues := range valuesByIndexByColumn {
 		indexes := strings.Split(fullIndex, ".")
 		timeMark, _ := strconv.Atoi(indexes[0])
 		localPortNum, _ := strconv.Atoi(indexes[1])
 		index, _ := strconv.Atoi(indexes[2])
-
-		for columnOid, value := range colValues {
-			remote := common.LldpRemote{
-				TimeMark:     timeMark,
-				LocalPortNum: localPortNum,
-				Index:        index,
-			}
-
-			remotes = append(remotes, remote)
-			strVal, err := value.ToString()
-
-			if err != nil {
-				log.Warnf("error converting %s.%s value to string: %s", columnOid, fullIndex, err)
-			} else {
-				log.Infof("\t%s: %v", fullIndex, strVal)
-			}
+		remote := common.LldpRemote{
+			TimeMark:     timeMark,
+			LocalPortNum: localPortNum,
+			Index:        index,
 		}
+
+		ChassisIdSubtype := colValues["1.0.8802.1.1.2.1.4.1.1.4"]
+		ChassisId := colValues["1.0.8802.1.1.2.1.4.1.1.5"]
+		PortIdSubtype := colValues["1.0.8802.1.1.2.1.4.1.1.6"]
+		PortId := colValues["1.0.8802.1.1.2.1.4.1.1.7"]
+		PortDesc := colValues["1.0.8802.1.1.2.1.4.1.1.8"]
+		SysName := colValues["1.0.8802.1.1.2.1.4.1.1.9"]
+		SysDesc := colValues["1.0.8802.1.1.2.1.4.1.1.10"]
+		SysCapSupported := colValues["1.0.8802.1.1.2.1.4.1.1.11"]
+		SysCapEnabled := colValues["1.0.8802.1.1.2.1.4.1.1.12"]
+
+		var strVal string
+		floatVal, _ := ChassisIdSubtype.ToFloat64()
+		remote.ChassisIdSubtype = int(floatVal)
+
+		if remote.ChassisIdSubtype == 4 {
+			newVal, _ := enrichment.FormatValue(ChassisId, "mac_address")
+			strVal, _ = newVal.ToString()
+			remote.ChassisId = strVal
+		} else {
+			strVal, _ = ChassisId.ToString()
+			remote.ChassisId = strVal
+		}
+
+		floatVal, _ = PortIdSubtype.ToFloat64()
+		remote.PortIdSubType = int(floatVal)
+
+		strVal, _ = PortId.ToString()
+		remote.PortId = strVal
+
+		strVal, _ = PortDesc.ToString()
+		remote.PortDesc = strVal
+
+		strVal, _ = SysName.ToString()
+		remote.SysName = strVal
+
+		strVal, _ = SysDesc.ToString()
+		remote.SysDesc = strVal
+
+		strVal, _ = SysCapSupported.ToString()
+		remote.SysCapSupported = strVal
+
+		strVal, _ = SysCapEnabled.ToString()
+		remote.SysCapEnabled = strVal
+
+		remotes = append(remotes, remote)
+	}
+
+	for _, remote := range remotes {
+		log.Infof("\t->")
+		log.Infof("\t\t ChassisIdSubtype: %s (%d)", common.ChassisIdSubtypeMap[remote.ChassisIdSubtype], remote.ChassisIdSubtype)
+		log.Infof("\t\t ChassisId: %s", remote.ChassisId)
+		log.Infof("\t\t PortIdSubType: %s (%d)", common.PortIdSubTypeMap[remote.PortIdSubType], remote.PortIdSubType)
+		log.Infof("\t\t PortId: %s", remote.PortId)
+		log.Infof("\t\t PortDesc: %s", remote.PortDesc)
+		log.Infof("\t\t SysName: %s", remote.SysName)
+		log.Infof("\t\t SysDesc: %s", remote.SysDesc)
+		log.Infof("\t\t SysCapSupported: %s", remote.SysCapSupported)
+		log.Infof("\t\t SysCapEnabled: %s", remote.SysCapEnabled)
 	}
 
 	log.Info("=== lldpRemManAddrTable\t ===")
 	// INDEX { lldpRemTimeMark, lldpRemLocalPortNum, lldpRemIndex, lldpRemManAddrSubtype, lldpRemManAddr }
+	// lldpRemManAddrSubtype: ipv4(1), ipv6(2), etc see more here: http://www.mibdepot.com/cgi-bin/getmib3.cgi?win=mib_a&i=1&n=LLDP-MIB&r=cisco&f=LLDP-MIB-V1SMI.my&v=v1&t=tab&o=lldpRemManAddrSubtype
 	columns = []string{
-		"1.0.8802.1.1.2.1.4.2.1.3", // lldpRemManAddrIfSubtype
+		"1.0.8802.1.1.2.1.4.2.1.3", // lldpRemManAddrIfSubtype unknown(1), ifIndex(2), systemPortNumber(3)
 		"1.0.8802.1.1.2.1.4.2.1.4", // lldpRemManAddrIfId
 		"1.0.8802.1.1.2.1.4.2.1.5", // lldpRemManAddrOID
 	}
