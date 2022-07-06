@@ -55,8 +55,6 @@ tee specification.json << EOF
 }
 EOF
 
-CI_COMMIT_SHORT_SHA=${CI_COMMIT_SHORT_SHA:-$(git describe --tags --always --dirty --match 7.\*)}
-CI_PIPELINE_ID=${CI_PIPELINE_ID:-unknown}
-CI_JOB_ID=${CI_JOB_ID:-unknown}
+export CI_COMMIT_SHORT_SHA=${CI_COMMIT_SHORT_SHA:-$(git describe --tags --always --dirty --match 7.\*)}
 
 exec ./02-ec2.sh
