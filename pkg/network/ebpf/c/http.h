@@ -99,11 +99,12 @@ static __always_inline void http_enqueue(http_transaction_t *http) {
     }
 }
 
-static __always_inline void http_begin_request(http_transaction_t *http, http_method_t method, char *buffer) {
+static __always_inline void http_begin_request(http_transaction_t *http, http_method_t method, char *buffer, size_t buffer_len) {
     http->request_method = method;
     http->request_started = bpf_ktime_get_ns();
     http->response_last_seen = 0;
     http->response_status_code = 0;
+    http->fragment_len = buffer_len;
     __builtin_memcpy(&http->request_fragment, buffer, HTTP_BUFFER_SIZE);
 }
 
@@ -216,7 +217,7 @@ static __always_inline int http_process(http_transaction_t *http_stack, skb_info
 
     http_transaction_t *to_flush = http_should_flush_previous_state(http, packet_type);
     if (packet_type == HTTP_REQUEST) {
-        http_begin_request(http, method, buffer);
+        http_begin_request(http, method, buffer, http_stack->fragment_len);
     } else if (packet_type == HTTP_RESPONSE) {
         http_begin_response(http, buffer);
     }
