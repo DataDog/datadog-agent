@@ -39,18 +39,19 @@ func TestReplFunc(t *testing.T) {
 	require.Equal(t, "dog FOOd", string(res))
 }
 
-func TestSkipCommentsAndBlanks(t *testing.T) {
+func TestSkipComments(t *testing.T) {
 	scrubber := New()
 	scrubber.AddReplacer(SingleLine, Replacer{
 		Regex: regexp.MustCompile("foo"),
 		Repl:  []byte("bar"),
 	})
 	scrubber.AddReplacer(MultiLine, Replacer{
-		Regex: regexp.MustCompile("with bar\nanother"),
+		Regex: regexp.MustCompile("with bar\n\n\nanother"),
 		Repl:  []byte("..."),
 	})
 	res, err := scrubber.ScrubBytes([]byte("a line with foo\n\n  \n  # a comment with foo\nanother line"))
 	require.NoError(t, err)
+	// require.Equal(t, "a line ... line", string(res))
 	require.Equal(t, "a line ... line", string(res))
 }
 
