@@ -83,7 +83,7 @@ func NewTailer(cli *dockerutil.DockerUtil, containerID string, source *sources.L
 	return &Tailer{
 		ContainerID:        containerID,
 		outputChan:         outputChan,
-		decoder:            decoder.NewDecoderWithFraming(config.NewReplaceableSource(source), dockerstream.New(containerID), framer.DockerStream, nil),
+		decoder:            decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), dockerstream.New(containerID), framer.DockerStream, nil),
 		Source:             source,
 		tagProvider:        tag.NewProvider(dockerutil.ContainerIDToTaggerEntityName(containerID)),
 		dockerutil:         cli,

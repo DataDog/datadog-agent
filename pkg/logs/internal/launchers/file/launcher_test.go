@@ -429,7 +429,7 @@ func TestContainerIDInContainerLogFile(t *testing.T) {
 	file := filetailer.File{
 		Path:           "/var/log/pods/file-uuid-foo-bar.log",
 		IsWildcardPath: false,
-		Source:         config.NewReplaceableSource(logSource),
+		Source:         sources.NewReplaceableSource(logSource),
 	}
 
 	launcher := &Launcher{}
@@ -465,7 +465,7 @@ func TestLauncherUpdatesSourceForExistingTailer(t *testing.T) {
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditor.NewRegistry()
 
-	source := config.NewLogSource("Source 1", &config.LogsConfig{Type: config.FileType, Identifier: "TEST_ID", Path: path})
+	source := sources.NewLogSource("Source 1", &config.LogsConfig{Type: config.FileType, Identifier: "TEST_ID", Path: path})
 
 	launcher.addSource(source)
 	tailer := launcher.tailers[getScanKey(path, source)]
@@ -475,7 +475,7 @@ func TestLauncherUpdatesSourceForExistingTailer(t *testing.T) {
 	assert.Equal(t, tailer.Source(), source)
 
 	// Add a new source with the same file
-	source2 := config.NewLogSource("Source 2", &config.LogsConfig{Type: config.FileType, Identifier: "TEST_ID", Path: path})
+	source2 := sources.NewLogSource("Source 2", &config.LogsConfig{Type: config.FileType, Identifier: "TEST_ID", Path: path})
 
 	launcher.addSource(source2)
 

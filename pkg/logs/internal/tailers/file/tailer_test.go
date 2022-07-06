@@ -40,7 +40,7 @@ type TailerTestSuite struct {
 
 	tailer     *Tailer
 	outputChan chan *message.Message
-	source     *config.ReplaceableSource
+	source     *sources.ReplaceableSource
 }
 
 func (suite *TailerTestSuite) SetupTest() {
@@ -53,7 +53,7 @@ func (suite *TailerTestSuite) SetupTest() {
 	suite.Nil(err)
 	suite.testFile = f
 	suite.outputChan = make(chan *message.Message, chanSize)
-	suite.source = config.NewReplaceableSource(config.NewLogSource("", &config.LogsConfig{
+	suite.source = sources.NewReplaceableSource(sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
 		Path: suite.testPath,
 	}))
