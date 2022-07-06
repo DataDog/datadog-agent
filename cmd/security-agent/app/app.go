@@ -271,12 +271,16 @@ func RunAgent(ctx context.Context) (err error) {
 
 	stopper = startstop.NewSerialStopper()
 
-	// Retrieve statsd host and port from the datadog agent configuration file
-	statsdHost := coreconfig.GetBindHost()
-	statsdPort := coreconfig.Datadog.GetInt("dogstatsd_port")
-
 	// Create a statsd Client
-	statsdAddr := fmt.Sprintf("%s:%d", statsdHost, statsdPort)
+	statsdAddr := os.Getenv("STATSD_URL")
+	if statsdAddr == "" {
+		// Retrieve statsd host and port from the datadog agent configuration file
+		statsdHost := coreconfig.GetBindHost()
+		statsdPort := coreconfig.Datadog.GetInt("dogstatsd_port")
+
+		statsdAddr = fmt.Sprintf("%s:%d", statsdHost, statsdPort)
+	}
+
 	statsdClient, err := ddgostatsd.New(statsdAddr)
 	if err != nil {
 		return log.Criticalf("Error creating statsd Client: %s", err)

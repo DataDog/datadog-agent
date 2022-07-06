@@ -22,13 +22,58 @@
 static __always_inline void read_into_buffer_skb(char *buffer, struct __sk_buff* skb, skb_info_t *info) {
     u64 offset = (u64)info->data_off;
 
+#define BLK_SIZE (16)
+    const u32 iter = HTTP_BUFFER_SIZE / BLK_SIZE;
+    const u32 len = HTTP_BUFFER_SIZE < (skb->len - (u32)offset) ? (u32)offset + HTTP_BUFFER_SIZE : skb->len;
+
+    unsigned i = 0;
+
 #pragma unroll
-    for (int i = 0; i < HTTP_BUFFER_SIZE; i++) {
-        if (offset < skb->len) {
-            bpf_skb_load_bytes(skb, offset, &buffer[i], 1);
-        }
-        offset++;
+    for (; i < iter; i++) {
+        if (offset + BLK_SIZE - 1 >= len) break;
+
+        bpf_skb_load_bytes(skb, offset, &buffer[i * BLK_SIZE], BLK_SIZE);
+        offset += BLK_SIZE;
     }
+
+    // This part is very hard to write in a loop and unroll it.
+    // Indeed, mostly because of older kernel verifiers, we want to make sure the offset into the buffer is not
+    // stored on the stack, so that the verifier is able to verify that we're not doing out-of-bound on
+    // the stack.
+    // Basically, we should get a register from the code block above containing an fp relative address. As
+    // we are doing `buffer[0]` here, there is not dynamic computation on that said register after this,
+    // and thus the verifier is able to ensure that we are in-bound.
+    void *buf = &buffer[i * BLK_SIZE];
+    if (offset + 14 < len)
+        bpf_skb_load_bytes(skb, offset, buf, 15);
+    else if (offset + 13 < len)
+        bpf_skb_load_bytes(skb, offset, buf, 14);
+    else if (offset + 12 < len)
+        bpf_skb_load_bytes(skb, offset, buf, 13);
+    else if (offset + 11 < len)
+        bpf_skb_load_bytes(skb, offset, buf, 12);
+    else if (offset + 10 < len)
+        bpf_skb_load_bytes(skb, offset, buf, 11);
+    else if (offset + 9 < len)
+        bpf_skb_load_bytes(skb, offset, buf, 10);
+    else if (offset + 8 < len)
+        bpf_skb_load_bytes(skb, offset, buf, 9);
+    else if (offset + 7 < len)
+        bpf_skb_load_bytes(skb, offset, buf, 8);
+    else if (offset + 6 < len)
+        bpf_skb_load_bytes(skb, offset, buf, 7);
+    else if (offset + 5 < len)
+        bpf_skb_load_bytes(skb, offset, buf, 6);
+    else if (offset + 4 < len)
+        bpf_skb_load_bytes(skb, offset, buf, 5);
+    else if (offset + 3 < len)
+        bpf_skb_load_bytes(skb, offset, buf, 4);
+    else if (offset + 2 < len)
+        bpf_skb_load_bytes(skb, offset, buf, 3);
+    else if (offset + 1 < len)
+        bpf_skb_load_bytes(skb, offset, buf, 2);
+    else if (offset < len)
+        bpf_skb_load_bytes(skb, offset, buf, 1);
 }
 
 SEC("socket/http_filter")
@@ -62,11 +107,48 @@ int socket__http_filter(struct __sk_buff* skb) {
     return 0;
 }
 
-// This kprobe is used to send batch completion notification to userspace
-// because perf events can't be sent from socket filter programs
+SEC("kprobe/tcp_sendmsg")
+int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
+    // map connection tuple during SSL_do_handshake(ctx)
+    init_ssl_sock_from_do_handshake((struct sock*)PT_REGS_PARM1(ctx));
+    return 0;
+}
+
 SEC("kretprobe/tcp_sendmsg")
 int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
+    // send batch completion notification to userspace
+    // because perf events can't be sent from socket filter programs
     http_notify_batch(ctx);
+    return 0;
+}
+
+SEC("uprobe/SSL_do_handshake")
+int uprobe__SSL_do_handshake(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
+    bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
+    return 0;
+}
+
+SEC("uretprobe/SSL_do_handshake")
+int uretprobe__SSL_do_handshake(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
+    return 0;
+}
+
+SEC("uprobe/SSL_connect")
+int uprobe__SSL_connect(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
+    bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
+    return 0;
+}
+
+SEC("uretprobe/SSL_connect")
+int uretprobe__SSL_connect(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
     return 0;
 }
 
@@ -305,20 +387,33 @@ int uprobe__gnutls_deinit(struct pt_regs* ctx) {
     return 0;
 }
 
-SEC("kprobe/do_sys_open")
-int kprobe__do_sys_open(struct pt_regs* ctx) {
-    char *path_argument = (char *)PT_REGS_PARM2(ctx);
-    lib_path_t path = {0};
-    bpf_probe_read(path.buf, sizeof(path.buf), path_argument);
-
-    // Find the null character and clean up the garbage following it
+static __always_inline int fill_path_safe(lib_path_t *path, char *path_argument) {
 #pragma unroll
     for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
-        if (path.len) {
-            path.buf[i] = 0;
-        } else if (path.buf[i] == 0) {
-            path.len = i;
+        bpf_probe_read_user(&path->buf[i], 1, &path_argument[i]);
+        if (path->buf[i] == 0) {
+            path->len = i;
+            break;
         }
+    }
+    return 0;
+}
+
+static __always_inline int do_sys_open_helper_enter(struct pt_regs* ctx) {
+    char *path_argument = (char *)PT_REGS_PARM2(ctx);
+    lib_path_t path = {0};
+    if (bpf_probe_read_user(path.buf, sizeof(path.buf), path_argument) >= 0) {
+// Find the null character and clean up the garbage following it
+#pragma unroll
+        for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
+            if (path.len) {
+                path.buf[i] = 0;
+            } else if (path.buf[i] == 0) {
+                path.len = i;
+            }
+        }
+    } else {
+        fill_path_safe(&path, path_argument);
     }
 
     // Bail out if the path size is larger than our buffer
@@ -327,12 +422,22 @@ int kprobe__do_sys_open(struct pt_regs* ctx) {
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    path.pid = pid_tgid >> 32;
     bpf_map_update_elem(&open_at_args, &pid_tgid, &path, BPF_ANY);
     return 0;
 }
 
-SEC("kretprobe/do_sys_open")
-int kretprobe__do_sys_open(struct pt_regs* ctx) {
+SEC("kprobe/do_sys_open")
+int kprobe__do_sys_open(struct pt_regs* ctx) {
+    return do_sys_open_helper_enter(ctx);
+}
+
+SEC("kprobe/do_sys_openat2")
+int kprobe__do_sys_openat2(struct pt_regs* ctx) {
+    return do_sys_open_helper_enter(ctx);
+}
+
+static __always_inline int do_sys_open_helper_exit(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // If file couldn't be opened, bail out
@@ -368,6 +473,16 @@ int kretprobe__do_sys_open(struct pt_regs* ctx) {
  cleanup:
     bpf_map_delete_elem(&open_at_args, &pid_tgid);
     return 0;
+}
+
+SEC("kretprobe/do_sys_open")
+int kretprobe__do_sys_open(struct pt_regs* ctx) {
+    return do_sys_open_helper_exit(ctx);
+}
+
+SEC("kretprobe/do_sys_openat2")
+int kretprobe__do_sys_openat2(struct pt_regs* ctx) {
+    return do_sys_open_helper_exit(ctx);
 }
 
 // This number will be interpreted by elf-loader to set the current running kernel version

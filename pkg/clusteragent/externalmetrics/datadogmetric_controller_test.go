@@ -24,7 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	datadoghq "github.com/DataDog/datadog-operator/api/v1alpha1"
+	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
 
 	"github.com/stretchr/testify/assert"
 )

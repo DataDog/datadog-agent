@@ -23,6 +23,7 @@ func TestNamespacesToWatch(t *testing.T) {
 	tests := []struct {
 		name                   string
 		containerdNamespaceVal string
+		excludeNamespaceVal    string
 		client                 ContainerdItf
 		expectedNamespaces     []string
 		expectsError           bool
@@ -49,6 +50,16 @@ func TestNamespacesToWatch(t *testing.T) {
 			expectsError:       false,
 		},
 		{
+			name:                   "containerd_namespace not set, containerd_exclude_namespaces set",
+			containerdNamespaceVal: "",
+			excludeNamespaceVal:    "namespace_2",
+			client: &fake.MockedContainerdClient{MockNamespaces: func(context.Context) ([]string, error) {
+				return []string{"namespace_1", "namespace_2"}, nil
+			}},
+			expectedNamespaces: []string{"namespace_1"},
+			expectsError:       false,
+		},
+		{
 			name: "error when getting namespaces",
 			client: &fake.MockedContainerdClient{MockNamespaces: func(context.Context) ([]string, error) {
 				return nil, errors.New("some error")
@@ -59,11 +70,15 @@ func TestNamespacesToWatch(t *testing.T) {
 	}
 
 	originalContainerdNamespacesOpt := config.Datadog.GetStringSlice("containerd_namespaces")
+	originalExcludeNamespacesOpt := config.Datadog.GetStringSlice("containerd_exclude_namespaces")
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			config.Datadog.Set("containerd_namespaces", test.containerdNamespaceVal)
 			defer config.Datadog.Set("containerd_namespaces", originalContainerdNamespacesOpt)
+
+			config.Datadog.Set("containerd_exclude_namespaces", test.excludeNamespaceVal)
+			defer config.Datadog.Set("containerd_exclude_namespaces", originalExcludeNamespacesOpt)
 
 			namespaces, err := NamespacesToWatch(context.TODO(), test.client)
 
@@ -79,14 +94,15 @@ func TestNamespacesToWatch(t *testing.T) {
 
 func TestFiltersWithNamespaces(t *testing.T) {
 	tests := []struct {
-		name                         string
-		containerdNamespaceConfigOpt string
-		inputFilters                 []string
-		expectedFilters              []string
+		name                   string
+		containerdNamespaceVal string
+		excludeNamespaceVal    string
+		inputFilters           []string
+		expectedFilters        []string
 	}{
 		{
-			name:                         "watch all namespaces",
-			containerdNamespaceConfigOpt: "",
+			name:                   "watch all namespaces",
+			containerdNamespaceVal: "",
 			inputFilters: []string{
 				`topic==/containers/create`,
 				`topic==/containers/delete`,
@@ -97,8 +113,23 @@ func TestFiltersWithNamespaces(t *testing.T) {
 			},
 		},
 		{
-			name:                         "watch one namespace",
-			containerdNamespaceConfigOpt: "ns1",
+			name:                   "watch all namespaces, exclude some",
+			containerdNamespaceVal: "",
+			excludeNamespaceVal:    "exclude1 exclude2",
+			inputFilters: []string{
+				`topic==/containers/create`,
+				`topic==/containers/delete`,
+			},
+			expectedFilters: []string{
+				`topic==/containers/create,namespace!="exclude1"`,
+				`topic==/containers/delete,namespace!="exclude1"`,
+				`topic==/containers/create,namespace!="exclude2"`,
+				`topic==/containers/delete,namespace!="exclude2"`,
+			},
+		},
+		{
+			name:                   "watch one namespace",
+			containerdNamespaceVal: "ns1",
 			inputFilters: []string{
 				`topic=="/containers/create"`,
 				`topic=="/containers/delete"`,
@@ -109,8 +140,8 @@ func TestFiltersWithNamespaces(t *testing.T) {
 			},
 		},
 		{
-			name:                         "watch several namespaces, but not all",
-			containerdNamespaceConfigOpt: "ns1 ns2",
+			name:                   "watch several namespaces, but not all",
+			containerdNamespaceVal: "ns1 ns2",
 			inputFilters: []string{
 				`topic=="/containers/create"`,
 				`topic=="/containers/delete"`,
@@ -125,11 +156,15 @@ func TestFiltersWithNamespaces(t *testing.T) {
 	}
 
 	originalContainerdNamespacesOpt := config.Datadog.GetStringSlice("containerd_namespaces")
+	originalExcludeNamespacesOpt := config.Datadog.GetStringSlice("containerd_exclude_namespaces")
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			config.Datadog.Set("containerd_namespaces", test.containerdNamespaceConfigOpt)
+			config.Datadog.Set("containerd_namespaces", test.containerdNamespaceVal)
 			defer config.Datadog.Set("containerd_namespaces", originalContainerdNamespacesOpt)
+
+			config.Datadog.Set("containerd_exclude_namespaces", test.excludeNamespaceVal)
+			defer config.Datadog.Set("containerd_exclude_namespaces", originalExcludeNamespacesOpt)
 
 			result := FiltersWithNamespaces(test.inputFilters)
 			assert.ElementsMatch(t, test.expectedFilters, result)

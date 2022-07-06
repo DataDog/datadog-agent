@@ -88,7 +88,10 @@ type MetricSerializer interface {
 	SendEvents(e metrics.Events) error
 	SendServiceChecks(serviceChecks metrics.ServiceChecks) error
 	SendIterableSeries(serieSource metrics.SerieSource) error
-	SendSketch(sketches metrics.SketchSeriesList) error
+	AreSeriesEnabled() bool
+	SendSketch(sketches metrics.SketchesSource) error
+	AreSketchesEnabled() bool
+
 	SendMetadata(m marshaler.JSONMarshaler) error
 	SendHostMetadata(m marshaler.JSONMarshaler) error
 	SendProcessesMetadata(data interface{}) error
@@ -143,10 +146,10 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder, contlcy
 	if !s.enableEvents {
 		log.Warn("event payloads are disabled: all events will be dropped")
 	}
-	if !s.enableSeries {
+	if !s.AreSeriesEnabled() {
 		log.Warn("series payloads are disabled: all series will be dropped")
 	}
-	if !s.enableServiceChecks {
+	if !s.AreSketchesEnabled() {
 		log.Warn("service_checks payloads are disabled: all service_checks will be dropped")
 	}
 	if !s.enableSketches {
@@ -296,9 +299,14 @@ func (s *Serializer) SendServiceChecks(serviceChecks metrics.ServiceChecks) erro
 	return s.Forwarder.SubmitV1CheckRuns(serviceCheckPayloads, extraHeaders)
 }
 
+// AreSeriesEnabled returns whether series are enabled for serialization
+func (s *Serializer) AreSeriesEnabled() bool {
+	return s.enableSeries
+}
+
 // SendIterableSeries serializes a list of series and sends the payload to the forwarder
 func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
-	if !s.enableSeries {
+	if !s.AreSeriesEnabled() {
 		log.Debug("series payloads are disabled: dropping it")
 		return nil
 	}
@@ -329,13 +337,18 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	return s.Forwarder.SubmitSeries(seriesPayloads, extraHeaders)
 }
 
+// AreSketchesEnabled returns whether sketches are enabled for serialization
+func (s *Serializer) AreSketchesEnabled() bool {
+	return s.enableSketches
+}
+
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder
-func (s *Serializer) SendSketch(sketches metrics.SketchSeriesList) error {
-	if !s.enableSketches {
+func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
+	if !s.AreSketchesEnabled() {
 		log.Debug("sketches payloads are disabled: dropping it")
 		return nil
 	}
-	sketchesSerializer := metricsserializer.SketchSeriesList(sketches)
+	sketchesSerializer := metricsserializer.SketchSeriesList{SketchesSource: sketches}
 	if s.enableSketchProtobufStream {
 		payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
 		if err == nil {
@@ -345,8 +358,7 @@ func (s *Serializer) SendSketch(sketches metrics.SketchSeriesList) error {
 	}
 
 	compress := true
-	useV1API := false // Sketches only have a v2 endpoint
-	splitSketches, extraHeaders, err := s.serializePayload(sketchesSerializer, sketchesSerializer, compress, useV1API)
+	splitSketches, extraHeaders, err := s.serializePayloadProto(sketchesSerializer, compress)
 	if err != nil {
 		return fmt.Errorf("dropping sketch payload: %s", err)
 	}
@@ -460,12 +472,12 @@ func (s *Serializer) SendContainerLifecycleEvent(msgs []ContainerLifecycleMessag
 		msg.Host = hostname
 		encoded, err := proto.Marshal(&msg)
 		if err != nil {
-			return log.Errorf("Unable to encode message: %w", err)
+			return log.Errorf("Unable to encode message: %v", err)
 		}
 
 		payloads := forwarder.Payloads{&encoded}
 		if err := s.contlcycleForwarder.SubmitContainerLifecycleEvents(payloads, extraHeaders); err != nil {
-			return log.Errorf("Unable to submit container lifecycle payload: %w", err)
+			return log.Errorf("Unable to submit container lifecycle payload: %v", err)
 		}
 
 		log.Tracef("Sent container lifecycle event %+v", msg)

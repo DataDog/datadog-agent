@@ -9,6 +9,8 @@
 package constantfetch
 
 import (
+	"errors"
+	"os"
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -179,67 +181,46 @@ func getSuperBlockMagicOffset(kv *kernel.Version) uint64 {
 	return sizeOf
 }
 
-func getSignalTTYOffset(kv *kernel.Version) uint64 {
-	ttyOffset := uint64(400)
+// Depending on the value CONFIG_NO_HZ_FULL, a field can be added before the `tty` field.
+// See https://elixir.bootlin.com/linux/v5.18/source/include/linux/sched/signal.h#L164
+func getNoHzOffset() uint64 {
+	if _, err := os.Stat("/sys/devices/system/cpu/nohz_full"); errors.Is(err, os.ErrNotExist) {
+		return 0
+	}
+	return 8
+}
 
+func getSignalTTYOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsRH7Kernel():
-		ttyOffset = 416
+		return 416
 	case kv.IsRH8Kernel():
-		ttyOffset = 392
+		return 392
 	case kv.IsSuse12Kernel():
-		ttyOffset = 376
+		return 376
 	case kv.IsSuse15Kernel():
-		ttyOffset = 408
+		return 408
 	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
-		ttyOffset = 416
+		return 416
 	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
-		ttyOffset = 416
+		return 416
 	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
-		ttyOffset = 416
+		return 416
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
-		ttyOffset = 368
+		return 368
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
-		ttyOffset = 400
-	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_15, kernel.Kernel5_16):
-		ttyOffset = 400
-	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16):
-		ttyOffset = 368
-	case kv.IsInRangeCloseOpen(kernel.Kernel4_16, kernel.Kernel4_19):
-		ttyOffset = 376
-	case kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_0):
-		ttyOffset = 400
-	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
-		ttyOffset = 408
-	case kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
-		ttyOffset = 408
-	case kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_7):
-		if runtime.GOARCH == "arm64" || kv.IsOracleUEKKernel() {
-			ttyOffset = 408
-		} else {
-			ttyOffset = 400
-		}
-	case kv.Code != 0 && kv.Code == kernel.Kernel5_10:
-		if runtime.GOARCH == "arm64" {
-			ttyOffset = 408
-		} else {
-			ttyOffset = 400
-		}
-	case kv.IsInRangeCloseOpen(kernel.Kernel5_7, kernel.Kernel5_9) || kv.IsInRangeCloseOpen(kernel.Kernel5_11, kernel.Kernel5_14):
-		if runtime.GOARCH == "arm64" {
-			ttyOffset = 400
-		} else {
-			ttyOffset = 408
-		}
-	case kv.Code != 0 && kv.Code < kernel.Kernel5_3:
-		ttyOffset = 368
-	case kv.IsInRangeCloseOpen(kernel.Kernel5_15, kernel.Kernel5_16):
-		ttyOffset = 408
+		return 400
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16):
+		return 368
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_16, kernel.Kernel4_19):
+		return 376
+	case kv.IsUbuntuKernel():
+		return 400 + getNoHzOffset()
 	case kv.Code >= kernel.Kernel5_16:
-		ttyOffset = 416
+		return 416
 	}
 
-	return ttyOffset
+	return 400 + getNoHzOffset()
 }
 
 func getTTYNameOffset(kv *kernel.Version) uint64 {

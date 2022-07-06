@@ -60,6 +60,12 @@ func (m Method) String() string {
 	}
 }
 
+// Path represents the HTTP path
+type Path struct {
+	Content  string
+	FullPath bool
+}
+
 // KeyTuple represents the network tuple for a group of HTTP transactions
 type KeyTuple struct {
 	SrcIPHigh uint64
@@ -76,17 +82,20 @@ type KeyTuple struct {
 // Key is an identifier for a group of HTTP transactions
 type Key struct {
 	// this field order is intentional to help the GC pointer tracking
-	Path string
+	Path Path
 	KeyTuple
 	Method Method
 }
 
 // NewKey generates a new Key
-func NewKey(saddr, daddr util.Address, sport, dport uint16, path string, method Method) Key {
+func NewKey(saddr, daddr util.Address, sport, dport uint16, path string, fullPath bool, method Method) Key {
 	return Key{
 		KeyTuple: NewKeyTuple(saddr, daddr, sport, dport),
-		Path:     path,
-		Method:   method,
+		Path: Path{
+			Content:  path,
+			FullPath: fullPath,
+		},
+		Method: method,
 	}
 }
 

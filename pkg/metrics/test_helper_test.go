@@ -134,7 +134,7 @@ func TestAssertSketchSeriesEqual(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ft := &fakeTestingT{}
 
-			AssertSketchSeriesEqual(ft, tt.s[0], tt.s[1])
+			AssertSketchSeriesEqual(ft, &tt.s[0], &tt.s[1])
 			if tt.valid {
 				assert.Len(t, ft.msgs, 0, "should be equal")
 			} else {

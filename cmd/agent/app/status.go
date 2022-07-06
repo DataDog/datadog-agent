@@ -8,6 +8,7 @@ package app
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -18,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -28,6 +31,23 @@ var (
 	prettyPrintJSON bool
 	statusFilePath  string
 )
+
+func redactError(unscrubbedError error) error {
+	if unscrubbedError == nil {
+		return unscrubbedError
+	}
+
+	errMsg := unscrubbedError.Error()
+	scrubbedMsg, scrubOperationErr := scrubber.ScrubBytes([]byte(errMsg))
+	var scrubbedError error
+	if scrubOperationErr != nil {
+		scrubbedError = errors.New("[REDACTED] failed to clean error")
+	} else {
+		scrubbedError = errors.New(string(scrubbedMsg))
+	}
+
+	return scrubbedError
+}
 
 func init() {
 	AgentCmd.AddCommand(statusCmd)
@@ -57,15 +77,16 @@ var statusCmd = &cobra.Command{
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}
 
-		err = config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+		err = config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "info"), "", "", false, true, false)
 		if err != nil {
 			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 			return err
 		}
+		defer log.Flush()
 
 		_ = common.SetupSystemProbeConfig(sysProbeConfFilePath)
 
-		return requestStatus()
+		return redactError(requestStatus())
 	},
 }
 
@@ -85,7 +106,15 @@ var componentCmd = &cobra.Command{
 		if len(args) != 1 {
 			return fmt.Errorf("a component name must be specified")
 		}
-		return componentStatus(args[0])
+
+		err = config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "info"), "", "", false, true, false)
+		if err != nil {
+			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+			return err
+		}
+		defer log.Flush()
+
+		return redactError(componentStatus(args[0]))
 	},
 }
 
@@ -93,7 +122,7 @@ func requestStatus() error {
 	var s string
 
 	if !prettyPrintJSON && !jsonStatus {
-		fmt.Printf("Getting the status from the agent.\n\n")
+		log.Info("Getting the status from the agent.\n\n")
 	}
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
@@ -131,7 +160,7 @@ func requestStatus() error {
 	if statusFilePath != "" {
 		ioutil.WriteFile(statusFilePath, []byte(s), 0644) //nolint:errcheck
 	} else {
-		fmt.Println(s)
+		log.Info(s)
 	}
 
 	return nil
@@ -186,7 +215,7 @@ func componentStatus(component string) error {
 	if statusFilePath != "" {
 		ioutil.WriteFile(statusFilePath, []byte(s), 0644) //nolint:errcheck
 	} else {
-		fmt.Println(s)
+		log.Info(s)
 	}
 
 	return nil
@@ -211,7 +240,7 @@ func makeRequest(url string) ([]byte, error) {
 			e = fmt.Errorf(err)
 		}
 
-		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before requesting the status and contact support if you continue having issues. \n", e)
+		log.Warnf("Could not reach agent: %v \nMake sure the agent is running before requesting the status and contact support if you continue having issues. \n", e)
 		return nil, e
 	}
 

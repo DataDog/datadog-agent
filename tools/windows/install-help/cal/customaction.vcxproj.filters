@@ -39,6 +39,9 @@
     <ClCompile Include="TargetMachine.cpp">
       <Filter>helper</Filter>
     </ClCompile>
+    <ClCompile Include="LogonCli.cpp">
+      <Filter>helper</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="customactiondata.h" />
@@ -77,6 +80,12 @@
       <Filter>resources</Filter>
     </ClInclude>
     <ClInclude Include="TargetMachine.h">
+      <Filter>helper</Filter>
+    </ClInclude>
+    <ClInclude Include="LogonCli.h">
+      <Filter>helper</Filter>
+    </ClInclude>
+    <ClInclude Include="NonCopyable.h">
       <Filter>helper</Filter>
     </ClInclude>
   </ItemGroup>

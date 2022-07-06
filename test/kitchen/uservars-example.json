@@ -18,9 +18,9 @@
     "ec2" : {
         "comment-ec2-vars": "Variables specific to the hyper-v driver",
         "comment_SSH_KEY": "path to ssh key used to create instances",
-        "KITCHEN_EC2_SSH_KEY" : "<filename>",
+        "KITCHEN_EC2_SSH_KEY_PATH" : "<filename>",
         "comment_SSH_ID": "friendly name in EC2 associated with above ssh key",
-        "KITCHEN_EC2_SSH_ID" : "derek-sandbox-2",
+        "KITCHEN_EC2_SSH_KEY_ID" : "derek-sandbox-2",
         "KITCHEN_EC2_TAG_CREATOR" : "db"
     },
     "azure" : {

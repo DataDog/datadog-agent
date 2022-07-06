@@ -53,7 +53,6 @@ func TestHTTPMonitorIntegrationWithNAT(t *testing.T) {
 
 	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 	netlink.SetupDNAT(t)
-	defer netlink.TeardownDNAT(t)
 
 	targetAddr := "2.2.2.2:8080"
 	serverAddr := "1.1.1.1:8080"
@@ -78,7 +77,6 @@ func TestUnknownMethodRegression(t *testing.T) {
 
 	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 	netlink.SetupDNAT(t)
-	defer netlink.TeardownDNAT(t)
 
 	targetAddr := "2.2.2.2:8080"
 	serverAddr := "1.1.1.1:8080"
@@ -171,7 +169,7 @@ func requestGenerator(t *testing.T, targetAddr string) func() *nethttp.Request {
 func includesRequest(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.Request) {
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	for key, stats := range allStats {
-		if key.Path == req.URL.Path && stats.HasStats(expectedStatus) {
+		if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
 			return
 		}
 	}

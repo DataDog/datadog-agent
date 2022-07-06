@@ -8,7 +8,7 @@ package file
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // File represents a file to tail
@@ -21,14 +21,14 @@ type File struct {
 	IsWildcardPath bool
 
 	// Source is the ReplaceableSource that led to this File.
-	Source *config.ReplaceableSource
+	Source *sources.ReplaceableSource
 }
 
 // NewFile returns a new File
-func NewFile(path string, source *config.LogSource, isWildcardPath bool) *File {
+func NewFile(path string, source *sources.LogSource, isWildcardPath bool) *File {
 	return &File{
 		Path:           path,
-		Source:         config.NewReplaceableSource(source),
+		Source:         sources.NewReplaceableSource(source),
 		IsWildcardPath: isWildcardPath,
 	}
 }

@@ -672,4 +672,5 @@ func init() {
 	allDiscarderHandlers["load_module"] = processDiscarderWrapper(model.LoadModuleEventType, nil)
 	allDiscarderHandlers["unload_module"] = processDiscarderWrapper(model.UnloadModuleEventType, nil)
 	allDiscarderHandlers["signal"] = processDiscarderWrapper(model.SignalEventType, nil)
+	allDiscarderHandlers["bind"] = processDiscarderWrapper(model.BindEventType, nil)
 }

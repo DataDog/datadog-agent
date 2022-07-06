@@ -29,6 +29,7 @@ type Payload struct {
 	Timestamp     int64          `json:"timestamp"`
 	CheckMetadata *CheckMetadata `json:"check_metadata"`
 	AgentMetadata *AgentMetadata `json:"agent_metadata"`
+	HostMetadata  *HostMetadata  `json:"host_metadata"`
 }
 
 // MarshalJSON serialization a Payload to JSON

@@ -29,7 +29,6 @@ type ConnStats struct {
 	Direction    uint8
 	Sent_packets uint64
 	Recv_packets uint64
-	Tags         uint64
 }
 type Conn struct {
 	Tup        ConnTuple
@@ -85,13 +84,6 @@ const (
 	LInit   ConnFlags = 0x1
 	RInit   ConnFlags = 0x2
 	Assured ConnFlags = 0x4
-)
-
-type PortState uint8
-
-const (
-	PortListening PortState = 0x1
-	PortClosed    PortState = 0x0
 )
 
 const BatchSize = 0x4

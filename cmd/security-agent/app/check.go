@@ -10,6 +10,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -38,6 +39,7 @@ var (
 		overrideRegoInput string
 		dumpRegoInput     string
 		dumpReports       string
+		skipRegoEval      bool
 	}{}
 )
 
@@ -49,6 +51,7 @@ func setupCheckCmd(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&checkArgs.overrideRegoInput, "override-rego-input", "", "", "Rego input to use when running rego checks")
 	cmd.Flags().StringVarP(&checkArgs.dumpRegoInput, "dump-rego-input", "", "", "Path to file where to dump the Rego input JSON")
 	cmd.Flags().StringVarP(&checkArgs.dumpReports, "dump-reports", "", "", "Path to file where to dump reports")
+	cmd.Flags().BoolVarP(&checkArgs.skipRegoEval, "skip-rego-eval", "", false, "Skip rego evaluation")
 }
 
 // CheckCmd returns a cobra command to run security agent checks
@@ -69,6 +72,10 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 	err := configureLogger()
 	if err != nil {
 		return err
+	}
+
+	if checkArgs.skipRegoEval && checkArgs.dumpReports != "" {
+		return errors.New("skipping the rego evaluation does not allow the generation of reports")
 	}
 
 	// We need to set before calling `SetupConfig`
@@ -150,6 +157,8 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 		options = append(options, checks.WithRegoInputDumpPath(checkArgs.dumpRegoInput))
 	}
 
+	options = append(options, checks.WithRegoEvalSkip(checkArgs.skipRegoEval))
+
 	if checkArgs.file != "" {
 		err = agent.RunChecksFromFile(reporter, checkArgs.file, options...)
 	} else {
@@ -189,12 +198,14 @@ func configureLogger() error {
 	return nil
 }
 
+// RunCheckReporter represents a reporter used for reporting RunChecks
 type RunCheckReporter struct {
 	reporter        event.Reporter
 	events          map[string][]*event.Event
 	dumpReportsPath string
 }
 
+// NewCheckReporter creates a new RunCheckReporter
 func NewCheckReporter(stopper startstop.Stopper, report bool, dumpReportsPath string) (*RunCheckReporter, error) {
 	r := &RunCheckReporter{}
 
@@ -219,6 +230,7 @@ func NewCheckReporter(stopper startstop.Stopper, report bool, dumpReportsPath st
 	return r, nil
 }
 
+// Report reports the event
 func (r *RunCheckReporter) Report(event *event.Event) {
 	r.events[event.AgentRuleID] = append(r.events[event.AgentRuleID], event)
 
@@ -235,6 +247,7 @@ func (r *RunCheckReporter) Report(event *event.Event) {
 	}
 }
 
+// ReportRaw reports the raw content
 func (r *RunCheckReporter) ReportRaw(content []byte, service string, tags ...string) {
 	fmt.Println(string(content))
 }

@@ -46,7 +46,6 @@ func TestConntrackers(t *testing.T) {
 				require.NoError(t, err)
 				defer ct.Close()
 
-				defer netlinktestutil.TeardownDNAT(t)
 				netlinktestutil.SetupDNAT(t)
 
 				testConntracker(t, net.ParseIP("1.1.1.1"), net.ParseIP("2.2.2.2"), ct)
@@ -57,7 +56,6 @@ func TestConntrackers(t *testing.T) {
 				require.NoError(t, err)
 				defer ct.Close()
 
-				defer netlinktestutil.TeardownDNAT6(t)
 				netlinktestutil.SetupDNAT6(t)
 
 				testConntracker(t, net.ParseIP("fd00::1"), net.ParseIP("fd00::2"), ct)
@@ -171,14 +169,13 @@ func testConntracker(t *testing.T, serverIP, clientIP net.IP, ct netlink.Conntra
 }
 
 func testConntrackerCrossNamespace(t *testing.T, ct netlink.Conntracker) {
-	defer netlinktestutil.TeardownCrossNsDNAT(t)
-	netlinktestutil.SetupCrossNsDNAT(t)
+	ns := netlinktestutil.SetupCrossNsDNAT(t)
 
-	closer := nettestutil.StartServerTCPNs(t, net.ParseIP("2.2.2.4"), 8080, "test")
+	closer := nettestutil.StartServerTCPNs(t, net.ParseIP("2.2.2.4"), 8080, ns)
 	laddr := nettestutil.PingTCP(t, net.ParseIP("2.2.2.4"), 80).LocalAddr().(*net.TCPAddr)
 	defer closer.Close()
 
-	testNs, err := netns.GetFromName("test")
+	testNs, err := netns.GetFromName(ns)
 	require.NoError(t, err)
 	defer testNs.Close()
 	testIno, err := util.GetInoForNs(testNs)
@@ -204,11 +201,9 @@ func testConntrackerCrossNamespace(t *testing.T, ct netlink.Conntracker) {
 }
 
 func testConntrackerCrossNamespaceNATonRoot(t *testing.T, ct netlink.Conntracker) {
-	defer netlinktestutil.TeardownVethPair(t)
-	netlinktestutil.SetupVethPair(t)
+	ns := netlinktestutil.SetupVethPair(t)
 
 	// SetupDNAT sets up a NAT translation from 3.3.3.3 to 1.1.1.1
-	defer netlinktestutil.TeardownDNAT(t)
 	netlinktestutil.SetupDNAT(t)
 
 	// Setup TCP server on root namespace
@@ -227,7 +222,7 @@ func testConntrackerCrossNamespaceNATonRoot(t *testing.T, ct netlink.Conntracker
 		originalNS, _ := netns.Get()
 		defer originalNS.Close()
 
-		testNS, err := netns.GetFromName("test")
+		testNS, err := netns.GetFromName(ns)
 		require.NoError(t, err)
 
 		testIno, err = util.GetInoForNs(testNS)

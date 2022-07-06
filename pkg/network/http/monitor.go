@@ -12,7 +12,6 @@ import (
 	"fmt"
 
 	"sync"
-	"time"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -124,8 +123,6 @@ func (m *Monitor) Start() error {
 	m.eventLoopWG.Add(1)
 	go func() {
 		defer m.eventLoopWG.Done()
-		report := time.NewTicker(30 * time.Second)
-		defer report.Stop()
 		for {
 			select {
 			case dataEvent, ok := <-m.batchCompletionHandler.DataChannel:
@@ -137,6 +134,7 @@ func (m *Monitor) Start() error {
 				notification := toHTTPNotification(dataEvent.Data)
 				transactions, err := m.batchManager.GetTransactionsFrom(notification)
 				m.process(transactions, err)
+				dataEvent.Done()
 			case _, ok := <-m.batchCompletionHandler.LostChannel:
 				if !ok {
 					return
@@ -161,9 +159,6 @@ func (m *Monitor) Start() error {
 					requestStats: m.statkeeper.GetAndResetAllStats(),
 					telemetry:    delta,
 				}
-			case <-report.C:
-				transactions := m.batchManager.GetPendingTransactions()
-				m.process(transactions, nil)
 			}
 		}
 	}()
@@ -193,18 +188,19 @@ func (m *Monitor) GetHTTPStats() map[Key]*RequestStats {
 }
 
 func (m *Monitor) GetStats() map[string]interface{} {
+	empty := map[string]interface{}{}
 	if m == nil {
-		return nil
+		return empty
 	}
 
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	if m.stopped {
-		return nil
+		return empty
 	}
 
 	if m.telemetrySnapshot == nil {
-		return nil
+		return empty
 	}
 
 	return m.telemetrySnapshot.report()

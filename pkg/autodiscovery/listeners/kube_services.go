@@ -80,6 +80,7 @@ func isServiceAnnotated(ksvc *v1.Service, annotationKey string) bool {
 	return false
 }
 
+// NewKubeServiceListener returns the kube service implementation of the ServiceListener interface
 func NewKubeServiceListener(conf Config) (ServiceListener, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
@@ -100,6 +101,7 @@ func NewKubeServiceListener(conf Config) (ServiceListener, error) {
 	}, nil
 }
 
+// Listen starts watching service events
 func (l *KubeServiceListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	// setup the I/O channels
 	l.newService = newSvc

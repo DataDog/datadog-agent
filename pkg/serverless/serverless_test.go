@@ -8,6 +8,7 @@ package serverless
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
 	"sort"
 	"testing"
 	"time"
@@ -56,6 +57,30 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 	ecs := d.ExecutionContext.GetCurrentState()
 	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-function", ecs.ARN)
 	assert.Equal(t, "myRequestID", ecs.LastRequestID)
+}
+
+func TestHandleInvocationShouldNotSIGSEGVWhenTimedOut(t *testing.T) {
+	currentPanicOnFaultBehavior := debug.SetPanicOnFault(true)
+	defer debug.SetPanicOnFault(currentPanicOnFaultBehavior)
+	defer func() {
+		r := recover()
+		if r != nil {
+			assert.Fail(t, "Expected no panic, instead got ", r)
+		}
+	}()
+	for i := 0; i < 10; i++ { // each one of these takes about a second on my laptop
+		fmt.Printf("Running this test the %d time\n", i)
+		d := daemon.StartDaemon("http://localhost:8124")
+		d.WaitForDaemon()
+
+		//deadline = current time - 20 ms
+		deadlineMs := (time.Now().UnixNano())/1000000 - 20
+
+		callInvocationHandler(d, "arn:aws:lambda:us-east-1:123456789012:function:my-function", deadlineMs, 0, "myRequestID", handleInvocation)
+		d.Stop()
+	}
+	//before 8682842e9202a4984a38b00fdf427837c9e2d46b, if this was the Daemon's first invocation, the Go scheduler (trickster spirit)
+	//might try to execute TellDaemonRuntimeDone before TellDaemonRuntimeStarted, which would result in a SIGSEGV. Now this should never happen.
 }
 
 func TestComputeTimeout(t *testing.T) {

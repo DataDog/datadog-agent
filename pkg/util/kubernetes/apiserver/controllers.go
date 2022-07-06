@@ -52,6 +52,7 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 	},
 }
 
+// ControllerContext holds all the attributes needed by the controllers
 type ControllerContext struct {
 	informers          map[InformerName]cache.SharedInformer
 	InformerFactory    informers.SharedInformerFactory

@@ -9,6 +9,7 @@
 package modules
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -16,7 +17,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/http/debugging"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/atomic"
 )
 
 // ErrSysprobeUnsupported is the unsupported error prefix, for error-class matching from callers
@@ -69,7 +70,7 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 
 // Register all networkTracer endpoints
 func (nt *networkTracer) Register(httpMux *module.Router) error {
-	var runCounter uint64
+	var runCounter = atomic.NewUint64(0)
 
 	httpMux.HandleFunc("/connections", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
@@ -87,11 +88,11 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		if nt.restartTimer != nil {
 			nt.restartTimer.Reset(inactivityRestartDuration)
 		}
-		count := atomic.AddUint64(&runCounter, 1)
+		count := runCounter.Inc()
 		logRequests(id, count, len(cs.Conns), start)
 	}))
 
-	httpMux.HandleFunc("/network_tracer/register", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+	httpMux.HandleFunc("/register", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
 		id := getClientID(req)
 		err := nt.tracer.RegisterClient(id)
 		log.Debugf("Got request on /network_tracer/register?client_id=%s", id)
@@ -157,10 +158,36 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		utils.WriteAsJSON(w, ebpfMaps)
 	})
 
+	httpMux.HandleFunc("/debug/conntrack/cached", func(w http.ResponseWriter, req *http.Request) {
+		ctx, cancelFunc := context.WithTimeout(req.Context(), 30*time.Second)
+		defer cancelFunc()
+		table, err := nt.tracer.DebugCachedConntrack(ctx)
+		if err != nil {
+			log.Errorf("unable to retrieve cached conntrack table: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, table)
+	})
+
+	httpMux.HandleFunc("/debug/conntrack/host", func(w http.ResponseWriter, req *http.Request) {
+		ctx, cancelFunc := context.WithTimeout(req.Context(), 30*time.Second)
+		defer cancelFunc()
+		table, err := nt.tracer.DebugHostConntrack(ctx)
+		if err != nil {
+			log.Errorf("unable to retrieve host conntrack table: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, table)
+	})
+
 	// Convenience logging if nothing has made any requests to the system-probe in some time, let's log something.
 	// This should be helpful for customers + support to debug the underlying issue.
 	time.AfterFunc(inactivityLogDuration, func() {
-		if run := atomic.LoadUint64(&runCounter); run == 0 {
+		if runCounter.Load() == 0 {
 			log.Warnf("%v since the agent started without activity, the process-agent may not be configured correctly and/or running", inactivityLogDuration)
 		}
 	})

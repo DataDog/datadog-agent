@@ -6,8 +6,7 @@ from time import sleep
 
 from invoke.exceptions import Exit
 
-from tasks.utils import DEFAULT_BRANCH
-
+from ..utils import DEFAULT_BRANCH
 from .common.color import color_message
 from .common.github_workflows import GithubException, GithubWorkflows, get_github_app_token
 

@@ -174,6 +174,10 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 }
 
 func (g *gatewayLookup) GetStats() map[string]interface{} {
+	if g == nil {
+		return make(map[string]interface{})
+	}
+
 	report := g.statsReporter.Report()
 	report["route_cache"] = g.routeCache.GetStats()
 	return report

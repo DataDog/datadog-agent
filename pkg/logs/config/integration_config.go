@@ -54,8 +54,9 @@ type LogsConfig struct {
 	Label string // Docker
 	// Name contains the container name
 	Name string // Docker
-	// Identifier contains the container ID
-	Identifier string // Docker
+	// Identifier contains the container ID.  This is also set for File sources and used to
+	// determine the appropriate tags for the logs.
+	Identifier string // Docker, File
 
 	ChannelPath string `mapstructure:"channel_path" json:"channel_path"` // Windows Event
 	Query       string // Windows Event
@@ -100,6 +101,7 @@ func (c *LogsConfig) Dump() string {
 	case FileType:
 		fmt.Fprintf(&b, "\tPath: %#v,\n", c.Path)
 		fmt.Fprintf(&b, "\tEncoding: %#v,\n", c.Encoding)
+		fmt.Fprintf(&b, "\tIdentifier: %#v,\n", c.Identifier)
 		fmt.Fprintf(&b, "\tExcludePaths: %#v,\n", c.ExcludePaths)
 		fmt.Fprintf(&b, "\tTailingMode: %#v,\n", c.TailingMode)
 	case DockerType:

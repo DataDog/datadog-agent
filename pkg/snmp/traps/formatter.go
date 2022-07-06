@@ -39,11 +39,10 @@ const (
 )
 
 // NewJSONFormatter creates a new JSONFormatter instance with an optional OIDResolver variable.
-func NewJSONFormatter(oidResolver OIDResolver) (JSONFormatter, error) {
+func NewJSONFormatter(oidResolver OIDResolver, namespace string) (JSONFormatter, error) {
 	if oidResolver == nil {
 		return JSONFormatter{}, fmt.Errorf("NewJSONFormatter called with a nil OIDResolver")
 	}
-	namespace := GetNamespace()
 	return JSONFormatter{oidResolver, namespace}, nil
 }
 

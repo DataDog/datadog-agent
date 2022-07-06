@@ -81,3 +81,6 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 
 	return messages, nil
 }
+
+// Cleanup frees any resource held by the PodCheck before the agent exits
+func (c *PodCheck) Cleanup() {}

@@ -18,26 +18,27 @@
             }
         },
         {
-            "signal": {
-                "type": "object",
-                "required": [
-                    "request"
-                ],
-                "properties": {
-                    "request": {
-                        "type": "string"
-                    },
-                    "pid": {
-                        "type": "integer"
-                    },
-                    "target": {
-                        "$ref": "/schemas/process_context.json"
+            "properties": {
+                "signal": {
+                    "type": "object",
+                    "required": [
+                        "type",
+                        "pid",
+                        "target"
+                    ],
+                    "properties": {
+                        "type": {
+                            "type": "string"
+                        },
+                        "pid": {
+                            "type": "integer"
+                        },
+                        "target": {
+                            "$ref": "/schemas/process.json"
+                        }
                     }
                 }
-            },
-            "required": [
-                "signal"
-            ]
+            }
         }
     ]
 }

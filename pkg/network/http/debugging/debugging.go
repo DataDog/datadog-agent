@@ -53,16 +53,16 @@ func HTTP(stats map[http.Key]*http.RequestStats, dns map[util.Address][]dns.Host
 				Port: k.DstPort,
 			},
 			DNS:      getDNS(dns, serverAddr),
-			Path:     k.Path,
+			Path:     k.Path.Content,
 			Method:   k.Method.String(),
 			ByStatus: make(map[int]Stats),
 		}
 
 		for status := 100; status <= 500; status += 100 {
-			stat := v.Stats(status)
-			if stat.Count == 0 {
+			if !v.HasStats(status) {
 				continue
 			}
+			stat := v.Stats(status)
 
 			debug.ByStatus[status] = Stats{
 				Count:              stat.Count,

@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 var chanSize = 10
@@ -250,7 +251,7 @@ func (suite *TailerTestSuite) TestOriginTagsWhenTailingFiles() {
 
 func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 
-	dirTaggedSource := config.NewLogSource("", &config.LogsConfig{
+	dirTaggedSource := sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
 		Path: suite.testPath,
 	})
@@ -270,7 +271,7 @@ func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 }
 
 func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
-	dirTaggedSource := config.NewLogSource("", &config.LogsConfig{
+	dirTaggedSource := sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
 		Path: suite.testPath,
 	})
@@ -286,7 +287,7 @@ func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
 }
 
 func (suite *TailerTestSuite) TestBuildTagsFileDir() {
-	dirTaggedSource := config.NewLogSource("", &config.LogsConfig{
+	dirTaggedSource := sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
 		Path: suite.testPath,
 	})

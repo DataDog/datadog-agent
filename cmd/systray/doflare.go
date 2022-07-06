@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
-	"sync/atomic"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -21,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/lxn/win"
+	"go.uber.org/atomic"
 	"golang.org/x/sys/windows"
 )
 
@@ -28,8 +28,6 @@ const (
 	IDD_DIALOG1     = 101
 	IDC_TICKET_EDIT = 1001
 	IDC_EMAIL_EDIT  = 1002
-	notInProgress   = int32(0)
-	isInProgress    = int32(1)
 )
 
 var (
@@ -41,7 +39,7 @@ var (
 	procGetWindowRect    = moduser32.NewProc("GetWindowRect")
 	procGetDesktopWindow = moduser32.NewProc("GetDesktopWindow")
 	info                 flareInfo
-	inProgress           = notInProgress
+	inProgress           = atomic.NewBool(false)
 )
 
 type flareInfo struct {
@@ -140,11 +138,12 @@ func onFlare() {
 	// however, we're using a single instance of the info structure to
 	// pass data around.  Don't allow multiple dialogs to be displayed
 
-	if atomic.CompareAndSwapInt32(&inProgress, notInProgress, isInProgress) == false {
+	// (in go1.18, this could be done with sync.Mutex#TryLock)
+	if !inProgress.CAS(false, true) {
 		log.Warn("Dialog already in progress, skipping")
 		return
 	}
-	defer atomic.StoreInt32(&inProgress, notInProgress)
+	defer inProgress.Store(false)
 
 	myInst := win.GetModuleHandle(nil)
 	if myInst == win.HINSTANCE(0) {

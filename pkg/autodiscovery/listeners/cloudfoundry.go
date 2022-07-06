@@ -29,6 +29,7 @@ const (
 	CfServiceContainerIP = "container-ip"
 )
 
+// CloudFoundryListener TODO <integrations-tools-and-libraries>: ITL-792
 type CloudFoundryListener struct {
 	sync.RWMutex
 	newService    chan<- Service
@@ -40,6 +41,7 @@ type CloudFoundryListener struct {
 	bbsCache      cloudfoundry.BBSCacheI
 }
 
+// CloudFoundryService TODO <integrations-tools-and-libraries>: ITL-792
 type CloudFoundryService struct {
 	tags           []string
 	adIdentifier   cloudfoundry.ADIdentifier

@@ -52,7 +52,10 @@ func TestRename(t *testing.T) {
 	defer os.Remove(testNewFile)
 	defer os.Remove(testOldFile)
 
+	renameSyscallIsSupported := false
 	t.Run("rename", ifSyscallSupported("SYS_RENAME", func(t *testing.T, syscallNB uintptr) {
+		renameSyscallIsSupported = true
+
 		test.WaitSignal(t, func() error {
 			_, _, errno := syscall.Syscall(syscallNB, uintptr(testOldFilePtr), uintptr(testNewFilePtr), 0)
 			if errno != 0 {
@@ -69,7 +72,7 @@ func TestRename(t *testing.T) {
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
-			assert.Equal(t, event.Rename.Async, false)
+			assert.Equal(t, event.Async, false)
 
 			if !validateRenameSchema(t, event) {
 				t.Error(event.String())
@@ -77,8 +80,10 @@ func TestRename(t *testing.T) {
 		})
 	}))
 
-	if err := os.Rename(testNewFile, testOldFile); err != nil {
-		t.Fatal(err)
+	if renameSyscallIsSupported {
+		if err := os.Rename(testNewFile, testOldFile); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	t.Run("renameat", func(t *testing.T) {
@@ -98,7 +103,7 @@ func TestRename(t *testing.T) {
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
-			assert.Equal(t, event.Rename.Async, false)
+			assert.Equal(t, event.Async, false)
 
 			if !validateRenameSchema(t, event) {
 				t.Error(event.String())
@@ -130,7 +135,7 @@ func TestRename(t *testing.T) {
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
-			assert.Equal(t, event.Rename.Async, false)
+			assert.Equal(t, event.Async, false)
 
 			if !validateRenameSchema(t, event) {
 				t.Error(event.String())
@@ -167,7 +172,7 @@ func TestRename(t *testing.T) {
 			result := <-ch
 			ret, err := result.ReturnInt()
 			if err != nil {
-				if err == syscall.EBADF {
+				if err == syscall.EBADF || err == syscall.EINVAL {
 					return ErrSkipTest{"renameat not supported by io_uring"}
 				}
 				return err
@@ -187,7 +192,7 @@ func TestRename(t *testing.T) {
 			assertRights(t, event.Rename.New.Mode, expectedMode)
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
-			assert.Equal(t, event.Rename.Async, true)
+			assert.Equal(t, event.Async, true)
 
 			executable, err := os.Executable()
 			if err != nil {

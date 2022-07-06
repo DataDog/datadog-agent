@@ -28,6 +28,7 @@ type State struct {
 	macros        map[MacroID]*MacroEvaluator
 	registersInfo map[RegisterID]*registerInfo
 	regexpCache   StateRegexpCache
+	replCtx       ReplacementContext
 }
 
 // UpdateFields updates the fields used in the rule
@@ -59,7 +60,7 @@ func (s *State) UpdateFieldValues(field Field, value FieldValue) error {
 }
 
 // NewState returns a new State
-func NewState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *State {
+func NewState(model Model, field Field, macros map[MacroID]*MacroEvaluator, replCtx ReplacementContext) *State {
 	if macros == nil {
 		macros = make(map[MacroID]*MacroEvaluator)
 	}
@@ -70,5 +71,6 @@ func NewState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *Sta
 		events:        make(map[EventType]bool),
 		fieldValues:   make(map[Field][]FieldValue),
 		registersInfo: make(map[RegisterID]*registerInfo),
+		replCtx:       replCtx,
 	}
 }

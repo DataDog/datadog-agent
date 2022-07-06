@@ -82,10 +82,11 @@ func (e *eventStreamState) unsubscribe(name string) error {
 func (d *DockerUtil) dispatchEvents(sub *eventSubscriber) {
 	fltrs := filters.NewArgs()
 	fltrs.Add("type", "container")
-	fltrs.Add("event", "start")
-	fltrs.Add("event", "die")
-	fltrs.Add("event", "died")
-	fltrs.Add("event", "rename")
+	fltrs.Add("event", ContainerEventActionStart)
+	fltrs.Add("event", ContainerEventActionDie)
+	fltrs.Add("event", ContainerEventActionDied)
+	fltrs.Add("event", ContainerEventActionRename)
+	fltrs.Add("event", ContainerEventActionHealthStatus)
 
 	// On initial subscribe, don't go back in time. On reconnect, we'll
 	// resume at the latest timestamp we got.

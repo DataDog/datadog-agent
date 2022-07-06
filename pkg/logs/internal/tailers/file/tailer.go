@@ -20,10 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // Tailer tails a file, decodes the messages it contains, and passes them to a
@@ -319,11 +319,11 @@ func (t *Tailer) recordBytes(n int64) {
 }
 
 // ReplaceSource replaces the current source
-func (t *Tailer) ReplaceSource(newSource *config.LogSource) {
+func (t *Tailer) ReplaceSource(newSource *sources.LogSource) {
 	t.file.Source.Replace(newSource)
 }
 
 // Source gets the source (currently only used for testing)
-func (t *Tailer) Source() *config.LogSource {
+func (t *Tailer) Source() *sources.LogSource {
 	return t.file.Source.UnderlyingSource()
 }

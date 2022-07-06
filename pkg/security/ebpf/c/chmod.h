@@ -61,7 +61,7 @@ int __attribute__((always_inline)) sys_chmod_ret(void *ctx, int retval) {
 
     struct chmod_event_t event = {
         .syscall.retval = retval,
-        .syscall.async = 0,
+        .event.async = 0,
         .file = syscall->setattr.file,
         .padding = 0,
         .mode = syscall->setattr.mode,

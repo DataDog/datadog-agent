@@ -17,12 +17,12 @@ import (
 
 func TestGetClusterName(t *testing.T) {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	data := newClusterNameData()
 
 	var testClusterName = "laika"
 	mockConfig.Set("cluster_name", testClusterName)
-	defer mockConfig.Unset("cluster_name")
+	defer mockConfig.Set("cluster_name", nil)
 
 	assert.Equal(t, testClusterName, getClusterName(ctx, data, "hostname"))
 

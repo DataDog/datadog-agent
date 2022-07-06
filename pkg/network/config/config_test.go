@@ -6,6 +6,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"regexp"
 	"strings"
@@ -297,5 +298,30 @@ func TestHTTPReplaceRules(t *testing.T) {
 		for i, r := range expected {
 			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
 		}
+	})
+}
+
+func TestMaxClosedConnectionsBuffered(t *testing.T) {
+	newConfig()
+	defer restoreGlobalConfig()
+
+	maxTrackedConnections := New().MaxTrackedConnections
+
+	t.Run("value set", func(t *testing.T) {
+		v := os.Getenv("DD_SYSTEM_PROBE_CONFIG_MAX_CLOSED_CONNECTIONS_BUFFERED")
+		defer func() {
+			os.Setenv("DD_SYSTEM_PROBE_CONFIG_MAX_CLOSED_CONNECTIONS_BUFFERED", v)
+		}()
+
+		err := os.Setenv("DD_SYSTEM_PROBE_CONFIG_MAX_CLOSED_CONNECTIONS_BUFFERED", fmt.Sprintf("%d", maxTrackedConnections-1))
+		require.NoError(t, err)
+
+		cfg := New()
+		require.Equal(t, int(maxTrackedConnections-1), cfg.MaxClosedConnectionsBuffered)
+	})
+
+	t.Run("value not set", func(t *testing.T) {
+		cfg := New()
+		require.Equal(t, int(cfg.MaxTrackedConnections), cfg.MaxClosedConnectionsBuffered)
 	})
 }

@@ -104,24 +104,29 @@ func NewContainerdUtil() (ContainerdItf, error) {
 	return containerdUtil, nil
 }
 
+// CheckConnectivity tries to connect to containerd api
 func (c *ContainerdUtil) CheckConnectivity() *retry.Error {
 	return c.initRetry.TriggerRetry()
 }
 
+// CurrentNamespace returns the current containerd namespace
 func (c *ContainerdUtil) CurrentNamespace() string {
 	return c.namespace
 }
 
+// SetCurrentNamespace sets the current containerd namespace
 func (c *ContainerdUtil) SetCurrentNamespace(namespace string) {
 	c.namespace = namespace
 }
 
+// Namespaces lists the containerd namespaces
 func (c *ContainerdUtil) Namespaces(ctx context.Context) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.queryTimeout)
 	defer cancel()
 	return c.cl.NamespaceService().List(ctx)
 }
 
+// CallWithClientContext allows passing an additional context when calling the containerd api
 func (c *ContainerdUtil) CallWithClientContext(f func(context.Context) error) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
 	defer cancel()
@@ -201,6 +206,7 @@ func (c *ContainerdUtil) Containers() ([]containerd.Container, error) {
 	return c.cl.Containers(ctxNamespace)
 }
 
+// EnvVars returns the env variables of a containerd container
 func (c *ContainerdUtil) EnvVars(ctn containerd.Container) (map[string]string, error) {
 	spec, err := c.Spec(ctn)
 	if err != nil {

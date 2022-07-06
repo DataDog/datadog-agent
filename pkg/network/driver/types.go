@@ -22,10 +22,11 @@ import "C"
 const Signature = C.DD_NPMDRIVER_SIGNATURE
 
 const (
-	GetStatsIOCTL      = C.DDNPMDRIVER_IOCTL_GETSTATS
-	SetFlowFilterIOCTL = C.DDNPMDRIVER_IOCTL_SET_FLOW_FILTER
-	SetDataFilterIOCTL = C.DDNPMDRIVER_IOCTL_SET_DATA_FILTER
-	SetMaxFlowsIOCTL   = C.DDNPMDRIVER_IOCTL_SET_MAX_FLOWS
+	GetStatsIOCTL             = C.DDNPMDRIVER_IOCTL_GETSTATS
+	SetFlowFilterIOCTL        = C.DDNPMDRIVER_IOCTL_SET_FLOW_FILTER
+	SetDataFilterIOCTL        = C.DDNPMDRIVER_IOCTL_SET_DATA_FILTER
+	SetMaxFlowsIOCTL          = C.DDNPMDRIVER_IOCTL_SET_MAX_FLOWS
+	FlushPendingHttpTxnsIOCTL = C.DDNPMDRIVER_IOCTL_FLUSH_PENDING_HTTP_TRANSACTIONS
 )
 
 type FilterAddress C.struct__filterAddress
@@ -41,6 +42,7 @@ const FilterPacketHeaderSize = C.sizeof_struct_filterPacketHeader
 type HandleStats C.struct__handle_stats
 type FlowStats C.struct__flow_handle_stats
 type TransportStats C.struct__transport_handle_stats
+type HttpStats C.struct__http_handle_stats
 type Stats C.struct__stats
 type DriverStats C.struct_driver_stats
 
@@ -69,4 +71,14 @@ const (
 
 const (
 	LayerTransport = C.FILTER_LAYER_TRANSPORT
+)
+
+type HttpTransactionType C.struct__HttpTransactionType
+type ConnTupleType C.struct__ConnTupleType
+type HttpMethodType C.enum__HttpMethodType
+
+const (
+	HttpBatchSize           = C.HTTP_BATCH_SIZE
+	HttpBufferSize          = C.HTTP_BUFFER_SIZE
+	HttpTransactionTypeSize = C.sizeof_struct__HttpTransactionType
 )

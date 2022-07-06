@@ -9,6 +9,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -36,8 +37,10 @@ const (
 
 var syslogTLSConfig *tls.Config
 
-var seelogConfig *seelogCfg.Config
-var jmxSeelogConfig *seelogCfg.Config
+var (
+	seelogConfig    *seelogCfg.Config
+	jmxSeelogConfig *seelogCfg.Config
+)
 
 func getLogDateFormat() string {
 	if Datadog.GetBool("log_format_rfc3339") {
@@ -150,7 +153,7 @@ func buildLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile, syslogURI
 	return config, nil
 }
 
-//GenerateLoggerInterface return a logger Interface from a log config
+// GenerateLoggerInterface return a logger Interface from a log config
 func GenerateLoggerInterface(logConfig *seelogCfg.Config) (seelog.LoggerInterface, error) {
 	configTemplate, err := logConfig.Render()
 	if err != nil {
@@ -165,14 +168,49 @@ func GenerateLoggerInterface(logConfig *seelogCfg.Config) (seelog.LoggerInterfac
 	return loggerInterface, nil
 }
 
-// ErrorLogWriter is a Writer that logs all written messages with the global seelog logger
-// at an error level
-type ErrorLogWriter struct {
-	AdditionalDepth int
+// logWriter is a Writer that logs all written messages with the global seelog logger
+type logWriter struct {
+	additionalDepth int
+	logFunc         func(int, ...interface{})
 }
 
-func (s *ErrorLogWriter) Write(p []byte) (n int, err error) {
-	log.ErrorStackDepth(s.AdditionalDepth, strings.TrimSpace(string(p)))
+// NewLogWriter returns a logWriter set with given logLevel. Returns an error if logLevel is unknown/not set.
+func NewLogWriter(additionalDepth int, logLevel seelog.LogLevel) (io.Writer, error) {
+	writer := &logWriter{
+		additionalDepth: additionalDepth,
+	}
+
+	switch logLevel {
+	case seelog.TraceLvl:
+		writer.logFunc = log.TraceStackDepth
+	case seelog.DebugLvl:
+		writer.logFunc = log.DebugStackDepth
+	case seelog.InfoLvl:
+		writer.logFunc = log.InfoStackDepth
+	case seelog.WarnLvl:
+		writer.logFunc = func(dept int, v ...interface{}) {
+			_ = log.WarnStackDepth(dept, v...)
+		}
+		writer.additionalDepth++
+	case seelog.ErrorLvl:
+		writer.logFunc = func(dept int, v ...interface{}) {
+			_ = log.ErrorStackDepth(dept, v...)
+		}
+		writer.additionalDepth++
+	case seelog.CriticalLvl:
+		writer.logFunc = func(dept int, v ...interface{}) {
+			_ = log.CriticalStackDepth(dept, v...)
+		}
+		writer.additionalDepth++
+	default:
+		return nil, errors.New("unknown loglevel in logwriter creation")
+	}
+
+	return writer, nil
+}
+
+func (s *logWriter) Write(p []byte) (n int, err error) {
+	s.logFunc(s.additionalDepth, strings.TrimSpace(string(p)))
 	return len(p), nil
 }
 

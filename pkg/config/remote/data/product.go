@@ -11,6 +11,8 @@ type Product string
 const (
 	// ProductAPMSampling is the apm sampling product
 	ProductAPMSampling Product = "APM_SAMPLING"
+	// ProductCWSDD is the cloud workload security product
+	ProductCWSDD Product = "CWS_DD"
 	// ProductTesting1 is a testing product
 	ProductTesting1 Product = "TESTING1"
 )

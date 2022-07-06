@@ -321,9 +321,9 @@ func TestConverter(t *testing.T) {
 func TestExtractURLAPIKeys(t *testing.T) {
 	configConverter := config.NewConfigConverter()
 	defer func() {
-		configConverter.Unset("dd_url")
-		configConverter.Unset("api_key")
-		configConverter.Unset("additional_endpoints")
+		configConverter.Set("dd_url", "")
+		configConverter.Set("api_key", "")
+		configConverter.Set("additional_endpoints", nil)
 	}()
 	agentConfig := make(Config)
 

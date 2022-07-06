@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -23,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	yaml "gopkg.in/yaml.v2"
@@ -36,31 +36,34 @@ type apmCheckConf struct {
 type APMCheck struct {
 	binPath     string
 	commandOpts []string
-	running     uint32
+	running     *atomic.Bool
 	stop        chan struct{}
 	stopDone    chan struct{}
 	source      string
 	telemetry   bool
 }
 
+// String displays the Agent name
 func (c *APMCheck) String() string {
 	return "APM Agent"
 }
 
+// Version displays the command's version
 func (c *APMCheck) Version() string {
 	return ""
 }
 
+// ConfigSource displays the command's source
 func (c *APMCheck) ConfigSource() string {
 	return c.source
 }
 
 // Run executes the check with retries
 func (c *APMCheck) Run() error {
-	atomic.StoreUint32(&c.running, 1)
+	c.running.Store(true)
 	// TODO: retries should be configurable with meaningful default values
 	err := check.Retry(defaultRetryDuration, defaultRetries, c.run, c.String())
-	atomic.StoreUint32(&c.running, 0)
+	c.running.Store(false)
 
 	return err
 }
@@ -193,7 +196,7 @@ func (c *APMCheck) IsTelemetryEnabled() bool {
 
 // Stop sends a termination signal to the APM process
 func (c *APMCheck) Stop() {
-	if atomic.LoadUint32(&c.running) == 0 {
+	if !c.running.Load() {
 		log.Info("APM Agent not running.")
 		return
 	}
@@ -218,6 +221,7 @@ func (c *APMCheck) GetSenderStats() (check.SenderStats, error) {
 func init() {
 	factory := func() check.Check {
 		return &APMCheck{
+			running:  atomic.NewBool(false),
 			stop:     make(chan struct{}),
 			stopDone: make(chan struct{}),
 		}

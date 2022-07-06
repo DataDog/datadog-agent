@@ -182,13 +182,6 @@ func (w *PodWatcher) Expire() ([]string, error) {
 	return expiredContainers, nil
 }
 
-// GetPodForEntityID finds the pod corresponding to an entity.
-// EntityIDs can be Docker container IDs or pod UIDs (prefixed).
-// Returns a nil pointer if not found.
-func (w *PodWatcher) GetPodForEntityID(ctx context.Context, entityID string) (*Pod, error) {
-	return w.kubeUtil.GetPodForEntityID(ctx, entityID)
-}
-
 // digestPodMeta returns a unique hash of pod labels
 // and annotations.
 // it hashes labels then annotations and makes a single hash of both maps

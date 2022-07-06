@@ -138,6 +138,11 @@ func (tf *MockedForwarder) SubmitProcessDiscoveryChecks(payload Payloads, extra 
 	return nil, tf.Called(payload, extra).Error(0)
 }
 
+// SubmitProcessEventChecks mock
+func (tf *MockedForwarder) SubmitProcessEventChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	return nil, tf.Called(payload, extra).Error(0)
+}
+
 // SubmitRTProcessChecks mock
 func (tf *MockedForwarder) SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
 	return nil, tf.Called(payload, extra).Error(0)

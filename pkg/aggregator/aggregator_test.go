@@ -57,7 +57,7 @@ func initF() {
 
 func testNewFlushTrigger(start time.Time, waitForSerializer bool) flushTrigger {
 	seriesSink := metrics.NewIterableSeries(func(se *metrics.Serie) {}, 1000, 1000)
-	flushedSketches := make([]metrics.SketchSeriesList, 0)
+	flushedSketches := make(metrics.SketchSeriesList, 0)
 
 	return flushTrigger{
 		trigger: trigger{
@@ -65,8 +65,8 @@ func testNewFlushTrigger(start time.Time, waitForSerializer bool) flushTrigger {
 			blockChan:         nil,
 			waitForSerializer: waitForSerializer,
 		},
-		flushedSketches: &flushedSketches,
-		seriesSink:      seriesSink,
+		sketchesSink: &flushedSketches,
+		seriesSink:   seriesSink,
 	}
 }
 
@@ -530,7 +530,7 @@ func TestTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defer config.Datadog.Unset("basic_telemetry_add_container_tags")
+			defer config.Datadog.Set("basic_telemetry_add_container_tags", nil)
 			config.Datadog.Set("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
 			agg := NewBufferedAggregator(nil, nil, "hostname", time.Second)
 			agg.agentTags = tt.agentTags

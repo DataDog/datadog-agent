@@ -9,6 +9,8 @@
 package tracer
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -53,4 +55,14 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 // DebugEBPFMaps is not implemented on this OS for Tracer
 func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
 	return "", ebpf.ErrNotImplemented
+}
+
+// DebugCachedConntrack is not implemented on this OS for Tracer
+func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) {
+	return nil, ebpf.ErrNotImplemented
+}
+
+// DebugHostConntrack is not implemented on this OS for Tracer
+func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
+	return nil, ebpf.ErrNotImplemented
 }

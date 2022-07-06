@@ -15,11 +15,12 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 func TestIsContainerEntry(t *testing.T) {
-	source := config.NewLogSource("", &config.LogsConfig{})
-	tailer := NewTailer(source, nil)
+	source := sources.NewLogSource("", &config.LogsConfig{})
+	tailer := NewTailer(source, nil, nil)
 
 	var entry *sdjournal.JournalEntry
 
@@ -35,8 +36,8 @@ func TestIsContainerEntry(t *testing.T) {
 }
 
 func TestGetContainerID(t *testing.T) {
-	source := config.NewLogSource("", &config.LogsConfig{})
-	tailer := NewTailer(source, nil)
+	source := sources.NewLogSource("", &config.LogsConfig{})
+	tailer := NewTailer(source, nil, nil)
 
 	entry := &sdjournal.JournalEntry{
 		Fields: map[string]string{

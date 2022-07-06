@@ -13,6 +13,7 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	netstats "github.com/DataDog/datadog-agent/pkg/network/stats"
@@ -267,6 +268,12 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 
 	if err != nil {
 		atomic.AddUint64(&n.netlinkErrors, 1)
+		if iifIndex > 0 {
+			if errno, ok := err.(syscall.Errno); ok && (errno == syscall.EINVAL || errno == syscall.ENODEV) {
+				// invalidate interface cache entry as this may have been the cause of the netlink error
+				n.removeInterface(source, netns)
+			}
+		}
 	} else if len(routes) != 1 {
 		atomic.AddUint64(&n.netlinkMisses, 1)
 	}
@@ -281,6 +288,11 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 		Gateway: util.AddressFromNetIP(r.Gw),
 		IfIndex: r.LinkIndex,
 	}, true
+}
+
+func (n *netlinkRouter) removeInterface(srcAddress util.Address, netns uint32) {
+	key := ifkey{ip: srcAddress, netns: netns}
+	n.ifcache.Remove(key)
 }
 
 func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netns uint32) *ifEntry {

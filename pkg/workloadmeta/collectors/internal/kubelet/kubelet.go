@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -107,6 +108,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 		containerSpecs = append(containerSpecs, pod.Spec.Containers...)
 
 		podContainers, containerEvents := c.parsePodContainers(
+			pod,
 			containerSpecs,
 			pod.Status.GetAllContainers(),
 		)
@@ -154,6 +156,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 }
 
 func (c *collector) parsePodContainers(
+	pod *kubelet.Pod,
 	containerSpecs []kubelet.ContainerSpec,
 	containerStatuses []kubelet.ContainerStatus,
 ) ([]workloadmeta.OrchestratorContainer, []workloadmeta.CollectorEvent) {
@@ -232,6 +235,9 @@ func (c *collector) parsePodContainers(
 				},
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: container.Name,
+					Labels: map[string]string{
+						kubernetes.CriContainerNamespaceLabel: pod.Metadata.Namespace,
+					},
 				},
 				Image:   image,
 				EnvVars: env,

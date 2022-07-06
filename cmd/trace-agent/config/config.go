@@ -22,6 +22,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/osutil"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -39,6 +41,14 @@ import (
 const (
 	// apiEndpointPrefix is the URL prefix prepended to the default site value from YamlAgentConfig.
 	apiEndpointPrefix = "https://trace.agent."
+	// rcClientName is the default name for remote configuration clients in the trace agent
+	rcClientName = "trace-agent"
+)
+
+const (
+	// rcClientPollInterval is the default poll interval for remote configuration clients. 1 second ensures that
+	// clients remain up to date without paying too much of a performance cost (polls that contain no updates are cheap)
+	rcClientPollInterval = time.Second * 1
 )
 
 // LoadConfigFile returns a new configuration based on the given path. The path must not necessarily exist
@@ -64,9 +74,6 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 	cfg.LogFilePath = DefaultLogFilePath
 	cfg.DDAgentBin = defaultDDAgentBin
 	cfg.AgentVersion = version.AgentVersion
-	if p := coreconfig.GetProxies(); p != nil {
-		cfg.Proxy = httputils.GetProxyTransportFunc(p)
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	orch := fargate.GetOrchestrator(ctx)
 	cancel()
@@ -78,9 +85,13 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 	if _, err := coreconfig.Load(); err != nil {
 		return cfg, err
 	}
+	if p := coreconfig.GetProxies(); p != nil {
+		cfg.Proxy = httputils.GetProxyTransportFunc(p)
+	}
 	cfg.ConfigPath = path
 	if coreconfig.Datadog.GetBool("remote_configuration.enabled") && coreconfig.Datadog.GetBool("remote_configuration.apm_sampling.enabled") {
-		if client, err := newRemoteClient(); err != nil {
+		client, err := remote.NewClient(rcClientName, version.AgentVersion, []data.Product{data.ProductAPMSampling}, rcClientPollInterval)
+		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {
 			cfg.RemoteSamplingClient = client
@@ -201,7 +212,16 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		c.ErrorTPS = coreconfig.Datadog.GetFloat64("apm_config.errors_per_second")
 	}
 	if coreconfig.Datadog.IsSet("apm_config.disable_rare_sampler") {
-		c.DisableRareSampler = coreconfig.Datadog.GetBool("apm_config.disable_rare_sampler")
+		c.RareSamplerDisabled = coreconfig.Datadog.GetBool("apm_config.disable_rare_sampler")
+	}
+	if coreconfig.Datadog.IsSet("apm_config.rare_sampler.tps") {
+		c.RareSamplerTPS = coreconfig.Datadog.GetInt("apm_config.rare_sampler.tps")
+	}
+	if coreconfig.Datadog.IsSet("apm_config.rare_sampler.cooldown") {
+		c.RareSamplerCooldownPeriod = coreconfig.Datadog.GetDuration("apm_config.rare_sampler.cooldown")
+	}
+	if coreconfig.Datadog.IsSet("apm_config.rare_sampler.cardinality") {
+		c.RareSamplerCardinality = coreconfig.Datadog.GetInt("apm_config.rare_sampler.cardinality")
 	}
 
 	if coreconfig.Datadog.IsSet("apm_config.max_remote_traces_per_second") {
@@ -400,6 +420,21 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	}
 	if k := "apm_config.debugger_api_key"; coreconfig.Datadog.IsSet(k) {
 		c.DebuggerProxy.APIKey = coreconfig.Datadog.GetString(k)
+	}
+	if k := "evp_proxy_config.enabled"; coreconfig.Datadog.IsSet(k) {
+		c.EVPProxy.Enabled = coreconfig.Datadog.GetBool(k)
+	}
+	if k := "evp_proxy_config.dd_url"; coreconfig.Datadog.IsSet(k) {
+		c.EVPProxy.DDURL = coreconfig.Datadog.GetString(k)
+	}
+	if k := "evp_proxy_config.api_key"; coreconfig.Datadog.IsSet(k) {
+		c.EVPProxy.APIKey = coreconfig.Datadog.GetString(k)
+	}
+	if k := "evp_proxy_config.additional_endpoints"; coreconfig.Datadog.IsSet(k) {
+		c.EVPProxy.AdditionalEndpoints = coreconfig.Datadog.GetStringMapStringSlice(k)
+	}
+	if k := "evp_proxy_config.max_payload_size"; coreconfig.Datadog.IsSet(k) {
+		c.EVPProxy.MaxPayloadSize = coreconfig.Datadog.GetInt64(k)
 	}
 	return nil
 }

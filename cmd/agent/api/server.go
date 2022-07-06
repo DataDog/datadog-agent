@@ -20,6 +20,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cihub/seelog"
+	gorilla "github.com/gorilla/mux"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"google.golang.org/grpc"
@@ -31,12 +33,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	gorilla "github.com/gorilla/mux"
 )
 
-var (
-	listener net.Listener
-)
+var listener net.Listener
 
 // grpcHandlerFunc returns an http.Handler that delegates to grpcServer on incoming gRPC
 // connections or otherHandler otherwise. Copied from cockroachdb.
@@ -131,6 +130,9 @@ func StartServer(configService *remoteconfig.Service) error {
 	// such as streaming logs, which reset the deadlines back to zero)
 	handler := timeoutHandlerFunc(mux)
 
+	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
+	logWriter, _ := config.NewLogWriter(5, seelog.ErrorLvl)
+
 	srv := &http.Server{
 		Addr: tlsAddr,
 		// handle grpc calls directly, falling back to `handler` for non-grpc reqs
@@ -139,9 +141,7 @@ func StartServer(configService *remoteconfig.Service) error {
 			Certificates: []tls.Certificate{*tlsKeyPair},
 			NextProtos:   []string{"h2"},
 		},
-		ErrorLog: stdLog.New(&config.ErrorLogWriter{
-			AdditionalDepth: 5, // Use a stack depth of 5 on top of the default one to get a relevant filename in the stdlib
-		}, "Error from the agent http API server: ", 0), // log errors to seelog,
+		ErrorLog: stdLog.New(logWriter, "Error from the agent http API server: ", 0), // log errors to seelog,
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
 			// Store the connection in the context so requests can reference it if needed
 			return context.WithValue(ctx, agent.ConnContextKey, c)

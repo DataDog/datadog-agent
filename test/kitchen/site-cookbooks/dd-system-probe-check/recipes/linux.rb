@@ -7,10 +7,21 @@ case node[:platform]
     apt_update
 end
 
+execute "update yum repositories" do
+  command "yum -y update"
+  user "root"
+  case node[:platform]
+  when 'amazon'
+    action :run
+  else
+    action :nothing
+  end
+end
+
 kernel_version = `uname -r`.strip
 package 'kernel headers' do
   case node[:platform]
-  when 'redhat', 'centos', 'fedora'
+  when 'redhat', 'centos', 'fedora', 'amazon'
     package_name "kernel-devel-#{kernel_version}"
   when 'ubuntu', 'debian'
     package_name "linux-headers-#{kernel_version}"
@@ -28,6 +39,8 @@ package 'conntrack'
 
 package 'netcat' do
   case node[:platform]
+  when 'amazon'
+    package_name 'nmap-ncat'
   when 'redhat', 'centos', 'fedora'
     package_name 'nc'
   else
@@ -36,6 +49,10 @@ package 'netcat' do
 end
 
 package 'socat'
+
+package 'wget'
+
+package 'curl'
 
 # Enable IPv6 support
 kernel_module 'ipv6' do

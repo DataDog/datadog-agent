@@ -308,7 +308,7 @@ func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got a request for the formatted status. Making formatted status.")
 	s, err := status.GetAndFormatStatus()
 	if err != nil {
-		setJSONError(w, log.Errorf("Error getting status: %v", err, s), 500)
+		setJSONError(w, log.Errorf("Error getting status: %v %v", err, s), 500)
 		return
 	}
 
@@ -388,7 +388,7 @@ func workloadList(w http.ResponseWriter, verbose bool) {
 	response := workloadmeta.GetGlobalStore().Dump(verbose)
 	jsonDump, err := json.Marshal(response)
 	if err != nil {
-		setJSONError(w, log.Errorf("Unable to marshal workload list response: %w", err), 500)
+		setJSONError(w, log.Errorf("Unable to marshal workload list response: %v", err), 500)
 		return
 	}
 

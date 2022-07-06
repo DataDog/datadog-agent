@@ -83,6 +83,8 @@ const (
 	NetDeviceEventType
 	// VethPairEventType is sent when a new veth pair is created
 	VethPairEventType
+	// BindEventType Bind event
+	BindEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -182,6 +184,8 @@ func (t EventType) String() string {
 		return "net_device"
 	case VethPairEventType:
 		return "veth_pair"
+	case BindEventType:
+		return "bind"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"

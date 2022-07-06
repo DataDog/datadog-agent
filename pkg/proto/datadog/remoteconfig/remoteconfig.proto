@@ -50,6 +50,8 @@ message LatestConfigsRequest {
   repeated string new_products = 5;
   repeated Client active_clients = 6;
   bytes backend_client_state = 10;
+  bool has_error = 11;
+  string error = 12;
 }
 
 message LatestConfigsResponse {
@@ -141,7 +143,7 @@ message GetStateConfigResponse {
 }
 
 
-message TracerPredicate {
+message TracerPredicateV1 {
 	string runtimeID = 1;
 	string service = 2;
 	string environment = 3;
@@ -151,6 +153,5 @@ message TracerPredicate {
 }
 
 message TracerPredicates {
-	uint64 version = 1;
-	repeated TracerPredicate tracer_predicates = 2;
+	repeated TracerPredicateV1 tracer_predicates_v1 = 1;
 }
