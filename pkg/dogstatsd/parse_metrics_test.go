@@ -7,6 +7,7 @@ package dogstatsd
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,6 +32,7 @@ func TestParseGauge(t *testing.T) {
 	assert.Equal(t, gaugeType, sample.metricType)
 	assert.Len(t, sample.tags, 0)
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
+	assert.Zero(t, sample.ts)
 }
 
 func TestParseGaugeMultiple(t *testing.T) {
@@ -45,6 +47,7 @@ func TestParseGaugeMultiple(t *testing.T) {
 	assert.Equal(t, gaugeType, sample.metricType)
 	assert.Len(t, sample.tags, 0)
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
+	assert.Zero(t, sample.ts)
 }
 
 func TestParseCounter(t *testing.T) {
@@ -58,6 +61,7 @@ func TestParseCounter(t *testing.T) {
 	assert.Equal(t, countType, sample.metricType)
 	assert.Len(t, sample.tags, 0)
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
+	assert.Zero(t, sample.ts)
 }
 
 func TestParseCounterMultiple(t *testing.T) {
@@ -72,6 +76,7 @@ func TestParseCounterMultiple(t *testing.T) {
 	assert.Equal(t, countType, sample.metricType)
 	assert.Len(t, sample.tags, 0)
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
+	assert.Zero(t, sample.ts)
 }
 
 func TestParseCounterWithTags(t *testing.T) {
@@ -87,6 +92,7 @@ func TestParseCounterWithTags(t *testing.T) {
 	assert.Equal(t, "protocol:http", sample.tags[0])
 	assert.Equal(t, "bench", sample.tags[1])
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
+	assert.Zero(t, sample.ts)
 }
 
 func TestParseHistogram(t *testing.T) {
@@ -100,6 +106,7 @@ func TestParseHistogram(t *testing.T) {
 	assert.Equal(t, histogramType, sample.metricType)
 	assert.Len(t, sample.tags, 0)
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
+	assert.Zero(t, sample.ts)
 }
 
 func TestParseHistogramrMultiple(t *testing.T) {
@@ -114,6 +121,7 @@ func TestParseHistogramrMultiple(t *testing.T) {
 	assert.Equal(t, histogramType, sample.metricType)
 	assert.Len(t, sample.tags, 0)
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
+	assert.Zero(t, sample.ts)
 }
 
 func TestParseTimer(t *testing.T) {
@@ -127,6 +135,7 @@ func TestParseTimer(t *testing.T) {
 	assert.Equal(t, timingType, sample.metricType)
 	assert.Len(t, sample.tags, 0)
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
+	assert.Zero(t, sample.ts)
 }
 
 func TestParseTimerMultiple(t *testing.T) {
@@ -141,6 +150,7 @@ func TestParseTimerMultiple(t *testing.T) {
 	assert.Equal(t, timingType, sample.metricType)
 	assert.Len(t, sample.tags, 0)
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
+	assert.Zero(t, sample.ts)
 }
 
 func TestParseSet(t *testing.T) {
@@ -153,6 +163,7 @@ func TestParseSet(t *testing.T) {
 	assert.Equal(t, setType, sample.metricType)
 	assert.Len(t, sample.tags, 0)
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
+	assert.Zero(t, sample.ts)
 }
 
 func TestParseSetMultiple(t *testing.T) {
@@ -167,6 +178,7 @@ func TestParseSetMultiple(t *testing.T) {
 	assert.Equal(t, setType, sample.metricType)
 	assert.Len(t, sample.tags, 0)
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
+	assert.Zero(t, sample.ts)
 }
 
 func TestSampleDistribution(t *testing.T) {
@@ -179,6 +191,7 @@ func TestSampleDistribution(t *testing.T) {
 	require.Nil(t, sample.values)
 	assert.Equal(t, distributionType, sample.metricType)
 	assert.Len(t, sample.tags, 0)
+	assert.Zero(t, sample.ts)
 }
 
 func TestParseDistributionMultiple(t *testing.T) {
@@ -192,6 +205,7 @@ func TestParseDistributionMultiple(t *testing.T) {
 	assert.InEpsilon(t, 4.5, sample.values[1], epsilon)
 	assert.Equal(t, distributionType, sample.metricType)
 	assert.Len(t, sample.tags, 0)
+	assert.Zero(t, sample.ts)
 }
 
 func TestParseSetUnicode(t *testing.T) {
@@ -204,6 +218,7 @@ func TestParseSetUnicode(t *testing.T) {
 	assert.Equal(t, setType, sample.metricType)
 	assert.Len(t, sample.tags, 0)
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
+	assert.Zero(t, sample.ts)
 }
 
 func TestParseGaugeWithTags(t *testing.T) {
@@ -219,6 +234,7 @@ func TestParseGaugeWithTags(t *testing.T) {
 	assert.Equal(t, "sometag1:somevalue1", sample.tags[0])
 	assert.Equal(t, "sometag2:somevalue2", sample.tags[1])
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
+	assert.Zero(t, sample.ts)
 }
 
 func TestParseGaugeWithNoTags(t *testing.T) {
@@ -231,6 +247,7 @@ func TestParseGaugeWithNoTags(t *testing.T) {
 	assert.Equal(t, gaugeType, sample.metricType)
 	assert.Empty(t, sample.tags)
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
+	assert.Zero(t, sample.ts)
 }
 
 func TestParseGaugeWithSampleRate(t *testing.T) {
@@ -244,6 +261,7 @@ func TestParseGaugeWithSampleRate(t *testing.T) {
 	assert.Equal(t, gaugeType, sample.metricType)
 	assert.Len(t, sample.tags, 0)
 	assert.InEpsilon(t, 0.21, sample.sampleRate, epsilon)
+	assert.Zero(t, sample.ts)
 }
 
 func TestParseGaugeWithPoundOnly(t *testing.T) {
@@ -257,6 +275,7 @@ func TestParseGaugeWithPoundOnly(t *testing.T) {
 	assert.Equal(t, gaugeType, sample.metricType)
 	assert.Len(t, sample.tags, 0)
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
+	assert.Zero(t, sample.ts)
 }
 
 func TestParseGaugeWithUnicode(t *testing.T) {
@@ -271,6 +290,7 @@ func TestParseGaugeWithUnicode(t *testing.T) {
 	require.Equal(t, 1, len(sample.tags))
 	assert.Equal(t, "intitulé:T0µ", sample.tags[0])
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
+	assert.Zero(t, sample.ts)
 }
 
 func TestParseMetricError(t *testing.T) {
@@ -305,4 +325,38 @@ func TestParseMetricError(t *testing.T) {
 	// invalid sample rate
 	_, err = parseMetricSample([]byte("daemon:666|g|@abc"))
 	assert.Error(t, err)
+}
+
+func TestParseGaugeWithTagsAndTimestamp(t *testing.T) {
+	sample, err := parseMetricSample([]byte("metric:1234|g|#onetag|T1657100430"))
+
+	assert.NoError(t, err)
+
+	assert.Equal(t, "metric", sample.name)
+	assert.InEpsilon(t, 1234.0, sample.value, epsilon)
+	require.Nil(t, sample.values)
+	assert.Equal(t, gaugeType, sample.metricType)
+	require.Equal(t, 1, len(sample.tags))
+	assert.Equal(t, "onetag", sample.tags[0])
+	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
+	assert.Equal(t, sample.ts, time.Unix(1657100430, 0))
+}
+
+func TestParseGaugeWithTagsAndTimestampMalformed(t *testing.T) {
+	sample, err := parseMetricSample([]byte("metric:1234|g|#onetag|TABCD"))
+
+	assert.NoError(t, err)
+
+	assert.Equal(t, "metric", sample.name)
+	assert.InEpsilon(t, 1234.0, sample.value, epsilon)
+	require.Nil(t, sample.values)
+	assert.Equal(t, gaugeType, sample.metricType)
+	require.Equal(t, 1, len(sample.tags))
+	assert.Equal(t, "onetag", sample.tags[0])
+	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
+	assert.Zero(t, sample.ts)
+
+	sample, err = parseMetricSample([]byte("metric:1234|g|#onetag|T"))
+	assert.NoError(t, err)
+	assert.Zero(t, sample.ts)
 }

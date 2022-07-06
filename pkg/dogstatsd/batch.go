@@ -43,6 +43,13 @@ type batcher struct {
 	tagsBuffer    *tagset.HashingTagsAccumulator
 	keyGenerator  *ckey.KeyGenerator
 	pipelineCount int
+	// the batcher has to know if the no-aggregation pipeline is enabled or not:
+	// in the case of the no agg pipeline disabled, it would send them as usual to
+	// the demux which only choice would be to send them on an arbitrary sampler
+	// (i.e. the first one). Being aware that the no agg pipeline is disabled,
+	// the batcher can decide to properly distribute these samples on the available
+	// pipelines.
+	noAggPipelineEnabled bool
 }
 
 // Use fastrange instead of a modulo for better performance.
@@ -94,6 +101,8 @@ func newBatcher(demux aggregator.DemultiplexerWithAggregator) *batcher {
 		pipelineCount: pipelineCount,
 		tagsBuffer:    tagset.NewHashingTagsAccumulator(),
 		keyGenerator:  ckey.NewKeyGenerator(),
+
+		noAggPipelineEnabled: demux.Options().EnableNoAggregationPipeline,
 	}
 }
 
@@ -156,6 +165,13 @@ func (b *batcher) appendServiceCheck(serviceCheck *metrics.ServiceCheck) {
 }
 
 func (b *batcher) appendLateSample(sample metrics.MetricSample) {
+	// if the no aggregation pipeline is not enabled, we fallback on the
+	// main pipeline eventually distributing the samples on multiple samplers.
+	if !b.noAggPipelineEnabled {
+		b.appendSample(sample)
+		return
+	}
+
 	b.lateSamples[b.lateSamplesCount] = sample
 	b.lateSamplesCount++
 }

@@ -22,9 +22,11 @@ import (
 )
 
 // DemultiplexerWithAggregator is a Demultiplexer running an Aggregator.
+// This flavor uses a DemultiplexerOptions struct for startup configuration.
 type DemultiplexerWithAggregator interface {
 	Demultiplexer
 	Aggregator() *BufferedAggregator
+	Options() DemultiplexerOptions
 }
 
 // AgentDemultiplexer is the demultiplexer implementation for the main Agent.
@@ -195,6 +197,11 @@ func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *Agen
 	}
 
 	return demux
+}
+
+// Options returns options used during the demux initialization.
+func (d *AgentDemultiplexer) Options() DemultiplexerOptions {
+	return d.options
 }
 
 // AddAgentStartupTelemetry adds a startup event and count (in a time sampler)
@@ -426,7 +433,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 			// -------------------------------------
 
 			if len(d.statsd.lateMetrics) > 0 {
-				log.Infof("---------------------------- will flush %d late metrics", len(d.statsd.lateMetrics))
+				log.Debugf("Flushing %d metrics from the no-aggregation pipeline", len(d.statsd.lateMetrics))
 				// XXX(remy): move this in its own instance if needed? since it
 				// XXX(remy): only used in this serialization, we may not even need it for the two buffers
 				taggerBuffer := tagset.NewHashlessTagsAccumulator()
@@ -452,7 +459,6 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 				}
 
 				d.statsd.lateMetrics = d.statsd.lateMetrics[0:0]
-				log.Infof("----------------- After the flush: %d", len(d.statsd.lateMetrics))
 			}
 
 			// flush the aggregator (check samplers)
@@ -498,6 +504,14 @@ func (d *AgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*metric
 // AddLateMetrics buffers a bunch of late metrics. This data will be directly
 // transmitted "as-is" (i.e. no sampling) to the serializer when a flush is triggered.
 func (d *AgentDemultiplexer) AddLateMetrics(samples metrics.MetricSampleBatch) {
+	// safe-guard: if for some reasons we are receiving some metrics here despite
+	// having the no-aggregation pipeline enabled, we redirect them to the first
+	// time sampler
+	if !d.options.EnableNoAggregationPipeline {
+		d.AddTimeSampleBatch(TimeSamplerID(0), samples)
+		return
+	}
+
 	d.statsd.lateMetrics = append(d.statsd.lateMetrics, samples...)
 }
 

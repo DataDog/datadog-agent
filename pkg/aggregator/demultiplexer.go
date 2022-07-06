@@ -92,6 +92,8 @@ type DemultiplexerOptions struct {
 	UseContainerLifecycleForwarder bool
 	FlushInterval                  time.Duration
 
+	EnableNoAggregationPipeline bool
+
 	DontStartForwarders bool // unit tests don't need the forwarders to be instanciated
 }
 
@@ -119,7 +121,7 @@ type flushTrigger struct {
 	seriesSink   metrics.SerieSink
 }
 
-// DefaultDemultiplexerOptions returns the default options to initialize a Demultiplexer.
+// DefaultDemultiplexerOptions returns the default options to initialize an AgentDemultiplexer.
 func DefaultDemultiplexerOptions(options *forwarder.Options) DemultiplexerOptions {
 	if options == nil {
 		options = forwarder.NewOptions(nil)
@@ -130,7 +132,11 @@ func DefaultDemultiplexerOptions(options *forwarder.Options) DemultiplexerOption
 		FlushInterval:                  DefaultFlushInterval,
 		UseEventPlatformForwarder:      true,
 		UseOrchestratorForwarder:       true,
+		UseNoopForwarder:               false,
+		UseNoopEventPlatformForwarder:  false,
+		UseNoopOrchestratorForwarder:   false,
 		UseContainerLifecycleForwarder: false,
+		EnableNoAggregationPipeline:    config.Datadog.GetBool("dogstatsd_no_aggregation_pipeline"),
 	}
 }
 
