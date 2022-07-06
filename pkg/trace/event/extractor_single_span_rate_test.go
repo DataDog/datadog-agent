@@ -60,7 +60,6 @@ func TestSingleSpanExtractor(t *testing.T) {
 			for _, span := range test.spans {
 				rate, ok := extractor.Extract(span, 0)
 				if !ok {
-					rate = 0
 					continue
 				}
 				extracted++
