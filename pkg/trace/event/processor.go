@@ -68,7 +68,8 @@ func (p *Processor) Process(root *pb.Span, t *pb.TraceChunk) (numEvents, numExtr
 		}
 
 		numExtracted++
-		if traceutil.GetMetric(span, sampler.KeySpanSamplingMechanism) != apmsampling.SamplingMechanismSingleSpan {
+		if m, ok := traceutil.GetMetric(span, sampler.KeySpanSamplingMechanism); !ok ||
+			m != float64(apmsampling.SamplingMechanismSingleSpan) {
 			sampled, epsRate := p.maxEPSSample(span, priority)
 			if !sampled {
 				continue

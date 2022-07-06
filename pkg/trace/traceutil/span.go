@@ -8,7 +8,6 @@ package traceutil
 import (
 	"bytes"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/tinylib/msgp/msgp"
 )
@@ -134,9 +133,9 @@ func GetMetaStruct(s *pb.Span, key string) (interface{}, bool) {
 }
 
 // GetMetric gets the metadata value in the span Metrics map.
-func GetMetric(s *pb.Span, key string) apmsampling.SamplingMechanism {
+func GetMetric(s *pb.Span, key string) (float64, bool) {
 	if s.Metrics == nil {
-		return 0
+		return 0, false
 	}
-	return apmsampling.SamplingMechanism(s.Metrics[key])
+	return s.Metrics[key], true
 }

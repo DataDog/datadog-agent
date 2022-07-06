@@ -14,10 +14,10 @@ import (
 )
 
 type extractorTestCase struct {
-	name                   string
-	spans                  []*pb.Span
-	priority               sampler.SamplingPriority
-	expectedExtractionRate float64
+	name     string
+	spans    []*pb.Span
+	priority sampler.SamplingPriority
+	out      float64
 }
 
 func testExtractor(t *testing.T, extractor Extractor, testCase extractorTestCase) {
@@ -28,7 +28,7 @@ func testExtractor(t *testing.T, extractor Extractor, testCase extractorTestCase
 			if !ok {
 				rate = -1
 			}
-			assert.EqualValues(testCase.expectedExtractionRate, rate)
+			assert.EqualValues(testCase.out, rate)
 		}
 	})
 }

@@ -15,6 +15,9 @@ package apmsampling
 type SamplingMechanism uint32
 
 const (
+	// SamplingMechanismSingleSpan specifies that the span was sampled using the
+	// "Single Span" sampling mechanism. The single span sampling mechanism allows
+	// users to sample individual spans from a potentially dropped trace based on rules.
 	SamplingMechanismSingleSpan SamplingMechanism = 8
 )
 

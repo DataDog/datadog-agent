@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // singleSpanRateExtractor extracts spans that have been sampled using the single span sampling mechanism.
@@ -19,11 +20,7 @@ func NewSingleSpanExtractor() Extractor {
 }
 
 func (e *singleSpanRateExtractor) Extract(s *pb.Span, _ sampler.SamplingPriority) (float64, bool) {
-	if len(s.Metrics) == 0 {
-		// metric not set
-		return 0, false
-	}
-	m, ok := s.Metrics[sampler.KeySpanSamplingMechanism]
+	m, ok := traceutil.GetMetric(s, sampler.KeySpanSamplingMechanism)
 	if !ok || m != float64(apmsampling.SamplingMechanismSingleSpan) {
 		return 0, false
 	}
