@@ -398,6 +398,11 @@ int kprobe__tcp_set_state(struct pt_regs* ctx) {
     tcp_stats_t stats = { .state_transitions = (1 << state) };
     update_tcp_stats(&t, stats);
 
+    __u8 old_state = 0;
+    bpf_probe_read(&old_state, sizeof(old_state), (void *)&sk->sk_state);
+    if (old_state == TCP_SYN_SENT)
+        update_conn_stats(&t, 0, 0, bpf_ktime_get_ns(), CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE);
+
     return 0;
 }
 
