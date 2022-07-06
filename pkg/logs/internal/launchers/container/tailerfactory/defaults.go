@@ -9,50 +9,30 @@
 package tailerfactory
 
 import (
-	"context"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/docker/docker/api/types"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // defaultSourceAndService gets the default "source" and "service" values for
 // the given LogSource.  It always returns a result, logging any errors it
 // encounters along the way
 func (tf *factory) defaultSourceAndService(source *sources.LogSource, logWhat containersorpods.LogWhat) (sourceName, serviceName string) {
-	// inspectContainer
-	inspectContainer := func(containerID string) (types.ContainerJSON, error) {
-		du, err := tf.getDockerUtil()
-		if err != nil {
-			return types.ContainerJSON{}, err
-		}
-
-		return du.Inspect(context.Background(), containerID, false)
+	getContainer := func(containerID string) (*workloadmeta.Container, error) {
+		return tf.workloadmetaStore.GetContainer(containerID)
 	}
 
-	// getServiceNameFromTags
 	getServiceNameFromTags := func(containerID, containerName string) string {
 		return util.ServiceNameFromTags(
 			containerName,
 			dockerutilPkg.ContainerIDToTaggerEntityName(containerID))
 	}
 
-	// resolveImageName
-	resolveImageName := func(imageName string) (string, error) {
-		du, err := tf.getDockerUtil()
-		if err != nil {
-			return "", err
-		}
-
-		return du.ResolveImageName(context.Background(), imageName)
-	}
-
 	return defaultSourceAndServiceInner(source, logWhat,
-		inspectContainer, getServiceNameFromTags, resolveImageName)
+		getContainer, getServiceNameFromTags)
 }
 
 // defaultSourceAndServiceInner implements defaultSourceAndService with function
@@ -61,9 +41,8 @@ func (tf *factory) defaultSourceAndService(source *sources.LogSource, logWhat co
 func defaultSourceAndServiceInner(
 	source *sources.LogSource,
 	logWhat containersorpods.LogWhat,
-	inspectContainer func(containerID string) (types.ContainerJSON, error),
+	getContainer func(containerID string) (*workloadmeta.Container, error),
 	getServiceNameFromTags func(containerID, containerName string) string,
-	resolveImageName func(imageName string) (string, error),
 ) (sourceName, serviceName string) {
 	containerID := source.Config.Identifier
 
@@ -81,14 +60,14 @@ func defaultSourceAndServiceInner(
 
 	// determine the default service based on a "service:.." tag in the tagger
 
-	containerJSON, err := inspectContainer(containerID)
+	container, err := getContainer(containerID)
 	if err != nil {
 		log.Warnf("Could not inspect container %s: %v", containerID, err)
 		return
 	}
 
 	if serviceName == "" {
-		serviceName = getServiceNameFromTags(containerID, containerJSON.Name)
+		serviceName = getServiceNameFromTags(containerID, container.Name)
 	}
 
 	if serviceName != "" && sourceName != "" {
@@ -96,19 +75,7 @@ func defaultSourceAndServiceInner(
 	}
 
 	// determine the "short name" of the image, which is the final default for both values
-
-	imageName, err := resolveImageName(containerJSON.Image)
-	if err != nil {
-		log.Warnf("Could not resolve image name %s: %v", containerJSON.Image, err)
-		return
-	}
-
-	var shortName string
-	_, shortName, _, err = containers.SplitImageName(imageName)
-	if err != nil {
-		log.Warnf("Could not parse image name %s: %v", imageName, err)
-		return
-	}
+	shortName := container.Image.ShortName
 
 	// on kubernetes, if the short name is not available, default to
 	// "kubernetes"; otherwise the empty string is OK.

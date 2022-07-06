@@ -15,16 +15,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/docker/docker/api/types"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDefaultSourceAndService(t *testing.T) {
-	makeContainerJSON := func(image, name string) types.ContainerJSON {
-		return types.ContainerJSON{
-			ContainerJSONBase: &types.ContainerJSONBase{
-				Name:  name,
-				Image: image,
+	makeContainer := func(shortName, name string) *workloadmeta.Container {
+		return &workloadmeta.Container{
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: name,
+			},
+			Image: workloadmeta.ContainerImage{
+				ShortName: shortName,
 			},
 		}
 	}
@@ -35,7 +37,7 @@ func TestDefaultSourceAndService(t *testing.T) {
 				Identifier: "abc123",
 				Source:     "src",
 				Service:    "svc",
-			}), containersorpods.LogContainers, nil, nil, nil)
+			}), containersorpods.LogContainers, nil, nil)
 		require.Equal(t, "src", source)
 		require.Equal(t, "svc", service)
 	})
@@ -47,18 +49,17 @@ func TestDefaultSourceAndService(t *testing.T) {
 				Source:     "src",
 				// Service not set
 			}), containersorpods.LogContainers,
-			// inspectContainer
-			func(containerID string) (types.ContainerJSON, error) {
+			// getContainer
+			func(containerID string) (*workloadmeta.Container, error) {
 				require.Equal(t, "abc123", containerID)
-				return makeContainerJSON("img", "cname"), nil
+				return makeContainer("img", "cname"), nil
 			},
 			// getServiceNameFromTags
 			func(containerID, containerName string) string {
 				require.Equal(t, "abc123", containerID)
 				require.Equal(t, "cname", containerName)
 				return "fromtags"
-			},
-			nil)
+			})
 		require.Equal(t, "src", source)
 		require.Equal(t, "fromtags", service)
 	})
@@ -70,18 +71,17 @@ func TestDefaultSourceAndService(t *testing.T) {
 				Source:     "src",
 				// Service not set
 			}), containersorpods.LogContainers,
-			// inspectContainer
-			func(containerID string) (types.ContainerJSON, error) {
+			// getContainer
+			func(containerID string) (*workloadmeta.Container, error) {
 				require.Equal(t, "abc123", containerID)
-				return types.ContainerJSON{}, errors.New("uhoh")
+				return nil, errors.New("uhoh")
 			},
 			// getServiceNameFromTags
 			func(containerID, containerName string) string {
 				require.Equal(t, "abc123", containerID)
 				require.Equal(t, "cname", containerName)
 				return "fromtags"
-			},
-			nil)
+			})
 		require.Equal(t, "src", source)
 		require.Equal(t, "", service)
 	})
@@ -93,78 +93,19 @@ func TestDefaultSourceAndService(t *testing.T) {
 				Source:     "src",
 				// Service not set
 			}), containersorpods.LogContainers,
-			// inspectContainer
-			func(containerID string) (types.ContainerJSON, error) {
+			// getContainer
+			func(containerID string) (*workloadmeta.Container, error) {
 				require.Equal(t, "abc123", containerID)
-				return makeContainerJSON("img", "cname"), nil
+				return makeContainer("img", "cname"), nil
 			},
 			// getServiceNameFromTags
 			func(containerID, containerName string) string {
 				require.Equal(t, "abc123", containerID)
 				require.Equal(t, "cname", containerName)
 				return ""
-			},
-			// resolveImageName
-			func(imageName string) (string, error) {
-				require.Equal(t, "img", imageName)
-				return "fromimg", nil
 			})
 		require.Equal(t, "src", source)
-		require.Equal(t, "fromimg", service)
-	})
-
-	t.Run("service from shortName/resolve fails", func(t *testing.T) {
-		source, service := defaultSourceAndServiceInner(
-			sources.NewLogSource("test", &config.LogsConfig{
-				Identifier: "abc123",
-				Source:     "src",
-				// Service not set
-			}), containersorpods.LogContainers,
-			// inspectContainer
-			func(containerID string) (types.ContainerJSON, error) {
-				require.Equal(t, "abc123", containerID)
-				return makeContainerJSON("img", "cname"), nil
-			},
-			// getServiceNameFromTags
-			func(containerID, containerName string) string {
-				require.Equal(t, "abc123", containerID)
-				require.Equal(t, "cname", containerName)
-				return ""
-			},
-			// resolveImageName
-			func(imageName string) (string, error) {
-				require.Equal(t, "img", imageName)
-				return "", errors.New("uhoh")
-			})
-		require.Equal(t, "src", source)
-		require.Equal(t, "", service)
-	})
-
-	t.Run("service from shortName/split fails", func(t *testing.T) {
-		source, service := defaultSourceAndServiceInner(
-			sources.NewLogSource("test", &config.LogsConfig{
-				Identifier: "abc123",
-				Source:     "src",
-				// Service not set
-			}), containersorpods.LogContainers,
-			// inspectContainer
-			func(containerID string) (types.ContainerJSON, error) {
-				require.Equal(t, "abc123", containerID)
-				return makeContainerJSON("img", "cname"), nil
-			},
-			// getServiceNameFromTags
-			func(containerID, containerName string) string {
-				require.Equal(t, "abc123", containerID)
-				require.Equal(t, "cname", containerName)
-				return ""
-			},
-			// resolveImageName
-			func(imageName string) (string, error) {
-				require.Equal(t, "img", imageName)
-				return "sha256:99999", nil // SplitImageName will fail on a sha256 name
-			})
-		require.Equal(t, "src", source)
-		require.Equal(t, "", service)
+		require.Equal(t, "img", service)
 	})
 
 	t.Run("source from shortName", func(t *testing.T) {
@@ -174,18 +115,13 @@ func TestDefaultSourceAndService(t *testing.T) {
 				// Source not set
 				Service: "svc",
 			}), containersorpods.LogContainers,
-			// inspectContainer
-			func(containerID string) (types.ContainerJSON, error) {
+			// getContainer
+			func(containerID string) (*workloadmeta.Container, error) {
 				require.Equal(t, "abc123", containerID)
-				return makeContainerJSON("img", "cname"), nil
+				return makeContainer("img", "cname"), nil
 			},
-			nil,
-			// resolveImageName
-			func(imageName string) (string, error) {
-				require.Equal(t, "img", imageName)
-				return "fromimg", nil
-			})
-		require.Equal(t, "fromimg", source)
+			nil)
+		require.Equal(t, "img", source)
 		require.Equal(t, "svc", service)
 	})
 
@@ -196,57 +132,12 @@ func TestDefaultSourceAndService(t *testing.T) {
 				// Source not set
 				Service: "svc",
 			}), containersorpods.LogContainers,
-			// inspectContainer
-			func(containerID string) (types.ContainerJSON, error) {
+			// getContainer
+			func(containerID string) (*workloadmeta.Container, error) {
 				require.Equal(t, "abc123", containerID)
-				return types.ContainerJSON{}, errors.New("uhoh")
+				return nil, errors.New("uhoh")
 			},
-			nil,
 			nil)
-		require.Equal(t, "", source)
-		require.Equal(t, "svc", service)
-	})
-
-	t.Run("source from shortName/resolve fails", func(t *testing.T) {
-		source, service := defaultSourceAndServiceInner(
-			sources.NewLogSource("test", &config.LogsConfig{
-				Identifier: "abc123",
-				// Source not set
-				Service: "svc",
-			}), containersorpods.LogContainers,
-			// inspectContainer
-			func(containerID string) (types.ContainerJSON, error) {
-				require.Equal(t, "abc123", containerID)
-				return makeContainerJSON("img", "cname"), nil
-			},
-			nil,
-			// resolveImageName
-			func(imageName string) (string, error) {
-				require.Equal(t, "img", imageName)
-				return "", errors.New("uhoh")
-			})
-		require.Equal(t, "", source)
-		require.Equal(t, "svc", service)
-	})
-
-	t.Run("source from shortName/split fails", func(t *testing.T) {
-		source, service := defaultSourceAndServiceInner(
-			sources.NewLogSource("test", &config.LogsConfig{
-				Identifier: "abc123",
-				// Source not set
-				Service: "svc",
-			}), containersorpods.LogContainers,
-			// inspectContainer
-			func(containerID string) (types.ContainerJSON, error) {
-				require.Equal(t, "abc123", containerID)
-				return makeContainerJSON("img", "cname"), nil
-			},
-			nil,
-			// resolveImageName
-			func(imageName string) (string, error) {
-				require.Equal(t, "img", imageName)
-				return "sha256:99999", nil // SplitImageName will fail on a sha256 name
-			})
 		require.Equal(t, "", source)
 		require.Equal(t, "svc", service)
 	})
