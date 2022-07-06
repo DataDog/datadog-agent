@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	batchv1 "k8s.io/api/batch/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -72,12 +73,16 @@ func (f *jobFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 
 func wrapJobFunc(f func(*batchv1.Job) *metric.Family) func(interface{}) *metric.Family {
 	return func(obj interface{}) *metric.Family {
-		cronJob := obj.(*batchv1.Job)
+		job, ok := obj.(*batchv1.Job)
+		if !ok {
+			log.Warnf("cannot cast object %T into *batchv1.Job, skipping", obj)
+			return nil
+		}
 
-		metricFamily := f(cronJob)
+		metricFamily := f(job)
 
 		for _, m := range metricFamily.Metrics {
-			m.LabelKeys, m.LabelValues = mergeKeyValues(descJobLabelsDefaultLabels, []string{cronJob.Namespace, cronJob.Name}, m.LabelKeys, m.LabelValues)
+			m.LabelKeys, m.LabelValues = mergeKeyValues(descJobLabelsDefaultLabels, []string{job.Namespace, job.Name}, m.LabelKeys, m.LabelValues)
 		}
 
 		return metricFamily
