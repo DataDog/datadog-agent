@@ -62,7 +62,7 @@ type EventHandler interface {
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
 type EventStream interface {
 	Init(*manager.Manager, *config.Config) error
-	SetMonitor(*Monitor)
+	SetMonitor(*PerfBufferMonitor)
 	Start(*sync.WaitGroup) error
 	Pause() error
 	Resume() error
@@ -303,7 +303,7 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	p.eventStream.SetMonitor(p.monitor)
+	p.eventStream.SetMonitor(p.monitor.perfBufferMonitor)
 
 	return nil
 }
@@ -1435,7 +1435,10 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	if useRingBuffers {
 		p.eventStream = NewRingBuffer(p.handleEvent)
 	} else {
-		p.eventStream = NewOrderedPerfMap(p.ctx, p.handleEvent)
+		p.eventStream, err = NewOrderedPerfMap(p.ctx, p.handleEvent, p.statsdClient)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return p, nil

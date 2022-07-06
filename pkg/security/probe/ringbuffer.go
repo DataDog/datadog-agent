@@ -47,7 +47,7 @@ func (rb *RingBuffer) Start(wg *sync.WaitGroup) error {
 }
 
 // SetMonitor set the monitor
-func (rb *RingBuffer) SetMonitor(monitor *Monitor) {}
+func (rb *RingBuffer) SetMonitor(perfBufferMonitor *PerfBufferMonitor) {}
 
 func (rb *RingBuffer) handleEvent(CPU int, data []byte, ringBuffer *manager.RingBuffer, manager *manager.Manager) {
 	rb.handler(CPU, data)
