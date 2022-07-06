@@ -263,5 +263,6 @@
 /tools/gdb/                             @DataDog/agent-core
 /tools/retry_file_dump/                 @DataDog/agent-core
 /tools/windows/                         @DataDog/agent-platform
+/tools/agent_QA/                        @DataDog/agent-metrics-logs
 
 /internal/tools/                        @DataDog/agent-platform
