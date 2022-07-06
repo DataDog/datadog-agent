@@ -1,6 +1,7 @@
 package discoverycollector
 
 import (
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/common"
 	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/config"
@@ -67,16 +68,9 @@ func (dc *DiscoveryCollector) Collect() {
 		index, _ := strconv.Atoi(indexes[2])
 		manAddrSubtype, _ := strconv.Atoi(indexes[3])
 		var manAddr string
-		if manAddrSubtype == 1 { // ipv4
-			var ipV4Bytes []byte
-			for _, val := range indexes[4:] {
-				intVal, _ := strconv.Atoi(val)
-				ipV4Bytes = append(ipV4Bytes, byte(intVal))
-			}
-			manAddr = net.IP(ipV4Bytes).String()
-		} else if manAddrSubtype == 2 { // ipv6
+		if manAddrSubtype == 1 || manAddrSubtype == 2 { // ipv4, ipv6
 			var ipv6buf []byte
-			// TODO: skip IPv6 should be indexes[4:], but first byte seems to be always 16
+			// TODO: first byte is 4 for ipv6 and 16 for ipv6
 			for _, val := range indexes[5:] {
 				intVal, _ := strconv.Atoi(val)
 				ipv6buf = append(ipv6buf, byte(intVal))
@@ -186,6 +180,13 @@ func (dc *DiscoveryCollector) Collect() {
 		strVal, _ = SysCapEnabled.ToString()
 		remote.SysCapEnabled = strVal
 
+		remoteMan, err := findRemote(remoteMans, remote)
+		if err != nil {
+			log.Infof("\t\t Remote not found for %+v", remote)
+		} else {
+			remote.RemoteManagement = remoteMan
+		}
+
 		remotes = append(remotes, remote)
 	}
 
@@ -203,7 +204,19 @@ func (dc *DiscoveryCollector) Collect() {
 		log.Infof("\t\t SysDesc: %s", remote.SysDesc)
 		log.Infof("\t\t SysCapSupported: %s", remote.SysCapSupported)
 		log.Infof("\t\t SysCapEnabled: %s", remote.SysCapEnabled)
+		if remote.RemoteManagement != nil {
+			log.Infof("\t\t ManAddr: %s", remote.RemoteManagement.ManAddr)
+		}
 	}
+}
+
+func findRemote(mans []common.LldpRemoteManagement, remote common.LldpRemote) (*common.LldpRemoteManagement, error) {
+	for _, remoteMan := range mans {
+		if remoteMan.LocalPortNum == remote.LocalPortNum && remoteMan.Index == remote.Index {
+			return &remoteMan, nil
+		}
+	}
+	return nil, fmt.Errorf("not found")
 }
 
 func (dc *DiscoveryCollector) collectColumnsOids(columns []string, session session.Session) valuestore.ColumnResultValuesType {
