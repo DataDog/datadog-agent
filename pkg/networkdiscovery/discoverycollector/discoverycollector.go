@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/session"
 	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"net"
 	"strconv"
 	"strings"
 )
@@ -45,9 +46,67 @@ func (dc *DiscoveryCollector) Collect() {
 		return
 	}
 	defer session.Close()
+
+	log.Info("=== lldpRemManAddrTable\t ===")
+	// INDEX { lldpRemTimeMark, lldpRemLocalPortNum, lldpRemIndex, lldpRemManAddrSubtype, lldpRemManAddr }
+	// lldpRemManAddrSubtype: ipv4(1), ipv6(2), etc see more here: http://www.mibdepot.com/cgi-bin/getmib3.cgi?win=mib_a&i=1&n=LLDP-MIB&r=cisco&f=LLDP-MIB-V1SMI.my&v=v1&t=tab&o=lldpRemManAddrSubtype
+	columns := []string{
+		"1.0.8802.1.1.2.1.4.2.1.3", // lldpRemManAddrIfSubtype unknown(1), ifIndex(2), systemPortNumber(3)
+		"1.0.8802.1.1.2.1.4.2.1.4", // lldpRemManAddrIfId
+		"1.0.8802.1.1.2.1.4.2.1.5", // lldpRemManAddrOID
+	}
+	columnValues := dc.collectColumnsOids(columns, session)
+
+	ifSubType := columnValues["1.0.8802.1.1.2.1.4.2.1.3"]
+
+	var remoteMans []common.LldpRemoteManagement
+	for fullIndex, _ := range ifSubType {
+		indexes := strings.Split(fullIndex, ".")
+		timeMark, _ := strconv.Atoi(indexes[0])
+		localPortNum, _ := strconv.Atoi(indexes[1])
+		index, _ := strconv.Atoi(indexes[2])
+		manAddrSubtype, _ := strconv.Atoi(indexes[3])
+		var manAddr string
+		if manAddrSubtype == 1 { // ipv4
+			var ipV4Bytes []byte
+			for _, val := range indexes[4:] {
+				intVal, _ := strconv.Atoi(val)
+				ipV4Bytes = append(ipV4Bytes, byte(intVal))
+			}
+			manAddr = net.IP(ipV4Bytes).String()
+		} else if manAddrSubtype == 2 { // ipv6
+			var ipv6buf []byte
+			// TODO: skip IPv6 should be indexes[4:], but first byte seems to be always 16
+			for _, val := range indexes[5:] {
+				intVal, _ := strconv.Atoi(val)
+				ipv6buf = append(ipv6buf, byte(intVal))
+			}
+			manAddr = net.IP(ipv6buf).String()
+		} else { // ipv4 and others
+			manAddr = strings.Join(indexes[4:], ".")
+		}
+
+		remoteMan := common.LldpRemoteManagement{
+			TimeMark:       timeMark,
+			LocalPortNum:   localPortNum,
+			Index:          index,
+			ManAddrSubtype: manAddrSubtype,
+			ManAddr:        manAddr,
+		}
+		remoteMans = append(remoteMans, remoteMan)
+	}
+	for _, remoteMan := range remoteMans {
+		log.Infof("\t->")
+		log.Infof("\t\t TimeMark: %d", remoteMan.TimeMark)
+		log.Infof("\t\t LocalPortNum: %d", remoteMan.LocalPortNum)
+		log.Infof("\t\t Index: %d", remoteMan.Index)
+		log.Infof("\t\t ManAddrSubtype: %s (%d)", common.RemManAddrSubtype[remoteMan.ManAddrSubtype], remoteMan.ManAddrSubtype)
+		log.Infof("\t\t manAddr: %s", remoteMan.ManAddr)
+	}
+
 	log.Info("=== lldpRemTable ===")
 	// INDEX { lldpRemTimeMark, lldpRemLocalPortNum, lldpRemIndex }
-	columns := []string{
+	columns = []string{
 		"1.0.8802.1.1.2.1.4.1.1.4",  // lldpRemChassisIdSubtype
 		"1.0.8802.1.1.2.1.4.1.1.5",  // lldpRemChassisId
 		"1.0.8802.1.1.2.1.4.1.1.6",  // lldpRemPortIdSubtype
@@ -58,7 +117,7 @@ func (dc *DiscoveryCollector) Collect() {
 		"1.0.8802.1.1.2.1.4.1.1.11", // lldpRemSysCapSupported
 		"1.0.8802.1.1.2.1.4.1.1.12", // lldpRemSysCapEnabled
 	}
-	columnValues := dc.collectColumnsOids(columns, session)
+	columnValues = dc.collectColumnsOids(columns, session)
 	var remotes []common.LldpRemote
 	valuesByIndexByColumn := make(map[string]map[string]valuestore.ResultValue)
 	for columnOid, values := range columnValues {
@@ -132,6 +191,9 @@ func (dc *DiscoveryCollector) Collect() {
 
 	for _, remote := range remotes {
 		log.Infof("\t->")
+		log.Infof("\t\t TimeMark: %d", remote.TimeMark)
+		log.Infof("\t\t LocalPortNum: %d", remote.LocalPortNum)
+		log.Infof("\t\t Index: %d", remote.Index)
 		log.Infof("\t\t ChassisIdSubtype: %s (%d)", common.ChassisIdSubtypeMap[remote.ChassisIdSubtype], remote.ChassisIdSubtype)
 		log.Infof("\t\t ChassisId: %s", remote.ChassisId)
 		log.Infof("\t\t PortIdSubType: %s (%d)", common.PortIdSubTypeMap[remote.PortIdSubType], remote.PortIdSubType)
@@ -142,16 +204,6 @@ func (dc *DiscoveryCollector) Collect() {
 		log.Infof("\t\t SysCapSupported: %s", remote.SysCapSupported)
 		log.Infof("\t\t SysCapEnabled: %s", remote.SysCapEnabled)
 	}
-
-	log.Info("=== lldpRemManAddrTable\t ===")
-	// INDEX { lldpRemTimeMark, lldpRemLocalPortNum, lldpRemIndex, lldpRemManAddrSubtype, lldpRemManAddr }
-	// lldpRemManAddrSubtype: ipv4(1), ipv6(2), etc see more here: http://www.mibdepot.com/cgi-bin/getmib3.cgi?win=mib_a&i=1&n=LLDP-MIB&r=cisco&f=LLDP-MIB-V1SMI.my&v=v1&t=tab&o=lldpRemManAddrSubtype
-	columns = []string{
-		"1.0.8802.1.1.2.1.4.2.1.3", // lldpRemManAddrIfSubtype unknown(1), ifIndex(2), systemPortNumber(3)
-		"1.0.8802.1.1.2.1.4.2.1.4", // lldpRemManAddrIfId
-		"1.0.8802.1.1.2.1.4.2.1.5", // lldpRemManAddrOID
-	}
-	dc.collectColumnsOids(columns, session)
 }
 
 func (dc *DiscoveryCollector) collectColumnsOids(columns []string, session session.Session) valuestore.ColumnResultValuesType {
