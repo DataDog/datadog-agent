@@ -303,7 +303,7 @@ func httpsSupported() bool {
 
 func (o *sslProgram) sysOpenAt2Supported() bool {
 	ksymPath := filepath.Join(o.cfg.ProcRoot, "kallsyms")
-	missing, err := ddebpf.VerifyKernelFuncs(ksymPath, []string{doSysOpenAt2.function})
+	missing, err := ddebpf.VerifyKernelFuncs(ksymPath, []string{doSysOpenAt2.section})
 	if err == nil && len(missing) == 0 {
 		return true
 	}
