@@ -505,6 +505,37 @@ func TestTCPCollectionDisabled(t *testing.T) {
 	require.False(t, ok)
 }
 
+func TestTCPConnsReported(t *testing.T) {
+	// Setup
+	config := testConfig()
+	config.CollectTCPConns = true
+
+	tr, err := NewTracer(config)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	server := NewTCPServer(func(c net.Conn) {})
+	doneChan := make(chan struct{})
+	err = server.Run(doneChan)
+	require.NoError(t, err)
+	defer close(doneChan)
+
+	// Connect to server
+	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
+	require.NoError(t, err)
+	defer c.Close()
+
+	// Test
+	initTracerState(t, tr)
+	connections := getConnections(t, tr)
+	// Server-side
+	_, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+	require.True(t, ok)
+	// Client-side
+	_, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	require.True(t, ok)
+}
+
 func TestUDPSendAndReceive(t *testing.T) {
 	t.Run("v4", func(t *testing.T) {
 		testUDPSendAndReceive(t, "127.0.0.1:8001")
