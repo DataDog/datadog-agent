@@ -42,14 +42,13 @@ func (k *httpBatchKey) Prepare(n httpNotification) {
 
 func (tx *httpTX) postProcess() {
 	b := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.request_fragment))
-	fSz := tx.fragmentSize()
-	for i := fSz; i < HTTPBufferSize; i++ {
+	for i := tx.fragmentSize(); i < HTTPBufferSize; i++ {
 		b[i] = 0
 	}
 }
 
 func (tx *httpTX) fragmentSize() int {
-	return int(tx.fragment_sz)
+	return int(tx.fragment_len)
 }
 
 // Path returns the URL from the request fragment captured in eBPF with
