@@ -21,7 +21,6 @@
 
 static __always_inline size_t read_into_buffer_skb(char *buffer, struct __sk_buff* skb, skb_info_t *info) {
     u64 offset = (u64)info->data_off;
-    const size_t read_len = HTTP_BUFFER_SIZE <= (skb->len - (u32)offset) ? HTTP_BUFFER_SIZE - 1 : skb->len - (u32)offset;
 
 #define BLK_SIZE (16)
     const u32 iter = HTTP_BUFFER_SIZE / BLK_SIZE;
@@ -76,7 +75,7 @@ static __always_inline size_t read_into_buffer_skb(char *buffer, struct __sk_buf
     else if (offset < len)
         bpf_skb_load_bytes(skb, offset, buf, 1);
 
-    return read_len;
+    return HTTP_BUFFER_SIZE <= (skb->len - (u32)offset) ? HTTP_BUFFER_SIZE - 1 : skb->len - (u32)offset;
 }
 
 SEC("socket/http_filter")
