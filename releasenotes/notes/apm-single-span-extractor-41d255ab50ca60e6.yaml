@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    APM : Adding single span extractor to process single span ingestion from tracers
+    APM : Adds single span extractor to process single span ingestion from tracers

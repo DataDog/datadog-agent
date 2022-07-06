@@ -43,7 +43,7 @@ const (
 	// KeySpanSamplingRuleRate is the metric key containing the configured sampling probability for the span sampling rule.
 	KeySpanSamplingRuleRate = "_dd.span_sampling.rule_rate"
 
-	// KeySpanSamplingMPS is the metric key contains the configured limit for the span sampling rule that the span matched.
+	// KeySpanSamplingMPS is the metric key containing the configured limit for the span sampling rule that the span matched.
 	// If there is no configured limit, then this tag is omitted.
 	KeySpanSamplingMPS = "_dd.span_sampling.max_per_second"
 )

@@ -15,7 +15,6 @@ package apmsampling
 type SamplingMechanism uint32
 
 const (
-	//todo(shevchenko): move or add other constants
 	SamplingMechanismSingleSpan SamplingMechanism = 8
 )
 

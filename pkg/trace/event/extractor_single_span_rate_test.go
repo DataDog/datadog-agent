@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package event
 
 import (
@@ -49,23 +54,18 @@ func TestSingleSpanExtractor(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			spans := createSpanSamplingTestSpans(test.name, "ops", 100, test.mech, test.rate, 100)
 			test.spans = spans
-			testSingleSpanExtractor(t, NewSingleSpanExtractor(), test)
+			assert := assert.New(t)
+			extracted := 0
+			extractor := NewSingleSpanExtractor()
+			for _, span := range test.spans {
+				rate, ok := extractor.Extract(span, 0)
+				if !ok {
+					rate = 0
+					continue
+				}
+				extracted++
+				assert.Equal(test.expectedExtractionRate, rate)
+			}
 		})
 	}
-}
-
-func testSingleSpanExtractor(t *testing.T, extractor Extractor, testCase sssExtractorTestCase) {
-	t.Run(testCase.name, func(t *testing.T) {
-		assert := assert.New(t)
-		extracted := 0
-		for _, span := range testCase.spans {
-			rate, ok := extractor.Extract(span, 0)
-			if !ok {
-				rate = 0
-				continue
-			}
-			extracted++
-			assert.Equal(testCase.expectedExtractionRate, rate)
-		}
-	})
 }
