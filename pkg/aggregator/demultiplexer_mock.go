@@ -112,7 +112,7 @@ func (a *TestAgentDemultiplexer) Reset() {
 
 // InitTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given flush interval.
 func InitTestAgentDemultiplexerWithFlushInterval(flushInterval time.Duration) *TestAgentDemultiplexer {
-	opts := DefaultDemultiplexerOptions(nil)
+	opts := DefaultAgentDemultiplexerOptions(nil)
 	opts.FlushInterval = flushInterval
 	opts.DontStartForwarders = true
 	opts.UseNoopEventPlatformForwarder = true

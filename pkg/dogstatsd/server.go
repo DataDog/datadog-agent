@@ -646,11 +646,10 @@ func (s *Server) createOriginTagMaps(origin string) cachedTagsOriginMap {
 	return maps
 }
 
-// XXX comment
-// TODO(remy): for performance purpose, we may need this method to deal with both a metricSamples slice and a lateMetricSamples
+// TODO(remy): for performance purpose, we may need to revisit this method to deal with both a metricSamples slice and a lateMetricSamples
 //             slice, in order to not having to test multiple times if a metric sample is a late one using the Timestamp attribute,
-//             which will be slower when processing millions of samples.
-//             It could use a boolean returned by `parseMetricSample` which is the first part aware of processing a late metric.
+//             which will be slower when processing millions of samples. It could use a boolean returned by `parseMetricSample` which
+//             is the first part aware of processing a late metric.
 func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string, telemetry bool) ([]metrics.MetricSample, error) {
 	okCnt := tlmProcessedOk
 	errorCnt := tlmProcessedError

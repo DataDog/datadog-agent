@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	agentruntime "github.com/DataDog/datadog-agent/pkg/runtime"
@@ -31,7 +30,7 @@ var demultiplexerInstanceMu sync.Mutex
 // Demultiplexer is composed of multiple samplers (check and time/dogstatsd)
 // a shared forwarder, the event platform forwarder, orchestrator data buffers
 // and other data that need to be sent to the forwarders.
-// DemultiplexerOptions let you configure which forwarders have to be started.
+// AgentDemultiplexerOptions let you configure which forwarders have to be started.
 type Demultiplexer interface {
 	// General
 	// --
@@ -55,7 +54,9 @@ type Demultiplexer interface {
 	// Implementation not supporting sharding may ignore the `shard` parameter.
 	AddTimeSampleBatch(shard TimeSamplerID, samples metrics.MetricSampleBatch)
 
-	// TODO(remy): document me
+	// AddLateMetrics pushes metrics in the no-aggregation pipeline: a pipeline
+	// where the metrics are not sampled and sent as-is to the intake when the
+	// demux is flushed.
 	AddLateMetrics(metrics metrics.MetricSampleBatch)
 
 	// AddCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
@@ -81,22 +82,6 @@ type Demultiplexer interface {
 	cleanSenders()
 }
 
-// DemultiplexerOptions are the options used to initialize a Demultiplexer.
-type DemultiplexerOptions struct {
-	SharedForwarderOptions         *forwarder.Options
-	UseNoopForwarder               bool
-	UseNoopEventPlatformForwarder  bool
-	UseNoopOrchestratorForwarder   bool
-	UseEventPlatformForwarder      bool
-	UseOrchestratorForwarder       bool
-	UseContainerLifecycleForwarder bool
-	FlushInterval                  time.Duration
-
-	EnableNoAggregationPipeline bool
-
-	DontStartForwarders bool // unit tests don't need the forwarders to be instanciated
-}
-
 // trigger be used to trigger something in the TimeSampler or the BufferedAggregator.
 // If `blockChan` is not nil, a message is expected on this chan when the action is done.
 // See `flushTrigger` to see the usage in a flush trigger.
@@ -119,25 +104,6 @@ type flushTrigger struct {
 
 	sketchesSink metrics.SketchesSink
 	seriesSink   metrics.SerieSink
-}
-
-// DefaultDemultiplexerOptions returns the default options to initialize an AgentDemultiplexer.
-func DefaultDemultiplexerOptions(options *forwarder.Options) DemultiplexerOptions {
-	if options == nil {
-		options = forwarder.NewOptions(nil)
-	}
-
-	return DemultiplexerOptions{
-		SharedForwarderOptions:         options,
-		FlushInterval:                  DefaultFlushInterval,
-		UseEventPlatformForwarder:      true,
-		UseOrchestratorForwarder:       true,
-		UseNoopForwarder:               false,
-		UseNoopEventPlatformForwarder:  false,
-		UseNoopOrchestratorForwarder:   false,
-		UseContainerLifecycleForwarder: false,
-		EnableNoAggregationPipeline:    config.Datadog.GetBool("dogstatsd_no_aggregation_pipeline"),
-	}
 }
 
 func createIterableMetrics(

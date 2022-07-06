@@ -22,11 +22,11 @@ import (
 )
 
 // DemultiplexerWithAggregator is a Demultiplexer running an Aggregator.
-// This flavor uses a DemultiplexerOptions struct for startup configuration.
+// This flavor uses a AgentDemultiplexerOptions struct for startup configuration.
 type DemultiplexerWithAggregator interface {
 	Demultiplexer
 	Aggregator() *BufferedAggregator
-	Options() DemultiplexerOptions
+	Options() AgentDemultiplexerOptions
 }
 
 // AgentDemultiplexer is the demultiplexer implementation for the main Agent.
@@ -42,13 +42,48 @@ type AgentDemultiplexer struct {
 	flushChan chan trigger
 
 	// options are the options with which the demultiplexer has been created
-	options    DemultiplexerOptions
+	options    AgentDemultiplexerOptions
 	aggregator *BufferedAggregator
 	dataOutputs
 	*senders
 
 	// sharded statsd time samplers
 	statsd
+}
+
+// AgentDemultiplexerOptions are the options used to initialize a Demultiplexer.
+type AgentDemultiplexerOptions struct {
+	SharedForwarderOptions         *forwarder.Options
+	UseNoopForwarder               bool
+	UseNoopEventPlatformForwarder  bool
+	UseNoopOrchestratorForwarder   bool
+	UseEventPlatformForwarder      bool
+	UseOrchestratorForwarder       bool
+	UseContainerLifecycleForwarder bool
+	FlushInterval                  time.Duration
+
+	EnableNoAggregationPipeline bool
+
+	DontStartForwarders bool // unit tests don't need the forwarders to be instanciated
+}
+
+// DefaultAgentDemultiplexerOptions returns the default options to initialize an AgentDemultiplexer.
+func DefaultAgentDemultiplexerOptions(options *forwarder.Options) AgentDemultiplexerOptions {
+	if options == nil {
+		options = forwarder.NewOptions(nil)
+	}
+
+	return AgentDemultiplexerOptions{
+		SharedForwarderOptions:         options,
+		FlushInterval:                  DefaultFlushInterval,
+		UseEventPlatformForwarder:      true,
+		UseOrchestratorForwarder:       true,
+		UseNoopForwarder:               false,
+		UseNoopEventPlatformForwarder:  false,
+		UseNoopOrchestratorForwarder:   false,
+		UseContainerLifecycleForwarder: false,
+		EnableNoAggregationPipeline:    config.Datadog.GetBool("dogstatsd_no_aggregation_pipeline"),
+	}
 }
 
 type statsd struct {
@@ -81,7 +116,7 @@ type dataOutputs struct {
 // InitAndStartAgentDemultiplexer creates a new Demultiplexer and runs what's necessary
 // in goroutines. As of today, only the embedded BufferedAggregator needs a separate goroutine.
 // In the future, goroutines will be started for the event platform forwarder and/or orchestrator forwarder.
-func InitAndStartAgentDemultiplexer(options DemultiplexerOptions, hostname string) *AgentDemultiplexer {
+func InitAndStartAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	demultiplexerInstanceMu.Lock()
 	defer demultiplexerInstanceMu.Unlock()
 
@@ -96,7 +131,7 @@ func InitAndStartAgentDemultiplexer(options DemultiplexerOptions, hostname strin
 	return demux
 }
 
-func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *AgentDemultiplexer {
+func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 
 	// prepare the multiple forwarders
 	// -------------------------------
@@ -200,7 +235,7 @@ func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *Agen
 }
 
 // Options returns options used during the demux initialization.
-func (d *AgentDemultiplexer) Options() DemultiplexerOptions {
+func (d *AgentDemultiplexer) Options() AgentDemultiplexerOptions {
 	return d.options
 }
 
@@ -434,8 +469,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 			if len(d.statsd.lateMetrics) > 0 {
 				log.Debugf("Flushing %d metrics from the no-aggregation pipeline", len(d.statsd.lateMetrics))
-				// XXX(remy): move this in its own instance if needed? since it
-				// XXX(remy): only used in this serialization, we may not even need it for the two buffers
+				// TODO(remy): we can consider re-using these instead of building them on every flush.
 				taggerBuffer := tagset.NewHashlessTagsAccumulator()
 				metricBuffer := tagset.NewHashlessTagsAccumulator()
 				for _, sample := range d.statsd.lateMetrics {
@@ -447,7 +481,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 					var serie metrics.Serie
 					serie.Name = sample.Name
 					// TODO(remy): we may have to sort uniq them?
-					// XXX(remy): do we really need to copy here?
+					// XXX(remy): do we really need to copy tags here?
 					serie.Points = []metrics.Point{{Ts: sample.Timestamp, Value: sample.Value}}
 					serie.Tags = tagset.CompositeTagsFromSlice(metricBuffer.Copy())
 					serie.Host = sample.Host

@@ -132,7 +132,6 @@ func isMetricBlocklisted(metricName string, metricBlocklist []string) bool {
 }
 
 func tsToFloatForSamples(ts time.Time) float64 {
-	// XXX(remy): we may see this call appear in profiles
 	if ts.IsZero() { // avoid a conversion
 		// for on-time samples, we don't want to write any value in there
 		return 0.0

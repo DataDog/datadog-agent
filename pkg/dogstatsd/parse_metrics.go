@@ -32,7 +32,7 @@ var (
 
 	tagsFieldPrefix       = []byte("#")
 	sampleRateFieldPrefix = []byte("@")
-	timestampFieldPrefix  = []byte("T") // TODO(remy): maybe go with something smaller
+	timestampFieldPrefix  = []byte("T")
 )
 
 type dogstatsdMetricSample struct {

@@ -44,7 +44,7 @@ func initSender(id check.ID, defaultHostname string) (s senderWithChans) {
 }
 
 func testDemux() *AgentDemultiplexer {
-	opts := DefaultDemultiplexerOptions(nil)
+	opts := DefaultAgentDemultiplexerOptions(nil)
 	opts.DontStartForwarders = true
 	demux := initAgentDemultiplexer(opts, defaultHostname)
 	return demux

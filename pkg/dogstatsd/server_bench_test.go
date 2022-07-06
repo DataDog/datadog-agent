@@ -24,7 +24,7 @@ func mockDemultiplexer() aggregator.Demultiplexer {
 }
 
 func mockDemultiplexerWithFlushInterval(d time.Duration) aggregator.Demultiplexer {
-	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
 	opts.FlushInterval = d
 	opts.DontStartForwarders = true
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, "hostname")
