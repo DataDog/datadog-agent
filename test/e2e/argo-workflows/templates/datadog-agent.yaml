@@ -39,6 +39,7 @@ spec:
             tags:
               - tag1
               - tag2
+              - app:agent-e2e-tests
               - ci_commit_short_sha:{{inputs.parameters.ci_commit_short_sha}}
               - ci_pipeline_id:{{inputs.parameters.ci_pipeline_id}}
               - ci_job_id:{{inputs.parameters.ci_job_id}}
@@ -109,7 +110,7 @@ spec:
                     name: otlp-port
                     protocol: TCP
               systemProbe:
-                logLevel: TRACE
+                # logLevel: TRACE
                 env:
                   - name:  DD_RUNTIME_SECURITY_CONFIG_LOG_PATTERNS
                     value: "module.*"

@@ -138,15 +138,6 @@ spec:
                 - name: namespace
                   value: "{{workflow.namespace}}"
 
-        - - name: test-busybox
-            templateRef:
-              name: busybox
-              template: test
-            arguments:
-              parameters:
-                - name: namespace
-                  value: "{{workflow.namespace}}"
-
         - - name: test-datadog-agent
             templateRef:
               name: datadog-agent
@@ -186,6 +177,15 @@ spec:
           - name: test-nginx
             templateRef:
               name: nginx
+              template: test
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{workflow.namespace}}"
+
+          - name: test-busybox
+            templateRef:
+              name: busybox
               template: test
             arguments:
               parameters:
