@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -179,7 +180,7 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 
 	// Get hostname, if there's an error in getting the hostname,
 	// set the hostname to unknown
-	hostname, err := util.GetHostname(context.TODO())
+	hostname, err := hostnameUtil.Get(context.TODO())
 	if err != nil {
 		hostname = "unknown"
 	}

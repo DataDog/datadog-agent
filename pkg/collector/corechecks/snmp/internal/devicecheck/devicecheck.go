@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	coresnmp "github.com/DataDog/datadog-agent/pkg/snmp"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
@@ -77,7 +77,7 @@ func (d *DeviceCheck) GetIDTags() []string {
 func (d *DeviceCheck) GetDeviceHostname() (string, error) {
 	if d.config.UseDeviceIDAsHostname {
 		hostname := deviceHostnamePrefix + d.config.DeviceID
-		normalizedHostname, err := util.NormalizeHost(hostname)
+		normalizedHostname, err := validate.NormalizeHost(hostname)
 		if err != nil {
 			return "", err
 		}

@@ -5162,6 +5162,13 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "arm64",
+			"uname_release": "4.15.0-188-generic",
+			"cindex": 50
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
 			"uname_release": "4.15.0-20-generic",
 			"cindex": 49
 		},
@@ -7599,6 +7606,13 @@
 			"version": "18.04",
 			"arch": "x86_64",
 			"uname_release": "4.15.0-187-generic",
+			"cindex": 55
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-188-generic",
 			"cindex": 55
 		},
 		{
