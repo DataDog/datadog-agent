@@ -2860,8 +2860,9 @@ api_key:
 
 ## @param collect_kubernetes_events - boolean - optional - default: false
 ## @env DD_COLLECT_KUBERNETES_EVENTS - boolean - optional - default: false
-## Set `collect_kubernetes_events` to true to enable log collection.
-## Note: leader election must be enabled must be enabled  bellow to to collect events.
+## Set `collect_kubernetes_events` to true to enable collection of kubernetes
+## events to be sent to Datadog.
+## Note: leader election must be enabled must be enabled below to to collect events.
 ##       Only the leader Agent collects events.
 ## See https://github.com/DataDog/datadog-agent/blob/main/Dockerfiles/agent/README.md#event-collection
 #
