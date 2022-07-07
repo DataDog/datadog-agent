@@ -19,14 +19,14 @@ import (
 )
 
 func TestMoveConfigurationsFiles(t *testing.T) {
-	srcFolder, _ := ioutil.TempDir("", "srcFolder")
-	dstFolder, _ := ioutil.TempDir("", "dstFolder")
-	defer os.RemoveAll(srcFolder)
-	defer os.RemoveAll(dstFolder)
+	srcFolder := t.TempDir()
+	dstFolder := t.TempDir()
 	yamlFiles := []string{"conf.yaml.example", "conf.yaml.default", "metrics.yaml", "auto_conf.yaml"}
 	otherFile := "not_moved.txt"
 	for _, filename := range append(yamlFiles, otherFile) {
-		os.Create(filepath.Join(srcFolder, filename))
+		f, err := os.Create(filepath.Join(srcFolder, filename))
+		assert.NoError(t, err)
+		assert.NoError(t, f.Close())
 	}
 
 	filesCreated, _ := ioutil.ReadDir(srcFolder)
@@ -47,15 +47,17 @@ func TestMoveConfigurationsFiles(t *testing.T) {
 }
 
 func TestMoveConfigurationsFilesProfiles(t *testing.T) {
-	srcFolder, _ := ioutil.TempDir("", "srcFolder")
-	dstFolder, _ := ioutil.TempDir("", "dstFolder")
-	defer os.RemoveAll(srcFolder)
-	defer os.RemoveAll(dstFolder)
+	srcFolder := t.TempDir()
+	dstFolder := t.TempDir()
 	os.MkdirAll(filepath.Join(srcFolder, "profiles"), 0755)
-	os.Create(filepath.Join(srcFolder, "profiles", "device.yaml"))
+	f, err := os.Create(filepath.Join(srcFolder, "profiles", "device.yaml"))
+	assert.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, f.Close())
+	})
 
 	moveConfigurationFiles(srcFolder, dstFolder)
-	_, err := os.Stat(filepath.Join(dstFolder, "profiles", "device.yaml"))
+	_, err = os.Stat(filepath.Join(dstFolder, "profiles", "device.yaml"))
 	assert.Nil(t, err)
 }
 
