@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/trace
 go 1.17
 
 require (
+	github.com/DataDog/datadog-agent v0.0.0-20220622175024-d44ffc613aaf
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.38.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.38.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.38.0-rc.3
@@ -25,8 +26,6 @@ require (
 	google.golang.org/grpc v1.47.0
 	k8s.io/apimachinery v0.23.8
 )
-
-require github.com/DataDog/datadog-agent v0.0.0-20220622175024-d44ffc613aaf
 
 require (
 	github.com/DataDog/viper v1.9.0 // indirect
@@ -112,7 +111,6 @@ require (
 	golang.org/x/net v0.0.0-20220520000938-2e3eb7b945c2 // indirect
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
-	go.uber.org/atomic v1.9.0 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220519153652-3a47de7e79bd // indirect
@@ -132,6 +130,7 @@ require (
 )
 
 replace (
+	github.com/DataDog/datadog-agent => ../../
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ../obfuscate
 	github.com/DataDog/datadog-agent/pkg/otlp/model => ../otlp/model
 	github.com/DataDog/datadog-agent/pkg/quantile => ../quantile
