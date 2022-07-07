@@ -31,6 +31,7 @@ func NewJobFactory() customresource.RegistryFactory {
 
 type jobFactory struct{}
 
+// Name is the name of the factory
 func (f *jobFactory) Name() string {
 	return "jobs_extended"
 }
@@ -40,11 +41,12 @@ func (f *jobFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
 	panic("not implemented")
 }
 
+// MetricFamilyGenerators returns the extended job metric family generators
 func (f *jobFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGenerator(
 			"kube_job_duration",
-			"Duration represents the time elapsed between the StartTime and CompletionTime of a Job",
+			"Duration represents the time elapsed between the StartTime and CompletionTime of a Job, or the current time if the job is still running",
 			metric.Gauge,
 			"",
 			wrapJobFunc(func(j *batchv1.Job) *metric.Family {
@@ -89,10 +91,12 @@ func wrapJobFunc(f func(*batchv1.Job) *metric.Family) func(interface{}) *metric.
 	}
 }
 
+// ExpectedType returns the type expected by the factory
 func (f *jobFactory) ExpectedType() interface{} {
 	return &batchv1.Job{}
 }
 
+// ListWatch returns a ListerWatcher for batchv1.Job
 func (f *jobFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
 	client := customResourceClient.(kubernetes.Interface)
 	return &cache.ListWatch{
