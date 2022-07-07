@@ -857,6 +857,7 @@ core,go.opentelemetry.io/collector/service/internal/runtimeinfo,Apache-2.0,Copyr
 core,go.opentelemetry.io/collector/service/internal/telemetry,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/telemetrylogs,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/zpages,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/service/telemetry,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp,Apache-2.0,Copyright The OpenTelemetry Authors
