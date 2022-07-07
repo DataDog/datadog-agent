@@ -200,8 +200,7 @@ func (c *Client) pruneTargetFiles() error {
 	for target := range targetFiles {
 		keptTargetFiles = append(keptTargetFiles, target)
 	}
-	c.targetStore.pruneTargetFiles(keptTargetFiles)
-	return nil
+	return c.targetStore.pruneTargetFiles(keptTargetFiles)
 }
 
 func (c *Client) verify() error {

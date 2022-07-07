@@ -152,7 +152,7 @@ func (t *transaction) getAll(bucketName string) ([]pathData, error) {
 	return t.store.getAll(bucketName)
 }
 
-func (t *transaction) pruneTargetFiles(bucketName string, keptPaths []string) {
+func (t *transaction) pruneTargetFiles(bucketName string, keptPaths []string) error {
 	kept := make(map[string]struct{})
 	for _, k := range keptPaths {
 		kept[k] = struct{}{}
@@ -167,7 +167,7 @@ func (t *transaction) pruneTargetFiles(bucketName string, keptPaths []string) {
 	}
 
 	// delete in-memory based on files in the DB
-	_ = t.store.db.View(func(tx *bbolt.Tx) error {
+	return t.store.db.View(func(tx *bbolt.Tx) error {
 		targetBucket := tx.Bucket([]byte(bucketName))
 		if targetBucket == nil {
 			return nil

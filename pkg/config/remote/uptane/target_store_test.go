@@ -51,7 +51,8 @@ func TestTargetStore(t *testing.T) {
 	assert.True(t, found)
 	assert.Equal(t, target3.Raw, returnedTarget3)
 
-	store.pruneTargetFiles([]string{target1.Path, target3.Path})
+	err = store.pruneTargetFiles([]string{target1.Path, target3.Path})
+	assert.NoError(t, err)
 	returnedTarget1, found, err = store.getTargetFile(target1.Path)
 	assert.NoError(t, err)
 	assert.True(t, found)
