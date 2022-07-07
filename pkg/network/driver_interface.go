@@ -36,6 +36,10 @@ const (
 	// these are only sort-of honored for now
 	defaultMaxOpenFlows   = uint64(32767)
 	defaultMaxClosedFlows = uint64(32767)
+
+	// starting number of entries usermode flow buffer can contain
+	defaultFlowEntries      = 50
+	defaultDriverBufferSize = defaultFlowEntries * driver.PerFlowDataSize
 )
 
 // DriverExpvarNames is a list of all the DriverExpvar names returned from GetStats
@@ -69,8 +73,8 @@ func NewDriverInterface(cfg *config.Config) (*DriverInterface, error) {
 	dc := &DriverInterface{
 		cfg:                   cfg,
 		enableMonotonicCounts: cfg.EnableMonotonicCount,
-		readBuffer:            make([]byte, cfg.DriverBufferSize),
-		bufferSize:            int64(cfg.DriverBufferSize),
+		readBuffer:            make([]byte, defaultDriverBufferSize),
+		bufferSize:            int64(defaultDriverBufferSize),
 		maxOpenFlows:          uint64(cfg.MaxTrackedConnections),
 		maxClosedFlows:        uint64(cfg.MaxClosedConnectionsBuffered),
 	}
@@ -215,10 +219,10 @@ func (di *DriverInterface) GetConnectionStats(activeBuf *ConnectionBuffer, close
 				}
 			}
 		}
-	}
 
-	di.readBuffer = resizeDriverBuffer(int(totalBytesRead), di.readBuffer)
-	atomic.StoreInt64(&di.bufferSize, int64(len(di.readBuffer)))
+		di.readBuffer = resizeDriverBuffer(int(totalBytesRead), di.readBuffer)
+		atomic.StoreInt64(&di.bufferSize, int64(len(di.readBuffer)))
+	}
 
 	activeCount := activeBuf.Len() - startActive
 	closedCount := closedBuf.Len() - startClosed
