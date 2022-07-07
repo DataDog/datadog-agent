@@ -31,6 +31,12 @@ type transactionalStore struct {
 	cachedData map[string]dbBucket
 }
 
+// Represents a transaction around the store.
+// It doesn't provide any locking, as it's all managed by View/Update calls
+type transaction struct {
+	store *transactionalStore
+}
+
 func newTransactionalStore(db *bbolt.DB) *transactionalStore {
 	s := &transactionalStore{
 		db:         db,
@@ -47,48 +53,6 @@ func (ts *transactionalStore) getMemBucket(bucketName string) dbBucket {
 		ts.cachedData[bucketName] = cachedBucket
 	}
 	return cachedBucket
-}
-
-// Represents a transaction around the store.
-// It doesn't provide any locking, as it's all managed by View/Update calls
-type transaction struct {
-	store *transactionalStore
-}
-
-func (t *transaction) put(bucketName string, path string, data []byte) {
-	bucket := t.store.getMemBucket(bucketName)
-	bucket[path] = data
-}
-
-func (t *transaction) delete(bucketName string, path string) {
-	bucket := t.store.getMemBucket(bucketName)
-	bucket[path] = nil
-}
-
-func (t *transaction) get(bucketName string, path string) ([]byte, error) {
-	bucket := t.store.getMemBucket(bucketName)
-
-	// check if it's present in the in-memory cache
-	data, ok := bucket[path]
-	if ok {
-		return data, nil
-	}
-
-	// fallback to DB access
-	err := t.store.db.View(func(tx *bbolt.Tx) error {
-		bucket := tx.Bucket([]byte(bucketName))
-		if bucket == nil {
-			return nil
-		}
-		data = bucket.Get([]byte(path))
-		return nil
-	})
-
-	if len(data) == 0 {
-		err = errors.Wrapf(err, "File empty or not found: %s in bucket %s", path, bucketName)
-	}
-
-	return data, err
 }
 
 type pathData struct {
@@ -224,4 +188,40 @@ func (ts *transactionalStore) rollback() {
 	ts.lock.Lock()
 	defer ts.lock.Unlock()
 	ts.clearCache()
+}
+
+func (t *transaction) put(bucketName string, path string, data []byte) {
+	bucket := t.store.getMemBucket(bucketName)
+	bucket[path] = data
+}
+
+func (t *transaction) delete(bucketName string, path string) {
+	bucket := t.store.getMemBucket(bucketName)
+	bucket[path] = nil
+}
+
+func (t *transaction) get(bucketName string, path string) ([]byte, error) {
+	bucket := t.store.getMemBucket(bucketName)
+
+	// check if it's present in the in-memory cache
+	data, ok := bucket[path]
+	if ok {
+		return data, nil
+	}
+
+	// fallback to DB access
+	err := t.store.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(bucketName))
+		if bucket == nil {
+			return nil
+		}
+		data = bucket.Get([]byte(path))
+		return nil
+	})
+
+	if len(data) == 0 {
+		err = errors.Wrapf(err, "File empty or not found: %s in bucket %s", path, bucketName)
+	}
+
+	return data, err
 }
