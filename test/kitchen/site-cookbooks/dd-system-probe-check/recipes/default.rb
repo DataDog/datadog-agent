@@ -21,15 +21,14 @@ remote_directory testdir do
   mode '755'
   files_mode '755'
   sensitive true
-  case
-  when !platform?('windows')
+  unless platform?('windows')
     files_owner 'root'
   end
 end
 
 file ::File.join(testdir, 'color_idx') do
   content node[:color_idx].to_s
-  when !platform?('windows')
+  unless platform?('windows')
     mode 644
   end
 end
