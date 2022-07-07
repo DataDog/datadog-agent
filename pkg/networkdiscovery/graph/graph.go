@@ -30,6 +30,8 @@ func GraphTopology() {
 		}
 		g.Close()
 	}()
+	// layouts: circo dot fdp neato nop nop1 nop2 osage patchwork sfdp twopi
+	graph.SetLayout("sfdp")
 	topologyFolder := "/tmp/topology"
 	for _, file := range findFiles(topologyFolder, ".json") {
 		fmt.Println(file)
@@ -74,6 +76,7 @@ func graphForFile(graph *cgraph.Graph, sourceFile string) {
 	payload.Device.Name = profile // TODO: refactor me, this is a workaround to create a device per profile
 
 	localDev, err := createNode(graph, payload.Device)
+	localDev.SetColor("red")
 	if err != nil {
 		log.Error(err)
 		return
@@ -93,27 +96,39 @@ func graphForFile(graph *cgraph.Graph, sourceFile string) {
 			log.Error(err)
 			return
 		}
-		e.SetHeadLabel(conn.Local.Interface.Id)
-		e.SetTailLabel(conn.Remote.Interface.Id)
+
+		e.SetHeadLabel("\n\n" + interfaceName(conn.Local.Interface) + "\n\n")
+		e.SetTailLabel("\n\n" + interfaceName(conn.Remote.Interface) + "\n\n")
 	}
+}
+
+func interfaceName(interf payload.Interface) string {
+	formatInterfaceName := interf.Id
+	if interf.IdType != "" {
+		formatInterfaceName += "\n(" + interf.IdType + ")"
+	}
+	return formatInterfaceName
 }
 
 func createNode(graph *cgraph.Graph, device payload.Device) (*cgraph.Node, error) {
 	var nodeName string
 	if device.IP != "" {
-		nodeName = device.IP
+		nodeName = "IP: " + device.IP
 	}
 	if device.Name != "" {
 		if nodeName != "" {
 			nodeName += "\n"
 		}
-		nodeName += "(" + device.Name + ")"
+		nodeName += "Name: " + device.Name
 	}
-	if nodeName == "" && device.ChassisId != "" {
+	if device.ChassisId != "" {
 		if nodeName != "" {
 			nodeName += "\n"
 		}
-		nodeName += "[" + device.ChassisId + "]"
+		nodeName += "chassisId: " + device.ChassisId
+		if device.ChassisIdType != "" {
+			nodeName += "\nchassisIdType: " + device.ChassisIdType
+		}
 	}
 
 	if nodeName == "" {
