@@ -23,7 +23,7 @@ network_devices:
     ip_address: 127.0.0.1
     port: 1161
     snmp_version: 2
-    community_string: aos
+    community_string: ciena-sds
     oid_batch_size: 10
 `)))
 	require.NoError(t, err)
@@ -37,10 +37,14 @@ network_devices:
 	mainConfig, err := config.ReadConfig()
 	assert.NoError(t, err)
 
-	dc := &DiscoveryCollector{
-		sender:   sender,
-		hostname: "my-hostname",
-		config:   mainConfig,
+	profiles := []string{"ciena-sds", "aos", "aos6"}
+	for _, profile := range profiles {
+		mainConfig.CommunityString = profile
+		dc := &DiscoveryCollector{
+			sender:   sender,
+			hostname: "my-hostname",
+			config:   mainConfig,
+		}
+		dc.Collect()
 	}
-	dc.Collect()
 }
