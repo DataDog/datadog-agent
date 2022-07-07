@@ -49,7 +49,7 @@ type ModuleDep struct {
 // DependencyTree is a structure that identifies a module and all of its
 // children in a recursive tree
 type DependencyTree struct {
-	Mod          Module
+	Mod          *Module
 	Dependencies []DependencyTree
 }
 
@@ -330,7 +330,7 @@ func resolveRecursive(
 	}
 
 	return &DependencyTree{
-		Mod:          actualModule,
+		Mod:          &actualModule,
 		Dependencies: dependencies,
 	}, nil
 }
@@ -342,7 +342,7 @@ func recomputeDependencyTree(
 ) (*DependencyTree, error) {
 	// Main root node
 	depTree := DependencyTree{
-		Mod: *rootModule,
+		Mod: rootModule,
 	}
 
 	// Some deps have circular dependencies so we need to break out when
@@ -370,7 +370,7 @@ func recomputeDependencyTree(
 // TODO: Actually use `skipDuplicates` value
 func printDepTree(buf *bufio.Writer, depTree *DependencyTree, level int, skipDuplicates bool) {
 	for idx := 0; idx < level; idx++ {
-		io.WriteString(buf, "    ")
+		io.WriteString(buf, "\t")
 	}
 
 	io.WriteString(buf, fmt.Sprintf("- %s@%s\n", depTree.Mod.Path, depTree.Mod.Version))
