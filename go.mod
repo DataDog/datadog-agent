@@ -142,13 +142,13 @@ require (
 	github.com/prometheus/client_golang v1.12.2
 	github.com/richardartoul/molecule v0.0.0-20210914193524-25d8911bb85b
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
-	github.com/shirou/gopsutil/v3 v3.22.5
+	github.com/shirou/gopsutil/v3 v3.22.6
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
 	github.com/skydive-project/go-debouncer v1.0.0 // indirect
 	github.com/spf13/afero v1.8.2
-	github.com/spf13/cobra v1.4.0
+	github.com/spf13/cobra v1.5.0
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.7.4
+	github.com/stretchr/testify v1.8.0
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/theupdateframework/go-tuf v0.3.0
 	github.com/tinylib/msgp v1.1.6
@@ -160,7 +160,7 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.etcd.io/bbolt v1.3.6
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
-	go.opentelemetry.io/collector v0.54.0
+	go.opentelemetry.io/collector v0.55.0
 	go.opentelemetry.io/collector/pdata v0.54.0
 	go.uber.org/automaxprocs v1.5.1
 	go.uber.org/multierr v1.8.0
@@ -293,7 +293,7 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/josharian/native v1.0.0 // indirect
 	github.com/kjk/lzma v0.0.0-20161016003348-3fd93898850d // indirect
-	github.com/klauspost/compress v1.15.6 // indirect
+	github.com/klauspost/compress v1.15.7 // indirect
 	github.com/klauspost/pgzip v1.2.5 // indirect
 	github.com/knadh/koanf v1.4.2 // indirect
 	github.com/lufia/plan9stats v0.0.0-20220517141722-cf486979b281 // indirect
@@ -328,7 +328,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
-	github.com/prometheus/common v0.34.0 // indirect
+	github.com/prometheus/common v0.35.0 // indirect
 	github.com/prometheus/procfs v0.7.3
 	github.com/prometheus/statsd_exporter v0.21.0 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
