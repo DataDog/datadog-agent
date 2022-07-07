@@ -12,6 +12,9 @@ import (
 
 // simpleConfigManager implements the "simple" config manager that reconciles
 // services and templates without any priority, using a store as a backend.
+//
+// simpleConfigManager will be fully replaced by reconcilingConfigManager when
+// the `logs_config.cca_in_ad` feature flag is removed.
 type simpleConfigManager struct {
 	// m synchronizes all operations on this struct.
 	m sync.Mutex
