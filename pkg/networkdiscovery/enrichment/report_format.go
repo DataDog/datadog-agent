@@ -18,6 +18,9 @@ func FormatValue(value valuestore.ResultValue, format string) (valuestore.Result
 		val := value.Value.([]byte)
 		switch format {
 		case "mac_address":
+			if len(val) != 6 {
+				break
+			}
 			// Format mac address from OctetString to IEEE 802.1a canonical format e.g. `82:a5:6e:a5:c8:01`
 			value.Value = formatColonSepBytes(val)
 		default:

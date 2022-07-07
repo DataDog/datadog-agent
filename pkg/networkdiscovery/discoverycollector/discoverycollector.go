@@ -8,6 +8,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/enrichment"
 	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/fetch"
+	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/graph"
 	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/session"
 	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -272,6 +273,8 @@ func (dc *DiscoveryCollector) Collect() {
 	log.Infof("topology payload | %s", string(payloadBytes))
 
 	dc.writeToFile(payloadBytes)
+
+	graph.GraphTopology()
 }
 
 func (dc *DiscoveryCollector) writeToFile(payloadBytes []byte) {
@@ -282,7 +285,7 @@ func (dc *DiscoveryCollector) writeToFile(payloadBytes []byte) {
 		fileName = dc.config.ContextName
 	}
 	folderName := "/tmp/topology"
-	filePath := folderName + "/" + fileName
+	filePath := folderName + "/" + fileName + ".json"
 	err := os.MkdirAll("/tmp/topology", os.ModePerm)
 	if err != nil {
 		log.Errorf("Error creating topology folder: %s", err)

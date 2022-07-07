@@ -8,6 +8,10 @@ import (
 func buildPayload(remoteConns []common.LldpRemote, hostname string) payload.TopologyPayload {
 	p := payload.TopologyPayload{
 		Host: hostname,
+		Device: payload.Device{
+			IP:   "127.0.0.1", // TODO: Update with real data
+			Name: "my-device", // TODO: Update with real data
+		},
 	}
 	for _, remoteCon := range remoteConns {
 		var remManAddr string
