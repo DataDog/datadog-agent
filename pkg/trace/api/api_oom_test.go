@@ -13,24 +13,24 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
-	"go.uber.org/atomic"
 )
 
 func TestOOMKill(t *testing.T) {
-	kills := atomic.NewUint64(0)
+	var kills uint64
 
 	defer func(old func(string, ...interface{})) { killProcess = old }(killProcess)
 	killProcess = func(format string, a ...interface{}) {
 		if format != "OOM" {
 			t.Fatalf("wrong message: %s", fmt.Sprintf(format, a...))
 		}
-		kills.Inc()
+		atomic.AddUint64(&kills, 1)
 	}
 
 	conf := config.New()
@@ -83,7 +83,7 @@ loop:
 		case <-timeout:
 			break loop
 		default:
-			if kills.Load() > 1 {
+			if atomic.LoadUint64(&kills) > 1 {
 				return
 			}
 			time.Sleep(conf.WatchdogInterval)

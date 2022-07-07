@@ -118,6 +118,15 @@ func checkAgentVersionConstraint(constraint string, agentVersion *semver.Version
 		return true, nil
 	}
 
+	withoutPreAgentVersion, err := agentVersion.SetPrerelease("")
+	if err != nil {
+		return true, nil
+	}
+	cleanAgentVersion, err := withoutPreAgentVersion.SetMetadata("")
+	if err != nil {
+		return true, nil
+	}
+
 	constraint = strings.TrimSpace(constraint)
 	if constraint == "" {
 		return true, nil
@@ -128,5 +137,5 @@ func checkAgentVersionConstraint(constraint string, agentVersion *semver.Version
 		return false, err
 	}
 
-	return semverConstraint.Check(agentVersion), nil
+	return semverConstraint.Check(&cleanAgentVersion), nil
 }

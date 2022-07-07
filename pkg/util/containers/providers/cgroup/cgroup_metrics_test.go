@@ -18,9 +18,7 @@ import (
 )
 
 func TestCPU(t *testing.T) {
-	tempFolder, err := newTempFolder("cpu-stats")
-	assert.Nil(t, err)
-	defer tempFolder.removeAll()
+	tempFolder := newTempFolder(t)
 
 	cpuacctStats := dummyCgroupStat{
 		"user":   64140,
@@ -41,9 +39,7 @@ func TestCPU(t *testing.T) {
 }
 
 func TestCPULimit(t *testing.T) {
-	tempFolder, err := newTempFolder("cpu-limit")
-	assert.Nil(t, err)
-	defer tempFolder.removeAll()
+	tempFolder := newTempFolder(t)
 
 	// CFS period and quota
 	tempFolder.add("cpu/cpu.cfs_period_us", "100000")
@@ -66,9 +62,7 @@ func TestCPULimit(t *testing.T) {
 }
 
 func TestCPUNrThrottled(t *testing.T) {
-	tempFolder, err := newTempFolder("cpu-throttled")
-	assert.Nil(t, err)
-	defer tempFolder.removeAll()
+	tempFolder := newTempFolder(t)
 
 	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "cpu")
 
@@ -97,9 +91,7 @@ func TestCPUNrThrottled(t *testing.T) {
 }
 
 func TestMemLimit(t *testing.T) {
-	tempFolder, err := newTempFolder("mem-limit")
-	assert.Nil(t, err)
-	defer tempFolder.removeAll()
+	tempFolder := newTempFolder(t)
 
 	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "memory")
 
@@ -129,9 +121,7 @@ func TestMemLimit(t *testing.T) {
 }
 
 func TestSoftMemLimit(t *testing.T) {
-	tempFolder, err := newTempFolder("soft-mem-limit")
-	assert.Nil(t, err)
-	defer tempFolder.removeAll()
+	tempFolder := newTempFolder(t)
 
 	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "memory")
 
@@ -161,14 +151,12 @@ func TestSoftMemLimit(t *testing.T) {
 }
 
 func TestParseSingleStat(t *testing.T) {
-	tempFolder, err := newTempFolder("test-parse-single-stat")
-	assert.Nil(t, err)
-	defer tempFolder.removeAll()
+	tempFolder := newTempFolder(t)
 
 	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "cpu")
 
 	// No file
-	_, err = cgroup.ParseSingleStat("cpu", "notfound")
+	_, err := cgroup.ParseSingleStat("cpu", "notfound")
 	assert.NotNil(t, err)
 	assert.True(t, os.IsNotExist(err))
 
@@ -194,9 +182,7 @@ func TestParseSingleStat(t *testing.T) {
 }
 
 func TestThreadLimit(t *testing.T) {
-	tempFolder, err := newTempFolder("thread-limit")
-	assert.Nil(t, err)
-	defer tempFolder.removeAll()
+	tempFolder := newTempFolder(t)
 
 	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "pids")
 
@@ -226,9 +212,7 @@ func TestThreadLimit(t *testing.T) {
 }
 
 func TestThreadCount(t *testing.T) {
-	tempFolder, err := newTempFolder("thread-count")
-	assert.Nil(t, err)
-	defer tempFolder.removeAll()
+	tempFolder := newTempFolder(t)
 
 	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "pids")
 

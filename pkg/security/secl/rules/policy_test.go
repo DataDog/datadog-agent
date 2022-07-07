@@ -58,11 +58,7 @@ func TestMacroMerge(t *testing.T) {
 		}},
 	}
 
-	tmpDir, err := os.MkdirTemp("", "test-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
 		t.Fatal(err)
@@ -132,11 +128,7 @@ func TestRuleMerge(t *testing.T) {
 		}},
 	}
 
-	tmpDir, err := os.MkdirTemp("", "test-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
 		t.Fatal(err)
@@ -315,10 +307,7 @@ func TestActionSetVariable(t *testing.T) {
 		}},
 	}
 
-	tmpDir, err := os.MkdirTemp("", "test-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
+	tmpDir := t.TempDir()
 
 	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
 		t.Fatal(err)
@@ -406,10 +395,7 @@ func TestActionSetVariableConflict(t *testing.T) {
 		}},
 	}
 
-	tmpDir, err := os.MkdirTemp("", "test-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
+	tmpDir := t.TempDir()
 
 	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
 		t.Fatal(err)
@@ -441,10 +427,7 @@ func loadPolicy(t *testing.T, testPolicy *PolicyDef, agentVersion *semver.Versio
 
 	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts, &eval.MacroStore{})
 
-	tmpDir, err := os.MkdirTemp("", "test-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
+	tmpDir := t.TempDir()
 
 	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
 		t.Fatal(err)
@@ -518,6 +501,12 @@ func TestRuleAgentConstraint(t *testing.T) {
 			agentVersion:   "7.35",
 			ruleConstraint: ">= 7.30, < 7.37, != 7.35",
 			expectLoad:     false,
+		},
+		{
+			name:           "rc_prerelease",
+			agentVersion:   "7.38.0-rc.2",
+			ruleConstraint: ">= 7.38",
+			expectLoad:     true,
 		},
 	}
 

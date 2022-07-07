@@ -11,8 +11,8 @@ package probes
 import (
 	"math"
 	"os"
-	"runtime"
 
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
@@ -22,9 +22,8 @@ const (
 	minPathnamesEntries = 64000 // ~27 MB
 	maxPathnamesEntries = 96000
 
-	minProcEntries          = 16394
-	maxProcEntries          = 131072
-	maxEventsRingBufferSize = 16 * 1024 // 16384 pages
+	minProcEntries = 16394
+	maxProcEntries = 131072
 )
 
 var (
@@ -34,13 +33,21 @@ var (
 	// PLEASE NOTE: for the perf ring buffer usage metrics to be accurate, the provided value must have the
 	// following form: (1 + 2^n) * pages. Checkout https://github.com/DataDog/ebpf for more.
 	EventsPerfRingBufferSize = 257 * os.Getpagesize()
-	// EventsRingBufferSize is the default buffer size of the ring buffers for events.
-	EventsRingBufferSize int
+	// defaultEventsRingBufferSize is the default buffer size of the ring buffers for events.
+	// Must be a power of 2 and a multiple of the page size
+	defaultEventsRingBufferSize uint32
 )
 
 func init() {
-	if EventsRingBufferSize = runtime.NumCPU() * 1024; EventsRingBufferSize > maxEventsRingBufferSize {
-		EventsPerfRingBufferSize = maxEventsRingBufferSize
+	numCPU, err := utils.NumCPU()
+	if err != nil {
+		numCPU = 1
+	}
+
+	if numCPU < 64 {
+		defaultEventsRingBufferSize = uint32(64 * 256 * os.Getpagesize())
+	} else {
+		defaultEventsRingBufferSize = uint32(128 * 256 * os.Getpagesize())
 	}
 }
 
@@ -160,7 +167,7 @@ func getMaxEntries(numCPU int, min int, max int) uint32 {
 }
 
 // AllMapSpecEditors returns the list of map editors
-func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize int, supportMmapableMaps, useRingBuffers bool) map[string]manager.MapSpecEditor {
+func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize int, supportMmapableMaps, useRingBuffers bool, ringBufferSize uint32) map[string]manager.MapSpecEditor {
 	if tracedCgroupsCount <= 0 || tracedCgroupsCount > MaxTracedCgroupsCount {
 		tracedCgroupsCount = MaxTracedCgroupsCount
 	}
@@ -196,8 +203,11 @@ func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize in
 		}
 	}
 	if useRingBuffers {
+		if ringBufferSize == 0 {
+			ringBufferSize = defaultEventsRingBufferSize
+		}
 		editors["events"] = manager.MapSpecEditor{
-			MaxEntries: uint32(EventsRingBufferSize),
+			MaxEntries: ringBufferSize,
 			Type:       ebpf.RingBuf,
 			EditorFlag: manager.EditType | manager.EditMaxEntries,
 		}

@@ -216,6 +216,7 @@ func init() {
 		return &ProcessAgentCheck{
 			stop:     make(chan struct{}),
 			stopDone: make(chan struct{}),
+			running:  atomic.NewBool(false),
 		}
 	}
 	core.RegisterCheck("process_agent", factory)

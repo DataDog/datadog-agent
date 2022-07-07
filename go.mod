@@ -41,11 +41,11 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/DataDog/agent-payload/v5 v5.0.23
 	github.com/DataDog/btf-internals v0.0.0-20220424171854-ebe6bce9afb0
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.38.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.38.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/quantile v0.38.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.38.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/trace v0.38.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.38.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.38.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/quantile v0.38.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.38.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/trace v0.38.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
 	github.com/DataDog/ebpf-manager v0.0.0-20220627174516-12adb97b679e
@@ -55,7 +55,7 @@ require (
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/DataDog/viper v1.9.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.0-rc.1.0.20220530183114-687bca6395e8
-	github.com/DataDog/zstd v1.5.0
+	github.com/DataDog/zstd v1.5.2
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/sprig v2.22.0+incompatible
@@ -94,7 +94,7 @@ require (
 	github.com/elastic/go-libaudit v0.4.0
 	github.com/fatih/color v1.13.0
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
-	github.com/go-ini/ini v1.66.4
+	github.com/go-ini/ini v1.66.6
 	github.com/go-ole/go-ole v1.2.6
 	github.com/gobwas/glob v0.2.3
 	github.com/godbus/dbus v4.1.0+incompatible
@@ -118,7 +118,7 @@ require (
 	github.com/imdario/mergo v0.3.12
 	github.com/invopop/jsonschema v0.4.0
 	github.com/iovisor/gobpf v0.2.0
-	github.com/itchyny/gojq v0.12.7
+	github.com/itchyny/gojq v0.12.8
 	github.com/json-iterator/go v1.1.12
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/karrick/godirwalk v1.16.1
@@ -160,7 +160,7 @@ require (
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
 	go.opentelemetry.io/collector v0.54.0
 	go.opentelemetry.io/collector/pdata v0.54.0
-	go.uber.org/automaxprocs v1.4.0
+	go.uber.org/automaxprocs v1.5.1
 	go.uber.org/multierr v1.8.0
 	go.uber.org/zap v1.21.0
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
@@ -209,7 +209,7 @@ require (
 
 require github.com/netsampler/goflow2 v1.1.0
 
-require github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.38.0-rc.1
+require github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.38.0-rc.3
 
 require (
 	cloud.google.com/go v0.100.2 // indirect
@@ -408,6 +408,8 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
+
+require github.com/robfig/cron v1.2.0
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible

@@ -25,10 +25,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util"
 
 	// util.GetHostname(...) will panic without this import
 	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/cgroup"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 func getTracedCgroupsCount(p *Probe) uint64 {
@@ -200,7 +200,7 @@ func (adm *ActivityDumpManager) prepareContextTags() {
 	var err error
 
 	// add hostname tag
-	adm.hostname, err = util.GetHostname(context.TODO())
+	adm.hostname, err = hostname.Get(context.TODO())
 	if err != nil {
 		adm.hostname = "unknown"
 	}
@@ -291,7 +291,7 @@ func (adm *ActivityDumpManager) HandleCgroupTracingEvent(event *model.CgroupTrac
 	}
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
 		ad.DumpMetadata.ContainerID = event.ContainerContext.ID
-		ad.DumpMetadata.Timeout = adm.probe.resolvers.TimeResolver.ResolveMonotonicTimestamp(event.TimeoutRaw).Sub(time.Now())
+		ad.DumpMetadata.Timeout = time.Until(adm.probe.resolvers.TimeResolver.ResolveMonotonicTimestamp(event.TimeoutRaw))
 		ad.DumpMetadata.DifferentiateArgs = adm.probe.config.ActivityDumpCgroupDifferentiateGraphs
 	})
 

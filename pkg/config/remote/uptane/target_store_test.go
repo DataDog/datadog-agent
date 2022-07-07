@@ -13,7 +13,7 @@ import (
 )
 
 func TestTargetStore(t *testing.T) {
-	db := getTestDB()
+	db := getTestDB(t)
 	store, err := newTargetStore(db, "testcachekey")
 	assert.NoError(t, err)
 

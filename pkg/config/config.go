@@ -366,8 +366,9 @@ func InitConfig(config Config) {
 	// IPC API server timeout
 	config.BindEnvAndSetDefault("server_timeout", 30)
 
-	// Use to force client side TLS version to 1.2
-	config.BindEnvAndSetDefault("force_tls_12", false)
+	// Configuration for TLS for outgoing connections
+	config.BindEnvAndSetDefault("force_tls_12", false) // deprecated
+	config.BindEnvAndSetDefault("min_tls_version", "") // default depends on force_tls_12
 
 	// Defaults to safe YAML methods in base and custom checks.
 	config.BindEnvAndSetDefault("disable_unsafe_yaml", true)
@@ -656,7 +657,11 @@ func InitConfig(config Config) {
 	config.SetKnown("network_devices.snmp_traps.users")
 
 	// NetFlow
-	config.SetKnown("network_devices.netflow")
+	config.SetKnown("network_devices.netflow.listeners")
+	config.SetKnown("network_devices.netflow.stop_timeout")
+	config.SetKnown("network_devices.netflow.aggregator_buffer_size")
+	config.SetKnown("network_devices.netflow.aggregator_flush_interval")
+	config.SetKnown("network_devices.netflow.log_payloads")
 	config.BindEnvAndSetDefault("network_devices.netflow.enabled", "false")
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.netflow.forwarder.")
 
