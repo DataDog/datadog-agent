@@ -86,7 +86,7 @@ type DumpMetadata struct {
 // is used to generate the activity dump metadata sent to the event platform.
 // easyjson:json
 type ActivityDump struct {
-	sync.Mutex         `msg:"-"`
+	*sync.Mutex        `msg:"-"`
 	state              ActivityDumpStatus
 	adm                *ActivityDumpManager
 	processedCount     map[model.EventType]*atomic.Uint64
@@ -115,6 +115,7 @@ type WithDumpOption func(ad *ActivityDump)
 // NewActivityDump returns a new instance of an ActivityDump
 func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *ActivityDump {
 	ad := ActivityDump{
+		Mutex: &sync.Mutex{},
 		DumpMetadata: DumpMetadata{
 			AgentVersion:        version.AgentVersion,
 			AgentCommit:         version.Commit,
@@ -164,6 +165,7 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 	}
 
 	ad := ActivityDump{
+		Mutex:              &sync.Mutex{},
 		CookiesNode:        make(map[uint32]*ProcessActivityNode),
 		processedCount:     make(map[model.EventType]*atomic.Uint64),
 		addedRuntimeCount:  make(map[model.EventType]*atomic.Uint64),
@@ -669,18 +671,17 @@ func (ad *ActivityDump) Unzip(inputFile string, ext string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("couldn't open input file: %w", err)
 	}
+	defer f.Close()
 
 	seclog.Infof("unzipping %s", inputFile)
 	gzipReader, err := gzip.NewReader(f)
 	if err != nil {
-		f.Close()
 		return "", fmt.Errorf("couldn't create gzip reader: %w", err)
 	}
 	defer gzipReader.Close()
 
 	outputFile, err := os.Create(strings.TrimSuffix(inputFile, ext))
 	if err != nil {
-		f.Close()
 		return "", fmt.Errorf("couldn't create gzip output file: %w", err)
 	}
 	defer outputFile.Close()
@@ -951,6 +952,11 @@ func (pan *ProcessActivityNode) insertSnapshotedSocket(p *process.Process, ad *A
 	}
 }
 
+var (
+	socketRe = regexp.MustCompile(`socket:\[[0-9]+\]`)
+	inodeRe  = regexp.MustCompile(`[0-9]+`)
+)
+
 func (pan *ProcessActivityNode) snapshotBoundSockets(p *process.Process, ad *ActivityDump) error {
 	// list all the file descriptors opened by the process
 	FDs, err := p.OpenFiles()
@@ -958,19 +964,10 @@ func (pan *ProcessActivityNode) snapshotBoundSockets(p *process.Process, ad *Act
 		return err
 	}
 
-	// search for sockets only, exprimed in the form of "socket:[inode]"
-	rSocket, err := regexp.Compile("socket:\\[[0-9]+\\]")
-	if err != nil {
-		return err
-	}
-	rInode, err := regexp.Compile("[0-9]+")
-	if err != nil {
-		return err
-	}
 	var sockets []uint64
 	for _, fd := range FDs {
-		if rSocket.MatchString(fd.Path) {
-			sock, err := strconv.Atoi(rInode.FindString(fd.Path))
+		if socketRe.MatchString(fd.Path) {
+			sock, err := strconv.Atoi(inodeRe.FindString(fd.Path))
 			if err != nil {
 				return err
 			}
