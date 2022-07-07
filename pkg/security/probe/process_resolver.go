@@ -399,7 +399,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	// args and envs
 	if len(filledProc.Cmdline) > 0 {
 		entry.ArgsEntry = &model.ArgsEntry{
-			Values: filledProc.Cmdline[1:],
+			Values: filledProc.Cmdline,
 		}
 	}
 
