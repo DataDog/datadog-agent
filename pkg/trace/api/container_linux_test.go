@@ -14,10 +14,12 @@ import (
 	"os"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -73,32 +75,69 @@ func TestConnContext(t *testing.T) {
 }
 
 type testProvider struct {
+	c testMetaCollector
 }
 
+func (p *testProvider) GetCollector(runtime string) provider.Collector             { return nil }
+func (p *testProvider) GetMetaCollector() provider.MetaCollector                   { return &p.c }
+func (p *testProvider) RegisterCollector(collectorMeta provider.CollectorMetadata) {}
+
+type testMetaCollector struct {
+	pids map[int]string
+}
+
+func (c *testMetaCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
+	return c.pids[pid], nil
+}
+func (c *testMetaCollector) GetSelfContainerID() (string, error) { return "", nil }
+
 func TestGetContainerID(t *testing.T) {
+	const containerID = "abcdef"
+	const containerPID = 1234
 	originalProvider := metrics.GetProvider
-	metrics.GetProvider = testProvider{}
+	tp := testProvider{}
+	tp.c.pids = map[int]string{containerPID: containerID}
+	metrics.GetProvider = func() provider.Provider { return &tp }
 	defer func() { metrics.GetProvider = originalProvider }()
 
-	const containerID = "abcdef"
 	t.Run("header", func(t *testing.T) {
-		req := http.NewRequest("GET", "http://example.com", nil)
+		req, err := http.NewRequest("GET", "http://example.com", nil)
+		if !assert.NoError(t, err) {
+			t.Fail()
+		}
 		req.Header.Add(headerContainerID, containerID)
 		assert.Equal(t, containerID, GetContainerID(req.Context(), req.Header))
 	})
 	t.Run("header-cred", func(t *testing.T) {
-		ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: 1234})
-		req := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
+		ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: containerPID})
+		req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
+		if !assert.NoError(t, err) {
+			t.Fail()
+		}
 		req.Header.Add(headerContainerID, containerID)
 		assert.Equal(t, containerID, GetContainerID(req.Context(), req.Header))
 	})
 	t.Run("cred", func(t *testing.T) {
-		ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: 1234})
-		req := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
+		ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: containerPID})
+		req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
+		if !assert.NoError(t, err) {
+			t.Fail()
+		}
 		assert.Equal(t, containerID, GetContainerID(req.Context(), req.Header))
 	})
+	t.Run("badcred", func(t *testing.T) {
+		ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: 2345})
+		req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
+		if !assert.NoError(t, err) {
+			t.Fail()
+		}
+		assert.Equal(t, "", GetContainerID(req.Context(), req.Header))
+	})
 	t.Run("empty", func(t *testing.T) {
-		req := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
+		req, err := http.NewRequest("GET", "http://example.com", nil)
+		if !assert.NoError(t, err) {
+			t.Fail()
+		}
 		assert.Equal(t, "", GetContainerID(req.Context(), req.Header))
 	})
 }

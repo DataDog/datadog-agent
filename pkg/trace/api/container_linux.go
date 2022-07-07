@@ -62,7 +62,7 @@ func GetContainerID(ctx context.Context, h http.Header) string {
 	if !ok || ucred == nil {
 		return ""
 	}
-	cid, err := metrics.GetProvider().GetMetaCollector().GetContainerIDForPID(int(ucred.Pid), cacheDuration)
+	cid, err := metrics.GetProvider().GetMetaCollector().GetContainerIDForPID(int(ucred.Pid), cacheExpiration)
 	if err != nil {
 		log.Debugf("Could not get container ID from pid: %d: %v\n", ucred.Pid, err)
 		return ""
