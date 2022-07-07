@@ -480,8 +480,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 					// turns this metric sample into a serie
 					var serie metrics.Serie
 					serie.Name = sample.Name
-					// TODO(remy): we may have to sort uniq them?
-					// XXX(remy): do we really need to copy tags here?
+					// TODO(remy): we may have to sort uniq them? and is this copy actually needed?
 					serie.Points = []metrics.Point{{Ts: sample.Timestamp, Value: sample.Value}}
 					serie.Tags = tagset.CompositeTagsFromSlice(metricBuffer.Copy())
 					serie.Host = sample.Host
@@ -546,6 +545,7 @@ func (d *AgentDemultiplexer) AddLateMetrics(samples metrics.MetricSampleBatch) {
 		return
 	}
 
+	tlmProcessed.Add(float64(len(samples)), "late_metrics")
 	d.statsd.lateMetrics = append(d.statsd.lateMetrics, samples...)
 }
 

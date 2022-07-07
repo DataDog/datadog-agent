@@ -39,8 +39,6 @@ func newWorker(s *Server) *worker {
 		batcher = newBatcher(s.demultiplexer.(aggregator.DemultiplexerWithAggregator))
 	}
 
-	// TODO(remy): do not pre-allocate late sample if the feature is off?
-
 	return &worker{
 		server:  s,
 		batcher: batcher,
@@ -57,7 +55,6 @@ func (w *worker) run() {
 		case <-w.server.health.C:
 		case <-w.server.serverlessFlushChan:
 			w.batcher.flush()
-			// TODO(remy): what about late samples?
 		case packets := <-w.server.packetsIn:
 			w.samples = w.samples[0:0]
 			// we return the samples in case the slice was extended

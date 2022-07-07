@@ -192,10 +192,12 @@ func (b *batcher) flushSamples(shard uint32) {
 }
 
 func (b *batcher) flushLateSamples() {
-	// TODO(remy): telemetry
-
 	if b.lateSamplesCount > 0 {
+		t1 := time.Now()
 		b.demux.AddLateMetrics(b.lateSamples[:b.lateSamplesCount])
+		t2 := time.Now()
+		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "late_metrics")
+
 		b.lateSamplesCount = 0
 		b.metricSamplePool.PutBatch(b.lateSamples)
 		b.lateSamples = b.metricSamplePool.GetBatch()
