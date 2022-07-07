@@ -74,6 +74,8 @@ func (c *Client) Update(response *pbgo.LatestConfigsResponse) error {
 	defer c.Unlock()
 	c.cachedVerify = false
 
+	// in case the commit is successful it is a no-op.
+	// the defer is present to be sure a transaction is never left behind.
 	defer c.transactionalStore.rollback()
 
 	err := c.updateRepos(response)
