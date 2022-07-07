@@ -23,9 +23,9 @@ type ucredKey struct{}
 // caused by frequently reading mappings, and small enough that pid-reuse doesn't cause mismatching
 // of pids with container ids. A one minute cache means the latency and I/O should be low, and
 // there would have to be thousands of containers spawned and dying per second to cause a mismatch.
-const cacheDuration = time.Minute
+const cacheExpiration = time.Minute
 
-// connContext is a function that injects a Unix Domain Socket's User Credentials into the
+// connContext injects a Unix Domain Socket's User Credentials into the
 // context.Context object provided. This is useful as the ConnContext member of an http.Server, to
 // provide User Credentials to HTTP handlers.
 //
