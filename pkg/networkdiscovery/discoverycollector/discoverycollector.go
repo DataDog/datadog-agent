@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -269,6 +270,24 @@ func (dc *DiscoveryCollector) Collect() {
 		return
 	}
 	log.Infof("topology payload | %s", string(payloadBytes))
+
+	dc.writeToFile(payloadBytes)
+}
+
+func (dc *DiscoveryCollector) writeToFile(payloadBytes []byte) {
+	folderName := "/tmp/topology"
+	fileName := folderName + "/payload"
+	err := os.MkdirAll("/tmp/topology", os.ModePerm)
+	if err != nil {
+		log.Errorf("Error creating topology folder: %s", err)
+		return
+	}
+	err = os.WriteFile(fileName, payloadBytes, 0644)
+	if err != nil {
+		log.Errorf("Error writing to file: %s", err)
+		return
+	}
+	log.Infof("Payload written to file: %s", fileName)
 }
 
 func findRemote(mans []common.LldpRemoteManagement, remote common.LldpRemote) (*common.LldpRemoteManagement, error) {
