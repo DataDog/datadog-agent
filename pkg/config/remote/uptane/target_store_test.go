@@ -13,7 +13,7 @@ import (
 )
 
 func TestTargetStore(t *testing.T) {
-	db := newTransactionalStore(getTestDB())
+	db := newTransactionalStore(getTestDB(t))
 	defer db.commit()
 
 	store := newTargetStore(db, "testcachekey")

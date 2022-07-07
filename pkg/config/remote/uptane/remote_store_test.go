@@ -92,7 +92,7 @@ func generateUpdate(baseVersion uint64) *pbgo.LatestConfigsResponse {
 }
 
 func TestRemoteStoreConfig(t *testing.T) {
-	db := newTransactionalStore(getTestDB())
+	db := newTransactionalStore(getTestDB(t))
 	defer db.commit()
 
 	targetStore := newTargetStore(db, "testcachekey")
@@ -158,7 +158,7 @@ func TestRemoteStoreConfig(t *testing.T) {
 }
 
 func TestRemoteStoreDirector(t *testing.T) {
-	db := newTransactionalStore(getTestDB())
+	db := newTransactionalStore(getTestDB(t))
 	defer db.commit()
 	targetStore := newTargetStore(db, "testcachekey")
 	store := newRemoteStoreDirector(targetStore)
