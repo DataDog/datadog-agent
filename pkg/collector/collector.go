@@ -42,18 +42,9 @@ type Collector struct {
 
 // NewCollector create a Collector instance and sets up the Python Environment
 func NewCollector(paths ...string) *Collector {
-	run := runner.NewRunner()
-	sched := scheduler.NewScheduler(run.GetChan())
-
-	// let the runner some visibility into the scheduler
-	run.SetScheduler(sched)
-	sched.Run()
-
 	c := &Collector{
-		scheduler:      sched,
-		runner:         run,
 		checks:         make(map[check.ID]check.Check),
-		state:          atomic.NewUint32(started),
+		state:          atomic.NewUint32(stopped),
 		checkInstances: int64(0),
 	}
 	pyVer, pyHome, pyPath := pySetup(paths...)
@@ -74,6 +65,28 @@ func NewCollector(paths ...string) *Collector {
 	return c
 }
 
+// Start begins the collector's operation.  The scheduler will not run any
+// checks until this has been called.
+func (c *Collector) Start() {
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	if c.state.Load() == started {
+		return
+	}
+
+	run := runner.NewRunner()
+	sched := scheduler.NewScheduler(run.GetChan())
+
+	// let the runner some visibility into the scheduler
+	run.SetScheduler(sched)
+	sched.Run()
+
+	c.scheduler = sched
+	c.runner = run
+	c.state.Store(started)
+}
+
 // Stop halts any component involved in running a Check
 func (c *Collector) Stop() {
 	c.m.Lock()
@@ -83,10 +96,14 @@ func (c *Collector) Stop() {
 		return
 	}
 
-	c.scheduler.Stop() //nolint:errcheck
-	c.scheduler = nil
-	c.runner.Stop()
-	c.runner = nil
+	if c.scheduler != nil {
+		c.scheduler.Stop() //nolint:errcheck
+		c.scheduler = nil
+	}
+	if c.runner != nil {
+		c.runner.Stop()
+		c.runner = nil
+	}
 	c.state.Store(stopped)
 }
 

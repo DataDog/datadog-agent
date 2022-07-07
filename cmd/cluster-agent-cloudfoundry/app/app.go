@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -192,6 +193,11 @@ func run(cmd *cobra.Command, args []string) error {
 
 	// create and setup the Autoconfig instance
 	common.LoadComponents(mainCtx, config.Datadog.GetString("confd_path"))
+
+	// Set up check collector
+	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll), true)
+	common.Coll.Start()
+
 	// start the autoconfig, this will immediately run any configured check
 	common.AC.LoadAndRun()
 
