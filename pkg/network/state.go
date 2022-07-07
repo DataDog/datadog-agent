@@ -458,6 +458,7 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 			if closedConn.LastUpdateEpoch > activeConn.LastUpdateEpoch {
 				log.Debugf("closed conn newer closedConn: %s activeConn: %s", *closedConn, *activeConn)
 				ns.updateConnWithStats(client, key, closedConn)
+				delete(active, key)
 			} else if closedConn.LastUpdateEpoch < activeConn.LastUpdateEpoch {
 				log.Debugf("active conn newer closedConn: %s activeConn: %s", *closedConn, *activeConn)
 				// Else if the active conn is newer, it likely means that it became active again
@@ -474,6 +475,7 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 				ns.telemetry.timeSyncCollisions++
 				log.Tracef("Time collision for connections: closed:%+v, active:%+v", closedConn, activeConn)
 				ns.updateConnWithStats(client, key, closedConn)
+				delete(active, key)
 			}
 		} else {
 			ns.updateConnWithStats(client, key, closedConn)
