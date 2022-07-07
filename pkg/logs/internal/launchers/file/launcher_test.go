@@ -446,8 +446,7 @@ func TestContainerIDInContainerLogFile(t *testing.T) {
 
 func TestLauncherUpdatesSourceForExistingTailer(t *testing.T) {
 
-	testDir, err := ioutil.TempDir("", "log-launcher-test-")
-	assert.Nil(t, err)
+	testDir := t.TempDir()
 
 	path := fmt.Sprintf("%s/*.log", testDir)
 	os.Create(path)
