@@ -17,6 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestConnContext(t *testing.T) {
@@ -68,4 +70,35 @@ func TestConnContext(t *testing.T) {
 	if resp.StatusCode != 200 {
 		t.Fatalf("expected http.StatusOK, got response: %#v", resp)
 	}
+}
+
+type testProvider struct {
+}
+
+func TestGetContainerID(t *testing.T) {
+	originalProvider := metrics.GetProvider
+	metrics.GetProvider = testProvider{}
+	defer func() { metrics.GetProvider = originalProvider }()
+
+	const containerID = "abcdef"
+	t.Run("header", func(t *testing.T) {
+		req := http.NewRequest("GET", "http://example.com", nil)
+		req.Header.Add(headerContainerID, containerID)
+		assert.Equal(t, containerID, GetContainerID(req.Context(), req.Header))
+	})
+	t.Run("header-cred", func(t *testing.T) {
+		ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: 1234})
+		req := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
+		req.Header.Add(headerContainerID, containerID)
+		assert.Equal(t, containerID, GetContainerID(req.Context(), req.Header))
+	})
+	t.Run("cred", func(t *testing.T) {
+		ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: 1234})
+		req := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
+		assert.Equal(t, containerID, GetContainerID(req.Context(), req.Header))
+	})
+	t.Run("empty", func(t *testing.T) {
+		req := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
+		assert.Equal(t, "", GetContainerID(req.Context(), req.Header))
+	})
 }

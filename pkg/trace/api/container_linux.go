@@ -50,10 +50,10 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 }
 
 // GetContainerID attempts first to read the container ID set by the client in the request header.
-// If no such header is present or the value is empty, it will look in the container ID cache. If
-// there is a valid (not stale) container ID for the given pid, that is returned. Otherwise the
-// container ID is parsed using readContainerID. If none of these methods succeed, getContainerID
-// returns an empty string.
+// If no such header is present or the value is empty, the function attempts looks for a
+// syscall.Ucred object in the context (see: connContext), determines the PID of the sender, and
+// then uses the Meta Collector to map the PID to a container ID. If any of these fail, the
+// function returns the empty string.
 func GetContainerID(ctx context.Context, h http.Header) string {
 	if id := h.Get(headerContainerID); id != "" {
 		return id
