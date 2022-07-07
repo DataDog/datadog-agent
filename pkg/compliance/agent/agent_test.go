@@ -38,10 +38,9 @@ func (e *tempEnv) leave() {
 func enterTempEnv(t *testing.T, k8s bool) *tempEnv {
 	t.Helper()
 	assert := assert.New(t)
-	tempDir, err := os.MkdirTemp("", "compliance-agent-")
-	assert.NoError(err)
+	tempDir := t.TempDir()
 
-	err = util.CopyDir("./testdata/configs", tempDir)
+	err := util.CopyDir("./testdata/configs", tempDir)
 	assert.NoError(err)
 
 	files, err := filepath.Glob(filepath.Join(tempDir, "files/*"))

@@ -11,16 +11,14 @@ package file
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/suite"
-
-	"path/filepath"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -45,8 +43,7 @@ type TailerTestSuite struct {
 
 func (suite *TailerTestSuite) SetupTest() {
 	var err error
-	suite.testDir, err = ioutil.TempDir("", "log-tailer-test-")
-	suite.Nil(err)
+	suite.testDir = suite.T().TempDir()
 
 	suite.testPath = fmt.Sprintf("%s/tailer.log", suite.testDir)
 	f, err := os.Create(suite.testPath)
@@ -65,7 +62,6 @@ func (suite *TailerTestSuite) SetupTest() {
 func (suite *TailerTestSuite) TearDownTest() {
 	suite.tailer.Stop()
 	suite.testFile.Close()
-	os.Remove(suite.testDir)
 }
 
 func TestTailerTestSuite(t *testing.T) {

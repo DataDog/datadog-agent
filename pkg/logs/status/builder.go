@@ -138,6 +138,8 @@ func (b *Builder) toString(status *status.LogStatus) string {
 // toDictionary returns a representation of the configuration.
 func (b *Builder) toDictionary(c *config.LogsConfig) map[string]interface{} {
 	dictionary := make(map[string]interface{})
+	dictionary["Service"] = c.Service
+	dictionary["Source"] = c.Source
 	switch c.Type {
 	case config.TCPType, config.UDPType:
 		dictionary["Port"] = c.Port
