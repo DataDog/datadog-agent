@@ -9,5 +9,5 @@
 enhancements:
   - |
     The Agent now uses the V2 API to submit series data to the Datadog intake
-    by default.  This can be reverted by setting ``use_v2_api.series`` to
+    by default. This can be reverted by setting ``use_v2_api.series`` to
     false.
