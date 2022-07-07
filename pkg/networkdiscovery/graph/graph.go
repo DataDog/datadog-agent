@@ -7,31 +7,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/payload"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/goccy/go-graphviz/cgraph"
+	"io/fs"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	"github.com/goccy/go-graphviz"
 )
 
 // GraphTopology TODO
 func GraphTopology() {
-	topologyFolder := "/tmp/topology"
-	sourceFile := topologyFolder + "/aos6.json"
-	jsonFile, err := os.Open(sourceFile)
-	defer jsonFile.Close()
-
-	// if we os.Open returns an error then handle it
-	if err != nil {
-		fmt.Println(err)
-	}
-	byteValue, _ := ioutil.ReadAll(jsonFile)
-	fmt.Println(string(byteValue))
-
-	payload := payload.TopologyPayload{}
-	json.Unmarshal(byteValue, &payload)
-
-	log.Infof("payload: %+v", payload)
-
 	g := graphviz.New()
 	graph, err := g.Graph()
 	if err != nil {
@@ -45,8 +30,48 @@ func GraphTopology() {
 		}
 		g.Close()
 	}()
+	topologyFolder := "/tmp/topology"
+	for _, file := range findFiles(topologyFolder, ".json") {
+		fmt.Println(file)
+		graphForFile(graph, file)
+	}
 
-	graph.SetOverlap(false)
+	renderGraph(g, graph)
+}
+
+func findFiles(root, ext string) []string {
+	var a []string
+	filepath.WalkDir(root, func(s string, d fs.DirEntry, e error) error {
+		if e != nil {
+			return e
+		}
+		if filepath.Ext(d.Name()) == ext {
+			a = append(a, s)
+		}
+		return nil
+	})
+	return a
+}
+
+func graphForFile(graph *cgraph.Graph, sourceFile string) {
+	jsonFile, err := os.Open(sourceFile)
+	defer jsonFile.Close()
+
+	profile := filepath.Base(sourceFile)
+
+	// if we os.Open returns an error then handle it
+	if err != nil {
+		fmt.Println(err)
+	}
+	byteValue, _ := ioutil.ReadAll(jsonFile)
+	fmt.Println(string(byteValue))
+
+	payload := payload.TopologyPayload{}
+	json.Unmarshal(byteValue, &payload)
+
+	log.Infof("payload: %+v", payload)
+
+	payload.Device.Name = profile // TODO: refactor me, this is a workaround to create a device per profile
 
 	localDev, err := createNode(graph, payload.Device)
 	if err != nil {
@@ -71,8 +96,6 @@ func GraphTopology() {
 		e.SetHeadLabel(conn.Local.Interface.Id)
 		e.SetTailLabel(conn.Remote.Interface.Id)
 	}
-
-	renderGraph(g, graph, err)
 }
 
 func createNode(graph *cgraph.Graph, device payload.Device) (*cgraph.Node, error) {
@@ -103,7 +126,7 @@ func createNode(graph *cgraph.Graph, device payload.Device) (*cgraph.Node, error
 	return remDev, nil
 }
 
-func renderGraph(g *graphviz.Graphviz, graph *cgraph.Graph, err error) {
+func renderGraph(g *graphviz.Graphviz, graph *cgraph.Graph) {
 	// create your graph
 
 	// 1. write encoded PNG data to buffer

@@ -23,7 +23,7 @@ network_devices:
     ip_address: 127.0.0.1
     port: 1161
     snmp_version: 2
-    community_string: aos6
+    community_string: aos
     oid_batch_size: 10
 `)))
 	require.NoError(t, err)
