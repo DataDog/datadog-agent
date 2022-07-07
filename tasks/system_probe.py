@@ -450,11 +450,13 @@ def get_linux_header_dirs(kernel_release=None):
         os_info = os.uname()
         kernel_release = os_info.release
 
+    src_kernels_dir = "/usr/src/kernels"
+    src_dir = "/usr/src"
     possible_dirs = [
         f"/lib/modules/{kernel_release}/build",
         f"/lib/modules/{kernel_release}/source",
-        f"/usr/src/linux-headers-{kernel_release}",
-        f"/usr/src/kernels/{kernel_release}",
+        f"{src_dir}/linux-headers-{kernel_release}",
+        f"{src_kernels_dir}/{kernel_release}",
     ]
     linux_headers = []
     for d in possible_dirs:
@@ -462,9 +464,18 @@ def get_linux_header_dirs(kernel_release=None):
             # resolve symlinks
             linux_headers.append(Path(d).resolve())
 
-    # fallback to /usr/src as a last report
+    # fallback to non-release-specific directories
     if len(linux_headers) == 0:
-        linux_headers = ["/usr/src"]
+        if os.path.isdir(src_kernels_dir):
+            linux_headers = [os.path.join(src_kernels_dir, d) for d in os.listdir(src_kernels_dir)]
+        else:
+            linux_headers = [
+                os.path.join(src_dir, d) for d in os.listdir(src_dir) if d.startswith("linux-")
+            ]
+
+    # fallback to /usr as a last report
+    if len(linux_headers) == 0:
+        linux_headers = ["/usr"]
 
     # deduplicate
     linux_headers = list(dict.fromkeys(linux_headers))
