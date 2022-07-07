@@ -51,7 +51,6 @@ func TestSkipComments(t *testing.T) {
 	})
 	res, err := scrubber.ScrubBytes([]byte("a line with foo\n\n  \n  # a comment with foo\nanother line"))
 	require.NoError(t, err)
-	// require.Equal(t, "a line ... line", string(res))
 	require.Equal(t, "a line ... line", string(res))
 }
 
