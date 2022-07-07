@@ -275,14 +275,20 @@ func (dc *DiscoveryCollector) Collect() {
 }
 
 func (dc *DiscoveryCollector) writeToFile(payloadBytes []byte) {
+	var fileName string
+	if dc.config.CommunityString != "" {
+		fileName = dc.config.CommunityString
+	} else {
+		fileName = dc.config.ContextName
+	}
 	folderName := "/tmp/topology"
-	fileName := folderName + "/payload"
+	filePath := folderName + "/" + fileName
 	err := os.MkdirAll("/tmp/topology", os.ModePerm)
 	if err != nil {
 		log.Errorf("Error creating topology folder: %s", err)
 		return
 	}
-	err = os.WriteFile(fileName, payloadBytes, 0644)
+	err = os.WriteFile(filePath, payloadBytes, 0644)
 	if err != nil {
 		log.Errorf("Error writing to file: %s", err)
 		return
