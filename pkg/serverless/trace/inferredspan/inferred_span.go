@@ -150,6 +150,8 @@ func IsInferredSpansEnabled() bool {
 	return config.Datadog.GetBool("serverless.trace_enabled") && config.Datadog.GetBool("serverless.trace_managed_services")
 }
 
+// AddTagToInferredSpan is used to add new tags to the inferred span in
+// inferredSpan.Span.Meta[]. Should be used before completing an inferred span.
 func (inferredSpan *InferredSpan) AddTagToInferredSpan(key string, value string) {
 	inferredSpan.Span.Meta[key] = value
 }

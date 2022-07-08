@@ -170,7 +170,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 					log.Debug("[lifecycle] Completing a secondary inferred span")
 					lp.setParentIDForMultipleInferredSpans()
 					lp.requestHandler.inferredSpans[1].AddTagToInferredSpan("http.status_code", statusCode)
-					lp.requestHandler.inferredSpans[1].CompleteInferredSpan(lp.ProcessTrace, lp.GetInferredSpanStart(), endDetails.IsError, lp.GetExecutionInfo().TraceID, lp.GetExecutionInfo().SamplingPriority)
+					lp.requestHandler.inferredSpans[1].CompleteInferredSpan(lp.ProcessTrace, lp.getInferredSpanStart(), endDetails.IsError, lp.GetExecutionInfo().TraceID, lp.GetExecutionInfo().SamplingPriority)
 					log.Debug("[lifecycle] The secondary inferred span attributes are %v", lp.requestHandler.inferredSpans[1])
 				}
 				lp.GetInferredSpan().CompleteInferredSpan(lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, lp.GetExecutionInfo().TraceID, lp.GetExecutionInfo().SamplingPriority)
@@ -205,7 +205,7 @@ func (lp *LifecycleProcessor) GetInferredSpan() *inferredspan.InferredSpan {
 	return lp.requestHandler.inferredSpans[0]
 }
 
-func (lp *LifecycleProcessor) GetInferredSpanStart() time.Time {
+func (lp *LifecycleProcessor) getInferredSpanStart() time.Time {
 	return time.Unix(lp.GetInferredSpan().Span.Start, 0)
 }
 

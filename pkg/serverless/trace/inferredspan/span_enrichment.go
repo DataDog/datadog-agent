@@ -137,6 +137,9 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSNSEvent(eventPayload ev
 	}
 }
 
+// EnrichInferredSpanWithSQSEvent uses the parsed event
+// payload to enrich the current inferred span. It applies a
+// specific set of data to the span expected from an SQS event.
 func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload events.SQSEvent) {
 	eventRecord := eventPayload.Records[0]
 	splitArn := strings.Split(eventRecord.EventSourceARN, ":")
