@@ -97,14 +97,17 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 // as an API payload to be processed by the trace agent
 func (inferredSpan *InferredSpan) CompleteInferredSpan(
 	processTrace func(p *api.Payload),
-	triggerTags map[string]string,
 	endTime time.Time,
 	isError bool,
 	traceID uint64,
 	samplingPriority sampler.SamplingPriority) {
 
+	durationIsSet := inferredSpan.Span.Duration != 0
 	if inferredSpan.IsAsync {
-		inferredSpan.Span.Duration = inferredSpan.CurrentInvocationStartTime.UnixNano() - inferredSpan.Span.Start
+		// SNSSQS span duration is set in invocationlifecycle/init.go
+		if !durationIsSet {
+			inferredSpan.Span.Duration = inferredSpan.CurrentInvocationStartTime.UnixNano() - inferredSpan.Span.Start
+		}
 	} else {
 		inferredSpan.Span.Duration = endTime.UnixNano() - inferredSpan.Span.Start
 	}
@@ -118,7 +121,6 @@ func (inferredSpan *InferredSpan) CompleteInferredSpan(
 		Origin:   "lambda",
 		Spans:    []*pb.Span{inferredSpan.Span},
 		Priority: int32(samplingPriority),
-		Tags:     triggerTags,
 	}
 
 	tracerPayload := &pb.TracerPayload{
@@ -131,9 +133,9 @@ func (inferredSpan *InferredSpan) CompleteInferredSpan(
 	})
 }
 
-// GenerateInferredSpan declares and initializes a new inferred span
+// generateInferredSpan declares and initializes a new inferred span
 // with the SpanID and TraceID
-func (inferredSpan *InferredSpan) GenerateInferredSpan(startTime time.Time) {
+func (inferredSpan *InferredSpan) generateInferredSpan(startTime time.Time) {
 
 	inferredSpan.CurrentInvocationStartTime = startTime
 	inferredSpan.Span = &pb.Span{
@@ -146,4 +148,10 @@ func (inferredSpan *InferredSpan) GenerateInferredSpan(startTime time.Time) {
 // generate and enrich inferred spans for a particular invocation
 func IsInferredSpansEnabled() bool {
 	return config.Datadog.GetBool("serverless.trace_enabled") && config.Datadog.GetBool("serverless.trace_managed_services")
+}
+
+// AddTagToInferredSpan is used to add new tags to the inferred span in
+// inferredSpan.Span.Meta[]. Should be used before completing an inferred span.
+func (inferredSpan *InferredSpan) AddTagToInferredSpan(key string, value string) {
+	inferredSpan.Span.Meta[key] = value
 }

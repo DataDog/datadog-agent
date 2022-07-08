@@ -7,6 +7,7 @@ package inferredspan
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -136,6 +137,31 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSNSEvent(eventPayload ev
 	}
 }
 
+// EnrichInferredSpanWithSQSEvent uses the parsed event
+// payload to enrich the current inferred span. It applies a
+// specific set of data to the span expected from an SQS event.
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload events.SQSEvent) {
+	eventRecord := eventPayload.Records[0]
+	splitArn := strings.Split(eventRecord.EventSourceARN, ":")
+	parsedQueueName := splitArn[len(splitArn)-1]
+	startTime := calculateStartTime(convertStringTimestamp(eventRecord.Attributes[sentTimestamp]))
+
+	inferredSpan.IsAsync = true
+	inferredSpan.Span.Name = "aws.sqs"
+	inferredSpan.Span.Service = "sqs"
+	inferredSpan.Span.Start = startTime
+	inferredSpan.Span.Resource = parsedQueueName
+	inferredSpan.Span.Type = "web"
+	inferredSpan.Span.Meta = map[string]string{
+		operationName:  "aws.sqs",
+		resourceNames:  parsedQueueName,
+		queueName:      parsedQueueName,
+		eventSourceArn: eventRecord.EventSourceARN,
+		receiptHandle:  eventRecord.ReceiptHandle,
+		senderID:       eventRecord.Attributes["SenderId"],
+	}
+}
+
 // CalculateStartTime converts AWS event timeEpochs to nanoseconds
 func calculateStartTime(epoch int64) int64 {
 	return epoch * 1e6
@@ -151,4 +177,13 @@ func formatISOStartTime(isotime string) int64 {
 		return 0
 	}
 	return startTime.UnixNano()
+}
+
+func convertStringTimestamp(timestamp string) int64 {
+	t, err := strconv.ParseInt(timestamp, 0, 64)
+	if err != nil {
+		log.Debug("Could not parse timestamp from string")
+		return 0
+	}
+	return t
 }
