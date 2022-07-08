@@ -10,11 +10,14 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
-	"sync/atomic"
+	syncatomic "sync/atomic"
 	"unsafe"
+
+	"go.uber.org/atomic"
 )
 
-// Reporter reports stats
+// Reporter reports stats, extracting values fron a struct and providing them
+// in a map from its Report method.
 type Reporter struct {
 	stats map[string]statsInfo
 	value reflect.Value
@@ -27,7 +30,10 @@ type statsInfo struct {
 
 const statsTag = "stats"
 
-// NewReporter create a new Reporter
+// NewReporter create a new Reporter.  Pass a struct containing fields tagged
+// with `stats`.  If these fields are of integer types tagged with
+// `stats:"atomic"`, they will be read atomically.  Fields of types in the
+// `go.uber.org/atomic` package will be read atomically automatically.
 func NewReporter(v interface{}) (Reporter, error) {
 	r := Reporter{
 		stats: map[string]statsInfo{},
@@ -50,6 +56,10 @@ func NewReporter(v interface{}) (Reporter, error) {
 	return r, nil
 }
 
+func qualifiedTypeName(ty reflect.Type) string {
+	return ty.PkgPath() + "." + ty.Name()
+}
+
 func isTypeSupported(f reflect.StructField, atomic bool) bool {
 	if atomic {
 		switch f.Type.Kind() {
@@ -64,6 +74,25 @@ func isTypeSupported(f reflect.StructField, atomic bool) bool {
 	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Int8,
 		reflect.Uint, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uint8, reflect.Uintptr:
 		return true
+	case reflect.Ptr:
+		referentType := qualifiedTypeName(f.Type.Elem())
+		switch referentType {
+		case
+			"go.uber.org/atomic.Bool",
+			"go.uber.org/atomic.Duration",
+			"go.uber.org/atomic.Error",
+			"go.uber.org/atomic.Float64",
+			"go.uber.org/atomic.Int32",
+			"go.uber.org/atomic.Int64",
+			"go.uber.org/atomic.String",
+			"go.uber.org/atomic.Time",
+			"go.uber.org/atomic.Uint32",
+			"go.uber.org/atomic.Uint64",
+			"go.uber.org/atomic.Uintptr",
+			"go.uber.org/atomic.UnsafePointer",
+			"go.uber.org/atomic.Value":
+			return true
+		}
 	}
 
 	return false
@@ -101,6 +130,44 @@ func (r Reporter) Report() map[string]interface{} {
 			v = uint32(f.Uint())
 		case reflect.Uint64:
 			v = uint64(f.Uint()) //nolint:unconvert
+		case reflect.Ptr:
+			// This is a "trick" to hide the fact that f is unexported from f.Interface,
+			// which (unlike f.Int etc, above) will panic for unexported fields
+			f = reflect.NewAt(f.Type(), unsafe.Pointer(f.UnsafeAddr())).Elem()
+
+			referentType := qualifiedTypeName(f.Elem().Type())
+			switch referentType {
+			case "go.uber.org/atomic.Bool":
+				v = f.Interface().(*atomic.Bool).Load()
+			case "go.uber.org/atomic.Duration":
+				v = f.Interface().(*atomic.Duration).Load()
+			case "go.uber.org/atomic.Error":
+				v = f.Interface().(*atomic.Error).Load()
+			case "go.uber.org/atomic.Float64":
+				v = f.Interface().(*atomic.Float64).Load()
+			case "go.uber.org/atomic.Int32":
+				v = f.Interface().(*atomic.Int32).Load()
+			case "go.uber.org/atomic.Int64":
+				v = f.Interface().(*atomic.Int64).Load()
+			case "go.uber.org/atomic.String":
+				v = f.Interface().(*atomic.String).Load()
+			case "go.uber.org/atomic.Time":
+				v = f.Interface().(*atomic.Time).Load()
+			case "go.uber.org/atomic.Uint32":
+				v = f.Interface().(*atomic.Uint32).Load()
+			case "go.uber.org/atomic.Uint64":
+				v = f.Interface().(*atomic.Uint64).Load()
+			case "go.uber.org/atomic.Uintptr":
+				v = f.Interface().(*atomic.Uintptr).Load()
+			case "go.uber.org/atomic.UnsafePointer":
+				v = f.Interface().(*atomic.UnsafePointer).Load()
+			case "go.uber.org/atomic.Value":
+				v = f.Interface().(*atomic.Value).Load()
+			default:
+				panic("Unrecognized pointer to %s" + referentType)
+			}
+		default:
+			panic(fmt.Sprintf("unrecognized kind %#v", f.Kind()))
 		}
 		stats[name] = v
 	}
@@ -111,17 +178,17 @@ func (r Reporter) Report() map[string]interface{} {
 func loadAtomic(f reflect.Value) interface{} {
 	switch f.Kind() {
 	case reflect.Int32:
-		return atomic.LoadInt32((*int32)(unsafe.Pointer(f.UnsafeAddr())))
+		return syncatomic.LoadInt32((*int32)(unsafe.Pointer(f.UnsafeAddr())))
 	case reflect.Int64:
-		return atomic.LoadInt64((*int64)(unsafe.Pointer(f.UnsafeAddr())))
+		return syncatomic.LoadInt64((*int64)(unsafe.Pointer(f.UnsafeAddr())))
 	case reflect.Uint:
-		return uint(atomic.LoadUintptr((*uintptr)(unsafe.Pointer(f.UnsafeAddr()))))
+		return uint(syncatomic.LoadUintptr((*uintptr)(unsafe.Pointer(f.UnsafeAddr()))))
 	case reflect.Uintptr:
-		return atomic.LoadUintptr((*uintptr)(unsafe.Pointer(f.UnsafeAddr())))
+		return syncatomic.LoadUintptr((*uintptr)(unsafe.Pointer(f.UnsafeAddr())))
 	case reflect.Uint32:
-		return atomic.LoadUint32((*uint32)(unsafe.Pointer(f.UnsafeAddr())))
+		return syncatomic.LoadUint32((*uint32)(unsafe.Pointer(f.UnsafeAddr())))
 	case reflect.Uint64:
-		return atomic.LoadUint64((*uint64)(unsafe.Pointer(f.UnsafeAddr())))
+		return syncatomic.LoadUint64((*uint64)(unsafe.Pointer(f.UnsafeAddr())))
 	}
 
 	return nil

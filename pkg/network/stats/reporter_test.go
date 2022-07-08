@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
 func TestStatsAllowedTypes(t *testing.T) {
@@ -92,18 +93,35 @@ func TestStatsAllowedTypesAtomic(t *testing.T) {
 		u32  uint32  `stats:"atomic"`
 		u    uint    `stats:"atomic"`
 		uptr uintptr `stats:"atomic"`
+
+		boolp *atomic.Bool   `stats:""`
+		i64p  *atomic.Int64  `stats:""`
+		u64p  *atomic.Uint64 `stats:""`
 	}
 
-	v := &test{}
+	v := &test{
+		i64:   1,
+		i32:   2,
+		u64:   3,
+		u32:   4,
+		u:     5,
+		uptr:  uintptr(0),
+		boolp: atomic.NewBool(true),
+		i64p:  atomic.NewInt64(6),
+		u64p:  atomic.NewUint64(7),
+	}
 	s, err := NewReporter(v)
 	require.NoError(t, err)
 	stats := s.Report()
-	require.Len(t, stats, 6)
-	require.Equal(t, int64(0), stats["i64"])
-	require.Equal(t, int32(0), stats["i32"])
+	require.Len(t, stats, 9)
+	require.Equal(t, int64(1), stats["i64"])
+	require.Equal(t, int32(2), stats["i32"])
 
-	require.Equal(t, uint64(0), stats["u64"])
-	require.Equal(t, uint32(0), stats["u32"])
-	require.Equal(t, uint(0), stats["u"])
+	require.Equal(t, uint64(3), stats["u64"])
+	require.Equal(t, uint32(4), stats["u32"])
+	require.Equal(t, uint(5), stats["u"])
 	require.Equal(t, uintptr(0), stats["uptr"])
+
+	require.Equal(t, int64(6), stats["i64p"])
+	require.Equal(t, uint64(7), stats["u64p"])
 }
