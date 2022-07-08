@@ -294,7 +294,7 @@ func (pbm *PerfBufferMonitor) swapKernelLostCount(eventType model.EventType, per
 
 // GetEventStats returns the number of received events of the specified type
 func (pbm *PerfBufferMonitor) GetEventStats(eventType model.EventType, perfMap string, cpu int) (PerfMapStats, PerfMapStats) {
-	var stats, kernelStats PerfMapStats
+	stats, kernelStats := NewPerfMapStats(), NewPerfMapStats()
 	var maps []string
 
 	if eventType >= model.MaxKernelEventType {
@@ -445,7 +445,12 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 		iterator *lib.MapIterator
 		tmpCount uint64
 	)
+
 	cpuStats := make([]PerfMapStats, pbm.numCPU)
+	for i := 0; i < pbm.numCPU; i++ {
+		cpuStats[i] = NewPerfMapStats()
+	}
+
 	tags := []string{pbm.probe.config.StatsTagsCardinality, "", ""}
 
 	// loop through the statistics buffers of each perf map
