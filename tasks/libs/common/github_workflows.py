@@ -50,7 +50,7 @@ class GithubWorkflows(RemoteAPI):
         delta_time = datetime.timedelta(minutes=5)
         run_date_filter = (datetime.datetime.utcnow() - delta_time).strftime("%Y-%m-%dT%H:%M")
         if inputs is None:
-            inputs = {id: run_id}
+            inputs = {"id": run_id}
         else:
             inputs["id"] = run_id
 
@@ -73,7 +73,7 @@ class GithubWorkflows(RemoteAPI):
                         job = jobs[0]
                         steps = job["steps"]
                         if len(steps) >= 2:
-                            second_step = steps[0]  # run_id is at first position
+                            second_step = steps[1]  # run_id is at second position, setup job is always first
                             if second_step["name"] == run_id:
                                 workflow_id = job["run_id"]
                         else:
