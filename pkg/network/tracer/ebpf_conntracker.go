@@ -29,6 +29,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
+	libnetlink "github.com/mdlayher/netlink"
 	"golang.org/x/sys/unix"
 )
 
@@ -57,6 +58,13 @@ type ebpfConntracker struct {
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
 func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
+	// dial the netlink layer aim to load nf_conntrack_netlink and nf_conntrack kernel modules
+	// eBPF conntrack require nf_conntrack symbols
+	conn, err := libnetlink.Dial(unix.NETLINK_NETFILTER, nil)
+	if err == nil {
+		conn.Close()
+	}
+
 	buf, err := getRuntimeCompiledConntracker(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("unable to compile ebpf conntracker: %w", err)

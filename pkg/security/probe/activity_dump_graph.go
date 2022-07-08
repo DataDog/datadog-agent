@@ -122,11 +122,13 @@ func (ad *ActivityDump) prepareGraphData(title string) graph {
 
 func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data *graph) {
 	var args string
-	if argv, _ := ad.adm.probe.resolvers.ProcessResolver.GetProcessScrubbedArgv(&p.Process); len(argv) > 0 {
-		args = strings.ReplaceAll(strings.Join(argv, " "), "\"", "\\\"")
-		args = strings.ReplaceAll(args, "\n", " ")
-		args = strings.ReplaceAll(args, ">", "\\>")
-		args = strings.ReplaceAll(args, "|", "\\|")
+	if ad.adm != nil && ad.adm.probe != nil {
+		if argv, _ := ad.adm.probe.resolvers.ProcessResolver.GetProcessScrubbedArgv(&p.Process); len(argv) > 0 {
+			args = strings.ReplaceAll(strings.Join(argv, " "), "\"", "\\\"")
+			args = strings.ReplaceAll(args, "\n", " ")
+			args = strings.ReplaceAll(args, ">", "\\>")
+			args = strings.ReplaceAll(args, "|", "\\|")
+		}
 	}
 	pan := node{
 		ID:    p.GetID(),
@@ -174,12 +176,12 @@ func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data 
 }
 
 func (ad *ActivityDump) prepareDNSNode(n *DNSNode, data *graph, processID string) {
-	if len(n.requests) == 0 {
+	if len(n.Requests) == 0 {
 		// save guard, this should never happen
 		return
 	}
-	name := n.requests[0].Name + " (" + (model.QType(n.requests[0].Type).String())
-	for _, req := range n.requests[1:] {
+	name := n.Requests[0].Name + " (" + (model.QType(n.Requests[0].Type).String())
+	for _, req := range n.Requests[1:] {
 		name += ", " + model.QType(req.Type).String()
 	}
 	name += ")"
@@ -200,7 +202,7 @@ func (ad *ActivityDump) prepareSocketNode(n *SocketNode, data *graph, processID 
 	if n.Bind.IP != "<nil>" {
 		name = fmt.Sprintf("%s/%s/%d", n.Family, n.Bind.IP, n.Bind.Port)
 	} else { // show other addr families, even if they are not parsed yet
-		name = fmt.Sprintf("%s", n.Family)
+		name = n.Family
 	}
 
 	socketNode := node{

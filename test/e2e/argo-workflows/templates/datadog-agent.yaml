@@ -37,14 +37,17 @@ spec:
             env:
               - name: DD_HOSTNAME
                 value: k8s-e2e-tests-control-plane
-              - name: DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT
-                value: "0.0.0.0:4317"
             leaderElection: true
             logs:
               enabled: true
               containerCollectAll: true
             apm:
               enabled: true
+            otlp:
+              receiver:
+                protocols:
+                  grpc:
+                    enabled: true
             processAgent:
               enabled: true
             systemProbe:
@@ -92,12 +95,6 @@ spec:
               pullSecrets:
                 - name: docker-registry
             containers:
-              agent:
-                ports:
-                  - containerPort: 4317
-                    hostPort: 4317
-                    name: otlp-port
-                    protocol: TCP
               systemProbe:
                 logLevel: TRACE
                 env:

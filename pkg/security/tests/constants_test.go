@@ -33,11 +33,7 @@ func TestOctogonConstants(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dir, err := os.MkdirTemp("", "test-octogon-constants")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	if err := os.Chmod(dir, 0o711); err != nil {
 		t.Fatal(err)
