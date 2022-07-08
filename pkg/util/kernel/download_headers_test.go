@@ -49,16 +49,7 @@ var debianRelease = map[string]string{
 }
 
 var ubuntuRepos = []string{
-	"deb http://gb.ports.ubuntu.com/ubuntu-ports/ focal main restricted",
-	"deb http://gb.ports.ubuntu.com/ubuntu-ports/ focal-updates main restricted",
-	"deb http://gb.ports.ubuntu.com/ubuntu-ports/ focal universe",
-	"deb http://gb.ports.ubuntu.com/ubuntu-ports/ focal-updates universe",
-	"deb http://gb.ports.ubuntu.com/ubuntu-ports/ focal multiverse",
-	"deb http://gb.ports.ubuntu.com/ubuntu-ports/ focal-updates multiverse",
-	"deb http://gb.ports.ubuntu.com/ubuntu-ports/ focal-backports main restricted universe multiverse",
 	"deb http://gb.ports.ubuntu.com/ubuntu-ports/ focal-security main restricted",
-	"deb http://gb.ports.ubuntu.com/ubuntu-ports/ focal-security universe",
-	"deb http://gb.ports.ubuntu.com/ubuntu-ports/ focal-security multiverse",
 }
 
 var debianRepos = []string{
