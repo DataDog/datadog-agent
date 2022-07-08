@@ -58,22 +58,27 @@ def trigger_macos_workflow(
     # Hack: get current time to only fetch workflows that started after now.
     now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    # The workflow trigger endpoint doesn't return anything. You need to fetch the workflow run id
-    # by yourself.
-    create_or_refresh_macos_build_github_workflows().trigger_workflow(workflow, github_action_ref, inputs)
+    workflow_id = create_or_refresh_macos_build_github_workflows().trigger_workflow(workflow, github_action_ref, inputs)
 
-    # Thus the following hack: query the latest run for ref, wait until we get a non-completed run
-    # that started after we triggered the workflow.
-    # In practice, this should almost never be a problem, even if the Agent 6 and 7 jobs run at the
-    # same time, given that these two jobs will target different github_action_ref on RCs / releases.
-    MAX_RETRIES = 10  # Retry up to 10 times
-    for i in range(MAX_RETRIES):
-        print(f"Fetching triggered workflow (try {i + 1}/{MAX_RETRIES})")
-        run = get_macos_workflow_run_for_ref(workflow, github_action_ref)
-        if run is not None and run.get("created_at", datetime.fromtimestamp(0).strftime("%Y-%m-%dT%H:%M:%SZ")) >= now:
-            return run.get("id")
+    # If we didn't manage to fecth the workflow ID using the "job hack" then revert back to the old hack
+    if workflow_id is None:
+        # Thus the following hack: query the latest run for ref, wait until we get a non-completed run
+        # that started after we triggered the workflow.
+        # In practice, this should almost never be a problem, even if the Agent 6 and 7 jobs run at the
+        # same time, given that these two jobs will target different github_action_ref on RCs / releases.
+        MAX_RETRIES = 10  # Retry up to 10 times
+        for i in range(MAX_RETRIES):
+            print(f"Fetching triggered workflow (try {i + 1}/{MAX_RETRIES})")
+            run = get_macos_workflow_run_for_ref(workflow, github_action_ref)
+            if (
+                run is not None
+                and run.get("created_at", datetime.fromtimestamp(0).strftime("%Y-%m-%dT%H:%M:%SZ")) >= now
+            ):
+                return run.get("id")
 
-        sleep(5)
+            sleep(5)
+    else:
+        return workflow_id
 
     # Something went wrong :(
     print("Couldn't fetch workflow run that was triggered.")

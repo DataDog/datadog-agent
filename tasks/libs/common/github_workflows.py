@@ -1,5 +1,9 @@
+import datetime
 import json
 import os
+import random
+import string
+import time
 
 from .githubapp import GithubApp, GithubAppException
 from .remote_api import RemoteAPI
@@ -40,12 +44,49 @@ class GithubWorkflows(RemoteAPI):
         Create a pipeline targeting a given reference of a project.
         ref must be a branch or a tag.
         """
+        # generate a random id
+        run_id = ''.join(random.choices(string.ascii_uppercase + string.digits, k=15))
+        # filter runs that were created after this date minus 5 minutes
+        delta_time = datetime.timedelta(minutes=5)
+        run_date_filter = (datetime.datetime.utcnow() - delta_time).strftime("%Y-%m-%dT%H:%M")
         if inputs is None:
-            inputs = dict()
+            inputs = {id: run_id}
+        else:
+            inputs["id"] = run_id
 
         path = f"/repos/{self.repository}/actions/workflows/{workflow_name}/dispatches"
         data = json.dumps({"ref": ref, "inputs": inputs})
-        return self.make_request(path, method="POST", data=data)
+        self.make_request(path, method="POST", data=data)
+
+        workflow_id = ""
+        try_number = 0
+        while workflow_id == "" and try_number < 10:
+            runs = self.workflow_runs(workflow_name, f"?created=%3E{run_date_filter}")
+            ref_runs = [run for run in runs["workflow_runs"] if run["head_branch"] == ref]
+            if len(runs) > 0:
+                for workflow in ref_runs:
+                    jobs_url = workflow["jobs_url"]
+                    print(f"get jobs_url {jobs_url}")
+                    jobs = self.make_request(jobs_url, method="GET", json_output=True)
+                    if len(jobs) > 0:
+                        # we only take the first job
+                        job = jobs[0]
+                        steps = job["steps"]
+                        if len(steps) >= 2:
+                            second_step = steps[0]  # run_id is at first position
+                            if second_step["name"] == run_id:
+                                workflow_id = job["run_id"]
+                        else:
+                            print("waiting for steps to be executed...")
+                            time.sleep(3)
+                    else:
+                        print("waiting for jobs to popup...")
+                        time.sleep(3)
+            else:
+                print("waiting for workflows to popup...")
+                time.sleep(3)
+            try_number += 1
+        return workflow_id
 
     def workflow_run(self, run_id):
         """
@@ -81,11 +122,13 @@ class GithubWorkflows(RemoteAPI):
         ref_runs = [run for run in runs["workflow_runs"] if run["head_branch"] == ref]
         return max(ref_runs, key=lambda run: run['created_at'], default=None)
 
-    def workflow_runs(self, workflow_name):
+    def workflow_runs(self, workflow_name, filter=None):
         """
         Gets all workflow runs for a workflow.
         """
         path = f"/repos/{self.repository}/actions/workflows/{workflow_name}/runs"
+        if filter is not None:
+            path += f"{filter}"
         return self.make_request(path, method="GET", json_output=True)
 
     def make_request(self, path, headers=None, method="GET", data=None, json_output=False, raw_output=False):
