@@ -118,6 +118,66 @@ api_key: fakeapikey
 	assert.Equal(t, "https://external-agent.datadoghq.eu", externalAgentURL)
 }
 
+func TestUnexpectedUnicode(t *testing.T) {
+	datadogYaml := `
+api_‪key: fa‪keapikey
+`
+
+	testConfig := setupConfFromYAML(datadogYaml)
+
+	warnings := findUnexpectedUnicode(testConfig)
+	require.Len(t, warnings, 2)
+
+	assert.Contains(t, warnings[0], "U+202A")
+	assert.Contains(t, warnings[1], "U+202A")
+}
+
+func TestUnexpectedNestedUnicode(t *testing.T) {
+	simpleNesting := `
+runtime_security_config:
+  activity_dump:
+    remote_storage:
+      endpoints:
+        logs_dd_url: "http://‪datadawg.com"
+`
+	testConfig := setupConfFromYAML(simpleNesting)
+
+	warnings := findUnexpectedUnicode(testConfig)
+	require.Len(t, warnings, 1)
+
+	assert.Contains(t, warnings[0], "U+202A")
+}
+
+func TestUnexpectedWhitespace(t *testing.T) {
+
+	tests := []struct {
+		yaml                string
+		expectedWarningText string
+	}{
+		{
+			yaml: `
+root_element:
+  nestedKey: "hiddenI​nvalidWhitespaceEmbedded"
+`,
+			expectedWarningText: "U+200B",
+		},
+		{
+			yaml: `
+root_element:
+  nestedKey:  hiddenInvalidWhitespaceToLeft
+`,
+			expectedWarningText: "U+202F",
+		},
+	}
+	for _, tc := range tests {
+		testConfig := setupConfFromYAML(tc.yaml)
+		warnings := findUnexpectedUnicode(testConfig)
+		require.Len(t, warnings, 1)
+
+		assert.Contains(t, warnings[0], tc.expectedWarningText)
+	}
+}
+
 func TestUnknownKeysWarning(t *testing.T) {
 	yamlBase := `
 site: datadoghq.eu

@@ -1232,6 +1232,27 @@ func findUnknownKeys(config Config) []string {
 	return unknownKeys
 }
 
+func findUnexpectedUnicode(config Config) []string {
+	messages := make([]string, 0)
+	checkAndRecordString := func(str string) {
+		if res := FreeFromUnexpectedUnicode([]byte(str)); len(res) != 0 {
+			for _, detected := range res {
+				msg := fmt.Sprintf("In configuration string '%s' - Unexpected unicode codepoint '%U' detected at byte position %v. Reason=%v", str, detected.codepoint, detected.position, detected.reason)
+				messages = append(messages, msg)
+			}
+		}
+	}
+
+	allKeys := config.AllKeys()
+	for _, key := range allKeys {
+		checkAndRecordString(key)
+		value := config.GetString(key)
+		checkAndRecordString(value)
+	}
+
+	return messages
+}
+
 func findUnknownEnvVars(config Config, environ []string) []string {
 	var unknownVars []string
 
@@ -1307,6 +1328,10 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 
 	for _, v := range findUnknownEnvVars(config, os.Environ()) {
 		log.Warnf("Unknown environment variable: %v", v)
+	}
+
+	for _, warningMsg := range findUnexpectedUnicode(config) {
+		log.Warnf(warningMsg)
 	}
 
 	if loadSecret {
