@@ -99,6 +99,7 @@ func graphForFile(graph *cgraph.Graph, sourceFile string) {
 
 		e.SetHeadLabel("\n\n" + interfaceName(conn.Local.Interface) + "\n\n")
 		e.SetTailLabel("\n\n" + interfaceName(conn.Remote.Interface) + "\n\n")
+		e.SetArrowHead(cgraph.NoneArrow)
 	}
 }
 
