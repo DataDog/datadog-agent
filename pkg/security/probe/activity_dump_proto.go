@@ -198,10 +198,10 @@ func dnsNodeToProto(dn *DNSNode) *adproto.DNSNode {
 	}
 
 	pdn := &adproto.DNSNode{
-		Requests: make([]*adproto.DNSInfo, 0, len(dn.requests)),
+		Requests: make([]*adproto.DNSInfo, 0, len(dn.Requests)),
 	}
 
-	for _, req := range dn.requests {
+	for _, req := range dn.Requests {
 		pdn.Requests = append(pdn.Requests, dnsEventToProto(&req))
 	}
 
