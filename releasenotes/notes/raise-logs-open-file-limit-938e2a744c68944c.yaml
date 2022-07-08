@@ -9,4 +9,4 @@
 enhancements:
   - |
     Raise the default ``logs_config.open_files_limit`` to ``200`` on 
-    Windows and Mac OS. Raised to ``500`` for all other operating systems. 
+    Windows and macOS. Raised to ``500`` for all other operating systems. 
