@@ -122,11 +122,13 @@ func (ad *ActivityDump) prepareGraphData(title string) graph {
 
 func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data *graph) {
 	var args string
-	if argv, _ := ad.adm.probe.resolvers.ProcessResolver.GetProcessScrubbedArgv(&p.Process); len(argv) > 0 {
-		args = strings.ReplaceAll(strings.Join(argv, " "), "\"", "\\\"")
-		args = strings.ReplaceAll(args, "\n", " ")
-		args = strings.ReplaceAll(args, ">", "\\>")
-		args = strings.ReplaceAll(args, "|", "\\|")
+	if ad.adm != nil && ad.adm.probe != nil {
+		if argv, _ := ad.adm.probe.resolvers.ProcessResolver.GetProcessScrubbedArgv(&p.Process); len(argv) > 0 {
+			args = strings.ReplaceAll(strings.Join(argv, " "), "\"", "\\\"")
+			args = strings.ReplaceAll(args, "\n", " ")
+			args = strings.ReplaceAll(args, ">", "\\>")
+			args = strings.ReplaceAll(args, "|", "\\|")
+		}
 	}
 	pan := node{
 		ID:    p.GetID(),
