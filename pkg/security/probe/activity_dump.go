@@ -16,19 +16,24 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/DataDog/gopsutil/process"
 	"github.com/pkg/errors"
+	"github.com/prometheus/procfs"
 	"github.com/tinylib/msgp/msgp"
+	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -80,12 +85,12 @@ type DumpMetadata struct {
 // is used to generate the activity dump metadata sent to the event platform.
 // easyjson:json
 type ActivityDump struct {
-	sync.Mutex         `msg:"-"`
+	*sync.Mutex        `msg:"-"`
 	state              ActivityDumpStatus
 	adm                *ActivityDumpManager
-	processedCount     map[model.EventType]*uint64
-	addedRuntimeCount  map[model.EventType]*uint64
-	addedSnapshotCount map[model.EventType]*uint64
+	processedCount     map[model.EventType]*atomic.Uint64
+	addedRuntimeCount  map[model.EventType]*atomic.Uint64
+	addedSnapshotCount map[model.EventType]*atomic.Uint64
 
 	// standard attributes used by the intake
 	Host    string   `msg:"host" json:"host,omitempty"`
@@ -109,6 +114,7 @@ type WithDumpOption func(ad *ActivityDump)
 // NewActivityDump returns a new instance of an ActivityDump
 func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *ActivityDump {
 	ad := ActivityDump{
+		Mutex: &sync.Mutex{},
 		DumpMetadata: DumpMetadata{
 			AgentVersion:        version.AgentVersion,
 			AgentCommit:         version.Commit,
@@ -122,9 +128,9 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		Source:             ActivityDumpSource,
 		CookiesNode:        make(map[uint32]*ProcessActivityNode),
 		adm:                adm,
-		processedCount:     make(map[model.EventType]*uint64),
-		addedRuntimeCount:  make(map[model.EventType]*uint64),
-		addedSnapshotCount: make(map[model.EventType]*uint64),
+		processedCount:     make(map[model.EventType]*atomic.Uint64),
+		addedRuntimeCount:  make(map[model.EventType]*atomic.Uint64),
+		addedSnapshotCount: make(map[model.EventType]*atomic.Uint64),
 		StorageRequests:    make(map[dump.StorageFormat][]dump.StorageRequest),
 	}
 
@@ -134,13 +140,9 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 
 	// generate counters
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
-		processed := uint64(0)
-		runtime := uint64(0)
-		snapshot := uint64(0)
-
-		ad.processedCount[i] = &processed
-		ad.addedRuntimeCount[i] = &runtime
-		ad.addedSnapshotCount[i] = &snapshot
+		ad.processedCount[i] = atomic.NewUint64(0)
+		ad.addedRuntimeCount[i] = atomic.NewUint64(0)
+		ad.addedSnapshotCount[i] = atomic.NewUint64(0)
 	}
 	return &ad
 }
@@ -162,10 +164,11 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 	}
 
 	ad := ActivityDump{
+		Mutex:              &sync.Mutex{},
 		CookiesNode:        make(map[uint32]*ProcessActivityNode),
-		processedCount:     make(map[model.EventType]*uint64),
-		addedRuntimeCount:  make(map[model.EventType]*uint64),
-		addedSnapshotCount: make(map[model.EventType]*uint64),
+		processedCount:     make(map[model.EventType]*atomic.Uint64),
+		addedRuntimeCount:  make(map[model.EventType]*atomic.Uint64),
+		addedSnapshotCount: make(map[model.EventType]*atomic.Uint64),
 		StorageRequests:    make(map[dump.StorageFormat][]dump.StorageRequest),
 		Host:               msg.GetHost(),
 		Service:            msg.GetService(),
@@ -324,7 +327,9 @@ func (ad *ActivityDump) Stop() {
 	ad.Service = utils.GetTagValue("service", ad.Tags)
 
 	// add the container ID in a tag
-	ad.Tags = append(ad.Tags, "container_id:"+ad.ContainerID)
+	if len(ad.ContainerID) > 0 {
+		ad.Tags = append(ad.Tags, "container_id:"+ad.ContainerID)
+	}
 
 	// scrub processes and retain args envs now
 	ad.scrubAndRetainProcessArgsEnvs(ad.ProcessActivityTree)
@@ -357,7 +362,7 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	defer func() {
 		if newEntry {
 			// this doesn't count the exec events which are counted separately
-			atomic.AddUint64(ad.addedRuntimeCount[event.GetEventType()], 1)
+			ad.addedRuntimeCount[event.GetEventType()].Inc()
 		}
 	}()
 
@@ -384,7 +389,7 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 
 	// the count of processed events is the count of events that matched the activity dump selector = the events for
 	// which we successfully found a process activity node
-	atomic.AddUint64(ad.processedCount[event.GetEventType()], 1)
+	ad.processedCount[event.GetEventType()].Inc()
 
 	// insert the event based on its type
 	switch event.GetEventType() {
@@ -392,6 +397,8 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 		return node.InsertFileEvent(&event.Open.File, event, Runtime)
 	case model.DNSEventType:
 		return node.InsertDNSEvent(&event.DNS)
+	case model.BindEventType:
+		return node.InsertBindEvent(&event.Bind)
 	}
 	return false
 }
@@ -463,15 +470,26 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 	// count new entry
 	switch generationType {
 	case Runtime:
-		atomic.AddUint64(ad.addedRuntimeCount[model.ExecEventType], 1)
+		ad.addedRuntimeCount[model.ExecEventType].Inc()
 	case Snapshot:
-		atomic.AddUint64(ad.addedSnapshotCount[model.ExecEventType], 1)
+		ad.addedSnapshotCount[model.ExecEventType].Inc()
 	}
 
 	// set the pid of the input ProcessCacheEntry as traced
 	ad.updateTracedPidTimeout(entry.Pid)
 
 	return node
+}
+
+// FindFirstMatchingNode return the first matching node of requested comm
+func (ad *ActivityDump) FindFirstMatchingNode(comm string) *ProcessActivityNode {
+	for _, node := range ad.ProcessActivityTree {
+		if node.Process.Comm == comm {
+			return node
+		}
+	}
+
+	return nil
 }
 
 // GetSelectorStr returns a string representation of the profile selector
@@ -500,7 +518,7 @@ func (ad *ActivityDump) GetSelectorStr() string {
 func (ad *ActivityDump) SendStats() error {
 	for evtType, count := range ad.processedCount {
 		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
-		if value := atomic.SwapUint64(count, 0); value > 0 {
+		if value := count.Swap(0); value > 0 {
 			if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpEventProcessed, int64(value), tags, 1.0); err != nil {
 				return errors.Wrapf(err, "couldn't send %s metric", metrics.MetricActivityDumpEventProcessed)
 			}
@@ -509,7 +527,7 @@ func (ad *ActivityDump) SendStats() error {
 
 	for evtType, count := range ad.addedRuntimeCount {
 		tags := []string{fmt.Sprintf("event_type:%s", evtType), fmt.Sprintf("generation_type:%s", Runtime)}
-		if value := atomic.SwapUint64(count, 0); value > 0 {
+		if value := count.Swap(0); value > 0 {
 			if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpEventAdded, int64(value), tags, 1.0); err != nil {
 				return errors.Wrapf(err, "couldn't send %s metric", metrics.MetricActivityDumpEventAdded)
 			}
@@ -518,7 +536,7 @@ func (ad *ActivityDump) SendStats() error {
 
 	for evtType, count := range ad.addedSnapshotCount {
 		tags := []string{fmt.Sprintf("event_type:%s", evtType), fmt.Sprintf("generation_type:%s", Snapshot)}
-		if value := atomic.SwapUint64(count, 0); value > 0 {
+		if value := count.Swap(0); value > 0 {
 			if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpEventAdded, int64(value), tags, 1.0); err != nil {
 				return errors.Wrapf(err, "couldn't send %s metric", metrics.MetricActivityDumpEventAdded)
 			}
@@ -665,18 +683,17 @@ func (ad *ActivityDump) Unzip(inputFile string, ext string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("couldn't open input file: %w", err)
 	}
+	defer f.Close()
 
 	seclog.Infof("unzipping %s", inputFile)
 	gzipReader, err := gzip.NewReader(f)
 	if err != nil {
-		f.Close()
 		return "", fmt.Errorf("couldn't create gzip reader: %w", err)
 	}
 	defer gzipReader.Close()
 
 	outputFile, err := os.Create(strings.TrimSuffix(inputFile, ext))
 	if err != nil {
-		f.Close()
 		return "", fmt.Errorf("couldn't create gzip output file: %w", err)
 	}
 	defer outputFile.Close()
@@ -740,6 +757,7 @@ type ProcessActivityNode struct {
 
 	Files    map[string]*FileActivityNode `msg:"files,omitempty"`
 	DNSNames map[string]*DNSNode          `msg:"dns,omitempty"`
+	Sockets  []*SocketNode                `msg:"sockets,omitempty"`
 	Children []*ProcessActivityNode       `msg:"children,omitempty"`
 }
 
@@ -916,7 +934,116 @@ func (pan *ProcessActivityNode) snapshot(ad *ActivityDump) error {
 			if err = pan.snapshotFiles(p, ad); err != nil {
 				return err
 			}
+		case model.BindEventType:
+			if err = pan.snapshotBoundSockets(p, ad); err != nil {
+				return err
+			}
 		}
+	}
+	return nil
+}
+
+func (pan *ProcessActivityNode) insertSnapshotedSocket(p *process.Process, ad *ActivityDump,
+	family uint16, ip net.IP, port uint16) {
+	evt := NewEvent(ad.adm.probe.resolvers, ad.adm.probe.scrubber, ad.adm.probe)
+	evt.Event.Type = uint32(model.BindEventType)
+
+	evt.Bind.SyscallEvent.Retval = 0
+	evt.Bind.AddrFamily = family
+	evt.Bind.Addr.IPNet.IP = ip
+	if family == unix.AF_INET {
+		evt.Bind.Addr.IPNet.Mask = net.CIDRMask(32, 32)
+	} else {
+		evt.Bind.Addr.IPNet.Mask = net.CIDRMask(128, 128)
+	}
+	evt.Bind.Addr.Port = port
+
+	if pan.InsertBindEvent(&evt.Bind) {
+		// count this new entry
+		ad.addedSnapshotCount[model.BindEventType].Inc()
+	}
+}
+
+func (pan *ProcessActivityNode) snapshotBoundSockets(p *process.Process, ad *ActivityDump) error {
+	// list all the file descriptors opened by the process
+	FDs, err := p.OpenFiles()
+	if err != nil {
+		return err
+	}
+
+	// sockets have the following pattern "socket:[inode]"
+	var sockets []uint64
+	for _, fd := range FDs {
+		if strings.HasPrefix(fd.Path, "socket:[") {
+			sock, err := strconv.Atoi(strings.TrimPrefix(fd.Path[:len(fd.Path)-1], "socket:["))
+			if err != nil {
+				return err
+			}
+			if sock < 0 {
+				continue
+			}
+			sockets = append(sockets, uint64(sock))
+		}
+	}
+	if len(sockets) <= 0 {
+		return nil
+	}
+
+	// use /proc/[pid]/net/tcp,tcp6,udp,udp6 to extract the ports opened by the current process
+	proc, _ := procfs.NewFS(filepath.Join(util.HostProc(fmt.Sprintf("%d", p.Pid))))
+	if err != nil {
+		return err
+	}
+	// looking for AF_INET sockets
+	TCP, err := proc.NetTCP()
+	if err != nil {
+		return err
+	}
+	UDP, err := proc.NetUDP()
+	if err != nil {
+		return err
+	}
+	// looking for AF_INET6 sockets
+	TCP6, err := proc.NetTCP6()
+	if err != nil {
+		return err
+	}
+	UDP6, err := proc.NetUDP6()
+	if err != nil {
+		return err
+	}
+
+	// searching for socket inode
+	for _, s := range sockets {
+		for _, sock := range TCP {
+			if sock.Inode == s {
+				pan.insertSnapshotedSocket(p, ad, unix.AF_INET, sock.LocalAddr,
+					uint16(sock.LocalPort))
+				break
+			}
+		}
+		for _, sock := range UDP {
+			if sock.Inode == s {
+				pan.insertSnapshotedSocket(p, ad, unix.AF_INET, sock.LocalAddr,
+					uint16(sock.LocalPort))
+				break
+			}
+		}
+		for _, sock := range TCP6 {
+			if sock.Inode == s {
+				pan.insertSnapshotedSocket(p, ad, unix.AF_INET6, sock.LocalAddr,
+					uint16(sock.LocalPort))
+				break
+			}
+		}
+		for _, sock := range UDP6 {
+			if sock.Inode == s {
+				pan.insertSnapshotedSocket(p, ad, unix.AF_INET6, sock.LocalAddr,
+					uint16(sock.LocalPort))
+				break
+			}
+		}
+		// not necessary found here, can be also another kind of socket (AF_UNIX, AF_NETLINK, etc)
 	}
 	return nil
 }
@@ -986,7 +1113,7 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 
 		if pan.InsertFileEvent(&evt.Open.File, evt, Snapshot) {
 			// count this new entry
-			atomic.AddUint64(ad.addedSnapshotCount[model.FileOpenEventType], 1)
+			ad.addedSnapshotCount[model.FileOpenEventType].Inc()
 		}
 	}
 	return nil
@@ -996,17 +1123,27 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 func (pan *ProcessActivityNode) InsertDNSEvent(evt *model.DNSEvent) bool {
 	if dnsNode, ok := pan.DNSNames[evt.Name]; ok {
 		// look for the DNS request type
-		for _, req := range dnsNode.requests {
+		for _, req := range dnsNode.Requests {
 			if req.Type == evt.Type {
 				return false
 			}
 		}
 
 		// insert the new request
-		dnsNode.requests = append(dnsNode.requests, *evt)
+		dnsNode.Requests = append(dnsNode.Requests, *evt)
 		return true
 	}
 	pan.DNSNames[evt.Name] = NewDNSNode(evt)
+	return true
+}
+
+// InsertBindEvent inserts a bind event to the activity dump
+func (pan *ProcessActivityNode) InsertBindEvent(evt *model.BindEvent) bool {
+	if evt.SyscallEvent.Retval != 0 {
+		return false
+	}
+
+	pan.Sockets = append(pan.Sockets, NewSocketNode(evt))
 	return true
 }
 
@@ -1117,19 +1254,53 @@ func (fan *FileActivityNode) debug(prefix string) {
 
 // DNSNode is used to store a DNS node
 type DNSNode struct {
-	requests []model.DNSEvent `msg:"requests"`
+	Requests []model.DNSEvent `msg:"requests"`
 	id       string
 }
 
 // NewDNSNode returns a new DNSNode instance
 func NewDNSNode(event *model.DNSEvent) *DNSNode {
 	return &DNSNode{
-		requests: []model.DNSEvent{*event},
+		Requests: []model.DNSEvent{*event},
 	}
 }
 
 // GetID returns the ID of the current DNS node
 func (n *DNSNode) GetID() string {
+	if len(n.id) == 0 {
+		n.id = eval.RandString(5)
+	}
+	return n.id
+}
+
+// BindNode is used to store a bind node
+type BindNode struct {
+	Port uint16 `msg:"port"`
+	IP   string `msg:"ip"`
+}
+
+// SocketNode is used to store a Socket node and associated events
+type SocketNode struct {
+	Family string   `msg:"family"`
+	Bind   BindNode `msg:"bind"`
+	id     string
+}
+
+// NewSocketNode returns a new SocketNode instance
+func NewSocketNode(event *model.BindEvent) *SocketNode {
+	// NB: Today we only add sockets via bind events. When this struct will contains other
+	//     events (basically connect, but maybe others?), bind should became optionnal.
+	return &SocketNode{
+		Family: model.AddressFamily(event.AddrFamily).String(),
+		Bind: BindNode{
+			Port: event.Addr.Port,
+			IP:   event.Addr.IPNet.IP.String(),
+		},
+	}
+}
+
+// GetID returns the ID of the current Socket node
+func (n *SocketNode) GetID() string {
 	if len(n.id) == 0 {
 		n.id = eval.RandString(5)
 	}

@@ -135,6 +135,10 @@ func SetHostMetadata(name AgentMetadataName, value interface{}) {
 
 // SetCheckMetadata updates a metadata value for one check instance in the cache.
 func SetCheckMetadata(checkID, key string, value interface{}) {
+	if checkID == "" {
+		return
+	}
+
 	checkMetadataMutex.Lock()
 	defer checkMetadataMutex.Unlock()
 
@@ -155,6 +159,14 @@ func SetCheckMetadata(checkID, key string, value interface{}) {
 		default: // To make sure this call is not blocking
 		}
 	}
+}
+
+// RemoveCheckMetadata removes metadata for a check. This need to be called when a check is unscheduled.
+func RemoveCheckMetadata(checkID string) {
+	checkMetadataMutex.Lock()
+	defer checkMetadataMutex.Unlock()
+
+	delete(checkMetadata, checkID)
 }
 
 func createCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceMetadata {

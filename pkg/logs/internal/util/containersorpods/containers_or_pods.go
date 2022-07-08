@@ -31,6 +31,19 @@ const (
 	LogNothing
 )
 
+func (lw LogWhat) String() string {
+	switch lw {
+	case LogContainers:
+		return "LogContainers"
+	case LogPods:
+		return "LogPods"
+	case LogNothing:
+		return "LogNothing"
+	default:
+		return "LogUnknown"
+	}
+}
+
 // Chooser determines how the logs-agent should handle containers:
 // either monitoring individual containers, or monitoring pods and logging the
 // containers within them.

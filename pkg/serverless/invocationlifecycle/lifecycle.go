@@ -67,7 +67,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	lp.newRequest(startDetails.InvokeEventRawPayload, startDetails.StartTime)
 
 	payloadBytes := []byte(lambdaPayloadString)
-	region, account, arnParseErr := trigger.ParseArn(startDetails.InvokedFunctionARN)
+	region, account, resource, arnParseErr := trigger.ParseArn(startDetails.InvokedFunctionARN)
 	if err != nil {
 		log.Debugf("[lifecycle] Error parsing ARN: %v", err)
 	}
@@ -130,8 +130,8 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		}
 	case trigger.LambdaFunctionURLEvent:
 		var event events.LambdaFunctionURLRequest
-		if err := json.Unmarshal(payloadBytes, &event); err == nil {
-			lp.initFromLambdaFunctionURLEvent(event)
+		if err := json.Unmarshal(payloadBytes, &event); err == nil && arnParseErr == nil {
+			lp.initFromLambdaFunctionURLEvent(event, region, account, resource)
 		}
 	default:
 		log.Debug("Skipping adding trigger types and inferred spans as a non-supported payload was received.")

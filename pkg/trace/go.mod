@@ -3,9 +3,9 @@ module github.com/DataDog/datadog-agent/pkg/trace
 go 1.17
 
 require (
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.37.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.37.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/client v0.37.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.38.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.38.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.38.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.0
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/Microsoft/go-winio v0.5.1
@@ -14,12 +14,11 @@ require (
 	github.com/google/gofuzz v1.2.0
 	github.com/pkg/errors v0.9.1
 	github.com/shirou/gopsutil/v3 v3.22.3
-	github.com/stretchr/testify v1.7.2
+	github.com/stretchr/testify v1.7.4
 	github.com/tinylib/msgp v1.1.6
 	github.com/vmihailenco/msgpack/v4 v4.3.12
-	go.opentelemetry.io/collector/pdata v0.53.0
-	go.opentelemetry.io/collector/semconv v0.53.0
-	go.uber.org/atomic v1.9.0
+	go.opentelemetry.io/collector/pdata v0.54.0
+	go.opentelemetry.io/collector/semconv v0.54.0
 	golang.org/x/sys v0.0.0-20220128215802-99c3d69c2c27
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	google.golang.org/grpc v1.47.0
@@ -46,6 +45,7 @@ require (
 	github.com/tklauser/numcpus v0.4.0 // indirect
 	github.com/vmihailenco/tagparser v0.1.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
+	go.uber.org/atomic v1.9.0 // indirect
 	golang.org/x/net v0.0.0-20220225172249-27dd8689420f // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/appengine v1.6.5 // indirect
@@ -58,5 +58,8 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ../obfuscate
 	github.com/DataDog/datadog-agent/pkg/otlp/model => ../otlp/model
 	github.com/DataDog/datadog-agent/pkg/quantile => ../quantile
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/client => ../remoteconfig/client
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../remoteconfig/state
 )
+
+// Temporarily downgrade testify to v1.7.2 to work around https://github.com/stretchr/testify/issues/1208
+replace github.com/stretchr/testify => github.com/stretchr/testify v1.7.2

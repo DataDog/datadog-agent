@@ -10,7 +10,6 @@ package selftests
 
 import (
 	"os"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
@@ -20,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
+	"go.uber.org/atomic"
 )
 
 const (
@@ -47,7 +47,7 @@ var FileSelfTests = []FileSelfTest{
 
 // SelfTester represents all the state needed to conduct rule injection test at startup
 type SelfTester struct {
-	waitingForEvent uint32 // atomic bool
+	waitingForEvent *atomic.Bool
 	eventChan       chan selfTestEvent
 	success         []string
 	fails           []string
@@ -63,7 +63,8 @@ var _ rules.PolicyProvider = (*SelfTester)(nil)
 // NewSelfTester returns a new SelfTester, enabled or not
 func NewSelfTester() (*SelfTester, error) {
 	s := &SelfTester{
-		eventChan: make(chan selfTestEvent, 10),
+		waitingForEvent: atomic.NewBool(false),
+		eventChan:       make(chan selfTestEvent, 10),
 	}
 
 	if err := s.createTargetFile(); err != nil {
@@ -171,7 +172,7 @@ func (t *SelfTester) Close() error {
 
 // BeginWaitingForEvent passes the tester in the waiting for event state
 func (t *SelfTester) BeginWaitingForEvent() error {
-	if atomic.SwapUint32(&t.waitingForEvent, 1) != 0 {
+	if t.waitingForEvent.Swap(true) {
 		return errors.New("a self test is already running")
 	}
 	return nil
@@ -179,7 +180,7 @@ func (t *SelfTester) BeginWaitingForEvent() error {
 
 // EndWaitingForEvent exits the waiting for event state
 func (t *SelfTester) EndWaitingForEvent() {
-	atomic.StoreUint32(&t.waitingForEvent, 0)
+	t.waitingForEvent.Store(false)
 }
 
 type selfTestEvent struct {
@@ -189,7 +190,7 @@ type selfTestEvent struct {
 
 // IsExpectedEvent sends an event to the tester
 func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event) bool {
-	if atomic.LoadUint32(&t.waitingForEvent) != 0 && rule.Definition.Policy.Source == policySource {
+	if t.waitingForEvent.Load() && rule.Definition.Policy.Source == policySource {
 		ev, ok := event.(*probe.Event)
 		if !ok {
 			return true

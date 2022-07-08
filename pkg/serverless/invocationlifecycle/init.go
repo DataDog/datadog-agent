@@ -5,8 +5,11 @@ import (
 	"strings"
 	"time"
 
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
+
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -124,6 +127,8 @@ func (lp *LifecycleProcessor) initFromSQSEvent(event events.SQSEvent) {
 
 }
 
-func (lp *LifecycleProcessor) initFromLambdaFunctionURLEvent(event events.LambdaFunctionURLRequest) {
+func (lp *LifecycleProcessor) initFromLambdaFunctionURLEvent(event events.LambdaFunctionURLRequest, region string, accountID string, functionName string) {
 	lp.addTag("function_trigger.event_source", "lambda-function-url")
+	lp.addTag("function_trigger.event_source_arn", fmt.Sprintf("arn:aws:lambda:%v:%v:url:%v", region, accountID, functionName))
+	lp.addTags(trigger.GetTagsFromLambdaFunctionURLRequest(event))
 }

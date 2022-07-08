@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/endpoints"
+	"github.com/fatih/color"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -46,13 +47,13 @@ func TestSendHTTPRequestToEndpoint(t *testing.T) {
 	client := forwarder.NewHTTPClient()
 
 	// With the correct API Key, it should be a 200
-	statusCodeWithKey, responseBodyWithKey, errWithKey := sendHTTPRequestToEndpoint(context.Background(), client, ts1.URL, endpointInfoTest, apiKey1)
+	statusCodeWithKey, responseBodyWithKey, errWithKey := sendHTTPRequestToEndpoint(context.Background(), color.Output, client, ts1.URL, endpointInfoTest, apiKey1)
 	assert.Nil(t, errWithKey)
 	assert.Equal(t, statusCodeWithKey, 200)
 	assert.Equal(t, string(responseBodyWithKey), "OK")
 
 	// With the wrong API Key, it should be a 400
-	statusCode, responseBody, err := sendHTTPRequestToEndpoint(context.Background(), client, ts1.URL, endpointInfoTest, apiKey2)
+	statusCode, responseBody, err := sendHTTPRequestToEndpoint(context.Background(), color.Output, client, ts1.URL, endpointInfoTest, apiKey2)
 	assert.Nil(t, err)
 	assert.Equal(t, statusCode, 400)
 	assert.Equal(t, string(responseBody), "Bad Request")

@@ -20,6 +20,8 @@ const (
 	stdWrapperType    wrapperType = "std"
 	dockerWrapperType wrapperType = "docker"
 	multiWrapperType  wrapperType = "multi"
+
+	defaultDockerImage = "ubuntu:focal"
 )
 
 type cmdWrapper interface {
@@ -55,6 +57,7 @@ type dockerCmdWrapper struct {
 	executable    string
 	root          string
 	containerName string
+	image         string
 }
 
 func (d *dockerCmdWrapper) Command(bin string, args []string, envs []string) *exec.Cmd {
@@ -73,7 +76,7 @@ func (d *dockerCmdWrapper) Command(bin string, args []string, envs []string) *ex
 
 func (d *dockerCmdWrapper) start() ([]byte, error) {
 	d.containerName = fmt.Sprintf("docker-wrapper-%s", randStringRunes(6))
-	cmd := exec.Command(d.executable, "run", "--rm", "-d", "--name", d.containerName, "-v", d.root+":"+d.root, "ubuntu:focal", "sleep", "600")
+	cmd := exec.Command(d.executable, "run", "--rm", "-d", "--name", d.containerName, "-v", d.root+":"+d.root, d.image, "sleep", "600")
 	return cmd.CombinedOutput()
 }
 
@@ -103,6 +106,10 @@ func (d *dockerCmdWrapper) Type() wrapperType {
 	return dockerWrapperType
 }
 
+func (d *dockerCmdWrapper) SetImage(image string) {
+	d.image = image
+}
+
 func newDockerCmdWrapper(root string) (*dockerCmdWrapper, error) {
 	executable, err := exec.LookPath("docker")
 	if err != nil {
@@ -118,6 +125,7 @@ func newDockerCmdWrapper(root string) (*dockerCmdWrapper, error) {
 	return &dockerCmdWrapper{
 		executable: executable,
 		root:       root,
+		image:      defaultDockerImage,
 	}, nil
 }
 

@@ -8,6 +8,7 @@ package agent
 import (
 	"context"
 	"runtime"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
@@ -88,7 +89,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		Replacer:              filters.NewReplacer(conf.ReplaceTags),
 		PrioritySampler:       sampler.NewPrioritySampler(conf, dynConf),
 		ErrorsSampler:         sampler.NewErrorsSampler(conf),
-		RareSampler:           sampler.NewRareSampler(),
+		RareSampler:           sampler.NewRareSampler(conf),
 		NoPrioritySampler:     sampler.NewNoPrioritySampler(conf),
 		EventProcessor:        newEventProcessor(conf),
 		TraceWriter:           writer.NewTraceWriter(conf),
@@ -216,11 +217,11 @@ func (a *Agent) Process(p *api.Payload) {
 		}
 
 		tracen := int64(len(chunk.Spans))
-		ts.SpansReceived.Add(tracen)
+		atomic.AddInt64(&ts.SpansReceived, tracen)
 		err := normalizeTrace(p.Source, chunk.Spans)
 		if err != nil {
 			log.Debugf("Dropping invalid trace: %s", err)
-			ts.SpansDropped.Add(tracen)
+			atomic.AddInt64(&ts.SpansDropped, tracen)
 			p.RemoveChunk(i)
 			continue
 		}
@@ -230,16 +231,16 @@ func (a *Agent) Process(p *api.Payload) {
 		normalizeChunk(chunk, root)
 		if !a.Blacklister.Allows(root) {
 			log.Debugf("Trace rejected by ignore resources rules. root: %v", root)
-			ts.TracesFiltered.Inc()
-			ts.SpansFiltered.Add(tracen)
+			atomic.AddInt64(&ts.TracesFiltered, 1)
+			atomic.AddInt64(&ts.SpansFiltered, tracen)
 			p.RemoveChunk(i)
 			continue
 		}
 
 		if filteredByTags(root, a.conf.RequireTags, a.conf.RejectTags) {
 			log.Debugf("Trace rejected as it fails to meet tag requirements. root: %v", root)
-			ts.TracesFiltered.Inc()
-			ts.SpansFiltered.Add(tracen)
+			atomic.AddInt64(&ts.TracesFiltered, 1)
+			atomic.AddInt64(&ts.SpansFiltered, tracen)
 			p.RemoveChunk(i)
 			continue
 		}
@@ -437,7 +438,7 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedT
 	if hasPriority {
 		ts.TracesPerSamplingPriority.CountSamplingPriority(priority)
 	} else {
-		ts.TracesPriorityNone.Inc()
+		atomic.AddInt64(&ts.TracesPriorityNone, 1)
 	}
 
 	if priority < 0 {
@@ -454,8 +455,8 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedT
 	}
 	numEvents, numExtracted := a.EventProcessor.Process(pt.Root, filteredChunk)
 
-	ts.EventsExtracted.Add(numExtracted)
-	ts.EventsSampled.Add(numEvents)
+	atomic.AddInt64(&ts.EventsExtracted, numExtracted)
+	atomic.AddInt64(&ts.EventsSampled, numEvents)
 
 	return numEvents, sampled, filteredChunk
 }
@@ -474,7 +475,7 @@ func (a *Agent) runSamplers(now time.Time, pt traceutil.ProcessedTrace, hasPrior
 // or measured spans that are not caught by PrioritySampler and ErrorSampler.
 func (a *Agent) samplePriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
 	var rare bool
-	if a.conf.DisableRareSampler {
+	if a.conf.RareSamplerDisabled {
 		rare = false
 	} else {
 		// run this early to make sure the signature gets counted by the RareSampler.

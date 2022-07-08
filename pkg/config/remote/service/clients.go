@@ -19,7 +19,7 @@ type client struct {
 }
 
 func (c *client) expired(clock clock.Clock, ttl time.Duration) bool {
-	return clock.Now().After(c.lastSeen.Add(ttl))
+	return clock.Now().UTC().After(c.lastSeen.Add(ttl))
 }
 
 type clients struct {

@@ -13,35 +13,39 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // ReordererMonitor represents a reorderer monitor
 type ReordererMonitor struct {
-	// probe is a pointer to the Probe
-	probe *Probe
+	ctx          context.Context
+	statsdClient statsd.ClientInterface
+	reOrderer    *ReOrderer
 }
 
 // NewReOrderMonitor instantiates a new reorder statistics counter
-func NewReOrderMonitor(p *Probe) (*ReordererMonitor, error) {
+func NewReOrderMonitor(ctx context.Context, statsdClient statsd.ClientInterface, reOrderer *ReOrderer) (*ReordererMonitor, error) {
 	return &ReordererMonitor{
-		probe: p,
+		ctx:          ctx,
+		statsdClient: statsdClient,
+		reOrderer:    reOrderer,
 	}, nil
 }
 
 // Start the reorderer monitor
-func (r *ReordererMonitor) Start(ctx context.Context, wg *sync.WaitGroup) {
+func (r *ReordererMonitor) Start(wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for {
 		select {
-		case metric := <-r.probe.reOrderer.Metrics:
-			_ = r.probe.statsdClient.Gauge(metrics.MetricPerfBufferSortingQueueSize, float64(metric.QueueSize), []string{}, 1.0)
+		case metric := <-r.reOrderer.Metrics:
+			_ = r.statsdClient.Gauge(metrics.MetricPerfBufferSortingQueueSize, float64(metric.QueueSize), []string{}, 1.0)
 			var avg float64
 			if metric.TotalOp > 0 {
 				avg = float64(metric.TotalDepth) / float64(metric.TotalOp)
 			}
-			_ = r.probe.statsdClient.Gauge(metrics.MetricPerfBufferSortingAvgOp, avg, []string{}, 1.0)
-		case <-ctx.Done():
+			_ = r.statsdClient.Gauge(metrics.MetricPerfBufferSortingAvgOp, avg, []string{}, 1.0)
+		case <-r.ctx.Done():
 			return
 		}
 	}

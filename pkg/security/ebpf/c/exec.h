@@ -10,7 +10,7 @@
 
 #define MAX_PERF_STR_BUFF_LEN 256
 #define MAX_STR_BUFF_LEN (1 << 15)
-#define MAX_ARRAY_ELEMENT_PER_TAIL 28
+#define MAX_ARRAY_ELEMENT_PER_TAIL 23
 #define MAX_ARRAY_ELEMENT_SIZE 4096
 #define MAX_ARGS_ELEMENTS 140
 
@@ -209,6 +209,7 @@ int kprobe_parse_args_envs(struct pt_regs *ctx) {
     if (syscall->exec.next_tail > MAX_ARGS_ELEMENTS / MAX_ARRAY_ELEMENT_PER_TAIL) {
         array = &syscall->exec.envs;
     }
+
     parse_str_array(ctx, array, EVENT_ARGS_ENVS);
 
     syscall->exec.next_tail++;
