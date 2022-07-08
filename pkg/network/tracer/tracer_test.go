@@ -523,6 +523,7 @@ func TestTCPConnsReported(t *testing.T) {
 	// Connect to server
 	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
 	require.NoError(t, err)
+	defer c.Close()
 
 	// Test
 	initTracerState(t, tr)
