@@ -25,7 +25,7 @@ const (
 
 // Configure the IOstats check
 func (c *IOCheck) commonConfigure(data integration.Data, initConfig integration.Data, source string) error {
-	if err := c.CommonConfigure(data, source); err != nil {
+	if err := c.CommonConfigure(initConfig, data, source); err != nil {
 		return err
 	}
 

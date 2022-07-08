@@ -464,7 +464,7 @@ func StartAgent() error {
 	}
 
 	if config.Datadog.GetBool("inventories_enabled") {
-		if err := metadata.SetupInventories(common.MetadataScheduler, common.AC, common.Coll); err != nil {
+		if err := metadata.SetupInventories(common.MetadataScheduler, common.Coll); err != nil {
 			return err
 		}
 	}
