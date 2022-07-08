@@ -8,6 +8,7 @@ package aggregator
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/stretchr/testify/require"
 )
@@ -40,35 +41,51 @@ func testDemuxSamples(t *testing.T) metrics.MetricSampleBatch {
 // timesampler of the statsd stack.
 func TestDemuxNoAggOptionDisabled(t *testing.T) {
 	require := require.New(t)
+	batchSize := config.Datadog.GetInt("dogstatsd_no_aggregation_pipeline_batch_size")
 
 	opts := demuxTestOptions()
-	demux := InitAndStartAgentDemultiplexer(opts, "")
-	defer demux.Stop(false)
+	demux := initAgentDemultiplexer(opts, "")
 
 	batch := testDemuxSamples(t)
 
 	demux.AddLateMetrics(batch)
 
-	require.Len(demux.statsd.lateMetrics, 0)
+	for i := 0; i < batchSize; i++ {
+		require.Empty(demux.statsd.noAggWorker.currentBatch[i].Name)
+		require.Empty(demux.statsd.noAggWorker.currentBatch[i].Host)
+		require.Empty(demux.statsd.noAggWorker.currentBatch[i].Tags)
+		require.Zero(demux.statsd.noAggWorker.currentBatch[i].Value)
+	}
+	require.Equal(demux.statsd.noAggWorker.currentBatchIdx, 0)
 	require.Len(demux.statsd.workers[0].samplesChan, 1)
 	read := <-demux.statsd.workers[0].samplesChan
 	require.Len(read, 3)
 }
 
-// the option is enabled, these metrics will go through the late samples pipeline.
+// the option is enabled, these metrics will go through the no aggregation pipeline.
 func TestDemuxNoAggOptionEnabled(t *testing.T) {
 	require := require.New(t)
+	batchSize := config.Datadog.GetInt("dogstatsd_no_aggregation_pipeline_batch_size")
 
 	opts := demuxTestOptions()
 	opts.EnableNoAggregationPipeline = true
-	demux := InitAndStartAgentDemultiplexer(opts, "")
-	defer demux.Stop(false)
+	demux := initAgentDemultiplexer(opts, "")
 
 	batch := testDemuxSamples(t)
 
 	demux.AddLateMetrics(batch)
 
-	require.Len(demux.statsd.lateMetrics, 3)
+	require.Len(demux.statsd.noAggWorker.currentBatch, batchSize)
+	require.Equal(demux.statsd.noAggWorker.currentBatchIdx, 3)
+	require.Equal(demux.statsd.noAggWorker.currentBatch[0], batch[0])
+	require.Equal(demux.statsd.noAggWorker.currentBatch[1], batch[1])
+	require.Equal(demux.statsd.noAggWorker.currentBatch[2], batch[2])
+	for i := 3; i < batchSize; i++ {
+		require.Empty(demux.statsd.noAggWorker.currentBatch[i].Name)
+		require.Empty(demux.statsd.noAggWorker.currentBatch[i].Host)
+		require.Empty(demux.statsd.noAggWorker.currentBatch[i].Tags)
+		require.Zero(demux.statsd.noAggWorker.currentBatch[i].Value)
+	}
 	require.Len(demux.statsd.workers[0].samplesChan, 0)
 }
 

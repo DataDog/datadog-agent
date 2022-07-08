@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -96,9 +95,9 @@ type statsd struct {
 	// shared metric sample pool between the dogstatsd server & the time sampler
 	metricSamplePool *metrics.MetricSamplePool
 
-	// late metrics parsed from messages are stored in this buffer
-	// before a flush is triggered.
-	lateMetrics metrics.MetricSampleBatch
+	// the noAggregationWorker is the one dealing with metrics that don't need to
+	// be aggregated/sampled.
+	noAggWorker *noAggregationWorker
 }
 
 type forwarders struct {
@@ -228,6 +227,7 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 			pipelinesCount:   statsdPipelinesCount,
 			workers:          statsdWorkers,
 			metricSamplePool: metricSamplePool,
+			noAggWorker:      newNoAggregationWorker(config.Datadog.GetInt("dogstatsd_no_aggregation_pipeline_batch_size"), sharedSerializer, agg.flushAndSerializeInParallel),
 		},
 	}
 
@@ -435,7 +435,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	defer d.m.Unlock()
 
 	if d.aggregator == nil {
-		// NOTE(remy): we could consider flushing only the time samplers and the late metrics
+		// NOTE(remy): we could consider flushing only the time samplers
 		return
 	}
 
@@ -462,36 +462,6 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 				worker.flushChan <- t
 				<-t.trigger.blockChan
-			}
-
-			// flush the historical metrics if any
-			// -------------------------------------
-
-			if len(d.statsd.lateMetrics) > 0 {
-				log.Debugf("Flushing %d metrics from the no-aggregation pipeline", len(d.statsd.lateMetrics))
-				// TODO(remy): we can consider re-using these instead of building them on every flush.
-				taggerBuffer := tagset.NewHashlessTagsAccumulator()
-				metricBuffer := tagset.NewHashlessTagsAccumulator()
-				for _, sample := range d.statsd.lateMetrics {
-					// enrich metric sample tags
-					sample.GetTags(taggerBuffer, metricBuffer)
-					metricBuffer.AppendHashlessAccumulator(taggerBuffer)
-
-					// turns this metric sample into a serie
-					var serie metrics.Serie
-					serie.Name = sample.Name
-					// TODO(remy): we may have to sort uniq them? and is this copy actually needed?
-					serie.Points = []metrics.Point{{Ts: sample.Timestamp, Value: sample.Value}}
-					serie.Tags = tagset.CompositeTagsFromSlice(metricBuffer.Copy())
-					serie.Host = sample.Host
-					serie.Interval = 0 // TODO(remy): document me
-					seriesSink.Append(&serie)
-
-					taggerBuffer.Reset()
-					metricBuffer.Reset()
-				}
-
-				d.statsd.lateMetrics = d.statsd.lateMetrics[0:0]
 			}
 
 			// flush the aggregator (check samplers)
@@ -546,7 +516,7 @@ func (d *AgentDemultiplexer) AddLateMetrics(samples metrics.MetricSampleBatch) {
 	}
 
 	tlmProcessed.Add(float64(len(samples)), "late_metrics")
-	d.statsd.lateMetrics = append(d.statsd.lateMetrics, samples...)
+	d.statsd.noAggWorker.addSamples(samples)
 }
 
 // AddTimeSampleBatch adds a batch of MetricSample into the given time sampler shard.

@@ -22,6 +22,7 @@ type batcher struct {
 	// offset while writing into samples entries (i.e.  samples currently stored per pipeline)
 	samplesCount []int
 
+	// MetricSampleBatch used for late metrics
 	// no multi-pipelines for late ones since we don't process them and we directly
 	// send them to the serializer
 	lateSamples metrics.MetricSampleBatch
@@ -170,6 +171,10 @@ func (b *batcher) appendLateSample(sample metrics.MetricSample) {
 	if !b.noAggPipelineEnabled {
 		b.appendSample(sample)
 		return
+	}
+
+	if b.lateSamplesCount == len(b.lateSamples) {
+		b.flushLateSamples()
 	}
 
 	b.lateSamples[b.lateSamplesCount] = sample

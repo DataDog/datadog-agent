@@ -527,6 +527,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_capture_depth", 0)
 	// enable the no-aggregation pipeline
 	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline", false)
+	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline_batch_size", 256)
 
 	// To enable the following feature, GODEBUG must contain `madvdontneed=1`
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.enabled", false)
