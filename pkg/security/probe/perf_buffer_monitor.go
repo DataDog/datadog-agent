@@ -30,6 +30,7 @@ type PerfMapStats struct {
 	Lost  *atomic.Uint64
 }
 
+// NewPerfMapStats returns a new PerfMapStats correctly initialized
 func NewPerfMapStats() PerfMapStats {
 	return PerfMapStats{
 		Bytes: atomic.NewUint64(0),
