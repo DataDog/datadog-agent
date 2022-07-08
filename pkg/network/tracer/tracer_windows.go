@@ -92,7 +92,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		activeBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		closedBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		reverseDNS:      reverseDNS,
-		httpMonitor:     newHttpMonitor(config),
+		httpMonitor:     newHttpMonitor(config, di.GetHandle()),
 		sourceExcludes:  network.ParseConnectionFilters(config.ExcludedSourceConnections),
 		destExcludes:    network.ParseConnectionFilters(config.ExcludedDestinationConnections),
 	}
@@ -235,14 +235,14 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
-func newHttpMonitor(c *config.Config) http.Monitor {
+func newHttpMonitor(c *config.Config, dh *driver.Handle) http.Monitor {
 	if !c.EnableHTTPMonitoring {
 		log.Infof("http monitoring has been disabled")
 		return http.NewNoOpMonitor()
 	}
 	log.Infof("http monitoring has been enabled")
 
-	monitor, err := http.NewDriverMonitor(c)
+	monitor, err := http.NewDriverMonitor(c, dh)
 	if err != nil {
 		log.Errorf("could not instantiate http monitor: %s", err)
 		return http.NewNoOpMonitor()

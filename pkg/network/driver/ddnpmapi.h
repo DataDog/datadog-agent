@@ -16,7 +16,7 @@ typedef __int64 LONG64;
 typedef unsigned char       uint8_t;
 
 // define a version signature so that the driver won't load out of date structures, etc.
-#define DD_NPMDRIVER_VERSION       0x10
+#define DD_NPMDRIVER_VERSION       0x12
 #define DD_NPMDRIVER_SIGNATURE     ((uint64_t)0xDDFD << 32 | DD_NPMDRIVER_VERSION)
 
 // for more information on defining control codes, see
@@ -39,6 +39,7 @@ typedef unsigned char       uint8_t;
                                               METHOD_BUFFERED,\
                                               FILE_ANY_ACCESS)
 
+////// DEPRECATED
 #define DDNPMDRIVER_IOCTL_SET_FLOW_FILTER  CTL_CODE(FILE_DEVICE_NETWORK, \
                                               0x804, \
                                               METHOD_BUFFERED,\
@@ -49,11 +50,13 @@ typedef unsigned char       uint8_t;
                                               METHOD_BUFFERED,\
                                               FILE_ANY_ACCESS)
 
+
 #define DDNPMDRIVER_IOCTL_SET_MAX_FLOWS  CTL_CODE(FILE_DEVICE_NETWORK, \
                                               0x806, \
                                               METHOD_BUFFERED,\
                                               FILE_ANY_ACCESS)
 
+/// DEPRECATED
 #define DDNPMDRIVER_IOCTL_SET_HTTP_FILTER CTL_CODE(FILE_DEVICE_NETWORK, \
                                               0x807, \
                                               METHOD_BUFFERED,\
@@ -63,6 +66,32 @@ typedef unsigned char       uint8_t;
                                                             0x808, \
                                                             METHOD_BUFFERED,\
                                                             FILE_ANY_ACCESS)
+
+#define DDNPMDRIVER_IOCTL_SET_MAX_OPEN_FLOWS  CTL_CODE(FILE_DEVICE_NETWORK, \
+                                              0x809, \
+                                              METHOD_BUFFERED,\
+                                              FILE_ANY_ACCESS)
+
+#define DDNPMDRIVER_IOCTL_SET_MAX_CLOSED_FLOWS  CTL_CODE(FILE_DEVICE_NETWORK, \
+                                              0x80A, \
+                                              METHOD_BUFFERED,\
+                                              FILE_ANY_ACCESS)
+
+#define DDNPMDRIVER_IOCTL_SET_MAX_HTTP_FLOWS  CTL_CODE(FILE_DEVICE_NETWORK, \
+                                              0x80B, \
+                                              METHOD_BUFFERED,\
+                                              FILE_ANY_ACCESS)
+
+#define DDNPMDRIVER_IOCTL_GET_HTTP_TRANSACTIONS  CTL_CODE(FILE_DEVICE_NETWORK, \
+                                              0x80C, \
+                                              METHOD_BUFFERED,\
+                                              FILE_ANY_ACCESS)
+
+#define DDNPMDRIVER_IOCTL_ENABLE_HTTP  CTL_CODE(FILE_DEVICE_NETWORK, \
+                                              0x80D, \
+                                              METHOD_BUFFERED,\
+                                              FILE_ANY_ACCESS)
+
 
 #pragma pack(1)
 
@@ -90,21 +119,28 @@ typedef struct _flow_handle_stats {
     volatile LONG64         open_flows;         // number of currently open flows
     volatile LONG64         total_flows;        // total flows processed (open + closed)
 
-    volatile LONG64         num_flow_searches;  // number of times had to search for flow after add
-    volatile LONG64         num_flow_search_misses; // number of times we missed a flow even after searching the list
-
     volatile LONG64         num_flow_collisions;
 
     // num_flow_structures and peak_num_flow_structures valid only on per-handle stats;
     // will not be kept for global stats.  
     volatile LONG64         num_flow_structures;      // total number of flow structures
+    volatile LONG64         num_flow_closed_structures;  //
     volatile LONG64         peak_num_flow_structures; // high water mark of numFlowStructures
-    volatile LONG64         num_flows_missed_max_exceeded;
+    
+    volatile LONG64         num_flow_alloc_skipped_max_exceeded;
+    volatile LONG64         num_flow_closed_dropped_max_exceeded;
+
+    volatile LONG64         open_table_adds;
+    volatile LONG64         open_table_removes;
+    volatile LONG64         closed_table_adds;
+    volatile LONG64         closed_table_removes;
 
     // same for no_handle flows
     volatile LONG64         num_flows_no_handle;
     volatile LONG64         peak_num_flows_no_handle;
     volatile LONG64         num_flows_missed_max_no_handle_exceeded;
+
+    volatile LONG64         num_packets_after_flow_closed;
 
 } FLOW_STATS;
 

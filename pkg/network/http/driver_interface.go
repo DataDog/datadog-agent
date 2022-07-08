@@ -16,7 +16,6 @@ import "C"
 import (
 	"errors"
 	"fmt"
-	"net"
 	"sync"
 	"unsafe"
 
@@ -38,9 +37,9 @@ type httpDriverInterface struct {
 	eventLoopWG sync.WaitGroup
 }
 
-func newDriverInterface() (*httpDriverInterface, error) {
+func newDriverInterface(dh *driver.Handle) (*httpDriverInterface, error) {
 	d := &httpDriverInterface{}
-	err := d.setupHTTPHandle()
+	err := d.setupHTTPHandle(dh)
 	if err != nil {
 		return nil, err
 	}
@@ -49,20 +48,22 @@ func newDriverInterface() (*httpDriverInterface, error) {
 	return d, nil
 }
 
-func (di *httpDriverInterface) setupHTTPHandle() error {
-	dh, err := driver.NewHandle(windows.FILE_FLAG_OVERLAPPED, driver.HTTPHandle)
-	if err != nil {
-		return err
-	}
+func (di *httpDriverInterface) setupHTTPHandle(dh *driver.Handle) error {
 
-	filters, err := createHTTPFilters()
-	if err != nil {
-		return err
-	}
+	// enable HTTP on this handle
+	enabled := uint8(1)
 
-	if err := dh.SetHTTPFilters(filters); err != nil {
+	err := windows.DeviceIoControl(dh.Handle,
+		driver.EnableHttpIOCTL,
+		(*byte)(unsafe.Pointer(&enabled)),
+		uint32(unsafe.Sizeof(enabled)),
+		nil,
+		uint32(0), nil, nil)
+	if err != nil {
+		log.Warnf("Failed to enable http in driver %v", err)
 		return err
 	}
+	log.Infof("Enabled http in driver")
 
 	iocp, buffers, err := driver.PrepareCompletionBuffers(dh.Handle, httpReadBufferCount)
 	if err != nil {
@@ -73,67 +74,6 @@ func (di *httpDriverInterface) setupHTTPHandle() error {
 	di.iocp = iocp
 	di.readBuffers = buffers
 	return nil
-}
-
-func createHTTPFilters() ([]driver.FilterDefinition, error) {
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return nil, err
-	}
-
-	var filters []driver.FilterDefinition
-	for _, iface := range ifaces {
-		// IPv4
-		filters = append(filters, driver.FilterDefinition{
-			FilterVersion:  driver.Signature,
-			Size:           driver.FilterDefinitionSize,
-			Direction:      driver.DirectionOutbound,
-			FilterLayer:    driver.LayerTransport,
-			InterfaceIndex: uint64(iface.Index),
-			Af:             windows.AF_INET,
-			Protocol:       windows.IPPROTO_TCP,
-		}, driver.FilterDefinition{
-			FilterVersion:  driver.Signature,
-			Size:           driver.FilterDefinitionSize,
-			Direction:      driver.DirectionInbound,
-			FilterLayer:    driver.LayerTransport,
-			InterfaceIndex: uint64(iface.Index),
-			Af:             windows.AF_INET,
-			Protocol:       windows.IPPROTO_TCP,
-		})
-
-		// IPv6
-		filters = append(filters, driver.FilterDefinition{
-			FilterVersion:  driver.Signature,
-			Size:           driver.FilterDefinitionSize,
-			Direction:      driver.DirectionOutbound,
-			FilterLayer:    driver.LayerTransport,
-			InterfaceIndex: uint64(iface.Index),
-			Af:             windows.AF_INET6,
-			Protocol:       windows.IPPROTO_TCP,
-		}, driver.FilterDefinition{
-			FilterVersion:  driver.Signature,
-			Size:           driver.FilterDefinitionSize,
-			Direction:      driver.DirectionInbound,
-			FilterLayer:    driver.LayerTransport,
-			InterfaceIndex: uint64(iface.Index),
-			Af:             windows.AF_INET6,
-			Protocol:       windows.IPPROTO_TCP,
-		})
-	}
-
-	return filters, nil
-}
-
-func (di *httpDriverInterface) setMaxFlows(maxFlows uint64) error {
-	log.Debugf("Setting max flows in driver http filter to %v", maxFlows)
-	err := windows.DeviceIoControl(di.driverHTTPHandle.Handle,
-		driver.SetMaxFlowsIOCTL,
-		(*byte)(unsafe.Pointer(&maxFlows)),
-		uint32(unsafe.Sizeof(maxFlows)),
-		nil,
-		uint32(0), nil, nil)
-	return err
 }
 
 func (di *httpDriverInterface) startReadingBuffers() {
@@ -196,8 +136,10 @@ func (di *httpDriverInterface) flushPendingTransactions() ([]driver.HttpTransact
 		nil)
 
 	if err != nil {
+		log.Infof("http flushPendingTransactions error %v", err)
 		return nil, err
 	}
+	log.Infof("http flushPendingTransactin bytes %v", bytesRead)
 
 	transactionSize := uint32(driver.HttpTransactionTypeSize)
 	batchSize := bytesRead / transactionSize

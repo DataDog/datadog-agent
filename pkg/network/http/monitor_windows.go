@@ -41,18 +41,10 @@ type DriverMonitor struct {
 }
 
 // NewDriverMonitor returns a new DriverMonitor instance
-func NewDriverMonitor(c *config.Config) (Monitor, error) {
-	di, err := newDriverInterface()
+func NewDriverMonitor(c *config.Config, dh *driver.Handle) (Monitor, error) {
+	di, err := newDriverInterface(dh)
 	if err != nil {
 		return nil, err
-	}
-
-	if uint64(c.MaxTrackedConnections) != defaultMaxTrackedConnections {
-		maxFlows := uint64(c.MaxTrackedConnections)
-		err := di.setMaxFlows(maxFlows)
-		if err != nil {
-			log.Warnf("Failed to set max number of flows in driver http filter to %v %v", maxFlows, err)
-		}
 	}
 
 	telemetry, err := newTelemetry()
