@@ -116,7 +116,8 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	}()
 
 	subdomain := req.Header.Get("X-Datadog-EVP-Subdomain")
-	containerID := req.Header.Get(headerContainerID)
+	containerID := GetContainerID(req.Context(), req.Header)
+
 	contentType := req.Header.Get("Content-Type")
 	userAgent := req.Header.Get("User-Agent")
 
