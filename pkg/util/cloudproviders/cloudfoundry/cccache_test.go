@@ -10,6 +10,7 @@ package cloudfoundry
 
 import (
 	"net/url"
+	"sort"
 	"testing"
 
 	"github.com/cloudfoundry-community/go-cfclient"
@@ -38,6 +39,27 @@ func (t testCCClient) ListSidecarsByApp(_ url.Values, guid string) ([]CFSidecar,
 		return []CFSidecar{cfSidecar2}, nil
 	}
 	return nil, nil
+}
+func (t testCCClient) ListIsolationSegmentsByQuery(_ url.Values) ([]cfclient.IsolationSegment, error) {
+	return []cfclient.IsolationSegment{cfIsolationSegment1, cfIsolationSegment2}, nil
+}
+
+func (t testCCClient) GetIsolationSegmentSpaceGUID(guid string) (string, error) {
+	if guid == "isolation_segment_guid_1" {
+		return "space_guid_1", nil
+	} else if guid == "isolation_segment_guid_2" {
+		return "space_guid_2", nil
+	}
+	return "", nil
+}
+
+func (t testCCClient) GetIsolationSegmentOrganizationGUID(guid string) (string, error) {
+	if guid == "isolation_segment_guid_1" {
+		return "org_guid_1", nil
+	} else if guid == "isolation_segment_guid_2" {
+		return "org_guid_2", nil
+	}
+	return "", nil
 }
 
 func TestCCCachePolling(t *testing.T) {
@@ -84,6 +106,9 @@ func TestCCCache_GetCFApplication(t *testing.T) {
 func TestCCCache_GetCFApplications(t *testing.T) {
 	cc.readData()
 	cfapps, _ := cc.GetCFApplications()
+	sort.Slice(cfapps, func(i, j int) bool {
+		return cfapps[i].GUID > cfapps[j].GUID
+	})
 	assert.EqualValues(t, 2, len(cfapps))
 	assert.EqualValues(t, &cfApp1, cfapps[0])
 	assert.EqualValues(t, &cfApp2, cfapps[1])
@@ -98,5 +123,25 @@ func TestCCCache_GetSidecars(t *testing.T) {
 	assert.EqualValues(t, 1, len(sidecar2))
 	assert.EqualValues(t, &cfSidecar2, sidecar2[0])
 	_, err := cc.GetSidecars("not-existing-guid")
+	assert.NotNil(t, err)
+}
+
+func TestCCCache_GetIsolationSegmentForSpace(t *testing.T) {
+	cc.readData()
+	segment1, _ := cc.GetIsolationSegmentForSpace("space_guid_1")
+	assert.EqualValues(t, &cfIsolationSegment1, segment1)
+	segment2, _ := cc.GetIsolationSegmentForSpace("space_guid_2")
+	assert.EqualValues(t, &cfIsolationSegment2, segment2)
+	_, err := cc.GetIsolationSegmentForSpace("invalid_space_guid")
+	assert.NotNil(t, err)
+}
+
+func TestCCCache_GetIsolationSegmentForOrg(t *testing.T) {
+	cc.readData()
+	segment1, _ := cc.GetIsolationSegmentForOrg("org_guid_1")
+	assert.EqualValues(t, &cfIsolationSegment1, segment1)
+	segment2, _ := cc.GetIsolationSegmentForOrg("org_guid_2")
+	assert.EqualValues(t, &cfIsolationSegment2, segment2)
+	_, err := cc.GetIsolationSegmentForOrg("invalid_org_guid")
 	assert.NotNil(t, err)
 }

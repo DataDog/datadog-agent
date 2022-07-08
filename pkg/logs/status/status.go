@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"go.uber.org/atomic"
 )
 
@@ -66,7 +67,7 @@ type Status struct {
 }
 
 // Init instantiates the builder that builds the status on the fly.
-func Init(isRunning *atomic.Bool, endpoints *config.Endpoints, sources *config.LogSources, logExpVars *expvar.Map) {
+func Init(isRunning *atomic.Bool, endpoints *config.Endpoints, sources *sources.LogSources, logExpVars *expvar.Map) {
 	warnings = config.NewMessages()
 	errors = config.NewMessages()
 	builder = NewBuilder(isRunning, endpoints, sources, warnings, errors, logExpVars)

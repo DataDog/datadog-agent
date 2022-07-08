@@ -68,8 +68,7 @@ __attribute__((always_inline)) u64 get_flowi6_uli_offset() {
 }
 
 SEC("kprobe/security_sk_classify_flow")
-int kprobe_security_sk_classify_flow(struct pt_regs *ctx)
-{
+int kprobe_security_sk_classify_flow(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     struct flowi *fl = (struct flowi *)PT_REGS_PARM2(ctx);
     struct pid_route_t key = {};
@@ -108,11 +107,10 @@ int kprobe_security_sk_classify_flow(struct pt_regs *ctx)
 #endif
     }
     return 0;
-};
+}
 
 SEC("kprobe/security_socket_bind")
-int kprobe_security_socket_bind(struct pt_regs *ctx)
-{
+int kprobe_security_socket_bind(struct pt_regs *ctx) {
     struct socket *sk = (struct socket *)PT_REGS_PARM1(ctx);
     struct sockaddr *address = (struct sockaddr *)PT_REGS_PARM2(ctx);
     struct pid_route_t key = {};
@@ -128,7 +126,19 @@ int kprobe_security_socket_bind(struct pt_regs *ctx)
         struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)address;
         bpf_probe_read(&key.port, sizeof(addr_in6->sin6_port), &addr_in6->sin6_port);
         bpf_probe_read(&key.addr, sizeof(u64) * 2, (char *)addr_in6 + offsetof(struct sockaddr_in6, sin6_addr));
-    } else {
+    }
+
+    // fill syscall_cache if necessary
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_BIND);
+    if (syscall) {
+        syscall->bind.addr[0] = key.addr[0];
+        syscall->bind.addr[1] = key.addr[1];
+        syscall->bind.port = key.port;
+        syscall->bind.family = family;
+    }
+
+    // past this point we care only about AF_INET and AF_INET6
+    if (family != AF_INET && family != AF_INET6) {
         return 0;
     }
 
@@ -152,7 +162,7 @@ int kprobe_security_socket_bind(struct pt_regs *ctx)
 #endif
     }
     return 0;
-};
+}
 
 struct flow_t {
     u64 saddr[2];

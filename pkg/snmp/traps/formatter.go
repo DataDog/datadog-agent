@@ -14,10 +14,11 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
+const ddsource string = "snmp-traps"
+
 // Formatter is an interface to extract and format raw SNMP Traps
 type Formatter interface {
 	FormatPacket(packet *SnmpPacket) ([]byte, error)
-	GetTags(packet *SnmpPacket) []string
 }
 
 // JSONFormatter is a Formatter implementation that transforms Traps into JSON
@@ -38,31 +39,56 @@ const (
 )
 
 // NewJSONFormatter creates a new JSONFormatter instance with an optional OIDResolver variable.
-func NewJSONFormatter(oidResolver OIDResolver) (JSONFormatter, error) {
+func NewJSONFormatter(oidResolver OIDResolver, namespace string) (JSONFormatter, error) {
 	if oidResolver == nil {
 		return JSONFormatter{}, fmt.Errorf("NewJSONFormatter called with a nil OIDResolver")
 	}
-	namespace := GetNamespace()
 	return JSONFormatter{oidResolver, namespace}, nil
 }
 
 // FormatPacket converts a raw SNMP trap packet to a FormattedSnmpPacket containing the JSON data and the tags to attach
+// {
+//	"trap": {
+//    "ddsource": "snmp-traps",
+//    "ddtags": "namespace:default,snmp_device:10.0.0.2,...",
+//    "timestamp": 123456789,
+//    "snmpTrapName": "...",
+//    "snmpTrapOID": "1.3.6.1.5.3.....",
+//    "snmpTrapMIB": "...",
+//    "uptime": "12345",
+//    "genericTrap": "5", # v1 only
+//    "specificTrap": "0",  # v1 only
+//    "variables": [
+//      {
+//        "oid": "1.3.4.1....",
+//        "type": "integer",
+//        "value": 12
+//      },
+//      ...
+//    ],
+//   }
+// }
 func (f JSONFormatter) FormatPacket(packet *SnmpPacket) ([]byte, error) {
-	var formattedData map[string]interface{}
+	payload := make(map[string]interface{})
+	var formattedTrap map[string]interface{}
 	var err error
 	if packet.Content.Version == gosnmp.Version1 {
-		formattedData = f.formatV1Trap(packet.Content)
+		formattedTrap = f.formatV1Trap(packet.Content)
 	} else {
-		formattedData, err = f.formatTrap(packet.Content)
+		formattedTrap, err = f.formatTrap(packet.Content)
 		if err != nil {
 			return nil, err
 		}
 	}
-	return json.Marshal(formattedData)
+	formattedTrap["ddsource"] = ddsource
+	formattedTrap["ddtags"] = strings.Join(f.getTags(packet), ",")
+	formattedTrap["timestamp"] = packet.Timestamp
+	payload["trap"] = formattedTrap
+	return json.Marshal(payload)
 }
 
 // GetTags returns a list of tags associated to an SNMP trap packet.
-func (f JSONFormatter) GetTags(packet *SnmpPacket) []string {
+func (f JSONFormatter) getTags(packet *SnmpPacket) []string {
 	return []string{
 		"snmp_version:" + formatVersion(packet.Content),
 		"device_namespace:" + f.namespace,

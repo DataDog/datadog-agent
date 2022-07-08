@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -25,7 +26,7 @@ func TestGetFileSourceOnWindows(t *testing.T) {
 		name            string
 		sFunc           func(string, string) string
 		container       *Container
-		source          *config.LogSource
+		source          *sources.LogSource
 		wantServiceName string
 		wantPath        string
 	}{
@@ -41,7 +42,7 @@ func TestGetFileSourceOnWindows(t *testing.T) {
 				},
 				service: &service.Service{Identifier: "123456"},
 			},
-			source:          config.NewLogSource("from container", &config.LogsConfig{Service: "configServiceName"}),
+			source:          sources.NewLogSource("from container", &config.LogsConfig{Service: "configServiceName"}),
 			wantServiceName: "configServiceName",
 			wantPath:        "c:\\programdata\\docker\\containers\\123456\\123456-json.log",
 		},
@@ -57,7 +58,7 @@ func TestGetFileSourceOnWindows(t *testing.T) {
 				},
 				service: &service.Service{Identifier: "123456"},
 			},
-			source:          config.NewLogSource("from container", &config.LogsConfig{}),
+			source:          sources.NewLogSource("from container", &config.LogsConfig{}),
 			wantServiceName: "stdServiceName",
 			wantPath:        "c:\\programdata\\docker\\containers\\123456\\123456-json.log",
 		},

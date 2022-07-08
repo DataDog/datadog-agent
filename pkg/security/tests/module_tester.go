@@ -80,10 +80,8 @@ runtime_security_config:
     - "*custom*"
   socket: /tmp/test-security-probe.sock
   flush_discarder_window: 0
-{{if .EnableNetwork}}
   network:
     enabled: true
-{{end}}
   load_controller:
     events_count_threshold: {{ .EventsCountThreshold }}
 {{if .DisableFilters}}
@@ -94,12 +92,14 @@ runtime_security_config:
 {{end}}
   erpc_dentry_resolution_enabled: {{ .ErpcDentryResolutionEnabled }}
   map_dentry_resolution_enabled: {{ .MapDentryResolutionEnabled }}
+  self_test:
+    enabled: false
 
   policies:
     dir: {{.TestPoliciesDir}}
   log_patterns:
   {{range .LogPatterns}}
-    - {{.}}
+    - "{{.}}"
   {{end}}
   log_tags:
   {{range .LogTags}}
@@ -147,7 +147,9 @@ var (
 )
 
 const (
-	HostEnvironment   = "host"
+	// HostEnvironment for the Host environment
+	HostEnvironment = "host"
+	// DockerEnvironment for the docker container environment
 	DockerEnvironment = "docker"
 )
 
@@ -155,7 +157,6 @@ type testOpts struct {
 	testDir                     string
 	disableFilters              bool
 	disableApprovers            bool
-	enableNetwork               bool
 	disableDiscarders           bool
 	eventsCountThreshold        int
 	reuseProbeHandler           bool
@@ -175,7 +176,6 @@ func (s *stringSlice) Set(value string) error {
 func (to testOpts) Equal(opts testOpts) bool {
 	return to.testDir == opts.testDir &&
 		to.disableApprovers == opts.disableApprovers &&
-		to.enableNetwork == opts.enableNetwork &&
 		to.disableDiscarders == opts.disableDiscarders &&
 		to.disableFilters == opts.disableFilters &&
 		to.eventsCountThreshold == opts.eventsCountThreshold &&
@@ -552,7 +552,6 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 	if err := tmpl.Execute(buffer, map[string]interface{}{
 		"TestPoliciesDir":             dir,
 		"DisableApprovers":            opts.disableApprovers,
-		"EnableNetwork":               opts.enableNetwork,
 		"EventsCountThreshold":        opts.eventsCountThreshold,
 		"ErpcDentryResolutionEnabled": erpcDentryResolutionEnabled,
 		"MapDentryResolutionEnabled":  mapDentryResolutionEnabled,
@@ -582,7 +581,6 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		return nil, errors.Wrap(err, "failed to load config")
 	}
 
-	config.SelfTestEnabled = false
 	config.ERPCDentryResolutionEnabled = !opts.disableERPCDentryResolution
 	config.MapDentryResolutionEnabled = !opts.disableMapDentryResolution
 
@@ -707,7 +705,12 @@ func (tm *testModule) reloadConfiguration() error {
 	log.Debugf("reload configuration with testDir: %s", tm.Root())
 	tm.config.PoliciesDir = tm.Root()
 
-	if err := tm.module.Reload(); err != nil {
+	provider, err := rules.NewPoliciesDirProvider(tm.config.PoliciesDir, false, nil)
+	if err != nil {
+		return err
+	}
+
+	if err := tm.module.LoadPolicies([]rules.PolicyProvider{provider}, true); err != nil {
 		return errors.Wrap(err, "failed to reload test module")
 	}
 
@@ -811,10 +814,10 @@ func GetStatusMetrics(probe *sprobe.Probe) string {
 
 	for i := model.UnknownEventType + 1; i < model.MaxKernelEventType; i++ {
 		stats, kernelStats := perfBufferMonitor.GetEventStats(i, "events", -1)
-		if stats.Count == 0 && kernelStats.Count == 0 && kernelStats.Lost == 0 {
+		if stats.Count.Load() == 0 && kernelStats.Count.Load() == 0 && kernelStats.Lost.Load() == 0 {
 			continue
 		}
-		status.WriteString(fmt.Sprintf(", %s user:%d kernel:%d lost:%d", i, stats.Count, kernelStats.Count, kernelStats.Lost))
+		status.WriteString(fmt.Sprintf(", %s user:%d kernel:%d lost:%d", i, stats.Count.Load(), kernelStats.Count.Load(), kernelStats.Lost.Load()))
 	}
 
 	return status.String()
@@ -1337,13 +1340,7 @@ func waitForOpenProbeEvent(test *testModule, action func() error, filename strin
 	return waitForProbeEvent(test, action, "open.file.path", filename, model.FileOpenEventType)
 }
 
-func TestEnv(t *testing.T) {
-	if testEnvironment != "" && testEnvironment != HostEnvironment && testEnvironment != DockerEnvironment {
-		t.Error("invalid environment")
-		return
-	}
-}
-
+// TestMain is the entry points for functional tests
 func TestMain(m *testing.M) {
 	flag.Parse()
 	retCode := m.Run()

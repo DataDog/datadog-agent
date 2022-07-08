@@ -85,9 +85,19 @@ func (dn *dockerNetworkExtension) Process(tags []string, container *workloadmeta
 		return
 	}
 
+	if containerStats == nil {
+		log.Debugf("Metrics provider returned nil stats for container: %v", container)
+		return
+	}
+
 	containerNetworkStats, err := collector.GetContainerNetworkStats(container.Namespace, container.ID, cacheValidity)
 	if err != nil {
 		log.Debugf("Gathering network metrics for container: %v failed, metrics may be missing, err: %v", container, err)
+		return
+	}
+
+	if containerNetworkStats == nil {
+		log.Debugf("Metrics provider returned nil network stats for container: %v", container)
 		return
 	}
 

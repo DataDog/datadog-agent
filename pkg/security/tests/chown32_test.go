@@ -74,6 +74,7 @@ func TestChown32(t *testing.T) {
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
+			assert.Equal(t, event.Async, false)
 
 			if !validateChownSchema(t, event) {
 				t.Error(event.String())
@@ -100,6 +101,7 @@ func TestChown32(t *testing.T) {
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
+			assert.Equal(t, event.Async, false)
 
 			if !validateChownSchema(t, event) {
 				t.Error(event.String())
@@ -126,6 +128,7 @@ func TestChown32(t *testing.T) {
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
+			assert.Equal(t, event.Async, false)
 
 			if !validateChownSchema(t, event) {
 				t.Error(event.String())
@@ -157,6 +160,7 @@ func TestChown32(t *testing.T) {
 			assert.Equal(t, uint32(0), event.Chown.File.GID, "wrong initial group")
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
+			assert.Equal(t, event.Async, false)
 
 			if !validateChownSchema(t, event) {
 				t.Error(event.String())
@@ -188,6 +192,7 @@ func TestChown32(t *testing.T) {
 			assert.Equal(t, uint32(0), event.Chown.File.GID, "wrong initial group")
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
+			assert.Equal(t, event.Async, false)
 
 			if !validateChownSchema(t, event) {
 				t.Error(event.String())
@@ -215,6 +220,7 @@ func TestChown32(t *testing.T) {
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
+			assert.Equal(t, event.Async, false)
 
 			if !validateChownSchema(t, event) {
 				t.Error(event.String())
@@ -241,6 +247,7 @@ func TestChown32(t *testing.T) {
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
+			assert.Equal(t, event.Async, false)
 
 			if !validateChownSchema(t, event) {
 				t.Error(event.String())

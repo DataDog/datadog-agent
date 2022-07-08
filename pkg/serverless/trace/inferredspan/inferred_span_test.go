@@ -56,7 +56,7 @@ func TestFilterFunctionTags(t *testing.T) {
 		"aws_account":               "test",
 	}
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("tags", []string{"tag1:value1"})
 	mockConfig.Set("extra_tags", []string{"extra:tag"})
 
@@ -92,10 +92,11 @@ func TestFilterFunctionTags(t *testing.T) {
 }
 
 func TestCompleteInferredSpanWithNoError(t *testing.T) {
-
+	var inferredSpan InferredSpan
 	startTime := time.Now()
 
-	inferredSpan := GenerateInferredSpan(time.Now())
+	inferredSpan.GenerateInferredSpan(time.Now())
+	inferredSpan.Span.TraceID = 2350923428932752492
 	inferredSpan.Span.SpanID = 1304592378509342580
 	inferredSpan.Span.Start = startTime.UnixNano()
 	inferredSpan.Span.Name = "aws.mock"
@@ -103,7 +104,7 @@ func TestCompleteInferredSpanWithNoError(t *testing.T) {
 	inferredSpan.Span.Resource = "test-function"
 	inferredSpan.Span.Type = "http"
 	inferredSpan.Span.Meta = map[string]string{
-		Stage: "dev",
+		stage: "dev",
 	}
 
 	duration := 1 * time.Second
@@ -114,7 +115,7 @@ func TestCompleteInferredSpanWithNoError(t *testing.T) {
 		tracePayload = payload
 	}
 
-	CompleteInferredSpan(mockProcessTrace, endTime, isError, inferredSpan, 1234, sampler.PriorityAutoKeep)
+	inferredSpan.CompleteInferredSpan(mockProcessTrace, make(map[string]string), endTime, isError, 1234, sampler.PriorityAutoKeep)
 	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.mock", span.Name)
 	assert.Equal(t, "aws.mock", span.Service)
@@ -128,10 +129,11 @@ func TestCompleteInferredSpanWithNoError(t *testing.T) {
 }
 
 func TestCompleteInferredSpanWithError(t *testing.T) {
-
+	var inferredSpan InferredSpan
 	startTime := time.Now()
 
-	inferredSpan := GenerateInferredSpan(time.Now())
+	inferredSpan.GenerateInferredSpan(time.Now())
+	inferredSpan.Span.TraceID = 2350923428932752492
 	inferredSpan.Span.SpanID = 1304592378509342580
 	inferredSpan.Span.Start = startTime.UnixNano()
 	inferredSpan.Span.Name = "aws.mock"
@@ -139,7 +141,7 @@ func TestCompleteInferredSpanWithError(t *testing.T) {
 	inferredSpan.Span.Resource = "test-function"
 	inferredSpan.Span.Type = "http"
 	inferredSpan.Span.Meta = map[string]string{
-		Stage: "dev",
+		stage: "dev",
 	}
 
 	duration := 1 * time.Second
@@ -150,7 +152,7 @@ func TestCompleteInferredSpanWithError(t *testing.T) {
 		tracePayload = payload
 	}
 
-	CompleteInferredSpan(mockProcessTrace, endTime, isError, inferredSpan, 1234, sampler.PriorityAutoKeep)
+	inferredSpan.CompleteInferredSpan(mockProcessTrace, make(map[string]string), endTime, isError, 1234, sampler.PriorityAutoKeep)
 	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.mock", span.Name)
 	assert.Equal(t, "aws.mock", span.Service)
@@ -164,12 +166,13 @@ func TestCompleteInferredSpanWithError(t *testing.T) {
 }
 
 func TestCompleteInferredSpanWithAsync(t *testing.T) {
+	var inferredSpan InferredSpan
 	// Start of inferred span
 	startTime := time.Now()
 	duration := 2 * time.Second
 	// mock invocation end time
 	lambdaInvocationStartTime := startTime.Add(duration)
-	inferredSpan := GenerateInferredSpan(lambdaInvocationStartTime)
+	inferredSpan.GenerateInferredSpan(lambdaInvocationStartTime)
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.TraceID = 2350923428932752492
 	inferredSpan.Span.SpanID = 1304592378509342580
@@ -179,14 +182,15 @@ func TestCompleteInferredSpanWithAsync(t *testing.T) {
 	inferredSpan.Span.Resource = "test-function"
 	inferredSpan.Span.Type = "http"
 	inferredSpan.Span.Meta = map[string]string{
-		Stage: "dev",
+		stage: "dev",
 	}
 	isError := false
 	var tracePayload *api.Payload
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
-	CompleteInferredSpan(mockProcessTrace, time.Now(), isError, inferredSpan, 1234, sampler.PriorityAutoKeep)
+
+	inferredSpan.CompleteInferredSpan(mockProcessTrace, make(map[string]string), time.Now(), isError, 1234, sampler.PriorityAutoKeep)
 	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.mock", span.Name)
 	assert.Equal(t, "aws.mock", span.Service)

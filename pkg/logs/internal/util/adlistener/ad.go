@@ -42,10 +42,10 @@ func NewADListener(name string, ac *autodiscovery.AutoConfig, schedule, unschedu
 	}
 }
 
-// StartListener starts the ADListener.  It will subscribe to the MetaScheduler as soon
-// as it is available
+// StartListener starts the ADListener, subscribing to the feed of integration.Configs and
+// additionally gathering any currently-scheduled configs.
 func (l *ADListener) StartListener() {
-	l.ac.AddScheduler(l.name, l, false)
+	l.ac.AddScheduler(l.name, l, true)
 }
 
 // StopListener stops the ADListener

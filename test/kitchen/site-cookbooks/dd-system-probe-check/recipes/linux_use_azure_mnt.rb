@@ -1,4 +1,4 @@
-return unless azure? && !platform?('windows')
+return unless Chef::SystemProbeHelpers::azure?(node) && !platform?('windows')
 
 mnt_path = ::File.exist?('/mnt/resource') ? '/mnt/resource' : '/mnt'
 

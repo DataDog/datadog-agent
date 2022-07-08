@@ -16,17 +16,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/channel"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/container"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/docker"
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/listener"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/traps"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,7 +38,7 @@ import (
 // processes and sends logs to the backend.  See the package README for
 // a description of its operation.
 type Agent struct {
-	sources                   *config.LogSources
+	sources                   *sources.LogSources
 	services                  *service.Services
 	schedulers                *schedulers.Schedulers
 	auditor                   auditor.Auditor
@@ -52,7 +53,7 @@ type Agent struct {
 }
 
 // NewAgent returns a new Logs Agent
-func NewAgent(sources *config.LogSources, services *service.Services, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
+func NewAgent(sources *sources.LogSources, services *service.Services, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
 	health := health.RegisterLiveness("logs-agent")
 
 	// setup the auditor
@@ -78,19 +79,22 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	lnchrs.AddLauncher(listener.NewLauncher(coreConfig.Datadog.GetInt("logs_config.frame_size")))
 	lnchrs.AddLauncher(journald.NewLauncher())
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
-	lnchrs.AddLauncher(traps.NewLauncher())
-	lnchrs.AddLauncher(docker.NewLauncher(
-		time.Duration(coreConfig.Datadog.GetInt("logs_config.docker_client_read_timeout"))*time.Second,
-		sources,
-		services,
-		cop,
-		coreConfig.Datadog.GetBool("logs_config.docker_container_use_file"),
-		coreConfig.Datadog.GetBool("logs_config.docker_container_force_use_file")))
-	lnchrs.AddLauncher(kubernetes.NewLauncher(
-		sources,
-		services,
-		cop,
-		coreConfig.Datadog.GetBool("logs_config.container_collect_all")))
+	if !util.CcaInAD() {
+		lnchrs.AddLauncher(docker.NewLauncher(
+			time.Duration(coreConfig.Datadog.GetInt("logs_config.docker_client_read_timeout"))*time.Second,
+			sources,
+			services,
+			cop,
+			coreConfig.Datadog.GetBool("logs_config.docker_container_use_file"),
+			coreConfig.Datadog.GetBool("logs_config.docker_container_force_use_file")))
+		lnchrs.AddLauncher(kubernetes.NewLauncher(
+			sources,
+			services,
+			cop,
+			coreConfig.Datadog.GetBool("logs_config.container_collect_all")))
+	} else {
+		lnchrs.AddLauncher(container.NewLauncher(sources))
+	}
 
 	return &Agent{
 		sources:                   sources,
@@ -108,7 +112,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 // NewServerless returns a Logs Agent instance to run in a serverless environment.
 // The Serverless Logs Agent has only one input being the channel to receive the logs to process.
 // It is using a NullAuditor because we've nothing to do after having sent the logs to the intake.
-func NewServerless(sources *config.LogSources, services *service.Services, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
+func NewServerless(sources *sources.LogSources, services *service.Services, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
 	health := health.RegisterLiveness("logs-agent")
 
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver()

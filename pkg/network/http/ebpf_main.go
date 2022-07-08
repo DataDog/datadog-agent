@@ -94,6 +94,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			{Name: "ssl_read_args"},
 			{Name: "bio_new_socket_args"},
 			{Name: "fd_by_ssl_bio"},
+			{Name: "ssl_ctx_by_pid_tgid"},
 		},
 		PerfMaps: []*manager.PerfMap{
 			{
@@ -101,12 +102,14 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 				PerfMapOptions: manager.PerfMapOptions{
 					PerfRingBufferSize: 8 * os.Getpagesize(),
 					Watermark:          1,
-					DataHandler:        batchCompletionHandler.DataHandler,
+					RecordHandler:      batchCompletionHandler.RecordHandler,
 					LostHandler:        batchCompletionHandler.LostHandler,
+					RecordGetter:       batchCompletionHandler.RecordGetter,
 				},
 			},
 		},
 		Probes: []*manager.Probe{
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPSendMsg), EBPFFuncName: "kprobe__tcp_sendmsg", UID: probeUID}, KProbeMaxActive: maxActive},
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPSendMsgReturn), EBPFFuncName: "kretprobe__tcp_sendmsg", UID: probeUID}, KProbeMaxActive: maxActive},
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: httpSocketFilter, EBPFFuncName: "socket__http_filter", UID: probeUID}},
 		},
@@ -150,14 +153,21 @@ func (e *ebpfProgram) Init() error {
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  httpSocketFilter,
 					EBPFFuncName: "socket__http_filter",
-					UID: probeUID,
+					UID:          probeUID,
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  string(probes.TCPSendMsg),
+					EBPFFuncName: "kprobe__tcp_sendmsg",
+					UID:          probeUID,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  string(probes.TCPSendMsgReturn),
 					EBPFFuncName: "kretprobe__tcp_sendmsg",
-					UID: probeUID,
+					UID:          probeUID,
 				},
 			},
 		},

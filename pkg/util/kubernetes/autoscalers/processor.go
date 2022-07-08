@@ -35,6 +35,7 @@ const (
 	extraQueryCharacters = 16
 )
 
+// DatadogClient abstracts the dependency on the Datadog api
 type DatadogClient interface {
 	QueryMetrics(from, to int64, query string) ([]datadog.Series, error)
 	GetRateLimitStats() map[string]datadog.RateLimit

@@ -94,6 +94,10 @@ func (s *dummyService) GetExtraConfig(key string) (string, error) {
 	return s.ExtraConfig[key], nil
 }
 
+// FilterConfigs does nothing.
+func (s *dummyService) FilterTemplates(map[string]integration.Config) {
+}
+
 func TestGetFallbackHost(t *testing.T) {
 	ip, err := getFallbackHost(map[string]string{"bridge": "172.17.0.1"})
 	assert.Equal(t, "172.17.0.1", ip)
@@ -790,6 +794,25 @@ func TestResolve(t *testing.T) {
 				LogsConfig:    integration.Data(`[{"service":"any_service","source":"any_source","tags":["a","b:d"]}]`),
 				ServiceID:     "a5901276aed1",
 				Provider:      names.Kubernetes,
+			},
+		},
+		{
+			testName: "static tags",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hosts:         map[string]string{"bridge": "127.0.0.1"},
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: %%host%%\ntags:\n- statictag:TEST")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n- foo:bar\n- statictag:TEST\n")},
+				ServiceID:     "a5901276aed1",
 			},
 		},
 	}

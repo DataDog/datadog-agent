@@ -8,7 +8,7 @@ package workloadmeta
 import "fmt"
 
 func ExampleStore_Subscribe() {
-	filter := NewFilter([]Kind{KindContainer}, SourceRuntime)
+	filter := NewFilter([]Kind{KindContainer}, SourceRuntime, EventTypeAll)
 	ch := GetGlobalStore().Subscribe("test", NormalPriority, filter)
 
 	go func() {

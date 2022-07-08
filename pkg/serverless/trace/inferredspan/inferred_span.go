@@ -6,8 +6,6 @@
 package inferredspan
 
 import (
-	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -66,7 +64,6 @@ func CheckIsInferredSpan(span *pb.Span) bool {
 
 // FilterFunctionTags filters out DD tags & function specific tags
 func FilterFunctionTags(input map[string]string) map[string]string {
-
 	if input == nil {
 		return nil
 	}
@@ -96,28 +93,13 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 	return output
 }
 
-// DispatchInferredSpan decodes the event and routes it to the correct
-// enrichment function for that event source
-func DispatchInferredSpan(event string, inferredSpan InferredSpan) {
-	attributes := parseEvent(event)
-	eventSource := attributes.extractEventSource()
-	switch eventSource {
-	case APIGATEWAY:
-		EnrichInferredSpanWithAPIGatewayRESTEvent(attributes, inferredSpan)
-	case HTTPAPI:
-		EnrichInferredSpanWithAPIGatewayHTTPEvent(attributes, inferredSpan)
-	case WEBSOCKET:
-		EnrichInferredSpanWithAPIGatewayWebsocketEvent(attributes, inferredSpan)
-	}
-}
-
 // CompleteInferredSpan finishes the inferred span and passes it
 // as an API payload to be processed by the trace agent
-func CompleteInferredSpan(
+func (inferredSpan *InferredSpan) CompleteInferredSpan(
 	processTrace func(p *api.Payload),
+	triggerTags map[string]string,
 	endTime time.Time,
 	isError bool,
-	inferredSpan InferredSpan,
 	traceID uint64,
 	samplingPriority sampler.SamplingPriority) {
 
@@ -136,6 +118,7 @@ func CompleteInferredSpan(
 		Origin:   "lambda",
 		Spans:    []*pb.Span{inferredSpan.Span},
 		Priority: int32(samplingPriority),
+		Tags:     triggerTags,
 	}
 
 	tracerPayload := &pb.TracerPayload{
@@ -150,31 +133,17 @@ func CompleteInferredSpan(
 
 // GenerateInferredSpan declares and initializes a new inferred span
 // with the SpanID and TraceID
-func GenerateInferredSpan(startTime time.Time) InferredSpan {
-	var inferredSpan InferredSpan
+func (inferredSpan *InferredSpan) GenerateInferredSpan(startTime time.Time) {
 
 	inferredSpan.CurrentInvocationStartTime = startTime
 	inferredSpan.Span = &pb.Span{
 		SpanID: random.Random.Uint64(),
 	}
-	log.Debug("Generated new Inferred span ", inferredSpan)
-	return inferredSpan
+	log.Debugf("Generated new Inferred span: %+v", inferredSpan)
 }
 
 // IsInferredSpansEnabled is used to determine if we need to
 // generate and enrich inferred spans for a particular invocation
 func IsInferredSpansEnabled() bool {
-	traceEnabled, e1 := strconv.ParseBool(os.Getenv("DD_TRACE_ENABLED"))
-	managedServiceEnabled, e2 := strconv.ParseBool(os.Getenv("DD_TRACE_MANAGED_SERVICES"))
-	isEnabled := traceEnabled && managedServiceEnabled
-
-	if e1 != nil {
-		log.Debug("Inferred spans will not be enabled. DD_TRACE_ENABLED could not be parsed")
-		return false
-	} else if e2 != nil {
-		log.Debug("Inferred spans will not be enabled. DD_TRACE_MANAGED_SERVICES could not be parsed")
-		return false
-	} else {
-		return isEnabled
-	}
+	return config.Datadog.GetBool("serverless.trace_enabled") && config.Datadog.GetBool("serverless.trace_managed_services")
 }

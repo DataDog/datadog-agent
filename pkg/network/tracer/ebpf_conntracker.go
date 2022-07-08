@@ -29,6 +29,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
+	libnetlink "github.com/mdlayher/netlink"
 	"golang.org/x/sys/unix"
 )
 
@@ -57,6 +58,13 @@ type ebpfConntracker struct {
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
 func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
+	// dial the netlink layer aim to load nf_conntrack_netlink and nf_conntrack kernel modules
+	// eBPF conntrack require nf_conntrack symbols
+	conn, err := libnetlink.Dial(unix.NETLINK_NETFILTER, nil)
+	if err == nil {
+		conn.Close()
+	}
+
 	buf, err := getRuntimeCompiledConntracker(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("unable to compile ebpf conntracker: %w", err)
@@ -338,6 +346,56 @@ func (e *ebpfConntracker) Close() {
 	if err != nil {
 		log.Warnf("error cleaning up ebpf conntrack: %s", err)
 	}
+}
+
+// DumpCachedTable dumps the cached conntrack NAT entries grouped by network namespace
+func (e *ebpfConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]netlink.DebugConntrackEntry, error) {
+	src := tuplePool.Get().(*netebpf.ConntrackTuple)
+	defer tuplePool.Put(src)
+	dst := tuplePool.Get().(*netebpf.ConntrackTuple)
+	defer tuplePool.Put(dst)
+
+	entries := make(map[uint32][]netlink.DebugConntrackEntry)
+
+	it := e.ctMap.Iterate()
+	for it.Next(unsafe.Pointer(src), unsafe.Pointer(dst)) {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+
+		_, ok := entries[src.Netns]
+		if !ok {
+			entries[src.Netns] = []netlink.DebugConntrackEntry{}
+		}
+		entries[src.Netns] = append(entries[src.Netns], netlink.DebugConntrackEntry{
+			Family: src.Family().String(),
+			Proto:  network.ConnectionType(src.Type()).String(),
+			Origin: netlink.DebugConntrackTuple{
+				Src: netlink.DebugConntrackAddress{
+					IP:   src.SourceAddress().String(),
+					Port: src.Sport,
+				},
+				Dst: netlink.DebugConntrackAddress{
+					IP:   src.DestAddress().String(),
+					Port: src.Dport,
+				},
+			},
+			Reply: netlink.DebugConntrackTuple{
+				Src: netlink.DebugConntrackAddress{
+					IP:   dst.SourceAddress().String(),
+					Port: dst.Sport,
+				},
+				Dst: netlink.DebugConntrackAddress{
+					IP:   dst.DestAddress().String(),
+					Port: dst.Dport,
+				},
+			},
+		})
+	}
+	if it.Err() != nil {
+		return nil, it.Err()
+	}
+	return entries, nil
 }
 
 func getManager(buf io.ReaderAt, maxStateSize int) (*manager.Manager, error) {

@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    The Kubernetes State Metrics Core check now collects two ingress metrics:
+    ``kubernetes_state.ingress.count`` and ``kubernetes_state.ingress.path``.

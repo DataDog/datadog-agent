@@ -16,6 +16,7 @@
 # These whole classes of package names have fixed copyright
 cloud.google.com/*: Copyright 2019 Google LLC
 code.cloudfoundry.org/*: Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved.
+github.com/aws/aws-lambda-go: Copyright 2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 github.com/aws/aws-sdk-go: ["Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved.", "Copyright 2014-2015 Stripe, Inc."]
 github.com/containerd/*: Copyright 2012-2015 Docker, Inc.
 github.com/coreos/*: Copyright 2017 CoreOS, Inc
@@ -37,7 +38,7 @@ go.opentelemetry.io/*: Copyright The OpenTelemetry Authors
 gopkg.in/DataDog/*: Copyright 2016-Present Datadog, Inc.
 k8s.io/*: Copyright 2014 The Kubernetes Authors.
 sigs.k8s.io/*: Copyright 2017 The Kubernetes Authors.
-contrib.go.opencensus.io/exporter/prometheus: Copyright 2020, OpenCensus Authors 
+contrib.go.opencensus.io/exporter/prometheus: Copyright 2020, OpenCensus Authors
 go.opencensus.io: Copyright 2018, OpenCensus Authors
 go.opencensus.io/*: Copyright 2018, OpenCensus Authors
 github.com/grpc-ecosystem/*: Copyright 2016 Michal Witkowski. All Rights Reserved.
@@ -95,7 +96,7 @@ github.com/xeipuuv/gojsonpointer: Copyright 2015 xeipuuv ( https://github.com/xe
 github.com/xeipuuv/gojsonreference: Copyright 2015 xeipuuv ( https://github.com/xeipuuv )
 github.com/xeipuuv/gojsonschema: Copyright 2015 xeipuuv
 github.com/open-policy-agent/opa: Copyright 2016 The OPA Authors.  All rights reserved.
-github.com/containernetworking/cni: Copyright 2019 CNI authors
+github.com/containernetworking/*: Copyright 2019 CNI authors
 
 # These have large AUTHORS/CONTRIBUTORS files but attribute copyright as a group
 github.com/aptly-dev/aptly: Copyright 2013-2015 aptly authors. All rights reserved.
@@ -115,6 +116,7 @@ github.com/gogo/protobuf: ["Copyright (c) 2013, The GoGo Authors. All rights res
 #  * Year is based on the year of the first commit to the repository
 #  * Author, when known only by GitHub username, is "GitHub Full Name (github-username)"
 github.com/moby/sys/mountinfo: Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
+github.com/moby/sys/signal: Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 github.com/modern-go/concurrent: Copyright (c) 2018 Tao Wen
 github.com/modern-go/reflect2: Copyright (c) 2018 Tao Wen
 github.com/opencontainers/selinux/*: Copyright (c) 2017 The Authors

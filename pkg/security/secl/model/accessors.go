@@ -26,12 +26,14 @@ func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 }
 func (m *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
+		eval.EventType("bind"),
 		eval.EventType("bpf"),
 		eval.EventType("capset"),
 		eval.EventType("chmod"),
 		eval.EventType("chown"),
 		eval.EventType("dns"),
 		eval.EventType("exec"),
+		eval.EventType("exit"),
 		eval.EventType("link"),
 		eval.EventType("load_module"),
 		eval.EventType("mkdir"),
@@ -55,6 +57,46 @@ func (m *Model) GetEventTypes() []eval.EventType {
 }
 func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
+	case "async":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Async
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "bind.addr.family":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Bind.AddrFamily)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "bind.addr.ip":
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
+				return (*Event)(ctx.Object).Bind.Addr.IPNet
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "bind.addr.port":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Bind.Addr.Port)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "bind.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Bind.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "bpf.cmd":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -237,6 +279,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "chmod.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Chmod.File.BasenameStr
 			},
@@ -245,7 +288,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "chmod.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Chmod.File.PathnameStr
 			},
@@ -390,6 +433,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "chown.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Chown.File.BasenameStr
 			},
@@ -398,7 +442,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "chown.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Chown.File.PathnameStr
 			},
@@ -532,7 +576,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).Exec.Process.Argv
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "exec.argv0":
 		return &eval.StringEvaluator{
@@ -612,7 +656,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).Exec.Process.Envp
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "exec.envs":
 		return &eval.StringArrayEvaluator{
@@ -620,7 +664,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).Exec.Process.Envs
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "exec.envs_truncated":
 		return &eval.BoolEvaluator{
@@ -720,6 +764,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "exec.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Exec.Process.FileEvent.BasenameStr
 			},
@@ -728,7 +773,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "exec.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Exec.Process.FileEvent.PathnameStr
 			},
@@ -807,10 +852,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "exec.is_thread":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Exec.Process.IsThread
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "exec.pid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).Exec.Process.Pid)
+				return int((*Event)(ctx.Object).Exec.Process.PIDContext.Pid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -826,7 +879,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.tid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).Exec.Process.Tid)
+				return int((*Event)(ctx.Object).Exec.Process.PIDContext.Tid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -851,6 +904,392 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Exec.Process.Credentials.User
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.args":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.Args
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+		}, nil
+	case "exit.args_flags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				return (*Event)(ctx.Object).Exit.Process.Argv
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.args_options":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				return (*Event)(ctx.Object).Exit.Process.Argv
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.args_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Exit.Process.ArgsTruncated
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.argv":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				return (*Event)(ctx.Object).Exit.Process.Argv
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+		}, nil
+	case "exit.argv0":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.Argv0
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+		}, nil
+	case "exit.cap_effective":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.Credentials.CapEffective)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.cap_permitted":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.Credentials.CapPermitted)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.cause":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Cause)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.code":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Code)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.comm":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.Comm
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.container.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.ContainerID
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.cookie":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.Cookie)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.created_at":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.CreatedAt)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.egid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.Credentials.EGID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.egroup":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.Credentials.EGroup
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.envp":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				return (*Event)(ctx.Object).Exit.Process.Envp
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.envs":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				return (*Event)(ctx.Object).Exit.Process.Envs
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.envs_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Exit.Process.EnvsTruncated
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.euid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.Credentials.EUID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.euser":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.Credentials.EUser
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.FileEvent.Filesystem
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.Group
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.InUpperLayer
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.file.name":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.FileEvent.BasenameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.FileEvent.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.User
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.fsgid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.Credentials.FSGID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.fsgroup":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.Credentials.FSGroup
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.fsuid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.Credentials.FSUID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.fsuser":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.Credentials.FSUser
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.Credentials.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.Credentials.Group
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.is_thread":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Exit.Process.IsThread
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.pid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.PIDContext.Pid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.ppid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.PPid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.tid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.PIDContext.Tid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.tty_name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.TTYName
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.Credentials.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.Credentials.User
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -937,6 +1376,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "link.file.destination.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Link.Target.BasenameStr
 			},
@@ -945,7 +1385,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "link.file.destination.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Link.Target.PathnameStr
 			},
@@ -1042,6 +1482,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "link.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Link.Source.BasenameStr
 			},
@@ -1050,7 +1491,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "link.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Link.Source.PathnameStr
 			},
@@ -1163,6 +1604,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "load_module.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).LoadModule.File.BasenameStr
 			},
@@ -1171,7 +1613,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "load_module.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).LoadModule.File.PathnameStr
 			},
@@ -1316,6 +1758,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "mkdir.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Mkdir.File.BasenameStr
 			},
@@ -1324,7 +1767,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "mkdir.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Mkdir.File.PathnameStr
 			},
@@ -1437,6 +1880,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "mmap.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).MMap.File.BasenameStr
 			},
@@ -1445,7 +1889,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "mmap.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).MMap.File.PathnameStr
 			},
@@ -1678,6 +2122,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "open.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Open.File.BasenameStr
 			},
@@ -1686,7 +2131,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "open.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Open.File.PathnameStr
 			},
@@ -1811,7 +2256,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 100 * eval.IteratorWeight,
 		}, nil
 	case "process.ancestors.argv0":
 		return &eval.StringArrayEvaluator{
@@ -1971,7 +2416,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
+			Weight: eval.IteratorWeight,
 		}, nil
 	case "process.ancestors.envs":
 		return &eval.StringArrayEvaluator{
@@ -1987,7 +2432,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
+			Weight: eval.IteratorWeight,
 		}, nil
 	case "process.ancestors.envs_truncated":
 		return &eval.BoolArrayEvaluator{
@@ -2183,6 +2628,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.ancestors.file.name":
 		return &eval.StringArrayEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -2199,7 +2645,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -2358,6 +2804,22 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
+	case "process.ancestors.is_thread":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				var results []bool
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.IsThread
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
 	case "process.ancestors.pid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -2366,7 +2828,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				value := iterator.Front(ctx)
 				for value != nil {
 					element := (*ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Pid)
+					result := int(element.ProcessContext.Process.PIDContext.Pid)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -2398,7 +2860,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				value := iterator.Front(ctx)
 				for value != nil {
 					element := (*ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Tid)
+					result := int(element.ProcessContext.Process.PIDContext.Tid)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -2492,7 +2954,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).ProcessContext.Process.Argv
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "process.argv0":
 		return &eval.StringEvaluator{
@@ -2572,7 +3034,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).ProcessContext.Process.Envp
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "process.envs":
 		return &eval.StringArrayEvaluator{
@@ -2580,7 +3042,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).ProcessContext.Process.Envs
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "process.envs_truncated":
 		return &eval.BoolEvaluator{
@@ -2680,6 +3142,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ProcessContext.Process.FileEvent.BasenameStr
 			},
@@ -2688,7 +3151,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ProcessContext.Process.FileEvent.PathnameStr
 			},
@@ -2767,10 +3230,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "process.is_thread":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).ProcessContext.Process.IsThread
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "process.pid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).ProcessContext.Process.Pid)
+				return int((*Event)(ctx.Object).ProcessContext.Process.PIDContext.Pid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -2786,7 +3257,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.tid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).ProcessContext.Process.Tid)
+				return int((*Event)(ctx.Object).ProcessContext.Process.PIDContext.Tid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -2909,7 +3380,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 100 * eval.IteratorWeight,
 		}, nil
 	case "ptrace.tracee.ancestors.argv0":
 		return &eval.StringArrayEvaluator{
@@ -3069,7 +3540,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
+			Weight: eval.IteratorWeight,
 		}, nil
 	case "ptrace.tracee.ancestors.envs":
 		return &eval.StringArrayEvaluator{
@@ -3085,7 +3556,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
+			Weight: eval.IteratorWeight,
 		}, nil
 	case "ptrace.tracee.ancestors.envs_truncated":
 		return &eval.BoolArrayEvaluator{
@@ -3281,6 +3752,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "ptrace.tracee.ancestors.file.name":
 		return &eval.StringArrayEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -3297,7 +3769,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "ptrace.tracee.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -3456,6 +3928,22 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
+	case "ptrace.tracee.ancestors.is_thread":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				var results []bool
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.IsThread
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
 	case "ptrace.tracee.ancestors.pid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -3464,7 +3952,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				value := iterator.Front(ctx)
 				for value != nil {
 					element := (*ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Pid)
+					result := int(element.ProcessContext.Process.PIDContext.Pid)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3496,7 +3984,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				value := iterator.Front(ctx)
 				for value != nil {
 					element := (*ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Tid)
+					result := int(element.ProcessContext.Process.PIDContext.Tid)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3590,7 +4078,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.Argv
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.argv0":
 		return &eval.StringEvaluator{
@@ -3670,7 +4158,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.Envp
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.envs":
 		return &eval.StringArrayEvaluator{
@@ -3678,7 +4166,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.Envs
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.envs_truncated":
 		return &eval.BoolEvaluator{
@@ -3778,6 +4266,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "ptrace.tracee.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.BasenameStr
 			},
@@ -3786,7 +4275,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "ptrace.tracee.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.PathnameStr
 			},
@@ -3865,10 +4354,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "ptrace.tracee.is_thread":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).PTrace.Tracee.Process.IsThread
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "ptrace.tracee.pid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).PTrace.Tracee.Process.Pid)
+				return int((*Event)(ctx.Object).PTrace.Tracee.Process.PIDContext.Pid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3884,7 +4381,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.tid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).PTrace.Tracee.Process.Tid)
+				return int((*Event)(ctx.Object).PTrace.Tracee.Process.PIDContext.Tid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -4003,6 +4500,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "removexattr.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).RemoveXAttr.File.BasenameStr
 			},
@@ -4011,7 +4509,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "removexattr.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).RemoveXAttr.File.PathnameStr
 			},
@@ -4132,6 +4630,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "rename.file.destination.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Rename.New.BasenameStr
 			},
@@ -4140,7 +4639,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "rename.file.destination.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Rename.New.PathnameStr
 			},
@@ -4237,6 +4736,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "rename.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Rename.Old.BasenameStr
 			},
@@ -4245,7 +4745,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "rename.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Rename.Old.PathnameStr
 			},
@@ -4358,6 +4858,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "rmdir.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Rmdir.File.BasenameStr
 			},
@@ -4366,7 +4867,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "rmdir.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Rmdir.File.PathnameStr
 			},
@@ -4623,6 +5124,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "setxattr.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).SetXAttr.File.BasenameStr
 			},
@@ -4631,7 +5133,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "setxattr.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).SetXAttr.File.PathnameStr
 			},
@@ -4764,7 +5266,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 100 * eval.IteratorWeight,
 		}, nil
 	case "signal.target.ancestors.argv0":
 		return &eval.StringArrayEvaluator{
@@ -4924,7 +5426,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
+			Weight: eval.IteratorWeight,
 		}, nil
 	case "signal.target.ancestors.envs":
 		return &eval.StringArrayEvaluator{
@@ -4940,7 +5442,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
+			Weight: eval.IteratorWeight,
 		}, nil
 	case "signal.target.ancestors.envs_truncated":
 		return &eval.BoolArrayEvaluator{
@@ -5136,6 +5638,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "signal.target.ancestors.file.name":
 		return &eval.StringArrayEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -5152,7 +5655,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "signal.target.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -5311,6 +5814,22 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
+	case "signal.target.ancestors.is_thread":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				var results []bool
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.IsThread
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
 	case "signal.target.ancestors.pid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -5319,7 +5838,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				value := iterator.Front(ctx)
 				for value != nil {
 					element := (*ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Pid)
+					result := int(element.ProcessContext.Process.PIDContext.Pid)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5351,7 +5870,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				value := iterator.Front(ctx)
 				for value != nil {
 					element := (*ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Tid)
+					result := int(element.ProcessContext.Process.PIDContext.Tid)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5445,7 +5964,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).Signal.Target.Process.Argv
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "signal.target.argv0":
 		return &eval.StringEvaluator{
@@ -5525,7 +6044,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).Signal.Target.Process.Envp
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "signal.target.envs":
 		return &eval.StringArrayEvaluator{
@@ -5533,7 +6052,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).Signal.Target.Process.Envs
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "signal.target.envs_truncated":
 		return &eval.BoolEvaluator{
@@ -5633,6 +6152,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "signal.target.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Signal.Target.Process.FileEvent.BasenameStr
 			},
@@ -5641,7 +6161,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "signal.target.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Signal.Target.Process.FileEvent.PathnameStr
 			},
@@ -5720,10 +6240,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "signal.target.is_thread":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Signal.Target.Process.IsThread
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "signal.target.pid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).Signal.Target.Process.Pid)
+				return int((*Event)(ctx.Object).Signal.Target.Process.PIDContext.Pid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5739,7 +6267,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.tid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).Signal.Target.Process.Tid)
+				return int((*Event)(ctx.Object).Signal.Target.Process.PIDContext.Tid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5850,6 +6378,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "splice.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Splice.File.BasenameStr
 			},
@@ -5858,7 +6387,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "splice.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Splice.File.PathnameStr
 			},
@@ -5987,6 +6516,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "unlink.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Unlink.File.BasenameStr
 			},
@@ -5995,7 +6525,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "unlink.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Unlink.File.PathnameStr
 			},
@@ -6025,6 +6555,14 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+		}, nil
+	case "unlink.flags":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Unlink.Flags)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 	case "unlink.retval":
 		return &eval.IntEvaluator{
@@ -6124,6 +6662,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "utimes.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Utimes.File.BasenameStr
 			},
@@ -6132,7 +6671,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "utimes.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Utimes.File.PathnameStr
 			},
@@ -6176,6 +6715,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 }
 func (e *Event) GetFields() []eval.Field {
 	return []eval.Field{
+		"async",
+		"bind.addr.family",
+		"bind.addr.ip",
+		"bind.addr.port",
+		"bind.retval",
 		"bpf.cmd",
 		"bpf.map.name",
 		"bpf.map.type",
@@ -6269,12 +6813,61 @@ func (e *Event) GetFields() []eval.Field {
 		"exec.fsuser",
 		"exec.gid",
 		"exec.group",
+		"exec.is_thread",
 		"exec.pid",
 		"exec.ppid",
 		"exec.tid",
 		"exec.tty_name",
 		"exec.uid",
 		"exec.user",
+		"exit.args",
+		"exit.args_flags",
+		"exit.args_options",
+		"exit.args_truncated",
+		"exit.argv",
+		"exit.argv0",
+		"exit.cap_effective",
+		"exit.cap_permitted",
+		"exit.cause",
+		"exit.code",
+		"exit.comm",
+		"exit.container.id",
+		"exit.cookie",
+		"exit.created_at",
+		"exit.egid",
+		"exit.egroup",
+		"exit.envp",
+		"exit.envs",
+		"exit.envs_truncated",
+		"exit.euid",
+		"exit.euser",
+		"exit.file.change_time",
+		"exit.file.filesystem",
+		"exit.file.gid",
+		"exit.file.group",
+		"exit.file.in_upper_layer",
+		"exit.file.inode",
+		"exit.file.mode",
+		"exit.file.modification_time",
+		"exit.file.mount_id",
+		"exit.file.name",
+		"exit.file.path",
+		"exit.file.rights",
+		"exit.file.uid",
+		"exit.file.user",
+		"exit.fsgid",
+		"exit.fsgroup",
+		"exit.fsuid",
+		"exit.fsuser",
+		"exit.gid",
+		"exit.group",
+		"exit.is_thread",
+		"exit.pid",
+		"exit.ppid",
+		"exit.tid",
+		"exit.tty_name",
+		"exit.uid",
+		"exit.user",
 		"link.file.change_time",
 		"link.file.destination.change_time",
 		"link.file.destination.filesystem",
@@ -6423,6 +7016,7 @@ func (e *Event) GetFields() []eval.Field {
 		"process.ancestors.fsuser",
 		"process.ancestors.gid",
 		"process.ancestors.group",
+		"process.ancestors.is_thread",
 		"process.ancestors.pid",
 		"process.ancestors.ppid",
 		"process.ancestors.tid",
@@ -6468,6 +7062,7 @@ func (e *Event) GetFields() []eval.Field {
 		"process.fsuser",
 		"process.gid",
 		"process.group",
+		"process.is_thread",
 		"process.pid",
 		"process.ppid",
 		"process.tid",
@@ -6515,6 +7110,7 @@ func (e *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.fsuser",
 		"ptrace.tracee.ancestors.gid",
 		"ptrace.tracee.ancestors.group",
+		"ptrace.tracee.ancestors.is_thread",
 		"ptrace.tracee.ancestors.pid",
 		"ptrace.tracee.ancestors.ppid",
 		"ptrace.tracee.ancestors.tid",
@@ -6560,6 +7156,7 @@ func (e *Event) GetFields() []eval.Field {
 		"ptrace.tracee.fsuser",
 		"ptrace.tracee.gid",
 		"ptrace.tracee.group",
+		"ptrace.tracee.is_thread",
 		"ptrace.tracee.pid",
 		"ptrace.tracee.ppid",
 		"ptrace.tracee.tid",
@@ -6701,6 +7298,7 @@ func (e *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.fsuser",
 		"signal.target.ancestors.gid",
 		"signal.target.ancestors.group",
+		"signal.target.ancestors.is_thread",
 		"signal.target.ancestors.pid",
 		"signal.target.ancestors.ppid",
 		"signal.target.ancestors.tid",
@@ -6746,6 +7344,7 @@ func (e *Event) GetFields() []eval.Field {
 		"signal.target.fsuser",
 		"signal.target.gid",
 		"signal.target.group",
+		"signal.target.is_thread",
 		"signal.target.pid",
 		"signal.target.ppid",
 		"signal.target.tid",
@@ -6784,6 +7383,7 @@ func (e *Event) GetFields() []eval.Field {
 		"unlink.file.rights",
 		"unlink.file.uid",
 		"unlink.file.user",
+		"unlink.flags",
 		"unlink.retval",
 		"unload_module.name",
 		"unload_module.retval",
@@ -6806,6 +7406,16 @@ func (e *Event) GetFields() []eval.Field {
 }
 func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
+	case "async":
+		return e.Async, nil
+	case "bind.addr.family":
+		return int(e.Bind.AddrFamily), nil
+	case "bind.addr.ip":
+		return e.Bind.Addr.IPNet, nil
+	case "bind.addr.port":
+		return int(e.Bind.Addr.Port), nil
+	case "bind.retval":
+		return int(e.Bind.SyscallEvent.Retval), nil
 	case "bpf.cmd":
 		return int(e.BPF.Cmd), nil
 	case "bpf.map.name":
@@ -6996,18 +7606,116 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Exec.Process.Credentials.GID), nil
 	case "exec.group":
 		return e.Exec.Process.Credentials.Group, nil
+	case "exec.is_thread":
+		return e.Exec.Process.IsThread, nil
 	case "exec.pid":
-		return int(e.Exec.Process.Pid), nil
+		return int(e.Exec.Process.PIDContext.Pid), nil
 	case "exec.ppid":
 		return int(e.Exec.Process.PPid), nil
 	case "exec.tid":
-		return int(e.Exec.Process.Tid), nil
+		return int(e.Exec.Process.PIDContext.Tid), nil
 	case "exec.tty_name":
 		return e.Exec.Process.TTYName, nil
 	case "exec.uid":
 		return int(e.Exec.Process.Credentials.UID), nil
 	case "exec.user":
 		return e.Exec.Process.Credentials.User, nil
+	case "exit.args":
+		return e.Exit.Process.Args, nil
+	case "exit.args_flags":
+		return e.Exit.Process.Argv, nil
+	case "exit.args_options":
+		return e.Exit.Process.Argv, nil
+	case "exit.args_truncated":
+		return e.Exit.Process.ArgsTruncated, nil
+	case "exit.argv":
+		return e.Exit.Process.Argv, nil
+	case "exit.argv0":
+		return e.Exit.Process.Argv0, nil
+	case "exit.cap_effective":
+		return int(e.Exit.Process.Credentials.CapEffective), nil
+	case "exit.cap_permitted":
+		return int(e.Exit.Process.Credentials.CapPermitted), nil
+	case "exit.cause":
+		return int(e.Exit.Cause), nil
+	case "exit.code":
+		return int(e.Exit.Code), nil
+	case "exit.comm":
+		return e.Exit.Process.Comm, nil
+	case "exit.container.id":
+		return e.Exit.Process.ContainerID, nil
+	case "exit.cookie":
+		return int(e.Exit.Process.Cookie), nil
+	case "exit.created_at":
+		return int(e.Exit.Process.CreatedAt), nil
+	case "exit.egid":
+		return int(e.Exit.Process.Credentials.EGID), nil
+	case "exit.egroup":
+		return e.Exit.Process.Credentials.EGroup, nil
+	case "exit.envp":
+		return e.Exit.Process.Envp, nil
+	case "exit.envs":
+		return e.Exit.Process.Envs, nil
+	case "exit.envs_truncated":
+		return e.Exit.Process.EnvsTruncated, nil
+	case "exit.euid":
+		return int(e.Exit.Process.Credentials.EUID), nil
+	case "exit.euser":
+		return e.Exit.Process.Credentials.EUser, nil
+	case "exit.file.change_time":
+		return int(e.Exit.Process.FileEvent.FileFields.CTime), nil
+	case "exit.file.filesystem":
+		return e.Exit.Process.FileEvent.Filesystem, nil
+	case "exit.file.gid":
+		return int(e.Exit.Process.FileEvent.FileFields.GID), nil
+	case "exit.file.group":
+		return e.Exit.Process.FileEvent.FileFields.Group, nil
+	case "exit.file.in_upper_layer":
+		return e.Exit.Process.FileEvent.FileFields.InUpperLayer, nil
+	case "exit.file.inode":
+		return int(e.Exit.Process.FileEvent.FileFields.Inode), nil
+	case "exit.file.mode":
+		return int(e.Exit.Process.FileEvent.FileFields.Mode), nil
+	case "exit.file.modification_time":
+		return int(e.Exit.Process.FileEvent.FileFields.MTime), nil
+	case "exit.file.mount_id":
+		return int(e.Exit.Process.FileEvent.FileFields.MountID), nil
+	case "exit.file.name":
+		return e.Exit.Process.FileEvent.BasenameStr, nil
+	case "exit.file.path":
+		return e.Exit.Process.FileEvent.PathnameStr, nil
+	case "exit.file.rights":
+		return int(e.Exit.Process.FileEvent.FileFields.Mode), nil
+	case "exit.file.uid":
+		return int(e.Exit.Process.FileEvent.FileFields.UID), nil
+	case "exit.file.user":
+		return e.Exit.Process.FileEvent.FileFields.User, nil
+	case "exit.fsgid":
+		return int(e.Exit.Process.Credentials.FSGID), nil
+	case "exit.fsgroup":
+		return e.Exit.Process.Credentials.FSGroup, nil
+	case "exit.fsuid":
+		return int(e.Exit.Process.Credentials.FSUID), nil
+	case "exit.fsuser":
+		return e.Exit.Process.Credentials.FSUser, nil
+	case "exit.gid":
+		return int(e.Exit.Process.Credentials.GID), nil
+	case "exit.group":
+		return e.Exit.Process.Credentials.Group, nil
+	case "exit.is_thread":
+		return e.Exit.Process.IsThread, nil
+	case "exit.pid":
+		return int(e.Exit.Process.PIDContext.Pid), nil
+	case "exit.ppid":
+		return int(e.Exit.Process.PPid), nil
+	case "exit.tid":
+		return int(e.Exit.Process.PIDContext.Tid), nil
+	case "exit.tty_name":
+		return e.Exit.Process.TTYName, nil
+	case "exit.uid":
+		return int(e.Exit.Process.Credentials.UID), nil
+	case "exit.user":
+		return e.Exit.Process.Credentials.User, nil
 	case "link.file.change_time":
 		return int(e.Link.Source.FileFields.CTime), nil
 	case "link.file.destination.change_time":
@@ -7694,6 +8402,18 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
+	case "process.ancestors.is_thread":
+		var values []bool
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.IsThread
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
 	case "process.ancestors.pid":
 		var values []int
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -7701,7 +8421,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Pid)
+			result := int(element.ProcessContext.Process.PIDContext.Pid)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -7725,7 +8445,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Tid)
+			result := int(element.ProcessContext.Process.PIDContext.Tid)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -7844,12 +8564,14 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.ProcessContext.Process.Credentials.GID), nil
 	case "process.group":
 		return e.ProcessContext.Process.Credentials.Group, nil
+	case "process.is_thread":
+		return e.ProcessContext.Process.IsThread, nil
 	case "process.pid":
-		return int(e.ProcessContext.Process.Pid), nil
+		return int(e.ProcessContext.Process.PIDContext.Pid), nil
 	case "process.ppid":
 		return int(e.ProcessContext.Process.PPid), nil
 	case "process.tid":
-		return int(e.ProcessContext.Process.Tid), nil
+		return int(e.ProcessContext.Process.PIDContext.Tid), nil
 	case "process.tty_name":
 		return e.ProcessContext.Process.TTYName, nil
 	case "process.uid":
@@ -8328,6 +9050,18 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
+	case "ptrace.tracee.ancestors.is_thread":
+		var values []bool
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.IsThread
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
 	case "ptrace.tracee.ancestors.pid":
 		var values []int
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8335,7 +9069,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Pid)
+			result := int(element.ProcessContext.Process.PIDContext.Pid)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -8359,7 +9093,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Tid)
+			result := int(element.ProcessContext.Process.PIDContext.Tid)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -8478,12 +9212,14 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.PTrace.Tracee.Process.Credentials.GID), nil
 	case "ptrace.tracee.group":
 		return e.PTrace.Tracee.Process.Credentials.Group, nil
+	case "ptrace.tracee.is_thread":
+		return e.PTrace.Tracee.Process.IsThread, nil
 	case "ptrace.tracee.pid":
-		return int(e.PTrace.Tracee.Process.Pid), nil
+		return int(e.PTrace.Tracee.Process.PIDContext.Pid), nil
 	case "ptrace.tracee.ppid":
 		return int(e.PTrace.Tracee.Process.PPid), nil
 	case "ptrace.tracee.tid":
-		return int(e.PTrace.Tracee.Process.Tid), nil
+		return int(e.PTrace.Tracee.Process.PIDContext.Tid), nil
 	case "ptrace.tracee.tty_name":
 		return e.PTrace.Tracee.Process.TTYName, nil
 	case "ptrace.tracee.uid":
@@ -9150,6 +9886,18 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
+	case "signal.target.ancestors.is_thread":
+		var values []bool
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.IsThread
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
 	case "signal.target.ancestors.pid":
 		var values []int
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -9157,7 +9905,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Pid)
+			result := int(element.ProcessContext.Process.PIDContext.Pid)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -9181,7 +9929,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Tid)
+			result := int(element.ProcessContext.Process.PIDContext.Tid)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -9300,12 +10048,14 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Signal.Target.Process.Credentials.GID), nil
 	case "signal.target.group":
 		return e.Signal.Target.Process.Credentials.Group, nil
+	case "signal.target.is_thread":
+		return e.Signal.Target.Process.IsThread, nil
 	case "signal.target.pid":
-		return int(e.Signal.Target.Process.Pid), nil
+		return int(e.Signal.Target.Process.PIDContext.Pid), nil
 	case "signal.target.ppid":
 		return int(e.Signal.Target.Process.PPid), nil
 	case "signal.target.tid":
-		return int(e.Signal.Target.Process.Tid), nil
+		return int(e.Signal.Target.Process.PIDContext.Tid), nil
 	case "signal.target.tty_name":
 		return e.Signal.Target.Process.TTYName, nil
 	case "signal.target.uid":
@@ -9376,6 +10126,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Unlink.File.FileFields.UID), nil
 	case "unlink.file.user":
 		return e.Unlink.File.FileFields.User, nil
+	case "unlink.flags":
+		return int(e.Unlink.Flags), nil
 	case "unlink.retval":
 		return int(e.Unlink.SyscallEvent.Retval), nil
 	case "unload_module.name":
@@ -9417,6 +10169,16 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 }
 func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	switch field {
+	case "async":
+		return "*", nil
+	case "bind.addr.family":
+		return "bind", nil
+	case "bind.addr.ip":
+		return "bind", nil
+	case "bind.addr.port":
+		return "bind", nil
+	case "bind.retval":
+		return "bind", nil
 	case "bpf.cmd":
 		return "bpf", nil
 	case "bpf.map.name":
@@ -9603,6 +10365,8 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 	case "exec.group":
 		return "exec", nil
+	case "exec.is_thread":
+		return "exec", nil
 	case "exec.pid":
 		return "exec", nil
 	case "exec.ppid":
@@ -9615,6 +10379,102 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 	case "exec.user":
 		return "exec", nil
+	case "exit.args":
+		return "exit", nil
+	case "exit.args_flags":
+		return "exit", nil
+	case "exit.args_options":
+		return "exit", nil
+	case "exit.args_truncated":
+		return "exit", nil
+	case "exit.argv":
+		return "exit", nil
+	case "exit.argv0":
+		return "exit", nil
+	case "exit.cap_effective":
+		return "exit", nil
+	case "exit.cap_permitted":
+		return "exit", nil
+	case "exit.cause":
+		return "exit", nil
+	case "exit.code":
+		return "exit", nil
+	case "exit.comm":
+		return "exit", nil
+	case "exit.container.id":
+		return "exit", nil
+	case "exit.cookie":
+		return "exit", nil
+	case "exit.created_at":
+		return "exit", nil
+	case "exit.egid":
+		return "exit", nil
+	case "exit.egroup":
+		return "exit", nil
+	case "exit.envp":
+		return "exit", nil
+	case "exit.envs":
+		return "exit", nil
+	case "exit.envs_truncated":
+		return "exit", nil
+	case "exit.euid":
+		return "exit", nil
+	case "exit.euser":
+		return "exit", nil
+	case "exit.file.change_time":
+		return "exit", nil
+	case "exit.file.filesystem":
+		return "exit", nil
+	case "exit.file.gid":
+		return "exit", nil
+	case "exit.file.group":
+		return "exit", nil
+	case "exit.file.in_upper_layer":
+		return "exit", nil
+	case "exit.file.inode":
+		return "exit", nil
+	case "exit.file.mode":
+		return "exit", nil
+	case "exit.file.modification_time":
+		return "exit", nil
+	case "exit.file.mount_id":
+		return "exit", nil
+	case "exit.file.name":
+		return "exit", nil
+	case "exit.file.path":
+		return "exit", nil
+	case "exit.file.rights":
+		return "exit", nil
+	case "exit.file.uid":
+		return "exit", nil
+	case "exit.file.user":
+		return "exit", nil
+	case "exit.fsgid":
+		return "exit", nil
+	case "exit.fsgroup":
+		return "exit", nil
+	case "exit.fsuid":
+		return "exit", nil
+	case "exit.fsuser":
+		return "exit", nil
+	case "exit.gid":
+		return "exit", nil
+	case "exit.group":
+		return "exit", nil
+	case "exit.is_thread":
+		return "exit", nil
+	case "exit.pid":
+		return "exit", nil
+	case "exit.ppid":
+		return "exit", nil
+	case "exit.tid":
+		return "exit", nil
+	case "exit.tty_name":
+		return "exit", nil
+	case "exit.uid":
+		return "exit", nil
+	case "exit.user":
+		return "exit", nil
 	case "link.file.change_time":
 		return "link", nil
 	case "link.file.destination.change_time":
@@ -9911,6 +10771,8 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.ancestors.group":
 		return "*", nil
+	case "process.ancestors.is_thread":
+		return "*", nil
 	case "process.ancestors.pid":
 		return "*", nil
 	case "process.ancestors.ppid":
@@ -10000,6 +10862,8 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.gid":
 		return "*", nil
 	case "process.group":
+		return "*", nil
+	case "process.is_thread":
 		return "*", nil
 	case "process.pid":
 		return "*", nil
@@ -10095,6 +10959,8 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.group":
 		return "ptrace", nil
+	case "ptrace.tracee.ancestors.is_thread":
+		return "ptrace", nil
 	case "ptrace.tracee.ancestors.pid":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.ppid":
@@ -10184,6 +11050,8 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "ptrace.tracee.gid":
 		return "ptrace", nil
 	case "ptrace.tracee.group":
+		return "ptrace", nil
+	case "ptrace.tracee.is_thread":
 		return "ptrace", nil
 	case "ptrace.tracee.pid":
 		return "ptrace", nil
@@ -10467,6 +11335,8 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.ancestors.group":
 		return "signal", nil
+	case "signal.target.ancestors.is_thread":
+		return "signal", nil
 	case "signal.target.ancestors.pid":
 		return "signal", nil
 	case "signal.target.ancestors.ppid":
@@ -10557,6 +11427,8 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.group":
 		return "signal", nil
+	case "signal.target.is_thread":
+		return "signal", nil
 	case "signal.target.pid":
 		return "signal", nil
 	case "signal.target.ppid":
@@ -10632,6 +11504,8 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "unlink.file.uid":
 		return "unlink", nil
 	case "unlink.file.user":
+		return "unlink", nil
+	case "unlink.flags":
 		return "unlink", nil
 	case "unlink.retval":
 		return "unlink", nil
@@ -10674,6 +11548,16 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 }
 func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	switch field {
+	case "async":
+		return reflect.Bool, nil
+	case "bind.addr.family":
+		return reflect.Int, nil
+	case "bind.addr.ip":
+		return reflect.Struct, nil
+	case "bind.addr.port":
+		return reflect.Int, nil
+	case "bind.retval":
+		return reflect.Int, nil
 	case "bpf.cmd":
 		return reflect.Int, nil
 	case "bpf.map.name":
@@ -10860,6 +11744,8 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exec.group":
 		return reflect.String, nil
+	case "exec.is_thread":
+		return reflect.Bool, nil
 	case "exec.pid":
 		return reflect.Int, nil
 	case "exec.ppid":
@@ -10871,6 +11757,102 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "exec.uid":
 		return reflect.Int, nil
 	case "exec.user":
+		return reflect.String, nil
+	case "exit.args":
+		return reflect.String, nil
+	case "exit.args_flags":
+		return reflect.String, nil
+	case "exit.args_options":
+		return reflect.String, nil
+	case "exit.args_truncated":
+		return reflect.Bool, nil
+	case "exit.argv":
+		return reflect.String, nil
+	case "exit.argv0":
+		return reflect.String, nil
+	case "exit.cap_effective":
+		return reflect.Int, nil
+	case "exit.cap_permitted":
+		return reflect.Int, nil
+	case "exit.cause":
+		return reflect.Int, nil
+	case "exit.code":
+		return reflect.Int, nil
+	case "exit.comm":
+		return reflect.String, nil
+	case "exit.container.id":
+		return reflect.String, nil
+	case "exit.cookie":
+		return reflect.Int, nil
+	case "exit.created_at":
+		return reflect.Int, nil
+	case "exit.egid":
+		return reflect.Int, nil
+	case "exit.egroup":
+		return reflect.String, nil
+	case "exit.envp":
+		return reflect.String, nil
+	case "exit.envs":
+		return reflect.String, nil
+	case "exit.envs_truncated":
+		return reflect.Bool, nil
+	case "exit.euid":
+		return reflect.Int, nil
+	case "exit.euser":
+		return reflect.String, nil
+	case "exit.file.change_time":
+		return reflect.Int, nil
+	case "exit.file.filesystem":
+		return reflect.String, nil
+	case "exit.file.gid":
+		return reflect.Int, nil
+	case "exit.file.group":
+		return reflect.String, nil
+	case "exit.file.in_upper_layer":
+		return reflect.Bool, nil
+	case "exit.file.inode":
+		return reflect.Int, nil
+	case "exit.file.mode":
+		return reflect.Int, nil
+	case "exit.file.modification_time":
+		return reflect.Int, nil
+	case "exit.file.mount_id":
+		return reflect.Int, nil
+	case "exit.file.name":
+		return reflect.String, nil
+	case "exit.file.path":
+		return reflect.String, nil
+	case "exit.file.rights":
+		return reflect.Int, nil
+	case "exit.file.uid":
+		return reflect.Int, nil
+	case "exit.file.user":
+		return reflect.String, nil
+	case "exit.fsgid":
+		return reflect.Int, nil
+	case "exit.fsgroup":
+		return reflect.String, nil
+	case "exit.fsuid":
+		return reflect.Int, nil
+	case "exit.fsuser":
+		return reflect.String, nil
+	case "exit.gid":
+		return reflect.Int, nil
+	case "exit.group":
+		return reflect.String, nil
+	case "exit.is_thread":
+		return reflect.Bool, nil
+	case "exit.pid":
+		return reflect.Int, nil
+	case "exit.ppid":
+		return reflect.Int, nil
+	case "exit.tid":
+		return reflect.Int, nil
+	case "exit.tty_name":
+		return reflect.String, nil
+	case "exit.uid":
+		return reflect.Int, nil
+	case "exit.user":
 		return reflect.String, nil
 	case "link.file.change_time":
 		return reflect.Int, nil
@@ -11168,6 +12150,8 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.ancestors.group":
 		return reflect.String, nil
+	case "process.ancestors.is_thread":
+		return reflect.Bool, nil
 	case "process.ancestors.pid":
 		return reflect.Int, nil
 	case "process.ancestors.ppid":
@@ -11258,6 +12242,8 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.group":
 		return reflect.String, nil
+	case "process.is_thread":
+		return reflect.Bool, nil
 	case "process.pid":
 		return reflect.Int, nil
 	case "process.ppid":
@@ -11352,6 +12338,8 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.group":
 		return reflect.String, nil
+	case "ptrace.tracee.ancestors.is_thread":
+		return reflect.Bool, nil
 	case "ptrace.tracee.ancestors.pid":
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.ppid":
@@ -11442,6 +12430,8 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.group":
 		return reflect.String, nil
+	case "ptrace.tracee.is_thread":
+		return reflect.Bool, nil
 	case "ptrace.tracee.pid":
 		return reflect.Int, nil
 	case "ptrace.tracee.ppid":
@@ -11724,6 +12714,8 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.ancestors.group":
 		return reflect.String, nil
+	case "signal.target.ancestors.is_thread":
+		return reflect.Bool, nil
 	case "signal.target.ancestors.pid":
 		return reflect.Int, nil
 	case "signal.target.ancestors.ppid":
@@ -11814,6 +12806,8 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.group":
 		return reflect.String, nil
+	case "signal.target.is_thread":
+		return reflect.Bool, nil
 	case "signal.target.pid":
 		return reflect.Int, nil
 	case "signal.target.ppid":
@@ -11890,6 +12884,8 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "unlink.file.user":
 		return reflect.String, nil
+	case "unlink.flags":
+		return reflect.Int, nil
 	case "unlink.retval":
 		return reflect.Int, nil
 	case "unload_module.name":
@@ -11931,6 +12927,40 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 }
 func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	switch field {
+	case "async":
+		var ok bool
+		if e.Async, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Async"}
+		}
+		return nil
+	case "bind.addr.family":
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Bind.AddrFamily"}
+		}
+		e.Bind.AddrFamily = uint16(v)
+		return nil
+	case "bind.addr.ip":
+		v, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Bind.Addr.IPNet"}
+		}
+		e.Bind.Addr.IPNet = v
+		return nil
+	case "bind.addr.port":
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Bind.Addr.Port"}
+		}
+		e.Bind.Addr.Port = uint16(v)
+		return nil
+	case "bind.retval":
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Bind.SyscallEvent.Retval"}
+		}
+		e.Bind.SyscallEvent.Retval = int64(v)
+		return nil
 	case "bpf.cmd":
 		v, ok := value.(int)
 		if !ok {
@@ -12308,6 +13338,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.DNS.Type = uint16(v)
 		return nil
 	case "exec.args":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Args"}
@@ -12315,6 +13348,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Args = str
 		return nil
 	case "exec.args_flags":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Argv"}
@@ -12322,6 +13358,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Argv = append(e.Exec.Process.Argv, str)
 		return nil
 	case "exec.args_options":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Argv"}
@@ -12329,12 +13368,18 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Argv = append(e.Exec.Process.Argv, str)
 		return nil
 	case "exec.args_truncated":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		var ok bool
 		if e.Exec.Process.ArgsTruncated, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.ArgsTruncated"}
 		}
 		return nil
 	case "exec.argv":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Argv"}
@@ -12342,6 +13387,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Argv = append(e.Exec.Process.Argv, str)
 		return nil
 	case "exec.argv0":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Argv0"}
@@ -12349,6 +13397,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Argv0 = str
 		return nil
 	case "exec.cap_effective":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.CapEffective"}
@@ -12356,6 +13407,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.CapEffective = uint64(v)
 		return nil
 	case "exec.cap_permitted":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.CapPermitted"}
@@ -12363,6 +13417,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.CapPermitted = uint64(v)
 		return nil
 	case "exec.comm":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Comm"}
@@ -12370,6 +13427,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Comm = str
 		return nil
 	case "exec.container.id":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.ContainerID"}
@@ -12377,6 +13437,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.ContainerID = str
 		return nil
 	case "exec.cookie":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Cookie"}
@@ -12384,6 +13447,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Cookie = uint32(v)
 		return nil
 	case "exec.created_at":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.CreatedAt"}
@@ -12391,6 +13457,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.CreatedAt = uint64(v)
 		return nil
 	case "exec.egid":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.EGID"}
@@ -12398,6 +13467,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.EGID = uint32(v)
 		return nil
 	case "exec.egroup":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.EGroup"}
@@ -12405,6 +13477,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.EGroup = str
 		return nil
 	case "exec.envp":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Envp"}
@@ -12412,6 +13487,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Envp = append(e.Exec.Process.Envp, str)
 		return nil
 	case "exec.envs":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Envs"}
@@ -12419,12 +13497,18 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Envs = append(e.Exec.Process.Envs, str)
 		return nil
 	case "exec.envs_truncated":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		var ok bool
 		if e.Exec.Process.EnvsTruncated, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.EnvsTruncated"}
 		}
 		return nil
 	case "exec.euid":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.EUID"}
@@ -12432,6 +13516,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.EUID = uint32(v)
 		return nil
 	case "exec.euser":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.EUser"}
@@ -12439,6 +13526,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.EUser = str
 		return nil
 	case "exec.file.change_time":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.CTime"}
@@ -12446,6 +13536,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.CTime = uint64(v)
 		return nil
 	case "exec.file.filesystem":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.Filesystem"}
@@ -12453,6 +13546,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.Filesystem = str
 		return nil
 	case "exec.file.gid":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.GID"}
@@ -12460,6 +13556,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.GID = uint32(v)
 		return nil
 	case "exec.file.group":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.Group"}
@@ -12467,12 +13566,18 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.Group = str
 		return nil
 	case "exec.file.in_upper_layer":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		var ok bool
 		if e.Exec.Process.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.InUpperLayer"}
 		}
 		return nil
 	case "exec.file.inode":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.Inode"}
@@ -12480,6 +13585,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.Inode = uint64(v)
 		return nil
 	case "exec.file.mode":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.Mode"}
@@ -12487,6 +13595,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "exec.file.modification_time":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.MTime"}
@@ -12494,6 +13605,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.MTime = uint64(v)
 		return nil
 	case "exec.file.mount_id":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.MountID"}
@@ -12501,6 +13615,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.MountID = uint32(v)
 		return nil
 	case "exec.file.name":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.BasenameStr"}
@@ -12508,6 +13625,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.BasenameStr = str
 		return nil
 	case "exec.file.path":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.PathnameStr"}
@@ -12515,6 +13635,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.PathnameStr = str
 		return nil
 	case "exec.file.rights":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.Mode"}
@@ -12522,6 +13645,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "exec.file.uid":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.UID"}
@@ -12529,6 +13655,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.UID = uint32(v)
 		return nil
 	case "exec.file.user":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.User"}
@@ -12536,6 +13665,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.FileEvent.FileFields.User = str
 		return nil
 	case "exec.fsgid":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.FSGID"}
@@ -12543,6 +13675,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.FSGID = uint32(v)
 		return nil
 	case "exec.fsgroup":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.FSGroup"}
@@ -12550,6 +13685,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.FSGroup = str
 		return nil
 	case "exec.fsuid":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.FSUID"}
@@ -12557,6 +13695,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.FSUID = uint32(v)
 		return nil
 	case "exec.fsuser":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.FSUser"}
@@ -12564,6 +13705,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.FSUser = str
 		return nil
 	case "exec.gid":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.GID"}
@@ -12571,20 +13715,38 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.GID = uint32(v)
 		return nil
 	case "exec.group":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.Group"}
 		}
 		e.Exec.Process.Credentials.Group = str
 		return nil
+	case "exec.is_thread":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
+		var ok bool
+		if e.Exec.Process.IsThread, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.IsThread"}
+		}
+		return nil
 	case "exec.pid":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Pid"}
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.PIDContext.Pid"}
 		}
-		e.Exec.Process.Pid = uint32(v)
+		e.Exec.Process.PIDContext.Pid = uint32(v)
 		return nil
 	case "exec.ppid":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.PPid"}
@@ -12592,13 +13754,19 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.PPid = uint32(v)
 		return nil
 	case "exec.tid":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Tid"}
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.PIDContext.Tid"}
 		}
-		e.Exec.Process.Tid = uint32(v)
+		e.Exec.Process.PIDContext.Tid = uint32(v)
 		return nil
 	case "exec.tty_name":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.TTYName"}
@@ -12606,6 +13774,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.TTYName = str
 		return nil
 	case "exec.uid":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.UID"}
@@ -12613,11 +13784,484 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Credentials.UID = uint32(v)
 		return nil
 	case "exec.user":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.User"}
 		}
 		e.Exec.Process.Credentials.User = str
+		return nil
+	case "exit.args":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Args"}
+		}
+		e.Exit.Process.Args = str
+		return nil
+	case "exit.args_flags":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Argv"}
+		}
+		e.Exit.Process.Argv = append(e.Exit.Process.Argv, str)
+		return nil
+	case "exit.args_options":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Argv"}
+		}
+		e.Exit.Process.Argv = append(e.Exit.Process.Argv, str)
+		return nil
+	case "exit.args_truncated":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		var ok bool
+		if e.Exit.Process.ArgsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.ArgsTruncated"}
+		}
+		return nil
+	case "exit.argv":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Argv"}
+		}
+		e.Exit.Process.Argv = append(e.Exit.Process.Argv, str)
+		return nil
+	case "exit.argv0":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Argv0"}
+		}
+		e.Exit.Process.Argv0 = str
+		return nil
+	case "exit.cap_effective":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.CapEffective"}
+		}
+		e.Exit.Process.Credentials.CapEffective = uint64(v)
+		return nil
+	case "exit.cap_permitted":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.CapPermitted"}
+		}
+		e.Exit.Process.Credentials.CapPermitted = uint64(v)
+		return nil
+	case "exit.cause":
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Cause"}
+		}
+		e.Exit.Cause = uint32(v)
+		return nil
+	case "exit.code":
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Code"}
+		}
+		e.Exit.Code = uint32(v)
+		return nil
+	case "exit.comm":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Comm"}
+		}
+		e.Exit.Process.Comm = str
+		return nil
+	case "exit.container.id":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.ContainerID"}
+		}
+		e.Exit.Process.ContainerID = str
+		return nil
+	case "exit.cookie":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Cookie"}
+		}
+		e.Exit.Process.Cookie = uint32(v)
+		return nil
+	case "exit.created_at":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.CreatedAt"}
+		}
+		e.Exit.Process.CreatedAt = uint64(v)
+		return nil
+	case "exit.egid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.EGID"}
+		}
+		e.Exit.Process.Credentials.EGID = uint32(v)
+		return nil
+	case "exit.egroup":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.EGroup"}
+		}
+		e.Exit.Process.Credentials.EGroup = str
+		return nil
+	case "exit.envp":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Envp"}
+		}
+		e.Exit.Process.Envp = append(e.Exit.Process.Envp, str)
+		return nil
+	case "exit.envs":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Envs"}
+		}
+		e.Exit.Process.Envs = append(e.Exit.Process.Envs, str)
+		return nil
+	case "exit.envs_truncated":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		var ok bool
+		if e.Exit.Process.EnvsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.EnvsTruncated"}
+		}
+		return nil
+	case "exit.euid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.EUID"}
+		}
+		e.Exit.Process.Credentials.EUID = uint32(v)
+		return nil
+	case "exit.euser":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.EUser"}
+		}
+		e.Exit.Process.Credentials.EUser = str
+		return nil
+	case "exit.file.change_time":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.CTime"}
+		}
+		e.Exit.Process.FileEvent.FileFields.CTime = uint64(v)
+		return nil
+	case "exit.file.filesystem":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.Filesystem"}
+		}
+		e.Exit.Process.FileEvent.Filesystem = str
+		return nil
+	case "exit.file.gid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.GID"}
+		}
+		e.Exit.Process.FileEvent.FileFields.GID = uint32(v)
+		return nil
+	case "exit.file.group":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.Group"}
+		}
+		e.Exit.Process.FileEvent.FileFields.Group = str
+		return nil
+	case "exit.file.in_upper_layer":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		var ok bool
+		if e.Exit.Process.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.InUpperLayer"}
+		}
+		return nil
+	case "exit.file.inode":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.Inode"}
+		}
+		e.Exit.Process.FileEvent.FileFields.Inode = uint64(v)
+		return nil
+	case "exit.file.mode":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.Mode"}
+		}
+		e.Exit.Process.FileEvent.FileFields.Mode = uint16(v)
+		return nil
+	case "exit.file.modification_time":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.MTime"}
+		}
+		e.Exit.Process.FileEvent.FileFields.MTime = uint64(v)
+		return nil
+	case "exit.file.mount_id":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.MountID"}
+		}
+		e.Exit.Process.FileEvent.FileFields.MountID = uint32(v)
+		return nil
+	case "exit.file.name":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.BasenameStr"}
+		}
+		e.Exit.Process.FileEvent.BasenameStr = str
+		return nil
+	case "exit.file.path":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.PathnameStr"}
+		}
+		e.Exit.Process.FileEvent.PathnameStr = str
+		return nil
+	case "exit.file.rights":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.Mode"}
+		}
+		e.Exit.Process.FileEvent.FileFields.Mode = uint16(v)
+		return nil
+	case "exit.file.uid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.UID"}
+		}
+		e.Exit.Process.FileEvent.FileFields.UID = uint32(v)
+		return nil
+	case "exit.file.user":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.User"}
+		}
+		e.Exit.Process.FileEvent.FileFields.User = str
+		return nil
+	case "exit.fsgid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.FSGID"}
+		}
+		e.Exit.Process.Credentials.FSGID = uint32(v)
+		return nil
+	case "exit.fsgroup":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.FSGroup"}
+		}
+		e.Exit.Process.Credentials.FSGroup = str
+		return nil
+	case "exit.fsuid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.FSUID"}
+		}
+		e.Exit.Process.Credentials.FSUID = uint32(v)
+		return nil
+	case "exit.fsuser":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.FSUser"}
+		}
+		e.Exit.Process.Credentials.FSUser = str
+		return nil
+	case "exit.gid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.GID"}
+		}
+		e.Exit.Process.Credentials.GID = uint32(v)
+		return nil
+	case "exit.group":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.Group"}
+		}
+		e.Exit.Process.Credentials.Group = str
+		return nil
+	case "exit.is_thread":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		var ok bool
+		if e.Exit.Process.IsThread, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.IsThread"}
+		}
+		return nil
+	case "exit.pid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.PIDContext.Pid"}
+		}
+		e.Exit.Process.PIDContext.Pid = uint32(v)
+		return nil
+	case "exit.ppid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.PPid"}
+		}
+		e.Exit.Process.PPid = uint32(v)
+		return nil
+	case "exit.tid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.PIDContext.Tid"}
+		}
+		e.Exit.Process.PIDContext.Tid = uint32(v)
+		return nil
+	case "exit.tty_name":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.TTYName"}
+		}
+		e.Exit.Process.TTYName = str
+		return nil
+	case "exit.uid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.UID"}
+		}
+		e.Exit.Process.Credentials.UID = uint32(v)
+		return nil
+	case "exit.user":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.User"}
+		}
+		e.Exit.Process.Credentials.User = str
 		return nil
 	case "link.file.change_time":
 		v, ok := value.(int)
@@ -13376,6 +15020,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Open.SyscallEvent.Retval = int64(v)
 		return nil
 	case "process.ancestors.args":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13386,6 +15033,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Args = str
 		return nil
 	case "process.ancestors.args_flags":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13396,6 +15046,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Argv = append(e.ProcessContext.Ancestor.ProcessContext.Process.Argv, str)
 		return nil
 	case "process.ancestors.args_options":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13406,6 +15059,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Argv = append(e.ProcessContext.Ancestor.ProcessContext.Process.Argv, str)
 		return nil
 	case "process.ancestors.args_truncated":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13415,6 +15071,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "process.ancestors.argv":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13425,6 +15084,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Argv = append(e.ProcessContext.Ancestor.ProcessContext.Process.Argv, str)
 		return nil
 	case "process.ancestors.argv0":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13435,6 +15097,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Argv0 = str
 		return nil
 	case "process.ancestors.cap_effective":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13445,6 +15110,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapEffective = uint64(v)
 		return nil
 	case "process.ancestors.cap_permitted":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13455,6 +15123,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapPermitted = uint64(v)
 		return nil
 	case "process.ancestors.comm":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13465,6 +15136,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Comm = str
 		return nil
 	case "process.ancestors.container.id":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13475,6 +15149,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.ContainerID = str
 		return nil
 	case "process.ancestors.cookie":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13485,6 +15162,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Cookie = uint32(v)
 		return nil
 	case "process.ancestors.created_at":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13495,6 +15175,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.CreatedAt = uint64(v)
 		return nil
 	case "process.ancestors.egid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13505,6 +15188,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGID = uint32(v)
 		return nil
 	case "process.ancestors.egroup":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13515,6 +15201,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGroup = str
 		return nil
 	case "process.ancestors.envp":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13525,6 +15214,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Envp = append(e.ProcessContext.Ancestor.ProcessContext.Process.Envp, str)
 		return nil
 	case "process.ancestors.envs":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13535,6 +15227,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Envs = append(e.ProcessContext.Ancestor.ProcessContext.Process.Envs, str)
 		return nil
 	case "process.ancestors.envs_truncated":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13544,6 +15239,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "process.ancestors.euid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13554,6 +15252,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUID = uint32(v)
 		return nil
 	case "process.ancestors.euser":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13564,6 +15265,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUser = str
 		return nil
 	case "process.ancestors.file.change_time":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13574,6 +15278,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.CTime = uint64(v)
 		return nil
 	case "process.ancestors.file.filesystem":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13584,6 +15291,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Filesystem = str
 		return nil
 	case "process.ancestors.file.gid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13594,6 +15304,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.GID = uint32(v)
 		return nil
 	case "process.ancestors.file.group":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13604,6 +15317,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group = str
 		return nil
 	case "process.ancestors.file.in_upper_layer":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13613,6 +15329,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "process.ancestors.file.inode":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13623,6 +15342,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Inode = uint64(v)
 		return nil
 	case "process.ancestors.file.mode":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13633,6 +15355,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "process.ancestors.file.modification_time":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13643,6 +15368,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.MTime = uint64(v)
 		return nil
 	case "process.ancestors.file.mount_id":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13653,6 +15381,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.MountID = uint32(v)
 		return nil
 	case "process.ancestors.file.name":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13663,6 +15394,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.BasenameStr = str
 		return nil
 	case "process.ancestors.file.path":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13673,6 +15407,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PathnameStr = str
 		return nil
 	case "process.ancestors.file.rights":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13683,6 +15420,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "process.ancestors.file.uid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13693,6 +15433,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.UID = uint32(v)
 		return nil
 	case "process.ancestors.file.user":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13703,6 +15446,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.User = str
 		return nil
 	case "process.ancestors.fsgid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13713,6 +15459,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGID = uint32(v)
 		return nil
 	case "process.ancestors.fsgroup":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13723,6 +15472,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGroup = str
 		return nil
 	case "process.ancestors.fsuid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13733,6 +15485,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUID = uint32(v)
 		return nil
 	case "process.ancestors.fsuser":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13743,6 +15498,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUser = str
 		return nil
 	case "process.ancestors.gid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13753,6 +15511,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.GID = uint32(v)
 		return nil
 	case "process.ancestors.group":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13762,17 +15523,35 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.Group = str
 		return nil
+	case "process.ancestors.is_thread":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		var ok bool
+		if e.ProcessContext.Ancestor.ProcessContext.Process.IsThread, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.IsThread"}
+		}
+		return nil
 	case "process.ancestors.pid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Pid"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Pid"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Pid = uint32(v)
+		e.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Pid = uint32(v)
 		return nil
 	case "process.ancestors.ppid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13783,16 +15562,22 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.PPid = uint32(v)
 		return nil
 	case "process.ancestors.tid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Tid"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Tid"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Tid = uint32(v)
+		e.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Tid = uint32(v)
 		return nil
 	case "process.ancestors.tty_name":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13803,6 +15588,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.TTYName = str
 		return nil
 	case "process.ancestors.uid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13813,6 +15601,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.UID = uint32(v)
 		return nil
 	case "process.ancestors.user":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
@@ -13823,6 +15614,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.User = str
 		return nil
 	case "process.args":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Args"}
@@ -13830,6 +15624,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Args = str
 		return nil
 	case "process.args_flags":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Argv"}
@@ -13837,6 +15634,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Argv = append(e.ProcessContext.Process.Argv, str)
 		return nil
 	case "process.args_options":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Argv"}
@@ -13844,12 +15644,18 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Argv = append(e.ProcessContext.Process.Argv, str)
 		return nil
 	case "process.args_truncated":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		var ok bool
 		if e.ProcessContext.Process.ArgsTruncated, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.ArgsTruncated"}
 		}
 		return nil
 	case "process.argv":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Argv"}
@@ -13857,6 +15663,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Argv = append(e.ProcessContext.Process.Argv, str)
 		return nil
 	case "process.argv0":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Argv0"}
@@ -13864,6 +15673,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Argv0 = str
 		return nil
 	case "process.cap_effective":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.CapEffective"}
@@ -13871,6 +15683,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.CapEffective = uint64(v)
 		return nil
 	case "process.cap_permitted":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.CapPermitted"}
@@ -13878,6 +15693,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.CapPermitted = uint64(v)
 		return nil
 	case "process.comm":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Comm"}
@@ -13885,6 +15703,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Comm = str
 		return nil
 	case "process.container.id":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.ContainerID"}
@@ -13892,6 +15713,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.ContainerID = str
 		return nil
 	case "process.cookie":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Cookie"}
@@ -13899,6 +15723,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Cookie = uint32(v)
 		return nil
 	case "process.created_at":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.CreatedAt"}
@@ -13906,6 +15733,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.CreatedAt = uint64(v)
 		return nil
 	case "process.egid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.EGID"}
@@ -13913,6 +15743,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.EGID = uint32(v)
 		return nil
 	case "process.egroup":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.EGroup"}
@@ -13920,6 +15753,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.EGroup = str
 		return nil
 	case "process.envp":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Envp"}
@@ -13927,6 +15763,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Envp = append(e.ProcessContext.Process.Envp, str)
 		return nil
 	case "process.envs":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Envs"}
@@ -13934,12 +15773,18 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Envs = append(e.ProcessContext.Process.Envs, str)
 		return nil
 	case "process.envs_truncated":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		var ok bool
 		if e.ProcessContext.Process.EnvsTruncated, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.EnvsTruncated"}
 		}
 		return nil
 	case "process.euid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.EUID"}
@@ -13947,6 +15792,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.EUID = uint32(v)
 		return nil
 	case "process.euser":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.EUser"}
@@ -13954,6 +15802,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.EUser = str
 		return nil
 	case "process.file.change_time":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.CTime"}
@@ -13961,6 +15812,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.FileFields.CTime = uint64(v)
 		return nil
 	case "process.file.filesystem":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.Filesystem"}
@@ -13968,6 +15822,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.Filesystem = str
 		return nil
 	case "process.file.gid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.GID"}
@@ -13975,6 +15832,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.FileFields.GID = uint32(v)
 		return nil
 	case "process.file.group":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.Group"}
@@ -13982,12 +15842,18 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.FileFields.Group = str
 		return nil
 	case "process.file.in_upper_layer":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		var ok bool
 		if e.ProcessContext.Process.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.InUpperLayer"}
 		}
 		return nil
 	case "process.file.inode":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.Inode"}
@@ -13995,6 +15861,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.FileFields.Inode = uint64(v)
 		return nil
 	case "process.file.mode":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.Mode"}
@@ -14002,6 +15871,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "process.file.modification_time":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.MTime"}
@@ -14009,6 +15881,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.FileFields.MTime = uint64(v)
 		return nil
 	case "process.file.mount_id":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.MountID"}
@@ -14016,6 +15891,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.FileFields.MountID = uint32(v)
 		return nil
 	case "process.file.name":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.BasenameStr"}
@@ -14023,6 +15901,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.BasenameStr = str
 		return nil
 	case "process.file.path":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.PathnameStr"}
@@ -14030,6 +15911,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.PathnameStr = str
 		return nil
 	case "process.file.rights":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.Mode"}
@@ -14037,6 +15921,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "process.file.uid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.UID"}
@@ -14044,6 +15931,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.FileFields.UID = uint32(v)
 		return nil
 	case "process.file.user":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.User"}
@@ -14051,6 +15941,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.FileEvent.FileFields.User = str
 		return nil
 	case "process.fsgid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.FSGID"}
@@ -14058,6 +15951,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.FSGID = uint32(v)
 		return nil
 	case "process.fsgroup":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.FSGroup"}
@@ -14065,6 +15961,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.FSGroup = str
 		return nil
 	case "process.fsuid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.FSUID"}
@@ -14072,6 +15971,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.FSUID = uint32(v)
 		return nil
 	case "process.fsuser":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.FSUser"}
@@ -14079,6 +15981,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.FSUser = str
 		return nil
 	case "process.gid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.GID"}
@@ -14086,20 +15991,38 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.GID = uint32(v)
 		return nil
 	case "process.group":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.Group"}
 		}
 		e.ProcessContext.Process.Credentials.Group = str
 		return nil
+	case "process.is_thread":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		var ok bool
+		if e.ProcessContext.Process.IsThread, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.IsThread"}
+		}
+		return nil
 	case "process.pid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Pid"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.PIDContext.Pid"}
 		}
-		e.ProcessContext.Process.Pid = uint32(v)
+		e.ProcessContext.Process.PIDContext.Pid = uint32(v)
 		return nil
 	case "process.ppid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.PPid"}
@@ -14107,13 +16030,19 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.PPid = uint32(v)
 		return nil
 	case "process.tid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Tid"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.PIDContext.Tid"}
 		}
-		e.ProcessContext.Process.Tid = uint32(v)
+		e.ProcessContext.Process.PIDContext.Tid = uint32(v)
 		return nil
 	case "process.tty_name":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.TTYName"}
@@ -14121,6 +16050,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.TTYName = str
 		return nil
 	case "process.uid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.UID"}
@@ -14128,6 +16060,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Credentials.UID = uint32(v)
 		return nil
 	case "process.user":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.User"}
@@ -14149,6 +16084,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.SyscallEvent.Retval = int64(v)
 		return nil
 	case "ptrace.tracee.ancestors.args":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14159,6 +16097,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Args = str
 		return nil
 	case "ptrace.tracee.ancestors.args_flags":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14169,6 +16110,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv = append(e.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv, str)
 		return nil
 	case "ptrace.tracee.ancestors.args_options":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14179,6 +16123,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv = append(e.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv, str)
 		return nil
 	case "ptrace.tracee.ancestors.args_truncated":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14188,6 +16135,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "ptrace.tracee.ancestors.argv":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14198,6 +16148,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv = append(e.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv, str)
 		return nil
 	case "ptrace.tracee.ancestors.argv0":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14208,6 +16161,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv0 = str
 		return nil
 	case "ptrace.tracee.ancestors.cap_effective":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14218,6 +16174,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.CapEffective = uint64(v)
 		return nil
 	case "ptrace.tracee.ancestors.cap_permitted":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14228,6 +16187,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.CapPermitted = uint64(v)
 		return nil
 	case "ptrace.tracee.ancestors.comm":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14238,6 +16200,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Comm = str
 		return nil
 	case "ptrace.tracee.ancestors.container.id":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14248,6 +16213,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.ContainerID = str
 		return nil
 	case "ptrace.tracee.ancestors.cookie":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14258,6 +16226,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Cookie = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.created_at":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14268,6 +16239,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.CreatedAt = uint64(v)
 		return nil
 	case "ptrace.tracee.ancestors.egid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14278,6 +16252,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EGID = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.egroup":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14288,6 +16265,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EGroup = str
 		return nil
 	case "ptrace.tracee.ancestors.envp":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14298,6 +16278,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Envp = append(e.PTrace.Tracee.Ancestor.ProcessContext.Process.Envp, str)
 		return nil
 	case "ptrace.tracee.ancestors.envs":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14308,6 +16291,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Envs = append(e.PTrace.Tracee.Ancestor.ProcessContext.Process.Envs, str)
 		return nil
 	case "ptrace.tracee.ancestors.envs_truncated":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14317,6 +16303,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "ptrace.tracee.ancestors.euid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14327,6 +16316,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EUID = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.euser":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14337,6 +16329,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EUser = str
 		return nil
 	case "ptrace.tracee.ancestors.file.change_time":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14347,6 +16342,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.CTime = uint64(v)
 		return nil
 	case "ptrace.tracee.ancestors.file.filesystem":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14357,6 +16355,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.Filesystem = str
 		return nil
 	case "ptrace.tracee.ancestors.file.gid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14367,6 +16368,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.GID = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.file.group":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14377,6 +16381,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group = str
 		return nil
 	case "ptrace.tracee.ancestors.file.in_upper_layer":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14386,6 +16393,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "ptrace.tracee.ancestors.file.inode":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14396,6 +16406,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Inode = uint64(v)
 		return nil
 	case "ptrace.tracee.ancestors.file.mode":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14406,6 +16419,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "ptrace.tracee.ancestors.file.modification_time":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14416,6 +16432,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.MTime = uint64(v)
 		return nil
 	case "ptrace.tracee.ancestors.file.mount_id":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14426,6 +16445,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.MountID = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.file.name":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14436,6 +16458,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.BasenameStr = str
 		return nil
 	case "ptrace.tracee.ancestors.file.path":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14446,6 +16471,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PathnameStr = str
 		return nil
 	case "ptrace.tracee.ancestors.file.rights":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14456,6 +16484,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "ptrace.tracee.ancestors.file.uid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14466,6 +16497,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.UID = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.file.user":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14476,6 +16510,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.User = str
 		return nil
 	case "ptrace.tracee.ancestors.fsgid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14486,6 +16523,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSGID = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.fsgroup":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14496,6 +16536,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSGroup = str
 		return nil
 	case "ptrace.tracee.ancestors.fsuid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14506,6 +16549,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSUID = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.fsuser":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14516,6 +16562,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSUser = str
 		return nil
 	case "ptrace.tracee.ancestors.gid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14526,6 +16575,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.GID = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.group":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14535,17 +16587,35 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.Group = str
 		return nil
+	case "ptrace.tracee.ancestors.is_thread":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		var ok bool
+		if e.PTrace.Tracee.Ancestor.ProcessContext.Process.IsThread, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.IsThread"}
+		}
+		return nil
 	case "ptrace.tracee.ancestors.pid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Pid"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.Pid"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Pid = uint32(v)
+		e.PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.Pid = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.ppid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14556,16 +16626,22 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.PPid = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.tid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Tid"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.Tid"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Tid = uint32(v)
+		e.PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.Tid = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.tty_name":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14576,6 +16652,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.TTYName = str
 		return nil
 	case "ptrace.tracee.ancestors.uid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14586,6 +16665,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.UID = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.user":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
@@ -14596,6 +16678,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.User = str
 		return nil
 	case "ptrace.tracee.args":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Args"}
@@ -14603,6 +16688,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Args = str
 		return nil
 	case "ptrace.tracee.args_flags":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Argv"}
@@ -14610,6 +16698,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Argv = append(e.PTrace.Tracee.Process.Argv, str)
 		return nil
 	case "ptrace.tracee.args_options":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Argv"}
@@ -14617,12 +16708,18 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Argv = append(e.PTrace.Tracee.Process.Argv, str)
 		return nil
 	case "ptrace.tracee.args_truncated":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		var ok bool
 		if e.PTrace.Tracee.Process.ArgsTruncated, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.ArgsTruncated"}
 		}
 		return nil
 	case "ptrace.tracee.argv":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Argv"}
@@ -14630,6 +16727,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Argv = append(e.PTrace.Tracee.Process.Argv, str)
 		return nil
 	case "ptrace.tracee.argv0":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Argv0"}
@@ -14637,6 +16737,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Argv0 = str
 		return nil
 	case "ptrace.tracee.cap_effective":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.CapEffective"}
@@ -14644,6 +16747,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.CapEffective = uint64(v)
 		return nil
 	case "ptrace.tracee.cap_permitted":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.CapPermitted"}
@@ -14651,6 +16757,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.CapPermitted = uint64(v)
 		return nil
 	case "ptrace.tracee.comm":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Comm"}
@@ -14658,6 +16767,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Comm = str
 		return nil
 	case "ptrace.tracee.container.id":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.ContainerID"}
@@ -14665,6 +16777,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.ContainerID = str
 		return nil
 	case "ptrace.tracee.cookie":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Cookie"}
@@ -14672,6 +16787,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Cookie = uint32(v)
 		return nil
 	case "ptrace.tracee.created_at":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.CreatedAt"}
@@ -14679,6 +16797,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.CreatedAt = uint64(v)
 		return nil
 	case "ptrace.tracee.egid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.EGID"}
@@ -14686,6 +16807,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.EGID = uint32(v)
 		return nil
 	case "ptrace.tracee.egroup":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.EGroup"}
@@ -14693,6 +16817,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.EGroup = str
 		return nil
 	case "ptrace.tracee.envp":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Envp"}
@@ -14700,6 +16827,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Envp = append(e.PTrace.Tracee.Process.Envp, str)
 		return nil
 	case "ptrace.tracee.envs":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Envs"}
@@ -14707,12 +16837,18 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Envs = append(e.PTrace.Tracee.Process.Envs, str)
 		return nil
 	case "ptrace.tracee.envs_truncated":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		var ok bool
 		if e.PTrace.Tracee.Process.EnvsTruncated, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.EnvsTruncated"}
 		}
 		return nil
 	case "ptrace.tracee.euid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.EUID"}
@@ -14720,6 +16856,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.EUID = uint32(v)
 		return nil
 	case "ptrace.tracee.euser":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.EUser"}
@@ -14727,6 +16866,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.EUser = str
 		return nil
 	case "ptrace.tracee.file.change_time":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.CTime"}
@@ -14734,6 +16876,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.FileFields.CTime = uint64(v)
 		return nil
 	case "ptrace.tracee.file.filesystem":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.Filesystem"}
@@ -14741,6 +16886,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.Filesystem = str
 		return nil
 	case "ptrace.tracee.file.gid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.GID"}
@@ -14748,6 +16896,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.FileFields.GID = uint32(v)
 		return nil
 	case "ptrace.tracee.file.group":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.Group"}
@@ -14755,12 +16906,18 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.FileFields.Group = str
 		return nil
 	case "ptrace.tracee.file.in_upper_layer":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		var ok bool
 		if e.PTrace.Tracee.Process.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.InUpperLayer"}
 		}
 		return nil
 	case "ptrace.tracee.file.inode":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.Inode"}
@@ -14768,6 +16925,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.FileFields.Inode = uint64(v)
 		return nil
 	case "ptrace.tracee.file.mode":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.Mode"}
@@ -14775,6 +16935,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "ptrace.tracee.file.modification_time":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.MTime"}
@@ -14782,6 +16945,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.FileFields.MTime = uint64(v)
 		return nil
 	case "ptrace.tracee.file.mount_id":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.MountID"}
@@ -14789,6 +16955,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.FileFields.MountID = uint32(v)
 		return nil
 	case "ptrace.tracee.file.name":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.BasenameStr"}
@@ -14796,6 +16965,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.BasenameStr = str
 		return nil
 	case "ptrace.tracee.file.path":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.PathnameStr"}
@@ -14803,6 +16975,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.PathnameStr = str
 		return nil
 	case "ptrace.tracee.file.rights":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.Mode"}
@@ -14810,6 +16985,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "ptrace.tracee.file.uid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.UID"}
@@ -14817,6 +16995,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.FileFields.UID = uint32(v)
 		return nil
 	case "ptrace.tracee.file.user":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.User"}
@@ -14824,6 +17005,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.FileEvent.FileFields.User = str
 		return nil
 	case "ptrace.tracee.fsgid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.FSGID"}
@@ -14831,6 +17015,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.FSGID = uint32(v)
 		return nil
 	case "ptrace.tracee.fsgroup":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.FSGroup"}
@@ -14838,6 +17025,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.FSGroup = str
 		return nil
 	case "ptrace.tracee.fsuid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.FSUID"}
@@ -14845,6 +17035,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.FSUID = uint32(v)
 		return nil
 	case "ptrace.tracee.fsuser":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.FSUser"}
@@ -14852,6 +17045,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.FSUser = str
 		return nil
 	case "ptrace.tracee.gid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.GID"}
@@ -14859,20 +17055,38 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.GID = uint32(v)
 		return nil
 	case "ptrace.tracee.group":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.Group"}
 		}
 		e.PTrace.Tracee.Process.Credentials.Group = str
 		return nil
+	case "ptrace.tracee.is_thread":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		var ok bool
+		if e.PTrace.Tracee.Process.IsThread, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.IsThread"}
+		}
+		return nil
 	case "ptrace.tracee.pid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Pid"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.PIDContext.Pid"}
 		}
-		e.PTrace.Tracee.Process.Pid = uint32(v)
+		e.PTrace.Tracee.Process.PIDContext.Pid = uint32(v)
 		return nil
 	case "ptrace.tracee.ppid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.PPid"}
@@ -14880,13 +17094,19 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.PPid = uint32(v)
 		return nil
 	case "ptrace.tracee.tid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Tid"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.PIDContext.Tid"}
 		}
-		e.PTrace.Tracee.Process.Tid = uint32(v)
+		e.PTrace.Tracee.Process.PIDContext.Tid = uint32(v)
 		return nil
 	case "ptrace.tracee.tty_name":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.TTYName"}
@@ -14894,6 +17114,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.TTYName = str
 		return nil
 	case "ptrace.tracee.uid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.UID"}
@@ -14901,6 +17124,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.PTrace.Tracee.Process.Credentials.UID = uint32(v)
 		return nil
 	case "ptrace.tracee.user":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.User"}
@@ -15574,6 +17800,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.SyscallEvent.Retval = int64(v)
 		return nil
 	case "signal.target.ancestors.args":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15584,6 +17813,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.Args = str
 		return nil
 	case "signal.target.ancestors.args_flags":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15594,6 +17826,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.Argv = append(e.Signal.Target.Ancestor.ProcessContext.Process.Argv, str)
 		return nil
 	case "signal.target.ancestors.args_options":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15604,6 +17839,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.Argv = append(e.Signal.Target.Ancestor.ProcessContext.Process.Argv, str)
 		return nil
 	case "signal.target.ancestors.args_truncated":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15613,6 +17851,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "signal.target.ancestors.argv":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15623,6 +17864,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.Argv = append(e.Signal.Target.Ancestor.ProcessContext.Process.Argv, str)
 		return nil
 	case "signal.target.ancestors.argv0":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15633,6 +17877,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.Argv0 = str
 		return nil
 	case "signal.target.ancestors.cap_effective":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15643,6 +17890,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.CapEffective = uint64(v)
 		return nil
 	case "signal.target.ancestors.cap_permitted":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15653,6 +17903,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.CapPermitted = uint64(v)
 		return nil
 	case "signal.target.ancestors.comm":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15663,6 +17916,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.Comm = str
 		return nil
 	case "signal.target.ancestors.container.id":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15673,6 +17929,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.ContainerID = str
 		return nil
 	case "signal.target.ancestors.cookie":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15683,6 +17942,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.Cookie = uint32(v)
 		return nil
 	case "signal.target.ancestors.created_at":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15693,6 +17955,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.CreatedAt = uint64(v)
 		return nil
 	case "signal.target.ancestors.egid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15703,6 +17968,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.EGID = uint32(v)
 		return nil
 	case "signal.target.ancestors.egroup":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15713,6 +17981,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.EGroup = str
 		return nil
 	case "signal.target.ancestors.envp":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15723,6 +17994,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.Envp = append(e.Signal.Target.Ancestor.ProcessContext.Process.Envp, str)
 		return nil
 	case "signal.target.ancestors.envs":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15733,6 +18007,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.Envs = append(e.Signal.Target.Ancestor.ProcessContext.Process.Envs, str)
 		return nil
 	case "signal.target.ancestors.envs_truncated":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15742,6 +18019,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "signal.target.ancestors.euid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15752,6 +18032,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.EUID = uint32(v)
 		return nil
 	case "signal.target.ancestors.euser":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15762,6 +18045,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.EUser = str
 		return nil
 	case "signal.target.ancestors.file.change_time":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15772,6 +18058,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.CTime = uint64(v)
 		return nil
 	case "signal.target.ancestors.file.filesystem":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15782,6 +18071,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.Filesystem = str
 		return nil
 	case "signal.target.ancestors.file.gid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15792,6 +18084,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.GID = uint32(v)
 		return nil
 	case "signal.target.ancestors.file.group":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15802,6 +18097,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group = str
 		return nil
 	case "signal.target.ancestors.file.in_upper_layer":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15811,6 +18109,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return nil
 	case "signal.target.ancestors.file.inode":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15821,6 +18122,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Inode = uint64(v)
 		return nil
 	case "signal.target.ancestors.file.mode":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15831,6 +18135,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "signal.target.ancestors.file.modification_time":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15841,6 +18148,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.MTime = uint64(v)
 		return nil
 	case "signal.target.ancestors.file.mount_id":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15851,6 +18161,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.MountID = uint32(v)
 		return nil
 	case "signal.target.ancestors.file.name":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15861,6 +18174,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.BasenameStr = str
 		return nil
 	case "signal.target.ancestors.file.path":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15871,6 +18187,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PathnameStr = str
 		return nil
 	case "signal.target.ancestors.file.rights":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15881,6 +18200,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "signal.target.ancestors.file.uid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15891,6 +18213,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.UID = uint32(v)
 		return nil
 	case "signal.target.ancestors.file.user":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15901,6 +18226,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.User = str
 		return nil
 	case "signal.target.ancestors.fsgid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15911,6 +18239,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSGID = uint32(v)
 		return nil
 	case "signal.target.ancestors.fsgroup":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15921,6 +18252,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSGroup = str
 		return nil
 	case "signal.target.ancestors.fsuid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15931,6 +18265,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSUID = uint32(v)
 		return nil
 	case "signal.target.ancestors.fsuser":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15941,6 +18278,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSUser = str
 		return nil
 	case "signal.target.ancestors.gid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15951,6 +18291,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.GID = uint32(v)
 		return nil
 	case "signal.target.ancestors.group":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15960,17 +18303,35 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.Group = str
 		return nil
+	case "signal.target.ancestors.is_thread":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		var ok bool
+		if e.Signal.Target.Ancestor.ProcessContext.Process.IsThread, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.IsThread"}
+		}
+		return nil
 	case "signal.target.ancestors.pid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Pid"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.PIDContext.Pid"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Pid = uint32(v)
+		e.Signal.Target.Ancestor.ProcessContext.Process.PIDContext.Pid = uint32(v)
 		return nil
 	case "signal.target.ancestors.ppid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -15981,16 +18342,22 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.PPid = uint32(v)
 		return nil
 	case "signal.target.ancestors.tid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Tid"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.PIDContext.Tid"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Tid = uint32(v)
+		e.Signal.Target.Ancestor.ProcessContext.Process.PIDContext.Tid = uint32(v)
 		return nil
 	case "signal.target.ancestors.tty_name":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -16001,6 +18368,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.TTYName = str
 		return nil
 	case "signal.target.ancestors.uid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -16011,6 +18381,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.UID = uint32(v)
 		return nil
 	case "signal.target.ancestors.user":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
@@ -16021,6 +18394,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.User = str
 		return nil
 	case "signal.target.args":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Args"}
@@ -16028,6 +18404,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Args = str
 		return nil
 	case "signal.target.args_flags":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Argv"}
@@ -16035,6 +18414,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Argv = append(e.Signal.Target.Process.Argv, str)
 		return nil
 	case "signal.target.args_options":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Argv"}
@@ -16042,12 +18424,18 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Argv = append(e.Signal.Target.Process.Argv, str)
 		return nil
 	case "signal.target.args_truncated":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		var ok bool
 		if e.Signal.Target.Process.ArgsTruncated, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.ArgsTruncated"}
 		}
 		return nil
 	case "signal.target.argv":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Argv"}
@@ -16055,6 +18443,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Argv = append(e.Signal.Target.Process.Argv, str)
 		return nil
 	case "signal.target.argv0":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Argv0"}
@@ -16062,6 +18453,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Argv0 = str
 		return nil
 	case "signal.target.cap_effective":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.CapEffective"}
@@ -16069,6 +18463,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.CapEffective = uint64(v)
 		return nil
 	case "signal.target.cap_permitted":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.CapPermitted"}
@@ -16076,6 +18473,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.CapPermitted = uint64(v)
 		return nil
 	case "signal.target.comm":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Comm"}
@@ -16083,6 +18483,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Comm = str
 		return nil
 	case "signal.target.container.id":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.ContainerID"}
@@ -16090,6 +18493,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.ContainerID = str
 		return nil
 	case "signal.target.cookie":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Cookie"}
@@ -16097,6 +18503,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Cookie = uint32(v)
 		return nil
 	case "signal.target.created_at":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.CreatedAt"}
@@ -16104,6 +18513,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.CreatedAt = uint64(v)
 		return nil
 	case "signal.target.egid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.EGID"}
@@ -16111,6 +18523,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.EGID = uint32(v)
 		return nil
 	case "signal.target.egroup":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.EGroup"}
@@ -16118,6 +18533,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.EGroup = str
 		return nil
 	case "signal.target.envp":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Envp"}
@@ -16125,6 +18543,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Envp = append(e.Signal.Target.Process.Envp, str)
 		return nil
 	case "signal.target.envs":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Envs"}
@@ -16132,12 +18553,18 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Envs = append(e.Signal.Target.Process.Envs, str)
 		return nil
 	case "signal.target.envs_truncated":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		var ok bool
 		if e.Signal.Target.Process.EnvsTruncated, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.EnvsTruncated"}
 		}
 		return nil
 	case "signal.target.euid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.EUID"}
@@ -16145,6 +18572,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.EUID = uint32(v)
 		return nil
 	case "signal.target.euser":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.EUser"}
@@ -16152,6 +18582,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.EUser = str
 		return nil
 	case "signal.target.file.change_time":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.CTime"}
@@ -16159,6 +18592,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.FileFields.CTime = uint64(v)
 		return nil
 	case "signal.target.file.filesystem":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.Filesystem"}
@@ -16166,6 +18602,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.Filesystem = str
 		return nil
 	case "signal.target.file.gid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.GID"}
@@ -16173,6 +18612,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.FileFields.GID = uint32(v)
 		return nil
 	case "signal.target.file.group":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.Group"}
@@ -16180,12 +18622,18 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.FileFields.Group = str
 		return nil
 	case "signal.target.file.in_upper_layer":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		var ok bool
 		if e.Signal.Target.Process.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.InUpperLayer"}
 		}
 		return nil
 	case "signal.target.file.inode":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.Inode"}
@@ -16193,6 +18641,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.FileFields.Inode = uint64(v)
 		return nil
 	case "signal.target.file.mode":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.Mode"}
@@ -16200,6 +18651,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "signal.target.file.modification_time":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.MTime"}
@@ -16207,6 +18661,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.FileFields.MTime = uint64(v)
 		return nil
 	case "signal.target.file.mount_id":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.MountID"}
@@ -16214,6 +18671,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.FileFields.MountID = uint32(v)
 		return nil
 	case "signal.target.file.name":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.BasenameStr"}
@@ -16221,6 +18681,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.BasenameStr = str
 		return nil
 	case "signal.target.file.path":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.PathnameStr"}
@@ -16228,6 +18691,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.PathnameStr = str
 		return nil
 	case "signal.target.file.rights":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.Mode"}
@@ -16235,6 +18701,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "signal.target.file.uid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.UID"}
@@ -16242,6 +18711,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.FileFields.UID = uint32(v)
 		return nil
 	case "signal.target.file.user":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.User"}
@@ -16249,6 +18721,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.FileEvent.FileFields.User = str
 		return nil
 	case "signal.target.fsgid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.FSGID"}
@@ -16256,6 +18731,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.FSGID = uint32(v)
 		return nil
 	case "signal.target.fsgroup":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.FSGroup"}
@@ -16263,6 +18741,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.FSGroup = str
 		return nil
 	case "signal.target.fsuid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.FSUID"}
@@ -16270,6 +18751,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.FSUID = uint32(v)
 		return nil
 	case "signal.target.fsuser":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.FSUser"}
@@ -16277,6 +18761,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.FSUser = str
 		return nil
 	case "signal.target.gid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.GID"}
@@ -16284,20 +18771,38 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.GID = uint32(v)
 		return nil
 	case "signal.target.group":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.Group"}
 		}
 		e.Signal.Target.Process.Credentials.Group = str
 		return nil
+	case "signal.target.is_thread":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		var ok bool
+		if e.Signal.Target.Process.IsThread, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.IsThread"}
+		}
+		return nil
 	case "signal.target.pid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Pid"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.PIDContext.Pid"}
 		}
-		e.Signal.Target.Process.Pid = uint32(v)
+		e.Signal.Target.Process.PIDContext.Pid = uint32(v)
 		return nil
 	case "signal.target.ppid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.PPid"}
@@ -16305,13 +18810,19 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.PPid = uint32(v)
 		return nil
 	case "signal.target.tid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Tid"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.PIDContext.Tid"}
 		}
-		e.Signal.Target.Process.Tid = uint32(v)
+		e.Signal.Target.Process.PIDContext.Tid = uint32(v)
 		return nil
 	case "signal.target.tty_name":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.TTYName"}
@@ -16319,6 +18830,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.TTYName = str
 		return nil
 	case "signal.target.uid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		v, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.UID"}
@@ -16326,6 +18840,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Signal.Target.Process.Credentials.UID = uint32(v)
 		return nil
 	case "signal.target.user":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.User"}
@@ -16553,6 +19070,13 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.User"}
 		}
 		e.Unlink.File.FileFields.User = str
+		return nil
+	case "unlink.flags":
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Unlink.Flags"}
+		}
+		e.Unlink.Flags = uint32(v)
 		return nil
 	case "unlink.retval":
 		v, ok := value.(int)

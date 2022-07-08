@@ -11,6 +11,7 @@ package ebpf
 /*
 #include "./c/tracer.h"
 #include "./c/tcp_states.h"
+#include "./c/tags-types.h"
 #include "./c/prebuilt/offset-guess.h"
 */
 import "C"
@@ -45,11 +46,18 @@ const (
 	Assured ConnFlags = C.CONN_ASSURED
 )
 
-type PortState uint8
+const BatchSize = C.CONN_CLOSED_BATCH_SIZE
+
+type ConnTag = uint64
 
 const (
-	PortListening PortState = C.PORT_LISTENING
-	PortClosed    PortState = C.PORT_CLOSED
+	GnuTLS  ConnTag = C.LIBGNUTLS
+	OpenSSL ConnTag = C.LIBSSL
 )
 
-const BatchSize = C.CONN_CLOSED_BATCH_SIZE
+var (
+	StaticTags = map[ConnTag]string{
+		GnuTLS:  "tls.library:gnutls",
+		OpenSSL: "tls.library:openssl",
+	}
+)

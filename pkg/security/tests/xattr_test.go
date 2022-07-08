@@ -70,6 +70,7 @@ func TestSetXAttr(t *testing.T) {
 			assertRights(t, event.SetXAttr.File.Mode, expectedMode)
 			assertNearTime(t, event.SetXAttr.File.MTime)
 			assertNearTime(t, event.SetXAttr.File.CTime)
+			assert.Equal(t, event.Async, false)
 		})
 	})
 
@@ -107,6 +108,7 @@ func TestSetXAttr(t *testing.T) {
 			assertRights(t, event.SetXAttr.File.Mode, 0777)
 			assertNearTime(t, event.SetXAttr.File.MTime)
 			assertNearTime(t, event.SetXAttr.File.CTime)
+			assert.Equal(t, event.Async, false)
 		})
 	})
 
@@ -137,6 +139,7 @@ func TestSetXAttr(t *testing.T) {
 			assertRights(t, event.SetXAttr.File.Mode, expectedMode)
 			assertNearTime(t, event.SetXAttr.File.MTime)
 			assertNearTime(t, event.SetXAttr.File.CTime)
+			assert.Equal(t, event.Async, false)
 		})
 	})
 }
@@ -202,6 +205,7 @@ func TestRemoveXAttr(t *testing.T) {
 			assertRights(t, event.RemoveXAttr.File.Mode, uint16(expectedMode))
 			assertNearTime(t, event.RemoveXAttr.File.MTime)
 			assertNearTime(t, event.RemoveXAttr.File.CTime)
+			assert.Equal(t, event.Async, false)
 		})
 	})
 
@@ -245,6 +249,7 @@ func TestRemoveXAttr(t *testing.T) {
 			assertRights(t, event.RemoveXAttr.File.Mode, 0777)
 			assertNearTime(t, event.RemoveXAttr.File.MTime)
 			assertNearTime(t, event.RemoveXAttr.File.CTime)
+			assert.Equal(t, event.Async, false)
 		})
 	})
 

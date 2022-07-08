@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    OTLP ingest now supports the same settings and protocol version as the OpenTelemetry Collector OTLP receiver v0.49.0.
+    OTLP ingest now supports the same settings and protocol version as the OpenTelemetry Collector OTLP receiver v0.50.0.

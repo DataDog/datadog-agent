@@ -277,7 +277,7 @@ type clusterAgentSuite struct {
 	authTokenPath string
 }
 
-var mockConfig = config.Mock()
+var mockConfig = config.Mock(nil)
 
 const (
 	clusterAgentServiceName = "DATADOG_CLUSTER_AGENT"
@@ -723,9 +723,7 @@ func (suite *clusterAgentSuite) TestGetKubernetesClusterID() {
 func TestClusterAgentSuite(t *testing.T) {
 	clusterAgentAuthTokenFilename := "cluster_agent.auth_token"
 
-	fakeDir, err := ioutil.TempDir("", "fake-datadog-etc")
-	require.Nil(t, err, fmt.Sprintf("%v", err))
-	defer os.RemoveAll(fakeDir)
+	fakeDir := t.TempDir()
 
 	f, err := ioutil.TempFile(fakeDir, "fake-datadog-yaml-")
 	require.Nil(t, err, fmt.Errorf("%v", err))

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -91,6 +92,14 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			continue
 		}
 
+		// Validate allocation size.
+		// Limits hardcoded here are huge enough to never be hit.
+		if len(pod.Spec.Containers) > 10000 ||
+			len(pod.Spec.InitContainers) > 10000 {
+			log.Errorf("pod %s has a crazy number of containers: %d or init containers: %d. Skipping it!",
+				podMeta.UID, len(pod.Spec.Containers), len(pod.Spec.InitContainers))
+			continue
+		}
 		containerSpecs := make(
 			[]kubelet.ContainerSpec, 0,
 			len(pod.Spec.Containers)+len(pod.Spec.InitContainers),
@@ -99,6 +108,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 		containerSpecs = append(containerSpecs, pod.Spec.Containers...)
 
 		podContainers, containerEvents := c.parsePodContainers(
+			pod,
 			containerSpecs,
 			pod.Status.GetAllContainers(),
 		)
@@ -146,6 +156,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 }
 
 func (c *collector) parsePodContainers(
+	pod *kubelet.Pod,
 	containerSpecs []kubelet.ContainerSpec,
 	containerStatuses []kubelet.ContainerStatus,
 ) ([]workloadmeta.OrchestratorContainer, []workloadmeta.CollectorEvent) {
@@ -224,6 +235,9 @@ func (c *collector) parsePodContainers(
 				},
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: container.Name,
+					Labels: map[string]string{
+						kubernetes.CriContainerNamespaceLabel: pod.Metadata.Namespace,
+					},
 				},
 				Image:   image,
 				EnvVars: env,

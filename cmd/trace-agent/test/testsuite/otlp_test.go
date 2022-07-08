@@ -18,10 +18,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
 	"github.com/stretchr/testify/assert"
-	"go.opentelemetry.io/collector/model/otlpgrpc"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func TestOTLPIngest(t *testing.T) {
@@ -52,11 +53,11 @@ apm_config:
 		}
 		defer r.KillAgent()
 
-		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithInsecure())
+		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			log.Fatal("Error dialing: ", err)
 		}
-		client := otlpgrpc.NewTracesClient(conn)
+		client := ptraceotlp.NewClient(conn)
 		now := uint64(time.Now().UnixNano())
 		pack := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 			{
@@ -106,11 +107,11 @@ apm_config:
 		}
 		defer r.KillAgent()
 
-		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithInsecure())
+		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			log.Fatal("Error dialing: ", err)
 		}
-		client := otlpgrpc.NewTracesClient(conn)
+		client := ptraceotlp.NewClient(conn)
 		now := uint64(time.Now().UnixNano())
 		pack := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 			{

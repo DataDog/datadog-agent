@@ -191,7 +191,7 @@ static __always_inline bool http_closed(http_transaction_t *http, skb_info_t *sk
             http->owned_by_src_port == pre_norm_src_port);
 }
 
-static __always_inline int http_process(http_transaction_t *http_stack, skb_info_t *skb_info) {
+static __always_inline int http_process(http_transaction_t *http_stack, skb_info_t *skb_info, __u64 tags) {
     char *buffer = (char *)http_stack->request_fragment;
     http_packet_t packet_type = HTTP_PACKET_UNKNOWN;
     http_method_t method = HTTP_METHOD_UNKNOWN;
@@ -208,6 +208,8 @@ static __always_inline int http_process(http_transaction_t *http_stack, skb_info
     } else if (packet_type == HTTP_RESPONSE) {
         http_begin_response(http, buffer);
     }
+
+    http->tags |= tags;
 
     // If we have a (L7/application-layer) payload we want to update the response_last_seen
     // This is to prevent things such as a keep-alive adding up to the transaction latency

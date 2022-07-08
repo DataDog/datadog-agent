@@ -45,6 +45,8 @@ var (
 	checkMetadataMutex = &sync.Mutex{}
 	agentMetadata      = make(AgentMetadata)
 	agentMetadataMutex = &sync.Mutex{}
+	hostMetadata       = make(AgentMetadata)
+	hostMetadataMutex  = &sync.Mutex{}
 
 	agentStartupTime = timeNow()
 
@@ -96,6 +98,9 @@ const (
 	AgentLogsEnabled                   AgentMetadataName = "feature_logs_enabled"
 	AgentCSPMEnabled                   AgentMetadataName = "feature_cspm_enabled"
 	AgentAPMEnabled                    AgentMetadataName = "feature_apm_enabled"
+
+	// key for the host metadata cache. See host_metadata.go
+	HostOSVersion AgentMetadataName = "os_version"
 )
 
 // SetAgentMetadata updates the agent metadata value in the cache
@@ -113,8 +118,27 @@ func SetAgentMetadata(name AgentMetadataName, value interface{}) {
 	}
 }
 
+// SetHostMetadata updates the host metadata value in the cache
+func SetHostMetadata(name AgentMetadataName, value interface{}) {
+	agentMetadataMutex.Lock()
+	defer agentMetadataMutex.Unlock()
+
+	if !reflect.DeepEqual(hostMetadata[string(name)], value) {
+		hostMetadata[string(name)] = value
+
+		select {
+		case metadataUpdatedC <- nil:
+		default: // To make sure this call is not blocking
+		}
+	}
+}
+
 // SetCheckMetadata updates a metadata value for one check instance in the cache.
 func SetCheckMetadata(checkID, key string, value interface{}) {
+	if checkID == "" {
+		return
+	}
+
 	checkMetadataMutex.Lock()
 	defer checkMetadataMutex.Unlock()
 
@@ -135,6 +159,14 @@ func SetCheckMetadata(checkID, key string, value interface{}) {
 		default: // To make sure this call is not blocking
 		}
 	}
+}
+
+// RemoveCheckMetadata removes metadata for a check. This need to be called when a check is unscheduled.
+func RemoveCheckMetadata(checkID string) {
+	checkMetadataMutex.Lock()
+	defer checkMetadataMutex.Unlock()
+
+	delete(checkMetadata, checkID)
 }
 
 func createCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceMetadata {
@@ -161,8 +193,8 @@ func createCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceM
 	return &checkInstanceMetadata
 }
 
-// CreatePayload fills and returns the inventory metadata payload
-func CreatePayload(ctx context.Context, hostname string, ac AutoConfigInterface, coll CollectorInterface) *Payload {
+// createPayload fills and returns the inventory metadata payload
+func createPayload(ctx context.Context, hostname string, ac AutoConfigInterface, coll CollectorInterface) *Payload {
 	checkMetadataMutex.Lock()
 	defer checkMetadataMutex.Unlock()
 
@@ -195,7 +227,6 @@ func CreatePayload(ctx context.Context, hostname string, ac AutoConfigInterface,
 	}
 
 	agentMetadataMutex.Lock()
-	defer agentMetadataMutex.Unlock()
 
 	// Create a static copy of agentMetadata for the payload
 	payloadAgentMeta := make(AgentMetadata)
@@ -203,11 +234,14 @@ func CreatePayload(ctx context.Context, hostname string, ac AutoConfigInterface,
 		payloadAgentMeta[k] = v
 	}
 
+	agentMetadataMutex.Unlock()
+
 	return &Payload{
 		Hostname:      hostname,
 		Timestamp:     timeNow().UnixNano(),
 		CheckMetadata: &payloadCheckMeta,
 		AgentMetadata: &payloadAgentMeta,
+		HostMetadata:  getHostMetadata(),
 	}
 }
 
@@ -217,7 +251,7 @@ func GetPayload(ctx context.Context, hostname string, ac AutoConfigInterface, co
 	defer lastGetPayloadMutex.Unlock()
 	lastGetPayload = timeNow()
 
-	lastPayload = CreatePayload(ctx, hostname, ac, coll)
+	lastPayload = createPayload(ctx, hostname, ac, coll)
 	return lastPayload
 }
 

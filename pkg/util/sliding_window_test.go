@@ -22,8 +22,9 @@ const DefaultDelta = 0.001
 var (
 	dummyPollingFuncToggle = true
 
-	pollingFuncInvocationCount     *atomic.Int64 = atomic.NewInt64(0)
-	statsUpdateFuncInvocationCount *atomic.Int64 = atomic.NewInt64(0)
+	pollingFuncInvocationCount     *atomic.Int64   = atomic.NewInt64(0)
+	statsUpdateFuncInvocationCount *atomic.Int64   = atomic.NewInt64(0)
+	statsUpdateFuncValue           *atomic.Float64 = atomic.NewFloat64(0)
 )
 
 // This function on average should return 0.5 value
@@ -39,8 +40,9 @@ func dummyTogglingPollingFunc() float64 {
 	return 0.0
 }
 
-func dummyStatsUpdateFunc(sw SlidingWindow) {
+func dummyStatsUpdateFunc(value float64) {
 	statsUpdateFuncInvocationCount.Add(1)
+	statsUpdateFuncValue.Store(value)
 }
 
 // This function on average should return about 0.3 value
@@ -52,6 +54,9 @@ func dummyFractionalPollingFunc() float64 {
 }
 
 func TestSlidingWindow(t *testing.T) {
+	statsUpdateFuncInvocationCount.Store(0)
+	statsUpdateFuncValue.Store(0.0)
+
 	clk := clock.NewMock()
 	sw, err := NewSlidingWindowWithClock(2*time.Second, 100*time.Millisecond, clk)
 	require.Nil(t, err)
@@ -64,9 +69,9 @@ func TestSlidingWindow(t *testing.T) {
 	}()
 
 	clk.Add(2250 * time.Millisecond)
-	utilPct := sw.Average()
 
-	assert.InDelta(t, utilPct, 0.5, 0.05)
+	assert.EqualValues(t, statsUpdateFuncInvocationCount.Load(), 22)
+	assert.InDelta(t, statsUpdateFuncValue.Load(), 0.5, 0.05)
 }
 
 func TestSlidingWindowAccuracy(t *testing.T) {
@@ -74,10 +79,10 @@ func TestSlidingWindowAccuracy(t *testing.T) {
 	var cbLock sync.RWMutex
 	lastAverage := 0.0
 
-	statsUpdateFunc := func(sw SlidingWindow) {
+	statsUpdateFunc := func(avg float64) {
 		cbLock.Lock()
 		defer cbLock.Unlock()
-		lastAverage = sw.Average()
+		lastAverage = avg
 	}
 
 	clk := clock.NewMock()
@@ -89,31 +94,31 @@ func TestSlidingWindowAccuracy(t *testing.T) {
 	defer sw.Stop()
 
 	clk.Add(1200 * time.Millisecond)
-	utilPct := sw.Average()
 
 	assert.Equal(t, 1*time.Second, sw.WindowSize())
-	assert.InDelta(t, utilPct, 0.3, DefaultDelta)
 
 	cbLock.RLock()
 	defer cbLock.RUnlock()
-	assert.InDelta(t, utilPct, 0.3, lastAverage)
+	assert.InDelta(t, lastAverage, 0.3, DefaultDelta)
 }
 
 func TestSlidingWindowAverage(t *testing.T) {
+	statsUpdateFuncValue.Store(0.0)
+
 	clk := clock.NewMock()
 	sw, err := NewSlidingWindowWithClock(1*time.Second, 100*time.Millisecond, clk)
 	require.Nil(t, err)
 
-	err = sw.Start(dummyFractionalPollingFunc, nil)
+	err = sw.Start(dummyFractionalPollingFunc, dummyStatsUpdateFunc)
 	require.Nil(t, err)
 	defer sw.Stop()
 
 	clk.Add(50 * time.Millisecond)
-	assert.InDelta(t, sw.Average(), 0.0, DefaultDelta)
+	assert.InDelta(t, statsUpdateFuncValue.Load(), 0.0, DefaultDelta)
 
 	for idx := 0; idx < 12; idx++ {
 		clk.Add(100 * time.Millisecond)
-		assert.InDelta(t, sw.Average(), 0.3, DefaultDelta)
+		assert.InDelta(t, statsUpdateFuncValue.Load(), 0.3, DefaultDelta)
 	}
 }
 
@@ -131,23 +136,14 @@ func TestSlidingWindowCallback(t *testing.T) {
 		return 0.0
 	}
 
-	statsUpdateFunc := func(cbSlidingWindow SlidingWindow) {
-		require.NotNil(t, cbSlidingWindow)
-		require.Equal(t, sw, cbSlidingWindow)
-
-		require.True(
-			t,
-			pollingFuncInvocationCount.Load() > statsUpdateFuncInvocationCount.Load(),
-		)
-
-		pollingFuncInvocationCount.Store(1)
-	}
-
-	err = sw.Start(pollingFunc, statsUpdateFunc)
+	err = sw.Start(pollingFunc, dummyStatsUpdateFunc)
 	require.Nil(t, err)
 	defer sw.Stop()
 
 	clk.Add(200 * time.Millisecond)
+
+	require.EqualValues(t, pollingFuncInvocationCount.Load(), 1)
+	require.EqualValues(t, statsUpdateFuncInvocationCount.Load(), 20)
 }
 
 func TestSlidingWindowFuncInvocationCounts(t *testing.T) {

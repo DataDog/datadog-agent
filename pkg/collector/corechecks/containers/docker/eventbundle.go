@@ -30,6 +30,7 @@ type dockerEventBundle struct {
 	events        []*docker.ContainerEvent
 	maxTimestamp  time.Time
 	countByAction map[string]int
+	alertType     metrics.EventAlertType
 }
 
 func newDockerEventBundler(imageName string) *dockerEventBundle {
@@ -37,6 +38,7 @@ func newDockerEventBundler(imageName string) *dockerEventBundle {
 		imageName:     imageName,
 		events:        []*docker.ContainerEvent{},
 		countByAction: make(map[string]int),
+		alertType:     metrics.EventAlertTypeInfo,
 	}
 }
 
@@ -44,31 +46,40 @@ func (b *dockerEventBundle) addEvent(event *docker.ContainerEvent) error {
 	if event.ImageName != b.imageName {
 		return fmt.Errorf("mismatching image name: %s != %s", event.ImageName, b.imageName)
 	}
+
 	b.events = append(b.events, event)
+	b.countByAction[event.Action]++
+
 	if event.Timestamp.After(b.maxTimestamp) {
 		b.maxTimestamp = event.Timestamp
 	}
-	b.countByAction[event.Action] = b.countByAction[event.Action] + 1
+
+	if event.Action == "oom" || event.Action == "kill" {
+		b.alertType = metrics.EventAlertTypeError
+	}
 
 	return nil
 }
 
 func (b *dockerEventBundle) toDatadogEvent(hostname string) (metrics.Event, error) {
+	if len(b.events) == 0 {
+		return metrics.Event{}, errors.New("no event to export")
+	}
+
 	output := metrics.Event{
+		Title: fmt.Sprintf("%s %s on %s",
+			b.imageName,
+			formatStringIntMap(b.countByAction),
+			hostname,
+		),
 		Priority:       metrics.EventPriorityNormal,
 		Host:           hostname,
 		SourceTypeName: dockerCheckName,
 		EventType:      dockerCheckName,
+		AlertType:      b.alertType,
 		Ts:             b.maxTimestamp.Unix(),
 		AggregationKey: fmt.Sprintf("docker:%s", b.imageName),
 	}
-	if len(b.events) == 0 {
-		return output, errors.New("no event to export")
-	}
-	output.Title = fmt.Sprintf("%s %s on %s",
-		b.imageName,
-		formatStringIntMap(b.countByAction),
-		hostname)
 
 	seenContainers := make(map[string]bool)
 	textLines := []string{"%%% ", output.Title, "```"}
@@ -87,10 +98,6 @@ func (b *dockerEventBundle) toDatadogEvent(hostname string) (metrics.Event, erro
 		} else {
 			output.Tags = append(output.Tags, tags...)
 		}
-	}
-
-	if b.countByAction["oom"]+b.countByAction["kill"] > 0 {
-		output.AlertType = "error"
 	}
 
 	return output, nil

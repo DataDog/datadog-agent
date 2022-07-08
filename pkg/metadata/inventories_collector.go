@@ -12,10 +12,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 type inventoriesCollector struct {
@@ -24,13 +24,13 @@ type inventoriesCollector struct {
 	sc   *Scheduler
 }
 
-func createPayload(ctx context.Context, ac inventories.AutoConfigInterface, coll inventories.CollectorInterface) (*inventories.Payload, error) {
-	hostname, err := util.GetHostname(ctx)
+func getPayload(ctx context.Context, ac inventories.AutoConfigInterface, coll inventories.CollectorInterface) (*inventories.Payload, error) {
+	hostnameDetected, err := hostname.Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("unable to submit inventories metadata payload, no hostname: %s", err)
 	}
 
-	return inventories.GetPayload(ctx, hostname, ac, coll), nil
+	return inventories.GetPayload(ctx, hostnameDetected, ac, coll), nil
 }
 
 // Send collects the data needed and submits the payload
@@ -39,7 +39,7 @@ func (c inventoriesCollector) Send(ctx context.Context, s serializer.MetricSeria
 		return nil
 	}
 
-	payload, err := createPayload(ctx, c.ac, c.coll)
+	payload, err := getPayload(ctx, c.ac, c.coll)
 	if err != nil {
 		return err
 	}
@@ -59,9 +59,14 @@ func (c inventoriesCollector) Init() error {
 
 // SetupInventoriesExpvar init the expvar function for inventories
 func SetupInventoriesExpvar(ac inventories.AutoConfigInterface, coll inventories.CollectorInterface) {
+	if !config.Datadog.GetBool("enable_metadata_collection") {
+		log.Debugf("Metadata collection disabled: inventories payload will not be exposed to expvar")
+		return
+	}
+
 	expvar.Publish("inventories", expvar.Func(func() interface{} {
 		log.Debugf("Creating inventory payload for expvar")
-		p, err := createPayload(context.TODO(), ac, coll)
+		p, err := getPayload(context.TODO(), ac, coll)
 		if err != nil {
 			log.Errorf("Could not create inventory payload for expvar: %s", err)
 			return &inventories.Payload{}
@@ -72,6 +77,11 @@ func SetupInventoriesExpvar(ac inventories.AutoConfigInterface, coll inventories
 
 // SetupInventories registers the inventories collector into the Scheduler and, if configured, schedules it
 func SetupInventories(sc *Scheduler, ac inventories.AutoConfigInterface, coll inventories.CollectorInterface) error {
+	if !config.Datadog.GetBool("enable_metadata_collection") {
+		log.Debugf("Metadata collection disabled: inventories payload will not be collected nor sent")
+		return nil
+	}
+
 	ic := inventoriesCollector{
 		ac:   ac,
 		coll: coll,

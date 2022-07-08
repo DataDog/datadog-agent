@@ -2,6 +2,7 @@ import datetime
 import os
 import tempfile
 
+import lib.common.app as common
 import requests
 from datadog_api_client.v2 import ApiClient, ApiException, Configuration
 from datadog_api_client.v2.api import cloud_workload_security_api, logs_api, security_monitoring_api
@@ -78,8 +79,10 @@ def get_app_signal(api_client, query):
     return api_response
 
 
-class App:
+class App(common.App):
     def __init__(self):
+        common.App.__init__(self)
+
         configuration = Configuration()
         configuration.unstable_operations["search_security_monitoring_signals"] = True
 
@@ -186,11 +189,10 @@ class App:
     def wait_app_signal(self, query, tries=30, delay=10):
         return retry_call(get_app_signal, fargs=[self.api_client, query], tries=tries, delay=delay)
 
-
-def check_for_ignored_policies(test_case, policies):
-    if "policies_ignored" in policies:
-        test_case.assertEqual(len(policies["policies_ignored"]), 0)
-    if "policies" in policies:
-        for policy in policies["policies"]:
-            if "rules_ignored" in policy:
-                test_case.assertEqual(len(policy["rules_ignored"]), 0)
+    def check_for_ignored_policies(self, test_case, policies):
+        if "policies_ignored" in policies:
+            test_case.assertEqual(len(policies["policies_ignored"]), 0)
+        if "policies" in policies:
+            for policy in policies["policies"]:
+                if "rules_ignored" in policy:
+                    test_case.assertEqual(len(policy["rules_ignored"]), 0)

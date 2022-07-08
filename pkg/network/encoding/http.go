@@ -14,6 +14,7 @@ import (
 
 type httpEncoder struct {
 	aggregations map[http.KeyTuple]*model.HTTPAggregations
+	tags         map[http.KeyTuple]uint64
 
 	// pre-allocated objects
 	dataPool []model.HTTPStats_Data
@@ -30,6 +31,7 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 
 	encoder := &httpEncoder{
 		aggregations: make(map[http.KeyTuple]*model.HTTPAggregations, len(payload.Conns)),
+		tags:         make(map[http.KeyTuple]uint64, len(payload.Conns)),
 
 		// pre-allocate all data objects at once
 		dataPool: make([]model.HTTPStats_Data, len(payload.HTTP)*http.NumStatusClasses),
@@ -40,19 +42,20 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 	// pre-populate aggregation map with keys for all existent connections
 	// this allows us to skip encoding orphan HTTP objects that can't be matched to a connection
 	for _, conn := range payload.Conns {
-		encoder.aggregations[httpKeyTupleFromConn(conn)] = nil
+		encoder.aggregations[network.HTTPKeyTupleFromConn(conn)] = nil
 	}
 
 	encoder.buildAggregations(payload)
 	return encoder
 }
 
-func (e *httpEncoder) GetHTTPAggregations(c network.ConnectionStats) *model.HTTPAggregations {
+func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats) (*model.HTTPAggregations, uint64) {
 	if e == nil {
-		return nil
+		return nil, 0
 	}
 
-	return e.aggregations[httpKeyTupleFromConn(c)]
+	keyTuple := network.HTTPKeyTupleFromConn(c)
+	return e.aggregations[keyTuple], e.tags[keyTuple]
 }
 
 func (e *httpEncoder) buildAggregations(payload *network.Connections) {
@@ -77,11 +80,13 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 		}
 
 		ms := &model.HTTPStats{
-			Path:                  key.Path,
+			Path:                  key.Path.Content,
+			FullPath:              key.Path.FullPath,
 			Method:                model.HTTPMethod(key.Method),
 			StatsByResponseStatus: e.getDataSlice(),
 		}
 
+		tags := e.tags[key.KeyTuple]
 		for i, data := range ms.StatsByResponseStatus {
 			class := (i + 1) * 100
 			if !stats.HasStats(class) {
@@ -96,7 +101,11 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 			} else {
 				data.FirstLatencySample = s.FirstLatencySample
 			}
+
+			tags |= s.Tags
 		}
+
+		e.tags[key.KeyTuple] = tags
 
 		aggregation.EndpointAggregations = append(aggregation.EndpointAggregations, ms)
 	}
@@ -109,22 +118,4 @@ func (e *httpEncoder) getDataSlice() []*model.HTTPStats_Data {
 	}
 	e.poolIdx += http.NumStatusClasses
 	return ptrs
-}
-
-// Build the key for the http map based on whether the local or remote side is http.
-func httpKeyTupleFromConn(c network.ConnectionStats) http.KeyTuple {
-	// Retrieve translated addresses
-	laddr, lport := network.GetNATLocalAddress(c)
-	raddr, rport := network.GetNATRemoteAddress(c)
-
-	// HTTP data is always indexed as (client, server), so we account for that when generating the
-	// the lookup key using the port range heuristic.
-	// In the rare cases where both ports are within the same range we ensure that sport < dport
-	// to mimic the normalization heuristic done in the eBPF side (see `port_range.h`)
-	if (network.IsEphemeralPort(int(lport)) && !network.IsEphemeralPort(int(rport))) ||
-		(network.IsEphemeralPort(int(lport)) == network.IsEphemeralPort(int(rport)) && lport < rport) {
-		return http.NewKeyTuple(laddr, raddr, lport, rport)
-	}
-
-	return http.NewKeyTuple(raddr, laddr, rport, lport)
 }

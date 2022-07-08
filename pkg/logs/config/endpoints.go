@@ -41,7 +41,7 @@ type Endpoint struct {
 	UseCompression          bool `mapstructure:"use_compression" json:"use_compression"`
 	CompressionLevel        int  `mapstructure:"compression_level" json:"compression_level"`
 	ProxyAddress            string
-	IsReliable              bool `mapstructure:"is_reliable" json:"is_reliable"`
+	IsReliable              *bool `mapstructure:"is_reliable" json:"is_reliable"`
 	ConnectionResetInterval time.Duration
 
 	BackoffFactor    float64
@@ -91,6 +91,11 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 	}
 
 	return fmt.Sprintf("%sSending %s logs in %s to %s on port %d", prefix, compression, protocol, host, port)
+}
+
+// GetIsReliable returns true if the endpoint is reliable. Endpoints are reliable by default.
+func (e *Endpoint) GetIsReliable() bool {
+	return e.IsReliable == nil || *e.IsReliable
 }
 
 // Endpoints holds the main endpoint and additional ones to dualship logs.
@@ -158,7 +163,7 @@ func NewEndpointsWithBatchSettings(main Endpoint,
 func (e *Endpoints) GetReliableEndpoints() []Endpoint {
 	endpoints := []Endpoint{}
 	for _, endpoint := range e.Endpoints {
-		if endpoint.IsReliable {
+		if endpoint.GetIsReliable() {
 			endpoints = append(endpoints, endpoint)
 		}
 	}
@@ -169,7 +174,7 @@ func (e *Endpoints) GetReliableEndpoints() []Endpoint {
 func (e *Endpoints) GetUnReliableEndpoints() []Endpoint {
 	endpoints := []Endpoint{}
 	for _, endpoint := range e.Endpoints {
-		if !endpoint.IsReliable {
+		if !endpoint.GetIsReliable() {
 			endpoints = append(endpoints, endpoint)
 		}
 	}

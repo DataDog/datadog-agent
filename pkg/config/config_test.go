@@ -144,7 +144,7 @@ func TestUnknownVarsWarning(t *testing.T) {
 			if unknown {
 				exp = append(exp, v)
 			}
-			assert.Equal(t, exp, findUnknownEnvVars(Mock(), env))
+			assert.Equal(t, exp, findUnknownEnvVars(Mock(t), env))
 		}
 	}
 	t.Run("DD_API_KEY", test("DD_API_KEY", false))
@@ -1094,23 +1094,23 @@ network_devices:
 }
 
 func TestGetInventoriesMinInterval(t *testing.T) {
-	Mock().Set("inventories_min_interval", 6)
+	Mock(t).Set("inventories_min_interval", 6)
 	assert.EqualValues(t, 6*time.Second, GetInventoriesMinInterval())
 }
 
 func TestGetInventoriesMinIntervalInvalid(t *testing.T) {
 	// an invalid integer results in a value of 0 from Viper (with a logged warning)
-	Mock().Set("inventories_min_interval", 0)
+	Mock(t).Set("inventories_min_interval", 0)
 	assert.EqualValues(t, DefaultInventoriesMinInterval*time.Second, GetInventoriesMinInterval())
 }
 
 func TestGetInventoriesMaxInterval(t *testing.T) {
-	Mock().Set("inventories_max_interval", 6)
+	Mock(t).Set("inventories_max_interval", 6)
 	assert.EqualValues(t, 6*time.Second, GetInventoriesMaxInterval())
 }
 
 func TestGetInventoriesMaxIntervalInvalid(t *testing.T) {
 	// an invalid integer results in a value of 0 from Viper (with a logged warning)
-	Mock().Set("inventories_max_interval", 0)
+	Mock(t).Set("inventories_max_interval", 0)
 	assert.EqualValues(t, DefaultInventoriesMaxInterval*time.Second, GetInventoriesMaxInterval())
 }

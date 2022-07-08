@@ -11,8 +11,8 @@ package file
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"testing"
@@ -20,12 +20,11 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
-	"path/filepath"
-
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 var chanSize = 10
@@ -39,20 +38,19 @@ type TailerTestSuite struct {
 
 	tailer     *Tailer
 	outputChan chan *message.Message
-	source     *config.LogSource
+	source     *sources.LogSource
 }
 
 func (suite *TailerTestSuite) SetupTest() {
 	var err error
-	suite.testDir, err = ioutil.TempDir("", "log-tailer-test-")
-	suite.Nil(err)
+	suite.testDir = suite.T().TempDir()
 
 	suite.testPath = fmt.Sprintf("%s/tailer.log", suite.testDir)
 	f, err := os.Create(suite.testPath)
 	suite.Nil(err)
 	suite.testFile = f
 	suite.outputChan = make(chan *message.Message, chanSize)
-	suite.source = config.NewLogSource("", &config.LogsConfig{
+	suite.source = sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
 		Path: suite.testPath,
 	})
@@ -64,7 +62,6 @@ func (suite *TailerTestSuite) SetupTest() {
 func (suite *TailerTestSuite) TearDownTest() {
 	suite.tailer.Stop()
 	suite.testFile.Close()
-	os.Remove(suite.testDir)
 }
 
 func TestTailerTestSuite(t *testing.T) {
@@ -250,7 +247,7 @@ func (suite *TailerTestSuite) TestOriginTagsWhenTailingFiles() {
 
 func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 
-	dirTaggedSource := config.NewLogSource("", &config.LogsConfig{
+	dirTaggedSource := sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
 		Path: suite.testPath,
 	})
@@ -270,7 +267,7 @@ func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 }
 
 func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
-	dirTaggedSource := config.NewLogSource("", &config.LogsConfig{
+	dirTaggedSource := sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
 		Path: suite.testPath,
 	})
@@ -286,7 +283,7 @@ func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
 }
 
 func (suite *TailerTestSuite) TestBuildTagsFileDir() {
-	dirTaggedSource := config.NewLogSource("", &config.LogsConfig{
+	dirTaggedSource := sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
 		Path: suite.testPath,
 	})

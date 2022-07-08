@@ -42,7 +42,7 @@ func TestDockerCheckGenericPart(t *testing.T) {
 	}
 
 	// Inject mock processor in check
-	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, nil, containersStats, metricsAdapter{}, getProcessorFilter(nil))
+	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil))
 	processor.RegisterExtension("docker-custom-metrics", &dockerCustomMetricsExtension{})
 
 	// Create Docker check
@@ -82,7 +82,7 @@ func TestDockerCheckGenericPart(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "docker.mem.cache", 200, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "docker.mem.swap", 0, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "docker.mem.failed_count", 10, "", expectedTags)
-	mockSender.AssertMetric(t, "Gauge", "docker.mem.in_use", 1, "", expectedTags)
+	mockSender.AssertMetricInRange(t, "Gauge", "docker.mem.in_use", 0, 1, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "docker.mem.sw_limit", 500, "", expectedTags)
 
 	expectedFooTags := taggerUtils.ConcatenateStringTags(expectedTags, "device:/dev/foo", "device_name:/dev/foo")

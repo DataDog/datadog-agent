@@ -7,7 +7,6 @@ package processor
 
 import (
 	"encoding/json"
-	"regexp"
 	"testing"
 
 	"strings"
@@ -17,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/pb"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -29,7 +29,7 @@ func TestRawEncoder(t *testing.T) {
 		Tags:           []string{"foo:bar", "baz"},
 	}
 
-	source := config.NewLogSource("", logsConfig)
+	source := sources.NewLogSource("", logsConfig)
 
 	rawMessage := "message"
 	msg := newMessage([]byte(rawMessage), source, message.StatusError)
@@ -52,26 +52,16 @@ func TestRawEncoder(t *testing.T) {
 	assert.Equal(t, "-", parts[4])
 	assert.Equal(t, "-", parts[5])
 	extra := content[strings.Index(content, "[") : strings.LastIndex(content, "]")+1]
-	assert.True(t, strings.HasPrefix(extra, "[dd ddsource=\"Source\"][dd ddsourcecategory=\"SourceCategory\"][dd ddtags=\""), "Payload did not have correct prefix", extra)
-	assertDDTags(t, []string{"foo:bar", "baz", "a", "b:c"}, extra)
+	assert.Equal(t, "[dd ddsource=\"Source\"][dd ddsourcecategory=\"SourceCategory\"][dd ddtags=\"foo:bar,baz,a,b:c\"]", extra)
 	assert.Equal(t, "redacted", content[strings.LastIndex(content, " ")+1:])
-}
 
-func assertDDTags(t *testing.T, expectedTags []string, ddtags string) {
-	if len(expectedTags) == 0 {
-		return
-	}
-	r, _ := regexp.Compile("ddtags=\"(.*)\"]")
-	submatch := r.FindStringSubmatch(ddtags)
-	assert.NotEmpty(t, submatch)
-	assert.ElementsMatch(t, expectedTags, strings.Split(submatch[1], ","))
 }
 
 func TestRawEncoderDefaults(t *testing.T) {
 
 	logsConfig := &config.LogsConfig{}
 
-	source := config.NewLogSource("", logsConfig)
+	source := sources.NewLogSource("", logsConfig)
 
 	rawMessage := "a"
 	msg := newMessage([]byte(rawMessage), source, "")
@@ -101,7 +91,7 @@ func TestRawEncoderEmpty(t *testing.T) {
 
 	logsConfig := &config.LogsConfig{}
 
-	source := config.NewLogSource("", logsConfig)
+	source := sources.NewLogSource("", logsConfig)
 
 	rawMessage := ""
 	msg := newMessage([]byte(rawMessage), source, "")
@@ -130,7 +120,7 @@ func TestProtoEncoder(t *testing.T) {
 		Tags:           []string{"foo:bar", "baz"},
 	}
 
-	source := config.NewLogSource("", logsConfig)
+	source := sources.NewLogSource("", logsConfig)
 
 	rawMessage := "message"
 	msg := newMessage([]byte(rawMessage), source, message.StatusError)
@@ -150,7 +140,7 @@ func TestProtoEncoder(t *testing.T) {
 
 	assert.Equal(t, logsConfig.Service, log.Service)
 	assert.Equal(t, logsConfig.Source, log.Source)
-	assert.ElementsMatch(t, []string{"a", "b:c", "sourcecategory:" + logsConfig.SourceCategory, "foo:bar", "baz"}, log.Tags)
+	assert.Equal(t, []string{"a", "b:c", "sourcecategory:" + logsConfig.SourceCategory, "foo:bar", "baz"}, log.Tags)
 
 	assert.Equal(t, redactedMessage, log.Message)
 	assert.Equal(t, message.StatusError, log.Status)
@@ -162,7 +152,7 @@ func TestProtoEncoderEmpty(t *testing.T) {
 
 	logsConfig := &config.LogsConfig{}
 
-	source := config.NewLogSource("", logsConfig)
+	source := sources.NewLogSource("", logsConfig)
 
 	rawMessage := ""
 	msg := newMessage([]byte(rawMessage), source, "")
@@ -190,7 +180,7 @@ func TestProtoEncoderEmpty(t *testing.T) {
 
 func TestProtoEncoderHandleInvalidUTF8(t *testing.T) {
 	cfg := &config.LogsConfig{}
-	src := config.NewLogSource("", cfg)
+	src := sources.NewLogSource("", cfg)
 	msg := newMessage([]byte(""), src, "")
 	encoded, err := ProtoEncoder.Encode(msg, []byte("a\xfez"))
 	assert.NotNil(t, encoded)
@@ -205,7 +195,7 @@ func TestJsonEncoder(t *testing.T) {
 		Tags:           []string{"foo:bar", "baz"},
 	}
 
-	source := config.NewLogSource("", logsConfig)
+	source := sources.NewLogSource("", logsConfig)
 
 	rawMessage := "message"
 	msg := newMessage([]byte(rawMessage), source, message.StatusError)
@@ -225,8 +215,7 @@ func TestJsonEncoder(t *testing.T) {
 
 	assert.Equal(t, logsConfig.Service, log.Service)
 	assert.Equal(t, logsConfig.Source, log.Source)
-	// Turning tags into an array as can't guarantee order of Tags
-	assert.ElementsMatch(t, []string{"a", "b:c", "sourcecategory:" + logsConfig.SourceCategory, "foo:bar", "baz"}, strings.Split(log.Tags, ","))
+	assert.Equal(t, "a,b:c,sourcecategory:"+logsConfig.SourceCategory+",foo:bar,baz", log.Tags)
 
 	assert.Equal(t, redactedMessage, log.Message)
 	assert.Equal(t, message.StatusError, log.Status)

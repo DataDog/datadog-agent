@@ -30,6 +30,12 @@ const (
 
 	// EventTypeNetworkDevicesMetadata is the event type for network devices metadata
 	EventTypeNetworkDevicesMetadata = "network-devices-metadata"
+
+	// EventTypeSnmpTraps is the event type for snmp traps
+	EventTypeSnmpTraps = "network-devices-snmp-traps"
+
+	// EventTypeNetworkDevicesNetFlow is the event type for network devices NetFlow data
+	EventTypeNetworkDevicesNetFlow = "network-devices-netflow"
 )
 
 var passthroughPipelineDescs = []passthroughPipelineDesc{
@@ -70,6 +76,24 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		intakeTrackType:               "ndm",
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+	},
+	{
+		eventType:                     EventTypeSnmpTraps,
+		endpointsConfigPrefix:         "network_devices.snmp_traps.forwarder.",
+		hostnameEndpointPrefix:        "snmp-traps-intake.",
+		intakeTrackType:               "ndmtraps",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+	},
+	{
+		eventType:                     EventTypeNetworkDevicesNetFlow,
+		endpointsConfigPrefix:         "network_devices.netflow.forwarder.",
+		hostnameEndpointPrefix:        "ndmflow-intake.",
+		intakeTrackType:               "ndmflow",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    20e6, // max 20Mb uncompressed size per payload
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
 	},
 }

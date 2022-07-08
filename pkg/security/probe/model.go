@@ -16,6 +16,7 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf/perf"
 	"github.com/mailru/easyjson/jwriter"
 
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
@@ -75,7 +76,6 @@ type Event struct {
 	model.Event
 
 	resolvers           *Resolvers
-	processCacheEntry   *model.ProcessCacheEntry
 	pathResolutionError error
 	scrubber            *pconfig.DataScrubber
 	probe               *Probe
@@ -83,16 +83,16 @@ type Event struct {
 
 // Retain the event
 func (ev *Event) Retain() Event {
-	if ev.processCacheEntry != nil {
-		ev.processCacheEntry.Retain()
+	if ev.ProcessCacheEntry != nil {
+		ev.ProcessCacheEntry.Retain()
 	}
 	return *ev
 }
 
 // Release the event
 func (ev *Event) Release() {
-	if ev.processCacheEntry != nil {
-		ev.processCacheEntry.Release()
+	if ev.ProcessCacheEntry != nil {
+		ev.ProcessCacheEntry.Release()
 	}
 }
 
@@ -209,12 +209,9 @@ func (ev *Event) ResolveContainerTags(e *model.ContainerContext) []string {
 	return e.Tags
 }
 
-// UnmarshalProcess unmarshal a Process
-func (ev *Event) UnmarshalProcess(data []byte) (int, error) {
-	// reset the process cache entry of the current event
-	entry := ev.resolvers.ProcessResolver.NewProcessCacheEntry()
-	entry.Pid = ev.ProcessContext.Pid
-	entry.Tid = ev.ProcessContext.Tid
+// UnmarshalProcessCacheEntry unmarshal a Process
+func (ev *Event) UnmarshalProcessCacheEntry(data []byte) (int, error) {
+	entry := ev.resolvers.ProcessResolver.NewProcessCacheEntry(ev.PIDContext)
 
 	n, err := entry.Process.UnmarshalBinary(data)
 	if err != nil {
@@ -222,7 +219,7 @@ func (ev *Event) UnmarshalProcess(data []byte) (int, error) {
 	}
 	entry.Process.ContainerID = ev.ContainerContext.ID
 
-	ev.processCacheEntry = entry
+	ev.ProcessCacheEntry = entry
 
 	return n, nil
 }
@@ -451,12 +448,12 @@ func (ev *Event) MarshalJSON() ([]byte, error) {
 }
 
 // ExtractEventInfo extracts cpu and timestamp from the raw data event
-func ExtractEventInfo(data []byte) (uint64, uint64, error) {
-	if len(data) < 16 {
+func ExtractEventInfo(record *perf.Record) (uint64, uint64, error) {
+	if len(record.RawSample) < 16 {
 		return 0, 0, model.ErrNotEnoughData
 	}
 
-	return model.ByteOrder.Uint64(data[0:8]), model.ByteOrder.Uint64(data[8:16]), nil
+	return model.ByteOrder.Uint64(record.RawSample[0:8]), model.ByteOrder.Uint64(record.RawSample[8:16]), nil
 }
 
 // ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time
@@ -470,25 +467,22 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 	return ev.Timestamp
 }
 
-// ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessCacheEntry of the event
+// ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
 func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
-	if ev.processCacheEntry == nil {
-		ev.processCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.ProcessContext.Pid, ev.ProcessContext.Tid)
-		if ev.processCacheEntry == nil {
-			ev.processCacheEntry = &model.ProcessCacheEntry{}
-
-			// mark context as resolved to avoid resolution with empty inode/mount id
-			ev.processCacheEntry.FileEvent.SetPathnameStr("")
-			ev.processCacheEntry.FileEvent.SetBasenameStr("")
-		} else if ev.processCacheEntry.FileEvent.Inode == 0 || ev.processCacheEntry.FileEvent.MountID == 0 {
-			// FIX(safchain) this condition should be removed once the kworker detection will be fixed and
-			// once process context without inode/mountid bug will be fixed
-			ev.processCacheEntry.FileEvent.SetPathnameStr("")
-			ev.processCacheEntry.FileEvent.SetBasenameStr("")
-		}
+	if ev.ProcessCacheEntry == nil {
+		ev.ProcessCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid)
 	}
 
-	return ev.processCacheEntry
+	if ev.ProcessCacheEntry == nil {
+		// keep the original PIDContext
+		ev.ProcessCacheEntry = model.NewProcessCacheEntry(nil)
+		ev.ProcessCacheEntry.PIDContext = ev.PIDContext
+
+		ev.ProcessCacheEntry.FileEvent.SetPathnameStr("")
+		ev.ProcessCacheEntry.FileEvent.SetBasenameStr("")
+	}
+
+	return ev.ProcessCacheEntry
 }
 
 // GetProcessServiceTag returns the service tag based on the process context

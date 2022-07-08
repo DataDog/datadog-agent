@@ -14,14 +14,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/containernetworking/cni/pkg/types/current"
+	cnitypes "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/cri-o/ocicni/pkg/ocicni"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/util/podman"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/util"
 )
 
 type fakeWorkloadmetaStore struct {
@@ -81,9 +80,9 @@ func TestPull(t *testing.T) {
 				State:       podman.ContainerStateRunning,
 				StartedTime: startTime,
 				PID:         10,
-				NetworkStatus: []*current.Result{
+				NetworkStatus: []*cnitypes.Result{
 					{
-						IPs: []*current.IPConfig{
+						IPs: []*cnitypes.IPConfig{
 							{
 								Address: net.IPNet{
 									IP: net.ParseIP("10.88.0.13"),
@@ -130,9 +129,9 @@ func TestPull(t *testing.T) {
 				State:       podman.ContainerStateRunning,
 				StartedTime: startTime,
 				PID:         11,
-				NetworkStatus: []*current.Result{
+				NetworkStatus: []*cnitypes.Result{
 					{
-						IPs: []*current.IPConfig{
+						IPs: []*cnitypes.IPConfig{
 							{
 								Address: net.IPNet{
 									IP: net.ParseIP("10.88.0.14"),
@@ -253,46 +252,15 @@ func TestPull(t *testing.T) {
 		},
 	}
 
-	cacheWithExpired := util.NewExpire(1 * time.Second)
-	expiredID := "1"
-	cacheWithExpired.Update(workloadmeta.EntityID{
-		Kind: workloadmeta.KindContainer,
-		ID:   expiredID,
-	}, time.Now().Add(-1*time.Hour)) // Expired because 1 hour > 10s defined above
-
-	// The cache is initialized with a "lastExpire" that equals time.Now, and
-	// the caller has no control over it. When calculating the expired entities,
-	// it first checks that the last expire happen at least TTL seconds ago.
-	// That's why here we need to sleep at least for the TTL defined (1 second
-	// in this case).
-	time.Sleep(1 * time.Second)
-
 	tests := []struct {
 		name           string
 		client         podmanClient
-		cache          *util.Expire
 		expectedEvents []workloadmeta.CollectorEvent
 	}{
 		{
-			name:           "without expired entities",
+			name:           "expected events",
 			client:         &client,
-			cache:          util.NewExpire(10 * time.Second),
 			expectedEvents: expectedEvents,
-		},
-		{
-			name:   "with expired entities",
-			client: &client,
-			cache:  cacheWithExpired,
-			expectedEvents: append(expectedEvents, workloadmeta.CollectorEvent{
-				Type:   workloadmeta.EventTypeUnset,
-				Source: workloadmeta.SourceRuntime,
-				Entity: &workloadmeta.Container{
-					EntityID: workloadmeta.EntityID{
-						Kind: workloadmeta.KindContainer,
-						ID:   expiredID,
-					},
-				},
-			}),
 		},
 	}
 
@@ -302,7 +270,6 @@ func TestPull(t *testing.T) {
 			podmanCollector := collector{
 				client: test.client,
 				store:  &workloadmetaStore,
-				expire: test.cache,
 			}
 
 			err := podmanCollector.Pull(context.TODO())
@@ -330,9 +297,9 @@ func TestNetworkIPS(t *testing.T) {
 					},
 				},
 				State: &podman.ContainerState{
-					NetworkStatus: []*current.Result{
+					NetworkStatus: []*cnitypes.Result{
 						{
-							IPs: []*current.IPConfig{
+							IPs: []*cnitypes.IPConfig{
 								{
 									Address: net.IPNet{
 										IP: net.ParseIP("10.88.0.14"),
@@ -357,9 +324,9 @@ func TestNetworkIPS(t *testing.T) {
 					},
 				},
 				State: &podman.ContainerState{ // Sorted alphabetically by network name
-					NetworkStatus: []*current.Result{
+					NetworkStatus: []*cnitypes.Result{
 						{
-							IPs: []*current.IPConfig{
+							IPs: []*cnitypes.IPConfig{
 								{
 									Address: net.IPNet{
 										IP: net.ParseIP("10.88.0.11"),
@@ -368,7 +335,7 @@ func TestNetworkIPS(t *testing.T) {
 							},
 						},
 						{
-							IPs: []*current.IPConfig{
+							IPs: []*cnitypes.IPConfig{
 								{
 									Address: net.IPNet{
 										IP: net.ParseIP("10.88.0.12"),
@@ -377,7 +344,7 @@ func TestNetworkIPS(t *testing.T) {
 							},
 						},
 						{
-							IPs: []*current.IPConfig{
+							IPs: []*cnitypes.IPConfig{
 								{
 									Address: net.IPNet{
 										IP: net.ParseIP("10.88.0.13"),
@@ -408,9 +375,9 @@ func TestNetworkIPS(t *testing.T) {
 					},
 				},
 				State: &podman.ContainerState{
-					NetworkStatus: []*current.Result{
+					NetworkStatus: []*cnitypes.Result{
 						{
-							IPs: []*current.IPConfig{
+							IPs: []*cnitypes.IPConfig{
 								{
 									Address: net.IPNet{
 										IP: net.ParseIP("10.88.0.10"),
@@ -419,7 +386,7 @@ func TestNetworkIPS(t *testing.T) {
 							},
 						},
 						{
-							IPs: []*current.IPConfig{
+							IPs: []*cnitypes.IPConfig{
 								{
 									Address: net.IPNet{
 										IP: net.ParseIP("10.88.0.11"),

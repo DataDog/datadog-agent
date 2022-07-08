@@ -9,6 +9,7 @@ import (
 	"errors"
 	"html/template"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -405,6 +406,12 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.NoError(err)
 	assert.NoError(applyDatadogConfig(c))
 
+	req, err := http.NewRequest(http.MethodGet, "https://someplace.test", nil)
+	assert.NoError(err)
+	proxyURL, err := c.Proxy(req)
+	assert.NoError(err)
+	assert.Equal("proxy_for_https:1234", proxyURL.Host)
+
 	assert.Equal("mymachine", c.Hostname)
 	assert.Equal("https://user:password@proxy_for_https:1234", c.ProxyURL.String())
 	assert.True(c.SkipSSLValidation)
@@ -500,7 +507,7 @@ func TestUndocumentedYamlConfig(t *testing.T) {
 	assert.Equal(0.33, c.ExtraSampleRate)
 	assert.Equal(100.0, c.TargetTPS)
 	assert.Equal(37.0, c.ErrorTPS)
-	assert.Equal(true, c.DisableRareSampler)
+	assert.Equal(true, c.RareSamplerDisabled)
 	assert.Equal(127.0, c.MaxRemoteTPS)
 	assert.Equal(1000.0, c.MaxEPS)
 	assert.Equal(25, c.ReceiverPort)
@@ -921,7 +928,7 @@ func TestLoadEnv(t *testing.T) {
 			defer os.Unsetenv(envKey)
 			cfg, err := LoadConfigFile("./testdata/full.yaml")
 			assert.NoError(err)
-			assert.Equal(true, cfg.DisableRareSampler)
+			assert.Equal(true, cfg.RareSamplerDisabled)
 		})
 	}
 

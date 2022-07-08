@@ -10,6 +10,7 @@ package netlink
 
 import (
 	"container/list"
+	"context"
 	"fmt"
 	"net"
 	"sync"
@@ -36,6 +37,7 @@ type Conntracker interface {
 	DeleteTranslation(network.ConnectionStats)
 	IsSampling() bool
 	GetStats() map[string]int64
+	DumpCachedTable(context.Context) (map[uint32][]DebugConntrackEntry, error)
 	Close()
 }
 
@@ -267,20 +269,24 @@ func (ctr *realConntracker) run() error {
 		return err
 	}
 
+	done := make(chan struct{})
 	go func() {
 		for {
 			select {
-			case e, ok := <-events:
-				if !ok {
-					return
-				}
-				conns := ctr.decoder.DecodeAndReleaseEvent(e)
-				for _, c := range conns {
-					ctr.register(c)
-				}
-
+			case <-done:
+				return
 			case <-ctr.compactTicker.C:
 				ctr.compact()
+			}
+		}
+	}()
+
+	go func() {
+		defer close(done)
+		for e := range events {
+			conns := ctr.decoder.DecodeAndReleaseEvent(e)
+			for _, c := range conns {
+				ctr.register(c)
 			}
 		}
 	}()

@@ -15,12 +15,11 @@ from typing import Dict, List
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.flavor import AgentFlavor
-
 from .agent import integration_tests as agent_integration_tests
 from .build_tags import compute_build_tags_for_flavor
 from .cluster_agent import integration_tests as dca_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
+from .flavor import AgentFlavor
 from .go import golangci_lint
 from .libs.copyright import CopyrightLinter
 from .libs.junit_upload import add_flavor_to_junitxml, junit_upload_from_tgz, produce_junit_tar

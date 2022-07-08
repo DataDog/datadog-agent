@@ -29,6 +29,7 @@ type Clients interface {
 type RegoConfiguration interface {
 	ProvidedInput(ruleID string) eval.RegoInputMap
 	DumpInputPath() string
+	ShouldSkipRegoEval() bool
 }
 
 // Configuration provides an abstraction for various environment methods used by checks

@@ -10,6 +10,7 @@ import (
 	"hash/fnv"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/twmb/murmur3"
 	yaml "gopkg.in/yaml.v2"
@@ -417,4 +418,49 @@ func (c *Config) FastDigest() uint64 {
 	_, _ = h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags)))
 
 	return h.Sum64()
+}
+
+// Dump returns a string representing this Config value, for debugging purposes.  If multiline is true,
+// then it contains newlines; otherwise, it is comma-separated.
+func (c *Config) Dump(multiline bool) string {
+	var b strings.Builder
+	dataField := func(data Data) string {
+		if data == nil {
+			return "nil"
+		}
+		return fmt.Sprintf("[]byte(%#v)", string(data))
+	}
+	ws := func(fmt string) string {
+		if multiline {
+			return "\n\t" + fmt
+		}
+		return " " + fmt
+	}
+
+	fmt.Fprint(&b, "integration.Config = {")
+	fmt.Fprintf(&b, ws("Name: %#v,"), c.Name)
+	if c.Instances == nil {
+		fmt.Fprint(&b, ws("Instances: nil,"))
+	} else {
+		fmt.Fprint(&b, ws("Instances: {"))
+		for _, inst := range c.Instances {
+			fmt.Fprintf(&b, ws("%s,"), dataField(inst))
+		}
+		fmt.Fprint(&b, ws("}"))
+	}
+	fmt.Fprintf(&b, ws("InitConfig: %s,"), dataField(c.InitConfig))
+	fmt.Fprintf(&b, ws("MetricConfig: %s,"), dataField(c.MetricConfig))
+	fmt.Fprintf(&b, ws("LogsConfig: %s,"), dataField(c.LogsConfig))
+	fmt.Fprintf(&b, ws("ADIdentifiers: %#v,"), c.ADIdentifiers)
+	fmt.Fprintf(&b, ws("AdvancedADIdentifiers: %#v,"), c.AdvancedADIdentifiers)
+	fmt.Fprintf(&b, ws("Provider: %#v,"), c.Provider)
+	fmt.Fprintf(&b, ws("ServiceID: %#v,"), c.ServiceID)
+	fmt.Fprintf(&b, ws("TaggerEntity: %#v,"), c.TaggerEntity)
+	fmt.Fprintf(&b, ws("ClusterCheck: %t,"), c.ClusterCheck)
+	fmt.Fprintf(&b, ws("NodeName: %#v,"), c.NodeName)
+	fmt.Fprintf(&b, ws("Source: %s,"), c.Source)
+	fmt.Fprintf(&b, ws("IgnoreAutodiscoveryTags: %t,"), c.IgnoreAutodiscoveryTags)
+	fmt.Fprintf(&b, ws("MetricsExcluded: %t,"), c.MetricsExcluded)
+	fmt.Fprintf(&b, ws("LogsExcluded: %t} (digest %s)"), c.LogsExcluded, c.Digest())
+	return b.String()
 }

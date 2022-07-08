@@ -82,6 +82,8 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_verticalpodautoscaler_spec_resourcepolicy_container_policies_minallowed":             "vpa.spec_container_minallowed",
 		"kube_verticalpodautoscaler_spec_resourcepolicy_container_policies_maxallowed":             "vpa.spec_container_maxallowed",
 		"kube_cronjob_spec_suspend":                                                                "cronjob.spec_suspend",
+		"kube_job_duration":                                                                        "job.duration",
+		"kube_ingress_path":                                                                        "ingress.path",
 	}
 }
 
@@ -110,6 +112,15 @@ func defaultLabelsMapper() map[string]string {
 		"label_topology_kubernetes_io_zone":   "kube_zone",
 		"label_failure_domain_beta_kubernetes_io_region": "kube_region",
 		"label_failure_domain_beta_kubernetes_io_zone":   "kube_zone",
+		"ingress": "kube_ingress",
+
+		// Standard Kubernetes labels
+		"label_app_kubernetes_io_name":       "kube_app_name",
+		"label_app_kubernetes_io_instance":   "kube_app_instance",
+		"label_app_kubernetes_io_version":    "kube_app_version",
+		"label_app_kubernetes_io_component":  "kube_app_component",
+		"label_app_kubernetes_io_part_of":    "kube_app_part_of",
+		"label_app_kubernetes_io_managed_by": "kube_app_managed_by",
 	}
 }
 
@@ -119,59 +130,66 @@ func defaultLabelJoins() map[string]*JoinsConfig {
 		"label_tags_datadoghq_com_env",
 		"label_tags_datadoghq_com_service",
 		"label_tags_datadoghq_com_version",
+
+		"label_app_kubernetes_io_name",
+		"label_app_kubernetes_io_instance",
+		"label_app_kubernetes_io_version",
+		"label_app_kubernetes_io_component",
+		"label_app_kubernetes_io_part_of",
+		"label_app_kubernetes_io_managed_by",
 	}
 
 	return map[string]*JoinsConfig{
 		"kube_pod_status_phase": {
-			LabelsToMatch: []string{"pod", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("pod"),
 			LabelsToGet:   []string{"phase"},
 		},
 		"kube_pod_info": {
-			LabelsToMatch: []string{"pod", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("pod"),
 			LabelsToGet:   []string{"node", "created_by_kind", "created_by_name", "priority_class"},
 		},
 		"kube_persistentvolume_info": {
-			LabelsToMatch: []string{"persistentvolume"}, // persistent volumes are not namespaced
+			LabelsToMatch: getLabelToMatchForKind("persistentvolume"),
 			LabelsToGet:   []string{"storageclass"},
 		},
 		"kube_persistentvolumeclaim_info": {
-			LabelsToMatch: []string{"persistentvolumeclaim", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("persistentvolumeclaim"),
 			LabelsToGet:   []string{"storageclass"},
 		},
 		"kube_pod_labels": {
-			LabelsToMatch: []string{"pod", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("pod"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_pod_status_reason": {
-			LabelsToMatch: []string{"pod", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("pod"),
 			LabelsToGet:   []string{"reason"},
 		},
 		"kube_deployment_labels": {
-			LabelsToMatch: []string{"deployment", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("deployment"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_replicaset_labels": {
-			LabelsToMatch: []string{"replicaset", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("replicaset"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_daemonset_labels": {
-			LabelsToMatch: []string{"daemonset", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("daemonset"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_statefulset_labels": {
-			LabelsToMatch: []string{"statefulset", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("statefulset"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_job_labels": {
-			LabelsToMatch: []string{"job_name", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("job"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_cronjob_labels": {
-			LabelsToMatch: []string{"cronjob", "namespace"},
+			LabelsToMatch: getLabelToMatchForKind("cronjob"),
 			LabelsToGet:   defaultStandardLabels,
 		},
 		"kube_node_labels": {
-			LabelsToMatch: []string{"node"},
+			LabelsToMatch: getLabelToMatchForKind("node"),
 			LabelsToGet: []string{
 				"label_topology_kubernetes_io_region",            // k8s v1.17+
 				"label_topology_kubernetes_io_zone",              // k8s v1.17+
@@ -180,8 +198,26 @@ func defaultLabelJoins() map[string]*JoinsConfig {
 			},
 		},
 		"kube_node_info": {
-			LabelsToMatch: []string{"node"},
+			LabelsToMatch: getLabelToMatchForKind("node"),
 			LabelsToGet:   []string{"container_runtime_version", "kernel_version", "kubelet_version", "os_image"},
 		},
+	}
+}
+
+// getLabelToMatchForKind returns the set of labels use to match
+// a resource.
+// this function centralized the logic about label_joins.labelToMatch
+// configuration, because some resource like `job` is use a non standard
+// label or and because some other resource doesn't need the `namespace` label.
+func getLabelToMatchForKind(kind string) []string {
+	switch kind {
+	case "job": // job metrics use specific label
+		return []string{"job_name", "namespace"}
+	case "node": // persistent nodes are not namespaced
+		return []string{"node"}
+	case "persistentvolume": // persistent volumes are not namespaced
+		return []string{"persistentvolume"}
+	default:
+		return []string{kind, "namespace"}
 	}
 }

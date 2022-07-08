@@ -24,8 +24,8 @@ class KubernetesHelper(LogGetter):
         resp = self.api_client.list_namespaced_pod(namespace=self.namespace, label_selector=label_selector)
         for i in resp.items:
             self.pod_name = i.metadata.name
-            break
-        LookupError(label_selector)
+            return
+        raise LookupError(label_selector)
 
     def get_log(self, agent_name):
         log = self.api_client.read_namespaced_pod_log(

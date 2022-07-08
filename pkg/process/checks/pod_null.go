@@ -37,3 +37,6 @@ func (c *PodCheck) RealTime() bool { return false }
 func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
 	return nil, fmt.Errorf("Not implemented")
 }
+
+// Cleanup frees any resource held by the PodCheck before the agent exits
+func (c *PodCheck) Cleanup() {}

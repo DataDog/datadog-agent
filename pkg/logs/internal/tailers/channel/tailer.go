@@ -12,10 +12,17 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // serviceEnvVar is the environment variable of the service tag (this is used only for the serverless agent)
 const serviceEnvVar = "DD_SERVICE"
+
+// cloudRunServiceName is the environment variable of the service name tag (this is used only for the serverless agent)
+const cloudRunServiceName = "K_SERVICE"
+
+// cloudRunRevisionName is the environment variable of the revision name (this is used only for the serverless agent)
+const cloudRunRevisionName = "K_REVISION"
 
 // Tailer consumes and processes a channel of strings, and sends them to a
 // stream of log messages.
@@ -23,14 +30,14 @@ const serviceEnvVar = "DD_SERVICE"
 // This tailer attaches the tags from source.Config.ChannelTags to each
 // message, in addition to the origin tags and tags in source.Config.Tags.
 type Tailer struct {
-	source     *config.LogSource
+	source     *sources.LogSource
 	inputChan  chan *config.ChannelMessage
 	outputChan chan *message.Message
 	done       chan interface{}
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(source *config.LogSource, inputChan chan *config.ChannelMessage, outputChan chan *message.Message) *Tailer {
+func NewTailer(source *sources.LogSource, inputChan chan *config.ChannelMessage, outputChan chan *message.Message) *Tailer {
 	return &Tailer{
 		source:     source,
 		inputChan:  inputChan,
@@ -83,11 +90,15 @@ func (t *Tailer) run() {
 }
 
 func computeServiceName(lambdaConfig *config.Lambda, serviceName string) string {
-	if lambdaConfig == nil {
-		return "agent"
+	if isServerlessOrigin(lambdaConfig) {
+		if len(serviceName) > 0 {
+			return strings.ToLower(serviceName)
+		}
+		return strings.ToLower(os.Getenv(cloudRunServiceName))
 	}
-	if len(serviceName) > 0 {
-		return strings.ToLower(serviceName)
-	}
-	return ""
+	return "agent"
+}
+
+func isServerlessOrigin(lambdaConfig *config.Lambda) bool {
+	return lambdaConfig != nil || (len(os.Getenv(cloudRunServiceName)) > 0 && len(os.Getenv(cloudRunRevisionName)) > 0)
 }

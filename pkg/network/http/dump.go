@@ -84,6 +84,15 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
+
+	case "ssl_ctx_by_pid_tgid": // maps/ssl_ctx_by_pid_tgid (BPF_MAP_TYPE_HASH), key C.__u64, value uintptr // C.void *
+		output.WriteString("Map: '" + mapName + "', key: 'C.__u64', value: 'uintptr // C.void *'\n")
+		iter := currentMap.Iterate()
+		var key uint64
+		var value uintptr // C.void *
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			output.WriteString(spew.Sdump(key, value))
+		}
 	}
 	return output.String()
 }

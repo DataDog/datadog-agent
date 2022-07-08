@@ -48,6 +48,10 @@ const (
 	SidecarPresentTagKey = "sidecar_present"
 	// SidecarCountTagKey tag key for container tags
 	SidecarCountTagKey = "sidecar_count"
+	// SegmentNameTagKey tag key for container tags
+	SegmentNameTagKey = "segment_name"
+	// SegmentIDTagKey tag key for container tags
+	SegmentIDTagKey = "segment_id"
 )
 
 var (

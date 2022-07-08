@@ -42,7 +42,8 @@ int __attribute__((always_inline)) sys_umount_ret(void *ctx, int retval) {
     int mount_id = get_vfsmount_mount_id(syscall->umount.vfs);
 
     struct umount_event_t event = {
-        .syscall .retval = retval,
+        .syscall.retval = retval,
+        .event.async = 0,
         .mount_id = mount_id
     };
 

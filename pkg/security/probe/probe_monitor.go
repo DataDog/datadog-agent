@@ -10,10 +10,10 @@ package probe
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 
@@ -30,7 +30,6 @@ type Monitor struct {
 	loadController      *LoadController
 	perfBufferMonitor   *PerfBufferMonitor
 	syscallMonitor      *SyscallMonitor
-	reordererMonitor    *ReordererMonitor
 	activityDumpManager *ActivityDumpManager
 	runtimeMonitor      *RuntimeMonitor
 	discarderMonitor    *DiscarderMonitor
@@ -53,11 +52,6 @@ func NewMonitor(p *Probe) (*Monitor, error) {
 	m.perfBufferMonitor, err = NewPerfBufferMonitor(p)
 	if err != nil {
 		return nil, errors.Wrap(err, "couldn't create the events statistics monitor")
-	}
-
-	m.reordererMonitor, err = NewReOrderMonitor(p)
-	if err != nil {
-		return nil, errors.Wrap(err, "couldn't create the reorder monitor")
 	}
 
 	if p.config.ActivityDumpEnabled {
@@ -94,14 +88,13 @@ func (m *Monitor) GetPerfBufferMonitor() *PerfBufferMonitor {
 
 // Start triggers the goroutine of all the underlying controllers and monitors of the Monitor
 func (m *Monitor) Start(ctx context.Context, wg *sync.WaitGroup) error {
-	delta := 2
+	delta := 1
 	if m.activityDumpManager != nil {
 		delta++
 	}
 	wg.Add(delta)
 
 	go m.loadController.Start(ctx, wg)
-	go m.reordererMonitor.Start(ctx, wg)
 
 	if m.activityDumpManager != nil {
 		go m.activityDumpManager.Start(ctx, wg)
@@ -182,7 +175,7 @@ func (m *Monitor) GetStats() (map[string]interface{}, error) {
 }
 
 // ProcessEvent processes an event through the various monitors and controllers of the probe
-func (m *Monitor) ProcessEvent(event *Event, size uint64, CPU int, perfMap *manager.PerfMap) {
+func (m *Monitor) ProcessEvent(event *Event) {
 	m.loadController.Count(event)
 
 	// Look for an unresolved path
@@ -218,13 +211,36 @@ func (m *Monitor) ReportRuleSetLoaded(report RuleSetLoadedReport) {
 	m.probe.DispatchCustomEvent(report.Rule, report.Event)
 }
 
+// SelfTestReport represents the rule and the custom event related to a SelfTest event; ready to be dispatched
+type SelfTestReport struct {
+	Rule  *rules.Rule
+	Event *CustomEvent
+}
+
+// ReportSelfTest reports to Datadog that a self test was performed
+func (m *Monitor) ReportSelfTest(success []string, fails []string) {
+	// send metric with number of success and fails
+	tags := []string{
+		fmt.Sprintf("success:%d", len(success)),
+		fmt.Sprintf("fails:%d", len(fails)),
+	}
+	if err := m.probe.statsdClient.Count(metrics.MetricSelfTest, 1, tags, 1.0); err != nil {
+		log.Error(errors.Wrap(err, "failed to send self_test metric"))
+	}
+
+	// send the custom event with the list of succeed and failed self tests
+	r, ev := NewSelfTestEvent(success, fails)
+	report := SelfTestReport{Rule: r, Event: ev}
+	m.probe.DispatchCustomEvent(report.Rule, report.Event)
+}
+
 // ErrActivityDumpManagerDisabled is returned when the activity dump manager is disabled
 var ErrActivityDumpManagerDisabled = errors.New("ActivityDumpManager is disabled")
 
 // DumpActivity handles an activity dump request
-func (m *Monitor) DumpActivity(params *api.DumpActivityParams) (*api.SecurityActivityDumpMessage, error) {
+func (m *Monitor) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
 	if !m.probe.config.ActivityDumpEnabled {
-		return &api.SecurityActivityDumpMessage{
+		return &api.ActivityDumpMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
 		}, ErrActivityDumpManagerDisabled
 	}
@@ -232,9 +248,9 @@ func (m *Monitor) DumpActivity(params *api.DumpActivityParams) (*api.SecurityAct
 }
 
 // ListActivityDumps returns the list of active dumps
-func (m *Monitor) ListActivityDumps(params *api.ListActivityDumpsParams) (*api.SecurityActivityDumpListMessage, error) {
+func (m *Monitor) ListActivityDumps(params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
 	if !m.probe.config.ActivityDumpEnabled {
-		return &api.SecurityActivityDumpListMessage{
+		return &api.ActivityDumpListMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
 		}, ErrActivityDumpManagerDisabled
 	}
@@ -242,31 +258,21 @@ func (m *Monitor) ListActivityDumps(params *api.ListActivityDumpsParams) (*api.S
 }
 
 // StopActivityDump stops an active activity dump
-func (m *Monitor) StopActivityDump(params *api.StopActivityDumpParams) (*api.SecurityActivityDumpStoppedMessage, error) {
+func (m *Monitor) StopActivityDump(params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
 	if !m.probe.config.ActivityDumpEnabled {
-		return &api.SecurityActivityDumpStoppedMessage{
+		return &api.ActivityDumpStopMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
 		}, ErrActivityDumpManagerDisabled
 	}
 	return m.activityDumpManager.StopActivityDump(params)
 }
 
-// GenerateProfile returns a profile from the provided activity dump
-func (m *Monitor) GenerateProfile(params *api.GenerateProfileParams) (*api.SecurityProfileGeneratedMessage, error) {
+// GenerateTranscoding encodes an activity dump following the input parameters
+func (m *Monitor) GenerateTranscoding(params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
 	if !m.probe.config.ActivityDumpEnabled {
-		return &api.SecurityProfileGeneratedMessage{
+		return &api.TranscodingRequestMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
 		}, ErrActivityDumpManagerDisabled
 	}
-	return m.activityDumpManager.GenerateProfile(params)
-}
-
-// GenerateGraph returns a graph from the provided activity dump
-func (m *Monitor) GenerateGraph(params *api.GenerateGraphParams) (*api.SecurityGraphGeneratedMessage, error) {
-	if !m.probe.config.ActivityDumpEnabled {
-		return &api.SecurityGraphGeneratedMessage{
-			Error: ErrActivityDumpManagerDisabled.Error(),
-		}, ErrActivityDumpManagerDisabled
-	}
-	return m.activityDumpManager.GenerateGraph(params)
+	return m.activityDumpManager.TranscodingRequest(params)
 }

@@ -191,7 +191,7 @@ func Run(ctx context.Context) {
 		}
 		api.AttachEndpoint(api.Endpoint{
 			Pattern: "/v0.7/config",
-			Handler: func(r *api.HTTPReceiver) http.Handler { return remoteConfigHandler(r, client, token) },
+			Handler: func(r *api.HTTPReceiver) http.Handler { return remoteConfigHandler(r, client, token, cfg) },
 		})
 	}
 

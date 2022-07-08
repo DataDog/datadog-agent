@@ -245,7 +245,7 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 // goal: measure host abality to handle open syscall without any kprobe, act as a reference
 // this benchmark generate syscall but without having kprobe installed
 
-func TestStress_E2EOExecNoKprobe(t *testing.T) {
+func TestStress_E2EExecNoKprobe(t *testing.T) {
 	executable := which(t, "touch")
 
 	stressExec(t, nil, "folder1/folder2/folder1/folder2/test", executable)

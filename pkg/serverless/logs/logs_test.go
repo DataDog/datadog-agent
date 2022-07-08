@@ -42,6 +42,9 @@ func TestShouldProcessLog(t *testing.T) {
 
 	validLog := logMessage{
 		logType: logTypePlatformReport,
+		objectRecord: platformObjectRecord{
+			requestID: "8286a188-ba32-4475-8077-530cd35c09a9",
+		},
 	}
 
 	invalidLog0 := logMessage{
@@ -74,6 +77,44 @@ func TestShouldProcessLog(t *testing.T) {
 	assert.False(t, shouldProcessLog(&executioncontext.State{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, invalidLog1))
 }
 
+func TestShouldNotProcessEmptyLog(t *testing.T) {
+	assert.True(t, shouldProcessLog(
+		&executioncontext.State{
+			ARN:           "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+			LastRequestID: "8286a188-ba32-4475-8077-530cd35c09a9",
+		},
+		logMessage{
+			stringRecord: "aaa",
+			objectRecord: platformObjectRecord{
+				requestID: "",
+			},
+		}),
+	)
+	assert.True(t, shouldProcessLog(
+		&executioncontext.State{
+			ARN:           "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+			LastRequestID: "8286a188-ba32-4475-8077-530cd35c09a9",
+		},
+		logMessage{
+			stringRecord: "",
+			objectRecord: platformObjectRecord{
+				requestID: "aaa",
+			},
+		}),
+	)
+	assert.False(t, shouldProcessLog(
+		&executioncontext.State{
+			ARN:           "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+			LastRequestID: "8286a188-ba32-4475-8077-530cd35c09a9",
+		},
+		logMessage{
+			stringRecord: "",
+			objectRecord: platformObjectRecord{
+				requestID: "",
+			},
+		}),
+	)
+}
 func TestCreateStringRecordForReportLogWithInitDuration(t *testing.T) {
 	var sampleLogMessage = logMessage{
 		objectRecord: platformObjectRecord{
@@ -165,6 +206,7 @@ func TestProcessMessageValid(t *testing.T) {
 				maxMemoryUsedMB:  256.0,
 				initDurationMs:   100.0,
 			},
+			requestID: "8286a188-ba32-4475-8077-530cd35c09a9",
 		},
 	}
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"

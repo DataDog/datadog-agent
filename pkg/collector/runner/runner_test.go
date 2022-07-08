@@ -8,12 +8,12 @@ package runner
 import (
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
@@ -24,9 +24,8 @@ import (
 // Fixtures
 
 type testCheck struct {
-	// We have to align the atomics to 64-bit boundaries so these are put down first
-	runCount uint64
-	stopped  uint64
+	runCount *atomic.Uint64
+	stopped  *atomic.Bool
 
 	check.StubCheck
 	RunLock   sync.Mutex
@@ -43,14 +42,14 @@ type testCheck struct {
 
 func (c *testCheck) ID() check.ID   { return check.ID(c.id) }
 func (c *testCheck) String() string { return check.IDToCheckName(c.ID()) }
-func (c *testCheck) RunCount() int  { return int(atomic.LoadUint64(&c.runCount)) }
+func (c *testCheck) RunCount() int  { return int(c.runCount.Load()) }
 func (c *testCheck) Stop() {
 	c.StopLock.Lock()
 	defer c.StopLock.Unlock()
 
-	atomic.StoreUint64(&c.stopped, 1)
+	c.stopped.Store(true)
 }
-func (c *testCheck) IsStopped() bool { return atomic.LoadUint64(&c.stopped) != 0 }
+func (c *testCheck) IsStopped() bool { return c.stopped.Load() }
 func (c *testCheck) StartedChan() chan struct{} {
 	c.StartLock.Lock()
 	defer c.StartLock.Unlock()
@@ -81,7 +80,7 @@ func (c *testCheck) Run() error {
 		c.runFunc(c.ID())
 	}
 
-	atomic.AddUint64(&c.runCount, 1)
+	c.runCount.Inc()
 
 	if c.doErr {
 		return fmt.Errorf("myerror")
@@ -94,10 +93,12 @@ func (c *testCheck) Run() error {
 
 func newCheck(t *testing.T, id string, doErr bool, runFunc func(check.ID)) *testCheck {
 	return &testCheck{
-		doErr:   doErr,
-		t:       t,
-		id:      id,
-		runFunc: runFunc,
+		runCount: atomic.NewUint64(0),
+		stopped:  atomic.NewBool(false),
+		doErr:    doErr,
+		t:        t,
+		id:       id,
+		runFunc:  runFunc,
 	}
 }
 

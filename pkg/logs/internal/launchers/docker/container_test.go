@@ -17,17 +17,18 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 func TestFindSourceWithSourceFiltersShouldSucceed(t *testing.T) {
-	var source *config.LogSource
+	var source *sources.LogSource
 	var container *Container
 
-	sources := []*config.LogSource{
-		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Image: "myapp"}),
-		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Label: "mylabel"}),
-		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Image: "myapp", Label: "mylabel"}),
-		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Identifier: "1234567890"}),
+	sources := []*sources.LogSource{
+		sources.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Image: "myapp"}),
+		sources.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Label: "mylabel"}),
+		sources.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Image: "myapp", Label: "mylabel"}),
+		sources.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Identifier: "1234567890"}),
 	}
 
 	container = NewContainer(types.ContainerJSON{
@@ -82,12 +83,12 @@ func TestFindSourceWithSourceFiltersShouldSucceed(t *testing.T) {
 }
 
 func TestFindSourceWithNoSourceFilterShouldSucceed(t *testing.T) {
-	var source *config.LogSource
+	var source *sources.LogSource
 	var container *Container
 
-	sources := []*config.LogSource{
-		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType}),
-		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Label: "mylabel"}),
+	sources := []*sources.LogSource{
+		sources.NewLogSource("", &config.LogsConfig{Type: config.DockerType}),
+		sources.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Label: "mylabel"}),
 	}
 
 	container = NewContainer(types.ContainerJSON{

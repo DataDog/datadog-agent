@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 	"sync"
+	"time"
 
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
@@ -33,6 +34,9 @@ type Client struct {
 	directorTUFClient   *client.Client
 
 	targetStore *targetStore
+
+	cachedVerify     bool
+	cachedVerifyTime time.Time
 }
 
 // NewClient creates a new uptane client
@@ -66,6 +70,7 @@ func NewClient(cacheDB *bbolt.DB, cacheKey string, orgID int64) (*Client, error)
 func (c *Client) Update(response *pbgo.LatestConfigsResponse) error {
 	c.Lock()
 	defer c.Unlock()
+	c.cachedVerify = false
 	err := c.updateRepos(response)
 	if err != nil {
 		return err
@@ -187,11 +192,20 @@ func (c *Client) pruneTargetFiles() error {
 }
 
 func (c *Client) verify() error {
+	if c.cachedVerify && time.Since(c.cachedVerifyTime) < time.Minute {
+		return nil
+	}
 	err := c.verifyOrgID()
 	if err != nil {
 		return err
 	}
-	return c.verifyUptane()
+	err = c.verifyUptane()
+	if err != nil {
+		return err
+	}
+	c.cachedVerify = true
+	c.cachedVerifyTime = time.Now()
+	return nil
 }
 
 func (c *Client) verifyOrgID() error {
@@ -220,7 +234,11 @@ func (c *Client) verifyUptane() error {
 	for targetPath, targetMeta := range directorTargets {
 		configTargetMeta, err := c.configTUFClient.Target(targetPath)
 		if err != nil {
-			return fmt.Errorf("failed to find target '%s' in config repository", targetPath)
+			if client.IsNotFound(err) {
+				return fmt.Errorf("failed to find target '%s' in config repository", targetPath)
+			}
+			// Other errors such as expired metadata
+			return err
 		}
 		if configTargetMeta.Length != targetMeta.Length {
 			return fmt.Errorf("target '%s' has size %d in directory repository and %d in config repository", targetPath, configTargetMeta.Length, targetMeta.Length)

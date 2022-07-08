@@ -18,8 +18,8 @@ import (
 	"fmt"
 	"strings"
 
-	conventions "go.opentelemetry.io/collector/model/semconv/v1.6.1"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
 )
 
 var (
@@ -90,10 +90,6 @@ var (
 		conventions.AttributeAWSECSClusterARN,
 		conventions.AttributeAWSECSTaskRevision,
 		conventions.AttributeAWSECSContainerARN,
-	}
-
-	runningTagsAttributes = []string{
-		conventions.AttributeAWSECSTaskARN,
 	}
 
 	// Kubernetes mappings defines the mapping between Kubernetes conventions (both general and Datadog specific)
@@ -174,19 +170,6 @@ func OriginIDFromAttributes(attrs pcommon.Map) (originID string) {
 		originID = "kubernetes_pod_uid://" + podUID.AsString()
 	}
 	return
-}
-
-// RunningTagsFromAttributes gets tags used for running metrics from attributes.
-func RunningTagsFromAttributes(attrs pcommon.Map) []string {
-	tags := make([]string, 0, 1)
-	for _, key := range runningTagsAttributes {
-		if val, ok := attrs.Get(key); ok {
-			if ddKey, found := conventionsMapping[key]; found && val.StringVal() != "" {
-				tags = append(tags, fmt.Sprintf("%s:%s", ddKey, val.StringVal()))
-			}
-		}
-	}
-	return tags
 }
 
 // ContainerTagFromAttributes extracts the value of _dd.tags.container from the given

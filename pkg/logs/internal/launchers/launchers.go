@@ -9,8 +9,8 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
-	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // Launchers manages a collection of launchers.
@@ -33,7 +33,7 @@ type Launchers struct {
 
 // NewLaunchers creates a new, empty Launchers instance
 func NewLaunchers(
-	sources *logsConfig.LogSources,
+	sources *sources.LogSources,
 	pipelineProvider pipeline.Provider,
 	registry auditor.Registry,
 ) *Launchers {

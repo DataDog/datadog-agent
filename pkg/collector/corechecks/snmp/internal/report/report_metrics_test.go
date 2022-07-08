@@ -284,7 +284,14 @@ func TestSendMetric(t *testing.T) {
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-			metricSender.sendMetric(tt.symbol, tt.value, tt.tags, tt.metricConfig)
+			sample := MetricSample{
+				value:      tt.value,
+				tags:       tt.tags,
+				symbol:     tt.symbol,
+				forcedType: tt.metricConfig.ForcedType,
+				options:    tt.metricConfig.Options,
+			}
+			metricSender.sendMetric(sample)
 			assert.Equal(t, tt.expectedSubMetrics, metricSender.submittedMetrics)
 			if tt.expectedMethod != "" {
 				mockSender.AssertCalled(t, tt.expectedMethod, tt.expectedMetricName, tt.expectedValue, "", tt.expectedTags)

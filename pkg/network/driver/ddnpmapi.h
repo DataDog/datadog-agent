@@ -16,7 +16,7 @@ typedef __int64 LONG64;
 typedef unsigned char       uint8_t;
 
 // define a version signature so that the driver won't load out of date structures, etc.
-#define DD_NPMDRIVER_VERSION       0x0c
+#define DD_NPMDRIVER_VERSION       0x10
 #define DD_NPMDRIVER_SIGNATURE     ((uint64_t)0xDDFD << 32 | DD_NPMDRIVER_VERSION)
 
 // for more information on defining control codes, see
@@ -58,6 +58,11 @@ typedef unsigned char       uint8_t;
                                               0x807, \
                                               METHOD_BUFFERED,\
                                               FILE_ANY_ACCESS)
+
+#define DDNPMDRIVER_IOCTL_FLUSH_PENDING_HTTP_TRANSACTIONS CTL_CODE(FILE_DEVICE_NETWORK, \
+                                                            0x808, \
+                                                            METHOD_BUFFERED,\
+                                                            FILE_ANY_ACCESS)
 
 #pragma pack(1)
 
@@ -110,11 +115,23 @@ typedef struct _transport_handle_stats {
     volatile LONG64       packets_reported; // number of packets sent up
 
 } TRANSPORT_STATS;
+
+typedef struct _http_handle_stats {
+
+    volatile LONG64       packets_processed; // number of packets through the driver
+    volatile LONG64       num_flow_collisions;
+    volatile LONG64       num_flows_missed_max_exceeded;
+    volatile LONG64       read_batch_skipped;
+    volatile LONG64       batches_reported; // number of transaction batches setnt up
+
+} HTTP_STATS;
+
 typedef struct _stats
 {
     HANDLE_STATS            handle_stats;
     FLOW_STATS              flow_stats;
     TRANSPORT_STATS         transport_stats;
+    HTTP_STATS              http_stats;
 } STATS;
 
 /*!
@@ -263,4 +280,50 @@ typedef struct filterPacketHeader
 
     // data follows
 } PACKET_HEADER, *PPACKET_HEADER;
+
+
+// This determines the size of the payload fragment that is captured for each HTTP request
+#define HTTP_BUFFER_SIZE 25
+
+// This controls the number of HTTP transactions read from userspace at a time
+#define HTTP_BATCH_SIZE 15
+
+#define HTTPS_PORT 443
+
+typedef enum _HttpPacketType {
+    HTTP_PACKET_UNKNOWN = 0,
+    HTTP_REQUEST,
+    HTTP_RESPONSE
+} HTTP_PACKET_TYPE;
+
+typedef enum _HttpMethodType {
+    HTTP_METHOD_UNKNOWN = 0,
+    HTTP_GET,
+    HTTP_POST,
+    HTTP_PUT,
+    HTTP_DELETE,
+    HTTP_HEAD,
+    HTTP_OPTIONS,
+    HTTP_PATCH
+} HTTP_METHOD_TYPE;
+
+typedef struct _ConnTupleType {
+    uint8_t  cliAddr[16]; // only first 4 bytes valid for AF_INET, in network byte order
+    uint8_t  srvAddr[16]; // ditto
+    uint16_t cliPort;     // host byte order
+    uint16_t srvPort;     // host byte order
+    uint16_t family;      // AF_INET or AF_INET6
+} CONN_TUPLE_TYPE, * PCONN_TUPLE_TYPE;
+
+#pragma pack(4)
+
+typedef struct _HttpTransactionType {
+    uint64_t         requestStarted;      // in ns
+    uint64_t         responseLastSeen;    // in ns
+    CONN_TUPLE_TYPE  tup;
+    HTTP_METHOD_TYPE requestMethod;
+    uint16_t         responseStatusCode;
+    unsigned char    requestFragment[HTTP_BUFFER_SIZE];
+} HTTP_TRANSACTION_TYPE, * PHTTP_TRANSACTION_TYPE;
+
 #pragma pack()

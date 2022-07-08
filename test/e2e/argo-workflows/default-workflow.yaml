@@ -117,6 +117,24 @@ spec:
               - name: namespace
                 value: "{{workflow.namespace}}"
 
+        - - name: start-busybox
+            templateRef:
+              name: busybox
+              template: create
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{workflow.namespace}}"
+
+        - - name: test-busybox
+            templateRef:
+              name: busybox
+              template: test
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{workflow.namespace}}"
+
         - - name: test-datadog-agent
             templateRef:
               name: datadog-agent
@@ -273,6 +291,15 @@ spec:
                 - name: namespace
                   value: "{{workflow.namespace}}"
 
+          - name: stop-busybox
+            templateRef:
+              name: busybox
+              template: delete
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{workflow.namespace}}"
+
     - name: diagnose
       steps:
         - - name: diagnose-datadog-agent
@@ -294,6 +321,14 @@ spec:
           - name: diagnose-nginx
             templateRef:
               name: nginx
+              template: diagnose
+            arguments:
+              parameters:
+              - name: namespace
+                value: "{{workflow.namespace}}"
+          - name: diagnose-busybox
+            templateRef:
+              name: busybox
               template: diagnose
             arguments:
               parameters:

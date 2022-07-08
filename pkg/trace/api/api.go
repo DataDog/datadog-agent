@@ -313,17 +313,16 @@ func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.Respons
 	}
 }
 
+var errInvalidHeaderTraceCountValue = fmt.Errorf("%q header value is not a number", headerTraceCount)
+
 func traceCount(req *http.Request) (int64, error) {
-	if _, ok := req.Header[headerTraceCount]; !ok {
-		return 0, fmt.Errorf("HTTP header %q not found", headerTraceCount)
-	}
 	str := req.Header.Get(headerTraceCount)
 	if str == "" {
-		return 0, fmt.Errorf("HTTP header %q value not set", headerTraceCount)
+		return 0, fmt.Errorf("HTTP header %q not found", headerTraceCount)
 	}
 	n, err := strconv.Atoi(str)
 	if err != nil {
-		return 0, fmt.Errorf("HTTP header %q can not be parsed: %v", headerTraceCount, err)
+		return 0, errInvalidHeaderTraceCountValue
 	}
 	return int64(n), nil
 }
@@ -520,13 +519,16 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		atomic.AddInt64(&ts.PayloadRefused, 1)
 		return
 	}
+	if err == errInvalidHeaderTraceCountValue {
+		log.Errorf("Failed to count traces: %s", err)
+	}
 
 	start := time.Now()
+	tp, ranHook, err := decodeTracerPayload(v, req, ts)
 	defer func(err error) {
 		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
 		metrics.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)
 	}(err)
-	tp, ranHook, err := decodeTracerPayload(v, req, ts)
 	if err != nil {
 		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w)
 		switch err {

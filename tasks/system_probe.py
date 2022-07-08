@@ -10,7 +10,7 @@ import tempfile
 from subprocess import check_output
 
 from invoke import task
-from invoke.exceptions import Exit
+from invoke.exceptions import Exit, UnexpectedExit
 
 from .build_tags import get_default_build_tags
 from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
@@ -60,6 +60,7 @@ def build(
     nikos_embedded_path=None,
     bundle_ebpf=False,
     parallel_build=True,
+    kernel_release=None,
 ):
     """
     Build the system_probe
@@ -82,7 +83,7 @@ def build(
         )
     elif compile_ebpf:
         # Only build ebpf files on unix
-        build_object_files(ctx, parallel_build=parallel_build)
+        build_object_files(ctx, parallel_build=parallel_build, kernel_release=kernel_release)
 
     generate_cgo_types(ctx, windows=windows)
     ldflags, gcflags, env = get_build_flags(
@@ -164,7 +165,7 @@ def test(
     }
 
     _, _, env = get_build_flags(ctx)
-    env['DD_SYSTEM_PROBE_BPF_DIR'] = os.path.normpath(os.path.join(os.getcwd(), "pkg", "ebpf", "bytecode", "build"))
+    env['DD_SYSTEM_PROBE_BPF_DIR'] = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
     if runtime_compiled:
         env['DD_TESTS_RUNTIME_COMPILED'] = "1"
 
@@ -230,6 +231,11 @@ def kitchen_prepare(ctx, windows=is_windows):
             if os.path.isdir(extra_path):
                 shutil.copytree(extra_path, os.path.join(target_path, extra))
 
+    if os.path.exists("/opt/datadog-agent/embedded/bin/clang-bpf"):
+        shutil.copy("/opt/datadog-agent/embedded/bin/clang-bpf", os.path.join(KITCHEN_ARTIFACT_DIR, ".."))
+    if os.path.exists("/opt/datadog-agent/embedded/bin/llc-bpf"):
+        shutil.copy("/opt/datadog-agent/embedded/bin/llc-bpf", os.path.join(KITCHEN_ARTIFACT_DIR, ".."))
+
 
 @task
 def kitchen_test(ctx, target=None, provider="virtualbox"):
@@ -268,6 +274,42 @@ def kitchen_test(ctx, target=None, provider="virtualbox"):
             env={"KITCHEN_VAGRANT_PROVIDER": provider},
         )
         ctx.run("kitchen test")
+
+
+@task
+def kitchen_genconfig(
+    ctx, ssh_key, platform, osversions, image_size=None, provider="azure", arch=None, azure_sub_id=None
+):
+    if not arch:
+        arch = CURRENT_ARCH
+
+    if arch == "x64":
+        arch = "x86_64"
+    elif arch == "arm64":
+        arch = "arm64"
+    else:
+        raise UnexpectedExit("unsupported arch specified")
+
+    if not image_size and provider == "azure":
+        image_size = "Standard_D2_v2"
+
+    if not image_size:
+        raise UnexpectedExit("Image size must be specified")
+
+    if azure_sub_id is None and provider == "azure":
+        raise Exit("azure subscription id must be specified with --azure-sub-id")
+
+    env = {
+        "KITCHEN_RSA_SSH_KEY_PATH": ssh_key,
+    }
+    if azure_sub_id:
+        env["AZURE_SUBSCRIPTION_ID"] = azure_sub_id
+
+    with ctx.cd(KITCHEN_DIR):
+        ctx.run(
+            f"inv -e kitchen.genconfig --platform={platform} --osversions={osversions} --provider={provider} --arch={arch} --imagesize={image_size} --testfiles=system-probe-test --platformfile=platforms.json",
+            env=env,
+        )
 
 
 @task
@@ -402,18 +444,21 @@ def get_ebpf_targets():
     return files
 
 
-def get_linux_header_dirs():
-    os_info = os.uname()
+def get_linux_header_dirs(kernel_release=None):
+    if not kernel_release:
+        os_info = os.uname()
+        kernel_release = os_info.release
+
     centos_headers_dir = "/usr/src/kernels"
     debian_headers_dir = "/usr/src"
     linux_headers = []
     if os.path.isdir(centos_headers_dir):
         for d in os.listdir(centos_headers_dir):
-            if os_info.release in d:
+            if kernel_release in d:
                 linux_headers.append(os.path.join(centos_headers_dir, d))
     else:
         for d in os.listdir(debian_headers_dir):
-            if d.startswith("linux-") and os_info.release in d:
+            if d.startswith("linux-") and kernel_release in d:
                 linux_headers.append(os.path.join(debian_headers_dir, d))
 
     # fallback to non-filtered version for Docker where `uname -r` is not correct
@@ -465,7 +510,7 @@ def get_linux_header_dirs():
     return dirs
 
 
-def get_ebpf_build_flags(target=None):
+def get_ebpf_build_flags(target=None, kernel_release=None):
     bpf_dir = os.path.join(".", "pkg", "ebpf")
     c_dir = os.path.join(bpf_dir, "c")
     if not target:
@@ -498,7 +543,7 @@ def get_ebpf_build_flags(target=None):
         ]
     )
 
-    header_dirs = get_linux_header_dirs()
+    header_dirs = get_linux_header_dirs(kernel_release=kernel_release)
     for d in header_dirs:
         flags.extend(["-isystem", d])
 
@@ -607,14 +652,14 @@ def build_network_ebpf_files(ctx, build_dir, parallel_build=True):
         promise.join()
 
 
-def build_security_offset_guesser_ebpf_files(ctx, build_dir):
+def build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=None):
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
     security_c_file = os.path.join(security_agent_prebuilt_dir, "offset-guesser.c")
     security_bc_file = os.path.join(build_dir, "runtime-security-offset-guesser.bc")
     security_agent_obj_file = os.path.join(build_dir, "runtime-security-offset-guesser.o")
 
-    security_flags = get_ebpf_build_flags()
+    security_flags = get_ebpf_build_flags(kernel_release=kernel_release)
     security_flags.append(f"-I{security_agent_c_dir}")
 
     ctx.run(
@@ -629,14 +674,14 @@ def build_security_offset_guesser_ebpf_files(ctx, build_dir):
     )
 
 
-def build_security_probe_ebpf_files(ctx, build_dir, parallel_build=True):
+def build_security_probe_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None):
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
     security_c_file = os.path.join(security_agent_prebuilt_dir, "probe.c")
     security_bc_file = os.path.join(build_dir, "runtime-security.bc")
     security_agent_obj_file = os.path.join(build_dir, "runtime-security.o")
 
-    security_flags = get_ebpf_build_flags()
+    security_flags = get_ebpf_build_flags(kernel_release=kernel_release)
     security_flags.append(f"-I{security_agent_c_dir}")
 
     # compile
@@ -693,12 +738,12 @@ def build_security_probe_ebpf_files(ctx, build_dir, parallel_build=True):
             p.join()
 
 
-def build_security_ebpf_files(ctx, build_dir, parallel_build=True):
-    build_security_probe_ebpf_files(ctx, build_dir, parallel_build)
-    build_security_offset_guesser_ebpf_files(ctx, build_dir)
+def build_security_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None):
+    build_security_probe_ebpf_files(ctx, build_dir, parallel_build, kernel_release=kernel_release)
+    build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=kernel_release)
 
 
-def build_object_files(ctx, parallel_build):
+def build_object_files(ctx, parallel_build, kernel_release=None):
     """build_object_files builds only the eBPF object"""
 
     # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
@@ -713,7 +758,7 @@ def build_object_files(ctx, parallel_build):
 
     build_network_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build)
     build_http_ebpf_files(ctx, build_dir=build_dir)
-    build_security_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build)
+    build_security_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release)
 
     generate_runtime_files(ctx)
 
@@ -746,14 +791,14 @@ def generate_runtime_files(ctx):
         ctx.run(f"go generate -mod=mod -tags {BPF_TAG} {f}")
 
 
-def replace_cgo_tag_absolute_path(file_path):
+def replace_cgo_tag_absolute_path(file_path, windows=is_windows):
     # read
     f = open(file_path)
     lines = []
     for line in f:
-        if line.startswith("// cgo -godefs"):
+        if (windows and line.startswith("// cgo.exe -godefs")) or (not windows and line.startswith("// cgo -godefs")):
             path = line.split()[-1]
-            if path.startswith("/"):
+            if os.path.isabs(path):
                 _, filename = os.path.split(path)
                 lines.append(line.replace(path, filename))
                 continue
@@ -790,7 +835,7 @@ def generate_cgo_types(ctx, windows=is_windows, replace_absolutes=True):
             ctx.run(f"gofmt -w -s {output_file}")
             if replace_absolutes:
                 # replace absolute path with relative ones in generated file
-                replace_cgo_tag_absolute_path(os.path.join(fdir, output_file))
+                replace_cgo_tag_absolute_path(file_path=os.path.join(fdir, output_file), windows=windows)
 
 
 def is_root():

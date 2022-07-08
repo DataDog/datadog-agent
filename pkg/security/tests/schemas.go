@@ -164,3 +164,8 @@ func validateSpliceSchema(t *testing.T, event *sprobe.Event) bool {
 func validateDNSSchema(t *testing.T, event *sprobe.Event) bool {
 	return validateSchema(t, event, "file:///schemas/dns.schema.json")
 }
+
+//nolint:deadcode,unused
+func validateBindSchema(t *testing.T, event *sprobe.Event) bool {
+	return validateSchema(t, event, "file:///schemas/bind.schema.json")
+}

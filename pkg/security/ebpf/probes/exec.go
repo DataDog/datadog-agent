@@ -153,6 +153,30 @@ func getExecProbes() []*manager.Probe {
 		},
 		SyscallFuncName: "execveat",
 	}, Entry)...)
+	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "fork",
+	}, Entry)...)
+	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "vfork",
+	}, Entry)...)
+	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "clone",
+	}, Entry)...)
+	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "clone3",
+	}, Entry)...)
 
 	for _, name := range []string{
 		"setuid",

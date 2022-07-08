@@ -8,6 +8,7 @@ package encoding
 import (
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -21,6 +22,14 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+)
+
+type connTag = uint64
+
+// ConnTag constant must be the same for all platform
+const (
+	tagGnuTLS  connTag = 1 // netebpf.GnuTLS
+	tagOpenSSL connTag = 2 // netebpf.OpenSSL
 )
 
 var originalConfig = config.Datadog
@@ -118,9 +127,14 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 			NpmEnabled: false,
 			TsmEnabled: false,
 		},
+		Tags: network.GetStaticTags(1),
+	}
+	if runtime.GOOS == "linux" {
+		out.Conns[1].Tags = []uint32{0}
 	}
 	return out
 }
+
 func TestSerialization(t *testing.T) {
 	var httpReqStats http.RequestStats
 	in := &network.Connections{
@@ -170,6 +184,7 @@ func TestSerialization(t *testing.T) {
 					Type:      network.UDP,
 					Family:    network.AFINET6,
 					Direction: network.LOCAL,
+					Tags:      uint64(1),
 				},
 			},
 		},
@@ -200,6 +215,7 @@ func TestSerialization(t *testing.T) {
 				40,
 				80,
 				"/testpath",
+				true,
 				http.MethodGet,
 			): &httpReqStats,
 		},
@@ -208,8 +224,9 @@ func TestSerialization(t *testing.T) {
 	httpOut := &model.HTTPAggregations{
 		EndpointAggregations: []*model.HTTPStats{
 			{
-				Path:   "/testpath",
-				Method: model.HTTPMethod_Get,
+				Path:     "/testpath",
+				Method:   model.HTTPMethod_Get,
+				FullPath: true,
 				StatsByResponseStatus: []*model.HTTPStats_Data{
 					{
 						Count:     0,
@@ -253,11 +270,14 @@ func TestSerialization(t *testing.T) {
 
 		unmarshaler := GetUnmarshaler("application/json")
 		result, err := unmarshaler.Unmarshal(blob)
-
 		require.NoError(t, err)
 
-		// fixup: json marshaler encode nil slices and maps as empty
-		result.ConnTelemetryMap = nil
+		// fixup: json marshaler encode nil slice as empty
+		result.Conns[0].Tags = nil
+		if runtime.GOOS != "linux" {
+			result.Conns[1].Tags = nil
+			result.Tags = nil
+		}
 		assert.Equal(out, result)
 	})
 	t.Run("requesting application/json serialization (with query types)", func(t *testing.T) {
@@ -277,8 +297,12 @@ func TestSerialization(t *testing.T) {
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
 
-		// fixup: json marshaler encode nil slices and maps as empty
-		result.ConnTelemetryMap = nil
+		// fixup: json marshaler encode nil slice as empty
+		result.Conns[0].Tags = nil
+		if runtime.GOOS != "linux" {
+			result.Conns[1].Tags = nil
+			result.Tags = nil
+		}
 		assert.Equal(out, result)
 	})
 
@@ -299,8 +323,12 @@ func TestSerialization(t *testing.T) {
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
 
-		// fixup: json marshaler encode nil slices and maps as empty
-		result.ConnTelemetryMap = nil
+		// fixup: json marshaler encode nil slice as empty
+		result.Conns[0].Tags = nil
+		if runtime.GOOS != "linux" {
+			result.Conns[1].Tags = nil
+			result.Tags = nil
+		}
 		assert.Equal(out, result)
 	})
 
@@ -323,8 +351,12 @@ func TestSerialization(t *testing.T) {
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
 
-		// fixup: json marshaler encode nil slices and maps as empty
-		result.ConnTelemetryMap = nil
+		// fixup: json marshaler encode nil slice as empty
+		result.Conns[0].Tags = nil
+		if runtime.GOOS != "linux" {
+			result.Conns[1].Tags = nil
+			result.Tags = nil
+		}
 		assert.Equal(out, result)
 	})
 
@@ -429,6 +461,7 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				clientPort,
 				serverPort,
 				"/testpath",
+				true,
 				http.MethodGet,
 			): &httpReqStats,
 		},
@@ -437,8 +470,9 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 	httpOut := &model.HTTPAggregations{
 		EndpointAggregations: []*model.HTTPStats{
 			{
-				Path:   "/testpath",
-				Method: model.HTTPMethod_Get,
+				Path:     "/testpath",
+				Method:   model.HTTPMethod_Get,
+				FullPath: true,
 				StatsByResponseStatus: []*model.HTTPStats_Data{
 					{Count: 0, Latencies: nil},
 					{Count: 0, Latencies: nil},
@@ -494,6 +528,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 		60000,
 		8080,
 		"",
+		true,
 		http.MethodGet,
 	)
 
@@ -533,13 +568,16 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 	// Let's alternate between payloads with and without HTTP data
 	for i := 0; i < 1000; i++ {
 		if (i % 2) == 0 {
-			httpKey.Path = fmt.Sprintf("/path-%d", i)
+			httpKey.Path = http.Path{
+				Content:  fmt.Sprintf("/path-%d", i),
+				FullPath: true,
+			}
 			in.HTTP = map[http.Key]*http.RequestStats{httpKey: {}}
 			out := encodeAndDecodeHTTP(in)
 
 			require.NotNil(t, out)
 			require.Len(t, out.EndpointAggregations, 1)
-			require.Equal(t, httpKey.Path, out.EndpointAggregations[0].Path)
+			require.Equal(t, httpKey.Path.Content, out.EndpointAggregations[0].Path)
 		} else {
 			// No HTTP data in this payload, so we should never get HTTP data back after the serialization
 			in.HTTP = nil

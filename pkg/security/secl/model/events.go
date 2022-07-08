@@ -83,6 +83,8 @@ const (
 	NetDeviceEventType
 	// VethPairEventType is sent when a new veth pair is created
 	VethPairEventType
+	// BindEventType Bind event
+	BindEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -104,6 +106,8 @@ const (
 	CustomForkBombEventType
 	// CustomTruncatedParentsEventType is the custom event used to report that the parents of a path were truncated
 	CustomTruncatedParentsEventType
+	// CustomSelfTestEventType is the custom event used to report the results of a self test run
+	CustomSelfTestEventType
 	// MaxAllEventType is used internally to get the maximum number of events.
 	MaxAllEventType
 )
@@ -180,6 +184,8 @@ func (t EventType) String() string {
 		return "net_device"
 	case VethPairEventType:
 		return "veth_pair"
+	case BindEventType:
+		return "bind"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"
@@ -193,6 +199,8 @@ func (t EventType) String() string {
 		return "fork_bomb"
 	case CustomTruncatedParentsEventType:
 		return "truncated_parents"
+	case CustomSelfTestEventType:
+		return "self_test"
 	default:
 		return "unknown"
 	}

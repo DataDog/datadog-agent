@@ -35,7 +35,7 @@ struct open_event_t {
     u32 mode;
 };
 
-int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
+int __attribute__((always_inline)) trace__sys_openat(u8 async, int flags, umode_t mode) {
     struct policy_t policy = fetch_policy(EVENT_OPEN);
     if (is_discarded_by_process(policy.mode, EVENT_OPEN)) {
         return 0;
@@ -44,6 +44,7 @@ int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
     struct syscall_cache_t syscall = {
         .type = EVENT_OPEN,
         .policy = policy,
+        .async = async,
         .open = {
             .flags = flags,
             .mode = mode & S_IALLUGO,
@@ -57,26 +58,26 @@ int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
 
 SYSCALL_KPROBE2(creat, const char *, filename, umode_t, mode) {
     int flags = O_CREAT|O_WRONLY|O_TRUNC;
-    return trace__sys_openat(flags, mode);
+    return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
 SYSCALL_COMPAT_KPROBE3(open_by_handle_at, int, mount_fd, struct file_handle *, handle, int, flags) {
     umode_t mode = 0;
-    return trace__sys_openat(flags, mode);
+    return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
 SYSCALL_COMPAT_KPROBE0(truncate) {
     int flags = O_CREAT|O_WRONLY|O_TRUNC;
     umode_t mode = 0;
-    return trace__sys_openat(flags, mode);
+    return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
 SYSCALL_COMPAT_KPROBE3(open, const char*, filename, int, flags, umode_t, mode) {
-    return trace__sys_openat(flags, mode);
+    return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
 SYSCALL_COMPAT_KPROBE4(openat, int, dirfd, const char*, filename, int, flags, umode_t, mode) {
-    return trace__sys_openat(flags, mode);
+    return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
 struct openat2_open_how {
@@ -88,7 +89,7 @@ struct openat2_open_how {
 SYSCALL_KPROBE4(openat2, int, dirfd, const char*, filename, struct openat2_open_how*, phow, size_t, size) {
     struct openat2_open_how how;
     bpf_probe_read(&how, sizeof(struct openat2_open_how), phow);
-    return trace__sys_openat(how.flags, how.mode);
+    return trace__sys_openat(SYNC_SYSCALL, how.flags, how.mode);
 }
 
 int __attribute__((always_inline)) approve_by_flags(struct syscall_cache_t *syscall) {
@@ -222,7 +223,7 @@ int kprobe_io_openat2(struct pt_regs *ctx) {
     if (!syscall) {
         unsigned int flags = req.how.flags & VALID_OPEN_FLAGS;
         umode_t mode = req.how.mode & S_IALLUGO;
-        return trace__sys_openat(flags, mode);
+        return trace__sys_openat(ASYNC_SYSCALL, flags, mode);
     }
     return 0;
 }
@@ -375,6 +376,7 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
 
     struct open_event_t event = {
         .syscall.retval = retval,
+        .event.async = syscall->async,
         .file = syscall->open.file,
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,

@@ -17,8 +17,27 @@ TEST_F(CustomActionDataTest, With_DomainUser_Parse_Correctly)
     EXPECT_EQ(customActionCtx.FullyQualifiedUsername(), L"TEST\\username");
     EXPECT_EQ(customActionCtx.UnqualifiedUsername(), L"username");
     EXPECT_EQ(customActionCtx.Domain(), L"TEST");
-    EXPECT_TRUE(customActionCtx.isUserDomainUser());
-    EXPECT_FALSE(customActionCtx.isUserLocalUser());
+    // Can't check those two expectations anymore since "TEST\username" doesn't actually exists
+    // so the CustomActionData will not flag this user as as domain user.
+    // EXPECT_TRUE(customActionCtx.isUserDomainUser());
+    // EXPECT_FALSE(customActionCtx.isUserLocalUser());
+}
+
+TEST_F(CustomActionDataTest, With_NTAuthority_Is_Not_DomainAccount)
+{
+    auto tm = std::make_shared<TargetMachineMock>();
+    ON_CALL(*tm, Detect).WillByDefault(testing::Return(ERROR_SUCCESS));
+    CustomActionData customActionCtx(tm);
+
+    customActionCtx.init(LR"(
+    DDAGENTUSER_NAME=NT AUTHORITY\SYSTEM
+)");
+
+    EXPECT_EQ(customActionCtx.FullyQualifiedUsername(), L"NT AUTHORITY\\SYSTEM");
+    EXPECT_EQ(customActionCtx.UnqualifiedUsername(), L"SYSTEM");
+    EXPECT_EQ(customActionCtx.Domain(), L"NT AUTHORITY");
+    EXPECT_FALSE(customActionCtx.isUserDomainUser());
+    EXPECT_TRUE(customActionCtx.isUserLocalUser());
 }
 
 void expect_string_equal(CustomActionData const &customActionData, std::wstring const &prop, std::wstring const &expected)

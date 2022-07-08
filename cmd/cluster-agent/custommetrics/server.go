@@ -13,12 +13,12 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/apiserver"
-	basecmd "github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/cmd"
-	"github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/provider"
 	"github.com/spf13/pflag"
 	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
 	genericapiserver "k8s.io/apiserver/pkg/server"
+	"sigs.k8s.io/custom-metrics-apiserver/pkg/apiserver"
+	basecmd "sigs.k8s.io/custom-metrics-apiserver/pkg/cmd"
+	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	generatedopenapi "github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics/api/generated/openapi"
@@ -33,6 +33,7 @@ var cmd *DatadogMetricsAdapter
 
 var stopCh chan struct{}
 
+// DatadogMetricsAdapter TODO  <container-integrations>
 type DatadogMetricsAdapter struct {
 	basecmd.AdapterBase
 }

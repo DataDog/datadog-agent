@@ -34,6 +34,7 @@ func TestIgnoreContainer(t *testing.T) {
 	tests := []struct {
 		name           string
 		imgName        string
+		isSandbox      bool
 		container      containerd.Container
 		expectsIgnored bool
 	}{
@@ -41,12 +42,21 @@ func TestIgnoreContainer(t *testing.T) {
 			name:           "pause image",
 			imgName:        "k8s.gcr.io/pause",
 			container:      &container,
+			isSandbox:      false,
+			expectsIgnored: true,
+		},
+		{
+			name:           "is sandbox",
+			imgName:        "k8s.gcr.io/pause",
+			container:      &container,
+			isSandbox:      true,
 			expectsIgnored: true,
 		},
 		{
 			name:           "non-pause container that exists",
 			imgName:        "datadog/agent",
 			container:      &container,
+			isSandbox:      false,
 			expectsIgnored: false,
 		},
 	}
@@ -58,6 +68,9 @@ func TestIgnoreContainer(t *testing.T) {
 					return containerdcontainers.Container{
 						Image: test.imgName,
 					}, nil
+				},
+				MockIsSandbox: func(ctn containerd.Container) (bool, error) {
+					return test.isSandbox, nil
 				},
 			}
 

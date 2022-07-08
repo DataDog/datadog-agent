@@ -115,8 +115,7 @@ func NewOTLPTracesRequest(defs []OTLPResourceSpan) ptraceotlp.Request {
 		}
 	}
 
-	tr := ptraceotlp.NewRequest()
-	tr.SetTraces(td)
+	tr := ptraceotlp.NewRequestFromTraces(td)
 	return tr
 }
 

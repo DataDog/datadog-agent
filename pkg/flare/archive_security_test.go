@@ -23,7 +23,7 @@ func TestCreateSecurityAgentArchive(t *testing.T) {
 	assert := assert.New(t)
 
 	common.SetupConfig("./test")
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("compliance_config.dir", "./test/compliance.d")
 	logFilePath := "./test/logs/agent.log"
 

@@ -147,7 +147,9 @@ func (c *kubeClient) ClusterID() (string, error) {
 		Version:  "v1",
 	})
 
-	resource, err := resourceDef.Get(context.TODO(), "kube-system", metav1.GetOptions{})
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+	resource, err := resourceDef.Get(ctx, "kube-system", metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -236,6 +238,14 @@ func WithRegoInputDumpPath(regoInputDumpPath string) BuilderOption {
 	}
 }
 
+// WithRegoEvalSkip configures a builder to skip the rego evaluation, while still building the input
+func WithRegoEvalSkip(regoEvalSkip bool) BuilderOption {
+	return func(b *builder) error {
+		b.regoEvalSkip = regoEvalSkip
+		return nil
+	}
+}
+
 // IsFramework matches a compliance suite by the name of the framework
 func IsFramework(framework string) SuiteMatcher {
 	return func(s *compliance.SuiteMeta) bool {
@@ -296,6 +306,7 @@ type builder struct {
 
 	regoInputOverride map[string]eval.RegoInputMap
 	regoInputDumpPath string
+	regoEvalSkip      bool
 
 	status *status
 }
@@ -434,7 +445,7 @@ func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.Con
 		return nil, err
 	}
 
-	eligible, err := b.hostMatcher(ruleScope, rule.ID, rule.HostSelector)
+	eligible, err := b.hostMatcher(ruleScope, rule.ID, rule.HostSelector, rule.SkipOnK8s)
 	if err != nil {
 		return nil, err
 	}
@@ -456,7 +467,7 @@ func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance
 
 	// skip host match check if rego input is overridden
 	if b.regoInputOverride == nil {
-		eligible, err := b.hostMatcher(ruleScope, rule.ID, rule.HostSelector)
+		eligible, err := b.hostMatcher(ruleScope, rule.ID, rule.HostSelector, rule.SkipOnK8s)
 		if err != nil {
 			return nil, err
 		}
@@ -559,9 +570,14 @@ func (b *builder) getRuleResourceReporter(scope compliance.RuleScope, rule compl
 	}
 }
 
-func (b *builder) hostMatcher(scope compliance.RuleScope, ruleID string, hostSelector string) (bool, error) {
+func (b *builder) hostMatcher(scope compliance.RuleScope, ruleID string, hostSelector string, skipOnK8s bool) (bool, error) {
 	switch scope {
 	case compliance.DockerScope:
+		if skipOnK8s && config.IsKubernetes() {
+			log.Infof("rule %s skipped - running on a Kubernetes environment", ruleID)
+			return false, nil
+		}
+
 		if b.dockerClient == nil {
 			log.Infof("rule %s skipped - not running in a docker environment", ruleID)
 			return false, nil
@@ -736,6 +752,10 @@ func (b *builder) ProvidedInput(ruleID string) eval.RegoInputMap {
 
 func (b *builder) DumpInputPath() string {
 	return b.regoInputDumpPath
+}
+
+func (b *builder) ShouldSkipRegoEval() bool {
+	return b.regoEvalSkip
 }
 
 func (b *builder) Hostname() string {

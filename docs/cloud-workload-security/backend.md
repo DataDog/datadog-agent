@@ -16,54 +16,1093 @@ CWS logs have the following JSON schema:
 
 {{< code-block lang="json" collapsible="true" filename="BACKEND_EVENT_JSON_SCHEMA" >}}
 {
+    "$id": "https://github.com/DataDog/datadog-agent/pkg/security/probe/event",
+    "$defs": {
+        "BPFEvent": {
+            "properties": {
+                "cmd": {
+                    "type": "string",
+                    "description": "BPF command"
+                },
+                "map": {
+                    "$ref": "#/$defs/BPFMap",
+                    "description": "BPF map"
+                },
+                "program": {
+                    "$ref": "#/$defs/BPFProgram",
+                    "description": "BPF program"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "cmd"
+            ],
+            "description": "BPFEventSerializer serializes a BPF event to JSON"
+        },
+        "BPFMap": {
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Name of the BPF map"
+                },
+                "map_type": {
+                    "type": "string",
+                    "description": "Type of the BPF map"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "BPFMapSerializer serializes a BPF map to JSON"
+        },
+        "BPFProgram": {
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Name of the BPF program"
+                },
+                "tag": {
+                    "type": "string",
+                    "description": "Hash (sha1) of the BPF program"
+                },
+                "program_type": {
+                    "type": "string",
+                    "description": "Type of the BPF program"
+                },
+                "attach_type": {
+                    "type": "string",
+                    "description": "Attach type of the BPF program"
+                },
+                "helpers": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "List of helpers used by the BPF program"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "BPFProgramSerializer serializes a BPF map to JSON"
+        },
+        "BindEvent": {
+            "properties": {
+                "addr": {
+                    "$ref": "#/$defs/IPPortFamily",
+                    "description": "Bound address (if any)"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "addr"
+            ],
+            "description": "BindEventSerializer serializes a bind event to JSON"
+        },
+        "ContainerContext": {
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "Container ID"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "ContainerContextSerializer serializes a container context to JSON"
+        },
+        "DDContext": {
+            "properties": {
+                "span_id": {
+                    "type": "integer",
+                    "description": "Span ID used for APM correlation"
+                },
+                "trace_id": {
+                    "type": "integer",
+                    "description": "Trace ID used for APM correlation"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "DDContextSerializer serializes a span context to JSON"
+        },
+        "DNSEvent": {
+            "properties": {
+                "id": {
+                    "type": "integer",
+                    "description": "id is the unique identifier of the DNS request"
+                },
+                "question": {
+                    "$ref": "#/$defs/DNSQuestion",
+                    "description": "question is a DNS question for the DNS request"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "id"
+            ],
+            "description": "DNSEventSerializer serializes a DNS event to JSON"
+        },
+        "DNSQuestion": {
+            "properties": {
+                "class": {
+                    "type": "string",
+                    "description": "class is the class looked up by the DNS question"
+                },
+                "type": {
+                    "type": "string",
+                    "description": "type is a two octet code which specifies the DNS question type"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "name is the queried domain name"
+                },
+                "size": {
+                    "type": "integer",
+                    "description": "size is the total DNS request size in bytes"
+                },
+                "count": {
+                    "type": "integer",
+                    "description": "count is the total count of questions in the DNS request"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "class",
+                "type",
+                "name",
+                "size",
+                "count"
+            ],
+            "description": "DNSQuestionSerializer serializes a DNS question to JSON"
+        },
+        "EventContext": {
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Event name"
+                },
+                "category": {
+                    "type": "string",
+                    "description": "Event category"
+                },
+                "outcome": {
+                    "type": "string",
+                    "description": "Event outcome"
+                },
+                "async": {
+                    "type": "boolean",
+                    "description": "True if the event was asynchronous"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "EventContextSerializer serializes an event context to JSON"
+        },
+        "ExitEvent": {
+            "properties": {
+                "cause": {
+                    "type": "string",
+                    "description": "Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)"
+                },
+                "code": {
+                    "type": "integer",
+                    "description": "Exit code of the process or number of the signal that caused the process to terminate"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "cause",
+                "code"
+            ],
+            "description": "ExitEventSerializer serializes an exit event to JSON"
+        },
+        "File": {
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "File path"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "File basename"
+                },
+                "path_resolution_error": {
+                    "type": "string",
+                    "description": "Error message from path resolution"
+                },
+                "inode": {
+                    "type": "integer",
+                    "description": "File inode number"
+                },
+                "mode": {
+                    "type": "integer",
+                    "description": "File mode"
+                },
+                "in_upper_layer": {
+                    "type": "boolean",
+                    "description": "Indicator of file OverlayFS layer"
+                },
+                "mount_id": {
+                    "type": "integer",
+                    "description": "File mount ID"
+                },
+                "filesystem": {
+                    "type": "string",
+                    "description": "File filesystem name"
+                },
+                "uid": {
+                    "type": "integer",
+                    "description": "File User ID"
+                },
+                "gid": {
+                    "type": "integer",
+                    "description": "File Group ID"
+                },
+                "user": {
+                    "type": "string",
+                    "description": "File user"
+                },
+                "group": {
+                    "type": "string",
+                    "description": "File group"
+                },
+                "attribute_name": {
+                    "type": "string",
+                    "description": "File extended attribute name"
+                },
+                "attribute_namespace": {
+                    "type": "string",
+                    "description": "File extended attribute namespace"
+                },
+                "flags": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "File flags"
+                },
+                "access_time": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "File access time"
+                },
+                "modification_time": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "File modified time"
+                },
+                "change_time": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "File change time"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "uid",
+                "gid"
+            ],
+            "description": "FileSerializer serializes a file to JSON"
+        },
+        "FileEvent": {
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "File path"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "File basename"
+                },
+                "path_resolution_error": {
+                    "type": "string",
+                    "description": "Error message from path resolution"
+                },
+                "inode": {
+                    "type": "integer",
+                    "description": "File inode number"
+                },
+                "mode": {
+                    "type": "integer",
+                    "description": "File mode"
+                },
+                "in_upper_layer": {
+                    "type": "boolean",
+                    "description": "Indicator of file OverlayFS layer"
+                },
+                "mount_id": {
+                    "type": "integer",
+                    "description": "File mount ID"
+                },
+                "filesystem": {
+                    "type": "string",
+                    "description": "File filesystem name"
+                },
+                "uid": {
+                    "type": "integer",
+                    "description": "File User ID"
+                },
+                "gid": {
+                    "type": "integer",
+                    "description": "File Group ID"
+                },
+                "user": {
+                    "type": "string",
+                    "description": "File user"
+                },
+                "group": {
+                    "type": "string",
+                    "description": "File group"
+                },
+                "attribute_name": {
+                    "type": "string",
+                    "description": "File extended attribute name"
+                },
+                "attribute_namespace": {
+                    "type": "string",
+                    "description": "File extended attribute namespace"
+                },
+                "flags": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "File flags"
+                },
+                "access_time": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "File access time"
+                },
+                "modification_time": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "File modified time"
+                },
+                "change_time": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "File change time"
+                },
+                "destination": {
+                    "$ref": "#/$defs/File",
+                    "description": "Target file information"
+                },
+                "new_mount_id": {
+                    "type": "integer",
+                    "description": "New Mount ID"
+                },
+                "group_id": {
+                    "type": "integer",
+                    "description": "Group ID"
+                },
+                "device": {
+                    "type": "integer",
+                    "description": "Device associated with the file"
+                },
+                "fstype": {
+                    "type": "string",
+                    "description": "Filesystem type"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "uid",
+                "gid"
+            ],
+            "description": "FileEventSerializer serializes a file event to JSON"
+        },
+        "IPPort": {
+            "properties": {
+                "ip": {
+                    "type": "string",
+                    "description": "IP address"
+                },
+                "port": {
+                    "type": "integer",
+                    "description": "Port number"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "ip",
+                "port"
+            ],
+            "description": "IPPortSerializer is used to serialize an IP and Port context to JSON"
+        },
+        "IPPortFamily": {
+            "properties": {
+                "family": {
+                    "type": "string",
+                    "description": "Address family"
+                },
+                "ip": {
+                    "type": "string",
+                    "description": "IP address"
+                },
+                "port": {
+                    "type": "integer",
+                    "description": "Port number"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "family",
+                "ip",
+                "port"
+            ],
+            "description": "IPPortFamilySerializer is used to serialize an IP, port, and address family context to JSON"
+        },
+        "MMapEvent": {
+            "properties": {
+                "address": {
+                    "type": "string",
+                    "description": "memory segment address"
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "file offset"
+                },
+                "length": {
+                    "type": "integer",
+                    "description": "memory segment length"
+                },
+                "protection": {
+                    "type": "string",
+                    "description": "memory segment protection"
+                },
+                "flags": {
+                    "type": "string",
+                    "description": "memory segment flags"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "address",
+                "offset",
+                "length",
+                "protection",
+                "flags"
+            ],
+            "description": "MMapEventSerializer serializes a mmap event to JSON"
+        },
+        "MProtectEvent": {
+            "properties": {
+                "vm_start": {
+                    "type": "string",
+                    "description": "memory segment start address"
+                },
+                "vm_end": {
+                    "type": "string",
+                    "description": "memory segment end address"
+                },
+                "vm_protection": {
+                    "type": "string",
+                    "description": "initial memory segment protection"
+                },
+                "req_protection": {
+                    "type": "string",
+                    "description": "new memory segment protection"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "vm_start",
+                "vm_end",
+                "vm_protection",
+                "req_protection"
+            ],
+            "description": "MProtectEventSerializer serializes a mmap event to JSON"
+        },
+        "ModuleEvent": {
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "module name"
+                },
+                "loaded_from_memory": {
+                    "type": "boolean",
+                    "description": "indicates if a module was loaded from memory, as opposed to a file"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "description": "ModuleEventSerializer serializes a module event to JSON"
+        },
+        "NetworkContext": {
+            "properties": {
+                "device": {
+                    "$ref": "#/$defs/NetworkDevice",
+                    "description": "device is the network device on which the event was captured"
+                },
+                "l3_protocol": {
+                    "type": "string",
+                    "description": "l3_protocol is the layer 3 protocol name"
+                },
+                "l4_protocol": {
+                    "type": "string",
+                    "description": "l4_protocol is the layer 4 protocol name"
+                },
+                "source": {
+                    "$ref": "#/$defs/IPPort",
+                    "description": "source is the emitter of the network event"
+                },
+                "destination": {
+                    "$ref": "#/$defs/IPPort",
+                    "description": "destination is the receiver of the network event"
+                },
+                "size": {
+                    "type": "integer",
+                    "description": "size is the size in bytes of the network event"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "l3_protocol",
+                "l4_protocol",
+                "source",
+                "destination",
+                "size"
+            ],
+            "description": "NetworkContextSerializer serializes the network context to JSON"
+        },
+        "NetworkDevice": {
+            "properties": {
+                "netns": {
+                    "type": "integer",
+                    "description": "netns is the interface ifindex"
+                },
+                "ifindex": {
+                    "type": "integer",
+                    "description": "ifindex is the network interface ifindex"
+                },
+                "ifname": {
+                    "type": "string",
+                    "description": "ifname is the network interface name"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "netns",
+                "ifindex",
+                "ifname"
+            ],
+            "description": "NetworkDeviceSerializer serializes the network device context to JSON"
+        },
+        "PTraceEvent": {
+            "properties": {
+                "request": {
+                    "type": "string",
+                    "description": "ptrace request"
+                },
+                "address": {
+                    "type": "string",
+                    "description": "address at which the ptrace request was executed"
+                },
+                "tracee": {
+                    "$ref": "#/$defs/ProcessContext",
+                    "description": "process context of the tracee"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "request",
+                "address"
+            ],
+            "description": "PTraceEventSerializer serializes a mmap event to JSON"
+        },
+        "Process": {
+            "properties": {
+                "pid": {
+                    "type": "integer",
+                    "description": "Process ID"
+                },
+                "ppid": {
+                    "type": "integer",
+                    "description": "Parent Process ID"
+                },
+                "tid": {
+                    "type": "integer",
+                    "description": "Thread ID"
+                },
+                "uid": {
+                    "type": "integer",
+                    "description": "User ID"
+                },
+                "gid": {
+                    "type": "integer",
+                    "description": "Group ID"
+                },
+                "user": {
+                    "type": "string",
+                    "description": "User name"
+                },
+                "group": {
+                    "type": "string",
+                    "description": "Group name"
+                },
+                "path_resolution_error": {
+                    "type": "string",
+                    "description": "Description of an error in the path resolution"
+                },
+                "comm": {
+                    "type": "string",
+                    "description": "Command name"
+                },
+                "tty": {
+                    "type": "string",
+                    "description": "TTY associated with the process"
+                },
+                "fork_time": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Fork time of the process"
+                },
+                "exec_time": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Exec time of the process"
+                },
+                "exit_time": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Exit time of the process"
+                },
+                "credentials": {
+                    "$ref": "#/$defs/ProcessCredentials",
+                    "description": "Credentials associated with the process"
+                },
+                "executable": {
+                    "$ref": "#/$defs/File",
+                    "description": "File information of the executable"
+                },
+                "container": {
+                    "$ref": "#/$defs/ContainerContext",
+                    "description": "Container context"
+                },
+                "argv0": {
+                    "type": "string",
+                    "description": "First command line argument"
+                },
+                "args": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Command line arguments"
+                },
+                "args_truncated": {
+                    "type": "boolean",
+                    "description": "Indicator of arguments truncation"
+                },
+                "envs": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Environment variables of the process"
+                },
+                "envs_truncated": {
+                    "type": "boolean",
+                    "description": "Indicator of environments variable truncation"
+                },
+                "is_thread": {
+                    "type": "boolean",
+                    "description": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "uid",
+                "gid"
+            ],
+            "description": "ProcessSerializer serializes a process to JSON"
+        },
+        "ProcessContext": {
+            "properties": {
+                "pid": {
+                    "type": "integer",
+                    "description": "Process ID"
+                },
+                "ppid": {
+                    "type": "integer",
+                    "description": "Parent Process ID"
+                },
+                "tid": {
+                    "type": "integer",
+                    "description": "Thread ID"
+                },
+                "uid": {
+                    "type": "integer",
+                    "description": "User ID"
+                },
+                "gid": {
+                    "type": "integer",
+                    "description": "Group ID"
+                },
+                "user": {
+                    "type": "string",
+                    "description": "User name"
+                },
+                "group": {
+                    "type": "string",
+                    "description": "Group name"
+                },
+                "path_resolution_error": {
+                    "type": "string",
+                    "description": "Description of an error in the path resolution"
+                },
+                "comm": {
+                    "type": "string",
+                    "description": "Command name"
+                },
+                "tty": {
+                    "type": "string",
+                    "description": "TTY associated with the process"
+                },
+                "fork_time": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Fork time of the process"
+                },
+                "exec_time": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Exec time of the process"
+                },
+                "exit_time": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Exit time of the process"
+                },
+                "credentials": {
+                    "$ref": "#/$defs/ProcessCredentials",
+                    "description": "Credentials associated with the process"
+                },
+                "executable": {
+                    "$ref": "#/$defs/File",
+                    "description": "File information of the executable"
+                },
+                "container": {
+                    "$ref": "#/$defs/ContainerContext",
+                    "description": "Container context"
+                },
+                "argv0": {
+                    "type": "string",
+                    "description": "First command line argument"
+                },
+                "args": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Command line arguments"
+                },
+                "args_truncated": {
+                    "type": "boolean",
+                    "description": "Indicator of arguments truncation"
+                },
+                "envs": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Environment variables of the process"
+                },
+                "envs_truncated": {
+                    "type": "boolean",
+                    "description": "Indicator of environments variable truncation"
+                },
+                "is_thread": {
+                    "type": "boolean",
+                    "description": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)"
+                },
+                "parent": {
+                    "$ref": "#/$defs/Process",
+                    "description": "Parent process"
+                },
+                "ancestors": {
+                    "items": {
+                        "$ref": "#/$defs/Process"
+                    },
+                    "type": "array",
+                    "description": "Ancestor processes"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "uid",
+                "gid"
+            ],
+            "description": "ProcessContextSerializer serializes a process context to JSON"
+        },
+        "ProcessCredentials": {
+            "properties": {
+                "uid": {
+                    "type": "integer",
+                    "description": "User ID"
+                },
+                "user": {
+                    "type": "string",
+                    "description": "User name"
+                },
+                "gid": {
+                    "type": "integer",
+                    "description": "Group ID"
+                },
+                "group": {
+                    "type": "string",
+                    "description": "Group name"
+                },
+                "euid": {
+                    "type": "integer",
+                    "description": "Effective User ID"
+                },
+                "euser": {
+                    "type": "string",
+                    "description": "Effective User name"
+                },
+                "egid": {
+                    "type": "integer",
+                    "description": "Effective Group ID"
+                },
+                "egroup": {
+                    "type": "string",
+                    "description": "Effective Group name"
+                },
+                "fsuid": {
+                    "type": "integer",
+                    "description": "Filesystem User ID"
+                },
+                "fsuser": {
+                    "type": "string",
+                    "description": "Filesystem User name"
+                },
+                "fsgid": {
+                    "type": "integer",
+                    "description": "Filesystem Group ID"
+                },
+                "fsgroup": {
+                    "type": "string",
+                    "description": "Filesystem Group name"
+                },
+                "cap_effective": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Effective Capability set"
+                },
+                "cap_permitted": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Permitted Capability set"
+                },
+                "destination": {
+                    "description": "Credentials after the operation"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "uid",
+                "gid",
+                "euid",
+                "egid",
+                "fsuid",
+                "fsgid",
+                "cap_effective",
+                "cap_permitted"
+            ],
+            "description": "ProcessCredentialsSerializer serializes the process credentials to JSON"
+        },
+        "SELinuxBoolChange": {
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "SELinux boolean name"
+                },
+                "state": {
+                    "type": "string",
+                    "description": "SELinux boolean state ('on' or 'off')"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "SELinuxBoolChangeSerializer serializes a SELinux boolean change to JSON"
+        },
+        "SELinuxBoolCommit": {
+            "properties": {
+                "state": {
+                    "type": "boolean",
+                    "description": "SELinux boolean commit operation"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "SELinuxBoolCommitSerializer serializes a SELinux boolean commit to JSON"
+        },
+        "SELinuxEnforceStatus": {
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "description": "SELinux enforcement status (one of 'enforcing', 'permissive' or 'disabled')"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "SELinuxEnforceStatusSerializer serializes a SELinux enforcement status change to JSON"
+        },
+        "SELinuxEvent": {
+            "properties": {
+                "bool": {
+                    "$ref": "#/$defs/SELinuxBoolChange",
+                    "description": "SELinux boolean operation"
+                },
+                "enforce": {
+                    "$ref": "#/$defs/SELinuxEnforceStatus",
+                    "description": "SELinux enforcement change"
+                },
+                "bool_commit": {
+                    "$ref": "#/$defs/SELinuxBoolCommit",
+                    "description": "SELinux boolean commit"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "SELinuxEventSerializer serializes a SELinux context to JSON"
+        },
+        "SignalEvent": {
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "description": "signal type"
+                },
+                "pid": {
+                    "type": "integer",
+                    "description": "signal target pid"
+                },
+                "target": {
+                    "$ref": "#/$defs/ProcessContext",
+                    "description": "process context of the signal target"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "type",
+                "pid"
+            ],
+            "description": "SignalEventSerializer serializes a signal event to JSON"
+        },
+        "SpliceEvent": {
+            "properties": {
+                "pipe_entry_flag": {
+                    "type": "string",
+                    "description": "Entry flag of the fd_out pipe passed to the splice syscall"
+                },
+                "pipe_exit_flag": {
+                    "type": "string",
+                    "description": "Exit flag of the fd_out pipe passed to the splice syscall"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "pipe_entry_flag",
+                "pipe_exit_flag"
+            ],
+            "description": "SpliceEventSerializer serializes a splice event to JSON"
+        },
+        "UserContext": {
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "User name"
+                },
+                "group": {
+                    "type": "string",
+                    "description": "Group name"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "UserContextSerializer serializes a user context to JSON"
+        }
+    },
     "properties": {
         "evt": {
-            "$ref": "#/definitions/EventContext"
+            "$ref": "#/$defs/EventContext"
         },
         "file": {
-            "$ref": "#/definitions/FileEvent"
+            "$ref": "#/$defs/FileEvent"
         },
         "selinux": {
-            "$ref": "#/definitions/SELinuxEvent"
+            "$ref": "#/$defs/SELinuxEvent"
         },
         "bpf": {
-            "$ref": "#/definitions/BPFEvent"
+            "$ref": "#/$defs/BPFEvent"
         },
         "mmap": {
-            "$ref": "#/definitions/MMapEvent"
+            "$ref": "#/$defs/MMapEvent"
         },
         "mprotect": {
-            "$ref": "#/definitions/MProtectEvent"
+            "$ref": "#/$defs/MProtectEvent"
         },
         "ptrace": {
-            "$ref": "#/definitions/PTraceEvent"
+            "$ref": "#/$defs/PTraceEvent"
         },
         "module": {
-            "$ref": "#/definitions/ModuleEvent"
+            "$ref": "#/$defs/ModuleEvent"
         },
         "signal": {
-            "$ref": "#/definitions/SignalEvent"
+            "$ref": "#/$defs/SignalEvent"
         },
         "splice": {
-            "$ref": "#/definitions/SpliceEvent"
+            "$ref": "#/$defs/SpliceEvent"
         },
         "dns": {
-            "$ref": "#/definitions/DNSEvent"
+            "$ref": "#/$defs/DNSEvent"
         },
         "network": {
-            "$ref": "#/definitions/NetworkContext"
+            "$ref": "#/$defs/NetworkContext"
+        },
+        "bind": {
+            "$ref": "#/$defs/BindEvent"
+        },
+        "exit": {
+            "$ref": "#/$defs/ExitEvent"
         },
         "usr": {
-            "$ref": "#/definitions/UserContext"
+            "$ref": "#/$defs/UserContext"
         },
         "process": {
-            "$ref": "#/definitions/ProcessContext"
+            "$ref": "#/$defs/ProcessContext"
         },
         "dd": {
-            "$ref": "#/definitions/DDContext"
+            "$ref": "#/$defs/DDContext"
         },
         "container": {
-            "$ref": "#/definitions/ContainerContext"
+            "$ref": "#/$defs/ContainerContext"
         },
         "date": {
             "type": "string",
@@ -71,7 +1110,8 @@ CWS logs have the following JSON schema:
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "description": "EventSerializer serializes an event to JSON"
 }
 
 {{< /code-block >}}
@@ -90,6 +1130,8 @@ CWS logs have the following JSON schema:
 | `splice` | $ref | Please see [SpliceEvent](#spliceevent) |
 | `dns` | $ref | Please see [DNSEvent](#dnsevent) |
 | `network` | $ref | Please see [NetworkContext](#networkcontext) |
+| `bind` | $ref | Please see [BindEvent](#bindevent) |
+| `exit` | $ref | Please see [ExitEvent](#exitevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
@@ -101,25 +1143,26 @@ CWS logs have the following JSON schema:
 
 {{< code-block lang="json" collapsible="true" >}}
 {
-    "required": [
-        "cmd"
-    ],
     "properties": {
         "cmd": {
             "type": "string",
             "description": "BPF command"
         },
         "map": {
-            "$ref": "#/definitions/BPFMap",
+            "$ref": "#/$defs/BPFMap",
             "description": "BPF map"
         },
         "program": {
-            "$ref": "#/definitions/BPFProgram",
+            "$ref": "#/$defs/BPFProgram",
             "description": "BPF program"
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "required": [
+        "cmd"
+    ],
+    "description": "BPFEventSerializer serializes a BPF event to JSON"
 }
 
 {{< /code-block >}}
@@ -151,7 +1194,8 @@ CWS logs have the following JSON schema:
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "description": "BPFMapSerializer serializes a BPF map to JSON"
 }
 
 {{< /code-block >}}
@@ -193,7 +1237,8 @@ CWS logs have the following JSON schema:
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "description": "BPFProgramSerializer serializes a BPF map to JSON"
 }
 
 {{< /code-block >}}
@@ -207,6 +1252,35 @@ CWS logs have the following JSON schema:
 | `helpers` | List of helpers used by the BPF program |
 
 
+## `BindEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "addr": {
+            "$ref": "#/$defs/IPPortFamily",
+            "description": "Bound address (if any)"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "addr"
+    ],
+    "description": "BindEventSerializer serializes a bind event to JSON"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `addr` | Bound address (if any) |
+
+| References |
+| ---------- |
+| [IPPortFamily](#ipportfamily) |
+
 ## `ContainerContext`
 
 
@@ -219,7 +1293,8 @@ CWS logs have the following JSON schema:
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "description": "ContainerContextSerializer serializes a container context to JSON"
 }
 
 {{< /code-block >}}
@@ -245,7 +1320,8 @@ CWS logs have the following JSON schema:
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "description": "DDContextSerializer serializes a span context to JSON"
 }
 
 {{< /code-block >}}
@@ -261,21 +1337,22 @@ CWS logs have the following JSON schema:
 
 {{< code-block lang="json" collapsible="true" >}}
 {
-    "required": [
-        "id"
-    ],
     "properties": {
         "id": {
             "type": "integer",
             "description": "id is the unique identifier of the DNS request"
         },
         "question": {
-            "$ref": "#/definitions/DNSQuestion",
+            "$ref": "#/$defs/DNSQuestion",
             "description": "question is a DNS question for the DNS request"
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "required": [
+        "id"
+    ],
+    "description": "DNSEventSerializer serializes a DNS event to JSON"
 }
 
 {{< /code-block >}}
@@ -294,13 +1371,6 @@ CWS logs have the following JSON schema:
 
 {{< code-block lang="json" collapsible="true" >}}
 {
-    "required": [
-        "class",
-        "type",
-        "name",
-        "size",
-        "count"
-    ],
     "properties": {
         "class": {
             "type": "string",
@@ -324,7 +1394,15 @@ CWS logs have the following JSON schema:
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "required": [
+        "class",
+        "type",
+        "name",
+        "size",
+        "count"
+    ],
+    "description": "DNSQuestionSerializer serializes a DNS question to JSON"
 }
 
 {{< /code-block >}}
@@ -355,10 +1433,15 @@ CWS logs have the following JSON schema:
         "outcome": {
             "type": "string",
             "description": "Event outcome"
+        },
+        "async": {
+            "type": "boolean",
+            "description": "True if the event was asynchronous"
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "description": "EventContextSerializer serializes an event context to JSON"
 }
 
 {{< /code-block >}}
@@ -368,6 +1451,39 @@ CWS logs have the following JSON schema:
 | `name` | Event name |
 | `category` | Event category |
 | `outcome` | Event outcome |
+| `async` | True if the event was asynchronous |
+
+
+## `ExitEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "cause": {
+            "type": "string",
+            "description": "Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)"
+        },
+        "code": {
+            "type": "integer",
+            "description": "Exit code of the process or number of the signal that caused the process to terminate"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "cause",
+        "code"
+    ],
+    "description": "ExitEventSerializer serializes an exit event to JSON"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `cause` | Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED) |
+| `code` | Exit code of the process or number of the signal that caused the process to terminate |
 
 
 ## `File`
@@ -375,10 +1491,6 @@ CWS logs have the following JSON schema:
 
 {{< code-block lang="json" collapsible="true" >}}
 {
-    "required": [
-        "uid",
-        "gid"
-    ],
     "properties": {
         "path": {
             "type": "string",
@@ -445,21 +1557,27 @@ CWS logs have the following JSON schema:
         },
         "access_time": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "File access time"
         },
         "modification_time": {
             "type": "string",
-            "description": "File modified time",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "File modified time"
         },
         "change_time": {
             "type": "string",
-            "description": "File change time",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "File change time"
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "required": [
+        "uid",
+        "gid"
+    ],
+    "description": "FileSerializer serializes a file to JSON"
 }
 
 {{< /code-block >}}
@@ -481,6 +1599,7 @@ CWS logs have the following JSON schema:
 | `attribute_name` | File extended attribute name |
 | `attribute_namespace` | File extended attribute namespace |
 | `flags` | File flags |
+| `access_time` | File access time |
 | `modification_time` | File modified time |
 | `change_time` | File change time |
 
@@ -490,10 +1609,6 @@ CWS logs have the following JSON schema:
 
 {{< code-block lang="json" collapsible="true" >}}
 {
-    "required": [
-        "uid",
-        "gid"
-    ],
     "properties": {
         "path": {
             "type": "string",
@@ -560,20 +1675,21 @@ CWS logs have the following JSON schema:
         },
         "access_time": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "File access time"
         },
         "modification_time": {
             "type": "string",
-            "description": "File modified time",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "File modified time"
         },
         "change_time": {
             "type": "string",
-            "description": "File change time",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "File change time"
         },
         "destination": {
-            "$ref": "#/definitions/File",
+            "$ref": "#/$defs/File",
             "description": "Target file information"
         },
         "new_mount_id": {
@@ -594,7 +1710,12 @@ CWS logs have the following JSON schema:
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "required": [
+        "uid",
+        "gid"
+    ],
+    "description": "FileEventSerializer serializes a file event to JSON"
 }
 
 {{< /code-block >}}
@@ -616,6 +1737,7 @@ CWS logs have the following JSON schema:
 | `attribute_name` | File extended attribute name |
 | `attribute_namespace` | File extended attribute namespace |
 | `flags` | File flags |
+| `access_time` | File access time |
 | `modification_time` | File modified time |
 | `change_time` | File change time |
 | `destination` | Target file information |
@@ -633,10 +1755,6 @@ CWS logs have the following JSON schema:
 
 {{< code-block lang="json" collapsible="true" >}}
 {
-    "required": [
-        "ip",
-        "port"
-    ],
     "properties": {
         "ip": {
             "type": "string",
@@ -648,7 +1766,12 @@ CWS logs have the following JSON schema:
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "required": [
+        "ip",
+        "port"
+    ],
+    "description": "IPPortSerializer is used to serialize an IP and Port context to JSON"
 }
 
 {{< /code-block >}}
@@ -659,18 +1782,49 @@ CWS logs have the following JSON schema:
 | `port` | Port number |
 
 
+## `IPPortFamily`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "family": {
+            "type": "string",
+            "description": "Address family"
+        },
+        "ip": {
+            "type": "string",
+            "description": "IP address"
+        },
+        "port": {
+            "type": "integer",
+            "description": "Port number"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "family",
+        "ip",
+        "port"
+    ],
+    "description": "IPPortFamilySerializer is used to serialize an IP, port, and address family context to JSON"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `family` | Address family |
+| `ip` | IP address |
+| `port` | Port number |
+
+
 ## `MMapEvent`
 
 
 {{< code-block lang="json" collapsible="true" >}}
 {
-    "required": [
-        "address",
-        "offset",
-        "length",
-        "protection",
-        "flags"
-    ],
     "properties": {
         "address": {
             "type": "string",
@@ -694,7 +1848,15 @@ CWS logs have the following JSON schema:
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "required": [
+        "address",
+        "offset",
+        "length",
+        "protection",
+        "flags"
+    ],
+    "description": "MMapEventSerializer serializes a mmap event to JSON"
 }
 
 {{< /code-block >}}
@@ -713,12 +1875,6 @@ CWS logs have the following JSON schema:
 
 {{< code-block lang="json" collapsible="true" >}}
 {
-    "required": [
-        "vm_start",
-        "vm_end",
-        "vm_protection",
-        "req_protection"
-    ],
     "properties": {
         "vm_start": {
             "type": "string",
@@ -738,7 +1894,14 @@ CWS logs have the following JSON schema:
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "required": [
+        "vm_start",
+        "vm_end",
+        "vm_protection",
+        "req_protection"
+    ],
+    "description": "MProtectEventSerializer serializes a mmap event to JSON"
 }
 
 {{< /code-block >}}
@@ -756,9 +1919,6 @@ CWS logs have the following JSON schema:
 
 {{< code-block lang="json" collapsible="true" >}}
 {
-    "required": [
-        "name"
-    ],
     "properties": {
         "name": {
             "type": "string",
@@ -770,7 +1930,11 @@ CWS logs have the following JSON schema:
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "required": [
+        "name"
+    ],
+    "description": "ModuleEventSerializer serializes a module event to JSON"
 }
 
 {{< /code-block >}}
@@ -786,32 +1950,25 @@ CWS logs have the following JSON schema:
 
 {{< code-block lang="json" collapsible="true" >}}
 {
-    "required": [
-        "l3_protocol",
-        "l4_protocol",
-        "source",
-        "destination",
-        "size"
-    ],
     "properties": {
         "device": {
-            "$ref": "#/definitions/NetworkDevice",
+            "$ref": "#/$defs/NetworkDevice",
             "description": "device is the network device on which the event was captured"
         },
         "l3_protocol": {
             "type": "string",
-            "description": "l3_protocol is the layer 3 procotocol name"
+            "description": "l3_protocol is the layer 3 protocol name"
         },
         "l4_protocol": {
             "type": "string",
-            "description": "l4_protocol is the layer 4 procotocol name"
+            "description": "l4_protocol is the layer 4 protocol name"
         },
         "source": {
-            "$ref": "#/definitions/IPPort",
+            "$ref": "#/$defs/IPPort",
             "description": "source is the emitter of the network event"
         },
         "destination": {
-            "$ref": "#/definitions/IPPort",
+            "$ref": "#/$defs/IPPort",
             "description": "destination is the receiver of the network event"
         },
         "size": {
@@ -820,7 +1977,15 @@ CWS logs have the following JSON schema:
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "required": [
+        "l3_protocol",
+        "l4_protocol",
+        "source",
+        "destination",
+        "size"
+    ],
+    "description": "NetworkContextSerializer serializes the network context to JSON"
 }
 
 {{< /code-block >}}
@@ -828,8 +1993,8 @@ CWS logs have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `device` | device is the network device on which the event was captured |
-| `l3_protocol` | l3_protocol is the layer 3 procotocol name |
-| `l4_protocol` | l4_protocol is the layer 4 procotocol name |
+| `l3_protocol` | l3_protocol is the layer 3 protocol name |
+| `l4_protocol` | l4_protocol is the layer 4 protocol name |
 | `source` | source is the emitter of the network event |
 | `destination` | destination is the receiver of the network event |
 | `size` | size is the size in bytes of the network event |
@@ -845,11 +2010,6 @@ CWS logs have the following JSON schema:
 
 {{< code-block lang="json" collapsible="true" >}}
 {
-    "required": [
-        "netns",
-        "ifindex",
-        "ifname"
-    ],
     "properties": {
         "netns": {
             "type": "integer",
@@ -865,7 +2025,13 @@ CWS logs have the following JSON schema:
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "required": [
+        "netns",
+        "ifindex",
+        "ifname"
+    ],
+    "description": "NetworkDeviceSerializer serializes the network device context to JSON"
 }
 
 {{< /code-block >}}
@@ -882,10 +2048,6 @@ CWS logs have the following JSON schema:
 
 {{< code-block lang="json" collapsible="true" >}}
 {
-    "required": [
-        "request",
-        "address"
-    ],
     "properties": {
         "request": {
             "type": "string",
@@ -896,12 +2058,17 @@ CWS logs have the following JSON schema:
             "description": "address at which the ptrace request was executed"
         },
         "tracee": {
-            "$ref": "#/definitions/ProcessContext",
+            "$ref": "#/$defs/ProcessContext",
             "description": "process context of the tracee"
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "required": [
+        "request",
+        "address"
+    ],
+    "description": "PTraceEventSerializer serializes a mmap event to JSON"
 }
 
 {{< /code-block >}}
@@ -921,10 +2088,6 @@ CWS logs have the following JSON schema:
 
 {{< code-block lang="json" collapsible="true" >}}
 {
-    "required": [
-        "uid",
-        "gid"
-    ],
     "properties": {
         "pid": {
             "type": "integer",
@@ -968,29 +2131,29 @@ CWS logs have the following JSON schema:
         },
         "fork_time": {
             "type": "string",
-            "description": "Fork time of the process",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Fork time of the process"
         },
         "exec_time": {
             "type": "string",
-            "description": "Exec time of the process",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Exec time of the process"
         },
         "exit_time": {
             "type": "string",
-            "description": "Exit time of the process",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Exit time of the process"
         },
         "credentials": {
-            "$ref": "#/definitions/ProcessCredentials",
+            "$ref": "#/$defs/ProcessCredentials",
             "description": "Credentials associated with the process"
         },
         "executable": {
-            "$ref": "#/definitions/File",
+            "$ref": "#/$defs/File",
             "description": "File information of the executable"
         },
         "container": {
-            "$ref": "#/definitions/ContainerContext",
+            "$ref": "#/$defs/ContainerContext",
             "description": "Container context"
         },
         "argv0": {
@@ -1018,10 +2181,19 @@ CWS logs have the following JSON schema:
         "envs_truncated": {
             "type": "boolean",
             "description": "Indicator of environments variable truncation"
+        },
+        "is_thread": {
+            "type": "boolean",
+            "description": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)"
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "required": [
+        "uid",
+        "gid"
+    ],
+    "description": "ProcessSerializer serializes a process to JSON"
 }
 
 {{< /code-block >}}
@@ -1049,6 +2221,7 @@ CWS logs have the following JSON schema:
 | `args_truncated` | Indicator of arguments truncation |
 | `envs` | Environment variables of the process |
 | `envs_truncated` | Indicator of environments variable truncation |
+| `is_thread` | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 
 | References |
 | ---------- |
@@ -1061,10 +2234,6 @@ CWS logs have the following JSON schema:
 
 {{< code-block lang="json" collapsible="true" >}}
 {
-    "required": [
-        "uid",
-        "gid"
-    ],
     "properties": {
         "pid": {
             "type": "integer",
@@ -1108,29 +2277,29 @@ CWS logs have the following JSON schema:
         },
         "fork_time": {
             "type": "string",
-            "description": "Fork time of the process",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Fork time of the process"
         },
         "exec_time": {
             "type": "string",
-            "description": "Exec time of the process",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Exec time of the process"
         },
         "exit_time": {
             "type": "string",
-            "description": "Exit time of the process",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Exit time of the process"
         },
         "credentials": {
-            "$ref": "#/definitions/ProcessCredentials",
+            "$ref": "#/$defs/ProcessCredentials",
             "description": "Credentials associated with the process"
         },
         "executable": {
-            "$ref": "#/definitions/File",
+            "$ref": "#/$defs/File",
             "description": "File information of the executable"
         },
         "container": {
-            "$ref": "#/definitions/ContainerContext",
+            "$ref": "#/$defs/ContainerContext",
             "description": "Container context"
         },
         "argv0": {
@@ -1159,20 +2328,29 @@ CWS logs have the following JSON schema:
             "type": "boolean",
             "description": "Indicator of environments variable truncation"
         },
+        "is_thread": {
+            "type": "boolean",
+            "description": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)"
+        },
         "parent": {
-            "$ref": "#/definitions/Process",
+            "$ref": "#/$defs/Process",
             "description": "Parent process"
         },
         "ancestors": {
             "items": {
-                "$ref": "#/definitions/Process"
+                "$ref": "#/$defs/Process"
             },
             "type": "array",
             "description": "Ancestor processes"
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "required": [
+        "uid",
+        "gid"
+    ],
+    "description": "ProcessContextSerializer serializes a process context to JSON"
 }
 
 {{< /code-block >}}
@@ -1200,6 +2378,7 @@ CWS logs have the following JSON schema:
 | `args_truncated` | Indicator of arguments truncation |
 | `envs` | Environment variables of the process |
 | `envs_truncated` | Indicator of environments variable truncation |
+| `is_thread` | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | `parent` | Parent process |
 | `ancestors` | Ancestor processes |
 
@@ -1215,16 +2394,6 @@ CWS logs have the following JSON schema:
 
 {{< code-block lang="json" collapsible="true" >}}
 {
-    "required": [
-        "uid",
-        "gid",
-        "euid",
-        "egid",
-        "fsuid",
-        "fsgid",
-        "cap_effective",
-        "cap_permitted"
-    ],
     "properties": {
         "uid": {
             "type": "integer",
@@ -1279,22 +2448,32 @@ CWS logs have the following JSON schema:
                 "type": "string"
             },
             "type": "array",
-            "description": "Effective Capacity set"
+            "description": "Effective Capability set"
         },
         "cap_permitted": {
             "items": {
                 "type": "string"
             },
             "type": "array",
-            "description": "Permitted Capacity set"
+            "description": "Permitted Capability set"
         },
         "destination": {
-            "additionalProperties": true,
             "description": "Credentials after the operation"
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "required": [
+        "uid",
+        "gid",
+        "euid",
+        "egid",
+        "fsuid",
+        "fsgid",
+        "cap_effective",
+        "cap_permitted"
+    ],
+    "description": "ProcessCredentialsSerializer serializes the process credentials to JSON"
 }
 
 {{< /code-block >}}
@@ -1313,8 +2492,8 @@ CWS logs have the following JSON schema:
 | `fsuser` | Filesystem User name |
 | `fsgid` | Filesystem Group ID |
 | `fsgroup` | Filesystem Group name |
-| `cap_effective` | Effective Capacity set |
-| `cap_permitted` | Permitted Capacity set |
+| `cap_effective` | Effective Capability set |
+| `cap_permitted` | Permitted Capability set |
 | `destination` | Credentials after the operation |
 
 
@@ -1334,7 +2513,8 @@ CWS logs have the following JSON schema:
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "description": "SELinuxBoolChangeSerializer serializes a SELinux boolean change to JSON"
 }
 
 {{< /code-block >}}
@@ -1357,7 +2537,8 @@ CWS logs have the following JSON schema:
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "description": "SELinuxBoolCommitSerializer serializes a SELinux boolean commit to JSON"
 }
 
 {{< /code-block >}}
@@ -1379,7 +2560,8 @@ CWS logs have the following JSON schema:
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "description": "SELinuxEnforceStatusSerializer serializes a SELinux enforcement status change to JSON"
 }
 
 {{< /code-block >}}
@@ -1396,20 +2578,21 @@ CWS logs have the following JSON schema:
 {
     "properties": {
         "bool": {
-            "$ref": "#/definitions/SELinuxBoolChange",
+            "$ref": "#/$defs/SELinuxBoolChange",
             "description": "SELinux boolean operation"
         },
         "enforce": {
-            "$ref": "#/definitions/SELinuxEnforceStatus",
+            "$ref": "#/$defs/SELinuxEnforceStatus",
             "description": "SELinux enforcement change"
         },
         "bool_commit": {
-            "$ref": "#/definitions/SELinuxBoolCommit",
+            "$ref": "#/$defs/SELinuxBoolCommit",
             "description": "SELinux boolean commit"
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "description": "SELinuxEventSerializer serializes a SELinux context to JSON"
 }
 
 {{< /code-block >}}
@@ -1431,10 +2614,6 @@ CWS logs have the following JSON schema:
 
 {{< code-block lang="json" collapsible="true" >}}
 {
-    "required": [
-        "type",
-        "pid"
-    ],
     "properties": {
         "type": {
             "type": "string",
@@ -1445,12 +2624,17 @@ CWS logs have the following JSON schema:
             "description": "signal target pid"
         },
         "target": {
-            "$ref": "#/definitions/ProcessContext",
+            "$ref": "#/$defs/ProcessContext",
             "description": "process context of the signal target"
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "required": [
+        "type",
+        "pid"
+    ],
+    "description": "SignalEventSerializer serializes a signal event to JSON"
 }
 
 {{< /code-block >}}
@@ -1470,10 +2654,6 @@ CWS logs have the following JSON schema:
 
 {{< code-block lang="json" collapsible="true" >}}
 {
-    "required": [
-        "pipe_entry_flag",
-        "pipe_exit_flag"
-    ],
     "properties": {
         "pipe_entry_flag": {
             "type": "string",
@@ -1485,7 +2665,12 @@ CWS logs have the following JSON schema:
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "required": [
+        "pipe_entry_flag",
+        "pipe_exit_flag"
+    ],
+    "description": "SpliceEventSerializer serializes a splice event to JSON"
 }
 
 {{< /code-block >}}
@@ -1512,7 +2697,8 @@ CWS logs have the following JSON schema:
         }
     },
     "additionalProperties": false,
-    "type": "object"
+    "type": "object",
+    "description": "UserContextSerializer serializes a user context to JSON"
 }
 
 {{< /code-block >}}

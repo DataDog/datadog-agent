@@ -26,6 +26,7 @@ import (
 	compagent "github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
+	"github.com/cihub/seelog"
 	"github.com/gorilla/mux"
 )
 
@@ -84,11 +85,12 @@ func (s *Server) Start() error {
 		Certificates: []tls.Certificate{rootTLSCert},
 	}
 
+	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
+	logWriter, _ := config.NewLogWriter(4, seelog.ErrorLvl)
+
 	srv := &http.Server{
-		Handler: r,
-		ErrorLog: stdLog.New(&config.ErrorLogWriter{
-			AdditionalDepth: 4, // Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-		}, "Error from the agent http API server: ", 0), // log errors to seelog,
+		Handler:      r,
+		ErrorLog:     stdLog.New(logWriter, "Error from the agent http API server: ", 0), // log errors to seelog,
 		TLSConfig:    &tlsConfig,
 		WriteTimeout: config.Datadog.GetDuration("server_timeout") * time.Second,
 	}

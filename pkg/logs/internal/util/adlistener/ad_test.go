@@ -18,14 +18,22 @@ func TestListenersGetScheduleCalls(t *testing.T) {
 	ac := autodiscovery.NewAutoConfigNoStart(adsched)
 
 	got1 := make(chan struct{}, 1)
-	l1 := NewADListener("l1", ac, func([]integration.Config) { got1 <- struct{}{} }, nil)
+	l1 := NewADListener("l1", ac, func(configs []integration.Config) {
+		for range configs {
+			got1 <- struct{}{}
+		}
+	}, nil)
 	l1.StartListener()
 
 	got2 := make(chan struct{}, 1)
-	l2 := NewADListener("l2", ac, func([]integration.Config) { got2 <- struct{}{} }, nil)
+	l2 := NewADListener("l2", ac, func(configs []integration.Config) {
+		for range configs {
+			got2 <- struct{}{}
+		}
+	}, nil)
 	l2.StartListener()
 
-	adsched.Schedule([]integration.Config{})
+	adsched.Schedule([]integration.Config{{}})
 
 	// wait for each of the two listeners to get notified
 	<-got1
