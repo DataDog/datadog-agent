@@ -80,14 +80,12 @@ instances:
 )
 
 func TestConvertDocker(t *testing.T) {
-	dir, err := ioutil.TempDir("", "agent_test_legacy")
-	require.Nil(t, err)
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	src := filepath.Join(dir, "docker_daemon.yaml")
 	dst := filepath.Join(dir, "docker.yaml")
 
-	err = ioutil.WriteFile(src, []byte(dockerDaemonLegacyConf), 0640)
+	err := ioutil.WriteFile(src, []byte(dockerDaemonLegacyConf), 0640)
 	require.Nil(t, err)
 
 	configConverter := config.NewConfigConverter()

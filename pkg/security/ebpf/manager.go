@@ -25,7 +25,6 @@ func NewDefaultOptions() manager.Options {
 		DefaultKProbeMaxActive: 512,
 
 		DefaultPerfRingBufferSize: probes.EventsPerfRingBufferSize,
-		DefaultRingBufferSize:     probes.EventsRingBufferSize,
 
 		VerifierOptions: ebpf.CollectionOptions{
 			Programs: ebpf.ProgramOptions{

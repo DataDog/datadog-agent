@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -152,7 +152,7 @@ func readAndPostFlareFile(archivePath, caseID, email, hostname string) (*http.Re
 
 // SendFlare will send a flare and grab the local hostname
 func SendFlare(archivePath string, caseID string, email string) (string, error) {
-	hostname, err := util.GetHostname(context.TODO())
+	hostname, err := hostnameUtil.Get(context.TODO())
 	if err != nil {
 		hostname = "unknown"
 	}

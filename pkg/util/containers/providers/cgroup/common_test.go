@@ -10,7 +10,6 @@ package cgroup
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,15 +22,8 @@ type tempFolder struct {
 	RootPath string
 }
 
-func newTempFolder(namePrefix string) (*tempFolder, error) {
-	path, err := ioutil.TempDir("", namePrefix)
-	if err != nil {
-		return nil, err
-	}
-	return &tempFolder{path}, nil
-}
-func (f *tempFolder) removeAll() error {
-	return os.RemoveAll(f.RootPath)
+func newTempFolder(t *testing.T) *tempFolder {
+	return &tempFolder{t.TempDir()}
 }
 
 func (f *tempFolder) add(fileName string, contents string) error {
@@ -77,21 +69,18 @@ func newDummyContainerCgroup(rootPath string, targets ...string) *ContainerCgrou
 	return cgroup
 }
 
-func newDindContainerCgroup(namePrefix, target, containerID string) (*tempFolder, *ContainerCgroup, error) {
+func newDindContainerCgroup(t *testing.T, target, containerID string) (*tempFolder, *ContainerCgroup, error) {
 	// first make a dir that matches the actual cgroup path(contains only one level of container id)
-	path, err := ioutil.TempDir("", namePrefix)
-	if err != nil {
-		return nil, nil, err
-	}
+	path := t.TempDir()
 
 	actualPath := filepath.Join(path, "docker", containerID)
-	err = os.MkdirAll(actualPath, 0777)
+	err := os.MkdirAll(actualPath, 0777)
 	if err != nil {
 		return nil, nil, err
 	}
-	t := &tempFolder{actualPath}
+	tf := &tempFolder{actualPath}
 	dindContainerID := "ada6d7f86865047ecbca0eedc44722173cf48c0ff7184a61ed56a80e7564bc0c"
-	return t, &ContainerCgroup{
+	return tf, &ContainerCgroup{
 		ContainerID: "dummy",
 		Mounts:      map[string]string{target: path},
 		Paths:       map[string]string{target: filepath.Join("/docker", dindContainerID, "docker", containerID)},

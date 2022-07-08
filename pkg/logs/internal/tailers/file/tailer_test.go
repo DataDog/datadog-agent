@@ -11,16 +11,14 @@ package file
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/suite"
-
-	"path/filepath"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -40,32 +38,30 @@ type TailerTestSuite struct {
 
 	tailer     *Tailer
 	outputChan chan *message.Message
-	source     *sources.LogSource
+	source     *sources.ReplaceableSource
 }
 
 func (suite *TailerTestSuite) SetupTest() {
 	var err error
-	suite.testDir, err = ioutil.TempDir("", "log-tailer-test-")
-	suite.Nil(err)
+	suite.testDir = suite.T().TempDir()
 
 	suite.testPath = fmt.Sprintf("%s/tailer.log", suite.testDir)
 	f, err := os.Create(suite.testPath)
 	suite.Nil(err)
 	suite.testFile = f
 	suite.outputChan = make(chan *message.Message, chanSize)
-	suite.source = sources.NewLogSource("", &config.LogsConfig{
+	suite.source = sources.NewReplaceableSource(sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
 		Path: suite.testPath,
-	})
+	}))
 	sleepDuration := 10 * time.Millisecond
-	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source, false), sleepDuration, decoder.NewDecoderFromSource(suite.source))
+	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source.UnderlyingSource(), false), sleepDuration, decoder.NewDecoderFromSource(suite.source))
 	suite.tailer.closeTimeout = closeTimeout
 }
 
 func (suite *TailerTestSuite) TearDownTest() {
 	suite.tailer.Stop()
 	suite.testFile.Close()
-	os.Remove(suite.testDir)
 }
 
 func TestTailerTestSuite(t *testing.T) {
@@ -102,7 +98,7 @@ func (suite *TailerTestSuite) TestTialerTimeDurationConfig() {
 	suite.tailer.StartFromBeginning()
 
 	coreConfig.Datadog.Set("logs_config.close_timeout", 42)
-	tailer := NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source, false), 10*time.Millisecond, decoder.NewDecoderFromSource(suite.source))
+	tailer := NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source.UnderlyingSource(), false), 10*time.Millisecond, decoder.NewDecoderFromSource(suite.source))
 	tailer.StartFromBeginning()
 
 	suite.Equal(tailer.closeTimeout, time.Duration(42)*time.Second)
@@ -309,10 +305,10 @@ func (suite *TailerTestSuite) TestMutliLineAutoDetect() {
 	var err error
 
 	aml := true
-	suite.source.Config.AutoMultiLine = &aml
-	suite.source.Config.AutoMultiLineSampleSize = 3
+	suite.source.Config().AutoMultiLine = &aml
+	suite.source.Config().AutoMultiLineSampleSize = 3
 
-	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source, true), 10*time.Millisecond, decoder.NewDecoderFromSource(suite.source))
+	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source.UnderlyingSource(), true), 10*time.Millisecond, decoder.NewDecoderFromSource(suite.source))
 
 	_, err = suite.testFile.WriteString(lines)
 	suite.Nil(err)

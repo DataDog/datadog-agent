@@ -3,9 +3,9 @@ module github.com/DataDog/datadog-agent/pkg/trace
 go 1.17
 
 require (
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.38.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.38.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.38.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.38.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.38.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.38.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.0
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/Microsoft/go-winio v0.5.1
@@ -19,7 +19,6 @@ require (
 	github.com/vmihailenco/msgpack/v4 v4.3.12
 	go.opentelemetry.io/collector/pdata v0.54.0
 	go.opentelemetry.io/collector/semconv v0.54.0
-	go.uber.org/atomic v1.9.0
 	golang.org/x/sys v0.0.0-20220128215802-99c3d69c2c27
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	google.golang.org/grpc v1.47.0
@@ -46,6 +45,7 @@ require (
 	github.com/tklauser/numcpus v0.4.0 // indirect
 	github.com/vmihailenco/tagparser v0.1.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
+	go.uber.org/atomic v1.9.0 // indirect
 	golang.org/x/net v0.0.0-20220225172249-27dd8689420f // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/appengine v1.6.5 // indirect

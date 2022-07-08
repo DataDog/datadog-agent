@@ -26,6 +26,7 @@ func TestEventPayloadParsing(t *testing.T) {
 		"s3.json":                        isS3Event,
 		"sns.json":                       isSNSEvent,
 		"sqs.json":                       isSQSEvent,
+		"lambdaurl.json":                 isLambdaFunctionURLEvent,
 	}
 	for testFile, testFunc := range testCases {
 		file, err := os.Open(fmt.Sprintf("%v/%v", testDir, testFile))
@@ -56,6 +57,7 @@ func TestEventPayloadParsingWrong(t *testing.T) {
 		"s3.json":                        isS3Event,
 		"sns.json":                       isSNSEvent,
 		"sqs.json":                       isSQSEvent,
+		"lambdaurl.json":                 isLambdaFunctionURLEvent,
 	}
 	for correctTestFile, testFunc := range testCases {
 		wrongTestFiles, err := os.ReadDir(testDir)
@@ -95,6 +97,7 @@ func TestGetEventType(t *testing.T) {
 		"s3.json":                        S3Event,
 		"sns.json":                       SNSEvent,
 		"sqs.json":                       SQSEvent,
+		"lambdaurl.json":                 LambdaFunctionURLEvent,
 	}
 
 	for testFile, expectedEventType := range testCases {

@@ -5,40 +5,30 @@
 
 package info
 
-import "go.uber.org/atomic"
-
 // TraceWriterInfo represents statistics from the trace writer.
 type TraceWriterInfo struct {
-	// all atomic values are included as values in this struct, to simplify
-	// initialization of the type.  The atomic values _must_ occur first in the
-	// struct.
-
-	Payloads          atomic.Int64
-	Traces            atomic.Int64
-	Events            atomic.Int64
-	Spans             atomic.Int64
-	Errors            atomic.Int64
-	Retries           atomic.Int64
-	Bytes             atomic.Int64
-	BytesUncompressed atomic.Int64
-	BytesEstimated    atomic.Int64
-	SingleMaxSize     atomic.Int64
+	Payloads          int64
+	Traces            int64
+	Events            int64
+	Spans             int64
+	Errors            int64
+	Retries           int64
+	Bytes             int64
+	BytesUncompressed int64
+	BytesEstimated    int64
+	SingleMaxSize     int64
 }
 
 // StatsWriterInfo represents statistics from the stats writer.
 type StatsWriterInfo struct {
-	// all atomic values are included as values in this struct, to simplify
-	// initialization of the type.  The atomic values _must_ occur first in the
-	// struct.
-
-	Payloads       atomic.Int64
-	ClientPayloads atomic.Int64
-	StatsBuckets   atomic.Int64
-	StatsEntries   atomic.Int64
-	Errors         atomic.Int64
-	Retries        atomic.Int64
-	Splits         atomic.Int64
-	Bytes          atomic.Int64
+	Payloads       int64
+	ClientPayloads int64
+	StatsBuckets   int64
+	StatsEntries   int64
+	Errors         int64
+	Retries        int64
+	Splits         int64
+	Bytes          int64
 }
 
 // UpdateTraceWriterInfo updates internal trace writer stats

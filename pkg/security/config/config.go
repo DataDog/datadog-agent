@@ -119,9 +119,9 @@ type Config struct {
 	// ActivityDumpCgroupWaitListSize defines the size of the cgroup wait list. The wait list is used to introduce a
 	// delay between 2 activity dumps of the same cgroup.
 	ActivityDumpCgroupWaitListSize int
-	// ActivityDumpCgroupDifferentiateGraphs defines if system-probe should differentiate process nodes using process
+	// ActivityDumpCgroupDifferentiateArgs defines if system-probe should differentiate process nodes using process
 	// arguments for dumps.
-	ActivityDumpCgroupDifferentiateGraphs bool
+	ActivityDumpCgroupDifferentiateArgs bool
 	// ActivityDumpLocalStorageDirectory defines the output directory for the activity dumps and graphs. Leave
 	// this field empty to prevent writing any output to disk.
 	ActivityDumpLocalStorageDirectory string
@@ -232,7 +232,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpTracedEventTypes:          model.ParseEventTypeStringSlice(coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
 		ActivityDumpCgroupDumpTimeout:         time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_dump_timeout")) * time.Minute,
 		ActivityDumpCgroupWaitListSize:        coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_wait_list_size"),
-		ActivityDumpCgroupDifferentiateGraphs: coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.cgroup_differentiate_args"),
+		ActivityDumpCgroupDifferentiateArgs:   coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.cgroup_differentiate_args"),
 		ActivityDumpLocalStorageDirectory:     coreconfig.Datadog.GetString("runtime_security_config.activity_dump.local_storage.output_directory"),
 		ActivityDumpLocalStorageMaxDumpsCount: coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.local_storage.max_dumps_count"),
 		ActivityDumpLocalStorageCompression:   coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.local_storage.compression"),
@@ -313,6 +313,10 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		if !lazyInterfaces[name] {
 			c.NetworkLazyInterfacePrefixes = append(c.NetworkLazyInterfacePrefixes, name)
 		}
+	}
+
+	if c.EventStreamBufferSize%os.Getpagesize() != 0 || c.EventStreamBufferSize&(c.EventStreamBufferSize-1) != 0 {
+		return nil, fmt.Errorf("runtime_security_config.event_stream.buffer_size must be a power of 2 and a multiple of %d", os.Getpagesize())
 	}
 
 	setEnv()

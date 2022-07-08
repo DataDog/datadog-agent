@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf/perf"
 	"github.com/pkg/errors"
@@ -25,14 +26,15 @@ const eventStreamMap = "events"
 // OrderedPerfMap implements the EventStream interface
 // using an eBPF perf map associated with a event reorder.
 type OrderedPerfMap struct {
-	perfMap    *manager.PerfMap
-	monitor    *Monitor
-	reOrderer  *ReOrderer
-	recordPool *RecordPool
+	perfMap           *manager.PerfMap
+	perfBufferMonitor *PerfBufferMonitor
+	reordererMonitor  *ReordererMonitor
+	reOrderer         *ReOrderer
+	recordPool        *RecordPool
 }
 
 // Init the event stream.
-func (m *OrderedPerfMap) Init(mgr *manager.Manager, monitor *Monitor, config *config.Config) error {
+func (m *OrderedPerfMap) Init(mgr *manager.Manager, config *config.Config) error {
 	var ok bool
 	if m.perfMap, ok = mgr.GetPerfMap(eventStreamMap); !ok {
 		return errors.New("couldn't find events perf map")
@@ -48,18 +50,25 @@ func (m *OrderedPerfMap) Init(mgr *manager.Manager, monitor *Monitor, config *co
 		m.perfMap.PerfMapOptions.PerfRingBufferSize = config.EventStreamBufferSize
 	}
 
-	m.monitor = monitor
 	return nil
 }
 
 func (m *OrderedPerfMap) handleLostEvents(CPU int, count uint64, perfMap *manager.PerfMap, manager *manager.Manager) {
 	seclog.Tracef("lost %d events", count)
-	m.monitor.perfBufferMonitor.CountLostEvent(count, perfMap.Name, CPU)
+	if m.perfBufferMonitor != nil {
+		m.perfBufferMonitor.CountLostEvent(count, perfMap.Name, CPU)
+	}
+}
+
+// SetMonitor set the monitor
+func (m *OrderedPerfMap) SetMonitor(perfBufferMonitor *PerfBufferMonitor) {
+	m.perfBufferMonitor = perfBufferMonitor
 }
 
 // Start the event stream.
 func (m *OrderedPerfMap) Start(wg *sync.WaitGroup) error {
-	wg.Add(1)
+	wg.Add(2)
+	go m.reordererMonitor.Start(wg)
 	go m.reOrderer.Start(wg)
 	return nil
 }
@@ -75,7 +84,7 @@ func (m *OrderedPerfMap) Resume() error {
 }
 
 // NewOrderedPerfMap returned a new ordered perf map.
-func NewOrderedPerfMap(ctx context.Context, handler func(int, []byte)) *OrderedPerfMap {
+func NewOrderedPerfMap(ctx context.Context, handler func(int, []byte), statsdClient statsd.ClientInterface) (*OrderedPerfMap, error) {
 	recordPool := NewRecordPool()
 	reOrderer := NewReOrderer(ctx,
 		func(record *perf.Record) {
@@ -91,8 +100,14 @@ func NewOrderedPerfMap(ctx context.Context, handler func(int, []byte)) *OrderedP
 			HeapShrinkDelta: 1000,
 		})
 
-	return &OrderedPerfMap{
-		reOrderer:  reOrderer,
-		recordPool: recordPool,
+	monitor, err := NewReOrderMonitor(ctx, statsdClient, reOrderer)
+	if err != nil {
+		return nil, errors.Wrap(err, "couldn't create the reorder monitor")
 	}
+
+	return &OrderedPerfMap{
+		reOrderer:        reOrderer,
+		recordPool:       recordPool,
+		reordererMonitor: monitor,
+	}, nil
 }
