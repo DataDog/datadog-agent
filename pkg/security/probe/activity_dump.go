@@ -20,7 +20,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -954,11 +953,6 @@ func (pan *ProcessActivityNode) insertSnapshotedSocket(p *process.Process, ad *A
 	}
 }
 
-var (
-	socketRe = regexp.MustCompile(`socket:\[[0-9]+\]`)
-	inodeRe  = regexp.MustCompile(`[0-9]+`)
-)
-
 func (pan *ProcessActivityNode) snapshotBoundSockets(p *process.Process, ad *ActivityDump) error {
 	// list all the file descriptors opened by the process
 	FDs, err := p.OpenFiles()
@@ -985,7 +979,7 @@ func (pan *ProcessActivityNode) snapshotBoundSockets(p *process.Process, ad *Act
 	}
 
 	// use /proc/[pid]/net/tcp,tcp6,udp,udp6 to extract the ports opened by the current process
-	proc, _ := procfs.NewFS(filepath.Join(util.HostProc(), fmt.Sprintf("%d", p.Pid)))
+	proc, _ := procfs.NewFS(filepath.Join(util.HostProc(fmt.Sprintf("%d", p.Pid))))
 	if err != nil {
 		return err
 	}
