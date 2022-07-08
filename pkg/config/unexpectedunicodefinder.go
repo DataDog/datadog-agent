@@ -5,12 +5,16 @@ import (
 	"unicode/utf8"
 )
 
+// UnexpectedUnicodeCodepoint contains specifics about an occurrence of an unexpected unicode codepoint
 type UnexpectedUnicodeCodepoint struct {
 	codepoint rune
 	reason    string
 	position  int
 }
 
+// FreeFromUnexpectedUnicode checks whether or not a given byte slice contains any
+// unicode codepoints that are 'unexpected'.
+// Unexpected here generally means invisible whitespace and control chars
 func FreeFromUnexpectedUnicode(input []byte) []UnexpectedUnicodeCodepoint {
 	totalSize := len(input)
 	currentIndex := 0
