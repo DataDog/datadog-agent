@@ -21,14 +21,7 @@ import (
 )
 
 func TestActivityDumps(t *testing.T) {
-	ruleDefs := []*rules.RuleDefinition{
-		{
-			ID:         "activating_network_probe",
-			Expression: `bind.addr.family == AF_INET && bind.addr.port == 1`,
-		},
-	}
-
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{enableActivityDump: true})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{enableActivityDump: true})
 	if err != nil {
 		t.Fatal(err)
 	}
