@@ -96,17 +96,12 @@ func factory() check.Check {
 func (hc *HelmCheck) Configure(config, initConfig integration.Data, source string) error {
 	hc.BuildID(config, initConfig)
 
-	err := hc.CommonConfigure(config, source)
+	err := hc.CommonConfigure(initConfig, config, source)
 	if err != nil {
 		return err
 	}
 
 	if err = hc.instance.Parse(config); err != nil {
-		return err
-	}
-
-	err = hc.CommonConfigure(initConfig, source)
-	if err != nil {
 		return err
 	}
 

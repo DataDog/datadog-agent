@@ -172,12 +172,7 @@ func init() {
 func (k *KSMCheck) Configure(config, initConfig integration.Data, source string) error {
 	k.BuildID(config, initConfig)
 
-	err := k.CommonConfigure(config, source)
-	if err != nil {
-		return err
-	}
-
-	err = k.CommonConfigure(initConfig, source)
+	err := k.CommonConfigure(initConfig, config, source)
 	if err != nil {
 		return err
 	}

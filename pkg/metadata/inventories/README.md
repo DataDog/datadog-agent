@@ -53,6 +53,8 @@ The payload is a JSON dict with the following fields
     - `last_updated` - **int**: timestamp of the last metadata update for this instance
     - `config.hash` - **string**: the instance ID for this instance (as shown in the status page).
     - `config.provider` - **string**: where the configuration came from for this instance (disk, docker labels, ...).
+    - `init_config` - **string**: the `init_config` part of the configuration for this check instance.
+    - `instance_config` - **string**: the YAML configuration for this check instance
     - Any other metadata registered by the instance (instance version, version of the software monitored, ...).
 <!-- NOTE: when modifying this list, please also update the constants in `inventories.go` -->
 - `agent_metadata` - **dict of string to JSON type**:
@@ -166,66 +168,74 @@ Here an example of an inventory payload:
     }
     "check_metadata": {
         "cpu": [
-           {
-               "config.hash": "cpu",
-               "config.provider": "file",
-               "last_updated": 1631281744506400319
-           }
+            {
+                "config.hash": "cpu",
+                "config.provider": "file",
+                "last_updated": 1631281744506400319,
+                "init_config": "",
+                "instance_config: {}
+            }
         ],
         "disk": [
             {
                 "config.hash": "disk:e5dffb8bef24336f",
                 "config.provider": "file",
-                "last_updated": 1631281744506400319
+                "last_updated": 1631281744506400319,
+                "init_config": "",
+                "instance_config: {}
             }
         ],
         "file_handle": [
             {
                 "config.hash": "file_handle",
                 "config.provider": "file",
-                "last_updated": 1631281744506400319
+                "last_updated": 1631281744506400319,
+                "init_config": "",
+                "instance_config: {}
             }
         ],
         "io": [
             {
                 "config.hash": "io",
                 "config.provider": "file",
-                "last_updated": 1631281744506400319
+                "last_updated": 1631281744506400319,
+                "init_config": "",
+                "instance_config: {}
             }
         ],
         "load": [
             {
                 "config.hash": "load",
                 "config.provider": "file",
-                "last_updated": 1631281744506400319
+                "last_updated": 1631281744506400319,
+                "init_config": "",
+                "instance_config: {}
             }
         ],
-        "memory": [
+        "redisdb": [
             {
-                "config.hash": "memory",
-                "config.provider": "file",
-                "last_updated": 1631281744506400319
-            }
-        ],
-        "network": [
+                "config.hash": "redisdb:6e5e79e5b724c83a",
+                "config.provider": "container",
+                "init_config": "test: 21",
+                "instance_config": "host: localhost\nport: 6379\ntags:\n- docker_image:redis\n- image_name:redis\n- short_image:redis",
+                "last_updated": 1658327911867365638,
+                "version.major": "7",
+                "version.minor": "0",
+                "version.patch": "2",
+                "version.raw": "7.0.2",
+                "version.scheme": "semver"
+            },
             {
-                "config.hash": "network:d884b5186b651429",
-                "config.provider": "file",
-                "last_updated": 1631281744506400319
-            }
-        ],
-        "ntp": [
-            {
-                "config.hash": "ntp:d884b5186b651429",
-                "config.provider": "file",
-                "last_updated": 1631281744506400319
-            }
-        ],
-        "uptime": [
-            {
-                "config.hash": "uptime",
-                "config.provider": "file",
-                "last_updated": 1631281744506400319
+                "config.hash": "redisdb:c776ecdbdded09b8",
+                "config.provider": "container",
+                "init_config": "test: 21",
+                "instance_config": "host: localhost\nport: 7379\ntags:\n- docker_image:redis\n- image_name:redis\n- short_image:redis",
+                "last_updated": 1658327940850060982,
+                "version.major": "7",
+                "version.minor": "0",
+                "version.patch": "2",
+                "version.raw": "7.0.2",
+                "version.scheme": "semver"
             }
         ]
     },
