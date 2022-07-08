@@ -50,9 +50,9 @@ class GithubWorkflows(RemoteAPI):
         delta_time = datetime.timedelta(minutes=5)
         run_date_filter = (datetime.datetime.utcnow() - delta_time).strftime("%Y-%m-%dT%H:%M")
         if inputs is None:
-            inputs = {"id": run_id}
+            inputs = {"run_id": run_id}
         else:
-            inputs["id"] = run_id
+            inputs["run_id"] = run_id
 
         path = f"/repos/{self.repository}/actions/workflows/{workflow_name}/dispatches"
         data = json.dumps({"ref": ref, "inputs": inputs})
