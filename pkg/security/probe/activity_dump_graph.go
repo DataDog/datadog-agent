@@ -174,12 +174,12 @@ func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data 
 }
 
 func (ad *ActivityDump) prepareDNSNode(n *DNSNode, data *graph, processID string) {
-	if len(n.requests) == 0 {
+	if len(n.Requests) == 0 {
 		// save guard, this should never happen
 		return
 	}
-	name := n.requests[0].Name + " (" + (model.QType(n.requests[0].Type).String())
-	for _, req := range n.requests[1:] {
+	name := n.Requests[0].Name + " (" + (model.QType(n.Requests[0].Type).String())
+	for _, req := range n.Requests[1:] {
 		name += ", " + model.QType(req.Type).String()
 	}
 	name += ")"
