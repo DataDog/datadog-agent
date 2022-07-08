@@ -36,9 +36,8 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
         return 0;
     }
 
-    bpf_map_delete_elem(&tcp_recvmsg_args, &pid_tgid);
-
     struct sock *skp = *skpp;
+    bpf_map_delete_elem(&tcp_recvmsg_args, &pid_tgid);
     if (!skp) {
         return 0;
     }
@@ -67,9 +66,8 @@ int kretprobe__tcp_read_sock(struct pt_regs *ctx) {
         return 0;
     }
 
-    bpf_map_delete_elem(&tcp_recvmsg_args, &pid_tgid);
-
     struct sock *skp = *skpp;
+    bpf_map_delete_elem(&tcp_recvmsg_args, &pid_tgid);
     if (!skp) {
         return 0;
     }
