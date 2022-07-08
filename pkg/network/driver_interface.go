@@ -95,6 +95,11 @@ func NewDriverInterface(cfg *config.Config) (*DriverInterface, error) {
 	return dc, nil
 }
 
+// GetHandle return the base flow handle
+func (di *DriverInterface) GetHandle() *driver.Handle {
+	return di.driverFlowHandle
+}
+
 // Close shuts down the driver interface
 func (di *DriverInterface) Close() error {
 	if err := di.driverFlowHandle.Close(); err != nil {
@@ -106,7 +111,7 @@ func (di *DriverInterface) Close() error {
 // setupFlowHandle generates a windows Driver Handle, and creates a DriverHandle struct to pull flows from the driver
 // by setting the necessary filters
 func (di *DriverInterface) setupFlowHandle() error {
-	dh, err := driver.NewHandle(0, driver.FlowHandle)
+	dh, err := driver.NewHandle(windows.FILE_FLAG_OVERLAPPED, driver.FlowHandle)
 	if err != nil {
 		return err
 	}
@@ -173,9 +178,17 @@ func (di *DriverInterface) GetConnectionStats(activeBuf *ConnectionBuffer, close
 
 	var bytesRead uint32
 	var totalBytesRead uint32
+	sig := driver.Signature
 	// keep reading while driver says there is more data available
 	for err := error(windows.ERROR_MORE_DATA); err == windows.ERROR_MORE_DATA; {
-		err = windows.ReadFile(di.driverFlowHandle.Handle, di.readBuffer, &bytesRead, nil)
+		//err = windows.ReadFile(di.driverFlowHandle.Handle, di.readBuffer, &bytesRead, nil)
+		err = windows.DeviceIoControl(di.driverFlowHandle.Handle,
+			driver.GetFlowsIOCTL,
+			(*byte)(unsafe.Pointer(&sig)), uint32(unsafe.Sizeof(sig)),
+			&di.readBuffer[0], uint32(len(di.readBuffer)),
+			&bytesRead,
+			nil)
+
 		if err != nil {
 			if err == windows.ERROR_NO_MORE_ITEMS {
 				break
@@ -253,23 +266,32 @@ func (di *DriverInterface) setFlowParams() error {
 
 	// this makes it so that the config can clamp down, but can never make it
 	// larger than the coded defaults above.
-	maxFlows := minUint64(defaultMaxOpenFlows+defaultMaxClosedFlows, di.maxOpenFlows+di.maxClosedFlows)
-	log.Debugf("Setting max flows in driver to %v", maxFlows)
+	maxOpenFlows := minUint64(defaultMaxOpenFlows, di.maxOpenFlows)
+	maxClosedFlows := minUint64(defaultMaxClosedFlows, di.maxClosedFlows)
+
 	err := windows.DeviceIoControl(di.driverFlowHandle.Handle,
-		driver.SetMaxFlowsIOCTL,
-		(*byte)(unsafe.Pointer(&maxFlows)),
-		uint32(unsafe.Sizeof(maxFlows)),
+		driver.SetMaxOpenFlowsIOCTL,
+		(*byte)(unsafe.Pointer(&maxOpenFlows)),
+		uint32(unsafe.Sizeof(maxOpenFlows)),
 		nil,
 		uint32(0), nil, nil)
 	if err != nil {
-		log.Warnf("Failed to set max number of flows to %v %v", maxFlows, err)
+		log.Warnf("Failed to set max number of open flows to %v %v", maxOpenFlows, err)
+	}
+	err = windows.DeviceIoControl(di.driverFlowHandle.Handle,
+		driver.SetMaxClosedFlowsIOCTL,
+		(*byte)(unsafe.Pointer(&maxClosedFlows)),
+		uint32(unsafe.Sizeof(maxClosedFlows)),
+		nil,
+		uint32(0), nil, nil)
+	if err != nil {
+		log.Warnf("Failed to set max number of closed flows to %v %v", maxClosedFlows, err)
 	}
 	return err
 }
 
 func (di *DriverInterface) createFlowHandleFilters() ([]driver.FilterDefinition, error) {
 	var filters []driver.FilterDefinition
-	log.Debugf("Creating filters for all interfaces")
 	if di.cfg.CollectTCPConns {
 		filters = append(filters, driver.FilterDefinition{
 			FilterVersion:  driver.Signature,
