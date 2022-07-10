@@ -58,6 +58,7 @@ func NewDriverMonitor(c *config.Config, dh *driver.Handle) (Monitor, error) {
 
 // Start consuming HTTP events
 func (m *DriverMonitor) Start() {
+	log.Infof("Driver Monitor: starting")
 	m.di.startReadingBuffers()
 
 	m.eventLoopWG.Add(1)
@@ -77,7 +78,7 @@ func (m *DriverMonitor) Start() {
 	return
 }
 
-func (m *DriverMonitor) process(transactionBatch []driver.HttpTransactionType) {
+func (m *DriverMonitor) process(transactionBatch []FullHttpTransaction) {
 	transactions := make([]httpTX, len(transactionBatch))
 	for i := range transactionBatch {
 		transactions[i] = httpTX(transactionBatch[i])
@@ -94,12 +95,12 @@ func (m *DriverMonitor) process(transactionBatch []driver.HttpTransactionType) {
 // GetHTTPStats returns a map of HTTP stats stored in the following format:
 // [source, dest tuple, request path] -> RequestStats object
 func (m *DriverMonitor) GetHTTPStats() map[Key]RequestStats {
-	transactions, err := m.di.flushPendingTransactions()
-	if err != nil {
-		log.Warnf("Failed to flush pending http transactions: %v", err)
-	}
 
-	m.process(transactions)
+	// dbtodo  This is now going to cause any pending transactions
+	// to be read and then stuffed into the channel.  Which then I think
+	// creates a race condition that there still could be some mid-
+	// process when we come back
+	m.di.readAllPendingTransactions()
 
 	m.mux.Lock()
 	defer m.mux.Unlock()

@@ -107,7 +107,7 @@ func (di *DriverInterface) Close() error {
 // setupFlowHandle generates a windows Driver Handle, and creates a DriverHandle struct to pull flows from the driver
 // by setting the necessary filters
 func (di *DriverInterface) setupFlowHandle() error {
-	dh, err := driver.NewHandle(windows.FILE_FLAG_OVERLAPPED, driver.FlowHandle)
+	dh, err := driver.NewHandle(0, driver.FlowHandle)
 	if err != nil {
 		return err
 	}
@@ -185,17 +185,18 @@ func (di *DriverInterface) GetConnectionStats(activeBuf *ConnectionBuffer, close
 
 	var bytesRead uint32
 	var totalBytesRead uint32
-	sig := driver.Signature
+	//sig := driver.Signature
 	// keep reading while driver says there is more data available
 	for err := error(windows.ERROR_MORE_DATA); err == windows.ERROR_MORE_DATA; {
-		//err = windows.ReadFile(di.driverFlowHandle.Handle, di.readBuffer, &bytesRead, nil)
-		err = windows.DeviceIoControl(di.driverFlowHandle.Handle,
-			driver.GetFlowsIOCTL,
-			(*byte)(unsafe.Pointer(&sig)), uint32(unsafe.Sizeof(sig)),
-			&di.readBuffer[0], uint32(len(di.readBuffer)),
-			&bytesRead,
-			nil)
-
+		err = windows.ReadFile(di.driverFlowHandle.Handle, di.readBuffer, &bytesRead, nil)
+		/*
+			err = windows.DeviceIoControl(di.driverFlowHandle.Handle,
+				driver.GetFlowsIOCTL,
+				(*byte)(unsafe.Pointer(&sig)), uint32(unsafe.Sizeof(sig)),
+				&di.readBuffer[0], uint32(len(di.readBuffer)),
+				&bytesRead,
+				nil)
+		*/
 		if err != nil {
 			if err == windows.ERROR_NO_MORE_ITEMS {
 				break

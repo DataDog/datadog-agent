@@ -22,7 +22,7 @@ import (
 const HTTPBufferSize = driver.HttpBufferSize
 const HTTPBatchSize = driver.HttpBatchSize
 
-type httpTX driver.HttpTransactionType
+type httpTX FullHttpTransaction
 
 // errLostBatch isn't a valid error in windows
 var errLostBatch = errors.New("invalid error")
@@ -35,62 +35,62 @@ func (tx *httpTX) ReqFragment() []byte {
 // StatusClass returns an integer representing the status code class
 // Example: a 404 would return 400
 func (tx *httpTX) StatusClass() int {
-	return (int(tx.ResponseStatusCode) / 100) * 100
+	return (int(tx.Txn.ResponseStatusCode) / 100) * 100
 }
 
 // RequestLatency returns the latency of the request in nanoseconds
 func (tx *httpTX) RequestLatency() float64 {
-	return nsTimestampToFloat(uint64(tx.ResponseLastSeen - tx.RequestStarted))
+	return nsTimestampToFloat(uint64(tx.Txn.ResponseLastSeen - tx.Txn.RequestStarted))
 }
 
 func (tx *httpTX) isIPV4() bool {
-	return tx.Tup.Family == windows.AF_INET
+	return tx.Txn.Tup.Family == windows.AF_INET
 }
 
 func (tx *httpTX) SrcIPLow() uint64 {
 	// Source & dest IP are given to us as a 16-byte slices in network byte order (BE). To convert to
 	// low/high representation, we must convert to host byte order (LE).
 	if tx.isIPV4() {
-		return uint64(binary.LittleEndian.Uint32(tx.Tup.CliAddr[:4]))
+		return uint64(binary.LittleEndian.Uint32(tx.Txn.Tup.CliAddr[:4]))
 	}
-	return binary.LittleEndian.Uint64(tx.Tup.CliAddr[8:])
+	return binary.LittleEndian.Uint64(tx.Txn.Tup.CliAddr[8:])
 }
 
 func (tx *httpTX) SrcIPHigh() uint64 {
 	if tx.isIPV4() {
 		return uint64(0)
 	}
-	return binary.LittleEndian.Uint64(tx.Tup.CliAddr[:8])
+	return binary.LittleEndian.Uint64(tx.Txn.Tup.CliAddr[:8])
 }
 
 func (tx *httpTX) SrcPort() uint16 {
-	return tx.Tup.CliPort
+	return tx.Txn.Tup.CliPort
 }
 
 func (tx *httpTX) DstIPLow() uint64 {
 	if tx.isIPV4() {
-		return uint64(binary.LittleEndian.Uint32(tx.Tup.SrvAddr[:4]))
+		return uint64(binary.LittleEndian.Uint32(tx.Txn.Tup.SrvAddr[:4]))
 	}
-	return binary.LittleEndian.Uint64(tx.Tup.SrvAddr[8:])
+	return binary.LittleEndian.Uint64(tx.Txn.Tup.SrvAddr[8:])
 }
 
 func (tx *httpTX) DstIPHigh() uint64 {
 	if tx.isIPV4() {
 		return uint64(0)
 	}
-	return binary.LittleEndian.Uint64(tx.Tup.SrvAddr[:8])
+	return binary.LittleEndian.Uint64(tx.Txn.Tup.SrvAddr[:8])
 }
 
 func (tx *httpTX) DstPort() uint16 {
-	return tx.Tup.SrvPort
+	return tx.Txn.Tup.SrvPort
 }
 
 func (tx *httpTX) Method() Method {
-	return Method(tx.RequestMethod)
+	return Method(tx.Txn.RequestMethod)
 }
 
 func (tx *httpTX) StatusCode() uint16 {
-	return tx.ResponseStatusCode
+	return tx.Txn.ResponseStatusCode
 }
 
 // Tags are not part of windows http transactions
@@ -126,20 +126,20 @@ func generateIPv4HTTPTransaction(client util.Address, server util.Address, cliPo
 	cli := client.Bytes()
 	srv := server.Bytes()
 
-	tx.RequestStarted = 1
-	tx.ResponseLastSeen = tx.RequestStarted + latencyNS
-	tx.ResponseStatusCode = uint16(code)
+	tx.Txn.RequestStarted = 1
+	tx.Txn.ResponseLastSeen = tx.Txn.RequestStarted + latencyNS
+	tx.Txn.ResponseStatusCode = uint16(code)
 	for i := 0; i < len(tx.RequestFragment) && i < len(reqFragment); i++ {
 		tx.RequestFragment[i] = uint8(reqFragment[i])
 	}
-	for i := 0; i < len(tx.Tup.CliAddr) && i < len(cli); i++ {
-		tx.Tup.CliAddr[i] = cli[i]
+	for i := 0; i < len(tx.Txn.Tup.CliAddr) && i < len(cli); i++ {
+		tx.Txn.Tup.CliAddr[i] = cli[i]
 	}
-	for i := 0; i < len(tx.Tup.SrvAddr) && i < len(srv); i++ {
-		tx.Tup.SrvAddr[i] = srv[i]
+	for i := 0; i < len(tx.Txn.Tup.SrvAddr) && i < len(srv); i++ {
+		tx.Txn.Tup.SrvAddr[i] = srv[i]
 	}
-	tx.Tup.CliPort = uint16(cliPort)
-	tx.Tup.SrvPort = uint16(srvPort)
+	tx.Txn.Tup.CliPort = uint16(cliPort)
+	tx.Txn.Tup.SrvPort = uint16(srvPort)
 
 	return tx
 }
