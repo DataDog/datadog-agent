@@ -107,6 +107,12 @@ type ActivityDump struct {
 	DumpMetadata `msg:"metadata"`
 }
 
+func NewEmptyActivityDump() *ActivityDump {
+	return &ActivityDump{
+		Mutex: &sync.Mutex{},
+	}
+}
+
 // WithDumpOption can be used to configure an ActivityDump
 //msgp:ignore WithDumpOption
 type WithDumpOption func(ad *ActivityDump)

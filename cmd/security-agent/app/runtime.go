@@ -542,7 +542,7 @@ func generateEncodingFromActivityDump(cmd *cobra.Command, args []string) error {
 
 	} else {
 		// encoding request will be handled locally
-		var ad sprobe.ActivityDump
+		ad := sprobe.NewEmptyActivityDump()
 
 		// open and parse input file
 		if err := ad.Decode(activityDumpArgs.file); err != nil {
