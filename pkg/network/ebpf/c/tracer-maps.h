@@ -36,6 +36,12 @@ BPF_HASH_MAP(conn_close_batch, __u32, batch_t, 1024)
  */
 BPF_HASH_MAP(tcp_sendmsg_args, __u64, struct sock *, 1024)
 
+/*
+ * Map to hold struct sock parameter for tcp_recvmsg/tcp_read_sock calls
+ * to be used in kretprobe/tcp_recvmsg/tcp_read_sock
+ */
+BPF_HASH_MAP(tcp_recvmsg_args, __u64, struct sock *, 1024)
+
 /* This map is used to match the kprobe & kretprobe of udp_recvmsg */
 /* This is a key/value store with the keys being a pid
  * and the values being a udp_recv_sock_t
@@ -85,8 +91,5 @@ BPF_HASH_MAP(do_sendfile_args, __u64, struct sock *, 1024)
 // Used to store ip(6)_make_skb args to be used in the
 // corresponding kretprobes
 BPF_HASH_MAP(ip_make_skb_args, __u64, ip_make_skb_args_t, 1024)
-
-
-BPF_HASH_MAP(tcp_recvmsg, __u64, __u32, 1024)
 
 #endif
