@@ -74,12 +74,11 @@ func NewDriverInterface(cfg *config.Config) (*DriverInterface, error) {
 		closedFlows:    atomic.NewInt64(0),
 		openFlows:      atomic.NewInt64(0),
 		moreDataErrors: atomic.NewInt64(0),
-		bufferSize:     atomic.NewInt64(0),
+		bufferSize:     atomic.NewInt64(defaultDriverBufferSize),
 
 		cfg:                   cfg,
 		enableMonotonicCounts: cfg.EnableMonotonicCount,
 		readBuffer:            make([]byte, defaultDriverBufferSize),
-		bufferSize:            int64(defaultDriverBufferSize),
 		maxOpenFlows:          uint64(cfg.MaxTrackedConnections),
 		maxClosedFlows:        uint64(cfg.MaxClosedConnectionsBuffered),
 	}
