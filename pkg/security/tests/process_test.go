@@ -371,7 +371,7 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			argv := strings.Split(args.(string), " ")
-			assert.Equal(t, 166, len(argv), "incorrect number of args: %s", argv)
+			assert.Equal(t, 159, len(argv), "incorrect number of args: %s", argv)
 
 			truncated, err := event.GetFieldValue("exec.args_truncated")
 			if err != nil {
