@@ -25,10 +25,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util"
 
 	// util.GetHostname(...) will panic without this import
 	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/cgroup"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 func getTracedCgroupsCount(p *Probe) uint64 {
@@ -200,7 +200,7 @@ func (adm *ActivityDumpManager) prepareContextTags() {
 	var err error
 
 	// add hostname tag
-	adm.hostname, err = util.GetHostname(context.TODO())
+	adm.hostname, err = hostname.Get(context.TODO())
 	if err != nil {
 		adm.hostname = "unknown"
 	}
@@ -291,8 +291,8 @@ func (adm *ActivityDumpManager) HandleCgroupTracingEvent(event *model.CgroupTrac
 	}
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
 		ad.DumpMetadata.ContainerID = event.ContainerContext.ID
-		ad.DumpMetadata.Timeout = adm.probe.resolvers.TimeResolver.ResolveMonotonicTimestamp(event.TimeoutRaw).Sub(time.Now())
-		ad.DumpMetadata.DifferentiateArgs = adm.probe.config.ActivityDumpCgroupDifferentiateGraphs
+		ad.DumpMetadata.Timeout = time.Until(adm.probe.resolvers.TimeResolver.ResolveMonotonicTimestamp(event.TimeoutRaw))
+		ad.DumpMetadata.DifferentiateArgs = adm.probe.config.ActivityDumpCgroupDifferentiateArgs
 	})
 
 	// add local storage requests
@@ -429,7 +429,7 @@ func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(ad *Activi
 func (adm *ActivityDumpManager) TranscodingRequest(params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
 	adm.Lock()
 	defer adm.Unlock()
-	var ad ActivityDump
+	ad := NewActivityDump(adm)
 
 	// open and parse input file
 	if err := ad.Decode(params.GetActivityDumpFile()); err != nil {
@@ -448,7 +448,7 @@ func (adm *ActivityDumpManager) TranscodingRequest(params *api.TranscodingReques
 	}
 
 	// persist to execute transcoding request
-	if err = adm.storage.Persist(&ad); err != nil {
+	if err = adm.storage.Persist(ad); err != nil {
 		seclog.Errorf("couldn't persist [%s]: %v", ad.GetSelectorStr(), err)
 	}
 

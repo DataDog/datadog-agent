@@ -3,15 +3,16 @@ package netflow
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewNetflowServer(t *testing.T) {
@@ -75,8 +76,8 @@ network_devices:
 	assert.Equal(t, uint32(1), actualFlow.Ingress.Interface.Index)
 	assert.Equal(t, uint32(7), actualFlow.Egress.Interface.Index)
 	assert.Equal(t, "default", actualFlow.Device.Namespace)
-	hostname, _ := util.GetHostname(context.TODO())
-	assert.Equal(t, hostname, actualFlow.Host)
+	hostnameDetected, _ := hostname.Get(context.TODO())
+	assert.Equal(t, hostnameDetected, actualFlow.Host)
 	assert.ElementsMatch(t, []string{"SYN", "RST", "ACK"}, actualFlow.TCPFlags)
 	assert.Equal(t, "0.0.0.0", actualFlow.NextHop.IP)
 }

@@ -24,7 +24,7 @@ type RingBuffer struct {
 }
 
 // Init the ring buffer
-func (rb *RingBuffer) Init(mgr *manager.Manager, monitor *Monitor, config *config.Config) error {
+func (rb *RingBuffer) Init(mgr *manager.Manager, config *config.Config) error {
 	var ok bool
 	if rb.ringBuffer, ok = mgr.GetRingBuffer("events"); !ok {
 		return errors.New("couldn't find events perf map")
@@ -45,6 +45,9 @@ func (rb *RingBuffer) Init(mgr *manager.Manager, monitor *Monitor, config *confi
 func (rb *RingBuffer) Start(wg *sync.WaitGroup) error {
 	return nil
 }
+
+// SetMonitor set the monitor
+func (rb *RingBuffer) SetMonitor(perfBufferMonitor *PerfBufferMonitor) {}
 
 func (rb *RingBuffer) handleEvent(CPU int, data []byte, ringBuffer *manager.RingBuffer, manager *manager.Manager) {
 	rb.handler(CPU, data)

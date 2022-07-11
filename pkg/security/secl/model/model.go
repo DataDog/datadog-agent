@@ -383,7 +383,7 @@ func (f *FileFields) GetInUpperLayer() bool {
 
 // FileEvent is the common file event type
 type FileEvent struct {
-	FileFields
+	FileFields `msg:"file_fields"`
 
 	PathnameStr string `field:"path,handler:ResolveFilePath" msg:"path" op_override:"ProcessSymlinkPathname"`     // File's path
 	BasenameStr string `field:"name,handler:ResolveFileBasename" msg:"name" op_override:"ProcessSymlinkBasename"` // File's basename

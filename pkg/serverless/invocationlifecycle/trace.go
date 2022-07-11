@@ -42,10 +42,10 @@ type invocationPayload struct {
 
 // startExecutionSpan records information from the start of the invocation.
 // It should be called at the start of the invocation.
-func startExecutionSpan(executionContext *ExecutionStartInfo, inferredSpan *inferredspan.InferredSpan, startTime time.Time, rawPayload string, invokeEventHeaders LambdaInvokeEventHeaders, inferredSpansEnabled bool) {
+func startExecutionSpan(executionContext *ExecutionStartInfo, inferredSpan *inferredspan.InferredSpan, rawPayload string, startDetails *InvocationStartDetails, inferredSpansEnabled bool) {
 	payload := convertRawPayload(rawPayload)
 	executionContext.requestPayload = rawPayload
-	executionContext.startTime = startTime
+	executionContext.startTime = startDetails.StartTime
 
 	if inferredSpansEnabled && inferredSpan.Span.Start != 0 {
 		executionContext.TraceID = inferredSpan.Span.TraceID
@@ -74,28 +74,28 @@ func startExecutionSpan(executionContext *ExecutionStartInfo, inferredSpan *infe
 				executionContext.parentID = parentID
 			}
 		}
-	} else if invokeEventHeaders.TraceID != "" { // trace context from a direct invocation
-		traceID, err := strconv.ParseUint(invokeEventHeaders.TraceID, 0, 64)
+	} else if startDetails.InvokeEventHeaders.TraceID != "" { // trace context from a direct invocation
+		traceID, err := strconv.ParseUint(startDetails.InvokeEventHeaders.TraceID, 0, 64)
 		if err != nil {
 			log.Debug("Unable to parse traceID from invokeEventHeaders")
 		} else {
 			executionContext.TraceID = traceID
 		}
 
-		parentID, err := strconv.ParseUint(invokeEventHeaders.ParentID, 0, 64)
+		parentID, err := strconv.ParseUint(startDetails.InvokeEventHeaders.ParentID, 0, 64)
 		if err != nil {
 			log.Debug("Unable to parse parentID from invokeEventHeaders")
 		} else {
 			executionContext.parentID = parentID
 		}
 	}
-	executionContext.SamplingPriority = getSamplingPriority(payload.Headers[SamplingPriorityHeader], invokeEventHeaders.SamplingPriority)
+	executionContext.SamplingPriority = getSamplingPriority(payload.Headers[SamplingPriorityHeader], startDetails.InvokeEventHeaders.SamplingPriority)
 }
 
 // endExecutionSpan builds the function execution span and sends it to the intake.
 // It should be called at the end of the invocation.
-func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[string]string, processTrace func(p *api.Payload), requestID string, endTime time.Time, isError bool, responsePayload string) {
-	duration := endTime.UnixNano() - executionContext.startTime.UnixNano()
+func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[string]string, processTrace func(p *api.Payload), endDetails *InvocationEndDetails) {
+	duration := endDetails.EndTime.UnixNano() - executionContext.startTime.UnixNano()
 
 	executionSpan := &pb.Span{
 		Service:  "aws.lambda", // will be replaced by the span processor
@@ -109,15 +109,15 @@ func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[stri
 		Duration: duration,
 		Meta:     triggerTags,
 	}
-	executionSpan.Meta["request_id"] = requestID
+	executionSpan.Meta["request_id"] = endDetails.RequestID
 
 	captureLambdaPayloadEnabled := config.Datadog.GetBool("capture_lambda_payload")
 	if captureLambdaPayloadEnabled {
 		executionSpan.Meta["function.request"] = executionContext.requestPayload
-		executionSpan.Meta["function.response"] = responsePayload
+		executionSpan.Meta["function.response"] = endDetails.ResponseRawPayload
 	}
 
-	if isError {
+	if endDetails.IsError {
 		executionSpan.Error = 1
 	}
 

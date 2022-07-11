@@ -148,7 +148,7 @@ func (storage *ActivityDumpRemoteStorage) buildBody(request dump.StorageRequest,
 }
 
 func (storage *ActivityDumpRemoteStorage) sendToEndpoint(url string, apiKey string, request dump.StorageRequest, writer *multipart.Writer, body *bytes.Buffer) error {
-	r, err := http.NewRequest("POST", url, body)
+	r, err := http.NewRequest("POST", url, bytes.NewBuffer(body.Bytes()))
 	if err != nil {
 		return err
 	}

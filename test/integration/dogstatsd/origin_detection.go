@@ -10,7 +10,6 @@ package dogstatsd
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -42,10 +41,7 @@ func testUDSOriginDetection(t *testing.T) {
 	var composeFile string
 	dir := os.ExpandEnv("$SCRATCH_VOLUME_PATH")
 	if dir == "" { // Running on the host
-		var err error
-		dir, err = ioutil.TempDir("", "dd-test-")
-		assert.Nil(t, err)
-		defer os.RemoveAll(dir) // clean up
+		dir = t.TempDir()
 		socketVolume = dir
 		composeFile = "mount_path.compose"
 

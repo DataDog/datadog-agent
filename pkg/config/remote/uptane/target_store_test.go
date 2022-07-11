@@ -13,9 +13,10 @@ import (
 )
 
 func TestTargetStore(t *testing.T) {
-	db := getTestDB()
-	store, err := newTargetStore(db, "testcachekey")
-	assert.NoError(t, err)
+	db := newTransactionalStore(getTestDB(t))
+	defer db.commit()
+
+	store := newTargetStore(db, "testcachekey")
 
 	target1 := &pbgo.File{
 		Path: "2/APM_SAMPLING/target1",

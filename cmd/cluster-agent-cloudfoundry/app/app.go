@@ -29,13 +29,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -155,11 +156,11 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	// get hostname
-	hostname, err := util.GetHostname(context.TODO())
+	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
-	log.Infof("Hostname is: %s", hostname)
+	log.Infof("Hostname is: %s", hname)
 
 	keysPerDomain, err := config.GetMultipleEndpoints()
 	if err != nil {
@@ -171,7 +172,7 @@ func run(cmd *cobra.Command, args []string) error {
 	opts.UseEventPlatformForwarder = false
 	opts.UseOrchestratorForwarder = false
 	opts.UseContainerLifecycleForwarder = false
-	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
+	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hname)
 	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	log.Infof("Datadog Cluster Agent is now running.")
@@ -192,6 +193,11 @@ func run(cmd *cobra.Command, args []string) error {
 
 	// create and setup the Autoconfig instance
 	common.LoadComponents(mainCtx, config.Datadog.GetString("confd_path"))
+
+	// Set up check collector
+	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll), true)
+	common.Coll.Start()
+
 	// start the autoconfig, this will immediately run any configured check
 	common.AC.LoadAndRun()
 
