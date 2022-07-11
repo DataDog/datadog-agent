@@ -357,7 +357,7 @@ func TestAutoMultiLineHandlerSwitchesToMultiLineModeWithDelay(t *testing.T) {
 	clock := clock.NewMock()
 	h.clk = clock
 
-	// Advanced the clock past the (10ms) detection timeout. (timer should not have started yet)
+	// Advance the clock past the (10ms) detection timeout. (timer should not have started yet)
 	clock.Add(time.Second)
 
 	// Process a log that will match - the timer should start now
@@ -367,7 +367,7 @@ func TestAutoMultiLineHandlerSwitchesToMultiLineModeWithDelay(t *testing.T) {
 	assert.NotNil(t, h.singleLineHandler)
 	assert.Nil(t, h.multiLineHandler)
 
-	// Advanced the clock past the (10ms) detection timeout.
+	// Advance the clock past the (10ms) detection timeout.
 	clock.Add(time.Second)
 
 	// Process a log that will match. The timer has already timed out
