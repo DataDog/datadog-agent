@@ -178,7 +178,7 @@ def test(
 
 
 @task
-def kitchen_prepare(ctx, windows=is_windows):
+def kitchen_prepare(ctx, windows=is_windows, kernel_release=None):
     """
     Compile test suite for kitchen
     """
@@ -224,6 +224,7 @@ def kitchen_prepare(ctx, windows=is_windows):
             skip_linters=True,
             bundle_ebpf=False,
             output_path=os.path.join(target_path, target_bin),
+            kernel_release=kernel_release,
         )
 
         # copy ancillary data, if applicable
