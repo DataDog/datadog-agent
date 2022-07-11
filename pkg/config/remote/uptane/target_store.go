@@ -51,7 +51,6 @@ func (s *targetStore) getTargetFile(path string) ([]byte, bool, error) {
 
 func (s *targetStore) pruneTargetFiles(keptPaths []string) error {
 	return s.db.update(func(t *transaction) error {
-		t.pruneTargetFiles(s.targetBucket, keptPaths)
-		return nil
+		return t.pruneTargetFiles(s.targetBucket, keptPaths)
 	})
 }
