@@ -88,7 +88,7 @@ func (rsa *RuntimeSecurityAgent) Start(reporter event.Reporter, endpoints *confi
 	// Start activity dumps listener
 	go rsa.StartActivityDumpListener()
 	// Send Runtime Security Agent telemetry
-	go rsa.telemetry.run(ctx)
+	go rsa.telemetry.run(ctx, rsa)
 }
 
 // Stop the runtime recurity agent

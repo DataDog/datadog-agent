@@ -18,10 +18,13 @@ import (
 	"strings"
 
 	"github.com/mailru/easyjson/jwriter"
+	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	ddhttputil "github.com/DataDog/datadog-agent/pkg/util/http"
 )
@@ -45,8 +48,9 @@ func getEndpointURL(endpoint logsconfig.Endpoint, uri string) string {
 
 // ActivityDumpRemoteStorage is a remote storage that forwards dumps to the backend
 type ActivityDumpRemoteStorage struct {
-	urls    []string
-	apiKeys []string
+	urls             []string
+	apiKeys          []string
+	tooLargeEntities map[dump.StorageFormat]map[bool]*atomic.Uint64
 
 	client *http.Client
 }
@@ -54,9 +58,17 @@ type ActivityDumpRemoteStorage struct {
 // NewActivityDumpRemoteStorage returns a new instance of ActivityDumpRemoteStorage
 func NewActivityDumpRemoteStorage() (ActivityDumpStorage, error) {
 	storage := &ActivityDumpRemoteStorage{
+		tooLargeEntities: make(map[dump.StorageFormat]map[bool]*atomic.Uint64),
 		client: &http.Client{
 			Transport: ddhttputil.CreateHTTPTransport(),
 		},
+	}
+
+	for _, format := range dump.AllStorageFormats() {
+		storage.tooLargeEntities[format] = map[bool]*atomic.Uint64{
+			true:  atomic.NewUint64(0),
+			false: atomic.NewUint64(0),
+		}
 	}
 
 	endpoints, err := config.ActivityDumpRemoteStorageEndpoints("cws-intake.", "secdump", logsconfig.DefaultIntakeProtocol, "cloud-workload-security")
@@ -164,10 +176,13 @@ func (storage *ActivityDumpRemoteStorage) sendToEndpoint(url string, apiKey stri
 		return err
 	}
 	_ = resp.Body.Close()
-	if resp.StatusCode != http.StatusAccepted {
-		return fmt.Errorf(resp.Status)
+	if resp.StatusCode == http.StatusAccepted {
+		return nil
 	}
-	return nil
+	if resp.StatusCode == http.StatusRequestEntityTooLarge {
+		storage.tooLargeEntities[request.Format][request.Compression].Inc()
+	}
+	return fmt.Errorf(resp.Status)
 }
 
 // Persist saves the provided buffer to the persistent storage
@@ -186,4 +201,18 @@ func (storage *ActivityDumpRemoteStorage) Persist(request dump.StorageRequest, a
 	}
 
 	return nil
+}
+
+// SendTelemetry sends telemetry for the current storage
+func (storage *ActivityDumpRemoteStorage) SendTelemetry(sender aggregator.Sender) {
+	// send too large entity metric
+	for format, entities := range storage.tooLargeEntities {
+		tags := []string{"format:" + format.String()}
+		for compression, count := range entities {
+			entityTags := append(tags, fmt.Sprintf("compression:%v", compression))
+			if entityCount := count.Swap(0); entityCount > 0 {
+				sender.Count(metrics.MetricActivityDumpEntityTooLarge, float64(entityCount), "", entityTags)
+			}
+		}
+	}
 }
