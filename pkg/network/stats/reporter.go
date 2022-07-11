@@ -10,7 +10,6 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
-	syncatomic "sync/atomic"
 	"unsafe"
 
 	"go.uber.org/atomic"
@@ -19,37 +18,33 @@ import (
 // Reporter reports stats, extracting values fron a struct and providing them
 // in a map from its Report method.
 type Reporter struct {
-	stats map[string]statsInfo
-	value reflect.Value
-}
+	// stats maps field names to the struct index containing their value
+	stats map[string]int
 
-type statsInfo struct {
-	idx    int
-	atomic bool
+	// value is the struct to be reported on
+	value reflect.Value
 }
 
 const statsTag = "stats"
 
 // NewReporter create a new Reporter.  Pass a struct containing fields tagged
-// with `stats`.  If these fields are of integer types tagged with
-// `stats:"atomic"`, they will be read atomically.  Fields of types in the
-// `go.uber.org/atomic` package will be read atomically automatically.
+// with `stats`.  Fields pointing to types in the `go.uber.org/atomic` package
+// will be read atomically automatically.
 func NewReporter(v interface{}) (Reporter, error) {
 	r := Reporter{
-		stats: map[string]statsInfo{},
+		stats: map[string]int{},
 		value: reflect.ValueOf(v).Elem(),
 	}
 
 	tv := r.value.Type()
 	for f := 0; f < tv.NumField(); f++ {
 		field := tv.Field(f)
-		if tagValue, ok := field.Tag.Lookup(statsTag); ok {
-			atomic := tagValue == "atomic"
-			if !isTypeSupported(field, atomic) {
+		if _, ok := field.Tag.Lookup(statsTag); ok {
+			if !isTypeSupported(field) {
 				return Reporter{}, fmt.Errorf("unsupported type %+v for field %s", field.Type.Kind(), field.Name)
 			}
 
-			r.stats[toSnakeCase(field.Name)] = statsInfo{idx: f, atomic: atomic}
+			r.stats[toSnakeCase(field.Name)] = f
 		}
 	}
 
@@ -60,19 +55,20 @@ func qualifiedTypeName(ty reflect.Type) string {
 	return ty.PkgPath() + "." + ty.Name()
 }
 
-func isTypeSupported(f reflect.StructField, atomic bool) bool {
-	if atomic {
-		switch f.Type.Kind() {
-		case reflect.Int32, reflect.Int64, reflect.Uint32, reflect.Uint64, reflect.Uintptr, reflect.Uint:
-			return true
-		}
-
-		return false
-	}
-
+func isTypeSupported(f reflect.StructField) bool {
 	switch f.Type.Kind() {
-	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Int8,
-		reflect.Uint, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uint8, reflect.Uintptr:
+	case
+		reflect.Int,
+		reflect.Int8,
+		reflect.Int16,
+		reflect.Int32,
+		reflect.Int64,
+		reflect.Uint,
+		reflect.Uint8,
+		reflect.Uint16,
+		reflect.Uint32,
+		reflect.Uint64,
+		reflect.Uintptr:
 		return true
 	case reflect.Ptr:
 		referentType := qualifiedTypeName(f.Type.Elem())
@@ -101,13 +97,9 @@ func isTypeSupported(f reflect.StructField, atomic bool) bool {
 // Report reports stats from the stats object
 func (r Reporter) Report() map[string]interface{} {
 	stats := make(map[string]interface{}, len(r.stats))
-	for name, si := range r.stats {
+	for name, idx := range r.stats {
 		var v interface{}
-		f := r.value.Field(si.idx)
-		if si.atomic {
-			stats[name] = loadAtomic(f)
-			continue
-		}
+		f := r.value.Field(idx)
 
 		switch f.Kind() {
 		case reflect.Int:
@@ -130,6 +122,8 @@ func (r Reporter) Report() map[string]interface{} {
 			v = uint32(f.Uint())
 		case reflect.Uint64:
 			v = uint64(f.Uint()) //nolint:unconvert
+		case reflect.Uintptr:
+			v = *(*uintptr)(unsafe.Pointer(f.UnsafeAddr()))
 		case reflect.Ptr:
 			// This is a "trick" to hide the fact that f is unexported from f.Interface,
 			// which (unlike f.Int etc, above) will panic for unexported fields
@@ -167,31 +161,12 @@ func (r Reporter) Report() map[string]interface{} {
 				panic("Unrecognized pointer to %s" + referentType)
 			}
 		default:
-			panic(fmt.Sprintf("unrecognized kind %#v", f.Kind()))
+			panic(fmt.Sprintf("unrecognized kind %#v for field %s", f.Kind(), name))
 		}
 		stats[name] = v
 	}
 
 	return stats
-}
-
-func loadAtomic(f reflect.Value) interface{} {
-	switch f.Kind() {
-	case reflect.Int32:
-		return syncatomic.LoadInt32((*int32)(unsafe.Pointer(f.UnsafeAddr())))
-	case reflect.Int64:
-		return syncatomic.LoadInt64((*int64)(unsafe.Pointer(f.UnsafeAddr())))
-	case reflect.Uint:
-		return uint(syncatomic.LoadUintptr((*uintptr)(unsafe.Pointer(f.UnsafeAddr()))))
-	case reflect.Uintptr:
-		return syncatomic.LoadUintptr((*uintptr)(unsafe.Pointer(f.UnsafeAddr())))
-	case reflect.Uint32:
-		return syncatomic.LoadUint32((*uint32)(unsafe.Pointer(f.UnsafeAddr())))
-	case reflect.Uint64:
-		return syncatomic.LoadUint64((*uint64)(unsafe.Pointer(f.UnsafeAddr())))
-	}
-
-	return nil
 }
 
 // from https://gist.github.com/stoewer/fbe273b711e6a06315d19552dd4d33e6
