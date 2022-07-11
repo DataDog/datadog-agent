@@ -13,6 +13,7 @@ import (
 	"time"
 
 	cebpf "github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/rlimit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,6 +25,9 @@ func TestMapCleaner(t *testing.T) {
 		key = new(int64)
 		val = new(int64)
 	)
+
+	err := rlimit.RemoveMemlock()
+	require.NoError(t, err)
 
 	m, err := cebpf.NewMap(&cebpf.MapSpec{
 		Type:       cebpf.Hash,
