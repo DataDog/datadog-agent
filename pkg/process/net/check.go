@@ -32,11 +32,10 @@ func (r *RemoteSysProbeUtil) GetCheck(module sysconfig.ModuleName) (interface{},
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return nil, err
-	} else {
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("conn request failed: socket %s, url %s, status code: %d", r.path, fmt.Sprintf(checksURL, module), resp.StatusCode)
-		}
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("conn request failed: socket %s, url %s, status code: %d", r.path, fmt.Sprintf(checksURL, module), resp.StatusCode)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
