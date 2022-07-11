@@ -3,6 +3,21 @@
 
 #include "http-types.h"
 
+// note: arm64 bpf_probe_read_user() could page fault if the HTTP_BUFFER_SIZE overlap a page
+static __always_inline void fill_http_buffer_safe(char *buffer, char *data) {
+    __builtin_memset(buffer, 0, HTTP_BUFFER_SIZE);
+    if (bpf_probe_read_user(buffer, HTTP_BUFFER_SIZE, data) >= 0) {
+        return;
+    }
+#pragma unroll
+    for (int i = 0; i < HTTP_BUFFER_SIZE; i++) {
+        bpf_probe_read_user(&buffer[i], 1, &data[i]);
+        if (data[i] == 0) {
+            break;
+        }
+    }
+}
+
 // read_into_buffer copies data from an arbitrary memory address into a (statically sized) HTTP buffer.
 // Ideally we would only copy min(data_size, HTTP_BUFFER_SIZE) bytes, but the code below is the only way
 // we found to handle data sizes smaller than HTTP_BUFFER_SIZE in Kernel 4.4.
@@ -10,8 +25,7 @@
 // Please note that even though the memset could be removed with no semantic change to the code,
 // it is still necessary to make the eBPF verifier happy.
 static __always_inline void read_into_buffer(char *buffer, char *data, size_t data_size) {
-    __builtin_memset(buffer, 0, HTTP_BUFFER_SIZE);
-    bpf_probe_read_user(buffer, HTTP_BUFFER_SIZE, data);
+    fill_http_buffer_safe(buffer, data);
 
     if (data_size >= HTTP_BUFFER_SIZE) {
         return;
