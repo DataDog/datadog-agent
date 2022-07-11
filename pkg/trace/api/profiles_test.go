@@ -232,6 +232,7 @@ func TestProfileProxyHandler(t *testing.T) {
 			t.Fatalf("invalid response: %s", res.Status)
 		}
 		slurp, err := ioutil.ReadAll(res.Body)
+		res.Body.Close()
 		if err != nil {
 			t.Fatal(err)
 		}

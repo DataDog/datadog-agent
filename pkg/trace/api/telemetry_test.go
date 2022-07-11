@@ -40,7 +40,9 @@ func newRequestRecorder(t *testing.T) (req *http.Request, rec *httptest.Response
 }
 
 func recordedResponse(t *testing.T, rec *httptest.ResponseRecorder) string {
-	responseBody, err := ioutil.ReadAll(rec.Result().Body)
+	resp := rec.Result()
+	responseBody, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
 	assert.NoError(t, err)
 
 	return string(responseBody)

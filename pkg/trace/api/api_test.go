@@ -95,8 +95,11 @@ func TestReceiverRequestBodyLength(t *testing.T) {
 		assert.Nil(err)
 
 		resp, err := client.Do(req)
-		if err == nil && resp.StatusCode == http.StatusOK {
-			break
+		if err == nil {
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				break
+			}
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
@@ -111,6 +114,7 @@ func TestReceiverRequestBodyLength(t *testing.T) {
 		resp, err := client.Do(req)
 		assert.Nil(err)
 		assert.Equal(expectedStatus, resp.StatusCode)
+		resp.Body.Close()
 	}
 
 	testBody(http.StatusOK, "[]")

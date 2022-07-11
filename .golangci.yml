@@ -66,6 +66,7 @@ linters:
     - errcheck    # errcheck is a program for checking for unchecked errors in go programs.
     - staticcheck # staticcheck is a go vet on steroids, applying a ton of static analysis checks
     - govet       # Vet examines Go source code and reports suspicious constructs, such as Printf calls whose arguments do not align with the format string
+    - bodyclose   # checks whether HTTP response body is closed successfully
 
 linters-settings:
   errcheck:

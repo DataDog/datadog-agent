@@ -74,6 +74,7 @@ func getSyscallTable(url string, abis []string) ([]syscallDefinition, error) {
 		return nil, err
 	}
 
+	defer resp.Body.Close()
 	scanner := bufio.NewScanner(resp.Body)
 	syscalls := make([]syscallDefinition, 0)
 

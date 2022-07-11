@@ -83,6 +83,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
 
 		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
+		resp.Body.Close()
 		require.Len(t, proxyreqs, 1)
 		proxyreq := proxyreqs[0]
 		assert.Equal(t, "my.subdomain.us3.datadoghq.com", proxyreq.Host)

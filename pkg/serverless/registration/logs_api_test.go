@@ -57,6 +57,9 @@ func TestIsValidHTTPCodeError(t *testing.T) {
 
 func TestSendLogRegistrationRequestFailure(t *testing.T) {
 	response, err := sendLogRegistrationRequest(&http.Client{}, &http.Request{})
+	if err == nil {
+		response.Body.Close()
+	}
 	assert.Nil(t, response)
 	assert.NotNil(t, err)
 }
@@ -65,6 +68,7 @@ func TestSendLogRegistrationRequestSuccess(t *testing.T) {
 	response, err := sendLogRegistrationRequest(&ClientMock{}, &http.Request{})
 	assert.Nil(t, err)
 	assert.NotNil(t, response)
+	response.Body.Close()
 }
 
 func TestSubscribeLogsSuccess(t *testing.T) {

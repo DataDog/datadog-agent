@@ -49,6 +49,7 @@ func TestUDS(t *testing.T) {
 		if err == nil {
 			t.Fatalf("expected to fail, got response %#v", resp)
 		}
+		resp.Body.Close()
 	})
 
 	t.Run("on", func(t *testing.T) {
@@ -64,6 +65,7 @@ func TestUDS(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		resp.Body.Close()
 		if resp.StatusCode != 200 {
 			t.Fatalf("expected http.StatusOK, got response: %#v", resp)
 		}
