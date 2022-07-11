@@ -187,7 +187,7 @@ static __always_inline http_transaction_t* http_should_flush_previous_state(http
 }
 
 static __always_inline bool http_closed(http_transaction_t *http, skb_info_t *skb_info, u16 pre_norm_src_port) {
-    return (skb_info && skb_info->tcp_flags&TCPHDR_FIN &&
+    return (skb_info && skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST) &&
             http->owned_by_src_port == pre_norm_src_port);
 }
 
