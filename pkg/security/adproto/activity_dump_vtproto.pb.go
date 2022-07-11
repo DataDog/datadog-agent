@@ -134,9 +134,9 @@ func (m *ProcessActivityNode) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 			dAtA[i] = 0x32
 		}
 	}
-	if len(m.DNSNames) > 0 {
-		for iNdEx := len(m.DNSNames) - 1; iNdEx >= 0; iNdEx-- {
-			size, err := m.DNSNames[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
+	if len(m.DnsNames) > 0 {
+		for iNdEx := len(m.DnsNames) - 1; iNdEx >= 0; iNdEx-- {
+			size, err := m.DnsNames[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
 			if err != nil {
 				return 0, err
 			}
@@ -307,27 +307,27 @@ func (m *ProcessInfo) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x5a
 	}
-	if len(m.TTY) > 0 {
-		i -= len(m.TTY)
-		copy(dAtA[i:], m.TTY)
-		i = encodeVarint(dAtA, i, uint64(len(m.TTY)))
+	if len(m.Tty) > 0 {
+		i -= len(m.Tty)
+		copy(dAtA[i:], m.Tty)
+		i = encodeVarint(dAtA, i, uint64(len(m.Tty)))
 		i--
 		dAtA[i] = 0x52
 	}
-	if m.TraceID != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.TraceID))
+	if m.TraceId != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.TraceId))
 		i--
 		dAtA[i] = 0x48
 	}
-	if m.SpanID != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.SpanID))
+	if m.SpanId != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.SpanId))
 		i--
 		dAtA[i] = 0x40
 	}
-	if len(m.ContainerID) > 0 {
-		i -= len(m.ContainerID)
-		copy(dAtA[i:], m.ContainerID)
-		i = encodeVarint(dAtA, i, uint64(len(m.ContainerID)))
+	if len(m.ContainerId) > 0 {
+		i -= len(m.ContainerId)
+		copy(dAtA[i:], m.ContainerId)
+		i = encodeVarint(dAtA, i, uint64(len(m.ContainerId)))
 		i--
 		dAtA[i] = 0x3a
 	}
@@ -672,23 +672,23 @@ func (m *FileInfo) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x50
 	}
-	if m.INode != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.INode))
+	if m.Inode != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.Inode))
 		i--
 		dAtA[i] = 0x48
 	}
-	if m.MountID != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.MountID))
+	if m.MountId != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.MountId))
 		i--
 		dAtA[i] = 0x40
 	}
-	if m.MTime != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.MTime))
+	if m.Mtime != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.Mtime))
 		i--
 		dAtA[i] = 0x38
 	}
-	if m.CTime != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.CTime))
+	if m.Ctime != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.Ctime))
 		i--
 		dAtA[i] = 0x30
 	}
@@ -704,8 +704,8 @@ func (m *FileInfo) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x22
 	}
-	if m.GID != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.GID))
+	if m.Gid != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.Gid))
 		i--
 		dAtA[i] = 0x18
 	}
@@ -716,8 +716,8 @@ func (m *FileInfo) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x12
 	}
-	if m.UID != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.UID))
+	if m.Uid != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.Uid))
 		i--
 		dAtA[i] = 0x8
 	}
@@ -764,27 +764,27 @@ func (m *Credentials) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x68
 	}
-	if len(m.FSGroup) > 0 {
-		i -= len(m.FSGroup)
-		copy(dAtA[i:], m.FSGroup)
-		i = encodeVarint(dAtA, i, uint64(len(m.FSGroup)))
+	if len(m.FsGroup) > 0 {
+		i -= len(m.FsGroup)
+		copy(dAtA[i:], m.FsGroup)
+		i = encodeVarint(dAtA, i, uint64(len(m.FsGroup)))
 		i--
 		dAtA[i] = 0x62
 	}
-	if len(m.FSUser) > 0 {
-		i -= len(m.FSUser)
-		copy(dAtA[i:], m.FSUser)
-		i = encodeVarint(dAtA, i, uint64(len(m.FSUser)))
+	if len(m.FsUser) > 0 {
+		i -= len(m.FsUser)
+		copy(dAtA[i:], m.FsUser)
+		i = encodeVarint(dAtA, i, uint64(len(m.FsUser)))
 		i--
 		dAtA[i] = 0x5a
 	}
-	if m.FSGID != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.FSGID))
+	if m.FsGid != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.FsGid))
 		i--
 		dAtA[i] = 0x50
 	}
-	if m.FSUID != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.FSUID))
+	if m.FsUid != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.FsUid))
 		i--
 		dAtA[i] = 0x48
 	}
@@ -802,13 +802,13 @@ func (m *Credentials) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x3a
 	}
-	if m.EffectiveGID != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.EffectiveGID))
+	if m.EffectiveGid != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.EffectiveGid))
 		i--
 		dAtA[i] = 0x30
 	}
-	if m.EffectiveUID != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.EffectiveUID))
+	if m.EffectiveUid != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.EffectiveUid))
 		i--
 		dAtA[i] = 0x28
 	}
@@ -826,13 +826,13 @@ func (m *Credentials) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x1a
 	}
-	if m.GID != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.GID))
+	if m.Gid != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.Gid))
 		i--
 		dAtA[i] = 0x10
 	}
-	if m.UID != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.UID))
+	if m.Uid != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.Uid))
 		i--
 		dAtA[i] = 0x8
 	}
@@ -919,10 +919,10 @@ func (m *BindNode) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if len(m.IP) > 0 {
-		i -= len(m.IP)
-		copy(dAtA[i:], m.IP)
-		i = encodeVarint(dAtA, i, uint64(len(m.IP)))
+	if len(m.Ip) > 0 {
+		i -= len(m.Ip)
+		copy(dAtA[i:], m.Ip)
+		i = encodeVarint(dAtA, i, uint64(len(m.Ip)))
 		i--
 		dAtA[i] = 0x12
 	}
@@ -1123,8 +1123,8 @@ func (m *ProcessActivityNode) SizeVT() (n int) {
 			n += 1 + l + sov(uint64(l))
 		}
 	}
-	if len(m.DNSNames) > 0 {
-		for _, e := range m.DNSNames {
+	if len(m.DnsNames) > 0 {
+		for _, e := range m.DnsNames {
 			l = e.SizeVT()
 			n += 1 + l + sov(uint64(l))
 		}
@@ -1166,17 +1166,17 @@ func (m *ProcessInfo) SizeVT() (n int) {
 		l = m.File.SizeVT()
 		n += 1 + l + sov(uint64(l))
 	}
-	l = len(m.ContainerID)
+	l = len(m.ContainerId)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
-	if m.SpanID != 0 {
-		n += 1 + sov(uint64(m.SpanID))
+	if m.SpanId != 0 {
+		n += 1 + sov(uint64(m.SpanId))
 	}
-	if m.TraceID != 0 {
-		n += 1 + sov(uint64(m.TraceID))
+	if m.TraceId != 0 {
+		n += 1 + sov(uint64(m.TraceId))
 	}
-	l = len(m.TTY)
+	l = len(m.Tty)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
@@ -1335,15 +1335,15 @@ func (m *FileInfo) SizeVT() (n int) {
 	}
 	var l int
 	_ = l
-	if m.UID != 0 {
-		n += 1 + sov(uint64(m.UID))
+	if m.Uid != 0 {
+		n += 1 + sov(uint64(m.Uid))
 	}
 	l = len(m.User)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
-	if m.GID != 0 {
-		n += 1 + sov(uint64(m.GID))
+	if m.Gid != 0 {
+		n += 1 + sov(uint64(m.Gid))
 	}
 	l = len(m.Group)
 	if l > 0 {
@@ -1352,17 +1352,17 @@ func (m *FileInfo) SizeVT() (n int) {
 	if m.Mode != 0 {
 		n += 1 + sov(uint64(m.Mode))
 	}
-	if m.CTime != 0 {
-		n += 1 + sov(uint64(m.CTime))
+	if m.Ctime != 0 {
+		n += 1 + sov(uint64(m.Ctime))
 	}
-	if m.MTime != 0 {
-		n += 1 + sov(uint64(m.MTime))
+	if m.Mtime != 0 {
+		n += 1 + sov(uint64(m.Mtime))
 	}
-	if m.MountID != 0 {
-		n += 1 + sov(uint64(m.MountID))
+	if m.MountId != 0 {
+		n += 1 + sov(uint64(m.MountId))
 	}
-	if m.INode != 0 {
-		n += 1 + sov(uint64(m.INode))
+	if m.Inode != 0 {
+		n += 1 + sov(uint64(m.Inode))
 	}
 	if m.InUpperLayer {
 		n += 2
@@ -1391,11 +1391,11 @@ func (m *Credentials) SizeVT() (n int) {
 	}
 	var l int
 	_ = l
-	if m.UID != 0 {
-		n += 1 + sov(uint64(m.UID))
+	if m.Uid != 0 {
+		n += 1 + sov(uint64(m.Uid))
 	}
-	if m.GID != 0 {
-		n += 1 + sov(uint64(m.GID))
+	if m.Gid != 0 {
+		n += 1 + sov(uint64(m.Gid))
 	}
 	l = len(m.User)
 	if l > 0 {
@@ -1405,11 +1405,11 @@ func (m *Credentials) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
-	if m.EffectiveUID != 0 {
-		n += 1 + sov(uint64(m.EffectiveUID))
+	if m.EffectiveUid != 0 {
+		n += 1 + sov(uint64(m.EffectiveUid))
 	}
-	if m.EffectiveGID != 0 {
-		n += 1 + sov(uint64(m.EffectiveGID))
+	if m.EffectiveGid != 0 {
+		n += 1 + sov(uint64(m.EffectiveGid))
 	}
 	l = len(m.EffectiveUser)
 	if l > 0 {
@@ -1419,17 +1419,17 @@ func (m *Credentials) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
-	if m.FSUID != 0 {
-		n += 1 + sov(uint64(m.FSUID))
+	if m.FsUid != 0 {
+		n += 1 + sov(uint64(m.FsUid))
 	}
-	if m.FSGID != 0 {
-		n += 1 + sov(uint64(m.FSGID))
+	if m.FsGid != 0 {
+		n += 1 + sov(uint64(m.FsGid))
 	}
-	l = len(m.FSUser)
+	l = len(m.FsUser)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
-	l = len(m.FSGroup)
+	l = len(m.FsGroup)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
@@ -1474,7 +1474,7 @@ func (m *BindNode) SizeVT() (n int) {
 	if m.Port != 0 {
 		n += 1 + sov(uint64(m.Port))
 	}
-	l = len(m.IP)
+	l = len(m.Ip)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}

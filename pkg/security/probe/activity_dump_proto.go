@@ -47,7 +47,7 @@ func processActivityNodeToProto(pan *ProcessActivityNode) *adproto.ProcessActivi
 		GenerationType: string(pan.GenerationType),
 		Children:       make([]*adproto.ProcessActivityNode, 0, len(pan.Children)),
 		Files:          make([]*adproto.FileActivityNode, 0, len(pan.Files)),
-		DNSNames:       make([]*adproto.DNSNode, 0, len(pan.DNSNames)),
+		DnsNames:       make([]*adproto.DNSNode, 0, len(pan.DNSNames)),
 		Sockets:        make([]*adproto.SocketNode, 0, len(pan.Sockets)),
 	}
 
@@ -60,7 +60,7 @@ func processActivityNodeToProto(pan *ProcessActivityNode) *adproto.ProcessActivi
 	}
 
 	for _, dns := range pan.DNSNames {
-		ppan.DNSNames = append(ppan.DNSNames, dnsNodeToProto(dns))
+		ppan.DnsNames = append(ppan.DnsNames, dnsNodeToProto(dns))
 	}
 
 	for _, socket := range pan.Sockets {
@@ -83,10 +83,10 @@ func processNodeToProto(p *model.Process) *adproto.ProcessInfo {
 		Cookie:      p.Cookie,
 		IsThread:    p.IsThread,
 		File:        fileEventToProto(&p.FileEvent),
-		ContainerID: p.ContainerID,
-		SpanID:      p.SpanID,
-		TraceID:     p.TraceID,
-		TTY:         p.TTYName,
+		ContainerId: p.ContainerID,
+		SpanId:      p.SpanID,
+		TraceId:     p.TraceID,
+		Tty:         p.TTYName,
 		Comm:        p.Comm,
 
 		ForkTime: timestamp(&p.ForkTime),
@@ -112,18 +112,18 @@ func credentialsToProto(creds *model.Credentials) *adproto.Credentials {
 	}
 
 	pcreds := &adproto.Credentials{
-		UID:            creds.UID,
-		GID:            creds.GID,
+		Uid:            creds.UID,
+		Gid:            creds.GID,
 		User:           creds.User,
 		Group:          creds.Group,
-		EffectiveUID:   creds.EUID,
-		EffectiveGID:   creds.EGID,
+		EffectiveUid:   creds.EUID,
+		EffectiveGid:   creds.EGID,
 		EffectiveUser:  creds.EUser,
 		EffectiveGroup: creds.EGroup,
-		FSUID:          creds.FSUID,
-		FSGID:          creds.FSGID,
-		FSUser:         creds.FSUser,
-		FSGroup:        creds.FSGroup,
+		FsUid:          creds.FSUID,
+		FsGid:          creds.FSGID,
+		FsUser:         creds.FSUser,
+		FsGroup:        creds.FSGroup,
 		CapEffective:   creds.CapEffective,
 		CapPermitted:   creds.CapPermitted,
 	}
@@ -138,15 +138,15 @@ func fileEventToProto(fe *model.FileEvent) *adproto.FileInfo {
 
 	fi := adproto.FileInfoFromVTPool()
 	*fi = adproto.FileInfo{
-		UID:          fe.UID,
+		Uid:          fe.UID,
 		User:         fe.User,
-		GID:          fe.GID,
+		Gid:          fe.GID,
 		Group:        fe.Group,
 		Mode:         uint32(fe.Mode), // yeah sorry
-		CTime:        fe.CTime,
-		MTime:        fe.MTime,
-		MountID:      fe.MountID,
-		INode:        fe.Inode,
+		Ctime:        fe.CTime,
+		Mtime:        fe.MTime,
+		MountId:      fe.MountID,
+		Inode:        fe.Inode,
 		InUpperLayer: fe.InUpperLayer,
 		Path:         fe.PathnameStr,
 		Basename:     fe.BasenameStr,
@@ -231,7 +231,7 @@ func socketNodeToProto(sn *SocketNode) *adproto.SocketNode {
 		Family: sn.Family,
 		Bind: &adproto.BindNode{
 			Port: uint32(sn.Bind.Port),
-			IP:   sn.Bind.IP,
+			Ip:   sn.Bind.IP,
 		},
 	}
 }
