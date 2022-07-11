@@ -97,7 +97,10 @@ func TestGohaiSerialization(t *testing.T) {
 	assert.NotEmpty(t, payload.CPU.CPUCores)
 	assert.NotEmpty(t, payload.CPU.CPULogicalProcessors)
 	assert.NotEmpty(t, payload.CPU.Family)
-	assert.NotEmpty(t, payload.CPU.Mhz)
+	if runtime.GOARCH != "arm64" {
+		// (Mhz is not defined on ARM64)
+		assert.NotEmpty(t, payload.CPU.Mhz)
+	}
 	assert.NotEmpty(t, payload.CPU.Model)
 	assert.NotEmpty(t, payload.CPU.ModelName)
 	assert.NotEmpty(t, payload.CPU.Stepping)

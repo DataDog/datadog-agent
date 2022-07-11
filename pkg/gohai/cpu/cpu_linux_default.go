@@ -1,3 +1,6 @@
+// +build linux
+// +build !arm64
+
 package cpu
 
 import (

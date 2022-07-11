@@ -18,7 +18,7 @@ type Cpu struct {
 	CpuCores uint64
 	// CpuLogicalProcessors the number of logical core for the CPU
 	CpuLogicalProcessors uint64
-	// Mhz the frequency for the CPU
+	// Mhz the frequency for the CPU (Not available on ARM)
 	Mhz float64
 	// CacheSizeBytes the cache size for the CPU (Linux only)
 	CacheSizeBytes uint64
