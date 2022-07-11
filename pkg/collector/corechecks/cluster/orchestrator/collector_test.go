@@ -8,7 +8,9 @@
 package orchestrator
 
 import (
+	"context"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 	"testing"
@@ -17,40 +19,75 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 	fcache "k8s.io/client-go/tools/cache/testing"
 )
 
-func TestInformerRunTwiceWillFail(t *testing.T) {
-	source := fcache.NewFakeControllerSource()
-	for i := 0; i < 1000000; i++ {
-		source.Add(&v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("pod-%d", i)}})
-	}
+// TestFactoryNotRestartedAfterClose close simulates the check being closed and then restarted with .Start again
+func TestFactoryNotRestartedAfterClose(t *testing.T) {
+	client := fake.NewSimpleClientset()
 
-	informer := cache.NewSharedInformer(source, &v1.Pod{}, 1*time.Second)
-	handler := cache.ResourceEventHandlerFuncs{
-		// do nothing
-	}
-	informer.AddEventHandler(handler)
+	writeFirstNS(client)
 
+	factory := informers.NewSharedInformerFactory(client, 1*time.Second)
 	stop := make(chan struct{})
+	informer := factory.Core().V1().Namespaces().Informer()
+	// empty
+	keys := informer.GetStore().ListKeys()
+	assert.Equal(t, keys, []string{})
+	factory.Start(stop)
+	cache.WaitForCacheSync(stop, informer.HasSynced)
 
-	// Call informer.Run() twice as they are shared by the same client
+	// not empty anymore as we started the informer sync
+	keys = informer.GetStore().ListKeys()
+	assert.Equal(t, keys, []string{"kube-system"})
 
-	// i.e. orchestrator check init code
-	go informer.Run(stop)
-	// i.e. indirectly through externalMetrics: apiCl.InformerFactory.Start(ctx.Done())
-	go informer.Run(stop)
+	// stopping as simulating a reschedule
+	close(stop)
+	writeSecondNS(client)
 
-	// wait a bit until we panic
-	time.Sleep(30 * time.Second)
+	// we get to the same worker again
+	time.Sleep(1 * time.Second)
+	keys = informer.GetStore().ListKeys()
+	// expect only one key as informer sync stopped before the second got written
+	assert.Equal(t, keys, []string{"kube-system"})
+
+	// we get to the same worker again, therefore let's start the informer again!
+	factory.Start(make(chan struct{}))
+	cache.WaitForCacheSync(stop, informer.HasSynced)
+	keys = informer.GetStore().ListKeys()
+	// expect keys the second key to show as we restarted the informer, but because we use Start() we know that we didn't resync, therefore its one
+	assert.Len(t, keys, 1)
+
+	informer.Run(make(chan struct{}))
+	// expect keys to have synced because we manually restarted and not through the factory
+	assert.Len(t, keys, 2)
+}
+
+func writeFirstNS(client *fake.Clientset) {
+	kubeNs := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			ResourceVersion: "123",
+			UID:             "226430c6-5e57-11ea-91d5-42010a8400c6",
+			Name:            "kube-system",
+		},
+	}
+	_, _ = client.CoreV1().Namespaces().Create(context.TODO(), &kubeNs, metav1.CreateOptions{})
+}
+
+func writeSecondNS(client *fake.Clientset) {
+	kubeNs2 := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			ResourceVersion: "423",
+			UID:             "126430c6-5e57-11ea-91d5-42010a8400c6",
+			Name:            "another-system",
+		},
+	}
+	_, _ = client.CoreV1().Namespaces().Create(context.TODO(), &kubeNs2, metav1.CreateOptions{})
 }
 
 func TestInformerRunTwiceWillFailWithFactory(t *testing.T) {
-	source := fcache.NewFakeControllerSource()
-	for i := 0; i < 1000000; i++ {
-		source.Add(&v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("pod-%d", i)}})
-	}
 	factory := informers.NewSharedInformerFactory(fake.NewSimpleClientset(), 1*time.Second)
 
 	informer := factory.Apps().V1().Deployments().Informer()
@@ -60,24 +97,31 @@ func TestInformerRunTwiceWillFailWithFactory(t *testing.T) {
 	informer.AddEventHandler(handler)
 
 	// Call informer.Run() twice as they are shared by the same client
-	t.Run("factory first", func(t *testing.T) {
+	t.Run("factory first - race", func(t *testing.T) {
 		stop := make(chan struct{})
 		// i.e. indirectly through externalMetrics: apiCl.InformerFactory.Start(ctx.Done())
 		factory.Start(stop)
 		// i.e. orchestrator check init code
 		go informer.Run(stop)
+		time.Sleep(10 * time.Second)
 	})
 
-	t.Run("factory second", func(t *testing.T) {
+	t.Run("factory second - race", func(t *testing.T) {
 		stop := make(chan struct{})
 		// i.e. orchestrator check init code
 		go informer.Run(stop)
 		// i.e. indirectly through externalMetrics: apiCl.InformerFactory.Start(ctx.Done())
 		factory.Start(stop)
+		time.Sleep(10 * time.Second)
 	})
 
-	// wait a bit until we panic
-	time.Sleep(30 * time.Second)
+	t.Run("informer twice - race", func(t *testing.T) {
+		stop := make(chan struct{})
+		// i.e. orchestrator check init code
+		go informer.Run(stop)
+		go informer.Run(stop)
+		time.Sleep(10 * time.Second)
+	})
 }
 
 func TestInformerRunTwiceWithClose(t *testing.T) {
@@ -105,19 +149,4 @@ func TestInformerRunTwiceWithClose(t *testing.T) {
 
 	// wait a bit until we panic
 	time.Sleep(30 * time.Second)
-}
-
-func TestAssumption(t *testing.T) {
-	// is run concurrent or blocking?
-	factory := informers.NewSharedInformerFactory(fake.NewSimpleClientset(), 1*time.Second)
-	stop := make(chan struct{})
-	deploymentsInformer := factory.Apps().V1().Deployments().Informer()
-	factory.Start(stop)
-	cache.WaitForCacheSync(stop, deploymentsInformer.HasSynced)
-	close(stop)
-	time.Sleep(1 * time.Second)
-	stop = make(chan struct{})
-	factory.Start(stop)
-	cache.WaitForCacheSync(stop, deploymentsInformer.HasSynced)
-
 }
