@@ -193,7 +193,9 @@ func (r *Repository) Update(update Update) ([]string, error) {
 	// TUF: Store the updated roots now that everything has validated
 	r.latestTargets = updatedTargets
 	r.tufRootsClient = tmpRootClient
-	r.opaqueBackendState = extractOpaqueBackendState(*r.latestTargets.Custom)
+	if r.latestTargets.Custom != nil {
+		r.opaqueBackendState = extractOpaqueBackendState(*r.latestTargets.Custom)
+	}
 
 	// Upstream may not want to take any actions if the update result doesn't
 	// change any configs.
