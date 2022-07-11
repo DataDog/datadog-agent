@@ -148,4 +148,13 @@ typedef struct {
     __u32 fd;
 } pid_fd_t;
 
+typedef struct {
+    struct sock *sk;
+    size_t len;
+    union {
+        struct flowi4 *fl4;
+        struct flowi6 *fl6;
+    };
+} ip_make_skb_args_t;
+
 #endif
