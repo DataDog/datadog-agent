@@ -46,8 +46,8 @@ const (
 	RTContainerCheckName   = "rtcontainer"
 	ConnectionsCheckName   = "connections"
 	PodCheckName           = "pod"
-	PodCheckMetadataName = "pod_metadata"
-	PodCheckManifestName = "pod_manifest"
+	PodCheckMetadataName   = "pod_metadata"
+	PodCheckManifestName   = "pod_manifest"
 	DiscoveryCheckName     = "process_discovery"
 	ProcessEventsCheckName = "process_events"
 

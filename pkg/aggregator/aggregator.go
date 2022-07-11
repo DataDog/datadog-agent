@@ -356,7 +356,6 @@ func (agg *BufferedAggregator) sendOrchestratorManifests(start time.Time, sender
 
 // flushOrchestratorManifests serializes and forwards events in a separate goroutine
 func (agg *BufferedAggregator) flushOrchestratorManifests(start time.Time, waitForSerializer bool) {
-	// Serialize and forward in a separate goroutine
 	manifests := agg.getOrchestratorManifests()
 	if len(manifests) == 0 {
 		return

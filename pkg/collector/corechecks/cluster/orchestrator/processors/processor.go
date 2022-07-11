@@ -87,6 +87,7 @@ type Processor struct {
 	h Handlers
 }
 
+// ProcessResult contains the result of metadata and manifest
 type ProcessResult struct {
 	MetadataMessages []model.MessageBody
 	ManifestMessages []model.MessageBody
@@ -155,10 +156,12 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 
 		// Add resource manifest
 		resourceManifestModels = append(resourceManifestModels, &model.Manifest{
-			Type:        int32(ctx.NodeType),
-			Uid:         string(resourceUID),
-			Content:     yaml,
-			ContentType: "json",
+			Type:            int32(ctx.NodeType.CollectorType()),
+			Uid:             string(resourceUID),
+			ResourceVersion: resourceVersion,
+			Content:         yaml,
+			Version:         "v1",
+			ContentType:     "json",
 		})
 	}
 	// Split messages in chunks

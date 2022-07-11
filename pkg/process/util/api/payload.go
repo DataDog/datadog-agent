@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/zstd_0"
 	"github.com/gogo/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -34,6 +35,11 @@ func EncodePayload(m model.MessageBody) ([]byte, error) {
 	var encoded []byte
 	if msgType == model.TypeCollectorProcEvent {
 		encoded, err = proto.Marshal(m)
+	} else if msgType == model.TypeCollectorManifest {
+		pb, err := proto.Marshal(m)
+		if err == nil {
+			encoded, err = zstd_0.Compress(nil, pb)
+		}
 	} else {
 		encoded, err = model.EncodeMessage(model.Message{
 			Header: model.MessageHeader{

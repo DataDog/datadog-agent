@@ -500,6 +500,7 @@ func (s *Serializer) SendOrchestratorManifests(msgs []ProcessMessageBody, hostNa
 		extraHeaders.Set(headers.EVPOriginHeader, "agent")
 		extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
 		extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
+		extraHeaders.Set(headers.ContentEncodingHeader, headers.ZSTDContentEncoding)
 
 		body, err := processPayloadEncoder(m)
 		if err != nil {

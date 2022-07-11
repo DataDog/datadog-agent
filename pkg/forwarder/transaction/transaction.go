@@ -290,6 +290,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	url := t.Domain + t.Endpoint.Route
 	transactionEndpointName := t.GetEndpointName()
 	logURL := scrubber.ScrubLine(url) // sanitized url that can be logged
+
 	req, err := http.NewRequest("POST", url, reader)
 	if err != nil {
 		log.Errorf("Could not create request for transaction to invalid URL %q (dropping transaction): %s", logURL, err)
@@ -319,6 +320,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 		log.Errorf("Fail to read the response Body: %s", err)
 		return 0, nil, err
 	}
+
 	if resp.StatusCode >= 400 {
 		statusCode := strconv.Itoa(resp.StatusCode)
 		var codeCount *expvar.Int
