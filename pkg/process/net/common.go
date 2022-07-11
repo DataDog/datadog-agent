@@ -232,7 +232,8 @@ func newSystemProbe() *RemoteSysProbeUtil {
 }
 
 func (r *RemoteSysProbeUtil) init() error {
-	if resp, err := r.httpClient.Get(statsURL); err != nil {
+	resp, err := r.httpClient.Get(statsURL)
+	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
