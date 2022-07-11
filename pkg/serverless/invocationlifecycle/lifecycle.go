@@ -161,7 +161,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 	if !lp.DetectLambdaLibrary() {
 		log.Debug("Creating and sending function execution span for invocation")
 
-  if len(statusCode) == 3 && strings.HasPrefix(statusCode, "5") {
+		if len(statusCode) == 3 && strings.HasPrefix(statusCode, "5") {
 			serverlessMetrics.SendErrorsEnhancedMetric(
 				lp.ExtraTags.Tags, endDetails.EndTime, lp.Demux,
 			)
