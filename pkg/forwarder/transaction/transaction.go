@@ -290,7 +290,6 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	url := t.Domain + t.Endpoint.Route
 	transactionEndpointName := t.GetEndpointName()
 	logURL := scrubber.ScrubLine(url) // sanitized url that can be logged
-	log.Errorf("manifest internal: %s", logURL)
 	req, err := http.NewRequest("POST", url, reader)
 	if err != nil {
 		log.Errorf("Could not create request for transaction to invalid URL %q (dropping transaction): %s", logURL, err)
@@ -320,7 +319,6 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 		log.Errorf("Fail to read the response Body: %s", err)
 		return 0, nil, err
 	}
-	log.Errorf(" %s is %d", logURL, resp.StatusCode)
 	if resp.StatusCode >= 400 {
 		statusCode := strconv.Itoa(resp.StatusCode)
 		var codeCount *expvar.Int
@@ -365,7 +363,6 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 
 	loggingFrequency := config.Datadog.GetInt64("logging_frequency")
 
-	log.Errorf(" %s is %d", logURL, transactionsSuccess.Value())
 	if transactionsSuccess.Value() == 1 {
 		log.Infof("Successfully posted payload to %q, the agent will only log transaction success every %d transactions", logURL, loggingFrequency)
 		log.Tracef("Url: %q payload: %q", logURL, truncateBodyForLog(body))
