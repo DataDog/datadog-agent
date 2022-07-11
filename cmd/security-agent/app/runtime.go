@@ -566,7 +566,7 @@ func generateEncodingFromActivityDump(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("couldn't instantiate storage manager: %w", err)
 		}
 
-		err = storage.Persist(&ad)
+		err = storage.Persist(ad)
 		if err != nil {
 			return fmt.Errorf("couldn't persist dump from %s: %w", activityDumpArgs.file, err)
 		}
