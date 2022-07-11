@@ -5,7 +5,7 @@ import "testing"
 func TestCleanStrings(t *testing.T) {
 	cleanString := "container_collect_some"
 
-	res := FreeFromUnexpectedUnicode([]byte(cleanString))
+	res := FindUnexpectedUnicode([]byte(cleanString))
 	if len(res) != 0 {
 		t.Errorf("Expected no unexpected codepoints, but found some: %v", res)
 	}
@@ -14,7 +14,7 @@ func TestCleanStrings(t *testing.T) {
 func TestDirtyStrings(t *testing.T) {
 	dirtyString := "‪container_collect_some"
 
-	res := FreeFromUnexpectedUnicode([]byte(dirtyString))
+	res := FindUnexpectedUnicode([]byte(dirtyString))
 	if len(res) != 1 {
 		t.Errorf("Expected 1 unexpected codepoint, but found: %v", len(res))
 		return
@@ -58,7 +58,7 @@ func TestVariousCodepoints(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		res := FreeFromUnexpectedUnicode(tc.input)
+		res := FindUnexpectedUnicode(tc.input)
 		if len(res) != len(tc.expectedCodepoints) {
 			t.Errorf("Expected %v unexpected codepoints but found %v: %v\n", len(tc.expectedCodepoints), len(res), res)
 			continue

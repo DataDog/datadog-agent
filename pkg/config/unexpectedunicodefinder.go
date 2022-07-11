@@ -15,7 +15,7 @@ type UnexpectedUnicodeCodepoint struct {
 // FreeFromUnexpectedUnicode checks whether or not a given byte slice contains any
 // unicode codepoints that are 'unexpected'.
 // Unexpected here generally means invisible whitespace and control chars
-func FreeFromUnexpectedUnicode(input []byte) []UnexpectedUnicodeCodepoint {
+func FindUnexpectedUnicode(input []byte) []UnexpectedUnicodeCodepoint {
 	totalSize := len(input)
 	currentIndex := 0
 	results := make([]UnexpectedUnicodeCodepoint, 0)

@@ -1235,7 +1235,7 @@ func findUnknownKeys(config Config) []string {
 func findUnexpectedUnicode(config Config) []string {
 	messages := make([]string, 0)
 	checkAndRecordString := func(str string) {
-		if res := FreeFromUnexpectedUnicode([]byte(str)); len(res) != 0 {
+		if res := FindUnexpectedUnicode([]byte(str)); len(res) != 0 {
 			for _, detected := range res {
 				msg := fmt.Sprintf("In configuration string '%s' - Unexpected unicode codepoint '%U' detected at byte position %v. Reason=%v", str, detected.codepoint, detected.position, detected.reason)
 				messages = append(messages, msg)
