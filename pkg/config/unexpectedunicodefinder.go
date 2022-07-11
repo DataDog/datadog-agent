@@ -12,8 +12,8 @@ type UnexpectedUnicodeCodepoint struct {
 	position  int
 }
 
-// FreeFromUnexpectedUnicode checks whether or not a given byte slice contains any
-// unicode codepoints that are 'unexpected'.
+// FindUnexpectedUnicode reports any _unexpected_ unicode codepoints
+// found in the given 'input' string
 // Unexpected here generally means invisible whitespace and control chars
 func FindUnexpectedUnicode(input string) []UnexpectedUnicodeCodepoint {
 	currentIndex := 0
