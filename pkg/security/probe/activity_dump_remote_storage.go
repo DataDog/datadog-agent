@@ -148,7 +148,7 @@ func (storage *ActivityDumpRemoteStorage) buildBody(request dump.StorageRequest,
 }
 
 func (storage *ActivityDumpRemoteStorage) sendToEndpoint(url string, apiKey string, request dump.StorageRequest, writer *multipart.Writer, body *bytes.Buffer) error {
-	r, err := http.NewRequest("POST", url, body)
+	r, err := http.NewRequest("POST", url, bytes.NewBuffer(body.Bytes()))
 	if err != nil {
 		return err
 	}
@@ -163,6 +163,7 @@ func (storage *ActivityDumpRemoteStorage) sendToEndpoint(url string, apiKey stri
 	if err != nil {
 		return err
 	}
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusAccepted {
 		return fmt.Errorf(resp.Status)
 	}
@@ -178,7 +179,7 @@ func (storage *ActivityDumpRemoteStorage) Persist(request dump.StorageRequest, a
 
 	for i, url := range storage.urls {
 		if err := storage.sendToEndpoint(url, storage.apiKeys[i], request, writer, body); err != nil {
-			seclog.Errorf("couldn't sent activity dump to [%s]: %v", url, err)
+			seclog.Errorf("couldn't sent activity dump to [%s, body size: %d, dump size: %d]: %v", url, body.Len(), ad.Size, err)
 		} else {
 			seclog.Infof("[%s] file for activity dump [%s] successfully sent to [%s]", request.Format, ad.GetSelectorStr(), url)
 		}

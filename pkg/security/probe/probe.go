@@ -266,7 +266,7 @@ func (p *Probe) Init() error {
 		})
 	}
 
-	if selectors, exists := probes.SelectorsPerEventType["*"]; exists {
+	if selectors, exists := probes.GetSelectorsPerEventType()["*"]; exists {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, selectors...)
 	}
 
@@ -900,13 +900,24 @@ func (p *Probe) selectTCProbes() manager.ProbesSelector {
 	return &activatedProbes
 }
 
+func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
+	if p.config.ActivityDumpEnabled {
+		for _, e := range p.config.ActivityDumpTracedEventTypes {
+			if e.String() == eventType {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // SelectProbes applies the loaded set of rules and returns a report
 // of the applied approvers for it.
 func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	var activatedProbes []manager.ProbesSelector
 
-	for eventType, selectors := range probes.SelectorsPerEventType {
-		if eventType == "*" || rs.HasRulesForEventType(eventType) {
+	for eventType, selectors := range probes.GetSelectorsPerEventType() {
+		if eventType == "*" || rs.HasRulesForEventType(eventType) || p.isNeededForActivityDump(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 		}
 	}

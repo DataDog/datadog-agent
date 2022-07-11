@@ -20,7 +20,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -105,7 +104,7 @@ type ActivityDump struct {
 	StorageRequests     map[dump.StorageFormat][]dump.StorageRequest `msg:"storage_requests,omitempty" json:"-"`
 
 	// Dump metadata
-	DumpMetadata
+	DumpMetadata `msg:"metadata"`
 }
 
 // WithDumpOption can be used to configure an ActivityDump
@@ -328,7 +327,9 @@ func (ad *ActivityDump) Stop() {
 	ad.Service = utils.GetTagValue("service", ad.Tags)
 
 	// add the container ID in a tag
-	ad.Tags = append(ad.Tags, "container_id:"+ad.ContainerID)
+	if len(ad.ContainerID) > 0 {
+		ad.Tags = append(ad.Tags, "container_id:"+ad.ContainerID)
+	}
 
 	// scrub processes and retain args envs now
 	ad.scrubAndRetainProcessArgsEnvs(ad.ProcessActivityTree)
@@ -404,9 +405,7 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 
 // findOrCreateProcessActivityNode finds or a create a new process activity node in the activity dump if the entry
 // matches the activity dump selector.
-func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType) *ProcessActivityNode {
-	var node *ProcessActivityNode
-
+func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType) (node *ProcessActivityNode) {
 	if entry == nil {
 		return node
 	}
@@ -419,6 +418,13 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 			return node
 		}
 	}
+
+	defer func() {
+		// if a node was found, and if the entry has a valid cookie, insert a cookie shortcut
+		if entry.Cookie > 0 && node != nil {
+			ad.CookiesNode[entry.Cookie] = node
+		}
+	}()
 
 	// find or create a ProcessActivityNode for the parent of the input ProcessCacheEntry. If the parent is a fork entry,
 	// jump immediately to the next ancestor.
@@ -461,11 +467,6 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 		parentNode.Children = append(parentNode.Children, node)
 	}
 
-	// insert new cookie shortcut
-	if entry.Cookie > 0 {
-		ad.CookiesNode[entry.Cookie] = node
-	}
-
 	// count new entry
 	switch generationType {
 	case Runtime:
@@ -478,6 +479,17 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 	ad.updateTracedPidTimeout(entry.Pid)
 
 	return node
+}
+
+// FindFirstMatchingNode return the first matching node of requested comm
+func (ad *ActivityDump) FindFirstMatchingNode(comm string) *ProcessActivityNode {
+	for _, node := range ad.ProcessActivityTree {
+		if node.Process.Comm == comm {
+			return node
+		}
+	}
+
+	return nil
 }
 
 // GetSelectorStr returns a string representation of the profile selector
@@ -952,11 +964,6 @@ func (pan *ProcessActivityNode) insertSnapshotedSocket(p *process.Process, ad *A
 	}
 }
 
-var (
-	socketRe = regexp.MustCompile(`socket:\[[0-9]+\]`)
-	inodeRe  = regexp.MustCompile(`[0-9]+`)
-)
-
 func (pan *ProcessActivityNode) snapshotBoundSockets(p *process.Process, ad *ActivityDump) error {
 	// list all the file descriptors opened by the process
 	FDs, err := p.OpenFiles()
@@ -964,10 +971,11 @@ func (pan *ProcessActivityNode) snapshotBoundSockets(p *process.Process, ad *Act
 		return err
 	}
 
+	// sockets have the following pattern "socket:[inode]"
 	var sockets []uint64
 	for _, fd := range FDs {
-		if socketRe.MatchString(fd.Path) {
-			sock, err := strconv.Atoi(inodeRe.FindString(fd.Path))
+		if strings.HasPrefix(fd.Path, "socket:[") {
+			sock, err := strconv.Atoi(strings.TrimPrefix(fd.Path[:len(fd.Path)-1], "socket:["))
 			if err != nil {
 				return err
 			}
@@ -981,9 +989,8 @@ func (pan *ProcessActivityNode) snapshotBoundSockets(p *process.Process, ad *Act
 		return nil
 	}
 
-	// init procfs to parse /proc/net/tcp,tcp6,udp,udp6 files, looking for the grabbed
-	// process socket inodes
-	proc, _ := procfs.NewFS(util.HostProc())
+	// use /proc/[pid]/net/tcp,tcp6,udp,udp6 to extract the ports opened by the current process
+	proc, _ := procfs.NewFS(filepath.Join(util.HostProc(fmt.Sprintf("%d", p.Pid))))
 	if err != nil {
 		return err
 	}
@@ -1116,14 +1123,14 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 func (pan *ProcessActivityNode) InsertDNSEvent(evt *model.DNSEvent) bool {
 	if dnsNode, ok := pan.DNSNames[evt.Name]; ok {
 		// look for the DNS request type
-		for _, req := range dnsNode.requests {
+		for _, req := range dnsNode.Requests {
 			if req.Type == evt.Type {
 				return false
 			}
 		}
 
 		// insert the new request
-		dnsNode.requests = append(dnsNode.requests, *evt)
+		dnsNode.Requests = append(dnsNode.Requests, *evt)
 		return true
 	}
 	pan.DNSNames[evt.Name] = NewDNSNode(evt)
@@ -1247,14 +1254,14 @@ func (fan *FileActivityNode) debug(prefix string) {
 
 // DNSNode is used to store a DNS node
 type DNSNode struct {
-	requests []model.DNSEvent `msg:"requests"`
+	Requests []model.DNSEvent `msg:"requests"`
 	id       string
 }
 
 // NewDNSNode returns a new DNSNode instance
 func NewDNSNode(event *model.DNSEvent) *DNSNode {
 	return &DNSNode{
-		requests: []model.DNSEvent{*event},
+		Requests: []model.DNSEvent{*event},
 	}
 }
 
