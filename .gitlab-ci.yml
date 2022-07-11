@@ -712,6 +712,10 @@ variables:
   - changes:
       - pkg/ebpf/**/*
       - pkg/network/**/*
+      - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
+      - test/kitchen/test/integration/system-probe-test/**/*
+      - test/kitchen/test/integration/win-sysprobe-test/**/*
+      - .gitlab/functional_test/system_probe.yml
     when: on_success
   - when: manual
     allow_failure: true
