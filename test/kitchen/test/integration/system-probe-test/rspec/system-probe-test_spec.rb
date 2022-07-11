@@ -8,19 +8,19 @@ def check_output(output, wait_thr)
   test_failures = []
 
   output.each_line do |line|
-    puts line
-    test_failures << line.strip if line =~ GOLANG_TEST_FAILURE
+    puts KernelOut.format(line.strip)
+    test_failures << KernelOut.format(line.strip) if line =~ GOLANG_TEST_FAILURE
   end
 
   if test_failures.empty? && !wait_thr.value.success?
-    test_failures << "Test command exited with status (#{wait_thr.value.exitstatus}) but no failures were captured."
+    test_failures << KernelOut.format("Test command exited with status (#{wait_thr.value.exitstatus}) but no failures were captured.")
   end
 
   test_failures
 end
 
-print `cat /etc/os-release`
-print `uname -a`
+print KernelOut.format(`cat /etc/os-release`)
+print KernelOut.format(`uname -a`)
 
 ##
 ## The main chef recipe (test\kitchen\site-cookbooks\dd-system-probe-check\recipes\default.rb)
@@ -30,7 +30,7 @@ print `uname -a`
 ##
 Dir.glob('/tmp/system-probe-tests/pkg/ebpf/bytecode/build/*.o').each do |f|
   FileUtils.chmod 0644, f, :verbose => true
-end 
+end
 
 Dir.glob('/tmp/system-probe-tests/**/testsuite').each do |f|
   pkg = f.delete_prefix('/tmp/system-probe-tests').delete_suffix('/testsuite')
