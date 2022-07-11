@@ -243,6 +243,9 @@ type fileMetaCustom struct {
 }
 
 func fileMetaVersion(fm data.TargetFileMeta) (uint64, error) {
+	if fm.Custom == nil {
+		return 0, ErrNoConfigVersion
+	}
 	fmc, err := parseFileMetaCustom(*fm.Custom)
 	if err != nil {
 		return 0, err
