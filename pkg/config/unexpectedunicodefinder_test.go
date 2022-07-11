@@ -5,7 +5,7 @@ import "testing"
 func TestCleanStrings(t *testing.T) {
 	cleanString := "container_collect_some"
 
-	res := FindUnexpectedUnicode([]byte(cleanString))
+	res := FindUnexpectedUnicode(cleanString)
 	if len(res) != 0 {
 		t.Errorf("Expected no unexpected codepoints, but found some: %v", res)
 	}
@@ -14,7 +14,7 @@ func TestCleanStrings(t *testing.T) {
 func TestDirtyStrings(t *testing.T) {
 	dirtyString := "\u202acontainer_collect_some"
 
-	res := FindUnexpectedUnicode([]byte(dirtyString))
+	res := FindUnexpectedUnicode(dirtyString)
 	if len(res) != 1 {
 		t.Errorf("Expected 1 unexpected codepoint, but found: %v", len(res))
 		return
@@ -29,31 +29,31 @@ func TestDirtyStrings(t *testing.T) {
 
 func TestVariousCodepoints(t *testing.T) {
 	tests := []struct {
-		input              []byte
+		input              string
 		expectedCodepoints []rune
 	}{
 		{
-			input:              []byte("hello world"),
+			input:              "hello world",
 			expectedCodepoints: nil,
 		},
 		{
-			input:              []byte("hello \u202aworld"),
+			input:              "hello \u202aworld",
 			expectedCodepoints: []rune{'\u202a'},
 		},
 		{
-			input:              []byte("hello \nworld"),
+			input:              "hello \nworld",
 			expectedCodepoints: nil,
 		},
 		{
-			input:              []byte("hello·world😿"),
+			input:              "hello\u00b7world\U0001f63f",
 			expectedCodepoints: nil,
 		},
 		{
-			input:              []byte("test\u200bing"),
+			input:              "test\u200bing",
 			expectedCodepoints: []rune{'\u200b'},
 		},
 		{
-			input:              []byte("test\u202fte\u200asti\u2000ng"),
+			input:              "test\u202fte\u200asti\u2000ng",
 			expectedCodepoints: []rune{'\u202f', '\u200a', '\u2000'},
 		},
 	}

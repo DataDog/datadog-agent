@@ -15,12 +15,13 @@ type UnexpectedUnicodeCodepoint struct {
 // FreeFromUnexpectedUnicode checks whether or not a given byte slice contains any
 // unicode codepoints that are 'unexpected'.
 // Unexpected here generally means invisible whitespace and control chars
-func FindUnexpectedUnicode(input []byte) []UnexpectedUnicodeCodepoint {
-	totalSize := len(input)
+func FindUnexpectedUnicode(input string) []UnexpectedUnicodeCodepoint {
 	currentIndex := 0
+	str := input
 	results := make([]UnexpectedUnicodeCodepoint, 0)
-	for currentIndex < totalSize {
-		r, size := utf8.DecodeRune(input[currentIndex:])
+
+	for len(str) > 0 {
+		r, size := utf8.DecodeRuneInString(str)
 		reason := ""
 		switch {
 		case r == utf8.RuneError:
@@ -45,6 +46,7 @@ func FindUnexpectedUnicode(input []byte) []UnexpectedUnicodeCodepoint {
 		}
 
 		currentIndex += size
+		str = str[size:]
 	}
 	return results
 }

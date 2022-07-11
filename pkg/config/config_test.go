@@ -144,14 +144,17 @@ func TestUnexpectedWhitespace(t *testing.T) {
 	tests := []struct {
 		yaml                string
 		expectedWarningText string
+		expectedPosition    string
 	}{
 		{
 			yaml:                "root_element:\n  nestedKey: \"hiddenI\u200bnvalidWhitespaceEmbedded\n\"",
 			expectedWarningText: "U+200B",
+			expectedPosition:    fmt.Sprintf("position %d", 7),
 		},
 		{
 			yaml:                "root_element:\n  nestedKey: \u202fhiddenInvalidWhitespaceToLeft\n",
 			expectedWarningText: "U+202F",
+			expectedPosition:    fmt.Sprintf("position %d", 0),
 		},
 	}
 	for _, tc := range tests {
@@ -159,7 +162,8 @@ func TestUnexpectedWhitespace(t *testing.T) {
 		warnings := findUnexpectedUnicode(testConfig)
 		require.Len(t, warnings, 1)
 
-		assert.Contains(t, warnings[0], tc.expectedWarningText)
+		assert.Contains(t, warnings[0], tc.expectedPosition)
+		assert.Contains(t, warnings[0], tc.expectedPosition)
 	}
 }
 
