@@ -56,7 +56,7 @@ func (m *ActivityDump) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 			i -= size
 			i = encodeVarint(dAtA, i, uint64(size))
 			i--
-			dAtA[i] = 0x2a
+			dAtA[i] = 0x32
 		}
 	}
 	if len(m.Tags) > 0 {
@@ -65,8 +65,18 @@ func (m *ActivityDump) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 			copy(dAtA[i:], m.Tags[iNdEx])
 			i = encodeVarint(dAtA, i, uint64(len(m.Tags[iNdEx])))
 			i--
-			dAtA[i] = 0x22
+			dAtA[i] = 0x2a
 		}
+	}
+	if m.Metadata != nil {
+		size, err := m.Metadata.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x22
 	}
 	if len(m.Source) > 0 {
 		i -= len(m.Source)
@@ -86,6 +96,120 @@ func (m *ActivityDump) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.Host)
 		copy(dAtA[i:], m.Host)
 		i = encodeVarint(dAtA, i, uint64(len(m.Host)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *Metadata) MarshalVT() (dAtA []byte, err error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeVT()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Metadata) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *Metadata) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(dAtA[i:], m.unknownFields)
+	}
+	if m.Size != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.Size))
+		i--
+		dAtA[i] = 0x60
+	}
+	if m.EndTime != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.EndTime))
+		i--
+		dAtA[i] = 0x58
+	}
+	if m.StartTime != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.StartTime))
+		i--
+		dAtA[i] = 0x50
+	}
+	if len(m.ContainerId) > 0 {
+		i -= len(m.ContainerId)
+		copy(dAtA[i:], m.ContainerId)
+		i = encodeVarint(dAtA, i, uint64(len(m.ContainerId)))
+		i--
+		dAtA[i] = 0x4a
+	}
+	if len(m.Comm) > 0 {
+		i -= len(m.Comm)
+		copy(dAtA[i:], m.Comm)
+		i = encodeVarint(dAtA, i, uint64(len(m.Comm)))
+		i--
+		dAtA[i] = 0x42
+	}
+	if m.DifferentiateArgs {
+		i--
+		if m.DifferentiateArgs {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x38
+	}
+	if len(m.ActivityDumpVersion) > 0 {
+		i -= len(m.ActivityDumpVersion)
+		copy(dAtA[i:], m.ActivityDumpVersion)
+		i = encodeVarint(dAtA, i, uint64(len(m.ActivityDumpVersion)))
+		i--
+		dAtA[i] = 0x32
+	}
+	if len(m.Name) > 0 {
+		i -= len(m.Name)
+		copy(dAtA[i:], m.Name)
+		i = encodeVarint(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0x2a
+	}
+	if len(m.LinuxDistribution) > 0 {
+		i -= len(m.LinuxDistribution)
+		copy(dAtA[i:], m.LinuxDistribution)
+		i = encodeVarint(dAtA, i, uint64(len(m.LinuxDistribution)))
+		i--
+		dAtA[i] = 0x22
+	}
+	if len(m.KernelVersion) > 0 {
+		i -= len(m.KernelVersion)
+		copy(dAtA[i:], m.KernelVersion)
+		i = encodeVarint(dAtA, i, uint64(len(m.KernelVersion)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.AgentCommit) > 0 {
+		i -= len(m.AgentCommit)
+		copy(dAtA[i:], m.AgentCommit)
+		i = encodeVarint(dAtA, i, uint64(len(m.AgentCommit)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.AgentVersion) > 0 {
+		i -= len(m.AgentVersion)
+		copy(dAtA[i:], m.AgentVersion)
+		i = encodeVarint(dAtA, i, uint64(len(m.AgentVersion)))
 		i--
 		dAtA[i] = 0xa
 	}
@@ -1079,6 +1203,10 @@ func (m *ActivityDump) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
+	if m.Metadata != nil {
+		l = m.Metadata.SizeVT()
+		n += 1 + l + sov(uint64(l))
+	}
 	if len(m.Tags) > 0 {
 		for _, s := range m.Tags {
 			l = len(s)
@@ -1090,6 +1218,62 @@ func (m *ActivityDump) SizeVT() (n int) {
 			l = e.SizeVT()
 			n += 1 + l + sov(uint64(l))
 		}
+	}
+	if m.unknownFields != nil {
+		n += len(m.unknownFields)
+	}
+	return n
+}
+
+func (m *Metadata) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.AgentVersion)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
+	l = len(m.AgentCommit)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
+	l = len(m.KernelVersion)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
+	l = len(m.LinuxDistribution)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
+	l = len(m.Name)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
+	l = len(m.ActivityDumpVersion)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
+	if m.DifferentiateArgs {
+		n += 2
+	}
+	l = len(m.Comm)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
+	l = len(m.ContainerId)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
+	if m.StartTime != 0 {
+		n += 1 + sov(uint64(m.StartTime))
+	}
+	if m.EndTime != 0 {
+		n += 1 + sov(uint64(m.EndTime))
+	}
+	if m.Size != 0 {
+		n += 1 + sov(uint64(m.Size))
 	}
 	if m.unknownFields != nil {
 		n += len(m.unknownFields)

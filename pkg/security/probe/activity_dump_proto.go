@@ -25,8 +25,11 @@ func activityDumpToProto(ad *ActivityDump) *adproto.ActivityDump {
 		Host:    ad.Host,
 		Service: ad.Service,
 		Source:  ad.Source,
-		Tags:    ad.Tags,
-		Tree:    make([]*adproto.ProcessActivityNode, 0, len(ad.ProcessActivityTree)),
+
+		Metadata: adMetadataToProto(&ad.DumpMetadata),
+
+		Tags: ad.Tags,
+		Tree: make([]*adproto.ProcessActivityNode, 0, len(ad.ProcessActivityTree)),
 	}
 
 	for _, tree := range ad.ProcessActivityTree {
@@ -34,6 +37,30 @@ func activityDumpToProto(ad *ActivityDump) *adproto.ActivityDump {
 	}
 
 	return pad
+}
+
+func adMetadataToProto(meta *DumpMetadata) *adproto.Metadata {
+	if meta == nil {
+		return nil
+	}
+
+	pmeta := &adproto.Metadata{
+		AgentVersion:      meta.AgentVersion,
+		AgentCommit:       meta.AgentCommit,
+		KernelVersion:     meta.KernelVersion,
+		LinuxDistribution: meta.LinuxDistribution,
+
+		Name:                meta.Name,
+		ActivityDumpVersion: meta.ActivityDumpVersion,
+		DifferentiateArgs:   meta.DifferentiateArgs,
+		Comm:                meta.Comm,
+		ContainerId:         meta.ContainerID,
+		StartTime:           timestamp(&meta.Start),
+		EndTime:             timestamp(&meta.End),
+		Size:                meta.Size,
+	}
+
+	return pmeta
 }
 
 func processActivityNodeToProto(pan *ProcessActivityNode) *adproto.ProcessActivityNode {

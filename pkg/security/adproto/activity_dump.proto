@@ -8,8 +8,27 @@ message ActivityDump {
     string host = 1;
     string service = 2;
     string source = 3;
-    repeated string tags = 4;
-    repeated ProcessActivityNode tree = 5;
+
+    Metadata metadata = 4;
+
+    repeated string tags = 5;
+    repeated ProcessActivityNode tree = 6;
+}
+
+message Metadata {
+    string agent_version = 1;
+    string agent_commit = 2;
+    string kernel_version = 3;
+    string linux_distribution = 4;
+
+    string name = 5;
+    string activity_dump_version = 6;
+    bool differentiate_args = 7;
+    string comm = 8;
+    string container_id = 9;
+    uint64 start_time = 10;
+    uint64 end_time = 11;
+    uint64 size = 12;
 }
 
 message ProcessActivityNode {
