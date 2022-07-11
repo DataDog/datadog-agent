@@ -95,7 +95,7 @@ func TestCompleteInferredSpanWithNoError(t *testing.T) {
 	var inferredSpan InferredSpan
 	startTime := time.Now()
 
-	inferredSpan.GenerateInferredSpan(time.Now())
+	inferredSpan.generateInferredSpan(time.Now())
 	inferredSpan.Span.TraceID = 2350923428932752492
 	inferredSpan.Span.SpanID = 1304592378509342580
 	inferredSpan.Span.Start = startTime.UnixNano()
@@ -115,7 +115,7 @@ func TestCompleteInferredSpanWithNoError(t *testing.T) {
 		tracePayload = payload
 	}
 
-	inferredSpan.CompleteInferredSpan(mockProcessTrace, make(map[string]string), endTime, isError, 1234, sampler.PriorityAutoKeep)
+	inferredSpan.CompleteInferredSpan(mockProcessTrace, endTime, isError, 1234, sampler.PriorityAutoKeep)
 	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.mock", span.Name)
 	assert.Equal(t, "aws.mock", span.Service)
@@ -132,7 +132,7 @@ func TestCompleteInferredSpanWithError(t *testing.T) {
 	var inferredSpan InferredSpan
 	startTime := time.Now()
 
-	inferredSpan.GenerateInferredSpan(time.Now())
+	inferredSpan.generateInferredSpan(time.Now())
 	inferredSpan.Span.TraceID = 2350923428932752492
 	inferredSpan.Span.SpanID = 1304592378509342580
 	inferredSpan.Span.Start = startTime.UnixNano()
@@ -152,7 +152,7 @@ func TestCompleteInferredSpanWithError(t *testing.T) {
 		tracePayload = payload
 	}
 
-	inferredSpan.CompleteInferredSpan(mockProcessTrace, make(map[string]string), endTime, isError, 1234, sampler.PriorityAutoKeep)
+	inferredSpan.CompleteInferredSpan(mockProcessTrace, endTime, isError, 1234, sampler.PriorityAutoKeep)
 	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.mock", span.Name)
 	assert.Equal(t, "aws.mock", span.Service)
@@ -172,7 +172,7 @@ func TestCompleteInferredSpanWithAsync(t *testing.T) {
 	duration := 2 * time.Second
 	// mock invocation end time
 	lambdaInvocationStartTime := startTime.Add(duration)
-	inferredSpan.GenerateInferredSpan(lambdaInvocationStartTime)
+	inferredSpan.generateInferredSpan(lambdaInvocationStartTime)
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.TraceID = 2350923428932752492
 	inferredSpan.Span.SpanID = 1304592378509342580
@@ -190,7 +190,7 @@ func TestCompleteInferredSpanWithAsync(t *testing.T) {
 		tracePayload = payload
 	}
 
-	inferredSpan.CompleteInferredSpan(mockProcessTrace, make(map[string]string), time.Now(), isError, 1234, sampler.PriorityAutoKeep)
+	inferredSpan.CompleteInferredSpan(mockProcessTrace, time.Now(), isError, 1234, sampler.PriorityAutoKeep)
 	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.mock", span.Name)
 	assert.Equal(t, "aws.mock", span.Service)

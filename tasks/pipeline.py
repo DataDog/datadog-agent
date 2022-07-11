@@ -332,6 +332,7 @@ GITHUB_SLACK_MAP = {
     "@DataDog/infrastructure-integrations": "#infrastructure-integrations",
     "@DataDog/processes": "#processes",
     "@DataDog/agent-core": "#agent-core",
+    "@DataDog/agent-metrics-logs": "#agent-metrics-logs",
     "@DataDog/container-app": "#container-app",
     "@DataDog/metrics-aggregation": "#metrics-aggregation",
     "@DataDog/serverless": "#serverless-agent",

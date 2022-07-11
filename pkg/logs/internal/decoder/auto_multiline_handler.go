@@ -57,7 +57,7 @@ type AutoMultilineHandler struct {
 	scoredMatches     []*scoredPattern
 	processFunc       func(message *Message)
 	flushTimeout      time.Duration
-	source            *sources.LogSource
+	source            *sources.ReplaceableSource
 	timeoutTimer      *time.Timer
 	detectedPattern   *DetectedPattern
 }
@@ -69,7 +69,7 @@ func NewAutoMultilineHandler(
 	matchThreshold float64,
 	matchTimeout time.Duration,
 	flushTimeout time.Duration,
-	source *sources.LogSource,
+	source *sources.ReplaceableSource,
 	additionalPatterns []*regexp.Regexp,
 	detectedPattern *DetectedPattern,
 ) *AutoMultilineHandler {

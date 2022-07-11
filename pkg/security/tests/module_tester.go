@@ -40,6 +40,7 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
@@ -82,6 +83,10 @@ runtime_security_config:
   flush_discarder_window: 0
   network:
     enabled: true
+{{if .EnableActivityDump}}
+  activity_dump:
+    enabled: true
+{{end}}
   load_controller:
     events_count_threshold: {{ .EventsCountThreshold }}
 {{if .DisableFilters}}
@@ -157,6 +162,7 @@ type testOpts struct {
 	testDir                     string
 	disableFilters              bool
 	disableApprovers            bool
+	enableActivityDump          bool
 	disableDiscarders           bool
 	eventsCountThreshold        int
 	reuseProbeHandler           bool
@@ -176,6 +182,7 @@ func (s *stringSlice) Set(value string) error {
 func (to testOpts) Equal(opts testOpts) bool {
 	return to.testDir == opts.testDir &&
 		to.disableApprovers == opts.disableApprovers &&
+		to.enableActivityDump == opts.enableActivityDump &&
 		to.disableDiscarders == opts.disableDiscarders &&
 		to.disableFilters == opts.disableFilters &&
 		to.eventsCountThreshold == opts.eventsCountThreshold &&
@@ -552,6 +559,7 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 	if err := tmpl.Execute(buffer, map[string]interface{}{
 		"TestPoliciesDir":             dir,
 		"DisableApprovers":            opts.disableApprovers,
+		"EnableActivityDump":          opts.enableActivityDump,
 		"EventsCountThreshold":        opts.eventsCountThreshold,
 		"ErpcDentryResolutionEnabled": erpcDentryResolutionEnabled,
 		"MapDentryResolutionEnabled":  mapDentryResolutionEnabled,
@@ -1386,4 +1394,70 @@ func checkKernelCompatibility(t *testing.T, why string, skipCheck func(kv *kerne
 	if skipCheck(kv) {
 		t.Skipf("kernel version not supported: %s", why)
 	}
+}
+
+func (tm *testModule) StartActivityDumpComm(t *testing.T, comm string, outputDir string, formats []string) ([]string, error) {
+	monitor := tm.probe.GetMonitor()
+	if monitor == nil {
+		return nil, errors.New("No monitor")
+	}
+	p := &api.ActivityDumpParams{
+		Comm:              comm,
+		Timeout:           1,
+		DifferentiateArgs: true,
+		Storage: &api.StorageRequestParams{
+			LocalStorageDirectory:    outputDir,
+			LocalStorageFormats:      formats,
+			LocalStorageCompression:  false,
+			RemoteStorageFormats:     []string{},
+			RemoteStorageCompression: false,
+		},
+	}
+	mess, err := monitor.DumpActivity(p)
+	if err != nil || mess == nil || len(mess.Storage) < 1 {
+		t.Errorf("failed to start activity dump: %s", err)
+		return nil, err
+	}
+
+	var files []string
+	for _, s := range mess.Storage {
+		files = append(files, s.File)
+	}
+	return files, nil
+}
+
+func (tm *testModule) StopActivityDumpComm(t *testing.T, comm string) error {
+	monitor := tm.probe.GetMonitor()
+	if monitor == nil {
+		return errors.New("No monitor")
+	}
+	p := &api.ActivityDumpStopParams{
+		Comm: comm,
+	}
+	_, err := monitor.StopActivityDump(p)
+	if err != nil {
+		t.Errorf("failed to start activity dump: %s", err)
+		return err
+	}
+	return nil
+}
+
+func (tm *testModule) DecodeMSPActivityDump(t *testing.T, path string) (*sprobe.ActivityDump, error) {
+	monitor := tm.probe.GetMonitor()
+	if monitor == nil {
+		return nil, errors.New("No monitor")
+	}
+	adm := monitor.GetActivityDumpManager()
+	if adm == nil {
+		return nil, errors.New("No activity dump manager")
+	}
+	ad := sprobe.NewActivityDump(adm)
+	if ad == nil {
+		return nil, errors.New("Creatioln of new activity dump fails")
+	}
+	err := ad.Decode(path)
+	if err != nil {
+		return nil, err
+	}
+	return ad, nil
 }
