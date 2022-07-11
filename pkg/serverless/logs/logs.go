@@ -204,6 +204,11 @@ func shouldProcessLog(ecs *executioncontext.State, message logMessage) bool {
 	if message.logType == logTypePlatformExtension || message.logType == logTypePlatformLogsSubscription {
 		return false
 	}
+	// Making sure that empty logs are not uselessly sent
+	if len(message.stringRecord) == 0 && len(message.objectRecord.requestID) == 0 {
+		return false
+	}
+
 	return true
 }
 

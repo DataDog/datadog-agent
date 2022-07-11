@@ -7,9 +7,9 @@ package utils
 
 import (
 	"net/http"
-	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/atomic"
 )
 
 // DefaultMaxConcurrentRequests determines the maximum number of requests in-flight for a given handler
@@ -19,10 +19,10 @@ const DefaultMaxConcurrentRequests = 2
 // WithConcurrencyLimit enforces a maximum number of concurrent requests over
 // over a certain HTTP handler function
 func WithConcurrencyLimit(limit int, original func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
-	var inFlight int64
+	inFlight := atomic.NewInt64(0)
 	return func(w http.ResponseWriter, req *http.Request) {
-		current := atomic.AddInt64(&inFlight, 1)
-		defer atomic.AddInt64(&inFlight, -1)
+		current := inFlight.Inc()
+		defer inFlight.Dec()
 
 		if current > int64(limit) {
 			log.Warnf("rejecting request for path=%s concurrency_limit=%d", req.URL.Path, limit)

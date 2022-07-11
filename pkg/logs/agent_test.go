@@ -7,7 +7,6 @@ package logs
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -38,12 +37,11 @@ type AgentTestSuite struct {
 }
 
 func (suite *AgentTestSuite) SetupTest() {
-	mockConfig := coreConfig.Mock()
+	mockConfig := coreConfig.Mock(nil)
 
 	var err error
 
-	suite.testDir, err = ioutil.TempDir("", "tests")
-	suite.NoError(err)
+	suite.testDir = suite.T().TempDir()
 
 	suite.testLogFile = fmt.Sprintf("%s/test.log", suite.testDir)
 	fd, err := os.Create(suite.testLogFile)
@@ -66,8 +64,6 @@ func (suite *AgentTestSuite) SetupTest() {
 }
 
 func (suite *AgentTestSuite) TearDownTest() {
-	os.Remove(suite.testDir)
-
 	// Resets the metrics we check.
 	metrics.LogsDecoded.Set(0)
 	metrics.LogsProcessed.Set(0)

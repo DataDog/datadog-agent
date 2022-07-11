@@ -9,7 +9,7 @@ func TestFlow_AggregationHash(t *testing.T) {
 	allHash := make(map[uint64]bool)
 	origFlow := Flow{
 		Namespace:      "default",
-		ExporterAddr:   []byte{127, 0, 0, 1},
+		DeviceAddr:     []byte{127, 0, 0, 1},
 		SrcAddr:        []byte{1, 2, 3, 4},
 		DstAddr:        []byte{2, 3, 4, 5},
 		IPProtocol:     6,
@@ -28,7 +28,7 @@ func TestFlow_AggregationHash(t *testing.T) {
 	allHash[flow.AggregationHash()] = true
 
 	flow = origFlow
-	flow.ExporterAddr = []byte{127, 0, 0, 2}
+	flow.DeviceAddr = []byte{127, 0, 0, 2}
 	assert.NotEqual(t, origHash, flow.AggregationHash())
 	allHash[flow.AggregationHash()] = true
 

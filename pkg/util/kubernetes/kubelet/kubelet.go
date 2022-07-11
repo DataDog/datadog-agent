@@ -13,7 +13,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -321,65 +320,6 @@ func (ku *KubeUtil) searchPodForContainerID(podList []*Pod, containerID string) 
 	return nil, errors.NewNotFound(fmt.Sprintf("container %s in PodList", containerID))
 }
 
-// GetStatusForContainerID returns the container status from the pod given an ID
-func (ku *KubeUtil) GetStatusForContainerID(pod *Pod, containerID string) (ContainerStatus, error) {
-	for _, container := range pod.Status.GetAllContainers() {
-		if containerID == container.ID {
-			return container, nil
-		}
-	}
-	return ContainerStatus{}, errors.NewNotFound(fmt.Sprintf("container %s in pod", containerID))
-}
-
-// GetSpecForContainerName returns the container spec from the pod given a name
-// It searches spec.containers then spec.initContainers
-func (ku *KubeUtil) GetSpecForContainerName(pod *Pod, containerName string) (ContainerSpec, error) {
-	for _, containerSpec := range append(pod.Spec.Containers, pod.Spec.InitContainers...) {
-		if containerName == containerSpec.Name {
-			return containerSpec, nil
-		}
-	}
-	return ContainerSpec{}, errors.NewNotFound(fmt.Sprintf("container %s in pod", containerName))
-}
-
-// GetPodFromUID fetches pods by UID
-func (ku *KubeUtil) GetPodFromUID(ctx context.Context, podUID string) (*Pod, error) {
-	if podUID == "" {
-		return nil, fmt.Errorf("pod UID is empty")
-	}
-	pods, err := ku.GetLocalPodList(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for _, pod := range pods {
-		if pod.Metadata.UID == podUID {
-			return pod, nil
-		}
-	}
-	log.Debugf("cannot get the pod uid %q: %s, retrying without cache...", podUID, err)
-
-	pods, err = ku.ForceGetLocalPodList(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for _, pod := range pods {
-		if pod.Metadata.UID == podUID {
-			return pod, nil
-		}
-	}
-	return nil, errors.NewNotFound(fmt.Sprintf("pod %s in podlist", podUID))
-}
-
-// GetPodForEntityID returns a pointer to the pod that corresponds to an entity ID.
-// If the pod is not found it returns nil and an error.
-func (ku *KubeUtil) GetPodForEntityID(ctx context.Context, entityID string) (*Pod, error) {
-	if strings.HasPrefix(entityID, KubePodPrefix) {
-		uid := strings.TrimPrefix(entityID, KubePodPrefix)
-		return ku.GetPodFromUID(ctx, uid)
-	}
-	return ku.GetPodForContainerID(ctx, entityID)
-}
-
 // GetLocalStatsSummary returns node and pod stats from kubelet
 func (ku *KubeUtil) GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error) {
 	data, code, err := ku.QueryKubelet(ctx, kubeletStatsSummary)
@@ -403,11 +343,6 @@ func (ku *KubeUtil) GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.
 // return the content of the response, the response HTTP status code and an error in case of
 func (ku *KubeUtil) QueryKubelet(ctx context.Context, path string) ([]byte, int, error) {
 	return ku.kubeletClient.query(ctx, path)
-}
-
-// GetKubeletAPIEndpoint returns the current endpoint used to perform QueryKubelet
-func (ku *KubeUtil) GetKubeletAPIEndpoint() string {
-	return ku.kubeletClient.kubeletURL
 }
 
 // GetRawConnectionInfo returns a map containging the url and credentials to connect to the kubelet

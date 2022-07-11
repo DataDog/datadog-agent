@@ -23,8 +23,14 @@ type metricRecorder struct {
 	series           []*metrics.Serie
 }
 
-func (r *metricRecorder) SendSketch(s metrics.SketchSeriesList) error {
-	r.sketchSeriesList = s
+func (r *metricRecorder) SendSketch(s metrics.SketchesSource) error {
+	for s.MoveNext() {
+		c := s.Current()
+		if c == nil {
+			continue
+		}
+		r.sketchSeriesList = append(r.sketchSeriesList, c)
+	}
 	return nil
 }
 

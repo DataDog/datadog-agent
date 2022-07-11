@@ -33,8 +33,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/status"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -80,7 +80,7 @@ func setupCmd(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&fullSketches, "full-sketches", false, "output sketches with bins information")
 	cmd.Flags().BoolVarP(&saveFlare, "flare", "", false, "save check results to the log dir so it may be reported in a flare")
 	cmd.Flags().UintVarP(&discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
-	cmd.Flags().UintVarP(&discoveryRetryInterval, "discovery-retry-interval", "", 1, "duration between retries until Autodiscovery resolves the check template (in seconds)")
+	cmd.Flags().UintVarP(&discoveryRetryInterval, "discovery-retry-interval", "", 1, "(unused)")
 	cmd.Flags().UintVarP(&discoveryMinInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
 	config.Datadog.BindPFlag("cmd.check.fullsketches", cmd.Flags().Lookup("full-sketches")) //nolint:errcheck
 
@@ -137,7 +137,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				return nil
 			}
 
-			hostname, err := util.GetHostname(context.TODO())
+			hostnameDetected, err := hostname.Get(context.TODO())
 			if err != nil {
 				fmt.Printf("Cannot get hostname, exiting: %v\n", err)
 				return err
@@ -149,22 +149,23 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			opts.UseNoopForwarder = true
 			opts.UseNoopEventPlatformForwarder = true
 			opts.UseNoopOrchestratorForwarder = true
-			demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
+			demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostnameDetected)
 
 			common.LoadComponents(context.Background(), config.Datadog.GetString("confd_path"))
+			common.AC.LoadAndRun()
 
 			if config.Datadog.GetBool("inventories_enabled") {
 				metadata.SetupInventoriesExpvar(common.AC, common.Coll)
 			}
 
-			if discoveryRetryInterval > discoveryTimeout {
-				fmt.Println("The discovery retry interval", discoveryRetryInterval, "is higher than the discovery timeout", discoveryTimeout)
-				fmt.Println("Setting the discovery retry interval to", discoveryTimeout)
-				discoveryRetryInterval = discoveryTimeout
-			}
+			// Create the CheckScheduler, but do not attach it to
+			// AutoDiscovery.  NOTE: we do not start common.Coll, either.
+			collector.InitCheckScheduler(common.Coll)
 
-			allConfigs := common.WaitForConfigs(time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second,
-				common.SelectedCheckMatcherBuilder([]string{checkName}, discoveryMinInstances))
+			waitCtx, cancelTimeout := context.WithTimeout(
+				context.Background(), time.Duration(discoveryTimeout)*time.Second)
+			allConfigs := common.WaitForConfigsFromAD(waitCtx, []string{checkName}, int(discoveryMinInstances))
+			cancelTimeout()
 
 			// make sure the checks in cs are not JMX checks
 			for idx := range allConfigs {

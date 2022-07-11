@@ -27,8 +27,8 @@
 static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u8 state) {
     u32 rtt = 0;
     u32 rtt_var = 0;
-    bpf_probe_read(&rtt, sizeof(rtt), ((char*)sk) + offset_rtt());
-    bpf_probe_read(&rtt_var, sizeof(rtt_var), ((char*)sk) + offset_rtt_var());
+    bpf_probe_read_kernel(&rtt, sizeof(rtt), ((char*)sk) + offset_rtt());
+    bpf_probe_read_kernel(&rtt_var, sizeof(rtt_var), ((char*)sk) + offset_rtt_var());
 
     tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
     if (state > 0) {
@@ -184,8 +184,8 @@ static __always_inline int handle_ip6_skb(struct sock* sk, size_t size, struct f
             t.metadata |= CONN_V6;
         }
 
-        bpf_probe_read(&t.sport, sizeof(t.sport), ((char*)fl6) + offset_sport_fl6());
-        bpf_probe_read(&t.dport, sizeof(t.dport), ((char*)fl6) + offset_dport_fl6());
+        bpf_probe_read_kernel(&t.sport, sizeof(t.sport), ((char*)fl6) + offset_sport_fl6());
+        bpf_probe_read_kernel(&t.dport, sizeof(t.dport), ((char*)fl6) + offset_dport_fl6());
 
         if (t.sport == 0 || t.dport == 0) {
             log_debug("ERR(fl6): src/dst port not set: src:%d, dst:%d\n", t.sport, t.dport);
@@ -242,8 +242,8 @@ int kprobe__ip_make_skb(struct pt_regs* ctx) {
         }
 
         struct flowi4* fl4 = (struct flowi4*)PT_REGS_PARM2(ctx);
-        bpf_probe_read(&t.saddr_l, sizeof(__u32), ((char*)fl4) + offset_saddr_fl4());
-        bpf_probe_read(&t.daddr_l, sizeof(__u32), ((char*)fl4) + offset_daddr_fl4());
+        bpf_probe_read_kernel(&t.saddr_l, sizeof(__u32), ((char*)fl4) + offset_saddr_fl4());
+        bpf_probe_read_kernel(&t.daddr_l, sizeof(__u32), ((char*)fl4) + offset_daddr_fl4());
 
         if (!t.saddr_l || !t.daddr_l) {
             log_debug("ERR(fl4): src/dst addr not set src:%d,dst:%d\n", t.saddr_l, t.daddr_l);
@@ -251,8 +251,8 @@ int kprobe__ip_make_skb(struct pt_regs* ctx) {
             return 0;
         }
 
-        bpf_probe_read(&t.sport, sizeof(t.sport), ((char*)fl4) + offset_sport_fl4());
-        bpf_probe_read(&t.dport, sizeof(t.dport), ((char*)fl4) + offset_dport_fl4());
+        bpf_probe_read_kernel(&t.sport, sizeof(t.sport), ((char*)fl4) + offset_sport_fl4());
+        bpf_probe_read_kernel(&t.dport, sizeof(t.dport), ((char*)fl4) + offset_dport_fl4());
 
         if (t.sport == 0 || t.dport == 0) {
             log_debug("ERR(fl4): src/dst port not set: src:%d, dst:%d\n", t.sport, t.dport);
@@ -290,10 +290,10 @@ static __always_inline int handle_udp_recvmsg(struct sock* sk, struct msghdr* ms
     u64 pid_tgid = bpf_get_current_pid_tgid();
     udp_recv_sock_t t = { .sk = NULL, .msg = NULL };
     if (sk) {
-        bpf_probe_read(&t.sk, sizeof(t.sk), &sk);
+        bpf_probe_read_kernel(&t.sk, sizeof(t.sk), &sk);
     }
     if (msg) {
-        bpf_probe_read(&t.msg, sizeof(t.msg), &msg);
+        bpf_probe_read_kernel(&t.msg, sizeof(t.msg), &msg);
     }
 
     bpf_map_update_elem(udp_sock_map, &pid_tgid, &t, BPF_ANY);
@@ -355,7 +355,7 @@ static __always_inline int handle_ret_udp_recvmsg(int copied, struct bpf_map_def
     __builtin_memset(&t, 0, sizeof(conn_tuple_t));
     if (st->msg) {
         struct sockaddr *sap = NULL;
-        bpf_probe_read(&sap, sizeof(sap), &(st->msg->msg_name));
+        bpf_probe_read_kernel(&sap, sizeof(sap), &(st->msg->msg_name));
         sockaddr_to_addr(sap, &t.daddr_h, &t.daddr_l, &t.dport, &t.metadata);
     }
 
@@ -511,7 +511,7 @@ static __always_inline int sys_enter_bind(struct socket* sock, struct sockaddr* 
     __u64 tid = bpf_get_current_pid_tgid();
 
     __u16 type = 0;
-    bpf_probe_read(&type, sizeof(__u16), &sock->type);
+    bpf_probe_read_kernel(&type, sizeof(__u16), &sock->type);
     if ((type & SOCK_DGRAM) == 0) {
         return 0;
     }
@@ -523,11 +523,11 @@ static __always_inline int sys_enter_bind(struct socket* sock, struct sockaddr* 
 
     u16 sin_port = 0;
     sa_family_t family = 0;
-    bpf_probe_read(&family, sizeof(sa_family_t), &addr->sa_family);
+    bpf_probe_read_kernel(&family, sizeof(sa_family_t), &addr->sa_family);
     if (family == AF_INET) {
-        bpf_probe_read(&sin_port, sizeof(u16), &(((struct sockaddr_in*)addr)->sin_port));
+        bpf_probe_read_kernel(&sin_port, sizeof(u16), &(((struct sockaddr_in*)addr)->sin_port));
     } else if (family == AF_INET6) {
-        bpf_probe_read(&sin_port, sizeof(u16), &(((struct sockaddr_in6*)addr)->sin6_port));
+        bpf_probe_read_kernel(&sin_port, sizeof(u16), &(((struct sockaddr_in6*)addr)->sin6_port));
     }
 
     sin_port = ntohs(sin_port);
@@ -646,26 +646,26 @@ int kretprobe__sockfd_lookup_light(struct pt_regs* ctx) {
     // For now let's only store information for TCP sockets
     struct socket* socket = (struct socket*)PT_REGS_RC(ctx);
     enum sock_type sock_type = 0;
-    bpf_probe_read(&sock_type, sizeof(short), &socket->type);
+    bpf_probe_read_kernel(&sock_type, sizeof(short), &socket->type);
 
     // (struct socket).ops is always directly after (struct socket).sk,
     // which is a pointer.
     u64 ops_offset = offset_socket_sk() + sizeof(void*);
     struct proto_ops *proto_ops = NULL;
-    bpf_probe_read(&proto_ops, sizeof(proto_ops), (void*)(socket) + ops_offset);
+    bpf_probe_read_kernel(&proto_ops, sizeof(proto_ops), (void*)(socket) + ops_offset);
     if (!proto_ops) {
         goto cleanup;
     }
 
     int family = 0;
-    bpf_probe_read(&family, sizeof(family), &proto_ops->family);
+    bpf_probe_read_kernel(&family, sizeof(family), &proto_ops->family);
     if (sock_type != SOCK_STREAM || !(family == AF_INET || family == AF_INET6)) {
         goto cleanup;
     }
 
     // Retrieve struct sock* pointer from struct socket*
     struct sock *sock = NULL;
-    bpf_probe_read(&sock, sizeof(sock), (char*)socket + offset_socket_sk());
+    bpf_probe_read_kernel(&sock, sizeof(sock), (char*)socket + offset_socket_sk());
 
     pid_fd_t pid_fd = {
         .pid = pid_tgid >> 32,

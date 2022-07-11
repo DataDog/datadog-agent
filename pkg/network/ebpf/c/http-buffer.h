@@ -11,7 +11,8 @@
 // it is still necessary to make the eBPF verifier happy.
 static __always_inline void read_into_buffer(char *buffer, char *data, size_t data_size) {
     __builtin_memset(buffer, 0, HTTP_BUFFER_SIZE);
-    bpf_probe_read(buffer, HTTP_BUFFER_SIZE, data);
+    bpf_probe_read_user(buffer, HTTP_BUFFER_SIZE, data);
+
     if (data_size >= HTTP_BUFFER_SIZE) {
         return;
     }

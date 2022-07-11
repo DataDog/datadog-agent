@@ -11,8 +11,6 @@ package jmx
 import (
 	"context"
 	"errors"
-	"io/ioutil"
-	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -32,13 +30,6 @@ func getFile() (string, error) {
 
 func TestLoadCheckConfig(t *testing.T) {
 	ctx := context.Background()
-
-	tmp, err := ioutil.TempDir("", "datadog-agent")
-	if err != nil {
-		t.Fatalf("unable to create temporary directory: %v", err)
-	}
-
-	defer os.RemoveAll(tmp) // clean up
 
 	jl, err := NewJMXCheckLoader()
 	assert.Nil(t, err)

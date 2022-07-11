@@ -37,22 +37,23 @@ type Client struct {
 
 	cachedVerify     bool
 	cachedVerifyTime time.Time
+
+	// TUF transaction tracker
+	transactionalStore *transactionalStore
 }
 
 // NewClient creates a new uptane client
 func NewClient(cacheDB *bbolt.DB, cacheKey string, orgID int64) (*Client, error) {
-	localStoreConfig, err := newLocalStoreConfig(cacheDB, cacheKey)
+	transactionalStore := newTransactionalStore(cacheDB)
+	localStoreConfig, err := newLocalStoreConfig(transactionalStore, cacheKey)
 	if err != nil {
 		return nil, err
 	}
-	localStoreDirector, err := newLocalStoreDirector(cacheDB, cacheKey)
+	localStoreDirector, err := newLocalStoreDirector(transactionalStore, cacheKey)
 	if err != nil {
 		return nil, err
 	}
-	targetStore, err := newTargetStore(cacheDB, cacheKey)
-	if err != nil {
-		return nil, err
-	}
+	targetStore := newTargetStore(transactionalStore, cacheKey)
 	c := &Client{
 		orgID:               orgID,
 		configLocalStore:    localStoreConfig,
@@ -60,6 +61,7 @@ func NewClient(cacheDB *bbolt.DB, cacheKey string, orgID int64) (*Client, error)
 		directorLocalStore:  localStoreDirector,
 		directorRemoteStore: newRemoteStoreDirector(targetStore),
 		targetStore:         targetStore,
+		transactionalStore:  transactionalStore,
 	}
 	c.configTUFClient = client.NewClient(c.configLocalStore, c.configRemoteStore)
 	c.directorTUFClient = client.NewClient(c.directorLocalStore, c.directorRemoteStore)
@@ -71,6 +73,11 @@ func (c *Client) Update(response *pbgo.LatestConfigsResponse) error {
 	c.Lock()
 	defer c.Unlock()
 	c.cachedVerify = false
+
+	// in case the commit is successful it is a no-op.
+	// the defer is present to be sure a transaction is never left behind.
+	defer c.transactionalStore.rollback()
+
 	err := c.updateRepos(response)
 	if err != nil {
 		return err
@@ -79,7 +86,12 @@ func (c *Client) Update(response *pbgo.LatestConfigsResponse) error {
 	if err != nil {
 		return err
 	}
-	return c.verify()
+	err = c.verify()
+	if err != nil {
+		return err
+	}
+
+	return c.transactionalStore.commit()
 }
 
 // TargetsCustom returns the current targets custom of this uptane client
@@ -234,7 +246,11 @@ func (c *Client) verifyUptane() error {
 	for targetPath, targetMeta := range directorTargets {
 		configTargetMeta, err := c.configTUFClient.Target(targetPath)
 		if err != nil {
-			return fmt.Errorf("failed to find target '%s' in config repository", targetPath)
+			if client.IsNotFound(err) {
+				return fmt.Errorf("failed to find target '%s' in config repository", targetPath)
+			}
+			// Other errors such as expired metadata
+			return err
 		}
 		if configTargetMeta.Length != targetMeta.Length {
 			return fmt.Errorf("target '%s' has size %d in directory repository and %d in config repository", targetPath, configTargetMeta.Length, targetMeta.Length)

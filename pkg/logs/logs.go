@@ -25,6 +25,7 @@ import (
 	ccaScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/cca"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
+	ddUtil "github.com/DataDog/datadog-agent/pkg/util"
 )
 
 const (
@@ -133,7 +134,9 @@ func start(ac *autodiscovery.AutoConfig, serverless bool) (*Agent, error) {
 			panic("AutoConfig must be initialized before logs-agent")
 		}
 		agent.AddScheduler(adScheduler.New(ac))
-		agent.AddScheduler(ccaScheduler.New(ac))
+		if !ddUtil.CcaInAD() {
+			agent.AddScheduler(ccaScheduler.New(ac))
+		}
 	}
 
 	return agent, nil

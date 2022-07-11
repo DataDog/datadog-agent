@@ -75,7 +75,7 @@ func TestMarshalJSON(t *testing.T) {
 		SourceTypeName: "custom_source_type",
 	}}
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	oldName := mockConfig.GetString("hostname")
 	defer mockConfig.Set("hostname", oldName)
 	mockConfig.Set("hostname", "test-hostname")
@@ -95,7 +95,7 @@ func TestMarshalJSONOmittedFields(t *testing.T) {
 		Host:  "my-hostname",
 	}}
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	oldName := mockConfig.GetString("hostname")
 	defer mockConfig.Set("hostname", oldName)
 	mockConfig.Set("hostname", "test-hostname")

@@ -10,7 +10,7 @@
 
 #define MAX_PERF_STR_BUFF_LEN 256
 #define MAX_STR_BUFF_LEN (1 << 15)
-#define MAX_ARRAY_ELEMENT_PER_TAIL 28
+#define MAX_ARRAY_ELEMENT_PER_TAIL 23
 #define MAX_ARRAY_ELEMENT_SIZE 4096
 #define MAX_ARGS_ELEMENTS 140
 
@@ -58,6 +58,7 @@ struct exit_event_t {
     struct process_context_t process;
     struct span_context_t span;
     struct container_context_t container;
+    u32 exit_code;
 };
 
 struct _tracepoint_sched_process_fork {
@@ -208,6 +209,7 @@ int kprobe_parse_args_envs(struct pt_regs *ctx) {
     if (syscall->exec.next_tail > MAX_ARGS_ELEMENTS / MAX_ARRAY_ELEMENT_PER_TAIL) {
         array = &syscall->exec.envs;
     }
+
     parse_str_array(ctx, array, EVENT_ARGS_ENVS);
 
     syscall->exec.next_tail++;
@@ -557,6 +559,7 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         struct proc_cache_t *cache_entry = fill_process_context(&event.process);
         fill_container_context(cache_entry, &event.container);
         fill_span_context(&event.span);
+        event.exit_code = (u32)PT_REGS_PARM1(ctx);
         send_event(ctx, EVENT_EXIT, event);
 
         unregister_span_memory();

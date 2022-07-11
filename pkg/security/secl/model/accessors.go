@@ -33,6 +33,7 @@ func (m *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("chown"),
 		eval.EventType("dns"),
 		eval.EventType("exec"),
+		eval.EventType("exit"),
 		eval.EventType("link"),
 		eval.EventType("load_module"),
 		eval.EventType("mkdir"),
@@ -278,6 +279,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "chmod.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Chmod.File.BasenameStr
 			},
@@ -286,7 +288,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "chmod.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Chmod.File.PathnameStr
 			},
@@ -431,6 +433,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "chown.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Chown.File.BasenameStr
 			},
@@ -439,7 +442,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "chown.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Chown.File.PathnameStr
 			},
@@ -761,6 +764,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "exec.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Exec.Process.FileEvent.BasenameStr
 			},
@@ -769,7 +773,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "exec.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Exec.Process.FileEvent.PathnameStr
 			},
@@ -904,6 +908,392 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "exit.args":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.Args
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+		}, nil
+	case "exit.args_flags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				return (*Event)(ctx.Object).Exit.Process.Argv
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.args_options":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				return (*Event)(ctx.Object).Exit.Process.Argv
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.args_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Exit.Process.ArgsTruncated
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.argv":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				return (*Event)(ctx.Object).Exit.Process.Argv
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+		}, nil
+	case "exit.argv0":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.Argv0
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+		}, nil
+	case "exit.cap_effective":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.Credentials.CapEffective)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.cap_permitted":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.Credentials.CapPermitted)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.cause":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Cause)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.code":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Code)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.comm":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.Comm
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.container.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.ContainerID
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.cookie":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.Cookie)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.created_at":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.CreatedAt)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.egid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.Credentials.EGID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.egroup":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.Credentials.EGroup
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.envp":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				return (*Event)(ctx.Object).Exit.Process.Envp
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.envs":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				return (*Event)(ctx.Object).Exit.Process.Envs
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.envs_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Exit.Process.EnvsTruncated
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.euid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.Credentials.EUID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.euser":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.Credentials.EUser
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.FileEvent.Filesystem
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.Group
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.InUpperLayer
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.file.name":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.FileEvent.BasenameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.FileEvent.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.User
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.fsgid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.Credentials.FSGID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.fsgroup":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.Credentials.FSGroup
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.fsuid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.Credentials.FSUID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.fsuser":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.Credentials.FSUser
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.Credentials.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.Credentials.Group
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.is_thread":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Exit.Process.IsThread
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.pid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.PIDContext.Pid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.ppid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.PPid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.tid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.PIDContext.Tid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.tty_name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.TTYName
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.Credentials.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.Credentials.User
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "link.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -986,6 +1376,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "link.file.destination.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Link.Target.BasenameStr
 			},
@@ -994,7 +1385,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "link.file.destination.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Link.Target.PathnameStr
 			},
@@ -1091,6 +1482,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "link.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Link.Source.BasenameStr
 			},
@@ -1099,7 +1491,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "link.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Link.Source.PathnameStr
 			},
@@ -1212,6 +1604,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "load_module.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).LoadModule.File.BasenameStr
 			},
@@ -1220,7 +1613,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "load_module.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).LoadModule.File.PathnameStr
 			},
@@ -1365,6 +1758,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "mkdir.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Mkdir.File.BasenameStr
 			},
@@ -1373,7 +1767,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "mkdir.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Mkdir.File.PathnameStr
 			},
@@ -1486,6 +1880,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "mmap.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).MMap.File.BasenameStr
 			},
@@ -1494,7 +1889,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "mmap.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).MMap.File.PathnameStr
 			},
@@ -1727,6 +2122,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "open.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Open.File.BasenameStr
 			},
@@ -1735,7 +2131,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "open.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Open.File.PathnameStr
 			},
@@ -2232,6 +2628,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.ancestors.file.name":
 		return &eval.StringArrayEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -2248,7 +2645,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -2745,6 +3142,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ProcessContext.Process.FileEvent.BasenameStr
 			},
@@ -2753,7 +3151,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ProcessContext.Process.FileEvent.PathnameStr
 			},
@@ -3354,6 +3752,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "ptrace.tracee.ancestors.file.name":
 		return &eval.StringArrayEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -3370,7 +3769,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "ptrace.tracee.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -3867,6 +4266,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "ptrace.tracee.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.BasenameStr
 			},
@@ -3875,7 +4275,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "ptrace.tracee.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.PathnameStr
 			},
@@ -4100,6 +4500,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "removexattr.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).RemoveXAttr.File.BasenameStr
 			},
@@ -4108,7 +4509,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "removexattr.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).RemoveXAttr.File.PathnameStr
 			},
@@ -4229,6 +4630,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "rename.file.destination.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Rename.New.BasenameStr
 			},
@@ -4237,7 +4639,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "rename.file.destination.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Rename.New.PathnameStr
 			},
@@ -4334,6 +4736,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "rename.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Rename.Old.BasenameStr
 			},
@@ -4342,7 +4745,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "rename.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Rename.Old.PathnameStr
 			},
@@ -4455,6 +4858,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "rmdir.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Rmdir.File.BasenameStr
 			},
@@ -4463,7 +4867,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "rmdir.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Rmdir.File.PathnameStr
 			},
@@ -4720,6 +5124,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "setxattr.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).SetXAttr.File.BasenameStr
 			},
@@ -4728,7 +5133,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "setxattr.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).SetXAttr.File.PathnameStr
 			},
@@ -5233,6 +5638,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "signal.target.ancestors.file.name":
 		return &eval.StringArrayEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -5249,7 +5655,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "signal.target.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []string {
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
@@ -5746,6 +6152,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "signal.target.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Signal.Target.Process.FileEvent.BasenameStr
 			},
@@ -5754,7 +6161,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "signal.target.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Signal.Target.Process.FileEvent.PathnameStr
 			},
@@ -5971,6 +6378,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "splice.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Splice.File.BasenameStr
 			},
@@ -5979,7 +6387,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "splice.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Splice.File.PathnameStr
 			},
@@ -6108,6 +6516,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "unlink.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Unlink.File.BasenameStr
 			},
@@ -6116,7 +6525,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "unlink.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Unlink.File.PathnameStr
 			},
@@ -6253,6 +6662,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "utimes.file.name":
 		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Utimes.File.BasenameStr
 			},
@@ -6261,7 +6671,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "utimes.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.GlobCmp,
+			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Utimes.File.PathnameStr
 			},
@@ -6410,6 +6820,54 @@ func (e *Event) GetFields() []eval.Field {
 		"exec.tty_name",
 		"exec.uid",
 		"exec.user",
+		"exit.args",
+		"exit.args_flags",
+		"exit.args_options",
+		"exit.args_truncated",
+		"exit.argv",
+		"exit.argv0",
+		"exit.cap_effective",
+		"exit.cap_permitted",
+		"exit.cause",
+		"exit.code",
+		"exit.comm",
+		"exit.container.id",
+		"exit.cookie",
+		"exit.created_at",
+		"exit.egid",
+		"exit.egroup",
+		"exit.envp",
+		"exit.envs",
+		"exit.envs_truncated",
+		"exit.euid",
+		"exit.euser",
+		"exit.file.change_time",
+		"exit.file.filesystem",
+		"exit.file.gid",
+		"exit.file.group",
+		"exit.file.in_upper_layer",
+		"exit.file.inode",
+		"exit.file.mode",
+		"exit.file.modification_time",
+		"exit.file.mount_id",
+		"exit.file.name",
+		"exit.file.path",
+		"exit.file.rights",
+		"exit.file.uid",
+		"exit.file.user",
+		"exit.fsgid",
+		"exit.fsgroup",
+		"exit.fsuid",
+		"exit.fsuser",
+		"exit.gid",
+		"exit.group",
+		"exit.is_thread",
+		"exit.pid",
+		"exit.ppid",
+		"exit.tid",
+		"exit.tty_name",
+		"exit.uid",
+		"exit.user",
 		"link.file.change_time",
 		"link.file.destination.change_time",
 		"link.file.destination.filesystem",
@@ -7162,6 +7620,102 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Exec.Process.Credentials.UID), nil
 	case "exec.user":
 		return e.Exec.Process.Credentials.User, nil
+	case "exit.args":
+		return e.Exit.Process.Args, nil
+	case "exit.args_flags":
+		return e.Exit.Process.Argv, nil
+	case "exit.args_options":
+		return e.Exit.Process.Argv, nil
+	case "exit.args_truncated":
+		return e.Exit.Process.ArgsTruncated, nil
+	case "exit.argv":
+		return e.Exit.Process.Argv, nil
+	case "exit.argv0":
+		return e.Exit.Process.Argv0, nil
+	case "exit.cap_effective":
+		return int(e.Exit.Process.Credentials.CapEffective), nil
+	case "exit.cap_permitted":
+		return int(e.Exit.Process.Credentials.CapPermitted), nil
+	case "exit.cause":
+		return int(e.Exit.Cause), nil
+	case "exit.code":
+		return int(e.Exit.Code), nil
+	case "exit.comm":
+		return e.Exit.Process.Comm, nil
+	case "exit.container.id":
+		return e.Exit.Process.ContainerID, nil
+	case "exit.cookie":
+		return int(e.Exit.Process.Cookie), nil
+	case "exit.created_at":
+		return int(e.Exit.Process.CreatedAt), nil
+	case "exit.egid":
+		return int(e.Exit.Process.Credentials.EGID), nil
+	case "exit.egroup":
+		return e.Exit.Process.Credentials.EGroup, nil
+	case "exit.envp":
+		return e.Exit.Process.Envp, nil
+	case "exit.envs":
+		return e.Exit.Process.Envs, nil
+	case "exit.envs_truncated":
+		return e.Exit.Process.EnvsTruncated, nil
+	case "exit.euid":
+		return int(e.Exit.Process.Credentials.EUID), nil
+	case "exit.euser":
+		return e.Exit.Process.Credentials.EUser, nil
+	case "exit.file.change_time":
+		return int(e.Exit.Process.FileEvent.FileFields.CTime), nil
+	case "exit.file.filesystem":
+		return e.Exit.Process.FileEvent.Filesystem, nil
+	case "exit.file.gid":
+		return int(e.Exit.Process.FileEvent.FileFields.GID), nil
+	case "exit.file.group":
+		return e.Exit.Process.FileEvent.FileFields.Group, nil
+	case "exit.file.in_upper_layer":
+		return e.Exit.Process.FileEvent.FileFields.InUpperLayer, nil
+	case "exit.file.inode":
+		return int(e.Exit.Process.FileEvent.FileFields.Inode), nil
+	case "exit.file.mode":
+		return int(e.Exit.Process.FileEvent.FileFields.Mode), nil
+	case "exit.file.modification_time":
+		return int(e.Exit.Process.FileEvent.FileFields.MTime), nil
+	case "exit.file.mount_id":
+		return int(e.Exit.Process.FileEvent.FileFields.MountID), nil
+	case "exit.file.name":
+		return e.Exit.Process.FileEvent.BasenameStr, nil
+	case "exit.file.path":
+		return e.Exit.Process.FileEvent.PathnameStr, nil
+	case "exit.file.rights":
+		return int(e.Exit.Process.FileEvent.FileFields.Mode), nil
+	case "exit.file.uid":
+		return int(e.Exit.Process.FileEvent.FileFields.UID), nil
+	case "exit.file.user":
+		return e.Exit.Process.FileEvent.FileFields.User, nil
+	case "exit.fsgid":
+		return int(e.Exit.Process.Credentials.FSGID), nil
+	case "exit.fsgroup":
+		return e.Exit.Process.Credentials.FSGroup, nil
+	case "exit.fsuid":
+		return int(e.Exit.Process.Credentials.FSUID), nil
+	case "exit.fsuser":
+		return e.Exit.Process.Credentials.FSUser, nil
+	case "exit.gid":
+		return int(e.Exit.Process.Credentials.GID), nil
+	case "exit.group":
+		return e.Exit.Process.Credentials.Group, nil
+	case "exit.is_thread":
+		return e.Exit.Process.IsThread, nil
+	case "exit.pid":
+		return int(e.Exit.Process.PIDContext.Pid), nil
+	case "exit.ppid":
+		return int(e.Exit.Process.PPid), nil
+	case "exit.tid":
+		return int(e.Exit.Process.PIDContext.Tid), nil
+	case "exit.tty_name":
+		return e.Exit.Process.TTYName, nil
+	case "exit.uid":
+		return int(e.Exit.Process.Credentials.UID), nil
+	case "exit.user":
+		return e.Exit.Process.Credentials.User, nil
 	case "link.file.change_time":
 		return int(e.Link.Source.FileFields.CTime), nil
 	case "link.file.destination.change_time":
@@ -9825,6 +10379,102 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 	case "exec.user":
 		return "exec", nil
+	case "exit.args":
+		return "exit", nil
+	case "exit.args_flags":
+		return "exit", nil
+	case "exit.args_options":
+		return "exit", nil
+	case "exit.args_truncated":
+		return "exit", nil
+	case "exit.argv":
+		return "exit", nil
+	case "exit.argv0":
+		return "exit", nil
+	case "exit.cap_effective":
+		return "exit", nil
+	case "exit.cap_permitted":
+		return "exit", nil
+	case "exit.cause":
+		return "exit", nil
+	case "exit.code":
+		return "exit", nil
+	case "exit.comm":
+		return "exit", nil
+	case "exit.container.id":
+		return "exit", nil
+	case "exit.cookie":
+		return "exit", nil
+	case "exit.created_at":
+		return "exit", nil
+	case "exit.egid":
+		return "exit", nil
+	case "exit.egroup":
+		return "exit", nil
+	case "exit.envp":
+		return "exit", nil
+	case "exit.envs":
+		return "exit", nil
+	case "exit.envs_truncated":
+		return "exit", nil
+	case "exit.euid":
+		return "exit", nil
+	case "exit.euser":
+		return "exit", nil
+	case "exit.file.change_time":
+		return "exit", nil
+	case "exit.file.filesystem":
+		return "exit", nil
+	case "exit.file.gid":
+		return "exit", nil
+	case "exit.file.group":
+		return "exit", nil
+	case "exit.file.in_upper_layer":
+		return "exit", nil
+	case "exit.file.inode":
+		return "exit", nil
+	case "exit.file.mode":
+		return "exit", nil
+	case "exit.file.modification_time":
+		return "exit", nil
+	case "exit.file.mount_id":
+		return "exit", nil
+	case "exit.file.name":
+		return "exit", nil
+	case "exit.file.path":
+		return "exit", nil
+	case "exit.file.rights":
+		return "exit", nil
+	case "exit.file.uid":
+		return "exit", nil
+	case "exit.file.user":
+		return "exit", nil
+	case "exit.fsgid":
+		return "exit", nil
+	case "exit.fsgroup":
+		return "exit", nil
+	case "exit.fsuid":
+		return "exit", nil
+	case "exit.fsuser":
+		return "exit", nil
+	case "exit.gid":
+		return "exit", nil
+	case "exit.group":
+		return "exit", nil
+	case "exit.is_thread":
+		return "exit", nil
+	case "exit.pid":
+		return "exit", nil
+	case "exit.ppid":
+		return "exit", nil
+	case "exit.tid":
+		return "exit", nil
+	case "exit.tty_name":
+		return "exit", nil
+	case "exit.uid":
+		return "exit", nil
+	case "exit.user":
+		return "exit", nil
 	case "link.file.change_time":
 		return "link", nil
 	case "link.file.destination.change_time":
@@ -11107,6 +11757,102 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "exec.uid":
 		return reflect.Int, nil
 	case "exec.user":
+		return reflect.String, nil
+	case "exit.args":
+		return reflect.String, nil
+	case "exit.args_flags":
+		return reflect.String, nil
+	case "exit.args_options":
+		return reflect.String, nil
+	case "exit.args_truncated":
+		return reflect.Bool, nil
+	case "exit.argv":
+		return reflect.String, nil
+	case "exit.argv0":
+		return reflect.String, nil
+	case "exit.cap_effective":
+		return reflect.Int, nil
+	case "exit.cap_permitted":
+		return reflect.Int, nil
+	case "exit.cause":
+		return reflect.Int, nil
+	case "exit.code":
+		return reflect.Int, nil
+	case "exit.comm":
+		return reflect.String, nil
+	case "exit.container.id":
+		return reflect.String, nil
+	case "exit.cookie":
+		return reflect.Int, nil
+	case "exit.created_at":
+		return reflect.Int, nil
+	case "exit.egid":
+		return reflect.Int, nil
+	case "exit.egroup":
+		return reflect.String, nil
+	case "exit.envp":
+		return reflect.String, nil
+	case "exit.envs":
+		return reflect.String, nil
+	case "exit.envs_truncated":
+		return reflect.Bool, nil
+	case "exit.euid":
+		return reflect.Int, nil
+	case "exit.euser":
+		return reflect.String, nil
+	case "exit.file.change_time":
+		return reflect.Int, nil
+	case "exit.file.filesystem":
+		return reflect.String, nil
+	case "exit.file.gid":
+		return reflect.Int, nil
+	case "exit.file.group":
+		return reflect.String, nil
+	case "exit.file.in_upper_layer":
+		return reflect.Bool, nil
+	case "exit.file.inode":
+		return reflect.Int, nil
+	case "exit.file.mode":
+		return reflect.Int, nil
+	case "exit.file.modification_time":
+		return reflect.Int, nil
+	case "exit.file.mount_id":
+		return reflect.Int, nil
+	case "exit.file.name":
+		return reflect.String, nil
+	case "exit.file.path":
+		return reflect.String, nil
+	case "exit.file.rights":
+		return reflect.Int, nil
+	case "exit.file.uid":
+		return reflect.Int, nil
+	case "exit.file.user":
+		return reflect.String, nil
+	case "exit.fsgid":
+		return reflect.Int, nil
+	case "exit.fsgroup":
+		return reflect.String, nil
+	case "exit.fsuid":
+		return reflect.Int, nil
+	case "exit.fsuser":
+		return reflect.String, nil
+	case "exit.gid":
+		return reflect.Int, nil
+	case "exit.group":
+		return reflect.String, nil
+	case "exit.is_thread":
+		return reflect.Bool, nil
+	case "exit.pid":
+		return reflect.Int, nil
+	case "exit.ppid":
+		return reflect.Int, nil
+	case "exit.tid":
+		return reflect.Int, nil
+	case "exit.tty_name":
+		return reflect.String, nil
+	case "exit.uid":
+		return reflect.Int, nil
+	case "exit.user":
 		return reflect.String, nil
 	case "link.file.change_time":
 		return reflect.Int, nil
@@ -13046,6 +13792,476 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.User"}
 		}
 		e.Exec.Process.Credentials.User = str
+		return nil
+	case "exit.args":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Args"}
+		}
+		e.Exit.Process.Args = str
+		return nil
+	case "exit.args_flags":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Argv"}
+		}
+		e.Exit.Process.Argv = append(e.Exit.Process.Argv, str)
+		return nil
+	case "exit.args_options":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Argv"}
+		}
+		e.Exit.Process.Argv = append(e.Exit.Process.Argv, str)
+		return nil
+	case "exit.args_truncated":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		var ok bool
+		if e.Exit.Process.ArgsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.ArgsTruncated"}
+		}
+		return nil
+	case "exit.argv":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Argv"}
+		}
+		e.Exit.Process.Argv = append(e.Exit.Process.Argv, str)
+		return nil
+	case "exit.argv0":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Argv0"}
+		}
+		e.Exit.Process.Argv0 = str
+		return nil
+	case "exit.cap_effective":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.CapEffective"}
+		}
+		e.Exit.Process.Credentials.CapEffective = uint64(v)
+		return nil
+	case "exit.cap_permitted":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.CapPermitted"}
+		}
+		e.Exit.Process.Credentials.CapPermitted = uint64(v)
+		return nil
+	case "exit.cause":
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Cause"}
+		}
+		e.Exit.Cause = uint32(v)
+		return nil
+	case "exit.code":
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Code"}
+		}
+		e.Exit.Code = uint32(v)
+		return nil
+	case "exit.comm":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Comm"}
+		}
+		e.Exit.Process.Comm = str
+		return nil
+	case "exit.container.id":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.ContainerID"}
+		}
+		e.Exit.Process.ContainerID = str
+		return nil
+	case "exit.cookie":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Cookie"}
+		}
+		e.Exit.Process.Cookie = uint32(v)
+		return nil
+	case "exit.created_at":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.CreatedAt"}
+		}
+		e.Exit.Process.CreatedAt = uint64(v)
+		return nil
+	case "exit.egid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.EGID"}
+		}
+		e.Exit.Process.Credentials.EGID = uint32(v)
+		return nil
+	case "exit.egroup":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.EGroup"}
+		}
+		e.Exit.Process.Credentials.EGroup = str
+		return nil
+	case "exit.envp":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Envp"}
+		}
+		e.Exit.Process.Envp = append(e.Exit.Process.Envp, str)
+		return nil
+	case "exit.envs":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Envs"}
+		}
+		e.Exit.Process.Envs = append(e.Exit.Process.Envs, str)
+		return nil
+	case "exit.envs_truncated":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		var ok bool
+		if e.Exit.Process.EnvsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.EnvsTruncated"}
+		}
+		return nil
+	case "exit.euid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.EUID"}
+		}
+		e.Exit.Process.Credentials.EUID = uint32(v)
+		return nil
+	case "exit.euser":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.EUser"}
+		}
+		e.Exit.Process.Credentials.EUser = str
+		return nil
+	case "exit.file.change_time":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.CTime"}
+		}
+		e.Exit.Process.FileEvent.FileFields.CTime = uint64(v)
+		return nil
+	case "exit.file.filesystem":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.Filesystem"}
+		}
+		e.Exit.Process.FileEvent.Filesystem = str
+		return nil
+	case "exit.file.gid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.GID"}
+		}
+		e.Exit.Process.FileEvent.FileFields.GID = uint32(v)
+		return nil
+	case "exit.file.group":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.Group"}
+		}
+		e.Exit.Process.FileEvent.FileFields.Group = str
+		return nil
+	case "exit.file.in_upper_layer":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		var ok bool
+		if e.Exit.Process.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.InUpperLayer"}
+		}
+		return nil
+	case "exit.file.inode":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.Inode"}
+		}
+		e.Exit.Process.FileEvent.FileFields.Inode = uint64(v)
+		return nil
+	case "exit.file.mode":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.Mode"}
+		}
+		e.Exit.Process.FileEvent.FileFields.Mode = uint16(v)
+		return nil
+	case "exit.file.modification_time":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.MTime"}
+		}
+		e.Exit.Process.FileEvent.FileFields.MTime = uint64(v)
+		return nil
+	case "exit.file.mount_id":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.MountID"}
+		}
+		e.Exit.Process.FileEvent.FileFields.MountID = uint32(v)
+		return nil
+	case "exit.file.name":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.BasenameStr"}
+		}
+		e.Exit.Process.FileEvent.BasenameStr = str
+		return nil
+	case "exit.file.path":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.PathnameStr"}
+		}
+		e.Exit.Process.FileEvent.PathnameStr = str
+		return nil
+	case "exit.file.rights":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.Mode"}
+		}
+		e.Exit.Process.FileEvent.FileFields.Mode = uint16(v)
+		return nil
+	case "exit.file.uid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.UID"}
+		}
+		e.Exit.Process.FileEvent.FileFields.UID = uint32(v)
+		return nil
+	case "exit.file.user":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.User"}
+		}
+		e.Exit.Process.FileEvent.FileFields.User = str
+		return nil
+	case "exit.fsgid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.FSGID"}
+		}
+		e.Exit.Process.Credentials.FSGID = uint32(v)
+		return nil
+	case "exit.fsgroup":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.FSGroup"}
+		}
+		e.Exit.Process.Credentials.FSGroup = str
+		return nil
+	case "exit.fsuid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.FSUID"}
+		}
+		e.Exit.Process.Credentials.FSUID = uint32(v)
+		return nil
+	case "exit.fsuser":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.FSUser"}
+		}
+		e.Exit.Process.Credentials.FSUser = str
+		return nil
+	case "exit.gid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.GID"}
+		}
+		e.Exit.Process.Credentials.GID = uint32(v)
+		return nil
+	case "exit.group":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.Group"}
+		}
+		e.Exit.Process.Credentials.Group = str
+		return nil
+	case "exit.is_thread":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		var ok bool
+		if e.Exit.Process.IsThread, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.IsThread"}
+		}
+		return nil
+	case "exit.pid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.PIDContext.Pid"}
+		}
+		e.Exit.Process.PIDContext.Pid = uint32(v)
+		return nil
+	case "exit.ppid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.PPid"}
+		}
+		e.Exit.Process.PPid = uint32(v)
+		return nil
+	case "exit.tid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.PIDContext.Tid"}
+		}
+		e.Exit.Process.PIDContext.Tid = uint32(v)
+		return nil
+	case "exit.tty_name":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.TTYName"}
+		}
+		e.Exit.Process.TTYName = str
+		return nil
+	case "exit.uid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.UID"}
+		}
+		e.Exit.Process.Credentials.UID = uint32(v)
+		return nil
+	case "exit.user":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.User"}
+		}
+		e.Exit.Process.Credentials.User = str
 		return nil
 	case "link.file.change_time":
 		v, ok := value.(int)

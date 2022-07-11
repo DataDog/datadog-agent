@@ -295,14 +295,22 @@ int self_exec(int argc, char **argv) {
 }
 
 int test_bind_af_inet(int argc, char** argv) {
-    int s = socket(PF_INET, SOCK_STREAM, 0);
-    if (s < 0) {
-        perror("socker");
+
+    if (argc != 3) {
+        fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
+        fprintf(stderr, "Arg1: an option for the addr in the list: any, custom_ip\n");
+        fprintf(stderr, "Arg2: an option for the protocol in the list: tcp, udp\n");
         return EXIT_FAILURE;
     }
 
-    if (argc != 2) {
-        fprintf(stderr, "Please speficy an option in the list: any, custom_ip\n");
+    char* proto = argv[2];
+    int s;
+    if (!strcmp(proto, "udp"))
+        s = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    else
+        s = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (s < 0) {
+        perror("socket");
         return EXIT_FAILURE;
     }
 

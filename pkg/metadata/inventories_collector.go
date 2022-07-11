@@ -12,10 +12,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 type inventoriesCollector struct {
@@ -25,12 +25,12 @@ type inventoriesCollector struct {
 }
 
 func getPayload(ctx context.Context, ac inventories.AutoConfigInterface, coll inventories.CollectorInterface) (*inventories.Payload, error) {
-	hostname, err := util.GetHostname(ctx)
+	hostnameDetected, err := hostname.Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("unable to submit inventories metadata payload, no hostname: %s", err)
 	}
 
-	return inventories.GetPayload(ctx, hostname, ac, coll), nil
+	return inventories.GetPayload(ctx, hostnameDetected, ac, coll), nil
 }
 
 // Send collects the data needed and submits the payload

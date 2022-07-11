@@ -19,10 +19,7 @@ import (
 
 // TestSecrets ensures that secrets placed in environment variables get loaded.
 func TestSecrets(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "trace-agent-test-*")
-	if err != nil {
-		t.Skip(err.Error())
-	}
+	tmpDir := t.TempDir()
 
 	// install trace-agent with -tags=secrets
 	binTraceAgent := filepath.Join(tmpDir, "trace-agent")

@@ -605,9 +605,7 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 		case epbfStats:
 			ret["ebpf"] = t.ebpfTracer.GetTelemetry()
 		case gatewayLookupStats:
-			if t.gwLookup != nil {
-				ret["gateway_lookup"] = t.gwLookup.GetStats()
-			}
+			ret["gateway_lookup"] = t.gwLookup.GetStats()
 		case httpStats:
 			ret["http"] = t.httpMonitor.GetStats()
 		case kprobesStats:

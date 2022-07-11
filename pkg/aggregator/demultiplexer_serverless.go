@@ -100,39 +100,32 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	defer d.flushLock.Unlock()
 
 	logPayloads := config.Datadog.GetBool("log_payloads")
-	flushedSketches := make([]metrics.SketchSeriesList, 0)
+	series, sketches := createIterableMetrics(d.flushAndSerializeInParallel, d.serializer, logPayloads, true)
 
-	metrics.StartIteration(
-		createIterableSeries(
-			d.flushAndSerializeInParallel,
-			logPayloads,
-		),
-		func(seriesSink metrics.SerieSink) {
+	metrics.Serialize(
+		series,
+		sketches,
+		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
 			trigger := flushTrigger{
 				trigger: trigger{
 					time:              start,
 					blockChan:         make(chan struct{}),
 					waitForSerializer: waitForSerializer,
 				},
-				flushedSketches: &flushedSketches,
-				seriesSink:      seriesSink,
+				sketchesSink: sketchesSink,
+				seriesSink:   seriesSink,
 			}
 
 			d.statsdWorker.flushChan <- trigger
 			<-trigger.blockChan
 		}, func(serieSource metrics.SerieSource) {
 			sendIterableSeries(d.serializer, start, serieSource)
+		}, func(sketches metrics.SketchesSource) {
+			// Don't send empty sketches payloads
+			if sketches.WaitForValue() {
+				d.serializer.SendSketch(sketches) //nolint:errcheck
+			}
 		})
-
-	var sketches metrics.SketchSeriesList
-	for _, s := range flushedSketches {
-		sketches = append(sketches, s...)
-	}
-
-	log.DebugfServerless("Sending sketches payload : %s", sketches.String())
-	if len(sketches) > 0 {
-		d.serializer.SendSketch(sketches) //nolint:errcheck
-	}
 }
 
 // AddTimeSample send a MetricSample to the TimeSampler.

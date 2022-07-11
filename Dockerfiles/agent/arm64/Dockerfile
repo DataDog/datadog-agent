@@ -15,9 +15,10 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt update
 
 FROM baseimage AS nosys-seccomp
-COPY nosys-seccomp/nosys.c /tmp/nosys.c
+COPY nosys-seccomp/nosys.c   /tmp/nosys.c
+COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
 RUN apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
-RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -o /tmp/nosys.so /tmp/nosys.c -lseccomp
+RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c -lseccomp
 
 ############################################
 #  Preparation stage: extract and cleanup  #
@@ -200,8 +201,7 @@ VOLUME ["/var/run/s6", "/var/log/datadog"]
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
 COPY --from=nosys-seccomp /tmp/nosys.so /lib/x86_64-linux-gnu/nosys.so
-ENV LD_PRELOAD=/lib/x86_64-linux-gnu/nosys.so \
-    NOSYS_SYSCALLS=faccessat2,clone3
+ENV LD_PRELOAD=/lib/x86_64-linux-gnu/nosys.so
 
 # Single entrypoint
 COPY entrypoint.sh /bin/entrypoint.sh

@@ -318,7 +318,7 @@ func TestMarshalSplitCompress(t *testing.T) {
 }
 
 func TestMarshalSplitCompressPointsLimit(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	oldMax := mockConfig.GetInt("serializer_max_series_points_per_payload")
 	defer mockConfig.Set("serializer_max_series_points_per_payload", oldMax)
 	mockConfig.Set("serializer_max_series_points_per_payload", 100)
@@ -332,7 +332,7 @@ func TestMarshalSplitCompressPointsLimit(t *testing.T) {
 }
 
 func TestMarshalSplitCompressPointsLimitTooBig(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	oldMax := mockConfig.GetInt("serializer_max_series_points_per_payload")
 	defer mockConfig.Set("serializer_max_series_points_per_payload", oldMax)
 	mockConfig.Set("serializer_max_series_points_per_payload", 1)

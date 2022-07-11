@@ -33,11 +33,10 @@ var (
 	}
 
 	diagnoseDatadogConnectivityCommand = &cobra.Command{
-		Use:    "datadog-connectivity",
-		Short:  "Check connectivity between your system and Datadog endpoints",
-		Long:   ``,
-		Hidden: true,
-		RunE:   doDiagnoseDatadogConnectivity,
+		Use:   "datadog-connectivity",
+		Short: "Check connectivity between your system and Datadog endpoints",
+		Long:  ``,
+		RunE:  doDiagnoseDatadogConnectivity,
 	}
 
 	noTrace bool
@@ -66,7 +65,7 @@ func doDiagnoseDatadogConnectivity(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return connectivity.RunDatadogConnectivityDiagnose(noTrace)
+	return connectivity.RunDatadogConnectivityDiagnose(color.Output, noTrace)
 }
 
 func configAndLogSetup() error {

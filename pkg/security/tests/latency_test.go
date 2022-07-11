@@ -92,7 +92,7 @@ func benchLatencyDNS(t *testing.T, rule *rules.RuleDefinition, executable string
 		var ruleDefs []*rules.RuleDefinition
 		ruleDefs = append(ruleDefs, rule)
 		test, err := newTestModule(t, nil, ruleDefs,
-			testOpts{enableNetwork: true, eventsCountThreshold: 1000000})
+			testOpts{eventsCountThreshold: 1000000})
 		if err != nil {
 			t.Fatal(err)
 		}
