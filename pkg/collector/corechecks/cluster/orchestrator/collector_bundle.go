@@ -111,7 +111,7 @@ func (cb *CollectorBundle) prepareExtraSyncTimeout() {
 // synced.
 func (cb *CollectorBundle) Initialize() error {
 	informersToSync := make(map[apiserver.InformerName]cache.SharedInformer)
-	availableCollectors := []collectors.Collector{}
+	var availableCollectors []collectors.Collector
 
 	for _, collector := range cb.collectors {
 		collector.Init(cb.runCfg)
