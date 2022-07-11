@@ -121,12 +121,15 @@ var (
 	// referenced in the process tree
 	// Tags: -
 	MetricProcessResolverReferenceCount = newRuntimeMetric(".process_resolver.reference_count")
-	// MetricProcessResolverCacheMiss is the name of the metric used to report process resolver cache misses
+	// MetricProcessResolverMiss is the name of the metric used to report process resolver cache misses
 	// Tags: -
-	MetricProcessResolverCacheMiss = newRuntimeMetric(".process_resolver.cache_miss")
-	// MetricProcessResolverCacheHits is the name of the metric used to report the process resolver cache hits
+	MetricProcessResolverMiss = newRuntimeMetric(".process_resolver.miss")
+	// MetricProcessResolverPathError is the name of the metric used to report process path resolution errors
+	// Tags: -
+	MetricProcessResolverPathError = newRuntimeMetric(".process_resolver.path_error")
+	// MetricProcessResolverHits is the name of the metric used to report the process resolver cache hits
 	// Tags: type
-	MetricProcessResolverCacheHits = newRuntimeMetric(".process_resolver.hits")
+	MetricProcessResolverHits = newRuntimeMetric(".process_resolver.hits")
 	// MetricProcessResolverAdded is the name of the metric used to report the number of entries added in the cache
 	// Tags: -
 	MetricProcessResolverAdded = newRuntimeMetric(".process_resolver.added")

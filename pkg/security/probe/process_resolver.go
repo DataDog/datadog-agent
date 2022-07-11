@@ -103,6 +103,7 @@ type ProcessResolver struct {
 	missStats        *atomic.Int64
 	addedEntries     *atomic.Int64
 	flushedEntries   *atomic.Int64
+	pathErrStats     *atomic.Int64
 
 	entryCache    map[uint32]*model.ProcessCacheEntry
 	argsEnvsCache *simplelru.LRU
@@ -270,25 +271,25 @@ func (p *ProcessResolver) SendStats() error {
 	}
 
 	if count = p.hitsStats[metrics.CacheTag].Swap(0); count > 0 {
-		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverCacheHits, count, []string{metrics.CacheTag}, 1.0); err != nil {
+		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverHits, count, []string{metrics.CacheTag}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver cache hits metric")
 		}
 	}
 
 	if count = p.hitsStats[metrics.KernelMapsTag].Swap(0); count > 0 {
-		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverCacheHits, count, []string{metrics.KernelMapsTag}, 1.0); err != nil {
+		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverHits, count, []string{metrics.KernelMapsTag}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver kernel maps hits metric")
 		}
 	}
 
 	if count = p.hitsStats[metrics.ProcFSTag].Swap(0); count > 0 {
-		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverCacheHits, count, []string{metrics.ProcFSTag}, 1.0); err != nil {
+		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverHits, count, []string{metrics.ProcFSTag}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver procfs hits metric")
 		}
 	}
 
 	if count = p.missStats.Swap(0); count > 0 {
-		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverCacheMiss, count, []string{}, 1.0); err != nil {
+		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverMiss, count, []string{}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver misses metric")
 		}
 	}
@@ -302,6 +303,12 @@ func (p *ProcessResolver) SendStats() error {
 	if count = p.flushedEntries.Swap(0); count > 0 {
 		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverFlushed, count, []string{}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver flushed entries metric")
+		}
+	}
+
+	if count = p.pathErrStats.Swap(0); count > 0 {
+		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverPathError, count, []string{}, 1.0); err != nil {
+			return errors.Wrap(err, "failed to send process_resolver path error metric")
 		}
 	}
 
@@ -558,12 +565,17 @@ func (p *ProcessResolver) SetProcessPath(entry *model.ProcessCacheEntry) (string
 		entry.FileEvent.SetPathnameStr("")
 		entry.FileEvent.SetBasenameStr("")
 
+		p.pathErrStats.Inc()
+
 		return "", &ErrInvalidKeyPath{Inode: entry.FileEvent.Inode, MountID: entry.FileEvent.MountID}
 	}
+
 	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&entry.FileEvent.FileFields)
 	if err != nil {
 		entry.FileEvent.SetPathnameStr("")
 		entry.FileEvent.SetBasenameStr("")
+
+		p.pathErrStats.Inc()
 
 		return "", &ErrInvalidKeyPath{Inode: entry.FileEvent.Inode, MountID: entry.FileEvent.MountID}
 	}
@@ -1180,6 +1192,7 @@ func NewProcessResolver(probe *Probe, resolvers *Resolvers, opts ProcessResolver
 		missStats:      atomic.NewInt64(0),
 		addedEntries:   atomic.NewInt64(0),
 		flushedEntries: atomic.NewInt64(0),
+		pathErrStats:   atomic.NewInt64(0),
 	}
 	for _, t := range metrics.AllTypesTags {
 		p.hitsStats[t] = atomic.NewInt64(0)
