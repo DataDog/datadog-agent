@@ -63,27 +63,27 @@ var debianRepos = []string{
 
 var targetUbuntu = types.Target{
 	Distro: types.Distro{
-		"ubuntu",
-		"bullseye/sid",
-		"debian",
+		Display: "ubuntu",
+		Release: "bullseye/sid",
+		Family:  "debian",
 	},
 	OSRelease: ubuntuRelease,
 	Uname: types.Utsname{
-		"5.4.0-92-generic",
-		"aarch64",
+		Kernel:  "5.4.0-92-generic",
+		Machine: "aarch64",
 	},
 }
 
 var targetDebian types.Target = types.Target{
 	Distro: types.Distro{
-		"debian",
-		"11.2",
-		"debian",
+		Display: "debian",
+		Release: "11.2",
+		Family:  "debian",
 	},
 	OSRelease: debianRelease,
 	Uname: types.Utsname{
-		"5.10.0-10-arm64",
-		"aarch64",
+		Kernel:  "5.10.0-10-arm64",
+		Machine: "aarch64",
 	},
 }
 
