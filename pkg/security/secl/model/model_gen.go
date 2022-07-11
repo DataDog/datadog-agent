@@ -655,7 +655,7 @@ func (z *FileEvent) DecodeMsg(dc *msgp.Reader) (err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
-		case "FileFields":
+		case "file_fields":
 			err = z.FileFields.DecodeMsg(dc)
 			if err != nil {
 				err = msgp.WrapError(err, "FileFields")
@@ -693,8 +693,8 @@ func (z *FileEvent) DecodeMsg(dc *msgp.Reader) (err error) {
 // EncodeMsg implements msgp.Encodable
 func (z *FileEvent) EncodeMsg(en *msgp.Writer) (err error) {
 	// map header, size 4
-	// write "FileFields"
-	err = en.Append(0x84, 0xaa, 0x46, 0x69, 0x6c, 0x65, 0x46, 0x69, 0x65, 0x6c, 0x64, 0x73)
+	// write "file_fields"
+	err = en.Append(0x84, 0xab, 0x66, 0x69, 0x6c, 0x65, 0x5f, 0x66, 0x69, 0x65, 0x6c, 0x64, 0x73)
 	if err != nil {
 		return
 	}
@@ -740,8 +740,8 @@ func (z *FileEvent) EncodeMsg(en *msgp.Writer) (err error) {
 func (z *FileEvent) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// map header, size 4
-	// string "FileFields"
-	o = append(o, 0x84, 0xaa, 0x46, 0x69, 0x6c, 0x65, 0x46, 0x69, 0x65, 0x6c, 0x64, 0x73)
+	// string "file_fields"
+	o = append(o, 0x84, 0xab, 0x66, 0x69, 0x6c, 0x65, 0x5f, 0x66, 0x69, 0x65, 0x6c, 0x64, 0x73)
 	o, err = z.FileFields.MarshalMsg(o)
 	if err != nil {
 		err = msgp.WrapError(err, "FileFields")
@@ -777,7 +777,7 @@ func (z *FileEvent) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
-		case "FileFields":
+		case "file_fields":
 			bts, err = z.FileFields.UnmarshalMsg(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "FileFields")
@@ -815,7 +815,7 @@ func (z *FileEvent) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *FileEvent) Msgsize() (s int) {
-	s = 1 + 11 + z.FileFields.Msgsize() + 5 + msgp.StringPrefixSize + len(z.PathnameStr) + 5 + msgp.StringPrefixSize + len(z.BasenameStr) + 11 + msgp.StringPrefixSize + len(z.Filesystem)
+	s = 1 + 12 + z.FileFields.Msgsize() + 5 + msgp.StringPrefixSize + len(z.PathnameStr) + 5 + msgp.StringPrefixSize + len(z.BasenameStr) + 11 + msgp.StringPrefixSize + len(z.Filesystem)
 	return
 }
 
