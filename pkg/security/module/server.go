@@ -557,7 +557,7 @@ func (a *APIServer) SendProcessEvent(data []byte) {
 		break
 	default:
 		// The channel is full, expire the oldest event
-		_ = <-a.processMsgs
+		<-a.processMsgs
 		a.expiredProcessEvents.Inc()
 		// Try to send the event again
 		select {
