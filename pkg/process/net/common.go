@@ -203,8 +203,11 @@ func (r *RemoteSysProbeUtil) Register(clientID string) error {
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return err
-	} else if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("conn request failed: Path %s, url: %s, status code: %d", r.path, statsURL, resp.StatusCode)
+	} else {
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("conn request failed: Path %s, url: %s, status code: %d", r.path, statsURL, resp.StatusCode)
+		}
 	}
 
 	return nil
@@ -232,8 +235,11 @@ func newSystemProbe() *RemoteSysProbeUtil {
 func (r *RemoteSysProbeUtil) init() error {
 	if resp, err := r.httpClient.Get(statsURL); err != nil {
 		return err
-	} else if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("remote tracer status check failed: socket %s, url: %s, status code: %d", r.path, statsURL, resp.StatusCode)
+	} else {
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("remote tracer status check failed: socket %s, url: %s, status code: %d", r.path, statsURL, resp.StatusCode)
+		}
 	}
 	return nil
 }

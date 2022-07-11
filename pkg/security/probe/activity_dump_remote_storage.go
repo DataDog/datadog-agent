@@ -163,6 +163,7 @@ func (storage *ActivityDumpRemoteStorage) sendToEndpoint(url string, apiKey stri
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusAccepted {
 		return fmt.Errorf(resp.Status)
 	}
