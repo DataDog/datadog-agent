@@ -15,6 +15,7 @@ import (
 	"path"
 	"strings"
 	"syscall"
+	"testing"
 	"unsafe"
 
 	"github.com/avast/retry-go"
@@ -43,11 +44,11 @@ func (td *testDrive) Path(filename ...string) (string, unsafe.Pointer, error) {
 	return path, unsafe.Pointer(filenamePtr), nil
 }
 
-func newTestDrive(fsType string, mountOpts []string) (*testDrive, error) {
-	return newTestDriveWithMountPoint(fsType, mountOpts, "")
+func newTestDrive(tb testing.TB, fsType string, mountOpts []string) (*testDrive, error) {
+	return newTestDriveWithMountPoint(tb, fsType, mountOpts, "")
 }
 
-func newTestDriveWithMountPoint(fsType string, mountOpts []string, mountPoint string) (*testDrive, error) {
+func newTestDriveWithMountPoint(tb testing.TB, fsType string, mountOpts []string, mountPoint string) (*testDrive, error) {
 	backingFile, err := os.CreateTemp("", "secagent-testdrive-")
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create testdrive backing file")
@@ -57,12 +58,8 @@ func newTestDriveWithMountPoint(fsType string, mountOpts []string, mountPoint st
 		return nil, errors.Wrap(err, "failed to close testdrive backing file")
 	}
 
-	if len(mountPoint) == 0 {
-		mountPoint, err = os.MkdirTemp("", "secagent-testdrive-")
-		if err != nil {
-			os.Remove(backingFile.Name())
-			return nil, errors.Wrap(err, "failed to create testdrive mount point")
-		}
+	if mountPoint == "" {
+		mountPoint = tb.TempDir()
 	}
 
 	var loopback *losetup.Device
