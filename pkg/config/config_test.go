@@ -119,11 +119,9 @@ api_key: fakeapikey
 }
 
 func TestUnexpectedUnicode(t *testing.T) {
-	datadogYaml := `
-api_‪key: fa‪keapikey
-`
+	yaml := "api_\u202akey: fa\u202akeapikey\n"
 
-	testConfig := setupConfFromYAML(datadogYaml)
+	testConfig := setupConfFromYAML(yaml)
 
 	warnings := findUnexpectedUnicode(testConfig)
 	require.Len(t, warnings, 2)
@@ -133,14 +131,8 @@ api_‪key: fa‪keapikey
 }
 
 func TestUnexpectedNestedUnicode(t *testing.T) {
-	simpleNesting := `
-runtime_security_config:
-  activity_dump:
-    remote_storage:
-      endpoints:
-        logs_dd_url: "http://‪datadawg.com"
-`
-	testConfig := setupConfFromYAML(simpleNesting)
+	yaml := "runtime_security_config:\n  activity_dump:\n    remote_storage:\n      endpoints:\n        logs_dd_url: \"http://\u202adatadawg.com\""
+	testConfig := setupConfFromYAML(yaml)
 
 	warnings := findUnexpectedUnicode(testConfig)
 	require.Len(t, warnings, 1)
@@ -149,23 +141,16 @@ runtime_security_config:
 }
 
 func TestUnexpectedWhitespace(t *testing.T) {
-
 	tests := []struct {
 		yaml                string
 		expectedWarningText string
 	}{
 		{
-			yaml: `
-root_element:
-  nestedKey: "hiddenI​nvalidWhitespaceEmbedded"
-`,
+			yaml:                "root_element:\n  nestedKey: \"hiddenI\u200bnvalidWhitespaceEmbedded\n\"",
 			expectedWarningText: "U+200B",
 		},
 		{
-			yaml: `
-root_element:
-  nestedKey:  hiddenInvalidWhitespaceToLeft
-`,
+			yaml:                "root_element:\n  nestedKey: \u202fhiddenInvalidWhitespaceToLeft\n",
 			expectedWarningText: "U+202F",
 		},
 	}

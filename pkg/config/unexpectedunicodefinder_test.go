@@ -12,7 +12,7 @@ func TestCleanStrings(t *testing.T) {
 }
 
 func TestDirtyStrings(t *testing.T) {
-	dirtyString := "‪container_collect_some"
+	dirtyString := "\u202acontainer_collect_some"
 
 	res := FindUnexpectedUnicode([]byte(dirtyString))
 	if len(res) != 1 {
@@ -22,7 +22,7 @@ func TestDirtyStrings(t *testing.T) {
 
 	unexpected := res[0]
 
-	if unexpected.codepoint != '‪' {
+	if unexpected.codepoint != '\u202a' {
 		t.Errorf("Did not detect bidirectional control character")
 	}
 }
@@ -37,8 +37,8 @@ func TestVariousCodepoints(t *testing.T) {
 			expectedCodepoints: nil,
 		},
 		{
-			input:              []byte("hello ‪world"),
-			expectedCodepoints: []rune{'‪'},
+			input:              []byte("hello \u202aworld"),
+			expectedCodepoints: []rune{'\u202a'},
 		},
 		{
 			input:              []byte("hello \nworld"),
@@ -49,12 +49,12 @@ func TestVariousCodepoints(t *testing.T) {
 			expectedCodepoints: nil,
 		},
 		{
-			input:              []byte("test​ing"),
-			expectedCodepoints: []rune{'​'},
+			input:              []byte("test\u200bing"),
+			expectedCodepoints: []rune{'\u200b'},
 		},
 		{
-			input:              []byte("test te sti ng"),
-			expectedCodepoints: []rune{' ', ' ', ' '},
+			input:              []byte("test\u202fte\u200asti\u2000ng"),
+			expectedCodepoints: []rune{'\u202f', '\u200a', '\u2000'},
 		},
 	}
 	for _, tc := range tests {
