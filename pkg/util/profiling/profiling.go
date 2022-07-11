@@ -7,7 +7,6 @@ package profiling
 
 import (
 	"sync"
-	"time"
 
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
@@ -24,8 +23,6 @@ const (
 	ProfilingURLTemplate = "https://intake.profile.%s/v1/input"
 	// ProfilingLocalURLTemplate is the constant used to compute the URL of the local trace agent
 	ProfilingLocalURLTemplate = "http://%v/profiling/v1/input"
-	// DefaultProfilingPeriod defines the default profiling period
-	DefaultProfilingPeriod = 5 * time.Minute
 )
 
 // Start initiates profiling with the supplied parameters;
