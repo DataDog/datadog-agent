@@ -119,15 +119,24 @@ api_key: fakeapikey
 }
 
 func TestUnexpectedUnicode(t *testing.T) {
-	yaml := "api_\u202akey: fa\u202akeapikey\n"
+	keyYaml := "api_\u202akey: fakeapikey\n"
+	valueYaml := "api_key: fa\u202akeapikey\n"
 
-	testConfig := setupConfFromYAML(yaml)
+	testConfig := setupConfFromYAML(keyYaml)
 
 	warnings := findUnexpectedUnicode(testConfig)
-	require.Len(t, warnings, 2)
+	require.Len(t, warnings, 1)
 
+	assert.Contains(t, warnings[0], "Configuration key string")
 	assert.Contains(t, warnings[0], "U+202A")
-	assert.Contains(t, warnings[1], "U+202A")
+
+	testConfig = setupConfFromYAML(valueYaml)
+
+	warnings = findUnexpectedUnicode(testConfig)
+
+	require.Len(t, warnings, 1)
+	assert.Contains(t, warnings[0], "For key 'api_key'")
+	assert.Contains(t, warnings[0], "U+202A")
 }
 
 func TestUnexpectedNestedUnicode(t *testing.T) {
@@ -138,6 +147,7 @@ func TestUnexpectedNestedUnicode(t *testing.T) {
 	require.Len(t, warnings, 1)
 
 	assert.Contains(t, warnings[0], "U+202A")
+	assert.Contains(t, warnings[0], "For key 'runtime_security_config.activity_dump.remote_storage.endpoints.logs_dd_url'")
 }
 
 func TestUnexpectedWhitespace(t *testing.T) {

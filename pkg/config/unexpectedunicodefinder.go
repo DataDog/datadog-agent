@@ -25,16 +25,16 @@ func FindUnexpectedUnicode(input string) []UnexpectedUnicodeCodepoint {
 		reason := ""
 		switch {
 		case r == utf8.RuneError:
-			reason = "RuneError, invalid unicode"
+			reason = "RuneError"
 		case r == ' ' || r == '\r' || r == '\n' || r == '\t':
 			// These are allowed whitespace
 			reason = ""
 		case unicode.IsSpace(r):
-			reason = "Unsupported whitespace codepoint"
+			reason = "unsupported whitespace"
 		case unicode.Is(unicode.Bidi_Control, r):
-			reason = "Bidirectional control codepoint"
+			reason = "Bidirectional control"
 		case unicode.Is(unicode.C, r):
-			reason = "Control/surrogate codepoint"
+			reason = "Control/surrogate"
 		}
 
 		if reason != "" {
