@@ -50,3 +50,9 @@ func BenchmarkProtobufEncoding(b *testing.B) {
 		return ad.EncodeProtobuf()
 	})
 }
+
+func BenchmarkProtoJSONEncoding(b *testing.B) {
+	runEncoding(b, func(ad *probe.ActivityDump) (*bytes.Buffer, error) {
+		return ad.EncodeProtoJSON()
+	})
+}

@@ -31,6 +31,7 @@ import (
 	"github.com/tinylib/msgp/msgp"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
@@ -654,6 +655,8 @@ func (ad *ActivityDump) Encode(format dump.StorageFormat) (*bytes.Buffer, error)
 		return ad.EncodeMSGP()
 	case dump.PROTOBUF:
 		return ad.EncodeProtobuf()
+	case dump.PROTOJSON:
+		return ad.EncodeProtoJSON()
 	case dump.DOT:
 		return ad.EncodeDOT()
 	case dump.Profile:
@@ -698,6 +701,17 @@ func (ad *ActivityDump) EncodeProtobuf() (*bytes.Buffer, error) {
 	raw, err := pad.MarshalVT()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.PROTOBUF, err)
+	}
+	return bytes.NewBuffer(raw), nil
+}
+
+func (ad *ActivityDump) EncodeProtoJSON() (*bytes.Buffer, error) {
+	pad := activityDumpToProto(ad)
+	defer pad.ReturnToVTPool()
+
+	raw, err := protojson.Marshal(pad)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.PROTOJSON, err)
 	}
 	return bytes.NewBuffer(raw), nil
 }
