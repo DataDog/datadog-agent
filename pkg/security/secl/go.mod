@@ -10,7 +10,6 @@ require (
 	github.com/fsnotify/fsnotify v1.5.4
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v0.5.4
-	github.com/pkg/errors v0.9.1
 	github.com/skydive-project/go-debouncer v1.0.0
 	github.com/spf13/cast v1.5.0
 	github.com/stretchr/testify v1.8.0
