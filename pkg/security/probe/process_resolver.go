@@ -308,7 +308,7 @@ func (p *ProcessResolver) SendStats() error {
 
 	if count = p.pathErrStats.Swap(0); count > 0 {
 		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverPathError, count, []string{}, 1.0); err != nil {
-			return errors.Wrap(err, "failed to send process_resolver path error metric")
+			return fmt.Errorf("failed to send process_resolver path error metric: %w", err)
 		}
 	}
 
