@@ -705,6 +705,7 @@ func (ad *ActivityDump) EncodeProtobuf() (*bytes.Buffer, error) {
 	return bytes.NewBuffer(raw), nil
 }
 
+// EncodeProtoJSON encodes an activity dump in the ProtoJSON format
 func (ad *ActivityDump) EncodeProtoJSON() (*bytes.Buffer, error) {
 	pad := activityDumpToProto(ad)
 	defer pad.ReturnToVTPool()
