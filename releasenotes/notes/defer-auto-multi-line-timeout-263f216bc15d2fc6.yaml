@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Delay starting the auto multi line detection timeout until at 
+    Delay starting the auto multi-line detection timeout until at 
     least one log has been processed. 
