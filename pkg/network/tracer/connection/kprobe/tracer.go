@@ -59,6 +59,15 @@ type telemetry struct {
 	reporter stats.Reporter
 }
 
+func newTelemetry() telemetry {
+	return telemetry{
+		tcpConns4: atomic.NewInt64(0),
+		udpConns4: atomic.NewInt64(0),
+		tcpConns6: atomic.NewInt64(0),
+		udpConns6: atomic.NewInt64(0),
+	}
+}
+
 func New(config *config.Config, constants []manager.ConstantEditor) (connection.Tracer, error) {
 	mgrOptions := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
@@ -153,6 +162,7 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		closeConsumer: closeConsumer,
 		pidCollisions: atomic.NewInt64(0),
 		removeTuple:   &netebpf.ConnTuple{},
+		telemetry:     newTelemetry(),
 	}
 
 	tr.conns, _, err = m.GetMap(string(probes.ConnMap))
@@ -167,10 +177,6 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TcpStatsMap, err)
 	}
 
-	tr.telemetry.tcpConns4 = atomic.NewInt64(0)
-	tr.telemetry.udpConns4 = atomic.NewInt64(0)
-	tr.telemetry.tcpConns6 = atomic.NewInt64(0)
-	tr.telemetry.udpConns6 = atomic.NewInt64(0)
 	tr.telemetry.reporter, err = stats.NewReporter(&tr.telemetry)
 	if err != nil {
 		return nil, fmt.Errorf("error creating stats reporter: %w", err)
@@ -227,7 +233,7 @@ func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter f
 	conn := new(network.ConnectionStats)
 	tcp := new(netebpf.TCPStats)
 
-	var tel telemetry
+	tel := newTelemetry()
 	entries := t.conns.Iterate()
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
 		populateConnStats(conn, key, stats)
