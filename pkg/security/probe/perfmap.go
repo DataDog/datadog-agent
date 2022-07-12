@@ -10,6 +10,7 @@ package probe
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -19,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf/perf"
-	"github.com/pkg/errors"
 )
 
 const eventStreamMap = "events"

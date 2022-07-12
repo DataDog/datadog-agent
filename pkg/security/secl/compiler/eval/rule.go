@@ -6,7 +6,6 @@
 package eval
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 
@@ -233,7 +232,7 @@ func (r *Rule) GenPartials() error {
 		state := NewState(r.Model, field, macroPartials[field], r.ReplacementCtx)
 		pEval, _, err := nodeToEvaluator(r.ast.BooleanExpression, state)
 		if err != nil {
-			return errors.Wrapf(err, "couldn't generate partial for field %s and rule %s", field, r.ID)
+			return fmt.Errorf("couldn't generate partial for field %s and rule %s: %w", field, r.ID, err)
 		}
 
 		pEvalBool, ok := pEval.(*BoolEvaluator)
