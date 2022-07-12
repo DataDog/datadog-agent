@@ -164,6 +164,7 @@ func TestStateHeaders(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		resp.Body.Close()
 		_, ok := resp.Header["Datadog-Agent-Version"]
 		assert.True(ok)
 		v := resp.Header.Get("Datadog-Agent-Version")
@@ -411,6 +412,7 @@ func TestReceiverDecodingError(t *testing.T) {
 
 		resp, err := client.Do(req)
 		assert.NoError(err)
+		resp.Body.Close()
 		assert.Equal(400, resp.StatusCode)
 		assert.EqualValues(0, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError)
 	})
@@ -424,6 +426,7 @@ func TestReceiverDecodingError(t *testing.T) {
 
 		resp, err := client.Do(req)
 		assert.NoError(err)
+		resp.Body.Close()
 		assert.Equal(400, resp.StatusCode)
 		assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError)
 	})
@@ -454,6 +457,7 @@ func TestReceiverUnexpectedEOF(t *testing.T) {
 	resp, err := client.Do(req)
 	assert.NoError(err)
 
+	resp.Body.Close()
 	assert.Equal(400, resp.StatusCode)
 	assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.5"}).TracesDropped.EOF)
 }
@@ -659,6 +663,7 @@ func TestHandleStats(t *testing.T) {
 			t.Fatal(string(slurp), resp.StatusCode)
 		}
 
+		resp.Body.Close()
 		gotp, gotlang, gotTracerVersion := mockProcessor.Got()
 		if !reflect.DeepEqual(gotp, p) || gotlang != "lang1" || gotTracerVersion != "0.1.0" {
 			t.Fatalf("Did not match payload: %v: %v", gotlang, gotp)
@@ -693,6 +698,7 @@ func TestClientComputedStatsHeader(t *testing.T) {
 					t.Error(err)
 					return
 				}
+				resp.Body.Close()
 				if resp.StatusCode != 200 {
 					t.Error(resp.StatusCode)
 					return
@@ -805,6 +811,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 					t.Error(err)
 					return
 				}
+				resp.Body.Close()
 				if resp.StatusCode != 200 {
 					t.Error(resp.StatusCode)
 					return
@@ -846,6 +853,7 @@ func TestClientDropP0s(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	resp.Body.Close()
 	if resp.StatusCode != 200 {
 		t.Fatal(resp.StatusCode)
 	}
@@ -889,6 +897,7 @@ func TestReceiverRateLimiterCancel(t *testing.T) {
 				assert.Nil(err)
 				assert.NotNil(resp)
 				if resp != nil {
+					resp.Body.Close()
 					assert.Equal(http.StatusOK, resp.StatusCode)
 				}
 			}
@@ -1111,6 +1120,7 @@ func TestWatchdog(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("got %d", resp.StatusCode)
 		}
@@ -1128,6 +1138,7 @@ func TestWatchdog(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			resp.Body.Close()
 			if resp.StatusCode == http.StatusTooManyRequests {
 				break // 👍
 			}

@@ -150,7 +150,9 @@ func TestTelemetryConfig(t *testing.T) {
 		req, rec := newRequestRecorder(t)
 		recv := newTestReceiverFromConfig(cfg)
 		recv.buildMux().ServeHTTP(rec, req)
-		assert.Equal(t, 404, rec.Result().StatusCode)
+		result := rec.Result()
+		assert.Equal(t, 404, result.StatusCode)
+		result.Body.Close()
 	})
 
 	t.Run("no-endpoints", func(t *testing.T) {
@@ -163,8 +165,9 @@ func TestTelemetryConfig(t *testing.T) {
 		req, rec := newRequestRecorder(t)
 		recv := newTestReceiverFromConfig(cfg)
 		recv.buildMux().ServeHTTP(rec, req)
-
-		assert.Equal(t, 404, rec.Result().StatusCode)
+		result := rec.Result()
+		assert.Equal(t, 404, result.StatusCode)
+		result.Body.Close()
 	})
 
 	t.Run("fallback-endpoint", func(t *testing.T) {
