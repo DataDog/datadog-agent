@@ -64,7 +64,7 @@ func TestActivityDumps(t *testing.T) {
 			ext := filepath.Ext(f)
 			switch ext {
 			case ".json":
-				if jsonOK == true {
+				if jsonOK {
 					t.Fatal("Got more than one JSON file:", outputFiles)
 				}
 				content, err := os.ReadFile(f)
@@ -77,7 +77,7 @@ func TestActivityDumps(t *testing.T) {
 				jsonOK = true
 
 			case ".msgp":
-				if msgpOK == true {
+				if msgpOK {
 					t.Fatal("Got more than one MSGP file:", outputFiles)
 				}
 				ad, err := test.DecodeMSPActivityDump(t, f)
@@ -94,7 +94,7 @@ func TestActivityDumps(t *testing.T) {
 						break
 					}
 				}
-				if msgpOK == false {
+				if !msgpOK {
 					t.Error("Bound socket not found on activity dump")
 				}
 
@@ -103,7 +103,7 @@ func TestActivityDumps(t *testing.T) {
 			}
 
 		}
-		if jsonOK == false || msgpOK == false {
+		if !jsonOK || !msgpOK {
 			t.Fatal("Some files are missing, got:", outputFiles)
 		}
 	})
@@ -131,7 +131,7 @@ func TestActivityDumps(t *testing.T) {
 			ext := filepath.Ext(f)
 			switch ext {
 			case ".json":
-				if jsonOK == true {
+				if jsonOK {
 					t.Fatal("Got more than one JSON file:", outputFiles)
 				}
 				content, err := os.ReadFile(f)
@@ -144,7 +144,7 @@ func TestActivityDumps(t *testing.T) {
 				jsonOK = true
 
 			case ".msgp":
-				if msgpOK == true {
+				if msgpOK {
 					t.Fatal("Got more than one MSGP file:", outputFiles)
 				}
 				ad, err := test.DecodeMSPActivityDump(t, f)
@@ -161,7 +161,7 @@ func TestActivityDumps(t *testing.T) {
 						break
 					}
 				}
-				if msgpOK == false {
+				if !msgpOK {
 					t.Error("DNS request not found on activity dump")
 				}
 
@@ -170,7 +170,7 @@ func TestActivityDumps(t *testing.T) {
 			}
 
 		}
-		if jsonOK == false || msgpOK == false {
+		if !jsonOK || !msgpOK {
 			t.Fatal("Some files are missing, got:", outputFiles)
 		}
 	})
