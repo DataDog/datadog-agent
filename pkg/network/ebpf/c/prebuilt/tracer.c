@@ -517,9 +517,11 @@ int kretprobe__tcp_connect(struct pt_regs* ctx) {
         return 0;
     }
     handle_tcp_stats(&t, *sk, TCP_ESTABLISHED);
-    handle_message(&t, 0, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE);
+    handle_message(&t, 0, 0, CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE);
 
     log_debug("kretprobe/tcp_connect: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
+
+    bpf_map_delete_elem(&tcp_connect_sock, &pid_tgid);
 
     return 0;
 }
