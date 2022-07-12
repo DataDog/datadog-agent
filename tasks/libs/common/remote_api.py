@@ -53,7 +53,7 @@ class RemoteAPI(object):
         import requests
 
         url = self.BASE_URL + path
-        print(url)
+        print(f"{method} {url}")
         # TODO: Use the param argument of requests instead of handling URL params
         # manually
         try:

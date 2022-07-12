@@ -6,6 +6,7 @@ import time
 import zipfile
 from datetime import datetime, timedelta
 from time import sleep
+from urllib.parse import urlparse
 
 from invoke.exceptions import Exit
 
@@ -76,9 +77,9 @@ def trigger_macos_workflow(
             ref_runs = [run for run in runs["workflow_runs"] if run["head_branch"] == github_action_ref]
             if len(runs) > 0:
                 for workflow in ref_runs:
-                    jobs_url = workflow["jobs_url"]
+                    jobs_url = urlparse(workflow["jobs_url"])
                     print(f"get jobs_url {jobs_url}")
-                    jobs = worfklow.make_request(jobs_url, method="GET", json_output=True)
+                    jobs = worfklow.make_request(jobs_url.path, method="GET", json_output=True)
                     if 'jobs' in jobs and len(jobs['jobs']) >= 2:
                         # The first job is the setup, the ID job should be the next one
                         job = jobs['jobs'][1]
