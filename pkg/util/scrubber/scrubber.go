@@ -59,7 +59,7 @@ var blankRegex = regexp.MustCompile(`^\s*$`)
 // Scrubber works by applying a set of replacers, in order.  It first applies
 // all SingleLine replacers to each non-comment, non-blank line of the input.
 //
-// Comments and blank lines are omitted. Comments are considered to begin with `#`.
+// Comments - lines beginning with `#` - are omitted.
 //
 // It then applies all MultiLine replacers to the entire text of the input.
 type Scrubber struct {
