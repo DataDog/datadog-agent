@@ -128,7 +128,7 @@ func TestDebuggerProxyHandler(t *testing.T) {
 			t.Fatalf("invalid response: %s", res.Status)
 		}
 		slurp, err := ioutil.ReadAll(res.Body)
-		resp.Body.Close()
+		res.Body.Close()
 		if err != nil {
 			t.Fatal(err)
 		}
