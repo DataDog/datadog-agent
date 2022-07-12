@@ -64,7 +64,7 @@ def trigger_macos_workflow(
         # generate a random id
         run_id = ''.join(random.choices(string.ascii_uppercase + string.digits, k=15))
         # filter runs that were created after this date minus 5 minutes
-        delta_time = datetime.timedelta(minutes=5)
+        delta_time = timedelta(minutes=5)
         run_date_filter = (datetime.utcnow() - delta_time).strftime("%Y-%m-%dT%H:%M")
         inputs_with_id = dict(inputs)
         inputs_with_id["id"] = run_id
