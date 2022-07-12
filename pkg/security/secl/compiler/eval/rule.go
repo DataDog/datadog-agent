@@ -6,10 +6,9 @@
 package eval
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
-
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
@@ -182,9 +181,9 @@ func (r *Rule) GenEvaluator(model Model, replCtx ReplacementContext) error {
 	evaluator, err := ruleToEvaluator(r.ast, model, replCtx)
 	if err != nil {
 		if err, ok := err.(*ErrAstToEval); ok {
-			return errors.Wrapf(&ErrRuleParse{pos: err.Pos, expr: r.Expression}, "rule syntax error: %s", err)
+			return fmt.Errorf("rule syntax error: %s: %w", err, &ErrRuleParse{pos: err.Pos, expr: r.Expression})
 		}
-		return errors.Wrap(err, "rule compilation error")
+		return fmt.Errorf("rule compilation error: %w", err)
 	}
 	r.evaluator = evaluator
 

@@ -9,6 +9,7 @@
 package selftests
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -123,7 +124,7 @@ func (t *SelfTester) createTargetFile() error {
 // RunSelfTest runs the self test and return the result
 func (t *SelfTester) RunSelfTest() ([]string, []string, error) {
 	if err := t.BeginWaitingForEvent(); err != nil {
-		return nil, nil, errors.Wrap(err, "failed to run self test")
+		return nil, nil, fmt.Errorf("failed to run self test: %w", err)
 	}
 	defer t.EndWaitingForEvent()
 
