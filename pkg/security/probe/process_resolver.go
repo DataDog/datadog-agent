@@ -11,6 +11,7 @@ package probe
 import (
 	"container/list"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -25,7 +26,6 @@ import (
 	"github.com/DataDog/gopsutil/process"
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/golang-lru/simplelru"
-	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -354,22 +354,22 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	procExecPath := utils.ProcExePath(proc.Pid)
 	pathnameStr, err := os.Readlink(procExecPath)
 	if err != nil {
-		return errors.Wrapf(err, "snapshot failed for %d: couldn't readlink binary", proc.Pid)
+		return fmt.Errorf("snapshot failed for %d: couldn't readlink binary: %w", proc.Pid, err)
 	}
 	if pathnameStr == "/ (deleted)" {
-		return errors.Errorf("snapshot failed for %d: binary was deleted", proc.Pid)
+		return fmt.Errorf("snapshot failed for %d: binary was deleted", proc.Pid)
 	}
 
 	// Get the file fields of the process binary
 	info, err := p.retrieveExecFileFields(procExecPath)
 	if err != nil {
-		return errors.Wrapf(err, "snapshot failed for %d: couldn't retrieve inode info", proc.Pid)
+		return fmt.Errorf("snapshot failed for %d: couldn't retrieve inode info: %w", proc.Pid, err)
 	}
 
 	// Retrieve the container ID of the process from /proc
 	containerID, err := p.resolvers.ContainerResolver.GetContainerID(pid)
 	if err != nil {
-		return errors.Wrapf(err, "snapshot failed for %d: couldn't parse container ID", proc.Pid)
+		return fmt.Errorf("snapshot failed for %d: couldn't parse container ID: %w", proc.Pid, err)
 	}
 
 	entry.FileEvent.FileFields = *info
@@ -399,7 +399,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	}
 	entry.Credentials.CapEffective, entry.Credentials.CapPermitted, err = utils.CapEffCapEprm(proc.Pid)
 	if err != nil {
-		return errors.Wrapf(err, "snapshot failed for %d: couldn't parse kernel capabilities", proc.Pid)
+		return fmt.Errorf("snapshot failed for %d: couldn't parse kernel capabilities: %w", proc.Pid, err)
 	}
 	p.SetProcessUsersGroups(entry)
 
@@ -437,11 +437,11 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 func (p *ProcessResolver) retrieveExecFileFields(procExecPath string) (*model.FileFields, error) {
 	fi, err := os.Stat(procExecPath)
 	if err != nil {
-		return nil, errors.Wrapf(err, "snapshot failed for `%s`: couldn't stat binary", procExecPath)
+		return nil, fmt.Errorf("snapshot failed for `%s`: couldn't stat binary: %w", procExecPath, err)
 	}
 	stat, ok := fi.Sys().(*syscall.Stat_t)
 	if !ok {
-		return nil, errors.Errorf("snapshot failed for `%s`: couldn't stat binary", procExecPath)
+		return nil, fmt.Errorf("snapshot failed for `%s`: couldn't stat binary", procExecPath)
 	}
 	inode := stat.Ino
 

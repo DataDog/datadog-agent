@@ -20,7 +20,6 @@ import (
 
 	"github.com/avast/retry-go"
 	"github.com/freddierice/go-losetup"
-	"github.com/pkg/errors"
 )
 
 type testDrive struct {
@@ -88,7 +87,7 @@ func newTestDriveWithMountPoint(tb testing.TB, fsType string, mountOpts []string
 			_ = dev.Detach()
 			os.Remove(backingFile.Name())
 			os.RemoveAll(mountPoint)
-			return nil, errors.Wrapf(err, "failed to create testdrive %s filesystem", fsType)
+			return nil, fmt.Errorf("failed to create testdrive %s filesystem: %w", fsType, err)
 		}
 
 		loopback = &dev

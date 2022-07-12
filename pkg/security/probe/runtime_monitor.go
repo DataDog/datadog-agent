@@ -15,7 +15,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/gopsutil/process"
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -58,7 +57,7 @@ func (m *RuntimeMonitor) sendCgroupMetrics() error {
 		}
 	}
 	if len(memoryCgroup.Path) == 0 {
-		return errors.Wrapf(err, "couldn't find memory controller in: %v", cgroups)
+		return fmt.Errorf("couldn't find memory controller in: %v: %w", cgroups, err)
 	}
 
 	usageInBytes, err := utils.ParseCgroupFileValue("memory", memoryCgroup.Path, "memory.usage_in_bytes")
@@ -119,7 +118,7 @@ func (m *RuntimeMonitor) sendCgroupMetrics() error {
 		}
 
 		if err = m.client.Gauge(metrics.MetricRuntimeCgroupMemoryStatPrefix+lineSplit[0], float64(value), []string{}, 1.0); err != nil {
-			return errors.Wrapf(err, "failed to send %s metric", metrics.MetricRuntimeCgroupMemoryStatPrefix+lineSplit[0])
+			return fmt.Errorf("failed to send %s metric: %w", metrics.MetricRuntimeCgroupMemoryStatPrefix+lineSplit[0], err)
 		}
 	}
 
