@@ -1,8 +1,12 @@
+import random
+import string
 import sys
 import tempfile
+import time
 import zipfile
 from datetime import datetime, timedelta
 from time import sleep
+from urllib.parse import urlparse
 
 from invoke.exceptions import Exit
 
@@ -55,13 +59,55 @@ def trigger_macos_workflow(
         )
     )
 
-    # Hack: get current time to only fetch workflows that started after now.
-    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-
-    workflow_id = create_or_refresh_macos_build_github_workflows().trigger_workflow(workflow, github_action_ref, inputs)
+    worfklow = create_or_refresh_macos_build_github_workflows()
+    try:
+        # generate a random id
+        run_id = ''.join(random.choices(string.ascii_uppercase + string.digits, k=15))
+        # filter runs that were created after this date minus 5 minutes
+        delta_time = datetime.timedelta(minutes=5)
+        run_date_filter = (datetime.datetime.utcnow() - delta_time).strftime("%Y-%m-%dT%H:%M")
+        inputs_with_id = dict(inputs)
+        inputs_with_id["id"] = run_id
+        worfklow.trigger_workflow(workflow, github_action_ref, inputs)
+        workflow_id = ""
+        try_number = 0
+        while workflow_id == "" and try_number < 10:
+            runs = worfklow.workflow_runs(workflow, f"?created=%3E{run_date_filter}")
+            ref_runs = [run for run in runs["workflow_runs"] if run["head_branch"] == github_action_ref]
+            if len(runs) > 0:
+                for workflow in ref_runs:
+                    jobs_url = urlparse(workflow["jobs_url"])
+                    print(f"get jobs_url {jobs_url}")
+                    jobs = worfklow.make_request(jobs_url.path, method="GET", json_output=True)
+                    if 'jobs' in jobs and len(jobs['jobs']) >= 2:
+                        # The first job is the setup, the ID job should be the next one
+                        job = jobs['jobs'][1]
+                        steps = job["steps"]
+                        if len(steps) >= 2:
+                            second_step = steps[1]  # run_id is at second position, setup job is always first
+                            if second_step["name"] == run_id:
+                                workflow_id = job["run_id"]
+                        else:
+                            print("waiting for steps to be executed...")
+                            time.sleep(3)
+                    else:
+                        print("waiting for jobs to popup...")
+                        time.sleep(3)
+            else:
+                print("waiting for workflows to popup...")
+                time.sleep(3)
+            try_number += 1
+    except GithubException:
+        # It didn't work by using the job hack for whatever reason
+        # (including the workflow to trigger didn't contain the special pilot job)
+        # Ignore the error and try again without the "id" input.
+        pass
 
     # If we didn't manage to fecth the workflow ID using the "job hack" then revert back to the old hack
     if workflow_id is None:
+        # Hack: get current time to only fetch workflows that started after now.
+        now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        worfklow.trigger_workflow(workflow, github_action_ref, inputs)
         # Thus the following hack: query the latest run for ref, wait until we get a non-completed run
         # that started after we triggered the workflow.
         # In practice, this should almost never be a problem, even if the Agent 6 and 7 jobs run at the
