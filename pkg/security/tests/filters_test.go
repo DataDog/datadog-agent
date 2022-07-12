@@ -18,8 +18,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/pkg/errors"
-
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -33,7 +31,7 @@ func openTestFile(test *testModule, testFile string, flags int) (int, error) {
 
 	if dir := filepath.Dir(testFile); dir != test.Root() {
 		if err := os.MkdirAll(dir, 0777); err != nil {
-			return 0, errors.Wrap(err, "failed to create directory")
+			return 0, fmt.Errorf("failed to create directory: %w", err)
 		}
 	}
 

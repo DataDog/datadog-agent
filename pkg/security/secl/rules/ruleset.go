@@ -6,13 +6,13 @@
 package rules
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
 	"sync"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
 	"github.com/spf13/cast"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -260,7 +260,7 @@ func (rs *RuleSet) AddRules(rules []*RuleDefinition) *multierror.Error {
 	}
 
 	if err := rs.generatePartials(); err != nil {
-		result = multierror.Append(result, errors.Wrapf(err, "couldn't generate partials for rule"))
+		result = multierror.Append(result, fmt.Errorf("couldn't generate partials for rule: %w", err))
 	}
 
 	return result
@@ -316,7 +316,7 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 	}
 
 	if err := rule.Parse(); err != nil {
-		return nil, &ErrRuleLoad{Definition: ruleDef, Err: errors.Wrap(err, "syntax error")}
+		return nil, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("syntax error: %w", err)}
 	}
 
 	if err := rule.GenEvaluator(rs.model, rs.replCtx()); err != nil {

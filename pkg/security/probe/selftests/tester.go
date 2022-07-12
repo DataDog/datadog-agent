@@ -9,6 +9,8 @@
 package selftests
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"time"
 
@@ -18,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 )
 
@@ -123,7 +124,7 @@ func (t *SelfTester) createTargetFile() error {
 // RunSelfTest runs the self test and return the result
 func (t *SelfTester) RunSelfTest() ([]string, []string, error) {
 	if err := t.BeginWaitingForEvent(); err != nil {
-		return nil, nil, errors.Wrap(err, "failed to run self test")
+		return nil, nil, fmt.Errorf("failed to run self test: %w", err)
 	}
 	defer t.EndWaitingForEvent()
 
