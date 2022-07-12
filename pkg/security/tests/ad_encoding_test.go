@@ -16,7 +16,7 @@ import (
 )
 
 func getTestDataActivityDump(tb testing.TB) *probe.ActivityDump {
-	ad := &probe.ActivityDump{}
+	ad := probe.NewEmptyActivityDump()
 	if err := ad.Decode("./pkg/security/adproto/ad_testdata.msgp"); err != nil {
 		tb.Fatal(err)
 	}
