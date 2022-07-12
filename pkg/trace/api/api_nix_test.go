@@ -47,9 +47,9 @@ func TestUDS(t *testing.T) {
 
 		resp, err := client.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(payload))
 		if err == nil {
+			resp.Body.Close()
 			t.Fatalf("expected to fail, got response %#v", resp)
 		}
-		resp.Body.Close()
 	})
 
 	t.Run("on", func(t *testing.T) {
