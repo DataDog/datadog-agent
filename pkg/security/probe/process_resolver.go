@@ -115,6 +115,7 @@ type ProcessResolver struct {
 
 // ArgsEnvsPool defines a pool for args/envs allocations
 type ArgsEnvsPool struct {
+	lock sync.RWMutex
 	pool *sync.Pool
 
 	// entries that wont be release to the pool
@@ -125,6 +126,9 @@ type ArgsEnvsPool struct {
 
 // Get returns a cache entry
 func (a *ArgsEnvsPool) Get() *model.ArgsEnvsCacheEntry {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
+
 	// first try from resident pool
 	if el := a.freeResidents.Front(); el != nil {
 		entry := el.Value.(*model.ArgsEnvsCacheEntry)
@@ -137,6 +141,9 @@ func (a *ArgsEnvsPool) Get() *model.ArgsEnvsCacheEntry {
 
 // GetFrom returns a new entry with value from the given entry
 func (a *ArgsEnvsPool) GetFrom(event *model.ArgsEnvsEvent) *model.ArgsEnvsCacheEntry {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
+
 	entry := a.Get()
 
 	entry.Size = event.ArgsEnvs.Size
@@ -148,6 +155,9 @@ func (a *ArgsEnvsPool) GetFrom(event *model.ArgsEnvsEvent) *model.ArgsEnvsCacheE
 
 // Put returns a cache entry to the pool
 func (a *ArgsEnvsPool) Put(entry *model.ArgsEnvsCacheEntry) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
 	if entry.Container != nil {
 		// from the residents list
 		a.freeResidents.MoveToBack(entry.Container)
