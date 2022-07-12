@@ -13,6 +13,7 @@ from invoke.exceptions import Exit
 from ..utils import DEFAULT_BRANCH
 from .common.color import color_message
 from .common.github_workflows import GithubException, GithubWorkflows, get_github_app_token
+from .common.remote_api import RemoteAPI
 
 
 def create_or_refresh_macos_build_github_workflows(github_workflows=None):
@@ -97,10 +98,11 @@ def trigger_macos_workflow(
                 print("waiting for workflows to popup...")
                 time.sleep(3)
             try_number += 1
-    except GithubException:
+    except RemoteAPI.APIError:
         # It didn't work by using the job hack for whatever reason
         # (including the workflow to trigger didn't contain the special pilot job)
-        # Ignore the error and try again without the "id" input.
+        # Log the error and try again without the "id" input.
+        print("trigger_macos_workflow: error", sys.exc_info()[0], ". Trying again without the 'id' input.")
         pass
 
     # If we didn't manage to fetch the workflow ID using the "job hack" then revert back to the old hack
