@@ -717,6 +717,7 @@ variables:
       - test/kitchen/test/integration/security-agent-stress/**/*
       - .gitlab/functional_test/security_agent.yml
     when: on_success
+    allow_failure: true
   - when: manual
     allow_failure: true
 
