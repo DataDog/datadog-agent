@@ -18,9 +18,13 @@ import (
 	"testing"
 	"time"
 
+	adproto "github.com/DataDog/datadog-agent/pkg/security/adproto/v1"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"google.golang.org/protobuf/proto"
 )
+
+var expectedFormats = []string{"json", "msgp", "protobuf", "protojson"}
 
 func TestActivityDumps(t *testing.T) {
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{enableActivityDump: true})
@@ -41,7 +45,6 @@ func TestActivityDumps(t *testing.T) {
 	test.Run(t, "activity-dump-comm-bind", func(t *testing.T, kind wrapperType,
 		cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 
-		expectedFormats := []string{"json", "msgp", "protojson"}
 		outputFiles, err := test.StartActivityDumpComm(t, "syscall_tester", outputDir, expectedFormats)
 		if err != nil {
 			t.Fatal(err)
@@ -110,7 +113,6 @@ func TestActivityDumps(t *testing.T) {
 	test.Run(t, "activity-dump-comm-file", func(t *testing.T, kind wrapperType,
 		cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 
-		expectedFormats := []string{"json", "msgp"}
 		outputFiles, err := test.StartActivityDumpComm(t, "testsuite", outputDir, expectedFormats)
 		if err != nil {
 			t.Fatal(err)
@@ -175,6 +177,18 @@ func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats
 			}
 			if !validateActivityDumpSchema(t, string(content)) {
 				t.Error(string(content))
+			}
+			perExtOK[ext] = true
+
+		case ".protobuf":
+			content, err := os.ReadFile(f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ad := &adproto.ActivityDump{}
+			err = proto.Unmarshal(content, ad)
+			if err != nil {
+				t.Error(err)
 			}
 			perExtOK[ext] = true
 
