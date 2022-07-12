@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -103,6 +104,52 @@ func TestActivityDumps(t *testing.T) {
 				}
 			}
 			return false
+		})
+	})
+
+	test.Run(t, "activity-dump-comm-file", func(t *testing.T, kind wrapperType,
+		cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+
+		expectedFormats := []string{"json", "msgp"}
+		outputFiles, err := test.StartActivityDumpComm(t, "testsuite", outputDir, expectedFormats)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		temp, err := os.CreateTemp("", "ad-test-create")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(temp.Name())
+
+		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
+
+		err = test.StopActivityDumpComm(t, "testsuite")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		tempPathParts := strings.Split(temp.Name(), "/")
+
+		validateActivityDumpOutputs(t, test, expectedFormats, outputFiles, func(ad *probe.ActivityDump) bool {
+			node := ad.FindFirstMatchingNode("testsuite")
+			if node == nil {
+				t.Fatal("Node not found on activity dump")
+			}
+
+			current := node.Files
+			for _, part := range tempPathParts {
+				if part == "" {
+					continue
+				}
+				next, found := current[part]
+				if !found {
+					return false
+				}
+				current = next.Children
+			}
+
+			return true
 		})
 	})
 }
