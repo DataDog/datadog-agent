@@ -158,11 +158,6 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
 
 SEC("kretprobe/ip6_make_skb")
 int kretprobe__ip6_make_skb(struct pt_regs *ctx) {
-    void *rc = (void*) PT_REGS_RC(ctx);
-    if (IS_ERR_OR_NULL(rc)) {
-        return 0;
-    }
-
     u64 pid_tgid = bpf_get_current_pid_tgid();
     ip_make_skb_args_t *args = bpf_map_lookup_elem(&ip_make_skb_args, &pid_tgid);
     if (!args) {
@@ -173,6 +168,11 @@ int kretprobe__ip6_make_skb(struct pt_regs *ctx) {
     struct flowi6* fl6 = args->fl6;
     size_t size = args->len;
     bpf_map_delete_elem(&ip_make_skb_args, &pid_tgid);
+
+    void *rc = (void*) PT_REGS_RC(ctx);
+    if (IS_ERR_OR_NULL(rc)) {
+        return 0;
+    }
 
     size = size - sizeof(struct udphdr);
 
@@ -245,11 +245,6 @@ int kprobe__ip_make_skb(struct pt_regs* ctx) {
 
 SEC("kretprobe/ip_make_skb")
 int kretprobe__ip_make_skb(struct pt_regs *ctx) {
-    void *rc = (void*) PT_REGS_RC(ctx);
-    if (IS_ERR_OR_NULL(rc)) {
-        return 0;
-    }
-
     u64 pid_tgid = bpf_get_current_pid_tgid();
     ip_make_skb_args_t *args = bpf_map_lookup_elem(&ip_make_skb_args, &pid_tgid);
     if (!args) {
@@ -260,6 +255,11 @@ int kretprobe__ip_make_skb(struct pt_regs *ctx) {
     struct flowi4* fl4 = args->fl4;
     size_t size = args->len;
     bpf_map_delete_elem(&ip_make_skb_args, &pid_tgid);
+
+    void *rc = (void*) PT_REGS_RC(ctx);
+    if (IS_ERR_OR_NULL(rc)) {
+        return 0;
+    }
 
     size = size - sizeof(struct udphdr);
 
