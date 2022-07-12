@@ -1256,8 +1256,16 @@ func findUnexpectedUnicode(config Config) []string {
 	allKeys := config.AllKeys()
 	for _, key := range allKeys {
 		checkAndRecordString(key, fmt.Sprintf("Configuration key string '%s'", key))
-		value := config.GetString(key)
-		checkAndRecordString(value, fmt.Sprintf("For key '%s', configuration value string '%s'", key, value))
+		if value := config.Get(key); value != nil {
+			switch v := value.(type) {
+			case string:
+				checkAndRecordString(v, fmt.Sprintf("For key '%s', configuration value string '%s'", key, v))
+			case []string:
+				for _, s := range v {
+					checkAndRecordString(s, fmt.Sprintf("For key '%s', configuration value string '%s'", key, s))
+				}
+			}
+		}
 	}
 
 	return messages
