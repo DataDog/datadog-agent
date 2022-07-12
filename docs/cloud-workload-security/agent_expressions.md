@@ -280,7 +280,7 @@ A bind was executed
 
 | Property | Type | Definition | Constants |
 | -------- | ---- | ---------- | --------- |
-| `bind.addr.family` | int | Address family | Network Address Family constants |
+| `bind.addr.family` | int | Address family |  |
 | `bind.addr.ip` | IP/CIDR | IP address |  |
 | `bind.addr.port` | int | Port number |  |
 | `bind.retval` | int | Return value of the syscall | Error Constants |

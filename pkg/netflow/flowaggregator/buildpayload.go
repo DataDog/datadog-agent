@@ -14,7 +14,8 @@ func buildPayload(aggFlow *common.Flow, hostname string) payload.FlowPayload {
 		SamplingRate: aggFlow.SamplingRate,
 		Direction:    enrichment.RemapDirection(aggFlow.Direction),
 		Device: payload.Device{
-			IP: common.IPBytesToString(aggFlow.DeviceAddr),
+			IP:        common.IPBytesToString(aggFlow.DeviceAddr),
+			Namespace: aggFlow.Namespace,
 		},
 		Start:      aggFlow.StartTimestamp,
 		End:        aggFlow.EndTimestamp,
@@ -44,9 +45,8 @@ func buildPayload(aggFlow *common.Flow, hostname string) payload.FlowPayload {
 				Index: aggFlow.OutputInterface,
 			},
 		},
-		Namespace: aggFlow.Namespace,
-		Host:      hostname,
-		TCPFlags:  enrichment.FormatFCPFlags(aggFlow.TCPFlags),
+		Host:     hostname,
+		TCPFlags: enrichment.FormatFCPFlags(aggFlow.TCPFlags),
 		NextHop: payload.NextHop{
 			IP: common.IPBytesToString(aggFlow.NextHop),
 		},

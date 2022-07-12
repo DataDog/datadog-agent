@@ -331,13 +331,13 @@ func dumpProcessCache(cmd *cobra.Command, args []string) error {
 
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
 	filename, err := client.DumpProcessCache(processCacheDumpArgs.withArgs)
 	if err != nil {
-		return errors.Wrap(err, "unable to get a process cache dump")
+		return fmt.Errorf("unable to get a process cache dump: %w", err)
 	}
 
 	fmt.Printf("Process dump file: %s\n", filename)
@@ -353,13 +353,13 @@ func dumpNetworkNamespace(cmd *cobra.Command, args []string) error {
 
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
 	resp, err := client.DumpNetworkNamespace(dumpNetworkNamespaceArgs.snapshotInterfaces)
 	if err != nil {
-		return errors.Wrap(err, "couldn't send network namespace cache dump request")
+		return fmt.Errorf("couldn't send network namespace cache dump request: %w", err)
 	}
 
 	if len(resp.GetError()) > 0 {
@@ -429,7 +429,7 @@ func generateActivityDump(cmd *cobra.Command, args []string) error {
 
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
@@ -463,7 +463,7 @@ func listActivityDumps(cmd *cobra.Command, args []string) error {
 
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
@@ -495,7 +495,7 @@ func stopActivityDump(cmd *cobra.Command, args []string) error {
 
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
@@ -542,7 +542,7 @@ func generateEncodingFromActivityDump(cmd *cobra.Command, args []string) error {
 
 	} else {
 		// encoding request will be handled locally
-		var ad sprobe.ActivityDump
+		ad := sprobe.NewEmptyActivityDump()
 
 		// open and parse input file
 		if err := ad.Decode(activityDumpArgs.file); err != nil {
@@ -566,7 +566,7 @@ func generateEncodingFromActivityDump(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("couldn't instantiate storage manager: %w", err)
 		}
 
-		err = storage.Persist(&ad)
+		err = storage.Persist(ad)
 		if err != nil {
 			return fmt.Errorf("couldn't persist dump from %s: %w", activityDumpArgs.file, err)
 		}
@@ -657,13 +657,13 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 func runRuntimeSelfTest(cmd *cobra.Command, args []string) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
 	selfTestResult, err := client.RunSelfTest()
 	if err != nil {
-		return errors.Wrap(err, "unable to get a process self test")
+		return fmt.Errorf("unable to get a process self test: %w", err)
 	}
 
 	if selfTestResult.Ok {
@@ -677,13 +677,13 @@ func runRuntimeSelfTest(cmd *cobra.Command, args []string) error {
 func reloadRuntimePolicies(cmd *cobra.Command, args []string) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
 	_, err = client.ReloadPolicies()
 	if err != nil {
-		return errors.Wrap(err, "unable to reload policies")
+		return fmt.Errorf("unable to reload policies: %w", err)
 	}
 
 	return nil
@@ -729,7 +729,7 @@ func startRuntimeSecurity(hostname string, stopper startstop.Stopper, statsdClie
 	// components
 	agent, err := secagent.NewRuntimeSecurityAgent(hostname)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to create a runtime security agent instance")
+		return nil, fmt.Errorf("unable to create a runtime security agent instance: %w", err)
 	}
 	stopper.Add(agent)
 

@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -29,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"go.uber.org/atomic"
 )
 
 type checkResult struct {
@@ -54,11 +54,11 @@ type checkPayload struct {
 
 // Collector will collect metrics from the local system and ship to the backend.
 type Collector struct {
-	// Set to 1 if enabled 0 is not. We're using an integer
-	// so we can use the sync/atomic for thread-safe access.
-	realTimeEnabled int32
+	// true if real-time is enabled
+	realTimeEnabled *atomic.Bool
 
-	groupID int32
+	// the next groupID to be issued
+	groupID *atomic.Int32
 
 	rtIntervalCh chan time.Duration
 	cfg          *config.AgentConfig
@@ -73,6 +73,7 @@ type Collector struct {
 	processResults   *api.WeightedQueue
 	rtProcessResults *api.WeightedQueue
 	podResults       *api.WeightedQueue
+	eventResults     *api.WeightedQueue
 
 	forwarderRetryQueueMaxBytes int
 
@@ -128,6 +129,9 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 	podResults := api.NewWeightedQueue(queueSize, int64(cfg.Orchestrator.PodQueueBytes))
 	log.Debugf("Creating pod check queue with max_size=%d and max_weight=%d", podResults.MaxSize(), podResults.MaxWeight())
 
+	eventResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
+	log.Debugf("Creating event check queue with max_size=%d and max_weight=%d", eventResults.MaxSize(), eventResults.MaxWeight())
+
 	dropCheckPayloads := ddconfig.Datadog.GetStringSlice("process_config.drop_check_payloads")
 	if len(dropCheckPayloads) > 0 {
 		log.Debugf("Dropping payloads from checks: %v", dropCheckPayloads)
@@ -136,16 +140,17 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 	return Collector{
 		rtIntervalCh:  make(chan time.Duration),
 		cfg:           cfg,
-		groupID:       rand.Int31(),
+		groupID:       atomic.NewInt32(rand.Int31()),
 		enabledChecks: checks,
 
 		// Defaults for real-time on start
 		realTimeInterval: 2 * time.Second,
-		realTimeEnabled:  0,
+		realTimeEnabled:  atomic.NewBool(false),
 
 		processResults:   processResults,
 		rtProcessResults: rtProcessResults,
 		podResults:       podResults,
+		eventResults:     eventResults,
 
 		forwarderRetryQueueMaxBytes: queueBytes,
 
@@ -219,7 +224,7 @@ func logCheckDuration(name string, start time.Time, runCounter int32) {
 }
 
 func (l *Collector) nextGroupID() int32 {
-	return atomic.AddInt32(&l.groupID, 1)
+	return l.groupID.Inc()
 }
 
 func (l *Collector) messagesToResults(start time.Time, name string, messages []model.MessageBody, results *api.WeightedQueue) {
@@ -253,6 +258,11 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 			extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
 		}
 
+		if name == checks.ProcessEvents.Name() {
+			extraHeaders.Set(headers.EVPOriginHeader, "process-agent")
+			extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
+		}
+
 		payloads = append(payloads, checkPayload{
 			body:    body,
 			headers: extraHeaders,
@@ -277,6 +287,11 @@ func (l *Collector) run(exit chan struct{}) error {
 		return err
 	}
 
+	processEventsAPIEndpoints, err := getEventsAPIEndpoints()
+	if err != nil {
+		return err
+	}
+
 	eps := make([]string, 0, len(processAPIEndpoints))
 	for _, e := range processAPIEndpoints {
 		eps = append(eps, e.Endpoint.String())
@@ -284,6 +299,10 @@ func (l *Collector) run(exit chan struct{}) error {
 	orchestratorEps := make([]string, 0, len(l.cfg.Orchestrator.OrchestratorEndpoints))
 	for _, e := range l.cfg.Orchestrator.OrchestratorEndpoints {
 		orchestratorEps = append(orchestratorEps, e.Endpoint.String())
+	}
+	eventsEps := make([]string, 0, len(processEventsAPIEndpoints))
+	for _, e := range processEventsAPIEndpoints {
+		eventsEps = append(eventsEps, e.Endpoint.String())
 	}
 
 	var checkNames []string
@@ -298,7 +317,7 @@ func (l *Collector) run(exit chan struct{}) error {
 	}
 	updateEnabledChecks(checkNames)
 	updateDropCheckPayloads(l.dropCheckPayloads)
-	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, checkNames)
+	log.Infof("Starting process-agent for host=%s, endpoints=%s, events endpoints=%s orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, eventsEps, orchestratorEps, checkNames)
 
 	go util.HandleSignals(exit)
 
@@ -307,6 +326,7 @@ func (l *Collector) run(exit chan struct{}) error {
 		l.processResults.Stop()
 		l.rtProcessResults.Stop()
 		l.podResults.Stop()
+		l.eventResults.Stop()
 	}()
 
 	var wg sync.WaitGroup
@@ -334,16 +354,18 @@ func (l *Collector) run(exit chan struct{}) error {
 			case <-heartbeat.C:
 				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
 			case <-queueSizeTicker.C:
-				updateQueueBytes(l.processResults.Weight(), l.rtProcessResults.Weight(), l.podResults.Weight())
-				updateQueueSize(l.processResults.Len(), l.rtProcessResults.Len(), l.podResults.Len())
+				updateQueueStats(&queueStats{
+					processQueueSize:    l.processResults.Len(),
+					rtProcessQueueSize:  l.rtProcessResults.Len(),
+					eventQueueSize:      l.eventResults.Len(),
+					podQueueSize:        l.podResults.Len(),
+					processQueueBytes:   l.processResults.Weight(),
+					rtProcessQueueBytes: l.rtProcessResults.Weight(),
+					eventQueueBytes:     l.eventResults.Weight(),
+					podQueueBytes:       l.podResults.Weight(),
+				})
 			case <-queueLogTicker.C:
-				processSize, rtProcessSize, podSize := l.processResults.Len(), l.rtProcessResults.Len(), l.podResults.Len()
-				if processSize > 0 || rtProcessSize > 0 || podSize > 0 {
-					log.Infof(
-						"Delivery queues: process[size=%d, weight=%d], rtprocess [size=%d, weight=%d], pod[size=%d, weight=%d]",
-						processSize, l.processResults.Weight(), rtProcessSize, l.rtProcessResults.Weight(), podSize, l.podResults.Weight(),
-					)
-				}
+				l.logQueuesSize()
 			case <-exit:
 				return
 			}
@@ -363,6 +385,11 @@ func (l *Collector) run(exit chan struct{}) error {
 	podForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.forwarderRetryQueueMaxBytes // Allow more in-flight requests than the default
 	podForwarder := forwarder.NewDefaultForwarder(podForwarderOpts)
 
+	eventForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(processEventsAPIEndpoints)))
+	eventForwarderOpts.DisableAPIKeyChecking = true
+	eventForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.forwarderRetryQueueMaxBytes // Allow more in-flight requests than the default
+	eventForwarder := forwarder.NewDefaultForwarder(eventForwarderOpts)
+
 	if err := processForwarder.Start(); err != nil {
 		return fmt.Errorf("error starting forwarder: %s", err)
 	}
@@ -373,6 +400,10 @@ func (l *Collector) run(exit chan struct{}) error {
 
 	if err := podForwarder.Start(); err != nil {
 		return fmt.Errorf("error starting pod forwarder: %s", err)
+	}
+
+	if err := eventForwarder.Start(); err != nil {
+		return fmt.Errorf("error starting event forwarder: %s", err)
 	}
 
 	wg.Add(1)
@@ -391,6 +422,12 @@ func (l *Collector) run(exit chan struct{}) error {
 	go func() {
 		defer wg.Done()
 		l.consumePayloads(l.podResults, podForwarder)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		l.consumePayloads(l.eventResults, eventForwarder)
 	}()
 
 	for _, c := range l.enabledChecks {
@@ -426,6 +463,8 @@ func (l *Collector) resultsQueueForCheck(name string) *api.WeightedQueue {
 		return l.podResults
 	case checks.Process.RealTimeName(), checks.RTContainer.Name():
 		return l.rtProcessResults
+	case checks.ProcessEvents.Name():
+		return l.eventResults
 	}
 	return l.processResults
 }
@@ -448,7 +487,7 @@ func (l *Collector) runnerForCheck(c checks.Check, exit chan struct{}) (func(), 
 			ExitChan:       exit,
 			RtIntervalChan: l.rtIntervalCh,
 			RtEnabled: func() bool {
-				return atomic.LoadInt32(&l.realTimeEnabled) == 1
+				return l.realTimeEnabled.Load()
 			},
 			RunCheck: func(options checks.RunOptions) {
 				l.runCheckWithRealTime(withRealTime, results, rtResults, options)
@@ -468,7 +507,7 @@ func (l *Collector) basicRunner(c checks.Check, results *api.WeightedQueue, exit
 		for {
 			select {
 			case <-ticker.C:
-				realTimeEnabled := l.runRealTime && atomic.LoadInt32(&l.realTimeEnabled) == 1
+				realTimeEnabled := l.runRealTime && l.realTimeEnabled.Load()
 				if !c.RealTime() || realTimeEnabled {
 					l.runCheck(c, results)
 				}
@@ -537,6 +576,9 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 				// A Process Discovery check does not change the RT mode
 				updateRTStatus = false
 				responses, err = fwd.SubmitProcessDiscoveryChecks(forwarderPayload, payload.headers)
+			case checks.ProcessEvents.Name():
+				updateRTStatus = false
+				responses, err = fwd.SubmitProcessEventChecks(forwarderPayload, payload.headers)
 			default:
 				err = fmt.Errorf("unsupported payload type: %s", result.name)
 			}
@@ -556,7 +598,7 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 }
 
 func (l *Collector) updateRTStatus(statuses []*model.CollectorStatus) {
-	curEnabled := atomic.LoadInt32(&l.realTimeEnabled) == 1
+	curEnabled := l.realTimeEnabled.Load()
 
 	// If any of the endpoints wants real-time we'll do that.
 	// We will pick the maximum interval given since generally this is
@@ -577,10 +619,10 @@ func (l *Collector) updateRTStatus(statuses []*model.CollectorStatus) {
 
 	if curEnabled && !shouldEnableRT {
 		log.Info("Detected 0 clients, disabling real-time mode")
-		atomic.StoreInt32(&l.realTimeEnabled, 0)
+		l.realTimeEnabled.Store(false)
 	} else if !curEnabled && shouldEnableRT {
 		log.Infof("Detected %d active clients, enabling real-time mode", activeClients)
-		atomic.StoreInt32(&l.realTimeEnabled, 1)
+		l.realTimeEnabled.Store(true)
 	}
 
 	if maxInterval != l.realTimeInterval {
@@ -594,6 +636,19 @@ func (l *Collector) updateRTStatus(statuses []*model.CollectorStatus) {
 			l.rtIntervalCh <- l.realTimeInterval
 		}
 		log.Infof("real time interval updated to %s", l.realTimeInterval)
+	}
+}
+
+func (l *Collector) logQueuesSize() {
+	processSize, rtProcessSize, eventSize, podSize := l.processResults.Len(), l.rtProcessResults.Len(), l.eventResults.Len(), l.podResults.Len()
+	if processSize > 0 || rtProcessSize > 0 || eventSize > 0 || podSize > 0 {
+		log.Infof(
+			"Delivery queues: process[size=%d, weight=%d], rtprocess[size=%d, weight=%d], event[size=%d, weight=%d], pod[size=%d, weight=%d]",
+			processSize, l.processResults.Weight(),
+			rtProcessSize, l.rtProcessResults.Weight(),
+			eventSize, l.eventResults.Weight(),
+			podSize, l.podResults.Weight(),
+		)
 	}
 }
 
@@ -628,8 +683,8 @@ func readResponseStatuses(checkName string, responses <-chan forwarder.Response)
 			continue
 		}
 
-		// we don't need to decode the body in case of the pod check
-		if checkName == checks.Pod.Name() {
+		// some checks don't receive a response with a status used to enable RT mode
+		if ignoreResponseBody(checkName) {
 			continue
 		}
 
@@ -653,4 +708,13 @@ func readResponseStatuses(checkName string, responses <-chan forwarder.Response)
 	}
 
 	return statuses
+}
+
+func ignoreResponseBody(checkName string) bool {
+	switch checkName {
+	case checks.Pod.Name(), checks.ProcessEvents.Name():
+		return true
+	default:
+		return false
+	}
 }

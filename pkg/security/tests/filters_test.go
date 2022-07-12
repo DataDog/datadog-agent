@@ -18,8 +18,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/pkg/errors"
-
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -33,7 +31,7 @@ func openTestFile(test *testModule, testFile string, flags int) (int, error) {
 
 	if dir := filepath.Dir(testFile); dir != test.Root() {
 		if err := os.MkdirAll(dir, 0777); err != nil {
-			return 0, errors.Wrap(err, "failed to create directory")
+			return 0, fmt.Errorf("failed to create directory: %w", err)
 		}
 	}
 
@@ -140,10 +138,7 @@ func TestOpenLeafDiscarderFilter(t *testing.T) {
 			return false
 		}
 		v, _ := e.GetFieldValue("open.file.path")
-		if v == testFile {
-			return true
-		}
-		return false
+		return v == testFile
 	}); err != nil {
 		inode := getInode(t, testFile)
 		parentInode := getInode(t, path.Dir(testFile))
@@ -202,10 +197,7 @@ func testOpenParentDiscarderFilter(t *testing.T, parents ...string) {
 			return false
 		}
 		v, _ := e.GetFieldValue("open.file.path")
-		if v == testFile {
-			return true
-		}
-		return false
+		return v == testFile
 	}); err != nil {
 		inode := getInode(t, testFile)
 		parentInode := getInode(t, path.Dir(testFile))
@@ -401,10 +393,7 @@ func TestOpenProcessPidDiscarder(t *testing.T) {
 			return false
 		}
 		v, _ := e.GetFieldValue("open.file.path")
-		if v == testFile {
-			return true
-		}
-		return false
+		return v == testFile
 	}); err != nil {
 		inode := getInode(t, testFile)
 		parentInode := getInode(t, path.Dir(testFile))
@@ -431,7 +420,7 @@ func TestDiscarderRetentionFilter(t *testing.T) {
 		Expression: `open.file.path =~ "{{.Root}}/no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
-	testDrive, err := newTestDrive("xfs", nil)
+	testDrive, err := newTestDrive(t, "xfs", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -470,12 +459,7 @@ func TestDiscarderRetentionFilter(t *testing.T) {
 		}
 
 		v, _ := e.GetFieldValue("open.file.path")
-		if v == testFile {
-			return true
-		}
-
-		return false
-
+		return v == testFile
 	}); err != nil {
 		inode := getInode(t, testFile)
 		parentInode := getInode(t, path.Dir(testFile))

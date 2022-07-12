@@ -524,9 +524,17 @@ func newField(allFields map[string]*common.StructField, field *common.StructFiel
 	return result
 }
 
+func override(str string, mock bool) string {
+	if !strings.Contains(str, ".") && !mock {
+		return "model." + str
+	}
+	return str
+}
+
 var funcMap = map[string]interface{}{
 	"TrimPrefix": strings.TrimPrefix,
 	"NewField":   newField,
+	"Override":   override,
 }
 
 //go:embed accessors.tmpl

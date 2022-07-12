@@ -15,7 +15,6 @@ import (
 	"io"
 	"math"
 	"sync"
-	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -29,6 +28,8 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
+	libnetlink "github.com/mdlayher/netlink"
+	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 )
 
@@ -36,6 +37,22 @@ var tuplePool = sync.Pool{
 	New: func() interface{} {
 		return new(netebpf.ConntrackTuple)
 	},
+}
+
+type ebpfConntrackerStats struct {
+	gets                 *atomic.Int64
+	getTotalTime         *atomic.Int64
+	unregisters          *atomic.Int64
+	unregistersTotalTime *atomic.Int64
+}
+
+func newEbpfConntrackerStats() ebpfConntrackerStats {
+	return ebpfConntrackerStats{
+		gets:                 atomic.NewInt64(0),
+		getTotalTime:         atomic.NewInt64(0),
+		unregisters:          atomic.NewInt64(0),
+		unregistersTotalTime: atomic.NewInt64(0),
+	}
 }
 
 type ebpfConntracker struct {
@@ -47,16 +64,18 @@ type ebpfConntracker struct {
 	consumer *netlink.Consumer
 	decoder  *netlink.Decoder
 
-	stats struct {
-		gets                 int64
-		getTotalTime         int64
-		unregisters          int64
-		unregistersTotalTime int64
-	}
+	stats ebpfConntrackerStats
 }
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
 func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
+	// dial the netlink layer aim to load nf_conntrack_netlink and nf_conntrack kernel modules
+	// eBPF conntrack require nf_conntrack symbols
+	conn, err := libnetlink.Dial(unix.NETLINK_NETFILTER, nil)
+	if err == nil {
+		conn.Close()
+	}
+
 	buf, err := getRuntimeCompiledConntracker(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("unable to compile ebpf conntracker: %w", err)
@@ -95,6 +114,7 @@ func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 		ctMap:        ctMap,
 		telemetryMap: telemetryMap,
 		rootNS:       rootNS,
+		stats:        newEbpfConntrackerStats(),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.ConntrackInitTimeout)
@@ -246,8 +266,8 @@ func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *
 	}
 	defer tuplePool.Put(dst)
 
-	atomic.AddInt64(&e.stats.gets, 1)
-	atomic.AddInt64(&e.stats.getTotalTime, time.Now().Sub(start).Nanoseconds())
+	e.stats.gets.Inc()
+	e.stats.getTotalTime.Add(time.Now().Sub(start).Nanoseconds())
 	return &network.IPTranslation{
 		ReplSrcIP:   dst.SourceAddress(),
 		ReplDstIP:   dst.DestAddress(),
@@ -295,8 +315,8 @@ func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
 		e.delete(dst)
 		tuplePool.Put(dst)
 	}
-	atomic.AddInt64(&e.stats.unregisters, 1)
-	atomic.AddInt64(&e.stats.unregistersTotalTime, time.Now().Sub(start).Nanoseconds())
+	e.stats.unregisters.Inc()
+	e.stats.unregistersTotalTime.Add(time.Now().Sub(start).Nanoseconds())
 }
 
 func (e *ebpfConntracker) GetStats() map[string]int64 {
@@ -311,15 +331,15 @@ func (e *ebpfConntracker) GetStats() map[string]int64 {
 		m["registers_dropped"] = int64(telemetry.Dropped)
 	}
 
-	gets := atomic.LoadInt64(&e.stats.gets)
-	getTimeTotal := atomic.LoadInt64(&e.stats.getTotalTime)
+	gets := e.stats.gets.Load()
+	getTimeTotal := e.stats.getTotalTime.Load()
 	m["gets_total"] = gets
 	if gets > 0 {
 		m["nanoseconds_per_get"] = getTimeTotal / gets
 	}
 
-	unregisters := atomic.LoadInt64(&e.stats.unregisters)
-	unregistersTimeTotal := atomic.LoadInt64(&e.stats.unregistersTotalTime)
+	unregisters := e.stats.unregisters.Load()
+	unregistersTimeTotal := e.stats.unregistersTotalTime.Load()
 	m["unregisters_total"] = unregisters
 	if unregisters > 0 {
 		m["nanoseconds_per_unregister"] = unregistersTimeTotal / unregisters

@@ -6,7 +6,6 @@
 package main
 
 import (
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -34,7 +33,7 @@ func TestUpdateRTStatus(t *testing.T) {
 		{ActiveClients: 0, Interval: 2},
 	}
 	c.updateRTStatus(statuses)
-	assert.Equal(int32(1), atomic.LoadInt32(&c.realTimeEnabled))
+	assert.True(c.realTimeEnabled.Load())
 
 	// Validate that we stay that way
 	statuses = []*model.CollectorStatus{
@@ -43,7 +42,7 @@ func TestUpdateRTStatus(t *testing.T) {
 		{ActiveClients: 0, Interval: 2},
 	}
 	c.updateRTStatus(statuses)
-	assert.Equal(int32(1), atomic.LoadInt32(&c.realTimeEnabled))
+	assert.True(c.realTimeEnabled.Load())
 
 	// And that it can turn back off
 	statuses = []*model.CollectorStatus{
@@ -52,7 +51,7 @@ func TestUpdateRTStatus(t *testing.T) {
 		{ActiveClients: 0, Interval: 2},
 	}
 	c.updateRTStatus(statuses)
-	assert.Equal(int32(0), atomic.LoadInt32(&c.realTimeEnabled))
+	assert.False(c.realTimeEnabled.Load())
 }
 
 func TestUpdateRTInterval(t *testing.T) {
@@ -70,7 +69,7 @@ func TestUpdateRTInterval(t *testing.T) {
 		{ActiveClients: 0, Interval: 10},
 	}
 	c.updateRTStatus(statuses)
-	assert.Equal(int32(1), atomic.LoadInt32(&c.realTimeEnabled))
+	assert.True(c.realTimeEnabled.Load())
 	assert.Equal(10*time.Second, c.realTimeInterval)
 }
 
@@ -322,6 +321,26 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 			assert.Equal(int64(tc.expectedQueueSize), c.processResults.MaxWeight())
 			assert.Equal(int64(tc.expectedQueueSize), c.rtProcessResults.MaxWeight())
 			assert.Equal(tc.expectedQueueSize, c.forwarderRetryQueueMaxBytes)
+		})
+	}
+}
+
+func TestIgnoreResponseBody(t *testing.T) {
+	for _, tc := range []struct {
+		checkName string
+		ignore    bool
+	}{
+		{checkName: checks.Process.Name(), ignore: false},
+		{checkName: checks.Process.RealTimeName(), ignore: false},
+		{checkName: checks.ProcessDiscovery.Name(), ignore: false},
+		{checkName: checks.Container.Name(), ignore: false},
+		{checkName: checks.RTContainer.Name(), ignore: false},
+		{checkName: checks.Pod.Name(), ignore: true},
+		{checkName: checks.Connections.Name(), ignore: false},
+		{checkName: checks.ProcessEvents.Name(), ignore: true},
+	} {
+		t.Run(tc.checkName, func(t *testing.T) {
+			assert.Equal(t, tc.ignore, ignoreResponseBody(tc.checkName))
 		})
 	}
 }

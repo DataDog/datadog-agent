@@ -10,6 +10,7 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"path"
@@ -18,8 +19,6 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
-
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -273,7 +272,7 @@ func (e *Process) GetPathResolutionError() string {
 
 // Process represents a process
 type Process struct {
-	PIDContext
+	PIDContext `msg:"pid_context"`
 
 	FileEvent FileEvent `field:"file" msg:"file"`
 
@@ -313,6 +312,10 @@ type Process struct {
 	Envs          []string `field:"envs,handler:ResolveProcessEnvs:100" msg:"envs,omitempty"`                                                                                                                                           // Environment variable names of the process
 	Envp          []string `field:"envp,handler:ResolveProcessEnvp:100" msg:"-"`                                                                                                                                                        // Environment variables of the process
 	EnvsTruncated bool     `field:"envs_truncated,handler:ResolveProcessEnvsTruncated" msg:"envs_truncated,omitempty"`                                                                                                                  // Indicator of environment variables truncation
+
+	// symlink to the process binary
+	SymlinkPathnameStr [MaxSymlinks]string `field:"-" msg:"-"`
+	SymlinkBasenameStr string              `field:"-" msg:"-"`
 
 	// cache version
 	ScrubbedArgvResolved  bool           `field:"-" msg:"-"`
@@ -379,11 +382,11 @@ func (f *FileFields) GetInUpperLayer() bool {
 
 // FileEvent is the common file event type
 type FileEvent struct {
-	FileFields
+	FileFields `msg:"file_fields"`
 
-	PathnameStr string `field:"path,handler:ResolveFilePath" msg:"path" op_override:"eval.GlobCmp"` // File's path
-	BasenameStr string `field:"name,handler:ResolveFileBasename" msg:"name"`                        // File's basename
-	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem" msg:"filesystem"`          // File's filesystem
+	PathnameStr string `field:"path,handler:ResolveFilePath" msg:"path" op_override:"ProcessSymlinkPathname"`     // File's path
+	BasenameStr string `field:"name,handler:ResolveFileBasename" msg:"name" op_override:"ProcessSymlinkBasename"` // File's basename
+	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem" msg:"filesystem"`                        // File's filesystem
 
 	PathResolutionError error `field:"-" msg:"-"`
 
@@ -826,8 +829,8 @@ type DNSEvent struct {
 type BindEvent struct {
 	SyscallEvent
 
-	AddrFamily uint16        `field:"addr.family" constants:"Network Address Family constants"` // Address family
-	Addr       IPPortContext `field:"addr"`                                                     // Bound address
+	Addr       IPPortContext `field:"addr"`        // Bound address
+	AddrFamily uint16        `field:"addr.family"` // Address family
 }
 
 // NetDevice represents a network device

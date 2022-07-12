@@ -12,12 +12,12 @@ import (
 	"fmt"
 	"math"
 	"sync"
-	"sync/atomic"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/atomic"
 	"golang.org/x/sys/windows"
 )
 
@@ -36,6 +36,10 @@ const (
 	// these are only sort-of honored for now
 	defaultMaxOpenFlows   = uint64(32767)
 	defaultMaxClosedFlows = uint64(32767)
+
+	// starting number of entries usermode flow buffer can contain
+	defaultFlowEntries      = 50
+	defaultDriverBufferSize = defaultFlowEntries * driver.PerFlowDataSize
 )
 
 // DriverExpvarNames is a list of all the DriverExpvar names returned from GetStats
@@ -43,12 +47,11 @@ var DriverExpvarNames = []DriverExpvar{totalFlowStats, flowHandleStats, flowStat
 
 // DriverInterface holds all necessary information for interacting with the windows driver
 type DriverInterface struct {
-	// declare totalFlows first so it remains on a 64 bit boundary since it is used by atomic functions
-	totalFlows     int64
-	closedFlows    int64
-	openFlows      int64
-	moreDataErrors int64
-	bufferSize     int64
+	totalFlows     *atomic.Int64
+	closedFlows    *atomic.Int64
+	openFlows      *atomic.Int64
+	moreDataErrors *atomic.Int64
+	bufferSize     *atomic.Int64
 
 	maxOpenFlows   uint64
 	maxClosedFlows uint64
@@ -67,10 +70,15 @@ type DriverInterface struct {
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
 func NewDriverInterface(cfg *config.Config) (*DriverInterface, error) {
 	dc := &DriverInterface{
+		totalFlows:     atomic.NewInt64(0),
+		closedFlows:    atomic.NewInt64(0),
+		openFlows:      atomic.NewInt64(0),
+		moreDataErrors: atomic.NewInt64(0),
+		bufferSize:     atomic.NewInt64(defaultDriverBufferSize),
+
 		cfg:                   cfg,
 		enableMonotonicCounts: cfg.EnableMonotonicCount,
-		readBuffer:            make([]byte, cfg.DriverBufferSize),
-		bufferSize:            int64(cfg.DriverBufferSize),
+		readBuffer:            make([]byte, defaultDriverBufferSize),
 		maxOpenFlows:          uint64(cfg.MaxTrackedConnections),
 		maxClosedFlows:        uint64(cfg.MaxClosedConnectionsBuffered),
 	}
@@ -149,11 +157,11 @@ func (di *DriverInterface) GetStats() (map[DriverExpvar]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	totalFlows := atomic.LoadInt64(&di.totalFlows)
-	openFlows := atomic.SwapInt64(&di.openFlows, 0)
-	closedFlows := atomic.SwapInt64(&di.closedFlows, 0)
-	moreDataErrors := atomic.SwapInt64(&di.moreDataErrors, 0)
-	bufferSize := atomic.LoadInt64(&di.bufferSize)
+	totalFlows := di.totalFlows.Load()
+	openFlows := di.openFlows.Swap(0)
+	closedFlows := di.closedFlows.Swap(0)
+	moreDataErrors := di.moreDataErrors.Swap(0)
+	bufferSize := di.bufferSize.Load()
 
 	return map[DriverExpvar]interface{}{
 		totalFlowStats:  totalDriverStats,
@@ -190,7 +198,7 @@ func (di *DriverInterface) GetConnectionStats(activeBuf *ConnectionBuffer, close
 			if err != windows.ERROR_MORE_DATA {
 				return 0, 0, fmt.Errorf("ReadFile: %w", err)
 			}
-			atomic.AddInt64(&di.moreDataErrors, 1)
+			di.moreDataErrors.Inc()
 		}
 		totalBytesRead += bytesRead
 
@@ -215,16 +223,16 @@ func (di *DriverInterface) GetConnectionStats(activeBuf *ConnectionBuffer, close
 				}
 			}
 		}
-	}
 
-	di.readBuffer = resizeDriverBuffer(int(totalBytesRead), di.readBuffer)
-	atomic.StoreInt64(&di.bufferSize, int64(len(di.readBuffer)))
+		di.readBuffer = resizeDriverBuffer(int(totalBytesRead), di.readBuffer)
+		di.bufferSize.Store(int64(len(di.readBuffer)))
+	}
 
 	activeCount := activeBuf.Len() - startActive
 	closedCount := closedBuf.Len() - startClosed
-	atomic.AddInt64(&di.openFlows, int64(activeCount))
-	atomic.AddInt64(&di.closedFlows, int64(closedCount))
-	atomic.AddInt64(&di.totalFlows, int64(activeCount+closedCount))
+	di.openFlows.Add(int64(activeCount))
+	di.closedFlows.Add(int64(closedCount))
+	di.totalFlows.Add(int64(activeCount + closedCount))
 
 	return activeCount, closedCount, nil
 }

@@ -59,13 +59,8 @@ func TestJSONConverter(t *testing.T) {
 
 func TestCopyDir(t *testing.T) {
 	assert := assert.New(t)
-	src, err := ioutil.TempDir("", "copydir-test-src-")
-	assert.NoError(err)
-	defer os.RemoveAll(src)
-
-	dst, err := ioutil.TempDir("", "copydir-test-dst-")
-	assert.NoError(err)
-	defer os.RemoveAll(dst)
+	src := t.TempDir()
+	dst := t.TempDir()
 
 	files := map[string]string{
 		"a/b/c/d.txt": "d.txt",
@@ -75,12 +70,12 @@ func TestCopyDir(t *testing.T) {
 
 	for file, content := range files {
 		p := filepath.Join(src, file)
-		err = os.MkdirAll(filepath.Dir(p), os.ModePerm)
+		err := os.MkdirAll(filepath.Dir(p), os.ModePerm)
 		assert.NoError(err)
 		err = ioutil.WriteFile(p, []byte(content), os.ModePerm)
 		assert.NoError(err)
 	}
-	err = CopyDir(src, dst)
+	err := CopyDir(src, dst)
 	assert.NoError(err)
 
 	for file, content := range files {

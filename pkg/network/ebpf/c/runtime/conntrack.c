@@ -31,7 +31,7 @@ int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
 
     struct nf_conntrack_tuple_hash tuplehash[IP_CT_DIR_MAX];
     __builtin_memset(tuplehash, 0, sizeof(tuplehash));
-    bpf_probe_read(&tuplehash, sizeof(tuplehash), &ct->tuplehash);
+    bpf_probe_read_kernel(&tuplehash, sizeof(tuplehash), &ct->tuplehash);
 
     struct nf_conntrack_tuple orig = tuplehash[IP_CT_DIR_ORIGINAL].tuple;
     struct nf_conntrack_tuple reply = tuplehash[IP_CT_DIR_REPLY].tuple;

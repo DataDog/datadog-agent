@@ -5,7 +5,6 @@ package http
 
 import (
 	"sort"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -75,7 +74,7 @@ func (b *incompleteBuffer) Add(tx *httpTX) {
 	parts, ok := b.data[key]
 	if !ok {
 		if len(b.data) >= b.maxEntries {
-			atomic.AddInt64(&b.telemetry.dropped, 1)
+			b.telemetry.dropped.Inc()
 			return
 		}
 

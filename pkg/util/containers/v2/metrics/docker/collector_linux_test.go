@@ -181,16 +181,14 @@ func Test_convertIOStats(t *testing.T) {
 		},
 	}
 
-	dir, err := os.MkdirTemp("", "proc")
-	assert.Nil(t, err)
-	defer os.Remove(dir)
+	dir := t.TempDir()
 
 	diskstats := []byte(
 		"   1       2 foo1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n" +
 			"   1       3 bar2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0",
 	)
 
-	err = ioutil.WriteFile(dir+"/diskstats", diskstats, 0644)
+	err := ioutil.WriteFile(dir+"/diskstats", diskstats, 0644)
 	assert.Nil(t, err)
 	defer os.Remove(dir + "/diskstats")
 

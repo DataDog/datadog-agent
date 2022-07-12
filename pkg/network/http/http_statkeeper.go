@@ -10,7 +10,6 @@ package http
 
 import (
 	"strconv"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -61,7 +60,7 @@ func (h *httpStatKeeper) Process(transactions []httpTX) {
 		h.add(tx)
 	}
 
-	atomic.StoreInt64(&h.telemetry.aggregations, int64(len(h.stats)))
+	h.telemetry.aggregations.Store(int64(len(h.stats)))
 }
 
 func (h *httpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
@@ -78,7 +77,7 @@ func (h *httpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 func (h *httpStatKeeper) add(tx *httpTX) {
 	rawPath, fullPath := tx.Path(h.buffer)
 	if rawPath == nil {
-		atomic.AddInt64(&h.telemetry.malformed, 1)
+		h.telemetry.malformed.Inc()
 		return
 	}
 
@@ -88,7 +87,7 @@ func (h *httpStatKeeper) add(tx *httpTX) {
 	}
 
 	if Method(tx.request_method) == MethodUnknown {
-		atomic.AddInt64(&h.telemetry.malformed, 1)
+		h.telemetry.malformed.Inc()
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("method should never be unknown: %s", tx.String())
 		}
@@ -97,7 +96,7 @@ func (h *httpStatKeeper) add(tx *httpTX) {
 
 	latency := tx.RequestLatency()
 	if latency <= 0 {
-		atomic.AddInt64(&h.telemetry.malformed, 1)
+		h.telemetry.malformed.Inc()
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("latency should never be equal to 0: %s", tx.String())
 		}
@@ -108,7 +107,7 @@ func (h *httpStatKeeper) add(tx *httpTX) {
 	stats, ok := h.stats[key]
 	if !ok {
 		if len(h.stats) >= h.maxEntries {
-			atomic.AddInt64(&h.telemetry.dropped, 1)
+			h.telemetry.dropped.Inc()
 			return
 		}
 		stats = new(RequestStats)
@@ -151,7 +150,7 @@ func (h *httpStatKeeper) processHTTPPath(tx *httpTX, path []byte) (pathStr strin
 		if r.Re.Match(path) {
 			if r.Repl == "" {
 				// this is a "drop" rule
-				atomic.AddInt64(&h.telemetry.rejected, 1)
+				h.telemetry.rejected.Inc()
 				return "", true
 			}
 
@@ -166,7 +165,7 @@ func (h *httpStatKeeper) processHTTPPath(tx *httpTX, path []byte) (pathStr strin
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("http path malformed: %s", tx.String())
 		}
-		atomic.AddInt64(&h.telemetry.malformed, 1)
+		h.telemetry.malformed.Inc()
 		return "", true
 	}
 

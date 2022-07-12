@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
@@ -23,12 +24,16 @@ type ActivityDumpStorage interface {
 	GetStorageType() dump.StorageType
 	// Persist saves the provided buffer to the persistent storage
 	Persist(request dump.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error
+	// SendTelemetry sends metrics using the provided metrics sender
+	SendTelemetry(sender aggregator.Sender)
 }
 
 // ActivityDumpStorageManager is used to manage activity dump storages
 type ActivityDumpStorageManager struct {
 	probe    *Probe
 	storages map[dump.StorageType]ActivityDumpStorage
+
+	metricsSender aggregator.Sender
 }
 
 // NewSecurityAgentStorageManager returns a new instance of ActivityDumpStorageManager
@@ -36,6 +41,12 @@ func NewSecurityAgentStorageManager() (*ActivityDumpStorageManager, error) {
 	manager := &ActivityDumpStorageManager{
 		storages: make(map[dump.StorageType]ActivityDumpStorage),
 	}
+
+	sender, err := aggregator.GetDefaultSender()
+	if err != nil {
+		return nil, err
+	}
+	manager.metricsSender = sender
 
 	// create remote storage
 	remote, err := NewActivityDumpRemoteStorage()
@@ -114,4 +125,11 @@ func (manager *ActivityDumpStorageManager) PersistRaw(requests []dump.StorageReq
 		}
 	}
 	return nil
+}
+
+// SendTelemetry send telemetry of all storages
+func (manager *ActivityDumpStorageManager) SendTelemetry() {
+	for _, storage := range manager.storages {
+		storage.SendTelemetry(manager.metricsSender)
+	}
 }

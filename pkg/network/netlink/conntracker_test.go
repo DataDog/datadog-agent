@@ -430,6 +430,7 @@ func newConntracker(maxSize int) *realConntracker {
 	rt := &realConntracker{
 		maxStateSize: maxSize,
 		cache:        newConntrackCache(maxSize, defaultOrphanTimeout),
+		stats:        newStats(),
 	}
 
 	return rt
