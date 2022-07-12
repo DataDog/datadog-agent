@@ -61,7 +61,7 @@ type processCache struct {
 	// filteredEnvs contains environment variable names
 	// that a process in the cache must have; empty filteredEnvs
 	// means no filter, and any process can be inserted the cache
-	filteredEnvs []string
+	filteredEnvs map[string]interface{}
 
 	in      chan *process
 	stopped chan struct{}
@@ -77,12 +77,17 @@ type processCacheKey struct {
 
 func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error) {
 	pc := &processCache{
-		filteredEnvs: filteredEnvs,
+		filteredEnvs: make(map[string]interface{}, len(filteredEnvs)),
 		cacheByPid:   map[uint32]processList{},
 		in:           make(chan *process, maxProcessQueueLen),
 		stopped:      make(chan struct{}),
 		stats:        &_processCacheStats{},
 	}
+
+	for _, e := range filteredEnvs {
+		pc.filteredEnvs[e] = struct{}{}
+	}
+
 	var err error
 	pc.cache, err = lru.NewWithEvict(maxProcs, func(key, value interface{}) {
 		p := value.(*process)
@@ -145,15 +150,11 @@ func (pc *processCache) processEvent(entry *smodel.ProcessCacheEntry) *process {
 		for _, v := range entry.EnvsEntry.Values {
 			kv := strings.SplitN(v, "=", 2)
 			k := kv[0]
-			found := len(pc.filteredEnvs) == 0
-			for _, r := range pc.filteredEnvs {
-				if k == r {
-					found = true
-					break
+
+			if len(pc.filteredEnvs) > 0 {
+				if _, found := pc.filteredEnvs[k]; !found {
+					continue
 				}
-			}
-			if !found {
-				continue
 			}
 
 			v = ""

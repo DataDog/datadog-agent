@@ -151,9 +151,11 @@ type Config struct {
 	RuntimeCompiledConstantsEnabled bool
 	// RuntimeCompiledConstantsIsSet is set if the runtime compiled constants option is user-set
 	RuntimeCompiledConstantsIsSet bool
-	// NetworkProcessEventMonitoringEnabled is set to true if `network_config.enable_process_event_monitoring` is set
+	// NetworkProcessEventMonitoringEnabled is set to true if `runtime_security_config.event_monitoring.network_process.enabled`
+	// is set to true
 	NetworkProcessEventMonitoringEnabled bool
-	// ProcessEventMonitoringEnabled is set to true if ``
+	// ProcessEventMonitoringEnabled is set to true if `runtime_security_config.event_monitoring.process.enabled`
+	// is set to true
 	ProcessEventMonitoringEnabled bool
 	// RemoteConfigurationEnabled defines whether to use remote monitoring
 	RemoteConfigurationEnabled bool

@@ -285,7 +285,7 @@ func New() *Config {
 	if c.EnableProcessEventMonitoring {
 		log.Info("network process event monitoring enabled")
 
-		if c.MaxProcessesTracked == 0 {
+		if c.MaxProcessesTracked <= 0 {
 			c.MaxProcessesTracked = defaultMaxProcessesTracked
 		}
 	}
