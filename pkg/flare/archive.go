@@ -37,6 +37,7 @@ import (
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber/replacers"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	"github.com/mholt/archiver/v3"
@@ -64,7 +65,7 @@ var (
 	directoryNameFilter = regexp.MustCompile(`[^a-zA-Z0-9_-]+`)
 
 	// specialized scrubber for flare content
-	flareScrubber *scrubber.Scrubber
+	flareScrubber scrubber.Scrubber
 )
 
 // SearchPaths is just an alias for a map of strings
@@ -85,8 +86,8 @@ type filePermsInfo struct {
 type ProfileData map[string][]byte
 
 func init() {
-	flareScrubber = scrubber.New()
-	scrubber.AddDefaultReplacers(flareScrubber)
+	scr := replacers.NewEmptyScrubber()
+	scr.AddDefaultReplacers()
 
 	// The default scrubber doesn't deal with api keys of other services, for
 	// example powerDNS which has an "api_key" field in its YAML configuration.
@@ -99,12 +100,14 @@ func init() {
 	// We want the value to be at least 2 characters which will avoid matching the first '"' from the regular
 	// replacer for api_key.
 	otherAPIKeysRx := regexp.MustCompile(`api_key\s*:\s*[a-zA-Z0-9\\\/\^\]\[\(\){}!|%:;"~><=#@$_\-\+]{2,}`)
-	flareScrubber.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
+	scr.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
 		Regex: otherAPIKeysRx,
 		ReplFunc: func(b []byte) []byte {
 			return []byte("api_key: \"********\"")
 		},
 	})
+
+	flareScrubber = scr
 }
 
 // CreatePerformanceProfile adds a set of heap and CPU profiles into target, using cpusec as the CPU

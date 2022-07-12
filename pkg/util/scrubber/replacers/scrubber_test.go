@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package scrubber
+package replacers
 
 import (
 	"io/ioutil"
@@ -18,8 +18,8 @@ import (
 
 func TestNewWithDefaults(t *testing.T) {
 	scrubber := NewWithDefaults()
-	scrubberEmpty := New()
-	AddDefaultReplacers(scrubberEmpty)
+	scrubberEmpty := NewEmptyScrubber()
+	scrubberEmpty.AddDefaultReplacers()
 
 	assert.NotZero(t, len(scrubber.singleLineReplacers))
 	assert.NotZero(t, len(scrubber.multiLineReplacers))
@@ -28,7 +28,7 @@ func TestNewWithDefaults(t *testing.T) {
 }
 
 func TestRepl(t *testing.T) {
-	scrubber := New()
+	scrubber := NewEmptyScrubber()
 	scrubber.AddReplacer(SingleLine, Replacer{
 		Regex: regexp.MustCompile("foo"),
 		Repl:  []byte("bar"),
@@ -39,7 +39,7 @@ func TestRepl(t *testing.T) {
 }
 
 func TestReplFunc(t *testing.T) {
-	scrubber := New()
+	scrubber := NewEmptyScrubber()
 	scrubber.AddReplacer(SingleLine, Replacer{
 		Regex: regexp.MustCompile("foo"),
 		ReplFunc: func(match []byte) []byte {
@@ -52,7 +52,7 @@ func TestReplFunc(t *testing.T) {
 }
 
 func TestSkipComments(t *testing.T) {
-	scrubber := New()
+	scrubber := NewEmptyScrubber()
 	scrubber.AddReplacer(SingleLine, Replacer{
 		Regex: regexp.MustCompile("foo"),
 		Repl:  []byte("bar"),
@@ -71,7 +71,7 @@ func TestCleanFile(t *testing.T) {
 	filename := filepath.Join(dir, "test.yml")
 	ioutil.WriteFile(filename, []byte("a line with foo\n\na line with bar"), 0666)
 
-	scrubber := New()
+	scrubber := NewEmptyScrubber()
 	scrubber.AddReplacer(SingleLine, Replacer{
 		Regex: regexp.MustCompile("foo"),
 		Repl:  []byte("bar"),
@@ -82,7 +82,7 @@ func TestCleanFile(t *testing.T) {
 }
 
 func TestScrubLine(t *testing.T) {
-	scrubber := New()
+	scrubber := NewEmptyScrubber()
 	scrubber.AddReplacer(SingleLine, Replacer{
 		Regex: regexp.MustCompile(`([A-Za-z][A-Za-z0-9+-.]+\:\/\/|\b)([^\:]+)\:([^\s]+)\@`),
 		Repl:  []byte(`$1$2:********@`),

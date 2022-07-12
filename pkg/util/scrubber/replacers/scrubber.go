@@ -3,13 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package scrubber implements support for cleaning sensitive information out of strings
-// and files.
-//
-// Compatibility
-//
-// This module's API is not yet stable, and may change incompatibly from version to version.
-package scrubber
+package replacers
 
 import (
 	"bufio"
@@ -66,8 +60,8 @@ type Scrubber struct {
 	singleLineReplacers, multiLineReplacers []Replacer
 }
 
-// New creates a new scrubber with no replacers installed.
-func New() *Scrubber {
+// NewEmptyScrubber creates a new scrubber with no replacers installed.
+func NewEmptyScrubber() *Scrubber {
 	return &Scrubber{
 		singleLineReplacers: make([]Replacer, 0),
 		multiLineReplacers:  make([]Replacer, 0),
@@ -76,9 +70,30 @@ func New() *Scrubber {
 
 // NewWithDefaults creates a new scrubber with the default replacers installed.
 func NewWithDefaults() *Scrubber {
-	s := New()
-	AddDefaultReplacers(s)
+	s := NewEmptyScrubber()
+	s.AddDefaultReplacers()
 	return s
+}
+
+// ScrubFile implements scrubber.Scrubber#ScrubFile.
+func (c *Scrubber) ScrubFile(filePath string) ([]byte, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	return c.scrubReader(file)
+}
+
+// ScrubBytes implements scrubber.Scrubber#ScrubBytes.
+func (c *Scrubber) ScrubBytes(file []byte) ([]byte, error) {
+	r := bytes.NewReader(file)
+	return c.scrubReader(r)
+}
+
+// ScrubLine implements scrubber.Scrubber#ScrubLine.
+func (c *Scrubber) ScrubLine(message string) string {
+	return string(c.scrub([]byte(message), c.singleLineReplacers))
 }
 
 // AddReplacer adds a replacer of the given kind to the scrubber.
@@ -89,29 +104,6 @@ func (c *Scrubber) AddReplacer(kind ReplacerKind, replacer Replacer) {
 	case MultiLine:
 		c.multiLineReplacers = append(c.multiLineReplacers, replacer)
 	}
-}
-
-// ScrubFile scrubs credentials from file given by pathname
-func (c *Scrubber) ScrubFile(filePath string) ([]byte, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	return c.scrubReader(file)
-}
-
-// ScrubBytes scrubs credentials from slice of bytes
-func (c *Scrubber) ScrubBytes(file []byte) ([]byte, error) {
-	r := bytes.NewReader(file)
-	return c.scrubReader(r)
-}
-
-// ScrubLine scrubs credentials from a single line of text.  It can be safely
-// applied to URLs or to strings containing URLs.  It does not run multi-line
-// replacers, and should not be used on multi-line inputs.
-func (c *Scrubber) ScrubLine(message string) string {
-	return string(c.scrub([]byte(message), c.singleLineReplacers))
 }
 
 // scrubReader applies the cleaning algorithm to a Reader

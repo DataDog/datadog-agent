@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber/replacers"
 )
 
 func changeLogLevel(level string) error {
@@ -159,11 +160,12 @@ func TestLogBufferWithContext(t *testing.T) {
 // the default scrubber's functionality in this module
 func setupScrubbing(t *testing.T) {
 	oldScrubber := scrubber.DefaultScrubber
-	scrubber.DefaultScrubber = scrubber.New()
-	scrubber.DefaultScrubber.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
+	scr := replacers.NewEmptyScrubber()
+	scr.AddReplacer(replacers.SingleLine, replacers.Replacer{
 		Regex: regexp.MustCompile("SECRET"),
 		Repl:  []byte("******"),
 	})
+	scrubber.DefaultScrubber = scr
 	t.Cleanup(func() { scrubber.DefaultScrubber = oldScrubber })
 }
 
