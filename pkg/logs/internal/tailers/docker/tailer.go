@@ -83,7 +83,7 @@ func NewTailer(cli *dockerutil.DockerUtil, containerID string, source *sources.L
 	return &Tailer{
 		ContainerID:        containerID,
 		outputChan:         outputChan,
-		decoder:            decoder.NewDecoderWithFraming(source, dockerstream.New(containerID), framer.DockerStream, nil),
+		decoder:            decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), dockerstream.New(containerID), framer.DockerStream, nil),
 		Source:             source,
 		tagProvider:        tag.NewProvider(dockerutil.ContainerIDToTaggerEntityName(containerID)),
 		dockerutil:         cli,
@@ -222,13 +222,7 @@ func (t *Tailer) readForever() {
 			inBuf := make([]byte, 4096)
 			n, err := t.read(inBuf, t.readTimeout)
 
-			// Since `container_collect_all` reports all docker logs as a single source (even though the source is overridden internally),
-			// we need to report the byte count to the parent source used to populate the status page.
-			if t.Source.ParentSource != nil {
-				t.Source.ParentSource.BytesRead.Add(int64(n))
-			} else {
-				t.Source.BytesRead.Add(int64(n))
-			}
+			t.Source.RecordBytes(int64(n))
 			if err != nil { // an error occurred, stop from reading new logs
 				switch {
 				case isReaderClosed(err):

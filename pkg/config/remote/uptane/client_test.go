@@ -26,7 +26,7 @@ func TestClientState(t *testing.T) {
 	config.Datadog.Set("remote_configuration.director_root", testRepository1.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepository1.configRoot)
 
-	db := getTestDB()
+	db := getTestDB(t)
 	client1, err := NewClient(db, "testcachekey", 2)
 	assert.NoError(t, err)
 
@@ -90,7 +90,7 @@ func TestClientFullState(t *testing.T) {
 	config.Datadog.Set("remote_configuration.config_root", testRepository.configRoot)
 
 	// Prepare
-	db := getTestDB()
+	db := getTestDB(t)
 	client, err := NewClient(db, "testcachekey", 2)
 	assert.NoError(t, err)
 	err = client.Update(testRepository.toUpdate())
@@ -127,7 +127,7 @@ func TestClientVerifyTUF(t *testing.T) {
 	config.Datadog.Set("remote_configuration.director_root", testRepository1.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepository1.configRoot)
 
-	db := getTestDB()
+	db := getTestDB(t)
 
 	previousConfigTargets := testRepository1.configTargets
 	client1, err := NewClient(db, "testcachekey1", 2)
@@ -145,7 +145,7 @@ func TestClientVerifyTUF(t *testing.T) {
 }
 
 func TestClientVerifyUptane(t *testing.T) {
-	db := getTestDB()
+	db := getTestDB(t)
 
 	target1content, target1 := generateTarget()
 	target2content, target2 := generateTarget()
@@ -205,7 +205,7 @@ func TestClientVerifyUptane(t *testing.T) {
 }
 
 func TestClientVerifyOrgID(t *testing.T) {
-	db := getTestDB()
+	db := getTestDB(t)
 
 	target1content, target1 := generateTarget()
 	_, target2 := generateTarget()

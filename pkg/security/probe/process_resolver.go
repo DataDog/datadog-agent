@@ -17,7 +17,6 @@ import (
 	"path"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 	"unsafe"
@@ -27,6 +26,7 @@ import (
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
@@ -91,18 +91,18 @@ type ProcessResolverOpts struct{}
 // ProcessResolver resolved process context
 type ProcessResolver struct {
 	sync.RWMutex
-	state            int64
+	state            *atomic.Int64
 	probe            *Probe
 	resolvers        *Resolvers
 	execFileCacheMap *lib.Map
 	procCacheMap     *lib.Map
 	pidCacheMap      *lib.Map
-	cacheSize        int64
+	cacheSize        *atomic.Int64
 	opts             ProcessResolverOpts
-	hitsStats        map[string]*int64
-	missStats        int64
-	addedEntries     int64
-	flushedEntries   int64
+	hitsStats        map[string]*atomic.Int64
+	missStats        *atomic.Int64
+	addedEntries     *atomic.Int64
+	flushedEntries   *atomic.Int64
 
 	entryCache    map[uint32]*model.ProcessCacheEntry
 	argsEnvsCache *simplelru.LRU
@@ -210,7 +210,7 @@ func NewProcessCacheEntryPool(p *ProcessResolver) *ProcessCacheEntryPool {
 				pce.EnvsEntry.ArgsEnvsCacheEntry.Release()
 			}
 
-			atomic.AddInt64(&p.cacheSize, -1)
+			p.cacheSize.Dec()
 
 			pcep.Put(pce)
 		})
@@ -226,7 +226,7 @@ func (p *ProcessResolver) DequeueExited() {
 
 	delEntry := func(pid uint32, exitTime time.Time) {
 		p.deleteEntry(pid, exitTime)
-		atomic.AddInt64(&p.flushedEntries, 1)
+		p.flushedEntries.Inc()
 	}
 
 	now := time.Now()
@@ -269,37 +269,37 @@ func (p *ProcessResolver) SendStats() error {
 		return errors.Wrap(err, "failed to send process_resolver reference_count metric")
 	}
 
-	if count = atomic.SwapInt64(p.hitsStats[metrics.CacheTag], 0); count > 0 {
+	if count = p.hitsStats[metrics.CacheTag].Swap(0); count > 0 {
 		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverCacheHits, count, []string{metrics.CacheTag}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver cache hits metric")
 		}
 	}
 
-	if count = atomic.SwapInt64(p.hitsStats[metrics.KernelMapsTag], 0); count > 0 {
+	if count = p.hitsStats[metrics.KernelMapsTag].Swap(0); count > 0 {
 		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverCacheHits, count, []string{metrics.KernelMapsTag}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver kernel maps hits metric")
 		}
 	}
 
-	if count = atomic.SwapInt64(p.hitsStats[metrics.ProcFSTag], 0); count > 0 {
+	if count = p.hitsStats[metrics.ProcFSTag].Swap(0); count > 0 {
 		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverCacheHits, count, []string{metrics.ProcFSTag}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver procfs hits metric")
 		}
 	}
 
-	if count = atomic.SwapInt64(&p.missStats, 0); count > 0 {
+	if count = p.missStats.Swap(0); count > 0 {
 		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverCacheMiss, count, []string{}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver misses metric")
 		}
 	}
 
-	if count = atomic.SwapInt64(&p.addedEntries, 0); count > 0 {
+	if count = p.addedEntries.Swap(0); count > 0 {
 		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverAdded, count, []string{}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver added entries metric")
 		}
 	}
 
-	if count = atomic.SwapInt64(&p.flushedEntries, 0); count > 0 {
+	if count = p.flushedEntries.Swap(0); count > 0 {
 		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverFlushed, count, []string{}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver flushed entries metric")
 		}
@@ -399,7 +399,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	// args and envs
 	if len(filledProc.Cmdline) > 0 {
 		entry.ArgsEntry = &model.ArgsEntry{
-			Values: filledProc.Cmdline[1:],
+			Values: filledProc.Cmdline,
 		}
 	}
 
@@ -466,8 +466,8 @@ func (p *ProcessResolver) insertEntry(entry, prev *model.ProcessCacheEntry) {
 		prev.Release()
 	}
 
-	atomic.AddInt64(&p.addedEntries, 1)
-	atomic.AddInt64(&p.cacheSize, 1)
+	p.addedEntries.Inc()
+	p.cacheSize.Inc()
 }
 
 func (p *ProcessResolver) insertForkEntry(entry *model.ProcessCacheEntry) {
@@ -528,27 +528,27 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 
 func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	if entry := p.resolveFromCache(pid, tid); entry != nil {
-		atomic.AddInt64(p.hitsStats[metrics.CacheTag], 1)
+		p.hitsStats[metrics.CacheTag].Inc()
 		return entry
 	}
 
-	if atomic.LoadInt64(&p.state) != snapshotted {
+	if p.state.Load() != snapshotted {
 		return nil
 	}
 
 	// fallback to the kernel maps directly, the perf event may be delayed / may have been lost
 	if entry := p.resolveWithKernelMaps(pid, tid); entry != nil {
-		atomic.AddInt64(p.hitsStats[metrics.KernelMapsTag], 1)
+		p.hitsStats[metrics.KernelMapsTag].Inc()
 		return entry
 	}
 
 	// fallback to /proc, the in-kernel LRU may have deleted the entry
 	if entry := p.resolveWithProcfs(pid, procResolveMaxDepth); entry != nil {
-		atomic.AddInt64(p.hitsStats[metrics.ProcFSTag], 1)
+		p.hitsStats[metrics.ProcFSTag].Inc()
 		return entry
 	}
 
-	atomic.AddInt64(&p.missStats, 1)
+	p.missStats.Inc()
 	return nil
 }
 
@@ -1126,12 +1126,12 @@ func (p *ProcessResolver) GetCacheSize() float64 {
 
 // GetEntryCacheSize returns the cache size of the process resolver
 func (p *ProcessResolver) GetEntryCacheSize() float64 {
-	return float64(atomic.LoadInt64(&p.cacheSize))
+	return float64(p.cacheSize.Load())
 }
 
 // SetState sets the process resolver state
 func (p *ProcessResolver) SetState(state int64) {
-	atomic.StoreInt64(&p.state, state)
+	p.state.Store(state)
 }
 
 // Walk iterates through the entire tree and call the provided callback on each entry
@@ -1168,18 +1168,21 @@ func NewProcessResolver(probe *Probe, resolvers *Resolvers, opts ProcessResolver
 	}
 
 	p := &ProcessResolver{
-		probe:         probe,
-		resolvers:     resolvers,
-		entryCache:    make(map[uint32]*model.ProcessCacheEntry),
-		opts:          opts,
-		argsEnvsCache: argsEnvsCache,
-		state:         snapshotting,
-		argsEnvsPool:  NewArgsEnvsPool(maxArgsEnvResidents),
-		hitsStats:     map[string]*int64{},
+		probe:          probe,
+		resolvers:      resolvers,
+		entryCache:     make(map[uint32]*model.ProcessCacheEntry),
+		opts:           opts,
+		argsEnvsCache:  argsEnvsCache,
+		state:          atomic.NewInt64(snapshotting),
+		argsEnvsPool:   NewArgsEnvsPool(maxArgsEnvResidents),
+		hitsStats:      map[string]*atomic.Int64{},
+		cacheSize:      atomic.NewInt64(0),
+		missStats:      atomic.NewInt64(0),
+		addedEntries:   atomic.NewInt64(0),
+		flushedEntries: atomic.NewInt64(0),
 	}
 	for _, t := range metrics.AllTypesTags {
-		zero := int64(0)
-		p.hitsStats[t] = &zero
+		p.hitsStats[t] = atomic.NewInt64(0)
 	}
 	p.processCacheEntryPool = NewProcessCacheEntryPool(p)
 

@@ -542,7 +542,7 @@ func generateEncodingFromActivityDump(cmd *cobra.Command, args []string) error {
 
 	} else {
 		// encoding request will be handled locally
-		var ad sprobe.ActivityDump
+		ad := sprobe.NewEmptyActivityDump()
 
 		// open and parse input file
 		if err := ad.Decode(activityDumpArgs.file); err != nil {
@@ -566,7 +566,7 @@ func generateEncodingFromActivityDump(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("couldn't instantiate storage manager: %w", err)
 		}
 
-		err = storage.Persist(&ad)
+		err = storage.Persist(ad)
 		if err != nil {
 			return fmt.Errorf("couldn't persist dump from %s: %w", activityDumpArgs.file, err)
 		}

@@ -218,10 +218,19 @@ func GetStatus(datadogClient DatadogClient) map[string]interface{} {
 
 	switch ddCl := datadogClient.(type) {
 	case *datadog.Client:
+		// Can be nil if there's an error in NewDatadogClient()
+		if ddCl == nil {
+			return status
+		}
+
 		clientStatus := make(map[string]interface{})
 		clientStatus["url"] = ddCl.GetBaseUrl()
 		status["client"] = clientStatus
 	case *datadogFallbackClient:
+		if ddCl == nil {
+			return status
+		}
+
 		status["lastUsedClient"] = ddCl.lastUsedClient
 		clientsStatus := make([]map[string]interface{}, len(ddCl.clients))
 		for i, individualClient := range ddCl.clients {

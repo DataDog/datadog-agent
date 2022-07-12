@@ -16,7 +16,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -26,6 +25,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"github.com/pkg/errors"
+	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
 
@@ -61,7 +61,8 @@ type EventHandler interface {
 
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
 type EventStream interface {
-	Init(*manager.Manager, *Monitor, *config.Config) error
+	Init(*manager.Manager, *config.Config) error
+	SetMonitor(*PerfBufferMonitor)
 	Start(*sync.WaitGroup) error
 	Pause() error
 	Resume() error
@@ -97,7 +98,7 @@ type Probe struct {
 	discarderReq         *ERPCRequest
 	pidDiscarders        *pidDiscarders
 	inodeDiscarders      *inodeDiscarders
-	flushingDiscarders   int64
+	flushingDiscarders   *atomic.Bool
 	approvers            map[eval.EventType]activeApprovers
 	discarderRateLimiter *rate.Limiter
 
@@ -254,7 +255,7 @@ func (p *Probe) Init() error {
 	}
 	defer bytecodeReader.Close()
 
-	if err := p.eventStream.Init(p.manager, p.monitor, p.config); err != nil {
+	if err := p.eventStream.Init(p.manager, p.config); err != nil {
 		return err
 	}
 
@@ -265,7 +266,7 @@ func (p *Probe) Init() error {
 		})
 	}
 
-	if selectors, exists := probes.SelectorsPerEventType["*"]; exists {
+	if selectors, exists := probes.GetSelectorsPerEventType()["*"]; exists {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, selectors...)
 	}
 
@@ -301,6 +302,8 @@ func (p *Probe) Init() error {
 	if err != nil {
 		return err
 	}
+
+	p.eventStream.SetMonitor(p.monitor.perfBufferMonitor)
 
 	return nil
 }
@@ -803,7 +806,7 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 		return nil
 	}
 
-	if atomic.LoadInt64(&p.flushingDiscarders) == 1 {
+	if p.flushingDiscarders.Load() {
 		return nil
 	}
 
@@ -897,13 +900,24 @@ func (p *Probe) selectTCProbes() manager.ProbesSelector {
 	return &activatedProbes
 }
 
+func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
+	if p.config.ActivityDumpEnabled {
+		for _, e := range p.config.ActivityDumpTracedEventTypes {
+			if e.String() == eventType {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // SelectProbes applies the loaded set of rules and returns a report
 // of the applied approvers for it.
 func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	var activatedProbes []manager.ProbesSelector
 
-	for eventType, selectors := range probes.SelectorsPerEventType {
-		if eventType == "*" || rs.HasRulesForEventType(eventType) {
+	for eventType, selectors := range probes.GetSelectorsPerEventType() {
+		if eventType == "*" || rs.HasRulesForEventType(eventType) || p.isNeededForActivityDump(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 		}
 	}
@@ -995,7 +1009,7 @@ func (p *Probe) FlushDiscarders() error {
 	}
 
 	unfreezeDiscarders := func() {
-		atomic.StoreInt64(&p.flushingDiscarders, 0)
+		p.flushingDiscarders.Store(false)
 
 		if err := flushingMap.Put(ebpf.ZeroUint32MapItem, uint32(0)); err != nil {
 			log.Errorf("Failed to reset flush_discarders flag: %s", err)
@@ -1005,7 +1019,7 @@ func (p *Probe) FlushDiscarders() error {
 	}
 	defer unfreezeDiscarders()
 
-	if !atomic.CompareAndSwapInt64(&p.flushingDiscarders, 0, 1) {
+	if p.flushingDiscarders.Swap(true) {
 		return errors.New("already flushing discarders")
 	}
 	// Sleeping a bit to avoid races with executing kprobes and setting discarders
@@ -1250,6 +1264,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		tcPrograms:           make(map[NetDeviceKey]*manager.Probe),
 		statsdClient:         statsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second), 100),
+		flushingDiscarders:   atomic.NewBool(false),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -1432,7 +1447,10 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	if useRingBuffers {
 		p.eventStream = NewRingBuffer(p.handleEvent)
 	} else {
-		p.eventStream = NewOrderedPerfMap(p.ctx, p.handleEvent)
+		p.eventStream, err = NewOrderedPerfMap(p.ctx, p.handleEvent, p.statsdClient)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return p, nil

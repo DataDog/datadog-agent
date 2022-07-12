@@ -16,7 +16,7 @@ import (
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -119,11 +119,11 @@ func OverrideTime(t time.Time) StatusOption {
 }
 
 func getCoreStatus() (s CoreStatus) {
-	hostnameData, err := util.GetHostnameData(context.Background())
+	hostnameData, err := hostname.GetWithProvider(context.Background())
 	var metadata *host.Payload
 	if err != nil {
 		log.Errorf("Error grabbing hostname for status: %v", err)
-		metadata = host.GetPayloadFromCache(context.Background(), util.HostnameData{Hostname: "unknown", Provider: "unknown"})
+		metadata = host.GetPayloadFromCache(context.Background(), hostname.Data{Hostname: "unknown", Provider: "unknown"})
 	} else {
 		metadata = host.GetPayloadFromCache(context.Background(), hostnameData)
 	}

@@ -7,6 +7,7 @@ import re
 import shutil
 import sys
 import tempfile
+from pathlib import Path
 from subprocess import check_output
 
 from invoke import task
@@ -129,6 +130,7 @@ def test(
     windows=is_windows,
     parallel_build=True,
     failfast=False,
+    kernel_release=None,
 ):
     """
     Run tests on eBPF parts
@@ -148,7 +150,7 @@ def test(
         clang_tidy(ctx)
 
     if not skip_object_files and not windows:
-        build_object_files(ctx, parallel_build=parallel_build)
+        build_object_files(ctx, parallel_build=parallel_build, kernel_release=kernel_release)
 
     build_tags = [NPM_TAG]
     if not windows:
@@ -177,7 +179,7 @@ def test(
 
 
 @task
-def kitchen_prepare(ctx, windows=is_windows):
+def kitchen_prepare(ctx, windows=is_windows, kernel_release=None):
     """
     Compile test suite for kitchen
     """
@@ -223,6 +225,7 @@ def kitchen_prepare(ctx, windows=is_windows):
             skip_linters=True,
             bundle_ebpf=False,
             output_path=os.path.join(target_path, target_bin),
+            kernel_release=kernel_release,
         )
 
         # copy ancillary data, if applicable
@@ -449,33 +452,33 @@ def get_linux_header_dirs(kernel_release=None):
         os_info = os.uname()
         kernel_release = os_info.release
 
-    centos_headers_dir = "/usr/src/kernels"
-    debian_headers_dir = "/usr/src"
+    src_kernels_dir = "/usr/src/kernels"
+    src_dir = "/usr/src"
+    possible_dirs = [
+        f"/lib/modules/{kernel_release}/build",
+        f"/lib/modules/{kernel_release}/source",
+        f"{src_dir}/linux-headers-{kernel_release}",
+        f"{src_kernels_dir}/{kernel_release}",
+    ]
     linux_headers = []
-    if os.path.isdir(centos_headers_dir):
-        for d in os.listdir(centos_headers_dir):
-            if kernel_release in d:
-                linux_headers.append(os.path.join(centos_headers_dir, d))
-    else:
-        for d in os.listdir(debian_headers_dir):
-            if d.startswith("linux-") and kernel_release in d:
-                linux_headers.append(os.path.join(debian_headers_dir, d))
+    for d in possible_dirs:
+        if os.path.isdir(d):
+            # resolve symlinks
+            linux_headers.append(Path(d).resolve())
 
-    # fallback to non-filtered version for Docker where `uname -r` is not correct
+    # fallback to non-release-specific directories
     if len(linux_headers) == 0:
-        if os.path.isdir(centos_headers_dir):
-            linux_headers = [os.path.join(centos_headers_dir, d) for d in os.listdir(centos_headers_dir)]
+        if os.path.isdir(src_kernels_dir):
+            linux_headers = [os.path.join(src_kernels_dir, d) for d in os.listdir(src_kernels_dir)]
         else:
-            linux_headers = [
-                os.path.join(debian_headers_dir, d) for d in os.listdir(debian_headers_dir) if d.startswith("linux-")
-            ]
+            linux_headers = [os.path.join(src_dir, d) for d in os.listdir(src_dir) if d.startswith("linux-")]
 
-    # fallback to the running kernel/build headers via /lib/modules/$(uname -r)/build/
+    # fallback to /usr as a last report
     if len(linux_headers) == 0:
-        uname_r = check_output('''uname -r''', shell=True).decode('utf-8').strip()
-        build_dir = f"/lib/modules/{uname_r}/build"
-        if os.path.isdir(build_dir):
-            linux_headers = [build_dir]
+        linux_headers = ["/usr"]
+
+    # deduplicate
+    linux_headers = list(dict.fromkeys(linux_headers))
 
     # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
     arch = (

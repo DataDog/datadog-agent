@@ -20,11 +20,9 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -32,6 +30,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/procfs"
 	"github.com/tinylib/msgp/msgp"
+	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -86,12 +85,12 @@ type DumpMetadata struct {
 // is used to generate the activity dump metadata sent to the event platform.
 // easyjson:json
 type ActivityDump struct {
-	sync.Mutex         `msg:"-"`
+	*sync.Mutex        `msg:"-"`
 	state              ActivityDumpStatus
 	adm                *ActivityDumpManager
-	processedCount     map[model.EventType]*uint64
-	addedRuntimeCount  map[model.EventType]*uint64
-	addedSnapshotCount map[model.EventType]*uint64
+	processedCount     map[model.EventType]*atomic.Uint64
+	addedRuntimeCount  map[model.EventType]*atomic.Uint64
+	addedSnapshotCount map[model.EventType]*atomic.Uint64
 
 	// standard attributes used by the intake
 	Host    string   `msg:"host" json:"host,omitempty"`
@@ -105,7 +104,14 @@ type ActivityDump struct {
 	StorageRequests     map[dump.StorageFormat][]dump.StorageRequest `msg:"storage_requests,omitempty" json:"-"`
 
 	// Dump metadata
-	DumpMetadata
+	DumpMetadata `msg:"metadata"`
+}
+
+// NewEmptyActivityDump returns a new zero-like instance of an ActivityDump
+func NewEmptyActivityDump() *ActivityDump {
+	return &ActivityDump{
+		Mutex: &sync.Mutex{},
+	}
 }
 
 // WithDumpOption can be used to configure an ActivityDump
@@ -115,6 +121,7 @@ type WithDumpOption func(ad *ActivityDump)
 // NewActivityDump returns a new instance of an ActivityDump
 func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *ActivityDump {
 	ad := ActivityDump{
+		Mutex: &sync.Mutex{},
 		DumpMetadata: DumpMetadata{
 			AgentVersion:        version.AgentVersion,
 			AgentCommit:         version.Commit,
@@ -128,9 +135,9 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		Source:             ActivityDumpSource,
 		CookiesNode:        make(map[uint32]*ProcessActivityNode),
 		adm:                adm,
-		processedCount:     make(map[model.EventType]*uint64),
-		addedRuntimeCount:  make(map[model.EventType]*uint64),
-		addedSnapshotCount: make(map[model.EventType]*uint64),
+		processedCount:     make(map[model.EventType]*atomic.Uint64),
+		addedRuntimeCount:  make(map[model.EventType]*atomic.Uint64),
+		addedSnapshotCount: make(map[model.EventType]*atomic.Uint64),
 		StorageRequests:    make(map[dump.StorageFormat][]dump.StorageRequest),
 	}
 
@@ -140,13 +147,9 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 
 	// generate counters
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
-		processed := uint64(0)
-		runtime := uint64(0)
-		snapshot := uint64(0)
-
-		ad.processedCount[i] = &processed
-		ad.addedRuntimeCount[i] = &runtime
-		ad.addedSnapshotCount[i] = &snapshot
+		ad.processedCount[i] = atomic.NewUint64(0)
+		ad.addedRuntimeCount[i] = atomic.NewUint64(0)
+		ad.addedSnapshotCount[i] = atomic.NewUint64(0)
 	}
 	return &ad
 }
@@ -168,10 +171,11 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 	}
 
 	ad := ActivityDump{
+		Mutex:              &sync.Mutex{},
 		CookiesNode:        make(map[uint32]*ProcessActivityNode),
-		processedCount:     make(map[model.EventType]*uint64),
-		addedRuntimeCount:  make(map[model.EventType]*uint64),
-		addedSnapshotCount: make(map[model.EventType]*uint64),
+		processedCount:     make(map[model.EventType]*atomic.Uint64),
+		addedRuntimeCount:  make(map[model.EventType]*atomic.Uint64),
+		addedSnapshotCount: make(map[model.EventType]*atomic.Uint64),
 		StorageRequests:    make(map[dump.StorageFormat][]dump.StorageRequest),
 		Host:               msg.GetHost(),
 		Service:            msg.GetService(),
@@ -330,7 +334,9 @@ func (ad *ActivityDump) Stop() {
 	ad.Service = utils.GetTagValue("service", ad.Tags)
 
 	// add the container ID in a tag
-	ad.Tags = append(ad.Tags, "container_id:"+ad.ContainerID)
+	if len(ad.ContainerID) > 0 {
+		ad.Tags = append(ad.Tags, "container_id:"+ad.ContainerID)
+	}
 
 	// scrub processes and retain args envs now
 	ad.scrubAndRetainProcessArgsEnvs(ad.ProcessActivityTree)
@@ -363,7 +369,7 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	defer func() {
 		if newEntry {
 			// this doesn't count the exec events which are counted separately
-			atomic.AddUint64(ad.addedRuntimeCount[event.GetEventType()], 1)
+			ad.addedRuntimeCount[event.GetEventType()].Inc()
 		}
 	}()
 
@@ -390,7 +396,7 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 
 	// the count of processed events is the count of events that matched the activity dump selector = the events for
 	// which we successfully found a process activity node
-	atomic.AddUint64(ad.processedCount[event.GetEventType()], 1)
+	ad.processedCount[event.GetEventType()].Inc()
 
 	// insert the event based on its type
 	switch event.GetEventType() {
@@ -406,9 +412,7 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 
 // findOrCreateProcessActivityNode finds or a create a new process activity node in the activity dump if the entry
 // matches the activity dump selector.
-func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType) *ProcessActivityNode {
-	var node *ProcessActivityNode
-
+func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType) (node *ProcessActivityNode) {
 	if entry == nil {
 		return node
 	}
@@ -421,6 +425,13 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 			return node
 		}
 	}
+
+	defer func() {
+		// if a node was found, and if the entry has a valid cookie, insert a cookie shortcut
+		if entry.Cookie > 0 && node != nil {
+			ad.CookiesNode[entry.Cookie] = node
+		}
+	}()
 
 	// find or create a ProcessActivityNode for the parent of the input ProcessCacheEntry. If the parent is a fork entry,
 	// jump immediately to the next ancestor.
@@ -463,23 +474,29 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 		parentNode.Children = append(parentNode.Children, node)
 	}
 
-	// insert new cookie shortcut
-	if entry.Cookie > 0 {
-		ad.CookiesNode[entry.Cookie] = node
-	}
-
 	// count new entry
 	switch generationType {
 	case Runtime:
-		atomic.AddUint64(ad.addedRuntimeCount[model.ExecEventType], 1)
+		ad.addedRuntimeCount[model.ExecEventType].Inc()
 	case Snapshot:
-		atomic.AddUint64(ad.addedSnapshotCount[model.ExecEventType], 1)
+		ad.addedSnapshotCount[model.ExecEventType].Inc()
 	}
 
 	// set the pid of the input ProcessCacheEntry as traced
 	ad.updateTracedPidTimeout(entry.Pid)
 
 	return node
+}
+
+// FindFirstMatchingNode return the first matching node of requested comm
+func (ad *ActivityDump) FindFirstMatchingNode(comm string) *ProcessActivityNode {
+	for _, node := range ad.ProcessActivityTree {
+		if node.Process.Comm == comm {
+			return node
+		}
+	}
+
+	return nil
 }
 
 // GetSelectorStr returns a string representation of the profile selector
@@ -508,7 +525,7 @@ func (ad *ActivityDump) GetSelectorStr() string {
 func (ad *ActivityDump) SendStats() error {
 	for evtType, count := range ad.processedCount {
 		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
-		if value := atomic.SwapUint64(count, 0); value > 0 {
+		if value := count.Swap(0); value > 0 {
 			if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpEventProcessed, int64(value), tags, 1.0); err != nil {
 				return errors.Wrapf(err, "couldn't send %s metric", metrics.MetricActivityDumpEventProcessed)
 			}
@@ -517,7 +534,7 @@ func (ad *ActivityDump) SendStats() error {
 
 	for evtType, count := range ad.addedRuntimeCount {
 		tags := []string{fmt.Sprintf("event_type:%s", evtType), fmt.Sprintf("generation_type:%s", Runtime)}
-		if value := atomic.SwapUint64(count, 0); value > 0 {
+		if value := count.Swap(0); value > 0 {
 			if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpEventAdded, int64(value), tags, 1.0); err != nil {
 				return errors.Wrapf(err, "couldn't send %s metric", metrics.MetricActivityDumpEventAdded)
 			}
@@ -526,7 +543,7 @@ func (ad *ActivityDump) SendStats() error {
 
 	for evtType, count := range ad.addedSnapshotCount {
 		tags := []string{fmt.Sprintf("event_type:%s", evtType), fmt.Sprintf("generation_type:%s", Snapshot)}
-		if value := atomic.SwapUint64(count, 0); value > 0 {
+		if value := count.Swap(0); value > 0 {
 			if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpEventAdded, int64(value), tags, 1.0); err != nil {
 				return errors.Wrapf(err, "couldn't send %s metric", metrics.MetricActivityDumpEventAdded)
 			}
@@ -673,18 +690,17 @@ func (ad *ActivityDump) Unzip(inputFile string, ext string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("couldn't open input file: %w", err)
 	}
+	defer f.Close()
 
 	seclog.Infof("unzipping %s", inputFile)
 	gzipReader, err := gzip.NewReader(f)
 	if err != nil {
-		f.Close()
 		return "", fmt.Errorf("couldn't create gzip reader: %w", err)
 	}
 	defer gzipReader.Close()
 
 	outputFile, err := os.Create(strings.TrimSuffix(inputFile, ext))
 	if err != nil {
-		f.Close()
 		return "", fmt.Errorf("couldn't create gzip output file: %w", err)
 	}
 	defer outputFile.Close()
@@ -951,7 +967,7 @@ func (pan *ProcessActivityNode) insertSnapshotedSocket(p *process.Process, ad *A
 
 	if pan.InsertBindEvent(&evt.Bind) {
 		// count this new entry
-		atomic.AddUint64(ad.addedSnapshotCount[model.BindEventType], 1)
+		ad.addedSnapshotCount[model.BindEventType].Inc()
 	}
 }
 
@@ -962,19 +978,11 @@ func (pan *ProcessActivityNode) snapshotBoundSockets(p *process.Process, ad *Act
 		return err
 	}
 
-	// search for sockets only, exprimed in the form of "socket:[inode]"
-	rSocket, err := regexp.Compile("socket:\\[[0-9]+\\]")
-	if err != nil {
-		return err
-	}
-	rInode, err := regexp.Compile("[0-9]+")
-	if err != nil {
-		return err
-	}
+	// sockets have the following pattern "socket:[inode]"
 	var sockets []uint64
 	for _, fd := range FDs {
-		if rSocket.MatchString(fd.Path) {
-			sock, err := strconv.Atoi(rInode.FindString(fd.Path))
+		if strings.HasPrefix(fd.Path, "socket:[") {
+			sock, err := strconv.Atoi(strings.TrimPrefix(fd.Path[:len(fd.Path)-1], "socket:["))
 			if err != nil {
 				return err
 			}
@@ -988,9 +996,8 @@ func (pan *ProcessActivityNode) snapshotBoundSockets(p *process.Process, ad *Act
 		return nil
 	}
 
-	// init procfs to parse /proc/net/tcp,tcp6,udp,udp6 files, looking for the grabbed
-	// process socket inodes
-	proc, _ := procfs.NewFS(util.HostProc())
+	// use /proc/[pid]/net/tcp,tcp6,udp,udp6 to extract the ports opened by the current process
+	proc, _ := procfs.NewFS(filepath.Join(util.HostProc(fmt.Sprintf("%d", p.Pid))))
 	if err != nil {
 		return err
 	}
@@ -1113,7 +1120,7 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 
 		if pan.InsertFileEvent(&evt.Open.File, evt, Snapshot) {
 			// count this new entry
-			atomic.AddUint64(ad.addedSnapshotCount[model.FileOpenEventType], 1)
+			ad.addedSnapshotCount[model.FileOpenEventType].Inc()
 		}
 	}
 	return nil
@@ -1123,14 +1130,14 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 func (pan *ProcessActivityNode) InsertDNSEvent(evt *model.DNSEvent) bool {
 	if dnsNode, ok := pan.DNSNames[evt.Name]; ok {
 		// look for the DNS request type
-		for _, req := range dnsNode.requests {
+		for _, req := range dnsNode.Requests {
 			if req.Type == evt.Type {
 				return false
 			}
 		}
 
 		// insert the new request
-		dnsNode.requests = append(dnsNode.requests, *evt)
+		dnsNode.Requests = append(dnsNode.Requests, *evt)
 		return true
 	}
 	pan.DNSNames[evt.Name] = NewDNSNode(evt)
@@ -1254,14 +1261,14 @@ func (fan *FileActivityNode) debug(prefix string) {
 
 // DNSNode is used to store a DNS node
 type DNSNode struct {
-	requests []model.DNSEvent `msg:"requests"`
+	Requests []model.DNSEvent `msg:"requests"`
 	id       string
 }
 
 // NewDNSNode returns a new DNSNode instance
 func NewDNSNode(event *model.DNSEvent) *DNSNode {
 	return &DNSNode{
-		requests: []model.DNSEvent{*event},
+		Requests: []model.DNSEvent{*event},
 	}
 }
 

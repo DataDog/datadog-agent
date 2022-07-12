@@ -40,7 +40,7 @@ func (tr *TimeResolver) getUptimeOffset() (time.Duration, error) {
 	if err != nil {
 		return 0, fmt.Errorf("couldn't get system up time: %w", err)
 	}
-	return time.Now().Sub(tr.bootTime) - time.Duration(upTime.Nano()), nil
+	return time.Since(tr.bootTime) - time.Duration(upTime.Nano()), nil
 }
 
 // ResolveMonotonicTimestamp converts a kernel monotonic timestamp to an absolute time

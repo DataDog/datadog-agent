@@ -14,8 +14,6 @@
 package listeners
 
 import (
-	"io/ioutil"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -28,9 +26,7 @@ import (
 )
 
 func TestUDSPassCred(t *testing.T) {
-	dir, err := ioutil.TempDir("", "dd-test-")
-	assert.Nil(t, err)
-	defer os.RemoveAll(dir) // clean up
+	dir := t.TempDir()
 	socketPath := filepath.Join(dir, "dsd.socket")
 
 	mockConfig := config.Mock(t)

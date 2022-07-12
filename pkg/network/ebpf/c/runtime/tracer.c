@@ -10,9 +10,9 @@
 #include "ip.h"
 #include "netns.h"
 #include "sockfd.h"
-#include "conn-tuple.h"
 #include "skb.h"
 #include "port.h"
+#include "tcp-recv.h"
 
 #ifdef FEATURE_IPV6_ENABLED
 #include "ipv6.h"
@@ -33,23 +33,8 @@
 # error "kernel version not included?"
 #endif
 
-static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* skp, u8 state) {
-    __u32 rtt = 0;
-    __u32 rtt_var = 0;
-    bpf_probe_read_kernel(&rtt, sizeof(rtt), &tcp_sk(skp)->srtt_us);
-    bpf_probe_read_kernel(&rtt_var, sizeof(rtt_var), &tcp_sk(skp)->mdev_us);
-
-    tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
-    if (state > 0) {
-        stats.state_transitions = (1 << state);
-    }
-    update_tcp_stats(t, stats);
-}
-
-static __always_inline void get_tcp_segment_counts(struct sock* skp, __u32* packets_in, __u32* packets_out) {
-    bpf_probe_read_kernel(packets_out, sizeof(*packets_out), &tcp_sk(skp)->segs_out);
-    bpf_probe_read_kernel(packets_in, sizeof(*packets_in), &tcp_sk(skp)->segs_in);
-}
+#include "conn-tuple.h"
+#include "sock-impl.h"
 
 SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
