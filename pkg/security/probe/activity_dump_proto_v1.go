@@ -11,7 +11,7 @@ package probe
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/adproto"
+	adproto "github.com/DataDog/datadog-agent/pkg/security/adproto/v1"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
