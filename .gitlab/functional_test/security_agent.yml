@@ -10,7 +10,7 @@
     - .kitchen_common
     - .kitchen_datadog_agent_flavor
   rules:
-    !reference [.manual]
+    !reference [.on_security_agent_changes_or_manual]
   stage: functional_test
   retry: 0
   variables:
