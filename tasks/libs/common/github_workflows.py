@@ -40,6 +40,9 @@ class GithubWorkflows(RemoteAPI):
         Create a pipeline targeting a given reference of a project.
         ref must be a branch or a tag.
         """
+        if inputs is None:
+            inputs = dict()
+
         path = f"/repos/{self.repository}/actions/workflows/{workflow_name}/dispatches"
         data = json.dumps({"ref": ref, "inputs": inputs})
         return self.make_request(path, method="POST", data=data)
