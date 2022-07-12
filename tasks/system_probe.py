@@ -130,6 +130,7 @@ def test(
     windows=is_windows,
     parallel_build=True,
     failfast=False,
+    kernel_release=None,
 ):
     """
     Run tests on eBPF parts
@@ -149,7 +150,7 @@ def test(
         clang_tidy(ctx)
 
     if not skip_object_files and not windows:
-        build_object_files(ctx, parallel_build=parallel_build)
+        build_object_files(ctx, parallel_build=parallel_build, kernel_release=kernel_release)
 
     build_tags = [NPM_TAG]
     if not windows:
@@ -178,7 +179,7 @@ def test(
 
 
 @task
-def kitchen_prepare(ctx, windows=is_windows):
+def kitchen_prepare(ctx, windows=is_windows, kernel_release=None):
     """
     Compile test suite for kitchen
     """
@@ -224,6 +225,7 @@ def kitchen_prepare(ctx, windows=is_windows):
             skip_linters=True,
             bundle_ebpf=False,
             output_path=os.path.join(target_path, target_bin),
+            kernel_release=kernel_release,
         )
 
         # copy ancillary data, if applicable

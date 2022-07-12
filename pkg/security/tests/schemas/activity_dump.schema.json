@@ -40,7 +40,7 @@
                             "file": {
                                 "type": "object",
                                 "properties": {
-                                    "FileFields": {
+                                    "file_fields": {
                                         "type": "object",
                                         "properties": {
                                             "uid": {
@@ -96,7 +96,7 @@
                                     }
                                 },
                                 "required": [
-                                    "FileFields",
+                                    "file_fields",
                                     "filesystem",
                                     "name",
                                     "path"
@@ -310,7 +310,7 @@
                 ]
             }
         },
-        "DumpMetadata": {
+        "metadata": {
             "type": "object",
             "properties": {
                 "agent_version": {
@@ -364,7 +364,7 @@
         }
     },
     "required": [
-        "DumpMetadata",
+        "metadata",
         "host",
         "source",
         "tags",

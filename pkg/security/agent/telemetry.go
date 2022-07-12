@@ -39,7 +39,7 @@ func newTelemetry() (*telemetry, error) {
 	}, nil
 }
 
-func (t *telemetry) run(ctx context.Context) {
+func (t *telemetry) run(ctx context.Context, rsa *RuntimeSecurityAgent) {
 	log.Info("started collecting Runtime Security Agent telemetry")
 	defer log.Info("stopping Runtime Security Agent telemetry")
 
@@ -53,6 +53,9 @@ func (t *telemetry) run(ctx context.Context) {
 		case <-metricsTicker.C:
 			if err := t.reportContainers(); err != nil {
 				log.Debugf("couldn't report containers: %v", err)
+			}
+			if rsa.storage != nil {
+				rsa.storage.SendTelemetry()
 			}
 		}
 	}

@@ -107,6 +107,13 @@ type ActivityDump struct {
 	DumpMetadata `msg:"metadata"`
 }
 
+// NewEmptyActivityDump returns a new zero-like instance of an ActivityDump
+func NewEmptyActivityDump() *ActivityDump {
+	return &ActivityDump{
+		Mutex: &sync.Mutex{},
+	}
+}
+
 // WithDumpOption can be used to configure an ActivityDump
 //msgp:ignore WithDumpOption
 type WithDumpOption func(ad *ActivityDump)
