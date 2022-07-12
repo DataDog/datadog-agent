@@ -9,11 +9,11 @@
 package probe
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/pkg/errors"
 )
 
 // RingBuffer implements the EventStream interface

@@ -10,6 +10,7 @@ package probe
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -102,7 +103,7 @@ func NewOrderedPerfMap(ctx context.Context, handler func(int, []byte), statsdCli
 
 	monitor, err := NewReOrderMonitor(ctx, statsdClient, reOrderer)
 	if err != nil {
-		return nil, errors.Wrap(err, "couldn't create the reorder monitor")
+		return nil, fmt.Errorf("couldn't create the reorder monitor: %w", err)
 	}
 
 	return &OrderedPerfMap{
