@@ -246,13 +246,13 @@ func (di *DriverInterface) resizeDriverBuffer(compareSize int) {
 	// Explicitly setting len to 0 causes the ReadFile syscall to break, so allocate buffer with cap = len
 	if compareSize >= cap(di.readBuffer)*2 {
 		di.readBuffer = make([]uint8, cap(di.readBuffer)*2)
-		atomic.AddInt64(&di.nBufferIncreases, 1)
-		atomic.StoreInt64(&di.bufferSize, int64(len(di.readBuffer)))
+		di.nBufferIncreases.Inc()
+		di.bufferSize.Store(int64(len(di.readBuffer)))
 	} else if compareSize <= cap(di.readBuffer)/2 {
 		// Take the max of di.readBuffer/2 and compareSize to limit future array resizes
 		di.readBuffer = make([]uint8, int(math.Max(float64(cap(di.readBuffer)/2), float64(compareSize))))
-		atomic.AddInt64(&di.nBufferDecreases, 1)
-		atomic.StoreInt64(&di.bufferSize, int64(len(di.readBuffer)))
+		di.nBufferDecreases.Inc()
+		di.bufferSize.Store(int64(len(di.readBuffer)))
 	}
 }
 
