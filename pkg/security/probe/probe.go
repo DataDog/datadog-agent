@@ -171,7 +171,7 @@ func (p *Probe) sanityChecks() error {
 // VerifyOSVersion returns an error if the current kernel version is not supported
 func (p *Probe) VerifyOSVersion() error {
 	if !p.kernelVersion.IsRH7Kernel() && !p.kernelVersion.IsRH8Kernel() && p.kernelVersion.Code < kernel.Kernel4_15 {
-		return errors.Errorf("the following kernel is not supported: %s", p.kernelVersion)
+		return fmt.Errorf("the following kernel is not supported: %s", p.kernelVersion)
 	}
 	return nil
 }
@@ -271,7 +271,7 @@ func (p *Probe) Init() error {
 	}
 
 	if err := p.manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
-		return errors.Wrap(err, "failed to init manager")
+		return fmt.Errorf("failed to init manager: %w", err)
 	}
 
 	pidDiscardersMap, err := p.Map("pid_discarders")
@@ -829,7 +829,7 @@ func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, mode PolicyMode, fla
 	log.Infof("Setting in-kernel filter policy to `%s` for `%s`", mode, eventType)
 	table, err := p.Map("filter_policy")
 	if err != nil {
-		return errors.Wrap(err, "unable to find policy table")
+		return fmt.Errorf("unable to find policy table: %w", err)
 	}
 
 	et := model.ParseEvalEventType(eventType)
@@ -989,7 +989,7 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	}()
 
 	if err := enabledEventsMap.Put(ebpf.ZeroUint32MapItem, enabledEvents); err != nil {
-		return errors.Wrap(err, "failed to set enabled events")
+		return fmt.Errorf("failed to set enabled events: %w", err)
 	}
 
 	return p.manager.UpdateActivatedProbes(activatedProbes)
@@ -1005,7 +1005,7 @@ func (p *Probe) FlushDiscarders() error {
 	}
 
 	if err := flushingMap.Put(ebpf.ZeroUint32MapItem, uint32(1)); err != nil {
-		return errors.Wrap(err, "failed to set flush_discarders flag")
+		return fmt.Errorf("failed to set flush_discarders flag: %w", err)
 	}
 
 	unfreezeDiscarders := func() {
@@ -1293,7 +1293,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 
 	numCPU, err := utils.NumCPU()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse CPU count")
+		return nil, fmt.Errorf("failed to parse CPU count: %w", err)
 	}
 	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(
 		numCPU,

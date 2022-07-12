@@ -9,6 +9,7 @@
 package selftests
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -19,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 )
 
