@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf"
-	"github.com/pkg/errors"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
@@ -389,7 +388,7 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 		adm.activeDumps = append(adm.activeDumps[:toDelete], adm.activeDumps[toDelete+1:]...)
 		return &api.ActivityDumpStopMessage{}, nil
 	}
-	errMsg := errors.Errorf("the activity dump manager does not contain any ActivityDump with the following comm: %s", params.GetComm())
+	errMsg := fmt.Errorf("the activity dump manager does not contain any ActivityDump with the following comm: %s", params.GetComm())
 	return &api.ActivityDumpStopMessage{Error: errMsg.Error()}, errMsg
 }
 
@@ -433,7 +432,7 @@ func (adm *ActivityDumpManager) TranscodingRequest(params *api.TranscodingReques
 
 	// open and parse input file
 	if err := ad.Decode(params.GetActivityDumpFile()); err != nil {
-		errMsg := errors.Errorf("couldn't parse input file %s: %v", params.GetActivityDumpFile(), err)
+		errMsg := fmt.Errorf("couldn't parse input file %s: %v", params.GetActivityDumpFile(), err)
 		return &api.TranscodingRequestMessage{Error: errMsg.Error()}, errMsg
 	}
 
@@ -462,7 +461,7 @@ func (adm *ActivityDumpManager) SendStats() error {
 
 	for _, ad := range adm.activeDumps {
 		if err := ad.SendStats(); err != nil {
-			return errors.Wrapf(err, "couldn't send metrics for [%s]", ad.GetSelectorStr())
+			return fmt.Errorf("couldn't send metrics for [%s]: %w", ad.GetSelectorStr(), err)
 		}
 	}
 
