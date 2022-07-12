@@ -263,46 +263,46 @@ func (p *ProcessResolver) SendStats() error {
 	var count int64
 
 	if err = p.probe.statsdClient.Gauge(metrics.MetricProcessResolverCacheSize, p.GetCacheSize(), []string{}, 1.0); err != nil {
-		return errors.Wrap(err, "failed to send process_resolver cache_size metric")
+		return fmt.Errorf("failed to send process_resolver cache_size metric: %w", err)
 	}
 
 	if err = p.probe.statsdClient.Gauge(metrics.MetricProcessResolverReferenceCount, p.GetEntryCacheSize(), []string{}, 1.0); err != nil {
-		return errors.Wrap(err, "failed to send process_resolver reference_count metric")
+		return fmt.Errorf("failed to send process_resolver reference_count metric: %w", err)
 	}
 
 	if count = p.hitsStats[metrics.CacheTag].Swap(0); count > 0 {
 		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverHits, count, []string{metrics.CacheTag}, 1.0); err != nil {
-			return errors.Wrap(err, "failed to send process_resolver cache hits metric")
+			return fmt.Errorf("failed to send process_resolver cache hits metric: %w", err)
 		}
 	}
 
 	if count = p.hitsStats[metrics.KernelMapsTag].Swap(0); count > 0 {
 		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverHits, count, []string{metrics.KernelMapsTag}, 1.0); err != nil {
-			return errors.Wrap(err, "failed to send process_resolver kernel maps hits metric")
+			return fmt.Errorf("failed to send process_resolver kernel maps hits metric: %w", err)
 		}
 	}
 
 	if count = p.hitsStats[metrics.ProcFSTag].Swap(0); count > 0 {
 		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverHits, count, []string{metrics.ProcFSTag}, 1.0); err != nil {
-			return errors.Wrap(err, "failed to send process_resolver procfs hits metric")
+			return fmt.Errorf("failed to send process_resolver procfs hits metric: %w", err)
 		}
 	}
 
 	if count = p.missStats.Swap(0); count > 0 {
 		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverMiss, count, []string{}, 1.0); err != nil {
-			return errors.Wrap(err, "failed to send process_resolver misses metric")
+			return fmt.Errorf("failed to send process_resolver misses metric: %w", err)
 		}
 	}
 
 	if count = p.addedEntries.Swap(0); count > 0 {
 		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverAdded, count, []string{}, 1.0); err != nil {
-			return errors.Wrap(err, "failed to send process_resolver added entries metric")
+			return fmt.Errorf("failed to send process_resolver added entries metric: %w", err)
 		}
 	}
 
 	if count = p.flushedEntries.Swap(0); count > 0 {
 		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverFlushed, count, []string{}, 1.0); err != nil {
-			return errors.Wrap(err, "failed to send process_resolver flushed entries metric")
+			return fmt.Errorf("failed to send process_resolver flushed entries metric: %w", err)
 		}
 	}
 
