@@ -9,6 +9,7 @@ static __always_inline void fill_http_buffer_safe(char *buffer, char *data) {
     if (bpf_probe_read_user(buffer, HTTP_BUFFER_SIZE, data) >= 0) {
         return;
     }
+#if defined(__aarch64__)
 #pragma unroll
     for (int i = 0; i < HTTP_BUFFER_SIZE; i++) {
         bpf_probe_read_user(&buffer[i], 1, &data[i]);
@@ -16,6 +17,7 @@ static __always_inline void fill_http_buffer_safe(char *buffer, char *data) {
             break;
         }
     }
+#endif
 }
 
 // read_into_buffer copies data from an arbitrary memory address into a (statically sized) HTTP buffer.
