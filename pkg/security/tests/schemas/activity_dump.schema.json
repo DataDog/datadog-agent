@@ -22,7 +22,7 @@
                     "process": {
                         "type": "object",
                         "properties": {
-                            "PIDContext": {
+                            "pid_context": {
                                 "type": "object",
                                 "properties": {
                                     "pid": {
@@ -212,7 +212,7 @@
                             }
                         },
                         "required": [
-                            "PIDContext",
+                            "pid_context",
                             "argv0",
                             "comm",
                             "cookie",

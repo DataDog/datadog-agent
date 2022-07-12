@@ -1334,7 +1334,7 @@ func (z *Process) DecodeMsg(dc *msgp.Reader) (err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
-		case "PIDContext":
+		case "pid_context":
 			var zb0002 uint32
 			zb0002, err = dc.ReadMapHeader()
 			if err != nil {
@@ -1630,8 +1630,8 @@ func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
 	if zb0001Len == 0 {
 		return
 	}
-	// write "PIDContext"
-	err = en.Append(0xaa, 0x50, 0x49, 0x44, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74)
+	// write "pid_context"
+	err = en.Append(0xab, 0x70, 0x69, 0x64, 0x5f, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74)
 	if err != nil {
 		return
 	}
@@ -1987,8 +1987,8 @@ func (z *Process) MarshalMsg(b []byte) (o []byte, err error) {
 	if zb0001Len == 0 {
 		return
 	}
-	// string "PIDContext"
-	o = append(o, 0xaa, 0x50, 0x49, 0x44, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74)
+	// string "pid_context"
+	o = append(o, 0xab, 0x70, 0x69, 0x64, 0x5f, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74)
 	// map header, size 2
 	// string "pid"
 	o = append(o, 0x82, 0xa3, 0x70, 0x69, 0x64)
@@ -2137,7 +2137,7 @@ func (z *Process) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
-		case "PIDContext":
+		case "pid_context":
 			var zb0002 uint32
 			zb0002, bts, err = msgp.ReadMapHeaderBytes(bts)
 			if err != nil {
@@ -2373,7 +2373,7 @@ func (z *Process) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Process) Msgsize() (s int) {
-	s = 3 + 11 + 1 + 4 + msgp.Uint32Size + 4 + msgp.Uint32Size + 5 + z.FileEvent.Msgsize() + 13 + msgp.StringPrefixSize + len(z.ContainerID) + 15 + msgp.ArrayHeaderSize
+	s = 3 + 12 + 1 + 4 + msgp.Uint32Size + 4 + msgp.Uint32Size + 5 + z.FileEvent.Msgsize() + 13 + msgp.StringPrefixSize + len(z.ContainerID) + 15 + msgp.ArrayHeaderSize
 	for za0001 := range z.ContainerTags {
 		s += msgp.StringPrefixSize + len(z.ContainerTags[za0001])
 	}

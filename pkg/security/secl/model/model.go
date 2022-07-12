@@ -273,7 +273,7 @@ func (e *Process) GetPathResolutionError() string {
 
 // Process represents a process
 type Process struct {
-	PIDContext
+	PIDContext `msg:"pid_context"`
 
 	FileEvent FileEvent `field:"file" msg:"file"`
 
