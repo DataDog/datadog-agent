@@ -33,6 +33,7 @@ const (
 	minimalRefreshInterval = 5 * time.Second
 	defaultClientsTTL      = 30 * time.Second
 	maxClientsTTL          = 60 * time.Second
+	newClientBlockTTL      = 2 * time.Second
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -61,9 +62,10 @@ type Service struct {
 	uptane   uptaneClient
 	api      api.API
 
-	products    map[rdata.Product]struct{}
-	newProducts map[rdata.Product]struct{}
-	clients     *clients
+	products         map[rdata.Product]struct{}
+	newProducts      map[rdata.Product]struct{}
+	clients          *clients
+	newActiveClients newActiveClients
 
 	lastUpdateErr error
 }
@@ -143,7 +145,7 @@ func NewService() (*Service, error) {
 	}
 
 	clientsTTL := config.Datadog.GetDuration("remote_configuration.clients.ttl_seconds")
-	if clientsTTL <= minimalRefreshInterval || clientsTTL >= maxClientsTTL {
+	if clientsTTL < minimalRefreshInterval || clientsTTL > maxClientsTTL {
 		log.Warnf("Configured clients ttl is not within accepted range (%s - %s): %s. Defaulting to %s", minimalRefreshInterval, maxClientsTTL, clientsTTL, defaultClientsTTL)
 		clientsTTL = defaultClientsTTL
 	}
@@ -162,6 +164,11 @@ func NewService() (*Service, error) {
 		api:                    http,
 		uptane:                 uptaneClient,
 		clients:                newClients(clock, clientsTTL),
+		newActiveClients: newActiveClients{
+			clock:    clock,
+			requests: make(chan sync.WaitGroup),
+			until:    time.Now().UTC(),
+		},
 	}, nil
 }
 
@@ -171,17 +178,30 @@ func (s *Service) Start(ctx context.Context) error {
 	go func() {
 		defer cancel()
 
+		err := s.refresh()
+		if err != nil {
+			log.Errorf("could not refresh remote-config: %v", err)
+		}
+
 		for {
+			var err error
 			refreshInterval := s.calculateRefreshInterval()
-			err := s.refresh()
-			if err != nil {
-				log.Errorf("could not refresh remote-config: %v", err)
-			}
 			select {
 			case <-s.clock.After(refreshInterval):
-				continue
+				err = s.refresh()
+			// New clients detected, request refresh
+			case wg := <-s.newActiveClients.requests:
+				if time.Now().UTC().After(s.newActiveClients.until) {
+					s.newActiveClients.setRateLimit(refreshInterval)
+					err = s.refresh()
+				}
+				wg.Done()
 			case <-ctx.Done():
 				return
+			}
+
+			if err != nil {
+				log.Errorf("could not refresh remote-config: %v", err)
 			}
 		}
 	}()
@@ -280,6 +300,20 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	if err != nil {
 		return nil, err
 	}
+
+	if !s.clients.active(request.Client) {
+		s.Unlock()
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		s.newActiveClients.requests <- wg
+		select {
+		case <-waitChan(wg):
+		case <-time.After(newClientBlockTTL):
+			log.Warn("Timed out waiting for upstream new configurations")
+		}
+		s.Lock()
+	}
+
 	s.clients.seen(request.Client)
 	tufVersions, err := s.uptane.TUFVersionState()
 	if err != nil {

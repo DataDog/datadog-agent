@@ -6,6 +6,7 @@
 package service
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -34,4 +35,20 @@ func TestClients(t *testing.T) {
 	clock.Add(time.Second*2 + 1*time.Nanosecond) // 10s1ns
 	assert.ElementsMatch(t, []*pbgo.Client{}, clients.activeClients())
 	assert.Empty(t, clients.clients)
+}
+
+func TestNewActiveClientsRateLimit(t *testing.T) {
+	clock := clock.NewMock()
+	newActiveClients := newActiveClients{
+		clock:    clock,
+		requests: make(chan sync.WaitGroup),
+		until:    clock.Now(),
+	}
+
+	newActiveClients.setRateLimit(time.Hour)
+	assert.Equal(t, clock.Now().UTC().Add(defaultClientsTTL), newActiveClients.until)
+	newActiveClients.setRateLimit(5 * time.Second)
+	assert.Equal(t, clock.Now().UTC().Add(5*time.Second), newActiveClients.until)
+	newActiveClients.setRateLimit(time.Second)
+	assert.Equal(t, clock.Now().UTC().Add(defaultClientsTTL), newActiveClients.until)
 }

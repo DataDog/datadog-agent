@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -104,6 +105,11 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.
 	service.api = api
 	service.clock = clock
 	service.uptane = uptane
+	service.newActiveClients = newActiveClients{
+		clock:    clock,
+		until:    clock.Now(),
+		requests: make(chan sync.WaitGroup),
+	}
 	assert.NoError(t, err)
 	return service
 }
@@ -397,6 +403,7 @@ func TestService(t *testing.T) {
 		Error:              "",
 	}).Return(lastConfigResponse, nil)
 
+	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
 	configResponse, err := service.ClientGetConfigs(&pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, [][]byte{root3, root4}, configResponse.Roots)
@@ -496,6 +503,7 @@ func TestServiceClientPredicates(t *testing.T) {
 		Error:              "",
 	}).Return(lastConfigResponse, nil)
 
+	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
 	configResponse, err := service.ClientGetConfigs(&pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(err)
 	assert.ElementsMatch(
