@@ -63,7 +63,7 @@ func TestProfileProxy(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := &config.AgentConfig{}
 	newProfileProxy(c, []*url.URL{u}, []string{"123"}, "key:val").ServeHTTP(rec, req)
-	result = rec.Result()
+	result := rec.Result()
 	slurp, err := ioutil.ReadAll(result.Body)
 	result.Body.Close()
 	if err != nil {
@@ -192,6 +192,7 @@ func TestProfileProxyHandler(t *testing.T) {
 		rec := httptest.NewRecorder()
 		receiver.profileProxyHandler().ServeHTTP(rec, req)
 		resp := rec.Result()
+		resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 
