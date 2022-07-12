@@ -137,13 +137,13 @@ func (m *Metadata) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x60
 	}
-	if m.EndTime != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.EndTime))
+	if m.End != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.End))
 		i--
 		dAtA[i] = 0x58
 	}
-	if m.StartTime != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.StartTime))
+	if m.Start != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.Start))
 		i--
 		dAtA[i] = 0x50
 	}
@@ -765,10 +765,10 @@ func (m *FileInfo) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if len(m.FileSystem) > 0 {
-		i -= len(m.FileSystem)
-		copy(dAtA[i:], m.FileSystem)
-		i = encodeVarint(dAtA, i, uint64(len(m.FileSystem)))
+	if len(m.Filesystem) > 0 {
+		i -= len(m.Filesystem)
+		copy(dAtA[i:], m.Filesystem)
+		i = encodeVarint(dAtA, i, uint64(len(m.Filesystem)))
 		i--
 		dAtA[i] = 0x6a
 	}
@@ -1266,11 +1266,11 @@ func (m *Metadata) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
-	if m.StartTime != 0 {
-		n += 1 + sov(uint64(m.StartTime))
+	if m.Start != 0 {
+		n += 1 + sov(uint64(m.Start))
 	}
-	if m.EndTime != 0 {
-		n += 1 + sov(uint64(m.EndTime))
+	if m.End != 0 {
+		n += 1 + sov(uint64(m.End))
 	}
 	if m.Size != 0 {
 		n += 1 + sov(uint64(m.Size))
@@ -1559,7 +1559,7 @@ func (m *FileInfo) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
-	l = len(m.FileSystem)
+	l = len(m.Filesystem)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}

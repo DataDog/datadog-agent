@@ -26,8 +26,8 @@ message Metadata {
     bool differentiate_args = 7;
     string comm = 8;
     string container_id = 9;
-    uint64 start_time = 10;
-    uint64 end_time = 11;
+    uint64 start = 10;
+    uint64 end = 11;
     uint64 size = 12;
 }
 
@@ -117,7 +117,7 @@ message FileInfo {
 
     string path = 11;
     string basename = 12;
-    string file_system = 13;
+    string filesystem = 13;
 }
 
 message Credentials {

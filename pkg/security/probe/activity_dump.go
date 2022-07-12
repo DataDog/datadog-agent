@@ -709,7 +709,12 @@ func (ad *ActivityDump) EncodeProtoJSON() (*bytes.Buffer, error) {
 	pad := activityDumpToProto(ad)
 	defer pad.ReturnToVTPool()
 
-	raw, err := protojson.Marshal(pad)
+	opts := protojson.MarshalOptions{
+		EmitUnpopulated: true,
+		UseProtoNames:   true,
+	}
+
+	raw, err := opts.Marshal(pad)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.PROTOJSON, err)
 	}

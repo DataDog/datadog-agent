@@ -55,8 +55,8 @@ func adMetadataToProto(meta *DumpMetadata) *adproto.Metadata {
 		DifferentiateArgs:   meta.DifferentiateArgs,
 		Comm:                meta.Comm,
 		ContainerId:         meta.ContainerID,
-		StartTime:           timestamp(&meta.Start),
-		EndTime:             timestamp(&meta.End),
+		Start:               timestamp(&meta.Start),
+		End:                 timestamp(&meta.End),
 		Size:                meta.Size,
 	}
 
@@ -177,7 +177,7 @@ func fileEventToProto(fe *model.FileEvent) *adproto.FileInfo {
 		InUpperLayer: fe.InUpperLayer,
 		Path:         fe.PathnameStr,
 		Basename:     fe.BasenameStr,
-		FileSystem:   fe.Filesystem,
+		Filesystem:   fe.Filesystem,
 	}
 
 	return fi

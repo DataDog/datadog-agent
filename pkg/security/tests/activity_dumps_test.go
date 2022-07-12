@@ -41,7 +41,7 @@ func TestActivityDumps(t *testing.T) {
 	test.Run(t, "activity-dump-comm-bind", func(t *testing.T, kind wrapperType,
 		cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 
-		expectedFormats := []string{"json", "msgp"}
+		expectedFormats := []string{"json", "msgp", "protojson"}
 		outputFiles, err := test.StartActivityDumpComm(t, "syscall_tester", outputDir, expectedFormats)
 		if err != nil {
 			t.Fatal(err)
@@ -174,6 +174,16 @@ func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats
 				t.Fatal(err)
 			}
 			if !validateActivityDumpSchema(t, string(content)) {
+				t.Error(string(content))
+			}
+			perExtOK[ext] = true
+
+		case ".protojson":
+			content, err := os.ReadFile(f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !validateActivityDumpProtoSchema(t, string(content)) {
 				t.Error(string(content))
 			}
 			perExtOK[ext] = true
