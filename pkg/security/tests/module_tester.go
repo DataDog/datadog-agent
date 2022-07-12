@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -34,7 +35,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/go-multierror"
 	"github.com/oliveagle/jsonpath"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
@@ -582,11 +582,11 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 
 	agentConfig, err := sysconfig.New(sysprobeConfig.Name())
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to load config")
+		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 	config, err := config.NewConfig(agentConfig)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to load config")
+		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
 	config.ERPCDentryResolutionEnabled = !opts.disableERPCDentryResolution
@@ -600,7 +600,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	st, err := newSimpleTest(macroDefs, ruleDefs, opts.testDir)
+	st, err := newSimpleTest(t, macroDefs, ruleDefs, opts.testDir)
 	if err != nil {
 		return nil, err
 	}
@@ -657,7 +657,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	mod, err := module.NewModule(config, module.Opts{StatsdClient: statsdClient})
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create module")
+		return nil, fmt.Errorf("failed to create module: %w", err)
 	}
 
 	if opts.disableApprovers {
@@ -684,13 +684,13 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	})
 
 	if err := testMod.module.Init(); err != nil {
-		return nil, errors.Wrap(err, "failed to init module")
+		return nil, fmt.Errorf("failed to init module: %w", err)
 	}
 
 	testMod.probe.AddEventHandler(model.UnknownEventType, testMod.probeHandler)
 
 	if err := testMod.module.Start(); err != nil {
-		return nil, errors.Wrap(err, "failed to start module")
+		return nil, fmt.Errorf("failed to start module: %w", err)
 	}
 
 	if loadErr.ErrorOrNil() != nil {
@@ -719,7 +719,7 @@ func (tm *testModule) reloadConfiguration() error {
 	}
 
 	if err := tm.module.LoadPolicies([]rules.PolicyProvider{provider}, true); err != nil {
-		return errors.Wrap(err, "failed to reload test module")
+		return fmt.Errorf("failed to reload test module: %w", err)
 	}
 
 	return nil
@@ -1162,7 +1162,6 @@ func (tm *testModule) startTracing() (*tracePipeLogger, error) {
 }
 
 func (tm *testModule) cleanup() {
-	tm.st.Close()
 	tm.module.Close()
 }
 
@@ -1217,14 +1216,7 @@ func swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
 }
 
 type simpleTest struct {
-	root     string
-	toRemove bool
-}
-
-func (t *simpleTest) Close() {
-	if t.toRemove {
-		os.RemoveAll(t.root)
-	}
+	root string
 }
 
 func (t *simpleTest) Root() string {
@@ -1277,19 +1269,13 @@ func (t *simpleTest) load(macros []*rules.MacroDefinition, rules []*rules.RuleDe
 	return nil
 }
 
-func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string) (*simpleTest, error) {
-	var err error
-
+func newSimpleTest(tb testing.TB, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string) (*simpleTest, error) {
 	t := &simpleTest{
 		root: testDir,
 	}
 
 	if testDir == "" {
-		t.root, err = os.MkdirTemp("", "test-secagent-root")
-		if err != nil {
-			return nil, err
-		}
-		t.toRemove = true
+		t.root = tb.TempDir()
 		if err := os.Chmod(t.root, 0o711); err != nil {
 			return nil, err
 		}

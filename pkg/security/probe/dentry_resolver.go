@@ -10,6 +10,7 @@ package probe
 
 import (
 	"C"
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -20,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	lib "github.com/cilium/ebpf"
 	lru "github.com/hashicorp/golang-lru"
-	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
@@ -319,7 +319,7 @@ func (dr *DentryResolver) lookupInodeFromMap(mountID uint32, inode uint64, pathI
 	key := PathKey{MountID: mountID, Inode: inode, PathID: pathID}
 	var pathLeaf PathLeaf
 	if err := dr.pathnames.Lookup(key, &pathLeaf); err != nil {
-		return pathLeaf, errors.Wrapf(err, "unable to get filename for mountID `%d` and inode `%d`", mountID, inode)
+		return pathLeaf, fmt.Errorf("unable to get filename for mountID `%d` and inode `%d`: %w", mountID, inode, err)
 	}
 	return pathLeaf, nil
 }
@@ -338,7 +338,7 @@ func (dr *DentryResolver) GetNameFromMap(mountID uint32, inode uint64, pathID ui
 	pathLeaf, err := dr.lookupInodeFromMap(mountID, inode, pathID)
 	if err != nil {
 		dr.missCounters[metrics.SegmentResolutionTag][metrics.KernelMapsTag].Inc()
-		return "", errors.Wrapf(err, "unable to get filename for mountID `%d` and inode `%d`", mountID, inode)
+		return "", fmt.Errorf("unable to get filename for mountID `%d` and inode `%d`: %w", mountID, inode, err)
 	}
 
 	dr.hitsCounters[metrics.SegmentResolutionTag][metrics.KernelMapsTag].Inc()
@@ -541,7 +541,7 @@ func (dr *DentryResolver) GetNameFromERPC(mountID uint32, inode uint64, pathID u
 	challenge, err := dr.requestResolve(ResolveSegmentOp, mountID, inode, pathID)
 	if err != nil {
 		dr.missCounters[metrics.SegmentResolutionTag][metrics.ERPCTag].Inc()
-		return "", errors.Wrapf(err, "unable to get the name of mountID `%d` and inode `%d` with eRPC", mountID, inode)
+		return "", fmt.Errorf("unable to get the name of mountID `%d` and inode `%d` with eRPC: %w", mountID, inode, err)
 	}
 
 	if challenge != model.ByteOrder.Uint32(dr.erpcSegment[12:16]) {
@@ -552,7 +552,7 @@ func (dr *DentryResolver) GetNameFromERPC(mountID uint32, inode uint64, pathID u
 	seg := C.GoString((*C.char)(unsafe.Pointer(&dr.erpcSegment[16])))
 	if len(seg) == 0 || len(seg) > 0 && seg[0] == 0 {
 		dr.missCounters[metrics.SegmentResolutionTag][metrics.ERPCTag].Inc()
-		return "", errors.Errorf("couldn't resolve segment (len: %d)", len(seg))
+		return "", fmt.Errorf("couldn't resolve segment (len: %d)", len(seg))
 	}
 
 	dr.hitsCounters[metrics.SegmentResolutionTag][metrics.ERPCTag].Inc()
@@ -589,7 +589,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 	challenge, err := dr.requestResolve(ResolvePathOp, mountID, inode, pathID)
 	if err != nil {
 		dr.missCounters[metrics.PathResolutionTag][metrics.ERPCTag].Inc()
-		return "", errors.Wrapf(err, "unable to resolve the path of mountID `%d` and inode `%d` with eRPC", mountID, inode)
+		return "", fmt.Errorf("unable to resolve the path of mountID `%d` and inode `%d` with eRPC: %w", mountID, inode, err)
 	}
 
 	var keys []PathKey
@@ -687,7 +687,7 @@ func (dr *DentryResolver) resolveParentFromERPC(mountID uint32, inode uint64, pa
 	challenge, err := dr.requestResolve(ResolveParentOp, mountID, inode, pathID)
 	if err != nil {
 		dr.missCounters[metrics.ParentResolutionTag][metrics.ERPCTag].Inc()
-		return 0, 0, errors.Wrapf(err, "unable to resolve the parent of mountID `%d` and inode `%d` with eRPC", mountID, inode)
+		return 0, 0, fmt.Errorf("unable to resolve the parent of mountID `%d` and inode `%d` with eRPC: %w", mountID, inode, err)
 	}
 
 	if challenge != model.ByteOrder.Uint32(dr.erpcSegment[12:16]) {
@@ -792,7 +792,7 @@ func (dr *DentryResolver) Start(probe *Probe) error {
 
 // Close cleans up the eRPC segment
 func (dr *DentryResolver) Close() error {
-	return errors.Wrap(unix.Munmap(dr.erpcSegment), "couldn't cleanup eRPC memory segment")
+	return fmt.Errorf("couldn't cleanup eRPC memory segment: %w", unix.Munmap(dr.erpcSegment))
 }
 
 // ErrERPCRequestNotProcessed is used to notify that the eRPC request was not processed
@@ -868,7 +868,7 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 
 	numCPU, err := utils.NumCPU()
 	if err != nil {
-		return nil, errors.Wrapf(err, "couldn't fetch the host CPU count")
+		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
 	}
 
 	pathEntryPool := &sync.Pool{}

@@ -13,7 +13,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -22,6 +21,7 @@ import (
 	"github.com/mdlayher/netlink"
 	"github.com/pkg/errors"
 	"github.com/vishvananda/netns"
+	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 )
 
@@ -86,17 +86,17 @@ type Consumer struct {
 	streaming bool
 
 	// telemetry
-	enobufs     int64
-	throttles   int64
-	samplingPct int64
-	readErrors  int64
-	msgErrors   int64
+	enobufs     *atomic.Int64
+	throttles   *atomic.Int64
+	samplingPct *atomic.Int64
+	readErrors  *atomic.Int64
+	msgErrors   *atomic.Int64
 
 	netlinkSeqNumber    uint32
 	listenAllNamespaces bool
 
 	// for testing purposes
-	recvLoopRunning int32
+	recvLoopRunning *atomic.Bool
 }
 
 // Event encapsulates the result of a single netlink.Con.Receive() call
@@ -129,6 +129,12 @@ func NewConsumer(procRoot string, targetRateLimit int, listenAllNamespaces bool)
 		breaker:             NewCircuitBreaker(int64(targetRateLimit)),
 		netlinkSeqNumber:    1,
 		listenAllNamespaces: listenAllNamespaces,
+		enobufs:             atomic.NewInt64(0),
+		throttles:           atomic.NewInt64(0),
+		samplingPct:         atomic.NewInt64(0),
+		readErrors:          atomic.NewInt64(0),
+		msgErrors:           atomic.NewInt64(0),
+		recvLoopRunning:     atomic.NewBool(false),
 	}
 
 	return c
@@ -325,11 +331,11 @@ func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle)
 // GetStats returns telemetry associated to the Consumer
 func (c *Consumer) GetStats() map[string]int64 {
 	return map[string]int64{
-		"enobufs":     atomic.LoadInt64(&c.enobufs),
-		"throttles":   atomic.LoadInt64(&c.throttles),
-		samplingPct:   atomic.LoadInt64(&c.samplingPct),
-		"read_errors": atomic.LoadInt64(&c.readErrors),
-		"msg_errors":  atomic.LoadInt64(&c.msgErrors),
+		"enobufs":     c.enobufs.Load(),
+		"throttles":   c.throttles.Load(),
+		samplingPct:   c.samplingPct.Load(),
+		"read_errors": c.readErrors.Load(),
+		"msg_errors":  c.msgErrors.Load(),
 	}
 }
 
@@ -373,7 +379,7 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 
 	// Attach BPF sampling filter if necessary
 	c.samplingRate = samplingRate
-	atomic.StoreInt64(&c.samplingPct, int64(samplingRate*100.0))
+	c.samplingPct.Store(int64(samplingRate * 100.0))
 	if c.samplingRate >= 1.0 {
 		return nil
 	}
@@ -382,7 +388,7 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 	sampler, _ := GenerateBPFSampler(c.samplingRate)
 	err = c.socket.SetBPF(sampler)
 	if err != nil {
-		atomic.StoreInt64(&c.samplingPct, 0)
+		c.samplingPct.Store(0)
 		return fmt.Errorf("failed to attach BPF filter: %w", err)
 	}
 
@@ -402,9 +408,9 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 // It's also worth noting that in the event of an ENOBUF error, we'll re-create a new netlink socket,
 // and attach a BPF sampler to it, to lower the the read throughput and save CPU.
 func (c *Consumer) receive(output chan Event, ns uint32) {
-	atomic.StoreInt32(&c.recvLoopRunning, 1)
+	c.recvLoopRunning.Store(true)
 	defer func() {
-		atomic.StoreInt32(&c.recvLoopRunning, 0)
+		c.recvLoopRunning.Store(false)
 	}()
 
 ReadLoop:
@@ -421,9 +427,9 @@ ReadLoop:
 				// EOFs are usually indicative of normal program termination, so we simply exit
 				return
 			case errENOBUF:
-				atomic.AddInt64(&c.enobufs, 1)
+				c.enobufs.Inc()
 			default:
-				atomic.AddInt64(&c.readErrors, 1)
+				c.readErrors.Inc()
 			}
 		}
 
@@ -435,7 +441,7 @@ ReadLoop:
 		// Messages with error codes are simply skipped
 		for _, m := range msgs {
 			if err := checkMessage(m); err != nil {
-				atomic.AddInt64(&c.msgErrors, 1)
+				c.msgErrors.Inc()
 				continue ReadLoop
 			}
 		}
@@ -477,7 +483,7 @@ func (c *Consumer) throttle(numMessages int) error {
 	if !c.breaker.IsOpen() {
 		return nil
 	}
-	atomic.AddInt64(&c.throttles, 1)
+	c.throttles.Inc()
 
 	// Close current socket
 	c.conn.Close()
