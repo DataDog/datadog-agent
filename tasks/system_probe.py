@@ -316,11 +316,11 @@ def kitchen_genconfig(
 
 
 @task
-def nettop(ctx, incremental_build=False, go_mod="mod", parallel_build=True):
+def nettop(ctx, incremental_build=False, go_mod="mod", parallel_build=True, kernel_release=None):
     """
     Build and run the `nettop` utility for testing
     """
-    build_object_files(ctx, parallel_build=parallel_build)
+    build_object_files(ctx, parallel_build=parallel_build, kernel_release=kernel_release)
 
     cmd = 'go build -mod={go_mod} {build_type} -tags {tags} -o {bin_path} {path}'
     bin_path = os.path.join(BIN_DIR, "nettop")
@@ -435,9 +435,9 @@ def run_tidy(ctx, files, build_flags, fix=False, fail_on_issue=False, checks=Non
 
 
 @task
-def object_files(ctx, parallel_build=True):
+def object_files(ctx, parallel_build=True, kernel_release=None):
     """object_files builds the eBPF object files"""
-    build_object_files(ctx, parallel_build=parallel_build)
+    build_object_files(ctx, parallel_build=parallel_build, kernel_release=kernel_release)
 
 
 def get_ebpf_targets():
