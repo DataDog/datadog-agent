@@ -196,8 +196,27 @@ int kprobe___dev_get_by_name(struct pt_regs *ctx) {
     return 0;
 };
 
+struct bpf_map_def SEC("maps/veth_pair_event_gen") veth_pair_event_gen = {
+    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct veth_pair_event_t),
+    .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
+};
+
+struct bpf_map_def SEC("maps/net_device_event_gen") net_device_event_gen = {
+    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct net_device_event_t),
+    .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
+};
+
 SEC("kretprobe/register_netdevice")
 int kretprobe_register_netdevice(struct pt_regs *ctx) {
+    u32 genkey = 0;
     u64 id = bpf_get_current_pid_tgid();
     int ret = PT_REGS_RC(ctx);
     if (ret != 0) {
@@ -233,16 +252,20 @@ int kretprobe_register_netdevice(struct pt_regs *ctx) {
     struct veth_state_t *state = bpf_map_lookup_elem(&veth_state_machine, &id);
     if (state == NULL) {
         // this is a simple device registration
-        struct net_device_event_t evt = {
-            .event.async = 0,
-            .device = device,
-        };
+        struct net_device_event_t *evt = bpf_map_lookup_elem(&net_device_event_gen, &genkey);
+        if (!evt) {
+            return 0;
+        }
+        __builtin_memset(evt, 0, sizeof(struct net_device_event_t));
 
-        struct proc_cache_t *entry = fill_process_context(&evt.process);
-        fill_container_context(entry, &evt.container);
-        fill_span_context(&evt.span);
+        evt->event.async = 0;
+        evt->device = device;
 
-        send_event(ctx, EVENT_NET_DEVICE, evt);
+        struct proc_cache_t *entry = fill_process_context(&evt->process);
+        fill_container_context(entry, &evt->container);
+        fill_span_context(&evt->span);
+
+        send_event_ptr(ctx, EVENT_NET_DEVICE, evt);
         return 0;
     }
 
@@ -282,17 +305,21 @@ int kretprobe_register_netdevice(struct pt_regs *ctx) {
             // veth pairs can be created with an existing peer netns, if this is the case, send the veth_pair event now
             if (peer_device->netns != device.netns) {
                 // send event
-                struct veth_pair_event_t evt = {
-                    .event.async = 0,
-                    .host_device = device,
-                    .peer_device = *peer_device,
-                };
+                struct veth_pair_event_t *evt = bpf_map_lookup_elem(&veth_pair_event_gen, &genkey);
+                if (!evt) {
+                    return 0;
+                }
+                __builtin_memset(evt, 0, sizeof(struct veth_pair_event_t));
 
-                struct proc_cache_t *proc_entry = fill_process_context(&evt.process);
-                fill_container_context(proc_entry, &evt.container);
-                fill_span_context(&evt.span);
+                evt->event.async = 0;
+                evt->host_device = device;
+                evt->peer_device = *peer_device;
 
-                send_event(ctx, EVENT_VETH_PAIR, evt);
+                struct proc_cache_t *proc_entry = fill_process_context(&evt->process);
+                fill_container_context(proc_entry, &evt->container);
+                fill_span_context(&evt->span);
+
+                send_event_ptr(ctx, EVENT_VETH_PAIR, evt);
             }
             break;
         }
@@ -330,17 +357,22 @@ __attribute__((always_inline)) int trace_dev_change_net_namespace(struct pt_regs
     peer_device->peer_netns = device->netns;
 
     // send event
-    struct veth_pair_event_t evt = {
-        .event.async = 0,
-        .host_device = *peer_device,
-        .peer_device = *device,
-    };
+    u32 genkey = 0;
+    struct veth_pair_event_t *evt = bpf_map_lookup_elem(&veth_pair_event_gen, &genkey);
+    if (!evt) {
+        return 0;
+    }
+    __builtin_memset(evt, 0, sizeof(struct veth_pair_event_t));
 
-    struct proc_cache_t *entry = fill_process_context(&evt.process);
-    fill_container_context(entry, &evt.container);
-    fill_span_context(&evt.span);
+    evt->event.async = 0;
+    evt->host_device = *peer_device;
+    evt->peer_device = *device;
 
-    send_event(ctx, EVENT_VETH_PAIR, evt);
+    struct proc_cache_t *entry = fill_process_context(&evt->process);
+    fill_container_context(entry, &evt->container);
+    fill_span_context(&evt->span);
+
+    send_event_ptr(ctx, EVENT_VETH_PAIR, evt);
     return 0;
 }
 
