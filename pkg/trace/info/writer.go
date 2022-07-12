@@ -17,15 +17,20 @@ type TraceWriterInfo struct {
 	// initialization of the type.  The atomic values _must_ occur first in the
 	// struct.
 
-	Payloads          atomic.Int64
-	Traces            atomic.Int64
-	Events            atomic.Int64
-	Spans             atomic.Int64
-	Errors            atomic.Int64
-	Retries           atomic.Int64
-	Bytes             atomic.Int64
+	Payloads atomic.Int64
+	Traces   atomic.Int64
+	Events   atomic.Int64
+	Spans    atomic.Int64
+	Errors   atomic.Int64
+	Retries  atomic.Int64
+
+	// Bytes specifies the actual number of bytes successfully written to the intake.
+	Bytes atomic.Int64
+
+	// BytesUncompressed specifies the number of bytes that were written to
+	// the intake before compression. This metric is used solely to verify the
+	// accuracy of BytesEstimated (see below).
 	BytesUncompressed atomic.Int64
-	SingleMaxSize     atomic.Int64
 }
 
 // StatsWriterInfo represents statistics from the stats writer.
