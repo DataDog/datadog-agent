@@ -10,6 +10,7 @@ package probe
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -24,7 +25,6 @@ import (
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
-	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
@@ -131,7 +131,7 @@ func (p *Probe) Map(name string) (*lib.Map, error) {
 func (p *Probe) detectKernelVersion() error {
 	kernelVersion, err := kernel.NewKernelVersion()
 	if err != nil {
-		return errors.Wrap(err, "unable to detect the kernel version")
+		return fmt.Errorf("unable to detect the kernel version: %w", err)
 	}
 	p.kernelVersion = kernelVersion
 	return nil
