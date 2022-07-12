@@ -11,6 +11,7 @@ package module
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -22,7 +23,6 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 
@@ -90,10 +90,10 @@ func (m *Module) Init() error {
 
 	ln, err := net.Listen("unix", m.config.SocketPath)
 	if err != nil {
-		return errors.Wrap(err, "unable to register security runtime module")
+		return fmt.Errorf("unable to register security runtime module: %w", err)
 	}
 	if err := os.Chmod(m.config.SocketPath, 0700); err != nil {
-		return errors.Wrap(err, "unable to register security runtime module")
+		return fmt.Errorf("unable to register security runtime module: %w", err)
 	}
 
 	m.listener = ln
@@ -121,7 +121,7 @@ func (m *Module) Init() error {
 	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
 	// running yet.
 	if err := m.probe.Init(); err != nil {
-		return errors.Wrap(err, "failed to init probe")
+		return fmt.Errorf("failed to init probe: %w", err)
 	}
 
 	// policy loader
@@ -134,7 +134,7 @@ func (m *Module) Init() error {
 func (m *Module) Start() error {
 	// setup the manager and its probes / perf maps
 	if err := m.probe.Setup(); err != nil {
-		return errors.Wrap(err, "failed to setup probe")
+		return fmt.Errorf("failed to setup probe: %w", err)
 	}
 
 	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
