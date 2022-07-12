@@ -103,7 +103,7 @@ def trigger_macos_workflow(
         # Ignore the error and try again without the "id" input.
         pass
 
-    # If we didn't manage to fecth the workflow ID using the "job hack" then revert back to the old hack
+    # If we didn't manage to fetch the workflow ID using the "job hack" then revert back to the old hack
     if workflow_id is None:
         # Hack: get current time to only fetch workflows that started after now.
         now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
