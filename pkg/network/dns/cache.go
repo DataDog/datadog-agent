@@ -10,25 +10,21 @@ package dns
 
 import (
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/atomic"
 )
 
 type reverseDNSCache struct {
 	// Telemetry
-	// Note: these variables are manipulated with sync/atomic. To ensure
-	// that this file can run on a 32-bit system, they must 64-bit aligned.
-	// Go will ensure that each struct is 64-bit aligned, so these fields
-	// must always be at the beginning of the struct.
-	length    int64
-	lookups   int64
-	resolved  int64
-	added     int64
-	expired   int64
-	oversized int64
+	length    *atomic.Int64
+	lookups   *atomic.Int64
+	resolved  *atomic.Int64
+	added     *atomic.Int64
+	expired   *atomic.Int64
+	oversized *atomic.Int64
 
 	mux  sync.Mutex
 	data map[util.Address]*dnsCacheVal
@@ -42,6 +38,12 @@ type reverseDNSCache struct {
 
 func newReverseDNSCache(size int, expirationPeriod time.Duration) *reverseDNSCache {
 	cache := &reverseDNSCache{
+		length:            atomic.NewInt64(0),
+		lookups:           atomic.NewInt64(0),
+		resolved:          atomic.NewInt64(0),
+		added:             atomic.NewInt64(0),
+		expired:           atomic.NewInt64(0),
+		oversized:         atomic.NewInt64(0),
 		data:              make(map[util.Address]*dnsCacheVal),
 		exit:              make(chan struct{}),
 		size:              size,
@@ -82,14 +84,14 @@ func (c *reverseDNSCache) Add(translation *translation) bool {
 				log.Warnf("%s mapped to too many domains, DNS information will be dropped (this will be logged the first 10 times, and then at most every 10 minutes)", addr)
 			}
 		} else {
-			atomic.AddInt64(&c.added, 1)
+			c.added.Inc()
 			// flag as in use, so mapping survives until next time connections are queried, in case TTL is shorter
 			c.data[addr] = &dnsCacheVal{names: map[Hostname]time.Time{translation.dns: deadline}, inUse: true}
 		}
 	}
 
 	// Update cache length for telemetry purposes
-	atomic.StoreInt64(&c.length, int64(len(c.data)))
+	c.length.Store(int64(len(c.data)))
 
 	return true
 }
@@ -140,24 +142,24 @@ func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]Hostname {
 	}
 
 	// Update stats for telemetry
-	atomic.AddInt64(&c.lookups, int64(len(resolved)+len(unresolved)))
-	atomic.AddInt64(&c.resolved, int64(len(resolved)))
-	atomic.AddInt64(&c.oversized, int64(len(oversized)))
+	c.lookups.Add(int64(len(resolved) + len(unresolved)))
+	c.resolved.Add(int64(len(resolved)))
+	c.oversized.Add(int64(len(oversized)))
 
 	return resolved
 }
 
 func (c *reverseDNSCache) Len() int {
-	return int(atomic.LoadInt64(&c.length))
+	return int(c.length.Load())
 }
 
 func (c *reverseDNSCache) Stats() map[string]int64 {
 	var (
-		lookups   = atomic.LoadInt64(&c.lookups)
-		resolved  = atomic.LoadInt64(&c.resolved)
-		added     = atomic.LoadInt64(&c.added)
-		expired   = atomic.LoadInt64(&c.expired)
-		oversized = atomic.LoadInt64(&c.oversized)
+		lookups   = c.lookups.Load()
+		resolved  = c.resolved.Load()
+		added     = c.added.Load()
+		expired   = c.expired.Load()
+		oversized = c.oversized.Load()
 		ips       = int64(c.Len())
 	)
 
@@ -198,8 +200,8 @@ func (c *reverseDNSCache) Expire(now time.Time) {
 	total := len(c.data)
 	c.mux.Unlock()
 
-	atomic.StoreInt64(&c.expired, int64(expired))
-	atomic.StoreInt64(&c.length, int64(total))
+	c.expired.Store(int64(expired))
+	c.length.Store(int64(total))
 	log.Debugf(
 		"dns entries expired. took=%s total=%d expired=%d\n",
 		time.Now().Sub(now), total, expired,
