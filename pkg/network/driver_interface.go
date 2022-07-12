@@ -72,11 +72,13 @@ type DriverInterface struct {
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
 func NewDriverInterface(cfg *config.Config) (*DriverInterface, error) {
 	dc := &DriverInterface{
-		totalFlows:     atomic.NewInt64(0),
-		closedFlows:    atomic.NewInt64(0),
-		openFlows:      atomic.NewInt64(0),
-		moreDataErrors: atomic.NewInt64(0),
-		bufferSize:     atomic.NewInt64(defaultDriverBufferSize),
+		totalFlows:       atomic.NewInt64(0),
+		closedFlows:      atomic.NewInt64(0),
+		openFlows:        atomic.NewInt64(0),
+		moreDataErrors:   atomic.NewInt64(0),
+		bufferSize:       atomic.NewInt64(defaultDriverBufferSize),
+		nBufferIncreases: atomic.NewInt64(0),
+		nBufferDecreases: atomic.NewInt64(0),
 
 		cfg:                   cfg,
 		enableMonotonicCounts: cfg.EnableMonotonicCount,
@@ -166,7 +168,7 @@ func (di *DriverInterface) GetStats() (map[DriverExpvar]interface{}, error) {
 	moreDataErrors := di.moreDataErrors.Swap(0)
 	bufferSize := di.bufferSize.Load()
 	nBufferIncreases := di.nBufferIncreases.Load()
-	nBufferDecreases := di.nBufferIncreases.Load()
+	nBufferDecreases := di.nBufferDecreases.Load()
 
 	return map[DriverExpvar]interface{}{
 		totalFlowStats:  totalDriverStats,
