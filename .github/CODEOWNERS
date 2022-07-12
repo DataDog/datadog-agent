@@ -243,7 +243,7 @@
 /releasenotes-installscript/            @DataDog/documentation
 /releasenotes-dca/                      @DataDog/documentation @DataDog/container-integrations @Datadog/container-app
 
-/rtloader/                              @DataDog/agent-shared-components
+/rtloader/                              @DataDog/agent-metrics-logs
 
 /tasks/                                 @DataDog/agent-platform
 /tasks/agent.py                         @DataDog/agent-shared-components
