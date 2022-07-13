@@ -40,24 +40,16 @@ func PrepareCompletionBuffers(handle windows.Handle, count int) (iocp windows.Ha
 	if err != nil {
 		return windows.Handle(0), nil, fmt.Errorf("error creating IO completion port: %w", err)
 	}
-	sig := Signature
 	buffers = make([]*ReadBuffer, count)
 	for i := 0; i < count; i++ {
 		buf := (*ReadBuffer)(C.malloc(C.size_t(unsafe.Sizeof(ReadBuffer{}))))
 		C.memset(unsafe.Pointer(buf), 0, C.size_t(unsafe.Sizeof(ReadBuffer{})))
 		buffers[i] = buf
 
-		err = windows.DeviceIoControl(handle, GetHttpTransactionsIOCTL,
-			(*byte)(unsafe.Pointer(&sig)),
-			uint32(unsafe.Sizeof(sig)),
-			(*byte)(unsafe.Pointer(&(buf.Data[0]))),
-			uint32(unsafe.Sizeof(ReadBuffer{})),
-			nil,
-			&(buf.ol))
-
+		err = windows.ReadFile(handle, buf.Data[:], nil, &(buf.ol))
 		if err != nil && err != windows.ERROR_IO_PENDING {
 			_ = windows.CloseHandle(iocp)
-			return windows.Handle(0), nil, fmt.Errorf("failed to initiate ioctl: %w", err)
+			return windows.Handle(0), nil, fmt.Errorf("failed to initiate readfile: %w", err)
 		}
 	}
 
@@ -102,12 +94,5 @@ func GetReadBufferWhenReady(iocp windows.Handle) (*ReadBuffer, uint32, error) {
 
 // StartNextRead takes a read buffer whose data has been read & sends it back to the driver
 func StartNextRead(handle windows.Handle, usedBuf *ReadBuffer) error {
-	sig := Signature
-	return windows.DeviceIoControl(handle, GetHttpTransactionsIOCTL,
-		(*byte)(unsafe.Pointer(&sig)),
-		uint32(unsafe.Sizeof(sig)),
-		(*byte)(unsafe.Pointer(&(usedBuf.Data[0]))),
-		uint32(unsafe.Sizeof(ReadBuffer{})),
-		nil,
-		&(usedBuf.ol))
+	return windows.ReadFile(handle, usedBuf.Data[:], nil, &(usedBuf.ol))
 }

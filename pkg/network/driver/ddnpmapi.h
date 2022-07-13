@@ -50,13 +50,12 @@ typedef unsigned char       uint8_t;
                                               METHOD_BUFFERED,\
                                               FILE_ANY_ACCESS)
 
-
+///// DEPRECATED
 #define DDNPMDRIVER_IOCTL_SET_MAX_FLOWS  CTL_CODE(FILE_DEVICE_NETWORK, \
                                               0x806, \
                                               METHOD_BUFFERED,\
                                               FILE_ANY_ACCESS)
 
-/// DEPRECATED
 #define DDNPMDRIVER_IOCTL_SET_HTTP_FILTER CTL_CODE(FILE_DEVICE_NETWORK, \
                                               0x807, \
                                               METHOD_BUFFERED,\
@@ -82,10 +81,11 @@ typedef unsigned char       uint8_t;
                                               METHOD_BUFFERED,\
                                               FILE_ANY_ACCESS)
 
-#define DDNPMDRIVER_IOCTL_GET_HTTP_TRANSACTIONS  CTL_CODE(FILE_DEVICE_NETWORK, \
-                                              0x80C, \
-                                              METHOD_BUFFERED,\
-                                              FILE_ANY_ACCESS)
+// DEPRECATED
+//#define DDNPMDRIVER_IOCTL_GET_HTTP_TRANSACTIONS  CTL_CODE(FILE_DEVICE_NETWORK, \
+//                                              0x80C, \
+//                                              METHOD_BUFFERED,\
+//                                              FILE_ANY_ACCESS)
 
 #define DDNPMDRIVER_IOCTL_ENABLE_HTTP  CTL_CODE(FILE_DEVICE_NETWORK, \
                                               0x80D, \
@@ -343,15 +343,17 @@ typedef enum _HttpMethodType {
     HTTP_PATCH
 } HTTP_METHOD_TYPE;
 
+#pragma pack(1)
+
 typedef struct _ConnTupleType {
     uint8_t  cliAddr[16]; // only first 4 bytes valid for AF_INET, in network byte order
     uint8_t  srvAddr[16]; // ditto
     uint16_t cliPort;     // host byte order
     uint16_t srvPort;     // host byte order
     uint16_t family;      // AF_INET or AF_INET6
+    uint16_t pad;         // make struct 64 bit aligned
 } CONN_TUPLE_TYPE, * PCONN_TUPLE_TYPE;
 
-#pragma pack(4)
 
 typedef struct _HttpTransactionType {
     uint64_t         requestStarted;      // in ns
@@ -359,7 +361,17 @@ typedef struct _HttpTransactionType {
     CONN_TUPLE_TYPE  tup;
     HTTP_METHOD_TYPE requestMethod;
     uint16_t         responseStatusCode;
-    unsigned char    requestFragment[HTTP_BUFFER_SIZE];
+    uint16_t         maxRequestFragment;
+    uint16_t         szRequestFragment;
+    uint8_t          pad[6];                  // make struct 64 bit byte aligned
+    unsigned char    *requestFragment;
+    
 } HTTP_TRANSACTION_TYPE, * PHTTP_TRANSACTION_TYPE;
 
+#define USERLAND_HTTP_EVENT_NAME L"\\BaseNamedObjects\\DDNPMHttpTxnReadyEvent"
+typedef struct _HttpConfigurationSettings {
+    uint64_t    maxTransactions;        // max list of transactions we'll keep
+    uint64_t    notificationThreshhold; // when to signal to retrieve transactions
+    uint16_t    maxRequestFragment;     // max length of request fragment
+} HTTP_CONFIGURATION_SETTINGS;
 #pragma pack()

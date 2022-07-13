@@ -34,7 +34,7 @@ func generateTransactionWithFragment(fragment string) httpTX {
 	var tx httpTX
 
 	for i := 0; i < len(tx.RequestFragment) && i < len(fragment); i++ {
-		tx.RequestFragment[i] = uint8(fragment[i])
+		tx.Txn.RequestFragment[i] = uint8(fragment[i])
 	}
 	return tx
 }
@@ -47,21 +47,21 @@ func generateIPv4HTTPTransaction(client util.Address, server util.Address, cliPo
 	cli := client.Bytes()
 	srv := server.Bytes()
 
-	tx.RequestMethod = 1
-	tx.RequestStarted = 1
-	tx.ResponseLastSeen = tx.RequestStarted + latencyNS
-	tx.ResponseStatusCode = uint16(code)
-	for i := 0; i < len(tx.RequestFragment) && i < len(reqFragment); i++ {
-		tx.RequestFragment[i] = uint8(reqFragment[i])
+	tx.Tnx.RequestMethod = 1
+	tx.Txn.RequestStarted = 1
+	tx.Txn.ResponseLastSeen = tx.Txn.RequestStarted + latencyNS
+	tx.Txn.ResponseStatusCode = uint16(code)
+	for i := 0; i < len(tx.Txn.RequestFragment) && i < len(reqFragment); i++ {
+		tx.Txn.RequestFragment[i] = uint8(reqFragment[i])
 	}
-	for i := 0; i < len(tx.Tup.CliAddr) && i < len(cli); i++ {
-		tx.Tup.CliAddr[i] = cli[i]
+	for i := 0; i < len(tx.Txn.Tup.CliAddr) && i < len(cli); i++ {
+		tx.Txn.Tup.CliAddr[i] = cli[i]
 	}
-	for i := 0; i < len(tx.Tup.SrvAddr) && i < len(srv); i++ {
-		tx.Tup.SrvAddr[i] = srv[i]
+	for i := 0; i < len(tx.Txn.Tup.SrvAddr) && i < len(srv); i++ {
+		tx.Txn.Tup.SrvAddr[i] = srv[i]
 	}
-	tx.Tup.CliPort = uint16(cliPort)
-	tx.Tup.SrvPort = uint16(srvPort)
+	tx.Txn.Tup.CliPort = uint16(cliPort)
+	tx.Txn.Tup.SrvPort = uint16(srvPort)
 
 	return tx
 }
