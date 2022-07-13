@@ -140,7 +140,7 @@ func extractRegionFromSecretsManagerArn(secretsManagerArn string) (string, error
 	re := regexp.MustCompile(regionRegex)
 	matches := re.FindStringSubmatch(arnObject.Region)
 	if len(matches) == 0 {
-		return "", fmt.Errorf("region %s found in arn %s is not a valid region format.", arnObject.Region, secretsManagerArn)
+		return "", fmt.Errorf("region %s found in arn %s is not a valid region format", arnObject.Region, secretsManagerArn)
 	}
 
 	return arnObject.Region, nil
