@@ -13,8 +13,8 @@ const (
 	SetMaxOpenFlowsIOCTL      = 0x122024
 	SetMaxClosedFlowsIOCTL    = 0x122028
 	FlushPendingHttpTxnsIOCTL = 0x122020
-	GetHttpTransactionsIOCTL  = 0x122030
-	EnableHttpIOCTL           = 0x122034
+
+	EnableHttpIOCTL = 0x122034
 )
 
 type FilterAddress struct {
@@ -166,8 +166,15 @@ type HttpTransactionType struct {
 	Tup                ConnTupleType
 	RequestMethod      uint32
 	ResponseStatusCode uint16
-	RequestFragment    [25]uint8
-	Pad_cgo_0          [1]byte
+	MaxRequestFragment uint16
+	SzRequestFragment  uint16
+	Pad                [6]uint8
+	RequestFragment    *uint8
+}
+type HttpConfigurationSettings struct {
+	MaxTransactions        uint64
+	NotificationThreshhold uint64
+	MaxRequestFragment     uint16
 }
 type ConnTupleType struct {
 	CliAddr [16]uint8
@@ -175,11 +182,13 @@ type ConnTupleType struct {
 	CliPort uint16
 	SrvPort uint16
 	Family  uint16
+	Pad     uint16
 }
 type HttpMethodType uint32
 
 const (
 	HttpBatchSize           = 0xf
 	HttpBufferSize          = 0x19
-	HttpTransactionTypeSize = 0x58
+	HttpTransactionTypeSize = 0x50
+	HttpSettingsTypeSize    = 0x12
 )

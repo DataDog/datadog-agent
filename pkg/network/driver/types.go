@@ -25,12 +25,12 @@ const (
 	GetStatsIOCTL             = C.DDNPMDRIVER_IOCTL_GETSTATS
 	SetFlowFilterIOCTL        = C.DDNPMDRIVER_IOCTL_SET_FLOW_FILTER
 	SetDataFilterIOCTL        = C.DDNPMDRIVER_IOCTL_SET_DATA_FILTER
-	GetFlowsIOCTL			  = C.DDNPMDRIVER_IOCTL_GET_FLOWS
+	GetFlowsIOCTL             = C.DDNPMDRIVER_IOCTL_GET_FLOWS
 	SetMaxOpenFlowsIOCTL      = C.DDNPMDRIVER_IOCTL_SET_MAX_OPEN_FLOWS
 	SetMaxClosedFlowsIOCTL    = C.DDNPMDRIVER_IOCTL_SET_MAX_CLOSED_FLOWS
 	FlushPendingHttpTxnsIOCTL = C.DDNPMDRIVER_IOCTL_FLUSH_PENDING_HTTP_TRANSACTIONS
-	GetHttpTransactionsIOCTL  = C.DDNPMDRIVER_IOCTL_GET_HTTP_TRANSACTIONS
-	EnableHttpIOCTL           = C.DDNPMDRIVER_IOCTL_ENABLE_HTTP
+	//	GetHttpTransactionsIOCTL  = C.DDNPMDRIVER_IOCTL_GET_HTTP_TRANSACTIONS
+	EnableHttpIOCTL = C.DDNPMDRIVER_IOCTL_ENABLE_HTTP
 )
 
 type FilterAddress C.struct__filterAddress
@@ -78,6 +78,7 @@ const (
 )
 
 type HttpTransactionType C.struct__HttpTransactionType
+type HttpConfigurationSettings C.struct__HttpConfigurationSettings
 type ConnTupleType C.struct__ConnTupleType
 type HttpMethodType C.enum__HttpMethodType
 
@@ -85,4 +86,5 @@ const (
 	HttpBatchSize           = C.HTTP_BATCH_SIZE
 	HttpBufferSize          = C.HTTP_BUFFER_SIZE
 	HttpTransactionTypeSize = C.sizeof_struct__HttpTransactionType
+	HttpSettingsTypeSize    = C.sizeof_struct__HttpConfigurationSettings
 )
