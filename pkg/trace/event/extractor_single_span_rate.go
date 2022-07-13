@@ -6,7 +6,6 @@
 package event
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -19,18 +18,16 @@ func NewSingleSpanExtractor() Extractor {
 	return &singleSpanRateExtractor{}
 }
 
+// Extract decides whether to extract a single span ingestion control event
+// from the provided span having the specified priority. Extract returns a
+// suggested extraction sample rate and a bool indicating whether an event was
+// extracted. If the bool is false, then ignore the rate.
 func (e *singleSpanRateExtractor) Extract(s *pb.Span, _ sampler.SamplingPriority) (float64, bool) {
-	m, ok := traceutil.GetMetric(s, sampler.KeySpanSamplingMechanism)
-	if !ok || m != float64(apmsampling.SamplingMechanismSingleSpan) {
-		return 0, false
+	_, ok := traceutil.GetMetric(s, sampler.KeySpanSamplingMechanism)
+	if ok {
+		// If the tag is present, then the tracer wants us to keep the
+		// span. The tracer already accounted for the rate.
+		return 1, true
 	}
-	extractionRate, ok := s.Metrics[sampler.KeySpanSamplingRuleRate]
-	if !ok || extractionRate < 0 {
-		return 0, false
-	}
-	if extractionRate > 0 {
-		// If the trace has been manually sampled, we keep all matching spans
-		extractionRate = 1
-	}
-	return extractionRate, true
+	return 0, false
 }

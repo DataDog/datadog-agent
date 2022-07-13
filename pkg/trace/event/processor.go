@@ -6,7 +6,6 @@
 package event
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -68,8 +67,7 @@ func (p *Processor) Process(root *pb.Span, t *pb.TraceChunk) (numEvents, numExtr
 		}
 
 		numExtracted++
-		if m, ok := traceutil.GetMetric(span, sampler.KeySpanSamplingMechanism); !ok ||
-			m != float64(apmsampling.SamplingMechanismSingleSpan) {
+		if _, ok := traceutil.GetMetric(span, sampler.KeySpanSamplingMechanism); !ok {
 			sampled, epsRate := p.maxEPSSample(span, priority)
 			if !sampled {
 				continue
