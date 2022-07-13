@@ -25,6 +25,12 @@ const mockDecodedEncryptedAPIKey = "2222222222222222"
 // expectedDecryptedAPIKey represents the true value of the API key after decryption by KMS
 const expectedDecryptedAPIKey = "1111111111111111"
 
+// mockSecretsManagerAPIKeyArn represents a SecretsManager Arn passed in via DD_API_KEY_SECRET_ARN environment variable
+const mockSecretsManagerAPIKeyArn string = "arn:aws:secretsmanager:us-west-2:123456789012:secret:DatadogAppKeySecret"
+
+// mockMalformedSecretsManagerAPIKeyArn represents a SecretsManager Arn formatted incorrectly that doesn't match regex.
+const mockMalformedSecretsManagerAPIKeyArn string = "arn:aws:secretsmanager:uswest2:123456789012:secret:DatadogAppKeySecret"
+
 // mockFunctionName represents the name of the current function
 var mockFunctionName = "my-Function"
 
@@ -77,4 +83,15 @@ func TestDecryptKMSNoEncryptionContext(t *testing.T) {
 	client := mockKMSClientNoEncryptionContext{}
 	result, _ := decryptKMS(client, mockEncryptedAPIKeyBase64)
 	assert.Equal(t, expectedDecryptedAPIKey, result)
+}
+
+func TestExtractRegionFromSecretsManagerArn(t *testing.T) {
+	result, _ := extractRegionFromSecretsManagerArn(mockSecretsManagerAPIKeyArn)
+	assert.Equal(t, result, "us-west-2")
+}
+
+func TestExtractRegionFromMalformedSecretsManagerArn(t *testing.T) {
+	result, err := extractRegionFromSecretsManagerArn(mockMalformedSecretsManagerAPIKeyArn)
+	assert.Equal(t, result, "")
+	assert.Error(t, err, "Couldn't extract region from arn: arn:aws:secretsmanager:uswest2:123456789012:secret:DatadogAppKeySecret")
 }

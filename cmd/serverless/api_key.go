@@ -8,7 +8,9 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
+	"github.com/aws/aws-sdk-go/aws"
 	"os"
+	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -92,11 +94,18 @@ func readAPIKeyFromSecretsManager(arn string) (string, error) {
 		return "", nil
 	}
 	log.Debugf("Found %s value, trying to use it.", arn)
+
+	region, err := extractRegionFromSecretsManagerArn(arn)
+	if err != nil {
+		return "", err
+	}
+
 	sess, err := session.NewSession(nil)
 	if err != nil {
 		return "", err
 	}
-	secretsManagerClient := secretsmanager.New(sess)
+
+	secretsManagerClient := secretsmanager.New(sess, aws.NewConfig().WithRegion(region))
 	secret := &secretsmanager.GetSecretValueInput{}
 	secret.SetSecretId(arn)
 
@@ -119,4 +128,18 @@ func readAPIKeyFromSecretsManager(arn string) (string, error) {
 	// should not happen but let's handle this gracefully
 	log.Warn("Secrets Manager returned something but there seems to be no data available")
 	return "", nil
+}
+
+func extractRegionFromSecretsManagerArn(arn string) (string, error) {
+	secretsManagerArnRegex := `arn:aws:secretsmanager:(?P<Region>\w*-\w*-\d{1}):(?P<AccountId>\d{12}):secret:(?P<SecretName>\S*)`
+	re := regexp.MustCompile(secretsManagerArnRegex)
+	matches := re.FindStringSubmatch(arn)
+	regionIndex := re.SubexpIndex("Region")
+
+	if len(matches) == 0 {
+		return "", fmt.Errorf("Couldn't extract region from arn: %s", arn)
+	}
+	region := matches[regionIndex]
+
+	return region, nil
 }
