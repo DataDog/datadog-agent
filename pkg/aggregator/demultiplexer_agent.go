@@ -95,9 +95,9 @@ type statsd struct {
 	// shared metric sample pool between the dogstatsd server & the time sampler
 	metricSamplePool *metrics.MetricSamplePool
 
-	// the noAggregationWorker is the one dealing with metrics that don't need to
+	// the noAggregationStreamWorker is the one dealing with metrics that don't need to
 	// be aggregated/sampled.
-	noAggWorker *noAggregationWorker
+	noAggStreamWorker *noAggregationStreamWorker
 }
 
 type forwarders struct {
@@ -197,6 +197,15 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel, tagsStore)
 	}
 
+	var noAggWorker *noAggregationStreamWorker
+	if options.EnableNoAggregationPipeline {
+		noAggWorker = newNoAggregationStreamWorker(
+			config.Datadog.GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
+			sharedSerializer,
+			agg.flushAndSerializeInParallel,
+		)
+	}
+
 	// --
 
 	demux := &AgentDemultiplexer{
@@ -224,10 +233,10 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 
 		// statsd time samplers
 		statsd: statsd{
-			pipelinesCount:   statsdPipelinesCount,
-			workers:          statsdWorkers,
-			metricSamplePool: metricSamplePool,
-			noAggWorker:      newNoAggregationWorker(config.Datadog.GetInt("dogstatsd_no_aggregation_pipeline_batch_size"), sharedSerializer, agg.flushAndSerializeInParallel),
+			pipelinesCount:    statsdPipelinesCount,
+			workers:           statsdWorkers,
+			metricSamplePool:  metricSamplePool,
+			noAggStreamWorker: noAggWorker,
 		},
 	}
 
@@ -311,6 +320,11 @@ func (d *AgentDemultiplexer) Run() {
 	}
 
 	go d.aggregator.run()
+
+	if d.options.EnableNoAggregationPipeline {
+		go d.noAggStreamWorker.run()
+	}
+
 	d.flushLoop() // this is the blocking call
 }
 
@@ -344,6 +358,10 @@ func (d *AgentDemultiplexer) flushLoop() {
 // Resources are released, the instance should not be used after a call to `Stop()`.
 func (d *AgentDemultiplexer) Stop(flush bool) {
 	timeout := config.Datadog.GetDuration("aggregator_stop_timeout") * time.Second
+
+	if d.noAggStreamWorker != nil {
+		d.noAggStreamWorker.stop(flush)
+	}
 
 	// do a manual complete flush then stop
 	// stop all automatic flush & the mainloop,
@@ -516,7 +534,7 @@ func (d *AgentDemultiplexer) AddLateMetrics(samples metrics.MetricSampleBatch) {
 	}
 
 	tlmProcessed.Add(float64(len(samples)), "late_metrics")
-	d.statsd.noAggWorker.addSamples(samples)
+	d.statsd.noAggStreamWorker.addSamples(samples)
 }
 
 // AddTimeSampleBatch adds a batch of MetricSample into the given time sampler shard.
