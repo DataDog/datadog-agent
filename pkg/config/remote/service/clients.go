@@ -20,7 +20,7 @@ type client struct {
 
 type newActiveClients struct {
 	clock    clock.Clock
-	requests chan sync.WaitGroup
+	requests chan *sync.WaitGroup
 	until    time.Time
 }
 

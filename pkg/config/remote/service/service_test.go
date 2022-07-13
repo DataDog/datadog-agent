@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
-	"sync"
 	"testing"
 	"time"
 
@@ -105,11 +104,6 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.
 	service.api = api
 	service.clock = clock
 	service.uptane = uptane
-	service.newActiveClients = newActiveClients{
-		clock:    clock,
-		until:    clock.Now(),
-		requests: make(chan sync.WaitGroup),
-	}
 	assert.NoError(t, err)
 	return service
 }

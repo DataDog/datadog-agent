@@ -21,7 +21,7 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-func waitChan(wg sync.WaitGroup) chan struct{} {
+func waitChan(wg *sync.WaitGroup) chan struct{} {
 	c := make(chan struct{})
 	go func() {
 		defer close(c)

@@ -166,7 +166,7 @@ func NewService() (*Service, error) {
 		clients:                newClients(clock, clientsTTL),
 		newActiveClients: newActiveClients{
 			clock:    clock,
-			requests: make(chan sync.WaitGroup),
+			requests: make(chan *sync.WaitGroup),
 			until:    time.Now().UTC(),
 		},
 	}, nil
@@ -305,9 +305,9 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 		s.Unlock()
 		wg := sync.WaitGroup{}
 		wg.Add(1)
-		s.newActiveClients.requests <- wg
+		s.newActiveClients.requests <- &wg
 		select {
-		case <-waitChan(wg):
+		case <-waitChan(&wg):
 		case <-time.After(newClientBlockTTL):
 			log.Warn("Timed out waiting for upstream new configurations")
 		}
