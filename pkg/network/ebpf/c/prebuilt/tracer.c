@@ -177,7 +177,7 @@ int kprobe__ip6_make_skb__pre_4_7_0(struct pt_regs* ctx) {
     ip_make_skb_args_t args = {};
     bpf_probe_read_kernel(&args.sk, sizeof(args.sk), &sk);
     bpf_probe_read_kernel(&args.len, sizeof(args.len), &len);
-    bpf_probe_read_kernel(&args.fl6, sizeof(args.fl4), &fl6);
+    bpf_probe_read_kernel(&args.fl6, sizeof(args.fl6), &fl6);
     bpf_map_update_elem(&ip_make_skb_args, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
