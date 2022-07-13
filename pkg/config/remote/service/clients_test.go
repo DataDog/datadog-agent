@@ -6,7 +6,6 @@
 package service
 
 import (
-	"sync"
 	"testing"
 	"time"
 
@@ -41,7 +40,7 @@ func TestNewActiveClientsRateLimit(t *testing.T) {
 	clock := clock.NewMock()
 	newActiveClients := newActiveClients{
 		clock:    clock,
-		requests: make(chan *sync.WaitGroup),
+		requests: make(chan chan struct{}),
 		until:    clock.Now(),
 	}
 

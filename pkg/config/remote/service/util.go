@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
@@ -20,15 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"go.etcd.io/bbolt"
 )
-
-func waitChan(wg *sync.WaitGroup) chan struct{} {
-	c := make(chan struct{})
-	go func() {
-		defer close(c)
-		wg.Wait()
-	}()
-	return c
-}
 
 func openCacheDB(path string) (*bbolt.DB, error) {
 	db, err := bbolt.Open(path, 0600, &bbolt.Options{})
