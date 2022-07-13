@@ -59,6 +59,7 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
         return 0;
     }
 
+    struct sock *skp = *skpp;
     bpf_map_delete_elem(&tcp_sendmsg_args, &pid_tgid);
 
     int sent = PT_REGS_RC(ctx);
@@ -66,7 +67,6 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
         return 0;
     }
 
-    struct sock *skp = *skpp;
     if (!skp) {
         return 0;
     }
@@ -541,14 +541,13 @@ static __always_inline int sys_exit_bind(__s64 ret) {
         log_debug("sys_exit_bind: was not a UDP bind, will not process\n");
         return 0;
     }
-
+    __u16 sin_port = args->port;
     bpf_map_delete_elem(&pending_bind, &tid);
 
     if (ret != 0) {
         return 0;
     }
 
-    __u16 sin_port = args->port;
     port_binding_t pb = {};
     pb.netns = 0; // don't have net ns info in this context
     pb.port = sin_port;

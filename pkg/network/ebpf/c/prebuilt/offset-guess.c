@@ -257,9 +257,8 @@ int kretprobe__tcp_v6_connect(struct pt_regs* __attribute__((unused)) ctx) {
         return 0; // missed entry
     }
 
-    bpf_map_delete_elem(&connectsock_ipv6, &pid);
-
     struct sock* skp = *skpp;
+    bpf_map_delete_elem(&connectsock_ipv6, &pid);
 
     status = bpf_map_lookup_elem(&tracer_status, &zero);
     if (status == NULL) {
