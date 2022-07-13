@@ -35,7 +35,7 @@ func TestRepl(t *testing.T) {
 	})
 	res, err := scrubber.ScrubBytes([]byte("dog food"))
 	require.NoError(t, err)
-	require.Equal(t, "dog bard", string(res))
+	require.Equal(t, "dog bard\n", string(res))
 }
 
 func TestReplFunc(t *testing.T) {
@@ -48,22 +48,7 @@ func TestReplFunc(t *testing.T) {
 	})
 	res, err := scrubber.ScrubBytes([]byte("dog food"))
 	require.NoError(t, err)
-	require.Equal(t, "dog FOOd", string(res))
-}
-
-func TestSkipComments(t *testing.T) {
-	scrubber := NewEmptyScrubber()
-	scrubber.AddReplacer(SingleLine, Replacer{
-		Regex: regexp.MustCompile("foo"),
-		Repl:  []byte("bar"),
-	})
-	scrubber.AddReplacer(MultiLine, Replacer{
-		Regex: regexp.MustCompile("with bar\n\n\nanother"),
-		Repl:  []byte("..."),
-	})
-	res, err := scrubber.ScrubBytes([]byte("a line with foo\n\n  \n  # a comment with foo\nanother line"))
-	require.NoError(t, err)
-	require.Equal(t, "a line ... line", string(res))
+	require.Equal(t, "dog FOOd\n", string(res))
 }
 
 func TestCleanFile(t *testing.T) {
@@ -78,7 +63,7 @@ func TestCleanFile(t *testing.T) {
 	})
 	res, err := scrubber.ScrubFile(filename)
 	require.NoError(t, err)
-	require.Equal(t, "a line with bar\n\na line with bar", string(res))
+	require.Equal(t, "a line with bar\n\na line with bar\n", string(res))
 }
 
 func TestScrubLine(t *testing.T) {

@@ -402,7 +402,7 @@ other_config_with_list: [abc]
 }
 
 func TestYamlConfig(t *testing.T) {
-	contents := `foobar: baz`
+	contents := "foobar: caz\n"
 	cleaned, err := ScrubBytes([]byte(contents))
 	assert.Nil(t, err)
 	cleanedString := string(cleaned)
@@ -412,7 +412,7 @@ func TestYamlConfig(t *testing.T) {
 
 	AddStrippedKeys([]string{"foobar"})
 
-	assertClean(t, contents, `foobar: "********"`)
+	assertClean(t, contents, "foobar: \"********\"\n")
 }
 
 func TestCertConfig(t *testing.T) {
@@ -503,7 +503,8 @@ dogstatsd_port : 8125
 
 
 log_level: info
-`
+
+` // TODO: WAT, 2 newlines?!
 
 	wd, _ := os.Getwd()
 	filePath := filepath.Join(wd, "test", "datadog.yaml")

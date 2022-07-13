@@ -42,7 +42,6 @@ const (
 	MultiLine
 )
 
-var commentRegex = regexp.MustCompile(`^\s*#.*$`)
 var blankRegex = regexp.MustCompile(`^\s*$`)
 
 // Scrubber implements support for cleaning sensitive information out of strings
@@ -51,11 +50,8 @@ var blankRegex = regexp.MustCompile(`^\s*$`)
 // clear without disclosing any sensitive information.
 //
 // Scrubber works by applying a set of replacers, in order.  It first applies
-// all SingleLine replacers to each non-comment, non-blank line of the input.
-//
-// Comments - lines beginning with `#` - are omitted.
-//
-// It then applies all MultiLine replacers to the entire text of the input.
+// all SingleLine replacers to each line, then applies all MultiLine replacers
+// to the entire text of the input.
 type Scrubber struct {
 	singleLineReplacers, multiLineReplacers []Replacer
 }
@@ -114,19 +110,14 @@ func (c *Scrubber) scrubReader(file io.Reader) ([]byte, error) {
 
 	// First, we go through the file line by line, applying any
 	// single-line replacer that matches the line.
-	first := true
 	for scanner.Scan() {
 		b := scanner.Bytes()
 		if blankRegex.Match(b) {
 			cleanedFile = append(cleanedFile, byte('\n'))
-		} else if !commentRegex.Match(b) {
+		} else {
 			b = c.scrub(b, c.singleLineReplacers)
-			if !first {
-				cleanedFile = append(cleanedFile, byte('\n'))
-			}
-
 			cleanedFile = append(cleanedFile, b...)
-			first = false
+			cleanedFile = append(cleanedFile, '\n')
 		}
 	}
 

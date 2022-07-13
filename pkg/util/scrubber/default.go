@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber/comments"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber/multi"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber/replacers"
 )
 
@@ -23,10 +25,18 @@ import (
 // See default.go for details of these replacers.
 var DefaultScrubber Scrubber
 
+// defaultReplacerScrubber is the replacers.Scrubber part of the
+// DefaultScrubber.  It is used to add stripped keys after the DefaultScrubber
+// has been built.
+var defaultReplacerScrubber *replacers.Scrubber
+
 func init() {
-	c := replacers.NewEmptyScrubber()
-	c.AddDefaultReplacers()
-	DefaultScrubber = c
+	defaultReplacerScrubber = replacers.NewEmptyScrubber()
+	defaultReplacerScrubber.AddDefaultReplacers()
+	DefaultScrubber = multi.NewScrubber([]Scrubber{
+		comments.NewScrubber(),
+		defaultReplacerScrubber,
+	})
 }
 
 func matchYAMLKeyPart(part string) *regexp.Regexp {
@@ -120,5 +130,5 @@ func ScrubLine(url string) string {
 // AddStrippedKeys adds to the set of YAML keys that will be recognized and have
 // their values stripped.  This modifies the DefaultScrubber directly.
 func AddStrippedKeys(strippedKeys []string) {
-	DefaultScrubber.(*replacers.Scrubber).AddStrippedKeys(strippedKeys)
+	defaultReplacerScrubber.AddStrippedKeys(strippedKeys)
 }
