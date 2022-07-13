@@ -15,8 +15,8 @@ import (
 	"syscall"
 	"time"
 
-	netstats "github.com/DataDog/datadog-agent/pkg/network/stats"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/golang/groupcache/lru"
 	"github.com/vishvananda/netlink"
@@ -51,9 +51,9 @@ type routeCache struct {
 	misses  *atomic.Uint64 `stats:""`
 	lookups *atomic.Uint64 `stats:""`
 	expires *atomic.Uint64 `stats:""`
-
-	reporter netstats.Reporter
 }
+
+var routeCacheReporter = atomicstats.NewReporter((*routeCache)(nil))
 
 const defaultTTL = 2 * time.Minute
 
@@ -91,12 +91,6 @@ func newRouteCache(size int, router Router, ttl time.Duration) *routeCache {
 		misses:  atomic.NewUint64(0),
 		lookups: atomic.NewUint64(0),
 		expires: atomic.NewUint64(0),
-	}
-
-	var err error
-	rc.reporter, err = netstats.NewReporter(rc)
-	if err != nil {
-		panic("could not create stats reporter for route cache")
 	}
 
 	return rc
@@ -139,7 +133,7 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 }
 
 func (c *routeCache) GetStats() map[string]interface{} {
-	stats := c.reporter.Report()
+	stats := routeCacheReporter.Report(c)
 	stats["router"] = c.router.GetStats()
 	return stats
 }
@@ -180,9 +174,9 @@ type netlinkRouter struct {
 	ifCacheMisses  *atomic.Uint64 `stats:""`
 	ifCacheSize    *atomic.Uint64 `stats:""`
 	ifCacheErrors  *atomic.Uint64 `stats:""`
-
-	reporter netstats.Reporter
 }
+
+var netlinkRouterReporter = atomicstats.NewReporter((*netlinkRouter)(nil))
 
 // NewNetlinkRouter create a Router that queries routes via netlink
 func NewNetlinkRouter(procRoot string) (Router, error) {
@@ -227,11 +221,6 @@ func newNetlinkRouter(procRoot string) (*netlinkRouter, error) {
 		ifCacheErrors:  atomic.NewUint64(0),
 	}
 
-	nr.reporter, err = netstats.NewReporter(nr)
-	if err != nil {
-		return nil, fmt.Errorf("error creating stats reporter: %w", err)
-	}
-
 	return nr, nil
 }
 
@@ -241,7 +230,7 @@ func (n *netlinkRouter) Close() {
 }
 
 func (n *netlinkRouter) GetStats() map[string]interface{} {
-	return n.reporter.Report()
+	return netlinkRouterReporter.Report(n)
 }
 
 func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, bool) {
