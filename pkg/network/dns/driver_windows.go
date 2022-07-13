@@ -132,13 +132,13 @@ func (d *dnsDriver) Close() error {
 	return nil
 }
 
-func (d *dnsDriver) GetStatsForHandle() (map[string]int64, error) {
+func (d *dnsDriver) GetStatsForHandle() (map[string]map[string]int64, error) {
 	return d.h.GetStatsForHandle()
 }
 
 func createDNSFilters() ([]driver.FilterDefinition, error) {
 	var filters []driver.FilterDefinition
-	
+
 	filters = append(filters, driver.FilterDefinition{
 		FilterVersion:  driver.Signature,
 		Size:           driver.FilterDefinitionSize,

@@ -58,8 +58,7 @@ type DriverInterface struct {
 	maxOpenFlows   uint64
 	maxClosedFlows uint64
 
-	driverFlowHandle  *driver.Handle
-	driverStatsHandle *driver.Handle
+	driverFlowHandle *driver.Handle
 
 	enableMonotonicCounts bool
 
@@ -92,11 +91,6 @@ func NewDriverInterface(cfg *config.Config) (*DriverInterface, error) {
 		return nil, fmt.Errorf("error creating driver flow handle: %w", err)
 	}
 
-	err = dc.setupStatsHandle()
-	if err != nil {
-		return nil, fmt.Errorf("Error creating stats handle: %w", err)
-	}
-
 	return dc, nil
 }
 
@@ -104,9 +98,6 @@ func NewDriverInterface(cfg *config.Config) (*DriverInterface, error) {
 func (di *DriverInterface) Close() error {
 	if err := di.driverFlowHandle.Close(); err != nil {
 		return fmt.Errorf("error closing flow file handle: %w", err)
-	}
-	if err := di.driverStatsHandle.Close(); err != nil {
-		return fmt.Errorf("error closing stat file handle: %w", err)
 	}
 	return nil
 }
@@ -139,25 +130,9 @@ func (di *DriverInterface) setupFlowHandle() error {
 	return nil
 }
 
-// setupStatsHandle generates a windows Driver Handle, and creates a DriverHandle struct
-func (di *DriverInterface) setupStatsHandle() error {
-	dh, err := driver.NewHandle(0, driver.StatsHandle)
-	if err != nil {
-		return err
-	}
-
-	di.driverStatsHandle = dh
-	return nil
-}
-
 // GetStats returns statistics for the driver interface used by the windows tracer
 func (di *DriverInterface) GetStats() (map[DriverExpvar]interface{}, error) {
-	handleStats, err := di.driverFlowHandle.GetStatsForHandle()
-	if err != nil {
-		return nil, err
-	}
-
-	totalDriverStats, err := di.driverStatsHandle.GetStatsForHandle()
+	stats, err := di.driverFlowHandle.GetStatsForHandle()
 	if err != nil {
 		return nil, err
 	}
@@ -171,8 +146,8 @@ func (di *DriverInterface) GetStats() (map[DriverExpvar]interface{}, error) {
 	nBufferDecreases := di.nBufferDecreases.Load()
 
 	return map[DriverExpvar]interface{}{
-		totalFlowStats:  totalDriverStats,
-		flowHandleStats: handleStats,
+		totalFlowStats:  stats["driver"],
+		flowHandleStats: stats["handle"],
 		flowStats: map[string]int64{
 			"total":  totalFlows,
 			"open":   openFlows,
