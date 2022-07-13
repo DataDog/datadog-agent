@@ -1253,18 +1253,27 @@ func findUnexpectedUnicode(config Config) []string {
 		}
 	}
 
+	var visitElement func(string, interface{})
+	visitElement = func(key string, element interface{}) {
+		switch elementValue := element.(type) {
+		case string:
+			checkAndRecordString(elementValue, fmt.Sprintf("For key '%s', configuration value string '%s'", key, elementValue))
+		case []string:
+			for _, s := range elementValue {
+				checkAndRecordString(s, fmt.Sprintf("For key '%s', configuration value string '%s'", key, s))
+			}
+		case []interface{}:
+			for _, listItem := range elementValue {
+				visitElement(key, listItem)
+			}
+		}
+	}
+
 	allKeys := config.AllKeys()
 	for _, key := range allKeys {
 		checkAndRecordString(key, fmt.Sprintf("Configuration key string '%s'", key))
-		if value := config.Get(key); value != nil {
-			switch v := value.(type) {
-			case string:
-				checkAndRecordString(v, fmt.Sprintf("For key '%s', configuration value string '%s'", key, v))
-			case []string:
-				for _, s := range v {
-					checkAndRecordString(s, fmt.Sprintf("For key '%s', configuration value string '%s'", key, s))
-				}
-			}
+		if unknownValue := config.Get(key); unknownValue != nil {
+			visitElement(key, unknownValue)
 		}
 	}
 
