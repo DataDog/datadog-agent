@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -16,7 +17,6 @@ import (
 	"testing"
 
 	"github.com/iceber/iouring-go"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
@@ -268,7 +268,7 @@ func TestRenameReuseInode(t *testing.T) {
 		Expression: `open.file.path == "{{.Root}}/test-rename-new"`,
 	}}
 
-	testDrive, err := newTestDrive("xfs", nil)
+	testDrive, err := newTestDrive(t, "xfs", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

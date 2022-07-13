@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -18,7 +19,6 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
@@ -514,7 +514,7 @@ func filenameDiscarderWrapper(eventType model.EventType, handler onDiscarderHand
 			}
 
 			if err != nil {
-				err = errors.Wrapf(err, "unable to set inode discarders for `%s` for event `%s`, inode: %d", filename, eventType, parentInode)
+				err = fmt.Errorf("unable to set inode discarders for `%s` for event `%s`, inode: %d: %w", filename, eventType, parentInode, err)
 			}
 
 			return err

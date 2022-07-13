@@ -6,11 +6,10 @@
 package eval
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 // StringCmpOpts defines options to apply during string comparison

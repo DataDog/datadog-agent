@@ -7,9 +7,8 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"time"
-
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -65,7 +64,7 @@ func (t *telemetry) reportContainers() error {
 	// retrieve the runtime security module config
 	cfg, err := t.runtimeSecurityClient.GetConfig()
 	if err != nil {
-		return errors.Errorf("couldn't fetch config from runtime security module")
+		return errors.New("couldn't fetch config from runtime security module")
 	}
 
 	var metricName string

@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/DataDog/gopsutil/process"
-	"github.com/pkg/errors"
 	"github.com/prometheus/procfs"
 	"github.com/tinylib/msgp/msgp"
 	"go.uber.org/atomic"
@@ -105,6 +104,13 @@ type ActivityDump struct {
 
 	// Dump metadata
 	DumpMetadata `msg:"metadata"`
+}
+
+// NewEmptyActivityDump returns a new zero-like instance of an ActivityDump
+func NewEmptyActivityDump() *ActivityDump {
+	return &ActivityDump{
+		Mutex: &sync.Mutex{},
+	}
 }
 
 // WithDumpOption can be used to configure an ActivityDump
@@ -520,7 +526,7 @@ func (ad *ActivityDump) SendStats() error {
 		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
 		if value := count.Swap(0); value > 0 {
 			if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpEventProcessed, int64(value), tags, 1.0); err != nil {
-				return errors.Wrapf(err, "couldn't send %s metric", metrics.MetricActivityDumpEventProcessed)
+				return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventProcessed, err)
 			}
 		}
 	}
@@ -529,7 +535,7 @@ func (ad *ActivityDump) SendStats() error {
 		tags := []string{fmt.Sprintf("event_type:%s", evtType), fmt.Sprintf("generation_type:%s", Runtime)}
 		if value := count.Swap(0); value > 0 {
 			if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpEventAdded, int64(value), tags, 1.0); err != nil {
-				return errors.Wrapf(err, "couldn't send %s metric", metrics.MetricActivityDumpEventAdded)
+				return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventAdded, err)
 			}
 		}
 	}
@@ -538,7 +544,7 @@ func (ad *ActivityDump) SendStats() error {
 		tags := []string{fmt.Sprintf("event_type:%s", evtType), fmt.Sprintf("generation_type:%s", Snapshot)}
 		if value := count.Swap(0); value > 0 {
 			if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpEventAdded, int64(value), tags, 1.0); err != nil {
-				return errors.Wrapf(err, "couldn't send %s metric", metrics.MetricActivityDumpEventAdded)
+				return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventAdded, err)
 			}
 		}
 	}

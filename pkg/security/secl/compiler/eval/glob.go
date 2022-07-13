@@ -6,9 +6,8 @@
 package eval
 
 import (
+	"errors"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 // Glob describes file glob object
