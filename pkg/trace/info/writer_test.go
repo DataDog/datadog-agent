@@ -21,7 +21,6 @@ func TestPublishTraceWriterInfo(t *testing.T) {
 		atom(7),
 		atom(8),
 		atom(9),
-		atom(10),
 	}
 
 	testExpvarPublish(t, publishTraceWriterInfo,
@@ -35,8 +34,7 @@ func TestPublishTraceWriterInfo(t *testing.T) {
 			"Retries":           6.0,
 			"Bytes":             7.0,
 			"BytesUncompressed": 8.0,
-			"BytesEstimated":    9.0,
-			"SingleMaxSize":     10.0,
+			"SingleMaxSize":     9.0,
 		})
 }
 
