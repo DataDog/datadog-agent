@@ -67,6 +67,20 @@ struct bpf_map_def SEC("maps/tcp_sendmsg_args") tcp_sendmsg_args = {
     .namespace = "",
 };
 
+
+/*
+ * Map to hold struct sock parameter for tcp_recvmsg/tcp_read_sock calls
+ * to be used in kretprobe/tcp_recvmsg/tcp_read_sock
+ */
+struct bpf_map_def SEC("maps/tcp_recvmsg_args") tcp_recvmsg_args = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u64),
+    .value_size = sizeof(struct sock*),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
 /* This map is used to match the kprobe & kretprobe of udp_recvmsg */
 /* This is a key/value store with the keys being a pid
  * and the values being a udp_recv_sock_t

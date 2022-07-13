@@ -10,6 +10,7 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"path"
@@ -18,8 +19,6 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
-
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -273,7 +272,7 @@ func (e *Process) GetPathResolutionError() string {
 
 // Process represents a process
 type Process struct {
-	PIDContext
+	PIDContext `msg:"pid_context"`
 
 	FileEvent FileEvent `field:"file" msg:"file"`
 
@@ -383,7 +382,7 @@ func (f *FileFields) GetInUpperLayer() bool {
 
 // FileEvent is the common file event type
 type FileEvent struct {
-	FileFields
+	FileFields `msg:"file_fields"`
 
 	PathnameStr string `field:"path,handler:ResolveFilePath" msg:"path" op_override:"ProcessSymlinkPathname"`     // File's path
 	BasenameStr string `field:"name,handler:ResolveFileBasename" msg:"name" op_override:"ProcessSymlinkBasename"` // File's basename

@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -228,9 +229,7 @@ func TestSingleLineHandlerSendsRawInvalidMessages(t *testing.T) {
 
 	h.process(getDummyMessage("one message"))
 
-	var output *Message
-
-	output = <-outputChan
+	output := <-outputChan
 	assert.Equal(t, "one message", string(output.Content))
 }
 
@@ -254,7 +253,7 @@ func TestMultiLineHandlerSendsRawInvalidMessages(t *testing.T) {
 func TestAutoMultiLineHandlerStaysSingleLineMode(t *testing.T) {
 
 	outputFn, outputChan := lineHandlerChans()
-	source := sources.NewLogSource("config", &config.LogsConfig{})
+	source := sources.NewReplaceableSource(sources.NewLogSource("config", &config.LogsConfig{}))
 	detectedPattern := &DetectedPattern{}
 	h := NewAutoMultilineHandler(outputFn, 100, 5, 1.0, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{}, detectedPattern)
 
@@ -269,7 +268,7 @@ func TestAutoMultiLineHandlerStaysSingleLineMode(t *testing.T) {
 
 func TestAutoMultiLineHandlerSwitchesToMultiLineMode(t *testing.T) {
 	outputFn, outputChan := lineHandlerChans()
-	source := sources.NewLogSource("config", &config.LogsConfig{})
+	source := sources.NewReplaceableSource(sources.NewLogSource("config", &config.LogsConfig{}))
 	detectedPattern := &DetectedPattern{}
 	h := NewAutoMultilineHandler(outputFn, 100, 5, 1.0, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{}, detectedPattern)
 
@@ -285,7 +284,7 @@ func TestAutoMultiLineHandlerSwitchesToMultiLineMode(t *testing.T) {
 
 func TestAutoMultiLineHandlerHandelsMessage(t *testing.T) {
 	outputFn, outputChan := lineHandlerChans()
-	source := sources.NewLogSource("config", &config.LogsConfig{})
+	source := sources.NewReplaceableSource(sources.NewLogSource("config", &config.LogsConfig{}))
 	h := NewAutoMultilineHandler(outputFn, 500, 1, 1.0, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{})
 
 	h.process(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message 1"))
@@ -303,7 +302,7 @@ func TestAutoMultiLineHandlerHandelsMessage(t *testing.T) {
 
 func TestAutoMultiLineHandlerHandelsMessageConflictingPatterns(t *testing.T) {
 	outputFn, outputChan := lineHandlerChans()
-	source := sources.NewLogSource("config", &config.LogsConfig{})
+	source := sources.NewReplaceableSource(sources.NewLogSource("config", &config.LogsConfig{}))
 	h := NewAutoMultilineHandler(outputFn, 500, 4, 0.75, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{})
 
 	// we will match both patterns, but one will win with a threshold of 0.75
@@ -328,7 +327,7 @@ func TestAutoMultiLineHandlerHandelsMessageConflictingPatterns(t *testing.T) {
 
 func TestAutoMultiLineHandlerHandelsMessageConflictingPatternsNoWinner(t *testing.T) {
 	outputFn, outputChan := lineHandlerChans()
-	source := sources.NewLogSource("config", &config.LogsConfig{})
+	source := sources.NewReplaceableSource(sources.NewLogSource("config", &config.LogsConfig{}))
 	h := NewAutoMultilineHandler(outputFn, 500, 4, 0.75, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{})
 
 	// we will match both patterns, but neither will win because it doesn't meet the threshold
@@ -347,4 +346,34 @@ func TestAutoMultiLineHandlerHandelsMessageConflictingPatternsNoWinner(t *testin
 	assert.Nil(t, h.multiLineHandler)
 
 	assert.Equal(t, "Jul 12, 2021 12:55:15 PM test message 2", string(output.Content))
+}
+
+func TestAutoMultiLineHandlerSwitchesToMultiLineModeWithDelay(t *testing.T) {
+	outputFn, _ := lineHandlerChans()
+	source := sources.NewReplaceableSource(sources.NewLogSource("config", &config.LogsConfig{}))
+	detectedPattern := &DetectedPattern{}
+
+	h := NewAutoMultilineHandler(outputFn, 100, 5, 1.0, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{}, detectedPattern)
+	clock := clock.NewMock()
+	h.clk = clock
+
+	// Advance the clock past the (10ms) detection timeout. (timer should not have started yet)
+	clock.Add(time.Second)
+
+	// Process a log that will match - the timer should start now
+	h.process(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message"))
+
+	// Have not finished detection yet
+	assert.NotNil(t, h.singleLineHandler)
+	assert.Nil(t, h.multiLineHandler)
+
+	// Advance the clock past the (10ms) detection timeout.
+	clock.Add(time.Second)
+
+	// Process a log that will match. The timer has already timed out
+	h.process(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message"))
+
+	// Have not finished detection yet
+	assert.Nil(t, h.singleLineHandler)
+	assert.NotNil(t, h.multiLineHandler)
 }

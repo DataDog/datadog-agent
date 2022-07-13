@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -21,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/golang/groupcache/lru"
 	"github.com/vishvananda/netlink"
+	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 )
 
@@ -47,10 +47,10 @@ type routeCache struct {
 	router Router
 	ttl    time.Duration
 
-	size    uint64 `stats:"atomic"`
-	misses  uint64 `stats:"atomic"`
-	lookups uint64 `stats:"atomic"`
-	expires uint64 `stats:"atomic"`
+	size    *atomic.Uint64 `stats:""`
+	misses  *atomic.Uint64 `stats:""`
+	lookups *atomic.Uint64 `stats:""`
+	expires *atomic.Uint64 `stats:""`
 
 	reporter netstats.Reporter
 }
@@ -86,6 +86,11 @@ func newRouteCache(size int, router Router, ttl time.Duration) *routeCache {
 		cache:  lru.New(size),
 		router: router,
 		ttl:    ttl,
+
+		size:    atomic.NewUint64(0),
+		misses:  atomic.NewUint64(0),
+		lookups: atomic.NewUint64(0),
+		expires: atomic.NewUint64(0),
 	}
 
 	var err error
@@ -105,18 +110,18 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 	c.Lock()
 	defer c.Unlock()
 
-	atomic.AddUint64(&c.lookups, 1)
+	c.lookups.Inc()
 	k := newRouteKey(source, dest, netns)
 	if entry, ok := c.cache.Get(k); ok {
 		if time.Now().Unix() < entry.(*routeTTL).eta {
 			return entry.(*routeTTL).entry, ok
 		}
 
-		atomic.AddUint64(&c.expires, 1)
+		c.expires.Inc()
 		c.cache.Remove(k)
-		atomic.AddUint64(&c.size, ^uint64(0))
+		c.size.Dec()
 	} else {
-		atomic.AddUint64(&c.misses, 1)
+		c.misses.Inc()
 	}
 
 	if r, ok := c.router.Route(source, dest, netns); ok {
@@ -126,7 +131,7 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 		}
 
 		c.cache.Add(k, entry)
-		atomic.AddUint64(&c.size, 1)
+		c.size.Inc()
 		return r, true
 	}
 
@@ -167,14 +172,14 @@ type netlinkRouter struct {
 	ifcache  *lru.Cache
 	nlHandle *netlink.Handle
 
-	netlinkLookups uint64 `stats:"atomic"`
-	netlinkErrors  uint64 `stats:"atomic"`
-	netlinkMisses  uint64 `stats:"atomic"`
+	netlinkLookups *atomic.Uint64 `stats:""`
+	netlinkErrors  *atomic.Uint64 `stats:""`
+	netlinkMisses  *atomic.Uint64 `stats:""`
 
-	ifCacheLookups uint64 `stats:"atomic"`
-	ifCacheMisses  uint64 `stats:"atomic"`
-	ifCacheSize    uint64 `stats:"atomic"`
-	ifCacheErrors  uint64 `stats:"atomic"`
+	ifCacheLookups *atomic.Uint64 `stats:""`
+	ifCacheMisses  *atomic.Uint64 `stats:""`
+	ifCacheSize    *atomic.Uint64 `stats:""`
+	ifCacheErrors  *atomic.Uint64 `stats:""`
 
 	reporter netstats.Reporter
 }
@@ -211,6 +216,15 @@ func newNetlinkRouter(procRoot string) (*netlinkRouter, error) {
 		// ifcache should ideally fit all interfaces on a given node
 		ifcache:  lru.New(128),
 		nlHandle: nlHandle,
+
+		netlinkLookups: atomic.NewUint64(0),
+		netlinkErrors:  atomic.NewUint64(0),
+		netlinkMisses:  atomic.NewUint64(0),
+
+		ifCacheLookups: atomic.NewUint64(0),
+		ifCacheMisses:  atomic.NewUint64(0),
+		ifCacheSize:    atomic.NewUint64(0),
+		ifCacheErrors:  atomic.NewUint64(0),
 	}
 
 	nr.reporter, err = netstats.NewReporter(nr)
@@ -257,7 +271,7 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 		}
 	}
 
-	atomic.AddUint64(&n.netlinkLookups, 1)
+	n.netlinkLookups.Inc()
 	dstIP := util.NetIPFromAddress(dest, *dstBuf)
 	routes, err := n.nlHandle.RouteGetWithOptions(
 		dstIP,
@@ -267,7 +281,7 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 		})
 
 	if err != nil {
-		atomic.AddUint64(&n.netlinkErrors, 1)
+		n.netlinkErrors.Inc()
 		if iifIndex > 0 {
 			if errno, ok := err.(syscall.Errno); ok && (errno == syscall.EINVAL || errno == syscall.ENODEV) {
 				// invalidate interface cache entry as this may have been the cause of the netlink error
@@ -275,7 +289,7 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 			}
 		}
 	} else if len(routes) != 1 {
-		atomic.AddUint64(&n.netlinkMisses, 1)
+		n.netlinkMisses.Inc()
 	}
 	if err != nil || len(routes) != 1 {
 		log.Tracef("could not get route for src=%s dest=%s err=%s routes=%+v", source, dest, err, routes)
@@ -296,27 +310,27 @@ func (n *netlinkRouter) removeInterface(srcAddress util.Address, netns uint32) {
 }
 
 func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netns uint32) *ifEntry {
-	atomic.AddUint64(&n.ifCacheLookups, 1)
+	n.ifCacheLookups.Inc()
 
 	key := ifkey{ip: srcAddress, netns: netns}
 	if entry, ok := n.ifcache.Get(key); ok {
 		return entry.(*ifEntry)
 	}
-	atomic.AddUint64(&n.ifCacheMisses, 1)
+	n.ifCacheMisses.Inc()
 
-	atomic.AddUint64(&n.netlinkLookups, 1)
+	n.netlinkLookups.Inc()
 	routes, err := n.nlHandle.RouteGet(srcIP)
 	if err != nil {
-		atomic.AddUint64(&n.netlinkErrors, 1)
+		n.netlinkErrors.Inc()
 		return nil
 	} else if len(routes) != 1 {
-		atomic.AddUint64(&n.netlinkMisses, 1)
+		n.netlinkMisses.Inc()
 		return nil
 	}
 
 	ifr, err := unix.NewIfreq("")
 	if err != nil {
-		atomic.AddUint64(&n.ifCacheErrors, 1)
+		n.ifCacheErrors.Inc()
 		return nil
 	}
 
@@ -325,12 +339,12 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	// necessary to make the subsequent request to
 	// get the link flags
 	if err = unix.IoctlIfreq(n.ioctlFD, unix.SIOCGIFNAME, ifr); err != nil {
-		atomic.AddUint64(&n.ifCacheErrors, 1)
+		n.ifCacheErrors.Inc()
 		log.Tracef("error getting interface name for link index %d, src ip %s: %s", routes[0].LinkIndex, srcIP, err)
 		return nil
 	}
 	if err = unix.IoctlIfreq(n.ioctlFD, unix.SIOCGIFFLAGS, ifr); err != nil {
-		atomic.AddUint64(&n.ifCacheErrors, 1)
+		n.ifCacheErrors.Inc()
 		log.Tracef("error getting interface flags for link index %d, src ip %s: %s", routes[0].LinkIndex, srcIP, err)
 		return nil
 	}
@@ -338,6 +352,6 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	iff := &ifEntry{index: routes[0].LinkIndex, loopback: (ifr.Uint16() & unix.IFF_LOOPBACK) != 0}
 	log.Tracef("adding interface entry, key=%+v, entry=%v", key, *iff)
 	n.ifcache.Add(key, iff)
-	atomic.AddUint64(&n.ifCacheSize, 1)
+	n.ifCacheSize.Inc()
 	return iff
 }

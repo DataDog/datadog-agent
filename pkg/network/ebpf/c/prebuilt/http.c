@@ -8,8 +8,9 @@
 #include "http-buffer.h"
 #include "sockfd.h"
 #include "tags-types.h"
-#include "sock.h"
 #include "port_range.h"
+
+#include "sock-impl.h"
 
 #define HTTPS_PORT 443
 #define SO_SUFFIX_SIZE 3
@@ -435,7 +436,7 @@ static __always_inline int do_sys_open_helper_exit(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // If file couldn't be opened, bail out
-    if (!(long)PT_REGS_RC(ctx)) {
+    if ((long)PT_REGS_RC(ctx) < 0) {
         goto cleanup;
     }
 
