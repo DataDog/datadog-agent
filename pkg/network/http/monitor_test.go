@@ -158,7 +158,6 @@ func TestRSTPacketRegression(t *testing.T) {
 	url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
 	require.NoError(t, err)
 	includesRequest(t, stats, &nethttp.Request{URL: url})
-
 }
 
 func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o testutil.Options) {
