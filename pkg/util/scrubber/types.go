@@ -9,19 +9,10 @@
 // Subpackages of this package implement scrubbers for specific purposes.
 package scrubber
 
-// Scrubber implements support for cleaning sensitive information out of strings
-// and files.  Its intended use is to "clean" data before it is logged or
-// transmitted to a remote system, so that the meaning of the data remains
-// clear without disclosing any sensitive information.
-type Scrubber interface {
-	// ScrubFile scrubs credentials from file given by pathname
-	ScrubFile(filePath string) ([]byte, error)
+import "github.com/DataDog/datadog-agent/pkg/util/scrubber/types"
 
-	// ScrubBytes scrubs credentials from slice of bytes
-	ScrubBytes(file []byte) ([]byte, error)
-
-	// ScrubLine scrubs credentials from a single line of text.  It can be safely
-	// applied to URLs or to strings containing URLs.  Scrubber implementations may
-	// optimize this function by assuming its input does not contain newlines.
-	ScrubLine(message string) string
-}
+// Scrubber re-exports the Scrubber type.
+//
+// This is required to avoid cyclic package dependencies, which Go does not
+// support.
+type Scrubber = types.Scrubber

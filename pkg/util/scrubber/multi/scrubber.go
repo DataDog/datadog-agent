@@ -8,21 +8,23 @@ package multi
 import (
 	"io/ioutil"
 
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber/types"
 )
 
-// Scrubber impelements a scrubber.Scrubber that passes its input through multiple
+// Scrubber impelements a types.Scrubber that passes its input through multiple
 // other scrubbers, in sequence
 type Scrubber struct {
-	children []scrubber.Scrubber
+	children []types.Scrubber
 }
 
+var _ types.Scrubber = (*Scrubber)(nil)
+
 // NewScrubber creates a new comment-stripping scrubber.
-func NewScrubber(children []scrubber.Scrubber) *Scrubber {
+func NewScrubber(children []types.Scrubber) *Scrubber {
 	return &Scrubber{children}
 }
 
-// ScrubFile implements scrubber.Scrubber#ScrubFile.
+// ScrubFile implements types.Scrubber#ScrubFile.
 func (c *Scrubber) ScrubFile(filePath string) ([]byte, error) {
 	data, err := ioutil.ReadFile(filePath)
 	if err != nil {
@@ -31,7 +33,7 @@ func (c *Scrubber) ScrubFile(filePath string) ([]byte, error) {
 	return c.ScrubBytes(data)
 }
 
-// ScrubBytes implements scrubber.Scrubber#ScrubBytes.
+// ScrubBytes implements types.Scrubber#ScrubBytes.
 func (c *Scrubber) ScrubBytes(data []byte) ([]byte, error) {
 	for _, child := range c.children {
 		var err error
@@ -43,7 +45,7 @@ func (c *Scrubber) ScrubBytes(data []byte) ([]byte, error) {
 	return data, nil
 }
 
-// ScrubLine implements scrubber.Scrubber#ScrubLine.
+// ScrubLine implements types.Scrubber#ScrubLine.
 func (c *Scrubber) ScrubLine(message string) string {
 	for _, child := range c.children {
 		message = child.ScrubLine(message)

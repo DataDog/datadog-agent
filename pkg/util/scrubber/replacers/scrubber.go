@@ -75,7 +75,7 @@ func NewWithDefaults() *Scrubber {
 	return s
 }
 
-// ScrubFile implements scrubber.Scrubber#ScrubFile.
+// ScrubFile implements types.Scrubber#ScrubFile.
 func (c *Scrubber) ScrubFile(filePath string) ([]byte, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -85,13 +85,13 @@ func (c *Scrubber) ScrubFile(filePath string) ([]byte, error) {
 	return c.scrubReader(file)
 }
 
-// ScrubBytes implements scrubber.Scrubber#ScrubBytes.
+// ScrubBytes implements types.Scrubber#ScrubBytes.
 func (c *Scrubber) ScrubBytes(file []byte) ([]byte, error) {
 	r := bytes.NewReader(file)
 	return c.scrubReader(r)
 }
 
-// ScrubLine implements scrubber.Scrubber#ScrubLine.
+// ScrubLine implements types.Scrubber#ScrubLine.
 func (c *Scrubber) ScrubLine(message string) string {
 	return string(c.scrub([]byte(message), c.singleLineReplacers))
 }

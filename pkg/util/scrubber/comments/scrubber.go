@@ -11,9 +11,11 @@ import (
 	"io"
 	"os"
 	"regexp"
+
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber/types"
 )
 
-// Scrubber impelements a scrubber.Scrubber that removes comment lines from
+// Scrubber impelements a types.Scrubber that removes comment lines from
 // multi-line inputs.
 //
 // A comment is any line beginning with whitespace and `#`.  Trailing comments
@@ -23,12 +25,14 @@ import (
 // Single-line inputs (via ScrubLine) are not scrubbed at all.
 type Scrubber struct{}
 
+var _ types.Scrubber = (*Scrubber)(nil)
+
 // NewScrubber creates a new comment-stripping scrubber.
 func NewScrubber() *Scrubber {
 	return &Scrubber{}
 }
 
-// ScrubFile implements scrubber.Scrubber#ScrubFile.
+// ScrubFile implements types.Scrubber#ScrubFile.
 func (c *Scrubber) ScrubFile(filePath string) ([]byte, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -38,7 +42,7 @@ func (c *Scrubber) ScrubFile(filePath string) ([]byte, error) {
 	return c.scrubReader(file)
 }
 
-// ScrubBytes implements scrubber.Scrubber#ScrubBytes.
+// ScrubBytes implements types.Scrubber#ScrubBytes.
 func (c *Scrubber) ScrubBytes(file []byte) ([]byte, error) {
 	r := bytes.NewReader(file)
 	return c.scrubReader(r)
@@ -66,7 +70,7 @@ func (c *Scrubber) scrubReader(file io.Reader) ([]byte, error) {
 	return cleanedFile, nil
 }
 
-// ScrubLine implements scrubber.Scrubber#ScrubLine.
+// ScrubLine implements types.Scrubber#ScrubLine.
 func (c *Scrubber) ScrubLine(message string) string {
 	return message
 }

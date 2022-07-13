@@ -8,7 +8,7 @@ package multi
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,7 +31,7 @@ func (c *testScrubber) ScrubLine(message string) string {
 func TestScrubBytes(t *testing.T) {
 	addX := &testScrubber{'x'}
 	addY := &testScrubber{'y'}
-	c := NewScrubber([]scrubber.Scrubber{addX, addY})
+	c := NewScrubber([]types.Scrubber{addX, addY})
 	bytes, err := c.ScrubBytes([]byte("foo"))
 	require.NoError(t, err)
 	require.Equal(t, []byte("foobxby"), bytes)
@@ -40,7 +40,7 @@ func TestScrubBytes(t *testing.T) {
 func TestScrubLine(t *testing.T) {
 	addX := &testScrubber{'x'}
 	addY := &testScrubber{'y'}
-	c := NewScrubber([]scrubber.Scrubber{addX, addY})
+	c := NewScrubber([]types.Scrubber{addX, addY})
 	message := c.ScrubLine("foo")
 	require.Equal(t, "foolxly", message)
 }
