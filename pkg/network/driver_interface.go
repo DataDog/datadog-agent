@@ -47,11 +47,13 @@ var DriverExpvarNames = []DriverExpvar{totalFlowStats, flowHandleStats, flowStat
 
 // DriverInterface holds all necessary information for interacting with the windows driver
 type DriverInterface struct {
-	totalFlows     *atomic.Int64
-	closedFlows    *atomic.Int64
-	openFlows      *atomic.Int64
-	moreDataErrors *atomic.Int64
-	bufferSize     *atomic.Int64
+	totalFlows       *atomic.Int64
+	closedFlows      *atomic.Int64
+	openFlows        *atomic.Int64
+	moreDataErrors   *atomic.Int64
+	bufferSize       *atomic.Int64
+	nBufferIncreases *atomic.Int64
+	nBufferDecreases *atomic.Int64
 
 	maxOpenFlows   uint64
 	maxClosedFlows uint64
@@ -69,11 +71,13 @@ type DriverInterface struct {
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
 func NewDriverInterface(cfg *config.Config) (*DriverInterface, error) {
 	dc := &DriverInterface{
-		totalFlows:     atomic.NewInt64(0),
-		closedFlows:    atomic.NewInt64(0),
-		openFlows:      atomic.NewInt64(0),
-		moreDataErrors: atomic.NewInt64(0),
-		bufferSize:     atomic.NewInt64(defaultDriverBufferSize),
+		totalFlows:       atomic.NewInt64(0),
+		closedFlows:      atomic.NewInt64(0),
+		openFlows:        atomic.NewInt64(0),
+		moreDataErrors:   atomic.NewInt64(0),
+		bufferSize:       atomic.NewInt64(defaultDriverBufferSize),
+		nBufferIncreases: atomic.NewInt64(0),
+		nBufferDecreases: atomic.NewInt64(0),
 
 		cfg:                   cfg,
 		enableMonotonicCounts: cfg.EnableMonotonicCount,
@@ -133,11 +137,13 @@ func (di *DriverInterface) GetStats() (map[DriverExpvar]interface{}, error) {
 		return nil, err
 	}
 
-	totalFlows := atomic.LoadInt64(&di.totalFlows)
-	openFlows := atomic.SwapInt64(&di.openFlows, 0)
-	closedFlows := atomic.SwapInt64(&di.closedFlows, 0)
-	moreDataErrors := atomic.SwapInt64(&di.moreDataErrors, 0)
-	bufferSize := atomic.LoadInt64(&di.bufferSize)
+	totalFlows := di.totalFlows.Load()
+	openFlows := di.openFlows.Swap(0)
+	closedFlows := di.closedFlows.Swap(0)
+	moreDataErrors := di.moreDataErrors.Swap(0)
+	bufferSize := di.bufferSize.Load()
+	nBufferIncreases := di.nBufferIncreases.Load()
+	nBufferDecreases := di.nBufferDecreases.Load()
 
 	return map[DriverExpvar]interface{}{
 		totalFlowStats:  stats["driver"],
@@ -150,6 +156,8 @@ func (di *DriverInterface) GetStats() (map[DriverExpvar]interface{}, error) {
 		driverStats: map[string]int64{
 			"more_data_errors": moreDataErrors,
 			"buffer_size":      bufferSize,
+			"buffer_increases": nBufferIncreases,
+			"buffer_decreases": nBufferDecreases,
 		},
 	}, nil
 }
@@ -199,9 +207,7 @@ func (di *DriverInterface) GetConnectionStats(activeBuf *ConnectionBuffer, close
 				}
 			}
 		}
-
-		di.readBuffer = resizeDriverBuffer(int(totalBytesRead), di.readBuffer)
-		di.bufferSize.Store(int64(len(di.readBuffer)))
+		di.resizeDriverBuffer(int(totalBytesRead))
 	}
 
 	activeCount := activeBuf.Len() - startActive
@@ -213,15 +219,18 @@ func (di *DriverInterface) GetConnectionStats(activeBuf *ConnectionBuffer, close
 	return activeCount, closedCount, nil
 }
 
-func resizeDriverBuffer(compareSize int, buffer []uint8) []uint8 {
+func (di *DriverInterface) resizeDriverBuffer(compareSize int) {
 	// Explicitly setting len to 0 causes the ReadFile syscall to break, so allocate buffer with cap = len
-	if compareSize >= cap(buffer)*2 {
-		return make([]uint8, cap(buffer)*2)
-	} else if compareSize <= cap(buffer)/2 {
-		// Take the max of buffer/2 and compareSize to limit future array resizes
-		return make([]uint8, int(math.Max(float64(cap(buffer)/2), float64(compareSize))))
+	if compareSize >= cap(di.readBuffer)*2 {
+		di.readBuffer = make([]uint8, cap(di.readBuffer)*2)
+		di.nBufferIncreases.Inc()
+		di.bufferSize.Store(int64(len(di.readBuffer)))
+	} else if compareSize <= cap(di.readBuffer)/2 {
+		// Take the max of di.readBuffer/2 and compareSize to limit future array resizes
+		di.readBuffer = make([]uint8, int(math.Max(float64(cap(di.readBuffer)/2), float64(compareSize))))
+		di.nBufferDecreases.Inc()
+		di.bufferSize.Store(int64(len(di.readBuffer)))
 	}
-	return buffer
 }
 
 func minUint64(a, b uint64) uint64 {
