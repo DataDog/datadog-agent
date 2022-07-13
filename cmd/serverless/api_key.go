@@ -8,15 +8,15 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
-	"github.com/aws/aws-sdk-go/aws"
-	"os"
-	"regexp"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
+	"os"
+	"regexp"
 )
 
 // encryptionContextKey is the key added to the encryption context by the Lambda console UI
@@ -130,16 +130,18 @@ func readAPIKeyFromSecretsManager(arn string) (string, error) {
 	return "", nil
 }
 
-func extractRegionFromSecretsManagerArn(arn string) (string, error) {
-	secretsManagerArnRegex := `arn:aws:secretsmanager:(?P<Region>\w*-\w*-\d{1}):(?P<AccountId>\d{12}):secret:(?P<SecretName>\S*)`
-	re := regexp.MustCompile(secretsManagerArnRegex)
-	matches := re.FindStringSubmatch(arn)
-	regionIndex := re.SubexpIndex("Region")
-
-	if len(matches) == 0 {
-		return "", fmt.Errorf("Couldn't extract region from arn: %s", arn)
+func extractRegionFromSecretsManagerArn(secretsManagerArn string) (string, error) {
+	arnObject, err := arn.Parse(secretsManagerArn)
+	if err != nil {
+		return "", fmt.Errorf("could not extract region from arn: %s. %s", secretsManagerArn, err)
 	}
-	region := matches[regionIndex]
 
-	return region, nil
+	regionRegex := `\w*-\w*-\d{1}`
+	re := regexp.MustCompile(regionRegex)
+	matches := re.FindStringSubmatch(arnObject.Region)
+	if len(matches) == 0 {
+		return "", fmt.Errorf("region %s found in arn %s is not a valid region format.", arnObject.Region, secretsManagerArn)
+	}
+
+	return arnObject.Region, nil
 }

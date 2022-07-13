@@ -26,10 +26,13 @@ const mockDecodedEncryptedAPIKey = "2222222222222222"
 const expectedDecryptedAPIKey = "1111111111111111"
 
 // mockSecretsManagerAPIKeyArn represents a SecretsManager Arn passed in via DD_API_KEY_SECRET_ARN environment variable
-const mockSecretsManagerAPIKeyArn string = "arn:aws:secretsmanager:us-west-2:123456789012:secret:DatadogAppKeySecret"
+const mockSecretsManagerAPIKeyArn string = "arn:aws:secretsmanager:us-west-2:123456789012:secret:DatadogAPIKeySecret"
 
-// mockMalformedSecretsManagerAPIKeyArn represents a SecretsManager Arn formatted incorrectly that doesn't match regex.
-const mockMalformedSecretsManagerAPIKeyArn string = "arn:aws:secretsmanager:uswest2:123456789012:secret:DatadogAppKeySecret"
+// mockMalformedRegionSecretsManagerAPIKeyArn represents an AWS region in the ARN formatted incorrectly that doesn't match regex.
+const mockMalformedRegionSecretsManagerAPIKeyArn string = "arn:aws:secretsmanager:uswest2:123456789012:secret:DatadogAPIKeySecret"
+
+// mockMalformedPrefixSecretsManagerAPIKeyArn represents an ARN formatted incorrectly that doesn't match regex.
+const mockMalformedPrefixSecretsManagerAPIKeyArn string = "aws:secretsmanager:us-west-2:123456789012:secret:DatadogAPIKeySecret"
 
 // mockFunctionName represents the name of the current function
 var mockFunctionName = "my-Function"
@@ -90,8 +93,14 @@ func TestExtractRegionFromSecretsManagerArn(t *testing.T) {
 	assert.Equal(t, result, "us-west-2")
 }
 
-func TestExtractRegionFromMalformedSecretsManagerArn(t *testing.T) {
-	result, err := extractRegionFromSecretsManagerArn(mockMalformedSecretsManagerAPIKeyArn)
+func TestExtractRegionFromMalformedRegionSecretsManagerArn(t *testing.T) {
+	result, err := extractRegionFromSecretsManagerArn(mockMalformedRegionSecretsManagerAPIKeyArn)
 	assert.Equal(t, result, "")
-	assert.Error(t, err, "Couldn't extract region from arn: arn:aws:secretsmanager:uswest2:123456789012:secret:DatadogAppKeySecret")
+	assert.Error(t, err, "region uswest2 found in arn arn:aws:secretsmanager:uswest2:123456789012:secret:DatadogAPIKeySecret is not a valid region format")
+}
+
+func TestExtractRegionFromMalformedPrefixSecretsManagerArnPrefix(t *testing.T) {
+	result, err := extractRegionFromSecretsManagerArn(mockMalformedPrefixSecretsManagerAPIKeyArn)
+	assert.Equal(t, result, "")
+	assert.Error(t, err, "could not extract region from arn: aws:secretsmanager:us-west-2:123456789012:secret:DatadogAPIKeySecret. arn: invalid prefix")
 }
