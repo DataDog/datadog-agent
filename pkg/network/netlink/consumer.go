@@ -575,9 +575,9 @@ func (c *Consumer) receiveAndDiscard() {
 				// EOFs are usually indicative of normal program termination, so we simply exit
 				return
 			case errENOBUF:
-				atomic.AddInt64(&c.enobufs, 1)
+				c.enobufs.Inc()
 			default:
-				atomic.AddInt64(&c.readErrors, 1)
+				c.readErrors.Inc()
 			}
 		}
 		if done {
