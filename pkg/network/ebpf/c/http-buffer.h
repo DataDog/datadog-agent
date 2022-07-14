@@ -17,7 +17,7 @@ static __always_inline void read_into_buffer(char *buffer, char *data, size_t da
 #pragma unroll
         for (int i = 0; i < HTTP_BUFFER_SIZE; i++) {
             bpf_probe_read_user(&buffer[i], 1, &data[i]);
-            if (data[i] == 0) {
+            if (buffer[i] == 0) {
                 return;
             }
         }
