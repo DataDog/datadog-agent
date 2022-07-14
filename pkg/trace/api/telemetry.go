@@ -7,7 +7,6 @@ package api
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -77,7 +76,14 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 			req.Header.Set("User-Agent", "")
 		}
 
-		ensureContainerID(req.Context(), req.Header)
+		if id := req.Header.Get(headerContainerID); id != "" {
+			return
+		}
+		if id := GetContainerID(req.Context(), req.Header); id != "" {
+			req.Header.Set(headerContainerID, id)
+		} else {
+			metrics.Count("datadog.trace_agent.telemetry_proxy.no_container_id_found", 1, []string{}, 1)
+		}
 
 		req.Header.Set("DD-Agent-Hostname", r.conf.Hostname)
 		req.Header.Set("DD-Agent-Env", r.conf.DefaultEnv)
@@ -139,15 +145,4 @@ func (m *telemetryMultiTransport) roundTrip(req *http.Request, endpoint *config.
 		metrics.Count("datadog.trace_agent.telemetry_proxy.error", 1, tags, 1)
 	}
 	return resp, err
-}
-
-func ensureContainerID(ctx context.Context, h http.Header) {
-	if id := h.Get(headerContainerID); id != "" {
-		return
-	}
-	if id := GetContainerID(ctx, h); id != "" {
-		h.Set(headerContainerID, id)
-	} else {
-		metrics.Count("datadog.trace_agent.telemetry_proxy.no_container_id_found", 1, []string{}, 1)
-	}
 }
