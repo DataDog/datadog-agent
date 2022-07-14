@@ -1320,7 +1320,7 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 	assert.EqualValues(t, 3, rcode)
 }
 
-func TestClosedMergingWithAddressColision(t *testing.T) {
+func TestClosedMergingWithAddressCollision(t *testing.T) {
 	const client = "foo"
 
 	c1 := ConnectionStats{
@@ -1405,18 +1405,15 @@ func TestClosedMergingWithAddressColision(t *testing.T) {
 		state := newDefaultState()
 		state.RegisterClient(client)
 
-		// despite having different NAT translations these 2 connections will be
-		// interpreted as one. we do this because over the lifecycle of a long-lived
-		// connection the conntrack entry is looked up multiple times and may change
-		// (usually from a nil to a non-nil value). this behavior stems from a
-		// *limitation* in our connection tracking code and should be revisited
-		// once we find a way to reliably get the NAT translation the *first*
-		// time a connection is seen
-		_ = state.GetDelta(client, latestEpochTime(), []ConnectionStats{c1}, nil, nil)
+		// the two connections will be interpreted as different since
+		// we use the NAT info in the key for stats
+		delta := state.GetDelta(client, latestEpochTime(), []ConnectionStats{c1}, nil, nil)
+		assert.Len(t, delta.Conns, 1)
+		assert.Equal(t, uint64(100), delta.Conns[0].Last.SentBytes)
+
 		state.StoreClosedConnections([]ConnectionStats{c2})
 
-		// assert that the value returned by the second call to `GetDelta` represents c2 - c1
-		delta := state.GetDelta(client, latestEpochTime(), nil, nil, nil)
+		delta = state.GetDelta(client, latestEpochTime(), nil, nil, nil)
 		assert.Len(t, delta.Conns, 1)
 		assert.Equal(t, uint64(150), delta.Conns[0].Last.SentBytes)
 	})
