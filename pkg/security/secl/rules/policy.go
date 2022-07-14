@@ -6,13 +6,13 @@
 package rules
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
 
 	"github.com/Masterminds/semver"
 	"github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
 )
 

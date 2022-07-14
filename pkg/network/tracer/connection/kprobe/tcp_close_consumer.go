@@ -10,7 +10,6 @@ package kprobe
 
 import (
 	"sync"
-	"sync/atomic"
 	"time"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -19,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
+	"go.uber.org/atomic"
 )
 
 const (
@@ -34,8 +34,8 @@ type tcpCloseConsumer struct {
 	once         sync.Once
 
 	// Telemetry
-	perfReceived int64
-	perfLost     int64
+	perfReceived *atomic.Int64
+	perfLost     *atomic.Int64
 }
 
 func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler) (*tcpCloseConsumer, error) {
@@ -59,6 +59,8 @@ func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler) (*
 		batchManager: batchManager,
 		requests:     make(chan chan struct{}),
 		buffer:       network.NewConnectionBuffer(netebpf.BatchSize, netebpf.BatchSize),
+		perfReceived: atomic.NewInt64(0),
+		perfLost:     atomic.NewInt64(0),
 	}
 	return c, nil
 }
@@ -75,8 +77,8 @@ func (c *tcpCloseConsumer) FlushPending() {
 
 func (c *tcpCloseConsumer) GetStats() map[string]int64 {
 	return map[string]int64{
-		perfReceivedStat: atomic.LoadInt64(&c.perfReceived),
-		perfLostStat:     atomic.LoadInt64(&c.perfLost),
+		perfReceivedStat: c.perfReceived.Load(),
+		perfLostStat:     c.perfLost.Load(),
 	}
 }
 
@@ -108,7 +110,7 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 					return
 				}
 
-				atomic.AddInt64(&c.perfReceived, 1)
+				c.perfReceived.Inc()
 				batch := netebpf.ToBatch(batchData.Data)
 				c.batchManager.ExtractBatchInto(c.buffer, batch, batchData.CPU)
 				closedCount += c.buffer.Len()
@@ -119,7 +121,7 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				if !ok {
 					return
 				}
-				atomic.AddInt64(&c.perfLost, int64(lostCount))
+				c.perfLost.Add(int64(lostCount))
 				lostCount += netebpf.BatchSize
 			case request, ok := <-c.requests:
 				if !ok {

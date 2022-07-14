@@ -10,6 +10,7 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"path"
@@ -18,8 +19,6 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
-
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -273,7 +272,7 @@ func (e *Process) GetPathResolutionError() string {
 
 // Process represents a process
 type Process struct {
-	PIDContext
+	PIDContext `msg:"pid_context"`
 
 	FileEvent FileEvent `field:"file" msg:"file"`
 

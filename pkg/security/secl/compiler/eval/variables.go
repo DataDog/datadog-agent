@@ -6,12 +6,11 @@
 package eval
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
 	"unsafe"
-
-	"github.com/pkg/errors"
 )
 
 var (

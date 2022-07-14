@@ -55,6 +55,7 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
         return 0;
     }
 
+    struct sock *skp = *skpp;
     bpf_map_delete_elem(&tcp_sendmsg_args, &pid_tgid);
 
     int sent = PT_REGS_RC(ctx);
@@ -63,7 +64,6 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
         return 0;
     }
 
-    struct sock *skp = *skpp;
     if (!skp) {
         return 0;
     }
@@ -363,10 +363,10 @@ static __always_inline int handle_ret_udp_recvmsg(int copied, struct bpf_map_def
         return 0;
     }
 
-    // Make sure we clean up the key
-    bpf_map_delete_elem(udp_sock_map, &pid_tgid);
     if (copied < 0) { // Non-zero values are errors (or a peek) (e.g -EINVAL)
         log_debug("kretprobe/udp_recvmsg: ret=%d < 0, pid_tgid=%d\n", copied, pid_tgid);
+        // Make sure we clean up the key
+        bpf_map_delete_elem(udp_sock_map, &pid_tgid);
         return 0;
     }
 
@@ -382,8 +382,10 @@ static __always_inline int handle_ret_udp_recvmsg(int copied, struct bpf_map_def
 
     if (!read_conn_tuple_partial(&t, st->sk, pid_tgid, CONN_TYPE_UDP)) {
         log_debug("ERR(kretprobe/udp_recvmsg): error reading conn tuple, pid_tgid=%d\n", pid_tgid);
+        bpf_map_delete_elem(udp_sock_map, &pid_tgid);
         return 0;
     }
+    bpf_map_delete_elem(udp_sock_map, &pid_tgid);
 
     log_debug("kretprobe/udp_recvmsg: pid_tgid: %d, return: %d\n", pid_tgid, copied);
     // segment count is not currently enabled on prebuilt.
@@ -601,13 +603,13 @@ static __always_inline int sys_exit_bind(__s64 ret) {
         return 0;
     }
 
+    __u16 sin_port = args->port;
     bpf_map_delete_elem(&pending_bind, &tid);
 
     if (ret != 0) {
         return 0;
     }
 
-    __u16 sin_port = args->port;
     port_binding_t pb = {};
     pb.netns = 0; // don't have net ns info in this context
     pb.port = sin_port;

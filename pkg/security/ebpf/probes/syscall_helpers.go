@@ -10,10 +10,10 @@ package probes
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
