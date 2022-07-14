@@ -48,6 +48,7 @@ func TestNewReporter_NotStructPtr(t *testing.T) {
 }
 
 func TestNewReporter_BadType(t *testing.T) {
+	//nolint:structcheck,unused
 	type myStats struct {
 		// (if and when we support strings, think of something more interesting)
 		stringStat string `stats:""`
