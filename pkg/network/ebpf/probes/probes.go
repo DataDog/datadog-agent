@@ -54,7 +54,9 @@ const (
 
 	// We use the following two probes for UDP sends
 	IPMakeSkb        ProbeName = "kprobe/ip_make_skb"
+	IPMakeSkbReturn  ProbeName = "kretprobe/ip_make_skb"
 	IP6MakeSkb       ProbeName = "kprobe/ip6_make_skb"
+	IP6MakeSkbReturn ProbeName = "kretprobe/ip6_make_skb"
 	IP6MakeSkbPre470 ProbeName = "kprobe/ip6_make_skb/pre_4_7_0"
 
 	// UDPRecvMsg traces the udp_recvmsg() system call
@@ -139,6 +141,7 @@ const (
 	PidFDBySockMap        BPFMapName = "pid_fd_by_sock"
 	TagsMap               BPFMapName = "conn_tags"
 	TcpSendMsgArgsMap     BPFMapName = "tcp_sendmsg_args"
+	IpMakeSkbArgsMap      BPFMapName = "ip_make_skb_args"
 )
 
 // SectionName returns the SectionName for the given BPF map
