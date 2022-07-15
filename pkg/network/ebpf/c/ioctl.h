@@ -19,7 +19,7 @@ static __always_inline int is_npm_request(const unsigned int cmd) {
 }
 
 static __always_inline int get_npm_request(void *req, __u32 *code, __u8 **data, __u32 *data_len) {
-    struct npm_ioctl io;
+    struct npm_ioctl io = {};
     if(bpf_probe_read_user(&io, sizeof(io), req) < 0) {
         return -1;
     }
