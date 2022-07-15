@@ -515,12 +515,12 @@ int kretprobe__tcp_connect(struct pt_regs* ctx) {
     // We only trace if the connection worked and is established
     int rc = PT_REGS_RC(ctx);
     if (rc != 0) {
-        return 0
+        return 0;
     }
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
-        return 0
+        return 0;
     }
 
     handle_tcp_stats(&t, skp, TCP_ESTABLISHED);
