@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import datetime
 import re
 import subprocess
 import sys
@@ -8,11 +9,11 @@ from pathlib import Path, PurePosixPath
 
 GLOB_PATTERN = "**/*.go"
 
-COPYRIGHT_HEADER = """
+COPYRIGHT_HEADER = f"""
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright {datetime.datetime.now().year}-present Datadog, Inc.
 """.strip()
 
 COPYRIGHT_REGEX = [
