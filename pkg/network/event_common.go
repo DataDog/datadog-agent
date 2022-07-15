@@ -372,7 +372,6 @@ func BeautifyKey(key string) string {
 		p := binary.LittleEndian.Uint32(raw[n : n+4])
 		sport = uint16(p >> 16)
 		dport = uint16(p)
-		n += 4
 
 		builder.WriteString(fmt.Sprintf(keyFmtNat, source, sport, dest, dport))
 	}
