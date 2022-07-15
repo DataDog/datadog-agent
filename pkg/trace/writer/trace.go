@@ -239,7 +239,6 @@ func (w *TraceWriter) flush() {
 	}
 
 	w.stats.BytesUncompressed.Add(int64(len(b)))
-	w.stats.BytesEstimated.Add(int64(w.bufferedSize))
 
 	w.wg.Add(1)
 	go func() {
@@ -272,7 +271,6 @@ func (w *TraceWriter) report() {
 	metrics.Count("datadog.trace_agent.trace_writer.payloads", w.stats.Payloads.Swap(0), nil, 1)
 	metrics.Count("datadog.trace_agent.trace_writer.bytes_uncompressed", w.stats.BytesUncompressed.Swap(0), nil, 1)
 	metrics.Count("datadog.trace_agent.trace_writer.retries", w.stats.Retries.Swap(0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.bytes_estimated", w.stats.BytesEstimated.Swap(0), nil, 1)
 	metrics.Count("datadog.trace_agent.trace_writer.bytes", w.stats.Bytes.Swap(0), nil, 1)
 	metrics.Count("datadog.trace_agent.trace_writer.errors", w.stats.Errors.Swap(0), nil, 1)
 	metrics.Count("datadog.trace_agent.trace_writer.traces", w.stats.Traces.Swap(0), nil, 1)

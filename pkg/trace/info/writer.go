@@ -25,7 +25,6 @@ type TraceWriterInfo struct {
 	Retries           atomic.Int64
 	Bytes             atomic.Int64
 	BytesUncompressed atomic.Int64
-	BytesEstimated    atomic.Int64
 	SingleMaxSize     atomic.Int64
 }
 
@@ -69,7 +68,6 @@ func (twi TraceWriterInfo) MarshalJSON() ([]byte, error) {
 		"Retries":           float64(twi.Retries.Load()),
 		"Bytes":             float64(twi.Bytes.Load()),
 		"BytesUncompressed": float64(twi.BytesUncompressed.Load()),
-		"BytesEstimated":    float64(twi.BytesEstimated.Load()),
 		"SingleMaxSize":     float64(twi.SingleMaxSize.Load()),
 	}
 	return json.Marshal(asMap)
