@@ -316,11 +316,11 @@ def kitchen_genconfig(
 
 
 @task
-def nettop(ctx, incremental_build=False, go_mod="mod", parallel_build=True):
+def nettop(ctx, incremental_build=False, go_mod="mod", parallel_build=True, kernel_release=None):
     """
     Build and run the `nettop` utility for testing
     """
-    build_object_files(ctx, parallel_build=parallel_build)
+    build_object_files(ctx, parallel_build=parallel_build, kernel_release=kernel_release)
 
     cmd = 'go build -mod={go_mod} {build_type} -tags {tags} -o {bin_path} {path}'
     bin_path = os.path.join(BIN_DIR, "nettop")
@@ -588,21 +588,21 @@ def build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, netwo
         )
 
 
-def get_http_prebuilt_build_flags(network_c_dir):
+def get_http_prebuilt_build_flags(network_c_dir, kernel_release=None):
     uname_m = check_output("uname -m", shell=True).decode('utf-8').strip()
-    flags = get_ebpf_build_flags(target=["-target", "bpf"])
+    flags = get_ebpf_build_flags(target=["-target", "bpf"], kernel_release=kernel_release)
     flags.append(f"-I{network_c_dir}")
     flags.append(f"-D__{uname_m}__")
     flags.append(f"-isystem /usr/include/{uname_m}-linux-gnu")
     return flags
 
 
-def build_http_ebpf_files(ctx, build_dir):
+def build_http_ebpf_files(ctx, build_dir, kernel_release=None):
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
-    network_flags = get_http_prebuilt_build_flags(network_c_dir)
+    network_flags = get_http_prebuilt_build_flags(network_c_dir, kernel_release=kernel_release)
 
     build_network_ebpf_compile_file(
         ctx, False, build_dir, "http", True, network_prebuilt_dir, network_flags, extension=".o"
@@ -612,20 +612,20 @@ def build_http_ebpf_files(ctx, build_dir):
     )
 
 
-def get_network_build_flags(network_c_dir):
-    flags = get_ebpf_build_flags()
+def get_network_build_flags(network_c_dir, kernel_release=None):
+    flags = get_ebpf_build_flags(kernel_release=kernel_release)
     flags.append(f"-I{network_c_dir}")
     return flags
 
 
-def build_network_ebpf_files(ctx, build_dir, parallel_build=True):
+def build_network_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None):
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
     compiled_programs = ["dns", "offset-guess", "tracer"]
 
-    network_flags = get_network_build_flags(network_c_dir)
+    network_flags = get_network_build_flags(network_c_dir, kernel_release=kernel_release)
 
     flavor = []
     for prog in compiled_programs:
@@ -759,8 +759,8 @@ def build_object_files(ctx, parallel_build, kernel_release=None):
     ctx.run(f"mkdir -p {build_dir}")
     ctx.run(f"mkdir -p {build_runtime_dir}")
 
-    build_network_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build)
-    build_http_ebpf_files(ctx, build_dir=build_dir)
+    build_network_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release)
+    build_http_ebpf_files(ctx, build_dir=build_dir, kernel_release=kernel_release)
     build_security_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release)
 
     generate_runtime_files(ctx)

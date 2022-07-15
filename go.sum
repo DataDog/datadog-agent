@@ -154,8 +154,8 @@ github.com/DataDog/ebpf-manager v0.0.0-20220627174516-12adb97b679e h1:MsSGtI99s8
 github.com/DataDog/ebpf-manager v0.0.0-20220627174516-12adb97b679e/go.mod h1:8bqjDI64T80GHECNIJp9nY4+0mgX4Tc+Kcdk3p0NeIA=
 github.com/DataDog/extendeddaemonset v0.7.1-0.20220530183123-9c60ea5abbc6 h1:XDD6SEIEpe5CAa7esIWlgdXLQgLKN4hvPw+Wd8pJQFU=
 github.com/DataDog/extendeddaemonset v0.7.1-0.20220530183123-9c60ea5abbc6/go.mod h1:YxkO6rhI37nstfxBAdk4fVi5kheKJRMk9AtqDdl/mSQ=
-github.com/DataDog/gohai v0.0.0-20220607152458-544032c46ded h1:n6a9LvGX2CkDiecmdwUpapbhSXzu73zEmQITIysvkq4=
-github.com/DataDog/gohai v0.0.0-20220607152458-544032c46ded/go.mod h1:rwUdBVqBxO9kAvJxe9OGM/gmbvkU8vr4Zo8Jy/0FOhI=
+github.com/DataDog/gohai v0.0.0-20220711204806-a16530c2d828 h1:/vELW0+WP/vJUfxy4xeMxz14Y4CyW8G/s7/LwS02ae0=
+github.com/DataDog/gohai v0.0.0-20220711204806-a16530c2d828/go.mod h1:E54eB8tmzrLbN0C/Asco/aUmgRb04tex/Ucwmcv80Is=
 github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321/go.mod h1:tGQp6XG4XpOyy67WG/YWXVxzOY6LejK35e8KcQhtRIQ=
 github.com/DataDog/gopsutil v1.1.0 h1:qjgSaWYcafJsbYW6FqSvzwuJcTUyQek5LzQgM+1knNc=
 github.com/DataDog/gopsutil v1.1.0/go.mod h1:glkxNt/qRu9lnpmUEQwOIAXW+COWDTBOTEAHqbgBPts=
@@ -1465,6 +1465,8 @@ github.com/openshift/api v3.9.0+incompatible/go.mod h1:dh9o4Fs58gpFXGSYfnVxGR9Pn
 github.com/opentracing/opentracing-go v1.1.0/go.mod h1:UkNAQd3GIcIGf0SeVgPpRdFStlNbqXla1AfSYxPUl2o=
 github.com/opentracing/opentracing-go v1.2.0 h1:uEJPy/1a5RIPAJ0Ov+OIO8OxWu77jEv+1B0VhjKrZUs=
 github.com/opentracing/opentracing-go v1.2.0/go.mod h1:GxEUsuufX4nBwe+T+Wl9TAgYrxe9dPLANfrWvHYVTgc=
+github.com/outcaste-io/ristretto v0.2.0 h1:47w059XTZWFt01OucwjcBt8mEa3VUUhntUWEfmgVBFc=
+github.com/outcaste-io/ristretto v0.2.0/go.mod h1:iBZA7RCt6jaOr0z6hiBQ6t662/oZ6Gx/yauuPvIWHAI=
 github.com/oxtoacart/bpool v0.0.0-20150712133111-4e1c5567d7c2 h1:CXwSGu/LYmbjEab5aMCs5usQRVBGThelUKBNnoSOuso=
 github.com/oxtoacart/bpool v0.0.0-20150712133111-4e1c5567d7c2/go.mod h1:L3UMQOThbttwfYRNFOWLLVXMhk5Lkio4GGOtw5UrxS0=
 github.com/pascaldekloe/goe v0.0.0-20180627143212-57f6aae5913c/go.mod h1:lzWF7FIEvWOWxwDKqyGYQf6ZUaNfKdP144TG7ZOy1lc=
