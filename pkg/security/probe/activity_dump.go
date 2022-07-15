@@ -500,6 +500,14 @@ func (ad *ActivityDump) FindFirstMatchingNode(comm string) *ProcessActivityNode 
 
 // GetSelectorStr returns a string representation of the profile selector
 func (ad *ActivityDump) GetSelectorStr() string {
+	ad.Lock()
+	defer ad.Unlock()
+
+	return ad.getSelectorStr()
+}
+
+// getSelectorStr internal, thread-unsafe version of GetSelectorStr
+func (ad *ActivityDump) getSelectorStr() string {
 	var tags []string
 	if len(ad.DumpMetadata.ContainerID) > 0 {
 		tags = append(tags, fmt.Sprintf("container_id:%s", ad.DumpMetadata.ContainerID))
