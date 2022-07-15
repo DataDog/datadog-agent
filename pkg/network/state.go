@@ -497,6 +497,7 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 			// use the non-NAT key
 			key = string(removeNATFromKey(keyb))
 			activeConn, ok = active[key]
+			closedKeys[key] = struct{}{}
 		}
 
 		// If the connection is also active, check the epochs to understand what's going on
