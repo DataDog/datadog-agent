@@ -132,9 +132,12 @@ type ConnTelemetryType string
 const (
 	MonotonicKprobesTriggered       ConnTelemetryType = "kprobes_triggered"
 	MonotonicKprobesMissed          ConnTelemetryType = "kprobes_missed"
+	MonotonicClosedConnDropped      ConnTelemetryType = "closed_conn_dropped"
+	MonotonicConnDropped            ConnTelemetryType = "conn_dropped"
 	MonotonicConnsClosed            ConnTelemetryType = "conns_closed"
 	MonotonicConntrackRegisters     ConnTelemetryType = "conntrack_registers"
 	MonotonicDNSPacketsProcessed    ConnTelemetryType = "dns_packets_processed"
+	MonotonicPerfLost               ConnTelemetryType = "perf_lost"
 	MonotonicUDPSendsProcessed      ConnTelemetryType = "udp_sends_processed"
 	MonotonicUDPSendsMissed         ConnTelemetryType = "udp_sends_missed"
 	DNSStatsDropped                 ConnTelemetryType = "dns_stats_dropped"
@@ -165,12 +168,15 @@ var (
 	MonotonicConnTelemetryTypes = []ConnTelemetryType{
 		MonotonicKprobesTriggered,
 		MonotonicKprobesMissed,
+		MonotonicClosedConnDropped,
+		MonotonicConnDropped,
 		MonotonicConntrackRegisters,
 		MonotonicDNSPacketsProcessed,
 		MonotonicConnsClosed,
 		MonotonicUDPSendsProcessed,
 		MonotonicUDPSendsMissed,
 		MonotonicDNSPacketsDropped,
+		MonotonicPerfLost,
 	}
 )
 
