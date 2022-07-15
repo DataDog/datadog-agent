@@ -129,18 +129,21 @@ fi`
 # set real_user to the target user of the systemwide installation.
 if [ "$systemdaemon_install" = true ] && [ "$real_user" = root ]; then
     real_user="$(echo "$systemdaemon_user_group" | awk -F: '{ print $1 }')"
+    # The install will copy plist file to real_user home dir => we add `-H`
+    # as a sudo argument to properly get its home for access to the plist file.
+    cmd_real_user="sudo -EHu $real_user"
+else
+    cmd_real_user="sudo -Eu $real_user"
 fi
 
 TMPDIR=`sudo -u "$real_user" getconf DARWIN_USER_TEMP_DIR`
 export TMPDIR
 
-cmd_real_user="sudo -EHu $real_user"
-
 # shellcheck disable=SC2016
-user_home=$($cmd_real_user bash -c 'echo "$HOME"')
+install_user_home=$($cmd_real_user bash -c 'echo "$HOME"')
 # shellcheck disable=SC2016
 user_uid=$($cmd_real_user bash -c 'echo "$UID"')
-user_plist_file=${user_home}/Library/LaunchAgents/${service_name}.plist
+user_plist_file=${install_user_home}/Library/LaunchAgents/${service_name}.plist
 
 # In order to install with the right user
 rm -f /tmp/datadog-install-user
