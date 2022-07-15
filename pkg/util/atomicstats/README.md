@@ -18,10 +18,4 @@ type telemetry struct {
 
 The struct can have any number of additional fields without the `stats` tag -- this package will ignore them.
 
-Create a `Reporter` to report on this struct:
-
-```go
-var telemetryReporter = atomicstats.NewReporter((*telemetry)(nil))
-```
-
-Finally, to generate the map of telemetry data when required, call `telemetryReporter.Report(tlm)`, passing an instance of your struct type.
+To generate the map of telemetry data when required, call `atomicstats.Report(tlm)`, passing an pointer to an instance of your struct type.

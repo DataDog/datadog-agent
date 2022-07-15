@@ -57,8 +57,6 @@ type telemetry struct {
 	udpConns4, udpConns6 *atomic.Int64 `stats:""`
 }
 
-var telemetryReporter = atomicstats.NewReporter((*telemetry)(nil))
-
 func newTelemetry() telemetry {
 	return telemetry{
 		tcpConns4: atomic.NewInt64(0),
@@ -297,7 +295,7 @@ func (t *telemetry) removeConnection(conn *network.ConnectionStats) {
 }
 
 func (t *telemetry) get() map[string]interface{} {
-	return telemetryReporter.Report(t)
+	return atomicstats.Report(t)
 }
 
 func (t *kprobeTracer) Remove(conn *network.ConnectionStats) error {

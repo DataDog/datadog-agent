@@ -21,39 +21,36 @@ func Example() {
 		notStats      int64
 	}
 
-	// create a singleton reporter for this type
-	myStatsReporter := NewReporter((*myStats)(nil))
-
 	// create a myStats value
 	stats := myStats{
 		integer:       10,
 		atomicInteger: atomic.NewInt64(20),
 		notStats:      30,
 	}
-	statsMap := myStatsReporter.Report(&stats)
+	statsMap := Report(&stats)
 
 	fmt.Printf("%#v\n", statsMap)
 	// Output:
 	// map[string]interface {}{"atomic_integer":20, "integer":10}
 }
 
-func TestNewReporter_NotPtr(t *testing.T) {
+func TestReport_NotPtr(t *testing.T) {
 	type myStats struct{}
-	require.Panics(t, func() { NewReporter(myStats{}) })
+	require.Panics(t, func() { Report(myStats{}) })
 }
 
-func TestNewReporter_NotStructPtr(t *testing.T) {
+func TestReport_NotStructPtr(t *testing.T) {
 	someNumber := 13
-	require.Panics(t, func() { NewReporter(&someNumber) })
+	require.Panics(t, func() { Report(&someNumber) })
 }
 
-func TestNewReporter_BadType(t *testing.T) {
+func TestReport_BadType(t *testing.T) {
 	//nolint:structcheck,unused
 	type myStats struct {
 		// (if and when we support strings, think of something more interesting)
 		stringStat string `stats:""`
 	}
-	require.Panics(t, func() { NewReporter((*myStats)(nil)) })
+	require.Panics(t, func() { Report(&myStats{}) })
 }
 
 func TestReporterAllowedTypes(t *testing.T) {
@@ -74,8 +71,7 @@ func TestReporterAllowedTypes(t *testing.T) {
 		uptr uintptr `stats:""`
 	}
 
-	s := NewReporter((*test)(nil))
-	stats := s.Report(&test{})
+	stats := Report(&test{})
 	require.Len(t, stats, 11)
 	require.Equal(t, int64(0), stats["i64"])
 	require.Equal(t, int32(0), stats["i32"])
@@ -100,8 +96,7 @@ func TestReporterSnakeCase(t *testing.T) {
 		barbaz    int `stats:""`
 		fooBarBaz int `stats:""`
 	}
-	s := NewReporter((*test)(nil))
-	stats := s.Report(&test{})
+	stats := Report(&test{})
 	require.Len(t, stats, 4)
 	require.Contains(t, stats, "foo")
 	require.Contains(t, stats, "bar_baz")
@@ -117,8 +112,7 @@ func TestReporterSkipNoTag(t *testing.T) {
 		baz int `stats:""`
 	}
 
-	s := NewReporter((*test)(nil))
-	stats := s.Report(&test{})
+	stats := Report(&test{})
 	require.Len(t, stats, 2)
 	require.Contains(t, stats, "foo")
 	require.Contains(t, stats, "baz")
@@ -133,13 +127,12 @@ func TestReporterAllowedTypesAtomic(t *testing.T) {
 		u64p  *atomic.Uint64 `stats:""`
 	}
 
-	s := NewReporter((*test)(nil))
 	v := &test{
 		boolp: atomic.NewBool(true),
 		i64p:  atomic.NewInt64(6),
 		u64p:  atomic.NewUint64(7),
 	}
-	stats := s.Report(v)
+	stats := Report(v)
 	require.Len(t, stats, 3)
 	require.Equal(t, true, stats["boolp"])
 	require.Equal(t, int64(6), stats["i64p"])

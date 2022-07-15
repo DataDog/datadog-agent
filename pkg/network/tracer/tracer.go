@@ -86,8 +86,6 @@ type Tracer struct {
 	sysctlUDPConnStreamTimeout *sysctl.Int
 }
 
-var tracerReporter = atomicstats.NewReporter((*Tracer)(nil))
-
 func NewTracer(config *config.Config) (*Tracer, error) {
 	// make sure debugfs is mounted
 	if mounted, err := kernel.IsDebugFSMounted(); !mounted {
@@ -615,7 +613,7 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 		case stateStats:
 			ret["state"] = t.state.GetStats()["telemetry"]
 		case tracerStats:
-			tracerStats := tracerReporter.Report(t)
+			tracerStats := atomicstats.Report(t)
 			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
 			ret["tracer"] = tracerStats
 		}

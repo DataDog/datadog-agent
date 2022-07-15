@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"sync"
 	"unsafe"
 
 	"go.uber.org/atomic"
@@ -19,10 +20,8 @@ import (
 
 const statsTag = "stats"
 
-// Reporter supports reporting on a specific struct type, containing
-// precomputed values to ensure subsequent operations are faster.
-//
-// Typically a single Reporter is created at startup for each stats struct.
+// Report returns a `map` representation of the stats in the given value.
+// All map keys are converted to snake_case.
 //
 // Such structs should tag fields to be included in the stats with `stats:""`.
 // Stats fields can be of any of the following types:
@@ -51,10 +50,29 @@ const statsTag = "stats"
 //     go.uber.org/atomic.Uintptr
 //     go.uber.org/atomic.UnsafePointer
 //     go.uber.org/atomic.Value
-type Reporter struct {
-	// structType is the type of value this Reporter reports on
-	structType reflect.Type
+func Report(v interface{}) map[string]interface{} {
+	rep := getReporter(reflect.TypeOf(v))
 
+	stats := make(map[string]interface{}, len(rep.fields))
+
+	// getReporter ensured that v is a pointer to a struct, so we
+	// can confidently dereference with Elem()
+	value := reflect.ValueOf(v).Elem()
+
+	for name, fld := range rep.fields {
+		stats[name] = fld.get(value.Field(fld.idx))
+	}
+
+	return stats
+}
+
+// reporters is the cache of reporters generated for types
+var reporters = map[reflect.Type]reporter{}
+
+// reportersLock guards access to reporters.
+var reportersLock sync.Mutex
+
+type reporter struct {
 	// fields maps field names to getters and setters for that field
 	fields map[string]field
 }
@@ -67,26 +85,32 @@ type field struct {
 	get func(f reflect.Value) interface{}
 }
 
-// NewReporter creates a new Reporter to represent the type of the argument.
-//
-// Typically the argument is a nil pointer of the correct type:
-//
-//     type foostats struct { .. }
-//     statsReporter := atomicstats.NewReporter((*foostats)(nil))
-func NewReporter(v interface{}) Reporter {
-	ptrType := reflect.TypeOf(v)
+// getReporter gets an existing reporter to represent the given type, or creates
+// a new one.
+func getReporter(ptrType reflect.Type) reporter {
+	reportersLock.Lock()
+	defer reportersLock.Unlock()
 
+	if rep, found := reporters[ptrType]; found {
+		return rep
+	}
+	rep := newReporter(ptrType)
+	reporters[ptrType] = rep
+	return rep
+}
+
+// newReporter creates a new reporter to represent the type of the argument.
+func newReporter(ptrType reflect.Type) reporter {
 	if ptrType.Kind() != reflect.Ptr || ptrType.Elem().Kind() != reflect.Struct {
 		// errors here are programming (type) errors that cannot be caught at compile time,
 		// and thus are fatal
-		panic("NewReporter expects a pointer to a struct")
+		panic("Report expects a pointer to a struct")
 	}
 
 	structType := ptrType.Elem()
 
-	reporter := Reporter{
-		structType: structType,
-		fields:     map[string]field{},
+	rep := reporter{
+		fields: map[string]field{},
 	}
 
 	for idx := 0; idx < structType.NumField(); idx++ {
@@ -98,38 +122,11 @@ func NewReporter(v interface{}) Reporter {
 			}
 
 			fld.idx = idx
-			reporter.fields[toSnakeCase(fieldType.Name)] = fld
+			rep.fields[toSnakeCase(fieldType.Name)] = fld
 		}
 	}
 
-	return reporter
-}
-
-// Report returns a `map` representation of the stats in the given value.
-// All map keys are converted to snake_case.
-//
-// The value _must_ have the same type as the value passed to NewReporter.
-func (r *Reporter) Report(v interface{}) map[string]interface{} {
-	stats := make(map[string]interface{}, len(r.fields))
-
-	value := reflect.ValueOf(v)
-	r.checkType(value)
-
-	// dereference the pointer
-	value = value.Elem()
-
-	for name, fld := range r.fields {
-		stats[name] = fld.get(value.Field(fld.idx))
-	}
-
-	return stats
-}
-
-// checkType checks that the given value is a pointer to r.structType
-func (r *Reporter) checkType(value reflect.Value) {
-	if value.Type() != reflect.PtrTo(r.structType) {
-		panic(fmt.Sprintf("Reporter#Report expects %s; got %s", reflect.PtrTo(r.structType), value.Type()))
-	}
+	return rep
 }
 
 func getFieldFor(fieldType reflect.Type) (field, error) {
@@ -259,7 +256,7 @@ func getFieldFor(fieldType reflect.Type) (field, error) {
 				}}, nil
 		}
 
-		// NOTE: if adding a type here, also update the doc comment for the Reporter type
+		// NOTE: if adding a type here, also update the doc comment for the Report function
 	}
 
 	// none of the cases above matched..

@@ -53,8 +53,6 @@ type routeCache struct {
 	expires *atomic.Uint64 `stats:""`
 }
 
-var routeCacheReporter = atomicstats.NewReporter((*routeCache)(nil))
-
 const defaultTTL = 2 * time.Minute
 
 // RouteCache is the interface to a cache that stores routes for a given (source, destination, net ns) tuple
@@ -133,7 +131,7 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 }
 
 func (c *routeCache) GetStats() map[string]interface{} {
-	stats := routeCacheReporter.Report(c)
+	stats := atomicstats.Report(c)
 	stats["router"] = c.router.GetStats()
 	return stats
 }
@@ -175,8 +173,6 @@ type netlinkRouter struct {
 	ifCacheSize    *atomic.Uint64 `stats:""`
 	ifCacheErrors  *atomic.Uint64 `stats:""`
 }
-
-var netlinkRouterReporter = atomicstats.NewReporter((*netlinkRouter)(nil))
 
 // NewNetlinkRouter create a Router that queries routes via netlink
 func NewNetlinkRouter(procRoot string) (Router, error) {
@@ -230,7 +226,7 @@ func (n *netlinkRouter) Close() {
 }
 
 func (n *netlinkRouter) GetStats() map[string]interface{} {
-	return netlinkRouterReporter.Report(n)
+	return atomicstats.Report(n)
 }
 
 func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, bool) {

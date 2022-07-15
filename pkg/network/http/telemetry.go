@@ -28,8 +28,6 @@ type telemetry struct {
 	aggregations                                *atomic.Int64 `stats:""`
 }
 
-var telemetryReporter = atomicstats.NewReporter((*telemetry)(nil))
-
 func newTelemetry() (*telemetry, error) {
 	t := &telemetry{
 		then:         atomic.NewInt64(time.Now().Unix()),
@@ -107,5 +105,5 @@ func (t *telemetry) reset() telemetry {
 }
 
 func (t *telemetry) report() map[string]interface{} {
-	return telemetryReporter.Report(t)
+	return atomicstats.Report(t)
 }

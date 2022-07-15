@@ -41,8 +41,6 @@ type gatewayLookup struct {
 	subnetLookupErrors *atomic.Uint64 `stats:""`
 }
 
-var gatewayLookupReporter = atomicstats.NewReporter((*gatewayLookup)(nil))
-
 type cloudProvider interface {
 	IsAWS() bool
 }
@@ -179,7 +177,7 @@ func (g *gatewayLookup) GetStats() map[string]interface{} {
 		return make(map[string]interface{})
 	}
 
-	report := gatewayLookupReporter.Report(g)
+	report := atomicstats.Report(g)
 	report["route_cache"] = g.routeCache.GetStats()
 	return report
 }
