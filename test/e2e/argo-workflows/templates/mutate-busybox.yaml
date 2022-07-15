@@ -55,6 +55,31 @@ spec:
                 image: busybox
                 name: busybox
 
+    - name: create-busybox-with-auto-instru
+      inputs:
+        parameters:
+          - name: namespace
+      resource:
+        action: apply
+        manifest: |
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: busybox-auto-instru
+            namespace: {{inputs.parameters.namespace}}
+            labels:
+              "app": "busybox"
+              "admission.datadoghq.com/enabled": "true"
+            annotations:
+              admission.datadoghq.com/java-tracer.custom-image: bdevinssureshatddog/k8s-lib-injection-init:latest # TODO: put the official image instead
+          spec:
+            containers:
+              - command:
+                  - sleep
+                  - "3600"
+                image: busybox
+                name: busybox
+
     - name: create
       inputs:
         parameters:
@@ -86,6 +111,12 @@ spec:
                   value: socket
           - name: busybox-tags
             template: create-busybox-with-tags
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: busybox-auto-instru
+            template: create-busybox-with-auto-instru
             arguments:
               parameters:
                 - name: namespace
@@ -154,8 +185,32 @@ spec:
           until kubectl get pods -o json --namespace {{inputs.parameters.namespace}} | jq '.items[] | select(.spec.containers[].env[]? | .name == "{{inputs.parameters.envKey}}" and .value == "{{inputs.parameters.envValue}}") | .metadata.name' | grep {{inputs.parameters.target}}; do
             sleep 2
           done
+    - name: test-volume-mount
+      inputs:
+        parameters:
+          - name: namespace
+          - name: volumeName
+          - name: volumePath
+          - name: withInitContainers
+          - name: target
+      activeDeadlineSeconds: 300
+      script:
+        image: argoproj/argoexec:v3.3.1
+        command: [sh]
+        source: |
+          set -euo pipefail
+          set -x
 
-    - name: test-volume
+          until kubectl get pods -o json --namespace {{inputs.parameters.namespace}} | jq '.items[] | select(.spec.containers[].volumeMounts[]? | .name == "{{inputs.parameters.volumeName}}" and .mountPath == "{{inputs.parameters.volumePath}}") | .metadata.name' | grep {{inputs.parameters.target}}; do
+            sleep 2
+          done
+
+          if [[ "{{inputs.parameters.withInitContainers}}" == "true" ]]; then
+            until kubectl get pods -o json --namespace {{inputs.parameters.namespace}} | jq '.items[] | select(try .spec.initContainers[].volumeMounts[]? | .name == "{{inputs.parameters.volumeName}}" and .mountPath == "{{inputs.parameters.volumePath}}") | .metadata.name' | grep {{inputs.parameters.target}}; do
+              sleep 2
+            done
+          fi
+    - name: test-host-volume
       inputs:
         parameters:
           - name: namespace
@@ -170,11 +225,25 @@ spec:
           set -euo pipefail
           set -x
 
-          until kubectl get pods -o json --namespace {{inputs.parameters.namespace}} | jq '.items[] | select(.spec.containers[].volumeMounts[]? | .name == "{{inputs.parameters.volumeName}}" and .mountPath == "{{inputs.parameters.volumePath}}") | .metadata.name' | grep {{inputs.parameters.target}}; do
+          until kubectl get pods -o json --namespace {{inputs.parameters.namespace}} | jq '.items[] | select(.spec.volumes[]? | .name == "{{inputs.parameters.volumeName}}" and .hostPath.path == "{{inputs.parameters.volumePath}}") | .metadata.name' | grep {{inputs.parameters.target}}; do
             sleep 2
           done
+    - name: test-empty-dir
+      inputs:
+        parameters:
+          - name: namespace
+          - name: volumeName
+          - name: volumePath
+          - name: target
+      activeDeadlineSeconds: 300
+      script:
+        image: argoproj/argoexec:v3.3.1
+        command: [sh]
+        source: |
+          set -euo pipefail
+          set -x
 
-          until kubectl get pods -o json --namespace {{inputs.parameters.namespace}} | jq '.items[] | select(.spec.volumes[]? | .name == "{{inputs.parameters.volumeName}}" and .hostPath.path == "{{inputs.parameters.volumePath}}") | .metadata.name' | grep {{inputs.parameters.target}}; do
+          until kubectl get pods -o json --namespace {{inputs.parameters.namespace}} | jq '.items[] | select(.spec.volumes[]? | .name == "{{inputs.parameters.volumeName}}" and .emptyDir == {} ) | .metadata.name' | grep {{inputs.parameters.target}}; do
             sleep 2
           done
 
@@ -243,8 +312,22 @@ spec:
                   value: DD_TRACE_AGENT_URL
                 - name: target
                   value: busybox-socket
-          - name: volume-socket
-            template: test-volume
+          - name: volume-mount-socket
+            template: test-volume-mount
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+                - name: volumeName
+                  value: datadog
+                - name: volumePath
+                  value: "/var/run/datadog"
+                - name: withInitContainers
+                  value: "false"
+                - name: target
+                  value: busybox-socket
+          - name: host-volume-socket
+            template: test-host-volume
             arguments:
               parameters:
                 - name: namespace
@@ -303,6 +386,44 @@ spec:
                   value: DD_VERSION
                 - name: target
                   value: busybox-tags
+          - name: env-auto-instru
+            template: test-env-value
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+                - name: envValue
+                  value: " -javaagent:/datadog/dd-java-agent.jar"
+                - name: envKey
+                  value: JAVA_TOOL_OPTIONS
+                - name: target
+                  value: busybox-auto-instru
+          - name: volume-mount-auto-instru
+            template: test-volume-mount
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+                - name: volumeName
+                  value: datadog-auto-instrumentation
+                - name: volumePath
+                  value: "/datadog"
+                - name: withInitContainers
+                  value: "true"
+                - name: target
+                  value: busybox-auto-instru
+          - name: empty-dir-auto-instru
+            template: test-empty-dir
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+                - name: volumeName
+                  value: datadog-auto-instrumentation
+                - name: volumePath
+                  value: "/datadog"
+                - name: target
+                  value: busybox-auto-instru
 
     - name: diagnose
       inputs:
