@@ -141,6 +141,14 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 					UID:          probeUID,
 				},
 			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection: string(probes.DoVfsIoctl),
+					EBPFFuncName: "kprobe__do_vfs_ioctl",
+					UID: probeUID
+				},
+				KProbeMaxActive: maxActive,
+			},
 		},
 	}
 
@@ -206,6 +214,13 @@ func (e *ebpfProgram) Init() error {
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  "kretprobe/security_sock_rcv_skb",
 					EBPFFuncName: "kretprobe__security_sock_rcv_skb",
+					UID:          probeUID,
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  string(probes.DoVfsIoctl),
+					EBPFFuncName: "kprobe__do_vfs_ioctl",
 					UID:          probeUID,
 				},
 			},

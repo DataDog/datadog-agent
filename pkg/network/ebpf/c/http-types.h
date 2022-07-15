@@ -18,6 +18,10 @@
 // the http eBPF program.
 _Static_assert((HTTP_BUFFER_SIZE % 8) == 0, "HTTP_BUFFER_SIZE must be a multiple of 8.");
 
+typedef enum {
+    HTTP_ENQUEUE,
+} http_ioctl_t;
+
 typedef enum
 {
     HTTP_PACKET_UNKNOWN,

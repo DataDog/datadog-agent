@@ -127,6 +127,9 @@ const (
 
 	// DoSendfileRet is the kretprobe used to trace traffic via SENDFILE(2) syscall
 	DoSendfileRet ProbeName = "kretprobe/do_sendfile"
+
+	// DoVfsIoctl is the kprobe used to send userspace data to kernel side
+	DoVfsIoctl ProbeName = "kprobe/do_vfs_ioctl"
 )
 
 // BPFMapName stores the name of the BPF maps storing statistics and other info

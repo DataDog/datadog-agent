@@ -515,6 +515,31 @@ int kretprobe__do_sys_openat2(struct pt_regs *ctx) {
     return do_sys_open_helper_exit(ctx);
 }
 
+SEC("kprobe/do_vfs_ioctl")
+int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
+    const unsigned int cmd = PT_REGS_PARM3(ctx);
+    if (!is_npm_request(cmd)) {
+        return 0;
+    }
+
+    void *req = (void *)PT_REGS_PARM4(ctx);
+    __u32 code;
+    __u8 *data;
+    __u32 data_len;
+    if (get_npm_request(req, &code, &data, &data_len) < 0) {
+        return 0;
+    }
+    switch (code) {
+    case HTTP_ENQUEUE:
+        http_ioctl_enqueue(data, data_len);
+        break;
+    default:
+        return 0;
+    }
+
+    return 0;
+}
+
 // This number will be interpreted by elf-loader to set the current running kernel version
 __u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)
 
