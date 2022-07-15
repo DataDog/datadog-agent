@@ -69,31 +69,45 @@ var (
 	timeout int
 )
 
+var (
+	snmpCmd = &cobra.Command{
+		Use:   "snmp",
+		Short: "Snmp tools",
+		Long:  ``,
+	}
+)
+
 func init() {
-	AgentCmd.AddCommand(snmpwalkCmd)
-	snmpwalkCmd.Flags().StringVarP(&snmpVersion, "snmp-version", "v", defaultVersion, "Specify SNMP version to use")
+
+	snmpWalkCmd.Flags().StringVarP(&snmpVersion, "snmp-version", "v", defaultVersion, "Specify SNMP version to use")
 
 	// snmp v1 or v2c specific
-	snmpwalkCmd.Flags().StringVarP(&communityString, "community-string", "C", "", "Set the community string")
+	snmpWalkCmd.Flags().StringVarP(&communityString, "community-string", "C", "", "Set the community string")
 
 	// snmp v3 specific
-	snmpwalkCmd.Flags().StringVarP(&authProt, "auth-protocol", "a", defaultAuthProtocol, "Set authentication protocol (MD5|SHA|SHA-224|SHA-256|SHA-384|SHA-512)")
-	snmpwalkCmd.Flags().StringVarP(&authKey, "auth-key", "A", defaultAuthKey, "Set authentication protocol pass phrase")
-	snmpwalkCmd.Flags().StringVarP(&securityLevel, "security-level", "l", defaultSecurityLevel, "set security level (noAuthNoPriv|authNoPriv|authPriv)")
-	snmpwalkCmd.Flags().StringVarP(&snmpContext, "context", "N", defaultContext, "Set context name")
-	snmpwalkCmd.Flags().StringVarP(&user, "user-name", "u", defaultUserName, "Set security name")
-	snmpwalkCmd.Flags().StringVarP(&privProt, "priv-protocol", "x", defaultPrivProtocol, "Set privacy protocol (DES|AES|AES192|AES192C|AES256|AES256C)")
-	snmpwalkCmd.Flags().StringVarP(&privKey, "priv-key", "X", defaultPrivKey, "Set privacy protocol pass phrase")
+	snmpWalkCmd.Flags().StringVarP(&authProt, "auth-protocol", "a", defaultAuthProtocol, "Set authentication protocol (MD5|SHA|SHA-224|SHA-256|SHA-384|SHA-512)")
+	snmpWalkCmd.Flags().StringVarP(&authKey, "auth-key", "A", defaultAuthKey, "Set authentication protocol pass phrase")
+	snmpWalkCmd.Flags().StringVarP(&securityLevel, "security-level", "l", defaultSecurityLevel, "set security level (noAuthNoPriv|authNoPriv|authPriv)")
+	snmpWalkCmd.Flags().StringVarP(&snmpContext, "context", "N", defaultContext, "Set context name")
+	snmpWalkCmd.Flags().StringVarP(&user, "user-name", "u", defaultUserName, "Set security name")
+	snmpWalkCmd.Flags().StringVarP(&privProt, "priv-protocol", "x", defaultPrivProtocol, "Set privacy protocol (DES|AES|AES192|AES192C|AES256|AES256C)")
+	snmpWalkCmd.Flags().StringVarP(&privKey, "priv-key", "X", defaultPrivKey, "Set privacy protocol pass phrase")
 
 	// general communication options
-	snmpwalkCmd.Flags().IntVarP(&retries, "retries", "r", defaultRetries, "Set the number of retries")
-	snmpwalkCmd.Flags().IntVarP(&timeout, "timeout", "t", defaultTimeout, "Set the request timeout (in seconds)")
+	snmpWalkCmd.Flags().IntVarP(&retries, "retries", "r", defaultRetries, "Set the number of retries")
+	snmpWalkCmd.Flags().IntVarP(&timeout, "timeout", "t", defaultTimeout, "Set the request timeout (in seconds)")
 
-	snmpwalkCmd.SetArgs([]string{})
+	snmpWalkCmd.SetArgs([]string{})
+
+	// attach snmpWalk to snmp command
+	snmpCmd.AddCommand(snmpWalkCmd)
+
+	// attach the command to the root
+	AgentCmd.AddCommand(snmpCmd)
 }
 
-var snmpwalkCmd = &cobra.Command{
-	Use:   "snmpwalk <IP Address>[:Port] [OID] [OPTIONS]",
+var snmpWalkCmd = &cobra.Command{
+	Use:   "walk <IP Address>[:Port] [OID] [OPTIONS]",
 	Short: "Perform a snmpwalk",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
