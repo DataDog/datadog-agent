@@ -67,10 +67,12 @@ func Report(v interface{}) map[string]interface{} {
 }
 
 // reporters is the cache of reporters generated for types
-var reporters = map[reflect.Type]reporter{}
-
-// reportersLock guards access to reporters.
-var reportersLock sync.Mutex
+var reporters = struct {
+	sync.Mutex
+	m map[reflect.Type]reporter
+}{
+	m: map[reflect.Type]reporter{},
+}
 
 type reporter struct {
 	// fields maps field names to getters and setters for that field
@@ -88,14 +90,14 @@ type field struct {
 // getReporter gets an existing reporter to represent the given type, or creates
 // a new one.
 func getReporter(ptrType reflect.Type) reporter {
-	reportersLock.Lock()
-	defer reportersLock.Unlock()
+	reporters.Lock()
+	defer reporters.Unlock()
 
-	if rep, found := reporters[ptrType]; found {
+	if rep, found := reporters.m[ptrType]; found {
 		return rep
 	}
 	rep := newReporter(ptrType)
-	reporters[ptrType] = rep
+	reporters.m[ptrType] = rep
 	return rep
 }
 
