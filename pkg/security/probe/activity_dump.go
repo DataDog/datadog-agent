@@ -508,7 +508,7 @@ func (ad *ActivityDump) GetSelectorStr() string {
 
 // getSelectorStr internal, thread-unsafe version of GetSelectorStr
 func (ad *ActivityDump) getSelectorStr() string {
-	var tags []string
+	tags := make([]string, 0, len(ad.Tags)+2)
 	if len(ad.DumpMetadata.ContainerID) > 0 {
 		tags = append(tags, fmt.Sprintf("container_id:%s", ad.DumpMetadata.ContainerID))
 	}
