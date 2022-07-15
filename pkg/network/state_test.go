@@ -14,12 +14,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/network/http"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 func BenchmarkConnectionsGet(b *testing.B) {
@@ -1416,6 +1417,20 @@ func TestClosedMergingWithAddressCollision(t *testing.T) {
 		delta = state.GetDelta(client, latestEpochTime(), nil, nil, nil)
 		assert.Len(t, delta.Conns, 1)
 		assert.Equal(t, uint64(150), delta.Conns[0].Last.SentBytes)
+	})
+
+	t.Run("active missing NAT, closed has NAT", func(t *testing.T) {
+		state := newDefaultState()
+		state.RegisterClient(client)
+
+		state.StoreClosedConnections([]ConnectionStats{c1})
+
+		active := c1
+		active.IPTranslation = nil
+		delta := state.GetDelta(client, latestEpochTime(), []ConnectionStats{active}, nil, nil)
+		assert.Len(t, delta.Conns, 1)
+		assert.Equal(t, uint64(100), delta.Conns[0].Last.SentBytes)
+
 	})
 
 }

@@ -29,7 +29,7 @@ const (
 	DNSResponseCodeNoError = 0
 
 	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
-	ConnectionByteKeyMaxLen = 41
+	ConnectionByteKeyMaxLen = 77
 )
 
 // State takes care of handling the logic for:
@@ -96,7 +96,7 @@ const minClosedCapacity = 1024
 type client struct {
 	lastFetch time.Time
 
-	// generated via `ByteKeyNAT` and used exclusively to roll up closed connections
+	// generated via `ByteKey` and used exclusively to roll up closed connections
 	closedConnectionsKeys map[string]int
 
 	closedConnections []ConnectionStats
@@ -287,9 +287,9 @@ func (ns *networkState) RegisterClient(id string) {
 func getConnsByKey(conns []ConnectionStats, buf []byte) map[string]*ConnectionStats {
 	connsByKey := make(map[string]*ConnectionStats, len(conns))
 	for i, c := range conns {
-		key := c.ByteKeyNAT(buf)
-		connsByKey[string(key)] = &conns[i]
+		connsByKey[string(c.ByteKey(buf))] = &conns[i]
 	}
+
 	return connsByKey
 }
 
@@ -304,7 +304,7 @@ func (ns *networkState) StoreClosedConnections(closed []ConnectionStats) {
 func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 	for _, client := range ns.clients {
 		for _, c := range conns {
-			key := c.ByteKeyNAT(ns.buf)
+			key := c.ByteKey(ns.buf)
 
 			i, ok := client.closedConnectionsKeys[string(key)]
 			if ok {
@@ -449,11 +449,20 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 	closedKeys := make(map[string]struct{}, len(closed))
 	for i := range closed {
 		closedConn := &closed[i]
-		key := string(closedConn.ByteKeyNAT(ns.buf))
+		keyb := closedConn.ByteKey(ns.buf)
+		key := string(keyb)
 		closedKeys[key] = struct{}{}
 
+		var activeConn *ConnectionStats
+		var ok bool
+		if activeConn, ok = active[key]; !ok && closedConn.IPTranslation != nil {
+			// use the non-NAT key
+			key = string(removeNATFromKey(keyb))
+			activeConn, ok = active[key]
+		}
+
 		// If the connection is also active, check the epochs to understand what's going on
-		if activeConn, ok := active[key]; ok {
+		if ok {
 			// If closed conn is newer it means that the active connection is outdated, let's ignore it
 			if closedConn.LastUpdateEpoch > activeConn.LastUpdateEpoch {
 				log.Tracef("closed conn newer closedConn: %s activeConn: %s", *closedConn, *activeConn)
@@ -566,7 +575,7 @@ func (ns *networkState) RemoveConnections(conns []*ConnectionStats) {
 
 	for _, cl := range ns.clients {
 		for _, c := range conns {
-			key := c.ByteKeyNAT(ns.buf)
+			key := c.ByteKey(ns.buf)
 			delete(cl.stats, string(key))
 		}
 	}

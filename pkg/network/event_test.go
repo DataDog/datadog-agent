@@ -55,9 +55,23 @@ func TestBeautifyKey(t *testing.T) {
 			SPort:     52012,
 			DPort:     443,
 		},
+		{
+			Source: util.AddressFromString("127.0.0.1"),
+			Dest:   util.AddressFromString("127.0.0.2"),
+			IPTranslation: &IPTranslation{
+				ReplSrcIP:   util.AddressFromString("3.3.3.3"),
+				ReplSrcPort: 4431,
+				ReplDstIP:   util.AddressFromString("4.4.4.4"),
+				ReplDstPort: 52013,
+			},
+		},
 	} {
 		bk := c.ByteKey(buf)
-		expected := fmt.Sprintf(keyFmt, c.Pid, c.Source.String(), c.SPort, c.Dest.String(), c.DPort, c.Family, c.Type)
+		var expected string
+		expected = fmt.Sprintf(keyFmt, c.Pid, c.Family, c.Type, c.Source.String(), c.SPort, c.Dest.String(), c.DPort)
+		if c.IPTranslation != nil {
+			expected += fmt.Sprintf(keyFmtNat, c.IPTranslation.ReplDstIP, c.IPTranslation.ReplDstPort, c.IPTranslation.ReplSrcIP, c.IPTranslation.ReplSrcPort)
+		}
 		assert.Equal(t, expected, BeautifyKey(string(bk)))
 	}
 }
@@ -191,8 +205,8 @@ func TestByteKeyNAT(t *testing.T) {
 				},
 			},
 			b: ConnectionStats{
-				Source: util.AddressFromString("127.0.0.3"),
-				Dest:   util.AddressFromString("127.0.0.4"),
+				Source: util.AddressFromString("127.0.0.1"),
+				Dest:   util.AddressFromString("127.0.0.2"),
 				IPTranslation: &IPTranslation{
 					ReplSrcIP: util.AddressFromString("1.1.1.1"),
 					ReplDstIP: util.AddressFromString("2.2.2.2"),
@@ -201,12 +215,11 @@ func TestByteKeyNAT(t *testing.T) {
 			shouldMatch: true,
 		},
 	} {
-		var keyA, keyB string
-		keyA = string(test.a.ByteKeyNAT(buf))
-		keyB = string(test.b.ByteKeyNAT(buf))
+		keyA := string(test.a.ByteKey(buf))
+		keyB := string(test.b.ByteKey(buf))
 		actual := keyA == keyB
 		assert.Equalf(t, test.shouldMatch, actual,
-			"a: %s\nb:%s\nshouldMatch: %v\ngot: %v", test.a, test.b, test.shouldMatch, actual,
+			"a: %s\nb: %s\nkeyA: %v\nkeyB: %v", test.a, test.b, keyA, keyB,
 		)
 	}
 }
