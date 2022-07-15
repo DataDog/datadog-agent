@@ -6,6 +6,7 @@
 // This function reads a constant number of bytes into the fragment buffer of the http
 // transaction object, and returns the number of bytes of the valid data. The number of
 // bytes are used in userspace to zero out the garbage we may have read into the buffer.
+<<<<<<< HEAD
 static __always_inline void read_into_buffer(char *buffer, char *data, size_t data_size) {
     __builtin_memset(buffer, 0, HTTP_BUFFER_SIZE);
 
