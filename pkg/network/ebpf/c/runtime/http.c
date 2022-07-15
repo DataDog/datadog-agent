@@ -523,16 +523,15 @@ int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
         return 0;
     }
 
-    void *req = (void *)PT_REGS_PARM4(ctx);
-    __u32 code;
-    __u8 *data;
-    __u32 data_len;
-    if (get_npm_request(req, &code, &data, &data_len) < 0) {
+    struct npm_ioctl *req = (struct npm_ioctl *)PT_REGS_PARM4(ctx);
+    struct npm_ioctl ioctl = {};
+    if (get_npm_request(&ioctl, req) < 0) {
         return 0;
     }
-    switch (code) {
+    switch (ioctl.code) {
     case HTTP_ENQUEUE:
-        http_ioctl_enqueue(data, data_len);
+        http_ioctl_enqueue(req->data, ioctl.data_len);
+        http_notify_batch(ctx);
         break;
     default:
         return 0;

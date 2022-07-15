@@ -259,7 +259,7 @@ static __always_inline void http_ioctl_enqueue(__u8 *data, __u32 data_len) {
         log_debug("http ioctl enqueue: invalid transaction from pid %d\n", pid_tgid >> 32);
         return;
     }
-    http_transaction_t t;
+    http_transaction_t t = {};
     if (bpf_probe_read_user(&t, sizeof(http_transaction_t), data) < 0) {
         return;
     }

@@ -18,14 +18,10 @@ static __always_inline int is_npm_request(const unsigned int cmd) {
     return 1;
 }
 
-static __always_inline int get_npm_request(void *req, __u32 *code, __u8 **data, __u32 *data_len) {
-    struct npm_ioctl io = {};
-    if(bpf_probe_read_user(&io, sizeof(io), req) < 0) {
+static __always_inline int get_npm_request(struct npm_ioctl *ioctl, void *req) {
+    if(bpf_probe_read_user(ioctl, sizeof(struct npm_ioctl), req) < 0) {
         return -1;
     }
-    *code = io.code;
-    *data_len = io.data_len;
-    *data = &io.data[0];
     return 0;
 }
 
