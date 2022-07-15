@@ -10,19 +10,23 @@ package http
 
 import (
 	"fmt"
+	"golang.org/x/sys/unix"
 	"io"
 	"math/rand"
 	"net"
 	nethttp "net/http"
 	"net/url"
+	"os"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/http/testutil"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -226,4 +230,73 @@ func includesRequest(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.
 		req.Method,
 		expectedStatus,
 	)
+}
+
+func ioctlNPM(arg unsafe.Pointer) {
+	fioctl, _ := os.Open("/")
+	defer fioctl.Close()
+	req := uint(0xda7ad09)
+	unix.Syscall(unix.SYS_IOCTL, uintptr(fioctl.Fd()), uintptr(req), uintptr(arg))
+}
+
+type ioctlHttpTX struct {
+	code     uint32
+	data_len uint32
+	httpTX
+}
+
+func TestHTTPTransactionUserspace(t *testing.T) {
+	monitor, err := NewMonitor(config.New(), nil, nil)
+	require.NoError(t, err)
+	err = monitor.Start()
+	require.NoError(t, err)
+	defer monitor.Stop()
+
+	tx := generateIPv4HTTPTransaction(
+		util.AddressFromString("1.1.1.1"),
+		util.AddressFromString("2.2.2.2"),
+		1234,
+		8080,
+		"/from/userspace",
+		404,
+		30*time.Millisecond,
+	)
+	transactions := []httpTX{tx}
+	var ioctl ioctlHttpTX
+	ioctl.code = uint32(httpIoctlEnqueue) //HTTP_ENQUEUE
+	ioctl.data_len = uint32(unsafe.Sizeof(ioctl.httpTX))
+	ioctl.httpTX = transactions[0]
+	ioctlNPM(unsafe.Pointer(&ioctl))
+	ioctlNPM(unsafe.Pointer(&ioctl))
+	ioctlNPM(unsafe.Pointer(&ioctl))
+
+	stats := monitor.GetHTTPStats()
+	for key, stat := range stats {
+		if key.Method == MethodUnknown {
+			t.Error("detected HTTP request with method unknown")
+		}
+		if key.Path.Content != "/from/userspace" || key.Path.FullPath == false {
+			t.Errorf("detected HTTP request with bad path content %+v", key.Path)
+		}
+		if key.KeyTuple.SrcIPLow != 0x1010101 || key.KeyTuple.DstIPLow != 0x2020202 {
+			t.Errorf("detected HTTP request with wrong IP %+v", key.KeyTuple)
+		}
+		if stat.HasStats(100) || stat.HasStats(200) || stat.HasStats(300) || stat.HasStats(500) {
+			t.Errorf("detected HTTP request with bad stats %+v", stat)
+		}
+		if stat.HasStats(400) {
+			s := stat.Stats(400)
+			if s.Count != 3 {
+				t.Errorf("detected HTTP request with bad path content %+v", key.Path)
+			}
+		}
+	}
+
+	telemetry := monitor.GetStats()
+	require.NotEmpty(t, telemetry)
+	_, ok := telemetry["dropped"]
+	require.True(t, ok)
+	_, ok = telemetry["misses"]
+	require.True(t, ok)
+
 }
