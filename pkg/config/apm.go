@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
- 
 // Used for Vector override
 const Traces DataType = "traces"
 
@@ -53,7 +52,7 @@ func setupAPM(config Config) {
 	config.SetKnown("apm_config.bucket_size_seconds")
 	config.SetKnown("apm_config.watchdog_check_delay")
 	config.SetKnown("apm_config.sync_flushing")
-    
+
 	bindVectorOptions(config, Traces)
 
 	if runtime.GOARCH == "386" && runtime.GOOS == "windows" {
