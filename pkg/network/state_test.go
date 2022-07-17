@@ -633,11 +633,12 @@ func TestSameKeyEdgeCases(t *testing.T) {
 
 		conn.Monotonic.SentBytes = 1
 		conn.LastUpdateEpoch = latestEpochTime()
+		conn.Cookie++
 		// Retrieve the connections
 		conns = state.GetDelta(client, latestEpochTime(), []ConnectionStats{conn}, nil, nil).Conns
 		require.Len(t, conns, 1)
-		assert.EqualValues(t, 2, conns[0].Last.SentBytes)
-		assert.EqualValues(t, 3, conns[0].Monotonic.SentBytes)
+		assert.EqualValues(t, uint64(2), conns[0].Last.SentBytes)
+		assert.EqualValues(t, uint64(3), conns[0].Monotonic.SentBytes)
 
 		conn.Monotonic.SentBytes++
 		conn.LastUpdateEpoch = latestEpochTime()
@@ -680,6 +681,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		conn2 := conn
 		conn2.Monotonic.SentBytes = 2
 		conn2.LastUpdateEpoch++
+		conn2.Cookie = conn.Cookie + 1
 		// Store the connection as an opened connection
 		cs := []ConnectionStats{conn2}
 
@@ -696,6 +698,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 
 		// Store the connection again
 		conn3 := conn2
+		conn3.Cookie = conn2.Cookie + 1
 		conn3.Monotonic.SentBytes = 1
 		conn3.LastUpdateEpoch++
 		cs = []ConnectionStats{conn3}
@@ -815,6 +818,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 
 		// Store the connection as an opened connection
 		conn2 := conn
+		conn2.Cookie = conn.Cookie + 1
 		conn2.Monotonic.SentBytes = 2
 		conn2.LastUpdateEpoch++
 		cs := []ConnectionStats{conn2}
@@ -843,6 +847,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 
 		// Store the connection again
 		conn3 := conn2
+		conn3.Cookie = conn2.Cookie + 1
 		conn3.Monotonic.SentBytes = 1
 		conn3.LastUpdateEpoch++
 		cs = []ConnectionStats{conn3}
@@ -970,6 +975,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 
 		// Store the connection as an opened connection
 		conn2 := conn
+		conn2.Cookie = conn.Cookie + 1
 		conn2.Monotonic.SentBytes = 2
 		conn2.LastUpdateEpoch++
 		cs = []ConnectionStats{conn2}
@@ -1341,6 +1347,7 @@ func TestClosedMergingWithAddressCollision(t *testing.T) {
 			ReplSrcPort: 123,
 			ReplDstPort: 456,
 		},
+		Cookie: 1,
 	}
 	c2 := ConnectionStats{
 		Pid:    123,
@@ -1359,6 +1366,7 @@ func TestClosedMergingWithAddressCollision(t *testing.T) {
 			ReplSrcPort: 123,
 			ReplDstPort: 456,
 		},
+		Cookie: 2,
 	}
 
 	t.Run("ephemeral connections", func(t *testing.T) {
@@ -1376,30 +1384,10 @@ func TestClosedMergingWithAddressCollision(t *testing.T) {
 		state.StoreClosedConnections([]ConnectionStats{c1})
 		state.StoreClosedConnections([]ConnectionStats{c2})
 
-		// these two connections will be treated as distinct and won't be aggregated.
 		delta := state.GetDelta(client, latestEpochTime(), nil, nil, nil)
-		connections := delta.Conns
 
-		assert.Len(t, delta.Conns, 2)
-		assert.Condition(t, func() bool {
-			// assert c1 is present
-			for _, c := range connections {
-				if c.IPTranslation != nil && c.IPTranslation.ReplSrcIP == util.AddressFromString("1.1.1.1") {
-					return c.Last.SentBytes == 100
-				}
-			}
-			return false
-		})
-
-		assert.Condition(t, func() bool {
-			// assert c2 is present
-			for _, c := range connections {
-				if c.IPTranslation != nil && c.IPTranslation.ReplSrcIP == util.AddressFromString("3.3.3.3") {
-					return c.Last.SentBytes == 150
-				}
-			}
-			return false
-		})
+		assert.Len(t, delta.Conns, 1)
+		assert.Equal(t, uint64(250), delta.Conns[0].Last.SentBytes)
 	})
 
 	t.Run("long-lived connection", func(t *testing.T) {

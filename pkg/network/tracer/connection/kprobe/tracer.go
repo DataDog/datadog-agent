@@ -14,6 +14,10 @@ import (
 	"math"
 	"unsafe"
 
+	"github.com/cilium/ebpf"
+	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -25,9 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
-	"go.uber.org/atomic"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -480,6 +481,7 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		},
 		LastUpdateEpoch: s.Timestamp,
 		IsAssured:       s.IsAssured(),
+		Cookie:          s.Cookie,
 	}
 
 	if t.Type() == netebpf.TCP {

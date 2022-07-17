@@ -29,7 +29,7 @@ const (
 	DNSResponseCodeNoError = 0
 
 	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
-	ConnectionByteKeyMaxLen = 77
+	ConnectionByteKeyMaxLen = 41
 )
 
 // State takes care of handling the logic for:
@@ -325,7 +325,30 @@ func (ns *networkState) RegisterClient(id string) {
 func getConnsByKey(conns []ConnectionStats, buf []byte) map[string]*ConnectionStats {
 	connsByKey := make(map[string]*ConnectionStats, len(conns))
 	for i, c := range conns {
-		connsByKey[string(c.ByteKey(buf))] = &conns[i]
+		key := string(c.ByteKey(buf))
+		var c *ConnectionStats
+		if c = connsByKey[key]; c == nil {
+			connsByKey[key] = &conns[i]
+			continue
+		}
+
+		log.Debugf("duplicate connection in collection: key: %s, c1: %+v, c2: %+v", BeautifyKey(key), *c, conns[i])
+		if c.Cookie == conns[i].Cookie {
+			// same set of stats, use the latest one
+			if c.LastUpdateEpoch < conns[i].LastUpdateEpoch {
+				connsByKey[key] = &conns[i]
+			}
+
+			continue
+		}
+
+		// different set of stats, but same tuple,
+		// add the two
+		addConnections(c, &conns[i])
+		if c.LastUpdateEpoch == conns[i].LastUpdateEpoch {
+			c.Cookie = conns[i].Cookie
+		}
+		connsByKey[key] = c
 	}
 
 	return connsByKey
@@ -487,47 +510,24 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 	closedKeys := make(map[string]struct{}, len(closed))
 	for i := range closed {
 		closedConn := &closed[i]
-		keyb := closedConn.ByteKey(ns.buf)
-		key := string(keyb)
+		key := string(closedConn.ByteKey(ns.buf))
+		ns.updateConnWithStats(client, key, closedConn)
 		closedKeys[key] = struct{}{}
 
 		var activeConn *ConnectionStats
-		var ok bool
-		if activeConn, ok = active[key]; !ok && closedConn.IPTranslation != nil {
-			// use the non-NAT key
-			key = string(removeNATFromKey(keyb))
-			activeConn, ok = active[key]
-			closedKeys[key] = struct{}{}
-		}
-
-		// If the connection is also active, check the epochs to understand what's going on
-		if ok {
-			// If closed conn is newer it means that the active connection is outdated, let's ignore it
-			if closedConn.LastUpdateEpoch > activeConn.LastUpdateEpoch {
-				log.Tracef("closed conn newer closedConn: %s activeConn: %s", *closedConn, *activeConn)
-				ns.updateConnWithStats(client, key, closedConn)
-				delete(active, key)
-			} else if closedConn.LastUpdateEpoch < activeConn.LastUpdateEpoch {
-				log.Tracef("active conn newer closedConn: %s activeConn: %s", *closedConn, *activeConn)
-				// Else if the active conn is newer, it likely means that it became active again
-				// in this case we aggregate the two
-				addConnections(closedConn, activeConn)
-				ns.createStatsForKey(client, key)
-				ns.updateConnWithStatWithActiveConn(client, key, activeConn, closedConn)
-			} else {
-				// Else the closed connection and the active connection have the same epoch
-				// XXX: For now we assume that the closed connection is the more recent one but this is not guaranteed
-				// To fix this we should have a way to uniquely identify a connection
-				// (using the startTimestamp or a monotonic counter)
-				ns.telemetry.timeSyncCollisions++
-				log.Tracef("Time collision for connections: closed:%+v, active:%+v", closedConn, activeConn)
-				ns.updateConnWithStats(client, key, closedConn)
+		if activeConn = active[key]; activeConn == nil || activeConn.Cookie == closedConn.Cookie {
+			if activeConn != nil {
 				delete(active, key)
 			}
-		} else {
-			ns.updateConnWithStats(client, key, closedConn)
+			continue
 		}
+
+		ns.createStatsForKey(client, key, activeConn.Cookie)
+		ns.updateConnWithStats(client, key, activeConn)
+		addConnections(closedConn, activeConn)
+		closedConn.Last = closedConn.Last.Add(activeConn.Last)
 	}
+
 	buffer.Append(closed)
 
 	// Active connections
@@ -537,54 +537,78 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 			continue
 		}
 
-		ns.createStatsForKey(client, key)
+		ns.createStatsForKey(client, key, c.Cookie)
 		ns.updateConnWithStats(client, key, c)
 
 		*buffer.Next() = *c
 	}
 }
 
-// This is used to update the stats when we process a closed connection that became active again
-// in this case we want the stats to reflect the new active connections in order to avoid resets
-func (ns *networkState) updateConnWithStatWithActiveConn(client *client, key string, active *ConnectionStats, closed *ConnectionStats) {
-	if st, ok := client.stats[key]; ok {
-		// Check for underflows
-		var underflow bool
-		if closed.Last, underflow = closed.Monotonic.Sub(*st); underflow {
-			ns.telemetry.statsUnderflows++
-			log.Debugf("Stats underflow for key:%s, stats:%+v, connection:%+v", BeautifyKey(key), *st, *closed)
-		}
-
-		// We also update the counters to reflect only the active connection
-		// The monotonic counters will be the sum of all connections that cross our interval start + finish.
-		*st = active.Monotonic
-	} else {
-		closed.Last = closed.Monotonic
+func maxUint64(a, b uint64) uint64 {
+	if a > b {
+		return a
 	}
+
+	return b
+}
+
+func maxUint32(a, b uint32) uint32 {
+	if a > b {
+		return a
+	}
+
+	return b
 }
 
 func (ns *networkState) updateConnWithStats(client *client, key string, c *ConnectionStats) {
 	if st, ok := client.stats[key]; ok {
+		if c.Cookie != st.Cookie {
+			// different set of stats
+			c.Last = c.Monotonic
+			*st = c.Monotonic
+			st.Cookie = c.Cookie
+			return
+		}
+
 		var underflow bool
 		if c.Last, underflow = c.Monotonic.Sub(*st); underflow {
 			ns.telemetry.statsUnderflows++
 			log.Debugf("Stats underflow for key:%s, stats:%+v, connection:%+v", BeautifyKey(key), *st, *c)
+
+			if c.Monotonic.RecvBytes > st.RecvBytes {
+				c.Last.RecvBytes = c.Monotonic.RecvBytes - st.RecvBytes
+			}
+			if c.Monotonic.RecvPackets > st.RecvPackets {
+				c.Last.RecvPackets = c.Monotonic.RecvPackets - st.RecvPackets
+			}
+			if c.Monotonic.SentBytes > st.SentBytes {
+				c.Last.SentBytes = c.Monotonic.SentBytes - st.SentBytes
+			}
+			if c.Monotonic.SentPackets > st.SentPackets {
+				c.Last.SentPackets = c.Monotonic.SentPackets - st.SentPackets
+			}
 		}
 
-		*st = c.Monotonic
+		st.RecvBytes = maxUint64(c.Monotonic.RecvBytes, st.RecvBytes)
+		st.RecvPackets = maxUint64(c.Monotonic.RecvPackets, st.RecvPackets)
+		st.SentBytes = maxUint64(c.Monotonic.SentBytes, st.SentBytes)
+		st.SentPackets = maxUint64(c.Monotonic.SentPackets, st.SentPackets)
+		st.Retransmits = maxUint32(c.Monotonic.Retransmits, st.Retransmits)
+		st.TCPClosed = maxUint32(c.Monotonic.TCPClosed, st.TCPClosed)
+		st.TCPEstablished = maxUint32(c.Monotonic.TCPEstablished, st.TCPEstablished)
 	} else {
 		c.Last = c.Monotonic
 	}
 }
 
 // createStatsForKey will create a new stats object for a key if it doesn't already exist.
-func (ns *networkState) createStatsForKey(client *client, key string) {
+func (ns *networkState) createStatsForKey(client *client, key string, cookie uint32) {
 	if _, ok := client.stats[key]; !ok {
 		if len(client.stats) >= ns.maxClientStats {
 			ns.telemetry.connDropped++
 			return
 		}
-		client.stats[key] = &StatCounters{}
+		client.stats[key] = &StatCounters{Cookie: cookie}
 	}
 }
 
@@ -735,7 +759,7 @@ func addConnections(a, b *ConnectionStats) {
 		a.LastUpdateEpoch = b.LastUpdateEpoch
 	}
 
-	if a.IPTranslation == nil {
-		a.IPTranslation = b.IPTranslation
+	if a.IPTranslation != nil || b.IPTranslation != nil {
+		a.IPTranslation = nil
 	}
 }

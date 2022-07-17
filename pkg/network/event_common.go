@@ -204,6 +204,8 @@ type StatCounters struct {
 	//   are established with the same tuple between two agent checks;
 	TCPEstablished uint32
 	TCPClosed      uint32
+
+	Cookie uint32
 }
 
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
@@ -236,6 +238,8 @@ type ConnectionStats struct {
 
 	IntraHost bool
 	IsAssured bool
+
+	Cookie uint32
 }
 
 // Via has info about the routing decision for a flow
@@ -268,51 +272,19 @@ func (c ConnectionStats) IsExpired(now uint64, timeout uint64) bool {
 // ByteKey returns a unique key for this connection represented as a byte slice
 // It's as following:
 //
-//     4B     .5B     .5B      4/16B        4/16B      2B      2B       4/16B        4/16B         2B        2B     = 17/41B (29/77B)
-//    32b      4b      4b     32/128b      32/128b    16b     16b      32/128b      32/128b       16b       16b
-// |  PID  | Family | Type |  SrcAddr  |  DestAddr | SPORT | DPORT | (NATSrcAddr | NATDstAddr | NATSport | NATDPort)
+//     4B      2B      2B     .5B     .5B      4/16B        4/16B   = 17/41B
+//    32b     16b     16b      4b      4b     32/128b      32/128b
+// |  PID  | SPORT | DPORT | Family | Type |  SrcAddr  |  DestAddr
 func (c ConnectionStats) ByteKey(buf []byte) []byte {
-	laddr, sport := c.Source, c.SPort
-	raddr, dport := c.Dest, c.DPort
-	n := 0
-	// Byte-packing to improve creation speed
-	// PID (32 bits) + SPort (16 bits) + DPort (16 bits) = 64 bits
-	binary.LittleEndian.PutUint32(buf[0:], c.Pid)
-	n += 4
-
-	// Family (4 bits) + Type (4 bits) = 8 bits
-	buf[n] = uint8(c.Family)<<4 | uint8(c.Type)
-	n++
-
-	n += laddr.WriteTo(buf[n:]) // 4 or 16 bytes
-	n += raddr.WriteTo(buf[n:]) // 4 or 16 bytes
-	binary.LittleEndian.PutUint32(buf[n:], uint32(sport)<<16|uint32(dport))
-	n += 4
-	if c.IPTranslation != nil {
-		laddr, sport = GetNATLocalAddress(c)
-		raddr, dport = GetNATRemoteAddress(c)
-		n += laddr.WriteTo(buf[n:]) // 4 or 16 bytes
-		n += raddr.WriteTo(buf[n:]) // 4 or 16 bytes
-		binary.LittleEndian.PutUint32(buf[n:], uint32(sport)<<16|uint32(dport))
-		n += 4
-	}
-
-	return buf[:n]
+	return generateConnectionKey(c, buf, false)
 }
 
-func removeNATFromKey(key []byte) []byte {
-	switch len(key) {
-	case 29:
-		// ipv4
-		// chop off last 4+4+4 bytes
-		return key[:17]
-	case 77:
-		// ipv6
-		// chop off last 16+16+4 bytes
-		return key[:41]
-	default:
-		return key
-	}
+// ByteKeyNAT returns a unique key for this connection represented as a byte slice.
+// The format is similar to the one emitted by `ByteKey` with the sole difference
+// that the addresses used are translated.
+// Currently this key is used only for the aggregation of ephemeral connections.
+func (c ConnectionStats) ByteKeyNAT(buf []byte) []byte {
+	return generateConnectionKey(c, buf, true)
 }
 
 // IsShortLived returns true when a connection went through its whole lifecycle
@@ -321,8 +293,7 @@ func (c ConnectionStats) IsShortLived() bool {
 	return c.Last.TCPEstablished >= 1 && c.Last.TCPClosed >= 1
 }
 
-const keyFmt = "p:%d|f:%d|t:%d|src:%s:%d|dst:%s:%d"
-const keyFmtNat = "|nsrc:%s:%d|ndst:%s:%d"
+const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"
 
 // BeautifyKey returns a human readable byte key (used for debugging purposes)
 // it should be in sync with ByteKey
@@ -336,16 +307,16 @@ func BeautifyKey(key string) string {
 	}
 
 	raw := []byte(key)
-	n := 0
 
-	// First 4 bytes is pid
-	pid := binary.LittleEndian.Uint32(raw[n:4])
-	n += 4
+	// First 8 bytes are pid and ports
+	h := binary.LittleEndian.Uint64(raw[:8])
+	pid := h >> 32
+	sport := (h >> 16) & 0xffff
+	dport := h & 0xffff
 
 	// Then we have the family, type
-	family := (raw[n] >> 4) & 0xf
-	typ := raw[n] & 0xf
-	n++
+	family := (raw[8] >> 4) & 0xf
+	typ := raw[8] & 0xf
 
 	// Finally source addr, dest addr
 	addrSize := 4
@@ -353,30 +324,10 @@ func BeautifyKey(key string) string {
 		addrSize = 16
 	}
 
-	source := bytesToAddress(raw[n : n+addrSize])
-	n += addrSize
-	dest := bytesToAddress(raw[n : n+addrSize])
-	n += addrSize
-	p := binary.LittleEndian.Uint32(raw[n : n+4])
-	sport := uint16(p >> 16)
-	dport := uint16(p)
-	n += 4
+	source := bytesToAddress(raw[9 : 9+addrSize])
+	dest := bytesToAddress(raw[9+addrSize : 9+2*addrSize])
 
-	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf(keyFmt, pid, family, typ, source, sport, dest, dport))
-	if n < len(raw) {
-		source = bytesToAddress(raw[n : n+addrSize])
-		n += addrSize
-		dest = bytesToAddress(raw[n : n+addrSize])
-		n += addrSize
-		p := binary.LittleEndian.Uint32(raw[n : n+4])
-		sport = uint16(p >> 16)
-		dport = uint16(p)
-
-		builder.WriteString(fmt.Sprintf(keyFmtNat, source, sport, dest, dport))
-	}
-
-	return builder.String()
+	return fmt.Sprintf(keyFmt, pid, source, sport, dest, dport, family, typ)
 }
 
 // ConnectionSummary returns a string summarizing a connection
@@ -418,7 +369,7 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 		)
 	}
 
-	str += fmt.Sprintf(", last update epoch: %d", c.LastUpdateEpoch)
+	str += fmt.Sprintf(", last update epoch: %d, cookie: %d", c.LastUpdateEpoch, c.Cookie)
 
 	return str
 }
@@ -453,6 +404,30 @@ func HTTPKeyTupleFromConn(c ConnectionStats) http.KeyTuple {
 	}
 
 	return http.NewKeyTuple(raddr, laddr, rport, lport)
+}
+
+func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {
+	laddr, sport := c.Source, c.SPort
+	raddr, dport := c.Dest, c.DPort
+	if useNAT {
+		laddr, sport = GetNATLocalAddress(c)
+		raddr, dport = GetNATRemoteAddress(c)
+	}
+
+	n := 0
+	// Byte-packing to improve creation speed
+	// PID (32 bits) + SPort (16 bits) + DPort (16 bits) = 64 bits
+	p0 := uint64(c.Pid)<<32 | uint64(sport)<<16 | uint64(dport)
+	binary.LittleEndian.PutUint64(buf[0:], p0)
+	n += 8
+
+	// Family (4 bits) + Type (4 bits) = 8 bits
+	buf[n] = uint8(c.Family)<<4 | uint8(c.Type)
+	n++
+
+	n += laddr.WriteTo(buf[n:]) // 4 or 16 bytes
+	n += raddr.WriteTo(buf[n:]) // 4 or 16 bytes
+	return buf[:n]
 }
 
 // Sub returns s-other
