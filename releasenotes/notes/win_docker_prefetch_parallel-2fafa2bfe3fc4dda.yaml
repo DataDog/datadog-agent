@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    On a Windows Docker host with many containers running, the Agent now starts faster by fetching the
+    running containers in parallel.
