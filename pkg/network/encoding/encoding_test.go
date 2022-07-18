@@ -13,15 +13,16 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/golang/protobuf/proto"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/golang/protobuf/proto"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type connTag = uint64
@@ -143,10 +144,12 @@ func TestSerialization(t *testing.T) {
 				{
 					Source: util.AddressFromString("10.1.1.1"),
 					Dest:   util.AddressFromString("10.2.2.2"),
-					Monotonic: network.StatCounters{
-						SentBytes:   1,
-						RecvBytes:   100,
-						Retransmits: 201,
+					Monotonic: map[uint32]network.StatCounters{
+						0: {
+							SentBytes:   1,
+							RecvBytes:   100,
+							Retransmits: 201,
+						},
 					},
 					Last: network.StatCounters{
 						SentBytes:      2,

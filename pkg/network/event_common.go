@@ -204,8 +204,6 @@ type StatCounters struct {
 	//   are established with the same tuple between two agent checks;
 	TCPEstablished uint32
 	TCPClosed      uint32
-
-	Cookie uint32
 }
 
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
@@ -216,7 +214,7 @@ type ConnectionStats struct {
 	IPTranslation *IPTranslation
 	Via           *Via
 
-	Monotonic StatCounters
+	Monotonic map[uint32]StatCounters
 	Last      StatCounters
 
 	// Last time the stats for this connection were updated
@@ -238,8 +236,6 @@ type ConnectionStats struct {
 
 	IntraHost bool
 	IsAssured bool
-
-	Cookie uint32
 }
 
 // Via has info about the routing decision for a flow
@@ -291,6 +287,47 @@ func (c ConnectionStats) ByteKeyNAT(buf []byte) []byte {
 // between two connection checks
 func (c ConnectionStats) IsShortLived() bool {
 	return c.Last.TCPEstablished >= 1 && c.Last.TCPClosed >= 1
+}
+
+func (c *ConnectionStats) mergeStats(other ConnectionStats) {
+	for cookie, counters := range other.Monotonic {
+		if m, ok := c.Monotonic[cookie]; ok {
+			c.Monotonic[cookie] = m.Max(counters)
+			continue
+		}
+
+		c.Monotonic[cookie] = counters
+	}
+
+	if other.LastUpdateEpoch > c.LastUpdateEpoch {
+		c.LastUpdateEpoch = other.LastUpdateEpoch
+	}
+
+	if c.IPTranslation != nil || other.IPTranslation != nil {
+		c.IPTranslation = nil
+	}
+
+	c.Last = c.Last.Add(other.Last)
+}
+
+// MonotonicSum returns the sum of all the monotonic stats
+func (c ConnectionStats) MonotonicSum() StatCounters {
+	var stc StatCounters
+	for _, st := range c.Monotonic {
+		stc = stc.Add(st)
+	}
+
+	return stc
+}
+
+func (c ConnectionStats) clone() ConnectionStats {
+	cl := c
+	cl.Monotonic = make(map[uint32]StatCounters, len(c.Monotonic))
+	for k, v := range c.Monotonic {
+		cl.Monotonic[k] = v
+	}
+
+	return cl
 }
 
 const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"
@@ -352,24 +389,31 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 		)
 	}
 
+	var stc StatCounters
+	cookies := make([]uint32, 0, len(c.Monotonic))
+	for c, st := range c.Monotonic {
+		stc = stc.Add(st)
+		cookies = append(cookies, c)
+	}
+
 	str += fmt.Sprintf("(%s) %s sent (+%s), %s received (+%s)",
 		c.Direction,
-		humanize.Bytes(c.Monotonic.SentBytes), humanize.Bytes(c.Last.SentBytes),
-		humanize.Bytes(c.Monotonic.RecvBytes), humanize.Bytes(c.Last.RecvBytes),
+		humanize.Bytes(stc.SentBytes), humanize.Bytes(c.Last.SentBytes),
+		humanize.Bytes(stc.RecvBytes), humanize.Bytes(c.Last.RecvBytes),
 	)
 
 	if c.Type == TCP {
 		str += fmt.Sprintf(
 			", %d retransmits (+%d), RTT %s (± %s), %d established (+%d), %d closed (+%d)",
-			c.Monotonic.Retransmits, c.Last.Retransmits,
+			stc.Retransmits, c.Last.Retransmits,
 			time.Duration(c.RTT)*time.Microsecond,
 			time.Duration(c.RTTVar)*time.Microsecond,
-			c.Monotonic.TCPEstablished, c.Last.TCPEstablished,
-			c.Monotonic.TCPClosed, c.Last.TCPClosed,
+			stc.TCPEstablished, c.Last.TCPEstablished,
+			stc.TCPClosed, c.Last.TCPClosed,
 		)
 	}
 
-	str += fmt.Sprintf(", last update epoch: %d, cookie: %d", c.LastUpdateEpoch, c.Cookie)
+	str += fmt.Sprintf(", last update epoch: %d, cookies: %+v", c.LastUpdateEpoch, cookies)
 
 	return str
 }
@@ -472,5 +516,18 @@ func (s StatCounters) Add(other StatCounters) StatCounters {
 		SentPackets:    s.SentPackets + other.SentPackets,
 		TCPClosed:      s.TCPClosed + other.TCPClosed,
 		TCPEstablished: s.TCPEstablished + other.TCPEstablished,
+	}
+}
+
+// Max returns max(s, other)
+func (s StatCounters) Max(other StatCounters) StatCounters {
+	return StatCounters{
+		RecvBytes:      maxUint64(s.RecvBytes, other.RecvBytes),
+		RecvPackets:    maxUint64(s.RecvPackets, other.RecvPackets),
+		Retransmits:    maxUint32(s.Retransmits, other.Retransmits),
+		SentBytes:      maxUint64(s.SentBytes, other.SentBytes),
+		SentPackets:    maxUint64(s.SentPackets, other.SentPackets),
+		TCPClosed:      maxUint32(s.TCPClosed, other.TCPClosed),
+		TCPEstablished: maxUint32(s.TCPEstablished, other.TCPEstablished),
 	}
 }
