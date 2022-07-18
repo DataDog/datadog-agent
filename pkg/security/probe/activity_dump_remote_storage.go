@@ -219,8 +219,8 @@ func (storage *ActivityDumpRemoteStorage) Persist(request dump.StorageRequest, a
 func (storage *ActivityDumpRemoteStorage) SendTelemetry(sender aggregator.Sender) {
 	// send too large entity metric
 	for entry, count := range storage.tooLargeEntities {
-		tags := []string{fmt.Sprintf("format:%s", entry.storageFormat.String()), fmt.Sprintf("compression:%v", entry.compression)}
 		if entityCount := count.Swap(0); entityCount > 0 {
+			tags := []string{fmt.Sprintf("format:%s", entry.storageFormat.String()), fmt.Sprintf("compression:%v", entry.compression)}
 			sender.Count(metrics.MetricActivityDumpEntityTooLarge, float64(entityCount), "", tags)
 		}
 	}
