@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -25,11 +26,11 @@ const (
 	// Shared config
 	initContainerName = "datadog-tracer-init"
 	volumeName        = "datadog-auto-instrumentation"
-	mountPath         = "/datadog"
+	mountPath         = "/datadog-lib"
 
 	// Java config
 	javaToolOptionsKey   = "JAVA_TOOL_OPTIONS"
-	javaToolOptionsValue = " -javaagent:/datadog/dd-java-agent.jar"
+	javaToolOptionsValue = " -javaagent:/datadog-lib/dd-java-agent.jar"
 )
 
 var (
@@ -77,7 +78,7 @@ func extractLibInfo(pod *corev1.Pod, containerRegistry string) (string, string, 
 		}
 
 		if version, found := podAnnotations[fmt.Sprintf(tracerVersionAnnotationKeyFormat, lang)]; found {
-			image := fmt.Sprintf("%s/%s:%s", containerRegistry, "apm-"+lang, version) // TODO: update the repo name (temporarily using apm-<lang>)
+			image := fmt.Sprintf("%s/dd-%s-agent-init:%s", containerRegistry, lang, version)
 			return lang, image, true
 		}
 	}
@@ -91,7 +92,7 @@ func injectAutoInstruConfig(pod *corev1.Pod, language, image string) error {
 		metrics.LibInjectionAttempts.Inc(language, strconv.FormatBool(injected))
 	}()
 
-	switch language {
+	switch strings.ToLower(language) {
 	case "java":
 		cmd := []string{"sh", "copy-javaagent.sh", mountPath}
 		injectLibInitContainer(pod, image, cmd)

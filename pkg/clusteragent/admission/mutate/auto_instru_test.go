@@ -27,7 +27,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			name:     "nominal case: java",
 			pod:      fakePod("java-pod"),
 			language: "java",
-			image:    "gcr.io/datadoghq/apm-java:v1",
+			image:    "gcr.io/datadoghq/dd-java-agent-init:v1",
 			wantErr:  false,
 		},
 	}
@@ -37,7 +37,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			require.False(t, (err != nil) != tt.wantErr)
 			switch tt.language {
 			case "java":
-				assertLibConfig(t, tt.pod, tt.image, "JAVA_TOOL_OPTIONS", " -javaagent:/datadog/dd-java-agent.jar", []string{"sh", "copy-javaagent.sh", "/datadog"})
+				assertLibConfig(t, tt.pod, tt.image, "JAVA_TOOL_OPTIONS", " -javaagent:/datadog-lib/dd-java-agent.jar", []string{"sh", "copy-javaagent.sh", "/datadog-lib"})
 			default:
 				t.Fatalf("Unknown language %q", tt.language)
 			}
@@ -64,7 +64,7 @@ func assertLibConfig(t *testing.T, pod *corev1.Pod, image, envKey, envVal string
 			require.Equal(t, image, container.Image)
 			require.Equal(t, cmd, container.Command)
 			require.Equal(t, "datadog-auto-instrumentation", container.VolumeMounts[0].Name)
-			require.Equal(t, "/datadog", container.VolumeMounts[0].MountPath)
+			require.Equal(t, "/datadog-lib", container.VolumeMounts[0].MountPath)
 			initContainerFound = true
 			break
 		}
@@ -74,7 +74,7 @@ func assertLibConfig(t *testing.T, pod *corev1.Pod, image, envKey, envVal string
 	// App container
 	container := pod.Spec.Containers[0]
 	require.Equal(t, "datadog-auto-instrumentation", container.VolumeMounts[0].Name)
-	require.Equal(t, "/datadog", container.VolumeMounts[0].MountPath)
+	require.Equal(t, "/datadog-lib", container.VolumeMounts[0].MountPath)
 	envFound := false
 	for _, env := range container.Env {
 		if env.Name == envKey {
@@ -100,7 +100,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:                  fakePodWithAnnotation("admission.datadoghq.com/java-tracer.version", "v1"),
 			containerRegistry:    "registry",
 			expectedLangauge:     "java",
-			expectedImage:        "registry/apm-java:v1",
+			expectedImage:        "registry/dd-java-agent-init:v1",
 			expectedShouldInject: true,
 		},
 		{
@@ -108,7 +108,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:                  fakePodWithAnnotation("admission.datadoghq.com/python-tracer.version", "v1"),
 			containerRegistry:    "registry",
 			expectedLangauge:     "python",
-			expectedImage:        "registry/apm-python:v1",
+			expectedImage:        "registry/dd-python-agent-init:v1",
 			expectedShouldInject: true,
 		},
 		{
@@ -116,7 +116,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:                  fakePodWithAnnotation("admission.datadoghq.com/node-tracer.version", "v1"),
 			containerRegistry:    "registry",
 			expectedLangauge:     "node",
-			expectedImage:        "registry/apm-node:v1",
+			expectedImage:        "registry/dd-node-agent-init:v1",
 			expectedShouldInject: true,
 		},
 		{

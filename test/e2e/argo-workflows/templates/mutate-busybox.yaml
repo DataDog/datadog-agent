@@ -71,7 +71,7 @@ spec:
               "app": "busybox"
               "admission.datadoghq.com/enabled": "true"
             annotations:
-              admission.datadoghq.com/java-tracer.custom-image: bdevinssureshatddog/k8s-lib-injection-init:latest # TODO: put the official image instead
+              admission.datadoghq.com/java-tracer.version: latest
           spec:
             containers:
               - command:
@@ -393,7 +393,7 @@ spec:
                 - name: namespace
                   value: "{{inputs.parameters.namespace}}"
                 - name: envValue
-                  value: " -javaagent:/datadog/dd-java-agent.jar"
+                  value: " -javaagent:/datadog-lib/dd-java-agent.jar"
                 - name: envKey
                   value: JAVA_TOOL_OPTIONS
                 - name: target
@@ -407,7 +407,7 @@ spec:
                 - name: volumeName
                   value: datadog-auto-instrumentation
                 - name: volumePath
-                  value: "/datadog"
+                  value: "/datadog-lib"
                 - name: withInitContainers
                   value: "true"
                 - name: target
@@ -421,7 +421,7 @@ spec:
                 - name: volumeName
                   value: datadog-auto-instrumentation
                 - name: volumePath
-                  value: "/datadog"
+                  value: "/datadog-lib"
                 - name: target
                   value: busybox-auto-instru
 
