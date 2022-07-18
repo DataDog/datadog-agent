@@ -3060,8 +3060,8 @@ api_key:
   ## Namespace can be used to disambiguate devices with the same IP.
   ## Changing namespace will cause devices being recreated in NDM app.
   ## It should contain less than 100 characters and should not contain any of
-  ## `<`, `>`, `\n`, `\t`, `\r` characters
-  ## This field is used by NDM features (SNMP check, SNMP Traps listener, etc)
+  ## `<`, `>`, `\n`, `\t`, `\r` characters.
+  ## This field is used by NDM features (SNMP check, SNMP Traps listener, etc).
   #
   # namespace: default
 
