@@ -77,8 +77,8 @@ def trigger_macos_workflow(
             runs = worfklow.workflow_runs(workflow, f"?created=%3E{run_date_filter}")
             ref_runs = [run for run in runs["workflow_runs"] if run["head_branch"] == github_action_ref]
             if len(runs) > 0:
-                for workflow in ref_runs:
-                    jobs_url = urlparse(workflow["jobs_url"])
+                for run in ref_runs:
+                    jobs_url = urlparse(run["jobs_url"])
                     print(f"{run_id}: Requesting jobs_url {jobs_url}")
                     jobs = worfklow.make_request(jobs_url.path, method="GET", json_output=True)
                     if 'jobs' in jobs and len(jobs['jobs']) >= 2:
