@@ -386,7 +386,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.7.0 // indirect
 	go4.org/intern v0.0.0-20211027215823-ae77deb06f29 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20211027215541-db492cf91b37 // indirect
-	golang.org/x/crypto v0.0.0-20220518034528-6f7dac969898 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5 // indirect
 	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171 // indirect
@@ -408,23 +407,13 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-require github.com/netsampler/goflow2 v1.1.0
-
 require (
-	github.com/DataDog/aptly v1.5.0 // indirect
 	github.com/agnivade/levenshtein v1.0.1 // indirect
-	github.com/cavaliergopher/grab/v3 v3.0.1 // indirect
-	github.com/libp2p/go-reuseport v0.1.0 // indirect
 	github.com/outcaste-io/ristretto v0.2.0 // indirect
 	github.com/vektah/gqlparser/v2 v2.4.5 // indirect
-	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
-	k8s.io/apiextensions-apiserver v0.23.5 // indirect
 )
 
-require (
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.38.0-rc.3
-	github.com/robfig/cron v1.2.0
-)
+require github.com/robfig/cron v1.2.0
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
