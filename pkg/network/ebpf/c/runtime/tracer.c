@@ -471,27 +471,32 @@ int kretprobe__tcp_connect(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("kretprobe/tcp_connect: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
+    struct sock **skpp = bpf_map_lookup_elem(&tcp_connect_sock, &pid_tgid);
+    if (!skpp) {
+        return 0;
+    }
+
+    struct sock *skp = *skpp;
+    bpf_map_delete_elem(&tcp_connect_sock, &pid_tgid);
+    if (!skp) {
+        return 0;
+    }
+
     // We only trace if the connection worked and is established
     int rc = PT_REGS_RC(ctx);
     if (rc != 0) {
         return 0;
     }
 
-    struct sock **sk = bpf_map_lookup_elem(&tcp_connect_sock, &pid_tgid);
-    if (!sk) {
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
-    conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, *sk, pid_tgid, CONN_TYPE_TCP)) {
-        return 0;
-    }
-    handle_tcp_stats(&t, *sk, TCP_ESTABLISHED);
+    handle_tcp_stats(&t, skp, TCP_ESTABLISHED);
     handle_message(&t, 0, 0, CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE);
 
     log_debug("kretprobe/tcp_connect: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
-
-    bpf_map_delete_elem(&tcp_connect_sock, &pid_tgid);
 
     return 0;
 }
