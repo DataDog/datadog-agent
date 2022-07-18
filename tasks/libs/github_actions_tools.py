@@ -60,23 +60,26 @@ def trigger_macos_workflow(
         )
     )
 
+    MAX_RETRIES = 10  # Retry up to 10 times
+
     worfklow = create_or_refresh_macos_build_github_workflows()
     try:
         # generate a random id
         run_id = ''.join(random.choices(string.ascii_uppercase + string.digits, k=15))
-        # filter runs that were created after this date minus 5 minutes
-        delta_time = timedelta(minutes=5)
+        # filter runs that were created after this date minus some time to account
+        # for workflow creation.
+        delta_time = timedelta(minutes=1)
         run_date_filter = (datetime.utcnow() - delta_time).strftime("%Y-%m-%dT%H:%M")
         inputs_with_id = dict(inputs)
         inputs_with_id["id"] = run_id
         worfklow.trigger_workflow(workflow, github_action_ref, inputs)
         workflow_id = ""
         try_number = 0
-        while workflow_id == "" and try_number < 10:
-            print(f"{run_id}: Requesting workflow runs")
+        while not workflow_id and try_number < MAX_RETRIES:
+            print(f"{run_id}/({try_number + 1}/{MAX_RETRIES}): Requesting workflow runs")
             runs = worfklow.workflow_runs(workflow, f"?created=%3E{run_date_filter}")
             ref_runs = [run for run in runs["workflow_runs"] if run["head_branch"] == github_action_ref]
-            if len(runs) > 0:
+            if len(ref_runs) > 0:
                 for run in ref_runs:
                     jobs_url = urlparse(run["jobs_url"])
                     print(f"{run_id}: Requesting jobs_url {jobs_url}")
@@ -115,7 +118,6 @@ def trigger_macos_workflow(
         # that started after we triggered the workflow.
         # In practice, this should almost never be a problem, even if the Agent 6 and 7 jobs run at the
         # same time, given that these two jobs will target different github_action_ref on RCs / releases.
-        MAX_RETRIES = 10  # Retry up to 10 times
         for i in range(MAX_RETRIES):
             print(f"Fetching triggered workflow (try {i + 1}/{MAX_RETRIES})")
             run = get_macos_workflow_run_for_ref(workflow, github_action_ref)
