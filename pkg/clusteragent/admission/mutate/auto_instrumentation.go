@@ -43,12 +43,12 @@ var (
 	}
 )
 
-// InjectAutoInstru injects APM libraries into pods
-func InjectAutoInstru(rawPod []byte, ns string, dc dynamic.Interface) ([]byte, error) {
-	return mutate(rawPod, ns, injectAutoInstru, dc)
+// InjectAutoInstrumentation injects APM libraries into pods
+func InjectAutoInstrumentation(rawPod []byte, ns string, dc dynamic.Interface) ([]byte, error) {
+	return mutate(rawPod, ns, injectAutoInstrumentation, dc)
 }
 
-func injectAutoInstru(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
+func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	if pod == nil {
 		return errors.New("cannot inject lib into nil pod")
 	}
@@ -60,7 +60,7 @@ func injectAutoInstru(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 		return nil
 	}
 
-	language, image, shouldInject := extractLibInfo(pod, config.Datadog.GetString("admission_controller.auto_instru.container_registry"))
+	language, image, shouldInject := extractLibInfo(pod, config.Datadog.GetString("admission_controller.auto_instrumentation.container_registry"))
 	if !shouldInject {
 		return nil
 	}

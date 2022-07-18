@@ -354,7 +354,7 @@ func start(cmd *cobra.Command, args []string) error {
 			server := admissioncmd.NewServer()
 			server.Register(config.Datadog.GetString("admission_controller.inject_config.endpoint"), mutate.InjectConfig, apiCl.DynamicCl)
 			server.Register(config.Datadog.GetString("admission_controller.inject_tags.endpoint"), mutate.InjectTags, apiCl.DynamicCl)
-			server.Register(config.Datadog.GetString("admission_controller.auto_instru.endpoint"), mutate.InjectAutoInstru, apiCl.DynamicCl)
+			server.Register(config.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"), mutate.InjectAutoInstrumentation, apiCl.DynamicCl)
 
 			// Start the k8s admission webhook server
 			wg.Add(1)
