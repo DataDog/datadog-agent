@@ -38,6 +38,7 @@ func TestFullConfig(t *testing.T) {
 		CommunityStrings: []string{"public"},
 		StopTimeout:      12,
 		Namespace:        "foo",
+		UserTags:         []string{"dog:data", "data:dog"},
 	})
 	config, err := ReadConfig(mockedHostname)
 	assert.NoError(t, err)
@@ -46,6 +47,7 @@ func TestFullConfig(t *testing.T) {
 	assert.Equal(t, []string{"public"}, config.CommunityStrings)
 	assert.Equal(t, "127.0.0.1", config.BindHost)
 	assert.Equal(t, "foo", config.Namespace)
+	assert.Equal(t, []string{"dog:data", "data:dog"}, config.UserTags)
 	assert.Equal(t, []UserV3{
 		{
 			Username:     "user",
@@ -149,4 +151,13 @@ func TestNamespaceSetBothGloballyAndLocally(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, "bar", config.Namespace)
+}
+
+func TestNoTags(t *testing.T) {
+	Configure(t, Config{})
+
+	config, err := ReadConfig("")
+	assert.NoError(t, err)
+
+	assert.Equal(t, []string{}, config.UserTags)
 }

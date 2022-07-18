@@ -656,6 +656,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.community_strings", []string{})
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.bind_host", "0.0.0.0")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.stop_timeout", 5) // in seconds
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.tags", []string{})
 	config.SetKnown("network_devices.snmp_traps.users")
 
 	// NetFlow
