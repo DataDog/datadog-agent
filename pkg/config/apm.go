@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Traces specifies the data type used for Vector override.
+// Traces specifies the data type used for Vector override. See https://vector.dev/docs/reference/configuration/sources/datadog_agent/ for additional details.
 const Traces DataType = "traces"
 
 func setupAPM(config Config) {
