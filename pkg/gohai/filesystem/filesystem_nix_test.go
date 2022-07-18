@@ -3,45 +3,50 @@
 package filesystem
 
 import (
-	"context"
-	"fmt"
-	"os/exec"
-	"reflect"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
-func MockSlowGetFileSystemInfo() (interface{}, error) {
-	/* Run a command that will definitely time out */
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	/* Grab filesystem data from df	*/
-	cmd := exec.CommandContext(ctx, "sleep", "5")
-
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("df failed to collect filesystem data: %s", err)
+func withDfCommand(t *testing.T, command ...string) {
+	oldCommand := dfCommand
+	oldOptions := dfOptions
+	dfCommand = command[0]
+	if len(command) > 1 {
+		dfOptions = command[1:]
+	} else {
+		dfOptions = []string{}
 	}
-	if out != nil {
-		return parseDfOutput(string(out))
-	}
-	return nil, fmt.Errorf("df failed to collect filesystem data")
+	t.Cleanup(func() {
+		dfCommand = oldCommand
+		dfOptions = oldOptions
+	})
 }
 
-func TestSlowGetFileSystemInfo(t *testing.T) {
-	out, err := MockSlowGetFileSystemInfo()
-	if !reflect.DeepEqual(out, nil) {
-		t.Fatalf("Failed! out should be nil. Instead it's %s", out)
-	}
-	if !reflect.DeepEqual(err, fmt.Errorf("df failed to collect filesystem data: signal: killed")) {
-		t.Fatalf("Failed! Wrong error: %s", err)
-	}
+func TestSlowDf(t *testing.T) {
+	withDfCommand(t, "sleep", "5")
+	dfTimeout = 20 * time.Millisecond // test faster
+	defer func() { dfTimeout = 2 * time.Second }()
+
+	_, err := getFileSystemInfo()
+	require.ErrorContains(t, err, "df failed to collect filesystem data")
+}
+
+func TestFaileDfWithData(t *testing.T) {
+	// (note that this sample output is valid on both linux and darwin)
+	withDfCommand(t, "sh", "-c", `echo "Filesystem     1K-blocks      Used Available Use% Mounted on"; echo "/dev/disk1s1s1 488245288 138504332 349740956  29% /"; exit 1`)
+
+	out, err := getFileSystemInfo()
+	require.NoError(t, err)
+	require.Equal(t, []interface{}([]interface{}{
+		map[string]string{"kb_size": "488245288", "mounted_on": "/", "name": "/dev/disk1s1s1"},
+	}), out)
 }
 
 func TestGetFileSystemInfo(t *testing.T) {
-	_, err := getFileSystemInfo()
-	if !reflect.DeepEqual(err, nil) {
-		t.Fatalf("getFileSystemInfo failed: %s", err)
-	}
+	out, err := getFileSystemInfo()
+	require.NoError(t, err)
+	outArray := out.([]interface{})
+	require.Greater(t, len(outArray), 0)
 }
