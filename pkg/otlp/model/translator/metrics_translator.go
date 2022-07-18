@@ -34,12 +34,11 @@ import (
 
 const metricName string = "metric name"
 
-var _ source.Provider = (*unknownSourceProvider)(nil)
+var _ source.Provider = (*noSourceProvider)(nil)
 
-// unknownSourceProvider sets an empty hostname as a source.
-type unknownSourceProvider struct{}
+type noSourceProvider struct{}
 
-func (*unknownSourceProvider) Source(context.Context) (source.Source, error) {
+func (*noSourceProvider) Source(context.Context) (source.Source, error) {
 	return source.Source{Kind: source.HostnameKind, Identifier: ""}, nil
 }
 
@@ -61,7 +60,7 @@ func New(logger *zap.Logger, options ...Option) (*Translator, error) {
 		InstrumentationLibraryMetadataAsTags: false,
 		sweepInterval:                        1800,
 		deltaTTL:                             3600,
-		fallbackSourceProvider:               &unknownSourceProvider{},
+		fallbackSourceProvider:               &noSourceProvider{},
 	}
 
 	for _, opt := range options {
@@ -76,7 +75,11 @@ func New(logger *zap.Logger, options ...Option) (*Translator, error) {
 	}
 
 	cache := newTTLCache(cfg.sweepInterval, cfg.deltaTTL)
-	return &Translator{cache, logger, cfg}, nil
+	return &Translator{
+		prevPts: cache,
+		logger:  logger,
+		cfg:     cfg,
+	}, nil
 }
 
 // isCumulativeMonotonic checks if a metric is a cumulative monotonic metric
@@ -537,7 +540,7 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 			var err error
 			src, err = t.cfg.fallbackSourceProvider.Source(context.Background())
 			if err != nil {
-				return fmt.Errorf("failed to get fallback host: %w", err)
+				return fmt.Errorf("failed to get fallback source: %w", err)
 			}
 		}
 
