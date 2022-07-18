@@ -10,7 +10,6 @@ package netlink
 
 import (
 	"net"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -39,7 +38,7 @@ func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 	}()
 
 	isRecvLoopRunning := func() bool {
-		return atomic.LoadInt32(&c.recvLoopRunning) == 1
+		return c.recvLoopRunning.Load()
 	}
 
 	require.Eventually(t, func() bool {

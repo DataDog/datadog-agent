@@ -11,7 +11,6 @@ package filter
 import (
 	"fmt"
 	"reflect"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -20,6 +19,7 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/afpacket"
 	"github.com/google/gopacket/layers"
+	"go.uber.org/atomic"
 	"golang.org/x/net/bpf"
 )
 
@@ -31,10 +31,10 @@ type AFPacketSource struct {
 	exit chan struct{}
 
 	// telemetry
-	polls     int64
-	processed int64
-	captured  int64
-	dropped   int64
+	polls     *atomic.Int64
+	processed *atomic.Int64
+	captured  *atomic.Int64
+	dropped   *atomic.Int64
 }
 
 func NewPacketSource(filter *manager.Probe, bpfFilter []bpf.RawInstruction) (*AFPacketSource, error) {
@@ -66,6 +66,10 @@ func NewPacketSource(filter *manager.Probe, bpfFilter []bpf.RawInstruction) (*AF
 		TPacket:      rawSocket,
 		socketFilter: filter,
 		exit:         make(chan struct{}),
+		polls:        atomic.NewInt64(0),
+		processed:    atomic.NewInt64(0),
+		captured:     atomic.NewInt64(0),
+		dropped:      atomic.NewInt64(0),
 	}
 	go ps.pollStats()
 
@@ -74,10 +78,10 @@ func NewPacketSource(filter *manager.Probe, bpfFilter []bpf.RawInstruction) (*AF
 
 func (p *AFPacketSource) Stats() map[string]int64 {
 	return map[string]int64{
-		"socket_polls":      atomic.LoadInt64(&p.polls),
-		"packets_processed": atomic.LoadInt64(&p.processed),
-		"packets_captured":  atomic.LoadInt64(&p.captured),
-		"packets_dropped":   atomic.LoadInt64(&p.dropped),
+		"socket_polls":      p.polls.Load(),
+		"packets_processed": p.processed.Load(),
+		"packets_captured":  p.captured.Load(),
+		"packets_dropped":   p.dropped.Load(),
 	}
 }
 
@@ -141,10 +145,10 @@ func (p *AFPacketSource) pollStats() {
 				continue
 			}
 
-			atomic.AddInt64(&p.polls, sourceStats.Polls-prevPolls)
-			atomic.AddInt64(&p.processed, sourceStats.Packets-prevProcessed)
-			atomic.AddInt64(&p.captured, int64(socketStats.Packets())-prevCaptured)
-			atomic.AddInt64(&p.dropped, int64(socketStats.Drops())-prevDropped)
+			p.polls.Add(sourceStats.Polls - prevPolls)
+			p.processed.Add(sourceStats.Packets - prevProcessed)
+			p.captured.Add(int64(socketStats.Packets()) - prevCaptured)
+			p.dropped.Add(int64(socketStats.Drops()) - prevDropped)
 
 			prevPolls = sourceStats.Polls
 			prevProcessed = sourceStats.Packets

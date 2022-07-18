@@ -45,7 +45,7 @@ struct bpf_map_def SEC("maps/proc_cache") proc_cache = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(u32),
     .value_size = sizeof(struct proc_cache_t),
-    .max_entries = 4096,
+    .max_entries = 16384,
     .pinning = 0,
     .namespace = "",
 };
@@ -90,7 +90,7 @@ struct bpf_map_def SEC("maps/pid_cache") pid_cache = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(u32),
     .value_size = sizeof(struct pid_cache_t),
-    .max_entries = 4096,
+    .max_entries = 16384,
     .pinning = 0,
     .namespace = "",
 };

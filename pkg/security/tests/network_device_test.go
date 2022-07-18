@@ -67,7 +67,7 @@ func TestNetDevice(t *testing.T) {
 			}
 
 			// retrieve new netnsid
-			fi, err := os.Stat(fmt.Sprintf("/var/run/netns/test_netns"))
+			fi, err := os.Stat("/var/run/netns/test_netns")
 			if err != nil {
 				return err
 			}

@@ -55,6 +55,8 @@ func (r *RCPolicyProvider) Start() {
 	log.Info("remote-config policies provider started")
 
 	r.client.RegisterCWSDDUpdate(r.rcConfigUpdateCallback)
+
+	r.client.Start()
 }
 
 func (r *RCPolicyProvider) rcConfigUpdateCallback(configs map[string]state.ConfigCWSDD) {

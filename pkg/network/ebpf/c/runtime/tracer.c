@@ -74,6 +74,7 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
         return 0;
     }
 
+    struct sock *skp = *skpp;
     bpf_map_delete_elem(&tcp_sendmsg_args, &pid_tgid);
 
     int sent = PT_REGS_RC(ctx);
@@ -81,7 +82,6 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
         return 0;
     }
 
-    struct sock *skp = *skpp;
     if (!skp) {
         return 0;
     }
@@ -154,19 +154,47 @@ int kretprobe__tcp_close(struct pt_regs* ctx) {
 SEC("kprobe/ip6_make_skb")
 int kprobe__ip6_make_skb(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
-    size_t size = (size_t)PT_REGS_PARM4(ctx);
+    size_t len = (size_t)PT_REGS_PARM4(ctx);
+    // commit: https://github.com/torvalds/linux/commit/26879da58711aa604a1b866cbeedd7e0f78f90ad
+    // changed the arguments to ip6_make_skb and introduced the struct ipcm6_cookie
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
+    struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM7(ctx);
+#else
+    struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM9(ctx);
+#endif
+
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    ip_make_skb_args_t args = {};
+    bpf_probe_read_kernel(&args.sk, sizeof(args.sk), &sk);
+    bpf_probe_read_kernel(&args.len, sizeof(args.len), &len);
+    bpf_probe_read_kernel(&args.fl6, sizeof(args.fl6), &fl6);
+    bpf_map_update_elem(&ip_make_skb_args, &pid_tgid, &args, BPF_ANY);
+
+    return 0;
+}
+
+SEC("kretprobe/ip6_make_skb")
+int kretprobe__ip6_make_skb(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    ip_make_skb_args_t *args = bpf_map_lookup_elem(&ip_make_skb_args, &pid_tgid);
+    if (!args) {
+        return 0;
+    }
+
+    struct sock* sk = args->sk;
+    struct flowi6* fl6 = args->fl6;
+    size_t size = args->len;
+    bpf_map_delete_elem(&ip_make_skb_args, &pid_tgid);
+
+    void *rc = (void*) PT_REGS_RC(ctx);
+    if (IS_ERR_OR_NULL(rc)) {
+        return 0;
+    }
+
     size = size - sizeof(struct udphdr);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
-// commit: https://github.com/torvalds/linux/commit/26879da58711aa604a1b866cbeedd7e0f78f90ad
-// changed the arguments to ip6_make_skb and introduced the struct ipcm6_cookie
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
-        struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM7(ctx);
-#else
-        struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM9(ctx);
-#endif
         read_in6_addr(&t.saddr_h, &t.saddr_l, &fl6->saddr);
         read_in6_addr(&t.daddr_h, &t.daddr_l, &fl6->daddr);
 
@@ -217,14 +245,41 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
 SEC("kprobe/ip_make_skb")
 int kprobe__ip_make_skb(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
-    size_t size = (size_t)PT_REGS_PARM5(ctx);
+    size_t len = (size_t)PT_REGS_PARM5(ctx);
+    struct flowi4* fl4 = (struct flowi4*)PT_REGS_PARM2(ctx);
+
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    ip_make_skb_args_t args = {};
+    bpf_probe_read_kernel(&args.sk, sizeof(args.sk), &sk);
+    bpf_probe_read_kernel(&args.len, sizeof(args.len), &len);
+    bpf_probe_read_kernel(&args.fl4, sizeof(args.fl4), &fl4);
+    bpf_map_update_elem(&ip_make_skb_args, &pid_tgid, &args, BPF_ANY);
+
+    return 0;
+}
+
+SEC("kretprobe/ip_make_skb")
+int kretprobe__ip_make_skb(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    ip_make_skb_args_t *args = bpf_map_lookup_elem(&ip_make_skb_args, &pid_tgid);
+    if (!args) {
+        return 0;
+    }
+
+    struct sock* sk = args->sk;
+    struct flowi4* fl4 = args->fl4;
+    size_t size = args->len;
+    bpf_map_delete_elem(&ip_make_skb_args, &pid_tgid);
+
+    void *rc = (void*) PT_REGS_RC(ctx);
+    if (IS_ERR_OR_NULL(rc)) {
+        return 0;
+    }
 
     size = size - sizeof(struct udphdr);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
-        struct flowi4* fl4 = (struct flowi4*)PT_REGS_PARM2(ctx);
         bpf_probe_read_kernel(&t.saddr_l, sizeof(__be32), &fl4->saddr);
         bpf_probe_read_kernel(&t.daddr_l, sizeof(__be32), &fl4->daddr);
         if (!t.saddr_l || !t.daddr_l) {
@@ -556,14 +611,13 @@ static __always_inline int sys_exit_bind(__s64 ret) {
         log_debug("sys_exit_bind: was not a UDP bind, will not process\n");
         return 0;
     }
-
+    __u16 sin_port = args->port;
     bpf_map_delete_elem(&pending_bind, &tid);
 
     if (ret != 0) {
         return 0;
     }
 
-    __u16 sin_port = args->port;
     port_binding_t pb = {};
     pb.netns = 0; // don't have net ns info in this context
     pb.port = sin_port;

@@ -392,11 +392,17 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 				cachedEntity = entitiesOfKind[entityID.ID]
 			}
 
-			if found := cachedEntity.set(ev.Source, ev.Entity); !found {
+			found, changed := cachedEntity.set(ev.Source, ev.Entity)
+
+			if !found {
 				telemetry.StoredEntities.Inc(
 					string(entityID.Kind),
 					string(ev.Source),
 				)
+			}
+
+			if !changed {
+				continue
 			}
 		case EventTypeUnset:
 			// if the entity we're trying to remove was not

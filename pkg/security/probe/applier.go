@@ -9,9 +9,8 @@
 package probe
 
 import (
+	"fmt"
 	"math"
-
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -96,11 +95,11 @@ func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, approvers map[eval.EventType
 	if rsa.probe != nil {
 		// based on the ruleset and the requested rules, select the probes that need to be activated
 		if err := rsa.probe.SelectProbes(rs); err != nil {
-			return nil, errors.Wrap(err, "failed to select probes")
+			return nil, fmt.Errorf("failed to select probes: %w", err)
 		}
 
 		if err := rsa.probe.FlushDiscarders(); err != nil {
-			return nil, errors.Wrap(err, "failed to flush discarders")
+			return nil, fmt.Errorf("failed to flush discarders: %w", err)
 		}
 	}
 

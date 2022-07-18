@@ -10,6 +10,7 @@ package probe
 
 import (
 	"C"
+	"errors"
 	"fmt"
 	"strings"
 	"unsafe"
@@ -17,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"

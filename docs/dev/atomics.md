@@ -48,6 +48,8 @@ If the additional pointer allocation poses an undue performance burden, include 
  * that it must remain in that position; and
  * why a pointer was not suitable.
 
+Pointers to atomic types marshal correctly to JSON as their enclosed value. Unmarshaling does the reverse, except that missing values are represented as nil, rather than an atomic type with zero value.
+
 ### Why
 
 There are two main issues with the built-in `sync/atomic` package:

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // LogWhat is the answer this package provides
@@ -178,6 +179,11 @@ func (ch *chooser) choose(wait bool) {
 		config.IsFeaturePresent(config.Podman)
 	k := config.IsFeaturePresent(config.Kubernetes)
 
+	makeChoice := func(logWhat LogWhat) {
+		log.Debugf("LogWhat = %s", logWhat.String())
+		ch.choice <- logWhat
+	}
+
 	for {
 		var delay time.Duration
 		var ready bool
@@ -186,7 +192,7 @@ func (ch *chooser) choose(wait bool) {
 		case c && !k:
 			ready, delay = ch.dockerReady()
 			if ready {
-				ch.choice <- LogContainers
+				makeChoice(LogContainers)
 				return
 			}
 			// otherwise, wait
@@ -194,7 +200,7 @@ func (ch *chooser) choose(wait bool) {
 		case k && !c:
 			ready, delay = ch.kubeletReady()
 			if ready {
-				ch.choice <- LogPods
+				makeChoice(LogPods)
 				return
 			}
 			// otherwise, wait
@@ -204,13 +210,13 @@ func (ch *chooser) choose(wait bool) {
 			kready, kdelay := ch.kubeletReady()
 			switch {
 			case dready && !kready:
-				ch.choice <- LogContainers
+				makeChoice(LogContainers)
 				return
 			case kready && !dready:
-				ch.choice <- LogPods
+				makeChoice(LogPods)
 				return
 			case kready && dready:
-				ch.choice <- ch.preferred()
+				makeChoice(ch.preferred())
 				return
 			default:
 				// otherwise, wait
@@ -218,7 +224,7 @@ func (ch *chooser) choose(wait bool) {
 			}
 
 		default:
-			ch.choice <- LogNothing
+			makeChoice(LogNothing)
 			return
 		}
 

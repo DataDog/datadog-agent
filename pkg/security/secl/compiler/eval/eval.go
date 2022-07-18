@@ -8,6 +8,7 @@
 package eval
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -15,7 +16,6 @@ import (
 	"strings"
 
 	"github.com/alecthomas/participle/lexer"
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )

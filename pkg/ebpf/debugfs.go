@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/pkg/errors"
 )
 
 var myPid int
@@ -96,7 +95,7 @@ func GetProbeTotals() KprobeStats {
 func readKprobeProfile(path string) (map[string]KprobeStats, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error opening kprobe profile file at: %s", path)
+		return nil, fmt.Errorf("error opening kprobe profile file at: %s: %w", path, err)
 	}
 	defer f.Close()
 

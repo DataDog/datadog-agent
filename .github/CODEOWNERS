@@ -23,7 +23,7 @@
 # Todo: is this file still needed?
 /Makefile.trace                         @DataDog/agent-platform
 
-/release.json                           @DataDog/agent-platform @DataDog/agent-core
+/release.json                           @DataDog/agent-platform @DataDog/agent-shared-components
 /requirements.txt                       @DataDog/agent-platform
 /pyproject.toml                         @DataDog/agent-platform
 /setup.cfg                              @DataDog/agent-platform
@@ -81,11 +81,11 @@
 
 /chocolatey/                            @DataDog/agent-platform
 
-/cmd/                                   @DataDog/agent-core
+/cmd/                                   @DataDog/agent-shared-components
 /cmd/trace-agent/                       @DataDog/agent-apm
-/cmd/agent/app/integrations*.go         @DataDog/software-integrity-and-trust @DataDog/agent-integrations @DataDog/agent-core
+/cmd/agent/app/integrations*.go         @DataDog/software-integrity-and-trust @DataDog/agent-integrations @DataDog/agent-shared-components
 /cmd/agent/app/remote_config.go         @Datadog/remote-config
-/cmd/agent/internal/clcrunnerapi/       @DataDog/container-integrations @DataDog/agent-core
+/cmd/agent/internal/clcrunnerapi/       @DataDog/container-integrations @DataDog/agent-shared-components
 /cmd/agent/dist/conf.d/jetson.d         @DataDog/agent-platform
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/infrastructure-integrations
 /cmd/agent/*.manifest                   @DataDog/agent-platform
@@ -98,6 +98,7 @@
 /cmd/cluster-agent/commands/            @DataDog/container-integrations @DataDog/integrations-tools-and-libraries
 /cmd/cluster-agent-cloudfoundry/        @DataDog/integrations-tools-and-libraries
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/integrations-tools-and-libraries
+/cmd/dogstatsd/                         @DataDog/agent-metrics-logs
 /cmd/process-agent/                     @DataDog/processes
 /cmd/serverless/                        @DataDog/serverless
 /cmd/system-probe/                      @DataDog/agent-network
@@ -109,11 +110,11 @@
 /Dockerfiles/                           @DataDog/container-integrations
 
 /docs/                                  @DataDog/documentation @DataDog/agent-platform
-/docs/agent/                            @DataDog/documentation @DataDog/agent-core
-/docs/dogstatsd/                        @DataDog/documentation @DataDog/agent-core
+/docs/agent/                            @DataDog/documentation @DataDog/agent-shared-components
+/docs/dogstatsd/                        @DataDog/documentation @DataDog/agent-metrics-logs
 /docs/trace-agent/                      @DataDog/documentation @DataDog/agent-apm
 /docs/cluster-agent/                    @DataDog/documentation @DataDog/container-integrations
-/docs/dev/checks/                       @DataDog/documentation @DataDog/agent-core
+/docs/dev/checks/                       @DataDog/documentation @DataDog/agent-shared-components
 /docs/cloud-workload-security/          @DataDog/documentation @DataDog/agent-security
 
 /google-marketplace/                    @DataDog/container-integrations
@@ -127,42 +128,44 @@
 /Makefile.trace                         @DataDog/agent-apm
 
 /omnibus/                               @DataDog/agent-platform
-/omnibus/config/software/datadog-agent*.rb                @Datadog/agent-core @DataDog/agent-platform
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 /omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-platform
 /omnibus/config/software/snmp-traps.rb                    @DataDog/infrastructure-integrations
 
-/pkg/                                   @DataDog/agent-core
-/pkg/aggregator/                        @DataDog/agent-core
-/pkg/collector/                         @DataDog/agent-core
-/pkg/forwarder/                         @DataDog/agent-core
-/pkg/metadata/                          @DataDog/agent-core
-/pkg/metrics/                           @DataDog/agent-core
-/pkg/serializer/                        @DataDog/agent-core
+/pkg/                                   @DataDog/agent-shared-components
+/pkg/aggregator/                        @DataDog/agent-metrics-logs
+/pkg/collector/                         @DataDog/agent-metrics-logs
+/pkg/dogstatsd/                         @DataDog/agent-metrics-logs
+/pkg/forwarder/                         @DataDog/agent-metrics-logs
+/pkg/jmxfetch/                          @DataDog/agent-metrics-logs
+/pkg/metadata/                          @DataDog/agent-shared-components
+/pkg/metrics/                           @DataDog/agent-metrics-logs
+/pkg/serializer/                        @DataDog/agent-metrics-logs
 /pkg/serverless/                        @DataDog/serverless
-/pkg/status/                            @DataDog/agent-core
+/pkg/status/                            @DataDog/agent-shared-components
 /pkg/status/templates/process-agent.tmpl    @DataDog/processes
-/pkg/telemetry/                         @DataDog/agent-core
-/pkg/version/                           @DataDog/agent-core
+/pkg/telemetry/                         @DataDog/agent-shared-components
+/pkg/version/                           @DataDog/agent-shared-components
 /pkg/obfuscate/                         @DataDog/agent-apm
 /pkg/trace/                             @DataDog/agent-apm
-/pkg/autodiscovery/                     @DataDog/container-integrations @DataDog/agent-core
+/pkg/autodiscovery/                     @DataDog/container-integrations @DataDog/agent-metrics-logs
 /pkg/autodiscovery/listeners/           @DataDog/container-integrations
 /pkg/autodiscovery/listeners/cloudfoundry*.go  @DataDog/integrations-tools-and-libraries
 /pkg/autodiscovery/listeners/snmp*.go   @DataDog/infrastructure-integrations
 /pkg/autodiscovery/providers/           @DataDog/container-integrations
-/pkg/autodiscovery/providers/file*.go   @DataDog/agent-core
-/pkg/autodiscovery/providers/config_reader*.go @DataDog/container-integrations @DataDog/agent-core
+/pkg/autodiscovery/providers/file*.go   @DataDog/agent-metrics-logs
+/pkg/autodiscovery/providers/config_reader*.go @DataDog/container-integrations @DataDog/agent-metrics-logs
 /pkg/autodiscovery/providers/cloudfoundry*.go  @DataDog/integrations-tools-and-libraries
 /pkg/clusteragent/                      @DataDog/container-integrations
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
+/pkg/collector/                         @DataDog/agent-metrics-logs
 /pkg/collector/corechecks/cluster/      @DataDog/container-integrations
 /pkg/collector/corechecks/cluster/orchestrator  @DataDog/container-app
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
 /pkg/collector/corechecks/containerlifecycle/   @DataDog/container-integrations
 /pkg/collector/corechecks/ebpf/         @DataDog/container-integrations
 /pkg/collector/corechecks/embed/        @Datadog/agent-platform
-/pkg/collector/corechecks/embed/jmx/    @Datadog/agent-core
+/pkg/collector/corechecks/embed/jmx/    @Datadog/agent-metrics-logs
 /pkg/collector/corechecks/embed/apm*.go            @Datadog/agent-platform @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process_agent*.go  @Datadog/agent-platform @DataDog/processes
 /pkg/collector/corechecks/net/          @DataDog/agent-platform
@@ -170,17 +173,30 @@
 /pkg/collector/corechecks/system/       @DataDog/agent-platform
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/       @DataDog/agent-platform
-/pkg/config/config_template.yaml        @DataDog/agent-core @DataDog/documentation
+/pkg/config/                            @DataDog/agent-shared-components
+/pkg/config/config_template.yaml        @DataDog/agent-shared-components @DataDog/documentation
 /pkg/config/apm.go                      @DataDog/agent-apm
 /pkg/config/autodiscovery/              @Datadog/container-integrations
 /pkg/config/environment*.go             @DataDog/container-integrations @DataDog/container-app
+/pkg/config/log*.go                     @Datadog/agent-platform
 /pkg/config/process*.go                 @DataDog/processes
 /pkg/config/system_probe.go             @DataDog/agent-network
 /pkg/config/remote/                     @DataDog/remote-config
 /pkg/config/remote/service/meta/        @DataDog/remote-config @DataDog/software-integrity-and-trust
+/pkg/diagnose/                          @Datadog/container-integrations
+/pkg/diagnose/connectivity/             @DataDog/agent-shared-components
+/pkg/epforwarder/                       @DataDog/agent-shared-components
+/pkg/flare/                             @DataDog/agent-shared-components
 /pkg/otlp/                              @DataDog/agent-platform
+/pkg/pidfile/                           @DataDog/agent-shared-components
+/pkg/persistentcache/                   @DataDog/agent-metrics-logs
+/pkg/proto/                             @DataDog/agent-shared-components
 /pkg/remoteconfig/                      @DataDog/remote-config
+/pkg/runtime/                           @DataDog/agent-shared-components
+/pkg/secrets/                           @DataDog/agent-shared-components
+/pkg/serializer/                        @DataDog/agent-metrics-logs
 /pkg/tagger/                            @DataDog/container-integrations
+/pkg/tagset/                            @DataDog/agent-shared-components
 /pkg/util/cloudproviders/cloudfoundry/  @DataDog/integrations-tools-and-libraries
 /pkg/util/clusteragent/                 @DataDog/container-integrations
 /pkg/util/containerd/                   @DataDog/container-integrations
@@ -195,9 +211,9 @@
 /pkg/util/cgroups/                      @DataDog/container-integrations
 /pkg/util/retry/                        @DataDog/container-integrations
 /pkg/util/intern/                       @DataDog/agent-network
-/pkg/logs/                              @DataDog/agent-core
-/pkg/logs/internal/launchers/traps/     @DataDog/infrastructure-integrations @DataDog/agent-core
-/pkg/logs/internal/tailers/traps/       @DataDog/infrastructure-integrations @DataDog/agent-core
+/pkg/logs/                              @DataDog/agent-metrics-logs
+/pkg/logs/internal/launchers/traps/     @DataDog/infrastructure-integrations @DataDog/agent-metrics-logs
+/pkg/logs/internal/tailers/traps/       @DataDog/infrastructure-integrations @DataDog/agent-metrics-logs
 /pkg/process/                           @DataDog/processes
 /pkg/process/util/address*.go           @DataDog/agent-network
 /pkg/process/util/netns*.go             @DataDog/agent-network
@@ -227,10 +243,10 @@
 /releasenotes-installscript/            @DataDog/documentation
 /releasenotes-dca/                      @DataDog/documentation @DataDog/container-integrations @Datadog/container-app
 
-/rtloader/                              @DataDog/agent-core
+/rtloader/                              @DataDog/agent-metrics-logs
 
 /tasks/                                 @DataDog/agent-platform
-/tasks/agent.py                         @DataDog/agent-core
+/tasks/agent.py                         @DataDog/agent-shared-components
 /tasks/cluster_agent_cloudfoundry.py    @DataDog/integrations-tools-and-libraries
 /tasks/process_agent.py                 @DataDog/processes
 /tasks/system_probe.py                  @DataDog/agent-network
@@ -238,7 +254,7 @@
 /tasks/security_agent.py                @DataDog/agent-security
 
 /test/                                  @DataDog/agent-platform
-/test/benchmarks/                       @DataDog/agent-core
+/test/benchmarks/                       @DataDog/agent-metrics-logs
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
 /test/e2e/                              @DataDog/container-integrations @DataDog/agent-security
 /test/e2e/cws-tests/                    @DataDog/agent-security
@@ -256,12 +272,14 @@
 /test/kitchen/kitchen-vagrant-system-probe.yml @DataDog/agent-network
 /test/kitchen/site-cookbooks/dd-system-probe-check/ @DataDog/agent-network
 /test/kitchen/test/integration/dd-system-probe-test/ @DataDog/agent-network
-/test/system/                           @DataDog/agent-core
+/test/system/                           @DataDog/agent-shared-components
+/test/system/dogstatsd/                 @DataDog/agent-metrics-logs
 
 /tools/                                 @DataDog/agent-platform
 /tools/ebpf/                            @DataDog/agent-network
-/tools/gdb/                             @DataDog/agent-core
-/tools/retry_file_dump/                 @DataDog/agent-core
+/tools/gdb/                             @DataDog/agent-shared-components
+/tools/retry_file_dump/                 @DataDog/agent-metrics-logs
 /tools/windows/                         @DataDog/agent-platform
+/tools/agent_QA/                        @DataDog/agent-metrics-logs
 
 /internal/tools/                        @DataDog/agent-platform
