@@ -52,7 +52,7 @@ func StartServer(agentHostname string, demux aggregator.Demultiplexer) error {
 	if err != nil {
 		return err
 	}
-	formatter, err := NewJSONFormatter(oidResolver, config.Namespace)
+	formatter, err := NewJSONFormatter(oidResolver, config)
 	if err != nil {
 		return err
 	}

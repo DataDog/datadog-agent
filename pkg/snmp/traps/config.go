@@ -41,6 +41,7 @@ type Config struct {
 	BindHost              string   `mapstructure:"bind_host" yaml:"bind_host"`
 	StopTimeout           int      `mapstructure:"stop_timeout" yaml:"stop_timeout"`
 	Namespace             string   `mapstructure:"namespace" yaml:"namespace"`
+	UserTags              []string `mapstructure:"tags" yaml:"tags"`
 	authoritativeEngineID string   `mapstructure:"-" yaml:"-"`
 }
 
