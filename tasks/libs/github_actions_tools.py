@@ -13,7 +13,7 @@ from invoke.exceptions import Exit
 from ..utils import DEFAULT_BRANCH
 from .common.color import color_message
 from .common.github_workflows import GithubException, GithubWorkflows, get_github_app_token
-from .common.remote_api import RemoteAPI
+from .common.remote_api import APIError
 
 
 def create_or_refresh_macos_build_github_workflows(github_workflows=None):
@@ -73,12 +73,13 @@ def trigger_macos_workflow(
         workflow_id = ""
         try_number = 0
         while workflow_id == "" and try_number < 10:
+            print(f"{run_id}: Requesting workflow runs")
             runs = worfklow.workflow_runs(workflow, f"?created=%3E{run_date_filter}")
             ref_runs = [run for run in runs["workflow_runs"] if run["head_branch"] == github_action_ref]
             if len(runs) > 0:
                 for workflow in ref_runs:
                     jobs_url = urlparse(workflow["jobs_url"])
-                    print(f"get jobs_url {jobs_url}")
+                    print(f"{run_id}: Requesting jobs_url {jobs_url}")
                     jobs = worfklow.make_request(jobs_url.path, method="GET", json_output=True)
                     if 'jobs' in jobs and len(jobs['jobs']) >= 2:
                         # The first job is the setup, the ID job should be the next one
@@ -98,7 +99,7 @@ def trigger_macos_workflow(
                 print("waiting for workflows to popup...")
                 time.sleep(3)
             try_number += 1
-    except RemoteAPI.APIError as e:
+    except APIError as e:
         # It didn't work by using the job hack for whatever reason
         # (including the workflow to trigger didn't contain the special pilot job)
         # Log the error and try again without the "id" input.
@@ -122,10 +123,13 @@ def trigger_macos_workflow(
                 run is not None
                 and run.get("created_at", datetime.fromtimestamp(0).strftime("%Y-%m-%dT%H:%M:%SZ")) >= now
             ):
-                return run.get("id")
+                workflow_id = run.get("id")
+                print(f"Workflow ID {workflow_id}")
+                return workflow_id
 
             sleep(5)
     else:
+        print(f"Workflow ID {workflow_id}")
         return workflow_id
 
     # Something went wrong :(
