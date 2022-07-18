@@ -57,7 +57,7 @@ func TestUnlink(t *testing.T) {
 			assertRights(t, event.Unlink.File.Mode, expectedMode)
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
-			assert.Equal(t, event.Unlink.Async, false)
+			assert.Equal(t, event.Async, false)
 		})
 	}))
 
@@ -81,7 +81,7 @@ func TestUnlink(t *testing.T) {
 			assertRights(t, event.Unlink.File.Mode, expectedMode)
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
-			assert.Equal(t, event.Unlink.Async, false)
+			assert.Equal(t, event.Async, false)
 		})
 	})
 
@@ -118,7 +118,7 @@ func TestUnlink(t *testing.T) {
 			result := <-ch
 			ret, err := result.ReturnInt()
 			if err != nil {
-				if err == syscall.EBADF {
+				if err == syscall.EBADF || err == syscall.EINVAL {
 					return ErrSkipTest{"unlinkat not supported by io_uring"}
 				}
 				return err
@@ -134,7 +134,7 @@ func TestUnlink(t *testing.T) {
 			assertRights(t, event.Unlink.File.Mode, expectedMode)
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
-			assert.Equal(t, event.Unlink.Async, true)
+			assert.Equal(t, event.Async, true)
 
 			executable, err := os.Executable()
 			if err != nil {

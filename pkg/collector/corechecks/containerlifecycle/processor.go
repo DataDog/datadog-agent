@@ -42,34 +42,28 @@ func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 
 	for _, event := range evBundle.Events {
 		entityID := event.Entity.GetID()
+		log.Debugf("Received deletion event for kind %q - ID %q", entityID.Kind, entityID.ID)
 
-		switch event.Type {
-		case workloadmeta.EventTypeUnset:
-			switch entityID.Kind {
-			case workloadmeta.KindContainer:
-				container, ok := event.Entity.(*workloadmeta.Container)
-				if !ok {
-					log.Debugf("Expected workloadmeta.Container got %T, skipping", event.Entity)
-					continue
-				}
-
-				err := p.processContainer(container, []workloadmeta.Source{workloadmeta.SourceRuntime})
-				if err != nil {
-					log.Debugf("Couldn't process container %q: %v", container.ID, err)
-				}
-			case workloadmeta.KindKubernetesPod:
-				err := p.processPod(event.Entity)
-				if err != nil {
-					log.Debugf("Couldn't process pod %q: %v", event.Entity.GetID().ID, err)
-				}
-			case workloadmeta.KindECSTask: // not supported
-			default:
-				log.Tracef("Cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
+		switch entityID.Kind {
+		case workloadmeta.KindContainer:
+			container, ok := event.Entity.(*workloadmeta.Container)
+			if !ok {
+				log.Debugf("Expected workloadmeta.Container got %T, skipping", event.Entity)
+				continue
 			}
 
-		case workloadmeta.EventTypeSet: // not supported
+			err := p.processContainer(container, []workloadmeta.Source{workloadmeta.SourceRuntime})
+			if err != nil {
+				log.Debugf("Couldn't process container %q: %v", container.ID, err)
+			}
+		case workloadmeta.KindKubernetesPod:
+			err := p.processPod(event.Entity)
+			if err != nil {
+				log.Debugf("Couldn't process pod %q: %v", event.Entity.GetID().ID, err)
+			}
+		case workloadmeta.KindECSTask: // not supported
 		default:
-			log.Tracef("Cannot handle event of type %d", event.Type)
+			log.Tracef("Cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 		}
 	}
 }

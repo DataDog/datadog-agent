@@ -10,6 +10,8 @@ package file
 
 import (
 	"os"
+
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 // DidRotate returns true if the file has been log-rotated.
@@ -19,7 +21,7 @@ import (
 // - removed and recreated
 // - truncated
 func (t *Tailer) DidRotate() (bool, error) {
-	f, err := openFile(t.osFile.Name())
+	f, err := filesystem.OpenShared(t.osFile.Name())
 	if err != nil {
 		return false, err
 	}

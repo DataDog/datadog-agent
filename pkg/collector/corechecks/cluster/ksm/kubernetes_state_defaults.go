@@ -82,6 +82,8 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_verticalpodautoscaler_spec_resourcepolicy_container_policies_minallowed":             "vpa.spec_container_minallowed",
 		"kube_verticalpodautoscaler_spec_resourcepolicy_container_policies_maxallowed":             "vpa.spec_container_maxallowed",
 		"kube_cronjob_spec_suspend":                                                                "cronjob.spec_suspend",
+		"kube_job_duration":                                                                        "job.duration",
+		"kube_ingress_path":                                                                        "ingress.path",
 	}
 }
 
@@ -110,6 +112,15 @@ func defaultLabelsMapper() map[string]string {
 		"label_topology_kubernetes_io_zone":   "kube_zone",
 		"label_failure_domain_beta_kubernetes_io_region": "kube_region",
 		"label_failure_domain_beta_kubernetes_io_zone":   "kube_zone",
+		"ingress": "kube_ingress",
+
+		// Standard Kubernetes labels
+		"label_app_kubernetes_io_name":       "kube_app_name",
+		"label_app_kubernetes_io_instance":   "kube_app_instance",
+		"label_app_kubernetes_io_version":    "kube_app_version",
+		"label_app_kubernetes_io_component":  "kube_app_component",
+		"label_app_kubernetes_io_part_of":    "kube_app_part_of",
+		"label_app_kubernetes_io_managed_by": "kube_app_managed_by",
 	}
 }
 
@@ -119,6 +130,13 @@ func defaultLabelJoins() map[string]*JoinsConfig {
 		"label_tags_datadoghq_com_env",
 		"label_tags_datadoghq_com_service",
 		"label_tags_datadoghq_com_version",
+
+		"label_app_kubernetes_io_name",
+		"label_app_kubernetes_io_instance",
+		"label_app_kubernetes_io_version",
+		"label_app_kubernetes_io_component",
+		"label_app_kubernetes_io_part_of",
+		"label_app_kubernetes_io_managed_by",
 	}
 
 	return map[string]*JoinsConfig{

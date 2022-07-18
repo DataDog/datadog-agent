@@ -161,10 +161,27 @@ _This event type is experimental and may change in the future._
 {{ event_type.definition }}
 {% endif %}
 
-| Property | Type | Definition |
-| -------- | ---- | ---------- |
+| Property | Type | Definition | Constants |
+| -------- | ---- | ---------- | --------- |
 {% for property in event_type.properties %}
-| `{{ property.name }}` | {{ property.datatype }} | {{ property.definition }} |
+| `{{ property.name }}` | {{ property.datatype }} | {{ property.definition }} | {{ property.constants }} |
+{% endfor %}
+
+{% endfor %}
+
+## Constants
+
+Constants are used to improve the readability of your rules. Some constants are common to all architectures, others are specific to some architectures.
+
+{% for constants in constants_list %}
+### `{{ constants.name }}`
+
+{{ constants.definition }}
+
+| Name | Architectures |
+| ---- |---------------|
+{% for constant in constants.all %}
+| `{{ constant.name }}` | {{ constant.architecture }} |
 {% endfor %}
 
 {% endfor %}

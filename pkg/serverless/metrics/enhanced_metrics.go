@@ -12,13 +12,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessTags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	// Latest Lambda pricing per https://aws.amazon.com/lambda/pricing/
 	baseLambdaInvocationPrice = 0.0000002
-	lambdaPricePerGbSecond    = 0.0000166667
+	x86LambdaPricePerGbSecond = 0.0000166667
+	armLambdaPricePerGbSecond = 0.0000133334
 	msToSec                   = 0.001
 
 	// Enhanced metrics
@@ -113,7 +115,7 @@ func GenerateEnhancedMetricsFromReportLog(initDurationMs float64, durationMs flo
 		Timestamp:  timestamp,
 	}, {
 		Name:       estimatedCostMetric,
-		Value:      calculateEstimatedCost(billedDuration, memorySize),
+		Value:      calculateEstimatedCost(billedDuration, memorySize, serverlessTags.ResolveRuntimeArch()),
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
@@ -169,11 +171,23 @@ func incrementEnhancedMetric(name string, tags []string, timestamp float64, demu
 }
 
 // calculateEstimatedCost returns the estimated cost in USD of a Lambda invocation
-func calculateEstimatedCost(billedDurationMs float64, memorySizeMb float64) float64 {
+func calculateEstimatedCost(billedDurationMs float64, memorySizeMb float64, architecture string) float64 {
 	billedDurationSeconds := billedDurationMs / 1000.0
 	memorySizeGb := memorySizeMb / 1024.0
 	gbSeconds := billedDurationSeconds * memorySizeGb
 	// round the final float result because float math could have float point imprecision
 	// on some arch. (i.e. 1.00000000000002 values)
-	return math.Round((baseLambdaInvocationPrice+(gbSeconds*lambdaPricePerGbSecond))*10e12) / 10e12
+	return math.Round((baseLambdaInvocationPrice+(gbSeconds*getLambdaPricePerGbSecond(architecture)))*10e12) / 10e12
+}
+
+// get the lambda price per Gb second based on the runtime platform
+func getLambdaPricePerGbSecond(architecture string) float64 {
+	switch architecture {
+	case serverlessTags.ArmLambdaPlatform:
+		// for arm64
+		return armLambdaPricePerGbSecond
+	default:
+		// for x86 and amd64
+		return x86LambdaPricePerGbSecond
+	}
 }

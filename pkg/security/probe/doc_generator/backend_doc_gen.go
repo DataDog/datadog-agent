@@ -14,17 +14,26 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/alecthomas/jsonschema"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/invopop/jsonschema"
 )
 
 func generateBackendJSON(output string) error {
 	reflector := jsonschema.Reflector{
 		ExpandedStruct: true,
 		DoNotReference: false,
-		TypeNamer:      jsonTypeNamer,
+		Mapper:         jsonTypeMapper,
+		Namer:          jsonTypeNamer,
 	}
+
+	if err := reflector.AddGoComments("github.com/DataDog/datadog-agent/pkg/security/probe", "./"); err != nil {
+		return err
+	}
+	reflector.CommentMap = cleanupEasyjson(reflector.CommentMap)
+
 	schema := reflector.Reflect(&probe.EventSerializer{})
 
 	schemaJSON, err := json.MarshalIndent(schema, "", "  ")
@@ -33,6 +42,25 @@ func generateBackendJSON(output string) error {
 	}
 
 	return os.WriteFile(output, schemaJSON, 0664)
+}
+
+func jsonTypeMapper(ty reflect.Type) *jsonschema.Schema {
+	if ty == reflect.TypeOf(utils.EasyjsonTime{}) {
+		schema := jsonschema.Reflect(time.Time{})
+		schema.Version = ""
+		return schema
+	}
+	return nil
+}
+
+func cleanupEasyjson(commentMap map[string]string) map[string]string {
+	res := make(map[string]string, len(commentMap))
+	for name, comment := range commentMap {
+		cleaned := strings.TrimSpace(comment)
+		cleaned = strings.TrimSuffix(cleaned, "easyjson:json")
+		res[name] = strings.TrimSpace(cleaned)
+	}
+	return res
 }
 
 func jsonTypeNamer(ty reflect.Type) string {

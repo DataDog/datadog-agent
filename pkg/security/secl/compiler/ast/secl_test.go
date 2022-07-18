@@ -194,6 +194,13 @@ func TestRegexp(t *testing.T) {
 	}
 
 	print(t, rule)
+
+	rule, err = ParseRule(`process.name == r"^((?:[A-Za-z\d+]{4})*(?:[A-Za-z\d+]{3}=|[A-Za-z\d+]{2}==)\.)*(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z1-9])$" `)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
 }
 
 func TestArrayRegexp(t *testing.T) {

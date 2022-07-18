@@ -122,8 +122,7 @@ func TestRemoveConnections(t *testing.T) {
 	}
 
 	buf := make([]byte, ConnectionByteKeyMaxLen)
-	key, err := conn.ByteKey(buf)
-	require.NoError(t, err)
+	key := conn.ByteKey(buf)
 
 	clientID := "1"
 	state := newDefaultState().(*networkState)
@@ -1322,6 +1321,109 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 	// 2nd client should get accumulated stats
 	rcode = getRCodeFrom(delta, delta.Conns[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
 	assert.EqualValues(t, 3, rcode)
+}
+
+func TestClosedMergingWithAddressColision(t *testing.T) {
+	const client = "foo"
+
+	c1 := ConnectionStats{
+		Pid:    123,
+		Type:   TCP,
+		Family: AFINET,
+		Source: util.AddressFromString("127.0.0.1"),
+		Dest:   util.AddressFromString("127.0.0.1"),
+		SPort:  1000,
+		DPort:  8080,
+		Monotonic: StatCounters{
+			SentBytes: 100,
+		},
+		IPTranslation: &IPTranslation{
+			ReplSrcIP:   util.AddressFromString("1.1.1.1"),
+			ReplDstIP:   util.AddressFromString("2.2.2.2"),
+			ReplSrcPort: 123,
+			ReplDstPort: 456,
+		},
+	}
+	c2 := ConnectionStats{
+		Pid:    123,
+		Type:   TCP,
+		Family: AFINET,
+		Source: util.AddressFromString("127.0.0.1"),
+		Dest:   util.AddressFromString("127.0.0.1"),
+		SPort:  1000,
+		DPort:  8080,
+		Monotonic: StatCounters{
+			SentBytes: 150,
+		},
+		IPTranslation: &IPTranslation{
+			ReplSrcIP:   util.AddressFromString("3.3.3.3"),
+			ReplDstIP:   util.AddressFromString("4.4.4.4"),
+			ReplSrcPort: 123,
+			ReplDstPort: 456,
+		},
+	}
+
+	t.Run("ephemeral connections", func(t *testing.T) {
+		// tests the state aggregation of *ephemeral* connections that share the
+		// same source/destination addresses but that differ in their NAT
+		// translations. this tends to happen in high-load scenarios with a lot
+		// of connection churn.
+		// note that by *ephemeral* we mean connections whose entire lifecycle
+		// (eg. TCP_ESTABLISHED to TCP_CLOSE) happens whithin two consecutive
+		// connection checks.
+
+		state := newDefaultState()
+		state.RegisterClient(client)
+
+		state.StoreClosedConnections([]ConnectionStats{c1})
+		state.StoreClosedConnections([]ConnectionStats{c2})
+
+		// these two connections will be treated as distinct and won't be aggregated.
+		delta := state.GetDelta(client, latestEpochTime(), nil, nil, nil)
+		connections := delta.Conns
+
+		assert.Len(t, delta.Conns, 2)
+		assert.Condition(t, func() bool {
+			// assert c1 is present
+			for _, c := range connections {
+				if c.IPTranslation != nil && c.IPTranslation.ReplSrcIP == util.AddressFromString("1.1.1.1") {
+					return c.Last.SentBytes == 100
+				}
+			}
+			return false
+		})
+
+		assert.Condition(t, func() bool {
+			// assert c2 is present
+			for _, c := range connections {
+				if c.IPTranslation != nil && c.IPTranslation.ReplSrcIP == util.AddressFromString("3.3.3.3") {
+					return c.Last.SentBytes == 150
+				}
+			}
+			return false
+		})
+	})
+
+	t.Run("long-lived connection", func(t *testing.T) {
+		state := newDefaultState()
+		state.RegisterClient(client)
+
+		// despite having different NAT translations these 2 connections will be
+		// interpreted as one. we do this because over the lifecycle of a long-lived
+		// connection the conntrack entry is looked up multiple times and may change
+		// (usually from a nil to a non-nil value). this behavior stems from a
+		// *limitation* in our connection tracking code and should be revisited
+		// once we find a way to reliably get the NAT translation the *first*
+		// time a connection is seen
+		_ = state.GetDelta(client, latestEpochTime(), []ConnectionStats{c1}, nil, nil)
+		state.StoreClosedConnections([]ConnectionStats{c2})
+
+		// assert that the value returned by the second call to `GetDelta` represents c2 - c1
+		delta := state.GetDelta(client, latestEpochTime(), nil, nil, nil)
+		assert.Len(t, delta.Conns, 1)
+		assert.Equal(t, uint64(50), delta.Conns[0].Last.SentBytes)
+	})
+
 }
 
 func TestHTTPStats(t *testing.T) {

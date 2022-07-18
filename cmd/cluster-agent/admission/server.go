@@ -36,6 +36,7 @@ const jsonContentType = "application/json"
 
 type admissionFunc func([]byte, string, dynamic.Interface) ([]byte, error)
 
+// Server TODO <container-integrations>
 type Server struct {
 	decoder runtime.Decoder
 	mux     *http.ServeMux

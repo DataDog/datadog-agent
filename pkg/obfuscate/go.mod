@@ -6,6 +6,6 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.1.0
 	github.com/Microsoft/go-winio v0.5.1 // indirect
 	github.com/dgraph-io/ristretto v0.1.0
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.7.1
 	go.uber.org/atomic v1.9.0
 )

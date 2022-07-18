@@ -10,6 +10,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -20,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -73,6 +74,10 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 		return err
 	}
 
+	if checkArgs.skipRegoEval && checkArgs.dumpReports != "" {
+		return errors.New("skipping the rego evaluation does not allow the generation of reports")
+	}
+
 	// We need to set before calling `SetupConfig`
 	configName := "datadog"
 	if flavor.GetFlavor() == flavor.ClusterAgent {
@@ -118,12 +123,12 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 		ruleID = args[0]
 	}
 
-	hostname, err := util.GetHostname(context.TODO())
+	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		return err
 	}
 
-	options = append(options, checks.WithHostname(hostname))
+	options = append(options, checks.WithHostname(hname))
 
 	stopper = startstop.NewSerialStopper()
 	defer stopper.Stop()
@@ -193,12 +198,14 @@ func configureLogger() error {
 	return nil
 }
 
+// RunCheckReporter represents a reporter used for reporting RunChecks
 type RunCheckReporter struct {
 	reporter        event.Reporter
 	events          map[string][]*event.Event
 	dumpReportsPath string
 }
 
+// NewCheckReporter creates a new RunCheckReporter
 func NewCheckReporter(stopper startstop.Stopper, report bool, dumpReportsPath string) (*RunCheckReporter, error) {
 	r := &RunCheckReporter{}
 
@@ -223,6 +230,7 @@ func NewCheckReporter(stopper startstop.Stopper, report bool, dumpReportsPath st
 	return r, nil
 }
 
+// Report reports the event
 func (r *RunCheckReporter) Report(event *event.Event) {
 	r.events[event.AgentRuleID] = append(r.events[event.AgentRuleID], event)
 
@@ -239,6 +247,7 @@ func (r *RunCheckReporter) Report(event *event.Event) {
 	}
 }
 
+// ReportRaw reports the raw content
 func (r *RunCheckReporter) ReportRaw(content []byte, service string, tags ...string) {
 	fmt.Println(string(content))
 }

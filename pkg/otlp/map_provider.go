@@ -12,16 +12,15 @@ import (
 	"fmt"
 	"strings"
 
-	"go.opentelemetry.io/collector/config"
+	"github.com/DataDog/datadog-agent/pkg/otlp/internal/configutils"
+	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/service"
 	"go.uber.org/multierr"
-
-	"github.com/DataDog/datadog-agent/pkg/otlp/internal/configutils"
 )
 
-// buildKey creates a key for use in the config.Map.Set function.
+// buildKey creates a key for referencing a nested field.
 func buildKey(keys ...string) string {
-	return strings.Join(keys, config.KeyDelimiter)
+	return strings.Join(keys, confmap.KeyDelimiter)
 }
 
 // defaultTracesConfig is the base traces OTLP pipeline configuration.
@@ -47,14 +46,15 @@ service:
       exporters: [otlp]
 `
 
-func buildTracesMap(tracePort uint) (*config.Map, error) {
+func buildTracesMap(tracePort uint) (*confmap.Conf, error) {
 	baseMap, err := configutils.NewMapFromYAMLString(defaultTracesConfig)
 	if err != nil {
 		return nil, err
 	}
 	{
-		configMap := config.NewMap()
-		configMap.Set(buildKey("exporters", "otlp", "endpoint"), fmt.Sprintf("%s:%d", "localhost", tracePort))
+		configMap := confmap.NewFromStringMap(map[string]interface{}{
+			buildKey("exporters", "otlp", "endpoint"): fmt.Sprintf("%s:%d", "localhost", tracePort),
+		})
 		err = baseMap.Merge(configMap)
 	}
 	return baseMap, err
@@ -83,28 +83,29 @@ service:
       exporters: [serializer]
 `
 
-func buildMetricsMap(cfg PipelineConfig) (*config.Map, error) {
+func buildMetricsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	baseMap, err := configutils.NewMapFromYAMLString(defaultMetricsConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	{
-		configMap := config.NewMap()
-		configMap.Set(buildKey("exporters", "serializer", "metrics"), cfg.Metrics)
+		configMap := confmap.NewFromStringMap(map[string]interface{}{
+			buildKey("exporters", "serializer", "metrics"): cfg.Metrics,
+		})
 		err = baseMap.Merge(configMap)
 	}
 	return baseMap, err
 }
 
-func buildReceiverMap(otlpReceiverConfig map[string]interface{}) *config.Map {
-	return config.NewMapFromStringMap(map[string]interface{}{
+func buildReceiverMap(otlpReceiverConfig map[string]interface{}) *confmap.Conf {
+	return confmap.NewFromStringMap(map[string]interface{}{
 		"receivers": map[string]interface{}{"otlp": otlpReceiverConfig},
 	})
 }
 
-func buildMap(cfg PipelineConfig) (*config.Map, error) {
-	retMap := config.NewMap()
+func buildMap(cfg PipelineConfig) (*confmap.Conf, error) {
+	retMap := confmap.New()
 	var errs []error
 	if cfg.TracesEnabled {
 		traceMap, err := buildTracesMap(cfg.TracePort)
@@ -120,6 +121,33 @@ func buildMap(cfg PipelineConfig) (*config.Map, error) {
 		err = retMap.Merge(metricsMap)
 		errs = append(errs, err)
 	}
+	if cfg.DebugLogEnabled() {
+		m := map[string]interface{}{
+			"exporters": map[string]interface{}{
+				"logging": map[string]interface{}{
+					"loglevel": cfg.Debug["loglevel"],
+				},
+			},
+		}
+		if cfg.MetricsEnabled {
+			key := buildKey("service", "pipelines", "metrics", "exporters")
+			if v, ok := retMap.Get(key).([]interface{}); ok {
+				m[key] = append(v, "logging")
+			} else {
+				m[key] = []interface{}{"logging"}
+			}
+		}
+		if cfg.TracesEnabled {
+			key := buildKey("service", "pipelines", "traces", "exporters")
+			if v, ok := retMap.Get(key).([]interface{}); ok {
+				m[key] = append(v, "logging")
+			} else {
+				m[key] = []interface{}{"logging"}
+			}
+		}
+		errs = append(errs, retMap.Merge(confmap.NewFromStringMap(m)))
+	}
+
 	err := retMap.Merge(buildReceiverMap(cfg.OTLPReceiverConfig))
 	errs = append(errs, err)
 

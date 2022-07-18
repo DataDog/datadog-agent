@@ -36,6 +36,7 @@ const (
 	autoscalerHPAKindKey        string = "hpa"
 )
 
+// AutoscalerWatcher watches autoscaling objects and reconciles the corresponding external metrics
 type AutoscalerWatcher struct {
 	refreshPeriod           int64
 	autogenExpirationPeriod time.Duration
@@ -103,6 +104,7 @@ func NewAutoscalerWatcher(refreshPeriod, autogenExpirationPeriodHours int64, aut
 	return autoscalerWatcher, nil
 }
 
+// Run starts the autoscaling reconciliation loop
 func (w *AutoscalerWatcher) Run(stopCh <-chan struct{}) {
 	log.Infof("Starting AutoscalerWatcher (waiting for cache sync)")
 	if w.autoscalerListerSynced != nil {

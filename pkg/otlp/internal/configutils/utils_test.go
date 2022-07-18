@@ -14,11 +14,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config"
-	"go.opentelemetry.io/collector/config/mapconverter/expandmapconverter"
-	"go.opentelemetry.io/collector/config/mapprovider/envmapprovider"
-	"go.opentelemetry.io/collector/config/mapprovider/filemapprovider"
-	"go.opentelemetry.io/collector/config/mapprovider/yamlmapprovider"
+	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
+	"go.opentelemetry.io/collector/confmap/provider/envprovider"
+	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
+	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/collector/service"
@@ -55,8 +55,8 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 	// build default provider from same data
 	settings := service.ConfigProviderSettings{
 		Locations:     []string{fmt.Sprintf("file:%s", testPath)},
-		MapProviders:  makeConfigMapProviderMap(filemapprovider.New(), envmapprovider.New(), yamlmapprovider.New()),
-		MapConverters: []config.MapConverterFunc{expandmapconverter.New()},
+		MapProviders:  makeConfigMapProviderMap(fileprovider.New(), envprovider.New(), yamlprovider.New()),
+		MapConverters: []confmap.Converter{expandconverter.New()},
 	}
 	defaultProvider, err := service.NewConfigProvider(settings)
 	require.NoError(t, err)
@@ -71,8 +71,8 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 	assert.Equal(t, cfg, defaultCfg, "Custom constant provider does not provide same config as default provider.")
 }
 
-func makeConfigMapProviderMap(providers ...config.MapProvider) map[string]config.MapProvider {
-	ret := make(map[string]config.MapProvider, len(providers))
+func makeConfigMapProviderMap(providers ...confmap.Provider) map[string]confmap.Provider {
+	ret := make(map[string]confmap.Provider, len(providers))
 	for _, provider := range providers {
 		ret[provider.Scheme()] = provider
 	}

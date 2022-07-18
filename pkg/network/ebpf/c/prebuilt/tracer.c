@@ -11,6 +11,7 @@
 #include "bpf_endian.h"
 #include "ip.h"
 #include "ipv6.h"
+#include "port.h"
 
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>
@@ -23,15 +24,19 @@
 
 #include "sock.h"
 
-static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk) {
+static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u8 state) {
     u32 rtt = 0;
     u32 rtt_var = 0;
-    bpf_probe_read(&rtt, sizeof(rtt), ((char*)sk) + offset_rtt());
-    bpf_probe_read(&rtt_var, sizeof(rtt_var), ((char*)sk) + offset_rtt_var());
+    bpf_probe_read_kernel(&rtt, sizeof(rtt), ((char*)sk) + offset_rtt());
+    bpf_probe_read_kernel(&rtt_var, sizeof(rtt_var), ((char*)sk) + offset_rtt_var());
 
     tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
+    if (state > 0) {
+        stats.state_transitions = (1 << state);
+    }
     update_tcp_stats(t, stats);
 }
+
 static __always_inline void get_tcp_segment_counts(struct sock* skp, __u32* packets_in, __u32* packets_out) {
     // counting segments/packets not currently supported on prebuilt
     // to implement, would need to do the offset-guess on the following
@@ -88,7 +93,7 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
         return 0;
     }
 
-    handle_tcp_stats(&t, skp);
+    handle_tcp_stats(&t, skp, 0);
 
     __u32 packets_in = 0;
     __u32 packets_out = 0;
@@ -113,6 +118,7 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs* ctx) {
         return 0;
     }
 
+    handle_tcp_stats(&t, sk, 0);
     return handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE);
 }
 
@@ -178,8 +184,8 @@ static __always_inline int handle_ip6_skb(struct sock* sk, size_t size, struct f
             t.metadata |= CONN_V6;
         }
 
-        bpf_probe_read(&t.sport, sizeof(t.sport), ((char*)fl6) + offset_sport_fl6());
-        bpf_probe_read(&t.dport, sizeof(t.dport), ((char*)fl6) + offset_dport_fl6());
+        bpf_probe_read_kernel(&t.sport, sizeof(t.sport), ((char*)fl6) + offset_sport_fl6());
+        bpf_probe_read_kernel(&t.dport, sizeof(t.dport), ((char*)fl6) + offset_dport_fl6());
 
         if (t.sport == 0 || t.dport == 0) {
             log_debug("ERR(fl6): src/dst port not set: src:%d, dst:%d\n", t.sport, t.dport);
@@ -236,8 +242,8 @@ int kprobe__ip_make_skb(struct pt_regs* ctx) {
         }
 
         struct flowi4* fl4 = (struct flowi4*)PT_REGS_PARM2(ctx);
-        bpf_probe_read(&t.saddr_l, sizeof(__u32), ((char*)fl4) + offset_saddr_fl4());
-        bpf_probe_read(&t.daddr_l, sizeof(__u32), ((char*)fl4) + offset_daddr_fl4());
+        bpf_probe_read_kernel(&t.saddr_l, sizeof(__u32), ((char*)fl4) + offset_saddr_fl4());
+        bpf_probe_read_kernel(&t.daddr_l, sizeof(__u32), ((char*)fl4) + offset_daddr_fl4());
 
         if (!t.saddr_l || !t.daddr_l) {
             log_debug("ERR(fl4): src/dst addr not set src:%d,dst:%d\n", t.saddr_l, t.daddr_l);
@@ -245,8 +251,8 @@ int kprobe__ip_make_skb(struct pt_regs* ctx) {
             return 0;
         }
 
-        bpf_probe_read(&t.sport, sizeof(t.sport), ((char*)fl4) + offset_sport_fl4());
-        bpf_probe_read(&t.dport, sizeof(t.dport), ((char*)fl4) + offset_dport_fl4());
+        bpf_probe_read_kernel(&t.sport, sizeof(t.sport), ((char*)fl4) + offset_sport_fl4());
+        bpf_probe_read_kernel(&t.dport, sizeof(t.dport), ((char*)fl4) + offset_dport_fl4());
 
         if (t.sport == 0 || t.dport == 0) {
             log_debug("ERR(fl4): src/dst port not set: src:%d, dst:%d\n", t.sport, t.dport);
@@ -284,10 +290,10 @@ static __always_inline int handle_udp_recvmsg(struct sock* sk, struct msghdr* ms
     u64 pid_tgid = bpf_get_current_pid_tgid();
     udp_recv_sock_t t = { .sk = NULL, .msg = NULL };
     if (sk) {
-        bpf_probe_read(&t.sk, sizeof(t.sk), &sk);
+        bpf_probe_read_kernel(&t.sk, sizeof(t.sk), &sk);
     }
     if (msg) {
-        bpf_probe_read(&t.msg, sizeof(t.msg), &msg);
+        bpf_probe_read_kernel(&t.msg, sizeof(t.msg), &msg);
     }
 
     bpf_map_update_elem(udp_sock_map, &pid_tgid, &t, BPF_ANY);
@@ -349,7 +355,7 @@ static __always_inline int handle_ret_udp_recvmsg(int copied, struct bpf_map_def
     __builtin_memset(&t, 0, sizeof(conn_tuple_t));
     if (st->msg) {
         struct sockaddr *sap = NULL;
-        bpf_probe_read(&sap, sizeof(sap), &(st->msg->msg_name));
+        bpf_probe_read_kernel(&sap, sizeof(sap), &(st->msg->msg_name));
         sockaddr_to_addr(sap, &t.daddr_h, &t.daddr_l, &t.dport, &t.metadata);
     }
 
@@ -431,15 +437,13 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
-    handle_tcp_stats(&t, sk);
+    handle_tcp_stats(&t, sk, TCP_ESTABLISHED);
     handle_message(&t, 0, 0, CONN_DIRECTION_INCOMING, 0, 0, PACKET_COUNT_NONE);
 
     port_binding_t pb = {};
     pb.netns = t.netns;
     pb.port = t.sport;
-    __u8 state = PORT_LISTENING;
-    bpf_map_update_elem(&port_bindings, &pb, &state, BPF_NOEXIST);
-
+    add_port_bind(&pb, &port_bindings);
     log_debug("kretprobe/inet_csk_accept: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
     return 0;
 }
@@ -453,12 +457,11 @@ int kprobe__inet_csk_listen_stop(struct pt_regs* ctx) {
         return 0;
     }
 
-    port_binding_t t = {};
-    t.netns = get_netns_from_sock(sk);
-    t.port = lport;
-    bpf_map_delete_elem(&port_bindings, &t);
-
-    log_debug("kprobe/inet_csk_listen_stop: net ns: %u, lport: %u\n", t.netns, t.port);
+    port_binding_t pb = {};
+    pb.netns = get_netns_from_sock(sk);
+    pb.port = lport;
+    remove_port_bind(&pb, &port_bindings);
+    log_debug("kprobe/inet_csk_listen_stop: net ns: %u, lport: %u\n", pb.netns, pb.port);
     return 0;
 }
 
@@ -486,10 +489,10 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
     // although we have net ns info, we don't use it in the key
     // since we don't have it everywhere for udp port bindings
     // (see sys_enter_bind/sys_exit_bind below)
-    port_binding_t t = {};
-    t.netns = 0;
-    t.port = lport;
-    bpf_map_delete_elem(&udp_port_bindings, &t);
+    port_binding_t pb = {};
+    pb.netns = 0;
+    pb.port = lport;
+    remove_port_bind(&pb, &udp_port_bindings);
 
     log_debug("kprobe/udp_destroy_sock: port %d marked as closed\n", lport);
 
@@ -508,7 +511,7 @@ static __always_inline int sys_enter_bind(struct socket* sock, struct sockaddr* 
     __u64 tid = bpf_get_current_pid_tgid();
 
     __u16 type = 0;
-    bpf_probe_read(&type, sizeof(__u16), &sock->type);
+    bpf_probe_read_kernel(&type, sizeof(__u16), &sock->type);
     if ((type & SOCK_DGRAM) == 0) {
         return 0;
     }
@@ -520,11 +523,11 @@ static __always_inline int sys_enter_bind(struct socket* sock, struct sockaddr* 
 
     u16 sin_port = 0;
     sa_family_t family = 0;
-    bpf_probe_read(&family, sizeof(sa_family_t), &addr->sa_family);
+    bpf_probe_read_kernel(&family, sizeof(sa_family_t), &addr->sa_family);
     if (family == AF_INET) {
-        bpf_probe_read(&sin_port, sizeof(u16), &(((struct sockaddr_in*)addr)->sin_port));
+        bpf_probe_read_kernel(&sin_port, sizeof(u16), &(((struct sockaddr_in*)addr)->sin_port));
     } else if (family == AF_INET6) {
-        bpf_probe_read(&sin_port, sizeof(u16), &(((struct sockaddr_in6*)addr)->sin6_port));
+        bpf_probe_read_kernel(&sin_port, sizeof(u16), &(((struct sockaddr_in6*)addr)->sin6_port));
     }
 
     sin_port = ntohs(sin_port);
@@ -584,11 +587,10 @@ static __always_inline int sys_exit_bind(__s64 ret) {
     }
 
     __u16 sin_port = args->port;
-    __u8 port_state = PORT_LISTENING;
-    port_binding_t t = {};
-    t.netns = 0; // don't have net ns info in this context
-    t.port = sin_port;
-    bpf_map_update_elem(&udp_port_bindings, &t, &port_state, BPF_ANY);
+    port_binding_t pb = {};
+    pb.netns = 0; // don't have net ns info in this context
+    pb.port = sin_port;
+    add_port_bind(&pb, &udp_port_bindings);
     log_debug("sys_exit_bind: bound UDP port %u\n", sin_port);
 
     return 0;
@@ -644,26 +646,26 @@ int kretprobe__sockfd_lookup_light(struct pt_regs* ctx) {
     // For now let's only store information for TCP sockets
     struct socket* socket = (struct socket*)PT_REGS_RC(ctx);
     enum sock_type sock_type = 0;
-    bpf_probe_read(&sock_type, sizeof(short), &socket->type);
+    bpf_probe_read_kernel(&sock_type, sizeof(short), &socket->type);
 
     // (struct socket).ops is always directly after (struct socket).sk,
     // which is a pointer.
     u64 ops_offset = offset_socket_sk() + sizeof(void*);
     struct proto_ops *proto_ops = NULL;
-    bpf_probe_read(&proto_ops, sizeof(proto_ops), (void*)(socket) + ops_offset);
+    bpf_probe_read_kernel(&proto_ops, sizeof(proto_ops), (void*)(socket) + ops_offset);
     if (!proto_ops) {
         goto cleanup;
     }
 
     int family = 0;
-    bpf_probe_read(&family, sizeof(family), &proto_ops->family);
+    bpf_probe_read_kernel(&family, sizeof(family), &proto_ops->family);
     if (sock_type != SOCK_STREAM || !(family == AF_INET || family == AF_INET6)) {
         goto cleanup;
     }
 
     // Retrieve struct sock* pointer from struct socket*
     struct sock *sock = NULL;
-    bpf_probe_read(&sock, sizeof(sock), (char*)socket + offset_socket_sk());
+    bpf_probe_read_kernel(&sock, sizeof(sock), (char*)socket + offset_socket_sk());
 
     pid_fd_t pid_fd = {
         .pid = pid_tgid >> 32,

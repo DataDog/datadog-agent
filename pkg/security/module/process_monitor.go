@@ -9,6 +9,7 @@
 package module
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -21,19 +22,28 @@ type ProcessMonitoring struct {
 
 // HandleEvent implement the EventHandler interface
 func (p *ProcessMonitoring) HandleEvent(event *sprobe.Event) {
+	// Force resolution of all event fields before exposing it through the API server
+	event.ResolveFields()
+	event.ResolveEventTimestamp()
+
 	entry := event.ResolveProcessCacheEntry()
 	if entry == nil {
 		return
 	}
 
-	data, err := entry.MarshalMsg(nil)
+	e := &model.ProcessMonitoringEvent{
+		ProcessCacheEntry: entry,
+		EventType:         event.GetEventType().String(),
+		CollectionTime:    event.Timestamp,
+	}
+
+	data, err := e.MarshalMsg(nil)
 	if err != nil {
-		log.Error(err)
+		log.Error("Failed to marshal Process Lifecycle Event: ", err)
 		return
 	}
 
-	// data to send
-	_ = data
+	p.module.apiServer.SendProcessEvent(data)
 }
 
 // HandleCustomEvent implement the EventHandler interface

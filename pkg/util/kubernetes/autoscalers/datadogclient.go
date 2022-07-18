@@ -25,11 +25,12 @@ const (
 	metricsEndpointConfig = "external_metrics_provider.endpoint"
 )
 
+// NewDatadogClient configures and returns a new DatadogClient
 func NewDatadogClient() (DatadogClient, error) {
 	if config.Datadog.IsSet("external_metrics_provider.endpoints") {
 		var endpoints []config.Endpoint
 		if err := config.Datadog.UnmarshalKey("external_metrics_provider.endpoints", &endpoints); err != nil {
-			return nil, log.Errorf("could not parse external_metrics_provider.endpoints: %w", err)
+			return nil, log.Errorf("could not parse external_metrics_provider.endpoints: %v", err)
 		}
 
 		return newDatadogFallbackClient(endpoints)
@@ -211,15 +212,25 @@ func (cl *datadogFallbackClient) GetRateLimitStats() map[string]datadog.RateLimi
 	return map[string]datadog.RateLimit{}
 }
 
+// GetStatus returns the status of the DatadogClient
 func GetStatus(datadogClient DatadogClient) map[string]interface{} {
 	status := make(map[string]interface{})
 
 	switch ddCl := datadogClient.(type) {
 	case *datadog.Client:
+		// Can be nil if there's an error in NewDatadogClient()
+		if ddCl == nil {
+			return status
+		}
+
 		clientStatus := make(map[string]interface{})
 		clientStatus["url"] = ddCl.GetBaseUrl()
 		status["client"] = clientStatus
 	case *datadogFallbackClient:
+		if ddCl == nil {
+			return status
+		}
+
 		status["lastUsedClient"] = ddCl.lastUsedClient
 		clientsStatus := make([]map[string]interface{}, len(ddCl.clients))
 		for i, individualClient := range ddCl.clients {

@@ -8,7 +8,7 @@ package file
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // File represents a file to tail
@@ -20,15 +20,15 @@ type File struct {
 	// in a directory with wildcard(s) in the configuration.
 	IsWildcardPath bool
 
-	// Source is the LogSource that led to this File.
-	Source *config.LogSource
+	// Source is the ReplaceableSource that led to this File.
+	Source *sources.ReplaceableSource
 }
 
 // NewFile returns a new File
-func NewFile(path string, source *config.LogSource, isWildcardPath bool) *File {
+func NewFile(path string, source *sources.LogSource, isWildcardPath bool) *File {
 	return &File{
 		Path:           path,
-		Source:         source,
+		Source:         sources.NewReplaceableSource(source),
 		IsWildcardPath: isWildcardPath,
 	}
 }
@@ -39,8 +39,8 @@ func NewFile(path string, source *config.LogSource, isWildcardPath bool) *File {
 func (t *File) GetScanKey() string {
 	// If it is a file scanned for a container, it will use the format: <filepath>/<container_id>
 	// Otherwise, it will simply use the format: <filepath>
-	if t.Source != nil && t.Source.Config != nil && t.Source.Config.Identifier != "" {
-		return fmt.Sprintf("%s/%s", t.Path, t.Source.Config.Identifier)
+	if t.Source != nil && t.Source.Config() != nil && t.Source.Config().Identifier != "" {
+		return fmt.Sprintf("%s/%s", t.Path, t.Source.Config().Identifier)
 	}
 	return t.Path
 }

@@ -6,7 +6,6 @@
 package log
 
 import (
-	"errors"
 	"fmt"
 	"regexp"
 	"runtime"
@@ -14,9 +13,7 @@ import (
 	"sync"
 
 	"github.com/cihub/seelog"
-	"github.com/hashicorp/go-multierror"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -140,22 +137,22 @@ func (l *PatternLogger) Tracef(format string, params ...interface{}) {
 
 // Debugf is used to print a trace level log
 func (l *PatternLogger) Debugf(format string, params ...interface{}) {
-	log.Debugf(format, params...)
+	log.DebugStackDepth(depth-1, fmt.Sprintf(format, params...))
 }
 
 // Errorf is used to print an error
 func (l *PatternLogger) Errorf(format string, params ...interface{}) {
-	_ = log.Errorf(format, params...)
+	_ = log.ErrorStackDepth(depth-1, fmt.Sprintf(format, params...))
 }
 
 // Warnf is used to print a warn
 func (l *PatternLogger) Warnf(format string, params ...interface{}) {
-	log.Warnf(format, params...)
+	log.WarnStackDepth(depth-1, fmt.Sprintf(format, params...))
 }
 
 // Infof is used to print an error
 func (l *PatternLogger) Infof(format string, params ...interface{}) {
-	log.Infof(format, params...)
+	log.InfoStackDepth(depth-1, fmt.Sprintf(format, params...))
 }
 
 // AddTags add new tags
@@ -271,21 +268,4 @@ func SetPatterns(patterns ...string) []string {
 
 func init() {
 	DefaultLogger = &PatternLogger{}
-}
-
-func RuleLoadingErrors(msg string, m *multierror.Error) {
-	var errorLevel bool
-	for _, err := range m.Errors {
-		if rErr, ok := err.(*rules.ErrRuleLoad); ok {
-			if !errors.Is(rErr.Err, rules.ErrEventTypeNotEnabled) {
-				errorLevel = true
-			}
-		}
-	}
-
-	if errorLevel {
-		Errorf(msg, m.Error())
-	} else {
-		Warnf(msg, m.Error())
-	}
 }

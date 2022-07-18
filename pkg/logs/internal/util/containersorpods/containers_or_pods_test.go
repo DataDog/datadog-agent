@@ -26,7 +26,7 @@ func TestChoose(t *testing.T) {
 		expected LogWhat,
 	) func(*testing.T) {
 		return func(t *testing.T) {
-			mockConfig := config.Mock()
+			mockConfig := config.Mock(t)
 			mockConfig.Set("logs_config.k8s_container_use_file", k8sContainerUseFile)
 			config.SetDetectedFeatures(features)
 			defer config.SetDetectedFeatures(config.FeatureMap{})

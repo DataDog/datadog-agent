@@ -27,6 +27,6 @@ func TestChangeChecker(t *testing.T) {
 func assertConfigChangeDetected(r *require.Assertions, checker *ChangeChecker, key string, value interface{}) {
 	Datadog.Set(key, value)
 	r.True(checker.HasChanged())
-	Datadog.Unset(key)
+	Datadog.Set(key, nil)
 	r.False(checker.HasChanged())
 }

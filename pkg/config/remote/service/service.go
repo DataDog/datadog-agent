@@ -15,14 +15,16 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/theupdateframework/go-tuf/data"
 	tufutil "github.com/theupdateframework/go-tuf/util"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.etcd.io/bbolt"
 )
@@ -62,6 +64,8 @@ type Service struct {
 	products    map[rdata.Product]struct{}
 	newProducts map[rdata.Product]struct{}
 	clients     *clients
+
+	lastUpdateErr error
 }
 
 // uptaneClient is used to mock the uptane component for testing
@@ -73,6 +77,7 @@ type uptaneClient interface {
 	TargetFile(path string) ([]byte, error)
 	TargetsMeta() ([]byte, error)
 	TargetsCustom() ([]byte, error)
+	TUFVersionState() (uptane.TUFVersions, error)
 }
 
 // NewService instantiates a new remote configuration management service
@@ -120,7 +125,7 @@ func NewService() (*Service, error) {
 		apiKey = config.Datadog.GetString("remote_configuration.api_key")
 	}
 	apiKey = config.SanitizeAPIKey(apiKey)
-	hostname, err := util.GetHostname(context.Background())
+	hname, err := hostname.Get(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +156,7 @@ func NewService() (*Service, error) {
 		backoffPolicy:          backoffPolicy,
 		products:               make(map[rdata.Product]struct{}),
 		newProducts:            make(map[rdata.Product]struct{}),
-		hostname:               hostname,
+		hostname:               hname,
 		clock:                  clock,
 		db:                     db,
 		api:                    http,
@@ -191,21 +196,35 @@ func (s *Service) calculateRefreshInterval() time.Duration {
 
 func (s *Service) refresh() error {
 	s.Lock()
-	defer s.Unlock()
 	activeClients := s.clients.activeClients()
 	s.refreshProducts(activeClients)
-	previousState, err := s.uptane.State()
+	previousState, err := s.uptane.TUFVersionState()
 	if err != nil {
-		log.Warnf("could not get previous state: %v", err)
+		log.Warnf("could not get previous TUF version state: %v", err)
+		if s.lastUpdateErr != nil {
+			s.lastUpdateErr = fmt.Errorf("%v: %v", err, s.lastUpdateErr)
+		} else {
+			s.lastUpdateErr = err
+		}
 	}
 	if s.forceRefresh() || err != nil {
-		previousState = uptane.State{}
+		previousState = uptane.TUFVersions{}
 	}
 	clientState, err := s.getClientState()
 	if err != nil {
 		log.Warnf("could not get previous backend client state: %v", err)
+		if s.lastUpdateErr != nil {
+			s.lastUpdateErr = fmt.Errorf("%v: %v", err, s.lastUpdateErr)
+		} else {
+			s.lastUpdateErr = err
+		}
 	}
-	response, err := s.api.Fetch(s.ctx, buildLatestConfigsRequest(s.hostname, previousState, activeClients, s.products, s.newProducts, clientState))
+	request := buildLatestConfigsRequest(s.hostname, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
+	s.Unlock()
+	response, err := s.api.Fetch(s.ctx, request)
+	s.Lock()
+	defer s.Unlock()
+	s.lastUpdateErr = nil
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
 		return err
@@ -213,6 +232,7 @@ func (s *Service) refresh() error {
 	err = s.uptane.Update(response)
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
+		s.lastUpdateErr = err
 		return err
 	}
 	s.firstUpdate = false
@@ -249,25 +269,26 @@ func (s *Service) getClientState() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return custom.ClientState, nil
+	return custom.OpaqueBackendState, nil
 }
 
 // ClientGetConfigs is the polling API called by tracers and agents to get the latest configurations
 func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	s.Lock()
 	defer s.Unlock()
-	s.clients.seen(request.Client)
-	state, err := s.uptane.State()
+	err := validateRequest(request)
 	if err != nil {
 		return nil, err
 	}
-	if request.Client.State == nil {
+	s.clients.seen(request.Client)
+	tufVersions, err := s.uptane.TUFVersionState()
+	if err != nil {
+		return nil, err
+	}
+	if tufVersions.DirectorTargets == request.Client.State.TargetsVersion {
 		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
-	if state.DirectorTargetsVersion() == request.Client.State.TargetsVersion {
-		return &pbgo.ClientGetConfigsResponse{}, nil
-	}
-	roots, err := s.getNewDirectorRoots(request.Client.State.RootVersion, state.DirectorRootVersion())
+	roots, err := s.getNewDirectorRoots(request.Client.State.RootVersion, tufVersions.DirectorRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -390,4 +411,36 @@ func (s *Service) getTargetFiles(products []rdata.Product, cachedTargetFiles []*
 		}
 	}
 	return configFiles, nil
+}
+
+func validateRequest(request *pbgo.ClientGetConfigsRequest) error {
+	if request.Client == nil {
+		return status.Error(codes.InvalidArgument, "client is a required field for client config update requests")
+	}
+
+	if request.Client.State == nil {
+		return status.Error(codes.InvalidArgument, "client.state is a required field for client config update requests")
+	}
+
+	if request.Client.State.RootVersion <= 0 {
+		return status.Error(codes.InvalidArgument, "client.state.root_version must be >= 1 (clients must start with the base TUF director root)")
+	}
+
+	if request.Client.IsAgent && request.Client.ClientAgent == nil {
+		return status.Error(codes.InvalidArgument, "client.client_agent is a required field for agent client config update requests")
+	}
+
+	if request.Client.IsTracer && request.Client.ClientTracer == nil {
+		return status.Error(codes.InvalidArgument, "client.client_tracer is a required field for tracer client config update requests")
+	}
+
+	if request.Client.IsTracer && request.Client.IsAgent {
+		return status.Error(codes.InvalidArgument, "client.is_tracer and client.is_agent cannot both be true")
+	}
+
+	if !request.Client.IsTracer && !request.Client.IsAgent {
+		return status.Error(codes.InvalidArgument, "agents only support remote config updates from tracer or agent at this time")
+	}
+
+	return nil
 }

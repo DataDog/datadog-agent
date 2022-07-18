@@ -43,7 +43,7 @@ int __attribute__((always_inline)) sys_umount_ret(void *ctx, int retval) {
 
     struct umount_event_t event = {
         .syscall.retval = retval,
-        .syscall.async = 0,
+        .event.async = 0,
         .mount_id = mount_id
     };
 

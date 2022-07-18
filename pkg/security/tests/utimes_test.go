@@ -60,7 +60,7 @@ func TestUtimes(t *testing.T) {
 			assertRights(t, event.Utimes.File.Mode, expectedMode)
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
-			assert.Equal(t, event.Utimes.Async, false)
+			assert.Equal(t, event.Async, false)
 		})
 	}))
 
@@ -97,7 +97,7 @@ func TestUtimes(t *testing.T) {
 			assertRights(t, event.Utimes.File.Mode, expectedMode)
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
-			assert.Equal(t, event.Utimes.Async, false)
+			assert.Equal(t, event.Async, false)
 		})
 	}))
 
@@ -137,7 +137,7 @@ func TestUtimes(t *testing.T) {
 			assertRights(t, event.Utimes.File.Mode, expectedMode)
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
-			assert.Equal(t, event.Utimes.Async, false)
+			assert.Equal(t, event.Async, false)
 		})
 	})
 }

@@ -15,7 +15,7 @@ spec:
           - name: cluster-agent-image-repository
           - name: cluster-agent-image-tag
       script:
-        image: alpine/helm
+        image: alpine/helm:3.9.0
         envFrom:
           - secretRef:
               name: dd-keys
@@ -37,14 +37,17 @@ spec:
             env:
               - name: DD_HOSTNAME
                 value: k8s-e2e-tests-control-plane
-              - name: DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT
-                value: "0.0.0.0:4317"
             leaderElection: true
             logs:
               enabled: true
               containerCollectAll: true
             apm:
               enabled: true
+            otlp:
+              receiver:
+                protocols:
+                  grpc:
+                    enabled: true
             processAgent:
               enabled: true
             systemProbe:
@@ -57,6 +60,8 @@ spec:
                 enabled: true
               runtime:
                 enabled: true
+                network:
+                  enabled: true
 
             confd:
               memory.yaml: |
@@ -90,12 +95,6 @@ spec:
               pullSecrets:
                 - name: docker-registry
             containers:
-              agent:
-                ports:
-                  - containerPort: 4317
-                    hostPort: 4317
-                    name: otlp-port
-                    protocol: TCP
               systemProbe:
                 logLevel: TRACE
                 env:
@@ -119,6 +118,8 @@ spec:
             token: c9e21a248434a400b1de021dbdd554d790983a1212a5eac0ba36e79346ec52fd
             metricsProvider:
               enabled: true
+            admissionController:
+              enabled: true
             env:
               - name: DATADOG_HOST
                 value: {{inputs.parameters.dd-url}}
@@ -135,7 +136,7 @@ spec:
         parameters:
           - name: namespace
       container:
-        image: alpine/helm
+        image: alpine/helm:3.9.0
         args: ["--namespace", "{{inputs.parameters.namespace}}", "uninstall", "datadog-agent"]
 
     - name: health

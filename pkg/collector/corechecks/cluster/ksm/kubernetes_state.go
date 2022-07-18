@@ -20,11 +20,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -33,6 +34,7 @@ import (
 	"gopkg.in/yaml.v2"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
+	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 )
 
@@ -49,6 +51,10 @@ const (
 	// ownerNameKey represents the KSM label key owner_name
 	ownerNameKey = "owner_name"
 )
+
+var extendedCollectors = map[string]string{
+	"jobs": "jobs_extended",
+}
 
 // KSMConfig contains the check config parameters
 type KSMConfig struct {
@@ -210,10 +216,6 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 		collectors = options.DefaultResources.AsSlice()
 	}
 
-	if err := builder.WithEnabledResources(collectors); err != nil {
-		return err
-	}
-
 	// Enable exposing resource labels explicitly for kube_<resource>_labels metadata metrics.
 	// Equivalent to configuring --metric-labels-allowlist.
 	allowedLabels := map[string][]string{}
@@ -232,7 +234,7 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 		namespaces = options.DefaultNamespaces
 	}
 
-	builder.WithNamespaces(namespaces)
+	builder.WithNamespaces(namespaces, "")
 
 	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(collectors))
 	if err != nil {
@@ -243,7 +245,7 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 		return err
 	}
 
-	builder.WithAllowDenyList(allowDenyList)
+	builder.WithFamilyGeneratorFilter(allowDenyList)
 
 	// Due to how init is done, we cannot use GetAPIClient in `Run()` method
 	// So we are waiting for a reasonable amount of time here in case.
@@ -271,6 +273,35 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 	builder.WithResync(time.Duration(resyncPeriod) * time.Second)
 
 	builder.WithGenerateStoresFunc(builder.GenerateStores)
+
+	factories := []customresource.RegistryFactory{
+		customresources.NewJobFactory(),
+		customresources.NewCronJobFactory(),
+		customresources.NewPodDisruptionBudgetFactory(),
+	}
+
+	clients := make(map[string]interface{}, len(factories))
+	for _, f := range factories {
+		clients[f.Name()] = c.Cl
+	}
+
+	builder.WithCustomResourceStoreFactories(factories...)
+	builder.WithCustomResourceClients(clients)
+	builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
+
+	// automatically add extended collectors if their standard ones are
+	// enabled
+	for _, c := range collectors {
+		if extended, ok := extendedCollectors[c]; ok {
+			collectors = append(collectors, extended)
+		}
+	}
+
+	// must call WithEnabledResources after custom resources have been
+	// registered, otherwise they will fail with "resource does not exist"
+	if err := builder.WithEnabledResources(collectors); err != nil {
+		return err
+	}
 
 	// Start the collection process
 	k.allStores = builder.BuildStores()
@@ -543,7 +574,7 @@ func (k *KSMCheck) processLabelsAsTags() {
 
 // getClusterName retrieves the name of the cluster, if found
 func (k *KSMCheck) getClusterName() {
-	hostname, _ := util.GetHostname(context.TODO())
+	hostname, _ := hostnameUtil.Get(context.TODO())
 	if clusterName := clustername.GetClusterName(context.TODO(), hostname); clusterName != "" {
 		k.clusterName = clusterName
 	}
@@ -609,6 +640,7 @@ func (k *KSMCheck) sendTelemetry(s aggregator.Sender) {
 	}
 }
 
+// KubeStateMetricsFactory returns a new KSMCheck
 func KubeStateMetricsFactory() check.Check {
 	return newKSMCheck(
 		core.NewCheckBase(kubeStateMetricsCheckName),
@@ -698,7 +730,6 @@ func buildDeniedMetricsSet(collectors []string) options.MetricSet {
 		"kube_job_status_.*_time":                          {},
 		"kube_service_spec_external_ip":                    {},
 		"kube_service_status_load_balancer_ingress":        {},
-		"kube_ingress_path":                                {},
 		"kube_statefulset_status_current_revision":         {},
 		"kube_statefulset_status_update_revision":          {},
 		"kube_pod_container_status_last_terminated_reason": {},
@@ -745,17 +776,24 @@ func ownerTags(kind, name string) []string {
 	return tags
 }
 
-// podLabelsMapperOverride defines the label mapper overrides
-// that should be applied on pod metrics only.
-var podLabelsMapperOverride = map[string]string{"phase": "pod_phase"}
-
 // labelsMapperOverride allows overriding the default label mapping for
 // a given metric depending on the metric family.
-// Current use-case:
+// Current use-cases:
 //   - `phase` tag should be mapped to `pod_phase` on pod metrics only.
+//   - Ingress metrics have generic tag names (host/path/service_name/service_port).
+//     It's important to have them in a dedicated mapper override for ingresses.
 func labelsMapperOverride(metricName string) map[string]string {
 	if strings.HasPrefix(metricName, "kube_pod") {
-		return podLabelsMapperOverride
+		return map[string]string{"phase": "pod_phase"}
+	}
+
+	if strings.HasPrefix(metricName, "kube_ingress") {
+		return map[string]string{
+			"host":         "kube_ingress_host",
+			"path":         "kube_ingress_path",
+			"service_name": "kube_service",
+			"service_port": "kube_service_port",
+		}
 	}
 
 	return nil

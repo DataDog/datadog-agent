@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // use a randomly assigned port
@@ -23,7 +24,7 @@ var udpTestPort = 0
 func TestUDPShouldReceiveMessage(t *testing.T) {
 	pp := mock.NewMockProvider()
 	msgChan := pp.NextPipelineChan()
-	listener := NewUDPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), 9000)
+	listener := NewUDPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), 9000)
 	listener.Start()
 
 	conn, err := net.Dial("udp", fmt.Sprintf("%s", listener.tailer.Conn.LocalAddr()))

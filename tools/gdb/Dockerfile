@@ -2,10 +2,11 @@ ARG AGENT_VERSION
 FROM datadog/agent:${AGENT_VERSION}
 
 RUN apt-get update
-RUN DEBIAN_FRONTEND=noninteractiv TZ=Etc/UTC apt-get install -y gdb build-essential strace less vim
+RUN rm -vf /etc/ssl/openssl.cnf
+RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y gdb build-essential strace less vim
 
 # Install go
-RUN curl -fSL -o golang.tgz https://go.dev/dl/go1.17.6.linux-amd64.tar.gz
+RUN curl -fSL -o golang.tgz https://go.dev/dl/go1.17.11.linux-amd64.tar.gz
 RUN tar xzvf golang.tgz
 RUN ln -s /go /goroot
 
@@ -29,6 +30,8 @@ RUN echo "deb https://${APT_REPO}/ ${APT_DISTRIBUTION} 7 6" > /etc/apt/sources.l
 # Add GDB debug script for libpython
 RUN TARGET_FILE=$(find /opt/datadog-agent/.debug/opt/datadog-agent/embedded/lib/ -name 'libpython3.*0.dbg' | sed 's/.dbg/-gdb.py/') \
  && curl https://raw.githubusercontent.com/python/cpython/master/Tools/gdb/libpython.py -o ${TARGET_FILE}
+
+RUN mkdir -p /usr/lib/debug/.build-id/$(readelf -n /opt/datadog-agent/bin/agent/agent | perl -nE 'say $1 if /Build ID: (..)(.*)/')
 
 RUN cp /opt/datadog-agent/.debug/opt/datadog-agent/bin/agent/agent.dbg \
        /usr/lib/debug/.build-id/$(readelf -n /opt/datadog-agent/bin/agent/agent | perl -nE 'say "$1/$2.debug" if /Build ID: (..)(.*)/')

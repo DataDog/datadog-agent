@@ -11,6 +11,7 @@ import (
 	"net"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
@@ -33,46 +34,25 @@ func (c *RuntimeSecurityClient) DumpProcessCache(withArgs bool) (string, error) 
 }
 
 // GenerateActivityDump send a dump activity request
-func (c *RuntimeSecurityClient) GenerateActivityDump(comm string, timeout int32, withGraph bool, differentiateArgs bool, outputDirectory string, outputFormat string) (*api.SecurityActivityDumpMessage, error) {
-	apiClient := api.NewSecurityModuleClient(c.conn)
-	return apiClient.DumpActivity(context.Background(), &api.DumpActivityParams{
-		Comm:              comm,
-		Timeout:           timeout,
-		WithGraph:         withGraph,
-		DifferentiateArgs: differentiateArgs,
-		OutputDirectory:   outputDirectory,
-		OutputFormat:      outputFormat,
-	})
+func (c *RuntimeSecurityClient) GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
+	return c.apiClient.DumpActivity(context.Background(), request)
 }
 
 // ListActivityDumps lists the active activity dumps
-func (c *RuntimeSecurityClient) ListActivityDumps() (*api.SecurityActivityDumpListMessage, error) {
-	apiClient := api.NewSecurityModuleClient(c.conn)
-	return apiClient.ListActivityDumps(context.Background(), &api.ListActivityDumpsParams{})
+func (c *RuntimeSecurityClient) ListActivityDumps() (*api.ActivityDumpListMessage, error) {
+	return c.apiClient.ListActivityDumps(context.Background(), &api.ActivityDumpListParams{})
 }
 
 // StopActivityDump stops an active dump if it exists
-func (c *RuntimeSecurityClient) StopActivityDump(comm string) (*api.SecurityActivityDumpStoppedMessage, error) {
-	apiClient := api.NewSecurityModuleClient(c.conn)
-	return apiClient.StopActivityDump(context.Background(), &api.StopActivityDumpParams{
+func (c *RuntimeSecurityClient) StopActivityDump(comm string) (*api.ActivityDumpStopMessage, error) {
+	return c.apiClient.StopActivityDump(context.Background(), &api.ActivityDumpStopParams{
 		Comm: comm,
 	})
 }
 
-// GenerateProfile generates a policy file from the provided activity dump
-func (c *RuntimeSecurityClient) GenerateProfile(file string) (*api.SecurityProfileGeneratedMessage, error) {
-	apiClient := api.NewSecurityModuleClient(c.conn)
-	return apiClient.GenerateProfile(context.Background(), &api.GenerateProfileParams{
-		ActivityDumpFile: file,
-	})
-}
-
-// GenerateGraph generates a graph from the provided activity dump
-func (c *RuntimeSecurityClient) GenerateGraph(file string) (*api.SecurityGraphGeneratedMessage, error) {
-	apiClient := api.NewSecurityModuleClient(c.conn)
-	return apiClient.GenerateGraph(context.Background(), &api.GenerateGraphParams{
-		ActivityDumpFile: file,
-	})
+// GenerateEncoding sends a transcoding request
+func (c *RuntimeSecurityClient) GenerateEncoding(request *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
+	return c.apiClient.TranscodingRequest(context.Background(), request)
 }
 
 // DumpNetworkNamespace sends a network namespace cache dump request
@@ -122,6 +102,15 @@ func (c *RuntimeSecurityClient) GetEvents() (api.SecurityModule_GetEventsClient,
 	return stream, nil
 }
 
+// GetActivityDumpStream returns a stream of activity dumps
+func (c *RuntimeSecurityClient) GetActivityDumpStream() (api.SecurityModule_GetActivityDumpStreamClient, error) {
+	stream, err := c.apiClient.GetActivityDumpStream(context.Background(), &api.ActivityDumpStreamParams{})
+	if err != nil {
+		return nil, err
+	}
+	return stream, nil
+}
+
 // Close closes the connection
 func (c *RuntimeSecurityClient) Close() {
 	c.conn.Close()
@@ -134,7 +123,7 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		return nil, errors.New("runtime_security_config.socket must be set")
 	}
 
-	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
+	conn, err := grpc.Dial(socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
 		return net.Dial("unix", url)
 	}))
 	if err != nil {

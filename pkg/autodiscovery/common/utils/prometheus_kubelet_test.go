@@ -105,7 +105,7 @@ func TestConfigsForPod(t *testing.T) {
 				Instances: []*types.OpenmetricsInstance{
 					{
 						OpenMetricsEndpoint: "foo/bar",
-						Metrics:             []string{".*"},
+						Metrics:             []interface{}{".*"},
 						Namespace:           "",
 					},
 				},
@@ -148,7 +148,7 @@ func TestConfigsForPod(t *testing.T) {
 				Instances: []*types.OpenmetricsInstance{
 					{
 						PrometheusURL: "foo/bar",
-						Metrics:       []string{"*"},
+						Metrics:       []interface{}{"*"},
 						Namespace:     "",
 					},
 				},
@@ -398,6 +398,49 @@ func TestConfigsForPod(t *testing.T) {
 					Name:          "openmetrics",
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics"}`)},
+					Provider:      names.PrometheusPods,
+					Source:        "prometheus_pods:foo-ctr-id",
+					ADIdentifiers: []string{"foo-ctr-id"},
+				},
+			},
+		},
+		{
+			name: "metrics key value",
+			check: &types.PrometheusCheck{
+				Instances: []*types.OpenmetricsInstance{
+					{
+						PrometheusURL: "foo/bar",
+						Metrics:       []interface{}{map[string]string{"foo": "bar"}},
+						Namespace:     "",
+					},
+				},
+			},
+			version: 2,
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:        "foo-pod",
+					Annotations: map[string]string{"prometheus.io/scrape": "true"},
+				},
+				Status: kubelet.Status{
+					Containers: []kubelet.ContainerStatus{
+						{
+							Name: "foo-ctr",
+							ID:   "foo-ctr-id",
+						},
+					},
+					AllContainers: []kubelet.ContainerStatus{
+						{
+							Name: "foo-ctr",
+							ID:   "foo-ctr-id",
+						},
+					},
+				},
+			},
+			want: []integration.Config{
+				{
+					Name:          "openmetrics",
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data(`{"prometheus_url":"foo/bar","namespace":"","metrics":[{"foo":"bar"}]}`)},
 					Provider:      names.PrometheusPods,
 					Source:        "prometheus_pods:foo-ctr-id",
 					ADIdentifiers: []string{"foo-ctr-id"},

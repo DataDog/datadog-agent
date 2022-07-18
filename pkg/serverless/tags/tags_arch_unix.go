@@ -18,13 +18,13 @@ import (
 func ResolveRuntimeArch() string {
 	var uname unix.Utsname
 	if err := unix.Uname(&uname); err != nil {
-		return "amd64"
+		return AmdLambdaPlatform
 	}
 
 	switch string(uname.Machine[:bytes.IndexByte(uname.Machine[:], 0)]) {
 	case "aarch64":
-		return "arm64"
+		return ArmLambdaPlatform
 	default:
-		return "x86_64"
+		return X86LambdaPlatform
 	}
 }

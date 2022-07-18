@@ -377,37 +377,35 @@ func (t *kprobeTracer) DumpMaps(maps ...string) (string, error) {
 }
 
 func initializePortBindingMaps(config *config.Config, m *manager.Manager) error {
-	if tcpPorts, err := network.ReadInitialState(config.ProcRoot, network.TCP, config.CollectIPv6Conns); err != nil {
+	if tcpPorts, err := network.ReadInitialState(config.ProcRoot, network.TCP, config.CollectIPv6Conns, true); err != nil {
 		return fmt.Errorf("failed to read initial TCP pid->port mapping: %s", err)
 	} else {
 		tcpPortMap, _, err := m.GetMap(string(probes.PortBindingsMap))
 		if err != nil {
 			return fmt.Errorf("failed to get TCP port binding map: %w", err)
 		}
-		for p := range tcpPorts {
+		for p, count := range tcpPorts {
 			log.Debugf("adding initial TCP port binding: netns: %d port: %d", p.Ino, p.Port)
 			pb := netebpf.PortBinding{Netns: p.Ino, Port: p.Port}
-			state := netebpf.PortListening
-			err = tcpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&state), ebpf.UpdateNoExist)
+			err = tcpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&count), ebpf.UpdateNoExist)
 			if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
 				return fmt.Errorf("failed to update TCP port binding map: %w", err)
 			}
 		}
 	}
 
-	if udpPorts, err := network.ReadInitialState(config.ProcRoot, network.UDP, config.CollectIPv6Conns); err != nil {
+	if udpPorts, err := network.ReadInitialState(config.ProcRoot, network.UDP, config.CollectIPv6Conns, false); err != nil {
 		return fmt.Errorf("failed to read initial UDP pid->port mapping: %s", err)
 	} else {
 		udpPortMap, _, err := m.GetMap(string(probes.UdpPortBindingsMap))
 		if err != nil {
 			return fmt.Errorf("failed to get UDP port binding map: %w", err)
 		}
-		for p := range udpPorts {
+		for p, count := range udpPorts {
 			log.Debugf("adding initial UDP port binding: netns: %d port: %d", p.Ino, p.Port)
 			// UDP port bindings currently do not have network namespace numbers
 			pb := netebpf.PortBinding{Netns: 0, Port: p.Port}
-			state := netebpf.PortListening
-			err = udpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&state), ebpf.UpdateNoExist)
+			err = udpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&count), ebpf.UpdateNoExist)
 			if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
 				return fmt.Errorf("failed to update UDP port binding map: %w", err)
 			}

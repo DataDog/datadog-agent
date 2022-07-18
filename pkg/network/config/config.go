@@ -150,9 +150,6 @@ type Config struct {
 	// EnableMonotonicCount (Windows only) determines if we will calculate send/recv bytes of connections with headers and retransmits
 	EnableMonotonicCount bool
 
-	// DriverBufferSize (Windows only) determines the size (in bytes) of the buffer we pass to the driver when reading flows
-	DriverBufferSize int
-
 	// EnableGatewayLookup enables looking up gateway information for connection destinations
 	EnableGatewayLookup bool
 
@@ -218,9 +215,17 @@ func New() *Config {
 		EnableGatewayLookup: cfg.GetBool(join(netNS, "enable_gateway_lookup")),
 
 		EnableMonotonicCount: cfg.GetBool(join(spNS, "windows.enable_monotonic_count")),
-		DriverBufferSize:     cfg.GetInt(join(spNS, "windows.driver_buffer_size")),
 
 		RecordedQueryTypes: cfg.GetStringSlice(join(netNS, "dns_recorded_query_types")),
+	}
+
+	if !cfg.IsSet(join(spNS, "max_closed_connections_buffered")) {
+		// make sure max_closed_connections_buffered is equal to
+		// max_tracked_connections, since the former is not set.
+		// this helps with lowering or eliminating dropped
+		// closed connections in environments with mostly short-lived
+		// connections
+		c.MaxClosedConnectionsBuffered = int(c.MaxTrackedConnections)
 	}
 
 	httpRRKey := join(netNS, "http_replace_rules")
@@ -261,6 +266,5 @@ func New() *Config {
 			c.EnableHTTPSMonitoring = true
 		}
 	}
-
 	return c
 }

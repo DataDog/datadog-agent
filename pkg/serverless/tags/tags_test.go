@@ -294,7 +294,7 @@ func TestBuildTagMapWithRuntimeAndMemoryTag(t *testing.T) {
 	assert.Equal(t, "value1", tagMap["tag1"])
 	assert.True(t, tagMap["runtime"] == "unknown" || tagMap["runtime"] == "provided.al2")
 	assert.Equal(t, "128", tagMap["memorysize"])
-	assert.True(t, tagMap["architecture"] == "x86_64" || tagMap["architecture"] == "arm64")
+	assert.True(t, tagMap["architecture"] == X86LambdaPlatform || tagMap["architecture"] == ArmLambdaPlatform)
 }
 
 func TestGetRuntimeFound(t *testing.T) {

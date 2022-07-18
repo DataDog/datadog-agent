@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -448,21 +449,37 @@ func tagsAdder(tags []string) func(interface{}) error {
 		}
 
 		if typedTree, ok := tree.(map[interface{}]interface{}); ok {
-			tagList, _ := typedTree["tags"].([]string)
 			// Use a set to remove duplicates
 			tagSet := make(map[string]struct{})
-			for _, t := range tagList {
-				tagSet[t] = struct{}{}
+			if typedTreeTags, ok := typedTree["tags"]; ok {
+				if tagList, ok := typedTreeTags.([]interface{}); !ok {
+					log.Errorf("Wrong type for `tags` in config. Expected []interface{}, got %T", typedTree["tags"])
+				} else {
+					for _, tag := range tagList {
+						if t, ok := tag.(string); !ok {
+							log.Errorf("Wrong type for tag \"%#v\". Expected string, got %T", tag, tag)
+						} else {
+							tagSet[t] = struct{}{}
+						}
+					}
+				}
 			}
+
 			for _, t := range tags {
 				tagSet[t] = struct{}{}
 			}
-			typedTree["tags"] = make([]string, len(tagSet))
+
+			allTags := make([]string, len(tagSet))
+
 			i := 0
 			for k := range tagSet {
-				typedTree["tags"].([]string)[i] = k
+				allTags[i] = k
 				i++
 			}
+
+			sort.Strings(allTags)
+
+			typedTree["tags"] = allTags
 		}
 		return nil
 	}

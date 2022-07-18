@@ -76,7 +76,7 @@ func qualifiedType(module *common.Module, kind string) string {
 	}
 }
 
-func handleBasic(module *common.Module, name, alias, kind, event string, iterator *common.StructField, isArray bool, opOverrides string, commentText string) {
+func handleBasic(module *common.Module, name, alias, kind, event string, iterator *common.StructField, isArray bool, opOverrides string, constants string, commentText string) {
 	if verbose {
 		fmt.Printf("handleBasic %s %s\n", name, kind)
 	}
@@ -92,6 +92,7 @@ func handleBasic(module *common.Module, name, alias, kind, event string, iterato
 		Iterator:    iterator,
 		CommentText: commentText,
 		OpOverrides: opOverrides,
+		Constants:   constants,
 	}
 
 	if _, ok := module.EventTypes[event]; !ok {
@@ -99,7 +100,7 @@ func handleBasic(module *common.Module, name, alias, kind, event string, iterato
 	}
 }
 
-func handleField(module *common.Module, astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType string, event string, iterator *common.StructField, dejavu map[string]bool, isArray bool, opOverride string, commentText string) error {
+func handleField(module *common.Module, astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType string, event string, iterator *common.StructField, dejavu map[string]bool, isArray bool, opOverride string, constants string, commentText string) error {
 	if verbose {
 		fmt.Printf("handleField fieldName %s, alias %s, prefix %s, aliasPrefix %s, pkgName %s, fieldType, %s\n", name, alias, prefix, aliasPrefix, pkgName, fieldType)
 	}
@@ -110,7 +111,7 @@ func handleField(module *common.Module, astFile *ast.File, name, alias, prefix, 
 			name = prefix + "." + name
 			alias = aliasPrefix + "." + alias
 		}
-		handleBasic(module, name, alias, fieldType, event, iterator, isArray, opOverride, commentText)
+		handleBasic(module, name, alias, fieldType, event, iterator, isArray, opOverride, constants, commentText)
 
 	default:
 		symbol, err := resolveSymbol(pkgName, fieldType)
@@ -167,22 +168,50 @@ type seclField struct {
 	iterator            string
 	handler             string
 	cachelessResolution bool
+	weight              int64
 }
 
-func parseHandler(handler string) (string, int64) {
-	els := strings.Split(handler, ":")
-	handler = els[0]
+func parseFieldDef(def string) (seclField, error) {
+	def = strings.TrimSpace(def)
+	splitted := strings.SplitN(def, ",", 2)
 
-	var weight int64
-	var err error
-	if len(els) > 1 {
-		weight, err = strconv.ParseInt(els[1], 10, 64)
-		if err != nil {
-			log.Panicf("unable to parse weight: %s", els[1])
+	alias := splitted[0]
+	field := seclField{name: alias}
+
+	if alias == "-" {
+		return field, nil
+	}
+
+	// arguments
+	if len(splitted) > 1 {
+		for _, el := range strings.Split(splitted[1], ",") {
+			kv := strings.Split(el, ":")
+
+			key, value := kv[0], kv[1]
+
+			switch key {
+			case "handler":
+				field.handler = value
+			case "weight":
+				weight, err := strconv.ParseInt(value, 10, 64)
+				if err != nil {
+					return field, err
+				}
+				field.weight = weight
+			case "iterator":
+				field.iterator = value
+			case "opts":
+				for _, opt := range strings.Split(value, "|") {
+					switch opt {
+					case "cacheless_resolution":
+						field.cachelessResolution = true
+					}
+				}
+			}
 		}
 	}
 
-	return handler, weight
+	return field, nil
 }
 
 func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, prefix, aliasPrefix, event string, iterator *common.StructField, dejavu map[string]bool) {
@@ -223,30 +252,24 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 					}
 
 					var opOverrides string
+					var constants string
 					var fields []seclField
 					fieldType, isPointer, isArray := getFieldIdentName(field.Type)
 
-					var weight int64
 					if tags, err := structtag.Parse(string(tag)); err == nil && len(tags.Tags()) != 0 {
 						for _, tag := range tags.Tags() {
 							switch tag.Key {
 							case "field":
-								fieldGroups := strings.Split(tag.Value(), ";")
-								for _, fieldGroup := range fieldGroups {
-									splitted := strings.SplitN(fieldGroup, ",", 4)
-									alias := splitted[0]
-									if alias == "-" {
+
+								fieldDefs := strings.Split(tag.Value(), ";")
+								for _, fieldDef := range fieldDefs {
+									field, err := parseFieldDef(fieldDef)
+									if err != nil {
+										log.Panicf("unable to parse field definition: %s", err)
+									}
+
+									if field.name == "-" {
 										continue FIELD
-									}
-									field := seclField{name: alias}
-									if len(splitted) > 1 {
-										field.handler, weight = parseHandler(splitted[1])
-									}
-									if len(splitted) > 2 {
-										field.iterator, weight = parseHandler(splitted[2])
-									}
-									if len(splitted) > 3 {
-										field.cachelessResolution = splitted[3] == "cacheless_resolution"
 									}
 
 									fields = append(fields, field)
@@ -254,6 +277,8 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 
 							case "op_override":
 								opOverrides = tag.Value()
+							case "constants":
+								constants = tag.Value()
 							}
 						}
 					} else {
@@ -279,6 +304,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 							OrigType:      qualifiedType(module, fieldType),
 							IsOrigTypePtr: isPointer,
 							IsArray:       isArray,
+							Constants:     constants,
 						}
 
 						if iterator := seclField.iterator; iterator != "" {
@@ -289,9 +315,10 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								OrigType:            qualifiedType(module, fieldType),
 								IsOrigTypePtr:       isPointer,
 								IsArray:             isArray,
-								Weight:              weight,
+								Weight:              seclField.weight,
 								CommentText:         fieldCommentText,
 								OpOverrides:         opOverrides,
+								Constants:           constants,
 								CachelessResolution: seclField.cachelessResolution,
 							}
 
@@ -314,9 +341,10 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								OrigType:            fieldType,
 								Iterator:            fieldIterator,
 								IsArray:             isArray,
-								Weight:              weight,
+								Weight:              seclField.weight,
 								CommentText:         fieldCommentText,
 								OpOverrides:         opOverrides,
+								Constants:           constants,
 								CachelessResolution: seclField.cachelessResolution,
 								IsOrigTypePtr:       isPointer,
 							}
@@ -334,7 +362,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 						dejavu[fieldName] = true
 
 						if len(fieldType) != 0 {
-							if err := handleField(module, astFile, fieldName, fieldAlias, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, false, opOverrides, fieldCommentText); err != nil {
+							if err := handleField(module, astFile, fieldName, fieldAlias, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, false, opOverrides, constants, fieldCommentText); err != nil {
 								log.Print(err)
 							}
 
@@ -496,9 +524,17 @@ func newField(allFields map[string]*common.StructField, field *common.StructFiel
 	return result
 }
 
+func override(str string, mock bool) string {
+	if !strings.Contains(str, ".") && !mock {
+		return "model." + str
+	}
+	return str
+}
+
 var funcMap = map[string]interface{}{
 	"TrimPrefix": strings.TrimPrefix,
 	"NewField":   newField,
+	"Override":   override,
 }
 
 //go:embed accessors.tmpl
@@ -521,7 +557,7 @@ func main() {
 
 	if docOutput != "" {
 		os.Remove(docOutput)
-		if err := doc.GenerateDocJSON(module, docOutput); err != nil {
+		if err := doc.GenerateDocJSON(module, path.Dir(filename), docOutput); err != nil {
 			panic(err)
 		}
 	}

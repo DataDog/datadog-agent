@@ -13,11 +13,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/acobaugh/osrelease"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/btf-internals/sys"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -86,32 +90,65 @@ type Version struct {
 	OsReleasePath string
 	Code          kernel.Version
 	UnameRelease  string
+
+	haveMmapableMaps *bool
+	haveRingBuffers  *bool
 }
 
 func (k *Version) String() string {
 	return fmt.Sprintf("kernel %s - %v - %s", k.Code, k.OsRelease, k.UnameRelease)
 }
 
+var kernelVersionCache struct {
+	sync.Mutex
+	*Version
+}
+
 // NewKernelVersion returns a new kernel version helper
 func NewKernelVersion() (*Version, error) {
-	osReleasePaths := []string{
-		osrelease.EtcOsRelease,
-		osrelease.UsrLibOsRelease,
+	kernelVersionCache.Lock()
+	defer kernelVersionCache.Unlock()
+
+	if kernelVersionCache.Version != nil {
+		return kernelVersionCache.Version, nil
 	}
 
-	if config.IsContainerized() && util.PathExists("/host") {
-		osReleasePaths = append([]string{
-			filepath.Join("/host", osrelease.EtcOsRelease),
-			filepath.Join("/host", osrelease.UsrLibOsRelease),
-		}, osReleasePaths...)
-	}
+	var err error
+	kernelVersionCache.Version, err = newKernelVersion()
+	return kernelVersionCache.Version, err
+}
 
+func newKernelVersion() (*Version, error) {
+	osReleasePaths := make([]string, 0, 2*3)
+
+	// First look at os-release files based on the `HOST_ROOT` env variable
 	if hostRoot := os.Getenv("HOST_ROOT"); hostRoot != "" {
-		osReleasePaths = append([]string{
-			filepath.Join(hostRoot, osrelease.EtcOsRelease),
+		osReleasePaths = append(
+			osReleasePaths,
 			filepath.Join(hostRoot, osrelease.UsrLibOsRelease),
-		}, osReleasePaths...)
+			filepath.Join(hostRoot, osrelease.EtcOsRelease),
+		)
 	}
+
+	// Then look if `/host` is mounted in the container
+	// since this can be done without the env variable being set
+	if config.IsContainerized() && util.PathExists("/host") {
+		osReleasePaths = append(
+			osReleasePaths,
+			filepath.Join("/host", osrelease.UsrLibOsRelease),
+			filepath.Join("/host", osrelease.EtcOsRelease),
+		)
+	}
+
+	// Finally default to actual default values
+	// This is last in the search order since we don't want os-release files
+	// from the distribution of the container when deployed on a host with
+	// different values
+	osReleasePaths = append(
+		osReleasePaths,
+		osrelease.UsrLibOsRelease,
+		osrelease.EtcOsRelease,
+	)
 
 	kv, err := kernel.HostVersion()
 	if err != nil {
@@ -212,4 +249,42 @@ func (k *Version) IsAmazonLinuxKernel() bool {
 // version (included) and the end version (excluded)
 func (k *Version) IsInRangeCloseOpen(begin kernel.Version, end kernel.Version) bool {
 	return k.Code != 0 && begin <= k.Code && k.Code < end
+}
+
+// HaveMmapableMaps returns whether the kernel supports mmapable maps.
+func (k *Version) HaveMmapableMaps() bool {
+	if k.haveMmapableMaps != nil {
+		return *k.haveMmapableMaps
+	}
+
+	// This checks BPF_F_MMAPABLE, which appeared in 5.5 for array maps.
+	m, err := sys.MapCreate(&sys.MapCreateAttr{
+		MapType:    sys.MapType(ebpf.Array),
+		KeySize:    4,
+		ValueSize:  4,
+		MaxEntries: 1,
+		MapFlags:   unix.BPF_F_MMAPABLE,
+	})
+	k.haveMmapableMaps = new(bool)
+	*k.haveMmapableMaps = err == nil
+
+	if err != nil {
+		return false
+	}
+	_ = m.Close()
+	return true
+}
+
+// HaveRingBuffers returns whether the kernel supports ring buffer.
+func (k *Version) HaveRingBuffers() bool {
+	if k.haveRingBuffers != nil {
+		return *k.haveRingBuffers
+	}
+
+	// This checks ring buffer maps, which appeared in 5.8
+	err := features.HaveMapType(ebpf.RingBuf)
+	k.haveRingBuffers = new(bool)
+	*k.haveRingBuffers = err == nil
+
+	return *k.haveRingBuffers
 }

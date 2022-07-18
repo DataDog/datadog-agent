@@ -13,12 +13,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 // Launcher is in charge of starting and stopping windows event logs tailers
 type Launcher struct {
-	sources          chan *config.LogSource
+	sources          chan *sources.LogSource
 	pipelineProvider pipeline.Provider
 	tailers          map[string]*tailer.Tailer
 	stop             chan struct{}
@@ -91,7 +92,7 @@ func (l *Launcher) sanitizedConfig(sourceConfig *config.LogsConfig) *tailer.Conf
 }
 
 // setupTailer configures and starts a new tailer
-func (l *Launcher) setupTailer(source *config.LogSource) (*tailer.Tailer, error) {
+func (l *Launcher) setupTailer(source *sources.LogSource) (*tailer.Tailer, error) {
 	sanitizedConfig := l.sanitizedConfig(source.Config)
 	config := &tailer.Config{
 		ChannelPath: sanitizedConfig.ChannelPath,

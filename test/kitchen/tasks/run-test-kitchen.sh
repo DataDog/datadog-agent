@@ -14,17 +14,26 @@ if [ -f "$(pwd)/ssh-key.pub" ]; then
   rm ssh-key.pub
 fi
 
-ssh-keygen -f "$(pwd)/ssh-key" -P "" -t rsa -b 2048
-KITCHEN_SSH_KEY_PATH="$(pwd)/ssh-key"
-export KITCHEN_SSH_KEY_PATH
+ssh-keygen -f "$(pwd)/ed25519-key" -P "" -a 100 -t ed25519
+KITCHEN_ED25519_SSH_KEY_PATH="$(pwd)/ed25519-key"
+export KITCHEN_ED25519_SSH_KEY_PATH
 
-# show that the ssh key is there
-echo "$(pwd)/ssh-key"
-echo "$KITCHEN_SSH_KEY_PATH"
+# show that the ed25519 ssh key is there
+echo "$(pwd)/ed25519-key"
+echo "$KITCHEN_ED25519_SSH_KEY_PATH"
 
-# start the ssh-agent and add the key
+ssh-keygen -f "$(pwd)/rsa-key" -P "" -t rsa -b 2048
+KITCHEN_RSA_SSH_KEY_PATH="$(pwd)/rsa-key"
+export KITCHEN_RSA_SSH_KEY_PATH
+
+# show that the rsa ssh key is there
+echo "$(pwd)/rsa-key"
+echo "$KITCHEN_RSA_SSH_KEY_PATH"
+
+# start the ssh-agent and add the keys
 eval "$(ssh-agent -s)"
-ssh-add "$KITCHEN_SSH_KEY_PATH"
+ssh-add "$KITCHEN_RSA_SSH_KEY_PATH"
+ssh-add "$KITCHEN_ED25519_SSH_KEY_PATH"
 
 # in docker we cannot interact to do this so we must disable it
 mkdir -p ~/.ssh

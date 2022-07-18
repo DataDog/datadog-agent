@@ -111,6 +111,9 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	return result.Standard, nil
 }
 
+// Cleanup frees any resource held by the ProcessCheck before the agent exits
+func (p *ProcessCheck) Cleanup() {}
+
 func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTime bool) (*RunResult, error) {
 	start := time.Now()
 	cpuTimes, err := cpu.Times(false)

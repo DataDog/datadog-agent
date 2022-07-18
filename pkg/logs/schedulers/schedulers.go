@@ -8,8 +8,8 @@ package schedulers
 import (
 	"sync"
 
-	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // Schedulers manages a collection of schedulers.
@@ -25,7 +25,7 @@ type Schedulers struct {
 }
 
 // NewSchedulers creates a new, empty Schedulers instance
-func NewSchedulers(sources *logsConfig.LogSources, services *service.Services) *Schedulers {
+func NewSchedulers(sources *sources.LogSources, services *service.Services) *Schedulers {
 	return &Schedulers{
 		mgr: &sourceManager{sources, services},
 	}

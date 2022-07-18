@@ -21,6 +21,10 @@ import (
 
 type testProcessorResponseValid struct{}
 
+func (tp *testProcessorResponseValid) GetExecutionInfo() *invocationlifecycle.ExecutionStartInfo {
+	return nil
+}
+
 func (tp *testProcessorResponseValid) OnInvokeStart(startDetails *invocationlifecycle.InvocationStartDetails) {
 	if startDetails.StartTime.IsZero() {
 		panic("isZero")
@@ -54,6 +58,10 @@ func (tp *testProcessorResponseError) OnInvokeEnd(endDetails *invocationlifecycl
 	if endDetails.IsError != true {
 		panic("isError")
 	}
+}
+
+func (tp *testProcessorResponseError) GetExecutionInfo() *invocationlifecycle.ExecutionStartInfo {
+	return nil
 }
 
 func TestStartTrue(t *testing.T) {

@@ -26,7 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -43,6 +44,24 @@ const (
 
 	defaultCacheExpire = 2 * time.Minute
 	defaultCachePurge  = 10 * time.Minute
+)
+
+var (
+	kubeEvents = telemetry.NewCounterWithOpts(
+		kubernetesAPIServerCheckName,
+		"kube_events",
+		[]string{"kind", "component", "type", "reason"},
+		"Number of Kubernetes events received by the check.",
+		telemetry.Options{NoDoubleUnderscoreSep: true},
+	)
+
+	emittedEvents = telemetry.NewCounterWithOpts(
+		kubernetesAPIServerCheckName,
+		"emitted_events",
+		[]string{"kind", "type"},
+		"Number of events emitted by the check.",
+		telemetry.Options{NoDoubleUnderscoreSep: true},
+	)
 )
 
 // KubeASConfig is the config of the API server.
@@ -84,6 +103,7 @@ func (c *KubeASConfig) parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
 }
 
+// NewKubeASCheck returns a new KubeASCheck
 func NewKubeASCheck(base core.CheckBase, instance *KubeASConfig) *KubeASCheck {
 	return &KubeASCheck{
 		CheckBase:       base,
@@ -299,30 +319,54 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 // - extracts some attributes and builds a structure ready to be submitted as a Datadog event (bundle)
 // - formats the bundle and submit the Datadog event
 func (k *KubeASCheck) processEvents(sender aggregator.Sender, events []*v1.Event) error {
-	eventsByObject := make(map[string]*kubernetesEventBundle)
+	bundlesByObject := make(map[bundleID]*kubernetesEventBundle)
 
 	for _, event := range events {
-		id := bundleID(event)
-		bundle, found := eventsByObject[id]
-		if found == false {
-			bundle = newKubernetesEventBundler(event)
-			eventsByObject[id] = bundle
+		if event.InvolvedObject.Kind == "" ||
+			event.InvolvedObject.Name == "" ||
+			event.Reason == "" ||
+			event.Message == "" {
+			continue
 		}
+
+		id := buildBundleID(event)
+
+		bundle, found := bundlesByObject[id]
+		if !found {
+			bundle = newKubernetesEventBundler(event)
+			bundlesByObject[id] = bundle
+		}
+
 		err := bundle.addEvent(event)
 		if err != nil {
 			k.Warnf("Error while bundling events, %s.", err.Error()) //nolint:errcheck
+			continue
 		}
+
+		kubeEvents.Inc(
+			event.InvolvedObject.Kind,
+			event.Source.Component,
+			event.Type,
+			event.Reason,
+		)
 	}
-	hostname, _ := util.GetHostname(context.TODO())
-	clusterName := clustername.GetClusterName(context.TODO(), hostname)
-	for _, bundle := range eventsByObject {
+
+	ctx := context.TODO()
+	hostnameDetected, _ := hostname.Get(ctx)
+	clusterName := clustername.GetClusterName(ctx, hostnameDetected)
+
+	for id, bundle := range bundlesByObject {
 		datadogEv, err := bundle.formatEvents(clusterName, k.providerIDCache)
 		if err != nil {
 			k.Warnf("Error while formatting bundled events, %s. Not submitting", err.Error()) //nolint:errcheck
 			continue
 		}
+
 		sender.Event(datadogEv)
+
+		emittedEvents.Inc(id.kind, id.evType)
 	}
+
 	return nil
 }
 
@@ -360,10 +404,20 @@ func (k *KubeASCheck) controlPlaneHealthCheck(ctx context.Context, sender aggreg
 	return nil
 }
 
-// bundleID generates a unique ID to separate k8s events
+type bundleID struct {
+	kind   string
+	uid    string
+	evType string
+}
+
+// buildBundleID generates a unique ID to separate k8s events
 // based on their InvolvedObject UIDs and event Types
-func bundleID(e *v1.Event) string {
-	return fmt.Sprintf("%s/%s", e.InvolvedObject.UID, e.Type)
+func buildBundleID(e *v1.Event) bundleID {
+	return bundleID{
+		kind:   e.InvolvedObject.Kind,
+		uid:    string(e.InvolvedObject.UID),
+		evType: e.Type,
+	}
 }
 
 func init() {

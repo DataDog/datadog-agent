@@ -13,6 +13,10 @@ import (
 	"time"
 )
 
+const (
+	maxArgEnvSize = 256
+)
+
 // SetSpan sets the span
 func (pc *ProcessCacheEntry) SetSpan(spanID uint64, traceID uint64) {
 	pc.SpanID = spanID
@@ -30,6 +34,7 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 	}
 
 	pc.Ancestor = parent
+	pc.IsThread = false
 	parent.Retain()
 }
 
@@ -96,6 +101,7 @@ func (pc *ProcessCacheEntry) ShareArgsEnvs(childEntry *ProcessCacheEntry) {
 func (pc *ProcessCacheEntry) SetParent(parent *ProcessCacheEntry) {
 	pc.SetAncestor(parent)
 	parent.ShareArgsEnvs(pc)
+	pc.IsThread = true
 }
 
 // Fork returns a copy of the current ProcessCacheEntry
@@ -135,13 +141,14 @@ func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
 type ArgsEnvs struct {
 	ID        uint32
 	Size      uint32
-	ValuesRaw [256]byte
+	ValuesRaw [maxArgEnvSize]byte
 }
 
 // ArgsEnvsCacheEntry defines a args/envs base entry
 //msgp:ignore ArgsEnvsCacheEntry
 type ArgsEnvsCacheEntry struct {
-	ArgsEnvs
+	Size      uint32
+	ValuesRaw []byte
 
 	Container *list.Element
 
@@ -158,6 +165,8 @@ func (p *ArgsEnvsCacheEntry) release() {
 	for entry != nil {
 		next := entry.next
 
+		entry.Size = 0
+		entry.ValuesRaw = nil
 		entry.next = nil
 		entry.last = nil
 		entry.refCount = 0
@@ -214,7 +223,7 @@ func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 
 	for entry != nil {
 		v, err := UnmarshalStringArray(entry.ValuesRaw[:entry.Size])
-		if err != nil || entry.Size == 128 {
+		if err != nil || entry.Size == maxArgEnvSize {
 			if len(v) > 0 {
 				v[len(v)-1] = v[len(v)-1] + "..."
 			}

@@ -8,7 +8,11 @@
 
 package netlink
 
-import "github.com/DataDog/datadog-agent/pkg/network"
+import (
+	"context"
+
+	"github.com/DataDog/datadog-agent/pkg/network"
+)
 
 type noOpConntracker struct{}
 
@@ -35,4 +39,8 @@ func (*noOpConntracker) GetStats() map[string]int64 {
 	return map[string]int64{
 		"noop_conntracker": 0,
 	}
+}
+
+func (c *noOpConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]DebugConntrackEntry, error) {
+	return nil, nil
 }

@@ -21,6 +21,7 @@ import (
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -42,9 +43,9 @@ const DefaultSleepDuration = 1 * time.Second
 // or update the old ones if needed
 type Launcher struct {
 	pipelineProvider    pipeline.Provider
-	addedSources        chan *config.LogSource
-	removedSources      chan *config.LogSource
-	activeSources       []*config.LogSource
+	addedSources        chan *sources.LogSource
+	removedSources      chan *sources.LogSource
+	activeSources       []*sources.LogSource
 	tailingLimit        int
 	fileProvider        *fileProvider
 	tailers             map[string]*tailer.Tailer
@@ -184,13 +185,13 @@ func (s *Launcher) scan() {
 }
 
 // addSource keeps track of the new source and launch new tailers for this source.
-func (s *Launcher) addSource(source *config.LogSource) {
+func (s *Launcher) addSource(source *sources.LogSource) {
 	s.activeSources = append(s.activeSources, source)
 	s.launchTailers(source)
 }
 
 // removeSource removes the source from cache.
-func (s *Launcher) removeSource(source *config.LogSource) {
+func (s *Launcher) removeSource(source *sources.LogSource) {
 	for i, src := range s.activeSources {
 		if src == source {
 			// no need to stop the tailer here, it will be stopped in the next iteration of scan.
@@ -201,7 +202,7 @@ func (s *Launcher) removeSource(source *config.LogSource) {
 }
 
 // launch launches new tailers for a new source.
-func (s *Launcher) launchTailers(source *config.LogSource) {
+func (s *Launcher) launchTailers(source *sources.LogSource) {
 	files, err := s.fileProvider.collectFiles(source)
 	if err != nil {
 		source.Status.Error(err)
@@ -212,8 +213,10 @@ func (s *Launcher) launchTailers(source *config.LogSource) {
 		if len(s.tailers) >= s.tailingLimit {
 			return
 		}
-		if _, isTailed := s.tailers[file.GetScanKey()]; isTailed {
-			continue
+		if tailer, isTailed := s.tailers[file.GetScanKey()]; isTailed {
+			// the file is already tailed, update the existing tailer's source so that the tailer
+			// uses this new source going forward
+			tailer.ReplaceSource(source)
 		}
 
 		mode, _ := config.TailingModeFromString(source.Config.TailingMode)
@@ -249,7 +252,7 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode) bool 
 	//   - https://github.com/kubernetes/kubernetes/issues/58638
 	//   - https://github.com/fabric8io/fluent-plugin-kubernetes_metadata_filter/issues/105
 	if s.validatePodContainerID && file.Source != nil &&
-		(file.Source.GetSourceType() == config.KubernetesSourceType || file.Source.GetSourceType() == config.DockerSourceType) &&
+		(file.Source.GetSourceType() == sources.KubernetesSourceType || file.Source.GetSourceType() == sources.DockerSourceType) &&
 		s.shouldIgnore(file) {
 		return false
 	}
@@ -280,7 +283,7 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode) bool 
 // to validate that we will be reading a file for the correct container.
 func (s *Launcher) shouldIgnore(file *tailer.File) bool {
 	// this method needs a source config to detect whether we should ignore that file or not
-	if file == nil || file.Source == nil || file.Source.Config == nil {
+	if file == nil || file.Source == nil || file.Source.Config() == nil {
 		return false
 	}
 
@@ -327,10 +330,10 @@ func (s *Launcher) shouldIgnore(file *tailer.File) bool {
 		return false
 	}
 
-	if file.Source.Config.Identifier != "" && containerIDFromFilename != "" {
-		if strings.TrimSpace(strings.ToLower(containerIDFromFilename)) != strings.TrimSpace(strings.ToLower(file.Source.Config.Identifier)) {
+	if file.Source.Config().Identifier != "" && containerIDFromFilename != "" {
+		if strings.TrimSpace(strings.ToLower(containerIDFromFilename)) != strings.TrimSpace(strings.ToLower(file.Source.Config().Identifier)) {
 			log.Debugf("We were about to tail a file attached to the wrong container (%s != %s), probably due to short-lived containers.",
-				containerIDFromFilename, file.Source.Config.Identifier)
+				containerIDFromFilename, file.Source.Config().Identifier)
 			// ignore this file, it is not concerning the container stored in file.Source
 			return true
 		}

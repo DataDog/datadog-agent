@@ -63,7 +63,7 @@ func TestLink(t *testing.T) {
 			assertNearTime(t, event.Link.Source.CTime)
 			assertNearTime(t, event.Link.Target.MTime)
 			assertNearTime(t, event.Link.Target.CTime)
-			assert.Equal(t, event.Link.Async, false)
+			assert.Equal(t, event.Async, false)
 
 			if !validateLinkSchema(t, event) {
 				t.Error(event.String())
@@ -91,7 +91,7 @@ func TestLink(t *testing.T) {
 			assertNearTime(t, event.Link.Source.CTime)
 			assertNearTime(t, event.Link.Target.MTime)
 			assertNearTime(t, event.Link.Target.CTime)
-			assert.Equal(t, event.Link.Async, false)
+			assert.Equal(t, event.Async, false)
 
 			if !validateLinkSchema(t, event) {
 				t.Error(event.String())
@@ -128,7 +128,7 @@ func TestLink(t *testing.T) {
 			result := <-ch
 			ret, err := result.ReturnInt()
 			if err != nil {
-				if err == syscall.EBADF {
+				if err == syscall.EBADF || err == syscall.EINVAL {
 					return ErrSkipTest{"linkat not supported by io_uring"}
 				}
 				return err
@@ -147,7 +147,7 @@ func TestLink(t *testing.T) {
 			assertNearTime(t, event.Link.Source.CTime)
 			assertNearTime(t, event.Link.Target.MTime)
 			assertNearTime(t, event.Link.Target.CTime)
-			assert.Equal(t, event.Link.Async, true)
+			assert.Equal(t, event.Async, true)
 
 			executable, err := os.Executable()
 			if err != nil {

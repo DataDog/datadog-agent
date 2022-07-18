@@ -146,7 +146,7 @@ int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
     if (pass_to_userspace) {
         struct rmdir_event_t event = {
             .syscall.retval = retval,
-            .syscall.async = syscall->async,
+            .event.async = syscall->async,
             .file = syscall->rmdir.file,
         };
 

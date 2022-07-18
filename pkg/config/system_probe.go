@@ -111,7 +111,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "offset_guess_threshold"), int64(defaultOffsetThreshold))
 
 	cfg.BindEnvAndSetDefault(join(spNS, "max_tracked_connections"), 65536)
-	cfg.BindEnvAndSetDefault(join(spNS, "max_closed_connections_buffered"), 50000)
+	cfg.BindEnv(join(spNS, "max_closed_connections_buffered"))
 	cfg.BindEnvAndSetDefault(join(spNS, "closed_channel_size"), 500)
 	cfg.BindEnvAndSetDefault(join(spNS, "max_connection_state_buffered"), 75000)
 
@@ -153,7 +153,6 @@ func InitSystemProbeConfig(cfg Config) {
 
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)
-	cfg.BindEnvAndSetDefault(join(spNS, "windows.driver_buffer_size"), 1024)
 
 	// oom_kill module
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_oom_kill"), false)

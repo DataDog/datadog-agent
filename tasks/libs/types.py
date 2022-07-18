@@ -1,6 +1,7 @@
 import io
 import subprocess
 from collections import defaultdict
+from enum import Enum
 
 
 class Test:
@@ -37,14 +38,23 @@ class Test:
         return (self.name, self.package)
 
 
+class FailedJobReason(Enum):
+    JOB_FAILURE = 1
+    INFRA_FAILURE = 2
+
+
 class SlackMessage:
     JOBS_SECTION_HEADER = "Failed jobs:"
+    INFRA_FAILURES_SECTION_HEADER = "Infrastructure failures:"
     TEST_SECTION_HEADER = "Failed unit tests:"
     MAX_JOBS_PER_TEST = 2
 
     def __init__(self, base_message, jobs=None):
         self.base_message = base_message
-        self.failed_jobs = jobs if jobs else []
+        self.failed_jobs = [job for job in jobs if job["failure_type"] == FailedJobReason.JOB_FAILURE] if jobs else []
+        self.infra_failed_jobs = (
+            [job for job in jobs if job["failure_type"] == FailedJobReason.INFRA_FAILURE] if jobs else []
+        )
         self.failed_tests = defaultdict(list)
         self.coda = ""
 
@@ -56,6 +66,28 @@ class SlackMessage:
 
         jobs_per_stage = defaultdict(list)
         for job in self.failed_jobs:
+            jobs_per_stage[job["stage"]].append(job)
+
+        for stage, jobs in jobs_per_stage.items():
+            jobs_info = []
+            for job in jobs:
+                num_retries = len(job["retry_summary"]) - 1
+                job_info = f"<{job['url']}|{job['name']}>"
+                if num_retries > 0:
+                    job_info += f" ({num_retries} retries)"
+
+                jobs_info.append(job_info)
+
+            print(
+                f"- {', '.join(jobs_info)} (`{stage}` stage)",
+                file=buffer,
+            )
+
+    def __render_infra_jobs_section(self, buffer):
+        print(self.INFRA_FAILURES_SECTION_HEADER, file=buffer)
+
+        jobs_per_stage = defaultdict(list)
+        for job in self.infra_failed_jobs:
             jobs_per_stage[job["stage"]].append(job)
 
         for stage, jobs in jobs_per_stage.items():
@@ -87,6 +119,8 @@ class SlackMessage:
             print(self.base_message, file=buffer)
         if self.failed_jobs:
             self.__render_jobs_section(buffer)
+        if self.infra_failed_jobs:
+            self.__render_infra_jobs_section(buffer)
         if self.failed_tests:
             self.__render_tests_section(buffer)
         if self.coda:

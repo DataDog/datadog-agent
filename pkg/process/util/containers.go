@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -94,21 +95,14 @@ func NewDefaultContainerProvider() ContainerProvider {
 
 // GetContainers returns containers found on the machine
 func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousContainers map[string]*ContainerRateMetrics) ([]*model.Container, map[string]*ContainerRateMetrics, map[int]string, error) {
-	containersMetadata, err := p.metadataStore.ListContainers()
-	if err != nil {
-		return nil, nil, nil, err
-	}
+	containersMetadata := p.metadataStore.ListContainersWithFilter(workloadmeta.GetRunningContainers)
 
 	hostCPUCount := float64(system.HostCPUCount())
 	processContainers := make([]*model.Container, 0)
 	rateStats := make(map[string]*ContainerRateMetrics)
 	pidToCid := make(map[int]string)
 	for _, container := range containersMetadata {
-		if !container.State.Running {
-			continue
-		}
-
-		if p.filter != nil && p.filter.IsExcluded(container.Name, container.Image.Name, container.Labels["io.kubernetes.pod.namespace"]) {
+		if p.filter != nil && p.filter.IsExcluded(container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
 			continue
 		}
 

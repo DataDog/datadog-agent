@@ -20,7 +20,7 @@ type ConfigTestSuite struct {
 }
 
 func (suite *ConfigTestSuite) SetupTest() {
-	suite.config = coreConfig.Mock()
+	suite.config = coreConfig.Mock(nil)
 }
 
 func (suite *ConfigTestSuite) TestDefaultDatadogConfig() {
@@ -54,7 +54,7 @@ func (suite *ConfigTestSuite) TestGlobalProcessingRulesShouldReturnNoRulesWithEm
 		err   error
 	)
 
-	suite.config.Unset("logs_config.processing_rules")
+	suite.config.Set("logs_config.processing_rules", nil)
 
 	rules, err = GlobalProcessingRules()
 	suite.Nil(err)

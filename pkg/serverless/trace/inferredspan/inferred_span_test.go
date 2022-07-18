@@ -56,7 +56,7 @@ func TestFilterFunctionTags(t *testing.T) {
 		"aws_account":               "test",
 	}
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("tags", []string{"tag1:value1"})
 	mockConfig.Set("extra_tags", []string{"extra:tag"})
 
@@ -95,7 +95,7 @@ func TestCompleteInferredSpanWithNoError(t *testing.T) {
 	var inferredSpan InferredSpan
 	startTime := time.Now()
 
-	inferredSpan.GenerateInferredSpan(time.Now())
+	inferredSpan.generateInferredSpan(time.Now())
 	inferredSpan.Span.TraceID = 2350923428932752492
 	inferredSpan.Span.SpanID = 1304592378509342580
 	inferredSpan.Span.Start = startTime.UnixNano()
@@ -104,7 +104,7 @@ func TestCompleteInferredSpanWithNoError(t *testing.T) {
 	inferredSpan.Span.Resource = "test-function"
 	inferredSpan.Span.Type = "http"
 	inferredSpan.Span.Meta = map[string]string{
-		Stage: "dev",
+		stage: "dev",
 	}
 
 	duration := 1 * time.Second
@@ -132,7 +132,7 @@ func TestCompleteInferredSpanWithError(t *testing.T) {
 	var inferredSpan InferredSpan
 	startTime := time.Now()
 
-	inferredSpan.GenerateInferredSpan(time.Now())
+	inferredSpan.generateInferredSpan(time.Now())
 	inferredSpan.Span.TraceID = 2350923428932752492
 	inferredSpan.Span.SpanID = 1304592378509342580
 	inferredSpan.Span.Start = startTime.UnixNano()
@@ -141,7 +141,7 @@ func TestCompleteInferredSpanWithError(t *testing.T) {
 	inferredSpan.Span.Resource = "test-function"
 	inferredSpan.Span.Type = "http"
 	inferredSpan.Span.Meta = map[string]string{
-		Stage: "dev",
+		stage: "dev",
 	}
 
 	duration := 1 * time.Second
@@ -172,7 +172,7 @@ func TestCompleteInferredSpanWithAsync(t *testing.T) {
 	duration := 2 * time.Second
 	// mock invocation end time
 	lambdaInvocationStartTime := startTime.Add(duration)
-	inferredSpan.GenerateInferredSpan(lambdaInvocationStartTime)
+	inferredSpan.generateInferredSpan(lambdaInvocationStartTime)
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.TraceID = 2350923428932752492
 	inferredSpan.Span.SpanID = 1304592378509342580
@@ -182,7 +182,7 @@ func TestCompleteInferredSpanWithAsync(t *testing.T) {
 	inferredSpan.Span.Resource = "test-function"
 	inferredSpan.Span.Type = "http"
 	inferredSpan.Span.Meta = map[string]string{
-		Stage: "dev",
+		stage: "dev",
 	}
 	isError := false
 	var tracePayload *api.Payload

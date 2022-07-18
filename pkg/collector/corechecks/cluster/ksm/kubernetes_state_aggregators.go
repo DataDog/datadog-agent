@@ -295,6 +295,11 @@ func defaultMetricAggregators() map[string]metricAggregator {
 			"kube_pod_info",
 			[]string{"node", "namespace", "created_by_kind", "created_by_name"},
 		),
+		"kube_ingress_labels": newCountObjectsAggregator(
+			"ingress.count",
+			"kube_ingress_labels",
+			[]string{"namespace"},
+		),
 		"kube_job_complete": &lastCronJobCompleteAggregator{aggregator: cronJobAggregator},
 		"kube_job_failed":   &lastCronJobFailedAggregator{aggregator: cronJobAggregator},
 	}

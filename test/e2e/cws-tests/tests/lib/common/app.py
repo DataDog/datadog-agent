@@ -21,7 +21,7 @@ class App:
         response = api_instance.query_metrics(int(time.time()) - 30, int(time.time()), f"{name}{{{','.join(tags)}}}")
         return response
 
-    def wait_for_metric(self, name, tries=15, delay=1, **kw):
+    def wait_for_metric(self, name, tries=30, delay=10, **kw):
         def expect_metric():
             metric = self.query_metric(name, **kw)
             if len(metric.get("series")) == 0:

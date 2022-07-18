@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -105,7 +105,7 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 
 func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	hname, err := util.GetHostname(r.Context())
+	hname, err := hostname.Get(r.Context())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s", err)
 		hname = ""

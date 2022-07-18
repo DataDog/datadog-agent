@@ -460,10 +460,21 @@ log_level: info`)
 
 func TestConfigFile(t *testing.T) {
 	cleanedConfigFile := `dd_url: https://app.datadoghq.com
+
 api_key: ***************************aaaaa
+
 proxy: http://user:********@host:port
+
+
+
+
+
+
 dogstatsd_port : 8125
-log_level: info`
+
+
+log_level: info
+`
 
 	wd, _ := os.Getwd()
 	filePath := filepath.Join(wd, "test", "datadog.yaml")
@@ -472,4 +483,16 @@ log_level: info`
 	cleanedString := string(cleaned)
 
 	assert.Equal(t, cleanedConfigFile, cleanedString)
+}
+
+func TestBearerToken(t *testing.T) {
+	assertClean(t,
+		`Bearer 2fe663014abcd1850076f6d68c0355666db98758262870811cace007cd4a62ba`,
+		`Bearer ***********************************************************a62ba`)
+	assertClean(t,
+		`Error: Get "https://localhost:5001/agent/status": net/http: invalid header field value "Bearer 260a9c065b6426f81b7abae9e6bca9a16f7a842af65c940e89e3417c7aaec82d\n\n" for key Authorization`,
+		`Error: Get "https://localhost:5001/agent/status": net/http: invalid header field value "Bearer ***********************************************************ec82d\n\n" for key Authorization`)
+	assertClean(t,
+		`AuthBearer 2fe663014abcd1850076f6d68c0355666db98758262870811cace007cd4a62ba`,
+		`AuthBearer 2fe663014abcd1850076f6d68c0355666db98758262870811cace007cd4a62ba`)
 }

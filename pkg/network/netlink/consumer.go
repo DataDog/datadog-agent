@@ -36,7 +36,7 @@ const (
 	ipctnlMsgCtGet = 1
 
 	// outputBuffer is he size of the Consumer output channel.
-	outputBuffer = 100
+	outputBuffer = 200
 
 	// overShootFactor is used sampling rate calculation after the circuit breaker trips.
 	overshootFactor = 0.95
@@ -469,7 +469,7 @@ func (c *Consumer) eventFor(msgs []netlink.Message, netns uint32, buffer *[]byte
 func (c *Consumer) throttle(numMessages int) error {
 	// We don't throttle the socket during initialization
 	// (when we dump the whole Conntrack table)
-	if !c.streaming {
+	if !c.streaming || c.targetRateLimit == -1 {
 		return nil
 	}
 
