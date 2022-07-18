@@ -46,11 +46,16 @@ func getEndpointURL(endpoint logsconfig.Endpoint, uri string) string {
 	return fmt.Sprintf("%s://%s:%v/%s", protocol, endpoint.Host, port, uri)
 }
 
+type tooLargeEntityStatsEntry struct {
+	storageFormat dump.StorageFormat
+	compression   bool
+}
+
 // ActivityDumpRemoteStorage is a remote storage that forwards dumps to the backend
 type ActivityDumpRemoteStorage struct {
 	urls             []string
 	apiKeys          []string
-	tooLargeEntities map[dump.StorageFormat]map[bool]*atomic.Uint64
+	tooLargeEntities map[tooLargeEntityStatsEntry]*atomic.Uint64
 
 	client *http.Client
 }
@@ -58,16 +63,19 @@ type ActivityDumpRemoteStorage struct {
 // NewActivityDumpRemoteStorage returns a new instance of ActivityDumpRemoteStorage
 func NewActivityDumpRemoteStorage() (ActivityDumpStorage, error) {
 	storage := &ActivityDumpRemoteStorage{
-		tooLargeEntities: make(map[dump.StorageFormat]map[bool]*atomic.Uint64),
+		tooLargeEntities: make(map[tooLargeEntityStatsEntry]*atomic.Uint64),
 		client: &http.Client{
 			Transport: ddhttputil.CreateHTTPTransport(),
 		},
 	}
 
 	for _, format := range dump.AllStorageFormats() {
-		storage.tooLargeEntities[format] = map[bool]*atomic.Uint64{
-			true:  atomic.NewUint64(0),
-			false: atomic.NewUint64(0),
+		for _, compression := range []bool{true, false} {
+			entry := tooLargeEntityStatsEntry{
+				storageFormat: format,
+				compression:   compression,
+			}
+			storage.tooLargeEntities[entry] = atomic.NewUint64(0)
 		}
 	}
 
@@ -180,7 +188,11 @@ func (storage *ActivityDumpRemoteStorage) sendToEndpoint(url string, apiKey stri
 		return nil
 	}
 	if resp.StatusCode == http.StatusRequestEntityTooLarge {
-		storage.tooLargeEntities[request.Format][request.Compression].Inc()
+		entry := tooLargeEntityStatsEntry{
+			storageFormat: request.Format,
+			compression:   request.Compression,
+		}
+		storage.tooLargeEntities[entry].Inc()
 	}
 	return fmt.Errorf(resp.Status)
 }
@@ -206,13 +218,10 @@ func (storage *ActivityDumpRemoteStorage) Persist(request dump.StorageRequest, a
 // SendTelemetry sends telemetry for the current storage
 func (storage *ActivityDumpRemoteStorage) SendTelemetry(sender aggregator.Sender) {
 	// send too large entity metric
-	for format, entities := range storage.tooLargeEntities {
-		tags := []string{"format:" + format.String()}
-		for compression, count := range entities {
-			entityTags := append(tags, fmt.Sprintf("compression:%v", compression))
-			if entityCount := count.Swap(0); entityCount > 0 {
-				sender.Count(metrics.MetricActivityDumpEntityTooLarge, float64(entityCount), "", entityTags)
-			}
+	for entry, count := range storage.tooLargeEntities {
+		if entityCount := count.Swap(0); entityCount > 0 {
+			tags := []string{fmt.Sprintf("format:%s", entry.storageFormat.String()), fmt.Sprintf("compression:%v", entry.compression)}
+			sender.Count(metrics.MetricActivityDumpEntityTooLarge, float64(entityCount), "", tags)
 		}
 	}
 }
