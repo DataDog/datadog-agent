@@ -333,6 +333,66 @@ func TestTriggerTypesLifecycleEventForAPIGatewayRest(t *testing.T) {
 	}, testProcessor.GetTags())
 }
 
+func TestTriggerTypesLifecycleEventForAPIGateway5xxResponse(t *testing.T) {
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: getEventFromFile("api-gateway.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+	}
+
+	extraTags := &logs.Tags{
+		Tags: []string{"functionname:test-function"},
+	}
+
+	var tracePayload *api.Payload
+	mockProcessTrace := func(payload *api.Payload) {
+		tracePayload = payload
+	}
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
+
+	testProcessor := &LifecycleProcessor{
+		ExtraTags:           extraTags,
+		DetectLambdaLibrary: func() bool { return false },
+		ProcessTrace:        mockProcessTrace,
+		Demux:               demux,
+	}
+	testProcessor.OnInvokeStart(startDetails)
+
+	endTime := timeNow()
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		EndTime:            endTime,
+		IsError:            false,
+		RequestID:          "test-request-id",
+		ResponseRawPayload: `{"statusCode": 500}`,
+	})
+
+	// assert http.status_code is 500
+	assert.Equal(t, map[string]string{
+		"function_trigger.event_source_arn": "arn:aws:apigateway:us-east-1::/restapis/1234567890/stages/prod",
+		"http.method":                       "POST",
+		"http.url":                          "70ixmpl4fl.execute-api.us-east-2.amazonaws.com",
+		"http.url_details.path":             "/prod/path/to/resource",
+		"http.status_code":                  "500",
+		"function_trigger.event_source":     "api-gateway",
+		"request_id":                        "test-request-id",
+	}, testProcessor.GetTags())
+
+	// assert error metrics equal
+	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
+		Name:       "aws.lambda.enhanced.errors",
+		Value:      1.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       extraTags.Tags,
+		SampleRate: 1,
+		Timestamp:  float64(endTime.Unix()),
+	}})
+
+	// assert span error set to 1
+	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	assert.Equal(t, executionSpan.Error, int32(1))
+}
+
 func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy(t *testing.T) {
 	startDetails := &InvocationStartDetails{
 		InvokeEventRawPayload: getEventFromFile("api-gateway-non-proxy.json"),
@@ -360,6 +420,66 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy(t *testing.T) {
 	}, testProcessor.GetTags())
 }
 
+func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy5xxResponse(t *testing.T) {
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: getEventFromFile("api-gateway-non-proxy.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+	}
+
+	extraTags := &logs.Tags{
+		Tags: []string{"functionname:test-function"},
+	}
+
+	var tracePayload *api.Payload
+	mockProcessTrace := func(payload *api.Payload) {
+		tracePayload = payload
+	}
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
+
+	testProcessor := &LifecycleProcessor{
+		ExtraTags:           extraTags,
+		DetectLambdaLibrary: func() bool { return false },
+		ProcessTrace:        mockProcessTrace,
+		Demux:               demux,
+	}
+	testProcessor.OnInvokeStart(startDetails)
+
+	endTime := timeNow()
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		EndTime:            endTime,
+		IsError:            false,
+		RequestID:          "test-request-id",
+		ResponseRawPayload: `{"statusCode": 500}`,
+	})
+
+	// assert http.status_code is 500
+	assert.Equal(t, map[string]string{
+		"function_trigger.event_source_arn": "arn:aws:apigateway:us-east-1::/restapis/lgxbo6a518/stages/dev",
+		"http.method":                       "GET",
+		"http.url":                          "lgxbo6a518.execute-api.sa-east-1.amazonaws.com",
+		"http.url_details.path":             "/dev/http/get",
+		"request_id":                        "test-request-id",
+		"http.status_code":                  "500",
+		"function_trigger.event_source":     "api-gateway",
+	}, testProcessor.GetTags())
+
+	// assert error metrics equal
+	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
+		Name:       "aws.lambda.enhanced.errors",
+		Value:      1.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       extraTags.Tags,
+		SampleRate: 1,
+		Timestamp:  float64(endTime.Unix()),
+	}})
+
+	// assert span error set to 1
+	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	assert.Equal(t, executionSpan.Error, int32(1))
+}
+
 func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket(t *testing.T) {
 	startDetails := &InvocationStartDetails{
 		InvokeEventRawPayload: getEventFromFile("api-gateway-websocket-default.json"),
@@ -382,6 +502,63 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket(t *testing.T) {
 		"http.status_code":                  "200",
 		"function_trigger.event_source":     "api-gateway",
 	}, testProcessor.GetTags())
+}
+
+func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket5xxResponse(t *testing.T) {
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: getEventFromFile("api-gateway-websocket-default.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+	}
+
+	extraTags := &logs.Tags{
+		Tags: []string{"functionname:test-function"},
+	}
+
+	var tracePayload *api.Payload
+	mockProcessTrace := func(payload *api.Payload) {
+		tracePayload = payload
+	}
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
+
+	testProcessor := &LifecycleProcessor{
+		ExtraTags:           extraTags,
+		DetectLambdaLibrary: func() bool { return false },
+		ProcessTrace:        mockProcessTrace,
+		Demux:               demux,
+	}
+	testProcessor.OnInvokeStart(startDetails)
+
+	endTime := timeNow()
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		EndTime:            endTime,
+		IsError:            false,
+		RequestID:          "test-request-id",
+		ResponseRawPayload: `{"statusCode": 500}`,
+	})
+
+	// assert http.status_code is 500
+	assert.Equal(t, map[string]string{
+		"function_trigger.event_source_arn": "arn:aws:apigateway:us-east-1::/restapis/p62c47itsb/stages/dev",
+		"request_id":                        "test-request-id",
+		"http.status_code":                  "500",
+		"function_trigger.event_source":     "api-gateway",
+	}, testProcessor.GetTags())
+
+	// assert error metrics equal
+	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
+		Name:       "aws.lambda.enhanced.errors",
+		Value:      1.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       extraTags.Tags,
+		SampleRate: 1,
+		Timestamp:  float64(endTime.Unix()),
+	}})
+
+	// assert span error set to 1
+	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	assert.Equal(t, executionSpan.Error, int32(1))
 }
 
 func TestTriggerTypesLifecycleEventForALB(t *testing.T) {
@@ -408,6 +585,65 @@ func TestTriggerTypesLifecycleEventForALB(t *testing.T) {
 		"http.url_details.path":             "/lambda",
 		"function_trigger.event_source":     "application-load-balancer",
 	}, testProcessor.GetTags())
+}
+
+func TestTriggerTypesLifecycleEventForALB5xxResponse(t *testing.T) {
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: getEventFromFile("application-load-balancer.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+	}
+
+	extraTags := &logs.Tags{
+		Tags: []string{"functionname:test-function"},
+	}
+
+	var tracePayload *api.Payload
+	mockProcessTrace := func(payload *api.Payload) {
+		tracePayload = payload
+	}
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
+
+	testProcessor := &LifecycleProcessor{
+		ExtraTags:           extraTags,
+		DetectLambdaLibrary: func() bool { return false },
+		ProcessTrace:        mockProcessTrace,
+		Demux:               demux,
+	}
+	testProcessor.OnInvokeStart(startDetails)
+
+	endTime := timeNow()
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		EndTime:            endTime,
+		IsError:            false,
+		RequestID:          "test-request-id",
+		ResponseRawPayload: `{"statusCode": 500}`,
+	})
+
+	// assert http.status_code is 500
+	assert.Equal(t, map[string]string{
+		"function_trigger.event_source_arn": "arn:aws:elasticloadbalancing:us-east-2:123456789012:targetgroup/lambda-xyz/123abc",
+		"request_id":                        "test-request-id",
+		"http.status_code":                  "500",
+		"http.method":                       "GET",
+		"http.url_details.path":             "/lambda",
+		"function_trigger.event_source":     "application-load-balancer",
+	}, testProcessor.GetTags())
+
+	// assert error metrics equal
+	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
+		Name:       "aws.lambda.enhanced.errors",
+		Value:      1.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       extraTags.Tags,
+		SampleRate: 1,
+		Timestamp:  float64(endTime.Unix()),
+	}})
+
+	// assert span error set to 1
+	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	assert.Equal(t, executionSpan.Error, int32(1))
 }
 
 func TestTriggerTypesLifecycleEventForCloudwatch(t *testing.T) {
