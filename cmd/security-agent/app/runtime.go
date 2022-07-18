@@ -11,6 +11,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -19,7 +20,6 @@ import (
 	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
