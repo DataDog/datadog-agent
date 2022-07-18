@@ -8,7 +8,7 @@
 ---
 features:
   - |
-    Add two options under the `vector` config prefix to send traces
+    APM: Add two options under the `vector` config prefix to send traces
     to Vector instead of Datadog. Set `vector.traces.enabled` to true.
     Set `vector.traces.url` to point to a Vector endpoint. This overrides 
     the main endpoint. Additional endpoints remains fully functional.
