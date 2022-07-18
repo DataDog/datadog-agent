@@ -162,6 +162,33 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 	}
 }
 
+// EnrichInferredSpanWithDynamoDBEvent uses the parsed event
+// payload to enrich the current inferred span. It applies a
+// specific set of data to the span expected from a DynamoDB event.
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithDynamoDBEvent(eventPayload events.DynamoDBEvent) {
+	eventRecord := eventPayload.Records[0]
+	parsedTableName := strings.Split(eventRecord.EventSourceArn, "/")[1]
+	eventMessage := eventRecord.Change
+
+	inferredSpan.IsAsync = true
+	inferredSpan.Span.Name = "aws.dynamodb"
+	inferredSpan.Span.Service = "dynamodb"
+	inferredSpan.Span.Start = eventMessage.ApproximateCreationDateTime.UnixNano()
+	inferredSpan.Span.Resource = parsedTableName
+	inferredSpan.Span.Type = "web"
+	inferredSpan.Span.Meta = map[string]string{
+		operationName:  "aws.dynamodb",
+		resourceNames:  parsedTableName,
+		tableName:      parsedTableName,
+		eventSourceArn: eventRecord.EventSourceArn,
+		eventID:        eventRecord.EventID,
+		eventName:      eventRecord.EventName,
+		eventVersion:   eventRecord.EventVersion,
+		streamViewType: eventRecord.Change.StreamViewType,
+		sizeBytes:      strconv.FormatInt(eventRecord.Change.SizeBytes, 10),
+	}
+}
+
 // CalculateStartTime converts AWS event timeEpochs to nanoseconds
 func calculateStartTime(epoch int64) int64 {
 	return epoch * 1e6
