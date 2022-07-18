@@ -215,8 +215,10 @@ func (t *Tagger) run() {
 	for {
 		select {
 		case <-t.health.C:
+			continue
 		case <-t.telemetryTicker.C:
 			t.store.collectTelemetry()
+			continue
 		case <-t.ctx.Done():
 			return
 		default:
