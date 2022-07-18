@@ -1357,17 +1357,6 @@ func init() {
 	testSuitePid = uint32(utils.Getpid())
 }
 
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
-// randStringRunes returns a random string of the requested size
-func randStringRunes(n int) string {
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
-	}
-	return string(b)
-}
-
 //nolint:deadcode,unused
 func checkKernelCompatibility(t *testing.T, why string, skipCheck func(kv *kernel.Version) bool) {
 	t.Helper()
