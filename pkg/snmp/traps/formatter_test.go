@@ -34,7 +34,7 @@ func (or NoOpOIDResolver) GetVariableMetadata(trapOID string, varOID string) (Va
 }
 
 var (
-	defaultFormatter, _ = NewJSONFormatter(NoOpOIDResolver{}, "totoro")
+	defaultFormatter, _ = NewJSONFormatter(NoOpOIDResolver{}, "totoro", []string{"data:dog", "dog:data"})
 
 	// LinkUp Example Trap V2+
 	LinkUpExampleV2Trap = gosnmp.SnmpTrap{
@@ -125,7 +125,7 @@ func TestFormatPacketV1Generic(t *testing.T) {
 	trapContent := data["trap"].(map[string]interface{})
 
 	assert.Equal(t, "snmp-traps", trapContent["ddsource"])
-	assert.Equal(t, "snmp_version:1,device_namespace:totoro,snmp_device:127.0.0.1", trapContent["ddtags"])
+	assert.Equal(t, "snmp_version:1,device_namespace:totoro,snmp_device:127.0.0.1,data:dog,dog:data", trapContent["ddtags"])
 
 	assert.Equal(t, "1.3.6.1.6.3.1.1.5.3", trapContent["snmpTrapOID"])
 	assert.NotNil(t, trapContent["uptime"])
@@ -168,7 +168,7 @@ func TestFormatPacketV1Specific(t *testing.T) {
 	trapContent := data["trap"].(map[string]interface{})
 
 	assert.Equal(t, "snmp-traps", trapContent["ddsource"])
-	assert.Equal(t, "snmp_version:1,device_namespace:totoro,snmp_device:127.0.0.1", trapContent["ddtags"])
+	assert.Equal(t, "snmp_version:1,device_namespace:totoro,snmp_device:127.0.0.1,data:dog,dog:data", trapContent["ddtags"])
 
 	assert.Equal(t, "1.3.6.1.2.1.118.0.2", trapContent["snmpTrapOID"])
 	assert.NotNil(t, trapContent["uptime"])
@@ -208,7 +208,7 @@ func TestFormatPacketToJSON(t *testing.T) {
 	trapContent := data["trap"].(map[string]interface{})
 
 	assert.Equal(t, "snmp-traps", trapContent["ddsource"])
-	assert.Equal(t, "snmp_version:2,device_namespace:totoro,snmp_device:127.0.0.1", trapContent["ddtags"])
+	assert.Equal(t, "snmp_version:2,device_namespace:totoro,snmp_device:127.0.0.1,data:dog,dog:data", trapContent["ddtags"])
 
 	assert.Equal(t, "1.3.6.1.4.1.8072.2.3.0.1", trapContent["snmpTrapOID"])
 	assert.NotNil(t, trapContent["uptime"])
@@ -263,6 +263,8 @@ func TestGetTags(t *testing.T) {
 		"snmp_version:2",
 		"device_namespace:totoro",
 		"snmp_device:127.0.0.1",
+		"data:dog",
+		"dog:data",
 	})
 }
 
@@ -273,11 +275,13 @@ func TestGetTagsForUnsupportedVersionShouldStillSucceed(t *testing.T) {
 		"snmp_version:unknown",
 		"device_namespace:totoro",
 		"snmp_device:127.0.0.1",
+		"data:dog",
+		"dog:data",
 	})
 }
 
 func TestNewJSONFormatterWithNilStillWorks(t *testing.T) {
-	var formatter, err = NewJSONFormatter(NoOpOIDResolver{}, "mononoke")
+	var formatter, err = NewJSONFormatter(NoOpOIDResolver{}, "mononoke", []string{})
 	require.NoError(t, err)
 	packet := createTestPacket(NetSNMPExampleHeartbeatNotification)
 	_, err = formatter.FormatPacket(packet)
@@ -456,7 +460,7 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 
 	for _, d := range data {
 		t.Run(d.description, func(t *testing.T) {
-			formatter, err := NewJSONFormatter(d.resolver, d.namespace)
+			formatter, err := NewJSONFormatter(d.resolver, d.namespace, []string{})
 			require.NoError(t, err)
 			packet := createTestPacket(d.trap)
 			data, err := formatter.FormatPacket(packet)
@@ -483,7 +487,7 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 }
 
 func TestFormatterWithResolverAndTrapV1Generic(t *testing.T) {
-	formatter, err := NewJSONFormatter(resolverWithData, "porco_rosso")
+	formatter, err := NewJSONFormatter(resolverWithData, "porco_rosso", []string{})
 	require.NoError(t, err)
 	packet := createTestV1GenericPacket()
 	data, err := formatter.FormatPacket(packet)

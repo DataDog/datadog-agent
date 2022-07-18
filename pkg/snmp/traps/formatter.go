@@ -25,6 +25,7 @@ type Formatter interface {
 type JSONFormatter struct {
 	oidResolver OIDResolver
 	namespace   string
+	userTags    []string
 }
 
 type trapVariable struct {
@@ -39,11 +40,11 @@ const (
 )
 
 // NewJSONFormatter creates a new JSONFormatter instance with an optional OIDResolver variable.
-func NewJSONFormatter(oidResolver OIDResolver, namespace string) (JSONFormatter, error) {
+func NewJSONFormatter(oidResolver OIDResolver, namespace string, tags []string) (JSONFormatter, error) {
 	if oidResolver == nil {
 		return JSONFormatter{}, fmt.Errorf("NewJSONFormatter called with a nil OIDResolver")
 	}
-	return JSONFormatter{oidResolver, namespace}, nil
+	return JSONFormatter{oidResolver, namespace, tags}, nil
 }
 
 // FormatPacket converts a raw SNMP trap packet to a FormattedSnmpPacket containing the JSON data and the tags to attach
@@ -89,11 +90,12 @@ func (f JSONFormatter) FormatPacket(packet *SnmpPacket) ([]byte, error) {
 
 // GetTags returns a list of tags associated to an SNMP trap packet.
 func (f JSONFormatter) getTags(packet *SnmpPacket) []string {
-	return []string{
+	tags := []string{
 		"snmp_version:" + formatVersion(packet.Content),
 		"device_namespace:" + f.namespace,
 		"snmp_device:" + packet.Addr.IP.String(),
 	}
+	return append(tags, f.userTags...)
 }
 
 func (f JSONFormatter) formatV1Trap(packet *gosnmp.SnmpPacket) map[string]interface{} {

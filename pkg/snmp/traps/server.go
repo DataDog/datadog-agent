@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gosnmp/gosnmp"
 )
@@ -40,7 +41,7 @@ var (
 
 // StartServer starts the global trap server.
 func StartServer(agentHostname string, demux aggregator.Demultiplexer) error {
-	config, err := ReadConfig(agentHostname)
+	cfg, err := ReadConfig(agentHostname)
 	if err != nil {
 		return err
 	}
@@ -52,11 +53,11 @@ func StartServer(agentHostname string, demux aggregator.Demultiplexer) error {
 	if err != nil {
 		return err
 	}
-	formatter, err := NewJSONFormatter(oidResolver, config.Namespace)
+	formatter, err := NewJSONFormatter(oidResolver, cfg.Namespace, config.GetConfiguredTags(false))
 	if err != nil {
 		return err
 	}
-	server, err := NewTrapServer(*config, formatter, sender)
+	server, err := NewTrapServer(*cfg, formatter, sender)
 	serverInstance = server
 	startError = err
 	return err
