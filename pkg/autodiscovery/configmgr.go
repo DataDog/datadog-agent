@@ -18,7 +18,6 @@ import (
 // configChanges contains the changes that occurred due to an event in a
 // configManager.
 type configChanges struct {
-
 	// schedule contains configs that should be scheduled as a result of this
 	// event.
 	schedule []integration.Config
@@ -235,6 +234,12 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 			changes.merge(cm.reconcileService(svcID))
 		}
 	} else {
+		// Secrets always need to be resolved (done in reconcileService if template)
+		config, err := decryptConfig(config)
+		if err != nil {
+			log.Errorf("Unable to resolve secrets for config '%s', dropping check configuration, err: %s", config.Name, err.Error())
+		}
+
 		changes.scheduleConfig(config)
 	}
 
@@ -276,6 +281,13 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 				changes.merge(cm.reconcileService(svcID))
 			}
 		} else {
+			// Secrets need to be resolved before being unscheduled as otherwise
+			// the computed hashes can be different from the ones computed at schedule time.
+			config, err := decryptConfig(config)
+			if err != nil {
+				log.Errorf("Unable to resolve secrets for config '%s', check may not be unscheduled properly, err: %s", config.Name, err.Error())
+			}
+
 			changes.unscheduleConfig(config)
 		}
 
