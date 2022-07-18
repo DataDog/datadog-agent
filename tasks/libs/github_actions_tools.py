@@ -107,7 +107,7 @@ def trigger_macos_workflow(
         pass
 
     # If we didn't manage to fetch the workflow ID using the "job hack" then revert back to the old hack
-    if workflow_id is None:
+    if not workflow_id:
         # Hack: get current time to only fetch workflows that started after now.
         now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
         worfklow.trigger_workflow(workflow, github_action_ref, inputs)
