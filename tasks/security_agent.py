@@ -585,6 +585,11 @@ def generate_btfhub_constants(ctx, archive_path):
 
 @task
 def generate_ad_proto(ctx):
+    # The general view of which structures to pool is to currently pool the big ones.
+    # During testing/benchmarks we saw that enabling pooling for small/leaf nodes had a negative effect
+    # on both performance and memory.
+    # What could explain this impact is that putting back the node in the pool requires to walk the tree to put back
+    # child nodes. The maximum depth difference between nodes become a very important metric.
     pool_structs = [
         "ActivityDump",
         "ProcessActivityNode",
