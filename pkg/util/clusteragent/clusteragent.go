@@ -125,7 +125,7 @@ func (c *DCAClient) init() error {
 	}
 
 	// Run DCA connection refresh
-	c.startReconnectHandler(time.Duration(config.Datadog.GetInt64("cluster_agent.client_reconnect_period_seconds")) * time.Second)
+	c.startReconnectHandler(time.Duration(config.Datadog.GetInt("cluster_agent.client_reconnect_period_seconds")) * time.Second)
 
 	log.Infof("Successfully connected to the Datadog Cluster Agent %s", c.clusterAgentVersion.String())
 	return nil
