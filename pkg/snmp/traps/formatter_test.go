@@ -52,6 +52,26 @@ var (
 		},
 	}
 
+	// LinkUp Example Trap with injected BITS value V2+
+	BitsValueExampleV2Trap = gosnmp.SnmpTrap{
+		Variables: []gosnmp.SnmpPDU{
+			// sysUpTimeInstance
+			{Name: "1.3.6.1.2.1.1.3.0", Type: gosnmp.TimeTicks, Value: uint32(1000)},
+			// snmpTrapOID
+			{Name: "1.3.6.1.6.3.1.1.4.1.0", Type: gosnmp.OctetString, Value: "1.3.6.1.6.3.1.1.5.4"},
+			// ifIndex
+			{Name: "1.3.6.1.2.1.2.2.1.1", Type: gosnmp.Integer, Value: 9001},
+			// ifAdminStatus
+			{Name: "1.3.6.1.2.1.2.2.1.7", Type: gosnmp.Integer, Value: 2},
+			// ifOperStatus
+			{Name: "1.3.6.1.2.1.2.2.1.8", Type: gosnmp.Integer, Value: 7},
+			// pwCepSonetConfigErrorOrStatus
+			// This translates to binary 1100 0000 0000 0000
+			// this means bits 0 and 1 are set
+			{Name: "1.3.6.1.2.1.200.1.1.1.3", Type: gosnmp.OctetString, Value: string([]byte{0xc0, 0x00})},
+		},
+	}
+
 	// LinkUp Example Trap with bad value V2+
 	BadValueExampleV2Trap = gosnmp.SnmpTrap{
 		Variables: []gosnmp.SnmpPDU{
@@ -449,6 +469,52 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 			expectedTags: []string{
 				"snmp_version:2",
 				"device_namespace:nausicaa",
+				"snmp_device:127.0.0.1",
+			},
+		},
+		{
+			description: "test enum variable resolution with BITS enum",
+			trap:        BitsValueExampleV2Trap,
+			resolver:    resolverWithData,
+			namespace:   "mononoke",
+			expectedContent: map[string]interface{}{
+				"ddsource":                      "snmp-traps",
+				"ddtags":                        "snmp_version:2,device_namespace:mononoke,snmp_device:127.0.0.1",
+				"timestamp":                     0.,
+				"snmpTrapName":                  "linkUp",
+				"snmpTrapMIB":                   "IF-MIB",
+				"snmpTrapOID":                   "1.3.6.1.6.3.1.1.5.4",
+				"ifIndex":                       float64(9001),
+				"ifAdminStatus":                 "down",
+				"ifOperStatus":                  "lowerLayerDown",
+				"pwCepSonetConfigErrorOrStatus": []interface{}{string("other"), string("timeslotInUse")},
+				"uptime":                        float64(1000),
+				"variables": []interface{}{
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.1",
+						"type":  "integer",
+						"value": float64(9001),
+					},
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.7",
+						"type":  "integer",
+						"value": float64(2),
+					},
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.8",
+						"type":  "integer",
+						"value": float64(7),
+					},
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.200.1.1.1.3",
+						"type":  "string",
+						"value": string([]byte{0xc0, 0x00}),
+					},
+				},
+			},
+			expectedTags: []string{
+				"snmp_version:2",
+				"device_namespace:mononoke",
 				"snmp_device:127.0.0.1",
 			},
 		},

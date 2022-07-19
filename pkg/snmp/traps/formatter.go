@@ -13,6 +13,7 @@ import (
 	"github.com/gosnmp/gosnmp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/pkg/errors"
 )
 
 const ddsource string = "snmp-traps"
@@ -192,15 +193,46 @@ func NormalizeOID(value string) string {
 // returns the mapping if it exists, otherwise returns the value unchanged
 func parseValue(variable trapVariable, varMetadata VariableMetadata) interface{} {
 	if len(varMetadata.Enumeration) > 0 {
-		if i, ok := variable.Value.(int); !ok {
-			log.Debugf("unable to parse value of type \"integer\": %+v", variable.Value)
-		} else {
+		switch variable.Value.(type) {
+		case int:
 			// if we find a mapping set it and return
-			if value, ok := varMetadata.Enumeration[i]; !ok {
+			i := variable.Value.(int)
+			if value, ok := varMetadata.Enumeration[i]; !ok || variable.VarType != "integer" {
 				log.Debugf("unable to find enum mapping for value %d variable %q", i, varMetadata.Name)
 			} else {
 				return value
 			}
+		case string:
+			// do bitwise search
+			if variable.VarType != "string" {
+				log.Warnf("received string for non-string variable: %+v", variable)
+				return variable.Value
+			}
+			s := variable.Value.(string)
+			enabledValues := make([]string, 0)
+			sBytes := []byte(s)
+			for i, b := range sBytes {
+				for j := 0; j < 8; j++ {
+					position := j + i*8 // position is the index in the current byte plus 8 * the position in the byte array
+					enabled, err := isBitEnabled(uint8(b), j)
+					if err != nil {
+						log.Debugf("unable to determine status at position %d: %s", position, err.Error())
+					}
+					if enabled {
+						value := varMetadata.Enumeration[position]
+						if value == "" {
+							log.Debugf("unable to find enum mapping for value %f variable %q", i, varMetadata.Name)
+						} else {
+							enabledValues = append(enabledValues, value)
+						}
+					}
+				}
+			}
+			if len(enabledValues) > 0 {
+				return enabledValues
+			}
+		default:
+			log.Debugf("value is not an enum compatible type (i.e. int, string): %+v", variable.Value)
 		}
 	}
 
@@ -258,7 +290,7 @@ func formatType(variable gosnmp.SnmpPDU) string {
 	switch variable.Type {
 	case gosnmp.Integer, gosnmp.Uinteger32:
 		return "integer"
-	case gosnmp.OctetString:
+	case gosnmp.OctetString, gosnmp.BitString:
 		return "string"
 	case gosnmp.ObjectIdentifier:
 		return "oid"
@@ -293,4 +325,17 @@ func formatVersion(packet *gosnmp.SnmpPacket) string {
 	default:
 		return "unknown"
 	}
+}
+
+// isBitEnabled takes in a uint8 and returns true if
+// the bit at the passed position is 1.
+// Each byte is little endian meaning if
+// you have the binary 10000000, passing position 0
+// would return true and 7 would return false
+func isBitEnabled(n uint8, pos int) (bool, error) {
+	if pos > 7 {
+		return false, errors.Errorf("invalid position %d, must be 0-7.", pos)
+	}
+	val := n & uint8(1<<(7-pos))
+	return val > 0, nil
 }
