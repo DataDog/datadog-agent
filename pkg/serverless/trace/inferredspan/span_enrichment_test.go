@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/aws/aws-lambda-go/events"
@@ -201,14 +202,34 @@ func TestEnrichInferredSpanWithSNSEvent(t *testing.T) {
 	assert.True(t, inferredSpan.IsAsync)
 }
 
+func TestEnrichInferredSpanWithSQSEvent(t *testing.T) {
+	var sqsRequest events.SQSEvent
+	_ = json.Unmarshal(getEventFromFile("sqs.json"), &sqsRequest)
+	inferredSpan := mockInferredSpan()
+	inferredSpan.EnrichInferredSpanWithSQSEvent(sqsRequest)
+	span := inferredSpan.Span
+	assert.Equal(t, uint64(7353030974370088224), span.TraceID)
+	assert.Equal(t, uint64(8048964810003407541), span.SpanID)
+	assert.Equal(t, int64(1634662094538000000), span.Start)
+	assert.Equal(t, "sqs", span.Service)
+	assert.Equal(t, "aws.sqs", span.Name)
+	assert.Equal(t, "InferredSpansQueueNode", span.Resource)
+	assert.Equal(t, "web", span.Type)
+	assert.Equal(t, "aws.sqs", span.Meta[operationName])
+	assert.Equal(t, "InferredSpansQueueNode", span.Meta[resourceNames])
+	assert.Equal(t, "InferredSpansQueueNode", span.Meta[queueName])
+	assert.Equal(t, "arn:aws:sqs:sa-east-1:601427279990:InferredSpansQueueNode", span.Meta[eventSourceArn])
+	assert.Equal(t, "AQEBnxFcyzQZhkrLV/TrSpn0VBszuq4a5/u66uyGRdUKuvXMurd6RRV952L+arORbE4MlGqWLUxurzYH9mKvc/A3MYjmGwQvvhp6uK5c7gXxg6tvHVAlsEFmTB0p35dxfGCmtrJbzdPjVtmcucPEpRx7z51tQokgGWuJbqx3Z9MVRD+6dyO3o6Zu6G3oWUgiUZ0dxhNoIIeT6xr/tEsoWhGK9ZUPRJ7e0BM/UZKfkecX1CVgVZ8J/t8fHRklJd34S6pN99SPNBKx+1lOZCelm2MihbQR6zax8bkhwL3glxYP83MxexvfOELA3G/6jx96oQ4mQdJASsKFUzvcs2NUxX+0bBVX9toS7MW/Udv+3CiQwSjjkc18A385QHtNrJDRbH33OUxFCqN5CcUMiGvEFed5EQ==", span.Meta[receiptHandle])
+	assert.Equal(t, "AROAYYB64AB3LSVUYFP5T:harv-inferred-spans-dev-initSender", span.Meta[senderID])
+	assert.True(t, inferredSpan.IsAsync)
+}
+
 func TestEnrichInferredSpanWithKinesisEvent(t *testing.T) {
 	var kinesisRequest events.KinesisEvent
 	_ = json.Unmarshal(getEventFromFile("kinesis.json"), &kinesisRequest)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithKinesisEvent(kinesisRequest)
-
 	span := inferredSpan.Span
-
 	assert.Equal(t, uint64(7353030974370088224), span.TraceID)
 	assert.Equal(t, uint64(8048964810003407541), span.SpanID)
 	assert.Equal(t, int64(1643638425163000106), span.Start)
@@ -227,6 +248,34 @@ func TestEnrichInferredSpanWithKinesisEvent(t *testing.T) {
 	assert.Equal(t, "partitionkey", span.Meta[partitionKey])
 	assert.True(t, inferredSpan.IsAsync)
 }
+
+func TestEnrichInferredSpanWithDynamoDBEvent(t *testing.T) {
+	var dynamoRequest events.DynamoDBEvent
+	_ = json.Unmarshal(getEventFromFile("dynamodb.json"), &dynamoRequest)
+	inferredSpan := mockInferredSpan()
+	inferredSpan.EnrichInferredSpanWithDynamoDBEvent(dynamoRequest)
+
+	span := inferredSpan.Span
+
+	assert.Equal(t, uint64(7353030974370088224), span.TraceID)
+	assert.Equal(t, uint64(8048964810003407541), span.SpanID)
+	assert.Equal(t, time.Unix(1428537600, 0).UnixNano(), span.Start)
+	assert.Equal(t, "dynamodb", span.Service)
+	assert.Equal(t, "aws.dynamodb", span.Name)
+	assert.Equal(t, "ExampleTableWithStream", span.Resource)
+	assert.Equal(t, "web", span.Type)
+	assert.Equal(t, "aws.dynamodb", span.Meta[operationName])
+	assert.Equal(t, "ExampleTableWithStream", span.Meta[resourceNames])
+	assert.Equal(t, "ExampleTableWithStream", span.Meta[tableName])
+	assert.Equal(t, "arn:aws:dynamodb:us-east-1:123456789012:table/ExampleTableWithStream/stream/2015-06-27T00:48:05.899", span.Meta[eventSourceArn])
+	assert.Equal(t, "c4ca4238a0b923820dcc509a6f75849b", span.Meta[eventID])
+	assert.Equal(t, "INSERT", span.Meta[eventName])
+	assert.Equal(t, "1.1", span.Meta[eventVersion])
+	assert.Equal(t, "NEW_AND_OLD_IMAGES", span.Meta[streamViewType])
+	assert.Equal(t, "26", span.Meta[sizeBytes])
+	assert.True(t, inferredSpan.IsAsync)
+}
+
 func TestFormatISOStartTime(t *testing.T) {
 	isotime := "2022-01-31T14:13:41.637Z"
 	startTime := formatISOStartTime(isotime)
