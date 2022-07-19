@@ -538,6 +538,8 @@ func (c *WorkloadMetaCollector) handleDelete(ev workloadmeta.Event) []*TagInfo {
 	})
 	tagInfos = append(tagInfos, c.handleDeleteChildren(source, children)...)
 
+	delete(c.children, taggerEntityID)
+
 	return tagInfos
 }
 
