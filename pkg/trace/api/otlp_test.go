@@ -118,8 +118,8 @@ func TestOTLPMetrics(t *testing.T) {
 		},
 	}).Traces().ResourceSpans()
 
-	rcv.ReceiveResourceSpans(rspans.At(0), http.Header{}, "")
-	rcv.ReceiveResourceSpans(rspans.At(1), http.Header{}, "")
+	rcv.ReceiveResourceSpans(context.Background(), rspans.At(0), http.Header{}, "")
+	rcv.ReceiveResourceSpans(context.Background(), rspans.At(1), http.Header{}, "")
 
 	calls := stats.CountCalls
 	assert.Equal(4, len(calls))
