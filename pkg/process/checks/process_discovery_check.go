@@ -44,7 +44,7 @@ func (d *ProcessDiscoveryCheck) Name() string { return config.DiscoveryCheckName
 func (d *ProcessDiscoveryCheck) RealTime() bool { return false }
 
 // ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
-func (c *ProcessDiscoveryCheck) ShouldSaveLastRun() bool { return true }
+func (d *ProcessDiscoveryCheck) ShouldSaveLastRun() bool { return true }
 
 // Run collects process metadata, and packages it into a CollectorProcessDiscovery payload to be sent.
 // It is a runtime error to call Run without first having called Init.
