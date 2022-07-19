@@ -274,7 +274,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
 	config.BindEnv("bind_host")
 	config.BindEnvAndSetDefault("ipc_address", "localhost")
-	config.BindEnvAndSetDefault("health_port", int64(0))
+	config.BindEnvAndSetDefault("health_port", 0)
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
