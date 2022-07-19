@@ -201,7 +201,7 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 
 func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
 	pc := config.Datadog.GetInt("dogstatsd_pipeline_count")
-	aa := config.Datadog.GetInt("dogstatsd_pipeline_autoadjust")
+	aa := config.Datadog.GetBool("dogstatsd_pipeline_autoadjust")
 	defer func() {
 		config.Datadog.Set("dogstatsd_pipeline_count", pc)
 		config.Datadog.Set("dogstatsd_pipeline_autoadjust", aa)
