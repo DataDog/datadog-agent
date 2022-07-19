@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
@@ -194,6 +195,8 @@ func (s *Service) Start(ctx context.Context) error {
 				if time.Now().UTC().After(s.newActiveClients.until) {
 					s.newActiveClients.setRateLimit(refreshInterval)
 					err = s.refresh()
+				} else {
+					telemetry.CacheBypassRateLimit.Inc()
 				}
 				close(response)
 			case <-ctx.Done():
@@ -308,7 +311,7 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 		select {
 		case <-response:
 		case <-time.After(newClientBlockTTL):
-			log.Warn("Timed out waiting for upstream new configurations")
+			telemetry.CacheBypassTimeout.Inc()
 		}
 		s.Lock()
 	}
