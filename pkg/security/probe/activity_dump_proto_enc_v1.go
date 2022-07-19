@@ -55,8 +55,8 @@ func adMetadataToProto(meta *DumpMetadata) *adproto.Metadata {
 		DifferentiateArgs:   meta.DifferentiateArgs,
 		Comm:                meta.Comm,
 		ContainerId:         meta.ContainerID,
-		Start:               timestamp(&meta.Start),
-		End:                 timestamp(&meta.End),
+		Start:               timestampToProto(&meta.Start),
+		End:                 timestampToProto(&meta.End),
 		Size:                meta.Size,
 	}
 
@@ -116,9 +116,9 @@ func processNodeToProto(p *model.Process) *adproto.ProcessInfo {
 		Tty:         p.TTYName,
 		Comm:        p.Comm,
 
-		ForkTime: timestamp(&p.ForkTime),
-		ExitTime: timestamp(&p.ExitTime),
-		ExecTime: timestamp(&p.ExecTime),
+		ForkTime: timestampToProto(&p.ForkTime),
+		ExitTime: timestampToProto(&p.ExitTime),
+		ExecTime: timestampToProto(&p.ExecTime),
 
 		Credentials: credentialsToProto(&p.Credentials),
 
@@ -193,7 +193,7 @@ func fileActivityNodeToProto(fan *FileActivityNode) *adproto.FileActivityNode {
 		Name:           fan.Name,
 		File:           fileEventToProto(fan.File),
 		GenerationType: string(fan.GenerationType),
-		FirstSeen:      timestamp(&fan.FirstSeen),
+		FirstSeen:      timestampToProto(&fan.FirstSeen),
 		Open:           openNodeToProto(fan.Open),
 		Children:       make([]*adproto.FileActivityNode, 0, len(fan.Children)),
 	}
@@ -263,7 +263,7 @@ func socketNodeToProto(sn *SocketNode) *adproto.SocketNode {
 	}
 }
 
-func timestamp(t *time.Time) uint64 {
+func timestampToProto(t *time.Time) uint64 {
 	if t.IsZero() {
 		return 0
 	}

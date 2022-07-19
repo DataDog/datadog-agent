@@ -33,7 +33,7 @@ func protoToActivityDump(dest *ActivityDump, ad *adproto.ActivityDump) {
 	dest.StorageRequests = make(map[dump.StorageFormat][]dump.StorageRequest)
 
 	for _, tree := range ad.Tree {
-		dest.ProcessActivityTree = append(dest.ProcessActivityTree, decodeProcessActivityNode(tree))
+		dest.ProcessActivityTree = append(dest.ProcessActivityTree, protoDecodeProcessActivityNode(tree))
 	}
 }
 
@@ -53,19 +53,19 @@ func protoMetadataToDumpMetadata(meta *adproto.Metadata) DumpMetadata {
 		DifferentiateArgs:   meta.DifferentiateArgs,
 		Comm:                meta.Comm,
 		ContainerID:         meta.ContainerId,
-		Start:               decodeTimestamp(meta.Start),
-		End:                 decodeTimestamp(meta.End),
+		Start:               protoDecodeTimestamp(meta.Start),
+		End:                 protoDecodeTimestamp(meta.End),
 		Size:                meta.Size,
 	}
 }
 
-func decodeProcessActivityNode(pan *adproto.ProcessActivityNode) *ProcessActivityNode {
+func protoDecodeProcessActivityNode(pan *adproto.ProcessActivityNode) *ProcessActivityNode {
 	if pan == nil {
 		return nil
 	}
 
 	ppan := &ProcessActivityNode{
-		Process:        decodeProcessNode(pan.Process),
+		Process:        protoDecodeProcessNode(pan.Process),
 		GenerationType: NodeGenerationType(pan.GenerationType),
 		Children:       make([]*ProcessActivityNode, 0, len(pan.Children)),
 		Files:          make(map[string]*FileActivityNode, len(pan.Files)),
@@ -74,30 +74,30 @@ func decodeProcessActivityNode(pan *adproto.ProcessActivityNode) *ProcessActivit
 	}
 
 	for _, child := range pan.Children {
-		ppan.Children = append(ppan.Children, decodeProcessActivityNode(child))
+		ppan.Children = append(ppan.Children, protoDecodeProcessActivityNode(child))
 	}
 
 	for _, fan := range pan.Files {
-		decodedFan := decodeFileActivityNode(fan)
-		ppan.Files[decodedFan.Name] = decodedFan
+		protoDecodedFan := protoDecodeFileActivityNode(fan)
+		ppan.Files[protoDecodedFan.Name] = protoDecodedFan
 	}
 
 	for _, dns := range pan.DnsNames {
-		decodedDNS := decodeDNSNode(dns)
-		if len(decodedDNS.Requests) != 0 {
-			name := decodedDNS.Requests[0].Name
-			ppan.DNSNames[name] = decodedDNS
+		protoDecodedDNS := protoDecodeDNSNode(dns)
+		if len(protoDecodedDNS.Requests) != 0 {
+			name := protoDecodedDNS.Requests[0].Name
+			ppan.DNSNames[name] = protoDecodedDNS
 		}
 	}
 
 	for _, socket := range pan.Sockets {
-		ppan.Sockets = append(ppan.Sockets, decodeProtoSocket(socket))
+		ppan.Sockets = append(ppan.Sockets, protoDecodeProtoSocket(socket))
 	}
 
 	return ppan
 }
 
-func decodeProcessNode(p *adproto.ProcessInfo) model.Process {
+func protoDecodeProcessNode(p *adproto.ProcessInfo) model.Process {
 	if p == nil {
 		return model.Process{}
 	}
@@ -110,18 +110,18 @@ func decodeProcessNode(p *adproto.ProcessInfo) model.Process {
 		PPid:        p.Ppid,
 		Cookie:      p.Cookie,
 		IsThread:    p.IsThread,
-		FileEvent:   *decodeFileEvent(p.File),
+		FileEvent:   *protoDecodeFileEvent(p.File),
 		ContainerID: p.ContainerId,
 		SpanID:      p.SpanId,
 		TraceID:     p.TraceId,
 		TTYName:     p.Tty,
 		Comm:        p.Comm,
 
-		ForkTime: decodeTimestamp(p.ForkTime),
-		ExitTime: decodeTimestamp(p.ExitTime),
-		ExecTime: decodeTimestamp(p.ExecTime),
+		ForkTime: protoDecodeTimestamp(p.ForkTime),
+		ExitTime: protoDecodeTimestamp(p.ExitTime),
+		ExecTime: protoDecodeTimestamp(p.ExecTime),
 
-		Credentials: decodeCredentials(p.Credentials),
+		Credentials: protoDecodeCredentials(p.Credentials),
 
 		ScrubbedArgv:  p.Args,
 		Argv0:         p.Argv0,
@@ -132,7 +132,7 @@ func decodeProcessNode(p *adproto.ProcessInfo) model.Process {
 	}
 }
 
-func decodeCredentials(creds *adproto.Credentials) model.Credentials {
+func protoDecodeCredentials(creds *adproto.Credentials) model.Credentials {
 	if creds == nil {
 		return model.Credentials{}
 	}
@@ -155,7 +155,7 @@ func decodeCredentials(creds *adproto.Credentials) model.Credentials {
 	}
 }
 
-func decodeFileEvent(fi *adproto.FileInfo) *model.FileEvent {
+func protoDecodeFileEvent(fi *adproto.FileInfo) *model.FileEvent {
 	if fi == nil {
 		return nil
 	}
@@ -179,29 +179,29 @@ func decodeFileEvent(fi *adproto.FileInfo) *model.FileEvent {
 	}
 }
 
-func decodeFileActivityNode(fan *adproto.FileActivityNode) *FileActivityNode {
+func protoDecodeFileActivityNode(fan *adproto.FileActivityNode) *FileActivityNode {
 	if fan == nil {
 		return nil
 	}
 
 	pfan := &FileActivityNode{
 		Name:           fan.Name,
-		File:           decodeFileEvent(fan.File),
+		File:           protoDecodeFileEvent(fan.File),
 		GenerationType: NodeGenerationType(fan.GenerationType),
-		FirstSeen:      decodeTimestamp(fan.FirstSeen),
-		Open:           decodeOpenNode(fan.Open),
+		FirstSeen:      protoDecodeTimestamp(fan.FirstSeen),
+		Open:           protoDecodeOpenNode(fan.Open),
 		Children:       make(map[string]*FileActivityNode, len(fan.Children)),
 	}
 
 	for _, child := range fan.Children {
-		node := decodeFileActivityNode(child)
+		node := protoDecodeFileActivityNode(child)
 		pfan.Children[node.Name] = node
 	}
 
 	return pfan
 }
 
-func decodeOpenNode(openNode *adproto.OpenNode) *OpenNode {
+func protoDecodeOpenNode(openNode *adproto.OpenNode) *OpenNode {
 	if openNode == nil {
 		return nil
 	}
@@ -217,7 +217,7 @@ func decodeOpenNode(openNode *adproto.OpenNode) *OpenNode {
 	return pon
 }
 
-func decodeDNSNode(dn *adproto.DNSNode) *DNSNode {
+func protoDecodeDNSNode(dn *adproto.DNSNode) *DNSNode {
 	if dn == nil {
 		return nil
 	}
@@ -227,13 +227,13 @@ func decodeDNSNode(dn *adproto.DNSNode) *DNSNode {
 	}
 
 	for _, req := range dn.Requests {
-		pdn.Requests = append(pdn.Requests, decodeDNSInfo(req))
+		pdn.Requests = append(pdn.Requests, protoDecodeDNSInfo(req))
 	}
 
 	return pdn
 }
 
-func decodeDNSInfo(ev *adproto.DNSInfo) model.DNSEvent {
+func protoDecodeDNSInfo(ev *adproto.DNSInfo) model.DNSEvent {
 	if ev == nil {
 		return model.DNSEvent{}
 	}
@@ -247,7 +247,7 @@ func decodeDNSInfo(ev *adproto.DNSInfo) model.DNSEvent {
 	}
 }
 
-func decodeProtoSocket(sn *adproto.SocketNode) *SocketNode {
+func protoDecodeProtoSocket(sn *adproto.SocketNode) *SocketNode {
 	if sn == nil {
 		return nil
 	}
@@ -261,6 +261,6 @@ func decodeProtoSocket(sn *adproto.SocketNode) *SocketNode {
 	}
 }
 
-func decodeTimestamp(nanos uint64) time.Time {
+func protoDecodeTimestamp(nanos uint64) time.Time {
 	return time.Unix(0, int64(nanos))
 }
