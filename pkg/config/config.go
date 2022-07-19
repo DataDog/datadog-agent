@@ -914,7 +914,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("external_metrics_provider.batch_window", 10)             // value in seconds. Batch the events from the Autoscalers informer to push updates to the ConfigMap (GlobalStore)
 	config.BindEnvAndSetDefault("external_metrics_provider.max_age", 120)                 // value in seconds. 4 cycles from the Autoscaler controller (up to Kubernetes 1.11) is enough to consider a metric stale
 	config.BindEnvAndSetDefault("external_metrics.aggregator", "avg")                     // aggregator used for the external metrics. Choose from [avg,sum,max,min]
-	config.BindEnvAndSetDefault("external_metrics_provider.bucket_size", 60*5)            // Window to query to get the metric from Datadog.
+	config.BindEnvAndSetDefault("external_metrics_provider.bucket_size", 60*5)            // Window (in seconds) to query to get the metric from Datadog.
 	config.BindEnvAndSetDefault("external_metrics_provider.rollup", 30)                   // Bucket size to circumvent time aggregation side effects.
 	config.BindEnvAndSetDefault("external_metrics_provider.wpa_controller", false)        // Activates the controller for Watermark Pod Autoscalers.
 	config.BindEnvAndSetDefault("external_metrics_provider.use_datadogmetric_crd", false) // Use DatadogMetric CRD with custom Datadog Queries instead of ConfigMap

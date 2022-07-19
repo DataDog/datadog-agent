@@ -170,7 +170,7 @@ func (p *Processor) QueryExternalMetric(queries []string) (processed map[string]
 		return processed, nil
 	}
 
-	bucketSize := config.Datadog.GetInt64("external_metrics_provider.bucket_size")
+	bucketSize := config.Datadog.GetInt("external_metrics_provider.bucket_size")
 	chunks := makeChunks(queries)
 	log.Tracef("List of batches %v", chunks)
 

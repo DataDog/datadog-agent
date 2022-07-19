@@ -60,7 +60,7 @@ const (
 
 // queryDatadogExternal converts the metric name and labels from the Ref format into a Datadog metric.
 // It returns the last value for a bucket of 5 minutes,
-func (p *Processor) queryDatadogExternal(ddQueries []string, bucketSize int64) (map[string]Point, error) {
+func (p *Processor) queryDatadogExternal(ddQueries []string, bucketSize int) (map[string]Point, error) {
 	ddQueriesLen := len(ddQueries)
 	if ddQueriesLen == 0 {
 		log.Tracef("No query in input - nothing to do")
@@ -68,7 +68,7 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, bucketSize int64) (
 	}
 
 	query := strings.Join(ddQueries, ",")
-	seriesSlice, err := p.datadogClient.QueryMetrics(time.Now().Unix()-bucketSize, time.Now().Unix(), query)
+	seriesSlice, err := p.datadogClient.QueryMetrics(time.Now().Unix()-int64(bucketSize), time.Now().Unix(), query)
 	if err != nil {
 		ddRequests.Inc("error", le.JoinLeaderValue)
 		return nil, log.Errorf("Error while executing metric query %s: %s", query, err)
