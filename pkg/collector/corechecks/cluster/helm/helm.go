@@ -196,7 +196,7 @@ func (hc *HelmCheck) setupInformers() error {
 func sharedInformerFactory(apiClient *apiserver.APIClient) informers.SharedInformerFactory {
 	return informers.NewSharedInformerFactoryWithOptions(
 		apiClient.Cl,
-		time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))*time.Second,
+		time.Duration(config.Datadog.GetInt("kubernetes_informers_resync_period"))*time.Second,
 		informers.WithTweakListOptions(func(opts *metav1.ListOptions) {
 			opts.LabelSelector = labelSelector
 		}),

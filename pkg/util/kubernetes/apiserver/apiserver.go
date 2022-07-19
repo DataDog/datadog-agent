@@ -227,7 +227,7 @@ func getKubeVPAClient(timeout time.Duration) (vpa.Interface, error) {
 
 func getWPAInformerFactory() (dynamicinformer.DynamicSharedInformerFactory, error) {
 	// default to 300s
-	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
+	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt("kubernetes_informers_resync_period"))
 	client, err := getKubeDynamicClient(0) // No timeout for the Informers, to allow long watch.
 	if err != nil {
 		log.Infof("Could not get apiserver client: %v", err)
@@ -247,7 +247,7 @@ func getDDClient(timeout time.Duration) (dynamic.Interface, error) {
 
 func getDDInformerFactory() (dynamicinformer.DynamicSharedInformerFactory, error) {
 	// default to 300s
-	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
+	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt("kubernetes_informers_resync_period"))
 	client, err := getKubeDynamicClient(0) // No timeout for the Informers, to allow long watch.
 	if err != nil {
 		log.Infof("Could not get apiserver client: %v", err)
@@ -257,7 +257,7 @@ func getDDInformerFactory() (dynamicinformer.DynamicSharedInformerFactory, error
 }
 
 func getInformerFactory() (informers.SharedInformerFactory, error) {
-	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
+	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt("kubernetes_informers_resync_period"))
 	client, err := GetKubeClient(0) // No timeout for the Informers, to allow long watch.
 	if err != nil {
 		log.Errorf("Could not get apiserver client: %v", err)
@@ -267,7 +267,7 @@ func getInformerFactory() (informers.SharedInformerFactory, error) {
 }
 
 func getInformerFactoryWithOption(options ...informers.SharedInformerOption) (informers.SharedInformerFactory, error) {
-	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
+	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt("kubernetes_informers_resync_period"))
 	client, err := GetKubeClient(0) // No timeout for the Informers, to allow long watch.
 	if err != nil {
 		log.Errorf("Could not get apiserver client: %v", err)
