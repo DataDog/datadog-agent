@@ -104,11 +104,11 @@ func isOSHostnameUsable(ctx context.Context) (osHostnameUsable bool) {
 	}
 
 	// Check UTS namespace from docker
-    // TODO: Revisit when we introduce support for Windows privileged containers
-    if runtime.GOOS == "windows" {
-        return false
-    }
-	
+	// TODO: Revisit when we introduce support for Windows privileged containers
+	if runtime.GOOS == "windows" {
+		return false
+	}
+
 	utsMode, err := docker.GetAgentUTSMode(ctx)
 	if err == nil && (utsMode != containers.HostUTSMode && utsMode != containers.UnknownUTSMode) {
 		log.Debug("Agent is running in a docker container without host UTS mode: OS-provided hostnames cannot be used for hostname resolution.")
