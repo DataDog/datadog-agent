@@ -289,27 +289,6 @@ func (c ConnectionStats) IsShortLived() bool {
 	return c.Last.TCPEstablished >= 1 && c.Last.TCPClosed >= 1
 }
 
-func (c *ConnectionStats) mergeStats(other ConnectionStats) {
-	for cookie, counters := range other.Monotonic {
-		if m, ok := c.Monotonic[cookie]; ok {
-			c.Monotonic[cookie] = m.Max(counters)
-			continue
-		}
-
-		c.Monotonic[cookie] = counters
-	}
-
-	if other.LastUpdateEpoch > c.LastUpdateEpoch {
-		c.LastUpdateEpoch = other.LastUpdateEpoch
-	}
-
-	if c.IPTranslation != nil || other.IPTranslation != nil {
-		c.IPTranslation = nil
-	}
-
-	c.Last = c.Last.Add(other.Last)
-}
-
 // MonotonicSum returns the sum of all the monotonic stats
 func (c ConnectionStats) MonotonicSum() StatCounters {
 	var stc StatCounters
@@ -517,6 +496,22 @@ func (s StatCounters) Add(other StatCounters) StatCounters {
 		TCPClosed:      s.TCPClosed + other.TCPClosed,
 		TCPEstablished: s.TCPEstablished + other.TCPEstablished,
 	}
+}
+
+func maxUint64(a, b uint64) uint64 {
+	if a > b {
+		return a
+	}
+
+	return b
+}
+
+func maxUint32(a, b uint32) uint32 {
+	if a > b {
+		return a
+	}
+
+	return b
 }
 
 // Max returns max(s, other)

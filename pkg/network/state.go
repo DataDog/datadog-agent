@@ -333,7 +333,7 @@ func getConnsByKey(conns []ConnectionStats, buf []byte) map[string]*ConnectionSt
 		}
 
 		log.Debugf("duplicate connection in collection: key: %s, c1: %+v, c2: %+v", BeautifyKey(key), *c, conns[i])
-		c.mergeStats(conns[i])
+		mergeConnectionStats(c, &conns[i])
 	}
 
 	return connsByKey
@@ -350,11 +350,10 @@ func (ns *networkState) StoreClosedConnections(closed []ConnectionStats) {
 func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 	for _, client := range ns.clients {
 		for _, c := range conns {
-			key := c.ByteKey(ns.buf)
+			key := string(c.ByteKey(ns.buf))
 
-			i, ok := client.closedConnectionsKeys[string(key)]
-			if ok {
-				client.closedConnections[i].mergeStats(c)
+			if i, ok := client.closedConnectionsKeys[key]; ok {
+				mergeConnectionStats(&client.closedConnections[i], &c)
 				continue
 			}
 
@@ -364,7 +363,7 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 			}
 
 			client.closedConnections = append(client.closedConnections, c)
-			client.closedConnectionsKeys[string(key)] = len(client.closedConnections) - 1
+			client.closedConnectionsKeys[key] = len(client.closedConnections) - 1
 		}
 	}
 }
@@ -500,7 +499,7 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 
 		var activeConn *ConnectionStats
 		if activeConn = active[key]; activeConn != nil {
-			closedConn.mergeStats(*activeConn)
+			mergeConnectionStats(closedConn, activeConn)
 			ns.createStatsForKey(client, key)
 		}
 
@@ -521,22 +520,6 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 
 		*buffer.Next() = *c
 	}
-}
-
-func maxUint64(a, b uint64) uint64 {
-	if a > b {
-		return a
-	}
-
-	return b
-}
-
-func maxUint32(a, b uint32) uint32 {
-	if a > b {
-		return a
-	}
-
-	return b
 }
 
 func (ns *networkState) updateConnWithStats(client *client, key string, c *ConnectionStats) {
@@ -724,5 +707,25 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 			// in system-probe.
 			conn.IPTranslation = nil
 		}
+	}
+}
+
+func mergeConnectionStats(a, b *ConnectionStats) {
+	for cookie, bm := range b.Monotonic {
+		if am, ok := a.Monotonic[cookie]; ok {
+			a.Monotonic[cookie] = am.Max(bm)
+			continue
+		}
+
+		a.Monotonic[cookie] = bm
+	}
+
+	if b.LastUpdateEpoch > a.LastUpdateEpoch {
+		a.LastUpdateEpoch = b.LastUpdateEpoch
+	}
+
+	if (a.IPTranslation != nil && b.IPTranslation != nil && *a.IPTranslation != *b.IPTranslation) ||
+		(a.IPTranslation != nil || b.IPTranslation != nil) {
+		a.IPTranslation = nil
 	}
 }
