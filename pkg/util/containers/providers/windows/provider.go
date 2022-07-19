@@ -81,7 +81,7 @@ func (mp *provider) Prefetch() error {
 	parentPID := os.Getppid()
 
 	containers := make(map[string]containerBundle, len(rawContainers))
-	var containersLock = sync.RWMutex{}
+	var containersLock = sync.Mutex{}
 	var wg sync.WaitGroup
 	// On Windows fetching the info on docker containers can be slow.
 	// On a host with ~100 hosts running, this can easily take up more than 30s,
