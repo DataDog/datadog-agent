@@ -8,6 +8,7 @@ package remote
 import (
 	"context"
 	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"sync"
 	"time"
@@ -230,7 +231,7 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 		for alg, hash := range f.Hashes {
 			pbHashes = append(pbHashes, &pbgo.TargetFileHash{
 				Algorithm: alg,
-				Hash:      hash,
+				Hash:      hex.EncodeToString(hash),
 			})
 		}
 		pbCachedFiles = append(pbCachedFiles, &pbgo.TargetFileMeta{
