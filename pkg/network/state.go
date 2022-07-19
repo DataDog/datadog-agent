@@ -631,22 +631,18 @@ func (ns *networkState) DumpState(clientID string) map[string]interface{} {
 	data := map[string]interface{}{}
 	if client, ok := ns.clients[clientID]; ok {
 		for connKey, s := range client.stats {
-			var totalSent, totalRecv, totalRetransmits, totalTCPEstablished, totalTCPClosed uint64
-			for _, st := range s {
-				totalSent += st.SentBytes
-				totalRecv += st.RecvBytes
-				totalRetransmits += uint64(st.Retransmits)
-				totalTCPClosed += uint64(st.TCPClosed)
-				totalTCPEstablished += uint64(st.TCPEstablished)
+			byCookie := map[uint32]interface{}{}
+			for cookie, st := range s {
+				byCookie[cookie] = map[string]uint64{
+					"total_sent":            st.SentBytes,
+					"total_recv":            st.RecvBytes,
+					"total_retransmits":     uint64(st.Retransmits),
+					"total_tcp_established": uint64(st.TCPEstablished),
+					"total_tcp_closed":      uint64(st.TCPClosed),
+				}
 			}
 
-			data[BeautifyKey(connKey)] = map[string]uint64{
-				"total_sent":            totalSent,
-				"total_recv":            totalRecv,
-				"total_retransmits":     totalRetransmits,
-				"total_tcp_established": totalTCPEstablished,
-				"total_tcp_closed":      totalTCPClosed,
-			}
+			data[BeautifyKey(connKey)] = byCookie
 		}
 	}
 	return data
