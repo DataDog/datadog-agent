@@ -147,28 +147,28 @@ func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data 
 
 	for _, n := range p.Sockets {
 		data.Edges = append(data.Edges, edge{
-			Link:  p.GetID().String() + " -> " + p.GetID().String() + n.GetID().String(),
+			Link:  fmt.Sprintf("%s -> %s", p.GetID(), NewNodeIDPair(p.GetID(), n.GetID())),
 			Color: socketColor,
 		})
 		ad.prepareSocketNode(n, data, p.GetID())
 	}
 	for _, n := range p.DNSNames {
 		data.Edges = append(data.Edges, edge{
-			Link:  p.GetID().String() + " -> " + p.GetID().String() + n.GetID().String(),
+			Link:  fmt.Sprintf("%s -> %s", p.GetID(), NewNodeIDPair(p.GetID(), n.GetID())),
 			Color: dnsColor,
 		})
 		ad.prepareDNSNode(n, data, p.GetID())
 	}
 	for _, f := range p.Files {
 		data.Edges = append(data.Edges, edge{
-			Link:  p.GetID().String() + " -> " + p.GetID().String() + f.GetID().String(),
+			Link:  fmt.Sprintf("%s -> %s", p.GetID(), NewNodeIDPair(p.GetID(), f.GetID())),
 			Color: fileColor,
 		})
 		ad.prepareFileNode(f, data, "", p.GetID())
 	}
 	for _, child := range p.Children {
 		data.Edges = append(data.Edges, edge{
-			Link:  p.GetID().String() + " -> " + child.GetID().String(),
+			Link:  fmt.Sprintf("%s -> %s", p.GetID(), child.GetID()),
 			Color: processColor,
 		})
 		ad.prepareProcessActivityNode(child, data)
