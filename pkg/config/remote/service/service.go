@@ -7,6 +7,7 @@ package service
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"path"
 	"sync"
@@ -383,7 +384,11 @@ func (s *Service) getTargetFiles(products []rdata.Product, cachedTargetFiles []*
 	for _, cachedTarget := range cachedTargetFiles {
 		hashes := make(data.Hashes)
 		for _, hash := range cachedTarget.Hashes {
-			hashes[hash.Algorithm] = hash.Hash
+			h, err := hex.DecodeString(hash.Hash)
+			if err != nil {
+				return nil, err
+			}
+			hashes[hash.Algorithm] = h
 		}
 		cachedTargets[cachedTarget.Path] = data.FileMeta{
 			Hashes: hashes,
