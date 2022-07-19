@@ -101,7 +101,7 @@ type APIClient struct {
 
 func initAPIClient() {
 	globalAPIClient = &APIClient{
-		timeoutSeconds: config.Datadog.GetInt64("kubernetes_apiserver_client_timeout"),
+		timeoutSeconds: int64(config.Datadog.GetInt("kubernetes_apiserver_client_timeout")),
 	}
 	globalAPIClient.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 		Name:              "apiserver",
