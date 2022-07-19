@@ -41,7 +41,7 @@ func NewConfig(admissionV1Enabled, namespaceSelectorEnabled bool) Config {
 		namespaceSelectorEnabled: namespaceSelectorEnabled,
 		svcName:                  config.Datadog.GetString("admission_controller.service_name"),
 		svcPort:                  int32(443),
-		timeout:                  config.Datadog.GetInt32("admission_controller.timeout_seconds"),
+		timeout:                  config.Datadog.GetInt("admission_controller.timeout_seconds"),
 		failurePolicy:            config.Datadog.GetString("admission_controller.failure_policy"),
 		reinvocationPolicy:       config.Datadog.GetString("admission_controller.reinvocation_policy"),
 	}
