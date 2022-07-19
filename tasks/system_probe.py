@@ -829,12 +829,16 @@ def generate_cgo_types(ctx, windows=is_windows, replace_absolutes=True):
             "./pkg/network/ebpf/kprobe_types.go",
         ]
 
+    env = {}
+    if not is_windows:
+        env["CC"] = "clang"
+
     for f in def_files:
         fdir, file = os.path.split(f)
         base, _ = os.path.splitext(file)
         with ctx.cd(fdir):
             output_file = f"{base}_{platform}.go"
-            ctx.run(f"go tool cgo -godefs -- -fsigned-char {file} > {output_file}", env={"CC": "clang"})
+            ctx.run(f"go tool cgo -godefs -- -fsigned-char {file} > {output_file}", env=env)
             ctx.run(f"gofmt -w -s {output_file}")
             if replace_absolutes:
                 # replace absolute path with relative ones in generated file
