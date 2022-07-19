@@ -9,7 +9,6 @@
 package probe
 
 import (
-	"sync"
 	"time"
 
 	adproto "github.com/DataDog/datadog-agent/pkg/security/adproto/v1"
@@ -22,7 +21,6 @@ func protoToActivityDump(dest *ActivityDump, ad *adproto.ActivityDump) {
 		return
 	}
 
-	dest.Mutex = &sync.Mutex{}
 	dest.Host = ad.Host
 	dest.Service = ad.Service
 	dest.Source = ad.Source
