@@ -4,4 +4,8 @@
 
 package runtime
 
+<<<<<<< HEAD
 var RuntimeSecurity = NewRuntimeAsset("runtime-security.c", "fe8dda5ddbc9b15c6e610e3388a9b9f13193cd456d1be954d8ed1ac6da9f4146")
+=======
+var RuntimeSecurity = NewRuntimeAsset("runtime-security.c", "69f8cec57368b10cb8c73c37fe8c02297fcccd23e5c49100ef954c322638cc34")
+>>>>>>> 9fcbad169 (progress)
