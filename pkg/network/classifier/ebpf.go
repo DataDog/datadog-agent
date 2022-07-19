@@ -18,16 +18,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/ebpf-manager"
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 )
 
 const (
-	PROTO_PROG_TLS = 0 // protoProgsMap[0] pointing to socket/proto_tls tail_call
-	protoProgsMap  = "proto_progs"
-	tlsInFlightMap = "tls_in_flight"
-	tlsProtoFilter = "socket/proto_tls"
+	PROTO_PROG_TLS   = 0 // protoProgsMap[0] pointing to socket/proto_tls tail_call
+	protoProgsMap    = "proto_progs"
+	protoInFlightMap = "proto_in_flight"
+	tlsProtoFilter   = "socket/proto_tls"
 )
 
 type ebpfProgram struct {
@@ -63,7 +63,7 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 			{Name: string(probes.ConnMap)},
 			{Name: string(probes.ClassifierTelemetryMap)},
 			{Name: protoProgsMap},
-			{Name: tlsInFlightMap},
+			{Name: protoInFlightMap},
 		},
 		Probes: []*manager.Probe{
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.SocketClassifierFilter), EBPFFuncName: "socket__classifier_filter"}},
@@ -92,7 +92,7 @@ func (e *ebpfProgram) Init(connMap *ebpf.Map, telemetryMap *ebpf.Map) error {
 			string(probes.TelemetryMap): telemetryMap,
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
-			tlsInFlightMap: {
+			protoInFlightMap: {
 				Type:       ebpf.Hash,
 				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
 				EditorFlag: manager.EditMaxEntries,
