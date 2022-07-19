@@ -31,18 +31,6 @@ struct bpf_map_def SEC("maps/tcp_stats") tcp_stats = {
 /* Will hold the tcp/udp close events
  * The keys are the cpu number and the values a perf file descriptor for a perf event
  */
-struct bpf_map_def SEC("maps/tcp_connect_sock") tcp_connect_sock = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(struct sock*),
-    .max_entries = 1024, // This will get overridden at runtime
-    .pinning = 0,
-    .namespace = "",
-};
-
-/* Will hold the tcp/udp close events
- * The keys are the cpu number and the values a perf file descriptor for a perf event
- */
 struct bpf_map_def SEC("maps/conn_close_event") conn_close_event = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(__u32),

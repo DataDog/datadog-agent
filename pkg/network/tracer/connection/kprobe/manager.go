@@ -30,8 +30,7 @@ var mainProbes = map[probes.ProbeName]string{
 	probes.TCPCleanupRBuf:       "kprobe__tcp_cleanup_rbuf",
 	probes.TCPClose:             "kprobe__tcp_close",
 	probes.TCPCloseReturn:       "kretprobe__tcp_close",
-	probes.TCPConnect:           "kprobe__tcp_connect",
-	probes.TCPConnectReturn:     "kretprobe__tcp_connect",
+	probes.TCPFinishConnect:     "kprobe__tcp_finish_connect",
 	probes.TCPSetState:          "kprobe__tcp_set_state",
 	probes.IPMakeSkb:            "kprobe__ip_make_skb",
 	probes.IPMakeSkbReturn:      "kretprobe__ip_make_skb",
@@ -72,7 +71,6 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 		Maps: []*manager.Map{
 			{Name: string(probes.ConnMap)},
 			{Name: string(probes.TcpStatsMap)},
-			{Name: string(probes.TcpConnectSockMap)},
 			{Name: string(probes.ConnCloseBatchMap)},
 			{Name: "udp_recv_sock"},
 			{Name: "udpv6_recv_sock"},

@@ -456,37 +456,12 @@ int kprobe__tcp_set_state(struct pt_regs* ctx) {
     return 0;
 }
 
-SEC("kprobe/tcp_connect")
-int kprobe__tcp_connect(struct pt_regs* ctx) {
-    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+SEC("kprobe/tcp_finish_connect")
+int kprobe__tcp_finish_connect(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("kprobe/tcp_finish_connect: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
-    bpf_map_update_elem(&tcp_connect_sock, &pid_tgid, &sk, BPF_ANY);
-
-    return 0;
-}
-
-SEC("kretprobe/tcp_connect")
-int kretprobe__tcp_connect(struct pt_regs* ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("kretprobe/tcp_connect: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
-
-    struct sock **skpp = bpf_map_lookup_elem(&tcp_connect_sock, &pid_tgid);
-    if (!skpp) {
-        return 0;
-    }
-
-    struct sock *skp = *skpp;
-    bpf_map_delete_elem(&tcp_connect_sock, &pid_tgid);
-    if (!skp) {
-        return 0;
-    }
-
-    // We only trace if the connection worked and is established
-    int rc = PT_REGS_RC(ctx);
-    if (rc != 0) {
-        return 0;
-    }
+    struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
