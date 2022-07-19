@@ -785,6 +785,7 @@ func (ad *ActivityDump) Decode(inputFile string) error {
 	return ad.DecodeFromReader(f, format)
 }
 
+// DecodeFromReader decodes an activity dump from a reader with the provided format
 func (ad *ActivityDump) DecodeFromReader(reader io.Reader, format dump.StorageFormat) error {
 	switch format {
 	case dump.MSGP:
