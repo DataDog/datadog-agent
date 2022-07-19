@@ -29,6 +29,45 @@ var (
 	}
 )
 
+func warnOnIncompatibleListeners(listeners []config.Listeners) int {
+	incompatibilitiesFound := 0
+	for i, existingListener := range listeners {
+		incompatibleWithExistingListener := incompatibleListeners[existingListener.Name]
+
+		for j, listener := range listeners {
+			if i == j {
+				continue
+			}
+
+			if _, found := incompatibleWithExistingListener[listener.Name]; found {
+				incompatibilitiesFound++
+				log.Warnf("Listener %s is incompatible with listener %s, but both are present.\n", listener.Name, existingListener.Name)
+			}
+		}
+	}
+
+	return incompatibilitiesFound
+}
+
+func warnOnIncompatibleProviders(providers map[string]config.ConfigurationProviders) int {
+	incompatibilitiesFound := 0
+	for providerName, _ := range providers {
+		incompatibleWithProvider := incompatibleListeners[providerName]
+
+		for otherProviderName, _ := range providers {
+			if providerName == otherProviderName {
+				continue
+			}
+			if _, found := incompatibleWithProvider[otherProviderName]; found {
+				incompatibilitiesFound++
+				log.Warnf("Provider %s is incompatible with provider %s, but both are present.\n", providerName, otherProviderName)
+			}
+		}
+	}
+
+	return incompatibilitiesFound
+}
+
 func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaScheduler) *autodiscovery.AutoConfig {
 	ad := autodiscovery.NewAutoConfig(metaScheduler)
 	providers.InitConfigFilesReader(confSearchPaths)
@@ -88,6 +127,7 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 		log.Errorf("Error while reading 'config_providers' settings: %v", err)
 	}
 
+	warnOnIncompatibleProviders(uniqueConfigProviders)
 	// Adding all found providers
 	for _, cp := range uniqueConfigProviders {
 		factory, found := providers.ProviderCatalog[cp.Name]
@@ -175,6 +215,7 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 			listeners[i].SetEnabledProviders(providersSet)
 		}
 
+		warnOnIncompatibleListeners(listeners)
 		ad.AddListeners(listeners)
 	} else {
 		log.Errorf("Error while reading 'listeners' settings: %v", err)
