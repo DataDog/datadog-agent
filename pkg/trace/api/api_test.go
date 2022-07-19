@@ -414,7 +414,7 @@ func TestReceiverDecodingError(t *testing.T) {
 		assert.NoError(err)
 		resp.Body.Close()
 		assert.Equal(400, resp.StatusCode)
-		assert.EqualValues(0, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError)
+		assert.EqualValues(0, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError.Load())
 	})
 
 	t.Run("with-header", func(t *testing.T) {
@@ -428,7 +428,7 @@ func TestReceiverDecodingError(t *testing.T) {
 		assert.NoError(err)
 		resp.Body.Close()
 		assert.Equal(400, resp.StatusCode)
-		assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError)
+		assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError.Load())
 	})
 }
 
@@ -459,7 +459,7 @@ func TestReceiverUnexpectedEOF(t *testing.T) {
 
 	resp.Body.Close()
 	assert.Equal(400, resp.StatusCode)
-	assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.5"}).TracesDropped.EOF)
+	assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.5"}).TracesDropped.EOF.Load())
 }
 
 func TestTraceCount(t *testing.T) {
@@ -761,8 +761,8 @@ func TestHandleTraces(t *testing.T) {
 	for _, lang := range langs {
 		ts, ok := rs.Stats[info.Tags{Lang: lang, EndpointVersion: "v0.4"}]
 		assert.True(ok)
-		assert.Equal(int64(20), ts.TracesReceived)
-		assert.Equal(int64(61822), ts.TracesBytes)
+		assert.Equal(int64(20), ts.TracesReceived.Load())
+		assert.Equal(int64(61822), ts.TracesBytes.Load())
 	}
 	// make sure we have all our languages registered
 	assert.Equal("C#|go|java|python|ruby", receiver.Languages())

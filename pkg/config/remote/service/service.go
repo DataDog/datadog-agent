@@ -442,5 +442,65 @@ func validateRequest(request *pbgo.ClientGetConfigsRequest) error {
 		return status.Error(codes.InvalidArgument, "agents only support remote config updates from tracer or agent at this time")
 	}
 
+	if request.Client.Id == "" {
+		return status.Error(codes.InvalidArgument, "client.id is a required field for client config update requests")
+	}
+
+	// Validate tracer-specific fields
+	if request.Client.IsTracer {
+		if request.Client.ClientTracer == nil {
+			return status.Error(codes.InvalidArgument, "client.client_tracer must be set if client.is_tracer is true")
+		}
+		if request.Client.ClientAgent != nil {
+			return status.Error(codes.InvalidArgument, "client.client_agent must not be set if client.is_tracer is true")
+		}
+
+		clientTracer := request.Client.ClientTracer
+
+		if request.Client.Id == clientTracer.RuntimeId {
+			return status.Error(codes.InvalidArgument, "client.id must be different from client.client_tracer.runtime_id")
+		}
+
+		if request.Client.ClientTracer.Language == "" {
+			return status.Error(codes.InvalidArgument, "client.client_tracer.language is a required field for tracer client config update requests")
+		}
+
+	}
+
+	// Validate agent-specific fields
+	if request.Client.IsAgent {
+		if request.Client.ClientAgent == nil {
+			return status.Error(codes.InvalidArgument, "client.client_agent must be set if client.is_agent is true")
+		}
+		if request.Client.ClientTracer != nil {
+			return status.Error(codes.InvalidArgument, "client.client_tracer must not be set if client.is_agent is true")
+		}
+	}
+
+	// Validate cached target files fields
+	for targetFileIndex, targetFile := range request.CachedTargetFiles {
+		if targetFile.Path == "" {
+			return status.Errorf(codes.InvalidArgument, "cached_target_files[%d].path is a required field for client config update requests", targetFileIndex)
+		}
+		_, err := rdata.ParseConfigPath(targetFile.Path)
+		if err != nil {
+			return status.Errorf(codes.InvalidArgument, "cached_target_files[%d].path is not a valid path: %s", targetFileIndex, err.Error())
+		}
+		if targetFile.Length == 0 {
+			return status.Errorf(codes.InvalidArgument, "cached_target_files[%d].length must be >= 1 (no empty file allowed)", targetFileIndex)
+		}
+		if len(targetFile.Hashes) == 0 {
+			return status.Error(codes.InvalidArgument, "cached_target_files[%d].hashes is a required field for client config update requests")
+		}
+		for hashIndex, hash := range targetFile.Hashes {
+			if hash.Algorithm == "" {
+				return status.Errorf(codes.InvalidArgument, "cached_target_files[%d].hashes[%d].algorithm is a required field for client config update requests", targetFileIndex, hashIndex)
+			}
+			if len(hash.Hash) == 0 {
+				return status.Errorf(codes.InvalidArgument, "cached_target_files[%d].hashes[%d].hash is a required field for client config update requests", targetFileIndex, hashIndex)
+			}
+		}
+	}
+
 	return nil
 }

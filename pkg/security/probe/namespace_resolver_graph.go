@@ -14,7 +14,7 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 var (
@@ -66,7 +66,7 @@ func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDu
 	for _, netns := range dump {
 		// create namespace node
 		netnsNode := node{
-			ID:    utils.RandString(10),
+			ID:    eval.RandString(10),
 			Label: fmt.Sprintf("%v [fd:%d][handle:%v]", netns.NsID, netns.HandleFD, netns.HandlePath),
 			Color: namespaceColor,
 			Shape: namespaceShape,
@@ -82,7 +82,7 @@ func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDu
 		// create active and queued devices nodes
 		for _, dev := range netns.Devices {
 			devNode := node{
-				ID:        utils.RandString(10),
+				ID:        eval.RandString(10),
 				Label:     fmt.Sprintf("%s [%d]", dev.IfName, dev.IfIndex),
 				FillColor: activeDeviceColor,
 				Color:     deviceColor,
@@ -99,7 +99,7 @@ func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDu
 		}
 		for _, dev := range netns.DevicesInQueue {
 			devNode := node{
-				ID:        utils.RandString(10),
+				ID:        eval.RandString(10),
 				Label:     fmt.Sprintf("%s [%d]", dev.IfName, dev.IfIndex),
 				FillColor: queuedDeviceColor,
 				Color:     deviceColor,

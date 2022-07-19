@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -808,8 +809,16 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.use_port_443", false)
 	// increase the read buffer size of the UDP sockets:
 	config.BindEnvAndSetDefault("logs_config.frame_size", 9000)
+
 	// increase the number of files that can be tailed in parallel:
-	config.BindEnvAndSetDefault("logs_config.open_files_limit", 100)
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
+		// The OS max for windows is 512, and the default limit on darwin is 256.
+		// This is configurable per process on darwin with `ulimit -n` or a launchDaemon config.
+		config.BindEnvAndSetDefault("logs_config.open_files_limit", 200)
+	} else {
+		// The OS default for most linux distributions is 1024
+		config.BindEnvAndSetDefault("logs_config.open_files_limit", 500)
+	}
 	// add global processing rules that are applied on all logs
 	config.BindEnv("logs_config.processing_rules")
 	// enforce the agent to use files to collect container logs on kubernetes environment
@@ -1007,6 +1016,8 @@ func InitConfig(config Config) {
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
+	config.BindEnvAndSetDefault("inventories_configuration_enabled", true)
+	// when updating the default here also update pkg/metadata/inventories/README.md
 	config.BindEnvAndSetDefault("inventories_max_interval", DefaultInventoriesMaxInterval) // integer seconds
 	config.BindEnvAndSetDefault("inventories_min_interval", DefaultInventoriesMinInterval) // integer seconds
 
@@ -1233,6 +1244,44 @@ func findUnknownKeys(config Config) []string {
 	return unknownKeys
 }
 
+func findUnexpectedUnicode(config Config) []string {
+	messages := make([]string, 0)
+	checkAndRecordString := func(str string, prefix string) {
+		if res := FindUnexpectedUnicode(str); len(res) != 0 {
+			for _, detected := range res {
+				msg := fmt.Sprintf("%s - Unexpected unicode %s codepoint '%U' detected at byte position %v", prefix, detected.reason, detected.codepoint, detected.position)
+				messages = append(messages, msg)
+			}
+		}
+	}
+
+	var visitElement func(string, interface{})
+	visitElement = func(key string, element interface{}) {
+		switch elementValue := element.(type) {
+		case string:
+			checkAndRecordString(elementValue, fmt.Sprintf("For key '%s', configuration value string '%s'", key, elementValue))
+		case []string:
+			for _, s := range elementValue {
+				checkAndRecordString(s, fmt.Sprintf("For key '%s', configuration value string '%s'", key, s))
+			}
+		case []interface{}:
+			for _, listItem := range elementValue {
+				visitElement(key, listItem)
+			}
+		}
+	}
+
+	allKeys := config.AllKeys()
+	for _, key := range allKeys {
+		checkAndRecordString(key, fmt.Sprintf("Configuration key string '%s'", key))
+		if unknownValue := config.Get(key); unknownValue != nil {
+			visitElement(key, unknownValue)
+		}
+	}
+
+	return messages
+}
+
 func findUnknownEnvVars(config Config, environ []string) []string {
 	var unknownVars []string
 
@@ -1308,6 +1357,10 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 
 	for _, v := range findUnknownEnvVars(config, os.Environ()) {
 		log.Warnf("Unknown environment variable: %v", v)
+	}
+
+	for _, warningMsg := range findUnexpectedUnicode(config) {
+		log.Warnf(warningMsg)
 	}
 
 	if loadSecret {

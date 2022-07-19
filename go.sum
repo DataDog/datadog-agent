@@ -154,8 +154,8 @@ github.com/DataDog/ebpf-manager v0.0.0-20220627174516-12adb97b679e h1:MsSGtI99s8
 github.com/DataDog/ebpf-manager v0.0.0-20220627174516-12adb97b679e/go.mod h1:8bqjDI64T80GHECNIJp9nY4+0mgX4Tc+Kcdk3p0NeIA=
 github.com/DataDog/extendeddaemonset v0.7.1-0.20220530183123-9c60ea5abbc6 h1:XDD6SEIEpe5CAa7esIWlgdXLQgLKN4hvPw+Wd8pJQFU=
 github.com/DataDog/extendeddaemonset v0.7.1-0.20220530183123-9c60ea5abbc6/go.mod h1:YxkO6rhI37nstfxBAdk4fVi5kheKJRMk9AtqDdl/mSQ=
-github.com/DataDog/gohai v0.0.0-20220607152458-544032c46ded h1:n6a9LvGX2CkDiecmdwUpapbhSXzu73zEmQITIysvkq4=
-github.com/DataDog/gohai v0.0.0-20220607152458-544032c46ded/go.mod h1:rwUdBVqBxO9kAvJxe9OGM/gmbvkU8vr4Zo8Jy/0FOhI=
+github.com/DataDog/gohai v0.0.0-20220718130825-1776f9beb9cc h1:gtlKB6B50/UEuFm1LeMn0R5a+tubx69OecPqxfXJDmU=
+github.com/DataDog/gohai v0.0.0-20220718130825-1776f9beb9cc/go.mod h1:oyPC4jWHHjVVNjslDAKp8EqfQBaSmODjHt4HCX+C+9Q=
 github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321/go.mod h1:tGQp6XG4XpOyy67WG/YWXVxzOY6LejK35e8KcQhtRIQ=
 github.com/DataDog/gopsutil v1.1.0 h1:qjgSaWYcafJsbYW6FqSvzwuJcTUyQek5LzQgM+1knNc=
 github.com/DataDog/gopsutil v1.1.0/go.mod h1:glkxNt/qRu9lnpmUEQwOIAXW+COWDTBOTEAHqbgBPts=
@@ -170,8 +170,8 @@ github.com/DataDog/nikos v1.8.0/go.mod h1:s/Eta3daH5lqW4tLNNweLpD+Y/xPT2O2PAVfMf
 github.com/DataDog/sketches-go v1.0.0/go.mod h1:O+XkJHWk9w4hDwY2ZUDU31ZC9sNYlYo8DiFsxjYeo1k=
 github.com/DataDog/sketches-go v1.4.1 h1:j5G6as+9FASM2qC36lvpvQAj9qsv/jUs3FtO8CwZNAY=
 github.com/DataDog/sketches-go v1.4.1/go.mod h1:xJIXldczJyyjnbDop7ZZcLxJdV3+7Kra7H1KMgpgkLk=
-github.com/DataDog/viper v1.9.0 h1:9Ha1yJebecIKtboH/GXUM3brfoMofvdd8BlMck8Cs8Q=
-github.com/DataDog/viper v1.9.0/go.mod h1:Gx7+/WONkbQIh3ac52KqcFTzipQ1OYHhCQGWAgHlzpc=
+github.com/DataDog/viper v1.11.0 h1:mwpluIgZL4fGd2p76prLES6SAMjeowxh+Z3nOkb5UyQ=
+github.com/DataDog/viper v1.11.0/go.mod h1:Gx7+/WONkbQIh3ac52KqcFTzipQ1OYHhCQGWAgHlzpc=
 github.com/DataDog/watermarkpodautoscaler v0.5.0-rc.1.0.20220530183114-687bca6395e8 h1:2+uhTsVJvKbLIIGJxRoI3NTSPB9rNWqmLqFAqgPWkPM=
 github.com/DataDog/watermarkpodautoscaler v0.5.0-rc.1.0.20220530183114-687bca6395e8/go.mod h1:AvpNq6Yp+0VfeNNCmpH2pU4htkxfbSlhuDS2JaSfU1M=
 github.com/DataDog/zstd v1.3.5/go.mod h1:1jcaCB/ufaK+sKp1NBhlGmpz41jOoPQ35bpF36t7BBo=
@@ -593,8 +593,8 @@ github.com/elazarl/goproxy v0.0.0-20170405201442-c4fc26588b6e/go.mod h1:/Zj4wYkg
 github.com/elazarl/goproxy v0.0.0-20180725130230-947c36da3153/go.mod h1:/Zj4wYkgs4iZTTu3o/KG3Itv/qCCa8VVMlb3i9OVuzc=
 github.com/emicklei/go-restful v0.0.0-20170410110728-ff4f55a20633/go.mod h1:otzb+WCGbkyDHkqmQmT5YD2WR4BBwUdeQoFo8l/7tVs=
 github.com/emicklei/go-restful v2.9.5+incompatible/go.mod h1:otzb+WCGbkyDHkqmQmT5YD2WR4BBwUdeQoFo8l/7tVs=
-github.com/emicklei/go-restful v2.15.0+incompatible h1:8KpYO/Xl/ZudZs5RNOEhWMBY4hmzlZhhRd9cu+jrZP4=
-github.com/emicklei/go-restful v2.15.0+incompatible/go.mod h1:otzb+WCGbkyDHkqmQmT5YD2WR4BBwUdeQoFo8l/7tVs=
+github.com/emicklei/go-restful v2.16.0+incompatible h1:rgqiKNjTnFQA6kkhFe16D8epTksy9HQ1MyrbDXSdYhM=
+github.com/emicklei/go-restful v2.16.0+incompatible/go.mod h1:otzb+WCGbkyDHkqmQmT5YD2WR4BBwUdeQoFo8l/7tVs=
 github.com/emicklei/go-restful-swagger12 v0.0.0-20201014110547-68ccff494617 h1:jri9taV4TK9oItoWJCofXJi21Dp/k25u32NnfphqLAY=
 github.com/emicklei/go-restful-swagger12 v0.0.0-20201014110547-68ccff494617/go.mod h1:qr0VowGBT4CS4Q8vFF8BSeKz34PuqKGxs/L0IAQA9DQ=
 github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
@@ -1465,6 +1465,8 @@ github.com/openshift/api v3.9.0+incompatible/go.mod h1:dh9o4Fs58gpFXGSYfnVxGR9Pn
 github.com/opentracing/opentracing-go v1.1.0/go.mod h1:UkNAQd3GIcIGf0SeVgPpRdFStlNbqXla1AfSYxPUl2o=
 github.com/opentracing/opentracing-go v1.2.0 h1:uEJPy/1a5RIPAJ0Ov+OIO8OxWu77jEv+1B0VhjKrZUs=
 github.com/opentracing/opentracing-go v1.2.0/go.mod h1:GxEUsuufX4nBwe+T+Wl9TAgYrxe9dPLANfrWvHYVTgc=
+github.com/outcaste-io/ristretto v0.2.0 h1:47w059XTZWFt01OucwjcBt8mEa3VUUhntUWEfmgVBFc=
+github.com/outcaste-io/ristretto v0.2.0/go.mod h1:iBZA7RCt6jaOr0z6hiBQ6t662/oZ6Gx/yauuPvIWHAI=
 github.com/oxtoacart/bpool v0.0.0-20150712133111-4e1c5567d7c2 h1:CXwSGu/LYmbjEab5aMCs5usQRVBGThelUKBNnoSOuso=
 github.com/oxtoacart/bpool v0.0.0-20150712133111-4e1c5567d7c2/go.mod h1:L3UMQOThbttwfYRNFOWLLVXMhk5Lkio4GGOtw5UrxS0=
 github.com/pascaldekloe/goe v0.0.0-20180627143212-57f6aae5913c/go.mod h1:lzWF7FIEvWOWxwDKqyGYQf6ZUaNfKdP144TG7ZOy1lc=

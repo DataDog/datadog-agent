@@ -27,13 +27,14 @@ import (
 	"time"
 
 	"github.com/DataDog/gopsutil/process"
-	"github.com/pkg/errors"
 	"github.com/prometheus/procfs"
 	"github.com/tinylib/msgp/msgp"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	adproto "github.com/DataDog/datadog-agent/pkg/security/adproto/v1"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -501,7 +502,15 @@ func (ad *ActivityDump) FindFirstMatchingNode(comm string) *ProcessActivityNode 
 
 // GetSelectorStr returns a string representation of the profile selector
 func (ad *ActivityDump) GetSelectorStr() string {
-	var tags []string
+	ad.Lock()
+	defer ad.Unlock()
+
+	return ad.getSelectorStr()
+}
+
+// getSelectorStr internal, thread-unsafe version of GetSelectorStr
+func (ad *ActivityDump) getSelectorStr() string {
+	tags := make([]string, 0, len(ad.Tags)+2)
 	if len(ad.DumpMetadata.ContainerID) > 0 {
 		tags = append(tags, fmt.Sprintf("container_id:%s", ad.DumpMetadata.ContainerID))
 	}
@@ -527,7 +536,7 @@ func (ad *ActivityDump) SendStats() error {
 		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
 		if value := count.Swap(0); value > 0 {
 			if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpEventProcessed, int64(value), tags, 1.0); err != nil {
-				return errors.Wrapf(err, "couldn't send %s metric", metrics.MetricActivityDumpEventProcessed)
+				return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventProcessed, err)
 			}
 		}
 	}
@@ -536,7 +545,7 @@ func (ad *ActivityDump) SendStats() error {
 		tags := []string{fmt.Sprintf("event_type:%s", evtType), fmt.Sprintf("generation_type:%s", Runtime)}
 		if value := count.Swap(0); value > 0 {
 			if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpEventAdded, int64(value), tags, 1.0); err != nil {
-				return errors.Wrapf(err, "couldn't send %s metric", metrics.MetricActivityDumpEventAdded)
+				return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventAdded, err)
 			}
 		}
 	}
@@ -545,7 +554,7 @@ func (ad *ActivityDump) SendStats() error {
 		tags := []string{fmt.Sprintf("event_type:%s", evtType), fmt.Sprintf("generation_type:%s", Snapshot)}
 		if value := count.Swap(0); value > 0 {
 			if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpEventAdded, int64(value), tags, 1.0); err != nil {
-				return errors.Wrapf(err, "couldn't send %s metric", metrics.MetricActivityDumpEventAdded)
+				return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventAdded, err)
 			}
 		}
 	}
@@ -645,6 +654,10 @@ func (ad *ActivityDump) Encode(format dump.StorageFormat) (*bytes.Buffer, error)
 		return ad.EncodeJSON()
 	case dump.MSGP:
 		return ad.EncodeMSGP()
+	case dump.PROTOBUF:
+		return ad.EncodeProtobuf()
+	case dump.PROTOJSON:
+		return ad.EncodeProtoJSON()
 	case dump.DOT:
 		return ad.EncodeDOT()
 	case dump.Profile:
@@ -656,15 +669,13 @@ func (ad *ActivityDump) Encode(format dump.StorageFormat) (*bytes.Buffer, error)
 
 // EncodeJSON encodes an activity dump in the JSON format
 func (ad *ActivityDump) EncodeJSON() (*bytes.Buffer, error) {
-	ad.Lock()
-	defer ad.Unlock()
-
-	msgpRaw, err := ad.MarshalMsg(nil)
+	msgpRaw, err := ad.EncodeMSGP()
 	if err != nil {
-		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.MSGP, err)
+		return nil, err
 	}
+
 	raw := bytes.NewBuffer(nil)
-	_, err = msgp.UnmarshalAsJSON(raw, msgpRaw)
+	_, err = msgp.UnmarshalAsJSON(raw, msgpRaw.Bytes())
 	if err != nil {
 		return nil, fmt.Errorf("couldn't encode %s: %v", dump.JSON, err)
 	}
@@ -679,6 +690,41 @@ func (ad *ActivityDump) EncodeMSGP() (*bytes.Buffer, error) {
 	raw, err := ad.MarshalMsg(nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.MSGP, err)
+	}
+	return bytes.NewBuffer(raw), nil
+}
+
+// EncodeProtobuf encodes an activity dump in the Protobuf format
+func (ad *ActivityDump) EncodeProtobuf() (*bytes.Buffer, error) {
+	ad.Lock()
+	defer ad.Unlock()
+
+	pad := activityDumpToProto(ad)
+	defer pad.ReturnToVTPool()
+
+	raw, err := pad.MarshalVT()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.PROTOBUF, err)
+	}
+	return bytes.NewBuffer(raw), nil
+}
+
+// EncodeProtoJSON encodes an activity dump in the ProtoJSON format
+func (ad *ActivityDump) EncodeProtoJSON() (*bytes.Buffer, error) {
+	ad.Lock()
+	defer ad.Unlock()
+
+	pad := activityDumpToProto(ad)
+	defer pad.ReturnToVTPool()
+
+	opts := protojson.MarshalOptions{
+		EmitUnpopulated: true,
+		UseProtoNames:   true,
+	}
+
+	raw, err := opts.Marshal(pad)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.PROTOJSON, err)
 	}
 	return bytes.NewBuffer(raw), nil
 }
@@ -732,6 +778,8 @@ func (ad *ActivityDump) Decode(inputFile string) error {
 	switch format {
 	case dump.MSGP:
 		return ad.DecodeMSGP(inputFile)
+	case dump.PROTOBUF:
+		return ad.DecodeProtobuf(inputFile)
 	default:
 		return fmt.Errorf("unsupported input format: %s", format)
 	}
@@ -753,6 +801,26 @@ func (ad *ActivityDump) DecodeMSGP(inputFile string) error {
 	if err != nil {
 		return fmt.Errorf("couldn't parse activity dump file: %w", err)
 	}
+	return nil
+}
+
+// DecodeProtobuf decodes an activity dump as PROTOBUF
+func (ad *ActivityDump) DecodeProtobuf(inputFile string) error {
+	ad.Lock()
+	defer ad.Unlock()
+
+	raw, err := os.ReadFile(inputFile)
+	if err != nil {
+		return fmt.Errorf("couldn't open activity dump file: %w", err)
+	}
+
+	inter := &adproto.ActivityDump{}
+	if err := inter.UnmarshalVT(raw); err != nil {
+		return fmt.Errorf("couldn't decode protobuf activity dump file: %w", err)
+	}
+
+	protoToActivityDump(ad, inter)
+
 	return nil
 }
 
@@ -1004,20 +1072,20 @@ func (pan *ProcessActivityNode) snapshotBoundSockets(p *process.Process, ad *Act
 	// looking for AF_INET sockets
 	TCP, err := proc.NetTCP()
 	if err != nil {
-		return err
+		seclog.Errorf("couldn't snapshot TCP sockets for [%s]: %v", ad.getSelectorStr(), err)
 	}
 	UDP, err := proc.NetUDP()
 	if err != nil {
-		return err
+		seclog.Errorf("couldn't snapshot UDP sockets for [%s]: %v", ad.getSelectorStr(), err)
 	}
 	// looking for AF_INET6 sockets
 	TCP6, err := proc.NetTCP6()
 	if err != nil {
-		return err
+		seclog.Errorf("couldn't snapshot TCP6 sockets for [%s]: %v", ad.getSelectorStr(), err)
 	}
 	UDP6, err := proc.NetUDP6()
 	if err != nil {
-		return err
+		seclog.Errorf("couldn't snapshot UDP6 sockets for [%s]: %v", ad.getSelectorStr(), err)
 	}
 
 	// searching for socket inode

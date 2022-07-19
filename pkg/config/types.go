@@ -61,6 +61,7 @@ type Config interface {
 	MergeConfigOverride(in io.Reader) error
 
 	AllSettings() map[string]interface{}
+	AllSettingsWithoutDefault() map[string]interface{}
 	AllKeys() []string
 
 	AddConfigPath(in string)

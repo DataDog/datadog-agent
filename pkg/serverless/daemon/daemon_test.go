@@ -179,3 +179,13 @@ func TestSetTraceTagOk(t *testing.T) {
 	}
 	assert.True(t, d.setTraceTags(tagsMap))
 }
+
+func TestOutOfOrderInvocations(t *testing.T) {
+	port := testutil.FreeTCPPort(t)
+	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
+	time.Sleep(100 * time.Millisecond)
+	defer d.Stop()
+
+	assert.NotPanics(t, d.TellDaemonRuntimeDone)
+	d.TellDaemonRuntimeStarted()
+}

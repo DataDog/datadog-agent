@@ -14,11 +14,17 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	adproto "github.com/DataDog/datadog-agent/pkg/security/adproto/v1"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"google.golang.org/protobuf/proto"
 )
+
+var expectedFormats = []string{"json", "msgp", "protobuf", "protojson"}
 
 func TestActivityDumps(t *testing.T) {
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{enableActivityDump: true})
@@ -39,7 +45,7 @@ func TestActivityDumps(t *testing.T) {
 	test.Run(t, "activity-dump-comm-bind", func(t *testing.T, kind wrapperType,
 		cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 
-		outputFiles, err := test.StartActivityDumpComm(t, "syscall_tester", outputDir, []string{"json", "msgp"})
+		outputFiles, err := test.StartActivityDumpComm(t, "syscall_tester", outputDir, expectedFormats)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -58,60 +64,25 @@ func TestActivityDumps(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		jsonOK := false
-		msgpOK := false
-		for _, f := range outputFiles {
-			ext := filepath.Ext(f)
-			switch ext {
-			case ".json":
-				if jsonOK == true {
-					t.Fatal("Got more than one JSON file:", outputFiles)
-				}
-				content, err := os.ReadFile(f)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if !validateActivityDumpSchema(t, string(content)) {
-					t.Error(string(content))
-				}
-				jsonOK = true
-
-			case ".msgp":
-				if msgpOK == true {
-					t.Fatal("Got more than one MSGP file:", outputFiles)
-				}
-				ad, err := test.DecodeMSPActivityDump(t, f)
-				if err != nil {
-					t.Fatal(err)
-				}
-				node := ad.FindFirstMatchingNode("syscall_tester")
-				if node == nil {
-					t.Fatal("Node not found on activity dump")
-				}
-				for _, s := range node.Sockets {
-					if s.Family == "AF_INET" && s.Bind.Port == 4242 && s.Bind.IP == "0.0.0.0" {
-						msgpOK = true
-						break
-					}
-				}
-				if msgpOK == false {
-					t.Error("Bound socket not found on activity dump")
-				}
-
-			default:
-				t.Fatal("Unexpected output file")
+		validateActivityDumpOutputs(t, test, expectedFormats, outputFiles, func(ad *probe.ActivityDump) bool {
+			node := ad.FindFirstMatchingNode("syscall_tester")
+			if node == nil {
+				t.Fatal("Node not found on activity dump")
 			}
-
-		}
-		if jsonOK == false || msgpOK == false {
-			t.Fatal("Some files are missing, got:", outputFiles)
-		}
+			for _, s := range node.Sockets {
+				if s.Family == "AF_INET" && s.Bind.Port == 4242 && s.Bind.IP == "0.0.0.0" {
+					return true
+				}
+			}
+			return false
+		})
 	})
 
 	test.Run(t, "activity-dump-comm-dns", func(t *testing.T, kind wrapperType,
 		cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 
-		outputFiles, err := test.StartActivityDumpComm(t, "testsuite", outputDir, []string{"json", "msgp"})
+		expectedFormats := []string{"json", "msgp"}
+		outputFiles, err := test.StartActivityDumpComm(t, "testsuite", outputDir, expectedFormats)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -125,53 +96,132 @@ func TestActivityDumps(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		jsonOK := false
-		msgpOK := false
-		for _, f := range outputFiles {
-			ext := filepath.Ext(f)
-			switch ext {
-			case ".json":
-				if jsonOK == true {
-					t.Fatal("Got more than one JSON file:", outputFiles)
+		validateActivityDumpOutputs(t, test, expectedFormats, outputFiles, func(ad *probe.ActivityDump) bool {
+			node := ad.FindFirstMatchingNode("testsuite")
+			if node == nil {
+				t.Fatal("Node not found on activity dump")
+			}
+			for name := range node.DNSNames {
+				if name == "foo.bar" {
+					return true
 				}
-				content, err := os.ReadFile(f)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if !validateActivityDumpSchema(t, string(content)) {
-					t.Error(string(content))
-				}
-				jsonOK = true
+			}
+			return false
+		})
+	})
 
-			case ".msgp":
-				if msgpOK == true {
-					t.Fatal("Got more than one MSGP file:", outputFiles)
-				}
-				ad, err := test.DecodeMSPActivityDump(t, f)
-				if err != nil {
-					t.Fatal(err)
-				}
-				node := ad.FindFirstMatchingNode("testsuite")
-				if node == nil {
-					t.Fatal("Node not found on activity dump")
-				}
-				for name := range node.DNSNames {
-					if name == "foo.bar" {
-						msgpOK = true
-						break
-					}
-				}
-				if msgpOK == false {
-					t.Error("DNS request not found on activity dump")
-				}
+	test.Run(t, "activity-dump-comm-file", func(t *testing.T, kind wrapperType,
+		cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 
-			default:
-				t.Fatal("Unexpected output file")
+		outputFiles, err := test.StartActivityDumpComm(t, "testsuite", outputDir, expectedFormats)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		temp, err := os.CreateTemp("", "ad-test-create")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(temp.Name())
+
+		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
+
+		err = test.StopActivityDumpComm(t, "testsuite")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		tempPathParts := strings.Split(temp.Name(), "/")
+
+		validateActivityDumpOutputs(t, test, expectedFormats, outputFiles, func(ad *probe.ActivityDump) bool {
+			node := ad.FindFirstMatchingNode("testsuite")
+			if node == nil {
+				t.Fatal("Node not found on activity dump")
 			}
 
-		}
-		if jsonOK == false || msgpOK == false {
-			t.Fatal("Some files are missing, got:", outputFiles)
-		}
+			current := node.Files
+			for _, part := range tempPathParts {
+				if part == "" {
+					continue
+				}
+				next, found := current[part]
+				if !found {
+					return false
+				}
+				current = next.Children
+			}
+
+			return true
+		})
 	})
+}
+
+func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats []string, outputFiles []string, msgpValidator func(ad *probe.ActivityDump) bool) {
+	perExtOK := make(map[string]bool)
+	for _, format := range expectedFormats {
+		ext := fmt.Sprintf(".%s", format)
+		perExtOK[ext] = false
+	}
+
+	for _, f := range outputFiles {
+		ext := filepath.Ext(f)
+		if perExtOK[ext] {
+			t.Fatalf("Got more than one `%s` file: %v", ext, outputFiles)
+		}
+
+		switch ext {
+		case ".json":
+			content, err := os.ReadFile(f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !validateActivityDumpSchema(t, string(content)) {
+				t.Error(string(content))
+			}
+			perExtOK[ext] = true
+
+		case ".protobuf":
+			content, err := os.ReadFile(f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ad := &adproto.ActivityDump{}
+			err = proto.Unmarshal(content, ad)
+			if err != nil {
+				t.Error(err)
+			}
+			perExtOK[ext] = true
+
+		case ".protojson":
+			content, err := os.ReadFile(f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !validateActivityDumpProtoSchema(t, string(content)) {
+				t.Error(string(content))
+			}
+			perExtOK[ext] = true
+
+		case ".msgp":
+			ad, err := test.DecodeMSPActivityDump(t, f)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			found := msgpValidator(ad)
+			if !found {
+				t.Error("Invalid activity dump")
+			}
+			perExtOK[ext] = found
+
+		default:
+			t.Fatal("Unexpected output file")
+		}
+	}
+
+	for ext, found := range perExtOK {
+		if !found {
+			t.Fatalf("Missing `%s`, got: %v", ext, outputFiles)
+		}
+	}
 }
