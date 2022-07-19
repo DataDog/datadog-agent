@@ -201,6 +201,26 @@ func TestEnrichInferredSpanWithSNSEvent(t *testing.T) {
 	assert.True(t, inferredSpan.IsAsync)
 }
 
+func TestEnrichInferredSpanWithEventBridgeEvent(t *testing.T) {
+	var eventBridgeEvent EventBridgeEvent
+	_ = json.Unmarshal(getEventFromFile("eventbridge-custom.json"), &eventBridgeEvent)
+	inferredSpan := mockInferredSpan()
+	inferredSpan.EnrichInferredSpanWithEventBridgeEvent(eventBridgeEvent)
+
+	span := inferredSpan.Span
+
+	assert.Equal(t, uint64(7353030974370088224), span.TraceID)
+	assert.Equal(t, uint64(8048964810003407541), span.SpanID)
+	assert.Equal(t, formatISOStartTime("2017-12-22T18:43:48Z"), span.Start)
+	assert.Equal(t, "eventbridge", span.Service)
+	assert.Equal(t, "aws.eventbridge", span.Name)
+	assert.Equal(t, "eventbridge.custom.event.sender", span.Resource)
+	assert.Equal(t, "web", span.Type)
+	assert.Equal(t, "aws.eventbridge", span.Meta[operationName])
+	assert.Equal(t, "eventbridge.custom.event.sender", span.Meta[resourceNames])
+	assert.True(t, inferredSpan.IsAsync)
+}
+
 func TestFormatISOStartTime(t *testing.T) {
 	isotime := "2022-01-31T14:13:41.637Z"
 	startTime := formatISOStartTime(isotime)

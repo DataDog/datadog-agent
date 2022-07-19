@@ -108,7 +108,9 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayWebsocketEvent
 	inferredSpan.IsAsync = eventPayload.Headers[invocationType] == "Event"
 }
 
-// EnrichInferredSpanWithSNSEvent TODO <serverless>
+// EnrichInferredSpanWithSNSEvent uses the parsed event
+// payload to enrich the current inferred span. It applies a
+// specific set of data to the span expected from an SNS event.
 func (inferredSpan *InferredSpan) EnrichInferredSpanWithSNSEvent(eventPayload events.SNSEvent) {
 	eventRecord := eventPayload.Records[0]
 	snsMessage := eventRecord.SNS
@@ -159,6 +161,23 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 		eventSourceArn: eventRecord.EventSourceARN,
 		receiptHandle:  eventRecord.ReceiptHandle,
 		senderID:       eventRecord.Attributes["SenderId"],
+	}
+}
+
+// EnrichInferredSpanWithEventBridgeEvent uses the parsed event
+// payload to enrich the current inferred span. It applies a
+// specific set of data to the span expected from an EventBridge event.
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithEventBridgeEvent(eventPayload EventBridgeEvent) {
+	inferredSpan.IsAsync = true
+	inferredSpan.Span.Name = "aws.eventbridge"
+	inferredSpan.Span.Service = "eventbridge"
+	inferredSpan.Span.Start = formatISOStartTime(eventPayload.StartTime)
+	inferredSpan.Span.Resource = eventPayload.Source
+	inferredSpan.Span.Type = "web"
+	inferredSpan.Span.Meta = map[string]string{
+		operationName: "aws.eventbridge",
+		resourceNames: eventPayload.Source,
+		detailType:    eventPayload.DetailType,
 	}
 }
 
