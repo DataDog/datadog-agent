@@ -1072,20 +1072,20 @@ func (pan *ProcessActivityNode) snapshotBoundSockets(p *process.Process, ad *Act
 	// looking for AF_INET sockets
 	TCP, err := proc.NetTCP()
 	if err != nil {
-		return err
+		seclog.Errorf("couldn't snapshot TCP sockets for [%s]: %v", ad.getSelectorStr(), err)
 	}
 	UDP, err := proc.NetUDP()
 	if err != nil {
-		return err
+		seclog.Errorf("couldn't snapshot UDP sockets for [%s]: %v", ad.getSelectorStr(), err)
 	}
 	// looking for AF_INET6 sockets
 	TCP6, err := proc.NetTCP6()
 	if err != nil {
-		return err
+		seclog.Errorf("couldn't snapshot TCP6 sockets for [%s]: %v", ad.getSelectorStr(), err)
 	}
 	UDP6, err := proc.NetUDP6()
 	if err != nil {
-		return err
+		seclog.Errorf("couldn't snapshot UDP6 sockets for [%s]: %v", ad.getSelectorStr(), err)
 	}
 
 	// searching for socket inode
