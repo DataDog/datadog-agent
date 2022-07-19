@@ -257,13 +257,16 @@ func protoDecodeProtoSocket(sn *adproto.SocketNode) *SocketNode {
 		return nil
 	}
 
-	return &SocketNode{
-		Family: sn.Family,
-		Bind: BindNode{
-			Port: uint16(sn.Bind.Port),
-			IP:   sn.Bind.Ip,
-		},
+	socketNode := NewSocketNode(sn.Family)
+
+	for _, bindNode := range sn.GetBind() {
+		socketNode.Bind = append(socketNode.Bind, &BindNode{
+			Port: uint16(bindNode.Port),
+			IP:   bindNode.Ip,
+		})
 	}
+
+	return socketNode
 }
 
 func protoDecodeTimestamp(nanos uint64) time.Time {

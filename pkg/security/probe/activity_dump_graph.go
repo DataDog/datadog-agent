@@ -143,10 +143,6 @@ func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data 
 	data.Nodes[NewGraphID(p.GetID())] = pan
 
 	for _, n := range p.Sockets {
-		data.Edges = append(data.Edges, edge{
-			Link:  fmt.Sprintf("%s -> %s", p.GetID(), NewGraphID(p.GetID(), n.GetID())),
-			Color: networkColor,
-		})
 		ad.prepareSocketNode(n, data, p.GetID())
 	}
 	for _, n := range p.DNSNames {
@@ -198,22 +194,43 @@ func (ad *ActivityDump) prepareDNSNode(n *DNSNode, data *graph, processID NodeID
 }
 
 func (ad *ActivityDump) prepareSocketNode(n *SocketNode, data *graph, processID NodeID) {
-	var name string
-	if n.Bind.IP != "<nil>" {
-		name = fmt.Sprintf("%s/%s/%d", n.Family, n.Bind.IP, n.Bind.Port)
-	} else { // show other addr families, even if they are not parsed yet
-		name = n.Family
-	}
+	targetID := NewGraphID(processID, n.GetID())
 
-	socketNode := node{
-		ID:        NewGraphID(processID, n.GetID()),
-		Label:     name,
+	// prepare main socket node
+	data.Edges = append(data.Edges, edge{
+		Link:  fmt.Sprintf("%s -> %s", processID, targetID),
+		Color: networkColor,
+	})
+	data.Nodes[targetID] = node{
+		ID:        targetID,
+		Label:     n.Family,
 		Size:      30,
 		Color:     networkColor,
 		FillColor: networkRuntimeColor,
 		Shape:     networkShape,
 	}
-	data.Nodes[socketNode.ID] = socketNode
+
+	// prepare bind nodes
+	var names []string
+	for _, node := range n.Bind {
+		names = append(names, fmt.Sprintf("[%s]:%d", node.IP, node.Port))
+	}
+
+	for i, name := range names {
+		socketNode := node{
+			ID:        NewGraphID(processID, n.GetID(), NodeID(i+1)),
+			Label:     name,
+			Size:      30,
+			Color:     networkColor,
+			FillColor: networkRuntimeColor,
+			Shape:     networkShape,
+		}
+		data.Edges = append(data.Edges, edge{
+			Link:  fmt.Sprintf("%s -> %s", NewGraphID(processID, n.GetID()), socketNode.ID),
+			Color: networkColor,
+		})
+		data.Nodes[socketNode.ID] = socketNode
+	}
 }
 
 func (ad *ActivityDump) prepareFileNode(f *FileActivityNode, data *graph, prefix string, processID NodeID) {
