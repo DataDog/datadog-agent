@@ -18,8 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/gopsutil/cpu"
-	"go.uber.org/atomic"
 )
 
 const emptyCtrID = ""
@@ -94,6 +92,9 @@ func (p *ProcessCheck) RealTimeName() string { return config.RTProcessCheckName 
 
 // RealTime indicates if this check only runs in real-time mode.
 func (p *ProcessCheck) RealTime() bool { return false }
+
+// ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
+func (p *ProcessCheck) ShouldSaveLastRun() bool { return true }
 
 // Run runs the ProcessCheck to collect a list of running processes and relevant
 // stats for each. On most POSIX systems this will use a mix of procfs and other

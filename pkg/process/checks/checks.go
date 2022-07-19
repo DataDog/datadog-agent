@@ -20,6 +20,7 @@ type Check interface {
 	RealTime() bool
 	Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error)
 	Cleanup()
+	ShouldSaveLastRun() bool
 }
 
 // RunOptions provides run options for checks
