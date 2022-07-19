@@ -608,5 +608,5 @@ def generate_ad_proto(ctx):
             )
             plugin_opts = f"--plugin protoc-gen-go=\"{temp_gobin}/protoc-gen-go\" --plugin protoc-gen-go-vtproto=\"{temp_gobin}/protoc-gen-go-vtproto\""
             ctx.run(
-                f"protoc -I. --go_out=paths=source_relative:. --go-vtproto_out=. {plugin_opts} --go-vtproto_opt=features=pool+marshal+size {pool_opts} pkg/security/adproto/v1/activity_dump.proto"
+                f"protoc -I. --go_out=paths=source_relative:. --go-vtproto_out=. {plugin_opts} --go-vtproto_opt=features=pool+marshal+unmarshal+size {pool_opts} pkg/security/adproto/v1/activity_dump.proto"
             )

@@ -34,6 +34,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	adproto "github.com/DataDog/datadog-agent/pkg/security/adproto/v1"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -777,6 +778,8 @@ func (ad *ActivityDump) Decode(inputFile string) error {
 	switch format {
 	case dump.MSGP:
 		return ad.DecodeMSGP(inputFile)
+	case dump.PROTOBUF:
+		return ad.DecodeProtobuf(inputFile)
 	default:
 		return fmt.Errorf("unsupported input format: %s", format)
 	}
@@ -798,6 +801,26 @@ func (ad *ActivityDump) DecodeMSGP(inputFile string) error {
 	if err != nil {
 		return fmt.Errorf("couldn't parse activity dump file: %w", err)
 	}
+	return nil
+}
+
+// DecodeProtobuf decodes an activity dump as PROTOBUF
+func (ad *ActivityDump) DecodeProtobuf(inputFile string) error {
+	ad.Lock()
+	defer ad.Unlock()
+
+	raw, err := os.ReadFile(inputFile)
+	if err != nil {
+		return fmt.Errorf("couldn't open activity dump file: %w", err)
+	}
+
+	inter := &adproto.ActivityDump{}
+	if err := inter.UnmarshalVT(raw); err != nil {
+		return fmt.Errorf("couldn't decode protobuf activity dump file: %w", err)
+	}
+
+	protoToActivityDump(ad, inter)
+
 	return nil
 }
 
