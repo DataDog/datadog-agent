@@ -10,9 +10,13 @@ package tests
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/stretchr/testify/assert"
 )
 
 func getTestDataActivityDump(tb testing.TB) *probe.ActivityDump {
@@ -55,4 +59,33 @@ func BenchmarkProtoJSONEncoding(b *testing.B) {
 	runEncoding(b, func(ad *probe.ActivityDump) (*bytes.Buffer, error) {
 		return ad.EncodeProtoJSON()
 	})
+}
+
+func TestProtobufDecoding(t *testing.T) {
+	ad := getTestDataActivityDump(t)
+
+	out, err := ad.EncodeProtobuf()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tdir := t.TempDir()
+	dumpPath := filepath.Join(tdir, "out.protobuf")
+	if err := os.WriteFile(dumpPath, out.Bytes(), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	decoded := &probe.ActivityDump{
+		Mutex: &sync.Mutex{},
+	}
+	if err := decoded.DecodeProtobuf(dumpPath); err != nil {
+		t.Fatal(err)
+	}
+
+	newOut, err := ad.EncodeProtobuf()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, out.Len(), newOut.Len())
 }
