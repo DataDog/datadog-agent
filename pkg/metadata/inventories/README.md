@@ -9,15 +9,23 @@ update every 5 minutes (see `inventories_min_interval`).
 
 # Content
 
-The package offers 3 methods to add data to the payload: `SetAgentMetadata`, `SetHostMetadata` and `SetCheckMetadata`.
+The current payload contains 3 sections `check_metadata`, `agent_metadata`, and `host_metadata`.
+Those are not guaranteed to be sent in one payload. If the final serialized payload is to big, each section is sent in a
+different payload with `hostname` and `timestamp` always present. This is why some field are duplicated between section,
+like `agent_version`.
+
+The package offers 3 methods to the agent codebase to add data to the payload: `SetAgentMetadata`, `SetHostMetadata` and
+`SetCheckMetadata`.
 As the name suggests, checks use `SetCheckMetadata` and each metadata is linked to a check ID. Everything agent-related
-uses `SetAgentMetadata` and for host metadata `SetHostMetadata` is used.
+uses `SetAgentMetadata` and for host metadata `SetHostMetadata` is used. Any part of the Agent can add metadata to the
+inventory payload.
 
-Any part of the agent can add metadata to the inventory payload.
+## Agent Configuration
 
-The current payload contains 3 sections `check_metadata`, `agent_metadata` and `host_metadata`. Those are not guaranteed
-to be sent in one payload. For now they are but each will be sent in it's own payload at some point. The `hostname` and
-`timestamp` field will always be present. This is why some field are duplicated like `agent_version`.
+`agent_metadata.full_configuration` and `agent_metadata.provided_configuration` are scrubbed from any sensitive
+information (same logic than for the flare).
+
+Sending Agent configuration can be disabled using `inventories_configuration_enabled`.
 
 ## Check metadata
 
@@ -86,6 +94,12 @@ The payload is a JSON dict with the following fields
     `compliance_config.enabled` config option).
   - `feature_apm_enabled` - **bool**: True if the APM Agent is enabled (see: `apm_config.enabled` config option).
   - `feature_otlp_enabled` - **bool**: True if the OTLP pipeline is enabled.
+  - `full_configuration` - **string**: the current Agent configuration scrubbed, including all the defaults, as a YAML
+    string.
+  - `provided_configuration` - **string**: the current Agent configuration (scrubbed), without the defaults, as a YAML
+    string. This includes the settings configured by the user (throuh the configuration file, the environment or CLI),
+    as well as any settings explicitly set by the agent (for example the number of workers is dynamically set by the
+    agent itself based on the load).
 - `host_metadata` - **dict of string to JSON type**:
   - `cpu_cores` - **int**: the number of core for the host.
   - `cpu_logical_processors` - **int**:  the number of logical core for the host.
@@ -147,6 +161,8 @@ Here an example of an inventory payload:
         "install_method_tool": "undefined",
         "install_method_tool_version": "",
         "logs_transport": "HTTP",
+        "full_configuration": "<entire yaml configuration for the agent>",
+        "provided_configuration": "api_key: \"***************************aaaaa\"\ncheck_runners: 4\ncmd.check.fullsketches: false\ncontainerd_namespace: []\ncontainerd_namespaces: []\npython_version: \"3\"\ntracemalloc_debug: false"
     }
     "check_metadata": {
         "cpu": [

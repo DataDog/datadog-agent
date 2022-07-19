@@ -134,7 +134,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	// ---------------
 
 	// API key reading priority:
-	// KSM > Secrets Manager > Plaintext API key
+	// KMS > Secrets Manager > Plaintext API key
 	// If one is set but failing, the next will be tried
 
 	// some useful warnings first
