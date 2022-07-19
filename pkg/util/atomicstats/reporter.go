@@ -156,7 +156,7 @@ func getFieldFor(fieldType reflect.Type) (field, error) {
 	case reflect.Int64:
 		return field{
 			get: func(v reflect.Value) interface{} {
-				return int64(v.Int()) //nolint:unconvert
+				return v.Int()
 			}}, nil
 	case reflect.Uint:
 		return field{
@@ -181,7 +181,7 @@ func getFieldFor(fieldType reflect.Type) (field, error) {
 	case reflect.Uint64:
 		return field{
 			get: func(v reflect.Value) interface{} {
-				return uint64(v.Uint()) //nolint:unconvert
+				return v.Uint()
 			}}, nil
 	case reflect.Uintptr:
 		return field{
@@ -267,8 +267,9 @@ func getFieldFor(fieldType reflect.Type) (field, error) {
 
 // getPointer returns an interface{} representing the data to which pointer v refers.
 func getPointer(v reflect.Value) interface{} {
-	// This is a "trick" to hide the fact that f is unexported from f.Interface,
-	// which (unlike f.Int etc, above) will panic for unexported fields
+	// This is a "trick" to hide the fact that v may be unexported from
+	// Value#Interface, which (unlike Value#Int etc.) will panic for unexported
+	// fields
 	v = reflect.NewAt(v.Type(), unsafe.Pointer(v.UnsafeAddr()))
 	// evaluate v
 	v = v.Elem()
