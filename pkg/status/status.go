@@ -265,9 +265,9 @@ func getPartialConfig() map[string]string {
 	conf["log_level"] = config.Datadog.GetString("log_level")
 	conf["confd_path"] = config.Datadog.GetString("confd_path")
 	conf["additional_checksd"] = config.Datadog.GetString("additional_checksd")
-	forwarderStorageMaxSizeInBytes := config.Datadog.GetInt("forwarder_storage_max_size_in_bytes")
+	forwarderStorageMaxSizeInBytes := config.Datadog.GetInt64("forwarder_storage_max_size_in_bytes")
 	if forwarderStorageMaxSizeInBytes > 0 {
-		conf["forwarder_storage_max_size_in_bytes"] = strconv.Itoa(forwarderStorageMaxSizeInBytes)
+		conf["forwarder_storage_max_size_in_bytes"] = strconv.FormatInt(forwarderStorageMaxSizeInBytes, 10)
 	}
 	return conf
 }
