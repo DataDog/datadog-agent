@@ -84,7 +84,7 @@ func (mp *provider) Prefetch() error {
 	var containersLock = sync.Mutex{}
 	var wg sync.WaitGroup
 	// On Windows fetching the info on docker containers can be slow.
-	// On a host with ~100 hosts running, this can easily take up more than 30s,
+	// On a host with ~100 containers running, this can easily take up more than 30s,
 	// causing the Agent to appear 'stuck' and the entrypoint/SCM to consider the Agent dead.
 	// Divide the fetch into batches to accelerate this process; here 8 is chosen arbitrarily.
 	chunkSize := len(rawContainers) / 8
