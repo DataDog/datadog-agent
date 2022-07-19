@@ -47,14 +47,15 @@ func protoMetadataToDumpMetadata(meta *adproto.Metadata) DumpMetadata {
 		LinuxDistribution: meta.LinuxDistribution,
 		Arch:              meta.Arch,
 
-		Name:                meta.Name,
-		ActivityDumpVersion: meta.ActivityDumpVersion,
-		DifferentiateArgs:   meta.DifferentiateArgs,
-		Comm:                meta.Comm,
-		ContainerID:         meta.ContainerId,
-		Start:               protoDecodeTimestamp(meta.Start),
-		End:                 protoDecodeTimestamp(meta.End),
-		Size:                meta.Size,
+		Name:              meta.Name,
+		ProtobufVersion:   meta.ProtobufVersion,
+		DifferentiateArgs: meta.DifferentiateArgs,
+		Comm:              meta.Comm,
+		ContainerID:       meta.ContainerId,
+		Start:             protoDecodeTimestamp(meta.Start),
+		End:               protoDecodeTimestamp(meta.End),
+		Size:              meta.Size,
+		Serialization:     meta.GetSerialization(),
 	}
 }
 

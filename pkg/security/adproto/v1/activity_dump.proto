@@ -23,13 +23,14 @@ message Metadata {
     string arch = 13;
 
     string name = 5;
-    string activity_dump_version = 6;
+    string protobuf_version = 6;
     bool differentiate_args = 7;
     string comm = 8;
     string container_id = 9;
     uint64 start = 10;
     uint64 end = 11;
     uint64 size = 12;
+    string serialization = 14;
 }
 
 message ProcessActivityNode {

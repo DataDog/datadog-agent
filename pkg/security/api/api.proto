@@ -112,13 +112,14 @@ message ActivityDumpMetadataMessage {
     string Arch = 5;
 
     string Name = 6;
-    string ActivityDumpVersion = 7;
+    string ProtobufVersion = 7;
     bool DifferentiateArgs = 8;
     string Comm = 9;
     string ContainerID = 10;
     string Start = 11;
     string Timeout = 12;
     uint64 Size = 13;
+    string Serialization = 14;
 }
 
 message StorageRequestMessage {

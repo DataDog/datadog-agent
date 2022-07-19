@@ -47,8 +47,8 @@ import (
 )
 
 const (
-	// ActivityDumpVersion defines the version of the activity dump
-	ActivityDumpVersion = "0.1"
+	// ProtobufVersion defines the protobuf version in use
+	ProtobufVersion = "v1"
 	// ActivityDumpSource defines the source of activity dumps
 	ActivityDumpSource = "runtime-security-agent"
 )
@@ -71,16 +71,17 @@ type DumpMetadata struct {
 	LinuxDistribution string `msg:"linux_distribution" json:"linux_distribution"`
 	Arch              string `msg:"arch" json:"arch"`
 
-	Name                string        `msg:"name" json:"name"`
-	ActivityDumpVersion string        `msg:"activity_dump_version" json:"activity_dump_version"`
-	DifferentiateArgs   bool          `msg:"differentiate_args" json:"differentiate_args"`
-	Comm                string        `msg:"comm,omitempty" json:"comm,omitempty"`
-	ContainerID         string        `msg:"container_id,omitempty" json:"-"`
-	Start               time.Time     `msg:"start" json:"start"`
-	Timeout             time.Duration `msg:"-" json:"-"`
-	End                 time.Time     `msg:"end" json:"end"`
-	timeoutRaw          int64         `msg:"-"`
-	Size                uint64        `msg:"activity_dump_size,omitempty" json:"activity_dump_size,omitempty"`
+	Name              string        `msg:"name" json:"name"`
+	ProtobufVersion   string        `msg:"protobuf_version" json:"protobuf_version"`
+	DifferentiateArgs bool          `msg:"differentiate_args" json:"differentiate_args"`
+	Comm              string        `msg:"comm,omitempty" json:"comm,omitempty"`
+	ContainerID       string        `msg:"container_id,omitempty" json:"-"`
+	Start             time.Time     `msg:"start" json:"start"`
+	Timeout           time.Duration `msg:"-" json:"-"`
+	End               time.Time     `msg:"end" json:"end"`
+	timeoutRaw        int64         `msg:"-"`
+	Size              uint64        `msg:"activity_dump_size,omitempty" json:"activity_dump_size,omitempty"`
+	Serialization     string        `msg:"serialization,omitempty" json:"serialization,omitempty"`
 }
 
 // ActivityDump holds the activity tree for the workload defined by the provided list of tags. The encoding described by
@@ -126,14 +127,14 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 	ad := ActivityDump{
 		Mutex: &sync.Mutex{},
 		DumpMetadata: DumpMetadata{
-			AgentVersion:        version.AgentVersion,
-			AgentCommit:         version.Commit,
-			KernelVersion:       adm.probe.kernelVersion.Code.String(),
-			LinuxDistribution:   adm.probe.kernelVersion.OsRelease["PRETTY_NAME"],
-			Name:                fmt.Sprintf("activity-dump-%s", eval.RandString(10)),
-			ActivityDumpVersion: ActivityDumpVersion,
-			Start:               time.Now(),
-			Arch:                probes.RuntimeArch,
+			AgentVersion:      version.AgentVersion,
+			AgentCommit:       version.Commit,
+			KernelVersion:     adm.probe.kernelVersion.Code.String(),
+			LinuxDistribution: adm.probe.kernelVersion.OsRelease["PRETTY_NAME"],
+			Name:              fmt.Sprintf("activity-dump-%s", eval.RandString(10)),
+			ProtobufVersion:   ProtobufVersion,
+			Start:             time.Now(),
+			Arch:              probes.RuntimeArch,
 		},
 		Host:               adm.hostname,
 		Source:             ActivityDumpSource,
@@ -186,20 +187,20 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 		Source:             msg.GetSource(),
 		Tags:               msg.GetTags(),
 		DumpMetadata: DumpMetadata{
-			AgentVersion:        metadata.GetAgentVersion(),
-			AgentCommit:         metadata.GetAgentCommit(),
-			KernelVersion:       metadata.GetKernelVersion(),
-			LinuxDistribution:   metadata.GetLinuxDistribution(),
-			Name:                metadata.GetName(),
-			ActivityDumpVersion: metadata.GetActivityDumpVersion(),
-			DifferentiateArgs:   metadata.GetDifferentiateArgs(),
-			Comm:                metadata.GetComm(),
-			ContainerID:         metadata.GetContainerID(),
-			Start:               startTime,
-			Timeout:             timeout,
-			End:                 startTime.Add(timeout),
-			Size:                metadata.GetSize(),
-			Arch:                metadata.GetArch(),
+			AgentVersion:      metadata.GetAgentVersion(),
+			AgentCommit:       metadata.GetAgentCommit(),
+			KernelVersion:     metadata.GetKernelVersion(),
+			LinuxDistribution: metadata.GetLinuxDistribution(),
+			Name:              metadata.GetName(),
+			ProtobufVersion:   metadata.GetProtobufVersion(),
+			DifferentiateArgs: metadata.GetDifferentiateArgs(),
+			Comm:              metadata.GetComm(),
+			ContainerID:       metadata.GetContainerID(),
+			Start:             startTime,
+			Timeout:           timeout,
+			End:               startTime.Add(timeout),
+			Size:              metadata.GetSize(),
+			Arch:              metadata.GetArch(),
 		},
 	}
 
@@ -633,19 +634,19 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 		Tags:    ad.Tags,
 		Storage: storage,
 		Metadata: &api.ActivityDumpMetadataMessage{
-			AgentVersion:        ad.DumpMetadata.AgentVersion,
-			AgentCommit:         ad.DumpMetadata.AgentCommit,
-			KernelVersion:       ad.DumpMetadata.KernelVersion,
-			LinuxDistribution:   ad.DumpMetadata.LinuxDistribution,
-			Name:                ad.DumpMetadata.Name,
-			ActivityDumpVersion: ad.DumpMetadata.ActivityDumpVersion,
-			DifferentiateArgs:   ad.DumpMetadata.DifferentiateArgs,
-			Comm:                ad.DumpMetadata.Comm,
-			ContainerID:         ad.DumpMetadata.ContainerID,
-			Start:               ad.DumpMetadata.Start.Format(time.RFC822),
-			Timeout:             ad.DumpMetadata.Timeout.String(),
-			Size:                ad.DumpMetadata.Size,
-			Arch:                ad.DumpMetadata.Arch,
+			AgentVersion:      ad.DumpMetadata.AgentVersion,
+			AgentCommit:       ad.DumpMetadata.AgentCommit,
+			KernelVersion:     ad.DumpMetadata.KernelVersion,
+			LinuxDistribution: ad.DumpMetadata.LinuxDistribution,
+			Name:              ad.DumpMetadata.Name,
+			ProtobufVersion:   ad.DumpMetadata.ProtobufVersion,
+			DifferentiateArgs: ad.DumpMetadata.DifferentiateArgs,
+			Comm:              ad.DumpMetadata.Comm,
+			ContainerID:       ad.DumpMetadata.ContainerID,
+			Start:             ad.DumpMetadata.Start.Format(time.RFC822),
+			Timeout:           ad.DumpMetadata.Timeout.String(),
+			Size:              ad.DumpMetadata.Size,
+			Arch:              ad.DumpMetadata.Arch,
 		},
 	}
 }
