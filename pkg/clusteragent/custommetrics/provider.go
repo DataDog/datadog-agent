@@ -45,17 +45,17 @@ type datadogProvider struct {
 	store           Store
 	isServing       bool
 	timestamp       int64
-	maxAge          int64
+	maxAge          int64 // in seconds
 }
 
 // NewDatadogProvider creates a Custom Metrics and External Metrics Provider.
 func NewDatadogProvider(ctx context.Context, client dynamic.Interface, mapper apimeta.RESTMapper, store Store) provider.MetricsProvider {
-	maxAge := config.Datadog.GetInt64("external_metrics_provider.local_copy_refresh_rate")
+	maxAge := config.Datadog.GetInt("external_metrics_provider.local_copy_refresh_rate")
 	d := &datadogProvider{
 		client: client,
 		mapper: mapper,
 		store:  store,
-		maxAge: maxAge,
+		maxAge: int64(maxAge),
 	}
 	go d.externalMetricsSetter(ctx)
 	return d
