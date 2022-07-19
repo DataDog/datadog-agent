@@ -695,6 +695,9 @@ func (ad *ActivityDump) EncodeMSGP() (*bytes.Buffer, error) {
 
 // EncodeProtobuf encodes an activity dump in the Protobuf format
 func (ad *ActivityDump) EncodeProtobuf() (*bytes.Buffer, error) {
+	ad.Lock()
+	defer ad.Unlock()
+
 	pad := activityDumpToProto(ad)
 	defer pad.ReturnToVTPool()
 
@@ -707,6 +710,9 @@ func (ad *ActivityDump) EncodeProtobuf() (*bytes.Buffer, error) {
 
 // EncodeProtoJSON encodes an activity dump in the ProtoJSON format
 func (ad *ActivityDump) EncodeProtoJSON() (*bytes.Buffer, error) {
+	ad.Lock()
+	defer ad.Unlock()
+
 	pad := activityDumpToProto(ad)
 	defer pad.ReturnToVTPool()
 
