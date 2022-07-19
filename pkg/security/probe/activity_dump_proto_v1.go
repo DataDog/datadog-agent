@@ -264,5 +264,8 @@ func socketNodeToProto(sn *SocketNode) *adproto.SocketNode {
 }
 
 func timestamp(t *time.Time) uint64 {
-	return uint64(t.Unix())
+	if t.IsZero() {
+		return 0
+	}
+	return uint64(t.UnixNano())
 }
