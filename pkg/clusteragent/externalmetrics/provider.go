@@ -52,7 +52,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 	rollup := config.Datadog.GetInt("external_metrics_provider.rollup")
 	setQueryConfigValues(aggregator, rollup)
 
-	refreshPeriod := config.Datadog.GetInt64("external_metrics_provider.refresh_period")
+	refreshPeriod := int64(config.Datadog.GetInt("external_metrics_provider.refresh_period"))
 	retrieverMetricsMaxAge := int64(math.Max(config.Datadog.GetFloat64("external_metrics_provider.max_age"), float64(3*rollup)))
 	autogenNamespace := common.GetResourcesNamespace()
 
