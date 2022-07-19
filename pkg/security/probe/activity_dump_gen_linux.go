@@ -784,6 +784,12 @@ func (z *DumpMetadata) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "LinuxDistribution")
 				return
 			}
+		case "arch":
+			z.Arch, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "Arch")
+				return
+			}
 		case "name":
 			z.Name, err = dc.ReadString()
 			if err != nil {
@@ -846,19 +852,19 @@ func (z *DumpMetadata) DecodeMsg(dc *msgp.Reader) (err error) {
 // EncodeMsg implements msgp.Encodable
 func (z *DumpMetadata) EncodeMsg(en *msgp.Writer) (err error) {
 	// omitempty: check for empty values
-	zb0001Len := uint32(12)
-	var zb0001Mask uint16 /* 12 bits */
+	zb0001Len := uint32(13)
+	var zb0001Mask uint16 /* 13 bits */
 	if z.Comm == "" {
-		zb0001Len--
-		zb0001Mask |= 0x80
-	}
-	if z.ContainerID == "" {
 		zb0001Len--
 		zb0001Mask |= 0x100
 	}
+	if z.ContainerID == "" {
+		zb0001Len--
+		zb0001Mask |= 0x200
+	}
 	if z.Size == 0 {
 		zb0001Len--
-		zb0001Mask |= 0x800
+		zb0001Mask |= 0x1000
 	}
 	// variable map header, size zb0001Len
 	err = en.Append(0x80 | uint8(zb0001Len))
@@ -908,6 +914,16 @@ func (z *DumpMetadata) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "LinuxDistribution")
 		return
 	}
+	// write "arch"
+	err = en.Append(0xa4, 0x61, 0x72, 0x63, 0x68)
+	if err != nil {
+		return
+	}
+	err = en.WriteString(z.Arch)
+	if err != nil {
+		err = msgp.WrapError(err, "Arch")
+		return
+	}
 	// write "name"
 	err = en.Append(0xa4, 0x6e, 0x61, 0x6d, 0x65)
 	if err != nil {
@@ -938,7 +954,7 @@ func (z *DumpMetadata) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "DifferentiateArgs")
 		return
 	}
-	if (zb0001Mask & 0x80) == 0 { // if not empty
+	if (zb0001Mask & 0x100) == 0 { // if not empty
 		// write "comm"
 		err = en.Append(0xa4, 0x63, 0x6f, 0x6d, 0x6d)
 		if err != nil {
@@ -950,7 +966,7 @@ func (z *DumpMetadata) EncodeMsg(en *msgp.Writer) (err error) {
 			return
 		}
 	}
-	if (zb0001Mask & 0x100) == 0 { // if not empty
+	if (zb0001Mask & 0x200) == 0 { // if not empty
 		// write "container_id"
 		err = en.Append(0xac, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x5f, 0x69, 0x64)
 		if err != nil {
@@ -982,7 +998,7 @@ func (z *DumpMetadata) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "End")
 		return
 	}
-	if (zb0001Mask & 0x800) == 0 { // if not empty
+	if (zb0001Mask & 0x1000) == 0 { // if not empty
 		// write "activity_dump_size"
 		err = en.Append(0xb2, 0x61, 0x63, 0x74, 0x69, 0x76, 0x69, 0x74, 0x79, 0x5f, 0x64, 0x75, 0x6d, 0x70, 0x5f, 0x73, 0x69, 0x7a, 0x65)
 		if err != nil {
@@ -1001,19 +1017,19 @@ func (z *DumpMetadata) EncodeMsg(en *msgp.Writer) (err error) {
 func (z *DumpMetadata) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// omitempty: check for empty values
-	zb0001Len := uint32(12)
-	var zb0001Mask uint16 /* 12 bits */
+	zb0001Len := uint32(13)
+	var zb0001Mask uint16 /* 13 bits */
 	if z.Comm == "" {
-		zb0001Len--
-		zb0001Mask |= 0x80
-	}
-	if z.ContainerID == "" {
 		zb0001Len--
 		zb0001Mask |= 0x100
 	}
+	if z.ContainerID == "" {
+		zb0001Len--
+		zb0001Mask |= 0x200
+	}
 	if z.Size == 0 {
 		zb0001Len--
-		zb0001Mask |= 0x800
+		zb0001Mask |= 0x1000
 	}
 	// variable map header, size zb0001Len
 	o = append(o, 0x80|uint8(zb0001Len))
@@ -1032,6 +1048,9 @@ func (z *DumpMetadata) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "linux_distribution"
 	o = append(o, 0xb2, 0x6c, 0x69, 0x6e, 0x75, 0x78, 0x5f, 0x64, 0x69, 0x73, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x69, 0x6f, 0x6e)
 	o = msgp.AppendString(o, z.LinuxDistribution)
+	// string "arch"
+	o = append(o, 0xa4, 0x61, 0x72, 0x63, 0x68)
+	o = msgp.AppendString(o, z.Arch)
 	// string "name"
 	o = append(o, 0xa4, 0x6e, 0x61, 0x6d, 0x65)
 	o = msgp.AppendString(o, z.Name)
@@ -1041,12 +1060,12 @@ func (z *DumpMetadata) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "differentiate_args"
 	o = append(o, 0xb2, 0x64, 0x69, 0x66, 0x66, 0x65, 0x72, 0x65, 0x6e, 0x74, 0x69, 0x61, 0x74, 0x65, 0x5f, 0x61, 0x72, 0x67, 0x73)
 	o = msgp.AppendBool(o, z.DifferentiateArgs)
-	if (zb0001Mask & 0x80) == 0 { // if not empty
+	if (zb0001Mask & 0x100) == 0 { // if not empty
 		// string "comm"
 		o = append(o, 0xa4, 0x63, 0x6f, 0x6d, 0x6d)
 		o = msgp.AppendString(o, z.Comm)
 	}
-	if (zb0001Mask & 0x100) == 0 { // if not empty
+	if (zb0001Mask & 0x200) == 0 { // if not empty
 		// string "container_id"
 		o = append(o, 0xac, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x5f, 0x69, 0x64)
 		o = msgp.AppendString(o, z.ContainerID)
@@ -1057,7 +1076,7 @@ func (z *DumpMetadata) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "end"
 	o = append(o, 0xa3, 0x65, 0x6e, 0x64)
 	o = msgp.AppendTime(o, z.End)
-	if (zb0001Mask & 0x800) == 0 { // if not empty
+	if (zb0001Mask & 0x1000) == 0 { // if not empty
 		// string "activity_dump_size"
 		o = append(o, 0xb2, 0x61, 0x63, 0x74, 0x69, 0x76, 0x69, 0x74, 0x79, 0x5f, 0x64, 0x75, 0x6d, 0x70, 0x5f, 0x73, 0x69, 0x7a, 0x65)
 		o = msgp.AppendUint64(o, z.Size)
@@ -1105,6 +1124,12 @@ func (z *DumpMetadata) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			z.LinuxDistribution, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "LinuxDistribution")
+				return
+			}
+		case "arch":
+			z.Arch, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Arch")
 				return
 			}
 		case "name":
@@ -1169,7 +1194,7 @@ func (z *DumpMetadata) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *DumpMetadata) Msgsize() (s int) {
-	s = 1 + 14 + msgp.StringPrefixSize + len(z.AgentVersion) + 13 + msgp.StringPrefixSize + len(z.AgentCommit) + 15 + msgp.StringPrefixSize + len(z.KernelVersion) + 19 + msgp.StringPrefixSize + len(z.LinuxDistribution) + 5 + msgp.StringPrefixSize + len(z.Name) + 22 + msgp.StringPrefixSize + len(z.ActivityDumpVersion) + 19 + msgp.BoolSize + 5 + msgp.StringPrefixSize + len(z.Comm) + 13 + msgp.StringPrefixSize + len(z.ContainerID) + 6 + msgp.TimeSize + 4 + msgp.TimeSize + 19 + msgp.Uint64Size
+	s = 1 + 14 + msgp.StringPrefixSize + len(z.AgentVersion) + 13 + msgp.StringPrefixSize + len(z.AgentCommit) + 15 + msgp.StringPrefixSize + len(z.KernelVersion) + 19 + msgp.StringPrefixSize + len(z.LinuxDistribution) + 5 + msgp.StringPrefixSize + len(z.Arch) + 5 + msgp.StringPrefixSize + len(z.Name) + 22 + msgp.StringPrefixSize + len(z.ActivityDumpVersion) + 19 + msgp.BoolSize + 5 + msgp.StringPrefixSize + len(z.Comm) + 13 + msgp.StringPrefixSize + len(z.ContainerID) + 6 + msgp.TimeSize + 4 + msgp.TimeSize + 19 + msgp.Uint64Size
 	return
 }
 

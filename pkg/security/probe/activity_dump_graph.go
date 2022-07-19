@@ -243,7 +243,7 @@ func (ad *ActivityDump) prepareFileNode(f *FileActivityNode, data *graph, prefix
 }
 
 func (ad *ActivityDump) prepareSyscallsNode(p *ProcessActivityNode, data *graph) {
-	label := "<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"1\"> "
+	label := fmt.Sprintf("<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"1\"> <TR><TD><b>arch: %s</b></TD></TR>", ad.Arch)
 	for _, s := range p.Syscalls {
 		label += "<TR><TD>" + model.Syscall(s).String() + "</TD></TR>"
 	}

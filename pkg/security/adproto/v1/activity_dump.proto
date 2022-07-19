@@ -20,6 +20,7 @@ message Metadata {
     string agent_commit = 2;
     string kernel_version = 3;
     string linux_distribution = 4;
+    string arch = 13;
 
     string name = 5;
     string activity_dump_version = 6;

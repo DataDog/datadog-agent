@@ -45,6 +45,7 @@ func protoMetadataToDumpMetadata(meta *adproto.Metadata) DumpMetadata {
 		AgentCommit:       meta.AgentCommit,
 		KernelVersion:     meta.KernelVersion,
 		LinuxDistribution: meta.LinuxDistribution,
+		Arch:              meta.Arch,
 
 		Name:                meta.Name,
 		ActivityDumpVersion: meta.ActivityDumpVersion,

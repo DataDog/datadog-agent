@@ -58,6 +58,7 @@ func adMetadataToProto(meta *DumpMetadata) *adproto.Metadata {
 		Start:               timestampToProto(&meta.Start),
 		End:                 timestampToProto(&meta.End),
 		Size:                meta.Size,
+		Arch:                meta.Arch,
 	}
 
 	return pmeta
