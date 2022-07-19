@@ -1247,6 +1247,7 @@ func (pan *ProcessActivityNode) InsertBindEvent(evt *model.BindEvent) bool {
 
 // InsertSyscalls inserts the syscall of the process in the dump
 func (pan *ProcessActivityNode) InsertSyscalls(e *model.SyscallsEvent) bool {
+	var hasNewSyscalls bool
 newSyscallLoop:
 	for _, newSyscall := range e.Syscalls {
 		for _, existingSyscall := range pan.Syscalls {
@@ -1256,8 +1257,9 @@ newSyscallLoop:
 		}
 
 		pan.Syscalls = append(pan.Syscalls, int(newSyscall))
+		hasNewSyscalls = true
 	}
-	return true
+	return hasNewSyscalls
 }
 
 // FileActivityNode holds a tree representation of a list of files
