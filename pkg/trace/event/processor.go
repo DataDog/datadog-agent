@@ -77,8 +77,8 @@ func (p *Processor) Process(root *pb.Span, t *pb.TraceChunk) (numEvents, numExtr
 			sampler.SetClientRate(span, clientSampleRate)
 			sampler.SetPreSampleRate(span, preSampleRate)
 			sampler.SetEventExtractionRate(span, extractionRate)
+			sampler.SetAnalyzedSpan(span)
 		}
-		sampler.SetAnalyzedSpan(span)
 		if t.DroppedTrace {
 			events = append(events, span)
 		}

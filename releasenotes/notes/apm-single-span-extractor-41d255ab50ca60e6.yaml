@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    APM : Adds single span extractor to process single span ingestion from tracers
+    APM : Added support for tracer single span sampling. See DataDog/dd-trace-go#1357.

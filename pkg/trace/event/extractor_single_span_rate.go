@@ -22,9 +22,8 @@ func NewSingleSpanExtractor() Extractor {
 // from the provided span having the specified priority. Extract returns a
 // suggested extraction sample rate and a bool indicating whether an event was
 // extracted. If the bool is false, then ignore the rate.
-func (e *singleSpanRateExtractor) Extract(s *pb.Span, _ sampler.SamplingPriority) (float64, bool) {
-	_, ok := traceutil.GetMetric(s, sampler.KeySpanSamplingMechanism)
-	if ok {
+func (e *singleSpanRateExtractor) Extract(s *pb.Span, _ sampler.SamplingPriority) (rate float64, ok bool) {
+	if _, ok := traceutil.GetMetric(s, sampler.KeySpanSamplingMechanism); ok {
 		// If the tag is present, then the tracer wants us to keep the
 		// span. The tracer already accounted for the rate.
 		return 1, true
