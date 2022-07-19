@@ -614,6 +614,4 @@ def generate_cws_proto(ctx):
             )
 
             # API
-            ctx.run(
-                f"protoc -I. {basic_opts} --go-vtproto_out=. {plugin_opts} pkg/security/api/api.proto"
-            )
+            ctx.run(f"protoc -I. {basic_opts} --go-vtproto_out=. {plugin_opts} pkg/security/api/api.proto")
