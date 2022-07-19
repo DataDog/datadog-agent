@@ -72,6 +72,10 @@ func (lp *LifecycleProcessor) initFromDynamoDBStreamEvent(event events.DynamoDBE
 }
 
 func (lp *LifecycleProcessor) initFromKinesisStreamEvent(event events.KinesisEvent) {
+
+	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
+		lp.GetInferredSpan().EnrichInferredSpanWithKinesisEvent(event)
+	}
 	lp.addTag("function_trigger.event_source", "kinesis")
 	lp.addTag("function_trigger.event_source_arn", trigger.ExtractKinesisStreamEventARN(event))
 }
