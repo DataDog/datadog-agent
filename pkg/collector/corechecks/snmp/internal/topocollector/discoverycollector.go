@@ -16,13 +16,15 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // DiscoveryCollector TODO
 type DiscoveryCollector struct {
-	sender   aggregator.Sender
-	hostname string
-	config   *checkconfig.CheckConfig
+	sender     aggregator.Sender
+	hostname   string
+	config     *checkconfig.CheckConfig
+	graphMutex sync.RWMutex
 }
 
 // NewDiscoveryCollector TODO
@@ -274,6 +276,12 @@ func (dc *DiscoveryCollector) Collect() {
 
 	dc.writeToFile(payloadBytes)
 
+	dc.graph()
+}
+
+func (dc *DiscoveryCollector) graph() {
+	dc.graphMutex.Lock()
+	defer dc.graphMutex.Unlock()
 	topograph.GraphTopology()
 }
 
