@@ -32,7 +32,6 @@ type CollectorBundle struct {
 	collectors       []collectors.Collector
 	extraSyncTimeout time.Duration
 	inventory        *inventory.CollectorInventory
-	stopCh           chan struct{}
 	runCfg           *collectors.CollectorRunConfig
 }
 
@@ -56,7 +55,6 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 			Config:      chk.orchestratorConfig,
 			MsgGroupRef: chk.groupID,
 		},
-		stopCh: make(chan struct{}),
 	}
 
 	bundle.prepare()
@@ -132,7 +130,7 @@ func (cb *CollectorBundle) Initialize() error {
 			// we run each enabled informer individually, because starting them through the factory
 			// would prevent us from restarting them again if the check is unscheduled/rescheduled
 			// see https://github.com/kubernetes/client-go/blob/3511ef41b1fbe1152ef5cab2c0b950dfd607eea7/informers/factory.go#L64-L66
-			go informer.Run(cb.stopCh)
+			go informer.Run(cb.check.stopCh)
 		}
 	}
 
