@@ -398,6 +398,7 @@ func TestService(t *testing.T) {
 		Error:              "",
 	}).Return(lastConfigResponse, nil)
 
+	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
 	configResponse, err := service.ClientGetConfigs(&pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, [][]byte{root3, root4}, configResponse.Roots)
@@ -502,6 +503,7 @@ func TestServiceClientPredicates(t *testing.T) {
 		Error:              "",
 	}).Return(lastConfigResponse, nil)
 
+	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
 	configResponse, err := service.ClientGetConfigs(&pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(err)
 	assert.ElementsMatch(

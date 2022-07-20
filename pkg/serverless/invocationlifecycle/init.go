@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package invocationlifecycle
 
 import (
@@ -67,6 +72,10 @@ func (lp *LifecycleProcessor) initFromCloudWatchLogsEvent(event events.Cloudwatc
 }
 
 func (lp *LifecycleProcessor) initFromDynamoDBStreamEvent(event events.DynamoDBEvent) {
+
+	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
+		lp.GetInferredSpan().EnrichInferredSpanWithDynamoDBEvent(event)
+	}
 	lp.addTag("function_trigger.event_source", "dynamodb")
 	lp.addTag("function_trigger.event_source_arn", trigger.ExtractDynamoDBStreamEventARN(event))
 }
@@ -76,6 +85,10 @@ func (lp *LifecycleProcessor) initFromEventBridgeEvent(event inferredspan.EventB
 	lp.addTag("function_trigger.event_source_arn", event.Source)
 }
 func (lp *LifecycleProcessor) initFromKinesisStreamEvent(event events.KinesisEvent) {
+
+	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
+		lp.GetInferredSpan().EnrichInferredSpanWithKinesisEvent(event)
+	}
 	lp.addTag("function_trigger.event_source", "kinesis")
 	lp.addTag("function_trigger.event_source_arn", trigger.ExtractKinesisStreamEventARN(event))
 }

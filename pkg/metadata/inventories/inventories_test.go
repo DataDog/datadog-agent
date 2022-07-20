@@ -122,7 +122,7 @@ func TestGetPayload(t *testing.T) {
 	assert.Equal(t, startNow.UnixNano(), p.Timestamp)
 
 	agentMetadata := *p.AgentMetadata
-	assert.Len(t, agentMetadata, 1)
+	assert.Len(t, agentMetadata, 3) // keys are: "test", "full_configuration", "provided_configuration"
 	assert.Equal(t, true, agentMetadata["test"])
 
 	checkMeta := *p.CheckMetadata
@@ -155,12 +155,15 @@ func TestGetPayload(t *testing.T) {
 	resetFunc := setupHostMetadataMock()
 	defer resetFunc()
 
+	mockConfig := config.Mock(t)
+	mockConfig.Set("inventories_configuration_enabled", false)
+
 	p = GetPayload(ctx, "testHostname", &mockAutoConfig{}, &mockCollector{})
 
 	assert.Equal(t, startNow.UnixNano(), p.Timestamp) //updated startNow is returned
 
 	agentMetadata = *p.AgentMetadata
-	assert.Len(t, agentMetadata, 2)
+	assert.Len(t, agentMetadata, 2) // keys are: "test", "cloud_provider"
 	assert.Equal(t, true, agentMetadata["test"])
 
 	checkMeta = *p.CheckMetadata

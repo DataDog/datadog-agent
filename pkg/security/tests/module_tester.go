@@ -85,6 +85,8 @@ runtime_security_config:
     enabled: true
 {{if .EnableActivityDump}}
   activity_dump:
+    syscall_monitor:
+      enabled: true
     enabled: true
 {{end}}
   load_controller:

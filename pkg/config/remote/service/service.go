@@ -7,6 +7,7 @@ package service
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"path"
 	"sync"
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
@@ -33,6 +35,7 @@ const (
 	minimalRefreshInterval = 5 * time.Second
 	defaultClientsTTL      = 30 * time.Second
 	maxClientsTTL          = 60 * time.Second
+	newClientBlockTTL      = 2 * time.Second
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -61,9 +64,10 @@ type Service struct {
 	uptane   uptaneClient
 	api      api.API
 
-	products    map[rdata.Product]struct{}
-	newProducts map[rdata.Product]struct{}
-	clients     *clients
+	products         map[rdata.Product]struct{}
+	newProducts      map[rdata.Product]struct{}
+	clients          *clients
+	newActiveClients newActiveClients
 
 	lastUpdateErr error
 }
@@ -143,7 +147,7 @@ func NewService() (*Service, error) {
 	}
 
 	clientsTTL := config.Datadog.GetDuration("remote_configuration.clients.ttl_seconds")
-	if clientsTTL <= minimalRefreshInterval || clientsTTL >= maxClientsTTL {
+	if clientsTTL < minimalRefreshInterval || clientsTTL > maxClientsTTL {
 		log.Warnf("Configured clients ttl is not within accepted range (%s - %s): %s. Defaulting to %s", minimalRefreshInterval, maxClientsTTL, clientsTTL, defaultClientsTTL)
 		clientsTTL = defaultClientsTTL
 	}
@@ -162,6 +166,11 @@ func NewService() (*Service, error) {
 		api:                    http,
 		uptane:                 uptaneClient,
 		clients:                newClients(clock, clientsTTL),
+		newActiveClients: newActiveClients{
+			clock:    clock,
+			requests: make(chan chan struct{}),
+			until:    time.Now().UTC(),
+		},
 	}, nil
 }
 
@@ -171,17 +180,32 @@ func (s *Service) Start(ctx context.Context) error {
 	go func() {
 		defer cancel()
 
+		err := s.refresh()
+		if err != nil {
+			log.Errorf("could not refresh remote-config: %v", err)
+		}
+
 		for {
+			var err error
 			refreshInterval := s.calculateRefreshInterval()
-			err := s.refresh()
-			if err != nil {
-				log.Errorf("could not refresh remote-config: %v", err)
-			}
 			select {
 			case <-s.clock.After(refreshInterval):
-				continue
+				err = s.refresh()
+			// New clients detected, request refresh
+			case response := <-s.newActiveClients.requests:
+				if time.Now().UTC().After(s.newActiveClients.until) {
+					s.newActiveClients.setRateLimit(refreshInterval)
+					err = s.refresh()
+				} else {
+					telemetry.CacheBypassRateLimit.Inc()
+				}
+				close(response)
 			case <-ctx.Done():
 				return
+			}
+
+			if err != nil {
+				log.Errorf("could not refresh remote-config: %v", err)
 			}
 		}
 	}()
@@ -280,6 +304,19 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	if err != nil {
 		return nil, err
 	}
+
+	if !s.clients.active(request.Client) {
+		s.Unlock()
+		response := make(chan struct{})
+		s.newActiveClients.requests <- response
+		select {
+		case <-response:
+		case <-time.After(newClientBlockTTL):
+			telemetry.CacheBypassTimeout.Inc()
+		}
+		s.Lock()
+	}
+
 	s.clients.seen(request.Client)
 	tufVersions, err := s.uptane.TUFVersionState()
 	if err != nil {
@@ -383,7 +420,11 @@ func (s *Service) getTargetFiles(products []rdata.Product, cachedTargetFiles []*
 	for _, cachedTarget := range cachedTargetFiles {
 		hashes := make(data.Hashes)
 		for _, hash := range cachedTarget.Hashes {
-			hashes[hash.Algorithm] = hash.Hash
+			h, err := hex.DecodeString(hash.Hash)
+			if err != nil {
+				return nil, err
+			}
+			hashes[hash.Algorithm] = h
 		}
 		cachedTargets[cachedTarget.Path] = data.FileMeta{
 			Hashes: hashes,

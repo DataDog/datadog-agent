@@ -165,6 +165,14 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 
 	if !lp.DetectLambdaLibrary() {
 		log.Debug("Creating and sending function execution span for invocation")
+
+		if len(statusCode) == 3 && strings.HasPrefix(statusCode, "5") {
+			serverlessMetrics.SendErrorsEnhancedMetric(
+				lp.ExtraTags.Tags, endDetails.EndTime, lp.Demux,
+			)
+			endDetails.IsError = true
+		}
+
 		endExecutionSpan(lp.GetExecutionInfo(), lp.requestHandler.triggerTags, lp.ProcessTrace, endDetails)
 
 		if lp.InferredSpansEnabled {
