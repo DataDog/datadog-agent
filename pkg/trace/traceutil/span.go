@@ -137,5 +137,6 @@ func GetMetric(s *pb.Span, key string) (float64, bool) {
 	if s.Metrics == nil {
 		return 0, false
 	}
-	return s.Metrics[key], true
+	val, ok := s.Metrics[key]
+	return val, ok
 }
