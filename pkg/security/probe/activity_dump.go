@@ -775,20 +775,6 @@ func (ad *ActivityDump) Decode(inputFile string) error {
 	if err != nil {
 		return err
 	}
-	switch format {
-	case dump.MSGP:
-		return ad.DecodeMSGP(inputFile)
-	case dump.PROTOBUF:
-		return ad.DecodeProtobuf(inputFile)
-	default:
-		return fmt.Errorf("unsupported input format: %s", format)
-	}
-}
-
-// DecodeMSGP decodes an activity dump as MSGP
-func (ad *ActivityDump) DecodeMSGP(inputFile string) error {
-	ad.Lock()
-	defer ad.Unlock()
 
 	f, err := os.Open(inputFile)
 	if err != nil {
@@ -796,20 +782,39 @@ func (ad *ActivityDump) DecodeMSGP(inputFile string) error {
 	}
 	defer f.Close()
 
-	msgpReader := msgp.NewReader(f)
-	err = ad.DecodeMsg(msgpReader)
-	if err != nil {
+	return ad.DecodeFromReader(f, format)
+}
+
+// DecodeFromReader decodes an activity dump from a reader with the provided format
+func (ad *ActivityDump) DecodeFromReader(reader io.Reader, format dump.StorageFormat) error {
+	switch format {
+	case dump.MSGP:
+		return ad.DecodeMSGP(reader)
+	case dump.PROTOBUF:
+		return ad.DecodeProtobuf(reader)
+	default:
+		return fmt.Errorf("unsupported input format: %s", format)
+	}
+}
+
+// DecodeMSGP decodes an activity dump as MSGP
+func (ad *ActivityDump) DecodeMSGP(reader io.Reader) error {
+	ad.Lock()
+	defer ad.Unlock()
+
+	msgpReader := msgp.NewReader(reader)
+	if err := ad.DecodeMsg(msgpReader); err != nil {
 		return fmt.Errorf("couldn't parse activity dump file: %w", err)
 	}
 	return nil
 }
 
 // DecodeProtobuf decodes an activity dump as PROTOBUF
-func (ad *ActivityDump) DecodeProtobuf(inputFile string) error {
+func (ad *ActivityDump) DecodeProtobuf(reader io.Reader) error {
 	ad.Lock()
 	defer ad.Unlock()
 
-	raw, err := os.ReadFile(inputFile)
+	raw, err := io.ReadAll(reader)
 	if err != nil {
 		return fmt.Errorf("couldn't open activity dump file: %w", err)
 	}
