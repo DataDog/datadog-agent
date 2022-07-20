@@ -1029,15 +1029,17 @@ func (m *SocketNode) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if m.Bind != nil {
-		size, err := m.Bind.MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
+	if len(m.Bind) > 0 {
+		for iNdEx := len(m.Bind) - 1; iNdEx >= 0; iNdEx-- {
+			size, err := m.Bind[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarint(dAtA, i, uint64(size))
+			i--
+			dAtA[i] = 0x12
 		}
-		i -= size
-		i = encodeVarint(dAtA, i, uint64(size))
-		i--
-		dAtA[i] = 0x12
 	}
 	if len(m.Family) > 0 {
 		i -= len(m.Family)
@@ -1692,9 +1694,11 @@ func (m *SocketNode) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
-	if m.Bind != nil {
-		l = m.Bind.SizeVT()
-		n += 1 + l + sov(uint64(l))
+	if len(m.Bind) > 0 {
+		for _, e := range m.Bind {
+			l = e.SizeVT()
+			n += 1 + l + sov(uint64(l))
+		}
 	}
 	if m.unknownFields != nil {
 		n += len(m.unknownFields)
@@ -4786,10 +4790,8 @@ func (m *SocketNode) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Bind == nil {
-				m.Bind = &BindNode{}
-			}
-			if err := m.Bind.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+			m.Bind = append(m.Bind, &BindNode{})
+			if err := m.Bind[len(m.Bind)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex

@@ -72,8 +72,12 @@ func TestActivityDumps(t *testing.T) {
 				t.Fatal("Node not found in activity dump")
 			}
 			for _, s := range node.Sockets {
-				if s.Family == "AF_INET" && s.Bind.Port == 4242 && s.Bind.IP == "0.0.0.0" {
-					return true
+				if s.Family == "AF_INET" {
+					for _, bindNode := range s.Bind {
+						if bindNode.Port == 4242 && bindNode.IP == "0.0.0.0" {
+							return true
+						}
+					}
 				}
 			}
 			return false

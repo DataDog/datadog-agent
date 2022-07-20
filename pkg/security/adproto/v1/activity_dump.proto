@@ -145,7 +145,7 @@ message Credentials {
 
 message SocketNode {
     string family = 1;
-    BindNode bind = 2;
+    repeated BindNode bind = 2;
 }
 
 message BindNode {

@@ -261,13 +261,19 @@ func socketNodeToProto(sn *SocketNode) *adproto.SocketNode {
 		return nil
 	}
 
-	return &adproto.SocketNode{
+	psn := &adproto.SocketNode{
 		Family: sn.Family,
-		Bind: &adproto.BindNode{
-			Port: uint32(sn.Bind.Port),
-			Ip:   sn.Bind.IP,
-		},
+		Bind:   make([]*adproto.BindNode, 0, len(sn.Bind)),
 	}
+
+	for _, bn := range sn.Bind {
+		psn.Bind = append(psn.Bind, &adproto.BindNode{
+			Port: uint32(bn.Port),
+			Ip:   bn.IP,
+		})
+	}
+
+	return psn
 }
 
 func timestampToProto(t *time.Time) uint64 {

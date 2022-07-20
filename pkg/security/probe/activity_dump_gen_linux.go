@@ -2880,36 +2880,61 @@ func (z *SocketNode) DecodeMsg(dc *msgp.Reader) (err error) {
 			}
 		case "bind":
 			var zb0002 uint32
-			zb0002, err = dc.ReadMapHeader()
+			zb0002, err = dc.ReadArrayHeader()
 			if err != nil {
 				err = msgp.WrapError(err, "Bind")
 				return
 			}
-			for zb0002 > 0 {
-				zb0002--
-				field, err = dc.ReadMapKeyPtr()
-				if err != nil {
-					err = msgp.WrapError(err, "Bind")
-					return
-				}
-				switch msgp.UnsafeString(field) {
-				case "port":
-					z.Bind.Port, err = dc.ReadUint16()
+			if cap(z.Bind) >= int(zb0002) {
+				z.Bind = (z.Bind)[:zb0002]
+			} else {
+				z.Bind = make([]*BindNode, zb0002)
+			}
+			for za0001 := range z.Bind {
+				if dc.IsNil() {
+					err = dc.ReadNil()
 					if err != nil {
-						err = msgp.WrapError(err, "Bind", "Port")
+						err = msgp.WrapError(err, "Bind", za0001)
 						return
 					}
-				case "ip":
-					z.Bind.IP, err = dc.ReadString()
+					z.Bind[za0001] = nil
+				} else {
+					if z.Bind[za0001] == nil {
+						z.Bind[za0001] = new(BindNode)
+					}
+					var zb0003 uint32
+					zb0003, err = dc.ReadMapHeader()
 					if err != nil {
-						err = msgp.WrapError(err, "Bind", "IP")
+						err = msgp.WrapError(err, "Bind", za0001)
 						return
 					}
-				default:
-					err = dc.Skip()
-					if err != nil {
-						err = msgp.WrapError(err, "Bind")
-						return
+					for zb0003 > 0 {
+						zb0003--
+						field, err = dc.ReadMapKeyPtr()
+						if err != nil {
+							err = msgp.WrapError(err, "Bind", za0001)
+							return
+						}
+						switch msgp.UnsafeString(field) {
+						case "port":
+							z.Bind[za0001].Port, err = dc.ReadUint16()
+							if err != nil {
+								err = msgp.WrapError(err, "Bind", za0001, "Port")
+								return
+							}
+						case "ip":
+							z.Bind[za0001].IP, err = dc.ReadString()
+							if err != nil {
+								err = msgp.WrapError(err, "Bind", za0001, "IP")
+								return
+							}
+						default:
+							err = dc.Skip()
+							if err != nil {
+								err = msgp.WrapError(err, "Bind", za0001)
+								return
+							}
+						}
 					}
 				}
 			}
@@ -2926,9 +2951,23 @@ func (z *SocketNode) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *SocketNode) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 2
+	// omitempty: check for empty values
+	zb0001Len := uint32(2)
+	var zb0001Mask uint8 /* 2 bits */
+	if z.Bind == nil {
+		zb0001Len--
+		zb0001Mask |= 0x2
+	}
+	// variable map header, size zb0001Len
+	err = en.Append(0x80 | uint8(zb0001Len))
+	if err != nil {
+		return
+	}
+	if zb0001Len == 0 {
+		return
+	}
 	// write "family"
-	err = en.Append(0x82, 0xa6, 0x66, 0x61, 0x6d, 0x69, 0x6c, 0x79)
+	err = en.Append(0xa6, 0x66, 0x61, 0x6d, 0x69, 0x6c, 0x79)
 	if err != nil {
 		return
 	}
@@ -2937,31 +2976,47 @@ func (z *SocketNode) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Family")
 		return
 	}
-	// write "bind"
-	err = en.Append(0xa4, 0x62, 0x69, 0x6e, 0x64)
-	if err != nil {
-		return
-	}
-	// map header, size 2
-	// write "port"
-	err = en.Append(0x82, 0xa4, 0x70, 0x6f, 0x72, 0x74)
-	if err != nil {
-		return
-	}
-	err = en.WriteUint16(z.Bind.Port)
-	if err != nil {
-		err = msgp.WrapError(err, "Bind", "Port")
-		return
-	}
-	// write "ip"
-	err = en.Append(0xa2, 0x69, 0x70)
-	if err != nil {
-		return
-	}
-	err = en.WriteString(z.Bind.IP)
-	if err != nil {
-		err = msgp.WrapError(err, "Bind", "IP")
-		return
+	if (zb0001Mask & 0x2) == 0 { // if not empty
+		// write "bind"
+		err = en.Append(0xa4, 0x62, 0x69, 0x6e, 0x64)
+		if err != nil {
+			return
+		}
+		err = en.WriteArrayHeader(uint32(len(z.Bind)))
+		if err != nil {
+			err = msgp.WrapError(err, "Bind")
+			return
+		}
+		for za0001 := range z.Bind {
+			if z.Bind[za0001] == nil {
+				err = en.WriteNil()
+				if err != nil {
+					return
+				}
+			} else {
+				// map header, size 2
+				// write "port"
+				err = en.Append(0x82, 0xa4, 0x70, 0x6f, 0x72, 0x74)
+				if err != nil {
+					return
+				}
+				err = en.WriteUint16(z.Bind[za0001].Port)
+				if err != nil {
+					err = msgp.WrapError(err, "Bind", za0001, "Port")
+					return
+				}
+				// write "ip"
+				err = en.Append(0xa2, 0x69, 0x70)
+				if err != nil {
+					return
+				}
+				err = en.WriteString(z.Bind[za0001].IP)
+				if err != nil {
+					err = msgp.WrapError(err, "Bind", za0001, "IP")
+					return
+				}
+			}
+		}
 	}
 	return
 }
@@ -2969,19 +3024,39 @@ func (z *SocketNode) EncodeMsg(en *msgp.Writer) (err error) {
 // MarshalMsg implements msgp.Marshaler
 func (z *SocketNode) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 2
+	// omitempty: check for empty values
+	zb0001Len := uint32(2)
+	var zb0001Mask uint8 /* 2 bits */
+	if z.Bind == nil {
+		zb0001Len--
+		zb0001Mask |= 0x2
+	}
+	// variable map header, size zb0001Len
+	o = append(o, 0x80|uint8(zb0001Len))
+	if zb0001Len == 0 {
+		return
+	}
 	// string "family"
-	o = append(o, 0x82, 0xa6, 0x66, 0x61, 0x6d, 0x69, 0x6c, 0x79)
+	o = append(o, 0xa6, 0x66, 0x61, 0x6d, 0x69, 0x6c, 0x79)
 	o = msgp.AppendString(o, z.Family)
-	// string "bind"
-	o = append(o, 0xa4, 0x62, 0x69, 0x6e, 0x64)
-	// map header, size 2
-	// string "port"
-	o = append(o, 0x82, 0xa4, 0x70, 0x6f, 0x72, 0x74)
-	o = msgp.AppendUint16(o, z.Bind.Port)
-	// string "ip"
-	o = append(o, 0xa2, 0x69, 0x70)
-	o = msgp.AppendString(o, z.Bind.IP)
+	if (zb0001Mask & 0x2) == 0 { // if not empty
+		// string "bind"
+		o = append(o, 0xa4, 0x62, 0x69, 0x6e, 0x64)
+		o = msgp.AppendArrayHeader(o, uint32(len(z.Bind)))
+		for za0001 := range z.Bind {
+			if z.Bind[za0001] == nil {
+				o = msgp.AppendNil(o)
+			} else {
+				// map header, size 2
+				// string "port"
+				o = append(o, 0x82, 0xa4, 0x70, 0x6f, 0x72, 0x74)
+				o = msgp.AppendUint16(o, z.Bind[za0001].Port)
+				// string "ip"
+				o = append(o, 0xa2, 0x69, 0x70)
+				o = msgp.AppendString(o, z.Bind[za0001].IP)
+			}
+		}
+	}
 	return
 }
 
@@ -3011,36 +3086,60 @@ func (z *SocketNode) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			}
 		case "bind":
 			var zb0002 uint32
-			zb0002, bts, err = msgp.ReadMapHeaderBytes(bts)
+			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Bind")
 				return
 			}
-			for zb0002 > 0 {
-				zb0002--
-				field, bts, err = msgp.ReadMapKeyZC(bts)
-				if err != nil {
-					err = msgp.WrapError(err, "Bind")
-					return
-				}
-				switch msgp.UnsafeString(field) {
-				case "port":
-					z.Bind.Port, bts, err = msgp.ReadUint16Bytes(bts)
+			if cap(z.Bind) >= int(zb0002) {
+				z.Bind = (z.Bind)[:zb0002]
+			} else {
+				z.Bind = make([]*BindNode, zb0002)
+			}
+			for za0001 := range z.Bind {
+				if msgp.IsNil(bts) {
+					bts, err = msgp.ReadNilBytes(bts)
 					if err != nil {
-						err = msgp.WrapError(err, "Bind", "Port")
 						return
 					}
-				case "ip":
-					z.Bind.IP, bts, err = msgp.ReadStringBytes(bts)
+					z.Bind[za0001] = nil
+				} else {
+					if z.Bind[za0001] == nil {
+						z.Bind[za0001] = new(BindNode)
+					}
+					var zb0003 uint32
+					zb0003, bts, err = msgp.ReadMapHeaderBytes(bts)
 					if err != nil {
-						err = msgp.WrapError(err, "Bind", "IP")
+						err = msgp.WrapError(err, "Bind", za0001)
 						return
 					}
-				default:
-					bts, err = msgp.Skip(bts)
-					if err != nil {
-						err = msgp.WrapError(err, "Bind")
-						return
+					for zb0003 > 0 {
+						zb0003--
+						field, bts, err = msgp.ReadMapKeyZC(bts)
+						if err != nil {
+							err = msgp.WrapError(err, "Bind", za0001)
+							return
+						}
+						switch msgp.UnsafeString(field) {
+						case "port":
+							z.Bind[za0001].Port, bts, err = msgp.ReadUint16Bytes(bts)
+							if err != nil {
+								err = msgp.WrapError(err, "Bind", za0001, "Port")
+								return
+							}
+						case "ip":
+							z.Bind[za0001].IP, bts, err = msgp.ReadStringBytes(bts)
+							if err != nil {
+								err = msgp.WrapError(err, "Bind", za0001, "IP")
+								return
+							}
+						default:
+							bts, err = msgp.Skip(bts)
+							if err != nil {
+								err = msgp.WrapError(err, "Bind", za0001)
+								return
+							}
+						}
 					}
 				}
 			}
@@ -3058,6 +3157,13 @@ func (z *SocketNode) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *SocketNode) Msgsize() (s int) {
-	s = 1 + 7 + msgp.StringPrefixSize + len(z.Family) + 5 + 1 + 5 + msgp.Uint16Size + 3 + msgp.StringPrefixSize + len(z.Bind.IP)
+	s = 1 + 7 + msgp.StringPrefixSize + len(z.Family) + 5 + msgp.ArrayHeaderSize
+	for za0001 := range z.Bind {
+		if z.Bind[za0001] == nil {
+			s += msgp.NilSize
+		} else {
+			s += 1 + 5 + msgp.Uint16Size + 3 + msgp.StringPrefixSize + len(z.Bind[za0001].IP)
+		}
+	}
 	return
 }

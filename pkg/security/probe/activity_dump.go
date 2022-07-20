@@ -1241,9 +1241,28 @@ func (pan *ProcessActivityNode) InsertBindEvent(evt *model.BindEvent) bool {
 	if evt.SyscallEvent.Retval != 0 {
 		return false
 	}
+	var newNode bool
+	evtFamily := model.AddressFamily(evt.AddrFamily).String()
 
-	pan.Sockets = append(pan.Sockets, NewSocketNode(evt))
-	return true
+	// check if a socket of this type already exists
+	var sock *SocketNode
+	for _, s := range pan.Sockets {
+		if s.Family == evtFamily {
+			sock = s
+		}
+	}
+	if sock == nil {
+		sock = NewSocketNode(evtFamily)
+		pan.Sockets = append(pan.Sockets, sock)
+		newNode = true
+	}
+
+	// Insert bind event
+	if sock.InsertBindEvent(evt) {
+		newNode = true
+	}
+
+	return newNode
 }
 
 // InsertSyscalls inserts the syscall of the process in the dump
@@ -1398,20 +1417,36 @@ type BindNode struct {
 // SocketNode is used to store a Socket node and associated events
 type SocketNode struct {
 	id     NodeID
-	Family string   `msg:"family"`
-	Bind   BindNode `msg:"bind"`
+	Family string      `msg:"family"`
+	Bind   []*BindNode `msg:"bind,omitempty"`
+}
+
+// InsertBindEvent inserts a bind even inside a socket node
+func (n *SocketNode) InsertBindEvent(evt *model.BindEvent) bool {
+	// ignore non IPv4 / IPv6 bind events for now
+	if evt.AddrFamily != unix.AF_INET && evt.AddrFamily != unix.AF_INET6 {
+		return false
+	}
+	evtIP := evt.Addr.IPNet.IP.String()
+
+	for _, n := range n.Bind {
+		if evt.Addr.Port == n.Port && evtIP == n.IP {
+			return false
+		}
+	}
+
+	// insert bind event now
+	n.Bind = append(n.Bind, &BindNode{
+		Port: evt.Addr.Port,
+		IP:   evtIP,
+	})
+	return true
 }
 
 // NewSocketNode returns a new SocketNode instance
-func NewSocketNode(event *model.BindEvent) *SocketNode {
-	// NB: Today we only add sockets via bind events. When this struct will contains other
-	//     events (basically connect, but maybe others?), bind should became optionnal.
+func NewSocketNode(family string) *SocketNode {
 	return &SocketNode{
-		Family: model.AddressFamily(event.AddrFamily).String(),
-		Bind: BindNode{
-			Port: event.Addr.Port,
-			IP:   event.Addr.IPNet.IP.String(),
-		},
+		Family: family,
 	}
 }
 
