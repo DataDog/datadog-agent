@@ -80,7 +80,6 @@ func graphForFile(graph *cgraph.Graph, sourceFile string) {
 		log.Error(err)
 		return
 	}
-	log.Info(localDev)
 	for _, conn := range payload.Connections {
 		device := conn.Remote.Device
 
@@ -164,4 +163,6 @@ func renderGraph(g *graphviz.Graphviz, graph *cgraph.Graph) {
 		log.Error(err)
 		return
 	}
+
+	log.Info("Graph rendered to: %s", graphFile)
 }
