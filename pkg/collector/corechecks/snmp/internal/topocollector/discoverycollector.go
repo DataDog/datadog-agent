@@ -1,16 +1,16 @@
-package discoverycollector
+package topocollector
 
 import (
 	"encoding/json"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/common"
-	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/config"
-	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/enrichment"
-	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/fetch"
-	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/graph"
-	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/session"
-	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/valuestore"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/fetch"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/topograph"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"net"
 	"os"
@@ -22,11 +22,11 @@ import (
 type DiscoveryCollector struct {
 	sender   aggregator.Sender
 	hostname string
-	config   *config.NetworkDiscoveryConfig
+	config   *checkconfig.CheckConfig
 }
 
 // NewDiscoveryCollector TODO
-func NewDiscoveryCollector(sender aggregator.Sender, hostname string, config *config.NetworkDiscoveryConfig) *DiscoveryCollector {
+func NewDiscoveryCollector(sender aggregator.Sender, hostname string, config *checkconfig.CheckConfig) *DiscoveryCollector {
 	return &DiscoveryCollector{
 		sender:   sender,
 		hostname: hostname,
@@ -69,7 +69,7 @@ func (dc *DiscoveryCollector) Collect() {
 
 		if strings.HasPrefix(portIdStr, "0x") && len(portIdStr) == 14 {
 			// TODO: need better way to detect the portId type
-			newValue, _ := enrichment.FormatValue(value, "mac_address")
+			newValue, _ := report.FormatValue(value, "mac_address")
 			portIdStr, _ = newValue.ToString()
 			portIdType = 3 // macAddress
 		}
@@ -191,7 +191,7 @@ func (dc *DiscoveryCollector) Collect() {
 		remote.ChassisIdSubtype = int(floatVal)
 
 		if remote.ChassisIdSubtype == 4 {
-			newVal, _ := enrichment.FormatValue(ChassisId, "mac_address")
+			newVal, _ := report.FormatValue(ChassisId, "mac_address")
 			strVal, _ = newVal.ToString()
 			remote.ChassisId = strVal
 		} else {
@@ -203,7 +203,7 @@ func (dc *DiscoveryCollector) Collect() {
 		remote.PortIdSubType = int(floatVal)
 
 		if remote.PortIdSubType == 3 {
-			newVal, _ := enrichment.FormatValue(PortId, "mac_address")
+			newVal, _ := report.FormatValue(PortId, "mac_address")
 			strVal, _ = newVal.ToString()
 			remote.PortId = strVal
 		} else {
@@ -274,7 +274,7 @@ func (dc *DiscoveryCollector) Collect() {
 
 	dc.writeToFile(payloadBytes)
 
-	graph.GraphTopology()
+	topograph.GraphTopology()
 }
 
 func (dc *DiscoveryCollector) writeToFile(payloadBytes []byte) {

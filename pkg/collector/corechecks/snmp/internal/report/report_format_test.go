@@ -48,7 +48,7 @@ func Test_formatValue(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			value, err := formatValue(tt.value, tt.format)
+			value, err := FormatValue(tt.value, tt.format)
 			assert.Equal(t, tt.expectedValue, value)
 			if tt.expectedError != "" {
 				assert.EqualError(t, err, tt.expectedError)

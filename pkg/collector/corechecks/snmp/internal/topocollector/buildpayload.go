@@ -1,14 +1,14 @@
-package discoverycollector
+package topocollector
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/common"
-	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/payload"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/topopayload"
 )
 
-func buildPayload(remoteConns []common.LldpRemote, hostname string) payload.TopologyPayload {
-	p := payload.TopologyPayload{
+func buildPayload(remoteConns []common.LldpRemote, hostname string) topopayload.TopologyPayload {
+	p := topopayload.TopologyPayload{
 		Host: hostname,
-		Device: payload.Device{
+		Device: topopayload.Device{
 			IP:   "127.0.0.1", // TODO: Update with real data
 			Name: "my-device", // TODO: Update with real data
 		},
@@ -18,9 +18,9 @@ func buildPayload(remoteConns []common.LldpRemote, hostname string) payload.Topo
 		if remoteCon.RemoteManagement != nil {
 			remManAddr = remoteCon.RemoteManagement.ManAddr
 		}
-		p.Connections = append(p.Connections, payload.Connection{
-			Remote: payload.Endpoint{
-				Device: payload.Device{
+		p.Connections = append(p.Connections, topopayload.Connection{
+			Remote: topopayload.Endpoint{
+				Device: topopayload.Device{
 					IP:                    remManAddr,
 					Name:                  remoteCon.SysName,
 					Description:           remoteCon.SysDesc,
@@ -29,16 +29,16 @@ func buildPayload(remoteConns []common.LldpRemote, hostname string) payload.Topo
 					CapabilitiesSupported: remoteCon.SysCapSupported,
 					CapabilitiesEnabled:   remoteCon.SysCapEnabled,
 				},
-				Interface: payload.Interface{
+				Interface: topopayload.Interface{
 					// TODO: Check if type if valid/present
 					IdType:      common.PortIdSubTypeMap[remoteCon.PortIdSubType],
 					Id:          remoteCon.PortId,
 					Description: remoteCon.PortDesc,
 				},
 			},
-			Local: payload.Endpoint{
+			Local: topopayload.Endpoint{
 				// TODO: is it ok to have device field, but never filled for local endpoint?
-				Interface: payload.Interface{
+				Interface: topopayload.Interface{
 					IdType:      common.PortIdSubTypeMap[remoteCon.LocalPort.PortIdSubType],
 					Id:          remoteCon.LocalPort.PortId,
 					Description: remoteCon.LocalPort.PortDesc,

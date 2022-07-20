@@ -13,7 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
-func formatValue(value valuestore.ResultValue, format string) (valuestore.ResultValue, error) {
+// FormatValue TODO
+func FormatValue(value valuestore.ResultValue, format string) (valuestore.ResultValue, error) {
 	switch value.Value.(type) {
 	case []byte:
 		val := value.Value.([]byte)

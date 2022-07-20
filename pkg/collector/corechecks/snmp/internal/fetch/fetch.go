@@ -19,16 +19,16 @@ import (
 type columnFetchStrategy int
 
 const (
-	useGetBulk columnFetchStrategy = iota
-	useGetNext
+	UseGetBulk columnFetchStrategy = iota
+	UseGetNext
 )
 
 func (c columnFetchStrategy) String() string {
 	switch c {
-	case useGetBulk:
-		return "useGetBulk"
-	case useGetNext:
-		return "useGetNext"
+	case UseGetBulk:
+		return "UseGetBulk"
+	case UseGetNext:
+		return "UseGetNext"
 	default:
 		return strconv.Itoa(int(c))
 	}
@@ -49,11 +49,11 @@ func Fetch(sess session.Session, config *checkconfig.CheckConfig) (*valuestore.R
 		oids[value] = value
 	}
 
-	columnResults, err := fetchColumnOidsWithBatching(sess, oids, config.OidBatchSize, config.BulkMaxRepetitions, useGetBulk)
+	columnResults, err := FetchColumnOidsWithBatching(sess, oids, config.OidBatchSize, config.BulkMaxRepetitions, UseGetBulk)
 	if err != nil {
 		log.Debugf("failed to fetch oids with GetBulk batching: %v", err)
 
-		columnResults, err = fetchColumnOidsWithBatching(sess, oids, config.OidBatchSize, config.BulkMaxRepetitions, useGetNext)
+		columnResults, err = FetchColumnOidsWithBatching(sess, oids, config.OidBatchSize, config.BulkMaxRepetitions, UseGetNext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch oids with GetNext batching: %v", err)
 		}

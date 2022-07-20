@@ -20,7 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
-func fetchColumnOidsWithBatching(sess session.Session, oids map[string]string, oidBatchSize int, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
+// FetchColumnOidsWithBatching TODO
+func FetchColumnOidsWithBatching(sess session.Session, oids map[string]string, oidBatchSize int, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
 	retValues := make(valuestore.ColumnResultValuesType, len(oids))
 
 	columnOids := getOidsMapKeys(oids)
@@ -96,7 +97,7 @@ func fetchColumnOids(sess session.Session, oids map[string]string, bulkMaxRepeti
 
 func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (*gosnmp.SnmpPacket, error) {
 	var results *gosnmp.SnmpPacket
-	if sess.GetVersion() == gosnmp.Version1 || fetchStrategy == useGetNext {
+	if sess.GetVersion() == gosnmp.Version1 || fetchStrategy == UseGetNext {
 		// snmp v1 doesn't support GetBulk
 		getNextResults, err := sess.GetNext(requestOids)
 		if err != nil {

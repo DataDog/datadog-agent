@@ -8,6 +8,7 @@ package devicecheck
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/topocollector"
 	"strings"
 	"time"
 
@@ -38,9 +39,10 @@ const (
 
 // DeviceCheck hold info necessary to collect info for a single device
 type DeviceCheck struct {
-	config  *checkconfig.CheckConfig
-	sender  *report.MetricSender
-	session session.Session
+	config        *checkconfig.CheckConfig
+	sender        *report.MetricSender
+	session       session.Session
+	topocollector *topocollector.DiscoveryCollector
 }
 
 // NewDeviceCheck returns a new DeviceCheck
@@ -51,11 +53,13 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 	if err != nil {
 		return nil, fmt.Errorf("failed to configure session: %s", err)
 	}
-
-	return &DeviceCheck{
+	devcheck := &DeviceCheck{
 		config:  newConfig,
 		session: sess,
-	}, nil
+	}
+	hostname, _ := devcheck.GetDeviceHostname() // TODO: Better error handling
+	devcheck.topocollector = topocollector.NewDiscoveryCollector(nil, hostname, config)
+	return devcheck, nil
 }
 
 // SetSender sets the current sender
@@ -122,6 +126,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 
 	d.submitTelemetryMetrics(startTime, tags)
 	d.setDeviceHostExternalTags()
+	d.topocollector.Collect()
 	return checkErr
 }
 

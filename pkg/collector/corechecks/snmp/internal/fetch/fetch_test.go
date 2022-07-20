@@ -90,7 +90,7 @@ func Test_fetchColumnOids(t *testing.T) {
 
 	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2"}
 
-	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 100, checkconfig.DefaultBulkMaxRepetitions, useGetBulk)
+	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 100, checkconfig.DefaultBulkMaxRepetitions, UseGetBulk)
 	assert.Nil(t, err)
 
 	expectedColumnValues := valuestore.ColumnResultValuesType{
@@ -181,7 +181,7 @@ func Test_fetchColumnOidsBatch_usingGetBulk(t *testing.T) {
 
 	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2"}
 
-	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 2, 10, useGetBulk)
+	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 2, 10, UseGetBulk)
 	assert.Nil(t, err)
 
 	expectedColumnValues := valuestore.ColumnResultValuesType{
@@ -278,7 +278,7 @@ func Test_fetchColumnOidsBatch_usingGetNext(t *testing.T) {
 
 	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2", "1.1.3": "1.1.3"}
 
-	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 2, 10, useGetBulk)
+	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 2, 10, UseGetBulk)
 	assert.Nil(t, err)
 
 	expectedColumnValues := valuestore.ColumnResultValuesType{
@@ -862,7 +862,7 @@ func Test_fetchColumnOids_alreadyProcessed(t *testing.T) {
 
 	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2"}
 
-	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 100, checkconfig.DefaultBulkMaxRepetitions, useGetBulk)
+	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 100, checkconfig.DefaultBulkMaxRepetitions, UseGetBulk)
 	assert.Nil(t, err)
 
 	expectedColumnValues := valuestore.ColumnResultValuesType{

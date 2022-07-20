@@ -1,18 +1,17 @@
-package graph
+package topograph
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/networkdiscovery/payload"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/topopayload"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/goccy/go-graphviz"
 	"github.com/goccy/go-graphviz/cgraph"
 	"io/fs"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-
-	"github.com/goccy/go-graphviz"
 )
 
 // GraphTopology TODO
@@ -68,7 +67,7 @@ func graphForFile(graph *cgraph.Graph, sourceFile string) {
 	byteValue, _ := ioutil.ReadAll(jsonFile)
 	fmt.Println(string(byteValue))
 
-	payload := payload.TopologyPayload{}
+	payload := topopayload.TopologyPayload{}
 	json.Unmarshal(byteValue, &payload)
 
 	log.Infof("payload: %+v", payload)
@@ -103,7 +102,7 @@ func graphForFile(graph *cgraph.Graph, sourceFile string) {
 	}
 }
 
-func interfaceName(interf payload.Interface) string {
+func interfaceName(interf topopayload.Interface) string {
 	formatInterfaceName := interf.Id
 	if interf.IdType != "" {
 		formatInterfaceName += "\n(" + interf.IdType + ")"
@@ -111,7 +110,7 @@ func interfaceName(interf payload.Interface) string {
 	return formatInterfaceName
 }
 
-func createNode(graph *cgraph.Graph, device payload.Device) (*cgraph.Node, error) {
+func createNode(graph *cgraph.Graph, device topopayload.Device) (*cgraph.Node, error) {
 	var nodeName string
 	if device.IP != "" {
 		nodeName = "IP: " + device.IP
