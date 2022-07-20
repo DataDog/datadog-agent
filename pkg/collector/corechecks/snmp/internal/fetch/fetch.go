@@ -19,10 +19,13 @@ import (
 type columnFetchStrategy int
 
 const (
+	// UseGetBulk TODO
 	UseGetBulk columnFetchStrategy = iota
+	// UseGetNext TODO
 	UseGetNext
 )
 
+// String TODO
 func (c columnFetchStrategy) String() string {
 	switch c {
 	case UseGetBulk:
@@ -49,11 +52,11 @@ func Fetch(sess session.Session, config *checkconfig.CheckConfig) (*valuestore.R
 		oids[value] = value
 	}
 
-	columnResults, err := FetchColumnOidsWithBatching(sess, oids, config.OidBatchSize, config.BulkMaxRepetitions, UseGetBulk)
+	columnResults, err := DoFetchColumnOidsWithBatching(sess, oids, config.OidBatchSize, config.BulkMaxRepetitions, UseGetBulk)
 	if err != nil {
 		log.Debugf("failed to fetch oids with GetBulk batching: %v", err)
 
-		columnResults, err = FetchColumnOidsWithBatching(sess, oids, config.OidBatchSize, config.BulkMaxRepetitions, UseGetNext)
+		columnResults, err = DoFetchColumnOidsWithBatching(sess, oids, config.OidBatchSize, config.BulkMaxRepetitions, UseGetNext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch oids with GetNext batching: %v", err)
 		}

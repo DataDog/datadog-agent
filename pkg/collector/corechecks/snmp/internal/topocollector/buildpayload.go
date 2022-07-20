@@ -24,23 +24,23 @@ func buildPayload(remoteConns []common.LldpRemote, hostname string, address stri
 					IP:                    remManAddr,
 					Name:                  remoteCon.SysName,
 					Description:           remoteCon.SysDesc,
-					ChassisId:             remoteCon.ChassisId,
-					ChassisIdType:         common.ChassisIdSubtypeMap[remoteCon.ChassisIdSubtype],
+					ChassisID:             remoteCon.ChassisID,
+					ChassisIDType:         common.ChassisIDSubtypeMap[remoteCon.ChassisIDSubtype],
 					CapabilitiesSupported: remoteCon.SysCapSupported,
 					CapabilitiesEnabled:   remoteCon.SysCapEnabled,
 				},
 				Interface: topopayload.Interface{
 					// TODO: Check if type if valid/present
-					IdType:      common.PortIdSubTypeMap[remoteCon.PortIdSubType],
-					Id:          remoteCon.PortId,
+					IDType:      common.PortIDSubTypeMap[remoteCon.PortIDSubType],
+					ID:          remoteCon.PortID,
 					Description: remoteCon.PortDesc,
 				},
 			},
 			Local: topopayload.Endpoint{
 				// TODO: is it ok to have device field, but never filled for local endpoint?
 				Interface: topopayload.Interface{
-					IdType:      common.PortIdSubTypeMap[remoteCon.LocalPort.PortIdSubType],
-					Id:          remoteCon.LocalPort.PortId,
+					IDType:      common.PortIDSubTypeMap[remoteCon.LocalPort.PortIDSubType],
+					ID:          remoteCon.LocalPort.PortID,
 					Description: remoteCon.LocalPort.PortDesc,
 				},
 			},

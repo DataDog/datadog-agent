@@ -20,8 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
-// FetchColumnOidsWithBatching TODO
-func FetchColumnOidsWithBatching(sess session.Session, oids map[string]string, oidBatchSize int, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
+// DoFetchColumnOidsWithBatching TODO
+func DoFetchColumnOidsWithBatching(sess session.Session, oids map[string]string, oidBatchSize int, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
 	retValues := make(valuestore.ColumnResultValuesType, len(oids))
 
 	columnOids := getOidsMapKeys(oids)

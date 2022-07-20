@@ -57,36 +57,36 @@ func (dc *DiscoveryCollector) Collect() {
 	// INDEX { lldpLocPortNum }
 	columns := []string{
 		"1.0.8802.1.1.2.1.3.7.1.2", // lldpLocPortIdSubtype
-		"1.0.8802.1.1.2.1.3.7.1.3", // lldpLocPortId
+		"1.0.8802.1.1.2.1.3.7.1.3", // lldpLocPortID
 		"1.0.8802.1.1.2.1.4.2.1.4", // lldpLocPortDesc
 	}
 	columnValues := dc.collectColumnsOids(columns, session)
-	lldpLocPortId := columnValues["1.0.8802.1.1.2.1.3.7.1.3"]
+	lldpLocPortID := columnValues["1.0.8802.1.1.2.1.3.7.1.3"]
 
 	var locPorts []common.LldpLocPort
-	for fullIndex, value := range lldpLocPortId {
+	for fullIndex, value := range lldpLocPortID {
 		localPortNum, _ := strconv.Atoi(fullIndex)
-		portIdStr, _ := value.ToString()
-		var portIdType int
+		portIDStr, _ := value.ToString()
+		var portIDType int
 
-		if strings.HasPrefix(portIdStr, "0x") && len(portIdStr) == 14 {
+		if strings.HasPrefix(portIDStr, "0x") && len(portIDStr) == 14 {
 			// TODO: need better way to detect the portId type
 			newValue, _ := report.FormatValue(value, "mac_address")
-			portIdStr, _ = newValue.ToString()
-			portIdType = 3 // macAddress
+			portIDStr, _ = newValue.ToString()
+			portIDType = 3 // macAddress
 		}
 		locPort := common.LldpLocPort{
 			PortNum:       localPortNum,
-			PortIdSubType: portIdType,
-			PortId:        portIdStr,
+			PortIDSubType: portIDType,
+			PortID:        portIDStr,
 		}
 		locPorts = append(locPorts, locPort)
 	}
 	for _, locPort := range locPorts {
 		log.Infof("\t->")
 		log.Infof("\t\t PortNum: %d", locPort.PortNum)
-		log.Infof("\t\t PortIdSubType: %d", locPort.PortIdSubType)
-		log.Infof("\t\t PortId: %s", locPort.PortId)
+		log.Infof("\t\t PortIDSubType: %d", locPort.PortIDSubType)
+		log.Infof("\t\t PortID: %s", locPort.PortID)
 		log.Infof("\t\t PortDesc: %s", locPort.PortDesc)
 	}
 
@@ -103,7 +103,7 @@ func (dc *DiscoveryCollector) Collect() {
 	ifSubType := columnValues["1.0.8802.1.1.2.1.4.2.1.3"]
 
 	var remoteMans []common.LldpRemoteManagement
-	for fullIndex, _ := range ifSubType {
+	for fullIndex := range ifSubType {
 		indexes := strings.Split(fullIndex, ".")
 		timeMark, _ := strconv.Atoi(indexes[0])
 		localPortNum, _ := strconv.Atoi(indexes[1])
@@ -178,10 +178,10 @@ func (dc *DiscoveryCollector) Collect() {
 			Index:        index,
 		}
 
-		ChassisIdSubtype := colValues["1.0.8802.1.1.2.1.4.1.1.4"]
-		ChassisId := colValues["1.0.8802.1.1.2.1.4.1.1.5"]
-		PortIdSubtype := colValues["1.0.8802.1.1.2.1.4.1.1.6"]
-		PortId := colValues["1.0.8802.1.1.2.1.4.1.1.7"]
+		ChassisIDSubtype := colValues["1.0.8802.1.1.2.1.4.1.1.4"]
+		ChassisID := colValues["1.0.8802.1.1.2.1.4.1.1.5"]
+		PortIDSubtype := colValues["1.0.8802.1.1.2.1.4.1.1.6"]
+		PortID := colValues["1.0.8802.1.1.2.1.4.1.1.7"]
 		PortDesc := colValues["1.0.8802.1.1.2.1.4.1.1.8"]
 		SysName := colValues["1.0.8802.1.1.2.1.4.1.1.9"]
 		SysDesc := colValues["1.0.8802.1.1.2.1.4.1.1.10"]
@@ -189,28 +189,28 @@ func (dc *DiscoveryCollector) Collect() {
 		SysCapEnabled := colValues["1.0.8802.1.1.2.1.4.1.1.12"]
 
 		var strVal string
-		floatVal, _ := ChassisIdSubtype.ToFloat64()
-		remote.ChassisIdSubtype = int(floatVal)
+		floatVal, _ := ChassisIDSubtype.ToFloat64()
+		remote.ChassisIDSubtype = int(floatVal)
 
-		if remote.ChassisIdSubtype == 4 {
-			newVal, _ := report.FormatValue(ChassisId, "mac_address")
+		if remote.ChassisIDSubtype == 4 {
+			newVal, _ := report.FormatValue(ChassisID, "mac_address")
 			strVal, _ = newVal.ToString()
-			remote.ChassisId = strVal
+			remote.ChassisID = strVal
 		} else {
-			strVal, _ = ChassisId.ToString()
-			remote.ChassisId = strVal
+			strVal, _ = ChassisID.ToString()
+			remote.ChassisID = strVal
 		}
 
-		floatVal, _ = PortIdSubtype.ToFloat64()
-		remote.PortIdSubType = int(floatVal)
+		floatVal, _ = PortIDSubtype.ToFloat64()
+		remote.PortIDSubType = int(floatVal)
 
-		if remote.PortIdSubType == 3 {
-			newVal, _ := report.FormatValue(PortId, "mac_address")
+		if remote.PortIDSubType == 3 {
+			newVal, _ := report.FormatValue(PortID, "mac_address")
 			strVal, _ = newVal.ToString()
-			remote.PortId = strVal
+			remote.PortID = strVal
 		} else {
-			strVal, _ = PortId.ToString()
-			remote.PortId = strVal
+			strVal, _ = PortID.ToString()
+			remote.PortID = strVal
 		}
 
 		strVal, _ = PortDesc.ToString()
@@ -249,10 +249,10 @@ func (dc *DiscoveryCollector) Collect() {
 		log.Infof("\t\t TimeMark: %d", remote.TimeMark)
 		log.Infof("\t\t LocalPortNum: %d", remote.LocalPortNum)
 		log.Infof("\t\t Index: %d", remote.Index)
-		log.Infof("\t\t ChassisIdSubtype: %s (%d)", common.ChassisIdSubtypeMap[remote.ChassisIdSubtype], remote.ChassisIdSubtype)
-		log.Infof("\t\t ChassisId: %s", remote.ChassisId)
-		log.Infof("\t\t PortIdSubType: %s (%d)", common.PortIdSubTypeMap[remote.PortIdSubType], remote.PortIdSubType)
-		log.Infof("\t\t PortId: %s", remote.PortId)
+		log.Infof("\t\t ChassisIDSubtype: %s (%d)", common.ChassisIDSubtypeMap[remote.ChassisIDSubtype], remote.ChassisIDSubtype)
+		log.Infof("\t\t ChassisID: %s", remote.ChassisID)
+		log.Infof("\t\t PortIDSubType: %s (%d)", common.PortIDSubTypeMap[remote.PortIDSubType], remote.PortIDSubType)
+		log.Infof("\t\t PortID: %s", remote.PortID)
 		log.Infof("\t\t PortDesc: %s", remote.PortDesc)
 		log.Infof("\t\t SysName: %s", remote.SysName)
 		log.Infof("\t\t SysDesc: %s", remote.SysDesc)
@@ -262,7 +262,7 @@ func (dc *DiscoveryCollector) Collect() {
 			log.Infof("\t\t ManAddr: %s", remote.RemoteManagement.ManAddr)
 		}
 		if remote.LocalPort != nil {
-			log.Infof("\t\t LocalPort.PortId: %s", remote.LocalPort.PortId)
+			log.Infof("\t\t LocalPort.PortID: %s", remote.LocalPort.PortID)
 		}
 	}
 
@@ -337,9 +337,9 @@ func (dc *DiscoveryCollector) collectColumnsOids(columns []string, session sessi
 		oids[value] = value
 	}
 	log.Infof("session2: %+v", session)
-	columnValues, err := fetch.FetchColumnOidsWithBatching(session, oids, dc.config.OidBatchSize, 10, fetch.UseGetNext)
+	columnValues, err := fetch.DoFetchColumnOidsWithBatching(session, oids, dc.config.OidBatchSize, 10, fetch.UseGetNext)
 	if err != nil {
-		log.Errorf("error FetchColumnOidsWithBatching: %s", err)
+		log.Errorf("error DoFetchColumnOidsWithBatching: %s", err)
 		return nil
 	}
 	return columnValues

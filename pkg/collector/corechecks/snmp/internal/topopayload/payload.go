@@ -11,8 +11,8 @@ type Device struct {
 	Namespace             string `json:"namespace"`
 	Name                  string `json:"name"`
 	Description           string `json:"description"`
-	ChassisIdType         string `json:"chassis_id_type"`
-	ChassisId             string `json:"chassis_id"`
+	ChassisIDType         string `json:"chassis_id_type"`
+	ChassisID             string `json:"chassis_id"`
 	CapabilitiesSupported string `json:"capabilities_supported"`
 	CapabilitiesEnabled   string `json:"capabilities_enabled"`
 }
@@ -25,8 +25,8 @@ type Endpoint struct {
 
 // Interface TODO
 type Interface struct {
-	IdType      string `json:"id_type"`
-	Id          string `json:"id"`
+	IDType      string `json:"id_type"`
+	ID          string `json:"id"`
 	Description string `json:"description"`
 }
 

@@ -1,13 +1,14 @@
 package common
 
+// LldpRemote TODO
 type LldpRemote struct {
 	TimeMark         int
 	LocalPortNum     int
 	Index            int
-	ChassisIdSubtype int
-	ChassisId        string
-	PortIdSubType    int
-	PortId           string
+	ChassisIDSubtype int
+	ChassisID        string
+	PortIDSubType    int
+	PortID           string
 	PortDesc         string
 	SysName          string
 	SysDesc          string
@@ -17,6 +18,7 @@ type LldpRemote struct {
 	LocalPort        *LldpLocPort
 }
 
+// LldpRemoteManagement TODO
 type LldpRemoteManagement struct {
 	TimeMark         int
 	LocalPortNum     int
@@ -26,14 +28,16 @@ type LldpRemoteManagement struct {
 	ManAddrIfSubtype int
 }
 
+// LldpLocPort TODO
 type LldpLocPort struct {
 	PortNum       int
-	PortIdSubType int
-	PortId        string
+	PortIDSubType int
+	PortID        string
 	PortDesc      string
 }
 
-var ChassisIdSubtypeMap = map[int]string{
+// ChassisIDSubtypeMap TODO
+var ChassisIDSubtypeMap = map[int]string{
 	1: "chassisComponent",
 	2: "interfaceAlias",
 	3: "portComponent",
@@ -43,7 +47,8 @@ var ChassisIdSubtypeMap = map[int]string{
 	7: "local",
 }
 
-var PortIdSubTypeMap = map[int]string{
+// PortIDSubTypeMap TODO
+var PortIDSubTypeMap = map[int]string{
 	1: "interfaceAlias",
 	2: "portComponent",
 	3: "macAddress",
@@ -53,6 +58,7 @@ var PortIdSubTypeMap = map[int]string{
 	7: "local",
 }
 
+// RemManAddrSubtype TODO
 var RemManAddrSubtype = map[int]string{
 	0:     "other",
 	1:     "ipV4",

@@ -33,7 +33,7 @@ func GraphTopology() {
 	graph.SetLayout("sfdp")
 	topologyFolder := "/tmp/topology"
 	for _, file := range findFiles(topologyFolder, ".json") {
-		fmt.Println(file)
+		log.Infof("file: %s", file)
 		graphForFile(graph, file)
 	}
 
@@ -42,7 +42,7 @@ func GraphTopology() {
 
 func findFiles(root, ext string) []string {
 	var a []string
-	filepath.WalkDir(root, func(s string, d fs.DirEntry, e error) error {
+	_ = filepath.WalkDir(root, func(s string, d fs.DirEntry, e error) error {
 		if e != nil {
 			return e
 		}
@@ -56,19 +56,23 @@ func findFiles(root, ext string) []string {
 
 func graphForFile(graph *cgraph.Graph, sourceFile string) {
 	jsonFile, err := os.Open(sourceFile)
+	// if we os.Open returns an error then handle it
+	if err != nil {
+		log.Error(err)
+		return
+	}
 	defer jsonFile.Close()
 
 	profile := filepath.Base(sourceFile)
 
-	// if we os.Open returns an error then handle it
-	if err != nil {
-		fmt.Println(err)
-	}
 	byteValue, _ := ioutil.ReadAll(jsonFile)
-	fmt.Println(string(byteValue))
 
 	payload := topopayload.TopologyPayload{}
-	json.Unmarshal(byteValue, &payload)
+	err = json.Unmarshal(byteValue, &payload)
+
+	if err != nil {
+		log.Error(err)
+	}
 
 	log.Infof("payload: %+v", payload)
 
@@ -102,9 +106,9 @@ func graphForFile(graph *cgraph.Graph, sourceFile string) {
 }
 
 func interfaceName(interf topopayload.Interface) string {
-	formatInterfaceName := interf.Id
-	if interf.IdType != "" {
-		formatInterfaceName += "\n(" + interf.IdType + ")"
+	formatInterfaceName := interf.ID
+	if interf.IDType != "" {
+		formatInterfaceName += "\n(" + interf.IDType + ")"
 	}
 	return formatInterfaceName
 }
@@ -120,13 +124,13 @@ func createNode(graph *cgraph.Graph, device topopayload.Device) (*cgraph.Node, e
 		}
 		nodeName += "Name: " + device.Name
 	}
-	if device.ChassisId != "" {
+	if device.ChassisID != "" {
 		if nodeName != "" {
 			nodeName += "\n"
 		}
-		nodeName += "chassisId: " + device.ChassisId
-		if device.ChassisIdType != "" {
-			nodeName += "\nchassisIdType: " + device.ChassisIdType
+		nodeName += "chassisId: " + device.ChassisID
+		if device.ChassisIDType != "" {
+			nodeName += "\nchassisIdType: " + device.ChassisIDType
 		}
 	}
 
@@ -152,11 +156,11 @@ func renderGraph(g *graphviz.Graphviz, graph *cgraph.Graph) {
 
 	graphFile := "/tmp/topology/graph.png"
 	file, err := os.Create(graphFile)
-	defer file.Close()
 	if err != nil {
 		log.Error(err)
 		return
 	}
+	defer file.Close()
 
 	// 3. write to file directly
 	if err := g.RenderFilename(graph, graphviz.PNG, graphFile); err != nil {
