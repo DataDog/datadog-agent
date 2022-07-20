@@ -19,12 +19,13 @@ import (
 	"sync"
 )
 
+var graphMutex sync.RWMutex
+
 // DiscoveryCollector TODO
 type DiscoveryCollector struct {
-	sender     aggregator.Sender
-	hostname   string
-	config     *checkconfig.CheckConfig
-	graphMutex sync.RWMutex
+	sender   aggregator.Sender
+	hostname string
+	config   *checkconfig.CheckConfig
 }
 
 // NewDiscoveryCollector TODO
@@ -285,14 +286,14 @@ func (dc *DiscoveryCollector) Collect() {
 }
 
 func (dc *DiscoveryCollector) graph() {
-	dc.graphMutex.Lock()
-	defer dc.graphMutex.Unlock()
+	graphMutex.Lock()
+	defer graphMutex.Unlock()
 	topograph.GraphTopology()
 }
 
 func (dc *DiscoveryCollector) writeToFile(payloadBytes []byte) {
-	dc.graphMutex.Lock()
-	defer dc.graphMutex.Unlock()
+	graphMutex.Lock()
+	defer graphMutex.Unlock()
 	fileName := dc.config.IPAddress
 	folderName := "/tmp/topology"
 	filePath := folderName + "/" + fileName + ".json"
