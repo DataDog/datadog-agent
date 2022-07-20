@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"text/template"
@@ -42,7 +43,17 @@ func main() {
 
 	abiList := strings.Split(abis, ",")
 
-	syscalls, err := getSyscallTable(inputTableURL, abiList)
+	var (
+		syscalls []syscallDefinition
+		err      error
+	)
+
+	if strings.HasSuffix(inputTableURL, ".tbl") {
+		syscalls, err = parseSyscallTable(inputTableURL, abiList)
+	} else {
+		syscalls, err = parseUnistdTable(inputTableURL, abiList)
+	}
+
 	if err != nil {
 		panic(err)
 	}
@@ -68,7 +79,45 @@ type syscallDefinition struct {
 	CamelCaseName string
 }
 
-func getSyscallTable(url string, abis []string) ([]syscallDefinition, error) {
+const unistdDefinePrefix = "#define __NR_"
+
+var unistdDefinedRe = regexp.MustCompile(`#define __NR_([0-9a-zA-Z_][0-9a-zA-Z_]*)\s+([0-9]+)`)
+
+func parseUnistdTable(url string, abis []string) ([]syscallDefinition, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	syscalls := make([]syscallDefinition, 0)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		trimmed := strings.TrimSpace(line)
+
+		subs := unistdDefinedRe.FindStringSubmatch(trimmed)
+		if subs != nil {
+			name := subs[1]
+			nr, err := strconv.ParseInt(subs[2], 10, 0)
+			if err != nil {
+				return nil, err
+			}
+
+			camelCaseName := snakeToCamelCase(name)
+
+			syscalls = append(syscalls, syscallDefinition{
+				Number:        int(nr),
+				Name:          name,
+				CamelCaseName: camelCaseName,
+			})
+		}
+	}
+
+	return syscalls, nil
+}
+
+func parseSyscallTable(url string, abis []string) ([]syscallDefinition, error) {
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
