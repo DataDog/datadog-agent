@@ -80,6 +80,10 @@ func (lp *LifecycleProcessor) initFromDynamoDBStreamEvent(event events.DynamoDBE
 	lp.addTag("function_trigger.event_source_arn", trigger.ExtractDynamoDBStreamEventARN(event))
 }
 
+func (lp *LifecycleProcessor) initFromEventBridgeEvent(event inferredspan.EventBridgeEvent) {
+	lp.addTag("function_trigger.event_source", "eventbridge")
+	lp.addTag("function_trigger.event_source_arn", event.Source)
+}
 func (lp *LifecycleProcessor) initFromKinesisStreamEvent(event events.KinesisEvent) {
 
 	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {

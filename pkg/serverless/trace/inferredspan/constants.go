@@ -10,6 +10,7 @@ const (
 	apiID            = "apiid"
 	apiName          = "apiname"
 	connectionID     = "connection_id"
+	detailType       = "detail_type"
 	endpoint         = "endpoint"
 	eventID          = "event_id"
 	eventName        = "event_name"
@@ -49,3 +50,11 @@ const (
 	// in the payload headers
 	invocationType = "X-Amz-Invocation-Type"
 )
+
+// EventBridgeEvent is used for unmarshalling a EventBridge event.
+// AWS Go libraries do not provide this type of event for deserialization.
+type EventBridgeEvent struct {
+	DetailType string `json:"detail-type"`
+	Source     string `json:"source"`
+	StartTime  string `json:"time"`
+}

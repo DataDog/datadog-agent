@@ -839,6 +839,28 @@ func TestTriggerTypesLifecycleEventForSNSSQS(t *testing.T) {
 	assert.Equal(t, snsSpan.SpanID, sqsSpan.ParentID)
 }
 
+func TestTriggerTypesLifecycleEventForEventBridge(t *testing.T) {
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: getEventFromFile("eventbridge-custom.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+	}
+
+	testProcessor := &LifecycleProcessor{
+		DetectLambdaLibrary: func() bool { return false },
+		ProcessTrace:        func(*api.Payload) {},
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		RequestID: "test-request-id",
+	})
+	assert.Equal(t, map[string]string{
+		"function_trigger.event_source_arn": "eventbridge.custom.event.sender",
+		"request_id":                        "test-request-id",
+		"function_trigger.event_source":     "eventbridge",
+	}, testProcessor.GetTags())
+}
+
 // Helper function for reading test file
 func getEventFromFile(filename string) string {
 	event, err := os.ReadFile("../trace/testdata/event_samples/" + filename)
