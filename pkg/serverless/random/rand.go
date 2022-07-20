@@ -15,22 +15,29 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 // Random holds a thread-safe source of random numbers.
 var Random *rand.Rand
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\serverless\random\rand.go 22`)
 	var seed int64
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\serverless\random\rand.go 23`)
 	n, err := cryptorand.Int(cryptorand.Reader, big.NewInt(math.MaxInt64))
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\serverless\random\rand.go 24`)
 	if err == nil {
 		seed = n.Int64()
 	} else {
 		log.Warnf("cannot generate random seed: %v; using current time", err)
 		seed = time.Now().UnixNano()
 	}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\serverless\random\rand.go 30`)
 	Random = rand.New(&safeSource{
 		source: rand.NewSource(seed),
 	})
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\serverless\random\rand.go 33`)
 }
 
 // safeSource holds a thread-safe implementation of rand.Source64.

@@ -10,9 +10,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\cloudproviders\ibm\diagnosis.go 14`)
 	diagnosis.Register("IBM cloud Metadata availability", diagnose)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\cloudproviders\ibm\diagnosis.go 15`)
 }
 
 // diagnose the IBM cloud metadata API availability

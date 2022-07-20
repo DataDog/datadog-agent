@@ -17,9 +17,13 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\app\config.go 21`)
 	SysprobeCmd.AddCommand(cmdconfig.Config(getSettingsClient))
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\app\config.go 22`)
 }
 
 func setupConfig() (*config.Config, error) {

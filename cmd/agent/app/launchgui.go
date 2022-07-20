@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/spf13/cobra"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	launchCmd = &cobra.Command{
@@ -27,8 +29,10 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\launchgui.go 29`)
 	// attach the command to the root
 	AgentCmd.AddCommand(launchCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\launchgui.go 31`)
 
 }
 

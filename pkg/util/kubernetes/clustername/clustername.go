@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	clusterIDEnv = "DD_ORCHESTRATOR_CLUSTER_ID"
@@ -57,12 +59,15 @@ func newClusterNameData() *clusterNameData {
 var defaultClusterNameData *clusterNameData
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\kubernetes\clustername\clustername.go 59`)
 	defaultClusterNameData = newClusterNameData()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\kubernetes\clustername\clustername.go 60`)
 	ProviderCatalog = map[string]Provider{
 		"gce":   gce.GetClusterName,
 		"azure": azure.GetClusterName,
 		"ec2":   ec2.GetClusterName,
 	}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\kubernetes\clustername\clustername.go 65`)
 }
 
 func getClusterName(ctx context.Context, data *clusterNameData, hostname string) string {

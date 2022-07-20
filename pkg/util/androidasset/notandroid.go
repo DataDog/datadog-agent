@@ -8,10 +8,13 @@
 
 package androidasset
 
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 /*
  * no implmenentation here.  This file exists to placate go vet, and friends, since
  * the directory contains no non-android files
  */
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\androidasset\notandroid.go 15`)
 
 }

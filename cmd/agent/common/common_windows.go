@@ -19,6 +19,8 @@ import (
 	"github.com/cihub/seelog"
 	"golang.org/x/sys/windows/registry"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
@@ -49,7 +51,9 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\common\common_windows.go 51`)
 	pd, err := winutil.GetProgramDataDir()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\common\common_windows.go 52`)
 	if err == nil {
 		DefaultConfPath = pd
 		DefaultLogFile = filepath.Join(pd, "logs", "agent.log")
@@ -57,6 +61,7 @@ func init() {
 	} else {
 		winutil.LogEventViewer(config.ServiceName, 0x8000000F, DefaultConfPath)
 	}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\common\common_windows.go 59`)
 }
 
 // EnableLoggingToFile -- set up logging to file

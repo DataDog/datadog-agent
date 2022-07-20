@@ -14,6 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 // ResourcesCollector sends the old metadata payload used in the
 // Agent v5
@@ -37,5 +39,7 @@ func (rp *ResourcesCollector) Send(ctx context.Context, s serializer.MetricSeria
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\metadata\resources.go 39`)
 	RegisterCollector("resources", new(ResourcesCollector))
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\metadata\resources.go 40`)
 }

@@ -21,6 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	customerEmail        string
@@ -34,17 +36,28 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\flare.go 36`)
 	AgentCmd.AddCommand(flareCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\flare.go 37`)
 
 	flareCmd.Flags().StringVarP(&customerEmail, "email", "e", "", "Your email")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\flare.go 39`)
 	flareCmd.Flags().BoolVarP(&autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\flare.go 40`)
 	flareCmd.Flags().BoolVarP(&forceLocal, "local", "l", false, "Force the creation of the flare by the command line instead of the agent process (useful when running in a containerized env)")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\flare.go 41`)
 	flareCmd.Flags().IntVarP(&profiling, "profile", "p", -1, "Add performance profiling data to the flare. It will collect a heap profile and a CPU profile for the amount of seconds passed to the flag, with a minimum of 30s")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\flare.go 42`)
 	flareCmd.Flags().BoolVarP(&profileMutex, "profile-mutex", "M", false, "Add mutex profile to the performance data in the flare")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\flare.go 43`)
 	flareCmd.Flags().IntVarP(&profileMutexFraction, "profile-mutex-fraction", "", 100, "Set the fraction of mutex contention events that are reported in the mutex profile")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\flare.go 44`)
 	flareCmd.Flags().BoolVarP(&profileBlocking, "profile-blocking", "B", false, "Add gorouting blocking profile to the performance data in the flare")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\flare.go 45`)
 	flareCmd.Flags().IntVarP(&profileBlockingRate, "profile-blocking-rate", "", 10000, "Set the fraction of goroutine blocking events that are reported in the blocking profile")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\flare.go 46`)
 	flareCmd.SetArgs([]string{"caseID"})
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\flare.go 47`)
 }
 
 var flareCmd = &cobra.Command{

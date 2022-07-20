@@ -19,17 +19,25 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	filters diagnostic.Filters
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\stream_logs.go 27`)
 	AgentCmd.AddCommand(troubleshootLogsCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\stream_logs.go 28`)
 	troubleshootLogsCmd.Flags().StringVar(&filters.Name, "name", "", "Filter by name")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\stream_logs.go 29`)
 	troubleshootLogsCmd.Flags().StringVar(&filters.Type, "type", "", "Filter by type")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\stream_logs.go 30`)
 	troubleshootLogsCmd.Flags().StringVar(&filters.Source, "source", "", "Filter by source")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\stream_logs.go 31`)
 	troubleshootLogsCmd.Flags().StringVar(&filters.Service, "service", "", "Filter by service")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\stream_logs.go 32`)
 }
 
 var troubleshootLogsCmd = &cobra.Command{

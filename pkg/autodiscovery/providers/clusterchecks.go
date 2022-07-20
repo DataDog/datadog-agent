@@ -18,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const defaultGraceDuration = 60 * time.Second
 
@@ -166,7 +168,9 @@ func (c *ClusterChecksConfigProvider) Collect(ctx context.Context) ([]integratio
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\providers\clusterchecks.go 168`)
 	RegisterProvider(names.ClusterChecksRegisterName, NewClusterChecksConfigProvider)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\providers\clusterchecks.go 169`)
 }
 
 // GetConfigErrors is not implemented for the ClusterChecksConfigProvider

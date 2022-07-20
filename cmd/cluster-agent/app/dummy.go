@@ -8,8 +8,11 @@
 
 package app
 
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 // this file is to allow go vet to look at something in this directory, as everything
 // else currently is excluded (on windows) by build flags
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\cluster-agent\app\dummy.go 13`)
 
 }

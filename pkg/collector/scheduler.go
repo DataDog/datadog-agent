@@ -19,6 +19,8 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	schedulerErrs  *expvar.Map
@@ -35,13 +37,17 @@ type commonInstanceConfig struct {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\scheduler.go 37`)
 	schedulerErrs = expvar.NewMap("CheckScheduler")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\scheduler.go 38`)
 	schedulerErrs.Set("LoaderErrors", expvar.Func(func() interface{} {
 		return errorStats.getLoaderErrors()
 	}))
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\scheduler.go 41`)
 	schedulerErrs.Set("RunErrors", expvar.Func(func() interface{} {
 		return errorStats.getRunErrors()
 	}))
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\scheduler.go 44`)
 }
 
 // CheckScheduler is the check scheduler

@@ -29,6 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	hostnameExpvars  = expvar.NewMap("hostname")
@@ -37,9 +39,13 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\hostname.go 39`)
 	hostnameErrors.Init()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\hostname.go 40`)
 	hostnameExpvars.Set("provider", &hostnameProvider)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\hostname.go 41`)
 	hostnameExpvars.Set("errors", &hostnameErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\hostname.go 42`)
 }
 
 // Fqdn returns the FQDN for the host if any

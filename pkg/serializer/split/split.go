@@ -15,6 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 // the backend accepts payloads up to 3MB, but being conservative is okay
 var maxPayloadSizeCompressed = 2 * 1024 * 1024
@@ -52,10 +54,15 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\serializer\split\split.go 54`)
 	splitterExpvars.Set("NotTooBig", &splitterNotTooBig)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\serializer\split\split.go 55`)
 	splitterExpvars.Set("TooBig", &splitterTooBig)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\serializer\split\split.go 56`)
 	splitterExpvars.Set("TotalLoops", &splitterTotalLoops)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\serializer\split\split.go 57`)
 	splitterExpvars.Set("PayloadDrops", &splitterPayloadDrops)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\serializer\split\split.go 58`)
 
 }
 

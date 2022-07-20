@@ -13,6 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
 	"go.uber.org/atomic"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 // Transport is the transport used by logs-agent, i.e TCP or HTTP
 type Transport string
@@ -112,13 +114,17 @@ func AddGlobalError(key string, errorMessage string) {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\logs\status\status.go 114`)
 	metrics.LogsExpvars.Set("Errors", expvar.Func(func() interface{} {
 		return strings.Join(Get().Errors, ", ")
 	}))
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\logs\status\status.go 117`)
 	metrics.LogsExpvars.Set("Warnings", expvar.Func(func() interface{} {
 		return strings.Join(Get().Warnings, ", ")
 	}))
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\logs\status\status.go 120`)
 	metrics.LogsExpvars.Set("IsRunning", expvar.Func(func() interface{} {
 		return Get().IsRunning
 	}))
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\logs\status\status.go 123`)
 }

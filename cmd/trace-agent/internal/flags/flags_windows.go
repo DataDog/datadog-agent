@@ -14,15 +14,20 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 // DefaultConfigPath specifies the default configuration path.
 var DefaultConfigPath = "c:\\programdata\\datadog\\datadog.yaml"
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\trace-agent\internal\flags\flags_windows.go 21`)
 	pd, err := winutil.GetProgramDataDir()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\trace-agent\internal\flags\flags_windows.go 22`)
 	if err == nil {
 		DefaultConfigPath = filepath.Join(pd, "datadog.yaml")
 	}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\trace-agent\internal\flags\flags_windows.go 25`)
 }
 
 func registerOSSpecificFlags() {

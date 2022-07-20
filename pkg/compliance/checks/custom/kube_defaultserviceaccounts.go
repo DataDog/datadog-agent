@@ -17,9 +17,13 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\compliance\checks\custom\kube_defaultserviceaccounts.go 21`)
 	registerCustomCheck("kubernetesDefaultServiceAccounts", kubernetesDefaultServiceAccountsCheck)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\compliance\checks\custom\kube_defaultserviceaccounts.go 22`)
 }
 
 func kubernetesDefaultServiceAccountsCheck(e env.Env, ruleID string, vars map[string]string, _ *eval.IterableExpression) (*compliance.Report, error) {

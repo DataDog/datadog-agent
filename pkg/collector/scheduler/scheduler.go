@@ -17,6 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	minAllowedInterval     = 1 * time.Second
@@ -31,9 +33,13 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\scheduler\scheduler.go 33`)
 	schedulerExpvars = expvar.NewMap("scheduler")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\scheduler\scheduler.go 34`)
 	schedulerExpvars.Set("QueuesCount", &schedulerQueuesCount)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\scheduler\scheduler.go 35`)
 	schedulerExpvars.Set("ChecksEntered", &schedulerChecksEntered)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\scheduler\scheduler.go 36`)
 }
 
 // Scheduler keeps things rolling.

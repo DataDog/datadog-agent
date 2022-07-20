@@ -9,11 +9,15 @@ import (
 	"context"
 	"runtime"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\system\cpu_windows.go 13`)
 	// TODO: Implement proper CPU Count for Windows too
 	// As runtime.NumCPU() supports Windows CPU Affinity
 	cpuInfoFunc = func(context.Context, bool) (int, error) {
 		return runtime.NumCPU(), nil
 	}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\system\cpu_windows.go 18`)
 }

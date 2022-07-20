@@ -21,9 +21,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\common.go 25`)
 	rand.Seed(time.Now().UnixNano())
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\common.go 26`)
 }
 
 // CopyFile atomically copies file path `src`` to file path `dst`.

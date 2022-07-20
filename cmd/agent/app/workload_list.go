@@ -17,12 +17,17 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var verboseList bool
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\workload_list.go 23`)
 	AgentCmd.AddCommand(workloadListCommand)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\workload_list.go 24`)
 	workloadListCommand.Flags().BoolVarP(&verboseList, "verbose", "v", false, "print out a full dump of the workload store")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\workload_list.go 25`)
 }
 
 var workloadListCommand = &cobra.Command{

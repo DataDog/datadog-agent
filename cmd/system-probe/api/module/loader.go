@@ -15,14 +15,18 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var l *loader
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\api\module\loader.go 21`)
 	l = &loader{
 		modules: make(map[config.ModuleName]Module),
 		errors:  make(map[config.ModuleName]error),
 	}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\api\module\loader.go 25`)
 }
 
 // loader is responsible for managing the lifecyle of each api.Module, which includes:

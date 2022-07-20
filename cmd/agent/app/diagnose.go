@@ -15,6 +15,8 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	diagnoseCommand = &cobra.Command{
@@ -41,11 +43,15 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\diagnose.go 43`)
 
 	diagnoseCommand.AddCommand(diagnoseMetadataAvailabilityCommand)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\diagnose.go 45`)
 	diagnoseCommand.AddCommand(diagnoseDatadogConnectivityCommand)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\diagnose.go 46`)
 
 	AgentCmd.AddCommand(diagnoseCommand)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\diagnose.go 48`)
 }
 
 func doDiagnoseMetadataAvailability(cmd *cobra.Command, args []string) error {

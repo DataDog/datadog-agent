@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	defaultExpire = 3 * time.Minute
@@ -44,12 +46,14 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\orchestrator\cache.go 46`)
 	for _, nodeType := range NodeTypes() {
 		cacheHits[nodeType] = &expvar.Int{}
 		cacheMiss[nodeType] = &expvar.Int{}
 		cacheExpVars.Set(nodeType.String(), cacheHits[nodeType])
 		sendExpVars.Set(nodeType.String(), cacheMiss[nodeType])
 	}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\orchestrator\cache.go 52`)
 }
 
 // SkipKubernetesResource checks with a global kubernetes cache whether the resource was already reported.

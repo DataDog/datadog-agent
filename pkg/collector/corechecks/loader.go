@@ -13,6 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 // CheckFactory factory function type to instantiate checks
 type CheckFactory func() check.Check
@@ -82,9 +84,12 @@ func (gl *GoCheckLoader) String() string {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\loader.go 84`)
 	factory := func() (check.Loader, error) {
 		return NewGoCheckLoader()
 	}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\loader.go 87`)
 
 	loaders.RegisterLoader(30, factory)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\loader.go 89`)
 }

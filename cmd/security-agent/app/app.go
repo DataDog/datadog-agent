@@ -48,6 +48,8 @@ import (
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	// loggerName is the name of the security agent logger
@@ -109,22 +111,31 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\app.go 111`)
 	defaultConfPathArray := []string{
 		path.Join(commonagent.DefaultConfPath, "datadog.yaml"),
 		path.Join(commonagent.DefaultConfPath, "security-agent.yaml"),
 	}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\app.go 115`)
 	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&confPathArray, "cfgpath", "c", defaultConfPathArray, "path to a yaml configuration file")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\app.go 116`)
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\app.go 117`)
 
 	SecurityAgentCmd.AddCommand(versionCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\app.go 119`)
 	SecurityAgentCmd.AddCommand(complianceCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\app.go 120`)
 
 	if runtimeCmd != nil {
 		SecurityAgentCmd.AddCommand(runtimeCmd)
 	}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\app.go 124`)
 
 	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\app.go 126`)
 	SecurityAgentCmd.AddCommand(startCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\app.go 127`)
 }
 
 func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string, intakeTrackType config.IntakeTrackType, intakeOrigin config.IntakeOrigin, intakeProtocol config.IntakeProtocol) (*config.Endpoints, *client.DestinationsContext, error) {

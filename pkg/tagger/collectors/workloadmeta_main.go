@@ -18,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	workloadmetaCollectorName = "workloadmeta"
@@ -184,7 +186,11 @@ func mergeMaps(first, second map[string]string) map[string]string {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\tagger\collectors\workloadmeta_main.go 186`)
 	CollectorPriorities[podSource] = NodeOrchestrator
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\tagger\collectors\workloadmeta_main.go 187`)
 	CollectorPriorities[taskSource] = NodeOrchestrator
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\tagger\collectors\workloadmeta_main.go 188`)
 	CollectorPriorities[containerSource] = NodeRuntime
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\tagger\collectors\workloadmeta_main.go 189`)
 }

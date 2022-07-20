@@ -24,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	ntpCheckName                 = "ntp"
@@ -243,5 +245,7 @@ func ntpFactory() check.Check {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\net\ntp.go 245`)
 	core.RegisterCheck(ntpCheckName, ntpFactory)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\net\ntp.go 246`)
 }

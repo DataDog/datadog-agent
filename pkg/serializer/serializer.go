@@ -28,6 +28,8 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	protobufContentType                         = "application/x-protobuf"
@@ -52,9 +54,13 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\serializer\serializer.go 54`)
 	expvars.Set("SendEventsErrItemTooBigs", &expvarsSendEventsErrItemTooBigs)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\serializer\serializer.go 55`)
 	expvars.Set("SendEventsErrItemTooBigsFallback", &expvarsSendEventsErrItemTooBigsFallback)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\serializer\serializer.go 56`)
 	initExtraHeaders()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\serializer\serializer.go 57`)
 }
 
 // initExtraHeaders initializes the global extraHeaders variables.

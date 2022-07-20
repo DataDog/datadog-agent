@@ -32,6 +32,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/atomic"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	dogstatsdExpvars                  = expvar.NewMap("dogstatsd")
@@ -61,13 +63,21 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\dogstatsd\server.go 63`)
 	dogstatsdExpvars.Set("ServiceCheckParseErrors", &dogstatsdServiceCheckParseErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\dogstatsd\server.go 64`)
 	dogstatsdExpvars.Set("ServiceCheckPackets", &dogstatsdServiceCheckPackets)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\dogstatsd\server.go 65`)
 	dogstatsdExpvars.Set("EventParseErrors", &dogstatsdEventParseErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\dogstatsd\server.go 66`)
 	dogstatsdExpvars.Set("EventPackets", &dogstatsdEventPackets)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\dogstatsd\server.go 67`)
 	dogstatsdExpvars.Set("MetricParseErrors", &dogstatsdMetricParseErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\dogstatsd\server.go 68`)
 	dogstatsdExpvars.Set("MetricPackets", &dogstatsdMetricPackets)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\dogstatsd\server.go 69`)
 	dogstatsdExpvars.Set("UnterminatedMetricErrors", &dogstatsdUnterminatedMetricErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\dogstatsd\server.go 70`)
 }
 
 // used in debug mode to add the origin on the processed metric as a tag

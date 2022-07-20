@@ -16,9 +16,13 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\process\checks\process_windows.go 20`)
 	defaultWindowsProbe = procutil.NewWindowsToolhelpProbe()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\process\checks\process_windows.go 21`)
 }
 
 func formatUser(fp *procutil.Process) *model.ProcessUser {

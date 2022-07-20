@@ -10,6 +10,8 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const checkName = "uptime"
 
@@ -44,5 +46,7 @@ func uptimeFactory() check.Check {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\system\uptime\uptime.go 46`)
 	core.RegisterCheck(checkName, uptimeFactory)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\system\uptime\uptime.go 47`)
 }

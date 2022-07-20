@@ -18,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/util"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	collectorID   = "cloudfoundry"
@@ -37,9 +39,11 @@ type collector struct {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\workloadmeta\collectors\internal\cloudfoundry\cloudfoundry.go 39`)
 	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
 		return &collector{}
 	})
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\workloadmeta\collectors\internal\cloudfoundry\cloudfoundry.go 42`)
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {

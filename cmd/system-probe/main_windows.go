@@ -18,16 +18,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"golang.org/x/sys/windows/svc"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	defaultSysProbeConfigPath = "c:\\programdata\\datadog\\system-probe.yaml"
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\main_windows.go 26`)
 	pd, err := winutil.GetProgramDataDir()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\main_windows.go 27`)
 	if err == nil {
 		defaultSysProbeConfigPath = filepath.Join(pd, "system-probe.yaml")
 	}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\main_windows.go 30`)
 }
 
 func main() {

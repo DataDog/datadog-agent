@@ -15,11 +15,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/spf13/cobra"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const targetProcessName = "system-probe"
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\app\debug.go 21`)
 	SysprobeCmd.AddCommand(debugCommand)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\app\debug.go 22`)
 }
 
 var (

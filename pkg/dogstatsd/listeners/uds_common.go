@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	udsExpvars               = expvar.NewMap("dogstatsd-uds")
@@ -29,10 +31,15 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\dogstatsd\listeners\uds_common.go 31`)
 	udsExpvars.Set("OriginDetectionErrors", &udsOriginDetectionErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\dogstatsd\listeners\uds_common.go 32`)
 	udsExpvars.Set("PacketReadingErrors", &udsPacketReadingErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\dogstatsd\listeners\uds_common.go 33`)
 	udsExpvars.Set("Packets", &udsPackets)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\dogstatsd\listeners\uds_common.go 34`)
 	udsExpvars.Set("Bytes", &udsBytes)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\dogstatsd\listeners\uds_common.go 35`)
 }
 
 // UDSListener implements the StatsdListener interface for Unix Domain

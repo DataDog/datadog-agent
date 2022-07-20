@@ -81,6 +81,8 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/metadata"
 	_ "github.com/DataDog/datadog-agent/pkg/metadata"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	// flags variables
@@ -99,11 +101,14 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\run.go 101`)
 	// attach the command to the root
 	AgentCmd.AddCommand(runCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\run.go 103`)
 
 	// local flags
 	runCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\run.go 106`)
 }
 
 // Start the main loop

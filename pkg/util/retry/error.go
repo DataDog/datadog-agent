@@ -7,6 +7,8 @@ package retry
 
 import "fmt"
 
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 var statusFormats map[Status]string
 
 // Error is a custom error type that is returned by the Retrier
@@ -60,9 +62,11 @@ func IsErrWillRetry(err error) bool {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\retry\error.go 62`)
 	statusFormats = map[Status]string{
 		NeedSetup:     "%s needs to be setup with SetupRetrier: %s",
 		FailWillRetry: "temporary failure in %s, will retry later: %s",
 		PermaFail:     "permanent failure in %s: %s",
 	}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\retry\error.go 67`)
 }

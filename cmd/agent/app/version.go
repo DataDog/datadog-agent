@@ -15,9 +15,13 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\version.go 19`)
 	AgentCmd.AddCommand(versionCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\version.go 20`)
 }
 
 var versionCmd = &cobra.Command{

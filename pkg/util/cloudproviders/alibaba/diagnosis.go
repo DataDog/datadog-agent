@@ -10,9 +10,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\cloudproviders\alibaba\diagnosis.go 14`)
 	diagnosis.Register("Alibaba Metadata availability", diagnose)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\cloudproviders\alibaba\diagnosis.go 15`)
 }
 
 // diagnose the alibaba metadata API availability

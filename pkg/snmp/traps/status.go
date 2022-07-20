@@ -11,6 +11,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	trapsExpvars           = expvar.NewMap("snmp_traps")
@@ -19,8 +21,11 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\snmp\traps\status.go 21`)
 	trapsExpvars.Set("Packets", &trapsPackets)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\snmp\traps\status.go 22`)
 	trapsExpvars.Set("PacketsAuthErrors", &trapsPacketsAuthErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\snmp\traps\status.go 23`)
 }
 
 func getDroppedPackets() int64 {

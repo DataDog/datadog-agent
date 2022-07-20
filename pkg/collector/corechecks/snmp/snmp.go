@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var timeNow = time.Now
 
@@ -170,5 +172,7 @@ func snmpFactory() check.Check {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\snmp\snmp.go 172`)
 	core.RegisterCheck(common.SnmpIntegrationName, snmpFactory)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\snmp\snmp.go 173`)
 }

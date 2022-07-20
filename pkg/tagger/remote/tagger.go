@@ -31,6 +31,8 @@ import (
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	noTimeout         = 0 * time.Minute
@@ -362,5 +364,7 @@ func convertEntityID(id *pb.EntityId) string {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\tagger\remote\tagger.go 364`)
 	grpclog.SetLoggerV2(grpcutil.NewLogger())
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\tagger\remote\tagger.go 365`)
 }

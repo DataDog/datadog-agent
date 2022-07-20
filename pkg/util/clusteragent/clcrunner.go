@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 /*
 Client to query the Datadog Cluster Level Check Runner API.
@@ -146,5 +148,7 @@ func (c *CLCRunnerClient) GetRunnerStats(IP string) (types.CLCRunnersStats, erro
 
 // init globalCLCRunnerClient
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\clusteragent\clcrunner.go 148`)
 	globalCLCRunnerClient = &CLCRunnerClient{}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\clusteragent\clcrunner.go 149`)
 }

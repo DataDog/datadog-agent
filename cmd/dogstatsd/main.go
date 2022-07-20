@@ -38,6 +38,8 @@ import (
 	// register all workloadmeta collectors
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	// dogstatsdCmd is the root command
@@ -83,15 +85,22 @@ const (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\dogstatsd\main.go 85`)
 	// attach the command to the root
 	dogstatsdCmd.AddCommand(startCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\dogstatsd\main.go 87`)
 	dogstatsdCmd.AddCommand(versionCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\dogstatsd\main.go 88`)
 
 	// local flags
 	startCmd.Flags().StringVarP(&confPath, "cfgpath", "c", "", "path to folder containing dogstatsd.yaml")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\dogstatsd\main.go 91`)
 	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("cfgpath")) //nolint:errcheck
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\dogstatsd\main.go 92`)
 	startCmd.Flags().StringVarP(&socketPath, "socket", "s", "", "listen to this socket instead of UDP")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\dogstatsd\main.go 93`)
 	config.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket")) //nolint:errcheck
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\dogstatsd\main.go 94`)
 }
 
 func start(cmd *cobra.Command, args []string) error {

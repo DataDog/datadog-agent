@@ -15,6 +15,8 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	metadataEndpoint = "/agent/metadata/"
@@ -55,9 +57,13 @@ This command print the last Inventory metadata payload sent by the Agent. This p
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\troubleshooting.go 57`)
 	troubleshootingCmd.AddCommand(payloadV5Cmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\troubleshooting.go 58`)
 	troubleshootingCmd.AddCommand(payloadInventoriesCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\troubleshooting.go 59`)
 	AgentCmd.AddCommand(troubleshootingCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\troubleshooting.go 60`)
 }
 
 func printPayload(payloadName string) error {

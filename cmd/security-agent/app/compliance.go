@@ -26,6 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	complianceCmd = &cobra.Command{
@@ -49,14 +51,23 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\compliance.go 51`)
 	complianceCmd.AddCommand(eventCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\compliance.go 52`)
 	eventCmd.Flags().StringVarP(&eventArgs.sourceType, "source-type", "", "compliance", "Log source name")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\compliance.go 53`)
 	eventCmd.Flags().StringVarP(&eventArgs.sourceName, "source-name", "", "compliance-agent", "Log source name")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\compliance.go 54`)
 	eventCmd.Flags().StringVarP(&eventArgs.event.AgentRuleID, "rule-id", "", "", "Rule ID")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\compliance.go 55`)
 	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceID, "resource-id", "", "", "Resource ID")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\compliance.go 56`)
 	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceType, "resource-type", "", "", "Resource type")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\compliance.go 57`)
 	eventCmd.Flags().StringSliceVarP(&eventArgs.event.Tags, "tags", "t", []string{"security:compliance"}, "Tags")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\compliance.go 58`)
 	eventCmd.Flags().StringSliceVarP(&eventArgs.data, "data", "d", []string{}, "Data KV fields")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\compliance.go 59`)
 }
 
 func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, error) {

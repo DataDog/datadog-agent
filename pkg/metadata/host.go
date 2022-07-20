@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 // HostCollector fills and sends the old metadata payload used in the
 // Agent v5
@@ -32,5 +34,7 @@ func (hp *HostCollector) Send(ctx context.Context, s serializer.MetricSerializer
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\metadata\host.go 34`)
 	RegisterCollector("host", new(HostCollector))
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\metadata\host.go 35`)
 }

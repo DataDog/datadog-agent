@@ -19,9 +19,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\listeners\kubelet.go 23`)
 	Register("kubelet", NewKubeletListener)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\listeners\kubelet.go 24`)
 }
 
 // KubeletListener listens to pod creation through a subscription

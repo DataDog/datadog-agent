@@ -11,6 +11,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	// nolint needed as these constants are defined in a file without a build tag,
@@ -25,10 +27,13 @@ const (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\providers\utils.go 27`)
 	// Where to look for check templates if no custom path is defined
 	config.Datadog.SetDefault("autoconf_template_dir", "/datadog/check_configs")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\providers\utils.go 29`)
 	// Defaut Timeout in second when talking to storage for configuration (etcd, zookeeper, ...)
 	config.Datadog.SetDefault("autoconf_template_url_timeout", 5)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\providers\utils.go 31`)
 }
 
 func buildStoreKey(key ...string) string {

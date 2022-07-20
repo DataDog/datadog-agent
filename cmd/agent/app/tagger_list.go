@@ -20,9 +20,13 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\tagger_list.go 24`)
 	AgentCmd.AddCommand(taggerListCommand)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\tagger_list.go 25`)
 }
 
 var taggerListCommand = &cobra.Command{

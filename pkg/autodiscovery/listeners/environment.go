@@ -13,6 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 // EnvironmentListener implements a ServiceListener based on current environment
 type EnvironmentListener struct {
@@ -28,7 +30,9 @@ type EnvironmentService struct {
 var _ Service = &EnvironmentService{}
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\listeners\environment.go 30`)
 	Register("environment", NewEnvironmentListener)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\listeners\environment.go 31`)
 }
 
 // NewEnvironmentListener creates an EnvironmentListener

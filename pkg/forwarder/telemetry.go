@@ -14,6 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	transactionsIntakeOrchestrator = map[orchestrator.NodeType]*expvar.Int{}
@@ -42,10 +44,15 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\telemetry.go 44`)
 	initOrchestratorExpVars()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\telemetry.go 45`)
 	initTransactionsExpvars()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\telemetry.go 46`)
 	initForwarderHealthExpvars()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\telemetry.go 47`)
 	initEndpointExpvars()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\telemetry.go 48`)
 }
 
 func initEndpointExpvars() {

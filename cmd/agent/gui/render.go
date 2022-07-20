@@ -18,14 +18,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/status"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var fmap = status.Fmap()
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\gui\render.go 24`)
 	fmap["lastErrorTraceback"] = lastErrorTraceback
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\gui\render.go 25`)
 	fmap["lastErrorMessage"] = lastErrorMessage
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\gui\render.go 26`)
 	fmap["pythonLoaderError"] = pythonLoaderError
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\gui\render.go 27`)
 	fmap["status"] = displayStatus
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\gui\render.go 28`)
 }
 
 // Data is a struct used for filling templates

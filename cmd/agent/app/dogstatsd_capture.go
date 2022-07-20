@@ -25,6 +25,8 @@ import (
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/metadata"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	dsdCaptureDuration   time.Duration
@@ -37,13 +39,19 @@ const (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\dogstatsd_capture.go 39`)
 	AgentCmd.AddCommand(dogstatsdCaptureCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\dogstatsd_capture.go 40`)
 	dogstatsdCaptureCmd.Flags().DurationVarP(&dsdCaptureDuration, "duration", "d", defaultCaptureDuration, "Duration traffic capture should span.")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\dogstatsd_capture.go 41`)
 	dogstatsdCaptureCmd.Flags().StringVarP(&dsdCaptureFilePath, "path", "p", "", "Directory path to write the capture to.")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\dogstatsd_capture.go 42`)
 	dogstatsdCaptureCmd.Flags().BoolVarP(&dsdCaptureCompressed, "compressed", "z", true, "Should capture be zstd compressed.")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\dogstatsd_capture.go 43`)
 
 	// shut up grpc client!
 	grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, ioutil.Discard, ioutil.Discard))
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\dogstatsd_capture.go 46`)
 }
 
 var dogstatsdCaptureCmd = &cobra.Command{

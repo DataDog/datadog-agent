@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/richardartoul/molecule"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 // A SketchSeriesList implements marshaler.Marshaler
 type SketchSeriesList []metrics.SketchSeries
@@ -37,9 +39,13 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\serializer\internal\metrics\sketch_series_list.go 39`)
 	expvars.Set("ItemTooBig", &expvarsItemTooBig)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\serializer\internal\metrics\sketch_series_list.go 40`)
 	expvars.Set("PayloadFull", &expvarsPayloadFull)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\serializer\internal\metrics\sketch_series_list.go 41`)
 	expvars.Set("UnexpectedItemDrops", &expvarsUnexpectedItemDrops)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\serializer\internal\metrics\sketch_series_list.go 42`)
 }
 
 // MarshalJSON serializes sketch series to JSON.

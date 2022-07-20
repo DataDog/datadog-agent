@@ -21,11 +21,17 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\control_service_windows.go 25`)
 	AgentCmd.AddCommand(startsvcCommand)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\control_service_windows.go 26`)
 	AgentCmd.AddCommand(stopsvcCommand)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\control_service_windows.go 27`)
 	AgentCmd.AddCommand(restartsvcCommand)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\control_service_windows.go 28`)
 }
 
 var startsvcCommand = &cobra.Command{

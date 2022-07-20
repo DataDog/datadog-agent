@@ -12,6 +12,8 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/spf13/cobra"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	// SysprobeCmd is the root command
@@ -31,6 +33,9 @@ Runtime Security Monitoring, and others.`,
 const loggerName = ddconfig.LoggerName("SYS-PROBE")
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\app\app.go 33`)
 	SysprobeCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "", "Path to system-probe config formatted as YAML")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\app\app.go 34`)
 	SysprobeCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\app\app.go 35`)
 }

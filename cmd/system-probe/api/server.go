@@ -18,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	gorilla "github.com/gorilla/mux"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 // StartServer starts the HTTP server for the system-probe, which registers endpoints from all enabled modules.
 func StartServer(cfg *config.Config) error {
@@ -56,7 +58,9 @@ func StartServer(cfg *config.Config) error {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\api\server.go 58`)
 	expvar.Publish("modules", expvar.Func(func() interface{} {
 		return module.GetStats()
 	}))
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\api\server.go 61`)
 }

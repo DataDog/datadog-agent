@@ -22,9 +22,13 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\remote_config.go 26`)
 	AgentCmd.AddCommand(remoteConfigCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\remote_config.go 27`)
 }
 
 var remoteConfigCmd = &cobra.Command{

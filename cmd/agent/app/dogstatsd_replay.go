@@ -26,6 +26,8 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	dsdReplayFilePath   string
@@ -39,11 +41,17 @@ const (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\dogstatsd_replay.go 41`)
 	AgentCmd.AddCommand(dogstatsdReplayCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\dogstatsd_replay.go 42`)
 	dogstatsdReplayCmd.Flags().StringVarP(&dsdReplayFilePath, "file", "f", "", "Input file with traffic captured with dogstatsd-capture.")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\dogstatsd_replay.go 43`)
 	dogstatsdReplayCmd.Flags().BoolVarP(&dsdVerboseReplay, "verbose", "v", false, "Verbose replay.")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\dogstatsd_replay.go 44`)
 	dogstatsdReplayCmd.Flags().BoolVarP(&dsdMmapReplay, "mmap", "m", true, "Mmap file for replay. Set to false to load the entire file into memory instead")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\dogstatsd_replay.go 45`)
 	dogstatsdReplayCmd.Flags().IntVarP(&dsdReplayIterations, "loops", "l", defaultIterations, "Number of iterations to replay.")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\dogstatsd_replay.go 46`)
 }
 
 var dogstatsdReplayCmd = &cobra.Command{

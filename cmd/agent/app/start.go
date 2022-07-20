@@ -8,6 +8,8 @@ package app
 import (
 	"github.com/spf13/cobra"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	startCmd = &cobra.Command{
@@ -18,11 +20,14 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\start.go 20`)
 	// attach the command to the root
 	AgentCmd.AddCommand(startCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\start.go 22`)
 
 	// local flags
 	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\start.go 25`)
 }
 
 // Start the main loop

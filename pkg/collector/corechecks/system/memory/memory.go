@@ -9,6 +9,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const memCheckName = "memory"
 
@@ -18,5 +20,7 @@ func memFactory() check.Check {
 	}
 }
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\system\memory\memory.go 20`)
 	core.RegisterCheck(memCheckName, memFactory)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\system\memory\memory.go 21`)
 }

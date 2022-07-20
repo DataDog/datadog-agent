@@ -13,6 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	// CIncludePattern is the regex for #include headers of C files
@@ -22,7 +24,9 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\ebpf\preprocess.go 24`)
 	includeRegexp = regexp.MustCompile(CIncludePattern)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\ebpf\preprocess.go 25`)
 }
 
 // PreprocessFile pre-processes the `#include` of embedded headers.

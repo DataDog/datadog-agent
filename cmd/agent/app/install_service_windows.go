@@ -15,9 +15,13 @@ import (
 	"golang.org/x/sys/windows/svc/eventlog"
 	"golang.org/x/sys/windows/svc/mgr"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\install_service_windows.go 19`)
 	AgentCmd.AddCommand(instsvcCommand)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\install_service_windows.go 20`)
 }
 
 var instsvcCommand = &cobra.Command{

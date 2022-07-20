@@ -12,6 +12,8 @@ import (
 	"github.com/h2non/filetype"
 	"github.com/h2non/filetype/matchers"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	datadogType = filetype.NewType("dog", "datadog/capture")
@@ -31,9 +33,12 @@ const (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\dogstatsd\replay\file.go 33`)
 	// Register the new matcher and its type
 	filetype.AddMatcher(datadogType, datadogMatcher)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\dogstatsd\replay\file.go 35`)
 	filetype.AddMatcher(matchers.TypeZstd, matchers.Zst)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\dogstatsd\replay\file.go 36`)
 }
 
 func datadogMatcher(buf []byte) bool {

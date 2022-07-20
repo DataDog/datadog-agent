@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 // KubeletConfigProvider implements the ConfigProvider interface for the kubelet.
 type KubeletConfigProvider struct {
@@ -206,7 +208,9 @@ func (k *KubeletConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\providers\kubelet.go 208`)
 	RegisterProvider(names.KubeletRegisterName, NewKubeletConfigProvider)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\providers\kubelet.go 209`)
 }
 
 // GetConfigErrors returns a map of configuration errors for each namespace/pod

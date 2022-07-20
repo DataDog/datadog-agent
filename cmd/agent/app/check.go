@@ -8,7 +8,11 @@ package app
 import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/commands"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\check.go 12`)
 	AgentCmd.AddCommand(commands.Check(loggerName, &confFilePath, &flagNoColor))
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\check.go 13`)
 }

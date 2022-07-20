@@ -7,6 +7,10 @@ package hostname
 
 import "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\hostname\azure.go 10`)
 	RegisterHostnameProvider("azure", azure.GetHostname)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\hostname\azure.go 11`)
 }

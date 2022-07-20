@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	udpExpvars             = expvar.NewMap("dogstatsd-udp")
@@ -26,9 +28,13 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\dogstatsd\listeners\udp.go 28`)
 	udpExpvars.Set("PacketReadingErrors", &udpPacketReadingErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\dogstatsd\listeners\udp.go 29`)
 	udpExpvars.Set("Packets", &udpPackets)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\dogstatsd\listeners\udp.go 30`)
 	udpExpvars.Set("Bytes", &udpBytes)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\dogstatsd\listeners\udp.go 31`)
 }
 
 // UDPListener implements the StatsdListener interface for UDP protocol.

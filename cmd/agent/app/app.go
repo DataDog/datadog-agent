@@ -16,6 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	// AgentCmd is the root command
@@ -42,7 +44,11 @@ const loggerName config.LoggerName = "CORE"
 const jmxLoggerName config.LoggerName = "JMXFETCH"
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\app.go 44`)
 	AgentCmd.PersistentFlags().StringVarP(&confFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\app.go 45`)
 	AgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\app.go 46`)
 	AgentCmd.PersistentFlags().StringVarP(&sysProbeConfFilePath, "sysprobecfgpath", "", "", "path to directory containing system-probe.yaml")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\app.go 47`)
 }

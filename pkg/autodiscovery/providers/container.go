@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	delayDuration = 5 * time.Second
@@ -185,7 +187,9 @@ func (d *ContainerConfigProvider) generateConfigs() ([]integration.Config, error
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\providers\container.go 187`)
 	RegisterProvider(names.Container, NewContainerConfigProvider)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\providers\container.go 188`)
 }
 
 // GetConfigErrors is not implemented for the ContainerConfigProvider

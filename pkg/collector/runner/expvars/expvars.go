@@ -13,6 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	// Top-level expvar (the convention for them is that they are lowercase)
@@ -40,17 +42,24 @@ type expCheckStats struct {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\runner\expvars\expvars.go 42`)
 	runningChecksStats = &expvar.Map{}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\runner\expvars\expvars.go 43`)
 
 	runnerStats = expvar.NewMap(runnerExpvarKey)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\runner\expvars\expvars.go 45`)
 	runnerStats.Set(checksExpvarKey, expvar.Func(expCheckStatsFunc))
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\runner\expvars\expvars.go 46`)
 	runnerStats.Set(runningExpvarKey, runningChecksStats)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\runner\expvars\expvars.go 47`)
 
 	newWorkersExpvar(runnerStats)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\runner\expvars\expvars.go 49`)
 
 	checkStats = &expCheckStats{
 		stats: make(map[string]map[check.ID]*check.Stats),
 	}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\runner\expvars\expvars.go 53`)
 }
 
 // Helpers

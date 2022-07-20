@@ -10,9 +10,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\cloudproviders\azure\diagnosis.go 14`)
 	diagnosis.Register("Azure Metadata availability", diagnose)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\cloudproviders\azure\diagnosis.go 15`)
 }
 
 // diagnose the azure metadata API availability

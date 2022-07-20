@@ -14,6 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	// Default openmetrics check configuration values
@@ -52,7 +54,9 @@ func configPrometheusScrapeChecksTransformer(in string) interface{} {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\common\types\prometheus.go 54`)
 	config.PrometheusScrapeChecksTransformer = configPrometheusScrapeChecksTransformer
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\common\types\prometheus.go 55`)
 }
 
 // PrometheusCheck represents the openmetrics check instances and the corresponding autodiscovery rules

@@ -20,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	statusCmd = &cobra.Command{
@@ -37,10 +39,15 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\status.go 39`)
 	SecurityAgentCmd.AddCommand(statusCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\status.go 40`)
 	statusCmd.Flags().BoolVarP(&statusArgs.json, "json", "j", false, "print out raw json")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\status.go 41`)
 	statusCmd.Flags().BoolVarP(&statusArgs.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\status.go 42`)
 	statusCmd.Flags().StringVarP(&statusArgs.file, "file", "o", "", "Output the status command to a file")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\status.go 43`)
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {

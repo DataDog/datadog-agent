@@ -34,6 +34,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 // ErrNotEnabled represents the case in which system-probe is not enabled
 var ErrNotEnabled = errors.New("system-probe not enabled")
@@ -53,11 +55,14 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\app\run.go 55`)
 	// attach the command to the root
 	SysprobeCmd.AddCommand(runCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\app\run.go 57`)
 
 	// local flags
 	runCmd.Flags().StringVarP(&pidfilePath, "pid", "p", "", "path to the pidfile")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\app\run.go 60`)
 }
 
 // Start the main loop

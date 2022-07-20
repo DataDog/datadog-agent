@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	wildcard = "*"
@@ -270,7 +272,9 @@ func SetPatterns(patterns ...string) []string {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\security\log\logger.go 272`)
 	DefaultLogger = &PatternLogger{}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\security\log\logger.go 273`)
 }
 
 func RuleLoadingErrors(msg string, m *multierror.Error) {

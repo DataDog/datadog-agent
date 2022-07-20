@@ -13,6 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	// run the host metadata collector every 1800 seconds (30 minutes)
@@ -53,9 +55,11 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\metadata\helper.go 55`)
 	for collectorName := range defaultCollectors {
 		AllDefaultCollectors = append(AllDefaultCollectors, collectorName)
 	}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\metadata\helper.go 58`)
 }
 
 // addCollector adds a collector by name to the Scheduler

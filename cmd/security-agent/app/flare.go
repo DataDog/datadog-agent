@@ -18,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	customerEmail string
@@ -25,11 +27,16 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\flare.go 27`)
 	SecurityAgentCmd.AddCommand(flareCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\flare.go 28`)
 
 	flareCmd.Flags().StringVarP(&customerEmail, "email", "e", "", "Your email")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\flare.go 30`)
 	flareCmd.Flags().BoolVarP(&autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\flare.go 31`)
 	flareCmd.SetArgs([]string{"caseID"})
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\app\flare.go 32`)
 }
 
 var flareCmd = &cobra.Command{

@@ -21,6 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	defaultWorkers           = 2
@@ -30,7 +32,9 @@ const (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\listeners\snmp.go 32`)
 	Register("snmp", NewSNMPListener)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\listeners\snmp.go 33`)
 }
 
 // SNMPListener implements SNMP discovery

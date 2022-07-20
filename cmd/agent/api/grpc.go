@@ -33,6 +33,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	taggerStreamSendTimeout = 1 * time.Minute
@@ -233,5 +235,7 @@ func (s *serverSecure) GetConfigState(ctx context.Context, e *emptypb.Empty) (*p
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\api\grpc.go 235`)
 	grpclog.SetLoggerV2(grpc.NewLogger())
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\api\grpc.go 236`)
 }

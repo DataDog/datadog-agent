@@ -15,6 +15,8 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	// SectorSize is used here to substitute non-exporeted from github.com/shirou/gopsutil/v3/disk package constant named "sectorSize"
@@ -61,7 +63,9 @@ func (c *IOCheck) commonConfigure(data integration.Data, initConfig integration.
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\system\disk\iostats.go 63`)
 	core.RegisterCheck(iostatsCheckName, ioFactory)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\system\disk\iostats.go 64`)
 }
 
 func ioFactory() check.Check {

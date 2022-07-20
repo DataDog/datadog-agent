@@ -13,6 +13,8 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const winprocCheckName = "winproc"
 
@@ -61,5 +63,7 @@ func processCheckFactory() check.Check {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\system\winproc\winproc_windows.go 63`)
 	core.RegisterCheck(winprocCheckName, processCheckFactory)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\system\winproc\winproc_windows.go 64`)
 }

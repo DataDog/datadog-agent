@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	checkName           = "container_lifecycle"
@@ -27,7 +29,9 @@ const (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\containerlifecycle\check.go 29`)
 	core.RegisterCheck(checkName, CheckFactory)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\containerlifecycle\check.go 30`)
 }
 
 // Config holds the container_lifecycle check configuration

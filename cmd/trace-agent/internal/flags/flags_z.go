@@ -7,6 +7,8 @@ package flags
 
 import "flag"
 
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 var (
 	// ConfigPath specifies the path to the configuration file.
 	ConfigPath string
@@ -39,14 +41,22 @@ var Win = struct {
 }{}
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\trace-agent\internal\flags\flags_z.go 41`)
 	flag.StringVar(&ConfigPath, "config", DefaultConfigPath, "Datadog Agent config file location")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\trace-agent\internal\flags\flags_z.go 42`)
 	flag.StringVar(&PIDFilePath, "pid", "", "Path to set pidfile for process")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\trace-agent\internal\flags\flags_z.go 43`)
 	flag.BoolVar(&Version, "version", false, "Show version information and exit")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\trace-agent\internal\flags\flags_z.go 44`)
 	flag.BoolVar(&Info, "info", false, "Show info about running trace agent process and exit")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\trace-agent\internal\flags\flags_z.go 45`)
 
 	// profiling
 	flag.StringVar(&CPUProfile, "cpuprofile", "", "Write cpu profile to file")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\trace-agent\internal\flags\flags_z.go 48`)
 	flag.StringVar(&MemProfile, "memprofile", "", "Write memory profile to `file`")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\trace-agent\internal\flags\flags_z.go 49`)
 
 	registerOSSpecificFlags()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\trace-agent\internal\flags\flags_z.go 51`)
 }

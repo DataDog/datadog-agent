@@ -13,6 +13,8 @@ import (
 	md "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 // AgentChecksCollector fills and sends the old metadata payload used in the
 // Agent v5 for agent check status
@@ -28,5 +30,7 @@ func (hp *AgentChecksCollector) Send(ctx context.Context, s serializer.MetricSer
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\metadata\agentchecks.go 30`)
 	md.RegisterCollector("agent_checks", new(AgentChecksCollector))
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\metadata\agentchecks.go 31`)
 }

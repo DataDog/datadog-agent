@@ -24,6 +24,8 @@ import (
 	"github.com/DataDog/gohai/cpu"
 	"golang.org/x/sys/windows"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	modkernel32 = windows.NewLazyDLL("kernel32.dll")
@@ -144,5 +146,7 @@ func cpuFactory() check.Check {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\system\cpu\cpu_windows.go 146`)
 	core.RegisterCheck(cpuCheckName, cpuFactory)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\system\cpu\cpu_windows.go 147`)
 }

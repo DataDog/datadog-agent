@@ -88,6 +88,8 @@ import (
 	"github.com/lxn/walk"
 	"golang.org/x/sys/windows"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 type menuItem struct {
 	label   string
@@ -120,16 +122,21 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\systray\systray.go 122`)
 	enableLoggingToFile()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\systray\systray.go 123`)
 
 	isAdmin, err := isUserAnAdmin()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\systray\systray.go 125`)
 	isUserAdmin = isAdmin
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\systray\systray.go 126`)
 
 	if err != nil {
 		log.Warnf("Failed to call isUserAnAdmin %v", err)
 		// If we cannot determine if the user is admin or not let the user allow to click on the buttons.
 		isUserAdmin = true
 	}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\systray\systray.go 132`)
 }
 
 func createMenuItems(notifyIcon *walk.NotifyIcon) []menuItem {

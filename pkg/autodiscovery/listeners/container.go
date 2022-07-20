@@ -20,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	newIdentifierLabel    = "com.datadoghq.ad.check.id"
@@ -27,7 +29,9 @@ const (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\listeners\container.go 29`)
 	Register("container", NewContainerListener)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\listeners\container.go 30`)
 }
 
 // ContainerListener listens to container creation through a subscription to the

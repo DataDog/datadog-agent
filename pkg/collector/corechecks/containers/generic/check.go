@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	genericContainerCheckName = "container"
@@ -38,7 +40,9 @@ type ContainerCheck struct {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\containers\generic\check.go 40`)
 	core.RegisterCheck("container", ContainerCheckFactory)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\containers\generic\check.go 41`)
 }
 
 // ContainerCheckFactory is exported for integration testing

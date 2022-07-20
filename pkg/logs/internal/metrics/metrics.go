@@ -10,6 +10,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	// LogsExpvars contains metrics for the logs agent.
@@ -63,14 +65,25 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\logs\internal\metrics\metrics.go 65`)
 	LogsExpvars = expvar.NewMap("logs-agent")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\logs\internal\metrics\metrics.go 66`)
 	LogsExpvars.Set("LogsDecoded", &LogsDecoded)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\logs\internal\metrics\metrics.go 67`)
 	LogsExpvars.Set("LogsProcessed", &LogsProcessed)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\logs\internal\metrics\metrics.go 68`)
 	LogsExpvars.Set("LogsSent", &LogsSent)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\logs\internal\metrics\metrics.go 69`)
 	LogsExpvars.Set("DestinationErrors", &DestinationErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\logs\internal\metrics\metrics.go 70`)
 	LogsExpvars.Set("DestinationLogsDropped", &DestinationLogsDropped)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\logs\internal\metrics\metrics.go 71`)
 	LogsExpvars.Set("BytesSent", &BytesSent)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\logs\internal\metrics\metrics.go 72`)
 	LogsExpvars.Set("EncodedBytesSent", &EncodedBytesSent)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\logs\internal\metrics\metrics.go 73`)
 	LogsExpvars.Set("SenderLatency", &SenderLatency)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\logs\internal\metrics\metrics.go 74`)
 	LogsExpvars.Set("HttpDestinationStats", &DestinationExpVars)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\logs\internal\metrics\metrics.go 75`)
 }

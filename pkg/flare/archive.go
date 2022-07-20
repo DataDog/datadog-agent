@@ -40,6 +40,8 @@ import (
 	"github.com/mholt/archiver/v3"
 	"gopkg.in/yaml.v2"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	routineDumpFilename = "go-routine-dump.log"
@@ -83,8 +85,11 @@ type filePermsInfo struct {
 type ProfileData map[string][]byte
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\flare\archive.go 85`)
 	flareScrubber = scrubber.New()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\flare\archive.go 86`)
 	scrubber.AddDefaultReplacers(flareScrubber)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\flare\archive.go 87`)
 
 	// The default scrubber doesn't deal with api keys of other services, for
 	// example powerDNS which has an "api_key" field in its YAML configuration.
@@ -94,12 +99,14 @@ func init() {
 	// own already scrubbed (we don't want to match: **************************abcde)
 	// Basically we allow many special chars while forbidding *
 	otherAPIKeysRx := regexp.MustCompile(`api_key\s*:\s*[a-zA-Z0-9\\\/\^\]\[\(\){}!|%:;"~><=#@$_\-\+]+`)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\flare\archive.go 96`)
 	flareScrubber.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
 		Regex: otherAPIKeysRx,
 		ReplFunc: func(b []byte) []byte {
 			return []byte("api_key: ********")
 		},
 	})
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\flare\archive.go 102`)
 }
 
 // CreatePerformanceProfile adds a set of heap and CPU profiles into target, using cpusec as the CPU

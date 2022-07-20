@@ -20,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	fakeAPIKey = "00000000000000000000000000000000"
@@ -38,11 +40,17 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\forwarder_health.go 40`)
 	apiKeyEndpointUnreachable.Set("Unable to reach the API Key validation endpoint")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\forwarder_health.go 41`)
 	apiKeyUnexpectedStatusCode.Set("Unexpected response code from the API Key validation endpoint")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\forwarder_health.go 42`)
 	apiKeyInvalid.Set("API Key invalid")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\forwarder_health.go 43`)
 	apiKeyValid.Set("API Key valid")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\forwarder_health.go 44`)
 	apiKeyFake.Set("Fake API Key that skips validation")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\forwarder_health.go 45`)
 }
 
 func initForwarderHealthExpvars() {

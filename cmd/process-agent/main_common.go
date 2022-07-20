@@ -42,6 +42,8 @@ import (
 	// register all workloadmeta collectors
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const loggerName ddconfig.LoggerName = "PROCESS"
 
@@ -93,7 +95,9 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\process-agent\main_common.go 95`)
 	rootCmd.AddCommand(configCommand, app.StatusCmd, app.VersionCmd, app.CheckCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\process-agent\main_common.go 96`)
 }
 
 const (

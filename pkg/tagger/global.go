@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	// defaultTagger is the shared tagger instance backing the global Tag and Init functions
@@ -253,10 +255,12 @@ func ResetCaptureTagger() {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\tagger\global.go 255`)
 	// all binaries are expected to provide their own tagger at startup. we
 	// provide a fake tagger on init for testing purposes, as calling
 	// the global tagger without proper initialization is very common there.
 	SetDefaultTagger(local.NewFakeTagger())
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\tagger\global.go 259`)
 }
 
 // EnrichTags extends a tag list with origin detection tags

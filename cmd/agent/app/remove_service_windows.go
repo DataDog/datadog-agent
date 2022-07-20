@@ -13,9 +13,13 @@ import (
 	"golang.org/x/sys/windows/svc/eventlog"
 	"golang.org/x/sys/windows/svc/mgr"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\remove_service_windows.go 17`)
 	AgentCmd.AddCommand(removesvcCommand)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\remove_service_windows.go 18`)
 }
 
 var removesvcCommand = &cobra.Command{

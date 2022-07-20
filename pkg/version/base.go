@@ -7,6 +7,8 @@
 
 package version
 
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 // AgentVersion contains the version of the Agent
 var AgentVersion string
 
@@ -16,7 +18,9 @@ var Commit string
 var agentVersionDefault = "6.0.0"
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\version\base.go 18`)
 	if AgentVersion == "" {
 		AgentVersion = agentVersionDefault
 	}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\version\base.go 21`)
 }

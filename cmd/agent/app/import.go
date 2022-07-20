@@ -14,6 +14,8 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	importCmd = &cobra.Command{
@@ -28,11 +30,14 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\import.go 30`)
 	// attach the command to the root
 	AgentCmd.AddCommand(importCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\import.go 32`)
 
 	// local flags
 	importCmd.Flags().BoolVarP(&force, "force", "f", force, "overwrite existing files")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\import.go 35`)
 }
 
 func doImport(cmd *cobra.Command, args []string) error {

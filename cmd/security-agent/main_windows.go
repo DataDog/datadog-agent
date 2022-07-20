@@ -27,6 +27,8 @@ import (
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	elog           debug.Log
@@ -37,14 +39,17 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\main_windows.go 39`)
 	// ISSUE: We need to make change to the MSI to install Security Agent.
 	pd, err := winutil.GetProgramDataDirForProduct("Datadog Security Agent")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\main_windows.go 41`)
 	if err == nil {
 		DefaultConfPath = pd
 		defaultLogFile = filepath.Join(pd, "logs", "security-agent.log")
 	} else {
 		winutil.LogEventViewer(ServiceName, 0x8000000F, defaultLogFile)
 	}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\security-agent\main_windows.go 47`)
 }
 
 // ServiceName is the name of the service in service control manager

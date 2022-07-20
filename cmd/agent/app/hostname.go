@@ -14,9 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/spf13/cobra"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\hostname.go 18`)
 	AgentCmd.AddCommand(getHostnameCommand)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\hostname.go 19`)
 }
 
 var getHostnameCommand = &cobra.Command{

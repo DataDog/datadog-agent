@@ -14,6 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const fileHandlesCheckName = "file_handle"
 
@@ -59,5 +61,7 @@ func fhFactory() check.Check {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\system\filehandles\file_handles_windows.go 61`)
 	core.RegisterCheck(fileHandlesCheckName, fhFactory)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\system\filehandles\file_handles_windows.go 62`)
 }

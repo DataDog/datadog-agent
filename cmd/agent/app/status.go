@@ -22,6 +22,8 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	jsonStatus      bool
@@ -30,13 +32,21 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\status.go 32`)
 	AgentCmd.AddCommand(statusCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\status.go 33`)
 	statusCmd.Flags().BoolVarP(&jsonStatus, "json", "j", false, "print out raw json")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\status.go 34`)
 	statusCmd.Flags().BoolVarP(&prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\status.go 35`)
 	statusCmd.Flags().StringVarP(&statusFilePath, "file", "o", "", "Output the status command to a file")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\status.go 36`)
 	statusCmd.AddCommand(componentCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\status.go 37`)
 	componentCmd.Flags().BoolVarP(&prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\status.go 38`)
 	componentCmd.Flags().StringVarP(&statusFilePath, "file", "o", "", "Output the status command to a file")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\status.go 39`)
 }
 
 var statusCmd = &cobra.Command{

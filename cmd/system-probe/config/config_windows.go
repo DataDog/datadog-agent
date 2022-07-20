@@ -15,6 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	// defaultSystemProbeAddress is the default address to be used for connecting to the system probe
@@ -30,11 +32,14 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\config\config_windows.go 32`)
 	pd, err := winutil.GetProgramDataDir()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\config\config_windows.go 33`)
 	if err == nil {
 		defaultConfigDir = pd
 		defaultSystemProbeLogFilePath = filepath.Join(pd, "logs", "system-probe.log")
 	}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\config\config_windows.go 37`)
 }
 
 // ValidateSocketAddress validates that the sysprobe socket config option is of the correct format.

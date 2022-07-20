@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 // DefaultScrubber is the scrubber used by the package-level cleaning functions.
 //
@@ -23,7 +25,9 @@ import (
 var DefaultScrubber = &Scrubber{}
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\scrubber\default.go 25`)
 	AddDefaultReplacers(DefaultScrubber)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\scrubber\default.go 26`)
 }
 
 // AddDefaultReplacers to a scrubber. This is called automatically for

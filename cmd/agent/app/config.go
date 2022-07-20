@@ -18,9 +18,13 @@ import (
 
 	"github.com/fatih/color"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\config.go 22`)
 	AgentCmd.AddCommand(cmdconfig.Config(getSettingsClient))
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\config.go 23`)
 }
 
 func setupConfig() error {

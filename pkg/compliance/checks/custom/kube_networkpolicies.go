@@ -16,9 +16,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\compliance\checks\custom\kube_networkpolicies.go 20`)
 	registerCustomCheck("kubernetesNetworkPolicies", kubernetesNetworkPoliciesCheck)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\compliance\checks\custom\kube_networkpolicies.go 21`)
 }
 
 func kubernetesNetworkPoliciesCheck(e env.Env, ruleID string, vars map[string]string, _ *eval.IterableExpression) (*compliance.Report, error) {

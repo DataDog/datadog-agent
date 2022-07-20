@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	// ForwarderExpvars is the root for expvars in the forwarder.
@@ -124,31 +126,57 @@ var defaultAttemptHandler = func(transaction *HTTPTransaction) {}
 var defaultCompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {}
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 126`)
 	TransactionsExpvars.Init()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 127`)
 	transactionsConnectionEvents.Init()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 128`)
 	TransactionsDroppedByEndpoint.Init()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 129`)
 	TransactionsSuccessByEndpoint.Init()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 130`)
 	transactionsSuccessBytesByEndpoint.Init()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 131`)
 	transactionsErrorsByType.Init()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 132`)
 	transactionsHTTPErrorsByCode.Init()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 133`)
 	ForwarderExpvars.Set("Transactions", &TransactionsExpvars)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 134`)
 	transactionsConnectionEvents.Set("DNSSuccess", &connectionDNSSuccess)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 135`)
 	transactionsConnectionEvents.Set("ConnectSuccess", &connectionConnectSuccess)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 136`)
 	TransactionsExpvars.Set("ConnectionEvents", &transactionsConnectionEvents)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 137`)
 	TransactionsExpvars.Set("Dropped", &TransactionsDropped)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 138`)
 	TransactionsExpvars.Set("DroppedByEndpoint", &TransactionsDroppedByEndpoint)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 139`)
 	TransactionsExpvars.Set("SuccessByEndpoint", &TransactionsSuccessByEndpoint)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 140`)
 	TransactionsExpvars.Set("SuccessBytesByEndpoint", &transactionsSuccessBytesByEndpoint)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 141`)
 	TransactionsExpvars.Set("Success", &transactionsSuccess)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 142`)
 	TransactionsExpvars.Set("Errors", &transactionsErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 143`)
 	TransactionsExpvars.Set("ErrorsByType", &transactionsErrorsByType)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 144`)
 	transactionsErrorsByType.Set("DNSErrors", &transactionsDNSErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 145`)
 	transactionsErrorsByType.Set("TLSErrors", &transactionsTLSErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 146`)
 	transactionsErrorsByType.Set("ConnectionErrors", &transactionsConnectionErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 147`)
 	transactionsErrorsByType.Set("WroteRequestErrors", &transactionsWroteRequestErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 148`)
 	transactionsErrorsByType.Set("SentRequestErrors", &transactionsSentRequestErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 149`)
 	TransactionsExpvars.Set("HTTPErrors", &transactionsHTTPErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 150`)
 	TransactionsExpvars.Set("HTTPErrorsByCode", &transactionsHTTPErrorsByCode)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\forwarder\transaction\transaction.go 151`)
 }
 
 // Priority defines the priority of a transaction

@@ -7,6 +7,10 @@ package hostname
 
 import "github.com/DataDog/datadog-agent/pkg/util/hostname/internal/file"
 
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\hostname\file.go 10`)
 	RegisterHostnameProvider("file", file.HostnameProvider)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\hostname\file.go 11`)
 }

@@ -27,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 
@@ -220,11 +222,15 @@ func prometheusScrapeChecksTransformer(s string) interface{} {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\config\config.go 222`)
 	osinit()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\config\config.go 223`)
 	// Configure Datadog global configuration
 	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\config\config.go 225`)
 	// Configuration defaults
 	InitConfig(Datadog)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\config\config.go 227`)
 }
 
 // InitConfig initializes the config defaults on a config

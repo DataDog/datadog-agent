@@ -5,10 +5,14 @@
 
 package config
 
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 var overrideVars = make(map[string]interface{})
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\config\config_overrides.go 10`)
 	AddOverrideFunc(applyOverrideVars)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\config\config_overrides.go 11`)
 }
 
 // AddOverrideFunc allows to add a custom logic to override configuration.

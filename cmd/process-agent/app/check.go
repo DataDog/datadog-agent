@@ -29,9 +29,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\process-agent\app\check.go 33`)
 	CheckCmd.Flags().BoolVar(&checkOutputJSON, "json", false, "Output check results in JSON")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\process-agent\app\check.go 34`)
 }
 
 // CheckCmd is a command that runs the process-agent version data

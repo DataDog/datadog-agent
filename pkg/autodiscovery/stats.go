@@ -9,6 +9,8 @@ import (
 	"expvar"
 	"sync"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	errorStats = newAcErrorStats()
@@ -16,13 +18,17 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\stats.go 18`)
 	acErrors = expvar.NewMap("autoconfig")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\stats.go 19`)
 	acErrors.Set("ConfigErrors", expvar.Func(func() interface{} {
 		return errorStats.getConfigErrors()
 	}))
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\stats.go 22`)
 	acErrors.Set("ResolveWarnings", expvar.Func(func() interface{} {
 		return errorStats.getResolveWarnings()
 	}))
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\stats.go 25`)
 }
 
 // loaderErrorStats holds the error objects

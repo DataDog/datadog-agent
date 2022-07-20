@@ -25,6 +25,8 @@ import (
 	"golang.org/x/sys/windows/svc/eventlog"
 	"golang.org/x/sys/windows/svc/mgr"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var elog debug.Log
 
@@ -46,13 +48,16 @@ var winopts struct {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\process-agent\main_windows.go 48`)
 	pd, err := winutil.GetProgramDataDir()
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\process-agent\main_windows.go 49`)
 	if err == nil {
 		defaultConfigPath = filepath.Join(pd, "datadog.yaml")
 		defaultSysProbeConfigPath = filepath.Join(pd, "system-probe.yaml")
 		defaultConfdPath = filepath.Join(pd, "conf.d")
 		defaultLogFilePath = filepath.Join(pd, "logs", "process-agent.log")
 	}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\process-agent\main_windows.go 55`)
 }
 
 type myservice struct{}

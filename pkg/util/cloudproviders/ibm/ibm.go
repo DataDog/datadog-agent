@@ -16,6 +16,8 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 // declare these as vars not const to ease testing
 var (
@@ -30,7 +32,9 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\cloudproviders\ibm\ibm.go 32`)
 	token = httputils.NewAPIToken(getToken)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\cloudproviders\ibm\ibm.go 33`)
 }
 
 type tokenAnswer struct {

@@ -31,6 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 // DefaultFlushInterval aggregator default flush interval
 const DefaultFlushInterval = 15 * time.Second // flush interval
@@ -140,54 +142,94 @@ var (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 142`)
 	newFlushTimeStats("ChecksMetricSampleFlushTime")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 143`)
 	newFlushTimeStats("ServiceCheckFlushTime")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 144`)
 	newFlushTimeStats("EventFlushTime")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 145`)
 	newFlushTimeStats("MainFlushTime")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 146`)
 	newFlushTimeStats("MetricSketchFlushTime")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 147`)
 	aggregatorExpvars.Set("Flush", expvar.Func(expStatsMap(flushTimeStats)))
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 148`)
 
 	newFlushCountStats("ServiceChecks")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 150`)
 	newFlushCountStats("Series")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 151`)
 	newFlushCountStats("Events")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 152`)
 	newFlushCountStats("Sketches")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 153`)
 	aggregatorExpvars.Set("FlushCount", expvar.Func(expStatsMap(flushCountStats)))
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 154`)
 
 	aggregatorExpvars.Set("SeriesFlushed", &aggregatorSeriesFlushed)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 156`)
 	aggregatorExpvars.Set("SeriesFlushErrors", &aggregatorSeriesFlushErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 157`)
 	aggregatorExpvars.Set("ServiceCheckFlushErrors", &aggregatorServiceCheckFlushErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 158`)
 	aggregatorExpvars.Set("ServiceCheckFlushed", &aggregatorServiceCheckFlushed)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 159`)
 	aggregatorExpvars.Set("SketchesFlushErrors", &aggregatorSketchesFlushErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 160`)
 	aggregatorExpvars.Set("SketchesFlushed", &aggregatorSketchesFlushed)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 161`)
 	aggregatorExpvars.Set("EventsFlushErrors", &aggregatorEventsFlushErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 162`)
 	aggregatorExpvars.Set("EventsFlushed", &aggregatorEventsFlushed)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 163`)
 	aggregatorExpvars.Set("NumberOfFlush", &aggregatorNumberOfFlush)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 164`)
 	aggregatorExpvars.Set("DogstatsdMetricSample", &aggregatorDogstatsdMetricSample)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 165`)
 	aggregatorExpvars.Set("ChecksMetricSample", &aggregatorChecksMetricSample)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 166`)
 	aggregatorExpvars.Set("ChecksHistogramBucketMetricSample", &aggregatorCheckHistogramBucketMetricSample)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 167`)
 	aggregatorExpvars.Set("ServiceCheck", &aggregatorServiceCheck)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 168`)
 	aggregatorExpvars.Set("Event", &aggregatorEvent)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 169`)
 	aggregatorExpvars.Set("HostnameUpdate", &aggregatorHostnameUpdate)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 170`)
 	aggregatorExpvars.Set("OrchestratorMetadata", &aggregatorOrchestratorMetadata)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 171`)
 	aggregatorExpvars.Set("OrchestratorMetadataErrors", &aggregatorOrchestratorMetadataErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 172`)
 	aggregatorExpvars.Set("DogstatsdContexts", &aggregatorDogstatsdContexts)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 173`)
 	aggregatorExpvars.Set("EventPlatformEvents", &aggregatorEventPlatformEvents)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 174`)
 	aggregatorExpvars.Set("EventPlatformEventsErrors", &aggregatorEventPlatformEventsErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 175`)
 	aggregatorExpvars.Set("ContainerLifecycleEvents", &aggregatorContainerLifecycleEvents)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 176`)
 	aggregatorExpvars.Set("ContainerLifecycleEventsErrors", &aggregatorContainerLifecycleEventsErrors)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 177`)
 
 	contextsByMtypeMap := expvar.Map{}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 179`)
 	aggregatorDogstatsdContextsByMtype = make([]expvar.Int, int(metrics.NumMetricTypes))
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 180`)
 	for i := 0; i < int(metrics.NumMetricTypes); i++ {
 		mtype := metrics.MetricType(i).String()
 		aggregatorDogstatsdContextsByMtype[i] = expvar.Int{}
 		contextsByMtypeMap.Set(mtype, &aggregatorDogstatsdContextsByMtype[i])
 	}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 185`)
 	aggregatorExpvars.Set("DogstatsdContextsByMtype", &contextsByMtypeMap)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 186`)
 
 	tagsetTlm = newTagsetTelemetry([]uint64{90, 100})
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 188`)
 
 	aggregatorExpvars.Set("MetricTags", expvar.Func(expMetricTags))
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\aggregator\aggregator.go 190`)
 }
 
 // InitAggregator returns the Singleton instance

@@ -12,9 +12,13 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	"github.com/spf13/cobra"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\app\restart.go 16`)
 	SysprobeCmd.AddCommand(moduleRestartCommand)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\app\restart.go 17`)
 }
 
 var moduleRestartCommand = &cobra.Command{

@@ -21,16 +21,23 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	dsdStatsFilePath string
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\dogstatsd_stats.go 29`)
 	AgentCmd.AddCommand(dogstatsdStatsCmd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\dogstatsd_stats.go 30`)
 	dogstatsdStatsCmd.Flags().BoolVarP(&jsonStatus, "json", "j", false, "print out raw json")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\dogstatsd_stats.go 31`)
 	dogstatsdStatsCmd.Flags().BoolVarP(&prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\dogstatsd_stats.go 32`)
 	dogstatsdStatsCmd.Flags().StringVarP(&dsdStatsFilePath, "file", "o", "", "Output the dogstatsd-stats command to a file")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\dogstatsd_stats.go 33`)
 }
 
 var dogstatsdStatsCmd = &cobra.Command{

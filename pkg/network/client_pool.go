@@ -7,6 +7,8 @@ package network
 
 import "sync"
 
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 var clientPool *clientBufferPool
 
 const defaultClientBufferSize = 1024
@@ -66,7 +68,9 @@ func Reclaim(c *Connections) {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\network\client_pool.go 68`)
 	clientPool = &clientBufferPool{
 		bufferByClient: make(map[string]*clientBuffer),
 	}
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\network\client_pool.go 71`)
 }

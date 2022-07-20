@@ -17,13 +17,18 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var withDebug bool
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\config_check.go 23`)
 	AgentCmd.AddCommand(configCheckCommand)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\config_check.go 24`)
 
 	configCheckCommand.Flags().BoolVarP(&withDebug, "verbose", "v", false, "print additional debug info")
+	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\config_check.go 26`)
 }
 
 var configCheckCommand = &cobra.Command{

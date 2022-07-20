@@ -12,14 +12,19 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 var (
 	telemetryRegistry = prometheus.NewRegistry()
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\telemetry\prom_telemetry.go 20`)
 	telemetryRegistry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\telemetry\prom_telemetry.go 21`)
 	telemetryRegistry.MustRegister(collectors.NewGoCollector())
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\telemetry\prom_telemetry.go 22`)
 }
 
 // Handler serves the HTTP route containing the prometheus metrics.

@@ -7,6 +7,10 @@ package hostname
 
 import "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\hostname\gce.go 10`)
 	RegisterHostnameProvider("gce", gce.HostnameProvider)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\hostname\gce.go 11`)
 }

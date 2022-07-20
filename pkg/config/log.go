@@ -23,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/cihub/seelog"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 // LoggerName specifies the name of an instantiated logger.
 type LoggerName string
@@ -519,9 +521,15 @@ func validateLogLevel(logLevel string) (string, error) {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\config\log.go 521`)
 	seelog.RegisterCustomFormatter("CustomSyslogHeader", createSyslogHeaderFormatter) //nolint:errcheck
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\config\log.go 522`)
 	seelog.RegisterCustomFormatter("ShortFilePath", parseShortFilePath)               //nolint:errcheck
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\config\log.go 523`)
 	seelog.RegisterCustomFormatter("ExtraJSONContext", createExtraJSONContext)        //nolint:errcheck
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\config\log.go 524`)
 	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)        //nolint:errcheck
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\config\log.go 525`)
 	seelog.RegisterReceiver("syslog", &SyslogReceiver{})                              //nolint:errcheck
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\config\log.go 526`)
 }

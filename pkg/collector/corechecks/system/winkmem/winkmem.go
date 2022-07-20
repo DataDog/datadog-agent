@@ -22,6 +22,8 @@ import (
 
 	"golang.org/x/sys/windows"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	kmemCheckName = "winkmem"
@@ -57,7 +59,9 @@ type KMemCheck struct {
 }
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\system\winkmem\winkmem.go 59`)
 	core.RegisterCheck(kmemCheckName, winkmemFactory)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\collector\corechecks\system\winkmem\winkmem.go 60`)
 }
 
 func winkmemFactory() check.Check {

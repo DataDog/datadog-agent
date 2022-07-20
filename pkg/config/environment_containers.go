@@ -18,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
+import "github.com/DataDog/datadog-agent/pkg/traceinit"
+
 
 const (
 	defaultLinuxDockerSocket           = "/var/run/docker.sock"
@@ -34,15 +36,25 @@ const (
 )
 
 func init() {
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\config\environment_containers.go 36`)
 	registerFeature(Docker)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\config\environment_containers.go 37`)
 	registerFeature(Containerd)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\config\environment_containers.go 38`)
 	registerFeature(Cri)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\config\environment_containers.go 39`)
 	registerFeature(Kubernetes)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\config\environment_containers.go 40`)
 	registerFeature(ECSFargate)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\config\environment_containers.go 41`)
 	registerFeature(EKSFargate)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\config\environment_containers.go 42`)
 	registerFeature(KubeOrchestratorExplorer)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\config\environment_containers.go 43`)
 	registerFeature(CloudFoundry)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\config\environment_containers.go 44`)
 	registerFeature(Podman)
+	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\config\environment_containers.go 45`)
 }
 
 // IsAnyContainerFeaturePresent checks if any of known container features is present
