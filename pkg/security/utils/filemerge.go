@@ -36,11 +36,11 @@ func NewStringPair(s string) StringPair {
 }
 
 // ToGlob returns a glob from the StringPair
-func (sp *StringPair) ToGlob() string {
+func (sp *StringPair) ToGlob() (string, bool) {
 	if sp.isPattern {
-		return fmt.Sprintf("%s*%s", sp.left, sp.right)
+		return fmt.Sprintf("%s*%s", sp.left, sp.right), true
 	}
-	return sp.left
+	return sp.left, false
 }
 
 func commonPrefix(ap, bp StringPair) string {

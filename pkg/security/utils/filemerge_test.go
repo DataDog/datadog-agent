@@ -92,6 +92,7 @@ func TestBuildGlob(t *testing.T) {
 		b := NewStringPair(entry.b)
 		sp, merge := BuildGlob(a, b, minLenMatch)
 		assert.Equal(t, entry.merge, merge)
-		assert.Equal(t, entry.glob, sp.ToGlob())
+		glob, _ := sp.ToGlob()
+		assert.Equal(t, entry.glob, glob)
 	}
 }

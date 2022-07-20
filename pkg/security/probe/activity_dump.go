@@ -1286,7 +1286,8 @@ newSyscallLoop:
 // FileActivityNode holds a tree representation of a list of files
 type FileActivityNode struct {
 	id             NodeID
-	Name           string             `msg:"name"`
+	Name           string `msg:"name"`
+	IsPattern      bool
 	File           *model.FileEvent   `msg:"file,omitempty"`
 	GenerationType NodeGenerationType `msg:"generation_type"`
 	FirstSeen      time.Time          `msg:"first_seen,omitempty"`
@@ -1417,7 +1418,8 @@ func combineChildren(children map[string]*FileActivityNode) map[string]*FileActi
 
 			sp, similar := utils.BuildGlob(a.pair, b.pair, 4)
 			if similar {
-				merged, ok := mergeFans(sp.ToGlob(), a.fan, b.fan)
+				spGlob, _ := sp.ToGlob()
+				merged, ok := mergeFans(spGlob, a.fan, b.fan)
 				if !ok {
 					next = append(next, b)
 					continue
@@ -1439,8 +1441,9 @@ func combineChildren(children map[string]*FileActivityNode) map[string]*FileActi
 
 	res := make(map[string]*FileActivityNode)
 	for _, n := range current {
-		glob := n.pair.ToGlob()
+		glob, isPattern := n.pair.ToGlob()
 		n.fan.Name = glob
+		n.fan.IsPattern = isPattern
 		res[glob] = n.fan
 	}
 
