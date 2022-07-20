@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/iovisor/gobpf/pkg/cpupossible"
 	"golang.org/x/sys/unix"
 )
 
@@ -27,6 +28,7 @@ const (
 	PROTO_PROG_TLS   = 0 // protoProgsMap[0] pointing to socket/proto_tls tail_call
 	protoProgsMap    = "proto_progs"
 	protoInFlightMap = "proto_in_flight"
+	protoArgs        = "proto_args"
 	tlsProtoFilter   = "socket/proto_tls"
 )
 
@@ -64,6 +66,7 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 			{Name: string(probes.ClassifierTelemetryMap)},
 			{Name: protoProgsMap},
 			{Name: protoInFlightMap},
+			{Name: protoArgs},
 		},
 		Probes: []*manager.Probe{
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.SocketClassifierFilter), EBPFFuncName: "socket__classifier_filter"}},
@@ -81,6 +84,10 @@ func (e *ebpfProgram) Init(connMap *ebpf.Map, telemetryMap *ebpf.Map) error {
 	defer e.bytecode.Close()
 
 	e.Manager.DumpHandler = dumpMapsHandler
+	cpus, err := cpupossible.Get()
+	if err != nil {
+		return err
+	}
 
 	return e.InitWithOptions(e.bytecode, manager.Options{
 		RLimit: &unix.Rlimit{
@@ -95,6 +102,11 @@ func (e *ebpfProgram) Init(connMap *ebpf.Map, telemetryMap *ebpf.Map) error {
 			protoInFlightMap: {
 				Type:       ebpf.Hash,
 				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+				EditorFlag: manager.EditMaxEntries,
+			},
+			protoArgs: {
+				Type:       ebpf.Hash,
+				MaxEntries: uint32(len(cpus)),
 				EditorFlag: manager.EditMaxEntries,
 			},
 		},

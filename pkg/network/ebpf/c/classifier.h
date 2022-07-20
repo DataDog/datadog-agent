@@ -1,5 +1,5 @@
-#ifndef CLASSIFIER_H
-#define CLASSIFIER_H
+#ifndef __CLASSIFIER_H
+#define __CLASSIFIER_H
 
 #include "tracer.h"
 
@@ -7,13 +7,6 @@ typedef struct {
     skb_info_t skb_info;
     conn_tuple_t tup;
 } proto_args_t;
-
-struct bpf_map_def SEC("maps/proto_args") proto_args = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(proto_args_t),
-    .max_entries = 1,
-};
 
 // this objects is emebedded in all protocol objects.
 // it holds information needed in the classifier
@@ -26,4 +19,4 @@ typedef struct {
 
 
 
-#endif // CLASSIFIER_H
+#endif // __CLASSIFIER_H
