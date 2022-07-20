@@ -4,6 +4,7 @@
 #include "tracer.h"
 #include "classifier.h"
 
+#define TLS_RECORD_LEN 5
 typedef struct {
     __u8 app;
     __u16 version;
@@ -19,7 +20,7 @@ typedef struct {
     __u8 handshake_type;
     // the length of the handshake
     // is given in a field of 24 bytes.
-    u32 length;
+    __u32 length;
 } tls_handshake_t __attribute__((aligned(8)));
 
 #define TLS_HEADER_SIZE 5

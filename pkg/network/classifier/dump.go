@@ -13,7 +13,7 @@ import (
 	"unsafe"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/ebpf-manager"
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 
 	"github.com/davecgh/go-spew/spew"
@@ -23,7 +23,7 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 	var output strings.Builder
 
 	switch mapName {
-	case tlsInFlightMap: // maps/tls_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value tlsSession
+	case protoInFlightMap: // maps/tls_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value tlsSession
 		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'tlsSession'\n")
 		iter := currentMap.Iterate()
 		var key ddebpf.ConnTuple
