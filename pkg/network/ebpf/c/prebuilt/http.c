@@ -70,6 +70,13 @@ static __always_inline size_t read_into_buffer_skb(char *buffer, struct __sk_buf
     return HTTP_BUFFER_SIZE <= (skb->len - (u32)offset) ? HTTP_BUFFER_SIZE - 1 : skb->len - (u32)offset;
 }
 
+SEC("socket/http_filter_stub")
+int socket__http_filter_stub(struct __sk_buff *skb) {
+    bpf_tail_call_compat(skb, &http_progs, HTTP_PROG);
+    return 0;
+}
+
+
 SEC("socket/http_filter")
 int socket__http_filter(struct __sk_buff* skb) {
     skb_info_t skb_info;
