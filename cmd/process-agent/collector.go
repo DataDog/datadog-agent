@@ -171,7 +171,11 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 		return
 	}
-	checks.StoreCheckOutput(c.Name(), messages)
+	if c.ShouldSaveLastRun() {
+		checks.StoreCheckOutput(c.Name(), messages)
+	} else {
+		checks.StoreCheckOutput(c.Name(), nil)
+	}
 	l.messagesToResults(start, c.Name(), messages, results)
 
 	if !c.RealTime() {
