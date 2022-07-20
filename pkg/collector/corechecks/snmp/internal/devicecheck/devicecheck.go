@@ -58,7 +58,7 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 		session: sess,
 	}
 	hostname, _ := devcheck.GetDeviceHostname() // TODO: Better error handling
-	devcheck.topocollector = topocollector.NewDiscoveryCollector(nil, hostname, config)
+	devcheck.topocollector = topocollector.NewDiscoveryCollector(nil, hostname, newConfig)
 	return devcheck, nil
 }
 
