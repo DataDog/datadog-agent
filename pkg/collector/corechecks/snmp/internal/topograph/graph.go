@@ -12,10 +12,14 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 )
 
 // GraphTopology TODO
 func GraphTopology() {
+	connections := make(map[string]struct{})
+
 	g := graphviz.New()
 	graph, err := g.Graph()
 	if err != nil {
@@ -34,7 +38,7 @@ func GraphTopology() {
 	topologyFolder := "/tmp/topology"
 	for _, file := range findFiles(topologyFolder, ".json") {
 		log.Debugf("file: %s", file)
-		graphForFile(graph, file)
+		graphForFile(graph, file, connections)
 	}
 
 	renderGraph(g, graph)
@@ -54,7 +58,7 @@ func findFiles(root, ext string) []string {
 	return a
 }
 
-func graphForFile(graph *cgraph.Graph, sourceFile string) {
+func graphForFile(graph *cgraph.Graph, sourceFile string, connections map[string]struct{}) {
 	jsonFile, err := os.Open(sourceFile)
 	// if we os.Open returns an error then handle it
 	if err != nil {
@@ -93,51 +97,72 @@ func graphForFile(graph *cgraph.Graph, sourceFile string) {
 			continue
 		}
 
+		headIf := interfaceName(conn.Local.Interface)
+		tailIf := interfaceName(conn.Remote.Interface)
+
+		if localDev.Name() == remDev.Name() {
+			continue
+		}
+
+		idElems := []string{remDev.Name(), localDev.Name(), headIf, tailIf}
+		sort.Strings(idElems)
+		edgeID := strings.Join(idElems, "-")
+		if _, ok := connections[edgeID]; ok {
+			continue
+		}
+		connections[edgeID] = struct{}{}
+
 		e, err := graph.CreateEdge("", remDev, localDev)
 		if err != nil {
 			log.Error(err)
 			return
 		}
 
-		e.SetHeadLabel("\n\n" + interfaceName(conn.Local.Interface) + "\n\n")
-		e.SetTailLabel("\n\n" + interfaceName(conn.Remote.Interface) + "\n\n")
+		e.SetHeadLabel("\n\n" + headIf + "\n\n")
+		e.SetTailLabel("\n\n" + tailIf + "\n\n")
 		e.SetArrowHead(cgraph.NoneArrow)
 	}
 }
 
 func interfaceName(interf topopayload.Interface) string {
 	formatInterfaceName := interf.ID
-	if interf.IDType != "" {
-		formatInterfaceName += "\n(" + interf.IDType + ")"
-	}
+	//if interf.IDType != "" {
+	//	formatInterfaceName += "\n(" + interf.IDType + ")"
+	//}
 	return formatInterfaceName
 }
 
 func createNode(graph *cgraph.Graph, device topopayload.Device) (*cgraph.Node, error) {
 	var nodeName string
+	//var nodeDesc string
 	if device.IP != "" {
-		nodeName = "IP: " + device.IP
+		nodeName = device.IP
 	}
-	if device.Name != "" {
-		if nodeName != "" {
-			nodeName += "\n"
-		}
-		nodeName += "Name: " + device.Name
-	}
-	if device.ChassisID != "" {
-		if nodeName != "" {
-			nodeName += "\n"
-		}
-		nodeName += "chassisId: " + device.ChassisID
-		if device.ChassisIDType != "" {
-			nodeName += "\nchassisIdType: " + device.ChassisIDType
-		}
+	//if device.Name != "" {
+	//	if nodeDesc != "" {
+	//		nodeDesc += "\n"
+	//	}
+	//	nodeDesc += "Name: " + device.Name
+	//}
+	//if device.ChassisID != "" {
+	//	if nodeDesc != "" {
+	//		nodeDesc += "\n"
+	//	}
+	//	nodeDesc += "chassisId: " + device.ChassisID
+	//	if device.ChassisIDType != "" {
+	//		nodeDesc += "\nchassisIdType: " + device.ChassisIDType
+	//	}
+	//}
+
+	if nodeName == "" {
+		nodeName = device.ChassisID
 	}
 
 	if nodeName == "" {
 		return nil, fmt.Errorf("no node name for device: %+v", device)
 	}
 	remDev, err := graph.CreateNode(nodeName)
+	//remDev.SetLabel(nodeDesc)
 	if err != nil {
 		return nil, err
 	}
