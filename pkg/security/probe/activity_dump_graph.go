@@ -265,7 +265,7 @@ func (ad *ActivityDump) prepareSyscallsNode(p *ProcessActivityNode, data *graph)
 	})
 }
 
-// GraphID represents an ID used in a graph, combinaison of NodeIDs
+// GraphID represents an ID used in a graph, combination of NodeIDs
 //msgp:ignore GraphID
 type GraphID struct {
 	raw string
@@ -276,7 +276,7 @@ func NewGraphID(ids ...NodeID) GraphID {
 	return NewGraphIDWithDescription("", ids...)
 }
 
-// NewGraphID returns a new GraphID based on a description and on the provided NodeIDs
+// NewGraphIDWithDescription returns a new GraphID based on a description and on the provided NodeIDs
 func NewGraphIDWithDescription(description string, ids ...NodeID) GraphID {
 	var b strings.Builder
 	if description != "" {
