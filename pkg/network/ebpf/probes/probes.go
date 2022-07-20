@@ -17,7 +17,10 @@ const (
 	// InetCskListenStop traces the inet_csk_listen_stop system call (called for both ipv4 and ipv6)
 	InetCskListenStop ProbeName = "kprobe/inet_csk_listen_stop"
 
-	//TCPFinishConnect traces the  connect() system call
+	// TCPConnect traces the connect() system call
+	TCPConnect ProbeName = "kprobe/tcp_connect"
+	// TCPFinishConnect traces tcp_finish_connect() kernel function. This is
+	// used to know when a TCP connection switches to the ESTABLISHED state
 	TCPFinishConnect ProbeName = "kprobe/tcp_finish_connect"
 	// TCPv6Connect traces the v6 connect() system call
 	TCPv6Connect ProbeName = "kprobe/tcp_v6_connect"
@@ -132,6 +135,7 @@ type BPFMapName string
 const (
 	ConnMap               BPFMapName = "conn_stats"
 	TcpStatsMap           BPFMapName = "tcp_stats"
+	TcpConnectSockPidMap  BPFMapName = "tcp_connect_sock_pid"
 	ConnCloseEventMap     BPFMapName = "conn_close_event"
 	TracerStatusMap       BPFMapName = "tracer_status"
 	PortBindingsMap       BPFMapName = "port_bindings"
