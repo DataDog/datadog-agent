@@ -172,10 +172,9 @@ func TestValidateLocation(t *testing.T) {
 		captureFs.fs = originalFs
 	}()
 
-	writer := NewTrafficCaptureWriter(1)
-	_, err := writer.ValidateLocation(locationBad)
+	_, err := ValidateLocation(locationBad)
 	assert.NotNil(t, err)
-	l, err := writer.ValidateLocation(locationGood)
+	l, err := ValidateLocation(locationGood)
 	assert.Nil(t, err)
 	assert.Equal(t, locationGood, l)
 
