@@ -47,7 +47,7 @@ var (
 )
 
 type node struct {
-	ID        NodeIDPair
+	ID        GraphID
 	Label     string
 	Size      int
 	Color     string
@@ -63,7 +63,7 @@ type edge struct {
 
 type graph struct {
 	Title string
-	Nodes map[NodeIDPair]node
+	Nodes map[GraphID]node
 	Edges []edge
 }
 
@@ -107,7 +107,7 @@ func (ad *ActivityDump) EncodeDOT() (*bytes.Buffer, error) {
 func (ad *ActivityDump) prepareGraphData(title string) graph {
 	data := graph{
 		Title: title,
-		Nodes: make(map[NodeIDPair]node),
+		Nodes: make(map[GraphID]node),
 	}
 
 	for _, p := range ad.ProcessActivityTree {
@@ -128,7 +128,7 @@ func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data 
 		}
 	}
 	pan := node{
-		ID:    NewNodeIDPairFromNodeID(p.GetID()),
+		ID:    NewGraphID(p.GetID()),
 		Label: fmt.Sprintf("%s %s", p.Process.FileEvent.PathnameStr, args),
 		Size:  60,
 		Color: processColor,
@@ -140,25 +140,25 @@ func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data 
 	case Snapshot:
 		pan.FillColor = processSnapshotColor
 	}
-	data.Nodes[NewNodeIDPairFromNodeID(p.GetID())] = pan
+	data.Nodes[NewGraphID(p.GetID())] = pan
 
 	for _, n := range p.Sockets {
 		data.Edges = append(data.Edges, edge{
-			Link:  fmt.Sprintf("%s -> %s", p.GetID(), NewNodeIDPair(p.GetID(), n.GetID())),
+			Link:  fmt.Sprintf("%s -> %s", p.GetID(), NewGraphID(p.GetID(), n.GetID())),
 			Color: networkColor,
 		})
 		ad.prepareSocketNode(n, data, p.GetID())
 	}
 	for _, n := range p.DNSNames {
 		data.Edges = append(data.Edges, edge{
-			Link:  fmt.Sprintf("%s -> %s", p.GetID(), NewNodeIDPair(p.GetID(), n.GetID())),
+			Link:  fmt.Sprintf("%s -> %s", p.GetID(), NewGraphID(p.GetID(), n.GetID())),
 			Color: networkColor,
 		})
 		ad.prepareDNSNode(n, data, p.GetID())
 	}
 	for _, f := range p.Files {
 		data.Edges = append(data.Edges, edge{
-			Link:  fmt.Sprintf("%s -> %s", p.GetID(), NewNodeIDPair(p.GetID(), f.GetID())),
+			Link:  fmt.Sprintf("%s -> %s", p.GetID(), NewGraphID(p.GetID(), f.GetID())),
 			Color: fileColor,
 		})
 		ad.prepareFileNode(f, data, "", p.GetID())
@@ -187,7 +187,7 @@ func (ad *ActivityDump) prepareDNSNode(n *DNSNode, data *graph, processID NodeID
 	name += ")"
 
 	dnsNode := node{
-		ID:        NewNodeIDPair(processID, n.GetID()),
+		ID:        NewGraphID(processID, n.GetID()),
 		Label:     name,
 		Size:      30,
 		Color:     networkColor,
@@ -206,7 +206,7 @@ func (ad *ActivityDump) prepareSocketNode(n *SocketNode, data *graph, processID 
 	}
 
 	socketNode := node{
-		ID:        NewNodeIDPair(processID, n.GetID()),
+		ID:        NewGraphID(processID, n.GetID()),
 		Label:     name,
 		Size:      30,
 		Color:     networkColor,
@@ -217,7 +217,7 @@ func (ad *ActivityDump) prepareSocketNode(n *SocketNode, data *graph, processID 
 }
 
 func (ad *ActivityDump) prepareFileNode(f *FileActivityNode, data *graph, prefix string, processID NodeID) {
-	mergedID := NewNodeIDPair(processID, f.GetID())
+	mergedID := NewGraphID(processID, f.GetID())
 	fn := node{
 		ID:    mergedID,
 		Label: f.getNodeLabel(),
@@ -235,7 +235,7 @@ func (ad *ActivityDump) prepareFileNode(f *FileActivityNode, data *graph, prefix
 
 	for _, child := range f.Children {
 		data.Edges = append(data.Edges, edge{
-			Link:  fmt.Sprintf("%s -> %s", mergedID, NewNodeIDPair(processID, child.GetID())),
+			Link:  fmt.Sprintf("%s -> %s", mergedID, NewGraphID(processID, child.GetID())),
 			Color: fileColor,
 		})
 		ad.prepareFileNode(child, data, prefix+f.Name, processID)
@@ -250,7 +250,7 @@ func (ad *ActivityDump) prepareSyscallsNode(p *ProcessActivityNode, data *graph)
 	label += "</TABLE>>"
 
 	syscallsNode := node{
-		ID:        NewNodeIDPairFromNodeID(p.GetID()),
+		ID:        NewGraphID(p.GetID()),
 		Label:     label,
 		Size:      30,
 		Color:     processColor,
@@ -265,28 +265,30 @@ func (ad *ActivityDump) prepareSyscallsNode(p *ProcessActivityNode, data *graph)
 	})
 }
 
-// NodeIDPair represents a pair of NodeID, most likely a two-level ID
-//msgp:ignore NodeIDPair
-type NodeIDPair struct {
-	a, b NodeID
+// GraphID represents an ID used in a graph, combinaison of NodeIDs
+//msgp:ignore GraphID
+type GraphID struct {
+	raw string
 }
 
-// NewNodeIDPair returns a new NodeIDPair constructed from a pair of NodeID
-func NewNodeIDPair(a, b NodeID) NodeIDPair {
-	return NodeIDPair{
-		a: a,
-		b: b,
+func NewGraphID(ids ...NodeID) GraphID {
+	return NewGraphIDWithDescription("", ids...)
+}
+
+func NewGraphIDWithDescription(description string, ids ...NodeID) GraphID {
+	var b strings.Builder
+	if description != "" {
+		b.WriteString(description)
+	} else {
+		b.WriteString("node")
 	}
-}
 
-// NewNodeIDPairFromNodeID returns a new NodeIDPair constructed from a single NodeID
-func NewNodeIDPairFromNodeID(id NodeID) NodeIDPair {
-	return NewNodeIDPair(id, 0)
-}
-
-func (p NodeIDPair) String() string {
-	if p.b.IsUnset() {
-		return p.a.String()
+	for _, id := range ids {
+		b.WriteString("_")
+		b.WriteString(id.String())
 	}
-	return p.a.String() + p.b.String()
+
+	return GraphID{
+		raw: b.String(),
+	}
 }
