@@ -162,6 +162,34 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 	}
 }
 
+// EnrichInferredSpanWithKinesisEvent uses the parsed event
+// payload to enrich the current inferred span. It applies a
+// specific set of data to the span expected from a Kinesis event.
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithKinesisEvent(eventPayload events.KinesisEvent) {
+	eventRecord := eventPayload.Records[0]
+	splitArn := strings.Split(eventRecord.EventSourceArn, ":")
+	parsedStreamName := splitArn[len(splitArn)-1]
+	parsedShardID := strings.Split(eventRecord.EventID, ":")[0]
+
+	inferredSpan.IsAsync = true
+	inferredSpan.Span.Name = "aws.kinesis"
+	inferredSpan.Span.Service = "kinesis"
+	inferredSpan.Span.Start = eventRecord.Kinesis.ApproximateArrivalTimestamp.UnixNano()
+	inferredSpan.Span.Resource = parsedStreamName
+	inferredSpan.Span.Type = "web"
+	inferredSpan.Span.Meta = map[string]string{
+		operationName:  "aws.kinesis",
+		resourceNames:  parsedStreamName,
+		streamName:     parsedStreamName,
+		shardID:        parsedShardID,
+		eventSourceArn: eventRecord.EventSourceArn,
+		eventID:        eventRecord.EventID,
+		eventName:      eventRecord.EventName,
+		eventVersion:   eventRecord.EventVersion,
+		partitionKey:   eventRecord.Kinesis.PartitionKey,
+	}
+}
+
 // EnrichInferredSpanWithDynamoDBEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a DynamoDB event.
