@@ -831,7 +831,7 @@ func (ad *ActivityDump) DecodeProtobuf(reader io.Reader) error {
 
 // ProcessActivityNode holds the activity of a process
 type ProcessActivityNode struct {
-	id             string
+	id             NodeID
 	Process        model.Process      `msg:"process"`
 	GenerationType NodeGenerationType `msg:"generation_type"`
 
@@ -842,9 +842,9 @@ type ProcessActivityNode struct {
 }
 
 // GetID returns a unique ID to identify the current node
-func (pan *ProcessActivityNode) GetID() string {
-	if len(pan.id) == 0 {
-		pan.id = eval.RandString(5)
+func (pan *ProcessActivityNode) GetID() NodeID {
+	if pan.id == 0 {
+		pan.id = NewNodeID()
 	}
 	return pan.id
 }
@@ -1229,7 +1229,7 @@ func (pan *ProcessActivityNode) InsertBindEvent(evt *model.BindEvent) bool {
 
 // FileActivityNode holds a tree representation of a list of files
 type FileActivityNode struct {
-	id             string
+	id             NodeID
 	Name           string             `msg:"name"`
 	File           *model.FileEvent   `msg:"file,omitempty"`
 	GenerationType NodeGenerationType `msg:"generation_type"`
@@ -1241,9 +1241,9 @@ type FileActivityNode struct {
 }
 
 // GetID returns a unique ID to identify the current node
-func (fan *FileActivityNode) GetID() string {
-	if len(fan.id) == 0 {
-		fan.id = eval.RandString(5)
+func (fan *FileActivityNode) GetID() NodeID {
+	if fan.id == 0 {
+		fan.id = NewNodeID()
 	}
 	return fan.id
 }
@@ -1334,8 +1334,8 @@ func (fan *FileActivityNode) debug(prefix string) {
 
 // DNSNode is used to store a DNS node
 type DNSNode struct {
+	id       NodeID
 	Requests []model.DNSEvent `msg:"requests"`
-	id       string
 }
 
 // NewDNSNode returns a new DNSNode instance
@@ -1346,9 +1346,9 @@ func NewDNSNode(event *model.DNSEvent) *DNSNode {
 }
 
 // GetID returns the ID of the current DNS node
-func (n *DNSNode) GetID() string {
-	if len(n.id) == 0 {
-		n.id = eval.RandString(5)
+func (n *DNSNode) GetID() NodeID {
+	if n.id == 0 {
+		n.id = NewNodeID()
 	}
 	return n.id
 }
@@ -1361,9 +1361,9 @@ type BindNode struct {
 
 // SocketNode is used to store a Socket node and associated events
 type SocketNode struct {
+	id     NodeID
 	Family string   `msg:"family"`
 	Bind   BindNode `msg:"bind"`
-	id     string
 }
 
 // NewSocketNode returns a new SocketNode instance
@@ -1380,9 +1380,27 @@ func NewSocketNode(event *model.BindEvent) *SocketNode {
 }
 
 // GetID returns the ID of the current Socket node
-func (n *SocketNode) GetID() string {
-	if len(n.id) == 0 {
-		n.id = eval.RandString(5)
+func (n *SocketNode) GetID() NodeID {
+	if n.id == 0 {
+		n.id = NewNodeID()
 	}
 	return n.id
+}
+
+// NodeID represents the ID of a Node
+//msgp:ignore NodeID
+type NodeID uint64
+
+// NewNodeID returns a new random NodeID
+func NewNodeID() NodeID {
+	return NodeID(eval.RandNonZeroUint64())
+}
+
+// IsUnset checks if the NodeID is unset
+func (id NodeID) IsUnset() bool {
+	return id == 0
+}
+
+func (id NodeID) String() string {
+	return fmt.Sprintf("node%d", uint64(id))
 }
