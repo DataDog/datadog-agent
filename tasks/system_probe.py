@@ -655,6 +655,7 @@ def build_network_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release
     for promise in promises_link:
         promise.join()
 
+
 def get_security_agent_build_flags(security_agent_c_dir, kernel_release=None, debug=False):
     security_flags = get_ebpf_build_flags(kernel_release=kernel_release)
     security_flags.append(f"-I{security_agent_c_dir}")
@@ -777,7 +778,9 @@ def build_object_files(ctx, parallel_build, kernel_release=None, debug=False):
 
     build_network_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release)
     build_http_ebpf_files(ctx, build_dir=build_dir, kernel_release=kernel_release)
-    build_security_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release, debug=debug)
+    build_security_ebpf_files(
+        ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release, debug=debug
+    )
 
     generate_runtime_files(ctx)
 
