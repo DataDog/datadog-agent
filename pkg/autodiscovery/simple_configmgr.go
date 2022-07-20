@@ -6,6 +6,7 @@
 package autodiscovery
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -74,13 +75,20 @@ func (cm *simpleConfigManager) processNewService(adIdentifiers []string, svc lis
 }
 
 // processDelService implements configManager#processDelService.
-func (cm *simpleConfigManager) processDelService(svc listeners.Service) configChanges {
+func (cm *simpleConfigManager) processDelService(ctx context.Context, svc listeners.Service) configChanges {
 	cm.m.Lock()
 	defer cm.m.Unlock()
-	changes := configChanges{}
 
 	cm.store.removeServiceForEntity(svc.GetServiceID())
+	adIdentifiers, err := svc.GetADIdentifiers(ctx)
+	if err != nil {
+		log.Warnf("Couldn't get AD identifiers for service %q while removing it: %v", svc.GetServiceID(), err)
+	} else {
+		cm.store.removeServiceForADID(svc.GetServiceID(), adIdentifiers)
+	}
+
 	removedConfigs := cm.store.removeConfigsForService(svc.GetServiceID())
+	changes := configChanges{}
 	for _, c := range removedConfigs {
 		if cm.store.removeLoadedConfig(c) {
 			changes.unscheduleConfig(c)
