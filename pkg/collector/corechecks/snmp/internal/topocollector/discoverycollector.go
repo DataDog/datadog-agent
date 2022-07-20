@@ -291,12 +291,7 @@ func (dc *DiscoveryCollector) graph() {
 }
 
 func (dc *DiscoveryCollector) writeToFile(payloadBytes []byte) {
-	var fileName string
-	if dc.config.CommunityString != "" {
-		fileName = dc.config.CommunityString
-	} else {
-		fileName = dc.config.ContextName
-	}
+	fileName := dc.config.IPAddress
 	folderName := "/tmp/topology"
 	filePath := folderName + "/" + fileName + ".json"
 	err := os.MkdirAll("/tmp/topology", os.ModePerm)
