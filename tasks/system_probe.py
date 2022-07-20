@@ -655,7 +655,6 @@ def build_network_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release
     for promise in promises_link:
         promise.join()
 
-
 def get_security_agent_build_flags(security_agent_c_dir, kernel_release=None, debug=False):
     security_flags = get_ebpf_build_flags(kernel_release=kernel_release)
     security_flags.append(f"-I{security_agent_c_dir}")
@@ -663,6 +662,16 @@ def get_security_agent_build_flags(security_agent_c_dir, kernel_release=None, de
         security_flags.append("-DDEBUG=1")
     return security_flags
 
+<<<<<<< HEAD
+def get_security_agent_build_flags(security_agent_c_dir, kernel_release=None, debug=False):
+    security_flags = get_ebpf_build_flags(kernel_release=kernel_release)
+    security_flags.append(f"-I{security_agent_c_dir}")
+    if debug:
+        security_flags.append("-DDEBUG=1")
+    return security_flags
+
+=======
+>>>>>>> 055f05630 (CWS: add debug cli arg to build security code with DEBUG=1)
 
 def build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=None, debug=False):
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
@@ -768,9 +777,7 @@ def build_object_files(ctx, parallel_build, kernel_release=None, debug=False):
 
     build_network_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release)
     build_http_ebpf_files(ctx, build_dir=build_dir, kernel_release=kernel_release)
-    build_security_ebpf_files(
-        ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release, debug=debug
-    )
+    build_security_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release, debug=debug)
 
     generate_runtime_files(ctx)
 
