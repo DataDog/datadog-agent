@@ -73,6 +73,7 @@ func (lp *LifecycleProcessor) initFromDynamoDBStreamEvent(event events.DynamoDBE
 
 func (lp *LifecycleProcessor) initFromEventBridgeEvent(event inferredspan.EventBridgeEvent) {
 	lp.addTag("function_trigger.event_source", "eventbridge")
+	lp.addTag("function_trigger.event_source_arn", event.Source)
 }
 func (lp *LifecycleProcessor) initFromKinesisStreamEvent(event events.KinesisEvent) {
 	lp.addTag("function_trigger.event_source", "kinesis")
