@@ -82,6 +82,11 @@ func isOSHostnameUsable(ctx context.Context) (osHostnameUsable bool) {
 		return true
 	}
 
+	// TODO: Revisit when we introduce support for Windows privileged containers
+	if runtime.GOOS == "windows" {
+		return false
+	}
+
 	// Check UTS namespace from docker
 	utsMode, err := GetAgentUTSMode(ctx)
 	if err == nil && (utsMode != containers.HostUTSMode && utsMode != containers.UnknownUTSMode) {
