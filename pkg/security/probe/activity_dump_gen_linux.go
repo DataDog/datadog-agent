@@ -796,10 +796,10 @@ func (z *DumpMetadata) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Name")
 				return
 			}
-		case "activity_dump_version":
-			z.ActivityDumpVersion, err = dc.ReadString()
+		case "protobuf_version":
+			z.ProtobufVersion, err = dc.ReadString()
 			if err != nil {
-				err = msgp.WrapError(err, "ActivityDumpVersion")
+				err = msgp.WrapError(err, "ProtobufVersion")
 				return
 			}
 		case "differentiate_args":
@@ -838,6 +838,12 @@ func (z *DumpMetadata) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Size")
 				return
 			}
+		case "serialization":
+			z.Serialization, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "Serialization")
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -852,8 +858,8 @@ func (z *DumpMetadata) DecodeMsg(dc *msgp.Reader) (err error) {
 // EncodeMsg implements msgp.Encodable
 func (z *DumpMetadata) EncodeMsg(en *msgp.Writer) (err error) {
 	// omitempty: check for empty values
-	zb0001Len := uint32(13)
-	var zb0001Mask uint16 /* 13 bits */
+	zb0001Len := uint32(14)
+	var zb0001Mask uint16 /* 14 bits */
 	if z.Comm == "" {
 		zb0001Len--
 		zb0001Mask |= 0x100
@@ -865,6 +871,10 @@ func (z *DumpMetadata) EncodeMsg(en *msgp.Writer) (err error) {
 	if z.Size == 0 {
 		zb0001Len--
 		zb0001Mask |= 0x1000
+	}
+	if z.Serialization == "" {
+		zb0001Len--
+		zb0001Mask |= 0x2000
 	}
 	// variable map header, size zb0001Len
 	err = en.Append(0x80 | uint8(zb0001Len))
@@ -934,14 +944,14 @@ func (z *DumpMetadata) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Name")
 		return
 	}
-	// write "activity_dump_version"
-	err = en.Append(0xb5, 0x61, 0x63, 0x74, 0x69, 0x76, 0x69, 0x74, 0x79, 0x5f, 0x64, 0x75, 0x6d, 0x70, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	// write "protobuf_version"
+	err = en.Append(0xb0, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
 	if err != nil {
 		return
 	}
-	err = en.WriteString(z.ActivityDumpVersion)
+	err = en.WriteString(z.ProtobufVersion)
 	if err != nil {
-		err = msgp.WrapError(err, "ActivityDumpVersion")
+		err = msgp.WrapError(err, "ProtobufVersion")
 		return
 	}
 	// write "differentiate_args"
@@ -1010,6 +1020,18 @@ func (z *DumpMetadata) EncodeMsg(en *msgp.Writer) (err error) {
 			return
 		}
 	}
+	if (zb0001Mask & 0x2000) == 0 { // if not empty
+		// write "serialization"
+		err = en.Append(0xad, 0x73, 0x65, 0x72, 0x69, 0x61, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e)
+		if err != nil {
+			return
+		}
+		err = en.WriteString(z.Serialization)
+		if err != nil {
+			err = msgp.WrapError(err, "Serialization")
+			return
+		}
+	}
 	return
 }
 
@@ -1017,8 +1039,8 @@ func (z *DumpMetadata) EncodeMsg(en *msgp.Writer) (err error) {
 func (z *DumpMetadata) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// omitempty: check for empty values
-	zb0001Len := uint32(13)
-	var zb0001Mask uint16 /* 13 bits */
+	zb0001Len := uint32(14)
+	var zb0001Mask uint16 /* 14 bits */
 	if z.Comm == "" {
 		zb0001Len--
 		zb0001Mask |= 0x100
@@ -1030,6 +1052,10 @@ func (z *DumpMetadata) MarshalMsg(b []byte) (o []byte, err error) {
 	if z.Size == 0 {
 		zb0001Len--
 		zb0001Mask |= 0x1000
+	}
+	if z.Serialization == "" {
+		zb0001Len--
+		zb0001Mask |= 0x2000
 	}
 	// variable map header, size zb0001Len
 	o = append(o, 0x80|uint8(zb0001Len))
@@ -1054,9 +1080,9 @@ func (z *DumpMetadata) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "name"
 	o = append(o, 0xa4, 0x6e, 0x61, 0x6d, 0x65)
 	o = msgp.AppendString(o, z.Name)
-	// string "activity_dump_version"
-	o = append(o, 0xb5, 0x61, 0x63, 0x74, 0x69, 0x76, 0x69, 0x74, 0x79, 0x5f, 0x64, 0x75, 0x6d, 0x70, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
-	o = msgp.AppendString(o, z.ActivityDumpVersion)
+	// string "protobuf_version"
+	o = append(o, 0xb0, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	o = msgp.AppendString(o, z.ProtobufVersion)
 	// string "differentiate_args"
 	o = append(o, 0xb2, 0x64, 0x69, 0x66, 0x66, 0x65, 0x72, 0x65, 0x6e, 0x74, 0x69, 0x61, 0x74, 0x65, 0x5f, 0x61, 0x72, 0x67, 0x73)
 	o = msgp.AppendBool(o, z.DifferentiateArgs)
@@ -1080,6 +1106,11 @@ func (z *DumpMetadata) MarshalMsg(b []byte) (o []byte, err error) {
 		// string "activity_dump_size"
 		o = append(o, 0xb2, 0x61, 0x63, 0x74, 0x69, 0x76, 0x69, 0x74, 0x79, 0x5f, 0x64, 0x75, 0x6d, 0x70, 0x5f, 0x73, 0x69, 0x7a, 0x65)
 		o = msgp.AppendUint64(o, z.Size)
+	}
+	if (zb0001Mask & 0x2000) == 0 { // if not empty
+		// string "serialization"
+		o = append(o, 0xad, 0x73, 0x65, 0x72, 0x69, 0x61, 0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e)
+		o = msgp.AppendString(o, z.Serialization)
 	}
 	return
 }
@@ -1138,10 +1169,10 @@ func (z *DumpMetadata) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Name")
 				return
 			}
-		case "activity_dump_version":
-			z.ActivityDumpVersion, bts, err = msgp.ReadStringBytes(bts)
+		case "protobuf_version":
+			z.ProtobufVersion, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "ActivityDumpVersion")
+				err = msgp.WrapError(err, "ProtobufVersion")
 				return
 			}
 		case "differentiate_args":
@@ -1180,6 +1211,12 @@ func (z *DumpMetadata) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Size")
 				return
 			}
+		case "serialization":
+			z.Serialization, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Serialization")
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -1194,7 +1231,7 @@ func (z *DumpMetadata) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *DumpMetadata) Msgsize() (s int) {
-	s = 1 + 14 + msgp.StringPrefixSize + len(z.AgentVersion) + 13 + msgp.StringPrefixSize + len(z.AgentCommit) + 15 + msgp.StringPrefixSize + len(z.KernelVersion) + 19 + msgp.StringPrefixSize + len(z.LinuxDistribution) + 5 + msgp.StringPrefixSize + len(z.Arch) + 5 + msgp.StringPrefixSize + len(z.Name) + 22 + msgp.StringPrefixSize + len(z.ActivityDumpVersion) + 19 + msgp.BoolSize + 5 + msgp.StringPrefixSize + len(z.Comm) + 13 + msgp.StringPrefixSize + len(z.ContainerID) + 6 + msgp.TimeSize + 4 + msgp.TimeSize + 19 + msgp.Uint64Size
+	s = 1 + 14 + msgp.StringPrefixSize + len(z.AgentVersion) + 13 + msgp.StringPrefixSize + len(z.AgentCommit) + 15 + msgp.StringPrefixSize + len(z.KernelVersion) + 19 + msgp.StringPrefixSize + len(z.LinuxDistribution) + 5 + msgp.StringPrefixSize + len(z.Arch) + 5 + msgp.StringPrefixSize + len(z.Name) + 17 + msgp.StringPrefixSize + len(z.ProtobufVersion) + 19 + msgp.BoolSize + 5 + msgp.StringPrefixSize + len(z.Comm) + 13 + msgp.StringPrefixSize + len(z.ContainerID) + 6 + msgp.TimeSize + 4 + msgp.TimeSize + 19 + msgp.Uint64Size + 14 + msgp.StringPrefixSize + len(z.Serialization)
 	return
 }
 

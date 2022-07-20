@@ -50,15 +50,16 @@ func adMetadataToProto(meta *DumpMetadata) *adproto.Metadata {
 		KernelVersion:     meta.KernelVersion,
 		LinuxDistribution: meta.LinuxDistribution,
 
-		Name:                meta.Name,
-		ActivityDumpVersion: meta.ActivityDumpVersion,
-		DifferentiateArgs:   meta.DifferentiateArgs,
-		Comm:                meta.Comm,
-		ContainerId:         meta.ContainerID,
-		Start:               timestampToProto(&meta.Start),
-		End:                 timestampToProto(&meta.End),
-		Size:                meta.Size,
-		Arch:                meta.Arch,
+		Name:              meta.Name,
+		ProtobufVersion:   meta.ProtobufVersion,
+		DifferentiateArgs: meta.DifferentiateArgs,
+		Comm:              meta.Comm,
+		ContainerId:       meta.ContainerID,
+		Start:             timestampToProto(&meta.Start),
+		End:               timestampToProto(&meta.End),
+		Size:              meta.Size,
+		Arch:              meta.Arch,
+		Serialization:     meta.Serialization,
 	}
 
 	return pmeta
