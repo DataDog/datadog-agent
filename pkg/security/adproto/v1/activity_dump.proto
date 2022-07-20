@@ -20,15 +20,17 @@ message Metadata {
     string agent_commit = 2;
     string kernel_version = 3;
     string linux_distribution = 4;
+    string arch = 13;
 
     string name = 5;
-    string activity_dump_version = 6;
+    string protobuf_version = 6;
     bool differentiate_args = 7;
     string comm = 8;
     string container_id = 9;
     uint64 start = 10;
     uint64 end = 11;
     uint64 size = 12;
+    string serialization = 14;
 }
 
 message ProcessActivityNode {
@@ -39,6 +41,7 @@ message ProcessActivityNode {
     repeated FileActivityNode files = 4;
     repeated DNSNode dns_names = 5;
     repeated SocketNode sockets = 6;
+    repeated uint32 syscalls = 7;
 }
 
 message ProcessInfo {

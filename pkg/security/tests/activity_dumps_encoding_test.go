@@ -10,18 +10,20 @@ package tests
 
 import (
 	"bytes"
-	"os"
-	"path/filepath"
-	"sync"
+	_ "embed"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/stretchr/testify/assert"
 )
 
+//go:embed testdata/adv1.msgp
+var v1testdata []byte
+
 func getTestDataActivityDump(tb testing.TB) *probe.ActivityDump {
 	ad := probe.NewEmptyActivityDump()
-	if err := ad.Decode("./pkg/security/adproto/ad_testdata.msgp"); err != nil {
+	if err := ad.DecodeFromReader(bytes.NewReader(v1testdata), dump.MSGP); err != nil {
 		tb.Fatal(err)
 	}
 	return ad
@@ -69,16 +71,8 @@ func TestProtobufDecoding(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tdir := t.TempDir()
-	dumpPath := filepath.Join(tdir, "out.protobuf")
-	if err := os.WriteFile(dumpPath, out.Bytes(), 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	decoded := &probe.ActivityDump{
-		Mutex: &sync.Mutex{},
-	}
-	if err := decoded.DecodeProtobuf(dumpPath); err != nil {
+	decoded := probe.NewEmptyActivityDump()
+	if err := decoded.DecodeProtobuf(bytes.NewReader(out.Bytes())); err != nil {
 		t.Fatal(err)
 	}
 

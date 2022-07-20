@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	adproto "github.com/DataDog/datadog-agent/pkg/security/adproto/v1"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
@@ -46,8 +47,8 @@ import (
 )
 
 const (
-	// ActivityDumpVersion defines the version of the activity dump
-	ActivityDumpVersion = "0.1"
+	// ProtobufVersion defines the protobuf version in use
+	ProtobufVersion = "v1"
 	// ActivityDumpSource defines the source of activity dumps
 	ActivityDumpSource = "runtime-security-agent"
 )
@@ -68,17 +69,19 @@ type DumpMetadata struct {
 	AgentCommit       string `msg:"agent_commit" json:"agent_commit"`
 	KernelVersion     string `msg:"kernel_version" json:"kernel_version"`
 	LinuxDistribution string `msg:"linux_distribution" json:"linux_distribution"`
+	Arch              string `msg:"arch" json:"arch"`
 
-	Name                string        `msg:"name" json:"name"`
-	ActivityDumpVersion string        `msg:"activity_dump_version" json:"activity_dump_version"`
-	DifferentiateArgs   bool          `msg:"differentiate_args" json:"differentiate_args"`
-	Comm                string        `msg:"comm,omitempty" json:"comm,omitempty"`
-	ContainerID         string        `msg:"container_id,omitempty" json:"-"`
-	Start               time.Time     `msg:"start" json:"start"`
-	Timeout             time.Duration `msg:"-" json:"-"`
-	End                 time.Time     `msg:"end" json:"end"`
-	timeoutRaw          int64         `msg:"-"`
-	Size                uint64        `msg:"activity_dump_size,omitempty" json:"activity_dump_size,omitempty"`
+	Name              string        `msg:"name" json:"name"`
+	ProtobufVersion   string        `msg:"protobuf_version" json:"protobuf_version"`
+	DifferentiateArgs bool          `msg:"differentiate_args" json:"differentiate_args"`
+	Comm              string        `msg:"comm,omitempty" json:"comm,omitempty"`
+	ContainerID       string        `msg:"container_id,omitempty" json:"-"`
+	Start             time.Time     `msg:"start" json:"start"`
+	Timeout           time.Duration `msg:"-" json:"-"`
+	End               time.Time     `msg:"end" json:"end"`
+	timeoutRaw        int64         `msg:"-"`
+	Size              uint64        `msg:"activity_dump_size,omitempty" json:"activity_dump_size,omitempty"`
+	Serialization     string        `msg:"serialization,omitempty" json:"serialization,omitempty"`
 }
 
 // ActivityDump holds the activity tree for the workload defined by the provided list of tags. The encoding described by
@@ -124,13 +127,14 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 	ad := ActivityDump{
 		Mutex: &sync.Mutex{},
 		DumpMetadata: DumpMetadata{
-			AgentVersion:        version.AgentVersion,
-			AgentCommit:         version.Commit,
-			KernelVersion:       adm.probe.kernelVersion.Code.String(),
-			LinuxDistribution:   adm.probe.kernelVersion.OsRelease["PRETTY_NAME"],
-			Name:                fmt.Sprintf("activity-dump-%s", eval.RandString(10)),
-			ActivityDumpVersion: ActivityDumpVersion,
-			Start:               time.Now(),
+			AgentVersion:      version.AgentVersion,
+			AgentCommit:       version.Commit,
+			KernelVersion:     adm.probe.kernelVersion.Code.String(),
+			LinuxDistribution: adm.probe.kernelVersion.OsRelease["PRETTY_NAME"],
+			Name:              fmt.Sprintf("activity-dump-%s", eval.RandString(10)),
+			ProtobufVersion:   ProtobufVersion,
+			Start:             time.Now(),
+			Arch:              probes.RuntimeArch,
 		},
 		Host:               adm.hostname,
 		Source:             ActivityDumpSource,
@@ -183,19 +187,20 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 		Source:             msg.GetSource(),
 		Tags:               msg.GetTags(),
 		DumpMetadata: DumpMetadata{
-			AgentVersion:        metadata.GetAgentVersion(),
-			AgentCommit:         metadata.GetAgentCommit(),
-			KernelVersion:       metadata.GetKernelVersion(),
-			LinuxDistribution:   metadata.GetLinuxDistribution(),
-			Name:                metadata.GetName(),
-			ActivityDumpVersion: metadata.GetActivityDumpVersion(),
-			DifferentiateArgs:   metadata.GetDifferentiateArgs(),
-			Comm:                metadata.GetComm(),
-			ContainerID:         metadata.GetContainerID(),
-			Start:               startTime,
-			Timeout:             timeout,
-			End:                 startTime.Add(timeout),
-			Size:                metadata.GetSize(),
+			AgentVersion:      metadata.GetAgentVersion(),
+			AgentCommit:       metadata.GetAgentCommit(),
+			KernelVersion:     metadata.GetKernelVersion(),
+			LinuxDistribution: metadata.GetLinuxDistribution(),
+			Name:              metadata.GetName(),
+			ProtobufVersion:   metadata.GetProtobufVersion(),
+			DifferentiateArgs: metadata.GetDifferentiateArgs(),
+			Comm:              metadata.GetComm(),
+			ContainerID:       metadata.GetContainerID(),
+			Start:             startTime,
+			Timeout:           timeout,
+			End:               startTime.Add(timeout),
+			Size:              metadata.GetSize(),
+			Arch:              metadata.GetArch(),
 		},
 	}
 
@@ -350,6 +355,22 @@ func (ad *ActivityDump) debug() {
 	}
 }
 
+func (ad *ActivityDump) isEventTypeTraced(event *Event) bool {
+	// syscall monitor related event
+	if event.GetEventType() == model.SyscallsEventType && ad.adm.probe.config.ActivityDumpSyscallMonitor {
+		return true
+	}
+
+	// other events
+	var traced bool
+	for _, evtType := range ad.adm.probe.config.ActivityDumpTracedEventTypes {
+		if evtType == event.GetEventType() {
+			traced = true
+		}
+	}
+	return traced
+}
+
 // Insert inserts the provided event in the active ActivityDump. This function returns true if a new entry was added,
 // false if the event was dropped.
 func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
@@ -382,13 +403,7 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	}
 
 	// check if this event type is traced
-	var traced bool
-	for _, evtType := range ad.adm.probe.config.ActivityDumpTracedEventTypes {
-		if evtType == event.GetEventType() {
-			traced = true
-		}
-	}
-	if !traced {
+	if !ad.isEventTypeTraced(event) {
 		return false
 	}
 
@@ -407,6 +422,8 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 		return node.InsertDNSEvent(&event.DNS)
 	case model.BindEventType:
 		return node.InsertBindEvent(&event.Bind)
+	case model.SyscallsEventType:
+		return node.InsertSyscalls(&event.Syscalls)
 	}
 	return false
 }
@@ -617,18 +634,19 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 		Tags:    ad.Tags,
 		Storage: storage,
 		Metadata: &api.ActivityDumpMetadataMessage{
-			AgentVersion:        ad.DumpMetadata.AgentVersion,
-			AgentCommit:         ad.DumpMetadata.AgentCommit,
-			KernelVersion:       ad.DumpMetadata.KernelVersion,
-			LinuxDistribution:   ad.DumpMetadata.LinuxDistribution,
-			Name:                ad.DumpMetadata.Name,
-			ActivityDumpVersion: ad.DumpMetadata.ActivityDumpVersion,
-			DifferentiateArgs:   ad.DumpMetadata.DifferentiateArgs,
-			Comm:                ad.DumpMetadata.Comm,
-			ContainerID:         ad.DumpMetadata.ContainerID,
-			Start:               ad.DumpMetadata.Start.Format(time.RFC822),
-			Timeout:             ad.DumpMetadata.Timeout.String(),
-			Size:                ad.DumpMetadata.Size,
+			AgentVersion:      ad.DumpMetadata.AgentVersion,
+			AgentCommit:       ad.DumpMetadata.AgentCommit,
+			KernelVersion:     ad.DumpMetadata.KernelVersion,
+			LinuxDistribution: ad.DumpMetadata.LinuxDistribution,
+			Name:              ad.DumpMetadata.Name,
+			ProtobufVersion:   ad.DumpMetadata.ProtobufVersion,
+			DifferentiateArgs: ad.DumpMetadata.DifferentiateArgs,
+			Comm:              ad.DumpMetadata.Comm,
+			ContainerID:       ad.DumpMetadata.ContainerID,
+			Start:             ad.DumpMetadata.Start.Format(time.RFC822),
+			Timeout:           ad.DumpMetadata.Timeout.String(),
+			Size:              ad.DumpMetadata.Size,
+			Arch:              ad.DumpMetadata.Arch,
 		},
 	}
 }
@@ -775,20 +793,6 @@ func (ad *ActivityDump) Decode(inputFile string) error {
 	if err != nil {
 		return err
 	}
-	switch format {
-	case dump.MSGP:
-		return ad.DecodeMSGP(inputFile)
-	case dump.PROTOBUF:
-		return ad.DecodeProtobuf(inputFile)
-	default:
-		return fmt.Errorf("unsupported input format: %s", format)
-	}
-}
-
-// DecodeMSGP decodes an activity dump as MSGP
-func (ad *ActivityDump) DecodeMSGP(inputFile string) error {
-	ad.Lock()
-	defer ad.Unlock()
 
 	f, err := os.Open(inputFile)
 	if err != nil {
@@ -796,20 +800,39 @@ func (ad *ActivityDump) DecodeMSGP(inputFile string) error {
 	}
 	defer f.Close()
 
-	msgpReader := msgp.NewReader(f)
-	err = ad.DecodeMsg(msgpReader)
-	if err != nil {
+	return ad.DecodeFromReader(f, format)
+}
+
+// DecodeFromReader decodes an activity dump from a reader with the provided format
+func (ad *ActivityDump) DecodeFromReader(reader io.Reader, format dump.StorageFormat) error {
+	switch format {
+	case dump.MSGP:
+		return ad.DecodeMSGP(reader)
+	case dump.PROTOBUF:
+		return ad.DecodeProtobuf(reader)
+	default:
+		return fmt.Errorf("unsupported input format: %s", format)
+	}
+}
+
+// DecodeMSGP decodes an activity dump as MSGP
+func (ad *ActivityDump) DecodeMSGP(reader io.Reader) error {
+	ad.Lock()
+	defer ad.Unlock()
+
+	msgpReader := msgp.NewReader(reader)
+	if err := ad.DecodeMsg(msgpReader); err != nil {
 		return fmt.Errorf("couldn't parse activity dump file: %w", err)
 	}
 	return nil
 }
 
 // DecodeProtobuf decodes an activity dump as PROTOBUF
-func (ad *ActivityDump) DecodeProtobuf(inputFile string) error {
+func (ad *ActivityDump) DecodeProtobuf(reader io.Reader) error {
 	ad.Lock()
 	defer ad.Unlock()
 
-	raw, err := os.ReadFile(inputFile)
+	raw, err := io.ReadAll(reader)
 	if err != nil {
 		return fmt.Errorf("couldn't open activity dump file: %w", err)
 	}
@@ -826,20 +849,21 @@ func (ad *ActivityDump) DecodeProtobuf(inputFile string) error {
 
 // ProcessActivityNode holds the activity of a process
 type ProcessActivityNode struct {
-	id             string
+	id             NodeID
 	Process        model.Process      `msg:"process"`
 	GenerationType NodeGenerationType `msg:"generation_type"`
 
 	Files    map[string]*FileActivityNode `msg:"files,omitempty"`
 	DNSNames map[string]*DNSNode          `msg:"dns,omitempty"`
 	Sockets  []*SocketNode                `msg:"sockets,omitempty"`
+	Syscalls []int                        `msg:"syscalls,omitempty"`
 	Children []*ProcessActivityNode       `msg:"children,omitempty"`
 }
 
 // GetID returns a unique ID to identify the current node
-func (pan *ProcessActivityNode) GetID() string {
-	if len(pan.id) == 0 {
-		pan.id = eval.RandString(5)
+func (pan *ProcessActivityNode) GetID() NodeID {
+	if pan.id == 0 {
+		pan.id = NewNodeID()
 	}
 	return pan.id
 }
@@ -1222,9 +1246,26 @@ func (pan *ProcessActivityNode) InsertBindEvent(evt *model.BindEvent) bool {
 	return true
 }
 
+// InsertSyscalls inserts the syscall of the process in the dump
+func (pan *ProcessActivityNode) InsertSyscalls(e *model.SyscallsEvent) bool {
+	var hasNewSyscalls bool
+newSyscallLoop:
+	for _, newSyscall := range e.Syscalls {
+		for _, existingSyscall := range pan.Syscalls {
+			if existingSyscall == int(newSyscall) {
+				continue newSyscallLoop
+			}
+		}
+
+		pan.Syscalls = append(pan.Syscalls, int(newSyscall))
+		hasNewSyscalls = true
+	}
+	return hasNewSyscalls
+}
+
 // FileActivityNode holds a tree representation of a list of files
 type FileActivityNode struct {
-	id             string
+	id             NodeID
 	Name           string             `msg:"name"`
 	File           *model.FileEvent   `msg:"file,omitempty"`
 	GenerationType NodeGenerationType `msg:"generation_type"`
@@ -1236,9 +1277,9 @@ type FileActivityNode struct {
 }
 
 // GetID returns a unique ID to identify the current node
-func (fan *FileActivityNode) GetID() string {
-	if len(fan.id) == 0 {
-		fan.id = eval.RandString(5)
+func (fan *FileActivityNode) GetID() NodeID {
+	if fan.id == 0 {
+		fan.id = NewNodeID()
 	}
 	return fan.id
 }
@@ -1329,8 +1370,8 @@ func (fan *FileActivityNode) debug(prefix string) {
 
 // DNSNode is used to store a DNS node
 type DNSNode struct {
+	id       NodeID
 	Requests []model.DNSEvent `msg:"requests"`
-	id       string
 }
 
 // NewDNSNode returns a new DNSNode instance
@@ -1341,9 +1382,9 @@ func NewDNSNode(event *model.DNSEvent) *DNSNode {
 }
 
 // GetID returns the ID of the current DNS node
-func (n *DNSNode) GetID() string {
-	if len(n.id) == 0 {
-		n.id = eval.RandString(5)
+func (n *DNSNode) GetID() NodeID {
+	if n.id == 0 {
+		n.id = NewNodeID()
 	}
 	return n.id
 }
@@ -1356,9 +1397,9 @@ type BindNode struct {
 
 // SocketNode is used to store a Socket node and associated events
 type SocketNode struct {
+	id     NodeID
 	Family string   `msg:"family"`
 	Bind   BindNode `msg:"bind"`
-	id     string
 }
 
 // NewSocketNode returns a new SocketNode instance
@@ -1375,9 +1416,27 @@ func NewSocketNode(event *model.BindEvent) *SocketNode {
 }
 
 // GetID returns the ID of the current Socket node
-func (n *SocketNode) GetID() string {
-	if len(n.id) == 0 {
-		n.id = eval.RandString(5)
+func (n *SocketNode) GetID() NodeID {
+	if n.id == 0 {
+		n.id = NewNodeID()
 	}
 	return n.id
+}
+
+// NodeID represents the ID of a Node
+//msgp:ignore NodeID
+type NodeID uint64
+
+// NewNodeID returns a new random NodeID
+func NewNodeID() NodeID {
+	return NodeID(eval.RandNonZeroUint64())
+}
+
+// IsUnset checks if the NodeID is unset
+func (id NodeID) IsUnset() bool {
+	return id == 0
+}
+
+func (id NodeID) String() string {
+	return fmt.Sprintf("node%d", uint64(id))
 }
