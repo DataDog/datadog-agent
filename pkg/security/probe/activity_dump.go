@@ -1286,8 +1286,8 @@ newSyscallLoop:
 // FileActivityNode holds a tree representation of a list of files
 type FileActivityNode struct {
 	id             NodeID
-	Name           string `msg:"name"`
-	IsPattern      bool
+	Name           string             `msg:"name"`
+	IsPattern      bool               `msg:"is_pattern"`
 	File           *model.FileEvent   `msg:"file,omitempty"`
 	GenerationType NodeGenerationType `msg:"generation_type"`
 	FirstSeen      time.Time          `msg:"first_seen,omitempty"`
