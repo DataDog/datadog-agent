@@ -227,6 +227,7 @@ enum event_type
     EVENT_NET_DEVICE,
     EVENT_VETH_PAIR,
     EVENT_BIND,
+    EVENT_SYSCALLS,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events
@@ -380,7 +381,7 @@ struct bpf_map_def SEC("maps/events_stats") events_stats = {
     .namespace = "",
 };
 
-#define send_event_with_size_ptr_perf(ctx, event_type, kernel_event, kernel_event_size)                                     \
+#define send_event_with_size_ptr_perf(ctx, event_type, kernel_event, kernel_event_size)                                \
     kernel_event->event.type = event_type;                                                                             \
     kernel_event->event.cpu = bpf_get_smp_processor_id();                                                              \
     kernel_event->event.timestamp = bpf_ktime_get_ns();                                                                \
@@ -400,7 +401,7 @@ struct bpf_map_def SEC("maps/events_stats") events_stats = {
         }                                                                                                              \
     }                                                                                                                  \
 
-#define send_event_with_size_ptr_ringbuf(ctx, event_type, kernel_event, kernel_event_size)                                     \
+#define send_event_with_size_ptr_ringbuf(ctx, event_type, kernel_event, kernel_event_size)                             \
     kernel_event->event.type = event_type;                                                                             \
     kernel_event->event.cpu = bpf_get_smp_processor_id();                                                              \
     kernel_event->event.timestamp = bpf_ktime_get_ns();                                                                \
@@ -420,7 +421,7 @@ struct bpf_map_def SEC("maps/events_stats") events_stats = {
         }                                                                                                              \
     }                                                                                                                  \
 
-#define send_event_with_size_perf(ctx, event_type, kernel_event, kernel_event_size)                                         \
+#define send_event_with_size_perf(ctx, event_type, kernel_event, kernel_event_size)                                    \
     kernel_event.event.type = event_type;                                                                              \
     kernel_event.event.cpu = bpf_get_smp_processor_id();                                                               \
     kernel_event.event.timestamp = bpf_ktime_get_ns();                                                                 \
@@ -439,7 +440,7 @@ struct bpf_map_def SEC("maps/events_stats") events_stats = {
         }                                                                                                              \
     }                                                                                                                  \
 
-#define send_event_with_size_ringbuf(ctx, event_type, kernel_event, kernel_event_size)                                         \
+#define send_event_with_size_ringbuf(ctx, event_type, kernel_event, kernel_event_size)                                 \
     kernel_event.event.type = event_type;                                                                              \
     kernel_event.event.cpu = bpf_get_smp_processor_id();                                                               \
     kernel_event.event.timestamp = bpf_ktime_get_ns();                                                                 \
@@ -460,6 +461,16 @@ struct bpf_map_def SEC("maps/events_stats") events_stats = {
 
 #define send_event(ctx, event_type, kernel_event)                                                                      \
     u64 size = sizeof(kernel_event);                                                                                   \
+    u64 use_ring_buffer;                                                                                               \
+    LOAD_CONSTANT("use_ring_buffer", use_ring_buffer);                                                                 \
+    int perf_ret;                                                                                                      \
+    if (use_ring_buffer) {                                                                                             \
+        send_event_with_size_ringbuf(ctx, event_type, kernel_event, size)                                              \
+    } else {                                                                                                           \
+        send_event_with_size_perf(ctx, event_type, kernel_event, size)                                                 \
+    }                                                                                                                  \
+
+#define send_event_with_size(ctx, event_type, kernel_event, size)                                                      \
     u64 use_ring_buffer;                                                                                               \
     LOAD_CONSTANT("use_ring_buffer", use_ring_buffer);                                                                 \
     int perf_ret;                                                                                                      \
@@ -709,20 +720,4 @@ struct is_discarded_by_inode_t {
     u32 activity_dump_state;
 };
 
-static __attribute__((always_inline))
-void *bpf_map_lookup_or_try_init(struct bpf_map_def *map, void *key, void *zero) {
-    if (map == NULL) {
-        return NULL;
-    }
-
-    void *value = bpf_map_lookup_elem(map, key);
-    if (value != NULL)
-        return value;
-
-    // Use BPF_NOEXIST to prevent race condition
-    if (bpf_map_update_elem(map, key, zero, BPF_NOEXIST) < 0)
-        return NULL;
-
-    return bpf_map_lookup_elem(map, key);
-}
 #endif

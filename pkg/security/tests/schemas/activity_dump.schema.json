@@ -301,6 +301,12 @@
                                 "family"
                             ]
                         }
+                    },
+                    "syscalls": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        }
                     }
                 },
                 "required": [

@@ -58,6 +58,7 @@ func adMetadataToProto(meta *DumpMetadata) *adproto.Metadata {
 		Start:               timestampToProto(&meta.Start),
 		End:                 timestampToProto(&meta.End),
 		Size:                meta.Size,
+		Arch:                meta.Arch,
 	}
 
 	return pmeta
@@ -76,6 +77,7 @@ func processActivityNodeToProto(pan *ProcessActivityNode) *adproto.ProcessActivi
 		Files:          make([]*adproto.FileActivityNode, 0, len(pan.Files)),
 		DnsNames:       make([]*adproto.DNSNode, 0, len(pan.DNSNames)),
 		Sockets:        make([]*adproto.SocketNode, 0, len(pan.Sockets)),
+		Syscalls:       make([]uint32, 0, len(pan.Syscalls)),
 	}
 
 	for _, child := range pan.Children {
@@ -92,6 +94,10 @@ func processActivityNodeToProto(pan *ProcessActivityNode) *adproto.ProcessActivi
 
 	for _, socket := range pan.Sockets {
 		ppan.Sockets = append(ppan.Sockets, socketNodeToProto(socket))
+	}
+
+	for _, sysc := range pan.Syscalls {
+		ppan.Syscalls = append(ppan.Syscalls, uint32(sysc))
 	}
 
 	return ppan

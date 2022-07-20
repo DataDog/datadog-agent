@@ -57,6 +57,8 @@ func easyjson9a9a4de6DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 			out.KernelVersion = string(in.String())
 		case "linux_distribution":
 			out.LinuxDistribution = string(in.String())
+		case "arch":
+			out.Arch = string(in.String())
 		case "name":
 			out.Name = string(in.String())
 		case "activity_dump_version":
@@ -149,6 +151,11 @@ func easyjson9a9a4de6EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwr
 		const prefix string = ",\"linux_distribution\":"
 		out.RawString(prefix)
 		out.String(string(in.LinuxDistribution))
+	}
+	{
+		const prefix string = ",\"arch\":"
+		out.RawString(prefix)
+		out.String(string(in.Arch))
 	}
 	{
 		const prefix string = ",\"name\":"

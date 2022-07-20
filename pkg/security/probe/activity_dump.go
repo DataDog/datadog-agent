@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	adproto "github.com/DataDog/datadog-agent/pkg/security/adproto/v1"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
@@ -68,6 +69,7 @@ type DumpMetadata struct {
 	AgentCommit       string `msg:"agent_commit" json:"agent_commit"`
 	KernelVersion     string `msg:"kernel_version" json:"kernel_version"`
 	LinuxDistribution string `msg:"linux_distribution" json:"linux_distribution"`
+	Arch              string `msg:"arch" json:"arch"`
 
 	Name                string        `msg:"name" json:"name"`
 	ActivityDumpVersion string        `msg:"activity_dump_version" json:"activity_dump_version"`
@@ -131,6 +133,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 			Name:                fmt.Sprintf("activity-dump-%s", eval.RandString(10)),
 			ActivityDumpVersion: ActivityDumpVersion,
 			Start:               time.Now(),
+			Arch:                probes.RuntimeArch,
 		},
 		Host:               adm.hostname,
 		Source:             ActivityDumpSource,
@@ -196,6 +199,7 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 			Timeout:             timeout,
 			End:                 startTime.Add(timeout),
 			Size:                metadata.GetSize(),
+			Arch:                metadata.GetArch(),
 		},
 	}
 
@@ -350,6 +354,22 @@ func (ad *ActivityDump) debug() {
 	}
 }
 
+func (ad *ActivityDump) isEventTypeTraced(event *Event) bool {
+	// syscall monitor related event
+	if event.GetEventType() == model.SyscallsEventType && ad.adm.probe.config.ActivityDumpSyscallMonitor {
+		return true
+	}
+
+	// other events
+	var traced bool
+	for _, evtType := range ad.adm.probe.config.ActivityDumpTracedEventTypes {
+		if evtType == event.GetEventType() {
+			traced = true
+		}
+	}
+	return traced
+}
+
 // Insert inserts the provided event in the active ActivityDump. This function returns true if a new entry was added,
 // false if the event was dropped.
 func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
@@ -382,13 +402,7 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	}
 
 	// check if this event type is traced
-	var traced bool
-	for _, evtType := range ad.adm.probe.config.ActivityDumpTracedEventTypes {
-		if evtType == event.GetEventType() {
-			traced = true
-		}
-	}
-	if !traced {
+	if !ad.isEventTypeTraced(event) {
 		return false
 	}
 
@@ -407,6 +421,8 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 		return node.InsertDNSEvent(&event.DNS)
 	case model.BindEventType:
 		return node.InsertBindEvent(&event.Bind)
+	case model.SyscallsEventType:
+		return node.InsertSyscalls(&event.Syscalls)
 	}
 	return false
 }
@@ -629,6 +645,7 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 			Start:               ad.DumpMetadata.Start.Format(time.RFC822),
 			Timeout:             ad.DumpMetadata.Timeout.String(),
 			Size:                ad.DumpMetadata.Size,
+			Arch:                ad.DumpMetadata.Arch,
 		},
 	}
 }
@@ -838,6 +855,7 @@ type ProcessActivityNode struct {
 	Files    map[string]*FileActivityNode `msg:"files,omitempty"`
 	DNSNames map[string]*DNSNode          `msg:"dns,omitempty"`
 	Sockets  []*SocketNode                `msg:"sockets,omitempty"`
+	Syscalls []int                        `msg:"syscalls,omitempty"`
 	Children []*ProcessActivityNode       `msg:"children,omitempty"`
 }
 
@@ -1224,6 +1242,21 @@ func (pan *ProcessActivityNode) InsertBindEvent(evt *model.BindEvent) bool {
 	}
 
 	pan.Sockets = append(pan.Sockets, NewSocketNode(evt))
+	return true
+}
+
+// InsertSyscalls inserts the syscall of the process in the dump
+func (pan *ProcessActivityNode) InsertSyscalls(e *model.SyscallsEvent) bool {
+newSyscallLoop:
+	for _, newSyscall := range e.Syscalls {
+		for _, existingSyscall := range pan.Syscalls {
+			if existingSyscall == int(newSyscall) {
+				continue newSyscallLoop
+			}
+		}
+
+		pan.Syscalls = append(pan.Syscalls, int(newSyscall))
+	}
 	return true
 }
 
