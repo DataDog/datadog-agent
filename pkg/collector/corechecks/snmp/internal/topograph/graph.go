@@ -72,7 +72,7 @@ func graphForFile(graph *cgraph.Graph, sourceFile string) {
 
 	log.Infof("payload: %+v", payload)
 
-	payload.Device.Name = profile // TODO: refactor me, this is a workaround to create a device per profile
+	payload.Device.Name = payload.Device.Name + "(" + profile + ")" // TODO: refactor me, this is a workaround to create a device per profile
 
 	localDev, err := createNode(graph, payload.Device)
 	localDev.SetColor("red")

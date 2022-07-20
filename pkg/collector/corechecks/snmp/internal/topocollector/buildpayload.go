@@ -5,12 +5,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/topopayload"
 )
 
-func buildPayload(remoteConns []common.LldpRemote, hostname string) topopayload.TopologyPayload {
+func buildPayload(remoteConns []common.LldpRemote, hostname string, address string, name string) topopayload.TopologyPayload {
 	p := topopayload.TopologyPayload{
 		Host: hostname,
 		Device: topopayload.Device{
-			IP:   "127.0.0.1", // TODO: Update with real data
-			Name: "my-device", // TODO: Update with real data
+			IP:   address, // TODO: Update with real data
+			Name: name,    // TODO: Update with real data
 		},
 	}
 	for _, remoteCon := range remoteConns {

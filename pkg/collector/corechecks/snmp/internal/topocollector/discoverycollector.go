@@ -266,7 +266,12 @@ func (dc *DiscoveryCollector) Collect() {
 		}
 	}
 
-	payload := buildPayload(remotes, "agent_hostname")
+	sysName, err := FetchSysName(session)
+	if err != nil {
+		log.Errorf("Error fetching sysName: %s", err)
+		return
+	}
+	payload := buildPayload(remotes, "agent_hostname", dc.config.IPAddress, sysName)
 	payloadBytes, err := json.MarshalIndent(payload, "", "    ")
 	if err != nil {
 		log.Errorf("Error marshalling device metadata: %s", err)
@@ -338,4 +343,29 @@ func (dc *DiscoveryCollector) collectColumnsOids(columns []string, session sessi
 		return nil
 	}
 	return columnValues
+}
+
+// FetchSysName TODO
+func FetchSysName(session session.Session) (string, error) {
+	sysName := "1.3.6.1.2.1.1.5.0"
+	result, err := session.Get([]string{sysName}) // sysName
+	if err != nil {
+		return "", fmt.Errorf("cannot get sysobjectid: %s", err)
+	}
+	if len(result.Variables) != 1 {
+		return "", fmt.Errorf("expected 1 value, but got %d: variables=%v", len(result.Variables), result.Variables)
+	}
+	pduVar := result.Variables[0]
+	oid, value, err := valuestore.GetResultValueFromPDU(pduVar)
+	if err != nil {
+		return "", fmt.Errorf("error getting value from pdu: %s", err)
+	}
+	if oid != sysName {
+		return "", fmt.Errorf("expect `%s` OID but got `%s` OID with value `%v`", sysName, oid, value)
+	}
+	strValue, err := value.ToString()
+	if err != nil {
+		return "", fmt.Errorf("error converting value (%#v) to string : %v", value, err)
+	}
+	return strValue, err
 }
