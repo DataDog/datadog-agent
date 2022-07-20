@@ -141,6 +141,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.12.2
 	github.com/richardartoul/molecule v0.0.0-20210914193524-25d8911bb85b
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/shirou/gopsutil/v3 v3.22.5
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
@@ -332,7 +333,6 @@ require (
 	github.com/prometheus/statsd_exporter v0.21.0 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
-	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/rs/cors v1.8.2 // indirect
 	github.com/sassoftware/go-rpmutils v0.2.0 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.3.1 // indirect
@@ -408,10 +408,7 @@ require (
 	k8s.io/apiextensions-apiserver v0.23.5 // indirect
 )
 
-require (
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.38.0-rc.3
-	github.com/robfig/cron v1.2.0
-)
+require github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.38.0-rc.3
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
