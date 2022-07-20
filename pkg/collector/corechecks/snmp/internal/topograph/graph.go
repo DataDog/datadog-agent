@@ -33,7 +33,7 @@ func GraphTopology() {
 	graph.SetLayout("sfdp")
 	topologyFolder := "/tmp/topology"
 	for _, file := range findFiles(topologyFolder, ".json") {
-		log.Infof("file: %s", file)
+		log.Debugf("file: %s", file)
 		graphForFile(graph, file)
 	}
 
@@ -74,7 +74,7 @@ func graphForFile(graph *cgraph.Graph, sourceFile string) {
 		log.Error(err)
 	}
 
-	log.Infof("payload: %+v", payload)
+	log.Debugf("payload: %+v", payload)
 
 	payload.Device.Name = payload.Device.Name + "(" + profile + ")" // TODO: refactor me, this is a workaround to create a device per profile
 
@@ -175,5 +175,5 @@ func renderGraph(g *graphviz.Graphviz, graph *cgraph.Graph) {
 		return
 	}
 
-	log.Infof("Graph rendered to: %s", graphFile)
+	log.Debugf("Graph rendered to: %s", graphFile)
 }

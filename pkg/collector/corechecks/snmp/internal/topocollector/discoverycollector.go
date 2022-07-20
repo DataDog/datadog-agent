@@ -39,10 +39,10 @@ func NewDiscoveryCollector(sender aggregator.Sender, hostname string, config *ch
 
 // Collect TODO
 func (dc *DiscoveryCollector) Collect() {
-	log.Info("Collector: collect")
-	log.Infof("Config: %+v", dc.config)
+	log.Debug("Collector: collect")
+	log.Debugf("Config: %+v", dc.config)
 	session, err := session.NewGosnmpSession(dc.config)
-	log.Infof("session: %+v", session)
+	log.Debugf("session: %+v", session)
 	if err != nil {
 		log.Errorf("error creating session: %s", err)
 		return
@@ -54,7 +54,7 @@ func (dc *DiscoveryCollector) Collect() {
 	}
 	defer session.Close()
 
-	log.Info("=== lldpLocPortTable\t\t ===")
+	log.Debug("=== lldpLocPortTable\t\t ===")
 	// INDEX { lldpLocPortNum }
 	columns := []string{
 		"1.0.8802.1.1.2.1.3.7.1.2", // lldpLocPortIdSubtype
@@ -84,14 +84,14 @@ func (dc *DiscoveryCollector) Collect() {
 		locPorts = append(locPorts, locPort)
 	}
 	for _, locPort := range locPorts {
-		log.Infof("\t->")
-		log.Infof("\t\t PortNum: %d", locPort.PortNum)
-		log.Infof("\t\t PortIDSubType: %d", locPort.PortIDSubType)
-		log.Infof("\t\t PortID: %s", locPort.PortID)
-		log.Infof("\t\t PortDesc: %s", locPort.PortDesc)
+		log.Debugf("\t->")
+		log.Debugf("\t\t PortNum: %d", locPort.PortNum)
+		log.Debugf("\t\t PortIDSubType: %d", locPort.PortIDSubType)
+		log.Debugf("\t\t PortID: %s", locPort.PortID)
+		log.Debugf("\t\t PortDesc: %s", locPort.PortDesc)
 	}
 
-	log.Info("=== lldpRemManAddrTable\t ===")
+	log.Debugf("=== lldpRemManAddrTable\t ===")
 	// INDEX { lldpRemTimeMark, lldpRemLocalPortNum, lldpRemIndex, lldpRemManAddrSubtype, lldpRemManAddr }
 	// lldpRemManAddrSubtype: ipv4(1), ipv6(2), etc see more here: http://www.mibdepot.com/cgi-bin/getmib3.cgi?win=mib_a&i=1&n=LLDP-MIB&r=cisco&f=LLDP-MIB-V1SMI.my&v=v1&t=tab&o=lldpRemManAddrSubtype
 	columns = []string{
@@ -133,15 +133,15 @@ func (dc *DiscoveryCollector) Collect() {
 		remoteMans = append(remoteMans, remoteMan)
 	}
 	for _, remoteMan := range remoteMans {
-		log.Infof("\t->")
-		log.Infof("\t\t TimeMark: %d", remoteMan.TimeMark)
-		log.Infof("\t\t LocalPortNum: %d", remoteMan.LocalPortNum)
-		log.Infof("\t\t Index: %d", remoteMan.Index)
-		log.Infof("\t\t ManAddrSubtype: %s (%d)", common.RemManAddrSubtype[remoteMan.ManAddrSubtype], remoteMan.ManAddrSubtype)
-		log.Infof("\t\t manAddr: %s", remoteMan.ManAddr)
+		log.Debugf("\t->")
+		log.Debugf("\t\t TimeMark: %d", remoteMan.TimeMark)
+		log.Debugf("\t\t LocalPortNum: %d", remoteMan.LocalPortNum)
+		log.Debugf("\t\t Index: %d", remoteMan.Index)
+		log.Debugf("\t\t ManAddrSubtype: %s (%d)", common.RemManAddrSubtype[remoteMan.ManAddrSubtype], remoteMan.ManAddrSubtype)
+		log.Debugf("\t\t manAddr: %s", remoteMan.ManAddr)
 	}
 
-	log.Info("=== lldpRemTable ===")
+	log.Debugf("=== lldpRemTable ===")
 	// INDEX { lldpRemTimeMark, lldpRemLocalPortNum, lldpRemIndex }
 	columns = []string{
 		"1.0.8802.1.1.2.1.4.1.1.4",  // lldpRemChassisIdSubtype
@@ -158,7 +158,6 @@ func (dc *DiscoveryCollector) Collect() {
 	var remotes []common.LldpRemote
 	valuesByIndexByColumn := make(map[string]map[string]valuestore.ResultValue)
 	for columnOid, values := range columnValues {
-		log.Info(columnOid)
 		for fullIndex, value := range values {
 			if _, ok := valuesByIndexByColumn[fullIndex]; !ok {
 				valuesByIndexByColumn[fullIndex] = make(map[string]valuestore.ResultValue)
@@ -231,13 +230,13 @@ func (dc *DiscoveryCollector) Collect() {
 
 		remoteMan, err := findRemote(remoteMans, remote)
 		if err != nil {
-			log.Infof("\t\t Remote not found for %+v", remote)
+			log.Debugf("\t\t Remote not found for %+v", remote)
 		} else {
 			remote.RemoteManagement = remoteMan
 		}
 		localPort, err := findLocPort(locPorts, remote.LocalPortNum)
 		if err != nil {
-			log.Infof("\t\t Local port not found for %+v", remote)
+			log.Debugf("\t\t Local port not found for %+v", remote)
 		} else {
 			remote.LocalPort = localPort
 		}
@@ -246,24 +245,24 @@ func (dc *DiscoveryCollector) Collect() {
 	}
 
 	for _, remote := range remotes {
-		log.Infof("\t->")
-		log.Infof("\t\t TimeMark: %d", remote.TimeMark)
-		log.Infof("\t\t LocalPortNum: %d", remote.LocalPortNum)
-		log.Infof("\t\t Index: %d", remote.Index)
-		log.Infof("\t\t ChassisIDSubtype: %s (%d)", common.ChassisIDSubtypeMap[remote.ChassisIDSubtype], remote.ChassisIDSubtype)
-		log.Infof("\t\t ChassisID: %s", remote.ChassisID)
-		log.Infof("\t\t PortIDSubType: %s (%d)", common.PortIDSubTypeMap[remote.PortIDSubType], remote.PortIDSubType)
-		log.Infof("\t\t PortID: %s", remote.PortID)
-		log.Infof("\t\t PortDesc: %s", remote.PortDesc)
-		log.Infof("\t\t SysName: %s", remote.SysName)
-		log.Infof("\t\t SysDesc: %s", remote.SysDesc)
-		log.Infof("\t\t SysCapSupported: %s", remote.SysCapSupported)
-		log.Infof("\t\t SysCapEnabled: %s", remote.SysCapEnabled)
+		log.Debugf("\t->")
+		log.Debugf("\t\t TimeMark: %d", remote.TimeMark)
+		log.Debugf("\t\t LocalPortNum: %d", remote.LocalPortNum)
+		log.Debugf("\t\t Index: %d", remote.Index)
+		log.Debugf("\t\t ChassisIDSubtype: %s (%d)", common.ChassisIDSubtypeMap[remote.ChassisIDSubtype], remote.ChassisIDSubtype)
+		log.Debugf("\t\t ChassisID: %s", remote.ChassisID)
+		log.Debugf("\t\t PortIDSubType: %s (%d)", common.PortIDSubTypeMap[remote.PortIDSubType], remote.PortIDSubType)
+		log.Debugf("\t\t PortID: %s", remote.PortID)
+		log.Debugf("\t\t PortDesc: %s", remote.PortDesc)
+		log.Debugf("\t\t SysName: %s", remote.SysName)
+		log.Debugf("\t\t SysDesc: %s", remote.SysDesc)
+		log.Debugf("\t\t SysCapSupported: %s", remote.SysCapSupported)
+		log.Debugf("\t\t SysCapEnabled: %s", remote.SysCapEnabled)
 		if remote.RemoteManagement != nil {
-			log.Infof("\t\t ManAddr: %s", remote.RemoteManagement.ManAddr)
+			log.Debugf("\t\t ManAddr: %s", remote.RemoteManagement.ManAddr)
 		}
 		if remote.LocalPort != nil {
-			log.Infof("\t\t LocalPort.PortID: %s", remote.LocalPort.PortID)
+			log.Debugf("\t\t LocalPort.PortID: %s", remote.LocalPort.PortID)
 		}
 	}
 
@@ -278,7 +277,7 @@ func (dc *DiscoveryCollector) Collect() {
 		log.Errorf("Error marshalling device metadata: %s", err)
 		return
 	}
-	log.Infof("topology payload | %s", string(payloadBytes))
+	log.Debugf("topology payload | %s", string(payloadBytes))
 
 	dc.writeToFile(payloadBytes)
 
@@ -307,7 +306,7 @@ func (dc *DiscoveryCollector) writeToFile(payloadBytes []byte) {
 		log.Errorf("Error writing to file: %s", err)
 		return
 	}
-	log.Infof("Payload written to file: %s", fileName)
+	log.Debugf("Payload written to file: %s", fileName)
 }
 
 func findRemote(mans []common.LldpRemoteManagement, remote common.LldpRemote) (*common.LldpRemoteManagement, error) {
@@ -334,7 +333,6 @@ func (dc *DiscoveryCollector) collectColumnsOids(columns []string, session sessi
 	for _, value := range columns {
 		oids[value] = value
 	}
-	log.Infof("session2: %+v", session)
 	columnValues, err := fetch.DoFetchColumnOidsWithBatching(session, oids, dc.config.OidBatchSize, 10, fetch.UseGetNext)
 	if err != nil {
 		log.Errorf("error DoFetchColumnOidsWithBatching: %s", err)
