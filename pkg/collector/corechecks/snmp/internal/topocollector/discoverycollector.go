@@ -291,6 +291,8 @@ func (dc *DiscoveryCollector) graph() {
 }
 
 func (dc *DiscoveryCollector) writeToFile(payloadBytes []byte) {
+	dc.graphMutex.Lock()
+	defer dc.graphMutex.Unlock()
 	fileName := dc.config.IPAddress
 	folderName := "/tmp/topology"
 	filePath := folderName + "/" + fileName + ".json"

@@ -145,6 +145,13 @@ func createNode(graph *cgraph.Graph, device topopayload.Device) (*cgraph.Node, e
 }
 
 func renderGraph(g *graphviz.Graphviz, graph *cgraph.Graph) {
+	defer func() {
+		// TODO: FIX PANIC
+		if r := recover(); r != nil {
+			log.Errorf("Recovered in renderGraph: %v", r)
+		}
+	}()
+
 	// create your graph
 
 	// 1. write encoded PNG data to buffer
@@ -168,5 +175,5 @@ func renderGraph(g *graphviz.Graphviz, graph *cgraph.Graph) {
 		return
 	}
 
-	log.Info("Graph rendered to: %s", graphFile)
+	log.Infof("Graph rendered to: %s", graphFile)
 }
