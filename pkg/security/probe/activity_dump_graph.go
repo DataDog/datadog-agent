@@ -271,10 +271,12 @@ type GraphID struct {
 	raw string
 }
 
+// NewGraphID returns a new GraphID based on the provided NodeIDs
 func NewGraphID(ids ...NodeID) GraphID {
 	return NewGraphIDWithDescription("", ids...)
 }
 
+// NewGraphID returns a new GraphID based on a description and on the provided NodeIDs
 func NewGraphIDWithDescription(description string, ids ...NodeID) GraphID {
 	var b strings.Builder
 	if description != "" {
