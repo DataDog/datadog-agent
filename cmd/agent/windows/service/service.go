@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/traceinit"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
@@ -28,20 +29,25 @@ type agentWindowsService struct{}
 
 // Execute sets up the configuration and runs the Agent as a Windows service
 func (m *agentWindowsService) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {
+	traceinit.TraceFunction("Execute 1 ")
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown | svc.AcceptPreShutdown
 	changes <- svc.Status{State: svc.StartPending}
 
+	traceinit.TraceFunction("Execute 2 ")
 	if err := common.CheckAndUpgradeConfig(); err != nil {
 		elog.Warning(0x80000002, err.Error())
 		// continue running with what we have.
 	}
+	traceinit.TraceFunction("Execute 3 ")
 	if err := app.StartAgent(); err != nil {
+		traceinit.TraceFunction(fmt.Sprintf("%v: Execute 4 ", err))
 		log.Errorf("Failed to start agent %v", err)
 		elog.Error(0xc000000B, err.Error())
 		errno = 1 // indicates non-successful return from handler.
 		changes <- svc.Status{State: svc.Stopped}
 		return
 	}
+	traceinit.TraceFunction("Execute 5 ")
 	elog.Info(0x40000003, config.ServiceName)
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 loop:
@@ -86,6 +92,7 @@ loop:
 
 // RunService runs the Agent as a Windows service
 func RunService(isDebug bool) {
+	traceinit.TraceFunction("RunService 1 ")
 	var err error
 	if isDebug {
 		elog = debug.New(config.ServiceName)
@@ -95,12 +102,14 @@ func RunService(isDebug bool) {
 			return
 		}
 	}
+	traceinit.TraceFunction("RunService 2 ")
 	defer elog.Close()
 
 	elog.Info(0x40000007, config.ServiceName)
 	run := svc.Run
-
+	traceinit.TraceFunction("RunService 3 ")
 	err = run(config.ServiceName, &agentWindowsService{})
+	traceinit.TraceFunction("RunService 4 ")
 	if err != nil {
 		elog.Error(0xc0000008, err.Error())
 		return

@@ -17,23 +17,31 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/windows/service"
+	"github.com/DataDog/datadog-agent/pkg/traceinit"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows/svc"
 )
 
 func main() {
+	traceinit.TraceFunction("MAIN 1 ")
 	common.EnableLoggingToFile()
+	traceinit.TraceFunction("MAIN 2 ")
 	// if command line arguments are supplied, even in a non interactive session,
 	// then just execute that.  Used when the service is executing the executable,
 	// for instance to trigger a restart.
 	if len(os.Args) == 1 {
+		traceinit.TraceFunction("MAIN 3 ")
 		isIntSess, err := svc.IsAnInteractiveSession()
+		traceinit.TraceFunction("MAIN 4 ")
 		if err != nil {
 			fmt.Printf("failed to determine if we are running in an interactive session: %v\n", err)
 		}
 		if !isIntSess {
+			traceinit.TraceFunction("MAIN 5 ")
 			common.EnableLoggingToFile()
+			traceinit.TraceFunction("MAIN 6 ")
 			service.RunService(false)
+			traceinit.TraceFunction("MAIN 7 ")
 			return
 		}
 	}

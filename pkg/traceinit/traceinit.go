@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 )
 
 var initTraceFile *os.File
@@ -16,8 +17,8 @@ var initTraceFileOnce sync.Once
 
 func TraceFunction(text string) {
 	initTraceFileOnce.Do(func() {
-		initTraceFile, _ = os.OpenFile("C:\\ProgramData\\Datadog\\logs\\traceinit.log", os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
+		initTraceFile, _ = os.OpenFile("C:\\ProgramData\\Datadog\\logs\\traceinit.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	})
-	initTraceFile.WriteString(fmt.Sprintf("%v\n", text))
+	initTraceFile.WriteString(fmt.Sprintf("%v %v\n", time.Now(), text))
 	initTraceFile.Sync()
 }
