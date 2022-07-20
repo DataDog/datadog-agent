@@ -322,6 +322,27 @@ func (this *EnvironmentStatus) EqualVT(that *EnvironmentStatus) bool {
 	return string(this.unknownFields) == string(that.unknownFields)
 }
 
+func (this *DumpDiscardersParams) EqualVT(that *DumpDiscardersParams) bool {
+	if this == nil {
+		return that == nil || fmt.Sprintf("%v", that) == ""
+	} else if that == nil {
+		return fmt.Sprintf("%v", this) == ""
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *DumpDiscardersMessage) EqualVT(that *DumpDiscardersMessage) bool {
+	if this == nil {
+		return that == nil || fmt.Sprintf("%v", that) == ""
+	} else if that == nil {
+		return fmt.Sprintf("%v", this) == ""
+	}
+	if this.DumpFilename != that.DumpFilename {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
 func (this *StorageRequestParams) EqualVT(that *StorageRequestParams) bool {
 	if this == nil {
 		return that == nil || fmt.Sprintf("%v", that) == ""
@@ -395,10 +416,13 @@ func (this *ActivityDumpMetadataMessage) EqualVT(that *ActivityDumpMetadataMessa
 	if this.LinuxDistribution != that.LinuxDistribution {
 		return false
 	}
+	if this.Arch != that.Arch {
+		return false
+	}
 	if this.Name != that.Name {
 		return false
 	}
-	if this.ActivityDumpVersion != that.ActivityDumpVersion {
+	if this.ProtobufVersion != that.ProtobufVersion {
 		return false
 	}
 	if this.DifferentiateArgs != that.DifferentiateArgs {
@@ -417,6 +441,9 @@ func (this *ActivityDumpMetadataMessage) EqualVT(that *ActivityDumpMetadataMessa
 		return false
 	}
 	if this.Size != that.Size {
+		return false
+	}
+	if this.Serialization != that.Serialization {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -615,6 +642,7 @@ type SecurityModuleClient interface {
 	RunSelfTest(ctx context.Context, in *RunSelfTestParams, opts ...grpc.CallOption) (*SecuritySelfTestResultMessage, error)
 	ReloadPolicies(ctx context.Context, in *ReloadPoliciesParams, opts ...grpc.CallOption) (*ReloadPoliciesResultMessage, error)
 	DumpNetworkNamespace(ctx context.Context, in *DumpNetworkNamespaceParams, opts ...grpc.CallOption) (*DumpNetworkNamespaceMessage, error)
+	DumpDiscarders(ctx context.Context, in *DumpDiscardersParams, opts ...grpc.CallOption) (*DumpDiscardersMessage, error)
 	// Activity dumps
 	DumpActivity(ctx context.Context, in *ActivityDumpParams, opts ...grpc.CallOption) (*ActivityDumpMessage, error)
 	ListActivityDumps(ctx context.Context, in *ActivityDumpListParams, opts ...grpc.CallOption) (*ActivityDumpListMessage, error)
@@ -749,6 +777,15 @@ func (c *securityModuleClient) DumpNetworkNamespace(ctx context.Context, in *Dum
 	return out, nil
 }
 
+func (c *securityModuleClient) DumpDiscarders(ctx context.Context, in *DumpDiscardersParams, opts ...grpc.CallOption) (*DumpDiscardersMessage, error) {
+	out := new(DumpDiscardersMessage)
+	err := c.cc.Invoke(ctx, "/api.SecurityModule/DumpDiscarders", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *securityModuleClient) DumpActivity(ctx context.Context, in *ActivityDumpParams, opts ...grpc.CallOption) (*ActivityDumpMessage, error) {
 	out := new(ActivityDumpMessage)
 	err := c.cc.Invoke(ctx, "/api.SecurityModule/DumpActivity", in, out, opts...)
@@ -829,6 +866,7 @@ type SecurityModuleServer interface {
 	RunSelfTest(context.Context, *RunSelfTestParams) (*SecuritySelfTestResultMessage, error)
 	ReloadPolicies(context.Context, *ReloadPoliciesParams) (*ReloadPoliciesResultMessage, error)
 	DumpNetworkNamespace(context.Context, *DumpNetworkNamespaceParams) (*DumpNetworkNamespaceMessage, error)
+	DumpDiscarders(context.Context, *DumpDiscardersParams) (*DumpDiscardersMessage, error)
 	// Activity dumps
 	DumpActivity(context.Context, *ActivityDumpParams) (*ActivityDumpMessage, error)
 	ListActivityDumps(context.Context, *ActivityDumpListParams) (*ActivityDumpListMessage, error)
@@ -865,6 +903,9 @@ func (UnimplementedSecurityModuleServer) ReloadPolicies(context.Context, *Reload
 }
 func (UnimplementedSecurityModuleServer) DumpNetworkNamespace(context.Context, *DumpNetworkNamespaceParams) (*DumpNetworkNamespaceMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DumpNetworkNamespace not implemented")
+}
+func (UnimplementedSecurityModuleServer) DumpDiscarders(context.Context, *DumpDiscardersParams) (*DumpDiscardersMessage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DumpDiscarders not implemented")
 }
 func (UnimplementedSecurityModuleServer) DumpActivity(context.Context, *ActivityDumpParams) (*ActivityDumpMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DumpActivity not implemented")
@@ -1044,6 +1085,24 @@ func _SecurityModule_DumpNetworkNamespace_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SecurityModule_DumpDiscarders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DumpDiscardersParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecurityModuleServer).DumpDiscarders(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.SecurityModule/DumpDiscarders",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecurityModuleServer).DumpDiscarders(ctx, req.(*DumpDiscardersParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _SecurityModule_DumpActivity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ActivityDumpParams)
 	if err := dec(in); err != nil {
@@ -1167,6 +1226,10 @@ var SecurityModule_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DumpNetworkNamespace",
 			Handler:    _SecurityModule_DumpNetworkNamespace_Handler,
+		},
+		{
+			MethodName: "DumpDiscarders",
+			Handler:    _SecurityModule_DumpDiscarders_Handler,
 		},
 		{
 			MethodName: "DumpActivity",
@@ -2118,6 +2181,79 @@ func (m *EnvironmentStatus) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *DumpDiscardersParams) MarshalVT() (dAtA []byte, err error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeVT()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DumpDiscardersParams) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *DumpDiscardersParams) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(dAtA[i:], m.unknownFields)
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *DumpDiscardersMessage) MarshalVT() (dAtA []byte, err error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeVT()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DumpDiscardersMessage) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *DumpDiscardersMessage) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.DumpFilename) > 0 {
+		i -= len(m.DumpFilename)
+		copy(dAtA[i:], m.DumpFilename)
+		i = encodeVarint(dAtA, i, uint64(len(m.DumpFilename)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *StorageRequestParams) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
@@ -2291,38 +2427,45 @@ func (m *ActivityDumpMetadataMessage) MarshalToSizedBufferVT(dAtA []byte) (int, 
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.Serialization) > 0 {
+		i -= len(m.Serialization)
+		copy(dAtA[i:], m.Serialization)
+		i = encodeVarint(dAtA, i, uint64(len(m.Serialization)))
+		i--
+		dAtA[i] = 0x72
+	}
 	if m.Size != 0 {
 		i = encodeVarint(dAtA, i, uint64(m.Size))
 		i--
-		dAtA[i] = 0x60
+		dAtA[i] = 0x68
 	}
 	if len(m.Timeout) > 0 {
 		i -= len(m.Timeout)
 		copy(dAtA[i:], m.Timeout)
 		i = encodeVarint(dAtA, i, uint64(len(m.Timeout)))
 		i--
-		dAtA[i] = 0x5a
+		dAtA[i] = 0x62
 	}
 	if len(m.Start) > 0 {
 		i -= len(m.Start)
 		copy(dAtA[i:], m.Start)
 		i = encodeVarint(dAtA, i, uint64(len(m.Start)))
 		i--
-		dAtA[i] = 0x52
+		dAtA[i] = 0x5a
 	}
 	if len(m.ContainerID) > 0 {
 		i -= len(m.ContainerID)
 		copy(dAtA[i:], m.ContainerID)
 		i = encodeVarint(dAtA, i, uint64(len(m.ContainerID)))
 		i--
-		dAtA[i] = 0x4a
+		dAtA[i] = 0x52
 	}
 	if len(m.Comm) > 0 {
 		i -= len(m.Comm)
 		copy(dAtA[i:], m.Comm)
 		i = encodeVarint(dAtA, i, uint64(len(m.Comm)))
 		i--
-		dAtA[i] = 0x42
+		dAtA[i] = 0x4a
 	}
 	if m.DifferentiateArgs {
 		i--
@@ -2332,19 +2475,26 @@ func (m *ActivityDumpMetadataMessage) MarshalToSizedBufferVT(dAtA []byte) (int, 
 			dAtA[i] = 0
 		}
 		i--
-		dAtA[i] = 0x38
+		dAtA[i] = 0x40
 	}
-	if len(m.ActivityDumpVersion) > 0 {
-		i -= len(m.ActivityDumpVersion)
-		copy(dAtA[i:], m.ActivityDumpVersion)
-		i = encodeVarint(dAtA, i, uint64(len(m.ActivityDumpVersion)))
+	if len(m.ProtobufVersion) > 0 {
+		i -= len(m.ProtobufVersion)
+		copy(dAtA[i:], m.ProtobufVersion)
+		i = encodeVarint(dAtA, i, uint64(len(m.ProtobufVersion)))
 		i--
-		dAtA[i] = 0x32
+		dAtA[i] = 0x3a
 	}
 	if len(m.Name) > 0 {
 		i -= len(m.Name)
 		copy(dAtA[i:], m.Name)
 		i = encodeVarint(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0x32
+	}
+	if len(m.Arch) > 0 {
+		i -= len(m.Arch)
+		copy(dAtA[i:], m.Arch)
+		i = encodeVarint(dAtA, i, uint64(len(m.Arch)))
 		i--
 		dAtA[i] = 0x2a
 	}
@@ -3270,6 +3420,34 @@ func (m *EnvironmentStatus) SizeVT() (n int) {
 	return n
 }
 
+func (m *DumpDiscardersParams) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.unknownFields != nil {
+		n += len(m.unknownFields)
+	}
+	return n
+}
+
+func (m *DumpDiscardersMessage) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.DumpFilename)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
+	if m.unknownFields != nil {
+		n += len(m.unknownFields)
+	}
+	return n
+}
+
 func (m *StorageRequestParams) SizeVT() (n int) {
 	if m == nil {
 		return 0
@@ -3352,11 +3530,15 @@ func (m *ActivityDumpMetadataMessage) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
+	l = len(m.Arch)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
 	l = len(m.Name)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
-	l = len(m.ActivityDumpVersion)
+	l = len(m.ProtobufVersion)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
@@ -3381,6 +3563,10 @@ func (m *ActivityDumpMetadataMessage) SizeVT() (n int) {
 	}
 	if m.Size != 0 {
 		n += 1 + sov(uint64(m.Size))
+	}
+	l = len(m.Serialization)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
 	}
 	if m.unknownFields != nil {
 		n += len(m.unknownFields)
@@ -5509,6 +5695,140 @@ func (m *EnvironmentStatus) UnmarshalVT(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *DumpDiscardersParams) UnmarshalVT(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflow
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DumpDiscardersParams: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DumpDiscardersParams: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skip(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLength
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *DumpDiscardersMessage) UnmarshalVT(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflow
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DumpDiscardersMessage: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DumpDiscardersMessage: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DumpFilename", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.DumpFilename = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skip(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLength
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *StorageRequestParams) UnmarshalVT(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -6013,6 +6333,38 @@ func (m *ActivityDumpMetadataMessage) UnmarshalVT(dAtA []byte) error {
 			iNdEx = postIndex
 		case 5:
 			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Arch", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Arch = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
 			}
 			var stringLen uint64
@@ -6043,9 +6395,9 @@ func (m *ActivityDumpMetadataMessage) UnmarshalVT(dAtA []byte) error {
 			}
 			m.Name = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 6:
+		case 7:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ActivityDumpVersion", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field ProtobufVersion", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -6073,9 +6425,9 @@ func (m *ActivityDumpMetadataMessage) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.ActivityDumpVersion = string(dAtA[iNdEx:postIndex])
+			m.ProtobufVersion = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 7:
+		case 8:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field DifferentiateArgs", wireType)
 			}
@@ -6095,7 +6447,7 @@ func (m *ActivityDumpMetadataMessage) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.DifferentiateArgs = bool(v != 0)
-		case 8:
+		case 9:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Comm", wireType)
 			}
@@ -6127,7 +6479,7 @@ func (m *ActivityDumpMetadataMessage) UnmarshalVT(dAtA []byte) error {
 			}
 			m.Comm = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 9:
+		case 10:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ContainerID", wireType)
 			}
@@ -6159,7 +6511,7 @@ func (m *ActivityDumpMetadataMessage) UnmarshalVT(dAtA []byte) error {
 			}
 			m.ContainerID = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 10:
+		case 11:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Start", wireType)
 			}
@@ -6191,7 +6543,7 @@ func (m *ActivityDumpMetadataMessage) UnmarshalVT(dAtA []byte) error {
 			}
 			m.Start = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 11:
+		case 12:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Timeout", wireType)
 			}
@@ -6223,7 +6575,7 @@ func (m *ActivityDumpMetadataMessage) UnmarshalVT(dAtA []byte) error {
 			}
 			m.Timeout = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 12:
+		case 13:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Size", wireType)
 			}
@@ -6242,6 +6594,38 @@ func (m *ActivityDumpMetadataMessage) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
+		case 14:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Serialization", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Serialization = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])
