@@ -1,10 +1,18 @@
-#include "classifier.h"
 #include "bpf_helpers.h"
+
+/* some header soup here
+ * tracer.h must be included before ip.h
+ * and ip.h must be included before tls.h
+ * This order satisfies these dependencies */
+#include "classifier.h"
 #include "ip.h"
 #include "tls.h"
+/* */
+
 #include "classifier-telemetry.h"
 
-#define PROTO_PROG_TLS 0
+#define PROTO_PROG_TLS 1
+#define PROG_INDX(indx) ((indx)-1)
 struct bpf_map_def SEC("maps/proto_progs") proto_progs = {
     .type = BPF_MAP_TYPE_PROG_ARRAY,
     .key_size = sizeof(u32),
@@ -14,10 +22,14 @@ struct bpf_map_def SEC("maps/proto_progs") proto_progs = {
 
 
 static __always_inline int fingerprint_proto(conn_tuple_t *tup, skb_info_t* skb_info, struct __sk_buff* skb) {
-    if (is_tls(skb, skb_info))
+    if (is_tls(skb, skb_info->data_off))
         return PROTO_PROG_TLS;
 
     return 0;
+}
+
+static __always_inline void do_tail_call(void* ctx, int protocol) {
+        bpf_tail_call_compat(ctx, &proto_progs, PROG_INDX(protocol));
 }
 
 SEC("socket/classifier_filter")
@@ -51,7 +63,7 @@ int socket__classifier_filter(struct __sk_buff* skb) {
         if (err < 0)
             return 0;
 
-        bpf_tail_call_compat(skb, &proto_progs, protocol);
+        do_tail_call(skb, protocol);
         increment_classifier_telemetry_count(tail_call_failed);
     }
 
