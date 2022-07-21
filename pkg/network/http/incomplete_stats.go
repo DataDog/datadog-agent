@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 //go:build linux_bpf
 // +build linux_bpf
 
@@ -5,7 +10,6 @@ package http
 
 import (
 	"sort"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -75,7 +79,7 @@ func (b *incompleteBuffer) Add(tx *httpTX) {
 	parts, ok := b.data[key]
 	if !ok {
 		if len(b.data) >= b.maxEntries {
-			atomic.AddInt64(&b.telemetry.dropped, 1)
+			b.telemetry.dropped.Inc()
 			return
 		}
 

@@ -139,7 +139,7 @@ def update_dca_changelog(ctx, new_version, agent_version):
     branching_point_agent = f"{agent_version_int[0]}.{agent_version_int[1]}.0-devel"
     previous_minor_branchoff = f"dca-{new_version_int[0]}.{new_version_int[1] - 1}.X"
     log_result = ctx.run(
-        f"git log {branching_point_agent}...remotes/origin/{previous_minor_branchoff} --name-only --oneline |             grep releasenotes-dca/notes/ || true"
+        f"git log {branching_point_agent}...remotes/origin/{previous_minor_branchoff} --name-only --oneline | grep releasenotes-dca/notes/ || true"
     )
     log_result = log_result.stdout.replace('\n', ' ').strip()
 
@@ -151,15 +151,17 @@ def update_dca_changelog(ctx, new_version, agent_version):
     current_branchoff = f"dca-{new_version_int[0]}.{new_version_int[1]}.X"
     # generate the new changelog. Specifying branch in case this is run outside the release branch that contains the tag.
     ctx.run(
-        f"reno --rel-notes-dir releasenotes-dca report             --ignore-cache             --branch {current_branchoff}             --version dca-{new_version}             --no-show-source > /tmp/new_changelog-dca.rst"
+        f"reno --rel-notes-dir releasenotes-dca report --ignore-cache --branch {current_branchoff} --version dca-{new_version} --no-show-source > /tmp/new_changelog-dca.rst"
     )
 
     # reseting git
     ctx.run("git reset --hard HEAD")
 
     # mac's `sed` has a different syntax for the "-i" paramter
-    sed_i_arg = "-i"
-    if sys.platform == 'darwin':
+    # GNU sed has a `--version` parameter while BSD sed does not, using that to do proper detection.
+    if ctx.run("sed --version", hide='both'):
+        sed_i_arg = "-i"
+    else:
         sed_i_arg = "-i ''"
     # remove the old header from the existing changelog
     ctx.run(f"sed {sed_i_arg} -e '1,4d' CHANGELOG-DCA.rst")
@@ -217,7 +219,7 @@ def update_changelog(ctx, new_version):
     if previous_minor == "7.15":
         previous_minor = "6.15"  # 7.15 is the first release in the 7.x series
     log_result = ctx.run(
-        f"git log {branching_point}...remotes/origin/{previous_minor}.x --name-only --oneline |             grep releasenotes/notes/ || true"
+        f"git log {branching_point}...remotes/origin/{previous_minor}.x --name-only --oneline | grep releasenotes/notes/ || true"
     )
     log_result = log_result.stdout.replace('\n', ' ').strip()
     if len(log_result) > 0:
@@ -225,15 +227,17 @@ def update_changelog(ctx, new_version):
 
     # generate the new changelog
     ctx.run(
-        f"reno report             --ignore-cache             --earliest-version {branching_point}             --version {new_version}             --no-show-source > /tmp/new_changelog.rst"
+        f"reno report --ignore-cache --earliest-version {branching_point} --version {new_version} --no-show-source > /tmp/new_changelog.rst"
     )
 
     # reseting git
     ctx.run("git reset --hard HEAD")
 
     # mac's `sed` has a different syntax for the "-i" paramter
-    sed_i_arg = "-i"
-    if sys.platform == 'darwin':
+    # GNU sed has a `--version` parameter while BSD sed does not, using that to do proper detection.
+    if ctx.run("sed --version", hide='both'):
+        sed_i_arg = "-i"
+    else:
         sed_i_arg = "-i ''"
     # check whether there is a v6 tag on the same v7 tag, if so add the v6 tag to the release title
     v6_tag = ""

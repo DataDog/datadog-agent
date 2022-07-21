@@ -9,13 +9,13 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff"
-	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -55,7 +55,7 @@ func NewRuntimeSecurityAgent(hostname string) (*RuntimeSecurityAgent, error) {
 
 	telemetry, err := newTelemetry()
 	if err != nil {
-		return nil, errors.Errorf("failed to initialize the telemetry reporter")
+		return nil, errors.New("failed to initialize the telemetry reporter")
 	}
 
 	storage, err := probe.NewSecurityAgentStorageManager()
@@ -88,7 +88,7 @@ func (rsa *RuntimeSecurityAgent) Start(reporter event.Reporter, endpoints *confi
 	// Start activity dumps listener
 	go rsa.StartActivityDumpListener()
 	// Send Runtime Security Agent telemetry
-	go rsa.telemetry.run(ctx)
+	go rsa.telemetry.run(ctx, rsa)
 }
 
 // Stop the runtime recurity agent

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -98,6 +99,10 @@ const (
 	AgentLogsEnabled                   AgentMetadataName = "feature_logs_enabled"
 	AgentCSPMEnabled                   AgentMetadataName = "feature_cspm_enabled"
 	AgentAPMEnabled                    AgentMetadataName = "feature_apm_enabled"
+
+	// Those are reserved fields for the agentMetadata payload.
+	agentProvidedConf AgentMetadataName = "provided_configuration"
+	agentFullConf     AgentMetadataName = "full_configuration"
 
 	// key for the host metadata cache. See host_metadata.go
 	HostOSVersion AgentMetadataName = "os_version"
@@ -232,6 +237,16 @@ func createPayload(ctx context.Context, hostname string, ac AutoConfigInterface,
 	payloadAgentMeta := make(AgentMetadata)
 	for k, v := range agentMetadata {
 		payloadAgentMeta[k] = v
+	}
+	if fullConf, err := getFullAgentConfiguration(); err == nil {
+		payloadAgentMeta[string(agentFullConf)] = fullConf
+	} else {
+		log.Errorf("inv error: %s", err)
+	}
+	if providedConf, err := getProvidedAgentConfiguration(); err == nil {
+		payloadAgentMeta[string(agentProvidedConf)] = providedConf
+	} else {
+		log.Errorf("inv error: %s", err)
 	}
 
 	agentMetadataMutex.Unlock()

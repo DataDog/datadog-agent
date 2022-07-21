@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -59,6 +60,22 @@ func HTTPServer(t *testing.T, addr string, options Options) func() {
 
 	go listenFn()
 	srv.SetKeepAlivesEnabled(options.EnableKeepAlives)
+
+	// best effort to block until the server is ready (up to 5 seconds)
+	// note that `DialTimeout` will return immmeditely if the listen socket is not yet
+	// ready, which is why it is called in a loop
+	timeout := time.Now().Add(5 * time.Second)
+	for {
+		c, err := net.DialTimeout("tcp", addr, time.Second)
+		if err == nil {
+			c.Close()
+			break
+		}
+		if time.Now().After(timeout) {
+			break
+		}
+	}
+
 	return func() { srv.Shutdown(context.Background()) }
 }
 

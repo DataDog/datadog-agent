@@ -62,6 +62,7 @@ def build(
     bundle_ebpf=False,
     parallel_build=True,
     kernel_release=None,
+    debug=False,
 ):
     """
     Build the system_probe
@@ -84,7 +85,7 @@ def build(
         )
     elif compile_ebpf:
         # Only build ebpf files on unix
-        build_object_files(ctx, parallel_build=parallel_build, kernel_release=kernel_release)
+        build_object_files(ctx, parallel_build=parallel_build, kernel_release=kernel_release, debug=debug)
 
     generate_cgo_types(ctx, windows=windows)
     ldflags, gcflags, env = get_build_flags(
@@ -130,6 +131,7 @@ def test(
     windows=is_windows,
     parallel_build=True,
     failfast=False,
+    kernel_release=None,
 ):
     """
     Run tests on eBPF parts
@@ -149,7 +151,7 @@ def test(
         clang_tidy(ctx)
 
     if not skip_object_files and not windows:
-        build_object_files(ctx, parallel_build=parallel_build)
+        build_object_files(ctx, parallel_build=parallel_build, kernel_release=kernel_release)
 
     build_tags = [NPM_TAG]
     if not windows:
@@ -178,7 +180,7 @@ def test(
 
 
 @task
-def kitchen_prepare(ctx, windows=is_windows):
+def kitchen_prepare(ctx, windows=is_windows, kernel_release=None):
     """
     Compile test suite for kitchen
     """
@@ -224,6 +226,7 @@ def kitchen_prepare(ctx, windows=is_windows):
             skip_linters=True,
             bundle_ebpf=False,
             output_path=os.path.join(target_path, target_bin),
+            kernel_release=kernel_release,
         )
 
         # copy ancillary data, if applicable
@@ -314,11 +317,11 @@ def kitchen_genconfig(
 
 
 @task
-def nettop(ctx, incremental_build=False, go_mod="mod", parallel_build=True):
+def nettop(ctx, incremental_build=False, go_mod="mod", parallel_build=True, kernel_release=None):
     """
     Build and run the `nettop` utility for testing
     """
-    build_object_files(ctx, parallel_build=parallel_build)
+    build_object_files(ctx, parallel_build=parallel_build, kernel_release=kernel_release)
 
     cmd = 'go build -mod={go_mod} {build_type} -tags {tags} -o {bin_path} {path}'
     bin_path = os.path.join(BIN_DIR, "nettop")
@@ -433,9 +436,9 @@ def run_tidy(ctx, files, build_flags, fix=False, fail_on_issue=False, checks=Non
 
 
 @task
-def object_files(ctx, parallel_build=True):
+def object_files(ctx, parallel_build=True, kernel_release=None):
     """object_files builds the eBPF object files"""
-    build_object_files(ctx, parallel_build=parallel_build)
+    build_object_files(ctx, parallel_build=parallel_build, kernel_release=kernel_release)
 
 
 def get_ebpf_targets():
@@ -586,21 +589,21 @@ def build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, netwo
         )
 
 
-def get_http_prebuilt_build_flags(network_c_dir):
+def get_http_prebuilt_build_flags(network_c_dir, kernel_release=None):
     uname_m = check_output("uname -m", shell=True).decode('utf-8').strip()
-    flags = get_ebpf_build_flags(target=["-target", "bpf"])
+    flags = get_ebpf_build_flags(target=["-target", "bpf"], kernel_release=kernel_release)
     flags.append(f"-I{network_c_dir}")
     flags.append(f"-D__{uname_m}__")
     flags.append(f"-isystem /usr/include/{uname_m}-linux-gnu")
     return flags
 
 
-def build_http_ebpf_files(ctx, build_dir):
+def build_http_ebpf_files(ctx, build_dir, kernel_release=None):
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
-    network_flags = get_http_prebuilt_build_flags(network_c_dir)
+    network_flags = get_http_prebuilt_build_flags(network_c_dir, kernel_release=kernel_release)
 
     build_network_ebpf_compile_file(
         ctx, False, build_dir, "http", True, network_prebuilt_dir, network_flags, extension=".o"
@@ -610,20 +613,20 @@ def build_http_ebpf_files(ctx, build_dir):
     )
 
 
-def get_network_build_flags(network_c_dir):
-    flags = get_ebpf_build_flags()
+def get_network_build_flags(network_c_dir, kernel_release=None):
+    flags = get_ebpf_build_flags(kernel_release=kernel_release)
     flags.append(f"-I{network_c_dir}")
     return flags
 
 
-def build_network_ebpf_files(ctx, build_dir, parallel_build=True):
+def build_network_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None):
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
     compiled_programs = ["dns", "offset-guess", "tracer"]
 
-    network_flags = get_network_build_flags(network_c_dir)
+    network_flags = get_network_build_flags(network_c_dir, kernel_release=kernel_release)
 
     flavor = []
     for prog in compiled_programs:
@@ -653,15 +656,22 @@ def build_network_ebpf_files(ctx, build_dir, parallel_build=True):
         promise.join()
 
 
-def build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=None):
+def get_security_agent_build_flags(security_agent_c_dir, kernel_release=None, debug=False):
+    security_flags = get_ebpf_build_flags(kernel_release=kernel_release)
+    security_flags.append(f"-I{security_agent_c_dir}")
+    if debug:
+        security_flags.append("-DDEBUG=1")
+    return security_flags
+
+
+def build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=None, debug=False):
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
     security_c_file = os.path.join(security_agent_prebuilt_dir, "offset-guesser.c")
     security_bc_file = os.path.join(build_dir, "runtime-security-offset-guesser.bc")
     security_agent_obj_file = os.path.join(build_dir, "runtime-security-offset-guesser.o")
 
-    security_flags = get_ebpf_build_flags(kernel_release=kernel_release)
-    security_flags.append(f"-I{security_agent_c_dir}")
+    security_flags = get_security_agent_build_flags(security_agent_c_dir, kernel_release=kernel_release, debug=debug)
 
     ctx.run(
         CLANG_CMD.format(
@@ -675,15 +685,14 @@ def build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=None
     )
 
 
-def build_security_probe_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None):
+def build_security_probe_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None, debug=False):
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
     security_c_file = os.path.join(security_agent_prebuilt_dir, "probe.c")
     security_bc_file = os.path.join(build_dir, "runtime-security.bc")
     security_agent_obj_file = os.path.join(build_dir, "runtime-security.o")
 
-    security_flags = get_ebpf_build_flags(kernel_release=kernel_release)
-    security_flags.append(f"-I{security_agent_c_dir}")
+    security_flags = get_security_agent_build_flags(security_agent_c_dir, kernel_release=kernel_release, debug=debug)
 
     # compile
     promises = []
@@ -739,12 +748,12 @@ def build_security_probe_ebpf_files(ctx, build_dir, parallel_build=True, kernel_
             p.join()
 
 
-def build_security_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None):
-    build_security_probe_ebpf_files(ctx, build_dir, parallel_build, kernel_release=kernel_release)
-    build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=kernel_release)
+def build_security_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None, debug=False):
+    build_security_probe_ebpf_files(ctx, build_dir, parallel_build, kernel_release=kernel_release, debug=debug)
+    build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=kernel_release, debug=debug)
 
 
-def build_object_files(ctx, parallel_build, kernel_release=None):
+def build_object_files(ctx, parallel_build, kernel_release=None, debug=False):
     """build_object_files builds only the eBPF object"""
 
     # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
@@ -757,9 +766,11 @@ def build_object_files(ctx, parallel_build, kernel_release=None):
     ctx.run(f"mkdir -p {build_dir}")
     ctx.run(f"mkdir -p {build_runtime_dir}")
 
-    build_network_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build)
-    build_http_ebpf_files(ctx, build_dir=build_dir)
-    build_security_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release)
+    build_network_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release)
+    build_http_ebpf_files(ctx, build_dir=build_dir, kernel_release=kernel_release)
+    build_security_ebpf_files(
+        ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release, debug=debug
+    )
 
     generate_runtime_files(ctx)
 
@@ -827,12 +838,16 @@ def generate_cgo_types(ctx, windows=is_windows, replace_absolutes=True):
             "./pkg/network/ebpf/kprobe_types.go",
         ]
 
+    env = {}
+    if not is_windows:
+        env["CC"] = "clang"
+
     for f in def_files:
         fdir, file = os.path.split(f)
         base, _ = os.path.splitext(file)
         with ctx.cd(fdir):
             output_file = f"{base}_{platform}.go"
-            ctx.run(f"go tool cgo -godefs -- -fsigned-char {file} > {output_file}")
+            ctx.run(f"go tool cgo -godefs -- -fsigned-char {file} > {output_file}", env=env)
             ctx.run(f"gofmt -w -s {output_file}")
             if replace_absolutes:
                 # replace absolute path with relative ones in generated file

@@ -11,7 +11,18 @@
 // it is still necessary to make the eBPF verifier happy.
 static __always_inline void read_into_buffer(char *buffer, char *data, size_t data_size) {
     __builtin_memset(buffer, 0, HTTP_BUFFER_SIZE);
-    bpf_probe_read_user(buffer, HTTP_BUFFER_SIZE, data);
+    if (bpf_probe_read_user(buffer, HTTP_BUFFER_SIZE, data) < 0) {
+// note: arm64 bpf_probe_read_user() could page fault if the HTTP_BUFFER_SIZE overlap a page
+#if defined(__aarch64__)
+#pragma unroll
+        for (int i = 0; i < HTTP_BUFFER_SIZE; i++) {
+            bpf_probe_read_user(&buffer[i], 1, &data[i]);
+            if (buffer[i] == 0) {
+                return;
+            }
+        }
+#endif
+    }
 
     if (data_size >= HTTP_BUFFER_SIZE) {
         return;

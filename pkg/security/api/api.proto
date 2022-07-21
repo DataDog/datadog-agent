@@ -109,15 +109,17 @@ message ActivityDumpMetadataMessage {
     string AgentCommit = 2;
     string KernelVersion = 3;
     string LinuxDistribution = 4;
+    string Arch = 5;
 
-    string Name = 5;
-    string ActivityDumpVersion = 6;
-    bool DifferentiateArgs = 7;
-    string Comm = 8;
-    string ContainerID = 9;
-    string Start = 10;
-    string Timeout = 11;
-    uint64 Size = 12;
+    string Name = 6;
+    string ProtobufVersion = 7;
+    bool DifferentiateArgs = 8;
+    string Comm = 9;
+    string ContainerID = 10;
+    string Start = 11;
+    string Timeout = 12;
+    uint64 Size = 13;
+    string Serialization = 14;
 }
 
 message StorageRequestMessage {

@@ -10,11 +10,11 @@ package probe
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/hashicorp/golang-lru/simplelru"
-	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
@@ -77,7 +77,7 @@ func (lc *LoadController) SendStats() error {
 	// send load_controller.pids_discarder metric
 	if count := lc.pidDiscardersCount.Swap(0); count > 0 {
 		if err := lc.probe.statsdClient.Count(metrics.MetricLoadControllerPidDiscarder, count, []string{}, 1.0); err != nil {
-			return errors.Wrap(err, "couldn't send load_controller.pids_discarder metric")
+			return fmt.Errorf("couldn't send load_controller.pids_discarder metric: %w", err)
 		}
 	}
 	return nil

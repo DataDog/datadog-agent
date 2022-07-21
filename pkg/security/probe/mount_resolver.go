@@ -10,6 +10,8 @@ package probe
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -19,7 +21,6 @@ import (
 	"github.com/DataDog/gopsutil/process"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/moby/sys/mountinfo"
-	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
 	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -215,7 +216,7 @@ func (mr *MountResolver) Insert(e model.MountEvent) error {
 
 	if e.MountPointPathResolutionError != nil || e.RootPathResolutionError != nil {
 		// do not insert an invalid value
-		return errors.Errorf("couldn't insert mount_id %d: mount_point_error:%v root_error:%v", e.MountID, e.MountPointPathResolutionError, e.RootPathResolutionError)
+		return fmt.Errorf("couldn't insert mount_id %d: mount_point_error:%v root_error:%v", e.MountID, e.MountPointPathResolutionError, e.RootPathResolutionError)
 	}
 
 	mr.insert(e)

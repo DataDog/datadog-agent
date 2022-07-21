@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -22,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/hashicorp/golang-lru/simplelru"
+	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 	"inet.af/netaddr"
 )
@@ -59,6 +59,17 @@ type orphanEntry struct {
 	expires time.Time
 }
 
+type stats struct {
+	gets                 *atomic.Int64
+	getTimeTotal         *atomic.Int64
+	registers            *atomic.Int64
+	registersDropped     *atomic.Int64
+	registersTotalTime   *atomic.Int64
+	unregisters          *atomic.Int64
+	unregistersTotalTime *atomic.Int64
+	evicts               *atomic.Int64
+}
+
 type realConntracker struct {
 	sync.RWMutex
 	consumer *Consumer
@@ -69,16 +80,7 @@ type realConntracker struct {
 	maxStateSize int
 
 	compactTicker *time.Ticker
-	stats         struct {
-		gets                 int64
-		getTimeTotal         int64
-		registers            int64
-		registersDropped     int64
-		registersTotalTime   int64
-		unregisters          int64
-		unregistersTotalTime int64
-		evicts               int64
-	}
+	stats         stats
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
@@ -103,6 +105,19 @@ func NewConntracker(config *config.Config) (Conntracker, error) {
 	}
 }
 
+func newStats() stats {
+	return stats{
+		gets:                 atomic.NewInt64(0),
+		getTimeTotal:         atomic.NewInt64(0),
+		registers:            atomic.NewInt64(0),
+		registersDropped:     atomic.NewInt64(0),
+		registersTotalTime:   atomic.NewInt64(0),
+		unregisters:          atomic.NewInt64(0),
+		unregistersTotalTime: atomic.NewInt64(0),
+		evicts:               atomic.NewInt64(0),
+	}
+}
+
 func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int, listenAllNamespaces bool) (Conntracker, error) {
 	consumer := NewConsumer(procRoot, targetRateLimit, listenAllNamespaces)
 	ctr := &realConntracker{
@@ -111,6 +126,7 @@ func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int, list
 		maxStateSize:  maxStateSize,
 		compactTicker: time.NewTicker(compactInterval),
 		decoder:       NewDecoder(),
+		stats:         newStats(),
 	}
 
 	for _, family := range []uint8{unix.AF_INET, unix.AF_INET6} {
@@ -132,8 +148,8 @@ func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int, list
 func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {
 	then := time.Now().UnixNano()
 	defer func() {
-		atomic.AddInt64(&ctr.stats.gets, 1)
-		atomic.AddInt64(&ctr.stats.getTimeTotal, time.Now().UnixNano()-then)
+		ctr.stats.gets.Inc()
+		ctr.stats.getTimeTotal.Add(time.Now().UnixNano() - then)
 	}()
 
 	ctr.Lock()
@@ -165,28 +181,27 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 		"orphan_size": int64(orphanSize),
 	}
 
-	gets := atomic.LoadInt64(&ctr.stats.gets)
-	getTimeTotal := atomic.LoadInt64(&ctr.stats.getTimeTotal)
+	gets := ctr.stats.gets.Load()
+	getTimeTotal := ctr.stats.getTimeTotal.Load()
 	m["gets_total"] = gets
 	if gets != 0 {
 		m["nanoseconds_per_get"] = getTimeTotal / gets
 	}
 
-	registers := atomic.LoadInt64(&ctr.stats.registers)
+	registers := ctr.stats.registers.Load()
 	m["registers_total"] = registers
-	registersTotalTime := atomic.LoadInt64(&ctr.stats.registersTotalTime)
+	registersTotalTime := ctr.stats.registersTotalTime.Load()
 	if registers != 0 {
 		m["nanoseconds_per_register"] = registersTotalTime / registers
 	}
-	m["registers_dropped"] = atomic.LoadInt64(&ctr.stats.registersDropped)
 
-	unregisters := atomic.LoadInt64(&ctr.stats.unregisters)
-	unregisterTotalTime := atomic.LoadInt64(&ctr.stats.unregistersTotalTime)
+	unregisters := ctr.stats.unregisters.Load()
+	unregisterTotalTime := ctr.stats.unregistersTotalTime.Load()
 	m["unregisters_total"] = unregisters
 	if unregisters != 0 {
 		m["nanoseconds_per_unregister"] = unregisterTotalTime / unregisters
 	}
-	m["evicts_total"] = atomic.LoadInt64(&ctr.stats.evicts)
+	m["evicts_total"] = ctr.stats.evicts.Load()
 
 	// Merge telemetry from the consumer
 	for k, v := range ctr.consumer.GetStats() {
@@ -199,7 +214,7 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 	then := time.Now().UnixNano()
 	defer func() {
-		atomic.AddInt64(&ctr.stats.unregistersTotalTime, time.Now().UnixNano()-then)
+		ctr.stats.unregistersTotalTime.Add(time.Now().UnixNano() - then)
 	}()
 
 	ctr.Lock()
@@ -212,7 +227,7 @@ func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 	}
 
 	if ctr.cache.Remove(k) {
-		atomic.AddInt64(&ctr.stats.unregisters, 1)
+		ctr.stats.unregisters.Inc()
 	}
 }
 
@@ -234,8 +249,8 @@ func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 			}
 
 			evicts := ctr.cache.Add(c, false)
-			atomic.AddInt64(&ctr.stats.registers, 1)
-			atomic.AddInt64(&ctr.stats.evicts, int64(evicts))
+			ctr.stats.registers.Inc()
+			ctr.stats.evicts.Add(int64(evicts))
 		}
 	}
 }
@@ -245,7 +260,7 @@ func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 func (ctr *realConntracker) register(c Con) int {
 	// don't bother storing if the connection is not NAT
 	if !IsNAT(c) {
-		atomic.AddInt64(&ctr.stats.registersDropped, 1)
+		ctr.stats.registersDropped.Inc()
 		return 0
 	}
 
@@ -256,9 +271,9 @@ func (ctr *realConntracker) register(c Con) int {
 
 	evicts := ctr.cache.Add(c, true)
 
-	atomic.AddInt64(&ctr.stats.registers, 1)
-	atomic.AddInt64(&ctr.stats.evicts, int64(evicts))
-	atomic.AddInt64(&ctr.stats.registersTotalTime, time.Now().UnixNano()-then)
+	ctr.stats.registers.Inc()
+	ctr.stats.evicts.Add(int64(evicts))
+	ctr.stats.registersTotalTime.Add(time.Now().UnixNano() - then)
 
 	return 0
 }
@@ -296,7 +311,7 @@ func (ctr *realConntracker) run() error {
 func (ctr *realConntracker) compact() {
 	var removed int64
 	defer func() {
-		atomic.AddInt64(&ctr.stats.unregisters, removed)
+		ctr.stats.unregisters.Add(removed)
 		log.Debugf("removed %d orphans", removed)
 	}()
 

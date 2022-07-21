@@ -224,7 +224,7 @@ spec:
           while (1) {
             var nb = db.series.find({
             metric: "kubernetes_state.deployment.replicas_available",
-            tags: { $all: ["namespace:{{inputs.parameters.namespace}}", "deployment:redis"] },
+            tags: { $all: ["kube_namespace:{{inputs.parameters.namespace}}", "kube_deployment:redis"] },
             "points.0.1": { $eq: 1 } }).count();
             print("find: " + nb)
             if (nb != 0) {
