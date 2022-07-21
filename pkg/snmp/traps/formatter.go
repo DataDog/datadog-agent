@@ -123,15 +123,10 @@ func (f JSONFormatter) formatV1Trap(packet *gosnmp.SnmpPacket) map[string]interf
 	data["enterpriseOID"] = enterpriseOid
 	data["genericTrap"] = genericTrap
 	data["specificTrap"] = specificTrap
-	variables := parseVariables(packet.Variables)
-	data["variables"] = variables
-	for _, variable := range variables {
-		varMetadata, err := f.oidResolver.GetVariableMetadata(trapOID, variable.OID)
-		if err != nil {
-			log.Debugf("unable to enrich variable: %s", err)
-			continue
-		}
-		data[varMetadata.Name] = parseValue(variable, varMetadata)
+	parsedVariables, enrichedValues := f.parseVariables(trapOID, packet.Variables)
+	data["variables"] = parsedVariables
+	for key, value := range enrichedValues {
+		data[key] = value
 	}
 	return data
 }
@@ -169,15 +164,10 @@ func (f JSONFormatter) formatTrap(packet *gosnmp.SnmpPacket) (map[string]interfa
 		data["snmpTrapMIB"] = trapMetadata.MIBName
 	}
 
-	parsedVariables := parseVariables(variables[2:])
+	parsedVariables, enrichedValues := f.parseVariables(trapOID, variables[2:])
 	data["variables"] = parsedVariables
-	for _, variable := range parsedVariables {
-		varMetadata, err := f.oidResolver.GetVariableMetadata(trapOID, variable.OID)
-		if err != nil {
-			log.Debugf("unable to enrich variable: %s", err)
-			continue
-		}
-		data[varMetadata.Name] = parseValue(variable, varMetadata)
+	for key, value := range enrichedValues {
+		data[key] = value
 	}
 	return data, nil
 }
@@ -189,9 +179,10 @@ func NormalizeOID(value string) string {
 	return strings.TrimLeft(value, ".")
 }
 
-// parseValue checks to see if the variable has a mapping in an enum and
+// enrichValue checks to see if the variable has a mapping in an enum and
 // returns the mapping if it exists, otherwise returns the value unchanged
-func parseValue(variable trapVariable, varMetadata VariableMetadata) interface{} {
+// as well as a boolean to determine whether the value should be
+func enrichValue(variable trapVariable, varMetadata VariableMetadata) interface{} {
 	if len(varMetadata.Enumeration) > 0 {
 		switch variable.Value.(type) {
 		case int:
@@ -202,16 +193,11 @@ func parseValue(variable trapVariable, varMetadata VariableMetadata) interface{}
 			} else {
 				return value
 			}
-		case string:
+		case []byte:
 			// do bitwise search
-			if variable.VarType != "string" {
-				log.Warnf("received string for non-string variable: %+v", variable)
-				return variable.Value
-			}
-			s := variable.Value.(string)
-			enabledValues := make([]string, 0)
-			sBytes := []byte(s)
-			for i, b := range sBytes {
+			bytes := variable.Value.([]byte)
+			enabledValues := make([]interface{}, 0)
+			for i, b := range bytes {
 				for j := 0; j < 8; j++ {
 					position := j + i*8 // position is the index in the current byte plus 8 * the position in the byte array
 					enabled, err := isBitEnabled(uint8(b), j)
@@ -222,6 +208,7 @@ func parseValue(variable trapVariable, varMetadata VariableMetadata) interface{}
 						value := varMetadata.Enumeration[position]
 						if value == "" {
 							log.Debugf("unable to find enum mapping for value %f variable %q", i, varMetadata.Name)
+							enabledValues = append(enabledValues, position) // display position of enabled bit if mapping is not found
 						} else {
 							enabledValues = append(enabledValues, value)
 						}
@@ -273,17 +260,39 @@ func parseSnmpTrapOID(variable gosnmp.SnmpPDU) (string, error) {
 	return NormalizeOID(value), nil
 }
 
-func parseVariables(variables []gosnmp.SnmpPDU) []trapVariable {
+func (f JSONFormatter) parseVariables(trapOID string, variables []gosnmp.SnmpPDU) ([]trapVariable, map[string]interface{}) {
 	var parsedVariables []trapVariable
+	enrichedValues := make(map[string]interface{})
 
 	for _, variable := range variables {
 		varOID := NormalizeOID(variable.Name)
 		varType := formatType(variable)
-		varValue := formatValue(variable)
-		parsedVariables = append(parsedVariables, trapVariable{OID: varOID, VarType: varType, Value: varValue})
+
+		tv := trapVariable{
+			OID:     varOID,
+			VarType: varType,
+			Value:   variable.Value,
+		}
+
+		varMetadata, err := f.oidResolver.GetVariableMetadata(trapOID, varOID)
+		if err != nil {
+			log.Debugf("unable to enrich variable: %s", err)
+			tv.Value = formatValue(variable)
+			parsedVariables = append(parsedVariables, tv)
+			continue
+		}
+		if len(varMetadata.Enumeration) > 0 {
+			enrichedValues[varMetadata.Name] = enrichValue(tv, varMetadata)
+		} else {
+			// only format the value if it's not an enum type
+			tv.Value = formatValue(variable)
+			enrichedValues[varMetadata.Name] = tv.Value
+		}
+
+		parsedVariables = append(parsedVariables, tv)
 	}
 
-	return parsedVariables
+	return parsedVariables, enrichedValues
 }
 
 func formatType(variable gosnmp.SnmpPDU) string {
@@ -333,7 +342,7 @@ func formatVersion(packet *gosnmp.SnmpPacket) string {
 // you have the binary 10000000, passing position 0
 // would return true and 7 would return false
 func isBitEnabled(n uint8, pos int) (bool, error) {
-	if pos > 7 {
+	if pos < 0 || pos > 7 {
 		return false, errors.Errorf("invalid position %d, must be 0-7.", pos)
 	}
 	val := n & uint8(1<<(7-pos))

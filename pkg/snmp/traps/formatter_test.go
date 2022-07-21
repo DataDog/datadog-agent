@@ -6,10 +6,12 @@
 package traps
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -68,7 +70,27 @@ var (
 			// pwCepSonetConfigErrorOrStatus
 			// This translates to binary 1100 0000 0000 0000
 			// this means bits 0 and 1 are set
-			{Name: "1.3.6.1.2.1.200.1.1.1.3", Type: gosnmp.OctetString, Value: string([]byte{0xc0, 0x00})},
+			{Name: "1.3.6.1.2.1.200.1.1.1.3", Type: gosnmp.OctetString, Value: []byte{0xc0, 0x00}},
+		},
+	}
+
+	// LinkUp Example Trap with injected BITS value V2+
+	BitsMissingValueExampleV2Trap = gosnmp.SnmpTrap{
+		Variables: []gosnmp.SnmpPDU{
+			// sysUpTimeInstance
+			{Name: "1.3.6.1.2.1.1.3.0", Type: gosnmp.TimeTicks, Value: uint32(1000)},
+			// snmpTrapOID
+			{Name: "1.3.6.1.6.3.1.1.4.1.0", Type: gosnmp.OctetString, Value: "1.3.6.1.6.3.1.1.5.4"},
+			// ifIndex
+			{Name: "1.3.6.1.2.1.2.2.1.1", Type: gosnmp.Integer, Value: 9001},
+			// ifAdminStatus
+			{Name: "1.3.6.1.2.1.2.2.1.7", Type: gosnmp.Integer, Value: 2},
+			// ifOperStatus
+			{Name: "1.3.6.1.2.1.2.2.1.8", Type: gosnmp.Integer, Value: 7},
+			// myFakeVarType
+			// This translates to binary 1111 0000 0000 1111
+			// this means bits 0, 1, 2, 3, 12, 13, 14, and 15 are set
+			{Name: "1.3.6.1.2.1.200.1.3.1.5", Type: gosnmp.OctetString, Value: []byte{0xf0, 0x0f}},
 		},
 	}
 
@@ -508,7 +530,62 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.200.1.1.1.3",
 						"type":  "string",
-						"value": string([]byte{0xc0, 0x00}),
+						"value": base64.StdEncoding.EncodeToString([]byte{0xc0, 0x00}),
+					},
+				},
+			},
+			expectedTags: []string{
+				"snmp_version:2",
+				"device_namespace:mononoke",
+				"snmp_device:127.0.0.1",
+			},
+		},
+		{
+			description: "test enum variable resolution with BITS enum and some missing bits definitions",
+			trap:        BitsMissingValueExampleV2Trap,
+			resolver:    resolverWithData,
+			namespace:   "mononoke",
+			expectedContent: map[string]interface{}{
+				"ddsource":      "snmp-traps",
+				"ddtags":        "snmp_version:2,device_namespace:mononoke,snmp_device:127.0.0.1",
+				"timestamp":     0.,
+				"snmpTrapName":  "linkUp",
+				"snmpTrapMIB":   "IF-MIB",
+				"snmpTrapOID":   "1.3.6.1.6.3.1.1.5.4",
+				"ifIndex":       float64(9001),
+				"ifAdminStatus": "down",
+				"ifOperStatus":  "lowerLayerDown",
+				"myFakeVarType": []interface{}{
+					string("test0"),
+					string("test1"),
+					float64(2),
+					string("test3"),
+					string("test12"),
+					float64(13),
+					float64(14),
+					string("test15"),
+				},
+				"uptime": float64(1000),
+				"variables": []interface{}{
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.1",
+						"type":  "integer",
+						"value": float64(9001),
+					},
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.7",
+						"type":  "integer",
+						"value": float64(2),
+					},
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.8",
+						"type":  "integer",
+						"value": float64(7),
+					},
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.200.1.3.1.5",
+						"type":  "string",
+						"value": base64.StdEncoding.EncodeToString([]byte{0xf0, 0x0f}),
 					},
 				},
 			},
@@ -574,4 +651,102 @@ func TestFormatterWithResolverAndTrapV1Generic(t *testing.T) {
 		"device_namespace:porco_rosso",
 		"snmp_device:127.0.0.1",
 	})
+}
+
+func TestIsBitEnabled(t *testing.T) {
+	data := []struct {
+		description string
+		input       byte
+		position    int
+		expected    bool
+		errMsg      string
+	}{
+		{
+			description: "negative position should error",
+			input:       0xff,
+			position:    -1,
+			expected:    false,
+			errMsg:      "invalid position",
+		},
+		{
+			description: "position >7 should error",
+			input:       0xff,
+			position:    8,
+			expected:    false,
+			errMsg:      "invalid position",
+		},
+		{
+			description: "position 7 unset should return false",
+			input:       0xfe, // 1111 1110
+			position:    7,
+			expected:    false,
+			errMsg:      "",
+		},
+		{
+			description: "position 7 set should return true",
+			input:       0x01, // 0000 0001
+			position:    7,
+			expected:    true,
+			errMsg:      "",
+		},
+		{
+			description: "position 0 unset should return false",
+			input:       0x7f, // 0111 1111
+			position:    0,
+			expected:    false,
+			errMsg:      "",
+		},
+		{
+			description: "position 0 set should return true",
+			input:       0x80, // 1000 0000
+			position:    0,
+			expected:    true,
+			errMsg:      "",
+		},
+		{
+			description: "position 3 unset should return false",
+			input:       0xef, // 1110 1111
+			position:    3,
+			expected:    false,
+			errMsg:      "",
+		},
+		{
+			description: "position 3 set should return true",
+			input:       0x10, // 0001 0000
+			position:    3,
+			expected:    true,
+			errMsg:      "",
+		},
+		{
+			description: "position 4 unset should return false",
+			input:       0xf7, // 1110 1111
+			position:    4,
+			expected:    false,
+			errMsg:      "",
+		},
+		{
+			description: "position 4 set should return true",
+			input:       0x08, // 0000 1000
+			position:    4,
+			expected:    true,
+			errMsg:      "",
+		},
+	}
+
+	for _, d := range data {
+		t.Run(d.description, func(t *testing.T) {
+			actual, err := isBitEnabled(d.input, d.position)
+			var errMsg string
+			if err != nil {
+				errMsg = err.Error()
+			}
+			if !strings.Contains(errMsg, d.errMsg) {
+				t.Errorf("error message mismatch, wanted %q, got %q", d.errMsg, errMsg)
+			}
+
+			if actual != d.expected {
+				t.Errorf("result mismatch, wanted %t, got %t", d.expected, actual)
+			}
+		})
+	}
 }

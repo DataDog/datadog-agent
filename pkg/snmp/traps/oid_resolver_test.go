@@ -40,6 +40,15 @@ var dummyTrapDB = trapDBFileContent{
 			9:  "peerRtpAsymmetric",
 			10: "peerAsyncAsymmetric",
 		}},
+		"1.3.6.1.2.1.200.1.3.1.5": VariableMetadata{Name: "myFakeVarType", Enumeration: map[int]string{
+			0:  "test0",
+			1:  "test1",
+			3:  "test3",
+			5:  "test5",
+			6:  "test6",
+			12: "test12",
+			15: "test15",
+		}},
 	},
 }
 
