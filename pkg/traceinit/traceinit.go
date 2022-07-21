@@ -19,6 +19,6 @@ func TraceFunction(text string) {
 	initTraceFileOnce.Do(func() {
 		initTraceFile, _ = os.OpenFile("C:\\ProgramData\\Datadog\\logs\\traceinit.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	})
-	initTraceFile.WriteString(fmt.Sprintf("%v %v\n", time.Now(), text))
-	initTraceFile.Sync()
+	_, _ = initTraceFile.WriteString(fmt.Sprintf("%v %v\n", time.Now(), text))
+	_ = initTraceFile.Sync()
 }
