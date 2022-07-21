@@ -45,7 +45,7 @@ int socket__classifier_filter(struct __sk_buff* skb) {
         return 0;
 
     if (skb_info->tcp_flags & TCPHDR_FIN) {
-	    bpf_map_delete_elem(&proto_in_flight, tup);
+	    //bpf_map_delete_elem(&proto_in_flight, tup);
 	    return 0;
     }
 

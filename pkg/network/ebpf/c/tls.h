@@ -33,9 +33,9 @@ static __always_inline int sane_payload_length(__u8 app, __u16 tls_len, __u16 sk
     if (app != TLS_APPLICATION_DATA)
         return 1;
 
-    if (skb_len > (tls_len+offset+TLS_RECORD_LEN)) {
+    if (skb_len > (tls_len+offset+sizeof(tls_record_t))) {
         log_debug("skb may contain multiple TLS payload\n");
-        log_debug("skb_len: %d, payload: %d\n", skb_len, tls_len+offset+TLS_RECORD_LEN);
+        log_debug("skb_len: %d, payload: %d\n", skb_len, tls_len+offset+sizeof(tls_record_t));
         return 0;
     }
 
@@ -68,7 +68,7 @@ static __always_inline int is_tls(struct __sk_buff* skb, u32 offset) {
 }
 
 static __always_inline void parse_tls_server_hello(tls_session_t* tls, struct __sk_buff *skb, u32 offset) {
-    tls->cipher_suite = load_half(skb, offset+45);
+    tls->cipher_suite = load_half(skb, offset+offsetof(struct ServerHello, cipher_suite));
     // TODO: parse extensions to find if tls 1.3
 }
 
@@ -104,7 +104,7 @@ static __always_inline void transition_session_state(tls_session_t* tls, struct 
     record.version = load_half(skb, offset+1);
     record.length = load_half(skb, offset+3);
 
-    if (skb->len < (record.length + TLS_RECORD_LEN + offset))
+    if (skb->len < (record.length + sizeof(tls_record_t) + offset))
         return;
 
     if (record.app == TLS_HANDSHAKE) {
