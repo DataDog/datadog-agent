@@ -7,6 +7,7 @@ package orchestrator
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -23,8 +24,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-// TestOrchestratorCheckStartupAndCleanup close simulates the check being closed and then restarted with .Start again
-func TestOrchestratorCheckStartupAndCleanup(t *testing.T) {
+// TestOrchestratorCheckSafeReSchedule close simulates the check being closed and then restarted with .Start again
+func TestOrchestratorCheckSafeStartup(t *testing.T) {
 	client := fake.NewSimpleClientset()
 	informerFactory := informers.NewSharedInformerFactory(client, 0)
 	cl := &apiserver.APIClient{Cl: client, InformerFactory: informerFactory, UnassignedPodInformerFactory: informerFactory}
@@ -54,6 +55,44 @@ func TestOrchestratorCheckStartupAndCleanup(t *testing.T) {
 	case <-time.After(wait.ForeverTestTimeout):
 		t.Error("Informer did not get the added node")
 	}
+}
+
+// TestOrchestratorCheckSafeReSchedule close simulates the check being unscheduled and rescheduled again
+func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
+	var wg sync.WaitGroup
+
+	client := fake.NewSimpleClientset()
+	informerFactory := informers.NewSharedInformerFactory(client, 0)
+	cl := &apiserver.APIClient{Cl: client, InformerFactory: informerFactory, UnassignedPodInformerFactory: informerFactory}
+	orchCheck := OrchestratorFactory().(*OrchestratorCheck)
+	orchCheck.apiClient = cl
+
+	bundle := NewCollectorBundle(orchCheck)
+	err := bundle.Initialize()
+	assert.NoError(t, err)
+
+	wg.Add(2)
+
+	nodeInformer := informerFactory.Core().V1().Nodes().Informer()
+	nodeInformer.AddEventHandler(&cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			wg.Done()
+		},
+	})
+
+	writeNode(t, client, "1")
+
+	// getting rescheduled.
+	orchCheck.Cancel()
+	// This part is not perfect because the cancel closes a channel which gets propagated everywhere.
+	// If things are too fast the close is not getting propagated fast enough.
+	// But even if we are too fast and don't catch that part it will not lead to a false positive
+	time.Sleep(1 * time.Millisecond)
+	err = bundle.Initialize()
+	assert.NoError(t, err)
+	writeNode(t, client, "2")
+
+	wg.Wait()
 }
 
 func writeNode(t *testing.T, client *fake.Clientset, version string) {
