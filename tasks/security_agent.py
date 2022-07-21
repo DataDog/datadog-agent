@@ -582,6 +582,17 @@ def generate_btfhub_constants(ctx, archive_path):
         f"go run ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path}",
     )
 
+def run_protoc(ctx, gobin, proto_file, vt_features, vt_pool_pkg, vt_pool_structs):
+    basic_opts = "--go_out=paths=source_relative:. --go-grpc_out=."
+    plugin_opts = f"--plugin protoc-gen-go=\"{gobin}/protoc-gen-go\" --plugin protoc-gen-go-vtproto=\"{gobin}/protoc-gen-go-vtproto\" --plugin protoc-gen-go-grpc=\"{gobin}/protoc-gen-go-grpc\""
+    pool_opts = " ".join(
+        f"--go-vtproto_opt=pool={vt_pool_pkg}.{struct_name}" for struct_name in vt_pool_structs
+    )
+    vt_features_str = "+".join(vt_features)
+    vt_opts = f"--go-vtproto_out=. --go-vtproto_opt=features={vt_features_str} {pool_opts}"
+
+    ctx.run(f"protoc -I. {basic_opts} {plugin_opts} {vt_opts} {proto_file}")
+
 
 @task
 def generate_cws_proto(ctx):
@@ -590,7 +601,7 @@ def generate_cws_proto(ctx):
     # on both performance and memory.
     # What could explain this impact is that putting back the node in the pool requires to walk the tree to put back
     # child nodes. The maximum depth difference between nodes become a very important metric.
-    pool_structs = [
+    ad_pool_structs = [
         "ActivityDump",
         "ProcessActivityNode",
         "FileActivityNode",
@@ -598,20 +609,18 @@ def generate_cws_proto(ctx):
         "ProcessInfo",
     ]
 
+    api_pool_structs = [
+        "SecurityEventMessage"
+    ]
+
     with tempfile.TemporaryDirectory() as temp_gobin:
         with environ({"GOBIN": temp_gobin}):
             ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.0")
             ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.3.0")
+            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2.0")
 
             # Activity dumps
-            pool_opts = " ".join(
-                f"--go-vtproto_opt=pool=pkg/security/adproto/v1.{struct_name}" for struct_name in pool_structs
-            )
-            basic_opts = " --go_out=paths=source_relative:."
-            plugin_opts = f"--plugin protoc-gen-go=\"{temp_gobin}/protoc-gen-go\" --plugin protoc-gen-go-vtproto=\"{temp_gobin}/protoc-gen-go-vtproto\""
-            ctx.run(
-                f"protoc -I. {basic_opts} --go-vtproto_out=. {plugin_opts} --go-vtproto_opt=features=pool+marshal+unmarshal+size {pool_opts} pkg/security/adproto/v1/activity_dump.proto"
-            )
+            run_protoc(ctx, temp_gobin, "pkg/security/adproto/v1/activity_dump.proto", ["pool", "marshal", "unmarshal", "size"], vt_pool_pkg="pkg/security/adproto/v1", vt_pool_structs=ad_pool_structs)
 
             # API
-            ctx.run(f"protoc -I. {basic_opts} --go-vtproto_out=. {plugin_opts} pkg/security/api/api.proto")
+            run_protoc(ctx, temp_gobin, "pkg/security/api/api.proto", ["pool", "marshal", "unmarshal", "size"], vt_pool_pkg="pkg/security/api", vt_pool_structs=api_pool_structs)
