@@ -22,7 +22,7 @@
 static __always_inline size_t read_into_buffer_skb(char *buffer, struct __sk_buff *skb, skb_info_t *info) {
     u64 offset = (u64)info->data_off;
 
-#define BLK_SIZE (2)
+#define BLK_SIZE (16)
     const u32 iter = HTTP_BUFFER_SIZE / BLK_SIZE;
     const u32 len = HTTP_BUFFER_SIZE < (skb->len - (u32)offset) ? (u32)offset + HTTP_BUFFER_SIZE : skb->len;
 
