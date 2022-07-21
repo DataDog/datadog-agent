@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    APM : Added support for tracer single span sampling. See DataDog/dd-trace-go#1357.
+    APM: Added support for tracer single span sampling. See DataDog/dd-trace-go#1357.
