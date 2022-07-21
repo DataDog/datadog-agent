@@ -130,21 +130,23 @@ type ConnTelemetryType string
 
 //revive:disable:exported
 const (
-	MonotonicKprobesTriggered          ConnTelemetryType = "kprobes_triggered"
-	MonotonicKprobesMissed             ConnTelemetryType = "kprobes_missed"
-	MonotonicConnsClosed               ConnTelemetryType = "conns_closed"
-	MonotonicConntrackRegisters        ConnTelemetryType = "conntrack_registers"
-	MonotonicConntrackRegistersDropped ConnTelemetryType = "conntrack_registers_dropped"
-	MonotonicDNSPacketsProcessed       ConnTelemetryType = "dns_packets_processed"
-	MonotonicUDPSendsProcessed         ConnTelemetryType = "udp_sends_processed"
-	MonotonicUDPSendsMissed            ConnTelemetryType = "udp_sends_missed"
-	DNSStatsDropped                    ConnTelemetryType = "dns_stats_dropped"
-	ConnsBpfMapSize                    ConnTelemetryType = "conns_bpf_map_size"
-	ConntrackSamplingPercent           ConnTelemetryType = "conntrack_sampling_percent"
-	NPMDriverFlowsMissedMaxExceeded    ConnTelemetryType = "driver_flows_missed_max_exceeded"
-	MonotonicDNSPacketsDropped         ConnTelemetryType = "dns_packets_dropped"
-	HTTPRequestsDropped                ConnTelemetryType = "http_requests_dropped"
-	HTTPRequestsMissed                 ConnTelemetryType = "http_requests_missed"
+	MonotonicKprobesTriggered       ConnTelemetryType = "kprobes_triggered"
+	MonotonicKprobesMissed          ConnTelemetryType = "kprobes_missed"
+	MonotonicClosedConnDropped      ConnTelemetryType = "closed_conn_dropped"
+	MonotonicConnDropped            ConnTelemetryType = "conn_dropped"
+	MonotonicConnsClosed            ConnTelemetryType = "conns_closed"
+	MonotonicConntrackRegisters     ConnTelemetryType = "conntrack_registers"
+	MonotonicDNSPacketsProcessed    ConnTelemetryType = "dns_packets_processed"
+	MonotonicPerfLost               ConnTelemetryType = "perf_lost"
+	MonotonicUDPSendsProcessed      ConnTelemetryType = "udp_sends_processed"
+	MonotonicUDPSendsMissed         ConnTelemetryType = "udp_sends_missed"
+	DNSStatsDropped                 ConnTelemetryType = "dns_stats_dropped"
+	ConnsBpfMapSize                 ConnTelemetryType = "conns_bpf_map_size"
+	ConntrackSamplingPercent        ConnTelemetryType = "conntrack_sampling_percent"
+	NPMDriverFlowsMissedMaxExceeded ConnTelemetryType = "driver_flows_missed_max_exceeded"
+	MonotonicDNSPacketsDropped      ConnTelemetryType = "dns_packets_dropped"
+	HTTPRequestsDropped             ConnTelemetryType = "http_requests_dropped"
+	HTTPRequestsMissed              ConnTelemetryType = "http_requests_missed"
 )
 
 //revive:enable
@@ -166,13 +168,15 @@ var (
 	MonotonicConnTelemetryTypes = []ConnTelemetryType{
 		MonotonicKprobesTriggered,
 		MonotonicKprobesMissed,
+		MonotonicClosedConnDropped,
+		MonotonicConnDropped,
 		MonotonicConntrackRegisters,
-		MonotonicConntrackRegistersDropped,
 		MonotonicDNSPacketsProcessed,
 		MonotonicConnsClosed,
 		MonotonicUDPSendsProcessed,
 		MonotonicUDPSendsMissed,
 		MonotonicDNSPacketsDropped,
+		MonotonicPerfLost,
 	}
 )
 

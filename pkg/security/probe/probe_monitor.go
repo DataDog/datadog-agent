@@ -29,7 +29,6 @@ type Monitor struct {
 
 	loadController      *LoadController
 	perfBufferMonitor   *PerfBufferMonitor
-	syscallMonitor      *SyscallMonitor
 	activityDumpManager *ActivityDumpManager
 	runtimeMonitor      *RuntimeMonitor
 	discarderMonitor    *DiscarderMonitor
@@ -58,14 +57,6 @@ func NewMonitor(p *Probe) (*Monitor, error) {
 		m.activityDumpManager, err = NewActivityDumpManager(p)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't create the activity dump manager: %w", err)
-		}
-	}
-
-	// create a new syscall monitor if requested
-	if p.config.SyscallMonitor {
-		m.syscallMonitor, err = NewSyscallMonitor(p.manager)
-		if err != nil {
-			return nil, err
 		}
 	}
 
@@ -111,12 +102,6 @@ func (m *Monitor) Start(ctx context.Context, wg *sync.WaitGroup) error {
 func (m *Monitor) SendStats() error {
 	// delay between to send in order to reduce the statsd pool presure
 	const delay = time.Second
-
-	if m.syscallMonitor != nil {
-		if err := m.syscallMonitor.SendStats(m.probe.statsdClient); err != nil {
-			return fmt.Errorf("failed to send syscall monitor stats: %w", err)
-		}
-	}
 	time.Sleep(delay)
 
 	if resolvers := m.probe.GetResolvers(); resolvers != nil {
@@ -159,24 +144,6 @@ func (m *Monitor) SendStats() error {
 	}
 
 	return nil
-}
-
-// GetStats returns Stats according to the system-probe module format
-func (m *Monitor) GetStats() (map[string]interface{}, error) {
-	stats := make(map[string]interface{})
-
-	var syscalls *SyscallStats
-	var err error
-
-	if m.syscallMonitor != nil {
-		syscalls, err = m.syscallMonitor.GetStats()
-	}
-
-	stats["events"] = map[string]interface{}{
-		"perf_buffer": 0,
-		"syscalls":    syscalls,
-	}
-	return stats, err
 }
 
 // ProcessEvent processes an event through the various monitors and controllers of the probe

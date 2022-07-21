@@ -174,11 +174,17 @@ var (
 	// Tags: -
 	MetricNamespaceResolverLonelyNetworkNamespace = newRuntimeMetric(".namespace_resolver.lonely_netns")
 
-	// Others
+	// Policies
 
 	// MetricRuleSetLoaded is the name of the metric used to report that a new ruleset was loaded
 	// Tags: -
 	MetricRuleSetLoaded = newRuntimeMetric(".ruleset_loaded")
+	// MetricPolicy is the name of the metric used to report policy versions
+	// Tags: -
+	MetricPolicy = newRuntimeMetric(".policy")
+
+	// Others
+
 	// MetricSelfTest is the name of the metric used to report that a self test was performed
 	// Tags: - success, fails
 	MetricSelfTest = newRuntimeMetric(".self_test")

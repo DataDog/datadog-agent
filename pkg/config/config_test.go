@@ -166,6 +166,11 @@ func TestUnexpectedWhitespace(t *testing.T) {
 			expectedWarningText: "U+202F",
 			expectedPosition:    fmt.Sprintf("position %d", 0),
 		},
+		{
+			yaml:                "root_element:\n  nestedKey: [validValue, \u202fhiddenInvalidWhitespaceToLeft]\n",
+			expectedWarningText: "U+202F",
+			expectedPosition:    fmt.Sprintf("position %d", 0),
+		},
 	}
 	for _, tc := range tests {
 		testConfig := setupConfFromYAML(tc.yaml)

@@ -9,9 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 
-	"github.com/Masterminds/semver"
 	"github.com/hashicorp/go-multierror"
 	"gopkg.in/yaml.v2"
 )
@@ -43,7 +41,7 @@ func (p *Policy) AddRule(def *RuleDefinition) {
 	p.Rules = append(p.Rules, def)
 }
 
-func parsePolicyDef(name string, source string, def *PolicyDef, agentVersion *semver.Version) (*Policy, *multierror.Error) {
+func parsePolicyDef(name string, source string, def *PolicyDef, filters []RuleFilter) (*Policy, *multierror.Error) {
 	var errs *multierror.Error
 
 	policy := &Policy{
@@ -65,15 +63,12 @@ func parsePolicyDef(name string, source string, def *PolicyDef, agentVersion *se
 		policy.AddMacro(macroDef)
 	}
 
+LOOP:
 	for _, ruleDef := range def.Rules {
-		constraintSatisfied, err := checkAgentVersionConstraint(ruleDef.AgentVersionConstraint, agentVersion)
-		if err != nil {
-			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("failed to parse agent version constraint `%s`", ruleDef.AgentVersionConstraint)})
-			continue
-		}
-
-		if !constraintSatisfied {
-			continue
+		for _, filter := range filters {
+			if !filter.IsAccepted(ruleDef) {
+				continue LOOP
+			}
 		}
 
 		if ruleDef.ID == "" {
@@ -97,7 +92,7 @@ func parsePolicyDef(name string, source string, def *PolicyDef, agentVersion *se
 }
 
 // LoadPolicy load a policy
-func LoadPolicy(name string, source string, reader io.Reader, agentVersion *semver.Version) (*Policy, error) {
+func LoadPolicy(name string, source string, reader io.Reader, filters []RuleFilter) (*Policy, error) {
 	var def PolicyDef
 
 	decoder := yaml.NewDecoder(reader)
@@ -105,37 +100,10 @@ func LoadPolicy(name string, source string, reader io.Reader, agentVersion *semv
 		return nil, &ErrPolicyLoad{Name: name, Err: err}
 	}
 
-	policy, errs := parsePolicyDef(name, source, &def, agentVersion)
+	policy, errs := parsePolicyDef(name, source, &def, filters)
 	if errs.ErrorOrNil() != nil {
 		return nil, errs.ErrorOrNil()
 	}
 
 	return policy, nil
-}
-
-func checkAgentVersionConstraint(constraint string, agentVersion *semver.Version) (bool, error) {
-	if agentVersion == nil {
-		return true, nil
-	}
-
-	withoutPreAgentVersion, err := agentVersion.SetPrerelease("")
-	if err != nil {
-		return true, nil
-	}
-	cleanAgentVersion, err := withoutPreAgentVersion.SetMetadata("")
-	if err != nil {
-		return true, nil
-	}
-
-	constraint = strings.TrimSpace(constraint)
-	if constraint == "" {
-		return true, nil
-	}
-
-	semverConstraint, err := semver.NewConstraint(constraint)
-	if err != nil {
-		return false, err
-	}
-
-	return semverConstraint.Check(&cleanAgentVersion), nil
 }

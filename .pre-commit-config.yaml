@@ -49,6 +49,13 @@ repos:
       language: system
       require_serial: true
       files: \.go$
+    - id: copyright
+      name: copyright
+      description: copyright headers
+      entry: 'python3 tasks/git-hooks/copyright.py'
+      language: system
+      require_serial: true
+      files: \.go$
     - id: win-clang-format
       name: win-clang-format
       description: clang-format

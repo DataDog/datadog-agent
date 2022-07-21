@@ -62,7 +62,8 @@ type ebpfConntracker struct {
 	rootNS       uint32
 	// only kept around for stats purposes from initial dump
 	consumer *netlink.Consumer
-	decoder  *netlink.Decoder
+
+	stop chan struct{}
 
 	stats ebpfConntrackerStats
 }
@@ -115,6 +116,7 @@ func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 		telemetryMap: telemetryMap,
 		rootNS:       rootNS,
 		stats:        newEbpfConntrackerStats(),
+		stop:         make(chan struct{}),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.ConntrackInitTimeout)
@@ -133,86 +135,31 @@ func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 
 func (e *ebpfConntracker) dumpInitialTables(ctx context.Context, cfg *config.Config) error {
 	e.consumer = netlink.NewConsumer(cfg.ProcRoot, cfg.ConntrackRateLimit, true)
-	e.decoder = netlink.NewDecoder()
 	defer e.consumer.Stop()
 
 	for _, family := range []uint8{unix.AF_INET, unix.AF_INET6} {
-		events, err := e.consumer.DumpTable(family)
+		done, err := e.consumer.DumpAndDiscardTable(family)
 		if err != nil {
 			return err
 		}
-		if err := e.loadInitialState(ctx, events); err != nil {
+
+		if err := e.processEvents(ctx, done); err != nil {
 			return err
 		}
 	}
+	e.m.DetachHook(manager.ProbeIdentificationPair{EBPFSection: string(probes.ConntrackFillInfo), EBPFFuncName: "kprobe_ctnetlink_fill_info"})
 	return nil
 }
 
-func (e *ebpfConntracker) loadInitialState(ctx context.Context, events <-chan netlink.Event) error {
+func (e *ebpfConntracker) processEvents(ctx context.Context, done <-chan bool) error {
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case ev, ok := <-events:
-			if !ok {
-				return nil
-			}
-			e.processEvent(ev)
+		case <-done:
+			return nil
 		}
 	}
-}
-
-func (e *ebpfConntracker) processEvent(ev netlink.Event) {
-	conns := e.decoder.DecodeAndReleaseEvent(ev)
-	for _, c := range conns {
-		if netlink.IsNAT(c) {
-			log.Tracef("initial conntrack %s", c)
-			src := formatKey(c.NetNS, &c.Origin)
-			dst := formatKey(c.NetNS, &c.Reply)
-			if src != nil && dst != nil {
-				if err := e.addTranslation(src, dst); err != nil {
-					log.Warnf("error adding initial conntrack entry to ebpf map: %s", err)
-				}
-				if err := e.addTranslation(dst, src); err != nil {
-					log.Warnf("error adding initial conntrack entry to ebpf map: %s", err)
-				}
-			}
-		}
-	}
-}
-
-func (e *ebpfConntracker) addTranslation(src *netebpf.ConntrackTuple, dst *netebpf.ConntrackTuple) error {
-	if err := e.ctMap.Update(unsafe.Pointer(src), unsafe.Pointer(dst), ebpf.UpdateNoExist); err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
-		return err
-	}
-	return nil
-}
-
-func formatKey(netns uint32, tuple *netlink.ConTuple) *netebpf.ConntrackTuple {
-	nct := &netebpf.ConntrackTuple{
-		Netns: netns,
-		Sport: tuple.Src.Port(),
-		Dport: tuple.Dst.Port(),
-	}
-	src := tuple.Src.IP()
-	nct.Saddr_l, nct.Saddr_h = util.ToLowHighIP(src)
-	nct.Daddr_l, nct.Daddr_h = util.ToLowHighIP(tuple.Dst.IP())
-
-	if src.Is4() {
-		nct.Metadata |= uint32(netebpf.IPv4)
-	} else {
-		nct.Metadata |= uint32(netebpf.IPv6)
-	}
-	switch tuple.Proto {
-	case unix.IPPROTO_TCP:
-		nct.Metadata |= uint32(netebpf.TCP)
-	case unix.IPPROTO_UDP:
-		nct.Metadata |= uint32(netebpf.UDP)
-	default:
-		return nil
-	}
-
-	return nct
 }
 
 func toConntrackTupleFromStats(src *netebpf.ConntrackTuple, stats *network.ConnectionStats) {
@@ -328,7 +275,6 @@ func (e *ebpfConntracker) GetStats() map[string]int64 {
 		log.Tracef("error retrieving the telemetry struct: %s", err)
 	} else {
 		m["registers_total"] = int64(telemetry.Registers)
-		m["registers_dropped"] = int64(telemetry.Dropped)
 	}
 
 	gets := e.stats.gets.Load()
@@ -422,6 +368,13 @@ func getManager(buf io.ReaderAt, maxStateSize int) (*manager.Manager, error) {
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  string(probes.ConntrackHashInsert),
 					EBPFFuncName: "kprobe___nf_conntrack_hash_insert",
+					UID:          "conntracker",
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  string(probes.ConntrackFillInfo),
+					EBPFFuncName: "kprobe_ctnetlink_fill_info",
 					UID:          "conntracker",
 				},
 			},

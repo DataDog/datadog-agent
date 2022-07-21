@@ -47,9 +47,17 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Hints: []string{"Bearer"},
 		Repl:  []byte(`Bearer ***********************************************************$1`),
 	}
+	apiKeyReplacerYAML := Replacer{
+		Regex: regexp.MustCompile(`(\-|\:|,|\[|\{)(\s+)?\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
+		Repl:  []byte(`$1$2"***************************$3"`),
+	}
 	apiKeyReplacer := Replacer{
 		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
 		Repl:  []byte(`***************************$1`),
+	}
+	appKeyReplacerYAML := Replacer{
+		Regex: regexp.MustCompile(`(\-|\:|,|\[|\{)(\s+)?\b[a-fA-F0-9]{35}([a-fA-F0-9]{5})\b`),
+		Repl:  []byte(`$1$2"***********************************$3"`),
 	}
 	appKeyReplacer := Replacer{
 		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{35}([a-fA-F0-9]{5})\b`),
@@ -64,22 +72,22 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	passwordReplacer := Replacer{
 		Regex: matchYAMLKeyPart(`(pass(word)?|pwd)`),
 		Hints: []string{"pass", "pwd"},
-		Repl:  []byte(`$1 ********`),
+		Repl:  []byte(`$1 "********"`),
 	}
 	tokenReplacer := Replacer{
 		Regex: matchYAMLKeyEnding(`token`),
 		Hints: []string{"token"},
-		Repl:  []byte(`$1 ********`),
+		Repl:  []byte(`$1 "********"`),
 	}
 	snmpReplacer := Replacer{
 		Regex: matchYAMLKey(`(community_string|authKey|privKey|community|authentication_key|privacy_key)`),
 		Hints: []string{"community_string", "authKey", "privKey", "community", "authentication_key", "privacy_key"},
-		Repl:  []byte(`$1 ********`),
+		Repl:  []byte(`$1 "********"`),
 	}
 	snmpMultilineReplacer := Replacer{
 		Regex: matchYAMLKeyWithListValue("(community_strings)"),
 		Hints: []string{"community_strings"},
-		Repl:  []byte(`$1 ********`),
+		Repl:  []byte(`$1 "********"`),
 	}
 	certReplacer := Replacer{
 		Regex: matchCert(),
@@ -89,7 +97,9 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedBearerReplacer)
+	scrubber.AddReplacer(SingleLine, apiKeyReplacerYAML)
 	scrubber.AddReplacer(SingleLine, apiKeyReplacer)
+	scrubber.AddReplacer(SingleLine, appKeyReplacerYAML)
 	scrubber.AddReplacer(SingleLine, appKeyReplacer)
 	scrubber.AddReplacer(SingleLine, uriPasswordReplacer)
 	scrubber.AddReplacer(SingleLine, passwordReplacer)
@@ -186,7 +196,7 @@ func AddStrippedKeys(strippedKeys []string) {
 		configReplacer := Replacer{
 			Regex: matchYAMLKey(fmt.Sprintf("(%s)", strings.Join(strippedKeys, "|"))),
 			Hints: strippedKeys,
-			Repl:  []byte(`$1 ********`),
+			Repl:  []byte(`$1 "********"`),
 		}
 		DefaultScrubber.AddReplacer(SingleLine, configReplacer)
 	}
