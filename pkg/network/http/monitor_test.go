@@ -238,6 +238,7 @@ func ioctlNPM(arg unsafe.Pointer) {
 }
 
 type ioctlHttpTX struct {
+	token    uint64
 	code     uint32
 	data_len uint32
 	httpTX
@@ -265,11 +266,16 @@ func TestHTTPTransactionUserspace(t *testing.T) {
 	)
 	transactions := []httpTX{tx}
 	var ioctl ioctlHttpTX
+	ioctl.token = ioctlToken
 	ioctl.code = uint32(httpIoctlEnqueue) //HTTP_ENQUEUE
 	ioctl.data_len = uint32(unsafe.Sizeof(ioctl.httpTX))
 	ioctl.httpTX = transactions[0]
 	ioctlNPM(unsafe.Pointer(&ioctl))
 	ioctlNPM(unsafe.Pointer(&ioctl))
+	ioctlNPM(unsafe.Pointer(&ioctl))
+
+	// poison the token as we should not see a 4th requests
+	ioctl.token = 0
 	ioctlNPM(unsafe.Pointer(&ioctl))
 
 	stats := monitor.GetHTTPStats()

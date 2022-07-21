@@ -14,9 +14,10 @@ import (
 	"os"
 	"time"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
+	"encoding/binary"
+	"math/rand"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -54,6 +56,10 @@ const (
 	maxRequestLinger = 30 * time.Second
 )
 
+var (
+	ioctlToken uint64
+)
+
 type ebpfProgram struct {
 	*manager.Manager
 	cfg         *config.Config
@@ -70,6 +76,12 @@ type subprogram interface {
 	ConfigureOptions(*manager.Options)
 	Start()
 	Stop()
+}
+
+func randUint64() uint64 {
+	buf := make([]byte, 8)
+	rand.Read(buf)
+	return binary.LittleEndian.Uint64(buf)
 }
 
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*ebpfProgram, error) {
@@ -167,6 +179,12 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 
 func (e *ebpfProgram) Init() error {
 	defer e.bytecode.Close()
+
+	ioctlToken = randUint64()
+	e.offsets = append(e.offsets, manager.ConstantEditor{
+		Name:  "ioctl_token_correct",
+		Value: ioctlToken,
+	})
 
 	for _, s := range e.subprograms {
 		s.ConfigureManager(e.Manager)

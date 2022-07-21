@@ -6,6 +6,7 @@ package runtime
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 var Http = NewRuntimeAsset("http.c", "37643ed7b1d7230dff448cd779776be341e78deeddd6e13f6f978250757c89d9")
 =======
 <<<<<<< HEAD
@@ -17,3 +18,6 @@ var Http = NewRuntimeAsset("http.c", "5dd6ccae717173337dadcbb9ceb84f63f1d9d1a79e
 =======
 var Http = NewRuntimeAsset("http.c", "d9fdc5f5c835ee75743db7b83b5a32a27ef8e60d9de47beb587a165bbf1be7f3")
 >>>>>>> d00a03b28f26 (runtimehhttp)
+=======
+var Http = NewRuntimeAsset("http.c", "833f4b3d37c02f302ace5ca41b802fa3fea722a29428352e00ada646eb1426fc")
+>>>>>>> 3d98a7895774 (add random auth token for ioctl (set at sysprobe startup))
