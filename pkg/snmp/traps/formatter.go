@@ -200,6 +200,7 @@ func IsValidOID(value string) bool {
 		if char == '.' && previousChar == '.' {
 			return false
 		}
+		previousChar = char
 	}
 	return previousChar != '.'
 }

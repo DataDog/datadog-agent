@@ -197,7 +197,7 @@ func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB trapDBFileContent
 	// with 'isNode: true'. i.e if an OID <FOO>.<BAR> exists in the trapsDB but <FOO> also exists in the trapsDB
 	// then <FOO> acts as a 'Node' of the OID tree and should not be considered a match for resolving variables.
 	// In this fast algorithm the list is sorted then each OID is compared with its successor. It the successor starts
-	// with the current OID, then the current OID is a Node.
+	// with the current OID + a dot, then the current OID is a Node. 'Dots' are before digits in the lexicographic order.
 	// Note that in practice, OIDs that act both as Node and Leaf of the OID tree is extremely rare and is not expected
 	// in normal circumstamces. Thing is they sometimes exist.
 	sort.Strings(allOIDs)
