@@ -14,6 +14,8 @@ import (
 // singleSpanRateExtractor extracts spans that have been sampled using the single span sampling mechanism.
 type singleSpanRateExtractor struct{}
 
+// NewSingleSpanExtractor returns a single span extractor that decides whether to extract single spans from traces based on
+// the presence of the KeySpanSamplingMechanism tag set on those spans.
 func NewSingleSpanExtractor() Extractor {
 	return &singleSpanRateExtractor{}
 }
