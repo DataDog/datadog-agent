@@ -24,6 +24,15 @@ import (
 
 const ddTrapDBFileNamePrefix string = "dd_traps_db"
 
+var nodesOIDThatShouldNeverMatch = []string{
+	"1.3.6.1.4",
+	"1.3.6.1",
+	"1.3.6",
+	"1.3.6",
+	"1.3",
+	"1",
+}
+
 type unmarshaller func(data []byte, v interface{}) error
 
 // OIDResolver is a interface to get Trap and Variable metadata from OIDs
@@ -85,11 +94,22 @@ func (or *MultiFilesOIDResolver) GetVariableMetadata(trapOID string, varOID stri
 	if !ok {
 		return VariableMetadata{}, fmt.Errorf("trap OID %s is not defined", trapOID)
 	}
-	varData, ok := trapData.variableSpecPtr[varOID]
-	if !ok {
-		return VariableMetadata{}, fmt.Errorf("variable OID %s is not defined", varOID)
+
+	varOIDSegments := strings.Split(varOID, ".")
+	for i := len(varOIDSegments); i > 0; i-- {
+		recreatedOID := strings.Join(varOIDSegments[0:i], ".")
+		varData, ok := trapData.variableSpecPtr[recreatedOID]
+		if !ok {
+			continue
+		}
+		if varData.isNode {
+			// Found a known Node while climibing up the tree, no chance of finding a match higher
+			return VariableMetadata{}, fmt.Errorf("variable OID %s is not defined", varOID)
+		}
+		return varData, nil
+
 	}
-	return varData, nil
+	return VariableMetadata{}, fmt.Errorf("variable OID %s is not defined", varOID)
 }
 
 func getSortedFileNames(files []fs.DirEntry) []string {
@@ -163,9 +183,34 @@ func (or *MultiFilesOIDResolver) updateFromReader(reader io.Reader, unmarshalMet
 
 func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB trapDBFileContent) {
 	definedVariables := variableSpec{}
-	for variableOID, variableData := range trapDB.Variables {
-		variableOID := NormalizeOID(variableOID)
+
+	allOIDs := make([]string, 0, len(trapDB.Variables))
+	for variableOID := range trapDB.Variables {
+		allOIDs = append(allOIDs, NormalizeOID(variableOID))
+	}
+
+	// "Fast" algorithm used to mark OID that act both as a variable and as a parent of other variable
+	// with 'isNode: true'. i.e if an OID <FOO>.<BAR> exists in the trapsDB but <FOO> also exists in the trapsDB
+	// then <FOO> acts as a 'Node' of the OID tree and should not be considered a match for resolving variables.
+	// In this fast algorithm the list is sorted then each OID is compared with its successor. It the successor starts
+	// with the current OID, then the current OID is a Node.
+	// Note that in practice, OIDs that act both as Node and Leaf of the OID tree is extremely rare and is not expected
+	// in normal circumstamces. Thing is they sometimes exist.
+	sort.Strings(allOIDs)
+	for idx, variableOID := range allOIDs {
+		isNode := false
+		if idx+1 < len(allOIDs) {
+			nextOID := allOIDs[idx+1]
+			isNode = strings.HasPrefix(nextOID, variableOID)
+		}
+
+		variableData := trapDB.Variables[variableOID]
+		variableData.isNode = isNode
 		definedVariables[variableOID] = variableData
+	}
+
+	for _, nodeOID := range nodesOIDThatShouldNeverMatch {
+		definedVariables[nodeOID] = VariableMetadata{Name: "unknown", isNode: true}
 	}
 
 	for trapOID, trapData := range trapDB.Traps {
