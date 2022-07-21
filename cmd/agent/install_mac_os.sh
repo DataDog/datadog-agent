@@ -54,6 +54,17 @@ if [ -n "$DD_SYSTEMDAEMON_INSTALL" ]; then
         printf "\033[31mDD_SYSTEMDAEMON_USER_GROUP can't contain '>' or '<', because it will be used in XML file\033[0m\n"
         exit 1;
     fi
+    systemdaemon_user="$(echo "$systemdaemon_user_group" | awk -F: '{ print $1 }')"
+    systemdaemon_group="$(echo "$systemdaemon_user_group" | awk -F: '{ print $2 }')"
+    if ! id -u "$systemdaemon_user" >/dev/null 2>&1 ; then
+        printf "\033[31mUser $systemdaemon_user not found, can't proceed with installation\033[0m\n"
+        exit 1;
+    fi
+    # groups output is in form `username : group1 group2 ...`, so we use `cut` to strip the `username :` part
+    if ! groups "$systemdaemon_user" | cut -d' ' -f3- | grep -w "$systemdaemon_group" >/dev/null 2>&1; then
+        printf "\033[31mUser $systemdaemon_user is not a member of group $systemdaemon_group, can't proceed with installation\033[0m\n"
+        exit 1;
+    fi
 fi
 
 agent_major_version=6
@@ -186,8 +197,8 @@ function import_config() {
 
 function plist_modify_user_group() {
     plist_file="$1"
-    user_value="$(echo "$2" | awk -F: '{ print $1 }')"
-    group_value="$(echo "$2" | awk -F: '{ print $2 }')"
+    user_value="$2"
+    group_value="$3"
     user_parameter="UserName"
     group_parameter="GroupName"
 
@@ -289,7 +300,7 @@ else
     $sudo_cmd mv "$user_plist_file" /Library/LaunchDaemons/
     # make sure the daemon launches under proper user/group and that it has access
     # to all files/dirs it needs; then start it
-    plist_modify_user_group "$systemwide_servicefile_name" "$systemdaemon_user_group"
+    plist_modify_user_group "$systemwide_servicefile_name" "$systemdaemon_user" "$systemdaemon_group"
     $sudo_cmd chown "0:0" "$systemwide_servicefile_name"
     $sudo_cmd chown -R "$systemdaemon_user_group" "$etc_dir" "$log_dir" "$run_dir"
     $sudo_cmd launchctl load -w "$systemwide_servicefile_name"
