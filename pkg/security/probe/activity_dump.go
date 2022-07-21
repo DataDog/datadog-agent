@@ -96,6 +96,7 @@ type ActivityDump struct {
 	processedCount     map[model.EventType]*atomic.Uint64
 	addedRuntimeCount  map[model.EventType]*atomic.Uint64
 	addedSnapshotCount map[model.EventType]*atomic.Uint64
+	pathMergedCount    *atomic.Uint64
 
 	// standard attributes used by the intake
 	Host    string   `msg:"host" json:"host,omitempty"`
@@ -144,6 +145,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		processedCount:     make(map[model.EventType]*atomic.Uint64),
 		addedRuntimeCount:  make(map[model.EventType]*atomic.Uint64),
 		addedSnapshotCount: make(map[model.EventType]*atomic.Uint64),
+		pathMergedCount:    atomic.NewUint64(0),
 		StorageRequests:    make(map[dump.StorageFormat][]dump.StorageRequest),
 	}
 
@@ -418,7 +420,11 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	// insert the event based on its type
 	switch event.GetEventType() {
 	case model.FileOpenEventType:
-		return node.InsertFileEvent(&event.Open.File, event, Runtime, ad.adm.probe.config.ActivityDumpPathMergeEnabled)
+		mergeCtx := adPathMergeContext{
+			enabled: ad.adm.probe.config.ActivityDumpPathMergeEnabled,
+			counter: ad.pathMergedCount,
+		}
+		return node.InsertFileEvent(&event.Open.File, event, Runtime, mergeCtx)
 	case model.DNSEventType:
 		return node.InsertDNSEvent(&event.DNS)
 	case model.BindEventType:
@@ -574,6 +580,12 @@ func (ad *ActivityDump) SendStats() error {
 			if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpEventAdded, int64(value), tags, 1.0); err != nil {
 				return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventAdded, err)
 			}
+		}
+	}
+
+	if value := ad.pathMergedCount.Swap(0); value > 0 {
+		if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpPathMergeCount, int64(value), nil, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpPathMergeCount, err)
 		}
 	}
 
@@ -984,9 +996,14 @@ func extractFirstParent(path string) (string, int) {
 	return path, len(path) + add
 }
 
+type adPathMergeContext struct {
+	enabled bool
+	counter *atomic.Uint64
+}
+
 // InsertFileEvent inserts the provided file event in the current node. This function returns true if a new entry was
 // added, false if the event was dropped.
-func (pan *ProcessActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, generationType NodeGenerationType, pathMerge bool) bool {
+func (pan *ProcessActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, generationType NodeGenerationType, mergeCtx adPathMergeContext) bool {
 	parent, nextParentIndex := extractFirstParent(event.ResolveFilePath(fileEvent))
 	if nextParentIndex == 0 {
 		return false
@@ -996,7 +1013,7 @@ func (pan *ProcessActivityNode) InsertFileEvent(fileEvent *model.FileEvent, even
 
 	child, ok := pan.Files[parent]
 	if ok {
-		return child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, pathMerge)
+		return child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, mergeCtx)
 	}
 
 	// create new child
@@ -1004,7 +1021,7 @@ func (pan *ProcessActivityNode) InsertFileEvent(fileEvent *model.FileEvent, even
 		pan.Files[parent] = NewFileActivityNode(fileEvent, event, parent, generationType)
 	} else {
 		child := NewFileActivityNode(nil, nil, parent, generationType)
-		child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, pathMerge)
+		child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, mergeCtx)
 		pan.Files[parent] = child
 	}
 	return true
@@ -1211,7 +1228,12 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 		evt.Open.File.Mode = evt.Open.File.FileFields.Mode
 		// TODO: add open flags by parsing `/proc/[pid]/fdinfo/fd` + O_RDONLY|O_CLOEXEC for the shared libs
 
-		if pan.InsertFileEvent(&evt.Open.File, evt, Snapshot, ad.adm.probe.config.ActivityDumpPathMergeEnabled) {
+		mergeCtx := adPathMergeContext{
+			enabled: ad.adm.probe.config.ActivityDumpPathMergeEnabled,
+			counter: ad.pathMergedCount,
+		}
+
+		if pan.InsertFileEvent(&evt.Open.File, evt, Snapshot, mergeCtx) {
 			// count this new entry
 			ad.addedSnapshotCount[model.FileOpenEventType].Inc()
 		}
@@ -1356,20 +1378,20 @@ func (fan *FileActivityNode) enrichFromEvent(event *Event) {
 
 // InsertFileEvent inserts an event in a FileActivityNode. This function returns true if a new entry was added, false if
 // the event was dropped.
-func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, remainingPath string, generationType NodeGenerationType, pathMerge bool) bool {
+func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, remainingPath string, generationType NodeGenerationType, mergeCtx adPathMergeContext) bool {
 	parent, nextParentIndex := extractFirstParent(remainingPath)
 	if nextParentIndex == 0 {
 		fan.enrichFromEvent(event)
 		return false
 	}
 
-	if pathMerge && len(fan.Children) >= 10 {
-		fan.mergeCommonPaths()
+	if mergeCtx.enabled && len(fan.Children) >= 10 {
+		fan.mergeCommonPaths(mergeCtx)
 	}
 
 	child, ok := fan.Children[parent]
 	if ok {
-		return child.InsertFileEvent(fileEvent, event, remainingPath[nextParentIndex:], generationType, pathMerge)
+		return child.InsertFileEvent(fileEvent, event, remainingPath[nextParentIndex:], generationType, mergeCtx)
 	}
 
 	// create new child
@@ -1377,17 +1399,17 @@ func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *
 		fan.Children[parent] = NewFileActivityNode(fileEvent, event, parent, generationType)
 	} else {
 		child := NewFileActivityNode(nil, nil, parent, generationType)
-		child.InsertFileEvent(fileEvent, event, remainingPath[nextParentIndex:], generationType, pathMerge)
+		child.InsertFileEvent(fileEvent, event, remainingPath[nextParentIndex:], generationType, mergeCtx)
 		fan.Children[parent] = child
 	}
 	return true
 }
 
-func (fan *FileActivityNode) mergeCommonPaths() {
-	fan.Children = combineChildren(fan.Children)
+func (fan *FileActivityNode) mergeCommonPaths(mergeCtx adPathMergeContext) {
+	fan.Children = combineChildren(fan.Children, mergeCtx)
 }
 
-func combineChildren(children map[string]*FileActivityNode) map[string]*FileActivityNode {
+func combineChildren(children map[string]*FileActivityNode, mergeCtx adPathMergeContext) map[string]*FileActivityNode {
 	if len(children) == 0 {
 		return children
 	}
@@ -1438,6 +1460,9 @@ func combineChildren(children map[string]*FileActivityNode) map[string]*FileActi
 		}
 		current = next
 	}
+
+	mergeCount := len(inputs) - len(current)
+	mergeCtx.counter.Add(uint64(mergeCount))
 
 	res := make(map[string]*FileActivityNode)
 	for _, n := range current {
