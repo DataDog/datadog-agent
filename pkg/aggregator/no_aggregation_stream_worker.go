@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// noAggregationStreamWorker is strreaming received metrics from the DogStatsD batcher
+// noAggregationStreamWorker is streaming received metrics from the DogStatsD batcher
 // to the serializer.
 //
 // While streaming metrics to the serializer, the serializer should be responsible of sending the payloads
@@ -172,11 +172,10 @@ func (w *noAggregationStreamWorker) run() {
 							// turns this metric sample into a serie
 							var serie metrics.Serie
 							serie.Name = sample.Name
-							// TODO(remy): we may have to sort uniq them? and is this copy actually needed?
 							serie.Points = []metrics.Point{{Ts: sample.Timestamp, Value: sample.Value}}
 							serie.Tags = tagset.CompositeTagsFromSlice(w.metricBuffer.Copy())
 							serie.Host = sample.Host
-							serie.Interval = 0 // TODO(remy): document me
+							serie.Interval = 0 // unused when late
 							w.seriesSink.Append(&serie)
 
 							w.taggerBuffer.Reset()

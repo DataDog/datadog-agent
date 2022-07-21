@@ -20,6 +20,7 @@ import (
 type TestAgentDemultiplexer struct {
 	*AgentDemultiplexer
 	receivedSamples []metrics.MetricSample
+	lateMetrics     []metrics.MetricSample
 	sync.Mutex
 }
 
@@ -42,11 +43,23 @@ func (a *TestAgentDemultiplexer) AddTimeSample(sample metrics.MetricSample) {
 	a.Unlock()
 }
 
+// AddLateMetrics implements a fake no aggregation pipeline ingestion part,
+// there will be NO AUTOMATIC FLUSH as it could exist in the real implementation
+// Use Reset() to clean the buffer.
+func (a *TestAgentDemultiplexer) AddLateMetrics(metrics metrics.MetricSampleBatch) {
+	a.Lock()
+	a.lateMetrics = append(a.lateMetrics, metrics...)
+	a.Unlock()
+}
+
 func (a *TestAgentDemultiplexer) samples() []metrics.MetricSample {
 	a.Lock()
-	c := make([]metrics.MetricSample, len(a.receivedSamples))
+	c := make([]metrics.MetricSample, len(a.receivedSamples)+len(a.lateMetrics))
 	for i, s := range a.receivedSamples {
 		c[i] = s
+	}
+	for i, s := range a.lateMetrics {
+		c[len(a.receivedSamples)+i] = s
 	}
 	a.Unlock()
 	return c
@@ -107,6 +120,7 @@ func (a *TestAgentDemultiplexer) WaitEventPlatformEvents(eventType string, minEv
 func (a *TestAgentDemultiplexer) Reset() {
 	a.Lock()
 	a.receivedSamples = a.receivedSamples[0:0]
+	a.lateMetrics = a.lateMetrics[0:0]
 	a.Unlock()
 }
 

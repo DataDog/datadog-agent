@@ -55,8 +55,8 @@ type Demultiplexer interface {
 	AddTimeSampleBatch(shard TimeSamplerID, samples metrics.MetricSampleBatch)
 
 	// AddLateMetrics pushes metrics in the no-aggregation pipeline: a pipeline
-	// where the metrics are not sampled and sent as-is to the intake when the
-	// demux is flushed.
+	// where the metrics are not sampled and sent as-is.
+	// This is the method to use to send metrics with a valid timestamp attached.
 	AddLateMetrics(metrics metrics.MetricSampleBatch)
 
 	// AddCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.

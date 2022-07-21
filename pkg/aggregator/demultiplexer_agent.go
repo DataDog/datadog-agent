@@ -523,11 +523,11 @@ func (d *AgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*metric
 }
 
 // AddLateMetrics buffers a bunch of late metrics. This data will be directly
-// transmitted "as-is" (i.e. no sampling) to the serializer when a flush is triggered.
+// transmitted "as-is" (i.e. no aggregation, no sampling) to the serializer.
 func (d *AgentDemultiplexer) AddLateMetrics(samples metrics.MetricSampleBatch) {
 	// safe-guard: if for some reasons we are receiving some metrics here despite
-	// having the no-aggregation pipeline enabled, we redirect them to the first
-	// time sampler
+	// having the no-aggregation pipeline disabled, they are redirected to the first
+	// time sampler.
 	if !d.options.EnableNoAggregationPipeline {
 		d.AddTimeSampleBatch(TimeSamplerID(0), samples)
 		return
