@@ -414,7 +414,7 @@ func metadataPayload(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	payloadType := vars["payload"]
 
-	var jsonPayload []byte
+	var scrubbed []byte
 	var err error
 
 	switch payloadType {
@@ -427,25 +427,26 @@ func metadataPayload(w http.ResponseWriter, r *http.Request) {
 		}
 
 		payload := v5.GetPayload(ctx, hostnameDetected)
-		jsonPayload, err = json.MarshalIndent(payload, "", "    ")
+		jsonPayload, err := json.MarshalIndent(payload, "", "    ")
 		if err != nil {
 			setJSONError(w, log.Errorf("Unable to marshal v5 metadata payload: %s", err), 500)
 			return
 		}
+
+		scrubbed, err = scrubber.ScrubBytes(jsonPayload)
+		if err != nil {
+			setJSONError(w, log.Errorf("Unable to scrub metadata payload: %s", err), 500)
+			return
+		}
 	case "inventory":
-		jsonPayload, err = inventories.GetLastPayload()
+		// GetLastPayload already return scrubbed data
+		scrubbed, err = inventories.GetLastPayload()
 		if err != nil {
 			setJSONError(w, err, 500)
 			return
 		}
 	default:
 		setJSONError(w, log.Errorf("Unknown metadata payload requested: %s", payloadType), 500)
-		return
-	}
-
-	scrubbed, err := scrubber.ScrubBytes(jsonPayload)
-	if err != nil {
-		setJSONError(w, log.Errorf("Unable to scrub metadata payload: %s", err), 500)
 		return
 	}
 
