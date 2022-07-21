@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -16,7 +17,6 @@ import (
 	"testing"
 
 	"github.com/iceber/iouring-go"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 

@@ -57,10 +57,12 @@ func easyjson9a9a4de6DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 			out.KernelVersion = string(in.String())
 		case "linux_distribution":
 			out.LinuxDistribution = string(in.String())
+		case "arch":
+			out.Arch = string(in.String())
 		case "name":
 			out.Name = string(in.String())
-		case "activity_dump_version":
-			out.ActivityDumpVersion = string(in.String())
+		case "protobuf_version":
+			out.ProtobufVersion = string(in.String())
 		case "differentiate_args":
 			out.DifferentiateArgs = bool(in.Bool())
 		case "comm":
@@ -75,6 +77,8 @@ func easyjson9a9a4de6DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 			}
 		case "activity_dump_size":
 			out.Size = uint64(in.Uint64())
+		case "serialization":
+			out.Serialization = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -151,14 +155,19 @@ func easyjson9a9a4de6EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwr
 		out.String(string(in.LinuxDistribution))
 	}
 	{
+		const prefix string = ",\"arch\":"
+		out.RawString(prefix)
+		out.String(string(in.Arch))
+	}
+	{
 		const prefix string = ",\"name\":"
 		out.RawString(prefix)
 		out.String(string(in.Name))
 	}
 	{
-		const prefix string = ",\"activity_dump_version\":"
+		const prefix string = ",\"protobuf_version\":"
 		out.RawString(prefix)
-		out.String(string(in.ActivityDumpVersion))
+		out.String(string(in.ProtobufVersion))
 	}
 	{
 		const prefix string = ",\"differentiate_args\":"
@@ -184,6 +193,11 @@ func easyjson9a9a4de6EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwr
 		const prefix string = ",\"activity_dump_size\":"
 		out.RawString(prefix)
 		out.Uint64(uint64(in.Size))
+	}
+	if in.Serialization != "" {
+		const prefix string = ",\"serialization\":"
+		out.RawString(prefix)
+		out.String(string(in.Serialization))
 	}
 	out.RawByte('}')
 }

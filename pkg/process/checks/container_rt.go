@@ -43,6 +43,9 @@ func (r *RTContainerCheck) Name() string { return config.RTContainerCheckName }
 // RealTime indicates if this check only runs in real-time mode.
 func (r *RTContainerCheck) RealTime() bool { return true }
 
+// ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
+func (r *RTContainerCheck) ShouldSaveLastRun() bool { return true }
+
 // Run runs the real-time container check getting container-level stats from the Cgroups and Docker APIs.
 func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
 	var err error

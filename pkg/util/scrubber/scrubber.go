@@ -74,6 +74,13 @@ func New() *Scrubber {
 	}
 }
 
+// NewWithDefaults creates a new scrubber with the default replacers installed.
+func NewWithDefaults() *Scrubber {
+	s := New()
+	AddDefaultReplacers(s)
+	return s
+}
+
 // AddReplacer adds a replacer of the given kind to the scrubber.
 func (c *Scrubber) AddReplacer(kind ReplacerKind, replacer Replacer) {
 	switch kind {

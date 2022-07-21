@@ -10,6 +10,7 @@ package tests
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -24,7 +25,6 @@ import (
 	"github.com/avast/retry-go"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/oliveagle/jsonpath"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/syndtr/gocapability/capability"
 
@@ -815,7 +815,6 @@ func TestProcessMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(testFile)
 
 	f, err := os.OpenFile(testFile, os.O_WRONLY, 0)
 	if err != nil {

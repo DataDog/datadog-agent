@@ -357,10 +357,7 @@ func (nr *NamespaceResolver) SyncCache(proc *process.Process) bool {
 	}
 
 	_, isNewEntry := nr.SaveNetworkNamespaceHandle(nsID, nsPath)
-	if !isNewEntry {
-		return false
-	}
-	return true
+	return isNewEntry
 }
 
 // QueueNetworkDevice adds the input device to the map of queued network devices. Once a handle for the network namespace

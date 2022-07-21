@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -29,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"go.uber.org/atomic"
 )
 
 type checkResult struct {
@@ -54,11 +54,11 @@ type checkPayload struct {
 
 // Collector will collect metrics from the local system and ship to the backend.
 type Collector struct {
-	// Set to 1 if enabled 0 is not. We're using an integer
-	// so we can use the sync/atomic for thread-safe access.
-	realTimeEnabled int32
+	// true if real-time is enabled
+	realTimeEnabled *atomic.Bool
 
-	groupID int32
+	// the next groupID to be issued
+	groupID *atomic.Int32
 
 	rtIntervalCh chan time.Duration
 	cfg          *config.AgentConfig
@@ -140,12 +140,12 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 	return Collector{
 		rtIntervalCh:  make(chan time.Duration),
 		cfg:           cfg,
-		groupID:       rand.Int31(),
+		groupID:       atomic.NewInt32(rand.Int31()),
 		enabledChecks: checks,
 
 		// Defaults for real-time on start
 		realTimeInterval: 2 * time.Second,
-		realTimeEnabled:  0,
+		realTimeEnabled:  atomic.NewBool(false),
 
 		processResults:   processResults,
 		rtProcessResults: rtProcessResults,
@@ -171,7 +171,11 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 		return
 	}
-	checks.StoreCheckOutput(c.Name(), messages)
+	if c.ShouldSaveLastRun() {
+		checks.StoreCheckOutput(c.Name(), messages)
+	} else {
+		checks.StoreCheckOutput(c.Name(), nil)
+	}
 	l.messagesToResults(start, c.Name(), messages, results)
 
 	if !c.RealTime() {
@@ -224,7 +228,7 @@ func logCheckDuration(name string, start time.Time, runCounter int32) {
 }
 
 func (l *Collector) nextGroupID() int32 {
-	return atomic.AddInt32(&l.groupID, 1)
+	return l.groupID.Inc()
 }
 
 func (l *Collector) messagesToResults(start time.Time, name string, messages []model.MessageBody, results *api.WeightedQueue) {
@@ -487,7 +491,7 @@ func (l *Collector) runnerForCheck(c checks.Check, exit chan struct{}) (func(), 
 			ExitChan:       exit,
 			RtIntervalChan: l.rtIntervalCh,
 			RtEnabled: func() bool {
-				return atomic.LoadInt32(&l.realTimeEnabled) == 1
+				return l.realTimeEnabled.Load()
 			},
 			RunCheck: func(options checks.RunOptions) {
 				l.runCheckWithRealTime(withRealTime, results, rtResults, options)
@@ -507,7 +511,7 @@ func (l *Collector) basicRunner(c checks.Check, results *api.WeightedQueue, exit
 		for {
 			select {
 			case <-ticker.C:
-				realTimeEnabled := l.runRealTime && atomic.LoadInt32(&l.realTimeEnabled) == 1
+				realTimeEnabled := l.runRealTime && l.realTimeEnabled.Load()
 				if !c.RealTime() || realTimeEnabled {
 					l.runCheck(c, results)
 				}
@@ -598,7 +602,7 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 }
 
 func (l *Collector) updateRTStatus(statuses []*model.CollectorStatus) {
-	curEnabled := atomic.LoadInt32(&l.realTimeEnabled) == 1
+	curEnabled := l.realTimeEnabled.Load()
 
 	// If any of the endpoints wants real-time we'll do that.
 	// We will pick the maximum interval given since generally this is
@@ -619,10 +623,10 @@ func (l *Collector) updateRTStatus(statuses []*model.CollectorStatus) {
 
 	if curEnabled && !shouldEnableRT {
 		log.Info("Detected 0 clients, disabling real-time mode")
-		atomic.StoreInt32(&l.realTimeEnabled, 0)
+		l.realTimeEnabled.Store(false)
 	} else if !curEnabled && shouldEnableRT {
 		log.Infof("Detected %d active clients, enabling real-time mode", activeClients)
-		atomic.StoreInt32(&l.realTimeEnabled, 1)
+		l.realTimeEnabled.Store(true)
 	}
 
 	if maxInterval != l.realTimeInterval {

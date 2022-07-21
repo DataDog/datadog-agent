@@ -6,13 +6,13 @@
 package rules
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
 	"sync"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
 	"github.com/spf13/cast"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -164,6 +164,7 @@ type RuleSet struct {
 	macroStore       *eval.MacroStore
 	eventRuleBuckets map[eval.EventType]*RuleBucket
 	rules            map[eval.RuleID]*Rule
+	policies         []*Policy
 	fieldEvaluators  map[string]eval.Evaluator
 	model            eval.Model
 	eventCtor        func() eval.Event
@@ -182,6 +183,11 @@ func (rs *RuleSet) replCtx() eval.ReplacementContext {
 		Opts:       rs.evalOpts,
 		MacroStore: rs.macroStore,
 	}
+}
+
+// GetPolicies returns the policies
+func (rs *RuleSet) GetPolicies() []*Policy {
+	return rs.policies
 }
 
 // ListRuleIDs returns the list of RuleIDs from the ruleset
@@ -260,7 +266,7 @@ func (rs *RuleSet) AddRules(rules []*RuleDefinition) *multierror.Error {
 	}
 
 	if err := rs.generatePartials(); err != nil {
-		result = multierror.Append(result, errors.Wrapf(err, "couldn't generate partials for rule"))
+		result = multierror.Append(result, fmt.Errorf("couldn't generate partials for rule: %w", err))
 	}
 
 	return result
@@ -316,7 +322,7 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 	}
 
 	if err := rule.Parse(); err != nil {
-		return nil, &ErrRuleLoad{Definition: ruleDef, Err: errors.Wrap(err, "syntax error")}
+		return nil, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("syntax error: %w", err)}
 	}
 
 	if err := rule.GenEvaluator(rs.model, rs.replCtx()); err != nil {
@@ -611,7 +617,7 @@ func (rs *RuleSet) generatePartials() error {
 }
 
 // LoadPolicies loads policies from the provided policy loader
-func (rs *RuleSet) LoadPolicies(loader *PolicyLoader) *multierror.Error {
+func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *multierror.Error {
 	var (
 		errs       *multierror.Error
 		allRules   []*RuleDefinition
@@ -620,10 +626,11 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader) *multierror.Error {
 		ruleIndex  = make(map[string]*RuleDefinition)
 	)
 
-	policies, err := loader.LoadPolicies()
+	policies, err := loader.LoadPolicies(opts)
 	if err != nil {
 		errs = multierror.Append(errs, err)
 	}
+	rs.policies = policies
 
 	for _, policy := range policies {
 		for _, macro := range policy.Macros {

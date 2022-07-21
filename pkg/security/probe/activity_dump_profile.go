@@ -79,25 +79,30 @@ func (ad *ActivityDump) generateBindRule(sock *SocketNode, activityNode *Process
 	var rules []ProfileRule
 
 	if sock != nil {
-		var rule ProfileRule
-		if sock.Family == "AF_INET" || sock.Family == "AF_INET6" {
-			rule = NewProfileRule(fmt.Sprintf(
-				"bind.addr.family == %s && bind.addr.ip in %s/32 && bind.addr.port == %d",
-				sock.Family, sock.Bind.IP, sock.Bind.Port),
-				ruleIDPrefix,
-			)
+		var socketRules []ProfileRule
+		if len(sock.Bind) > 0 {
+			for _, bindNode := range sock.Bind {
+				socketRules = append(socketRules, NewProfileRule(fmt.Sprintf(
+					"bind.addr.family == %s && bind.addr.ip in %s/32 && bind.addr.port == %d",
+					sock.Family, bindNode.IP, bindNode.Port),
+					ruleIDPrefix,
+				))
+			}
 		} else {
-			rule = NewProfileRule(fmt.Sprintf("bind.addr.family == %s", sock.Family),
+			socketRules = []ProfileRule{NewProfileRule(fmt.Sprintf("bind.addr.family == %s", sock.Family),
 				ruleIDPrefix,
-			)
+			)}
 		}
-		rule.Expression += fmt.Sprintf(" && process.file.path == \"%s\"",
-			activityNode.Process.FileEvent.PathnameStr)
-		for _, parent := range ancestors {
-			rule.Expression += fmt.Sprintf(" && process.ancestors.file.path == \"%s\"",
-				parent.Process.FileEvent.PathnameStr)
+
+		for i := range socketRules {
+			socketRules[i].Expression += fmt.Sprintf(" && process.file.path == \"%s\"",
+				activityNode.Process.FileEvent.PathnameStr)
+			for _, parent := range ancestors {
+				socketRules[i].Expression += fmt.Sprintf(" && process.ancestors.file.path == \"%s\"",
+					parent.Process.FileEvent.PathnameStr)
+			}
 		}
-		rules = append(rules, rule)
+		rules = append(rules, socketRules...)
 	}
 
 	return rules

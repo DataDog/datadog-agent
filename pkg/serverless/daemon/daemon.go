@@ -321,6 +321,14 @@ func (d *Daemon) TellDaemonRuntimeStarted() {
 func (d *Daemon) TellDaemonRuntimeDone() {
 	d.runtimeStateMutex.Lock()
 	defer d.runtimeStateMutex.Unlock()
+	// It's possible that we have a lambda function from a previous invocation sending a finished
+	// log line to the agent, and it's possible that this happens before the current invocation is
+	// received, in which case TellDaemonRuntimeDoneOnce is nil. We add this check in to ensure that
+	// if this is the case, it won't crash the extension. This should be safe, since the code that modifies
+	// the Once is locked by a mutex.
+	if d.TellDaemonRuntimeDoneOnce == nil {
+		return
+	}
 	d.TellDaemonRuntimeDoneOnce.Do(func() {
 		d.RuntimeWg.Done()
 	})

@@ -20,7 +20,6 @@ import (
 
 	"github.com/avast/retry-go"
 	"github.com/freddierice/go-losetup"
-	"github.com/pkg/errors"
 )
 
 type testDrive struct {
@@ -51,11 +50,11 @@ func newTestDrive(tb testing.TB, fsType string, mountOpts []string) (*testDrive,
 func newTestDriveWithMountPoint(tb testing.TB, fsType string, mountOpts []string, mountPoint string) (*testDrive, error) {
 	backingFile, err := os.CreateTemp("", "secagent-testdrive-")
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create testdrive backing file")
+		return nil, fmt.Errorf("failed to create testdrive backing file: %w", err)
 	}
 
 	if err := backingFile.Close(); err != nil {
-		return nil, errors.Wrap(err, "failed to close testdrive backing file")
+		return nil, fmt.Errorf("failed to close testdrive backing file: %w", err)
 	}
 
 	if mountPoint == "" {
@@ -69,14 +68,14 @@ func newTestDriveWithMountPoint(tb testing.TB, fsType string, mountOpts []string
 			os.Remove(backingFile.Name())
 			os.RemoveAll(mountPoint)
 
-			return nil, errors.Wrap(err, "failed to truncate testdrive backing file")
+			return nil, fmt.Errorf("failed to truncate testdrive backing file: %w", err)
 		}
 
 		dev, err := losetup.Attach(backingFile.Name(), 0, false)
 		if err != nil {
 			os.Remove(backingFile.Name())
 			os.RemoveAll(mountPoint)
-			return nil, errors.Wrap(err, "failed to create testdrive loop device")
+			return nil, fmt.Errorf("failed to create testdrive loop device: %w", err)
 		}
 
 		if len(mountOpts) == 0 {
@@ -88,7 +87,7 @@ func newTestDriveWithMountPoint(tb testing.TB, fsType string, mountOpts []string
 			_ = dev.Detach()
 			os.Remove(backingFile.Name())
 			os.RemoveAll(mountPoint)
-			return nil, errors.Wrapf(err, "failed to create testdrive %s filesystem", fsType)
+			return nil, fmt.Errorf("failed to create testdrive %s filesystem: %w", fsType, err)
 		}
 
 		loopback = &dev
@@ -106,7 +105,7 @@ func newTestDriveWithMountPoint(tb testing.TB, fsType string, mountOpts []string
 		}
 		os.Remove(backingFile.Name())
 		os.RemoveAll(mountPoint)
-		return nil, errors.Wrap(err, "failed to mount testdrive")
+		return nil, fmt.Errorf("failed to mount testdrive: %w", err)
 	}
 
 	return &testDrive{

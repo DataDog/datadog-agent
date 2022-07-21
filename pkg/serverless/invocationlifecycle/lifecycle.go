@@ -113,6 +113,11 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		if err := json.Unmarshal(payloadBytes, &event); err == nil {
 			lp.initFromKinesisStreamEvent(event)
 		}
+	case trigger.EventBridgeEvent:
+		var event inferredspan.EventBridgeEvent
+		if err := json.Unmarshal(payloadBytes, &event); err == nil {
+			lp.initFromEventBridgeEvent(event)
+		}
 	case trigger.S3Event:
 		var event events.S3Event
 		if err := json.Unmarshal(payloadBytes, &event); err == nil {
@@ -160,6 +165,14 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 
 	if !lp.DetectLambdaLibrary() {
 		log.Debug("Creating and sending function execution span for invocation")
+
+		if len(statusCode) == 3 && strings.HasPrefix(statusCode, "5") {
+			serverlessMetrics.SendErrorsEnhancedMetric(
+				lp.ExtraTags.Tags, endDetails.EndTime, lp.Demux,
+			)
+			endDetails.IsError = true
+		}
+
 		endExecutionSpan(lp.GetExecutionInfo(), lp.requestHandler.triggerTags, lp.ProcessTrace, endDetails)
 
 		if lp.InferredSpansEnabled {
