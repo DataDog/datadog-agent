@@ -36,10 +36,7 @@ func EncodePayload(m model.MessageBody) ([]byte, error) {
 	if msgType == model.TypeCollectorProcEvent {
 		encoded, err = proto.Marshal(m)
 	} else if msgType == model.TypeCollectorManifest {
-		pb, err := proto.Marshal(m)
-		if err == nil {
-			encoded, err = zstd_0.Compress(nil, pb)
-		}
+		encoded, err = encodeManifestPayload(m)
 	} else {
 		encoded, err = model.EncodeMessage(model.Message{
 			Header: model.MessageHeader{
@@ -51,5 +48,15 @@ func EncodePayload(m model.MessageBody) ([]byte, error) {
 
 	tlmBytesOut.Add(float64(len(encoded)), typeTag)
 
+	return encoded, err
+}
+
+func encodeManifestPayload(m model.MessageBody) ([]byte, error) {
+	pb, err := proto.Marshal(m)
+	if err != nil {
+		return pb, err
+	}
+
+	encoded, err := zstd_0.Compress(nil, pb)
 	return encoded, err
 }
