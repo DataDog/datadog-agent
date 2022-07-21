@@ -1278,7 +1278,14 @@ func newSimpleTest(tb testing.TB, macros []*rules.MacroDefinition, rules []*rule
 
 	if testDir == "" {
 		t.root = tb.TempDir()
-		if err := os.Chmod(t.root, 0o711); err != nil {
+
+		targetFileMode := fs.FileMode(0o711)
+
+		// chmod the root and its parent since TempDir returns a 2-layers directory `/tmp/TestNameXXXX/NNN/`
+		if err := os.Chmod(t.root, targetFileMode); err != nil {
+			return nil, err
+		}
+		if err := os.Chmod(filepath.Dir(t.root), targetFileMode); err != nil {
 			return nil, err
 		}
 	}
