@@ -74,6 +74,10 @@ type Handlers interface {
 	// ScrubBeforeMarshalling replaces sensitive information in the resource
 	// before resource marshalling.
 	ScrubBeforeMarshalling(ctx *ProcessorContext, resource interface{})
+
+	// BuildManifestMessageBody is used to build a message containing a chunk of
+	// manifest models of a certain size.
+	BuildManifestMessageBody(ctx *ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody
 }
 
 // Processor is a generic resource processing component. It relies on a set of
@@ -81,6 +85,12 @@ type Handlers interface {
 // of a specific type.
 type Processor struct {
 	h Handlers
+}
+
+// ProcessResult contains the processing result of metadata and manifest
+type ProcessResult struct {
+	MetadataMessages []model.MessageBody
+	ManifestMessages []model.MessageBody
 }
 
 // NewProcessor creates a new processor for a resource type.
@@ -91,7 +101,7 @@ func NewProcessor(h Handlers) *Processor {
 }
 
 // Process is used to process a list of resources of a certain type.
-func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (messages []model.MessageBody, processed int) {
+func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processResult ProcessResult, processed int) {
 	// This default allows detection of panic recoveries.
 	processed = -1
 
@@ -99,30 +109,31 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (messages [
 	defer RecoverOnPanic()
 
 	resourceList := p.h.ResourceList(ctx, list)
-	resourceModels := make([]interface{}, 0, len(resourceList))
+	resourceMetadataModels := make([]interface{}, 0, len(resourceList))
+	resourceManifestModels := make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
 		// Scrub before extraction.
 		p.h.ScrubBeforeExtraction(ctx, resource)
 
 		// Extract the message model from the resource.
-		resourceModel := p.h.ExtractResource(ctx, resource)
+		resourceMetadataModel := p.h.ExtractResource(ctx, resource)
 
 		// Execute code before cache check.
-		if skip := p.h.BeforeCacheCheck(ctx, resource, resourceModel); skip {
+		if skip := p.h.BeforeCacheCheck(ctx, resource, resourceMetadataModel); skip {
 			continue
 		}
 
 		// Cache check
-		resourceUID := p.h.ResourceUID(ctx, resource, resourceModel)
-		resourceVersion := p.h.ResourceVersion(ctx, resource, resourceModel)
+		resourceUID := p.h.ResourceUID(ctx, resource, resourceMetadataModel)
+		resourceVersion := p.h.ResourceVersion(ctx, resource, resourceMetadataModel)
 
 		if orchestrator.SkipKubernetesResource(resourceUID, resourceVersion, ctx.NodeType) {
 			continue
 		}
 
 		// Execute code before marshalling.
-		if skip := p.h.BeforeMarshalling(ctx, resource, resourceModel); skip {
+		if skip := p.h.BeforeMarshalling(ctx, resource, resourceMetadataModel); skip {
 			continue
 		}
 
@@ -137,23 +148,40 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (messages [
 		}
 
 		// Execute code after marshalling.
-		if skip := p.h.AfterMarshalling(ctx, resource, resourceModel, yaml); skip {
+		if skip := p.h.AfterMarshalling(ctx, resource, resourceMetadataModel, yaml); skip {
 			continue
 		}
 
-		resourceModels = append(resourceModels, resourceModel)
-	}
+		resourceMetadataModels = append(resourceMetadataModels, resourceMetadataModel)
 
+		// Add resource manifest
+		resourceManifestModels = append(resourceManifestModels, &model.Manifest{
+			Type:            int32(ctx.NodeType.CollectorType()),
+			Uid:             string(resourceUID),
+			ResourceVersion: resourceVersion,
+			Content:         yaml,
+			Version:         "v1",
+			ContentType:     "json",
+		})
+	}
 	// Split messages in chunks
-	chunkCount := orchestrator.GroupSize(len(resourceModels), ctx.Cfg.MaxPerMessage)
-	chunks := chunkResources(resourceModels, chunkCount, ctx.Cfg.MaxPerMessage)
+	chunkCount := orchestrator.GroupSize(len(resourceMetadataModels), ctx.Cfg.MaxPerMessage)
 
-	messages = make([]model.MessageBody, 0, chunkCount)
+	// chunk orchestrator metadata and manifest
+	metadataChunks := chunkResources(resourceMetadataModels, chunkCount, ctx.Cfg.MaxPerMessage)
+	manifestChunks := chunkResources(resourceManifestModels, chunkCount, ctx.Cfg.MaxPerMessage)
+
+	metadataMessages := make([]model.MessageBody, 0, chunkCount)
+	manifestMessages := make([]model.MessageBody, 0, chunkCount)
 	for i := 0; i < chunkCount; i++ {
-		messages = append(messages, p.h.BuildMessageBody(ctx, chunks[i], chunkCount))
+		metadataMessages = append(metadataMessages, p.h.BuildMessageBody(ctx, metadataChunks[i], chunkCount))
+		manifestMessages = append(manifestMessages, p.h.BuildManifestMessageBody(ctx, manifestChunks[i], chunkCount))
 	}
-
-	return messages, len(resourceModels)
+	processResult = ProcessResult{
+		MetadataMessages: metadataMessages,
+		ManifestMessages: manifestMessages,
+	}
+	return processResult, len(resourceMetadataModels)
 }
 
 // chunkResources splits messages into groups of messages called chunks, knowing

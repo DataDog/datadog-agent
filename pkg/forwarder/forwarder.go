@@ -76,6 +76,7 @@ type Forwarder interface {
 	SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error)
+	SubmitOrchestratorManifests(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitContainerLifecycleEvents(payload Payloads, extra http.Header) error
 }
 
@@ -628,6 +629,11 @@ func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http
 	}
 
 	return f.submitProcessLikePayload(endpoint, payload, extra, true)
+}
+
+// SubmitOrchestratorManifests sends orchestrator manifests
+func (f *DefaultForwarder) SubmitOrchestratorManifests(payload Payloads, extra http.Header) (chan Response, error) {
+	return f.submitProcessLikePayload(endpoints.OrchestratorManifestEndpoint, payload, extra, true)
 }
 
 // SubmitContainerLifecycleEvents sends container lifecycle events

@@ -171,8 +171,18 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 		return
 	}
-	checks.StoreCheckOutput(c.Name(), messages)
-	l.messagesToResults(start, c.Name(), messages, results)
+	if c.ShouldSaveLastRun() {
+		checks.StoreCheckOutput(c.Name(), messages)
+	} else {
+		checks.StoreCheckOutput(c.Name(), nil)
+	}
+
+	if c.Name() == config.PodCheckName {
+		l.messagesToResults(start, config.PodCheckMetadataName, messages[:len(messages)/2], results)
+		l.messagesToResults(start, config.PodCheckManifestName, messages[len(messages)/2:], results)
+	} else {
+		l.messagesToResults(start, c.Name(), messages, results)
+	}
 
 	if !c.RealTime() {
 		logCheckDuration(c.Name(), start, runCounter)
@@ -261,6 +271,10 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 		if name == checks.ProcessEvents.Name() {
 			extraHeaders.Set(headers.EVPOriginHeader, "process-agent")
 			extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
+		}
+
+		if name == config.PodCheckManifestName {
+			extraHeaders.Set(headers.ContentEncodingHeader, headers.ZSTDContentEncoding)
 		}
 
 		payloads = append(payloads, checkPayload{
@@ -568,10 +582,13 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 				responses, err = fwd.SubmitRTContainerChecks(forwarderPayload, payload.headers)
 			case checks.Connections.Name():
 				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
-			case checks.Pod.Name():
+			case config.PodCheckMetadataName:
+				// Pod check contains two parts: metadata and manifest.
 				// Orchestrator intake response does not change RT checks enablement or interval
 				updateRTStatus = false
 				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
+			case config.PodCheckManifestName:
+				responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)
 			case checks.ProcessDiscovery.Name():
 				// A Process Discovery check does not change the RT mode
 				updateRTStatus = false
@@ -712,7 +729,7 @@ func readResponseStatuses(checkName string, responses <-chan forwarder.Response)
 
 func ignoreResponseBody(checkName string) bool {
 	switch checkName {
-	case checks.Pod.Name(), checks.ProcessEvents.Name():
+	case checks.Pod.Name(), checks.ProcessEvents.Name(), config.PodCheckMetadataName, config.PodCheckManifestName:
 		return true
 	default:
 		return false

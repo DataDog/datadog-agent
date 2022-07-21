@@ -97,3 +97,9 @@ func (h *ClusterRoleHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorCon
 // it is marshalled to generate a manifest.
 func (h *ClusterRoleHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
 }
+
+// BuildManifestMessageBody is used to build a message containing a chunk of
+// manifest models of a certain size.
+func (h *ClusterRoleHandlers) BuildManifestMessageBody(ctx *processors.ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
+	return buildManifestMessageBody(ctx.Cfg.KubeClusterName, ctx.ClusterID, ctx.MsgGroupID, resourceManifests, groupSize)
+}

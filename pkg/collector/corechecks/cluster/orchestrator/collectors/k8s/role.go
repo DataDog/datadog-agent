@@ -74,14 +74,15 @@ func (c *RoleCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Co
 		NodeType:   c.metadata.NodeType,
 	}
 
-	messages, processed := c.processor.Process(ctx, list)
+	processResult, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
 	}
 
 	result := &collectors.CollectorRunResult{
-		Messages:           messages,
+		Metadata:           processResult.MetadataMessages,
+		Manifests:          processResult.ManifestMessages,
 		ResourcesListed:    len(list),
 		ResourcesProcessed: processed,
 	}

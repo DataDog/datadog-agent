@@ -101,3 +101,9 @@ func (h *DeploymentHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorCon
 		redact.ScrubPodTemplateSpec(&r.Spec.Template, ctx.Cfg.Scrubber)
 	}
 }
+
+// BuildManifestMessageBody is used to build a message containing a chunk of
+// manifest models of a certain size.
+func (h *DeploymentHandlers) BuildManifestMessageBody(ctx *processors.ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
+	return buildManifestMessageBody(ctx.Cfg.KubeClusterName, ctx.ClusterID, ctx.MsgGroupID, resourceManifests, groupSize)
+}

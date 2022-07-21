@@ -345,14 +345,19 @@ func TestSendPodMessage(t *testing.T) {
 	_ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", clusterID)
 	defer func() { _ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", orig) }()
 
+	pd := make([]process.MessageBody, 0, 2)
 	m := &process.CollectorPod{
 		HostName: testHostName,
 		GroupId:  1,
 	}
+	mm := &process.CollectorManifest{
+		ClusterId: clusterID,
+	}
+	pd = append(pd, m, mm)
 
 	check := &testCheck{
 		name: checks.Pod.Name(),
-		data: [][]process.MessageBody{{m}},
+		data: [][]process.MessageBody{pd},
 	}
 
 	runCollectorTest(t, check, cfg, &endpointConfig{}, ddconfig.Mock(t), func(cfg *config.AgentConfig, ep *mockEndpoint) {
@@ -529,6 +534,10 @@ func (t *testCheck) Name() string {
 }
 
 func (t *testCheck) RealTime() bool {
+	return false
+}
+
+func (t *testCheck) ShouldSaveLastRun() bool {
 	return false
 }
 

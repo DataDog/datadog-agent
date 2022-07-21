@@ -148,10 +148,12 @@ func (cb *CollectorBundle) Run(sender aggregator.Sender) {
 		}
 
 		runDuration := time.Since(runStartTime)
+		log.Debugf("Collector %s run stats: listed=%d processed=%d messages=%d duration=%s", collector.Metadata().Name, result.ResourcesListed, result.ResourcesProcessed, len(result.Metadata), runDuration)
 
-		log.Debugf("Collector %s run stats: listed=%d processed=%d messages=%d duration=%s", collector.Metadata().Name, result.ResourcesListed, result.ResourcesProcessed, len(result.Messages), runDuration)
-
-		orchestrator.SetCacheStats(result.ResourcesListed, len(result.Messages), collector.Metadata().NodeType)
-		sender.OrchestratorMetadata(result.Messages, cb.check.clusterID, int(collector.Metadata().NodeType))
+		orchestrator.SetCacheStats(result.ResourcesListed, len(result.Metadata), collector.Metadata().NodeType)
+		sender.OrchestratorMetadata(result.Metadata, cb.check.clusterID, int(collector.Metadata().NodeType))
+		if cb.runCfg.Config.IsManifestCollectionEnabled {
+			sender.OrchestratorManifest(result.Manifests, cb.check.clusterID)
+		}
 	}
 }

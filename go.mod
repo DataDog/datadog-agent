@@ -39,7 +39,7 @@ require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/DataDog/agent-payload/v5 v5.0.23
+	github.com/DataDog/agent-payload/v5 v5.0.24-0.20220721125834-eb3cc99e83a7
 	github.com/DataDog/btf-internals v0.0.0-20220424171854-ebe6bce9afb0
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.38.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.38.0-rc.3
@@ -53,7 +53,7 @@ require (
 	github.com/DataDog/gopsutil v1.1.0
 	github.com/DataDog/nikos v1.8.0
 	github.com/DataDog/sketches-go v1.4.1
-	github.com/DataDog/viper v1.9.0
+	github.com/DataDog/viper v1.11.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.0-rc.1.0.20220530183114-687bca6395e8
 	github.com/DataDog/zstd v1.5.2
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f
@@ -332,7 +332,6 @@ require (
 	github.com/prometheus/statsd_exporter v0.21.0 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
-	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/rs/cors v1.8.2 // indirect
 	github.com/sassoftware/go-rpmutils v0.2.0 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.3.1 // indirect
@@ -403,6 +402,7 @@ require (
 	github.com/cavaliergopher/grab/v3 v3.0.1 // indirect
 	github.com/libp2p/go-reuseport v0.1.0 // indirect
 	github.com/outcaste-io/ristretto v0.2.0 // indirect
+	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/vektah/gqlparser/v2 v2.4.5 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	k8s.io/apiextensions-apiserver v0.23.5 // indirect
