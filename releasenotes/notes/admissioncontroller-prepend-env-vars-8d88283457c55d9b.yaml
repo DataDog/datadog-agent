@@ -8,7 +8,7 @@
 ---
 enhancements:
   - |
-    when injecting env vars with the admission controller, env
+    When injecting env vars with the admission controller, env
     vars are now prepended instead of appended, meaning that 
-    kubernetes [dependent environment variables](https://kubernetes.io/docs/tasks/inject-data-application/define-interdependent-environment-variables/)
-    can now depend on said injected vars. 
+    Kubernetes [dependent environment variables](https://kubernetes.io/docs/tasks/inject-data-application/define-interdependent-environment-variables/)
+    can now depend on these injected vars. 
