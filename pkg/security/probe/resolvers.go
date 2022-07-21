@@ -10,12 +10,11 @@ package probe
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"runtime"
 	"sort"
 	"strings"
-
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -205,7 +204,7 @@ func (r *Resolvers) Start(ctx context.Context) error {
 // Snapshot collects data on the current state of the system to populate user space and kernel space caches.
 func (r *Resolvers) Snapshot() error {
 	if err := r.snapshot(); err != nil {
-		return errors.Wrap(err, "unable to snapshot processes")
+		return fmt.Errorf("unable to snapshot processes: %w", err)
 	}
 
 	r.ProcessResolver.SetState(snapshotted)
@@ -213,7 +212,7 @@ func (r *Resolvers) Snapshot() error {
 
 	selinuxStatusMap, err := r.probe.Map("selinux_enforce_status")
 	if err != nil {
-		return errors.Wrap(err, "unable to snapshot SELinux")
+		return fmt.Errorf("unable to snapshot SELinux: %w", err)
 	}
 
 	if err := snapshotSELinux(selinuxStatusMap); err != nil {

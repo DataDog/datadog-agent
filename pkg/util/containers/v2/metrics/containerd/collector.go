@@ -10,6 +10,7 @@
 package containerd
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"time"
@@ -200,20 +201,29 @@ func (c *containerdCollector) refreshPIDCache(currentTime time.Time, cacheValidi
 	}
 
 	// Full refresh
-	containers, err := c.client.Containers()
+	namespaces, err := cutil.NamespacesToWatch(context.TODO(), c.client)
 	if err != nil {
 		c.pidCache.Store(currentTime, pidCacheFullRefreshKey, struct{}{}, err)
 		return err
 	}
 
-	for _, container := range containers {
-		processes, err := c.client.TaskPids(container)
+	for _, namespace := range namespaces {
+		c.client.SetCurrentNamespace(namespace)
+		containers, err := c.client.Containers()
 		if err != nil {
-			log.Debugf("could not retrieve the processes of the container with ID %s: %s", container.ID(), err)
+			c.pidCache.Store(currentTime, pidCacheFullRefreshKey, struct{}{}, err)
+			return err
 		}
 
-		for _, process := range processes {
-			c.pidCache.Store(currentTime, strconv.FormatUint(uint64(process.Pid), 10), container.ID(), nil)
+		for _, container := range containers {
+			processes, err := c.client.TaskPids(container)
+			if err != nil {
+				log.Debugf("Could not retrieve the processes of the container with ID %s: %s", container.ID(), err)
+			}
+
+			for _, process := range processes {
+				c.pidCache.Store(currentTime, strconv.FormatUint(uint64(process.Pid), 10), container.ID(), nil)
+			}
 		}
 	}
 

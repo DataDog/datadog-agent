@@ -124,15 +124,26 @@ real_user=`if [ "$SUDO_USER" ]; then
 else
   echo "$USER"
 fi`
+# If this is a systemwide install done over SSH or a similar method, the real_user is now root
+# which will eventually make the installation fail in the postinstall script. In this case, we
+# set real_user to the target user of the systemwide installation.
+if [ "$systemdaemon_install" = true ] && [ "$real_user" = root ]; then
+    real_user="$(echo "$systemdaemon_user_group" | awk -F: '{ print $1 }')"
+    # The install will copy plist file to real_user home dir => we add `-H`
+    # as a sudo argument to properly get its home for access to the plist file.
+    cmd_real_user="sudo -EHu $real_user"
+else
+    cmd_real_user="sudo -Eu $real_user"
+fi
 
 TMPDIR=`sudo -u "$real_user" getconf DARWIN_USER_TEMP_DIR`
 export TMPDIR
 
-cmd_real_user="sudo -Eu $real_user"
-
 # shellcheck disable=SC2016
-user_home=$($cmd_real_user bash -c 'echo "$HOME"')
-user_plist_file=${user_home}/Library/LaunchAgents/${service_name}.plist
+install_user_home=$($cmd_real_user bash -c 'echo "$HOME"')
+# shellcheck disable=SC2016
+user_uid=$($cmd_real_user bash -c 'echo "$UID"')
+user_plist_file=${install_user_home}/Library/LaunchAgents/${service_name}.plist
 
 # In order to install with the right user
 rm -f /tmp/datadog-install-user
@@ -269,7 +280,7 @@ else
     # if it is running - it's not running if the script was launched when
     # the GUI was not running for the user (e.g. a run of this script via
     # ssh for user not logged in via GUI).
-    if $cmd_launchctl print gui/$UID/$service_name 1>/dev/null 2>/dev/null; then
+    if $cmd_launchctl print "gui/$user_uid/$service_name" 1>/dev/null 2>/dev/null; then
         $cmd_real_user osascript -e 'tell application "System Events" to if login item "Datadog Agent" exists then delete login item "Datadog Agent"'
         $cmd_launchctl stop "$service_name"
         $cmd_launchctl unload "$user_plist_file"

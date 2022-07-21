@@ -56,7 +56,7 @@ ENV PATH="/opt/datadog-agent/bin/:$PATH" \
 
 RUN apt-get update \
     && apt full-upgrade -y \
-    && apt-get install --no-install-recommends -y ca-certificates curl libseccomp2 \
+    && apt-get install --no-install-recommends -y ca-certificates curl libseccomp2 tzdata \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 COPY --from=builder /output /

@@ -532,6 +532,10 @@ func (t *testCheck) RealTime() bool {
 	return false
 }
 
+func (t *testCheck) ShouldSaveLastRun() bool {
+	return false
+}
+
 func (t *testCheck) Run(_ *config.AgentConfig, _ int32) ([]process.MessageBody, error) {
 	if len(t.data) > 0 {
 		result := t.data[0]

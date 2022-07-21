@@ -25,21 +25,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/internal/instrumentationscope"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
-	"github.com/DataDog/sketches-go/ddsketch"
-	"github.com/DataDog/sketches-go/ddsketch/mapping"
-	"github.com/DataDog/sketches-go/ddsketch/store"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 )
 
 const metricName string = "metric name"
 
-var _ source.Provider = (*unknownSourceProvider)(nil)
+var _ source.Provider = (*noSourceProvider)(nil)
 
-// unknownSourceProvider sets an empty hostname as a source.
-type unknownSourceProvider struct{}
+type noSourceProvider struct{}
 
-func (*unknownSourceProvider) Source(context.Context) (source.Source, error) {
+func (*noSourceProvider) Source(context.Context) (source.Source, error) {
 	return source.Source{Kind: source.HostnameKind, Identifier: ""}, nil
 }
 
@@ -61,7 +57,7 @@ func New(logger *zap.Logger, options ...Option) (*Translator, error) {
 		InstrumentationLibraryMetadataAsTags: false,
 		sweepInterval:                        1800,
 		deltaTTL:                             3600,
-		fallbackSourceProvider:               &unknownSourceProvider{},
+		fallbackSourceProvider:               &noSourceProvider{},
 	}
 
 	for _, opt := range options {
@@ -76,7 +72,11 @@ func New(logger *zap.Logger, options ...Option) (*Translator, error) {
 	}
 
 	cache := newTTLCache(cfg.sweepInterval, cfg.deltaTTL)
-	return &Translator{cache, logger, cfg}, nil
+	return &Translator{
+		prevPts: cache,
+		logger:  logger,
+		cfg:     cfg,
+	}, nil
 }
 
 // isCumulativeMonotonic checks if a metric is a cumulative monotonic metric
@@ -163,10 +163,10 @@ func getBounds(p pmetric.HistogramDataPoint, idx int) (lowerBound float64, upper
 	lowerBound = math.Inf(-1)
 	upperBound = math.Inf(1)
 	if idx > 0 {
-		lowerBound = p.MExplicitBounds()[idx-1]
+		lowerBound = p.ExplicitBounds().At(idx - 1)
 	}
-	if idx < len(p.MExplicitBounds()) {
-		upperBound = p.MExplicitBounds()[idx]
+	if idx < p.ExplicitBounds().Len() {
+		upperBound = p.ExplicitBounds().At(idx)
 	}
 	return
 }
@@ -191,7 +191,7 @@ func (t *Translator) getSketchBuckets(
 	startTs := uint64(p.StartTimestamp())
 	ts := uint64(p.Timestamp())
 	as := &quantile.Agent{}
-	for j := range p.MBucketCounts() {
+	for j := 0; j < p.BucketCounts().Len(); j++ {
 		lowerBound, upperBound := getBounds(p, j)
 
 		// Compute temporary bucketTags to have unique keys in the t.prevPts cache for each bucket
@@ -211,7 +211,7 @@ func (t *Translator) getSketchBuckets(
 			lowerBound = upperBound
 		}
 
-		count := p.MBucketCounts()[j]
+		count := p.BucketCounts().At(j)
 		if delta {
 			as.InsertInterpolate(lowerBound, upperBound, uint(count))
 		} else if dx, ok := t.prevPts.Diff(bucketDims, startTs, ts, float64(count)); ok {
@@ -244,14 +244,14 @@ func (t *Translator) getLegacyBuckets(
 	// We have a single metric, 'bucket', which is tagged with the bucket bounds. See:
 	// https://github.com/DataDog/integrations-core/blob/7.30.1/datadog_checks_base/datadog_checks/base/checks/openmetrics/v2/transformers/histogram.py
 	baseBucketDims := pointDims.WithSuffix("bucket")
-	for idx, val := range p.MBucketCounts() {
+	for idx := 0; idx < p.BucketCounts().Len(); idx++ {
 		lowerBound, upperBound := getBounds(p, idx)
 		bucketDims := baseBucketDims.AddTags(
 			fmt.Sprintf("lower_bound:%s", formatFloat(lowerBound)),
 			fmt.Sprintf("upper_bound:%s", formatFloat(upperBound)),
 		)
 
-		count := float64(val)
+		count := float64(p.BucketCounts().At(idx))
 		if delta {
 			consumer.ConsumeTimeSeries(ctx, bucketDims, Count, ts, count)
 		} else if dx, ok := t.prevPts.Diff(bucketDims, startTs, ts, count); ok {
@@ -323,130 +323,6 @@ func (t *Translator) mapHistogramMetrics(
 			t.getSketchBuckets(ctx, consumer, pointDims, p, histInfo, delta)
 		}
 	}
-}
-
-// mapExponentialHistogramMetrics maps exponential histogram metrics slices to Datadog metrics
-//
-// An ExponentialHistogram metric has:
-// - The count of values in the population
-// - The sum of values in the population
-// - A scale, from which the base of the exponential histogram is computed
-// - Two bucket stores, each with:
-//     - an offset
-//     - a list of bucket counts
-// - A count of zero values in the population
-func (t *Translator) mapExponentialHistogramMetrics(
-	ctx context.Context,
-	consumer Consumer,
-	dims *Dimensions,
-	slice pmetric.ExponentialHistogramDataPointSlice,
-	delta bool,
-) {
-	for i := 0; i < slice.Len(); i++ {
-		p := slice.At(i)
-		startTs := uint64(p.StartTimestamp())
-		ts := uint64(p.Timestamp())
-		pointDims := dims.WithAttributeMap(p.Attributes())
-
-		histInfo := histogramInfo{ok: true}
-
-		countDims := pointDims.WithSuffix("count")
-		if delta {
-			histInfo.count = p.Count()
-		} else if dx, ok := t.prevPts.Diff(countDims, startTs, ts, float64(p.Count())); ok {
-			histInfo.count = uint64(dx)
-		} else { // not ok
-			histInfo.ok = false
-		}
-
-		sumDims := pointDims.WithSuffix("sum")
-		if !t.isSkippable(sumDims.name, p.Sum()) {
-			if delta {
-				histInfo.sum = p.Sum()
-			} else if dx, ok := t.prevPts.Diff(sumDims, startTs, ts, p.Sum()); ok {
-				histInfo.sum = dx
-			} else { // not ok
-				histInfo.ok = false
-			}
-		} else { // skippable
-			histInfo.ok = false
-		}
-
-		if t.cfg.SendCountSum && histInfo.ok {
-			// We only send the sum and count if both values were ok.
-			consumer.ConsumeTimeSeries(ctx, countDims, Count, ts, float64(histInfo.count))
-			consumer.ConsumeTimeSeries(ctx, sumDims, Count, ts, histInfo.sum)
-		}
-
-		expHistDDSketch, err := t.exponentialHistogramToDDSketch(p, delta)
-		if err != nil {
-			t.logger.Debug("Failed to convert ExponentialHistogram into DDSketch",
-				zap.String("metric name", dims.name),
-				zap.Error(err),
-			)
-			continue
-		}
-
-		agentSketch, err := quantile.ConvertDDSketchIntoSketch(expHistDDSketch)
-		if err != nil {
-			t.logger.Debug("Failed to convert DDSketch into Sketch",
-				zap.String("metric name", dims.name),
-				zap.Error(err),
-			)
-		}
-
-		if histInfo.ok {
-			// override approximate sum, count and average in sketch with exact values if available.
-			agentSketch.Basic.Cnt = int64(histInfo.count)
-			agentSketch.Basic.Sum = histInfo.sum
-			agentSketch.Basic.Avg = agentSketch.Basic.Sum / float64(agentSketch.Basic.Cnt)
-		}
-
-		consumer.ConsumeSketch(ctx, pointDims, ts, agentSketch)
-	}
-}
-
-func (t *Translator) exponentialHistogramToDDSketch(
-	p pmetric.ExponentialHistogramDataPoint,
-	delta bool,
-) (*ddsketch.DDSketch, error) {
-	if !delta {
-		return nil, fmt.Errorf("cumulative exponential histograms are not supported")
-	}
-
-	// Create the DDSketch stores
-	positiveStore := toStore(p.Positive())
-	negativeStore := toStore(p.Negative())
-
-	// Create the DDSketch mapping that corresponds to the ExponentialHistogram settings
-	gamma := math.Pow(2, math.Pow(2, float64(-p.Scale())))
-	mapping, err := mapping.NewLogarithmicMappingWithGamma(gamma, 0)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't create LogarithmicMapping for DDSketch: %w", err)
-	}
-
-	// Create DDSketch with the above mapping and stores
-	sketch := ddsketch.NewDDSketch(mapping, positiveStore, negativeStore)
-	err = sketch.AddWithCount(0, float64(p.ZeroCount()))
-	if err != nil {
-		return nil, fmt.Errorf("failed to add ZeroCount to DDSketch: %w", err)
-	}
-
-	return sketch, nil
-}
-
-func toStore(b pmetric.Buckets) store.Store {
-	offset := b.Offset()
-	bucketCounts := b.MBucketCounts()
-
-	store := store.NewDenseStore()
-	for j, count := range bucketCounts {
-		// Find the real index of the bucket by adding the offset
-		index := j + int(offset)
-
-		store.AddWithCount(index, float64(count))
-	}
-	return store
 }
 
 // formatFloat formats a float number as close as possible to what
@@ -532,13 +408,12 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 
 		// Fetch tags from attributes.
 		attributeTags := attributes.TagsFromAttributes(rm.Resource().Attributes())
-
 		src, ok := attributes.SourceFromAttributes(rm.Resource().Attributes(), t.cfg.previewHostnameFromAttributes)
 		if !ok {
 			var err error
 			src, err = t.cfg.fallbackSourceProvider.Source(context.Background())
 			if err != nil {
-				return fmt.Errorf("failed to get fallback host: %w", err)
+				return fmt.Errorf("failed to get fallback source: %w", err)
 			}
 		}
 

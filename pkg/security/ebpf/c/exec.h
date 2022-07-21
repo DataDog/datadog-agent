@@ -424,31 +424,6 @@ int kretprobe__task_pid_nr_ns(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("tracepoint/sched/sched_process_exec")
-int sched_process_exec(struct _tracepoint_sched_process_exec *args) {
-    // prepare filename pointer
-    unsigned short __offset = args->data_loc_filename & 0xFFFF;
-    char *filename = (char *)args + __offset;
-
-    struct exec_path key = {};
-    bpf_probe_read_str(&key.filename, MAX_PATH_LEN, filename);
-
-    struct bpf_map_def *exec_count = select_buffer(&exec_count_fb, &exec_count_bb, SYSCALL_MONITOR_KEY);
-    if (exec_count == NULL) {
-        return 0;
-    }
-
-    u64 zero = 0;
-    u64 *count = bpf_map_lookup_or_try_init(exec_count, &key, &zero);
-    if (count == NULL) {
-        return 0;
-    }
-
-    __sync_fetch_and_add(count, 1);
-
-    return 0;
-}
-
 SEC("tracepoint/sched/sched_process_fork")
 int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     // inherit netns

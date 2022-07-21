@@ -29,7 +29,7 @@ type translatorConfig struct {
 	ResourceAttributesAsTags bool
 	// Deprecated: use InstrumentationScopeMetadataAsTags instead in favor of
 	// https://github.com/open-telemetry/opentelemetry-proto/releases/tag/v0.15.0
-	// Both must not be set at the same time.
+	// Both must not be enabled at the same time.
 	InstrumentationLibraryMetadataAsTags bool
 	InstrumentationScopeMetadataAsTags   bool
 
@@ -61,7 +61,7 @@ func WithDeltaTTL(deltaTTL int64) Option {
 	}
 }
 
-// WithFallbackSourceProvider sets the fallback hostname provider.
+// WithFallbackSourceProvider sets the fallback source provider.
 // By default, an empty hostname is used as a fallback.
 func WithFallbackSourceProvider(provider source.Provider) Option {
 	return func(t *translatorConfig) error {

@@ -131,10 +131,11 @@ func (dh *Handle) SetDataFilters(filters []FilterDefinition) error {
 }
 
 // GetStatsForHandle gets the relevant stats depending on the handle type
-func (dh *Handle) GetStatsForHandle() (map[string]int64, error) {
+func (dh *Handle) GetStatsForHandle() (map[string]map[string]int64, error) {
 	var (
 		bytesReturned uint32
 		statbuf       = make([]byte, DriverStatsSize)
+		returnmap     = make(map[string]map[string]int64)
 	)
 
 	err := windows.DeviceIoControl(dh.Handle, GetStatsIOCTL, &ddAPIVersionBuf[0], uint32(len(ddAPIVersionBuf)), &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
@@ -143,36 +144,37 @@ func (dh *Handle) GetStatsForHandle() (map[string]int64, error) {
 	}
 	stats := *(*DriverStats)(unsafe.Pointer(&statbuf[0]))
 
+	// the global stats are returned regardless.  So parse them into the
+	// total map
+	returnmap["driver"] = map[string]int64{
+		"read_calls":                  stats.Total.Handle_stats.Read_calls,
+		"read_calls_outstanding":      stats.Total.Handle_stats.Read_calls_outstanding,
+		"read_calls_completed":        stats.Total.Handle_stats.Read_calls_completed,
+		"read_calls_cancelled":        stats.Total.Handle_stats.Read_calls_cancelled,
+		"write_calls":                 stats.Total.Handle_stats.Write_calls,
+		"write_bytes":                 stats.Total.Handle_stats.Write_bytes,
+		"ioctl_calls":                 stats.Total.Handle_stats.Ioctl_calls,
+		"packets_observed":            stats.Total.Flow_stats.Packets_observed,
+		"packets_processed_flow":      stats.Total.Flow_stats.Packets_processed,
+		"open_flows":                  stats.Total.Flow_stats.Open_flows,
+		"total_flows":                 stats.Total.Flow_stats.Total_flows,
+		"num_flow_searches":           stats.Total.Flow_stats.Num_flow_searches,
+		"num_flow_search_misses":      stats.Total.Flow_stats.Num_flow_search_misses,
+		"num_flow_collisions":         stats.Total.Flow_stats.Num_flow_collisions,
+		"packets_processed_transport": stats.Total.Transport_stats.Packets_processed,
+		"read_packets_skipped":        stats.Total.Transport_stats.Read_packets_skipped,
+		"packets_reported":            stats.Total.Transport_stats.Packets_reported,
+	}
+
 	switch dh.handleType {
 
-	// A stats handle returns the total values of the driver
-	case StatsHandle:
-		return map[string]int64{
-			"read_calls":                  stats.Total.Handle_stats.Read_calls,
-			"read_calls_outstanding":      stats.Total.Handle_stats.Read_calls_outstanding,
-			"read_calls_completed":        stats.Total.Handle_stats.Read_calls_completed,
-			"read_calls_cancelled":        stats.Total.Handle_stats.Read_calls_cancelled,
-			"write_calls":                 stats.Total.Handle_stats.Write_calls,
-			"write_bytes":                 stats.Total.Handle_stats.Write_bytes,
-			"ioctl_calls":                 stats.Total.Handle_stats.Ioctl_calls,
-			"packets_observed":            stats.Total.Flow_stats.Packets_observed,
-			"packets_processed_flow":      stats.Total.Flow_stats.Packets_processed,
-			"open_flows":                  stats.Total.Flow_stats.Open_flows,
-			"total_flows":                 stats.Total.Flow_stats.Total_flows,
-			"num_flow_searches":           stats.Total.Flow_stats.Num_flow_searches,
-			"num_flow_search_misses":      stats.Total.Flow_stats.Num_flow_search_misses,
-			"num_flow_collisions":         stats.Total.Flow_stats.Num_flow_collisions,
-			"packets_processed_transport": stats.Total.Transport_stats.Packets_processed,
-			"read_packets_skipped":        stats.Total.Transport_stats.Read_packets_skipped,
-			"packets_reported":            stats.Total.Transport_stats.Packets_reported,
-		}, nil
 	// A FlowHandle handle returns the flow stats specific to this handle
 	case FlowHandle:
 		if dh.lastNumFlowsMissed < uint64(stats.Handle.Flow_stats.Num_flows_missed_max_exceeded) {
 			log.Warnf("Flows missed due to maximum flow limit. %v", stats.Handle.Flow_stats.Num_flows_missed_max_exceeded)
 		}
 		dh.lastNumFlowsMissed = uint64(stats.Handle.Flow_stats.Num_flows_missed_max_exceeded)
-		return map[string]int64{
+		returnmap["handle"] = map[string]int64{
 			"read_calls":                    stats.Handle.Handle_stats.Read_calls,
 			"read_calls_outstanding":        stats.Handle.Handle_stats.Read_calls_outstanding,
 			"read_calls_completed":          stats.Handle.Handle_stats.Read_calls_completed,
@@ -190,10 +192,10 @@ func (dh *Handle) GetStatsForHandle() (map[string]int64, error) {
 			"num_flow_structures":           stats.Handle.Flow_stats.Num_flow_structures,
 			"peak_num_flow_structures":      stats.Handle.Flow_stats.Peak_num_flow_structures,
 			"num_flows_missed_max_exceeded": stats.Handle.Flow_stats.Num_flows_missed_max_exceeded,
-		}, nil
+		}
 	// A DataHandle handle returns transfer stats specific to this handle
 	case DataHandle:
-		return map[string]int64{
+		returnmap["handle"] = map[string]int64{
 			"read_calls":                  stats.Handle.Handle_stats.Read_calls,
 			"read_calls_outstanding":      stats.Handle.Handle_stats.Read_calls_outstanding,
 			"read_calls_completed":        stats.Handle.Handle_stats.Read_calls_completed,
@@ -204,8 +206,9 @@ func (dh *Handle) GetStatsForHandle() (map[string]int64, error) {
 			"packets_processed_transport": stats.Handle.Transport_stats.Packets_processed,
 			"read_packets_skipped":        stats.Handle.Transport_stats.Read_packets_skipped,
 			"packets_reported":            stats.Handle.Transport_stats.Packets_reported,
-		}, nil
+		}
 	default:
 		return nil, fmt.Errorf("no matching handle type for pulling handle stats")
 	}
+	return returnmap, nil
 }
