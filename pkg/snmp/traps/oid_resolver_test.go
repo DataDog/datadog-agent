@@ -320,11 +320,12 @@ func TestIsValidOID(t *testing.T) {
 
 	}
 
-	var invalidRunes = []rune(",.?><|\\}{[]()*&^%$#@!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	var invalidRunes = []rune(",?><|\\}{[]()*&^%$#@!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 	for i := 0; i < testSize; i++ {
 		// Valid cases
 		oid := validOIDs[i]
-		switch rand.Intn(3) {
+		x := 0
+		switch x = rand.Intn(3); x {
 		case 0:
 			// Append a dot at the end, this is not possible
 			oid = oid + "."
@@ -340,7 +341,6 @@ func TestIsValidOID(t *testing.T) {
 			oidParts[randomIdx] = "." + oidParts[randomIdx]
 			oid = strings.Join(oidParts, ".")
 		}
-
 		require.False(t, IsValidOID(oid), "OID: %s", oid)
 	}
 }
