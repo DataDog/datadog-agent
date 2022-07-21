@@ -179,7 +179,6 @@ func protoDecodeFileEvent(fi *adproto.FileInfo) *model.FileEvent {
 			InUpperLayer: fi.InUpperLayer,
 		},
 		PathnameStr: fi.Path,
-		BasenameStr: fi.Basename,
 		Filesystem:  fi.Filesystem,
 	}
 }
@@ -190,7 +189,6 @@ func protoDecodeFileActivityNode(fan *adproto.FileActivityNode) *FileActivityNod
 	}
 
 	pfan := &FileActivityNode{
-		Name:           fan.Name,
 		File:           protoDecodeFileEvent(fan.File),
 		GenerationType: NodeGenerationType(fan.GenerationType),
 		FirstSeen:      protoDecodeTimestamp(fan.FirstSeen),

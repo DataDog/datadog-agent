@@ -183,7 +183,6 @@ func fileEventToProto(fe *model.FileEvent) *adproto.FileInfo {
 		Inode:        fe.Inode,
 		InUpperLayer: fe.InUpperLayer,
 		Path:         fe.PathnameStr,
-		Basename:     fe.BasenameStr,
 		Filesystem:   fe.Filesystem,
 	}
 
@@ -197,7 +196,6 @@ func fileActivityNodeToProto(fan *FileActivityNode) *adproto.FileActivityNode {
 
 	pfan := adproto.FileActivityNodeFromVTPool()
 	*pfan = adproto.FileActivityNode{
-		Name:           fan.Name,
 		File:           fileEventToProto(fan.File),
 		GenerationType: string(fan.GenerationType),
 		FirstSeen:      timestampToProto(&fan.FirstSeen),
