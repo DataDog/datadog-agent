@@ -28,7 +28,6 @@ const securityAgentRCPollInterval = time.Second * 1
 // RCPolicyProvider defines a remote config policy provider
 type RCPolicyProvider struct {
 	sync.RWMutex
-	agentVersion *semver.Version
 
 	client               *remote.Client
 	onNewPoliciesReadyCb func()
@@ -45,8 +44,7 @@ func NewRCPolicyProvider(name string, agentVersion *semver.Version) (*RCPolicyPr
 	}
 
 	return &RCPolicyProvider{
-		client:       c,
-		agentVersion: agentVersion,
+		client: c,
 	}, nil
 }
 
@@ -78,7 +76,7 @@ func normalize(policy *rules.Policy) {
 }
 
 // LoadPolicies implements the PolicyProvider interface
-func (r *RCPolicyProvider) LoadPolicies() ([]*rules.Policy, *multierror.Error) {
+func (r *RCPolicyProvider) LoadPolicies(filters []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
 	var policies []*rules.Policy
 	var errs *multierror.Error
 
@@ -88,7 +86,7 @@ func (r *RCPolicyProvider) LoadPolicies() ([]*rules.Policy, *multierror.Error) {
 	for _, c := range r.lastConfigs {
 		reader := bytes.NewReader(c.Config)
 
-		policy, err := rules.LoadPolicy(c.Metadata.ID, "remote-config", reader, r.agentVersion)
+		policy, err := rules.LoadPolicy(c.Metadata.ID, "remote-config", reader, filters)
 
 		if err != nil {
 			errs = multierror.Append(errs, err)
