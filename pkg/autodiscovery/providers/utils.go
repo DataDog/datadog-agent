@@ -13,7 +13,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 const (
 	// nolint needed as these constants are defined in a file without a build tag,
 	// but only used in multiple files with different build tags, none of which

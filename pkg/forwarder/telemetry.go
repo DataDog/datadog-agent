@@ -16,7 +16,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 var (
 	transactionsIntakeOrchestrator = map[orchestrator.NodeType]*expvar.Int{}
 

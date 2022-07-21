@@ -20,7 +20,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 // StartServer starts the HTTP server for the system-probe, which registers endpoints from all enabled modules.
 func StartServer(cfg *config.Config) error {
 	conn, err := net.NewListener(cfg.SocketAddress)

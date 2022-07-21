@@ -35,7 +35,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 const (
 	taggerStreamSendTimeout = 1 * time.Minute
 	streamKeepAliveInterval = 9 * time.Minute

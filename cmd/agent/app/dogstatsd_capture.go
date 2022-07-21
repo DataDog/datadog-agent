@@ -27,7 +27,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 var (
 	dsdCaptureDuration   time.Duration
 	dsdCaptureFilePath   string

@@ -33,7 +33,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 const (
 	noTimeout         = 0 * time.Minute
 	streamRecvTimeout = 10 * time.Minute

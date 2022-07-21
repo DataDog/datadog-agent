@@ -28,7 +28,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 var (
 	dsdReplayFilePath   string
 	dsdVerboseReplay    bool

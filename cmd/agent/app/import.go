@@ -16,7 +16,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 var (
 	importCmd = &cobra.Command{
 		Use:          "import <old_configuration_dir> <destination_dir>",

@@ -20,7 +20,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 const defaultGraceDuration = 60 * time.Second
 
 // ClusterChecksConfigProvider implements the ConfigProvider interface

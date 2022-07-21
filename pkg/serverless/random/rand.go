@@ -17,7 +17,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 // Random holds a thread-safe source of random numbers.
 var Random *rand.Rand
 

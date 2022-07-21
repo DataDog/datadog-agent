@@ -19,7 +19,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 func init() {
 	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\app\config.go 21`)
 	SysprobeCmd.AddCommand(cmdconfig.Config(getSettingsClient))

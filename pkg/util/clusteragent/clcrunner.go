@@ -21,7 +21,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 /*
 Client to query the Datadog Cluster Level Check Runner API.
 */

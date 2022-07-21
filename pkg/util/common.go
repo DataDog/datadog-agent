@@ -23,7 +23,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 func init() {
 	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\common.go 25`)
 	rand.Seed(time.Now().UnixNano())

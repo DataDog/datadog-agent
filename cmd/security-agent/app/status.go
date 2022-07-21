@@ -22,7 +22,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 var (
 	statusCmd = &cobra.Command{
 		Use:   "status",

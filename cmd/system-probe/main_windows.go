@@ -20,7 +20,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 var (
 	defaultSysProbeConfigPath = "c:\\programdata\\datadog\\system-probe.yaml"
 )

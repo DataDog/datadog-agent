@@ -90,7 +90,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 type menuItem struct {
 	label   string
 	handler walk.EventHandler

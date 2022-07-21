@@ -15,7 +15,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 var (
 	// CIncludePattern is the regex for #include headers of C files
 	CIncludePattern = `^\s*#\s*include\s+"(.*)"$`

@@ -21,7 +21,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 // declare these as vars not const to ease testing
 var (
 	metadataURL        = "http://169.254.169.254/latest/meta-data"

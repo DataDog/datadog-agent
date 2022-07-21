@@ -16,7 +16,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 // ResourcesCollector sends the old metadata payload used in the
 // Agent v5
 type ResourcesCollector struct{}

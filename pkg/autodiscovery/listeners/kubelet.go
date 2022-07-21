@@ -21,7 +21,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 func init() {
 	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\autodiscovery\listeners\kubelet.go 23`)
 	Register("kubelet", NewKubeletListener)

@@ -19,7 +19,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 func init() {
 	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\compliance\checks\custom\kube_defaultserviceaccounts.go 21`)
 	registerCustomCheck("kubernetesDefaultServiceAccounts", kubernetesDefaultServiceAccountsCheck)

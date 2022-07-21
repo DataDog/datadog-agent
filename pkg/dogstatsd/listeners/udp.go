@@ -19,7 +19,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 var (
 	udpExpvars             = expvar.NewMap("dogstatsd-udp")
 	udpPacketReadingErrors = expvar.Int{}

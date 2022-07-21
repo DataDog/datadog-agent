@@ -16,7 +16,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 func init() {
 	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\app\version.go 18`)
 	SysprobeCmd.AddCommand(versionCmd)

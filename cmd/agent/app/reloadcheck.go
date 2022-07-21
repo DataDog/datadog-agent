@@ -18,7 +18,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 func init() {
 	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\reloadcheck.go 20`)
 	// TODO: re-enable when the API endpoint is implemented

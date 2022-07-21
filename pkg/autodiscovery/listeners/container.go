@@ -22,7 +22,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 const (
 	newIdentifierLabel    = "com.datadoghq.ad.check.id"
 	legacyIdentifierLabel = "com.datadoghq.sd.check.id"

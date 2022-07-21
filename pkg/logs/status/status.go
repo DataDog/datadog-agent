@@ -15,7 +15,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 // Transport is the transport used by logs-agent, i.e TCP or HTTP
 type Transport string
 

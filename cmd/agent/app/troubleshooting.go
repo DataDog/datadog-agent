@@ -17,7 +17,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 const (
 	metadataEndpoint = "/agent/metadata/"
 )

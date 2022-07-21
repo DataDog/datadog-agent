@@ -22,7 +22,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 const (
 	fakeAPIKey = "00000000000000000000000000000000"
 )

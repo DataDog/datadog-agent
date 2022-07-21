@@ -27,7 +27,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 var elog debug.Log
 
 // ServiceName is the service name used for the process-agent

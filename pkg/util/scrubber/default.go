@@ -12,7 +12,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 // DefaultScrubber is the scrubber used by the package-level cleaning functions.
 //
 // It includes a set of agent-specific replacers.  It can scrub DataDog App

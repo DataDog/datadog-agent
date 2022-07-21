@@ -16,7 +16,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 func init() {
 	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\hostname.go 18`)
 	AgentCmd.AddCommand(getHostnameCommand)

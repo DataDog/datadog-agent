@@ -21,7 +21,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 var (
 	udsExpvars               = expvar.NewMap("dogstatsd-uds")
 	udsOriginDetectionErrors = expvar.Int{}

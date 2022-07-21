@@ -15,7 +15,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 // EnvironmentListener implements a ServiceListener based on current environment
 type EnvironmentListener struct {
 	newService chan<- Service

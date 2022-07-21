@@ -24,7 +24,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 var (
 	// ForwarderExpvars is the root for expvars in the forwarder.
 	ForwarderExpvars = expvar.NewMap("forwarder")

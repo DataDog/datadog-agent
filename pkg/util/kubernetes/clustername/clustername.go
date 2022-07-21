@@ -24,7 +24,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 const (
 	clusterIDEnv = "DD_ORCHESTRATOR_CLUSTER_ID"
 )

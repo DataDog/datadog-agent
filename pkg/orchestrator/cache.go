@@ -17,7 +17,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 const (
 	defaultExpire = 3 * time.Minute
 	defaultPurge  = 30 * time.Second

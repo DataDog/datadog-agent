@@ -12,7 +12,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 var (
 	// LogsExpvars contains metrics for the logs agent.
 	LogsExpvars *expvar.Map

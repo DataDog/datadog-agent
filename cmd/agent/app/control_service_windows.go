@@ -23,7 +23,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 func init() {
 	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\agent\app\control_service_windows.go 25`)
 	AgentCmd.AddCommand(startsvcCommand)

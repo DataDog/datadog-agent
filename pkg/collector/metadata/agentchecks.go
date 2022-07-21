@@ -15,7 +15,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 // AgentChecksCollector fills and sends the old metadata payload used in the
 // Agent v5 for agent check status
 type AgentChecksCollector struct{}

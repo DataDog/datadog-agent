@@ -15,7 +15,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 const (
 	// run the host metadata collector every 1800 seconds (30 minutes)
 	hostMetadataCollectorInterval = 1800

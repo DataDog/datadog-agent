@@ -15,7 +15,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 const (
 	// Top-level expvar (the convention for them is that they are lowercase)
 	runnerExpvarKey = "runner"

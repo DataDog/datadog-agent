@@ -44,7 +44,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 const loggerName ddconfig.LoggerName = "PROCESS"
 
 var opts struct {

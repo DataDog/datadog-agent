@@ -20,7 +20,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 const (
 	defaultLinuxDockerSocket           = "/var/run/docker.sock"
 	defaultWindowsDockerSocketPath     = "//./pipe/docker_engine"

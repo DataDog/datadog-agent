@@ -15,7 +15,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 // CheckFactory factory function type to instantiate checks
 type CheckFactory func() check.Check
 

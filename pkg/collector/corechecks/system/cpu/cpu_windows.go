@@ -26,7 +26,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 var (
 	modkernel32 = windows.NewLazyDLL("kernel32.dll")
 

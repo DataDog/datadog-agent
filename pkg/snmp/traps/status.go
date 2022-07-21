@@ -13,7 +13,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 var (
 	trapsExpvars           = expvar.NewMap("snmp_traps")
 	trapsPackets           = expvar.Int{}

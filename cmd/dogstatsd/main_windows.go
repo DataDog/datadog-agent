@@ -26,7 +26,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 var (
 	elog           debug.Log
 	defaultLogFile = "c:\\programdata\\datadog\\logs\\dogstatsd.log"

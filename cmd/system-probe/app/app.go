@@ -14,7 +14,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 var (
 	// SysprobeCmd is the root command
 	SysprobeCmd = &cobra.Command{

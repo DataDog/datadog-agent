@@ -138,7 +138,7 @@ func (d *dnsDriver) GetStatsForHandle() (map[string]int64, error) {
 
 func createDNSFilters() ([]driver.FilterDefinition, error) {
 	var filters []driver.FilterDefinition
-	
+
 	filters = append(filters, driver.FilterDefinition{
 		FilterVersion:  driver.Signature,
 		Size:           driver.FilterDefinitionSize,

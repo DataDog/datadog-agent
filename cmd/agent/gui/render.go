@@ -20,7 +20,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 var fmap = status.Fmap()
 
 func init() {

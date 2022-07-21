@@ -50,7 +50,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 const (
 	// loggerName is the name of the security agent logger
 	loggerName coreconfig.LoggerName = "SECURITY"

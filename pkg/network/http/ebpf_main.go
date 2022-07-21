@@ -150,14 +150,14 @@ func (e *ebpfProgram) Init() error {
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  httpSocketFilter,
 					EBPFFuncName: "socket__http_filter",
-					UID: probeUID,
+					UID:          probeUID,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  string(probes.TCPSendMsgReturn),
 					EBPFFuncName: "kretprobe__tcp_sendmsg",
-					UID: probeUID,
+					UID:          probeUID,
 				},
 			},
 		},

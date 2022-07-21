@@ -29,7 +29,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 const (
 
 	// DefaultSite is the default site the Agent sends data to.

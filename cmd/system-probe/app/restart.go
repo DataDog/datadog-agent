@@ -14,7 +14,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 func init() {
 	traceinit.TraceFunction(`\DataDog\datadog-agent\cmd\system-probe\app\restart.go 16`)
 	SysprobeCmd.AddCommand(moduleRestartCommand)

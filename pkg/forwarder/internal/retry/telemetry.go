@@ -14,7 +14,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 type counterExpvar struct {
 	counter telemetry.Counter
 	expvar  expvar.Int

@@ -17,7 +17,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 var (
 	diagnoseCommand = &cobra.Command{
 		Use:   "diagnose",

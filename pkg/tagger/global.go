@@ -24,7 +24,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 var (
 	// defaultTagger is the shared tagger instance backing the global Tag and Init functions
 	defaultTagger Tagger

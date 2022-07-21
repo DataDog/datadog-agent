@@ -16,7 +16,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 const fileHandlesCheckName = "file_handle"
 
 type fhCheck struct {

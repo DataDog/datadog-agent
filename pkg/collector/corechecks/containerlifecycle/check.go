@@ -21,7 +21,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 const (
 	checkName           = "container_lifecycle"
 	maxChunkSize        = 100

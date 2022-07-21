@@ -19,7 +19,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 var withDebug bool
 
 func init() {

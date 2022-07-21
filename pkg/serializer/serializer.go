@@ -30,7 +30,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 const (
 	protobufContentType                         = "application/x-protobuf"
 	jsonContentType                             = "application/json"

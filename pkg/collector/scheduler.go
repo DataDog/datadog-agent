@@ -21,7 +21,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 var (
 	schedulerErrs  *expvar.Map
 	errorStats     = newCollectorErrors()

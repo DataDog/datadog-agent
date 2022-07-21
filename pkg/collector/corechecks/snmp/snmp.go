@@ -24,7 +24,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 var timeNow = time.Now
 
 // Check aggregates metrics from one Check instance

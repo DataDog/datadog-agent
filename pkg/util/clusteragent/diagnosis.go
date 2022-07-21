@@ -10,7 +10,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 func init() {
 	traceinit.TraceFunction(`\DataDog\datadog-agent\pkg\util\clusteragent\diagnosis.go 12`)
 	diagnosis.Register("Cluster Agent availability", diagnose)

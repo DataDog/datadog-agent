@@ -13,7 +13,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 // DefaultLogFilePath is where the agent will write logs if not overridden in the conf
 var DefaultLogFilePath = "c:\\programdata\\datadog\\logs\\trace-agent.log"
 

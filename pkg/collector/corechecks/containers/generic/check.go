@@ -18,7 +18,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 const (
 	genericContainerCheckName = "container"
 	cacheValidity             = 2 * time.Second

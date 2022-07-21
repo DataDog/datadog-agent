@@ -21,7 +21,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 // A SketchSeriesList implements marshaler.Marshaler
 type SketchSeriesList []metrics.SketchSeries
 

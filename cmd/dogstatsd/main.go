@@ -40,7 +40,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 var (
 	// dogstatsdCmd is the root command
 	dogstatsdCmd = &cobra.Command{

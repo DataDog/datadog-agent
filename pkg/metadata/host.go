@@ -18,7 +18,6 @@ import (
 )
 import "github.com/DataDog/datadog-agent/pkg/traceinit"
 
-
 // HostCollector fills and sends the old metadata payload used in the
 // Agent v5
 type HostCollector struct{}
