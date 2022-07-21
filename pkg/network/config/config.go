@@ -19,6 +19,7 @@ const (
 	spNS  = "system_probe_config"
 	netNS = "network_config"
 	smNS  = "service_monitoring_config"
+	evNS  = "event_monitoring_config"
 
 	defaultUDPTimeoutSeconds       = 30
 	defaultUDPStreamTimeoutSeconds = 120
@@ -226,8 +227,8 @@ func New() *Config {
 
 		RecordedQueryTypes: cfg.GetStringSlice(join(netNS, "dns_recorded_query_types")),
 
-		EnableProcessEventMonitoring: cfg.GetBool(join("runtime_security_config", "event_monitoring", "network_process", "enabled")),
-		MaxProcessesTracked:          cfg.GetInt(join(netNS, "max_processes_tracked")),
+		EnableProcessEventMonitoring: cfg.GetBool(join(evNS, "network_process", "enabled")),
+		MaxProcessesTracked:          cfg.GetInt(join(evNS, "network_process", "max_processes_tracked")),
 	}
 
 	if !cfg.IsSet(join(spNS, "max_closed_connections_buffered")) {

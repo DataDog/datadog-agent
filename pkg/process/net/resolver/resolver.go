@@ -84,15 +84,15 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 		}
 		raddr.ContainerId = l.addrToCtrID[addr]
 
-		// resolve laddr
-		//
-		// if process monitoring is enabled in the system-probe,
-		// then laddr container id may be set, so check that
-		// first
 		if conn.Laddr == nil {
 			continue
 		}
 
+		// resolve laddr
+		//
+		// if process monitoring is enabled in the saystem-probe,
+		// then laddr container id may be set, so check that
+		// first
 		var cid string
 		if cid = conn.Laddr.ContainerId; cid == "" {
 			cid, _ = l.ctrForPid[int(conn.Pid)]
