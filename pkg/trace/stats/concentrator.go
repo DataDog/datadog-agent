@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
-	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -39,13 +38,12 @@ type Concentrator struct {
 	// It means that we can compute stats only for the last `bufferLen * bsize` and that we
 	// wait such time before flushing the stats.
 	// This only applies to past buckets. Stats buckets in the future are allowed with no restriction.
-	bufferLen     int
-	exit          chan struct{}
-	exitWG        sync.WaitGroup
-	buckets       map[int64]*RawBucket // buckets used to aggregate stats per timestamp
-	mu            sync.Mutex
-	agentEnv      string
-	agentHostname string
+	bufferLen int
+	exit      chan struct{}
+	exitWG    sync.WaitGroup
+	buckets   map[int64]*RawBucket // buckets used to aggregate stats per timestamp
+	mu        sync.Mutex
+	conf      *config.AgentConfig
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
@@ -58,12 +56,11 @@ func NewConcentrator(conf *config.AgentConfig, out chan pb.StatsPayload, now tim
 		// override buckets which could have been sent before an Agent restart.
 		oldestTs: alignTs(now.UnixNano(), bsize),
 		// TODO: Move to configuration.
-		bufferLen:     defaultBufferLen,
-		In:            make(chan Input, 100),
-		Out:           out,
-		exit:          make(chan struct{}),
-		agentEnv:      conf.DefaultEnv,
-		agentHostname: conf.Hostname,
+		bufferLen: defaultBufferLen,
+		In:        make(chan Input, 100),
+		Out:       out,
+		exit:      make(chan struct{}),
+		conf:      conf,
 	}
 	return &c
 }
@@ -148,11 +145,11 @@ func (c *Concentrator) Add(t Input) {
 func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) {
 	hostname := pt.TracerHostname
 	if hostname == "" {
-		hostname = c.agentHostname
+		hostname = c.conf.Hostname
 	}
 	env := pt.TracerEnv
 	if env == "" {
-		env = c.agentEnv
+		env = c.conf.DefaultEnv
 	}
 	weight := weight(pt.Root)
 	aggKey := PayloadAggregationKey{
@@ -224,7 +221,7 @@ func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
 		}
 		sb = append(sb, p)
 	}
-	return pb.StatsPayload{Stats: sb, AgentHostname: c.agentHostname, AgentEnv: c.agentEnv, AgentVersion: info.Version}
+	return pb.StatsPayload{Stats: sb, AgentHostname: c.conf.Hostname, AgentEnv: c.conf.DefaultEnv, AgentVersion: c.conf.AgentVersion}
 }
 
 // alignTs returns the provided timestamp truncated to the bucket size.

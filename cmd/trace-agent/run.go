@@ -8,6 +8,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"math/rand"
 	"net/http"
 	"os"
@@ -50,7 +51,7 @@ to your datadog.yaml. Exiting...`
 // Run is the entrypoint of our code, which starts the agent.
 func Run(ctx context.Context) {
 	if flags.Version {
-		fmt.Print(info.VersionString())
+		fmt.Println(version.AgentVersion) // TODO: This change prints less information now, is that bad?
 		return
 	}
 
@@ -141,7 +142,7 @@ func Run(ctx context.Context) {
 		return
 	}
 
-	err = metrics.Configure(cfg, []string{"version:" + info.Version})
+	err = metrics.Configure(cfg, []string{"version:" + cfg.AgentVersion}) // TODO: is the formatting or anything changing here break things?
 	if err != nil {
 		osutil.Exitf("cannot configure dogstatsd: %v", err)
 	}
@@ -296,6 +297,6 @@ func profilingConfig(cfg *config.AgentConfig) *profiling.Settings {
 		MutexProfileFraction: coreconfig.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
 		BlockProfileRate:     coreconfig.Datadog.GetInt("internal_profiling.block_profile_rate"),
 		WithGoroutineProfile: coreconfig.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
-		Tags:                 []string{fmt.Sprintf("version:%s", info.Version)},
+		Tags:                 []string{fmt.Sprintf("version:%s", cfg.AgentVersion)},
 	}
 }

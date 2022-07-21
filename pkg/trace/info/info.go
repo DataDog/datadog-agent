@@ -196,9 +196,21 @@ type infoString string
 
 func (s infoString) String() string { return string(s) }
 
+type infoVersion struct {
+	Version   string
+	GitCommit string
+}
+
 // InitInfo initializes the info structure. It should be called only once.
 func InitInfo(conf *config.AgentConfig) error {
 	var err error
+
+	publishVersion := func() interface{} {
+		return infoVersion{
+			Version:   conf.AgentVersion,
+			GitCommit: conf.GitCommit,
+		}
+	}
 
 	funcMap := template.FuncMap{
 		"add": func(a, b int64) int64 {
@@ -301,7 +313,7 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 		// so we can assume it's not even running, or at least, not with
 		// these parameters. We display the port as a hint on where to
 		// debug further, this is where the expvar JSON should come from.
-		program, banner := getProgramBanner(Version)
+		program, banner := getProgramBanner(conf.AgentVersion)
 		_ = notRunningTmpl.Execute(w, struct {
 			Banner       string
 			Program      string
@@ -318,7 +330,7 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 
 	var info StatusInfo
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
-		program, banner := getProgramBanner(Version)
+		program, banner := getProgramBanner(conf.AgentVersion)
 		_ = errorTmpl.Execute(w, struct {
 			Banner  string
 			Program string

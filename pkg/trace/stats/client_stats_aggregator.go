@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
@@ -44,6 +43,7 @@ type ClientStatsAggregator struct {
 	oldestTs      time.Time
 	agentEnv      string
 	agentHostname string
+	conf          *config.AgentConfig
 
 	exit chan struct{}
 	done chan struct{}
@@ -61,6 +61,7 @@ func NewClientStatsAggregator(conf *config.AgentConfig, out chan pb.StatsPayload
 		oldestTs:      alignAggTs(time.Now().Add(bucketDuration - oldestBucketStart)),
 		exit:          make(chan struct{}),
 		done:          make(chan struct{}),
+		conf:          conf,
 	}
 }
 
@@ -146,7 +147,7 @@ func (a *ClientStatsAggregator) flush(p []pb.ClientStatsPayload) {
 		Stats:          p,
 		AgentEnv:       a.agentEnv,
 		AgentHostname:  a.agentHostname,
-		AgentVersion:   info.Version,
+		AgentVersion:   a.conf.AgentVersion,
 		ClientComputed: true,
 	}
 }
