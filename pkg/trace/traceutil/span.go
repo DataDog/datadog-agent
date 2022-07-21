@@ -9,7 +9,6 @@ import (
 	"bytes"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-
 	"github.com/tinylib/msgp/msgp"
 )
 
@@ -131,4 +130,13 @@ func GetMetaStruct(s *pb.Span, key string) (interface{}, bool) {
 		return val, ok
 	}
 	return nil, false
+}
+
+// GetMetric gets the metadata value in the span Metrics map.
+func GetMetric(s *pb.Span, key string) (float64, bool) {
+	if s.Metrics == nil {
+		return 0, false
+	}
+	val, ok := s.Metrics[key]
+	return val, ok
 }
