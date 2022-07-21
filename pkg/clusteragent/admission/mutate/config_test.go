@@ -116,10 +116,7 @@ func TestInjectHostIP(t *testing.T) {
 	pod = withLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true"})
 	err := injectConfig(pod, "", nil)
 	assert.Nil(t, err)
-	envs := pod.Spec.Containers[0].Env
-	lastEnv := envs[len(envs)-1]
-	assert.Equal(t, lastEnv.Name, "DD_AGENT_HOST")
-	assert.Equal(t, lastEnv.ValueFrom.FieldRef.FieldPath, "status.hostIP")
+	assert.Contains(t, pod.Spec.Containers[0].Env, fakeEnvWithFieldRefValue("DD_AGENT_HOST", "status.hostIP"))
 }
 
 func TestInjectService(t *testing.T) {
@@ -127,10 +124,7 @@ func TestInjectService(t *testing.T) {
 	pod = withLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "service"})
 	err := injectConfig(pod, "", nil)
 	assert.Nil(t, err)
-	envs := pod.Spec.Containers[0].Env
-	lastEnv := envs[len(envs)-1]
-	assert.Equal(t, lastEnv.Name, "DD_AGENT_HOST")
-	assert.Equal(t, lastEnv.Value, "datadog.default.svc.cluster.local")
+	assert.Contains(t, pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_AGENT_HOST", "datadog.default.svc.cluster.local"))
 }
 
 func TestInjectSocket(t *testing.T) {
@@ -138,10 +132,7 @@ func TestInjectSocket(t *testing.T) {
 	pod = withLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "socket"})
 	err := injectConfig(pod, "", nil)
 	assert.Nil(t, err)
-	envs := pod.Spec.Containers[0].Env
-	lastEnv := envs[len(envs)-1]
-	assert.Equal(t, lastEnv.Name, "DD_TRACE_AGENT_URL")
-	assert.Equal(t, lastEnv.Value, "unix:///var/run/datadog/apm.socket")
+	assert.Contains(t, pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm.socket"))
 	assert.Equal(t, pod.Spec.Containers[0].VolumeMounts[0].MountPath, "/var/run/datadog")
 	assert.Equal(t, pod.Spec.Containers[0].VolumeMounts[0].Name, "datadog")
 	assert.Equal(t, pod.Spec.Volumes[0].Name, "datadog")
