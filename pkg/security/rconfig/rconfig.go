@@ -62,7 +62,7 @@ func (r *RCPolicyProvider) rcConfigUpdateCallback(configs map[string]state.Confi
 	r.lastConfigs = configs
 	r.Unlock()
 
-	log.Debug("new policies from remote-config policy provider")
+	log.Info("new policies from remote-config policy provider")
 
 	r.onNewPoliciesReadyCb()
 }
@@ -87,7 +87,6 @@ func (r *RCPolicyProvider) LoadPolicies(filters []rules.RuleFilter) ([]*rules.Po
 		reader := bytes.NewReader(c.Config)
 
 		policy, err := rules.LoadPolicy(c.Metadata.ID, "remote-config", reader, filters)
-
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		} else {
