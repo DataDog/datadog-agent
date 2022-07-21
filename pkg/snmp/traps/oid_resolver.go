@@ -186,6 +186,10 @@ func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB trapDBFileContent
 
 	allOIDs := make([]string, 0, len(trapDB.Variables))
 	for variableOID := range trapDB.Variables {
+		if !IsValidOID(variableOID) {
+			log.Errorf("trap variable OID %s does not look like a valid OID", variableOID)
+			continue
+		}
 		allOIDs = append(allOIDs, NormalizeOID(variableOID))
 	}
 
@@ -201,7 +205,7 @@ func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB trapDBFileContent
 		isNode := false
 		if idx+1 < len(allOIDs) {
 			nextOID := allOIDs[idx+1]
-			isNode = strings.HasPrefix(nextOID, variableOID)
+			isNode = strings.HasPrefix(nextOID, variableOID+".")
 		}
 
 		variableData := trapDB.Variables[variableOID]
@@ -214,6 +218,10 @@ func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB trapDBFileContent
 	}
 
 	for trapOID, trapData := range trapDB.Traps {
+		if !IsValidOID(trapOID) {
+			log.Errorf("trap OID %s does not look like a valid OID", trapOID)
+			continue
+		}
 		trapOID := NormalizeOID(trapOID)
 		if _, trapConflict := or.traps[trapOID]; trapConflict {
 			log.Debugf("a trap with OID %s is defined in multiple traps db files", trapOID)
