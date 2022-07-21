@@ -4,8 +4,7 @@
 #include "tracer.h"
 #include "classifier.h"
 
-#define TLS_RECORD_LEN 5
-typedef struct {
+typedef struct __attribute__((packed)) {
     __u8 app;
     __u16 version;
     __u16 length;
@@ -16,12 +15,10 @@ typedef struct {
 #define SERVER_HELLO 2
 #define CERTIFICATE 11
 
-typedef struct {
+typedef struct __attribute__((packed)) {
     __u8 handshake_type;
-    // the length of the handshake
-    // is given in a field of 24 bytes.
-    __u32 length;
-} tls_handshake_t __attribute__((aligned(8)));
+    __u8 length[3];
+} tls_handshake_t;
 
 #define TLS_HEADER_SIZE 5
 
@@ -60,5 +57,27 @@ typedef struct {
 typedef union {
 	tls_session_t tls;
 } session_t;
+
+// TLS protocol structure
+#define EXTENSION_DATA_LEN (1<<15)
+#define NUM_OF_EXTENSIONS EXTENSION_DATA_LEN
+struct Extension {
+    __u16 extension_type;
+    __u8 extension_data[EXTENSION_DATA_LEN];
+};
+
+struct ServerHello {
+    tls_record_t record;
+    tls_handshake_t handshake;
+    __u8 major;
+    __u8 minor;
+    __u32 gmt_unix_time;
+    __u8 random_bytes[28];
+    __u8 session_id_length;
+    __u8 session_id[32];
+    __u8 cipher_suite[2];
+    __u8 compression_method;
+    struct Extension extensions[NUM_OF_EXTENSIONS];
+} __attribute__((packed));
 
 #endif
