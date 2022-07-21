@@ -1,9 +1,7 @@
-/*
- * Unless explicitly stated otherwise all files in this repository are licensed
- * under the Apache License Version 2.0.
- * This product includes software developed at Datadog (https://www.datadoghq.com/).
- * Copyright 2016-2022 Datadog, Inc.
- */
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
 
 package orchestrator
 
@@ -56,17 +54,6 @@ func TestOrchestratorCheckStartupAndCleanup(t *testing.T) {
 	case <-time.After(wait.ForeverTestTimeout):
 		t.Error("Informer did not get the added node")
 	}
-
-	// getting unscheduled
-	orchCheck.Cancel()
-	writeNode(t, client, "2")
-	writeNode(t, client, "3")
-	writeNode(t, client, "4")
-
-	<-orchCheck.stopCh
-
-	// we closed the channel, now we don't expect to receive a node
-	assert.Empty(t, nodes)
 }
 
 func writeNode(t *testing.T, client *fake.Clientset, version string) {
