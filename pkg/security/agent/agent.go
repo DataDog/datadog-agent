@@ -142,7 +142,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 
 		for {
 			// Get new event from stream
-			in, err := stream.Recv()
+			in, err := recvPooledFromStream(stream)
 			if err == io.EOF || in == nil {
 				break
 			}
@@ -152,8 +152,17 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 
 			// Dispatch security event
 			rsa.DispatchEvent(in)
+			in.ReturnToVTPool()
 		}
 	}
+}
+
+func recvPooledFromStream(stream api.SecurityModule_GetEventsClient) (*api.SecurityEventMessage, error) {
+	m := api.SecurityEventMessageFromVTPool()
+	if err := stream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // StartActivityDumpListener starts listening for new activity dumps from system-probe
