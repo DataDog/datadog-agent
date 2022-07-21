@@ -144,7 +144,6 @@ func TestProcessor(t *testing.T) {
 func TestProcessorWithSingleSpanSampling(t *testing.T) {
 	testClientSampleRate := 0.3
 	testPreSampleRate := 0.5
-	testSingleSpanSampleRate := 0.5
 	totalSingleSpans := 1000
 	tests := []struct {
 		name                 string
@@ -214,7 +213,7 @@ func TestProcessorWithSingleSpanSampling(t *testing.T) {
 
 			testSpans := createTestSpans("test", "test")
 			regularSpansCount := len(testSpans)
-			singleSpans := createSpanSamplingTestSpans("test", "test", totalSingleSpans, 8, testSingleSpanSampleRate, 100)
+			singleSpans := createSpanSamplingTestSpans("test", "test", totalSingleSpans, 8)
 			testSpans = append(singleSpans, testSpans...)
 			numSpans := len(testSpans)
 			testChunk := testutil.TraceChunkWithSpans(testSpans)
