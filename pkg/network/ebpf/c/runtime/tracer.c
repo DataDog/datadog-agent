@@ -462,9 +462,10 @@ int kprobe__tcp_set_state(struct pt_regs* ctx) {
 SEC("kprobe/tcp_connect")
 int kprobe__tcp_connect(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("kprobe/tcp_connect: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
 
-    bpf_map_update_elem(&tcp_connect_sock_pid, &pid_tgid, &skp, BPF_ANY);
+    bpf_map_update_elem(&tcp_connect_sock_pid, &skp, &pid_tgid, BPF_ANY);
 
     return 0;
 }
