@@ -10,12 +10,12 @@ package probe
 
 import (
 	"context"
+	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/hashicorp/golang-lru/simplelru"
-	"github.com/pkg/errors"
+	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
@@ -38,9 +38,9 @@ type LoadController struct {
 	sync.RWMutex
 	probe *Probe
 
-	eventsTotal        int64
+	eventsTotal        *atomic.Int64
 	eventsCounters     *simplelru.LRU
-	pidDiscardersCount int64
+	pidDiscardersCount *atomic.Int64
 
 	EventsCountThreshold int64
 	DiscarderTimeout     time.Duration
@@ -59,7 +59,9 @@ func NewLoadController(probe *Probe) (*LoadController, error) {
 	lc := &LoadController{
 		probe: probe,
 
-		eventsCounters: lru,
+		eventsTotal:        atomic.NewInt64(0),
+		eventsCounters:     lru,
+		pidDiscardersCount: atomic.NewInt64(0),
 
 		EventsCountThreshold: probe.config.LoadControllerEventsCountThreshold,
 		DiscarderTimeout:     probe.config.LoadControllerDiscarderTimeout,
@@ -73,9 +75,9 @@ func NewLoadController(probe *Probe) (*LoadController, error) {
 // SendStats sends load controller stats
 func (lc *LoadController) SendStats() error {
 	// send load_controller.pids_discarder metric
-	if count := atomic.SwapInt64(&lc.pidDiscardersCount, 0); count > 0 {
+	if count := lc.pidDiscardersCount.Swap(0); count > 0 {
 		if err := lc.probe.statsdClient.Count(metrics.MetricLoadControllerPidDiscarder, count, []string{}, 1.0); err != nil {
-			return errors.Wrap(err, "couldn't send load_controller.pids_discarder metric")
+			return fmt.Errorf("couldn't send load_controller.pids_discarder metric: %w", err)
 		}
 	}
 	return nil
@@ -99,13 +101,12 @@ func (lc *LoadController) GenericCount(event *Event) {
 
 	entry, ok := lc.eventsCounters.Get(eventCounterLRUKey{Pid: event.ProcessContext.Pid, Cookie: event.ProcessContext.Cookie})
 	if ok {
-		counter := entry.(*uint64)
-		atomic.AddUint64(counter, 1)
+		counter := entry.(*atomic.Uint64)
+		counter.Inc()
 	} else {
-		counter := uint64(1)
-		lc.eventsCounters.Add(eventCounterLRUKey{Pid: event.ProcessContext.Pid, Cookie: event.ProcessContext.Cookie}, &counter)
+		lc.eventsCounters.Add(eventCounterLRUKey{Pid: event.ProcessContext.Pid, Cookie: event.ProcessContext.Cookie}, atomic.NewUint64(1))
 	}
-	newTotal := atomic.AddInt64(&lc.eventsTotal, 1)
+	newTotal := lc.eventsTotal.Inc()
 
 	if newTotal >= lc.EventsCountThreshold {
 		lc.discardNoisiestProcess()
@@ -116,17 +117,17 @@ func (lc *LoadController) GenericCount(event *Event) {
 func (lc *LoadController) discardNoisiestProcess() {
 	// iterate over the LRU map to retrieve the noisiest process & event_type tuple
 	var maxKey eventCounterLRUKey
-	var maxCount *uint64
+	var maxCount *atomic.Uint64
 	for _, key := range lc.eventsCounters.Keys() {
 		entry, ok := lc.eventsCounters.Peek(key)
 		if !ok || entry == nil {
 			continue
 		}
-		tmpCount := entry.(*uint64)
+		tmpCount := entry.(*atomic.Uint64)
 		tmpKey := key.(eventCounterLRUKey)
 
 		// update max if necessary
-		if maxCount == nil || *maxCount < *tmpCount {
+		if maxCount == nil || maxCount.Load() < tmpCount.Load() {
 			maxCount = tmpCount
 			maxKey = tmpKey
 		}
@@ -143,11 +144,13 @@ func (lc *LoadController) discardNoisiestProcess() {
 		return
 	}
 
-	// update current total and remove biggest entry from cache
-	oldMaxCount := atomic.SwapUint64(maxCount, 0)
-	atomic.AddInt64(&lc.eventsTotal, -int64(oldMaxCount))
+	// update current total and remove biggest entry from cache.  Note that there
+	// is a chance of the maxCount value being incremented between these two atomic
+	// operations, but that's OK -- the event is still counted.
+	oldMaxCount := maxCount.Swap(0)
+	lc.eventsTotal.Sub(int64(oldMaxCount))
 
-	atomic.AddInt64(&lc.pidDiscardersCount, 1)
+	lc.pidDiscardersCount.Inc()
 
 	if lc.NoisyProcessCustomEventRate.Allow() {
 		process := lc.probe.resolvers.ProcessResolver.Resolve(maxKey.Pid, maxKey.Pid)
@@ -179,8 +182,8 @@ func (lc *LoadController) cleanupCounter(pid uint32, cookie uint32) {
 	key := eventCounterLRUKey{Pid: pid, Cookie: cookie}
 	entry, ok := lc.eventsCounters.Get(key)
 	if ok {
-		counter := int64(*entry.(*uint64))
-		atomic.AddInt64(&lc.eventsTotal, -counter)
+		counter := entry.(*atomic.Uint64)
+		lc.eventsTotal.Sub(int64(counter.Load()))
 		lc.eventsCounters.Remove(key)
 	}
 }
@@ -192,7 +195,7 @@ func (lc *LoadController) cleanup() {
 
 	// purge counters
 	lc.eventsCounters.Purge()
-	atomic.SwapInt64(&lc.eventsTotal, 0)
+	lc.eventsTotal.Store(0)
 }
 
 // Start resets the internal counters periodically

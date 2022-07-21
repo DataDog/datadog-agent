@@ -71,6 +71,8 @@ platforms:
 %>
 
 - name: <%= platform_name %>
+  attributes:
+    color_idx: <%= idx %>
   driver:
     <% if windows %>
     connection_timeout: 20

@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/spf13/cobra"
 )
 
@@ -41,7 +41,7 @@ func doGetHostname(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	hname, err := util.GetHostname(context.TODO())
+	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		return fmt.Errorf("Error getting the hostname: %v", err)
 	}

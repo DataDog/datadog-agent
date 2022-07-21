@@ -10,6 +10,7 @@
 package containerd
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -39,13 +40,16 @@ func TestGetContainerIDForPID(t *testing.T) {
 	}
 
 	fakeClient := fake.MockedContainerdClient{
+		MockNamespaces: func(ctx context.Context) ([]string, error) {
+			return []string{"ns"}, nil
+		},
+		MockSetCurrentNamespace: func(namespace string) {},
 		MockContainers: func() ([]containerd.Container, error) {
 			return []containerd.Container{
 				mockedContainer{id: "cID1"},
 				mockedContainer{id: "cID2"},
 			}, nil
 		},
-
 		MockTaskPids: func(ctn containerd.Container) ([]containerd.ProcessInfo, error) {
 			return pidMap[ctn.ID()], nil
 		},

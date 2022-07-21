@@ -10,6 +10,7 @@ package http
 
 import (
 	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -58,12 +59,18 @@ var gnuTLSProbes = map[string]string{
 const (
 	sslSockByCtxMap        = "ssl_sock_by_ctx"
 	sharedLibrariesPerfMap = "shared_libraries"
+)
 
-	// probe used for streaming shared library events
-	doSysOpen       = "kprobe/do_sys_open"
-	doSysOpenRet    = "kretprobe/do_sys_open"
-	doSysOpenAt2    = "kprobe/do_sys_openat2"
-	doSysOpenAt2Ret = "kretprobe/do_sys_openat2"
+type ebpfSectionFunction struct {
+	section  string
+	function string
+}
+
+// probe used for streaming shared library events
+var (
+	kprobeKretprobePrefix = []string{"kprobe", "kretprobe"}
+	doSysOpen             = ebpfSectionFunction{section: "do_sys_open", function: "do_sys_open"}
+	doSysOpenAt2          = ebpfSectionFunction{section: "do_sys_openat2", function: "do_sys_openat2"}
 )
 
 type sslProgram struct {
@@ -95,7 +102,7 @@ func (o *sslProgram) ConfigureManager(m *manager.Manager) {
 
 	o.manager = m
 
-	if !o.httpsSupported() {
+	if !httpsSupported() {
 		return
 	}
 
@@ -110,29 +117,15 @@ func (o *sslProgram) ConfigureManager(m *manager.Manager) {
 		},
 	})
 
-	m.Probes = append(m.Probes,
-		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFSection:  doSysOpen,
-			EBPFFuncName: "kprobe__do_sys_open",
-			UID:          probeUID,
-		}, KProbeMaxActive: maxActive},
-		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFSection:  doSysOpenRet,
-			EBPFFuncName: "kretprobe__do_sys_open",
-			UID:          probeUID,
-		}, KProbeMaxActive: maxActive},
-	)
-
-	if runningOnARM() {
+	probeSysOpen := doSysOpen
+	if o.sysOpenAt2Supported() {
+		probeSysOpen = doSysOpenAt2
+	}
+	for _, kprobe := range kprobeKretprobePrefix {
 		m.Probes = append(m.Probes,
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  doSysOpenAt2,
-				EBPFFuncName: "kprobe__do_sys_openat2",
-				UID:          probeUID,
-			}, KProbeMaxActive: maxActive},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  doSysOpenAt2Ret,
-				EBPFFuncName: "kretprobe__do_sys_openat2",
+				EBPFSection:  kprobe + "/" + probeSysOpen.section,
+				EBPFFuncName: kprobe + "__" + probeSysOpen.function,
 				UID:          probeUID,
 			}, KProbeMaxActive: maxActive},
 		)
@@ -144,7 +137,7 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 		return
 	}
 
-	if !o.httpsSupported() {
+	if !httpsSupported() {
 		return
 	}
 
@@ -154,36 +147,16 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 		EditorFlag: manager.EditMaxEntries,
 	}
 
-	options.ActivatedProbes = append(options.ActivatedProbes,
-		&manager.ProbeSelector{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  doSysOpen,
-				EBPFFuncName: "kprobe__do_sys_open",
-				UID:          probeUID,
-			},
-		},
-		&manager.ProbeSelector{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  doSysOpenRet,
-				EBPFFuncName: "kretprobe__do_sys_open",
-				UID:          probeUID,
-			},
-		},
-	)
-
-	if runningOnARM() {
+	probeSysOpen := doSysOpen
+	if o.sysOpenAt2Supported() {
+		probeSysOpen = doSysOpenAt2
+	}
+	for _, kprobe := range kprobeKretprobePrefix {
 		options.ActivatedProbes = append(options.ActivatedProbes,
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  doSysOpenAt2,
-					EBPFFuncName: "kprobe__do_sys_openat2",
-					UID:          probeUID,
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  doSysOpenAt2Ret,
-					EBPFFuncName: "kretprobe__do_sys_openat2",
+					EBPFSection:  kprobe + "/" + probeSysOpen.section,
+					EBPFFuncName: kprobe + "__" + probeSysOpen.function,
 					UID:          probeUID,
 				},
 			},
@@ -314,7 +287,7 @@ func runningOnARM() bool {
 }
 
 // We only support ARM with kernel >= 5.5.0 and with runtime compilation enabled
-func (o *sslProgram) httpsSupported() bool {
+func httpsSupported() bool {
 	if !runningOnARM() {
 		return true
 	}
@@ -326,4 +299,19 @@ func (o *sslProgram) httpsSupported() bool {
 	}
 
 	return kversion >= kernel.VersionCode(5, 5, 0)
+}
+
+func (o *sslProgram) sysOpenAt2Supported() bool {
+	ksymPath := filepath.Join(o.cfg.ProcRoot, "kallsyms")
+	missing, err := ddebpf.VerifyKernelFuncs(ksymPath, []string{doSysOpenAt2.section})
+	if err == nil && len(missing) == 0 {
+		return true
+	}
+	kversion, err := kernel.HostVersion()
+	if err != nil {
+		log.Error("could not determine the current kernel version. fallback to do_sys_open")
+		return false
+	}
+
+	return kversion >= kernel.VersionCode(5, 6, 0)
 }

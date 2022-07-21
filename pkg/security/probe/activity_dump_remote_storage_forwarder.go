@@ -16,6 +16,7 @@ import (
 	strings "strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
@@ -76,3 +77,6 @@ func (storage *ActivityDumpRemoteStorageForwarder) Persist(request dump.StorageR
 	seclog.Infof("[%s] file for activity dump [%s] was forwarded to the security-agent", request.Format, ad.GetSelectorStr())
 	return nil
 }
+
+// SendTelemetry sends telemetry for the current storage
+func (storage *ActivityDumpRemoteStorageForwarder) SendTelemetry(sender aggregator.Sender) {}

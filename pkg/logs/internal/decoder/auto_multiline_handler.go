@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/benbjohnson/clock"
 )
 
 const autoMultiLineTelemetryMetricName = "datadog.logs_agent.auto_multi_line"
@@ -57,9 +58,11 @@ type AutoMultilineHandler struct {
 	scoredMatches     []*scoredPattern
 	processFunc       func(message *Message)
 	flushTimeout      time.Duration
-	source            *sources.LogSource
-	timeoutTimer      *time.Timer
+	source            *sources.ReplaceableSource
+	matchTimeout      time.Duration
+	timeoutTimer      *clock.Timer
 	detectedPattern   *DetectedPattern
+	clk               clock.Clock
 }
 
 // NewAutoMultilineHandler returns a new AutoMultilineHandler.
@@ -69,7 +72,7 @@ func NewAutoMultilineHandler(
 	matchThreshold float64,
 	matchTimeout time.Duration,
 	flushTimeout time.Duration,
-	source *sources.LogSource,
+	source *sources.ReplaceableSource,
 	additionalPatterns []*regexp.Regexp,
 	detectedPattern *DetectedPattern,
 ) *AutoMultilineHandler {
@@ -93,8 +96,10 @@ func NewAutoMultilineHandler(
 		linesToAssess:   linesToAssess,
 		flushTimeout:    flushTimeout,
 		source:          source,
-		timeoutTimer:    time.NewTimer(matchTimeout),
+		matchTimeout:    matchTimeout,
+		timeoutTimer:    nil,
 		detectedPattern: detectedPattern,
+		clk:             clock.New(),
 	}
 
 	h.singleLineHandler = NewSingleLineHandler(outputFn, lineLimit)
@@ -140,6 +145,10 @@ func (h *AutoMultilineHandler) processAndTry(message *Message) {
 			}
 			break
 		}
+	}
+
+	if h.timeoutTimer == nil {
+		h.timeoutTimer = h.clk.Timer(h.matchTimeout)
 	}
 
 	timeout := false

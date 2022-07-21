@@ -31,7 +31,9 @@ var mainProbes = map[probes.ProbeName]string{
 	probes.TCPCloseReturn:       "kretprobe__tcp_close",
 	probes.TCPSetState:          "kprobe__tcp_set_state",
 	probes.IPMakeSkb:            "kprobe__ip_make_skb",
+	probes.IPMakeSkbReturn:      "kretprobe__ip_make_skb",
 	probes.IP6MakeSkb:           "kprobe__ip6_make_skb",
+	probes.IP6MakeSkbReturn:     "kretprobe__ip6_make_skb",
 	probes.UDPRecvMsg:           "kprobe__udp_recvmsg",
 	probes.UDPRecvMsgReturn:     "kretprobe__udp_recvmsg",
 	probes.UDPv6RecvMsg:         "kprobe__udpv6_recvmsg",
@@ -79,6 +81,7 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 			{Name: string(probes.SockFDLookupArgsMap)},
 			{Name: string(probes.DoSendfileArgsMap)},
 			{Name: string(probes.TcpSendMsgArgsMap)},
+			{Name: string(probes.IpMakeSkbArgsMap)},
 		},
 		PerfMaps: []*manager.PerfMap{
 			{

@@ -16,16 +16,16 @@ import (
 	"os/exec"
 	"time"
 
+	"go.uber.org/atomic"
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"go.uber.org/atomic"
-
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	yaml "gopkg.in/yaml.v2"
 )
 
 type apmCheckConf struct {
@@ -81,11 +81,11 @@ func (c *APMCheck) run() error {
 
 	cmd := exec.Command(c.binPath, c.commandOpts...)
 
-	hostname, _ := util.GetHostname(context.TODO())
+	hname, _ := hostname.Get(context.TODO())
 
 	env := os.Environ()
 	env = append(env, fmt.Sprintf("DD_API_KEY=%s", config.SanitizeAPIKey(config.Datadog.GetString("api_key"))))
-	env = append(env, fmt.Sprintf("DD_HOSTNAME=%s", hostname))
+	env = append(env, fmt.Sprintf("DD_HOSTNAME=%s", hname))
 	env = append(env, fmt.Sprintf("DD_DOGSTATSD_PORT=%s", config.Datadog.GetString("dogstatsd_port")))
 	env = append(env, fmt.Sprintf("DD_LOG_LEVEL=%s", config.Datadog.GetString("log_level")))
 	cmd.Env = env

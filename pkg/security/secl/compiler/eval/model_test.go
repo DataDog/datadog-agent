@@ -7,12 +7,11 @@ package eval
 
 import (
 	"container/list"
+	"errors"
 	"net"
 	"reflect"
 	"syscall"
 	"unsafe"
-
-	"github.com/pkg/errors"
 )
 
 var legacyFields = map[Field]Field{

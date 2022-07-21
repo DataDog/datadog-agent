@@ -8,23 +8,22 @@ package info
 import (
 	"fmt"
 	"reflect"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"go.uber.org/atomic"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestTracesDropped(t *testing.T) {
-	s := TracesDropped{
-		DecodingError: 1,
-		ForeignSpan:   1,
-		TraceIDZero:   1,
-		SpanIDZero:    1,
-	}
+	s := TracesDropped{}
+	s.DecodingError.Store(1)
+	s.ForeignSpan.Store(1)
+	s.TraceIDZero.Store(1)
+	s.SpanIDZero.Store(1)
 
 	t.Run("tagValues", func(t *testing.T) {
 		assert.Equal(t, map[string]int64{
@@ -45,13 +44,12 @@ func TestTracesDropped(t *testing.T) {
 }
 
 func TestSpansMalformed(t *testing.T) {
-	s := SpansMalformed{
-		ServiceEmpty:     1,
-		ResourceEmpty:    1,
-		ServiceInvalid:   1,
-		SpanNameTruncate: 1,
-		TypeTruncate:     1,
-	}
+	s := SpansMalformed{}
+	s.ServiceEmpty.Store(1)
+	s.ResourceEmpty.Store(1)
+	s.ServiceInvalid.Store(1)
+	s.SpanNameTruncate.Store(1)
+	s.TypeTruncate.Store(1)
 
 	t.Run("tagValues", func(t *testing.T) {
 		assert.Equal(t, map[string]int64{
@@ -94,9 +92,10 @@ func TestStatsTags(t *testing.T) {
 }
 
 func TestSamplingPriorityStats(t *testing.T) {
-	s := samplingPriorityStats{
-		[21]int64{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3},
-	}
+	s := samplingPriorityStats{}
+	s.counts[0].Store(1)
+	s.counts[10].Store(2)
+	s.counts[20].Store(3)
 
 	t.Run("TagValues", func(t *testing.T) {
 		assert.Equal(t, map[string]int64{
@@ -143,12 +142,14 @@ func TestSamplingPriorityStats(t *testing.T) {
 		}, s2.TagValues())
 	})
 
-	s3 := samplingPriorityStats{
-		[21]int64{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3},
-	}
-	s4 := samplingPriorityStats{
-		[21]int64{0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0},
-	}
+	s3 := samplingPriorityStats{}
+	s3.counts[0].Store(1)
+	s3.counts[10].Store(2)
+	s3.counts[20].Store(3)
+	s4 := samplingPriorityStats{}
+	s4.counts[1].Store(1)
+	s4.counts[10].Store(5)
+	s4.counts[19].Store(10)
 	t.Run("update", func(t *testing.T) {
 		s3.update(&s4)
 		assert.Equal(t, map[string]int64{
@@ -164,7 +165,7 @@ func TestSamplingPriorityStats(t *testing.T) {
 var _ metrics.StatsClient = (*testStatsClient)(nil)
 
 type testStatsClient struct {
-	counts int64
+	counts atomic.Int64
 }
 
 func (ts *testStatsClient) Gauge(name string, value float64, tags []string, rate float64) error {
@@ -172,7 +173,7 @@ func (ts *testStatsClient) Gauge(name string, value float64, tags []string, rate
 }
 
 func (ts *testStatsClient) Count(name string, value int64, tags []string, rate float64) error {
-	atomic.AddInt64(&ts.counts, 1)
+	ts.counts.Inc()
 	return nil
 }
 
@@ -200,36 +201,53 @@ func TestReceiverStats(t *testing.T) {
 		EndpointVersion: "v0.4",
 	}
 	testStats := func() *ReceiverStats {
+		stats := Stats{}
+		stats.TracesReceived.Store(1)
+		stats.TracesFiltered.Store(4)
+		stats.TracesPriorityNone.Store(5)
+		stats.TracesPerSamplingPriority = samplingPriorityStats{}
+		stats.TracesPerSamplingPriority.counts[maxAbsPriority+0].Store(1)
+		stats.TracesPerSamplingPriority.counts[maxAbsPriority+1].Store(2)
+		stats.TracesPerSamplingPriority.counts[maxAbsPriority+2].Store(3)
+		stats.TracesPerSamplingPriority.counts[maxAbsPriority+3].Store(4)
+		stats.TracesPerSamplingPriority.counts[maxAbsPriority+4].Store(5)
+		stats.ClientDroppedP0Traces.Store(7)
+		stats.ClientDroppedP0Spans.Store(8)
+		stats.TracesBytes.Store(9)
+		stats.SpansReceived.Store(10)
+		stats.SpansDropped.Store(11)
+		stats.SpansFiltered.Store(12)
+		stats.EventsExtracted.Store(13)
+		stats.EventsSampled.Store(14)
+		stats.PayloadAccepted.Store(15)
+		stats.PayloadRefused.Store(16)
+		stats.TracesDropped = &TracesDropped{}
+		stats.TracesDropped.DecodingError.Store(1)
+		stats.TracesDropped.PayloadTooLarge.Store(2)
+		stats.TracesDropped.EmptyTrace.Store(3)
+		stats.TracesDropped.TraceIDZero.Store(4)
+		stats.TracesDropped.SpanIDZero.Store(5)
+		stats.TracesDropped.ForeignSpan.Store(6)
+		stats.TracesDropped.Timeout.Store(7)
+		stats.TracesDropped.EOF.Store(8)
+		stats.SpansMalformed = &SpansMalformed{}
+		stats.SpansMalformed.DuplicateSpanID.Store(1)
+		stats.SpansMalformed.ServiceEmpty.Store(2)
+		stats.SpansMalformed.ServiceTruncate.Store(3)
+		stats.SpansMalformed.ServiceInvalid.Store(4)
+		stats.SpansMalformed.SpanNameEmpty.Store(5)
+		stats.SpansMalformed.SpanNameTruncate.Store(6)
+		stats.SpansMalformed.SpanNameInvalid.Store(7)
+		stats.SpansMalformed.ResourceEmpty.Store(8)
+		stats.SpansMalformed.TypeTruncate.Store(9)
+		stats.SpansMalformed.InvalidStartDate.Store(10)
+		stats.SpansMalformed.InvalidDuration.Store(11)
+		stats.SpansMalformed.InvalidHTTPStatusCode.Store(12)
 		return &ReceiverStats{
 			Stats: map[Tags]*TagStats{
 				tags: {
-					Tags: tags,
-					Stats: Stats{
-						TracesReceived:     1,
-						TracesDropped:      &TracesDropped{1, 2, 3, 4, 5, 6, 7, 8},
-						SpansMalformed:     &SpansMalformed{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12},
-						TracesFiltered:     4,
-						TracesPriorityNone: 5,
-						TracesPerSamplingPriority: samplingPriorityStats{
-							[maxAbsPriority*2 + 1]int64{
-								maxAbsPriority + 0: 1,
-								maxAbsPriority + 1: 2,
-								maxAbsPriority + 2: 3,
-								maxAbsPriority + 3: 4,
-								maxAbsPriority + 4: 5,
-							},
-						},
-						ClientDroppedP0Traces: 7,
-						ClientDroppedP0Spans:  8,
-						TracesBytes:           9,
-						SpansReceived:         10,
-						SpansDropped:          11,
-						SpansFiltered:         12,
-						EventsExtracted:       13,
-						EventsSampled:         14,
-						PayloadAccepted:       15,
-						PayloadRefused:        16,
-					},
+					Tags:  tags,
+					Stats: stats,
 				},
 			},
 		}
@@ -237,7 +255,7 @@ func TestReceiverStats(t *testing.T) {
 
 	t.Run("Publish", func(t *testing.T) {
 		testStats().Publish()
-		assert.EqualValues(t, atomic.LoadInt64(&statsclient.counts), 39)
+		assert.EqualValues(t, statsclient.counts.Load(), 39)
 	})
 
 	t.Run("reset", func(t *testing.T) {

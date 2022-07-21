@@ -10,6 +10,7 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"path"
@@ -18,8 +19,6 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
-
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -156,12 +155,13 @@ type Event struct {
 	Splice      SpliceEvent   `field:"splice" event:"splice"`           // [7.36] [File] A splice command was executed
 
 	// process events
-	Exec   ExecEvent   `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed or forked
-	SetUID SetuidEvent `field:"setuid" event:"setuid"` // [7.27] [Process] A process changed its effective uid
-	SetGID SetgidEvent `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
-	Capset CapsetEvent `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
-	Signal SignalEvent `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
-	Exit   ExitEvent   `field:"exit" event:"exit"`     // [7.38] [Process] A process was terminated
+	Exec     ExecEvent     `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed or forked
+	SetUID   SetuidEvent   `field:"setuid" event:"setuid"` // [7.27] [Process] A process changed its effective uid
+	SetGID   SetgidEvent   `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
+	Capset   CapsetEvent   `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
+	Signal   SignalEvent   `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
+	Exit     ExitEvent     `field:"exit" event:"exit"`     // [7.38] [Process] A process was terminated
+	Syscalls SyscallsEvent `field:"-"`
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
@@ -273,7 +273,7 @@ func (e *Process) GetPathResolutionError() string {
 
 // Process represents a process
 type Process struct {
-	PIDContext
+	PIDContext `msg:"pid_context"`
 
 	FileEvent FileEvent `field:"file" msg:"file"`
 
@@ -383,7 +383,7 @@ func (f *FileFields) GetInUpperLayer() bool {
 
 // FileEvent is the common file event type
 type FileEvent struct {
-	FileFields
+	FileFields `msg:"file_fields"`
 
 	PathnameStr string `field:"path,handler:ResolveFilePath" msg:"path" op_override:"ProcessSymlinkPathname"`     // File's path
 	BasenameStr string `field:"name,handler:ResolveFileBasename" msg:"name" op_override:"ProcessSymlinkBasename"` // File's basename
@@ -864,4 +864,10 @@ type VethPairEvent struct {
 
 	HostDevice NetDevice
 	PeerDevice NetDevice
+}
+
+// SyscallsEvent represents a syscalls event
+//msgp:ignore SyscallsEvent
+type SyscallsEvent struct {
+	Syscalls []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
 }

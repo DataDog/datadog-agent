@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // Tailer tails a file, decodes the messages it contains, and passes them to a
@@ -127,8 +128,8 @@ type Tailer struct {
 func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.Duration, decoder *decoder.Decoder) *Tailer {
 
 	var tagProvider tag.Provider
-	if file.Source.Config.Identifier != "" {
-		tagProvider = tag.NewProvider(containers.BuildTaggerEntityName(file.Source.Config.Identifier))
+	if file.Source.Config().Identifier != "" {
+		tagProvider = tag.NewProvider(containers.BuildTaggerEntityName(file.Source.Config().Identifier))
 	} else {
 		tagProvider = tag.NewLocalProvider([]string{})
 	}
@@ -178,10 +179,10 @@ func (t *Tailer) Identifier() string {
 func (t *Tailer) Start(offset int64, whence int) error {
 	err := t.setup(offset, whence)
 	if err != nil {
-		t.file.Source.Status.Error(err)
+		t.file.Source.Status().Error(err)
 		return err
 	}
-	t.file.Source.Status.Success()
+	t.file.Source.Status().Success()
 	t.file.Source.AddInput(t.file.Path)
 
 	go t.forwardMessages()
@@ -283,7 +284,7 @@ func (t *Tailer) forwardMessages() {
 			identifier = ""
 		}
 		t.decodedOffset.Store(offset)
-		origin := message.NewOrigin(t.file.Source)
+		origin := message.NewOrigin(t.file.Source.UnderlyingSource())
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
 		origin.SetTags(append(t.tags, t.tagProvider.GetTags()...))
@@ -314,8 +315,15 @@ func (t *Tailer) wait() {
 
 func (t *Tailer) recordBytes(n int64) {
 	t.bytesRead += n
-	t.file.Source.BytesRead.Add(n)
-	if t.file.Source.ParentSource != nil {
-		t.file.Source.ParentSource.BytesRead.Add(n)
-	}
+	t.file.Source.RecordBytes(n)
+}
+
+// ReplaceSource replaces the current source
+func (t *Tailer) ReplaceSource(newSource *sources.LogSource) {
+	t.file.Source.Replace(newSource)
+}
+
+// Source gets the source (currently only used for testing)
+func (t *Tailer) Source() *sources.LogSource {
+	return t.file.Source.UnderlyingSource()
 }

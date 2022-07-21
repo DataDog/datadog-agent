@@ -25,7 +25,7 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -51,6 +51,10 @@ const (
 	// ownerNameKey represents the KSM label key owner_name
 	ownerNameKey = "owner_name"
 )
+
+var extendedCollectors = map[string]string{
+	"jobs": "jobs_extended",
+}
 
 // KSMConfig contains the check config parameters
 type KSMConfig struct {
@@ -212,10 +216,6 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 		collectors = options.DefaultResources.AsSlice()
 	}
 
-	if err := builder.WithEnabledResources(collectors); err != nil {
-		return err
-	}
-
 	// Enable exposing resource labels explicitly for kube_<resource>_labels metadata metrics.
 	// Equivalent to configuring --metric-labels-allowlist.
 	allowedLabels := map[string][]string{}
@@ -275,16 +275,33 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 	builder.WithGenerateStoresFunc(builder.GenerateStores)
 
 	factories := []customresource.RegistryFactory{
+		customresources.NewJobFactory(),
 		customresources.NewCronJobFactory(),
 		customresources.NewPodDisruptionBudgetFactory(),
 	}
-	builder.WithCustomResourceStoreFactories(factories...)
-	builder.WithCustomResourceClients(map[string]interface{}{
-		"cronjobs":             c.Cl,
-		"poddisruptionbudgets": c.Cl,
-	})
 
+	clients := make(map[string]interface{}, len(factories))
+	for _, f := range factories {
+		clients[f.Name()] = c.Cl
+	}
+
+	builder.WithCustomResourceStoreFactories(factories...)
+	builder.WithCustomResourceClients(clients)
 	builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
+
+	// automatically add extended collectors if their standard ones are
+	// enabled
+	for _, c := range collectors {
+		if extended, ok := extendedCollectors[c]; ok {
+			collectors = append(collectors, extended)
+		}
+	}
+
+	// must call WithEnabledResources after custom resources have been
+	// registered, otherwise they will fail with "resource does not exist"
+	if err := builder.WithEnabledResources(collectors); err != nil {
+		return err
+	}
 
 	// Start the collection process
 	k.allStores = builder.BuildStores()
@@ -557,7 +574,7 @@ func (k *KSMCheck) processLabelsAsTags() {
 
 // getClusterName retrieves the name of the cluster, if found
 func (k *KSMCheck) getClusterName() {
-	hostname, _ := util.GetHostname(context.TODO())
+	hostname, _ := hostnameUtil.Get(context.TODO())
 	if clusterName := clustername.GetClusterName(context.TODO(), hostname); clusterName != "" {
 		k.clusterName = clusterName
 	}

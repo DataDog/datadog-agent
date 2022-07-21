@@ -90,6 +90,20 @@ func waitForCalledSignal(calledSignal chan interface{}) bool {
 	}
 }
 
+func TestRemoveCheckMetadata(t *testing.T) {
+	ctx := context.Background()
+	defer func() { clearMetadata() }()
+
+	SetCheckMetadata("check1", "check_provided_key1", 123)
+	SetCheckMetadata("check2", "check_provided_key1", 123)
+	RemoveCheckMetadata("check1")
+
+	p := GetPayload(ctx, "testHostname", nil, nil)
+	checks := *p.CheckMetadata
+	assert.Len(t, checks, 1)
+	assert.Len(t, checks["check2"], 1)
+}
+
 func TestGetPayload(t *testing.T) {
 	ctx := context.Background()
 	defer func() { clearMetadata() }()
@@ -108,26 +122,26 @@ func TestGetPayload(t *testing.T) {
 	assert.Equal(t, startNow.UnixNano(), p.Timestamp)
 
 	agentMetadata := *p.AgentMetadata
-	assert.Len(t, agentMetadata, 1)
+	assert.Len(t, agentMetadata, 3) // keys are: "test", "full_configuration", "provided_configuration"
 	assert.Equal(t, true, agentMetadata["test"])
 
-	checkMetadata := *p.CheckMetadata
-	assert.Len(t, checkMetadata, 3)
-	assert.Len(t, checkMetadata["check1"], 2) // check1 has two instances
-	check1Instance1 := *checkMetadata["check1"][0]
+	checkMeta := *p.CheckMetadata
+	assert.Len(t, checkMeta, 3)
+	assert.Len(t, checkMeta["check1"], 2) // check1 has two instances
+	check1Instance1 := *checkMeta["check1"][0]
 	assert.Len(t, check1Instance1, 5)
 	assert.Equal(t, startNow.UnixNano(), check1Instance1["last_updated"])
 	assert.Equal(t, "check1_instance1", check1Instance1["config.hash"])
 	assert.Equal(t, "provider1", check1Instance1["config.provider"])
 	assert.Equal(t, 123, check1Instance1["check_provided_key1"])
 	assert.Equal(t, "Hi", check1Instance1["check_provided_key2"])
-	check1Instance2 := *checkMetadata["check1"][1]
+	check1Instance2 := *checkMeta["check1"][1]
 	assert.Len(t, check1Instance2, 3)
 	assert.Equal(t, agentStartupTime.UnixNano(), check1Instance2["last_updated"])
 	assert.Equal(t, "check1_instance2", check1Instance2["config.hash"])
 	assert.Equal(t, "provider1", check1Instance2["config.provider"])
-	assert.Len(t, checkMetadata["check2"], 1) // check2 has one instance
-	check2Instance1 := *checkMetadata["check2"][0]
+	assert.Len(t, checkMeta["check2"], 1) // check2 has one instance
+	check2Instance1 := *checkMeta["check2"][0]
 	assert.Len(t, check2Instance1, 3)
 	assert.Equal(t, agentStartupTime.UnixNano(), check2Instance1["last_updated"])
 	assert.Equal(t, "check2_instance1", check2Instance1["config.hash"])
@@ -141,29 +155,32 @@ func TestGetPayload(t *testing.T) {
 	resetFunc := setupHostMetadataMock()
 	defer resetFunc()
 
+	mockConfig := config.Mock(t)
+	mockConfig.Set("inventories_configuration_enabled", false)
+
 	p = GetPayload(ctx, "testHostname", &mockAutoConfig{}, &mockCollector{})
 
 	assert.Equal(t, startNow.UnixNano(), p.Timestamp) //updated startNow is returned
 
 	agentMetadata = *p.AgentMetadata
-	assert.Len(t, agentMetadata, 2)
+	assert.Len(t, agentMetadata, 2) // keys are: "test", "cloud_provider"
 	assert.Equal(t, true, agentMetadata["test"])
 
-	checkMetadata = *p.CheckMetadata
-	assert.Len(t, checkMetadata, 3)
-	check1Instance1 = *checkMetadata["check1"][0]
+	checkMeta = *p.CheckMetadata
+	assert.Len(t, checkMeta, 3)
+	check1Instance1 = *checkMeta["check1"][0]
 	assert.Len(t, check1Instance1, 5)
 	assert.Equal(t, startNow.UnixNano(), check1Instance1["last_updated"]) // last_updated has changed
 	assert.Equal(t, "check1_instance1", check1Instance1["config.hash"])
 	assert.Equal(t, "provider1", check1Instance1["config.provider"])
 	assert.Equal(t, 456, check1Instance1["check_provided_key1"]) //Key has been updated
 	assert.Equal(t, "Hi", check1Instance1["check_provided_key2"])
-	check1Instance2 = *checkMetadata["check1"][1]
+	check1Instance2 = *checkMeta["check1"][1]
 	assert.Len(t, check1Instance2, 3)
 	assert.Equal(t, agentStartupTime.UnixNano(), check1Instance2["last_updated"]) // last_updated still the same
 	assert.Equal(t, "check1_instance2", check1Instance2["config.hash"])
 	assert.Equal(t, "provider1", check1Instance2["config.provider"])
-	check2Instance1 = *checkMetadata["check2"][0]
+	check2Instance1 = *checkMeta["check2"][0]
 	assert.Len(t, check2Instance1, 4)
 	assert.Equal(t, originalStartNow.UnixNano(), check2Instance1["last_updated"]) // reflects when check_provided_key1 was changed
 	assert.Equal(t, "check2_instance1", check2Instance1["config.hash"])
@@ -294,7 +311,7 @@ func TestSetup(t *testing.T) {
 	assert.True(t, ms.lastSendNowDelay > time.Duration(0))
 }
 
-func Test_createCheckInstanceMetadata_returnsNewMetadata(t *testing.T) {
+func TestCreateCheckInstanceMetadataReturnsNewMetadata(t *testing.T) {
 	defer clearMetadata()
 
 	const (

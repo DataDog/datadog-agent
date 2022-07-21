@@ -1,5 +1,23 @@
 require "rspec/core/formatters/base_text_formatter"
 
+COLORS = [
+  :green,
+  :yellow,
+  :blue,
+  :magenta,
+  :cyan,
+]
+
+class KernelOut
+  @@release = `uname -r`.strip
+  color_idx = File.read('/tmp/system-probe-tests/color_idx').strip.to_i - 1
+  @@color = COLORS[color_idx]
+
+  def self.format(text)
+    RSpec::Core::Formatters::ConsoleCodes.wrap("[#{@@release}] #{text}", @@color)
+  end
+end
+
 class CustomFormatter
   RSpec::Core::Formatters.register self, :example_passed, :example_failed, :dump_summary, :dump_failures, :example_group_started, :example_group_finished
 
@@ -16,21 +34,24 @@ class CustomFormatter
   end
 
   def example_group_started(notification)
-    @output << "\nstarted #{notification.group.description}\n"
+    @output << "\n"
+    @output << KernelOut.format("started #{notification.group.description}\n")
   end
 
   def example_group_finished(notification)
-    @output << "finished #{notification.group.description}\n\n"
+    @output << KernelOut.format("finished #{notification.group.description}\n\n")
   end
 
   def dump_summary(notification)
-    @output << "Finished in #{RSpec::Core::Formatters::Helpers.format_duration(notification.duration)}.\n"
-    @output << "Platform: #{`uname -a`}\n\n"
+    @output << KernelOut.format("Finished in #{RSpec::Core::Formatters::Helpers.format_duration(notification.duration)}.\n")
+    @output << KernelOut.format("Platform: #{`uname -a`}\n\n")
   end
 
   def dump_failures(notification) # ExamplesNotification
     if notification.failed_examples.length > 0
-      @output << "\n#{RSpec::Core::Formatters::ConsoleCodes.wrap("FAILURES:", :failure)}\n\n"
+      rel = KernelOut.format("")
+      failures = RSpec::Core::Formatters::ConsoleCodes.wrap("FAILURES:", :failure)
+      @output << "\n#{rel} #{failures}\n\n"
       @output << error_summary(notification)
     end
   end
