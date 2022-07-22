@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/Masterminds/semver"
 	"github.com/fsnotify/fsnotify"
 	"github.com/hashicorp/go-multierror"
 )
@@ -22,8 +21,7 @@ var _ PolicyProvider = (*PoliciesDirProvider)(nil)
 
 // PoliciesDirProvider defines a new policy dir provider
 type PoliciesDirProvider struct {
-	PoliciesDir  string
-	agentVersion *semver.Version
+	PoliciesDir string
 
 	onNewPoliciesReadyCb func()
 	cancelFnc            func()
@@ -39,7 +37,7 @@ func (p *PoliciesDirProvider) SetOnNewPoliciesReadyCb(cb func()) {
 // Start starts the policy dir provider
 func (p *PoliciesDirProvider) Start() {}
 
-func (p *PoliciesDirProvider) loadPolicy(filename string) (*Policy, error) {
+func (p *PoliciesDirProvider) loadPolicy(filename string, filters []RuleFilter) (*Policy, error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return nil, &ErrPolicyLoad{Name: filename, Err: err}
@@ -48,7 +46,7 @@ func (p *PoliciesDirProvider) loadPolicy(filename string) (*Policy, error) {
 
 	name := filepath.Base(filename)
 
-	policy, err := LoadPolicy(name, "file", f, p.agentVersion)
+	policy, err := LoadPolicy(name, "file", f, filters)
 	if err != nil {
 		return nil, &ErrPolicyLoad{Name: name, Err: err}
 	}
@@ -86,7 +84,7 @@ func (p *PoliciesDirProvider) getPolicyFiles() ([]string, error) {
 }
 
 // LoadPolicies implements the policy provider interface
-func (p *PoliciesDirProvider) LoadPolicies() ([]*Policy, *multierror.Error) {
+func (p *PoliciesDirProvider) LoadPolicies(filters []RuleFilter) ([]*Policy, *multierror.Error) {
 	var errs *multierror.Error
 
 	var policies []*Policy
@@ -106,7 +104,7 @@ func (p *PoliciesDirProvider) LoadPolicies() ([]*Policy, *multierror.Error) {
 
 	// Load and parse policies
 	for _, filename := range policyFiles {
-		policy, err := p.loadPolicy(filename)
+		policy, err := p.loadPolicy(filename, filters)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		} else {
@@ -178,11 +176,10 @@ func (p *PoliciesDirProvider) watch(ctx context.Context) {
 }
 
 // NewPoliciesDirProvider returns providers for the given policies dir
-func NewPoliciesDirProvider(policiesDir string, watch bool, agentVersion *semver.Version) (*PoliciesDirProvider, error) {
+func NewPoliciesDirProvider(policiesDir string, watch bool) (*PoliciesDirProvider, error) {
 
 	p := &PoliciesDirProvider{
-		PoliciesDir:  policiesDir,
-		agentVersion: agentVersion,
+		PoliciesDir: policiesDir,
 	}
 
 	if watch {

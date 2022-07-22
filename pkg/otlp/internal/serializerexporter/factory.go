@@ -17,7 +17,8 @@ import (
 
 const (
 	// TypeStr defines the serializer exporter type string.
-	TypeStr = "serializer"
+	TypeStr   = "serializer"
+	stability = component.StabilityLevelStable
 )
 
 type factory struct {
@@ -31,7 +32,7 @@ func NewFactory(s serializer.MetricSerializer) component.ExporterFactory {
 	return component.NewExporterFactory(
 		TypeStr,
 		newDefaultConfig,
-		component.WithMetricsExporter(f.createMetricExporter),
+		component.WithMetricsExporterAndStabilityLevel(f.createMetricExporter, stability),
 	)
 }
 

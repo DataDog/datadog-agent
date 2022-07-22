@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	lib "github.com/cilium/ebpf"
-	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
@@ -103,7 +102,7 @@ func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 	}
 	numCPU, err := utils.NumCPU()
 	if err != nil {
-		return nil, errors.Wrapf(err, "couldn't fetch the host CPU count")
+		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
 	}
 	pbm.numCPU = numCPU
 
@@ -116,7 +115,7 @@ func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 	for perfMapName, statsMapName := range pbm.perfBufferMapNameToStatsMapsName {
 		stats, ok, err := p.manager.GetMap(statsMapName)
 		if !ok {
-			return nil, errors.Errorf("map %s not found", statsMapName)
+			return nil, fmt.Errorf("map %s not found", statsMapName)
 		}
 		if err != nil {
 			return nil, err
@@ -294,7 +293,7 @@ func (pbm *PerfBufferMonitor) swapKernelLostCount(eventType model.EventType, per
 
 // GetEventStats returns the number of received events of the specified type
 func (pbm *PerfBufferMonitor) GetEventStats(eventType model.EventType, perfMap string, cpu int) (PerfMapStats, PerfMapStats) {
-	var stats, kernelStats PerfMapStats
+	stats, kernelStats := NewPerfMapStats(), NewPerfMapStats()
 	var maps []string
 
 	if eventType >= model.MaxKernelEventType {
@@ -445,7 +444,12 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 		iterator *lib.MapIterator
 		tmpCount uint64
 	)
+
 	cpuStats := make([]PerfMapStats, pbm.numCPU)
+	for i := 0; i < pbm.numCPU; i++ {
+		cpuStats[i] = NewPerfMapStats()
+	}
+
 	tags := []string{pbm.probe.config.StatsTagsCardinality, "", ""}
 
 	// loop through the statistics buffers of each perf map
@@ -507,8 +511,8 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 				perEvent[evtType.String()] += stats.Lost.Load()
 			}
 		}
-		if iterator.Err() != nil {
-			return errors.Wrapf(iterator.Err(), "failed to dump the statistics buffer of map %s", perfMapName)
+		if err := iterator.Err(); err != nil {
+			return fmt.Errorf("failed to dump the statistics buffer of map %s: %w", perfMapName, err)
 		}
 
 		// send an alert if events were lost

@@ -15,11 +15,11 @@ import (
 	"path"
 	"strings"
 	"syscall"
+	"testing"
 	"unsafe"
 
 	"github.com/avast/retry-go"
 	"github.com/freddierice/go-losetup"
-	"github.com/pkg/errors"
 )
 
 type testDrive struct {
@@ -43,26 +43,22 @@ func (td *testDrive) Path(filename ...string) (string, unsafe.Pointer, error) {
 	return path, unsafe.Pointer(filenamePtr), nil
 }
 
-func newTestDrive(fsType string, mountOpts []string) (*testDrive, error) {
-	return newTestDriveWithMountPoint(fsType, mountOpts, "")
+func newTestDrive(tb testing.TB, fsType string, mountOpts []string) (*testDrive, error) {
+	return newTestDriveWithMountPoint(tb, fsType, mountOpts, "")
 }
 
-func newTestDriveWithMountPoint(fsType string, mountOpts []string, mountPoint string) (*testDrive, error) {
+func newTestDriveWithMountPoint(tb testing.TB, fsType string, mountOpts []string, mountPoint string) (*testDrive, error) {
 	backingFile, err := os.CreateTemp("", "secagent-testdrive-")
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create testdrive backing file")
+		return nil, fmt.Errorf("failed to create testdrive backing file: %w", err)
 	}
 
 	if err := backingFile.Close(); err != nil {
-		return nil, errors.Wrap(err, "failed to close testdrive backing file")
+		return nil, fmt.Errorf("failed to close testdrive backing file: %w", err)
 	}
 
-	if len(mountPoint) == 0 {
-		mountPoint, err = os.MkdirTemp("", "secagent-testdrive-")
-		if err != nil {
-			os.Remove(backingFile.Name())
-			return nil, errors.Wrap(err, "failed to create testdrive mount point")
-		}
+	if mountPoint == "" {
+		mountPoint = tb.TempDir()
 	}
 
 	var loopback *losetup.Device
@@ -72,14 +68,14 @@ func newTestDriveWithMountPoint(fsType string, mountOpts []string, mountPoint st
 			os.Remove(backingFile.Name())
 			os.RemoveAll(mountPoint)
 
-			return nil, errors.Wrap(err, "failed to truncate testdrive backing file")
+			return nil, fmt.Errorf("failed to truncate testdrive backing file: %w", err)
 		}
 
 		dev, err := losetup.Attach(backingFile.Name(), 0, false)
 		if err != nil {
 			os.Remove(backingFile.Name())
 			os.RemoveAll(mountPoint)
-			return nil, errors.Wrap(err, "failed to create testdrive loop device")
+			return nil, fmt.Errorf("failed to create testdrive loop device: %w", err)
 		}
 
 		if len(mountOpts) == 0 {
@@ -91,7 +87,7 @@ func newTestDriveWithMountPoint(fsType string, mountOpts []string, mountPoint st
 			_ = dev.Detach()
 			os.Remove(backingFile.Name())
 			os.RemoveAll(mountPoint)
-			return nil, errors.Wrapf(err, "failed to create testdrive %s filesystem", fsType)
+			return nil, fmt.Errorf("failed to create testdrive %s filesystem: %w", fsType, err)
 		}
 
 		loopback = &dev
@@ -109,7 +105,7 @@ func newTestDriveWithMountPoint(fsType string, mountOpts []string, mountPoint st
 		}
 		os.Remove(backingFile.Name())
 		os.RemoveAll(mountPoint)
-		return nil, errors.Wrap(err, "failed to mount testdrive")
+		return nil, fmt.Errorf("failed to mount testdrive: %w", err)
 	}
 
 	return &testDrive{

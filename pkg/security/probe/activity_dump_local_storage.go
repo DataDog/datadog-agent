@@ -19,9 +19,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/golang-lru/simplelru"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
-	"github.com/hashicorp/golang-lru/simplelru"
 )
 
 type dumpFiles struct {
@@ -202,3 +204,6 @@ func (storage *ActivityDumpLocalStorage) Persist(request dump.StorageRequest, ad
 	seclog.Infof("[%s] file for [%s] written at: [%s]", request.Format, ad.GetSelectorStr(), outputPath)
 	return nil
 }
+
+// SendTelemetry sends telemetry for the current storage
+func (storage *ActivityDumpLocalStorage) SendTelemetry(sender aggregator.Sender) {}

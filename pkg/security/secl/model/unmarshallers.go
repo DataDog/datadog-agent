@@ -931,7 +931,7 @@ func (e *VethPairEvent) UnmarshalBinary(data []byte) (int, error) {
 	return cursor, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 	read, err := UnmarshalBinary(data, &e.SyscallEvent)
 	if err != nil {
@@ -956,4 +956,21 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	return read + 20, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 64 {
+		return 0, ErrNotEnoughData
+	}
+
+	for i, b := range data[:64] {
+		// compute the ID of the syscall
+		for j := 0; j < 8; j++ {
+			if b&(1<<j) > 0 {
+				e.Syscalls = append(e.Syscalls, Syscall(i*8+j))
+			}
+		}
+	}
+	return 64, nil
 }

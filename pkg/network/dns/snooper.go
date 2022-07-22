@@ -10,13 +10,13 @@ package dns
 
 import (
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/gopacket"
+	"go.uber.org/atomic"
 )
 
 const (
@@ -28,15 +28,14 @@ var _ ReverseDNS = &socketFilterSnooper{}
 
 // socketFilterSnooper is a DNS traffic snooper built on top of an eBPF SOCKET_FILTER
 type socketFilterSnooper struct {
-	// Telemetry is at the beginning of the struct to keep all fields 64-bit aligned.
-	// see https://staticcheck.io/docs/checks#SA1027
-	decodingErrors int64
-	truncatedPkts  int64
+	// Telemetry
+	decodingErrors *atomic.Int64
+	truncatedPkts  *atomic.Int64
 
 	// DNS telemetry, values calculated *till* the last tick in pollStats
-	queries   int64
-	successes int64
-	errors    int64
+	queries   *atomic.Int64
+	successes *atomic.Int64
+	errors    *atomic.Int64
 
 	source          packetSource
 	parser          *dnsParser
@@ -83,6 +82,12 @@ func newSocketFilterSnooper(cfg *config.Config, source packetSource) (*socketFil
 		log.Infof("DNS Stats Collection has been disabled.")
 	}
 	snooper := &socketFilterSnooper{
+		decodingErrors: atomic.NewInt64(0),
+		truncatedPkts:  atomic.NewInt64(0),
+		queries:        atomic.NewInt64(0),
+		successes:      atomic.NewInt64(0),
+		errors:         atomic.NewInt64(0),
+
 		source:          source,
 		parser:          newDNSParser(source.PacketType(), cfg),
 		cache:           cache,
@@ -129,12 +134,12 @@ func (s *socketFilterSnooper) GetStats() map[string]int64 {
 		stats[key] = value
 	}
 
-	stats["decoding_errors"] = atomic.LoadInt64(&s.decodingErrors)
-	stats["truncated_packets"] = atomic.LoadInt64(&s.truncatedPkts)
+	stats["decoding_errors"] = s.decodingErrors.Load()
+	stats["truncated_packets"] = s.truncatedPkts.Load()
 	stats["timestamp_micro_secs"] = time.Now().UnixNano() / 1000
-	stats["queries"] = atomic.LoadInt64(&s.queries)
-	stats["successes"] = atomic.LoadInt64(&s.successes)
-	stats["errors"] = atomic.LoadInt64(&s.errors)
+	stats["queries"] = s.queries.Load()
+	stats["successes"] = s.successes.Load()
+	stats["errors"] = s.errors.Load()
 	if s.statKeeper != nil {
 		numStats, droppedStats := s.statKeeper.GetNumStats()
 		stats["num_stats"] = int64(numStats)
@@ -173,9 +178,9 @@ func (s *socketFilterSnooper) processPacket(data []byte, ts time.Time) error {
 		switch err {
 		case errSkippedPayload: // no need to count or log cases where the packet is valid but has no relevant content
 		case errTruncated:
-			atomic.AddInt64(&s.truncatedPkts, 1)
+			s.truncatedPkts.Inc()
 		default:
-			atomic.AddInt64(&s.decodingErrors, 1)
+			s.decodingErrors.Inc()
 		}
 		return nil
 	}
@@ -186,11 +191,11 @@ func (s *socketFilterSnooper) processPacket(data []byte, ts time.Time) error {
 
 	if pktInfo.pktType == successfulResponse {
 		s.cache.Add(t)
-		atomic.AddInt64(&s.successes, 1)
+		s.successes.Inc()
 	} else if pktInfo.pktType == failedResponse {
-		atomic.AddInt64(&s.errors, 1)
+		s.errors.Inc()
 	} else {
-		atomic.AddInt64(&s.queries, 1)
+		s.queries.Inc()
 	}
 
 	return nil
@@ -228,9 +233,9 @@ func (s *socketFilterSnooper) logDNSStats() {
 	for {
 		select {
 		case <-ticker.C:
-			queries = atomic.LoadInt64(&s.queries)
-			successes = atomic.LoadInt64(&s.successes)
-			errors = atomic.LoadInt64(&s.errors)
+			queries = s.queries.Load()
+			successes = s.successes.Load()
+			errors = s.errors.Load()
 			log.Infof("DNS Stats. Queries :%d, Successes :%d, Errors: %d", queries-lastQueries, successes-lastSuccesses, errors-lastErrors)
 			lastQueries = queries
 			lastSuccesses = successes

@@ -112,7 +112,6 @@ func (m *OOMKillCheck) Run() error {
 		containerID, err := cgroups.ContainerFilter("", line.CgroupName)
 		if err != nil || containerID == "" {
 			log.Warnf("Unable to extract containerID from cgroup name: %s, err: %v", line.CgroupName, err)
-			continue
 		}
 
 		entityID := containers.BuildTaggerEntityName(containerID)

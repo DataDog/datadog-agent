@@ -11,6 +11,7 @@ package module
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -22,7 +23,6 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 
@@ -71,7 +71,9 @@ type Module struct {
 	policiesVersions []string
 	policyProviders  []rules.PolicyProvider
 	policyLoader     *rules.PolicyLoader
+	policyOpts       rules.PolicyLoaderOpts
 	selfTester       *selftests.SelfTester
+	policyMonitor    *PolicyMonitor
 }
 
 // Register the runtime security agent module
@@ -90,10 +92,10 @@ func (m *Module) Init() error {
 
 	ln, err := net.Listen("unix", m.config.SocketPath)
 	if err != nil {
-		return errors.Wrap(err, "unable to register security runtime module")
+		return fmt.Errorf("unable to register security runtime module: %w", err)
 	}
 	if err := os.Chmod(m.config.SocketPath, 0700); err != nil {
-		return errors.Wrap(err, "unable to register security runtime module")
+		return fmt.Errorf("unable to register security runtime module: %w", err)
 	}
 
 	m.listener = ln
@@ -110,6 +112,9 @@ func (m *Module) Init() error {
 	// start api server
 	m.apiServer.Start(m.ctx)
 
+	// monitor policies
+	m.policyMonitor.Start(m.ctx)
+
 	m.probe.AddEventHandler(model.UnknownEventType, m)
 	m.probe.AddActivityDumpHandler(m)
 
@@ -121,7 +126,7 @@ func (m *Module) Init() error {
 	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
 	// running yet.
 	if err := m.probe.Init(); err != nil {
-		return errors.Wrap(err, "failed to init probe")
+		return fmt.Errorf("failed to init probe: %w", err)
 	}
 
 	// policy loader
@@ -134,7 +139,7 @@ func (m *Module) Init() error {
 func (m *Module) Start() error {
 	// setup the manager and its probes / perf maps
 	if err := m.probe.Setup(); err != nil {
-		return errors.Wrap(err, "failed to setup probe")
+		return fmt.Errorf("failed to setup probe: %w", err)
 	}
 
 	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
@@ -153,7 +158,7 @@ func (m *Module) Start() error {
 	}
 
 	if m.config.SelfTestEnabled && m.selfTester != nil {
-		_ = m.RunSelfTest(true, false)
+		_ = m.RunSelfTest(true)
 	}
 
 	var policyProviders []rules.PolicyProvider
@@ -163,8 +168,16 @@ func (m *Module) Start() error {
 		log.Errorf("failed to parse agent version: %v", err)
 	}
 
+	m.policyOpts = rules.PolicyLoaderOpts{
+		RuleFilters: []rules.RuleFilter{
+			&rules.AgentVersionFilter{
+				Version: agentVersion,
+			},
+		},
+	}
+
 	// directory policy provider
-	if provider, err := rules.NewPoliciesDirProvider(m.config.PoliciesDir, m.config.WatchPoliciesDir, agentVersion); err != nil {
+	if provider, err := rules.NewPoliciesDirProvider(m.config.PoliciesDir, m.config.WatchPoliciesDir); err != nil {
 		log.Errorf("failed to load policies: %s", err)
 	} else {
 		policyProviders = append(policyProviders, provider)
@@ -339,8 +352,8 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 	// load policies
 	m.policyLoader.SetProviders(policyProviders)
 
-	loadErrs := approverRuleSet.LoadPolicies(m.policyLoader)
-	loadApproversErrs := ruleSet.LoadPolicies(m.policyLoader)
+	loadErrs := approverRuleSet.LoadPolicies(m.policyLoader, m.policyOpts)
+	loadApproversErrs := ruleSet.LoadPolicies(m.policyLoader, m.policyOpts)
 
 	// non fatal error, just log
 	if loadErrs.ErrorOrNil() != nil {
@@ -388,6 +401,8 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 		monitor := m.probe.GetMonitor()
 		ruleSetLoadedReport := monitor.PrepareRuleSetLoadedReport(ruleSet, loadErrs)
 		monitor.ReportRuleSetLoaded(ruleSetLoadedReport)
+
+		m.policyMonitor.AddPolicies(ruleSet.GetPolicies())
 	}
 
 	return nil
@@ -622,6 +637,7 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 		ctx:            ctx,
 		cancelFnc:      cancelFnc,
 		selfTester:     selfTester,
+		policyMonitor:  NewPolicyMonitor(statsdClient),
 	}
 	m.apiServer.module = m
 
@@ -634,18 +650,18 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 }
 
 // RunSelfTest runs the self tests
-func (m *Module) RunSelfTest(sendLoadedReport bool, thenRevertPolicies bool) error {
+func (m *Module) RunSelfTest(sendLoadedReport bool) error {
 	prevProviders, providers := m.policyProviders, m.policyProviders
-
-	// add selftests as provider
-	providers = append(providers, m.selfTester)
-	if thenRevertPolicies {
+	if len(prevProviders) > 0 {
 		defer func() {
 			if err := m.LoadPolicies(prevProviders, false); err != nil {
 				log.Errorf("failed to load policies: %s", err)
 			}
 		}()
 	}
+
+	// add selftests as provider
+	providers = append(providers, m.selfTester)
 
 	if err := m.LoadPolicies(providers, false); err != nil {
 		return err

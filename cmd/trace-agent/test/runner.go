@@ -179,6 +179,9 @@ func (s *Runner) DoReq(url, method string, payload []byte) (*http.Response, erro
 
 func (s *Runner) doRequest(req *http.Request) error {
 	resp, err := http.DefaultClient.Do(req)
+	if err == nil {
+		defer resp.Body.Close()
+	}
 	if resp.StatusCode != 200 {
 		slurp, err := ioutil.ReadAll(resp.Body)
 		if err != nil {

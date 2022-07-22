@@ -29,6 +29,7 @@ spec:
                   - "3600"
                 image: busybox
                 name: busybox
+
     - name: create-busybox-with-mode
       inputs:
         parameters:
@@ -53,6 +54,7 @@ spec:
                   - "3600"
                 image: busybox
                 name: busybox
+
     - name: create
       inputs:
         parameters:
@@ -66,7 +68,7 @@ spec:
                   value: "{{inputs.parameters.namespace}}"
                 - name: mode
                   value: hostip
-        - - name: busybox-service
+          - name: busybox-service
             template: create-busybox-with-mode
             arguments:
               parameters:
@@ -74,7 +76,7 @@ spec:
                   value: "{{inputs.parameters.namespace}}"
                 - name: mode
                   value: service
-        - - name: busybox-socket
+          - name: busybox-socket
             template: create-busybox-with-mode
             arguments:
               parameters:
@@ -82,12 +84,13 @@ spec:
                   value: "{{inputs.parameters.namespace}}"
                 - name: mode
                   value: socket
-        - - name: busybox-tags
+          - name: busybox-tags
             template: create-busybox-with-tags
             arguments:
               parameters:
                 - name: namespace
                   value: "{{inputs.parameters.namespace}}"
+
     - name: delete-all
       inputs:
         parameters:
@@ -101,6 +104,7 @@ spec:
           set -x
 
           kubectl delete pods -l app=busybox --namespace {{inputs.parameters.namespace}}
+
     - name: delete
       inputs:
         parameters:
@@ -112,6 +116,7 @@ spec:
               parameters:
                 - name: namespace
                   value: "{{inputs.parameters.namespace}}"
+
     - name: test-env-fieldPath
       inputs:
         parameters:
@@ -130,6 +135,7 @@ spec:
           until kubectl get pods -o json --namespace {{inputs.parameters.namespace}} | jq '.items[] | select(.spec.containers[].env[]? | .name == "{{inputs.parameters.envKey}}" and .valueFrom.fieldRef.fieldPath == "{{inputs.parameters.envFieldPath}}") | .metadata.name' | grep {{inputs.parameters.target}}; do
             sleep 2
           done
+
     - name: test-env-value
       inputs:
         parameters:
@@ -148,6 +154,7 @@ spec:
           until kubectl get pods -o json --namespace {{inputs.parameters.namespace}} | jq '.items[] | select(.spec.containers[].env[]? | .name == "{{inputs.parameters.envKey}}" and .value == "{{inputs.parameters.envValue}}") | .metadata.name' | grep {{inputs.parameters.target}}; do
             sleep 2
           done
+
     - name: test-volume
       inputs:
         parameters:
@@ -170,6 +177,7 @@ spec:
           until kubectl get pods -o json --namespace {{inputs.parameters.namespace}} | jq '.items[] | select(.spec.volumes[]? | .name == "{{inputs.parameters.volumeName}}" and .hostPath.path == "{{inputs.parameters.volumePath}}") | .metadata.name' | grep {{inputs.parameters.target}}; do
             sleep 2
           done
+
     - name: test
       inputs:
         parameters:
@@ -187,7 +195,7 @@ spec:
                   value: "status.hostIP"
                 - name: target
                   value: busybox-hostip
-        - - name: entity-id-hostip
+          - name: entity-id-hostip
             template: test-env-fieldPath
             arguments:
               parameters:
@@ -199,7 +207,7 @@ spec:
                   value: "metadata.uid"
                 - name: target
                   value: busybox-hostip
-        - - name: agent-host-service
+          - name: agent-host-service
             template: test-env-value
             arguments:
               parameters:
@@ -211,7 +219,7 @@ spec:
                   value: DD_AGENT_HOST
                 - name: target
                   value: busybox-service
-        - - name: entity-id-service
+          - name: entity-id-service
             template: test-env-fieldPath
             arguments:
               parameters:
@@ -223,7 +231,7 @@ spec:
                   value: "metadata.uid"
                 - name: target
                   value: busybox-service
-        - - name: trace-url-socket
+          - name: trace-url-socket
             template: test-env-value
             arguments:
               parameters:
@@ -235,7 +243,7 @@ spec:
                   value: DD_TRACE_AGENT_URL
                 - name: target
                   value: busybox-socket
-        - - name: volume-socket
+          - name: volume-socket
             template: test-volume
             arguments:
               parameters:
@@ -247,7 +255,7 @@ spec:
                   value: "/var/run/datadog"
                 - name: target
                   value: busybox-socket
-        - - name: entity-id-socket
+          - name: entity-id-socket
             template: test-env-fieldPath
             arguments:
               parameters:
@@ -259,7 +267,7 @@ spec:
                   value: "metadata.uid"
                 - name: target
                   value: busybox-socket
-        - - name: env-tag
+          - name: env-tag
             template: test-env-value
             arguments:
               parameters:
@@ -271,7 +279,7 @@ spec:
                   value: DD_ENV
                 - name: target
                   value: busybox-tags
-        - - name: service-tag
+          - name: service-tag
             template: test-env-value
             arguments:
               parameters:
@@ -283,7 +291,7 @@ spec:
                   value: DD_SERVICE
                 - name: target
                   value: busybox-tags
-        - - name: version-tag
+          - name: version-tag
             template: test-env-value
             arguments:
               parameters:
@@ -295,6 +303,7 @@ spec:
                   value: DD_VERSION
                 - name: target
                   value: busybox-tags
+
     - name: diagnose
       inputs:
         parameters:

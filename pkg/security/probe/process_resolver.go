@@ -11,6 +11,7 @@ package probe
 import (
 	"container/list"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -25,7 +26,6 @@ import (
 	"github.com/DataDog/gopsutil/process"
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/golang-lru/simplelru"
-	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -103,6 +103,7 @@ type ProcessResolver struct {
 	missStats        *atomic.Int64
 	addedEntries     *atomic.Int64
 	flushedEntries   *atomic.Int64
+	pathErrStats     *atomic.Int64
 
 	entryCache    map[uint32]*model.ProcessCacheEntry
 	argsEnvsCache *simplelru.LRU
@@ -115,6 +116,7 @@ type ProcessResolver struct {
 
 // ArgsEnvsPool defines a pool for args/envs allocations
 type ArgsEnvsPool struct {
+	lock sync.RWMutex
 	pool *sync.Pool
 
 	// entries that wont be release to the pool
@@ -125,6 +127,9 @@ type ArgsEnvsPool struct {
 
 // Get returns a cache entry
 func (a *ArgsEnvsPool) Get() *model.ArgsEnvsCacheEntry {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
+
 	// first try from resident pool
 	if el := a.freeResidents.Front(); el != nil {
 		entry := el.Value.(*model.ArgsEnvsCacheEntry)
@@ -137,6 +142,9 @@ func (a *ArgsEnvsPool) Get() *model.ArgsEnvsCacheEntry {
 
 // GetFrom returns a new entry with value from the given entry
 func (a *ArgsEnvsPool) GetFrom(event *model.ArgsEnvsEvent) *model.ArgsEnvsCacheEntry {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
+
 	entry := a.Get()
 
 	entry.Size = event.ArgsEnvs.Size
@@ -148,6 +156,9 @@ func (a *ArgsEnvsPool) GetFrom(event *model.ArgsEnvsEvent) *model.ArgsEnvsCacheE
 
 // Put returns a cache entry to the pool
 func (a *ArgsEnvsPool) Put(entry *model.ArgsEnvsCacheEntry) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
 	if entry.Container != nil {
 		// from the residents list
 		a.freeResidents.MoveToBack(entry.Container)
@@ -262,46 +273,52 @@ func (p *ProcessResolver) SendStats() error {
 	var count int64
 
 	if err = p.probe.statsdClient.Gauge(metrics.MetricProcessResolverCacheSize, p.GetCacheSize(), []string{}, 1.0); err != nil {
-		return errors.Wrap(err, "failed to send process_resolver cache_size metric")
+		return fmt.Errorf("failed to send process_resolver cache_size metric: %w", err)
 	}
 
 	if err = p.probe.statsdClient.Gauge(metrics.MetricProcessResolverReferenceCount, p.GetEntryCacheSize(), []string{}, 1.0); err != nil {
-		return errors.Wrap(err, "failed to send process_resolver reference_count metric")
+		return fmt.Errorf("failed to send process_resolver reference_count metric: %w", err)
 	}
 
 	if count = p.hitsStats[metrics.CacheTag].Swap(0); count > 0 {
-		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverCacheHits, count, []string{metrics.CacheTag}, 1.0); err != nil {
-			return errors.Wrap(err, "failed to send process_resolver cache hits metric")
+		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverHits, count, []string{metrics.CacheTag}, 1.0); err != nil {
+			return fmt.Errorf("failed to send process_resolver cache hits metric: %w", err)
 		}
 	}
 
 	if count = p.hitsStats[metrics.KernelMapsTag].Swap(0); count > 0 {
-		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverCacheHits, count, []string{metrics.KernelMapsTag}, 1.0); err != nil {
-			return errors.Wrap(err, "failed to send process_resolver kernel maps hits metric")
+		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverHits, count, []string{metrics.KernelMapsTag}, 1.0); err != nil {
+			return fmt.Errorf("failed to send process_resolver kernel maps hits metric: %w", err)
 		}
 	}
 
 	if count = p.hitsStats[metrics.ProcFSTag].Swap(0); count > 0 {
-		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverCacheHits, count, []string{metrics.ProcFSTag}, 1.0); err != nil {
-			return errors.Wrap(err, "failed to send process_resolver procfs hits metric")
+		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverHits, count, []string{metrics.ProcFSTag}, 1.0); err != nil {
+			return fmt.Errorf("failed to send process_resolver procfs hits metric: %w", err)
 		}
 	}
 
 	if count = p.missStats.Swap(0); count > 0 {
-		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverCacheMiss, count, []string{}, 1.0); err != nil {
-			return errors.Wrap(err, "failed to send process_resolver misses metric")
+		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverMiss, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send process_resolver misses metric: %w", err)
 		}
 	}
 
 	if count = p.addedEntries.Swap(0); count > 0 {
 		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverAdded, count, []string{}, 1.0); err != nil {
-			return errors.Wrap(err, "failed to send process_resolver added entries metric")
+			return fmt.Errorf("failed to send process_resolver added entries metric: %w", err)
 		}
 	}
 
 	if count = p.flushedEntries.Swap(0); count > 0 {
 		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverFlushed, count, []string{}, 1.0); err != nil {
-			return errors.Wrap(err, "failed to send process_resolver flushed entries metric")
+			return fmt.Errorf("failed to send process_resolver flushed entries metric: %w", err)
+		}
+	}
+
+	if count = p.pathErrStats.Swap(0); count > 0 {
+		if err = p.probe.statsdClient.Count(metrics.MetricProcessResolverPathError, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send process_resolver path error metric: %w", err)
 		}
 	}
 
@@ -347,22 +364,22 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	procExecPath := utils.ProcExePath(proc.Pid)
 	pathnameStr, err := os.Readlink(procExecPath)
 	if err != nil {
-		return errors.Wrapf(err, "snapshot failed for %d: couldn't readlink binary", proc.Pid)
+		return fmt.Errorf("snapshot failed for %d: couldn't readlink binary: %w", proc.Pid, err)
 	}
 	if pathnameStr == "/ (deleted)" {
-		return errors.Errorf("snapshot failed for %d: binary was deleted", proc.Pid)
+		return fmt.Errorf("snapshot failed for %d: binary was deleted", proc.Pid)
 	}
 
 	// Get the file fields of the process binary
 	info, err := p.retrieveExecFileFields(procExecPath)
 	if err != nil {
-		return errors.Wrapf(err, "snapshot failed for %d: couldn't retrieve inode info", proc.Pid)
+		return fmt.Errorf("snapshot failed for %d: couldn't retrieve inode info: %w", proc.Pid, err)
 	}
 
 	// Retrieve the container ID of the process from /proc
 	containerID, err := p.resolvers.ContainerResolver.GetContainerID(pid)
 	if err != nil {
-		return errors.Wrapf(err, "snapshot failed for %d: couldn't parse container ID", proc.Pid)
+		return fmt.Errorf("snapshot failed for %d: couldn't parse container ID: %w", proc.Pid, err)
 	}
 
 	entry.FileEvent.FileFields = *info
@@ -392,7 +409,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	}
 	entry.Credentials.CapEffective, entry.Credentials.CapPermitted, err = utils.CapEffCapEprm(proc.Pid)
 	if err != nil {
-		return errors.Wrapf(err, "snapshot failed for %d: couldn't parse kernel capabilities", proc.Pid)
+		return fmt.Errorf("snapshot failed for %d: couldn't parse kernel capabilities: %w", proc.Pid, err)
 	}
 	p.SetProcessUsersGroups(entry)
 
@@ -430,11 +447,11 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 func (p *ProcessResolver) retrieveExecFileFields(procExecPath string) (*model.FileFields, error) {
 	fi, err := os.Stat(procExecPath)
 	if err != nil {
-		return nil, errors.Wrapf(err, "snapshot failed for `%s`: couldn't stat binary", procExecPath)
+		return nil, fmt.Errorf("snapshot failed for `%s`: couldn't stat binary: %w", procExecPath, err)
 	}
 	stat, ok := fi.Sys().(*syscall.Stat_t)
 	if !ok {
-		return nil, errors.Errorf("snapshot failed for `%s`: couldn't stat binary", procExecPath)
+		return nil, fmt.Errorf("snapshot failed for `%s`: couldn't stat binary", procExecPath)
 	}
 	inode := stat.Ino
 
@@ -558,12 +575,17 @@ func (p *ProcessResolver) SetProcessPath(entry *model.ProcessCacheEntry) (string
 		entry.FileEvent.SetPathnameStr("")
 		entry.FileEvent.SetBasenameStr("")
 
+		p.pathErrStats.Inc()
+
 		return "", &ErrInvalidKeyPath{Inode: entry.FileEvent.Inode, MountID: entry.FileEvent.MountID}
 	}
+
 	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&entry.FileEvent.FileFields)
 	if err != nil {
 		entry.FileEvent.SetPathnameStr("")
 		entry.FileEvent.SetBasenameStr("")
+
+		p.pathErrStats.Inc()
 
 		return "", &ErrInvalidKeyPath{Inode: entry.FileEvent.Inode, MountID: entry.FileEvent.MountID}
 	}
@@ -1180,6 +1202,7 @@ func NewProcessResolver(probe *Probe, resolvers *Resolvers, opts ProcessResolver
 		missStats:      atomic.NewInt64(0),
 		addedEntries:   atomic.NewInt64(0),
 		flushedEntries: atomic.NewInt64(0),
+		pathErrStats:   atomic.NewInt64(0),
 	}
 	for _, t := range metrics.AllTypesTags {
 		p.hitsStats[t] = atomic.NewInt64(0)
