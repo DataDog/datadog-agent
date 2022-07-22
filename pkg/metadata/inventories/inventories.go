@@ -8,6 +8,7 @@ package inventories
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 	"sync"
@@ -48,6 +49,12 @@ var (
 	lastGetPayloadMutex = &sync.Mutex{}
 
 	metadataUpdatedC = make(chan interface{}, 1)
+
+	// The inventory payload might be generated once per minute. We don't want to
+	logLevelMutex = sync.Mutex{}
+	logCount      = 0
+	logErrorf     = log.Errorf
+	logInfof      = log.Infof
 )
 
 var (
@@ -203,6 +210,25 @@ func createCheckInstanceMetadata(checkID, configProvider, initConfig, instanceCo
 func createPayload(ctx context.Context, hostname string, coll CollectorInterface) *Payload {
 	checkMetadataMutex.Lock()
 	defer checkMetadataMutex.Unlock()
+
+	// setLogLevel select the correct log level for the inventory payload currently being created. We send a new payload
+	// every 1 to 10 min (depending on new metadata being registered). We don't want to log the same error again and again.
+	// We log once every 12 times on normal log level and on debug the rest of the time. The metadata in this paylaod should
+	// not change often, so with 1 paylaod every 10 minutes we would log once every 2h.
+	logLevelMutex.Lock()
+	defer logLevelMutex.Unlock()
+	if logCount%12 == 0 {
+		logErrorf = log.Errorf
+		logInfof = log.Infof
+	} else {
+		logErrorf = func(format string, params ...interface{}) error {
+			err := fmt.Errorf(format, params...)
+			log.Debugf(err.Error())
+			return err
+		}
+		logInfof = log.Debugf
+	}
+	logCount++
 
 	// Collect check metadata for the payload
 	payloadCheckMeta := make(CheckMetadata)
