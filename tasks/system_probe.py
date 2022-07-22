@@ -657,8 +657,11 @@ def build_network_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release
 
 
 def get_security_agent_build_flags(security_agent_c_dir, kernel_release=None, debug=False):
-    security_flags = get_ebpf_build_flags(kernel_release=kernel_release)
+    uname_m = check_output("uname -m", shell=True).decode('utf-8').strip()
+    security_flags = get_ebpf_build_flags(target=["-target", "bpf"], kernel_release=kernel_release)
     security_flags.append(f"-I{security_agent_c_dir}")
+    security_flags.append(f"-D__{uname_m}__")
+    security_flags.append(f"-isystem /usr/include/{uname_m}-linux-gnu")
     if debug:
         security_flags.append("-DDEBUG=1")
     return security_flags
@@ -668,7 +671,6 @@ def build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=None
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
     security_c_file = os.path.join(security_agent_prebuilt_dir, "offset-guesser.c")
-    security_bc_file = os.path.join(build_dir, "runtime-security-offset-guesser.bc")
     security_agent_obj_file = os.path.join(build_dir, "runtime-security-offset-guesser.o")
 
     security_flags = get_security_agent_build_flags(security_agent_c_dir, kernel_release=kernel_release, debug=debug)
@@ -677,11 +679,8 @@ def build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=None
         CLANG_CMD.format(
             flags=" ".join(security_flags),
             c_file=security_c_file,
-            bc_file=security_bc_file,
+            bc_file=security_agent_obj_file,
         ),
-    )
-    ctx.run(
-        LLC_CMD.format(flags=" ".join(security_flags), bc_file=security_bc_file, obj_file=security_agent_obj_file),
     )
 
 
@@ -689,7 +688,6 @@ def build_security_probe_ebpf_files(ctx, build_dir, parallel_build=True, kernel_
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
     security_c_file = os.path.join(security_agent_prebuilt_dir, "probe.c")
-    security_bc_file = os.path.join(build_dir, "runtime-security.bc")
     security_agent_obj_file = os.path.join(build_dir, "runtime-security.o")
 
     security_flags = get_security_agent_build_flags(security_agent_c_dir, kernel_release=kernel_release, debug=debug)
@@ -701,43 +699,18 @@ def build_security_probe_ebpf_files(ctx, build_dir, parallel_build=True, kernel_
             CLANG_CMD.format(
                 flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=0"]),
                 c_file=security_c_file,
-                bc_file=security_bc_file,
+                bc_file=security_agent_obj_file,
             ),
             asynchronous=parallel_build,
         )
     )
-    security_agent_syscall_wrapper_bc_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.bc")
+    security_agent_syscall_wrapper_obj_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.o")
     promises.append(
         ctx.run(
             CLANG_CMD.format(
                 flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=1"]),
                 c_file=security_c_file,
-                bc_file=security_agent_syscall_wrapper_bc_file,
-            ),
-            asynchronous=parallel_build,
-        )
-    )
-
-    if parallel_build:
-        for p in promises:
-            p.join()
-
-    # link
-    promises = []
-    promises.append(
-        ctx.run(
-            LLC_CMD.format(flags=" ".join(security_flags), bc_file=security_bc_file, obj_file=security_agent_obj_file),
-            asynchronous=parallel_build,
-        )
-    )
-
-    security_agent_syscall_wrapper_obj_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.o")
-    promises.append(
-        ctx.run(
-            LLC_CMD.format(
-                flags=" ".join(security_flags),
-                bc_file=security_agent_syscall_wrapper_bc_file,
-                obj_file=security_agent_syscall_wrapper_obj_file,
+                bc_file=security_agent_syscall_wrapper_obj_file,
             ),
             asynchronous=parallel_build,
         )
