@@ -735,4 +735,23 @@ struct is_discarded_by_inode_t {
     u32 activity_dump_state;
 };
 
+struct pid_route_t {
+    u64 addr[2];
+    u32 netns;
+    u16 port;
+};
+
+struct flow_t {
+    u64 saddr[2];
+    u64 daddr[2];
+    u16 sport;
+    u16 dport;
+    u32 padding;
+};
+
+struct namespaced_flow_t {
+    struct flow_t flow;
+    u32 netns;
+};
+
 #endif

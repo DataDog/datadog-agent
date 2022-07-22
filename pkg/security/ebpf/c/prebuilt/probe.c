@@ -59,14 +59,18 @@
 #include "mmap.h"
 #include "mprotect.h"
 #include "raw_syscalls.h"
+
+#ifndef DO_NOT_USE_TC
 #include "flow.h"
 #include "network_parser.h"
 #include "dns.h"
 #include "tc.h"
+#include "net_device.h"
+#endif
+
 #include "module.h"
 #include "signal.h"
 #include "bind.h"
-#include "net_device.h"
 #include "procfs.h"
 #include "offset.h"
 

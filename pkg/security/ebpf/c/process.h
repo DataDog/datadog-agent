@@ -281,9 +281,13 @@ __attribute__((always_inline)) u32 get_netns_from_net(struct net *net) {
         return inum;
     }
 
+#ifndef DO_NOT_USE_TC
     struct ns_common ns;
     bpf_probe_read(&ns, sizeof(ns), (void*)net + net_ns_offset);
     return ns.inum;
+#else
+    return 0;
+#endif
 }
 
 __attribute__((always_inline)) u32 get_netns_from_sock(struct sock *sk) {
