@@ -10,7 +10,8 @@ package events
 
 import (
 	"sync"
-	"sync/atomic"
+
+	"go.uber.org/atomic"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
