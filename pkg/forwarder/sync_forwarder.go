@@ -63,14 +63,14 @@ func (f *SyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTra
 
 // SubmitV1Series will send timeserie to v1 endpoint (this will be remove once
 // the backend handles v2 endpoints).
-func (f *SyncForwarder) SubmitV1Series(payload Payloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.V1SeriesEndpoint, payload, true, extra)
+func (f *SyncForwarder) SubmitV1Series(payload transaction.BytesPayloads, extra http.Header) error {
+	transactions := f.defaultForwarder.createHTTPTransactionsBytesPayload(endpoints.V1SeriesEndpoint, payload, true, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitSeries will send timeseries to the v2 endpoint
-func (f *SyncForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.SeriesEndpoint, payload, true, extra)
+func (f *SyncForwarder) SubmitSeries(payload transaction.BytesPayloads, extra http.Header) error {
+	transactions := f.defaultForwarder.createHTTPTransactionsBytesPayload(endpoints.SeriesEndpoint, payload, true, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -92,8 +92,8 @@ func (f *SyncForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header) e
 }
 
 // SubmitSketchSeries will send payloads to Datadog backend - PROTOTYPE FOR PERCENTILE
-func (f *SyncForwarder) SubmitSketchSeries(payload Payloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.SketchSeriesEndpoint, payload, true, extra)
+func (f *SyncForwarder) SubmitSketchSeries(payload transaction.BytesPayloads, extra http.Header) error {
+	transactions := f.defaultForwarder.createHTTPTransactionsBytesPayload(endpoints.SketchSeriesEndpoint, payload, true, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 

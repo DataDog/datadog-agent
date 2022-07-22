@@ -5,7 +5,11 @@
 
 package forwarder
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
+)
 
 // NoopForwarder is a Forwarder doing nothing and not returning any responses.
 type NoopForwarder struct{}
@@ -17,7 +21,9 @@ func (f NoopForwarder) Start() error { return nil }
 func (f NoopForwarder) Stop() {}
 
 // SubmitV1Series does nothing.
-func (f NoopForwarder) SubmitV1Series(payload Payloads, extra http.Header) error { return nil }
+func (f NoopForwarder) SubmitV1Series(payload transaction.BytesPayloads, extra http.Header) error {
+	return nil
+}
 
 // SubmitV1Intake does nothing.
 func (f NoopForwarder) SubmitV1Intake(payload Payloads, extra http.Header) error { return nil }
@@ -26,10 +32,14 @@ func (f NoopForwarder) SubmitV1Intake(payload Payloads, extra http.Header) error
 func (f NoopForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header) error { return nil }
 
 // SubmitSeries does nothing.
-func (f NoopForwarder) SubmitSeries(payload Payloads, extra http.Header) error { return nil }
+func (f NoopForwarder) SubmitSeries(payload transaction.BytesPayloads, extra http.Header) error {
+	return nil
+}
 
 // SubmitSketchSeries does nothing.
-func (f NoopForwarder) SubmitSketchSeries(payload Payloads, extra http.Header) error { return nil }
+func (f NoopForwarder) SubmitSketchSeries(payload transaction.BytesPayloads, extra http.Header) error {
+	return nil
+}
 
 // SubmitHostMetadata does nothing.
 func (f NoopForwarder) SubmitHostMetadata(payload Payloads, extra http.Header) error { return nil }

@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -177,23 +178,33 @@ func mkPayloads(payload []byte, compress bool) (forwarder.Payloads, error) {
 
 func createJSONPayloadMatcher(prefix string) interface{} {
 	return mock.MatchedBy(func(payloads forwarder.Payloads) bool {
-		for _, compressedPayload := range payloads {
-			if payload, err := compression.Decompress(*compressedPayload); err != nil {
-				return false
-			} else {
-				if strings.HasPrefix(string(payload), prefix) {
-					return true
-				}
+		return doPayloadsMatch(payloads, prefix)
+	})
+}
+
+func doPayloadsMatch(payloads forwarder.Payloads, prefix string) bool {
+	for _, compressedPayload := range payloads {
+		if payload, err := compression.Decompress(*compressedPayload); err != nil {
+			return false
+		} else {
+			if strings.HasPrefix(string(payload), prefix) {
+				return true
 			}
 		}
-		return false
+	}
+	return false
+}
+
+func createJSONBytesPayloadMatcher(prefix string) interface{} {
+	return mock.MatchedBy(func(payloads transaction.BytesPayloads) bool {
+		return doPayloadsMatch(payloads.ToPayloads(), prefix)
 	})
 }
 
 func createProtoPayloadMatcher(content []byte) interface{} {
-	return mock.MatchedBy(func(payloads forwarder.Payloads) bool {
+	return mock.MatchedBy(func(payloads transaction.BytesPayloads) bool {
 		for _, compressedPayload := range payloads {
-			if payload, err := compression.Decompress(*compressedPayload); err != nil {
+			if payload, err := compression.Decompress(*compressedPayload.GetContent()); err != nil {
 				return false
 			} else {
 				if reflect.DeepEqual(content, payload) {
@@ -269,7 +280,7 @@ func TestSendV1ServiceChecks(t *testing.T) {
 
 func TestSendV1Series(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
-	matcher := createJSONPayloadMatcher(`{"series":[]}`)
+	matcher := createJSONBytesPayloadMatcher(`{"series":[]}`)
 
 	f.On("SubmitV1Series", matcher, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 	config.Datadog.Set("enable_stream_payload_serialization", false)

@@ -157,10 +157,10 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	assert.Equal(t, version.AgentVersion, transactions[0].Headers.Get("DD-Agent-Version"))
 	assert.Equal(t, "datadog-agent/"+version.AgentVersion, transactions[0].Headers.Get("User-Agent"))
 	assert.Equal(t, "", transactions[0].Headers.Get(arbitraryTagHTTPHeaderKey))
-	assert.Equal(t, p1, *(transactions[0].Payload))
-	assert.Equal(t, p1, *(transactions[1].Payload))
-	assert.Equal(t, p2, *(transactions[2].Payload))
-	assert.Equal(t, p2, *(transactions[3].Payload))
+	assert.Equal(t, p1, *(transactions[0].Payload.GetContent()))
+	assert.Equal(t, p1, *(transactions[1].Payload.GetContent()))
+	assert.Equal(t, p2, *(transactions[2].Payload.GetContent()))
+	assert.Equal(t, p2, *(transactions[3].Payload.GetContent()))
 
 	transactions = forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
 	require.Len(t, transactions, 4)
@@ -363,6 +363,7 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	data1 := []byte("data payload 1")
 	data2 := []byte("data payload 2")
 	payload := Payloads{&data1, &data2}
+	bytesPayloads := transaction.NewBytesPayloadsWithoutMetaData(payload)
 	headers := http.Header{}
 	headers.Set("key", "value")
 
@@ -370,10 +371,10 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	numReqs := int64(2)
 
 	// for each call, we send 2 payloads * 2 api_keys
-	assert.Nil(t, f.SubmitV1Series(payload, headers))
+	assert.Nil(t, f.SubmitV1Series(bytesPayloads, headers))
 	numReqs += 4
 
-	assert.Nil(t, f.SubmitSeries(payload, headers))
+	assert.Nil(t, f.SubmitSeries(bytesPayloads, headers))
 	numReqs += 4
 
 	assert.Nil(t, f.SubmitV1Intake(payload, headers))
@@ -382,7 +383,7 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	assert.Nil(t, f.SubmitV1CheckRuns(payload, headers))
 	numReqs += 4
 
-	assert.Nil(t, f.SubmitSketchSeries(payload, headers))
+	assert.Nil(t, f.SubmitSketchSeries(bytesPayloads, headers))
 	numReqs += 4
 
 	assert.Nil(t, f.SubmitHostMetadata(payload, headers))
@@ -694,7 +695,7 @@ func TestCustomCompletionHandler(t *testing.T) {
 	defer f.Stop()
 
 	data := []byte("payload_data")
-	payload := Payloads{&data}
+	payload := transaction.NewBytesPayloadsWithoutMetaData(Payloads{&data})
 	assert.Nil(t, f.SubmitV1Series(payload, http.Header{}))
 
 	// And finally let's ensure the handler gets called

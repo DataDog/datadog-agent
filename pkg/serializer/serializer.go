@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
@@ -332,9 +333,9 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	}
 
 	if useV1API {
-		return s.Forwarder.SubmitV1Series(seriesPayloads, extraHeaders)
+		return s.Forwarder.SubmitV1Series(transaction.NewBytesPayloadsWithoutMetaData(seriesPayloads), extraHeaders)
 	}
-	return s.Forwarder.SubmitSeries(seriesPayloads, extraHeaders)
+	return s.Forwarder.SubmitSeries(transaction.NewBytesPayloadsWithoutMetaData(seriesPayloads), extraHeaders)
 }
 
 // AreSketchesEnabled returns whether sketches are enabled for serialization
@@ -352,7 +353,7 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 	if s.enableSketchProtobufStream {
 		payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
 		if err == nil {
-			return s.Forwarder.SubmitSketchSeries(payloads, protobufExtraHeadersWithCompression)
+			return s.Forwarder.SubmitSketchSeries(transaction.NewBytesPayloadsWithoutMetaData(payloads), protobufExtraHeadersWithCompression)
 		}
 		log.Warnf("Error: %v trying to stream compress SketchSeriesList - falling back to split/compress method", err)
 	}
@@ -363,7 +364,7 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 		return fmt.Errorf("dropping sketch payload: %s", err)
 	}
 
-	return s.Forwarder.SubmitSketchSeries(splitSketches, extraHeaders)
+	return s.Forwarder.SubmitSketchSeries(transaction.NewBytesPayloadsWithoutMetaData(splitSketches), extraHeaders)
 }
 
 // SendMetadata serializes a metadata payload and sends it to the forwarder

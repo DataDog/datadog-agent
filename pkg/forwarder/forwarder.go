@@ -60,11 +60,11 @@ type Response struct {
 type Forwarder interface {
 	Start() error
 	Stop()
-	SubmitV1Series(payload Payloads, extra http.Header) error
+	SubmitV1Series(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitV1Intake(payload Payloads, extra http.Header) error
 	SubmitV1CheckRuns(payload Payloads, extra http.Header) error
-	SubmitSeries(payload Payloads, extra http.Header) error
-	SubmitSketchSeries(payload Payloads, extra http.Header) error
+	SubmitSeries(payload transaction.BytesPayloads, extra http.Header) error
+	SubmitSketchSeries(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitHostMetadata(payload Payloads, extra http.Header) error
 	SubmitAgentChecksMetadata(payload Payloads, extra http.Header) error
 	SubmitMetadata(payload Payloads, extra http.Header) error
@@ -424,43 +424,61 @@ func (f *DefaultForwarder) createHTTPTransactions(endpoint transaction.Endpoint,
 	return f.createAdvancedHTTPTransactions(endpoint, payloads, apiKeyInQueryString, extra, transaction.TransactionPriorityNormal, true)
 }
 
+func (f *DefaultForwarder) createHTTPTransactionsBytesPayload(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, apiKeyInQueryString bool, extra http.Header) []*transaction.HTTPTransaction {
+	priority := transaction.TransactionPriorityNormal
+	storableOnDisk := true
+	transactions := make([]*transaction.HTTPTransaction, 0, len(payloads)*len(f.domainForwarders))
+	allowArbitraryTags := config.Datadog.GetBool("allow_arbitrary_tags")
+
+	for _, payload := range payloads {
+		transactions = f.appendTransactions(endpoint, payload, apiKeyInQueryString, extra, priority, storableOnDisk, allowArbitraryTags, transactions)
+	}
+	return transactions
+}
+
 func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.Endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header, priority transaction.Priority, storableOnDisk bool) []*transaction.HTTPTransaction {
 	transactions := make([]*transaction.HTTPTransaction, 0, len(payloads)*len(f.domainForwarders))
 	allowArbitraryTags := config.Datadog.GetBool("allow_arbitrary_tags")
 
 	for _, payload := range payloads {
-		for domain, dr := range f.domainResolvers {
-			for _, apiKey := range dr.GetAPIKeys() {
-				t := transaction.NewHTTPTransaction()
-				t.Domain, _ = dr.Resolve(endpoint)
-				t.Endpoint = endpoint
-				if apiKeyInQueryString {
-					t.Endpoint.Route = fmt.Sprintf("%s?api_key=%s", endpoint.Route, apiKey)
-				}
-				t.Payload = payload
-				t.Priority = priority
-				t.StorableOnDisk = storableOnDisk
-				t.Headers.Set(apiHTTPHeaderKey, apiKey)
-				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
-				t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
-				if allowArbitraryTags {
-					t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
-				}
+		transactions = f.appendTransactions(endpoint, transaction.NewBytesPayloadWithoutMetaData(payload),
+			apiKeyInQueryString, extra, priority, storableOnDisk, allowArbitraryTags, transactions)
+	}
+	return transactions
+}
 
-				if f.completionHandler != nil {
-					t.CompletionHandler = f.completionHandler
-				}
-
-				tlmTxInputCount.Inc(domain, endpoint.Name)
-				tlmTxInputBytes.Add(float64(t.GetPayloadSize()), domain, endpoint.Name)
-				transactionsInputCountByEndpoint.Add(endpoint.Name, 1)
-				transactionsInputBytesByEndpoint.Add(endpoint.Name, int64(t.GetPayloadSize()))
-
-				for key := range extra {
-					t.Headers.Set(key, extra.Get(key))
-				}
-				transactions = append(transactions, t)
+func (f *DefaultForwarder) appendTransactions(endpoint transaction.Endpoint, payload *transaction.BytesPayload, apiKeyInQueryString bool, extra http.Header, priority transaction.Priority, storableOnDisk bool, allowArbitraryTags bool, transactions []*transaction.HTTPTransaction) []*transaction.HTTPTransaction {
+	for domain, dr := range f.domainResolvers {
+		for _, apiKey := range dr.GetAPIKeys() {
+			t := transaction.NewHTTPTransaction()
+			t.Domain, _ = dr.Resolve(endpoint)
+			t.Endpoint = endpoint
+			if apiKeyInQueryString {
+				t.Endpoint.Route = fmt.Sprintf("%s?api_key=%s", endpoint.Route, apiKey)
 			}
+			t.Payload = payload
+			t.Priority = priority
+			t.StorableOnDisk = storableOnDisk
+			t.Headers.Set(apiHTTPHeaderKey, apiKey)
+			t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
+			t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
+			if allowArbitraryTags {
+				t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
+			}
+
+			if f.completionHandler != nil {
+				t.CompletionHandler = f.completionHandler
+			}
+
+			tlmTxInputCount.Inc(domain, endpoint.Name)
+			tlmTxInputBytes.Add(float64(t.GetPayloadSize()), domain, endpoint.Name)
+			transactionsInputCountByEndpoint.Add(endpoint.Name, 1)
+			transactionsInputBytesByEndpoint.Add(endpoint.Name, int64(t.GetPayloadSize()))
+
+			for key := range extra {
+				t.Headers.Set(key, extra.Get(key))
+			}
+			transactions = append(transactions, t)
 		}
 	}
 	return transactions
@@ -513,8 +531,8 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 }
 
 // SubmitSketchSeries will send payloads to Datadog backend - PROTOTYPE FOR PERCENTILE
-func (f *DefaultForwarder) SubmitSketchSeries(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(endpoints.SketchSeriesEndpoint, payload, false, extra)
+func (f *DefaultForwarder) SubmitSketchSeries(payload transaction.BytesPayloads, extra http.Header) error {
+	transactions := f.createHTTPTransactionsBytesPayload(endpoints.SketchSeriesEndpoint, payload, false, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -546,14 +564,14 @@ func (f *DefaultForwarder) SubmitMetadata(payload Payloads, extra http.Header) e
 
 // SubmitV1Series will send timeserie to v1 endpoint (this will be remove once
 // the backend handles v2 endpoints).
-func (f *DefaultForwarder) SubmitV1Series(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(endpoints.V1SeriesEndpoint, payload, true, extra)
+func (f *DefaultForwarder) SubmitV1Series(payloads transaction.BytesPayloads, extra http.Header) error {
+	transactions := f.createHTTPTransactionsBytesPayload(endpoints.V1SeriesEndpoint, payloads, true, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitSeries will send timeseries to the v2 endpoint
-func (f *DefaultForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, extra)
+func (f *DefaultForwarder) SubmitSeries(payloads transaction.BytesPayloads, extra http.Header) error {
+	transactions := f.createHTTPTransactionsBytesPayload(endpoints.SeriesEndpoint, payloads, false, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 

@@ -68,7 +68,7 @@ func (s *HTTPTransactionsSerializer) Add(transaction *transaction.HTTPTransactio
 
 	var payload []byte
 	if transaction.Payload != nil {
-		payload = *transaction.Payload
+		payload = *(transaction.Payload.GetContent())
 	}
 
 	endpoint := transaction.Endpoint
@@ -133,7 +133,7 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 			Domain:         domain,
 			Endpoint:       endpoint,
 			Headers:        proto,
-			Payload:        &tr.Payload,
+			Payload:        transaction.NewBytesPayloadWithoutMetaData(&tr.Payload), // $$$ TODO handle metadata
 			ErrorCount:     int(tr.ErrorCount),
 			CreatedAt:      time.Unix(tr.CreatedAt, 0),
 			Retryable:      tr.Retryable,

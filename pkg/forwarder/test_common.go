@@ -70,6 +70,10 @@ func (t *testTransaction) SerializeTo(serializer transaction.TransactionsSeriali
 	return nil
 }
 
+func (t *testTransaction) GetPointCount() int {
+	return 0
+}
+
 // Compile-time checking to ensure that MockedForwarder implements Forwarder
 var _ Forwarder = &MockedForwarder{}
 
@@ -89,12 +93,12 @@ func (tf *MockedForwarder) Stop() {
 }
 
 // SubmitV1Series updates the internal mock struct
-func (tf *MockedForwarder) SubmitV1Series(payload Payloads, extra http.Header) error {
+func (tf *MockedForwarder) SubmitV1Series(payload transaction.BytesPayloads, extra http.Header) error {
 	return tf.Called(payload, extra).Error(0)
 }
 
 // SubmitSeries updates the internal mock struct
-func (tf *MockedForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
+func (tf *MockedForwarder) SubmitSeries(payload transaction.BytesPayloads, extra http.Header) error {
 	return tf.Called(payload, extra).Error(0)
 }
 
@@ -109,7 +113,7 @@ func (tf *MockedForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header
 }
 
 // SubmitSketchSeries updates the internal mock struct
-func (tf *MockedForwarder) SubmitSketchSeries(payload Payloads, extra http.Header) error {
+func (tf *MockedForwarder) SubmitSketchSeries(payload transaction.BytesPayloads, extra http.Header) error {
 	return tf.Called(payload, extra).Error(0)
 }
 
