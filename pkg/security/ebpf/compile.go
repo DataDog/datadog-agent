@@ -27,5 +27,9 @@ func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper bool) (
 		cflags = append(cflags, "-DUSE_SYSCALL_WRAPPER=0")
 	}
 
+	if !config.NetworkEnabled {
+		cflags = append(cflags, "-DDO_NOT_USE_TC")
+	}
+
 	return runtime.RuntimeSecurity.Compile(&config.Config, cflags)
 }
