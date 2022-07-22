@@ -76,6 +76,7 @@ message ProcessInfo {
 
 message FileActivityNode {
     string name = 1;
+    bool is_pattern = 7;
     FileInfo file = 2;
     string generation_type = 3;
     uint64 first_seen = 4;
