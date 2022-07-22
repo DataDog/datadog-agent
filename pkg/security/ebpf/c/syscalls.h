@@ -219,14 +219,16 @@ struct bpf_map_def SEC("maps/syscalls") syscalls = {
     .namespace = "",
 };
 
-struct policy_t __attribute__((always_inline)) fetch_policy(u64 event_type) {
-    struct policy_t *policy = bpf_map_lookup_elem(&filter_policy, &event_type);
-    if (policy) {
-        return *policy;
+void __attribute__((always_inline)) fetch_policy_inner(struct policy_t *policy, u64 event_type) {
+    struct policy_t *buf = bpf_map_lookup_elem(&filter_policy, &event_type);
+    if (buf) {
+        __builtin_memmove(policy, buf, sizeof(struct policy_t));
+    } else {
+        __builtin_memset(policy, 0, sizeof(struct policy_t));
     }
-    struct policy_t empty_policy = {};
-    return empty_policy;
 }
+
+#define fetch_policy(event_type) ({ struct policy_t policy; fetch_policy_inner(&policy, event_type); policy; })
 
 // cache_syscall checks the event policy in order to see if the syscall struct can be cached
 void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscall) {
