@@ -15,13 +15,6 @@ var flowProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/security_socket_bind",
-			EBPFFuncName: "kprobe_security_socket_bind",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
 			EBPFSection:  "kprobe/security_sk_classify_flow",
 			EBPFFuncName: "kprobe_security_sk_classify_flow",
 		},
