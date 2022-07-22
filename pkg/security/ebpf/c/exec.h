@@ -8,7 +8,7 @@
 #include "syscalls.h"
 #include "container.h"
 #include "span.h"
-#include "defs.h"
+// #include "defs.h"
 
 #define MAX_PERF_STR_BUFF_LEN 256
 #define MAX_STR_BUFF_LEN (1 << 15)
@@ -41,6 +41,12 @@ struct bpf_map_def SEC("maps/str_array_buffers") str_array_buffers = {
     .max_entries = 1,
     .pinning = 0,
     .namespace = "",
+};
+
+#define MAX_PATH_LEN 256
+
+struct linux_binprm_t {
+    char executable_base_name[MAX_PATH_LEN];
 };
 
 struct exec_event_t {
@@ -84,13 +90,31 @@ struct bpf_map_def SEC("maps/linux_binprm_gen") linux_binprm_gen = {
     .namespace = "",
 };
 
-__attribute__((always_inline)) struct linux_binprm *get_linux_binprm() {
+__attribute__((always_inline)) struct linux_binprm *get_linux_binprm_obj() {
     u32 key = 0;
     struct linux_binprm *bprm = bpf_map_lookup_elem(&linux_binprm_gen, &key);
     if (bprm == NULL) {
         return 0;
     }
     return bprm;
+}
+
+struct bpf_map_def SEC("maps/file_gen") file_gen = {
+    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct file),
+    .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
+};
+
+__attribute__((always_inline)) struct file *get_file_obj() {
+    u32 key = 0;
+    struct file *file = bpf_map_lookup_elem(&file_gen, &key);
+    if (file == NULL) {
+        return 0;
+    }
+    return file;
 }
 
 struct exit_event_t {
@@ -123,8 +147,6 @@ struct _tracepoint_sched_process_exec {
     pid_t pid;
     pid_t old_pid;
 };
-
-#define MAX_PATH_LEN 256
 
 struct exec_path {
     char filename[MAX_PATH_LEN];
@@ -300,8 +322,6 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
-    bpf_printk("tgid: %d\n", tgid);
-
     struct dentry *exec_dentry = get_path_dentry(path);
     struct proc_cache_t entry = {
         .executable = {
@@ -315,6 +335,12 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
         .container = {},
         .exec_timestamp = bpf_ktime_get_ns(),
     };
+
+    // struct basename_t executable_basename = {};
+    // get_dentry_name(exec_dentry, &executable_basename, sizeof(executable_basename));
+
+    // bpf_printk("executable: %s\n", executable_basename.value);
+
     fill_file_metadata(exec_dentry, &entry.executable.metadata);
     set_file_inode(exec_dentry, &entry.executable, 0);
     bpf_get_current_comm(&entry.comm, sizeof(entry.comm));
@@ -356,6 +382,19 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     syscall->resolver.ret = 0;
 
     resolve_dentry(ctx, DR_KPROBE);
+
+    return 0;
+}
+
+int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall, struct file *file, struct path *path, struct inode *inode) {
+    // if (syscall->exec.is_parsed) {
+    //     return 0;
+    // }
+    // syscall->exec.is_parsed = 1;
+
+    // syscall->exec.dentry = get_file_dentry(file);
+    // syscall->exec.file.path_key = get_inode_key_path(inode, path);
+    // syscall->exec.file.path_key.path_id = get_path_id(0);
 
     return 0;
 }
@@ -648,28 +687,31 @@ int kprobe_security_bprm_check(struct pt_regs *ctx) {
         return 0;
     }
 
-    struct linux_binprm *bprm = get_linux_binprm();
+    struct linux_binprm *bprm = get_linux_binprm_obj();
     if (bprm == NULL) {
         // should never happen, ignore
         return 0;
     }
 
     bprm = (struct linux_binprm *) PT_REGS_PARM1(ctx);
-    // struct linux_binprm *bprm = (struct linux_binprm *) PT_REGS_PARM1(ctx);
 
     // Executable
-    struct file *executable; 
-    bpf_probe_read(&executable, sizeof(executable), &bprm->executable);  
-    struct path executable_path;
-    bpf_probe_read(&executable_path, sizeof(executable_path), &executable->f_path);  
-    struct dentry *executable_dentry = get_path_dentry(&executable_path);
-    struct basename_t executable_basename = {};
-    get_dentry_name(executable_dentry, &executable_basename, sizeof(executable_basename));
+    struct file *executable;
+    bpf_probe_read(&executable, sizeof(executable), &bprm->executable);
+    struct inode *executable_inode;	
+    bpf_probe_read(&executable_inode, sizeof(executable_inode), &executable->f_inode);
 
-    bpf_printk("executable: %s\n", executable_basename.value);
+    // struct file *executable;
+    // bpf_probe_read(&executable, sizeof(executable), &bprm->executable);
 
-	struct inode *executable_inode;	
-    bpf_probe_read(&executable_inode, sizeof(executable_inode), &executable->f_inode);  
+    // struct dentry *executable_dentry = get_file_dentry(executable);
+    // struct basename_t executable_basename = {};
+    // get_dentry_name(executable_dentry, &executable_basename, sizeof(executable_basename));
+
+    // bpf_printk("executable: %s\n", executable_basename.value);
+
+	// struct inode *executable_inode;	
+    // bpf_probe_read(&executable_inode, sizeof(executable_inode), &executable->f_inode);  
 	
     // Interpreter
     // struct file *interpreter;
@@ -680,6 +722,8 @@ int kprobe_security_bprm_check(struct pt_regs *ctx) {
     // struct basename_t interpreter_basename = {};
     // get_dentry_name(interpreter_dentry, &interpreter_basename, sizeof(interpreter_basename));
     
+    // bpf_printk("interpreter: %s\n", interpreter_basename.value);
+
     // // File
     // struct file *fileFromBinprm;
     // bpf_probe_read(&fileFromBinprm, sizeof(fileFromBinprm), &bprm->file);  
@@ -688,6 +732,8 @@ int kprobe_security_bprm_check(struct pt_regs *ctx) {
     // struct dentry *file_dentry = get_path_dentry(&file_path);
     // struct basename_t file_basename = {};
     // get_dentry_name(file_dentry, &file_basename, sizeof(file_basename));
+
+    // bpf_printk("file from binprm: %s\n", file_basename.value);
 
     // const char *filename;
 	// const char *interp;
@@ -706,20 +752,10 @@ int kprobe_security_bprm_check(struct pt_regs *ctx) {
 	// 			   of the time same as filename, but could be
 	// 			   different for binfmt_{misc,script} */
 
-    //return parse_args_and_env(ctx);
+    // return handle_exec_event(ctx, syscall, bprm->executable, &bprm->executable->f_path, bprm->executable->f_inode);
+    // return handle_exec_event(ctx, syscall, executable, &executable->f_path, executable_inode);
 
-    // if (handle_exec_event(ctx, syscall, fileFromBinprm, &fileFromBinprm->f_path, fileFromBinprm->f_inode) != 0) {
-    //     return 1;
-    // }
-
-    // syscall->exec.linux_binprm.executable.path_key = get_inode_key_path(&executable->inode, &executable->path);
-    // syscall->exec.linux_binprm.executable.path_key.path_id = get_path_id(0);
-
-    // syscall->exec.linux_binprm.executable = *executable;
-    // syscall->exec.linux_binprm.interpreter= *interpreter;
-    // syscall->exec.linux_binprm.file_in_binprm = *fileFromBinprm;
-
-    return 0;
+    return handle_interpreted_exec_event(ctx, syscall, executable, &executable->f_path, executable_inode);
 }
 
 void __attribute__((always_inline)) fill_args_envs(struct exec_event_t *event, struct syscall_cache_t *syscall) {
