@@ -217,8 +217,8 @@ func (ku *KubeUtil) GetLocalPodList(ctx context.Context) ([]*Pod, error) {
 			// Limits hardcoded here are huge enough to never be hit.
 			if len(pod.Status.Containers) > 10000 ||
 				len(pod.Status.InitContainers) > 10000 {
-				log.Errorf("pod %s has a crazy number of containers: %d or init containers: %d. Skipping it!",
-					pod.Metadata.UID, len(pod.Spec.Containers), len(pod.Spec.InitContainers))
+				log.Errorf("Pod %s has a crazy number of containers: %d or init containers: %d. Skipping it!",
+					pod.Metadata.UID, len(pod.Status.Containers), len(pod.Status.InitContainers))
 				continue
 			}
 			allContainers := make([]ContainerStatus, 0, len(pod.Status.InitContainers)+len(pod.Status.Containers))
