@@ -17,5 +17,4 @@ type ConntrackTuple struct {
 
 type ConntrackTelemetry struct {
 	Registers uint64
-	Dropped   uint64
 }

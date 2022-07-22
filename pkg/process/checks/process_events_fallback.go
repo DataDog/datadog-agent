@@ -33,6 +33,9 @@ func (e *ProcessEventsCheck) Name() string { return config.ProcessEventsCheckNam
 // RealTime returns a value that says whether this check should be run in real time.
 func (e *ProcessEventsCheck) RealTime() bool { return false }
 
+// ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
+func (e *ProcessEventsCheck) ShouldSaveLastRun() bool { return true }
+
 // Run fetches process lifecycle events that have been stored in-memory since the last check run
 func (e *ProcessEventsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
 	return nil, errors.New("the process_events check is not supported on this system")

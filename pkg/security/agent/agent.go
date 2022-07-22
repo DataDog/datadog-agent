@@ -9,15 +9,14 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/cenkalti/backoff"
-	"github.com/pkg/errors"
-	uatomic "go.uber.org/atomic"
+	"go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -34,11 +33,11 @@ type RuntimeSecurityAgent struct {
 	hostname             string
 	reporter             common.RawReporter
 	client               *RuntimeSecurityClient
-	running              uatomic.Bool
+	running              *atomic.Bool
 	wg                   sync.WaitGroup
-	connected            uatomic.Bool
-	eventReceived        uint64
-	activityDumpReceived uint64
+	connected            *atomic.Bool
+	eventReceived        *atomic.Uint64
+	activityDumpReceived *atomic.Uint64
 	telemetry            *telemetry
 	endpoints            *config.Endpoints
 	cancel               context.CancelFunc
@@ -56,7 +55,7 @@ func NewRuntimeSecurityAgent(hostname string) (*RuntimeSecurityAgent, error) {
 
 	telemetry, err := newTelemetry()
 	if err != nil {
-		return nil, errors.Errorf("failed to initialize the telemetry reporter")
+		return nil, errors.New("failed to initialize the telemetry reporter")
 	}
 
 	storage, err := probe.NewSecurityAgentStorageManager()
@@ -65,10 +64,14 @@ func NewRuntimeSecurityAgent(hostname string) (*RuntimeSecurityAgent, error) {
 	}
 
 	return &RuntimeSecurityAgent{
-		client:    client,
-		hostname:  hostname,
-		telemetry: telemetry,
-		storage:   storage,
+		client:               client,
+		hostname:             hostname,
+		telemetry:            telemetry,
+		storage:              storage,
+		running:              atomic.NewBool(false),
+		connected:            atomic.NewBool(false),
+		eventReceived:        atomic.NewUint64(0),
+		activityDumpReceived: atomic.NewUint64(0),
 	}, nil
 }
 
@@ -85,7 +88,7 @@ func (rsa *RuntimeSecurityAgent) Start(reporter event.Reporter, endpoints *confi
 	// Start activity dumps listener
 	go rsa.StartActivityDumpListener()
 	// Send Runtime Security Agent telemetry
-	go rsa.telemetry.run(ctx)
+	go rsa.telemetry.run(ctx, rsa)
 }
 
 // Stop the runtime recurity agent
@@ -145,7 +148,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 			}
 			log.Tracef("Got message from rule `%s` for event `%s`", in.RuleID, string(in.Data))
 
-			atomic.AddUint64(&rsa.eventReceived, 1)
+			rsa.eventReceived.Inc()
 
 			// Dispatch security event
 			rsa.DispatchEvent(in)
@@ -175,7 +178,7 @@ func (rsa *RuntimeSecurityAgent) StartActivityDumpListener() {
 			}
 			log.Tracef("Got activity dump [%s]", msg.GetDump().GetMetadata().GetName())
 
-			atomic.AddUint64(&rsa.activityDumpReceived, 1)
+			rsa.activityDumpReceived.Inc()
 
 			// Dispatch activity dump
 			rsa.DispatchActivityDump(msg)
@@ -231,8 +234,8 @@ func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStrea
 func (rsa *RuntimeSecurityAgent) GetStatus() map[string]interface{} {
 	base := map[string]interface{}{
 		"connected":            rsa.connected.Load(),
-		"eventReceived":        atomic.LoadUint64(&rsa.eventReceived),
-		"activityDumpReceived": atomic.LoadUint64(&rsa.activityDumpReceived),
+		"eventReceived":        rsa.eventReceived.Load(),
+		"activityDumpReceived": rsa.activityDumpReceived.Load(),
 	}
 
 	if rsa.endpoints != nil {

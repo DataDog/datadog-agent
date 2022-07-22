@@ -103,7 +103,6 @@ func TestGetStats(t *testing.T) {
         "msg_errors": 0,
         "orphan_size": 0,
         "read_errors": 0,
-        "registers_dropped": 2,
         "registers_total": 0,
         "sampling_pct": 100,
         "state_size": 0,

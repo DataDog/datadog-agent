@@ -5,12 +5,12 @@ go 1.17
 replace github.com/DataDog/datadog-agent/pkg/quantile => ../../quantile
 
 require (
-	github.com/DataDog/datadog-agent/pkg/quantile v0.38.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/quantile v0.38.0-rc.3
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/stretchr/testify v1.7.4
-	go.opentelemetry.io/collector/pdata v0.54.0
-	go.opentelemetry.io/collector/semconv v0.54.0
+	github.com/stretchr/testify v1.8.0
+	go.opentelemetry.io/collector/pdata v0.56.0
+	go.opentelemetry.io/collector/semconv v0.56.0
 	go.uber.org/zap v1.21.0
 )
 
@@ -27,11 +27,8 @@ require (
 	golang.org/x/sys v0.0.0-20220128215802-99c3d69c2c27 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa // indirect
-	google.golang.org/grpc v1.47.0 // indirect
+	google.golang.org/grpc v1.48.0 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-// Temporarily downgrade testify to v1.7.2 to work around https://github.com/stretchr/testify/issues/1208
-replace github.com/stretchr/testify => github.com/stretchr/testify v1.7.2

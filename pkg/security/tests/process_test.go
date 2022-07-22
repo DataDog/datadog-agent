@@ -10,6 +10,7 @@ package tests
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -24,7 +25,6 @@ import (
 	"github.com/avast/retry-go"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/oliveagle/jsonpath"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/syndtr/gocapability/capability"
 
@@ -371,7 +371,7 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			argv := strings.Split(args.(string), " ")
-			assert.Equal(t, 166, len(argv), "incorrect number of args: %s", argv)
+			assert.Equal(t, 159, len(argv), "incorrect number of args: %s", argv)
 
 			truncated, err := event.GetFieldValue("exec.args_truncated")
 			if err != nil {
@@ -815,7 +815,6 @@ func TestProcessMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(testFile)
 
 	f, err := os.OpenFile(testFile, os.O_WRONLY, 0)
 	if err != nil {
@@ -1340,6 +1339,10 @@ func TestProcessBusybox(t *testing.T) {
 			ID:         "test_busybox_3",
 			Expression: `exec.file.name == "df"`,
 		},
+		{
+			ID:         "test_busybox_4",
+			Expression: `open.file.path == "/tmp/busybox-test" && process.file.name == "touch"`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
@@ -1388,6 +1391,18 @@ func TestProcessBusybox(t *testing.T) {
 			return nil
 		}, validateExecEvent(t, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "test_busybox_3", rule.ID, "wrong rule triggered")
+		}))
+	})
+
+	wrapper.Run(t, "busybox-4", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("/bin/touch", []string{"/tmp/busybox-test"}, nil)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+			return nil
+		}, validateExecEvent(t, func(event *sprobe.Event, rule *rules.Rule) {
+			assert.Equal(t, "test_busybox_4", rule.ID, "wrong rule triggered")
 		}))
 	})
 }

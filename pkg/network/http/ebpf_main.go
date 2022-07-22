@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"time"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -45,6 +46,8 @@ const (
 	batchNotificationsChanSize = 100
 
 	probeUID = "http"
+
+	maxRequestLinger = 30 * time.Second
 )
 
 type ebpfProgram struct {
@@ -53,6 +56,7 @@ type ebpfProgram struct {
 	bytecode    bytecode.AssetReader
 	offsets     []manager.ConstantEditor
 	subprograms []subprogram
+	mapCleaner  *ddebpf.MapCleaner
 
 	batchCompletionHandler *ddebpf.PerfHandler
 }
@@ -196,16 +200,45 @@ func (e *ebpfProgram) Start() error {
 		s.Start()
 	}
 
+	e.setupMapCleaner()
+
 	return nil
 }
 
 func (e *ebpfProgram) Close() error {
+	e.mapCleaner.Stop()
 	err := e.Manager.Stop(manager.CleanAll)
 	e.batchCompletionHandler.Stop()
 	for _, s := range e.subprograms {
 		s.Stop()
 	}
 	return err
+}
+
+func (e *ebpfProgram) setupMapCleaner() {
+	httpMap, _, _ := e.GetMap(httpInFlightMap)
+	httpMapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(httpTX))
+	if err != nil {
+		log.Errorf("error creating map cleaner: %s", err)
+		return
+	}
+
+	ttl := maxRequestLinger.Nanoseconds()
+	httpMapCleaner.Clean(5*time.Minute, func(now int64, key, val interface{}) bool {
+		httpTX, ok := val.(*httpTX)
+		if !ok {
+			return false
+		}
+
+		if updated := int64(httpTX.response_last_seen); updated > 0 {
+			return (now - updated) > ttl
+		}
+
+		started := int64(httpTX.request_started)
+		return started > 0 && (now-started) > ttl
+	})
+
+	e.mapCleaner = httpMapCleaner
 }
 
 func enableRuntimeCompilation(c *config.Config) bool {

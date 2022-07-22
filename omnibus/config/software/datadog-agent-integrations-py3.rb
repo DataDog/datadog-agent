@@ -137,7 +137,7 @@ build do
     # Prepare the build env, these dependencies are only needed to build and
     # install the core integrations.
     #
-    command "#{pip} download --dest #{build_deps_dir} hatchling==0.25.0"
+    command "#{pip} download --dest #{build_deps_dir} hatchling==0.25.1"
     command "#{pip} download --dest #{build_deps_dir} setuptools==40.9.0" # Version from ./setuptools3.rb
     command "#{pip} install wheel==0.34.1"
     command "#{pip} install pip-tools==6.4.0"

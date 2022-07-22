@@ -1,6 +1,12 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package autodiscovery
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -12,6 +18,9 @@ import (
 
 // simpleConfigManager implements the "simple" config manager that reconciles
 // services and templates without any priority, using a store as a backend.
+//
+// simpleConfigManager will be fully replaced by reconcilingConfigManager when
+// the `logs_config.cca_in_ad` feature flag is removed.
 type simpleConfigManager struct {
 	// m synchronizes all operations on this struct.
 	m sync.Mutex
@@ -66,13 +75,20 @@ func (cm *simpleConfigManager) processNewService(adIdentifiers []string, svc lis
 }
 
 // processDelService implements configManager#processDelService.
-func (cm *simpleConfigManager) processDelService(svc listeners.Service) configChanges {
+func (cm *simpleConfigManager) processDelService(ctx context.Context, svc listeners.Service) configChanges {
 	cm.m.Lock()
 	defer cm.m.Unlock()
-	changes := configChanges{}
 
 	cm.store.removeServiceForEntity(svc.GetServiceID())
+	adIdentifiers, err := svc.GetADIdentifiers(ctx)
+	if err != nil {
+		log.Warnf("Couldn't get AD identifiers for service %q while removing it: %v", svc.GetServiceID(), err)
+	} else {
+		cm.store.removeServiceForADID(svc.GetServiceID(), adIdentifiers)
+	}
+
 	removedConfigs := cm.store.removeConfigsForService(svc.GetServiceID())
+	changes := configChanges{}
 	for _, c := range removedConfigs {
 		if cm.store.removeLoadedConfig(c) {
 			changes.unscheduleConfig(c)

@@ -139,4 +139,15 @@ struct bpf_map_def SEC("maps/do_sendfile_args") do_sendfile_args = {
     .namespace = "",
 };
 
+// Used to store ip(6)_make_skb args to be used in the
+// corresponding kretprobes
+struct bpf_map_def SEC("maps/ip_make_skb_args") ip_make_skb_args = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u64),
+    .value_size = sizeof(ip_make_skb_args_t),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
 #endif

@@ -90,7 +90,7 @@ func TestOverlayFS(t *testing.T) {
 		},
 	}
 
-	testDrive, err := newTestDrive("xfs", nil)
+	testDrive, err := newTestDrive(t, "xfs", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

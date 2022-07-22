@@ -188,7 +188,19 @@ static __always_inline http_transaction_t* http_should_flush_previous_state(http
 }
 
 static __always_inline bool http_closed(http_transaction_t *http, skb_info_t *skb_info, u16 pre_norm_src_port) {
-    return (skb_info && skb_info->tcp_flags&TCPHDR_FIN &&
+    return (skb_info && skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST) &&
+            // This is done to avoid double flushing the same
+            // `http_transaction_t` to userspace.  In the context of a regular
+            // TCP teardown, the FIN flag will be seen in "both ways", like:
+            //
+            // server -> FIN -> client
+            // server <- FIN <- client
+            //
+            // Since we can't make any assumptions about the ordering of these
+            // events and there are no synchronization primitives available to
+            // us, the way we solve it is by storing the non-normalized src port
+            // when we start tracking a HTTP transaction and ensuring that only the
+            // FIN flag seen in the same direction will trigger the flushing event.
             http->owned_by_src_port == pre_norm_src_port);
 }
 
@@ -212,13 +224,19 @@ static __always_inline int http_process(http_transaction_t *http_stack, skb_info
 
     http->tags |= tags;
 
-    // If we have a (L7/application-layer) payload we want to update the response_last_seen
-    // This is to prevent things such as a keep-alive adding up to the transaction latency
+    // Only if we have a (L7/application-layer) payload we update the response_last_seen field
+    // This is to prevent things such as keep-alives adding up to the transaction latency
     if (buffer[0] != 0) {
         http->response_last_seen = bpf_ktime_get_ns();
     }
 
     bool conn_closed = http_closed(http, skb_info, http_stack->owned_by_src_port);
+
+    // It's a bit confusing that we're potentially overriding the return value
+    // of the call to `http_should_flush_previous_state` above, but in reality
+    // when `conn_closed` is true the previous value of `to_flush` should be
+    // null.  We write the code in this way to avoid inlining `http_enqueue`
+    // multiple times and keep the number of eBPF instructions to a minimum.
     if (conn_closed) {
         to_flush = http;
     }

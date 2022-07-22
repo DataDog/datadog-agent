@@ -15,7 +15,6 @@ import (
 	"math"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -40,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 )
 
@@ -55,7 +55,7 @@ type Tracer struct {
 	packetsClassifier classifier.Classifier
 
 	// Telemetry
-	skippedConns int64 `stats:"atomic"`
+	skippedConns *atomic.Int64 `stats:""`
 	// Will track the count of expired TCP connections
 	// We are manually expiring TCP connections because it seems that we are losing some TCP close events
 	// For now we are only tracking the `tcp_close` probe, but we should also track the `tcp_set_state` probe when
@@ -68,10 +68,10 @@ type Tracer struct {
 	//
 	// If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
 	// to determine whether a connection is truly closed or not
-	expiredTCPConns  int64 `stats:"atomic"`
-	closedConns      int64 `stats:"atomic"`
-	connStatsMapSize int64 `stats:"atomic"`
-	lastCheck        int64 `stats:"atomic"`
+	expiredTCPConns  *atomic.Int64 `stats:""`
+	closedConns      *atomic.Int64 `stats:""`
+	connStatsMapSize *atomic.Int64 `stats:""`
+	lastCheck        *atomic.Int64 `stats:""`
 
 	activeBuffer *network.ConnectionBuffer
 	bufferLock   sync.Mutex
@@ -174,6 +174,12 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		sysctlUDPConnStreamTimeout: sysctl.NewInt(config.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout_stream", time.Minute),
 		gwLookup:                   gwLookup,
 		ebpfTracer:                 ebpfTracer,
+
+		skippedConns:     atomic.NewInt64(0),
+		expiredTCPConns:  atomic.NewInt64(0),
+		closedConns:      atomic.NewInt64(0),
+		connStatsMapSize: atomic.NewInt64(0),
+		lastCheck:        atomic.NewInt64(0),
 	}
 
 	if tr.statsReporter, err = stats.NewReporter(tr); err != nil {
@@ -332,8 +338,8 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	}
 
 	connections = connections[rejected:]
-	atomic.AddInt64(&t.closedConns, int64(len(connections)))
-	atomic.AddInt64(&t.skippedConns, int64(rejected))
+	t.closedConns.Add(int64(len(connections)))
+	t.skippedConns.Add(int64(rejected))
 	t.state.StoreClosedConnections(connections)
 }
 
@@ -369,7 +375,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	names := t.reverseDNS.Resolve(ips)
 	ctm := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	rctm := t.getRuntimeCompilationTelemetry()
-	atomic.StoreInt64(&t.lastCheck, time.Now().Unix())
+	t.lastCheck.Store(time.Now().Unix())
 
 	return &network.Connections{
 		BufferedData:                delta.BufferedData,
@@ -392,10 +398,10 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 		network.MonotonicKprobesTriggered: kprobeStats.Hits,
 		network.MonotonicKprobesMissed:    kprobeStats.Misses,
 		network.ConnsBpfMapSize:           int64(mapSize),
-		network.MonotonicConnsClosed:      atomic.LoadInt64(&t.closedConns),
+		network.MonotonicConnsClosed:      t.closedConns.Load(),
 	}
 
-	stats, err := t.getStats(conntrackStats, dnsStats, epbfStats, httpStats)
+	stats, err := t.getStats(conntrackStats, dnsStats, epbfStats, httpStats, stateStats)
 	if err != nil {
 		return nil
 	}
@@ -403,9 +409,6 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 	conntrackStats := stats["conntrack"].(map[string]int64)
 	if rt, ok := conntrackStats["registers_total"]; ok {
 		tm[network.MonotonicConntrackRegisters] = rt
-	}
-	if rtd, ok := conntrackStats["registers_dropped"]; ok {
-		tm[network.MonotonicConntrackRegistersDropped] = rtd
 	}
 	if sp, ok := conntrackStats["sampling_pct"]; ok {
 		tm[network.ConntrackSamplingPercent] = sp
@@ -435,6 +438,17 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 	}
 	if usm, ok := ebpfStats["udp_sends_missed"]; ok {
 		tm[network.MonotonicUDPSendsMissed] = usm
+	}
+	if pl, ok := ebpfStats["closed_conn_polling_lost"]; ok {
+		tm[network.MonotonicPerfLost] = pl
+	}
+
+	stateStats := stats["state"].(map[string]int64)
+	if ccd, ok := stateStats["closed_conn_dropped"]; ok {
+		tm[network.MonotonicClosedConnDropped] = ccd
+	}
+	if cd, ok := stateStats["conn_dropped"]; ok {
+		tm[network.MonotonicConnDropped] = cd
 	}
 
 	return tm
@@ -487,14 +501,14 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 		if t.connectionExpired(c, uint64(latestTime), cachedConntrack) {
 			expired = append(expired, *c)
 			if c.Type == network.TCP {
-				atomic.AddInt64(&t.expiredTCPConns, 1)
+				t.expiredTCPConns.Inc()
 			}
-			atomic.AddInt64(&t.closedConns, 1)
+			t.closedConns.Inc()
 			return false
 		}
 
 		if t.shouldSkipConnection(c) {
-			atomic.AddInt64(&t.skippedConns, 1)
+			t.skippedConns.Inc()
 			return false
 		}
 		return true
@@ -520,7 +534,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	} else if (float64(entryCount) / float64(t.config.MaxTrackedConnections)) >= 0.9 {
 		log.Warnf("connection tracking map size of %d is approaching the limit of %d. The config value `system_probe_config.max_tracked_connections` may be increased to avoid any accuracy problems.", entryCount, t.config.MaxTrackedConnections)
 	}
-	atomic.SwapInt64(&t.connStatsMapSize, int64(entryCount))
+	t.connStatsMapSize.Store(int64(entryCount))
 
 	// Remove expired entries
 	t.removeEntries(expired)

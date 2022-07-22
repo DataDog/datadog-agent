@@ -121,12 +121,15 @@ var (
 	// referenced in the process tree
 	// Tags: -
 	MetricProcessResolverReferenceCount = newRuntimeMetric(".process_resolver.reference_count")
-	// MetricProcessResolverCacheMiss is the name of the metric used to report process resolver cache misses
+	// MetricProcessResolverMiss is the name of the metric used to report process resolver cache misses
 	// Tags: -
-	MetricProcessResolverCacheMiss = newRuntimeMetric(".process_resolver.cache_miss")
-	// MetricProcessResolverCacheHits is the name of the metric used to report the process resolver cache hits
+	MetricProcessResolverMiss = newRuntimeMetric(".process_resolver.miss")
+	// MetricProcessResolverPathError is the name of the metric used to report process path resolution errors
+	// Tags: -
+	MetricProcessResolverPathError = newRuntimeMetric(".process_resolver.path_error")
+	// MetricProcessResolverHits is the name of the metric used to report the process resolver cache hits
 	// Tags: type
-	MetricProcessResolverCacheHits = newRuntimeMetric(".process_resolver.hits")
+	MetricProcessResolverHits = newRuntimeMetric(".process_resolver.hits")
 	// MetricProcessResolverAdded is the name of the metric used to report the number of entries added in the cache
 	// Tags: -
 	MetricProcessResolverAdded = newRuntimeMetric(".process_resolver.added")
@@ -151,6 +154,13 @@ var (
 	// MetricActivityDumpActiveDumps is the name of the metric used to report the number of active dumps
 	// Tags: -
 	MetricActivityDumpActiveDumps = newRuntimeMetric(".activity_dump.active_dumps")
+	// MetricActivityDumpEntityTooLarge is the name of the metric used to report the number of active dumps that couldn't
+	// be sent because they are too big
+	// Tags: format, compression
+	MetricActivityDumpEntityTooLarge = newAgentMetric(".activity_dump.entity_too_large")
+	// MetricActivityDumpPathMergeCount is the name of the metric used to report the number of path merged
+	// Tags: -
+	MetricActivityDumpPathMergeCount = newAgentMetric(".activity_dump.path_merged")
 
 	// Namespace resolver metrics
 
@@ -167,11 +177,17 @@ var (
 	// Tags: -
 	MetricNamespaceResolverLonelyNetworkNamespace = newRuntimeMetric(".namespace_resolver.lonely_netns")
 
-	// Others
+	// Policies
 
 	// MetricRuleSetLoaded is the name of the metric used to report that a new ruleset was loaded
 	// Tags: -
 	MetricRuleSetLoaded = newRuntimeMetric(".ruleset_loaded")
+	// MetricPolicy is the name of the metric used to report policy versions
+	// Tags: -
+	MetricPolicy = newRuntimeMetric(".policy")
+
+	// Others
+
 	// MetricSelfTest is the name of the metric used to report that a self test was performed
 	// Tags: - success, fails
 	MetricSelfTest = newRuntimeMetric(".self_test")

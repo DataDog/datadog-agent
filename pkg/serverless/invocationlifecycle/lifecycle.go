@@ -35,9 +35,10 @@ type LifecycleProcessor struct {
 
 // RequestHandler is the struct that stores information about the trace,
 // inferred span, and tags about the current invocation
+// inferred spans may contain a secondary inferred span in certain cases like SNS from SQS
 type RequestHandler struct {
 	executionInfo *ExecutionStartInfo
-	inferredSpan  *inferredspan.InferredSpan
+	inferredSpans [2]*inferredspan.InferredSpan
 	triggerTags   map[string]string
 }
 
@@ -66,7 +67,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	lp.newRequest(startDetails.InvokeEventRawPayload, startDetails.StartTime)
 
 	payloadBytes := []byte(lambdaPayloadString)
-	region, account, arnParseErr := trigger.ParseArn(startDetails.InvokedFunctionARN)
+	region, account, resource, arnParseErr := trigger.ParseArn(startDetails.InvokedFunctionARN)
 	if err != nil {
 		log.Debugf("[lifecycle] Error parsing ARN: %v", err)
 	}
@@ -112,6 +113,11 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		if err := json.Unmarshal(payloadBytes, &event); err == nil {
 			lp.initFromKinesisStreamEvent(event)
 		}
+	case trigger.EventBridgeEvent:
+		var event inferredspan.EventBridgeEvent
+		if err := json.Unmarshal(payloadBytes, &event); err == nil {
+			lp.initFromEventBridgeEvent(event)
+		}
 	case trigger.S3Event:
 		var event events.S3Event
 		if err := json.Unmarshal(payloadBytes, &event); err == nil {
@@ -129,15 +135,15 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		}
 	case trigger.LambdaFunctionURLEvent:
 		var event events.LambdaFunctionURLRequest
-		if err := json.Unmarshal(payloadBytes, &event); err == nil {
-			lp.initFromLambdaFunctionURLEvent(event)
+		if err := json.Unmarshal(payloadBytes, &event); err == nil && arnParseErr == nil {
+			lp.initFromLambdaFunctionURLEvent(event, region, account, resource)
 		}
 	default:
 		log.Debug("Skipping adding trigger types and inferred spans as a non-supported payload was received.")
 	}
 
 	if !lp.DetectLambdaLibrary() {
-		startExecutionSpan(lp.GetExecutionInfo(), lp.GetInferredSpan(), startDetails.StartTime, lambdaPayloadString, startDetails.InvokeEventHeaders, lp.InferredSpansEnabled)
+		startExecutionSpan(lp.GetExecutionInfo(), lp.GetInferredSpan(), lambdaPayloadString, startDetails, lp.InferredSpansEnabled)
 	}
 }
 
@@ -159,13 +165,28 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 
 	if !lp.DetectLambdaLibrary() {
 		log.Debug("Creating and sending function execution span for invocation")
-		endExecutionSpan(lp.GetExecutionInfo(), lp.requestHandler.triggerTags, lp.ProcessTrace, endDetails.RequestID, endDetails.EndTime, endDetails.IsError, endDetails.ResponseRawPayload)
+
+		if len(statusCode) == 3 && strings.HasPrefix(statusCode, "5") {
+			serverlessMetrics.SendErrorsEnhancedMetric(
+				lp.ExtraTags.Tags, endDetails.EndTime, lp.Demux,
+			)
+			endDetails.IsError = true
+		}
+
+		endExecutionSpan(lp.GetExecutionInfo(), lp.requestHandler.triggerTags, lp.ProcessTrace, endDetails)
 
 		if lp.InferredSpansEnabled {
 			log.Debug("[lifecycle] Attempting to complete the inferred span")
 			log.Debugf("[lifecycle] Inferred span context: %+v", lp.GetInferredSpan().Span)
 			if lp.GetInferredSpan().Span.Start != 0 {
-				lp.GetInferredSpan().CompleteInferredSpan(lp.ProcessTrace, lp.GetTags(), endDetails.EndTime, endDetails.IsError, lp.GetExecutionInfo().TraceID, lp.GetExecutionInfo().SamplingPriority)
+				if lp.requestHandler.inferredSpans[1] != nil {
+					log.Debug("[lifecycle] Completing a secondary inferred span")
+					lp.setParentIDForMultipleInferredSpans()
+					lp.requestHandler.inferredSpans[1].AddTagToInferredSpan("http.status_code", statusCode)
+					lp.requestHandler.inferredSpans[1].CompleteInferredSpan(lp.ProcessTrace, lp.getInferredSpanStart(), endDetails.IsError, lp.GetExecutionInfo().TraceID, lp.GetExecutionInfo().SamplingPriority)
+					log.Debug("[lifecycle] The secondary inferred span attributes are %v", lp.requestHandler.inferredSpans[1])
+				}
+				lp.GetInferredSpan().CompleteInferredSpan(lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, lp.GetExecutionInfo().TraceID, lp.GetExecutionInfo().SamplingPriority)
 				log.Debugf("[lifecycle] The inferred span attributes are: %v", lp.GetInferredSpan())
 			} else {
 				log.Debug("[lifecyle] Failed to complete inferred span due to a missing start time. Please check that the event payload was received with the appropriate data")
@@ -194,7 +215,11 @@ func (lp *LifecycleProcessor) GetExecutionInfo() *ExecutionStartInfo {
 // GetInferredSpan returns the generated inferred span of the
 // currently executing lambda function
 func (lp *LifecycleProcessor) GetInferredSpan() *inferredspan.InferredSpan {
-	return lp.requestHandler.inferredSpan
+	return lp.requestHandler.inferredSpans[0]
+}
+
+func (lp *LifecycleProcessor) getInferredSpanStart() time.Time {
+	return time.Unix(lp.GetInferredSpan().Span.Start, 0)
 }
 
 // NewRequest initializes basic information about the current request
@@ -207,7 +232,7 @@ func (lp *LifecycleProcessor) newRequest(lambdaPayloadString string, startTime t
 		requestPayload: lambdaPayloadString,
 		startTime:      startTime,
 	}
-	lp.requestHandler.inferredSpan = &inferredspan.InferredSpan{
+	lp.requestHandler.inferredSpans[0] = &inferredspan.InferredSpan{
 		CurrentInvocationStartTime: startTime,
 		Span: &pb.Span{
 			SpanID: random.Random.Uint64(),
@@ -227,4 +252,12 @@ func (lp *LifecycleProcessor) addTag(key string, value string) {
 		return
 	}
 	lp.requestHandler.triggerTags[key] = value
+}
+
+// Sets the parent and span IDs when multiple inferred spans are necessary.
+// Inferred spans of index 1 are generally sent inside of inferred span index 0.
+// Like an SNS event inside an SQS message, and the parenting order is essential.
+func (lp *LifecycleProcessor) setParentIDForMultipleInferredSpans() {
+	lp.requestHandler.inferredSpans[1].Span.ParentID = lp.requestHandler.inferredSpans[0].Span.ParentID
+	lp.requestHandler.inferredSpans[0].Span.ParentID = lp.requestHandler.inferredSpans[1].Span.SpanID
 }
