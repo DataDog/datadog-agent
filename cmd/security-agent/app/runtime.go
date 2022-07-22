@@ -1014,14 +1014,14 @@ func downloadPolicy(cmd *cobra.Command, args []string) error {
 func dumpDiscarders(cmd *cobra.Command, args []string) error {
 	runtimeSecurityClient, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer runtimeSecurityClient.Close()
 
 	dumpFilename, dumpErr := runtimeSecurityClient.DumpDiscarders()
 
 	if dumpErr != nil {
-		return errors.Wrap(dumpErr, "unable to dump discarders")
+		return fmt.Errorf("unable to dump discarders: %w", dumpErr)
 	}
 
 	fmt.Printf("Discarder dump file: %s\n", dumpFilename)
