@@ -46,7 +46,7 @@ func benchmarkJSONStream(b *testing.B, passes int, sharedBuffers bool, numberOfE
 
 	for n := 0; n < b.N; n++ {
 		for i := 0; i < passes; i++ {
-			results, _ = payloadBuilder.Build(marshaler)
+			results, _ = stream.BuildJSONPayload(payloadBuilder, marshaler)
 		}
 	}
 }

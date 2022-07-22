@@ -76,7 +76,7 @@ func TestOnePayloadSimple(t *testing.T) {
 	}
 
 	builder := NewJSONPayloadBuilder(true)
-	payloads, err := builder.Build(m)
+	payloads, err := BuildJSONPayload(builder, m)
 	require.NoError(t, err)
 	require.Len(t, payloads, 1)
 
@@ -93,7 +93,7 @@ func TestMaxCompressedSizePayload(t *testing.T) {
 	defer resetDefaults()
 
 	builder := NewJSONPayloadBuilder(true)
-	payloads, err := builder.Build(m)
+	payloads, err := BuildJSONPayload(builder, m)
 	require.NoError(t, err)
 	require.Len(t, payloads, 1)
 
@@ -110,7 +110,7 @@ func TestTwoPayload(t *testing.T) {
 	defer resetDefaults()
 
 	builder := NewJSONPayloadBuilder(true)
-	payloads, err := builder.Build(m)
+	payloads, err := BuildJSONPayload(builder, m)
 	require.NoError(t, err)
 	require.Len(t, payloads, 2)
 
@@ -128,9 +128,9 @@ func TestLockedCompressorProducesSamePayloads(t *testing.T) {
 
 	builderLocked := NewJSONPayloadBuilder(true)
 	builderUnLocked := NewJSONPayloadBuilder(false)
-	payloads1, err := builderLocked.Build(m)
+	payloads1, err := BuildJSONPayload(builderLocked, m)
 	require.NoError(t, err)
-	payloads2, err := builderUnLocked.Build(m)
+	payloads2, err := BuildJSONPayload(builderUnLocked, m)
 	require.NoError(t, err)
 
 	require.Equal(t, payloadToString(*payloads1[0]), payloadToString(*payloads2[0]))

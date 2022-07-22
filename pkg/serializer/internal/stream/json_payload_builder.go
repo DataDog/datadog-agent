@@ -99,12 +99,6 @@ const (
 	FailOnErrItemTooBig
 )
 
-// Build serializes a metadata payload and sends it to the forwarder
-func (b *JSONPayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
-	adapter := marshaler.NewIterableStreamJSONMarshalerAdapter(m)
-	return b.BuildWithOnErrItemTooBigPolicy(adapter, DropItemOnErrItemTooBig)
-}
-
 // BuildWithOnErrItemTooBigPolicy serializes a metadata payload and sends it to the forwarder
 func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	m marshaler.IterableStreamJSONMarshaler,
