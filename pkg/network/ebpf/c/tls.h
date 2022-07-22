@@ -67,32 +67,15 @@ static __always_inline int is_tls(struct __sk_buff* skb, u32 offset) {
     return 1;
 }
 
-static __always_inline void parse_tls_server_hello(tls_session_t* tls, struct __sk_buff *skb, u32 offset) {
-    tls->cipher_suite = load_half(skb, offset+offsetof(struct ServerHello, cipher_suite));
-    // TODO: parse extensions to find if tls 1.3
-}
-
 static __always_inline void handle_tls_handshake(tls_session_t* tls, struct __sk_buff* skb, u32 offset) {
     __u8 handshake = load_byte(skb, offset+5);
 
     if (handshake == SERVER_HELLO) {
         tls->state |= STATE_HELLO_SERVER;
-        parse_tls_server_hello(tls, skb, offset);
     } else if (handshake == CLIENT_HELLO) {
         tls->state |= STATE_HELLO_CLIENT;
     } else if (handshake == CERTIFICATE) {
         tls->state |= STATE_SHARE_CERTIFICATE;
-    }
-}
-
-static __always_inline void handle_tls_app_data(tls_session_t *tls) {
-    if ((tls->state & STATE_HELLO_CLIENT) && (tls->state & STATE_HELLO_SERVER)) {
-        if ((tls->version != TLS_VERSION13) && (tls->state & STATE_SHARE_CERTIFICATE)) {
-            tls->state |= STATE_APPLICATION_DATA;
-        }
-        tls->state |= STATE_APPLICATION_DATA;
-
-        return;
     }
 }
 
@@ -110,7 +93,6 @@ static __always_inline void transition_session_state(tls_session_t* tls, struct 
     if (record.app == TLS_HANDSHAKE) {
         handle_tls_handshake(tls, skb, offset);
     } else if (record.app == TLS_APPLICATION_DATA) {
-//        handle_tls_app_data(tls);
         tls->state |= STATE_APPLICATION_DATA;
     }
 }
