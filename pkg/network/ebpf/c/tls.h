@@ -113,7 +113,7 @@ SEC("socket/proto_tls")
 int socket__proto_tls(struct __sk_buff* skb) {
     proto_args_t *args;
     skb_info_t *skb_info;
-    conn_tuple_t *tup;
+    conn_tuple_t tup;
 
     u32 cpu = bpf_get_smp_processor_id();
     args = bpf_map_lookup_elem(&proto_args, &cpu);
@@ -121,12 +121,10 @@ int socket__proto_tls(struct __sk_buff* skb) {
         return 0;
 
     skb_info = &args->skb_info;
-    tup = &args->tup;
+    __builtin_memcpy(&tup, &args->tup, sizeof(conn_tuple_t));
 
     tls_session_t *tls = NULL;
-    tls_session_t new_entry = { 0 };
-    bpf_map_update_elem(&proto_in_flight, tup, &new_entry, BPF_NOEXIST);
-    tls = bpf_map_lookup_elem(&proto_in_flight, tup);
+    tls = bpf_map_lookup_elem(&proto_in_flight, &tup);
     if (tls == NULL)
         return 0;
 
@@ -138,7 +136,7 @@ int socket__proto_tls(struct __sk_buff* skb) {
     tls->packets++;
 
     transition_session_state(tls, skb, skb_info->data_off);
-    check_set_done(tls, tup);
+    check_set_done(tls, &tup);
 
     return 0;
 }
