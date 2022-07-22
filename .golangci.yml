@@ -67,6 +67,7 @@ linters:
     - staticcheck # staticcheck is a go vet on steroids, applying a ton of static analysis checks
     - govet       # Vet examines Go source code and reports suspicious constructs, such as Printf calls whose arguments do not align with the format string
     - depguard    # Depguard is useful for preventing specific packages from being used
+    - bodyclose   # checks whether HTTP response body is closed successfully
 
 linters-settings:
   depguard:

@@ -95,9 +95,11 @@ func TestProxyResponseValid(t *testing.T) {
 	resp, err := http.Get("http://127.0.0.1:5000/xxx/next")
 	assert.Nil(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
+	resp.Body.Close()
 	resp, err = http.Post("http://127.0.0.1:5000/xxx/response", "text/plain", strings.NewReader("bla bla bla"))
 	assert.Nil(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
+	resp.Body.Close()
 }
 
 func TestProxyResponseError(t *testing.T) {
@@ -120,9 +122,11 @@ func TestProxyResponseError(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	resp, err := http.Get("http://127.0.0.1:6000/xxx/next")
 	assert.Nil(t, err)
+	resp.Body.Close()
 	assert.Equal(t, 200, resp.StatusCode)
 	resp, err = http.Post("http://127.0.0.1:6000/xxx/error", "text/plain", strings.NewReader("bla bla bla"))
 	assert.Nil(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 
+	resp.Body.Close()
 }

@@ -104,6 +104,8 @@ type Config struct {
 	// ActivityDumpTagsResolutionPeriod defines the period at which the activity dump manager should try to resolve
 	// missing container tags.
 	ActivityDumpTagsResolutionPeriod time.Duration
+	// ActivityDumpPathMergeEnabled defines if path merge should be enabled
+	ActivityDumpPathMergeEnabled bool
 	// ActivityDumpTracedCgroupsCount defines the maximum count of cgroups that should be monitored concurrently. Set
 	// this parameter to -1 to monitor all cgroups at the same time. Leave this parameter to 0 to prevent the generation
 	// of activity dumps based on cgroups.
@@ -235,6 +237,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpEnabled:                   coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.enabled"),
 		ActivityDumpCleanupPeriod:             time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cleanup_period")) * time.Second,
 		ActivityDumpTagsResolutionPeriod:      time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.tags_resolution_period")) * time.Second,
+		ActivityDumpPathMergeEnabled:          coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.path_merge.enabled"),
 		ActivityDumpTracedCgroupsCount:        coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
 		ActivityDumpTracedEventTypes:          model.ParseEventTypeStringSlice(coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
 		ActivityDumpCgroupDumpTimeout:         time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_dump_timeout")) * time.Minute,

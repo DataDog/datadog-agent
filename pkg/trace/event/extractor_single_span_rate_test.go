@@ -9,17 +9,16 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/stretchr/testify/assert"
 )
 
-func createSpanSamplingTestSpans(serviceName, operationName string, total int, mech apmsampling.SamplingMechanism, rate, limitRate float64) []*pb.Span {
+func createSpanSamplingTestSpans(serviceName, operationName string, total int, mech float64) []*pb.Span {
 	spans := make([]*pb.Span, total)
 	for i := range spans {
 		spans[i] = &pb.Span{TraceID: rand.Uint64(), Service: serviceName, Name: operationName, Metrics: map[string]float64{}}
-		spans[i].Metrics[sampler.KeySpanSamplingMechanism] = float64(mech)
+		spans[i].Metrics[sampler.KeySpanSamplingMechanism] = mech
 	}
 	return spans
 }

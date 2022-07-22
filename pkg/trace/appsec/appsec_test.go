@@ -425,7 +425,10 @@ func TestRoundTripper(t *testing.T) {
 					}
 					return &http.Response{}, nil
 				}), tc.maxPayloadSize)
-				_, err := rt.RoundTrip(&tc.req)
+				resp, err := rt.RoundTrip(&tc.req)
+				if err == nil && resp != nil && resp.Body != nil {
+					resp.Body.Close()
+				}
 				if tc.expectedError {
 					require.Error(t, err)
 				} else {

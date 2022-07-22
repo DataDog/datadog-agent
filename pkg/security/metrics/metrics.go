@@ -158,6 +158,9 @@ var (
 	// be sent because they are too big
 	// Tags: format, compression
 	MetricActivityDumpEntityTooLarge = newAgentMetric(".activity_dump.entity_too_large")
+	// MetricActivityDumpPathMergeCount is the name of the metric used to report the number of path merged
+	// Tags: -
+	MetricActivityDumpPathMergeCount = newAgentMetric(".activity_dump.path_merged")
 
 	// Namespace resolver metrics
 

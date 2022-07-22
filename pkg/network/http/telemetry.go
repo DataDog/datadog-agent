@@ -9,10 +9,9 @@
 package http
 
 import (
-	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network/stats"
+	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/atomic"
 )
@@ -27,8 +26,6 @@ type telemetry struct {
 	rejected                                    *atomic.Int64 `stats:""` // this happens when an user-defined reject-filter matches a request
 	malformed                                   *atomic.Int64 `stats:""` // this happens when the request doesn't have the expected format
 	aggregations                                *atomic.Int64 `stats:""`
-
-	reporter stats.Reporter
 }
 
 func newTelemetry() (*telemetry, error) {
@@ -45,12 +42,6 @@ func newTelemetry() (*telemetry, error) {
 		rejected:     atomic.NewInt64(0),
 		malformed:    atomic.NewInt64(0),
 		aggregations: atomic.NewInt64(0),
-	}
-
-	var err error
-	t.reporter, err = stats.NewReporter(t)
-	if err != nil {
-		return nil, fmt.Errorf("error creating stats reporter: %w", err)
 	}
 
 	return t, nil
@@ -114,5 +105,5 @@ func (t *telemetry) reset() telemetry {
 }
 
 func (t *telemetry) report() map[string]interface{} {
-	return t.reporter.Report()
+	return atomicstats.Report(t)
 }
