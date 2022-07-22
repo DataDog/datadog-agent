@@ -13,8 +13,6 @@ import (
 	"os"
 	"text/template"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 var (
@@ -60,13 +58,13 @@ func (nr *NamespaceResolver) generateGraph(dump []NetworkNamespaceDump, graphFil
 func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDump) graph {
 	g := graph{
 		Title: fmt.Sprintf("Network Namespace Dump (%s)", time.Now().Format("2006-01-02 15:04:05")),
-		Nodes: make(map[string]node),
+		Nodes: make(map[GraphID]node),
 	}
 
 	for _, netns := range dump {
 		// create namespace node
 		netnsNode := node{
-			ID:    eval.RandString(10),
+			ID:    NewGraphID(NewNodeID()),
 			Label: fmt.Sprintf("%v [fd:%d][handle:%v]", netns.NsID, netns.HandleFD, netns.HandlePath),
 			Color: namespaceColor,
 			Shape: namespaceShape,
@@ -82,7 +80,7 @@ func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDu
 		// create active and queued devices nodes
 		for _, dev := range netns.Devices {
 			devNode := node{
-				ID:        eval.RandString(10),
+				ID:        NewGraphID(NewNodeID()),
 				Label:     fmt.Sprintf("%s [%d]", dev.IfName, dev.IfIndex),
 				FillColor: activeDeviceColor,
 				Color:     deviceColor,
@@ -99,7 +97,7 @@ func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDu
 		}
 		for _, dev := range netns.DevicesInQueue {
 			devNode := node{
-				ID:        eval.RandString(10),
+				ID:        NewGraphID(NewNodeID()),
 				Label:     fmt.Sprintf("%s [%d]", dev.IfName, dev.IfIndex),
 				FillColor: queuedDeviceColor,
 				Color:     deviceColor,

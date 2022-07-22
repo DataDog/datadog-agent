@@ -72,6 +72,8 @@ func (mp *provider) Prefetch() error {
 		return err
 	}
 
+	log.Debugf("Retrieved %d containers from docker", len(rawContainers))
+
 	// Used to find if Agent is running in a container.
 	// With K8S entrypoint, `agentPID` should match
 	// With Docker entrypoint, `parentPID` should match
@@ -79,31 +81,57 @@ func (mp *provider) Prefetch() error {
 	parentPID := os.Getppid()
 
 	containers := make(map[string]containerBundle, len(rawContainers))
-	for _, container := range rawContainers {
-		containerBundle := containerBundle{}
-
-		cjson, err := dockerUtil.Inspect(context.TODO(), container.ID, false)
-		if err == nil {
-			mp.fillContainerDetails(cjson, &containerBundle)
-
-			// Luckily for us, on Windows PIDs are the same inside/outside containers
-			if cjson.State.Pid == agentPID || cjson.State.Pid == parentPID {
-				mp.agentCID = &container.ID
-			}
-		} else {
-			log.Debugf("Impossible to inspect container %s: %v", container.ID, err)
-		}
-
-		stats, err := dockerUtil.GetContainerStats(context.TODO(), container.ID)
-		if err == nil && stats != nil {
-			mp.fillContainerMetrics(stats, &containerBundle)
-			mp.fillContainerNetworkMetrics(stats, &containerBundle)
-		} else {
-			log.Debugf("Impossible to get stats for container %s: %v", container.ID, err)
-		}
-
-		containers[container.ID] = containerBundle
+	var containersLock = sync.Mutex{}
+	var wg sync.WaitGroup
+	// On Windows fetching the info on docker containers can be slow.
+	// On a host with ~100 containers running, this can easily take up more than 30s,
+	// causing the Agent to appear 'stuck' and the entrypoint/SCM to consider the Agent dead.
+	// Divide the fetch into batches to accelerate this process; here 8 is chosen arbitrarily.
+	chunkSize := len(rawContainers) / 8
+	if chunkSize <= 1 {
+		chunkSize = len(rawContainers)
 	}
+	log.Infof("Fetching container info by batch of %d\n", chunkSize)
+	for i := 0; i < len(rawContainers); i += chunkSize {
+		wg.Add(1)
+		go func(wg *sync.WaitGroup, start int) {
+			defer wg.Done()
+			end := start + chunkSize
+			if end > len(rawContainers) {
+				end = len(rawContainers)
+			}
+			log.Debugf("Retrieving info on containers %d -> %d\n", start, end)
+
+			for _, container := range rawContainers[start:end] {
+				containerBundle := containerBundle{}
+				log.Debugf("Inspecting container %s", container.ID)
+				cjson, err := dockerUtil.Inspect(context.TODO(), container.ID, false)
+				if err == nil {
+					mp.fillContainerDetails(cjson, &containerBundle)
+
+					// Luckily for us, on Windows PIDs are the same inside/outside containers
+					if cjson.State.Pid == agentPID || cjson.State.Pid == parentPID {
+						mp.agentCID = &container.ID
+					}
+				} else {
+					log.Infof("Impossible to inspect container %s: %v", container.ID, err)
+				}
+				stats, err := dockerUtil.GetContainerStats(context.TODO(), container.ID)
+				if err == nil && stats != nil {
+					mp.fillContainerMetrics(stats, &containerBundle)
+					mp.fillContainerNetworkMetrics(stats, &containerBundle)
+				} else {
+					log.Infof("Impossible to get stats for container %s: %v", container.ID, err)
+				}
+				containersLock.Lock()
+				containers[container.ID] = containerBundle
+				containersLock.Unlock()
+				log.Debugf("Done inspecting %s", container.ID)
+			}
+
+		}(&wg, i)
+	}
+	wg.Wait()
 
 	mp.containersLock.Lock()
 	defer mp.containersLock.Unlock()

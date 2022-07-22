@@ -108,7 +108,8 @@ message ClientState {
 
 message TargetFileHash {
   string algorithm = 1;
-  bytes hash = 2;
+  reserved 2; // old hash format
+  string hash = 3;
 }
 
 message TargetFileMeta {
