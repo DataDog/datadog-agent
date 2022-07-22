@@ -88,8 +88,7 @@ var (
 			// ifOperStatus
 			{Name: "1.3.6.1.2.1.2.2.1.8", Type: gosnmp.Integer, Value: 7},
 			// myFakeVarType
-			// This translates to binary 1111 0000 0000 1111
-			// this means bits 0, 1, 2, 3, 12, 13, 14, 15, 88, and 130
+			// Bits 0, 1, 2, 3, 12, 13, 14, 15, 88, and 130 are set
 			{Name: "1.3.6.1.2.1.200.1.3.1.5", Type: gosnmp.OctetString, Value: []byte{0xf0, 0x0f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x80, 0, 0, 0, 0, 0x20}},
 		},
 	}
