@@ -1035,7 +1035,12 @@ Discarder Count: Discardee Parameters
 
 		for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, &inodeParams); {
 			discardedInodeCount++
-			printDiscardee(dump, fmt.Sprintf("%+v", inode), fmt.Sprintf("%+v", inodeParams), discardedInodeCount)
+			fields := model.FileFields{MountID: inode.PathKey.MountID, Inode: inode.PathKey.Inode, PathID: inode.PathKey.PathID}
+			path, err := p.resolvers.resolveFileFieldsPath(&fields)
+			if err != nil {
+				path = err.Error()
+			}
+			printDiscardee(dump, fmt.Sprintf("%s %+v", path, inode), fmt.Sprintf("%+v", inodeParams), discardedInodeCount)
 			if discardedInodeCount == maxInodeDiscarders {
 				log.Infof("Discarded inode count has reached max discarder map size")
 				break
