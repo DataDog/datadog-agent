@@ -315,16 +315,20 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	seriesSerializer := metricsserializer.IterableSeries{SerieSource: serieSource}
 	useV1API := !config.Datadog.GetBool("use_v2_api.series")
 
-	var seriesPayloads forwarder.Payloads
+	var seriesBytesPayloads transaction.BytesPayloads
 	var extraHeaders http.Header
 	var err error
 
 	if useV1API && s.enableJSONStream {
+		var seriesPayloads forwarder.Payloads
 		seriesPayloads, extraHeaders, err = s.serializeIterableStreamablePayload(seriesSerializer, stream.DropItemOnErrItemTooBig)
+		seriesBytesPayloads = transaction.NewBytesPayloadsWithoutMetaData(seriesPayloads)
 	} else if useV1API && !s.enableJSONStream {
+		var seriesPayloads forwarder.Payloads
 		seriesPayloads, extraHeaders, err = s.serializePayloadJSON(seriesSerializer, true)
+		seriesBytesPayloads = transaction.NewBytesPayloadsWithoutMetaData(seriesPayloads)
 	} else {
-		seriesPayloads, err = seriesSerializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
+		seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompress(marshaler.DefaultBufferContext())
 		extraHeaders = protobufExtraHeadersWithCompression
 	}
 
@@ -333,9 +337,9 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	}
 
 	if useV1API {
-		return s.Forwarder.SubmitV1Series(transaction.NewBytesPayloadsWithoutMetaData(seriesPayloads), extraHeaders)
+		return s.Forwarder.SubmitV1Series(seriesBytesPayloads, extraHeaders)
 	}
-	return s.Forwarder.SubmitSeries(transaction.NewBytesPayloadsWithoutMetaData(seriesPayloads), extraHeaders)
+	return s.Forwarder.SubmitSeries(seriesBytesPayloads, extraHeaders)
 }
 
 // AreSketchesEnabled returns whether sketches are enabled for serialization

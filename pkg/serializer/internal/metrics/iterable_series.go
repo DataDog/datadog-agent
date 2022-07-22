@@ -15,6 +15,7 @@ import (
 	"github.com/richardartoul/molecule"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -79,19 +80,12 @@ func describeItem(serie *metrics.Serie) string {
 // MarshalSplitCompress uses the stream compressor to marshal and compress series payloads.
 // If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
 // compressed protobuf marshaled MetricPayload objects.
-func (series IterableSeries) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
-	return marshalSplitCompress(series, bufferContext)
-}
-
-// MarshalSplitCompress uses the stream compressor to marshal and compress series payloads.
-// If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
-// compressed protobuf marshaled MetricPayload objects.
-func marshalSplitCompress(iterator metrics.SerieSource, bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
+func (series IterableSeries) MarshalSplitCompress(bufferContext *marshaler.BufferContext) (transaction.BytesPayloads, error) {
 	var err error
 	var compressor *stream.Compressor
 	buf := bufferContext.PrecompressionBuf
 	ps := molecule.NewProtoStream(buf)
-	payloads := []*[]byte{}
+	payloads := transaction.BytesPayloads{}
 
 	var pointsThisPayload int
 	var seriesThisPayload int
@@ -158,7 +152,7 @@ func marshalSplitCompress(iterator metrics.SerieSource, bufferContext *marshaler
 		}
 
 		if seriesThisPayload > 0 {
-			payloads = append(payloads, &payload)
+			payloads = append(payloads, transaction.NewBytesPayload(&payload, pointsThisPayload))
 		}
 
 		return nil
@@ -170,8 +164,8 @@ func marshalSplitCompress(iterator metrics.SerieSource, bufferContext *marshaler
 		return nil, err
 	}
 
-	for iterator.MoveNext() {
-		serie = iterator.Current()
+	for series.MoveNext() {
+		serie = series.Current()
 
 		buf.Reset()
 		err = ps.Embedded(payloadSeries, func(ps *molecule.ProtoStream) error {
