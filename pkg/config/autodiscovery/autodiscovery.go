@@ -80,9 +80,15 @@ func DiscoverComponentsFromEnv() ([]config.ConfigurationProviders, []config.List
 	if flavor.GetFlavor() != flavor.DefaultAgent {
 		return detectedProviders, detectedListeners
 	}
+	kubeContainerOn := true
 
 	if config.IsFeaturePresent(config.Docker) || config.IsFeaturePresent(config.Containerd) || config.IsFeaturePresent(config.Podman) || config.IsFeaturePresent(config.ECSFargate) {
-		detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: names.Container, Polling: true, PollInterval: "1s"})
+		if kubeContainerOn {
+			detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: names.KubeContainer, Polling: true, PollInterval: "1s"})
+		} else {
+			detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: names.Container, Polling: true, PollInterval: "1s"})
+		}
+
 		if !config.IsFeaturePresent(config.Kubernetes) {
 			detectedListeners = append(detectedListeners, config.Listeners{Name: names.Container})
 			log.Info("Adding Container listener from environment")
@@ -91,7 +97,11 @@ func DiscoverComponentsFromEnv() ([]config.ConfigurationProviders, []config.List
 	}
 
 	if config.IsFeaturePresent(config.Kubernetes) {
-		detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: "kubelet", Polling: true})
+		if kubeContainerOn {
+			detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: names.KubeContainer, Polling: true})
+		} else {
+			detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: "kubelet", Polling: true})
+		}
 		detectedListeners = append(detectedListeners, config.Listeners{Name: "kubelet"})
 		log.Info("Adding Kubelet autodiscovery provider and listener from environment")
 	}
