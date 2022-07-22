@@ -107,6 +107,8 @@ type Probe struct {
 	// network section
 	tcProgramsLock sync.RWMutex
 	tcPrograms     map[NetDeviceKey]*manager.Probe
+
+	isRuntimeDiscarded bool
 }
 
 // GetResolvers returns the resolvers of Probe
@@ -259,7 +261,7 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	if os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true" {
+	if p.isRuntimeDiscarded {
 		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, manager.ConstantEditor{
 			Name:  "runtime_discarded",
 			Value: uint64(1),
@@ -815,9 +817,11 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 		return nil
 	}
 
-	fakeTime := time.Unix(0, int64(event.TimestampRaw))
-	if !p.discarderRateLimiter.AllowN(fakeTime, 1) {
-		return nil
+	if p.isRuntimeDiscarded {
+		fakeTime := time.Unix(0, int64(event.TimestampRaw))
+		if !p.discarderRateLimiter.AllowN(fakeTime, 1) {
+			return nil
+		}
 	}
 
 	seclog.Tracef("New discarder of type %s for field %s", eventType, field)
@@ -1270,6 +1274,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		statsdClient:         statsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second), 100),
 		flushingDiscarders:   atomic.NewBool(false),
+		isRuntimeDiscarded:   os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true",
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
