@@ -64,6 +64,9 @@ func TestBuildRegisterRequestFailure(t *testing.T) {
 
 func TestSendRequestFailure(t *testing.T) {
 	response, err := sendRequest(&http.Client{}, &http.Request{})
+	if err == nil {
+		response.Body.Close()
+	}
 	assert.Nil(t, response)
 	assert.NotNil(t, err)
 }
@@ -72,6 +75,9 @@ func TestSendRequestSuccess(t *testing.T) {
 	response, err := sendRequest(&ClientMock{}, &http.Request{})
 	assert.Nil(t, err)
 	assert.NotNil(t, response)
+	if response.Body != nil {
+		response.Body.Close()
+	}
 }
 
 func TestRegisterSuccess(t *testing.T) {

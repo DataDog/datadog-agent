@@ -107,6 +107,7 @@ func testURLs(urls []string, timeout time.Duration) string {
 		if err != nil {
 			continue
 		}
+		defer r.Body.Close()
 		if r.StatusCode != http.StatusOK {
 			continue
 		}

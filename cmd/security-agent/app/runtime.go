@@ -69,6 +69,13 @@ var (
 		dir string
 	}{}
 
+	evalArgs = struct {
+		dir       string
+		ruleID    string
+		eventFile string
+		debug     bool
+	}{}
+
 	networkNamespaceCmd = &cobra.Command{
 		Use:   "network-namespace",
 		Short: "network namespace command",
@@ -169,6 +176,12 @@ var (
 		Use:   "check",
 		Short: "Check policies and return a report",
 		RunE:  checkPolicies,
+	}
+
+	evalCmd = &cobra.Command{
+		Use:   "eval",
+		Short: "Evaluate given event data against the give rule",
+		RunE:  evalRule,
 	}
 
 	downloadPolicyCmd = &cobra.Command{
@@ -304,6 +317,14 @@ func init() {
 
 	runtimeCmd.AddCommand(checkPoliciesCmd)
 	checkPoliciesCmd.Flags().StringVar(&checkPoliciesArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+
+	commonPolicyCmd.AddCommand(evalCmd)
+	evalCmd.Flags().StringVar(&evalArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	evalCmd.Flags().StringVar(&evalArgs.ruleID, "rule-id", "", "Rule ID to evaluate")
+	_ = evalCmd.MarkFlagRequired("rule-id")
+	evalCmd.Flags().StringVar(&evalArgs.eventFile, "event-file", "", "File of the event data")
+	_ = evalCmd.MarkFlagRequired("event-file")
+	evalCmd.Flags().BoolVar(&evalArgs.debug, "debug", false, "Display an event dump if the evaluation fail")
 
 	runtimeCmd.AddCommand(selfTestCmd)
 	runtimeCmd.AddCommand(reloadPoliciesCmd)
@@ -621,14 +642,22 @@ func checkPoliciesInner(dir string) error {
 		return err
 	}
 
-	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false, agentVersion)
+	loaderOpts := rules.PolicyLoaderOpts{
+		RuleFilters: []rules.RuleFilter{
+			&rules.AgentVersionFilter{
+				Version: agentVersion,
+			},
+		},
+	}
+
+	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false)
 	if err != nil {
 		return err
 	}
 
 	loader := rules.NewPolicyLoader(provider)
 
-	if err := ruleSet.LoadPolicies(loader); err.ErrorOrNil() != nil {
+	if err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
 		return err
 	}
 
@@ -652,6 +681,151 @@ func checkPoliciesInner(dir string) error {
 
 func checkPolicies(cmd *cobra.Command, args []string) error {
 	return checkPoliciesInner(checkPoliciesArgs.dir)
+}
+
+// RuleIDFilter used by the policy load to filter out rules
+type RuleIDFilter struct {
+	ID string
+}
+
+// IsAccepted implment the RuleFilter interface
+func (r *RuleIDFilter) IsAccepted(rule *rules.RuleDefinition) bool {
+	return r.ID == rule.ID
+}
+
+// EvalReport defines a report of an evaluation
+type EvalReport struct {
+	Succeeded bool
+	Approvers map[string]rules.Approvers
+	Event     eval.Event
+	Error     error `json:",omitempty"`
+}
+
+// EventData defines the structure used to represent an event
+type EventData struct {
+	Type   eval.EventType
+	Values map[string]interface{}
+}
+
+func eventDataFromJSON(file string) (eval.Event, error) {
+	f, err := os.Open(file)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	decoder := json.NewDecoder(f)
+	decoder.UseNumber()
+
+	var eventData EventData
+	if err := decoder.Decode(&eventData); err != nil {
+		return nil, err
+	}
+
+	kind := model.ParseEvalEventType(eventData.Type)
+	if kind == model.UnknownEventType {
+		return nil, errors.New("unknown event type")
+	}
+
+	m := &model.Model{}
+	event := m.NewEventWithType(kind)
+	event.Init()
+
+	for k, v := range eventData.Values {
+		switch v := v.(type) {
+		case json.Number:
+			value, err := v.Int64()
+			if err != nil {
+				return nil, err
+			}
+			if err := event.SetFieldValue(k, int(value)); err != nil {
+				return nil, err
+			}
+		default:
+			if err := event.SetFieldValue(k, v); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return event, nil
+}
+
+func evalRule(cmd *cobra.Command, args []string) error {
+	cfg := &secconfig.Config{
+		PoliciesDir:         evalArgs.dir,
+		EnableKernelFilters: true,
+		EnableApprovers:     true,
+		EnableDiscarders:    true,
+		PIDCacheSize:        1,
+	}
+
+	// enabled all the rules
+	enabled := map[eval.EventType]bool{"*": true}
+
+	var evalOpts eval.Opts
+	evalOpts.
+		WithConstants(model.SECLConstants).
+		WithVariables(model.SECLVariables).
+		WithLegacyFields(model.SECLLegacyFields)
+
+	var opts rules.Opts
+	opts.
+		WithSupportedDiscarders(sprobe.SupportedDiscarders).
+		WithEventTypeEnabled(enabled).
+		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
+		WithLogger(&seclog.PatternLogger{})
+
+	model := &model.Model{}
+	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
+
+	loaderOpts := rules.PolicyLoaderOpts{
+		RuleFilters: []rules.RuleFilter{
+			&RuleIDFilter{
+				ID: evalArgs.ruleID,
+			},
+		},
+	}
+
+	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false)
+	if err != nil {
+		return err
+	}
+
+	loader := rules.NewPolicyLoader(provider)
+
+	if err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
+		return err
+	}
+
+	event, err := eventDataFromJSON(evalArgs.eventFile)
+	if err != nil {
+		return err
+	}
+
+	report := EvalReport{
+		Event: event,
+	}
+
+	approvers, err := ruleSet.GetApprovers(sprobe.GetCapababilities())
+	if err != nil {
+		report.Error = err
+	} else {
+		report.Approvers = approvers
+	}
+
+	report.Succeeded = ruleSet.Evaluate(event)
+	output, err := json.MarshalIndent(report, "", "    ")
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s\n", string(output))
+
+	if !report.Succeeded {
+		os.Exit(-1)
+	}
+
+	return nil
 }
 
 func runRuntimeSelfTest(cmd *cobra.Command, args []string) error {

@@ -51,7 +51,9 @@ func TestPipelineStatsProxy(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := &config.AgentConfig{}
 	newPipelineStatsProxy(c, u, "123", "key:val").ServeHTTP(rec, req)
-	slurp, err := ioutil.ReadAll(rec.Result().Body)
+	result := rec.Result()
+	slurp, err := ioutil.ReadAll(result.Body)
+	result.Body.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,6 +118,7 @@ func TestPipelineStatsProxyHandler(t *testing.T) {
 		receiver.pipelineStatsProxyHandler().ServeHTTP(rec, req)
 		resp := rec.Result()
 		assert.Equal(t, http.StatusAccepted, resp.StatusCode)
+		resp.Body.Close()
 	})
 
 	t.Run("ok_fargate", func(t *testing.T) {
@@ -156,6 +159,7 @@ func TestPipelineStatsProxyHandler(t *testing.T) {
 		if res.StatusCode != http.StatusInternalServerError {
 			t.Fatalf("invalid response: %s", res.Status)
 		}
+		res.Body.Close()
 		slurp, err := ioutil.ReadAll(res.Body)
 		if err != nil {
 			t.Fatal(err)

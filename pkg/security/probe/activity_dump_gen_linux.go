@@ -1259,6 +1259,12 @@ func (z *FileActivityNode) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Name")
 				return
 			}
+		case "is_pattern":
+			z.IsPattern, err = dc.ReadBool()
+			if err != nil {
+				err = msgp.WrapError(err, "IsPattern")
+				return
+			}
 		case "file":
 			if dc.IsNil() {
 				err = dc.ReadNil()
@@ -1398,23 +1404,23 @@ func (z *FileActivityNode) DecodeMsg(dc *msgp.Reader) (err error) {
 // EncodeMsg implements msgp.Encodable
 func (z *FileActivityNode) EncodeMsg(en *msgp.Writer) (err error) {
 	// omitempty: check for empty values
-	zb0001Len := uint32(6)
-	var zb0001Mask uint8 /* 6 bits */
+	zb0001Len := uint32(7)
+	var zb0001Mask uint8 /* 7 bits */
 	if z.File == nil {
 		zb0001Len--
-		zb0001Mask |= 0x2
+		zb0001Mask |= 0x4
 	}
 	if z.FirstSeen == (time.Time{}) {
 		zb0001Len--
-		zb0001Mask |= 0x8
+		zb0001Mask |= 0x10
 	}
 	if z.Open == nil {
 		zb0001Len--
-		zb0001Mask |= 0x10
+		zb0001Mask |= 0x20
 	}
 	if z.Children == nil {
 		zb0001Len--
-		zb0001Mask |= 0x20
+		zb0001Mask |= 0x40
 	}
 	// variable map header, size zb0001Len
 	err = en.Append(0x80 | uint8(zb0001Len))
@@ -1434,7 +1440,17 @@ func (z *FileActivityNode) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Name")
 		return
 	}
-	if (zb0001Mask & 0x2) == 0 { // if not empty
+	// write "is_pattern"
+	err = en.Append(0xaa, 0x69, 0x73, 0x5f, 0x70, 0x61, 0x74, 0x74, 0x65, 0x72, 0x6e)
+	if err != nil {
+		return
+	}
+	err = en.WriteBool(z.IsPattern)
+	if err != nil {
+		err = msgp.WrapError(err, "IsPattern")
+		return
+	}
+	if (zb0001Mask & 0x4) == 0 { // if not empty
 		// write "file"
 		err = en.Append(0xa4, 0x66, 0x69, 0x6c, 0x65)
 		if err != nil {
@@ -1463,7 +1479,7 @@ func (z *FileActivityNode) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "GenerationType")
 		return
 	}
-	if (zb0001Mask & 0x8) == 0 { // if not empty
+	if (zb0001Mask & 0x10) == 0 { // if not empty
 		// write "first_seen"
 		err = en.Append(0xaa, 0x66, 0x69, 0x72, 0x73, 0x74, 0x5f, 0x73, 0x65, 0x65, 0x6e)
 		if err != nil {
@@ -1475,7 +1491,7 @@ func (z *FileActivityNode) EncodeMsg(en *msgp.Writer) (err error) {
 			return
 		}
 	}
-	if (zb0001Mask & 0x10) == 0 { // if not empty
+	if (zb0001Mask & 0x20) == 0 { // if not empty
 		// write "open"
 		err = en.Append(0xa4, 0x6f, 0x70, 0x65, 0x6e)
 		if err != nil {
@@ -1520,7 +1536,7 @@ func (z *FileActivityNode) EncodeMsg(en *msgp.Writer) (err error) {
 			}
 		}
 	}
-	if (zb0001Mask & 0x20) == 0 { // if not empty
+	if (zb0001Mask & 0x40) == 0 { // if not empty
 		// write "children"
 		err = en.Append(0xa8, 0x63, 0x68, 0x69, 0x6c, 0x64, 0x72, 0x65, 0x6e)
 		if err != nil {
@@ -1558,23 +1574,23 @@ func (z *FileActivityNode) EncodeMsg(en *msgp.Writer) (err error) {
 func (z *FileActivityNode) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// omitempty: check for empty values
-	zb0001Len := uint32(6)
-	var zb0001Mask uint8 /* 6 bits */
+	zb0001Len := uint32(7)
+	var zb0001Mask uint8 /* 7 bits */
 	if z.File == nil {
 		zb0001Len--
-		zb0001Mask |= 0x2
+		zb0001Mask |= 0x4
 	}
 	if z.FirstSeen == (time.Time{}) {
 		zb0001Len--
-		zb0001Mask |= 0x8
+		zb0001Mask |= 0x10
 	}
 	if z.Open == nil {
 		zb0001Len--
-		zb0001Mask |= 0x10
+		zb0001Mask |= 0x20
 	}
 	if z.Children == nil {
 		zb0001Len--
-		zb0001Mask |= 0x20
+		zb0001Mask |= 0x40
 	}
 	// variable map header, size zb0001Len
 	o = append(o, 0x80|uint8(zb0001Len))
@@ -1584,7 +1600,10 @@ func (z *FileActivityNode) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "name"
 	o = append(o, 0xa4, 0x6e, 0x61, 0x6d, 0x65)
 	o = msgp.AppendString(o, z.Name)
-	if (zb0001Mask & 0x2) == 0 { // if not empty
+	// string "is_pattern"
+	o = append(o, 0xaa, 0x69, 0x73, 0x5f, 0x70, 0x61, 0x74, 0x74, 0x65, 0x72, 0x6e)
+	o = msgp.AppendBool(o, z.IsPattern)
+	if (zb0001Mask & 0x4) == 0 { // if not empty
 		// string "file"
 		o = append(o, 0xa4, 0x66, 0x69, 0x6c, 0x65)
 		if z.File == nil {
@@ -1604,12 +1623,12 @@ func (z *FileActivityNode) MarshalMsg(b []byte) (o []byte, err error) {
 		err = msgp.WrapError(err, "GenerationType")
 		return
 	}
-	if (zb0001Mask & 0x8) == 0 { // if not empty
+	if (zb0001Mask & 0x10) == 0 { // if not empty
 		// string "first_seen"
 		o = append(o, 0xaa, 0x66, 0x69, 0x72, 0x73, 0x74, 0x5f, 0x73, 0x65, 0x65, 0x6e)
 		o = msgp.AppendTime(o, z.FirstSeen)
 	}
-	if (zb0001Mask & 0x10) == 0 { // if not empty
+	if (zb0001Mask & 0x20) == 0 { // if not empty
 		// string "open"
 		o = append(o, 0xa4, 0x6f, 0x70, 0x65, 0x6e)
 		if z.Open == nil {
@@ -1631,7 +1650,7 @@ func (z *FileActivityNode) MarshalMsg(b []byte) (o []byte, err error) {
 			o = msgp.AppendUint32(o, z.Open.Mode)
 		}
 	}
-	if (zb0001Mask & 0x20) == 0 { // if not empty
+	if (zb0001Mask & 0x40) == 0 { // if not empty
 		// string "children"
 		o = append(o, 0xa8, 0x63, 0x68, 0x69, 0x6c, 0x64, 0x72, 0x65, 0x6e)
 		o = msgp.AppendMapHeader(o, uint32(len(z.Children)))
@@ -1673,6 +1692,12 @@ func (z *FileActivityNode) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			z.Name, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Name")
+				return
+			}
+		case "is_pattern":
+			z.IsPattern, bts, err = msgp.ReadBoolBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "IsPattern")
 				return
 			}
 		case "file":
@@ -1811,7 +1836,7 @@ func (z *FileActivityNode) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *FileActivityNode) Msgsize() (s int) {
-	s = 1 + 5 + msgp.StringPrefixSize + len(z.Name) + 5
+	s = 1 + 5 + msgp.StringPrefixSize + len(z.Name) + 11 + msgp.BoolSize + 5
 	if z.File == nil {
 		s += msgp.NilSize
 	} else {

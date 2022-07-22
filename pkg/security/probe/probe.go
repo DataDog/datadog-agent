@@ -454,7 +454,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		// Delete new mount point from cache
 		if err = p.resolvers.MountResolver.Delete(event.MountReleased.MountID); err != nil {
-			log.Warnf("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
+			log.Debugf("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
 		}
 		return
 	case model.InvalidateDentryEventType:
