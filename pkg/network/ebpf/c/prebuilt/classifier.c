@@ -35,7 +35,9 @@ static __always_inline void do_tail_call(void* ctx, int protocol) {
 SEC("socket/classifier_filter")
 int socket__classifier_filter(struct __sk_buff* skb) {
     proto_args_t args;
+    session_t new_session;
     __builtin_memset(&args, 0, sizeof(proto_args_t));
+    __builtin_memset(&new_session, 0, sizeof(new_session));
     skb_info_t* skb_info = &args.skb_info;
     conn_tuple_t* tup = &args.tup;
     if (!read_conn_tuple_skb(skb, skb_info, tup))
@@ -63,6 +65,7 @@ int socket__classifier_filter(struct __sk_buff* skb) {
         if (err < 0)
             return 0;
 
+        bpf_map_update_elem(&proto_in_flight, tup, &new_session, BPF_NOEXIST);
         do_tail_call(skb, protocol);
         increment_classifier_telemetry_count(tail_call_failed);
     }
