@@ -66,7 +66,9 @@ func injectEnv(pod *corev1.Pod, env corev1.EnvVar) bool {
 			log.Debugf("Ignoring container '%s' in pod %s: env var '%s' already exist", ctr.Name, podStr, env.Name)
 			continue
 		}
-		pod.Spec.Containers[i].Env = append(pod.Spec.Containers[i].Env, env)
+		// prepend rather than append so that our new vars precede container vars in the final list, so that they
+		// can be referenced in other env vars downstream.  (see:  Kubernetes dependent environment variables.)
+		pod.Spec.Containers[i].Env = append([]corev1.EnvVar{env}, pod.Spec.Containers[i].Env...)
 		injected = true
 	}
 	return injected

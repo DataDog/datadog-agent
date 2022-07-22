@@ -20,6 +20,17 @@ func fakeEnvWithValue(name, value string) corev1.EnvVar {
 	}
 }
 
+func fakeEnvWithFieldRefValue(name, value string) corev1.EnvVar {
+	return corev1.EnvVar{
+		Name: name,
+		ValueFrom: &corev1.EnvVarSource{
+			FieldRef: &corev1.ObjectFieldSelector{
+				FieldPath: value,
+			},
+		},
+	}
+}
+
 func fakeEnv(name string) corev1.EnvVar {
 	return corev1.EnvVar{
 		Name:  name,
