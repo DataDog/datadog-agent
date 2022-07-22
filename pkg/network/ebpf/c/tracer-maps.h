@@ -29,7 +29,7 @@ struct bpf_map_def SEC("maps/tcp_stats") tcp_stats = {
 };
 
 /* Will hold the PIDs initiating TCP connections */
-struct bpf_map_def SEC("maps/tcp_connect_sock_pid") tcp_connect_sock_pid = {
+struct bpf_map_def SEC("maps/tcp_ongoing_connect_pid") tcp_ongoing_connect_pid = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(struct sock *),
     .value_size = sizeof(__u64),

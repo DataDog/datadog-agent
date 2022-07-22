@@ -135,7 +135,7 @@ type BPFMapName string
 const (
 	ConnMap               BPFMapName = "conn_stats"
 	TcpStatsMap           BPFMapName = "tcp_stats"
-	TcpConnectSockPidMap  BPFMapName = "tcp_connect_sock_pid"
+	TcpConnectSockPidMap  BPFMapName = "tcp_ongoing_connect_pid"
 	ConnCloseEventMap     BPFMapName = "conn_close_event"
 	TracerStatusMap       BPFMapName = "tracer_status"
 	PortBindingsMap       BPFMapName = "port_bindings"
