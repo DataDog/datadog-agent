@@ -85,7 +85,7 @@ func (t *SelfTester) GetStatus() *api.SelfTestsStatus {
 }
 
 // LoadPolicies implements the PolicyProvider interface
-func (t *SelfTester) LoadPolicies() ([]*rules.Policy, *multierror.Error) {
+func (t *SelfTester) LoadPolicies(filters []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
 	p := &rules.Policy{
 		Name:    policyName,
 		Source:  policySource,

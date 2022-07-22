@@ -85,6 +85,8 @@ const (
 	VethPairEventType
 	// BindEventType Bind event
 	BindEventType
+	// SyscallsEventType Syscalls event
+	SyscallsEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -186,6 +188,8 @@ func (t EventType) String() string {
 		return "veth_pair"
 	case BindEventType:
 		return "bind"
+	case SyscallsEventType:
+		return "syscalls"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"

@@ -8,13 +8,15 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
-	"os"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
+	"os"
+	"regexp"
 )
 
 // encryptionContextKey is the key added to the encryption context by the Lambda console UI
@@ -92,11 +94,18 @@ func readAPIKeyFromSecretsManager(arn string) (string, error) {
 		return "", nil
 	}
 	log.Debugf("Found %s value, trying to use it.", arn)
+
+	region, err := extractRegionFromSecretsManagerArn(arn)
+	if err != nil {
+		return "", err
+	}
+
 	sess, err := session.NewSession(nil)
 	if err != nil {
 		return "", err
 	}
-	secretsManagerClient := secretsmanager.New(sess)
+
+	secretsManagerClient := secretsmanager.New(sess, aws.NewConfig().WithRegion(region))
 	secret := &secretsmanager.GetSecretValueInput{}
 	secret.SetSecretId(arn)
 
@@ -119,4 +128,20 @@ func readAPIKeyFromSecretsManager(arn string) (string, error) {
 	// should not happen but let's handle this gracefully
 	log.Warn("Secrets Manager returned something but there seems to be no data available")
 	return "", nil
+}
+
+func extractRegionFromSecretsManagerArn(secretsManagerArn string) (string, error) {
+	arnObject, err := arn.Parse(secretsManagerArn)
+	if err != nil {
+		return "", fmt.Errorf("could not extract region from arn: %s. %s", secretsManagerArn, err)
+	}
+
+	regionRegex := `\w*-\w*-\d{1}`
+	re := regexp.MustCompile(regionRegex)
+	matches := re.FindStringSubmatch(arnObject.Region)
+	if len(matches) == 0 {
+		return "", fmt.Errorf("region %s found in arn %s is not a valid region format", arnObject.Region, secretsManagerArn)
+	}
+
+	return arnObject.Region, nil
 }

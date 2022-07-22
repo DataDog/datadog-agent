@@ -35,3 +35,19 @@ func TestClients(t *testing.T) {
 	assert.ElementsMatch(t, []*pbgo.Client{}, clients.activeClients())
 	assert.Empty(t, clients.clients)
 }
+
+func TestNewActiveClientsRateLimit(t *testing.T) {
+	clock := clock.NewMock()
+	newActiveClients := newActiveClients{
+		clock:    clock,
+		requests: make(chan chan struct{}),
+		until:    clock.Now(),
+	}
+
+	newActiveClients.setRateLimit(time.Hour)
+	assert.Equal(t, clock.Now().UTC().Add(defaultClientsTTL), newActiveClients.until)
+	newActiveClients.setRateLimit(5 * time.Second)
+	assert.Equal(t, clock.Now().UTC().Add(5*time.Second), newActiveClients.until)
+	newActiveClients.setRateLimit(time.Second)
+	assert.Equal(t, clock.Now().UTC().Add(defaultClientsTTL), newActiveClients.until)
+}

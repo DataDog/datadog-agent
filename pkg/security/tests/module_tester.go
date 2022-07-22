@@ -85,6 +85,8 @@ runtime_security_config:
     enabled: true
 {{if .EnableActivityDump}}
   activity_dump:
+    syscall_monitor:
+      enabled: true
     enabled: true
 {{end}}
   load_controller:
@@ -713,7 +715,7 @@ func (tm *testModule) reloadConfiguration() error {
 	log.Debugf("reload configuration with testDir: %s", tm.Root())
 	tm.config.PoliciesDir = tm.Root()
 
-	provider, err := rules.NewPoliciesDirProvider(tm.config.PoliciesDir, false, nil)
+	provider, err := rules.NewPoliciesDirProvider(tm.config.PoliciesDir, false)
 	if err != nil {
 		return err
 	}
@@ -1276,7 +1278,14 @@ func newSimpleTest(tb testing.TB, macros []*rules.MacroDefinition, rules []*rule
 
 	if testDir == "" {
 		t.root = tb.TempDir()
-		if err := os.Chmod(t.root, 0o711); err != nil {
+
+		targetFileMode := fs.FileMode(0o711)
+
+		// chmod the root and its parent since TempDir returns a 2-layers directory `/tmp/TestNameXXXX/NNN/`
+		if err := os.Chmod(t.root, targetFileMode); err != nil {
+			return nil, err
+		}
+		if err := os.Chmod(filepath.Dir(t.root), targetFileMode); err != nil {
 			return nil, err
 		}
 	}
@@ -1355,17 +1364,6 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 
 	testSuitePid = uint32(utils.Getpid())
-}
-
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
-// randStringRunes returns a random string of the requested size
-func randStringRunes(n int) string {
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
-	}
-	return string(b)
 }
 
 //nolint:deadcode,unused

@@ -24,9 +24,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/network/stats"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -56,8 +56,6 @@ type kprobeTracer struct {
 type telemetry struct {
 	tcpConns4, tcpConns6 *atomic.Int64 `stats:""`
 	udpConns4, udpConns6 *atomic.Int64 `stats:""`
-
-	reporter stats.Reporter
 }
 
 func newTelemetry() telemetry {
@@ -176,11 +174,6 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 	if err != nil {
 		tr.Stop()
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TcpStatsMap, err)
-	}
-
-	tr.telemetry.reporter, err = stats.NewReporter(&tr.telemetry)
-	if err != nil {
-		return nil, fmt.Errorf("error creating stats reporter: %w", err)
 	}
 
 	return tr, nil
@@ -303,7 +296,7 @@ func (t *telemetry) removeConnection(conn *network.ConnectionStats) {
 }
 
 func (t *telemetry) get() map[string]interface{} {
-	return t.reporter.Report()
+	return atomicstats.Report(t)
 }
 
 func (t *kprobeTracer) Remove(conn *network.ConnectionStats) error {

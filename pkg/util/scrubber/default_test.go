@@ -6,12 +6,15 @@
 package scrubber
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 )
 
 func assertClean(t *testing.T, contents, cleanContents string) {
@@ -22,13 +25,39 @@ func assertClean(t *testing.T, contents, cleanContents string) {
 	assert.Equal(t, strings.TrimSpace(cleanContents), strings.TrimSpace(cleanedString))
 }
 
+func TestConfigScrubbedValidYaml(t *testing.T) {
+	wd, _ := os.Getwd()
+
+	inputConf := filepath.Join(wd, "test", "conf.yaml")
+	inputConfData, err := ioutil.ReadFile(inputConf)
+	require.NoError(t, err)
+
+	outputConf := filepath.Join(wd, "test", "conf_scrubbed.yaml")
+	outputConfData, err := ioutil.ReadFile(outputConf)
+	require.NoError(t, err)
+
+	cleaned, err := ScrubBytes([]byte(inputConfData))
+	require.Nil(t, err)
+
+	// First test that the a scrubbed yaml is still a valid yaml
+	var out interface{}
+	err = yaml.Unmarshal(cleaned, &out)
+	assert.NoError(t, err, "Could not load YAML configuration after being scrubbed")
+
+	// We replace windows line break by linux so the tests pass on every OS
+	trimmedOutput := strings.TrimSpace(strings.Replace(string(outputConfData), "\r\n", "\n", -1))
+	trimmedCleaned := strings.TrimSpace(strings.Replace(string(cleaned), "\r\n", "\n", -1))
+
+	assert.Equal(t, trimmedOutput, trimmedCleaned)
+}
+
 func TestConfigStripApiKey(t *testing.T) {
 	assertClean(t,
 		`api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
-		`api_key: ***************************abbbb`)
+		`api_key: "***************************abbbb"`)
 	assertClean(t,
 		`api_key: AAAAAAAAAAAAAAAAAAAAAAAAAAAABBBB`,
-		`api_key: ***************************ABBBB`)
+		`api_key: "***************************ABBBB"`)
 	assertClean(t,
 		`api_key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb"`,
 		`api_key: "***************************abbbb"`)
@@ -60,11 +89,11 @@ func TestConfigStripApiKey(t *testing.T) {
 		`
 		additional_endpoints:
 			"https://app.datadoghq.com":
-			- ***************************abbbb,
-			- ***************************baaaa,
+			- "***************************abbbb",
+			- "***************************baaaa",
 			"https://dog.datadoghq.com":
-			- ***************************abbbb,
-			- ***************************baaaa`)
+			- "***************************abbbb",
+			- "***************************baaaa"`)
 	// make sure we don't strip container ids
 	assertClean(t,
 		`container_id: "b32bd6f9b73ba7ccb64953a04b82b48e29dfafab65fd57ca01d3b94a0e024885"`,
@@ -74,10 +103,10 @@ func TestConfigStripApiKey(t *testing.T) {
 func TestConfigAppKey(t *testing.T) {
 	assertClean(t,
 		`app_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
-		`app_key: ***********************************abbbb`)
+		`app_key: "***********************************abbbb"`)
 	assertClean(t,
 		`app_key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBB`,
-		`app_key: ***********************************ABBBB`)
+		`app_key: "***********************************ABBBB"`)
 	assertClean(t,
 		`app_key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb"`,
 		`app_key: "***********************************abbbb"`)
@@ -210,79 +239,79 @@ func TestDockerSelfInspectApiKey(t *testing.T) {
 func TestConfigPassword(t *testing.T) {
 	assertClean(t,
 		`mysql_password: password`,
-		`mysql_password: ********`)
+		`mysql_password: "********"`)
 	assertClean(t,
 		`mysql_pass: password`,
-		`mysql_pass: ********`)
+		`mysql_pass: "********"`)
 	assertClean(t,
 		`password_mysql: password`,
-		`password_mysql: ********`)
+		`password_mysql: "********"`)
 	assertClean(t,
 		`mysql_password: p@ssw0r)`,
-		`mysql_password: ********`)
+		`mysql_password: "********"`)
 	assertClean(t,
 		`mysql_password: 🔑 🔒 🔐 🔓`,
-		`mysql_password: ********`)
+		`mysql_password: "********"`)
 	assertClean(t,
 		`mysql_password: password`,
-		`mysql_password: ********`)
+		`mysql_password: "********"`)
 	assertClean(t,
 		`mysql_password: p@ssw0r)`,
-		`mysql_password: ********`)
+		`mysql_password: "********"`)
 	assertClean(t,
 		`mysql_password: "password"`,
-		`mysql_password: ********`)
+		`mysql_password: "********"`)
 	assertClean(t,
 		`mysql_password: 'password'`,
-		`mysql_password: ********`)
+		`mysql_password: "********"`)
 	assertClean(t,
 		`   mysql_password:   'password'   `,
-		`   mysql_password: ********`)
+		`   mysql_password: "********"`)
 	assertClean(t,
 		`pwd: 'password'`,
-		`pwd: ********`)
+		`pwd: "********"`)
 	assertClean(t,
 		`pwd: p@ssw0r`,
-		`pwd: ********`)
+		`pwd: "********"`)
 	assertClean(t,
 		`cert_key_password: p@ssw0r`,
-		`cert_key_password: ********`)
+		`cert_key_password: "********"`)
 	assertClean(t,
 		`cert_key_password: 🔑 🔒 🔐 🔓`,
-		`cert_key_password: ********`)
+		`cert_key_password: "********"`)
 }
 
 func TestSNMPConfig(t *testing.T) {
 	assertClean(t,
 		`community_string: password`,
-		`community_string: ********`)
+		`community_string: "********"`)
 	assertClean(t,
 		`authKey: password`,
-		`authKey: ********`)
+		`authKey: "********"`)
 	assertClean(t,
 		`privKey: password`,
-		`privKey: ********`)
+		`privKey: "********"`)
 	assertClean(t,
 		`community_string: p@ssw0r)`,
-		`community_string: ********`)
+		`community_string: "********"`)
 	assertClean(t,
 		`community_string: 🔑 🔒 🔐 🔓`,
-		`community_string: ********`)
+		`community_string: "********"`)
 	assertClean(t,
 		`community_string: password`,
-		`community_string: ********`)
+		`community_string: "********"`)
 	assertClean(t,
 		`community_string: p@ssw0r)`,
-		`community_string: ********`)
+		`community_string: "********"`)
 	assertClean(t,
 		`community_string: "password"`,
-		`community_string: ********`)
+		`community_string: "********"`)
 	assertClean(t,
 		`community_string: 'password'`,
-		`community_string: ********`)
+		`community_string: "********"`)
 	assertClean(t,
 		`   community_string:   'password'   `,
-		`   community_string: ********`)
+		`   community_string: "********"`)
 	assertClean(t,
 		`
 network_devices:
@@ -296,7 +325,7 @@ other_config_with_list: [abc]
 		`
 network_devices:
   snmp_traps:
-    community_strings: ********
+    community_strings: "********"
 other_config: 1
 other_config_with_list: [abc]
 `)
@@ -311,7 +340,7 @@ other_config_with_list: [abc]
 		`
 network_devices:
   snmp_traps:
-    community_strings: ********
+    community_strings: "********"
 other_config: 1
 other_config_with_list: [abc]
 `)
@@ -326,7 +355,7 @@ other_config_with_list: [abc]
 		`
 network_devices:
   snmp_traps:
-    community_strings: ********
+    community_strings: "********"
 other_config: 1
 other_config_with_list: [abc]
 `)
@@ -343,7 +372,7 @@ other_config_with_list: [abc]
 		`
 network_devices:
   snmp_traps:
-    community_strings: ********
+    community_strings: "********"
 other_config: 1
 other_config_with_list: [abc]
 `)
@@ -357,19 +386,19 @@ other_config: 1
 other_config_with_list: [abc]
 `,
 		`snmp_traps_config:
-  community_strings: ********
+  community_strings: "********"
 other_config: 1
 other_config_with_list: [abc]
 `)
 	assertClean(t,
 		`community: password`,
-		`community: ********`)
+		`community: "********"`)
 	assertClean(t,
 		`authentication_key: password`,
-		`authentication_key: ********`)
+		`authentication_key: "********"`)
 	assertClean(t,
 		`privacy_key: password`,
-		`privacy_key: ********`)
+		`privacy_key: "********"`)
 }
 
 func TestYamlConfig(t *testing.T) {
@@ -383,7 +412,7 @@ func TestYamlConfig(t *testing.T) {
 
 	AddStrippedKeys([]string{"foobar"})
 
-	assertClean(t, contents, `foobar: ********`)
+	assertClean(t, contents, `foobar: "********"`)
 }
 
 func TestCertConfig(t *testing.T) {
@@ -446,22 +475,22 @@ network_devices:
     - 'password2'
 log_level: info`,
 		`dd_url: https://app.datadoghq.com
-api_key: ***************************aaaaa
+api_key: "***************************aaaaa"
 proxy: http://user:********@host:port
-password: ********
-auth_token: ********
+password: "********"
+auth_token: "********"
 auth_token_file_path: /foo/bar/baz
 kubelet_auth_token_path: /foo/bar/kube_token
 network_devices:
   snmp_traps:
-    community_strings: ********
+    community_strings: "********"
 log_level: info`)
 }
 
 func TestConfigFile(t *testing.T) {
 	cleanedConfigFile := `dd_url: https://app.datadoghq.com
 
-api_key: ***************************aaaaa
+api_key: "***************************aaaaa"
 
 proxy: http://user:********@host:port
 

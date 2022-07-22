@@ -12,10 +12,11 @@ import (
 	"math"
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 const (
@@ -81,28 +82,14 @@ func AllProbes() []*manager.Probe {
 	allProbes = append(allProbes, getNetDeviceProbes()...)
 	allProbes = append(allProbes, GetTCProbes()...)
 	allProbes = append(allProbes, getBindProbes()...)
+	allProbes = append(allProbes, getSyscallMonitorProbes()...)
 
 	allProbes = append(allProbes,
-		// Syscall monitor
-		&manager.Probe{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
-				EBPFSection:  "tracepoint/raw_syscalls/sys_enter",
-				EBPFFuncName: "sys_enter",
-			},
-		},
 		&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
 				EBPFSection:  "tracepoint/raw_syscalls/sys_exit",
 				EBPFFuncName: "sys_exit",
-			},
-		},
-		&manager.Probe{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
-				EBPFSection:  "tracepoint/sched/sched_process_exec",
-				EBPFFuncName: "sched_process_exec",
 			},
 		},
 		// Snapshot probe
@@ -121,6 +108,8 @@ func AllProbes() []*manager.Probe {
 // AllMaps returns the list of maps of the runtime security module
 func AllMaps() []*manager.Map {
 	return []*manager.Map{
+		// Syscall table map
+		getSyscallTableMap(),
 		// Filters
 		{Name: "filter_policy"},
 		{Name: "inode_discarders"},
@@ -141,10 +130,6 @@ func AllMaps() []*manager.Map {
 		// SELinux tables
 		{Name: "selinux_write_buffer"},
 		{Name: "selinux_enforce_status"},
-		// Syscall monitor tables
-		{Name: "buffer_selector"},
-		{Name: "noisy_processes_fb"},
-		{Name: "noisy_processes_bb"},
 		// Flushing discarders boolean
 		{Name: "flushing_discarders"},
 		// Enabled event mask

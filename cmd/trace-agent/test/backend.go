@@ -78,8 +78,11 @@ func (s *fakeBackend) Start() error {
 			return errors.New("server: timed out out waiting for start")
 		default:
 			resp, err := http.Get(fmt.Sprintf("http://%s/_health", s.srv.Addr))
-			if err == nil && resp.StatusCode == http.StatusOK {
-				return nil
+			if err == nil {
+				resp.Body.Close()
+				if resp.StatusCode == http.StatusOK {
+					return nil
+				}
 			}
 			time.Sleep(5 * time.Millisecond)
 		}

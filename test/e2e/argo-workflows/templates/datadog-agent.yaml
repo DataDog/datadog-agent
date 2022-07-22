@@ -107,7 +107,7 @@ spec:
                 - name: docker-registry
             containers:
               systemProbe:
-                # logLevel: TRACE
+                logLevel: TRACE
                 env:
                   - name:  DD_RUNTIME_SECURITY_CONFIG_LOG_PATTERNS
                     value: "module.*"
