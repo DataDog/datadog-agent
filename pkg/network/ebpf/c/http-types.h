@@ -4,7 +4,7 @@
 #include "tracer.h"
 
 // This determines the size of the payload fragment that is captured for each HTTP request
-#define HTTP_BUFFER_SIZE (8 * 32)
+#define HTTP_BUFFER_SIZE (8 * 20)
 // This controls the number of HTTP transactions read from userspace at a time
 #define HTTP_BATCH_SIZE 15
 // The greater this number is the less likely are colisions/data-races between the flushes
