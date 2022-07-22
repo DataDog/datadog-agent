@@ -11,11 +11,12 @@ package tracer
 import (
 	"strings"
 	"sync"
-	"sync/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/network/stats"
-	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	lru "github.com/hashicorp/golang-lru"
+	"go.uber.org/atomic"
+
+	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 )
 
 var defaultFilteredEnvs = []string{
@@ -40,12 +41,10 @@ type process struct {
 type processList []*process
 
 type _processCacheStats struct {
-	cacheEvicts   uint64 `stats:"atomic"`
-	cacheLength   uint64 `stats:"atomic"`
-	eventsDropped uint64 `stats:"atomic"`
-	eventsSkipped uint64 `stats:"atomic"`
-
-	reporter stats.Reporter
+	cacheEvicts   *atomic.Uint64 `stats:""`
+	cacheLength   *atomic.Uint64 `stats:""`
+	eventsDropped *atomic.Uint64 `stats:""`
+	eventsSkipped *atomic.Uint64 `stats:""`
 }
 
 type processCache struct {
@@ -67,7 +66,7 @@ type processCache struct {
 	stopped chan struct{}
 	stop    sync.Once
 
-	stats *_processCacheStats
+	stats _processCacheStats
 }
 
 type processCacheKey struct {
@@ -81,7 +80,12 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 		cacheByPid:   map[uint32]processList{},
 		in:           make(chan *process, maxProcessQueueLen),
 		stopped:      make(chan struct{}),
-		stats:        &_processCacheStats{},
+		stats: _processCacheStats{
+			cacheEvicts:   atomic.NewUint64(0),
+			cacheLength:   atomic.NewUint64(0),
+			eventsDropped: atomic.NewUint64(0),
+			eventsSkipped: atomic.NewUint64(0),
+		},
 	}
 
 	for _, e := range filteredEnvs {
@@ -101,10 +105,6 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 	})
 
 	if err != nil {
-		return nil, err
-	}
-
-	if pc.stats.reporter, err = stats.NewReporter(pc.stats); err != nil {
 		return nil, err
 	}
 
@@ -132,7 +132,7 @@ func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
 
 	p := pc.processEvent(entry)
 	if p == nil {
-		atomic.AddUint64(&pc.stats.eventsSkipped, 1)
+		pc.stats.eventsSkipped.Add(1)
 		return
 	}
 
@@ -140,7 +140,7 @@ func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
 	case pc.in <- p:
 	default:
 		// dropped
-		atomic.AddUint64(&pc.stats.eventsDropped, 1)
+		pc.stats.eventsDropped.Add(1)
 	}
 }
 
@@ -205,7 +205,7 @@ func (pc *processCache) add(p *process) {
 	pc.cacheByPid[p.Pid] = pl.update(p)
 
 	if evicted {
-		atomic.AddUint64(&pc.stats.cacheEvicts, 1)
+		pc.stats.cacheEvicts.Add(1)
 	}
 }
 
@@ -217,8 +217,8 @@ func (pc *processCache) GetStats() map[string]interface{} {
 	pc.Lock()
 	defer pc.Unlock()
 
-	atomic.StoreUint64(&pc.stats.cacheLength, uint64(pc.cache.Len()))
-	return pc.stats.reporter.Report()
+	pc.stats.cacheLength.Store(uint64(pc.cache.Len()))
+	return atomicstats.Report(&pc.stats)
 }
 
 func (pc *processCache) Get(pid uint32, ts int64) (*process, bool) {
