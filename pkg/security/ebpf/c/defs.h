@@ -459,7 +459,7 @@ struct bpf_map_def SEC("maps/events_stats") events_stats = {
         }                                                                                                              \
     }                                                                                                                  \
 
-#if USE_RING_BUFFER == 1 || LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 #define send_event(ctx, event_type, kernel_event)                                                                      \
     u64 size = sizeof(kernel_event);                                                                                   \
     u64 use_ring_buffer;                                                                                               \
@@ -482,10 +482,15 @@ struct bpf_map_def SEC("maps/events_stats") events_stats = {
     }
 #else
 #define send_event(ctx, event_type, kernel_event)                                                                      \
+    int perf_ret;                                                                                                      \
     send_event_with_size_perf(ctx, event_type, kernel_event, sizeof(kernel_event))
+
+#define send_event_with_size(ctx, event_type, kernel_event, size)                                                      \
+    int perf_ret;                                                                                                      \
+    send_event_with_size_perf(ctx, event_type, kernel_event, size)
 #endif
 
-#if USE_RING_BUFFER == 1 || LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 #define send_event_ptr(ctx, event_type, kernel_event)                                                                  \
     u64 size = sizeof(*kernel_event);                                                                                  \
     u64 use_ring_buffer;                                                                                               \
@@ -498,10 +503,11 @@ struct bpf_map_def SEC("maps/events_stats") events_stats = {
     }
 #else
 #define send_event_ptr(ctx, event_type, kernel_event)                                                                  \
+    int perf_ret;                                                                                                      \
     send_event_with_size_ptr_perf(ctx, event_type, kernel_event, sizeof(*kernel_event))
 #endif
 
-#if USE_RING_BUFFER == 1 || LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 #define send_event_with_size_ptr(ctx, event_type, kernel_event, size)                                                  \
     u64 use_ring_buffer;                                                                                               \
     int perf_ret;                                                                                                      \
@@ -513,6 +519,7 @@ struct bpf_map_def SEC("maps/events_stats") events_stats = {
     }
 #else
 #define send_event_with_size_ptr(ctx, event_type, kernel_event, size)                                                  \
+    int perf_ret;                                                                                                      \
     send_event_with_size_ptr_perf(ctx, event_type, kernel_event, size)
 #endif
 
