@@ -9,7 +9,6 @@
 package network
 
 import (
-	"math/rand"
 	"net"
 	"syscall"
 
@@ -89,7 +88,7 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 		srcAddr, dstAddr = convertV6Addr(flow.LocalAddress), convertV6Addr(flow.RemoteAddress)
 	}
 
-	*cs = ConnectionStats{}
+	*cs = ConnectionStats{Monotonic: map[uint32]StatCounters{}}
 	cs.Source = srcAddr
 	cs.Dest = dstAddr
 	// after lengthy discussion, use the transport bytes in/out.  monotonic
@@ -126,5 +125,5 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 		}
 	}
 
-	cs.Monotonic[rand.Uint32()] = m
+	cs.Monotonic[0] = m
 }
