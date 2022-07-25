@@ -66,7 +66,7 @@ func (o *OTLPReceiver) Start() {
 	cfg := o.conf.OTLPReceiver
 	if cfg.HTTPPort != 0 {
 		o.httpsrv = &http.Server{
-			Addr:        fmt.Sprintf("%s:%d", cfg.BindHost, cfg.HTTPPort),
+			Addr:        net.JoinHostPort(cfg.BindHost, cfg.HTTPPort),
 			Handler:     o,
 			ConnContext: connContext,
 		}

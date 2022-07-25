@@ -18,7 +18,7 @@ import (
 
 type ucredKey struct{}
 
-// cacheDuration determines how long a pid->container ID mapping is considered valid. This value is
+// cacheExpiration determines how long a pid->container ID mapping is considered valid. This value is
 // somewhat arbitrarily chosen, but just needs to be large enough to reduce latency and I/O load
 // caused by frequently reading mappings, and small enough that pid-reuse doesn't cause mismatching
 // of pids with container ids. A one minute cache means the latency and I/O should be low, and
@@ -55,7 +55,7 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 // then uses the Meta Collector to map the PID to a container ID. If any of these fail, the
 // function returns the empty string.
 func GetContainerID(ctx context.Context, h http.Header) string {
-	if id := h.Get(headerContainerID); id != "" {
+	if id :=  fastHeaderGet(h, headerContainerID); id != "" {
 		return id
 	}
 	ucred, ok := ctx.Value(ucredKey{}).(*syscall.Ucred)

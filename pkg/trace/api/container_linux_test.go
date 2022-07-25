@@ -108,6 +108,7 @@ func TestGetContainerID(t *testing.T) {
 		req.Header.Add(headerContainerID, containerID)
 		assert.Equal(t, containerID, GetContainerID(req.Context(), req.Header))
 	})
+
 	t.Run("header-cred", func(t *testing.T) {
 		ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: containerPID})
 		req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
@@ -117,6 +118,7 @@ func TestGetContainerID(t *testing.T) {
 		req.Header.Add(headerContainerID, containerID)
 		assert.Equal(t, containerID, GetContainerID(req.Context(), req.Header))
 	})
+
 	t.Run("cred", func(t *testing.T) {
 		ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: containerPID})
 		req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
@@ -125,6 +127,7 @@ func TestGetContainerID(t *testing.T) {
 		}
 		assert.Equal(t, containerID, GetContainerID(req.Context(), req.Header))
 	})
+
 	t.Run("badcred", func(t *testing.T) {
 		ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: 2345})
 		req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
@@ -133,6 +136,7 @@ func TestGetContainerID(t *testing.T) {
 		}
 		assert.Equal(t, "", GetContainerID(req.Context(), req.Header))
 	})
+
 	t.Run("empty", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "http://example.com", nil)
 		if !assert.NoError(t, err) {

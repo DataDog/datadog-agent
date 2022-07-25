@@ -44,6 +44,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.38.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.38.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/quantile v0.38.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.38.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.38.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/trace v0.38.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
@@ -131,18 +132,25 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/sys/mountinfo v0.6.2
 	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb
+	github.com/netsampler/goflow2 v1.1.0
 	github.com/olekukonko/tablewriter v0.0.5
+	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852
 	github.com/open-policy-agent/opa v0.42.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.54.0
+	github.com/opencontainers/image-spec v1.0.3-0.20211202183452-c5a74bcca799
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417
 	github.com/openshift/api v3.9.0+incompatible
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.12.2
+	github.com/prometheus/procfs v0.7.3
 	github.com/richardartoul/molecule v0.0.0-20210914193524-25d8911bb85b
+	github.com/robfig/cron v1.2.0
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/shirou/gopsutil/v3 v3.22.5
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
+	github.com/sirupsen/logrus v1.8.1
+	github.com/smira/go-xz v0.0.0-20150414201226-0c531f070014
 	github.com/spf13/afero v1.8.2
 	github.com/spf13/cobra v1.5.0
 	github.com/spf13/pflag v1.0.5
@@ -160,6 +168,7 @@ require (
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
 	go.opentelemetry.io/collector v0.54.0
 	go.opentelemetry.io/collector/pdata v0.54.0
+	go.uber.org/atomic v1.9.0
 	go.uber.org/automaxprocs v1.5.1
 	go.uber.org/multierr v1.8.0
 	go.uber.org/zap v1.21.0
@@ -174,6 +183,7 @@ require (
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/genproto v0.0.0-20220519153652-3a47de7e79bd
 	google.golang.org/grpc v1.47.0
+	google.golang.org/protobuf v1.28.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.37.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -194,23 +204,7 @@ require (
 	k8s.io/metrics v0.23.8
 	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
 	sigs.k8s.io/custom-metrics-apiserver v1.23.0
-
 )
-
-require (
-	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852
-	github.com/opencontainers/image-spec v1.0.3-0.20211202183452-c5a74bcca799
-	github.com/prometheus/procfs v0.7.3
-	github.com/sirupsen/logrus v1.8.1
-	github.com/smira/go-xz v0.0.0-20150414201226-0c531f070014
-	github.com/stretchr/objx v0.4.0 // indirect
-	go.uber.org/atomic v1.9.0
-	google.golang.org/protobuf v1.28.0
-)
-
-require github.com/netsampler/goflow2 v1.1.0
-
-require github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.38.0-rc.3
 
 require (
 	cloud.google.com/go v0.100.2 // indirect
@@ -243,6 +237,7 @@ require (
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
 	github.com/Sirupsen/logrus v1.0.6 // indirect
 	github.com/StackExchange/wmi v1.2.1 // indirect
+	github.com/agnivade/levenshtein v1.0.1 // indirect
 	github.com/andybalholm/brotli v1.0.2 // indirect
 	github.com/arduino/go-apt-client v0.0.0-20190812130613-5613f843fdc8 // indirect
 	github.com/armon/go-metrics v0.3.10 // indirect
@@ -335,6 +330,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/runc v1.1.3 // indirect
 	github.com/opencontainers/selinux v1.10.1 // indirect
+	github.com/outcaste-io/ristretto v0.2.0 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pelletier/go-toml v1.9.4 // indirect
 	github.com/philhofer/fwd v1.1.1 // indirect
@@ -354,6 +350,7 @@ require (
 	github.com/smira/go-ftp-protocol v0.0.0-20140829150050-066b75c2b70d // indirect
 	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
+	github.com/stretchr/objx v0.4.0 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7 // indirect
 	github.com/tedsuo/ifrit v0.0.0-20191009134036-9a97d0632f00 // indirect
 	github.com/tedsuo/rata v1.0.0 // indirect
@@ -362,6 +359,7 @@ require (
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75 // indirect
 	github.com/ugorji/go/codec v1.2.7 // indirect
 	github.com/ulikunitz/xz v0.5.10 // indirect
+	github.com/vektah/gqlparser/v2 v2.4.5 // indirect
 	github.com/vito/go-sse v1.0.0 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
@@ -406,14 +404,6 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
-
-require (
-	github.com/agnivade/levenshtein v1.0.1 // indirect
-	github.com/outcaste-io/ristretto v0.2.0 // indirect
-	github.com/vektah/gqlparser/v2 v2.4.5 // indirect
-)
-
-require github.com/robfig/cron v1.2.0
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
