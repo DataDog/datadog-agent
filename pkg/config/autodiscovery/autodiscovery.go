@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -80,7 +81,9 @@ func DiscoverComponentsFromEnv() ([]config.ConfigurationProviders, []config.List
 	if flavor.GetFlavor() != flavor.DefaultAgent {
 		return detectedProviders, detectedListeners
 	}
-	kubeContainerOn := true
+
+	// Upon retiring this flag, see comment in `KubeContainerConfigProvider`
+	kubeContainerOn := util.CcaInAD()
 
 	if config.IsFeaturePresent(config.Docker) || config.IsFeaturePresent(config.Containerd) || config.IsFeaturePresent(config.Podman) || config.IsFeaturePresent(config.ECSFargate) {
 		if kubeContainerOn {

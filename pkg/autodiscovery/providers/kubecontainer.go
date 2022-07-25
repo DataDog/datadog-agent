@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -215,9 +214,7 @@ func (k *KubeContainerConfigProvider) generateConfigs() ([]integration.Config, e
 			log.Errorf("Can't parse template for container %s: %s", containerID, err)
 		}
 
-		if util.CcaInAD() {
-			c = utils.AddContainerCollectAllConfigs(c, containerEntityName)
-		}
+		c = utils.AddContainerCollectAllConfigs(c, containerEntityName)
 
 		for idx := range c {
 			c[idx].Source = names.Container + ":" + containerEntityName
@@ -259,13 +256,11 @@ func (k *KubeContainerConfigProvider) generateConfigs() ([]integration.Config, e
 				continue
 			}
 
-			if util.CcaInAD() {
-				_, trackedByContainer := k.containerCache[podContainer.ID]
-				if !trackedByContainer {
-					c = utils.AddContainerCollectAllConfigs(c, containerEntity)
-				} else {
-					log.Debugf("Pod %q has container %q, however container is tracked by containerCache, skipping log config creation...", pod.Name, podContainer.ID)
-				}
+			_, trackedByContainer := k.containerCache[podContainer.ID]
+			if !trackedByContainer {
+				c = utils.AddContainerCollectAllConfigs(c, containerEntity)
+			} else {
+				log.Debugf("Pod %q has container %q, however container is tracked by containerCache, skipping log config creation...", pod.Name, podContainer.ID)
 			}
 
 			containerIdentifiers[adIdentifier] = struct{}{}
