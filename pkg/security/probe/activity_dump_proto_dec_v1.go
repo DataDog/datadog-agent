@@ -9,7 +9,6 @@
 package probe
 
 import (
-	"sync"
 	"time"
 
 	adproto "github.com/DataDog/datadog-agent/pkg/security/adproto/v1"
@@ -22,7 +21,6 @@ func protoToActivityDump(dest *ActivityDump, ad *adproto.ActivityDump) {
 		return
 	}
 
-	dest.Mutex = &sync.Mutex{}
 	dest.Host = ad.Host
 	dest.Service = ad.Service
 	dest.Source = ad.Source
@@ -47,15 +45,17 @@ func protoMetadataToDumpMetadata(meta *adproto.Metadata) DumpMetadata {
 		AgentCommit:       meta.AgentCommit,
 		KernelVersion:     meta.KernelVersion,
 		LinuxDistribution: meta.LinuxDistribution,
+		Arch:              meta.Arch,
 
-		Name:                meta.Name,
-		ActivityDumpVersion: meta.ActivityDumpVersion,
-		DifferentiateArgs:   meta.DifferentiateArgs,
-		Comm:                meta.Comm,
-		ContainerID:         meta.ContainerId,
-		Start:               protoDecodeTimestamp(meta.Start),
-		End:                 protoDecodeTimestamp(meta.End),
-		Size:                meta.Size,
+		Name:              meta.Name,
+		ProtobufVersion:   meta.ProtobufVersion,
+		DifferentiateArgs: meta.DifferentiateArgs,
+		Comm:              meta.Comm,
+		ContainerID:       meta.ContainerId,
+		Start:             protoDecodeTimestamp(meta.Start),
+		End:               protoDecodeTimestamp(meta.End),
+		Size:              meta.Size,
+		Serialization:     meta.GetSerialization(),
 	}
 }
 
@@ -71,6 +71,7 @@ func protoDecodeProcessActivityNode(pan *adproto.ProcessActivityNode) *ProcessAc
 		Files:          make(map[string]*FileActivityNode, len(pan.Files)),
 		DNSNames:       make(map[string]*DNSNode, len(pan.DnsNames)),
 		Sockets:        make([]*SocketNode, 0, len(pan.Sockets)),
+		Syscalls:       make([]int, 0, len(pan.Syscalls)),
 	}
 
 	for _, child := range pan.Children {
@@ -92,6 +93,10 @@ func protoDecodeProcessActivityNode(pan *adproto.ProcessActivityNode) *ProcessAc
 
 	for _, socket := range pan.Sockets {
 		ppan.Sockets = append(ppan.Sockets, protoDecodeProtoSocket(socket))
+	}
+
+	for _, sysc := range pan.Syscalls {
+		ppan.Syscalls = append(ppan.Syscalls, int(sysc))
 	}
 
 	return ppan
@@ -252,13 +257,16 @@ func protoDecodeProtoSocket(sn *adproto.SocketNode) *SocketNode {
 		return nil
 	}
 
-	return &SocketNode{
-		Family: sn.Family,
-		Bind: BindNode{
-			Port: uint16(sn.Bind.Port),
-			IP:   sn.Bind.Ip,
-		},
+	socketNode := NewSocketNode(sn.Family)
+
+	for _, bindNode := range sn.GetBind() {
+		socketNode.Bind = append(socketNode.Bind, &BindNode{
+			Port: uint16(bindNode.Port),
+			IP:   bindNode.Ip,
+		})
 	}
+
+	return socketNode
 }
 
 func protoDecodeTimestamp(nanos uint64) time.Time {

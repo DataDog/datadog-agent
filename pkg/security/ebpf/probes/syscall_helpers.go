@@ -20,8 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// runtimeArch holds the CPU architecture of the running machine
-var runtimeArch string
+// RuntimeArch holds the CPU architecture of the running machine
+var RuntimeArch string
 
 func resolveRuntimeArch() {
 	var uname unix.Utsname
@@ -31,11 +31,11 @@ func resolveRuntimeArch() {
 
 	switch string(uname.Machine[:bytes.IndexByte(uname.Machine[:], 0)]) {
 	case "x86_64":
-		runtimeArch = "x64"
+		RuntimeArch = "x64"
 	case "aarch64":
-		runtimeArch = "arm64"
+		RuntimeArch = "arm64"
 	default:
-		runtimeArch = "ia32"
+		RuntimeArch = "ia32"
 	}
 }
 
@@ -109,7 +109,7 @@ func expandKprobe(hookpoint string, syscallName string, flag int) []string {
 func expandSyscallSections(syscallName string, flag int, compat ...bool) []string {
 	sections := expandKprobe(getSyscallFnName(syscallName), syscallName, flag)
 
-	if runtimeArch == "x64" {
+	if RuntimeArch == "x64" {
 		if len(compat) > 0 && compat[0] && syscallPrefix != "sys_" {
 			sections = append(sections, expandKprobe(getCompatSyscallFnName(syscallName), "", flag)...)
 		} else {
@@ -158,7 +158,7 @@ func ExpandSyscallProbes(probe *manager.Probe, flag int, compat ...bool) []*mana
 	syscallName := probe.SyscallFuncName
 	probe.SyscallFuncName = ""
 
-	if len(runtimeArch) == 0 {
+	if len(RuntimeArch) == 0 {
 		resolveRuntimeArch()
 	}
 
@@ -188,7 +188,7 @@ func ExpandSyscallProbes(probe *manager.Probe, flag int, compat ...bool) []*mana
 func ExpandSyscallProbesSelector(id manager.ProbeIdentificationPair, flag int, compat ...bool) []manager.ProbesSelector {
 	var selectors []manager.ProbesSelector
 
-	if len(runtimeArch) == 0 {
+	if len(RuntimeArch) == 0 {
 		resolveRuntimeArch()
 	}
 

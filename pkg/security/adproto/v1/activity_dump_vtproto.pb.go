@@ -134,6 +134,20 @@ func (m *Metadata) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.Serialization) > 0 {
+		i -= len(m.Serialization)
+		copy(dAtA[i:], m.Serialization)
+		i = encodeVarint(dAtA, i, uint64(len(m.Serialization)))
+		i--
+		dAtA[i] = 0x72
+	}
+	if len(m.Arch) > 0 {
+		i -= len(m.Arch)
+		copy(dAtA[i:], m.Arch)
+		i = encodeVarint(dAtA, i, uint64(len(m.Arch)))
+		i--
+		dAtA[i] = 0x6a
+	}
 	if m.Size != 0 {
 		i = encodeVarint(dAtA, i, uint64(m.Size))
 		i--
@@ -173,10 +187,10 @@ func (m *Metadata) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x38
 	}
-	if len(m.ActivityDumpVersion) > 0 {
-		i -= len(m.ActivityDumpVersion)
-		copy(dAtA[i:], m.ActivityDumpVersion)
-		i = encodeVarint(dAtA, i, uint64(len(m.ActivityDumpVersion)))
+	if len(m.ProtobufVersion) > 0 {
+		i -= len(m.ProtobufVersion)
+		copy(dAtA[i:], m.ProtobufVersion)
+		i = encodeVarint(dAtA, i, uint64(len(m.ProtobufVersion)))
 		i--
 		dAtA[i] = 0x32
 	}
@@ -247,6 +261,26 @@ func (m *ProcessActivityNode) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.Syscalls) > 0 {
+		var pksize2 int
+		for _, num := range m.Syscalls {
+			pksize2 += sov(uint64(num))
+		}
+		i -= pksize2
+		j1 := i
+		for _, num := range m.Syscalls {
+			for num >= 1<<7 {
+				dAtA[j1] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
+				j1++
+			}
+			dAtA[j1] = uint8(num)
+			j1++
+		}
+		i = encodeVarint(dAtA, i, uint64(pksize2))
+		i--
+		dAtA[i] = 0x3a
 	}
 	if len(m.Sockets) > 0 {
 		for iNdEx := len(m.Sockets) - 1; iNdEx >= 0; iNdEx-- {
@@ -529,6 +563,16 @@ func (m *FileActivityNode) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if m.IsPattern {
+		i--
+		if m.IsPattern {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x38
 	}
 	if len(m.Children) > 0 {
 		for iNdEx := len(m.Children) - 1; iNdEx >= 0; iNdEx-- {
@@ -995,15 +1039,17 @@ func (m *SocketNode) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if m.Bind != nil {
-		size, err := m.Bind.MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
+	if len(m.Bind) > 0 {
+		for iNdEx := len(m.Bind) - 1; iNdEx >= 0; iNdEx-- {
+			size, err := m.Bind[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarint(dAtA, i, uint64(size))
+			i--
+			dAtA[i] = 0x12
 		}
-		i -= size
-		i = encodeVarint(dAtA, i, uint64(size))
-		i--
-		dAtA[i] = 0x12
 	}
 	if len(m.Family) > 0 {
 		i -= len(m.Family)
@@ -1110,7 +1156,9 @@ func (m *ProcessActivityNode) ResetVT() {
 	for _, mm := range m.Files {
 		mm.ResetVT()
 	}
+	f0 := m.Syscalls[:0]
 	m.Reset()
+	m.Syscalls = f0
 }
 func (m *ProcessActivityNode) ReturnToVTPool() {
 	if m != nil {
@@ -1253,7 +1301,7 @@ func (m *Metadata) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
-	l = len(m.ActivityDumpVersion)
+	l = len(m.ProtobufVersion)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
@@ -1276,6 +1324,14 @@ func (m *Metadata) SizeVT() (n int) {
 	}
 	if m.Size != 0 {
 		n += 1 + sov(uint64(m.Size))
+	}
+	l = len(m.Arch)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
+	l = len(m.Serialization)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
 	}
 	if m.unknownFields != nil {
 		n += len(m.unknownFields)
@@ -1320,6 +1376,13 @@ func (m *ProcessActivityNode) SizeVT() (n int) {
 			l = e.SizeVT()
 			n += 1 + l + sov(uint64(l))
 		}
+	}
+	if len(m.Syscalls) > 0 {
+		l = 0
+		for _, e := range m.Syscalls {
+			l += sov(uint64(e))
+		}
+		n += 1 + sov(uint64(l)) + l
 	}
 	if m.unknownFields != nil {
 		n += len(m.unknownFields)
@@ -1441,6 +1504,9 @@ func (m *FileActivityNode) SizeVT() (n int) {
 			l = e.SizeVT()
 			n += 1 + l + sov(uint64(l))
 		}
+	}
+	if m.IsPattern {
+		n += 2
 	}
 	if m.unknownFields != nil {
 		n += len(m.unknownFields)
@@ -1641,9 +1707,11 @@ func (m *SocketNode) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
-	if m.Bind != nil {
-		l = m.Bind.SizeVT()
-		n += 1 + l + sov(uint64(l))
+	if len(m.Bind) > 0 {
+		for _, e := range m.Bind {
+			l = e.SizeVT()
+			n += 1 + l + sov(uint64(l))
+		}
 	}
 	if m.unknownFields != nil {
 		n += len(m.unknownFields)
@@ -2123,7 +2191,7 @@ func (m *Metadata) UnmarshalVT(dAtA []byte) error {
 			iNdEx = postIndex
 		case 6:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ActivityDumpVersion", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field ProtobufVersion", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -2151,7 +2219,7 @@ func (m *Metadata) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.ActivityDumpVersion = string(dAtA[iNdEx:postIndex])
+			m.ProtobufVersion = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 7:
 			if wireType != 0 {
@@ -2294,6 +2362,70 @@ func (m *Metadata) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
+		case 13:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Arch", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Arch = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 14:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Serialization", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Serialization = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])
@@ -2577,6 +2709,82 @@ func (m *ProcessActivityNode) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 7:
+			if wireType == 0 {
+				var v uint32
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflow
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					v |= uint32(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				m.Syscalls = append(m.Syscalls, v)
+			} else if wireType == 2 {
+				var packedLen int
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflow
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					packedLen |= int(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				if packedLen < 0 {
+					return ErrInvalidLength
+				}
+				postIndex := iNdEx + packedLen
+				if postIndex < 0 {
+					return ErrInvalidLength
+				}
+				if postIndex > l {
+					return io.ErrUnexpectedEOF
+				}
+				var elementCount int
+				var count int
+				for _, integer := range dAtA[iNdEx:postIndex] {
+					if integer < 128 {
+						count++
+					}
+				}
+				elementCount = count
+				if elementCount != 0 && len(m.Syscalls) == 0 && cap(m.Syscalls) < elementCount {
+					m.Syscalls = make([]uint32, 0, elementCount)
+				}
+				for iNdEx < postIndex {
+					var v uint32
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflow
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						v |= uint32(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					m.Syscalls = append(m.Syscalls, v)
+				}
+			} else {
+				return fmt.Errorf("proto: wrong wireType = %d for field Syscalls", wireType)
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])
@@ -3370,6 +3578,26 @@ func (m *FileActivityNode) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 7:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field IsPattern", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.IsPattern = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])
@@ -4595,10 +4823,8 @@ func (m *SocketNode) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Bind == nil {
-				m.Bind = &BindNode{}
-			}
-			if err := m.Bind.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+			m.Bind = append(m.Bind, &BindNode{})
+			if err := m.Bind[len(m.Bind)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex

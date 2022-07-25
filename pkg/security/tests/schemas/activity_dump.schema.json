@@ -282,24 +282,33 @@
                                     "type": "string"
                                 },
                                 "bind": {
-                                    "type": "object",
-                                    "properties": {
-                                        "port": {
-                                            "type": "integer"
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "port": {
+                                                "type": "integer"
+                                            },
+                                            "ip": {
+                                                "type": "string"
+                                            }
                                         },
-                                        "ip": {
-                                            "type": "string"
-                                        }
-                                    },
-                                    "required": [
-                                        "port",
-                                        "ip"
-                                    ]
+                                        "required": [
+                                            "port",
+                                            "ip"
+                                        ]
+                                    }
                                 }
                             },
                             "required": [
                                 "family"
                             ]
+                        }
+                    },
+                    "syscalls": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
                         }
                     }
                 },
@@ -328,7 +337,7 @@
                 "name": {
                     "type": "string"
                 },
-                "activity_dump_version": {
+                "protobuf_version": {
                     "type": "string"
                 },
                 "differentiate_args": {
@@ -351,7 +360,7 @@
                 }
             },
             "required": [
-                "activity_dump_version",
+                "protobuf_version",
                 "agent_commit",
                 "agent_version",
                 "differentiate_args",

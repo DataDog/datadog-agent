@@ -62,6 +62,7 @@ def build(
     bundle_ebpf=False,
     parallel_build=True,
     kernel_release=None,
+    debug=False,
 ):
     """
     Build the system_probe
@@ -84,7 +85,7 @@ def build(
         )
     elif compile_ebpf:
         # Only build ebpf files on unix
-        build_object_files(ctx, parallel_build=parallel_build, kernel_release=kernel_release)
+        build_object_files(ctx, parallel_build=parallel_build, kernel_release=kernel_release, debug=debug)
 
     generate_cgo_types(ctx, windows=windows)
     ldflags, gcflags, env = get_build_flags(
@@ -655,15 +656,22 @@ def build_network_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release
         promise.join()
 
 
-def build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=None):
+def get_security_agent_build_flags(security_agent_c_dir, kernel_release=None, debug=False):
+    security_flags = get_ebpf_build_flags(kernel_release=kernel_release)
+    security_flags.append(f"-I{security_agent_c_dir}")
+    if debug:
+        security_flags.append("-DDEBUG=1")
+    return security_flags
+
+
+def build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=None, debug=False):
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
     security_c_file = os.path.join(security_agent_prebuilt_dir, "offset-guesser.c")
     security_bc_file = os.path.join(build_dir, "runtime-security-offset-guesser.bc")
     security_agent_obj_file = os.path.join(build_dir, "runtime-security-offset-guesser.o")
 
-    security_flags = get_ebpf_build_flags(kernel_release=kernel_release)
-    security_flags.append(f"-I{security_agent_c_dir}")
+    security_flags = get_security_agent_build_flags(security_agent_c_dir, kernel_release=kernel_release, debug=debug)
 
     ctx.run(
         CLANG_CMD.format(
@@ -677,15 +685,14 @@ def build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=None
     )
 
 
-def build_security_probe_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None):
+def build_security_probe_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None, debug=False):
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
     security_c_file = os.path.join(security_agent_prebuilt_dir, "probe.c")
     security_bc_file = os.path.join(build_dir, "runtime-security.bc")
     security_agent_obj_file = os.path.join(build_dir, "runtime-security.o")
 
-    security_flags = get_ebpf_build_flags(kernel_release=kernel_release)
-    security_flags.append(f"-I{security_agent_c_dir}")
+    security_flags = get_security_agent_build_flags(security_agent_c_dir, kernel_release=kernel_release, debug=debug)
 
     # compile
     promises = []
@@ -741,12 +748,12 @@ def build_security_probe_ebpf_files(ctx, build_dir, parallel_build=True, kernel_
             p.join()
 
 
-def build_security_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None):
-    build_security_probe_ebpf_files(ctx, build_dir, parallel_build, kernel_release=kernel_release)
-    build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=kernel_release)
+def build_security_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None, debug=False):
+    build_security_probe_ebpf_files(ctx, build_dir, parallel_build, kernel_release=kernel_release, debug=debug)
+    build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=kernel_release, debug=debug)
 
 
-def build_object_files(ctx, parallel_build, kernel_release=None):
+def build_object_files(ctx, parallel_build, kernel_release=None, debug=False):
     """build_object_files builds only the eBPF object"""
 
     # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
@@ -761,7 +768,9 @@ def build_object_files(ctx, parallel_build, kernel_release=None):
 
     build_network_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release)
     build_http_ebpf_files(ctx, build_dir=build_dir, kernel_release=kernel_release)
-    build_security_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release)
+    build_security_ebpf_files(
+        ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release, debug=debug
+    )
 
     generate_runtime_files(ctx)
 

@@ -10,9 +10,13 @@ const (
 	apiID            = "apiid"
 	apiName          = "apiname"
 	connectionID     = "connection_id"
+	detailType       = "detail_type"
 	endpoint         = "endpoint"
-	eventType        = "event_type"
+	eventID          = "event_id"
+	eventName        = "event_name"
 	eventSourceArn   = "event_source_arn"
+	eventType        = "event_type"
+	eventVersion     = "event_version"
 	httpURL          = "http.url"
 	httpMethod       = "http.method"
 	httpProtocol     = "http.protocol"
@@ -22,13 +26,19 @@ const (
 	messageID        = "message_id"
 	operationName    = "operation_name"
 	queueName        = "queuename"
+	partitionKey     = "partition_key"
 	receiptHandle    = "receipt_handle"
 	requestID        = "request_id"
 	resourceNames    = "resource_names"
 	senderID         = "sender_id"
 	sentTimestamp    = "SentTimestamp"
+	shardID          = "shardid"
+	sizeBytes        = "size_bytes"
 	stage            = "stage"
+	streamName       = "streamname"
+	streamViewType   = "stream_view_type"
 	subject          = "subject"
+	tableName        = "tablename"
 	topicName        = "topicname"
 	topicARN         = "topic_arn"
 	metadataType     = "type"
@@ -40,3 +50,11 @@ const (
 	// in the payload headers
 	invocationType = "X-Amz-Invocation-Type"
 )
+
+// EventBridgeEvent is used for unmarshalling a EventBridge event.
+// AWS Go libraries do not provide this type of event for deserialization.
+type EventBridgeEvent struct {
+	DetailType string `json:"detail-type"`
+	Source     string `json:"source"`
+	StartTime  string `json:"time"`
+}

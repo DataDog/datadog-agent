@@ -494,6 +494,8 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 	return nil, &ErrFieldNotFound{Field: field}
 }
 
+func (e *testEvent) Init() {}
+
 func (e *testEvent) GetFieldValue(field Field) (interface{}, error) {
 	switch field {
 

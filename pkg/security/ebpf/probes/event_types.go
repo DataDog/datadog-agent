@@ -60,7 +60,6 @@ var NetworkSelectors = []manager.ProbesSelector{
 // SyscallMonitorSelectors is the list of probes that should be activated for the syscall monitor feature
 var SyscallMonitorSelectors = []manager.ProbesSelector{
 	&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "tracepoint/raw_syscalls/sys_enter", EBPFFuncName: "sys_enter"}},
-	&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "tracepoint/sched/sched_process_exec", EBPFFuncName: "sched_process_exec"}},
 }
 
 var selectorsPerEventTypeStore map[eval.EventType][]manager.ProbesSelector

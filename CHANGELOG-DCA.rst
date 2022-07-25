@@ -2,6 +2,126 @@
 Release Notes
 =============
 
+.. _Release Notes_dca-1.21.0_dca-1.21.X:
+
+dca-1.21.0
+==========
+
+.. _Release Notes_dca-1.21.0_dca-1.21.X_Prelude:
+
+Prelude
+-------
+
+Released on: 2022-06-28
+Pinned to datadog-agent v7.37.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7370--6370>`_.
+
+.. _Release Notes_dca-1.21.0_dca-1.21.X_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The Cluster Agent followers now forward queries to the Cluster Agent leaders themselves. This allows a reduction in the overall number of connections to the Cluster Agent and better spreads the load between leader and forwarders.
+
+- Make the name of the ConfigMap used by the Cluster Agent for its leader election configurable.
+
+- The Datadog Cluster Agent exposes a new metric ``endpoint_checks_configs_dispatched``.
+
+
+.. _Release Notes_dca-1.21.0_dca-1.21.X_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a panic occuring during the invocation of the `check` command on the
+  Cluster Agent if the Orchestrator Explorer feature is enabled.
+
+- Fix the node count reported for Kubernetes clusters.
+
+
+.. _Release Notes_dca-1.20.0_dca-1.20.X:
+
+dca-1.20.0
+==========
+
+.. _Release Notes_dca-1.20.0_dca-1.20.X_Prelude:
+
+Prelude
+-------
+
+Released on: 2022-05-22
+Pinned to datadog-agent v7.36.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7360--6360>`_.
+
+.. _Release Notes_dca-1.20.0_dca-1.20.X_New Features:
+
+New Features
+------------
+
+- The Datadog Admission Controller supports multiple configuration injection
+  modes through the ``admission_controller.inject_config.mode`` parameter
+  or the ``DD_ADMISSION_CONTROLLER_INJECT_CONFIG_MODE`` environment variable:
+  - ``hostip``: Inject the host IP. (default)
+  - ``service``: Inject Datadog's local-service DNS name.
+  - ``socket``: Inject the Datadog socket path.
+
+- Collect ResourceRequirements for jobs and cronjobs for kubernetes live containers.
+
+
+.. _Release Notes_dca-1.20.0_dca-1.20.X_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Added a configuration option to admission controller to allow
+  configuration of the failure policy. Defaults to Ignore which
+  was the previous default. The default of Ignore means that pods
+  will still be admitted even if the webhook is unavailable to
+  inject them. Setting to Fail will require the admission controller
+  to be present and pods to be injected before they are allowed to run.
+
+- The admission controller's reinvocation policy is now set to ``IfNeeded`` by default.
+  It can be changed using the ``admission_controller.reinvocation_policy`` parameter.
+
+- The Datadog Cluster Agent now supports internal profiling.
+
+- KSM core check: add a new ``kubernetes_state.cronjob.complete``
+  service check that returns the status of the most recent job for
+  a cronjob.
+
+
+.. _Release Notes_dca-1.20.0_dca-1.20.X_Security Notes:
+
+Security Notes
+--------------
+
+- Cluster Agent API (only used by Node Agents) is now only server with TLS >= 1.3 by default. Setting "cluster_agent.allow_legacy_tls" to true allows to fallback to TLS 1.0.
+
+
+.. _Release Notes_dca-1.20.0_dca-1.20.X_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix the node count reported for Kubernetes clusters.
+
+- Fixed an issue that created lots of log messages when the DCA admission controller was enabled on AKS.
+
+- Time-based metrics (for example, `kubernetes_state.pod.age`, `kubernetes_state.pod.uptime`) are now comparable in the Kubernetes state core check.
+
+- Fix a risk of panic when multiple KSM Core check instances run concurrently.
+
+- Remove noisy Kubernetes API deprecation warnings in the Cluster Agent logs.
+
+
+.. _Release Notes_dca-1.20.0_dca-1.20.X_Other Notes:
+
+Other Notes
+-----------
+
+- Change the default value of the external metrics provider port from 443 to 8443.
+  This will allow to run the cluster agent with a non-root user for better security.
+  This was already the default value in the Helm chart and in the datadog operator.
+
+
 .. _Release Notes_dca-1.19.0_dca-1.19.X:
 
 dca-1.19.0
