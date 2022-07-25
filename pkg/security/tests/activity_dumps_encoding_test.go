@@ -82,7 +82,7 @@ func TestProtobufDecoding(t *testing.T) {
 	}
 
 	if !assert.Equal(t, out.Len(), newOut.Len()) {
-		debugADDiff(t, out, newOut)
+		diffActivityDumps(t, out, newOut)
 	}
 }
 
@@ -94,7 +94,7 @@ func decodeAD(buffer *bytes.Buffer) (*probe.ActivityDump, error) {
 	return decoded, nil
 }
 
-func debugADDiff(tb testing.TB, a, b *bytes.Buffer) {
+func diffActivityDumps(tb testing.TB, a, b *bytes.Buffer) {
 	ad, err := decodeAD(a)
 	if err != nil {
 		tb.Fatal(err)
