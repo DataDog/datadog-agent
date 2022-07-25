@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -26,7 +27,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-// KubeContainerConfigProvider implements the ConfigProvider interface for both kubelet and containers
+// KubeContainerConfigProvider implements the ConfigProvider interface for both pods and containers
+// This provider is meant to replace both the `ContainerConfigProvider` and the `KubeletConfigProvider` components.
+// Once the rollout is complete, `pkg/autodiscovery/providers/container.go` and `pkg/autodiscovery/providers/kubelet.go`
+// should be deleted and this provider should be renamed to something more generic such as
+// `ContainerConfigProvider`
 type KubeContainerConfigProvider struct {
 	workloadmetaStore workloadmeta.Store
 	podCache          map[string]*workloadmeta.KubernetesPod
@@ -83,14 +88,6 @@ func (k *KubeContainerConfigProvider) listen() {
 
 	ch := k.workloadmetaStore.Subscribe(name, workloadmeta.NormalPriority, workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod, workloadmeta.KindContainer},
-		// TODO Don't actually need SourceAll, just need both SourceNodeOrchestrator and SourceRuntime
-		// Should this be two separate subscriptions?
-		// When requesting 'SourceAll', you get the 'cachedEntity' (aka merged) vs
-		// when requesting a single Source you get only that version of the source.
-		// The latter is more similar to how the Kubelet and Container provider work currently
-		//
-		// I believe separate subscriptions _or_ passing the 'source' in the EventBundle
-		// is necessary to avoid a race between the kubelet's view of a container and the runtime's view of a container
 		workloadmeta.SourceAll,
 		workloadmeta.EventTypeAll,
 	))
@@ -127,44 +124,79 @@ func (k *KubeContainerConfigProvider) processEvents(evBundle workloadmeta.EventB
 }
 
 func (k *KubeContainerConfigProvider) addEntity(entity workloadmeta.Entity) {
-	k.Lock()
-	defer k.Unlock()
 	switch e := entity.(type) {
 	case *workloadmeta.KubernetesPod:
-		id := e.GetID().ID
-		k.podCache[id] = e
-		log.Debugf("adding pod with ID %s\n", id)
-		k.upToDate = false
+		k.addPod(e)
 	case *workloadmeta.Container:
-		// TODO do 5 second container delay thing here
-		// Delay logic may need tweaking because in a k8s situation,
-		// addEntity will be called twice with a given container, once for the pod (which we don't care about)
-		// and once from the runtime.
-		// This means that we'll _always_ see double events for a container, unless we can get a way to distinguish
-		// which containers are coming from which source (see above comment about 2 subscriptions)
-		containerID := e.ID
-		k.containerCache[containerID] = e
-		log.Debugf("Adding entity container %s with labels %v\n", containerID, e.EntityMeta.Labels)
-		k.upToDate = false
+		k.RLock()
+		_, containerSeen := k.containerCache[e.ID]
+		k.RUnlock()
+		if containerSeen {
+			// This is for short-lived detection, see `deleteEntity`.
+			//
+			// If we get a 'start' event for a container we've seen before,
+			// then it is likely (guaranteed?) that we saw a 'delete' event before this.
+			//
+			// The containerCache entry is still present which means that the
+			// deletion is currently "pending" and the actual deletion will occur in the
+			// the future, specifically in [0, delayDuration) amount of time.
+			// To guarantee our 'add' operation is processed _after_ the deletion occurs,
+			// set delay for 'delayDuration'
+			time.AfterFunc(delayDuration, func() {
+				k.addContainer(e)
+			})
+		} else {
+			k.addContainer(e)
+		}
+
 	}
 }
 
-func (k *KubeContainerConfigProvider) deleteEntity(entity workloadmeta.Entity) {
+func (k *KubeContainerConfigProvider) addPod(p *workloadmeta.KubernetesPod) {
 	k.Lock()
 	defer k.Unlock()
+	id := p.GetID().ID
+	k.podCache[id] = p
+	log.Debugf("Adding entity pod with ID %s\n", id)
+	k.upToDate = false
+}
+
+func (k *KubeContainerConfigProvider) addContainer(c *workloadmeta.Container) {
+	k.Lock()
+	defer k.Unlock()
+	k.containerCache[c.ID] = c
+	log.Debugf("Adding entity container with ID %s\n", c.ID)
+	k.upToDate = false
+}
+
+func (k *KubeContainerConfigProvider) deleteEntity(entity workloadmeta.Entity) {
 	switch e := entity.(type) {
 	case *workloadmeta.KubernetesPod:
-		delete(k.podCache, entity.GetID().ID)
-		log.Debugf("deleting pod with ID %s\n", entity.GetID().ID)
-		k.upToDate = false
+		k.deletePod(e)
 	case *workloadmeta.Container:
-		// TODO do 5 second container delay thing here
-		containerID := e.ID
-		log.Debugf("deleting container %s\n", containerID)
-		delete(k.containerCache, containerID)
-		k.upToDate = false
+		// Delay for short-lived detection
+		time.AfterFunc(delayDuration, func() {
+			k.deleteContainer(e)
+		})
 	}
 }
+
+func (k *KubeContainerConfigProvider) deletePod(p *workloadmeta.KubernetesPod) {
+	k.Lock()
+	defer k.Unlock()
+	delete(k.podCache, p.GetID().ID)
+	log.Debugf("Deleting entity pod with ID %s\n", p.GetID().ID)
+	k.upToDate = false
+}
+
+func (k *KubeContainerConfigProvider) deleteContainer(c *workloadmeta.Container) {
+	k.Lock()
+	defer k.Unlock()
+	log.Debugf("Deleting entity container with ID %s\n", c.ID)
+	delete(k.containerCache, c.ID)
+	k.upToDate = false
+}
+
 func (k *KubeContainerConfigProvider) generateConfigs() ([]integration.Config, error) {
 	k.Lock()
 	defer k.Unlock()
