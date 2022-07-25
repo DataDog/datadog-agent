@@ -31,7 +31,7 @@ struct bpf_map_def SEC("maps/traced_comms") traced_comms = {
 
 struct bpf_map_def SEC("maps/traced_event_types") traced_event_types = {
     .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(u64),
+    .key_size = sizeof(u32),
     .value_size = sizeof(u64),
     .max_entries = EVENT_MAX + 1,
 };
