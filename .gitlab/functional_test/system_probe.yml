@@ -35,6 +35,8 @@ kitchen_test_system_probe_linux_x64:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-16-04-4.4,ubuntu-18-04,ubuntu-20-04,ubuntu-22-04"
+        # workaround for newer Linux kernels which reject SHA1 keys
+        KITCHEN_EC2_USER_DATA: "#!/bin/sh\necho PubkeyAcceptedKeyTypes=+ssh-rsa >> /etc/ssh/sshd_config; service ssh reload"
       - KITCHEN_PLATFORM: "debian"
         KITCHEN_OSVERS: "debian-10"
       - KITCHEN_PLATFORM: "centos"
@@ -57,6 +59,8 @@ kitchen_test_system_probe_linux_arm64:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-18-04,ubuntu-20-04,ubuntu-22-04"
+        # workaround for newer Linux kernels which reject SHA1 keys
+        KITCHEN_EC2_USER_DATA: "#!/bin/sh\necho PubkeyAcceptedKeyTypes=+ssh-rsa >> /etc/ssh/sshd_config; service ssh reload"
       - KITCHEN_PLATFORM: "debian"
         KITCHEN_OSVERS: "debian-10"
       - KITCHEN_PLATFORM: "centos"
