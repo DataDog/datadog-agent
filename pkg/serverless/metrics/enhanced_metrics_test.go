@@ -60,8 +60,9 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	reportLogTime := time.Now()
+	runtimeStartTime := reportLogTime.Add(-20 * time.Millisecond)
 	runtimeEndTime := reportLogTime.Add(-10 * time.Millisecond)
-	go GenerateEnhancedMetricsFromReportLog(100.0, 1000.0, 800.0, 1024.0, 256.0, runtimeEndTime, reportLogTime, tags, demux)
+	go GenerateEnhancedMetricsFromReportLog(100.0, 1000.0, 800.0, 1024.0, 256.0, runtimeStartTime, runtimeEndTime, reportLogTime, tags, demux)
 
 	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 
@@ -102,7 +103,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
 	}, {
 		Name:       postRuntimeDurationMetric,
-		Value:      10.0,
+		Value:      990.0,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
@@ -122,9 +123,9 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	reportLogTime := time.Now()
+	runtimeStartTime := reportLogTime.Add(-20 * time.Millisecond)
 	runtimeEndTime := reportLogTime.Add(-10 * time.Millisecond)
-
-	go GenerateEnhancedMetricsFromReportLog(0, 1000.0, 800.0, 1024.0, 256.0, runtimeEndTime, reportLogTime, tags, demux)
+	go GenerateEnhancedMetricsFromReportLog(0, 1000.0, 800.0, 1024.0, 256.0, runtimeStartTime, runtimeEndTime, reportLogTime, tags, demux)
 
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 
@@ -221,7 +222,7 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
 	}, {
 		Name:       postRuntimeDurationMetric,
-		Value:      10.0,
+		Value:      990.0,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
