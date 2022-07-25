@@ -22,7 +22,6 @@ Release on: 2022-07-25
 New Features
 ------------
 
-- Add `otlp_config.debug.loglevel` to determine log level when the OTLP Agent receives metrics/traces for debugging use cases.
 
 - Add NetFlow feature to listen to NetFlow traffic and forward them to Datadog.
 
@@ -77,11 +76,13 @@ Enhancement Notes
 
 - APM: Updated Rare Sampler default configuration values to sample traces more uniformly across environments and services.
 
-- Support Exponential Histograms with delta aggregation temporality.
+- The OTLP ingest endpoint now supports Exponential Histograms with delta aggregation temporality.
 
 - The Windows installer now supports grouped Managed Service Accounts.
 
 - Enable https monitoring on arm64 with kernel >= 5.5.0.
+
+- Add ``otlp_config.debug.loglevel`` to determine log level when the OTLP Agent receives metrics/traces for debugging use cases.
 
 
 .. _Release Notes_7.38.0_Deprecation Notes:
@@ -89,9 +90,8 @@ Enhancement Notes
 Deprecation Notes
 -----------------
 
-- Use `instrumentation_scope_metadata_as_tags` instead of `instrumentation_library_metadata_as_tags`
-  in favor of https://github.com/open-telemetry/opentelemetry-proto/releases/tag/v0.15.0
-  Both must not be set at the same time.
+- Deprecate``otlp_config.metrics.instrumentation_library_metadata_as_tags`` in 
+  in favor of ``otlp_config.metrics.instrumentation_scope_metadata_as_tags``.
 
 
 .. _Release Notes_7.38.0_Bug Fixes:
