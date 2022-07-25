@@ -24,13 +24,14 @@ const (
 	msToSec                   = 0.001
 
 	// Enhanced metrics
-	maxMemoryUsedMetric   = "aws.lambda.enhanced.max_memory_used"
-	memorySizeMetric      = "aws.lambda.enhanced.memorysize"
-	runtimeDurationMetric = "aws.lambda.enhanced.runtime_duration"
-	billedDurationMetric  = "aws.lambda.enhanced.billed_duration"
-	durationMetric        = "aws.lambda.enhanced.duration"
-	estimatedCostMetric   = "aws.lambda.enhanced.estimated_cost"
-	initDurationMetric    = "aws.lambda.enhanced.init_duration"
+	maxMemoryUsedMetric       = "aws.lambda.enhanced.max_memory_used"
+	memorySizeMetric          = "aws.lambda.enhanced.memorysize"
+	runtimeDurationMetric     = "aws.lambda.enhanced.runtime_duration"
+	billedDurationMetric      = "aws.lambda.enhanced.billed_duration"
+	durationMetric            = "aws.lambda.enhanced.duration"
+	postRuntimeDurationMetric = "aws.lambda.enhanced.post_runtime_duration"
+	estimatedCostMetric       = "aws.lambda.enhanced.estimated_cost"
+	initDurationMetric        = "aws.lambda.enhanced.init_duration"
 	// OutOfMemoryMetric is the name of the out of memory enhanced Lambda metric
 	OutOfMemoryMetric = "aws.lambda.enhanced.out_of_memory"
 	timeoutsMetric    = "aws.lambda.enhanced.timeouts"
@@ -81,10 +82,11 @@ func GenerateEnhancedMetricsFromFunctionLog(logString string, time time.Time, ta
 }
 
 // GenerateEnhancedMetricsFromReportLog generates enhanced metrics from a LogTypePlatformReport log message
-func GenerateEnhancedMetricsFromReportLog(initDurationMs float64, durationMs float64, billedDurationMs int, memorySizeMb int, maxMemoryUsedMb int, t time.Time, tags []string, demux aggregator.Demultiplexer) {
+func GenerateEnhancedMetricsFromReportLog(initDurationMs float64, durationMs float64, billedDurationMs int, memorySizeMb int, maxMemoryUsedMb int, runtimeStart, runtimeEnd, t time.Time, tags []string, demux aggregator.Demultiplexer) {
 	timestamp := float64(t.UnixNano()) / float64(time.Second)
 	billedDuration := float64(billedDurationMs)
 	memorySize := float64(memorySizeMb)
+	postRuntimeDuration := durationMs - float64(runtimeEnd.Sub(runtimeStart).Milliseconds())
 	enhancedMetrics := []metrics.MetricSample{{
 		Name:       maxMemoryUsedMetric,
 		Value:      float64(maxMemoryUsedMb),
@@ -116,6 +118,13 @@ func GenerateEnhancedMetricsFromReportLog(initDurationMs float64, durationMs flo
 	}, {
 		Name:       estimatedCostMetric,
 		Value:      calculateEstimatedCost(billedDuration, memorySize, serverlessTags.ResolveRuntimeArch()),
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  timestamp,
+	}, {
+		Name:       postRuntimeDurationMetric,
+		Value:      postRuntimeDuration,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,

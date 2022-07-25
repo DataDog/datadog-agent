@@ -221,7 +221,7 @@ func TestProcessMessageValid(t *testing.T) {
 	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
 
 	received, timed := demux.WaitForSamples(100 * time.Millisecond)
-	assert.Len(t, received, 6)
+	assert.Len(t, received, 7)
 	assert.Len(t, timed, 0)
 	demux.Reset()
 

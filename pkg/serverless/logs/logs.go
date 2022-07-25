@@ -312,10 +312,12 @@ func processMessage(
 				message.objectRecord.reportLogItem.billedDurationMs,
 				message.objectRecord.reportLogItem.memorySizeMB,
 				message.objectRecord.reportLogItem.maxMemoryUsedMB,
-				message.time, tags, demux)
+				ecs.StartTime, ecs.EndTime, message.time, tags, demux)
 		}
 		if message.logType == logTypePlatformRuntimeDone {
 			serverlessMetrics.GenerateRuntimeDurationMetric(ecs.StartTime, message.time, message.objectRecord.runtimeDoneItem.status, tags, demux)
+			ec.UpdateFromRuntimeDoneLog(message.time)
+			ecs = ec.GetCurrentState()
 		}
 	}
 
