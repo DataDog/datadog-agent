@@ -75,9 +75,6 @@ struct bpf_map_def SEC("maps/exec_event_gen") exec_event_gen = {
 __attribute__((always_inline)) struct exec_event_t *get_exec_event() {
     u32 key = 0;
     struct exec_event_t *evt = bpf_map_lookup_elem(&exec_event_gen, &key);
-    if (evt == NULL) {
-        return 0;
-    }
     return evt;
 }
 
@@ -336,11 +333,6 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
         .exec_timestamp = bpf_ktime_get_ns(),
     };
 
-    // struct basename_t executable_basename = {};
-    // get_dentry_name(exec_dentry, &executable_basename, sizeof(executable_basename));
-
-    // bpf_printk("executable: %s\n", executable_basename.value);
-
     fill_file_metadata(exec_dentry, &entry.executable.metadata);
     set_file_inode(exec_dentry, &entry.executable, 0);
     bpf_get_current_comm(&entry.comm, sizeof(entry.comm));
@@ -386,15 +378,13 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     return 0;
 }
 
-int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall, struct file *file, struct path *path, struct inode *inode) {
-    // if (syscall->exec.is_parsed) {
-    //     return 0;
-    // }
-    // syscall->exec.is_parsed = 1;
+int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall, struct file *file, struct path *path) {
+    struct dentry *exec_dentry = get_path_dentry(path);
+    struct basename_t executable_basename = {};
+    get_dentry_name(exec_dentry, &executable_basename, sizeof(executable_basename));
 
-    // syscall->exec.dentry = get_file_dentry(file);
-    // syscall->exec.file.path_key = get_inode_key_path(inode, path);
-    // syscall->exec.file.path_key.path_id = get_path_id(0);
+    bpf_printk("executable: %s\n", executable_basename.value);
+
 
     return 0;
 }
@@ -539,6 +529,9 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
 
     u64 ts = bpf_ktime_get_ns();
     struct exec_event_t *event = get_exec_event();
+    if (event == NULL) {
+        return 0;
+    }
     event->pid_entry.fork_timestamp = ts;
 
     bpf_get_current_comm(event->proc_entry.comm, sizeof(event->proc_entry.comm));
@@ -698,8 +691,8 @@ int kprobe_security_bprm_check(struct pt_regs *ctx) {
     // Executable
     struct file *executable;
     bpf_probe_read(&executable, sizeof(executable), &bprm->executable);
-    struct inode *executable_inode;	
-    bpf_probe_read(&executable_inode, sizeof(executable_inode), &executable->f_inode);
+    // struct inode *executable_inode;	
+    // bpf_probe_read(&executable_inode, sizeof(executable_inode), &executable->f_inode);
 
     // struct file *executable;
     // bpf_probe_read(&executable, sizeof(executable), &bprm->executable);
@@ -755,7 +748,7 @@ int kprobe_security_bprm_check(struct pt_regs *ctx) {
     // return handle_exec_event(ctx, syscall, bprm->executable, &bprm->executable->f_path, bprm->executable->f_inode);
     // return handle_exec_event(ctx, syscall, executable, &executable->f_path, executable_inode);
 
-    return handle_interpreted_exec_event(ctx, syscall, executable, &executable->f_path, executable_inode);
+    return handle_interpreted_exec_event(ctx, syscall, executable, &executable->f_path);
 }
 
 void __attribute__((always_inline)) fill_args_envs(struct exec_event_t *event, struct syscall_cache_t *syscall) {
@@ -783,6 +776,9 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
         struct proc_cache_t *proc_entry = bpf_map_lookup_elem(&proc_cache, &cookie);
         if (proc_entry) {
             struct exec_event_t *event = get_exec_event();
+            if (event == NULL) {
+                return 0;
+            }
 
             // copy proc_cache entry data
             copy_proc_cache_except_comm(proc_entry, &event->proc_entry);
