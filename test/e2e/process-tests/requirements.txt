@@ -1,0 +1,2 @@
+kubernetes==20.13.0
+datadog-api-client==1.10.0
