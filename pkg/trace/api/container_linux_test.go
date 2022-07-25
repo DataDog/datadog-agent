@@ -69,6 +69,7 @@ func TestConnContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		t.Fatalf("expected http.StatusOK, got response: %#v", resp)
 	}

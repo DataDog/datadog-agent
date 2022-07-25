@@ -55,7 +55,7 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 // then uses the Meta Collector to map the PID to a container ID. If any of these fail, the
 // function returns the empty string.
 func GetContainerID(ctx context.Context, h http.Header) string {
-	if id :=  fastHeaderGet(h, headerContainerID); id != "" {
+	if id := fastHeaderGet(h, headerContainerID); id != "" {
 		return id
 	}
 	ucred, ok := ctx.Value(ucredKey{}).(*syscall.Ucred)
