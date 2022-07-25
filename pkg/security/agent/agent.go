@@ -18,6 +18,7 @@ import (
 	"github.com/cenkalti/backoff"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/encoding"
 	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
@@ -53,6 +54,8 @@ func NewRuntimeSecurityAgent(hostname string) (*RuntimeSecurityAgent, error) {
 		return nil, err
 	}
 
+	registerVTCodec()
+
 	telemetry, err := newTelemetry()
 	if err != nil {
 		return nil, errors.New("failed to initialize the telemetry reporter")
@@ -73,6 +76,10 @@ func NewRuntimeSecurityAgent(hostname string) (*RuntimeSecurityAgent, error) {
 		eventReceived:        atomic.NewUint64(0),
 		activityDumpReceived: atomic.NewUint64(0),
 	}, nil
+}
+
+func registerVTCodec() {
+	encoding.RegisterCodec(api.MaybeVTCodec{})
 }
 
 // Start the runtime security agent

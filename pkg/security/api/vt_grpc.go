@@ -17,20 +17,21 @@ package api
 import (
 	fmt "fmt"
 
-	"google.golang.org/grpc/encoding"
 	"google.golang.org/protobuf/proto"
 )
 
 const codecName = "proto"
 
-type maybeVTCodec struct{}
+// MaybeVTCodec represents a codec able to encode and decode vt enabled proto messages
+type MaybeVTCodec struct{}
 
 type vtprotoMessage interface {
 	MarshalVT() ([]byte, error)
 	UnmarshalVT([]byte) error
 }
 
-func (maybeVTCodec) Marshal(v interface{}) ([]byte, error) {
+// Marshal encodes the protobuf message to a byte array
+func (MaybeVTCodec) Marshal(v interface{}) ([]byte, error) {
 	vt, ok := v.(vtprotoMessage)
 	if ok {
 		return vt.MarshalVT()
@@ -43,7 +44,8 @@ func (maybeVTCodec) Marshal(v interface{}) ([]byte, error) {
 	return proto.Marshal(msg)
 }
 
-func (maybeVTCodec) Unmarshal(data []byte, v interface{}) error {
+// Unmarshal decodes the byte array to the provided value
+func (MaybeVTCodec) Unmarshal(data []byte, v interface{}) error {
 	vt, ok := v.(vtprotoMessage)
 	if ok {
 		return vt.UnmarshalVT(data)
@@ -56,10 +58,7 @@ func (maybeVTCodec) Unmarshal(data []byte, v interface{}) error {
 	return proto.Unmarshal(data, msg)
 }
 
-func (maybeVTCodec) Name() string {
+// Name returns the name of the codec
+func (MaybeVTCodec) Name() string {
 	return codecName
-}
-
-func init() {
-	encoding.RegisterCodec(maybeVTCodec{})
 }
