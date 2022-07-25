@@ -74,7 +74,7 @@
                 "ubuntu-20-04-2": "ami-0a82127206c2824a1",
                 "ubuntu-21-04": "ami-044f0ceee8e885e87",
                 "ubuntu-21-10": "ami-0419d418f41aa4a0f",
-                "ubuntu-22-04": "ami-0d983d0db1cdc033a"
+                "ubuntu-22-04": "ami-08a35b8c2ae512dee"
             }
         },
         "vagrant": {
