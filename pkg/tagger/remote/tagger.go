@@ -225,12 +225,9 @@ func (t *Tagger) run() {
 		}
 
 		if t.stream == nil {
-			// startTaggerStream(noTimeout) will never return
-			// unless a stream can be established, or the tagger
-			// has been stopped, which means the error handling
-			// here is just a sanity check.
 			if err := t.startTaggerStream(noTimeout); err != nil {
 				log.Warnf("error received trying to start stream: %s", err)
+				continue
 			}
 		}
 
