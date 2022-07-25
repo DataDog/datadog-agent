@@ -44,7 +44,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			require.False(t, (err != nil) != tt.wantErr)
 			switch tt.language {
 			case "java":
-				assertLibConfig(t, tt.pod, tt.image, "JAVA_TOOL_OPTIONS", " -javaagent:/datadog-lib/dd-java-agent.jar", []string{"sh", "copy-javaagent.sh", "/datadog-lib"})
+				assertLibConfig(t, tt.pod, tt.image, "JAVA_TOOL_OPTIONS", " -javaagent:/datadog-lib/dd-java-agent.jar", []string{"sh", "copy-lib.sh", "/datadog-lib"})
 			case "node":
 				assertLibConfig(t, tt.pod, tt.image, "NODE_OPTIONS", " --require=/autoinstrumentation/node_modules/dd-trace/init", []string{"sh", "copy-lib.sh", "/datadog-lib"})
 			default:

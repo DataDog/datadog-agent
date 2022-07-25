@@ -97,9 +97,7 @@ func injectAutoInstruConfig(pod *corev1.Pod, language, image string) error {
 
 	switch strings.ToLower(language) {
 	case "java":
-		cmd := []string{"sh", "copy-javaagent.sh", mountPath}
-		injectLibInitContainer(pod, image, cmd)
-
+		injectLibInitContainer(pod, image)
 		err := injectLibConfig(pod, javaToolOptionsKey, javaToolOptionsValue)
 		if err != nil {
 			metrics.LibInjectionErrors.Inc(language)
@@ -107,9 +105,7 @@ func injectAutoInstruConfig(pod *corev1.Pod, language, image string) error {
 		}
 
 	case "node":
-		cmd := []string{"sh", "copy-lib.sh", mountPath}
-		injectLibInitContainer(pod, image, cmd)
-
+		injectLibInitContainer(pod, image)
 		err := injectLibConfig(pod, nodeOptionsKey, nodeOptionsValue)
 		if err != nil {
 			metrics.LibInjectionErrors.Inc(language)
@@ -126,13 +122,13 @@ func injectAutoInstruConfig(pod *corev1.Pod, language, image string) error {
 	return nil
 }
 
-func injectLibInitContainer(pod *corev1.Pod, image string, cmd []string) {
+func injectLibInitContainer(pod *corev1.Pod, image string) {
 	log.Debugf("Injecting init container named %q with image %q into pod %s", initContainerName, image, podString(pod))
 	pod.Spec.InitContainers = append(pod.Spec.InitContainers,
 		corev1.Container{
 			Name:    initContainerName,
 			Image:   image,
-			Command: cmd,
+			Command: []string{"sh", "copy-lib.sh", mountPath},
 			VolumeMounts: []corev1.VolumeMount{
 				{
 					Name:      volumeName,
