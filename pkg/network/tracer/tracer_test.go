@@ -514,7 +514,11 @@ func TestTCPConnsReported(t *testing.T) {
 	require.NoError(t, err)
 	defer tr.Stop()
 
-	server := NewTCPServer(func(c net.Conn) {})
+	processedChan := make(chan struct{})
+	server := NewTCPServer(func(c net.Conn) {
+		c.Close()
+		close(processedChan)
+	})
 	doneChan := make(chan struct{})
 	err = server.Run(doneChan)
 	require.NoError(t, err)
