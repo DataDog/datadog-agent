@@ -815,7 +815,6 @@ func TestProcessMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(testFile)
 
 	f, err := os.OpenFile(testFile, os.O_WRONLY, 0)
 	if err != nil {

@@ -20,6 +20,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -95,6 +96,7 @@ type ActivityDump struct {
 	processedCount     map[model.EventType]*atomic.Uint64
 	addedRuntimeCount  map[model.EventType]*atomic.Uint64
 	addedSnapshotCount map[model.EventType]*atomic.Uint64
+	pathMergedCount    *atomic.Uint64
 
 	// standard attributes used by the intake
 	Host    string   `msg:"host" json:"host,omitempty"`
@@ -143,6 +145,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		processedCount:     make(map[model.EventType]*atomic.Uint64),
 		addedRuntimeCount:  make(map[model.EventType]*atomic.Uint64),
 		addedSnapshotCount: make(map[model.EventType]*atomic.Uint64),
+		pathMergedCount:    atomic.NewUint64(0),
 		StorageRequests:    make(map[dump.StorageFormat][]dump.StorageRequest),
 	}
 
@@ -417,7 +420,11 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	// insert the event based on its type
 	switch event.GetEventType() {
 	case model.FileOpenEventType:
-		return node.InsertFileEvent(&event.Open.File, event, Runtime)
+		mergeCtx := adPathMergeContext{
+			enabled: ad.adm.probe.config.ActivityDumpPathMergeEnabled,
+			counter: ad.pathMergedCount,
+		}
+		return node.InsertFileEvent(&event.Open.File, event, Runtime, mergeCtx)
 	case model.DNSEventType:
 		return node.InsertDNSEvent(&event.DNS)
 	case model.BindEventType:
@@ -573,6 +580,12 @@ func (ad *ActivityDump) SendStats() error {
 			if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpEventAdded, int64(value), tags, 1.0); err != nil {
 				return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventAdded, err)
 			}
+		}
+	}
+
+	if value := ad.pathMergedCount.Swap(0); value > 0 {
+		if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpPathMergeCount, int64(value), nil, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpPathMergeCount, err)
 		}
 	}
 
@@ -983,9 +996,14 @@ func extractFirstParent(path string) (string, int) {
 	return path, len(path) + add
 }
 
+type adPathMergeContext struct {
+	enabled bool
+	counter *atomic.Uint64
+}
+
 // InsertFileEvent inserts the provided file event in the current node. This function returns true if a new entry was
 // added, false if the event was dropped.
-func (pan *ProcessActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, generationType NodeGenerationType) bool {
+func (pan *ProcessActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, generationType NodeGenerationType, mergeCtx adPathMergeContext) bool {
 	parent, nextParentIndex := extractFirstParent(event.ResolveFilePath(fileEvent))
 	if nextParentIndex == 0 {
 		return false
@@ -995,7 +1013,7 @@ func (pan *ProcessActivityNode) InsertFileEvent(fileEvent *model.FileEvent, even
 
 	child, ok := pan.Files[parent]
 	if ok {
-		return child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType)
+		return child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, mergeCtx)
 	}
 
 	// create new child
@@ -1003,7 +1021,7 @@ func (pan *ProcessActivityNode) InsertFileEvent(fileEvent *model.FileEvent, even
 		pan.Files[parent] = NewFileActivityNode(fileEvent, event, parent, generationType)
 	} else {
 		child := NewFileActivityNode(nil, nil, parent, generationType)
-		child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType)
+		child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, mergeCtx)
 		pan.Files[parent] = child
 	}
 	return true
@@ -1096,20 +1114,20 @@ func (pan *ProcessActivityNode) snapshotBoundSockets(p *process.Process, ad *Act
 	// looking for AF_INET sockets
 	TCP, err := proc.NetTCP()
 	if err != nil {
-		seclog.Errorf("couldn't snapshot TCP sockets for [%s]: %v", ad.getSelectorStr(), err)
+		seclog.Debugf("couldn't snapshot TCP sockets for [%s]: %v", ad.getSelectorStr(), err)
 	}
 	UDP, err := proc.NetUDP()
 	if err != nil {
-		seclog.Errorf("couldn't snapshot UDP sockets for [%s]: %v", ad.getSelectorStr(), err)
+		seclog.Debugf("couldn't snapshot UDP sockets for [%s]: %v", ad.getSelectorStr(), err)
 	}
 	// looking for AF_INET6 sockets
 	TCP6, err := proc.NetTCP6()
 	if err != nil {
-		seclog.Errorf("couldn't snapshot TCP6 sockets for [%s]: %v", ad.getSelectorStr(), err)
+		seclog.Debugf("couldn't snapshot TCP6 sockets for [%s]: %v", ad.getSelectorStr(), err)
 	}
 	UDP6, err := proc.NetUDP6()
 	if err != nil {
-		seclog.Errorf("couldn't snapshot UDP6 sockets for [%s]: %v", ad.getSelectorStr(), err)
+		seclog.Debugf("couldn't snapshot UDP6 sockets for [%s]: %v", ad.getSelectorStr(), err)
 	}
 
 	// searching for socket inode
@@ -1210,7 +1228,12 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 		evt.Open.File.Mode = evt.Open.File.FileFields.Mode
 		// TODO: add open flags by parsing `/proc/[pid]/fdinfo/fd` + O_RDONLY|O_CLOEXEC for the shared libs
 
-		if pan.InsertFileEvent(&evt.Open.File, evt, Snapshot) {
+		mergeCtx := adPathMergeContext{
+			enabled: ad.adm.probe.config.ActivityDumpPathMergeEnabled,
+			counter: ad.pathMergedCount,
+		}
+
+		if pan.InsertFileEvent(&evt.Open.File, evt, Snapshot, mergeCtx) {
 			// count this new entry
 			ad.addedSnapshotCount[model.FileOpenEventType].Inc()
 		}
@@ -1286,6 +1309,7 @@ newSyscallLoop:
 type FileActivityNode struct {
 	id             NodeID
 	Name           string             `msg:"name"`
+	IsPattern      bool               `msg:"is_pattern"`
 	File           *model.FileEvent   `msg:"file,omitempty"`
 	GenerationType NodeGenerationType `msg:"generation_type"`
 	FirstSeen      time.Time          `msg:"first_seen,omitempty"`
@@ -1354,18 +1378,20 @@ func (fan *FileActivityNode) enrichFromEvent(event *Event) {
 
 // InsertFileEvent inserts an event in a FileActivityNode. This function returns true if a new entry was added, false if
 // the event was dropped.
-func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, remainingPath string, generationType NodeGenerationType) bool {
+func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, remainingPath string, generationType NodeGenerationType, mergeCtx adPathMergeContext) bool {
 	parent, nextParentIndex := extractFirstParent(remainingPath)
 	if nextParentIndex == 0 {
 		fan.enrichFromEvent(event)
 		return false
 	}
 
-	// TODO: look for patterns / merge algo
+	if mergeCtx.enabled && len(fan.Children) >= 10 {
+		fan.mergeCommonPaths(mergeCtx)
+	}
 
 	child, ok := fan.Children[parent]
 	if ok {
-		return child.InsertFileEvent(fileEvent, event, remainingPath[nextParentIndex:], generationType)
+		return child.InsertFileEvent(fileEvent, event, remainingPath[nextParentIndex:], generationType, mergeCtx)
 	}
 
 	// create new child
@@ -1373,10 +1399,107 @@ func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *
 		fan.Children[parent] = NewFileActivityNode(fileEvent, event, parent, generationType)
 	} else {
 		child := NewFileActivityNode(nil, nil, parent, generationType)
-		child.InsertFileEvent(fileEvent, event, remainingPath[nextParentIndex:], generationType)
+		child.InsertFileEvent(fileEvent, event, remainingPath[nextParentIndex:], generationType, mergeCtx)
 		fan.Children[parent] = child
 	}
 	return true
+}
+
+func (fan *FileActivityNode) mergeCommonPaths(mergeCtx adPathMergeContext) {
+	fan.Children = combineChildren(fan.Children, mergeCtx)
+}
+
+func combineChildren(children map[string]*FileActivityNode, mergeCtx adPathMergeContext) map[string]*FileActivityNode {
+	if len(children) == 0 {
+		return children
+	}
+
+	type inner struct {
+		pair utils.StringPair
+		fan  *FileActivityNode
+	}
+
+	inputs := make([]inner, 0, len(children))
+	for k, v := range children {
+		inputs = append(inputs, inner{
+			pair: utils.NewStringPair(k),
+			fan:  v,
+		})
+	}
+
+	current := []inner{inputs[0]}
+
+	for _, a := range inputs[1:] {
+		next := make([]inner, 0)
+		shouldAppend := true
+		for _, b := range current {
+			if !areCompatibleFans(a.fan, b.fan) {
+				next = append(next, b)
+				continue
+			}
+
+			sp, similar := utils.BuildGlob(a.pair, b.pair, 4)
+			if similar {
+				spGlob, _ := sp.ToGlob()
+				merged, ok := mergeFans(spGlob, a.fan, b.fan)
+				if !ok {
+					next = append(next, b)
+					continue
+				}
+
+				next = append(next, inner{
+					pair: sp,
+					fan:  merged,
+				})
+				shouldAppend = false
+			}
+		}
+
+		if shouldAppend {
+			next = append(next, a)
+		}
+		current = next
+	}
+
+	mergeCount := len(inputs) - len(current)
+	mergeCtx.counter.Add(uint64(mergeCount))
+
+	res := make(map[string]*FileActivityNode)
+	for _, n := range current {
+		glob, isPattern := n.pair.ToGlob()
+		n.fan.Name = glob
+		n.fan.IsPattern = isPattern
+		res[glob] = n.fan
+	}
+
+	return res
+}
+
+func areCompatibleFans(a *FileActivityNode, b *FileActivityNode) bool {
+	return reflect.DeepEqual(a.Open, b.Open)
+}
+
+func mergeFans(name string, a *FileActivityNode, b *FileActivityNode) (*FileActivityNode, bool) {
+	newChildren := make(map[string]*FileActivityNode)
+	for k, v := range a.Children {
+		newChildren[k] = v
+	}
+	for k, v := range b.Children {
+		if _, present := newChildren[k]; present {
+			return nil, false
+		}
+		newChildren[k] = v
+	}
+
+	return &FileActivityNode{
+		id:             a.id,
+		Name:           name,
+		File:           a.File,
+		GenerationType: a.GenerationType,
+		FirstSeen:      a.FirstSeen,
+		Open:           a.Open, // if the 2 fans are compatible, a.Open should be equal to b.Open
+		Children:       newChildren,
+	}, true
 }
 
 // nolint: unused

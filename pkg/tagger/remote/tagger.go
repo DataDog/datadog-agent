@@ -222,19 +222,12 @@ func (t *Tagger) run() {
 		default:
 		}
 
-		if t.stream == nil {
-			// startTaggerStream(noTimeout) will never return
-			// unless a stream can be established, or the tagger
-			// has been stopped, which means the error handling
-			// here is just a sanity check.
-			if err := t.startTaggerStream(noTimeout); err != nil {
-				log.Warnf("error received trying to start stream: %s", err)
-			}
-		}
-
 		var response *pb.StreamTagsResponse
 		err := grpcutil.DoWithTimeout(func() error {
 			var err error
+			if t.stream == nil {
+				return errors.New("stream not initialized")
+			}
 			response, err = t.stream.Recv()
 			return err
 		}, streamRecvTimeout)
@@ -247,13 +240,18 @@ func (t *Tagger) run() {
 			// when Recv() returns an error, the stream is aborted
 			// and the contents of our store are considered out of
 			// sync and therefore no longer valid, so the tagger
-			// can no longer be considered ready, and the stream
-			// must be re-established.
+			// can no longer be considered ready
 			t.ready = false
-			t.stream = nil
 
 			log.Warnf("error received from remote tagger: %s", err)
 
+			// startTaggerStream(noTimeout) will never return
+			// unless a stream can be established, or the tagger
+			// has been stopped, which means the error handling
+			// here is just a sanity check.
+			if err := t.startTaggerStream(noTimeout); err != nil {
+				log.Warnf("error received trying to start stream: %s", err)
+			}
 			continue
 		}
 

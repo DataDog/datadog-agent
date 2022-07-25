@@ -73,6 +73,7 @@ type Module struct {
 	policyLoader     *rules.PolicyLoader
 	policyOpts       rules.PolicyLoaderOpts
 	selfTester       *selftests.SelfTester
+	policyMonitor    *PolicyMonitor
 }
 
 // Register the runtime security agent module
@@ -110,6 +111,9 @@ func (m *Module) Init() error {
 
 	// start api server
 	m.apiServer.Start(m.ctx)
+
+	// monitor policies
+	m.policyMonitor.Start(m.ctx)
 
 	m.probe.AddEventHandler(model.UnknownEventType, m)
 	m.probe.AddActivityDumpHandler(m)
@@ -397,6 +401,8 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 		monitor := m.probe.GetMonitor()
 		ruleSetLoadedReport := monitor.PrepareRuleSetLoadedReport(ruleSet, loadErrs)
 		monitor.ReportRuleSetLoaded(ruleSetLoadedReport)
+
+		m.policyMonitor.AddPolicies(ruleSet.GetPolicies())
 	}
 
 	return nil
@@ -631,6 +637,7 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 		ctx:            ctx,
 		cancelFnc:      cancelFnc,
 		selfTester:     selfTester,
+		policyMonitor:  NewPolicyMonitor(statsdClient),
 	}
 	m.apiServer.module = m
 

@@ -164,6 +164,7 @@ type RuleSet struct {
 	macroStore       *eval.MacroStore
 	eventRuleBuckets map[eval.EventType]*RuleBucket
 	rules            map[eval.RuleID]*Rule
+	policies         []*Policy
 	fieldEvaluators  map[string]eval.Evaluator
 	model            eval.Model
 	eventCtor        func() eval.Event
@@ -182,6 +183,11 @@ func (rs *RuleSet) replCtx() eval.ReplacementContext {
 		Opts:       rs.evalOpts,
 		MacroStore: rs.macroStore,
 	}
+}
+
+// GetPolicies returns the policies
+func (rs *RuleSet) GetPolicies() []*Policy {
+	return rs.policies
 }
 
 // ListRuleIDs returns the list of RuleIDs from the ruleset
@@ -624,6 +630,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 	if err != nil {
 		errs = multierror.Append(errs, err)
 	}
+	rs.policies = policies
 
 	for _, policy := range policies {
 		for _, macro := range policy.Macros {

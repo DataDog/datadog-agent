@@ -28,11 +28,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
-	"github.com/DataDog/datadog-agent/pkg/network/stats"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
@@ -84,8 +84,6 @@ type Tracer struct {
 
 	sysctlUDPConnTimeout       *sysctl.Int
 	sysctlUDPConnStreamTimeout *sysctl.Int
-
-	statsReporter stats.Reporter
 }
 
 func NewTracer(config *config.Config) (*Tracer, error) {
@@ -176,10 +174,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		closedConns:      atomic.NewInt64(0),
 		connStatsMapSize: atomic.NewInt64(0),
 		lastCheck:        atomic.NewInt64(0),
-	}
-
-	if tr.statsReporter, err = stats.NewReporter(tr); err != nil {
-		return nil, fmt.Errorf("could not initialize stats: %w", err)
 	}
 
 	err = ebpfTracer.Start(tr.storeClosedConnections)
@@ -627,7 +621,7 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 		case stateStats:
 			ret["state"] = t.state.GetStats()["telemetry"]
 		case tracerStats:
-			tracerStats := t.statsReporter.Report()
+			tracerStats := atomicstats.Report(t)
 			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
 			ret["tracer"] = tracerStats
 		}
