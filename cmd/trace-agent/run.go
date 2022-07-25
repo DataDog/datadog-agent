@@ -51,7 +51,7 @@ to your datadog.yaml. Exiting...`
 // Run is the entrypoint of our code, which starts the agent.
 func Run(ctx context.Context) {
 	if flags.Version {
-		fmt.Println(version.AgentVersion) // TODO: This change prints less information now, is that bad?
+		fmt.Println(version.AgentVersion)
 		return
 	}
 
@@ -142,7 +142,7 @@ func Run(ctx context.Context) {
 		return
 	}
 
-	err = metrics.Configure(cfg, []string{"version:" + cfg.AgentVersion}) // TODO: is the formatting or anything changing here break things?
+	err = metrics.Configure(cfg, []string{"version:" + cfg.AgentVersion})
 	if err != nil {
 		osutil.Exitf("cannot configure dogstatsd: %v", err)
 	}
