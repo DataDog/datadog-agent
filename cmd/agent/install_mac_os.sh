@@ -60,7 +60,12 @@ if [ -n "$DD_SYSTEMDAEMON_INSTALL" ]; then
         printf "\033[31mUser $systemdaemon_user not found, can't proceed with installation\033[0m\n"
         exit 1;
     fi
-    # groups output is in form `username : group1 group2 ...`, so we use `cut` to strip the `username :` part
+    # dscacheutil -q group output is in form:
+    #   name: groupname
+    #   password: *
+    #   gid: 1001
+    #   users: user1 user2
+    # so we use `grep` and `awk` to get the group name
     if ! dscacheutil -q group | grep "name:" | awk '{print $2}' | grep -w "$systemdaemon_group" >/dev/null 2>&1; then
         printf "\033[31mGroup $systemdaemon_group not found, can't proceed with installation\033[0m\n"
         exit 1;
