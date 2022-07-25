@@ -1000,6 +1000,93 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	return p.manager.UpdateActivatedProbes(activatedProbes)
 }
 
+// DumpDiscarders removes all the discarders
+func (p *Probe) DumpDiscarders() (string, error) {
+	log.Debug("Dumping discarders")
+
+	dump, err := os.CreateTemp("/tmp", "discarder-dump-")
+	if err != nil {
+		return "", err
+	}
+	defer dump.Close()
+
+	if err := os.Chmod(dump.Name(), 0400); err != nil {
+		return "", err
+	}
+
+	fmt.Fprintf(dump, "Discarder Dump\n%s\n", time.Now().UTC().String())
+
+	fmt.Fprintf(dump, `
+Legend:
+Discarder Count: Discardee Info
+Discarder Count: Discardee Parameters
+`)
+
+	fmt.Fprintf(dump, "\nInode Discarders\n")
+
+	discardedInodeCount := 0
+	inodeDiscardersInfo, inodeDiscardersErr := p.inodeDiscarders.Info()
+	if inodeDiscardersErr != nil {
+		log.Errorf("could not get info about inode discarders: %s", inodeDiscardersErr)
+	} else {
+		var inode inodeDiscarderMapEntry
+		var inodeParams inodeDiscarderParams
+		maxInodeDiscarders := int(inodeDiscardersInfo.MaxEntries)
+
+		for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, &inodeParams); {
+			discardedInodeCount++
+			fields := model.FileFields{MountID: inode.PathKey.MountID, Inode: inode.PathKey.Inode, PathID: inode.PathKey.PathID}
+			path, err := p.resolvers.resolveFileFieldsPath(&fields)
+			if err != nil {
+				path = err.Error()
+			}
+			printDiscardee(dump, fmt.Sprintf("%s %+v", path, inode), fmt.Sprintf("%+v", inodeParams), discardedInodeCount)
+			if discardedInodeCount == maxInodeDiscarders {
+				log.Infof("Discarded inode count has reached max discarder map size")
+				break
+			}
+		}
+	}
+
+	fmt.Fprintf(dump, "\nProcess Discarders\n")
+
+	discardedPIDCount := 0
+	pidDiscardersInfo, pidDiscardersErr := p.pidDiscarders.Info()
+	if pidDiscardersErr != nil {
+		log.Errorf("could not get info about PID discarders: %s", pidDiscardersErr)
+	} else {
+		var pid uint32
+		var pidParams pidDiscarderParams
+		maxPIDDiscarders := int(pidDiscardersInfo.MaxEntries)
+
+		for entries := p.pidDiscarders.Iterate(); entries.Next(&pid, &pidParams); {
+			discardedPIDCount++
+			printDiscardee(dump, fmt.Sprintf("%+v", pid), fmt.Sprintf("%+v", pidParams), discardedPIDCount)
+			if discardedPIDCount == maxPIDDiscarders {
+				log.Infof("Discarded PID count has reached max discarder map size")
+				break
+			}
+		}
+	}
+
+	fmt.Fprintf(dump, "\nDiscarder Stats - Front Buffer\n")
+	frontBufferPrintErr := p.printDiscarderStats(dump, frontBufferDiscarderStatsMapName)
+	if frontBufferPrintErr != nil {
+		_ = log.Errorf("could not dump discarder stats map %s: %s", frontBufferDiscarderStatsMapName, frontBufferPrintErr)
+	}
+
+	fmt.Fprintf(dump, "\nDiscarder Stats - Back Buffer\n")
+	backBufferPrintErr := p.printDiscarderStats(dump, backBufferDiscarderStatsMapName)
+	if backBufferPrintErr != nil {
+		_ = log.Errorf("could not dump discarder stats map %s: %s", backBufferDiscarderStatsMapName, backBufferPrintErr)
+	}
+
+	fmt.Fprintf(dump, "\nEnd Discarder Dump\n")
+
+	log.Infof("%d inode discarders found, %d pid discarders found", discardedInodeCount, discardedPIDCount)
+	return dump.Name(), nil
+}
+
 // FlushDiscarders removes all the discarders
 func (p *Probe) FlushDiscarders() error {
 	log.Debug("Freezing discarders")
