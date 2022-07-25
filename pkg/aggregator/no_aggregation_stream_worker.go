@@ -19,12 +19,12 @@ import (
 // to the serializer.
 //
 // While streaming metrics to the serializer, the serializer should be responsible of sending the payloads
-// to the forwarder once one is generated (because full), even if it is still receiving metrics.
-// It's not how it works today, it will pile up the payloads, wait until the streaming is ending and then
-// flush the payloads.
-// In order to make sure it flushes data to the forwarder, we stop the streaming once a given amount of
-// samples have been sent to the serializer. A timer is also triggering a flush if nothing has been
-// received for a while.
+// to the forwarder once one is generated (because full), even while still receiving metrics.
+// However, it's not how the serializer works today: it piles up the payloads, wait until the end of the
+// streamings ending and then flushes the payloads.
+// In order to make sure the serializer flushes data to the forwarder, we stop the streaming once a given
+// amount of samples have been sent to the serializer.
+// A timer is also triggering a serializer flush if nothing has been received for a while.
 // In an ideal future, we would not have to implement this mechanism in this part
 // of the code (i.e. the serializer should), especially since it may create
 // really small payloads (that could have potentially been filled).
@@ -121,6 +121,8 @@ func (w *noAggregationStreamWorker) run() {
 
 	ticker := time.NewTicker(time.Second * 2)
 	defer ticker.Stop()
+	// 24h has no significance here, it's just a date "far enough" to avoid testing too much
+	// if we need to automatically flush and to keep this test simple with no extra boolean.
 	lastStream := time.Now().Add(time.Hour * 24)
 
 	logPayloads := config.Datadog.GetBool("log_payloads")
@@ -150,7 +152,7 @@ func (w *noAggregationStreamWorker) run() {
 					// ticker regularly producing a flush signal if necessary
 					case <-ticker.C:
 						n := time.Now()
-						if lastStream.Before(n.Add(-time.Second*1)) && serializedSamples > 0 {
+						if serializedSamples > 0 && lastStream.Before(n.Add(-time.Second*1)) {
 							log.Debug("noAggregationStreamWorker: triggering an automatic payloads flush to the forwarder (no traffic since 1s)")
 							go w.flush(true)
 							lastStream = n.Add(time.Hour * 24)
@@ -195,7 +197,7 @@ func (w *noAggregationStreamWorker) run() {
 				// the flush trigger may have set this flushBlockChan to a channel on which
 				// we need to send a signal to indicate the end of the flush.
 				if flushBlockChan != nil {
-					flushBlockChan <- struct{}{}
+					close(flushBlockChan)
 					flushBlockChan = nil
 				}
 			}, func(sketches metrics.SketchesSource) {
@@ -210,6 +212,6 @@ func (w *noAggregationStreamWorker) run() {
 	}
 
 	if stopBlockChan != nil {
-		stopBlockChan <- struct{}{}
+		close(stopBlockChan)
 	}
 }

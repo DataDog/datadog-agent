@@ -321,7 +321,7 @@ func (d *AgentDemultiplexer) Run() {
 
 	go d.aggregator.run()
 
-	if d.options.EnableNoAggregationPipeline {
+	if d.noAggStreamWorker != nil {
 		go d.noAggStreamWorker.run()
 	}
 
@@ -540,7 +540,7 @@ func (d *AgentDemultiplexer) AddLateMetrics(samples metrics.MetricSampleBatch) {
 // AddTimeSampleBatch adds a batch of MetricSample into the given time sampler shard.
 // If you have to submit a single metric sample see `AddTimeSample`.
 func (d *AgentDemultiplexer) AddTimeSampleBatch(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
-	// distribute the samples on the different statsd samplers  using a channel
+	// distribute the samples on the different statsd samplers using a channel
 	// (in the time sampler implementation) for latency reasons:
 	// its buffering + the fact that it is another goroutine processing the samples,
 	// it should get back to the caller as fast as possible once the samples are
