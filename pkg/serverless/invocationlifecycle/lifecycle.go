@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-lambda-go/events"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -19,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/aws/aws-lambda-go/events"
 )
 
 // LifecycleProcessor is a InvocationProcessor implementation

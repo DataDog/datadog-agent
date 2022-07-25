@@ -13,11 +13,12 @@ import (
 
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/pb"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestRawEncoder(t *testing.T) {

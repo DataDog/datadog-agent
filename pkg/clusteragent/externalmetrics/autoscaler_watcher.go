@@ -22,10 +22,11 @@ import (
 	autoscaler_lister "k8s.io/client-go/listers/autoscaling/v2beta1"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 )
 
 const (

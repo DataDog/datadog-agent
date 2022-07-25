@@ -14,10 +14,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTCPQueueLengthCompile(t *testing.T) {

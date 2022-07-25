@@ -10,8 +10,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"inet.af/netaddr"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var wildcard = netaddr.IPPrefix{}

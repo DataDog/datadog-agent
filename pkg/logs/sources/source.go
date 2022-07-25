@@ -11,10 +11,11 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"go.uber.org/atomic"
 )
 
 // SourceType used for log line parsing logic.

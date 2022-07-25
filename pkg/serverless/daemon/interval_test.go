@@ -10,8 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 )
 
 func TestAutoSelectStrategy(t *testing.T) {

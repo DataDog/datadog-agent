@@ -14,11 +14,12 @@ import (
 	"io"
 	"time"
 
+	"github.com/coreos/go-systemd/sdjournal"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/coreos/go-systemd/sdjournal"
 )
 
 // Journal interfacae to wrap the functions defined in sdjournal.

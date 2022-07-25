@@ -14,6 +14,8 @@ import (
 	"math"
 	"time"
 
+	dockerTypes "github.com/docker/docker/api/types"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -28,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	dockerTypes "github.com/docker/docker/api/types"
 )
 
 const (

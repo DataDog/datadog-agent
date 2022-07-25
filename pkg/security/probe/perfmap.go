@@ -15,11 +15,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf/perf"
+
+	"github.com/DataDog/datadog-agent/pkg/security/config"
+	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 )
 
 const eventStreamMap = "events"

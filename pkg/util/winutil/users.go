@@ -10,8 +10,9 @@ package winutil
 import (
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // GetSidFromUser grabs and returns the windows SID for the current user or an error.

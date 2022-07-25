@@ -13,9 +13,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
 // asserting Server starts a TLS Server with provided callback function used to perform assertions

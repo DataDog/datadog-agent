@@ -14,10 +14,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/stretchr/testify/mock"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	k "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	"github.com/stretchr/testify/mock"
 )
 
 type kubeUtilMock struct {

@@ -6,8 +6,9 @@
 package checkconfig
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"regexp"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // SymbolConfig holds info for a single symbol/oid

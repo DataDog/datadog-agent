@@ -13,8 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 )
 
 // AutoreportInterval specifies the interval at which the default set reports.
