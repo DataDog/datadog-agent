@@ -30,6 +30,13 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			image:    "gcr.io/datadoghq/dd-java-agent-init:v1",
 			wantErr:  false,
 		},
+		{
+			name:     "nominal case: node",
+			pod:      fakePod("node-pod"),
+			language: "node",
+			image:    "gcr.io/datadoghq/dd-node-agent-init:v1",
+			wantErr:  false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -38,6 +45,8 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			switch tt.language {
 			case "java":
 				assertLibConfig(t, tt.pod, tt.image, "JAVA_TOOL_OPTIONS", " -javaagent:/datadog-lib/dd-java-agent.jar", []string{"sh", "copy-javaagent.sh", "/datadog-lib"})
+			case "node":
+				assertLibConfig(t, tt.pod, tt.image, "NODE_OPTIONS", " --require=/autoinstrumentation/node_modules/dd-trace/init", []string{"sh", "copy-lib.sh", "/datadog-lib"})
 			default:
 				t.Fatalf("Unknown language %q", tt.language)
 			}
@@ -101,14 +110,6 @@ func TestExtractLibInfo(t *testing.T) {
 			containerRegistry:    "registry",
 			expectedLangauge:     "java",
 			expectedImage:        "registry/dd-java-agent-init:v1",
-			expectedShouldInject: true,
-		},
-		{
-			name:                 "python",
-			pod:                  fakePodWithAnnotation("admission.datadoghq.com/python-tracer.version", "v1"),
-			containerRegistry:    "registry",
-			expectedLangauge:     "python",
-			expectedImage:        "registry/dd-python-agent-init:v1",
 			expectedShouldInject: true,
 		},
 		{

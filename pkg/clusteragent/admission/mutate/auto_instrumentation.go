@@ -31,6 +31,10 @@ const (
 	// Java config
 	javaToolOptionsKey   = "JAVA_TOOL_OPTIONS"
 	javaToolOptionsValue = " -javaagent:/datadog-lib/dd-java-agent.jar"
+
+	// Node config
+	nodeOptionsKey   = "NODE_OPTIONS"
+	nodeOptionsValue = " --require=/autoinstrumentation/node_modules/dd-trace/init"
 )
 
 var (
@@ -38,7 +42,6 @@ var (
 	customTracerAnnotationKeyFormat  = "admission.datadoghq.com/%s-tracer.custom-image"
 	supportedLanguages               = []string{
 		"java",
-		"python",
 		"node",
 	}
 )
@@ -103,10 +106,15 @@ func injectAutoInstruConfig(pod *corev1.Pod, language, image string) error {
 			return err
 		}
 
-	case "python", "node":
-		// TODO
-		metrics.LibInjectionErrors.Inc(language)
-		return fmt.Errorf("language %q is not implemented yet", language)
+	case "node":
+		cmd := []string{"sh", "copy-lib.sh", mountPath}
+		injectLibInitContainer(pod, image, cmd)
+
+		err := injectLibConfig(pod, nodeOptionsKey, nodeOptionsValue)
+		if err != nil {
+			metrics.LibInjectionErrors.Inc(language)
+			return err
+		}
 	default:
 		metrics.LibInjectionErrors.Inc(language)
 		return fmt.Errorf("language %q is not supported", language)
