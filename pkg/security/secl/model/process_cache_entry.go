@@ -299,9 +299,9 @@ type EnvsEntry struct {
 	Values    []string `msg:"values"`
 	Truncated bool     `msg:"-"`
 
-	parsed bool
-	keys   []string
-	kv     map[string]string
+	parsed       bool
+	filteredEnvs []string
+	kv           map[string]string
 }
 
 // ToArray returns envs as an array
@@ -322,10 +322,10 @@ func (p *EnvsEntry) ToArray() ([]string, bool) {
 	return p.Values, p.Truncated
 }
 
-// Keys returns only keys
-func (p *EnvsEntry) Keys() ([]string, bool) {
-	if p.keys != nil {
-		return p.keys, p.Truncated
+// FilterEnvs returns an array of envs, only the name of each variable is returned if the variable isn't part of the whitelist
+func (p *EnvsEntry) FilterEnvs(whitelist map[string]bool) ([]string, bool) {
+	if p.filteredEnvs != nil {
+		return p.filteredEnvs, p.Truncated
 	}
 
 	values, _ := p.ToArray()
@@ -333,7 +333,7 @@ func (p *EnvsEntry) Keys() ([]string, bool) {
 		return nil, p.Truncated
 	}
 
-	p.keys = make([]string, len(values))
+	p.filteredEnvs = make([]string, len(values))
 
 	var i int
 	for _, value := range values {
@@ -342,11 +342,15 @@ func (p *EnvsEntry) Keys() ([]string, bool) {
 			continue
 		}
 
-		p.keys[i] = kv[0]
+		if whitelist[kv[0]] {
+			p.filteredEnvs[i] = value
+		} else {
+			p.filteredEnvs[i] = kv[0]
+		}
 		i++
 	}
 
-	return p.keys, p.Truncated
+	return p.filteredEnvs, p.Truncated
 }
 
 func (p *EnvsEntry) toMap() {

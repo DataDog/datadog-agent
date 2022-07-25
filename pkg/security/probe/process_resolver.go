@@ -86,7 +86,9 @@ func getCGroupWriteConstants() manager.ConstantEditor {
 }
 
 // ProcessResolverOpts options of resolver
-type ProcessResolverOpts struct{}
+type ProcessResolverOpts struct {
+	envsWhitelist map[string]bool
+}
 
 // ProcessResolver resolved process context
 type ProcessResolver struct {
@@ -859,7 +861,7 @@ func (p *ProcessResolver) GetProcessEnvs(pr *model.Process) ([]string, bool) {
 		return nil, false
 	}
 
-	keys, truncated := pr.EnvsEntry.Keys()
+	keys, truncated := pr.EnvsEntry.FilterEnvs(p.opts.envsWhitelist)
 
 	return keys, pr.ArgsTruncated || truncated
 }
@@ -1213,6 +1215,14 @@ func NewProcessResolver(probe *Probe, resolvers *Resolvers, opts ProcessResolver
 }
 
 // NewProcessResolverOpts returns a new set of process resolver options
-func NewProcessResolverOpts(cookieCacheSize int) ProcessResolverOpts {
-	return ProcessResolverOpts{}
+func NewProcessResolverOpts(cookieCacheSize int, envsWhitelist []string) ProcessResolverOpts {
+	opts := ProcessResolverOpts{
+		envsWhitelist: make(map[string]bool),
+	}
+
+	for _, envVar := range envsWhitelist {
+		opts.envsWhitelist[envVar] = true
+	}
+
+	return opts
 }
