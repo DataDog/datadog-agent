@@ -211,8 +211,8 @@ func (k *KubeContainerConfigProvider) generateConfigs() ([]integration.Config, e
 		c, errors := utils.ExtractTemplatesFromContainerLabels(containerEntityName, container.Labels)
 
 		for _, err := range errors {
+			adErrors[containerEntityName] = map[string]struct{}{err.Error(): {}}
 			log.Errorf("Can't parse template for container %s: %s", containerID, err)
-			// TODO should add to 'adErrors'? Different from 'ContainerConfigProvider' but seems more correct
 		}
 
 		if util.CcaInAD() {
