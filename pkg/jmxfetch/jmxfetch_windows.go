@@ -18,9 +18,11 @@ import (
 func (j *JMXFetch) Stop() error {
 	var stopChan chan struct{}
 
-	err := j.cmd.Process.Kill()
-	if err != nil {
-		return err
+	if j.cmd.Process != nil {
+		err := j.cmd.Process.Kill()
+		if err != nil {
+			return err
+		}
 	}
 
 	if j.managed {

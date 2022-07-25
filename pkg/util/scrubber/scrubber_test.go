@@ -12,8 +12,20 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestNewWithDefaults(t *testing.T) {
+	scrubber := NewWithDefaults()
+	scrubberEmpty := New()
+	AddDefaultReplacers(scrubberEmpty)
+
+	assert.NotZero(t, len(scrubber.singleLineReplacers))
+	assert.NotZero(t, len(scrubber.multiLineReplacers))
+	assert.Equal(t, len(scrubberEmpty.singleLineReplacers), len(scrubber.singleLineReplacers))
+	assert.Equal(t, len(scrubberEmpty.multiLineReplacers), len(scrubber.multiLineReplacers))
+}
 
 func TestRepl(t *testing.T) {
 	scrubber := New()

@@ -83,6 +83,8 @@ func NewActivityDumpStorageManager(p *Probe) (*ActivityDumpStorageManager, error
 func (manager *ActivityDumpStorageManager) Persist(ad *ActivityDump) error {
 
 	for format := range ad.StorageRequests {
+		// set serialization format metadata
+		ad.Serialization = format.String()
 
 		// encode the dump as the request format
 		data, err := ad.Encode(format)

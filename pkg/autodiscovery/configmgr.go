@@ -6,6 +6,7 @@
 package autodiscovery
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -60,7 +61,7 @@ type configManager interface {
 
 	// processDelService handles removal of a service, unscheduling any configs
 	// that had been resolved for it.
-	processDelService(svc listeners.Service) configChanges
+	processDelService(ctx context.Context, svc listeners.Service) configChanges
 
 	// processNewConfig handles a new config
 	processNewConfig(config integration.Config) configChanges
@@ -175,7 +176,7 @@ func (cm *reconcilingConfigManager) processNewService(adIdentifiers []string, sv
 }
 
 // processDelService implements configManager#processDelService.
-func (cm *reconcilingConfigManager) processDelService(svc listeners.Service) configChanges {
+func (cm *reconcilingConfigManager) processDelService(_ context.Context, svc listeners.Service) configChanges {
 	cm.m.Lock()
 	defer cm.m.Unlock()
 

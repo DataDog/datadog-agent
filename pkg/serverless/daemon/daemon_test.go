@@ -78,8 +78,9 @@ func TestTellDaemonRuntimeDoneIfLocalTest(t *testing.T) {
 	client := &http.Client{Timeout: 1 * time.Second}
 	request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/flush", port), nil)
 	assert.Nil(err)
-	_, err = client.Do(request)
+	response, err := client.Do(request)
 	assert.Nil(err)
+	response.Body.Close()
 	select {
 	case <-wrapWait(d.RuntimeWg):
 		// all good
@@ -177,4 +178,14 @@ func TestSetTraceTagOk(t *testing.T) {
 		TraceAgent: agent,
 	}
 	assert.True(t, d.setTraceTags(tagsMap))
+}
+
+func TestOutOfOrderInvocations(t *testing.T) {
+	port := testutil.FreeTCPPort(t)
+	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
+	time.Sleep(100 * time.Millisecond)
+	defer d.Stop()
+
+	assert.NotPanics(t, d.TellDaemonRuntimeDone)
+	d.TellDaemonRuntimeStarted()
 }

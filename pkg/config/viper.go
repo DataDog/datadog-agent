@@ -395,6 +395,16 @@ func (c *safeConfig) AllSettings() map[string]interface{} {
 	return c.Viper.AllSettings()
 }
 
+// AllSettingsWithoutDefault wraps Viper for concurrent access
+func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
+	c.Lock()
+	defer c.Unlock()
+
+	// AllSettingsWithoutDefault returns a fresh map, so the caller may do with it
+	// as they please without holding the lock.
+	return c.Viper.AllSettingsWithoutDefault()
+}
+
 // AddConfigPath wraps Viper for concurrent access
 func (c *safeConfig) AddConfigPath(in string) {
 	c.Lock()

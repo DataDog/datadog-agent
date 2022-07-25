@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -100,6 +101,11 @@ func isOSHostnameUsable(ctx context.Context) (osHostnameUsable bool) {
 	// If the agent is not containerized, just skip all this detection logic
 	if !isContainerized() {
 		return true
+	}
+
+	// TODO: Revisit when we introduce support for Windows privileged containers
+	if runtime.GOOS == "windows" {
+		return false
 	}
 
 	// Check UTS namespace from docker

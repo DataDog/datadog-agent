@@ -107,6 +107,8 @@ type Probe struct {
 	// network section
 	tcProgramsLock sync.RWMutex
 	tcPrograms     map[NetDeviceKey]*manager.Probe
+
+	isRuntimeDiscarded bool
 }
 
 // GetResolvers returns the resolvers of Probe
@@ -259,7 +261,7 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	if os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true" {
+	if p.isRuntimeDiscarded {
 		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, manager.ConstantEditor{
 			Name:  "runtime_discarded",
 			Value: uint64(1),
@@ -454,7 +456,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		// Delete new mount point from cache
 		if err = p.resolvers.MountResolver.Delete(event.MountReleased.MountID); err != nil {
-			log.Warnf("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
+			log.Debugf("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
 		}
 		return
 	case model.InvalidateDentryEventType:
@@ -767,6 +769,11 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			log.Errorf("failed to decode bind event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.SyscallsEventType:
+		if _, err = event.Syscalls.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode syscalls event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	default:
 		log.Errorf("unsupported event type %d", eventType)
 		return
@@ -810,9 +817,11 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 		return nil
 	}
 
-	fakeTime := time.Unix(0, int64(event.TimestampRaw))
-	if !p.discarderRateLimiter.AllowN(fakeTime, 1) {
-		return nil
+	if p.isRuntimeDiscarded {
+		fakeTime := time.Unix(0, int64(event.TimestampRaw))
+		if !p.discarderRateLimiter.AllowN(fakeTime, 1) {
+			return nil
+		}
 	}
 
 	seclog.Tracef("New discarder of type %s for field %s", eventType, field)
@@ -940,7 +949,7 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	activatedProbes = append(activatedProbes, p.selectTCProbes())
 
 	// Add syscall monitor probes
-	if p.config.SyscallMonitor {
+	if p.config.ActivityDumpSyscallMonitor && p.config.ActivityDumpEnabled {
 		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
 	}
 
@@ -993,6 +1002,93 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	}
 
 	return p.manager.UpdateActivatedProbes(activatedProbes)
+}
+
+// DumpDiscarders removes all the discarders
+func (p *Probe) DumpDiscarders() (string, error) {
+	log.Debug("Dumping discarders")
+
+	dump, err := os.CreateTemp("/tmp", "discarder-dump-")
+	if err != nil {
+		return "", err
+	}
+	defer dump.Close()
+
+	if err := os.Chmod(dump.Name(), 0400); err != nil {
+		return "", err
+	}
+
+	fmt.Fprintf(dump, "Discarder Dump\n%s\n", time.Now().UTC().String())
+
+	fmt.Fprintf(dump, `
+Legend:
+Discarder Count: Discardee Info
+Discarder Count: Discardee Parameters
+`)
+
+	fmt.Fprintf(dump, "\nInode Discarders\n")
+
+	discardedInodeCount := 0
+	inodeDiscardersInfo, inodeDiscardersErr := p.inodeDiscarders.Info()
+	if inodeDiscardersErr != nil {
+		log.Errorf("could not get info about inode discarders: %s", inodeDiscardersErr)
+	} else {
+		var inode inodeDiscarderMapEntry
+		var inodeParams inodeDiscarderParams
+		maxInodeDiscarders := int(inodeDiscardersInfo.MaxEntries)
+
+		for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, &inodeParams); {
+			discardedInodeCount++
+			fields := model.FileFields{MountID: inode.PathKey.MountID, Inode: inode.PathKey.Inode, PathID: inode.PathKey.PathID}
+			path, err := p.resolvers.resolveFileFieldsPath(&fields)
+			if err != nil {
+				path = err.Error()
+			}
+			printDiscardee(dump, fmt.Sprintf("%s %+v", path, inode), fmt.Sprintf("%+v", inodeParams), discardedInodeCount)
+			if discardedInodeCount == maxInodeDiscarders {
+				log.Infof("Discarded inode count has reached max discarder map size")
+				break
+			}
+		}
+	}
+
+	fmt.Fprintf(dump, "\nProcess Discarders\n")
+
+	discardedPIDCount := 0
+	pidDiscardersInfo, pidDiscardersErr := p.pidDiscarders.Info()
+	if pidDiscardersErr != nil {
+		log.Errorf("could not get info about PID discarders: %s", pidDiscardersErr)
+	} else {
+		var pid uint32
+		var pidParams pidDiscarderParams
+		maxPIDDiscarders := int(pidDiscardersInfo.MaxEntries)
+
+		for entries := p.pidDiscarders.Iterate(); entries.Next(&pid, &pidParams); {
+			discardedPIDCount++
+			printDiscardee(dump, fmt.Sprintf("%+v", pid), fmt.Sprintf("%+v", pidParams), discardedPIDCount)
+			if discardedPIDCount == maxPIDDiscarders {
+				log.Infof("Discarded PID count has reached max discarder map size")
+				break
+			}
+		}
+	}
+
+	fmt.Fprintf(dump, "\nDiscarder Stats - Front Buffer\n")
+	frontBufferPrintErr := p.printDiscarderStats(dump, frontBufferDiscarderStatsMapName)
+	if frontBufferPrintErr != nil {
+		_ = log.Errorf("could not dump discarder stats map %s: %s", frontBufferDiscarderStatsMapName, frontBufferPrintErr)
+	}
+
+	fmt.Fprintf(dump, "\nDiscarder Stats - Back Buffer\n")
+	backBufferPrintErr := p.printDiscarderStats(dump, backBufferDiscarderStatsMapName)
+	if backBufferPrintErr != nil {
+		_ = log.Errorf("could not dump discarder stats map %s: %s", backBufferDiscarderStatsMapName, backBufferPrintErr)
+	}
+
+	fmt.Fprintf(dump, "\nEnd Discarder Dump\n")
+
+	log.Infof("%d inode discarders found, %d pid discarders found", discardedInodeCount, discardedPIDCount)
+	return dump.Name(), nil
 }
 
 // FlushDiscarders removes all the discarders
@@ -1265,6 +1361,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		statsdClient:         statsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second), 100),
 		flushingDiscarders:   atomic.NewBool(false),
+		isRuntimeDiscarded:   os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true",
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -1308,7 +1405,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
 	}
 
-	if p.config.SyscallMonitor {
+	if p.config.ActivityDumpSyscallMonitor && p.config.ActivityDumpEnabled {
 		// Add syscall monitor probes
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
 	}
@@ -1383,6 +1480,10 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 			Name:  "net_struct_type",
 			Value: getNetStructType(p.kernelVersion),
 		},
+		manager.ConstantEditor{
+			Name:  "syscall_monitor_event_period",
+			Value: uint64(p.config.ActivityDumpSyscallMonitorPeriod.Nanoseconds()),
+		},
 	)
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
@@ -1407,14 +1508,6 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 				Value: uint64(1),
 			},
 		)
-	}
-
-	// constants syscall monitor
-	if p.config.SyscallMonitor {
-		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, manager.ConstantEditor{
-			Name:  "syscall_monitor",
-			Value: uint64(1),
-		})
 	}
 
 	// tail calls
