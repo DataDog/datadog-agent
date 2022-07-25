@@ -27,7 +27,6 @@ driver:
   iam_profile_name: <%= ENV['KITCHEN_EC2_IAM_PROFILE_NAME'] ||= nil %>
   spot_price: <%= ENV['KITCHEN_EC2_SPOT_PRICE'] %>
   block_duration_minutes: <%= ENV['KITCHEN_EC2_SPOT_DURATION'] ||= '60' %>
-  user_data: <%= ENV['KITCHEN_EC2_USER_DATA'] ||= nil %>
   tags:
     Name: ci-datadog-agent-kitchen
     Team: agent-platform
@@ -66,13 +65,9 @@ platforms:
         end
       end
 
-      # Check if we should use an ed25519 key, an rsa key or the default key
-      # Some newer platforms don't support rsa, while some older platforms don't support ed25519
-      default_key_platforms = []
-      use_default_key = default_key_platforms.any? { |p| platform_name.include?(p) }
-
-      ed25519_platforms = ["ubuntu-22-04"]
-      use_ed25519 = ed25519_platforms.any? { |p| platform_name.include?(p) }
+      # Check if we should use allow RSA key usage via user_data
+      allow_rsa_key_platforms = ["ubuntu-22-04"]
+      allow_rsa_key = allow_rsa_key_platforms.any? { |p| platform_name.include?(p) }
 
       vm_username = ENV['VM_USERNAME'] ? ENV['VM_USERNAME'] : "datadog"
       vm_password = ENV['SERVER_PASSWORD']
@@ -97,6 +92,12 @@ platforms:
           volume_type: gp2
           volume_size: 40
           delete_on_termination: true
+    <% if allow_rsa_key %>
+    user_data: |
+      #!/bin/sh
+      echo PubkeyAcceptedKeyTypes=+ssh-rsa >> /etc/ssh/sshd_config
+      service ssh reload
+    <% end %>
 
   transport:
     <% if windows %>
@@ -108,13 +109,6 @@ platforms:
     <% end %>
     <% if sles15 %>
     username: ec2-user
-    <% end %>
-    <% if use_default_key %>
-    ssh_key: <%= ENV['KITCHEN_EC2_SSH_KEY_PATH'] %>
-    <% elsif use_ed25519 %>
-    ssh_key: <%= ENV['KITCHEN_ED25519_SSH_KEY_PATH'] %>
-    <% else %>
-    ssh_key: <%= ENV['KITCHEN_RSA_SSH_KEY_PATH'] %>
     <% end %>
 
 <% end %>
