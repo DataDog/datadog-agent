@@ -37,6 +37,12 @@ union selinux_write_payload_t {
     } status;
 };
 
+#define MAX_EXEC_NAME_LEN 32 
+
+struct linux_binprm_t {
+    char executable_base_name[MAX_EXEC_NAME_LEN];
+};
+
 struct syscall_cache_t {
     struct policy_t policy;
     u64 type;
@@ -130,7 +136,7 @@ struct syscall_cache_t {
             struct str_array_ref_t args;
             struct str_array_ref_t envs;
             struct span_context_t span_context;
-            // struct linux_binprm_t linux_binprm;
+            struct linux_binprm_t linux_binprm;
             u32 next_tail;
             u8 is_parsed;
         } exec;

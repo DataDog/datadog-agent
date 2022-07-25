@@ -314,6 +314,10 @@ func (e *Process) GetPathResolutionError() string {
 	return ""
 }
 
+type LinuxBinprm struct {
+	Executable string `field:"executable" msg:"executable"`
+}
+
 // Process represents a process
 type Process struct {
 	PIDContext `msg:"pid_context"`
@@ -326,8 +330,9 @@ type Process struct {
 	SpanID  uint64 `field:"-" msg:"span_id,omitempty"`
 	TraceID uint64 `field:"-" msg:"trace_id,omitempty"`
 
-	TTYName string `field:"tty_name" msg:"tty,omitempty"` // Name of the TTY associated with the process
-	Comm    string `field:"comm" msg:"comm"`              // Comm attribute of the process
+	TTYName     string `field:"tty_name" msg:"tty,omitempty"` // Name of the TTY associated with the process
+	Comm        string `field:"comm" msg:"comm"`              // Comm attribute of the process
+	LinuxBinprm `msg:"linux_binprm"`
 
 	// pid_cache_t
 	ForkTime time.Time `field:"-" msg:"fork_time" json:"-"`

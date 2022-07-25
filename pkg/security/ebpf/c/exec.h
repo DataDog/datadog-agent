@@ -8,7 +8,6 @@
 #include "syscalls.h"
 #include "container.h"
 #include "span.h"
-// #include "defs.h"
 
 #define MAX_PERF_STR_BUFF_LEN 256
 #define MAX_STR_BUFF_LEN (1 << 15)
@@ -44,11 +43,6 @@ struct bpf_map_def SEC("maps/str_array_buffers") str_array_buffers = {
 };
 
 #define MAX_PATH_LEN 256
-
-struct linux_binprm_t {
-    char executable_base_name[MAX_PATH_LEN];
-};
-
 struct exec_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -383,8 +377,7 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs 
     struct basename_t executable_basename = {};
     get_dentry_name(exec_dentry, &executable_basename, sizeof(executable_basename));
 
-    bpf_printk("executable: %s\n", executable_basename.value);
-
+    bpf_probe_read_str(syscall->exec.linux_binprm.executable_base_name, sizeof(syscall->exec.linux_binprm.executable_base_name), executable_basename.value);
 
     return 0;
 }
@@ -795,6 +788,10 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
 
             // [activity_dump] check if this process should be traced
             should_trace_new_process(ctx, now, tgid, event->proc_entry.container.container_id, event->proc_entry.comm);
+
+            // Add information about interpreted events
+            // TODO: Polish linux_binprm info
+            bpf_probe_read_str(event->binprm.executable_base_name, sizeof(syscall->exec.linux_binprm.executable_base_name), syscall->exec.linux_binprm.executable_base_name);
 
             // send the entry to maintain userspace cache
             send_event_ptr(ctx, EVENT_EXEC, event);
