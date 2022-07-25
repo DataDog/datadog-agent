@@ -164,7 +164,7 @@ func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 	for _, evtType := range p.config.ActivityDumpTracedEventTypes {
 		err = tracedEventTypesMap.Put(evtType, isTraced)
 		if err != nil {
-			return nil, fmt.Errorf("failed to insert traced event type: ")
+			return nil, fmt.Errorf("failed to insert traced event type: %w", err)
 		}
 	}
 
