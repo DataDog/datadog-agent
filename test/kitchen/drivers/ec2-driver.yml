@@ -66,6 +66,14 @@ platforms:
         end
       end
 
+      # Check if we should use an ed25519 key, an rsa key or the default key
+      # Some newer platforms don't support rsa, while some older platforms don't support ed25519
+      default_key_platforms = []
+      use_default_key = default_key_platforms.any? { |p| platform_name.include?(p) }
+
+      ed25519_platforms = ["ubuntu-22-04"]
+      use_ed25519 = ed25519_platforms.any? { |p| platform_name.include?(p) }
+
       vm_username = ENV['VM_USERNAME'] ? ENV['VM_USERNAME'] : "datadog"
       vm_password = ENV['SERVER_PASSWORD']
 
@@ -101,6 +109,12 @@ platforms:
     <% if sles15 %>
     username: ec2-user
     <% end %>
+    <% if use_default_key %>
     ssh_key: <%= ENV['KITCHEN_EC2_SSH_KEY_PATH'] %>
+    <% elsif use_ed25519 %>
+    ssh_key: <%= ENV['KITCHEN_ED25519_SSH_KEY_PATH'] %>
+    <% else %>
+    ssh_key: <%= ENV['KITCHEN_RSA_SSH_KEY_PATH'] %>
+    <% end %>
 
 <% end %>
