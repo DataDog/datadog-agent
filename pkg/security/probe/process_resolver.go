@@ -1215,7 +1215,7 @@ func NewProcessResolver(probe *Probe, resolvers *Resolvers, opts ProcessResolver
 }
 
 // NewProcessResolverOpts returns a new set of process resolver options
-func NewProcessResolverOpts(cookieCacheSize int, envsWhitelist []string) ProcessResolverOpts {
+func NewProcessResolverOpts(envsWhitelist []string) ProcessResolverOpts {
 	opts := ProcessResolverOpts{
 		envsWhitelist: make(map[string]bool),
 	}

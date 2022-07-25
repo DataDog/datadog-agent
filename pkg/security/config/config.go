@@ -58,8 +58,6 @@ type Config struct {
 	EventServerRetention int
 	// PIDCacheSize is the size of the user space PID caches
 	PIDCacheSize int
-	// CookieCacheSize is the size of the cookie cache used to cache process context
-	CookieCacheSize int
 	// LoadControllerEventsCountThreshold defines the amount of events past which we will trigger the in-kernel circuit breaker
 	LoadControllerEventsCountThreshold int64
 	// LoadControllerDiscarderTimeout defines the amount of time discarders set by the load controller should last
@@ -202,7 +200,6 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		EventServerRate:                    coreconfig.Datadog.GetInt("runtime_security_config.event_server.rate"),
 		EventServerRetention:               coreconfig.Datadog.GetInt("runtime_security_config.event_server.retention"),
 		PIDCacheSize:                       coreconfig.Datadog.GetInt("runtime_security_config.pid_cache_size"),
-		CookieCacheSize:                    coreconfig.Datadog.GetInt("runtime_security_config.cookie_cache_size"),
 		LoadControllerEventsCountThreshold: int64(coreconfig.Datadog.GetInt("runtime_security_config.load_controller.events_count_threshold")),
 		LoadControllerDiscarderTimeout:     time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.load_controller.discarder_timeout")) * time.Second,
 		LoadControllerControlPeriod:        time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.load_controller.control_period")) * time.Second,
