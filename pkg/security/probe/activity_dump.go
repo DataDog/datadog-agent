@@ -1368,30 +1368,42 @@ func (fan *FileActivityNode) enrichFromEvent(event *Event) {
 // InsertFileEvent inserts an event in a FileActivityNode. This function returns true if a new entry was added, false if
 // the event was dropped.
 func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, remainingPath string, generationType NodeGenerationType, mergeCtx adPathMergeContext) bool {
-	parent, nextParentIndex := extractFirstParent(remainingPath)
-	if nextParentIndex == 0 {
-		fan.enrichFromEvent(event)
-		return false
-	}
+	currentFan := fan
+	currentPath := remainingPath
+	somethingChanged := false
 
-	if mergeCtx.enabled && len(fan.Children) >= 10 {
-		fan.mergeCommonPaths(mergeCtx)
-	}
+	for {
+		parent, nextParentIndex := extractFirstParent(currentPath)
+		if nextParentIndex == 0 {
+			currentFan.enrichFromEvent(event)
+			return somethingChanged
+		}
 
-	child, ok := fan.Children[parent]
-	if ok {
-		return child.InsertFileEvent(fileEvent, event, remainingPath[nextParentIndex:], generationType, mergeCtx)
-	}
+		if mergeCtx.enabled && len(currentFan.Children) >= 10 {
+			currentFan.mergeCommonPaths(mergeCtx)
+		}
 
-	// create new child
-	if len(remainingPath) <= nextParentIndex+1 {
-		fan.Children[parent] = NewFileActivityNode(fileEvent, event, parent, generationType)
-	} else {
-		child := NewFileActivityNode(nil, nil, parent, generationType)
-		child.InsertFileEvent(fileEvent, event, remainingPath[nextParentIndex:], generationType, mergeCtx)
-		fan.Children[parent] = child
+		child, ok := currentFan.Children[parent]
+		if ok {
+			currentFan = child
+			currentPath = currentPath[nextParentIndex:]
+			continue
+		}
+
+		// create new child
+		if len(currentPath) <= nextParentIndex+1 {
+			currentFan.Children[parent] = NewFileActivityNode(fileEvent, event, parent, generationType)
+			return true
+		} else {
+			child := NewFileActivityNode(nil, nil, parent, generationType)
+			currentFan.Children[parent] = child
+
+			somethingChanged = true
+			currentFan = child
+			currentPath = currentPath[nextParentIndex:]
+			continue
+		}
 	}
-	return true
 }
 
 func (fan *FileActivityNode) mergeCommonPaths(mergeCtx adPathMergeContext) {
