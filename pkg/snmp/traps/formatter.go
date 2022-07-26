@@ -191,8 +191,9 @@ func NormalizeOID(value string) string {
 // returns the mapping if it exists, otherwise returns the value unchanged
 func parseValue(variable trapVariable, varMetadata VariableMetadata) interface{} {
 	if len(varMetadata.Enumeration) > 0 {
-		if i, ok := variable.Value.(int); !ok {
+		if i, ok := variable.Value.(int64); !ok {
 			log.Debugf("unable to parse value of type \"integer\": %+v", variable.Value)
+		} else if i, ok = variable.Value.(float64);{
 		} else {
 			// if we find a mapping set it and return
 			if value, ok := varMetadata.Enumeration[i]; !ok {
@@ -273,12 +274,37 @@ func formatType(variable gosnmp.SnmpPDU) string {
 }
 
 func formatValue(variable gosnmp.SnmpPDU) interface{} {
-	switch variable.Value.(type) {
-	case []byte:
-		return string(variable.Value.([]byte))
-	default:
-		return variable.Value
+	switch variable.Type {
+	case gosnmp.OctetString, gosnmp.BitString:
+		bytesValue, ok := variable.Value.([]byte)
+		if ok {
+			return string(bytesValue)
+		}
+	case gosnmp.Integer, gosnmp.Counter32, gosnmp.Gauge32, gosnmp.TimeTicks, gosnmp.Counter64, gosnmp.Uinteger32:
+		return gosnmp.ToBigInt(variable.Value).Int64()
+	case gosnmp.OpaqueFloat:
+		floatValue, ok := variable.Value.(float32)
+		if ok {
+			return float64(floatValue)
+		}
+	case gosnmp.OpaqueDouble:
+		floatValue, ok := variable.Value.(float64)
+		if ok {
+			return float64(floatValue)
+		}
+	case gosnmp.IPAddress:
+		strValue, ok := variable.Value.(string)
+		if ok {
+			return strValue
+		}
+		return strValue
+	case gosnmp.ObjectIdentifier:
+		strValue, ok := variable.Value.(string)
+		if ok {
+			return strings.TrimLeft(strValue, ".")
+		}
 	}
+	return variable.Value
 }
 
 func formatVersion(packet *gosnmp.SnmpPacket) string {
