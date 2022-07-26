@@ -1406,3 +1406,125 @@ func TestProcessBusybox(t *testing.T) {
 		}))
 	})
 }
+
+func TestProcessIsPython(t *testing.T) {
+
+	tests := []struct {
+		name           string
+		rule           *rules.RuleDefinition
+		scriptName     string
+		executedScript string
+	}{
+		{
+			name: "regular exec",
+			rule: &rules.RuleDefinition{
+				ID:         "test_regular_exec",
+				Expression: fmt.Sprintf(`exec.file.name == ~"python*"`),
+			},
+			scriptName: "regularExec.sh",
+			executedScript: `#!/bin/bash
+
+echo "Executing echo inside a bash script"
+
+python3 - << EOF
+print('Executing print inside a python script')
+
+EOF
+
+echo "Back to bash"`,
+		},
+		{
+			name: "interpreted exec",
+			rule: &rules.RuleDefinition{
+				ID:         "test_interpreted_event",
+				Expression: fmt.Sprintf(`exec.interpreter_base_name == ~"python*"`),
+			},
+			scriptName: "interpretedExec.sh",
+			executedScript: `#!/bin/bash
+
+echo "Executing echo inside a bash script"
+
+cat << EOF > pyscript.py
+#!/usr/bin/python3
+
+print('Executing print inside a python script')
+
+EOF
+
+echo "Back to bash"
+
+chmod 755 pyscript.py
+./pyscript.py`,
+		},
+		{
+			name: "nested interpreted exec",
+			rule: &rules.RuleDefinition{
+				ID:         "test_nested_interpreted_event",
+				Expression: fmt.Sprintf(`exec.interpreter_base_name == ~"python*"`),
+			},
+			scriptName: "nestedInterpretedExec.sh",
+			executedScript: `#!/bin/bash
+
+echo "Executing echo inside a bash script"
+
+cat << '__HERE__' > hello.pl
+#!/usr/bin/perl
+
+my $foo = "Hello from Perl";
+print "$foo\n";
+
+__HERE__
+
+chmod 755 hello.pl
+
+cat << EOF > pyscript.py
+#!/usr/bin/python3
+
+import subprocess
+
+print('Executing print inside a python script')
+
+subprocess.run(["perl", "./hello.pl"])
+
+EOF
+
+echo "Back to bash"
+
+chmod 755 pyscript.py
+./pyscript.py`,
+		},
+	}
+
+	var ruleList []*rules.RuleDefinition
+	for _, test := range tests {
+		ruleList = append(ruleList, test.rule)
+	}
+
+	testModule, err := newTestModule(t, nil, ruleList, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testModule.Close()
+
+	//syscallTester, err := loadSyscallTester(t, testModule, "syscall_tester")
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			scriptLocation := fmt.Sprintf("/tmp/%s", test.scriptName)
+			err = os.WriteFile(scriptLocation, []byte(test.executedScript), 0755)
+			if err != nil {
+				t.Logf("could not write %s: %s", scriptLocation, err)
+			}
+			testModule.WaitSignal(t, func() error {
+				cmd := exec.Command("source", scriptLocation)
+				_ = cmd.Run()
+				return nil
+			}, func(event *sprobe.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, test.rule.ID)
+			})
+		})
+	}
+}

@@ -315,7 +315,7 @@ func (e *Process) GetPathResolutionError() string {
 }
 
 type LinuxBinprm struct {
-	Executable string `field:"executable" msg:"executable"`
+	InterpreterBaseName string `field:"interpreter_base_name" msg:"interpreter_base_name"`
 }
 
 // Process represents a process

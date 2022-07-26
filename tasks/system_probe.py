@@ -663,16 +663,6 @@ def get_security_agent_build_flags(security_agent_c_dir, kernel_release=None, de
         security_flags.append("-DDEBUG=1")
     return security_flags
 
-<<<<<<< HEAD
-def get_security_agent_build_flags(security_agent_c_dir, kernel_release=None, debug=False):
-    security_flags = get_ebpf_build_flags(kernel_release=kernel_release)
-    security_flags.append(f"-I{security_agent_c_dir}")
-    if debug:
-        security_flags.append("-DDEBUG=1")
-    return security_flags
-
-=======
->>>>>>> 055f05630 (CWS: add debug cli arg to build security code with DEBUG=1)
 
 def build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=None, debug=False):
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")

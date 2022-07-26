@@ -140,7 +140,7 @@ func (e *LinuxBinprm) UnmarshalBinary(data []byte) (int, error) {
 
 	var err error
 
-	e.Executable, err = UnmarshalString(data[:], 32)
+	e.InterpreterBaseName, err = UnmarshalString(data[:], 32)
 	if err != nil {
 		return 0, err
 	}
