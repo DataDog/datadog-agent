@@ -62,7 +62,19 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 	reportLogTime := time.Now()
 	runtimeStartTime := reportLogTime.Add(-20 * time.Millisecond)
 	runtimeEndTime := reportLogTime.Add(-10 * time.Millisecond)
-	go GenerateEnhancedMetricsFromReportLog(100.0, 1000.0, 800.0, 1024.0, 256.0, runtimeStartTime, runtimeEndTime, reportLogTime, tags, demux)
+	args := GenerateEnhancedMetricsFromReportLogArgs{
+		InitDurationMs:   100.0,
+		DurationMs:       1000.0,
+		BilledDurationMs: 800.0,
+		MemorySizeMb:     1024.0,
+		MaxMemoryUsedMb:  256.0,
+		RuntimeStart:     runtimeStartTime,
+		RuntimeEnd:       runtimeEndTime,
+		T:                reportLogTime,
+		Tags:             tags,
+		Demux:            demux,
+	}
+	go GenerateEnhancedMetricsFromReportLog(args)
 
 	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 
@@ -125,7 +137,19 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 	reportLogTime := time.Now()
 	runtimeStartTime := reportLogTime.Add(-20 * time.Millisecond)
 	runtimeEndTime := reportLogTime.Add(-10 * time.Millisecond)
-	go GenerateEnhancedMetricsFromReportLog(0, 1000.0, 800.0, 1024.0, 256.0, runtimeStartTime, runtimeEndTime, reportLogTime, tags, demux)
+	args := GenerateEnhancedMetricsFromReportLogArgs{
+		InitDurationMs:   0,
+		DurationMs:       1000.0,
+		BilledDurationMs: 800.0,
+		MemorySizeMb:     1024.0,
+		MaxMemoryUsedMb:  256.0,
+		RuntimeStart:     runtimeStartTime,
+		RuntimeEnd:       runtimeEndTime,
+		T:                reportLogTime,
+		Tags:             tags,
+		Demux:            demux,
+	}
+	go GenerateEnhancedMetricsFromReportLog(args)
 
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 

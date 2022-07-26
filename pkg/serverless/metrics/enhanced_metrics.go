@@ -81,61 +81,76 @@ func GenerateEnhancedMetricsFromFunctionLog(logString string, time time.Time, ta
 	}
 }
 
+// GenerateEnhancedMetricsFromReportLogArgs provides the arguments required for
+// the GenerateEnhancedMetricsFromReportLog func
+type GenerateEnhancedMetricsFromReportLogArgs struct {
+	InitDurationMs   float64
+	DurationMs       float64
+	BilledDurationMs int
+	MemorySizeMb     int
+	MaxMemoryUsedMb  int
+	RuntimeStart     time.Time
+	RuntimeEnd       time.Time
+	T                time.Time
+	Tags             []string
+	Demux            aggregator.Demultiplexer
+}
+
 // GenerateEnhancedMetricsFromReportLog generates enhanced metrics from a LogTypePlatformReport log message
-func GenerateEnhancedMetricsFromReportLog(initDurationMs float64, durationMs float64, billedDurationMs int, memorySizeMb int, maxMemoryUsedMb int, runtimeStart, runtimeEnd, t time.Time, tags []string, demux aggregator.Demultiplexer) {
-	timestamp := float64(t.UnixNano()) / float64(time.Second)
-	billedDuration := float64(billedDurationMs)
-	memorySize := float64(memorySizeMb)
-	postRuntimeDuration := durationMs - float64(runtimeEnd.Sub(runtimeStart).Milliseconds())
+func GenerateEnhancedMetricsFromReportLog(args GenerateEnhancedMetricsFromReportLogArgs) {
+	timestamp := float64(args.T.UnixNano()) / float64(time.Second)
+	billedDuration := float64(args.BilledDurationMs)
+	memorySize := float64(args.MemorySizeMb)
+	postRuntimeDuration := args.DurationMs - float64(args.RuntimeEnd.Sub(args.RuntimeStart).Milliseconds())
 	enhancedMetrics := []metrics.MetricSample{{
 		Name:       maxMemoryUsedMetric,
-		Value:      float64(maxMemoryUsedMb),
+		Value:      float64(args.MaxMemoryUsedMb),
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
 	}, {
 		Name:       memorySizeMetric,
 		Value:      memorySize,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
 	}, {
 		Name:       billedDurationMetric,
 		Value:      billedDuration * msToSec,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
 	}, {
 		Name:       durationMetric,
-		Value:      durationMs * msToSec,
+		Value:      args.DurationMs * msToSec,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
 	}, {
 		Name:       estimatedCostMetric,
 		Value:      calculateEstimatedCost(billedDuration, memorySize, serverlessTags.ResolveRuntimeArch()),
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
 	}, {
 		Name:       postRuntimeDurationMetric,
 		Value:      postRuntimeDuration,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
 	}}
-	if initDurationMs > 0 {
+	if args.InitDurationMs > 0 {
 		initDurationMetric := metrics.MetricSample{
 			Name:       initDurationMetric,
-			Value:      initDurationMs * msToSec,
+			Value:      args.InitDurationMs * msToSec,
 			Mtype:      metrics.DistributionType,
-			Tags:       tags,
+			Tags:       args.Tags,
 			SampleRate: 1,
 			Timestamp:  timestamp,
 		}
@@ -143,7 +158,7 @@ func GenerateEnhancedMetricsFromReportLog(initDurationMs float64, durationMs flo
 	}
 
 	for _, metric := range enhancedMetrics {
-		demux.AddTimeSample(metric)
+		args.Demux.AddTimeSample(metric)
 	}
 }
 
