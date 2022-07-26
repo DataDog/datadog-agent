@@ -91,7 +91,9 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 
 	assert.Nil(t, err)
 
-	reader := bytes.NewReader(*payloads[0])
+	firstPayload := payloads[0]
+	assert.Equal(t, 0, firstPayload.GetPointCount())
+	reader := bytes.NewReader(*firstPayload.GetContent())
 	r, _ := zlib.NewReader(reader)
 	decompressed, _ := ioutil.ReadAll(r)
 	r.Close()
@@ -123,7 +125,9 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 
 	assert.Nil(t, err)
 
-	reader := bytes.NewReader(*payloads[0])
+	firstPayload := payloads[0]
+	require.Equal(t, 0, firstPayload.GetPointCount())
+	reader := bytes.NewReader(*firstPayload.GetContent())
 	r, _ := zlib.NewReader(reader)
 	decompressed, _ := ioutil.ReadAll(r)
 	r.Close()
@@ -151,7 +155,9 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 	payloads, err := serializer2.MarshalSplitCompress(marshaler.DefaultBufferContext())
 	require.NoError(t, err)
 
-	reader := bytes.NewReader(*payloads[0])
+	firstPayload := payloads[0]
+	assert.Equal(t, 11, firstPayload.GetPointCount())
+	reader := bytes.NewReader(*firstPayload.GetContent())
 	r, _ := zlib.NewReader(reader)
 	decompressed, _ := ioutil.ReadAll(r)
 	r.Close()
@@ -189,8 +195,10 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 
 	sl := metrics.NewSketchesSourceTest()
 
+	expectedPointCount := 0
 	for i := 0; i < 20; i++ {
 		sl.Append(Makeseries(i))
+		expectedPointCount += i + 5
 	}
 
 	serializer := SketchSeriesList{SketchesSource: sl}
@@ -199,8 +207,9 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 
 	recoveredSketches := []gogen.SketchPayload{}
 	recoveredCount := 0
+	pointCount := 0
 	for _, pld := range payloads {
-		reader := bytes.NewReader(*pld)
+		reader := bytes.NewReader(*pld.GetContent())
 		r, _ := zlib.NewReader(reader)
 		decompressed, _ := ioutil.ReadAll(r)
 		r.Close()
@@ -211,8 +220,9 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 		}
 		recoveredSketches = append(recoveredSketches, *pl)
 		recoveredCount += len(pl.Sketches)
+		pointCount += pld.GetPointCount()
 	}
-
+	assert.Equal(t, expectedPointCount, pointCount)
 	assert.Equal(t, recoveredCount, int(sl.Count()))
 	assert.Greater(t, len(recoveredSketches), 1)
 
