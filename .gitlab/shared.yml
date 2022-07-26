@@ -6,5 +6,5 @@
 .setup_ruby_mirror:
   - set +x
   - *get_artifactory_token
-  - if [ "${USE_CACHING_PROXY_RUBY}" = "true"]; then export BUNDLE_MIRROR__RUBYGEMS__ORG=https://${ARTIFACTORY_USERNAME}:{ARTIFACTORY_TOKEN}@{ARTIFACTORY_URL}/${ARTIFACTORY_GEMS_PATH}; fi
+  - if [ "${USE_CACHING_PROXY_RUBY}" = "true" ]; then export BUNDLE_MIRROR__RUBYGEMS__ORG=https://${ARTIFACTORY_USERNAME}:{ARTIFACTORY_TOKEN}@{ARTIFACTORY_URL}/${ARTIFACTORY_GEMS_PATH}; fi
   - set -x
