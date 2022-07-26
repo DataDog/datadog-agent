@@ -8,10 +8,9 @@ package agent
 import (
 	"context"
 	"errors"
-	"net"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"net"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
@@ -21,6 +20,16 @@ import (
 type RuntimeSecurityClient struct {
 	apiClient api.SecurityModuleClient
 	conn      *grpc.ClientConn
+}
+
+// DumpDiscarders sends a request to dump discarders
+func (c *RuntimeSecurityClient) DumpDiscarders() (string, error) {
+	response, err := c.apiClient.DumpDiscarders(context.Background(), &api.DumpDiscardersParams{})
+	if err != nil {
+		return "", err
+	}
+
+	return response.DumpFilename, nil
 }
 
 // DumpProcessCache sends a process cache dump request

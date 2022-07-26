@@ -457,6 +457,30 @@ int test_forkexec(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_pid_discarder(int argc, char **argv) {
+    char *filename = argv[1];
+
+    getchar();
+
+    int fd = open(filename, O_RDONLY|O_CREAT, 0400);
+    if (fd <= 0) {
+        return EXIT_FAILURE;
+    }
+    close(fd);
+    //unlink(filename);
+
+    getchar();
+
+    fd = open(filename, O_RDONLY|O_CREAT, 0400);
+    if (fd <= 0) {
+        return EXIT_FAILURE;
+    }
+    close(fd);
+    //unlink(filename);
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please pass a command\n");
@@ -487,6 +511,8 @@ int main(int argc, char **argv) {
         return test_bind(argc - 1, argv + 1);
     } else if (strcmp(cmd, "fork") == 0) {
         return test_forkexec(argc - 1, argv + 1);
+    } else if (strcmp(cmd, "pid-discarder") == 0) {
+        return test_pid_discarder(argc -1, argv + 1);
     } else {
         fprintf(stderr, "Unknown command `%s`\n", cmd);
         return EXIT_FAILURE;

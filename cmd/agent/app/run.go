@@ -329,6 +329,9 @@ func StartAgent() error {
 		}
 	}
 
+	// create and setup the Autoconfig instance
+	common.LoadComponents(common.MainCtx, config.Datadog.GetString("confd_path"))
+
 	// start the cmd HTTP server
 	if runtime.GOOS != "android" {
 		if err = api.StartServer(configService); err != nil {
@@ -402,9 +405,6 @@ func StartAgent() error {
 
 	// Append version and timestamp to version history log file if this Agent is different than the last run version
 	util.LogVersionHistory()
-
-	// create and setup the Autoconfig instance
-	common.LoadComponents(common.MainCtx, config.Datadog.GetString("confd_path"))
 
 	// Set up check collector
 	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll), true)
