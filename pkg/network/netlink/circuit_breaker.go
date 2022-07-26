@@ -9,8 +9,9 @@ import (
 	"math"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (

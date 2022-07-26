@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
 
 func TestClients(t *testing.T) {

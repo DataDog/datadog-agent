@@ -8,8 +8,9 @@ package network
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 func TestDNATIntraHost(t *testing.T) {

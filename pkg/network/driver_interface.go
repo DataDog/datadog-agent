@@ -14,11 +14,12 @@ import (
 	"sync"
 	"unsafe"
 
+	"go.uber.org/atomic"
+	"golang.org/x/sys/windows"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
-	"golang.org/x/sys/windows"
 )
 
 // DriverExpvar is the name of a top-level driver expvar returned from GetStats

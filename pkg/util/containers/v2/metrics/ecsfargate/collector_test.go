@@ -12,10 +12,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestConvertEcsNetworkStats(t *testing.T) {

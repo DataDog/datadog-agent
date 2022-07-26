@@ -7,6 +7,7 @@ package goflowlib
 
 import (
 	"fmt"
+
 	"github.com/netsampler/goflow2/utils"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"

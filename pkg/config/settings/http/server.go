@@ -10,12 +10,13 @@ import (
 	"html"
 	"net/http"
 
+	"github.com/gorilla/mux"
+	"gopkg.in/yaml.v2"
+
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"github.com/gorilla/mux"
-	"gopkg.in/yaml.v2"
 )
 
 // Server offers functions that implement the standard runtime settings HTTP API

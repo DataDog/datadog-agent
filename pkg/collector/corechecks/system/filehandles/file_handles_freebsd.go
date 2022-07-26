@@ -8,11 +8,12 @@
 package filehandles
 
 import (
+	"github.com/blabber/go-freebsd-sysctl/sysctl"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/blabber/go-freebsd-sysctl/sysctl"
 )
 
 // For testing purpose

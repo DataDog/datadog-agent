@@ -14,9 +14,10 @@ import (
 	"net"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 // StartServerTCPNs is identical to StartServerTCP, but it operates with the

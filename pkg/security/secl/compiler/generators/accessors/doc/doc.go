@@ -15,8 +15,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/common"
 	"golang.org/x/tools/go/packages"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/common"
 )
 
 const (

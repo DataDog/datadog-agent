@@ -11,9 +11,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/docker/docker/api/types"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
-	"github.com/docker/docker/api/types"
 
 	"github.com/stretchr/testify/mock"
 	assert "github.com/stretchr/testify/require"

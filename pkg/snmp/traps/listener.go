@@ -10,8 +10,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/gosnmp/gosnmp"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 // TrapListener opens an UDP socket and put all received traps in a channel

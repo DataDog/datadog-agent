@@ -12,11 +12,12 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/gogo/protobuf/proto"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/gogo/protobuf/proto"
 )
 
 const (

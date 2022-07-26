@@ -19,12 +19,13 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
 	"github.com/DataDog/sketches-go/ddsketch/store"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
+
+	"github.com/DataDog/datadog-agent/pkg/quantile"
 )
 
 func toStore(b pmetric.Buckets) store.Store {

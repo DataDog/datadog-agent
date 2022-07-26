@@ -12,8 +12,9 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"inet.af/netaddr"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (

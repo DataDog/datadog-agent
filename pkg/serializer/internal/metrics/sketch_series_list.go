@@ -10,12 +10,13 @@ import (
 	"expvar"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
+	"github.com/richardartoul/molecule"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/richardartoul/molecule"
 )
 
 // A SketchSeriesList implements marshaler.Marshaler

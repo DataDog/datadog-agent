@@ -9,10 +9,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/Masterminds/semver"
 	"github.com/theupdateframework/go-tuf/data"
+
+	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
 
 // DirectorTargetsCustomMetadata TODO (<remote-config>): RCM-228

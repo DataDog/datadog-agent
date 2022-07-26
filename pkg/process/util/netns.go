@@ -16,9 +16,10 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // WithRootNS executes a function within root network namespace and then switch back
