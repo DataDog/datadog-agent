@@ -24,6 +24,7 @@ import (
 	"text/template"
 	"unicode"
 
+	"github.com/Masterminds/sprig"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/structtag"
 	"golang.org/x/tools/go/packages"
@@ -76,9 +77,9 @@ func qualifiedType(module *common.Module, kind string) string {
 	}
 }
 
-func handleBasic(module *common.Module, name, alias, kind, event string, iterator *common.StructField, isArray bool, opOverrides string, constants string, commentText string) {
+func handleBasic(module *common.Module, name, alias, kind, event string, iterator *common.StructField, isArray bool, opOverrides string, constants string, commentText string) *common.StructField {
 	if verbose {
-		fmt.Printf("handleBasic %s %s\n", name, kind)
+		fmt.Printf("handleBasic name: %s, kind: %s, alias: %s\n", name, kind, alias)
 	}
 
 	basicType := origTypeToBasicType(kind)
@@ -98,6 +99,8 @@ func handleBasic(module *common.Module, name, alias, kind, event string, iterato
 	if _, ok := module.EventTypes[event]; !ok {
 		module.EventTypes[event] = common.NewEventTypeMetada()
 	}
+
+	return module.Fields[alias]
 }
 
 func handleField(module *common.Module, astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType string, event string, iterator *common.StructField, dejavu map[string]bool, isArray bool, opOverride string, constants string, commentText string) error {
@@ -112,6 +115,10 @@ func handleField(module *common.Module, astFile *ast.File, name, alias, prefix, 
 			alias = aliasPrefix + "." + alias
 		}
 		handleBasic(module, name, alias, fieldType, event, iterator, isArray, opOverride, constants, commentText)
+		if fieldType == "string" {
+			field := handleBasic(module, name+".length", alias+".length", "int", event, iterator, isArray, opOverride, constants, commentText)
+			field.IsLength = true
+		}
 
 	default:
 		symbol, err := resolveSymbol(pkgName, fieldType)
@@ -349,6 +356,16 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								IsOrigTypePtr:       isPointer,
 							}
 
+							if fieldType == "string" && !isArray {
+								var lengthField common.StructField = *module.Fields[fieldAlias]
+								lengthField.IsLength = true
+								lengthField.Name += ".length"
+								lengthField.OrigType = "int"
+								lengthField.ReturnType = "int"
+								module.Fields[fieldAlias+".length"] = &lengthField
+								lengthField.CommentText = "Length of '" + fieldAlias + "' string"
+							}
+
 							if _, ok = module.EventTypes[event]; !ok {
 								module.EventTypes[event] = common.NewEventTypeMetada(fieldAlias)
 							} else {
@@ -533,6 +550,7 @@ func override(str string, mock bool) string {
 
 var funcMap = map[string]interface{}{
 	"TrimPrefix": strings.TrimPrefix,
+	"TrimSuffix": strings.TrimSuffix,
 	"NewField":   newField,
 	"Override":   override,
 }
@@ -570,7 +588,7 @@ func main() {
 
 // GenerateContent generates with the given template
 func GenerateContent(output string, module *common.Module, tmplCode string) error {
-	tmpl := template.Must(template.New("header").Funcs(funcMap).Parse(tmplCode))
+	tmpl := template.Must(template.New("header").Funcs(funcMap).Funcs(sprig.TxtFuncMap()).Parse(tmplCode))
 
 	buffer := bytes.Buffer{}
 	if err := tmpl.Execute(&buffer, module); err != nil {
