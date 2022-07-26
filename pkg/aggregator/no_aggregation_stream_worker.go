@@ -177,7 +177,8 @@ func (w *noAggregationStreamWorker) run() {
 							serie.Points = []metrics.Point{{Ts: sample.Timestamp, Value: sample.Value}}
 							serie.Tags = tagset.CompositeTagsFromSlice(w.metricBuffer.Copy())
 							serie.Host = sample.Host
-							serie.Interval = 0 // unused when late
+							// ignored when late but mimic dogstatsd traffic here anyway
+							serie.Interval = 10
 							w.seriesSink.Append(&serie)
 
 							w.taggerBuffer.Reset()
