@@ -319,11 +319,12 @@ func NewGraphIDWithDescription(description string, ids ...NodeID) GraphID {
 //msgp:ignore NodeID
 type NodeID uint64
 
-// NewNodeID returns a new random NodeID
+// NewRandomNodeID returns a new random NodeID
 func NewRandomNodeID() NodeID {
 	return NodeID(eval.RandNonZeroUint64())
 }
 
+// NewNodeIDFromPtr returns a new NodeID based on a pointer value
 func NewNodeIDFromPtr(v interface{}) NodeID {
 	rv := reflect.ValueOf(v)
 	if rv.Kind() != reflect.Ptr || rv.IsNil() {
