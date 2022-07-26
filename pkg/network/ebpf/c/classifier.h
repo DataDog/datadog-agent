@@ -14,7 +14,6 @@ typedef struct {
 // handling a particular protocol.
 typedef struct {
     __u8 done;
-    __u8 failed;
 } cnx_info_t;
 
 
