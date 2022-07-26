@@ -64,7 +64,7 @@ func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDu
 	for _, netns := range dump {
 		// create namespace node
 		netnsNode := node{
-			ID:    NewGraphID(NewNodeID()),
+			ID:    NewGraphID(NewRandomNodeID()),
 			Label: fmt.Sprintf("%v [fd:%d][handle:%v]", netns.NsID, netns.HandleFD, netns.HandlePath),
 			Color: namespaceColor,
 			Shape: namespaceShape,
@@ -80,7 +80,7 @@ func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDu
 		// create active and queued devices nodes
 		for _, dev := range netns.Devices {
 			devNode := node{
-				ID:        NewGraphID(NewNodeID()),
+				ID:        NewGraphID(NewRandomNodeID()),
 				Label:     fmt.Sprintf("%s [%d]", dev.IfName, dev.IfIndex),
 				FillColor: activeDeviceColor,
 				Color:     deviceColor,
@@ -97,7 +97,7 @@ func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDu
 		}
 		for _, dev := range netns.DevicesInQueue {
 			devNode := node{
-				ID:        NewGraphID(NewNodeID()),
+				ID:        NewGraphID(NewRandomNodeID()),
 				Label:     fmt.Sprintf("%s [%d]", dev.IfName, dev.IfIndex),
 				FillColor: queuedDeviceColor,
 				Color:     deviceColor,
