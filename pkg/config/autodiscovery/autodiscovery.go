@@ -101,7 +101,7 @@ func DiscoverComponentsFromEnv() ([]config.ConfigurationProviders, []config.List
 
 	if config.IsFeaturePresent(config.Kubernetes) {
 		if kubeContainerOn {
-			detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: names.KubeContainer, Polling: true})
+			detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: names.KubeContainer, Polling: true, PollInterval: "1s"})
 		} else {
 			detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: "kubelet", Polling: true})
 		}

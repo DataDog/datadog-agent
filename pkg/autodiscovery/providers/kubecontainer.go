@@ -235,7 +235,6 @@ func (k *KubeContainerConfigProvider) generateConfigs() ([]integration.Config, e
 				continue
 			}
 
-			log.Debugf("Considering pod %s with container id %s\n", pod.Name, podContainer.ID)
 			adIdentifier := podContainer.Name
 			if customADID, found := utils.ExtractCheckIDFromPodAnnotations(pod.Annotations, podContainer.Name); found {
 				adIdentifier = customADID
@@ -292,10 +291,10 @@ func (k *KubeContainerConfigProvider) generateConfigs() ([]integration.Config, e
 	for _, c := range configs {
 		fmt.Fprintf(&bldr, "  %s %s %s\n", c.Name, c.Source, c.Digest())
 	}
-	log.Infof("KubeContainerConfigProvider#generateConfigs generated:\n%s", bldr.String())
+	log.Debugf("KubeContainerConfigProvider#generateConfigs generated:\n%s", bldr.String())
 
 	k.configErrors = adErrors
-	telemetry.Errors.Set(float64(len(adErrors)), names.Kubernetes)
+	telemetry.Errors.Set(float64(len(adErrors)), names.KubeContainer)
 
 	return configs, nil
 }
