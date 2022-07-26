@@ -208,11 +208,12 @@ func (s Serializer) serializePayloadInternal(payload marshaler.AbstractMarshaler
 
 func (s Serializer) serializeStreamablePayload(payload marshaler.StreamJSONMarshaler, policy stream.OnErrItemTooBigPolicy) (forwarder.Payloads, http.Header, error) {
 	adapter := marshaler.NewIterableStreamJSONMarshalerAdapter(payload)
-	return s.serializeIterableStreamablePayload(adapter, policy)
+	payloads, err := s.seriesJSONPayloadBuilder.BuildWithOnErrItemTooBigPolicy(adapter, policy)
+	return payloads, jsonExtraHeadersWithCompression, err
 }
 
-func (s Serializer) serializeIterableStreamablePayload(payload marshaler.IterableStreamJSONMarshaler, policy stream.OnErrItemTooBigPolicy) (forwarder.Payloads, http.Header, error) {
-	payloads, err := s.seriesJSONPayloadBuilder.BuildWithOnErrItemTooBigPolicy(payload, policy)
+func (s Serializer) serializeIterableStreamablePayload(payload marshaler.IterableStreamWithPointJSONMarshaler, policy stream.OnErrItemTooBigPolicy) (transaction.BytesPayloads, http.Header, error) {
+	payloads, err := s.seriesJSONPayloadBuilder.BuildWithOnErrItemTooBigPolicyMetadata(payload, policy)
 	return payloads, jsonExtraHeadersWithCompression, err
 }
 
@@ -320,9 +321,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	var err error
 
 	if useV1API && s.enableJSONStream {
-		var seriesPayloads forwarder.Payloads
-		seriesPayloads, extraHeaders, err = s.serializeIterableStreamablePayload(seriesSerializer, stream.DropItemOnErrItemTooBig)
-		seriesBytesPayloads = transaction.NewBytesPayloadsWithoutMetaData(seriesPayloads)
+		seriesBytesPayloads, extraHeaders, err = s.serializeIterableStreamablePayload(seriesSerializer, stream.DropItemOnErrItemTooBig)
 	} else if useV1API && !s.enableJSONStream {
 		var seriesPayloads forwarder.Payloads
 		seriesPayloads, extraHeaders, err = s.serializePayloadJSON(seriesSerializer, true)

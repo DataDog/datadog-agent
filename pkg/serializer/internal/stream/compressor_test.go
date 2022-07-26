@@ -11,9 +11,11 @@ package stream
 import (
 	"bytes"
 	"compress/zlib"
+	"fmt"
 	"io/ioutil"
 	"testing"
 
+	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -134,4 +136,44 @@ func TestLockedCompressorProducesSamePayloads(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, payloadToString(*payloads1[0]), payloadToString(*payloads2[0]))
+}
+
+func TestBuildWithOnErrItemTooBigPolicyMetadata(t *testing.T) {
+	config.Datadog.Set("serializer_max_uncompressed_payload_size", 40)
+	defer config.Datadog.Set("serializer_max_uncompressed_payload_size", nil)
+	marshaler := &IterableStreamJSONMarshalerMock{index: 0, maxIndex: 100}
+	builder := NewJSONPayloadBuilder(false)
+	payloads, err := builder.BuildWithOnErrItemTooBigPolicyMetadata(
+		marshaler,
+		DropItemOnErrItemTooBig)
+	r := require.New(t)
+	r.NoError(err)
+
+	// Make sure there are at least few payloads
+	r.Greater(len(payloads), 3)
+
+	pointCount := 0
+	for _, payload := range payloads {
+		pointCount += payload.GetPointCount()
+	}
+	maxValue := marshaler.maxIndex - 1
+	r.Equal((maxValue*(maxValue+1))/2, pointCount)
+}
+
+type IterableStreamJSONMarshalerMock struct {
+	index    int
+	maxIndex int
+}
+
+func (i *IterableStreamJSONMarshalerMock) WriteHeader(stream *jsoniter.Stream) error { return nil }
+func (i *IterableStreamJSONMarshalerMock) WriteFooter(stream *jsoniter.Stream) error { return nil }
+func (i *IterableStreamJSONMarshalerMock) WriteCurrentItem(stream *jsoniter.Stream) error {
+	stream.WriteString(fmt.Sprintf("Item%v", i.index))
+	return nil
+}
+func (i *IterableStreamJSONMarshalerMock) DescribeCurrentItem() string   { return "" }
+func (i *IterableStreamJSONMarshalerMock) GetCurrentItemPointCount() int { return i.index }
+func (i *IterableStreamJSONMarshalerMock) MoveNext() bool {
+	i.index++
+	return i.index < i.maxIndex
 }

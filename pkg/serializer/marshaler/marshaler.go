@@ -59,6 +59,12 @@ type IterableStreamJSONMarshaler interface {
 	MoveNext() bool
 }
 
+// IterableStreamWithPointJSONMarshaler extends IterableStreamJSONMarshaler for items having points (like series)
+type IterableStreamWithPointJSONMarshaler interface {
+	IterableStreamJSONMarshaler
+	GetCurrentItemPointCount() int
+}
+
 // BufferContext contains the buffers used for MarshalSplitCompress so they can be shared between invocations
 type BufferContext struct {
 	CompressorInput   *bytes.Buffer

@@ -73,6 +73,11 @@ func (series IterableSeries) DescribeCurrentItem() string {
 	return describeItem(current)
 }
 
+// GetCurrentItemPointCount gets the number of points in the current serie
+func (series IterableSeries) GetCurrentItemPointCount() int {
+	return len(series.Current().Points)
+}
+
 func describeItem(serie *metrics.Serie) string {
 	return fmt.Sprintf("name %q, %d points", serie.Name, len(serie.Points))
 }
