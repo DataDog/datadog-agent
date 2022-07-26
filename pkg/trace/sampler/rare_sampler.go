@@ -9,12 +9,13 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+	"golang.org/x/time/rate"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	"go.uber.org/atomic"
-	"golang.org/x/time/rate"
 )
 
 const (

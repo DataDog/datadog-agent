@@ -9,8 +9,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
 func TestIdentify(t *testing.T) {

@@ -9,8 +9,9 @@ import (
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
 func TestProcessDiscoveryCheck(t *testing.T) {

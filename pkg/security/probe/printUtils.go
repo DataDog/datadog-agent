@@ -10,8 +10,9 @@ package probe
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func printDiscardee(discarderDumpFile *os.File, discardee, discardeeParams string, discardeeCount int) {

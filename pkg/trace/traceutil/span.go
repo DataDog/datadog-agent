@@ -8,8 +8,9 @@ package traceutil
 import (
 	"bytes"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/tinylib/msgp/msgp"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 const (

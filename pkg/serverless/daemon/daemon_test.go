@@ -14,9 +14,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestWaitForDaemonBlocking(t *testing.T) {

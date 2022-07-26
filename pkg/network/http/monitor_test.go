@@ -18,11 +18,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/http/testutil"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/stretchr/testify/require"
 )
 
 func TestHTTPMonitorIntegration(t *testing.T) {

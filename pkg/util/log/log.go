@@ -22,8 +22,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 var (

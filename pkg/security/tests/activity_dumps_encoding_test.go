@@ -13,9 +13,10 @@ import (
 	_ "embed"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
-	"github.com/stretchr/testify/assert"
 )
 
 //go:embed testdata/adv1.msgp

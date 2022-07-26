@@ -14,11 +14,12 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
+	"github.com/mailru/easyjson"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/hashicorp/go-multierror"
-	"github.com/mailru/easyjson"
 )
 
 const (

@@ -11,12 +11,13 @@ package dns
 import (
 	"math"
 
+	manager "github.com/DataDog/ebpf-manager"
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	manager "github.com/DataDog/ebpf-manager"
-	"golang.org/x/sys/unix"
 )
 
 const funcName = "socket__dns_filter"

@@ -9,10 +9,12 @@
 package metrics
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/stretchr/testify/require"
 	"sort"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 )
 
 func TestFlushAndClearSingleContextMetrics(t *testing.T) {

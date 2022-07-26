@@ -8,8 +8,9 @@ package sources
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
 func TestAddSource(t *testing.T) {

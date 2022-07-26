@@ -14,10 +14,11 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
+	"github.com/clbanning/mxj"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/clbanning/mxj"
 )
 
 const (

@@ -19,11 +19,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cihub/seelog"
+	"github.com/stretchr/testify/assert"
+
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
-	"github.com/cihub/seelog"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestMain(m *testing.M) {

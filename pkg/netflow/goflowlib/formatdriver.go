@@ -8,6 +8,7 @@ package goflowlib
 import (
 	"context"
 	"fmt"
+
 	flowpb "github.com/netsampler/goflow2/pb"
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"

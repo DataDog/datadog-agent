@@ -12,8 +12,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 func TestMakeTailerFile(t *testing.T) {

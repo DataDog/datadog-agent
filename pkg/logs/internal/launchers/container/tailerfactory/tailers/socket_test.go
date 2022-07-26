@@ -14,9 +14,10 @@ import (
 	"testing"
 	"time"
 
-	dockerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/docker"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+
+	dockerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/docker"
 )
 
 func TestDockerSocketTailer_run_normal_stop(t *testing.T) {

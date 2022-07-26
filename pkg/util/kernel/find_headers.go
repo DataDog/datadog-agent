@@ -22,9 +22,10 @@ import (
 	"regexp"
 	"strconv"
 
+	"github.com/mholt/archiver/v3"
+
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/mholt/archiver/v3"
 )
 
 const sysfsHeadersPath = "/sys/kernel/kheaders.tar.xz"

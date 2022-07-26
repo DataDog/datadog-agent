@@ -9,8 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func TestIterableSeriesEmptyMarshalJSON(t *testing.T) {
