@@ -18,9 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/golang/protobuf/proto"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
