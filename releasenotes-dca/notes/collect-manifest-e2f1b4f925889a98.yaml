@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Collect manifests (pods yaml) in process check.
+    Collect manifests (k8s resources Yaml) during orchestration checks

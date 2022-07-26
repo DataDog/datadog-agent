@@ -433,20 +433,11 @@ func (s *Serializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostNam
 		return errors.New("orchestrator forwarder is not setup")
 	}
 	for _, m := range msgs {
-		extraHeaders := make(http.Header)
-		extraHeaders.Set(headers.HostHeader, hostName)
-		extraHeaders.Set(headers.ClusterIDHeader, clusterID)
-		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
-		extraHeaders.Set(headers.EVPOriginHeader, "agent")
-		extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
-		extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
-
-		body, err := processPayloadEncoder(m)
+		payloads, extraHeaders, err := getOrchestratorPayloads(m, hostName, clusterID, false)
 		if err != nil {
 			return log.Errorf("Unable to encode message: %s", err)
 		}
 
-		payloads := forwarder.Payloads{&body}
 		responses, err := s.orchestratorForwarder.SubmitOrchestratorChecks(payloads, extraHeaders, payloadType)
 		if err != nil {
 			return log.Errorf("Unable to submit payload: %s", err)
@@ -493,22 +484,12 @@ func (s *Serializer) SendOrchestratorManifests(msgs []ProcessMessageBody, hostNa
 		return errors.New("orchestrator forwarder is not setup")
 	}
 	for _, m := range msgs {
-		extraHeaders := make(http.Header)
-		extraHeaders.Set(headers.HostHeader, hostName)
-		extraHeaders.Set(headers.ClusterIDHeader, clusterID)
-		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
-		extraHeaders.Set(headers.EVPOriginHeader, "agent")
-		extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
-		extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
-		extraHeaders.Set(headers.ContentEncodingHeader, headers.ZSTDContentEncoding)
-
-		body, err := processPayloadEncoder(m)
+		payloads, extraHeaders, err := getOrchestratorPayloads(m, hostName, clusterID, true)
 		if err != nil {
 			log.Errorf("Unable to encode message: %s", err)
 			continue
 		}
 
-		payloads := forwarder.Payloads{&body}
 		responses, err := s.orchestratorForwarder.SubmitOrchestratorManifests(payloads, extraHeaders)
 		if err != nil {
 			return log.Errorf("Unable to submit payload: %s", err)
@@ -521,4 +502,24 @@ func (s *Serializer) SendOrchestratorManifests(msgs []ProcessMessageBody, hostNa
 		}
 	}
 	return nil
+}
+
+func getOrchestratorPayloads(msg ProcessMessageBody, hostName, clusterID string, isManifest bool) (forwarder.Payloads, http.Header, error) {
+	extraHeaders := make(http.Header)
+	extraHeaders.Set(headers.HostHeader, hostName)
+	extraHeaders.Set(headers.ClusterIDHeader, clusterID)
+	extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
+	extraHeaders.Set(headers.EVPOriginHeader, "agent")
+	extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
+	extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
+	if isManifest {
+		extraHeaders.Set(headers.ContentEncodingHeader, headers.ZSTDContentEncoding)
+	}
+
+	body, err := processPayloadEncoder(msg)
+	if err != nil {
+		return nil, nil, err
+	}
+	payloads := forwarder.Payloads{&body}
+	return payloads, extraHeaders, nil
 }

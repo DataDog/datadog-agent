@@ -179,7 +179,9 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 
 	if c.Name() == config.PodCheckName {
 		l.messagesToResults(start, config.PodCheckMetadataName, messages[:len(messages)/2], results)
-		l.messagesToResults(start, config.PodCheckManifestName, messages[len(messages)/2:], results)
+		if l.cfg.Orchestrator.IsManifestCollectionEnabled {
+			l.messagesToResults(start, config.PodCheckManifestName, messages[len(messages)/2:], results)
+		}
 	} else {
 		l.messagesToResults(start, c.Name(), messages, results)
 	}
@@ -582,13 +584,15 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 				responses, err = fwd.SubmitRTContainerChecks(forwarderPayload, payload.headers)
 			case checks.Connections.Name():
 				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
-			case config.PodCheckMetadataName:
+			case config.PodCheckMetadataName, config.PodCheckManifestName:
 				// Pod check contains two parts: metadata and manifest.
 				// Orchestrator intake response does not change RT checks enablement or interval
-				updateRTStatus = false
-				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
-			case config.PodCheckManifestName:
-				responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)
+				if result.name == config.PodCheckMetadataName {
+					updateRTStatus = false
+					responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
+				} else {
+					responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)
+				}
 			case checks.ProcessDiscovery.Name():
 				// A Process Discovery check does not change the RT mode
 				updateRTStatus = false
@@ -729,7 +733,7 @@ func readResponseStatuses(checkName string, responses <-chan forwarder.Response)
 
 func ignoreResponseBody(checkName string) bool {
 	switch checkName {
-	case checks.Pod.Name(), checks.ProcessEvents.Name(), config.PodCheckMetadataName, config.PodCheckManifestName:
+	case checks.ProcessEvents.Name(), config.PodCheckMetadataName, config.PodCheckManifestName:
 		return true
 	default:
 		return false

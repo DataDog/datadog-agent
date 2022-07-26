@@ -335,7 +335,8 @@ func TestIgnoreResponseBody(t *testing.T) {
 		{checkName: checks.ProcessDiscovery.Name(), ignore: false},
 		{checkName: checks.Container.Name(), ignore: false},
 		{checkName: checks.RTContainer.Name(), ignore: false},
-		{checkName: checks.Pod.Name(), ignore: true},
+		{checkName: config.PodCheckMetadataName, ignore: true},
+		{checkName: config.PodCheckManifestName, ignore: true},
 		{checkName: checks.Connections.Name(), ignore: false},
 		{checkName: checks.ProcessEvents.Name(), ignore: true},
 	} {

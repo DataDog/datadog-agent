@@ -23,6 +23,7 @@ import (
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/zstd_0"
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -335,7 +336,35 @@ func TestRTProcMessageNotRetried(t *testing.T) {
 	})
 }
 
-func TestSendPodMessage(t *testing.T) {
+func TestSendPodMessageWithManifest(t *testing.T) {
+	clusterID, orig, cfg, check := getPodCheckMessage()
+	cfg.Orchestrator.IsManifestCollectionEnabled = true
+	defer func() { _ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", orig) }()
+
+	runCollectorTest(t, check, cfg, &endpointConfig{}, ddconfig.Mock(t), func(cfg *config.AgentConfig, ep *mockEndpoint) {
+		testPodMessageMetadata(t, clusterID, cfg, ep)
+		testPodMessageManifest(t, clusterID, cfg, ep)
+	})
+}
+
+func TestSendPodMessageWithoutManifest(t *testing.T) {
+	clusterID, orig, cfg, check := getPodCheckMessage()
+	defer func() { _ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", orig) }()
+
+	runCollectorTest(t, check, cfg, &endpointConfig{}, ddconfig.Mock(t), func(cfg *config.AgentConfig, ep *mockEndpoint) {
+		testPodMessageMetadata(t, clusterID, cfg, ep)
+		select {
+		case q := <-ep.Requests:
+			t.Fatalf("should not have received manifest payloaad %+v", q)
+		case <-time.After(1 * time.Second):
+			break
+		}
+
+	})
+}
+
+func getPodCheckMessage() (string, string, *config.AgentConfig, checks.Check) {
+
 	clusterID := "d801b2b1-4811-11ea-8618-121d4d0938a3"
 
 	cfg := config.NewDefaultAgentConfig()
@@ -343,7 +372,6 @@ func TestSendPodMessage(t *testing.T) {
 
 	orig := os.Getenv("DD_ORCHESTRATOR_CLUSTER_ID")
 	_ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", clusterID)
-	defer func() { _ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", orig) }()
 
 	pd := make([]process.MessageBody, 0, 2)
 	m := &process.CollectorPod{
@@ -359,27 +387,49 @@ func TestSendPodMessage(t *testing.T) {
 		name: checks.Pod.Name(),
 		data: [][]process.MessageBody{pd},
 	}
+	return clusterID, orig, cfg, check
+}
 
-	runCollectorTest(t, check, cfg, &endpointConfig{}, ddconfig.Mock(t), func(cfg *config.AgentConfig, ep *mockEndpoint) {
-		req := <-ep.Requests
+func testPodMessageMetadata(t *testing.T, clusterID string, cfg *config.AgentConfig, ep *mockEndpoint) {
+	req := <-ep.Requests
 
-		assert.Equal(t, "/api/v2/orch", req.uri)
+	assert.Equal(t, "/api/v2/orch", req.uri)
 
-		assert.Equal(t, cfg.HostName, req.headers.Get(headers.HostHeader))
-		assert.Equal(t, cfg.Orchestrator.OrchestratorEndpoints[0].APIKey, req.headers.Get("DD-Api-Key"))
-		assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
-		assert.Equal(t, "1", req.headers.Get("X-DD-Agent-Attempts"))
-		assert.NotEmpty(t, req.headers.Get(headers.TimestampHeader))
+	assert.Equal(t, cfg.HostName, req.headers.Get(headers.HostHeader))
+	assert.Equal(t, cfg.Orchestrator.OrchestratorEndpoints[0].APIKey, req.headers.Get("DD-Api-Key"))
+	assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
+	assert.Equal(t, "1", req.headers.Get("X-DD-Agent-Attempts"))
+	assert.NotEmpty(t, req.headers.Get(headers.TimestampHeader))
 
-		reqBody, err := process.DecodeMessage(req.body)
-		require.NoError(t, err)
+	reqBody, err := process.DecodeMessage(req.body)
+	require.NoError(t, err)
 
-		cp, ok := reqBody.Body.(*process.CollectorPod)
-		require.True(t, ok)
+	cp, ok := reqBody.Body.(*process.CollectorPod)
+	require.True(t, ok)
 
-		assert.Equal(t, clusterID, req.headers.Get(headers.ClusterIDHeader))
-		assert.Equal(t, cfg.HostName, cp.HostName)
-	})
+	assert.Equal(t, clusterID, req.headers.Get(headers.ClusterIDHeader))
+	assert.Equal(t, cfg.HostName, cp.HostName)
+}
+
+func testPodMessageManifest(t *testing.T, clusterID string, cfg *config.AgentConfig, ep *mockEndpoint) {
+	req := <-ep.Requests
+
+	assert.Equal(t, "/api/v2/orchmanif", req.uri)
+	assert.Equal(t, cfg.HostName, req.headers.Get(headers.HostHeader))
+	assert.Equal(t, cfg.Orchestrator.OrchestratorEndpoints[0].APIKey, req.headers.Get("DD-Api-Key"))
+	assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
+	assert.Equal(t, "1", req.headers.Get("X-DD-Agent-Attempts"))
+	assert.NotEmpty(t, req.headers.Get(headers.TimestampHeader))
+	assert.Equal(t, headers.ZSTDContentEncoding, req.headers.Get(headers.ContentEncodingHeader))
+
+	d, err := zstd_0.Decompress(nil, req.body)
+	require.NoError(t, err)
+
+	x := &process.CollectorManifest{}
+	err = proto.Unmarshal(d, x)
+	require.NoError(t, err)
+
+	assert.Equal(t, clusterID, x.ClusterId)
 }
 
 func TestQueueSpaceNotAvailable(t *testing.T) {
@@ -595,6 +645,7 @@ func newMockEndpoint(t *testing.T, config *endpointConfig) *mockEndpoint {
 	orchestratorMux := http.NewServeMux()
 	orchestratorMux.HandleFunc("/api/v1/validate", m.handleValidate)
 	orchestratorMux.HandleFunc("/api/v2/orch", m.handle)
+	orchestratorMux.HandleFunc("/api/v2/orchmanif", m.handle)
 
 	m.collectorServer = &http.Server{Addr: ":", Handler: collectorMux}
 	m.eventsServer = &http.Server{Addr: ":", Handler: eventsMux}
