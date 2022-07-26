@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -31,6 +32,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
+	tlssrv "github.com/DataDog/datadog-agent/pkg/network/classifier/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/http/testutil"
@@ -1758,6 +1760,147 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 
 		return false
 	}, 10*time.Second, 1*time.Second, "couldn't find HTTPS stats")
+}
+
+func TestTLSClassification(t *testing.T) {
+	if !httpSupported(t) {
+		t.Skip("HTTP feature not available on pre 4.1.0 kernels")
+	}
+	if !httpsSupported(t) {
+		t.Skip("HTTPS feature not available on ARM pre 5.5.0 kernels")
+	}
+
+	tlsConfigs := []struct {
+		name    string
+		config  tls.Config
+		version uint16
+	}{
+		{name: "tls 1.0", config: tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS10, MaxVersion: tls.VersionTLS10}, version: 10},
+		{name: "tls 1.1", config: tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS11, MaxVersion: tls.VersionTLS11}, version: 11},
+		{name: "tls 1.2", config: tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12, MaxVersion: tls.VersionTLS12}, version: 12},
+	}
+
+	for _, missed := range []struct {
+		name   string
+		missed bool
+	}{
+		{name: " handshake seen", missed: false},
+		{name: " handshake missed", missed: true},
+	} {
+		serverDoneFn := tlssrv.TLSServer(t, "127.0.0.1:443")
+
+		testFn := testTLS(missed.missed)
+		for _, tlsConfig := range tlsConfigs {
+			t.Run(missed.name+"_"+tlsConfig.name, func(t *testing.T) {
+				testFn(t, &tlsConfig.config, tlsConfig.version)
+			})
+		}
+		serverDoneFn()
+	}
+}
+
+func testTLS(missed bool) func(*testing.T, *tls.Config, uint16) {
+	if missed {
+		return testTlsMissedHandshake
+	}
+
+	return testTlsClassification
+}
+
+func testTlsClassification(t *testing.T, tlsConfig *tls.Config, tlsVersion uint16) {
+	cfg := testConfig()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTPSMonitoring = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// make client port unique so we can find the connection
+	laddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("127.0.0.1:66%d", tlsVersion))
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := &net.Dialer{
+		LocalAddr: laddr,
+	}
+
+	conn, err := tls.DialWithDialer(d, "tcp", "127.0.0.1:443", tlsConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	io.WriteString(conn, "close\n")
+	conn.Close()
+
+	require.Eventually(t, func() bool {
+		payload, err := tr.GetActiveConnections("1")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, conn := range payload.Conns {
+			if conn.Type == network.TCP && conn.DPort == (6600+tlsVersion) {
+				if (conn.Tags & tagTLS) > 0 {
+					return true
+				}
+			}
+		}
+
+		return false
+
+	}, 10*time.Second, 1*time.Second, "couldn't find TLS connection")
+}
+
+func testTlsMissedHandshake(t *testing.T, tlsConfig *tls.Config, tlsVersion uint16) {
+	// make client port unique so we can find the connection
+	laddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("127.0.0.1:66%d", tlsVersion))
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := &net.Dialer{
+		LocalAddr: laddr,
+	}
+
+	conn, err := tls.DialWithDialer(d, "tcp", "127.0.0.1:443", tlsConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Start tracer after tls connection is created
+	cfg := testConfig()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTPSMonitoring = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Write random bytes to server
+	b := make([]byte, 4096)
+	rand.Read(b)
+	for i := 0; i < 50; i++ {
+		conn.Write(b)
+	}
+	io.WriteString(conn, "\n")
+	io.WriteString(conn, "close\n")
+	conn.Close()
+
+	conn.Close()
+	require.Eventually(t, func() bool {
+		payload, err := tr.GetActiveConnections("1")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, conn := range payload.Conns {
+			if conn.Type == network.TCP && conn.DPort == (6600+tlsVersion) {
+				if (conn.Tags & tagTLS) > 0 {
+					return true
+				}
+			}
+		}
+
+		return false
+
+	}, 10*time.Second, 1*time.Second, "couldn't find TLS connection")
 }
 
 func TestRuntimeCompilerEnvironmentVar(t *testing.T) {
