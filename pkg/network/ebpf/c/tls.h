@@ -97,11 +97,21 @@ static __always_inline void transition_session_state(tls_session_t* tls, struct 
     }
 }
 
+static __always_inline int handshake_seen(tls_session_t* tls) {
+    return (tls->state & STATE_HELLO_CLIENT) && (tls->state & STATE_HELLO_SERVER);
+}
+
 static __always_inline void check_set_done(tls_session_t* tls, conn_tuple_t* tup) {
-    if (tls->state & STATE_APPLICATION_DATA) {
+    if ((tls->state & STATE_APPLICATION_DATA) && handshake_seen(tls)) {
         tls->info.done = 1;
-        add_tags_tuple(tup, TLS);
     }
+    else if ((tls->state & STATE_APPLICATION_DATA) && (tls->packets == TLS_MAX_PACKET_CLASSIFIER)) {
+        tls->info.done = 1;
+    }
+    else
+        return;
+
+    add_tags_tuple(tup, TLS);
 }
 
 /*
@@ -130,7 +140,7 @@ int socket__proto_tls(struct __sk_buff* skb) {
 
     /* cnx classified or not */
     if (tls->packets > TLS_MAX_PACKET_CLASSIFIER) {
-        tls->info.failed = 1;
+        tls->info.done = 1;
         return 0;
     }
     tls->packets++;

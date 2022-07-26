@@ -51,7 +51,7 @@ int socket__classifier_filter(struct __sk_buff* skb) {
 
     cnx_info_t *info = bpf_map_lookup_elem(&proto_in_flight, tup);
     if (info != NULL) {
-        if ((info->done) || (info->failed))
+        if (info->done)
             return 0;
     }
 
