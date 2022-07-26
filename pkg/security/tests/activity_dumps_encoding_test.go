@@ -71,15 +71,39 @@ func TestProtobufDecoding(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	decoded := probe.NewEmptyActivityDump()
-	if err := decoded.DecodeProtobuf(bytes.NewReader(out.Bytes())); err != nil {
-		t.Fatal(err)
-	}
-
-	newOut, err := ad.EncodeProtobuf()
+	decoded, err := decodeAD(out)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	assert.Equal(t, out.Len(), newOut.Len())
+	newOut, err := decoded.EncodeProtobuf()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !assert.Equal(t, out.Len(), newOut.Len()) {
+		diffActivityDumps(t, out, newOut)
+	}
+}
+
+func decodeAD(buffer *bytes.Buffer) (*probe.ActivityDump, error) {
+	decoded := probe.NewEmptyActivityDump()
+	if err := decoded.DecodeProtobuf(bytes.NewReader(buffer.Bytes())); err != nil {
+		return nil, err
+	}
+	return decoded, nil
+}
+
+func diffActivityDumps(tb testing.TB, a, b *bytes.Buffer) {
+	ad, err := decodeAD(a)
+	if err != nil {
+		tb.Fatal(err)
+	}
+
+	bd, err := decodeAD(b)
+	if err != nil {
+		tb.Fatal(err)
+	}
+
+	assert.Equal(tb, ad, bd)
 }
