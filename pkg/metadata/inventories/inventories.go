@@ -102,6 +102,16 @@ const (
 	HostOSVersion AgentMetadataName = "os_version"
 )
 
+// Refresh signals that some data has been updated and a new payload should be sent (ex: when configuration is changed
+// byt the user, new checks starts, etc). This will trigger a new payload to be sent while still respecting
+// 'inventories_min_interval'.
+func Refresh() {
+	select {
+	case metadataUpdatedC <- nil:
+	default: // To make sure this call is not blocking
+	}
+}
+
 // SetAgentMetadata updates the agent metadata value in the cache
 func SetAgentMetadata(name AgentMetadataName, value interface{}) {
 	agentMetadataMutex.Lock()
@@ -110,10 +120,7 @@ func SetAgentMetadata(name AgentMetadataName, value interface{}) {
 	if !reflect.DeepEqual(agentMetadata[string(name)], value) {
 		agentMetadata[string(name)] = value
 
-		select {
-		case metadataUpdatedC <- nil:
-		default: // To make sure this call is not blocking
-		}
+		Refresh()
 	}
 }
 
@@ -125,10 +132,7 @@ func SetHostMetadata(name AgentMetadataName, value interface{}) {
 	if !reflect.DeepEqual(hostMetadata[string(name)], value) {
 		hostMetadata[string(name)] = value
 
-		select {
-		case metadataUpdatedC <- nil:
-		default: // To make sure this call is not blocking
-		}
+		Refresh()
 	}
 }
 
@@ -153,19 +157,19 @@ func SetCheckMetadata(checkID, key string, value interface{}) {
 		entry.LastUpdated = timeNow()
 		entry.CheckInstanceMetadata[key] = value
 
-		select {
-		case metadataUpdatedC <- nil:
-		default: // To make sure this call is not blocking
-		}
+		Refresh()
 	}
 }
 
-// RemoveCheckMetadata removes metadata for a check. This need to be called when a check is unscheduled.
+// RemoveCheckMetadata removes metadata for a check a trigger a new payload. This need to be called when a check is
+// unscheduled.
 func RemoveCheckMetadata(checkID string) {
 	checkMetadataMutex.Lock()
 	defer checkMetadataMutex.Unlock()
 
 	delete(checkMetadata, checkID)
+
+	Refresh()
 }
 
 func createCheckInstanceMetadata(checkID, configProvider, initConfig, instanceConfig string) *CheckInstanceMetadata {
