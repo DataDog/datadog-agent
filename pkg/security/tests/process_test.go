@@ -1460,7 +1460,7 @@ chmod 755 pyscript.py
 			name: "nested interpreted exec",
 			rule: &rules.RuleDefinition{
 				ID:         "test_nested_interpreted_event",
-				Expression: fmt.Sprintf(`exec.interpreter_base_name == ~"python*"`),
+				Expression: fmt.Sprintf(`exec.interpreter_base_name == ~"perl" `),
 			},
 			scriptName: "nestedInterpretedExec.sh",
 			executedScript: `#!/bin/bash
@@ -1495,9 +1495,22 @@ chmod 755 pyscript.py
 		},
 	}
 
-	var ruleList []*rules.RuleDefinition
-	for _, test := range tests {
-		ruleList = append(ruleList, test.rule)
+	//var ruleList []*rules.RuleDefinition
+	//for _, test := range tests {
+	//	ruleList = append(ruleList, test.rule)
+	//}
+
+	var ruleList = []*rules.RuleDefinition{
+		{
+			ID:         "test_regular_exec",
+			Expression: fmt.Sprintf(`exec.file.name == ~"python*"`),
+		}, {
+			ID:         "test_interpreted_event",
+			Expression: fmt.Sprintf(`exec.interpreter_base_name == ~"python*"`),
+		}, {
+			ID:         "test_nested_interpreted_event",
+			Expression: fmt.Sprintf(`exec.interpreter_base_name == ~"perl" `),
+		},
 	}
 
 	testModule, err := newTestModule(t, nil, ruleList, testOpts{})
@@ -1506,21 +1519,25 @@ chmod 755 pyscript.py
 	}
 	defer testModule.Close()
 
-	//syscallTester, err := loadSyscallTester(t, testModule, "syscall_tester")
-	//if err != nil {
-	//	t.Fatal(err)
-	//}
+	// TODO: make better
+	defer os.Remove("hello.pl")
+	defer os.Remove("pyscript.py")
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			scriptLocation := fmt.Sprintf("/tmp/%s", test.scriptName)
-			err = os.WriteFile(scriptLocation, []byte(test.executedScript), 0755)
-			if err != nil {
-				t.Logf("could not write %s: %s", scriptLocation, err)
+			scriptWriteErr := os.WriteFile(scriptLocation, []byte(test.executedScript), 0755)
+			defer os.Remove(scriptLocation)
+			if scriptWriteErr != nil {
+				t.Logf("could not write %s: %s", scriptLocation, scriptWriteErr)
 			}
 			testModule.WaitSignal(t, func() error {
-				cmd := exec.Command("source", scriptLocation)
-				_ = cmd.Run()
+				cmd := exec.Command(scriptLocation)
+				output, scriptRunErr := cmd.CombinedOutput()
+				if scriptRunErr != nil {
+					t.Logf("could not run %s: %s", scriptLocation, scriptRunErr)
+				}
+				fmt.Println(string(output))
 				return nil
 			}, func(event *sprobe.Event, rule *rules.Rule) {
 				assertTriggeredRule(t, rule, test.rule.ID)
