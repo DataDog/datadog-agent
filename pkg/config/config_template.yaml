@@ -1574,6 +1574,19 @@ api_key:
   #   - 'sql*'
   #   - '*pass*d*'
 
+  ## @param envs_with_value - list of strings - optional
+  ## @env DD_RUNTIME_SECURITY_CONFIG_ENVS_WITH_VALUE - space separated list of strings - optional
+  ## Define your own list of non-sensitive environment variable names whose value will not be
+  ## concealed by the runtime security module.
+  ## Default: LD_PRELOAD, LD_LIBRARY_PATH, PATH, HISTSIZE, HISTFILESIZE
+  #
+  # envs_with_value:
+  #   - LD_PRELOAD
+  #   - LD_LIBRARY_PATH
+  #   - PATH
+  #   - HISTSIZE
+  #   - HISTFILESIZE
+
 {{ end -}}
 {{ end -}}
 
