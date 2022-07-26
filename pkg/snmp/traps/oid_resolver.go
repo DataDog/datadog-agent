@@ -25,12 +25,12 @@ import (
 const ddTrapDBFileNamePrefix string = "dd_traps_db"
 
 var nodesOIDThatShouldNeverMatch = []string{
-	"1.3.6.1.4",
-	"1.3.6.1",
-	"1.3.6",
-	"1.3.6",
-	"1.3",
-	"1",
+	"1.3.6.1.4.1", // "iso.org.dod.internet.private.enterprises". This OID and all its parents are known "intermediate" nodes
+	"1.3.6.1.4",   // "iso.org.dod.internet.private"
+	"1.3.6.1",     // "iso.org.dod.internet"
+	"1.3.6",       // "iso.org.dod"
+	"1.3",         // "iso.org"
+	"1",           // "iso"
 }
 
 type unmarshaller func(data []byte, v interface{}) error
@@ -95,19 +95,23 @@ func (or *MultiFilesOIDResolver) GetVariableMetadata(trapOID string, varOID stri
 		return VariableMetadata{}, fmt.Errorf("trap OID %s is not defined", trapOID)
 	}
 
-	varOIDSegments := strings.Split(varOID, ".")
-	for i := len(varOIDSegments); i > 0; i-- {
-		recreatedOID := strings.Join(varOIDSegments[0:i], ".")
-		varData, ok := trapData.variableSpecPtr[recreatedOID]
-		if !ok {
-			continue
-		}
-		if varData.isNode {
-			// Found a known Node while climibing up the tree, no chance of finding a match higher
-			return VariableMetadata{}, fmt.Errorf("variable OID %s is not defined", varOID)
-		}
-		return varData, nil
+	recreatedVarOID := varOID
+	for {
+		varData, ok := trapData.variableSpecPtr[recreatedVarOID]
+		if ok {
+			if varData.isIntermediateNode {
+				// Found a known Node while climibing up the tree, no chance of finding a match higher
+				return VariableMetadata{}, fmt.Errorf("variable OID %s is not defined", varOID)
+			}
+			return varData, nil
 
+		}
+		// No match for the current varOID, climb up the tree and retry
+		lastDot := strings.LastIndex(recreatedVarOID, ".")
+		if lastDot == -1 {
+			break
+		}
+		recreatedVarOID = varOID[:lastDot]
 	}
 	return VariableMetadata{}, fmt.Errorf("variable OID %s is not defined", varOID)
 }
@@ -187,7 +191,7 @@ func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB trapDBFileContent
 	allOIDs := make([]string, 0, len(trapDB.Variables))
 	for variableOID := range trapDB.Variables {
 		if !IsValidOID(variableOID) {
-			log.Errorf("trap variable OID %s does not look like a valid OID", variableOID)
+			log.Warnf("trap variable OID %s does not look like a valid OID", variableOID)
 			continue
 		}
 		allOIDs = append(allOIDs, NormalizeOID(variableOID))
@@ -202,19 +206,19 @@ func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB trapDBFileContent
 	// in normal circumstamces. Thing is they sometimes exist.
 	sort.Strings(allOIDs)
 	for idx, variableOID := range allOIDs {
-		isNode := false
+		isIntermediateNode := false
 		if idx+1 < len(allOIDs) {
 			nextOID := allOIDs[idx+1]
-			isNode = strings.HasPrefix(nextOID, variableOID+".")
+			isIntermediateNode = strings.HasPrefix(nextOID, variableOID+".")
 		}
 
 		variableData := trapDB.Variables[variableOID]
-		variableData.isNode = isNode
+		variableData.isIntermediateNode = isIntermediateNode
 		definedVariables[variableOID] = variableData
 	}
 
 	for _, nodeOID := range nodesOIDThatShouldNeverMatch {
-		definedVariables[nodeOID] = VariableMetadata{Name: "unknown", isNode: true}
+		definedVariables[nodeOID] = VariableMetadata{Name: "unknown", isIntermediateNode: true}
 	}
 
 	for trapOID, trapData := range trapDB.Traps {
