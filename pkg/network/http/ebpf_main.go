@@ -35,7 +35,7 @@ const (
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to inspect plain HTTP traffic
-	httpSocketFilterStub = "socket/http_filter_stub"
+	httpSocketFilterStub = "socket/http_filter_entry"
 	httpSocketFilter     = "socket/http_filter"
 	HTTP_PROG            = 0
 	httpProgsMap         = "http_progs"
@@ -120,7 +120,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		Probes: []*manager.Probe{
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPSendMsg), EBPFFuncName: "kprobe__tcp_sendmsg", UID: probeUID}, KProbeMaxActive: maxActive},
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPSendMsgReturn), EBPFFuncName: "kretprobe__tcp_sendmsg", UID: probeUID}, KProbeMaxActive: maxActive},
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: httpSocketFilterStub, EBPFFuncName: "socket__http_filter_stub", UID: probeUID}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: httpSocketFilterStub, EBPFFuncName: "socket__http_filter_entry", UID: probeUID}},
 		},
 	}
 
@@ -171,7 +171,7 @@ func (e *ebpfProgram) Init() error {
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  httpSocketFilterStub,
-					EBPFFuncName: "socket__http_filter_stub",
+					EBPFFuncName: "socket__http_filter_entry",
 					UID:          probeUID,
 				},
 			},
