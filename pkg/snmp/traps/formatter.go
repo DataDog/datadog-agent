@@ -205,10 +205,9 @@ func enrichValue(variable trapVariable, varMetadata VariableMetadata) interface{
 						log.Debugf("unable to determine status at position %d: %s", position, err.Error())
 					}
 					if enabled {
-						value := varMetadata.Enumeration[position]
-						if value == "" {
+						if value, ok := varMetadata.Enumeration[position]; !ok {
 							log.Debugf("unable to find enum mapping for value %f variable %q", i, varMetadata.Name)
-							enabledValues = append(enabledValues, position) // display position of enabled bit if mapping is not found
+							enabledValues = append(enabledValues, position)
 						} else {
 							enabledValues = append(enabledValues, value)
 						}
@@ -219,7 +218,7 @@ func enrichValue(variable trapVariable, varMetadata VariableMetadata) interface{
 				return enabledValues
 			}
 		default:
-			log.Debugf("value is not an enum compatible type (i.e. int, string): %+v", variable.Value)
+			log.Warnf("value is not an enum compatible type (i.e. int, string): %+v is type %T", variable.Value, variable.Value)
 		}
 	}
 

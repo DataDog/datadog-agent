@@ -627,6 +627,19 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 }
 
 func TestFormatterWithResolverAndTrapV1Generic(t *testing.T) {
+	myFakeVarTypeExpected := []interface{}{
+		"test0",
+		"test1",
+		float64(2),
+		"test3",
+		"test12",
+		float64(13),
+		float64(14),
+		"test15",
+		float64(95),
+		"test130",
+	}
+
 	formatter, err := NewJSONFormatter(resolverWithData, "porco_rosso")
 	require.NoError(t, err)
 	packet := createTestV1GenericPacket()
@@ -645,6 +658,7 @@ func TestFormatterWithResolverAndTrapV1Generic(t *testing.T) {
 	assert.EqualValues(t, 2, trapContent["ifIndex"])
 	assert.EqualValues(t, "up", trapContent["ifAdminStatus"])
 	assert.EqualValues(t, "down", trapContent["ifOperStatus"])
+	assert.EqualValues(t, myFakeVarTypeExpected, trapContent["myFakeVarType"])
 
 	tags := formatter.getTags(packet)
 	assert.Equal(t, tags, []string{
