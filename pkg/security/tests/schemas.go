@@ -89,6 +89,11 @@ func validateExecSchema(t *testing.T, event *sprobe.Event) bool {
 }
 
 //nolint:deadcode,unused
+func validateExitSchema(t *testing.T, event *sprobe.Event) bool {
+	return validateEventSchema(t, event, "file:///schemas/exit.schema.json")
+}
+
+//nolint:deadcode,unused
 func validateOpenSchema(t *testing.T, event *sprobe.Event) bool {
 	return validateEventSchema(t, event, "file:///schemas/open.schema.json")
 }
