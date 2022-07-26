@@ -1376,7 +1376,7 @@ func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *
 		parent, nextParentIndex := extractFirstParent(currentPath)
 		if nextParentIndex == 0 {
 			currentFan.enrichFromEvent(event)
-			return somethingChanged
+			break
 		}
 
 		if mergeCtx.enabled && len(currentFan.Children) >= 10 {
@@ -1391,9 +1391,10 @@ func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *
 		}
 
 		// create new child
+		somethingChanged = true
 		if len(currentPath) <= nextParentIndex+1 {
 			currentFan.Children[parent] = NewFileActivityNode(fileEvent, event, parent, generationType)
-			return true
+			break
 		} else {
 			child := NewFileActivityNode(nil, nil, parent, generationType)
 			currentFan.Children[parent] = child
@@ -1404,6 +1405,8 @@ func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *
 			continue
 		}
 	}
+
+	return somethingChanged
 }
 
 func (fan *FileActivityNode) mergeCommonPaths(mergeCtx adPathMergeContext) {
