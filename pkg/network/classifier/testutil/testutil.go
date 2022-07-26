@@ -13,6 +13,9 @@ import (
 	"time"
 )
 
+// TLSServer spins up a TCP server which accepts TLS encrypted connections
+// The server accepts one connection at a time. In order to terminate the
+// connection the client must send a string 'close\n'
 func TLSServer(t *testing.T, addr string) func() {
 	curDir, _ := curDir()
 	crtPath := filepath.Join(curDir, "testdata/cert.pem.0")
@@ -29,6 +32,7 @@ func TLSServer(t *testing.T, addr string) func() {
 	}
 
 	go func() {
+		defer ln.Close()
 		for {
 			conn, err := ln.Accept()
 			if err != nil {
@@ -36,7 +40,6 @@ func TLSServer(t *testing.T, addr string) func() {
 			}
 			handleConnection(conn)
 		}
-		defer ln.Close()
 	}()
 
 	timeout := time.Now().Add(5 * time.Second)
