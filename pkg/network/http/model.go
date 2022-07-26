@@ -40,17 +40,6 @@ func (k *httpBatchKey) Prepare(n httpNotification) {
 	k.page_num = C.uint(int(n.batch_idx) % HTTPBatchPages)
 }
 
-func (tx *httpTX) postProcess() {
-	b := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.request_fragment))
-	for i := tx.fragmentSize(); i < HTTPBufferSize; i++ {
-		b[i] = 0
-	}
-}
-
-func (tx *httpTX) fragmentSize() int {
-	return int(tx.fragment_len)
-}
-
 // Path returns the URL from the request fragment captured in eBPF with
 // GET variables excluded.
 // Example:
@@ -126,11 +115,7 @@ func (batch *httpBatch) IsDirty(notification httpNotification) bool {
 
 // Transactions returns the slice of HTTP transactions embedded in the batch
 func (batch *httpBatch) Transactions() []httpTX {
-	txLs := (*(*[HTTPBatchSize]httpTX)(unsafe.Pointer(&batch.txs)))[:]
-	for _, tx := range txLs {
-		tx.postProcess()
-	}
-	return txLs
+	return (*(*[HTTPBatchSize]httpTX)(unsafe.Pointer(&batch.txs)))[:]
 }
 
 // below is copied from pkg/trace/stats/statsraw.go

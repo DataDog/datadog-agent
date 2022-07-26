@@ -14,7 +14,7 @@
 #define HTTPS_PORT 443
 #define SO_SUFFIX_SIZE 3
 
-static __always_inline size_t read_into_buffer_skb(char *buffer, struct __sk_buff* skb, skb_info_t *info) {
+static __always_inline void read_into_buffer_skb(char *buffer, struct __sk_buff* skb, skb_info_t *info) {
     u64 offset = (u64)info->data_off;
 
 #define BLK_SIZE (4)
@@ -66,8 +66,6 @@ static __always_inline size_t read_into_buffer_skb(char *buffer, struct __sk_buf
         *(&buffer[0]) = load_byte(skb, offset);
         asm volatile("":::"r1");
     }
-
-    return HTTP_BUFFER_SIZE <= (skb->len - (u32)offset) ? HTTP_BUFFER_SIZE - 1 : skb->len - (u32)offset;
 }
 
 SEC("socket/http_filter_entry")
@@ -103,7 +101,7 @@ int socket__http_filter(struct __sk_buff* skb) {
     http.owned_by_src_port = http.tup.sport;
     normalize_tuple(&http.tup);
 
-    http.fragment_len = read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
+    read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
     http_process(&http, &skb_info, NO_TAGS);
     return 0;
 }
