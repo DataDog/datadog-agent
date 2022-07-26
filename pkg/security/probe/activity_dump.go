@@ -889,7 +889,6 @@ func NewProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeG
 		Files:          make(map[string]*FileActivityNode),
 		DNSNames:       make(map[string]*DNSNode),
 	}
-	_ = pan.GetID()
 	pan.retain()
 	return &pan
 }
@@ -1341,7 +1340,6 @@ func NewFileActivityNode(fileEvent *model.FileEvent, event *Event, name string, 
 		GenerationType: generationType,
 		Children:       make(map[string]*FileActivityNode),
 	}
-	_ = fan.GetID()
 	if fileEvent != nil {
 		fileEventTmp := *fileEvent
 		fan.File = &fileEventTmp
