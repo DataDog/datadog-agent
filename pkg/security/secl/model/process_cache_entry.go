@@ -322,8 +322,8 @@ func (p *EnvsEntry) ToArray() ([]string, bool) {
 	return p.Values, p.Truncated
 }
 
-// FilterEnvs returns an array of envs, only the name of each variable is returned if the variable isn't part of the whitelist
-func (p *EnvsEntry) FilterEnvs(whitelist map[string]bool) ([]string, bool) {
+// FilterEnvs returns an array of envs, only the name of each variable is returned unless the variable name is part of the provided filter
+func (p *EnvsEntry) FilterEnvs(envsWithValue map[string]bool) ([]string, bool) {
 	if p.filteredEnvs != nil {
 		return p.filteredEnvs, p.Truncated
 	}
@@ -342,7 +342,7 @@ func (p *EnvsEntry) FilterEnvs(whitelist map[string]bool) ([]string, bool) {
 			continue
 		}
 
-		if whitelist[kv[0]] {
+		if envsWithValue[kv[0]] {
 			p.filteredEnvs[i] = value
 		} else {
 			p.filteredEnvs[i] = kv[0]

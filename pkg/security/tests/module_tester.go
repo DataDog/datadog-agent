@@ -113,8 +113,8 @@ runtime_security_config:
   {{range .LogTags}}
     - {{.}}
   {{end}}
-  envs_whitelist:
-  {{range .EnvsWhitelist}}
+  envs_with_value:
+  {{range .EnvsWithValue}}
     - {{.}}
   {{end}}
 `
@@ -175,7 +175,7 @@ type testOpts struct {
 	reuseProbeHandler           bool
 	disableERPCDentryResolution bool
 	disableMapDentryResolution  bool
-	envsWhitelist               []string
+	envsWithValue               []string
 }
 
 func (s *stringSlice) String() string {
@@ -197,7 +197,7 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.reuseProbeHandler == opts.reuseProbeHandler &&
 		to.disableERPCDentryResolution == opts.disableERPCDentryResolution &&
 		to.disableMapDentryResolution == opts.disableMapDentryResolution &&
-		reflect.DeepEqual(to.envsWhitelist, opts.envsWhitelist)
+		reflect.DeepEqual(to.envsWithValue, opts.envsWithValue)
 }
 
 type testModule struct {
@@ -574,7 +574,7 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		"MapDentryResolutionEnabled":  mapDentryResolutionEnabled,
 		"LogPatterns":                 logPatterns,
 		"LogTags":                     logTags,
-		"EnvsWhitelist":               opts.envsWhitelist,
+		"EnvsWithValue":               opts.envsWithValue,
 	}); err != nil {
 		return nil, err
 	}

@@ -605,7 +605,7 @@ func TestProcessContext(t *testing.T) {
 	})
 }
 
-func TestProcessEnvsWhitelist(t *testing.T) {
+func TestProcessEnvsWithValue(t *testing.T) {
 	lsExec := which(t, "ls")
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -615,7 +615,7 @@ func TestProcessEnvsWhitelist(t *testing.T) {
 	}
 
 	opts := testOpts{
-		envsWhitelist: []string{"LD_PRELOAD"},
+		envsWithValue: []string{"LD_PRELOAD"},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs, opts)

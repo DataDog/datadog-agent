@@ -93,8 +93,8 @@ type Config struct {
 	LogTags []string
 	// SelfTestEnabled defines if the self tests should be executed at startup or not
 	SelfTestEnabled bool
-	// EnvsWhitelist lists environnement variables that will be fully exported
-	EnvsWhitelist []string
+	// EnvsWithValue lists environnement variables that will be fully exported
+	EnvsWithValue []string
 
 	// ActivityDumpEnabled defines if the activity dump manager should be enabled
 	ActivityDumpEnabled bool
@@ -221,7 +221,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		RemoteConfigurationEnabled:         coreconfig.Datadog.GetBool("runtime_security_config.remote_configuration.enabled"),
 		EventStreamUseRingBuffer:           coreconfig.Datadog.GetBool("runtime_security_config.event_stream.use_ring_buffer"),
 		EventStreamBufferSize:              coreconfig.Datadog.GetInt("runtime_security_config.event_stream.buffer_size"),
-		EnvsWhitelist:                      coreconfig.Datadog.GetStringSlice("runtime_security_config.envs_whitelist"),
+		EnvsWithValue:                      coreconfig.Datadog.GetStringSlice("runtime_security_config.envs_with_value"),
 
 		// runtime compilation
 		RuntimeCompilationEnabled:       coreconfig.Datadog.GetBool("runtime_security_config.runtime_compilation.enabled"),
