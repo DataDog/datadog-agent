@@ -721,7 +721,8 @@ func mergeConnectionStats(a, b *ConnectionStats) {
 	}
 
 	if (a.IPTranslation != nil && b.IPTranslation != nil && *a.IPTranslation != *b.IPTranslation) ||
-		(a.IPTranslation != nil || b.IPTranslation != nil) {
+		(a.IPTranslation != nil && b.IPTranslation == nil) ||
+		(a.IPTranslation == nil && b.IPTranslation != nil) {
 		a.IPTranslation = nil
 	}
 }
