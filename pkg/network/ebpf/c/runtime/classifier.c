@@ -21,7 +21,7 @@ struct bpf_map_def SEC("maps/proto_progs") proto_progs = {
 };
 
 
-static __always_inline int fingerprint_proto(conn_tuple_t *tup, skb_info_t* skb_info, struct __sk_buff* skb) {
+static __always_inline int fingerprint_proto(skb_info_t* skb_info, struct __sk_buff* skb) {
     if (is_tls(skb, skb_info->data_off))
         return PROTO_PROG_TLS;
 
@@ -44,6 +44,7 @@ int socket__classifier_filter(struct __sk_buff* skb) {
     if (!(tup->metadata&CONN_TYPE_TCP))
         return 0;
 
+    normalize_tuple(tup);
     if (skb_info->tcp_flags & TCPHDR_FIN) {
 	    bpf_map_delete_elem(&proto_in_flight, tup);
 	    return 0;
@@ -55,14 +56,14 @@ int socket__classifier_filter(struct __sk_buff* skb) {
             return 0;
     }
 
-    normalize_tuple(tup);
-    int protocol = fingerprint_proto(tup, skb_info, skb);
+    int protocol = fingerprint_proto(skb_info, skb);
     u32 cpu = bpf_get_smp_processor_id();
     if (protocol) {
         int err = bpf_map_update_elem(&proto_args, &cpu, &args, BPF_ANY);
         if (err < 0)
             return 0;
 
+        bpf_map_update_elem(&proto_in_flight, tup, &new_session, BPF_NOEXIST);
         do_tail_call(skb, protocol);
         increment_classifier_telemetry_count(tail_call_failed);
     }

@@ -46,6 +46,7 @@ int socket__classifier_filter(struct __sk_buff* skb) {
     if (!(tup->metadata&CONN_TYPE_TCP))
         return 0;
 
+    normalize_tuple(tup);
     if (skb_info->tcp_flags & TCPHDR_FIN) {
 	    bpf_map_delete_elem(&proto_in_flight, tup);
 	    return 0;
@@ -57,7 +58,6 @@ int socket__classifier_filter(struct __sk_buff* skb) {
             return 0;
     }
 
-    normalize_tuple(tup);
     int protocol = fingerprint_proto(tup, skb_info, skb);
     u32 cpu = bpf_get_smp_processor_id();
     if (protocol) {
