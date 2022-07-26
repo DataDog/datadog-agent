@@ -38,12 +38,14 @@ type Concentrator struct {
 	// It means that we can compute stats only for the last `bufferLen * bsize` and that we
 	// wait such time before flushing the stats.
 	// This only applies to past buckets. Stats buckets in the future are allowed with no restriction.
-	bufferLen int
-	exit      chan struct{}
-	exitWG    sync.WaitGroup
-	buckets   map[int64]*RawBucket // buckets used to aggregate stats per timestamp
-	mu        sync.Mutex
-	conf      *config.AgentConfig
+	bufferLen     int
+	exit          chan struct{}
+	exitWG        sync.WaitGroup
+	buckets       map[int64]*RawBucket // buckets used to aggregate stats per timestamp
+	mu            sync.Mutex
+	agentEnv      string
+	agentHostname string
+	agentVersion  string
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
@@ -56,11 +58,13 @@ func NewConcentrator(conf *config.AgentConfig, out chan pb.StatsPayload, now tim
 		// override buckets which could have been sent before an Agent restart.
 		oldestTs: alignTs(now.UnixNano(), bsize),
 		// TODO: Move to configuration.
-		bufferLen: defaultBufferLen,
-		In:        make(chan Input, 100),
-		Out:       out,
-		exit:      make(chan struct{}),
-		conf:      conf,
+		bufferLen:     defaultBufferLen,
+		In:            make(chan Input, 100),
+		Out:           out,
+		exit:          make(chan struct{}),
+		agentEnv:      conf.DefaultEnv,
+		agentHostname: conf.Hostname,
+		agentVersion:  conf.AgentVersion,
 	}
 	return &c
 }
@@ -145,11 +149,11 @@ func (c *Concentrator) Add(t Input) {
 func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) {
 	hostname := pt.TracerHostname
 	if hostname == "" {
-		hostname = c.conf.Hostname
+		hostname = c.agentHostname
 	}
 	env := pt.TracerEnv
 	if env == "" {
-		env = c.conf.DefaultEnv
+		env = c.agentEnv
 	}
 	weight := weight(pt.Root)
 	aggKey := PayloadAggregationKey{
@@ -221,7 +225,7 @@ func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
 		}
 		sb = append(sb, p)
 	}
-	return pb.StatsPayload{Stats: sb, AgentHostname: c.conf.Hostname, AgentEnv: c.conf.DefaultEnv, AgentVersion: c.conf.AgentVersion}
+	return pb.StatsPayload{Stats: sb, AgentHostname: c.agentHostname, AgentEnv: c.agentEnv, AgentVersion: c.agentVersion}
 }
 
 // alignTs returns the provided timestamp truncated to the bucket size.

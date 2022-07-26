@@ -43,7 +43,7 @@ type ClientStatsAggregator struct {
 	oldestTs      time.Time
 	agentEnv      string
 	agentHostname string
-	conf          *config.AgentConfig
+	agentVersion  string
 
 	exit chan struct{}
 	done chan struct{}
@@ -58,10 +58,10 @@ func NewClientStatsAggregator(conf *config.AgentConfig, out chan pb.StatsPayload
 		out:           out,
 		agentEnv:      conf.DefaultEnv,
 		agentHostname: conf.Hostname,
+		agentVersion:  conf.AgentVersion,
 		oldestTs:      alignAggTs(time.Now().Add(bucketDuration - oldestBucketStart)),
 		exit:          make(chan struct{}),
 		done:          make(chan struct{}),
-		conf:          conf,
 	}
 }
 
@@ -147,7 +147,7 @@ func (a *ClientStatsAggregator) flush(p []pb.ClientStatsPayload) {
 		Stats:          p,
 		AgentEnv:       a.agentEnv,
 		AgentHostname:  a.agentHostname,
-		AgentVersion:   a.conf.AgentVersion,
+		AgentVersion:   a.agentVersion,
 		ClientComputed: true,
 	}
 }

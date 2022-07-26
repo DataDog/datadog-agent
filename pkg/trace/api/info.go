@@ -63,9 +63,8 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		oconf.Memcached = o.Memcached.Enabled
 	}
 	txt, err := json.MarshalIndent(struct {
-		Version   string `json:"version"`
-		GitCommit string `json:"git_commit"`
-		// BuildDate        string        `json:"build_date"`
+		Version          string        `json:"version"`
+		GitCommit        string        `json:"git_commit"`
 		Endpoints        []string      `json:"endpoints"`
 		FeatureFlags     []string      `json:"feature_flags,omitempty"`
 		ClientDropP0s    bool          `json:"client_drop_p0s"`
@@ -73,9 +72,8 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		LongRunningSpans bool          `json:"long_running_spans"`
 		Config           reducedConfig `json:"config"`
 	}{
-		Version:   r.conf.AgentVersion,
-		GitCommit: r.conf.GitCommit,
-		// BuildDate:        info.BuildDate, // TODO: this would be a breaking change, it doesn't appear this is used by any of the tracers I searched through
+		Version:          r.conf.AgentVersion,
+		GitCommit:        r.conf.GitCommit,
 		Endpoints:        all,
 		FeatureFlags:     features.All(),
 		ClientDropP0s:    true,

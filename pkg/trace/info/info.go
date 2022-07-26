@@ -196,22 +196,19 @@ type infoString string
 
 func (s infoString) String() string { return string(s) }
 
-type infoVersion struct {
-	Version   string
-	GitCommit string
-}
-
 // InitInfo initializes the info structure. It should be called only once.
 func InitInfo(conf *config.AgentConfig) error {
 	var err error
 
 	publishVersion := func() interface{} {
-		return infoVersion{
+		return struct {
+			Version   string
+			GitCommit string
+		}{
 			Version:   conf.AgentVersion,
 			GitCommit: conf.GitCommit,
 		}
 	}
-
 	funcMap := template.FuncMap{
 		"add": func(a, b int64) int64 {
 			return a + b
@@ -281,7 +278,10 @@ type StatusInfo struct {
 	MemStats struct {
 		Alloc uint64
 	} `json:"memstats"`
-	Version       infoVersion        `json:"version"`
+	Version struct {
+		Version   string
+		GitCommit string
+	} `json:"version"`
 	Receiver      []TagStats         `json:"receiver"`
 	RateByService map[string]float64 `json:"ratebyservice"`
 	TraceWriter   TraceWriterInfo    `json:"trace_writer"`

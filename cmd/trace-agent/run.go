@@ -8,7 +8,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"math/rand"
 	"net/http"
 	"os"
@@ -38,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	// register all workloadmeta collectors
@@ -142,7 +142,7 @@ func Run(ctx context.Context) {
 		return
 	}
 
-	err = metrics.Configure(cfg, []string{"version:" + cfg.AgentVersion})
+	err = metrics.Configure(cfg, []string{"version:" + version.AgentVersion})
 	if err != nil {
 		osutil.Exitf("cannot configure dogstatsd: %v", err)
 	}
