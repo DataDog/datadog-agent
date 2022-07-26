@@ -23,11 +23,10 @@ import (
 )
 
 func clearMetadata() {
-	checkMetadataMutex.Lock()
-	defer checkMetadataMutex.Unlock()
+	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
+
 	checkMetadata = make(map[string]*checkMetadataCacheEntry)
-	agentMetadataMutex.Lock()
-	defer agentMetadataMutex.Unlock()
 	agentMetadata = make(AgentMetadata)
 
 	// purge metadataUpdatedC

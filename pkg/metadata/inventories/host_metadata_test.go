@@ -105,12 +105,10 @@ func setupHostMetadataMock() func() {
 		networkGet = network.Get
 		platformGet = platform.Get
 
-		agentMetadataMutex.Lock()
-		hostMetadataMutex.Lock()
+		inventoryMutex.Lock()
 		delete(agentMetadata, string(AgentCloudProvider))
 		delete(hostMetadata, string(HostOSVersion))
-		agentMetadataMutex.Unlock()
-		hostMetadataMutex.Unlock()
+		inventoryMutex.Unlock()
 	}
 
 	cpuGet = cpuMock
