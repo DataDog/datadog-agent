@@ -332,7 +332,7 @@ func getConnsByKey(conns []ConnectionStats, buf []byte) map[string]*ConnectionSt
 			continue
 		}
 
-		log.Debugf("duplicate connection in collection: key: %s, c1: %+v, c2: %+v", BeautifyKey(key), *c, conns[i])
+		log.Tracef("duplicate connection in collection: key: %s, c1: %+v, c2: %+v", BeautifyKey(key), *c, conns[i])
 		mergeConnectionStats(c, &conns[i])
 	}
 
