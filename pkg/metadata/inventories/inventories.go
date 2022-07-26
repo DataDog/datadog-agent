@@ -103,7 +103,7 @@ const (
 )
 
 // Refresh signals that some data has been updated and a new payload should be sent (ex: when configuration is changed
-// byt the user, new checks starts, etc). This will trigger a new payload to be sent while still respecting
+// by the user, new checks starts, etc). This will trigger a new payload to be sent while still respecting
 // 'inventories_min_interval'.
 func Refresh() {
 	select {
