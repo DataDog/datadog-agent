@@ -11,9 +11,9 @@ package ebpf
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
 func TestLoaderCompile(t *testing.T) {

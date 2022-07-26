@@ -20,11 +20,12 @@ import (
 	"math"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
+
+	"github.com/DataDog/datadog-agent/pkg/quantile"
 )
 
 var _ SketchConsumer = (*sketchConsumer)(nil)

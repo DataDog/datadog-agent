@@ -19,8 +19,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cloudfoundry-community/go-cfclient"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"code.cloudfoundry.org/bbs/models"
 )

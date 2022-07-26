@@ -9,8 +9,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 func TestGetPayload(t *testing.T) {

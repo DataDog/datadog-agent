@@ -20,8 +20,9 @@ import (
 	"unsafe"
 
 	internal "github.com/DataDog/btf-internals"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	cebpf "github.com/cilium/ebpf"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // MapCleaner is responsible for periodically sweeping an eBPF map

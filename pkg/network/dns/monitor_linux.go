@@ -12,14 +12,15 @@ import (
 	"fmt"
 	"math"
 
+	manager "github.com/DataDog/ebpf-manager"
+	"golang.org/x/net/bpf"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
-	"golang.org/x/net/bpf"
 )
 
 type dnsMonitor struct {

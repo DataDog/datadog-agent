@@ -9,8 +9,9 @@
 package app
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app"
 	"github.com/spf13/cobra"
+
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app"
 )
 
 var (

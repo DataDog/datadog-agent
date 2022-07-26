@@ -13,9 +13,10 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/containerd/cgroups"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/containerd/cgroups"
 )
 
 const maxEpollEvents = 4

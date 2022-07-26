@@ -12,11 +12,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // createExtraTextContext defines custom formatter for context logging on tests.

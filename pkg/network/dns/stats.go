@@ -12,8 +12,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // packetType tells us whether the packet is a query or a reply (successful/failed)
