@@ -206,7 +206,7 @@ func enrichValue(variable trapVariable, varMetadata VariableMetadata) interface{
 					}
 					if enabled {
 						if value, ok := varMetadata.Enumeration[position]; !ok {
-							log.Debugf("unable to find enum mapping for value %f variable %q", i, varMetadata.Name)
+							log.Debugf("unable to find enum mapping for value %d variable %q", i, varMetadata.Name)
 							enabledValues = append(enabledValues, position)
 						} else {
 							enabledValues = append(enabledValues, value)
@@ -342,7 +342,7 @@ func formatVersion(packet *gosnmp.SnmpPacket) string {
 // would return true and 7 would return false
 func isBitEnabled(n uint8, pos int) (bool, error) {
 	if pos < 0 || pos > 7 {
-		return false, errors.Errorf("invalid position %d, must be 0-7.", pos)
+		return false, errors.Errorf("invalid position %d, must be 0-7", pos)
 	}
 	val := n & uint8(1<<(7-pos))
 	return val > 0, nil
