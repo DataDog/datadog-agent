@@ -37,24 +37,21 @@ type checkMetadataCacheEntry struct {
 }
 
 var (
-	checkMetadata      = make(map[string]*checkMetadataCacheEntry) // by check ID
-	checkMetadataMutex = &sync.Mutex{}
-	agentMetadata      = make(AgentMetadata)
-	agentMetadataMutex = &sync.Mutex{}
-	hostMetadata       = make(AgentMetadata)
-	hostMetadataMutex  = &sync.Mutex{}
+	checkMetadata = make(map[string]*checkMetadataCacheEntry) // by check ID
+	agentMetadata = make(AgentMetadata)
+	hostMetadata  = make(AgentMetadata)
 
-	lastPayload         *Payload
-	lastGetPayload      = timeNow()
-	lastGetPayloadMutex = &sync.Mutex{}
+	inventoryMutex = &sync.Mutex{}
+
+	lastPayload    *Payload
+	lastGetPayload = timeNow()
 
 	metadataUpdatedC = make(chan interface{}, 1)
 
 	// The inventory payload might be generated once per minute. We don't want to
-	logLevelMutex = sync.Mutex{}
-	logCount      = 0
-	logErrorf     = log.Errorf
-	logInfof      = log.Infof
+	logCount  = 0
+	logErrorf = log.Errorf
+	logInfof  = log.Infof
 )
 
 var (
@@ -119,8 +116,8 @@ func Refresh() {
 
 // SetAgentMetadata updates the agent metadata value in the cache
 func SetAgentMetadata(name AgentMetadataName, value interface{}) {
-	agentMetadataMutex.Lock()
-	defer agentMetadataMutex.Unlock()
+	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
 
 	if !reflect.DeepEqual(agentMetadata[string(name)], value) {
 		agentMetadata[string(name)] = value
@@ -131,8 +128,8 @@ func SetAgentMetadata(name AgentMetadataName, value interface{}) {
 
 // SetHostMetadata updates the host metadata value in the cache
 func SetHostMetadata(name AgentMetadataName, value interface{}) {
-	agentMetadataMutex.Lock()
-	defer agentMetadataMutex.Unlock()
+	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
 
 	if !reflect.DeepEqual(hostMetadata[string(name)], value) {
 		hostMetadata[string(name)] = value
@@ -147,8 +144,8 @@ func SetCheckMetadata(checkID, key string, value interface{}) {
 		return
 	}
 
-	checkMetadataMutex.Lock()
-	defer checkMetadataMutex.Unlock()
+	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
 
 	entry, found := checkMetadata[checkID]
 	if !found {
@@ -169,8 +166,8 @@ func SetCheckMetadata(checkID, key string, value interface{}) {
 // RemoveCheckMetadata removes metadata for a check a trigger a new payload. This need to be called when a check is
 // unscheduled.
 func RemoveCheckMetadata(checkID string) {
-	checkMetadataMutex.Lock()
-	defer checkMetadataMutex.Unlock()
+	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
 
 	delete(checkMetadata, checkID)
 
@@ -208,15 +205,10 @@ func createCheckInstanceMetadata(checkID, configProvider, initConfig, instanceCo
 
 // createPayload fills and returns the inventory metadata payload
 func createPayload(ctx context.Context, hostname string, coll CollectorInterface) *Payload {
-	checkMetadataMutex.Lock()
-	defer checkMetadataMutex.Unlock()
-
 	// setLogLevel select the correct log level for the inventory payload currently being created. We send a new payload
 	// every 1 to 10 min (depending on new metadata being registered). We don't want to log the same error again and again.
 	// We log once every 12 times on normal log level and on debug the rest of the time. The metadata in this paylaod should
 	// not change often, so with 1 paylaod every 10 minutes we would log once every 2h.
-	logLevelMutex.Lock()
-	defer logLevelMutex.Unlock()
 	if logCount%12 == 0 {
 		logErrorf = log.Errorf
 		logInfof = log.Infof
@@ -266,8 +258,6 @@ func createPayload(ctx context.Context, hostname string, coll CollectorInterface
 		}
 	}
 
-	agentMetadataMutex.Lock()
-
 	// Create a static copy of agentMetadata for the payload
 	payloadAgentMeta := make(AgentMetadata)
 	for k, v := range agentMetadata {
@@ -281,8 +271,6 @@ func createPayload(ctx context.Context, hostname string, coll CollectorInterface
 		payloadAgentMeta[string(agentProvidedConf)] = providedConf
 	}
 
-	agentMetadataMutex.Unlock()
-
 	return &Payload{
 		Hostname:      hostname,
 		Timestamp:     timeNow().UnixNano(),
@@ -294,8 +282,9 @@ func createPayload(ctx context.Context, hostname string, coll CollectorInterface
 
 // GetPayload returns a new inventory metadata payload and updates lastGetPayload
 func GetPayload(ctx context.Context, hostname string, coll CollectorInterface) *Payload {
-	lastGetPayloadMutex.Lock()
-	defer lastGetPayloadMutex.Unlock()
+	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
+
 	lastGetPayload = timeNow()
 
 	lastPayload = createPayload(ctx, hostname, coll)
@@ -304,8 +293,8 @@ func GetPayload(ctx context.Context, hostname string, coll CollectorInterface) *
 
 // GetLastPayload returns the last payload created by the inventories metadata collector as JSON.
 func GetLastPayload() ([]byte, error) {
-	lastGetPayloadMutex.Lock()
-	defer lastGetPayloadMutex.Unlock()
+	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
 
 	if lastPayload == nil {
 		return []byte("no inventories metadata payload was created yet"), nil
@@ -319,13 +308,14 @@ func StartMetadataUpdatedGoroutine(sc schedulerInterface, minSendInterval time.D
 	go func() {
 		for {
 			<-metadataUpdatedC
-			lastGetPayloadMutex.Lock()
+
+			inventoryMutex.Lock()
 			delay := minSendInterval - timeSince(lastGetPayload)
+			inventoryMutex.Unlock()
 			if delay < 0 {
 				delay = 0
 			}
 			sc.TriggerAndResetCollectorTimer("inventories", delay)
-			lastGetPayloadMutex.Unlock()
 		}
 	}()
 	return nil

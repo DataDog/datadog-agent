@@ -123,9 +123,6 @@ func getHostMetadata() *HostMetadata {
 
 	metadata.AgentVersion = version.AgentVersion
 
-	agentMetadataMutex.Lock()
-	defer agentMetadataMutex.Unlock()
-
 	if value, ok := agentMetadata[string(AgentCloudProvider)]; ok {
 		if stringValue, ok := value.(string); ok {
 			metadata.CloudProvider = stringValue
@@ -135,9 +132,6 @@ func getHostMetadata() *HostMetadata {
 	} else {
 		logInfof("cloud provider not found in agent metadata cache")
 	}
-
-	hostMetadataMutex.Lock()
-	defer hostMetadataMutex.Unlock()
 
 	if value, ok := hostMetadata[string(HostOSVersion)]; ok {
 		if stringValue, ok := value.(string); ok {
