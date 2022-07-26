@@ -144,9 +144,8 @@ func isValidTTYName(ttyName string) bool {
 	return IsPrintableASCII(ttyName) && (strings.HasPrefix(ttyName, "tty") || strings.HasPrefix(ttyName, "pts"))
 }
 
-// UnmarshalBinary unmarshalls a binary representation of itself
-func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	// Unmarshal proc_cache_t
+// UnmarshalProcCacheBinary unmarshalls a binary representation of itself
+func (e *Process) UnmarshalProcCacheBinary(data []byte) (int, error) {
 	read, err := UnmarshalBinary(data, &e.FileEvent)
 	if err != nil {
 		return 0, err
@@ -177,6 +176,16 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 	read += 16
+
+	return read, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *Process) UnmarshalBinary(data []byte) (int, error) {
+	read, err := e.UnmarshalProcCacheBinary((data))
+	if err != nil {
+		return 0, err
+	}
 
 	// Unmarshal pid_cache_t
 	cookie := ByteOrder.Uint32(data[read : read+4])

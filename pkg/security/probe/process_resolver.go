@@ -639,7 +639,7 @@ func (p *ProcessResolver) unmarshalFromKernelMaps(entry *model.ProcessCacheEntry
 	}
 	entry.ContainerID = id
 
-	read, err := entry.Process.UnmarshalBinary(data[64:])
+	read, err := entry.Process.UnmarshalProcCacheBinary(data[64:])
 	if err != nil {
 		return read + 64, err
 	}
