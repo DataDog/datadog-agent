@@ -530,7 +530,6 @@ func TestIsValidOID_PropertyBasedTesting(t *testing.T) {
 		}
 		validOIDs[i] = recreatedOID
 		require.True(t, IsValidOID(validOIDs[i]), "OID: %s", validOIDs[i])
-
 	}
 
 	var invalidRunes = []rune(",?><|\\}{[]()*&^%$#@!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -550,10 +549,11 @@ func TestIsValidOID_PropertyBasedTesting(t *testing.T) {
 		case 2:
 			// Put two dots next to each other
 			oidParts := strings.Split(oid, ".")
-			randomIdx := rand.Intn(len(oidParts))
+			randomIdx := rand.Intn(len(oidParts)-1) + 1
 			oidParts[randomIdx] = "." + oidParts[randomIdx]
 			oid = strings.Join(oidParts, ".")
 		}
+
 		require.False(t, IsValidOID(oid), "OID: %s", oid)
 	}
 }
