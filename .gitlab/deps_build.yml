@@ -89,6 +89,7 @@ build_clang_arm64:
   script:
     - git clone https://github.com/DataDog/omnibus-nikos.git /tmp/omnibus-nikos
     - cd /tmp/omnibus-nikos
+    - !reference [.setup_ruby_mirror]
     - /bin/bash -l -c "bundle install"
     - /bin/bash -l -c "export NIKOS_INSTALL_DIR=$NIKOS_INSTALL_DIR && bundle exec omnibus build nikos"
     - cd $NIKOS_EMBEDDED_PATH

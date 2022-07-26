@@ -1,5 +1,6 @@
 ---
 include:
+  - /.gitlab/shared.yml
   - /.gitlab/maintenance_jobs.yml
   - /.gitlab/deps_build.yml
   - /.gitlab/deps_fetch.yml
@@ -161,6 +162,12 @@ variables:
   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
   DOCKER_REGISTRY_URL: docker.io
   KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
+  ARTIFACTORY_USERNAME: datadog-agent
+  ARTIFACTORY_TOKEN_SSM_NAME: ci.datadog-agent.artifactory_token
+  ARTIFACTORY_URL: datadog.jfrog.io
+  ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
+  USE_CACHING_PROXY_RUBY: true
+
 
 #
 # Condition mixins for simplification of rules

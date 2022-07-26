@@ -9,6 +9,7 @@
 .agent_build_common_deb:
   script:
     - echo "About to build for $RELEASE_VERSION"
+    - !reference [.setup_ruby_mirror]
     - !reference [.retrieve_linux_go_deps]
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -127,6 +128,7 @@ agent_deb-arm64-a7:
 
 .iot_agent_build_common_deb:
   script:
+    - !reference [.setup_ruby_mirror]
     - !reference [.retrieve_linux_go_deps]
     - echo "About to build for $RELEASE_VERSION_7"
     - echo "Detected host architecture $(uname -m)"
@@ -199,6 +201,7 @@ dogstatsd_deb-x64:
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    - !reference [.setup_ruby_mirror]
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - *setup_deb_signing_key
@@ -225,6 +228,7 @@ dogstatsd_deb-arm64:
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    - !reference [.setup_ruby_mirror]
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - *setup_deb_signing_key
