@@ -635,7 +635,8 @@ def go_generate_check(ctx):
     for task_entry in tasks:
         task, args = task_entry[0], task_entry[1:]
         task(ctx, *args)
-        if dirty_files := get_git_dirty_files():
+        dirty_files = get_git_dirty_files()
+        if dirty_files:
             print(f"Task `{task.name}` resulted in dirty files, please re-run it:")
             for file in dirty_files:
                 print(f"* {file}")
