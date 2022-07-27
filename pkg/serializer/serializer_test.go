@@ -196,8 +196,13 @@ func doPayloadsMatch(payloads forwarder.Payloads, prefix string) bool {
 }
 
 func createJSONBytesPayloadMatcher(prefix string) interface{} {
-	return mock.MatchedBy(func(payloads transaction.BytesPayloads) bool {
-		return doPayloadsMatch(payloads.ToPayloads(), prefix)
+	return mock.MatchedBy(func(bytesPayloads transaction.BytesPayloads) bool {
+		var payloads []*[]byte
+		for _, payload := range bytesPayloads {
+			payloads = append(payloads, payload.GetContent())
+		}
+
+		return doPayloadsMatch(payloads, prefix)
 	})
 }
 
