@@ -30,7 +30,7 @@ const (
 	defaultAuthKey       = ""
 	defaultPrivProtocol  = ""
 	defaultPrivKey       = ""
-	defaultContext       = "public"
+	defaultContext       = ""
 	defaultSecurityLevel = ""
 
 	// general communication options
