@@ -862,7 +862,6 @@ func (ad *ActivityDump) DecodeProtobuf(reader io.Reader) error {
 
 // ProcessActivityNode holds the activity of a process
 type ProcessActivityNode struct {
-	id             NodeID
 	Process        model.Process      `msg:"process"`
 	GenerationType NodeGenerationType `msg:"generation_type"`
 
@@ -873,14 +872,6 @@ type ProcessActivityNode struct {
 	Children []*ProcessActivityNode       `msg:"children,omitempty"`
 }
 
-// GetID returns a unique ID to identify the current node
-func (pan *ProcessActivityNode) GetID() NodeID {
-	if pan.id == 0 {
-		pan.id = NewNodeID()
-	}
-	return pan.id
-}
-
 // NewProcessActivityNode returns a new ProcessActivityNode instance
 func NewProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType) *ProcessActivityNode {
 	pan := ProcessActivityNode{
@@ -889,7 +880,6 @@ func NewProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeG
 		Files:          make(map[string]*FileActivityNode),
 		DNSNames:       make(map[string]*DNSNode),
 	}
-	_ = pan.GetID()
 	pan.retain()
 	return &pan
 }
@@ -1319,14 +1309,6 @@ type FileActivityNode struct {
 	Children map[string]*FileActivityNode `msg:"children,omitempty"`
 }
 
-// GetID returns a unique ID to identify the current node
-func (fan *FileActivityNode) GetID() NodeID {
-	if fan.id == 0 {
-		fan.id = NewNodeID()
-	}
-	return fan.id
-}
-
 // OpenNode contains the relevant fields of an Open event on which we might want to write a profiling rule
 type OpenNode struct {
 	model.SyscallEvent
@@ -1341,7 +1323,6 @@ func NewFileActivityNode(fileEvent *model.FileEvent, event *Event, name string, 
 		GenerationType: generationType,
 		Children:       make(map[string]*FileActivityNode),
 	}
-	_ = fan.GetID()
 	if fileEvent != nil {
 		fileEventTmp := *fileEvent
 		fan.File = &fileEventTmp
@@ -1512,7 +1493,6 @@ func (fan *FileActivityNode) debug(prefix string) {
 
 // DNSNode is used to store a DNS node
 type DNSNode struct {
-	id       NodeID
 	Requests []model.DNSEvent `msg:"requests"`
 }
 
@@ -1523,14 +1503,6 @@ func NewDNSNode(event *model.DNSEvent) *DNSNode {
 	}
 }
 
-// GetID returns the ID of the current DNS node
-func (n *DNSNode) GetID() NodeID {
-	if n.id == 0 {
-		n.id = NewNodeID()
-	}
-	return n.id
-}
-
 // BindNode is used to store a bind node
 type BindNode struct {
 	Port uint16 `msg:"port"`
@@ -1539,7 +1511,6 @@ type BindNode struct {
 
 // SocketNode is used to store a Socket node and associated events
 type SocketNode struct {
-	id     NodeID
 	Family string      `msg:"family"`
 	Bind   []*BindNode `msg:"bind,omitempty"`
 }
@@ -1571,30 +1542,4 @@ func NewSocketNode(family string) *SocketNode {
 	return &SocketNode{
 		Family: family,
 	}
-}
-
-// GetID returns the ID of the current Socket node
-func (n *SocketNode) GetID() NodeID {
-	if n.id == 0 {
-		n.id = NewNodeID()
-	}
-	return n.id
-}
-
-// NodeID represents the ID of a Node
-//msgp:ignore NodeID
-type NodeID uint64
-
-// NewNodeID returns a new random NodeID
-func NewNodeID() NodeID {
-	return NodeID(eval.RandNonZeroUint64())
-}
-
-// IsUnset checks if the NodeID is unset
-func (id NodeID) IsUnset() bool {
-	return id == 0
-}
-
-func (id NodeID) String() string {
-	return fmt.Sprintf("node%d", uint64(id))
 }
