@@ -110,6 +110,7 @@ type forwarders struct {
 type dataOutputs struct {
 	forwarders       forwarders
 	sharedSerializer serializer.MetricSerializer
+	noAggSerializer  serializer.MetricSerializer
 }
 
 // InitAndStartAgentDemultiplexer creates a new Demultiplexer and runs what's necessary
@@ -198,10 +199,12 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 	}
 
 	var noAggWorker *noAggregationStreamWorker
+	var noAggSerializer serializer.MetricSerializer
 	if options.EnableNoAggregationPipeline {
+		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, containerLifecycleForwarder)
 		noAggWorker = newNoAggregationStreamWorker(
 			config.Datadog.GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
-			sharedSerializer,
+			noAggSerializer,
 			agg.flushAndSerializeInParallel,
 		)
 	}
@@ -227,6 +230,7 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 			},
 
 			sharedSerializer: sharedSerializer,
+			noAggSerializer:  noAggSerializer,
 		},
 
 		senders: newSenders(agg),
