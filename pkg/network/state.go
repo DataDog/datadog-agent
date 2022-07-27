@@ -533,15 +533,19 @@ func (ns *networkState) updateConnWithStats(client *client, key string, c *Conne
 				continue
 			}
 
-			max := st.Max(counters)
-			if last, underflow := max.Sub(st); !underflow {
-				c.Last = c.Last.Add(last)
-			} else {
+			var last StatCounters
+			var underflow bool
+			if last, underflow = counters.Sub(st); underflow {
 				ns.telemetry.statsUnderflows++
 				log.Debugf("Stats underflow for key:%s, stats:%+v, connection:%+v", BeautifyKey(key), st, *c)
+
+				counters = counters.Max(st)
+				last, _ = counters.Sub(st)
 			}
 
-			sts[cookie] = max
+			c.Last = c.Last.Add(last)
+
+			sts[cookie] = counters
 		}
 	} else {
 		for _, counters := range c.Monotonic {
