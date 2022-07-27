@@ -56,9 +56,14 @@ def get_job_failure_reason(job_log):
         # Gitlab errors while pulling image
         "no basic auth credentials (manager.go:203:0s)",
         "net/http: TLS handshake timeout (manager.go:203:10s)",
+        "Failed to pull image with policy \"always\": error pulling image configuration",
         # docker / docker-arm runner init failures
         "Docker runner job start script failed",
         "A disposable runner accepted this job, while it shouldn't have. Runners are meant to run just one job and be terminated.",
+        # k8s Gitlab runner init failures
+        "Job failed (system failure): prepare environment: waiting for pod running: timed out waiting for pod to start",
+        # kitchen tests Azure VM allocation failures
+        "Allocation failed. We do not have sufficient capacity for the requested VM size in this region."
     ]
 
     for log in infra_failure_logs:
