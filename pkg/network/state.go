@@ -288,7 +288,7 @@ func (ns *networkState) logTelemetry() {
 	if delta.statsUnderflows > 0 || delta.closedConnDropped > 0 || delta.connDropped > 0 || delta.timeSyncCollisions > 0 ||
 		delta.dnsStatsDropped > 0 || delta.httpStatsDropped > 0 || delta.dnsPidCollisions > 0 {
 		s := "state telemetry: "
-		s += " [%d stats stats_resets]"
+		s += " [%d stats stats_underflows]"
 		s += " [%d connections dropped due to stats]"
 		s += " [%d closed connections dropped]"
 		s += " [%d dns stats dropped]"
