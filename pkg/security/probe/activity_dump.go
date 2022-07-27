@@ -7,7 +7,6 @@
 // +build linux
 
 //go:generate go run github.com/tinylib/msgp -o=activity_dump_gen_linux.go -tests=false
-//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
 
 package probe
 
@@ -88,7 +87,6 @@ type DumpMetadata struct {
 // ActivityDump holds the activity tree for the workload defined by the provided list of tags. The encoding described by
 // the `msg` annotation is used to generate the activity dump file while the encoding described by the `json` annotation
 // is used to generate the activity dump metadata sent to the event platform.
-// easyjson:json
 type ActivityDump struct {
 	*sync.Mutex        `msg:"-"`
 	state              ActivityDumpStatus

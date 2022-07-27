@@ -316,7 +316,6 @@ func NewAbnormalPathEvent(event *Event, pathResolutionError error) (*rules.Rule,
 }
 
 // SelfTestEvent is used to report a self test result
-// easyjson:json
 type SelfTestEvent struct {
 	Timestamp time.Time `json:"date"`
 	Success   []string  `json:"succeeded_tests"`
