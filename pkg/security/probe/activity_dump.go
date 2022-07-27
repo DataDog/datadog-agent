@@ -297,19 +297,6 @@ func (ad *ActivityDump) Matches(entry *model.ProcessCacheEntry) bool {
 	return true
 }
 
-// scrubAndRetainProcessArgsEnvs scrubs process arguments and environment variables
-func (ad *ActivityDump) scrubAndRetainProcessArgsEnvs(nodes []*ProcessActivityNode) {
-	// iterate through all the process nodes
-	for _, node := range nodes {
-
-		// scrub the current process
-		node.scrubAndReleaseArgsEnvs(ad.adm.probe.resolvers.ProcessResolver)
-
-		// scrub each child recursively
-		ad.scrubAndRetainProcessArgsEnvs(node.Children)
-	}
-}
-
 // Stop stops an active dump
 func (ad *ActivityDump) Stop() {
 	ad.Lock()
@@ -349,7 +336,19 @@ func (ad *ActivityDump) Stop() {
 	}
 
 	// scrub processes and retain args envs now
-	ad.scrubAndRetainProcessArgsEnvs(ad.ProcessActivityTree)
+	ad.scrubAndRetainProcessArgsEnvs()
+}
+
+func (ad *ActivityDump) scrubAndRetainProcessArgsEnvs() {
+	// iterate through all the process nodes
+	openList := make([]*ProcessActivityNode, len(ad.ProcessActivityTree))
+	copy(openList, ad.ProcessActivityTree)
+
+	for len(openList) != 0 {
+		current := openList[len(openList)-1]
+		current.scrubAndReleaseArgsEnvs(ad.adm.probe.resolvers.ProcessResolver)
+		openList = append(openList[:len(openList)-1], current.Children...)
+	}
 }
 
 // nolint: unused
