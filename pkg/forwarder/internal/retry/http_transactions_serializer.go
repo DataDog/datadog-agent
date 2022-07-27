@@ -69,7 +69,7 @@ func (s *HTTPTransactionsSerializer) Add(transaction *transaction.HTTPTransactio
 	var payload []byte
 	var pointCount int32
 	if transaction.Payload != nil {
-		payload = *transaction.Payload.GetContent()
+		payload = transaction.Payload.GetContent()
 		pointCount = int32(transaction.Payload.GetPointCount())
 	}
 
@@ -136,7 +136,7 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 			Domain:         domain,
 			Endpoint:       endpoint,
 			Headers:        proto,
-			Payload:        transaction.NewBytesPayload(&tr.Payload, int(tr.GetPointCount())),
+			Payload:        transaction.NewBytesPayload(tr.Payload, int(tr.GetPointCount())),
 			ErrorCount:     int(tr.ErrorCount),
 			CreatedAt:      time.Unix(tr.CreatedAt, 0),
 			Retryable:      tr.Retryable,

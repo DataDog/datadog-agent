@@ -120,7 +120,7 @@ func TestRetryTransactions(t *testing.T) {
 	// Default value should be 0
 	assert.Equal(t, int64(0), transaction.TransactionsDropped.Value())
 
-	payload := transaction.NewBytesPayloadWithoutMetaData(&[]byte{1})
+	payload := transaction.NewBytesPayloadWithoutMetaData([]byte{1})
 	t1 := transaction.NewHTTPTransaction()
 	t1.Domain = "domain/"
 	t1.Endpoint.Route = "test1"

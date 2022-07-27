@@ -146,7 +146,9 @@ type metadataPayloadsReceiver struct {
 }
 
 func (p *metadataPayloadsReceiver) append(payload *[]byte) {
-	p.payloads = append(p.payloads, transaction.NewBytesPayload(payload, p.pointCount))
+	if payload != nil {
+		p.payloads = append(p.payloads, transaction.NewBytesPayload(*payload, p.pointCount))
+	}
 	p.pointCount = 0
 }
 

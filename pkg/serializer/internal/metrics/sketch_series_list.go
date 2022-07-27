@@ -130,7 +130,7 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 			return err
 		}
 
-		payloads = append(payloads, transaction.NewBytesPayload(&payload, pointCount))
+		payloads = append(payloads, transaction.NewBytesPayload(payload, pointCount))
 
 		return nil
 	}

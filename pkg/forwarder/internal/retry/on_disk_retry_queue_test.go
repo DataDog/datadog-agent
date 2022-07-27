@@ -106,7 +106,7 @@ func createHTTPTransactionCollectionTests(endpoints ...string) []transaction.Tra
 		t.Domain = domainName
 		t.Endpoint.Name = d
 		payload := make([]byte, 0)
-		t.Payload = transaction.NewBytesPayload(&payload, 1)
+		t.Payload = transaction.NewBytesPayload(payload, 1)
 		transactions = append(transactions, t)
 	}
 	return transactions

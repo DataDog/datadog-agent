@@ -199,7 +199,8 @@ func createJSONBytesPayloadMatcher(prefix string) interface{} {
 	return mock.MatchedBy(func(bytesPayloads transaction.BytesPayloads) bool {
 		var payloads []*[]byte
 		for _, payload := range bytesPayloads {
-			payloads = append(payloads, payload.GetContent())
+			content := payload.GetContent()
+			payloads = append(payloads, &content)
 		}
 
 		return doPayloadsMatch(payloads, prefix)
@@ -209,7 +210,7 @@ func createJSONBytesPayloadMatcher(prefix string) interface{} {
 func createProtoPayloadMatcher(content []byte) interface{} {
 	return mock.MatchedBy(func(payloads transaction.BytesPayloads) bool {
 		for _, compressedPayload := range payloads {
-			if payload, err := compression.Decompress(*compressedPayload.GetContent()); err != nil {
+			if payload, err := compression.Decompress(compressedPayload.GetContent()); err != nil {
 				return false
 			} else {
 				if reflect.DeepEqual(content, payload) {

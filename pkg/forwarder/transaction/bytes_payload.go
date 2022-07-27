@@ -8,12 +8,12 @@ package transaction
 // BytesPayload is a payload stored as bytes.
 // It contains metadata about the payload.
 type BytesPayload struct {
-	content    *[]byte
+	content    []byte
 	pointCount int
 }
 
 // NewBytesPayload creates a new instance of BytesPayload.
-func NewBytesPayload(payload *[]byte, pointCount int) *BytesPayload {
+func NewBytesPayload(payload []byte, pointCount int) *BytesPayload {
 	return &BytesPayload{
 		content:    payload,
 		pointCount: pointCount,
@@ -21,17 +21,17 @@ func NewBytesPayload(payload *[]byte, pointCount int) *BytesPayload {
 }
 
 // NewBytesPayloadWithoutMetaData creates a new instance of BytesPayload without metadata.
-func NewBytesPayloadWithoutMetaData(payload *[]byte) *BytesPayload {
+func NewBytesPayloadWithoutMetaData(payload []byte) *BytesPayload {
 	return &BytesPayload{content: payload}
 }
 
 // Len returns the length as bytes of the payload
 func (p *BytesPayload) Len() int {
-	return len(*p.content)
+	return len(p.content)
 }
 
 // GetContent returns the content of the payload
-func (p *BytesPayload) GetContent() *[]byte {
+func (p *BytesPayload) GetContent() []byte {
 	return p.content
 }
 
@@ -47,7 +47,9 @@ type BytesPayloads []*BytesPayload
 func NewBytesPayloadsWithoutMetaData(payloads []*[]byte) BytesPayloads {
 	var bytesPayloads BytesPayloads
 	for _, payload := range payloads {
-		bytesPayloads = append(bytesPayloads, NewBytesPayloadWithoutMetaData(payload))
+		if payload != nil {
+			bytesPayloads = append(bytesPayloads, NewBytesPayloadWithoutMetaData(*payload))
+		}
 	}
 	return bytesPayloads
 }

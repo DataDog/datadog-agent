@@ -157,7 +157,7 @@ func (series IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buffe
 		}
 
 		if seriesThisPayload > 0 {
-			payloads = append(payloads, transaction.NewBytesPayload(&payload, pointsThisPayload))
+			payloads = append(payloads, transaction.NewBytesPayload(payload, pointsThisPayload))
 		}
 
 		return nil

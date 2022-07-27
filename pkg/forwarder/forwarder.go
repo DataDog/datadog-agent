@@ -441,8 +441,10 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 	allowArbitraryTags := config.Datadog.GetBool("allow_arbitrary_tags")
 
 	for _, payload := range payloads {
-		transactions = f.appendTransactions(endpoint, transaction.NewBytesPayloadWithoutMetaData(payload),
-			apiKeyInQueryString, extra, priority, storableOnDisk, allowArbitraryTags, transactions)
+		if payload != nil {
+			transactions = f.appendTransactions(endpoint, transaction.NewBytesPayloadWithoutMetaData(*payload),
+				apiKeyInQueryString, extra, priority, storableOnDisk, allowArbitraryTags, transactions)
+		}
 	}
 	return transactions
 }

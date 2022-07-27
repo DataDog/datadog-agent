@@ -295,7 +295,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 // internalProcess does the  work of actually sending the http request to the specified domain
 // This will return  (http status code, response body, error).
 func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Client) (int, []byte, error) {
-	reader := bytes.NewReader(*t.Payload.GetContent())
+	reader := bytes.NewReader(t.Payload.GetContent())
 	url := t.Domain + t.Endpoint.Route
 	transactionEndpointName := t.GetEndpointName()
 	logURL := scrubber.ScrubLine(url) // sanitized url that can be logged

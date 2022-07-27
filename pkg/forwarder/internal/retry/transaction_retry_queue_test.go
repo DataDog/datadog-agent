@@ -109,7 +109,7 @@ func TestTransactionRetryQueueZeroMaxMemSizeInBytes(t *testing.T) {
 func createTransactionWithPayloadSize(payloadSize int) *transaction.HTTPTransaction {
 	tr := transaction.NewHTTPTransaction()
 	payload := make([]byte, payloadSize)
-	tr.Payload = transaction.NewBytesPayload(&payload, 1)
+	tr.Payload = transaction.NewBytesPayload(payload, 1)
 	return tr
 }
 

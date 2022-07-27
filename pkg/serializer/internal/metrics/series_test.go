@@ -310,7 +310,7 @@ func TestMarshalSplitCompress(t *testing.T) {
 	// check that we got multiple payloads, so splitting occurred
 	require.Greater(t, len(payloads), 1)
 	for _, compressedPayload := range payloads {
-		_, err := decompressPayload(*compressedPayload.GetContent())
+		_, err := decompressPayload(compressedPayload.GetContent())
 		require.NoError(t, err)
 
 		// TODO: unmarshal these when agent-payload has support

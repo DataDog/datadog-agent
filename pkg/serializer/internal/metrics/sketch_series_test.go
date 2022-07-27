@@ -93,7 +93,7 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 
 	firstPayload := payloads[0]
 	assert.Equal(t, 0, firstPayload.GetPointCount())
-	reader := bytes.NewReader(*firstPayload.GetContent())
+	reader := bytes.NewReader(firstPayload.GetContent())
 	r, _ := zlib.NewReader(reader)
 	decompressed, _ := ioutil.ReadAll(r)
 	r.Close()
@@ -127,7 +127,7 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 
 	firstPayload := payloads[0]
 	require.Equal(t, 0, firstPayload.GetPointCount())
-	reader := bytes.NewReader(*firstPayload.GetContent())
+	reader := bytes.NewReader(firstPayload.GetContent())
 	r, _ := zlib.NewReader(reader)
 	decompressed, _ := ioutil.ReadAll(r)
 	r.Close()
@@ -157,7 +157,7 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 
 	firstPayload := payloads[0]
 	assert.Equal(t, 11, firstPayload.GetPointCount())
-	reader := bytes.NewReader(*firstPayload.GetContent())
+	reader := bytes.NewReader(firstPayload.GetContent())
 	r, _ := zlib.NewReader(reader)
 	decompressed, _ := ioutil.ReadAll(r)
 	r.Close()
@@ -209,7 +209,7 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 	recoveredCount := 0
 	pointCount := 0
 	for _, pld := range payloads {
-		reader := bytes.NewReader(*pld.GetContent())
+		reader := bytes.NewReader(pld.GetContent())
 		r, _ := zlib.NewReader(reader)
 		decompressed, _ := ioutil.ReadAll(r)
 		r.Close()
