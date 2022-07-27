@@ -113,7 +113,7 @@ func injectAutoInstruConfig(pod *corev1.Pod, language, image string) error {
 		}
 	default:
 		metrics.LibInjectionErrors.Inc(language)
-		return fmt.Errorf("language %q is not supported", language)
+		return fmt.Errorf("language %q is not supported. Supported languages are %v", language, supportedLanguages)
 	}
 
 	injectLibVolume(pod)
@@ -124,8 +124,8 @@ func injectAutoInstruConfig(pod *corev1.Pod, language, image string) error {
 
 func injectLibInitContainer(pod *corev1.Pod, image string) {
 	log.Debugf("Injecting init container named %q with image %q into pod %s", initContainerName, image, podString(pod))
-	pod.Spec.InitContainers = append(pod.Spec.InitContainers,
-		corev1.Container{
+	pod.Spec.InitContainers = append([]corev1.Container{
+		{
 			Name:    initContainerName,
 			Image:   image,
 			Command: []string{"sh", "copy-lib.sh", mountPath},
@@ -135,7 +135,8 @@ func injectLibInitContainer(pod *corev1.Pod, image string) {
 					MountPath: mountPath,
 				},
 			},
-		})
+		},
+	}, pod.Spec.InitContainers...)
 }
 
 func injectLibConfig(pod *corev1.Pod, envKey, envVal string) error {
