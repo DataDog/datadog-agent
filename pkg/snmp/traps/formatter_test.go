@@ -93,6 +93,26 @@ var (
 		},
 	}
 
+	// LinkUp Example Trap with OID of malformed trap variable
+	// containing mappings for both integer and bits
+	InvalidTrapDefinitionExampleV2Trap = gosnmp.SnmpTrap{
+		Variables: []gosnmp.SnmpPDU{
+			// sysUpTimeInstance
+			{Name: "1.3.6.1.2.1.1.3.0", Type: gosnmp.TimeTicks, Value: uint32(1000)},
+			// snmpTrapOID
+			{Name: "1.3.6.1.6.3.1.1.4.1.0", Type: gosnmp.OctetString, Value: "1.3.6.1.6.3.1.1.5.4"},
+			// ifIndex
+			{Name: "1.3.6.1.2.1.2.2.1.1", Type: gosnmp.Integer, Value: 9001},
+			// ifAdminStatus
+			{Name: "1.3.6.1.2.1.2.2.1.7", Type: gosnmp.Integer, Value: 2},
+			// ifOperStatus
+			{Name: "1.3.6.1.2.1.2.2.1.8", Type: gosnmp.Integer, Value: 7},
+			// myBadVarType
+			// Bits 0, 1, 2, 3, 12, 13, 14, 15, 88, and 130 are set
+			{Name: "1.3.6.1.2.1.200.1.3.1.6", Type: gosnmp.OctetString, Value: []byte{0xf0, 0x0f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x80, 0, 0, 0, 0, 0x20}},
+		},
+	}
+
 	// LinkUp Example Trap with bad value V2+
 	BadValueExampleV2Trap = gosnmp.SnmpTrap{
 		Variables: []gosnmp.SnmpPDU{
@@ -122,6 +142,20 @@ var (
 			{Name: "1.3.6.1.2.1.2.2.1.7", Type: gosnmp.Integer, Value: 8}, // 8 does not exist in the ifAdminStatus enum
 			// ifOperStatus
 			{Name: "1.3.6.1.2.1.2.2.1.8", Type: gosnmp.Integer, Value: 7},
+		},
+	}
+
+	// LinkUp Example Trap with bad BITS values v2+
+	BadBitsValueExampleV2Trap = gosnmp.SnmpTrap{
+		Variables: []gosnmp.SnmpPDU{
+			// sysUpTimeInstance
+			{Name: "1.3.6.1.2.1.1.3.0", Type: gosnmp.TimeTicks, Value: uint32(1000)},
+			// snmpTrapOID
+			{Name: "1.3.6.1.6.3.1.1.4.1.0", Type: gosnmp.OctetString, Value: "1.3.6.1.6.3.1.1.5.4"},
+			// ifIndex
+			{Name: "1.3.6.1.2.1.2.2.1.1", Type: gosnmp.Integer, Value: 9001},
+			// myFakeVarType
+			{Name: "1.3.6.1.2.1.200.1.3.1.5", Type: gosnmp.OctetString, Value: 1}, // type is set to octet string, but value is integer
 		},
 	}
 )
@@ -585,6 +619,85 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 					},
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.200.1.3.1.5",
+						"type":  "string",
+						"value": base64.StdEncoding.EncodeToString([]byte{0xf0, 0x0f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x80, 0, 0, 0, 0, 0x20}),
+					},
+				},
+			},
+			expectedTags: []string{
+				"snmp_version:2",
+				"device_namespace:mononoke",
+				"snmp_device:127.0.0.1",
+			},
+		},
+		{
+			description: "test BITS variable resolution with bad variable",
+			trap:        BadBitsValueExampleV2Trap,
+			resolver:    resolverWithData,
+			namespace:   "sosuke",
+			expectedContent: map[string]interface{}{
+				"ddsource":      "snmp-traps",
+				"ddtags":        "snmp_version:2,device_namespace:sosuke,snmp_device:127.0.0.1",
+				"timestamp":     0.,
+				"snmpTrapName":  "linkUp",
+				"snmpTrapMIB":   "IF-MIB",
+				"snmpTrapOID":   "1.3.6.1.6.3.1.1.5.4",
+				"ifIndex":       float64(9001),
+				"myFakeVarType": float64(1),
+				"uptime":        float64(1000),
+				"variables": []interface{}{
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.1",
+						"type":  "integer",
+						"value": float64(9001),
+					},
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.200.1.3.1.5",
+						"type":  "string",
+						"value": float64(1),
+					},
+				},
+			},
+			expectedTags: []string{
+				"snmp_version:2",
+				"device_namespace:sosuke",
+				"snmp_device:127.0.0.1",
+			},
+		},
+		{
+			description: "values returned unenriched when var definition contains both enum and bits",
+			trap:        InvalidTrapDefinitionExampleV2Trap,
+			resolver:    resolverWithData,
+			namespace:   "mononoke",
+			expectedContent: map[string]interface{}{
+				"ddsource":      "snmp-traps",
+				"ddtags":        "snmp_version:2,device_namespace:mononoke,snmp_device:127.0.0.1",
+				"timestamp":     0.,
+				"snmpTrapName":  "linkUp",
+				"snmpTrapMIB":   "IF-MIB",
+				"snmpTrapOID":   "1.3.6.1.6.3.1.1.5.4",
+				"ifIndex":       float64(9001),
+				"ifAdminStatus": "down",
+				"ifOperStatus":  "lowerLayerDown",
+				"uptime":        float64(1000),
+				"variables": []interface{}{
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.1",
+						"type":  "integer",
+						"value": float64(9001),
+					},
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.7",
+						"type":  "integer",
+						"value": float64(2),
+					},
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.8",
+						"type":  "integer",
+						"value": float64(7),
+					},
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.200.1.3.1.6",
 						"type":  "string",
 						"value": base64.StdEncoding.EncodeToString([]byte{0xf0, 0x0f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x80, 0, 0, 0, 0, 0x20}),
 					},

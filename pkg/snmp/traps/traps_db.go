@@ -10,6 +10,7 @@ type VariableMetadata struct {
 	Name        string         `yaml:"name" json:"name"`
 	Description string         `yaml:"descr" json:"descr"`
 	Enumeration map[int]string `yaml:"enum" json:"enum"`
+	Bits        map[int]string `yaml:"bits" json:"bits"`
 }
 
 // variableSpec contains the variableMetadata for each known variable of a given trap db file

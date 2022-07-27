@@ -179,50 +179,56 @@ func NormalizeOID(value string) string {
 	return strings.TrimLeft(value, ".")
 }
 
-// enrichValue checks to see if the variable has a mapping in an enum and
+// enrichEnum checks to see if the variable has a mapping in an enum and
 // returns the mapping if it exists, otherwise returns the value unchanged
-// as well as a boolean to determine whether the value should be
-func enrichValue(variable trapVariable, varMetadata VariableMetadata) interface{} {
-	if len(varMetadata.Enumeration) > 0 {
-		switch variable.Value.(type) {
-		case int:
-			// if we find a mapping set it and return
-			i := variable.Value.(int)
-			if value, ok := varMetadata.Enumeration[i]; !ok || variable.VarType != "integer" {
-				log.Debugf("unable to find enum mapping for value %d variable %q", i, varMetadata.Name)
-			} else {
-				return value
-			}
-		case []byte:
-			// do bitwise search
-			bytes := variable.Value.([]byte)
-			enabledValues := make([]interface{}, 0)
-			for i, b := range bytes {
-				for j := 0; j < 8; j++ {
-					position := j + i*8 // position is the index in the current byte plus 8 * the position in the byte array
-					enabled, err := isBitEnabled(uint8(b), j)
-					if err != nil {
-						log.Debugf("unable to determine status at position %d: %s", position, err.Error())
-					}
-					if enabled {
-						if value, ok := varMetadata.Enumeration[position]; !ok {
-							log.Debugf("unable to find enum mapping for value %d variable %q", i, varMetadata.Name)
-							enabledValues = append(enabledValues, position)
-						} else {
-							enabledValues = append(enabledValues, value)
-						}
-					}
-				}
-			}
-			if len(enabledValues) > 0 {
-				return enabledValues
-			}
-		default:
-			log.Warnf("value is not an enum compatible type (i.e. int, string): %+v is type %T", variable.Value, variable.Value)
-		}
+func enrichEnum(variable trapVariable, varMetadata VariableMetadata) interface{} {
+	// if we find a mapping set it and return
+	i, ok := variable.Value.(int)
+	if !ok {
+		log.Warnf("unable to enrich variable %q %s with integer enum, received value was not int, was %T", varMetadata.Name, variable.OID, variable.Value)
+		return variable.Value
+	}
+	if value, ok := varMetadata.Enumeration[i]; ok {
+		return value
 	}
 
 	// if no mapping is found or type is not integer
+	log.Debugf("unable to find enum mapping for value %d variable %q", i, varMetadata.Name)
+	return variable.Value
+}
+
+// enrichBits checks to see if the variable has a mapping in bits and
+// returns the mapping if it exists, otherwise returns the value unchanged
+func enrichBits(variable trapVariable, varMetadata VariableMetadata) interface{} {
+	// do bitwise search
+	bytes, ok := variable.Value.([]byte)
+	if !ok {
+		log.Warnf("unable to enrich variable %q %s with BITS mapping, received value was not []byte, was %T", varMetadata.Name, variable.OID, variable.Value)
+		return variable.Value
+	}
+	enabledValues := make([]interface{}, 0)
+	for i, b := range bytes {
+		for j := 0; j < 8; j++ {
+			position := j + i*8 // position is the index in the current byte plus 8 * the position in the byte array
+			enabled, err := isBitEnabled(uint8(b), j)
+			if err != nil {
+				log.Debugf("unable to determine status at position %d: %s", position, err.Error())
+			}
+			if enabled {
+				if value, ok := varMetadata.Bits[position]; !ok {
+					log.Debugf("unable to find enum mapping for value %d variable %q", i, varMetadata.Name)
+					enabledValues = append(enabledValues, position)
+				} else {
+					enabledValues = append(enabledValues, value)
+				}
+			}
+		}
+	}
+	if len(enabledValues) > 0 {
+		return enabledValues
+	}
+
+	// if no mapping is found
 	return variable.Value
 }
 
@@ -280,8 +286,13 @@ func (f JSONFormatter) parseVariables(trapOID string, variables []gosnmp.SnmpPDU
 			parsedVariables = append(parsedVariables, tv)
 			continue
 		}
-		if len(varMetadata.Enumeration) > 0 {
-			enrichedValues[varMetadata.Name] = enrichValue(tv, varMetadata)
+
+		if len(varMetadata.Enumeration) > 0 && len(varMetadata.Bits) > 0 {
+			log.Errorf("Unable to enrich variable, trap variable %q has mappings for both integer enum and bits.", varMetadata.Name)
+		} else if len(varMetadata.Enumeration) > 0 {
+			enrichedValues[varMetadata.Name] = enrichEnum(tv, varMetadata)
+		} else if len(varMetadata.Bits) > 0 {
+			enrichedValues[varMetadata.Name] = enrichBits(tv, varMetadata)
 		} else {
 			// only format the value if it's not an enum type
 			tv.Value = formatValue(variable)
