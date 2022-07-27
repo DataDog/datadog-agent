@@ -888,6 +888,8 @@ func TestProcessExecExit(t *testing.T) {
 				}
 			}
 		case model.ExitEventType:
+			// assert that exit time >= exec time
+			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
 			if execPid != 0 && int(event.ProcessContext.Pid) == execPid {
 				return true
 			}
@@ -1234,10 +1236,14 @@ func TestProcessExit(t *testing.T) {
 			cmd.Env = envp
 			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
+			if !validateExitSchema(t, event) {
+				t.Error(event.String())
+			}
 			assertTriggeredRule(t, rule, "test_exit_ok")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
+			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1251,10 +1257,14 @@ func TestProcessExit(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
+			if !validateExitSchema(t, event) {
+				t.Error(event.String())
+			}
 			assertTriggeredRule(t, rule, "test_exit_error")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(1), event.Exit.Code, "wrong exit code")
+			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1268,10 +1278,14 @@ func TestProcessExit(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
+			if !validateExitSchema(t, event) {
+				t.Error(event.String())
+			}
 			assertTriggeredRule(t, rule, "test_exit_coredump")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitCoreDumped), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(syscall.SIGQUIT), event.Exit.Code, "wrong exit code")
+			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1285,10 +1299,14 @@ func TestProcessExit(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
+			if !validateExitSchema(t, event) {
+				t.Error(event.String())
+			}
 			assertTriggeredRule(t, rule, "test_exit_signal")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitSignaled), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(syscall.SIGKILL), event.Exit.Code, "wrong exit code")
+			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1301,10 +1319,14 @@ func TestProcessExit(t *testing.T) {
 			cmd.Env = envp
 			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
+			if !validateExitSchema(t, event) {
+				t.Error(event.String())
+			}
 			assertTriggeredRule(t, rule, "test_exit_time_1")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
+			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1317,10 +1339,14 @@ func TestProcessExit(t *testing.T) {
 			cmd.Env = envp
 			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
+			if !validateExitSchema(t, event) {
+				t.Error(event.String())
+			}
 			assertTriggeredRule(t, rule, "test_exit_time_2")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
+			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
 		})
 	})
 }
