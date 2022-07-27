@@ -553,7 +553,7 @@ func (k *KSMCheck) processLabelsAsTags() {
 	for resourceKind, labelsMapper := range k.instance.LabelsAsTags {
 		labels := make([]string, 0, len(labelsMapper))
 		for label, tag := range labelsMapper {
-			label = "label_" + label
+			label = "label_" + regexp.MustCompile(`[\/]|[\.]|[\-]`).ReplaceAllString(label, "_")
 			if _, ok := k.instance.LabelsMapper[label]; !ok {
 				k.instance.LabelsMapper[label] = tag
 			}
