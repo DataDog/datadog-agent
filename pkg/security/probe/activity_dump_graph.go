@@ -315,6 +315,10 @@ func NewGraphIDWithDescription(description string, ids ...NodeID) GraphID {
 	}
 }
 
+func (id GraphID) String() string {
+	return id.raw
+}
+
 // NodeID represents the ID of a Node
 //msgp:ignore NodeID
 type NodeID uint64
