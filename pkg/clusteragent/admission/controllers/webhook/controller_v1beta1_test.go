@@ -310,7 +310,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
-				webhook := webhook("datadog.webhook.auto.instru", "/injectlib", &metav1.LabelSelector{
+				webhook := webhook("datadog.webhook.auto.instrumentation", "/injectlib", &metav1.LabelSelector{
 					MatchExpressions: []metav1.LabelSelectorRequirement{
 						{
 							Key:      "admission.datadoghq.com/enabled",
@@ -332,7 +332,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
-				webhook := webhook("datadog.webhook.auto.instru", "/injectlib", &metav1.LabelSelector{
+				webhook := webhook("datadog.webhook.auto.instrumentation", "/injectlib", &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
