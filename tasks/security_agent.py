@@ -11,7 +11,7 @@ from invoke import task
 from .build_tags import get_default_build_tags
 from .go import golangci_lint
 from .system_probe import CLANG_CMD as CLANG_BPF_CMD
-from .system_probe import CURRENT_ARCH, get_ebpf_build_flags
+from .system_probe import CURRENT_ARCH, get_ebpf_build_flags, generate_runtime_files
 from .test import environ
 from .utils import (
     REPO_PATH,
@@ -610,3 +610,36 @@ def generate_ad_proto(ctx):
             ctx.run(
                 f"protoc -I. --go_out=paths=source_relative:. --go-vtproto_out=. {plugin_opts} --go-vtproto_opt=features=pool+marshal+unmarshal+size {pool_opts} pkg/security/adproto/v1/activity_dump.proto"
             )
+
+
+def get_git_dirty_files():
+    dirty_stats = check_output(["git", "status", "--porcelain=v1"]).decode('utf-8')
+    paths = []
+
+    # see https://git-scm.com/docs/git-status#_short_format for format documentation
+    for line in dirty_stats.splitlines():
+        if len(line) < 2:
+            continue
+
+        path_part = line[2:]
+        path = path_part.split()[0]
+        paths.append(path)
+    return paths
+
+
+@task
+def go_generate_check(ctx):
+    tasks = [
+        [cws_go_generate],
+        [generate_cws_documentation],
+        [gen_mocks],
+        [generate_runtime_files]
+    ]
+
+    for task_entry in tasks:
+        task, args = task_entry[0], task_entry[1:]
+        task(ctx, *args)
+        if dirty_files := get_git_dirty_files():
+            print(f"Task `{task.name}` resulted in dirty files, please re-run it:")
+            for file in dirty_files:
+                print(f"* {file}")
