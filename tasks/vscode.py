@@ -18,7 +18,7 @@ VSCODE_FILE = "settings.json"
 
 @task
 def set_buildtags(
-    ctx,
+    _,
     target="agent",
     build_include=None,
     build_exclude=None,
@@ -32,7 +32,7 @@ def set_buildtags(
 
     if target not in build_tags[flavor].keys():
         print("Must choose a valid target.  Valid targets are: \n")
-        print("{}\n".format(",".join(build_tags[flavor].keys())))
+        print(f'{", ".join(build_tags[flavor].keys())} \n')
         return
 
     build_include = (
