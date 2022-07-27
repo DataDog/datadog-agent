@@ -100,12 +100,18 @@ You can call `self.event(event_dict)` from anywhere in your check. The
 "msg_text": string,         # the text body of the event
 "aggregation_key": string,  # a key to use for aggregating events
 "alert_type": string,       # (optional) one of ('error', 'warning', 'success', 'info'), defaults to 'info'
-"source_type_name": string, # (optional) the source type name
+"source_type_name": string, # (optional) an existing source type name (see Note)
 "host": string,             # (optional) the name of the host
 "tags": list,               # (optional) a list of tags to associate with this event
 "priority": string,         # (optional) specifies the priority of the event ("normal" or "low")
 }
 ```
+**Note**: source_type_name comes from a list of approved integrations within Datadog. For example, 'nginx',
+'jenkins', 'git', etc.  Leave source_type_name blank for a custom event that's not tied to an integration.
+If you are building a new integration and would like to tie the event to it, specify 
+assets[integration[source_type_name]] in your manifest.json and once approved, your source_type_name can be used
+to emit events. Until the integration receives initial approval, continue emitting events without source_type_name. 
+You will have a chance to change it and test it during the approval process.
 
 At the end of your `check` function, all events will be collected and flushed with the
 rest of the Agent payload.
