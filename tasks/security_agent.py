@@ -12,7 +12,7 @@ from invoke.exceptions import Exit
 from .build_tags import get_default_build_tags
 from .go import golangci_lint
 from .system_probe import CLANG_CMD as CLANG_BPF_CMD
-from .system_probe import CURRENT_ARCH, get_ebpf_build_flags, generate_runtime_files
+from .system_probe import CURRENT_ARCH, generate_runtime_files, get_ebpf_build_flags
 from .test import environ
 from .utils import (
     REPO_PATH,
@@ -630,12 +630,7 @@ def get_git_dirty_files():
 
 @task
 def go_generate_check(ctx):
-    tasks = [
-        [cws_go_generate],
-        [generate_cws_documentation],
-        [gen_mocks],
-        [generate_runtime_files]
-    ]
+    tasks = [[cws_go_generate], [generate_cws_documentation], [gen_mocks], [generate_runtime_files]]
 
     for task_entry in tasks:
         task, args = task_entry[0], task_entry[1:]
