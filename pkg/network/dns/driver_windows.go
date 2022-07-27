@@ -37,7 +37,7 @@ type readbuffer struct {
 }
 
 type dnsDriver struct {
-	h           *driver.Handle
+	h           driver.Handle
 	readBuffers []*readbuffer
 	iocp        windows.Handle
 }
@@ -52,7 +52,8 @@ func newDriver() (*dnsDriver, error) {
 }
 
 func (d *dnsDriver) setupDNSHandle() error {
-	dh, err := driver.NewHandle(windows.FILE_FLAG_OVERLAPPED, driver.DataHandle)
+	var err error
+	d.h, err = driver.NewHandle(windows.FILE_FLAG_OVERLAPPED, driver.DataHandle)
 	if err != nil {
 		return err
 	}
@@ -62,18 +63,35 @@ func (d *dnsDriver) setupDNSHandle() error {
 		return err
 	}
 
-	if err := dh.SetDataFilters(filters); err != nil {
+	if err := d.SetDataFilters(filters); err != nil {
 		return err
 	}
 
-	iocp, buffers, err := prepareCompletionBuffers(dh.Handle, dnsReadBufferCount)
+	iocp, buffers, err := prepareCompletionBuffers(d.h.GetWindowsHandle(), dnsReadBufferCount)
 	if err != nil {
 		return err
 	}
 
 	d.iocp = iocp
 	d.readBuffers = buffers
-	d.h = dh
+
+	return nil
+}
+
+// SetDataFilters installs the provided filters for data
+func (d *dnsDriver) SetDataFilters(filters []driver.FilterDefinition) error {
+	var id int64
+	for _, filter := range filters {
+		err := d.h.DeviceIoControl(
+			driver.SetDataFilterIOCTL,
+			(*byte)(unsafe.Pointer(&filter)),
+			uint32(unsafe.Sizeof(filter)),
+			(*byte)(unsafe.Pointer(&id)),
+			uint32(unsafe.Sizeof(id)), nil, nil)
+		if err != nil {
+			return fmt.Errorf("failed to set filter: %v", err)
+		}
+	}
 	return nil
 }
 
@@ -108,7 +126,7 @@ func (d *dnsDriver) ReadDNSPacket(visit func([]byte, time.Time) error) (didRead 
 	}
 
 	// kick off another read
-	if err := windows.ReadFile(d.h.Handle, buf.data[:], nil, &(buf.ol)); err != nil && err != windows.ERROR_IO_PENDING {
+	if err := d.h.ReadFile(buf.data[:], nil, &(buf.ol)); err != nil && err != windows.ERROR_IO_PENDING {
 		return false, err
 	}
 
@@ -117,7 +135,7 @@ func (d *dnsDriver) ReadDNSPacket(visit func([]byte, time.Time) error) (didRead 
 
 func (d *dnsDriver) Close() error {
 	// destroy io completion port, and file
-	if err := windows.CancelIoEx(d.h.Handle, nil); err != nil {
+	if err := d.h.CancelIoEx(nil); err != nil {
 		return fmt.Errorf("error cancelling DNS io completion: %w", err)
 	}
 	if err := windows.CloseHandle(d.iocp); err != nil {
