@@ -80,7 +80,8 @@ type RuleDefinition struct {
 	Policy                 *Policy
 }
 
-func checkRuleID(ruleID string) bool {
+// CheckRuleID validates a ruleID
+func CheckRuleID(ruleID string) bool {
 	return ruleIDPattern.MatchString(ruleID)
 }
 
