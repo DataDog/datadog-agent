@@ -18,12 +18,13 @@ import (
 
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type roundTripperMock func(*http.Request) (*http.Response, error)
@@ -83,6 +84,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
 
 		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
+		resp.Body.Close()
 		require.Len(t, proxyreqs, 1)
 		proxyreq := proxyreqs[0]
 		assert.Equal(t, "my.subdomain.us3.datadoghq.com", proxyreq.Host)
@@ -132,6 +134,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		req.Header.Set(headerContainerID, "myid")
 		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
 
+		resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
 		require.Len(t, proxyreqs, 1)
 		assert.Equal(t, "container:myid", proxyreqs[0].Header.Get("X-Datadog-Container-Tags"))
@@ -150,6 +153,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
 		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
 
+		resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
 		require.Len(t, proxyreqs, 3)
 
@@ -182,6 +186,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		req := httptest.NewRequest("POST", "/mypath/mysubpath", bytes.NewReader(randBodyBuf))
 		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
 
+		resp.Body.Close()
 		require.Len(t, proxyreqs, 0)
 		require.Equal(t, http.StatusBadGateway, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
 		require.Contains(t, logs, "no subdomain")
@@ -205,6 +210,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		req.Header.Set("X-Datadog-EVP-Subdomain", "/google.com%3Fattack=")
 		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
 
+		resp.Body.Close()
 		require.Len(t, proxyreqs, 0)
 		require.Equal(t, http.StatusBadGateway, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
 		require.Contains(t, logs, "invalid subdomain")
@@ -228,6 +234,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
 		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
 
+		resp.Body.Close()
 		require.Len(t, proxyreqs, 0)
 		require.Equal(t, http.StatusBadGateway, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
 		require.Contains(t, logs, "invalid target path")
@@ -254,6 +261,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
 		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
 
+		resp.Body.Close()
 		require.Len(t, proxyreqs, 0)
 		require.Equal(t, http.StatusBadGateway, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
 		require.Contains(t, logs, "invalid query string")
@@ -281,6 +289,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
 		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
 
+		resp.Body.Close()
 		require.Len(t, proxyreqs, 0)
 		require.Equal(t, http.StatusBadGateway, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
 		require.Contains(t, logs, "read limit reached")

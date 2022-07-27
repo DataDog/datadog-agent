@@ -16,13 +16,14 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/DataDog/gohai/cpu"
+	"golang.org/x/sys/windows"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
-	"github.com/DataDog/gohai/cpu"
-	"golang.org/x/sys/windows"
 )
 
 var (

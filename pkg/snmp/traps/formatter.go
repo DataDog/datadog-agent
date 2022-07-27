@@ -10,8 +10,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gosnmp/gosnmp"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const ddsource string = "snmp-traps"

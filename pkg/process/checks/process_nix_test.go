@@ -15,9 +15,10 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/gopsutil/cpu"
+
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/gopsutil/cpu"
 )
 
 // TestBasicProcessMessages tests basic cases for creating payloads by hard-coded scenarios

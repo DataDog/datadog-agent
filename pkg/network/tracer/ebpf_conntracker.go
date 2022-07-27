@@ -18,6 +18,13 @@ import (
 	"time"
 	"unsafe"
 
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cihub/seelog"
+	"github.com/cilium/ebpf"
+	libnetlink "github.com/mdlayher/netlink"
+	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -25,12 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cihub/seelog"
-	"github.com/cilium/ebpf"
-	libnetlink "github.com/mdlayher/netlink"
-	"go.uber.org/atomic"
-	"golang.org/x/sys/unix"
 )
 
 var tuplePool = sync.Pool{

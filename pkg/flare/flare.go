@@ -99,6 +99,7 @@ func resolveFlarePOSTURL(url string, client *http.Client) (string, error) {
 		return "", err
 	}
 
+	defer r.Body.Close()
 	// at the end of the chain of redirects, we should either have a 200 OK or a 404 (since
 	// the server is expecting POST, not GET).  Accept either one as successful.
 	if r.StatusCode != http.StatusOK && r.StatusCode != http.StatusNotFound {

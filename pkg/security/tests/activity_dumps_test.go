@@ -69,7 +69,7 @@ func TestActivityDumps(t *testing.T) {
 		validateActivityDumpOutputs(t, test, expectedFormats, outputFiles, func(ad *probe.ActivityDump) bool {
 			node := ad.FindFirstMatchingNode("syscall_tester")
 			if node == nil {
-				t.Fatal("Node not found in activity dump")
+				t.Fatalf("Node not found in activity dump: %+v", node)
 			}
 			for _, s := range node.Sockets {
 				if s.Family == "AF_INET" {

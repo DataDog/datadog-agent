@@ -10,11 +10,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/docker/docker/api/types"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/docker/docker/api/types"
 )
 
 var (

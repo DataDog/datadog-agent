@@ -17,8 +17,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
 // CompilationResult enumerates runtime compilation success & failure modes

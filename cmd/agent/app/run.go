@@ -19,6 +19,9 @@ import (
 
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
+	"github.com/spf13/cobra"
+	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
@@ -50,8 +53,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/spf13/cobra"
-	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
 	// runtime init routines
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
@@ -329,6 +330,9 @@ func StartAgent() error {
 		}
 	}
 
+	// create and setup the Autoconfig instance
+	common.LoadComponents(common.MainCtx, config.Datadog.GetString("confd_path"))
+
 	// start the cmd HTTP server
 	if runtime.GOOS != "android" {
 		if err = api.StartServer(configService); err != nil {
@@ -402,9 +406,6 @@ func StartAgent() error {
 
 	// Append version and timestamp to version history log file if this Agent is different than the last run version
 	util.LogVersionHistory()
-
-	// create and setup the Autoconfig instance
-	common.LoadComponents(common.MainCtx, config.Datadog.GetString("confd_path"))
 
 	// Set up check collector
 	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll), true)

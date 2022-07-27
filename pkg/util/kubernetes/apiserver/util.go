@@ -18,9 +18,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 )
 
 // SyncInformers should be called after the instantiation of new informers.

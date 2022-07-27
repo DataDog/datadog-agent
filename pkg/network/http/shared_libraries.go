@@ -17,11 +17,12 @@ import (
 	"time"
 	"unsafe"
 
+	psfilepath "github.com/DataDog/gopsutil/process/filepath"
+	"github.com/DataDog/gopsutil/process/so"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	psfilepath "github.com/DataDog/gopsutil/process/filepath"
-	"github.com/DataDog/gopsutil/process/so"
 )
 
 /*

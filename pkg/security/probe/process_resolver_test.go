@@ -13,9 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/avast/retry-go"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 func testCacheSize(t *testing.T, resolver *ProcessResolver) {

@@ -14,11 +14,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/docker/docker/api/types/container"
+
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/docker/docker/api/types/container"
 )
 
 // GetAgentUTSMode retrieves from Docker the UTS mode of the Agent container

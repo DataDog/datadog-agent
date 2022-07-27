@@ -90,8 +90,8 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     }
 
     // compute the offset of the current syscall
-    u16 index = args->id / 8;
-    u8 bit = 1 << (args->id % 8);
+    u16 index = ((unsigned long) args->id) / 8;
+    u8 bit = 1 << (((unsigned long) args->id) % 8);
 
     // check if this is a new syscall
     if ((entry->syscalls[index & (SYSCALL_ENCODING_TABLE_SIZE - 1)] & bit) == 0) {

@@ -53,6 +53,7 @@ func TestWithConcurrencyLimit(t *testing.T) {
 		handler(w, r)
 		resp := w.Result()
 		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
 		assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
 	}
 
@@ -64,6 +65,7 @@ func TestWithConcurrencyLimit(t *testing.T) {
 	for _, recorder := range recorders {
 		resp := recorder.Result()
 		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	}
 }

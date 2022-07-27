@@ -6,10 +6,11 @@
 package status
 
 import (
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"go.uber.org/atomic"
 )
 
 // InitStatus initialize a status builder

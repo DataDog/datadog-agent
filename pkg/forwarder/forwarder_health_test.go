@@ -12,8 +12,9 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 )
 
 func TestHasValidAPIKey(t *testing.T) {

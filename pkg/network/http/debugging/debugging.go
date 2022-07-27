@@ -6,10 +6,11 @@
 package debugging
 
 import (
+	"github.com/DataDog/sketches-go/ddsketch"
+
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/sketches-go/ddsketch"
 )
 
 // RequestSummary represents a (debug-friendly) aggregated view of requests

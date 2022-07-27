@@ -10,12 +10,13 @@ import (
 	"errors"
 	"fmt"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
-	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 

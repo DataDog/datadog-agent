@@ -13,9 +13,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
 // asserting Server starts a TLS Server with provided callback function used to perform assertions
@@ -40,7 +41,9 @@ func newRequestRecorder(t *testing.T) (req *http.Request, rec *httptest.Response
 }
 
 func recordedResponse(t *testing.T, rec *httptest.ResponseRecorder) string {
-	responseBody, err := ioutil.ReadAll(rec.Result().Body)
+	resp := rec.Result()
+	responseBody, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
 	assert.NoError(t, err)
 
 	return string(responseBody)
@@ -148,7 +151,9 @@ func TestTelemetryConfig(t *testing.T) {
 		req, rec := newRequestRecorder(t)
 		recv := newTestReceiverFromConfig(cfg)
 		recv.buildMux().ServeHTTP(rec, req)
-		assert.Equal(t, 404, rec.Result().StatusCode)
+		result := rec.Result()
+		assert.Equal(t, 404, result.StatusCode)
+		result.Body.Close()
 	})
 
 	t.Run("no-endpoints", func(t *testing.T) {
@@ -161,8 +166,9 @@ func TestTelemetryConfig(t *testing.T) {
 		req, rec := newRequestRecorder(t)
 		recv := newTestReceiverFromConfig(cfg)
 		recv.buildMux().ServeHTTP(rec, req)
-
-		assert.Equal(t, 404, rec.Result().StatusCode)
+		result := rec.Result()
+		assert.Equal(t, 404, result.StatusCode)
+		result.Body.Close()
 	})
 
 	t.Run("fallback-endpoint", func(t *testing.T) {

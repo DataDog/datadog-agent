@@ -19,8 +19,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cloudfoundry-community/go-cfclient"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"code.cloudfoundry.org/bbs/models"
 )
@@ -131,12 +132,12 @@ type DesiredLRP struct {
 	CustomTags         []string
 }
 
-// CFClient TODO <integrations-tools-and-libraries>: ITL-792
+// CFClient defines a structure that implements the official go cf-client and implements methods that are not supported yet
 type CFClient struct {
 	*cfclient.Client
 }
 
-// CFApplication TODO <integrations-tools-and-libraries>: ITL-792
+// CFApplication represents a Cloud Foundry application regardless of the CAPI version
 type CFApplication struct {
 	GUID           string
 	Name           string
@@ -155,7 +156,7 @@ type CFApplication struct {
 	Sidecars       []CFSidecar
 }
 
-// CFSidecar TODO <integrations-tools-and-libraries>: ITL-792
+// CFSidecar defines a Cloud Foundry Sidecar
 type CFSidecar struct {
 	Name string
 	GUID string
@@ -166,8 +167,7 @@ type listSidecarsResponse struct {
 	Resources  []CFSidecar         `json:"resources"`
 }
 
-// IsolationSegmentRelationshipResponse TODO <integrations-tools-and-libraries>: ITL-792
-type IsolationSegmentRelationshipResponse struct {
+type isolationSegmentRelationshipResponse struct {
 	Data []struct {
 		GUID string `json:"guid"`
 	} `json:"data"`
@@ -181,7 +181,7 @@ type IsolationSegmentRelationshipResponse struct {
 	} `json:"links"`
 }
 
-// CFOrgQuota TODO <integrations-tools-and-libraries>: ITL-792
+// CFOrgQuota defines a Cloud Foundry Organization quota
 type CFOrgQuota struct {
 	GUID        string
 	MemoryLimit int
@@ -557,7 +557,7 @@ func (a *CFApplication) extractDataFromV3Org(data *cfclient.V3Organization) {
 	}
 }
 
-// NewCFClient TODO <integrations-tools-and-libraries>: ITL-792
+// NewCFClient returns a new Cloud Foundry client instance given a config
 func NewCFClient(config *cfclient.Config) (client *CFClient, err error) {
 	cfc, err := cfclient.NewClient(config)
 	if err != nil {
@@ -567,7 +567,7 @@ func NewCFClient(config *cfclient.Config) (client *CFClient, err error) {
 	return client, nil
 }
 
-// ListSidecarsByApp TODO <integrations-tools-and-libraries>: ITL-792
+// ListSidecarsByApp returns a list of sidecars for the given application GUID
 func (c *CFClient) ListSidecarsByApp(query url.Values, appGUID string) ([]CFSidecar, error) {
 	var sidecars []CFSidecar
 
@@ -624,7 +624,7 @@ func (c *CFClient) getIsolationSegmentRelationship(resource, guid string) (strin
 		return "", fmt.Errorf("Error reading isolation segment %s response: %s", resource, err)
 	}
 
-	var data IsolationSegmentRelationshipResponse
+	var data isolationSegmentRelationshipResponse
 	err = json.Unmarshal(resBody, &data)
 	if err != nil {
 		return "", fmt.Errorf("Error unmarshalling isolation segment %s response: %s", resource, err)
@@ -637,12 +637,12 @@ func (c *CFClient) getIsolationSegmentRelationship(resource, guid string) (strin
 	return data.Data[0].GUID, nil
 }
 
-// GetIsolationSegmentSpaceGUID TODO <integrations-tools-and-libraries>: ITL-792
+// GetIsolationSegmentSpaceGUID returns an isolation segment GUID given a space GUID
 func (c *CFClient) GetIsolationSegmentSpaceGUID(guid string) (string, error) {
 	return c.getIsolationSegmentRelationship("spaces", guid)
 }
 
-// GetIsolationSegmentOrganizationGUID TODO <integrations-tools-and-libraries>: ITL-792
+// GetIsolationSegmentOrganizationGUID return an isolation segment GUID given an organization GUID
 func (c *CFClient) GetIsolationSegmentOrganizationGUID(guid string) (string, error) {
 	return c.getIsolationSegmentRelationship("organizations", guid)
 }

@@ -14,9 +14,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestWaitForDaemonBlocking(t *testing.T) {
@@ -78,8 +79,9 @@ func TestTellDaemonRuntimeDoneIfLocalTest(t *testing.T) {
 	client := &http.Client{Timeout: 1 * time.Second}
 	request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/flush", port), nil)
 	assert.Nil(err)
-	_, err = client.Do(request)
+	response, err := client.Do(request)
 	assert.Nil(err)
+	response.Body.Close()
 	select {
 	case <-wrapWait(d.RuntimeWg):
 		// all good
