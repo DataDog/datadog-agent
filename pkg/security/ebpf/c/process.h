@@ -7,13 +7,17 @@
 #include "container.h"
 #include "span.h"
 
-struct proc_cache_t {
-    struct container_context_t container;
+struct process_entry_t {
     struct file_t executable;
 
     u64 exec_timestamp;
     char tty_name[TTY_NAME_LEN];
     char comm[TASK_COMM_LEN];
+};
+
+struct proc_cache_t {
+    struct container_context_t container;
+    struct process_entry_t entry;
 };
 
 static __attribute__((always_inline)) u32 copy_tty_name(const char src[TTY_NAME_LEN], char dst[TTY_NAME_LEN]) {
@@ -29,16 +33,16 @@ static __attribute__((always_inline)) u32 copy_tty_name(const char src[TTY_NAME_
     return TTY_NAME_LEN;
 }
 
-void __attribute__((always_inline)) copy_proc_cache_except_comm(struct proc_cache_t* src, struct proc_cache_t* dst) {
-    copy_container_id(src->container.container_id, dst->container.container_id);
+void __attribute__((always_inline)) copy_proc_entry_except_comm(struct process_entry_t* src, struct process_entry_t* dst) {
     dst->executable = src->executable;
     dst->exec_timestamp = src->exec_timestamp;
     copy_tty_name(src->tty_name, dst->tty_name);
 }
 
 void __attribute__((always_inline)) copy_proc_cache(struct proc_cache_t *src, struct proc_cache_t *dst) {
-    copy_proc_cache_except_comm(src, dst);
-    bpf_probe_read(dst->comm, TASK_COMM_LEN, src->comm);
+    copy_container_id(src->container.container_id, dst->container.container_id);
+    copy_proc_entry_except_comm(&src->entry, &dst->entry);
+    bpf_probe_read(dst->entry.comm, TASK_COMM_LEN, src->entry.comm);
 }
 
 struct bpf_map_def SEC("maps/proc_cache") proc_cache = {

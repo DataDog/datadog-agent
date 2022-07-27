@@ -209,15 +209,15 @@ union container_id_comm_combo {
 };
 
 __attribute__((always_inline)) void fill_activity_dump_discarder_state(void *ctx, struct is_discarded_by_inode_t *params) {
-    struct proc_cache_t *proc_entry = get_proc_cache(params->tgid);
-    if (proc_entry != NULL) {
+    struct proc_cache_t *pc = get_proc_cache(params->tgid);
+    if (pc) {
         union container_id_comm_combo buffer = {};
 
         // prepare comm and cgroup (for compatibility with old kernels)
-        bpf_probe_read(&buffer.comm, sizeof(buffer.comm), proc_entry->comm);
+        bpf_probe_read(&buffer.comm, sizeof(buffer.comm), pc->entry.comm);
         should_trace_new_process_comm(ctx, params->now, params->tgid, buffer.comm);
 
-        bpf_probe_read(&buffer.container_id, sizeof(buffer.container_id), proc_entry->container.container_id);
+        bpf_probe_read(&buffer.container_id, sizeof(buffer.container_id), pc->container.container_id);
         should_trace_new_process_cgroup(ctx, params->now, params->tgid, buffer.container_id);
     }
 

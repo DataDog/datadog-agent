@@ -556,13 +556,13 @@ func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	}
 
 	// fallback to the kernel maps directly, the perf event may be delayed / may have been lost
-	if entry := p.resolveWithKernelMaps(pid, tid); entry != nil {
+	if entry := p.ResolveWithKernelMaps(pid, tid); entry != nil {
 		p.hitsStats[metrics.KernelMapsTag].Inc()
 		return entry
 	}
 
 	// fallback to /proc, the in-kernel LRU may have deleted the entry
-	if entry := p.resolveWithProcfs(pid, procResolveMaxDepth); entry != nil {
+	if entry := p.ResolveWithProcfs(pid); entry != nil {
 		p.hitsStats[metrics.ProcFSTag].Inc()
 		return entry
 	}
@@ -631,24 +631,6 @@ func (p *ProcessResolver) ApplyBootTime(entry *model.ProcessCacheEntry) {
 	entry.ExitTime = p.resolvers.TimeResolver.ApplyBootTime(entry.ExitTime)
 }
 
-func (p *ProcessResolver) unmarshalFromKernelMaps(entry *model.ProcessCacheEntry, data []byte) (int, error) {
-	// unmarshal container ID first
-	id, err := model.UnmarshalPrintableString(data, 64)
-	if err != nil {
-		return 0, err
-	}
-	entry.ContainerID = id
-
-	read, err := entry.Process.UnmarshalProcCacheBinary(data[64:])
-	if err != nil {
-		return read + 64, err
-	}
-
-	p.ApplyBootTime(entry)
-
-	return read + 64, err
-}
-
 func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheEntry {
 	entry, exists := p.entryCache[pid]
 	if !exists {
@@ -679,25 +661,35 @@ func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheE
 	return nil
 }
 
-func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessCacheEntry {
+// ResolveWithKernelMaps resolves the entry from the kernel maps
+func (p *ProcessResolver) ResolveWithKernelMaps(pid, tid uint32) *model.ProcessCacheEntry {
 	pidb := make([]byte, 4)
 	model.ByteOrder.PutUint32(pidb, pid)
 
-	cookieb, err := p.pidCacheMap.LookupBytes(pidb)
-	if err != nil || cookieb == nil {
+	pidCache, err := p.pidCacheMap.LookupBytes(pidb)
+	if err != nil || pidCache == nil {
 		return nil
 	}
 
 	// first 4 bytes are the actual cookie
-	entryb, err := p.procCacheMap.LookupBytes(cookieb[0:4])
-	if err != nil || entryb == nil {
+	procCache, err := p.procCacheMap.LookupBytes(pidCache[0:4])
+	if err != nil || procCache == nil {
 		return nil
 	}
 
 	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: tid})
-	data := append(entryb, cookieb...)
 
-	if _, err = p.unmarshalFromKernelMaps(entry, data); err != nil {
+	var cc model.ContainerContext
+	if _, err := cc.UnmarshalBinary(procCache); err != nil {
+		return nil
+	}
+	entry.ContainerID = cc.ID
+
+	if _, err := entry.UnmarshalProcEntryBinary(procCache[64:]); err != nil {
+		return nil
+	}
+
+	if _, err := entry.UnmarshalPidCacheBinary(pidCache); err != nil {
 		return nil
 	}
 
@@ -730,6 +722,11 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessC
 // IsKThread returns whether given pids are from kthreads
 func IsKThread(ppid, pid uint32) bool {
 	return ppid == 2 || pid == 2
+}
+
+// ResolveWithProcfs resolves the entry from procfs
+func (p *ProcessResolver) ResolveWithProcfs(pid uint32) *model.ProcessCacheEntry {
+	return p.resolveWithProcfs(pid, procResolveMaxDepth)
 }
 
 func (p *ProcessResolver) resolveWithProcfs(pid uint32, maxDepth int) *model.ProcessCacheEntry {

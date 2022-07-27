@@ -375,14 +375,14 @@ int __attribute__((always_inline)) is_discarded_by_process(const char mode, u64 
             return 1;
         }
 
-        struct proc_cache_t *entry = get_proc_cache(tgid);
-        if (entry != NULL) {
+        struct proc_cache_t *proc_cache = get_proc_cache(tgid);
+        if (proc_cache != NULL) {
             struct is_discarded_by_inode_t params = {
                 .event_type = event_type,
                 .discarder = {
                     .path_key = {
-                        .ino = entry->executable.path_key.ino,
-                        .mount_id = entry->executable.path_key.mount_id,
+                        .ino = proc_cache->entry.executable.path_key.ino,
+                        .mount_id = proc_cache->entry.executable.path_key.mount_id,
                         // we don't want to copy the path_id
                     },
                 },
