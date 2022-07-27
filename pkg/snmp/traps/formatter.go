@@ -13,7 +13,6 @@ import (
 	"github.com/gosnmp/gosnmp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/pkg/errors"
 )
 
 const ddsource string = "snmp-traps"
@@ -353,7 +352,7 @@ func formatVersion(packet *gosnmp.SnmpPacket) string {
 // would return true and 7 would return false
 func isBitEnabled(n uint8, pos int) (bool, error) {
 	if pos < 0 || pos > 7 {
-		return false, errors.Errorf("invalid position %d, must be 0-7", pos)
+		return false, fmt.Errorf("invalid position %d, must be 0-7", pos)
 	}
 	val := n & uint8(1<<(7-pos))
 	return val > 0, nil
