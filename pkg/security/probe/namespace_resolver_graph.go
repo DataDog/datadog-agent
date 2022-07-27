@@ -44,9 +44,11 @@ func (nr *NamespaceResolver) generateGraph(dump []NetworkNamespaceDump, graphFil
 		node [margin=0.3, padding=1, penwidth=3]
 		edge [penwidth=2]
 		{{ range .Nodes }}
-		{{ .ID }} [label="{{ .Label }}", fontsize={{ .Size }}, shape=record, fontname = "arial", color="{{ .Color }}", fillcolor="{{ .FillColor }}", style="filled"]{{ end }}
+		{{ .ID }} [label="{{ .Label }}", fontsize={{ .Size }}, shape=record, fontname = "arial", color="{{ .Color }}", fillcolor="{{ .FillColor }}", style="filled"]
+		{{ end }}
+
 		{{ range .Edges }}
-		{{ .Link }} [arrowhead=none, color="{{ .Color }}"]
+		{{ .From }} -> {{ .To }} [arrowhead=none, color="{{ .Color }}"]
 		{{ end }}
 }`
 
@@ -90,7 +92,8 @@ func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDu
 			g.Nodes[devNode.ID] = devNode
 
 			devEdge := edge{
-				Link:  fmt.Sprintf("%s -> %s", netnsNode.ID, devNode.ID),
+				From:  netnsNode.ID,
+				To:    devNode.ID,
 				Color: namespaceColor,
 			}
 			g.Edges = append(g.Edges, devEdge)
@@ -107,7 +110,8 @@ func (nr *NamespaceResolver) generateGraphDataFromDump(dump []NetworkNamespaceDu
 			g.Nodes[devNode.ID] = devNode
 
 			devEdge := edge{
-				Link:  fmt.Sprintf("%s -> %s", netnsNode.ID, devNode.ID),
+				From:  netnsNode.ID,
+				To:    devNode.ID,
 				Color: namespaceColor,
 			}
 			g.Edges = append(g.Edges, devEdge)

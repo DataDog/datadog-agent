@@ -60,7 +60,8 @@ type node struct {
 }
 
 type edge struct {
-	Link  string
+	From  GraphID
+	To    GraphID
 	Color string
 }
 
@@ -89,7 +90,7 @@ var GraphTemplate = `digraph {
 		{{ end }}
 
 		{{ range .Edges }}
-		{{ .Link }} [arrowhead=none, color="{{ .Color }}"]
+		{{ .From }} -> {{ .To }} [arrowhead=none, color="{{ .Color }}"]
 		{{ end }}
 }`
 
@@ -152,14 +153,16 @@ func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data 
 	}
 	for _, n := range p.DNSNames {
 		data.Edges = append(data.Edges, edge{
-			Link:  fmt.Sprintf("%s -> %s", panGraphID, panGraphID.derive(NewNodeIDFromPtr(n))),
+			From:  panGraphID,
+			To:    panGraphID.derive(NewNodeIDFromPtr(n)),
 			Color: networkColor,
 		})
 		ad.prepareDNSNode(n, data, panGraphID)
 	}
 	for _, f := range p.Files {
 		data.Edges = append(data.Edges, edge{
-			Link:  fmt.Sprintf("%s -> %s", panGraphID, panGraphID.derive(NewNodeIDFromPtr(f))),
+			From:  panGraphID,
+			To:    panGraphID.derive(NewNodeIDFromPtr(f)),
 			Color: fileColor,
 		})
 		ad.prepareFileNode(f, data, "", panGraphID)
@@ -169,7 +172,8 @@ func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data 
 	}
 	for _, child := range p.Children {
 		data.Edges = append(data.Edges, edge{
-			Link:  fmt.Sprintf("%s -> %s", panGraphID, NewGraphID(NewNodeIDFromPtr(child))),
+			From:  panGraphID,
+			To:    NewGraphID(NewNodeIDFromPtr(child)),
 			Color: processColor,
 		})
 		ad.prepareProcessActivityNode(child, data)
@@ -203,7 +207,8 @@ func (ad *ActivityDump) prepareSocketNode(n *SocketNode, data *graph, processID 
 
 	// prepare main socket node
 	data.Edges = append(data.Edges, edge{
-		Link:  fmt.Sprintf("%s -> %s", processID, targetID),
+		From:  processID,
+		To:    targetID,
 		Color: networkColor,
 	})
 	data.Nodes[targetID] = node{
@@ -231,7 +236,8 @@ func (ad *ActivityDump) prepareSocketNode(n *SocketNode, data *graph, processID 
 			Shape:     networkShape,
 		}
 		data.Edges = append(data.Edges, edge{
-			Link:  fmt.Sprintf("%s -> %s", processID.derive(NewNodeIDFromPtr(n)), socketNode.ID),
+			From:  processID.derive(NewNodeIDFromPtr(n)),
+			To:    socketNode.ID,
 			Color: networkColor,
 		})
 		data.Nodes[socketNode.ID] = socketNode
@@ -257,7 +263,8 @@ func (ad *ActivityDump) prepareFileNode(f *FileActivityNode, data *graph, prefix
 
 	for _, child := range f.Children {
 		data.Edges = append(data.Edges, edge{
-			Link:  fmt.Sprintf("%s -> %s", mergedID, processID.derive(NewNodeIDFromPtr(child))),
+			From:  mergedID,
+			To:    processID.derive(NewNodeIDFromPtr(child)),
 			Color: fileColor,
 		})
 		ad.prepareFileNode(child, data, prefix+f.Name, processID)
@@ -282,7 +289,8 @@ func (ad *ActivityDump) prepareSyscallsNode(p *ProcessActivityNode, data *graph)
 	}
 	data.Nodes[syscallsNode.ID] = syscallsNode
 	data.Edges = append(data.Edges, edge{
-		Link:  fmt.Sprintf("%s -> %s", NewGraphID(NewNodeIDFromPtr(p)), syscallsNode.ID),
+		From:  NewGraphID(NewNodeIDFromPtr(p)),
+		To:    syscallsNode.ID,
 		Color: processColor,
 	})
 }
