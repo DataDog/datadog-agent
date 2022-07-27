@@ -962,6 +962,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.failure_policy", "Ignore")
 	config.BindEnvAndSetDefault("admission_controller.reinvocation_policy", "IfNeeded")
 	config.BindEnvAndSetDefault("admission_controller.add_aks_selectors", false) // adds in the webhook some selectors that are required in AKS
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.enabled", true)
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.endpoint", "/injectlib")
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.container_registry", "gcr.io/datadoghq")
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
