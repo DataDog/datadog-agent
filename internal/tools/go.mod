@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/frapposelli/wwhrd v0.4.0
 	github.com/go-enry/go-license-detector/v4 v4.3.0
-	github.com/golangci/golangci-lint v1.47.1
+	github.com/golangci/golangci-lint v1.47.2
 	github.com/goware/modvendor v0.5.0
 	github.com/mgechev/revive v1.2.1
 	github.com/stormcat24/protodep v0.0.0-20210106175019-c95189bc461b
