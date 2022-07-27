@@ -1206,10 +1206,10 @@ func (z *LinuxBinprm) DecodeMsg(dc *msgp.Reader) (err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
-		case "interpreter_base_name":
-			z.InterpreterBaseName, err = dc.ReadString()
+		case "file":
+			err = z.FileEvent.DecodeMsg(dc)
 			if err != nil {
-				err = msgp.WrapError(err, "InterpreterBaseName")
+				err = msgp.WrapError(err, "FileEvent")
 				return
 			}
 		default:
@@ -1224,28 +1224,32 @@ func (z *LinuxBinprm) DecodeMsg(dc *msgp.Reader) (err error) {
 }
 
 // EncodeMsg implements msgp.Encodable
-func (z LinuxBinprm) EncodeMsg(en *msgp.Writer) (err error) {
+func (z *LinuxBinprm) EncodeMsg(en *msgp.Writer) (err error) {
 	// map header, size 1
-	// write "interpreter_base_name"
-	err = en.Append(0x81, 0xb5, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x70, 0x72, 0x65, 0x74, 0x65, 0x72, 0x5f, 0x62, 0x61, 0x73, 0x65, 0x5f, 0x6e, 0x61, 0x6d, 0x65)
+	// write "file"
+	err = en.Append(0x81, 0xa4, 0x66, 0x69, 0x6c, 0x65)
 	if err != nil {
 		return
 	}
-	err = en.WriteString(z.InterpreterBaseName)
+	err = z.FileEvent.EncodeMsg(en)
 	if err != nil {
-		err = msgp.WrapError(err, "InterpreterBaseName")
+		err = msgp.WrapError(err, "FileEvent")
 		return
 	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
-func (z LinuxBinprm) MarshalMsg(b []byte) (o []byte, err error) {
+func (z *LinuxBinprm) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// map header, size 1
-	// string "interpreter_base_name"
-	o = append(o, 0x81, 0xb5, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x70, 0x72, 0x65, 0x74, 0x65, 0x72, 0x5f, 0x62, 0x61, 0x73, 0x65, 0x5f, 0x6e, 0x61, 0x6d, 0x65)
-	o = msgp.AppendString(o, z.InterpreterBaseName)
+	// string "file"
+	o = append(o, 0x81, 0xa4, 0x66, 0x69, 0x6c, 0x65)
+	o, err = z.FileEvent.MarshalMsg(o)
+	if err != nil {
+		err = msgp.WrapError(err, "FileEvent")
+		return
+	}
 	return
 }
 
@@ -1267,10 +1271,10 @@ func (z *LinuxBinprm) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
-		case "interpreter_base_name":
-			z.InterpreterBaseName, bts, err = msgp.ReadStringBytes(bts)
+		case "file":
+			bts, err = z.FileEvent.UnmarshalMsg(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "InterpreterBaseName")
+				err = msgp.WrapError(err, "FileEvent")
 				return
 			}
 		default:
@@ -1286,8 +1290,8 @@ func (z *LinuxBinprm) UnmarshalMsg(bts []byte) (o []byte, err error) {
 }
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
-func (z LinuxBinprm) Msgsize() (s int) {
-	s = 1 + 22 + msgp.StringPrefixSize + len(z.InterpreterBaseName)
+func (z *LinuxBinprm) Msgsize() (s int) {
+	s = 1 + 5 + z.FileEvent.Msgsize()
 	return
 }
 
@@ -1527,7 +1531,7 @@ func (z *Process) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Comm")
 				return
 			}
-		case "linux_binprm":
+		case "interpreter":
 			var zb0004 uint32
 			zb0004, err = dc.ReadMapHeader()
 			if err != nil {
@@ -1542,10 +1546,10 @@ func (z *Process) DecodeMsg(dc *msgp.Reader) (err error) {
 					return
 				}
 				switch msgp.UnsafeString(field) {
-				case "interpreter_base_name":
-					z.LinuxBinprm.InterpreterBaseName, err = dc.ReadString()
+				case "file":
+					err = z.LinuxBinprm.FileEvent.DecodeMsg(dc)
 					if err != nil {
-						err = msgp.WrapError(err, "LinuxBinprm", "InterpreterBaseName")
+						err = msgp.WrapError(err, "LinuxBinprm", "FileEvent")
 						return
 					}
 				default:
@@ -1875,20 +1879,20 @@ func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Comm")
 		return
 	}
-	// write "linux_binprm"
-	err = en.Append(0xac, 0x6c, 0x69, 0x6e, 0x75, 0x78, 0x5f, 0x62, 0x69, 0x6e, 0x70, 0x72, 0x6d)
+	// write "interpreter"
+	err = en.Append(0xab, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x70, 0x72, 0x65, 0x74, 0x65, 0x72)
 	if err != nil {
 		return
 	}
 	// map header, size 1
-	// write "interpreter_base_name"
-	err = en.Append(0x81, 0xb5, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x70, 0x72, 0x65, 0x74, 0x65, 0x72, 0x5f, 0x62, 0x61, 0x73, 0x65, 0x5f, 0x6e, 0x61, 0x6d, 0x65)
+	// write "file"
+	err = en.Append(0x81, 0xa4, 0x66, 0x69, 0x6c, 0x65)
 	if err != nil {
 		return
 	}
-	err = en.WriteString(z.LinuxBinprm.InterpreterBaseName)
+	err = z.LinuxBinprm.FileEvent.EncodeMsg(en)
 	if err != nil {
-		err = msgp.WrapError(err, "LinuxBinprm", "InterpreterBaseName")
+		err = msgp.WrapError(err, "LinuxBinprm", "FileEvent")
 		return
 	}
 	// write "fork_time"
@@ -2182,12 +2186,16 @@ func (z *Process) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "comm"
 	o = append(o, 0xa4, 0x63, 0x6f, 0x6d, 0x6d)
 	o = msgp.AppendString(o, z.Comm)
-	// string "linux_binprm"
-	o = append(o, 0xac, 0x6c, 0x69, 0x6e, 0x75, 0x78, 0x5f, 0x62, 0x69, 0x6e, 0x70, 0x72, 0x6d)
+	// string "interpreter"
+	o = append(o, 0xab, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x70, 0x72, 0x65, 0x74, 0x65, 0x72)
 	// map header, size 1
-	// string "interpreter_base_name"
-	o = append(o, 0x81, 0xb5, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x70, 0x72, 0x65, 0x74, 0x65, 0x72, 0x5f, 0x62, 0x61, 0x73, 0x65, 0x5f, 0x6e, 0x61, 0x6d, 0x65)
-	o = msgp.AppendString(o, z.LinuxBinprm.InterpreterBaseName)
+	// string "file"
+	o = append(o, 0x81, 0xa4, 0x66, 0x69, 0x6c, 0x65)
+	o, err = z.LinuxBinprm.FileEvent.MarshalMsg(o)
+	if err != nil {
+		err = msgp.WrapError(err, "LinuxBinprm", "FileEvent")
+		return
+	}
 	// string "fork_time"
 	o = append(o, 0xa9, 0x66, 0x6f, 0x72, 0x6b, 0x5f, 0x74, 0x69, 0x6d, 0x65)
 	o = msgp.AppendTime(o, z.ForkTime)
@@ -2381,7 +2389,7 @@ func (z *Process) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Comm")
 				return
 			}
-		case "linux_binprm":
+		case "interpreter":
 			var zb0004 uint32
 			zb0004, bts, err = msgp.ReadMapHeaderBytes(bts)
 			if err != nil {
@@ -2396,10 +2404,10 @@ func (z *Process) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					return
 				}
 				switch msgp.UnsafeString(field) {
-				case "interpreter_base_name":
-					z.LinuxBinprm.InterpreterBaseName, bts, err = msgp.ReadStringBytes(bts)
+				case "file":
+					bts, err = z.LinuxBinprm.FileEvent.UnmarshalMsg(bts)
 					if err != nil {
-						err = msgp.WrapError(err, "LinuxBinprm", "InterpreterBaseName")
+						err = msgp.WrapError(err, "LinuxBinprm", "FileEvent")
 						return
 					}
 				default:
@@ -2560,7 +2568,7 @@ func (z *Process) Msgsize() (s int) {
 	for za0001 := range z.ContainerTags {
 		s += msgp.StringPrefixSize + len(z.ContainerTags[za0001])
 	}
-	s += 8 + msgp.Uint64Size + 9 + msgp.Uint64Size + 4 + msgp.StringPrefixSize + len(z.TTYName) + 5 + msgp.StringPrefixSize + len(z.Comm) + 13 + 1 + 22 + msgp.StringPrefixSize + len(z.LinuxBinprm.InterpreterBaseName) + 10 + msgp.TimeSize + 10 + msgp.TimeSize + 10 + msgp.TimeSize + 7 + msgp.Uint32Size + 5 + msgp.Uint32Size + 12 + z.Credentials.Msgsize() + 11
+	s += 8 + msgp.Uint64Size + 9 + msgp.Uint64Size + 4 + msgp.StringPrefixSize + len(z.TTYName) + 5 + msgp.StringPrefixSize + len(z.Comm) + 12 + 1 + 5 + z.LinuxBinprm.FileEvent.Msgsize() + 10 + msgp.TimeSize + 10 + msgp.TimeSize + 10 + msgp.TimeSize + 7 + msgp.Uint32Size + 5 + msgp.Uint32Size + 12 + z.Credentials.Msgsize() + 11
 	if z.ArgsEntry == nil {
 		s += msgp.NilSize
 	} else {
