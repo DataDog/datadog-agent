@@ -7,6 +7,7 @@ import tempfile
 from subprocess import check_output
 
 from invoke import task
+from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
 from .go import golangci_lint
@@ -643,3 +644,4 @@ def go_generate_check(ctx):
             print(f"Task `{task.name}` resulted in dirty files, please re-run it:")
             for file in dirty_files:
                 print(f"* {file}")
+            raise Exit(code=1)
