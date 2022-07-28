@@ -8,6 +8,18 @@ struct bpf_map_def SEC("maps/traced_cgroups") traced_cgroups = {
     .max_entries = 200, // might be overridden at runtime
 };
 
+struct traced_cgroups_counter_t {
+    u64 max;
+    u64 counter;
+};
+
+struct bpf_map_def SEC("maps/traced_cgroups_counter") traced_cgroups_counter = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct traced_cgroups_counter_t),
+    .max_entries = 1,
+};
+
 struct bpf_map_def SEC("maps/cgroup_wait_list") cgroup_wait_list = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = CONTAINER_ID_LEN,
@@ -100,13 +112,65 @@ __attribute__((always_inline)) struct cgroup_tracing_event_t *get_cgroup_tracing
     return evt;
 }
 
+struct bpf_map_def SEC("maps/traced_cgroups_lock") traced_cgroups_lock = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 1,
+};
+
+__attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTAINER_ID_LEN]) {
+    void *already_in = bpf_map_lookup_elem(&traced_cgroups, &cgroup[0]);
+    if (already_in) {
+        return false;
+    }
+
+    u32 key = 0;
+    if(!bpf_map_update_elem(&traced_cgroups_lock, &key, &key, BPF_NOEXIST)) {
+        // we don't have the lock
+        return false;
+    }
+
+    struct traced_cgroups_counter_t *counter = bpf_map_lookup_elem(&traced_cgroups_counter, &key);
+    if (!counter) {
+        return false;
+    }
+
+    bool res = false;
+    if (counter->counter < counter->max) {
+        counter->counter++;
+        res = true;
+    }
+
+    bpf_map_delete_elem(&traced_cgroups_lock, &key);
+    return res;
+}
+
+__attribute__((always_inline)) void freeup_traced_cgroup_spot(char cgroup[CONTAINER_ID_LEN]) {
+    bpf_map_delete_elem(&traced_cgroups, &cgroup[0]);
+
+    u32 key = 0;
+    struct traced_cgroups_counter_t *counter = bpf_map_lookup_elem(&traced_cgroups_counter, &key);
+    if (!counter) {
+        return;
+    }
+
+    __sync_fetch_and_add(&counter->counter, -1);
+}
+
 __attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, char cgroup[CONTAINER_ID_LEN]) {
     u64 timeout = bpf_ktime_get_ns() + get_dump_timeout();
+
+    if (!reserve_traced_cgroup_spot(cgroup)) {
+        // we're already tracing too many cgroups concurrently, ignore this one for now
+        return 0;
+    }
+
 
     // try to lock an entry in traced_cgroups
     int ret = bpf_map_update_elem(&traced_cgroups, &cgroup[0], &timeout, BPF_NOEXIST);
     if (ret < 0) {
-        // we're already tracing too many cgroups concurrently, ignore this one for now
+        // this should be caught earlier but we're already tracing too many cgroups concurrently, ignore this one for now
         return 0;
     }
     // lock acquired ! send cgroup tracing event
@@ -145,7 +209,7 @@ __attribute__((always_inline)) void should_trace_new_process_cgroup(void *ctx, u
         if (dump_timeout) {
             if (now > *dump_timeout) {
                 // delete expired cgroup entry
-                bpf_map_delete_elem(&traced_cgroups, &cgroup[0]);
+                freeup_traced_cgroup_spot(cgroup);
             } else {
                 // We're still tracing this cgroup, update the pid timeout
                 update_traced_pid_timeout(pid, *dump_timeout);
