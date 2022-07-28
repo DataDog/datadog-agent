@@ -182,7 +182,7 @@ func createCheckInstanceMetadata(checkID, configProvider, initConfig, instanceCo
 	checkInstanceMetadata["config.hash"] = checkID
 	checkInstanceMetadata["config.provider"] = configProvider
 
-	if config.Datadog.GetBool("inventories_configuration_enabled") {
+	if config.Datadog.GetBool("inventories_checks_configuration_enabled") {
 		if instanceScrubbed, err := scrubber.ScrubString(instanceConfig); err != nil {
 			log.Errorf("Could not scrub instance configuration for check id %s: %s", checkID, err)
 		} else {
