@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"os/exec"
@@ -1512,5 +1513,102 @@ func TestProcessBusybox(t *testing.T) {
 		}, validateExecEvent(t, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "test_busybox_4", rule.ID, "wrong rule triggered")
 		}))
+	})
+}
+
+func TestProcessResolution(t *testing.T) {
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_resolution",
+			Expression: `open.file.path == "/tmp/test-process-resolution"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var cmd *exec.Cmd
+	var stdin io.WriteCloser
+	defer func() {
+		if cmd != nil {
+			if stdin != nil {
+				stdin.Close()
+			}
+
+			if err := cmd.Wait(); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}()
+
+	test.WaitSignal(t, func() error {
+		var err error
+
+		args := []string{"multi-open", "/tmp/test-process-resolution", "/tmp/test-process-resolution"}
+
+		cmd := exec.Command(syscallTester, args...)
+		stdin, err = cmd.StdinPipe()
+		if err != nil {
+			return err
+		}
+
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = io.WriteString(stdin, "\n")
+
+		return err
+	}, func(event *sprobe.Event, rule *rules.Rule) {
+		assert.Equal(t, "test_resolution", rule.ID, "wrong rule triggered")
+
+		value, err := event.GetFieldValue("process.pid")
+		if err != nil {
+			t.Errorf("not able to get pid")
+		}
+		pid := uint32(value.(int))
+
+		resolvers := test.probe.GetResolvers()
+
+		// compare only few fields as the hierarchy fields(pointers, etc) are modified by the resolution function calls
+		equals := func(t *testing.T, entry1, entry2 *model.ProcessCacheEntry) {
+			t.Helper()
+
+			assert.Equal(t, entry1.FileEvent.PathnameStr, entry2.FileEvent.PathnameStr)
+			assert.Equal(t, entry1.Pid, entry2.Pid)
+			assert.Equal(t, entry1.PPid, entry2.PPid)
+			assert.Equal(t, entry1.ContainerID, entry2.ContainerID)
+		}
+
+		cacheEntry := resolvers.ProcessResolver.ResolveFromCache(pid, pid)
+		if cacheEntry == nil {
+			t.Errorf("not able to resolve the entry")
+		}
+
+		mapsEntry := resolvers.ProcessResolver.ResolveFromKernelMaps(pid, pid)
+		if mapsEntry == nil {
+			t.Errorf("not able to resolve the entry")
+		}
+
+		equals(t, cacheEntry, mapsEntry)
+
+		procEntry := resolvers.ProcessResolver.ResolveFromProcfs(pid)
+		if procEntry == nil {
+			t.Errorf("not able to resolve the entry")
+		}
+
+		equals(t, cacheEntry, procEntry)
+
+		if _, err = io.WriteString(stdin, "\n"); err != nil {
+			t.Error(err)
+		}
 	})
 }
