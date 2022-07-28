@@ -1134,6 +1134,13 @@ func GetProxies() *Proxy {
 	return proxies
 }
 
+// LoadProxyFromEnv allows the privately-scoped function to be called outside
+// of NewConfig. This is needed because we must call this function independently
+// in a serverless environment.
+func LoadProxyFromEnv(config Config) {
+	loadProxyFromEnv(config)
+}
+
 // loadProxyFromEnv overrides the proxy settings with environment variables
 func loadProxyFromEnv(config Config) {
 	// Viper doesn't handle mixing nested variables from files and set
