@@ -59,3 +59,15 @@ Run
 ```bash
 unset AWS_VAULT && aws-vault exec sandbox-account-admin --
 ```
+
+If you get
+
+```bash
+error: could not create stack: the stack is currently locked by 1 lock(s). Either wait for the other process(es) to end or manually delete the lock file(s).
+```
+
+Run
+
+```bash
+rm -rf ~/.pulumi/locks
+```
