@@ -85,7 +85,7 @@ func init() {
 	snmpWalkCmd.Flags().StringVarP(&communityString, "community-string", "C", "", "Set the community string")
 
 	// snmp v3 specific
-	snmpWalkCmd.Flags().StringVarP(&authProt, "auth-protocol", "a", defaultAuthProtocol, "Set authentication protocol (MD5|SHA|SHA224|SHA-224|SHA256|SHA-256|SHA384|SHA-384|SHA512|SHA-512)")
+	snmpWalkCmd.Flags().StringVarP(&authProt, "auth-protocol", "a", defaultAuthProtocol, "Set authentication protocol (MD5|SHA|SHA-224|SHA-256|SHA-384|SHA-512)")
 	snmpWalkCmd.Flags().StringVarP(&authKey, "auth-key", "A", defaultAuthKey, "Set authentication protocol pass phrase")
 	snmpWalkCmd.Flags().StringVarP(&securityLevel, "security-level", "l", defaultSecurityLevel, "set security level (noAuthNoPriv|authNoPriv|authPriv)")
 	snmpWalkCmd.Flags().StringVarP(&snmpContext, "context", "N", defaultContext, "Set context name")
