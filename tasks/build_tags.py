@@ -197,6 +197,18 @@ def compute_build_tags_for_flavor(
     return get_build_tags(build_include, build_exclude)
 
 
+@task
+def print_default_build_tags(ctx, build="agent", arch="x64", flavor=AgentFlavor.base):
+    """
+    Build the default list of tags based on the build type and current platform.
+    Prints as comma separated list suitable for go tooling (eg, gopls, govulncheck)
+
+    The container integrations are currently only supported on Linux, disabling on
+    the Windows and Darwin builds.
+    """
+
+    print(",".join(sorted(get_default_build_tags(build, arch, flavor))))
+
 def get_default_build_tags(build="agent", arch="x64", flavor=AgentFlavor.base):
     """
     Build the default list of tags based on the build type and current platform.
