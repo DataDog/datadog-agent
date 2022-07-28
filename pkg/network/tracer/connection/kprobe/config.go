@@ -47,6 +47,8 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]s
 		enableProbe(enabled, probes.TCPCleanupRBuf)
 		enableProbe(enabled, probes.TCPCV4DestroySock)
 		enableProbe(enabled, probes.TCPV4DestroySockReturn)
+		enableProbe(enabled, probes.TCPConnect)
+		enableProbe(enabled, probes.TCPFinishConnect)
 		enableProbe(enabled, probes.InetCskAcceptReturn)
 		enableProbe(enabled, probes.InetCskListenStop)
 		enableProbe(enabled, probes.TCPSetState)

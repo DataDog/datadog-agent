@@ -221,6 +221,18 @@ func (c *Collector) started() bool {
 	return c.state.Load() == started
 }
 
+// MapOverChecks call the callback with the list of checks locked.
+func (c *Collector) MapOverChecks(cb func([]check.Info)) {
+	c.m.RLock()
+	defer c.m.RUnlock()
+
+	cInfo := []check.Info{}
+	for _, c := range c.checks {
+		cInfo = append(cInfo, c)
+	}
+	cb(cInfo)
+}
+
 // GetAllInstanceIDs returns the ID's of all instances of a check
 func (c *Collector) GetAllInstanceIDs(checkName string) []check.ID {
 	c.m.RLock()

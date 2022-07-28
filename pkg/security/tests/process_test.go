@@ -605,6 +605,42 @@ func TestProcessContext(t *testing.T) {
 	})
 }
 
+func TestProcessEnvsWithValue(t *testing.T) {
+	lsExec := which(t, "ls")
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_ldpreload_from_tmp_with_envs",
+			Expression: fmt.Sprintf(`exec.file.path == "%s" && exec.envs in [~"LD_PRELOAD=*/tmp/*"]`, lsExec),
+		},
+	}
+
+	opts := testOpts{
+		envsWithValue: []string{"LD_PRELOAD"},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	t.Run("ldpreload", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			args := []string{}
+			envp := []string{"LD_PRELOAD=/tmp/dyn.so"}
+
+			cmd := exec.Command(lsExec, args...)
+			cmd.Env = envp
+			_ = cmd.Run()
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_ldpreload_from_tmp_with_envs")
+			assertFieldEqual(t, event, "exec.file.path", lsExec)
+			assertFieldStringArrayIndexedOneOf(t, event, "exec.envs", 0, []string{"LD_PRELOAD=/tmp/dyn.so"})
+		})
+	})
+}
+
 func TestProcessExecCTime(t *testing.T) {
 	executable := which(t, "touch")
 
@@ -888,6 +924,8 @@ func TestProcessExecExit(t *testing.T) {
 				}
 			}
 		case model.ExitEventType:
+			// assert that exit time >= exec time
+			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
 			if execPid != 0 && int(event.ProcessContext.Pid) == execPid {
 				return true
 			}
@@ -1234,10 +1272,14 @@ func TestProcessExit(t *testing.T) {
 			cmd.Env = envp
 			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
+			if !validateExitSchema(t, event) {
+				t.Error(event.String())
+			}
 			assertTriggeredRule(t, rule, "test_exit_ok")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
+			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1251,10 +1293,14 @@ func TestProcessExit(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
+			if !validateExitSchema(t, event) {
+				t.Error(event.String())
+			}
 			assertTriggeredRule(t, rule, "test_exit_error")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(1), event.Exit.Code, "wrong exit code")
+			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1268,10 +1314,14 @@ func TestProcessExit(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
+			if !validateExitSchema(t, event) {
+				t.Error(event.String())
+			}
 			assertTriggeredRule(t, rule, "test_exit_coredump")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitCoreDumped), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(syscall.SIGQUIT), event.Exit.Code, "wrong exit code")
+			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1285,10 +1335,14 @@ func TestProcessExit(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
+			if !validateExitSchema(t, event) {
+				t.Error(event.String())
+			}
 			assertTriggeredRule(t, rule, "test_exit_signal")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitSignaled), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(syscall.SIGKILL), event.Exit.Code, "wrong exit code")
+			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1301,10 +1355,14 @@ func TestProcessExit(t *testing.T) {
 			cmd.Env = envp
 			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
+			if !validateExitSchema(t, event) {
+				t.Error(event.String())
+			}
 			assertTriggeredRule(t, rule, "test_exit_time_1")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
+			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1317,10 +1375,14 @@ func TestProcessExit(t *testing.T) {
 			cmd.Env = envp
 			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
+			if !validateExitSchema(t, event) {
+				t.Error(event.String())
+			}
 			assertTriggeredRule(t, rule, "test_exit_time_2")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
+			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
 		})
 	})
 }

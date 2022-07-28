@@ -72,7 +72,7 @@ func (m *OOMKillCheck) Configure(config, initConfig integration.Data, source str
 	// TODO: Remove that hard-code and put it somewhere else
 	process_net.SetSystemProbePath(dd_config.Datadog.GetString("system_probe_config.sysprobe_socket"))
 
-	err := m.CommonConfigure(config, source)
+	err := m.CommonConfigure(initConfig, config, source)
 	if err != nil {
 		return err
 	}
