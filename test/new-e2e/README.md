@@ -71,3 +71,11 @@ Run
 ```bash
 rm -rf ~/.pulumi/locks
 ```
+
+If you get
+
+```bash
+dial tcp 172.29.139.15:22: connect: connection refused
+```
+
+Make sure you are connected through AppGate
