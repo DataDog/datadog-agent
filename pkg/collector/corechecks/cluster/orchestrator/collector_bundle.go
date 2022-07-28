@@ -148,9 +148,9 @@ func (cb *CollectorBundle) Run(sender aggregator.Sender) {
 		}
 
 		runDuration := time.Since(runStartTime)
-		log.Debugf("Collector %s run stats: listed=%d processed=%d messages=%d duration=%s", collector.Metadata().Name, result.ResourcesListed, result.ResourcesProcessed, len(result.Result.ManifestMessages), runDuration)
+		log.Debugf("Collector %s run stats: listed=%d processed=%d messages=%d duration=%s", collector.Metadata().Name, result.ResourcesListed, result.ResourcesProcessed, len(result.Result.MetadataMessages), runDuration)
 
-		orchestrator.SetCacheStats(result.ResourcesListed, len(result.Result.ManifestMessages), collector.Metadata().NodeType)
+		orchestrator.SetCacheStats(result.ResourcesListed, len(result.Result.MetadataMessages), collector.Metadata().NodeType)
 		sender.OrchestratorMetadata(result.Result.MetadataMessages, cb.check.clusterID, int(collector.Metadata().NodeType))
 		if cb.runCfg.Config.IsManifestCollectionEnabled {
 			sender.OrchestratorManifest(result.Result.ManifestMessages, cb.check.clusterID)

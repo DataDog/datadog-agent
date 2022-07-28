@@ -155,7 +155,7 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 
 		// Add resource manifest
 		resourceManifestModels = append(resourceManifestModels, &model.Manifest{
-			Type:            int32(ctx.NodeType.CollectorType()),
+			Type:            int32(ctx.NodeType),
 			Uid:             string(resourceUID),
 			ResourceVersion: resourceVersion,
 			Content:         yaml,

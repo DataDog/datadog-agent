@@ -8,7 +8,6 @@ package orchestrator
 import (
 	"strings"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -167,51 +166,6 @@ func getTelemetryTags(n NodeType) []string {
 	return []string{
 		n.Orchestrator(),
 		strings.ToLower(n.String()),
-	}
-}
-
-// CollectorType return collector type.
-func (n NodeType) CollectorType() int {
-	switch n {
-	case K8sCluster:
-		return model.TypeCollectorCluster
-	case K8sCronJob:
-		return model.TypeCollectorCronJob
-	case K8sDeployment:
-		return model.TypeCollectorDeployment
-	case K8sDaemonSet:
-		return model.TypeCollectorDaemonSet
-	case K8sJob:
-		return model.TypeCollectorJob
-	case K8sNode:
-		return model.TypeCollectorNode
-	case K8sPod:
-		return model.TypeCollectorPod
-	case K8sReplicaSet:
-		return model.TypeCollectorReplicaSet
-	case K8sService:
-		return model.TypeCollectorService
-	case K8sStatefulSet:
-		return model.TypeCollectorStatefulSet
-	case K8sPersistentVolume:
-		return model.TypeCollectorPersistentVolume
-	case K8sPersistentVolumeClaim:
-		return model.TypeCollectorPersistentVolumeClaim
-	case K8sRole:
-		return model.TypeCollectorRole
-	case K8sRoleBinding:
-		return model.TypeCollectorRoleBinding
-	case K8sClusterRole:
-		return model.TypeCollectorClusterRole
-	case K8sClusterRoleBinding:
-		return model.TypeCollectorClusterRoleBinding
-	case K8sServiceAccount:
-		return model.TypeCollectorServiceAccount
-	case K8sIngress:
-		return model.TypeCollectorIngress
-	default:
-		log.Errorf("Trying to convert unknown NodeType iota: %d", n)
-		return 0
 	}
 }
 
