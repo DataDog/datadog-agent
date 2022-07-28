@@ -295,6 +295,7 @@ func printValue(pdu gosnmp.SnmpPDU) error {
 	switch pdu.Type {
 	case gosnmp.OctetString:
 		b := pdu.Value.([]byte)
+<<<<<<< HEAD
 		if !utilFunc.IsStringPrintable(b) {
 			var strValue string
 			strValue = fmt.Sprintf("%X", b)
@@ -308,6 +309,12 @@ func printValue(pdu gosnmp.SnmpPDU) error {
 			}
 			message += strValue[len(strValue)-2:] + "\n"
 			fmt.Print(message)
+=======
+		if !IsStringPrintable(b) {
+			var strValue string
+			strValue = fmt.Sprintf("%X", b)
+			fmt.Printf("Hex-STRING: %s %s %s %s %s %s\n", strValue[0:2], strValue[2:4], strValue[4:6], strValue[6:8], strValue[8:10], strValue[10:12])
+>>>>>>> 4a877d4ce (handle hex-string)
 		} else {
 			fmt.Printf("STRING: %s\n", string(b))
 		}
@@ -330,4 +337,20 @@ func printValue(pdu gosnmp.SnmpPDU) error {
 	}
 
 	return nil
+}
+
+var strippableSpecialChars = map[byte]bool{'\r': true, '\n': true, '\t': true}
+
+// IsStringPrintable returns true if the provided byte array is only composed of printable characeters
+func IsStringPrintable(bytesValue []byte) bool {
+	for _, bit := range bytesValue {
+		if bit < 32 || bit > 126 {
+			// The char is not a printable ASCII char but it might be a character that
+			// can be stripped like `\n`
+			if _, ok := strippableSpecialChars[bit]; !ok {
+				return false
+			}
+		}
+	}
+	return true
 }
