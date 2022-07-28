@@ -297,19 +297,6 @@ func (ad *ActivityDump) Matches(entry *model.ProcessCacheEntry) bool {
 	return true
 }
 
-// scrubAndRetainProcessArgsEnvs scrubs process arguments and environment variables
-func (ad *ActivityDump) scrubAndRetainProcessArgsEnvs(nodes []*ProcessActivityNode) {
-	// iterate through all the process nodes
-	for _, node := range nodes {
-
-		// scrub the current process
-		node.scrubAndReleaseArgsEnvs(ad.adm.probe.resolvers.ProcessResolver)
-
-		// scrub each child recursively
-		ad.scrubAndRetainProcessArgsEnvs(node.Children)
-	}
-}
-
 // Stop stops an active dump
 func (ad *ActivityDump) Stop() {
 	ad.Lock()
@@ -349,7 +336,19 @@ func (ad *ActivityDump) Stop() {
 	}
 
 	// scrub processes and retain args envs now
-	ad.scrubAndRetainProcessArgsEnvs(ad.ProcessActivityTree)
+	ad.scrubAndRetainProcessArgsEnvs()
+}
+
+func (ad *ActivityDump) scrubAndRetainProcessArgsEnvs() {
+	// iterate through all the process nodes
+	openList := make([]*ProcessActivityNode, len(ad.ProcessActivityTree))
+	copy(openList, ad.ProcessActivityTree)
+
+	for len(openList) != 0 {
+		current := openList[len(openList)-1]
+		current.scrubAndReleaseArgsEnvs(ad.adm.probe.resolvers.ProcessResolver)
+		openList = append(openList[:len(openList)-1], current.Children...)
+	}
 }
 
 // nolint: unused
@@ -1368,30 +1367,44 @@ func (fan *FileActivityNode) enrichFromEvent(event *Event) {
 // InsertFileEvent inserts an event in a FileActivityNode. This function returns true if a new entry was added, false if
 // the event was dropped.
 func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, remainingPath string, generationType NodeGenerationType, mergeCtx adPathMergeContext) bool {
-	parent, nextParentIndex := extractFirstParent(remainingPath)
-	if nextParentIndex == 0 {
-		fan.enrichFromEvent(event)
-		return false
+	currentFan := fan
+	currentPath := remainingPath
+	somethingChanged := false
+
+	for {
+		parent, nextParentIndex := extractFirstParent(currentPath)
+		if nextParentIndex == 0 {
+			currentFan.enrichFromEvent(event)
+			break
+		}
+
+		if mergeCtx.enabled && len(currentFan.Children) >= 10 {
+			currentFan.mergeCommonPaths(mergeCtx)
+		}
+
+		child, ok := currentFan.Children[parent]
+		if ok {
+			currentFan = child
+			currentPath = currentPath[nextParentIndex:]
+			continue
+		}
+
+		// create new child
+		somethingChanged = true
+		if len(currentPath) <= nextParentIndex+1 {
+			currentFan.Children[parent] = NewFileActivityNode(fileEvent, event, parent, generationType)
+			break
+		} else {
+			child := NewFileActivityNode(nil, nil, parent, generationType)
+			currentFan.Children[parent] = child
+
+			currentFan = child
+			currentPath = currentPath[nextParentIndex:]
+			continue
+		}
 	}
 
-	if mergeCtx.enabled && len(fan.Children) >= 10 {
-		fan.mergeCommonPaths(mergeCtx)
-	}
-
-	child, ok := fan.Children[parent]
-	if ok {
-		return child.InsertFileEvent(fileEvent, event, remainingPath[nextParentIndex:], generationType, mergeCtx)
-	}
-
-	// create new child
-	if len(remainingPath) <= nextParentIndex+1 {
-		fan.Children[parent] = NewFileActivityNode(fileEvent, event, parent, generationType)
-	} else {
-		child := NewFileActivityNode(nil, nil, parent, generationType)
-		child.InsertFileEvent(fileEvent, event, remainingPath[nextParentIndex:], generationType, mergeCtx)
-		fan.Children[parent] = child
-	}
-	return true
+	return somethingChanged
 }
 
 func (fan *FileActivityNode) mergeCommonPaths(mergeCtx adPathMergeContext) {
