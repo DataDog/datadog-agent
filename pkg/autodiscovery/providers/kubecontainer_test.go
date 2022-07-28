@@ -77,7 +77,7 @@ func TestGenerateConfigs_KubeContainer_KubeSpecific(t *testing.T) {
 					},
 				},
 			},
-			expectedCfg: nil,
+			expectedCfg: []integration.Config{},
 			expectedErr: nil,
 		},
 		{
@@ -279,7 +279,7 @@ func TestGenerateConfigs_KubeContainer_KubeSpecific(t *testing.T) {
 					},
 				},
 			},
-			expectedCfg: nil,
+			expectedCfg: []integration.Config{},
 			expectedErr: ErrorMsgSet{
 				"annotation ad.datadoghq.com/nonmatching.check_names is invalid: nonmatching doesn't match a container identifier [apache nginx]":  {},
 				"annotation ad.datadoghq.com/nonmatching.init_configs is invalid: nonmatching doesn't match a container identifier [apache nginx]": {},
