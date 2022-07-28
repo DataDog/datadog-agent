@@ -15,17 +15,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cilium/ebpf"
-
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/log"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/cilium/ebpf"
 
 	// util.GetHostname(...) will panic without this import
+	ebpfutils "github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
@@ -41,12 +42,14 @@ func getCgroupDumpTimeout(p *Probe) uint64 {
 // ActivityDumpManager is used to manage ActivityDumps
 type ActivityDumpManager struct {
 	sync.RWMutex
-	probe               *Probe
-	tracedPIDsMap       *ebpf.Map
-	tracedCommsMap      *ebpf.Map
-	tracedEventTypesMap *ebpf.Map
-	tracedCgroupsMap    *ebpf.Map
-	cgroupWaitListMap   *ebpf.Map
+	probe                   *Probe
+	tracedPIDsMap           *ebpf.Map
+	tracedCommsMap          *ebpf.Map
+	tracedEventTypesMap     *ebpf.Map
+	tracedCgroupsMap        *ebpf.Map
+	tracedCgroupsCounterMap *ebpf.Map
+	tracedCgroupsLockMap    *ebpf.Map
+	cgroupWaitListMap       *ebpf.Map
 
 	activeDumps   []*ActivityDump
 	snapshotQueue chan *ActivityDump
@@ -159,15 +162,6 @@ func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 		return nil, fmt.Errorf("couldn't find traced_event_types map")
 	}
 
-	// init traced event types
-	isTraced := uint64(1)
-	for _, evtType := range p.config.ActivityDumpTracedEventTypes {
-		err = tracedEventTypesMap.Put(evtType, isTraced)
-		if err != nil {
-			return nil, fmt.Errorf("failed to insert traced event type: %w", err)
-		}
-	}
-
 	tracedCgroupsMap, found, err := p.manager.GetMap("traced_cgroups")
 	if err != nil {
 		return nil, err
@@ -176,23 +170,75 @@ func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 		return nil, fmt.Errorf("couldn't find traced_cgroups map")
 	}
 
+	tracedCgroupsCounterMap, found, err := p.manager.GetMap("traced_cgroups_counter")
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, fmt.Errorf("couldn't find traced_cgroups_counter map")
+	}
+
+	tracedCgroupsLockMap, found, err := p.manager.GetMap("traced_cgroups_lock")
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, fmt.Errorf("couldn't find traced_cgroups_lock map")
+	}
+
 	storageManager, err := NewActivityDumpStorageManager(p)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't instantiate the activity dump storage manager: %w", err)
 	}
 
 	adm := &ActivityDumpManager{
-		probe:               p,
-		tracedPIDsMap:       tracedPIDs,
-		tracedCommsMap:      tracedComms,
-		tracedEventTypesMap: tracedEventTypesMap,
-		tracedCgroupsMap:    tracedCgroupsMap,
-		cgroupWaitListMap:   cgroupWaitList,
-		snapshotQueue:       make(chan *ActivityDump, 100),
-		storage:             storageManager,
+		probe:                   p,
+		tracedPIDsMap:           tracedPIDs,
+		tracedCommsMap:          tracedComms,
+		tracedEventTypesMap:     tracedEventTypesMap,
+		tracedCgroupsMap:        tracedCgroupsMap,
+		tracedCgroupsCounterMap: tracedCgroupsCounterMap,
+		tracedCgroupsLockMap:    tracedCgroupsLockMap,
+		cgroupWaitListMap:       cgroupWaitList,
+		snapshotQueue:           make(chan *ActivityDump, 100),
+		storage:                 storageManager,
 	}
+	adm.propagateLoadSettings()
 	adm.prepareContextTags()
 	return adm, nil
+}
+
+type tracedCgroupsCounter struct {
+	max     uint64
+	counter uint64
+}
+
+func (adm *ActivityDumpManager) propagateLoadSettings() error {
+	// init traced event types
+	isTraced := uint64(1)
+	for _, evtType := range adm.probe.config.ActivityDumpTracedEventTypes {
+		if err := adm.tracedEventTypesMap.Put(evtType, isTraced); err != nil {
+			return fmt.Errorf("failed to insert traced event type: %w", err)
+		}
+	}
+
+	if err := adm.tracedCgroupsLockMap.Put(ebpfutils.ZeroUint32MapItem, uint32(1)); err != nil {
+		return fmt.Errorf("failed to lock traced cgroup counter: %w", err)
+	}
+
+	var counter tracedCgroupsCounter
+	adm.tracedCgroupsCounterMap.Lookup(ebpfutils.ZeroUint32MapItem, &counter)
+	log.Debugf("AD: got counter = %v, when propagating config", counter)
+
+	counter.max = uint64(adm.probe.config.ActivityDumpTracedCgroupsCount)
+	if err := adm.tracedCgroupsCounterMap.Put(ebpfutils.ZeroUint32MapItem, counter); err != nil {
+		log.Errorf("failed to change counter max: %v", err)
+	}
+
+	if err := adm.tracedCgroupsLockMap.Put(ebpfutils.ZeroUint32MapItem, uint32(0)); err != nil {
+		return fmt.Errorf("failed to unlock traced cgroup counter: %w", err)
+	}
+	return nil
 }
 
 func (adm *ActivityDumpManager) prepareContextTags() {
