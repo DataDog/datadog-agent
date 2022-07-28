@@ -19,6 +19,7 @@ type NetflowConfig struct {
 	AggregatorBufferSize    int              `mapstructure:"aggregator_buffer_size"`
 	AggregatorFlushInterval int              `mapstructure:"aggregator_flush_interval"`
 	LogPayloads             bool             `mapstructure:"log_payloads"`
+	SendMultiplier          int              `mapstructure:"send_multiplier"`
 }
 
 // ListenerConfig contains configuration for a single flow listener
@@ -71,6 +72,10 @@ func ReadConfig() (*NetflowConfig, error) {
 	}
 	if mainConfig.AggregatorBufferSize == 0 {
 		mainConfig.AggregatorBufferSize = common.DefaultAggregatorBufferSize
+	}
+
+	if mainConfig.SendMultiplier == 0 {
+		mainConfig.SendMultiplier = 1
 	}
 
 	return &mainConfig, nil

@@ -7,6 +7,7 @@ package flowaggregator
 
 import (
 	"encoding/json"
+	"math/rand"
 	"time"
 
 	"go.uber.org/atomic"
@@ -32,6 +33,7 @@ type FlowAggregator struct {
 	receivedFlowCount *atomic.Uint64
 	flushedFlowCount  *atomic.Uint64
 	hostname          string
+	sendMultiplier    int
 }
 
 // NewFlowAggregator returns a new FlowAggregator
@@ -46,6 +48,7 @@ func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig, h
 		receivedFlowCount: atomic.NewUint64(0),
 		flushedFlowCount:  atomic.NewUint64(0),
 		hostname:          hostname,
+		sendMultiplier:    config.SendMultiplier,
 	}
 }
 
@@ -73,8 +76,12 @@ func (agg *FlowAggregator) run() {
 			log.Info("Stopping aggregator")
 			return
 		case flow := <-agg.flowIn:
-			agg.receivedFlowCount.Inc()
-			agg.flowAcc.add(flow)
+			for i := 0; i < agg.sendMultiplier; i++ {
+				flow.InputInterface = uint32(i)
+				flow.SrcPort = uint32(rand.Intn(50000))
+				agg.receivedFlowCount.Inc()
+				agg.flowAcc.add(flow)
+			}
 		}
 	}
 }
