@@ -75,7 +75,7 @@ func (c *ClusterCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors
 		NodeType:   c.metadata.NodeType,
 	}
 
-	metadataMessages, processed, err := c.processor.Process(ctx, list)
+	processResult, processed, err := c.processor.Process(ctx, list)
 
 	// This would happen when recovering from a processor panic. In the nominal
 	// case we would have a positive integer set at the very end of processing.
@@ -93,7 +93,7 @@ func (c *ClusterCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors
 	}
 
 	result := &collectors.CollectorRunResult{
-		Metadata:           metadataMessages,
+		Result:             processResult,
 		ResourcesListed:    1,
 		ResourcesProcessed: processed,
 	}

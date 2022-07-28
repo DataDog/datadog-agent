@@ -9,7 +9,7 @@
 package collectors
 
 import (
-	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -59,9 +59,11 @@ type CollectorRunConfig struct {
 }
 
 // CollectorRunResult contains information about what the collector has done.
+// Metadata is a list of payload, each payload contains a list of k8s resources metadata and manifest
+// Manifests is a list of payload, each payload contains a list of k8s resources manifest.
+// Manifests is a copy of part of Metadata
 type CollectorRunResult struct {
-	Metadata           []model.MessageBody
-	Manifests          []model.MessageBody
+	Result             processors.ProcessResult
 	ResourcesListed    int
 	ResourcesProcessed int
 }

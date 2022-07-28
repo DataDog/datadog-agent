@@ -74,10 +74,6 @@ type Handlers interface {
 	// ScrubBeforeMarshalling replaces sensitive information in the resource
 	// before resource marshalling.
 	ScrubBeforeMarshalling(ctx *ProcessorContext, resource interface{})
-
-	// BuildManifestMessageBody is used to build a message containing a chunk of
-	// manifest models of a certain size.
-	BuildManifestMessageBody(ctx *ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody
 }
 
 // Processor is a generic resource processing component. It relies on a set of
@@ -88,6 +84,9 @@ type Processor struct {
 }
 
 // ProcessResult contains the processing result of metadata and manifest
+// MetadataMessages is a list of payload, each payload contains a list of k8s resources metadata and manifest
+// ManifestMessages is a list of payload, each payload contains a list of k8s resources manifest.
+// ManifestMessages is a copy of part of MetadataMessages
 type ProcessResult struct {
 	MetadataMessages []model.MessageBody
 	ManifestMessages []model.MessageBody
@@ -175,7 +174,7 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 	manifestMessages := make([]model.MessageBody, 0, chunkCount)
 	for i := 0; i < chunkCount; i++ {
 		metadataMessages = append(metadataMessages, p.h.BuildMessageBody(ctx, metadataChunks[i], chunkCount))
-		manifestMessages = append(manifestMessages, p.h.BuildManifestMessageBody(ctx, manifestChunks[i], chunkCount))
+		manifestMessages = append(manifestMessages, buildManifestMessageBody(ctx.Cfg.KubeClusterName, ctx.ClusterID, ctx.MsgGroupID, manifestChunks[i], chunkCount))
 	}
 	processResult = ProcessResult{
 		MetadataMessages: metadataMessages,
@@ -195,4 +194,21 @@ func chunkResources(resources []interface{}, chunkCount, chunkSize int) [][]inte
 	}
 
 	return chunks
+}
+
+// build orchestrator manifest message
+func buildManifestMessageBody(kubeClusterName, clusterID string, msgGroupID int32, resourceManifests []interface{}, groupSize int) model.MessageBody {
+	manifests := make([]*model.Manifest, 0, len(resourceManifests))
+
+	for _, m := range resourceManifests {
+		manifests = append(manifests, m.(*model.Manifest))
+	}
+
+	return &model.CollectorManifest{
+		ClusterName: kubeClusterName,
+		ClusterId:   clusterID,
+		Manifests:   manifests,
+		GroupId:     msgGroupID,
+		GroupSize:   int32(groupSize),
+	}
 }

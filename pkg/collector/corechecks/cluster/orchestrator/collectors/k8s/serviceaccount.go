@@ -82,8 +82,7 @@ func (c *ServiceAccountCollector) Run(rcfg *collectors.CollectorRunConfig) (*col
 	}
 
 	result := &collectors.CollectorRunResult{
-		Metadata:           processResult.MetadataMessages,
-		Manifests:          processResult.ManifestMessages,
+		Result:             processResult,
 		ResourcesListed:    len(list),
 		ResourcesProcessed: processed,
 	}

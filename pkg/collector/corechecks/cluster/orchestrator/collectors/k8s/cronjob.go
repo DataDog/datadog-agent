@@ -81,8 +81,7 @@ func (c *CronJobCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors
 	}
 
 	result := &collectors.CollectorRunResult{
-		Metadata:           processResult.MetadataMessages,
-		Manifests:          processResult.ManifestMessages,
+		Result:             processResult,
 		ResourcesListed:    len(list),
 		ResourcesProcessed: processed,
 	}

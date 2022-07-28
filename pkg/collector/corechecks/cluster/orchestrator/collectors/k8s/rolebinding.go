@@ -82,8 +82,7 @@ func (c *RoleBindingCollector) Run(rcfg *collectors.CollectorRunConfig) (*collec
 	}
 
 	result := &collectors.CollectorRunResult{
-		Metadata:           processResult.MetadataMessages,
-		Manifests:          processResult.ManifestMessages,
+		Result:             processResult,
 		ResourcesListed:    len(list),
 		ResourcesProcessed: processed,
 	}

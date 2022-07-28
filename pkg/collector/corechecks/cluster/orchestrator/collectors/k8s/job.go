@@ -81,8 +81,7 @@ func (c *JobCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Col
 	}
 
 	result := &collectors.CollectorRunResult{
-		Metadata:           processResult.MetadataMessages,
-		Manifests:          processResult.ManifestMessages,
+		Result:             processResult,
 		ResourcesListed:    len(list),
 		ResourcesProcessed: processed,
 	}

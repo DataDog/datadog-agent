@@ -83,8 +83,7 @@ func (c *UnassignedPodCollector) Run(rcfg *collectors.CollectorRunConfig) (*coll
 	}
 
 	result := &collectors.CollectorRunResult{
-		Metadata:           processResult.MetadataMessages,
-		Manifests:          processResult.ManifestMessages,
+		Result:             processResult,
 		ResourcesListed:    len(list),
 		ResourcesProcessed: processed,
 	}

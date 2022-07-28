@@ -433,7 +433,7 @@ func (s *Serializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostNam
 		return errors.New("orchestrator forwarder is not setup")
 	}
 	for _, m := range msgs {
-		payloads, extraHeaders, err := getOrchestratorPayloads(m, hostName, clusterID, false)
+		payloads, extraHeaders, err := makeOrchestratorPayloads(m, hostName, clusterID, false)
 		if err != nil {
 			return log.Errorf("Unable to encode message: %s", err)
 		}
@@ -484,7 +484,7 @@ func (s *Serializer) SendOrchestratorManifests(msgs []ProcessMessageBody, hostNa
 		return errors.New("orchestrator forwarder is not setup")
 	}
 	for _, m := range msgs {
-		payloads, extraHeaders, err := getOrchestratorPayloads(m, hostName, clusterID, true)
+		payloads, extraHeaders, err := makeOrchestratorPayloads(m, hostName, clusterID, true)
 		if err != nil {
 			log.Errorf("Unable to encode message: %s", err)
 			continue
@@ -504,7 +504,7 @@ func (s *Serializer) SendOrchestratorManifests(msgs []ProcessMessageBody, hostNa
 	return nil
 }
 
-func getOrchestratorPayloads(msg ProcessMessageBody, hostName, clusterID string, isManifest bool) (forwarder.Payloads, http.Header, error) {
+func makeOrchestratorPayloads(msg ProcessMessageBody, hostName, clusterID string, isManifest bool) (forwarder.Payloads, http.Header, error) {
 	extraHeaders := make(http.Header)
 	extraHeaders.Set(headers.HostHeader, hostName)
 	extraHeaders.Set(headers.ClusterIDHeader, clusterID)
