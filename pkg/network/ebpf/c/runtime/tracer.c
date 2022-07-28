@@ -124,8 +124,8 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs* ctx) {
     return handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, sk);
 }
 
-SEC("kprobe/tcp_close")
-int kprobe__tcp_close(struct pt_regs* ctx) {
+SEC("kprobe/tcp_v4_destroy_sock")
+int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
     struct sock* sk;
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -134,18 +134,19 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
     clear_sockfd_maps(sk);
 
     // Get network namespace id
-    log_debug("kprobe/tcp_close: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("kprobe/tcp_v4_destroy_sock: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        log_debug("ERR(tcp_v4_destroy_sock): could not read tuple\n");
         return 0;
     }
-    log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
+    log_debug("kprobe/tcp_v4_destroy_sock: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
 
     cleanup_conn(&t);
     return 0;
 }
 
-SEC("kretprobe/tcp_close")
-int kretprobe__tcp_close(struct pt_regs* ctx) {
+SEC("kretprobe/tcp_v4_destroy_sock")
+int kretprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
     flush_conn_close_if_full(ctx);
     return 0;
 }
