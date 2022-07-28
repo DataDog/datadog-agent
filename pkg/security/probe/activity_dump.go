@@ -21,6 +21,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -352,9 +353,9 @@ func (ad *ActivityDump) Stop() {
 }
 
 // nolint: unused
-func (ad *ActivityDump) debug() {
+func (ad *ActivityDump) debug(w io.Writer) {
 	for _, root := range ad.ProcessActivityTree {
-		root.debug("")
+		root.debug(w, "")
 	}
 }
 
@@ -885,18 +886,26 @@ func NewProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeG
 }
 
 // nolint: unused
-func (pan *ProcessActivityNode) debug(prefix string) {
-	fmt.Printf("%s- process: %s\n", prefix, pan.Process.FileEvent.PathnameStr)
+func (pan *ProcessActivityNode) debug(w io.Writer, prefix string) {
+	fmt.Fprintf(w, "%s- process: %s\n", prefix, pan.Process.FileEvent.PathnameStr)
 	if len(pan.Files) > 0 {
-		fmt.Printf("%s  files:\n", prefix)
+		fmt.Fprintf(w, "%s  files:\n", prefix)
+		sortedFiles := make([]*FileActivityNode, 0, len(pan.Files))
 		for _, f := range pan.Files {
-			f.debug(fmt.Sprintf("%s\t-", prefix))
+			sortedFiles = append(sortedFiles, f)
+		}
+		sort.Slice(sortedFiles, func(i, j int) bool {
+			return sortedFiles[i].Name < sortedFiles[j].Name
+		})
+
+		for _, f := range sortedFiles {
+			f.debug(w, fmt.Sprintf("%s    -", prefix))
 		}
 	}
 	if len(pan.Children) > 0 {
-		fmt.Printf("%s  children:\n", prefix)
+		fmt.Fprintf(w, "%s  children:\n", prefix)
 		for _, child := range pan.Children {
-			child.debug(prefix + "\t")
+			child.debug(w, prefix+"    ")
 		}
 	}
 }
@@ -1482,10 +1491,19 @@ func mergeFans(name string, a *FileActivityNode, b *FileActivityNode) (*FileActi
 }
 
 // nolint: unused
-func (fan *FileActivityNode) debug(prefix string) {
-	fmt.Printf("%s %s\n", prefix, fan.Name)
-	for _, child := range fan.Children {
-		child.debug("\t" + prefix)
+func (fan *FileActivityNode) debug(w io.Writer, prefix string) {
+	fmt.Fprintf(w, "%s %s\n", prefix, fan.Name)
+
+	sortedChildren := make([]*FileActivityNode, 0, len(fan.Children))
+	for _, f := range fan.Children {
+		sortedChildren = append(sortedChildren, f)
+	}
+	sort.Slice(sortedChildren, func(i, j int) bool {
+		return sortedChildren[i].Name < sortedChildren[j].Name
+	})
+
+	for _, child := range sortedChildren {
+		child.debug(w, "    "+prefix)
 	}
 }
 
