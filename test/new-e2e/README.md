@@ -39,3 +39,23 @@ Run
 ```bash
 go test <name of the test>
 ```
+
+Example
+
+```bash
+go test test/new-e2e/containers/hello_world_test.go
+```
+
+## Troubleshoot
+
+If you get
+
+```bash
+aws-vault: error: exec: aws-vault sessions should be nested with care, unset $AWS_VAULT to force
+```
+
+Run
+
+```bash
+unset AWS_VAULT && aws-vault exec sandbox-account-admin --
+```

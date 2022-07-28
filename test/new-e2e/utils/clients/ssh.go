@@ -41,3 +41,14 @@ func getSSHClient(user, host, privateKey string) (*ssh.Client, *ssh.Session, err
 
 	return client, session, nil
 }
+
+func ExecuteCommand(client *ssh.Client, command string) (string, error) {
+	session, err := client.NewSession()
+	if err != nil {
+		return "", err
+	}
+
+	stdout, err := session.CombinedOutput(command)
+
+	return string(stdout), err
+}
