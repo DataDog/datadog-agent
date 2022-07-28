@@ -12,7 +12,8 @@ import (
 	"encoding/binary"
 
 	"github.com/mdlayher/netlink"
-	"github.com/mdlayher/netlink/nlenc"
+
+	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 // EncodeConn netlink encodes a `Con` object
@@ -89,6 +90,6 @@ func marshalProto(ae *netlink.AttributeEncoder, tuple *ConTuple) error {
 	ae.Uint8(ctaProtoNum, tuple.Proto)
 	ae.Uint16(ctaProtoSrcPort, tuple.Src.Port())
 	ae.Uint16(ctaProtoDstPort, tuple.Dst.Port())
-	ae.ByteOrder = nlenc.NativeEndian()
+	ae.ByteOrder = native.Endian
 	return nil
 }
