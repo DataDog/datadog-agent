@@ -36,12 +36,6 @@ struct bpf_map_def SEC("maps/traced_event_types") traced_event_types = {
     .max_entries = EVENT_MAX + 1,
 };
 
-__attribute__((always_inline)) u64 get_traced_cgroups_count() {
-    u64 traced_cgroups_count;
-    LOAD_CONSTANT("traced_cgroups_count", traced_cgroups_count);
-    return traced_cgroups_count;
-}
-
 __attribute__((always_inline)) u64 get_dump_timeout() {
     u64 dump_timeout;
     LOAD_CONSTANT("dump_timeout", dump_timeout);
@@ -49,8 +43,9 @@ __attribute__((always_inline)) u64 get_dump_timeout() {
 }
 
 __attribute__((always_inline)) u64 is_cgroup_activity_dumps_enabled() {
-    u64 count = get_traced_cgroups_count();
-    return count == -1 || count > 0;
+    u64 cgroup_activity_dumps_enabled;
+    LOAD_CONSTANT("cgroup_activity_dumps_enabled", cgroup_activity_dumps_enabled);
+    return cgroup_activity_dumps_enabled != 0;
 }
 
 __attribute__((always_inline)) u64 lookup_or_delete_traced_pid_timeout(u32 pid, u64 now) {

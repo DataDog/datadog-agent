@@ -585,14 +585,10 @@ func (a *APIServer) SendProcessEvent(data []byte) {
 
 // NewAPIServer returns a new gRPC event server
 func NewAPIServer(cfg *config.Config, probe *sprobe.Probe, client statsd.ClientInterface) *APIServer {
-	cgroupsCount := cfg.ActivityDumpTracedCgroupsCount
-	if cgroupsCount < 0 {
-		cgroupsCount = 1
-	}
 	es := &APIServer{
 		msgs:                 make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
 		processMsgs:          make(chan *api.SecurityProcessEventMessage, cfg.EventServerBurst*3),
-		activityDumps:        make(chan *api.ActivityDumpStreamMessage, cgroupsCount*2),
+		activityDumps:        make(chan *api.ActivityDumpStreamMessage),
 		expiredEvents:        make(map[rules.RuleID]*atomic.Int64),
 		expiredProcessEvents: atomic.NewInt64(0),
 		expiredDumps:         atomic.NewInt64(0),

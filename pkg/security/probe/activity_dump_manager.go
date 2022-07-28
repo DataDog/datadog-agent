@@ -30,8 +30,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
-func getTracedCgroupsCount(p *Probe) uint64 {
-	return uint64(p.config.ActivityDumpTracedCgroupsCount)
+func areCGroupADsEnabled(p *Probe) bool {
+	return p.config.ActivityDumpTracedCgroupsCount > 0
 }
 
 func getCgroupDumpTimeout(p *Probe) uint64 {

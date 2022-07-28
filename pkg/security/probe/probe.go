@@ -1398,7 +1398,6 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	}
 	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(
 		numCPU,
-		p.config.ActivityDumpTracedCgroupsCount,
 		p.config.ActivityDumpCgroupWaitListSize,
 		useMmapableMaps,
 		useRingBuffers,
@@ -1473,8 +1472,8 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 			Value: getCheckHelperCallInputType(p),
 		},
 		manager.ConstantEditor{
-			Name:  "traced_cgroups_count",
-			Value: getTracedCgroupsCount(p),
+			Name:  "cgroup_activity_dumps_enabled",
+			Value: boolTouint64(areCGroupADsEnabled(p)),
 		},
 		manager.ConstantEditor{
 			Name:  "dump_timeout",
@@ -1500,7 +1499,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
 			manager.ConstantEditor{
 				Name:  "tracepoint_raw_syscall_fallback",
-				Value: uint64(1),
+				Value: boolTouint64(true),
 			},
 		)
 	}
@@ -1509,7 +1508,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
 			manager.ConstantEditor{
 				Name:  "use_ring_buffer",
-				Value: uint64(1),
+				Value: boolTouint64(true),
 			},
 		)
 	}
@@ -1551,6 +1550,14 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	}
 
 	return p, nil
+}
+
+func boolTouint64(value bool) uint64 {
+	if value {
+		return 1
+	} else {
+		return 0
+	}
 }
 
 func (p *Probe) ensureConfigDefaults() {

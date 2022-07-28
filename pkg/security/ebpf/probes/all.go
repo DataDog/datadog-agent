@@ -140,7 +140,7 @@ func AllMaps() []*manager.Map {
 
 const (
 	// MaxTracedCgroupsCount hard limit for the count of traced cgroups
-	MaxTracedCgroupsCount = 1000
+	MaxTracedCgroupsCount = 128
 )
 
 func getMaxEntries(numCPU int, min int, max int) uint32 {
@@ -153,10 +153,7 @@ func getMaxEntries(numCPU int, min int, max int) uint32 {
 }
 
 // AllMapSpecEditors returns the list of map editors
-func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize int, supportMmapableMaps, useRingBuffers bool, ringBufferSize uint32) map[string]manager.MapSpecEditor {
-	if tracedCgroupsCount <= 0 || tracedCgroupsCount > MaxTracedCgroupsCount {
-		tracedCgroupsCount = MaxTracedCgroupsCount
-	}
+func AllMapSpecEditors(numCPU int, cgroupWaitListSize int, supportMmapableMaps, useRingBuffers bool, ringBufferSize uint32) map[string]manager.MapSpecEditor {
 	if cgroupWaitListSize <= 0 || cgroupWaitListSize > MaxTracedCgroupsCount {
 		cgroupWaitListSize = MaxTracedCgroupsCount
 	}
@@ -174,7 +171,7 @@ func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize in
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"traced_cgroups": {
-			MaxEntries: uint32(tracedCgroupsCount),
+			MaxEntries: MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"cgroup_wait_list": {
