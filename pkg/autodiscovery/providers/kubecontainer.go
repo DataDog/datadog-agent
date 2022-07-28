@@ -202,7 +202,7 @@ func (k *KubeContainerConfigProvider) generateConfigs() ([]integration.Config, e
 
 	adErrors := make(map[string]ErrorMsgSet)
 
-	var configs []integration.Config
+	configs := make([]integration.Config, 0, len(k.containerCache))
 
 	log.Debugf("Generating Configs for %d containers\n", len(k.containerCache))
 	for containerID, container := range k.containerCache {
