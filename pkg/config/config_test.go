@@ -711,7 +711,7 @@ func TestLoadProxyFromStdEnvNoValue(t *testing.T) {
 	resetEnv := unsetEnvForTest("NO_PROXY") // CircleCI sets NO_PROXY, so unset it for this test
 	defer resetEnv()
 
-	loadProxyFromEnv(config)
+	LoadProxyFromEnv(config)
 	assert.Nil(t, config.Get("proxy"))
 
 	proxies := GetProxies()
@@ -730,7 +730,7 @@ func TestLoadProxyConfOnly(t *testing.T) {
 	resetEnv := unsetEnvForTest("NO_PROXY") // CircleCI sets NO_PROXY, so unset it for this test
 	defer resetEnv()
 
-	loadProxyFromEnv(config)
+	LoadProxyFromEnv(config)
 	proxies := GetProxies()
 	assert.Equal(t, p, proxies)
 }
@@ -749,7 +749,7 @@ func TestLoadProxyStdEnvOnly(t *testing.T) {
 	defer resetHTTPSProxyUpper()
 	defer resetNoProxyUpper()
 
-	loadProxyFromEnv(config)
+	LoadProxyFromEnv(config)
 
 	proxies := GetProxies()
 	assert.Equal(t,
@@ -772,7 +772,7 @@ func TestLoadProxyStdEnvOnly(t *testing.T) {
 	defer resetHTTPSProxyLower()
 	defer resetNoProxyLower()
 
-	loadProxyFromEnv(config)
+	LoadProxyFromEnv(config)
 	proxies = GetProxies()
 	assert.Equal(t,
 		&Proxy{
@@ -794,7 +794,7 @@ func TestLoadProxyDDSpecificEnvOnly(t *testing.T) {
 	defer resetHTTPSProxy()
 	defer resetNoProxy()
 
-	loadProxyFromEnv(config)
+	LoadProxyFromEnv(config)
 
 	proxies := GetProxies()
 	assert.Equal(t,
@@ -823,7 +823,7 @@ func TestLoadProxyDDSpecificEnvPrecedenceOverStdEnv(t *testing.T) {
 	defer resetHTTPSProxy()
 	defer resetNoProxy()
 
-	loadProxyFromEnv(config)
+	LoadProxyFromEnv(config)
 
 	proxies := GetProxies()
 	assert.Equal(t,
@@ -846,7 +846,7 @@ func TestLoadProxyStdEnvAndConf(t *testing.T) {
 	defer resetHTTPProxy()
 	defer resetNoProxy()
 
-	loadProxyFromEnv(config)
+	LoadProxyFromEnv(config)
 	proxies := GetProxies()
 	assert.Equal(t,
 		&Proxy{
@@ -868,7 +868,7 @@ func TestLoadProxyDDSpecificEnvAndConf(t *testing.T) {
 	defer resetHTTPProxy()
 	defer resetNoProxy()
 
-	loadProxyFromEnv(config)
+	LoadProxyFromEnv(config)
 	proxies := GetProxies()
 	assert.Equal(t,
 		&Proxy{
@@ -895,7 +895,7 @@ func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
 	defer resetHTTPSProxy()
 	defer resetNoProxy()
 
-	loadProxyFromEnv(config)
+	LoadProxyFromEnv(config)
 
 	proxies := GetProxies()
 	assert.Equal(t,
@@ -919,7 +919,7 @@ func TestLoadProxyWithoutNoProxy(t *testing.T) {
 	defer resetHTTPSProxy()
 	defer resetNoProxy()
 
-	loadProxyFromEnv(config)
+	LoadProxyFromEnv(config)
 
 	proxies := GetProxies()
 	assert.Equal(t,
