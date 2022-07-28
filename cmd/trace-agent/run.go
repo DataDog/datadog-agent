@@ -297,6 +297,6 @@ func profilingConfig(cfg *config.AgentConfig) *profiling.Settings {
 		MutexProfileFraction: coreconfig.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
 		BlockProfileRate:     coreconfig.Datadog.GetInt("internal_profiling.block_profile_rate"),
 		WithGoroutineProfile: coreconfig.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
-		Tags:                 []string{fmt.Sprintf("version:%s", cfg.AgentVersion)},
+		Tags:                 []string{fmt.Sprintf("version:%s", version.AgentVersion)},
 	}
 }
