@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var userDataSNMP = `#!/bin/bash
+var userDataHelloWorld = `#!/bin/bash
 
 set -ex
 
@@ -33,7 +33,7 @@ export DEBIAN_FRONTEND=noninteractive
 apt -y update && apt -y install docker.io
 `
 
-func TestAgentSNMP(t *testing.T) {
+func TestAgentHelloWorld(t *testing.T) {
 	config := auto.ConfigMap{}
 	env := aws.NewSandboxEnvironment(config)
 	credentialsManager := credentials.NewManager()
@@ -45,8 +45,8 @@ func TestAgentSNMP(t *testing.T) {
 	apiKey, err := credentialsManager.GetCredential(credentials.AWSSSMStore, "agent.ci.dev.apikey")
 	require.NoError(t, err)
 
-	stack, err := infra.NewStack(context.Background(), "ci", "ci-agent-docker-vm", config, func(ctx *pulumi.Context) error {
-		instance, err := ec2.CreateEC2Instance(ctx, env, "agent-ci-docker", "", "amd64", "t3.large", "agent-ci-sandbox", userDataSNMP)
+	stack, err := infra.NewStack(context.Background(), "ci", "ci-agent-docker-vm-hello-world", config, func(ctx *pulumi.Context) error {
+		instance, err := ec2.CreateEC2Instance(ctx, env, "agent-ci-docker", "", "amd64", "t3.large", "agent-ci-sandbox", userDataHelloWorld)
 		if err != nil {
 			return err
 		}
