@@ -1398,7 +1398,6 @@ func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *
 			child := NewFileActivityNode(nil, nil, parent, generationType)
 			currentFan.Children[parent] = child
 
-			somethingChanged = true
 			currentFan = child
 			currentPath = currentPath[nextParentIndex:]
 			continue
