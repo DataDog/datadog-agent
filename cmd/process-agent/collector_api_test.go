@@ -336,7 +336,7 @@ func TestRTProcMessageNotRetried(t *testing.T) {
 	})
 }
 
-func TestSendPodMessageWithManifest(t *testing.T) {
+func TestSendPodMessageSendManifestPayload(t *testing.T) {
 	clusterID, orig, cfg, check := getPodCheckMessage()
 	cfg.Orchestrator.IsManifestCollectionEnabled = true
 	defer func() { _ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", orig) }()
@@ -347,7 +347,7 @@ func TestSendPodMessageWithManifest(t *testing.T) {
 	})
 }
 
-func TestSendPodMessageWithoutManifest(t *testing.T) {
+func TestSendPodMessageNotSendManifestPayload(t *testing.T) {
 	clusterID, orig, cfg, check := getPodCheckMessage()
 	defer func() { _ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", orig) }()
 
@@ -355,9 +355,8 @@ func TestSendPodMessageWithoutManifest(t *testing.T) {
 		testPodMessageMetadata(t, clusterID, cfg, ep)
 		select {
 		case q := <-ep.Requests:
-			t.Fatalf("should not have received manifest payloaad %+v", q)
+			t.Fatalf("should not have received manifest payload %+v", q)
 		case <-time.After(1 * time.Second):
-			break
 		}
 
 	})

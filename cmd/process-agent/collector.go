@@ -587,8 +587,8 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 			case config.PodCheckMetadataName, config.PodCheckManifestName:
 				// Pod check contains two parts: metadata and manifest.
 				// Orchestrator intake response does not change RT checks enablement or interval
+				updateRTStatus = false
 				if result.name == config.PodCheckMetadataName {
-					updateRTStatus = false
 					responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
 				} else {
 					responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)
