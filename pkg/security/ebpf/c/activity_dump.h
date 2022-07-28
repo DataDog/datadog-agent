@@ -119,20 +119,30 @@ struct bpf_map_def SEC("maps/traced_cgroups_lock") traced_cgroups_lock = {
     .max_entries = 1,
 };
 
+__attribute__((always_inline)) bool lock_cgroups_counter() {
+    u32 key = 0;
+    return bpf_map_update_elem(&traced_cgroups_lock, &key, &key, BPF_NOEXIST);
+}
+
+__attribute__((always_inline)) void unlock_cgroups_counter() {
+    u32 key = 0;
+    bpf_map_delete_elem(&traced_cgroups_lock, &key);
+}
+
 __attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTAINER_ID_LEN]) {
     void *already_in = bpf_map_lookup_elem(&traced_cgroups, &cgroup[0]);
     if (already_in) {
         return false;
     }
 
-    u32 key = 0;
-    if(!bpf_map_update_elem(&traced_cgroups_lock, &key, &key, BPF_NOEXIST)) {
-        // we don't have the lock
+    if (!lock_cgroups_counter()) {
         return false;
     }
 
+    u32 key = 0;
     struct traced_cgroups_counter_t *counter = bpf_map_lookup_elem(&traced_cgroups_counter, &key);
     if (!counter) {
+        unlock_cgroups_counter();
         return false;
     }
 
@@ -142,20 +152,26 @@ __attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTA
         res = true;
     }
 
-    bpf_map_delete_elem(&traced_cgroups_lock, &key);
+    unlock_cgroups_counter();
     return res;
 }
 
 __attribute__((always_inline)) void freeup_traced_cgroup_spot(char cgroup[CONTAINER_ID_LEN]) {
+    if (!lock_cgroups_counter()) {
+        return;
+    }
+
     bpf_map_delete_elem(&traced_cgroups, &cgroup[0]);
 
     u32 key = 0;
     struct traced_cgroups_counter_t *counter = bpf_map_lookup_elem(&traced_cgroups_counter, &key);
     if (!counter) {
+        unlock_cgroups_counter();
         return;
     }
 
     __sync_fetch_and_add(&counter->counter, -1);
+    unlock_cgroups_counter();
 }
 
 __attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, char cgroup[CONTAINER_ID_LEN]) {
