@@ -19,6 +19,7 @@ import (
 	// Refactor relevant bits
 	"github.com/DataDog/zstd"
 	"github.com/spf13/afero"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
@@ -65,13 +66,14 @@ var CapPool = sync.Pool{
 
 // TrafficCaptureWriter allows writing dogstatsd traffic to a file.
 type TrafficCaptureWriter struct {
-	File     afero.File
-	zWriter  *zstd.Writer
-	writer   *bufio.Writer
-	Traffic  chan *CaptureBuffer
-	Location string
-	shutdown chan struct{}
-	ongoing  bool
+	File      afero.File
+	zWriter   *zstd.Writer
+	writer    *bufio.Writer
+	Traffic   chan *CaptureBuffer
+	Location  string
+	shutdown  chan struct{}
+	ongoing   bool
+	accepting *atomic.Bool
 
 	sharedPacketPoolManager *packets.PoolManager
 	oobPacketPoolManager    *packets.PoolManager
@@ -87,6 +89,7 @@ func NewTrafficCaptureWriter(depth int) *TrafficCaptureWriter {
 	return &TrafficCaptureWriter{
 		Traffic:     make(chan *CaptureBuffer, depth),
 		taggerState: make(map[int32]string),
+		accepting:   atomic.NewBool(false),
 	}
 }
 
@@ -132,7 +135,7 @@ func (tc *TrafficCaptureWriter) ProcessMessage(msg *CaptureBuffer) error {
 
 // ValidateLocation validates the location passed as an argument is writable.
 // The location and/or and error if any are returned.
-func (tc *TrafficCaptureWriter) ValidateLocation(l string) (string, error) {
+func ValidateLocation(l string) (string, error) {
 	captureFs.RLock()
 	defer captureFs.RUnlock()
 
@@ -140,7 +143,7 @@ func (tc *TrafficCaptureWriter) ValidateLocation(l string) (string, error) {
 		return "", fmt.Errorf("no filesystem backend available, impossible to start capture")
 	}
 
-	defaultLocation := (l == "")
+	defaultLocation := l == ""
 
 	var location string
 	if defaultLocation {
@@ -193,7 +196,7 @@ func (tc *TrafficCaptureWriter) Capture(l string, d time.Duration, compressed bo
 		return
 	}
 
-	location, err = tc.ValidateLocation(l)
+	location, err = ValidateLocation(l)
 	if err != nil {
 		return
 	}
@@ -226,6 +229,7 @@ func (tc *TrafficCaptureWriter) Capture(l string, d time.Duration, compressed bo
 	tc.shutdown = shutdown
 
 	tc.ongoing = true
+	tc.accepting.Store(true)
 
 	err = tc.WriteHeader()
 	if err != nil {
@@ -262,6 +266,7 @@ process:
 			}
 		case <-shutdown:
 			log.Debug("Capture shutting down")
+			tc.accepting.Store(false)
 			break process
 		}
 	}
@@ -333,14 +338,13 @@ func (tc *TrafficCaptureWriter) StopCapture() {
 
 // Enqueue enqueues a capture buffer so it's written to file.
 func (tc *TrafficCaptureWriter) Enqueue(msg *CaptureBuffer) bool {
-	qd := false
 
-	if tc.IsOngoing() {
+	if tc.accepting.Load() {
 		tc.Traffic <- msg
-		qd = true
+		return true
 	}
 
-	return qd
+	return false
 }
 
 // RegisterSharedPoolManager registers the shared pool manager with the TrafficCaptureWriter.
