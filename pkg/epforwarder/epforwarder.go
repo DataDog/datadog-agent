@@ -221,7 +221,7 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	}
 	destinations := client.NewDestinations(reliable, additionals)
 	// TODO: Should we use a larger buffer?
-	inputChan := make(chan *message.Message, 1000)
+	inputChan := make(chan *message.Message, 100000)
 	// TODO: Should we use a larger buffer?
 	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
 

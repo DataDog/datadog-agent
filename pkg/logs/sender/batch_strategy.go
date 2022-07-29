@@ -140,7 +140,7 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 		return
 	}
 
-	log.Infof("BATCH MESSAGE: count=%d, totalSize=%d", len(messages), len(serializedMessage))
+	log.Infof("BATCH MESSAGE: count=%d, totalSize=%d, avgMsgSize=%f", len(messages), len(serializedMessage), float64(len(serializedMessage))/float64(len(messages)))
 
 	outputChan <- &message.Payload{
 		Messages:      messages,

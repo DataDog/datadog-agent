@@ -7,6 +7,7 @@ package flowaggregator
 
 import (
 	"encoding/json"
+	"math/rand"
 	"time"
 
 	"go.uber.org/atomic"
@@ -75,9 +76,14 @@ func (agg *FlowAggregator) run() {
 			log.Info("Stopping aggregator")
 			return
 		case flow := <-agg.flowIn:
-			for i := 0; i < agg.sendMultiplier; i++ {
-				//flow.DeviceAddr = []byte{127, 0, 0, byte(rand.Intn(200))}
-				flow.SrcPort = uint32(i)
+			flow.DeviceAddr = []byte{127, 0, 0, byte(rand.Intn(200))}
+			if agg.sendMultiplier > 0 {
+				for i := 0; i < agg.sendMultiplier; i++ {
+					flow.SrcPort = uint32(i)
+					agg.receivedFlowCount.Inc()
+					agg.flowAcc.add(flow)
+				}
+			} else {
 				agg.receivedFlowCount.Inc()
 				agg.flowAcc.add(flow)
 			}

@@ -74,10 +74,6 @@ func ReadConfig() (*NetflowConfig, error) {
 		mainConfig.AggregatorBufferSize = common.DefaultAggregatorBufferSize
 	}
 
-	if mainConfig.SendMultiplier == 0 {
-		mainConfig.SendMultiplier = 1
-	}
-
 	return &mainConfig, nil
 }
 
