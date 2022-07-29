@@ -121,6 +121,7 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	case p.in <- e:
 		return nil
 	default:
+		// TODO: Is it better to be blocking here instead of losing data ?
 		return fmt.Errorf("event platform forwarder pipeline channel is full for eventType=%s. consider increasing batch_max_concurrent_send", eventType)
 	}
 }
@@ -219,7 +220,9 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 		additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName))
 	}
 	destinations := client.NewDestinations(reliable, additionals)
+	// TODO: Should we use a larger buffer?
 	inputChan := make(chan *message.Message, 1000)
+	// TODO: Should we use a larger buffer?
 	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
 
 	encoder := sender.IdentityContentType

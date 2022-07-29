@@ -76,6 +76,7 @@ func (agg *FlowAggregator) run() {
 			return
 		case flow := <-agg.flowIn:
 			for i := 0; i < agg.sendMultiplier; i++ {
+				//flow.DeviceAddr = []byte{127, 0, 0, byte(rand.Intn(200))}
 				flow.SrcPort = uint32(i)
 				agg.receivedFlowCount.Inc()
 				agg.flowAcc.add(flow)
