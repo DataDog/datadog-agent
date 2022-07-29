@@ -48,12 +48,13 @@ const (
 	defaultHeadersFound
 	sysfsHeadersFound
 	downloadedHeadersFound
+	// DownloadSuccess represents the case where kernel headers were successfully downloaded via nikos
 	DownloadSuccess
 	hostVersionErr
 	downloadFailure
 	validationFailure
 	reposDirAccessFailure
-	headersNotFound
+	headersNotFoundDownloadDisabled
 )
 
 var errReposDirInaccessible = errors.New("unable to access repos directory")
@@ -104,7 +105,7 @@ func GetKernelHeaders(downloadEnabled bool, headerDirs []string, headerDownloadD
 	log.Debugf("unable to find downloaded kernel headers: no valid headers found")
 
 	if !downloadEnabled {
-		return nil, headersNotFound, fmt.Errorf("no valid matching kernel header directories found. To download kernel headers, set system_probe_config.enable_kernel_header_download to true")
+		return nil, headersNotFoundDownloadDisabled, fmt.Errorf("no valid matching kernel header directories found. To download kernel headers, set system_probe_config.enable_kernel_header_download to true")
 	}
 
 	d := headerDownloader{aptConfigDir, yumReposDir, zypperReposDir}
