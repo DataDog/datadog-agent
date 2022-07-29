@@ -69,14 +69,6 @@ func newTelemetry() telemetry {
 
 func New(config *config.Config, constants []manager.ConstantEditor) (connection.Tracer, error) {
 	mgrOptions := manager.Options{
-		VerifierOptions: ebpf.CollectionOptions{
-			Programs: ebpf.ProgramOptions{
-				// LogSize is the size of the log buffer given to the verifier. Give it a big enough (2 * 1024 * 1024)
-				// value so that all our programs fit. If the verifier ever outputs a `no space left on device` error,
-				// we'll need to increase this value.
-				LogSize: 2097152,
-			},
-		},
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
 		// This will result in an EPERM (Operation not permitted) error, when trying to create an eBPF map
