@@ -37,7 +37,7 @@ def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, arch="x64")
     for target in targets:
         print(f"running golangci on {target}")
         ctx.run(
-            f"golangci-lint run --timeout 10m0s --build-tags '{' '.join(tags)}' {target}/...",
+            f"golangci-lint run --timeout 15m0s --build-tags '{' '.join(tags)}' {target}/...",
             env=env,
         )
 

@@ -15,7 +15,7 @@ import (
 
 // InitStatus initialize a status builder
 func InitStatus(sources *sources.LogSources) {
-	var isRunning *atomic.Bool = atomic.NewBool(true)
+	var isRunning = atomic.NewBool(true)
 	endpoints, _ := config.BuildEndpoints(config.HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	Init(isRunning, endpoints, sources, metrics.LogsExpvars)
 }
