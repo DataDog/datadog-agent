@@ -13,25 +13,11 @@ BPF_HASH_MAP(conn_stats, conn_tuple_t, conn_stats_ts_t, 0)
 /* This is a key/value store with the keys being a conn_tuple_t (but without the PID being used)
  * and the values being a tcp_stats_t *.
  */
-struct bpf_map_def SEC("maps/tcp_stats") tcp_stats = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(conn_tuple_t),
-    .value_size = sizeof(tcp_stats_t),
-    .max_entries = 0, // This will get overridden at runtime using max_tracked_connections
-    .pinning = 0,
-    .namespace = "",
-};
+BPF_HASH_MAP(tcp_stats, conn_tuple_t, tcp_stats_t, 0)
 
 /* Will hold the PIDs initiating TCP connections */
-struct bpf_map_def SEC("maps/tcp_ongoing_connect_pid") tcp_ongoing_connect_pid = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct sock *),
-    .value_size = sizeof(__u64),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
-
+BPF_HASH_MAP(tcp_ongoing_connect_pid, struct sock *, __u64, 1024)
+    
 /* Will hold the tcp/udp close events
  * The keys are the cpu number and the values a perf file descriptor for a perf event
  */
