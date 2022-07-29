@@ -141,6 +141,7 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 		log.Warn("Encoding failed - dropping payload", err)
 		return
 	}
+
 	outputChan <- &message.Payload{
 		Messages:      messages,
 		Encoded:       encodedPayload,
