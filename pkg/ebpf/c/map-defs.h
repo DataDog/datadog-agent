@@ -41,4 +41,7 @@
 #define BPF_LRU_MAP_PINNED(name, key_type, value_type, max_entries) \
     BPF_MAP(name, BPF_MAP_TYPE_LRU_HASH, key_type, value_type, max_entries, 1)
 
+#define BPF_PERCPU_HASH_MAP(name, key_type, value_type, max_entries) \
+    BPF_MAP(name, BPF_MAP_TYPE_PERCPU_HASH, key_type, value_type, max_entries, 0)
+
 #endif
