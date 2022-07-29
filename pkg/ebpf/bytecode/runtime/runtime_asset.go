@@ -21,7 +21,10 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/nikos/types"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -131,7 +134,22 @@ func (a *RuntimeAsset) SubmitTelemetry() {
 	tm := a.runtimeCompiler.GetRCTelemetry()
 
 	if tm.compilationEnabled {
-		tags := []string{fmt.Sprintf("agent_version:%s", version.AgentVersion), fmt.Sprintf("asset:%s", a.filename)}
+
+		var platform string
+		if target, err := types.NewTarget(); err == nil {
+			// Prefer platform information from nikos over platform info from the host package, since this
+			// is what kernel header downloading uses
+			platform = strings.ToLower(target.Distro.Display)
+		} else {
+			log.Warnf("failed to retrieve host platform information from nikos: %s", err)
+			platform = host.GetStatusInformation().Platform
+		}
+
+		tags := []string{
+			fmt.Sprintf("asset:%s", a.filename),
+			fmt.Sprintf("agent_version:%s", version.AgentVersion),
+			fmt.Sprintf("platform:%s", platform),
+		}
 
 		if tm.compilationResult != notAttempted {
 			var resultTag string
