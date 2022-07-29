@@ -671,16 +671,27 @@ func (l *Collector) updateRTStatus(statuses []*model.CollectorStatus) {
 }
 
 func (l *Collector) logQueuesSize() {
-	processSize, rtProcessSize, eventSize, podSize := l.processResults.Len(), l.rtProcessResults.Len(), l.eventResults.Len(), l.podResults.Len()
-	if processSize > 0 || rtProcessSize > 0 || eventSize > 0 || podSize > 0 {
-		log.Infof(
-			"Delivery queues: process[size=%d, weight=%d], rtprocess[size=%d, weight=%d], event[size=%d, weight=%d], pod[size=%d, weight=%d]",
-			processSize, l.processResults.Weight(),
-			rtProcessSize, l.rtProcessResults.Weight(),
-			eventSize, l.eventResults.Weight(),
-			podSize, l.podResults.Weight(),
-		)
+	var (
+		processSize     = l.processResults.Len()
+		rtProcessSize   = l.rtProcessResults.Len()
+		connectionsSize = l.connectionsResults.Len()
+		eventsSize      = l.eventResults.Len()
+		podSize         = l.podResults.Len()
+	)
+
+	if processSize == 0 || rtProcessSize == 0 || connectionsSize == 0 || eventsSize == 0 || podSize == 0 {
+		return
 	}
+
+	log.Infof(
+		"Delivery queues: process[size=%d, weight=%d], rtprocess[size=%d, weight=%d], connections[size=%d, weight=%d], event[size=%d, weight=%d], pod[size=%d, weight=%d]",
+		processSize, l.processResults.Weight(),
+		rtProcessSize, l.rtProcessResults.Weight(),
+		connectionsSize, l.connectionsResults.Weight(),
+		eventsSize, l.eventResults.Weight(),
+		podSize, l.podResults.Weight(),
+	)
+
 }
 
 // getContainerCount returns the number of containers in the message body
