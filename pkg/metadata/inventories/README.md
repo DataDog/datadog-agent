@@ -32,7 +32,7 @@ Sending Agent configuration can be disabled using `inventories_configuration_ena
 `SetCheckMetadata` registers data per check instance. Metadata can include the check version, the version of the
 monitored software, ... It depends on each check.
 
-We send for every running checks, no matter if they registered extra metadata or not: name, ID, configuration,
+For every running check, no matter if it registered extra metadata or not, we send: name, ID, configuration,
 configuration provider. Sending checks configuration can be disabled using `inventories_checks_configuration_enabled`.
 
 ## Agent metadata
