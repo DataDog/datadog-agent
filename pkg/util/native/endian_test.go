@@ -20,7 +20,6 @@ func getRuntimeEndian() binary.ByteOrder {
 	b := *pb
 	if b == 0x04 {
 		return binary.LittleEndian
-	} else {
-		return binary.BigEndian
 	}
+	return binary.BigEndian
 }
