@@ -546,7 +546,7 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 }
 
 func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
-	if entry := p.ResolveFromCache(pid, tid); entry != nil {
+	if entry := p.resolveFromCache(pid, tid); entry != nil {
 		p.hitsStats[metrics.CacheTag].Inc()
 		return entry
 	}
@@ -556,13 +556,13 @@ func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	}
 
 	// fallback to the kernel maps directly, the perf event may be delayed / may have been lost
-	if entry := p.ResolveFromKernelMaps(pid, tid); entry != nil {
+	if entry := p.resolveFromKernelMaps(pid, tid); entry != nil {
 		p.hitsStats[metrics.KernelMapsTag].Inc()
 		return entry
 	}
 
 	// fallback to /proc, the in-kernel LRU may have deleted the entry
-	if entry := p.ResolveFromProcfs(pid); entry != nil {
+	if entry := p.resolveFromProcfs(pid, procResolveMaxDepth); entry != nil {
 		p.hitsStats[metrics.ProcFSTag].Inc()
 		return entry
 	}
@@ -633,6 +633,12 @@ func (p *ProcessResolver) ApplyBootTime(entry *model.ProcessCacheEntry) {
 
 // ResolveFromCache resolves cache entry from the cache
 func (p *ProcessResolver) ResolveFromCache(pid, tid uint32) *model.ProcessCacheEntry {
+	p.Lock()
+	defer p.Unlock()
+	return p.resolveFromCache(pid, tid)
+}
+
+func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheEntry {
 	entry, exists := p.entryCache[pid]
 	if !exists {
 		return nil
@@ -664,6 +670,12 @@ func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheE
 
 // ResolveFromKernelMaps resolves the entry from the kernel maps
 func (p *ProcessResolver) ResolveFromKernelMaps(pid, tid uint32) *model.ProcessCacheEntry {
+	p.Lock()
+	defer p.Unlock()
+	return p.resolveFromKernelMaps(pid, tid)
+}
+
+func (p *ProcessResolver) resolveFromKernelMaps(pid, tid uint32) *model.ProcessCacheEntry {
 	pidb := make([]byte, 4)
 	model.ByteOrder.PutUint32(pidb, pid)
 
@@ -728,6 +740,8 @@ func IsKThread(ppid, pid uint32) bool {
 
 // ResolveFromProcfs resolves the entry from procfs
 func (p *ProcessResolver) ResolveFromProcfs(pid uint32) *model.ProcessCacheEntry {
+	p.Lock()
+	defer p.Unlock()
 	return p.resolveFromProcfs(pid, procResolveMaxDepth)
 }
 
