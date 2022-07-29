@@ -6,8 +6,9 @@
 package encoding
 
 import (
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/gogo/protobuf/proto"
+
+	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
@@ -21,8 +22,6 @@ type httpEncoder struct {
 	dataPool []model.HTTPStats_Data
 	ptrPool  []*model.HTTPStats_Data
 	poolIdx  int
-
-	orphanEntries int
 }
 
 func newHTTPEncoder(payload *network.Connections) *httpEncoder {
@@ -69,7 +68,6 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 		aggregation, ok := e.aggregations[key.KeyTuple]
 		if !ok {
 			// if there is no matching connection don't even bother to serialize HTTP data
-			e.orphanEntries++
 			continue
 		}
 

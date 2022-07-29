@@ -48,7 +48,7 @@ func (a Address) Len() int {
 	return int(a.BitLen()) / 8
 }
 
-// AddressFromNetIP returns an Address from a provided net.IP
+// AddressFromNetIP returns an Address from a provided net.IPb
 func AddressFromNetIP(ip net.IP) Address {
 	addr, _ := netaddr.FromStdIP(ip)
 	return Address{addr}
@@ -66,6 +66,15 @@ func AddressFromString(s string) Address {
 func NetIPFromAddress(addr Address, buf []byte) net.IP {
 	n := addr.WriteTo(buf)
 	return net.IP(buf[:n])
+}
+
+// FromLowHigh creates an address from a pair of uint64 numbers
+func FromLowHigh(l, h uint64) Address {
+	if h > 0 {
+		return V6Address(l, h)
+	}
+
+	return V4Address(uint32(l))
 }
 
 // ToLowHigh converts an address into a pair of uint64 numbers

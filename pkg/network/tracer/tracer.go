@@ -17,10 +17,11 @@ import (
 	"syscall"
 	"time"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -337,7 +338,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
 	t.activeBuffer.Reset()
 
-	t.retryConntrack(delta.Conns)
+	delta.HTTP = t.matchHTTPConnections(delta.Conns, delta.HTTP)
 
 	ips := make([]util.Address, 0, len(delta.Conns)*2)
 	for _, conn := range delta.Conns {
@@ -356,6 +357,62 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		ConnTelemetry:               ctm,
 		CompilationTelemetryByAsset: rctm,
 	}, nil
+}
+
+func (t *Tracer) matchHTTPConnections(conns []network.ConnectionStats, httpStats map[http.Key]*http.RequestStats) (matched map[http.Key]*http.RequestStats) {
+	connsByKeyTuple := make(map[http.KeyTuple]struct{}, len(conns))
+	for _, c := range conns {
+		connsByKeyTuple[network.HTTPKeyTupleFromConn(c)] = struct{}{}
+	}
+
+	matched = make(map[http.Key]*http.RequestStats)
+	var scratchConn network.ConnectionStats
+	var orphans int
+	for httpKey, stats := range httpStats {
+		if _, ok := connsByKeyTuple[httpKey.KeyTuple]; ok {
+			matched[httpKey] = stats
+			continue
+		}
+
+		scratchConn.Source = util.FromLowHigh(httpKey.DstIPLow, httpKey.DstIPHigh)
+		scratchConn.SPort = httpKey.DstPort
+		scratchConn.Dest = util.FromLowHigh(httpKey.SrcIPLow, httpKey.SrcIPHigh)
+		scratchConn.DPort = httpKey.SrcPort
+		scratchConn.Type = network.TCP
+		trans := t.conntracker.GetTranslationForConn(scratchConn)
+
+		if trans == nil {
+			orphans++
+			continue
+		}
+
+		scratchConn.Source = trans.ReplSrcIP
+		scratchConn.SPort = trans.ReplSrcPort
+		scratchConn.Dest = trans.ReplDstIP
+		scratchConn.DPort = trans.ReplDstPort
+		scratchConn.Type = network.TCP
+		httpKey.KeyTuple = network.HTTPKeyTupleFromConn(scratchConn)
+		if _, ok := connsByKeyTuple[httpKey.KeyTuple]; !ok {
+			orphans++
+			continue
+		}
+
+		if s, ok := matched[httpKey]; ok {
+			s.CombineWith(stats)
+			continue
+		}
+
+		matched[httpKey] = stats
+	}
+
+	if orphans > 0 {
+		log.Debugf(
+			"detected orphan http aggreggations. this can be either caused by conntrack sampling or missed tcp close events. count=%d",
+			orphans,
+		)
+	}
+
+	return matched
 }
 
 func (t *Tracer) RegisterClient(clientID string) error {
