@@ -108,6 +108,7 @@ type Endpoints struct {
 	BatchMaxConcurrentSend int
 	BatchMaxSize           int
 	BatchMaxContentSize    int
+	InputChanSize          int
 }
 
 // GetStatus returns the endpoints status, one line per endpoint

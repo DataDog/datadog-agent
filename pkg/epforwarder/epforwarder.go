@@ -48,6 +48,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
 	},
 	{
 		eventType:              eventTypeDBMMetrics,
@@ -58,6 +59,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
 	},
 	{
 		eventType:              eventTypeDBMActivity,
@@ -68,6 +70,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
 	},
 	{
 		eventType:                     EventTypeNetworkDevicesMetadata,
@@ -77,6 +80,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
 	},
 	{
 		eventType:                     EventTypeSnmpTraps,
@@ -86,15 +90,17 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
 	},
 	{
 		eventType:                     EventTypeNetworkDevicesNetFlow,
 		endpointsConfigPrefix:         "network_devices.netflow.forwarder.",
 		hostnameEndpointPrefix:        "ndmflow-intake.",
 		intakeTrackType:               "ndmflow",
-		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxConcurrentSend: 50,
 		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           10000,
+		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
 	},
 }
 
@@ -186,6 +192,7 @@ type passthroughPipelineDesc struct {
 	defaultBatchMaxConcurrentSend int
 	defaultBatchMaxContentSize    int
 	defaultBatchMaxSize           int
+	defaultInputChanSize          int
 }
 
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
@@ -209,6 +216,9 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	if endpoints.BatchMaxSize <= pkgconfig.DefaultBatchMaxSize {
 		endpoints.BatchMaxSize = desc.defaultBatchMaxSize
 	}
+	if endpoints.InputChanSize <= 0 {
+		endpoints.InputChanSize = desc.defaultInputChanSize
+	}
 	reliable := []client.Destination{}
 	for i, endpoint := range endpoints.GetReliableEndpoints() {
 		telemetryName := fmt.Sprintf("%s_%d_reliable_%d", desc.eventType, pipelineID, i)
@@ -222,7 +232,7 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	destinations := client.NewDestinations(reliable, additionals)
 	// TODO: Should we use a larger buffer?
 	// 100000 * 500 (msg size) = 50Mo
-	inputChan := make(chan *message.Message, 100000)
+	inputChan := make(chan *message.Message, endpoints.InputChanSize)
 	// TODO: Should we use a larger buffer?
 	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
 
@@ -241,8 +251,8 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 		encoder)
 
 	a := auditor.NewNullAuditor()
-	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d",
-		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize)
+	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d",
+		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize, endpoints.InputChanSize)
 	return &passthroughPipeline{
 		sender:   sender.NewSender(senderInput, a.Channel(), destinations, 10),
 		strategy: strategy,
