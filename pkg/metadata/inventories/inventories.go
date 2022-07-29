@@ -43,8 +43,6 @@ var (
 	hostMetadata       = make(AgentMetadata)
 	hostMetadataMutex  = &sync.Mutex{}
 
-	agentStartupTime = timeNow()
-
 	lastPayload         *Payload
 	lastGetPayload      = timeNow()
 	lastGetPayloadMutex = &sync.Mutex{}
@@ -174,16 +172,13 @@ func RemoveCheckMetadata(checkID string) {
 
 func createCheckInstanceMetadata(checkID, configProvider, initConfig, instanceConfig string) *CheckInstanceMetadata {
 	checkInstanceMetadata := CheckInstanceMetadata{}
-	lastUpdated := agentStartupTime
 
 	if entry, found := checkMetadata[checkID]; found {
 		for k, v := range entry.CheckInstanceMetadata {
 			checkInstanceMetadata[k] = v
 		}
-		lastUpdated = entry.LastUpdated
 	}
 
-	checkInstanceMetadata["last_updated"] = lastUpdated.UnixNano()
 	checkInstanceMetadata["config.hash"] = checkID
 	checkInstanceMetadata["config.provider"] = configProvider
 

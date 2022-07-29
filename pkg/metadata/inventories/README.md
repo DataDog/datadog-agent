@@ -50,7 +50,6 @@ The payload is a JSON dict with the following fields
 - `check_metadata` - **dict of string to list**: dictionary with check names as keys; values are a list of the metadata for each
   instance of that check.
   Each instance is composed of:
-    - `last_updated` - **int**: timestamp of the last metadata update for this instance
     - `config.hash` - **string**: the instance ID for this instance (as shown in the status page).
     - `config.provider` - **string**: where the configuration came from for this instance (disk, docker labels, ...).
     - `init_config` - **string**: the `init_config` part of the configuration for this check instance.
@@ -171,7 +170,6 @@ Here an example of an inventory payload:
             {
                 "config.hash": "cpu",
                 "config.provider": "file",
-                "last_updated": 1631281744506400319,
                 "init_config": "",
                 "instance_config: {}
             }
@@ -180,7 +178,6 @@ Here an example of an inventory payload:
             {
                 "config.hash": "disk:e5dffb8bef24336f",
                 "config.provider": "file",
-                "last_updated": 1631281744506400319,
                 "init_config": "",
                 "instance_config: {}
             }
@@ -189,7 +186,6 @@ Here an example of an inventory payload:
             {
                 "config.hash": "file_handle",
                 "config.provider": "file",
-                "last_updated": 1631281744506400319,
                 "init_config": "",
                 "instance_config: {}
             }
@@ -198,7 +194,6 @@ Here an example of an inventory payload:
             {
                 "config.hash": "io",
                 "config.provider": "file",
-                "last_updated": 1631281744506400319,
                 "init_config": "",
                 "instance_config: {}
             }
@@ -207,7 +202,6 @@ Here an example of an inventory payload:
             {
                 "config.hash": "load",
                 "config.provider": "file",
-                "last_updated": 1631281744506400319,
                 "init_config": "",
                 "instance_config: {}
             }
@@ -218,7 +212,6 @@ Here an example of an inventory payload:
                 "config.provider": "container",
                 "init_config": "test: 21",
                 "instance_config": "host: localhost\nport: 6379\ntags:\n- docker_image:redis\n- image_name:redis\n- short_image:redis",
-                "last_updated": 1658327911867365638,
                 "version.major": "7",
                 "version.minor": "0",
                 "version.patch": "2",
@@ -230,7 +223,6 @@ Here an example of an inventory payload:
                 "config.provider": "container",
                 "init_config": "test: 21",
                 "instance_config": "host: localhost\nport: 7379\ntags:\n- docker_image:redis\n- image_name:redis\n- short_image:redis",
-                "last_updated": 1658327940850060982,
                 "version.major": "7",
                 "version.minor": "0",
                 "version.patch": "2",
