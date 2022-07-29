@@ -97,7 +97,7 @@ kitchen_stress_security_agent:
   rules:
     !reference [.manual]
   stage: functional_test
-  needs: ["tests_ebpf_x64"]
+  needs: ["tests_ebpf_x64_stress"]
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
