@@ -97,10 +97,10 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		endpointsConfigPrefix:         "network_devices.netflow.forwarder.",
 		hostnameEndpointPrefix:        "ndmflow-intake.",
 		intakeTrackType:               "ndmflow",
-		defaultBatchMaxConcurrentSend: 50,
+		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           10000,
-		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
+		defaultInputChanSize:          100000, // 100k is enough for queueing 10 payloads (10x the `defaultBatchMaxSize: 10000`)
 	},
 }
 
