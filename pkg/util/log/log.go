@@ -542,6 +542,14 @@ func Tracec(message string, context ...interface{}) {
 	TracecStackDepth(message, 1, context...)
 }
 
+// TraceFunc calls and logs the result of 'logFunc' if and only if Trace (or more verbose) logs are enabled
+func TraceFunc(logFunc func() string) {
+	currentLevel, _ := GetLogLevel()
+	if currentLevel <= seelog.TraceLvl {
+		TraceStackDepth(2, logFunc())
+	}
+}
+
 // Debug logs at the debug level
 func Debug(v ...interface{}) {
 	log(seelog.DebugLvl, func() { Debug(v...) }, logger.debug, v...)
@@ -560,6 +568,14 @@ func DebugcStackDepth(message string, depth int, context ...interface{}) {
 // Debugc logs at the debug level with context
 func Debugc(message string, context ...interface{}) {
 	DebugcStackDepth(message, 1, context...)
+}
+
+// DebugFunc calls and logs the result of 'logFunc' if and only if Debug (or more verbose) logs are enabled
+func DebugFunc(logFunc func() string) {
+	currentLevel, _ := GetLogLevel()
+	if currentLevel <= seelog.DebugLvl {
+		DebugStackDepth(2, logFunc())
+	}
 }
 
 // Info logs at the info level
@@ -582,6 +598,14 @@ func Infoc(message string, context ...interface{}) {
 	InfocStackDepth(message, 1, context...)
 }
 
+// InfoFunc calls and logs the result of 'logFunc' if and only if Info (or more verbose) logs are enabled
+func InfoFunc(logFunc func() string) {
+	currentLevel, _ := GetLogLevel()
+	if currentLevel <= seelog.InfoLvl {
+		InfoStackDepth(2, logFunc())
+	}
+}
+
 // Warn logs at the warn level and returns an error containing the formated log message
 func Warn(v ...interface{}) error {
 	return logWithError(seelog.WarnLvl, func() { Warn(v...) }, logger.warn, false, v...)
@@ -600,6 +624,14 @@ func WarncStackDepth(message string, depth int, context ...interface{}) error {
 // Warnc logs at the warn level with context and returns an error containing the formated log message
 func Warnc(message string, context ...interface{}) error {
 	return WarncStackDepth(message, 1, context...)
+}
+
+// WarnFunc calls and logs the result of 'logFunc' if and only if Warn (or more verbose) logs are enabled
+func WarnFunc(logFunc func() string) {
+	currentLevel, _ := GetLogLevel()
+	if currentLevel <= seelog.WarnLvl {
+		WarnStackDepth(2, logFunc())
+	}
 }
 
 // Error logs at the error level and returns an error containing the formated log message
@@ -622,6 +654,14 @@ func Errorc(message string, context ...interface{}) error {
 	return ErrorcStackDepth(message, 1, context...)
 }
 
+// ErrorFunc calls and logs the result of 'logFunc' if and only if Error (or more verbose) logs are enabled
+func ErrorFunc(logFunc func() string) {
+	currentLevel, _ := GetLogLevel()
+	if currentLevel <= seelog.ErrorLvl {
+		ErrorStackDepth(2, logFunc())
+	}
+}
+
 // Critical logs at the critical level and returns an error containing the formated log message
 func Critical(v ...interface{}) error {
 	return logWithError(seelog.CriticalLvl, func() { Critical(v...) }, logger.critical, true, v...)
@@ -640,6 +680,14 @@ func CriticalcStackDepth(message string, depth int, context ...interface{}) erro
 // Criticalc logs at the critical level with context and returns an error containing the formated log message
 func Criticalc(message string, context ...interface{}) error {
 	return CriticalcStackDepth(message, 1, context...)
+}
+
+// CriticalFunc calls and logs the result of 'logFunc' if and only if Critical (or more verbose) logs are enabled
+func CriticalFunc(logFunc func() string) {
+	currentLevel, _ := GetLogLevel()
+	if currentLevel <= seelog.CriticalLvl {
+		CriticalStackDepth(2, logFunc())
+	}
 }
 
 // InfoStackDepth logs at the info level and the current stack depth plus the additional given one
