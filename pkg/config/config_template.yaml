@@ -3271,6 +3271,9 @@ api_key:
     ## @param sums - custom object - optional
     ## Configuration for OTLP Sums.
     ## See https://docs.datadoghq.com/metrics/otlp/?tab=sum for details.
+    #
+    # sums:
+
         ## @param cumulative_monotonic_mode - string - optional - default: to_delta
         ## @env DD_OTLP_CONFIG_METRICS_SUMS_CUMULATIVE_MONOTONIC_MODE - string - optional - default: to_delta
         ## How to report cumulative monotonic sums. Valid values are:
@@ -3283,6 +3286,9 @@ api_key:
     ## @param summaries - custom object - optional
     ## Configuration for OTLP Summaries.
     ## See https://docs.datadoghq.com/metrics/otlp/?tab=summary for more details.
+    #
+    # summaries:
+
         ## @param mode - string - optional - default: gauges
         ## @env DD_OTLP_CONFIG_METRICS_SUMMARIES_MODE - string - optional - default: gauges
         ## How to report summaries. Valid values are:
