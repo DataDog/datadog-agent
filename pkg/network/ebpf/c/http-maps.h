@@ -38,6 +38,6 @@ BPF_HASH_MAP(open_at_args, __u64, lib_path_t, 1024)
 BPF_PROG_ARRAY(http_progs, 1)
 
 /* This map used for notifying userspace of a shared library being loaded */
-BPF_HASH_MAP(shared_libraries, __u32, __u32, 0)
+BPF_PERF_EVENT_ARRAY_MAP(shared_libraries, __u32, 0)
     
 #endif

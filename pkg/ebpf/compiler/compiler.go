@@ -68,7 +68,7 @@ func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, heade
 		)
 	}
 	cflags = append(cflags, fmt.Sprintf("-isystem%s", tmpIncludeDir))
-	cflags = append(cflags, "-c", "-x", "c", "-o", "-", "-")
+	cflags = append(cflags, "-g", "-c", "-x", "c", "-o", "-", "-")
 
 	var clangOut, clangErr, llcErr bytes.Buffer
 

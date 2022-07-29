@@ -516,7 +516,7 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
     port_binding_t pb = {};
     pb.netns = t.netns;
     pb.port = t.sport;
-    add_port_bind(&pb, &port_bindings);
+    add_port_bind(&pb, (struct bpf_map_def *)&port_bindings);
 
     log_debug("kretprobe/inet_csk_accept: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
     return 0;
@@ -534,7 +534,7 @@ int kprobe__inet_csk_listen_stop(struct pt_regs* ctx) {
     port_binding_t pb = { .netns = 0, .port = 0 };
     pb.netns = get_netns(&skp->sk_net);
     pb.port = lport;
-    remove_port_bind(&pb, &port_bindings);
+    remove_port_bind(&pb, (struct bpf_map_def *)&port_bindings);
 
     log_debug("kprobe/inet_csk_listen_stop: net ns: %u, lport: %u\n", pb.netns, pb.port);
     return 0;
@@ -566,7 +566,7 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
     port_binding_t pb = {};
     pb.netns = 0;
     pb.port = lport;
-    remove_port_bind(&pb, &udp_port_bindings);
+    remove_port_bind(&pb, (struct bpf_map_def *)&udp_port_bindings);
     return 0;
 }
 
@@ -660,7 +660,7 @@ static __always_inline int sys_exit_bind(__s64 ret) {
     port_binding_t pb = {};
     pb.netns = 0; // don't have net ns info in this context
     pb.port = sin_port;
-    add_port_bind(&pb, &udp_port_bindings);
+    add_port_bind(&pb, (struct bpf_map_def *)&udp_port_bindings);
     log_debug("sys_exit_bind: bound UDP port %u\n", sin_port);
 
     return 0;
