@@ -71,7 +71,7 @@ func TestRemoveCheckMetadata(t *testing.T) {
 	SetCheckMetadata("check2", "check_provided_key1", 123)
 	RemoveCheckMetadata("check1")
 
-	p := GetPayload(ctx, "testHostname", nil)
+	p := GetPayload(ctx, "testHostname", nil, true)
 	checks := *p.CheckMetadata
 	assert.Len(t, checks, 1)
 	assert.Len(t, checks["check2"], 1)
@@ -83,6 +83,43 @@ type mockCollector struct {
 
 func (m mockCollector) MapOverChecks(fn func([]check.Info)) {
 	fn(m.Checks)
+}
+
+func TestGetPayloadForExpvar(t *testing.T) {
+	ctx := context.Background()
+	defer func() { clearMetadata() }()
+
+	startNow := time.Now()
+	timeNow = func() time.Time { return startNow } // time of the first run
+	defer func() { timeNow = time.Now }()
+
+	coll := mockCollector{[]check.Info{
+		check.MockInfo{
+			Name:         "check1",
+			CheckID:      check.ID("check1_instance1"),
+			Source:       "provider1",
+			InitConf:     "",
+			InstanceConf: "{\"test\":21}",
+		},
+	}}
+
+	p := GetPayload(ctx, "testHostname", coll, false)
+
+	assert.Equal(t, startNow.UnixNano(), p.Timestamp)
+
+	agentMetadata := *p.AgentMetadata
+	assert.NotContains(t, agentMetadata, "full_configuration")
+	assert.NotContains(t, agentMetadata, "provided_configuration")
+
+	checkMeta := *p.CheckMetadata
+	require.Len(t, checkMeta, 1)
+	require.Len(t, checkMeta["check1"], 1)
+
+	check1Instance1 := *checkMeta["check1"][0]
+	assert.Equal(t, "check1_instance1", check1Instance1["config.hash"])
+	assert.Equal(t, "provider1", check1Instance1["config.provider"])
+	assert.NotContains(t, check1Instance1, "init_config")
+	assert.NotContains(t, check1Instance1, "instance_config")
 }
 
 func TestGetPayload(t *testing.T) {
@@ -122,7 +159,7 @@ func TestGetPayload(t *testing.T) {
 	SetCheckMetadata("check1_instance1", "check_provided_key2", "Hi")
 	SetCheckMetadata("non_running_checkid", "check_provided_key1", "this_should_be_kept")
 
-	p := GetPayload(ctx, "testHostname", coll)
+	p := GetPayload(ctx, "testHostname", coll, true)
 
 	assert.Equal(t, startNow.UnixNano(), p.Timestamp)
 
@@ -162,7 +199,7 @@ func TestGetPayload(t *testing.T) {
 	resetFunc := setupHostMetadataMock()
 	defer resetFunc()
 
-	p = GetPayload(ctx, "testHostname", coll)
+	p = GetPayload(ctx, "testHostname", coll, true)
 
 	assert.Equal(t, startNow.UnixNano(), p.Timestamp) //updated startNow is returned
 
@@ -335,7 +372,7 @@ func TestCreateCheckInstanceMetadataReturnsNewMetadata(t *testing.T) {
 		},
 	}
 
-	md := createCheckInstanceMetadata(checkID, configProvider, "", "")
+	md := createCheckInstanceMetadata(checkID, configProvider, "", "", false)
 	(*md)[metadataKey] = "a-different-metadata-value"
 
 	assert.NotEqual(t, checkMetadata[checkID].CheckInstanceMetadata[metadataKey], (*md)[metadataKey])

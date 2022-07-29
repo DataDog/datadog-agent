@@ -24,13 +24,13 @@ type inventoriesCollector struct {
 	sc   *Scheduler
 }
 
-func getPayload(ctx context.Context, coll inventories.CollectorInterface) (*inventories.Payload, error) {
+func getPayload(ctx context.Context, coll inventories.CollectorInterface, withConfigs bool) (*inventories.Payload, error) {
 	hostnameDetected, err := hostname.Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("unable to submit inventories metadata payload, no hostname: %s", err)
 	}
 
-	return inventories.GetPayload(ctx, hostnameDetected, coll), nil
+	return inventories.GetPayload(ctx, hostnameDetected, coll, withConfigs), nil
 }
 
 // Send collects the data needed and submits the payload
@@ -39,7 +39,7 @@ func (c inventoriesCollector) Send(ctx context.Context, s serializer.MetricSeria
 		return nil
 	}
 
-	payload, err := getPayload(ctx, c.coll)
+	payload, err := getPayload(ctx, c.coll, true)
 	if err != nil {
 		return err
 	}
@@ -84,7 +84,7 @@ func SetupInventoriesExpvar(coll inventories.CollectorInterface) {
 
 	expvar.Publish("inventories", expvar.Func(func() interface{} {
 		log.Debugf("Creating inventory payload for expvar")
-		p, err := getPayload(context.TODO(), coll)
+		p, err := getPayload(context.TODO(), coll, false)
 		if err != nil {
 			log.Errorf("Could not create inventory payload for expvar: %s", err)
 			return &inventories.Payload{}

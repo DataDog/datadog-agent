@@ -174,7 +174,7 @@ func RemoveCheckMetadata(checkID string) {
 	Refresh()
 }
 
-func createCheckInstanceMetadata(checkID, configProvider, initConfig, instanceConfig string) *CheckInstanceMetadata {
+func createCheckInstanceMetadata(checkID, configProvider, initConfig, instanceConfig string, withConfigs bool) *CheckInstanceMetadata {
 	checkInstanceMetadata := CheckInstanceMetadata{}
 
 	if entry, found := checkMetadata[checkID]; found {
@@ -186,7 +186,7 @@ func createCheckInstanceMetadata(checkID, configProvider, initConfig, instanceCo
 	checkInstanceMetadata["config.hash"] = checkID
 	checkInstanceMetadata["config.provider"] = configProvider
 
-	if config.Datadog.GetBool("inventories_checks_configuration_enabled") {
+	if withConfigs && config.Datadog.GetBool("inventories_checks_configuration_enabled") {
 		if instanceScrubbed, err := scrubber.ScrubString(instanceConfig); err != nil {
 			log.Errorf("Could not scrub instance configuration for check id %s: %s", checkID, err)
 		} else {
@@ -204,7 +204,7 @@ func createCheckInstanceMetadata(checkID, configProvider, initConfig, instanceCo
 }
 
 // createPayload fills and returns the inventory metadata payload
-func createPayload(ctx context.Context, hostname string, coll CollectorInterface) *Payload {
+func createPayload(ctx context.Context, hostname string, coll CollectorInterface, withConfigs bool) *Payload {
 	// setLogLevel select the correct log level for the inventory payload currently being created. We send a new payload
 	// every 1 to 10 min (depending on new metadata being registered). We don't want to log the same error again and again.
 	// We log once every 12 times on normal log level and on debug the rest of the time. The metadata in this paylaod should
@@ -236,6 +236,7 @@ func createPayload(ctx context.Context, hostname string, coll CollectorInterface
 					strings.Split(c.ConfigSource(), ":")[0],
 					c.InitConfig(),
 					c.InstanceConfig(),
+					withConfigs,
 				)
 
 				if _, found := payloadCheckMeta[checkName]; !found {
@@ -254,7 +255,7 @@ func createPayload(ctx context.Context, hostname string, coll CollectorInterface
 		if _, found := foundInCollector[id]; !found {
 			// id should be "check_name:check_hash"
 			parts := strings.SplitN(id, ":", 2)
-			payloadCheckMeta[parts[0]] = append(payloadCheckMeta[parts[0]], createCheckInstanceMetadata(id, "", "", ""))
+			payloadCheckMeta[parts[0]] = append(payloadCheckMeta[parts[0]], createCheckInstanceMetadata(id, "", "", "", withConfigs))
 		}
 	}
 
@@ -264,11 +265,13 @@ func createPayload(ctx context.Context, hostname string, coll CollectorInterface
 		payloadAgentMeta[k] = v
 	}
 
-	if fullConf, err := getFullAgentConfiguration(); err == nil {
-		payloadAgentMeta[string(agentFullConf)] = fullConf
-	}
-	if providedConf, err := getProvidedAgentConfiguration(); err == nil {
-		payloadAgentMeta[string(agentProvidedConf)] = providedConf
+	if withConfigs {
+		if fullConf, err := getFullAgentConfiguration(); err == nil {
+			payloadAgentMeta[string(agentFullConf)] = fullConf
+		}
+		if providedConf, err := getProvidedAgentConfiguration(); err == nil {
+			payloadAgentMeta[string(agentProvidedConf)] = providedConf
+		}
 	}
 
 	return &Payload{
@@ -281,14 +284,16 @@ func createPayload(ctx context.Context, hostname string, coll CollectorInterface
 }
 
 // GetPayload returns a new inventory metadata payload and updates lastGetPayload
-func GetPayload(ctx context.Context, hostname string, coll CollectorInterface) *Payload {
+func GetPayload(ctx context.Context, hostname string, coll CollectorInterface, withConfigs bool) *Payload {
 	inventoryMutex.Lock()
 	defer inventoryMutex.Unlock()
 
-	lastGetPayload = timeNow()
-
-	lastPayload = createPayload(ctx, hostname, coll)
-	return lastPayload
+	p := createPayload(ctx, hostname, coll, withConfigs)
+	if withConfigs {
+		lastGetPayload = timeNow()
+		lastPayload = p
+	}
+	return p
 }
 
 // GetLastPayload returns the last payload created by the inventories metadata collector as JSON.
