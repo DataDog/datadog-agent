@@ -14,11 +14,10 @@ import (
 	"math"
 	"unsafe"
 
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
-
-	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -470,7 +469,7 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		DPort:            t.Dport,
 		SPortIsEphemeral: network.IsPortInEphemeralRange(t.Sport),
 		Monotonic: map[uint32]network.StatCounters{
-			s.Cookie: {
+			s.Cookie: network.StatCounters{
 				SentBytes:   s.Sent_bytes,
 				RecvBytes:   s.Recv_bytes,
 				SentPackets: s.Sent_packets,

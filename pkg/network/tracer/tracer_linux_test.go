@@ -216,11 +216,8 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 		}
 		time.Sleep(time.Second)
 	})
-
-	defer func() {
-		_ = socketFile.Close()
-		c.Close()
-	}()
+	_ = socketFile.Close()
+	c.Close()
 
 	// Fetch all connections matching source and target address
 	allConnections := getConnections(t, tr)
@@ -229,7 +226,6 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 
 	totalSent := 0
 	for _, c := range conns {
-		t.Logf("%s", c)
 		totalSent += int(c.MonotonicSum().SentBytes)
 	}
 	assert.Equal(t, numProcesses*clientMessageSize, totalSent)
@@ -243,7 +239,7 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 			connsWithRetransmits++
 		}
 	}
-	assert.Greater(t, connsWithRetransmits, 0)
+	assert.Equal(t, 1, connsWithRetransmits)
 
 	telemetry := tr.ebpfTracer.GetTelemetry()
 	// Test if telemetry measuring PID collisions is correct
