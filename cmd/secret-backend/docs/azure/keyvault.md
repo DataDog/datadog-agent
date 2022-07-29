@@ -36,17 +36,17 @@ The backend secret is referenced in your Datadog Agent configuration files using
 ```yaml
 # /etc/datadog-agent/datadog.yaml
 
-api_key: "ENC[{backendId}:{secretKey}"
+api_key: "ENC[{backendId}:{secretKey}]"
 
 ```
 
-Azure Keyvault can hold multiple secret keys and values. For example, assuming a secret with a **backend_id** of `MySecretBackend` and an Azure secret id of `apikey`:
+Azure Keyvault can hold multiple secret keys and values. For example, assuming a secret with a **backend_id** of `MySecretBackend` and an Azure secret id of `my_azure_secret_id`:
 
 ```json
 {
-    "SecretKey1": "SecretValue1",
-    "SecretKey2": "SecretValue2",
-    "SecretKey3": "SecretValue3"
+    "ddapikey": "SecretValue1",
+    "ddappkey": "SecretValue2",
+    "ddorgname": "SecretValue3"
 }
 ```
 
@@ -56,7 +56,7 @@ Azure Keyvault can hold multiple secret keys and values. For example, assuming a
 backends:
   MySecretBackend:
     backend_type: azure.keyvault
-    secret_id: apikey
+    secret_id: my_azure_secret_id
     keyvaulturl: https://mykeyvault.vault.azure.net
     azure_session:
       azure_tenant_id: abcdef-*****
@@ -66,18 +66,20 @@ backends:
 
 ```yaml
 # /etc/datadog-agent/datadog.yml
-property1: "ENC[MySecretBackend:apikey]"
+api_key: "ENC[MySecretBackend:ddapikey]"
+app_key: "ENC[MySecretBackend:ddappkey]"
+property3: "ENC[MySecretBackend:ddorgname]"
 ```
 
 Multiple secret backends, of the same or different types, can be defined in your `datadog-secret-backend` yaml configuration. As a result, you can leverage multiple supported backends (file.yaml, file.json, aws.ssm, and aws.secrets, azure.keyvault) in your Datadog Agent configuration.
 
 ## Configuration Examples
 
-In the following examples, assume the Azure secret name (id) is `apikey` with a secret value containing the Datadog Agent api_key:
+In the following examples, assume the Azure secret name (id) is `ddapikey` with a secret value containing the Datadog Agent api_key:
 
 ```json
 {
-    "apikey": "••••••••••••0f83"
+    "ddapikey": "••••••••••••0f83"
 }
 ```
 
@@ -95,7 +97,7 @@ Each of the following examples will access the secret from the Datadog Agent con
 ## The Datadog API key to associate your Agent's data with your organization.
 ## Create a new API key here: https://app.datadoghq.com/account/settings
 #
-api_key: "ENC[MySecretBackend:apikey]" 
+api_key: "ENC[MySecretBackend:ddapikey]" 
 ```
 
 **Azure Service Principal With Client Credentials**
@@ -106,7 +108,7 @@ api_key: "ENC[MySecretBackend:apikey]"
 backends:
   MySecretBackend:
     backend_type: azure.keyvault
-    secret_id: apikey
+    secret_id: my_azure_secret_id
     keyvaulturl: https://mykeyvault.vault.azure.net
     azure_session:
       azure_tenant_id: abcdef-*****
@@ -122,7 +124,7 @@ backends:
 backends:
   MySecretBackend:
     backend_type: azure.keyvault
-    secret_id: apikey
+    secret_id: my_azure_secret_id
     keyvaulturl: https://mykeyvault.vault.azure.net
     azure_session:
       azure_tenant_id: abcdef-*****
@@ -138,7 +140,7 @@ backends:
 backends:
   MySecretBackend:
     backend_type: azure.keyvault
-    secret_id: apikey
+    secret_id: my_azure_secret_id
     keyvaulturl: https://mykeyvault.vault.azure.net
     azure_session:
       azure_tenant_id: abcdef-*****
@@ -155,6 +157,6 @@ backends:
 backends:
   MySecretBackend:
     backend_type: azure.keyvault
-    secret_id: apikey
+    secret_id: my_azure_secret_id
     keyvaulturl: https://mykeyvault.vault.azure.net
 ```
