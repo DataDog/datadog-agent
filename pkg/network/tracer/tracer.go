@@ -455,7 +455,7 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 		result[assetName] = tm
 
 		statsdMetricPrefix := "datadog.system_probe." + assetName
-		tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
+		tags := []string{fmt.Sprintf("agent_version:%s", version.AgentVersion)}
 
 		if tm.RuntimeCompilationEnabled {
 			if err := statsd.Client.Gauge(statsdMetricPrefix + ".runtime_compilation_result", float64(tm.RuntimeCompilationResult), tags, 1); err != nil {
