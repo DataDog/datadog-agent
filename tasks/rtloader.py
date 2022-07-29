@@ -85,7 +85,7 @@ def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="
         cmake_args += " -DARCH_I386=ON"
 
     if sys.platform == 'darwin':
-        cmake_args += " -DCMAKE_OSX_DEPLOYMENT_TARGET=10.12"
+        cmake_args += " -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13"
 
     # Perform "out of the source build" in `rtloader_build_path` folder.
     try:
