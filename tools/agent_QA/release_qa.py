@@ -1,7 +1,6 @@
-import os
 import sys
 
-from dotenv import load_dotenv
+from board import finish, setup
 from test_builder import LinuxConfig, MacConfig, Suite, WindowsConfig
 from test_cases.containers import (
     AgentUsesAdLabels,
@@ -32,26 +31,13 @@ from test_cases.xplat.file_tests import (
     TailFileWildcard,
 )
 from test_cases.xplat.network import TailTCPUDP
-from trello import TrelloClient
 
 if len(sys.argv) < 2:
     print("Usage: python release_qa.py <AGENT_VERSON>")
     exit(1)
 version = sys.argv[1]
 
-# Setup env
-load_dotenv()
-api_key = os.getenv('API_KEY')
-api_secret = os.getenv('API_SECRET')
-org_id = os.getenv('ORG_ID')
-
-# Setup trello
-client = TrelloClient(api_key=api_key, api_secret=api_secret)
-board = client.add_board("[" + version + "] Logs Agent Release QA", None, org_id)
-
-for list in board.all_lists():
-    list.close()
-board.add_list("Done")
+board = setup(version)
 
 # Test that apply to all host platforms
 xplatHostTests = [TailFile, TailFileWildcard, TailFileStartPosition]
@@ -90,5 +76,4 @@ Suite(MacConfig(), xplatHostTests + []).build(mac.add_card)
 linux = board.add_list("Linux")
 Suite(LinuxConfig(), xplatHostTests + [TailJounald, TailJournaldStartPosition, SNMPTraps]).build(linux.add_card)
 
-print("Your QA board is ready: ")
-print(board.url)
+finish(board)
