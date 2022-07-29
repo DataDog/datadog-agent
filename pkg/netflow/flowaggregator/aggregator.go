@@ -7,7 +7,6 @@ package flowaggregator
 
 import (
 	"encoding/json"
-	"math/rand"
 	"time"
 
 	"go.uber.org/atomic"
@@ -77,8 +76,7 @@ func (agg *FlowAggregator) run() {
 			return
 		case flow := <-agg.flowIn:
 			for i := 0; i < agg.sendMultiplier; i++ {
-				flow.InputInterface = uint32(i)
-				flow.SrcPort = uint32(rand.Intn(50000))
+				flow.SrcPort = uint32(i)
 				agg.receivedFlowCount.Inc()
 				agg.flowAcc.add(flow)
 			}

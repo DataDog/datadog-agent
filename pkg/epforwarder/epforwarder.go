@@ -93,8 +93,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		hostnameEndpointPrefix:        "ndmflow-intake.",
 		intakeTrackType:               "ndmflow",
 		defaultBatchMaxConcurrentSend: 10,
-		defaultBatchMaxContentSize:    20e6, // max 20Mb uncompressed size per payload
-		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           10000,
 	},
 }
 
@@ -219,7 +219,7 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 		additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName))
 	}
 	destinations := client.NewDestinations(reliable, additionals)
-	inputChan := make(chan *message.Message, 100)
+	inputChan := make(chan *message.Message, 1000)
 	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
 
 	encoder := sender.IdentityContentType
@@ -231,7 +231,7 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 		senderInput,
 		sender.ArraySerializer,
 		endpoints.BatchWait,
-		pkgconfig.DefaultBatchMaxSize,
+		endpoints.BatchMaxSize,
 		endpoints.BatchMaxContentSize,
 		desc.eventType,
 		encoder)
