@@ -37,6 +37,7 @@ func TestLocalProviderExpectedTags(t *testing.T) {
 
 	oldStartTime := coreConfig.StartTime
 	coreConfig.StartTime = clock.Now()
+	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
 	defer func() {
 		coreConfig.StartTime = oldStartTime
 	}()
