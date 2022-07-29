@@ -522,6 +522,10 @@ def get_linux_header_dirs(kernel_release=None, minimal_kernel_release=None):
 
     return dirs
 
+def get_network_agent_ebpf_build_flags(target=None, kernel_release=None):
+    flags = get_ebpf_build_flags(target, kernel_release)
+    flags.append("-g")
+    return flags
 
 def get_ebpf_build_flags(target=None, kernel_release=None, minimal_kernel_release=None):
     bpf_dir = os.path.join(".", "pkg", "ebpf")
@@ -600,7 +604,7 @@ def build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, netwo
 
 def get_http_prebuilt_build_flags(network_c_dir, kernel_release=None):
     uname_m = check_output("uname -m", shell=True).decode('utf-8').strip()
-    flags = get_ebpf_build_flags(kernel_release=kernel_release)
+    flags = get_network_agent_ebpf_build_flags(kernel_release=kernel_release)
     flags.append(f"-I{network_c_dir}")
     flags.append(f"-D__{uname_m}__")
     flags.append(f"-isystem /usr/include/{uname_m}-linux-gnu")
@@ -622,7 +626,7 @@ def build_http_ebpf_files(ctx, build_dir, kernel_release=None):
 
 
 def get_network_build_flags(network_c_dir, kernel_release=None):
-    flags = get_ebpf_build_flags(kernel_release=kernel_release)
+    flags = get_network_agent_ebpf_build_flags(kernel_release=kernel_release)
     flags.append(f"-I{network_c_dir}")
     return flags
 
