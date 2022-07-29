@@ -454,14 +454,13 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 		}
 		result[assetName] = tm
 
-		statsdMetricPrefix := "datadog.system_probe." + assetName
-		tags := []string{fmt.Sprintf("agent_version:%s", version.AgentVersion)}
-
 		if tm.RuntimeCompilationEnabled {
-			if err := statsd.Client.Gauge(statsdMetricPrefix + ".runtime_compilation_result", float64(tm.RuntimeCompilationResult), tags, 1); err != nil {
+			tags := []string{fmt.Sprintf("agent_version:%s", version.AgentVersion), fmt.Sprintf("asset_name:%s", assetName)}
+
+			if err := statsd.Client.Gauge("datadog.system_probe.runtime_compilation_result", float64(tm.RuntimeCompilationResult), tags, 1); err != nil {
 				log.Warnf("error submitting runtime compilation metric to statsd: %s", err)
 			}
-			if err := statsd.Client.Gauge(statsdMetricPrefix + ".kernel_header_fetch_result", float64(tm.KernelHeaderFetchResult), tags, 1); err != nil {
+			if err := statsd.Client.Gauge("datadog.system_probe.kernel_header_fetch_result", float64(tm.KernelHeaderFetchResult), tags, 1); err != nil {
 				log.Warnf("error submitting kernel header downloading metric to statsd: %s", err)
 			}
 		}
