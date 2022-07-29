@@ -15,18 +15,19 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cilium/ebpf"
+
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
+	ebpfutils "github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/log"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/cilium/ebpf"
 
 	// util.GetHostname(...) will panic without this import
-	ebpfutils "github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
@@ -203,14 +204,17 @@ func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 		snapshotQueue:           make(chan *ActivityDump, 100),
 		storage:                 storageManager,
 	}
-	adm.propagateLoadSettings()
+
+	if err := adm.propagateLoadSettings(); err != nil {
+		log.Errorf("failed to propagate load settings: %v", err)
+	}
 	adm.prepareContextTags()
 	return adm, nil
 }
 
 type tracedCgroupsCounter struct {
-	max     uint64
-	counter uint64
+	Max     uint64
+	Counter uint64
 }
 
 func (adm *ActivityDumpManager) propagateLoadSettings() error {
@@ -226,18 +230,23 @@ func (adm *ActivityDumpManager) propagateLoadSettings() error {
 		return fmt.Errorf("failed to lock traced cgroup counter: %w", err)
 	}
 
+	defer func() {
+		if err := adm.tracedCgroupsLockMap.Put(ebpfutils.ZeroUint32MapItem, uint32(0)); err != nil {
+			log.Errorf("failed to unlock traced cgroup counter: %v", err)
+		}
+	}()
+
 	var counter tracedCgroupsCounter
-	adm.tracedCgroupsCounterMap.Lookup(ebpfutils.ZeroUint32MapItem, &counter)
+	if err := adm.tracedCgroupsCounterMap.Lookup(ebpfutils.ZeroUint32MapItem, &counter); err != nil {
+		return fmt.Errorf("failed to get traced cgroup counter: %w", err)
+	}
 	log.Debugf("AD: got counter = %v, when propagating config", counter)
 
-	counter.max = uint64(adm.probe.config.ActivityDumpTracedCgroupsCount)
+	counter.Max = uint64(adm.probe.config.ActivityDumpTracedCgroupsCount)
 	if err := adm.tracedCgroupsCounterMap.Put(ebpfutils.ZeroUint32MapItem, counter); err != nil {
-		log.Errorf("failed to change counter max: %v", err)
+		return fmt.Errorf("failed to change counter max: %w", err)
 	}
 
-	if err := adm.tracedCgroupsLockMap.Put(ebpfutils.ZeroUint32MapItem, uint32(0)); err != nil {
-		return fmt.Errorf("failed to unlock traced cgroup counter: %w", err)
-	}
 	return nil
 }
 

@@ -1555,9 +1555,8 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 func boolTouint64(value bool) uint64 {
 	if value {
 		return 1
-	} else {
-		return 0
 	}
+	return 0
 }
 
 func (p *Probe) ensureConfigDefaults() {
