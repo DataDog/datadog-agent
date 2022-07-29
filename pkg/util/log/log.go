@@ -546,7 +546,7 @@ func Tracec(message string, context ...interface{}) {
 func TraceFunc(logFunc func() string) {
 	currentLevel, _ := GetLogLevel()
 	if currentLevel <= seelog.TraceLvl {
-		Trace(logFunc())
+		TraceStackDepth(2, logFunc())
 	}
 }
 
@@ -574,7 +574,7 @@ func Debugc(message string, context ...interface{}) {
 func DebugFunc(logFunc func() string) {
 	currentLevel, _ := GetLogLevel()
 	if currentLevel <= seelog.DebugLvl {
-		Debug(logFunc())
+		DebugStackDepth(2, logFunc())
 	}
 }
 
@@ -602,7 +602,7 @@ func Infoc(message string, context ...interface{}) {
 func InfoFunc(logFunc func() string) {
 	currentLevel, _ := GetLogLevel()
 	if currentLevel <= seelog.InfoLvl {
-		Info(logFunc())
+		InfoStackDepth(2, logFunc())
 	}
 }
 
@@ -630,7 +630,7 @@ func Warnc(message string, context ...interface{}) error {
 func WarnFunc(logFunc func() string) {
 	currentLevel, _ := GetLogLevel()
 	if currentLevel <= seelog.WarnLvl {
-		Warn(logFunc())
+		WarnStackDepth(2, logFunc())
 	}
 }
 
@@ -658,7 +658,7 @@ func Errorc(message string, context ...interface{}) error {
 func ErrorFunc(logFunc func() string) {
 	currentLevel, _ := GetLogLevel()
 	if currentLevel <= seelog.ErrorLvl {
-		Error(logFunc())
+		ErrorStackDepth(2, logFunc())
 	}
 }
 
@@ -686,7 +686,7 @@ func Criticalc(message string, context ...interface{}) error {
 func CriticalFunc(logFunc func() string) {
 	currentLevel, _ := GetLogLevel()
 	if currentLevel <= seelog.CriticalLvl {
-		Critical(logFunc())
+		CriticalStackDepth(2, logFunc())
 	}
 }
 
