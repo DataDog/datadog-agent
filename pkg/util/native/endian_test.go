@@ -9,7 +9,7 @@ import (
 
 func TestNativeEndian(t *testing.T) {
 	if rt := getRuntimeEndian(); Endian != rt {
-		t.Fatalf("%s: runtime endianness %T != compile time endianness %T", runtime.GOARCH, Endian, rt)
+		t.Fatalf("%s: compile time endianness %T != runtime endianness %T", runtime.GOARCH, Endian, rt)
 	}
 }
 
