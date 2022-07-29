@@ -203,22 +203,22 @@ __attribute__((always_inline)) void cleanup_traced_state(u32 pid) {
 #define NO_ACTIVITY_DUMP       0
 #define IGNORE_DISCARDER_CHECK 1
 
-union cgroup_comm_combo {
-    char cgroup[CONTAINER_ID_LEN];
+union container_id_comm_combo {
+    char container_id[CONTAINER_ID_LEN];
     char comm[TASK_COMM_LEN];
 };
 
 __attribute__((always_inline)) void fill_activity_dump_discarder_state(void *ctx, struct is_discarded_by_inode_t *params) {
     struct proc_cache_t *proc_entry = get_proc_cache(params->tgid);
     if (proc_entry != NULL) {
-        union cgroup_comm_combo buffer = {};
+        union container_id_comm_combo buffer = {};
 
         // prepare comm and cgroup (for compatibility with old kernels)
         bpf_probe_read(&buffer.comm, sizeof(buffer.comm), proc_entry->comm);
         should_trace_new_process_comm(ctx, params->now, params->tgid, buffer.comm);
 
-        bpf_probe_read(&buffer.cgroup, sizeof(buffer.cgroup), proc_entry->container.container_id);
-        should_trace_new_process_cgroup(ctx, params->now, params->tgid, buffer.cgroup);
+        bpf_probe_read(&buffer.container_id, sizeof(buffer.container_id), proc_entry->container.container_id);
+        should_trace_new_process_cgroup(ctx, params->now, params->tgid, buffer.container_id);
     }
 
     u64 timeout = lookup_or_delete_traced_pid_timeout(params->tgid, params->now);
