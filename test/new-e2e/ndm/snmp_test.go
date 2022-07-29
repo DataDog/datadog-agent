@@ -68,6 +68,7 @@ func TestSetup(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, stack)
+	// defer stack.Down(context.Background()) < ================== skip to keep the stack alive
 
 	result, err := stack.Up(context.Background())
 	require.NoError(t, err)
@@ -103,6 +104,7 @@ func TestSetup(t *testing.T) {
 		" -v /var/run/docker.sock:/var/run/docker.sock:ro"+
 		" -v /proc/:/host/proc/:ro"+
 		" -v /dd/config/:/etc/datadog-agent/"+
+		" -v /repos/dd/integrations-core/snmp/datadog_checks/snmp/data/profiles:/etc/datadog-agent/conf.d/snmp.d/profiles/"+
 		" -v /sys/fs/cgroup/:/host/sys/fs/cgroup:ro"+
 		" --network %s"+
 		" -e DD_API_KEY=%s datadog/agent-dev:master", dockerAgentContainerName, dockerNetworkName, apiKey))
@@ -135,9 +137,6 @@ func TestAgentSNMPWalk(t *testing.T) {
 	sshKey, err := credentialsManager.GetCredential(credentials.AWSSSMStore, "agent.ci.awssandbox.ssh")
 	require.NoError(t, err)
 
-	// apiKey, err := credentialsManager.GetCredential(credentials.AWSSSMStore, "agent.ci.dev.apikey")
-	// require.NoError(t, err)
-
 	stack, err := infra.NewStack(context.Background(), pulumiProjectName, pulumiStackName, config, func(ctx *pulumi.Context) error {
 		instance, err := ec2.CreateEC2Instance(ctx, env, ec2InstanceName, "", "amd64", "t3.large", "agent-ci-sandbox", userData)
 		if err != nil {
@@ -147,9 +146,9 @@ func TestAgentSNMPWalk(t *testing.T) {
 		ctx.Export("private-ip", instance.PrivateIp)
 		return nil
 	})
-	// defer stack.Down(context.Background()) < ==================
 	require.NoError(t, err)
 	require.NotNil(t, stack)
+	// defer stack.Down(context.Background()) < ================== skip to keep the stack alive
 
 	result, err := stack.Up(context.Background())
 	require.NoError(t, err)
@@ -171,6 +170,65 @@ func TestAgentSNMPWalk(t *testing.T) {
 	require.NoError(t, err)
 
 	stdout, err = clients.ExecuteCommand(client, fmt.Sprintf("sudo docker exec %s sh -c \"agent snmp walk %s:1161 1.3.6.1.2.1.25.6.3.1 --community-string public\"", dockerAgentContainerName, dockerSnmpsimContainerName))
+	// we can assert against the snmp walk stdout
+	t.Log(stdout)
+	require.NoError(t, err)
+}
+
+func TestSnmpCheck(t *testing.T) {
+	config := auto.ConfigMap{}
+	env := aws.NewSandboxEnvironment(config)
+	credentialsManager := credentials.NewManager()
+
+	// Retrieving necessary secrets
+	sshKey, err := credentialsManager.GetCredential(credentials.AWSSSMStore, "agent.ci.awssandbox.ssh")
+	require.NoError(t, err)
+
+	stack, err := infra.NewStack(context.Background(), pulumiProjectName, pulumiStackName, config, func(ctx *pulumi.Context) error {
+		instance, err := ec2.CreateEC2Instance(ctx, env, ec2InstanceName, "", "amd64", "t3.large", "agent-ci-sandbox", userData)
+		if err != nil {
+			return err
+		}
+
+		ctx.Export("private-ip", instance.PrivateIp)
+		return nil
+	})
+	require.NoError(t, err)
+	require.NotNil(t, stack)
+	// defer stack.Down(context.Background()) < ================== skip to keep the stack alive
+
+	result, err := stack.Up(context.Background())
+	require.NoError(t, err)
+	instanceIP, found := result.Outputs["private-ip"]
+	require.True(t, found)
+
+	// Setup Agent
+	client, _, err := clients.GetSSHClient("ubuntu", fmt.Sprintf("%s:%d", instanceIP.Value.(string), 22), sshKey, 2*time.Second, 30)
+	require.NoError(t, err)
+	defer client.Close()
+
+	require.NoError(t, waitForDocker(t, client, 5*time.Minute))
+
+	t.Log("Creating folder for snmp config")
+	stdout, err := clients.ExecuteCommand(client, "sudo mkdir -p /dd/config/conf.d/snmp.d")
+	t.Log(stdout)
+	require.NoError(t, err)
+
+	snmpConfig := `init_config:
+  loader: core  # use core check implementation of SNMP integration. recommended
+  use_device_id_as_hostname: true  # recommended
+instances:
+  - ip_address: 'dd-snmpsim'
+    community_string: 'public'  # enclose with single quote
+    port: 1161
+    tags:
+    - 'ci:rule'
+    - 'dde2test:pducolin'`
+	stdout, err = clients.ExecuteCommand(client, fmt.Sprintf("sudo bash -c 'echo \"%s\" > /dd/config/conf.d/snmp.d/conf.yaml'", snmpConfig))
+	t.Log(stdout)
+	require.NoError(t, err)
+
+	stdout, err = clients.ExecuteCommand(client, fmt.Sprintf("sudo docker exec %s sh -c \"agent check snmp\"", dockerAgentContainerName))
 	t.Log(stdout)
 	require.NoError(t, err)
 }

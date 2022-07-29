@@ -46,10 +46,16 @@ Initialize the test environment
 go test --run TestSetup test/new-e2e/ndm/snmp_test.go -v
 ```
 
-Run the test
+Run the snmpwalk test
 
 ```bash
 go test --run TestAgentSNMP test/new-e2e/ndm/snmp_test.go -v
+```
+
+Or the check test
+
+```bash
+go test --run TestSnmpCheck test/new-e2e/ndm/snmp_test.go -v
 ```
 
 And tear down the stack
