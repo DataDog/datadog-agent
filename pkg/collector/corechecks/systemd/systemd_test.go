@@ -1011,7 +1011,7 @@ unit_names:
 			},
 		}}
 
-	p := inventories.GetPayload(context.Background(), "testHostname", coll)
+	p := inventories.GetPayload(context.Background(), "testHostname", coll, false)
 	checkMetadata := *p.CheckMetadata
 	systemdMetadata := *checkMetadata["systemd"][0]
 	assert.Equal(t, systemdVersion, systemdMetadata["version.raw"])
