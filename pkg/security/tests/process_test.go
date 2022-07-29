@@ -62,6 +62,11 @@ func TestProcess(t *testing.T) {
 }
 
 func TestProcessContext(t *testing.T) {
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_inode",
@@ -122,6 +127,22 @@ func TestProcessContext(t *testing.T) {
 		{
 			ID:         "test_self_exec",
 			Expression: `exec.file.name == "syscall_tester" && exec.argv0 == "selfexec123" && process.comm == "exe"`,
+		},
+		{
+			ID:         "test_rule_ctx_1",
+			Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/test-process-ctx-1" && process.file.name == "%s"`, path.Base(executable)),
+		},
+		{
+			ID:         "test_rule_ctx_2",
+			Expression: `open.file.path == "{{.Root}}/test-process-ctx-2" && process.file.name != ""`,
+		},
+		{
+			ID:         "test_rule_ctx_3",
+			Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/test-process-ctx-3" && process.file.path == "%s"`, executable),
+		},
+		{
+			ID:         "test_rule_ctx_4",
+			Expression: `open.file.path == "{{.Root}}/test-process-ctx-4" && process.file.path != ""`,
 		},
 	}
 
@@ -603,6 +624,31 @@ func TestProcessContext(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_self_exec")
 		}))
 	})
+
+	testProcessContextRule := func(t *testing.T, ruleID, filename string) {
+		test.Run(t, ruleID, func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			testFile, _, err := test.Path(filename)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			test.WaitSignal(t, func() error {
+				f, err := os.Create(testFile)
+				if err != nil {
+					return err
+				}
+				f.Close()
+				return os.Remove(testFile)
+			}, validateExecEvent(t, func(event *sprobe.Event, rule *rules.Rule) {
+				assert.Equal(t, ruleID, rule.ID, "wrong rule triggered")
+			}))
+		})
+	}
+
+	testProcessContextRule(t, "test_rule_ctx_1", "test-process-ctx-1")
+	testProcessContextRule(t, "test_rule_ctx_2", "test-process-ctx-2")
+	testProcessContextRule(t, "test_rule_ctx_3", "test-process-ctx-3")
+	testProcessContextRule(t, "test_rule_ctx_4", "test-process-ctx-4")
 }
 
 func TestProcessExecCTime(t *testing.T) {
