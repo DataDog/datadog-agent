@@ -225,7 +225,7 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 	// Fetch all connections matching source and target address
 	allConnections := getConnections(t, tr)
 	conns := searchConnections(allConnections, byAddress(c.LocalAddr(), c.RemoteAddr()))
-	require.Len(t, conns, numProcesses+1)
+	require.Len(t, conns, numProcesses)
 
 	totalSent := 0
 	for _, c := range conns {
