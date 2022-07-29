@@ -110,7 +110,7 @@ require (
 	github.com/gosnmp/gosnmp v1.34.1-0.20220306115220-ca8397b73095
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
-	github.com/h2non/filetype v1.1.2-0.20210602110014-3305bbb7ac7b
+	github.com/h2non/filetype v1.1.3
 	github.com/hashicorp/consul/api v1.12.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v0.5.4
@@ -404,7 +404,20 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-require github.com/go-delve/delve v1.9.0
+require (
+	github.com/go-delve/delve v1.9.0
+	github.com/zricethezav/gitleaks/v8 v8.9.0
+)
+
+require (
+	github.com/fatih/semgroup v1.2.0 // indirect
+	github.com/gitleaks/go-gitdiff v0.7.6 // indirect
+	github.com/petar-dambovaliev/aho-corasick v0.0.0-20211021192214-5ab2d9280aa9 // indirect
+	github.com/rs/zerolog v1.26.1 // indirect
+	github.com/spf13/viper v1.8.1 // indirect
+	github.com/subosito/gotenv v1.2.0 // indirect
+	gopkg.in/ini.v1 v1.62.0 // indirect
+)
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
