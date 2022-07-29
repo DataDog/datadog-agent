@@ -522,6 +522,7 @@ def get_linux_header_dirs(kernel_release=None, minimal_kernel_release=None):
 
     return dirs
 
+
 def get_network_agent_ebpf_build_flags(target=None, kernel_release=None):
     flags = get_ebpf_build_flags(target, kernel_release)
     flags.append("-g")
