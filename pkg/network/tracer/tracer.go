@@ -36,12 +36,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
@@ -453,17 +451,6 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 			tm.RuntimeCompilationDuration = duration
 		}
 		result[assetName] = tm
-
-		if tm.RuntimeCompilationEnabled {
-			tags := []string{fmt.Sprintf("agent_version:%s", version.AgentVersion), fmt.Sprintf("asset_name:%s", assetName)}
-
-			if err := statsd.Client.Gauge("datadog.system_probe.runtime_compilation_result", float64(tm.RuntimeCompilationResult), tags, 1); err != nil {
-				log.Warnf("error submitting runtime compilation metric to statsd: %s", err)
-			}
-			if err := statsd.Client.Gauge("datadog.system_probe.kernel_header_fetch_result", float64(tm.KernelHeaderFetchResult), tags, 1); err != nil {
-				log.Warnf("error submitting kernel header downloading metric to statsd: %s", err)
-			}
-		}
 	}
 
 	return result

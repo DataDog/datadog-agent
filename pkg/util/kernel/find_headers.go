@@ -48,7 +48,7 @@ const (
 	defaultHeadersFound
 	sysfsHeadersFound
 	downloadedHeadersFound
-	downloadSuccess
+	DownloadSuccess
 	hostVersionErr
 	downloadFailure
 	validationFailure
@@ -117,7 +117,7 @@ func GetKernelHeaders(downloadEnabled bool, headerDirs []string, headerDownloadD
 
 	log.Infof("successfully downloaded kernel headers to %s", headerDownloadDir)
 	if dirs := validateHeaderDirs(hv, getDownloadedHeaderDirs(headerDownloadDir), true); len(dirs) > 0 {
-		return dirs, downloadSuccess, nil
+		return dirs, DownloadSuccess, nil
 	}
 	return nil, validationFailure, fmt.Errorf("downloaded headers are not valid")
 }
