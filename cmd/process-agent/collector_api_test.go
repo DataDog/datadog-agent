@@ -71,7 +71,7 @@ func TestSendConnectionsMessage(t *testing.T) {
 	runCollectorTest(t, check, config.NewDefaultAgentConfig(), &endpointConfig{}, ddconfig.Mock(t), func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		req := <-ep.Requests
 
-		assert.Equal(t, "/api/v1/collector", req.uri)
+		assert.Equal(t, "/api/v1/connections", req.uri)
 
 		assert.Equal(t, cfg.HostName, req.headers.Get(headers.HostHeader))
 		apiEps, err := getAPIEndpoints()
@@ -582,6 +582,7 @@ func newMockEndpoint(t *testing.T, config *endpointConfig) *mockEndpoint {
 	collectorMux := http.NewServeMux()
 	collectorMux.HandleFunc("/api/v1/validate", m.handleValidate)
 	collectorMux.HandleFunc("/api/v1/collector", m.handle)
+	collectorMux.HandleFunc("/api/v1/connections", m.handle)
 	collectorMux.HandleFunc("/api/v1/container", m.handle)
 	collectorMux.HandleFunc("/api/v1/discovery", m.handle)
 
