@@ -133,58 +133,59 @@ func (a *RuntimeAsset) GetTelemetry() map[string]int64 {
 func (a *RuntimeAsset) SubmitTelemetry() {
 	tm := a.runtimeCompiler.GetRCTelemetry()
 
-	if tm.compilationEnabled {
+	if !tm.compilationEnabled {
+		return
+	}
 
-		var platform string
-		if target, err := types.NewTarget(); err == nil {
-			// Prefer platform information from nikos over platform info from the host package, since this
-			// is what kernel header downloading uses
-			platform = strings.ToLower(target.Distro.Display)
+	var platform string
+	if target, err := types.NewTarget(); err == nil {
+		// Prefer platform information from nikos over platform info from the host package, since this
+		// is what kernel header downloading uses
+		platform = strings.ToLower(target.Distro.Display)
+	} else {
+		log.Warnf("failed to retrieve host platform information from nikos: %s", err)
+		platform = host.GetStatusInformation().Platform
+	}
+
+	tags := []string{
+		fmt.Sprintf("asset:%s", a.filename),
+		fmt.Sprintf("agent_version:%s", version.AgentVersion),
+		fmt.Sprintf("platform:%s", platform),
+	}
+
+	if tm.compilationResult != notAttempted {
+		var resultTag string
+		if tm.compilationResult == compilationSuccess || tm.compilationResult == compiledOutputFound {
+			resultTag = "success"
 		} else {
-			log.Warnf("failed to retrieve host platform information from nikos: %s", err)
-			platform = host.GetStatusInformation().Platform
+			resultTag = "failure"
 		}
 
-		tags := []string{
-			fmt.Sprintf("asset:%s", a.filename),
-			fmt.Sprintf("agent_version:%s", version.AgentVersion),
-			fmt.Sprintf("platform:%s", platform),
+		rcTags := append(tags,
+			fmt.Sprintf("result:%s", resultTag),
+			fmt.Sprintf("reason:%s", model.RuntimeCompilationResult(tm.compilationResult).String()),
+		)
+
+		if err := statsd.Client.Count("datadog.system_probe.runtime_compilation.attempted", 1.0, rcTags, 1.0); err != nil {
+			log.Warnf("error submitting runtime compilation metric to statsd: %s", err)
+		}
+	}
+
+	if tm.headerFetchResult != kernel.NotAttempted {
+		var resultTag string
+		if tm.headerFetchResult <= kernel.DownloadSuccess {
+			resultTag = "success"
+		} else {
+			resultTag = "failure"
 		}
 
-		if tm.compilationResult != notAttempted {
-			var resultTag string
-			if tm.compilationResult == compilationSuccess || tm.compilationResult == compiledOutputFound {
-				resultTag = "success"
-			} else {
-				resultTag = "failure"
-			}
+		khdTags := append(tags,
+			fmt.Sprintf("result:%s", resultTag),
+			fmt.Sprintf("reason:%s", model.KernelHeaderFetchResult(tm.headerFetchResult).String()),
+		)
 
-			rcTags := append(tags,
-				fmt.Sprintf("result:%s", resultTag),
-				fmt.Sprintf("reason:%s", model.RuntimeCompilationResult(tm.compilationResult).String()),
-			)
-
-			if err := statsd.Client.Count("datadog.system_probe.runtime_compilation.attempted", 1.0, rcTags, 1.0); err != nil {
-				log.Warnf("error submitting runtime compilation metric to statsd: %s", err)
-			}
-		}
-
-		if tm.headerFetchResult != kernel.NotAttempted {
-			var resultTag string
-			if tm.headerFetchResult <= kernel.DownloadSuccess {
-				resultTag = "success"
-			} else {
-				resultTag = "failure"
-			}
-
-			khdTags := append(tags,
-				fmt.Sprintf("result:%s", resultTag),
-				fmt.Sprintf("reason:%s", model.KernelHeaderFetchResult(tm.headerFetchResult).String()),
-			)
-
-			if err := statsd.Client.Count("datadog.system_probe.kernel_header_fetch.attempted", 1.0, khdTags, 1); err != nil {
-				log.Warnf("error submitting kernel header downloading metric to statsd: %s", err)
-			}
+		if err := statsd.Client.Count("datadog.system_probe.kernel_header_fetch.attempted", 1.0, khdTags, 1); err != nil {
+			log.Warnf("error submitting kernel header downloading metric to statsd: %s", err)
 		}
 	}
 }
