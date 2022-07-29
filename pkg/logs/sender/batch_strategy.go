@@ -134,14 +134,13 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 
 func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan chan *message.Payload) {
 	serializedMessage := s.serializer.Serialize(messages)
+	log.Debugf("Send messages (messages=%d, totalContentSize=%d, avgMessageSize=%f)", len(messages), len(serializedMessage), float64(len(serializedMessage))/float64(len(messages)))
+
 	encodedPayload, err := s.contentEncoding.encode(serializedMessage)
 	if err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
 		return
 	}
-
-	log.Infof("BATCH MESSAGE: count=%d, totalSize=%d, avgMsgSize=%f", len(messages), len(serializedMessage), float64(len(serializedMessage))/float64(len(messages)))
-
 	outputChan <- &message.Payload{
 		Messages:      messages,
 		Encoded:       encodedPayload,

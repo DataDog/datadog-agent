@@ -230,10 +230,7 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 		additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName))
 	}
 	destinations := client.NewDestinations(reliable, additionals)
-	// TODO: Should we use a larger buffer?
-	// 100000 * 500 (msg size) = 50Mo
 	inputChan := make(chan *message.Message, endpoints.InputChanSize)
-	// TODO: Should we use a larger buffer?
 	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
 
 	encoder := sender.IdentityContentType
