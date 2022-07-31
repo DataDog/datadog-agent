@@ -405,9 +405,12 @@ require (
 )
 
 require (
+	github.com/DataDog/ebpf v0.0.0-20220301203322-3fc9ab3b8daf
 	github.com/go-delve/delve v1.9.0
 	golang.org/x/arch v0.0.0-20190927153633-4e8777c89be4
 )
+
+require github.com/florianl/go-tc v0.2.0 // indirect
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
