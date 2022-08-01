@@ -10,12 +10,10 @@ package collectors
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
-	model "github.com/DataDog/agent-payload/v5/process"
-	"go.uber.org/atomic"
-
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"go.uber.org/atomic"
 
 	"k8s.io/client-go/tools/cache"
 )

@@ -14,8 +14,6 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"go.uber.org/atomic"
-
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -30,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	"go.uber.org/atomic"
 )
 
 type checkResult struct {
@@ -179,13 +179,7 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 	}
 
 	if c.Name() == config.PodCheckName {
-		// Pod check returns a list of messages can be divided into two parts : pod payloads and manifest payloads
-		// By default we only send pod payloads containing pod metadata and pod manifests (yaml)
-		// Manifest payloads is a copy of pod manifests, we only send manifest payloads when feature flag is true
-		l.messagesToResults(start, c.Name(), messages[:len(messages)/2], results)
-		if l.cfg.Orchestrator.IsManifestCollectionEnabled {
-			l.messagesToResults(start, c.Name(), messages[len(messages)/2:], results)
-		}
+		handlePodChecks(l, start, c.Name(), messages, results)
 	} else {
 		l.messagesToResults(start, c.Name(), messages, results)
 	}
@@ -272,16 +266,16 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 			}
 			extraHeaders.Set(headers.EVPOriginHeader, "process-agent")
 			extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
+
+			switch m.(type) {
+			case *model.CollectorManifest:
+				extraHeaders.Set(headers.ContentEncodingHeader, headers.ZSTDContentEncoding)
+			}
 		}
 
 		if name == checks.ProcessEvents.Name() {
 			extraHeaders.Set(headers.EVPOriginHeader, "process-agent")
 			extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
-		}
-
-		switch m.(type) {
-		case *model.CollectorManifest:
-			extraHeaders.Set(headers.ContentEncodingHeader, headers.ZSTDContentEncoding)
 		}
 
 		payloads = append(payloads, checkPayload{
@@ -743,5 +737,15 @@ func ignoreResponseBody(checkName string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// Pod check returns a list of messages can be divided into two parts : pod payloads and manifest payloads
+// By default we only send pod payloads containing pod metadata and pod manifests (yaml)
+// Manifest payloads is a copy of pod manifests, we only send manifest payloads when feature flag is true
+func handlePodChecks(l *Collector, start time.Time, name string, messages []model.MessageBody, results *api.WeightedQueue) {
+	l.messagesToResults(start, name, messages[:len(messages)/2], results)
+	if l.cfg.Orchestrator.IsManifestCollectionEnabled {
+		l.messagesToResults(start, name, messages[len(messages)/2:], results)
 	}
 }
