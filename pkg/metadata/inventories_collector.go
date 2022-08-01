@@ -9,6 +9,7 @@ import (
 	"context"
 	"expvar"
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
@@ -49,11 +50,29 @@ func (c inventoriesCollector) Send(ctx context.Context, s serializer.MetricSeria
 	return nil
 }
 
+// getMinInterval gets the inventories_min_interval value, applying the default if it is zero.
+func getMinInterval() time.Duration {
+	minInterval := time.Duration(config.Datadog.GetInt("inventories_min_interval")) * time.Second
+	if minInterval <= 0 {
+		minInterval = config.DefaultInventoriesMinInterval * time.Second
+	}
+	return minInterval
+}
+
+// getMaxInterval gets the inventories_max_interval value, applying the default if it is zero.
+func getMaxInterval() time.Duration {
+	maxInterval := time.Duration(config.Datadog.GetInt("inventories_max_interval")) * time.Second
+	if maxInterval <= 0 {
+		maxInterval = config.DefaultInventoriesMaxInterval * time.Second
+	}
+	return maxInterval
+}
+
 // Init initializes the inventory metadata collection. This should be called in
 // all agents that wish to track inventory, after configuration is initialized.
 func (c inventoriesCollector) Init() error {
 	inventories.InitializeData()
-	return inventories.StartMetadataUpdatedGoroutine(c.sc, config.GetInventoriesMinInterval())
+	return inventories.StartMetadataUpdatedGoroutine(c.sc, getMinInterval())
 }
 
 // SetupInventoriesExpvar init the expvar function for inventories
@@ -87,7 +106,7 @@ func SetupInventories(sc *Scheduler, coll inventories.CollectorInterface) error 
 	}
 	RegisterCollector("inventories", ic)
 
-	if err := sc.AddCollector("inventories", config.GetInventoriesMaxInterval()); err != nil {
+	if err := sc.AddCollector("inventories", getMaxInterval()); err != nil {
 		return err
 	}
 

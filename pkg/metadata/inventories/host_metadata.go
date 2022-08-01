@@ -11,7 +11,6 @@ import (
 	"github.com/DataDog/gohai/network"
 	"github.com/DataDog/gohai/platform"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -62,7 +61,7 @@ type HostMetadata struct {
 // For now we simply logs warnings from gohai.
 func logWarnings(warnings []string) {
 	for _, w := range warnings {
-		log.Infof("gohai: %s", w)
+		logInfof("gohai: %s", w)
 	}
 }
 
@@ -72,7 +71,7 @@ func getHostMetadata() *HostMetadata {
 
 	cpuInfo, warnings, err := cpuGet()
 	if err != nil {
-		log.Errorf("Failed to retrieve cpu metadata from gohai: %s", err)
+		logErrorf("Failed to retrieve cpu metadata from gohai: %s", err) //nolint:errcheck
 	} else {
 		logWarnings(warnings)
 
@@ -89,7 +88,7 @@ func getHostMetadata() *HostMetadata {
 
 	platformInfo, warnings, err := platformGet()
 	if err != nil {
-		log.Errorf("failed to retrieve host platform metadata from gohai: %s", err)
+		logErrorf("failed to retrieve host platform metadata from gohai: %s", err) //nolint:errcheck
 	} else {
 		logWarnings(warnings)
 
@@ -103,7 +102,7 @@ func getHostMetadata() *HostMetadata {
 
 	memoryInfo, warnings, err := memoryGet()
 	if err != nil {
-		log.Errorf("failed to retrieve host memory metadata from gohai: %s", err)
+		logErrorf("failed to retrieve host memory metadata from gohai: %s", err) //nolint:errcheck
 	} else {
 		logWarnings(warnings)
 
@@ -113,7 +112,7 @@ func getHostMetadata() *HostMetadata {
 
 	networkInfo, warnings, err := networkGet()
 	if err != nil {
-		log.Errorf("failed to retrieve host network metadata from gohai: %s", err)
+		logErrorf("failed to retrieve host network metadata from gohai: %s", err) //nolint:errcheck
 	} else {
 		logWarnings(warnings)
 
@@ -124,30 +123,24 @@ func getHostMetadata() *HostMetadata {
 
 	metadata.AgentVersion = version.AgentVersion
 
-	agentMetadataMutex.Lock()
-	defer agentMetadataMutex.Unlock()
-
 	if value, ok := agentMetadata[string(AgentCloudProvider)]; ok {
 		if stringValue, ok := value.(string); ok {
 			metadata.CloudProvider = stringValue
 		} else {
-			log.Errorf("cloud provider is not a string in agent metadata cache")
+			logErrorf("cloud provider is not a string in agent metadata cache") //nolint:errcheck
 		}
 	} else {
-		log.Infof("cloud provider not found in agent metadata cache")
+		logInfof("cloud provider not found in agent metadata cache")
 	}
-
-	hostMetadataMutex.Lock()
-	defer hostMetadataMutex.Unlock()
 
 	if value, ok := hostMetadata[string(HostOSVersion)]; ok {
 		if stringValue, ok := value.(string); ok {
 			metadata.OsVersion = stringValue
 		} else {
-			log.Errorf("OS version is not a string in host metadata cache")
+			logErrorf("OS version is not a string in host metadata cache") //nolint:errcheck
 		}
 	} else {
-		log.Errorf("OS version not found in agent metadata cache")
+		logErrorf("OS version not found in agent metadata cache") //nolint:errcheck
 	}
 	return metadata
 }

@@ -19,7 +19,48 @@ import (
 	workloadmetatesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
 )
 
-func TestParseKubeletPodlist(t *testing.T) {
+// Only testing generateConfigs, lifecycle should be tested in end-to-end test
+
+func TestGenerateConfigs_KubeContainer_ContainerSpecific(t *testing.T) {
+	configProvider := KubeContainerConfigProvider{
+		containerCache: map[string]*workloadmeta.Container{
+			"nolabels": {
+				Runtime: workloadmeta.ContainerRuntimeContainerd,
+			},
+			"3b8efe0c50e8": {
+				EntityMeta: workloadmeta.EntityMeta{
+					Labels: map[string]string{
+						"com.datadoghq.ad.check_names":  "[\"apache\",\"http_check\"]",
+						"com.datadoghq.ad.init_configs": "[{}, {}]",
+						"com.datadoghq.ad.instances":    "[{\"apache_status_url\": \"http://%%host%%/server-status?auto\"},{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+					},
+				},
+				Runtime: workloadmeta.ContainerRuntimeDocker,
+			},
+		},
+	}
+
+	checks, err := configProvider.generateConfigs()
+	assert.Nil(t, err)
+
+	assert.Len(t, checks, 2)
+
+	assert.Equal(t, []string{"docker://3b8efe0c50e8"}, checks[0].ADIdentifiers)
+	assert.Equal(t, "{}", string(checks[0].InitConfig))
+	assert.Equal(t, "container:docker://3b8efe0c50e8", checks[0].Source)
+	assert.Len(t, checks[0].Instances, 1)
+	assert.Equal(t, "{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}", string(checks[0].Instances[0]))
+	assert.Equal(t, "apache", checks[0].Name)
+
+	assert.Equal(t, []string{"docker://3b8efe0c50e8"}, checks[1].ADIdentifiers)
+	assert.Equal(t, "{}", string(checks[1].InitConfig))
+	assert.Equal(t, "container:docker://3b8efe0c50e8", checks[1].Source)
+	assert.Len(t, checks[1].Instances, 1)
+	assert.Equal(t, "{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}", string(checks[1].Instances[0]))
+	assert.Equal(t, "http_check", checks[1].Name)
+}
+
+func TestGenerateConfigs_KubeContainer_KubeSpecific(t *testing.T) {
 	for nb, tc := range []struct {
 		desc        string
 		pod         *workloadmeta.KubernetesPod
@@ -36,7 +77,7 @@ func TestParseKubeletPodlist(t *testing.T) {
 					},
 				},
 			},
-			expectedCfg: nil,
+			expectedCfg: []integration.Config{},
 			expectedErr: nil,
 		},
 		{
@@ -238,7 +279,7 @@ func TestParseKubeletPodlist(t *testing.T) {
 					},
 				},
 			},
-			expectedCfg: nil,
+			expectedCfg: []integration.Config{},
 			expectedErr: ErrorMsgSet{
 				"annotation ad.datadoghq.com/nonmatching.check_names is invalid: nonmatching doesn't match a container identifier [apache nginx]":  {},
 				"annotation ad.datadoghq.com/nonmatching.init_configs is invalid: nonmatching doesn't match a container identifier [apache nginx]": {},
@@ -290,7 +331,7 @@ func TestParseKubeletPodlist(t *testing.T) {
 				})
 			}
 
-			m := &KubeletConfigProvider{
+			m := &KubeContainerConfigProvider{
 				workloadmetaStore: store,
 				configErrors:      make(map[string]ErrorMsgSet),
 				podCache: map[string]*workloadmeta.KubernetesPod{

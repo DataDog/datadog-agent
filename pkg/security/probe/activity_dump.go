@@ -21,6 +21,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -296,19 +297,6 @@ func (ad *ActivityDump) Matches(entry *model.ProcessCacheEntry) bool {
 	return true
 }
 
-// scrubAndRetainProcessArgsEnvs scrubs process arguments and environment variables
-func (ad *ActivityDump) scrubAndRetainProcessArgsEnvs(nodes []*ProcessActivityNode) {
-	// iterate through all the process nodes
-	for _, node := range nodes {
-
-		// scrub the current process
-		node.scrubAndReleaseArgsEnvs(ad.adm.probe.resolvers.ProcessResolver)
-
-		// scrub each child recursively
-		ad.scrubAndRetainProcessArgsEnvs(node.Children)
-	}
-}
-
 // Stop stops an active dump
 func (ad *ActivityDump) Stop() {
 	ad.Lock()
@@ -348,13 +336,25 @@ func (ad *ActivityDump) Stop() {
 	}
 
 	// scrub processes and retain args envs now
-	ad.scrubAndRetainProcessArgsEnvs(ad.ProcessActivityTree)
+	ad.scrubAndRetainProcessArgsEnvs()
+}
+
+func (ad *ActivityDump) scrubAndRetainProcessArgsEnvs() {
+	// iterate through all the process nodes
+	openList := make([]*ProcessActivityNode, len(ad.ProcessActivityTree))
+	copy(openList, ad.ProcessActivityTree)
+
+	for len(openList) != 0 {
+		current := openList[len(openList)-1]
+		current.scrubAndReleaseArgsEnvs(ad.adm.probe.resolvers.ProcessResolver)
+		openList = append(openList[:len(openList)-1], current.Children...)
+	}
 }
 
 // nolint: unused
-func (ad *ActivityDump) debug() {
+func (ad *ActivityDump) debug(w io.Writer) {
 	for _, root := range ad.ProcessActivityTree {
-		root.debug("")
+		root.debug(w, "")
 	}
 }
 
@@ -885,18 +885,26 @@ func NewProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeG
 }
 
 // nolint: unused
-func (pan *ProcessActivityNode) debug(prefix string) {
-	fmt.Printf("%s- process: %s\n", prefix, pan.Process.FileEvent.PathnameStr)
+func (pan *ProcessActivityNode) debug(w io.Writer, prefix string) {
+	fmt.Fprintf(w, "%s- process: %s\n", prefix, pan.Process.FileEvent.PathnameStr)
 	if len(pan.Files) > 0 {
-		fmt.Printf("%s  files:\n", prefix)
+		fmt.Fprintf(w, "%s  files:\n", prefix)
+		sortedFiles := make([]*FileActivityNode, 0, len(pan.Files))
 		for _, f := range pan.Files {
-			f.debug(fmt.Sprintf("%s\t-", prefix))
+			sortedFiles = append(sortedFiles, f)
+		}
+		sort.Slice(sortedFiles, func(i, j int) bool {
+			return sortedFiles[i].Name < sortedFiles[j].Name
+		})
+
+		for _, f := range sortedFiles {
+			f.debug(w, fmt.Sprintf("%s    -", prefix))
 		}
 	}
 	if len(pan.Children) > 0 {
-		fmt.Printf("%s  children:\n", prefix)
+		fmt.Fprintf(w, "%s  children:\n", prefix)
 		for _, child := range pan.Children {
-			child.debug(prefix + "\t")
+			child.debug(w, prefix+"    ")
 		}
 	}
 }
@@ -1359,30 +1367,44 @@ func (fan *FileActivityNode) enrichFromEvent(event *Event) {
 // InsertFileEvent inserts an event in a FileActivityNode. This function returns true if a new entry was added, false if
 // the event was dropped.
 func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, remainingPath string, generationType NodeGenerationType, mergeCtx adPathMergeContext) bool {
-	parent, nextParentIndex := extractFirstParent(remainingPath)
-	if nextParentIndex == 0 {
-		fan.enrichFromEvent(event)
-		return false
+	currentFan := fan
+	currentPath := remainingPath
+	somethingChanged := false
+
+	for {
+		parent, nextParentIndex := extractFirstParent(currentPath)
+		if nextParentIndex == 0 {
+			currentFan.enrichFromEvent(event)
+			break
+		}
+
+		if mergeCtx.enabled && len(currentFan.Children) >= 10 {
+			currentFan.mergeCommonPaths(mergeCtx)
+		}
+
+		child, ok := currentFan.Children[parent]
+		if ok {
+			currentFan = child
+			currentPath = currentPath[nextParentIndex:]
+			continue
+		}
+
+		// create new child
+		somethingChanged = true
+		if len(currentPath) <= nextParentIndex+1 {
+			currentFan.Children[parent] = NewFileActivityNode(fileEvent, event, parent, generationType)
+			break
+		} else {
+			child := NewFileActivityNode(nil, nil, parent, generationType)
+			currentFan.Children[parent] = child
+
+			currentFan = child
+			currentPath = currentPath[nextParentIndex:]
+			continue
+		}
 	}
 
-	if mergeCtx.enabled && len(fan.Children) >= 10 {
-		fan.mergeCommonPaths(mergeCtx)
-	}
-
-	child, ok := fan.Children[parent]
-	if ok {
-		return child.InsertFileEvent(fileEvent, event, remainingPath[nextParentIndex:], generationType, mergeCtx)
-	}
-
-	// create new child
-	if len(remainingPath) <= nextParentIndex+1 {
-		fan.Children[parent] = NewFileActivityNode(fileEvent, event, parent, generationType)
-	} else {
-		child := NewFileActivityNode(nil, nil, parent, generationType)
-		child.InsertFileEvent(fileEvent, event, remainingPath[nextParentIndex:], generationType, mergeCtx)
-		fan.Children[parent] = child
-	}
-	return true
+	return somethingChanged
 }
 
 func (fan *FileActivityNode) mergeCommonPaths(mergeCtx adPathMergeContext) {
@@ -1482,10 +1504,19 @@ func mergeFans(name string, a *FileActivityNode, b *FileActivityNode) (*FileActi
 }
 
 // nolint: unused
-func (fan *FileActivityNode) debug(prefix string) {
-	fmt.Printf("%s %s\n", prefix, fan.Name)
-	for _, child := range fan.Children {
-		child.debug("\t" + prefix)
+func (fan *FileActivityNode) debug(w io.Writer, prefix string) {
+	fmt.Fprintf(w, "%s %s\n", prefix, fan.Name)
+
+	sortedChildren := make([]*FileActivityNode, 0, len(fan.Children))
+	for _, f := range fan.Children {
+		sortedChildren = append(sortedChildren, f)
+	}
+	sort.Slice(sortedChildren, func(i, j int) bool {
+		return sortedChildren[i].Name < sortedChildren[j].Name
+	})
+
+	for _, child := range sortedChildren {
+		child.debug(w, "    "+prefix)
 	}
 }
 

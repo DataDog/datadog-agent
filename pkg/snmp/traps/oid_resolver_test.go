@@ -208,6 +208,95 @@ func TestResolverWithConflictingVariables(t *testing.T) {
 	require.Equal(t, "netSnmpExampleHeartbeatRate2", data.Name)
 }
 
+func TestResolverWithSuffixedVariable(t *testing.T) {
+	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec)}
+	updateResolverWithIntermediateJSONReader(t, resolver, dummyTrapDB)
+
+	data, err := resolver.GetVariableMetadata("1.3.6.1.6.3.1.1.5.4", "1.3.6.1.2.1.2.2.1.1")
+	require.NoError(t, err)
+	require.Equal(t, "ifIndex", data.Name)
+
+	data, err = resolver.GetVariableMetadata("1.3.6.1.6.3.1.1.5.4", "1.3.6.1.2.1.2.2.1.1.0")
+	require.NoError(t, err)
+	require.Equal(t, "ifIndex", data.Name)
+
+	data, err = resolver.GetVariableMetadata("1.3.6.1.6.3.1.1.5.4", "1.3.6.1.2.1.2.2.1.1.123436")
+	require.NoError(t, err)
+	require.Equal(t, "ifIndex", data.Name)
+
+	data, err = resolver.GetVariableMetadata("1.3.6.1.6.3.1.1.5.4", "1.3.6.1.2.1.2.2.1.1.9.9.9.9.9.9.9.9.9.99999.9")
+	require.NoError(t, err)
+	require.Equal(t, "ifIndex", data.Name)
+}
+
+func TestResolverWithSuffixedVariableAndNodeConflict(t *testing.T) {
+	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec)}
+	trapDB := trapDBFileContent{
+		Traps: TrapSpec{
+			"1.3.6.1.6.3.1.1.5.4": TrapMetadata{Name: "linkUp", MIBName: "IF-MIB"},
+		},
+		Variables: variableSpec{
+			"1.3.6.1.2.1.2.2":     VariableMetadata{Name: "NodeConflict"},
+			"1.3.6.1.2.1.2.2.1.1": VariableMetadata{Name: "ifIndex"},
+			"1.3.6.1.2.1.2.3":     VariableMetadata{Name: "NotAConflict"},
+		},
+	}
+	updateResolverWithIntermediateJSONReader(t, resolver, trapDB)
+	data, err := resolver.GetVariableMetadata("1.3.6.1.6.3.1.1.5.4", "1.3.6.1.2.1.2.2.1.1")
+	require.NoError(t, err)
+	require.Equal(t, "ifIndex", data.Name)
+
+	data, err = resolver.GetVariableMetadata("1.3.6.1.6.3.1.1.5.4", "1.3.6.1.2.1.2.2.1.1.0")
+	require.NoError(t, err)
+	require.Equal(t, "ifIndex", data.Name)
+
+	data, err = resolver.GetVariableMetadata("1.3.6.1.6.3.1.1.5.4", "1.3.6.1.2.1.2.2.1.1.123436")
+	require.NoError(t, err)
+	require.Equal(t, "ifIndex", data.Name)
+
+	data, err = resolver.GetVariableMetadata("1.3.6.1.6.3.1.1.5.4", "1.3.6.1.2.1.2.2.1.1.9.9.9.9.9.9.9.9.9.99999.9")
+	require.NoError(t, err)
+	require.Equal(t, "ifIndex", data.Name)
+
+	data, err = resolver.GetVariableMetadata("1.3.6.1.6.3.1.1.5.4", "1.3.6.1.2.1.2.2.32.90")
+	require.Error(t, err)
+
+	data, err = resolver.GetVariableMetadata("1.3.6.1.6.3.1.1.5.4", "1.3.6.1.2.1.2.3.32.90")
+	require.NoError(t, err)
+	require.Equal(t, "NotAConflict", data.Name)
+}
+
+func TestResolverWithNoMatchVariableShouldStopBeforeRoot(t *testing.T) {
+	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec)}
+	trapDB := trapDBFileContent{
+		Traps: TrapSpec{
+			"1.3.6.1.6.3.1.1.5.4": TrapMetadata{Name: "linkUp", MIBName: "IF-MIB"},
+		},
+		Variables: variableSpec{
+			"1":         VariableMetadata{Name: "should-not-resolve"},
+			"1.3":       VariableMetadata{Name: "should-not-resolve"},
+			"1.3.6.1":   VariableMetadata{Name: "should-not-resolve"},
+			"1.3.6.1.4": VariableMetadata{Name: "should-not-resolve"},
+		},
+	}
+	updateResolverWithIntermediateJSONReader(t, resolver, trapDB)
+	_, err := resolver.GetVariableMetadata("1.3.6.1.6.3.1.1.5.4", "1.3.6.1.4.12.3.5.6")
+	require.Error(t, err)
+
+	_, err = resolver.GetVariableMetadata("1.3.6.1.6.3.1.1.5.4", "1.3.6.1.10")
+	require.Error(t, err)
+
+	_, err = resolver.GetVariableMetadata("1.3.6.1.6.3.1.1.5.4", "1.3.6.10")
+	require.Error(t, err)
+
+	_, err = resolver.GetVariableMetadata("1.3.6.1.6.3.1.1.5.4", "1.3.4")
+	require.Error(t, err)
+
+	_, err = resolver.GetVariableMetadata("1.3.6.1.6.3.1.1.5.4", "1.8")
+	require.Error(t, err)
+
+}
+
 func updateResolverWithIntermediateJSONReader(t *testing.T, oidResolver *MultiFilesOIDResolver, trapData trapDBFileContent) {
 	data, err := json.Marshal(trapData)
 	require.NoError(t, err)
