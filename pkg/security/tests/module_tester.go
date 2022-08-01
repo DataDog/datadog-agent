@@ -22,6 +22,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -112,6 +113,10 @@ runtime_security_config:
   {{range .LogTags}}
     - {{.}}
   {{end}}
+  envs_with_value:
+  {{range .EnvsWithValue}}
+    - {{.}}
+  {{end}}
 `
 
 const testPolicy = `---
@@ -170,6 +175,7 @@ type testOpts struct {
 	reuseProbeHandler           bool
 	disableERPCDentryResolution bool
 	disableMapDentryResolution  bool
+	envsWithValue               []string
 }
 
 func (s *stringSlice) String() string {
@@ -190,7 +196,8 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.eventsCountThreshold == opts.eventsCountThreshold &&
 		to.reuseProbeHandler == opts.reuseProbeHandler &&
 		to.disableERPCDentryResolution == opts.disableERPCDentryResolution &&
-		to.disableMapDentryResolution == opts.disableMapDentryResolution
+		to.disableMapDentryResolution == opts.disableMapDentryResolution &&
+		reflect.DeepEqual(to.envsWithValue, opts.envsWithValue)
 }
 
 type testModule struct {
@@ -567,6 +574,7 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		"MapDentryResolutionEnabled":  mapDentryResolutionEnabled,
 		"LogPatterns":                 logPatterns,
 		"LogTags":                     logTags,
+		"EnvsWithValue":               opts.envsWithValue,
 	}); err != nil {
 		return nil, err
 	}

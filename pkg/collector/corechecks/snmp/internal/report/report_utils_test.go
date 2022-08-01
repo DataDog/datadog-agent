@@ -8,15 +8,17 @@ package report
 import (
 	"bufio"
 	"bytes"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
-	"github.com/stretchr/testify/assert"
-	"gopkg.in/yaml.v2"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/cihub/seelog"
+	"github.com/stretchr/testify/assert"
+	"gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func Test_getScalarValueFromSymbol(t *testing.T) {

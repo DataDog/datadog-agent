@@ -14,13 +14,14 @@ import (
 	"os"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/hashicorp/go-multierror"
-	"go.uber.org/atomic"
 )
 
 const (

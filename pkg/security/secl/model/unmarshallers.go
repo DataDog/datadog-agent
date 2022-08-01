@@ -15,6 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
+func validateReadSize(size, read int) (int, error) {
+	if size != read {
+		return 0, ErrIncorrectDataSize
+	}
+	return read, nil
+}
+
 // BinaryUnmarshaler interface implemented by every event type
 type BinaryUnmarshaler interface {
 	UnmarshalBinary(data []byte) (int, error)
@@ -22,7 +29,7 @@ type BinaryUnmarshaler interface {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
-	id, err := UnmarshalString(data, ContainerIDLen)
+	id, err := UnmarshalPrintableString(data, ContainerIDLen)
 	if err != nil {
 		return 0, err
 	}
@@ -144,16 +151,16 @@ func isValidTTYName(ttyName string) bool {
 	return IsPrintableASCII(ttyName) && (strings.HasPrefix(ttyName, "tty") || strings.HasPrefix(ttyName, "pts"))
 }
 
-// UnmarshalBinary unmarshalls a binary representation of itself
-func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	// Unmarshal proc_cache_t
+// UnmarshalProcEntryBinary unmarshalls Unmarshal proc_entry_t
+func (e *Process) UnmarshalProcEntryBinary(data []byte) (int, error) {
+	const size = 160
+	if len(data) < size {
+		return 0, ErrNotEnoughData
+	}
+
 	read, err := UnmarshalBinary(data, &e.FileEvent)
 	if err != nil {
 		return 0, err
-	}
-
-	if len(data[read:]) < 112 {
-		return 0, ErrNotEnoughData
 	}
 
 	e.ExecTime = unmarshalTime(data[read : read+8])
@@ -178,27 +185,57 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	}
 	read += 16
 
+	return validateReadSize(size, read)
+}
+
+// UnmarshalPidCacheBinary unmarshalls Unmarshal pid_cache_t
+func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
+	const size = 64
+	if len(data) < size {
+		return 0, ErrNotEnoughData
+	}
+
+	var read int
+
 	// Unmarshal pid_cache_t
-	cookie := ByteOrder.Uint32(data[read : read+4])
+	cookie := ByteOrder.Uint32(data[0:4])
 	if cookie > 0 {
 		e.Cookie = cookie
 	}
-	e.PPid = ByteOrder.Uint32(data[read+4 : read+8])
+	e.PPid = ByteOrder.Uint32(data[4:8])
 
-	e.ForkTime = unmarshalTime(data[read+8 : read+16])
-	e.ExitTime = unmarshalTime(data[read+16 : read+24])
-	read += 24
+	e.ForkTime = unmarshalTime(data[8:16])
+	e.ExitTime = unmarshalTime(data[16:24])
 
 	// Unmarshal the credentials contained in pid_cache_t
-	n, err := UnmarshalBinary(data[read:], &e.Credentials)
+	read, err := UnmarshalBinary(data[24:], &e.Credentials)
+	if err != nil {
+		return 0, err
+	}
+	read += 24
+
+	return validateReadSize(size, read)
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *Process) UnmarshalBinary(data []byte) (int, error) {
+	const size = 240
+	if len(data) < size {
+		return 0, ErrNotEnoughData
+	}
+	var read int
+
+	n, err := e.UnmarshalProcEntryBinary((data))
 	if err != nil {
 		return 0, err
 	}
 	read += n
 
-	if len(data[read:]) < 16 {
-		return 0, ErrNotEnoughData
+	n, err = e.UnmarshalPidCacheBinary((data[read:]))
+	if err != nil {
+		return 0, err
 	}
+	read += n
 
 	e.ArgsID = ByteOrder.Uint32(data[read : read+4])
 	e.ArgsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
@@ -208,7 +245,7 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	e.EnvsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
 	read += 8
 
-	return read, nil
+	return validateReadSize(size, read)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

@@ -15,11 +15,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // List of variables for a NetSNMP::ExampleHeartBeatNotification trap message.

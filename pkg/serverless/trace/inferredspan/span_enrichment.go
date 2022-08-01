@@ -11,8 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-lambda-go/events"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // EnrichInferredSpanWithAPIGatewayRESTEvent uses the parsed event

@@ -7,10 +7,11 @@ package app
 
 import (
 	"fmt"
-	"github.com/fatih/color"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/fatih/color"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

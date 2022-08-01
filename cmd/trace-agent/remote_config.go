@@ -24,10 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	headerContainerID = "Datadog-Container-ID"
-)
-
 var bufferPool = sync.Pool{
 	New: func() interface{} {
 		return new(bytes.Buffer)
@@ -106,7 +102,7 @@ func getContainerTags(req *http.Request, cfg *config.AgentConfig) []string {
 	if cfg == nil || cfg.ContainerTags == nil {
 		return nil
 	}
-	if cid := req.Header.Get(headerContainerID); cid != "" {
+	if cid := api.GetContainerID(req.Context(), req.Header); cid != "" {
 		containerTags, err := cfg.ContainerTags(cid)
 		if err != nil {
 			_ = log.Error("Failed getting container tags", err)

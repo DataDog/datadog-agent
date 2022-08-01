@@ -14,12 +14,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func clearMetadata() {
@@ -39,32 +39,6 @@ L:
 			break L
 		}
 	}
-}
-
-type mockAutoConfig struct{}
-
-func (*mockAutoConfig) MapOverLoadedConfigs(f func(map[string]integration.Config)) {
-	configs := make(map[string]integration.Config)
-	configs["check1_digest"] = integration.Config{
-		Name:     "check1",
-		Provider: "provider1",
-	}
-	configs["check2_digest"] = integration.Config{
-		Name:     "check2",
-		Provider: "provider2",
-	}
-	f(configs)
-}
-
-type mockCollector struct{}
-
-func (*mockCollector) GetAllInstanceIDs(checkName string) []check.ID {
-	if checkName == "check1" {
-		return []check.ID{"check1_instance1", "check1_instance2"}
-	} else if checkName == "check2" {
-		return []check.ID{"check2_instance1"}
-	}
-	return nil
 }
 
 type mockScheduler struct {
@@ -98,10 +72,18 @@ func TestRemoveCheckMetadata(t *testing.T) {
 	SetCheckMetadata("check2", "check_provided_key1", 123)
 	RemoveCheckMetadata("check1")
 
-	p := GetPayload(ctx, "testHostname", nil, nil)
+	p := GetPayload(ctx, "testHostname", nil)
 	checks := *p.CheckMetadata
 	assert.Len(t, checks, 1)
 	assert.Len(t, checks["check2"], 1)
+}
+
+type mockCollector struct {
+	Checks []check.Info
+}
+
+func (m mockCollector) MapOverChecks(fn func([]check.Info)) {
+	fn(m.Checks)
 }
 
 func TestGetPayload(t *testing.T) {
@@ -112,12 +94,36 @@ func TestGetPayload(t *testing.T) {
 	timeNow = func() time.Time { return startNow } // time of the first run
 	defer func() { timeNow = time.Now }()
 
+	coll := mockCollector{[]check.Info{
+		check.MockInfo{
+			Name:         "check1",
+			CheckID:      check.ID("check1_instance1"),
+			Source:       "provider1",
+			InitConf:     "",
+			InstanceConf: "{}",
+		},
+		check.MockInfo{
+			Name:         "check1",
+			CheckID:      check.ID("check1_instance2"),
+			Source:       "provider1",
+			InitConf:     "",
+			InstanceConf: "{\"test\":21}",
+		},
+		check.MockInfo{
+			Name:         "check2",
+			CheckID:      check.ID("check2_instance1"),
+			Source:       "provider2",
+			InitConf:     "",
+			InstanceConf: "{}",
+		},
+	}}
+
 	SetAgentMetadata("test", true)
 	SetCheckMetadata("check1_instance1", "check_provided_key1", 123)
 	SetCheckMetadata("check1_instance1", "check_provided_key2", "Hi")
 	SetCheckMetadata("non_running_checkid", "check_provided_key1", "this_should_be_kept")
 
-	p := GetPayload(ctx, "testHostname", &mockAutoConfig{}, &mockCollector{})
+	p := GetPayload(ctx, "testHostname", coll)
 
 	assert.Equal(t, startNow.UnixNano(), p.Timestamp)
 
@@ -128,61 +134,61 @@ func TestGetPayload(t *testing.T) {
 	checkMeta := *p.CheckMetadata
 	assert.Len(t, checkMeta, 3)
 	assert.Len(t, checkMeta["check1"], 2) // check1 has two instances
+
 	check1Instance1 := *checkMeta["check1"][0]
-	assert.Len(t, check1Instance1, 5)
-	assert.Equal(t, startNow.UnixNano(), check1Instance1["last_updated"])
 	assert.Equal(t, "check1_instance1", check1Instance1["config.hash"])
 	assert.Equal(t, "provider1", check1Instance1["config.provider"])
 	assert.Equal(t, 123, check1Instance1["check_provided_key1"])
 	assert.Equal(t, "Hi", check1Instance1["check_provided_key2"])
+	assert.Equal(t, "", check1Instance1["init_config"])
+	assert.Equal(t, "{}", check1Instance1["instance_config"])
+
 	check1Instance2 := *checkMeta["check1"][1]
-	assert.Len(t, check1Instance2, 3)
-	assert.Equal(t, agentStartupTime.UnixNano(), check1Instance2["last_updated"])
 	assert.Equal(t, "check1_instance2", check1Instance2["config.hash"])
 	assert.Equal(t, "provider1", check1Instance2["config.provider"])
+	assert.Equal(t, "", check1Instance2["init_config"])
+	assert.Equal(t, "{\"test\":21}", check1Instance2["instance_config"])
+
 	assert.Len(t, checkMeta["check2"], 1) // check2 has one instance
 	check2Instance1 := *checkMeta["check2"][0]
-	assert.Len(t, check2Instance1, 3)
-	assert.Equal(t, agentStartupTime.UnixNano(), check2Instance1["last_updated"])
 	assert.Equal(t, "check2_instance1", check2Instance1["config.hash"])
 	assert.Equal(t, "provider2", check2Instance1["config.provider"])
+	assert.Equal(t, "", check2Instance1["init_config"])
+	assert.Equal(t, "{}", check2Instance1["instance_config"])
 
 	SetCheckMetadata("check2_instance1", "check_provided_key1", "hi")
-	originalStartNow := startNow
 	startNow = startNow.Add(1000 * time.Second)
 	SetCheckMetadata("check1_instance1", "check_provided_key1", 456)
 
 	resetFunc := setupHostMetadataMock()
 	defer resetFunc()
 
-	mockConfig := config.Mock(t)
-	mockConfig.Set("inventories_configuration_enabled", false)
-
-	p = GetPayload(ctx, "testHostname", &mockAutoConfig{}, &mockCollector{})
+	p = GetPayload(ctx, "testHostname", coll)
 
 	assert.Equal(t, startNow.UnixNano(), p.Timestamp) //updated startNow is returned
 
 	agentMetadata = *p.AgentMetadata
-	assert.Len(t, agentMetadata, 2) // keys are: "test", "cloud_provider"
+	assert.Len(t, agentMetadata, 4) // keys are: "test", "cloud_provider", "full_configuration" and "provided_configuration"
 	assert.Equal(t, true, agentMetadata["test"])
+
+	// no point in asserting every field from the agent configuration. We just check they are present and then set
+	// then delete them to assert the rest.
+	assert.NotNil(t, agentMetadata["provided_configuration"])
+	assert.NotNil(t, agentMetadata["full_configuration"])
+	delete(agentMetadata, "provided_configuration")
+	delete(agentMetadata, "full_configuration")
 
 	checkMeta = *p.CheckMetadata
 	assert.Len(t, checkMeta, 3)
 	check1Instance1 = *checkMeta["check1"][0]
-	assert.Len(t, check1Instance1, 5)
-	assert.Equal(t, startNow.UnixNano(), check1Instance1["last_updated"]) // last_updated has changed
 	assert.Equal(t, "check1_instance1", check1Instance1["config.hash"])
 	assert.Equal(t, "provider1", check1Instance1["config.provider"])
 	assert.Equal(t, 456, check1Instance1["check_provided_key1"]) //Key has been updated
 	assert.Equal(t, "Hi", check1Instance1["check_provided_key2"])
 	check1Instance2 = *checkMeta["check1"][1]
-	assert.Len(t, check1Instance2, 3)
-	assert.Equal(t, agentStartupTime.UnixNano(), check1Instance2["last_updated"]) // last_updated still the same
 	assert.Equal(t, "check1_instance2", check1Instance2["config.hash"])
 	assert.Equal(t, "provider1", check1Instance2["config.provider"])
 	check2Instance1 = *checkMeta["check2"][0]
-	assert.Len(t, check2Instance1, 4)
-	assert.Equal(t, originalStartNow.UnixNano(), check2Instance1["last_updated"]) // reflects when check_provided_key1 was changed
 	assert.Equal(t, "check2_instance1", check2Instance1["config.hash"])
 	assert.Equal(t, "provider2", check2Instance1["config.provider"])
 	assert.Equal(t, "hi", check2Instance1["check_provided_key1"]) // New key added
@@ -202,12 +208,14 @@ func TestGetPayload(t *testing.T) {
 					"check_provided_key2": "Hi",
 					"config.hash": "check1_instance1",
 					"config.provider": "provider1",
-					"last_updated": %v
+					"init_config": "",
+					"instance_config": "{}"
 				},
 				{
 					"config.hash": "check1_instance2",
 					"config.provider": "provider1",
-					"last_updated": %v
+					"init_config": "",
+					"instance_config": "{\"test\":21}"
 				}
 			],
 			"check2":
@@ -216,7 +224,8 @@ func TestGetPayload(t *testing.T) {
 					"check_provided_key1": "hi",
 					"config.hash": "check2_instance1",
 					"config.provider": "provider2",
-					"last_updated": %v
+					"init_config": "",
+					"instance_config": "{}"
 				}
 			],
 			"non_running_checkid":
@@ -225,7 +234,8 @@ func TestGetPayload(t *testing.T) {
 					"check_provided_key1": "this_should_be_kept",
 					"config.hash": "non_running_checkid",
 					"config.provider": "",
-					"last_updated": %v
+					"init_config": "",
+					"instance_config": ""
 				}
 			]
 		},
@@ -261,7 +271,7 @@ func TestGetPayload(t *testing.T) {
 			"os_version": "testOS"
 		}
 	}`
-	jsonString = fmt.Sprintf(jsonString, startNow.UnixNano(), startNow.UnixNano(), agentStartupTime.UnixNano(), originalStartNow.UnixNano(), originalStartNow.UnixNano(), version.AgentVersion)
+	jsonString = fmt.Sprintf(jsonString, startNow.UnixNano(), version.AgentVersion)
 	jsonString = strings.Join(strings.Fields(jsonString), "") // Removes whitespaces and new lines
 	assert.Equal(t, jsonString, string(marshaled))
 
@@ -326,7 +336,7 @@ func TestCreateCheckInstanceMetadataReturnsNewMetadata(t *testing.T) {
 		},
 	}
 
-	md := createCheckInstanceMetadata(checkID, configProvider)
+	md := createCheckInstanceMetadata(checkID, configProvider, "", "")
 	(*md)[metadataKey] = "a-different-metadata-value"
 
 	assert.NotEqual(t, checkMetadata[checkID].CheckInstanceMetadata[metadataKey], (*md)[metadataKey])

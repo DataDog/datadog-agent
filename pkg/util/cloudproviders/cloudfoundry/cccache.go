@@ -16,8 +16,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cloudfoundry-community/go-cfclient"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // CCCacheI is an interface for a structure that caches and automatically refreshes data from Cloud Foundry API
@@ -86,7 +87,7 @@ type CCCache struct {
 	appsBatchSize        int
 }
 
-// CCClientI TODO <integrations-tools-and-libraries>: ITL-792
+// CCClientI is an interface for a Cloud Foundry Client that queries the Cloud Foundry API
 type CCClientI interface {
 	ListV3AppsByQuery(url.Values) ([]cfclient.V3App, error)
 	ListV3OrganizationsByQuery(url.Values) ([]cfclient.V3Organization, error)

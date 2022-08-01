@@ -9,9 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/gopsutil/process"
+
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/gopsutil/process"
 )
 
 type processes map[int32]*process.FilledProcess

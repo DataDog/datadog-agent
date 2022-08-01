@@ -6,10 +6,12 @@
 package flowaggregator
 
 import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/payload"
-	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func Test_buildPayload(t *testing.T) {

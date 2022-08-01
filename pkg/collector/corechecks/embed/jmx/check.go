@@ -20,12 +20,14 @@ import (
 
 // JMXCheck TODO <agent-core> : IML-199
 type JMXCheck struct {
-	id        check.ID
-	name      string
-	config    integration.Config
-	stop      chan struct{}
-	source    string
-	telemetry bool
+	id             check.ID
+	name           string
+	config         integration.Config
+	stop           chan struct{}
+	source         string
+	telemetry      bool
+	initConfig     string
+	instanceConfig string
 }
 
 func newJMXCheck(config integration.Config, source string) *JMXCheck {
@@ -83,8 +85,20 @@ func (c *JMXCheck) ConfigSource() string {
 	return c.source
 }
 
+// InitConfig TODO <agent-core> : IML-199
+func (c *JMXCheck) InitConfig() string {
+	return c.initConfig
+}
+
+// InstanceConfig TODO <agent-core> : IML-199
+func (c *JMXCheck) InstanceConfig() string {
+	return c.instanceConfig
+}
+
 // Configure TODO <agent-core> : IML-199
 func (c *JMXCheck) Configure(config integration.Data, initConfig integration.Data, source string) error {
+	c.initConfig = string(config)
+	c.instanceConfig = string(initConfig)
 	return nil
 }
 

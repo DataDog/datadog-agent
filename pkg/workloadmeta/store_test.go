@@ -9,8 +9,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/errors"
 	"gotest.tools/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/errors"
 )
 
 const (

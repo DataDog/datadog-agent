@@ -12,9 +12,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"go.opentelemetry.io/collector/confmap"
 	"go.uber.org/multierr"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func portToUint(v int) (port uint, err error) {

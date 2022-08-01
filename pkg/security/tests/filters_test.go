@@ -10,7 +10,9 @@ package tests
 
 import (
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"syscall"
@@ -358,7 +360,7 @@ func TestOpenFlagsApproverFilter(t *testing.T) {
 func TestOpenProcessPidDiscarder(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.file.path == "{{.Root}}/test-oba-1" && process.file.path == "/bin/cat"`,
+		Expression: `open.file.path == "{{.Root}}/test-oba-1" && process.file.path == "/bin/aaa"`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
@@ -367,26 +369,39 @@ func TestOpenProcessPidDiscarder(t *testing.T) {
 	}
 	defer test.Close()
 
-	var fd int
-	var testFile string
-
-	testFile, _, err = test.Path("test-oba-1")
+	testFile, _, err := test.Path("test-oba-1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.Remove(testFile)
 
-	if err := test.GetEventDiscarder(t, func() error {
-		// The policy file inode is likely to be reused by the kernel after deletion. On deletion, the inode discarder will
-		// be marked as retained in kernel space and will therefore no longer discard events. By waiting for the discard
-		// retention period to expire, we're making sure that a newly created discarder will properly take effect.
-		time.Sleep(probe.DiscardRetention)
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-		fd, err = openTestFile(test, testFile, syscall.O_CREAT)
-		if err != nil {
-			return err
+	args := []string{"multi-open", testFile, testFile}
+
+	cmd := exec.Command(syscallTester, args...)
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stdin.Close()
+
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := cmd.Wait(); err != nil {
+			t.Fatal(err)
 		}
-		return syscall.Close(fd)
+	}()
+
+	if err := test.GetEventDiscarder(t, func() error {
+		time.Sleep(probe.DiscardRetention)
+		_, err := io.WriteString(stdin, "\n")
+		return err
 	}, func(d *testDiscarder) bool {
 		e := d.event.(*probe.Event)
 		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
@@ -395,18 +410,12 @@ func TestOpenProcessPidDiscarder(t *testing.T) {
 		v, _ := e.GetFieldValue("open.file.path")
 		return v == testFile
 	}); err != nil {
-		inode := getInode(t, testFile)
-		parentInode := getInode(t, path.Dir(testFile))
-
-		t.Fatalf("event inode: %d, parent inode: %d, error: %v", inode, parentInode, err)
+		t.Error(err)
 	}
 
 	if err := waitForOpenProbeEvent(test, func() error {
-		fd, err = openTestFile(test, testFile, syscall.O_TRUNC)
-		if err != nil {
-			return err
-		}
-		return syscall.Close(fd)
+		_, err := io.WriteString(stdin, "\n")
+		return err
 	}, testFile); err == nil {
 		t.Fatalf("shouldn't get an event")
 	}
