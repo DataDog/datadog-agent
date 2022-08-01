@@ -89,6 +89,10 @@ func TestGetPayload(t *testing.T) {
 	ctx := context.Background()
 	defer func() { clearMetadata() }()
 
+	cfg := config.Mock(t)
+	cfg.Set("inventories_configuration_enabled", true)
+	cfg.Set("inventories_checks_configuration_enabled", true)
+
 	startNow := time.Now()
 	timeNow = func() time.Time { return startNow } // time of the first run
 	defer func() { timeNow = time.Now }()
