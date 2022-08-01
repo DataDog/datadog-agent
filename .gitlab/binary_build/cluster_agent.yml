@@ -3,9 +3,7 @@
   stage: binary_build
   needs: ["go_mod_tidy_check"]
   script:
-    # Assuming that by default, the RELEASE_VERSION_7 entry will get used (ie. nightly-a7)
-    - if [[ "$CI_COMMIT_TAG" =~ ^dca- ]]; then export RELEASE_VERSION="$CI_COMMIT_TAG"; else export RELEASE_VERSION="$RELEASE_VERSION_7"; fi
-    - inv -e cluster-agent.build --release-version "$RELEASE_VERSION"
+    - inv -e cluster-agent.build --release-version "$RELEASE_VERSION_7"
     - $S3_CP_CMD $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $S3_ARTIFACTS_URI/datadog-cluster-agent.$ARCH
     - $S3_CP_CMD $SRC_PATH/Dockerfiles/cluster-agent/datadog-cluster.yaml $S3_ARTIFACTS_URI/datadog-cluster.yaml
     - $S3_CP_CMD $SRC_PATH/Dockerfiles/cluster-agent/security-agent-policies $S3_ARTIFACTS_URI/security-agent-policies --recursive
