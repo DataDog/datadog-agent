@@ -298,7 +298,16 @@ func printValue(pdu gosnmp.SnmpPDU) error {
 		if !utilFunc.IsStringPrintable(b) {
 			var strValue string
 			strValue = fmt.Sprintf("%X", b)
-			fmt.Printf("Hex-STRING: %s %s %s %s %s %s\n", strValue[0:2], strValue[2:4], strValue[4:6], strValue[6:8], strValue[8:10], strValue[10:12])
+			if len(strValue)%2 != 0 {
+				strValue = "0" + strValue
+			}
+			var message string
+			message = "Hex-STRING: "
+			for i := 0; i <= len(strValue)-4; i += 2 {
+				message += strValue[i:i+2] + " "
+			}
+			message += strValue[len(strValue)-2:] + "\n"
+			fmt.Print(message)
 		} else {
 			fmt.Printf("STRING: %s\n", string(b))
 		}
