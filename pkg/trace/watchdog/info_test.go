@@ -34,49 +34,56 @@ func TestCPULow(t *testing.T) {
 	assert.Condition(func() bool { return c.UserAvg <= 0.5 }, fmt.Sprintf("cpu avg should be below 0.5, got %f", c.UserAvg))
 }
 
-func doTestCPUHigh(t *testing.T, n int) {
-	assert := assert.New(t)
-	runtime.GC()
-
-	done := make(chan struct{}, 1)
-	c := CPU(time.Now())
-	globalCurrentInfo.cacheDelay = testDuration
-	for i := 0; i < n; i++ {
-		go func() {
-			j := 0
-			for {
-				select {
-				case <-done:
-					return
-				default:
-					j++
-				}
-			}
-		}()
-	}
-	time.Sleep(testDuration)
-	c = CPU(time.Now())
-	for i := 0; i < n; i++ {
-		done <- struct{}{}
-	}
-	t.Logf("CPU (%d goroutines): %v", n, c)
-
-	// Checking that CPU is high enough, a very simple ++ loop should be
-	// enough to stimulate one core and make it over 50%. One of the goals
-	// of this test is to check that values are not wrong by a factor 100, such
-	// as mismatching percentages and [0...1]  values.
-	assert.Condition(func() bool { return c.UserAvg >= 0.5 }, fmt.Sprintf("cpu avg is too low, got %f", c.UserAvg))
-	assert.Condition(func() bool { return c.UserAvg <= float64(n+1) }, fmt.Sprintf("cpu avg is too high, target is %d, got %f", n, c.UserAvg))
-}
-
 func TestCPUHigh(t *testing.T) {
 	t.Skip("skipping test; see https://github.com/DataDog/datadog-agent/issues/12944")
-	doTestCPUHigh(t, 1)
-	if testing.Short() {
-		return
+
+	tests := []struct {
+		n        int
+		runShort bool // whether to run the test if testing.Short() is true
+	}{
+		{1, true},
+		{10, false},
+		{100, false},
 	}
-	doTestCPUHigh(t, 10)
-	doTestCPUHigh(t, 100)
+	for _, tc := range tests {
+		t.Run(fmt.Sprintf("%d_goroutines", tc.n), func(t *testing.T) {
+			if !tc.runShort && testing.Short() {
+				t.Skip("skipping test in short mode")
+			}
+			assert := assert.New(t)
+			runtime.GC()
+
+			done := make(chan struct{}, 1)
+			c := CPU(time.Now())
+			globalCurrentInfo.cacheDelay = testDuration
+			for i := 0; i < tc.n; i++ {
+				go func() {
+					j := 0
+					for {
+						select {
+						case <-done:
+							return
+						default:
+							j++
+						}
+					}
+				}()
+			}
+			time.Sleep(testDuration)
+			c = CPU(time.Now())
+			for i := 0; i < tc.n; i++ {
+				done <- struct{}{}
+			}
+			t.Logf("CPU (%d goroutines): %v", tc.n, c)
+
+			// Checking that CPU is high enough, a very simple ++ loop should be
+			// enough to stimulate one core and make it over 50%. One of the goals
+			// of this test is to check that values are not wrong by a factor 100, such
+			// as mismatching percentages and [0...1]  values.
+			assert.Condition(func() bool { return c.UserAvg >= 0.5 }, fmt.Sprintf("cpu avg is too low, got %f", c.UserAvg))
+			assert.Condition(func() bool { return c.UserAvg <= float64(tc.n+1) }, fmt.Sprintf("cpu avg is too high, target is %d, got %f", tc.n, c.UserAvg))
+		})
+	}
 }
 
 func TestMemLow(t *testing.T) {
