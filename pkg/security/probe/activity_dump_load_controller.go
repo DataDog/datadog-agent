@@ -19,6 +19,7 @@ import (
 	"github.com/cilium/ebpf"
 )
 
+// ActivityDumpLoadController is a load controller allowing dynamic change of Activity Dump configuration
 type ActivityDumpLoadController struct {
 	tracedEventTypes   []model.EventType
 	tracedCgroupsCount uint64
@@ -28,6 +29,7 @@ type ActivityDumpLoadController struct {
 	tracedCgroupsLockMap    *ebpf.Map
 }
 
+// NewActivityDumpLoadController returns a new activity dump load controller
 func NewActivityDumpLoadController(cfg *config.Config, man *manager.Manager) (*ActivityDumpLoadController, error) {
 	tracedEventTypesMap, found, err := man.GetMap("traced_event_types")
 	if err != nil {
