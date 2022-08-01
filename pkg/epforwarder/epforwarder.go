@@ -99,8 +99,14 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		intakeTrackType:               "ndmflow",
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
-		defaultBatchMaxSize:           10000,
-		defaultInputChanSize:          100000, // 100k is enough for queueing 10 NetFlow payloads (each payload can have up to 10k flows)
+
+		// Each NetFlow flow is about 500 bytes
+		// 10k BatchMaxSize is about 5Mo of content size
+		defaultBatchMaxSize: 10000,
+
+		// High input chan (100k) is needed to handle high number (100k or more) of flows being flushed by NetFlow Server every 10s
+		// 100k is enough for queueing 10 NetFlow payloads (each payload can have up to 10k flows)
+		defaultInputChanSize: 100000,
 	},
 }
 
