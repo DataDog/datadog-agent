@@ -2,6 +2,13 @@ module github.com/DataDog/datadog-agent/pkg/trace
 
 go 1.17
 
+// NOTE: Prefer using simple `require` directives instead of using `replace` if possible.
+// See https://github.com/DataDog/datadog-agent/blob/main/docs/dev/gomodreplace.md
+// for more details.
+
+// Internal deps fix version
+replace github.com/docker/distribution => github.com/docker/distribution v2.8.1+incompatible
+
 require (
 	github.com/DataDog/datadog-agent v0.0.0-20220622175024-d44ffc613aaf
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.38.0-rc.3
