@@ -247,7 +247,7 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	read += n
 
 	// Unmarshal linux_binprm_t
-	numOfBytes, err := UnmarshalBinary(data, &e.LinuxBinprm.FileEvent)
+	numOfBytes, err := UnmarshalBinary(data[read:], &e.LinuxBinprm.FileEvent)
 	fmt.Printf("numOfBytes: %d\n", numOfBytes)
 	if err != nil {
 		return 0, err
