@@ -100,7 +100,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           10000,
-		defaultInputChanSize:          100000, // 100k is enough for queueing 10 payloads (10x the `defaultBatchMaxSize: 10000`)
+		defaultInputChanSize:          100000, // 100k is enough for queueing 10 NetFlow payloads (each payload can have up to 10k flows)
 	},
 }
 
