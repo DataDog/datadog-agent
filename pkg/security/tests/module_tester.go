@@ -285,16 +285,16 @@ func (h *testProbeHandler) HandleCustomEvent(rule *rules.Rule, event *sprobe.Cus
 }
 
 //nolint:deadcode,unused
-func getInode(t *testing.T, path string) uint64 {
+func getInode(tb testing.TB, path string) uint64 {
 	fileInfo, err := os.Lstat(path)
 	if err != nil {
-		t.Error(err)
+		tb.Error(err)
 		return 0
 	}
 
 	stats, ok := fileInfo.Sys().(*syscall.Stat_t)
 	if !ok {
-		t.Error(errors.New("Not a syscall.Stat_t"))
+		tb.Error(errors.New("Not a syscall.Stat_t"))
 		return 0
 	}
 
@@ -302,10 +302,10 @@ func getInode(t *testing.T, path string) uint64 {
 }
 
 //nolint:deadcode,unused
-func which(t *testing.T, name string) string {
+func which(tb testing.TB, name string) string {
 	executable, err := exec.LookPath(name)
 	if err != nil {
-		t.Fatalf("couldn't resolve %s: %v", name, err)
+		tb.Fatalf("couldn't resolve %s: %v", name, err)
 	}
 
 	if dest, err := filepath.EvalSymlinks(executable); err == nil {
@@ -326,79 +326,90 @@ func copyFile(src string, dst string, mode fs.FileMode) error {
 }
 
 //nolint:deadcode,unused
-func assertMode(t *testing.T, actualMode, expectedMode uint32, msgAndArgs ...interface{}) bool {
-	t.Helper()
+func assertMode(tb testing.TB, actualMode, expectedMode uint32, msgAndArgs ...interface{}) bool {
+	tb.Helper()
 	if len(msgAndArgs) == 0 {
 		msgAndArgs = append(msgAndArgs, "wrong mode")
 	}
-	return assert.Equal(t, strconv.FormatUint(uint64(expectedMode), 8), strconv.FormatUint(uint64(actualMode), 8), msgAndArgs...)
+	return assert.Equal(tb, strconv.FormatUint(uint64(expectedMode), 8), strconv.FormatUint(uint64(actualMode), 8), msgAndArgs...)
 }
 
 //nolint:deadcode,unused
-func assertRights(t *testing.T, actualMode, expectedMode uint16, msgAndArgs ...interface{}) bool {
-	t.Helper()
-	return assertMode(t, uint32(actualMode)&01777, uint32(expectedMode), msgAndArgs...)
+func assertRights(tb testing.TB, actualMode, expectedMode uint16, msgAndArgs ...interface{}) bool {
+	tb.Helper()
+	return assertMode(tb, uint32(actualMode)&01777, uint32(expectedMode), msgAndArgs...)
 }
 
 //nolint:deadcode,unused
-func assertNearTime(t *testing.T, ns uint64) bool {
-	t.Helper()
+func assertNearTime(tb testing.TB, ns uint64) bool {
+	tb.Helper()
 	now, event := time.Now(), time.Unix(0, int64(ns))
 	if event.After(now) || event.Before(now.Add(-1*time.Hour)) {
-		t.Errorf("expected time close to %s, got %s", now, event)
+		tb.Errorf("expected time close to %s, got %s", now, event)
 		return false
 	}
 	return true
 }
 
 //nolint:deadcode,unused
-func assertTriggeredRule(t *testing.T, r *rules.Rule, id string) bool {
-	t.Helper()
-	return assert.Equal(t, id, r.ID, "wrong triggered rule")
+func assertTriggeredRule(tb testing.TB, r *rules.Rule, id string) bool {
+	tb.Helper()
+	return assert.Equal(tb, id, r.ID, "wrong triggered rule")
 }
 
 //nolint:deadcode,unused
-func assertReturnValue(t *testing.T, retval, expected int64) bool {
-	t.Helper()
-	return assert.Equal(t, expected, retval, "wrong return value")
+func assertReturnValue(tb testing.TB, retval, expected int64) bool {
+	tb.Helper()
+	return assert.Equal(tb, expected, retval, "wrong return value")
 }
 
 //nolint:deadcode,unused
-func assertFieldEqual(t *testing.T, e *sprobe.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
-	t.Helper()
+func assertFieldEqual(tb testing.TB, e *sprobe.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
+	tb.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
-		t.Errorf("failed to get field '%s': %s", field, err)
+		tb.Errorf("failed to get field '%s': %s", field, err)
 		return false
 	}
-	return assert.Equal(t, value, fieldValue, msgAndArgs...)
+	return assert.Equal(tb, value, fieldValue, msgAndArgs...)
 }
 
 //nolint:deadcode,unused
-func assertFieldContains(t *testing.T, e *sprobe.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
-	t.Helper()
+func assertFieldNotEmpty(tb testing.TB, e *sprobe.Event, field string, msgAndArgs ...interface{}) bool {
+	tb.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
-		t.Errorf("failed to get field '%s': %s", field, err)
+		tb.Errorf("failed to get field '%s': %s", field, err)
 		return false
 	}
-	return assert.Contains(t, fieldValue, value, msgAndArgs...)
+	return assert.NotEmpty(tb, fieldValue, msgAndArgs...)
 }
 
 //nolint:deadcode,unused
-func assertFieldStringArrayIndexedOneOf(t *testing.T, e *sprobe.Event, field string, index int, values []string, msgAndArgs ...interface{}) bool {
-	t.Helper()
+func assertFieldContains(tb testing.TB, e *sprobe.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
+	tb.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
-		t.Errorf("failed to get field '%s': %s", field, err)
+		tb.Errorf("failed to get field '%s': %s", field, err)
+		return false
+	}
+	return assert.Contains(tb, fieldValue, value, msgAndArgs...)
+}
+
+//nolint:deadcode,unused
+func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *sprobe.Event, field string, index int, values []string, msgAndArgs ...interface{}) bool {
+	tb.Helper()
+	fieldValue, err := e.GetFieldValue(field)
+	if err != nil {
+		tb.Errorf("failed to get field '%s': %s", field, err)
 		return false
 	}
 
 	if fieldValues, ok := fieldValue.([]string); ok {
-		return assert.Contains(t, values, fieldValues[index])
+		return assert.Contains(tb, values, fieldValues[index])
 	}
 
-	t.Errorf("failed to get field '%s' as an array", field)
+	tb.Errorf("failed to get field '%s' as an array", field)
 	return false
 }
 
@@ -494,27 +505,37 @@ func validateProcessContextSECL(tb testing.TB, event *sprobe.Event) bool {
 }
 
 //nolint:deadcode,unused
-func validateEvent(tb testing.TB, validate func(event *sprobe.Event, rule *rules.Rule)) func(event *sprobe.Event, rule *rules.Rule) {
-	return func(event *sprobe.Event, rule *rules.Rule) {
-		validate(event, rule)
+func validateProcessContext(tb testing.TB, event *sprobe.Event) {
+	if !validateProcessContextLineage(tb, event) {
+		tb.Error(event.String())
+	}
 
-		if !validateProcessContextLineage(tb, event) {
-			tb.Error(event.String())
-		}
-
-		if !validateProcessContextSECL(tb, event) {
-			tb.Error(event.String())
-		}
+	if !validateProcessContextSECL(tb, event) {
+		tb.Error(event.String())
 	}
 }
 
 //nolint:deadcode,unused
-func validateExecEvent(t *testing.T, validate func(event *sprobe.Event, rule *rules.Rule)) func(event *sprobe.Event, rule *rules.Rule) {
+func validateEvent(tb testing.TB, validate func(event *sprobe.Event, rule *rules.Rule)) func(event *sprobe.Event, rule *rules.Rule) {
 	return func(event *sprobe.Event, rule *rules.Rule) {
 		validate(event, rule)
 
-		if !validateExecSchema(t, event) {
-			t.Error(event.String())
+		validateProcessContext(tb, event)
+	}
+}
+
+//nolint:deadcode,unused
+func validateExecEvent(tb *testing.T, kind wrapperType, validate func(event *sprobe.Event, rule *rules.Rule)) func(event *sprobe.Event, rule *rules.Rule) {
+	return func(event *sprobe.Event, rule *rules.Rule) {
+		validate(event, rule)
+
+		if kind == dockerWrapperType {
+			assertFieldNotEmpty(tb, event, "exec.container.id", "exec container id not found")
+			assertFieldNotEmpty(tb, event, "process.container.id", "process container id not found")
+		}
+
+		if !validateExecSchema(tb, event) {
+			tb.Error(event.String())
 		}
 	}
 }
@@ -1386,16 +1407,16 @@ func init() {
 }
 
 //nolint:deadcode,unused
-func checkKernelCompatibility(t *testing.T, why string, skipCheck func(kv *kernel.Version) bool) {
-	t.Helper()
+func checkKernelCompatibility(tb testing.TB, why string, skipCheck func(kv *kernel.Version) bool) {
+	tb.Helper()
 	kv, err := kernel.NewKernelVersion()
 	if err != nil {
-		t.Errorf("failed to get kernel version: %s", err)
+		tb.Errorf("failed to get kernel version: %s", err)
 		return
 	}
 
 	if skipCheck(kv) {
-		t.Skipf("kernel version not supported: %s", why)
+		tb.Skipf("kernel version not supported: %s", why)
 	}
 }
 
