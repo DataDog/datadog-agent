@@ -962,6 +962,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.failure_policy", "Ignore")
 	config.BindEnvAndSetDefault("admission_controller.reinvocation_policy", "IfNeeded")
 	config.BindEnvAndSetDefault("admission_controller.add_aks_selectors", false) // adds in the webhook some selectors that are required in AKS
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.enabled", true)
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.endpoint", "/injectlib")
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.container_registry", "gcr.io/datadoghq")
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
@@ -1016,7 +1019,8 @@ func InitConfig(config Config) {
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
-	config.BindEnvAndSetDefault("inventories_configuration_enabled", true)
+	config.BindEnvAndSetDefault("inventories_configuration_enabled", false)        // controls the agent configurations
+	config.BindEnvAndSetDefault("inventories_checks_configuration_enabled", false) // controls the checks configurations
 	// when updating the default here also update pkg/metadata/inventories/README.md
 	config.BindEnvAndSetDefault("inventories_max_interval", DefaultInventoriesMaxInterval) // integer seconds
 	config.BindEnvAndSetDefault("inventories_min_interval", DefaultInventoriesMinInterval) // integer seconds
@@ -1094,6 +1098,7 @@ func InitConfig(config Config) {
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 	config.BindEnvAndSetDefault("runtime_security_config.event_stream.use_ring_buffer", false)
 	config.BindEnv("runtime_security_config.event_stream.buffer_size")
+	config.BindEnvAndSetDefault("runtime_security_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE"})
 
 	// Serverless Agent
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
@@ -1130,8 +1135,8 @@ func GetProxies() *Proxy {
 	return proxies
 }
 
-// loadProxyFromEnv overrides the proxy settings with environment variables
-func loadProxyFromEnv(config Config) {
+// LoadProxyFromEnv overrides the proxy settings with environment variables
+func LoadProxyFromEnv(config Config) {
 	// Viper doesn't handle mixing nested variables from files and set
 	// manually.  If we manually set one of the sub value for "proxy" all
 	// other values from the conf file will be shadowed when using
@@ -1388,7 +1393,7 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	}
 
 	useHostEtc(config)
-	loadProxyFromEnv(config)
+	LoadProxyFromEnv(config)
 	SanitizeAPIKeyConfig(config, "api_key")
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
@@ -1835,22 +1840,4 @@ func GetVectorURL(datatype DataType) (string, error) {
 		return vectorURL, nil
 	}
 	return "", nil
-}
-
-// GetInventoriesMinInterval gets the inventories_min_interval value, applying the default if it is zero.
-func GetInventoriesMinInterval() time.Duration {
-	minInterval := time.Duration(Datadog.GetInt("inventories_min_interval")) * time.Second
-	if minInterval == 0 {
-		minInterval = DefaultInventoriesMinInterval * time.Second
-	}
-	return minInterval
-}
-
-// GetInventoriesMaxInterval gets the inventories_max_interval value, applying the default if it is zero.
-func GetInventoriesMaxInterval() time.Duration {
-	maxInterval := time.Duration(Datadog.GetInt("inventories_max_interval")) * time.Second
-	if maxInterval == 0 {
-		maxInterval = DefaultInventoriesMaxInterval * time.Second
-	}
-	return maxInterval
 }

@@ -21,6 +21,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -296,19 +297,6 @@ func (ad *ActivityDump) Matches(entry *model.ProcessCacheEntry) bool {
 	return true
 }
 
-// scrubAndRetainProcessArgsEnvs scrubs process arguments and environment variables
-func (ad *ActivityDump) scrubAndRetainProcessArgsEnvs(nodes []*ProcessActivityNode) {
-	// iterate through all the process nodes
-	for _, node := range nodes {
-
-		// scrub the current process
-		node.scrubAndReleaseArgsEnvs(ad.adm.probe.resolvers.ProcessResolver)
-
-		// scrub each child recursively
-		ad.scrubAndRetainProcessArgsEnvs(node.Children)
-	}
-}
-
 // Stop stops an active dump
 func (ad *ActivityDump) Stop() {
 	ad.Lock()
@@ -348,13 +336,25 @@ func (ad *ActivityDump) Stop() {
 	}
 
 	// scrub processes and retain args envs now
-	ad.scrubAndRetainProcessArgsEnvs(ad.ProcessActivityTree)
+	ad.scrubAndRetainProcessArgsEnvs()
+}
+
+func (ad *ActivityDump) scrubAndRetainProcessArgsEnvs() {
+	// iterate through all the process nodes
+	openList := make([]*ProcessActivityNode, len(ad.ProcessActivityTree))
+	copy(openList, ad.ProcessActivityTree)
+
+	for len(openList) != 0 {
+		current := openList[len(openList)-1]
+		current.scrubAndReleaseArgsEnvs(ad.adm.probe.resolvers.ProcessResolver)
+		openList = append(openList[:len(openList)-1], current.Children...)
+	}
 }
 
 // nolint: unused
-func (ad *ActivityDump) debug() {
+func (ad *ActivityDump) debug(w io.Writer) {
 	for _, root := range ad.ProcessActivityTree {
-		root.debug("")
+		root.debug(w, "")
 	}
 }
 
@@ -862,7 +862,6 @@ func (ad *ActivityDump) DecodeProtobuf(reader io.Reader) error {
 
 // ProcessActivityNode holds the activity of a process
 type ProcessActivityNode struct {
-	id             NodeID
 	Process        model.Process      `msg:"process"`
 	GenerationType NodeGenerationType `msg:"generation_type"`
 
@@ -873,14 +872,6 @@ type ProcessActivityNode struct {
 	Children []*ProcessActivityNode       `msg:"children,omitempty"`
 }
 
-// GetID returns a unique ID to identify the current node
-func (pan *ProcessActivityNode) GetID() NodeID {
-	if pan.id == 0 {
-		pan.id = NewNodeID()
-	}
-	return pan.id
-}
-
 // NewProcessActivityNode returns a new ProcessActivityNode instance
 func NewProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType) *ProcessActivityNode {
 	pan := ProcessActivityNode{
@@ -889,24 +880,31 @@ func NewProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeG
 		Files:          make(map[string]*FileActivityNode),
 		DNSNames:       make(map[string]*DNSNode),
 	}
-	_ = pan.GetID()
 	pan.retain()
 	return &pan
 }
 
 // nolint: unused
-func (pan *ProcessActivityNode) debug(prefix string) {
-	fmt.Printf("%s- process: %s\n", prefix, pan.Process.FileEvent.PathnameStr)
+func (pan *ProcessActivityNode) debug(w io.Writer, prefix string) {
+	fmt.Fprintf(w, "%s- process: %s\n", prefix, pan.Process.FileEvent.PathnameStr)
 	if len(pan.Files) > 0 {
-		fmt.Printf("%s  files:\n", prefix)
+		fmt.Fprintf(w, "%s  files:\n", prefix)
+		sortedFiles := make([]*FileActivityNode, 0, len(pan.Files))
 		for _, f := range pan.Files {
-			f.debug(fmt.Sprintf("%s\t-", prefix))
+			sortedFiles = append(sortedFiles, f)
+		}
+		sort.Slice(sortedFiles, func(i, j int) bool {
+			return sortedFiles[i].Name < sortedFiles[j].Name
+		})
+
+		for _, f := range sortedFiles {
+			f.debug(w, fmt.Sprintf("%s    -", prefix))
 		}
 	}
 	if len(pan.Children) > 0 {
-		fmt.Printf("%s  children:\n", prefix)
+		fmt.Fprintf(w, "%s  children:\n", prefix)
 		for _, child := range pan.Children {
-			child.debug(prefix + "\t")
+			child.debug(w, prefix+"    ")
 		}
 	}
 }
@@ -1307,7 +1305,6 @@ newSyscallLoop:
 
 // FileActivityNode holds a tree representation of a list of files
 type FileActivityNode struct {
-	id             NodeID
 	Name           string             `msg:"name"`
 	IsPattern      bool               `msg:"is_pattern"`
 	File           *model.FileEvent   `msg:"file,omitempty"`
@@ -1317,14 +1314,6 @@ type FileActivityNode struct {
 	Open *OpenNode `msg:"open,omitempty"`
 
 	Children map[string]*FileActivityNode `msg:"children,omitempty"`
-}
-
-// GetID returns a unique ID to identify the current node
-func (fan *FileActivityNode) GetID() NodeID {
-	if fan.id == 0 {
-		fan.id = NewNodeID()
-	}
-	return fan.id
 }
 
 // OpenNode contains the relevant fields of an Open event on which we might want to write a profiling rule
@@ -1341,7 +1330,6 @@ func NewFileActivityNode(fileEvent *model.FileEvent, event *Event, name string, 
 		GenerationType: generationType,
 		Children:       make(map[string]*FileActivityNode),
 	}
-	_ = fan.GetID()
 	if fileEvent != nil {
 		fileEventTmp := *fileEvent
 		fan.File = &fileEventTmp
@@ -1379,30 +1367,44 @@ func (fan *FileActivityNode) enrichFromEvent(event *Event) {
 // InsertFileEvent inserts an event in a FileActivityNode. This function returns true if a new entry was added, false if
 // the event was dropped.
 func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, remainingPath string, generationType NodeGenerationType, mergeCtx adPathMergeContext) bool {
-	parent, nextParentIndex := extractFirstParent(remainingPath)
-	if nextParentIndex == 0 {
-		fan.enrichFromEvent(event)
-		return false
+	currentFan := fan
+	currentPath := remainingPath
+	somethingChanged := false
+
+	for {
+		parent, nextParentIndex := extractFirstParent(currentPath)
+		if nextParentIndex == 0 {
+			currentFan.enrichFromEvent(event)
+			break
+		}
+
+		if mergeCtx.enabled && len(currentFan.Children) >= 10 {
+			currentFan.mergeCommonPaths(mergeCtx)
+		}
+
+		child, ok := currentFan.Children[parent]
+		if ok {
+			currentFan = child
+			currentPath = currentPath[nextParentIndex:]
+			continue
+		}
+
+		// create new child
+		somethingChanged = true
+		if len(currentPath) <= nextParentIndex+1 {
+			currentFan.Children[parent] = NewFileActivityNode(fileEvent, event, parent, generationType)
+			break
+		} else {
+			child := NewFileActivityNode(nil, nil, parent, generationType)
+			currentFan.Children[parent] = child
+
+			currentFan = child
+			currentPath = currentPath[nextParentIndex:]
+			continue
+		}
 	}
 
-	if mergeCtx.enabled && len(fan.Children) >= 10 {
-		fan.mergeCommonPaths(mergeCtx)
-	}
-
-	child, ok := fan.Children[parent]
-	if ok {
-		return child.InsertFileEvent(fileEvent, event, remainingPath[nextParentIndex:], generationType, mergeCtx)
-	}
-
-	// create new child
-	if len(remainingPath) <= nextParentIndex+1 {
-		fan.Children[parent] = NewFileActivityNode(fileEvent, event, parent, generationType)
-	} else {
-		child := NewFileActivityNode(nil, nil, parent, generationType)
-		child.InsertFileEvent(fileEvent, event, remainingPath[nextParentIndex:], generationType, mergeCtx)
-		fan.Children[parent] = child
-	}
-	return true
+	return somethingChanged
 }
 
 func (fan *FileActivityNode) mergeCommonPaths(mergeCtx adPathMergeContext) {
@@ -1492,7 +1494,6 @@ func mergeFans(name string, a *FileActivityNode, b *FileActivityNode) (*FileActi
 	}
 
 	return &FileActivityNode{
-		id:             a.id,
 		Name:           name,
 		File:           a.File,
 		GenerationType: a.GenerationType,
@@ -1503,16 +1504,24 @@ func mergeFans(name string, a *FileActivityNode, b *FileActivityNode) (*FileActi
 }
 
 // nolint: unused
-func (fan *FileActivityNode) debug(prefix string) {
-	fmt.Printf("%s %s\n", prefix, fan.Name)
-	for _, child := range fan.Children {
-		child.debug("\t" + prefix)
+func (fan *FileActivityNode) debug(w io.Writer, prefix string) {
+	fmt.Fprintf(w, "%s %s\n", prefix, fan.Name)
+
+	sortedChildren := make([]*FileActivityNode, 0, len(fan.Children))
+	for _, f := range fan.Children {
+		sortedChildren = append(sortedChildren, f)
+	}
+	sort.Slice(sortedChildren, func(i, j int) bool {
+		return sortedChildren[i].Name < sortedChildren[j].Name
+	})
+
+	for _, child := range sortedChildren {
+		child.debug(w, "    "+prefix)
 	}
 }
 
 // DNSNode is used to store a DNS node
 type DNSNode struct {
-	id       NodeID
 	Requests []model.DNSEvent `msg:"requests"`
 }
 
@@ -1523,14 +1532,6 @@ func NewDNSNode(event *model.DNSEvent) *DNSNode {
 	}
 }
 
-// GetID returns the ID of the current DNS node
-func (n *DNSNode) GetID() NodeID {
-	if n.id == 0 {
-		n.id = NewNodeID()
-	}
-	return n.id
-}
-
 // BindNode is used to store a bind node
 type BindNode struct {
 	Port uint16 `msg:"port"`
@@ -1539,7 +1540,6 @@ type BindNode struct {
 
 // SocketNode is used to store a Socket node and associated events
 type SocketNode struct {
-	id     NodeID
 	Family string      `msg:"family"`
 	Bind   []*BindNode `msg:"bind,omitempty"`
 }
@@ -1573,28 +1573,39 @@ func NewSocketNode(family string) *SocketNode {
 	}
 }
 
-// GetID returns the ID of the current Socket node
-func (n *SocketNode) GetID() NodeID {
-	if n.id == 0 {
-		n.id = NewNodeID()
+//msgp:shim NodeGenerationType as:string using:(NodeGenerationType).String/parseString
+
+// NodeGenerationType is used to indicate if a node was generated by a runtime or snapshot event
+// IMPORTANT: IT MUST STAY IN SYNC WITH `adproto.GenerationType`
+type NodeGenerationType byte
+
+const (
+	// Unknown is a node that was added at an unknown time
+	Unknown NodeGenerationType = 0
+	// Runtime is a node that was added at runtime
+	Runtime NodeGenerationType = 1
+	// Snapshot is a node that was added during the snapshot
+	Snapshot NodeGenerationType = 2
+)
+
+func (genType NodeGenerationType) String() string {
+	switch genType {
+	case Runtime:
+		return "runtime"
+	case Snapshot:
+		return "snapshot"
+	default:
+		return "unknown"
 	}
-	return n.id
 }
 
-// NodeID represents the ID of a Node
-//msgp:ignore NodeID
-type NodeID uint64
-
-// NewNodeID returns a new random NodeID
-func NewNodeID() NodeID {
-	return NodeID(eval.RandNonZeroUint64())
-}
-
-// IsUnset checks if the NodeID is unset
-func (id NodeID) IsUnset() bool {
-	return id == 0
-}
-
-func (id NodeID) String() string {
-	return fmt.Sprintf("node%d", uint64(id))
+func parseString(s string) NodeGenerationType {
+	switch s {
+	case "runtime":
+		return Runtime
+	case "snapshot":
+		return Snapshot
+	default:
+		return Unknown
+	}
 }

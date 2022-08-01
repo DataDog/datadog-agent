@@ -15,11 +15,10 @@ var (
 			return &eval.StringEvaluator{
 				Field: field,
 				EvalFnc: func(ctx *eval.Context) string {
-					// empty symlink, generate a fake so that it doesn't match
 					if path := (*Event)(ctx.Object).ProcessContext.SymlinkPathnameStr[0]; path != "" {
 						return path
 					}
-					return "~" // to ensure that it will not match an empty path
+					return (*Event)(ctx.Object).ProcessContext.FileEvent.PathnameStr
 				},
 			}
 		},
@@ -27,11 +26,10 @@ var (
 			return &eval.StringEvaluator{
 				Field: field,
 				EvalFnc: func(ctx *eval.Context) string {
-					// empty symlink, generate a fake so that it doesn't match
 					if path := (*Event)(ctx.Object).ProcessContext.SymlinkPathnameStr[1]; path != "" {
 						return path
 					}
-					return "~" // to ensure that it will not match an empty path
+					return (*Event)(ctx.Object).ProcessContext.FileEvent.PathnameStr
 				},
 			}
 		},
@@ -41,7 +39,10 @@ var (
 		return &eval.StringEvaluator{
 			Field: field,
 			EvalFnc: func(ctx *eval.Context) string {
-				return (*Event)(ctx.Object).ProcessContext.SymlinkBasenameStr
+				if name := (*Event)(ctx.Object).ProcessContext.SymlinkBasenameStr; name != "" {
+					return name
+				}
+				return (*Event)(ctx.Object).ProcessContext.FileEvent.BasenameStr
 			},
 		}
 	}

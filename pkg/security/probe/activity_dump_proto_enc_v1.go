@@ -73,7 +73,7 @@ func processActivityNodeToProto(pan *ProcessActivityNode) *adproto.ProcessActivi
 	ppan := adproto.ProcessActivityNodeFromVTPool()
 	*ppan = adproto.ProcessActivityNode{
 		Process:        processNodeToProto(&pan.Process),
-		GenerationType: string(pan.GenerationType),
+		GenerationType: adproto.GenerationType(pan.GenerationType),
 		Children:       make([]*adproto.ProcessActivityNode, 0, len(pan.Children)),
 		Files:          make([]*adproto.FileActivityNode, 0, len(pan.Files)),
 		DnsNames:       make([]*adproto.DNSNode, 0, len(pan.DNSNames)),
@@ -199,7 +199,7 @@ func fileActivityNodeToProto(fan *FileActivityNode) *adproto.FileActivityNode {
 	*pfan = adproto.FileActivityNode{
 		Name:           fan.Name,
 		File:           fileEventToProto(fan.File),
-		GenerationType: string(fan.GenerationType),
+		GenerationType: adproto.GenerationType(fan.GenerationType),
 		FirstSeen:      timestampToProto(&fan.FirstSeen),
 		Open:           openNodeToProto(fan.Open),
 		Children:       make([]*adproto.FileActivityNode, 0, len(fan.Children)),

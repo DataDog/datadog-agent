@@ -9,8 +9,10 @@
 package probe
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -80,4 +82,52 @@ func Test_extractFirstParent(t *testing.T) {
 			assert.Equalf(t, tt.want1, got1, "extractFirstParent(%v)", tt.args.path)
 		})
 	}
+}
+
+func TestInsertFileEvent(t *testing.T) {
+	pan := ProcessActivityNode{
+		Files: make(map[string]*FileActivityNode),
+	}
+	pan.Process.FileEvent.PathnameStr = "/test/pan"
+
+	pathToInserts := []string{
+		"/tmp/foo",
+		"/tmp/bar",
+		"/test/a/b/c/d/e/",
+		"/hello",
+		"/tmp/bar/test",
+	}
+	expectedDebugOuput := strings.TrimSpace(`
+- process: /test/pan
+  files:
+    - hello
+    - test
+        - a
+            - b
+                - c
+                    - d
+                        - e
+    - tmp
+        - bar
+            - test
+        - foo
+`)
+
+	mergeCtx := adPathMergeContext{
+		enabled: false,
+	}
+
+	for _, path := range pathToInserts {
+		fileEvent := &model.FileEvent{
+			IsPathnameStrResolved: true,
+			PathnameStr:           path,
+		}
+		pan.InsertFileEvent(fileEvent, nil, Unknown, mergeCtx)
+	}
+
+	var builder strings.Builder
+	pan.debug(&builder, "")
+	debugOutput := strings.TrimSpace(builder.String())
+
+	assert.Equal(t, expectedDebugOuput, debugOutput)
 }

@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"os/exec"
@@ -62,6 +63,11 @@ func TestProcess(t *testing.T) {
 }
 
 func TestProcessContext(t *testing.T) {
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_inode",
@@ -122,6 +128,22 @@ func TestProcessContext(t *testing.T) {
 		{
 			ID:         "test_self_exec",
 			Expression: `exec.file.name == "syscall_tester" && exec.argv0 == "selfexec123" && process.comm == "exe"`,
+		},
+		{
+			ID:         "test_rule_ctx_1",
+			Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/test-process-ctx-1" && process.file.name == "%s"`, path.Base(executable)),
+		},
+		{
+			ID:         "test_rule_ctx_2",
+			Expression: `open.file.path == "{{.Root}}/test-process-ctx-2" && process.file.name != ""`,
+		},
+		{
+			ID:         "test_rule_ctx_3",
+			Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/test-process-ctx-3" && process.file.path == "%s"`, executable),
+		},
+		{
+			ID:         "test_rule_ctx_4",
+			Expression: `open.file.path == "{{.Root}}/test-process-ctx-4" && process.file.path != ""`,
 		},
 	}
 
@@ -203,7 +225,7 @@ func TestProcessContext(t *testing.T) {
 
 	test.Run(t, "args-envs", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al", "--password", "secret", "--custom", "secret"}
-		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
+		envs := []string{"LD_LIBRARY_PATH=/tmp/lib", "DD_API_KEY=dd-api-key"}
 
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("ls", args, envs)
@@ -244,7 +266,7 @@ func TestProcessContext(t *testing.T) {
 
 			contains = func(s string) bool {
 				for _, env := range envs.([]string) {
-					if s == env {
+					if strings.Contains(env, s) {
 						return true
 					}
 				}
@@ -262,7 +284,7 @@ func TestProcessContext(t *testing.T) {
 				t.Error("args not serialized")
 			}
 
-			if strings.Contains(str, "secret") || strings.Contains(str, "/tmp/lib") {
+			if strings.Contains(str, "secret") || strings.Contains(str, "dd-api-key") {
 				t.Error("secret or env values exposed")
 			}
 		}))
@@ -603,6 +625,67 @@ func TestProcessContext(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_self_exec")
 		}))
 	})
+
+	testProcessContextRule := func(t *testing.T, ruleID, filename string) {
+		test.Run(t, ruleID, func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			testFile, _, err := test.Path(filename)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			test.WaitSignal(t, func() error {
+				f, err := os.Create(testFile)
+				if err != nil {
+					return err
+				}
+				f.Close()
+				return os.Remove(testFile)
+			}, validateExecEvent(t, func(event *sprobe.Event, rule *rules.Rule) {
+				assert.Equal(t, ruleID, rule.ID, "wrong rule triggered")
+			}))
+		})
+	}
+
+	testProcessContextRule(t, "test_rule_ctx_1", "test-process-ctx-1")
+	testProcessContextRule(t, "test_rule_ctx_2", "test-process-ctx-2")
+	testProcessContextRule(t, "test_rule_ctx_3", "test-process-ctx-3")
+	testProcessContextRule(t, "test_rule_ctx_4", "test-process-ctx-4")
+}
+
+func TestProcessEnvsWithValue(t *testing.T) {
+	lsExec := which(t, "ls")
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_ldpreload_from_tmp_with_envs",
+			Expression: fmt.Sprintf(`exec.file.path == "%s" && exec.envs in [~"LD_PRELOAD=*/tmp/*"]`, lsExec),
+		},
+	}
+
+	opts := testOpts{
+		envsWithValue: []string{"LD_PRELOAD"},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	t.Run("ldpreload", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			args := []string{}
+			envp := []string{"LD_PRELOAD=/tmp/dyn.so"}
+
+			cmd := exec.Command(lsExec, args...)
+			cmd.Env = envp
+			_ = cmd.Run()
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_ldpreload_from_tmp_with_envs")
+			assertFieldEqual(t, event, "exec.file.path", lsExec)
+			assertFieldStringArrayIndexedOneOf(t, event, "exec.envs", 0, []string{"LD_PRELOAD=/tmp/dyn.so"})
+		})
+	})
 }
 
 func TestProcessExecCTime(t *testing.T) {
@@ -888,6 +971,8 @@ func TestProcessExecExit(t *testing.T) {
 				}
 			}
 		case model.ExitEventType:
+			// assert that exit time >= exec time
+			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
 			if execPid != 0 && int(event.ProcessContext.Pid) == execPid {
 				return true
 			}
@@ -1234,10 +1319,14 @@ func TestProcessExit(t *testing.T) {
 			cmd.Env = envp
 			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
+			if !validateExitSchema(t, event) {
+				t.Error(event.String())
+			}
 			assertTriggeredRule(t, rule, "test_exit_ok")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
+			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1251,10 +1340,14 @@ func TestProcessExit(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
+			if !validateExitSchema(t, event) {
+				t.Error(event.String())
+			}
 			assertTriggeredRule(t, rule, "test_exit_error")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(1), event.Exit.Code, "wrong exit code")
+			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1268,10 +1361,14 @@ func TestProcessExit(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
+			if !validateExitSchema(t, event) {
+				t.Error(event.String())
+			}
 			assertTriggeredRule(t, rule, "test_exit_coredump")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitCoreDumped), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(syscall.SIGQUIT), event.Exit.Code, "wrong exit code")
+			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1285,10 +1382,14 @@ func TestProcessExit(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
+			if !validateExitSchema(t, event) {
+				t.Error(event.String())
+			}
 			assertTriggeredRule(t, rule, "test_exit_signal")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitSignaled), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(syscall.SIGKILL), event.Exit.Code, "wrong exit code")
+			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1301,10 +1402,14 @@ func TestProcessExit(t *testing.T) {
 			cmd.Env = envp
 			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
+			if !validateExitSchema(t, event) {
+				t.Error(event.String())
+			}
 			assertTriggeredRule(t, rule, "test_exit_time_1")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
+			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1317,10 +1422,14 @@ func TestProcessExit(t *testing.T) {
 			cmd.Env = envp
 			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
+			if !validateExitSchema(t, event) {
+				t.Error(event.String())
+			}
 			assertTriggeredRule(t, rule, "test_exit_time_2")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
+			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
 		})
 	})
 }
@@ -1544,4 +1653,101 @@ chmod 755 pyscript.py
 			})
 		})
 	}
+}
+
+func TestProcessResolution(t *testing.T) {
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_resolution",
+			Expression: `open.file.path == "/tmp/test-process-resolution"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var cmd *exec.Cmd
+	var stdin io.WriteCloser
+	defer func() {
+		if cmd != nil {
+			if stdin != nil {
+				stdin.Close()
+			}
+
+			if err := cmd.Wait(); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}()
+
+	test.WaitSignal(t, func() error {
+		var err error
+
+		args := []string{"multi-open", "/tmp/test-process-resolution", "/tmp/test-process-resolution"}
+
+		cmd := exec.Command(syscallTester, args...)
+		stdin, err = cmd.StdinPipe()
+		if err != nil {
+			return err
+		}
+
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = io.WriteString(stdin, "\n")
+
+		return err
+	}, func(event *sprobe.Event, rule *rules.Rule) {
+		assert.Equal(t, "test_resolution", rule.ID, "wrong rule triggered")
+
+		value, err := event.GetFieldValue("process.pid")
+		if err != nil {
+			t.Errorf("not able to get pid")
+		}
+		pid := uint32(value.(int))
+
+		resolvers := test.probe.GetResolvers()
+
+		// compare only few fields as the hierarchy fields(pointers, etc) are modified by the resolution function calls
+		equals := func(t *testing.T, entry1, entry2 *model.ProcessCacheEntry) {
+			t.Helper()
+
+			assert.Equal(t, entry1.FileEvent.PathnameStr, entry2.FileEvent.PathnameStr)
+			assert.Equal(t, entry1.Pid, entry2.Pid)
+			assert.Equal(t, entry1.PPid, entry2.PPid)
+			assert.Equal(t, entry1.ContainerID, entry2.ContainerID)
+		}
+
+		cacheEntry := resolvers.ProcessResolver.ResolveFromCache(pid, pid)
+		if cacheEntry == nil {
+			t.Errorf("not able to resolve the entry")
+		}
+
+		mapsEntry := resolvers.ProcessResolver.ResolveFromKernelMaps(pid, pid)
+		if mapsEntry == nil {
+			t.Errorf("not able to resolve the entry")
+		}
+
+		equals(t, cacheEntry, mapsEntry)
+
+		procEntry := resolvers.ProcessResolver.ResolveFromProcfs(pid)
+		if procEntry == nil {
+			t.Errorf("not able to resolve the entry")
+		}
+
+		equals(t, cacheEntry, procEntry)
+
+		if _, err = io.WriteString(stdin, "\n"); err != nil {
+			t.Error(err)
+		}
+	})
 }

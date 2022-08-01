@@ -141,6 +141,7 @@ func (c *Collector) RunCheck(ch check.Check) (check.ID, error) {
 	}
 
 	c.checks[ch.ID()] = ch
+	inventories.Refresh()
 	return ch.ID(), nil
 }
 
@@ -219,6 +220,18 @@ func (c *Collector) delete(id check.ID) {
 // lightweight shortcut to see if the collector has started
 func (c *Collector) started() bool {
 	return c.state.Load() == started
+}
+
+// MapOverChecks call the callback with the list of checks locked.
+func (c *Collector) MapOverChecks(cb func([]check.Info)) {
+	c.m.RLock()
+	defer c.m.RUnlock()
+
+	cInfo := []check.Info{}
+	for _, c := range c.checks {
+		cInfo = append(cInfo, c)
+	}
+	cb(cInfo)
 }
 
 // GetAllInstanceIDs returns the ID's of all instances of a check

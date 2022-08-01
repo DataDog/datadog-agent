@@ -380,7 +380,7 @@ func TestOpenProcessPidDiscarder(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	args := []string{"pid-discarder", testFile}
+	args := []string{"multi-open", testFile, testFile}
 
 	cmd := exec.Command(syscallTester, args...)
 	stdin, err := cmd.StdinPipe()

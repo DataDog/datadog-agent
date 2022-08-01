@@ -525,7 +525,7 @@ func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig int
 	// Must be called before CommonConfigure that uses checkID
 	c.BuildID(rawInstance, rawInitConfig)
 
-	err := c.CommonConfigure(rawInstance, source)
+	err := c.CommonConfigure(rawInitConfig, rawInstance, source)
 	if err != nil {
 		return err
 	}

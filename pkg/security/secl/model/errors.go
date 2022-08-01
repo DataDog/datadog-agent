@@ -21,4 +21,7 @@ var (
 
 	// ErrNonPrintable returned when a string contains non printable char
 	ErrNonPrintable = errors.New("non printable")
+
+	// ErrIncorrectDataSize is returned when the data read size doesn't correspond to the expected one
+	ErrIncorrectDataSize = errors.New("incorrect data size")
 )

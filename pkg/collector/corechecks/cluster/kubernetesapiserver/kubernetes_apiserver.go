@@ -119,7 +119,7 @@ func KubernetesASFactory() check.Check {
 
 // Configure parses the check configuration and init the check.
 func (k *KubeASCheck) Configure(config, initConfig integration.Data, source string) error {
-	err := k.CommonConfigure(config, source)
+	err := k.CommonConfigure(initConfig, config, source)
 	if err != nil {
 		return err
 	}

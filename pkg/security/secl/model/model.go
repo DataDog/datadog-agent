@@ -40,50 +40,61 @@ func (m *Model) NewEventWithType(kind EventType) eval.Event {
 	}
 }
 
-// ValidateField validates the value of a field
-func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
-	// check that all path are absolute
-	if strings.HasSuffix(field, "path") {
+// check that all path are absolute
+func validatePath(field eval.Field, fieldValue eval.FieldValue) error {
+	// do not support regular expression on path, currently unable to support discarder for regex value
+	if fieldValue.Type == eval.RegexpValueType {
+		return fmt.Errorf("regexp not supported on path `%s`", field)
+	}
 
-		// do not support regular expression on path, currently unable to support discarder for regex value
-		if fieldValue.Type == eval.RegexpValueType {
-			return fmt.Errorf("regexp not supported on path `%s`", field)
+	if value, ok := fieldValue.Value.(string); ok {
+		errAbs := fmt.Errorf("invalid path `%s`, all the path have to be absolute", value)
+		errDepth := fmt.Errorf("invalid path `%s`, path depths have to be shorter than %d", value, MaxPathDepth)
+		errSegment := fmt.Errorf("invalid path `%s`, each segment of a path must be shorter than %d", value, MaxSegmentLength)
+
+		if value == "" {
+			return nil
 		}
 
-		if value, ok := fieldValue.Value.(string); ok {
-			errAbs := fmt.Errorf("invalid path `%s`, all the path have to be absolute", value)
-			errDepth := fmt.Errorf("invalid path `%s`, path depths have to be shorter than %d", value, MaxPathDepth)
-			errSegment := fmt.Errorf("invalid path `%s`, each segment of a path must be shorter than %d", value, MaxSegmentLength)
+		if value != path.Clean(value) {
+			return errAbs
+		}
 
-			if value != path.Clean(value) {
+		if value == "*" {
+			return errAbs
+		}
+
+		if !filepath.IsAbs(value) && len(value) > 0 && value[0] != '*' {
+			return errAbs
+		}
+
+		if strings.HasPrefix(value, "~") {
+			return errAbs
+		}
+
+		// check resolution limitations
+		segments := strings.Split(value, "/")
+		if len(segments) > MaxPathDepth {
+			return errDepth
+		}
+		for _, segment := range segments {
+			if segment == ".." {
 				return errAbs
 			}
+			if len(segment) > MaxSegmentLength {
+				return errSegment
+			}
+		}
+	}
 
-			if value == "*" {
-				return errAbs
-			}
+	return nil
+}
 
-			if !filepath.IsAbs(value) && len(value) > 0 && value[0] != '*' {
-				return errAbs
-			}
-
-			if strings.HasPrefix(value, "~") {
-				return errAbs
-			}
-
-			// check resolution limitations
-			segments := strings.Split(value, "/")
-			if len(segments) > MaxPathDepth {
-				return errDepth
-			}
-			for _, segment := range segments {
-				if segment == ".." {
-					return errAbs
-				}
-				if len(segment) > MaxSegmentLength {
-					return errSegment
-				}
-			}
+// ValidateField validates the value of a field
+func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
+	if strings.HasSuffix(field, "path") {
+		if err := validatePath(field, fieldValue); err != nil {
+			return err
 		}
 	}
 

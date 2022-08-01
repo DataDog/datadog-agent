@@ -63,7 +63,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, fmt.Errorf("error initializing http ebpf program: %s", err)
 	}
 
-	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFSection: httpSocketFilter, EBPFFuncName: "socket__http_filter", UID: probeUID})
+	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFSection: httpSocketFilterStub, EBPFFuncName: "socket__http_filter_entry", UID: probeUID})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}

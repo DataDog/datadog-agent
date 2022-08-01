@@ -154,7 +154,7 @@ func (c *JetsonCheck) Run() error {
 
 // Configure the GPU check
 func (c *JetsonCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(data, source)
+	err := c.CommonConfigure(initConfig, data, source)
 	if err != nil {
 		return err
 	}

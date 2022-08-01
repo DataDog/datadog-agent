@@ -281,7 +281,7 @@ func netstatTCPExtCounters() (map[string]int64, error) {
 
 // Configure configures the network checks
 func (c *NetworkCheck) Configure(rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
-	err := c.CommonConfigure(rawInstance, source)
+	err := c.CommonConfigure(rawInitConfig, rawInstance, source)
 	if err != nil {
 		return err
 	}
