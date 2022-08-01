@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -45,7 +46,7 @@ func (suite *TailerTestSuite) SetupTest() {
 	var err error
 	suite.testDir = suite.T().TempDir()
 
-	suite.testPath = fmt.Sprintf("%s/tailer.log", suite.testDir)
+	suite.testPath = path.Join(suite.testDir, "tailer.log")
 	f, err := os.Create(suite.testPath)
 	suite.Nil(err)
 	suite.testFile = f

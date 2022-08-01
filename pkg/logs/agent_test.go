@@ -6,8 +6,8 @@
 package logs
 
 import (
-	"fmt"
 	"os"
+	"path"
 	"testing"
 	"time"
 
@@ -43,13 +43,13 @@ func (suite *AgentTestSuite) SetupTest() {
 
 	suite.testDir = suite.T().TempDir()
 
-	suite.testLogFile = fmt.Sprintf("%s/test.log", suite.testDir)
+	suite.testLogFile = path.Join(suite.testDir, "test.log")
 	fd, err := os.Create(suite.testLogFile)
-	suite.NoError(err)
+	suite.Require().NoError(err)
 
-	fd.WriteString("test log1\n test log2\n")
+	_, _ = fd.WriteString("test log1\n test log2\n")
 	suite.fakeLogs = 2 // Two lines.
-	fd.Close()
+	_ = fd.Close()
 
 	logConfig := config.LogsConfig{
 		Type:       config.FileType,
@@ -74,19 +74,19 @@ func (suite *AgentTestSuite) TearDownTest() {
 
 func createAgent(endpoints *config.Endpoints) (*Agent, *sources.LogSources, *service.Services) {
 	// setup the sources and the services
-	sources := sources.NewLogSources()
+	logsSources := sources.NewLogSources()
 	services := service.NewServices()
 
 	// setup and start the agent
-	agent = NewAgent(sources, services, nil, endpoints)
-	return agent, sources, services
+	agent = NewAgent(logsSources, services, nil, endpoints)
+	return agent, logsSources, services
 }
 
 func (suite *AgentTestSuite) testAgent(endpoints *config.Endpoints) {
 	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})
 	defer coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
 
-	agent, sources, _ := createAgent(endpoints)
+	agent, logSources, _ := createAgent(endpoints)
 
 	zero := int64(0)
 	assert.Equal(suite.T(), zero, metrics.LogsDecoded.Value())
@@ -96,7 +96,7 @@ func (suite *AgentTestSuite) testAgent(endpoints *config.Endpoints) {
 	assert.Equal(suite.T(), "{}", metrics.DestinationLogsDropped.String())
 
 	agent.Start()
-	sources.AddSource(suite.source)
+	logSources.AddSource(suite.source)
 	// Give the agent at most 4 second to send the logs. (seems to be slow on Windows/AppVeyor)
 	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 4*time.Second, func() bool {
 		return suite.fakeLogs == metrics.LogsSent.Value()
@@ -136,10 +136,10 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
 	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})
 	defer coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
 
-	agent, sources, _ := createAgent(endpoints)
+	agent, logSources, _ := createAgent(endpoints)
 
 	agent.Start()
-	sources.AddSource(suite.source)
+	logSources.AddSource(suite.source)
 	// Give the agent at most one second to process the logs.
 	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
 		return suite.fakeLogs == metrics.LogsProcessed.Value()
