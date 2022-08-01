@@ -185,7 +185,6 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 }
 
 func (l *Collector) runCheckWithRealTime(c checks.CheckWithRealTime, results, rtResults *api.WeightedQueue, options checks.RunOptions) {
-	runCounter := l.nextRunCounter(c.Name())
 	start := time.Now()
 	// update the last collected timestamp for info
 	updateLastCollectTime(start)
@@ -197,6 +196,7 @@ func (l *Collector) runCheckWithRealTime(c checks.CheckWithRealTime, results, rt
 	}
 	l.messagesToResults(start, c.Name(), run.Standard, results)
 	if options.RunStandard {
+		runCounter := l.nextRunCounter(c.Name())
 		checks.StoreCheckOutput(c.Name(), run.Standard)
 		logCheckDuration(c.Name(), start, runCounter)
 	}
