@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    [epforwarder] Update NetFlow default configs (1. Revert defaultBatchMaxContentSize to 5Mo,
-    2. Update defaultBatchMaxSize to 10k, 3. Update defaultInputChanSize to 100k)
+    [epforwarder] Update NetFlow default configs to: 1. Revert `defaultBatchMaxContentSize` to 5Mo,
+    2. Update `defaultBatchMaxSize` to 10k, 3. Update `defaultInputChanSize` to 100k.
