@@ -90,24 +90,6 @@ __attribute__((always_inline)) struct linux_binprm *get_linux_binprm_obj() {
     return bprm;
 }
 
-struct bpf_map_def SEC("maps/file_gen") file_gen = {
-    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(struct file),
-    .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
-};
-
-__attribute__((always_inline)) struct file *get_file_obj() {
-    u32 key = 0;
-    struct file *file = bpf_map_lookup_elem(&file_gen, &key);
-    if (file == NULL) {
-        return 0;
-    }
-    return file;
-}
-
 struct exit_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -389,7 +371,6 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs 
     bpf_printk("exec mount id: %u\n", syscall->exec.linux_binprm.path_key.mount_id);
     bpf_printk("exec inode: %u\n", syscall->exec.linux_binprm.path_key.path_id);
 
-
     return 0;
 }
 
@@ -564,10 +545,10 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         event->pid_entry.credentials = parent_pid_entry->credentials;
 
         // fetch the parent proc cache entry
-        struct proc_cache_t *parent_pc = get_proc_from_cookie(event.pid_entry.cookie);
+        struct proc_cache_t *parent_pc = get_proc_from_cookie(event->pid_entry.cookie);
         if (parent_pc) {
-            fill_container_context(parent_pc, &event.container);
-            copy_proc_entry_except_comm(&parent_pc->entry, &event.proc_entry);
+            fill_container_context(parent_pc, &event->container);
+            copy_proc_entry_except_comm(&parent_pc->entry, &event->proc_entry);
         }
     }
 
@@ -575,7 +556,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     bpf_map_update_elem(&pid_cache, &pid, &event->pid_entry, BPF_ANY);
 
     // [activity_dump] inherit tracing state
-    inherit_traced_state(args, ppid, pid, event.container.container_id, event.proc_entry.comm);
+    inherit_traced_state(args, ppid, pid, event->container.container_id, event->proc_entry.comm);
 
     // send the entry to maintain userspace cache
     send_event_ptr(args, EVENT_FORK, event);
@@ -768,11 +749,14 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
         u32 cookie = pid_entry->cookie;
         struct proc_cache_t *pc = bpf_map_lookup_elem(&proc_cache, &cookie);
         if (pc) {
-            struct exec_event_t event = {};
+            struct exec_event_t *event = get_exec_event();
+            if (event == NULL) {
+                return 0;
+            }
             // copy proc_cache data
-            fill_container_context(pc, &event.container);
-            copy_proc_entry_except_comm(&pc->entry, &event.proc_entry);
-            bpf_get_current_comm(&event.proc_entry.comm, sizeof(event.proc_entry.comm));
+            fill_container_context(pc, &event->container);
+            copy_proc_entry_except_comm(&pc->entry, &event->proc_entry);
+            bpf_get_current_comm(&event->proc_entry.comm, sizeof(event->proc_entry.comm));
 
             // copy pid_cache entry data
             copy_pid_cache_except_exit_ts(pid_entry, &event->pid_entry);
