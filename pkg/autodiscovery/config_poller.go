@@ -75,48 +75,58 @@ func (pd *configPoller) poll(ac *AutoConfig) {
 			ticker.Stop()
 			return
 		case <-ticker.C:
-			log.Tracef("Polling %s config provider", pd.provider.String())
-			// Check if the CPupdate cache is up to date. Fill it and trigger a Collect() if outdated.
 			upToDate, err := pd.provider.IsUpToDate(ctx)
 			if err != nil {
 				log.Errorf("Cache processing of %v configuration provider failed: %v", pd.provider, err)
+				continue
 			}
+
 			if upToDate {
 				log.Debugf("No modifications in the templates stored in %v configuration provider", pd.provider)
-				break
+				continue
 			}
 
-			// retrieve the list of newly added configurations as well
-			// as removed configurations
-			newConfigs, removedConfigs := pd.collect(ctx)
-			if len(newConfigs) > 0 || len(removedConfigs) > 0 {
-				log.Infof("%v provider: collected %d new configurations, removed %d", pd.provider, len(newConfigs), len(removedConfigs))
-			} else {
-				log.Debugf("%v provider: no configuration change", pd.provider)
-			}
-			// Process removed configs first to handle the case where a
-			// container churn would result in the same configuration hash.
-			ac.processRemovedConfigs(removedConfigs)
-
-			for _, config := range newConfigs {
-				config.Provider = pd.provider.String()
-				changes := ac.processNewConfig(config)
-				ac.applyChanges(changes)
-			}
+			pd.pollOnce(ctx, ac)
 		}
 	}
 }
 
-func (pd *configPoller) overwriteConfigs(configs []integration.Config) {
-	pd.configsMu.Lock()
-	defer pd.configsMu.Unlock()
-
-	fetchedMap := make(map[uint64]integration.Config, len(configs))
-	for _, c := range configs {
-		cHash := c.FastDigest()
-		fetchedMap[cHash] = c
+func (pd *configPoller) pollOnce(ctx context.Context, ac *AutoConfig) {
+	// retrieve the list of newly added configurations as well
+	// as removed configurations
+	newConfigs, removedConfigs := pd.collect(ctx)
+	if len(newConfigs) > 0 || len(removedConfigs) > 0 {
+		log.Infof("%v provider: collected %d new configurations, removed %d", pd.provider, len(newConfigs), len(removedConfigs))
+	} else {
+		log.Debugf("%v provider: no configuration change", pd.provider)
 	}
-	pd.configs = fetchedMap
+
+	// Process removed configs first to handle the case where a
+	// container churn would result in the same configuration hash.
+	ac.processRemovedConfigs(removedConfigs)
+
+	for _, config := range newConfigs {
+		if _, ok := pd.provider.(*providers.FileConfigProvider); ok {
+			// JMX checks can have 2 YAML files: one containing the
+			// metrics to collect, one containing the instance
+			// configuration. If the file provider finds any of
+			// these metric YAMLs, we store them in a map for
+			// future access
+			if config.MetricConfig != nil {
+				// We don't want to save metric files, it's enough to store them in the map
+				ac.store.setJMXMetricsForConfigName(config.Name, config.MetricConfig)
+				continue
+			}
+
+			// Clear any old errors if a valid config file is found
+			errorStats.removeConfigError(config.Name)
+		}
+
+		config.Provider = pd.provider.String()
+		changes := ac.processNewConfig(config)
+		ac.applyChanges(changes)
+	}
+
 }
 
 // collect is just a convenient wrapper to fetch configurations from a provider and
@@ -162,4 +172,17 @@ func (pd *configPoller) storeAndDiffConfigs(configs []integration.Config) ([]int
 	pd.configs = fetchedMap
 
 	return newConf, removedConf
+}
+
+func (pd *configPoller) getConfigs() []integration.Config {
+	pd.configsMu.Lock()
+	defer pd.configsMu.Unlock()
+
+	configs := make([]integration.Config, 0, len(pd.configs))
+
+	for _, cfg := range pd.configs {
+		configs = append(configs, cfg)
+	}
+
+	return configs
 }

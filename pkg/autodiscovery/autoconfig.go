@@ -34,7 +34,7 @@ var listenerCandidateIntl = 30 * time.Second
 // and then "schedule" or "unschedule" them by notifying subscribers.  See the
 // module README for details.
 type AutoConfig struct {
-	providers          []*configPoller
+	configPollers      []*configPoller
 	listeners          []listeners.ServiceListener
 	listenerCandidates map[string]*listenerCandidate
 	listenerRetryStop  chan struct{}
@@ -79,7 +79,7 @@ func NewAutoConfigNoStart(scheduler *scheduler.MetaScheduler) *AutoConfig {
 		cfgMgr = newSimpleConfigManager()
 	}
 	ac := &AutoConfig{
-		providers:          make([]*configPoller, 0, 9),
+		configPollers:      make([]*configPoller, 0, 9),
 		listenerCandidates: make(map[string]*listenerCandidate),
 		listenerRetryStop:  nil, // We'll open it if needed
 		listenerStop:       make(chan struct{}),
@@ -151,7 +151,7 @@ func (ac *AutoConfig) Stop() {
 	defer ac.m.Unlock()
 
 	// stop polled config providers
-	for _, pd := range ac.providers {
+	for _, pd := range ac.configPollers {
 		pd.stop()
 	}
 
@@ -181,25 +181,40 @@ func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shoul
 	ac.m.Lock()
 	defer ac.m.Unlock()
 
-	for _, pd := range ac.providers {
-		if pd.provider == provider {
+	for _, cp := range ac.configPollers {
+		if cp.provider == provider {
 			// we already know this configuration provider, don't do anything
 			log.Warnf("Provider %s was already added, skipping...", provider)
 			return
 		}
 	}
 
-	pd := newConfigPoller(provider, shouldPoll, pollInterval)
-	ac.providers = append(ac.providers, pd)
-	pd.start(ac)
+	cp := newConfigPoller(provider, shouldPoll, pollInterval)
+	ac.configPollers = append(ac.configPollers, cp)
 }
 
 // LoadAndRun loads all of the integration configs it can find
 // and schedules them. Should always be run once so providers
 // that don't need polling will be queried at least once
-func (ac *AutoConfig) LoadAndRun() {
-	scheduleAll := ac.getAllConfigs()
-	ac.applyChanges(scheduleAll)
+func (ac *AutoConfig) LoadAndRun(ctx context.Context) {
+	ac.m.Lock()
+	defer ac.m.Unlock()
+
+	for _, cp := range ac.configPollers {
+		cp.start(ac)
+		cp.pollOnce(ctx, ac)
+
+		// TODO: this probably belongs somewhere inside the file config
+		// provider itself, but since it already lived in AD it's been
+		// moved here for the moment.
+		if fileConfPd, ok := cp.provider.(*providers.FileConfigProvider); ok {
+			// Grab any errors that occurred when reading the YAML file
+			for name, e := range fileConfPd.Errors {
+				errorStats.setConfigError(name, e)
+			}
+		}
+	}
+
 	ac.ranOnce.Store(true)
 	log.Debug("LoadAndRun done.")
 }
@@ -219,59 +234,15 @@ func (ac *AutoConfig) HasRunOnce() bool {
 }
 
 // GetAllConfigs queries all the providers and returns all the integration
-// configurations found, resolving the ones it can
+// configurations found.
 func (ac *AutoConfig) GetAllConfigs() []integration.Config {
-	return ac.getAllConfigs().schedule
-}
+	configs := []integration.Config{}
 
-// getAllConfigs queries all the providers and returns all the integration
-// configurations found, resolving the ones it can, and returns a configChanges to
-// schedule all of them.
-func (ac *AutoConfig) getAllConfigs() configChanges {
-	changes := configChanges{}
-
-	for _, pd := range ac.providers {
-		cfgs, err := pd.provider.Collect(context.TODO())
-		if err != nil {
-			log.Debugf("Unexpected error returned when collecting configurations from provider %v: %v", pd.provider, err)
-		}
-
-		if fileConfPd, ok := pd.provider.(*providers.FileConfigProvider); ok {
-			var goodConfs []integration.Config
-			for _, cfg := range cfgs {
-				// JMX checks can have 2 YAML files: one containing the metrics to collect, one containing the
-				// instance configuration
-				// If the file provider finds any of these metric YAMLs, we store them in a map for future access
-				if cfg.MetricConfig != nil {
-					// We don't want to save metric files, it's enough to store them in the map
-					ac.store.setJMXMetricsForConfigName(cfg.Name, cfg.MetricConfig)
-					continue
-				}
-
-				goodConfs = append(goodConfs, cfg)
-
-				// Clear any old errors if a valid config file is found
-				errorStats.removeConfigError(cfg.Name)
-			}
-
-			// Grab any errors that occurred when reading the YAML file
-			for name, e := range fileConfPd.Errors {
-				errorStats.setConfigError(name, e)
-			}
-
-			cfgs = goodConfs
-		}
-		// Store all raw configs in the provider
-		pd.overwriteConfigs(cfgs)
-
-		// resolve configs if needed
-		for _, config := range cfgs {
-			config.Provider = pd.provider.String()
-			changes.merge(ac.processNewConfig(config))
-		}
+	for _, pd := range ac.configPollers {
+		configs = append(configs, pd.getConfigs()...)
 	}
 
-	return changes
+	return configs
 }
 
 // processNewConfig store (in template cache) and resolves a given config,
@@ -494,7 +465,7 @@ func (ac *AutoConfig) processDelService(ctx context.Context, svc listeners.Servi
 // and are only intended for display in diagnostic tools like `agent status`.
 func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet {
 	errors := map[string]map[string]providers.ErrorMsgSet{}
-	for _, pd := range ac.providers {
+	for _, pd := range ac.configPollers {
 		configErrors := pd.provider.GetConfigErrors()
 		if len(configErrors) > 0 {
 			errors[pd.provider.String()] = configErrors

@@ -146,16 +146,16 @@ func (suite *AutoConfigTestSuite) SetupTest() {
 
 func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
 	ac := NewAutoConfig(scheduler.NewMetaScheduler())
-	assert.Len(suite.T(), ac.providers, 0)
+	assert.Len(suite.T(), ac.configPollers, 0)
 	mp := &MockProvider{}
 	ac.AddConfigProvider(mp, false, 0)
 	ac.AddConfigProvider(mp, false, 0) // this should be a noop
 	ac.AddConfigProvider(&MockProvider2{}, true, 1*time.Second)
-	ac.LoadAndRun()
-	require.Len(suite.T(), ac.providers, 2)
+	ac.LoadAndRun(context.Background())
+	require.Len(suite.T(), ac.configPollers, 2)
 	assert.Equal(suite.T(), 1, mp.collectCounter)
-	assert.False(suite.T(), ac.providers[0].canPoll)
-	assert.True(suite.T(), ac.providers[1].canPoll)
+	assert.False(suite.T(), ac.configPollers[0].canPoll)
+	assert.True(suite.T(), ac.configPollers[1].canPoll)
 }
 
 func (suite *AutoConfigTestSuite) TestAddListener() {
@@ -181,7 +181,11 @@ func (suite *AutoConfigTestSuite) TestDiffConfigs() {
 	c3 := integration.Config{Name: "baz"}
 	pd := configPoller{}
 
-	pd.overwriteConfigs([]integration.Config{c1, c2})
+	pd.configs = map[uint64]integration.Config{
+		c1.FastDigest(): c1,
+		c2.FastDigest(): c2,
+	}
+
 	added, removed := pd.storeAndDiffConfigs([]integration.Config{c1, c3})
 	assert.ElementsMatch(suite.T(), added, []integration.Config{c3})
 	assert.ElementsMatch(suite.T(), removed, []integration.Config{c2})
