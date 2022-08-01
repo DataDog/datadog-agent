@@ -956,7 +956,7 @@ func TestProcessExecExit(t *testing.T) {
 	}
 	defer test.Close()
 
-	var execPid int // will be set by the first fork event
+	var execPid uint32
 
 	err = test.GetProbeEvent(func() error {
 		cmd := exec.Command(executable, "-t", "01010101", "/dev/null")
@@ -964,16 +964,23 @@ func TestProcessExecExit(t *testing.T) {
 	}, func(event *sprobe.Event) bool {
 		switch event.GetEventType() {
 		case model.ExecEventType:
-			if testProcessEEIsExpectedExecEvent(event) {
-				execPid = int(event.ProcessContext.Pid)
-				if err := testProcessEEExec(t, event); err != nil {
-					t.Error(err)
-				}
+			if !validateProcessContextLineage(t, event) {
+				t.Error(event.String())
 			}
+
+			if !validateProcessContextSECL(t, event) {
+				t.Error(event.String())
+			}
+
+			assertFieldEqual(t, event, "exec.file.name", "touch")
+			assertFieldContains(t, event, "exec.args", "01010101")
+
+			execPid = event.ProcessContext.Pid
+
 		case model.ExitEventType:
 			// assert that exit time >= exec time
 			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
-			if execPid != 0 && int(event.ProcessContext.Pid) == execPid {
+			if execPid != 0 && event.ProcessContext.Pid == execPid {
 				return true
 			}
 		}
@@ -983,51 +990,10 @@ func TestProcessExecExit(t *testing.T) {
 		t.Error(err)
 	}
 
-	testProcessEEExit(t, uint32(execPid), test)
-}
-
-func testProcessEEIsExpectedExecEvent(event *sprobe.Event) bool {
-	if event.GetEventType() != model.ExecEventType {
-		return false
-	}
-
-	basename, err := event.GetFieldValue("exec.file.name")
-	if err != nil {
-		return false
-	}
-
-	if basename.(string) != "touch" {
-		return false
-	}
-
-	args, err := event.GetFieldValue("exec.args")
-	if err != nil {
-		return false
-	}
-
-	return strings.Contains(args.(string), "01010101")
-}
-
-func testProcessEEExec(t *testing.T, event *sprobe.Event) error {
-	// check for the new process context
-	cacheEntry := event.ResolveProcessCacheEntry()
-	if cacheEntry == nil {
-		return errors.New("expected a process cache entry, got nil")
-	}
-	// make sure the container ID was properly inherited from the parent
-	if cacheEntry.Ancestor == nil {
-		return errors.New("expected a parent, got nil")
-	}
-	assert.Equal(t, cacheEntry.Ancestor.ContainerID, cacheEntry.ContainerID)
-
-	return nil
-}
-
-func testProcessEEExit(t *testing.T, pid uint32, test *testModule) {
 	// make sure that the process cache entry of the process was properly deleted from the cache
-	err := retry.Do(func() error {
+	err = retry.Do(func() error {
 		resolvers := test.probe.GetResolvers()
-		entry := resolvers.ProcessResolver.Get(pid)
+		entry := resolvers.ProcessResolver.Get(execPid)
 		if entry != nil {
 			return errors.New("the process cache entry was not deleted from the user space cache")
 		}

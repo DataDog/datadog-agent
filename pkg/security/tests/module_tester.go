@@ -375,6 +375,17 @@ func assertFieldEqual(t *testing.T, e *sprobe.Event, field string, value interfa
 }
 
 //nolint:deadcode,unused
+func assertFieldContains(t *testing.T, e *sprobe.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
+	t.Helper()
+	fieldValue, err := e.GetFieldValue(field)
+	if err != nil {
+		t.Errorf("failed to get field '%s': %s", field, err)
+		return false
+	}
+	return assert.Contains(t, fieldValue, value, msgAndArgs...)
+}
+
+//nolint:deadcode,unused
 func assertFieldStringArrayIndexedOneOf(t *testing.T, e *sprobe.Event, field string, index int, values []string, msgAndArgs ...interface{}) bool {
 	t.Helper()
 	fieldValue, err := e.GetFieldValue(field)
