@@ -345,7 +345,7 @@ int kretprobe__ip_make_skb(struct pt_regs* ctx) {
 //
 // On UDP side, no similar function exists in all kernel versions, though we may be able to use something like
 // skb_consume_udp (v4.10+, https://elixir.bootlin.com/linux/v4.10/source/net/ipv4/udp.c#L1500)
-static __always_inline int handle_udp_recvmsg(struct sock* sk, struct msghdr* msg, int flags, struct bpf_map_def *udp_sock_map) {
+static __always_inline int handle_udp_recvmsg(struct sock* sk, struct msghdr* msg, int flags, void *udp_sock_map) {
     log_debug("kprobe/udp_recvmsg: flags: %x\n", flags);
     if (flags & MSG_PEEK) {
         return 0;
@@ -369,7 +369,7 @@ int kprobe__udp_recvmsg(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
     struct msghdr* msg = (struct msghdr*)PT_REGS_PARM2(ctx);
     int flags = (int)PT_REGS_PARM5(ctx);
-    return handle_udp_recvmsg(sk, msg, flags, (struct bpf_map_def *)&udp_recv_sock);
+    return handle_udp_recvmsg(sk, msg, flags, &udp_recv_sock);
 }
 
 SEC("kprobe/udpv6_recvmsg")
@@ -377,7 +377,7 @@ int kprobe__udpv6_recvmsg(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
     struct msghdr* msg = (struct msghdr*)PT_REGS_PARM2(ctx);
     int flags = (int)PT_REGS_PARM5(ctx);
-    return handle_udp_recvmsg(sk, msg, flags, (struct bpf_map_def *)&udpv6_recv_sock);
+    return handle_udp_recvmsg(sk, msg, flags, &udpv6_recv_sock);
 }
 
 SEC("kprobe/udp_recvmsg/pre_4_1_0")
@@ -385,7 +385,7 @@ int kprobe__udp_recvmsg_pre_4_1_0(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM2(ctx);
     struct msghdr* msg = (struct msghdr*)PT_REGS_PARM3(ctx);
     int flags = (int)PT_REGS_PARM6(ctx);
-    return handle_udp_recvmsg(sk, msg, flags, (struct bpf_map_def *)&udp_recv_sock);
+    return handle_udp_recvmsg(sk, msg, flags, &udp_recv_sock);
 }
 
 SEC("kprobe/udpv6_recvmsg/pre_4_1_0")
@@ -393,10 +393,10 @@ int kprobe__udpv6_recvmsg_pre_4_1_0(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM2(ctx);
     struct msghdr* msg = (struct msghdr*)PT_REGS_PARM3(ctx);
     int flags = (int)PT_REGS_PARM6(ctx);
-    return handle_udp_recvmsg(sk, msg, flags, (struct bpf_map_def *)&udpv6_recv_sock);
+    return handle_udp_recvmsg(sk, msg, flags, &udpv6_recv_sock);
 }
 
-static __always_inline int handle_ret_udp_recvmsg(int copied, struct bpf_map_def *udp_sock_map) {
+static __always_inline int handle_ret_udp_recvmsg(int copied, void *udp_sock_map) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("kretprobe/udp_recvmsg: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
@@ -441,13 +441,13 @@ static __always_inline int handle_ret_udp_recvmsg(int copied, struct bpf_map_def
 SEC("kretprobe/udp_recvmsg")
 int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
     int copied = (int)PT_REGS_RC(ctx);
-    return handle_ret_udp_recvmsg(copied, (struct bpf_map_def *)&udp_recv_sock);
+    return handle_ret_udp_recvmsg(copied, &udp_recv_sock);
 }
 
 SEC("kretprobe/udpv6_recvmsg")
 int kretprobe__udpv6_recvmsg(struct pt_regs* ctx) {
     int copied = (int)PT_REGS_RC(ctx);
-    return handle_ret_udp_recvmsg(copied, (struct bpf_map_def *)&udpv6_recv_sock);
+    return handle_ret_udp_recvmsg(copied, &udpv6_recv_sock);
 }
 
 SEC("kprobe/tcp_retransmit_skb")
@@ -545,7 +545,7 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
     port_binding_t pb = {};
     pb.netns = t.netns;
     pb.port = t.sport;
-    add_port_bind(&pb, (struct bpf_map_def *)&port_bindings);
+    add_port_bind(&pb, &port_bindings);
     log_debug("kretprobe/inet_csk_accept: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
     return 0;
 }
@@ -562,7 +562,7 @@ int kprobe__inet_csk_listen_stop(struct pt_regs* ctx) {
     port_binding_t pb = {};
     pb.netns = get_netns_from_sock(sk);
     pb.port = lport;
-    remove_port_bind(&pb, (struct bpf_map_def *)&port_bindings);
+    remove_port_bind(&pb, &port_bindings);
     log_debug("kprobe/inet_csk_listen_stop: net ns: %u, lport: %u\n", pb.netns, pb.port);
     return 0;
 }
@@ -594,7 +594,7 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
     port_binding_t pb = {};
     pb.netns = 0;
     pb.port = lport;
-    remove_port_bind(&pb, (struct bpf_map_def *)&udp_port_bindings);
+    remove_port_bind(&pb, &udp_port_bindings);
 
     log_debug("kprobe/udp_destroy_sock: port %d marked as closed\n", lport);
 
@@ -692,7 +692,7 @@ static __always_inline int sys_exit_bind(__s64 ret) {
     port_binding_t pb = {};
     pb.netns = 0; // don't have net ns info in this context
     pb.port = sin_port;
-    add_port_bind(&pb, (struct bpf_map_def* )&udp_port_bindings);
+    add_port_bind(&pb, &udp_port_bindings);
     log_debug("sys_exit_bind: bound UDP port %u\n", sin_port);
 
     return 0;
