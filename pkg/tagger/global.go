@@ -9,9 +9,9 @@ import (
 	"context"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
@@ -220,7 +220,7 @@ func Stop() error {
 }
 
 // List the content of the defaulTagger
-func List(cardinality collectors.TagCardinality) response.TaggerListResponse {
+func List(cardinality collectors.TagCardinality) tagger_api.TaggerListResponse {
 	return defaultTagger.List(cardinality)
 }
 
