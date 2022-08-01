@@ -37,10 +37,8 @@ union selinux_write_payload_t {
     } status;
 };
 
-#define MAX_EXEC_NAME_LEN 32 
-
 struct linux_binprm_t {
-    char executable_base_name[MAX_EXEC_NAME_LEN];
+    struct path_key_t path_key;
 };
 
 struct syscall_cache_t {

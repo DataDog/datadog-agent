@@ -49,7 +49,7 @@ struct exec_event_t {
     struct span_context_t span;
     struct proc_cache_t proc_entry;
     struct pid_cache_t pid_entry;
-    struct linux_binprm_t binprm;
+    struct linux_binprm_t linux_binprm;
     u32 args_id;
     u32 args_truncated;
     u32 envs_id;
@@ -372,12 +372,20 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     return 0;
 }
 
-int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall, struct file *file, struct path *path) {
-    struct dentry *exec_dentry = get_path_dentry(path);
-    struct basename_t executable_basename = {};
-    get_dentry_name(exec_dentry, &executable_basename, sizeof(executable_basename));
+int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall, struct file *file) {
+    struct inode *executable_inode;	
+    bpf_probe_read(&executable_inode, sizeof(executable_inode), &file->f_inode);
 
-    bpf_probe_read_str(syscall->exec.linux_binprm.executable_base_name, sizeof(syscall->exec.linux_binprm.executable_base_name), executable_basename.value);
+    struct path *executable_path;
+    bpf_probe_read(&executable_path, sizeof(executable_path), &file->f_path);
+
+    syscall->exec.linux_binprm.path_key = get_inode_key_path(executable_inode, executable_path);
+    syscall->exec.linux_binprm.path_key.path_id = get_path_id(0);
+
+    bpf_printk("exec inode: %u\n", syscall->exec.linux_binprm.path_key.ino);
+    bpf_printk("exec mount id: %u\n", syscall->exec.linux_binprm.path_key.mount_id);
+    bpf_printk("exec inode: %u\n", syscall->exec.linux_binprm.path_key.path_id);
+
 
     return 0;
 }
@@ -684,20 +692,6 @@ int kprobe_security_bprm_check(struct pt_regs *ctx) {
     // Executable
     struct file *executable;
     bpf_probe_read(&executable, sizeof(executable), &bprm->executable);
-    // struct inode *executable_inode;	
-    // bpf_probe_read(&executable_inode, sizeof(executable_inode), &executable->f_inode);
-
-    // struct file *executable;
-    // bpf_probe_read(&executable, sizeof(executable), &bprm->executable);
-
-    // struct dentry *executable_dentry = get_file_dentry(executable);
-    // struct basename_t executable_basename = {};
-    // get_dentry_name(executable_dentry, &executable_basename, sizeof(executable_basename));
-
-    // bpf_printk("executable: %s\n", executable_basename.value);
-
-	// struct inode *executable_inode;	
-    // bpf_probe_read(&executable_inode, sizeof(executable_inode), &executable->f_inode);  
 	
     // Interpreter
     // struct file *interpreter;
@@ -719,7 +713,7 @@ int kprobe_security_bprm_check(struct pt_regs *ctx) {
     // struct basename_t file_basename = {};
     // get_dentry_name(file_dentry, &file_basename, sizeof(file_basename));
 
-    // bpf_printk("file from binprm: %s\n", file_basename.value);
+    // bpf_printk("file from linux_binprm: %s\n", file_basename.value);
 
     // const char *filename;
 	// const char *interp;
@@ -738,10 +732,12 @@ int kprobe_security_bprm_check(struct pt_regs *ctx) {
 	// 			   of the time same as filename, but could be
 	// 			   different for binfmt_{misc,script} */
 
+    bpf_printk("*interp from binprm: %s\n", &bprm->interp);
+
     // return handle_exec_event(ctx, syscall, bprm->executable, &bprm->executable->f_path, bprm->executable->f_inode);
     // return handle_exec_event(ctx, syscall, executable, &executable->f_path, executable_inode);
 
-    return handle_interpreted_exec_event(ctx, syscall, executable, &executable->f_path);
+    return handle_interpreted_exec_event(ctx, syscall, executable);
 }
 
 void __attribute__((always_inline)) fill_args_envs(struct exec_event_t *event, struct syscall_cache_t *syscall) {
@@ -791,7 +787,8 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
 
             // Add information about interpreted events
             // TODO: Polish linux_binprm info
-            bpf_probe_read_str(event->binprm.executable_base_name, sizeof(syscall->exec.linux_binprm.executable_base_name), syscall->exec.linux_binprm.executable_base_name);
+            // bpf_probe_read_str(event->linux_binprm.path_key, sizeof(syscall->exec.linux_binprm.path_key), &syscall->exec.linux_binprm.path_key);
+            event->linux_binprm.path_key = syscall->exec.linux_binprm.path_key;
 
             // send the entry to maintain userspace cache
             send_event_ptr(ctx, EVENT_EXEC, event);

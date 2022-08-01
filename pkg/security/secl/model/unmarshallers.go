@@ -133,19 +133,19 @@ func (e *Credentials) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
-func (e *LinuxBinprm) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 32 {
-		return 0, ErrNotEnoughData
-	}
+// func (e *LinuxBinprm) UnmarshalBinary(data []byte) (int, error) {
+// 	if len(data) < 32 {
+// 		return 0, ErrNotEnoughData
+// 	}
 
-	var err error
+// 	var err error
 
-	e.InterpreterBaseName, err = UnmarshalString(data[:], 32)
-	if err != nil {
-		return 0, err
-	}
-	return 32, nil
-}
+// 	e.InterpreterBaseName, err = UnmarshalString(data[:], 32)
+// 	if err != nil {
+// 		return 0, err
+// 	}
+// 	return 32, nil
+// }
 
 func unmarshalTime(data []byte) time.Time {
 	if t := int64(ByteOrder.Uint64(data)); t != 0 {
@@ -212,11 +212,8 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	read += n
 
 	// Unmarshal linux_binprm_t
-	if len(data[read:]) < 32 {
-		return 0, ErrNotEnoughData
-	}
-
-	numOfBytes, err := UnmarshalBinary(data[read:], &e.LinuxBinprm)
+	numOfBytes, err := UnmarshalBinary(data, &e.LinuxBinprm.FileEvent)
+	fmt.Printf("numOfBytes: %d\n", numOfBytes)
 	if err != nil {
 		return 0, err
 	}
