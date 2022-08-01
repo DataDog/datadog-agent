@@ -25,6 +25,8 @@ import (
 type DemultiplexerWithAggregator interface {
 	Demultiplexer
 	Aggregator() *BufferedAggregator
+	// AddCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
+	AddCheckSample(sample metrics.MetricSample)
 	Options() AgentDemultiplexerOptions
 }
 

@@ -59,8 +59,6 @@ type Demultiplexer interface {
 	// This is the method to use to send metrics with a valid timestamp attached.
 	AddLateMetrics(metrics metrics.MetricSampleBatch)
 
-	// AddCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
-	AddCheckSample(sample metrics.MetricSample)
 	// ForceFlushToSerializer flushes all the aggregated data from the different samplers to
 	// the serialization/forwarding parts.
 	ForceFlushToSerializer(start time.Time, waitForSerializer bool)

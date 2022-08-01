@@ -165,7 +165,9 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 			}
 		// timestamp
 		case bytes.HasPrefix(optionalField, timestampFieldPrefix):
-			if ts, err := strconv.ParseInt(string(optionalField[len(timestampFieldPrefix):]), 10, 0); err == nil {
+			if ts, err := strconv.ParseInt(string(optionalField[len(timestampFieldPrefix):]), 10, 0); err != nil {
+				return dogstatsdMetricSample{}, fmt.Errorf("could not parse dogstatsd timestamp %q: %v", optionalField[len(timestampFieldPrefix):], err)
+			} else {
 				timestamp = time.Unix(ts, 0)
 			}
 		// container ID
