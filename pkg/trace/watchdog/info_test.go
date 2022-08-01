@@ -70,6 +70,7 @@ func doTestCPUHigh(t *testing.T, n int) {
 }
 
 func TestCPUHigh(t *testing.T) {
+	t.Skip("skipping test; see https://github.com/DataDog/datadog-agent/issues/12944")
 	doTestCPUHigh(t, 1)
 	if testing.Short() {
 		return
