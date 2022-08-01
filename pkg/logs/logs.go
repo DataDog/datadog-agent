@@ -44,7 +44,7 @@ const (
 
 var (
 	// isRunning indicates whether logs-agent is running or not
-	isRunning *atomic.Bool = atomic.NewBool(false)
+	isRunning = atomic.NewBool(false)
 	// logs-agent
 	agent *Agent
 )

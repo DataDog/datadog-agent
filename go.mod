@@ -39,7 +39,7 @@ require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/DataDog/agent-payload/v5 v5.0.23
+	github.com/DataDog/agent-payload/v5 v5.0.25
 	github.com/DataDog/btf-internals v0.0.0-20220424171854-ebe6bce9afb0
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.38.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.38.0-rc.3
@@ -61,7 +61,7 @@ require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/Microsoft/go-winio v0.5.1
-	github.com/Microsoft/hcsshim v0.9.3
+	github.com/Microsoft/hcsshim v0.9.4
 	github.com/acobaugh/osrelease v0.1.0
 	github.com/alecthomas/participle v0.7.1
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
@@ -404,7 +404,10 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-require github.com/go-delve/delve v1.9.0
+require (
+	github.com/go-delve/delve v1.9.0
+	golang.org/x/arch v0.0.0-20190927153633-4e8777c89be4
+)
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible

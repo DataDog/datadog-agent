@@ -1019,7 +1019,8 @@ func InitConfig(config Config) {
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
-	config.BindEnvAndSetDefault("inventories_configuration_enabled", true)
+	config.BindEnvAndSetDefault("inventories_configuration_enabled", false)        // controls the agent configurations
+	config.BindEnvAndSetDefault("inventories_checks_configuration_enabled", false) // controls the checks configurations
 	// when updating the default here also update pkg/metadata/inventories/README.md
 	config.BindEnvAndSetDefault("inventories_max_interval", DefaultInventoriesMaxInterval) // integer seconds
 	config.BindEnvAndSetDefault("inventories_min_interval", DefaultInventoriesMinInterval) // integer seconds
@@ -1134,8 +1135,8 @@ func GetProxies() *Proxy {
 	return proxies
 }
 
-// loadProxyFromEnv overrides the proxy settings with environment variables
-func loadProxyFromEnv(config Config) {
+// LoadProxyFromEnv overrides the proxy settings with environment variables
+func LoadProxyFromEnv(config Config) {
 	// Viper doesn't handle mixing nested variables from files and set
 	// manually.  If we manually set one of the sub value for "proxy" all
 	// other values from the conf file will be shadowed when using
@@ -1392,7 +1393,7 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	}
 
 	useHostEtc(config)
-	loadProxyFromEnv(config)
+	LoadProxyFromEnv(config)
 	SanitizeAPIKeyConfig(config, "api_key")
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
@@ -1839,22 +1840,4 @@ func GetVectorURL(datatype DataType) (string, error) {
 		return vectorURL, nil
 	}
 	return "", nil
-}
-
-// GetInventoriesMinInterval gets the inventories_min_interval value, applying the default if it is zero.
-func GetInventoriesMinInterval() time.Duration {
-	minInterval := time.Duration(Datadog.GetInt("inventories_min_interval")) * time.Second
-	if minInterval == 0 {
-		minInterval = DefaultInventoriesMinInterval * time.Second
-	}
-	return minInterval
-}
-
-// GetInventoriesMaxInterval gets the inventories_max_interval value, applying the default if it is zero.
-func GetInventoriesMaxInterval() time.Duration {
-	maxInterval := time.Duration(Datadog.GetInt("inventories_max_interval")) * time.Second
-	if maxInterval == 0 {
-		maxInterval = DefaultInventoriesMaxInterval * time.Second
-	}
-	return maxInterval
 }

@@ -23,11 +23,10 @@ import (
 )
 
 func clearMetadata() {
-	checkMetadataMutex.Lock()
-	defer checkMetadataMutex.Unlock()
+	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
+
 	checkMetadata = make(map[string]*checkMetadataCacheEntry)
-	agentMetadataMutex.Lock()
-	defer agentMetadataMutex.Unlock()
 	agentMetadata = make(AgentMetadata)
 
 	// purge metadataUpdatedC
@@ -90,6 +89,10 @@ func TestGetPayload(t *testing.T) {
 	ctx := context.Background()
 	defer func() { clearMetadata() }()
 
+	cfg := config.Mock(t)
+	cfg.Set("inventories_configuration_enabled", true)
+	cfg.Set("inventories_checks_configuration_enabled", true)
+
 	startNow := time.Now()
 	timeNow = func() time.Time { return startNow } // time of the first run
 	defer func() { timeNow = time.Now }()
@@ -136,7 +139,6 @@ func TestGetPayload(t *testing.T) {
 	assert.Len(t, checkMeta["check1"], 2) // check1 has two instances
 
 	check1Instance1 := *checkMeta["check1"][0]
-	assert.Equal(t, startNow.UnixNano(), check1Instance1["last_updated"])
 	assert.Equal(t, "check1_instance1", check1Instance1["config.hash"])
 	assert.Equal(t, "provider1", check1Instance1["config.provider"])
 	assert.Equal(t, 123, check1Instance1["check_provided_key1"])
@@ -145,7 +147,6 @@ func TestGetPayload(t *testing.T) {
 	assert.Equal(t, "{}", check1Instance1["instance_config"])
 
 	check1Instance2 := *checkMeta["check1"][1]
-	assert.Equal(t, agentStartupTime.UnixNano(), check1Instance2["last_updated"])
 	assert.Equal(t, "check1_instance2", check1Instance2["config.hash"])
 	assert.Equal(t, "provider1", check1Instance2["config.provider"])
 	assert.Equal(t, "", check1Instance2["init_config"])
@@ -153,14 +154,12 @@ func TestGetPayload(t *testing.T) {
 
 	assert.Len(t, checkMeta["check2"], 1) // check2 has one instance
 	check2Instance1 := *checkMeta["check2"][0]
-	assert.Equal(t, agentStartupTime.UnixNano(), check2Instance1["last_updated"])
 	assert.Equal(t, "check2_instance1", check2Instance1["config.hash"])
 	assert.Equal(t, "provider2", check2Instance1["config.provider"])
 	assert.Equal(t, "", check2Instance1["init_config"])
 	assert.Equal(t, "{}", check2Instance1["instance_config"])
 
 	SetCheckMetadata("check2_instance1", "check_provided_key1", "hi")
-	originalStartNow := startNow
 	startNow = startNow.Add(1000 * time.Second)
 	SetCheckMetadata("check1_instance1", "check_provided_key1", 456)
 
@@ -185,17 +184,14 @@ func TestGetPayload(t *testing.T) {
 	checkMeta = *p.CheckMetadata
 	assert.Len(t, checkMeta, 3)
 	check1Instance1 = *checkMeta["check1"][0]
-	assert.Equal(t, startNow.UnixNano(), check1Instance1["last_updated"]) // last_updated has changed
 	assert.Equal(t, "check1_instance1", check1Instance1["config.hash"])
 	assert.Equal(t, "provider1", check1Instance1["config.provider"])
 	assert.Equal(t, 456, check1Instance1["check_provided_key1"]) //Key has been updated
 	assert.Equal(t, "Hi", check1Instance1["check_provided_key2"])
 	check1Instance2 = *checkMeta["check1"][1]
-	assert.Equal(t, agentStartupTime.UnixNano(), check1Instance2["last_updated"]) // last_updated still the same
 	assert.Equal(t, "check1_instance2", check1Instance2["config.hash"])
 	assert.Equal(t, "provider1", check1Instance2["config.provider"])
 	check2Instance1 = *checkMeta["check2"][0]
-	assert.Equal(t, originalStartNow.UnixNano(), check2Instance1["last_updated"]) // reflects when check_provided_key1 was changed
 	assert.Equal(t, "check2_instance1", check2Instance1["config.hash"])
 	assert.Equal(t, "provider2", check2Instance1["config.provider"])
 	assert.Equal(t, "hi", check2Instance1["check_provided_key1"]) // New key added
@@ -216,15 +212,13 @@ func TestGetPayload(t *testing.T) {
 					"config.hash": "check1_instance1",
 					"config.provider": "provider1",
 					"init_config": "",
-					"instance_config": "{}",
-					"last_updated": %v
+					"instance_config": "{}"
 				},
 				{
 					"config.hash": "check1_instance2",
 					"config.provider": "provider1",
 					"init_config": "",
-					"instance_config": "{\"test\":21}",
-					"last_updated": %v
+					"instance_config": "{\"test\":21}"
 				}
 			],
 			"check2":
@@ -234,8 +228,7 @@ func TestGetPayload(t *testing.T) {
 					"config.hash": "check2_instance1",
 					"config.provider": "provider2",
 					"init_config": "",
-					"instance_config": "{}",
-					"last_updated": %v
+					"instance_config": "{}"
 				}
 			],
 			"non_running_checkid":
@@ -245,8 +238,7 @@ func TestGetPayload(t *testing.T) {
 					"config.hash": "non_running_checkid",
 					"config.provider": "",
 					"init_config": "",
-					"instance_config": "",
-					"last_updated": %v
+					"instance_config": ""
 				}
 			]
 		},
@@ -282,7 +274,7 @@ func TestGetPayload(t *testing.T) {
 			"os_version": "testOS"
 		}
 	}`
-	jsonString = fmt.Sprintf(jsonString, startNow.UnixNano(), startNow.UnixNano(), agentStartupTime.UnixNano(), originalStartNow.UnixNano(), originalStartNow.UnixNano(), version.AgentVersion)
+	jsonString = fmt.Sprintf(jsonString, startNow.UnixNano(), version.AgentVersion)
 	jsonString = strings.Join(strings.Fields(jsonString), "") // Removes whitespaces and new lines
 	assert.Equal(t, jsonString, string(marshaled))
 

@@ -30,8 +30,8 @@ const (
 
 var (
 	// Atomic incrementing variables for generating globally unique runner and worker object IDs
-	runnerIDGenerator *atomic.Uint64 = atomic.NewUint64(0)
-	workerIDGenerator *atomic.Uint64 = atomic.NewUint64(0)
+	runnerIDGenerator = atomic.NewUint64(0)
+	workerIDGenerator = atomic.NewUint64(0)
 )
 
 // Runner is the object in charge of running all the checks

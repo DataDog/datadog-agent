@@ -164,7 +164,10 @@ func (k *KubeletConfigProvider) generateConfigs() ([]integration.Config, error) 
 					log.Errorf("Can't parse template for pod %s: %s", pod.Name, err)
 					errs = append(errs, err)
 				}
-				continue
+				if len(c) == 0 {
+					// Only got errors, no valid configs so let's move on to the next container.
+					continue
+				}
 			}
 
 			if util.CcaInAD() {

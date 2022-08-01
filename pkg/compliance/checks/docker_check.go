@@ -250,7 +250,7 @@ type dockerContainerIterator struct {
 }
 
 func newDockerContainerIterator(ctx context.Context, client env.DockerClient) (eval.Iterator, error) {
-	containers, err := client.ContainerList(ctx, types.ContainerListOptions{All: true})
+	containers, err := client.ContainerList(ctx, types.ContainerListOptions{}) // only running containers
 	if err != nil {
 		return nil, err
 	}

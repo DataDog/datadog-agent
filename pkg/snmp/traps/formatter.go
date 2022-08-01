@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode"
 
 	"github.com/gosnmp/gosnmp"
 
@@ -186,6 +187,23 @@ func NormalizeOID(value string) string {
 	// OIDs can be formatted as ".1.2.3..." ("absolute form") or "1.2.3..." ("relative form").
 	// Convert everything to relative form, like we do in the Python check.
 	return strings.TrimLeft(value, ".")
+}
+
+// IsValidOID returns true if a looks like a valid OID.
+// An OID is made of digits and dots, but OIDs do not end with a dot and there are always
+// digits between dots.
+func IsValidOID(value string) bool {
+	var previousChar rune
+	for _, char := range value {
+		if char != '.' && !unicode.IsDigit(char) {
+			return false
+		}
+		if char == '.' && previousChar == '.' {
+			return false
+		}
+		previousChar = char
+	}
+	return previousChar != '.'
 }
 
 // parseValue checks to see if the variable has a mapping in an enum and
