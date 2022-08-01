@@ -231,7 +231,7 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 		senderInput,
 		sender.ArraySerializer,
 		endpoints.BatchWait,
-		pkgconfig.DefaultBatchMaxSize,
+		endpoints.BatchMaxSize,
 		endpoints.BatchMaxContentSize,
 		desc.eventType,
 		encoder)

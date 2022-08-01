@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 )
 
 const (
@@ -23,7 +24,7 @@ const (
 
 // TrafficCapture allows capturing traffic from our listeners and writing it to file
 type TrafficCapture struct {
-	Writer *TrafficCaptureWriter
+	writer *TrafficCaptureWriter
 
 	sync.RWMutex
 }
@@ -36,7 +37,7 @@ func NewTrafficCapture() (*TrafficCapture, error) {
 	}
 
 	tc := &TrafficCapture{
-		Writer: writer,
+		writer: writer,
 	}
 
 	return tc, nil
@@ -47,11 +48,11 @@ func (tc *TrafficCapture) IsOngoing() bool {
 	tc.RLock()
 	defer tc.RUnlock()
 
-	if tc.Writer == nil {
+	if tc.writer == nil {
 		return false
 	}
 
-	return tc.Writer.IsOngoing()
+	return tc.writer.IsOngoing()
 }
 
 // Start starts a TrafficCapture and returns an error in the event of an issue.
@@ -60,12 +61,12 @@ func (tc *TrafficCapture) Start(p string, d time.Duration, compressed bool) erro
 		return fmt.Errorf("Ongoing capture in progress")
 	}
 
-	_, err := tc.Writer.ValidateLocation(p)
+	_, err := ValidateLocation(p)
 	if err != nil {
 		return err
 	}
 
-	go tc.Writer.Capture(p, d, compressed)
+	go tc.writer.Capture(p, d, compressed)
 
 	return nil
 
@@ -76,7 +77,7 @@ func (tc *TrafficCapture) Stop() {
 	tc.Lock()
 	defer tc.Unlock()
 
-	tc.Writer.StopCapture()
+	tc.writer.StopCapture()
 }
 
 // Path returns the path to the underlying TrafficCapture file, and an error if any.
@@ -84,5 +85,26 @@ func (tc *TrafficCapture) Path() (string, error) {
 	tc.RLock()
 	defer tc.RUnlock()
 
-	return tc.Writer.Path()
+	return tc.writer.Path()
+}
+
+// RegisterSharedPoolManager registers the shared pool manager with the TrafficCapture.
+func (tc *TrafficCapture) RegisterSharedPoolManager(p *packets.PoolManager) error {
+	tc.Lock()
+	defer tc.Unlock()
+	return tc.writer.RegisterSharedPoolManager(p)
+}
+
+// RegisterOOBPoolManager registers the OOB shared pool manager with the TrafficCapture.
+func (tc *TrafficCapture) RegisterOOBPoolManager(p *packets.PoolManager) error {
+	tc.Lock()
+	defer tc.Unlock()
+	return tc.writer.RegisterOOBPoolManager(p)
+}
+
+// Enqueue enqueues a capture buffer so it's written to file.
+func (tc *TrafficCapture) Enqueue(msg *CaptureBuffer) bool {
+	tc.RLock()
+	defer tc.RUnlock()
+	return tc.writer.Enqueue(msg)
 }

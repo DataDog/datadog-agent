@@ -420,7 +420,7 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 					if vStr, ok := v.(string); ok {
 						if k == "config.hash" {
 							checkHash = vStr
-						} else if k != "config.provider" && k != "last_updated" {
+						} else if k != "config.provider" && k != "instance_config" && k != "init_config" {
 							metadata[k] = vStr
 						}
 					}

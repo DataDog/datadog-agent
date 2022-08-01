@@ -2,6 +2,13 @@ module github.com/DataDog/datadog-agent/pkg/trace
 
 go 1.17
 
+// NOTE: Prefer using simple `require` directives instead of using `replace` if possible.
+// See https://github.com/DataDog/datadog-agent/blob/main/docs/dev/gomodreplace.md
+// for more details.
+
+// Internal deps fix version
+replace github.com/docker/distribution => github.com/docker/distribution v2.8.1+incompatible
+
 require (
 	github.com/DataDog/datadog-agent v0.0.0-20220622175024-d44ffc613aaf
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.38.0-rc.3
@@ -30,7 +37,7 @@ require (
 require (
 	github.com/DataDog/viper v1.11.0 // indirect
 	github.com/DataDog/watermarkpodautoscaler v0.5.0-rc.1.0.20220530183114-687bca6395e8 // indirect
-	github.com/Microsoft/hcsshim v0.9.3 // indirect
+	github.com/Microsoft/hcsshim v0.9.4 // indirect
 	github.com/aws/aws-sdk-go v1.44.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
