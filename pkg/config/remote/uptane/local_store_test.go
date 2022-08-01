@@ -9,9 +9,10 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/bbolt"
+
+	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 )
 
 func getTestDB(t *testing.T) *bbolt.DB {

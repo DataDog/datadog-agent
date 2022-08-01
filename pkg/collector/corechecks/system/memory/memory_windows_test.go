@@ -11,9 +11,10 @@ package memory
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	"github.com/stretchr/testify/require"
 )
 
 func VirtualMemory() (*winutil.VirtualMemoryStat, error) {

@@ -13,11 +13,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/viper"
+
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/viper"
 )
 
 // ModuleName is a typed alias for string, used only for module names

@@ -14,8 +14,9 @@ import (
 	"hash"
 	"io"
 
-	"github.com/DataDog/datadog-agent/pkg/security/log"
 	manager "github.com/DataDog/ebpf-manager"
+
+	"github.com/DataDog/datadog-agent/pkg/security/log"
 )
 
 // ErrorSentinel is the value of an unavailable offset or size

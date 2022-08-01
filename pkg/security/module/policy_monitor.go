@@ -14,10 +14,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -68,6 +70,7 @@ func (p *PolicyMonitor) Start(ctx context.Context) {
 						"policy_name:" + policy.Name,
 						"policy_source:" + policy.Source,
 						"policy_version:" + policy.Version,
+						"agent_version:" + version.AgentVersion,
 					}
 
 					if err := p.statsdClient.Gauge(metrics.MetricPolicy, 1, tags, 1.0); err != nil {

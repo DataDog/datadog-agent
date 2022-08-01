@@ -8,7 +8,7 @@ package model
 import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 
 // EventType describes the type of an event sent from the kernel
-type EventType uint64
+type EventType uint32
 
 const (
 	// UnknownEventType unknow event

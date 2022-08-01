@@ -74,7 +74,7 @@ var targetUbuntu = types.Target{
 	},
 }
 
-var targetDebian types.Target = types.Target{
+var targetDebian = types.Target{
 	Distro: types.Distro{
 		Display: "debian",
 		Release: "11.2",

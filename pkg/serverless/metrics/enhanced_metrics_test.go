@@ -9,10 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessTags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {

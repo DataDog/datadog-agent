@@ -415,7 +415,9 @@ func (m *Module) Close() {
 	}
 
 	// close the policy loader and all the related providers
-	m.policyLoader.Close()
+	if m.policyLoader != nil {
+		m.policyLoader.Close()
+	}
 
 	m.cancelFnc()
 

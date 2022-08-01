@@ -8,11 +8,12 @@
 package filehandles
 
 import (
+	"github.com/blabber/go-freebsd-sysctl/sysctl"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/blabber/go-freebsd-sysctl/sysctl"
 )
 
 // For testing purpose
@@ -52,7 +53,7 @@ func (c *fhCheck) Run() error {
 
 // The check doesn't need configuration
 func (c *fhCheck) Configure(data integration.Data, initConfig integration.Data, source string) (err error) {
-	if err := c.CommonConfigure(data, source); err != nil {
+	if err := c.CommonConfigure(initConfig, data, source); err != nil {
 		return err
 	}
 

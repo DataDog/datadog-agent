@@ -10,9 +10,10 @@ import (
 	"sync"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/gogo/protobuf/proto"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/gogo/protobuf/proto"
 )
 
 const maxRoutes = math.MaxInt32

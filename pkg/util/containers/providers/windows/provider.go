@@ -21,9 +21,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/iphelper"
 	"github.com/docker/docker/pkg/sysinfo"
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/iphelper"
 
 	"github.com/docker/docker/api/types"
 

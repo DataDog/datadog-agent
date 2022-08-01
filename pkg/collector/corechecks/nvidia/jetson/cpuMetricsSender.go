@@ -11,10 +11,11 @@ package nvidia
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
 type cpuMetricSender struct {

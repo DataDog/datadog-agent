@@ -34,13 +34,15 @@ type apmCheckConf struct {
 
 // APMCheck keeps track of the running command
 type APMCheck struct {
-	binPath     string
-	commandOpts []string
-	running     *atomic.Bool
-	stop        chan struct{}
-	stopDone    chan struct{}
-	source      string
-	telemetry   bool
+	binPath        string
+	commandOpts    []string
+	running        *atomic.Bool
+	stop           chan struct{}
+	stopDone       chan struct{}
+	source         string
+	telemetry      bool
+	initConfig     string
+	instanceConfig string
 }
 
 // String displays the Agent name
@@ -175,6 +177,8 @@ func (c *APMCheck) Configure(data integration.Data, initConfig integration.Data,
 
 	c.source = source
 	c.telemetry = telemetry_utils.IsCheckEnabled("apm")
+	c.initConfig = string(initConfig)
+	c.instanceConfig = string(data)
 	return nil
 }
 
@@ -216,6 +220,16 @@ func (c *APMCheck) GetWarnings() []error {
 // GetSenderStats returns the stats from the last run of the check, but there aren't any
 func (c *APMCheck) GetSenderStats() (check.SenderStats, error) {
 	return check.NewSenderStats(), nil
+}
+
+// InitConfig returns the initConfig for the APM check
+func (c *APMCheck) InitConfig() string {
+	return c.initConfig
+}
+
+// InstanceConfig returns the instance config for the APM check
+func (c *APMCheck) InstanceConfig() string {
+	return c.instanceConfig
 }
 
 func init() {

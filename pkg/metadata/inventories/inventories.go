@@ -8,12 +8,12 @@ package inventories
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -26,14 +26,9 @@ type schedulerInterface interface {
 	TriggerAndResetCollectorTimer(name string, delay time.Duration)
 }
 
-// AutoConfigInterface is an interface for the MapOverLoadedConfigs method of autodiscovery
-type AutoConfigInterface interface {
-	MapOverLoadedConfigs(func(map[string]integration.Config))
-}
-
-// CollectorInterface is an interface for the GetAllInstanceIDs method of the collector
+// CollectorInterface is an interface for the MapOverChecks method of the collector
 type CollectorInterface interface {
-	GetAllInstanceIDs(checkName string) []check.ID
+	MapOverChecks(func([]check.Info))
 }
 
 type checkMetadataCacheEntry struct {
@@ -42,20 +37,21 @@ type checkMetadataCacheEntry struct {
 }
 
 var (
-	checkMetadata      = make(map[string]*checkMetadataCacheEntry) // by check ID
-	checkMetadataMutex = &sync.Mutex{}
-	agentMetadata      = make(AgentMetadata)
-	agentMetadataMutex = &sync.Mutex{}
-	hostMetadata       = make(AgentMetadata)
-	hostMetadataMutex  = &sync.Mutex{}
+	checkMetadata = make(map[string]*checkMetadataCacheEntry) // by check ID
+	agentMetadata = make(AgentMetadata)
+	hostMetadata  = make(AgentMetadata)
 
-	agentStartupTime = timeNow()
+	inventoryMutex = &sync.Mutex{}
 
-	lastPayload         *Payload
-	lastGetPayload      = timeNow()
-	lastGetPayloadMutex = &sync.Mutex{}
+	lastPayload    *Payload
+	lastGetPayload = timeNow()
 
 	metadataUpdatedC = make(chan interface{}, 1)
+
+	// The inventory payload might be generated once per minute. We don't want to
+	logCount  = 0
+	logErrorf = log.Errorf
+	logInfof  = log.Infof
 )
 
 var (
@@ -108,33 +104,37 @@ const (
 	HostOSVersion AgentMetadataName = "os_version"
 )
 
+// Refresh signals that some data has been updated and a new payload should be sent (ex: when configuration is changed
+// by the user, new checks starts, etc). This will trigger a new payload to be sent while still respecting
+// 'inventories_min_interval'.
+func Refresh() {
+	select {
+	case metadataUpdatedC <- nil:
+	default: // To make sure this call is not blocking
+	}
+}
+
 // SetAgentMetadata updates the agent metadata value in the cache
 func SetAgentMetadata(name AgentMetadataName, value interface{}) {
-	agentMetadataMutex.Lock()
-	defer agentMetadataMutex.Unlock()
+	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
 
 	if !reflect.DeepEqual(agentMetadata[string(name)], value) {
 		agentMetadata[string(name)] = value
 
-		select {
-		case metadataUpdatedC <- nil:
-		default: // To make sure this call is not blocking
-		}
+		Refresh()
 	}
 }
 
 // SetHostMetadata updates the host metadata value in the cache
 func SetHostMetadata(name AgentMetadataName, value interface{}) {
-	agentMetadataMutex.Lock()
-	defer agentMetadataMutex.Unlock()
+	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
 
 	if !reflect.DeepEqual(hostMetadata[string(name)], value) {
 		hostMetadata[string(name)] = value
 
-		select {
-		case metadataUpdatedC <- nil:
-		default: // To make sure this call is not blocking
-		}
+		Refresh()
 	}
 }
 
@@ -144,8 +144,8 @@ func SetCheckMetadata(checkID, key string, value interface{}) {
 		return
 	}
 
-	checkMetadataMutex.Lock()
-	defer checkMetadataMutex.Unlock()
+	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
 
 	entry, found := checkMetadata[checkID]
 	if !found {
@@ -159,67 +159,94 @@ func SetCheckMetadata(checkID, key string, value interface{}) {
 		entry.LastUpdated = timeNow()
 		entry.CheckInstanceMetadata[key] = value
 
-		select {
-		case metadataUpdatedC <- nil:
-		default: // To make sure this call is not blocking
-		}
+		Refresh()
 	}
 }
 
-// RemoveCheckMetadata removes metadata for a check. This need to be called when a check is unscheduled.
+// RemoveCheckMetadata removes metadata for a check a trigger a new payload. This need to be called when a check is
+// unscheduled.
 func RemoveCheckMetadata(checkID string) {
-	checkMetadataMutex.Lock()
-	defer checkMetadataMutex.Unlock()
+	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
 
 	delete(checkMetadata, checkID)
+
+	Refresh()
 }
 
-func createCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceMetadata {
-	const transientFields = 3
-
-	var checkInstanceMetadata CheckInstanceMetadata
-	var lastUpdated time.Time
+func createCheckInstanceMetadata(checkID, configProvider, initConfig, instanceConfig string) *CheckInstanceMetadata {
+	checkInstanceMetadata := CheckInstanceMetadata{}
 
 	if entry, found := checkMetadata[checkID]; found {
-		checkInstanceMetadata = make(CheckInstanceMetadata, len(entry.CheckInstanceMetadata)+transientFields)
 		for k, v := range entry.CheckInstanceMetadata {
 			checkInstanceMetadata[k] = v
 		}
-		lastUpdated = entry.LastUpdated
-	} else {
-		checkInstanceMetadata = make(CheckInstanceMetadata, transientFields)
-		lastUpdated = agentStartupTime
 	}
 
-	checkInstanceMetadata["last_updated"] = lastUpdated.UnixNano()
 	checkInstanceMetadata["config.hash"] = checkID
 	checkInstanceMetadata["config.provider"] = configProvider
+
+	if config.Datadog.GetBool("inventories_checks_configuration_enabled") {
+		if instanceScrubbed, err := scrubber.ScrubString(instanceConfig); err != nil {
+			log.Errorf("Could not scrub instance configuration for check id %s: %s", checkID, err)
+		} else {
+			checkInstanceMetadata["instance_config"] = strings.TrimSpace(instanceScrubbed)
+		}
+
+		if initScrubbed, err := scrubber.ScrubString(initConfig); err != nil {
+			log.Errorf("Could not scrub init configuration for check id %s: %s", checkID, err)
+		} else {
+			checkInstanceMetadata["init_config"] = strings.TrimSpace(initScrubbed)
+		}
+	}
 
 	return &checkInstanceMetadata
 }
 
 // createPayload fills and returns the inventory metadata payload
-func createPayload(ctx context.Context, hostname string, ac AutoConfigInterface, coll CollectorInterface) *Payload {
-	checkMetadataMutex.Lock()
-	defer checkMetadataMutex.Unlock()
+func createPayload(ctx context.Context, hostname string, coll CollectorInterface) *Payload {
+	// setLogLevel select the correct log level for the inventory payload currently being created. We send a new payload
+	// every 1 to 10 min (depending on new metadata being registered). We don't want to log the same error again and again.
+	// We log once every 12 times on normal log level and on debug the rest of the time. The metadata in this paylaod should
+	// not change often, so with 1 paylaod every 10 minutes we would log once every 2h.
+	if logCount%12 == 0 {
+		logErrorf = log.Errorf
+		logInfof = log.Infof
+	} else {
+		logErrorf = func(format string, params ...interface{}) error {
+			err := fmt.Errorf(format, params...)
+			log.Debugf(err.Error())
+			return err
+		}
+		logInfof = log.Debugf
+	}
+	logCount++
 
 	// Collect check metadata for the payload
 	payloadCheckMeta := make(CheckMetadata)
 
 	foundInCollector := map[string]struct{}{}
-	if ac != nil {
-		ac.MapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
-			for _, config := range loadedConfigs {
-				payloadCheckMeta[config.Name] = make([]*CheckInstanceMetadata, 0)
-				instanceIDs := coll.GetAllInstanceIDs(config.Name)
-				for _, id := range instanceIDs {
-					checkInstanceMetadata := createCheckInstanceMetadata(string(id), config.Provider)
-					payloadCheckMeta[config.Name] = append(payloadCheckMeta[config.Name], checkInstanceMetadata)
-					foundInCollector[string(id)] = struct{}{}
+
+	if coll != nil {
+		coll.MapOverChecks(func(checks []check.Info) {
+			for _, c := range checks {
+				checkName := c.String()
+				cm := createCheckInstanceMetadata(
+					string(c.ID()),
+					strings.Split(c.ConfigSource(), ":")[0],
+					c.InitConfig(),
+					c.InstanceConfig(),
+				)
+
+				if _, found := payloadCheckMeta[checkName]; !found {
+					payloadCheckMeta[checkName] = make([]*CheckInstanceMetadata, 0)
 				}
+				payloadCheckMeta[checkName] = append(payloadCheckMeta[checkName], cm)
+				foundInCollector[string(c.ID())] = struct{}{}
 			}
 		})
 	}
+
 	// if metadata were added for a check not in the collector we still need
 	// to add them to the payloadCheckMeta (this happens when using the
 	// 'check' command)
@@ -227,29 +254,22 @@ func createPayload(ctx context.Context, hostname string, ac AutoConfigInterface,
 		if _, found := foundInCollector[id]; !found {
 			// id should be "check_name:check_hash"
 			parts := strings.SplitN(id, ":", 2)
-			payloadCheckMeta[parts[0]] = append(payloadCheckMeta[parts[0]], createCheckInstanceMetadata(id, ""))
+			payloadCheckMeta[parts[0]] = append(payloadCheckMeta[parts[0]], createCheckInstanceMetadata(id, "", "", ""))
 		}
 	}
-
-	agentMetadataMutex.Lock()
 
 	// Create a static copy of agentMetadata for the payload
 	payloadAgentMeta := make(AgentMetadata)
 	for k, v := range agentMetadata {
 		payloadAgentMeta[k] = v
 	}
+
 	if fullConf, err := getFullAgentConfiguration(); err == nil {
 		payloadAgentMeta[string(agentFullConf)] = fullConf
-	} else {
-		log.Errorf("inv error: %s", err)
 	}
 	if providedConf, err := getProvidedAgentConfiguration(); err == nil {
 		payloadAgentMeta[string(agentProvidedConf)] = providedConf
-	} else {
-		log.Errorf("inv error: %s", err)
 	}
-
-	agentMetadataMutex.Unlock()
 
 	return &Payload{
 		Hostname:      hostname,
@@ -261,19 +281,20 @@ func createPayload(ctx context.Context, hostname string, ac AutoConfigInterface,
 }
 
 // GetPayload returns a new inventory metadata payload and updates lastGetPayload
-func GetPayload(ctx context.Context, hostname string, ac AutoConfigInterface, coll CollectorInterface) *Payload {
-	lastGetPayloadMutex.Lock()
-	defer lastGetPayloadMutex.Unlock()
+func GetPayload(ctx context.Context, hostname string, coll CollectorInterface) *Payload {
+	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
+
 	lastGetPayload = timeNow()
 
-	lastPayload = createPayload(ctx, hostname, ac, coll)
+	lastPayload = createPayload(ctx, hostname, coll)
 	return lastPayload
 }
 
 // GetLastPayload returns the last payload created by the inventories metadata collector as JSON.
 func GetLastPayload() ([]byte, error) {
-	lastGetPayloadMutex.Lock()
-	defer lastGetPayloadMutex.Unlock()
+	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
 
 	if lastPayload == nil {
 		return []byte("no inventories metadata payload was created yet"), nil
@@ -287,13 +308,14 @@ func StartMetadataUpdatedGoroutine(sc schedulerInterface, minSendInterval time.D
 	go func() {
 		for {
 			<-metadataUpdatedC
-			lastGetPayloadMutex.Lock()
+
+			inventoryMutex.Lock()
 			delay := minSendInterval - timeSince(lastGetPayload)
+			inventoryMutex.Unlock()
 			if delay < 0 {
 				delay = 0
 			}
 			sc.TriggerAndResetCollectorTimer("inventories", delay)
-			lastGetPayloadMutex.Unlock()
 		}
 	}()
 	return nil

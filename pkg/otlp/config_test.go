@@ -11,9 +11,10 @@ package otlp
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
 )
 
 func TestIsEnabled(t *testing.T) {

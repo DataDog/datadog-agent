@@ -17,17 +17,17 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/coreos/go-systemd/dbus"
 	godbus "github.com/godbus/dbus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 const systemdVersion = "241"
@@ -968,19 +968,12 @@ func TestGetPropertyBool(t *testing.T) {
 	}
 }
 
-type mockAutoConfig struct{}
-
-func (*mockAutoConfig) MapOverLoadedConfigs(f func(map[string]integration.Config)) {
-	f(map[string]integration.Config{})
+type mockCollector struct {
+	Checks []check.Info
 }
 
-type mockCollector struct{}
-
-func (*mockCollector) GetAllInstanceIDs(checkName string) []check.ID {
-	if checkName == "systemd" {
-		return []check.ID{"systemd"}
-	}
-	return nil
+func (m mockCollector) MapOverChecks(fn func([]check.Info)) {
+	fn(m.Checks)
 }
 
 func TestGetVersion(t *testing.T) {
@@ -994,20 +987,31 @@ unit_names:
 	stats.On("ListUnits", mock.Anything).Return([]dbus.UnitStatus{}, nil)
 	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
-	check := SystemdCheck{
+	systemdCheck := SystemdCheck{
 		stats:     stats,
 		CheckBase: core.NewCheckBase(systemdCheckName),
 	}
-	mockSender := mocksender.NewMockSender(check.ID())
+	mockSender := mocksender.NewMockSender(systemdCheck.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
-	check.Configure(rawInstanceConfig, nil, "test")
+	systemdCheck.Configure(rawInstanceConfig, nil, "test")
 	// run
-	check.Run()
+	systemdCheck.Run()
 
-	p := inventories.GetPayload(context.Background(), "testHostname", &mockAutoConfig{}, &mockCollector{})
+	coll := mockCollector{
+		[]check.Info{
+			check.MockInfo{
+				Name:         "systemd",
+				CheckID:      systemdCheck.ID(),
+				Source:       "provider1",
+				InitConf:     "",
+				InstanceConf: "{}",
+			},
+		}}
+
+	p := inventories.GetPayload(context.Background(), "testHostname", coll)
 	checkMetadata := *p.CheckMetadata
 	systemdMetadata := *checkMetadata["systemd"][0]
 	assert.Equal(t, systemdVersion, systemdMetadata["version.raw"])
