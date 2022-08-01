@@ -42,7 +42,6 @@ struct bpf_map_def SEC("maps/str_array_buffers") str_array_buffers = {
     .namespace = "",
 };
 
-#define MAX_PATH_LEN 256
 struct exec_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -139,6 +138,8 @@ struct _tracepoint_sched_process_exec {
     pid_t pid;
     pid_t old_pid;
 };
+
+#define MAX_PATH_LEN 256
 
 struct exec_path {
     char filename[MAX_PATH_LEN];

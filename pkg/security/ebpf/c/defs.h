@@ -1,8 +1,6 @@
 #ifndef _DEFS_H_
 #define _DEFS_H_
 
-#include <linux/fs.h>
-
 #include "bpf_helpers.h"
 
 #include "constants.h"
@@ -262,27 +260,6 @@ struct process_context_t {
 struct container_context_t {
     char container_id[CONTAINER_ID_LEN];
 };
-
-// struct executable_t {
-//     struct path		f_path;
-// 	struct inode		*f_inode;	
-// };
-
-// struct interpreter_t {
-//     struct path		f_path;
-// 	struct inode		*f_inode;	
-// };
-
-// struct file_in_binprm_t {
-//     struct path		f_path;
-// 	struct inode		*f_inode;	/* cached value */
-// };
-
-// struct linux_binprm_t {
-// 	struct executable_t executable;
-// 	struct interpreter_t interpreter;
-// 	struct file_in_binprm_t file;
-// };
 
 enum file_flags {
     LOWER_LAYER = 1 << 0,
