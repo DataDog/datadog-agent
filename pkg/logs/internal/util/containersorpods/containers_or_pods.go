@@ -121,6 +121,11 @@ func NewDecidedChooser(decision LogWhat) Chooser {
 
 // Wait implements Chooser#Wait.
 func (ch *chooser) Wait(ctx context.Context) LogWhat {
+	// Assume if ctx has an error the context is cancelled or something gone wrong so can't tell which should be used
+	if ctx.Err() != nil {
+		return LogUnknown
+	}
+
 	ch.start()
 	select {
 	case c := <-ch.choice:

@@ -28,12 +28,14 @@ func (c *MockConfig) Set(key string, value interface{}) {
 
 // Mock is creating and returning a mock config
 func Mock(t *testing.T) *MockConfig {
+	// Attempt to make sure we don't have two mocks trying to update Datadog at the same time in a test
+	m.Lock()
+	defer m.Unlock()
+
 	// We only check isConfigMocked when registering a cleanup function. 'isConfigMocked' avoids nested calls to
 	// Mock to reset the config to a blank state. This way we have only one mock per test and test helpers can call
 	// Mock.
 	if t != nil {
-		m.Lock()
-		defer m.Unlock()
 		if isConfigMocked {
 			// The configuration is already mocked.
 			return &MockConfig{Datadog}
