@@ -68,6 +68,15 @@ static __always_inline void read_into_buffer_skb(char *buffer, struct __sk_buff*
     }
 }
 
+// This entry point is needed to bypass a memory limit on socket filters
+// See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues
+SEC("socket/http_filter_entry")
+int socket__http_filter_entry(struct __sk_buff *skb) {
+    bpf_tail_call_compat(skb, &http_progs, HTTP_PROG);
+    return 0;
+}
+
+
 SEC("socket/http_filter")
 int socket__http_filter(struct __sk_buff* skb) {
     skb_info_t skb_info;

@@ -19,7 +19,7 @@
 #define HTTPS_PORT 443
 #define SO_SUFFIX_SIZE 3
 
-static __always_inline void read_into_buffer_skb(char *buffer, struct __sk_buff* skb, skb_info_t *info) {
+static __always_inline void read_into_buffer_skb(char *buffer, struct __sk_buff *skb, skb_info_t *info) {
     u64 offset = (u64)info->data_off;
 
 #define BLK_SIZE (16)
@@ -76,8 +76,16 @@ static __always_inline void read_into_buffer_skb(char *buffer, struct __sk_buff*
         bpf_skb_load_bytes(skb, offset, buf, 1);
 }
 
+// This entry point is needed to bypass a memory limit on socket filters
+// See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues
+SEC("socket/http_filter_entry")
+int socket__http_filter_entry(struct __sk_buff *skb) {
+    bpf_tail_call_compat(skb, &http_progs, HTTP_PROG);
+    return 0;
+}
+
 SEC("socket/http_filter")
-int socket__http_filter(struct __sk_buff* skb) {
+int socket__http_filter(struct __sk_buff *skb) {
     skb_info_t skb_info;
     http_transaction_t http;
     __builtin_memset(&http, 0, sizeof(http));
@@ -90,7 +98,7 @@ int socket__http_filter(struct __sk_buff* skb) {
     // make sure we pass it on to `http_process` to ensure that any ongoing transaction is flushed.
     // Otherwise, don't bother to inspect packet contents
     // when there is no chance we're dealing with plain HTTP (or a finishing HTTPS socket)
-    if (!(http.tup.metadata&CONN_TYPE_TCP)) {
+    if (!(http.tup.metadata & CONN_TYPE_TCP)) {
         return 0;
     }
     if ((http.tup.sport == HTTPS_PORT || http.tup.dport == HTTPS_PORT) && !(skb_info.tcp_flags & TCPHDR_FIN)) {
@@ -108,14 +116,14 @@ int socket__http_filter(struct __sk_buff* skb) {
 }
 
 SEC("kprobe/tcp_sendmsg")
-int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
+int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
     // map connection tuple during SSL_do_handshake(ctx)
-    init_ssl_sock_from_do_handshake((struct sock*)PT_REGS_PARM1(ctx));
+    init_ssl_sock_from_do_handshake((struct sock *)PT_REGS_PARM1(ctx));
     return 0;
 }
 
 SEC("kretprobe/tcp_sendmsg")
-int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
+int kretprobe__tcp_sendmsg(struct pt_regs *ctx) {
     // send batch completion notification to userspace
     // because perf events can't be sent from socket filter programs
     http_notify_batch(ctx);
@@ -123,7 +131,7 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
 }
 
 SEC("uprobe/SSL_do_handshake")
-int uprobe__SSL_do_handshake(struct pt_regs* ctx) {
+int uprobe__SSL_do_handshake(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
     bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
@@ -131,14 +139,14 @@ int uprobe__SSL_do_handshake(struct pt_regs* ctx) {
 }
 
 SEC("uretprobe/SSL_do_handshake")
-int uretprobe__SSL_do_handshake(struct pt_regs* ctx) {
+int uretprobe__SSL_do_handshake(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
     return 0;
 }
 
 SEC("uprobe/SSL_connect")
-int uprobe__SSL_connect(struct pt_regs* ctx) {
+int uprobe__SSL_connect(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
     bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
@@ -146,7 +154,7 @@ int uprobe__SSL_connect(struct pt_regs* ctx) {
 }
 
 SEC("uretprobe/SSL_connect")
-int uretprobe__SSL_connect(struct pt_regs* ctx) {
+int uretprobe__SSL_connect(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
     return 0;
@@ -154,7 +162,7 @@ int uretprobe__SSL_connect(struct pt_regs* ctx) {
 
 // this uprobe is essentially creating an index mapping a SSL context to a conn_tuple_t
 SEC("uprobe/SSL_set_fd")
-int uprobe__SSL_set_fd(struct pt_regs* ctx) {
+int uprobe__SSL_set_fd(struct pt_regs *ctx) {
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
     u32 socket_fd = (u32)PT_REGS_PARM2(ctx);
     init_ssl_sock(ssl_ctx, socket_fd);
@@ -162,7 +170,7 @@ int uprobe__SSL_set_fd(struct pt_regs* ctx) {
 }
 
 SEC("uprobe/BIO_new_socket")
-int uprobe__BIO_new_socket(struct pt_regs* ctx) {
+int uprobe__BIO_new_socket(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 socket_fd = (u32)PT_REGS_PARM1(ctx);
     bpf_map_update_elem(&bio_new_socket_args, &pid_tgid, &socket_fd, BPF_ANY);
@@ -170,7 +178,7 @@ int uprobe__BIO_new_socket(struct pt_regs* ctx) {
 }
 
 SEC("uretprobe/BIO_new_socket")
-int uretprobe__BIO_new_socket(struct pt_regs* ctx) {
+int uretprobe__BIO_new_socket(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 *socket_fd = bpf_map_lookup_elem(&bio_new_socket_args, &pid_tgid);
     if (socket_fd == NULL) {
@@ -183,17 +191,17 @@ int uretprobe__BIO_new_socket(struct pt_regs* ctx) {
     }
     u32 fd = *socket_fd; // copy map value into stack (required by older Kernels)
     bpf_map_update_elem(&fd_by_ssl_bio, &bio, &fd, BPF_ANY);
- cleanup:
+cleanup:
     bpf_map_delete_elem(&bio_new_socket_args, &pid_tgid);
     return 0;
 }
 
 SEC("uprobe/SSL_set_bio")
-int uprobe__SSL_set_bio(struct pt_regs* ctx) {
+int uprobe__SSL_set_bio(struct pt_regs *ctx) {
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
     void *bio = (void *)PT_REGS_PARM2(ctx);
     u32 *socket_fd = bpf_map_lookup_elem(&fd_by_ssl_bio, &bio);
-    if (socket_fd == NULL)  {
+    if (socket_fd == NULL) {
         return 0;
     }
     init_ssl_sock(ssl_ctx, *socket_fd);
@@ -202,8 +210,8 @@ int uprobe__SSL_set_bio(struct pt_regs* ctx) {
 }
 
 SEC("uprobe/SSL_read")
-int uprobe__SSL_read(struct pt_regs* ctx) {
-    ssl_read_args_t args = {0};
+int uprobe__SSL_read(struct pt_regs *ctx) {
+    ssl_read_args_t args = { 0 };
     args.ctx = (void *)PT_REGS_PARM1(ctx);
     args.buf = (void *)PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -212,7 +220,7 @@ int uprobe__SSL_read(struct pt_regs* ctx) {
 }
 
 SEC("uretprobe/SSL_read")
-int uretprobe__SSL_read(struct pt_regs* ctx) {
+int uretprobe__SSL_read(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     ssl_read_args_t *args = bpf_map_lookup_elem(&ssl_read_args, &pid_tgid);
     if (args == NULL) {
@@ -227,13 +235,13 @@ int uretprobe__SSL_read(struct pt_regs* ctx) {
 
     u32 len = (u32)PT_REGS_RC(ctx);
     https_process(t, args->buf, len, LIBSSL);
- cleanup:
+cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
 }
 
 SEC("uprobe/SSL_write")
-int uprobe__SSL_write(struct pt_regs* ctx) {
+int uprobe__SSL_write(struct pt_regs *ctx) {
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_ctx, pid_tgid);
@@ -248,7 +256,7 @@ int uprobe__SSL_write(struct pt_regs* ctx) {
 }
 
 SEC("uprobe/SSL_shutdown")
-int uprobe__SSL_shutdown(struct pt_regs* ctx) {
+int uprobe__SSL_shutdown(struct pt_regs *ctx) {
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_ctx, pid_tgid);
@@ -267,7 +275,7 @@ int uprobe__SSL_shutdown(struct pt_regs* ctx) {
 
 // void gnutls_transport_set_int2 (gnutls_session_t session, int recv_fd, int send_fd)
 SEC("uprobe/gnutls_transport_set_int2")
-int uprobe__gnutls_transport_set_int2(struct pt_regs* ctx) {
+int uprobe__gnutls_transport_set_int2(struct pt_regs *ctx) {
     void *ssl_session = (void *)PT_REGS_PARM1(ctx);
     // Use the recv_fd and ignore the send_fd;
     // in most real-world scenarios, they are the same.
@@ -280,7 +288,7 @@ int uprobe__gnutls_transport_set_int2(struct pt_regs* ctx) {
 // void gnutls_transport_set_ptr (gnutls_session_t session, gnutls_transport_ptr_t ptr)
 // "In berkeley style sockets this function will set the connection descriptor."
 SEC("uprobe/gnutls_transport_set_ptr")
-int uprobe__gnutls_transport_set_ptr(struct pt_regs* ctx) {
+int uprobe__gnutls_transport_set_ptr(struct pt_regs *ctx) {
     void *ssl_session = (void *)PT_REGS_PARM1(ctx);
     // This is a void*, but it might contain the socket fd cast as a pointer.
     int fd = (int)PT_REGS_PARM2(ctx);
@@ -292,7 +300,7 @@ int uprobe__gnutls_transport_set_ptr(struct pt_regs* ctx) {
 // void gnutls_transport_set_ptr2 (gnutls_session_t session, gnutls_transport_ptr_t recv_ptr, gnutls_transport_ptr_t send_ptr)
 // "In berkeley style sockets this function will set the connection descriptor."
 SEC("uprobe/gnutls_transport_set_ptr2")
-int uprobe__gnutls_transport_set_ptr2(struct pt_regs* ctx) {
+int uprobe__gnutls_transport_set_ptr2(struct pt_regs *ctx) {
     void *ssl_session = (void *)PT_REGS_PARM1(ctx);
     // Use the recv_ptr and ignore the send_ptr;
     // in most real-world scenarios, they are the same.
@@ -305,7 +313,7 @@ int uprobe__gnutls_transport_set_ptr2(struct pt_regs* ctx) {
 
 // ssize_t gnutls_record_recv (gnutls_session_t session, void * data, size_t data_size)
 SEC("uprobe/gnutls_record_recv")
-int uprobe__gnutls_record_recv(struct pt_regs* ctx) {
+int uprobe__gnutls_record_recv(struct pt_regs *ctx) {
     void *ssl_session = (void *)PT_REGS_PARM1(ctx);
     void *data = (void *)PT_REGS_PARM2(ctx);
 
@@ -321,7 +329,7 @@ int uprobe__gnutls_record_recv(struct pt_regs* ctx) {
 
 // ssize_t gnutls_record_recv (gnutls_session_t session, void * data, size_t data_size)
 SEC("uretprobe/gnutls_record_recv")
-int uretprobe__gnutls_record_recv(struct pt_regs* ctx) {
+int uretprobe__gnutls_record_recv(struct pt_regs *ctx) {
     ssize_t read_len = (ssize_t)PT_REGS_RC(ctx);
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -338,14 +346,14 @@ int uretprobe__gnutls_record_recv(struct pt_regs* ctx) {
     }
 
     https_process(t, args->buf, read_len, LIBGNUTLS);
- cleanup:
+cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
 }
 
 // ssize_t gnutls_record_send (gnutls_session_t session, const void * data, size_t data_size)
 SEC("uprobe/gnutls_record_send")
-int uprobe__gnutls_record_send(struct pt_regs* ctx) {
+int uprobe__gnutls_record_send(struct pt_regs *ctx) {
     void *ssl_session = (void *)PT_REGS_PARM1(ctx);
     void *data = (void *)PT_REGS_PARM2(ctx);
     size_t data_size = (size_t)PT_REGS_PARM3(ctx);
@@ -373,7 +381,7 @@ static __always_inline void gnutls_goodbye(void *ssl_session) {
 
 // int gnutls_bye (gnutls_session_t session, gnutls_close_request_t how)
 SEC("uprobe/gnutls_bye")
-int uprobe__gnutls_bye(struct pt_regs* ctx) {
+int uprobe__gnutls_bye(struct pt_regs *ctx) {
     void *ssl_session = (void *)PT_REGS_PARM1(ctx);
     gnutls_goodbye(ssl_session);
     return 0;
@@ -381,7 +389,7 @@ int uprobe__gnutls_bye(struct pt_regs* ctx) {
 
 // void gnutls_deinit (gnutls_session_t session)
 SEC("uprobe/gnutls_deinit")
-int uprobe__gnutls_deinit(struct pt_regs* ctx) {
+int uprobe__gnutls_deinit(struct pt_regs *ctx) {
     void *ssl_session = (void *)PT_REGS_PARM1(ctx);
     gnutls_goodbye(ssl_session);
     return 0;
@@ -399,9 +407,9 @@ static __always_inline int fill_path_safe(lib_path_t *path, char *path_argument)
     return 0;
 }
 
-static __always_inline int do_sys_open_helper_enter(struct pt_regs* ctx) {
+static __always_inline int do_sys_open_helper_enter(struct pt_regs *ctx) {
     char *path_argument = (char *)PT_REGS_PARM2(ctx);
-    lib_path_t path = {0};
+    lib_path_t path = { 0 };
     if (bpf_probe_read_user(path.buf, sizeof(path.buf), path_argument) >= 0) {
 // Find the null character and clean up the garbage following it
 #pragma unroll
@@ -428,16 +436,16 @@ static __always_inline int do_sys_open_helper_enter(struct pt_regs* ctx) {
 }
 
 SEC("kprobe/do_sys_open")
-int kprobe__do_sys_open(struct pt_regs* ctx) {
+int kprobe__do_sys_open(struct pt_regs *ctx) {
     return do_sys_open_helper_enter(ctx);
 }
 
 SEC("kprobe/do_sys_openat2")
-int kprobe__do_sys_openat2(struct pt_regs* ctx) {
+int kprobe__do_sys_openat2(struct pt_regs *ctx) {
     return do_sys_open_helper_enter(ctx);
 }
 
-static __always_inline int do_sys_open_helper_exit(struct pt_regs* ctx) {
+static __always_inline int do_sys_open_helper_exit(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // If file couldn't be opened, bail out
@@ -454,7 +462,7 @@ static __always_inline int do_sys_open_helper_exit(struct pt_regs* ctx) {
     bool is_shared_library = false;
 #pragma unroll
     for (int i = 0; i < LIB_PATH_MAX_SIZE - SO_SUFFIX_SIZE; i++) {
-        if (path->buf[i] == '.' && path->buf[i+1] == 's' && path->buf[i+2] == 'o') {
+        if (path->buf[i] == '.' && path->buf[i + 1] == 's' && path->buf[i + 2] == 'o') {
             is_shared_library = true;
             break;
         }
@@ -470,18 +478,18 @@ static __always_inline int do_sys_open_helper_exit(struct pt_regs* ctx) {
 
     u32 cpu = bpf_get_smp_processor_id();
     bpf_perf_event_output(ctx, &shared_libraries, cpu, &lib_path, sizeof(lib_path));
- cleanup:
+cleanup:
     bpf_map_delete_elem(&open_at_args, &pid_tgid);
     return 0;
 }
 
 SEC("kretprobe/do_sys_open")
-int kretprobe__do_sys_open(struct pt_regs* ctx) {
+int kretprobe__do_sys_open(struct pt_regs *ctx) {
     return do_sys_open_helper_exit(ctx);
 }
 
 SEC("kretprobe/do_sys_openat2")
-int kretprobe__do_sys_openat2(struct pt_regs* ctx) {
+int kretprobe__do_sys_openat2(struct pt_regs *ctx) {
     return do_sys_open_helper_exit(ctx);
 }
 
