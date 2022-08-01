@@ -165,8 +165,9 @@ func (jc *JoinsConfig) setupGetAllLabels() {
 }
 
 var labelRegexp *regexp.Regexp
+
 func init() {
-  labelRegexp = regexp.MustCompile(`[\/]|[\.]|[\-]`)
+	labelRegexp = regexp.MustCompile(`[\/]|[\.]|[\-]`)
 }
 
 func init() {
