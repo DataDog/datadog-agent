@@ -9,11 +9,12 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 )
 
 const (

@@ -24,6 +24,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	procmodel "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -471,9 +472,9 @@ instances:
 	redacted := `init_config:
 instances:
 - host: 127.0.0.1
-  api_key: ***************************aaaaa
+  api_key: "***************************aaaaa"
   port: 8082
-  api_key: ********
+  api_key: "********"
   version: 4 # omit this line if you're running pdns_recursor version 3.x`
 
 	err := writeScrubbedFile(filename, []byte(clear))
@@ -531,7 +532,7 @@ func TestZipProcessAgentFullConfig(t *testing.T) {
 		},
 	}
 
-	exp := `api_key: ***************************aaaaa
+	exp := `api_key: "***************************aaaaa"
 dd_url: https://my-url.com
 process_config:
   enabled: "true"`

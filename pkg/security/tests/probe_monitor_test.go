@@ -11,6 +11,7 @@ package tests
 import (
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -86,7 +87,9 @@ func truncatedParents(t *testing.T, opts testOpts) {
 			t.Fatal(err)
 		}
 
-		defer os.Remove(truncatedParentsFile)
+		// By default, the `t.TempDir` cleanup has a bit of a hard time cleaning up such a deep file
+		// let's help it by cleaning up most of the directories
+		defer cleanupABottomUp(truncatedParentsFile)
 
 		err = test.GetProbeCustomEvent(t, func() error {
 			f, err := os.OpenFile(truncatedParentsFile, os.O_CREATE, 0755)
@@ -124,6 +127,13 @@ func truncatedParents(t *testing.T, opts testOpts) {
 			}
 		})
 	})
+}
+
+func cleanupABottomUp(path string) {
+	for filepath.Base(path) == "a" {
+		os.RemoveAll(path)
+		path = filepath.Dir(path)
+	}
 }
 
 func TestTruncatedParentsMap(t *testing.T) {

@@ -1,15 +1,21 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package inventories
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/gohai/cpu"
 	"github.com/DataDog/gohai/memory"
 	"github.com/DataDog/gohai/network"
 	"github.com/DataDog/gohai/platform"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (

@@ -8,8 +8,9 @@ package pipeline
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"

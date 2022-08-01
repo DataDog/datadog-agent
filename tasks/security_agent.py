@@ -12,6 +12,7 @@ from .build_tags import get_default_build_tags
 from .go import golangci_lint
 from .system_probe import CLANG_CMD as CLANG_BPF_CMD
 from .system_probe import CURRENT_ARCH, get_ebpf_build_flags
+from .test import environ
 from .utils import (
     REPO_PATH,
     bin_name,
@@ -580,3 +581,32 @@ def generate_btfhub_constants(ctx, archive_path):
     ctx.run(
         f"go run ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path}",
     )
+
+
+@task
+def generate_ad_proto(ctx):
+    # The general view of which structures to pool is to currently pool the big ones.
+    # During testing/benchmarks we saw that enabling pooling for small/leaf nodes had a negative effect
+    # on both performance and memory.
+    # What could explain this impact is that putting back the node in the pool requires to walk the tree to put back
+    # child nodes. The maximum depth difference between nodes become a very important metric.
+    pool_structs = [
+        "ActivityDump",
+        "ProcessActivityNode",
+        "FileActivityNode",
+        "FileInfo",
+        "ProcessInfo",
+    ]
+
+    with tempfile.TemporaryDirectory() as temp_gobin:
+        with environ({"GOBIN": temp_gobin}):
+            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.0")
+            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.3.0")
+
+            pool_opts = " ".join(
+                f"--go-vtproto_opt=pool=pkg/security/adproto/v1.{struct_name}" for struct_name in pool_structs
+            )
+            plugin_opts = f"--plugin protoc-gen-go=\"{temp_gobin}/protoc-gen-go\" --plugin protoc-gen-go-vtproto=\"{temp_gobin}/protoc-gen-go-vtproto\""
+            ctx.run(
+                f"protoc -I. --go_out=paths=source_relative:. --go-vtproto_out=. {plugin_opts} --go-vtproto_opt=features=pool+marshal+unmarshal+size {pool_opts} pkg/security/adproto/v1/activity_dump.proto"
+            )

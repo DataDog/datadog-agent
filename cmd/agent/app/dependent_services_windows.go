@@ -11,9 +11,10 @@ import (
 	"fmt"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc/mgr"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type serviceInitFunc func() (err error)

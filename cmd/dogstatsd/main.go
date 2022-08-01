@@ -220,7 +220,7 @@ func runAgent(ctx context.Context) (err error) {
 	}
 
 	if config.Datadog.GetBool("inventories_enabled") {
-		if err = metadata.SetupInventories(metaScheduler, nil, nil); err != nil {
+		if err = metadata.SetupInventories(metaScheduler, nil); err != nil {
 			return
 		}
 	}

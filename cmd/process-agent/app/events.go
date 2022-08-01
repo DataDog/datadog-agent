@@ -244,7 +244,7 @@ func fmtProcessEvents(events []*model.ProcessEvent) []*payload.ProcessEvent {
 			exit := &payload.ProcessExit{
 				ExecTime: e.ExecTime.UnixNano(),
 				ExitTime: e.ExitTime.UnixNano(),
-				ExitCode: 0,
+				ExitCode: int32(e.ExitCode),
 			}
 			pE.TypedEvent = &payload.ProcessEvent_Exit{Exit: exit}
 		default:

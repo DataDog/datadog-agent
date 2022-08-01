@@ -19,11 +19,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cihub/seelog"
+	"github.com/stretchr/testify/assert"
+
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
-	"github.com/cihub/seelog"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestMain(m *testing.M) {
@@ -354,6 +355,7 @@ func TestSite(t *testing.T) {
 		"eu":       {"./testdata/site_eu.yaml", "https://trace.agent.datadoghq.eu"},
 		"url":      {"./testdata/site_url.yaml", "some.other.datadoghq.eu"},
 		"override": {"./testdata/site_override.yaml", "some.other.datadoghq.eu"},
+		"vector":   {"./testdata/vector_override.yaml", "https://vector.domain.tld:8443"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			defer cleanConfig()()

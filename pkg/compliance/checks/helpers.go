@@ -14,14 +14,15 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/Masterminds/sprig"
+	yamlv2 "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/Masterminds/sprig"
-	yamlv2 "gopkg.in/yaml.v2"
-	"gopkg.in/yaml.v3"
 )
 
 // getter applies jq query to get string value from json or yaml raw data

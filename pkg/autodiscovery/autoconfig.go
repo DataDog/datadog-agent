@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
@@ -23,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"go.uber.org/atomic"
 )
 
 var listenerCandidateIntl = 30 * time.Second
@@ -114,7 +115,7 @@ func (ac *AutoConfig) serviceListening() {
 		case svc := <-ac.newService:
 			ac.processNewService(ctx, svc)
 		case svc := <-ac.delService:
-			ac.processDelService(svc)
+			ac.processDelService(ctx, svc)
 		case <-tagFreshnessTicker.C:
 			ac.checkTagFreshness(ctx)
 		}
@@ -137,7 +138,7 @@ func (ac *AutoConfig) checkTagFreshness(ctx context.Context) {
 	}
 	for _, service := range servicesToRefresh {
 		log.Debugf("Tags changed for service %s, rescheduling associated checks if any", service.GetTaggerEntity())
-		ac.processDelService(service)
+		ac.processDelService(ctx, service)
 		ac.processNewService(ctx, service)
 	}
 }
@@ -468,9 +469,9 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 }
 
 // processDelService takes a service, stops its associated checks, and updates the cache
-func (ac *AutoConfig) processDelService(svc listeners.Service) {
+func (ac *AutoConfig) processDelService(ctx context.Context, svc listeners.Service) {
 	ac.store.removeServiceForEntity(svc.GetServiceID())
-	changes := ac.cfgMgr.processDelService(svc)
+	changes := ac.cfgMgr.processDelService(ctx, svc)
 	ac.store.removeTagsHashForService(svc.GetTaggerEntity())
 
 	if !util.CcaInAD() {

@@ -38,7 +38,7 @@ const mbSize float64 = 1024 * 1024
 
 // Configure handles initial configuration/initialization of the check
 func (c *Check) Configure(data integration.Data, initConfig integration.Data, source string) (err error) {
-	if err := c.CommonConfigure(data, source); err != nil {
+	if err := c.CommonConfigure(initConfig, data, source); err != nil {
 		return err
 	}
 

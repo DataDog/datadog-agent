@@ -14,6 +14,8 @@ import (
 	"math"
 	"time"
 
+	dockerTypes "github.com/docker/docker/api/types"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -28,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	dockerTypes "github.com/docker/docker/api/types"
 )
 
 const (
@@ -63,7 +64,7 @@ func DockerFactory() check.Check {
 
 // Configure parses the check configuration and init the check
 func (d *DockerCheck) Configure(config, initConfig integration.Data, source string) error {
-	err := d.CommonConfigure(config, source)
+	err := d.CommonConfigure(initConfig, config, source)
 	if err != nil {
 		return err
 	}

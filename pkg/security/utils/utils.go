@@ -6,8 +6,9 @@
 package utils
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/Masterminds/semver"
+
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // GetAgentSemverVersion returns the agent version as a semver version

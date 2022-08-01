@@ -13,6 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/go-systemd/dbus"
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -20,8 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/coreos/go-systemd/dbus"
-	"gopkg.in/yaml.v2"
 
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
@@ -524,7 +525,7 @@ func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig int
 	// Must be called before CommonConfigure that uses checkID
 	c.BuildID(rawInstance, rawInitConfig)
 
-	err := c.CommonConfigure(rawInstance, source)
+	err := c.CommonConfigure(rawInitConfig, rawInstance, source)
 	if err != nil {
 		return err
 	}

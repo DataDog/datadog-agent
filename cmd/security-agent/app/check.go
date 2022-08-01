@@ -15,6 +15,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/cihub/seelog"
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
@@ -26,8 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
-	"github.com/cihub/seelog"
-	"github.com/spf13/cobra"
 )
 
 var (

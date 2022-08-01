@@ -121,6 +121,7 @@ func ReportInitError(id registration.ID, errorEnum ErrorEnum) error {
 		return fmt.Errorf("ReportInitError: while POST init error route: %s", err)
 	}
 
+	defer response.Body.Close()
 	if response.StatusCode >= 300 {
 		return fmt.Errorf("ReportInitError: received an HTTP %s", response.Status)
 	}

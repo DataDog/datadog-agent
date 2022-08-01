@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/suite"
+
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 type ConfigTestSuite struct {

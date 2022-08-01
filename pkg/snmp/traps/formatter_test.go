@@ -8,9 +8,12 @@ package traps
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net"
 	"sort"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gosnmp/gosnmp"
@@ -508,4 +511,66 @@ func TestFormatterWithResolverAndTrapV1Generic(t *testing.T) {
 		"device_namespace:porco_rosso",
 		"snmp_device:127.0.0.1",
 	})
+}
+
+func TestIsValidOID_PropertyBasedTesting(t *testing.T) {
+	rand.Seed(time.Now().Unix())
+	testSize := 100
+	validOIDs := make([]string, testSize)
+	for i := 0; i < testSize; i++ {
+		// Valid cases
+		oidLen := rand.Intn(100) + 2
+		oidParts := make([]string, oidLen)
+		for j := 0; j < oidLen; j++ {
+			oidParts[j] = fmt.Sprint(rand.Intn(100000))
+		}
+		recreatedOID := strings.Join(oidParts, ".")
+		if rand.Intn(2) == 0 {
+			recreatedOID = "." + recreatedOID
+		}
+		validOIDs[i] = recreatedOID
+		require.True(t, IsValidOID(validOIDs[i]), "OID: %s", validOIDs[i])
+	}
+
+	var invalidRunes = []rune(",?><|\\}{[]()*&^%$#@!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	for i := 0; i < testSize; i++ {
+		// Valid cases
+		oid := validOIDs[i]
+		x := 0
+		switch x = rand.Intn(3); x {
+		case 0:
+			// Append a dot at the end, this is not possible
+			oid = oid + "."
+		case 1:
+			// Append a random invalid character anywhere
+			randomRune := invalidRunes[rand.Intn(len(invalidRunes))]
+			randomIdx := rand.Intn(len(oid))
+			oid = oid[:randomIdx] + string(randomRune) + oid[randomIdx:]
+		case 2:
+			// Put two dots next to each other
+			oidParts := strings.Split(oid, ".")
+			randomIdx := rand.Intn(len(oidParts)-1) + 1
+			oidParts[randomIdx] = "." + oidParts[randomIdx]
+			oid = strings.Join(oidParts, ".")
+		}
+
+		require.False(t, IsValidOID(oid), "OID: %s", oid)
+	}
+}
+
+func TestIsValidOID_Unit(t *testing.T) {
+	cases := map[string]bool{
+		"1.3.6.1.4.1.4962.2.1.6.3":       true,
+		".1.3.6.1.4.1.4962.2.1.6.999999": true,
+		"1":                              true,
+		"1.3.6.1.4.1.4962.2.1.-6.3":      false,
+		"1.3.6.1.4.1..4962.2.1.6.3":      false,
+		"1.3.6.1foo.4.1.4962.2.1.6.3":    false,
+		"1.3.6.1foo.4.1.4962_2.1.6.3":    false,
+		"1.3.6.1.4.1.4962.2.1.6.999999.": false,
+	}
+
+	for oid, expected := range cases {
+		require.Equal(t, expected, IsValidOID(oid))
+	}
 }

@@ -12,12 +12,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"github.com/mohae/deepcopy"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 // assertConfigsMatch verifies that the given slice of changes has exactly
@@ -189,7 +190,7 @@ func (suite *ConfigManagerSuite) TestNewTemplateBeforeService_ConfigRemovedFirst
 	assertConfigsMatch(suite.T(), changes.schedule)
 	assertConfigsMatch(suite.T(), changes.unschedule, matchAll(matchName("template"), matchLogsConfig("source: myhost\n")))
 
-	changes = suite.cm.processDelService(myService)
+	changes = suite.cm.processDelService(context.TODO(), myService)
 	assertConfigsMatch(suite.T(), changes.schedule)
 	assertConfigsMatch(suite.T(), changes.unschedule)
 }
@@ -206,7 +207,7 @@ func (suite *ConfigManagerSuite) TestNewTemplateBeforeService_ServiceRemovedFirs
 	assertConfigsMatch(suite.T(), changes.schedule, matchAll(matchName("template"), matchLogsConfig("source: myhost\n")))
 	assertConfigsMatch(suite.T(), changes.unschedule)
 
-	changes = suite.cm.processDelService(myService)
+	changes = suite.cm.processDelService(context.TODO(), myService)
 	assertConfigsMatch(suite.T(), changes.schedule)
 	assertConfigsMatch(suite.T(), changes.unschedule, matchAll(matchName("template"), matchLogsConfig("source: myhost\n")))
 
@@ -231,7 +232,7 @@ func (suite *ConfigManagerSuite) TestNewServiceBeforeTemplate_ConfigRemovedFirst
 	assertConfigsMatch(suite.T(), changes.schedule)
 	assertConfigsMatch(suite.T(), changes.unschedule, matchAll(matchName("template"), matchLogsConfig("source: myhost\n")))
 
-	changes = suite.cm.processDelService(myService)
+	changes = suite.cm.processDelService(context.TODO(), myService)
 	assertConfigsMatch(suite.T(), changes.schedule)
 	assertConfigsMatch(suite.T(), changes.unschedule)
 }
@@ -248,7 +249,7 @@ func (suite *ConfigManagerSuite) TestNewServiceBeforeTemplate_ServiceRemovedFirs
 	assertConfigsMatch(suite.T(), changes.schedule, matchAll(matchName("template"), matchLogsConfig("source: myhost\n")))
 	assertConfigsMatch(suite.T(), changes.unschedule)
 
-	changes = suite.cm.processDelService(myService)
+	changes = suite.cm.processDelService(context.TODO(), myService)
 	assertConfigsMatch(suite.T(), changes.schedule)
 	assertConfigsMatch(suite.T(), changes.unschedule, matchAll(matchName("template"), matchLogsConfig("source: myhost\n")))
 
@@ -358,7 +359,7 @@ func (suite *ConfigManagerSuite) TestFuzz() {
 						delete(services, id)
 						adIDs, _ := svc.GetADIdentifiers(context.Background())
 						fmt.Printf("remove service %s with AD idents %s\n", id, strings.Join(adIDs, ", "))
-						applyChanges(cm.processDelService(svc))
+						applyChanges(cm.processDelService(context.TODO(), svc))
 						break
 					}
 					i--
@@ -466,7 +467,7 @@ func (suite *ReconcilingConfigManagerSuite) TestServiceTemplateFiltering() {
 	)
 
 	// removing a service removes only the scheduled configs
-	changes = suite.cm.processDelService(filterSvc)
+	changes = suite.cm.processDelService(context.TODO(), filterSvc)
 	assertConfigsMatch(suite.T(), changes.schedule)
 	assertConfigsMatch(suite.T(), changes.unschedule, matchAll(matchName("cfg2-keep"), matchSvc("filter")))
 	assertLoadedConfigsMatch(suite.T(), suite.cm,
