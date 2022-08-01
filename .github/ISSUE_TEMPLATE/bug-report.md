@@ -8,8 +8,8 @@ assignees: ''
 ---
 
 <!--
-If you have identified a specific bug in the Agent codebase, please describe it here.  If the
-issue requires further debugging or investigation, that will be best accomplished via support.  Please please contact Datadog [support](http://docs.datadoghq.com/help/) and send them a [flare](https://docs.datadoghq.com/agent/troubleshooting/#send-a-flare) demonstrating the issue.
+If you have identified a specific bug in the Agent codebase, please describe it here. If the
+issue requires further debugging or investigation, that will be best accomplished via support. Please please contact Datadog [support](http://docs.datadoghq.com/help/) and send them a [flare](https://docs.datadoghq.com/agent/troubleshooting/#send-a-flare) demonstrating the issue.
 -->
 
 **Agent Environment**
