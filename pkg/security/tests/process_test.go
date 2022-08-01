@@ -1460,7 +1460,7 @@ chmod 755 pyscript.py
 			name: "nested interpreted exec",
 			rule: &rules.RuleDefinition{
 				ID:         "test_nested_interpreted_event",
-				Expression: fmt.Sprintf(`exec.interpreter_base_name == ~"perl" `),
+				Expression: fmt.Sprintf(`exec.interpreter_base_name == ~"perl"`),
 			},
 			scriptName: "nestedInterpretedExec.sh",
 			executedScript: `#!/bin/bash
@@ -1506,10 +1506,10 @@ chmod 755 pyscript.py
 			Expression: fmt.Sprintf(`exec.file.name == ~"python*"`),
 		}, {
 			ID:         "test_interpreted_event",
-			Expression: fmt.Sprintf(`exec.interpreter_base_name == ~"python*"`),
+			Expression: fmt.Sprintf(`exec.interpreter.file.name == ~"python*"`),
 		}, {
 			ID:         "test_nested_interpreted_event",
-			Expression: fmt.Sprintf(`exec.interpreter_base_name == ~"perl" `),
+			Expression: fmt.Sprintf(`exec.interpreter.file.name == ~"perl"`),
 		},
 	}
 
