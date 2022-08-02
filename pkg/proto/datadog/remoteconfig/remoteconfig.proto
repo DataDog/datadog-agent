@@ -72,6 +72,7 @@ message Client {
   bool is_agent = 8;
   ClientAgent client_agent = 9;
   uint64 last_seen = 10;
+  bytes capabilities = 11;
 }
 
 message ClientTracer {

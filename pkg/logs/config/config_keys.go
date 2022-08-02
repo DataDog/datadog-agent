@@ -200,6 +200,16 @@ func (l *LogsConfigKeys) batchMaxContentSize() int {
 	return batchMaxContentSize
 }
 
+func (l *LogsConfigKeys) inputChanSize() int {
+	key := l.getConfigKey("input_chan_size")
+	inputChanSize := l.getConfig().GetInt(key)
+	if inputChanSize <= 0 {
+		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, inputChanSize, coreConfig.DefaultInputChanSize)
+		return coreConfig.DefaultInputChanSize
+	}
+	return inputChanSize
+}
+
 func (l *LogsConfigKeys) senderBackoffFactor() float64 {
 	key := l.getConfigKey("sender_backoff_factor")
 	senderBackoffFactor := l.getConfig().GetFloat64(key)
