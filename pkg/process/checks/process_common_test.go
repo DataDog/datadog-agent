@@ -6,6 +6,7 @@
 package checks
 
 import (
+	"math/rand"
 	"runtime"
 	"strings"
 	"testing"
@@ -41,8 +42,14 @@ func makeProcess(pid int32, cmdline string) *procutil.Process {
 		Pid:     pid,
 		Cmdline: strings.Split(cmdline, " "),
 		Stats: &procutil.Stats{
-			CPUPercent:  &procutil.CPUPercentStat{UserPct: 11, SystemPct: 22},
-			MemInfo:     &procutil.MemoryInfoStat{RSS: 30, VMS: 40},
+			CPUPercent: &procutil.CPUPercentStat{
+				UserPct:   float64(rand.Uint64()),
+				SystemPct: float64(rand.Uint64()),
+			},
+			MemInfo: &procutil.MemoryInfoStat{
+				RSS: rand.Uint64(),
+				VMS: rand.Uint64(),
+			},
 			MemInfoEx:   &procutil.MemoryInfoExStat{},
 			IOStat:      &procutil.IOCountersStat{},
 			CtxSwitches: &procutil.NumCtxSwitchesStat{},
