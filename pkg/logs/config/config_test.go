@@ -643,3 +643,61 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithoutVector() {
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
 }
+
+func (suite *ConfigTestSuite) TestEndpointsSetNonDefaultCustomConfigs() {
+	suite.config.Set("api_key", "123")
+
+	suite.config.Set("network_devices.netflow.forwarder.use_compression", false)
+	suite.config.Set("network_devices.netflow.forwarder.compression_level", 10)
+	suite.config.Set("network_devices.netflow.forwarder.batch_wait", 10)
+	suite.config.Set("network_devices.netflow.forwarder.connection_reset_interval", 3)
+	suite.config.Set("network_devices.netflow.forwarder.logs_no_ssl", true)
+	suite.config.Set("network_devices.netflow.forwarder.batch_max_concurrent_send", 15)
+	suite.config.Set("network_devices.netflow.forwarder.batch_max_content_size", 6000000)
+	suite.config.Set("network_devices.netflow.forwarder.batch_max_size", 2000)
+	suite.config.Set("network_devices.netflow.forwarder.input_chan_size", 5000)
+	suite.config.Set("network_devices.netflow.forwarder.sender_backoff_factor", 4.0)
+	suite.config.Set("network_devices.netflow.forwarder.sender_backoff_base", 2.0)
+	suite.config.Set("network_devices.netflow.forwarder.sender_backoff_max", 150.0)
+	suite.config.Set("network_devices.netflow.forwarder.sender_recovery_interval", 5)
+	suite.config.Set("network_devices.netflow.forwarder.sender_recovery_reset", true)
+	suite.config.Set("network_devices.netflow.forwarder.use_v2_api", true)
+
+	logsConfig := NewLogsConfigKeys("network_devices.netflow.forwarder.", suite.config)
+	endpoints, err := BuildHTTPEndpointsWithConfig(logsConfig, "ndmflow-intake.", "ndmflow", "test-proto", "test-origin")
+
+	suite.Nil(err)
+
+	main := Endpoint{
+		APIKey:                  "123",
+		Host:                    "ndmflow-intake.datadoghq.com",
+		Port:                    0,
+		UseSSL:                  true,
+		UseCompression:          false,
+		CompressionLevel:        10,
+		BackoffFactor:           4,
+		BackoffBase:             2,
+		BackoffMax:              150,
+		RecoveryInterval:        5,
+		Version:                 EPIntakeVersion2,
+		TrackType:               "ndmflow",
+		ConnectionResetInterval: 3000000000,
+		RecoveryReset:           true,
+		Protocol:                "test-proto",
+		Origin:                  "test-origin",
+	}
+
+	expectedEndpoints := &Endpoints{
+		UseHTTP:                true,
+		BatchWait:              10 * time.Second,
+		Main:                   main,
+		Endpoints:              []Endpoint{main},
+		BatchMaxSize:           2000,
+		BatchMaxContentSize:    6000000,
+		BatchMaxConcurrentSend: 15,
+		InputChanSize:          5000,
+	}
+
+	suite.Nil(err)
+	suite.Equal(expectedEndpoints, endpoints)
+}
