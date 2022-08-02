@@ -41,12 +41,54 @@ func makeProcess(pid int32, cmdline string) *procutil.Process {
 		Pid:     pid,
 		Cmdline: strings.Split(cmdline, " "),
 		Stats: &procutil.Stats{
-			CPUTime:     &procutil.CPUTimesStat{},
-			MemInfo:     &procutil.MemoryInfoStat{},
+			CPUPercent:  &procutil.CPUPercentStat{UserPct: 11, SystemPct: 22},
+			MemInfo:     &procutil.MemoryInfoStat{RSS: 30, VMS: 40},
 			MemInfoEx:   &procutil.MemoryInfoExStat{},
 			IOStat:      &procutil.IOCountersStat{},
 			CtxSwitches: &procutil.NumCtxSwitchesStat{},
 		},
+	}
+}
+
+func makeProcessModel(t *testing.T, process *procutil.Process) *model.Process {
+	t.Helper()
+
+	stats := process.Stats
+	mem := stats.MemInfo
+	cpu := stats.CPUPercent
+	return &model.Process{
+		Pid:     process.Pid,
+		Command: &model.Command{Args: process.Cmdline},
+		User:    &model.ProcessUser{},
+		Memory:  &model.MemoryStat{Rss: mem.RSS, Vms: mem.VMS},
+		Cpu: &model.CPUStat{
+			LastCpu:   "cpu",
+			UserPct:   float32(cpu.UserPct),
+			SystemPct: float32(cpu.SystemPct),
+			TotalPct:  float32(cpu.UserPct + cpu.SystemPct),
+		},
+		IoStat:   &model.IOStat{},
+		Networks: &model.ProcessNetworks{},
+	}
+}
+
+func makeProcessStatModel(t *testing.T, process *procutil.Process) *model.ProcessStat {
+	t.Helper()
+
+	stats := process.Stats
+	mem := stats.MemInfo
+	cpu := stats.CPUPercent
+	return &model.ProcessStat{
+		Pid:    process.Pid,
+		Memory: &model.MemoryStat{Rss: mem.RSS, Vms: mem.VMS},
+		Cpu: &model.CPUStat{
+			LastCpu:   "cpu",
+			UserPct:   float32(cpu.UserPct),
+			SystemPct: float32(cpu.SystemPct),
+			TotalPct:  float32(cpu.UserPct + cpu.SystemPct),
+		},
+		IoStat:   &model.IOStat{},
+		Networks: &model.ProcessNetworks{},
 	}
 }
 
