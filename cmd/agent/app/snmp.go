@@ -6,6 +6,7 @@
 package app
 
 import (
+	"encoding/hex"
 	"fmt"
 	"os"
 	"strconv"
@@ -296,18 +297,11 @@ func printValue(pdu gosnmp.SnmpPDU) error {
 	case gosnmp.OctetString:
 		b := pdu.Value.([]byte)
 		if !utilFunc.IsStringPrintable(b) {
-			var strValue string
-			strValue = fmt.Sprintf("%X", b)
-			if len(strValue)%2 != 0 {
-				strValue = "0" + strValue
+			var strBytes []string
+			for _, bt := range b {
+				strBytes = append(strBytes, strings.ToUpper(hex.EncodeToString([]byte{bt})))
 			}
-			var message string
-			message = "Hex-STRING: "
-			for i := 0; i <= len(strValue)-4; i += 2 {
-				message += strValue[i:i+2] + " "
-			}
-			message += strValue[len(strValue)-2:] + "\n"
-			fmt.Print(message)
+			fmt.Print("Hex-STRING: " + strings.Join(strBytes, " ") + "\n")
 		} else {
 			fmt.Printf("STRING: %s\n", string(b))
 		}
