@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// CheckedProcess represents a process with potentially overridden fields
 type CheckedProcess struct {
 	inner        *process.Process
 	pid          int32
@@ -23,6 +24,7 @@ type CheckedProcess struct {
 	cmdLineSlice []string
 }
 
+// NewCheckedProcess returns a new checked process, based on a real process object
 func NewCheckedProcess(p *process.Process) *CheckedProcess {
 	return &CheckedProcess{
 		inner:        p,
@@ -32,6 +34,7 @@ func NewCheckedProcess(p *process.Process) *CheckedProcess {
 	}
 }
 
+// NewCheckedFakeProcess returns a new checked process, based on a fake object
 func NewCheckedFakeProcess(pid int32, name string, cmdLineSlice []string) *CheckedProcess {
 	return &CheckedProcess{
 		inner:        nil,
@@ -41,10 +44,12 @@ func NewCheckedFakeProcess(pid int32, name string, cmdLineSlice []string) *Check
 	}
 }
 
+// Pid returns the pid stored in this checked process
 func (p *CheckedProcess) Pid() int32 {
 	return p.pid
 }
 
+// Name returns the name stored in this checked process
 func (p *CheckedProcess) Name() (string, error) {
 	if p.name != "" || p.inner == nil {
 		return p.name, nil
@@ -58,6 +63,7 @@ func (p *CheckedProcess) Name() (string, error) {
 	return innerName, nil
 }
 
+// Exe returns the executable path stored in this checked process
 func (p *CheckedProcess) Exe() (string, error) {
 	if p.exe != "" || p.inner == nil {
 		return p.exe, nil
@@ -71,6 +77,7 @@ func (p *CheckedProcess) Exe() (string, error) {
 	return innerExe, nil
 }
 
+// CmdlineSlice returns the cmd line slice stored in this checked process
 func (p *CheckedProcess) CmdlineSlice() ([]string, error) {
 	if p.cmdLineSlice != nil || p.inner == nil {
 		return p.cmdLineSlice, nil
