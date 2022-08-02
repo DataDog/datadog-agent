@@ -121,7 +121,7 @@ struct bpf_map_def SEC("maps/traced_cgroups_lock") traced_cgroups_lock = {
 
 __attribute__((always_inline)) bool lock_cgroups_counter() {
     u32 key = 0;
-    return bpf_map_update_elem(&traced_cgroups_lock, &key, &key, BPF_NOEXIST);
+    return bpf_map_update_elem(&traced_cgroups_lock, &key, &key, BPF_NOEXIST) == 0;
 }
 
 __attribute__((always_inline)) void unlock_cgroups_counter() {
