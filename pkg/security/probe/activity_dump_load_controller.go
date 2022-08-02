@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/avast/retry-go"
 	"github.com/cilium/ebpf"
 )
 
@@ -72,6 +73,10 @@ func NewActivityDumpLoadController(cfg *config.Config, man *manager.Manager) (*A
 }
 
 func (lc *ActivityDumpLoadController) propagateLoadSettings() error {
+	return retry.Do(lc.propagateLoadSettingsRaw)
+}
+
+func (lc *ActivityDumpLoadController) propagateLoadSettingsRaw() error {
 	// init traced event types
 	isTraced := uint64(1)
 	for _, evtType := range lc.tracedEventTypes {
@@ -80,12 +85,12 @@ func (lc *ActivityDumpLoadController) propagateLoadSettings() error {
 		}
 	}
 
-	if err := lc.tracedCgroupsLockMap.Put(ebpfutils.ZeroUint32MapItem, uint32(1)); err != nil {
+	if err := lc.tracedCgroupsLockMap.Update(ebpfutils.ZeroUint32MapItem, uint32(1), ebpf.UpdateNoExist); err != nil {
 		return fmt.Errorf("failed to lock traced cgroup counter: %w", err)
 	}
 
 	defer func() {
-		if err := lc.tracedCgroupsLockMap.Put(ebpfutils.ZeroUint32MapItem, uint32(0)); err != nil {
+		if err := lc.tracedCgroupsLockMap.Delete(ebpfutils.ZeroUint32MapItem); err != nil {
 			log.Errorf("failed to unlock traced cgroup counter: %v", err)
 		}
 	}()
