@@ -235,7 +235,6 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	const size = 312 // size of struct exec_event_t starting from process_entry_t, inclusive
-	fmt.Printf("len of data: %d\n", len(data))
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -255,13 +254,11 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 
 	// Unmarshal linux_binprm_t
 	// 224-296 = 72 bytes
-	fmt.Printf("pre binprm offset: %d\n", read)
 	n, err = UnmarshalBinary(data[read:], &e.LinuxBinprm.FileEvent)
 	if err != nil {
 		return 0, err
 	}
 	read += n
-	fmt.Printf("post binprm offset: %d\n", read)
 
 	if len(data[read:]) < 16 {
 		return 0, ErrNotEnoughData
@@ -270,17 +267,11 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	e.ArgsID = ByteOrder.Uint32(data[read : read+4])
 	e.ArgsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
 	read += 8
-	fmt.Printf("post args offset: %d\n", read)
 
 	e.EnvsID = ByteOrder.Uint32(data[read : read+4])
 	e.EnvsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
 	read += 8
 
-	fmt.Printf("final offset: %d\n", read)
-	fmt.Printf("final left: %d\n", len(data[read:]))
-
-	fmt.Printf("final read: %d\n", read)
-	fmt.Printf("final size: %d\n", size)
 	return validateReadSize(size, read)
 }
 
