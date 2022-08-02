@@ -152,6 +152,10 @@ func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
 	ac.AddConfigProvider(mp, false, 0) // this should be a noop
 	ac.AddConfigProvider(&MockProvider2{}, true, 1*time.Second)
 	ac.LoadAndRun(context.Background())
+
+	ac.m.Lock()
+	defer ac.m.Unlock()
+
 	require.Len(suite.T(), ac.configPollers, 2)
 	assert.Equal(suite.T(), 1, mp.collectCounter)
 	assert.False(suite.T(), ac.configPollers[0].canPoll)

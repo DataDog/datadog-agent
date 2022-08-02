@@ -50,3 +50,12 @@ type ConfigProvider interface {
 	// The result is displayed in diagnostic tools such as `agent status`.
 	GetConfigErrors() map[string]ErrorMsgSet
 }
+
+// StreamingConfigProvider is an interface used together with ConfigProvider.
+// ConfigProviders that are able to use streaming should implement it, and the
+// config poller will use Stream instead of Collect to collect config changes.
+type StreamingConfigProvider interface {
+	// Stream starts the streaming config provider until the provided
+	// context is cancelled. Config changes are sent on the return channel.
+	Stream(context.Context) <-chan integration.ConfigChanges
+}
