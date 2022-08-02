@@ -230,6 +230,7 @@ func enrichBits(variable trapVariable, varMetadata VariableMetadata) interface{}
 			enabled, err := isBitEnabled(uint8(b), j)
 			if err != nil {
 				log.Debugf("unable to determine status at position %d: %s", position, err.Error())
+				continue
 			}
 			if enabled {
 				if value, ok := varMetadata.Bits[position]; !ok {
