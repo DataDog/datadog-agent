@@ -30,6 +30,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cihub/seelog"
+	"github.com/miekg/dns"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
@@ -37,11 +43,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
-	"github.com/miekg/dns"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/sync/errgroup"
 )
 
 type connTag = uint64
@@ -101,7 +102,6 @@ func TestGetStats(t *testing.T) {
         "msg_errors": 0,
         "orphan_size": 0,
         "read_errors": 0,
-        "registers_dropped": 2,
         "registers_total": 0,
         "sampling_pct": 100,
         "state_size": 0,
@@ -503,6 +503,42 @@ func TestTCPCollectionDisabled(t *testing.T) {
 	// Confirm that we could not find connection created above
 	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.False(t, ok)
+}
+
+func TestTCPConnsReported(t *testing.T) {
+	// Setup
+	config := testConfig()
+	config.CollectTCPConns = true
+
+	tr, err := NewTracer(config)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	processedChan := make(chan struct{})
+	server := NewTCPServer(func(c net.Conn) {
+		c.Close()
+		close(processedChan)
+	})
+	doneChan := make(chan struct{})
+	err = server.Run(doneChan)
+	require.NoError(t, err)
+	defer close(doneChan)
+
+	// Connect to server
+	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
+	require.NoError(t, err)
+	defer c.Close()
+	<-processedChan
+
+	// Test
+	initTracerState(t, tr)
+	connections := getConnections(t, tr)
+	// Server-side
+	_, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+	require.True(t, ok)
+	// Client-side
+	_, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	require.True(t, ok)
 }
 
 func TestUDPSendAndReceive(t *testing.T) {

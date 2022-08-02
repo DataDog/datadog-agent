@@ -13,7 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/atomic"
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 )
 
@@ -123,9 +124,9 @@ type counter struct {
 func newCounter(name string) *counter {
 	return &counter{
 		name:  name,
-		count: atomic.NewFloat(0),
-		max:   atomic.NewFloat(0),
-		sum:   atomic.NewFloat(0),
+		count: atomic.NewFloat64(0),
+		max:   atomic.NewFloat64(0),
+		sum:   atomic.NewFloat64(0),
 	}
 }
 

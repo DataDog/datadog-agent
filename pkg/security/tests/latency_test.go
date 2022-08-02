@@ -31,7 +31,7 @@ var (
 var benchLatencyhFS embed.FS
 
 // modified version of testModule.CreateWithOption, to be able to call it without testing module
-func CreateWithOptions(filename string, user, group, mode int) (string, unsafe.Pointer, error) {
+func CreateWithOptions(tb testing.TB, filename string, user, group, mode int) (string, unsafe.Pointer, error) {
 	var macros []*rules.MacroDefinition
 	var rules []*rules.RuleDefinition
 
@@ -39,7 +39,7 @@ func CreateWithOptions(filename string, user, group, mode int) (string, unsafe.P
 		return "", nil, err
 	}
 
-	st, err := newSimpleTest(macros, rules, "")
+	st, err := newSimpleTest(tb, macros, rules, "")
 	if err != nil {
 		return "", nil, err
 	}
@@ -62,14 +62,14 @@ func CreateWithOptions(filename string, user, group, mode int) (string, unsafe.P
 }
 
 // load embedded binary
-func loadBenchLatencyBin(binary string) (string, error) {
+func loadBenchLatencyBin(tb testing.TB, binary string) (string, error) {
 	testerBin, err := benchLatencyhFS.ReadFile(fmt.Sprintf("latency/bin/%s", binary))
 	if err != nil {
 		return "", err
 	}
 
 	perm := 0o700
-	binPath, _, _ := CreateWithOptions(binary, -1, -1, perm)
+	binPath, _, _ := CreateWithOptions(tb, binary, -1, -1, perm)
 
 	f, err := os.OpenFile(binPath, os.O_WRONLY|os.O_CREATE, os.FileMode(perm))
 	if err != nil {
@@ -100,7 +100,7 @@ func benchLatencyDNS(t *testing.T, rule *rules.RuleDefinition, executable string
 	}
 
 	// load bench binary
-	executable, err := loadBenchLatencyBin(executable)
+	executable, err := loadBenchLatencyBin(t, executable)
 	if err != nil {
 		t.Fatal(err)
 	}

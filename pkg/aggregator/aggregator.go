@@ -811,6 +811,9 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 }
 
 func (agg *BufferedAggregator) updateChecksTelemetry() {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+
 	t := metrics.CheckMetricsTelemetryAccumulator{}
 	for _, sampler := range agg.checkSamplers {
 		t.VisitCheckMetrics(&sampler.metrics)

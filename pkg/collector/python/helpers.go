@@ -13,9 +13,10 @@ import (
 	"runtime"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/atomic"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 /*

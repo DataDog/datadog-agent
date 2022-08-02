@@ -28,7 +28,7 @@ func diagnose() error {
 	}
 	log.Info("successfully connected to docker")
 
-	hostname, err := HostnameProvider(context.TODO(), nil)
+	hostname, err := GetHostname(context.TODO())
 	if err != nil {
 		return fmt.Errorf("returned hostname %q with error: %w", hostname, err)
 	}

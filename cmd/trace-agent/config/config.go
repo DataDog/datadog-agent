@@ -138,7 +138,15 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		c.StatsdPort = coreconfig.Datadog.GetInt("dogstatsd_port")
 	}
 
-	c.Endpoints[0].Host = coreconfig.GetMainEndpoint(apiEndpointPrefix, "apm_config.apm_dd_url")
+	if coreconfig.Datadog.GetBool("vector.traces.enabled") {
+		if host := coreconfig.Datadog.GetString("vector.traces.url"); host == "" {
+			log.Error("vector.traces.enabled but vector.traces.url is empty.")
+		} else {
+			c.Endpoints[0].Host = host
+		}
+	} else {
+		c.Endpoints[0].Host = coreconfig.GetMainEndpoint(apiEndpointPrefix, "apm_config.apm_dd_url")
+	}
 	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
 
 	if coreconfig.Datadog.IsSet("proxy.no_proxy") {

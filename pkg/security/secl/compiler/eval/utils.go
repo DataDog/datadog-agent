@@ -6,11 +6,10 @@
 package eval
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
-
-	"github.com/pkg/errors"
 )
 
 // NotOfValue returns the NOT of a value

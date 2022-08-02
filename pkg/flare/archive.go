@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -92,13 +93,16 @@ func init() {
 	// We add a replacer to scrub even those credentials.
 	//
 	// It is a best effort to match the api key field without matching our
-	// own already scrubbed (we don't want to match: **************************abcde)
-	// Basically we allow many special chars while forbidding *
-	otherAPIKeysRx := regexp.MustCompile(`api_key\s*:\s*[a-zA-Z0-9\\\/\^\]\[\(\){}!|%:;"~><=#@$_\-\+]+`)
+	// own already scrubbed (we don't want to match: "**************************abcde")
+	// Basically we allow many special chars while forbidding *.
+	//
+	// We want the value to be at least 2 characters which will avoid matching the first '"' from the regular
+	// replacer for api_key.
+	otherAPIKeysRx := regexp.MustCompile(`api_key\s*:\s*[a-zA-Z0-9\\\/\^\]\[\(\){}!|%:;"~><=#@$_\-\+]{2,}`)
 	flareScrubber.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
 		Regex: otherAPIKeysRx,
 		ReplFunc: func(b []byte) []byte {
-			return []byte("api_key: ********")
+			return []byte("api_key: \"********\"")
 		},
 	})
 }
@@ -179,7 +183,7 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 
 	// Get hostname, if there's an error in getting the hostname,
 	// set the hostname to unknown
-	hostname, err := util.GetHostname(context.TODO())
+	hostname, err := hostnameUtil.Get(context.TODO())
 	if err != nil {
 		hostname = "unknown"
 	}

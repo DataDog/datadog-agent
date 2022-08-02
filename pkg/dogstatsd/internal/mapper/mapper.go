@@ -9,9 +9,10 @@ package mapper
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"regexp"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var (

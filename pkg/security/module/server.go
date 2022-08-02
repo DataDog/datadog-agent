@@ -11,6 +11,7 @@ package module
 import (
 	"context"
 	json "encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -18,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	easyjson "github.com/mailru/easyjson"
-	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
@@ -167,6 +167,17 @@ type Event interface {
 type RuleEvent struct {
 	RuleID string `json:"rule_id"`
 	Event  Event  `json:"event"`
+}
+
+// DumpDiscarders handles discarder dump requests
+func (a *APIServer) DumpDiscarders(ctx context.Context, params *api.DumpDiscardersParams) (*api.DumpDiscardersMessage, error) {
+	filePath, err := a.probe.DumpDiscarders()
+	if err != nil {
+		return nil, err
+	}
+	log.Infof("Discarder dump file path: %s", filePath)
+
+	return &api.DumpDiscardersMessage{DumpFilename: filePath}, nil
 }
 
 // DumpProcessCache handles process cache dump requests
@@ -402,7 +413,7 @@ func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestPara
 		}, nil
 	}
 
-	if err := a.module.RunSelfTest(false, true); err != nil {
+	if err := a.module.RunSelfTest(false); err != nil {
 		return &api.SecuritySelfTestResultMessage{
 			Ok:    false,
 			Error: err.Error(),
@@ -435,13 +446,13 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 
 	probeJSON, err := json.Marshal(event)
 	if err != nil {
-		log.Error(errors.Wrap(err, "failed to marshal event"))
+		log.Errorf("failed to marshal event: %v", err)
 		return
 	}
 
 	ruleEventJSON, err := easyjson.Marshal(ruleEvent)
 	if err != nil {
-		log.Error(errors.Wrap(err, "failed to marshal event context"))
+		log.Errorf("failed to marshal event context: %v", err)
 		return
 	}
 
@@ -557,7 +568,7 @@ func (a *APIServer) SendProcessEvent(data []byte) {
 		break
 	default:
 		// The channel is full, expire the oldest event
-		_ = <-a.processMsgs
+		<-a.processMsgs
 		a.expiredProcessEvents.Inc()
 		// Try to send the event again
 		select {

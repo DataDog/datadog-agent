@@ -288,6 +288,9 @@ workflows:
       - licenses_linting:
           requires:
             - dependencies
+      - copyrights_linting:
+          requires:
+            - dependencies
       - filename_linting:
           requires:
             - dependencies

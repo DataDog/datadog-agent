@@ -6,17 +6,17 @@
 package main
 
 import (
-	"sync/atomic"
 	"testing"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/stretchr/testify/assert"
+
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestUpdateRTStatus(t *testing.T) {
@@ -34,7 +34,7 @@ func TestUpdateRTStatus(t *testing.T) {
 		{ActiveClients: 0, Interval: 2},
 	}
 	c.updateRTStatus(statuses)
-	assert.Equal(int32(1), atomic.LoadInt32(&c.realTimeEnabled))
+	assert.True(c.realTimeEnabled.Load())
 
 	// Validate that we stay that way
 	statuses = []*model.CollectorStatus{
@@ -43,7 +43,7 @@ func TestUpdateRTStatus(t *testing.T) {
 		{ActiveClients: 0, Interval: 2},
 	}
 	c.updateRTStatus(statuses)
-	assert.Equal(int32(1), atomic.LoadInt32(&c.realTimeEnabled))
+	assert.True(c.realTimeEnabled.Load())
 
 	// And that it can turn back off
 	statuses = []*model.CollectorStatus{
@@ -52,7 +52,7 @@ func TestUpdateRTStatus(t *testing.T) {
 		{ActiveClients: 0, Interval: 2},
 	}
 	c.updateRTStatus(statuses)
-	assert.Equal(int32(0), atomic.LoadInt32(&c.realTimeEnabled))
+	assert.False(c.realTimeEnabled.Load())
 }
 
 func TestUpdateRTInterval(t *testing.T) {
@@ -70,7 +70,7 @@ func TestUpdateRTInterval(t *testing.T) {
 		{ActiveClients: 0, Interval: 10},
 	}
 	c.updateRTStatus(statuses)
-	assert.Equal(int32(1), atomic.LoadInt32(&c.realTimeEnabled))
+	assert.True(c.realTimeEnabled.Load())
 	assert.Equal(10*time.Second, c.realTimeInterval)
 }
 

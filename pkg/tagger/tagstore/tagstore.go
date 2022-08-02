@@ -8,6 +8,7 @@ package tagstore
 import (
 	"context"
 	"errors"
+	"reflect"
 	"sync"
 	"time"
 
@@ -118,17 +119,29 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*collectors.TagInfo) {
 			continue
 		}
 
+		newSt := sourceTags{
+			lowCardTags:          info.LowCardTags,
+			orchestratorCardTags: info.OrchestratorCardTags,
+			highCardTags:         info.HighCardTags,
+			standardTags:         info.StandardTags,
+			expiryDate:           info.ExpiryDate,
+		}
+
 		eventType := types.EventTypeModified
-		if !exist {
+		if exist {
+			st, ok := storedTags.sourceTags[info.Source]
+			if ok && reflect.DeepEqual(st, newSt) {
+				continue
+			}
+		} else {
 			eventType = types.EventTypeAdded
 			storedTags = newEntityTags(info.Entity)
 			s.store[info.Entity] = storedTags
 		}
 
-		// TODO: check if real change
-
 		telemetry.UpdatedEntities.Inc()
-		updateStoredTags(storedTags, info)
+		storedTags.cacheValid = false
+		storedTags.sourceTags[info.Source] = newSt
 
 		events = append(events, types.EntityEvent{
 			EventType: eventType,
@@ -138,17 +151,6 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*collectors.TagInfo) {
 
 	if len(events) > 0 {
 		s.notifySubscribers(events)
-	}
-}
-
-func updateStoredTags(storedTags *EntityTags, info *collectors.TagInfo) {
-	storedTags.cacheValid = false
-	storedTags.sourceTags[info.Source] = sourceTags{
-		lowCardTags:          info.LowCardTags,
-		orchestratorCardTags: info.OrchestratorCardTags,
-		highCardTags:         info.HighCardTags,
-		standardTags:         info.StandardTags,
-		expiryDate:           info.ExpiryDate,
 	}
 }
 

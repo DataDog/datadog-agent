@@ -50,8 +50,6 @@ type Config struct {
 	FlushDiscarderWindow int
 	// SocketPath is the path to the socket that is used to communicate with the security agent
 	SocketPath string
-	// SyscallMonitor defines if the syscall monitor should be activated or not
-	SyscallMonitor bool
 	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
 	EventServerBurst int
 	// EventServerRate defines the grpc server rate at which events can be sent
@@ -60,8 +58,6 @@ type Config struct {
 	EventServerRetention int
 	// PIDCacheSize is the size of the user space PID caches
 	PIDCacheSize int
-	// CookieCacheSize is the size of the cookie cache used to cache process context
-	CookieCacheSize int
 	// LoadControllerEventsCountThreshold defines the amount of events past which we will trigger the in-kernel circuit breaker
 	LoadControllerEventsCountThreshold int64
 	// LoadControllerDiscarderTimeout defines the amount of time discarders set by the load controller should last
@@ -97,6 +93,8 @@ type Config struct {
 	LogTags []string
 	// SelfTestEnabled defines if the self tests should be executed at startup or not
 	SelfTestEnabled bool
+	// EnvsWithValue lists environnement variables that will be fully exported
+	EnvsWithValue []string
 
 	// ActivityDumpEnabled defines if the activity dump manager should be enabled
 	ActivityDumpEnabled bool
@@ -106,6 +104,8 @@ type Config struct {
 	// ActivityDumpTagsResolutionPeriod defines the period at which the activity dump manager should try to resolve
 	// missing container tags.
 	ActivityDumpTagsResolutionPeriod time.Duration
+	// ActivityDumpPathMergeEnabled defines if path merge should be enabled
+	ActivityDumpPathMergeEnabled bool
 	// ActivityDumpTracedCgroupsCount defines the maximum count of cgroups that should be monitored concurrently. Set
 	// this parameter to -1 to monitor all cgroups at the same time. Leave this parameter to 0 to prevent the generation
 	// of activity dumps based on cgroups.
@@ -119,9 +119,9 @@ type Config struct {
 	// ActivityDumpCgroupWaitListSize defines the size of the cgroup wait list. The wait list is used to introduce a
 	// delay between 2 activity dumps of the same cgroup.
 	ActivityDumpCgroupWaitListSize int
-	// ActivityDumpCgroupDifferentiateGraphs defines if system-probe should differentiate process nodes using process
+	// ActivityDumpCgroupDifferentiateArgs defines if system-probe should differentiate process nodes using process
 	// arguments for dumps.
-	ActivityDumpCgroupDifferentiateGraphs bool
+	ActivityDumpCgroupDifferentiateArgs bool
 	// ActivityDumpLocalStorageDirectory defines the output directory for the activity dumps and graphs. Leave
 	// this field empty to prevent writing any output to disk.
 	ActivityDumpLocalStorageDirectory string
@@ -136,6 +136,11 @@ type Config struct {
 	ActivityDumpRemoteStorageFormats []dump.StorageFormat
 	// ActivityDumpRemoteStorageCompression defines if the remote storage should compress the persisted data.
 	ActivityDumpRemoteStorageCompression bool
+	// ActivityDumpSyscallMonitor defines if activity dumps should collect syscalls or not
+	ActivityDumpSyscallMonitor bool
+	// ActivityDumpSyscallMonitorPeriod defines the minimum amount of time to wait between 2 syscalls event for the same
+	// process.
+	ActivityDumpSyscallMonitorPeriod time.Duration
 
 	// RuntimeMonitor defines if the runtime monitor should be enabled
 	RuntimeMonitor bool
@@ -189,14 +194,12 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		EnableDiscarders:                   coreconfig.Datadog.GetBool("runtime_security_config.enable_discarders"),
 		FlushDiscarderWindow:               coreconfig.Datadog.GetInt("runtime_security_config.flush_discarder_window"),
 		SocketPath:                         coreconfig.Datadog.GetString("runtime_security_config.socket"),
-		SyscallMonitor:                     coreconfig.Datadog.GetBool("runtime_security_config.syscall_monitor.enabled"),
 		PoliciesDir:                        coreconfig.Datadog.GetString("runtime_security_config.policies.dir"),
 		WatchPoliciesDir:                   coreconfig.Datadog.GetBool("runtime_security_config.policies.watch_dir"),
 		EventServerBurst:                   coreconfig.Datadog.GetInt("runtime_security_config.event_server.burst"),
 		EventServerRate:                    coreconfig.Datadog.GetInt("runtime_security_config.event_server.rate"),
 		EventServerRetention:               coreconfig.Datadog.GetInt("runtime_security_config.event_server.retention"),
 		PIDCacheSize:                       coreconfig.Datadog.GetInt("runtime_security_config.pid_cache_size"),
-		CookieCacheSize:                    coreconfig.Datadog.GetInt("runtime_security_config.cookie_cache_size"),
 		LoadControllerEventsCountThreshold: int64(coreconfig.Datadog.GetInt("runtime_security_config.load_controller.events_count_threshold")),
 		LoadControllerDiscarderTimeout:     time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.load_controller.discarder_timeout")) * time.Second,
 		LoadControllerControlPeriod:        time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.load_controller.control_period")) * time.Second,
@@ -218,6 +221,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		RemoteConfigurationEnabled:         coreconfig.Datadog.GetBool("runtime_security_config.remote_configuration.enabled"),
 		EventStreamUseRingBuffer:           coreconfig.Datadog.GetBool("runtime_security_config.event_stream.use_ring_buffer"),
 		EventStreamBufferSize:              coreconfig.Datadog.GetInt("runtime_security_config.event_stream.buffer_size"),
+		EnvsWithValue:                      coreconfig.Datadog.GetStringSlice("runtime_security_config.envs_with_value"),
 
 		// runtime compilation
 		RuntimeCompilationEnabled:       coreconfig.Datadog.GetBool("runtime_security_config.runtime_compilation.enabled"),
@@ -228,15 +232,18 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpEnabled:                   coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.enabled"),
 		ActivityDumpCleanupPeriod:             time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cleanup_period")) * time.Second,
 		ActivityDumpTagsResolutionPeriod:      time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.tags_resolution_period")) * time.Second,
+		ActivityDumpPathMergeEnabled:          coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.path_merge.enabled"),
 		ActivityDumpTracedCgroupsCount:        coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
 		ActivityDumpTracedEventTypes:          model.ParseEventTypeStringSlice(coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
 		ActivityDumpCgroupDumpTimeout:         time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_dump_timeout")) * time.Minute,
 		ActivityDumpCgroupWaitListSize:        coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_wait_list_size"),
-		ActivityDumpCgroupDifferentiateGraphs: coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.cgroup_differentiate_args"),
+		ActivityDumpCgroupDifferentiateArgs:   coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.cgroup_differentiate_args"),
 		ActivityDumpLocalStorageDirectory:     coreconfig.Datadog.GetString("runtime_security_config.activity_dump.local_storage.output_directory"),
 		ActivityDumpLocalStorageMaxDumpsCount: coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.local_storage.max_dumps_count"),
 		ActivityDumpLocalStorageCompression:   coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.local_storage.compression"),
 		ActivityDumpRemoteStorageCompression:  coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.remote_storage.compression"),
+		ActivityDumpSyscallMonitor:            coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.syscall_monitor.enabled"),
+		ActivityDumpSyscallMonitorPeriod:      time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.syscall_monitor.period")) * time.Second,
 	}
 
 	// if runtime is enabled then we force fim

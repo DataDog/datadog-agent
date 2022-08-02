@@ -15,6 +15,11 @@ import (
 	"strings"
 	"time"
 
+	cache "github.com/patrickmn/go-cache"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
@@ -22,10 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	cache "github.com/patrickmn/go-cache"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
 )
 
 // ErrResourceNotSupported is returned when resource type is not supported by Builder
@@ -589,6 +590,10 @@ func (b *builder) hostMatcher(scope compliance.RuleScope, ruleID string, hostSel
 		}
 	case compliance.KubernetesNodeScope:
 		if config.IsKubernetes() {
+			ignoreHostSelectors := config.Datadog.GetBool("compliance_config.ignore_host_selectors")
+			if ignoreHostSelectors {
+				return true, nil
+			}
 			return b.isKubernetesNodeEligible(hostSelector)
 		}
 		log.Infof("rule %s skipped - not running on a Kubernetes node", ruleID)

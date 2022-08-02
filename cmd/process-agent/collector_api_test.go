@@ -17,15 +17,16 @@ import (
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/process"
+	"github.com/gogo/protobuf/proto"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/gogo/protobuf/proto"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const testHostName = "test-host"
@@ -529,6 +530,10 @@ func (t *testCheck) Name() string {
 }
 
 func (t *testCheck) RealTime() bool {
+	return false
+}
+
+func (t *testCheck) ShouldSaveLastRun() bool {
 	return false
 }
 

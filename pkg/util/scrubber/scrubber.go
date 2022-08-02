@@ -74,6 +74,13 @@ func New() *Scrubber {
 	}
 }
 
+// NewWithDefaults creates a new scrubber with the default replacers installed.
+func NewWithDefaults() *Scrubber {
+	s := New()
+	AddDefaultReplacers(s)
+	return s
+}
+
 // AddReplacer adds a replacer of the given kind to the scrubber.
 func (c *Scrubber) AddReplacer(kind ReplacerKind, replacer Replacer) {
 	switch kind {
@@ -118,7 +125,9 @@ func (c *Scrubber) scrubReader(file io.Reader) ([]byte, error) {
 	first := true
 	for scanner.Scan() {
 		b := scanner.Bytes()
-		if !commentRegex.Match(b) && !blankRegex.Match(b) && string(b) != "" {
+		if blankRegex.Match(b) {
+			cleanedFile = append(cleanedFile, byte('\n'))
+		} else if !commentRegex.Match(b) {
 			b = c.scrub(b, c.singleLineReplacers)
 			if !first {
 				cleanedFile = append(cleanedFile, byte('\n'))

@@ -215,19 +215,25 @@ func (t *Tagger) run() {
 	for {
 		select {
 		case <-t.health.C:
+			continue
 		case <-t.telemetryTicker.C:
 			t.store.collectTelemetry()
+			continue
 		case <-t.ctx.Done():
 			return
 		default:
 		}
 
+		if t.stream == nil {
+			if err := t.startTaggerStream(noTimeout); err != nil {
+				log.Warnf("error received trying to start stream: %s", err)
+				continue
+			}
+		}
+
 		var response *pb.StreamTagsResponse
 		err := grpcutil.DoWithTimeout(func() error {
 			var err error
-			if t.stream == nil {
-				return errors.New("stream not initialized")
-			}
 			response, err = t.stream.Recv()
 			return err
 		}, streamRecvTimeout)
@@ -240,18 +246,13 @@ func (t *Tagger) run() {
 			// when Recv() returns an error, the stream is aborted
 			// and the contents of our store are considered out of
 			// sync and therefore no longer valid, so the tagger
-			// can no longer be considered ready
+			// can no longer be considered ready, and the stream
+			// must be re-established.
 			t.ready = false
+			t.stream = nil
 
 			log.Warnf("error received from remote tagger: %s", err)
 
-			// startTaggerStream(noTimeout) will never return
-			// unless a stream can be established, or the tagger
-			// has been stopped, which means the error handling
-			// here is just a sanity check.
-			if err := t.startTaggerStream(noTimeout); err != nil {
-				log.Warnf("error received trying to start stream: %s", err)
-			}
 			continue
 		}
 
@@ -266,6 +267,13 @@ func (t *Tagger) run() {
 }
 
 func (t *Tagger) processResponse(response *pb.StreamTagsResponse) error {
+	// returning early when there are no events prevents a keep-alive sent
+	// from the core agent from wiping the store clean in case the remote
+	// tagger was previously in an unready (but filled) state.
+	if len(response.Events) == 0 {
+		return nil
+	}
+
 	events := make([]types.EntityEvent, 0, len(response.Events))
 	for _, ev := range response.Events {
 		eventType, err := convertEventType(ev.Type)

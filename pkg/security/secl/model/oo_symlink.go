@@ -10,31 +10,41 @@ import (
 )
 
 var (
-	symlinkPathnameEvaluators = [MaxSymlinks]*eval.StringEvaluator{
-		{
-			EvalFnc: func(ctx *eval.Context) string {
-				// empty symlink, generate a fake so that it doesn't match
-				if path := (*Event)(ctx.Object).Exec.Process.SymlinkPathnameStr[0]; path != "" {
-					return path
-				}
-				return "~" // to ensure that it will not match an empty path
-			},
+	symlinkPathnameEvaluators = [MaxSymlinks]func(field eval.Field) *eval.StringEvaluator{
+		func(field eval.Field) *eval.StringEvaluator {
+			return &eval.StringEvaluator{
+				Field: field,
+				EvalFnc: func(ctx *eval.Context) string {
+					if path := (*Event)(ctx.Object).ProcessContext.SymlinkPathnameStr[0]; path != "" {
+						return path
+					}
+					return (*Event)(ctx.Object).ProcessContext.FileEvent.PathnameStr
+				},
+			}
 		},
-		{
-			EvalFnc: func(ctx *eval.Context) string {
-				// empty symlink, generate a fake so that it doesn't match
-				if path := (*Event)(ctx.Object).Exec.Process.SymlinkPathnameStr[1]; path != "" {
-					return path
-				}
-				return "~" // to ensure that it will not match an empty path
-			},
+		func(field eval.Field) *eval.StringEvaluator {
+			return &eval.StringEvaluator{
+				Field: field,
+				EvalFnc: func(ctx *eval.Context) string {
+					if path := (*Event)(ctx.Object).ProcessContext.SymlinkPathnameStr[1]; path != "" {
+						return path
+					}
+					return (*Event)(ctx.Object).ProcessContext.FileEvent.PathnameStr
+				},
+			}
 		},
 	}
 
-	symlinkBasenameEvaluator = &eval.StringEvaluator{
-		EvalFnc: func(ctx *eval.Context) string {
-			return (*Event)(ctx.Object).Exec.Process.SymlinkBasenameStr
-		},
+	symlinkBasenameEvaluator = func(field eval.Field) *eval.StringEvaluator {
+		return &eval.StringEvaluator{
+			Field: field,
+			EvalFnc: func(ctx *eval.Context) string {
+				if name := (*Event)(ctx.Object).ProcessContext.SymlinkBasenameStr; name != "" {
+					return name
+				}
+				return (*Event)(ctx.Object).ProcessContext.FileEvent.BasenameStr
+			},
+		}
 	}
 
 	// ProcessSymlinkPathname handles symlink for process enrtries
@@ -46,30 +56,34 @@ var (
 			}
 
 			// currently only override exec events
-			if a.Field == "exec.file.path" {
-				se1, err := eval.GlobCmp.StringEquals(symlinkPathnameEvaluators[0], b, state)
+			if a.Field == "exec.file.path" || a.Field == "process.file.path" {
+				se1, err := eval.GlobCmp.StringEquals(symlinkPathnameEvaluators[0](a.Field), b, state)
 				if err != nil {
 					return nil, err
 				}
-				se2, err := eval.GlobCmp.StringEquals(symlinkPathnameEvaluators[1], b, state)
+
+				se2, err := eval.GlobCmp.StringEquals(symlinkPathnameEvaluators[1](a.Field), b, state)
 				if err != nil {
 					return nil, err
 				}
+
 				or, err := eval.Or(se1, se2, state)
 				if err != nil {
 					return nil, err
 				}
 
 				return eval.Or(path, or, state)
-			} else if b.Field == "exec.file.path" {
-				se1, err := eval.GlobCmp.StringEquals(symlinkPathnameEvaluators[0], a, state)
+			} else if b.Field == "exec.file.path" || b.Field == "process.file.path" {
+				se1, err := eval.GlobCmp.StringEquals(symlinkPathnameEvaluators[0](b.Field), a, state)
 				if err != nil {
 					return nil, err
 				}
-				se2, err := eval.GlobCmp.StringEquals(symlinkPathnameEvaluators[1], a, state)
+
+				se2, err := eval.GlobCmp.StringEquals(symlinkPathnameEvaluators[1](b.Field), a, state)
 				if err != nil {
 					return nil, err
 				}
+
 				or, err := eval.Or(se1, se2, state)
 				if err != nil {
 					return nil, err
@@ -87,12 +101,12 @@ var (
 			}
 
 			// currently only override exec events
-			if a.Field == "exec.file.path" {
-				se1, err := eval.GlobCmp.StringValuesContains(symlinkPathnameEvaluators[0], b, state)
+			if a.Field == "exec.file.path" || a.Field == "process.file.path" {
+				se1, err := eval.GlobCmp.StringValuesContains(symlinkPathnameEvaluators[0](a.Field), b, state)
 				if err != nil {
 					return nil, err
 				}
-				se2, err := eval.GlobCmp.StringValuesContains(symlinkPathnameEvaluators[1], b, state)
+				se2, err := eval.GlobCmp.StringValuesContains(symlinkPathnameEvaluators[1](a.Field), b, state)
 				if err != nil {
 					return nil, err
 				}
@@ -113,12 +127,12 @@ var (
 			}
 
 			// currently only override exec events
-			if a.Field == "exec.file.path" {
-				se1, err := eval.GlobCmp.StringArrayContains(symlinkPathnameEvaluators[0], b, state)
+			if a.Field == "exec.file.path" || a.Field == "process.file.path" {
+				se1, err := eval.GlobCmp.StringArrayContains(symlinkPathnameEvaluators[0](a.Field), b, state)
 				if err != nil {
 					return nil, err
 				}
-				se2, err := eval.GlobCmp.StringArrayContains(symlinkPathnameEvaluators[1], b, state)
+				se2, err := eval.GlobCmp.StringArrayContains(symlinkPathnameEvaluators[1](a.Field), b, state)
 				if err != nil {
 					return nil, err
 				}
@@ -146,14 +160,14 @@ var (
 			}
 
 			// currently only override exec events
-			if a.Field == "exec.file.name" {
-				symlink, err := eval.StringEquals(symlinkBasenameEvaluator, b, state)
+			if a.Field == "exec.file.name" || a.Field == "process.file.name" {
+				symlink, err := eval.StringEquals(symlinkBasenameEvaluator(a.Field), b, state)
 				if err != nil {
 					return nil, err
 				}
 				return eval.Or(path, symlink, state)
-			} else if b.Field == "exec.file.name" {
-				symlink, err := eval.StringEquals(a, symlinkBasenameEvaluator, state)
+			} else if b.Field == "exec.file.name" || b.Field == "process.file.name" {
+				symlink, err := eval.StringEquals(a, symlinkBasenameEvaluator(b.Field), state)
 				if err != nil {
 					return nil, err
 				}
@@ -169,8 +183,8 @@ var (
 			}
 
 			// currently only override exec events
-			if a.Field == "exec.file.name" {
-				symlink, err := eval.StringValuesContains(symlinkBasenameEvaluator, b, state)
+			if a.Field == "exec.file.name" || a.Field == "process.file.name" {
+				symlink, err := eval.StringValuesContains(symlinkBasenameEvaluator(a.Field), b, state)
 				if err != nil {
 					return nil, err
 				}
@@ -186,8 +200,8 @@ var (
 			}
 
 			// currently only override exec events
-			if a.Field == "exec.file.name" {
-				symlink, err := eval.StringArrayContains(symlinkBasenameEvaluator, b, state)
+			if a.Field == "exec.file.name" || a.Field == "process.file.name" {
+				symlink, err := eval.StringArrayContains(symlinkBasenameEvaluator(a.Field), b, state)
 				if err != nil {
 					return nil, err
 				}

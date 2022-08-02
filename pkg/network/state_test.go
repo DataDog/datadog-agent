@@ -10,16 +10,17 @@ import (
 	"math"
 	"math/rand"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func BenchmarkConnectionsGet(b *testing.B) {
@@ -83,7 +84,7 @@ func BenchmarkConnectionsGet(b *testing.B) {
 			ns := newDefaultState()
 
 			// Initial fetch to set up client
-			ns.GetDelta(DEBUGCLIENT, latestTime, nil, nil, nil)
+			ns.GetDelta(DEBUGCLIENT, latestTime.Load(), nil, nil, nil)
 
 			for _, c := range closed[:bench.closedCount] {
 				ns.StoreClosedConnections([]ConnectionStats{c})
@@ -93,7 +94,7 @@ func BenchmarkConnectionsGet(b *testing.B) {
 			b.ReportAllocs()
 
 			for n := 0; n < b.N; n++ {
-				ns.GetDelta(DEBUGCLIENT, latestTime, conns[:bench.connCount], nil, nil)
+				ns.GetDelta(DEBUGCLIENT, latestTime.Load(), conns[:bench.connCount], nil, nil)
 			}
 		})
 	}
@@ -1714,10 +1715,10 @@ func generateRandConnections(n int) []ConnectionStats {
 	return cs
 }
 
-var latestTime uint64
+var latestTime atomic.Uint64
 
 func latestEpochTime() uint64 {
-	return atomic.AddUint64(&latestTime, 1)
+	return latestTime.Inc()
 }
 
 func newDefaultState() State {
