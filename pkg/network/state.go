@@ -724,9 +724,7 @@ func mergeConnectionStats(a, b *ConnectionStats) {
 		a.LastUpdateEpoch = b.LastUpdateEpoch
 	}
 
-	if (a.IPTranslation != nil && b.IPTranslation != nil && *a.IPTranslation != *b.IPTranslation) ||
-		(a.IPTranslation != nil && b.IPTranslation == nil) ||
-		(a.IPTranslation == nil && b.IPTranslation != nil) {
-		a.IPTranslation = nil
+	if a.IPTranslation == nil {
+		a.IPTranslation = b.IPTranslation
 	}
 }
