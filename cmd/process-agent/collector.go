@@ -73,8 +73,11 @@ type Collector struct {
 
 	processResults   *api.WeightedQueue
 	rtProcessResults *api.WeightedQueue
-	podResults       *api.WeightedQueue
 	eventResults     *api.WeightedQueue
+
+	connectionsResults *api.WeightedQueue
+
+	podResults *api.WeightedQueue
 
 	forwarderRetryQueueMaxBytes int
 
@@ -127,6 +130,9 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 	rtProcessResults := api.NewWeightedQueue(rtQueueSize, int64(queueBytes))
 	log.Debugf("Creating rt process check queue with max_size=%d and max_weight=%d", rtProcessResults.MaxSize(), rtProcessResults.MaxWeight())
 
+	connectionsResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
+	log.Debugf("Creating connections queue with max_size=%d and max_weight=%d", connectionsResults.MaxSize(), connectionsResults.MaxWeight())
+
 	podResults := api.NewWeightedQueue(queueSize, int64(cfg.Orchestrator.PodQueueBytes))
 	log.Debugf("Creating pod check queue with max_size=%d and max_weight=%d", podResults.MaxSize(), podResults.MaxWeight())
 
@@ -148,10 +154,11 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 		realTimeInterval: 2 * time.Second,
 		realTimeEnabled:  atomic.NewBool(false),
 
-		processResults:   processResults,
-		rtProcessResults: rtProcessResults,
-		podResults:       podResults,
-		eventResults:     eventResults,
+		processResults:     processResults,
+		rtProcessResults:   rtProcessResults,
+		connectionsResults: connectionsResults,
+		podResults:         podResults,
+		eventResults:       eventResults,
 
 		forwarderRetryQueueMaxBytes: queueBytes,
 
@@ -333,6 +340,7 @@ func (l *Collector) run(exit chan struct{}) error {
 		<-exit
 		l.processResults.Stop()
 		l.rtProcessResults.Stop()
+		l.connectionsResults.Stop()
 		l.podResults.Stop()
 		l.eventResults.Stop()
 	}()
@@ -363,14 +371,16 @@ func (l *Collector) run(exit chan struct{}) error {
 				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
 			case <-queueSizeTicker.C:
 				updateQueueStats(&queueStats{
-					processQueueSize:    l.processResults.Len(),
-					rtProcessQueueSize:  l.rtProcessResults.Len(),
-					eventQueueSize:      l.eventResults.Len(),
-					podQueueSize:        l.podResults.Len(),
-					processQueueBytes:   l.processResults.Weight(),
-					rtProcessQueueBytes: l.rtProcessResults.Weight(),
-					eventQueueBytes:     l.eventResults.Weight(),
-					podQueueBytes:       l.podResults.Weight(),
+					processQueueSize:      l.processResults.Len(),
+					rtProcessQueueSize:    l.rtProcessResults.Len(),
+					connectionsQueueSize:  l.connectionsResults.Len(),
+					eventQueueSize:        l.eventResults.Len(),
+					podQueueSize:          l.podResults.Len(),
+					processQueueBytes:     l.processResults.Weight(),
+					rtProcessQueueBytes:   l.rtProcessResults.Weight(),
+					connectionsQueueBytes: l.connectionsResults.Weight(),
+					eventQueueBytes:       l.eventResults.Weight(),
+					podQueueBytes:         l.podResults.Weight(),
 				})
 			case <-queueLogTicker.C:
 				l.logQueuesSize()
@@ -385,8 +395,11 @@ func (l *Collector) run(exit chan struct{}) error {
 	processForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.forwarderRetryQueueMaxBytes // Allow more in-flight requests than the default
 	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
 
-	// rt forwarder can reuse processForwarder's config
+	// rt forwarder reuses processForwarder's config
 	rtProcessForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
+
+	// connections forwarder reuses processForwarder's config
+	connectionsForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
 
 	podForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(l.cfg.Orchestrator.OrchestratorEndpoints)))
 	podForwarderOpts.DisableAPIKeyChecking = true
@@ -404,6 +417,10 @@ func (l *Collector) run(exit chan struct{}) error {
 
 	if err := rtProcessForwarder.Start(); err != nil {
 		return fmt.Errorf("error starting RT forwarder: %s", err)
+	}
+
+	if err := connectionsForwarder.Start(); err != nil {
+		return fmt.Errorf("error starting connections forwarder: %s", err)
 	}
 
 	if err := podForwarder.Start(); err != nil {
@@ -424,6 +441,12 @@ func (l *Collector) run(exit chan struct{}) error {
 	go func() {
 		defer wg.Done()
 		l.consumePayloads(l.rtProcessResults, rtProcessForwarder)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		l.consumePayloads(l.connectionsResults, connectionsForwarder)
 	}()
 
 	wg.Add(1)
@@ -461,6 +484,7 @@ func (l *Collector) run(exit chan struct{}) error {
 
 	processForwarder.Stop()
 	rtProcessForwarder.Stop()
+	connectionsForwarder.Stop()
 	podForwarder.Stop()
 	return nil
 }
@@ -471,6 +495,8 @@ func (l *Collector) resultsQueueForCheck(name string) *api.WeightedQueue {
 		return l.podResults
 	case checks.Process.RealTimeName(), checks.RTContainer.Name():
 		return l.rtProcessResults
+	case checks.Connections.Name():
+		return l.connectionsResults
 	case checks.ProcessEvents.Name():
 		return l.eventResults
 	}
@@ -648,16 +674,31 @@ func (l *Collector) updateRTStatus(statuses []*model.CollectorStatus) {
 }
 
 func (l *Collector) logQueuesSize() {
-	processSize, rtProcessSize, eventSize, podSize := l.processResults.Len(), l.rtProcessResults.Len(), l.eventResults.Len(), l.podResults.Len()
-	if processSize > 0 || rtProcessSize > 0 || eventSize > 0 || podSize > 0 {
-		log.Infof(
-			"Delivery queues: process[size=%d, weight=%d], rtprocess[size=%d, weight=%d], event[size=%d, weight=%d], pod[size=%d, weight=%d]",
-			processSize, l.processResults.Weight(),
-			rtProcessSize, l.rtProcessResults.Weight(),
-			eventSize, l.eventResults.Weight(),
-			podSize, l.podResults.Weight(),
-		)
+	var (
+		processSize     = l.processResults.Len()
+		rtProcessSize   = l.rtProcessResults.Len()
+		connectionsSize = l.connectionsResults.Len()
+		eventsSize      = l.eventResults.Len()
+		podSize         = l.podResults.Len()
+	)
+
+	if processSize == 0 &&
+		rtProcessSize == 0 &&
+		connectionsSize == 0 &&
+		eventsSize == 0 &&
+		podSize == 0 {
+		return
 	}
+
+	log.Infof(
+		"Delivery queues: process[size=%d, weight=%d], rtprocess[size=%d, weight=%d], connections[size=%d, weight=%d], event[size=%d, weight=%d], pod[size=%d, weight=%d]",
+		processSize, l.processResults.Weight(),
+		rtProcessSize, l.rtProcessResults.Weight(),
+		connectionsSize, l.connectionsResults.Weight(),
+		eventsSize, l.eventResults.Weight(),
+		podSize, l.podResults.Weight(),
+	)
+
 }
 
 // getContainerCount returns the number of containers in the message body
