@@ -158,9 +158,7 @@ def gen_mocks(ctx):
     Generate mocks
     """
 
-    interfaces = {
-        "./pkg/process/procutil": ["Probe"]
-    }
+    interfaces = {"./pkg/process/procutil": ["Probe"]}
 
     for path, names in interfaces.items():
         interface_regex = "|".join(f"^{i}\\$" for i in names)
