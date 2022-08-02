@@ -364,12 +364,12 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs 
     struct path *executable_path;
     bpf_probe_read(&executable_path, sizeof(executable_path), &file->f_path);
 
-    syscall->exec.linux_binprm.path_key = get_inode_key_path(executable_inode, executable_path);
-    syscall->exec.linux_binprm.path_key.path_id = get_path_id(0);
+    syscall->exec.linux_binprm.executable.path_key = get_inode_key_path(executable_inode, executable_path);
+    syscall->exec.linux_binprm.executable.path_key.path_id = get_path_id(0);
 
-    bpf_printk("exec inode: %u\n", syscall->exec.linux_binprm.path_key.ino);
-    bpf_printk("exec mount id: %u\n", syscall->exec.linux_binprm.path_key.mount_id);
-    bpf_printk("exec inode: %u\n", syscall->exec.linux_binprm.path_key.path_id);
+    bpf_printk("exec inode: %u\n", syscall->exec.linux_binprm.executable.path_key.ino);
+    bpf_printk("exec mount id: %u\n", syscall->exec.linux_binprm.executable.path_key.mount_id);
+    bpf_printk("exec inode: %u\n", syscall->exec.linux_binprm.executable.path_key.path_id);
 
     return 0;
 }
@@ -772,7 +772,7 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
 
             // Add information about interpreted events
             // TODO: Polish linux_binprm info
-            event->linux_binprm.path_key = syscall->exec.linux_binprm.path_key;
+            event->linux_binprm.executable.path_key = syscall->exec.linux_binprm.executable.path_key;
 
             // send the entry to maintain userspace cache
             send_event_ptr(ctx, EVENT_EXEC, event);

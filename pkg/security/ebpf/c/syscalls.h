@@ -38,7 +38,7 @@ union selinux_write_payload_t {
 };
 
 struct linux_binprm_t {
-    struct path_key_t path_key;
+    struct file_t executable;
 };
 
 struct syscall_cache_t {
