@@ -387,12 +387,7 @@ func (t *Tracer) matchHTTPConnections(conns []network.ConnectionStats, httpStats
 			continue
 		}
 
-		scratchConn.Source = trans.ReplSrcIP
-		scratchConn.SPort = trans.ReplSrcPort
-		scratchConn.Dest = trans.ReplDstIP
-		scratchConn.DPort = trans.ReplDstPort
-		scratchConn.Type = network.TCP
-		httpKey.KeyTuple = network.HTTPKeyTupleFromConn(scratchConn)
+		httpKey.KeyTuple = http.NewKeyTuple(trans.ReplSrcIP, trans.ReplDstIP, trans.ReplSrcPort, trans.ReplDstPort)
 		if _, ok := connsByKeyTuple[httpKey.KeyTuple]; !ok {
 			orphans++
 			continue
