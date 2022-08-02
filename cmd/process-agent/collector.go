@@ -679,7 +679,11 @@ func (l *Collector) logQueuesSize() {
 		podSize         = l.podResults.Len()
 	)
 
-	if processSize == 0 || rtProcessSize == 0 || connectionsSize == 0 || eventsSize == 0 || podSize == 0 {
+	if processSize == 0 &&
+		rtProcessSize == 0 &&
+		connectionsSize == 0 &&
+		eventsSize == 0 &&
+		podSize == 0 {
 		return
 	}
 

@@ -82,7 +82,7 @@ type ProcessExpvars struct {
 	PodQueueSize          int                 `json:"pod_queue_size"`
 	ProcessQueueBytes     int                 `json:"process_queue_bytes"`
 	RTProcessQueueBytes   int                 `json:"rtprocess_queue_bytes"`
-	ConnectionsQueueBytes int                 `json:"connection_queue_bytes"`
+	ConnectionsQueueBytes int                 `json:"connections_queue_bytes"`
 	EventQueueBytes       int                 `json:"event_queue_bytes"`
 	PodQueueBytes         int                 `json:"pod_queue_bytes"`
 	ContainerID           string              `json:"container_id"`
