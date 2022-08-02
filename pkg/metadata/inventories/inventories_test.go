@@ -23,11 +23,10 @@ import (
 )
 
 func clearMetadata() {
-	checkMetadataMutex.Lock()
-	defer checkMetadataMutex.Unlock()
+	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
+
 	checkMetadata = make(map[string]*checkMetadataCacheEntry)
-	agentMetadataMutex.Lock()
-	defer agentMetadataMutex.Unlock()
 	agentMetadata = make(AgentMetadata)
 
 	// purge metadataUpdatedC
@@ -89,6 +88,10 @@ func (m mockCollector) MapOverChecks(fn func([]check.Info)) {
 func TestGetPayload(t *testing.T) {
 	ctx := context.Background()
 	defer func() { clearMetadata() }()
+
+	cfg := config.Mock(t)
+	cfg.Set("inventories_configuration_enabled", true)
+	cfg.Set("inventories_checks_configuration_enabled", true)
 
 	startNow := time.Now()
 	timeNow = func() time.Time { return startNow } // time of the first run
