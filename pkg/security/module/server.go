@@ -24,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -588,7 +589,7 @@ func NewAPIServer(cfg *config.Config, probe *sprobe.Probe, client statsd.ClientI
 	es := &APIServer{
 		msgs:                 make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
 		processMsgs:          make(chan *api.SecurityProcessEventMessage, cfg.EventServerBurst*3),
-		activityDumps:        make(chan *api.ActivityDumpStreamMessage),
+		activityDumps:        make(chan *api.ActivityDumpStreamMessage, probes.MaxTracedCgroupsCount*2),
 		expiredEvents:        make(map[rules.RuleID]*atomic.Int64),
 		expiredProcessEvents: atomic.NewInt64(0),
 		expiredDumps:         atomic.NewInt64(0),
