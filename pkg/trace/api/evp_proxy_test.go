@@ -22,7 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
@@ -74,6 +73,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		conf.Hostname = "test_hostname"
 		conf.DefaultEnv = "test_env"
 		conf.Site = "us3.datadoghq.com"
+		conf.AgentVersion = "testVersion"
 		conf.Endpoints[0].APIKey = "test_api_key"
 
 		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", bytes.NewReader(randBodyBuf))
@@ -94,7 +94,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		assert.Equal(t, "test_api_key", proxyreq.Header.Get("DD-API-KEY"))
 		assert.Equal(t, conf.Hostname, proxyreq.Header.Get("X-Datadog-Hostname"))
 		assert.Equal(t, conf.DefaultEnv, proxyreq.Header.Get("X-Datadog-AgentDefaultEnv"))
-		assert.Equal(t, fmt.Sprintf("trace-agent %s", info.Version), proxyreq.Header.Get("Via"))
+		assert.Equal(t, "trace-agent testVersion", proxyreq.Header.Get("Via"))
 		assert.Equal(t, "test_user_agent", proxyreq.Header.Get("User-Agent"))
 		assert.Equal(t, "text/json", proxyreq.Header.Get("Content-Type"))
 		assert.NotContains(t, proxyreq.Header, "Unexpected-Header")

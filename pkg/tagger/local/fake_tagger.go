@@ -87,7 +87,7 @@ func (f *FakeTagger) Tag(entity string, cardinality collectors.TagCardinality) (
 }
 
 // AccumulateTagsFor fake implementation
-func (f *FakeTagger) AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
+func (f *FakeTagger) AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagsAccumulator) error {
 	tags, err := f.Tag(entity, cardinality)
 	if err != nil {
 		return err

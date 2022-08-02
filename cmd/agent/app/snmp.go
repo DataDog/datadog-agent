@@ -6,6 +6,7 @@
 package app
 
 import (
+	"encoding/hex"
 	"fmt"
 	"os"
 	"strconv"
@@ -14,6 +15,8 @@ import (
 
 	"github.com/gosnmp/gosnmp"
 	"github.com/spf13/cobra"
+
+	utilFunc "github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
 const (
@@ -30,7 +33,7 @@ const (
 	defaultAuthKey       = ""
 	defaultPrivProtocol  = ""
 	defaultPrivKey       = ""
-	defaultContext       = "public"
+	defaultContext       = ""
 	defaultSecurityLevel = ""
 
 	// general communication options
@@ -184,13 +187,13 @@ var snmpWalkCmd = &cobra.Command{
 				authProtocol = gosnmp.MD5
 			case "sha":
 				authProtocol = gosnmp.SHA
-			case "sha224":
+			case "sha224", "sha-224":
 				authProtocol = gosnmp.SHA224
-			case "sha256":
+			case "sha256", "sha-256":
 				authProtocol = gosnmp.SHA256
-			case "sha384":
+			case "sha384", "sha-384":
 				authProtocol = gosnmp.SHA384
-			case "sha512":
+			case "sha512", "sha-512":
 				authProtocol = gosnmp.SHA512
 			default:
 				fmt.Printf("Unsupported authentication protocol: %s \n", authProt)
@@ -293,7 +296,15 @@ func printValue(pdu gosnmp.SnmpPDU) error {
 	switch pdu.Type {
 	case gosnmp.OctetString:
 		b := pdu.Value.([]byte)
-		fmt.Printf("STRING: %s\n", string(b))
+		if !utilFunc.IsStringPrintable(b) {
+			var strBytes []string
+			for _, bt := range b {
+				strBytes = append(strBytes, strings.ToUpper(hex.EncodeToString([]byte{bt})))
+			}
+			fmt.Print("Hex-STRING: " + strings.Join(strBytes, " ") + "\n")
+		} else {
+			fmt.Printf("STRING: %s\n", string(b))
+		}
 	case gosnmp.ObjectIdentifier:
 		fmt.Printf("OID: %s\n", pdu.Value)
 	case gosnmp.TimeTicks:
@@ -313,4 +324,20 @@ func printValue(pdu gosnmp.SnmpPDU) error {
 	}
 
 	return nil
+}
+
+var strippableSpecialChars = map[byte]bool{'\r': true, '\n': true, '\t': true}
+
+// IsStringPrintable returns true if the provided byte array is only composed of printable characeters
+func IsStringPrintable(bytesValue []byte) bool {
+	for _, bit := range bytesValue {
+		if bit < 32 || bit > 126 {
+			// The char is not a printable ASCII char but it might be a character that
+			// can be stripped like `\n`
+			if _, ok := strippableSpecialChars[bit]; !ok {
+				return false
+			}
+		}
+	}
+	return true
 }

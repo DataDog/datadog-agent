@@ -65,6 +65,7 @@ func TestSender(t *testing.T) {
 			maxConns:  climit,
 			maxQueued: 40,
 			apiKey:    testAPIKey,
+			userAgent: "testUserAgent",
 		}
 	}
 
@@ -200,7 +201,7 @@ func TestSender(t *testing.T) {
 		wg.Add(1)
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			assert.Equal(testAPIKey, req.Header.Get(headerAPIKey))
-			assert.Equal(userAgent, req.Header.Get(headerUserAgent))
+			assert.Equal("testUserAgent", req.Header.Get(headerUserAgent))
 			wg.Done()
 		}))
 		defer server.Close()
