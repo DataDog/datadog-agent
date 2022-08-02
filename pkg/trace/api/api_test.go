@@ -143,7 +143,9 @@ func TestListenTCP(t *testing.T) {
 
 func TestStateHeaders(t *testing.T) {
 	assert := assert.New(t)
-	r := newTestReceiverFromConfig(config.New())
+	cfg := config.New()
+	cfg.AgentVersion = "testVersion"
+	r := newTestReceiverFromConfig(cfg)
 	r.Start()
 	defer r.Stop()
 	data := msgpTraces(t, pb.Traces{
@@ -168,7 +170,7 @@ func TestStateHeaders(t *testing.T) {
 		_, ok := resp.Header["Datadog-Agent-Version"]
 		assert.True(ok)
 		v := resp.Header.Get("Datadog-Agent-Version")
-		assert.Equal(v, info.Version)
+		assert.Equal("testVersion", v)
 
 		_, ok = resp.Header["Datadog-Agent-State"]
 		assert.True(ok)
