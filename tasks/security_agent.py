@@ -642,6 +642,11 @@ def go_generate_check(ctx):
     for task_entry in tasks:
         task, args = task_entry[0], task_entry[1:]
         task(ctx, *args)
+        # when running a non-interactive session, python may buffer too much data and thus mix stderr and stdout
+        # this is especially visible in the Gitlab job logs
+        # we flush to ensure correct separation between steps
+        sys.stdout.flush()
+        sys.stderr.flush()
         dirty_files = get_git_dirty_files()
         if dirty_files:
             failing_tasks.append(FailingTask(task.name, dirty_files))
