@@ -360,6 +360,10 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 }
 
 func (t *Tracer) matchHTTPConnections(conns []network.ConnectionStats, httpStats map[http.Key]*http.RequestStats) (matched map[http.Key]*http.RequestStats) {
+	if len(httpStats) == 0 {
+		return httpStats
+	}
+
 	connsByKeyTuple := make(map[http.KeyTuple]struct{}, len(conns))
 	for _, c := range conns {
 		connsByKeyTuple[network.HTTPKeyTupleFromConn(c)] = struct{}{}
