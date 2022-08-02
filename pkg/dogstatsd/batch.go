@@ -17,8 +17,17 @@ import (
 // batcher batches multiple metrics before submission
 // this struct is not safe for concurrent use
 type batcher struct {
-	samples      [][]metrics.MetricSample
+	// slice of MetricSampleBatch (one entry per running sampling pipeline)
+	samples []metrics.MetricSampleBatch
+	// offset while writing into samples entries (i.e.  samples currently stored per pipeline)
 	samplesCount []int
+
+	// MetricSampleBatch used for late metrics
+	// no multi-pipelines for late ones since we don't process them and we directly
+	// send them to the serializer
+	lateSamples metrics.MetricSampleBatch
+	// offset while writing into the late sample slice (i.e. late samples currently stored)
+	lateSamplesCount int
 
 	events        []*metrics.Event
 	serviceChecks []*metrics.ServiceCheck
@@ -35,6 +44,13 @@ type batcher struct {
 	tagsBuffer    *tagset.HashingTagsAccumulator
 	keyGenerator  *ckey.KeyGenerator
 	pipelineCount int
+	// the batcher has to know if the no-aggregation pipeline is enabled or not:
+	// in the case of the no agg pipeline disabled, it would send them as usual to
+	// the demux which only choice would be to send them on an arbitrary sampler
+	// (i.e. the first one). Being aware that the no agg pipeline is disabled,
+	// the batcher can decide to properly distribute these samples on the available
+	// pipelines.
+	noAggPipelineEnabled bool
 }
 
 // Use fastrange instead of a modulo for better performance.
@@ -60,7 +76,8 @@ func newBatcher(demux aggregator.DemultiplexerWithAggregator) *batcher {
 	// it doesn't run an Aggregator.
 	e, sc = demux.Aggregator().GetBufferedChannels()
 
-	samples := make([][]metrics.MetricSample, pipelineCount)
+	// prepare on-time samples buffers
+	samples := make([]metrics.MetricSampleBatch, pipelineCount)
 	samplesCount := make([]int, pipelineCount)
 
 	for i := range samples {
@@ -68,9 +85,15 @@ func newBatcher(demux aggregator.DemultiplexerWithAggregator) *batcher {
 		samplesCount[i] = 0
 	}
 
+	// prepare the late samples buffer
+	lateSamples := demux.GetMetricSamplePool().GetBatch()
+	lateSamplesCount := 0
+
 	return &batcher{
 		samples:            samples,
 		samplesCount:       samplesCount,
+		lateSamples:        lateSamples,
+		lateSamplesCount:   lateSamplesCount,
 		metricSamplePool:   demux.GetMetricSamplePool(),
 		choutEvents:        e,
 		choutServiceChecks: sc,
@@ -79,13 +102,18 @@ func newBatcher(demux aggregator.DemultiplexerWithAggregator) *batcher {
 		pipelineCount: pipelineCount,
 		tagsBuffer:    tagset.NewHashingTagsAccumulator(),
 		keyGenerator:  ckey.NewKeyGenerator(),
+
+		noAggPipelineEnabled: demux.Options().EnableNoAggregationPipeline,
 	}
 }
 
 func newServerlessBatcher(demux aggregator.Demultiplexer) *batcher {
 	_, pipelineCount := aggregator.GetDogStatsDWorkerAndPipelineCount()
-	samples := make([][]metrics.MetricSample, pipelineCount)
+	samples := make([]metrics.MetricSampleBatch, pipelineCount)
 	samplesCount := make([]int, pipelineCount)
+
+	lateSamples := demux.GetMetricSamplePool().GetBatch()
+	lateSamplesCount := 0
 
 	for i := range samples {
 		samples[i] = demux.GetMetricSamplePool().GetBatch()
@@ -95,6 +123,8 @@ func newServerlessBatcher(demux aggregator.Demultiplexer) *batcher {
 	return &batcher{
 		samples:          samples,
 		samplesCount:     samplesCount,
+		lateSamples:      lateSamples,
+		lateSamplesCount: lateSamplesCount,
 		metricSamplePool: demux.GetMetricSamplePool(),
 
 		demux:         demux,
@@ -103,6 +133,9 @@ func newServerlessBatcher(demux aggregator.Demultiplexer) *batcher {
 		keyGenerator:  ckey.NewKeyGenerator(),
 	}
 }
+
+// Batching data
+// -------------
 
 func (b *batcher) appendSample(sample metrics.MetricSample) {
 	var shardKey uint32
@@ -132,6 +165,25 @@ func (b *batcher) appendServiceCheck(serviceCheck *metrics.ServiceCheck) {
 	b.serviceChecks = append(b.serviceChecks, serviceCheck)
 }
 
+func (b *batcher) appendLateSample(sample metrics.MetricSample) {
+	// if the no aggregation pipeline is not enabled, we fallback on the
+	// main pipeline eventually distributing the samples on multiple samplers.
+	if !b.noAggPipelineEnabled {
+		b.appendSample(sample)
+		return
+	}
+
+	if b.lateSamplesCount == len(b.lateSamples) {
+		b.flushLateSamples()
+	}
+
+	b.lateSamples[b.lateSamplesCount] = sample
+	b.lateSamplesCount++
+}
+
+// Flushing
+// --------
+
 func (b *batcher) flushSamples(shard uint32) {
 	if b.samplesCount[shard] > 0 {
 		t1 := time.Now()
@@ -144,12 +196,30 @@ func (b *batcher) flushSamples(shard uint32) {
 	}
 }
 
+func (b *batcher) flushLateSamples() {
+	if b.lateSamplesCount > 0 {
+		t1 := time.Now()
+		b.demux.AddLateMetrics(b.lateSamples[:b.lateSamplesCount])
+		t2 := time.Now()
+		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "late_metrics")
+
+		b.lateSamplesCount = 0
+		b.metricSamplePool.PutBatch(b.lateSamples)
+		b.lateSamples = b.metricSamplePool.GetBatch()
+	}
+}
+
 // flush pushes all batched metrics to the aggregator.
 func (b *batcher) flush() {
+	// flush all on-time samples on their respective time sampler
 	for i := 0; i < b.pipelineCount; i++ {
 		b.flushSamples(uint32(i))
 	}
 
+	// flush all late samples to the serializer
+	b.flushLateSamples()
+
+	// flush events
 	if len(b.events) > 0 {
 		t1 := time.Now()
 		b.choutEvents <- b.events
@@ -159,6 +229,7 @@ func (b *batcher) flush() {
 		b.events = []*metrics.Event{}
 	}
 
+	// flush service checks
 	if len(b.serviceChecks) > 0 {
 		t1 := time.Now()
 		b.choutServiceChecks <- b.serviceChecks

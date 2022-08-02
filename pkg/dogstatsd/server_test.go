@@ -249,6 +249,17 @@ func TestUDPReceive(t *testing.T) {
 	sample = samples[0]
 	assert.NotNil(t, sample)
 	assert.Equal(t, sample.Name, "daemon2")
+	demux.Reset()
+
+	// Late metric
+	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2|T1658328888"))
+	samples = demux.WaitForSamples(time.Second * 2)
+	require.Equal(t, 1, len(samples))
+	sample = samples[0]
+	require.NotNil(t, sample)
+	assert.Equal(t, sample.Name, "daemon")
+	assert.Equal(t, sample.Timestamp, float64(1658328888))
+	demux.Reset()
 
 	// Test Service Check
 	// ------------------

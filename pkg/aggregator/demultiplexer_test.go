@@ -22,8 +22,8 @@ func init() {
 	providers.Register(providerMocks.FakeContainerImpl{})
 }
 
-func demuxTestOptions() DemultiplexerOptions {
-	opts := DefaultDemultiplexerOptions(nil)
+func demuxTestOptions() AgentDemultiplexerOptions {
+	opts := DefaultAgentDemultiplexerOptions(nil)
 	opts.FlushInterval = time.Hour
 	opts.DontStartForwarders = true
 	return opts
