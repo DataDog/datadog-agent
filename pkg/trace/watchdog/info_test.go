@@ -30,13 +30,10 @@ func TestCPULow(t *testing.T) {
 
 	// checking that CPU is low enough, this is theoretically flaky,
 	// but eating 50% of CPU for a time.Sleep is still not likely to happen often
-	assert.Condition(func() bool { return c.UserAvg >= 0.0 }, fmt.Sprintf("cpu avg should be positive, got %f", c.UserAvg))
-	assert.Condition(func() bool { return c.UserAvg <= 0.5 }, fmt.Sprintf("cpu avg should be below 0.5, got %f", c.UserAvg))
+	assert.LessOrEqualf(c.UserAvg, 0.5, "cpu avg should be below 0.5, got %f", c.UserAvg)
 }
 
 func TestCPUHigh(t *testing.T) {
-	t.Skip("skipping test; see https://github.com/DataDog/datadog-agent/issues/12944")
-
 	tests := []struct {
 		n        int
 		runShort bool // whether to run the test if testing.Short() is true
@@ -79,7 +76,7 @@ func TestCPUHigh(t *testing.T) {
 			// Checking that CPU is not "too high", the above loops create CPU usage, given that `1` means a single core at full
 			// utilization we want to verify that we did not accidentally mix integer percentage values and whole numbers
 			// (e.g. 15% should be `0.15` NOT `15`)
-			assert.Condition(func() bool { return c.UserAvg <= float64(n+1) }, fmt.Sprintf("cpu avg is too high, should never exceed %d, got %f", n, c.UserAvg))
+			assert.LessOrEqualf(c.UserAvg, float64(tc.n+1), "cpu avg is too high, should never exceed %d, got %f", tc.n, c.UserAvg)
 		})
 	}
 }
@@ -96,8 +93,8 @@ func TestMemLow(t *testing.T) {
 
 	// Checking that Mem is low enough, this is theorically flaky,
 	// unless some other random GoRoutine is running, figures should remain low
-	assert.True(int64(m.Alloc)-int64(oldM.Alloc) <= 1e4, "over 10 Kb allocated since last call, way to high for almost no operation")
-	assert.True(m.Alloc <= 1e8, "over 100 Mb allocated, way to high for almost no operation")
+	assert.LessOrEqualf(m.Alloc-oldM.Alloc, uint64(1e4), "over 10 Kb allocated since last call, way to high for almost no operation")
+	assert.LessOrEqualf(m.Alloc, uint64(1e8), "over 100 Mb allocated (%d bytes), way to high for almost no operation", m.Alloc)
 }
 
 func doTestMemHigh(t *testing.T, n int) {
@@ -124,8 +121,8 @@ func doTestMemHigh(t *testing.T, n int) {
 	t.Logf("Mem (%d bytes): %v %v", n, oldM, m)
 
 	// Checking that Mem is high enough
-	assert.True(m.Alloc >= uint64(n), "not enough bytes allocated")
-	assert.True(int64(m.Alloc)-int64(oldM.Alloc) >= int64(n), "not enough bytes allocated since last call")
+	assert.GreaterOrEqualf(m.Alloc, uint64(n), "not enough bytes allocated")
+	assert.GreaterOrEqualf(int64(m.Alloc)-int64(oldM.Alloc), int64(n), "not enough bytes allocated since last call")
 	<-data
 }
 
