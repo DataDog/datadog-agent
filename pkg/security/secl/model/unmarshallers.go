@@ -166,7 +166,7 @@ func isValidTTYName(ttyName string) bool {
 	return IsPrintableASCII(ttyName) && (strings.HasPrefix(ttyName, "tty") || strings.HasPrefix(ttyName, "pts"))
 }
 
-// UnmarshalProcEntryBinary unmarshalls Unmarshal proc_entry_t
+// UnmarshalProcEntryBinary unmarshalls process_entry_t from process.h
 func (e *Process) UnmarshalProcEntryBinary(data []byte) (int, error) {
 	const size = 160
 	if len(data) < size {
@@ -234,7 +234,8 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	const size = 240
+	const size = 312 // size of struct exec_event_t starting from process_entry_t, inclusive
+	fmt.Printf("len of data: %d\n", len(data))
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -246,19 +247,21 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	}
 	read += n
 
-	// Unmarshal linux_binprm_t
-	numOfBytes, err := UnmarshalBinary(data[read:], &e.LinuxBinprm.FileEvent)
-	fmt.Printf("numOfBytes: %d\n", numOfBytes)
-	if err != nil {
-		return 0, err
-	}
-	read += numOfBytes
-
 	n, err = e.UnmarshalPidCacheBinary((data[read:]))
 	if err != nil {
 		return 0, err
 	}
 	read += n
+
+	// Unmarshal linux_binprm_t
+	// 224-296 = 72 bytes
+	fmt.Printf("pre binprm offset: %d\n", read)
+	n, err = UnmarshalBinary(data[read:], &e.LinuxBinprm.FileEvent)
+	if err != nil {
+		return 0, err
+	}
+	read += n
+	fmt.Printf("post binprm offset: %d\n", read)
 
 	if len(data[read:]) < 16 {
 		return 0, ErrNotEnoughData
@@ -267,11 +270,17 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	e.ArgsID = ByteOrder.Uint32(data[read : read+4])
 	e.ArgsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
 	read += 8
+	fmt.Printf("post args offset: %d\n", read)
 
 	e.EnvsID = ByteOrder.Uint32(data[read : read+4])
 	e.EnvsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
 	read += 8
 
+	fmt.Printf("final offset: %d\n", read)
+	fmt.Printf("final left: %d\n", len(data[read:]))
+
+	fmt.Printf("final read: %d\n", read)
+	fmt.Printf("final size: %d\n", size)
 	return validateReadSize(size, read)
 }
 
@@ -331,7 +340,7 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 72 {
-		return 0, ErrNotEnoughData
+		return 0, fmt.Errorf("less than 72 bytes for file fields")
 	}
 	e.Inode = ByteOrder.Uint64(data[0:8])
 	e.MountID = ByteOrder.Uint32(data[8:12])
