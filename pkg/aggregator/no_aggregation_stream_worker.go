@@ -41,8 +41,12 @@ type noAggregationStreamWorker struct {
 
 	samplesChan chan metrics.MetricSampleBatch
 	stopChan    chan trigger
-	flushChan   chan trigger
 }
+
+// noAggWorkerStreamCheckFrequency is the frequency at which the no agg worker
+// is checking if it has some samples to flush. It triggers this flush only
+// if it not still receiving samples.
+var noAggWorkerStreamCheckFrequency = time.Second * 2
 
 func newNoAggregationStreamWorker(maxMetricsPerPayload int, serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel) *noAggregationStreamWorker {
 	return &noAggregationStreamWorker{
@@ -57,7 +61,6 @@ func newNoAggregationStreamWorker(maxMetricsPerPayload int, serializer serialize
 		metricBuffer: tagset.NewHashlessTagsAccumulator(),
 
 		stopChan:    make(chan trigger),
-		flushChan:   make(chan trigger),
 		samplesChan: make(chan metrics.MetricSampleBatch, config.Datadog.GetInt("dogstatsd_queue_size")),
 	}
 }
@@ -87,24 +90,6 @@ func (w *noAggregationStreamWorker) stop(wait bool) {
 	}
 }
 
-func (w *noAggregationStreamWorker) flush(wait bool) {
-	var blockChan chan struct{}
-	if wait {
-		blockChan = make(chan struct{})
-	}
-
-	trigger := trigger{
-		time:      time.Now(),
-		blockChan: blockChan,
-	}
-
-	w.flushChan <- trigger
-
-	if wait {
-		<-blockChan
-	}
-}
-
 // mainloop of the no aggregation stream worker:
 //   * it receives samples and counts how much it has sent to the serializer, if it has more than a given amount it stops
 //     streaming for the serializer to start sending the payloads to the forwarder, and then starts the streaming
@@ -119,18 +104,14 @@ func (w *noAggregationStreamWorker) flush(wait bool) {
 func (w *noAggregationStreamWorker) run() {
 	log.Debugf("Starting streaming routine for the no-aggregation pipeline")
 
-	ticker := time.NewTicker(time.Second * 2)
+	ticker := time.NewTicker(noAggWorkerStreamCheckFrequency)
 	defer ticker.Stop()
-	// 24h has no significance here, it's just a date "far enough" to avoid testing too much
-	// if we need to automatically flush and to keep this test simple with no extra boolean.
-	lastStream := time.Now().Add(time.Hour * 24)
-
 	logPayloads := config.Datadog.GetBool("log_payloads")
 	w.seriesSink, w.sketchesSink = createIterableMetrics(w.flushConfig, w.serializer, logPayloads, false)
 
 	stopped := false
-	var flushBlockChan chan struct{}
 	var stopBlockChan chan struct{}
+	var lastStream time.Time
 
 	for !stopped {
 		start := time.Now()
@@ -143,25 +124,19 @@ func (w *noAggregationStreamWorker) run() {
 			mainloop:
 				for {
 					select {
+
 					// stop signal
 					case trigger := <-w.stopChan:
 						stopped = true
 						stopBlockChan = trigger.blockChan
-						break mainloop
+						break mainloop // end `Serialize` call and trigger a flush to the forwarder
 
-					// ticker regularly producing a flush signal if necessary
 					case <-ticker.C:
 						n := time.Now()
 						if serializedSamples > 0 && lastStream.Before(n.Add(-time.Second*1)) {
 							log.Debug("noAggregationStreamWorker: triggering an automatic payloads flush to the forwarder (no traffic since 1s)")
-							go w.flush(true)
-							lastStream = n.Add(time.Hour * 24)
+							break mainloop // end `Serialize` call and trigger a flush to the forwarder
 						}
-
-					// flush signal
-					case trigger := <-w.flushChan:
-						flushBlockChan = trigger.blockChan
-						break mainloop
 
 					// receiving samples
 					case samples := <-w.samplesChan:
@@ -189,18 +164,12 @@ func (w *noAggregationStreamWorker) run() {
 
 						serializedSamples += len(samples)
 						if serializedSamples > w.maxMetricsPerPayload {
-							go w.flush(true)
+							break mainloop // end `Serialize` call and trigger a flush to the forwarder
 						}
 					}
 				}
 			}, func(serieSource metrics.SerieSource) {
 				sendIterableSeries(w.serializer, start, serieSource)
-				// the flush trigger may have set this flushBlockChan to a channel on which
-				// we need to send a signal to indicate the end of the flush.
-				if flushBlockChan != nil {
-					close(flushBlockChan)
-					flushBlockChan = nil
-				}
 			}, func(sketches metrics.SketchesSource) {
 				// noop: we do not support sketches in the no-agg pipeline.
 			})

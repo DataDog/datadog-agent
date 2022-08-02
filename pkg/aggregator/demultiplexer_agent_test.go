@@ -63,6 +63,8 @@ func TestDemuxNoAggOptionDisabled(t *testing.T) {
 func TestDemuxNoAggOptionEnabled(t *testing.T) {
 	require := require.New(t)
 
+	noAggWorkerStreamCheckFrequency = 100 * time.Millisecond
+
 	opts := demuxTestOptions()
 	mockSerializer := &MockSerializerIterableSerie{}
 	opts.EnableNoAggregationPipeline = true
@@ -74,9 +76,7 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 	batch := testDemuxSamples(t)
 
 	demux.AddLateMetrics(batch)
-
-	demux.statsd.noAggStreamWorker.flush(true) // force send the series to the serializer
-	time.Sleep(200 * time.Millisecond)         // give some time to the runtime for every channel communication to happen
+	time.Sleep(200 * time.Millisecond) // give some time for the automatic flush to trigger
 	demux.Stop(true)
 
 	// nothing should be in the time sampler
