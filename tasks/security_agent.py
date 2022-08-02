@@ -628,16 +628,27 @@ def get_git_dirty_files():
     return paths
 
 
+class FailingTask:
+    def __init__(self, name, dirty_files):
+        self.name = name
+        self.dirty_files = dirty_files
+
+
 @task
 def go_generate_check(ctx):
     tasks = [[cws_go_generate], [generate_cws_documentation], [gen_mocks], [generate_runtime_files]]
+    failing_tasks = []
 
     for task_entry in tasks:
         task, args = task_entry[0], task_entry[1:]
         task(ctx, *args)
         dirty_files = get_git_dirty_files()
         if dirty_files:
-            print(f"Task `{task.name}` resulted in dirty files, please re-run it:")
-            for file in dirty_files:
+            failing_tasks.append(FailingTask(task.name, dirty_files))
+
+    if failing_tasks:
+        for ft in failing_tasks:
+            print(f"Task `{ft.name}` resulted in dirty files, please re-run it:")
+            for file in ft.dirty_files:
                 print(f"* {file}")
             raise Exit(code=1)
