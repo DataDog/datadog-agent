@@ -12,9 +12,10 @@ import (
 	"fmt"
 	"testing"
 
-	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 func TestProcessCacheProcessEvent(t *testing.T) {
@@ -153,10 +154,15 @@ func TestProcessCacheAdd(t *testing.T) {
 			})
 		}
 
+		// this will get the closest process with respect
+		// to StartTime
 		p, ok := pc.Get(1234, 0)
-		require.False(t, ok)
-		require.Nil(t, p)
+		require.True(t, ok)
+		require.NotNil(t, p)
+		require.Equal(t, int64(1), p.StartTime)
+		require.Equal(t, uint32(1234), p.Pid)
 
+		// verify all other processes are correct
 		for i := 1; i < maxProcessListSize+1; i++ {
 			p, ok = pc.Get(1234, int64(i))
 			require.True(t, ok)
@@ -185,9 +191,13 @@ func TestProcessCacheAdd(t *testing.T) {
 			StartTime: 3,
 		})
 
+		// this will get the closest process with respect
+		// to StartTime
 		p, ok := pc.Get(1234, 1)
-		assert.False(t, ok)
-		assert.Nil(t, p)
+		assert.True(t, ok)
+		require.NotNil(t, p)
+		assert.Equal(t, int64(2), p.StartTime)
+		assert.Equal(t, uint32(1234), p.Pid)
 
 		for _, startTime := range []int64{2, 3} {
 			p, ok = pc.Get(1234, startTime)
@@ -289,12 +299,12 @@ func TestProcessCacheGet(t *testing.T) {
 
 	pc.add(&process{
 		Pid:       1234,
-		StartTime: 10,
+		StartTime: 14,
 	})
 
 	pc.add(&process{
 		Pid:       1234,
-		StartTime: 15,
+		StartTime: 10,
 	})
 
 	t.Run("pid not found", func(t *testing.T) {
@@ -309,15 +319,16 @@ func TestProcessCacheGet(t *testing.T) {
 		ok        bool
 		startTime int64
 	}{
-		{ts: 1, ok: false},
+		{ts: 1, ok: true, startTime: 5},
 		{ts: 5, ok: true, startTime: 5},
 		{ts: 6, ok: true, startTime: 5},
-		{ts: 9, ok: true, startTime: 5},
+		{ts: 9, ok: true, startTime: 10},
 		{ts: 10, ok: true, startTime: 10},
 		{ts: 11, ok: true, startTime: 10},
-		{ts: 14, ok: true, startTime: 10},
-		{ts: 15, ok: true, startTime: 15},
-		{ts: 16, ok: true, startTime: 15},
+		{ts: 12, ok: true, startTime: 14},
+		{ts: 14, ok: true, startTime: 14},
+		{ts: 15, ok: true, startTime: 14},
+		{ts: 16, ok: true, startTime: 14},
 	}
 
 	for i, te := range tests {

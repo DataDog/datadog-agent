@@ -60,7 +60,7 @@ type processCache struct {
 	// filteredEnvs contains environment variable names
 	// that a process in the cache must have; empty filteredEnvs
 	// means no filter, and any process can be inserted the cache
-	filteredEnvs map[string]interface{}
+	filteredEnvs map[string]struct{}
 
 	in      chan *process
 	stopped chan struct{}
@@ -76,7 +76,7 @@ type processCacheKey struct {
 
 func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error) {
 	pc := &processCache{
-		filteredEnvs: make(map[string]interface{}, len(filteredEnvs)),
+		filteredEnvs: make(map[string]struct{}, len(filteredEnvs)),
 		cacheByPid:   map[uint32]processList{},
 		in:           make(chan *process, maxProcessQueueLen),
 		stopped:      make(chan struct{}),
@@ -256,7 +256,7 @@ func (pc *processCache) Dump() (interface{}, error) {
 
 func (pl processList) update(p *process) processList {
 	for i := range pl {
-		if pl[i].Pid == p.Pid && pl[i].StartTime == p.StartTime {
+		if pl[i].StartTime == p.StartTime {
 			pl[i] = p
 			return pl
 		}
@@ -279,19 +279,23 @@ func (pl processList) remove(p *process) processList {
 	return pl
 }
 
+func abs(i int64) int64 {
+	if i < 0 {
+		return -i
+	}
+
+	return i
+}
+
 func (pl processList) closest(ts int64) *process {
 	var closest *process
 	for i := range pl {
-		if ts < pl[i].StartTime {
-			continue
-		}
-
 		if closest == nil {
 			closest = pl[i]
 			continue
 		}
 
-		if pl[i].StartTime > closest.StartTime {
+		if abs(closest.StartTime-ts) > abs(pl[i].StartTime-ts) {
 			closest = pl[i]
 		}
 	}

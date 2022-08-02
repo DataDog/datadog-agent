@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf"
-	"github.com/shirou/gopsutil/host"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
@@ -90,6 +89,8 @@ type Tracer struct {
 	sysctlUDPConnStreamTimeout *sysctl.Int
 
 	processCache *processCache
+
+	timeResolver *TimeResolver
 }
 
 func NewTracer(config *config.Config) (*Tracer, error) {
@@ -180,6 +181,10 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		closedConns:      atomic.NewInt64(0),
 		connStatsMapSize: atomic.NewInt64(0),
 		lastCheck:        atomic.NewInt64(0),
+	}
+
+	if tr.timeResolver, err = NewTimeResolver(); err != nil {
+		return nil, fmt.Errorf("could not create time resolver: %w", err)
 	}
 
 	defer func() {
@@ -338,32 +343,23 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	t.state.StoreClosedConnections(connections)
 }
 
-func monotonicToWallTime(t uint64) (uint64, error) {
-	bt, err := host.BootTime()
-	if err != nil {
-		return 0, err
-	}
-
-	return uint64((time.Duration(bt) * time.Second).Nanoseconds()) + t, nil
-}
-
 func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	if t.processCache == nil {
 		return
 	}
 
-	ts, err := monotonicToWallTime(c.LastUpdateEpoch)
-	if err != nil {
+	ts := t.timeResolver.ResolveMonotonicTimestamp(c.LastUpdateEpoch)
+	if ts.IsZero() {
 		return
 	}
 
-	p, ok := t.processCache.Get(c.Pid, int64(ts))
+	p, ok := t.processCache.Get(c.Pid, int64(ts.UnixNano()))
 	if !ok {
 		return
 	}
 
 	if c.Tags == nil {
-		c.Tags = make(map[string]interface{})
+		c.Tags = make(map[string]struct{})
 	}
 
 	addTag := func(k, v string) {

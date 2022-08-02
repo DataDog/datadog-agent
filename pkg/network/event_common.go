@@ -233,7 +233,7 @@ type ConnectionStats struct {
 	Direction        ConnectionDirection
 	SPortIsEphemeral EphemeralPortType
 	StaticTags       uint64
-	Tags             map[string]interface{}
+	Tags             map[string]struct{}
 
 	IntraHost bool
 	IsAssured bool
