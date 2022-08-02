@@ -464,3 +464,15 @@ func (c *Config) Dump(multiline bool) string {
 	fmt.Fprintf(&b, ws("LogsExcluded: %t} (digest %s)"), c.LogsExcluded, c.Digest())
 	return b.String()
 }
+
+// ConfigChanges contains the changes that occurred due to an event in
+// AutoDiscovery.
+type ConfigChanges struct {
+	// Schedule contains configs that should be scheduled as a result of
+	// this event.
+	Schedule []Config
+
+	// Unschedule contains configs that should be unscheduled as a result of
+	// this event.
+	Unschedule []Config
+}

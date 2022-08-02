@@ -201,8 +201,7 @@ func (ac *AutoConfig) LoadAndRun(ctx context.Context) {
 	defer ac.m.Unlock()
 
 	for _, cp := range ac.configPollers {
-		cp.start(ac)
-		cp.pollOnce(ctx, ac)
+		cp.start(ctx, ac)
 
 		// TODO: this probably belongs somewhere inside the file config
 		// provider itself, but since it already lived in AD it's been

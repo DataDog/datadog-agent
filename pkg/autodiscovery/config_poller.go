@@ -50,14 +50,62 @@ func (pd *configPoller) stop() {
 }
 
 // start starts polling the provider descriptor
-func (pd *configPoller) start(ac *AutoConfig) {
+func (pd *configPoller) start(ctx context.Context, ac *AutoConfig) {
+	_, isStreaming := pd.provider.(providers.StreamingConfigProvider)
+
+	if !isStreaming {
+		pd.pollOnce(ctx, ac)
+	}
+
 	if !pd.canPoll {
 		return
 	}
+
 	pd.stopChan = make(chan struct{})
 	pd.healthHandle = health.RegisterLiveness(fmt.Sprintf("ad-config-provider-%s", pd.provider.String()))
 	pd.isPolling = true
-	go pd.poll(ac)
+
+	if isStreaming {
+		ch := make(chan struct{})
+		go pd.stream(ch, ac)
+		<-ch
+	} else {
+		go pd.poll(ac)
+	}
+}
+
+// stream streams config from the corresponding config provider
+func (pd *configPoller) stream(ch chan struct{}, ac *AutoConfig) {
+	var ranOnce bool
+	ctx, cancel := context.WithCancel(context.Background())
+	changesCh := pd.provider.(providers.StreamingConfigProvider).Stream(ctx)
+
+	for {
+		select {
+		case <-pd.healthHandle.C:
+
+		case <-pd.stopChan:
+			err := pd.healthHandle.Deregister()
+			if err != nil {
+				log.Errorf("error de-registering health check: %s", err)
+			}
+
+			cancel()
+
+			return
+
+		case changes := <-changesCh:
+			ac.applyChanges(configChanges{
+				schedule:   changes.Schedule,
+				unschedule: changes.Unschedule,
+			})
+
+			if !ranOnce {
+				close(ch)
+				ranOnce = true
+			}
+		}
+	}
 }
 
 // poll polls config of the corresponding config provider
@@ -70,7 +118,11 @@ func (pd *configPoller) poll(ac *AutoConfig) {
 			cancel()
 			ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
 		case <-pd.stopChan:
-			pd.healthHandle.Deregister() //nolint:errcheck
+			err := pd.healthHandle.Deregister()
+			if err != nil {
+				log.Errorf("error de-registering health check: %s", err)
+			}
+
 			cancel()
 			ticker.Stop()
 			return
