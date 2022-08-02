@@ -572,29 +572,31 @@ func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
 }
 
 // SetProcessPath resolves process file path
-func (p *ProcessResolver) SetProcessPath(entry *model.ProcessCacheEntry) (string, error) {
-	if entry.FileEvent.Inode == 0 || entry.FileEvent.MountID == 0 {
-		entry.FileEvent.SetPathnameStr("")
-		entry.FileEvent.SetBasenameStr("")
+func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent) (string, error) {
+
+	if fileEvent.Inode == 0 || fileEvent.MountID == 0 {
+		fileEvent.SetPathnameStr("")
+		fileEvent.SetBasenameStr("")
 
 		p.pathErrStats.Inc()
-
-		return "", &ErrInvalidKeyPath{Inode: entry.FileEvent.Inode, MountID: entry.FileEvent.MountID}
+		return "", &ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID}
 	}
 
-	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&entry.FileEvent.FileFields)
+
+	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&fileEvent.FileFields)
 	if err != nil {
-		entry.FileEvent.SetPathnameStr("")
-		entry.FileEvent.SetBasenameStr("")
+		fileEvent.SetPathnameStr("")
+		fileEvent.SetBasenameStr("")
 
 		p.pathErrStats.Inc()
 
-		return "", &ErrInvalidKeyPath{Inode: entry.FileEvent.Inode, MountID: entry.FileEvent.MountID}
+		return "", &ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID}
 	}
-	entry.FileEvent.SetPathnameStr(pathnameStr)
-	entry.FileEvent.SetBasenameStr(path.Base(entry.FileEvent.PathnameStr))
 
-	return entry.FileEvent.PathnameStr, nil
+	fileEvent.SetPathnameStr(pathnameStr)
+	fileEvent.SetBasenameStr(path.Base(fileEvent.PathnameStr))
+
+	return fileEvent.PathnameStr, nil
 }
 
 func isBusybox(pathname string) bool {
@@ -652,8 +654,12 @@ func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheE
 
 // ResolveNewProcessCacheEntry resolves the context fields of a new process cache entry parsed from kernel data
 func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry) error {
-	if _, err := p.SetProcessPath(entry); err != nil {
+	if _, err := p.SetProcessPath(&entry.FileEvent); err != nil {
 		return fmt.Errorf("failed to resolve exec path: %w", err)
+	}
+
+	if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent); err != nil {
+		return fmt.Errorf("failed to resolve interpreter path: %w", err)
 	}
 
 	p.SetProcessArgs(entry)

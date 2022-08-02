@@ -369,7 +369,7 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs 
 
     bpf_printk("exec inode: %u\n", syscall->exec.linux_binprm.executable.path_key.ino);
     bpf_printk("exec mount id: %u\n", syscall->exec.linux_binprm.executable.path_key.mount_id);
-    bpf_printk("exec inode: %u\n", syscall->exec.linux_binprm.executable.path_key.path_id);
+    bpf_printk("exec path id: %u\n", syscall->exec.linux_binprm.executable.path_key.path_id);
 
     return 0;
 }
