@@ -93,8 +93,14 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		hostnameEndpointPrefix:        "ndmflow-intake.",
 		intakeTrackType:               "ndmflow",
 		defaultBatchMaxConcurrentSend: 10,
-		defaultBatchMaxContentSize:    20e6, // max 20Mb uncompressed size per payload
-		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
+
+		// Each NetFlow flow is about 500 bytes
+		// 10k BatchMaxSize is about 5Mo of content size
+		defaultBatchMaxSize: 10000,
+
+		// Make SendEventPlatformEvent to avoid NetFlow events being dropped when the input chan is full
+		shouldBlockIfInputChanIsFull: true,
 	},
 }
 
@@ -117,11 +123,18 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	if !ok {
 		return fmt.Errorf("unknown eventType=%s", eventType)
 	}
-	select {
-	case p.in <- e:
-		return nil
-	default:
-		return fmt.Errorf("event platform forwarder pipeline channel is full for eventType=%s. consider increasing batch_max_concurrent_send", eventType)
+	if p.shouldBlockIfInputFull {
+		select {
+		case p.in <- e:
+			return nil
+		}
+	} else {
+		select {
+		case p.in <- e:
+			return nil
+		default:
+			return fmt.Errorf("event platform forwarder pipeline channel is full for eventType=%s. consider increasing batch_max_concurrent_send", eventType)
+		}
 	}
 }
 
@@ -170,10 +183,11 @@ func (s *defaultEventPlatformForwarder) Stop() {
 }
 
 type passthroughPipeline struct {
-	sender   *sender.Sender
-	strategy sender.Strategy
-	in       chan *message.Message
-	auditor  auditor.Auditor
+	sender                 *sender.Sender
+	strategy               sender.Strategy
+	in                     chan *message.Message
+	auditor                auditor.Auditor
+	shouldBlockIfInputFull bool
 }
 
 type passthroughPipelineDesc struct {
@@ -185,6 +199,7 @@ type passthroughPipelineDesc struct {
 	defaultBatchMaxConcurrentSend int
 	defaultBatchMaxContentSize    int
 	defaultBatchMaxSize           int
+	shouldBlockIfInputChanIsFull  bool
 }
 
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
@@ -240,10 +255,11 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d",
 		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize)
 	return &passthroughPipeline{
-		sender:   sender.NewSender(senderInput, a.Channel(), destinations, 10),
-		strategy: strategy,
-		in:       inputChan,
-		auditor:  a,
+		sender:                 sender.NewSender(senderInput, a.Channel(), destinations, 10),
+		strategy:               strategy,
+		in:                     inputChan,
+		auditor:                a,
+		shouldBlockIfInputFull: desc.shouldBlockIfInputChanIsFull,
 	}, nil
 }
 
