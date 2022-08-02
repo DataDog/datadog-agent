@@ -73,7 +73,7 @@ func TestProcessCheckFirstRun(t *testing.T) {
 	proc2 := makeProcess(2, "mine-bitcoins -all -x")
 	proc3 := makeProcess(3, "foo --version")
 	proc4 := makeProcess(4, "foo -bar -bim")
-	proc5 := makeProcess(5, "datadog-process-agent -ddconfig datadog.conf")
+	proc5 := makeProcess(5, "datadog-process-agent --cfgpath datadog.conf")
 	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
 
 	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
@@ -94,7 +94,7 @@ func TestProcessCheckSecondRun(t *testing.T) {
 	proc2 := makeProcess(2, "mine-bitcoins -all -x")
 	proc3 := makeProcess(3, "foo --version")
 	proc4 := makeProcess(4, "foo -bar -bim")
-	proc5 := makeProcess(5, "datadog-process-agent -ddconfig datadog.conf")
+	proc5 := makeProcess(5, "datadog-process-agent --cfgpath datadog.conf")
 	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
 
 	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
@@ -145,7 +145,7 @@ func TestProcessCheckWithRealtime(t *testing.T) {
 	proc2 := makeProcess(2, "mine-bitcoins -all -x")
 	proc3 := makeProcess(3, "foo --version")
 	proc4 := makeProcess(4, "foo -bar -bim")
-	proc5 := makeProcess(5, "datadog-process-agent -ddconfig datadog.conf")
+	proc5 := makeProcess(5, "datadog-process-agent --cfgpath datadog.conf")
 	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
 
 	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
