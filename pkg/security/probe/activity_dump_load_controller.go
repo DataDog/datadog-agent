@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	ebpfutils "github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
@@ -55,9 +56,14 @@ func NewActivityDumpLoadController(cfg *config.Config, man *manager.Manager) (*A
 		return nil, fmt.Errorf("couldn't find traced_cgroups_lock map")
 	}
 
+	tracedCgroupsCount := uint64(cfg.ActivityDumpTracedCgroupsCount)
+	if tracedCgroupsCount > probes.MaxTracedCgroupsCount {
+		tracedCgroupsCount = probes.MaxTracedCgroupsCount
+	}
+
 	return &ActivityDumpLoadController{
 		tracedEventTypes:   cfg.ActivityDumpTracedEventTypes,
-		tracedCgroupsCount: uint64(cfg.ActivityDumpTracedCgroupsCount),
+		tracedCgroupsCount: tracedCgroupsCount,
 
 		tracedEventTypesMap:     tracedEventTypesMap,
 		tracedCgroupsCounterMap: tracedCgroupsCounterMap,
