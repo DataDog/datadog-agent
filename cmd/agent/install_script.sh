@@ -695,6 +695,7 @@ else
       $sudo_cmd sh -c "sed -i 's|# dd_url:.*|dd_url: $DD_URL|' $config_file"
     fi
   else
+    printf "\033[34m\n* Setting $nice_flavor configuration to use FIPS proxy: $config_file\n\033[0m\n"
     $sudo_cmd cp "$config_file" "${config_file}.orig"
     $sudo_cmd sh -c "exec cat - '${config_file}.orig' > '$config_file'" <<EOF
 # Configuration for the agent to use datadog-fips-proxy to communicate with Datadog via FIPS-compliant channel.
