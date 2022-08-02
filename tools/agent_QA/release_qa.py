@@ -5,13 +5,13 @@ from test_builder import LinuxConfig, MacConfig, Suite, WindowsConfig
 from test_cases.containers import (
     AgentUsesAdLabels,
     ContainerCollectAll,
+    ContainerScenario,
     ContainerTailJounald,
     DockerFileTail,
     DockerFileTailingAD,
     DockerMaxFile,
     PodmanFileTail,
     PodmanSocketTail,
-    ContainerScenario,
 )
 from test_cases.kubernetes import (
     K8CollectAll,
@@ -85,14 +85,15 @@ Suite(
         DockerFileTail(),
         PodmanFileTail(),
         PodmanSocketTail(),
-    ] + [
+    ]
+    + [
         ContainerScenario(k8s, cfgsource, cca, kcuf, dcuf)
         for k8s in ('docker', 'containerd', 'none')
         for cfgsource in ('label' if k8s == 'docker' else 'annotation', 'file', 'none')
         for cca in (True, False)
         for kcuf in (True, False)
         for dcuf in (True, False)
-    ]
+    ],
 ).build(containers.add_card)
 
 windows = board.add_list("Windows")
