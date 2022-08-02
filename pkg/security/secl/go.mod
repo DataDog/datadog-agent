@@ -14,8 +14,8 @@ require (
 	github.com/spf13/cast v1.5.0
 	github.com/stretchr/testify v1.8.0
 	github.com/tinylib/msgp v1.1.6
-	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad
-	golang.org/x/tools v0.1.11
+	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f
+	golang.org/x/tools v0.1.12
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 )
