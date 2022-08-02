@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    Add FIPS mode.
+
+    When environment variable `DD_FIPS_MODE` is set, install script
+    installs an additional FIPS proxy package and automatically
+    configures Agent to direct all traffic to the backend via the FIPS
+    proxy.
