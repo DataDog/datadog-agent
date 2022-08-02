@@ -365,7 +365,7 @@ func (t *Tracer) matchHTTPConnections(conns []network.ConnectionStats, httpStats
 		connsByKeyTuple[network.HTTPKeyTupleFromConn(c)] = struct{}{}
 	}
 
-	matched = make(map[http.Key]*http.RequestStats)
+	matched = make(map[http.Key]*http.RequestStats, len(httpStats))
 	var scratchConn network.ConnectionStats
 	var orphans int
 	for httpKey, stats := range httpStats {
@@ -374,13 +374,14 @@ func (t *Tracer) matchHTTPConnections(conns []network.ConnectionStats, httpStats
 			continue
 		}
 
+		// not matched, assume http tuple has NAT addresses and
+		// do a reverse lookup in the conntrack table
 		scratchConn.Source = util.FromLowHigh(httpKey.DstIPLow, httpKey.DstIPHigh)
 		scratchConn.SPort = httpKey.DstPort
 		scratchConn.Dest = util.FromLowHigh(httpKey.SrcIPLow, httpKey.SrcIPHigh)
 		scratchConn.DPort = httpKey.SrcPort
 		scratchConn.Type = network.TCP
 		trans := t.conntracker.GetTranslationForConn(scratchConn)
-
 		if trans == nil {
 			orphans++
 			continue
