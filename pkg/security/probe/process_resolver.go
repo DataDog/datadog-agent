@@ -769,6 +769,9 @@ func (p *ProcessResolver) resolveFromProcfs(pid uint32, maxDepth int) *model.Pro
 			return nil
 		}
 
+		// consider kworker processes with 0 as ppid
+		entry.IsKworker = filledProc.Ppid == 0
+
 		entry, inserted = p.syncCache(proc, filledProc)
 		ppid = uint32(filledProc.Ppid)
 	} else {
