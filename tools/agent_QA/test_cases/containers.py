@@ -433,7 +433,7 @@ class ContainerScenario(TestCase):
 
         if self.k8s == "none":
             labelargs = "\\"
-            if self.cfgsource == "label":
+            if self.cfgsource == "annotation":
                 labelargs = '''--label com.datadoghq.ad.logs='[{"source": "TESTSRC", "service": "TESTSVC"}]' \\'''
             self.append(
                 textwrap.dedent(
@@ -450,7 +450,7 @@ class ContainerScenario(TestCase):
             )
         else:
             annotargs = "\\"
-            if self.cfgsource == "label":
+            if self.cfgsource == "annotation":
                 annotargs = (
                     '''--annotations ad.datadoghq.com/bash.logs='[{"source":"TESTSRC", "service":"TESTSVC"}]' \\'''
                 )
@@ -460,7 +460,7 @@ class ContainerScenario(TestCase):
                 # Start the Container
 
                 ```
-                k run bash --image=bash \
+                k run bash --image=bash \\
                     {annotargs}
                     --command -- bash -c 'i=0; while true; do echo "HELLO $i at" $(date); i=$((i+1)); sleep 1; done'
                 ```
@@ -488,9 +488,14 @@ class ContainerScenario(TestCase):
                 Check `agent stream-logs`:
                  * "HELLO" output logged
                  * First message included ("HELLO 0")
-                 * First message has appropriate source and service (TESTSRC / TESTSVC)'''
+                 * First message has appropriate source and service (TESTSRC / TESTSVC if those were configured,
+                   otherwise based on the image name)'''
                 )
             )
+
+        self.special_case_type_docker()
+        self.special_case_empty_annotation()
+        self.special_case_no_docker_file_access()
 
         self.append(
             textwrap.dedent(
@@ -502,3 +507,48 @@ class ContainerScenario(TestCase):
             to false, then the check has failed.'''
             )
         )
+
+    def special_case_type_docker(self):
+        if self.cfgsource == 'annotation':
+            self.append(
+                textwrap.dedent(
+                    '''\
+                # With `type:docker` in Annotation
+
+                As an additional check, delete the test pod and create a new
+                one with `"type": "docker"` added to the annotation.  The
+                result should be no worse than with `cca_in_ad: false`.
+
+                '''
+                )
+            )
+
+    def special_case_empty_annotation(self):
+        if self.cfgsource == 'annotation':
+            self.append(
+                textwrap.dedent(
+                    '''\
+                # With Empty Annotation
+
+                As an additional check, delete the test pod and create a new
+                one with `ad.datadoghq.com/bash.logs='[{}]'` as the annotation.
+                The result should be that the pod is logged, but with default
+                source and service based on the image name.
+                '''
+                )
+            )
+
+    def special_case_no_docker_file_access(self):
+        if self.k8s == 'none' and self.dcuf:
+            self.append(
+                textwrap.dedent(
+                    '''\
+                # Without Access to Docker Directory
+
+                As an additional check, restart the dd-agent container omitting
+                the `-v /var/lib/docker/containers:/var/lib/docker/containers:ro`
+                argument.  The agent should still log the container (using the
+                Docker socket).
+                '''
+                )
+            )
