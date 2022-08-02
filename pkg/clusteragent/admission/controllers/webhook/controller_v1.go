@@ -195,6 +195,12 @@ func (c *ControllerV1) generateTemplates() {
 		webhooks = append(webhooks, webhook)
 	}
 
+	// Auto instrumentation - lib injection
+	if config.Datadog.GetBool("admission_controller.auto_instrumentation.enabled") {
+		webhook := c.getWebhookSkeleton("auto-instrumentation", config.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"))
+		webhooks = append(webhooks, webhook)
+	}
+
 	c.webhookTemplates = webhooks
 }
 

@@ -201,6 +201,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		log.Error("No API key configured, exiting")
 	}
 	config.Datadog.SetConfigFile(datadogConfigPath)
+	config.LoadProxyFromEnv(config.Datadog)
 
 	logChannel := make(chan *logConfig.ChannelMessage)
 

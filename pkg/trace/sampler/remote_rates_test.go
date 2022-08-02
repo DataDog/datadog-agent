@@ -9,12 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 const maxRemoteTPS = 12377

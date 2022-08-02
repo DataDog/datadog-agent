@@ -12,12 +12,13 @@ import (
 	"os"
 	"strings"
 
+	"go.etcd.io/bbolt"
+
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"go.etcd.io/bbolt"
 )
 
 func openCacheDB(path string) (*bbolt.DB, error) {

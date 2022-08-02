@@ -131,6 +131,9 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     sk = (struct sock*)PT_REGS_PARM1(ctx);
 
+    // Should actually delete something only if the connection never got established
+    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
+
     clear_sockfd_maps(sk);
 
     // Get network namespace id
@@ -452,6 +455,42 @@ int kprobe__tcp_set_state(struct pt_regs* ctx) {
 
     tcp_stats_t stats = { .state_transitions = (1 << state) };
     update_tcp_stats(&t, stats);
+
+    return 0;
+}
+
+SEC("kprobe/tcp_connect")
+int kprobe__tcp_connect(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("kprobe/tcp_connect: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
+
+    bpf_map_update_elem(&tcp_ongoing_connect_pid, &skp, &pid_tgid, BPF_ANY);
+
+    return 0;
+}
+
+SEC("kprobe/tcp_finish_connect")
+int kprobe__tcp_finish_connect(struct pt_regs *ctx) {
+    struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
+    u64 *pid_tgid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp);
+    if (!pid_tgid_p) {
+        return 0;
+    }
+
+    u64 pid_tgid = *pid_tgid_p;
+    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp);
+    log_debug("kprobe/tcp_finish_connect: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    handle_tcp_stats(&t, skp, TCP_ESTABLISHED);
+    handle_message(&t, 0, 0, CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE);
+
+    log_debug("kprobe/tcp_connect: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
 
     return 0;
 }

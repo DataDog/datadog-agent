@@ -10,10 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"go.uber.org/atomic"
 )
 
 // Builder is used to build the status.

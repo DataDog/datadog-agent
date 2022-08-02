@@ -15,9 +15,10 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/stretchr/testify/assert"
 )
 
 func getFile() (string, error) {

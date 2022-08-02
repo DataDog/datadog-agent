@@ -17,6 +17,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -31,8 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/benbjohnson/clock"
-	"go.uber.org/atomic"
 )
 
 var (

@@ -12,8 +12,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/internal/gohai"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/metadata/internal/gohai"
 )
 
 func TestGohaiPayloadMarshalling(t *testing.T) {

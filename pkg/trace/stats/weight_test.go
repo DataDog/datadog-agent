@@ -8,8 +8,9 @@ package stats
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 func fixedSpan() *pb.Span {

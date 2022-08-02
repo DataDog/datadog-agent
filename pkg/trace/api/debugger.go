@@ -63,7 +63,7 @@ func newDebuggerProxy(conf *config.AgentConfig, target *url.URL, key string, tag
 	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	director := func(req *http.Request) {
 		ddtags := tags
-		containerID := req.Header.Get(headerContainerID)
+		containerID := GetContainerID(req.Context(), req.Header)
 		if ct := getContainerTags(conf.ContainerTags, containerID); ct != "" {
 			ddtags = fmt.Sprintf("%s,%s", ddtags, ct)
 		}

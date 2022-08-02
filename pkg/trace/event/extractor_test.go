@@ -8,9 +8,10 @@ package event
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/stretchr/testify/assert"
 )
 
 type extractorTestCase struct {

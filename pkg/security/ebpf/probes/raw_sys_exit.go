@@ -9,8 +9,9 @@
 package probes
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	manager "github.com/DataDog/ebpf-manager"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 func getSysExitTailCallRoutes() []manager.TailCallRoute {

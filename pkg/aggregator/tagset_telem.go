@@ -8,9 +8,10 @@ package aggregator
 import (
 	"fmt"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"go.uber.org/atomic"
 )
 
 // The tagsetTelemetry struct handles telemetry for "large" tagsets.  For

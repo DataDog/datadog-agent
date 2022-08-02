@@ -181,6 +181,15 @@ func ScrubBytes(file []byte) ([]byte, error) {
 	return DefaultScrubber.ScrubBytes(file)
 }
 
+// ScrubString scrubs credentials from the given string, using the default scrubber.
+func ScrubString(data string) (string, error) {
+	res, err := DefaultScrubber.ScrubBytes([]byte(data))
+	if err != nil {
+		return "", err
+	}
+	return string(res), nil
+}
+
 // ScrubLine scrubs credentials from a single line of text, using the default
 // scrubber.  It can be safely applied to URLs or to strings containing URLs.
 // It does not run multi-line replacers, and should not be used on multi-line

@@ -3,29 +3,28 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
-// +build linux_bpf
-
-package tracer
+package native
 
 import (
 	"encoding/binary"
+	"runtime"
+	"testing"
 	"unsafe"
 )
 
-var (
-	nativeEndian binary.ByteOrder
-)
+func TestNativeEndian(t *testing.T) {
+	if rt := getRuntimeEndian(); Endian != rt {
+		t.Fatalf("%s: compile time endianness %T != runtime endianness %T", runtime.GOARCH, Endian, rt)
+	}
+}
 
-// In lack of binary.NativeEndian ...
-func init() {
+func getRuntimeEndian() binary.ByteOrder {
 	var i int32 = 0x01020304
 	u := unsafe.Pointer(&i)
 	pb := (*byte)(u)
 	b := *pb
 	if b == 0x04 {
-		nativeEndian = binary.LittleEndian
-	} else {
-		nativeEndian = binary.BigEndian
+		return binary.LittleEndian
 	}
+	return binary.BigEndian
 }

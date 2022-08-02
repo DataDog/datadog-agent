@@ -20,14 +20,15 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/cihub/seelog"
+	"github.com/gorilla/mux"
+
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api/agent"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	compagent "github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
-	"github.com/cihub/seelog"
-	"github.com/gorilla/mux"
 )
 
 // Server implements security agent API server

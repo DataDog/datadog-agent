@@ -155,7 +155,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			common.AC.LoadAndRun()
 
 			if config.Datadog.GetBool("inventories_enabled") {
-				metadata.SetupInventoriesExpvar(common.AC, common.Coll)
+				metadata.SetupInventoriesExpvar(common.Coll)
 			}
 
 			// Create the CheckScheduler, but do not attach it to
