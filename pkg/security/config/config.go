@@ -230,6 +230,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		RuntimeCompilationEnabled:            coreconfig.Datadog.GetBool("runtime_security_config.runtime_compilation.enabled"),
 		RuntimeCompiledConstantsEnabled:      coreconfig.Datadog.GetBool("runtime_security_config.runtime_compilation.compiled_constants_enabled"),
 		RuntimeCompiledConstantsIsSet:        coreconfig.Datadog.IsSet("runtime_security_config.runtime_compilation.compiled_constants_enabled"),
+		
 		NetworkProcessEventMonitoringEnabled: coreconfig.Datadog.GetBool("event_monitoring_config.network_process.enabled"),
 		ProcessEventMonitoringEnabled:        coreconfig.Datadog.GetBool("event_monitoring_config.process.enabled"),
 
