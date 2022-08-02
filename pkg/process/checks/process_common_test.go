@@ -50,6 +50,48 @@ func makeProcess(pid int32, cmdline string) *procutil.Process {
 	}
 }
 
+func makeProcessModel(t *testing.T, process *procutil.Process) *model.Process {
+	t.Helper()
+
+	stats := process.Stats
+	mem := stats.MemInfo
+	cpu := stats.CPUPercent
+	return &model.Process{
+		Pid:     process.Pid,
+		Command: &model.Command{Args: process.Cmdline},
+		User:    &model.ProcessUser{},
+		Memory:  &model.MemoryStat{Rss: mem.RSS, Vms: mem.VMS},
+		Cpu: &model.CPUStat{
+			LastCpu:   "cpu",
+			UserPct:   float32(cpu.UserPct),
+			SystemPct: float32(cpu.SystemPct),
+			TotalPct:  float32(cpu.UserPct + cpu.SystemPct),
+		},
+		IoStat:   &model.IOStat{},
+		Networks: &model.ProcessNetworks{},
+	}
+}
+
+func makeProcessStatModel(t *testing.T, process *procutil.Process) *model.ProcessStat {
+	t.Helper()
+
+	stats := process.Stats
+	mem := stats.MemInfo
+	cpu := stats.CPUPercent
+	return &model.ProcessStat{
+		Pid:    process.Pid,
+		Memory: &model.MemoryStat{Rss: mem.RSS, Vms: mem.VMS},
+		Cpu: &model.CPUStat{
+			LastCpu:   "cpu",
+			UserPct:   float32(cpu.UserPct),
+			SystemPct: float32(cpu.SystemPct),
+			TotalPct:  float32(cpu.UserPct + cpu.SystemPct),
+		},
+		IoStat:   &model.IOStat{},
+		Networks: &model.ProcessNetworks{},
+	}
+}
+
 //nolint:deadcode,unused
 // procMsgsVerification takes raw containers and processes and make sure the chunked messages have all data, and each chunk has the correct grouping
 func procMsgsVerification(t *testing.T, msgs []model.MessageBody, rawContainers []*containers.Container, rawProcesses []*procutil.Process, maxSize int, cfg *config.AgentConfig) {
