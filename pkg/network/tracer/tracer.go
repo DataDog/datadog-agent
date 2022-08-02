@@ -391,6 +391,7 @@ func (t *Tracer) matchHTTPConnections(conns []network.ConnectionStats, httpStats
 			continue
 		}
 
+		hk := httpKey
 		httpKey.KeyTuple = http.NewKeyTuple(trans.ReplSrcIP, trans.ReplDstIP, trans.ReplSrcPort, trans.ReplDstPort)
 		if _, ok := connsByKeyTuple[httpKey.KeyTuple]; !ok {
 			orphans++
@@ -398,6 +399,7 @@ func (t *Tracer) matchHTTPConnections(conns []network.ConnectionStats, httpStats
 		}
 
 		if s, ok := matched[httpKey]; ok {
+			log.Debugf("aggregating http stats for %+v into %+v", hk, httpKey)
 			s.CombineWith(stats)
 			continue
 		}
