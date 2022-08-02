@@ -279,7 +279,7 @@
 /tools/ebpf/                            @DataDog/agent-network
 /tools/gdb/                             @DataDog/agent-shared-components
 /tools/retry_file_dump/                 @DataDog/agent-metrics-logs
-/tools/windows/                         @DataDog/agent-platform
+/tools/windows/                         @DataDog/windows-agent
 /tools/agent_QA/                        @DataDog/agent-metrics-logs
 
 /internal/tools/                        @DataDog/agent-platform
