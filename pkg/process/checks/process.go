@@ -458,7 +458,7 @@ func formatCPU(statsNow, statsBefore *procutil.Stats, syst2, syst1 cpu.TimesStat
 			LastCpu:   "cpu",
 			TotalPct:  float32(statsNow.CPUPercent.UserPct + statsNow.CPUPercent.SystemPct),
 			UserPct:   float32(statsNow.CPUPercent.UserPct),
-			SystemPct: float32(statsNow.CPUPercent.UserPct),
+			SystemPct: float32(statsNow.CPUPercent.SystemPct),
 		}
 	}
 	return formatCPUTimes(statsNow, statsNow.CPUTime, statsBefore.CPUTime, syst2, syst1)

@@ -41,8 +41,8 @@ func makeProcess(pid int32, cmdline string) *procutil.Process {
 		Pid:     pid,
 		Cmdline: strings.Split(cmdline, " "),
 		Stats: &procutil.Stats{
-			CPUTime:     &procutil.CPUTimesStat{},
-			MemInfo:     &procutil.MemoryInfoStat{},
+			CPUPercent:  &procutil.CPUPercentStat{UserPct: 11, SystemPct: 22},
+			MemInfo:     &procutil.MemoryInfoStat{RSS: 30, VMS: 40},
 			MemInfoEx:   &procutil.MemoryInfoExStat{},
 			IOStat:      &procutil.IOCountersStat{},
 			CtxSwitches: &procutil.NumCtxSwitchesStat{},
