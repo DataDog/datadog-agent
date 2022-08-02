@@ -95,6 +95,25 @@ var (
 		},
 	}
 
+	// LinkUp Example Trap with injected BITS value V2+
+	BitsZeroedOutValueExampleV2Trap = gosnmp.SnmpTrap{
+		Variables: []gosnmp.SnmpPDU{
+			// sysUpTimeInstance
+			{Name: "1.3.6.1.2.1.1.3.0", Type: gosnmp.TimeTicks, Value: uint32(1000)},
+			// snmpTrapOID
+			{Name: "1.3.6.1.6.3.1.1.4.1.0", Type: gosnmp.OctetString, Value: "1.3.6.1.6.3.1.1.5.4"},
+			// ifIndex
+			{Name: "1.3.6.1.2.1.2.2.1.1", Type: gosnmp.Integer, Value: 9001},
+			// ifAdminStatus
+			{Name: "1.3.6.1.2.1.2.2.1.7", Type: gosnmp.Integer, Value: 2},
+			// ifOperStatus
+			{Name: "1.3.6.1.2.1.2.2.1.8", Type: gosnmp.Integer, Value: 7},
+			// myFakeVarType
+			// Bits 0, 1, 2, 3, 12, 13, 14, 15, 88, and 130 are set
+			{Name: "1.3.6.1.2.1.200.1.3.1.5", Type: gosnmp.OctetString, Value: []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}},
+		},
+	}
+
 	// LinkUp Example Trap with OID of malformed trap variable
 	// containing mappings for both integer and bits
 	InvalidTrapDefinitionExampleV2Trap = gosnmp.SnmpTrap{
@@ -711,6 +730,52 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 				"snmp_device:127.0.0.1",
 			},
 		},
+		{
+			description: "test enum variable resolution with zeroed out BITS",
+			trap:        BitsZeroedOutValueExampleV2Trap,
+			resolver:    resolverWithData,
+			namespace:   "mononoke",
+			expectedContent: map[string]interface{}{
+				"ddsource":      "snmp-traps",
+				"ddtags":        "snmp_version:2,device_namespace:mononoke,snmp_device:127.0.0.1",
+				"timestamp":     0.,
+				"snmpTrapName":  "linkUp",
+				"snmpTrapMIB":   "IF-MIB",
+				"snmpTrapOID":   "1.3.6.1.6.3.1.1.5.4",
+				"ifIndex":       float64(9001),
+				"ifAdminStatus": "down",
+				"ifOperStatus":  "lowerLayerDown",
+				"myFakeVarType": []interface{}{},
+				"uptime":        float64(1000),
+				"variables": []interface{}{
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.1",
+						"type":  "integer",
+						"value": float64(9001),
+					},
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.7",
+						"type":  "integer",
+						"value": float64(2),
+					},
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.2.2.1.8",
+						"type":  "integer",
+						"value": float64(7),
+					},
+					map[string]interface{}{
+						"oid":   "1.3.6.1.2.1.200.1.3.1.5",
+						"type":  "string",
+						"value": base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}),
+					},
+				},
+			},
+			expectedTags: []string{
+				"snmp_version:2",
+				"device_namespace:mononoke",
+				"snmp_device:127.0.0.1",
+			},
+		},
 	}
 
 	for _, d := range data {
@@ -876,6 +941,115 @@ func TestIsBitEnabled(t *testing.T) {
 
 			if actual != d.expected {
 				t.Errorf("result mismatch, wanted %t, got %t", d.expected, actual)
+			}
+		})
+	}
+}
+
+func TestEnrichBits(t *testing.T) {
+	data := []struct {
+		description string
+		variable    trapVariable
+		varMetadata VariableMetadata
+		expected    interface{}
+	}{
+		{
+			description: "all bits are enrichable and are enriched",
+			variable:    trapVariable{OID: ".1.4.3.6.7.3.4.1.4.7", VarType: "string", Value: []byte{0b11000100, 0b10000001}}, // made up OID, bits 0, 1, 5, 8, and 15 set
+			varMetadata: VariableMetadata{
+				Name: "myDummyVariable",
+				Bits: map[int]string{
+					0:  "test0",
+					1:  "test1",
+					2:  "test2",
+					5:  "test5",
+					8:  "test8",
+					15: "test15",
+				},
+			},
+			expected: []interface{}{
+				"test0",
+				"test1",
+				"test5",
+				"test8",
+				"test15",
+			},
+		},
+		{
+			description: "no bits are enrichable are returned unenriched",
+			variable:    trapVariable{OID: ".1.4.3.6.7.3.4.1.4.7", VarType: "string", Value: []byte{0b11000100, 0b10000001}}, // made up OID, bits 0, 1, 5, 8, and 15 set
+			varMetadata: VariableMetadata{
+				Name: "myDummyVariable",
+				Bits: map[int]string{
+					2:  "test2",
+					4:  "test4",
+					6:  "test6",
+					14: "test14",
+				},
+			},
+			expected: []interface{}{
+				0,
+				1,
+				5,
+				8,
+				15,
+			},
+		},
+		{
+			description: "mix of enrichable and unenrichable bits are returned semi-enriched",
+			variable:    trapVariable{OID: ".1.4.3.6.7.3.4.1.4.7", VarType: "string", Value: []byte{0b00111000, 0b01000010}}, // made up OID, bits 2, 3, 4, 9, 14 are set
+			varMetadata: VariableMetadata{
+				Name: "myDummyVariable",
+				Bits: map[int]string{
+					2:  "test2",
+					4:  "test4",
+					6:  "test6",
+					14: "test14",
+				},
+			},
+			expected: []interface{}{
+				"test2",
+				3,
+				"test4",
+				9,
+				"test14",
+			},
+		},
+		{
+			description: "non-byte array value returns original value unchanged",
+			variable:    trapVariable{OID: ".1.4.3.6.7.3.4.1.4.7", VarType: "string", Value: 42},
+			varMetadata: VariableMetadata{
+				Name: "myDummyVariable",
+				Bits: map[int]string{
+					2:  "test2",
+					4:  "test4",
+					6:  "test6",
+					14: "test14",
+				},
+			},
+			expected: 42,
+		},
+		{
+			description: "completely zeroed out bits returns zeroed out bits",
+			variable:    trapVariable{OID: ".1.4.3.6.7.3.4.1.4.7", VarType: "string", Value: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
+			varMetadata: VariableMetadata{
+				Name: "myDummyVariable",
+				Bits: map[int]string{
+					2:  "test2",
+					4:  "test4",
+					6:  "test6",
+					14: "test14",
+				},
+			},
+			expected: []interface{}{},
+		},
+	}
+
+	for _, d := range data {
+		t.Run(d.description, func(t *testing.T) {
+			actual := enrichBits(d.variable, d.varMetadata)
+			if diff := cmp.Diff(d.expected, actual); diff != "" {
+				t.Error(diff)
 			}
 		})
 	}

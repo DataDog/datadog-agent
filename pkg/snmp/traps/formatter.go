@@ -242,12 +242,8 @@ func enrichBits(variable trapVariable, varMetadata VariableMetadata) interface{}
 			}
 		}
 	}
-	if len(enabledValues) > 0 {
-		return enabledValues
-	}
 
-	// if no mapping is found
-	return variable.Value
+	return enabledValues
 }
 
 func parseSysUpTime(variable gosnmp.SnmpPDU) (uint32, error) {
