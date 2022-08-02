@@ -89,6 +89,18 @@ def build(
     ctx.run(cmd.format(**args), env=env)
 
 
+class TempDir:
+    def __enter__(self):
+        self.fname = tempfile.mkdtemp()
+        print(f"created tempdir: {self.fname}")
+        return self.fname
+
+    # The _ in front of the unused arguments are needed to pass lint check
+    def __exit__(self, _exception_type, _exception_value, _exception_traceback):
+        print(f"deleting tempdir: {self.fname}")
+        shutil.rmtree(self.fname)
+
+
 @task
 def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:latest", include_agent_binary=False):
     """
@@ -140,13 +152,18 @@ def go_generate(ctx):
         ctx.run("go generate ./...")
 
 
-class TempDir:
-    def __enter__(self):
-        self.fname = tempfile.mkdtemp()
-        print(f"created tempdir: {self.fname}")
-        return self.fname
+@task
+def gen_mocks(ctx):
+    """
+    Generate mocks
+    """
 
-    # The _ in front of the unused arguments are needed to pass lint check
-    def __exit__(self, _exception_type, _exception_value, _exception_traceback):
-        print(f"deleting tempdir: {self.fname}")
-        shutil.rmtree(self.fname)
+    interfaces = {
+        "./pkg/process/procutil": ["Probe"]
+    }
+
+    for path, names in interfaces.items():
+        interface_regex = "|".join(f"^{i}\\$" for i in names)
+
+        with ctx.cd(path):
+            ctx.run(f"mockery --case snake --name=\"{interface_regex}\"")
