@@ -20,3 +20,10 @@ func GetAgentSemverVersion() (*semver.Version, error) {
 
 	return semver.NewVersion(av.GetNumberAndPre())
 }
+
+func BoolTouint64(value bool) uint64 {
+	if value {
+		return 1
+	}
+	return 0
+}

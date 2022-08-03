@@ -1473,7 +1473,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		},
 		manager.ConstantEditor{
 			Name:  "cgroup_activity_dumps_enabled",
-			Value: boolTouint64(areCGroupADsEnabled(p)),
+			Value: utils.BoolTouint64(areCGroupADsEnabled(p)),
 		},
 		manager.ConstantEditor{
 			Name:  "dump_timeout",
@@ -1499,7 +1499,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
 			manager.ConstantEditor{
 				Name:  "tracepoint_raw_syscall_fallback",
-				Value: boolTouint64(true),
+				Value: utils.BoolTouint64(true),
 			},
 		)
 	}
@@ -1508,7 +1508,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
 			manager.ConstantEditor{
 				Name:  "use_ring_buffer",
-				Value: boolTouint64(true),
+				Value: utils.BoolTouint64(true),
 			},
 		)
 	}
@@ -1550,13 +1550,6 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	}
 
 	return p, nil
-}
-
-func boolTouint64(value bool) uint64 {
-	if value {
-		return 1
-	}
-	return 0
 }
 
 func (p *Probe) ensureConfigDefaults() {
