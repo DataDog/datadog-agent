@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/outcaste-io/ristretto"
+	"github.com/dgraph-io/ristretto"
 )
 
 // measuredCache is a wrapper on top of *ristretto.Cache which additionally
