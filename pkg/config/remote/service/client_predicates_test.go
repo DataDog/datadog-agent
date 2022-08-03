@@ -85,6 +85,9 @@ func TestClientPredicates(t *testing.T) {
 	// empty string match
 	tester(true, []*pbgo.TracerPredicateV1{{Language: empty}})
 
+	// test match everything
+	tester(true, []*pbgo.TracerPredicateV1{{}})
+
 	// test match nothing
 	tester(false, []*pbgo.TracerPredicateV1{})
 
