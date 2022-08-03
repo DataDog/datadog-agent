@@ -81,14 +81,7 @@ func TestProcessCheckRealtimeSecondRun(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, &RunResult{}, first)
 
-	expected := []*model.ProcessStat{
-		makeProcessStatModel(t, proc1),
-		makeProcessStatModel(t, proc2),
-		makeProcessStatModel(t, proc3),
-		makeProcessStatModel(t, proc4),
-		makeProcessStatModel(t, proc5),
-	}
-
+	expected := makeProcessStatModels(t, proc1, proc2, proc3, proc4, proc5)
 	actual, err := processCheck.runRealtime(cfg, 0)
 	require.NoError(t, err)
 	require.Len(t, actual.RealTime, 1)

@@ -79,24 +79,29 @@ func makeProcessModel(t *testing.T, process *procutil.Process) *model.Process {
 	}
 }
 
-func makeProcessStatModel(t *testing.T, process *procutil.Process) *model.ProcessStat {
+func makeProcessStatModels(t *testing.T, processes ...*procutil.Process) []*model.ProcessStat {
 	t.Helper()
 
-	stats := process.Stats
-	mem := stats.MemInfo
-	cpu := stats.CPUPercent
-	return &model.ProcessStat{
-		Pid:    process.Pid,
-		Memory: &model.MemoryStat{Rss: mem.RSS, Vms: mem.VMS},
-		Cpu: &model.CPUStat{
-			LastCpu:   "cpu",
-			UserPct:   float32(cpu.UserPct),
-			SystemPct: float32(cpu.SystemPct),
-			TotalPct:  float32(cpu.UserPct + cpu.SystemPct),
-		},
-		IoStat:   &model.IOStat{},
-		Networks: &model.ProcessNetworks{},
+	models := make([]*model.ProcessStat, len(processes))
+	for _, process := range processes {
+		stats := process.Stats
+		mem := stats.MemInfo
+		cpu := stats.CPUPercent
+		models = append(models, &model.ProcessStat{
+			Pid:    process.Pid,
+			Memory: &model.MemoryStat{Rss: mem.RSS, Vms: mem.VMS},
+			Cpu: &model.CPUStat{
+				LastCpu:   "cpu",
+				UserPct:   float32(cpu.UserPct),
+				SystemPct: float32(cpu.SystemPct),
+				TotalPct:  float32(cpu.UserPct + cpu.SystemPct),
+			},
+			IoStat:   &model.IOStat{},
+			Networks: &model.ProcessNetworks{},
+		})
 	}
+
+	return models
 }
 
 //nolint:deadcode,unused

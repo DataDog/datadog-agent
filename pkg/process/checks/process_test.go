@@ -184,14 +184,7 @@ func TestProcessCheckWithRealtime(t *testing.T) {
 		},
 	}
 
-	expectedStats := []*model.ProcessStat{
-		makeProcessStatModel(t, proc1),
-		makeProcessStatModel(t, proc2),
-		makeProcessStatModel(t, proc3),
-		makeProcessStatModel(t, proc4),
-		makeProcessStatModel(t, proc5),
-	}
-
+	expectedStats := makeProcessStatModels(t, proc1, proc2, proc3, proc4, proc5)
 	actual, err := processCheck.run(config.NewDefaultAgentConfig(), 0, true)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, expectedProcs, actual.Standard) // ordering is not guaranteed
