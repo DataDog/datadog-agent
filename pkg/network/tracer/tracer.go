@@ -360,17 +360,22 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 }
 
 func (t *Tracer) matchHTTPConnections(conns []network.ConnectionStats, httpStats map[http.Key]*http.RequestStats) (matched map[http.Key]*http.RequestStats) {
-	if len(httpStats) == 0 {
+	if len(httpStats) == 0 || len(conns) == 0 {
 		return httpStats
 	}
 
-	connsByKeyTuple := make(map[http.KeyTuple]struct{}, len(conns))
+	connsByKeyTuple := make(map[http.KeyTuple]*http.KeyTuple, len(conns))
 	for _, c := range conns {
-		connsByKeyTuple[network.HTTPKeyTupleFromConn(c)] = struct{}{}
+		kt := network.HTTPKeyTupleFromConn(c)
+		connsByKeyTuple[kt] = nil
+		if c.IPTranslation != nil {
+			connsByKeyTuple[network.HTTPKeyTupleFromConnTuple(c.Source, c.Dest, c.SPort, c.DPort)] = &kt
+		}
 	}
 
 	matched = make(map[http.Key]*http.RequestStats, len(httpStats))
 	var scratchConn network.ConnectionStats
+	var kt http.KeyTuple
 	var orphans int
 	for httpKey, stats := range httpStats {
 		if _, ok := connsByKeyTuple[httpKey.KeyTuple]; ok {
@@ -380,26 +385,39 @@ func (t *Tracer) matchHTTPConnections(conns []network.ConnectionStats, httpStats
 
 		// not matched, assume http tuple has NAT addresses and
 		// do a reverse lookup in the conntrack table
-		scratchConn.Source = util.FromLowHigh(httpKey.DstIPLow, httpKey.DstIPHigh)
-		scratchConn.SPort = httpKey.DstPort
-		scratchConn.Dest = util.FromLowHigh(httpKey.SrcIPLow, httpKey.SrcIPHigh)
-		scratchConn.DPort = httpKey.SrcPort
-		scratchConn.Type = network.TCP
-		trans := t.conntracker.GetTranslationForConn(scratchConn)
-		if trans == nil {
+		var m bool
+		scratchConn.Source, scratchConn.SPort = util.FromLowHigh(httpKey.DstIPLow, httpKey.DstIPHigh), httpKey.DstPort
+		scratchConn.Dest, scratchConn.DPort = util.FromLowHigh(httpKey.SrcIPLow, httpKey.SrcIPHigh), httpKey.SrcPort
+		if trans := t.conntracker.GetTranslationForConn(scratchConn); trans != nil {
+			kt = network.HTTPKeyTupleFromConnTuple(trans.ReplSrcIP, trans.ReplDstIP, trans.ReplSrcPort, trans.ReplDstPort)
+			var ktp *http.KeyTuple
+			if ktp, m = connsByKeyTuple[kt]; ktp != nil {
+				kt = *ktp
+			}
+		}
+
+		if !m {
+			// try again by flipping source and dest since we flip them
+			// for server side http requests
+			scratchConn.Source, scratchConn.Dest = scratchConn.Dest, scratchConn.Source
+			scratchConn.SPort, scratchConn.DPort = scratchConn.DPort, scratchConn.SPort
+			if trans := t.conntracker.GetTranslationForConn(scratchConn); trans != nil {
+				kt = network.HTTPKeyTupleFromConnTuple(trans.ReplSrcIP, trans.ReplDstIP, trans.ReplSrcPort, trans.ReplDstPort)
+				var ktp *http.KeyTuple
+				if ktp, m = connsByKeyTuple[kt]; ktp != nil {
+					kt = *ktp
+				}
+			}
+		}
+
+		if !m {
 			orphans++
 			continue
 		}
 
-		hk := httpKey
-		httpKey.KeyTuple = http.NewKeyTuple(trans.ReplSrcIP, trans.ReplDstIP, trans.ReplSrcPort, trans.ReplDstPort)
-		if _, ok := connsByKeyTuple[httpKey.KeyTuple]; !ok {
-			orphans++
-			continue
-		}
-
+		log.Debugf("matched %+v to %+v", httpKey.KeyTuple, kt)
+		httpKey.KeyTuple = kt
 		if s, ok := matched[httpKey]; ok {
-			log.Debugf("aggregating http stats for %+v into %+v", hk, httpKey)
 			s.CombineWith(stats)
 			continue
 		}

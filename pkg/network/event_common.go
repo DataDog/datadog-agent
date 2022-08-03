@@ -416,7 +416,12 @@ func HTTPKeyTupleFromConn(c ConnectionStats) http.KeyTuple {
 	// Retrieve translated addresses
 	laddr, lport := GetNATLocalAddress(c)
 	raddr, rport := GetNATRemoteAddress(c)
+	return HTTPKeyTupleFromConnTuple(laddr, raddr, lport, rport)
+}
 
+// HTTPKeyTupleFromConnTuple builds the key for an http connection from a
+// connection tuple of (laddr, raddr, lport, rport)
+func HTTPKeyTupleFromConnTuple(laddr, raddr util.Address, lport, rport uint16) http.KeyTuple {
 	// HTTP data is always indexed as (client, server), so we account for that when generating the
 	// the lookup key using the port range heuristic.
 	// In the rare cases where both ports are within the same range we ensure that sport < dport
