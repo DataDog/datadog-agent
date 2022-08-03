@@ -1091,6 +1091,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", 30)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.tags_resolution_period", 60)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.load_controller_period", 2)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.load_controller_max_total_size", 100)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.path_merge.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_cgroups_count", 3)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_event_types", []string{"exec", "open", "dns", "bind"})

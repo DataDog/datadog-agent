@@ -518,8 +518,6 @@ func (adm *ActivityDumpManager) AddContextTags(ad *ActivityDump) {
 	}
 }
 
-const maxTotalADSize = 100 * (2 << 20) // 100 MiB
-
 func (adm *ActivityDumpManager) triggerLoadController() {
 	adm.Lock()
 	defer adm.Unlock()
@@ -535,6 +533,7 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 		ad.Unlock()
 	}
 
+	maxTotalADSize := adm.probe.config.ActivityDumpLoadControlMaxTotalSize * (1 << 20)
 	if totalSize > maxTotalADSize {
 		adm.loadController.reduceConfig()
 	}
