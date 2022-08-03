@@ -8,6 +8,6 @@
 ---
 fixes:
   - |
-    On Windows, NPM driver adds support for Receive Segment Coalescing support.
-    This works around Windows bug in which, in some situations, system probe 
-    would hang on start up.
+    On Windows, NPM driver adds support for Receive Segment Coalescing.
+    This works around a Windows bug which in some situations causes
+    system probe to hang on startup
