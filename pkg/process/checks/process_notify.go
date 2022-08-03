@@ -36,7 +36,6 @@ func (p *processNotify) GetCreateTimes(pids []int32) map[int32]int64 {
 				createTimeForPID[pid] = ctime
 			}
 		}
-		return createTimeForPID
 	}
 	return createTimeForPID
 }
