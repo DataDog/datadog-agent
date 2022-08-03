@@ -85,8 +85,8 @@ func TestClientPredicates(t *testing.T) {
 	// empty string match
 	tester(true, []*pbgo.TracerPredicateV1{{Language: empty}})
 
-	// test match all
-	tester(true, []*pbgo.TracerPredicateV1{})
+	// test match nothing
+	tester(false, []*pbgo.TracerPredicateV1{})
 
 	// multiple fields
 	tester(
@@ -113,6 +113,40 @@ func TestClientPredicates(t *testing.T) {
 			{
 				TracerVersion: tracerVersion,
 				Service:       empty,
+			},
+		},
+	)
+
+	// multiple predicates, none matching
+	tester(
+		false,
+		[]*pbgo.TracerPredicateV1{
+			{
+				TracerVersion: tracerVersion,
+				Service:       serviceFail,
+			},
+			{
+				TracerVersion: tracerVersionFail,
+				Service:       serviceMatch,
+			},
+		},
+	)
+
+	// multple predicates, at least one matching
+	tester(
+		false,
+		[]*pbgo.TracerPredicateV1{
+			{
+				TracerVersion: tracerVersion,
+				Service:       serviceFail,
+			},
+			{
+				TracerVersion: tracerVersionFail,
+				Service:       serviceMatch,
+			},
+			{
+				TracerVersion: tracerVersionFail,
+				Service:       serviceMatch,
 			},
 		},
 	)
