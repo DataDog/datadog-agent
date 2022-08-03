@@ -83,6 +83,7 @@ func AllProbes() []*manager.Probe {
 	allProbes = append(allProbes, GetTCProbes()...)
 	allProbes = append(allProbes, getBindProbes()...)
 	allProbes = append(allProbes, getSyscallMonitorProbes()...)
+	allProbes = append(allProbes, getPipeProbes()...)
 
 	allProbes = append(allProbes,
 		&manager.Probe{
