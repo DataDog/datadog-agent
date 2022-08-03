@@ -268,9 +268,7 @@ func (p *Probe) Init() error {
 		})
 	}
 
-	if selectors, exists := probes.GetSelectorsPerEventType()["*"]; exists {
-		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, selectors...)
-	}
+	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors...)
 
 	if err := p.manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
@@ -928,6 +926,10 @@ func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
 // of the applied approvers for it.
 func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	var activatedProbes []manager.ProbesSelector
+
+	if selectors, exists := probes.GetSelectorsPerEventType()["*"]; exists {
+		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, selectors...)
+	}
 
 	for eventType, selectors := range probes.GetSelectorsPerEventType() {
 		if eventType == "*" || rs.HasRulesForEventType(eventType) || p.isNeededForActivityDump(eventType) {
