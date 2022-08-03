@@ -104,9 +104,14 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		// 10k BatchMaxSize is about 5Mo of content size
 		defaultBatchMaxSize: 10000,
 
-		// High input chan (100k) is needed to handle high number (100k or more) of flows being flushed by NetFlow Server every 10s
-		// 100k is enough for queueing 10 NetFlow payloads (each payload can have up to 10k flows)
-		defaultInputChanSize: 100000,
+		// High input chan is needed to handle high number of flows being flushed by NetFlow Server every 10s
+		// Customers might need to set `network_devices.forwarder.input_chan_size` to higher value if flows are dropped
+		// due to input channel being full.
+		// TODO: A possible better solution is to make SendEventPlatformEvent blocking when input chan is full and avoid
+		//   dropping events. This can't be done right now due to SendEventPlatformEvent being called by
+		//   aggregator loop, making SendEventPlatformEvent blocking might slow down other type of data handled
+		//   by aggregator.
+		defaultInputChanSize: 10000,
 	},
 }
 
