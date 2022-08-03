@@ -170,7 +170,7 @@ __attribute__((always_inline)) void freeup_traced_cgroup_spot(char cgroup[CONTAI
         return;
     }
 
-    __sync_fetch_and_add(&counter->counter, -1);
+    counter->counter -= 1;
     unlock_cgroups_counter();
 }
 
