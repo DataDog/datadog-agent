@@ -91,7 +91,7 @@
 /.gitlab/choco_build.yml                             @DataDog/agent-platform @DataDog/windows-agent
 /.gitlab/choco_deploy.yml                            @DataDog/agent-platform @DataDog/windows-agent
 
-/chocolatey/                            @DataDog/@DataDog/windows-agent
+/chocolatey/                            @DataDog/windows-agent
 
 /cmd/                                   @DataDog/agent-shared-components
 /cmd/trace-agent/                       @DataDog/agent-apm
