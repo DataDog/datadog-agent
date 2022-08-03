@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DmitriyVTitov/size"
 	"github.com/cilium/ebpf"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -64,6 +65,9 @@ func (adm *ActivityDumpManager) Start(ctx context.Context, wg *sync.WaitGroup) {
 	tagsTicker := time.NewTicker(adm.probe.config.ActivityDumpTagsResolutionPeriod)
 	defer tagsTicker.Stop()
 
+	loadControlTicker := time.NewTicker(adm.probe.config.ActivityDumpLoadControlPeriod)
+	defer loadControlTicker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -72,6 +76,8 @@ func (adm *ActivityDumpManager) Start(ctx context.Context, wg *sync.WaitGroup) {
 			adm.cleanup()
 		case <-tagsTicker.C:
 			adm.resolveTags()
+		case <-loadControlTicker.C:
+			adm.triggerLoadController()
 		case ad := <-adm.snapshotQueue:
 			if err := ad.Snapshot(); err != nil {
 				seclog.Errorf("couldn't snapshot [%s]: %v", ad.GetSelectorStr(), err)
@@ -509,5 +515,27 @@ func (adm *ActivityDumpManager) AddContextTags(ad *ActivityDump) {
 		if !found {
 			ad.Tags = append(ad.Tags, tag)
 		}
+	}
+}
+
+const maxTotalADSize = 100 * (2 << 20) // 100 MiB
+
+func (adm *ActivityDumpManager) triggerLoadController() {
+	adm.Lock()
+	defer adm.Unlock()
+
+	// we first compute the total size used by current activity dumps
+	totalSize := 0
+	for _, ad := range adm.activeDumps {
+		ad.Lock()
+		adSize := size.Of(ad)
+		if adSize >= 0 {
+			totalSize += adSize
+		}
+		ad.Unlock()
+	}
+
+	if totalSize > maxTotalADSize {
+		adm.loadController.reduceConfig()
 	}
 }
