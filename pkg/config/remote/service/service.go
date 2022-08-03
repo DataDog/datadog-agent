@@ -8,12 +8,14 @@ package service
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"path"
 	"sync"
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"github.com/secure-systems-lab/go-securesystemslib/cjson"
 	"github.com/theupdateframework/go-tuf/data"
 	tufutil "github.com/theupdateframework/go-tuf/util"
 	"google.golang.org/grpc/codes"
@@ -362,7 +364,7 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 
 	return &pbgo.ClientGetConfigsResponse{
 		Roots:         roots,
-		Targets:       targetsRaw,
+		Targets:       enforceCanonicalJSONUnsafe(targetsRaw),
 		TargetFiles:   filteredFiles,
 		ClientConfigs: matchedClientConfigs,
 	}, nil
@@ -403,7 +405,7 @@ func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) 
 		if err != nil {
 			return nil, err
 		}
-		roots = append(roots, root)
+		roots = append(roots, enforceCanonicalJSONUnsafe(root))
 	}
 	return roots, nil
 }
@@ -545,4 +547,12 @@ func validateRequest(request *pbgo.ClientGetConfigsRequest) error {
 	}
 
 	return nil
+}
+
+func enforceCanonicalJSONUnsafe(raw []byte) []byte {
+	signedData := map[string]interface{}{}
+	json.Unmarshal(raw, &signedData)
+	canonical, _ := cjson.EncodeCanonical(signedData)
+
+	return canonical
 }
