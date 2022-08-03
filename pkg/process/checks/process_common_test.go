@@ -50,6 +50,12 @@ func makeProcess(pid int32, cmdline string) *procutil.Process {
 	}
 }
 
+func makeProcessWithCreateTime(pid int32, cmdline string, createTime int64) *procutil.Process {
+	p := makeProcess(pid, cmdline)
+	p.Stats.CreateTime = createTime
+	return p
+}
+
 func makeProcessModel(t *testing.T, process *procutil.Process) *model.Process {
 	t.Helper()
 
@@ -67,8 +73,9 @@ func makeProcessModel(t *testing.T, process *procutil.Process) *model.Process {
 			SystemPct: float32(cpu.SystemPct),
 			TotalPct:  float32(cpu.UserPct + cpu.SystemPct),
 		},
-		IoStat:   &model.IOStat{},
-		Networks: &model.ProcessNetworks{},
+		CreateTime: process.Stats.CreateTime,
+		IoStat:     &model.IOStat{},
+		Networks:   &model.ProcessNetworks{},
 	}
 }
 

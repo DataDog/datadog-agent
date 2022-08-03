@@ -12,7 +12,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/gopsutil/cpu"
-	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
@@ -26,9 +25,7 @@ import (
 const emptyCtrID = ""
 
 // Process is a singleton ProcessCheck.
-var Process = &ProcessCheck{
-	createTimes: &atomic.Value{},
-}
+var Process = &ProcessCheck{}
 
 var _ CheckWithRealTime = (*ProcessCheck)(nil)
 
@@ -58,9 +55,6 @@ type ProcessCheck struct {
 	// lastPIDs is []int32 that holds PIDs that the check fetched last time,
 	// will be reused by RT process collection to get stats
 	lastPIDs []int32
-
-	// Create times by PID used in the network check
-	createTimes *atomic.Value
 
 	// SysprobeProcessModuleEnabled tells the process check wheither to use the RemoteSystemProbeUtil to gather privileged process stats
 	SysprobeProcessModuleEnabled bool
@@ -475,21 +469,7 @@ func (p *ProcessCheck) storeCreateTimes() {
 	for pid, proc := range p.lastProcs {
 		createTimes[pid] = proc.Stats.CreateTime
 	}
-	p.createTimes.Store(createTimes)
-}
-
-func (p *ProcessCheck) createTimesforPIDs(pids []int32) map[int32]int64 {
-	createTimeForPID := make(map[int32]int64)
-	if result := p.createTimes.Load(); result != nil {
-		createTimesAllPIDs := result.(map[int32]int64)
-		for _, pid := range pids {
-			if ctime, ok := createTimesAllPIDs[pid]; ok {
-				createTimeForPID[pid] = ctime
-			}
-		}
-		return createTimeForPID
-	}
-	return createTimeForPID
+	ProcessNotify.UpdateCreateTimes(createTimes)
 }
 
 func (p *ProcessCheck) getRemoteSysProbeUtil() *net.RemoteSysProbeUtil {
