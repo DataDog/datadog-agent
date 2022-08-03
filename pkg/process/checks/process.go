@@ -380,7 +380,9 @@ func formatCommand(fp *procutil.Process) *model.Command {
 func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, before time.Time) *model.IOStat {
 	if fp.IORateStat != nil {
 		return formatIORates(fp.IORateStat)
-	} else if fp.IOStat == nil { // This will be nil for Mac
+	}
+
+	if fp.IOStat == nil { // This will be nil for Mac
 		return &model.IOStat{}
 	}
 
@@ -388,6 +390,7 @@ func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, before time.T
 	if before.IsZero() || diff <= 0 {
 		return &model.IOStat{}
 	}
+
 	// Reading -1 as counter means the file could not be opened due to permissions.
 	// In that case we set the rate as -1 to distinguish from a real 0 in rates.
 	readRate := float32(-1)
