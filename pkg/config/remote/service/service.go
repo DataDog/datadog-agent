@@ -362,9 +362,14 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 		}
 	}
 
+	targets, err := enforceCanonicalJSON(targetsRaw)
+	if err != nil {
+		return nil, err
+	}
+
 	return &pbgo.ClientGetConfigsResponse{
 		Roots:         roots,
-		Targets:       enforceCanonicalJSONUnsafe(targetsRaw),
+		Targets:       targets,
 		TargetFiles:   filteredFiles,
 		ClientConfigs: matchedClientConfigs,
 	}, nil
@@ -405,7 +410,8 @@ func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) 
 		if err != nil {
 			return nil, err
 		}
-		roots = append(roots, enforceCanonicalJSONUnsafe(root))
+		convertedRoot, err := enforceCanonicalJSON(root)
+		roots = append(roots, convertedRoot)
 	}
 	return roots, nil
 }
@@ -549,10 +555,16 @@ func validateRequest(request *pbgo.ClientGetConfigsRequest) error {
 	return nil
 }
 
-func enforceCanonicalJSONUnsafe(raw []byte) []byte {
+func enforceCanonicalJSON(raw []byte) ([]byte, error) {
 	signedData := map[string]interface{}{}
-	json.Unmarshal(raw, &signedData)
-	canonical, _ := cjson.EncodeCanonical(signedData)
+	err := json.Unmarshal(raw, &signedData)
+	if err != nil {
+		return nil, err
+	}
+	canonical, err := cjson.EncodeCanonical(signedData)
+	if err != nil {
+		return nil, err
+	}
 
-	return canonical
+	return canonical, nil
 }
