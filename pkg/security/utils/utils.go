@@ -21,6 +21,7 @@ func GetAgentSemverVersion() (*semver.Version, error) {
 	return semver.NewVersion(av.GetNumberAndPre())
 }
 
+// BoolTouint64 converts a boolean value to an uint64
 func BoolTouint64(value bool) uint64 {
 	if value {
 		return 1
