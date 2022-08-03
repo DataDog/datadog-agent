@@ -346,10 +346,6 @@ func TestFormatNetworks(t *testing.T) {
 }
 
 func TestFormatCPU(t *testing.T) {
-	hostCPUCount = func() int {
-		return 4
-	}
-
 	for name, test := range map[string]struct {
 		statsNow   *procutil.Stats
 		statsPrev  *procutil.Stats
@@ -369,35 +365,6 @@ func TestFormatCPU(t *testing.T) {
 				TotalPct:  303.03,
 				UserPct:   101.01,
 				SystemPct: 202.02,
-			},
-		},
-		"times": {
-			statsNow: &procutil.Stats{
-				CPUTime: &procutil.CPUTimesStat{
-					User:   101.01,
-					System: 202.02,
-				},
-				NumThreads: 4,
-				Nice:       5,
-			},
-			statsPrev: &procutil.Stats{
-				CPUTime: &procutil.CPUTimesStat{
-					User:   11,
-					System: 22,
-				},
-			},
-			timeNow:    cpu.TimesStat{User: 5000},
-			timeBefore: cpu.TimesStat{User: 2500},
-			expected: &model.CPUStat{
-				LastCpu:    "cpu",
-				TotalPct:   43.2048,
-				UserPct:    14.4016,
-				SystemPct:  28.8032,
-				NumThreads: 4,
-				Cpus:       []*model.SingleCPUStat{},
-				Nice:       5,
-				UserTime:   101,
-				SystemTime: 202,
 			},
 		},
 	} {

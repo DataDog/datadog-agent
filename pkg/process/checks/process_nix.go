@@ -20,6 +20,7 @@ import (
 )
 
 var (
+	// overridden in tests
 	hostCPUCount = system.HostCPUCount
 )
 
