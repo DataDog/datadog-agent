@@ -411,6 +411,9 @@ func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) 
 			return nil, err
 		}
 		convertedRoot, err := enforceCanonicalJSON(root)
+		if err != nil {
+			return nil, err
+		}
 		roots = append(roots, convertedRoot)
 	}
 	return roots, nil
