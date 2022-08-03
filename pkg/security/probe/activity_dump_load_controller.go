@@ -10,6 +10,7 @@ package probe
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	ebpfutils "github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -25,10 +26,12 @@ import (
 type ActivityDumpLoadController struct {
 	tracedEventTypes   []model.EventType
 	tracedCgroupsCount uint64
+	dumpTimeout        time.Duration
 
 	tracedEventTypesMap     *ebpf.Map
 	tracedCgroupsCounterMap *ebpf.Map
 	tracedCgroupsLockMap    *ebpf.Map
+	dumpTimeoutMap          *ebpf.Map
 }
 
 // NewActivityDumpLoadController returns a new activity dump load controller
@@ -62,13 +65,23 @@ func NewActivityDumpLoadController(cfg *config.Config, man *manager.Manager) (*A
 		tracedCgroupsCount = probes.MaxTracedCgroupsCount
 	}
 
+	dumpTimeoutMap, found, err := man.GetMap("ad_dump_timeout")
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, fmt.Errorf("couldn't find ad_dump_timeout map")
+	}
+
 	return &ActivityDumpLoadController{
 		tracedEventTypes:   cfg.ActivityDumpTracedEventTypes,
 		tracedCgroupsCount: tracedCgroupsCount,
+		dumpTimeout:        cfg.ActivityDumpCgroupDumpTimeout,
 
 		tracedEventTypesMap:     tracedEventTypesMap,
 		tracedCgroupsCounterMap: tracedCgroupsCounterMap,
 		tracedCgroupsLockMap:    tracedCgroupsLockMap,
+		dumpTimeoutMap:          dumpTimeoutMap,
 	}, nil
 }
 
@@ -77,7 +90,7 @@ func (lc *ActivityDumpLoadController) propagateLoadSettings() error {
 }
 
 func (lc *ActivityDumpLoadController) propagateLoadSettingsRaw() error {
-	// init traced event types
+	// traced event types
 	isTraced := uint64(1)
 	for _, evtType := range lc.tracedEventTypes {
 		if err := lc.tracedEventTypesMap.Put(evtType, isTraced); err != nil {
@@ -85,6 +98,12 @@ func (lc *ActivityDumpLoadController) propagateLoadSettingsRaw() error {
 		}
 	}
 
+	// dump timeout
+	if err := lc.dumpTimeoutMap.Put(ebpfutils.ZeroUint32MapItem, uint64(lc.dumpTimeout.Nanoseconds())); err != nil {
+		return fmt.Errorf("failed to update dump timeout: %w", err)
+	}
+
+	// traced cgroups count
 	if err := lc.tracedCgroupsLockMap.Update(ebpfutils.ZeroUint32MapItem, uint32(1), ebpf.UpdateNoExist); err != nil {
 		return fmt.Errorf("failed to lock traced cgroup counter: %w", err)
 	}

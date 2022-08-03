@@ -1476,10 +1476,6 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 			Value: utils.BoolTouint64(areCGroupADsEnabled(p)),
 		},
 		manager.ConstantEditor{
-			Name:  "dump_timeout",
-			Value: getCgroupDumpTimeout(p),
-		},
-		manager.ConstantEditor{
 			Name:  "net_struct_type",
 			Value: getNetStructType(p.kernelVersion),
 		},

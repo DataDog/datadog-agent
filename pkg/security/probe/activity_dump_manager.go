@@ -34,10 +34,6 @@ func areCGroupADsEnabled(p *Probe) bool {
 	return p.config.ActivityDumpTracedCgroupsCount > 0
 }
 
-func getCgroupDumpTimeout(p *Probe) uint64 {
-	return uint64(p.config.ActivityDumpCgroupDumpTimeout.Nanoseconds())
-}
-
 // ActivityDumpManager is used to manage ActivityDumps
 type ActivityDumpManager struct {
 	sync.RWMutex
