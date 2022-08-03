@@ -226,7 +226,7 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	if endpoints.BatchMaxSize <= pkgconfig.DefaultBatchMaxSize {
 		endpoints.BatchMaxSize = desc.defaultBatchMaxSize
 	}
-	if endpoints.InputChanSize <= 0 {
+	if endpoints.InputChanSize <= pkgconfig.DefaultInputChanSize {
 		endpoints.InputChanSize = desc.defaultInputChanSize
 	}
 	reliable := []client.Destination{}
