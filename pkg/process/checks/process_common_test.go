@@ -6,6 +6,7 @@
 package checks
 
 import (
+	"math/rand"
 	"runtime"
 	"strings"
 	"testing"
@@ -41,13 +42,66 @@ func makeProcess(pid int32, cmdline string) *procutil.Process {
 		Pid:     pid,
 		Cmdline: strings.Split(cmdline, " "),
 		Stats: &procutil.Stats{
-			CPUTime:     &procutil.CPUTimesStat{},
-			MemInfo:     &procutil.MemoryInfoStat{},
+			CPUPercent: &procutil.CPUPercentStat{
+				UserPct:   float64(rand.Uint64()),
+				SystemPct: float64(rand.Uint64()),
+			},
+			MemInfo: &procutil.MemoryInfoStat{
+				RSS: rand.Uint64(),
+				VMS: rand.Uint64(),
+			},
 			MemInfoEx:   &procutil.MemoryInfoExStat{},
 			IOStat:      &procutil.IOCountersStat{},
 			CtxSwitches: &procutil.NumCtxSwitchesStat{},
 		},
 	}
+}
+
+func makeProcessModel(t *testing.T, process *procutil.Process) *model.Process {
+	t.Helper()
+
+	stats := process.Stats
+	mem := stats.MemInfo
+	cpu := stats.CPUPercent
+	return &model.Process{
+		Pid:     process.Pid,
+		Command: &model.Command{Args: process.Cmdline},
+		User:    &model.ProcessUser{},
+		Memory:  &model.MemoryStat{Rss: mem.RSS, Vms: mem.VMS},
+		Cpu: &model.CPUStat{
+			LastCpu:   "cpu",
+			UserPct:   float32(cpu.UserPct),
+			SystemPct: float32(cpu.SystemPct),
+			TotalPct:  float32(cpu.UserPct + cpu.SystemPct),
+		},
+		IoStat:   &model.IOStat{},
+		Networks: &model.ProcessNetworks{},
+	}
+}
+
+func makeProcessStatModels(t *testing.T, processes ...*procutil.Process) []*model.ProcessStat {
+	t.Helper()
+
+	models := make([]*model.ProcessStat, 0, len(processes))
+	for _, process := range processes {
+		stats := process.Stats
+		mem := stats.MemInfo
+		cpu := stats.CPUPercent
+		models = append(models, &model.ProcessStat{
+			Pid:    process.Pid,
+			Memory: &model.MemoryStat{Rss: mem.RSS, Vms: mem.VMS},
+			Cpu: &model.CPUStat{
+				LastCpu:   "cpu",
+				UserPct:   float32(cpu.UserPct),
+				SystemPct: float32(cpu.SystemPct),
+				TotalPct:  float32(cpu.UserPct + cpu.SystemPct),
+			},
+			IoStat:   &model.IOStat{},
+			Networks: &model.ProcessNetworks{},
+		})
+	}
+
+	return models
 }
 
 //nolint:deadcode,unused

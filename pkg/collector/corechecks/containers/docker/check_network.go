@@ -194,7 +194,7 @@ func (dn *dockerNetworkExtension) postRun() {
 
 // Allow mocking in unit tests
 var (
-	getRoutesFunc func(string, int) ([]system.NetworkRoute, error) = system.ParseProcessRoutes
+	getRoutesFunc = system.ParseProcessRoutes
 )
 
 func findDockerNetworks(procPath string, entry *containerNetworkEntry, container dockerTypes.Container) {

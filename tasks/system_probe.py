@@ -861,6 +861,7 @@ def generate_lookup_tables(ctx, windows=is_windows):
 
     lookup_table_generate_files = [
         "./pkg/network/go/goid/main.go",
+        "./pkg/network/http/gotls/lookup/main.go",
     ]
     for file in lookup_table_generate_files:
         ctx.run(f"go generate {file}")

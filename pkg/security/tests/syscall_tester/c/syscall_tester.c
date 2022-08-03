@@ -457,26 +457,41 @@ int test_forkexec(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
-int test_pid_discarder(int argc, char **argv) {
-    char *filename = argv[1];
-
-    getchar();
-
-    int fd = open(filename, O_RDONLY|O_CREAT, 0400);
-    if (fd <= 0) {
+int test_multi_open(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Please speficy at least a file name \n");
         return EXIT_FAILURE;
     }
-    close(fd);
-    //unlink(filename);
 
-    getchar();
+    for (int i = 1; i != argc; i++) {
+        getchar();
 
-    fd = open(filename, O_RDONLY|O_CREAT, 0400);
-    if (fd <= 0) {
+        char *filename = argv[i];
+        int fd = open(filename, O_RDONLY | O_CREAT, 0400);
+        if (fd <= 0) {
+            return EXIT_FAILURE;
+        }
+        close(fd);
+        unlink(filename);
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int test_pipe_chown(void) {
+    int fds[2] = { 0, 0 };
+
+    if (pipe(fds)) {
+        perror("pipe");
         return EXIT_FAILURE;
     }
-    close(fd);
-    //unlink(filename);
+
+    if (fchown(fds[0], 100, 200) || fchown(fds[1], 100, 200)) {
+        perror("fchown");
+        return EXIT_FAILURE;
+    }
+    close(fds[0]);
+    close(fds[1]);
 
     return EXIT_SUCCESS;
 }
@@ -511,8 +526,10 @@ int main(int argc, char **argv) {
         return test_bind(argc - 1, argv + 1);
     } else if (strcmp(cmd, "fork") == 0) {
         return test_forkexec(argc - 1, argv + 1);
-    } else if (strcmp(cmd, "pid-discarder") == 0) {
-        return test_pid_discarder(argc -1, argv + 1);
+    } else if (strcmp(cmd, "multi-open") == 0) {
+        return test_multi_open(argc - 1, argv + 1);
+    } else if (strcmp(cmd, "pipe-chown") == 0) {
+        return test_pipe_chown();
     } else {
         fprintf(stderr, "Unknown command `%s`\n", cmd);
         return EXIT_FAILURE;

@@ -19,7 +19,16 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	model "github.com/DataDog/agent-payload/v5/process"
+
+	"github.com/DataDog/nikos/types"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // CompilationResult enumerates runtime compilation success & failure modes
@@ -87,7 +96,9 @@ func (a *RuntimeAsset) Verify(dir string) (io.Reader, string, error) {
 
 // Compile compiles the runtime asset if necessary and returns the resulting file.
 func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOutput, error) {
-	return a.runtimeCompiler.CompileObjectFile(config, cflags, a.filename, a)
+	output, err := a.runtimeCompiler.CompileObjectFile(config, cflags, a.filename, a)
+	a.SubmitTelemetry()
+	return output, err
 }
 
 func (a *RuntimeAsset) GetInputReader(config *ebpf.Config, tm *RuntimeCompilationTelemetry) (io.Reader, error) {
@@ -117,4 +128,64 @@ func (a *RuntimeAsset) GetOutputFilePath(config *ebpf.Config, uname *unix.Utsnam
 func (a *RuntimeAsset) GetTelemetry() map[string]int64 {
 	telemetry := a.runtimeCompiler.GetRCTelemetry()
 	return telemetry.GetTelemetry()
+}
+
+func (a *RuntimeAsset) SubmitTelemetry() {
+	tm := a.runtimeCompiler.GetRCTelemetry()
+
+	if !tm.compilationEnabled {
+		return
+	}
+
+	var platform string
+	if target, err := types.NewTarget(); err == nil {
+		// Prefer platform information from nikos over platform info from the host package, since this
+		// is what kernel header downloading uses
+		platform = strings.ToLower(target.Distro.Display)
+	} else {
+		log.Warnf("failed to retrieve host platform information from nikos: %s", err)
+		platform = host.GetStatusInformation().Platform
+	}
+
+	tags := []string{
+		fmt.Sprintf("asset:%s", a.filename),
+		fmt.Sprintf("agent_version:%s", version.AgentVersion),
+		fmt.Sprintf("platform:%s", platform),
+	}
+
+	if tm.compilationResult != notAttempted {
+		var resultTag string
+		if tm.compilationResult == compilationSuccess || tm.compilationResult == compiledOutputFound {
+			resultTag = "success"
+		} else {
+			resultTag = "failure"
+		}
+
+		rcTags := append(tags,
+			fmt.Sprintf("result:%s", resultTag),
+			fmt.Sprintf("reason:%s", model.RuntimeCompilationResult(tm.compilationResult).String()),
+		)
+
+		if err := statsd.Client.Count("datadog.system_probe.runtime_compilation.attempted", 1.0, rcTags, 1.0); err != nil {
+			log.Warnf("error submitting runtime compilation metric to statsd: %s", err)
+		}
+	}
+
+	if tm.headerFetchResult != kernel.NotAttempted {
+		var resultTag string
+		if tm.headerFetchResult <= kernel.DownloadSuccess {
+			resultTag = "success"
+		} else {
+			resultTag = "failure"
+		}
+
+		khdTags := append(tags,
+			fmt.Sprintf("result:%s", resultTag),
+			fmt.Sprintf("reason:%s", model.KernelHeaderFetchResult(tm.headerFetchResult).String()),
+		)
+
+		if err := statsd.Client.Count("datadog.system_probe.kernel_header_fetch.attempted", 1.0, khdTags, 1); err != nil {
+			log.Warnf("error submitting kernel header downloading metric to statsd: %s", err)
+		}
+	}
 }

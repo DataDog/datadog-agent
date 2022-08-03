@@ -27,7 +27,7 @@ This ensures proper alignment.
 
 ```golang
 //  global variable
-var maxFooCount *atomic.Uint64 = atomic.NewUint64(42)
+var maxFooCount = atomic.NewUint64(42)
 
 // in a struct
 type FooTracker struct {

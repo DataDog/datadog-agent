@@ -22,7 +22,7 @@ import (
 
 // uid is an atomically incremented ID, used by the expectResponses function to
 // create payload IDs for the test server.
-var uid *atomic.Uint64 = atomic.NewUint64(0)
+var uid = atomic.NewUint64(0)
 
 // expectResponses creates a new payload for the test server. The test server will
 // respond with the given status codes, in the given order, for each subsequent

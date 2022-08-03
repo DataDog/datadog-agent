@@ -29,7 +29,7 @@ func TestBasicProcessMessages(t *testing.T) {
 		makeProcess(2, "mine-bitcoins -all -x"),
 		makeProcess(3, "foo --version"),
 		makeProcess(4, "foo -bar -bim"),
-		makeProcess(5, "datadog-process-agent -ddconfig datadog.conf"),
+		makeProcess(5, "datadog-process-agent --cfgpath datadog.conf"),
 	}
 	c := []*model.Container{
 		makeContainer("foo"),

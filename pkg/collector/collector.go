@@ -141,6 +141,7 @@ func (c *Collector) RunCheck(ch check.Check) (check.ID, error) {
 	}
 
 	c.checks[ch.ID()] = ch
+	inventories.Refresh()
 	return ch.ID(), nil
 }
 

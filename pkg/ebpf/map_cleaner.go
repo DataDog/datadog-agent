@@ -19,10 +19,10 @@ import (
 	"time"
 	"unsafe"
 
-	internal "github.com/DataDog/btf-internals"
 	cebpf "github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 // MapCleaner is responsible for periodically sweeping an eBPF map
@@ -175,7 +175,7 @@ func marshalBytes(data interface{}, length int) (buf []byte, err error) {
 		err = errors.New("can't marshal from unsafe.Pointer")
 	default:
 		var wr bytes.Buffer
-		err = binary.Write(&wr, internal.NativeEndian, value)
+		err = binary.Write(&wr, native.Endian, value)
 		if err != nil {
 			err = fmt.Errorf("encoding %T: %v", value, err)
 		}

@@ -9,7 +9,10 @@
 package tests
 
 import (
+	"fmt"
 	"net"
+	"os"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,12 +35,19 @@ func TestDNS(t *testing.T) {
 		}
 	}
 
-	rule := &rules.RuleDefinition{
-		ID:         "test_rule",
-		Expression: `dns.question.type == A && dns.question.name == "google.com" && process.file.name == "testsuite"`,
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_dns",
+			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name == "google.com" && process.file.name == "%s"`, path.Base(executable)),
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +61,7 @@ func TestDNS(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, "dns", event.GetType(), "wrong event type")
+			assertTriggeredRule(t, rule, "test_rule_dns")
 			assert.Equal(t, "google.com", event.DNS.Name, "wrong domain name")
 
 			if !validateDNSSchema(t, event) {
@@ -68,7 +78,7 @@ func TestDNS(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, "dns", event.GetType(), "wrong event type")
+			assertTriggeredRule(t, rule, "test_rule_dns")
 			assert.Equal(t, "GOOGLE.COM", event.DNS.Name, "wrong domain name")
 
 			if !validateDNSSchema(t, event) {

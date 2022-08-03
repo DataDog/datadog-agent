@@ -35,7 +35,10 @@ const (
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to inspect plain HTTP traffic
-	httpSocketFilter = "socket/http_filter"
+	httpSocketFilterStub = "socket/http_filter_entry"
+	httpSocketFilter     = "socket/http_filter"
+	HTTP_PROG            = 0
+	httpProgsMap         = "http_progs"
 
 	// maxActive configures the maximum number of instances of the
 	// kretprobe-probed functions handled simultaneously.  This value should be
@@ -96,6 +99,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			{Name: httpBatchesMap},
 			{Name: httpBatchStateMap},
 			{Name: sslSockByCtxMap},
+			{Name: httpProgsMap},
 			{Name: "ssl_read_args"},
 			{Name: "bio_new_socket_args"},
 			{Name: "fd_by_ssl_bio"},
@@ -116,7 +120,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		Probes: []*manager.Probe{
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPSendMsg), EBPFFuncName: "kprobe__tcp_sendmsg", UID: probeUID}, KProbeMaxActive: maxActive},
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPSendMsgReturn), EBPFFuncName: "kretprobe__tcp_sendmsg", UID: probeUID}, KProbeMaxActive: maxActive},
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: httpSocketFilter, EBPFFuncName: "socket__http_filter", UID: probeUID}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: httpSocketFilterStub, EBPFFuncName: "socket__http_filter_entry", UID: probeUID}},
 		},
 	}
 
@@ -153,11 +157,21 @@ func (e *ebpfProgram) Init() error {
 				EditorFlag: manager.EditMaxEntries,
 			},
 		},
-		ActivatedProbes: []manager.ProbesSelector{
-			&manager.ProbeSelector{
+		TailCallRouter: []manager.TailCallRoute{
+			{
+				ProgArrayName: httpProgsMap,
+				Key:           HTTP_PROG,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  httpSocketFilter,
 					EBPFFuncName: "socket__http_filter",
+				},
+			},
+		},
+		ActivatedProbes: []manager.ProbesSelector{
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  httpSocketFilterStub,
+					EBPFFuncName: "socket__http_filter_entry",
 					UID:          probeUID,
 				},
 			},
