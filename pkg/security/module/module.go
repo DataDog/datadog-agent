@@ -152,6 +152,8 @@ func (m *Module) Start() error {
 		return err
 	}
 
+	log.Debugf("IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII\n")
+
 	// runtime security is disabled but might be used by other component like process
 	if !m.config.IsEnabled() {
 		return nil
