@@ -82,7 +82,7 @@ func makeProcessModel(t *testing.T, process *procutil.Process) *model.Process {
 func makeProcessStatModels(t *testing.T, processes ...*procutil.Process) []*model.ProcessStat {
 	t.Helper()
 
-	models := make([]*model.ProcessStat, len(processes))
+	models := make([]*model.ProcessStat, 0, len(processes))
 	for _, process := range processes {
 		stats := process.Stats
 		mem := stats.MemInfo
