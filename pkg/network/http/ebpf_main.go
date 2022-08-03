@@ -128,8 +128,8 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kretprobe/sk_filter_trim_cap",
-					EBPFFuncName: "kretprobe__sk_filter_trim_cap",
+					EBPFSection:  "kretprobe/security_sock_rcv_skb",
+					EBPFFuncName: "kretprobe__security_sock_rcv_skb",
 					UID:          probeUID,
 				},
 				KProbeMaxActive: maxActive,
@@ -204,8 +204,8 @@ func (e *ebpfProgram) Init() error {
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kretprobe/sk_filter_trim_cap",
-					EBPFFuncName: "kretprobe__sk_filter_trim_cap",
+					EBPFSection:  "kretprobe/security_sock_rcv_skb",
+					EBPFFuncName: "kretprobe__security_sock_rcv_skb",
 					UID:          probeUID,
 				},
 			},
