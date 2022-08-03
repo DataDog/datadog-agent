@@ -29,8 +29,9 @@ func getProcessProbe() procutil.Probe {
 				return
 			}
 			log.Info("Using perf counters probe for process data collection")
+
 		}
-		processProbe = procutil.NewProcessProbe()
+		processProbe = procutil.NewProcessProbe(procutil.WithPermission(Process.SysprobeProcessModuleEnabled))
 	})
 	return processProbe
 }

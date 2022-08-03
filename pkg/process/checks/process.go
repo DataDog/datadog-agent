@@ -128,21 +128,6 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 		return nil, errEmptyCPUTime
 	}
 
-	// TODO: deduplicate system probe or WithPermission with RT collection
-	var sysProbeUtil *net.RemoteSysProbeUtil
-	// if the Process module is disabled, we allow Probe to collect
-	// fields that require elevated permission to collect with best effort
-	if !p.SysprobeProcessModuleEnabled {
-		procutil.WithPermission(true)(p.probe)
-	} else {
-		procutil.WithPermission(false)(p.probe)
-		if pu, err := net.GetRemoteSystemProbeUtil(); err == nil {
-			sysProbeUtil = pu
-		} else if p.notInitializedLogLimit.ShouldLog() {
-			log.Warnf("could not initialize system-probe connection in process check: %v (will only log every 10 minutes)", err)
-		}
-	}
-
 	procs, err := p.probe.ProcessesByPID(time.Now(), true)
 	if err != nil {
 		return nil, err
@@ -154,7 +139,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 		p.lastPIDs = append(p.lastPIDs, pid)
 	}
 
-	if sysProbeUtil != nil {
+	if sysProbeUtil := p.getRemoteSysProbeUtil(); sysProbeUtil != nil {
 		mergeProcWithSysprobeStats(p.lastPIDs, procs, sysProbeUtil)
 	}
 
@@ -505,6 +490,23 @@ func (p *ProcessCheck) createTimesforPIDs(pids []int32) map[int32]int64 {
 		return createTimeForPID
 	}
 	return createTimeForPID
+}
+
+func (p *ProcessCheck) getRemoteSysProbeUtil() *net.RemoteSysProbeUtil {
+	// if the Process module is disabled, we allow Probe to collect
+	// fields that require elevated permission to collect with best effort
+	if !p.SysprobeProcessModuleEnabled {
+		return nil
+	}
+
+	pu, err := net.GetRemoteSystemProbeUtil()
+	if err != nil {
+		if p.notInitializedLogLimit.ShouldLog() {
+			log.Warnf("could not initialize system-probe connection in process check: %v (will only log every 10 minutes)", err)
+		}
+		return nil
+	}
+	return pu
 }
 
 // mergeProcWithSysprobeStats takes a process by PID map and fill the stats from system probe into the processes in the map

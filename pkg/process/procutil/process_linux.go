@@ -73,10 +73,10 @@ func WithReturnZeroPermStats(enabled bool) Option {
 
 // WithPermission configures if process collection should fetch fields
 // that require elevated permission or not
-func WithPermission(enabled bool) Option {
+func WithPermission(elevatedPermissions bool) Option {
 	return func(p Probe) {
 		if linuxProbe, ok := p.(*probe); ok {
-			linuxProbe.withPermission = enabled
+			linuxProbe.elevatedPermissions = elevatedPermissions
 		}
 	}
 }
@@ -101,7 +101,7 @@ type probe struct {
 	exit         chan struct{}
 
 	// configurations
-	withPermission          bool
+	elevatedPermissions     bool
 	returnZeroPermStats     bool
 	bootTimeRefreshInterval time.Duration
 }
@@ -186,7 +186,7 @@ func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 			CtxSwitches: statusInfo.ctxSwitches, // /proc/[pid]/status
 			NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
 		}
-		if p.withPermission {
+		if p.elevatedPermissions {
 			stats.OpenFdCount = p.getFDCountImproved(pathForPID) // /proc/[pid]/fd, requires permission checks
 			stats.IOStat = p.parseIO(pathForPID)                 // /proc/[pid]/io, requires permission checks
 		} else {
@@ -258,7 +258,7 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 				NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
 			},
 		}
-		if p.withPermission {
+		if p.elevatedPermissions {
 			proc.Stats.OpenFdCount = p.getFDCountImproved(pathForPID) // /proc/[pid]/fd, requires permission checks
 			proc.Stats.IOStat = p.parseIO(pathForPID)                 // /proc/[pid]/io, requires permission checks
 		} else {
