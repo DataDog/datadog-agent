@@ -48,10 +48,22 @@ struct bpf_map_def SEC("maps/traced_event_types") traced_event_types = {
     .max_entries = EVENT_MAX + 1,
 };
 
+struct bpf_map_def SEC("maps/ad_dump_timeout") ad_dump_timeout = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u64),
+    .max_entries = 1,
+};
+
+#define DURATION_30_MINUTES (30 * 60 * 1000000000ull)
+
 __attribute__((always_inline)) u64 get_dump_timeout() {
-    u64 dump_timeout;
-    LOAD_CONSTANT("dump_timeout", dump_timeout);
-    return dump_timeout;
+    u32 key = 0;
+    u64 *value = bpf_map_lookup_elem(&ad_dump_timeout, &key);
+    if (!value || *value == 0) {
+        return DURATION_30_MINUTES;
+    }
+    return *value;
 }
 
 __attribute__((always_inline)) u64 is_cgroup_activity_dumps_enabled() {
