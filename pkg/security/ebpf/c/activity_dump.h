@@ -60,7 +60,7 @@ struct bpf_map_def SEC("maps/ad_dump_timeout") ad_dump_timeout = {
 __attribute__((always_inline)) u64 get_dump_timeout() {
     u32 key = 0;
     u64 *value = bpf_map_lookup_elem(&ad_dump_timeout, &key);
-    if (!value) {
+    if (!value || *value == 0) {
         return DURATION_30_MINUTES;
     }
     return *value;
