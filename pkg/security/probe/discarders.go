@@ -142,11 +142,11 @@ func (p *pidDiscarders) discardWithTimeout(req *ERPCRequest, eventType model.Eve
 }
 
 // expirePidDiscarder sends an eRPC request to expire a discarder
-func (id *pidDiscarders) expirePidDiscarder(req *ERPCRequest, pid uint32) error {
+func (p *pidDiscarders) expirePidDiscarder(req *ERPCRequest, pid uint32) error {
 	req.OP = ExpirePidDiscarderOp
 	model.ByteOrder.PutUint32(req.Data[0:4], pid)
 
-	return id.erpc.Request(req)
+	return p.erpc.Request(req)
 }
 
 func newPidDiscarders(m *lib.Map, erpc *ERPC) *pidDiscarders {

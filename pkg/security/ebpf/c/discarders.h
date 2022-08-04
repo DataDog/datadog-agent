@@ -147,7 +147,7 @@ void * __attribute__((always_inline)) is_discarded(struct bpf_map_def *discarder
     // keep them for a while in the map to avoid userspace to reinsert it with a pending userspace event
     if (params->is_retained) {
         if (params->expire_at < now) {
-            // important : never modify the discarder maps during the flush as may corrupt the interation
+            // important : never modify the discarder maps during the flush as may corrupt the iteration
             if (!is_flushing_discarders()) {
                 bpf_map_delete_elem(discarder_map, key);
             }
@@ -336,6 +336,11 @@ int __attribute__((always_inline)) discard_pid(u64 event_type, u32 tgid, u64 tim
 
         if ((discarder_timestamp = get_discarder_timestamp(&pid_params->params, event_type)) != NULL) {
             *discarder_timestamp = timestamp;
+        }
+
+        u64 tm = bpf_ktime_get_ns();
+        if (pid_params->params.is_retained && pid_params->params.expire_at < tm) {
+            pid_params->params.is_retained = 0;
         }
     } else {
         struct pid_discarder_params_t new_pid_params = {};
