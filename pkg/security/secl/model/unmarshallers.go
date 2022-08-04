@@ -139,21 +139,6 @@ func (e *Credentials) UnmarshalBinary(data []byte) (int, error) {
 	return 40, nil
 }
 
-// UnmarshalBinary unmarshalls a binary representation of itself
-// func (e *LinuxBinprm) UnmarshalBinary(data []byte) (int, error) {
-// 	if len(data) < 32 {
-// 		return 0, ErrNotEnoughData
-// 	}
-
-// 	var err error
-
-// 	e.InterpreterBaseName, err = UnmarshalString(data[:], 32)
-// 	if err != nil {
-// 		return 0, err
-// 	}
-// 	return 32, nil
-// }
-
 func unmarshalTime(data []byte) time.Time {
 	if t := int64(ByteOrder.Uint64(data)); t != 0 {
 		return time.Unix(0, t)
@@ -331,7 +316,7 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 72 {
-		return 0, fmt.Errorf("less than 72 bytes for file fields")
+		return 0, ErrNotEnoughData
 	}
 	e.Inode = ByteOrder.Uint64(data[0:8])
 	e.MountID = ByteOrder.Uint32(data[8:12])
