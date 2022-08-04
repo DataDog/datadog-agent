@@ -23,7 +23,7 @@ from .flavor import AgentFlavor
 from .go import golangci_lint
 from .libs.copyright import CopyrightLinter
 from .libs.junit_upload import add_flavor_to_junitxml, junit_upload_from_tgz, produce_junit_tar
-from .modules import DEFAULT_MODULES, GoModule
+from .modules import INDEPENDENT_MODULES, DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
 from .utils import DEFAULT_BRANCH, get_build_flags
 
@@ -137,6 +137,18 @@ def lint_flavor(
                 golangci_lint(
                     ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch
                 )
+
+def independent_submodule_check(ctx, modules: List[GoModule]):
+    """
+    Checks all modules to ensure that they do not import the github.com/DataDog/datadog-agent module.
+    """
+    for module in modules:
+        print(f"----- Module '{module.full_path()}'")
+        if not module.condition():
+            print("----- Skipped")
+            continue
+
+        ctx.run(f"go run ./internal/tools/independent-lint/independent.go --path={module.full_path()}")
 
 
 def test_flavor(
@@ -255,6 +267,16 @@ def test(
     else:
         print("Using default modules and targets")
         modules = DEFAULT_MODULES.values()
+
+    # All of the modules in INDEPENDENT_MODULES must be checked, but we should refrain
+    # from checking any ones missing from specified module/targets combination.
+    independent_modules = []
+    for m in modules:
+        for im in INDEPENDENT_MODULES.values():
+            if im.path == m.path:
+                independent_modules.append(im)
+
+    independent_submodule_check(ctx, modules=independent_modules)
 
     if not flavors:
         flavors = [AgentFlavor.base]
