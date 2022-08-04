@@ -42,8 +42,17 @@ jobs:
       - name: Install go deps
         run: inv -e deps
 
-      - name: Sync constants
-        run: inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive
+      - name: Compute branch name
+        id: branch-name
+        run: |
+          echo "::set-output name=BRANCH_NAME::paulcacheux/cws-constants-sync-$(date +%s)"
+
+      - name: Create and switch to branch
+        run: |
+          git switch -c ${{ steps.branch-name.outputs.BRANCH_NAME }}
+
+      #- name: Sync constants
+      #  run: inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive
 
       - name: Debug
         run:
@@ -56,9 +65,15 @@ jobs:
           git diff --no-ext-diff --quiet --exit-code
           echo "::set-output name=IS_DIRTY::$?"
 
+      - name: Push branch
+        if: steps.git-dirty-check.outputs.IS_DIRTY != 0
+        run: |
+          git commit -am "Test commit"
+          git push --set-upstream origin ${{ steps.branch-name.outputs.BRANCH_NAME }}
+
       - name: Create Pull Request
         uses: actions/github-script@v6
-        if: steps.git-dirty-check.outputs != 0
+        if: steps.git-dirty-check.outputs.IS_DIRTY != 0
         with:
           script: |
             const { repo, owner } = context.repo;
@@ -66,7 +81,7 @@ jobs:
               title: 'CWS: sync btfhub constants',
               owner,
               repo,
-              head: '${{ github.ref_name }}',
+              head: '${{ steps.branch-name.outputs.BRANCH_NAME }}',
               base: 'main',
               body: [
                 'This PR syncs the BTFHub constants used by CWS',
