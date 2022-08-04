@@ -168,6 +168,11 @@ func (k *KubeContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]i
 		containerEntityName := containers.BuildEntityName(string(entity.Runtime), containerID)
 		configs, errs = utils.ExtractTemplatesFromContainerLabels(containerEntityName, entity.Labels)
 
+		// AddContainerCollectAllConfigs is only needed when handling
+		// the container event, even when the container belongs to a
+		// pod. Calling it when handling the KubernetesPod will always
+		// result in a duplicated config, as each KubernetesPod will
+		// also generate events for each of its containers.
 		configs = utils.AddContainerCollectAllConfigs(configs, containerEntityName)
 
 		for idx := range configs {
@@ -204,8 +209,6 @@ func (k *KubeContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]i
 					continue
 				}
 			}
-
-			c = utils.AddContainerCollectAllConfigs(c, containerEntity)
 
 			containerIdentifiers[adIdentifier] = struct{}{}
 			containerNames[podContainer.Name] = struct{}{}
