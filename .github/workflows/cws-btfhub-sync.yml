@@ -1,0 +1,32 @@
+name: "CWS BTFHub constants sync"
+
+on: push
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout datadog-agent repository
+        uses: actions/checkout@v3
+
+      - name: Checkout btfhub-archive repository
+        uses: actions/checkout@v3
+        with:
+          repository: aquasecurity/btfhub-archive
+          path: dev/dist/archive
+
+      - name: Install python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8.10'
+
+      - name: Install go
+        uses: actions/setup-go@v3
+        with:
+          go-version: '1.17.11'
+
+      - name: Install python requirements
+        run: pip install -r requirements.txt
+
+      - name: Sync constants
+        run: inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive
