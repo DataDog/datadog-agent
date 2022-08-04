@@ -7,15 +7,25 @@ package model
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 )
 
-func decodeDNS(raw []byte) string {
-	rawLen := len(raw)
-	var rep bytes.Buffer
-	i := 0
-	atStart := true
+var (
+	errDNSNamePointerNotSupported = errors.New("dns name pointer compression is not supported")
+	errDNSNameOutOfBounds         = errors.New("dns name out of bound")
+	errDNSNameNonPrintableAscii   = errors.New("dns name non-printable ascii")
+)
 
+func decodeDNSName(raw []byte) (string, error) {
+	var (
+		i       = 0
+		rawLen  = len(raw)
+		atStart = true
+		rep     bytes.Buffer
+		err     error
+	)
+
+LOOP:
 	for i < rawLen {
 		// Parse label length
 		labelLen := int(raw[i])
@@ -28,11 +38,13 @@ func decodeDNS(raw []byte) string {
 
 		if labelLen&0xC0 != 0 {
 			// pointer compression, we do not support this yet
+			err = errDNSNamePointerNotSupported
 			break
 		}
 
 		if rawLen < i+labelLen {
 			// out of bounds
+			err = errDNSNameOutOfBounds
 			break
 		}
 
@@ -43,15 +55,16 @@ func decodeDNS(raw []byte) string {
 		}
 		for _, c := range labelRaw {
 			if c < ' ' || '~' < c {
-				rep.WriteString(fmt.Sprintf("\\%d", c))
-			} else {
-				rep.WriteByte(c)
+				// non-printable ascii char
+				err = errDNSNameNonPrintableAscii
+				break LOOP
 			}
 		}
+		rep.Write(labelRaw)
 
 		atStart = false
 		i += labelLen
 	}
 
-	return rep.String()
+	return rep.String(), err
 }
