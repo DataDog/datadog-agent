@@ -13,7 +13,7 @@ import (
 var (
 	errDNSNamePointerNotSupported = errors.New("dns name pointer compression is not supported")
 	errDNSNameOutOfBounds         = errors.New("dns name out of bound")
-	errDNSNameNonPrintableAscii   = errors.New("dns name non-printable ascii")
+	errDNSNameNonPrintableASCII   = errors.New("dns name non-printable ascii")
 )
 
 func decodeDNSName(raw []byte) (string, error) {
@@ -56,7 +56,7 @@ LOOP:
 		for _, c := range labelRaw {
 			if c < ' ' || '~' < c {
 				// non-printable ascii char
-				err = errDNSNameNonPrintableAscii
+				err = errDNSNameNonPrintableASCII
 				break LOOP
 			}
 		}
