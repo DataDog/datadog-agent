@@ -731,9 +731,6 @@ func (agg *BufferedAggregator) Stop() {
 }
 
 func (agg *BufferedAggregator) run() {
-	// ensures event platform errors are logged at most once per flush
-	aggregatorEventPlatformErrorLogged := false
-
 	for {
 		select {
 		case <-agg.stopChan:
@@ -746,8 +743,6 @@ func (agg *BufferedAggregator) run() {
 			// - make sure Shrink doesn't happen concurrently with sample processing.
 			// - we don't need to Shrink() on stop
 			agg.tagsStore.Shrink()
-
-			aggregatorEventPlatformErrorLogged = false
 		case <-agg.health.C:
 		case checkMetric := <-agg.checkMetricIn:
 			aggregatorChecksMetricSample.Add(1)
@@ -804,20 +799,18 @@ func (agg *BufferedAggregator) run() {
 			// we can use the aggregator to buffer them
 			agg.addOrchestratorManifest(&orchestratorManifest)
 		case event := <-agg.eventPlatformIn:
-			state := stateOk
-			tlmProcessed.Add(1, event.eventType)
-			aggregatorEventPlatformEvents.Add(event.eventType, 1)
-			err := agg.handleEventPlatformEvent(event)
-			if err != nil {
-				state = stateError
-				aggregatorEventPlatformEventsErrors.Add(event.eventType, 1)
-				log.Debugf("error submitting event platform event: %s", err)
-				if !aggregatorEventPlatformErrorLogged {
+			go func(event senderEventPlatformEvent) {
+				state := stateOk
+				tlmProcessed.Add(1, event.eventType)
+				aggregatorEventPlatformEvents.Add(event.eventType, 1)
+				err := agg.handleEventPlatformEvent(event)
+				if err != nil {
+					state = stateError
+					aggregatorEventPlatformEventsErrors.Add(event.eventType, 1)
 					log.Warnf("Failed to process some event platform events. error='%s' eventCounts=%s errorCounts=%s", err, aggregatorEventPlatformEvents.String(), aggregatorEventPlatformEventsErrors.String())
-					aggregatorEventPlatformErrorLogged = true
 				}
-			}
-			tlmFlush.Add(1, event.eventType, state)
+				tlmFlush.Add(1, event.eventType, state)
+			}(event)
 		case event := <-agg.contLcycleIn:
 			aggregatorContainerLifecycleEvents.Add(1)
 			agg.handleContainerLifecycleEvent(event)
