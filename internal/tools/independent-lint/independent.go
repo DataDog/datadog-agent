@@ -1,3 +1,11 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
+// Package independent-lint checks a go.mod file at a given path specified by the -path argument
+// to ensure that it does not import the list of modules specified by the -deny argument. If
+// the module is found, it exits with status code 1 and logs an error.
 package main
 
 import (
