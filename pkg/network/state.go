@@ -100,7 +100,7 @@ type client struct {
 	closedConnectionsKeys map[string]int
 
 	closedConnections []ConnectionStats
-	stats             map[string]map[uint32]StatCounters
+	stats             map[string]StatCountersByCookie
 	// maps by dns key the domain (string) to stats structure
 	dnsStats        dns.StatsByKeyByNameByType
 	httpStatsDelta  map[http.Key]*http.RequestStats
@@ -120,7 +120,7 @@ func (c *client) Reset(active map[string]*ConnectionStats) {
 
 	// XXX: we should change the way we clean this map once
 	// https://github.com/golang/go/issues/20135 is solved
-	newStats := make(map[string]map[uint32]StatCounters, len(c.stats))
+	newStats := make(map[string]StatCountersByCookie, len(c.stats))
 	for key, st := range c.stats {
 		// Only keep active connections stats
 		if _, isActive := active[key]; isActive {
@@ -472,7 +472,7 @@ func (ns *networkState) getClient(clientID string) *client {
 
 	c := &client{
 		lastFetch:             time.Now(),
-		stats:                 map[string]map[uint32]StatCounters{},
+		stats:                 make(map[string]StatCountersByCookie),
 		closedConnections:     make([]ConnectionStats, 0, minClosedCapacity),
 		closedConnectionsKeys: make(map[string]int),
 		dnsStats:              dns.StatsByKeyByNameByType{},
@@ -525,11 +525,15 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 func (ns *networkState) updateConnWithStats(client *client, key string, c *ConnectionStats) {
 	c.Last = StatCounters{}
 	if sts, ok := client.stats[key]; ok {
-		for cookie, counters := range c.Monotonic {
-			st, ok := sts[cookie]
+		for _, cm := range c.Monotonic {
+			cookie := cm.Cookie
+			counters := cm.StatCounters
+
+			st, ok := sts.Get(cookie)
 			if !ok {
 				c.Last = c.Last.Add(counters)
-				sts[cookie] = counters
+				sts.Put(cookie, counters)
+				client.stats[key] = sts
 				continue
 			}
 
@@ -545,11 +549,12 @@ func (ns *networkState) updateConnWithStats(client *client, key string, c *Conne
 
 			c.Last = c.Last.Add(last)
 
-			sts[cookie] = counters
+			sts.Put(cookie, counters)
+			client.stats[key] = sts
 		}
 	} else {
 		for _, counters := range c.Monotonic {
-			c.Last = c.Last.Add(counters)
+			c.Last = c.Last.Add(counters.StatCounters)
 		}
 	}
 }
@@ -561,7 +566,7 @@ func (ns *networkState) createStatsForKey(client *client, key string) {
 			ns.telemetry.connDropped++
 			return
 		}
-		client.stats[key] = make(map[uint32]StatCounters)
+		client.stats[key] = make(StatCountersByCookie, 0, 3)
 	}
 }
 
@@ -636,8 +641,8 @@ func (ns *networkState) DumpState(clientID string) map[string]interface{} {
 	if client, ok := ns.clients[clientID]; ok {
 		for connKey, s := range client.stats {
 			byCookie := map[uint32]interface{}{}
-			for cookie, st := range s {
-				byCookie[cookie] = map[string]uint64{
+			for _, st := range s {
+				byCookie[st.Cookie] = map[string]uint64{
 					"total_sent":            st.SentBytes,
 					"total_recv":            st.RecvBytes,
 					"total_retransmits":     uint64(st.Retransmits),
@@ -711,13 +716,13 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 }
 
 func mergeConnectionStats(a, b *ConnectionStats) {
-	for cookie, bm := range b.Monotonic {
-		if am, ok := a.Monotonic[cookie]; ok {
-			a.Monotonic[cookie] = am.Max(bm)
+	for _, bm := range b.Monotonic {
+		if ams, ok := a.Monotonic.Get(bm.Cookie); ok {
+			a.Monotonic.Put(bm.Cookie, ams.Max(bm.StatCounters))
 			continue
 		}
 
-		a.Monotonic[cookie] = bm
+		a.Monotonic.Put(bm.Cookie, bm.StatCounters)
 	}
 
 	if b.LastUpdateEpoch > a.LastUpdateEpoch {

@@ -1510,10 +1510,10 @@ func TestSendfileRegression(t *testing.T) {
 	var conn *network.ConnectionStats
 	require.Eventually(t, func() bool {
 		conns := getConnections(t, tr)
+		t.Logf("%+v", conns.Conns)
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		m := conn.MonotonicSum()
-		return ok && m.SentBytes > 0
+		return ok && conn.MonotonicSum().SentBytes > 0
 	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by sendfile(2)")
 
 	assert.Equalf(t, int64(clientMessageSize), int64(conn.MonotonicSum().SentBytes), "sendfile data wasn't properly traced")

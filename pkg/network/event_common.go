@@ -206,6 +206,41 @@ type StatCounters struct {
 	TCPClosed      uint32
 }
 
+// StatCountersByCookie stores StatCounters by unique cookie
+type StatCountersByCookie []*struct {
+	StatCounters
+	Cookie uint32
+}
+
+// Get returns a StatCounters object for a cookie
+func (s StatCountersByCookie) Get(cookie uint32) (StatCounters, bool) {
+	for _, c := range s {
+		if c.Cookie == cookie {
+			return c.StatCounters, true
+		}
+	}
+
+	return StatCounters{}, false
+}
+
+// Put adds or sets a StatCounters object for a cookie
+func (s *StatCountersByCookie) Put(cookie uint32, sc StatCounters) {
+	for _, c := range *s {
+		if c.Cookie == cookie {
+			c.StatCounters = sc
+			return
+		}
+	}
+
+	*s = append(*s, &struct {
+		StatCounters
+		Cookie uint32
+	}{
+		StatCounters: sc,
+		Cookie:       cookie,
+	})
+}
+
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
 type ConnectionStats struct {
 	Source util.Address
@@ -214,8 +249,9 @@ type ConnectionStats struct {
 	IPTranslation *IPTranslation
 	Via           *Via
 
-	Monotonic map[uint32]StatCounters
-	Last      StatCounters
+	Monotonic StatCountersByCookie
+
+	Last StatCounters
 
 	// Last time the stats for this connection were updated
 	LastUpdateEpoch uint64
@@ -293,7 +329,7 @@ func (c ConnectionStats) IsShortLived() bool {
 func (c ConnectionStats) MonotonicSum() StatCounters {
 	var stc StatCounters
 	for _, st := range c.Monotonic {
-		stc = stc.Add(st)
+		stc = stc.Add(st.StatCounters)
 	}
 
 	return stc
@@ -301,9 +337,9 @@ func (c ConnectionStats) MonotonicSum() StatCounters {
 
 func (c ConnectionStats) clone() ConnectionStats {
 	cl := c
-	cl.Monotonic = make(map[uint32]StatCounters, len(c.Monotonic))
-	for k, v := range c.Monotonic {
-		cl.Monotonic[k] = v
+	cl.Monotonic = make(StatCountersByCookie, 0, len(c.Monotonic))
+	for _, s := range c.Monotonic {
+		cl.Monotonic.Put(s.Cookie, s.StatCounters)
 	}
 
 	return cl
@@ -370,9 +406,9 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 
 	var stc StatCounters
 	cookies := make([]uint32, 0, len(c.Monotonic))
-	for c, st := range c.Monotonic {
-		stc = stc.Add(st)
-		cookies = append(cookies, c)
+	for _, st := range c.Monotonic {
+		stc = stc.Add(st.StatCounters)
+		cookies = append(cookies, st.Cookie)
 	}
 
 	str += fmt.Sprintf("(%s) %s sent (+%s), %s received (+%s)",

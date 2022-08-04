@@ -14,10 +14,11 @@ import (
 	"math"
 	"unsafe"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -423,11 +424,12 @@ func updateTCPStats(conn *network.ConnectionStats, cookie uint32, tcpStats *nete
 	if conn.Type != network.TCP {
 		return
 	}
-	m := conn.Monotonic[cookie]
+
+	m, _ := conn.Monotonic.Get(cookie)
 	m.Retransmits = tcpStats.Retransmits
 	m.TCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
 	m.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
-	conn.Monotonic[cookie] = m
+	conn.Monotonic.Put(cookie, m)
 	conn.RTT = tcpStats.Rtt
 	conn.RTTVar = tcpStats.Rtt_var
 }
@@ -468,17 +470,17 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		SPort:            t.Sport,
 		DPort:            t.Dport,
 		SPortIsEphemeral: network.IsPortInEphemeralRange(t.Sport),
-		Monotonic: map[uint32]network.StatCounters{
-			s.Cookie: network.StatCounters{
-				SentBytes:   s.Sent_bytes,
-				RecvBytes:   s.Recv_bytes,
-				SentPackets: s.Sent_packets,
-				RecvPackets: s.Recv_packets,
-			},
-		},
-		LastUpdateEpoch: s.Timestamp,
-		IsAssured:       s.IsAssured(),
+		Monotonic:        make(network.StatCountersByCookie, 0, 3),
+		LastUpdateEpoch:  s.Timestamp,
+		IsAssured:        s.IsAssured(),
 	}
+
+	stats.Monotonic.Put(s.Cookie, network.StatCounters{
+		SentBytes:   s.Sent_bytes,
+		RecvBytes:   s.Recv_bytes,
+		SentPackets: s.Sent_packets,
+		RecvPackets: s.Recv_packets,
+	})
 
 	if t.Type() == netebpf.TCP {
 		stats.Type = network.TCP
