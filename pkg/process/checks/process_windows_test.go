@@ -83,8 +83,8 @@ func TestFormatCPUTimes(t *testing.T) {
 				NumThreads: 4,
 				Cpus:       []*model.SingleCPUStat{},
 				Nice:       5,
-				UserTime:   101,
-				SystemTime: 202,
+				UserTime:   1,
+				SystemTime: 2,
 			},
 		},
 	} {
