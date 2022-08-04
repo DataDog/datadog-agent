@@ -52,6 +52,7 @@ jobs:
       - name: Check if git is dirty
         id: git-dirty-check
         run: |
+          set +e
           git diff --no-ext-diff --quiet --exit-code
           echo "::set-output name=IS_DIRTY::$?"
 
