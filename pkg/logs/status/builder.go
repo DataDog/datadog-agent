@@ -157,6 +157,8 @@ func (b *Builder) toDictionary(c *config.LogsConfig) map[string]interface{} {
 		dictionary["ExcludeSystemUnits"] = strings.Join(c.ExcludeSystemUnits, ", ")
 		dictionary["IncludeUserUnits"] = strings.Join(c.IncludeUserUnits, ", ")
 		dictionary["ExcludeUserUnits"] = strings.Join(c.ExcludeUserUnits, ", ")
+		dictionary["IncludeMatches"] = strings.Join(c.IncludeMatches, ", ")
+		dictionary["ExcludeMatches"] = strings.Join(c.ExcludeMatches, ", ")
 	case config.WindowsEventType:
 		dictionary["ChannelPath"] = c.ChannelPath
 		dictionary["Query"] = c.Query

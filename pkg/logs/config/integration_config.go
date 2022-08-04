@@ -49,6 +49,8 @@ type LogsConfig struct {
 	ExcludeSystemUnits []string `mapstructure:"exclude_units" json:"exclude_units"`           // Journald
 	IncludeUserUnits   []string `mapstructure:"include_user_units" json:"include_user_units"` // Journald
 	ExcludeUserUnits   []string `mapstructure:"exclude_user_units" json:"exclude_user_units"` // Journald
+	IncludeMatches     []string `mapstructure:"include_matches" json:"include_matches"`       // Journald
+	ExcludeMatches     []string `mapstructure:"exclude_matches" json:"exclude_matches"`       // Journald
 	ContainerMode      bool     `mapstructure:"container_mode" json:"container_mode"`         // Journald
 
 	Image string // Docker
