@@ -514,9 +514,7 @@ int kprobe_do_exit(struct pt_regs *ctx) {
     bpf_map_delete_elem(&netns_cache, &pid);
 
     if (tgid == pid) {
-        if (!is_flushing_discarders()) {
-            remove_pid_discarder(tgid);
-        }
+        expire_pid_discarder(tgid);
 
         // update exit time
         struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
