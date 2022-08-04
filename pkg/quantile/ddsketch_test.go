@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	acceptableFloatError = 1e-12
+	acceptableFloatError = 2e-12
 )
 
 func generateDDSketch(quantile func(float64) float64, N, M int) (*ddsketch.DDSketch, error) {
