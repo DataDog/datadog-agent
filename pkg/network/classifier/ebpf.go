@@ -30,6 +30,7 @@ const (
 	protoInFlightMap = "proto_in_flight"
 	protoArgs        = "proto_args"
 	tlsProtoFilter   = "socket/proto_tls"
+	filterArgs       = "filter_args"
 )
 
 type ebpfProgram struct {
@@ -67,9 +68,11 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 			{Name: protoProgsMap},
 			{Name: protoInFlightMap},
 			{Name: protoArgs},
+			{Name: filterArgs},
 		},
 		Probes: []*manager.Probe{
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.SocketClassifierFilter), EBPFFuncName: "socket__classifier_filter"}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.CgroupBpfRunFilterSkb), EBPFFuncName: "kprobe____cgroup_bpf_run_filter_skb"}},
 		},
 	}
 
@@ -109,6 +112,11 @@ func (e *ebpfProgram) Init(connMap *ebpf.Map, telemetryMap *ebpf.Map) error {
 				MaxEntries: uint32(len(cpus)),
 				EditorFlag: manager.EditMaxEntries,
 			},
+			filterArgs: {
+				Type:       ebpf.Array,
+				MaxEntries: uint32(len(cpus)),
+				EditorFlag: manager.EditMaxEntries,
+			},
 		},
 		TailCallRouter: []manager.TailCallRoute{
 			{
@@ -125,6 +133,12 @@ func (e *ebpfProgram) Init(connMap *ebpf.Map, telemetryMap *ebpf.Map) error {
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  string(probes.SocketClassifierFilter),
 					EBPFFuncName: "socket__classifier_filter",
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  string(probes.CgroupBpfRunFilterSkb),
+					EBPFFuncName: "kprobe____cgroup_bpf_run_filter_skb",
 				},
 			},
 		},

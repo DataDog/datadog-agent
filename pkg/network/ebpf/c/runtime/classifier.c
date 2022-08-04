@@ -10,6 +10,7 @@
 /* */
 
 #include "classifier-telemetry.h"
+#include "conn-tuple.h"
 
 #define PROTO_PROG_TLS 1
 #define PROG_INDX(indx) ((indx)-1)
@@ -20,6 +21,13 @@ struct bpf_map_def SEC("maps/proto_progs") proto_progs = {
     .max_entries = 1,
 };
 
+
+struct bpf_map_def SEC("maps/filter_args") filter_args = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(conn_tuple_t),
+    .max_entries = 0,
+};
 
 static __always_inline int fingerprint_proto(skb_info_t* skb_info, struct __sk_buff* skb) {
     if (is_tls(skb, skb_info->data_off))
@@ -32,19 +40,50 @@ static __always_inline void do_tail_call(void* ctx, int protocol) {
         bpf_tail_call_compat(ctx, &proto_progs, PROG_INDX(protocol));
 }
 
+SEC("kprobe/__cgroup_bpf_run_filter_skb")
+int kprobe____cgroup_bpf_run_filter_skb(struct pt_regs* ctx) {
+    conn_tuple_t tup;
+    u32 cpu = bpf_get_smp_processor_id();
+    struct sock* sk = (struct sock *)PT_REGS_PARM1(ctx);
+
+    if (!sk)
+        return 0;
+
+    if (!read_conn_tuple(&tup, sk, 0, 0))
+        return 0;
+
+    tup.netns = get_netns(&sk->sk_net);
+    bpf_map_update_elem(&filter_args, &cpu, &tup, BPF_ANY);
+
+    return 0;
+}
+
 SEC("socket/classifier_filter")
 int socket__classifier_filter(struct __sk_buff* skb) {
+    conn_tuple_t *intup;
     proto_args_t args;
     session_t new_session;
     __builtin_memset(&args, 0, sizeof(proto_args_t));
     __builtin_memset(&new_session, 0, sizeof(new_session));
     skb_info_t* skb_info = &args.skb_info;
     conn_tuple_t* tup = &args.tup;
+    u32 cpu = bpf_get_smp_processor_id();
+
     if (!read_conn_tuple_skb(skb, skb_info, tup))
+        return 0;
+
+    intup = (conn_tuple_t *)bpf_map_lookup_elem(&filter_args, &cpu);
+    if (intup == NULL)
         return 0;
 
     if (!(tup->metadata&CONN_TYPE_TCP))
         return 0;
+
+    intup->metadata |= CONN_TYPE_TCP;
+    __builtin_memcpy(tup, intup, sizeof(conn_tuple_t));
+
+    __builtin_memset(intup, 0, sizeof(conn_tuple_t));
+//    bpf_map_delete_elem(&filter_args, &cpu);
 
     normalize_tuple(tup);
     if (skb_info->tcp_flags & TCPHDR_FIN) {
@@ -59,7 +98,6 @@ int socket__classifier_filter(struct __sk_buff* skb) {
     }
 
     int protocol = fingerprint_proto(skb_info, skb);
-    u32 cpu = bpf_get_smp_processor_id();
     if (protocol) {
         int err = bpf_map_update_elem(&proto_args, &cpu, &args, BPF_ANY);
         if (err < 0)

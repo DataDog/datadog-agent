@@ -17,6 +17,7 @@ static __always_inline void cleanup_conn(conn_tuple_t *tup) {
     u32 cpu = bpf_get_smp_processor_id();
 
     // Will hold the full connection data to send through the perf buffer
+    tup->pid = 0;
     conn_t conn = { .tup = *tup };
     conn_stats_ts_t *cst = NULL;
     bool is_tcp = get_proto(&conn.tup) == CONN_TYPE_TCP;
