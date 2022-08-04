@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"regexp"
+	"unicode"
 	"unsafe"
 )
 
@@ -65,7 +66,12 @@ func UnmarshalString(data []byte, size int) (string, error) {
 		return "", ErrNotEnoughData
 	}
 
-	return string(bytes.SplitN(data[:size], []byte{0}, 2)[0]), nil
+	i := bytes.IndexByte(data[:size], 0)
+	if i < 0 {
+		return "", ErrIncorrectDataSize
+	}
+
+	return string(data[:i]), nil
 }
 
 // UnmarshalPrintableString unmarshal printable string
@@ -74,13 +80,21 @@ func UnmarshalPrintableString(data []byte, size int) (string, error) {
 		return "", ErrNotEnoughData
 	}
 
-	str, err := UnmarshalString(data, size)
-	if err != nil {
-		return "", err
-	}
-	if !IsPrintable(str) {
-		return "", ErrNonPrintable
+	if len(data) < size {
+		return "", ErrNotEnoughData
 	}
 
-	return str, nil
+	i := bytes.IndexFunc(data[:size], func(r rune) bool {
+		return r == 0x00 || !unicode.IsOneOf(unicode.PrintRanges, r)
+	})
+
+	if i < 0 {
+		return "", ErrIncorrectDataSize
+	}
+
+	if data[i] == 0x00 {
+		return string(data[:i]), nil
+	}
+
+	return "", ErrNonPrintable
 }
