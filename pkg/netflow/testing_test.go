@@ -8,12 +8,14 @@ package netflow
 import (
 	"encoding/json"
 	"fmt"
+	"net"
+
+	"github.com/netsampler/goflow2/utils"
+	"github.com/sirupsen/logrus"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
 	"github.com/DataDog/datadog-agent/pkg/netflow/payload"
-	"github.com/netsampler/goflow2/utils"
-	"github.com/sirupsen/logrus"
-	"net"
 )
 
 // NetFlow5 example data from goflow repo:

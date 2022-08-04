@@ -152,7 +152,7 @@ func (t *Tagger) Tag(entityID string, cardinality collectors.TagCardinality) ([]
 }
 
 // AccumulateTagsFor returns tags for a given entity at the desired cardinality.
-func (t *Tagger) AccumulateTagsFor(entityID string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
+func (t *Tagger) AccumulateTagsFor(entityID string, cardinality collectors.TagCardinality, tb tagset.TagsAccumulator) error {
 	tags, err := t.Tag(entityID, cardinality)
 	if err != nil {
 		return err
@@ -215,20 +215,19 @@ func (t *Tagger) run() {
 	for {
 		select {
 		case <-t.health.C:
+			continue
 		case <-t.telemetryTicker.C:
 			t.store.collectTelemetry()
+			continue
 		case <-t.ctx.Done():
 			return
 		default:
 		}
 
 		if t.stream == nil {
-			// startTaggerStream(noTimeout) will never return
-			// unless a stream can be established, or the tagger
-			// has been stopped, which means the error handling
-			// here is just a sanity check.
 			if err := t.startTaggerStream(noTimeout); err != nil {
 				log.Warnf("error received trying to start stream: %s", err)
+				continue
 			}
 		}
 
@@ -268,6 +267,13 @@ func (t *Tagger) run() {
 }
 
 func (t *Tagger) processResponse(response *pb.StreamTagsResponse) error {
+	// returning early when there are no events prevents a keep-alive sent
+	// from the core agent from wiping the store clean in case the remote
+	// tagger was previously in an unready (but filled) state.
+	if len(response.Events) == 0 {
+		return nil
+	}
+
 	events := make([]types.EntityEvent, 0, len(response.Events))
 	for _, ev := range response.Events {
 		eventType, err := convertEventType(ev.Type)

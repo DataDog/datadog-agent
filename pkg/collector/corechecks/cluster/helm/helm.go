@@ -36,7 +36,8 @@ const (
 	checkName               = "helm"
 	serviceCheckName        = "helm.release_state"
 	maximumWaitForAPIServer = 10 * time.Second
-	informerSyncTimeout     = 60 * time.Second
+	defaultExtraSyncTimeout = 120 * time.Second
+	defaultResyncInterval   = 10 * time.Minute
 	labelSelector           = "owner=helm"
 )
 
@@ -71,7 +72,9 @@ type HelmCheck struct {
 }
 
 type checkConfig struct {
-	CollectEvents bool `yaml:"collect_events"`
+	CollectEvents                  bool `yaml:"collect_events"`
+	ExtraSyncTimeoutSeconds        int  `yaml:"extra_sync_timeout_seconds"`
+	InformersResyncIntervalMinutes int  `yaml:"informers_resync_interval_minutes"`
 }
 
 // Parse parses the config and sets default values
@@ -96,17 +99,12 @@ func factory() check.Check {
 func (hc *HelmCheck) Configure(config, initConfig integration.Data, source string) error {
 	hc.BuildID(config, initConfig)
 
-	err := hc.CommonConfigure(config, source)
+	err := hc.CommonConfigure(initConfig, config, source)
 	if err != nil {
 		return err
 	}
 
 	if err = hc.instance.Parse(config); err != nil {
-		return err
-	}
-
-	err = hc.CommonConfigure(initConfig, source)
-	if err != nil {
 		return err
 	}
 
@@ -125,7 +123,7 @@ func (hc *HelmCheck) Configure(config, initConfig integration.Data, source strin
 		return err
 	}
 
-	hc.informerFactory = sharedInformerFactory(apiClient)
+	hc.setSharedInformerFactory(apiClient)
 
 	return hc.setupInformers()
 }
@@ -189,14 +187,14 @@ func (hc *HelmCheck) setupInformers() error {
 			"helm-secrets":    secretInformer.Informer(),
 			"helm-configmaps": configmapInformer.Informer(),
 		},
-		informerSyncTimeout,
+		hc.getExtraSyncTimeout(),
 	)
 }
 
-func sharedInformerFactory(apiClient *apiserver.APIClient) informers.SharedInformerFactory {
-	return informers.NewSharedInformerFactoryWithOptions(
+func (hc *HelmCheck) setSharedInformerFactory(apiClient *apiserver.APIClient) {
+	hc.informerFactory = informers.NewSharedInformerFactoryWithOptions(
 		apiClient.Cl,
-		time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))*time.Second,
+		hc.getInformersResyncPeriod(),
 		informers.WithTweakListOptions(func(opts *metav1.ListOptions) {
 			opts.LabelSelector = labelSelector
 		}),
@@ -413,4 +411,18 @@ func (hc *HelmCheck) sendServiceCheck(sender aggregator.Sender) {
 			}
 		}
 	}
+}
+
+func (hc *HelmCheck) getExtraSyncTimeout() time.Duration {
+	if hc.instance != nil && hc.instance.ExtraSyncTimeoutSeconds > 0 {
+		return time.Duration(hc.instance.ExtraSyncTimeoutSeconds) * time.Second
+	}
+	return defaultExtraSyncTimeout
+}
+
+func (hc *HelmCheck) getInformersResyncPeriod() time.Duration {
+	if hc.instance != nil && hc.instance.InformersResyncIntervalMinutes > 0 {
+		return time.Duration(hc.instance.InformersResyncIntervalMinutes) * time.Minute
+	}
+	return defaultResyncInterval
 }

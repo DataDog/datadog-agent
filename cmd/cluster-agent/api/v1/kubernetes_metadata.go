@@ -15,12 +15,13 @@ import (
 
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
+	"github.com/gorilla/mux"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/gorilla/mux"
 )
 
 func installKubernetesMetadataEndpoints(r *mux.Router) {

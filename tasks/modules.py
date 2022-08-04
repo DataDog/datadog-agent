@@ -114,6 +114,18 @@ DEFAULT_MODULES = {
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state"),
 }
 
+"""
+These sub-modules are not allowed to import the datadog-agent repository, in order to retain their independence
+and facilitate their external usage.
+"""
+INDEPENDENT_MODULES = {
+    "pkg/quantile": GoModule("pkg/quantile"),
+    "pkg/obfuscate": GoModule("pkg/obfuscate"),
+    "pkg/trace": GoModule("pkg/trace"),
+    "pkg/security/secl": GoModule("pkg/security/secl"),
+    "pkg/otlp/model": GoModule("pkg/otlp/model"),
+}
+
 MAIN_TEMPLATE = """package main
 
 import (

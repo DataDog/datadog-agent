@@ -10,13 +10,14 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
 )
 
 const (
@@ -140,6 +141,7 @@ func (c *Collector) RunCheck(ch check.Check) (check.ID, error) {
 	}
 
 	c.checks[ch.ID()] = ch
+	inventories.Refresh()
 	return ch.ID(), nil
 }
 
@@ -218,6 +220,18 @@ func (c *Collector) delete(id check.ID) {
 // lightweight shortcut to see if the collector has started
 func (c *Collector) started() bool {
 	return c.state.Load() == started
+}
+
+// MapOverChecks call the callback with the list of checks locked.
+func (c *Collector) MapOverChecks(cb func([]check.Info)) {
+	c.m.RLock()
+	defer c.m.RUnlock()
+
+	cInfo := []check.Info{}
+	for _, c := range c.checks {
+		cInfo = append(cInfo, c)
+	}
+	cb(cInfo)
 }
 
 // GetAllInstanceIDs returns the ID's of all instances of a check

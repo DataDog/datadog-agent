@@ -292,12 +292,18 @@ func getConditionMessage(p *corev1.Pod) string {
 
 // mapToTags converts a map for which both keys and values are strings to a
 // slice of strings containing those key-value pairs under the "key:value" form.
+// if the map contains empty values we only use the key instead
 func mapToTags(m map[string]string) []string {
 	slice := make([]string, len(m))
 
 	i := 0
 	for k, v := range m {
-		slice[i] = k + ":" + v
+		// Labels can contain empty values: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
+		if v == "" {
+			slice[i] = k
+		} else {
+			slice[i] = k + ":" + v
+		}
 		i++
 	}
 

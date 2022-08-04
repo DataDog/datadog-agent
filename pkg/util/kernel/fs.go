@@ -14,8 +14,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/moby/sys/mountinfo"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 // MountInfoPidPath returns the path to the mountinfo file of a pid in /proc

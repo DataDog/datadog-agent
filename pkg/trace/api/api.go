@@ -112,7 +112,7 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 		if e.IsEnabled != nil && !e.IsEnabled(r.conf) {
 			continue
 		}
-		mux.Handle(e.Pattern, replyWithVersion(hash, e.Handler(r)))
+		mux.Handle(e.Pattern, replyWithVersion(hash, r.conf.AgentVersion, e.Handler(r)))
 	}
 	mux.HandleFunc("/info", infoHandler)
 
@@ -121,9 +121,9 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 
 // replyWithVersion returns an http.Handler which calls h with an addition of some
 // HTTP headers containing version and state information.
-func replyWithVersion(hash string, h http.Handler) http.Handler {
+func replyWithVersion(hash string, version string, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Datadog-Agent-Version", info.Version)
+		w.Header().Set("Datadog-Agent-Version", version)
 		w.Header().Set("Datadog-Agent-State", hash)
 		h.ServeHTTP(w, r)
 	})

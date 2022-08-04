@@ -8,10 +8,11 @@ package inventories
 import (
 	"fmt"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"gopkg.in/yaml.v2"
 )
 
 func marshalAndScrub(conf map[string]interface{}) (string, error) {

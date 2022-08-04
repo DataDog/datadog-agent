@@ -6,8 +6,9 @@
 package connection
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/cilium/ebpf"
+
+	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
 // Tracer is the common interface implemented by all connection tracers.

@@ -249,6 +249,17 @@ func TestUDPReceive(t *testing.T) {
 	sample = samples[0]
 	assert.NotNil(t, sample)
 	assert.Equal(t, sample.Name, "daemon2")
+	demux.Reset()
+
+	// Late metric
+	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2|T1658328888"))
+	samples = demux.WaitForSamples(time.Second * 2)
+	require.Equal(t, 1, len(samples))
+	sample = samples[0]
+	require.NotNil(t, sample)
+	assert.Equal(t, sample.Name, "daemon")
+	assert.Equal(t, sample.Timestamp, float64(1658328888))
+	demux.Reset()
 
 	// Test Service Check
 	// ------------------
@@ -524,6 +535,7 @@ func TestStaticTags(t *testing.T) {
 	config.Datadog.SetDefault("dogstatsd_tags", []string{"sometag3:somevalue3"})
 	config.Datadog.SetDefault("eks_fargate", true) // triggers DD_TAGS in static_tags
 	config.Datadog.SetDefault("tags", []string{"from:dd_tags"})
+	config.SetDetectedFeatures(config.FeatureMap{})
 	defer config.Datadog.SetDefault("dogstatsd_tags", []string{})
 	defer config.Datadog.SetDefault("eks_fargate", false)
 

@@ -1,0 +1,39 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "exit.json",
+    "type": "object",
+    "allOf": [
+        {
+            "properties": {
+                "exit": {
+                    "type": "object",
+                    "required" : [
+                        "cause",
+                        "code"
+                    ]
+                },
+                "process": {
+                    "type": "object",
+                    "required": [
+                        "pid",
+                        "ppid",
+                        "tid",
+                        "uid",
+                        "gid",
+                        "user",
+                        "group",
+                        "comm",
+                        "tty",
+                        "fork_time",
+                        "exec_time",
+                        "exit_time"
+                    ]
+                }
+            },
+            "required": [
+                "exit",
+                "process"
+            ]
+        }
+    ]
+}

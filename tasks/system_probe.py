@@ -854,6 +854,19 @@ def generate_cgo_types(ctx, windows=is_windows, replace_absolutes=True):
                 replace_cgo_tag_absolute_path(file_path=os.path.join(fdir, output_file), windows=windows)
 
 
+@task
+def generate_lookup_tables(ctx, windows=is_windows):
+    if windows:
+        return
+
+    lookup_table_generate_files = [
+        "./pkg/network/go/goid/main.go",
+        "./pkg/network/http/gotls/lookup/main.go",
+    ]
+    for file in lookup_table_generate_files:
+        ctx.run(f"go generate {file}")
+
+
 def is_root():
     return os.getuid() == 0
 

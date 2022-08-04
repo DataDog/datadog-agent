@@ -48,6 +48,10 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getTTYNameOffset(f.kernelVersion)
 	case "creds_uid_offset":
 		value = getCredsUIDOffset(f.kernelVersion)
+	case "sb_type_offset":
+		value = getSbTypeOffset(f.kernelVersion)
+	case "file_system_type_name_offset":
+		value = getFileSystemTypeNameOffset(f.kernelVersion)
 	case "bpf_map_id_offset":
 		value = getBpfMapIDOffset(f.kernelVersion)
 	case "bpf_map_name_offset":
@@ -257,6 +261,14 @@ func getCredsUIDOffset(kv *kernel.Version) uint64 {
 	}
 
 	return size
+}
+
+func getSbTypeOffset(kv *kernel.Version) uint64 {
+	return 40
+}
+
+func getFileSystemTypeNameOffset(kv *kernel.Version) uint64 {
+	return 0
 }
 
 func getBpfMapIDOffset(kv *kernel.Version) uint64 {

@@ -154,6 +154,9 @@ var (
 	// MetricActivityDumpActiveDumps is the name of the metric used to report the number of active dumps
 	// Tags: -
 	MetricActivityDumpActiveDumps = newRuntimeMetric(".activity_dump.active_dumps")
+	// MetricActivityDumpPathMergeCount is the name of the metric used to report the number of path merged
+	// Tags: -
+	MetricActivityDumpPathMergeCount = newRuntimeMetric(".activity_dump.path_merged")
 	// MetricActivityDumpEntityTooLarge is the name of the metric used to report the number of active dumps that couldn't
 	// be sent because they are too big
 	// Tags: format, compression

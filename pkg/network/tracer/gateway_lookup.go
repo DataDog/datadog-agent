@@ -13,15 +13,16 @@ import (
 	"net"
 	"time"
 
+	"github.com/hashicorp/golang-lru/simplelru"
+	"go.uber.org/atomic"
+
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/stats"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/hashicorp/golang-lru/simplelru"
-	"go.uber.org/atomic"
 )
 
 const maxRouteCacheSize = int(^uint(0) >> 1) // max int
@@ -39,8 +40,6 @@ type gatewayLookup struct {
 	subnetCacheLookups *atomic.Uint64 `stats:""`
 	subnetLookups      *atomic.Uint64 `stats:""`
 	subnetLookupErrors *atomic.Uint64 `stats:""`
-
-	statsReporter stats.Reporter
 }
 
 type cloudProvider interface {
@@ -71,13 +70,6 @@ func newGatewayLookup(config *config.Config) *gatewayLookup {
 		subnetCacheLookups:  atomic.NewUint64(0),
 		subnetLookups:       atomic.NewUint64(0),
 		subnetLookupErrors:  atomic.NewUint64(0),
-	}
-
-	var err error
-	gl.statsReporter, err = stats.NewReporter(gl)
-	if err != nil {
-		log.Errorf("could not create stats reporter for gateway lookup: %s", err)
-		return nil
 	}
 
 	router, err := network.NewNetlinkRouter(config.ProcRoot)
@@ -186,7 +178,7 @@ func (g *gatewayLookup) GetStats() map[string]interface{} {
 		return make(map[string]interface{})
 	}
 
-	report := g.statsReporter.Report()
+	report := atomicstats.Report(g)
 	report["route_cache"] = g.routeCache.GetStats()
 	return report
 }

@@ -77,7 +77,7 @@ func Test_injectEnv(t *testing.T) {
 			},
 			wantPodFunc: func() corev1.Pod {
 				pod := fakePodWithContainer("foo-pod", fakeContainer("foo-container"))
-				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, fakeEnv("inject-me"))
+				pod.Spec.Containers[0].Env = append([]corev1.EnvVar{fakeEnv("inject-me")}, pod.Spec.Containers[0].Env...)
 				return *pod
 			},
 			injected: true,
@@ -101,8 +101,8 @@ func Test_injectEnv(t *testing.T) {
 			},
 			wantPodFunc: func() corev1.Pod {
 				pod := fakePodWithContainer("foo-pod", fakeContainer("foo-container"), fakeContainer("bar-container"))
-				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, fakeEnv("inject-me"))
-				pod.Spec.Containers[1].Env = append(pod.Spec.Containers[1].Env, fakeEnv("inject-me"))
+				pod.Spec.Containers[0].Env = append([]corev1.EnvVar{fakeEnv("inject-me")}, pod.Spec.Containers[0].Env...)
+				pod.Spec.Containers[1].Env = append([]corev1.EnvVar{fakeEnv("inject-me")}, pod.Spec.Containers[1].Env...)
 				return *pod
 			},
 			injected: true,
@@ -115,7 +115,7 @@ func Test_injectEnv(t *testing.T) {
 			},
 			wantPodFunc: func() corev1.Pod {
 				pod := fakePodWithContainer("foo-pod", fakeContainer("foo-container"), fakeContainer("bar-container"))
-				pod.Spec.Containers[1].Env = append(pod.Spec.Containers[1].Env, fakeEnv("foo-container-env-foo"))
+				pod.Spec.Containers[1].Env = append([]corev1.EnvVar{fakeEnv("foo-container-env-foo")}, pod.Spec.Containers[1].Env...)
 				return *pod
 			},
 			injected: true,

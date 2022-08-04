@@ -157,6 +157,13 @@ func (cm *simpleConfigManager) processDelConfigs(configs []integration.Config) c
 				log.Debugf("Could not delete template: %v", err)
 			}
 		} else {
+			// Secrets need to be resolved before being unscheduled as otherwise
+			// the computed hashes can be different from the ones computed at schedule time.
+			c, err := decryptConfig(c)
+			if err != nil {
+				log.Errorf("Unable to resolve secrets for config '%s', check may not be unscheduled properly, err: %s", c.Name, err.Error())
+			}
+
 			cm.store.removeLoadedConfig(c)
 			changes.unscheduleConfig(c)
 		}

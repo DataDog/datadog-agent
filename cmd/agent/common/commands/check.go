@@ -144,7 +144,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			}
 
 			// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-			opts := aggregator.DefaultDemultiplexerOptions(nil)
+			opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
 			opts.FlushInterval = 0
 			opts.UseNoopForwarder = true
 			opts.UseNoopEventPlatformForwarder = true
@@ -155,7 +155,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			common.AC.LoadAndRun()
 
 			if config.Datadog.GetBool("inventories_enabled") {
-				metadata.SetupInventoriesExpvar(common.AC, common.Coll)
+				metadata.SetupInventoriesExpvar(common.Coll)
 			}
 
 			// Create the CheckScheduler, but do not attach it to

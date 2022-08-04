@@ -199,6 +199,18 @@ var (
 		Use:   "policy",
 		Short: "Policy related commands",
 	}
+
+	/*Discarders*/
+	discardersCmd = &cobra.Command{
+		Use:   "discarders",
+		Short: "discarders commands",
+	}
+
+	dumpDiscardersCmd = &cobra.Command{
+		Use:   "dump",
+		Short: "dump discarders",
+		RunE:  dumpDiscarders,
+	}
 )
 
 func init() {
@@ -342,6 +354,10 @@ func init() {
 	dumpNetworkNamespaceCmd.Flags().BoolVar(&dumpNetworkNamespaceArgs.snapshotInterfaces, "snapshot-interfaces", true, "snapshot the interfaces of each network namespace during the dump")
 	networkNamespaceCmd.AddCommand(dumpNetworkNamespaceCmd)
 	runtimeCmd.AddCommand(networkNamespaceCmd)
+
+	/*Discarders*/
+	discardersCmd.AddCommand(dumpDiscardersCmd)
+	runtimeCmd.AddCommand(discardersCmd)
 }
 
 func dumpProcessCache(cmd *cobra.Command, args []string) error {
@@ -993,4 +1009,22 @@ func downloadPolicy(cmd *cobra.Command, args []string) error {
 
 	_, err = outputWriter.Write(resBytes)
 	return err
+}
+
+func dumpDiscarders(cmd *cobra.Command, args []string) error {
+	runtimeSecurityClient, err := secagent.NewRuntimeSecurityClient()
+	if err != nil {
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
+	}
+	defer runtimeSecurityClient.Close()
+
+	dumpFilename, dumpErr := runtimeSecurityClient.DumpDiscarders()
+
+	if dumpErr != nil {
+		return fmt.Errorf("unable to dump discarders: %w", dumpErr)
+	}
+
+	fmt.Printf("Discarder dump file: %s\n", dumpFilename)
+
+	return nil
 }
