@@ -63,7 +63,7 @@ func TestIntakeReverseProxy(t *testing.T) {
 		)
 
 		requireProxyHeaders := func(t *testing.T, req *http.Request) {
-			require.Contains(t, "trace-agent", req.Header.Get("Via"))
+			require.Contains(t, "trace-agent 0.99.0", req.Header.Get("Via"))
 			require.Equal(t, expectedAPIKey, req.Header.Get("Dd-Api-Key"))
 		}
 		requireRequest := func(t *testing.T, req *http.Request, expectedMethod, expectedEndpoint string, expectedBody []byte) {
@@ -170,7 +170,7 @@ func TestIntakeReverseProxy(t *testing.T) {
 
 				url, err := url.Parse(srv.URL + expectedServerEndpoint)
 				require.NoError(t, err)
-				proxy := newIntakeReverseProxy(url, expectedAPIKey, expectedMaxPayloadSize, http.DefaultTransport)
+				proxy := newIntakeReverseProxy(url, expectedAPIKey, expectedMaxPayloadSize, http.DefaultTransport, "0.99.0")
 
 				req := tc.prepareServerRequest(t)
 				rec := httptest.NewRecorder()

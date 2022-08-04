@@ -45,7 +45,7 @@ func init() {
 
 func initF() {
 	demultiplexerInstance = nil
-	opts := DefaultDemultiplexerOptions(nil)
+	opts := DefaultAgentDemultiplexerOptions(nil)
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
 	demux := InitAndStartAgentDemultiplexer(opts, defaultHostname)

@@ -30,29 +30,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
-func getTracedCgroupsCount(p *Probe) uint64 {
-	return uint64(p.config.ActivityDumpTracedCgroupsCount)
-}
-
-func getCgroupDumpTimeout(p *Probe) uint64 {
-	return uint64(p.config.ActivityDumpCgroupDumpTimeout.Nanoseconds())
+func areCGroupADsEnabled(p *Probe) bool {
+	return p.config.ActivityDumpTracedCgroupsCount > 0
 }
 
 // ActivityDumpManager is used to manage ActivityDumps
 type ActivityDumpManager struct {
 	sync.RWMutex
-	probe               *Probe
-	tracedPIDsMap       *ebpf.Map
-	tracedCommsMap      *ebpf.Map
-	tracedEventTypesMap *ebpf.Map
-	tracedCgroupsMap    *ebpf.Map
-	cgroupWaitListMap   *ebpf.Map
+	probe             *Probe
+	tracedPIDsMap     *ebpf.Map
+	tracedCommsMap    *ebpf.Map
+	tracedCgroupsMap  *ebpf.Map
+	cgroupWaitListMap *ebpf.Map
 
-	activeDumps   []*ActivityDump
-	snapshotQueue chan *ActivityDump
-	storage       *ActivityDumpStorageManager
-	contextTags   []string
-	hostname      string
+	activeDumps    []*ActivityDump
+	snapshotQueue  chan *ActivityDump
+	storage        *ActivityDumpStorageManager
+	loadController *ActivityDumpLoadController
+	contextTags    []string
+	hostname       string
 }
 
 // Start runs the ActivityDumpManager
@@ -151,23 +147,6 @@ func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 		return nil, fmt.Errorf("couldn't find cgroup_wait_list map")
 	}
 
-	tracedEventTypesMap, found, err := p.manager.GetMap("traced_event_types")
-	if err != nil {
-		return nil, err
-	}
-	if !found {
-		return nil, fmt.Errorf("couldn't find traced_event_types map")
-	}
-
-	// init traced event types
-	isTraced := uint64(1)
-	for _, evtType := range p.config.ActivityDumpTracedEventTypes {
-		err = tracedEventTypesMap.Put(evtType, isTraced)
-		if err != nil {
-			return nil, fmt.Errorf("failed to insert traced event type: %w", err)
-		}
-	}
-
 	tracedCgroupsMap, found, err := p.manager.GetMap("traced_cgroups")
 	if err != nil {
 		return nil, err
@@ -176,23 +155,37 @@ func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 		return nil, fmt.Errorf("couldn't find traced_cgroups map")
 	}
 
+	loadController, err := NewActivityDumpLoadController(p.config, p.manager)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't instantiate the activity dump load controller: %w", err)
+	}
+	if err := loadController.propagateLoadSettings(); err != nil {
+		return nil, fmt.Errorf("failed to propagate load settings: %w", err)
+	}
+
 	storageManager, err := NewActivityDumpStorageManager(p)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't instantiate the activity dump storage manager: %w", err)
 	}
 
 	adm := &ActivityDumpManager{
-		probe:               p,
-		tracedPIDsMap:       tracedPIDs,
-		tracedCommsMap:      tracedComms,
-		tracedEventTypesMap: tracedEventTypesMap,
-		tracedCgroupsMap:    tracedCgroupsMap,
-		cgroupWaitListMap:   cgroupWaitList,
-		snapshotQueue:       make(chan *ActivityDump, 100),
-		storage:             storageManager,
+		probe:             p,
+		tracedPIDsMap:     tracedPIDs,
+		tracedCommsMap:    tracedComms,
+		tracedCgroupsMap:  tracedCgroupsMap,
+		cgroupWaitListMap: cgroupWaitList,
+		snapshotQueue:     make(chan *ActivityDump, 100),
+		storage:           storageManager,
+		loadController:    loadController,
 	}
+
 	adm.prepareContextTags()
 	return adm, nil
+}
+
+type tracedCgroupsCounter struct {
+	Max     uint64
+	Counter uint64
 }
 
 func (adm *ActivityDumpManager) prepareContextTags() {

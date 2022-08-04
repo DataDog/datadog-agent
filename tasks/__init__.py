@@ -26,6 +26,7 @@ from . import (
     system_probe,
     systray,
     trace_agent,
+    vscode,
 )
 from .build_tags import audit_tag_impact
 from .go import (
@@ -106,7 +107,7 @@ ns.add_collection(rtloader)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
 ns.add_collection(security_agent)
-
+ns.add_collection(vscode)
 ns.configure(
     {
         'run': {

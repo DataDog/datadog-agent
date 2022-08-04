@@ -14,7 +14,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -120,7 +119,7 @@ func getAndWriteStatus(statusURL string, w io.Writer, options ...util.StatusOpti
 }
 
 func getStatusURL() (string, error) {
-	addressPort, err := api.GetAPIAddressPort()
+	addressPort, err := ddconfig.GetProcessAPIAddressPort()
 	if err != nil {
 		return "", fmt.Errorf("config error: %s", err.Error())
 	}

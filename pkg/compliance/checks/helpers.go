@@ -30,6 +30,10 @@ type getter func([]byte, string) (string, error)
 
 type contentParser func([]byte) (interface{}, error)
 
+func parseRawContent(data []byte) (interface{}, error) {
+	return string(data), nil
+}
+
 func parseJSONContent(data []byte) (interface{}, error) {
 	var content interface{}
 
@@ -56,10 +60,10 @@ func parseYAMLContent(data []byte) (interface{}, error) {
 var contentParsers = map[string]contentParser{
 	"json": parseJSONContent,
 	"yaml": parseYAMLContent,
+	"raw":  parseRawContent,
 }
 
 func validateParserKind(parser string) (string, error) {
-
 	if parser == "" {
 		return "", nil
 	}
@@ -73,6 +77,10 @@ func validateParserKind(parser string) (string, error) {
 
 // readContent unmarshal file
 func readContent(filePath, parser string) (interface{}, error) {
+	if parser == "" {
+		return "", nil
+	}
+
 	f, err := os.Open(filePath)
 	if err != nil {
 		return "", err

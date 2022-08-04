@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mohae/deepcopy"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
@@ -77,6 +78,12 @@ func matchName(name string) func(integration.Config) bool {
 	}
 }
 
+func matchDigest(digest string) func(integration.Config) bool {
+	return func(config integration.Config) bool {
+		return config.Digest() == digest
+	}
+}
+
 // matchLogsConfig matches config.LogsConfig (for verifying templates are applied)
 func matchLogsConfig(logsConfig string) func(integration.Config) bool {
 	return func(config integration.Config) bool {
@@ -92,9 +99,10 @@ func matchSvc(serviceID string) func(integration.Config) bool {
 }
 
 var (
-	nonTemplateConfig = integration.Config{Name: "non-template"}
-	templateConfig    = integration.Config{Name: "template", LogsConfig: []byte("source: %%host%%"), ADIdentifiers: []string{"my-service"}}
-	myService         = &dummyService{ID: "my-service", ADIdentifiers: []string{"my-service"}, Hosts: map[string]string{"main": "myhost"}}
+	nonTemplateConfig            = integration.Config{Name: "non-template"}
+	nonTemplateConfigWithSecrets = integration.Config{Name: "non-template-with-secrets", Instances: []integration.Data{integration.Data("foo: ENC[bar]")}}
+	templateConfig               = integration.Config{Name: "template", LogsConfig: []byte("source: %%host%%"), ADIdentifiers: []string{"my-service"}}
+	myService                    = &dummyService{ID: "my-service", ADIdentifiers: []string{"my-service"}, Hosts: map[string]string{"main": "myhost"}}
 )
 
 type ConfigManagerSuite struct {
@@ -117,6 +125,41 @@ func (suite *ConfigManagerSuite) TestNewNonTemplateScheduled() {
 	changes = suite.cm.processDelConfigs([]integration.Config{nonTemplateConfig})
 	assertConfigsMatch(suite.T(), changes.schedule)
 	assertConfigsMatch(suite.T(), changes.unschedule, matchName("non-template"))
+}
+
+// A new, non-template config with secrets is scheduled immediately and unscheduled when
+// deleted
+func (suite *ConfigManagerSuite) TestNewNonTemplateWithSecretsScheduled() {
+	mockDecrypt := MockSecretDecrypt{suite.T(), []mockSecretScenario{
+		{
+			expectedData:   []byte("foo: ENC[bar]"),
+			expectedOrigin: nonTemplateConfigWithSecrets.Name,
+			returnedData:   []byte("foo: barDecoded"),
+			returnedError:  nil,
+		},
+		{
+			expectedData:   []byte{},
+			expectedOrigin: nonTemplateConfigWithSecrets.Name,
+			returnedData:   []byte{},
+			returnedError:  nil,
+		},
+	}}
+	defer mockDecrypt.install()()
+
+	inputNewConfig := deepcopy.Copy(nonTemplateConfigWithSecrets).(integration.Config)
+	changes := suite.cm.processNewConfig(inputNewConfig)
+	assertConfigsMatch(suite.T(), changes.schedule, matchName(nonTemplateConfigWithSecrets.Name))
+	assertConfigsMatch(suite.T(), changes.unschedule)
+	// Verify content is actually decoded
+	require.True(suite.T(), strings.Contains(string(changes.schedule[0].Instances[0]), "barDecoded"))
+	newConfigDigest := changes.schedule[0].Digest()
+
+	inputDelConfig := deepcopy.Copy(nonTemplateConfigWithSecrets).(integration.Config)
+	changes = suite.cm.processDelConfigs([]integration.Config{inputDelConfig})
+	assertConfigsMatch(suite.T(), changes.schedule)
+	assertConfigsMatch(suite.T(), changes.unschedule, matchName(nonTemplateConfigWithSecrets.Name))
+	assertConfigsMatch(suite.T(), changes.unschedule, matchDigest(newConfigDigest))
+	require.True(suite.T(), strings.Contains(string(changes.unschedule[0].Instances[0]), "barDecoded"))
 }
 
 // A new template config is not scheduled when there is no matching service, and

@@ -14,7 +14,7 @@ from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
 from .licenses import get_licenses_list
-from .modules import DEFAULT_MODULES, generate_dummy_package
+from .modules import DEFAULT_MODULES, INDEPENDENT_MODULES, generate_dummy_package
 from .utils import get_build_flags
 
 
@@ -235,6 +235,10 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
                 res = ctx.run("git diff-files --exit-code go.mod go.sum", warn=True)
                 if res.exited is None or res.exited > 0:
                     errors_found.append(f"go.mod or go.sum for {mod.import_path} module is out of sync")
+
+        for mod in INDEPENDENT_MODULES.values():
+            # Ensure that none of these modules import the datadog-agent main module.
+            ctx.run(f"go run ./internal/tools/independent-lint/independent.go --path={mod.full_path()}")
 
         with ctx.cd(dummy_folder):
             ctx.run("go mod tidy -compat=1.17")

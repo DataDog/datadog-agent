@@ -94,7 +94,7 @@ func eventMatcher(m eventMatch) interface{} {
 func TestRunK8s(t *testing.T) {
 	assert := assert.New(t)
 
-	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
 	opts.DontStartForwarders = true
 	aggregator.InitAndStartAgentDemultiplexer(opts, "foo")
 
@@ -175,7 +175,7 @@ func TestRunK8s(t *testing.T) {
 func TestRunDocker(t *testing.T) {
 	assert := assert.New(t)
 
-	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
 	opts.DontStartForwarders = true
 	aggregator.InitAndStartAgentDemultiplexer(opts, "foo")
 
@@ -268,7 +268,7 @@ func TestRunDocker(t *testing.T) {
 func TestRunChecks(t *testing.T) {
 	assert := assert.New(t)
 
-	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
 	opts.DontStartForwarders = true
 	aggregator.InitAndStartAgentDemultiplexer(opts, "foo")
 

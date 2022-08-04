@@ -49,8 +49,10 @@ var (
 			{Name: ".1.3.6.1.2.1.2.2.1.1", Type: gosnmp.Integer, Value: 2},
 			// ifAdminStatus
 			{Name: ".1.3.6.1.2.1.2.2.1.7", Type: gosnmp.Integer, Value: 1},
-			// ifOperStatusjq
+			// ifOperStatus
 			{Name: ".1.3.6.1.2.1.2.2.1.8", Type: gosnmp.Integer, Value: 2},
+			// myFakeVarType 0, 1, 2, 3, 12, 13, 14, 15, 95, and 130 are set
+			{Name: ".1.3.6.1.2.1.200.1.3.1.5", Type: gosnmp.OctetString, Value: []uint8{0xf0, 0x0f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, 0, 0, 0, 0, 0x20}},
 		},
 	}
 	AlarmActiveStatev1SpecificTrap = gosnmp.SnmpTrap{
@@ -64,6 +66,8 @@ var (
 			{Name: ".1.3.6.1.2.1.118.1.2.2.1.13", Type: gosnmp.OctetString, Value: []uint8{0x66, 0x6f, 0x6f}},
 			// alarmActiveResourceId
 			{Name: ".1.3.6.1.2.1.118.1.2.2.1.10", Type: gosnmp.OctetString, Value: []uint8{0x62, 0x61, 0x72}},
+			// myFakeVarType 0, 1, 2, 3, 12, 13, 14, 15, 95, and 130 are set
+			{Name: ".1.3.6.1.2.1.200.1.3.1.5", Type: gosnmp.OctetString, Value: []uint8{0xf0, 0x0f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, 0, 0, 0, 0, 0x20}},
 		},
 	}
 )

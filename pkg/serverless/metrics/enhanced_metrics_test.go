@@ -23,8 +23,9 @@ func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 	reportLogTime := time.Now()
 	go GenerateEnhancedMetricsFromFunctionLog("JavaScript heap out of memory", reportLogTime, tags, demux)
 
-	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
-	assert.Equal(t, 2, len(generatedMetrics), "two enhanced metrics should have been generated")
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Len(t, generatedMetrics, 2, "two enhanced metrics should have been generated")
+	assert.Len(t, timedMetrics, 0)
 	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
 		Name:       OutOfMemoryMetric,
 		Value:      1.0,
@@ -49,8 +50,9 @@ func TestGenerateEnhancedMetricsFromFunctionLogNoMetric(t *testing.T) {
 
 	go GenerateEnhancedMetricsFromFunctionLog("Task timed out after 30.03 seconds", time.Now(), tags, demux)
 
-	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
-	assert.Equal(t, 0, len(generatedMetrics), "no metrics should have been generated")
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Len(t, generatedMetrics, 0, "no metrics should have been generated")
+	assert.Len(t, timedMetrics, 0)
 }
 
 func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
@@ -60,7 +62,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 	reportLogTime := time.Now()
 	go GenerateEnhancedMetricsFromReportLog(100.0, 1000.0, 800.0, 1024.0, 256.0, reportLogTime, tags, demux)
 
-	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 
 	assert.Equal(t, generatedMetrics[:6], []metrics.MetricSample{{
 		Name:       maxMemoryUsedMetric,
@@ -105,6 +107,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
 	}})
+	assert.Len(t, timedMetrics, 0)
 }
 
 func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
@@ -115,7 +118,7 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 
 	go GenerateEnhancedMetricsFromReportLog(0, 1000.0, 800.0, 1024.0, 256.0, reportLogTime, tags, demux)
 
-	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 
 	assert.Equal(t, generatedMetrics[:5], []metrics.MetricSample{{
 		Name:       maxMemoryUsedMetric,
@@ -153,6 +156,7 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
 	}})
+	assert.Len(t, timedMetrics, 0)
 }
 
 func TestSendTimeoutEnhancedMetric(t *testing.T) {
@@ -162,7 +166,7 @@ func TestSendTimeoutEnhancedMetric(t *testing.T) {
 
 	go SendTimeoutEnhancedMetric(tags, demux)
 
-	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       timeoutsMetric,
@@ -173,6 +177,7 @@ func TestSendTimeoutEnhancedMetric(t *testing.T) {
 		// compare the generated timestamp to itself because we can't know its value
 		Timestamp: generatedMetrics[0].Timestamp,
 	}})
+	assert.Len(t, timedMetrics, 0)
 }
 
 func TestSendInvocationEnhancedMetric(t *testing.T) {
@@ -182,7 +187,7 @@ func TestSendInvocationEnhancedMetric(t *testing.T) {
 
 	go SendInvocationEnhancedMetric(tags, demux)
 
-	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       invocationsMetric,
@@ -193,6 +198,7 @@ func TestSendInvocationEnhancedMetric(t *testing.T) {
 		// compare the generated timestamp to itself because we can't know its value
 		Timestamp: generatedMetrics[0].Timestamp,
 	}})
+	assert.Len(t, timedMetrics, 0)
 }
 
 func TestSendOutOfMemoryEnhancedMetric(t *testing.T) {
@@ -202,7 +208,7 @@ func TestSendOutOfMemoryEnhancedMetric(t *testing.T) {
 	mockTime := time.Now()
 	go SendOutOfMemoryEnhancedMetric(tags, mockTime, demux)
 
-	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       OutOfMemoryMetric,
@@ -212,6 +218,7 @@ func TestSendOutOfMemoryEnhancedMetric(t *testing.T) {
 		SampleRate: 1,
 		Timestamp:  float64(mockTime.UnixNano()) / float64(time.Second),
 	}})
+	assert.Len(t, timedMetrics, 0)
 }
 
 func TestSendErrorsEnhancedMetric(t *testing.T) {
@@ -221,7 +228,7 @@ func TestSendErrorsEnhancedMetric(t *testing.T) {
 	mockTime := time.Now()
 	go SendErrorsEnhancedMetric(tags, mockTime, demux)
 
-	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       ErrorsMetric,
@@ -231,6 +238,7 @@ func TestSendErrorsEnhancedMetric(t *testing.T) {
 		SampleRate: 1,
 		Timestamp:  float64(mockTime.UnixNano()) / float64(time.Second),
 	}})
+	assert.Len(t, timedMetrics, 0)
 }
 
 func TestCalculateEstimatedCost(t *testing.T) {
@@ -280,8 +288,9 @@ func TestGenerateRuntimeDurationMetricNoStartDate(t *testing.T) {
 	startTime := time.Time{}
 	endTime := time.Now()
 	go GenerateRuntimeDurationMetric(startTime, endTime, "myStatus", tags, demux)
-	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
-	assert.Equal(t, 0, len(generatedMetrics), "no metrics should have been generated")
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Len(t, generatedMetrics, 0, "no metrics should have been generated")
+	assert.Len(t, timedMetrics, 0)
 }
 
 func TestGenerateRuntimeDurationMetricNoEndDate(t *testing.T) {
@@ -291,8 +300,9 @@ func TestGenerateRuntimeDurationMetricNoEndDate(t *testing.T) {
 	startTime := time.Now()
 	endTime := time.Time{}
 	go GenerateRuntimeDurationMetric(startTime, endTime, "myStatus", tags, demux)
-	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
-	assert.Equal(t, 0, len(generatedMetrics), "no metrics should have been generated")
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Len(t, generatedMetrics, 0, "no metrics should have been generated")
+	assert.Len(t, timedMetrics, 0)
 }
 
 func TestGenerateRuntimeDurationMetricOK(t *testing.T) {
@@ -302,7 +312,7 @@ func TestGenerateRuntimeDurationMetricOK(t *testing.T) {
 	startTime := time.Date(2020, 01, 01, 01, 01, 01, 500000000, time.UTC)
 	endTime := time.Date(2020, 01, 01, 01, 01, 01, 653000000, time.UTC) //153 ms later
 	go GenerateRuntimeDurationMetric(startTime, endTime, "myStatus", tags, demux)
-	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       runtimeDurationMetric,
 		Value:      153,
@@ -311,5 +321,5 @@ func TestGenerateRuntimeDurationMetricOK(t *testing.T) {
 		SampleRate: 1,
 		Timestamp:  float64(endTime.UnixNano()) / float64(time.Second),
 	}})
-
+	assert.Len(t, timedMetrics, 0)
 }
