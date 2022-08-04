@@ -33,3 +33,6 @@ jobs:
 
       - name: Sync constants
         run: inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive
+
+      - name: Debug
+        run: git --no-pager diff
