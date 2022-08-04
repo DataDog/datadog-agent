@@ -317,18 +317,6 @@ func fmtProcesses(
 		// Hide blacklisted args if the Scrubber is enabled
 		fp.Cmdline = cfg.Scrubber.ScrubProcessCommand(fp)
 
-		var ioStat *model.IOStat
-		if fp.Stats.IORateStat != nil {
-			ioStat = &model.IOStat{
-				ReadRate:       float32(fp.Stats.IORateStat.ReadRate),
-				WriteRate:      float32(fp.Stats.IORateStat.WriteRate),
-				ReadBytesRate:  float32(fp.Stats.IORateStat.ReadBytesRate),
-				WriteBytesRate: float32(fp.Stats.IORateStat.WriteBytesRate),
-			}
-		} else {
-			ioStat = formatIO(fp.Stats, lastProcs[fp.Pid].Stats.IOStat, lastRun)
-		}
-
 		proc := &model.Process{
 			Pid:                    fp.Pid,
 			NsPid:                  fp.NsPid,
@@ -339,7 +327,7 @@ func fmtProcesses(
 			CreateTime:             fp.Stats.CreateTime,
 			OpenFdCount:            fp.Stats.OpenFdCount,
 			State:                  model.ProcessState(model.ProcessState_value[fp.Stats.Status]),
-			IoStat:                 ioStat,
+			IoStat:                 formatIO(fp.Stats, lastProcs[fp.Pid].Stats.IOStat, lastRun),
 			VoluntaryCtxSwitches:   uint64(fp.Stats.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[int(fp.Pid)],
@@ -369,8 +357,11 @@ func formatCommand(fp *procutil.Process) *model.Command {
 }
 
 func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, before time.Time) *model.IOStat {
-	// This will be nil for Mac
-	if fp.IOStat == nil {
+	if fp.IORateStat != nil {
+		return formatIORates(fp.IORateStat)
+	}
+
+	if fp.IOStat == nil { // This will be nil for Mac
 		return &model.IOStat{}
 	}
 
@@ -378,6 +369,7 @@ func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, before time.T
 	if before.IsZero() || diff <= 0 {
 		return &model.IOStat{}
 	}
+
 	// Reading -1 as counter means the file could not be opened due to permissions.
 	// In that case we set the rate as -1 to distinguish from a real 0 in rates.
 	readRate := float32(-1)
@@ -401,6 +393,15 @@ func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, before time.T
 		WriteRate:      writeRate,
 		ReadBytesRate:  readBytesRate,
 		WriteBytesRate: writeBytesRate,
+	}
+}
+
+func formatIORates(ioRateStat *procutil.IOCountersRateStat) *model.IOStat {
+	return &model.IOStat{
+		ReadRate:       float32(ioRateStat.ReadRate),
+		WriteRate:      float32(ioRateStat.WriteRate),
+		ReadBytesRate:  float32(ioRateStat.ReadBytesRate),
+		WriteBytesRate: float32(ioRateStat.WriteBytesRate),
 	}
 }
 
