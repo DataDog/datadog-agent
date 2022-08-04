@@ -673,6 +673,11 @@ int kprobe_bprm_execve(struct pt_regs *ctx) {
 
 SEC("kprobe/security_bprm_check")
 int kprobe_security_bprm_check(struct pt_regs *ctx) {
+    return parse_args_and_env(ctx);
+}
+
+SEC("kprobe/setup_new_exec")
+int kprobe_setup_new_exec(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
     if (!syscall) {
         return 0;
