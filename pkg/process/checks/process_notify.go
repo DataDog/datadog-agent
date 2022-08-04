@@ -9,9 +9,7 @@ import "go.uber.org/atomic"
 
 // ProcessNotify implements an exchange mechanism for other checks to receive updates on changes
 // from process collection
-var ProcessNotify = &processNotify{
-	createTimes: &atomic.Value{},
-}
+var ProcessNotify = newProcessNotify()
 
 // processNotify implements an exchange mechanism for other checks to receive updates on changes
 // from process collection, in the future it can be replaced with a gRPC streaming interface
@@ -19,6 +17,12 @@ var ProcessNotify = &processNotify{
 type processNotify struct {
 	// Create times by PID used in the network check
 	createTimes *atomic.Value
+}
+
+func newProcessNotify() *processNotify {
+	return &processNotify{
+		createTimes: &atomic.Value{},
+	}
 }
 
 // UpdateCreateTimes updates create times for collected processes
