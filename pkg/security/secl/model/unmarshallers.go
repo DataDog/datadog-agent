@@ -891,7 +891,7 @@ func decodeDNS(raw []byte) string {
 	if err != nil {
 		return ""
 	}
-	return name
+	return strings.TrimSuffix(name, ".")
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
