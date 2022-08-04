@@ -181,12 +181,10 @@ func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shoul
 	ac.m.Lock()
 	defer ac.m.Unlock()
 
-	for _, cp := range ac.configPollers {
-		if cp.provider == provider {
-			// we already know this configuration provider, don't do anything
-			log.Warnf("Provider %s was already added, skipping...", provider)
-			return
-		}
+	if shouldPoll {
+		log.Infof("Registering %s config provider polled every %s", provider.String(), pollInterval.String())
+	} else {
+		log.Infof("Registering %s config provider", provider.String())
 	}
 
 	cp := newConfigPoller(provider, shouldPoll, pollInterval)

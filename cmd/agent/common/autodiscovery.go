@@ -100,11 +100,6 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 			}
 
 			pollInterval := providers.GetPollInterval(cp)
-			if cp.Polling {
-				log.Infof("Registering %s config provider polled every %s", cp.Name, pollInterval.String())
-			} else {
-				log.Infof("Registering %s config provider", cp.Name)
-			}
 			ad.AddConfigProvider(configProvider, cp.Polling, pollInterval)
 		} else {
 			log.Errorf("Unable to find this provider in the catalog: %v", cp.Name)
