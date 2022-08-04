@@ -49,11 +49,6 @@ func (k *KubeContainerConfigProvider) String() string {
 	return names.KubeContainer
 }
 
-// Collect is not implemented
-func (k *KubeContainerConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
-	return nil, nil
-}
-
 // Stream starts listening to workloadmeta to generate configs as they come
 // instead of relying on a periodic call to Collect.
 func (k *KubeContainerConfigProvider) Stream(ctx context.Context) <-chan integration.ConfigChanges {
@@ -107,7 +102,11 @@ func (k *KubeContainerConfigProvider) processEvents(evBundle workloadmeta.EventB
 		case workloadmeta.EventTypeSet:
 			configs, err := k.generateConfig(event.Entity)
 
-			k.configErrors[entityName] = err
+			if err != nil {
+				k.configErrors[entityName] = err
+			} else if _, ok := k.configErrors[entityName]; ok {
+				delete(k.configErrors, entityName)
+			}
 
 			configsToAdd := make(map[string]integration.Config)
 			for _, config := range configs {
@@ -251,11 +250,6 @@ func (k *KubeContainerConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
 	}
 
 	return errors
-}
-
-// IsUpToDate always returns true for a streaming provider.
-func (k *KubeContainerConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
-	return true, nil
 }
 
 func buildEntityName(e workloadmeta.Entity) string {
