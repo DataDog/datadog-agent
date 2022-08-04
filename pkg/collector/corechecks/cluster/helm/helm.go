@@ -18,8 +18,6 @@ import (
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
@@ -66,18 +64,12 @@ type HelmCheck struct {
 	runLeaderElection bool
 	eventsManager     *eventsManager
 	informerFactory   informers.SharedInformerFactory
-	apiClient         *apiserver.APIClient
 	once              sync.Once
 
 	// existingReleasesStored indicates whether the releases deployed before the
 	// agent was started have already been stored. This is needed to avoid
 	// emitting events for those releases.
 	existingReleasesStored bool
-
-	// knownObjects is a UID to ResourceVersion mapping to track the secret and configmap objects seen by the check.
-	// It serves as a cache to avoid re-processing unchanged objects during informer resyncs.
-	knownObjects     map[types.UID]string
-	knownObjectsLock sync.RWMutex
 }
 
 type checkConfig struct {
@@ -101,7 +93,6 @@ func factory() check.Check {
 		store:             newReleasesStore(),
 		runLeaderElection: !config.IsCLCRunner(),
 		eventsManager:     &eventsManager{},
-		knownObjects:      make(map[types.UID]string),
 	}
 }
 
@@ -126,11 +117,9 @@ func (hc *HelmCheck) Configure(config, initConfig integration.Data, source strin
 		return err
 	}
 
-	hc.apiClient = apiClient
-
 	hc.setSharedInformerFactory(apiClient)
 
-	return hc.setupInformers()
+	return nil
 }
 
 // Run executes the check
@@ -154,11 +143,13 @@ func (hc *HelmCheck) Run() error {
 	}
 
 	hc.once.Do(func() {
-		err = hc.addExistingReleases()
+		// We sync the informers here in Run to avoid blocking
+		// Configure for several seconds/minutes depending on the number of configmaps/secrets.
+		err = hc.setupInformers()
 	})
 
 	if err != nil {
-		log.Errorf("Couldn't process existing helm releases: %v", err)
+		log.Errorf("Couldn't setup informers: %v", err)
 	}
 
 	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
@@ -212,44 +203,6 @@ func (hc *HelmCheck) setSharedInformerFactory(apiClient *apiserver.APIClient) {
 			opts.LabelSelector = labelSelector
 		}),
 	)
-}
-
-// addExistingReleases adds the releases present before setting up the informers. This allows us
-// to avoid emitting events for releases that were deployed before the agent
-// started.
-// addExistingReleases should be called only once.
-func (hc *HelmCheck) addExistingReleases() error {
-	if hc.apiClient == nil {
-		return errors.New("uninitialized api client")
-	}
-
-	selector := labels.Set{"owner": "helm"}.AsSelector()
-
-	initialHelmSecrets, err := hc.apiClient.Cl.CoreV1().Secrets(v1.NamespaceAll).List(
-		context.Background(), metav1.ListOptions{LabelSelector: selector.String()},
-	)
-	if err != nil {
-		return err
-	}
-
-	for _, secret := range initialHelmSecrets.Items {
-		hc.addSecret(&secret)
-	}
-
-	initialHelmConfigMaps, err := hc.apiClient.Cl.CoreV1().ConfigMaps(v1.NamespaceAll).List(
-		context.Background(), metav1.ListOptions{LabelSelector: selector.String()},
-	)
-	if err != nil {
-		return err
-	}
-
-	for _, configMap := range initialHelmConfigMaps.Items {
-		hc.addConfigmap(&configMap)
-	}
-
-	hc.existingReleasesStored = true
-
-	return nil
 }
 
 func tagsForMetricsAndEvents(release *release, storageDriver helmStorage, includeRevision bool) []string {
@@ -309,11 +262,6 @@ func (hc *HelmCheck) addSecret(obj interface{}) {
 		return
 	}
 
-	if !hc.shouldProcessObject(secret.UID, secret.ResourceVersion) {
-		return
-	}
-
-	hc.addKnownObject(secret.UID, secret.ResourceVersion)
 	hc.addRelease(string(secret.Data["release"]), k8sSecrets)
 }
 
@@ -328,7 +276,6 @@ func (hc *HelmCheck) deleteSecret(obj interface{}) {
 		return
 	}
 
-	hc.deleteKnownObject(secret.UID)
 	hc.deleteRelease(string(secret.Data["release"]), k8sSecrets)
 }
 
@@ -363,11 +310,6 @@ func (hc *HelmCheck) addConfigmap(obj interface{}) {
 		return
 	}
 
-	if !hc.shouldProcessObject(configmap.UID, configmap.ResourceVersion) {
-		return
-	}
-
-	hc.addKnownObject(configmap.UID, configmap.ResourceVersion)
 	hc.addRelease(configmap.Data["release"], k8sConfigmaps)
 }
 
@@ -382,7 +324,6 @@ func (hc *HelmCheck) deleteConfigmap(obj interface{}) {
 		return
 	}
 
-	hc.deleteKnownObject(configmap.UID)
 	hc.deleteRelease(configmap.Data["release"], k8sConfigmaps)
 }
 
@@ -490,30 +431,4 @@ func (hc *HelmCheck) getInformersResyncPeriod() time.Duration {
 		return time.Duration(hc.instance.InformersResyncIntervalMinutes) * time.Minute
 	}
 	return defaultResyncInterval
-}
-
-func (hc *HelmCheck) shouldProcessObject(uid types.UID, resVersion string) bool {
-	if resVersion == "" {
-		return true
-	}
-
-	hc.knownObjectsLock.RLock()
-	defer hc.knownObjectsLock.RUnlock()
-	return hc.knownObjects[uid] != resVersion
-}
-
-func (hc *HelmCheck) addKnownObject(uid types.UID, resVersion string) {
-	if resVersion == "" {
-		return
-	}
-
-	hc.knownObjectsLock.Lock()
-	defer hc.knownObjectsLock.Unlock()
-	hc.knownObjects[uid] = resVersion
-}
-
-func (hc *HelmCheck) deleteKnownObject(uid types.UID) {
-	hc.knownObjectsLock.Lock()
-	defer hc.knownObjectsLock.Unlock()
-	delete(hc.knownObjects, uid)
 }
