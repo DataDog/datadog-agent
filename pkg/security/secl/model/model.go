@@ -325,6 +325,7 @@ func (e *Process) GetPathResolutionError() string {
 	return ""
 }
 
+// LinuxBinprm contains content from the linux_binprm struct, which holds the arguments used for loading binaries
 type LinuxBinprm struct {
 	FileEvent FileEvent `field:"file" msg:"file"`
 }
