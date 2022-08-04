@@ -29,8 +29,8 @@ import (
 // `ContainerConfigProvider`
 type KubeContainerConfigProvider struct {
 	workloadmetaStore workloadmeta.Store
-	configErrors      map[string]ErrorMsgSet
-	configCache       map[string]map[string]integration.Config
+	configErrors      map[string]ErrorMsgSet                   // map[entity id]ErrorMsgSet
+	configCache       map[string]map[string]integration.Config // map[entity id]map[config digest]integration.Config
 	mu                sync.RWMutex
 }
 
@@ -59,6 +59,9 @@ func (k *KubeContainerConfigProvider) Collect(ctx context.Context) ([]integratio
 func (k *KubeContainerConfigProvider) Stream(ctx context.Context) <-chan integration.ConfigChanges {
 	const name = "ad-kubecontainerprovider"
 
+	// outCh must be unbuffered. processing of workloadmeta events must not
+	// proceed until the config is processed by autodiscovery, as configs
+	// need to be generated before any associated services.
 	outCh := make(chan integration.ConfigChanges)
 
 	inCh := k.workloadmetaStore.Subscribe(name, workloadmeta.ConfigProviderPriority, workloadmeta.NewFilter(
@@ -78,7 +81,10 @@ func (k *KubeContainerConfigProvider) Stream(ctx context.Context) <-chan integra
 					return
 				}
 
-				outCh <- k.processEvents(evBundle)
+				changes := k.processEvents(evBundle)
+				if !changes.IsEmpty() {
+					outCh <- changes
+				}
 
 				close(evBundle.Ch)
 			}
@@ -234,12 +240,17 @@ func (k *KubeContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]i
 func (k *KubeContainerConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
-	return k.configErrors
+
+	errors := make(map[string]ErrorMsgSet, len(k.configErrors))
+
+	for entity, errset := range k.configErrors {
+		errors[entity] = errset
+	}
+
+	return errors
 }
 
-// IsUpToDate checks whether we have new pods to parse, based on events
-// received by the listen goroutine. If listening fails, we fallback to
-// collecting everytime.
+// IsUpToDate always returns true for a streaming provider.
 func (k *KubeContainerConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return true, nil
 }

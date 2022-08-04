@@ -232,21 +232,24 @@ func (ac *AutoConfig) HasRunOnce() bool {
 	return ac.ranOnce.Load()
 }
 
-// GetAllConfigs queries all the providers and returns all the integration
-// configurations found.
+// GetAllConfigs returns all resolved and non-template configs known to
+// AutoConfig.
 func (ac *AutoConfig) GetAllConfigs() []integration.Config {
-	configs := []integration.Config{}
+	var configs []integration.Config
 
-	for _, pd := range ac.configPollers {
-		configs = append(configs, pd.getConfigs()...)
-	}
+	ac.cfgMgr.mapOverLoadedConfigs(func(scheduledConfigs map[string]integration.Config) {
+		configs = make([]integration.Config, 0, len(scheduledConfigs))
+		for _, config := range scheduledConfigs {
+			configs = append(configs, config)
+		}
+	})
 
 	return configs
 }
 
 // processNewConfig store (in template cache) and resolves a given config,
 // returning the changes to be made.
-func (ac *AutoConfig) processNewConfig(config integration.Config) configChanges {
+func (ac *AutoConfig) processNewConfig(config integration.Config) integration.ConfigChanges {
 	// add default metrics to collect to JMX checks
 	if check.CollectDefaultMetrics(config) {
 		metrics := ac.store.getJMXMetricsForConfigName(config.Name)
@@ -426,7 +429,7 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 
 	if !util.CcaInAD() {
 		// schedule a "service config" for logs-agent's benefit
-		changes.scheduleConfig(integration.Config{
+		changes.ScheduleConfig(integration.Config{
 			LogsConfig:      integration.Data{},
 			ServiceID:       svc.GetServiceID(),
 			TaggerEntity:    svc.GetTaggerEntity(),
@@ -446,7 +449,7 @@ func (ac *AutoConfig) processDelService(ctx context.Context, svc listeners.Servi
 
 	if !util.CcaInAD() {
 		// unschedule the "service config"
-		changes.unscheduleConfig(integration.Config{
+		changes.UnscheduleConfig(integration.Config{
 			LogsConfig:      integration.Data{},
 			ServiceID:       svc.GetServiceID(),
 			TaggerEntity:    svc.GetTaggerEntity(),
@@ -474,21 +477,21 @@ func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providers.E
 }
 
 // applyChanges applies a configChanges object. This always unschedules first.
-func (ac *AutoConfig) applyChanges(changes configChanges) {
-	if len(changes.unschedule) > 0 {
-		for _, conf := range changes.unschedule {
+func (ac *AutoConfig) applyChanges(changes integration.ConfigChanges) {
+	if len(changes.Unschedule) > 0 {
+		for _, conf := range changes.Unschedule {
 			telemetry.ScheduledConfigs.Dec(conf.Provider, configType(conf))
 		}
 
-		ac.scheduler.Unschedule(changes.unschedule)
+		ac.scheduler.Unschedule(changes.Unschedule)
 	}
 
-	if len(changes.schedule) > 0 {
-		for _, conf := range changes.schedule {
+	if len(changes.Schedule) > 0 {
+		for _, conf := range changes.Schedule {
 			telemetry.ScheduledConfigs.Inc(conf.Provider, configType(conf))
 		}
 
-		ac.scheduler.Schedule(changes.schedule)
+		ac.scheduler.Schedule(changes.Schedule)
 	}
 }
 
