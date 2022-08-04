@@ -29,8 +29,8 @@ import (
 // `ContainerConfigProvider`
 type KubeContainerConfigProvider struct {
 	workloadmetaStore workloadmeta.Store
-	configErrors      map[string]ErrorMsgSet                   // map[entity id]ErrorMsgSet
-	configCache       map[string]map[string]integration.Config // map[entity id]map[config digest]integration.Config
+	configErrors      map[string]ErrorMsgSet                   // map[entity name]ErrorMsgSet
+	configCache       map[string]map[string]integration.Config // map[entity name]map[config digest]integration.Config
 	mu                sync.RWMutex
 }
 
@@ -101,32 +101,32 @@ func (k *KubeContainerConfigProvider) processEvents(evBundle workloadmeta.EventB
 	changes := integration.ConfigChanges{}
 
 	for _, event := range evBundle.Events {
-		configID := buildConfigID(event.Entity.GetID())
+		entityName := buildEntityName(event.Entity)
 
 		switch event.Type {
 		case workloadmeta.EventTypeSet:
 			configs, err := k.generateConfig(event.Entity)
 
-			k.configErrors[configID] = err
+			k.configErrors[entityName] = err
 
 			configsToAdd := make(map[string]integration.Config)
 			for _, config := range configs {
 				configsToAdd[config.Digest()] = config
 			}
 
-			oldConfigs, found := k.configCache[configID]
+			oldConfigs, found := k.configCache[entityName]
 			if found {
 				for digest, config := range oldConfigs {
 					_, ok := configsToAdd[digest]
 					if ok {
 						delete(configsToAdd, digest)
 					} else {
-						delete(k.configCache[configID], digest)
+						delete(k.configCache[entityName], digest)
 						changes.Unschedule = append(changes.Unschedule, config)
 					}
 				}
 			} else {
-				k.configCache[configID] = configsToAdd
+				k.configCache[entityName] = configsToAdd
 			}
 
 			for _, config := range configsToAdd {
@@ -134,9 +134,9 @@ func (k *KubeContainerConfigProvider) processEvents(evBundle workloadmeta.EventB
 			}
 
 		case workloadmeta.EventTypeUnset:
-			oldConfigs, found := k.configCache[configID]
+			oldConfigs, found := k.configCache[entityName]
 			if !found {
-				log.Debugf("entity %q removed from workloadmeta store but not found in cache. skipping", configID)
+				log.Debugf("entity %q removed from workloadmeta store but not found in cache. skipping", entityName)
 				continue
 			}
 
@@ -144,8 +144,8 @@ func (k *KubeContainerConfigProvider) processEvents(evBundle workloadmeta.EventB
 				changes.Unschedule = append(changes.Unschedule, oldConfig)
 			}
 
-			delete(k.configCache, configID)
-			delete(k.configErrors, configID)
+			delete(k.configCache, entityName)
+			delete(k.configErrors, entityName)
 
 		default:
 			log.Errorf("cannot handle event of type %d", event.Type)
@@ -258,8 +258,16 @@ func (k *KubeContainerConfigProvider) IsUpToDate(ctx context.Context) (bool, err
 	return true, nil
 }
 
-func buildConfigID(entityID workloadmeta.EntityID) string {
-	return fmt.Sprintf("%s://%s", entityID.Kind, entityID.ID)
+func buildEntityName(e workloadmeta.Entity) string {
+	entityID := e.GetID()
+	switch entity := e.(type) {
+	case *workloadmeta.KubernetesPod:
+		return fmt.Sprintf("%s/%s", entity.Namespace, entity.Name)
+	case *workloadmeta.Container:
+		return containers.BuildEntityName(string(entity.Runtime), entityID.ID)
+	default:
+		return fmt.Sprintf("%s://%s", entityID.Kind, entityID.ID)
+	}
 }
 
 func init() {
