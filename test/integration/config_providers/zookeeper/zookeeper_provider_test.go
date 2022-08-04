@@ -137,7 +137,7 @@ func (suite *ZkTestSuite) TestCollect() {
 	zk, err := providers.NewZookeeperConfigProvider(&suite.providerConfig)
 	require.Nil(suite.T(), err)
 
-	templates, err := zk.Collect(ctx)
+	templates, err := zk.(providers.CollectingConfigProvider).Collect(ctx)
 
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), templates, 3)

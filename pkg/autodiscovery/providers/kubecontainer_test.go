@@ -365,26 +365,6 @@ func TestGenerateConfig(t *testing.T) {
 			},
 			containerCollectAll: true,
 		},
-		{
-			name: "bare pod, container collect all",
-			entity: &workloadmeta.KubernetesPod{
-				Containers: []workloadmeta.OrchestratorContainer{
-					{
-						Name: "testName",
-						ID:   "testID",
-					},
-				},
-			},
-			expectedConfigs: []integration.Config{
-				{
-					Name:          "container_collect_all",
-					Source:        "kubelet:docker://testID",
-					LogsConfig:    integration.Data("[{}]"),
-					ADIdentifiers: []string{"docker://testID"},
-				},
-			},
-			containerCollectAll: true,
-		},
 	}
 
 	for _, tt := range tests {

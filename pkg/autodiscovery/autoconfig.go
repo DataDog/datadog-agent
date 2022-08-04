@@ -464,6 +464,9 @@ func (ac *AutoConfig) processDelService(ctx context.Context, svc listeners.Servi
 // unique error messages.  The resource names do not match other identifiers
 // and are only intended for display in diagnostic tools like `agent status`.
 func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet {
+	ac.m.Lock()
+	defer ac.m.Unlock()
+
 	errors := map[string]map[string]providers.ErrorMsgSet{}
 	for _, pd := range ac.configPollers {
 		configErrors := pd.provider.GetConfigErrors()
