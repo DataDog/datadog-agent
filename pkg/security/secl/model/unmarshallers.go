@@ -885,32 +885,6 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 	return len(data), nil
 }
 
-func decodeDNS(raw []byte) string {
-	rawLen := len(raw)
-	rep := ""
-	i := 0
-	for {
-		// Parse label length
-		if rawLen < i+1 {
-			break
-		}
-		labelLen := int(raw[i])
-
-		if rawLen-(i+1) < labelLen || labelLen == 0 {
-			break
-		}
-		labelRaw := raw[i+1 : i+1+labelLen]
-
-		if i == 0 {
-			rep = string(labelRaw)
-		} else {
-			rep = rep + "." + string(labelRaw)
-		}
-		i += labelLen + 1
-	}
-	return rep
-}
-
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (d *NetDevice) UnmarshalBinary(data []byte) (int, error) {
 	if len(data[:]) < 32 {
