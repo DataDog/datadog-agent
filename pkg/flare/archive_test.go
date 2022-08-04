@@ -371,7 +371,7 @@ func TestZipTaggerList(t *testing.T) {
 	dir := t.TempDir()
 
 	taggerListURL = s.URL
-	zipTaggerList(dir, "")
+	zipAgentTaggerList(dir, "")
 	content, err := ioutil.ReadFile(filepath.Join(dir, "tagger-list.json"))
 	if err != nil {
 		log.Fatal(err)
