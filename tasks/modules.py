@@ -122,6 +122,7 @@ INDEPENDENT_MODULES = {
     "pkg/quantile": GoModule("pkg/quantile"),
     "pkg/obfuscate": GoModule("pkg/obfuscate"),
     "pkg/trace": GoModule("pkg/trace"),
+    "pkg/security/secl": GoModule("pkg/security/secl"),
     "pkg/otlp/model": GoModule("pkg/otlp/model"),
 }
 

@@ -14,7 +14,7 @@ from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
 from .licenses import get_licenses_list
-from .modules import INDEPENDENT_MODULES, DEFAULT_MODULES, generate_dummy_package
+from .modules import DEFAULT_MODULES, INDEPENDENT_MODULES, generate_dummy_package
 from .utils import get_build_flags
 
 

@@ -138,6 +138,7 @@ def lint_flavor(
                     ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch
                 )
 
+
 def test_flavor(
     ctx,
     flavor: AgentFlavor,
