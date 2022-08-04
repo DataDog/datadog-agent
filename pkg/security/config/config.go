@@ -93,7 +93,7 @@ type Config struct {
 	LogTags []string
 	// SelfTestEnabled defines if the self tests should be executed at startup or not
 	SelfTestEnabled bool
-	// SelfTestSendReport defines if a self test event will be emmited
+	// SelfTestSendReport defines if a self test event will be emitted
 	SelfTestSendReport bool
 	// EnvsWithValue lists environnement variables that will be fully exported
 	EnvsWithValue []string

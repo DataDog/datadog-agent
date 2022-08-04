@@ -674,6 +674,8 @@ func (m *Module) RunSelfTest(sendLoadedReport bool) error {
 		return err
 	}
 
+	log.Debugf("self-test results : success : %v, failed : %v", success, fails)
+
 	// send the report
 	if m.config.SelfTestSendReport {
 		monitor := m.probe.GetMonitor()
