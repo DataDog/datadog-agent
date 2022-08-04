@@ -559,12 +559,7 @@ func validateRequest(request *pbgo.ClientGetConfigsRequest) error {
 }
 
 func enforceCanonicalJSON(raw []byte) ([]byte, error) {
-	signedData := map[string]interface{}{}
-	err := json.Unmarshal(raw, &signedData)
-	if err != nil {
-		return nil, err
-	}
-	canonical, err := cjson.EncodeCanonical(signedData)
+	canonical, err := cjson.EncodeCanonical(json.RawMessage(raw))
 	if err != nil {
 		return nil, err
 	}
