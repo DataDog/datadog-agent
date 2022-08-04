@@ -58,7 +58,7 @@ jobs:
 
       - name: Create Pull Request
         uses: actions/github-script@v6
-        if: steps.random-color-generator.outputs != 0
+        if: steps.git-dirty-check.outputs != 0
         with:
           script: |
             const { repo, owner } = context.repo;
