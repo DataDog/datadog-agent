@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    Agent status command should always log at info level to avoid
-    interference from agent-wide log-level setting in printout.
+    Agent status command should always log at info level to allow
+    full status output regardless of Agent log level settings.
