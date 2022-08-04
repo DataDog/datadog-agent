@@ -68,7 +68,7 @@ func verifyOSVersion(kernelCode kernel.Version, platform string, exclusionList [
 		return false, fmt.Sprintf("Known bug for kernel %s on platform %s, see: \n- https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1763454", kernelCode, platform)
 	}
 
-	missing, err := ddebpf.VerifyKernelFuncs(path.Join(util.GetProcRoot(), "kallsyms"), requiredKernelFuncs)
+	missing, err := ddebpf.VerifyKernelFuncs(path.Join(util.HostProc, "kallsyms"), requiredKernelFuncs)
 	if err != nil {
 		log.Warnf("error reading /proc/kallsyms file: %s (check your kernel version, current is: %s)", err, kernelCode)
 		// If we can't read the /proc/kallsyms file let's just return true to avoid blocking the tracer from running

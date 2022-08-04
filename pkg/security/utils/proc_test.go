@@ -6,21 +6,21 @@
 //go:build linux
 // +build linux
 
-package util
+package utils
 
 import (
-	"os"
-	"path/filepath"
-	"strconv"
+	"math/rand"
+	"runtime"
+	"testing"
+	"time"
 )
 
-// GetRootNSPID returns the current PID from the root namespace
-func GetRootNSPID() (int, error) {
-	pidPath := filepath.Join(HostProc, "self")
-	pidStr, err := os.Readlink(pidPath)
-	if err != nil {
-		return 0, err
+func BenchmarkNetNSPathFromPid(b *testing.B) {
+	rand.Seed(time.Now().UnixNano())
+	pid := rand.Uint32()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		s := NetNSPathFromPid(pid)
+		runtime.KeepAlive(s)
 	}
-
-	return strconv.Atoi(pidStr)
 }

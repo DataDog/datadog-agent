@@ -25,7 +25,7 @@ import (
 
 // Getpid returns the current process ID in the host namespace
 func Getpid() int32 {
-	p, err := os.Readlink(filepath.Join(util.HostProc(), "/self"))
+	p, err := os.Readlink(filepath.Join(util.HostProc, "/self"))
 	if err == nil {
 		if pid, err := strconv.ParseInt(p, 10, 32); err == nil {
 			return int32(pid)
@@ -64,32 +64,43 @@ func GetProcessNetworkNamespace(nsPath string) (uint32, error) {
 
 // CgroupTaskPath returns the path to the cgroup file of a pid in /proc
 func CgroupTaskPath(tgid, pid uint32) string {
-	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/task/%d/cgroup", tgid, pid))
+	return pidPath(uint64(tgid), "task", strconv.Itoa(int(pid)), "cgroup")
+}
+
+func pidPath(pid uint64, combineWith ...string) string {
+	p := []byte(util.HostProc)
+	p = append(p, os.PathSeparator)
+	p = strconv.AppendUint(p, pid, 10)
+	for _, c := range combineWith {
+		p = append(p, os.PathSeparator)
+		p = append(p, c...)
+	}
+	return string(p)
 }
 
 // ProcExePath returns the path to the exe file of a pid in /proc
 func ProcExePath(pid int32) string {
-	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/exe", pid))
+	return pidPath(uint64(pid), "exe")
 }
 
 // NetNSPathFromPid returns the path to the net ns file of a pid in /proc
 func NetNSPathFromPid(pid uint32) string {
-	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/ns/net", pid))
+	return pidPath(uint64(pid), "ns/net")
 }
 
 // StatusPath returns the path to the status file of a pid in /proc
 func StatusPath(pid int32) string {
-	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/status", pid))
+	return pidPath(uint64(pid), "status")
 }
 
 // ModulesPath returns the path to the modules file in /proc
 func ModulesPath() string {
-	return filepath.Join(util.HostProc(), "modules")
+	return filepath.Join(util.HostProc, "modules")
 }
 
 // RootPath returns the path to the root folder of a pid in /proc
 func RootPath(pid int32) string {
-	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/root", pid))
+	return pidPath(uint64(pid), "root")
 }
 
 // CapEffCapEprm returns the effective and permitted kernel capabilities of a process
@@ -124,7 +135,7 @@ func CapEffCapEprm(pid int32) (uint64, uint64, error) {
 
 // PidTTY returns the TTY of the given pid
 func PidTTY(pid int32) string {
-	fdPath := filepath.Join(util.HostProc(), fmt.Sprintf("%d/fd/0", pid))
+	fdPath := pidPath(uint64(pid), "fd/0")
 
 	ttyPath, err := os.Readlink(fdPath)
 	if err != nil {
@@ -219,7 +230,7 @@ func GetFilledProcess(p *process.Process) *process.FilledProcess {
 
 // EnvVars returns a array with the environment variables of the given pid
 func EnvVars(pid int32) ([]string, error) {
-	filename := filepath.Join(util.HostProc(), fmt.Sprintf("/%d/environ", pid))
+	filename := pidPath(uint64(pid), "environ")
 
 	f, err := os.Open(filename)
 	if err != nil {

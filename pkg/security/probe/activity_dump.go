@@ -1105,7 +1105,7 @@ func (pan *ProcessActivityNode) snapshotBoundSockets(p *process.Process, ad *Act
 	}
 
 	// use /proc/[pid]/net/tcp,tcp6,udp,udp6 to extract the ports opened by the current process
-	proc, _ := procfs.NewFS(filepath.Join(util.HostProc(fmt.Sprintf("%d", p.Pid))))
+	proc, _ := procfs.NewFS(filepath.Join(util.HostProc, strconv.Itoa(int(p.Pid))))
 	if err != nil {
 		return err
 	}

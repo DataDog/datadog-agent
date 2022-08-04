@@ -1142,7 +1142,7 @@ type tracePipeLogger struct {
 func (l *tracePipeLogger) handleEvent(event *TraceEvent) {
 	// for some reason, the event task is resolved to "<...>"
 	// so we check that event.PID is the ID of a task of the running process
-	taskPath := filepath.Join(util.HostProc(), strconv.Itoa(int(utils.Getpid())), "task", event.PID)
+	taskPath := filepath.Join(util.HostProc, strconv.Itoa(int(utils.Getpid())), "task", event.PID)
 	_, err := os.Stat(taskPath)
 
 	if event.Task == l.executable || (event.Task == "<...>" && err == nil) {

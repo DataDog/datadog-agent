@@ -7,7 +7,6 @@ package util
 
 import (
 	"bufio"
-	"bytes"
 	"errors"
 	"io/ioutil"
 	"os"
@@ -17,6 +16,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
+
+// HostProc contains the current procfs dir, taking into account if the host procfs directory has been mounted.
+var HostProc string
+
+// HostSys contains the current sysfs dir, taking into account if the host sysfs directory has been mounted.
+var HostSys string
+
+func init() {
+	HostProc = filepath.Clean(getProcRoot())
+	HostSys = filepath.Clean(getSysRoot())
+}
 
 // ErrNotImplemented is the "not implemented" error given by `gopsutil` when an
 // OS doesn't support and API. Unfortunately it's in an internal package so
@@ -40,38 +50,12 @@ func ReadLines(filename string) ([]string, error) {
 }
 
 // GetEnv retrieves the environment variable key. If it does not exist it returns the default.
-func GetEnv(key string, dfault string, combineWith ...string) string {
+func GetEnv(key string, dfault string) string {
 	value := os.Getenv(key)
 	if value == "" {
 		value = dfault
 	}
-
-	switch len(combineWith) {
-	case 0:
-		return value
-	case 1:
-		return filepath.Join(value, combineWith[0])
-	default:
-		var b bytes.Buffer
-		b.WriteString(value)
-		for _, v := range combineWith {
-			b.WriteRune('/')
-			b.WriteString(v)
-		}
-		return b.String()
-	}
-}
-
-// HostProc returns the location of a host's procfs. This can and will be
-// overridden when running inside a container.
-func HostProc(combineWith ...string) string {
-	return GetEnv("HOST_PROC", "/proc", combineWith...)
-}
-
-// HostSys returns the location of a host's /sys. This can and will be overridden
-// when running inside a container.
-func HostSys(combineWith ...string) string {
-	return GetEnv("HOST_SYS", "/sys", combineWith...)
+	return value
 }
 
 // PathExists returns a boolean indicating if the given path exists on the file system.
@@ -102,29 +86,25 @@ func GetDockerSocketPath() (string, error) {
 	return sockPath, nil
 }
 
-// GetProcRoot retrieves the current procfs dir we should use
-func GetProcRoot() string {
+// getProcRoot retrieves the current procfs dir we should use
+func getProcRoot() string {
 	if v := os.Getenv("HOST_PROC"); v != "" {
 		return v
 	}
-
 	if config.IsContainerized() && PathExists("/host") {
 		return "/host/proc"
 	}
-
 	return "/proc"
 }
 
-// GetSysRoot retrieves the current sysfs dir we should use
-func GetSysRoot() string {
+// getSysRoot retrieves the current sysfs dir we should use
+func getSysRoot() string {
 	if v := os.Getenv("HOST_SYS"); v != "" {
 		return v
 	}
-
 	if config.IsContainerized() && PathExists("/host") {
 		return "/host/sys"
 	}
-
 	return "/sys"
 }
 

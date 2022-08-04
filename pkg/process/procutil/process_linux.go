@@ -108,7 +108,7 @@ type probe struct {
 
 // NewProcessProbe initializes a new Probe object
 func NewProcessProbe(options ...Option) Probe {
-	hostProc := util.HostProc()
+	hostProc := util.HostProc
 	bootTime, err := bootTime(hostProc)
 	if err != nil {
 		log.Errorf("could not parse boot time: %s", err)

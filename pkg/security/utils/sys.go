@@ -20,7 +20,7 @@ import (
 
 // CgroupSysPath returns the path to the provided file within the provided cgroup
 func CgroupSysPath(controller string, path string, file string) string {
-	return filepath.Join(util.HostSys("fs/cgroup/", controller, path, file))
+	return filepath.Join(util.HostSys, "fs/cgroup", controller, path, file)
 }
 
 // ReadCgroupFile reads the content of a cgroup file

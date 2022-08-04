@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/moby/sys/mountinfo"
@@ -21,7 +22,7 @@ import (
 
 // MountInfoPidPath returns the path to the mountinfo file of a pid in /proc
 func MountInfoPidPath(pid int32) string {
-	return filepath.Join(util.HostProc(), fmt.Sprintf("/%d/mountinfo", pid))
+	return filepath.Join(util.HostProc, strconv.Itoa(int(pid)), "mountinfo")
 }
 
 // ParseMountInfoFile collects the mounts for a specific process ID.

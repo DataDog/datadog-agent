@@ -75,7 +75,7 @@ func NewConfig() *Config {
 		BPFDir:                   cfg.GetString(key(spNS, "bpf_dir")),
 		ExcludedBPFLinuxVersions: cfg.GetStringSlice(key(spNS, "excluded_linux_versions")),
 		EnableTracepoints:        cfg.GetBool(key(spNS, "enable_tracepoints")),
-		ProcRoot:                 util.GetProcRoot(),
+		ProcRoot:                 util.HostProc,
 
 		EnableRuntimeCompiler:      cfg.GetBool(key(spNS, "enable_runtime_compiler")),
 		RuntimeCompilerOutputDir:   cfg.GetString(key(spNS, "runtime_compiler_output_dir")),

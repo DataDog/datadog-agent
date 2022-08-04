@@ -48,7 +48,7 @@ func getLockdownMode(data string) LockdownMode {
 
 // GetLockdownMode returns the lockdown
 func GetLockdownMode() LockdownMode {
-	data, err := ioutil.ReadFile(filepath.Join(util.GetSysRoot(), "kernel/security/lockdown"))
+	data, err := ioutil.ReadFile(filepath.Join(util.HostSys, "kernel/security/lockdown"))
 	if err != nil {
 		return Unknown
 	}
