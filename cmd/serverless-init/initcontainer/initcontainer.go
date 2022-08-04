@@ -9,6 +9,7 @@
 package initcontainer
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -44,10 +45,12 @@ func execute(config *serverlessLog.Config, metricAgent *metrics.ServerlessMetric
 	commandName, commandArgs := buildCommandParam(args)
 	cmd := exec.Command(commandName, commandArgs...)
 	cmd.Stdout = &serverlessLog.CustomWriter{
-		LogConfig: config,
+		LogConfig:  config,
+		LineBuffer: bytes.Buffer{},
 	}
 	cmd.Stderr = &serverlessLog.CustomWriter{
-		LogConfig: config,
+		LogConfig:  config,
+		LineBuffer: bytes.Buffer{},
 	}
 	handleSignals(cmd.Process, config, metricAgent, traceAgent)
 	err := cmd.Start()

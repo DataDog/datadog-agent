@@ -6,6 +6,8 @@
 package log
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"os"
 	"strings"
@@ -40,7 +42,8 @@ type Config struct {
 
 // CustomWriter wraps the log config to allow stdout/stderr redirection
 type CustomWriter struct {
-	LogConfig *Config
+	LogConfig  *Config
+	LineBuffer bytes.Buffer
 }
 
 // CreateConfig builds and returns a log config
@@ -90,7 +93,11 @@ func SetupLog(conf *Config) {
 
 func (cw *CustomWriter) Write(p []byte) (n int, err error) {
 	fmt.Print(string(p))
-	Write(cw.LogConfig, p)
+	cw.LineBuffer.Write(p)
+	scanner := bufio.NewScanner(&cw.LineBuffer)
+	for scanner.Scan() {
+		Write(cw.LogConfig, scanner.Bytes())
+	}
 	return len(p), nil
 }
 

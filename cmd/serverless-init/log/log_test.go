@@ -6,6 +6,7 @@
 package log
 
 import (
+	"bytes"
 	"testing"
 	"time"
 
@@ -13,6 +14,37 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestCustomWriterBuffered(t *testing.T) {
+	testContent := []byte("log line\nlog line\n")
+	config := &Config{
+		channel:   make(chan *config.ChannelMessage, 2),
+		isEnabled: true,
+	}
+	cw := &CustomWriter{
+		LogConfig:  config,
+		LineBuffer: bytes.Buffer{},
+	}
+	go cw.Write(testContent)
+	numMessages := 0
+	select {
+	case message := <-config.channel:
+		assert.Equal(t, []byte("log line"), message.Content)
+		numMessages++
+	case <-time.After(100 * time.Millisecond):
+		t.FailNow()
+	}
+
+	select {
+	case message := <-config.channel:
+		assert.Equal(t, []byte("log line"), message.Content)
+		numMessages++
+	case <-time.After(100 * time.Millisecond):
+		t.FailNow()
+	}
+
+	assert.Equal(t, 2, numMessages)
+}
 
 func TestWriteEnabled(t *testing.T) {
 	testContent := []byte("hello this is a log")
