@@ -16,14 +16,15 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestPopulateDeviceField(t *testing.T) {
@@ -318,7 +319,7 @@ func TestMarshalSplitCompress(t *testing.T) {
 }
 
 func TestMarshalSplitCompressPointsLimit(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	oldMax := mockConfig.GetInt("serializer_max_series_points_per_payload")
 	defer mockConfig.Set("serializer_max_series_points_per_payload", oldMax)
 	mockConfig.Set("serializer_max_series_points_per_payload", 100)
@@ -332,7 +333,7 @@ func TestMarshalSplitCompressPointsLimit(t *testing.T) {
 }
 
 func TestMarshalSplitCompressPointsLimitTooBig(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	oldMax := mockConfig.GetInt("serializer_max_series_points_per_payload")
 	defer mockConfig.Set("serializer_max_series_points_per_payload", oldMax)
 	mockConfig.Set("serializer_max_series_points_per_payload", 1)

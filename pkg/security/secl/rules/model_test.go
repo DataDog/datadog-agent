@@ -6,11 +6,10 @@
 package rules
 
 import (
+	"errors"
 	"reflect"
 	"syscall"
 	"unsafe"
-
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -154,6 +153,8 @@ func (m *testModel) GetEvaluator(key string, regID eval.RegisterID) (eval.Evalua
 
 	return nil, &eval.ErrFieldNotFound{Field: key}
 }
+
+func (e *testEvent) Init() {}
 
 func (e *testEvent) GetFieldValue(key string) (interface{}, error) {
 	switch key {

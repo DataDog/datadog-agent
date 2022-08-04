@@ -7,6 +7,7 @@ package checks
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
@@ -19,6 +20,8 @@ type Check interface {
 	Name() string
 	RealTime() bool
 	Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error)
+	Cleanup()
+	ShouldSaveLastRun() bool
 }
 
 // RunOptions provides run options for checks
@@ -50,4 +53,5 @@ var All = []Check{
 	Connections,
 	Pod,
 	ProcessDiscovery,
+	ProcessEvents,
 }

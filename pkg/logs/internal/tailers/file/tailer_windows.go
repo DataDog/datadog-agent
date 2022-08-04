@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,7 +31,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	t.tags = t.buildTailerTags()
 
 	log.Info("Opening ", t.fullpath)
-	f, err := openFile(t.fullpath)
+	f, err := filesystem.OpenShared(t.fullpath)
 	if err != nil {
 		return err
 	}
@@ -61,7 +62,7 @@ func (t *Tailer) readAvailable() (int, error) {
 	for {
 		if f == nil {
 			var err error
-			f, err = openFile(t.fullpath)
+			f, err = filesystem.OpenShared(t.fullpath)
 			if err != nil {
 				return bytes, err
 			}
@@ -123,7 +124,7 @@ func (t *Tailer) read() (int, error) {
 	if err == io.EOF || os.IsNotExist(err) {
 		return n, nil
 	} else if err != nil {
-		t.file.Source.Status.Error(err)
+		t.file.Source.Status().Error(err)
 		return n, log.Error("Err: ", err)
 	}
 	return n, nil

@@ -11,7 +11,6 @@
 package listeners
 
 import (
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -58,11 +57,9 @@ func testWorkingNewUDSListener(t *testing.T, socketPath string) {
 }
 
 func TestNewUDSListener(t *testing.T) {
-	dir, err := ioutil.TempDir("", "dd-test-")
-	assert.Nil(t, err)
-	defer os.RemoveAll(dir) // clean up
+	dir := t.TempDir()
 	socketPath := filepath.Join(dir, "dsd.socket")
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("dogstatsd_socket", socketPath)
 
 	t.Run("fail_file_exists", func(tt *testing.T) {
@@ -77,12 +74,10 @@ func TestNewUDSListener(t *testing.T) {
 }
 
 func TestStartStopUDSListener(t *testing.T) {
-	dir, err := ioutil.TempDir("", "dd-test-")
-	assert.Nil(t, err)
-	defer os.RemoveAll(dir) // clean up
+	dir := t.TempDir()
 	socketPath := filepath.Join(dir, "dsd.socket")
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("dogstatsd_socket", socketPath)
 	mockConfig.Set("dogstatsd_origin_detection", false)
 	s, err := NewUDSListener(nil, packetPoolManagerUDS, nil)
@@ -100,12 +95,10 @@ func TestStartStopUDSListener(t *testing.T) {
 }
 
 func TestUDSReceive(t *testing.T) {
-	dir, err := ioutil.TempDir("", "dd-test-")
-	assert.Nil(t, err)
-	defer os.RemoveAll(dir) // clean up
+	dir := t.TempDir()
 	socketPath := filepath.Join(dir, "dsd.socket")
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("dogstatsd_socket", socketPath)
 	mockConfig.Set("dogstatsd_origin_detection", false)
 

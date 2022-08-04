@@ -101,7 +101,6 @@ def cross_compile(ctx, tag=""):
     print(f"Building tag {tag}...")
 
     env = {
-        "TRACE_AGENT_VERSION": tag,
         "V": tag,
     }
 

@@ -18,6 +18,7 @@ type ProcessMonitoringEvent struct {
 	*model.ProcessCacheEntry
 	EventType      string    `json:"EventType" msg:"evt_type"`
 	CollectionTime time.Time `json:"CollectionTime" msg:"collection_time"`
+	ExitCode       uint32    `json:"ExitCode" msg:"exit_code"`
 }
 
 // ProcessMonitoringToProcessEvent converts a ProcessMonitoringEvent to a generic ProcessEvent
@@ -28,9 +29,10 @@ func ProcessMonitoringToProcessEvent(e *ProcessMonitoringEvent) *ProcessEvent {
 	}
 
 	return &ProcessEvent{
-		EventType:      e.EventType,
+		EventType:      NewEventType(e.EventType),
 		CollectionTime: e.CollectionTime,
 		Pid:            e.Pid,
+		ContainerID:    e.ContainerID,
 		Ppid:           e.PPid,
 		UID:            e.UID,
 		GID:            e.GID,
@@ -41,6 +43,7 @@ func ProcessMonitoringToProcessEvent(e *ProcessMonitoringEvent) *ProcessEvent {
 		ForkTime:       e.ForkTime,
 		ExecTime:       e.ExecTime,
 		ExitTime:       e.ExitTime,
+		ExitCode:       e.ExitCode,
 	}
 }
 
@@ -48,7 +51,7 @@ func ProcessMonitoringToProcessEvent(e *ProcessMonitoringEvent) *ProcessEvent {
 // It's used during tests to mock a ProcessMonitoringEvent message
 func ProcessEventToProcessMonitoringEvent(e *ProcessEvent) *ProcessMonitoringEvent {
 	return &ProcessMonitoringEvent{
-		EventType:      e.EventType,
+		EventType:      e.EventType.String(),
 		CollectionTime: e.CollectionTime,
 		ProcessCacheEntry: &model.ProcessCacheEntry{
 			ProcessContext: model.ProcessContext{
@@ -56,7 +59,8 @@ func ProcessEventToProcessMonitoringEvent(e *ProcessEvent) *ProcessMonitoringEve
 					PIDContext: model.PIDContext{
 						Pid: e.Pid,
 					},
-					PPid: e.Ppid,
+					ContainerID: e.ContainerID,
+					PPid:        e.Ppid,
 					Credentials: model.Credentials{
 						UID:   e.UID,
 						GID:   e.GID,
@@ -75,48 +79,6 @@ func ProcessEventToProcessMonitoringEvent(e *ProcessEvent) *ProcessMonitoringEve
 				},
 			},
 		},
-	}
-}
-
-// NewMockedProcessMonitoringEvent returns a new mocked ProcessMonitoringEvent
-func NewMockedProcessMonitoringEvent(evtType string, ts time.Time, pid uint32, exe string, args []string) *ProcessMonitoringEvent {
-	var forkTime, execTime, exitTime time.Time
-	switch evtType {
-	case Fork:
-		forkTime = ts
-	case Exec:
-		execTime = ts
-	case Exit:
-		exitTime = ts
-	}
-
-	return &ProcessMonitoringEvent{
-		EventType:      evtType,
-		CollectionTime: time.Now(),
-		ProcessCacheEntry: &model.ProcessCacheEntry{
-			ProcessContext: model.ProcessContext{
-				Process: model.Process{
-					PIDContext: model.PIDContext{
-						Pid: pid,
-					},
-					PPid: 1,
-					Credentials: model.Credentials{
-						UID:   100,
-						GID:   100,
-						User:  "dog",
-						Group: "dd-agent",
-					},
-					FileEvent: model.FileEvent{
-						PathnameStr: exe,
-					},
-					ArgsEntry: &model.ArgsEntry{
-						Values: args,
-					},
-					ForkTime: forkTime,
-					ExecTime: execTime,
-					ExitTime: exitTime,
-				},
-			},
-		},
+		ExitCode: e.ExitCode,
 	}
 }

@@ -12,14 +12,19 @@ import (
 	"bytes"
 	"strings"
 	"sync"
+	"time"
+
+	"github.com/Masterminds/semver"
+	"github.com/hashicorp/go-multierror"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/hashicorp/go-multierror"
 )
+
+const securityAgentRCPollInterval = time.Second * 1
 
 // RCPolicyProvider defines a remote config policy provider
 type RCPolicyProvider struct {
@@ -27,14 +32,14 @@ type RCPolicyProvider struct {
 
 	client               *remote.Client
 	onNewPoliciesReadyCb func()
-	lastConfigs          []client.ConfigCWSDD
+	lastConfigs          map[string]state.ConfigCWSDD
 }
 
 var _ rules.PolicyProvider = (*RCPolicyProvider)(nil)
 
 // NewRCPolicyProvider returns a new Remote Config based policy provider
-func NewRCPolicyProvider(name string) (*RCPolicyProvider, error) {
-	c, err := remote.NewClient(name, []data.Product{data.ProductCWSDD})
+func NewRCPolicyProvider(name string, agentVersion *semver.Version) (*RCPolicyProvider, error) {
+	c, err := remote.NewClient(name, agentVersion.String(), []data.Product{data.ProductCWSDD}, securityAgentRCPollInterval)
 	if err != nil {
 		return nil, err
 	}
@@ -48,17 +53,19 @@ func NewRCPolicyProvider(name string) (*RCPolicyProvider, error) {
 func (r *RCPolicyProvider) Start() {
 	log.Info("remote-config policies provider started")
 
-	go func() {
-		for configs := range r.client.CWSDDUpdates() {
-			r.Lock()
-			r.lastConfigs = configs
-			r.Unlock()
+	r.client.RegisterCWSDDUpdate(r.rcConfigUpdateCallback)
 
-			log.Debug("new policies from remote-config policy provider")
+	r.client.Start()
+}
 
-			r.onNewPoliciesReadyCb()
-		}
-	}()
+func (r *RCPolicyProvider) rcConfigUpdateCallback(configs map[string]state.ConfigCWSDD) {
+	r.Lock()
+	r.lastConfigs = configs
+	r.Unlock()
+
+	log.Info("new policies from remote-config policy provider")
+
+	r.onNewPoliciesReadyCb()
 }
 
 func normalize(policy *rules.Policy) {
@@ -70,7 +77,7 @@ func normalize(policy *rules.Policy) {
 }
 
 // LoadPolicies implements the PolicyProvider interface
-func (r *RCPolicyProvider) LoadPolicies() ([]*rules.Policy, *multierror.Error) {
+func (r *RCPolicyProvider) LoadPolicies(filters []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
 	var policies []*rules.Policy
 	var errs *multierror.Error
 
@@ -80,7 +87,7 @@ func (r *RCPolicyProvider) LoadPolicies() ([]*rules.Policy, *multierror.Error) {
 	for _, c := range r.lastConfigs {
 		reader := bytes.NewReader(c.Config)
 
-		policy, err := rules.LoadPolicy(c.ID, "remote-config", reader)
+		policy, err := rules.LoadPolicy(c.Metadata.ID, "remote-config", reader, filters)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		} else {

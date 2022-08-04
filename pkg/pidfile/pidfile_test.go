@@ -16,8 +16,7 @@ import (
 )
 
 func TestWritePID(t *testing.T) {
-	dir, _ := ioutil.TempDir("", "agent_test")
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	pidFilePath := filepath.Join(dir, "this_should_be_created", "agent.pid")
 	err := WritePID(pidFilePath)

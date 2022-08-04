@@ -10,11 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 )
@@ -24,7 +25,7 @@ func mockDemultiplexer() aggregator.Demultiplexer {
 }
 
 func mockDemultiplexerWithFlushInterval(d time.Duration) aggregator.Demultiplexer {
-	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
 	opts.FlushInterval = d
 	opts.DontStartForwarders = true
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, "hostname")

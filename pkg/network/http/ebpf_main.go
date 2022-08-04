@@ -12,6 +12,11 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"time"
+
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
+	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -20,9 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -33,7 +35,10 @@ const (
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to inspect plain HTTP traffic
-	httpSocketFilter = "socket/http_filter"
+	httpSocketFilterStub = "socket/http_filter_entry"
+	httpSocketFilter     = "socket/http_filter"
+	HTTP_PROG            = 0
+	httpProgsMap         = "http_progs"
 
 	// maxActive configures the maximum number of instances of the
 	// kretprobe-probed functions handled simultaneously.  This value should be
@@ -45,6 +50,8 @@ const (
 	batchNotificationsChanSize = 100
 
 	probeUID = "http"
+
+	maxRequestLinger = 30 * time.Second
 )
 
 type ebpfProgram struct {
@@ -53,6 +60,7 @@ type ebpfProgram struct {
 	bytecode    bytecode.AssetReader
 	offsets     []manager.ConstantEditor
 	subprograms []subprogram
+	mapCleaner  *ddebpf.MapCleaner
 
 	batchCompletionHandler *ddebpf.PerfHandler
 }
@@ -91,6 +99,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			{Name: httpBatchesMap},
 			{Name: httpBatchStateMap},
 			{Name: sslSockByCtxMap},
+			{Name: httpProgsMap},
 			{Name: "ssl_read_args"},
 			{Name: "bio_new_socket_args"},
 			{Name: "fd_by_ssl_bio"},
@@ -102,15 +111,16 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 				PerfMapOptions: manager.PerfMapOptions{
 					PerfRingBufferSize: 8 * os.Getpagesize(),
 					Watermark:          1,
-					DataHandler:        batchCompletionHandler.DataHandler,
+					RecordHandler:      batchCompletionHandler.RecordHandler,
 					LostHandler:        batchCompletionHandler.LostHandler,
+					RecordGetter:       batchCompletionHandler.RecordGetter,
 				},
 			},
 		},
 		Probes: []*manager.Probe{
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPSendMsg), EBPFFuncName: "kprobe__tcp_sendmsg", UID: probeUID}, KProbeMaxActive: maxActive},
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPSendMsgReturn), EBPFFuncName: "kretprobe__tcp_sendmsg", UID: probeUID}, KProbeMaxActive: maxActive},
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: httpSocketFilter, EBPFFuncName: "socket__http_filter", UID: probeUID}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: httpSocketFilterStub, EBPFFuncName: "socket__http_filter_entry", UID: probeUID}},
 		},
 	}
 
@@ -147,11 +157,21 @@ func (e *ebpfProgram) Init() error {
 				EditorFlag: manager.EditMaxEntries,
 			},
 		},
-		ActivatedProbes: []manager.ProbesSelector{
-			&manager.ProbeSelector{
+		TailCallRouter: []manager.TailCallRoute{
+			{
+				ProgArrayName: httpProgsMap,
+				Key:           HTTP_PROG,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  httpSocketFilter,
 					EBPFFuncName: "socket__http_filter",
+				},
+			},
+		},
+		ActivatedProbes: []manager.ProbesSelector{
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  httpSocketFilterStub,
+					EBPFFuncName: "socket__http_filter_entry",
 					UID:          probeUID,
 				},
 			},
@@ -195,16 +215,45 @@ func (e *ebpfProgram) Start() error {
 		s.Start()
 	}
 
+	e.setupMapCleaner()
+
 	return nil
 }
 
 func (e *ebpfProgram) Close() error {
+	e.mapCleaner.Stop()
 	err := e.Manager.Stop(manager.CleanAll)
 	e.batchCompletionHandler.Stop()
 	for _, s := range e.subprograms {
 		s.Stop()
 	}
 	return err
+}
+
+func (e *ebpfProgram) setupMapCleaner() {
+	httpMap, _, _ := e.GetMap(httpInFlightMap)
+	httpMapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(httpTX))
+	if err != nil {
+		log.Errorf("error creating map cleaner: %s", err)
+		return
+	}
+
+	ttl := maxRequestLinger.Nanoseconds()
+	httpMapCleaner.Clean(5*time.Minute, func(now int64, key, val interface{}) bool {
+		httpTX, ok := val.(*httpTX)
+		if !ok {
+			return false
+		}
+
+		if updated := int64(httpTX.response_last_seen); updated > 0 {
+			return (now - updated) > ttl
+		}
+
+		started := int64(httpTX.request_started)
+		return started > 0 && (now-started) > ttl
+	})
+
+	e.mapCleaner = httpMapCleaner
 }
 
 func enableRuntimeCompilation(c *config.Config) bool {

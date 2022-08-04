@@ -13,14 +13,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
+	"k8s.io/kube-state-metrics/v2/pkg/options"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
-	"github.com/stretchr/testify/assert"
-	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
-	"k8s.io/kube-state-metrics/v2/pkg/options"
 )
 
 type metricsExpected struct {
@@ -164,6 +165,61 @@ func TestProcessMetrics(t *testing.T) {
 					name:     "kubernetes_state.deployment.replicas",
 					val:      1,
 					tags:     []string{"kube_namespace:default", "kube_deployment:redis", "env:dev", "service:redis", "version:v1"},
+					hostname: "",
+				},
+			},
+		},
+		{
+			name:   "kubernetes standard tags via label join, default label mapper, default label joins (deployment)",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_deployment_status_replicas": {
+					{
+						Type: "*v1.Deployment",
+						Name: "kube_deployment_status_replicas",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"namespace": "default", "deployment": "mysql"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name: "kube_deployment_labels",
+					ListMetrics: []ksmstore.DDMetric{
+						{
+							Labels: map[string]string{
+								"namespace":                          "default",
+								"deployment":                         "mysql",
+								"label_app_kubernetes_io_name":       "mysql",
+								"label_app_kubernetes_io_instance":   "mysql-123",
+								"label_app_kubernetes_io_version":    "5.7",
+								"label_app_kubernetes_io_component":  "db",
+								"label_app_kubernetes_io_part_of":    "my-app",
+								"label_app_kubernetes_io_managed_by": "helm",
+							},
+						},
+					},
+				},
+			},
+			metricTransformers: defaultMetricTransformers(),
+			expected: []metricsExpected{
+				{
+					name: "kubernetes_state.deployment.replicas",
+					val:  1,
+					tags: []string{
+						"kube_namespace:default",
+						"kube_deployment:mysql",
+						"kube_app_name:mysql",
+						"kube_app_instance:mysql-123",
+						"kube_app_version:5.7",
+						"kube_app_component:db",
+						"kube_app_part_of:my-app",
+						"kube_app_managed_by:helm",
+					},
 					hostname: "",
 				},
 			},
@@ -1283,7 +1339,7 @@ func lenMetrics(metricsToProcess map[string][]ksmstore.DDMetricsFam) int {
 }
 
 func TestKSMCheckInitTags(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	type fields struct {
 		instance    *KSMConfig
 		clusterName string

@@ -17,18 +17,10 @@ class TestE2EKubernetes(unittest.TestCase):
 
     namespace = "default"
     in_cluster = False
-    expectedFindings = {
+    expectedFindingsMasterEtcdNode = {
         "cis-kubernetes-1.5.1-1.1.12": [
             {
                 "result": "failed",
-            }
-        ],
-        "cis-kubernetes-1.5.1-4.2.6": [
-            {
-                "agent_rule_id": "cis-kubernetes-1.5.1-4.2.6",
-                "agent_framework_id": "cis-kubernetes",
-                "result": "failed",
-                "resource_type": "kubernetes_worker_node",
             }
         ],
         "cis-kubernetes-1.5.1-1.2.16": [
@@ -121,6 +113,16 @@ class TestE2EKubernetes(unittest.TestCase):
                 "result": "failed",
             }
         ],
+    }
+    expectedFindingsWorkerNode = {
+        "cis-kubernetes-1.5.1-4.2.6": [
+            {
+                "agent_rule_id": "cis-kubernetes-1.5.1-4.2.6",
+                "agent_framework_id": "cis-kubernetes",
+                "result": "failed",
+                "resource_type": "kubernetes_worker_node",
+            }
+        ],
         "cis-kubernetes-1.5.1-4.1.1": [
             {
                 "result": "error",
@@ -211,7 +213,7 @@ class TestE2EKubernetes(unittest.TestCase):
             output = self.kubernetes_helper.exec_command(agent_name, ["bash", "-c", "cat /tmp/reports"])
             # if the output is JSON, it automatically calls json.loads on it. Yeah, I know... I've felt the same too
             findings = eval(output)
-            expect_findings(self, findings, TestE2EKubernetes.expectedFindings)
+            expect_findings(self, findings, TestE2EKubernetes.expectedFindingsWorkerNode)
 
         with Step(msg="wait for intake (~1m)", emoji=":alarm_clock:"):
             time.sleep(1 * 60)

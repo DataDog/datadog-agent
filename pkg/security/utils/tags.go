@@ -22,3 +22,12 @@ func GetTagValue(tagName string, tags []string) string {
 	}
 	return ""
 }
+
+// GetTagName returns the key of a tag in the tag_name:tag_value format
+func GetTagName(tag string) string {
+	kv := strings.SplitN(tag, ":", 2)
+	if len(kv) != 2 {
+		return ""
+	}
+	return kv[0]
+}

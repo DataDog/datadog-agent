@@ -7,6 +7,7 @@ package service
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"path"
 	"sync"
@@ -15,22 +16,27 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/theupdateframework/go-tuf/data"
 	tufutil "github.com/theupdateframework/go-tuf/util"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	"go.etcd.io/bbolt"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.etcd.io/bbolt"
 )
 
 const (
 	minimalRefreshInterval = 5 * time.Second
 	defaultClientsTTL      = 30 * time.Second
 	maxClientsTTL          = 60 * time.Second
+	newClientBlockTTL      = 2 * time.Second
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -59,9 +65,12 @@ type Service struct {
 	uptane   uptaneClient
 	api      api.API
 
-	products    map[rdata.Product]struct{}
-	newProducts map[rdata.Product]struct{}
-	clients     *clients
+	products         map[rdata.Product]struct{}
+	newProducts      map[rdata.Product]struct{}
+	clients          *clients
+	newActiveClients newActiveClients
+
+	lastUpdateErr error
 }
 
 // uptaneClient is used to mock the uptane component for testing
@@ -121,7 +130,7 @@ func NewService() (*Service, error) {
 		apiKey = config.Datadog.GetString("remote_configuration.api_key")
 	}
 	apiKey = config.SanitizeAPIKey(apiKey)
-	hostname, err := util.GetHostname(context.Background())
+	hname, err := hostname.Get(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +148,7 @@ func NewService() (*Service, error) {
 	}
 
 	clientsTTL := config.Datadog.GetDuration("remote_configuration.clients.ttl_seconds")
-	if clientsTTL <= minimalRefreshInterval || clientsTTL >= maxClientsTTL {
+	if clientsTTL < minimalRefreshInterval || clientsTTL > maxClientsTTL {
 		log.Warnf("Configured clients ttl is not within accepted range (%s - %s): %s. Defaulting to %s", minimalRefreshInterval, maxClientsTTL, clientsTTL, defaultClientsTTL)
 		clientsTTL = defaultClientsTTL
 	}
@@ -152,12 +161,17 @@ func NewService() (*Service, error) {
 		backoffPolicy:          backoffPolicy,
 		products:               make(map[rdata.Product]struct{}),
 		newProducts:            make(map[rdata.Product]struct{}),
-		hostname:               hostname,
+		hostname:               hname,
 		clock:                  clock,
 		db:                     db,
 		api:                    http,
 		uptane:                 uptaneClient,
 		clients:                newClients(clock, clientsTTL),
+		newActiveClients: newActiveClients{
+			clock:    clock,
+			requests: make(chan chan struct{}),
+			until:    time.Now().UTC(),
+		},
 	}, nil
 }
 
@@ -167,17 +181,32 @@ func (s *Service) Start(ctx context.Context) error {
 	go func() {
 		defer cancel()
 
+		err := s.refresh()
+		if err != nil {
+			log.Errorf("could not refresh remote-config: %v", err)
+		}
+
 		for {
+			var err error
 			refreshInterval := s.calculateRefreshInterval()
-			err := s.refresh()
-			if err != nil {
-				log.Errorf("could not refresh remote-config: %v", err)
-			}
 			select {
 			case <-s.clock.After(refreshInterval):
-				continue
+				err = s.refresh()
+			// New clients detected, request refresh
+			case response := <-s.newActiveClients.requests:
+				if time.Now().UTC().After(s.newActiveClients.until) {
+					s.newActiveClients.setRateLimit(refreshInterval)
+					err = s.refresh()
+				} else {
+					telemetry.CacheBypassRateLimit.Inc()
+				}
+				close(response)
 			case <-ctx.Done():
 				return
+			}
+
+			if err != nil {
+				log.Errorf("could not refresh remote-config: %v", err)
 			}
 		}
 	}()
@@ -192,12 +221,16 @@ func (s *Service) calculateRefreshInterval() time.Duration {
 
 func (s *Service) refresh() error {
 	s.Lock()
-	defer s.Unlock()
 	activeClients := s.clients.activeClients()
 	s.refreshProducts(activeClients)
 	previousState, err := s.uptane.TUFVersionState()
 	if err != nil {
 		log.Warnf("could not get previous TUF version state: %v", err)
+		if s.lastUpdateErr != nil {
+			s.lastUpdateErr = fmt.Errorf("%v: %v", err, s.lastUpdateErr)
+		} else {
+			s.lastUpdateErr = err
+		}
 	}
 	if s.forceRefresh() || err != nil {
 		previousState = uptane.TUFVersions{}
@@ -205,8 +238,18 @@ func (s *Service) refresh() error {
 	clientState, err := s.getClientState()
 	if err != nil {
 		log.Warnf("could not get previous backend client state: %v", err)
+		if s.lastUpdateErr != nil {
+			s.lastUpdateErr = fmt.Errorf("%v: %v", err, s.lastUpdateErr)
+		} else {
+			s.lastUpdateErr = err
+		}
 	}
-	response, err := s.api.Fetch(s.ctx, buildLatestConfigsRequest(s.hostname, previousState, activeClients, s.products, s.newProducts, clientState))
+	request := buildLatestConfigsRequest(s.hostname, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
+	s.Unlock()
+	response, err := s.api.Fetch(s.ctx, request)
+	s.Lock()
+	defer s.Unlock()
+	s.lastUpdateErr = nil
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
 		return err
@@ -214,6 +257,7 @@ func (s *Service) refresh() error {
 	err = s.uptane.Update(response)
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
+		s.lastUpdateErr = err
 		return err
 	}
 	s.firstUpdate = false
@@ -250,20 +294,34 @@ func (s *Service) getClientState() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return custom.ClientState, nil
+	return custom.OpaqueBackendState, nil
 }
 
 // ClientGetConfigs is the polling API called by tracers and agents to get the latest configurations
 func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	s.Lock()
 	defer s.Unlock()
+	err := validateRequest(request)
+	if err != nil {
+		return nil, err
+	}
+
+	if !s.clients.active(request.Client) {
+		s.Unlock()
+		response := make(chan struct{})
+		s.newActiveClients.requests <- response
+		select {
+		case <-response:
+		case <-time.After(newClientBlockTTL):
+			telemetry.CacheBypassTimeout.Inc()
+		}
+		s.Lock()
+	}
+
 	s.clients.seen(request.Client)
 	tufVersions, err := s.uptane.TUFVersionState()
 	if err != nil {
 		return nil, err
-	}
-	if request.Client.State == nil {
-		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
 	if tufVersions.DirectorTargets == request.Client.State.TargetsVersion {
 		return &pbgo.ClientGetConfigsResponse{}, nil
@@ -363,7 +421,11 @@ func (s *Service) getTargetFiles(products []rdata.Product, cachedTargetFiles []*
 	for _, cachedTarget := range cachedTargetFiles {
 		hashes := make(data.Hashes)
 		for _, hash := range cachedTarget.Hashes {
-			hashes[hash.Algorithm] = hash.Hash
+			h, err := hex.DecodeString(hash.Hash)
+			if err != nil {
+				return nil, err
+			}
+			hashes[hash.Algorithm] = h
 		}
 		cachedTargets[cachedTarget.Path] = data.FileMeta{
 			Hashes: hashes,
@@ -391,4 +453,96 @@ func (s *Service) getTargetFiles(products []rdata.Product, cachedTargetFiles []*
 		}
 	}
 	return configFiles, nil
+}
+
+func validateRequest(request *pbgo.ClientGetConfigsRequest) error {
+	if request.Client == nil {
+		return status.Error(codes.InvalidArgument, "client is a required field for client config update requests")
+	}
+
+	if request.Client.State == nil {
+		return status.Error(codes.InvalidArgument, "client.state is a required field for client config update requests")
+	}
+
+	if request.Client.State.RootVersion <= 0 {
+		return status.Error(codes.InvalidArgument, "client.state.root_version must be >= 1 (clients must start with the base TUF director root)")
+	}
+
+	if request.Client.IsAgent && request.Client.ClientAgent == nil {
+		return status.Error(codes.InvalidArgument, "client.client_agent is a required field for agent client config update requests")
+	}
+
+	if request.Client.IsTracer && request.Client.ClientTracer == nil {
+		return status.Error(codes.InvalidArgument, "client.client_tracer is a required field for tracer client config update requests")
+	}
+
+	if request.Client.IsTracer && request.Client.IsAgent {
+		return status.Error(codes.InvalidArgument, "client.is_tracer and client.is_agent cannot both be true")
+	}
+
+	if !request.Client.IsTracer && !request.Client.IsAgent {
+		return status.Error(codes.InvalidArgument, "agents only support remote config updates from tracer or agent at this time")
+	}
+
+	if request.Client.Id == "" {
+		return status.Error(codes.InvalidArgument, "client.id is a required field for client config update requests")
+	}
+
+	// Validate tracer-specific fields
+	if request.Client.IsTracer {
+		if request.Client.ClientTracer == nil {
+			return status.Error(codes.InvalidArgument, "client.client_tracer must be set if client.is_tracer is true")
+		}
+		if request.Client.ClientAgent != nil {
+			return status.Error(codes.InvalidArgument, "client.client_agent must not be set if client.is_tracer is true")
+		}
+
+		clientTracer := request.Client.ClientTracer
+
+		if request.Client.Id == clientTracer.RuntimeId {
+			return status.Error(codes.InvalidArgument, "client.id must be different from client.client_tracer.runtime_id")
+		}
+
+		if request.Client.ClientTracer.Language == "" {
+			return status.Error(codes.InvalidArgument, "client.client_tracer.language is a required field for tracer client config update requests")
+		}
+
+	}
+
+	// Validate agent-specific fields
+	if request.Client.IsAgent {
+		if request.Client.ClientAgent == nil {
+			return status.Error(codes.InvalidArgument, "client.client_agent must be set if client.is_agent is true")
+		}
+		if request.Client.ClientTracer != nil {
+			return status.Error(codes.InvalidArgument, "client.client_tracer must not be set if client.is_agent is true")
+		}
+	}
+
+	// Validate cached target files fields
+	for targetFileIndex, targetFile := range request.CachedTargetFiles {
+		if targetFile.Path == "" {
+			return status.Errorf(codes.InvalidArgument, "cached_target_files[%d].path is a required field for client config update requests", targetFileIndex)
+		}
+		_, err := rdata.ParseConfigPath(targetFile.Path)
+		if err != nil {
+			return status.Errorf(codes.InvalidArgument, "cached_target_files[%d].path is not a valid path: %s", targetFileIndex, err.Error())
+		}
+		if targetFile.Length == 0 {
+			return status.Errorf(codes.InvalidArgument, "cached_target_files[%d].length must be >= 1 (no empty file allowed)", targetFileIndex)
+		}
+		if len(targetFile.Hashes) == 0 {
+			return status.Error(codes.InvalidArgument, "cached_target_files[%d].hashes is a required field for client config update requests")
+		}
+		for hashIndex, hash := range targetFile.Hashes {
+			if hash.Algorithm == "" {
+				return status.Errorf(codes.InvalidArgument, "cached_target_files[%d].hashes[%d].algorithm is a required field for client config update requests", targetFileIndex, hashIndex)
+			}
+			if len(hash.Hash) == 0 {
+				return status.Errorf(codes.InvalidArgument, "cached_target_files[%d].hashes[%d].hash is a required field for client config update requests", targetFileIndex, hashIndex)
+			}
+		}
+	}
+
+	return nil
 }

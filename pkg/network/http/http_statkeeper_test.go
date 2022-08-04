@@ -16,10 +16,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 func TestProcessHTTPTransactions(t *testing.T) {
@@ -227,7 +228,7 @@ func TestHTTPCorrectness(t *testing.T) {
 		transactions := []httpTX{tx}
 
 		sk.Process(transactions)
-		require.Equal(t, int64(1), tel.malformed)
+		require.Equal(t, int64(1), tel.malformed.Load())
 
 		stats := sk.GetAndResetAllStats()
 		require.Len(t, stats, 0)
@@ -251,7 +252,7 @@ func TestHTTPCorrectness(t *testing.T) {
 		transactions := []httpTX{tx}
 
 		sk.Process(transactions)
-		require.Equal(t, int64(1), tel.malformed)
+		require.Equal(t, int64(1), tel.malformed.Load())
 
 		stats := sk.GetAndResetAllStats()
 		require.Len(t, stats, 0)
@@ -274,7 +275,7 @@ func TestHTTPCorrectness(t *testing.T) {
 		transactions := []httpTX{tx}
 
 		sk.Process(transactions)
-		require.Equal(t, int64(1), tel.malformed)
+		require.Equal(t, int64(1), tel.malformed.Load())
 
 		stats := sk.GetAndResetAllStats()
 		require.Len(t, stats, 0)

@@ -28,6 +28,16 @@ struct bpf_map_def SEC("maps/tcp_stats") tcp_stats = {
     .namespace = "",
 };
 
+/* Will hold the PIDs initiating TCP connections */
+struct bpf_map_def SEC("maps/tcp_ongoing_connect_pid") tcp_ongoing_connect_pid = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(struct sock *),
+    .value_size = sizeof(__u64),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
 /* Will hold the tcp/udp close events
  * The keys are the cpu number and the values a perf file descriptor for a perf event
  */
@@ -157,6 +167,17 @@ struct bpf_map_def SEC("maps/do_sendfile_args") do_sendfile_args = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(__u64),
     .value_size = sizeof(struct sock*),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
+// Used to store ip(6)_make_skb args to be used in the
+// corresponding kretprobes
+struct bpf_map_def SEC("maps/ip_make_skb_args") ip_make_skb_args = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u64),
+    .value_size = sizeof(ip_make_skb_args_t),
     .max_entries = 1024,
     .pinning = 0,
     .namespace = "",

@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -198,11 +199,11 @@ func runAgent(ctx context.Context) (err error) {
 	}
 
 	forwarderOpts := forwarder.NewOptions(keysPerDomain)
-	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
+	opts := aggregator.DefaultAgentDemultiplexerOptions(forwarderOpts)
 	opts.UseOrchestratorForwarder = false
 	opts.UseEventPlatformForwarder = false
 	opts.UseContainerLifecycleForwarder = false
-	hname, err := util.GetHostname(context.TODO())
+	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s", err)
 		hname = ""
@@ -219,7 +220,7 @@ func runAgent(ctx context.Context) (err error) {
 	}
 
 	if config.Datadog.GetBool("inventories_enabled") {
-		if err = metadata.SetupInventories(metaScheduler, nil, nil); err != nil {
+		if err = metadata.SetupInventories(metaScheduler, nil); err != nil {
 			return
 		}
 	}

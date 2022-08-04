@@ -13,10 +13,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"golang.org/x/sys/windows/svc"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/app"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/windows/service"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	"golang.org/x/sys/windows/svc"
 )
 
 var (

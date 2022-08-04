@@ -34,6 +34,7 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 	}
 
 	pc.Ancestor = parent
+	pc.IsThread = false
 	parent.Retain()
 }
 
@@ -100,6 +101,7 @@ func (pc *ProcessCacheEntry) ShareArgsEnvs(childEntry *ProcessCacheEntry) {
 func (pc *ProcessCacheEntry) SetParent(parent *ProcessCacheEntry) {
 	pc.SetAncestor(parent)
 	parent.ShareArgsEnvs(pc)
+	pc.IsThread = true
 }
 
 // Fork returns a copy of the current ProcessCacheEntry
@@ -230,7 +232,6 @@ func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 		if len(v) > 0 {
 			values = append(values, v...)
 		}
-		entry.ValuesRaw = nil
 
 		entry = entry.next
 	}
@@ -298,9 +299,9 @@ type EnvsEntry struct {
 	Values    []string `msg:"values"`
 	Truncated bool     `msg:"-"`
 
-	parsed bool
-	keys   []string
-	kv     map[string]string
+	parsed       bool
+	filteredEnvs []string
+	kv           map[string]string
 }
 
 // ToArray returns envs as an array
@@ -321,10 +322,10 @@ func (p *EnvsEntry) ToArray() ([]string, bool) {
 	return p.Values, p.Truncated
 }
 
-// Keys returns only keys
-func (p *EnvsEntry) Keys() ([]string, bool) {
-	if p.keys != nil {
-		return p.keys, p.Truncated
+// FilterEnvs returns an array of envs, only the name of each variable is returned unless the variable name is part of the provided filter
+func (p *EnvsEntry) FilterEnvs(envsWithValue map[string]bool) ([]string, bool) {
+	if p.filteredEnvs != nil {
+		return p.filteredEnvs, p.Truncated
 	}
 
 	values, _ := p.ToArray()
@@ -332,7 +333,7 @@ func (p *EnvsEntry) Keys() ([]string, bool) {
 		return nil, p.Truncated
 	}
 
-	p.keys = make([]string, len(values))
+	p.filteredEnvs = make([]string, len(values))
 
 	var i int
 	for _, value := range values {
@@ -341,11 +342,15 @@ func (p *EnvsEntry) Keys() ([]string, bool) {
 			continue
 		}
 
-		p.keys[i] = kv[0]
+		if envsWithValue[kv[0]] {
+			p.filteredEnvs[i] = value
+		} else {
+			p.filteredEnvs[i] = kv[0]
+		}
 		i++
 	}
 
-	return p.keys, p.Truncated
+	return p.filteredEnvs, p.Truncated
 }
 
 func (p *EnvsEntry) toMap() {

@@ -12,6 +12,9 @@ import (
 	"regexp"
 	"testing"
 
+	dockerTypes "github.com/docker/docker/api/types"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
@@ -23,8 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
 	dockerUtil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	dockerTypes "github.com/docker/docker/api/types"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestDockerCheckGenericPart(t *testing.T) {
@@ -82,7 +83,7 @@ func TestDockerCheckGenericPart(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "docker.mem.cache", 200, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "docker.mem.swap", 0, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "docker.mem.failed_count", 10, "", expectedTags)
-	mockSender.AssertMetric(t, "Gauge", "docker.mem.in_use", 1, "", expectedTags)
+	mockSender.AssertMetricInRange(t, "Gauge", "docker.mem.in_use", 0, 1, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "docker.mem.sw_limit", 500, "", expectedTags)
 
 	expectedFooTags := taggerUtils.ConcatenateStringTags(expectedTags, "device:/dev/foo", "device_name:/dev/foo")

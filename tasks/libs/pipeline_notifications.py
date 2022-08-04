@@ -53,8 +53,9 @@ def get_failed_jobs(project_name, pipeline_id):
 
 def get_job_failure_reason(job_log):
     infra_failure_logs = [
-        # Gitlab error while pulling image
+        # Gitlab errors while pulling image
         "no basic auth credentials (manager.go:203:0s)",
+        "net/http: TLS handshake timeout (manager.go:203:10s)",
         # docker / docker-arm runner init failures
         "Docker runner job start script failed",
         "A disposable runner accepted this job, while it shouldn't have. Runners are meant to run just one job and be terminated.",

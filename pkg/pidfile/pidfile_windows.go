@@ -8,8 +8,9 @@ package pidfile
 import (
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 const (

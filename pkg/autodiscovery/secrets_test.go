@@ -10,10 +10,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 type mockSecretScenario struct {
@@ -123,7 +124,7 @@ func TestSkipSecretDecrypt(t *testing.T) {
 	mockDecrypt := MockSecretDecrypt{t, makeSharedScenarios()}
 	defer mockDecrypt.install()()
 
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 	cfg.Set("secret_backend_skip_checks", true)
 	defer cfg.Set("secret_backend_skip_checks", false)
 

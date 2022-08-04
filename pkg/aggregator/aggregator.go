@@ -438,26 +438,31 @@ func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
 func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.Series, metrics.SketchSeriesList) {
 	var series metrics.Series
-	sketches := agg.getSeriesAndSketches(before, &series)
+	var sketches metrics.SketchSeriesList
+	agg.getSeriesAndSketches(before, &series, &sketches)
 	return series, sketches
 }
 
 // getSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
-func (agg *BufferedAggregator) getSeriesAndSketches(before time.Time, series metrics.SerieSink) metrics.SketchSeriesList {
+func (agg *BufferedAggregator) getSeriesAndSketches(
+	before time.Time,
+	seriesSink metrics.SerieSink,
+	sketchesSink metrics.SketchesSink) {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 
-	var sketches metrics.SketchSeriesList
 	for _, checkSampler := range agg.checkSamplers {
-		checkSeries, sk := checkSampler.flush()
+		checkSeries, sketches := checkSampler.flush()
 		for _, s := range checkSeries {
-			series.Append(s)
+			seriesSink.Append(s)
 		}
-		sketches = append(sketches, sk...)
+
+		for _, sk := range sketches {
+			sketchesSink.Append(sk)
+		}
 	}
-	return sketches
 }
 
 func updateSerieTelemetry(start time.Time, serieCount uint64, err error) {
@@ -542,12 +547,8 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 }
 
 func (agg *BufferedAggregator) flushSeriesAndSketches(trigger flushTrigger) {
-	sketches := agg.getSeriesAndSketches(trigger.time, trigger.seriesSink)
+	agg.getSeriesAndSketches(trigger.time, trigger.seriesSink, trigger.sketchesSink)
 	agg.appendDefaultSeries(trigger.time, trigger.seriesSink)
-
-	if len(sketches) > 0 {
-		*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
-	}
 }
 
 // GetServiceChecks grabs all the service checks from the queue and clears the queue
@@ -810,6 +811,9 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 }
 
 func (agg *BufferedAggregator) updateChecksTelemetry() {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+
 	t := metrics.CheckMetricsTelemetryAccumulator{}
 	for _, sampler := range agg.checkSamplers {
 		t.VisitCheckMetrics(&sampler.metrics)

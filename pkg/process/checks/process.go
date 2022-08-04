@@ -11,6 +11,9 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/gopsutil/cpu"
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -18,8 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/gopsutil/cpu"
-	"go.uber.org/atomic"
 )
 
 const emptyCtrID = ""
@@ -95,6 +96,9 @@ func (p *ProcessCheck) RealTimeName() string { return config.RTProcessCheckName 
 // RealTime indicates if this check only runs in real-time mode.
 func (p *ProcessCheck) RealTime() bool { return false }
 
+// ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
+func (p *ProcessCheck) ShouldSaveLastRun() bool { return true }
+
 // Run runs the ProcessCheck to collect a list of running processes and relevant
 // stats for each. On most POSIX systems this will use a mix of procfs and other
 // OS-specific APIs to collect this information. The bulk of this collection is
@@ -111,6 +115,9 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	return result.Standard, nil
 }
 
+// Cleanup frees any resource held by the ProcessCheck before the agent exits
+func (p *ProcessCheck) Cleanup() {}
+
 func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTime bool) (*RunResult, error) {
 	start := time.Now()
 	cpuTimes, err := cpu.Times(false)
@@ -119,21 +126,6 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 	}
 	if len(cpuTimes) == 0 {
 		return nil, errEmptyCPUTime
-	}
-
-	// TODO: deduplicate system probe or WithPermission with RT collection
-	var sysProbeUtil *net.RemoteSysProbeUtil
-	// if the Process module is disabled, we allow Probe to collect
-	// fields that require elevated permission to collect with best effort
-	if !p.SysprobeProcessModuleEnabled {
-		procutil.WithPermission(true)(p.probe)
-	} else {
-		procutil.WithPermission(false)(p.probe)
-		if pu, err := net.GetRemoteSystemProbeUtil(); err == nil {
-			sysProbeUtil = pu
-		} else if p.notInitializedLogLimit.ShouldLog() {
-			log.Warnf("could not initialize system-probe connection in process check: %v (will only log every 10 minutes)", err)
-		}
 	}
 
 	procs, err := p.probe.ProcessesByPID(time.Now(), true)
@@ -147,7 +139,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 		p.lastPIDs = append(p.lastPIDs, pid)
 	}
 
-	if sysProbeUtil != nil {
+	if sysProbeUtil := p.getRemoteSysProbeUtil(); sysProbeUtil != nil {
 		mergeProcWithSysprobeStats(p.lastPIDs, procs, sysProbeUtil)
 	}
 
@@ -451,7 +443,7 @@ func formatCPU(statsNow, statsBefore *procutil.Stats, syst2, syst1 cpu.TimesStat
 			LastCpu:   "cpu",
 			TotalPct:  float32(statsNow.CPUPercent.UserPct + statsNow.CPUPercent.SystemPct),
 			UserPct:   float32(statsNow.CPUPercent.UserPct),
-			SystemPct: float32(statsNow.CPUPercent.UserPct),
+			SystemPct: float32(statsNow.CPUPercent.SystemPct),
 		}
 	}
 	return formatCPUTimes(statsNow, statsNow.CPUTime, statsBefore.CPUTime, syst2, syst1)
@@ -498,6 +490,23 @@ func (p *ProcessCheck) createTimesforPIDs(pids []int32) map[int32]int64 {
 		return createTimeForPID
 	}
 	return createTimeForPID
+}
+
+func (p *ProcessCheck) getRemoteSysProbeUtil() *net.RemoteSysProbeUtil {
+	// if the Process module is disabled, we allow Probe to collect
+	// fields that require elevated permission to collect with best effort
+	if !p.SysprobeProcessModuleEnabled {
+		return nil
+	}
+
+	pu, err := net.GetRemoteSystemProbeUtil()
+	if err != nil {
+		if p.notInitializedLogLimit.ShouldLog() {
+			log.Warnf("could not initialize system-probe connection in process check: %v (will only log every 10 minutes)", err)
+		}
+		return nil
+	}
+	return pu
 }
 
 // mergeProcWithSysprobeStats takes a process by PID map and fill the stats from system probe into the processes in the map

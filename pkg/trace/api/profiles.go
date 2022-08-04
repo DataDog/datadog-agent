@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 )
@@ -78,7 +77,7 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 	if err != nil {
 		return errorHandler(err)
 	}
-	tags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, info.Version)
+	tags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, r.conf.AgentVersion)
 	if orch := r.conf.FargateOrchestrator; orch != config.OrchestratorUnknown {
 		tag := fmt.Sprintf("orchestrator:fargate_%s", strings.ToLower(string(orch)))
 		tags = tags + "," + tag
@@ -103,14 +102,14 @@ func errorHandler(err error) http.Handler {
 // For more details please see multiTransport.
 func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string, tags string) *httputil.ReverseProxy {
 	director := func(req *http.Request) {
-		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", info.Version))
+		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", conf.AgentVersion))
 		if _, ok := req.Header["User-Agent"]; !ok {
 			// explicitly disable User-Agent so it's not set to the default value
 			// that net/http gives it: Go-http-client/1.1
 			// See https://codereview.appspot.com/7532043
 			req.Header.Set("User-Agent", "")
 		}
-		containerID := req.Header.Get(headerContainerID)
+		containerID := GetContainerID(req.Context(), req.Header)
 		if ctags := getContainerTags(conf.ContainerTags, containerID); ctags != "" {
 			req.Header.Set("X-Datadog-Container-Tags", ctags)
 		}

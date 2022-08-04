@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -68,10 +67,10 @@ func TestStatus(t *testing.T) {
 
 func TestNotRunning(t *testing.T) {
 	// Use different ports in case the host is running a real agent
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 	cfg.Set("process_config.cmd_port", 8082)
 
-	addressPort, err := api.GetAPIAddressPort()
+	addressPort, err := config.GetProcessAPIAddressPort()
 	require.NoError(t, err)
 	statusURL := fmt.Sprintf("http://%s/agent/status", addressPort)
 
@@ -84,7 +83,7 @@ func TestNotRunning(t *testing.T) {
 // TestError tests an example error to make sure that the error template prints properly if we get something other than
 // a connection error
 func TestError(t *testing.T) {
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 	cfg.Set("ipc_address", "8.8.8.8") // Non-local ip address will cause error in `GetIPCAddress`
 	_, ipcError := config.GetIPCAddress()
 

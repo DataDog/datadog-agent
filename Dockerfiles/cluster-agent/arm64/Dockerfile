@@ -22,10 +22,11 @@ RUN chmod 755 entrypoint.sh \
     && ln -s /opt/datadog-agent/bin/datadog-cluster-agent opt/datadog-agent/bin/agent
 
 FROM builder AS nosys-seccomp
-COPY nosys-seccomp/nosys.c /tmp/nosys.c
+COPY nosys-seccomp/nosys.c   /tmp/nosys.c
+COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt update && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
-RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -o /tmp/nosys.so /tmp/nosys.c -lseccomp
+RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c -lseccomp
 
 ####################################
 # Actual docker image construction #
@@ -54,7 +55,7 @@ ENV PATH="/opt/datadog-agent/bin/:$PATH" \
 
 RUN apt-get update \
     && apt full-upgrade -y \
-    && apt-get install --no-install-recommends -y ca-certificates curl libseccomp2 \
+    && apt-get install --no-install-recommends -y ca-certificates curl libseccomp2 tzdata \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 COPY --from=builder /output /
@@ -75,8 +76,7 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
 COPY --from=nosys-seccomp /tmp/nosys.so /lib/x86_64-linux-gnu/nosys.so
-ENV LD_PRELOAD=/lib/x86_64-linux-gnu/nosys.so \
-    NOSYS_SYSCALLS=faccessat2,clone3
+ENV LD_PRELOAD=/lib/x86_64-linux-gnu/nosys.so
 
 # Incompatible with the custom metrics API on port 443
 # Set DD_EXTERNAL_METRICS_PROVIDER_PORT to a higher value to run as non-root

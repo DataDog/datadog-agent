@@ -15,9 +15,10 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/gopsutil/cpu"
+
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/gopsutil/cpu"
 )
 
 // TestBasicProcessMessages tests basic cases for creating payloads by hard-coded scenarios
@@ -28,7 +29,7 @@ func TestBasicProcessMessages(t *testing.T) {
 		makeProcess(2, "mine-bitcoins -all -x"),
 		makeProcess(3, "foo --version"),
 		makeProcess(4, "foo -bar -bim"),
-		makeProcess(5, "datadog-process-agent -ddconfig datadog.conf"),
+		makeProcess(5, "datadog-process-agent --cfgpath datadog.conf"),
 	}
 	c := []*model.Container{
 		makeContainer("foo"),

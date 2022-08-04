@@ -10,10 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"go.uber.org/atomic"
 )
 
 // Builder is used to build the status.
@@ -138,6 +139,8 @@ func (b *Builder) toString(status *status.LogStatus) string {
 // toDictionary returns a representation of the configuration.
 func (b *Builder) toDictionary(c *config.LogsConfig) map[string]interface{} {
 	dictionary := make(map[string]interface{})
+	dictionary["Service"] = c.Service
+	dictionary["Source"] = c.Source
 	switch c.Type {
 	case config.TCPType, config.UDPType:
 		dictionary["Port"] = c.Port

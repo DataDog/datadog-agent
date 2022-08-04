@@ -10,16 +10,16 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"path"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"syscall"
 	"time"
 	"unsafe"
-
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -33,50 +33,68 @@ func (m *Model) NewEvent() eval.Event {
 	return &Event{}
 }
 
-// ValidateField validates the value of a field
-func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
-	// check that all path are absolute
-	if strings.HasSuffix(field, "path") {
+// NewEventWithType returns a new Event for the given type
+func (m *Model) NewEventWithType(kind EventType) eval.Event {
+	return &Event{
+		Type: uint32(kind),
+	}
+}
 
-		// do not support regular expression on path, currently unable to support discarder for regex value
-		if fieldValue.Type == eval.RegexpValueType {
-			return fmt.Errorf("regexp not supported on path `%s`", field)
+// check that all path are absolute
+func validatePath(field eval.Field, fieldValue eval.FieldValue) error {
+	// do not support regular expression on path, currently unable to support discarder for regex value
+	if fieldValue.Type == eval.RegexpValueType {
+		return fmt.Errorf("regexp not supported on path `%s`", field)
+	}
+
+	if value, ok := fieldValue.Value.(string); ok {
+		errAbs := fmt.Errorf("invalid path `%s`, all the path have to be absolute", value)
+		errDepth := fmt.Errorf("invalid path `%s`, path depths have to be shorter than %d", value, MaxPathDepth)
+		errSegment := fmt.Errorf("invalid path `%s`, each segment of a path must be shorter than %d", value, MaxSegmentLength)
+
+		if value == "" {
+			return nil
 		}
 
-		if value, ok := fieldValue.Value.(string); ok {
-			errAbs := fmt.Errorf("invalid path `%s`, all the path have to be absolute", value)
-			errDepth := fmt.Errorf("invalid path `%s`, path depths have to be shorter than %d", value, MaxPathDepth)
-			errSegment := fmt.Errorf("invalid path `%s`, each segment of a path must be shorter than %d", value, MaxSegmentLength)
+		if value != path.Clean(value) {
+			return errAbs
+		}
 
-			if value != path.Clean(value) {
+		if value == "*" {
+			return errAbs
+		}
+
+		if !filepath.IsAbs(value) && len(value) > 0 && value[0] != '*' {
+			return errAbs
+		}
+
+		if strings.HasPrefix(value, "~") {
+			return errAbs
+		}
+
+		// check resolution limitations
+		segments := strings.Split(value, "/")
+		if len(segments) > MaxPathDepth {
+			return errDepth
+		}
+		for _, segment := range segments {
+			if segment == ".." {
 				return errAbs
 			}
+			if len(segment) > MaxSegmentLength {
+				return errSegment
+			}
+		}
+	}
 
-			if value == "*" {
-				return errAbs
-			}
+	return nil
+}
 
-			if !filepath.IsAbs(value) && len(value) > 0 && value[0] != '*' {
-				return errAbs
-			}
-
-			if strings.HasPrefix(value, "~") {
-				return errAbs
-			}
-
-			// check resolution limitations
-			segments := strings.Split(value, "/")
-			if len(segments) > MaxPathDepth {
-				return errDepth
-			}
-			for _, segment := range segments {
-				if segment == ".." {
-					return errAbs
-				}
-				if len(segment) > MaxSegmentLength {
-					return errSegment
-				}
-			}
+// ValidateField validates the value of a field
+func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
+	if strings.HasSuffix(field, "path") {
+		if err := validatePath(field, fieldValue); err != nil {
+			return err
 		}
 	}
 
@@ -102,7 +120,7 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 type ChmodEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode;file.destination.rights" constants:"Chmod mode constants"` // New mode/rights of the chmod-ed file
+	Mode uint32    `field:"file.destination.mode; file.destination.rights" constants:"Chmod mode constants"` // New mode/rights of the chmod-ed file
 }
 
 // ChownEvent represents a chown event
@@ -110,33 +128,33 @@ type ChmodEvent struct {
 type ChownEvent struct {
 	SyscallEvent
 	File  FileEvent `field:"file"`
-	UID   int64     `field:"file.destination.uid"`                   // New UID of the chown-ed file's owner
-	User  string    `field:"file.destination.user,ResolveChownUID"`  // New user of the chown-ed file's owner
-	GID   int64     `field:"file.destination.gid"`                   // New GID of the chown-ed file's owner
-	Group string    `field:"file.destination.group,ResolveChownGID"` // New group of the chown-ed file's owner
+	UID   int64     `field:"file.destination.uid"`                           // New UID of the chown-ed file's owner
+	User  string    `field:"file.destination.user,handler:ResolveChownUID"`  // New user of the chown-ed file's owner
+	GID   int64     `field:"file.destination.gid"`                           // New GID of the chown-ed file's owner
+	Group string    `field:"file.destination.group,handler:ResolveChownGID"` // New group of the chown-ed file's owner
 }
 
 // ContainerContext holds the container context of an event
 //msgp:ignore ContainerContext
 type ContainerContext struct {
-	ID   string   `field:"id,ResolveContainerID"`          // ID of the container
-	Tags []string `field:"tags,ResolveContainerTags:9999"` // Tags of the container
+	ID   string   `field:"id,handler:ResolveContainerID"`                 // ID of the container
+	Tags []string `field:"tags,handler:ResolveContainerTags,weight:9999"` // Tags of the container
 }
 
 // Event represents an event sent from the kernel
 //msgp:ignore Event
 // genaccessors
 type Event struct {
-	ID           string    `field:"-"`
+	ID           string    `field:"-" json:"-"`
 	Type         uint32    `field:"-"`
 	Async        bool      `field:"async" msg:"async" event:"*"` // True if the syscall was asynchronous
-	TimestampRaw uint64    `field:"-"`
+	TimestampRaw uint64    `field:"-" json:"-"`
 	Timestamp    time.Time `field:"-"` // Timestamp of the event
 
 	// context shared with all events
-	ProcessCacheEntry *ProcessCacheEntry `field:"-"`
-	PIDContext        PIDContext         `field:"-"`
-	SpanContext       SpanContext        `field:"-"`
+	ProcessCacheEntry *ProcessCacheEntry `field:"-" json:"-"`
+	PIDContext        PIDContext         `field:"-" json:"-"`
+	SpanContext       SpanContext        `field:"-" json:"-"`
 	ProcessContext    *ProcessContext    `field:"process" event:"*"`
 	ContainerContext  ContainerContext   `field:"container"`
 	NetworkContext    NetworkContext     `field:"network"`
@@ -156,11 +174,13 @@ type Event struct {
 	Splice      SpliceEvent   `field:"splice" event:"splice"`           // [7.36] [File] A splice command was executed
 
 	// process events
-	Exec   ExecEvent   `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed or forked
-	SetUID SetuidEvent `field:"setuid" event:"setuid"` // [7.27] [Process] A process changed its effective uid
-	SetGID SetgidEvent `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
-	Capset CapsetEvent `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
-	Signal SignalEvent `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
+	Exec     ExecEvent     `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed or forked
+	SetUID   SetuidEvent   `field:"setuid" event:"setuid"` // [7.27] [Process] A process changed its effective uid
+	SetGID   SetgidEvent   `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
+	Capset   CapsetEvent   `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
+	Signal   SignalEvent   `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
+	Exit     ExitEvent     `field:"exit" event:"exit"`     // [7.38] [Process] A process was terminated
+	Syscalls SyscallsEvent `field:"-"`
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
@@ -176,14 +196,49 @@ type Event struct {
 	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] [Experimental] A bind was executed
 
 	// internal usage
-	Mount            MountEvent            `field:"-"`
-	Umount           UmountEvent           `field:"-"`
-	InvalidateDentry InvalidateDentryEvent `field:"-"`
-	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
-	MountReleased    MountReleasedEvent    `field:"-"`
-	CgroupTracing    CgroupTracingEvent    `field:"-"`
-	NetDevice        NetDeviceEvent        `field:"-"`
-	VethPair         VethPairEvent         `field:"-"`
+	Mount            MountEvent            `field:"-" json:"-"`
+	Umount           UmountEvent           `field:"-" json:"-"`
+	InvalidateDentry InvalidateDentryEvent `field:"-" json:"-"`
+	ArgsEnvs         ArgsEnvsEvent         `field:"-" json:"-"`
+	MountReleased    MountReleasedEvent    `field:"-" json:"-"`
+	CgroupTracing    CgroupTracingEvent    `field:"-" json:"-"`
+	NetDevice        NetDeviceEvent        `field:"-" json:"-"`
+	VethPair         VethPairEvent         `field:"-" json:"-"`
+}
+
+func initMember(member reflect.Value, deja map[string]bool) {
+	for i := 0; i < member.NumField(); i++ {
+		field := member.Field(i)
+
+		switch field.Kind() {
+		case reflect.Ptr:
+			if field.CanSet() {
+				field.Set(reflect.New(field.Type().Elem()))
+			}
+			if field.Elem().Kind() == reflect.Struct {
+				name := field.Elem().Type().Name()
+				if deja[name] {
+					continue
+				}
+				deja[name] = true
+
+				initMember(field.Elem(), deja)
+			}
+		case reflect.Struct:
+			name := field.Type().Name()
+			if deja[name] {
+				continue
+			}
+			deja[name] = true
+
+			initMember(field, deja)
+		}
+	}
+}
+
+// Init initialize the event
+func (e *Event) Init() {
+	initMember(reflect.ValueOf(e).Elem(), map[string]bool{})
 }
 
 // GetType returns the event type
@@ -215,23 +270,23 @@ func (e *Event) GetPointer() unsafe.Pointer {
 // SetuidEvent represents a setuid event
 //msgp:ignore SetuidEvent
 type SetuidEvent struct {
-	UID    uint32 `field:"uid"`                        // New UID of the process
-	User   string `field:"user,ResolveSetuidUser"`     // New user of the process
-	EUID   uint32 `field:"euid"`                       // New effective UID of the process
-	EUser  string `field:"euser,ResolveSetuidEUser"`   // New effective user of the process
-	FSUID  uint32 `field:"fsuid"`                      // New FileSystem UID of the process
-	FSUser string `field:"fsuser,ResolveSetuidFSUser"` // New FileSystem user of the process
+	UID    uint32 `field:"uid"`                                // New UID of the process
+	User   string `field:"user,handler:ResolveSetuidUser"`     // New user of the process
+	EUID   uint32 `field:"euid"`                               // New effective UID of the process
+	EUser  string `field:"euser,handler:ResolveSetuidEUser"`   // New effective user of the process
+	FSUID  uint32 `field:"fsuid"`                              // New FileSystem UID of the process
+	FSUser string `field:"fsuser,handler:ResolveSetuidFSUser"` // New FileSystem user of the process
 }
 
 // SetgidEvent represents a setgid event
 //msgp:ignore SetgidEvent
 type SetgidEvent struct {
-	GID     uint32 `field:"gid"`                          // New GID of the process
-	Group   string `field:"group,ResolveSetgidGroup"`     // New group of the process
-	EGID    uint32 `field:"egid"`                         // New effective GID of the process
-	EGroup  string `field:"egroup,ResolveSetgidEGroup"`   // New effective group of the process
-	FSGID   uint32 `field:"fsgid"`                        // New FileSystem GID of the process
-	FSGroup string `field:"fsgroup,ResolveSetgidFSGroup"` // New FileSystem group of the process
+	GID     uint32 `field:"gid"`                                  // New GID of the process
+	Group   string `field:"group,handler:ResolveSetgidGroup"`     // New group of the process
+	EGID    uint32 `field:"egid"`                                 // New effective GID of the process
+	EGroup  string `field:"egroup,handler:ResolveSetgidEGroup"`   // New effective group of the process
+	FSGID   uint32 `field:"fsgid"`                                // New FileSystem GID of the process
+	FSGroup string `field:"fsgroup,handler:ResolveSetgidFSGroup"` // New FileSystem group of the process
 }
 
 // CapsetEvent represents a capset event
@@ -272,58 +327,64 @@ func (e *Process) GetPathResolutionError() string {
 
 // Process represents a process
 type Process struct {
-	PIDContext
+	PIDContext `msg:"pid_context"`
 
 	FileEvent FileEvent `field:"file" msg:"file"`
 
-	ContainerID   string   `field:"container.id" msg:"container_id"` // Container ID
-	ContainerTags []string `field:"-" msg:"container_tags"`
+	ContainerID   string   `field:"container.id" msg:"container_id,omitempty"` // Container ID
+	ContainerTags []string `field:"-" msg:"container_tags,omitempty"`
 
-	SpanID  uint64 `field:"-" msg:"span_id"`
-	TraceID uint64 `field:"-" msg:"trace_id"`
+	SpanID  uint64 `field:"-" msg:"span_id,omitempty"`
+	TraceID uint64 `field:"-" msg:"trace_id,omitempty"`
 
-	TTYName string `field:"tty_name" msg:"tty"` // Name of the TTY associated with the process
-	Comm    string `field:"comm" msg:"comm"`    // Comm attribute of the process
+	TTYName string `field:"tty_name" msg:"tty,omitempty"` // Name of the TTY associated with the process
+	Comm    string `field:"comm" msg:"comm"`              // Comm attribute of the process
 
 	// pid_cache_t
-	ForkTime time.Time `field:"-" msg:"fork_time"`
-	ExitTime time.Time `field:"-" msg:"exit_time"`
-	ExecTime time.Time `field:"-" msg:"exec_time"`
+	ForkTime time.Time `field:"-" msg:"fork_time" json:"-"`
+	ExitTime time.Time `field:"-" msg:"exit_time" json:"-"`
+	ExecTime time.Time `field:"-" msg:"exec_time" json:"-"`
 
-	CreatedAt uint64 `field:"created_at,ResolveProcessCreatedAt" msg:"created_at"` // Timestamp of the creation of the process
+	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt" msg:"-"` // Timestamp of the creation of the process
 
-	Cookie uint32 `field:"cookie" msg:"cookie"` // Cookie of the process
-	PPid   uint32 `field:"ppid" msg:"ppid"`     // Parent process ID
+	Cookie uint32 `field:"cookie" msg:"cookie,omitempty"` // Cookie of the process
+	PPid   uint32 `field:"ppid" msg:"ppid"`               // Parent process ID
 
 	// credentials_t section of pid_cache_t
 	Credentials `msg:"credentials"`
 
-	ArgsID uint32 `field:"-" msg:"-"`
-	EnvsID uint32 `field:"-" msg:"-"`
+	ArgsID uint32 `field:"-" msg:"-" json:"-"`
+	EnvsID uint32 `field:"-" msg:"-" json:"-"`
 
-	ArgsEntry *ArgsEntry `field:"-" msg:"args"`
-	EnvsEntry *EnvsEntry `field:"-" msg:"envs"`
+	ArgsEntry *ArgsEntry `field:"-" msg:"args_entry,omitempty" json:"-"`
+	EnvsEntry *EnvsEntry `field:"-" msg:"envs_entry,omitempty" json:"-"`
 
 	// defined to generate accessors, ArgsTruncated and EnvsTruncated are used during by unmarshaller
-	Argv0         string   `field:"argv0,ResolveProcessArgv0:100" msg:"-"`                                                                                                                     // First argument of the process
-	Args          string   `field:"args,ResolveProcessArgs:100" msg:"-"`                                                                                                                       // Arguments of the process (as a string)
-	Argv          []string `field:"argv,ResolveProcessArgv:100;args_flags,ResolveProcessArgsFlags,,cacheless_resolution;args_options,ResolveProcessArgsOptions,,cacheless_resolution" msg:"-"` // Arguments of the process (as an array)
-	ArgsTruncated bool     `field:"args_truncated,ResolveProcessArgsTruncated" msg:"-"`                                                                                                        // Indicator of arguments truncation
-	Envs          []string `field:"envs,ResolveProcessEnvs:100" msg:"-"`                                                                                                                       // Environment variable names of the process
-	Envp          []string `field:"envp,ResolveProcessEnvp:100" msg:"-"`                                                                                                                       // Environment variables of the process
-	EnvsTruncated bool     `field:"envs_truncated,ResolveProcessEnvsTruncated" msg:"-"`                                                                                                        // Indicator of environment variables truncation
+	Argv0         string   `field:"argv0,handler:ResolveProcessArgv0,weight:100" msg:"argv0"`                                                                                                                                           // First argument of the process
+	Args          string   `field:"args,handler:ResolveProcessArgs,weight:100" msg:"-"`                                                                                                                                                 // Arguments of the process (as a string)
+	Argv          []string `field:"argv,handler:ResolveProcessArgv,weight:100; args_flags,handler:ResolveProcessArgsFlags,opts:cacheless_resolution; args_options,handler:ResolveProcessArgsOptions,opts:cacheless_resolution" msg:"-"` // Arguments of the process (as an array)
+	ArgsTruncated bool     `field:"args_truncated,handler:ResolveProcessArgsTruncated" msg:"-"`                                                                                                                                         // Indicator of arguments truncation
+	Envs          []string `field:"envs,handler:ResolveProcessEnvs:100" msg:"envs,omitempty"`                                                                                                                                           // Environment variable names of the process
+	Envp          []string `field:"envp,handler:ResolveProcessEnvp:100" msg:"-"`                                                                                                                                                        // Environment variables of the process
+	EnvsTruncated bool     `field:"envs_truncated,handler:ResolveProcessEnvsTruncated" msg:"envs_truncated,omitempty"`                                                                                                                  // Indicator of environment variables truncation
+
+	// symlink to the process binary
+	SymlinkPathnameStr [MaxSymlinks]string `field:"-" msg:"-" json:"-"`
+	SymlinkBasenameStr string              `field:"-" msg:"-" json:"-"`
 
 	// cache version
-	ScrubbedArgvResolved  bool           `field:"-" msg:"-"`
-	ScrubbedArgv          []string       `field:"-" msg:"-"`
-	ScrubbedArgsTruncated bool           `field:"-" msg:"-"`
-	Variables             eval.Variables `field:"-" msg:"-"`
+	ScrubbedArgvResolved  bool           `field:"-" msg:"-" json:"-"`
+	ScrubbedArgv          []string       `field:"-" msg:"argv,omitempty" json:"-"`
+	ScrubbedArgsTruncated bool           `field:"-" msg:"argv_truncated,omitempty" json:"-"`
+	Variables             eval.Variables `field:"-" msg:"-" json:"-"`
+
+	IsThread bool `field:"is_thread" msg:"is_thread"` // Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)
 }
 
 // SpanContext describes a span context
 type SpanContext struct {
-	SpanID  uint64 `field:"_" msg:"span_id"`
-	TraceID uint64 `field:"_" msg:"trace_id"`
+	SpanID  uint64 `field:"_" msg:"span_id,omitempty" json:"-"`
+	TraceID uint64 `field:"_" msg:"trace_id,omitempty" json:"-"`
 }
 
 // ExecEvent represents a exec event
@@ -332,23 +393,31 @@ type ExecEvent struct {
 	*Process
 }
 
+// ExitEvent represents a process exit event
+//msgp:ignore ExitEvent
+type ExitEvent struct {
+	*Process
+	Cause uint32 `field:"cause"` // Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)
+	Code  uint32 `field:"code"`  // Exit code of the process or number of the signal that caused the process to terminate
+}
+
 // FileFields holds the information required to identify a file
 type FileFields struct {
-	UID   uint32 `field:"uid" msg:"uid"`                                                                               // UID of the file's owner
-	User  string `field:"user,ResolveFileFieldsUser" msg:"user"`                                                       // User of the file's owner
-	GID   uint32 `field:"gid" msg:"gid"`                                                                               // GID of the file's owner
-	Group string `field:"group,ResolveFileFieldsGroup" msg:"group"`                                                    // Group of the file's owner
-	Mode  uint16 `field:"mode;rights,ResolveRights,,cacheless_resolution" msg:"mode" constants:"Chmod mode constants"` // Mode/rights of the file
-	CTime uint64 `field:"change_time" msg:"ctime"`                                                                     // Change time of the file
-	MTime uint64 `field:"modification_time" msg:"mtime"`                                                               // Modification time of the file
+	UID   uint32 `field:"uid" msg:"uid"`                                                                                           // UID of the file's owner
+	User  string `field:"user,handler:ResolveFileFieldsUser" msg:"user,omitempty"`                                                 // User of the file's owner
+	GID   uint32 `field:"gid" msg:"gid"`                                                                                           // GID of the file's owner
+	Group string `field:"group,handler:ResolveFileFieldsGroup" msg:"group,omitempty"`                                              // Group of the file's owner
+	Mode  uint16 `field:"mode;rights,handler:ResolveRights,opts:cacheless_resolution" msg:"mode" constants:"Chmod mode constants"` // Mode/rights of the file
+	CTime uint64 `field:"change_time" msg:"ctime"`                                                                                 // Change time of the file
+	MTime uint64 `field:"modification_time" msg:"mtime"`                                                                           // Modification time of the file
 
-	MountID      uint32 `field:"mount_id" msg:"mount_id"`                                           // Mount ID of the file
-	Inode        uint64 `field:"inode" msg:"inode"`                                                 // Inode of the file
-	InUpperLayer bool   `field:"in_upper_layer,ResolveFileFieldsInUpperLayer" msg:"in_upper_layer"` // Indicator of the file layer, in an OverlayFS for example
+	MountID      uint32 `field:"mount_id" msg:"mount_id"`                                                   // Mount ID of the file
+	Inode        uint64 `field:"inode" msg:"inode"`                                                         // Inode of the file
+	InUpperLayer bool   `field:"in_upper_layer,handler:ResolveFileFieldsInUpperLayer" msg:"in_upper_layer"` // Indicator of the file layer, for example, in an OverlayFS
 
-	NLink  uint32 `field:"-" msg:"-"`
-	PathID uint32 `field:"-" msg:"-"`
-	Flags  int32  `field:"-" msg:"-"`
+	NLink  uint32 `field:"-" msg:"-" json:"-"`
+	PathID uint32 `field:"-" msg:"-" json:"-"`
+	Flags  int32  `field:"-" msg:"-" json:"-"`
 }
 
 // HasHardLinks returns whether the file has hardlink
@@ -368,17 +437,17 @@ func (f *FileFields) GetInUpperLayer() bool {
 
 // FileEvent is the common file event type
 type FileEvent struct {
-	FileFields
+	FileFields `msg:"file_fields"`
 
-	PathnameStr string `field:"path,ResolveFilePath" msg:"path" op_override:"eval.GlobCmp"` // File's path
-	BasenameStr string `field:"name,ResolveFileBasename" msg:"name"`                        // File's basename
-	Filesystem  string `field:"filesystem,ResolveFileFilesystem" msg:"filesystem"`          // File's filesystem
+	PathnameStr string `field:"path,handler:ResolveFilePath" msg:"path" op_override:"ProcessSymlinkPathname"`     // File's path
+	BasenameStr string `field:"name,handler:ResolveFileBasename" msg:"name" op_override:"ProcessSymlinkBasename"` // File's basename
+	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem" msg:"filesystem"`                        // File's filesystem
 
-	PathResolutionError error `field:"-" msg:"-"`
+	PathResolutionError error `field:"-" msg:"-" json:"-"`
 
 	// used to mark as already resolved, can be used in case of empty path
-	IsPathnameStrResolved bool `field:"-" msg:"-"`
-	IsBasenameStrResolved bool `field:"-" msg:"-"`
+	IsPathnameStrResolved bool `field:"-" msg:"-" json:"-"`
+	IsBasenameStrResolved bool `field:"-" msg:"-" json:"-"`
 }
 
 // SetPathnameStr set and mark as resolved
@@ -429,7 +498,7 @@ type LinkEvent struct {
 type MkdirEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode;file.destination.rights" constants:"Chmod mode constants"` // Mode/rights of the new directory
+	Mode uint32    `field:"file.destination.mode; file.destination.rights" constants:"Chmod mode constants"` // Mode/rights of the new directory
 }
 
 // ArgsEnvsEvent defines a args/envs event
@@ -509,12 +578,12 @@ const (
 // SELinuxEvent represents a selinux event
 //msgp:ignore SELinuxEvent
 type SELinuxEvent struct {
-	File            FileEvent        `field:"-"`
-	EventKind       SELinuxEventKind `field:"-"`
-	BoolName        string           `field:"bool.name,ResolveSELinuxBoolName"` // SELinux boolean name
-	BoolChangeValue string           `field:"bool.state"`                       // SELinux boolean new value
-	BoolCommitValue bool             `field:"bool_commit.state"`                // Indicator of a SELinux boolean commit operation
-	EnforceStatus   string           `field:"enforce.status"`                   // SELinux enforcement status (one of "enforcing", "permissive", "disabled"")
+	File            FileEvent        `field:"-" json:"-"`
+	EventKind       SELinuxEventKind `field:"-" json:"-"`
+	BoolName        string           `field:"bool.name,handler:ResolveSELinuxBoolName"` // SELinux boolean name
+	BoolChangeValue string           `field:"bool.state"`                               // SELinux boolean new value
+	BoolCommitValue bool             `field:"bool_commit.state"`                        // Indicator of a SELinux boolean commit operation
+	EnforceStatus   string           `field:"enforce.status"`                           // SELinux enforcement status (one of "enforcing", "permissive", "disabled"")
 }
 
 var zeroProcessContext ProcessContext
@@ -523,9 +592,9 @@ var zeroProcessContext ProcessContext
 type ProcessCacheEntry struct {
 	ProcessContext
 
-	refCount  uint64                     `field:"-" msg:"-"`
-	onRelease func(_ *ProcessCacheEntry) `field:"-" msg:"-"`
-	releaseCb func()                     `field:"-" msg:"-"`
+	refCount  uint64                     `field:"-" msg:"-" json:"-"`
+	onRelease func(_ *ProcessCacheEntry) `field:"-" msg:"-" json:"-"`
+	releaseCb func()                     `field:"-" msg:"-" json:"-"`
 }
 
 // Reset the entry
@@ -596,7 +665,7 @@ func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
 type ProcessContext struct {
 	Process
 
-	Ancestor *ProcessCacheEntry `field:"ancestors,,ProcessAncestorsIterator" msg:"ancestor"`
+	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator" msg:"ancestor,omitempty"`
 }
 
 // PIDContext holds the process context of an kernel event
@@ -612,7 +681,7 @@ type RenameEvent struct {
 	SyscallEvent
 	Old               FileEvent `field:"file"`
 	New               FileEvent `field:"file.destination"`
-	DiscarderRevision uint32    `field:"-"`
+	DiscarderRevision uint32    `field:"-" json:"-"`
 }
 
 // RmdirEvent represents a rmdir event
@@ -620,7 +689,7 @@ type RenameEvent struct {
 type RmdirEvent struct {
 	SyscallEvent
 	File              FileEvent `field:"file"`
-	DiscarderRevision uint32    `field:"-"`
+	DiscarderRevision uint32    `field:"-" json:"-"`
 }
 
 // SetXAttrEvent represents an extended attributes event
@@ -628,15 +697,15 @@ type RmdirEvent struct {
 type SetXAttrEvent struct {
 	SyscallEvent
 	File      FileEvent `field:"file"`
-	Namespace string    `field:"file.destination.namespace,ResolveXAttrNamespace"` // Namespace of the extended attribute
-	Name      string    `field:"file.destination.name,ResolveXAttrName"`           // Name of the extended attribute
+	Namespace string    `field:"file.destination.namespace,handler:ResolveXAttrNamespace"` // Namespace of the extended attribute
+	Name      string    `field:"file.destination.name,handler:ResolveXAttrName"`           // Name of the extended attribute
 
-	NameRaw [200]byte `field:"-"`
+	NameRaw [200]byte `field:"-" json:"-"`
 }
 
 // SyscallEvent contains common fields for all the event
 type SyscallEvent struct {
-	Retval int64 `field:"retval" msg:"retval" constants:"Error Constants"` // Return value of the syscall
+	Retval int64 `field:"retval" msg:"retval,omitempty" constants:"Error Constants"` // Return value of the syscall
 }
 
 // UnlinkEvent represents an unlink event
@@ -645,7 +714,7 @@ type UnlinkEvent struct {
 	SyscallEvent
 	File              FileEvent `field:"file"`
 	Flags             uint32    `field:"flags" constants:"Unlink flags"`
-	DiscarderRevision uint32    `field:"-"`
+	DiscarderRevision uint32    `field:"-" json:"-"`
 }
 
 // UmountEvent represents an umount event
@@ -660,8 +729,8 @@ type UmountEvent struct {
 type UtimesEvent struct {
 	SyscallEvent
 	File  FileEvent `field:"file"`
-	Atime time.Time `field:"-"`
-	Mtime time.Time `field:"-"`
+	Atime time.Time `field:"-" json:"-"`
+	Mtime time.Time `field:"-" json:"-"`
 }
 
 // BPFEvent represents a BPF event
@@ -677,7 +746,7 @@ type BPFEvent struct {
 // BPFMap represents a BPF map
 //msgp:ignore BPFMap
 type BPFMap struct {
-	ID   uint32 `field:"-"`                              // ID of the eBPF map
+	ID   uint32 `field:"-" json:"-"`                     // ID of the eBPF map
 	Type uint32 `field:"type" constants:"BPF map types"` // Type of the eBPF map
 	Name string `field:"name"`                           // Name of the eBPF map (added in 7.35)
 }
@@ -685,12 +754,12 @@ type BPFMap struct {
 // BPFProgram represents a BPF program
 //msgp:ignore BPFProgram
 type BPFProgram struct {
-	ID         uint32   `field:"-"`                                                       // ID of the eBPF program
-	Type       uint32   `field:"type" constants:"BPF program types"`                      // Type of the eBPF program
-	AttachType uint32   `field:"attach_type" constants:"BPF attach types"`                // Attach type of the eBPF program
-	Helpers    []uint32 `field:"helpers,ResolveHelpers" constants:"BPF helper functions"` // eBPF helpers used by the eBPF program (added in 7.35)
-	Name       string   `field:"name"`                                                    // Name of the eBPF program (added in 7.35)
-	Tag        string   `field:"tag"`                                                     // Hash (sha1) of the eBPF program (added in 7.35)
+	ID         uint32   `field:"-" json:"-"`                                                      // ID of the eBPF program
+	Type       uint32   `field:"type" constants:"BPF program types"`                              // Type of the eBPF program
+	AttachType uint32   `field:"attach_type" constants:"BPF attach types"`                        // Attach type of the eBPF program
+	Helpers    []uint32 `field:"helpers,handler:ResolveHelpers" constants:"BPF helper functions"` // eBPF helpers used by the eBPF program (added in 7.35)
+	Name       string   `field:"name"`                                                            // Name of the eBPF program (added in 7.35)
+	Tag        string   `field:"tag"`                                                             // Hash (sha1) of the eBPF program (added in 7.35)
 }
 
 // PTraceEvent represents a ptrace event
@@ -699,8 +768,8 @@ type PTraceEvent struct {
 	SyscallEvent
 
 	Request uint32          `field:"request" constants:"Ptrace constants"` //  ptrace request
-	PID     uint32          `field:"-"`
-	Address uint64          `field:"-"`
+	PID     uint32          `field:"-" json:"-"`
+	Address uint64          `field:"-" json:"-"`
 	Tracee  *ProcessContext `field:"tracee"` // process context of the tracee
 }
 
@@ -710,9 +779,9 @@ type MMapEvent struct {
 	SyscallEvent
 
 	File       FileEvent `field:"file"`
-	Addr       uint64    `field:"-"`
-	Offset     uint64    `field:"-"`
-	Len        uint32    `field:"-"`
+	Addr       uint64    `field:"-" json:"-"`
+	Offset     uint64    `field:"-" json:"-"`
+	Len        uint32    `field:"-" json:"-"`
 	Protection int       `field:"protection" constants:"Protection constants"` // memory segment protection
 	Flags      int       `field:"flags" constants:"MMap flags"`                // memory segment flags
 }
@@ -722,8 +791,8 @@ type MMapEvent struct {
 type MProtectEvent struct {
 	SyscallEvent
 
-	VMStart       uint64 `field:"-"`
-	VMEnd         uint64 `field:"-"`
+	VMStart       uint64 `field:"-" json:"-"`
+	VMEnd         uint64 `field:"-" json:"-"`
 	VMProtection  int    `field:"vm_protection" constants:"Virtual Memory flags"`  // initial memory segment protection
 	ReqProtection int    `field:"req_protection" constants:"Virtual Memory flags"` // new memory segment protection
 }
@@ -776,9 +845,9 @@ type CgroupTracingEvent struct {
 // NetworkDeviceContext represents the network device context of a network event
 //msgp:ignore NetworkDeviceContext
 type NetworkDeviceContext struct {
-	NetNS   uint32 `field:"-"`
-	IfIndex uint32 `field:"ifindex"`                           // interface ifindex
-	IfName  string `field:"ifname,ResolveNetworkDeviceIfName"` // interface ifname
+	NetNS   uint32 `field:"-" json:"-"`
+	IfIndex uint32 `field:"ifindex"`                                   // interface ifindex
+	IfName  string `field:"ifname,handler:ResolveNetworkDeviceIfName"` // interface ifname
 }
 
 // IPPortContext is used to hold an IP and Port
@@ -801,9 +870,8 @@ type NetworkContext struct {
 }
 
 // DNSEvent represents a DNS event
-//msgp:ignore DNSEvent
 type DNSEvent struct {
-	ID    uint16 `field:"-" msg:"-"`
+	ID    uint16 `field:"-" msg:"-" json:"-"`
 	Name  string `field:"question.name" msg:"name" op_override:"eval.DNSNameCmp"` // the queried domain name
 	Type  uint16 `field:"question.type" msg:"type" constants:"DNS qtypes"`        // a two octet code which specifies the DNS question type
 	Class uint16 `field:"question.class" msg:"class" constants:"DNS qclasses"`    // the class looked up by the DNS question
@@ -816,8 +884,8 @@ type DNSEvent struct {
 type BindEvent struct {
 	SyscallEvent
 
-	AddrFamily uint16        `field:"addr.family" constants:"Network Address Family constants"` // Address family
-	Addr       IPPortContext `field:"addr"`                                                     // Bound address
+	Addr       IPPortContext `field:"addr"`        // Bound address
+	AddrFamily uint16        `field:"addr.family"` // Address family
 }
 
 // NetDevice represents a network device
@@ -850,4 +918,10 @@ type VethPairEvent struct {
 
 	HostDevice NetDevice
 	PeerDevice NetDevice
+}
+
+// SyscallsEvent represents a syscalls event
+//msgp:ignore SyscallsEvent
+type SyscallsEvent struct {
+	Syscalls []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
 }

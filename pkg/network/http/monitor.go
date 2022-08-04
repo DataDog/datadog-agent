@@ -13,11 +13,12 @@ import (
 
 	"sync"
 
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
 )
 
 // HTTPMonitorStats is used for holding two kinds of stats:
@@ -62,7 +63,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, fmt.Errorf("error initializing http ebpf program: %s", err)
 	}
 
-	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFSection: httpSocketFilter, EBPFFuncName: "socket__http_filter", UID: probeUID})
+	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFSection: httpSocketFilterStub, EBPFFuncName: "socket__http_filter_entry", UID: probeUID})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
@@ -134,6 +135,7 @@ func (m *Monitor) Start() error {
 				notification := toHTTPNotification(dataEvent.Data)
 				transactions, err := m.batchManager.GetTransactionsFrom(notification)
 				m.process(transactions, err)
+				dataEvent.Done()
 			case _, ok := <-m.batchCompletionHandler.LostChannel:
 				if !ok {
 					return
@@ -187,18 +189,19 @@ func (m *Monitor) GetHTTPStats() map[Key]*RequestStats {
 }
 
 func (m *Monitor) GetStats() map[string]interface{} {
+	empty := map[string]interface{}{}
 	if m == nil {
-		return nil
+		return empty
 	}
 
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	if m.stopped {
-		return nil
+		return empty
 	}
 
 	if m.telemetrySnapshot == nil {
-		return nil
+		return empty
 	}
 
 	return m.telemetrySnapshot.report()

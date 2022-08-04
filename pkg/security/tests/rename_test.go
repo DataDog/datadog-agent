@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -16,7 +17,6 @@ import (
 	"testing"
 
 	"github.com/iceber/iouring-go"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
@@ -52,7 +52,10 @@ func TestRename(t *testing.T) {
 	defer os.Remove(testNewFile)
 	defer os.Remove(testOldFile)
 
+	renameSyscallIsSupported := false
 	t.Run("rename", ifSyscallSupported("SYS_RENAME", func(t *testing.T, syscallNB uintptr) {
+		renameSyscallIsSupported = true
+
 		test.WaitSignal(t, func() error {
 			_, _, errno := syscall.Syscall(syscallNB, uintptr(testOldFilePtr), uintptr(testNewFilePtr), 0)
 			if errno != 0 {
@@ -77,8 +80,10 @@ func TestRename(t *testing.T) {
 		})
 	}))
 
-	if err := os.Rename(testNewFile, testOldFile); err != nil {
-		t.Fatal(err)
+	if renameSyscallIsSupported {
+		if err := os.Rename(testNewFile, testOldFile); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	t.Run("renameat", func(t *testing.T) {
@@ -263,7 +268,7 @@ func TestRenameReuseInode(t *testing.T) {
 		Expression: `open.file.path == "{{.Root}}/test-rename-new"`,
 	}}
 
-	testDrive, err := newTestDrive("xfs", nil)
+	testDrive, err := newTestDrive(t, "xfs", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

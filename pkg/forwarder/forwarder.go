@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/endpoints"
@@ -23,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"go.uber.org/atomic"
 )
 
 const (
@@ -70,6 +71,7 @@ type Forwarder interface {
 	SubmitMetadata(payload Payloads, extra http.Header) error
 	SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitProcessDiscoveryChecks(payload Payloads, extra http.Header) (chan Response, error)
+	SubmitProcessEventChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
@@ -590,6 +592,11 @@ func (f *DefaultForwarder) SubmitProcessChecks(payload Payloads, extra http.Head
 // SubmitProcessDiscoveryChecks sends process discovery checks
 func (f *DefaultForwarder) SubmitProcessDiscoveryChecks(payload Payloads, extra http.Header) (chan Response, error) {
 	return f.submitProcessLikePayload(endpoints.ProcessDiscoveryEndpoint, payload, extra, true)
+}
+
+// SubmitProcessEventChecks sends process events checks
+func (f *DefaultForwarder) SubmitProcessEventChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	return f.submitProcessLikePayload(endpoints.ProcessLifecycleEndpoint, payload, extra, true)
 }
 
 // SubmitRTProcessChecks sends real time process checks

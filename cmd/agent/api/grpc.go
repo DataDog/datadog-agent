@@ -29,8 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/replay"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
-	hostutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -49,7 +49,7 @@ type serverSecure struct {
 }
 
 func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.HostnameReply, error) {
-	h, err := hostutil.GetHostname(ctx)
+	h, err := hostname.Get(ctx)
 	if err != nil {
 		return &pb.HostnameReply{}, err
 	}

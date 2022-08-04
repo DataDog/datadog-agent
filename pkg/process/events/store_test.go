@@ -12,10 +12,11 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 )
 
 // pushSync is an auxiliary function to push events to the RingStore synchronously
@@ -32,7 +33,7 @@ func TestRingStoreWithoutLoop(t *testing.T) {
 	ctx := context.Background()
 	timeout := time.Second
 
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 	cfg.Set("process_config.event_collection.store.max_items", 4)
 	store, err := NewRingStore(&statsd.NoOpClient{})
 	require.NoError(t, err)
@@ -43,9 +44,9 @@ func TestRingStoreWithoutLoop(t *testing.T) {
 	s.Run()
 	defer s.Stop()
 
-	e1 := model.NewMockedProcessEvent(model.Exec, now, 23, "/usr/bin/curl", []string{"curl", "localhost:6062"})
-	e2 := model.NewMockedProcessEvent(model.Exit, now, 23, "/usr/bin/curl", []string{"curl", "localhost:6062"})
-	e3 := model.NewMockedProcessEvent(model.Exit, now, 23, "/usr/bin/ls", []string{"ls", "-lah"})
+	e1 := model.NewMockedExecEvent(now, 23, "/usr/bin/curl", []string{"curl", "localhost:6062"})
+	e2 := model.NewMockedExitEvent(now, 23, "/usr/bin/curl", []string{"curl", "localhost:6062"}, 0)
+	e3 := model.NewMockedExecEvent(now, 23, "/usr/bin/ls", []string{"ls", "-lah"})
 
 	// Push and pull 1 event
 	pushSync(t, s, e1)
@@ -84,7 +85,7 @@ func TestRingStoreWithLoop(t *testing.T) {
 	ctx := context.Background()
 	timeout := time.Second
 
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 	cfg.Set("process_config.event_collection.store.max_items", 3)
 	store, err := NewRingStore(&statsd.NoOpClient{})
 	require.NoError(t, err)
@@ -92,9 +93,9 @@ func TestRingStoreWithLoop(t *testing.T) {
 	s, ok := store.(*RingStore)
 	require.True(t, ok)
 
-	e1 := model.NewMockedProcessEvent(model.Exec, now, 23, "/usr/bin/curl", []string{"curl", "localhost:6062"})
-	e2 := model.NewMockedProcessEvent(model.Exit, now, 23, "/usr/bin/curl", []string{"curl", "localhost:6062"})
-	e3 := model.NewMockedProcessEvent(model.Exit, now, 23, "/usr/bin/ls", []string{"ls", "-lah"})
+	e1 := model.NewMockedExecEvent(now, 23, "/usr/bin/curl", []string{"curl", "localhost:6062"})
+	e2 := model.NewMockedExitEvent(now, 23, "/usr/bin/curl", []string{"curl", "localhost:6062"}, 0)
+	e3 := model.NewMockedExecEvent(now, 23, "/usr/bin/ls", []string{"ls", "-lah"})
 
 	// Initialize store with len(buffer)-1 events that have already been consumed
 	s.head = 2
@@ -137,7 +138,7 @@ func TestRingStoreWithDroppedData(t *testing.T) {
 	expectedDrops := make([]*model.ProcessEvent, 0)
 	droppedEvents := make([]*model.ProcessEvent, 0)
 
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 	cfg.Set("process_config.event_collection.store.max_items", 3)
 	store, err := NewRingStore(&statsd.NoOpClient{})
 	require.NoError(t, err)
@@ -151,10 +152,10 @@ func TestRingStoreWithDroppedData(t *testing.T) {
 	s.Run()
 	defer s.Stop()
 
-	e1 := model.NewMockedProcessEvent(model.Exec, now, 23, "/usr/bin/curl", []string{"curl", "localhost:6062"})
-	e2 := model.NewMockedProcessEvent(model.Exit, now, 23, "/usr/bin/curl", []string{"curl", "localhost:6062"})
-	e3 := model.NewMockedProcessEvent(model.Exit, now, 23, "/usr/bin/ls", []string{"ls", "-lah"})
-	e4 := model.NewMockedProcessEvent(model.Exit, now, 23, "/usr/bin/ls", []string{"ls", "-lah"})
+	e1 := model.NewMockedExecEvent(now, 23, "/usr/bin/curl", []string{"curl", "localhost:6062"})
+	e2 := model.NewMockedExitEvent(now, 23, "/usr/bin/curl", []string{"curl", "localhost:6062"}, 0)
+	e3 := model.NewMockedExecEvent(now, 23, "/usr/bin/ls", []string{"ls", "-lah"})
+	e4 := model.NewMockedExitEvent(now, 23, "/usr/bin/ls", []string{"ls", "-lah"}, 0)
 
 	// Fill up buffer
 	pushSync(t, s, e1)
@@ -196,7 +197,7 @@ func TestRingStoreAsynchronousPush(t *testing.T) {
 	ctx := context.Background()
 	timeout := time.Second
 
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 	cfg.Set("process_config.event_collection.store.max_items", 3)
 	store, err := NewRingStore(&statsd.NoOpClient{})
 	require.NoError(t, err)
@@ -207,8 +208,8 @@ func TestRingStoreAsynchronousPush(t *testing.T) {
 	s.Run()
 	defer s.Stop()
 
-	e1 := model.NewMockedProcessEvent(model.Exec, now, 23, "/usr/bin/curl", []string{"curl", "localhost:6062"})
-	e2 := model.NewMockedProcessEvent(model.Exit, now, 23, "/usr/bin/curl", []string{"curl", "localhost:6062"})
+	e1 := model.NewMockedExecEvent(now, 23, "/usr/bin/curl", []string{"curl", "localhost:6062"})
+	e2 := model.NewMockedExitEvent(now, 23, "/usr/bin/curl", []string{"curl", "localhost:6062"}, 0)
 	err = s.Push(e1, nil)
 	require.NoError(t, err)
 
@@ -235,7 +236,7 @@ func TestRingStorePullErrors(t *testing.T) {
 	ctx := context.Background()
 	timeout := 10 * time.Millisecond // simulate timeout for all pending requests
 
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 	maxPulls := 2
 	cfg.Set("process_config.event_collection.store.max_pending_pulls", maxPulls)
 	store, err := NewRingStore(&statsd.NoOpClient{})
@@ -263,7 +264,7 @@ func TestRingStorePullErrors(t *testing.T) {
 }
 
 func TestRingStorePushErrors(t *testing.T) {
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 	maxPushes := 2
 	cfg.Set("process_config.event_collection.store.max_pending_pushes", 2)
 	store, err := NewRingStore(&statsd.NoOpClient{})
@@ -272,7 +273,7 @@ func TestRingStorePushErrors(t *testing.T) {
 	s, ok := store.(*RingStore)
 	require.True(t, ok)
 
-	e := model.NewMockedProcessEvent(model.Exec, time.Now(), 23, "/usr/bin/curl", []string{"curl", "localhost:6062"})
+	e := model.NewMockedExecEvent(time.Now(), 23, "/usr/bin/curl", []string{"curl", "localhost:6062"})
 
 	// Do not start the store in order to queue push requests
 	for i := 0; i < maxPushes; i++ {

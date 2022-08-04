@@ -6,6 +6,7 @@
 package autodiscovery
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -18,7 +19,6 @@ import (
 // configChanges contains the changes that occurred due to an event in a
 // configManager.
 type configChanges struct {
-
 	// schedule contains configs that should be scheduled as a result of this
 	// event.
 	schedule []integration.Config
@@ -60,7 +60,7 @@ type configManager interface {
 
 	// processDelService handles removal of a service, unscheduling any configs
 	// that had been resolved for it.
-	processDelService(svc listeners.Service) configChanges
+	processDelService(ctx context.Context, svc listeners.Service) configChanges
 
 	// processNewConfig handles a new config
 	processNewConfig(config integration.Config) configChanges
@@ -175,7 +175,7 @@ func (cm *reconcilingConfigManager) processNewService(adIdentifiers []string, sv
 }
 
 // processDelService implements configManager#processDelService.
-func (cm *reconcilingConfigManager) processDelService(svc listeners.Service) configChanges {
+func (cm *reconcilingConfigManager) processDelService(_ context.Context, svc listeners.Service) configChanges {
 	cm.m.Lock()
 	defer cm.m.Unlock()
 
@@ -210,7 +210,7 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 
 	digest := config.Digest()
 	if _, found := cm.activeConfigs[digest]; found {
-		log.Debug("Config %v is already tracked by autodiscovery", config.Name)
+		log.Debugf("Config %s (digest %s) is already tracked by autodiscovery", config.Name, config.Digest())
 		return configChanges{}
 	}
 
@@ -235,6 +235,12 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 			changes.merge(cm.reconcileService(svcID))
 		}
 	} else {
+		// Secrets always need to be resolved (done in reconcileService if template)
+		config, err := decryptConfig(config)
+		if err != nil {
+			log.Errorf("Unable to resolve secrets for config '%s', dropping check configuration, err: %s", config.Name, err.Error())
+		}
+
 		changes.scheduleConfig(config)
 	}
 
@@ -276,6 +282,13 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 				changes.merge(cm.reconcileService(svcID))
 			}
 		} else {
+			// Secrets need to be resolved before being unscheduled as otherwise
+			// the computed hashes can be different from the ones computed at schedule time.
+			config, err := decryptConfig(config)
+			if err != nil {
+				log.Errorf("Unable to resolve secrets for config '%s', check may not be unscheduled properly, err: %s", config.Name, err.Error())
+			}
+
 			changes.unscheduleConfig(config)
 		}
 

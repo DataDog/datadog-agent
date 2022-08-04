@@ -91,9 +91,6 @@ func (w *timeSamplerWorker) stop() {
 }
 
 func (w *timeSamplerWorker) triggerFlush(trigger flushTrigger) {
-	sketches := w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink)
-	if len(sketches) > 0 {
-		*trigger.flushedSketches = append(*trigger.flushedSketches, sketches)
-	}
+	w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink)
 	trigger.blockChan <- struct{}{}
 }

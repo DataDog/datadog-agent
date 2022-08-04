@@ -47,9 +47,9 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
 	}
 }
 
-func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) metrics.SketchSeries {
+func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
 	ctx, _ := cs.contextResolver.get(ck)
-	ss := metrics.SketchSeries{
+	ss := &metrics.SketchSeries{
 		Name: ctx.Name,
 		Tags: ctx.Tags(),
 		Host: ctx.Host,

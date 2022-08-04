@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	agentpayload "github.com/DataDog/agent-payload/v5/gogen"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
@@ -75,7 +76,7 @@ func TestMarshalJSON(t *testing.T) {
 		SourceTypeName: "custom_source_type",
 	}}
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	oldName := mockConfig.GetString("hostname")
 	defer mockConfig.Set("hostname", oldName)
 	mockConfig.Set("hostname", "test-hostname")
@@ -95,7 +96,7 @@ func TestMarshalJSONOmittedFields(t *testing.T) {
 		Host:  "my-hostname",
 	}}
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	oldName := mockConfig.GetString("hostname")
 	defer mockConfig.Set("hostname", oldName)
 	mockConfig.Set("hostname", "test-hostname")

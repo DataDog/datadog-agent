@@ -9,45 +9,58 @@
 package probe
 
 import (
+	"bytes"
 	"fmt"
-	"os"
+	"reflect"
 	"strings"
 	"text/template"
 
-	"github.com/tinylib/msgp/msgp"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
 	processColor         = "#8fbbff"
 	processRuntimeColor  = "#edf3ff"
 	processSnapshotColor = "white"
+	processShape         = "record"
 
 	fileColor         = "#77bf77"
 	fileRuntimeColor  = "#e9f3e7"
 	fileSnapshotColor = "white"
+	fileShape         = "record"
+
+	networkColor        = "#ff9800"
+	networkRuntimeColor = "#ffebcd"
+	networkShape        = "record"
 )
 
 type node struct {
-	ID        string
+	ID        GraphID
 	Label     string
 	Size      int
 	Color     string
 	FillColor string
+	Shape     string
+	IsTable   bool
 }
 
 type edge struct {
-	Link  string
+	From  GraphID
+	To    GraphID
 	Color string
 }
 
 type graph struct {
 	Title string
-	Nodes map[string]node
+	Nodes map[GraphID]node
 	Edges []edge
 }
 
-func (ad *ActivityDump) generateGraph() error {
-	tmpl := `digraph {
+// GraphTemplate is the template used to generate graphs
+var GraphTemplate = `digraph {
 		label = "{{ .Title }}"
 		labelloc =  "t"
 		fontsize = 75
@@ -61,23 +74,33 @@ func (ad *ActivityDump) generateGraph() error {
 		edge [penwidth=2]
 
 		{{ range .Nodes }}
-		{{ .ID }} [label="{{ .Label }}", fontsize={{ .Size }}, shape=record, fontname = "arial", color="{{ .Color }}", fillcolor="{{ .FillColor }}", style="filled"]{{ end }}
+		{{ .ID }} [label={{ if not .IsTable }}"{{ end }}{{ .Label }}{{ if not .IsTable }}"{{ end }}, fontsize={{ .Size }}, shape={{ .Shape }}, fontname = "arial", color="{{ .Color }}", fillcolor="{{ .FillColor }}", style="filled"]
+		{{ end }}
 
 		{{ range .Edges }}
-		{{ .Link }} [arrowhead=none, color="{{ .Color }}"]
+		{{ .From }} -> {{ .To }} [arrowhead=none, color="{{ .Color }}"]
 		{{ end }}
 }`
 
-	title := fmt.Sprintf("Activity tree: %s", ad.GetSelectorStr())
+// EncodeDOT encodes an activity dump in the DOT format
+func (ad *ActivityDump) EncodeDOT() (*bytes.Buffer, error) {
+	ad.Lock()
+	defer ad.Unlock()
+
+	title := fmt.Sprintf("%s: %s", ad.DumpMetadata.Name, ad.getSelectorStr())
 	data := ad.prepareGraphData(title)
-	t := template.Must(template.New("tmpl").Parse(tmpl))
-	return t.Execute(ad.graphFile, data)
+	t := template.Must(template.New("tmpl").Parse(GraphTemplate))
+	raw := bytes.NewBuffer(nil)
+	if err := t.Execute(raw, data); err != nil {
+		return nil, fmt.Errorf("couldn't encode %s in %s: %w", ad.getSelectorStr(), dump.DOT, err)
+	}
+	return raw, nil
 }
 
 func (ad *ActivityDump) prepareGraphData(title string) graph {
 	data := graph{
 		Title: title,
-		Nodes: make(map[string]node),
+		Nodes: make(map[GraphID]node),
 	}
 
 	for _, p := range ad.ProcessActivityTree {
@@ -87,19 +110,23 @@ func (ad *ActivityDump) prepareGraphData(title string) graph {
 	return data
 }
 
-func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data *graph) {
+func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data *graph) GraphID {
 	var args string
-	if p.Process.ArgsEntry != nil {
-		args = strings.ReplaceAll(strings.Join(p.Process.ArgsEntry.Values, " "), "\"", "\\\"")
-		args = strings.ReplaceAll(args, "\n", " ")
-		args = strings.ReplaceAll(args, ">", "\\>")
-		args = strings.ReplaceAll(args, "|", "\\|")
+	if ad.adm != nil && ad.adm.probe != nil {
+		if argv, _ := ad.adm.probe.resolvers.ProcessResolver.GetProcessScrubbedArgv(&p.Process); len(argv) > 0 {
+			args = strings.ReplaceAll(strings.Join(argv, " "), "\"", "\\\"")
+			args = strings.ReplaceAll(args, "\n", " ")
+			args = strings.ReplaceAll(args, ">", "\\>")
+			args = strings.ReplaceAll(args, "|", "\\|")
+		}
 	}
+	panGraphID := NewGraphID(NewNodeIDFromPtr(p))
 	pan := node{
-		ID:    p.GetID(),
+		ID:    panGraphID,
 		Label: fmt.Sprintf("%s %s", p.Process.FileEvent.PathnameStr, args),
 		Size:  60,
 		Color: processColor,
+		Shape: processShape,
 	}
 	switch p.GenerationType {
 	case Runtime:
@@ -107,31 +134,128 @@ func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data 
 	case Snapshot:
 		pan.FillColor = processSnapshotColor
 	}
-	data.Nodes[p.GetID()] = pan
+	data.Nodes[panGraphID] = pan
+
+	for _, n := range p.Sockets {
+		socketNodeID := ad.prepareSocketNode(n, data, panGraphID)
+		data.Edges = append(data.Edges, edge{
+			From:  panGraphID,
+			To:    socketNodeID,
+			Color: networkColor,
+		})
+	}
+
+	for _, n := range p.DNSNames {
+		dnsNodeID, ok := ad.prepareDNSNode(n, data, panGraphID)
+		if ok {
+			data.Edges = append(data.Edges, edge{
+				From:  panGraphID,
+				To:    dnsNodeID,
+				Color: networkColor,
+			})
+		}
+	}
 
 	for _, f := range p.Files {
+		fileID := ad.prepareFileNode(f, data, "", panGraphID)
 		data.Edges = append(data.Edges, edge{
-			Link:  p.GetID() + " -> " + p.GetID() + f.GetID(),
+			From:  panGraphID,
+			To:    fileID,
 			Color: fileColor,
 		})
-		ad.prepareFileNode(f, data, "", p.GetID())
 	}
-	for _, child := range p.Children {
+
+	if len(p.Syscalls) > 0 {
+		syscallsNodeID := ad.prepareSyscallsNode(p, data)
 		data.Edges = append(data.Edges, edge{
-			Link:  p.GetID() + " -> " + child.GetID(),
+			From:  NewGraphID(NewNodeIDFromPtr(p)),
+			To:    syscallsNodeID,
 			Color: processColor,
 		})
-		ad.prepareProcessActivityNode(child, data)
 	}
+
+	for _, child := range p.Children {
+		childID := ad.prepareProcessActivityNode(child, data)
+		data.Edges = append(data.Edges, edge{
+			From:  panGraphID,
+			To:    childID,
+			Color: processColor,
+		})
+	}
+
+	return panGraphID
 }
 
-func (ad *ActivityDump) prepareFileNode(f *FileActivityNode, data *graph, prefix string, processID string) {
-	mergedID := processID + f.GetID()
+func (ad *ActivityDump) prepareDNSNode(n *DNSNode, data *graph, processID GraphID) (GraphID, bool) {
+	if len(n.Requests) == 0 {
+		// save guard, this should never happen
+		return GraphID{}, false
+	}
+	name := n.Requests[0].Name + " (" + (model.QType(n.Requests[0].Type).String())
+	for _, req := range n.Requests[1:] {
+		name += ", " + model.QType(req.Type).String()
+	}
+	name += ")"
+
+	dnsNode := node{
+		ID:        processID.derive(NewNodeIDFromPtr(n)),
+		Label:     name,
+		Size:      30,
+		Color:     networkColor,
+		FillColor: networkRuntimeColor,
+		Shape:     networkShape,
+	}
+	data.Nodes[dnsNode.ID] = dnsNode
+	return dnsNode.ID, true
+}
+
+func (ad *ActivityDump) prepareSocketNode(n *SocketNode, data *graph, processID GraphID) GraphID {
+	targetID := processID.derive(NewNodeIDFromPtr(n))
+
+	// prepare main socket node
+	data.Nodes[targetID] = node{
+		ID:        targetID,
+		Label:     n.Family,
+		Size:      30,
+		Color:     networkColor,
+		FillColor: networkRuntimeColor,
+		Shape:     networkShape,
+	}
+
+	// prepare bind nodes
+	var names []string
+	for _, node := range n.Bind {
+		names = append(names, fmt.Sprintf("[%s]:%d", node.IP, node.Port))
+	}
+
+	for i, name := range names {
+		socketNode := node{
+			ID:        processID.derive(NewNodeIDFromPtr(n), NodeID{inner: uint64(i + 1)}),
+			Label:     name,
+			Size:      30,
+			Color:     networkColor,
+			FillColor: networkRuntimeColor,
+			Shape:     networkShape,
+		}
+		data.Edges = append(data.Edges, edge{
+			From:  targetID,
+			To:    socketNode.ID,
+			Color: networkColor,
+		})
+		data.Nodes[socketNode.ID] = socketNode
+	}
+
+	return targetID
+}
+
+func (ad *ActivityDump) prepareFileNode(f *FileActivityNode, data *graph, prefix string, processID GraphID) GraphID {
+	mergedID := processID.derive(NewNodeIDFromPtr(f))
 	fn := node{
 		ID:    mergedID,
 		Label: f.getNodeLabel(),
 		Size:  30,
 		Color: fileColor,
+		Shape: fileShape,
 	}
 	switch f.GenerationType {
 	case Runtime:
@@ -142,42 +266,101 @@ func (ad *ActivityDump) prepareFileNode(f *FileActivityNode, data *graph, prefix
 	data.Nodes[mergedID] = fn
 
 	for _, child := range f.Children {
+		childID := ad.prepareFileNode(child, data, prefix+f.Name, processID)
 		data.Edges = append(data.Edges, edge{
-			Link:  mergedID + " -> " + processID + child.GetID(),
+			From:  mergedID,
+			To:    childID,
 			Color: fileColor,
 		})
-		ad.prepareFileNode(child, data, prefix+f.Name, processID)
+	}
+	return mergedID
+}
+
+func (ad *ActivityDump) prepareSyscallsNode(p *ProcessActivityNode, data *graph) GraphID {
+	label := fmt.Sprintf("<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"1\"> <TR><TD><b>arch: %s</b></TD></TR>", ad.Arch)
+	for _, s := range p.Syscalls {
+		label += "<TR><TD>" + model.Syscall(s).String() + "</TD></TR>"
+	}
+	label += "</TABLE>>"
+
+	syscallsNode := node{
+		ID:        NewGraphIDWithDescription("syscalls", NewNodeIDFromPtr(p)),
+		Label:     label,
+		Size:      30,
+		Color:     processColor,
+		FillColor: processSnapshotColor,
+		Shape:     processShape,
+		IsTable:   true,
+	}
+	data.Nodes[syscallsNode.ID] = syscallsNode
+	return syscallsNode.ID
+
+}
+
+// GraphID represents an ID used in a graph, combination of NodeIDs
+//msgp:ignore GraphID
+type GraphID struct {
+	raw string
+}
+
+// NewGraphID returns a new GraphID based on the provided NodeIDs
+func NewGraphID(id NodeID) GraphID {
+	return NewGraphIDWithDescription("", id)
+}
+
+// NewGraphIDWithDescription returns a new GraphID based on a description and on the provided NodeIDs
+func NewGraphIDWithDescription(description string, id NodeID) GraphID {
+	if description == "" {
+		description = "node"
+	}
+	return GraphID{
+		raw: fmt.Sprintf("%s_%d", description, id.inner),
 	}
 }
 
-// GenerateGraph creates a graph from the input activity dump
-func GenerateGraph(inputFile string) (string, error) {
-	// open and parse activity dump file
-	f, err := os.Open(inputFile)
-	if err != nil {
-		return "", fmt.Errorf("couldn't open activity dump file: %w", err)
+func (id *GraphID) derive(ids ...NodeID) GraphID {
+	var builder strings.Builder
+	builder.WriteString(id.raw)
+	for _, sub := range ids {
+		builder.WriteString(fmt.Sprintf("_%d", sub.inner))
+	}
+	return GraphID{
+		raw: builder.String(),
+	}
+}
+
+func (id GraphID) String() string {
+	return id.raw
+}
+
+// NodeID represents the ID of a Node
+//msgp:ignore NodeID
+type NodeID struct {
+	inner uint64
+}
+
+// NewRandomNodeID returns a new random NodeID
+func NewRandomNodeID() NodeID {
+	return NodeID{
+		inner: eval.RandNonZeroUint64(),
+	}
+}
+
+// NewNodeIDFromPtr returns a new NodeID based on a pointer value
+func NewNodeIDFromPtr(v interface{}) NodeID {
+	rv := reflect.ValueOf(v)
+	if rv.Kind() != reflect.Ptr || rv.IsNil() {
+		log.Errorf("invalid ID generation: %T", v)
+		return NewRandomNodeID()
 	}
 
-	var dump ActivityDump
-	msgpReader := msgp.NewReader(f)
-	err = dump.DecodeMsg(msgpReader)
-	if err != nil {
-		return "", fmt.Errorf("couldn't parse activity dump file: %w", err)
+	ptr := rv.Pointer()
+	return NodeID{
+		inner: uint64(ptr),
 	}
+}
 
-	// create profile output file
-	dump.graphFile, err = os.CreateTemp("/tmp", "graph-")
-	if err != nil {
-		return "", fmt.Errorf("couldn't create profile file: %w", err)
-	}
-
-	if err = os.Chmod(dump.graphFile.Name(), 0400); err != nil {
-		return "", fmt.Errorf("couldn't change the mode of the profile file: %w", err)
-	}
-
-	if err = dump.generateGraph(); err != nil {
-		return "", fmt.Errorf("couldn't generate graph from activity dump %s: %w", inputFile, err)
-	}
-
-	return dump.graphFile.Name(), nil
+// IsUnset checks if the NodeID is unset
+func (id NodeID) IsUnset() bool {
+	return id.inner == 0
 }

@@ -16,9 +16,10 @@ import (
 
 func TestIterableSeries(t *testing.T) {
 	var names []string
-	StartIteration(
+	Serialize(
 		NewIterableSeries(func(*Serie) {}, 10, 1),
-		func(serieSink SerieSink) {
+		NewIterableSketches(func(*SketchSeries) {}, 10, 2),
+		func(serieSink SerieSink, _ SketchesSink) {
 			serieSink.Append(&Serie{Name: "serie1"})
 			serieSink.Append(&Serie{Name: "serie2"})
 			serieSink.Append(&Serie{Name: "serie3"})
@@ -26,7 +27,7 @@ func TestIterableSeries(t *testing.T) {
 			for serieSource.MoveNext() {
 				names = append(names, serieSource.Current().Name)
 			}
-		})
+		}, func(_ SketchesSource) {})
 
 	r := require.New(t)
 	r.Len(names, 3)
@@ -43,7 +44,7 @@ func TestIterableSeriesCallback(t *testing.T) {
 	iterableSeries.Append(&Serie{Name: "serie2"})
 
 	r := require.New(t)
-	r.Equal(uint64(2), iterableSeries.SeriesCount())
+	r.Equal(uint64(2), iterableSeries.Count())
 	r.Len(series, 2)
 	r.Equal("serie1", series[0].Name)
 	r.Equal("serie2", series[1].Name)
@@ -62,17 +63,18 @@ func TestIterableSeriesReceiverStopped(t *testing.T) {
 func BenchmarkIterableSeries(b *testing.B) {
 	for bufferSize := 1000; bufferSize <= 8000; bufferSize *= 2 {
 		b.Run(fmt.Sprintf("%v", bufferSize), func(b *testing.B) {
-			StartIteration(
+			Serialize(
 				NewIterableSeries(func(*Serie) {}, 100, bufferSize),
-				func(seriesSink SerieSink) {
+				NewIterableSketches(func(*SketchSeries) {}, 10, 2),
+				func(serieSink SerieSink, _ SketchesSink) {
 					for i := 0; i < b.N; i++ {
-						seriesSink.Append(&Serie{Name: "name"})
+						serieSink.Append(&Serie{Name: "name"})
 					}
 				},
 				func(seriesSource SerieSource) {
 					for seriesSource.MoveNext() {
 					}
-				})
+				}, func(_ SketchesSource) {})
 		})
 	}
 }
@@ -80,9 +82,10 @@ func BenchmarkIterableSeries(b *testing.B) {
 func TestIterableSeriesSeveralValues(t *testing.T) {
 	var series []*Serie
 	var expected []string
-	StartIteration(
+	Serialize(
 		NewIterableSeries(func(*Serie) {}, 10, 2),
-		func(serieSink SerieSink) {
+		NewIterableSketches(func(*SketchSeries) {}, 10, 2),
+		func(serieSink SerieSink, _ SketchesSink) {
 			for i := 0; i < 101; i++ {
 				name := "serie" + strconv.Itoa(i)
 				expected = append(expected, name)
@@ -92,7 +95,7 @@ func TestIterableSeriesSeveralValues(t *testing.T) {
 			for serieSource.MoveNext() {
 				series = append(series, serieSource.Current())
 			}
-		})
+		}, func(_ SketchesSource) {})
 
 	r := require.New(t)
 	r.Len(series, len(expected))

@@ -1,10 +1,17 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package flowaggregator
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/netflow/common"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 )
 
 // MockTimeNow mocks time.Now
@@ -22,10 +29,14 @@ func setMockTimeNow(newTime time.Time) {
 }
 
 func Test_flowAccumulator_add(t *testing.T) {
+	synFlag := uint32(2)
+	ackFlag := uint32(16)
+	synAckFlag := synFlag | ackFlag
+
 	// Given
 	flowA1 := &common.Flow{
 		FlowType:       common.TypeNetFlow9,
-		ExporterAddr:   []byte{127, 0, 0, 1},
+		DeviceAddr:     []byte{127, 0, 0, 1},
 		StartTimestamp: 1234568,
 		EndTimestamp:   1234569,
 		Bytes:          20,
@@ -35,10 +46,11 @@ func Test_flowAccumulator_add(t *testing.T) {
 		IPProtocol:     uint32(6),
 		SrcPort:        uint32(2000),
 		DstPort:        uint32(80),
+		TCPFlags:       synFlag,
 	}
 	flowA2 := &common.Flow{
 		FlowType:       common.TypeNetFlow9,
-		ExporterAddr:   []byte{127, 0, 0, 1},
+		DeviceAddr:     []byte{127, 0, 0, 1},
 		StartTimestamp: 1234578,
 		EndTimestamp:   1234579,
 		Bytes:          10,
@@ -48,10 +60,11 @@ func Test_flowAccumulator_add(t *testing.T) {
 		IPProtocol:     uint32(6),
 		SrcPort:        uint32(2000),
 		DstPort:        uint32(80),
+		TCPFlags:       ackFlag,
 	}
 	flowB1 := &common.Flow{
 		FlowType:       common.TypeNetFlow9,
-		ExporterAddr:   []byte{127, 0, 0, 1},
+		DeviceAddr:     []byte{127, 0, 0, 1},
 		StartTimestamp: 1234568,
 		EndTimestamp:   1234569,
 		Bytes:          10,
@@ -80,6 +93,7 @@ func Test_flowAccumulator_add(t *testing.T) {
 	assert.Equal(t, uint64(6), wrappedFlowA.flow.Packets)
 	assert.Equal(t, uint64(1234568), wrappedFlowA.flow.StartTimestamp)
 	assert.Equal(t, uint64(1234579), wrappedFlowA.flow.EndTimestamp)
+	assert.Equal(t, synAckFlag, wrappedFlowA.flow.TCPFlags)
 
 	wrappedFlowB := acc.flows[flowB1.AggregationHash()]
 	assert.Equal(t, []byte{10, 10, 10, 10}, wrappedFlowB.flow.SrcAddr)
@@ -94,7 +108,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 	// Given
 	flow := &common.Flow{
 		FlowType:       common.TypeNetFlow9,
-		ExporterAddr:   []byte{127, 0, 0, 1},
+		DeviceAddr:     []byte{127, 0, 0, 1},
 		StartTimestamp: 1234568,
 		EndTimestamp:   1234569,
 		Bytes:          20,

@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
+	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -65,8 +66,9 @@ func (o *OTLPReceiver) Start() {
 	cfg := o.conf.OTLPReceiver
 	if cfg.HTTPPort != 0 {
 		o.httpsrv = &http.Server{
-			Addr:    fmt.Sprintf("%s:%d", cfg.BindHost, cfg.HTTPPort),
-			Handler: o,
+			Addr:        net.JoinHostPort(cfg.BindHost, strconv.Itoa(cfg.HTTPPort)),
+			Handler:     o,
+			ConnContext: connContext,
 		}
 		o.wg.Add(1)
 		go func() {
@@ -120,7 +122,7 @@ func (o *OTLPReceiver) Export(ctx context.Context, in ptraceotlp.Request) (ptrac
 	defer timing.Since("datadog.trace_agent.otlp.process_grpc_request_ms", time.Now())
 	md, _ := metadata.FromIncomingContext(ctx)
 	metrics.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md), otlpProtocolGRPC), 1)
-	o.processRequest(otlpProtocolGRPC, http.Header(md), in)
+	o.processRequest(ctx, otlpProtocolGRPC, http.Header(md), in)
 	return ptraceotlp.NewResponse(), nil
 }
 
@@ -165,7 +167,7 @@ func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 	}
-	o.processRequest(otlpProtocolHTTP, req.Header, in)
+	o.processRequest(req.Context(), otlpProtocolHTTP, req.Header, in)
 }
 
 func tagsFromHeaders(h http.Header, protocol string) []string {
@@ -200,24 +202,15 @@ func fastHeaderGet(h http.Header, canonicalKey string) string {
 
 // processRequest processes the incoming request in. It marks it as received by the given protocol
 // using the given headers.
-func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in ptraceotlp.Request) {
+func (o *OTLPReceiver) processRequest(ctx context.Context, protocol string, header http.Header, in ptraceotlp.Request) {
 	for i := 0; i < in.Traces().ResourceSpans().Len(); i++ {
 		rspans := in.Traces().ResourceSpans().At(i)
-		o.ReceiveResourceSpans(rspans, header, protocol)
+		o.ReceiveResourceSpans(ctx, rspans, header, protocol)
 	}
 }
 
-// OTLPIngestSummary returns a summary of the received resource spans.
-type OTLPIngestSummary struct {
-	// Hostname indicates the hostname of the passed resource spans.
-	Hostname string
-	// Tags returns a set of Datadog-specific tags which are relevant for identifying
-	// the source of the passed resource spans.
-	Tags []string
-}
-
-// ReceiveResourceSpans processes the given rspans and sends them to writer.
-func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header http.Header, protocol string) OTLPIngestSummary {
+// ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
+func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, header http.Header, protocol string) source.Source {
 	// each rspans is coming from a different resource and should be considered
 	// a separate payload; typically there is only one item in this slice
 	attr := rspans.Resource().Attributes()
@@ -226,15 +219,15 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 		rattr[k] = v.AsString()
 		return true
 	})
-	hostname, hostok := attributes.HostnameFromAttributes(attr)
+	src, srcok := attributes.SourceFromAttributes(attr, o.conf.OTLPReceiver.UsePreviewHostnameLogic)
 	hostFromMap := func(m map[string]string, key string) {
 		// hostFromMap sets the hostname to m[key] if it is set.
 		if v, ok := m[key]; ok {
-			hostname = v
-			hostok = true
+			src = source.Source{Kind: source.HostnameKind, Identifier: v}
+			srcok = true
 		}
 	}
-	if !hostok {
+	if !srcok {
 		hostFromMap(rattr, "_dd.hostname")
 	}
 	env := rattr[string(semconv.AttributeDeploymentEnvironment)]
@@ -247,7 +240,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 		containerID = rattr[string(semconv.AttributeK8SPodUID)]
 	}
 	if containerID == "" {
-		containerID = fastHeaderGet(header, headerContainerID)
+		containerID = GetContainerID(ctx, header)
 	}
 	tagstats := &info.TagStats{
 		Tags: info.Tags{
@@ -262,17 +255,19 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 	}
 	tracesByID := make(map[uint64]pb.Trace)
 	priorityByID := make(map[uint64]float64)
+	var spancount int64
 	for i := 0; i < rspans.ScopeSpans().Len(); i++ {
 		libspans := rspans.ScopeSpans().At(i)
 		lib := libspans.Scope()
 		for i := 0; i < libspans.Spans().Len(); i++ {
+			spancount++
 			span := libspans.Spans().At(i)
 			traceID := traceIDToUint64(span.TraceID().Bytes())
 			if tracesByID[traceID] == nil {
 				tracesByID[traceID] = pb.Trace{}
 			}
 			ddspan := o.convertSpan(rattr, lib, span)
-			if !hostok {
+			if !srcok {
 				// if we didn't find a hostname at the resource level
 				// try and see if the span has a hostname set
 				hostFromMap(ddspan.Meta, "_dd.hostname")
@@ -299,7 +294,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 		}
 	}
 	tags := tagstats.AsTags()
-	metrics.Count("datadog.trace_agent.otlp.spans", int64(rspans.ScopeSpans().Len()), tags, 1)
+	metrics.Count("datadog.trace_agent.otlp.spans", spancount, tags, 1)
 	metrics.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
 	traceChunks := make([]*pb.TraceChunk, 0, len(tracesByID))
 	p := Payload{
@@ -318,8 +313,21 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 	if env == "" {
 		env = o.conf.DefaultEnv
 	}
-	if !hostok {
+
+	// Get the hostname or set to empty if source is empty
+	var hostname string
+	if srcok {
+		switch src.Kind {
+		case source.HostnameKind:
+			hostname = src.Identifier
+		default:
+			// We are not on a hostname (serverless), hence the hostname is empty
+			hostname = ""
+		}
+	} else {
+		// fallback hostname
 		hostname = o.conf.Hostname
+		src = source.Source{Kind: source.HostnameKind, Identifier: hostname}
 	}
 	p.TracerPayload = &pb.TracerPayload{
 		Hostname:        hostname,
@@ -334,6 +342,14 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 		p.TracerPayload.Tags = map[string]string{
 			tagContainersTags: ctags,
 		}
+	} else {
+		// we couldn't obtain any container tags
+		if src.Kind == source.AWSECSFargateKind {
+			// but we have some information from the source provider that we can add
+			p.TracerPayload.Tags = map[string]string{
+				tagContainersTags: src.Tag(),
+			}
+		}
 	}
 	select {
 	case o.out <- &p:
@@ -341,10 +357,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 	default:
 		log.Warn("Payload in channel full. Dropped 1 payload.")
 	}
-	return OTLPIngestSummary{
-		Hostname: hostname,
-		Tags:     attributes.RunningTagsFromAttributes(attr),
-	}
+	return src
 }
 
 // marshalEvents marshals events into JSON.

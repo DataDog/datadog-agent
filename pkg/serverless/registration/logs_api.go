@@ -57,6 +57,7 @@ func subscribeLogs(id ID, url string, timeout time.Duration, payload json.Marsha
 		return fmt.Errorf("SubscribeLogs: while PUT subscribe request: %s", err)
 	}
 
+	defer response.Body.Close()
 	if !isValidHTTPCode(response.StatusCode) {
 		return fmt.Errorf("SubscribeLogs: received an HTTP %s", response.Status)
 	}

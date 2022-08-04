@@ -85,9 +85,19 @@ func (dn *dockerNetworkExtension) Process(tags []string, container *workloadmeta
 		return
 	}
 
+	if containerStats == nil {
+		log.Debugf("Metrics provider returned nil stats for container: %v", container)
+		return
+	}
+
 	containerNetworkStats, err := collector.GetContainerNetworkStats(container.Namespace, container.ID, cacheValidity)
 	if err != nil {
 		log.Debugf("Gathering network metrics for container: %v failed, metrics may be missing, err: %v", container, err)
+		return
+	}
+
+	if containerNetworkStats == nil {
+		log.Debugf("Metrics provider returned nil network stats for container: %v", container)
 		return
 	}
 
@@ -184,7 +194,7 @@ func (dn *dockerNetworkExtension) postRun() {
 
 // Allow mocking in unit tests
 var (
-	getRoutesFunc func(string, int) ([]system.NetworkRoute, error) = system.ParseProcessRoutes
+	getRoutesFunc = system.ParseProcessRoutes
 )
 
 func findDockerNetworks(procPath string, entry *containerNetworkEntry, container dockerTypes.Container) {

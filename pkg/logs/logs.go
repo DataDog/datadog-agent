@@ -10,12 +10,13 @@ import (
 	"errors"
 	"fmt"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
-	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -25,6 +26,7 @@ import (
 	ccaScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/cca"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
+	ddUtil "github.com/DataDog/datadog-agent/pkg/util"
 )
 
 const (
@@ -42,7 +44,7 @@ const (
 
 var (
 	// isRunning indicates whether logs-agent is running or not
-	isRunning *atomic.Bool = atomic.NewBool(false)
+	isRunning = atomic.NewBool(false)
 	// logs-agent
 	agent *Agent
 )
@@ -133,7 +135,9 @@ func start(ac *autodiscovery.AutoConfig, serverless bool) (*Agent, error) {
 			panic("AutoConfig must be initialized before logs-agent")
 		}
 		agent.AddScheduler(adScheduler.New(ac))
-		agent.AddScheduler(ccaScheduler.New(ac))
+		if !ddUtil.CcaInAD() {
+			agent.AddScheduler(ccaScheduler.New(ac))
+		}
 	}
 
 	return agent, nil

@@ -16,10 +16,11 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
-	"go.uber.org/atomic"
 )
 
 func TestOOMKill(t *testing.T) {
@@ -58,10 +59,12 @@ func TestOOMKill(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if _, err := http.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(data)); err != nil {
+			resp, err := http.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(data))
+			if err != nil {
 				errs <- err
 				return
 			}
+			resp.Body.Close()
 		}()
 	}
 

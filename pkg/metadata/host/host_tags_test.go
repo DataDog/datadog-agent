@@ -10,8 +10,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func init() {
@@ -20,7 +21,7 @@ func init() {
 
 func TestGetHostTags(t *testing.T) {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag3"})
 	defer mockConfig.Set("tags", nil)
 
@@ -39,7 +40,7 @@ func TestGetEmptyHostTags(t *testing.T) {
 
 func TestGetHostTagsWithSplits(t *testing.T) {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("tag_value_split_separator", map[string]string{"kafka_partition": ","})
 	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"})
 	defer mockConfig.Set("tags", nil)
@@ -51,7 +52,7 @@ func TestGetHostTagsWithSplits(t *testing.T) {
 
 func TestGetHostTagsWithoutSplits(t *testing.T) {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("tag_value_split_separator", map[string]string{"kafka_partition": ";"})
 	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"})
 	defer mockConfig.Set("tags", nil)
@@ -63,7 +64,7 @@ func TestGetHostTagsWithoutSplits(t *testing.T) {
 
 func TestGetHostTagsWithEnv(t *testing.T) {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag3", "env:prod"})
 	mockConfig.Set("env", "preprod")
 	defer mockConfig.Set("tags", nil)
@@ -88,7 +89,7 @@ func TestMarshalEmptyHostTags(t *testing.T) {
 
 func TestCombineExtraTags(t *testing.T) {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag4"})
 	mockConfig.Set("extra_tags", []string{"tag1:value2", "tag3", "tag4"})
 	defer mockConfig.Set("tags", nil)

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package flowaggregator
 
 import (
@@ -94,8 +99,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		aggFlow.flow.Packets += flowToAdd.Packets
 		aggFlow.flow.StartTimestamp = common.MinUint64(aggFlow.flow.StartTimestamp, flowToAdd.StartTimestamp)
 		aggFlow.flow.EndTimestamp = common.MaxUint64(aggFlow.flow.EndTimestamp, flowToAdd.EndTimestamp)
-
-		// TODO: Cumulate TCPFlags (Cumulative of all the TCP flags seen for this flow)
+		aggFlow.flow.TCPFlags |= flowToAdd.TCPFlags
 	}
 	f.flows[aggHash] = aggFlow
 }

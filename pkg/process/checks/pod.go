@@ -14,6 +14,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -45,6 +46,9 @@ func (c *PodCheck) Name() string { return config.PodCheckName }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (c *PodCheck) RealTime() bool { return false }
+
+// ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
+func (c *PodCheck) ShouldSaveLastRun() bool { return true }
 
 // Run runs the PodCheck to collect a list of running pods
 func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
@@ -81,3 +85,6 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 
 	return messages, nil
 }
+
+// Cleanup frees any resource held by the PodCheck before the agent exits
+func (c *PodCheck) Cleanup() {}

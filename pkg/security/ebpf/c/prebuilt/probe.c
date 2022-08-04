@@ -27,6 +27,7 @@
 #include "discarders.h"
 #include "dentry.h"
 #include "dentry_resolver.h"
+#include "pipe.h"
 #include "exec.h"
 #include "container.h"
 #include "commit_creds.h"

@@ -251,7 +251,9 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		return err
 	}
 	metrics.BytesSent.Add(int64(payload.UnencodedSize))
+	metrics.TlmBytesSent.Add(float64(payload.UnencodedSize))
 	metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
+	metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)))
 
 	req, err := http.NewRequest("POST", d.url, bytes.NewReader(payload.Encoded))
 	if err != nil {

@@ -39,7 +39,7 @@ def get_app_log(api_client, query):
     body = LogsListRequest(
         filter=LogsQueryFilter(
             _from="now-15m",
-            indexes=["main"],
+            indexes=["*"],
             query=query,
             to="now",
         ),

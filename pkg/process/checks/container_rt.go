@@ -9,6 +9,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -42,6 +43,9 @@ func (r *RTContainerCheck) Name() string { return config.RTContainerCheckName }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (r *RTContainerCheck) RealTime() bool { return true }
+
+// ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
+func (r *RTContainerCheck) ShouldSaveLastRun() bool { return true }
 
 // Run runs the real-time container check getting container-level stats from the Cgroups and Docker APIs.
 func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
@@ -80,6 +84,9 @@ func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 
 	return messages, nil
 }
+
+// Cleanup frees any resource held by the RTContainerCheck before the agent exits
+func (r *RTContainerCheck) Cleanup() {}
 
 func convertAndChunkContainers(containers []*model.Container, chunks int) [][]*model.ContainerStat {
 	perChunk := (len(containers) / chunks) + 1

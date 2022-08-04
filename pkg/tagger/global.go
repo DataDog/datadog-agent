@@ -121,10 +121,10 @@ func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
 }
 
 // AccumulateTagsFor queries the defaultTagger to get entity tags from cache or
-// sources and appends them to the TagAccumulator.  It can return tags at high
+// sources and appends them to the TagsAccumulator.  It can return tags at high
 // cardinality (with tags about individual containers), or at orchestrator
 // cardinality (pod/task level).
-func AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
+func AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagsAccumulator) error {
 	// TODO: defer unlock once performance overhead of defer is negligible
 	mux.RLock()
 	if captureTagger != nil {
@@ -198,8 +198,8 @@ func GlobalTags(cardinality collectors.TagCardinality) ([]string, error) {
 }
 
 // globalTagBuilder queries global tags that should apply to all data coming
-// from the agent and appends them to the TagAccumulator
-func globalTagBuilder(cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
+// from the agent and appends them to the TagsAccumulator
+func globalTagBuilder(cardinality collectors.TagCardinality, tb tagset.TagsAccumulator) error {
 	mux.RLock()
 	if captureTagger != nil {
 		err := captureTagger.AccumulateTagsFor(collectors.GlobalEntityID, cardinality, tb)
@@ -263,7 +263,7 @@ func init() {
 // NOTE(remy): it is not needed to sort/dedup the tags anymore since after the
 // enrichment, the metric and its tags is sent to the context key generator, which
 // is taking care of deduping the tags while generating the context key.
-func EnrichTags(tb tagset.TagAccumulator, udsOrigin string, clientOrigin string, cardinalityName string) {
+func EnrichTags(tb tagset.TagsAccumulator, udsOrigin string, clientOrigin string, cardinalityName string) {
 	cardinality := taggerCardinality(cardinalityName)
 
 	if udsOrigin != packets.NoOrigin {

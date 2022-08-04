@@ -8,16 +8,16 @@ package retry
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestTransactionRetryQueueAdd(t *testing.T) {
 	a := assert.New(t)
-	q, clean := newOnDiskRetryQueueTest(a)
-	defer clean()
+	q := newOnDiskRetryQueueTest(t, a)
 
 	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, 100, 0.6, NewTransactionRetryQueueTelemetry("domain"))
 
@@ -44,8 +44,7 @@ func TestTransactionRetryQueueAdd(t *testing.T) {
 
 func TestTransactionRetryQueueSeveralFlushToDisk(t *testing.T) {
 	a := assert.New(t)
-	q, clean := newOnDiskRetryQueueTest(a)
-	defer clean()
+	q := newOnDiskRetryQueueTest(t, a)
 
 	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, 50, 0.1, NewTransactionRetryQueueTelemetry("domain"))
 
@@ -86,8 +85,7 @@ func TestTransactionRetryQueueNoTransactionStorage(t *testing.T) {
 
 func TestTransactionRetryQueueZeroMaxMemSizeInBytes(t *testing.T) {
 	a := assert.New(t)
-	q, clean := newOnDiskRetryQueueTest(a)
-	defer clean()
+	q := newOnDiskRetryQueueTest(t, a)
 
 	maxMemSizeInBytes := 0
 	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, maxMemSizeInBytes, 0.1, NewTransactionRetryQueueTelemetry("domain"))
@@ -129,8 +127,8 @@ func createDropPrioritySorter() transaction.SortByCreatedTimeAndPriority {
 	return transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
 }
 
-func newOnDiskRetryQueueTest(a *assert.Assertions) (*onDiskRetryQueue, func()) {
-	path, clean := createTmpFolder(a)
+func newOnDiskRetryQueueTest(t *testing.T, a *assert.Assertions) *onDiskRetryQueue {
+	path := t.TempDir()
 	disk := diskUsageRetrieverMock{
 		diskUsage: &filesystem.DiskUsage{
 			Available: 10000,
@@ -139,5 +137,5 @@ func newOnDiskRetryQueueTest(a *assert.Assertions) (*onDiskRetryQueue, func()) {
 	diskUsageLimit := NewDiskUsageLimit("", disk, 1000, 1)
 	q, err := newOnDiskRetryQueue(NewHTTPTransactionsSerializer(resolver.NewSingleDomainResolver("", nil)), path, diskUsageLimit, newOnDiskRetryQueueTelemetry("domain"))
 	a.NoError(err)
-	return q, clean
+	return q
 }

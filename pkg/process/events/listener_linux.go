@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// Copyright 2016-present Datadog, Inc.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
 
 //go:build linux
 // +build linux
@@ -19,6 +19,7 @@ import (
 	"github.com/cenkalti/backoff"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
@@ -50,7 +51,7 @@ func NewListener(handler EventHandler) (*SysProbeListener, error) {
 		return nil, errors.New("runtime_security_config.socket must be set")
 	}
 
-	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
+	conn, err := grpc.Dial(socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
 		return net.Dial("unix", url)
 	}))
 	if err != nil {
@@ -58,11 +59,11 @@ func NewListener(handler EventHandler) (*SysProbeListener, error) {
 	}
 
 	client := api.NewSecurityModuleClient(conn)
-	return newSysProbeListener(conn, client, handler)
+	return NewSysProbeListener(conn, client, handler)
 }
 
-// newSysProbeListener returns a new SysPobeListener
-func newSysProbeListener(conn *grpc.ClientConn, client api.SecurityModuleClient, handler EventHandler) (*SysProbeListener, error) {
+// NewSysProbeListener returns a new SysPobeListener
+func NewSysProbeListener(conn *grpc.ClientConn, client api.SecurityModuleClient, handler EventHandler) (*SysProbeListener, error) {
 	if handler == nil {
 		return nil, errors.New("can't create a Listener without an EventHandler")
 	}

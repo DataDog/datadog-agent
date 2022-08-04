@@ -7,21 +7,22 @@ package metrics
 
 import (
 	"bytes"
-	"encoding/json"
 	"expvar"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
+	"github.com/richardartoul/molecule"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/common"
-	"github.com/richardartoul/molecule"
 )
 
 // A SketchSeriesList implements marshaler.Marshaler
-type SketchSeriesList []metrics.SketchSeries
+type SketchSeriesList struct {
+	metrics.SketchesSource
+}
 
 var (
 	expvars                    = expvar.NewMap("sketch_series")
@@ -40,54 +41,6 @@ func init() {
 	expvars.Set("ItemTooBig", &expvarsItemTooBig)
 	expvars.Set("PayloadFull", &expvarsPayloadFull)
 	expvars.Set("UnexpectedItemDrops", &expvarsUnexpectedItemDrops)
-}
-
-// MarshalJSON serializes sketch series to JSON.
-// Quite slow, but hopefully this method is called only in the `agent check` command
-func (sl SketchSeriesList) MarshalJSON() ([]byte, error) {
-	// We use this function to customize generated JSON
-	// This function, only used when displaying `bins`, is especially slow
-	// As `StructToMap` function is using reflection to return a generic map[string]interface{}
-	customSketchSeries := func(srcSl SketchSeriesList) []interface{} {
-		dstSl := make([]interface{}, 0, len(srcSl))
-
-		for _, ss := range srcSl {
-			ssMap := common.StructToMap(ss)
-			for i, sketchPoint := range ss.Points {
-				if sketchPoint.Sketch != nil {
-					sketch := ssMap["points"].([]interface{})[i].(map[string]interface{})
-					count, bins := sketchPoint.Sketch.GetRawBins()
-					sketch["binsCount"] = count
-					sketch["bins"] = bins
-				}
-			}
-			// `Tags` type is `*CompositeTags`` which is not handled by `StructToMap``
-			ssMap["tags"] = ss.Tags.UnsafeToReadOnlySliceString()
-			dstSl = append(dstSl, ssMap)
-		}
-
-		return dstSl
-	}
-
-	// use an alias to avoid infinite recursion while serializing a SketchSeriesList
-	if config.Datadog.GetBool("cmd.check.fullsketches") {
-		data := map[string]interface{}{
-			"sketches": customSketchSeries(sl),
-		}
-
-		reqBody := &bytes.Buffer{}
-		err := json.NewEncoder(reqBody).Encode(data)
-		return reqBody.Bytes(), err
-	}
-
-	type SketchSeriesAlias SketchSeriesList
-	data := map[string]SketchSeriesAlias{
-		"sketches": SketchSeriesAlias(sl),
-	}
-
-	reqBody := &bytes.Buffer{}
-	err := json.NewEncoder(reqBody).Encode(data)
-	return reqBody.Bytes(), err
 }
 
 // MarshalSplitCompress uses the stream compressor to marshal and compress sketch series payloads.
@@ -186,7 +139,8 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 		return nil, err
 	}
 
-	for _, ss := range sl {
+	for sl.MoveNext() {
+		ss := sl.Current()
 		buf.Reset()
 		err = ps.Embedded(payloadSketches, func(ps *molecule.ProtoStream) error {
 			var err error
@@ -323,10 +277,11 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 // Marshal encodes this series list.
 func (sl SketchSeriesList) Marshal() ([]byte, error) {
 	pb := &gogen.SketchPayload{
-		Sketches: make([]gogen.SketchPayload_Sketch, 0, len(sl)),
+		Sketches: make([]gogen.SketchPayload_Sketch, 0),
 	}
 
-	for _, ss := range sl {
+	for sl.MoveNext() {
+		ss := sl.Current()
 		dsl := make([]gogen.SketchPayload_Sketch_Dogsketch, 0, len(ss.Points))
 
 		for _, p := range ss.Points {
@@ -356,6 +311,18 @@ func (sl SketchSeriesList) Marshal() ([]byte, error) {
 
 // SplitPayload breaks the payload into times number of pieces
 func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
+	var sketches SketchSeriesSlice
+	for sl.MoveNext() {
+		ss := sl.Current()
+		sketches = append(sketches, ss)
+	}
+	return sketches.SplitPayload(times)
+}
+
+type SketchSeriesSlice []*metrics.SketchSeries
+
+// SplitPayload breaks the payload into times number of pieces
+func (sl SketchSeriesSlice) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	// Only break it down as much as possible
 	if len(sl) < times {
 		times = len(sl)

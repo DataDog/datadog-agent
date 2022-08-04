@@ -38,12 +38,13 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 
+	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 )
 
 var (

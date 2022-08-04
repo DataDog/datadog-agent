@@ -112,7 +112,7 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 		if e.IsEnabled != nil && !e.IsEnabled(r.conf) {
 			continue
 		}
-		mux.Handle(e.Pattern, replyWithVersion(hash, e.Handler(r)))
+		mux.Handle(e.Pattern, replyWithVersion(hash, r.conf.AgentVersion, e.Handler(r)))
 	}
 	mux.HandleFunc("/info", infoHandler)
 
@@ -121,9 +121,9 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 
 // replyWithVersion returns an http.Handler which calls h with an addition of some
 // HTTP headers containing version and state information.
-func replyWithVersion(hash string, h http.Handler) http.Handler {
+func replyWithVersion(hash string, version string, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Datadog-Agent-Version", info.Version)
+		w.Header().Set("Datadog-Agent-Version", version)
 		w.Header().Set("Datadog-Agent-State", hash)
 		h.ServeHTTP(w, r)
 	})
@@ -146,6 +146,7 @@ func (r *HTTPReceiver) Start() {
 		WriteTimeout: timeout,
 		ErrorLog:     stdlog.New(httpLogger, "http.Server: ", 0),
 		Handler:      r.buildMux(),
+		ConnContext:  connContext,
 	}
 
 	addr := fmt.Sprintf("%s:%d", r.conf.ReceiverHost, r.conf.ReceiverPort)
@@ -411,7 +412,7 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats) (tp *p
 		return &pb.TracerPayload{
 			LanguageName:    ts.Lang,
 			LanguageVersion: ts.LangVersion,
-			ContainerID:     req.Header.Get(headerContainerID),
+			ContainerID:     GetContainerID(req.Context(), req.Header),
 			Chunks:          traceChunksFromSpans(spans),
 			TracerVersion:   ts.TracerVersion,
 		}, false, nil
@@ -426,7 +427,7 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats) (tp *p
 		return &pb.TracerPayload{
 			LanguageName:    ts.Lang,
 			LanguageVersion: ts.LangVersion,
-			ContainerID:     req.Header.Get(headerContainerID),
+			ContainerID:     GetContainerID(req.Context(), req.Header),
 			Chunks:          traceChunksFromTraces(traces),
 			TracerVersion:   ts.TracerVersion,
 		}, true, err
@@ -447,7 +448,7 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats) (tp *p
 		return &pb.TracerPayload{
 			LanguageName:    ts.Lang,
 			LanguageVersion: ts.LangVersion,
-			ContainerID:     req.Header.Get(headerContainerID),
+			ContainerID:     GetContainerID(req.Context(), req.Header),
 			Chunks:          traceChunksFromTraces(traces),
 			TracerVersion:   ts.TracerVersion,
 		}, ranHook, nil
