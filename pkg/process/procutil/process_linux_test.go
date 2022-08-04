@@ -864,8 +864,19 @@ func testParseStatmStatusMatch(t *testing.T) {
 	}
 }
 
-func TestGetLinkWithAuthCheck(t *testing.T) {
+func TestGetLinkWithAuthCheckTestFS(t *testing.T) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
+	defer os.Unsetenv("HOST_PROC")
+
+	testGetLinkWithAuthCheck(t)
+}
+
+func TestGetLinkWithAuthCheckLocalFS(t *testing.T) {
 	maySkipLocalTest(t)
+	testGetLinkWithAuthCheck(t)
+}
+
+func testGetLinkWithAuthCheck(t *testing.T) {
 	probe := getProbeWithPermission()
 	defer probe.Close()
 
