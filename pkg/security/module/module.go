@@ -675,9 +675,12 @@ func (m *Module) RunSelfTest(sendLoadedReport bool) error {
 	}
 
 	// send the report
-	monitor := m.probe.GetMonitor()
-	monitor.ReportSelfTest(success, fails)
-	return err
+	if m.config.SelfTestSendReport {
+		monitor := m.probe.GetMonitor()
+		monitor.ReportSelfTest(success, fails)
+	}
+
+	return nil
 }
 
 func logLoadingErrors(msg string, m *multierror.Error) {
