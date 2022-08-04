@@ -54,7 +54,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.0.0
 	github.com/DataDog/datadog-go/v5 v5.1.1
-	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
+	github.com/DataDog/datadog-operator v0.8.1
 	github.com/DataDog/ebpf-manager v0.0.0-20220627174516-12adb97b679e
 	github.com/DataDog/gohai v0.0.0-20220823152657-b201b8a4ebec
 	github.com/DataDog/gopsutil v1.2.1
@@ -289,6 +289,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.20.0 // indirect
+	github.com/go-openapi/spec v0.20.3 // indirect
 	github.com/go-openapi/swag v0.21.1 // indirect
 	github.com/go-test/deep v1.0.5 // indirect
 	github.com/godbus/dbus/v5 v5.0.6 // indirect
@@ -431,7 +432,6 @@ require (
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5 // indirect
 	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171 // indirect
 	golang.org/x/xerrors v0.0.0-20220411194840-2f41105eb62f // indirect
-	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	gomodules.xyz/orderedmap v0.1.0 // indirect
 	google.golang.org/api v0.75.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
@@ -443,7 +443,6 @@ require (
 	gopkg.in/src-d/go-git.v4 v4.13.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	k8s.io/apiextensions-apiserver v0.23.5 // indirect
 	k8s.io/component-base v0.23.8 // indirect
 	k8s.io/gengo v0.0.0-20210813121822-485abfe95c7c // indirect
 	lukechampine.com/frand v1.4.2 // indirect
