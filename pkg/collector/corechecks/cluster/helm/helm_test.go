@@ -541,3 +541,21 @@ func encodeRelease(rls *release) (string, error) {
 
 	return b64.EncodeToString(buf.Bytes()), nil
 }
+
+func TestKnownObjects(t *testing.T) {
+	check := factory().(*HelmCheck)
+
+	assert.True(t, check.shouldProcessObject("uid-1", "1"))
+	check.addKnownObject("uid-1", "1")
+	assert.Equal(t, check.knownObjects["uid-1"], "1")
+	assert.False(t, check.shouldProcessObject("uid-1", "1"))
+
+	assert.True(t, check.shouldProcessObject("uid-1", "2"))
+	check.addKnownObject("uid-1", "2")
+	assert.Equal(t, check.knownObjects["uid-1"], "2")
+	assert.False(t, check.shouldProcessObject("uid-1", "2"))
+
+	check.deleteKnownObject("uid-1")
+	assert.NotContains(t, check.knownObjects, "uid-1")
+	assert.True(t, check.shouldProcessObject("uid-1", "2"))
+}

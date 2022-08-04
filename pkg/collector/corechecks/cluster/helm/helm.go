@@ -12,12 +12,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
@@ -69,6 +71,11 @@ type HelmCheck struct {
 	// agent was started have already been stored. This is needed to avoid
 	// emitting events for those releases.
 	existingReleasesStored bool
+
+	// knownObjects is a UID to ResourceVersion mapping to track the secret and configmap objects seen by the check.
+	// It serves as a cache to avoid re-processing unchanged objects during informer resyncs.
+	knownObjects     map[types.UID]string
+	knownObjectsLock sync.RWMutex
 }
 
 type checkConfig struct {
@@ -92,6 +99,7 @@ func factory() check.Check {
 		store:             newReleasesStore(),
 		runLeaderElection: !config.IsCLCRunner(),
 		eventsManager:     &eventsManager{},
+		knownObjects:      make(map[types.UID]string),
 	}
 }
 
@@ -288,6 +296,11 @@ func (hc *HelmCheck) addSecret(obj interface{}) {
 		return
 	}
 
+	if !hc.shouldProcessObject(secret.UID, secret.ResourceVersion) {
+		return
+	}
+
+	hc.addKnownObject(secret.UID, secret.ResourceVersion)
 	hc.addRelease(string(secret.Data["release"]), k8sSecrets)
 }
 
@@ -302,11 +315,28 @@ func (hc *HelmCheck) deleteSecret(obj interface{}) {
 		return
 	}
 
+	hc.deleteKnownObject(secret.UID)
 	hc.deleteRelease(string(secret.Data["release"]), k8sSecrets)
 }
 
-func (hc *HelmCheck) updateSecret(_, obj interface{}) {
-	hc.addSecret(obj)
+func (hc *HelmCheck) updateSecret(old, new interface{}) {
+	oldSecret, ok := old.(*v1.Secret)
+	if !ok {
+		log.Warnf("Expected secret, got: %T", old)
+		return
+	}
+
+	newSecret, ok := new.(*v1.Secret)
+	if !ok {
+		log.Warnf("Expected secret, got: %T", old)
+		return
+	}
+
+	if oldSecret.ResourceVersion == newSecret.ResourceVersion {
+		return
+	}
+
+	hc.addSecret(newSecret)
 }
 
 func (hc *HelmCheck) addConfigmap(obj interface{}) {
@@ -320,6 +350,11 @@ func (hc *HelmCheck) addConfigmap(obj interface{}) {
 		return
 	}
 
+	if !hc.shouldProcessObject(configmap.UID, configmap.ResourceVersion) {
+		return
+	}
+
+	hc.addKnownObject(configmap.UID, configmap.ResourceVersion)
 	hc.addRelease(configmap.Data["release"], k8sConfigmaps)
 }
 
@@ -334,11 +369,28 @@ func (hc *HelmCheck) deleteConfigmap(obj interface{}) {
 		return
 	}
 
+	hc.deleteKnownObject(configmap.UID)
 	hc.deleteRelease(configmap.Data["release"], k8sConfigmaps)
 }
 
-func (hc *HelmCheck) updateConfigmap(_, obj interface{}) {
-	hc.addConfigmap(obj)
+func (hc *HelmCheck) updateConfigmap(old, new interface{}) {
+	oldConfigmap, ok := old.(*v1.ConfigMap)
+	if !ok {
+		log.Warnf("Expected configmap, got: %T", old)
+		return
+	}
+
+	newConfigmap, ok := new.(*v1.ConfigMap)
+	if !ok {
+		log.Warnf("Expected configmap, got: %T", old)
+		return
+	}
+
+	if oldConfigmap.ResourceVersion == newConfigmap.ResourceVersion {
+		return
+	}
+
+	hc.addConfigmap(newConfigmap)
 }
 
 func (hc *HelmCheck) addRelease(encodedRelease string, storageDriver helmStorage) {
@@ -425,4 +477,30 @@ func (hc *HelmCheck) getInformersResyncPeriod() time.Duration {
 		return time.Duration(hc.instance.InformersResyncIntervalMinutes) * time.Minute
 	}
 	return defaultResyncInterval
+}
+
+func (hc *HelmCheck) shouldProcessObject(uid types.UID, resVersion string) bool {
+	if resVersion == "" {
+		return true
+	}
+
+	hc.knownObjectsLock.RLock()
+	defer hc.knownObjectsLock.RUnlock()
+	return hc.knownObjects[uid] != resVersion
+}
+
+func (hc *HelmCheck) addKnownObject(uid types.UID, resVersion string) {
+	if resVersion == "" {
+		return
+	}
+
+	hc.knownObjectsLock.Lock()
+	defer hc.knownObjectsLock.Unlock()
+	hc.knownObjects[uid] = resVersion
+}
+
+func (hc *HelmCheck) deleteKnownObject(uid types.UID) {
+	hc.knownObjectsLock.Lock()
+	defer hc.knownObjectsLock.Unlock()
+	delete(hc.knownObjects, uid)
 }
