@@ -658,7 +658,7 @@ func TestFetchFieldsWithoutPermission(t *testing.T) {
 	assert.Equal(t, int64(-1), actual.ReadBytes)
 	assert.Equal(t, int64(-1), actual.WriteCount)
 	assert.Equal(t, int64(-1), actual.WriteBytes)
-	fd := probe.getFDCount(strconv.Itoa(int(pid)))
+	fd := probe.getFDCountImproved(strconv.Itoa(int(pid)))
 	assert.Equal(t, int32(-1), fd)
 }
 
@@ -895,28 +895,6 @@ func testGetLinkWithAuthCheck(t *testing.T) {
 		}
 		if expExe, err := expProc.Exe(); err == nil {
 			assert.Equal(t, expExe, exe)
-		}
-	}
-}
-
-func TestGetFDCountLocalFS(t *testing.T) {
-	maySkipLocalTest(t)
-	probe := getProbeWithPermission()
-	defer probe.Close()
-
-	pids, err := probe.getActivePIDs()
-	assert.NoError(t, err)
-
-	for _, pid := range pids {
-		pathForPID := filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid)))
-		fdCount := probe.getFDCount(pathForPID)
-		expProc, err := process.NewProcess(pid)
-		assert.NoError(t, err)
-		// test both with and without permission issues
-		if expFdCount, err := expProc.NumFDs(); err == nil {
-			assert.Equal(t, expFdCount, fdCount)
-		} else {
-			assert.Equal(t, int32(-1), fdCount)
 		}
 	}
 }

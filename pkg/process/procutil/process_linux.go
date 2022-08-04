@@ -690,27 +690,6 @@ func (p *probe) getLinkWithAuthCheck(pidPath string, file string) string {
 	return str
 }
 
-// getFDCount gets num_fds from /proc/(pid)/fd
-func (p *probe) getFDCount(pidPath string) int32 {
-	path := filepath.Join(pidPath, "fd")
-
-	if err := p.ensurePathReadable(path); err != nil {
-		return -1
-	}
-
-	d, err := os.Open(path)
-	if err != nil {
-		return -1
-	}
-	defer d.Close()
-
-	names, err := d.Readdirnames(-1)
-	if err != nil {
-		return -1
-	}
-	return int32(len(names))
-}
-
 // getFDCountImproved gets num_fds from /proc/(pid)/fd WITHOUT using the native Readdirnames(),
 // this will skip the step of returning all file names(we don't need) in a dir which takes a lot of memory
 func (p *probe) getFDCountImproved(pidPath string) int32 {
