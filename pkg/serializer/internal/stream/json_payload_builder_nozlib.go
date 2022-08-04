@@ -41,6 +41,6 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(marshaler.IterableSt
 }
 
 // BuildWithOnErrItemTooBigPolicyMetadata is not implemented when zlib is not available.
-func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicyMetadata(m marshaler.IterableStreamWithPointJSONMarshaler, OnErrItemTooBigPolicy) (transaction.BytesPayloads, error) {
+func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicyMetadata(marshaler.IterableStreamWithPointJSONMarshaler, OnErrItemTooBigPolicy) (transaction.BytesPayloads, error) {
 	return nil, fmt.Errorf("not implemented")
 }
