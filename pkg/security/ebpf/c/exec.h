@@ -357,25 +357,20 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     return 0;
 }
 
-int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall, struct file *file, struct path *path, struct inode *inode) {
-    struct dentry *exec_dentry = get_path_dentry(path);
-    struct basename_t executable_basename = {};
-    get_dentry_name(exec_dentry, &executable_basename, sizeof(executable_basename));
-    bpf_printk("exec basename: %s\n", executable_basename.value);
-
+int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall, struct file *file) {
     struct inode *executable_inode;
     bpf_probe_read(&executable_inode, sizeof(executable_inode), &file->f_inode);
 
-    // struct path *executable_path;
-    // bpf_probe_read(&executable_path, sizeof(executable_path), &file->f_path);
+    struct path *executable_path = &file->f_path;
 
-    syscall->exec.linux_binprm.executable.path_key = get_inode_key_path(executable_inode, path);
+    syscall->exec.linux_binprm.executable.path_key = get_inode_key_path(executable_inode, executable_path);
     syscall->exec.linux_binprm.executable.path_key.path_id = get_path_id(0);
 
     bpf_printk("exec inode: %u\n", syscall->exec.linux_binprm.executable.path_key.ino);
     bpf_printk("exec mount id: %u\n", syscall->exec.linux_binprm.executable.path_key.mount_id);
     bpf_printk("exec path id: %u\n", syscall->exec.linux_binprm.executable.path_key.path_id);
 
+    // Add interpreter path to map/pathnames, used by the dentry resolver. 
     // This overwrites the resolver fields on this syscall, but that's ok because the executed file has already been written to the map/pathnames ebpf map.
     syscall->resolver.key = syscall->exec.linux_binprm.executable.path_key;
     syscall->resolver.dentry = get_file_dentry(file);
@@ -691,35 +686,7 @@ int kprobe_security_bprm_check(struct pt_regs *ctx) {
     struct file *executable;
     bpf_probe_read(&executable, sizeof(executable), &bprm->executable);
 
-    // Interpreter
-    // struct file *interpreter;
-    // bpf_probe_read(&interpreter, sizeof(interpreter), &bprm->interpreter);
-    // struct path interpreter_path;
-    // bpf_probe_read(&interpreter_path, sizeof(interpreter_path), &interpreter->f_path);
-    // struct dentry *interpreter_dentry = get_path_dentry(&interpreter_path);
-    // struct basename_t interpreter_basename = {};
-    // get_dentry_name(interpreter_dentry, &interpreter_basename, sizeof(interpreter_basename));
-
-    // bpf_printk("interpreter: %s\n", interpreter_basename.value);
-
-    // // File
-    // struct file *fileFromBinprm;
-    // bpf_probe_read(&fileFromBinprm, sizeof(fileFromBinprm), &bprm->file);
-    // struct path file_path;
-    // bpf_probe_read(&file_path, sizeof(file_path), &fileFromBinprm->f_path);
-    // struct dentry *file_dentry = get_path_dentry(&file_path);
-    // struct basename_t file_basename = {};
-    // get_dentry_name(file_dentry, &file_basename, sizeof(file_basename));
-
-    // bpf_printk("file from linux_binprm: %s\n", file_basename.value);
-
-    // const char *filename;
-	// const char *interp;
-
-// TODO: Older kernel versions
-    // struct interpreter_flags = ""
-    // struct interp =
-    // struct filename (const char * ) =
+    // TODO: Older kernel versions
     // 	const char *filename;	/* Name of binary as seen by procps */
 	// const char *interp;	/* Name of the binary really executed. Most
 	// 			   of the time same as filename, but could be
@@ -727,10 +694,7 @@ int kprobe_security_bprm_check(struct pt_regs *ctx) {
 
     bpf_printk("*interp from binprm: %s\n", &bprm->interp);
 
-    // return handle_exec_event(ctx, syscall, bprm->executable, &bprm->executable->f_path, bprm->executable->f_inode);
-    return handle_interpreted_exec_event(ctx, syscall, executable, &executable->f_path, executable->f_inode);
-    // return handle_interpreted_exec_event(ctx, syscall, executable, &executable->f_path);
-    // return handle_interpreted_exec_event(ctx, syscall, executable);
+    return handle_interpreted_exec_event(ctx, syscall, executable);
 }
 
 void __attribute__((always_inline)) fill_args_envs(struct exec_event_t *event, struct syscall_cache_t *syscall) {
