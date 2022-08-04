@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix concurrent map access issues when using OTLP ingest
+    Fix concurrent map access issues when using OTLP ingest.
