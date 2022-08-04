@@ -168,4 +168,8 @@ typedef struct {
     };
 } ip_make_skb_args_t;
 
+static __always_inline int get_proto(conn_tuple_t *t) {
+    return (t->metadata & CONN_TYPE_TCP) ? CONN_TYPE_TCP : CONN_TYPE_UDP;
+}
+
 #endif

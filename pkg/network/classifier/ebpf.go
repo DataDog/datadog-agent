@@ -113,7 +113,7 @@ func (e *ebpfProgram) Init(connMap *ebpf.Map, telemetryMap *ebpf.Map) error {
 				EditorFlag: manager.EditMaxEntries,
 			},
 			filterArgs: {
-				Type:       ebpf.Array,
+				Type:       ebpf.Hash,
 				MaxEntries: uint32(len(cpus)),
 				EditorFlag: manager.EditMaxEntries,
 			},

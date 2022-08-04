@@ -9,10 +9,6 @@
 
 #include "bpf_helpers.h"
 
-static __always_inline int get_proto(conn_tuple_t *t) {
-    return (t->metadata & CONN_TYPE_TCP) ? CONN_TYPE_TCP : CONN_TYPE_UDP;
-}
-
 static __always_inline void cleanup_conn(conn_tuple_t *tup) {
     u32 cpu = bpf_get_smp_processor_id();
 
