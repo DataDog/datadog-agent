@@ -42,10 +42,7 @@ func decodeDNS(raw []byte) string {
 			rep.WriteRune('.')
 		}
 		for _, c := range labelRaw {
-			if isSimpleSpecialChar(c) {
-				rep.WriteRune('\\')
-				rep.WriteByte(c)
-			} else if c < ' ' || '~' < c {
+			if c < ' ' || '~' < c {
 				rep.WriteString(fmt.Sprintf("\\%d", c))
 			} else {
 				rep.WriteByte(c)
@@ -57,12 +54,4 @@ func decodeDNS(raw []byte) string {
 	}
 
 	return rep.String()
-}
-
-func isSimpleSpecialChar(b byte) bool {
-	switch b {
-	case '.', ' ', '\'', '@', ';', '(', ')', '"', '\\':
-		return true
-	}
-	return false
 }
