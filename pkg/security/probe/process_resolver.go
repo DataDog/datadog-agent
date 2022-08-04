@@ -582,7 +582,6 @@ func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent) (string, er
 		return "", &ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID}
 	}
 
-
 	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&fileEvent.FileFields)
 	if err != nil {
 		fileEvent.SetPathnameStr("")
