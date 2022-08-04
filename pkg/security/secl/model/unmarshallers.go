@@ -13,6 +13,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/miekg/dns"
 )
 
 func validateReadSize(size, read int) (int, error) {
@@ -886,29 +887,11 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 func decodeDNS(raw []byte) string {
-	rawLen := len(raw)
-	rep := ""
-	i := 0
-	for {
-		// Parse label length
-		if rawLen < i+1 {
-			break
-		}
-		labelLen := int(raw[i])
-
-		if rawLen-(i+1) < labelLen || labelLen == 0 {
-			break
-		}
-		labelRaw := raw[i+1 : i+1+labelLen]
-
-		if i == 0 {
-			rep = string(labelRaw)
-		} else {
-			rep = rep + "." + string(labelRaw)
-		}
-		i += labelLen + 1
+	name, _, err := dns.UnpackDomainName(raw, 0)
+	if err != nil {
+		return ""
 	}
-	return rep
+	return name
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
