@@ -52,40 +52,43 @@ func (a *TestAgentDemultiplexer) AddLateMetrics(metrics metrics.MetricSampleBatc
 	a.Unlock()
 }
 
-func (a *TestAgentDemultiplexer) samples() []metrics.MetricSample {
+func (a *TestAgentDemultiplexer) samples() ([]metrics.MetricSample, []metrics.MetricSample) {
 	a.Lock()
-	c := make([]metrics.MetricSample, len(a.receivedSamples)+len(a.lateMetrics))
+	c := make([]metrics.MetricSample, len(a.receivedSamples))
+	l := make([]metrics.MetricSample, len(a.lateMetrics))
 	for i, s := range a.receivedSamples {
 		c[i] = s
 	}
 	for i, s := range a.lateMetrics {
-		c[len(a.receivedSamples)+i] = s
+		l[i] = s
 	}
 	a.Unlock()
-	return c
+	return c, l
 }
 
 // WaitForSamples returns the samples received by the demultiplexer.
-func (a *TestAgentDemultiplexer) WaitForSamples(timeout time.Duration) []metrics.MetricSample {
+// Note that it returns as soon as something is avaible in either the live
+// metrics buffer or the late metrics one.
+func (a *TestAgentDemultiplexer) WaitForSamples(timeout time.Duration) ([]metrics.MetricSample, []metrics.MetricSample) {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 	timeoutOn := time.Now().Add(timeout)
 	for {
 		select {
 		case <-ticker.C:
-			s := a.samples()
+			s, l := a.samples()
 
 			// this case could always take priority on the timeout case, we have to make sure
 			// we've not timeout
 			if time.Now().After(timeoutOn) {
-				return s
+				return s, l
 			}
 
-			if len(s) > 0 {
-				return s
+			if len(s) > 0 || len(l) > 0 {
+				return s, l
 			}
 		case <-time.After(timeout):
-			return nil
+			return nil, nil
 		}
 	}
 }
