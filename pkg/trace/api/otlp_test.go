@@ -6,7 +6,6 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -118,8 +117,8 @@ func TestOTLPMetrics(t *testing.T) {
 		},
 	}).Traces().ResourceSpans()
 
-	rcv.ReceiveResourceSpans(context.Background(), rspans.At(0), http.Header{}, "")
-	rcv.ReceiveResourceSpans(context.Background(), rspans.At(1), http.Header{}, "")
+	rcv.ReceiveResourceSpans(rspans.At(0), http.Header{}, "")
+	rcv.ReceiveResourceSpans(rspans.At(1), http.Header{}, "")
 
 	calls := stats.CountCalls
 	assert.Equal(4, len(calls))
@@ -134,7 +133,7 @@ func TestOTLPNameRemapping(t *testing.T) {
 	cfg.OTLPReceiver.SpanNameRemappings = map[string]string{"libname.unspecified": "new"}
 	out := make(chan *Payload, 1)
 	rcv := NewOTLPReceiver(out, cfg)
-	rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+	rcv.ReceiveResourceSpans(testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
 			LibName:    "libname",
 			LibVersion: "1.2",
@@ -341,7 +340,7 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0), http.Header{}, "agent_tests")
+			rcv.ReceiveResourceSpans(testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0), http.Header{}, "agent_tests")
 			timeout := time.After(500 * time.Millisecond)
 			select {
 			case <-timeout:
@@ -423,7 +422,7 @@ func TestOTLPHostname(t *testing.T) {
 		if tt.span != "" {
 			rattr["_dd.hostname"] = tt.span
 		}
-		src := rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+		src := rcv.ReceiveResourceSpans(testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 			{
 				LibName:    "a",
 				LibVersion: "1.2",
@@ -509,7 +508,7 @@ func TestOTLPReceiver(t *testing.T) {
 	t.Run("processRequest", func(t *testing.T) {
 		out := make(chan *Payload, 5)
 		o := NewOTLPReceiver(out, config.New())
-		o.processRequest(context.Background(), otlpProtocolGRPC, http.Header(map[string][]string{
+		o.processRequest(otlpProtocolGRPC, http.Header(map[string][]string{
 			headerLang:        {"go"},
 			headerContainerID: {"containerdID"},
 		}), otlpTestTracesRequest)
@@ -1258,7 +1257,7 @@ func BenchmarkProcessRequest(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		r.processRequest(context.Background(), otlpProtocolHTTP, metadata, otlpTestTracesRequest)
+		r.processRequest(otlpProtocolHTTP, metadata, otlpTestTracesRequest)
 	}
 	b.StopTimer()
 	end <- struct{}{}
