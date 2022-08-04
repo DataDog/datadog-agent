@@ -58,7 +58,7 @@ type OTLP struct {
 	// operation name is deduced from a combination between the instrumentation scope
 	// name and the span kind.
 	//
-	// For context, the OpenTelemetry Span Name's equivalent at Datadog is the resource name.
+	// For context, the OpenTelemetry 'Span Name' is equivalent to the Datadog 'resource name'.
 	// The Datadog Span Name's equivalent in OpenTelemetry does not exist, but the span's kind
 	// comes close.
 	SpanNameAsResourceName bool `mapstructure:"span_name_as_resource_name"`
