@@ -114,7 +114,7 @@ func (e *ebpfProgram) Init(connMap *ebpf.Map, telemetryMap *ebpf.Map) error {
 			},
 			filterArgs: {
 				Type:       ebpf.Hash,
-				MaxEntries: uint32(len(cpus)),
+				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
 				EditorFlag: manager.EditMaxEntries,
 			},
 		},
