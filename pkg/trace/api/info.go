@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
-	"github.com/DataDog/datadog-agent/pkg/trace/info"
 )
 
 // makeInfoHandler returns a new handler for handling the discovery endpoint.
@@ -66,7 +65,6 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 	txt, err := json.MarshalIndent(struct {
 		Version          string        `json:"version"`
 		GitCommit        string        `json:"git_commit"`
-		BuildDate        string        `json:"build_date"`
 		Endpoints        []string      `json:"endpoints"`
 		FeatureFlags     []string      `json:"feature_flags,omitempty"`
 		ClientDropP0s    bool          `json:"client_drop_p0s"`
@@ -74,9 +72,8 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		LongRunningSpans bool          `json:"long_running_spans"`
 		Config           reducedConfig `json:"config"`
 	}{
-		Version:          info.Version,
-		GitCommit:        info.GitCommit,
-		BuildDate:        info.BuildDate,
+		Version:          r.conf.AgentVersion,
+		GitCommit:        r.conf.GitCommit,
 		Endpoints:        all,
 		FeatureFlags:     features.All(),
 		ClientDropP0s:    true,

@@ -8,4 +8,7 @@
 ---
 enhancements:
   - |
-    APM: Add support for cgroup2 via UDS.
+    APM: The trace-agent version string has been made more consistent and is now available in different build environments.
+deprecations:
+  - |
+    APM: The trace-agent /info endpoint no longer reports "build_date".

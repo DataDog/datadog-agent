@@ -4,13 +4,18 @@ from contextlib import contextmanager
 
 
 class GoModule:
-    """A Go module abstraction."""
+    """
+    A Go module abstraction.
+    independent specifies whether this modules is supposed to exist independently of the datadog-agent module.
+    If True, a check will run to ensure this is true.
+    """
 
-    def __init__(self, path, targets=None, condition=lambda: True, should_tag=True):
+    def __init__(self, path, targets=None, condition=lambda: True, should_tag=True, independent=False):
         self.path = path
         self.targets = targets if targets else ["."]
         self.condition = condition
         self.should_tag = should_tag
+        self.independent = independent
 
         self._dependencies = None
 
@@ -106,12 +111,12 @@ DEFAULT_MODULES = {
     "test/e2e/containers/otlp_sender": GoModule(
         "test/e2e/containers/otlp_sender", condition=lambda: False, should_tag=False
     ),
-    "pkg/quantile": GoModule("pkg/quantile"),
-    "pkg/obfuscate": GoModule("pkg/obfuscate"),
-    "pkg/trace": GoModule("pkg/trace"),
-    "pkg/otlp/model": GoModule("pkg/otlp/model"),
-    "pkg/security/secl": GoModule("pkg/security/secl"),
-    "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state"),
+    "pkg/quantile": GoModule("pkg/quantile", independent=True),
+    "pkg/obfuscate": GoModule("pkg/obfuscate", independent=True),
+    "pkg/trace": GoModule("pkg/trace", independent=True),
+    "pkg/otlp/model": GoModule("pkg/otlp/model", independent=True),
+    "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
+    "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True),
 }
 
 MAIN_TEMPLATE = """package main

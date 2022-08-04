@@ -881,34 +881,8 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.Type = ByteOrder.Uint16(data[4:6])
 	e.Class = ByteOrder.Uint16(data[6:8])
 	e.Size = ByteOrder.Uint16(data[8:10])
-	e.Name = decodeDNS(data[10:])
+	e.Name, _ = decodeDNSName(data[10:])
 	return len(data), nil
-}
-
-func decodeDNS(raw []byte) string {
-	rawLen := len(raw)
-	rep := ""
-	i := 0
-	for {
-		// Parse label length
-		if rawLen < i+1 {
-			break
-		}
-		labelLen := int(raw[i])
-
-		if rawLen-(i+1) < labelLen || labelLen == 0 {
-			break
-		}
-		labelRaw := raw[i+1 : i+1+labelLen]
-
-		if i == 0 {
-			rep = string(labelRaw)
-		} else {
-			rep = rep + "." + string(labelRaw)
-		}
-		i += labelLen + 1
-	}
-	return rep
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

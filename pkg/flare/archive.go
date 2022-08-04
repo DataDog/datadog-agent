@@ -24,7 +24,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -242,7 +241,7 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 			log.Errorf("Could not zip workload list: %s", err)
 		}
 
-		err = zipProcessChecks(tempDir, hostname, api.GetAPIAddressPort)
+		err = zipProcessChecks(tempDir, hostname, config.GetProcessAPIAddressPort)
 		if err != nil {
 			log.Errorf("Could not zip process agent checks: %s", err)
 		}
@@ -548,7 +547,7 @@ func zipSystemProbeStats(tempDir, hostname string) error {
 func zipProcessAgentFullConfig(tempDir, hostname string) error {
 	// procStatusURL can be manually set for test purposes
 	if procStatusURL == "" {
-		addressPort, err := api.GetAPIAddressPort()
+		addressPort, err := config.GetProcessAPIAddressPort()
 		if err != nil {
 			return fmt.Errorf("wrong configuration to connect to process-agent")
 		}

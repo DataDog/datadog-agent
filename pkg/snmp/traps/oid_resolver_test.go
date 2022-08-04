@@ -27,6 +27,52 @@ var dummyTrapDB = trapDBFileContent{
 		"1.3.6.1.2.1.2.2.1.7":      VariableMetadata{Name: "ifAdminStatus", Enumeration: map[int]string{1: "up", 2: "down", 3: "testing"}},
 		"1.3.6.1.2.1.2.2.1.8":      VariableMetadata{Name: "ifOperStatus", Enumeration: map[int]string{1: "up", 2: "down", 3: "testing", 4: "unknown", 5: "dormant", 6: "notPresent", 7: "lowerLayerDown"}},
 		"1.3.6.1.4.1.8072.2.3.2.1": VariableMetadata{Name: "netSnmpExampleHeartbeatRate"},
+		"1.3.6.1.2.1.200.1.1.1.3": VariableMetadata{Name: "pwCepSonetConfigErrorOrStatus", Bits: map[int]string{
+			0:  "other",
+			1:  "timeslotInUse",
+			2:  "timeslotMisuse",
+			3:  "peerDbaIncompatible",
+			4:  "peerEbmIncompatible",
+			5:  "peerRtpIncompatible",
+			6:  "peerAsyncIncompatible",
+			7:  "peerDbaAsymmetric",
+			8:  "peerEbmAsymmetric",
+			9:  "peerRtpAsymmetric",
+			10: "peerAsyncAsymmetric",
+		}},
+		"1.3.6.1.2.1.200.1.3.1.5": VariableMetadata{Name: "myFakeVarType", Bits: map[int]string{
+			0:   "test0",
+			1:   "test1",
+			3:   "test3",
+			5:   "test5",
+			6:   "test6",
+			12:  "test12",
+			15:  "test15",
+			130: "test130",
+		}},
+		"1.3.6.1.2.1.200.1.3.1.6": VariableMetadata{
+			Name: "myBadVarType",
+			Enumeration: map[int]string{
+				0:   "test0",
+				1:   "test1",
+				3:   "test3",
+				5:   "test5",
+				6:   "test6",
+				12:  "test12",
+				15:  "test15",
+				130: "test130",
+			},
+			Bits: map[int]string{
+				0:   "test0",
+				1:   "test1",
+				3:   "test3",
+				5:   "test5",
+				6:   "test6",
+				12:  "test12",
+				15:  "test15",
+				130: "test130",
+			},
+		},
 	},
 }
 
@@ -86,12 +132,13 @@ func TestDecoding(t *testing.T) {
 				Name:        "yy",
 				Description: "dummy description",
 				Enumeration: map[int]string{2: "test"},
+				Bits:        map[int]string{3: "test3"},
 			},
 		},
 	}
 	data, err := json.Marshal(trapDBFile)
 	require.NoError(t, err)
-	require.Equal(t, []byte("{\"traps\":{\"foo\":{\"name\":\"xx\",\"mib\":\"yy\",\"descr\":\"\"}},\"vars\":{\"bar\":{\"name\":\"yy\",\"descr\":\"dummy description\",\"enum\":{\"2\":\"test\"}}}}"), data)
+	require.Equal(t, []byte("{\"traps\":{\"foo\":{\"name\":\"xx\",\"mib\":\"yy\",\"descr\":\"\"}},\"vars\":{\"bar\":{\"name\":\"yy\",\"descr\":\"dummy description\",\"enum\":{\"2\":\"test\"},\"bits\":{\"3\":\"test3\"}}}}"), data)
 	err = json.Unmarshal([]byte("{\"traps\": {\"1.2\": {\"name\": \"dd\"}}}"), &trapDBFile)
 	require.NoError(t, err)
 }

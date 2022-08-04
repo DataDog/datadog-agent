@@ -288,6 +288,7 @@ type DebuggerProxyConfig struct {
 type AgentConfig struct {
 	Enabled      bool
 	AgentVersion string
+	GitCommit    string
 	Site         string // the intake site to use (e.g. "datadoghq.com")
 
 	// FargateOrchestrator specifies the name of the Fargate orchestrator. e.g. "ECS", "EKS", "Unknown"

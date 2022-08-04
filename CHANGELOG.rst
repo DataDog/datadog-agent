@@ -2,6 +2,27 @@
 Release Notes
 =============
 
+.. _Release Notes_7.38.1:
+
+7.38.1 / 6.38.1
+======
+
+.. _Release Notes_7.38.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-08-02
+
+
+.. _Release Notes_7.38.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes CWS rules with 'process.file.name !=""' expression.
+
+
 .. _Release Notes_7.38.0:
 
 7.38.0 / 6.38.0

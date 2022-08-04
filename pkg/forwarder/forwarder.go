@@ -77,6 +77,7 @@ type Forwarder interface {
 	SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error)
+	SubmitOrchestratorManifests(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitContainerLifecycleEvents(payload Payloads, extra http.Header) error
 }
 
@@ -264,7 +265,6 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	flushToDiskMemRatio := config.Datadog.GetFloat64("forwarder_flush_to_disk_mem_ratio")
 	domainForwarderSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
 	transactionContainerSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
-	var queueDiskSpaceUsedList []retry.QueueDiskSpaceUsed
 
 	for domain, resolver := range options.DomainResolvers {
 		domain, _ := config.AddAgentVersionToDomain(domain, "app")
@@ -289,7 +289,6 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 				transactionContainerSort,
 				resolver)
 			f.domainResolvers[domain] = resolver
-			queueDiskSpaceUsedList = append(queueDiskSpaceUsedList, transactionContainer)
 			fwd := newDomainForwarder(
 				domain,
 				transactionContainer,
@@ -310,8 +309,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 			time.Duration(timeInterval)*time.Second,
 			10*time.Second,
 			options.RetryQueuePayloadsTotalMaxSize,
-			diskUsageLimit,
-			queueDiskSpaceUsedList)
+			diskUsageLimit)
 	}
 
 	if optionalRemovalPolicy != nil {
@@ -629,6 +627,11 @@ func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http
 	}
 
 	return f.submitProcessLikePayload(endpoint, payload, extra, true)
+}
+
+// SubmitOrchestratorManifests sends orchestrator manifests
+func (f *DefaultForwarder) SubmitOrchestratorManifests(payload Payloads, extra http.Header) (chan Response, error) {
+	return f.submitProcessLikePayload(endpoints.OrchestratorManifestEndpoint, payload, extra, true)
 }
 
 // SubmitContainerLifecycleEvents sends container lifecycle events
