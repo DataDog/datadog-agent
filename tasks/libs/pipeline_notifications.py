@@ -63,7 +63,7 @@ def get_job_failure_reason(job_log):
         # k8s Gitlab runner init failures
         "Job failed (system failure): prepare environment: waiting for pod running: timed out waiting for pod to start",
         # kitchen tests Azure VM allocation failures
-        "Allocation failed. We do not have sufficient capacity for the requested VM size in this region."
+        "Allocation failed. We do not have sufficient capacity for the requested VM size in this region.",
     ]
 
     for log in infra_failure_logs:
