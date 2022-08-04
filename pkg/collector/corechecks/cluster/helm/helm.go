@@ -66,6 +66,8 @@ type HelmCheck struct {
 	runLeaderElection bool
 	eventsManager     *eventsManager
 	informerFactory   informers.SharedInformerFactory
+	apiClient         *apiserver.APIClient
+	once              sync.Once
 
 	// existingReleasesStored indicates whether the releases deployed before the
 	// agent was started have already been stored. This is needed to avoid
@@ -124,12 +126,7 @@ func (hc *HelmCheck) Configure(config, initConfig integration.Data, source strin
 		return err
 	}
 
-	// Add the releases present before setting up the informers. This allows us
-	// to avoid emitting events for releases that were deployed before the agent
-	// started.
-	if err = hc.addExistingReleases(apiClient); err != nil {
-		return err
-	}
+	hc.apiClient = apiClient
 
 	hc.setSharedInformerFactory(apiClient)
 
@@ -154,6 +151,14 @@ func (hc *HelmCheck) Run() error {
 			log.Debugf("Not leader. Skipping the Helm check")
 			return nil
 		}
+	}
+
+	hc.once.Do(func() {
+		err = hc.addExistingReleases()
+	})
+
+	if err != nil {
+		log.Errorf("Couldn't process existing helm releases: %v", err)
 	}
 
 	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
@@ -209,10 +214,18 @@ func (hc *HelmCheck) setSharedInformerFactory(apiClient *apiserver.APIClient) {
 	)
 }
 
-func (hc *HelmCheck) addExistingReleases(apiClient *apiserver.APIClient) error {
+// addExistingReleases adds the releases present before setting up the informers. This allows us
+// to avoid emitting events for releases that were deployed before the agent
+// started.
+// addExistingReleases should be called only once.
+func (hc *HelmCheck) addExistingReleases() error {
+	if hc.apiClient == nil {
+		return errors.New("uninitialized api client")
+	}
+
 	selector := labels.Set{"owner": "helm"}.AsSelector()
 
-	initialHelmSecrets, err := apiClient.Cl.CoreV1().Secrets(v1.NamespaceAll).List(
+	initialHelmSecrets, err := hc.apiClient.Cl.CoreV1().Secrets(v1.NamespaceAll).List(
 		context.Background(), metav1.ListOptions{LabelSelector: selector.String()},
 	)
 	if err != nil {
@@ -223,7 +236,7 @@ func (hc *HelmCheck) addExistingReleases(apiClient *apiserver.APIClient) error {
 		hc.addSecret(&secret)
 	}
 
-	initialHelmConfigMaps, err := apiClient.Cl.CoreV1().ConfigMaps(v1.NamespaceAll).List(
+	initialHelmConfigMaps, err := hc.apiClient.Cl.CoreV1().ConfigMaps(v1.NamespaceAll).List(
 		context.Background(), metav1.ListOptions{LabelSelector: selector.String()},
 	)
 	if err != nil {
