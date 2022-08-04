@@ -104,7 +104,13 @@ func (cp *configPoller) stream(ch chan struct{}, provider providers.StreamingCon
 			if !changes.IsEmpty() {
 				log.Infof("%v provider: collected %d new configurations, removed %d", provider, len(changes.Schedule), len(changes.Unschedule))
 
-				ac.applyChanges(changes)
+				ac.processRemovedConfigs(changes.Unschedule)
+
+				for _, added := range changes.Schedule {
+					added.Provider = cp.provider.String()
+					resolvedChanges := ac.processNewConfig(added)
+					ac.applyChanges(resolvedChanges)
+				}
 			}
 
 			if !ranOnce {
