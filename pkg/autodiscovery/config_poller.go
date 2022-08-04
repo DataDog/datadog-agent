@@ -236,16 +236,3 @@ func (cp *configPoller) storeAndDiffConfigs(configs []integration.Config) ([]int
 
 	return newConf, removedConf
 }
-
-func (cp *configPoller) getConfigs() []integration.Config {
-	cp.configsMu.Lock()
-	defer cp.configsMu.Unlock()
-
-	configs := make([]integration.Config, 0, len(cp.configs))
-
-	for _, cfg := range cp.configs {
-		configs = append(configs, cfg)
-	}
-
-	return configs
-}
