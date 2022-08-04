@@ -459,7 +459,7 @@ func TestServiceClientPredicates(t *testing.T) {
 			AppVersion: "1",
 		},
 	}
-	uptaneClient.On("TargetsMeta").Return([]byte(`testtargets`), nil)
+	uptaneClient.On("TargetsMeta").Return([]byte(`{"signed": "testtargets"}`), nil)
 	uptaneClient.On("TargetsCustom").Return([]byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ=="}`), nil)
 
 	wrongServiceName := "wrong-service"

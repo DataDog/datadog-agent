@@ -362,14 +362,14 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 		}
 	}
 
-	targets, err := enforceCanonicalJSON(targetsRaw)
+	canonicalTargets, err := enforceCanonicalJSON(targetsRaw)
 	if err != nil {
 		return nil, err
 	}
 
 	return &pbgo.ClientGetConfigsResponse{
 		Roots:         roots,
-		Targets:       targets,
+		Targets:       canonicalTargets,
 		TargetFiles:   filteredFiles,
 		ClientConfigs: matchedClientConfigs,
 	}, nil
@@ -410,11 +410,11 @@ func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) 
 		if err != nil {
 			return nil, err
 		}
-		convertedRoot, err := enforceCanonicalJSON(root)
+		canonicalRoot, err := enforceCanonicalJSON(root)
 		if err != nil {
 			return nil, err
 		}
-		roots = append(roots, convertedRoot)
+		roots = append(roots, canonicalRoot)
 	}
 	return roots, nil
 }
