@@ -921,10 +921,6 @@ func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
 func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	var activatedProbes []manager.ProbesSelector
 
-	if selectors, exists := probes.GetSelectorsPerEventType()["*"]; exists {
-		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, selectors...)
-	}
-
 	for eventType, selectors := range probes.GetSelectorsPerEventType() {
 		if eventType == "*" || rs.HasRulesForEventType(eventType) || p.isNeededForActivityDump(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
