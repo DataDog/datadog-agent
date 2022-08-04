@@ -46,6 +46,23 @@ func TestCustomWriterBuffered(t *testing.T) {
 	assert.Equal(t, 2, numMessages)
 }
 
+func TestWriteEnabled(t *testing.T) {
+	testContent := []byte("hello this is a log")
+	logChannel := make(chan *config.ChannelMessage)
+	config := &Config{
+		channel:   logChannel,
+		isEnabled: true,
+	}
+	go Write(config, testContent)
+	select {
+	case received := <-logChannel:
+		assert.NotNil(t, received)
+		assert.Equal(t, testContent, received.Content)
+	case <-time.After(100 * time.Millisecond):
+		assert.Fail(t, "We should have received logs")
+	}
+}
+
 func TestWriteDisabled(t *testing.T) {
 	testContent := []byte("hello this is a log")
 	logChannel := make(chan *config.ChannelMessage)
