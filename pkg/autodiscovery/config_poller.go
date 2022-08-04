@@ -21,14 +21,17 @@ import (
 // configPoller keeps track of the configurations loaded by a certain
 // `ConfigProvider` and whether it should be polled or not.
 type configPoller struct {
-	provider     providers.ConfigProvider
-	configs      map[uint64]integration.Config
-	configsMu    sync.Mutex
+	provider providers.ConfigProvider
+
+	isRunning bool
+
 	canPoll      bool
-	isPolling    bool
 	pollInterval time.Duration
-	stopChan     chan struct{}
-	healthHandle *health.Handle
+
+	stopChan chan struct{}
+
+	configsMu sync.Mutex
+	configs   map[uint64]integration.Config
 }
 
 func newConfigPoller(provider providers.ConfigProvider, canPoll bool, interval time.Duration) *configPoller {
@@ -37,55 +40,58 @@ func newConfigPoller(provider providers.ConfigProvider, canPoll bool, interval t
 		configs:      make(map[uint64]integration.Config),
 		canPoll:      canPoll,
 		pollInterval: interval,
+		stopChan:     make(chan struct{}),
 	}
 }
 
 // stop stops the provider descriptor if it's polling
 func (cp *configPoller) stop() {
-	if !cp.canPoll || cp.isPolling {
+	if !cp.canPoll || cp.isRunning {
 		return
 	}
 	cp.stopChan <- struct{}{}
-	cp.isPolling = false
+	cp.isRunning = false
 }
 
-// start starts polling the provider descriptor
+// start starts polling the provider descriptor. It blocks until the provider
+// returns all the known configs.
 func (cp *configPoller) start(ctx context.Context, ac *AutoConfig) {
-	_, isStreaming := cp.provider.(providers.StreamingConfigProvider)
+	switch provider := cp.provider.(type) {
+	case providers.StreamingConfigProvider:
+		cp.stopChan = make(chan struct{})
 
-	if !isStreaming {
-		cp.collectOnce(ctx, ac)
-	}
-
-	if !cp.canPoll {
-		return
-	}
-
-	cp.stopChan = make(chan struct{})
-	cp.healthHandle = health.RegisterLiveness(fmt.Sprintf("ad-config-provider-%s", cp.provider.String()))
-	cp.isPolling = true
-
-	if isStreaming {
 		ch := make(chan struct{})
-		go cp.stream(ch, ac)
+		go cp.stream(ch, provider, ac)
 		<-ch
-	} else {
-		go cp.poll(ac)
+
+	case providers.CollectingConfigProvider:
+		cp.collectOnce(ctx, provider, ac)
+
+		if !cp.canPoll {
+			return
+		}
+
+		go cp.poll(provider, ac)
+	default:
+		panic(fmt.Sprintf("provider %q does not implement StreamingConfigProvider nor CollectingConfigProvider", provider.String()))
 	}
 }
 
 // stream streams config from the corresponding config provider
-func (cp *configPoller) stream(ch chan struct{}, ac *AutoConfig) {
+func (cp *configPoller) stream(ch chan struct{}, provider providers.StreamingConfigProvider, ac *AutoConfig) {
 	var ranOnce bool
 	ctx, cancel := context.WithCancel(context.Background())
-	changesCh := cp.provider.(providers.StreamingConfigProvider).Stream(ctx)
+	changesCh := provider.Stream(ctx)
+	healthHandle := health.RegisterLiveness(fmt.Sprintf("ad-config-provider-%s", cp.provider.String()))
+
+	cp.isRunning = true
 
 	for {
 		select {
-		case <-cp.healthHandle.C:
+		case <-healthHandle.C:
 
 		case <-cp.stopChan:
-			err := cp.healthHandle.Deregister()
+			err := healthHandle.Deregister()
 			if err != nil {
 				log.Errorf("error de-registering health check: %s", err)
 			}
@@ -95,7 +101,11 @@ func (cp *configPoller) stream(ch chan struct{}, ac *AutoConfig) {
 			return
 
 		case changes := <-changesCh:
-			ac.applyChanges(changes)
+			if !changes.IsEmpty() {
+				log.Infof("%v provider: collected %d new configurations, removed %d", provider, len(changes.Schedule), len(changes.Unschedule))
+
+				ac.applyChanges(changes)
+			}
 
 			if !ranOnce {
 				close(ch)
@@ -106,16 +116,20 @@ func (cp *configPoller) stream(ch chan struct{}, ac *AutoConfig) {
 }
 
 // poll polls config of the corresponding config provider
-func (cp *configPoller) poll(ac *AutoConfig) {
+func (cp *configPoller) poll(provider providers.CollectingConfigProvider, ac *AutoConfig) {
 	ctx, cancel := context.WithCancel(context.Background())
 	ticker := time.NewTicker(cp.pollInterval)
+	healthHandle := health.RegisterLiveness(fmt.Sprintf("ad-config-provider-%s", cp.provider.String()))
+
+	cp.isRunning = true
+
 	for {
 		select {
-		case healthDeadline := <-cp.healthHandle.C:
+		case healthDeadline := <-healthHandle.C:
 			cancel()
 			ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
 		case <-cp.stopChan:
-			err := cp.healthHandle.Deregister()
+			err := healthHandle.Deregister()
 			if err != nil {
 				log.Errorf("error de-registering health check: %s", err)
 			}
@@ -124,7 +138,7 @@ func (cp *configPoller) poll(ac *AutoConfig) {
 			ticker.Stop()
 			return
 		case <-ticker.C:
-			upToDate, err := cp.provider.IsUpToDate(ctx)
+			upToDate, err := provider.IsUpToDate(ctx)
 			if err != nil {
 				log.Errorf("Cache processing of %v configuration provider failed: %v", cp.provider, err)
 				continue
@@ -135,15 +149,15 @@ func (cp *configPoller) poll(ac *AutoConfig) {
 				continue
 			}
 
-			cp.collectOnce(ctx, ac)
+			cp.collectOnce(ctx, provider, ac)
 		}
 	}
 }
 
-func (cp *configPoller) collectOnce(ctx context.Context, ac *AutoConfig) {
+func (cp *configPoller) collectOnce(ctx context.Context, provider providers.CollectingConfigProvider, ac *AutoConfig) {
 	// retrieve the list of newly added configurations as well
 	// as removed configurations
-	newConfigs, removedConfigs := cp.collect(ctx)
+	newConfigs, removedConfigs := cp.collect(ctx, provider)
 	if len(newConfigs) > 0 || len(removedConfigs) > 0 {
 		log.Infof("%v provider: collected %d new configurations, removed %d", cp.provider, len(newConfigs), len(removedConfigs))
 	} else {
@@ -180,13 +194,13 @@ func (cp *configPoller) collectOnce(ctx context.Context, ac *AutoConfig) {
 
 // collect is just a convenient wrapper to fetch configurations from a provider and
 // see what changed from the last time we called Collect().
-func (cp *configPoller) collect(ctx context.Context) ([]integration.Config, []integration.Config) {
+func (cp *configPoller) collect(ctx context.Context, provider providers.CollectingConfigProvider) ([]integration.Config, []integration.Config) {
 	start := time.Now()
 	defer func() {
 		telemetry.PollDuration.Observe(time.Since(start).Seconds(), cp.provider.String())
 	}()
 
-	fetched, err := cp.provider.Collect(ctx)
+	fetched, err := provider.Collect(ctx)
 	if err != nil {
 		log.Errorf("Unable to collect configurations from provider %s: %s", cp.provider, err)
 		return nil, nil

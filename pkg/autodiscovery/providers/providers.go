@@ -33,22 +33,26 @@ type ConfigProviderFactory func(providerConfig *config.ConfigurationProviders) (
 // Any type implementing the interface will take care of any dependency
 // or data needed to access the resource providing the configuration.
 type ConfigProvider interface {
-	// Collect is responsible of populating a list of Config instances by
-	// retrieving configuration patterns from external resources.
-	Collect(context.Context) ([]integration.Config, error)
-
 	// String returns the name of the provider.  All Config instances produced
 	// by this provider will have this value in their Provider field.
 	String() string
-
-	// IsUpToDate determines whether the information returned from the last
-	// call to Collect is still correct.  If not, Collect will be called again.
-	IsUpToDate(context.Context) (bool, error)
 
 	// GetConfigErrors returns a map of errors that occurred on the last Collect
 	// call, indexed by a description of the resource that generated the error.
 	// The result is displayed in diagnostic tools such as `agent status`.
 	GetConfigErrors() map[string]ErrorMsgSet
+}
+
+// CollectingConfigProvider is an interface used together with ConfigProvider.
+// ConfigProviders that are NOT able to use streaming, and therefore need external reconciliation, should implement it.
+type CollectingConfigProvider interface {
+	// Collect is responsible of populating a list of Config instances by
+	// retrieving configuration patterns from external resources.
+	Collect(context.Context) ([]integration.Config, error)
+
+	// IsUpToDate determines whether the information returned from the last
+	// call to Collect is still correct.  If not, Collect will be called again.
+	IsUpToDate(context.Context) (bool, error)
 }
 
 // StreamingConfigProvider is an interface used together with ConfigProvider.
