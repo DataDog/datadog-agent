@@ -56,32 +56,30 @@ func TestFormatCPUTimes(t *testing.T) {
 	}()
 
 	for name, test := range map[string]struct {
-		statsNow   *procutil.Stats
-		statsPrev  *procutil.CPUTimesStat
-		timeNow    cpu.TimesStat
-		timeBefore cpu.TimesStat
-		expected   *model.CPUStat
+		statsNow  *procutil.Stats
+		statsPrev *procutil.CPUTimesStat
+		expected  *model.CPUStat
 	}{
 		"times": {
 			statsNow: &procutil.Stats{
 				CPUTime: &procutil.CPUTimesStat{
-					User:   101.01,
-					System: 202.02,
+					User:      1.0101,
+					System:    2.0202,
+					Timestamp: 5000,
 				},
 				NumThreads: 4,
 				Nice:       5,
 			},
 			statsPrev: &procutil.CPUTimesStat{
-				User:   11,
-				System: 22,
+				User:      0.11,
+				System:    0.22,
+				Timestamp: 2500,
 			},
-			timeNow:    cpu.TimesStat{User: 5000},
-			timeBefore: cpu.TimesStat{User: 2500},
 			expected: &model.CPUStat{
 				LastCpu:    "cpu",
-				TotalPct:   43.2048,
-				UserPct:    14.4016,
-				SystemPct:  28.8032,
+				TotalPct:   10.8012,
+				UserPct:    3.6004,
+				SystemPct:  7.2008,
 				NumThreads: 4,
 				Cpus:       []*model.SingleCPUStat{},
 				Nice:       5,
@@ -92,7 +90,7 @@ func TestFormatCPUTimes(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, test.expected, formatCPUTimes(
-				test.statsNow, test.statsNow.CPUTime, test.statsPrev, test.timeNow, test.timeBefore,
+				test.statsNow, test.statsNow.CPUTime, test.statsPrev, cpu.TimesStat{}, cpu.TimesStat{},
 			))
 		})
 	}
