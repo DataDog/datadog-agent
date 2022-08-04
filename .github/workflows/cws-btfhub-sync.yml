@@ -19,6 +19,7 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: '3.8.10'
+          cache: 'pip'
 
       - name: Install go
         uses: actions/setup-go@v3
@@ -27,6 +28,16 @@ jobs:
 
       - name: Install python requirements
         run: pip install -r requirements.txt
+
+      - name: Cache go dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
       - name: Install go deps
         run: inv -e deps
