@@ -162,6 +162,11 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		ad.addedRuntimeCount[i] = atomic.NewUint64(0)
 		ad.addedSnapshotCount[i] = atomic.NewUint64(0)
 	}
+
+	// Initialise the rate limiters
+	if err := ad.adm.addNewActivityDumpRateLimiter(ad.DumpMetadata.Name); err != nil {
+		seclog.Errorf("addNewActivityDumpRateLimiter failed: %s\n", err.Error())
+	}
 	return &ad
 }
 
@@ -313,6 +318,11 @@ func (ad *ActivityDump) Stop() {
 	ad.state = Stopped
 	ad.DumpMetadata.End = time.Now()
 
+	// Delete the rate limiters
+	if err := ad.adm.removeActivityDumpRateLimiter(ad.DumpMetadata.Name); err != nil {
+		seclog.Errorf("removeActivityDumpRateLimiter failed: %s\n", err.Error())
+	}
+
 	// remove comm from kernel space
 	if len(ad.DumpMetadata.Comm) > 0 {
 		commB := make([]byte, 16)
@@ -431,10 +441,19 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	// insert the event based on its type
 	switch event.GetEventType() {
 	case model.FileOpenEventType:
+		if !ad.adm.RateLimiter.Allow(rateLimiterGroupOpen, ad.DumpMetadata.Name) {
+			return false
+		}
 		return ad.InsertFileEventInProcess(node, &event.Open.File, event, Runtime)
 	case model.DNSEventType:
+		if !ad.adm.RateLimiter.Allow(rateLimiterGroupDNS, ad.DumpMetadata.Name) {
+			return false
+		}
 		return ad.InsertDNSEvent(node, &event.DNS)
 	case model.BindEventType:
+		if !ad.adm.RateLimiter.Allow(rateLimiterGroupBind, ad.DumpMetadata.Name) {
+			return false
+		}
 		return ad.InsertBindEvent(node, &event.Bind)
 	case model.SyscallsEventType:
 		return node.InsertSyscalls(&event.Syscalls)
@@ -484,6 +503,11 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 				return root
 			}
 		}
+
+		if !ad.adm.RateLimiter.Allow(rateLimiterGroupExec, ad.DumpMetadata.Name) {
+			return node
+		}
+
 		// if it doesn't, create a new ProcessActivityNode for the input ProcessCacheEntry
 		node = NewProcessActivityNode(entry, generationType, &ad.nodeStats)
 		// insert in the list of root entries
@@ -498,6 +522,10 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 			if child.Matches(entry, ad.DumpMetadata.DifferentiateArgs, ad.adm.probe.resolvers) {
 				return child
 			}
+		}
+
+		if !ad.adm.RateLimiter.Allow(rateLimiterGroupExec, ad.DumpMetadata.Name) {
+			return node
 		}
 
 		// if none of them matched, create a new ProcessActivityNode for the input processCacheEntry

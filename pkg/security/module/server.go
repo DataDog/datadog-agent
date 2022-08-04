@@ -29,6 +29,7 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -53,7 +54,7 @@ type APIServer struct {
 	expiredProcessEvents *atomic.Int64
 	expiredDumpsLock     sync.RWMutex
 	expiredDumps         *atomic.Int64
-	rate                 *Limiter
+	rate                 *utils.Limiter
 	statsdClient         statsd.ClientInterface
 	probe                *sprobe.Probe
 	queueLock            sync.Mutex
@@ -107,7 +108,7 @@ func (a *APIServer) GetEvents(params *api.GetEventParams, stream api.SecurityMod
 LOOP:
 	for {
 		// Check that the limit is not reached
-		if !a.rate.limiter.Allow() {
+		if !a.rate.Limiter.Allow() {
 			return nil
 		}
 
@@ -592,7 +593,7 @@ func NewAPIServer(cfg *config.Config, probe *sprobe.Probe, client statsd.ClientI
 		expiredEvents:        make(map[rules.RuleID]*atomic.Int64),
 		expiredProcessEvents: atomic.NewInt64(0),
 		expiredDumps:         atomic.NewInt64(0),
-		rate:                 NewLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
+		rate:                 utils.NewLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
 		statsdClient:         client,
 		probe:                probe,
 		retention:            time.Duration(cfg.EventServerRetention) * time.Second,

@@ -119,6 +119,22 @@ type Config struct {
 	// parameter empty to monitor all event types. If not already present, the `exec` event will automatically be added
 	// to this list.
 	ActivityDumpTracedEventTypes []model.EventType
+	// ActivityDumpBindRate defines the rate at which bind events can be added to a dump (number of events per seconds)
+	ActivityDumpBindRate int
+	// ActivityDumpBindBurst defines the burst at which bind events can be added to a dump (number of events per seconds)
+	ActivityDumpBindBurst int
+	// ActivityDumpDNSRate defines the rate at which DNS events can be added to a dump (number of events per seconds)
+	ActivityDumpDNSRate int
+	// ActivityDumpDNSBurst defines the burst at which DNS events can be added to a dump (number of events per seconds)
+	ActivityDumpDNSBurst int
+	// ActivityDumpExecRate defines the rate at which exec events can be added to a dump (number of events per seconds)
+	ActivityDumpExecRate int
+	// ActivityDumpExecBurst defines the burst at which exec events can be added to a dump (number of events per seconds)
+	ActivityDumpExecBurst int
+	// ActivityDumpOpenRate defines the rate at which open events can be added to a dump (number of events per seconds)
+	ActivityDumpOpenRate int
+	// ActivityDumpOpenBurst defines the burst at which open events can be added to a dump (number of events per seconds)
+	ActivityDumpOpenBurst int
 	// ActivityDumpCgroupDumpTimeout defines the cgroup activity dumps timeout.
 	ActivityDumpCgroupDumpTimeout time.Duration
 	// ActivityDumpCgroupWaitListSize defines the size of the cgroup wait list. The wait list is used to introduce a
@@ -243,6 +259,14 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpPathMergeEnabled:          coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.path_merge.enabled"),
 		ActivityDumpTracedCgroupsCount:        coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
 		ActivityDumpTracedEventTypes:          model.ParseEventTypeStringSlice(coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
+		ActivityDumpBindRate:                  coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.bind.rate"),
+		ActivityDumpBindBurst:                 coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.bind.burst"),
+		ActivityDumpDNSRate:                   coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.dns.rate"),
+		ActivityDumpDNSBurst:                  coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.dns.burst"),
+		ActivityDumpExecRate:                  coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.exec.rate"),
+		ActivityDumpExecBurst:                 coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.exec.burst"),
+		ActivityDumpOpenRate:                  coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.open.rate"),
+		ActivityDumpOpenBurst:                 coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.open.burst"),
 		ActivityDumpCgroupDumpTimeout:         time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_dump_timeout")) * time.Minute,
 		ActivityDumpCgroupWaitListSize:        coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_wait_list_size"),
 		ActivityDumpCgroupDifferentiateArgs:   coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.cgroup_differentiate_args"),

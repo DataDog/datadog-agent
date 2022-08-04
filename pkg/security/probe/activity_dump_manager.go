@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf"
+	"golang.org/x/time/rate"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
@@ -50,6 +51,7 @@ type ActivityDumpManager struct {
 	loadController *ActivityDumpLoadController
 	contextTags    []string
 	hostname       string
+	RateLimiter    *utils.RateLimiter
 }
 
 // Start runs the ActivityDumpManager
@@ -127,6 +129,46 @@ func (adm *ActivityDumpManager) resolveTags() {
 	}
 }
 
+// rate limiter consts
+const (
+	rateLimiterGroupExec = "ActivityDumpRateLimiter_Exec"
+	rateLimiterGroupOpen = "ActivityDumpRateLimiter_Open"
+	rateLimiterGroupDNS  = "ActivityDumpRateLimiter_DNS"
+	rateLimiterGroupBind = "ActivityDumpRateLimiter_Bind"
+)
+
+func (adm *ActivityDumpManager) addNewActivityDumpRateLimiter(id string) error {
+	if err := adm.RateLimiter.AddNewLimiter(rateLimiterGroupExec, id, rate.Limit(adm.probe.config.ActivityDumpExecRate), adm.probe.config.ActivityDumpExecBurst); err != nil {
+		return err
+	}
+	if err := adm.RateLimiter.AddNewLimiter(rateLimiterGroupOpen, id, rate.Limit(adm.probe.config.ActivityDumpOpenRate), adm.probe.config.ActivityDumpOpenBurst); err != nil {
+		return err
+	}
+	if err := adm.RateLimiter.AddNewLimiter(rateLimiterGroupDNS, id, rate.Limit(adm.probe.config.ActivityDumpDNSRate), adm.probe.config.ActivityDumpDNSBurst); err != nil {
+		return err
+	}
+	if err := adm.RateLimiter.AddNewLimiter(rateLimiterGroupBind, id, rate.Limit(adm.probe.config.ActivityDumpBindRate), adm.probe.config.ActivityDumpBindBurst); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (adm *ActivityDumpManager) removeActivityDumpRateLimiter(id string) error {
+	if err := adm.RateLimiter.RemoveLimiter(rateLimiterGroupExec, id); err != nil {
+		return err
+	}
+	if err := adm.RateLimiter.RemoveLimiter(rateLimiterGroupOpen, id); err != nil {
+		return err
+	}
+	if err := adm.RateLimiter.RemoveLimiter(rateLimiterGroupDNS, id); err != nil {
+		return err
+	}
+	if err := adm.RateLimiter.RemoveLimiter(rateLimiterGroupBind, id); err != nil {
+		return err
+	}
+	return nil
+}
+
 // NewActivityDumpManager returns a new ActivityDumpManager instance
 func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 	tracedPIDs, found, err := p.manager.GetMap("traced_pids")
@@ -183,6 +225,7 @@ func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 		snapshotQueue:     make(chan *ActivityDump, 100),
 		storage:           storageManager,
 		loadController:    loadController,
+		RateLimiter:       utils.NewRateLimiter(p.statsdClient, utils.LimiterOpts{Limits: make(map[string]map[string]utils.Limit)}),
 	}
 
 	adm.prepareContextTags()
