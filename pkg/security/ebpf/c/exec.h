@@ -358,24 +358,23 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
 }
 
 int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall, struct file *file) {
-    // The executable field in the linux_binprm struct contains information about the interpreter
     struct inode *executable_inode;
     bpf_probe_read(&executable_inode, sizeof(executable_inode), &file->f_inode);
 
     struct path *executable_path = &file->f_path;
 
-    syscall->exec.linux_binprm.executable.path_key = get_inode_key_path(executable_inode, executable_path);
-    syscall->exec.linux_binprm.executable.path_key.path_id = get_path_id(0);
+    syscall->exec.linux_binprm.executable = get_inode_key_path(executable_inode, executable_path);
+    syscall->exec.linux_binprm.executable.path_id = get_path_id(0);
 
 #ifdef DEBUG
-    bpf_printk("executable inode: %u\n", syscall->exec.linux_binprm.executable.path_key.ino);
-    bpf_printk("executable mount id: %u\n", syscall->exec.linux_binprm.executable.path_key.mount_id);
-    bpf_printk("executable path id: %u\n", syscall->exec.linux_binprm.executable.path_key.path_id);
+    bpf_printk("executable inode: %u\n", syscall->exec.linux_binprm.executable.ino);
+    bpf_printk("executable mount id: %u\n", syscall->exec.linux_binprm.executable.mount_id);
+    bpf_printk("executable path id: %u\n", syscall->exec.linux_binprm.executable.path_id);
 #endif
 
     // Add interpreter path to map/pathnames, used by the dentry resolver. 
     // This overwrites the resolver fields on this syscall, but that's ok because the executed file has already been written to the map/pathnames ebpf map.
-    syscall->resolver.key = syscall->exec.linux_binprm.executable.path_key;
+    syscall->resolver.key = syscall->exec.linux_binprm.executable;
     syscall->resolver.dentry = get_file_dentry(file);
     syscall->resolver.discarder_type = 0;
     syscall->resolver.callback = DR_NO_CALLBACK;
@@ -690,17 +689,20 @@ int kprobe_setup_new_exec(struct pt_regs *ctx) {
 
     bprm = (struct linux_binprm *) PT_REGS_PARM1(ctx);
 
-    // Executable
+    // The executable contains information about the interpreter
     struct file *executable;
     bpf_probe_read(&executable, sizeof(executable), &bprm->executable);
 
     // TODO: Older kernel versions
-    // 	const char *filename;	/* Name of binary as seen by procps */
+    // const char *filename;	/* Name of binary as seen by procps */
 	// const char *interp;	/* Name of the binary really executed. Most
 	// 			   of the time same as filename, but could be
 	// 			   different for binfmt_{misc,script} */
 
+#ifdef DEBUG
+    bpf_printk("*filename from binprm: %s\n", &bprm->filename);
     bpf_printk("*interp from binprm: %s\n", &bprm->interp);
+#endif
 
     return handle_interpreted_exec_event(ctx, syscall, executable);
 }
@@ -750,9 +752,8 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
             // [activity_dump] check if this process should be traced
             should_trace_new_process(ctx, now, tgid, event->container.container_id, event->proc_entry.comm);
 
-            // Add information about interpreted events
-            // TODO: Polish linux_binprm info
-            event->linux_binprm.executable.path_key = syscall->exec.linux_binprm.executable.path_key;
+            // add interpreter path info
+            event->linux_binprm.executable = syscall->exec.linux_binprm.executable;
 
             // send the entry to maintain userspace cache
             send_event_ptr(ctx, EVENT_EXEC, event);

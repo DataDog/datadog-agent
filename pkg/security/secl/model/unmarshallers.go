@@ -219,7 +219,7 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	const size = 312 // size of struct exec_event_t starting from process_entry_t, inclusive
+	const size = 256 // size of struct exec_event_t starting from process_entry_t, inclusive
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -238,12 +238,14 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	read += n
 
 	// Unmarshal linux_binprm_t
-	// 224-296 = 72 bytes
-	n, err = UnmarshalBinary(data[read:], &e.LinuxBinprm.FileEvent)
-	if err != nil {
-		return 0, err
+	if len(data) < 32 {
+		return 0, ErrNotEnoughData
 	}
-	read += n
+	e.LinuxBinprm.FileEvent.Inode = ByteOrder.Uint64(data[read : read+8])
+	e.LinuxBinprm.FileEvent.MountID = ByteOrder.Uint32(data[read+8 : read+12])
+	e.LinuxBinprm.FileEvent.PathID = ByteOrder.Uint32(data[read+12 : read+16])
+
+	read += 16
 
 	if len(data[read:]) < 16 {
 		return 0, ErrNotEnoughData
