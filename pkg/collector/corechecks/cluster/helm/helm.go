@@ -12,12 +12,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
@@ -64,11 +64,8 @@ type HelmCheck struct {
 	runLeaderElection bool
 	eventsManager     *eventsManager
 	informerFactory   informers.SharedInformerFactory
-
-	// existingReleasesStored indicates whether the releases deployed before the
-	// agent was started have already been stored. This is needed to avoid
-	// emitting events for those releases.
-	existingReleasesStored bool
+	startTS           time.Time
+	once              sync.Once
 }
 
 type checkConfig struct {
@@ -116,16 +113,10 @@ func (hc *HelmCheck) Configure(config, initConfig integration.Data, source strin
 		return err
 	}
 
-	// Add the releases present before setting up the informers. This allows us
-	// to avoid emitting events for releases that were deployed before the agent
-	// started.
-	if err = hc.addExistingReleases(apiClient); err != nil {
-		return err
-	}
-
 	hc.setSharedInformerFactory(apiClient)
+	hc.startTS = time.Now()
 
-	return hc.setupInformers()
+	return nil
 }
 
 // Run executes the check
@@ -147,6 +138,14 @@ func (hc *HelmCheck) Run() error {
 			return nil
 		}
 	}
+
+	hc.once.Do(func() {
+		// We sync the informers here in Run to avoid blocking
+		// Configure for several seconds/minutes depending on the number of configmaps/secrets.
+		if err = hc.setupInformers(); err != nil {
+			log.Errorf("Couldn't setup informers: %v", err)
+		}
+	})
 
 	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
 		for _, rel := range hc.store.getAll(storageDriver) {
@@ -199,36 +198,6 @@ func (hc *HelmCheck) setSharedInformerFactory(apiClient *apiserver.APIClient) {
 			opts.LabelSelector = labelSelector
 		}),
 	)
-}
-
-func (hc *HelmCheck) addExistingReleases(apiClient *apiserver.APIClient) error {
-	selector := labels.Set{"owner": "helm"}.AsSelector()
-
-	initialHelmSecrets, err := apiClient.Cl.CoreV1().Secrets(v1.NamespaceAll).List(
-		context.Background(), metav1.ListOptions{LabelSelector: selector.String()},
-	)
-	if err != nil {
-		return err
-	}
-
-	for _, secret := range initialHelmSecrets.Items {
-		hc.addSecret(&secret)
-	}
-
-	initialHelmConfigMaps, err := apiClient.Cl.CoreV1().ConfigMaps(v1.NamespaceAll).List(
-		context.Background(), metav1.ListOptions{LabelSelector: selector.String()},
-	)
-	if err != nil {
-		return err
-	}
-
-	for _, configMap := range initialHelmConfigMaps.Items {
-		hc.addConfigmap(&configMap)
-	}
-
-	hc.existingReleasesStored = true
-
-	return nil
 }
 
 func tagsForMetricsAndEvents(release *release, storageDriver helmStorage, includeRevision bool) []string {
@@ -288,7 +257,7 @@ func (hc *HelmCheck) addSecret(obj interface{}) {
 		return
 	}
 
-	hc.addRelease(string(secret.Data["release"]), k8sSecrets)
+	hc.addRelease(string(secret.Data["release"]), secret.GetCreationTimestamp(), k8sSecrets)
 }
 
 func (hc *HelmCheck) deleteSecret(obj interface{}) {
@@ -305,8 +274,24 @@ func (hc *HelmCheck) deleteSecret(obj interface{}) {
 	hc.deleteRelease(string(secret.Data["release"]), k8sSecrets)
 }
 
-func (hc *HelmCheck) updateSecret(_, obj interface{}) {
-	hc.addSecret(obj)
+func (hc *HelmCheck) updateSecret(old, new interface{}) {
+	oldSecret, ok := old.(*v1.Secret)
+	if !ok {
+		log.Warnf("Expected secret, got: %T", old)
+		return
+	}
+
+	newSecret, ok := new.(*v1.Secret)
+	if !ok {
+		log.Warnf("Expected secret, got: %T", old)
+		return
+	}
+
+	if oldSecret.ResourceVersion == newSecret.ResourceVersion {
+		return
+	}
+
+	hc.addSecret(newSecret)
 }
 
 func (hc *HelmCheck) addConfigmap(obj interface{}) {
@@ -320,7 +305,7 @@ func (hc *HelmCheck) addConfigmap(obj interface{}) {
 		return
 	}
 
-	hc.addRelease(configmap.Data["release"], k8sConfigmaps)
+	hc.addRelease(configmap.Data["release"], configmap.GetCreationTimestamp(), k8sConfigmaps)
 }
 
 func (hc *HelmCheck) deleteConfigmap(obj interface{}) {
@@ -337,18 +322,34 @@ func (hc *HelmCheck) deleteConfigmap(obj interface{}) {
 	hc.deleteRelease(configmap.Data["release"], k8sConfigmaps)
 }
 
-func (hc *HelmCheck) updateConfigmap(_, obj interface{}) {
-	hc.addConfigmap(obj)
+func (hc *HelmCheck) updateConfigmap(old, new interface{}) {
+	oldConfigmap, ok := old.(*v1.ConfigMap)
+	if !ok {
+		log.Warnf("Expected configmap, got: %T", old)
+		return
+	}
+
+	newConfigmap, ok := new.(*v1.ConfigMap)
+	if !ok {
+		log.Warnf("Expected configmap, got: %T", old)
+		return
+	}
+
+	if oldConfigmap.ResourceVersion == newConfigmap.ResourceVersion {
+		return
+	}
+
+	hc.addConfigmap(newConfigmap)
 }
 
-func (hc *HelmCheck) addRelease(encodedRelease string, storageDriver helmStorage) {
+func (hc *HelmCheck) addRelease(encodedRelease string, creationTS metav1.Time, storageDriver helmStorage) {
 	decodedRelease, err := decodeRelease(encodedRelease)
 	if err != nil {
 		log.Debugf("error while decoding Helm release: %s", err)
 		return
 	}
 
-	needToEmitEvent := hc.instance.CollectEvents && hc.existingReleasesStored
+	needToEmitEvent := hc.instance.CollectEvents && creationTS.After(hc.startTS)
 
 	if needToEmitEvent {
 		if previous := hc.store.get(decodedRelease.namespacedName(), decodedRelease.revision(), storageDriver); previous != nil {
