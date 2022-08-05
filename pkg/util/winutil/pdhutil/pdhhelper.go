@@ -11,8 +11,11 @@ import (
 	"fmt"
 	"strconv"
 	"unsafe"
+	"time"
+	"sync"
 
 	"golang.org/x/sys/windows"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -22,6 +25,7 @@ var (
 	modPdhDll = windows.NewLazyDLL("pdh.dll")
 
 	procPdhLookupPerfNameByIndex    = modPdhDll.NewProc("PdhLookupPerfNameByIndexW")
+	procPdhEnumObjects              = modPdhDll.NewProc("PdhEnumObjectsW")
 	procPdhEnumObjectItems          = modPdhDll.NewProc("PdhEnumObjectItemsW")
 	procPdhMakeCounterPath          = modPdhDll.NewProc("PdhMakeCounterPathW")
 	procPdhGetFormattedCounterValue = modPdhDll.NewProc("PdhGetFormattedCounterValue")
@@ -72,6 +76,93 @@ func pdhLookupPerfNameByIndex(ndx int) (string, error) {
 	return name, nil
 }
 
+// TODO: configurable?
+const (
+	PDH_REFRESH_INTERVAL = 60 // in seconds
+)
+// Lock enforces no more than once forceRefresh=false
+// is running concurrently
+var lock_lastPdhRefreshTime sync.Mutex
+// tracks last time a refresh was successful
+// initialize with process init time
+var lastPdhRefreshTime = atomic.NewTime(time.Now())
+func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
+	// Refresh the Windows internal PDH Object cache
+	//
+	// When forceRefresh=false, the cache is refreshed no more frequently
+	// than the PDH_REFRESH_INTERVAL.
+	//
+	// forceRefresh - If true, ignore PDH_REFRESH_INTERVAL and refresh anyway
+	//
+	// returns didrefresh=true if the refresh operation was successful
+	//
+
+	var len uint32
+	var lock_held bool
+
+	// forceRefresh can trigger a refresh without taking the lock
+	// so we track if we need to unlock or not
+	lock_held = false
+
+	// Only refresh at most every PDH_REFRESH_INTERVAL seconds
+	// or when forceRefresh=true
+	if !forceRefresh {
+		// TODO: use TryLock in golang 1.18
+		//       we don't need to block here
+		//       worst case the counter is skipped again until next interval.
+		lock_lastPdhRefreshTime.Lock()
+		lock_held = true
+		timenow := time.Now()
+		// time.Time.Sub() uses a monotonic clock
+		if timenow.Sub(lastPdhRefreshTime.Load()).Seconds() < PDH_REFRESH_INTERVAL {
+			// too soon, skip refresh
+			lock_lastPdhRefreshTime.Unlock()
+			return false, nil
+		}
+	}
+
+	// do the refresh
+	// either forceRefresh=true
+	// or the interval expired and lock is held
+
+	log.Infof("Refreshing performance counters")
+	r, _, _ := procPdhEnumObjects.Call(
+		uintptr(0), // NULL data source, use computer in szMachineName parameter
+		uintptr(0), // NULL use local computer
+		uintptr(0), // NULL don't return output
+		uintptr(unsafe.Pointer(&len)), // output size
+		uintptr(PERF_DETAIL_WIZARD),
+		uintptr(1)) // do refresh
+	if r != PDH_MORE_DATA {
+		e := fmt.Sprintf("Failed to refresh performance counters (%v)", r)
+		log.Errorf(e)
+		if lock_held {
+			lock_lastPdhRefreshTime.Unlock()
+		}
+		return false, fmt.Errorf(e)
+	}
+
+	// refresh successful
+	log.Infof("Successfully refreshed performance counters!")
+	// update time
+	lastPdhRefreshTime.Store(time.Now())
+	if lock_held {
+		lock_lastPdhRefreshTime.Unlock()
+	}
+	return true, nil
+}
+func ForceRefreshPdhObjectCache() (didrefresh bool, err error) {
+	// Refresh the Windows internal PDH Object cache
+	// see refreshPdhObjectCache() for details
+	return refreshPdhObjectCache(true)
+}
+func CachedRefreshPdhObjectCache() (didrefresh bool, err error) {
+	// Attempt to refresh the Windows internal PDH Object cache
+	// may be skipped if cache was refreshed recently.
+	// see refreshPdhObjectCache() for details
+	return refreshPdhObjectCache(false)
+}
+
 func pdhEnumObjectItems(className string) (counters []string, instances []string, err error) {
 	var counterlen uint32
 	var instancelen uint32
@@ -94,7 +185,11 @@ func pdhEnumObjectItems(className string) (counters []string, instances []string
 	if r != PDH_MORE_DATA {
 		log.Errorf("Failed to enumerate windows performance counters (%v) (class %s)", r, className)
 		log.Errorf("This error indicates that the Windows performance counter database may need to be rebuilt")
-		return nil, nil, fmt.Errorf("Failed to get buffer size %v", r)
+		if r == PDH_CSTATUS_NO_OBJECT {
+			return nil, nil, fmt.Errorf("Object not found (%v) (class %v)", r, className)
+		} else {
+			return nil, nil, fmt.Errorf("Failed to get buffer size %v", r)
+		}
 	}
 	counterbuf := make([]uint16, counterlen)
 	var instanceptr uintptr
