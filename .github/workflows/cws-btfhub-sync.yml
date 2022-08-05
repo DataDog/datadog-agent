@@ -47,10 +47,6 @@ jobs:
         run: |
           echo "::set-output name=BRANCH_NAME::paulcacheux/cws-constants-sync-$(date +%s)"
 
-      - name: Create and switch to branch
-        run: |
-          git switch -c ${{ steps.branch-name.outputs.BRANCH_NAME }}
-
       #- name: Sync constants
       #  run: inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive
 
@@ -58,27 +54,21 @@ jobs:
         run:
           echo "HELLO" >> pkg/security/api/README.md
 
-      - name: Check if git is dirty
-        id: git-dirty-check
-        run: |
-          set +e
-          git diff --no-ext-diff --quiet --exit-code
-          echo "::set-output name=IS_DIRTY::$?"
-
-      - name: Push branch
-        if: steps.git-dirty-check.outputs.IS_DIRTY != 0
-        run: |
-          git commit -am "Test commit"
-          git push --set-upstream origin ${{ steps.branch-name.outputs.BRANCH_NAME }}
+      - uses: stefanzweifel/git-auto-commit-action@v4
+        id: commit-creator
+        with:
+          commit_message: "CWS: sync BTFhub constants"
+          branch_name: ${{ steps.branch-name.outputs.BRANCH_NAME }}
+          create_branch: true
 
       - name: Create Pull Request
         uses: actions/github-script@v6
-        if: steps.git-dirty-check.outputs.IS_DIRTY != 0
+        if: steps.commit-creator.outputs.changes_detected == 'true'
         with:
           script: |
             const { repo, owner } = context.repo;
             const result = await github.rest.pulls.create({
-              title: 'CWS: sync btfhub constants',
+              title: 'CWS: sync BTFHub constants',
               owner,
               repo,
               head: '${{ steps.branch-name.outputs.BRANCH_NAME }}',
