@@ -51,7 +51,7 @@ jobs:
       - name: Compute branch name
         id: branch-name
         run: |
-          echo "::set-output name=BRANCH_NAME::paulcacheux/cws-constants-sync-$(date +%s)"
+          echo "::set-output name=BRANCH_NAME::cws/constants-sync-$(date +%s)"
 
       - name: Sync constants
         run: |
