@@ -478,6 +478,24 @@ int test_multi_open(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_pipe_chown(void) {
+    int fds[2] = { 0, 0 };
+
+    if (pipe(fds)) {
+        perror("pipe");
+        return EXIT_FAILURE;
+    }
+
+    if (fchown(fds[0], 100, 200) || fchown(fds[1], 100, 200)) {
+        perror("fchown");
+        return EXIT_FAILURE;
+    }
+    close(fds[0]);
+    close(fds[1]);
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please pass a command\n");
@@ -510,6 +528,8 @@ int main(int argc, char **argv) {
         return test_forkexec(argc - 1, argv + 1);
     } else if (strcmp(cmd, "multi-open") == 0) {
         return test_multi_open(argc - 1, argv + 1);
+    } else if (strcmp(cmd, "pipe-chown") == 0) {
+        return test_pipe_chown();
     } else {
         fprintf(stderr, "Unknown command `%s`\n", cmd);
         return EXIT_FAILURE;

@@ -367,7 +367,7 @@ func StartAgent() error {
 	forwarderOpts := forwarder.NewOptions(keysPerDomain)
 	// Enable core agent specific features like persistence-to-disk
 	forwarderOpts.EnabledFeatures = forwarder.SetFeature(forwarderOpts.EnabledFeatures, forwarder.CoreFeatures)
-	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
+	opts := aggregator.DefaultAgentDemultiplexerOptions(forwarderOpts)
 	opts.UseContainerLifecycleForwarder = config.Datadog.GetBool("container_lifecycle.enabled")
 	demux = aggregator.InitAndStartAgentDemultiplexer(opts, hostnameDetected)
 
@@ -452,7 +452,7 @@ func StartAgent() error {
 	}
 
 	// load and run all configs in AD
-	common.AC.LoadAndRun()
+	common.AC.LoadAndRun(common.MainCtx)
 
 	// check for common misconfigurations and report them to log
 	misconfig.ToLog()

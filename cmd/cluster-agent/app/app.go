@@ -227,7 +227,7 @@ func start(cmd *cobra.Command, args []string) error {
 	// Serving stale data is better than serving no data at all.
 	forwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain))
 	forwarderOpts.DisableAPIKeyChecking = true
-	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
+	opts := aggregator.DefaultAgentDemultiplexerOptions(forwarderOpts)
 	opts.UseEventPlatformForwarder = false
 	opts.UseContainerLifecycleForwarder = false
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hname)
@@ -291,7 +291,7 @@ func start(cmd *cobra.Command, args []string) error {
 	common.Coll.Start()
 
 	// start the autoconfig, this will immediately run any configured check
-	common.AC.LoadAndRun()
+	common.AC.LoadAndRun(mainCtx)
 
 	if config.Datadog.GetBool("cluster_checks.enabled") {
 		// Start the cluster check Autodiscovery

@@ -23,7 +23,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
@@ -49,6 +48,7 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			url:       url,
 			apiKey:    endpoint.APIKey,
 			recorder:  r,
+			userAgent: fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
 		})
 	}
 	return senders
@@ -126,6 +126,8 @@ type senderConfig struct {
 	// recorder specifies the eventRecorder to use when reporting events occurring
 	// in the sender.
 	recorder eventRecorder
+	// userAgent is the computed user agent we'll use when communicating with Datadog
+	userAgent string
 }
 
 // sender is responsible for sending payloads to a given URL. It uses a size-limited
@@ -320,9 +322,6 @@ func (s *sender) recordEvent(t eventType, data *eventData) {
 	s.cfg.recorder.recordEvent(t, data)
 }
 
-// userAgent is the computed user agent we'll use when communicating with Datadog
-var userAgent = fmt.Sprintf("Datadog Trace Agent/%s/%s", info.Version, info.GitCommit)
-
 // retriableError is an error returned by the server which may be retried at a later time.
 type retriableError struct{ err error }
 
@@ -336,7 +335,7 @@ const (
 
 func (s *sender) do(req *http.Request) error {
 	req.Header.Set(headerAPIKey, s.cfg.apiKey)
-	req.Header.Set(headerUserAgent, userAgent)
+	req.Header.Set(headerUserAgent, s.cfg.userAgent)
 	resp, err := s.cfg.client.Do(req)
 	if err != nil {
 		// request errors include timeouts or name resolution errors and

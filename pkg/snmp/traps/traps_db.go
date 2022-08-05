@@ -10,6 +10,7 @@ type VariableMetadata struct {
 	Name               string         `yaml:"name" json:"name"`
 	Description        string         `yaml:"descr" json:"descr"`
 	Enumeration        map[int]string `yaml:"enum" json:"enum"`
+	Bits               map[int]string `yaml:"bits" json:"bits"`
 	isIntermediateNode bool
 	// In theory, variables should always be leaves of the OID tree as intermediate nodes do not contain data.
 	// This isn't true in practice (see 1.3.6.1.4.1.4962.2.1.6.3).
