@@ -29,7 +29,7 @@ type BinaryUnmarshaler interface {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
-	id, err := UnmarshalPrintableString(data, ContainerIDLen)
+	id, err := UnmarshalString(data, ContainerIDLen)
 	if err != nil {
 		return 0, err
 	}
