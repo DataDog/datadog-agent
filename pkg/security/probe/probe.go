@@ -95,7 +95,7 @@ type Probe struct {
 
 	// Approvers / discarders section
 	erpc                 *ERPC
-	erpcRequest          *ERPCRequest
+	discarderReq         *ERPCRequest
 	pidDiscarders        *pidDiscarders
 	inodeDiscarders      *inodeDiscarders
 	flushingDiscarders   *atomic.Bool
@@ -268,7 +268,9 @@ func (p *Probe) Init() error {
 		})
 	}
 
-	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors...)
+	if selectors, exists := probes.GetSelectorsPerEventType()["*"]; exists {
+		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, selectors...)
+	}
 
 	if err := p.manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
@@ -290,7 +292,9 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	p.inodeDiscarders = newInodeDiscarders(inodeDiscardersMap, discarderRevisionsMap, p.erpc, p.resolvers.DentryResolver)
+	if p.inodeDiscarders, err = newInodeDiscarders(inodeDiscardersMap, discarderRevisionsMap, p.erpc, p.resolvers.DentryResolver); err != nil {
+		return err
+	}
 
 	if err := p.resolvers.Start(p.ctx); err != nil {
 		return err
@@ -813,6 +817,10 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 		return nil
 	}
 
+	if p.flushingDiscarders.Load() {
+		return nil
+	}
+
 	if p.isRuntimeDiscarded {
 		fakeTime := time.Unix(0, int64(event.TimestampRaw))
 		if !p.discarderRateLimiter.AllowN(fakeTime, 1) {
@@ -1142,10 +1150,10 @@ func (p *Probe) FlushDiscarders() error {
 	flushDiscarders := func() {
 		log.Debugf("Flushing discarders")
 
-		var req ERPCRequest
+		req := newDiscarderRequest()
 
 		for _, inode := range discardedInodes {
-			if err := p.inodeDiscarders.expireInodeDiscarder(&req, inode.PathKey.MountID, inode.PathKey.Inode); err != nil {
+			if err := p.inodeDiscarders.expireInodeDiscarder(req, inode.PathKey.MountID, inode.PathKey.Inode); err != nil {
 				seclog.Tracef("Failed to flush discarder for inode %d: %s", inode, err)
 			}
 
@@ -1156,8 +1164,8 @@ func (p *Probe) FlushDiscarders() error {
 		}
 
 		for _, pid := range discardedPids {
-			if err := p.pidDiscarders.expirePidDiscarder(&req, pid); err != nil {
-				seclog.Tracef("Failed to flush discarder for inode %d: %s", inode, err)
+			if err := p.pidDiscarders.Delete(unsafe.Pointer(&pid)); err != nil {
+				seclog.Tracef("Failed to flush discarder for pid %d: %s", pid, err)
 			}
 
 			discarderCount--
@@ -1352,7 +1360,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		ctx:                  ctx,
 		cancelFnc:            cancel,
 		erpc:                 erpc,
-		erpcRequest:          &ERPCRequest{},
+		discarderReq:         newDiscarderRequest(),
 		tcPrograms:           make(map[NetDeviceKey]*manager.Probe),
 		statsdClient:         statsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second), 100),

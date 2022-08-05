@@ -15,7 +15,6 @@ enum erpc_op {
     RESOLVE_PARENT_OP,
     REGISTER_SPAN_TLS_OP, // can be used outside of the CWS, do not change the value
     EXPIRE_INODE_DISCARDER_OP,
-    EXPIRE_PID_DISCARDER_OP
 };
 
 struct discard_request_t {
@@ -67,9 +66,7 @@ int __attribute__((always_inline)) handle_expire_inode_discarder(void *data) {
     struct expire_inode_discarder_t discarder;
     bpf_probe_read(&discarder, sizeof(discarder), data);
 
-    expire_inode_discarder(discarder.mount_id, discarder.inode);
-
-    return 0;
+    return expire_inode_discarder(discarder.mount_id, discarder.inode);
 }
 
 int __attribute__((always_inline)) handle_discard_pid(void *data) {
@@ -81,19 +78,6 @@ int __attribute__((always_inline)) handle_discard_pid(void *data) {
     bpf_probe_read(&discarder, sizeof(discarder), data);
 
     return discard_pid(discarder.req.event_type, discarder.pid, discarder.req.timeout);
-}
-
-int __attribute__((always_inline)) handle_expire_pid_discarder(void *data) {
-    if (!is_runtime_request()) {
-        return 0;
-    }
-
-    u32 pid;
-    bpf_probe_read(&pid, sizeof(pid), data);
-
-    expire_pid_discarder(pid);
-
-    return 0;
 }
 
 int __attribute__((always_inline)) is_erpc_request(struct pt_regs *ctx) {
@@ -147,8 +131,6 @@ int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
             return handle_register_span_memory(data);
         case EXPIRE_INODE_DISCARDER_OP:
             return handle_expire_inode_discarder(data);
-        case EXPIRE_PID_DISCARDER_OP:
-            return handle_expire_pid_discarder(data);
     }
 
     return 0;
