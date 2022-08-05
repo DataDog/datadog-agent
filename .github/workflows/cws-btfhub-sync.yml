@@ -58,8 +58,10 @@ jobs:
         id: commit-creator
         with:
           commit_message: "CWS: sync BTFhub constants"
-          branch_name: ${{ steps.branch-name.outputs.BRANCH_NAME }}
+          branch: ${{ steps.branch-name.outputs.BRANCH_NAME }}
           create_branch: true
+          skip_fetch: true
+          skip_checkout: true
 
       - name: Create Pull Request
         uses: actions/github-script@v6
