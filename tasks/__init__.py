@@ -27,10 +27,7 @@ from . import (
     systray,
     trace_agent,
 )
-from .build_tags import (
-    audit_tag_impact,
-    print_default_build_tags,
-)
+from .build_tags import audit_tag_impact, print_default_build_tags
 from .go import (
     check_mod_tidy,
     deps,
