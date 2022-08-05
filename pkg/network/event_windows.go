@@ -88,7 +88,7 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 		srcAddr, dstAddr = convertV6Addr(flow.LocalAddress), convertV6Addr(flow.RemoteAddress)
 	}
 
-	*cs = ConnectionStats{Monotonic: map[uint32]StatCounters{}}
+	*cs = ConnectionStats{Monotonic: make(StatCountersByCookie, 0, 1)}
 	cs.Source = srcAddr
 	cs.Dest = dstAddr
 	// after lengthy discussion, use the transport bytes in/out.  monotonic
@@ -125,5 +125,5 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 		}
 	}
 
-	cs.Monotonic[0] = m
+	cs.Monotonic.Put(0, m)
 }
