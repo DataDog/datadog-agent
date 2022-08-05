@@ -12,6 +12,8 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sort"
+	"strings"
 	"time"
 
 	dockerTypes "github.com/docker/docker/api/types"
@@ -153,7 +155,8 @@ func (d *DockerCheck) runProcessor(sender aggregator.Sender) error {
 	return d.processor.Run(sender, cacheValidity)
 }
 
-type containerPerImage struct {
+// containersPerTags is a counter of running and stopped containers that share the same set of tags
+type containersPerTags struct {
 	tags    []string
 	running int64
 	stopped int64
@@ -162,7 +165,7 @@ type containerPerImage struct {
 func (d *DockerCheck) runDockerCustom(sender aggregator.Sender, du docker.Client, rawContainerList []dockerTypes.Container) error {
 	// Container metrics
 	var containersRunning, containersStopped uint64
-	containersPerImage := map[string]*containerPerImage{}
+	containerGroups := map[string]*containersPerTags{}
 
 	// Network extension preRun hook
 	if d.networkProcessorExtension != nil {
@@ -198,25 +201,20 @@ func (d *DockerCheck) runDockerCustom(sender aggregator.Sender, du docker.Client
 		isContainerRunning := rawContainer.State == containers.ContainerRunningState
 		taggerEntityID := containers.BuildTaggerEntityName(rawContainer.ID)
 
-		// Compute container-images stats
-		perImage := containersPerImage[rawContainer.ImageID]
-		if perImage == nil {
-			imageTags, err := getImageTagsFromContainer(taggerEntityID, resolvedImageName, isContainerExcluded || !isContainerRunning)
-			if err != nil {
-				log.Warnf("Unable to fetch tags for container: %s, err: %v", rawContainer.ImageID, err)
-			} else {
-				perImage = &containerPerImage{
-					tags: imageTags,
-				}
-				containersPerImage[rawContainer.ImageID] = perImage
+		tags, err := getImageTagsFromContainer(taggerEntityID, resolvedImageName, isContainerExcluded || !isContainerRunning)
+		if err != nil {
+			log.Warnf("Unable to fetch tags for container: %s, err: %v", rawContainer.ImageID, err)
+		} else {
+			sort.Strings(tags)
+			key := strings.Join(tags, "|")
+			if _, found := containerGroups[key]; !found {
+				containerGroups[key] = &containersPerTags{tags: tags, running: 0, stopped: 0}
 			}
-		}
 
-		if perImage != nil {
 			if isContainerRunning {
-				perImage.running++
+				containerGroups[key].running++
 			} else {
-				perImage.stopped++
+				containerGroups[key].stopped++
 			}
 		}
 
@@ -243,19 +241,19 @@ func (d *DockerCheck) runDockerCustom(sender aggregator.Sender, du docker.Client
 	}
 
 	// Image-Container metrics
-	for _, containerPerImage := range containersPerImage {
-		if containerPerImage.running > 0 {
-			sender.Gauge("docker.containers.running", float64(containerPerImage.running), "", containerPerImage.tags)
+	for _, group := range containerGroups {
+		if group.running > 0 {
+			sender.Gauge("docker.containers.running", float64(group.running), "", group.tags)
 		}
-		if containerPerImage.stopped > 0 {
-			sender.Gauge("docker.containers.stopped", float64(containerPerImage.stopped), "", containerPerImage.tags)
+		if group.stopped > 0 {
+			sender.Gauge("docker.containers.stopped", float64(group.stopped), "", group.tags)
 		}
 	}
 	sender.Gauge("docker.containers.running.total", float64(containersRunning), "", nil)
 	sender.Gauge("docker.containers.stopped.total", float64(containersStopped), "", nil)
 
 	// Image metrics
-	if err := d.collectImageMetrics(sender, du, containersPerImage); err != nil {
+	if err := d.collectImageMetrics(sender, du); err != nil {
 		return err
 	}
 
@@ -275,7 +273,7 @@ func (d *DockerCheck) runDockerCustom(sender aggregator.Sender, du docker.Client
 	return nil
 }
 
-func (d *DockerCheck) collectImageMetrics(sender aggregator.Sender, du docker.Client, containersPerImage map[string]*containerPerImage) error {
+func (d *DockerCheck) collectImageMetrics(sender aggregator.Sender, du docker.Client) error {
 	availableImages, err := du.Images(context.TODO(), false)
 	if err != nil {
 		log.Warnf("Unable to list Docker images, err: %v", err)
