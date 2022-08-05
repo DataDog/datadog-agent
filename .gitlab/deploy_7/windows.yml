@@ -27,7 +27,7 @@ deploy_staging_windows-7:
       --include "datadog-agent-7*.debug.zip"
       --include "datadog-agent-7*.wixpdb"
       --include "customaction-7*.pdb"
-      $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/msi/x86_64/ ||:
+      $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/msi/x86_64/ || true
 
 deploy_staging_windows_master-latest-7:
   rules:
