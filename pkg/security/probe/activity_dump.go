@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/DataDog/gopsutil/process"
-	"github.com/DmitriyVTitov/size"
 	"github.com/prometheus/procfs"
 	"github.com/tinylib/msgp/msgp"
 	"go.uber.org/atomic"
@@ -255,11 +254,8 @@ func (ad *ActivityDump) computeMemorySize() uint64 {
 	defer ad.Unlock()
 
 	if ad.lastComputedSize == 0 {
-		adSize := size.Of(ad)
-		if adSize < 0 {
-			adSize = 0
-		}
-		ad.lastComputedSize = uint64(adSize)
+		stats := ad.computeSizeStats()
+		ad.lastComputedSize = stats.approximateSize()
 	}
 	return ad.lastComputedSize
 }
