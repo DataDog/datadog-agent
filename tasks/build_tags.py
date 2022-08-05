@@ -198,7 +198,7 @@ def compute_build_tags_for_flavor(
 
 
 @task
-def print_default_build_tags(ctx, build="agent", arch="x64", flavor=AgentFlavor.base.name): # noqa: U100
+def print_default_build_tags(_, build="agent", arch="x64", flavor=AgentFlavor.base.name):
     """
     Build the default list of tags based on the build type and current platform.
     Prints as comma separated list suitable for go tooling (eg, gopls, govulncheck)
