@@ -68,7 +68,7 @@ func UnmarshalString(data []byte, size int) (string, error) {
 
 	i := bytes.IndexByte(data[:size], 0)
 	if i < 0 {
-		return "", ErrIncorrectDataSize
+		i = size
 	}
 
 	return string(data[:i]), nil
@@ -89,10 +89,10 @@ func UnmarshalPrintableString(data []byte, size int) (string, error) {
 	})
 
 	if i < 0 {
-		return "", ErrIncorrectDataSize
+		i = size
 	}
 
-	if data[i] == 0x00 {
+	if i == size || data[i] == 0x00 {
 		return string(data[:i]), nil
 	}
 
