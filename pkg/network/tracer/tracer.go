@@ -359,6 +359,13 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	}, nil
 }
 
+// matchHTTPConnections attempts to match http stats to connections and returns
+// only the http stats that have been matched.
+//
+// The following is attempted in order, stopping at success:
+// 1. exact tuple match
+// 2. assuming connection tuple for http stat is NAT'ed, do a reverse lookup
+//    in the conntrack table and use the non-NAT'ed tuple for a match
 func (t *Tracer) matchHTTPConnections(conns []network.ConnectionStats, httpStats map[http.Key]*http.RequestStats) (matched map[http.Key]*http.RequestStats) {
 	if len(httpStats) == 0 || len(conns) == 0 {
 		return httpStats
@@ -393,20 +400,6 @@ func (t *Tracer) matchHTTPConnections(conns []network.ConnectionStats, httpStats
 			var ktp *http.KeyTuple
 			if ktp, m = connsByKeyTuple[kt]; ktp != nil {
 				kt = *ktp
-			}
-		}
-
-		if !m {
-			// try again by flipping source and dest since we flip them
-			// for server side http requests
-			scratchConn.Source, scratchConn.Dest = scratchConn.Dest, scratchConn.Source
-			scratchConn.SPort, scratchConn.DPort = scratchConn.DPort, scratchConn.SPort
-			if trans := t.conntracker.GetTranslationForConn(scratchConn); trans != nil {
-				kt = network.HTTPKeyTupleFromConnTuple(trans.ReplSrcIP, trans.ReplDstIP, trans.ReplSrcPort, trans.ReplDstPort)
-				var ktp *http.KeyTuple
-				if ktp, m = connsByKeyTuple[kt]; ktp != nil {
-					kt = *ktp
-				}
 			}
 		}
 
