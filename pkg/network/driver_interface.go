@@ -36,7 +36,7 @@ const (
 	// set default max open & closed flows for windows.  See note in setParams(),
 	// these are only sort-of honored for now
 	defaultMaxOpenFlows   = uint64(32767)
-	defaultMaxClosedFlows = uint64(32767)
+	defaultMaxClosedFlows = uint64(65535)
 
 	// starting number of entries usermode flow buffer can contain
 	defaultFlowEntries      = 50
@@ -170,7 +170,6 @@ func (di *DriverInterface) GetStats() (map[DriverExpvar]interface{}, error) {
 	nBufferDecreases := di.nBufferDecreases.Load()
 
 	return map[DriverExpvar]interface{}{
-		totalFlowStats:  stats["driver"],
 		flowHandleStats: stats["handle"],
 		flowStats: map[string]int64{
 			"total":  totalFlows,
@@ -272,8 +271,6 @@ func minUint64(a, b uint64) uint64 {
 	return a
 }
 
-// setParams passes any configuration values from the config file down
-// to the driver.
 func (di *DriverInterface) setFlowParams() error {
 	// set up the maximum flows
 
@@ -284,16 +281,26 @@ func (di *DriverInterface) setFlowParams() error {
 
 	// this makes it so that the config can clamp down, but can never make it
 	// larger than the coded defaults above.
-	maxFlows := minUint64(defaultMaxOpenFlows+defaultMaxClosedFlows, di.maxOpenFlows+di.maxClosedFlows)
-	log.Debugf("Setting max flows in driver to %v", maxFlows)
+	maxOpenFlows := minUint64(defaultMaxOpenFlows, di.maxOpenFlows)
+	maxClosedFlows := minUint64(defaultMaxClosedFlows, di.maxClosedFlows)
+
 	err := di.driverFlowHandle.DeviceIoControl(
-		driver.SetMaxFlowsIOCTL,
-		(*byte)(unsafe.Pointer(&maxFlows)),
-		uint32(unsafe.Sizeof(maxFlows)),
+		driver.SetMaxOpenFlowsIOCTL,
+		(*byte)(unsafe.Pointer(&maxOpenFlows)),
+		uint32(unsafe.Sizeof(maxOpenFlows)),
 		nil,
 		uint32(0), nil, nil)
 	if err != nil {
-		log.Warnf("Failed to set max number of flows to %v %v", maxFlows, err)
+		log.Warnf("Failed to set max number of open flows to %v %v", maxOpenFlows, err)
+	}
+	err = di.driverFlowHandle.DeviceIoControl(
+		driver.SetMaxClosedFlowsIOCTL,
+		(*byte)(unsafe.Pointer(&maxClosedFlows)),
+		uint32(unsafe.Sizeof(maxClosedFlows)),
+		nil,
+		uint32(0), nil, nil)
+	if err != nil {
+		log.Warnf("Failed to set max number of closed flows to %v %v", maxClosedFlows, err)
 	}
 	return err
 }
