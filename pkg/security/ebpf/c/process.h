@@ -105,6 +105,15 @@ struct bpf_map_def SEC("maps/pid_cache") pid_cache = {
     .namespace = "",
 };
 
+struct bpf_map_def SEC("maps/pid_ignored") pid_ignored = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 16738,
+    .pinning = 0,
+    .namespace = "",
+};
+
 // defined in exec.h
 struct proc_cache_t *get_proc_from_cookie(u32 cookie);
 
@@ -139,6 +148,12 @@ static struct proc_cache_t * __attribute__((always_inline)) fill_process_context
     u32 *netns = bpf_map_lookup_elem(&netns_cache, &data->tid);
     if (netns != NULL) {
         data->netns = *netns;
+    }
+
+    // consider kworker a pid which is ignored
+    u32 *is_ignored = bpf_map_lookup_elem(&pid_ignored, &data->pid);
+    if (is_ignored) {
+        data->is_kworker = 1;
     }
 
     return get_proc_cache(tgid);
