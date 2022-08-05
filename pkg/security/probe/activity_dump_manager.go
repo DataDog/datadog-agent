@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DmitriyVTitov/size"
 	"github.com/cilium/ebpf"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -523,18 +522,13 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 	defer adm.Unlock()
 
 	// we first compute the total size used by current activity dumps
-	totalSize := 0
+	var totalSize uint64
 	for _, ad := range adm.activeDumps {
-		ad.Lock()
-		adSize := size.Of(ad)
-		if adSize >= 0 {
-			totalSize += adSize
-		}
-		ad.Unlock()
+		totalSize += ad.computeMemorySize()
 	}
 
 	maxTotalADSize := adm.probe.config.ActivityDumpLoadControlMaxTotalSize * (1 << 20)
-	if totalSize > maxTotalADSize {
+	if totalSize > uint64(maxTotalADSize) {
 		adm.loadController.reduceConfig()
 
 		if err := adm.probe.statsdClient.Count(metrics.MetricActivityDumpLoadControllerTriggered, 1, nil, 1.0); err != nil {
