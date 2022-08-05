@@ -249,7 +249,7 @@ func tagsForServiceCheck(release *release, storageDriver helmStorage) []string {
 func (hc *HelmCheck) addSecret(obj interface{}) {
 	secret, ok := obj.(*v1.Secret)
 	if !ok {
-		log.Warnf("Expected secret, got: %v", obj)
+		log.Warnf("Expected *v1.Secret, got: %T", obj)
 		return
 	}
 
@@ -263,8 +263,18 @@ func (hc *HelmCheck) addSecret(obj interface{}) {
 func (hc *HelmCheck) deleteSecret(obj interface{}) {
 	secret, ok := obj.(*v1.Secret)
 	if !ok {
-		log.Warnf("Expected secret, got: %v", obj)
-		return
+		// It's possible that we got a DeletedFinalStateUnknown here
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			log.Warnf("Received unexpected object: %T", obj)
+			return
+		}
+
+		secret, ok = deletedState.Obj.(*v1.Secret)
+		if !ok {
+			log.Warnf("Expected DeletedFinalStateUnknown to contain *v1.Secret, got: %T", deletedState.Obj)
+			return
+		}
 	}
 
 	if !isManagedByHelm(secret) {
@@ -277,13 +287,13 @@ func (hc *HelmCheck) deleteSecret(obj interface{}) {
 func (hc *HelmCheck) updateSecret(old, new interface{}) {
 	oldSecret, ok := old.(*v1.Secret)
 	if !ok {
-		log.Warnf("Expected secret, got: %T", old)
+		log.Warnf("Expected *v1.Secret, got: %T", old)
 		return
 	}
 
 	newSecret, ok := new.(*v1.Secret)
 	if !ok {
-		log.Warnf("Expected secret, got: %T", old)
+		log.Warnf("Expected *v1.Secret, got: %T", new)
 		return
 	}
 
@@ -297,7 +307,7 @@ func (hc *HelmCheck) updateSecret(old, new interface{}) {
 func (hc *HelmCheck) addConfigmap(obj interface{}) {
 	configmap, ok := obj.(*v1.ConfigMap)
 	if !ok {
-		log.Warnf("Expected configmap, got: %v", obj)
+		log.Warnf("Expected *v1.ConfigMap, got: %T", obj)
 		return
 	}
 
@@ -311,8 +321,18 @@ func (hc *HelmCheck) addConfigmap(obj interface{}) {
 func (hc *HelmCheck) deleteConfigmap(obj interface{}) {
 	configmap, ok := obj.(*v1.ConfigMap)
 	if !ok {
-		log.Warnf("Expected configmap, got: %v", obj)
-		return
+		// It's possible that we got a DeletedFinalStateUnknown here
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			log.Warnf("Received unexpected object: %T", obj)
+			return
+		}
+
+		configmap, ok = deletedState.Obj.(*v1.ConfigMap)
+		if !ok {
+			log.Warnf("Expected DeletedFinalStateUnknown to contain *v1.ConfigMap, got: %T", deletedState.Obj)
+			return
+		}
 	}
 
 	if !isManagedByHelm(configmap) {
@@ -325,13 +345,13 @@ func (hc *HelmCheck) deleteConfigmap(obj interface{}) {
 func (hc *HelmCheck) updateConfigmap(old, new interface{}) {
 	oldConfigmap, ok := old.(*v1.ConfigMap)
 	if !ok {
-		log.Warnf("Expected configmap, got: %T", old)
+		log.Warnf("Expected *v1.ConfigMap, got: %T", old)
 		return
 	}
 
 	newConfigmap, ok := new.(*v1.ConfigMap)
 	if !ok {
-		log.Warnf("Expected configmap, got: %T", old)
+		log.Warnf("Expected *v1.ConfigMap, got: %T", new)
 		return
 	}
 
@@ -345,7 +365,7 @@ func (hc *HelmCheck) updateConfigmap(old, new interface{}) {
 func (hc *HelmCheck) addRelease(encodedRelease string, creationTS metav1.Time, storageDriver helmStorage) {
 	decodedRelease, err := decodeRelease(encodedRelease)
 	if err != nil {
-		log.Debugf("error while decoding Helm release: %s", err)
+		log.Debugf("Error while decoding Helm release: %s", err)
 		return
 	}
 
@@ -365,7 +385,7 @@ func (hc *HelmCheck) addRelease(encodedRelease string, creationTS metav1.Time, s
 func (hc *HelmCheck) deleteRelease(encodedRelease string, storageDriver helmStorage) {
 	decodedRelease, err := decodeRelease(encodedRelease)
 	if err != nil {
-		log.Debugf("error while decoding Helm release: %s", err)
+		log.Debugf("Error while decoding Helm release: %s", err)
 		return
 	}
 
