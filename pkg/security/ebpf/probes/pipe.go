@@ -15,8 +15,8 @@ var pipeProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/alloc_file_pseudo",
-			EBPFFuncName: "kprobe_alloc_file_pseudo",
+			EBPFSection:  "kprobe/mntget",
+			EBPFFuncName: "kprobe_mntget",
 		},
 	},
 }

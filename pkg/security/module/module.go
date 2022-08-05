@@ -672,10 +672,15 @@ func (m *Module) RunSelfTest(sendLoadedReport bool) error {
 		return err
 	}
 
+	log.Debugf("self-test results : success : %v, failed : %v", success, fails)
+
 	// send the report
-	monitor := m.probe.GetMonitor()
-	monitor.ReportSelfTest(success, fails)
-	return err
+	if m.config.SelfTestSendReport {
+		monitor := m.probe.GetMonitor()
+		monitor.ReportSelfTest(success, fails)
+	}
+
+	return nil
 }
 
 func logLoadingErrors(msg string, m *multierror.Error) {

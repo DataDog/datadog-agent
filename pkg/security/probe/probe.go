@@ -1585,8 +1585,6 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest("tty_offset", "struct signal_struct", "tty", "linux/sched/signal.h")
 	constantFetcher.AppendOffsetofRequest("tty_name_offset", "struct tty_struct", "name", "linux/tty.h")
 	constantFetcher.AppendOffsetofRequest("creds_uid_offset", "struct cred", "uid", "linux/cred.h")
-	constantFetcher.AppendOffsetofRequest("sb_type_offset", "struct super_block", "s_type", "linux/fs.h")
-	constantFetcher.AppendOffsetofRequest("file_system_type_name_offset", "struct file_system_type", "name", "linux/fs.h")
 
 	// bpf offsets
 	constantFetcher.AppendOffsetofRequest("bpf_map_id_offset", "struct bpf_map", "id", "linux/bpf.h")

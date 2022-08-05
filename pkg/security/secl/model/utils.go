@@ -47,11 +47,11 @@ func UnmarshalStringArray(data []byte) ([]string, error) {
 
 		if i+n > len {
 			// truncated
-			arg := string(bytes.SplitN(data[i:len-1], []byte{0}, 2)[0])
+			arg := nullTerminatedString(data[i : len-1])
 			return append(result, arg), ErrStringArrayOverflow
 		}
 
-		arg := string(bytes.SplitN(data[i:i+n], []byte{0}, 2)[0])
+		arg := nullTerminatedString(data[i : i+n])
 		i += n
 
 		result = append(result, arg)
@@ -66,12 +66,15 @@ func UnmarshalString(data []byte, size int) (string, error) {
 		return "", ErrNotEnoughData
 	}
 
-	i := bytes.IndexByte(data[:size], 0)
-	if i < 0 {
-		i = size
-	}
+	return nullTerminatedString(data[:size]), nil
+}
 
-	return string(data[:i]), nil
+func nullTerminatedString(d []byte) string {
+	idx := bytes.IndexByte(d, 0)
+	if idx == -1 {
+		return string(d)
+	}
+	return string(d[:idx])
 }
 
 // UnmarshalPrintableString unmarshal printable string

@@ -277,6 +277,16 @@ func New() *Config {
 			cfg.Set(join(netNS, "enable_https_monitoring"), true)
 			c.EnableHTTPSMonitoring = true
 		}
+
+		if !cfg.IsSet(join(spNS, "enable_runtime_compiler")) {
+			cfg.Set(join(spNS, "enable_runtime_compiler"), true)
+			c.EnableRuntimeCompiler = true
+		}
+
+		if !cfg.IsSet(join(spNS, "enable_kernel_header_download")) {
+			cfg.Set(join(spNS, "enable_kernel_header_download"), true)
+			c.EnableKernelHeaderDownload = true
+		}
 	}
 
 	if c.EnableProcessEventMonitoring {

@@ -64,6 +64,9 @@ func (adm *ActivityDumpManager) Start(ctx context.Context, wg *sync.WaitGroup) {
 	tagsTicker := time.NewTicker(adm.probe.config.ActivityDumpTagsResolutionPeriod)
 	defer tagsTicker.Stop()
 
+	loadControlTicker := time.NewTicker(adm.probe.config.ActivityDumpLoadControlPeriod)
+	defer loadControlTicker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -72,6 +75,8 @@ func (adm *ActivityDumpManager) Start(ctx context.Context, wg *sync.WaitGroup) {
 			adm.cleanup()
 		case <-tagsTicker.C:
 			adm.resolveTags()
+		case <-loadControlTicker.C:
+			adm.triggerLoadController()
 		case ad := <-adm.snapshotQueue:
 			if err := ad.Snapshot(); err != nil {
 				seclog.Errorf("couldn't snapshot [%s]: %v", ad.GetSelectorStr(), err)
@@ -508,6 +513,26 @@ func (adm *ActivityDumpManager) AddContextTags(ad *ActivityDump) {
 
 		if !found {
 			ad.Tags = append(ad.Tags, tag)
+		}
+	}
+}
+
+func (adm *ActivityDumpManager) triggerLoadController() {
+	adm.Lock()
+	defer adm.Unlock()
+
+	// we first compute the total size used by current activity dumps
+	var totalSize uint64
+	for _, ad := range adm.activeDumps {
+		totalSize += ad.computeMemorySize()
+	}
+
+	maxTotalADSize := adm.probe.config.ActivityDumpLoadControlMaxTotalSize * (1 << 20)
+	if totalSize > uint64(maxTotalADSize) {
+		adm.loadController.reduceConfig()
+
+		if err := adm.probe.statsdClient.Count(metrics.MetricActivityDumpLoadControllerTriggered, 1, nil, 1.0); err != nil {
+			seclog.Errorf("couldn't send %s metric: %v", metrics.MetricActivityDumpLoadControllerTriggered, err)
 		}
 	}
 }

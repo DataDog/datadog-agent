@@ -670,9 +670,10 @@ type ProcessContext struct {
 
 // PIDContext holds the process context of an kernel event
 type PIDContext struct {
-	Pid   uint32 `field:"pid" msg:"pid"` // Process ID of the process (also called thread group ID)
-	Tid   uint32 `field:"tid" msg:"tid"` // Thread ID of the thread
-	NetNS uint32 `field:"-" msg:"-"`
+	Pid       uint32 `field:"pid" msg:"pid"` // Process ID of the process (also called thread group ID)
+	Tid       uint32 `field:"tid" msg:"tid"` // Thread ID of the thread
+	NetNS     uint32 `field:"-" msg:"-"`
+	IsKworker bool   `field:"is_kworker" msg:"is_kworker"` // Indicates whether the process is a kworker
 }
 
 // RenameEvent represents a rename event

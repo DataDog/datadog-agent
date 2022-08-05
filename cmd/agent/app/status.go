@@ -77,7 +77,9 @@ var statusCmd = &cobra.Command{
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}
 
-		err = config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "info"), "", "", false, true, false)
+		// log level should always be info as that's the level at which we log the
+		// status output.
+		err = config.SetupLogger(loggerName, "info", "", "", false, true, false)
 		if err != nil {
 			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 			return err

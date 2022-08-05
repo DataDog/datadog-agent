@@ -93,6 +93,8 @@ type Config struct {
 	LogTags []string
 	// SelfTestEnabled defines if the self tests should be executed at startup or not
 	SelfTestEnabled bool
+	// SelfTestSendReport defines if a self test event will be emitted
+	SelfTestSendReport bool
 	// EnvsWithValue lists environnement variables that will be fully exported
 	EnvsWithValue []string
 
@@ -104,6 +106,10 @@ type Config struct {
 	// ActivityDumpTagsResolutionPeriod defines the period at which the activity dump manager should try to resolve
 	// missing container tags.
 	ActivityDumpTagsResolutionPeriod time.Duration
+	// ActivityDumpLoadControlPeriod defines the period at which the activity dump manager should trigger the load controller
+	ActivityDumpLoadControlPeriod time.Duration
+	// ActivityDumpLoadControlMaxTotalSize defines the maximum total size after which the load controller will try to reduce the dynamic config
+	ActivityDumpLoadControlMaxTotalSize int
 	// ActivityDumpPathMergeEnabled defines if path merge should be enabled
 	ActivityDumpPathMergeEnabled bool
 	// ActivityDumpTracedCgroupsCount defines the maximum count of cgroups that should be monitored concurrently. Set
@@ -218,6 +224,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		LogPatterns:                        coreconfig.Datadog.GetStringSlice("runtime_security_config.log_patterns"),
 		LogTags:                            coreconfig.Datadog.GetStringSlice("runtime_security_config.log_tags"),
 		SelfTestEnabled:                    coreconfig.Datadog.GetBool("runtime_security_config.self_test.enabled"),
+		SelfTestSendReport:                 coreconfig.Datadog.GetBool("runtime_security_config.self_test.send_report"),
 		RuntimeMonitor:                     coreconfig.Datadog.GetBool("runtime_security_config.runtime_monitor.enabled"),
 		NetworkEnabled:                     coreconfig.Datadog.GetBool("runtime_security_config.network.enabled"),
 		NetworkLazyInterfacePrefixes:       coreconfig.Datadog.GetStringSlice("runtime_security_config.network.lazy_interface_prefixes"),
@@ -238,6 +245,8 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpEnabled:                   coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.enabled"),
 		ActivityDumpCleanupPeriod:             time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cleanup_period")) * time.Second,
 		ActivityDumpTagsResolutionPeriod:      time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.tags_resolution_period")) * time.Second,
+		ActivityDumpLoadControlPeriod:         time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.load_controller_period")) * time.Minute,
+		ActivityDumpLoadControlMaxTotalSize:   coreconfig.Datadog.GetInt(" runtime_security_config.activity_dump.load_controller_max_total_size"),
 		ActivityDumpPathMergeEnabled:          coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.path_merge.enabled"),
 		ActivityDumpTracedCgroupsCount:        coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
 		ActivityDumpTracedEventTypes:          model.ParseEventTypeStringSlice(coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
