@@ -98,7 +98,7 @@ type ActivityDump struct {
 	addedRuntimeCount  map[model.EventType]*atomic.Uint64
 	addedSnapshotCount map[model.EventType]*atomic.Uint64
 	pathMergedCount    *atomic.Uint64
-	lastComputedSize   uint64
+	nodeStats          ActivityDumpNodeStats
 
 	// standard attributes used by the intake
 	Host    string   `msg:"host" json:"host,omitempty"`
@@ -253,11 +253,7 @@ func (ad *ActivityDump) computeMemorySize() uint64 {
 	ad.Lock()
 	defer ad.Unlock()
 
-	if ad.lastComputedSize == 0 {
-		stats := ad.computeSizeStats()
-		ad.lastComputedSize = stats.approximateSize()
-	}
-	return ad.lastComputedSize
+	return ad.nodeStats.approximateSize()
 }
 
 // getTimeoutRawTimestamp returns the timeout timestamp of the current activity dump as a monolitic kernel timestamp
@@ -429,9 +425,6 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	// which we successfully found a process activity node
 	ad.processedCount[event.GetEventType()].Inc()
 
-	// we invalidate the precomputed memory size
-	ad.lastComputedSize = 0
-
 	// insert the event based on its type
 	switch event.GetEventType() {
 	case model.FileOpenEventType:
@@ -439,11 +432,11 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 			enabled: ad.adm.probe.config.ActivityDumpPathMergeEnabled,
 			counter: ad.pathMergedCount,
 		}
-		return node.InsertFileEvent(&event.Open.File, event, Runtime, mergeCtx)
+		return node.InsertFileEvent(&event.Open.File, event, Runtime, mergeCtx, &ad.nodeStats)
 	case model.DNSEventType:
-		return node.InsertDNSEvent(&event.DNS)
+		return node.InsertDNSEvent(&event.DNS, &ad.nodeStats)
 	case model.BindEventType:
-		return node.InsertBindEvent(&event.Bind)
+		return node.InsertBindEvent(&event.Bind, &ad.nodeStats)
 	case model.SyscallsEventType:
 		return node.InsertSyscalls(&event.Syscalls)
 	}
@@ -493,7 +486,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 			}
 		}
 		// if it doesn't, create a new ProcessActivityNode for the input ProcessCacheEntry
-		node = NewProcessActivityNode(entry, generationType)
+		node = NewProcessActivityNode(entry, generationType, &ad.nodeStats)
 		// insert in the list of root entries
 		ad.ProcessActivityTree = append(ad.ProcessActivityTree, node)
 
@@ -509,7 +502,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 		}
 
 		// if none of them matched, create a new ProcessActivityNode for the input processCacheEntry
-		node = NewProcessActivityNode(entry, generationType)
+		node = NewProcessActivityNode(entry, generationType, &ad.nodeStats)
 		// insert in the list of root entries
 		parentNode.Children = append(parentNode.Children, node)
 	}
@@ -888,7 +881,8 @@ type ProcessActivityNode struct {
 }
 
 // NewProcessActivityNode returns a new ProcessActivityNode instance
-func NewProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType) *ProcessActivityNode {
+func NewProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, nodeStats *ActivityDumpNodeStats) *ProcessActivityNode {
+	nodeStats.processNodes++
 	pan := ProcessActivityNode{
 		Process:        entry.Process,
 		GenerationType: generationType,
@@ -1016,7 +1010,7 @@ type adPathMergeContext struct {
 
 // InsertFileEvent inserts the provided file event in the current node. This function returns true if a new entry was
 // added, false if the event was dropped.
-func (pan *ProcessActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, generationType NodeGenerationType, mergeCtx adPathMergeContext) bool {
+func (pan *ProcessActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, generationType NodeGenerationType, mergeCtx adPathMergeContext, nodeStats *ActivityDumpNodeStats) bool {
 	parent, nextParentIndex := extractFirstParent(event.ResolveFilePath(fileEvent))
 	if nextParentIndex == 0 {
 		return false
@@ -1026,15 +1020,15 @@ func (pan *ProcessActivityNode) InsertFileEvent(fileEvent *model.FileEvent, even
 
 	child, ok := pan.Files[parent]
 	if ok {
-		return child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, mergeCtx)
+		return child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, mergeCtx, nodeStats)
 	}
 
 	// create new child
 	if len(fileEvent.PathnameStr) <= nextParentIndex+1 {
-		pan.Files[parent] = NewFileActivityNode(fileEvent, event, parent, generationType)
+		pan.Files[parent] = NewFileActivityNode(fileEvent, event, parent, generationType, nodeStats)
 	} else {
-		child := NewFileActivityNode(nil, nil, parent, generationType)
-		child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, mergeCtx)
+		child := NewFileActivityNode(nil, nil, parent, generationType, nodeStats)
+		child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, mergeCtx, nodeStats)
 		pan.Files[parent] = child
 	}
 	return true
@@ -1088,7 +1082,7 @@ func (pan *ProcessActivityNode) insertSnapshotedSocket(p *process.Process, ad *A
 	}
 	evt.Bind.Addr.Port = port
 
-	if pan.InsertBindEvent(&evt.Bind) {
+	if pan.InsertBindEvent(&evt.Bind, &ad.nodeStats) {
 		// count this new entry
 		ad.addedSnapshotCount[model.BindEventType].Inc()
 	}
@@ -1246,7 +1240,7 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 			counter: ad.pathMergedCount,
 		}
 
-		if pan.InsertFileEvent(&evt.Open.File, evt, Snapshot, mergeCtx) {
+		if pan.InsertFileEvent(&evt.Open.File, evt, Snapshot, mergeCtx, &ad.nodeStats) {
 			// count this new entry
 			ad.addedSnapshotCount[model.FileOpenEventType].Inc()
 		}
@@ -1255,7 +1249,7 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 }
 
 // InsertDNSEvent inserts
-func (pan *ProcessActivityNode) InsertDNSEvent(evt *model.DNSEvent) bool {
+func (pan *ProcessActivityNode) InsertDNSEvent(evt *model.DNSEvent, nodeStats *ActivityDumpNodeStats) bool {
 	if dnsNode, ok := pan.DNSNames[evt.Name]; ok {
 		// look for the DNS request type
 		for _, req := range dnsNode.Requests {
@@ -1268,12 +1262,12 @@ func (pan *ProcessActivityNode) InsertDNSEvent(evt *model.DNSEvent) bool {
 		dnsNode.Requests = append(dnsNode.Requests, *evt)
 		return true
 	}
-	pan.DNSNames[evt.Name] = NewDNSNode(evt)
+	pan.DNSNames[evt.Name] = NewDNSNode(evt, nodeStats)
 	return true
 }
 
 // InsertBindEvent inserts a bind event to the activity dump
-func (pan *ProcessActivityNode) InsertBindEvent(evt *model.BindEvent) bool {
+func (pan *ProcessActivityNode) InsertBindEvent(evt *model.BindEvent, nodeStats *ActivityDumpNodeStats) bool {
 	if evt.SyscallEvent.Retval != 0 {
 		return false
 	}
@@ -1288,7 +1282,7 @@ func (pan *ProcessActivityNode) InsertBindEvent(evt *model.BindEvent) bool {
 		}
 	}
 	if sock == nil {
-		sock = NewSocketNode(evtFamily)
+		sock = NewSocketNode(evtFamily, nodeStats)
 		pan.Sockets = append(pan.Sockets, sock)
 		newNode = true
 	}
@@ -1339,7 +1333,8 @@ type OpenNode struct {
 }
 
 // NewFileActivityNode returns a new FileActivityNode instance
-func NewFileActivityNode(fileEvent *model.FileEvent, event *Event, name string, generationType NodeGenerationType) *FileActivityNode {
+func NewFileActivityNode(fileEvent *model.FileEvent, event *Event, name string, generationType NodeGenerationType, nodeStats *ActivityDumpNodeStats) *FileActivityNode {
+	nodeStats.fileNodes++
 	fan := &FileActivityNode{
 		Name:           name,
 		GenerationType: generationType,
@@ -1381,7 +1376,7 @@ func (fan *FileActivityNode) enrichFromEvent(event *Event) {
 
 // InsertFileEvent inserts an event in a FileActivityNode. This function returns true if a new entry was added, false if
 // the event was dropped.
-func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, remainingPath string, generationType NodeGenerationType, mergeCtx adPathMergeContext) bool {
+func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, remainingPath string, generationType NodeGenerationType, mergeCtx adPathMergeContext, nodeStats *ActivityDumpNodeStats) bool {
 	currentFan := fan
 	currentPath := remainingPath
 	somethingChanged := false
@@ -1394,7 +1389,7 @@ func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *
 		}
 
 		if mergeCtx.enabled && len(currentFan.Children) >= 10 {
-			currentFan.mergeCommonPaths(mergeCtx)
+			currentFan.mergeCommonPaths(mergeCtx, nodeStats)
 		}
 
 		child, ok := currentFan.Children[parent]
@@ -1407,10 +1402,10 @@ func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *
 		// create new child
 		somethingChanged = true
 		if len(currentPath) <= nextParentIndex+1 {
-			currentFan.Children[parent] = NewFileActivityNode(fileEvent, event, parent, generationType)
+			currentFan.Children[parent] = NewFileActivityNode(fileEvent, event, parent, generationType, nodeStats)
 			break
 		} else {
-			child := NewFileActivityNode(nil, nil, parent, generationType)
+			child := NewFileActivityNode(nil, nil, parent, generationType, nodeStats)
 			currentFan.Children[parent] = child
 
 			currentFan = child
@@ -1422,11 +1417,11 @@ func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *
 	return somethingChanged
 }
 
-func (fan *FileActivityNode) mergeCommonPaths(mergeCtx adPathMergeContext) {
-	fan.Children = combineChildren(fan.Children, mergeCtx)
+func (fan *FileActivityNode) mergeCommonPaths(mergeCtx adPathMergeContext, nodeStats *ActivityDumpNodeStats) {
+	fan.Children = combineChildren(fan.Children, mergeCtx, nodeStats)
 }
 
-func combineChildren(children map[string]*FileActivityNode, mergeCtx adPathMergeContext) map[string]*FileActivityNode {
+func combineChildren(children map[string]*FileActivityNode, mergeCtx adPathMergeContext, nodeStats *ActivityDumpNodeStats) map[string]*FileActivityNode {
 	if len(children) == 0 {
 		return children
 	}
@@ -1464,6 +1459,9 @@ func combineChildren(children map[string]*FileActivityNode, mergeCtx adPathMerge
 					continue
 				}
 
+				if nodeStats.fileNodes > 0 { // should not happen, but just to be sure
+					nodeStats.fileNodes--
+				}
 				next = append(next, inner{
 					pair: sp,
 					fan:  merged,
@@ -1541,7 +1539,8 @@ type DNSNode struct {
 }
 
 // NewDNSNode returns a new DNSNode instance
-func NewDNSNode(event *model.DNSEvent) *DNSNode {
+func NewDNSNode(event *model.DNSEvent, nodeStats *ActivityDumpNodeStats) *DNSNode {
+	nodeStats.dnsNodes++
 	return &DNSNode{
 		Requests: []model.DNSEvent{*event},
 	}
@@ -1582,7 +1581,8 @@ func (n *SocketNode) InsertBindEvent(evt *model.BindEvent) bool {
 }
 
 // NewSocketNode returns a new SocketNode instance
-func NewSocketNode(family string) *SocketNode {
+func NewSocketNode(family string, nodeStats *ActivityDumpNodeStats) *SocketNode {
+	nodeStats.socketNodes++
 	return &SocketNode{
 		Family: family,
 	}
