@@ -10,6 +10,7 @@ package probe
 
 import "unsafe"
 
+// ActivityDumpSizeStats represents the node counts in an activity dump
 type ActivityDumpSizeStats struct {
 	processNodes uint64
 	fileNodes    uint64
@@ -37,7 +38,7 @@ func (ad *ActivityDump) computeSizeStats() ActivityDumpSizeStats {
 		current := openList[len(openList)-1]
 		openList = openList[:len(openList)-1]
 
-		stats.processNodes += 1
+		stats.processNodes++
 
 		// files
 		stats.fileNodes += countFileNodes(current.Files)
@@ -69,7 +70,7 @@ func countFileNodes(files map[string]*FileActivityNode) uint64 {
 		openList = openList[:len(openList)-1]
 
 		for _, f := range current {
-			counter += 1
+			counter++
 			openList = append(openList, f.Children)
 		}
 	}
