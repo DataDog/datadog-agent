@@ -408,7 +408,6 @@ func (t *Tracer) matchHTTPConnections(conns []network.ConnectionStats, httpStats
 			continue
 		}
 
-		log.Debugf("matched %+v to %+v", httpKey.KeyTuple, kt)
 		httpKey.KeyTuple = kt
 		if s, ok := matched[httpKey]; ok {
 			s.CombineWith(stats)
