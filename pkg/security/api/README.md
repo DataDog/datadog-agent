@@ -13,3 +13,4 @@ From the repository root run the following:
 ```
 protoc -I. --go_out=plugins=grpc,paths=source_relative:. pkg/security/api/api.proto
 ```
+HELLO
