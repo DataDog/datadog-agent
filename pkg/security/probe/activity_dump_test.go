@@ -113,17 +113,14 @@ func TestInsertFileEvent(t *testing.T) {
         - foo
 `)
 
-	mergeCtx := adPathMergeContext{
-		enabled: false,
-	}
-	nodeStats := ActivityDumpNodeStats{}
+	ad := NewEmptyActivityDump()
 
 	for _, path := range pathToInserts {
 		fileEvent := &model.FileEvent{
 			IsPathnameStrResolved: true,
 			PathnameStr:           path,
 		}
-		pan.InsertFileEvent(fileEvent, nil, Unknown, mergeCtx, &nodeStats)
+		ad.InsertFileEventInProcess(&pan, fileEvent, nil, Unknown)
 	}
 
 	var builder strings.Builder

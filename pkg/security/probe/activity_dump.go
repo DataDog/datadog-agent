@@ -97,8 +97,10 @@ type ActivityDump struct {
 	processedCount     map[model.EventType]*atomic.Uint64
 	addedRuntimeCount  map[model.EventType]*atomic.Uint64
 	addedSnapshotCount map[model.EventType]*atomic.Uint64
-	pathMergedCount    *atomic.Uint64
-	nodeStats          ActivityDumpNodeStats
+
+	shouldMergePaths bool
+	pathMergedCount  *atomic.Uint64
+	nodeStats        ActivityDumpNodeStats
 
 	// standard attributes used by the intake
 	Host    string   `msg:"host" json:"host,omitempty"`
@@ -147,6 +149,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		processedCount:     make(map[model.EventType]*atomic.Uint64),
 		addedRuntimeCount:  make(map[model.EventType]*atomic.Uint64),
 		addedSnapshotCount: make(map[model.EventType]*atomic.Uint64),
+		shouldMergePaths:   adm.probe.config.ActivityDumpPathMergeEnabled,
 		pathMergedCount:    atomic.NewUint64(0),
 		StorageRequests:    make(map[dump.StorageFormat][]dump.StorageRequest),
 	}
@@ -428,11 +431,7 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	// insert the event based on its type
 	switch event.GetEventType() {
 	case model.FileOpenEventType:
-		mergeCtx := adPathMergeContext{
-			enabled: ad.adm.probe.config.ActivityDumpPathMergeEnabled,
-			counter: ad.pathMergedCount,
-		}
-		return node.InsertFileEvent(&event.Open.File, event, Runtime, mergeCtx, &ad.nodeStats)
+		return ad.InsertFileEventInProcess(node, &event.Open.File, event, Runtime)
 	case model.DNSEventType:
 		return node.InsertDNSEvent(&event.DNS, &ad.nodeStats)
 	case model.BindEventType:
@@ -606,7 +605,7 @@ func (ad *ActivityDump) Snapshot() error {
 	defer ad.Unlock()
 
 	for _, pan := range ad.ProcessActivityTree {
-		if err := pan.snapshot(ad); err != nil {
+		if err := ad.snapshotProcess(pan); err != nil {
 			return err
 		}
 		// iterate slowly
@@ -1003,14 +1002,9 @@ func extractFirstParent(path string) (string, int) {
 	return path, len(path) + add
 }
 
-type adPathMergeContext struct {
-	enabled bool
-	counter *atomic.Uint64
-}
-
-// InsertFileEvent inserts the provided file event in the current node. This function returns true if a new entry was
+// InsertFileEventInProcess inserts the provided file event in the current node. This function returns true if a new entry was
 // added, false if the event was dropped.
-func (pan *ProcessActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, generationType NodeGenerationType, mergeCtx adPathMergeContext, nodeStats *ActivityDumpNodeStats) bool {
+func (ad *ActivityDump) InsertFileEventInProcess(pan *ProcessActivityNode, fileEvent *model.FileEvent, event *Event, generationType NodeGenerationType) bool {
 	parent, nextParentIndex := extractFirstParent(event.ResolveFilePath(fileEvent))
 	if nextParentIndex == 0 {
 		return false
@@ -1020,25 +1014,25 @@ func (pan *ProcessActivityNode) InsertFileEvent(fileEvent *model.FileEvent, even
 
 	child, ok := pan.Files[parent]
 	if ok {
-		return child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, mergeCtx, nodeStats)
+		return ad.InsertFileEventInFile(child, fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType)
 	}
 
 	// create new child
 	if len(fileEvent.PathnameStr) <= nextParentIndex+1 {
-		pan.Files[parent] = NewFileActivityNode(fileEvent, event, parent, generationType, nodeStats)
+		pan.Files[parent] = NewFileActivityNode(fileEvent, event, parent, generationType, &ad.nodeStats)
 	} else {
-		child := NewFileActivityNode(nil, nil, parent, generationType, nodeStats)
-		child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, mergeCtx, nodeStats)
+		child := NewFileActivityNode(nil, nil, parent, generationType, &ad.nodeStats)
+		ad.InsertFileEventInFile(child, fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType)
 		pan.Files[parent] = child
 	}
 	return true
 }
 
-// snapshot uses procfs to retrieve information about the current process
-func (pan *ProcessActivityNode) snapshot(ad *ActivityDump) error {
+// snapshotProcess uses procfs to retrieve information about the current process
+func (ad *ActivityDump) snapshotProcess(pan *ProcessActivityNode) error {
 	// call snapshot for all the children of the current node
 	for _, child := range pan.Children {
-		if err := child.snapshot(ad); err != nil {
+		if err := ad.snapshotProcess(child); err != nil {
 			return err
 		}
 		// iterate slowly
@@ -1235,12 +1229,7 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 		evt.Open.File.Mode = evt.Open.File.FileFields.Mode
 		// TODO: add open flags by parsing `/proc/[pid]/fdinfo/fd` + O_RDONLY|O_CLOEXEC for the shared libs
 
-		mergeCtx := adPathMergeContext{
-			enabled: ad.adm.probe.config.ActivityDumpPathMergeEnabled,
-			counter: ad.pathMergedCount,
-		}
-
-		if pan.InsertFileEvent(&evt.Open.File, evt, Snapshot, mergeCtx, &ad.nodeStats) {
+		if ad.InsertFileEventInProcess(pan, &evt.Open.File, evt, Snapshot) {
 			// count this new entry
 			ad.addedSnapshotCount[model.FileOpenEventType].Inc()
 		}
@@ -1374,9 +1363,9 @@ func (fan *FileActivityNode) enrichFromEvent(event *Event) {
 	}
 }
 
-// InsertFileEvent inserts an event in a FileActivityNode. This function returns true if a new entry was added, false if
+// InsertFileEventInFile inserts an event in a FileActivityNode. This function returns true if a new entry was added, false if
 // the event was dropped.
-func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *Event, remainingPath string, generationType NodeGenerationType, mergeCtx adPathMergeContext, nodeStats *ActivityDumpNodeStats) bool {
+func (ad *ActivityDump) InsertFileEventInFile(fan *FileActivityNode, fileEvent *model.FileEvent, event *Event, remainingPath string, generationType NodeGenerationType) bool {
 	currentFan := fan
 	currentPath := remainingPath
 	somethingChanged := false
@@ -1388,8 +1377,8 @@ func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *
 			break
 		}
 
-		if mergeCtx.enabled && len(currentFan.Children) >= 10 {
-			currentFan.mergeCommonPaths(mergeCtx, nodeStats)
+		if ad.shouldMergePaths && len(currentFan.Children) >= 10 {
+			currentFan.Children = ad.combineChildren(currentFan.Children)
 		}
 
 		child, ok := currentFan.Children[parent]
@@ -1402,10 +1391,10 @@ func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *
 		// create new child
 		somethingChanged = true
 		if len(currentPath) <= nextParentIndex+1 {
-			currentFan.Children[parent] = NewFileActivityNode(fileEvent, event, parent, generationType, nodeStats)
+			currentFan.Children[parent] = NewFileActivityNode(fileEvent, event, parent, generationType, &ad.nodeStats)
 			break
 		} else {
-			child := NewFileActivityNode(nil, nil, parent, generationType, nodeStats)
+			child := NewFileActivityNode(nil, nil, parent, generationType, &ad.nodeStats)
 			currentFan.Children[parent] = child
 
 			currentFan = child
@@ -1417,11 +1406,7 @@ func (fan *FileActivityNode) InsertFileEvent(fileEvent *model.FileEvent, event *
 	return somethingChanged
 }
 
-func (fan *FileActivityNode) mergeCommonPaths(mergeCtx adPathMergeContext, nodeStats *ActivityDumpNodeStats) {
-	fan.Children = combineChildren(fan.Children, mergeCtx, nodeStats)
-}
-
-func combineChildren(children map[string]*FileActivityNode, mergeCtx adPathMergeContext, nodeStats *ActivityDumpNodeStats) map[string]*FileActivityNode {
+func (ad *ActivityDump) combineChildren(children map[string]*FileActivityNode) map[string]*FileActivityNode {
 	if len(children) == 0 {
 		return children
 	}
@@ -1459,8 +1444,8 @@ func combineChildren(children map[string]*FileActivityNode, mergeCtx adPathMerge
 					continue
 				}
 
-				if nodeStats.fileNodes > 0 { // should not happen, but just to be sure
-					nodeStats.fileNodes--
+				if ad.nodeStats.fileNodes > 0 { // should not happen, but just to be sure
+					ad.nodeStats.fileNodes--
 				}
 				next = append(next, inner{
 					pair: sp,
@@ -1477,7 +1462,7 @@ func combineChildren(children map[string]*FileActivityNode, mergeCtx adPathMerge
 	}
 
 	mergeCount := len(inputs) - len(current)
-	mergeCtx.counter.Add(uint64(mergeCount))
+	ad.pathMergedCount.Add(uint64(mergeCount))
 
 	res := make(map[string]*FileActivityNode)
 	for _, n := range current {
