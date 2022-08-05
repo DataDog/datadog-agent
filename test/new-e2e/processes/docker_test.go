@@ -7,7 +7,6 @@ package processes
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -73,12 +72,8 @@ func (s *DockerTestSuite) TearDownTest() {
 }
 
 func (s *DockerTestSuite) TestDockerAgent() {
-	// TODO:
-	//  - setup a custom hostname with DD_HOSTNAME
-	//  - Enable process-agent
-	//  - Add public API check for processes and containers
-
 	hostName := createHostName(s.T().Name())
+	hostTag := fmt.Sprintf("host:%s", hostName)
 
 	s.T().Logf("start the datadog agent with hostname: %s", hostName)
 	// run the agent container on the VM
@@ -96,43 +91,54 @@ func (s *DockerTestSuite) TestDockerAgent() {
 
 	s.waitForProcessAgent()
 
-	// run "echo hello world" on the agent's container
-	stdout, err = clients.ExecuteCommand(s.ec2.sshClient, "sudo docker exec dd-agent sh -c \"echo hello world\"")
+	// Start containers
+	stdout, err = clients.ExecuteCommand(s.ec2.sshClient,
+		"sudo docker run --name spring-hello -d springio/gs-spring-boot-docker")
 	s.T().Log(stdout)
-	require.NoError(s.T(), err)
+	assert.NoError(s.T(), err)
 
+	stdout, err = clients.ExecuteCommand(s.ec2.sshClient,
+		"sudo docker run --name sleepy  -d busybox sleep 9999")
+	s.T().Log(stdout)
+	assert.NoError(s.T(), err)
+
+	// Check processes are
 	ctx := common.NewDefaultContext(context.Background())
 	assert.Eventually(s.T(), func() bool {
 		resp, _, err := s.procAPIClient.ListProcesses(ctx, *datadog.NewListProcessesOptionalParameters().
-			//WithSearch("process-agent").
-			WithTags(fmt.Sprintf("host:%s", hostName)).
-			WithPageLimit(20),
+			WithSearch("java").
+			WithTags(fmt.Sprintf("%s,container_name:spring-hello", hostTag)).
+			WithPageLimit(2),
+		)
+		if err != nil {
+			s.T().Logf("Error when calling `ProcessesApi.ListProcesses`go: %v\n", err)
+			return false
+		}
+		if procs, ok := resp.GetDataOk(); ok && procs != nil {
+			return len(*procs) == 1
+		}
+		return false
+	}, 2*time.Minute, 1*time.Second)
+
+	assert.Eventually(s.T(), func() bool {
+		resp, _, err := s.procAPIClient.ListProcesses(ctx, *datadog.NewListProcessesOptionalParameters().
+			WithTags(fmt.Sprintf("%s,container_name:sleepy", hostTag)).
+			WithPageLimit(2),
 		)
 		if err != nil {
 			s.T().Logf("Error when calling `ProcessesApi.ListProcesses`: %v\n", err)
 			return false
 		}
 		if procs, ok := resp.GetDataOk(); ok && procs != nil {
-			if len(*procs) > 0 {
-				s.T().Log("summaries")
-				for _, summary := range *procs {
-					s.T().Logf("%v", summary)
-				}
-
-				responseContent, _ := json.MarshalIndent(resp, "", "  ")
-				s.T().Logf("Response from `ProcessesApi.ListProcesses`:\n%s\n", responseContent)
-
-				return true
-			}
+			return len(*procs) == 1
 		}
 		return false
-	}, 10*time.Minute, 1*time.Second)
+	}, 2*time.Minute, 1*time.Second)
 
 }
 
 // TODO: create config helper
 // TODO: create tests that customize the config yaml
-// TODO: update hosts values on a per test basis
 
 // waitForDocker waits for the docker daemon to startup
 func (s *DockerTestSuite) waitForDocker() {
