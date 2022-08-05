@@ -87,7 +87,7 @@ func TestRun(t *testing.T) {
 	// Same order as "releases" array
 	var secretsForReleases []*v1.Secret
 	for _, rel := range releases {
-		secret, err := secretForRelease(&rel)
+		secret, err := secretForRelease(&rel, time.Now())
 		assert.NoError(t, err)
 		secretsForReleases = append(secretsForReleases, secret)
 	}
@@ -221,7 +221,7 @@ func TestRun_withCollectEvents(t *testing.T) {
 	check := factory().(*HelmCheck)
 	check.runLeaderElection = false
 	check.instance.CollectEvents = true
-	check.existingReleasesStored = true
+	check.startTS = time.Now()
 
 	rel := release{
 		Name: "my_datadog",
@@ -239,7 +239,7 @@ func TestRun_withCollectEvents(t *testing.T) {
 		Namespace: "default",
 	}
 
-	secret, err := secretForRelease(&rel)
+	secret, err := secretForRelease(&rel, time.Now().Add(10))
 	assert.NoError(t, err)
 
 	k8sClient := fake.NewSimpleClientset()
@@ -264,7 +264,7 @@ func TestRun_withCollectEvents(t *testing.T) {
 	// Upgrade the release and check that it creates the appropriate event.
 	upgradedRel := rel
 	upgradedRel.Version = 2
-	secretUpgradedRel, err := secretForRelease(&upgradedRel)
+	secretUpgradedRel, err := secretForRelease(&upgradedRel, time.Now().Add(10))
 	assert.NoError(t, err)
 	_, err = k8sClient.CoreV1().Secrets("default").Create(context.TODO(), secretUpgradedRel, metav1.CreateOptions{})
 	assert.NoError(t, err)
@@ -293,6 +293,45 @@ func TestRun_withCollectEvents(t *testing.T) {
 			10*time.Second,
 		)
 	}, 5*time.Second, time.Millisecond*100)
+}
+
+func TestRun_skipEventForExistingRelease(t *testing.T) {
+	check := factory().(*HelmCheck)
+	check.runLeaderElection = false
+	check.instance.CollectEvents = true
+	check.startTS = time.Now()
+
+	rel := release{
+		Name: "my_datadog",
+		Info: &info{
+			Status: "deployed",
+		},
+		Chart: &chart{
+			Metadata: &metadata{
+				Name:       "datadog",
+				Version:    "2.30.5",
+				AppVersion: "7",
+			},
+		},
+		Version:   1,
+		Namespace: "default",
+	}
+
+	secret, err := secretForRelease(&rel, time.Now().Add(-10))
+	assert.NoError(t, err)
+
+	k8sClient := fake.NewSimpleClientset()
+	check.informerFactory = informers.NewSharedInformerFactory(k8sClient, time.Minute)
+
+	mockedSender := mocksender.NewMockSender(checkName)
+	mockedSender.SetupAcceptAll()
+
+	// Create a new release and check that we never send an event for it
+	_, err = k8sClient.CoreV1().Secrets("default").Create(context.TODO(), secret, metav1.CreateOptions{})
+	assert.NoError(t, err)
+	err = check.Run()
+	assert.NoError(t, err)
+	mockedSender.AssertNotCalled(t, "Event")
 }
 
 func TestRun_ServiceCheck(t *testing.T) {
@@ -481,7 +520,7 @@ func TestRun_ServiceCheck(t *testing.T) {
 
 // secretForRelease returns a Kubernetes secret that contains the info of the
 // given Helm release.
-func secretForRelease(rls *release) (*v1.Secret, error) {
+func secretForRelease(rls *release, creationTS time.Time) (*v1.Secret, error) {
 	encodedRel, err := encodeRelease(rls)
 	if err != nil {
 		return nil, err
@@ -491,8 +530,9 @@ func secretForRelease(rls *release) (*v1.Secret, error) {
 		ObjectMeta: metav1.ObjectMeta{
 			// The name is not important for this test. We only need to make
 			// sure that there are no collisions.
-			Name:   fmt.Sprintf("%s.%d", rls.Name, rls.Version),
-			Labels: map[string]string{"owner": "helm"},
+			Name:              fmt.Sprintf("%s.%d", rls.Name, rls.Version),
+			Labels:            map[string]string{"owner": "helm"},
+			CreationTimestamp: metav1.NewTime(creationTS),
 		},
 		Data: map[string][]byte{"release": []byte(encodedRel)},
 	}, nil

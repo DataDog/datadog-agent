@@ -64,12 +64,8 @@ type HelmCheck struct {
 	runLeaderElection bool
 	eventsManager     *eventsManager
 	informerFactory   informers.SharedInformerFactory
+	startTS           time.Time
 	once              sync.Once
-
-	// existingReleasesStored indicates whether the releases deployed before the
-	// agent was started have already been stored. This is needed to avoid
-	// emitting events for those releases.
-	existingReleasesStored bool
 }
 
 type checkConfig struct {
@@ -118,6 +114,7 @@ func (hc *HelmCheck) Configure(config, initConfig integration.Data, source strin
 	}
 
 	hc.setSharedInformerFactory(apiClient)
+	hc.startTS = time.Now()
 
 	return nil
 }
@@ -145,12 +142,10 @@ func (hc *HelmCheck) Run() error {
 	hc.once.Do(func() {
 		// We sync the informers here in Run to avoid blocking
 		// Configure for several seconds/minutes depending on the number of configmaps/secrets.
-		err = hc.setupInformers()
+		if err = hc.setupInformers(); err != nil {
+			log.Errorf("Couldn't setup informers: %v", err)
+		}
 	})
-
-	if err != nil {
-		log.Errorf("Couldn't setup informers: %v", err)
-	}
 
 	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
 		for _, rel := range hc.store.getAll(storageDriver) {
@@ -262,7 +257,7 @@ func (hc *HelmCheck) addSecret(obj interface{}) {
 		return
 	}
 
-	hc.addRelease(string(secret.Data["release"]), k8sSecrets)
+	hc.addRelease(string(secret.Data["release"]), secret.GetCreationTimestamp(), k8sSecrets)
 }
 
 func (hc *HelmCheck) deleteSecret(obj interface{}) {
@@ -310,7 +305,7 @@ func (hc *HelmCheck) addConfigmap(obj interface{}) {
 		return
 	}
 
-	hc.addRelease(configmap.Data["release"], k8sConfigmaps)
+	hc.addRelease(configmap.Data["release"], configmap.GetCreationTimestamp(), k8sConfigmaps)
 }
 
 func (hc *HelmCheck) deleteConfigmap(obj interface{}) {
@@ -347,14 +342,14 @@ func (hc *HelmCheck) updateConfigmap(old, new interface{}) {
 	hc.addConfigmap(newConfigmap)
 }
 
-func (hc *HelmCheck) addRelease(encodedRelease string, storageDriver helmStorage) {
+func (hc *HelmCheck) addRelease(encodedRelease string, creationTS metav1.Time, storageDriver helmStorage) {
 	decodedRelease, err := decodeRelease(encodedRelease)
 	if err != nil {
 		log.Debugf("error while decoding Helm release: %s", err)
 		return
 	}
 
-	needToEmitEvent := hc.instance.CollectEvents && hc.existingReleasesStored
+	needToEmitEvent := hc.instance.CollectEvents && creationTS.After(hc.startTS)
 
 	if needToEmitEvent {
 		if previous := hc.store.get(decodedRelease.namespacedName(), decodedRelease.revision(), storageDriver); previous != nil {
