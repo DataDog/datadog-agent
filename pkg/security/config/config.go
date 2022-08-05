@@ -93,6 +93,8 @@ type Config struct {
 	LogTags []string
 	// SelfTestEnabled defines if the self tests should be executed at startup or not
 	SelfTestEnabled bool
+	// SelfTestSendReport defines if a self test event will be emitted
+	SelfTestSendReport bool
 	// EnvsWithValue lists environnement variables that will be fully exported
 	EnvsWithValue []string
 
@@ -215,6 +217,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		LogPatterns:                        coreconfig.Datadog.GetStringSlice("runtime_security_config.log_patterns"),
 		LogTags:                            coreconfig.Datadog.GetStringSlice("runtime_security_config.log_tags"),
 		SelfTestEnabled:                    coreconfig.Datadog.GetBool("runtime_security_config.self_test.enabled"),
+		SelfTestSendReport:                 coreconfig.Datadog.GetBool("runtime_security_config.self_test.send_report"),
 		RuntimeMonitor:                     coreconfig.Datadog.GetBool("runtime_security_config.runtime_monitor.enabled"),
 		NetworkEnabled:                     coreconfig.Datadog.GetBool("runtime_security_config.network.enabled"),
 		NetworkLazyInterfacePrefixes:       coreconfig.Datadog.GetStringSlice("runtime_security_config.network.lazy_interface_prefixes"),
