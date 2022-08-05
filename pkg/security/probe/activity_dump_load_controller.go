@@ -20,6 +20,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/avast/retry-go"
 	"github.com/cilium/ebpf"
+	"golang.org/x/time/rate"
 )
 
 // ActivityDumpLCConfig represents the dynamic configuration managed by the load controller
@@ -84,6 +85,8 @@ func (lcCfg *ActivityDumpLCConfig) reduced() *ActivityDumpLCConfig {
 
 // ActivityDumpLoadController is a load controller allowing dynamic change of Activity Dump configuration
 type ActivityDumpLoadController struct {
+	rateLimiter *rate.Limiter
+
 	originalConfig *ActivityDumpLCConfig
 	currentConfig  *ActivityDumpLCConfig
 
@@ -128,6 +131,9 @@ func NewActivityDumpLoadController(cfg *config.Config, man *manager.Manager) (*A
 	}
 
 	return &ActivityDumpLoadController{
+		// 1 every timeout, otherwise we do not have time to see real effects from the reduction
+		rateLimiter: rate.NewLimiter(rate.Every(cfg.ActivityDumpCgroupDumpTimeout), 1),
+
 		originalConfig: NewActivityDumpLCConfig(cfg),
 
 		tracedEventTypesMap:     tracedEventTypesMap,
@@ -145,9 +151,11 @@ func (lc *ActivityDumpLoadController) getCurrentConfig() *ActivityDumpLCConfig {
 }
 
 func (lc *ActivityDumpLoadController) reduceConfig() {
-	lcCfg := lc.getCurrentConfig()
-	newCfg := lcCfg.reduced()
-	lc.currentConfig = newCfg
+	if lc.rateLimiter.Allow() {
+		lcCfg := lc.getCurrentConfig()
+		newCfg := lcCfg.reduced()
+		lc.currentConfig = newCfg
+	}
 }
 
 func (lc *ActivityDumpLoadController) propagateLoadSettings() error {
