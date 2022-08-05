@@ -216,6 +216,7 @@ def print_default_build_tags(_, build="agent", arch="x64", flavor=AgentFlavor.ba
 
     print(",".join(sorted(get_default_build_tags(build, arch, flavor))))
 
+
 def get_default_build_tags(build="agent", arch="x64", flavor=AgentFlavor.base):
     """
     Build the default list of tags based on the build type and current platform.
