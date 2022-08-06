@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -75,6 +76,13 @@ func modelConnections(conns *network.Connections) *model.Connections {
 
 	for i, conn := range conns.Conns {
 		agentConns[i] = FormatConnection(conn, routeIndex, httpEncoder, dnsFormatter, ipc, tagsSet)
+	}
+
+	if httpEncoder != nil && httpEncoder.orphanEntries > 0 {
+		log.Debugf(
+			"detected orphan http aggreggations. this can be either caused by conntrack sampling or missed tcp close events. count=%d",
+			httpEncoder.orphanEntries,
+		)
 	}
 
 	routes := make([]*model.Route, len(routeIndex))
