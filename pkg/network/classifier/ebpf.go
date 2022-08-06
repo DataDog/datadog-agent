@@ -72,7 +72,8 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 		},
 		Probes: []*manager.Probe{
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.SocketClassifierFilter), EBPFFuncName: "socket__classifier_filter"}},
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.CgroupBpfRunFilterSkb), EBPFFuncName: "kprobe____cgroup_bpf_run_filter_skb"}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.SecuritySockRcvSkb), EBPFFuncName: "kprobe__security_sock_rcv_skb"}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.NetDevQueue), EBPFFuncName: "tracepoint__net__net_dev_queue"}},
 		},
 	}
 
@@ -137,8 +138,14 @@ func (e *ebpfProgram) Init(connMap *ebpf.Map, telemetryMap *ebpf.Map) error {
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probes.CgroupBpfRunFilterSkb),
-					EBPFFuncName: "kprobe____cgroup_bpf_run_filter_skb",
+					EBPFSection:  string(probes.SecuritySockRcvSkb),
+					EBPFFuncName: "kprobe__security_sock_rcv_skb",
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  string(probes.NetDevQueue),
+					EBPFFuncName: "tracepoint__net__net_dev_queue",
 				},
 			},
 		},

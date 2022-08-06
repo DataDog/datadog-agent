@@ -4,4 +4,4 @@
 
 package runtime
 
-var Classifier = NewRuntimeAsset("classifier.c", "c030d3addf021c589478656fe59f3995b852d971932a8f94cd22a2c87194742b")
+var Classifier = NewRuntimeAsset("classifier.c", "894880110a70ccf08fffb86bf0572e03a5f76715b4e9b0dd8fe926e77d4ad986")

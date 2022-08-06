@@ -50,25 +50,53 @@ static __always_inline void do_tail_call(void* ctx, int protocol) {
         bpf_tail_call_compat(ctx, &proto_progs, PROG_INDX(protocol));
 }
 
-SEC("kprobe/__cgroup_bpf_run_filter_skb")
-int kprobe____cgroup_bpf_run_filter_skb(struct pt_regs* ctx) {
+static __always_inline void map_sk_skb(struct sock* sk, struct sk_buff* skb) {
     conn_tuple_t tup;
     conn_tuple_t skb_tup;
+
+    __builtin_memset(&skb_tup, 0, sizeof(conn_tuple_t));
+    if (sk_buff_to_tuple(skb, &skb_tup) <= 0)
+        return;
+    if (!(skb_tup.metadata&CONN_TYPE_TCP))
+        return;
+
+    u64 err = read_conn_tuple_with_err(&tup, sk, 0, 0);
+    if (err)
+        log_debug("map_sk_skb: read_conn_tuple_with_err: %lu\n", err);
+
+    tup.netns = get_netns(&sk->sk_net);
+    bpf_map_update_elem(&filter_args, &skb_tup, &tup, BPF_ANY);
+}
+
+SEC("kprobe/security_sock_rcv_skb")
+int kprobe__security_sock_rcv_skb(struct pt_regs* ctx) {
     struct sock* sk = (struct sock *)PT_REGS_PARM1(ctx);
     struct sk_buff *skb = (struct sk_buff *)PT_REGS_PARM2(ctx);
 
     if (!sk || !skb)
         return 0;
 
-    if (!read_conn_tuple(&tup, sk, 0, 0))
+    map_sk_skb(sk, skb);
+
+    return 0;
+}
+
+struct net_dev_queue_ctx {
+    u64 unused;
+    struct sk_buff* skb;
+};
+SEC("tracepoint/net/net_dev_queue")
+int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
+    struct sock* sk;
+    struct sk_buff* skb = ctx->skb;
+    if (!skb)
         return 0;
 
-    __builtin_memset(&skb_tup, 0, sizeof(conn_tuple_t));
-    if (sk_buff_to_tuple(skb, &skb_tup) <= 0)
+    bpf_probe_read(&sk, sizeof(struct sock*), &skb->sk);
+    if (!sk)
         return 0;
 
-    tup.netns = get_netns(&sk->sk_net);
-    bpf_map_update_elem(&filter_args, &skb_tup, &tup, BPF_ANY);
+    map_sk_skb(sk, skb);
 
     return 0;
 }

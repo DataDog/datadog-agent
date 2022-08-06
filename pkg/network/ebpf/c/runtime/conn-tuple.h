@@ -9,6 +9,13 @@
 
 #include <net/inet_sock.h>
 
+#define DPORT_Z (1)
+#define SPORT_Z (1<<1)
+#define DADDR_L_Z (1<<2)
+#define DADDR_H_Z (1<<3)
+#define SADDR_L_Z (1<<4)
+#define SADDR_H_Z (1<<5)
+
 static __always_inline __u16 read_sport(struct sock* skp) {
     __u16 sport = 0;
     bpf_probe_read_kernel(&sport, sizeof(sport), &skp->sk_num);
@@ -23,7 +30,8 @@ static __always_inline __u16 read_sport(struct sock* skp) {
  * Reads values into a `conn_tuple_t` from a `sock`. Any values that are already set in conn_tuple_t
  * are not overwritten. Returns 1 success, 0 otherwise.
  */
-static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
+static __always_inline u64 read_conn_tuple_partial(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
+    u64 ret = 0;
     t->pid = pid_tgid >> 32;
     t->metadata = type;
 
@@ -43,10 +51,14 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
             bpf_probe_read_kernel(&t->daddr_l, sizeof(__be32), &skp->sk_daddr);
         }
 
-        if (!t->saddr_l || !t->daddr_l) {
+        if (!t->saddr_l)
+            ret |= SADDR_L_Z;
+
+        if (!t->daddr_l)
+            ret |= DADDR_L_Z;
+
+        if (!t->saddr_l || !t->daddr_l)
             log_debug("ERR(read_conn_tuple.v4): src/dst addr not set src:%d,dst:%d\n", t->saddr_l, t->daddr_l);
-            return 0;
-        }
     }
 #ifdef FEATURE_IPV6_ENABLED
     else if (family == AF_INET6) {
@@ -60,17 +72,24 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
 
         // We can only pass 4 args to bpf_trace_printk
         // so split those 2 statements to be able to log everything
-        if (!(t->saddr_h || t->saddr_l)) {
+        if (!t->saddr_h)
+            ret |= SADDR_H_Z;
+        if (!t->saddr_l)
+            ret |= SADDR_L_Z;
+
+        if (!(t->saddr_h || t->saddr_l)) 
             log_debug("ERR(read_conn_tuple.v6): src addr not set: src_l:%d,src_h:%d\n",
                 t->saddr_l, t->saddr_h);
-            return 0;
-        }
 
-        if (!(t->daddr_h || t->daddr_l)) {
+        if (!t->daddr_h)
+            ret |= DADDR_H_Z;
+
+        if (!t->daddr_l)
+            ret |= DADDR_L_Z;
+
+        if (!(t->daddr_h || t->daddr_l))
             log_debug("ERR(read_conn_tuple.v6): dst addr not set: dst_l:%d,dst_h:%d\n",
                 t->daddr_l, t->daddr_h);
-            return 0;
-        }
 
         // Check if we can map IPv6 to IPv4
         if (is_ipv4_mapped_ipv6(t->saddr_h, t->saddr_l, t->daddr_h, t->daddr_l)) {
@@ -94,18 +113,30 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
         t->dport = bpf_ntohs(t->dport);
     }
 
-    if (t->sport == 0 || t->dport == 0) {
-        log_debug("ERR(read_conn_tuple.v4): src/dst port not set: src:%d, dst:%d\n", t->sport, t->dport);
-        return 0;
-    }
+    if (t->sport == 0)
+        ret |= SPORT_Z;
+    if (t->dport == 0)
+        ret |= DPORT_Z;
 
-    return 1;
+    if (t->sport == 0 || t->dport == 0)
+        log_debug("ERR(read_conn_tuple.v4): src/dst port not set: src:%d, dst:%d\n", t->sport, t->dport);
+
+    return ret;
 }
 
 /**
  * Reads values into a `conn_tuple_t` from a `sock`. Initializes all values in conn_tuple_t to `0`. Returns 1 success, 0 otherwise.
  */
 static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
+    __builtin_memset(t, 0, sizeof(conn_tuple_t));
+    u64 ret = read_conn_tuple_partial(t, skp, pid_tgid, type);
+    if (ret)
+        return 0;
+
+    return 1;
+}
+
+static __always_inline u64 read_conn_tuple_with_err(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
     __builtin_memset(t, 0, sizeof(conn_tuple_t));
     return read_conn_tuple_partial(t, skp, pid_tgid, type);
 }

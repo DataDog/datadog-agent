@@ -126,8 +126,11 @@ const (
 	// SocketClassifierFilter is the socket probe for dns
 	SocketClassifierFilter ProbeName = "socket/classifier_filter"
 
-	// This hook acts as a way to pass extra arguments into a socket filter
-	CgroupBpfRunFilterSkb ProbeName = "kprobe/__cgroup_bpf_run_filter_skb"
+	// This hook acts as a way to pass extra arguments into a socket filter on ingress
+	SecuritySockRcvSkb ProbeName = "kprobe/security_sock_rcv_skb"
+	//SecuritySockRcvSkb ProbeName = "kprobe/__cgroup_bpf_run_filter_skb"
+
+	NetDevQueue ProbeName = "tracepoint/net/net_dev_queue"
 )
 
 // BPFMapName stores the name of the BPF maps storing statistics and other info
