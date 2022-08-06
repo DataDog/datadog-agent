@@ -338,8 +338,6 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
 	t.activeBuffer.Reset()
 
-	delta.HTTP = t.matchHTTPConnections(delta.Conns, delta.HTTP)
-
 	ips := make([]util.Address, 0, len(delta.Conns)*2)
 	for _, conn := range delta.Conns {
 		ips = append(ips, conn.Source, conn.Dest)
@@ -357,74 +355,6 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		ConnTelemetry:               ctm,
 		CompilationTelemetryByAsset: rctm,
 	}, nil
-}
-
-// matchHTTPConnections attempts to match http stats to connections and returns
-// only the http stats that have been matched.
-//
-// The following is attempted in order, stopping at success:
-// 1. exact tuple match
-// 2. assuming connection tuple for http stat is NAT'ed, do a reverse lookup
-//    in the conntrack table and use the non-NAT'ed tuple for a match
-func (t *Tracer) matchHTTPConnections(conns []network.ConnectionStats, httpStats map[http.Key]*http.RequestStats) (matched map[http.Key]*http.RequestStats) {
-	if len(httpStats) == 0 || len(conns) == 0 {
-		return httpStats
-	}
-
-	connsByKeyTuple := make(map[http.KeyTuple]*http.KeyTuple, len(conns))
-	for _, c := range conns {
-		kt := network.HTTPKeyTupleFromConn(c)
-		connsByKeyTuple[kt] = nil
-		if c.IPTranslation != nil {
-			connsByKeyTuple[network.HTTPKeyTupleFromConnTuple(c.Source, c.Dest, c.SPort, c.DPort)] = &kt
-		}
-	}
-
-	matched = make(map[http.Key]*http.RequestStats, len(httpStats))
-	var scratchConn network.ConnectionStats
-	var kt http.KeyTuple
-	var orphans int
-	for httpKey, stats := range httpStats {
-		if _, ok := connsByKeyTuple[httpKey.KeyTuple]; ok {
-			matched[httpKey] = stats
-			continue
-		}
-
-		// not matched, assume http tuple has NAT addresses and
-		// do a reverse lookup in the conntrack table
-		var m bool
-		scratchConn.Source, scratchConn.SPort = util.FromLowHigh(httpKey.DstIPLow, httpKey.DstIPHigh), httpKey.DstPort
-		scratchConn.Dest, scratchConn.DPort = util.FromLowHigh(httpKey.SrcIPLow, httpKey.SrcIPHigh), httpKey.SrcPort
-		if trans := t.conntracker.GetTranslationForConn(scratchConn); trans != nil {
-			kt = network.HTTPKeyTupleFromConnTuple(trans.ReplSrcIP, trans.ReplDstIP, trans.ReplSrcPort, trans.ReplDstPort)
-			var ktp *http.KeyTuple
-			if ktp, m = connsByKeyTuple[kt]; ktp != nil {
-				kt = *ktp
-			}
-		}
-
-		if !m {
-			orphans++
-			continue
-		}
-
-		httpKey.KeyTuple = kt
-		if s, ok := matched[httpKey]; ok {
-			s.CombineWith(stats)
-			continue
-		}
-
-		matched[httpKey] = stats
-	}
-
-	if orphans > 0 {
-		log.Debugf(
-			"detected orphan http aggreggations. this can be either caused by conntrack sampling or missed tcp close events. count=%d",
-			orphans,
-		)
-	}
-
-	return matched
 }
 
 func (t *Tracer) RegisterClient(clientID string) error {
