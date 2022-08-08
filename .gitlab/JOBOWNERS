@@ -40,11 +40,12 @@ check_already_deployed_version_*     @DataDog/do-not-notify
 # dev_nightly*                         @DataDog/container-integrations
 # docker_trigger_internal*             @DataDog/container-integrations
 
-dca_dev_branch*                      @DataDog/do-not-notify
-dev_branch*                          @DataDog/do-not-notify
-dev_master*                          @DataDog/do-not-notify
-dev_nightly*                         @DataDog/do-not-notify
-docker_trigger_internal*             @DataDog/do-not-notify
+dca_dev_branch*                        @DataDog/do-not-notify
+dev_branch*                            @DataDog/do-not-notify
+dev_master*                            @DataDog/do-not-notify
+dev_nightly*                           @DataDog/do-not-notify
+docker_trigger_internal*               @DataDog/do-not-notify
+docker_trigger_cluster_agent_internal* @DataDog/do-not-notify
 
 # Deploy
 deploy_containers*                   @DataDog/container-integrations

@@ -232,6 +232,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.ancestors.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `process.ancestors.interpreter.file.uid` | int | UID of the file's owner |  |
 | `process.ancestors.interpreter.file.user` | string | User of the file's owner |  |
+| `process.ancestors.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `process.ancestors.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `process.ancestors.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `process.ancestors.ppid` | int | Parent process ID |  |
@@ -292,6 +293,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `process.interpreter.file.uid` | int | UID of the file's owner |  |
 | `process.interpreter.file.user` | string | User of the file's owner |  |
+| `process.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `process.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `process.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `process.ppid` | int | Parent process ID |  |
@@ -459,6 +461,7 @@ A process was executed or forked
 | `exec.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `exec.interpreter.file.uid` | int | UID of the file's owner |  |
 | `exec.interpreter.file.user` | string | User of the file's owner |  |
+| `exec.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `exec.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `exec.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `exec.ppid` | int | Parent process ID |  |
@@ -528,6 +531,7 @@ A process was terminated
 | `exit.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `exit.interpreter.file.uid` | int | UID of the file's owner |  |
 | `exit.interpreter.file.user` | string | User of the file's owner |  |
+| `exit.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `exit.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `exit.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `exit.ppid` | int | Parent process ID |  |
@@ -739,6 +743,7 @@ A ptrace command was executed
 | `ptrace.tracee.ancestors.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `ptrace.tracee.ancestors.interpreter.file.uid` | int | UID of the file's owner |  |
 | `ptrace.tracee.ancestors.interpreter.file.user` | string | User of the file's owner |  |
+| `ptrace.tracee.ancestors.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `ptrace.tracee.ancestors.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `ptrace.tracee.ancestors.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `ptrace.tracee.ancestors.ppid` | int | Parent process ID |  |
@@ -799,6 +804,7 @@ A ptrace command was executed
 | `ptrace.tracee.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `ptrace.tracee.interpreter.file.uid` | int | UID of the file's owner |  |
 | `ptrace.tracee.interpreter.file.user` | string | User of the file's owner |  |
+| `ptrace.tracee.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `ptrace.tracee.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `ptrace.tracee.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `ptrace.tracee.ppid` | int | Parent process ID |  |
@@ -1011,6 +1017,7 @@ A signal was sent
 | `signal.target.ancestors.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `signal.target.ancestors.interpreter.file.uid` | int | UID of the file's owner |  |
 | `signal.target.ancestors.interpreter.file.user` | string | User of the file's owner |  |
+| `signal.target.ancestors.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `signal.target.ancestors.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `signal.target.ancestors.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `signal.target.ancestors.ppid` | int | Parent process ID |  |
@@ -1071,6 +1078,7 @@ A signal was sent
 | `signal.target.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `signal.target.interpreter.file.uid` | int | UID of the file's owner |  |
 | `signal.target.interpreter.file.user` | string | User of the file's owner |  |
+| `signal.target.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `signal.target.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `signal.target.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `signal.target.ppid` | int | Parent process ID |  |

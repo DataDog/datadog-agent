@@ -1325,6 +1325,12 @@ func (z *PIDContext) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Tid")
 				return
 			}
+		case "is_kworker":
+			z.IsKworker, err = dc.ReadBool()
+			if err != nil {
+				err = msgp.WrapError(err, "IsKworker")
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -1338,9 +1344,9 @@ func (z *PIDContext) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z PIDContext) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 2
+	// map header, size 3
 	// write "pid"
-	err = en.Append(0x82, 0xa3, 0x70, 0x69, 0x64)
+	err = en.Append(0x83, 0xa3, 0x70, 0x69, 0x64)
 	if err != nil {
 		return
 	}
@@ -1359,19 +1365,32 @@ func (z PIDContext) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Tid")
 		return
 	}
+	// write "is_kworker"
+	err = en.Append(0xaa, 0x69, 0x73, 0x5f, 0x6b, 0x77, 0x6f, 0x72, 0x6b, 0x65, 0x72)
+	if err != nil {
+		return
+	}
+	err = en.WriteBool(z.IsKworker)
+	if err != nil {
+		err = msgp.WrapError(err, "IsKworker")
+		return
+	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
 func (z PIDContext) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 2
+	// map header, size 3
 	// string "pid"
-	o = append(o, 0x82, 0xa3, 0x70, 0x69, 0x64)
+	o = append(o, 0x83, 0xa3, 0x70, 0x69, 0x64)
 	o = msgp.AppendUint32(o, z.Pid)
 	// string "tid"
 	o = append(o, 0xa3, 0x74, 0x69, 0x64)
 	o = msgp.AppendUint32(o, z.Tid)
+	// string "is_kworker"
+	o = append(o, 0xaa, 0x69, 0x73, 0x5f, 0x6b, 0x77, 0x6f, 0x72, 0x6b, 0x65, 0x72)
+	o = msgp.AppendBool(o, z.IsKworker)
 	return
 }
 
@@ -1405,6 +1424,12 @@ func (z *PIDContext) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Tid")
 				return
 			}
+		case "is_kworker":
+			z.IsKworker, bts, err = msgp.ReadBoolBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "IsKworker")
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -1419,7 +1444,7 @@ func (z *PIDContext) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z PIDContext) Msgsize() (s int) {
-	s = 1 + 4 + msgp.Uint32Size + 4 + msgp.Uint32Size
+	s = 1 + 4 + msgp.Uint32Size + 4 + msgp.Uint32Size + 11 + msgp.BoolSize
 	return
 }
 
@@ -1466,6 +1491,12 @@ func (z *Process) DecodeMsg(dc *msgp.Reader) (err error) {
 					z.PIDContext.Tid, err = dc.ReadUint32()
 					if err != nil {
 						err = msgp.WrapError(err, "PIDContext", "Tid")
+						return
+					}
+				case "is_kworker":
+					z.PIDContext.IsKworker, err = dc.ReadBool()
+					if err != nil {
+						err = msgp.WrapError(err, "PIDContext", "IsKworker")
 						return
 					}
 				default:
@@ -1771,9 +1802,9 @@ func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	// map header, size 2
+	// map header, size 3
 	// write "pid"
-	err = en.Append(0x82, 0xa3, 0x70, 0x69, 0x64)
+	err = en.Append(0x83, 0xa3, 0x70, 0x69, 0x64)
 	if err != nil {
 		return
 	}
@@ -1790,6 +1821,16 @@ func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
 	err = en.WriteUint32(z.PIDContext.Tid)
 	if err != nil {
 		err = msgp.WrapError(err, "PIDContext", "Tid")
+		return
+	}
+	// write "is_kworker"
+	err = en.Append(0xaa, 0x69, 0x73, 0x5f, 0x6b, 0x77, 0x6f, 0x72, 0x6b, 0x65, 0x72)
+	if err != nil {
+		return
+	}
+	err = en.WriteBool(z.PIDContext.IsKworker)
+	if err != nil {
+		err = msgp.WrapError(err, "PIDContext", "IsKworker")
 		return
 	}
 	// write "file"
@@ -2141,13 +2182,16 @@ func (z *Process) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 	// string "pid_context"
 	o = append(o, 0xab, 0x70, 0x69, 0x64, 0x5f, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74)
-	// map header, size 2
+	// map header, size 3
 	// string "pid"
-	o = append(o, 0x82, 0xa3, 0x70, 0x69, 0x64)
+	o = append(o, 0x83, 0xa3, 0x70, 0x69, 0x64)
 	o = msgp.AppendUint32(o, z.PIDContext.Pid)
 	// string "tid"
 	o = append(o, 0xa3, 0x74, 0x69, 0x64)
 	o = msgp.AppendUint32(o, z.PIDContext.Tid)
+	// string "is_kworker"
+	o = append(o, 0xaa, 0x69, 0x73, 0x5f, 0x6b, 0x77, 0x6f, 0x72, 0x6b, 0x65, 0x72)
+	o = msgp.AppendBool(o, z.PIDContext.IsKworker)
 	// string "file"
 	o = append(o, 0xa4, 0x66, 0x69, 0x6c, 0x65)
 	o, err = z.FileEvent.MarshalMsg(o)
@@ -2324,6 +2368,12 @@ func (z *Process) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					z.PIDContext.Tid, bts, err = msgp.ReadUint32Bytes(bts)
 					if err != nil {
 						err = msgp.WrapError(err, "PIDContext", "Tid")
+						return
+					}
+				case "is_kworker":
+					z.PIDContext.IsKworker, bts, err = msgp.ReadBoolBytes(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "PIDContext", "IsKworker")
 						return
 					}
 				default:
@@ -2564,7 +2614,7 @@ func (z *Process) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Process) Msgsize() (s int) {
-	s = 3 + 12 + 1 + 4 + msgp.Uint32Size + 4 + msgp.Uint32Size + 5 + z.FileEvent.Msgsize() + 13 + msgp.StringPrefixSize + len(z.ContainerID) + 15 + msgp.ArrayHeaderSize
+	s = 3 + 12 + 1 + 4 + msgp.Uint32Size + 4 + msgp.Uint32Size + 11 + msgp.BoolSize + 5 + z.FileEvent.Msgsize() + 13 + msgp.StringPrefixSize + len(z.ContainerID) + 15 + msgp.ArrayHeaderSize
 	for za0001 := range z.ContainerTags {
 		s += msgp.StringPrefixSize + len(z.ContainerTags[za0001])
 	}

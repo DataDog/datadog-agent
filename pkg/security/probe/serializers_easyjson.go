@@ -824,6 +824,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe9(in *jle
 			out.EnvsTruncated = bool(in.Bool())
 		case "is_thread":
 			out.IsThread = bool(in.Bool())
+		case "is_kworker":
+			out.IsKworker = bool(in.Bool())
 		default:
 			in.SkipRecursive()
 		}
@@ -981,6 +983,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe9(out *jw
 		const prefix string = ",\"is_thread\":"
 		out.RawString(prefix)
 		out.Bool(bool(in.IsThread))
+	}
+	if in.IsKworker {
+		const prefix string = ",\"is_kworker\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.IsKworker))
 	}
 	out.RawByte('}')
 }
@@ -1428,6 +1435,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe11(in *jl
 			out.EnvsTruncated = bool(in.Bool())
 		case "is_thread":
 			out.IsThread = bool(in.Bool())
+		case "is_kworker":
+			out.IsKworker = bool(in.Bool())
 		default:
 			in.SkipRecursive()
 		}
@@ -1618,6 +1627,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe11(out *j
 		const prefix string = ",\"is_thread\":"
 		out.RawString(prefix)
 		out.Bool(bool(in.IsThread))
+	}
+	if in.IsKworker {
+		const prefix string = ",\"is_kworker\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.IsKworker))
 	}
 	out.RawByte('}')
 }

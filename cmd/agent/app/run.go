@@ -452,7 +452,7 @@ func StartAgent() error {
 	}
 
 	// load and run all configs in AD
-	common.AC.LoadAndRun()
+	common.AC.LoadAndRun(common.MainCtx)
 
 	// check for common misconfigurations and report them to log
 	misconfig.ToLog()

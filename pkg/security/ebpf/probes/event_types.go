@@ -325,9 +325,8 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 
 				// pipes
 				// This is needed to skip FIM events relatives to pipes (avoiding abnormal path events)
-				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID,
-						EBPFSection: "kprobe/alloc_file_pseudo", EBPFFuncName: "kprobe_alloc_file_pseudo"}},
+				&manager.BestEffort{Selectors: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/mntget", EBPFFuncName: "kprobe_mntget"}},
 				}},
 			},
 

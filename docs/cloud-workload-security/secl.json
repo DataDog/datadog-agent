@@ -398,6 +398,12 @@
           "constants": ""
         },
         {
+          "name": "process.ancestors.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
+          "constants": ""
+        },
+        {
           "name": "process.ancestors.is_thread",
           "type": "bool",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
@@ -755,6 +761,12 @@
           "name": "process.interpreter.file.user",
           "type": "string",
           "definition": "User of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "process.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
           "constants": ""
         },
         {
@@ -1517,6 +1529,12 @@
           "constants": ""
         },
         {
+          "name": "exec.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
+          "constants": ""
+        },
+        {
           "name": "exec.is_thread",
           "type": "bool",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
@@ -1895,6 +1913,12 @@
           "name": "exit.interpreter.file.user",
           "type": "string",
           "definition": "User of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "exit.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
           "constants": ""
         },
         {
@@ -2933,6 +2957,12 @@
           "constants": ""
         },
         {
+          "name": "ptrace.tracee.ancestors.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
+          "constants": ""
+        },
+        {
           "name": "ptrace.tracee.ancestors.is_thread",
           "type": "bool",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
@@ -3290,6 +3320,12 @@
           "name": "ptrace.tracee.interpreter.file.user",
           "type": "string",
           "definition": "User of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
           "constants": ""
         },
         {
@@ -4301,6 +4337,12 @@
           "constants": ""
         },
         {
+          "name": "signal.target.ancestors.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
+          "constants": ""
+        },
+        {
           "name": "signal.target.ancestors.is_thread",
           "type": "bool",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
@@ -4658,6 +4700,12 @@
           "name": "signal.target.interpreter.file.user",
           "type": "string",
           "definition": "User of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
           "constants": ""
         },
         {

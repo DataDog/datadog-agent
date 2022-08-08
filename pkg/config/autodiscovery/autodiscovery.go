@@ -84,29 +84,37 @@ func DiscoverComponentsFromEnv() ([]config.ConfigurationProviders, []config.List
 
 	// Upon retiring this flag, see comment in `KubeContainerConfigProvider`
 	kubeContainerOn := util.CcaInAD()
+	isContainerEnv := config.IsFeaturePresent(config.Docker) ||
+		config.IsFeaturePresent(config.Containerd) ||
+		config.IsFeaturePresent(config.Podman) ||
+		config.IsFeaturePresent(config.ECSFargate)
+	isKubeEnv := config.IsFeaturePresent(config.Kubernetes)
 
-	if config.IsFeaturePresent(config.Docker) || config.IsFeaturePresent(config.Containerd) || config.IsFeaturePresent(config.Podman) || config.IsFeaturePresent(config.ECSFargate) {
-		if kubeContainerOn {
-			detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: names.KubeContainer, Polling: true, PollInterval: "1s"})
-		} else {
+	if kubeContainerOn && (isContainerEnv || isKubeEnv) {
+		detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: names.KubeContainer})
+		log.Info("Adding KubeContainer provider from environment")
+	}
+
+	if isContainerEnv {
+		if !kubeContainerOn {
 			detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: names.Container, Polling: true, PollInterval: "1s"})
+			log.Info("Adding Container provider from environment")
 		}
 
-		if !config.IsFeaturePresent(config.Kubernetes) {
+		if !isKubeEnv {
 			detectedListeners = append(detectedListeners, config.Listeners{Name: names.Container})
 			log.Info("Adding Container listener from environment")
 		}
-		log.Info("Adding Container provider from environment")
 	}
 
-	if config.IsFeaturePresent(config.Kubernetes) {
-		if kubeContainerOn {
-			detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: names.KubeContainer, Polling: true, PollInterval: "1s"})
-		} else {
+	if isKubeEnv {
+		if !kubeContainerOn {
 			detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: "kubelet", Polling: true})
+			log.Info("Adding Kubelet provider from environment")
 		}
+
 		detectedListeners = append(detectedListeners, config.Listeners{Name: "kubelet"})
-		log.Info("Adding Kubelet autodiscovery provider and listener from environment")
+		log.Info("Adding Kubelet listener from environment")
 	}
 
 	return detectedProviders, detectedListeners
