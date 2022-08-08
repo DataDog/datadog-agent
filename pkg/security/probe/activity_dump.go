@@ -433,9 +433,9 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	case model.FileOpenEventType:
 		return ad.InsertFileEventInProcess(node, &event.Open.File, event, Runtime)
 	case model.DNSEventType:
-		return node.InsertDNSEvent(&event.DNS, &ad.nodeStats)
+		return ad.InsertDNSEvent(node, &event.DNS)
 	case model.BindEventType:
-		return node.InsertBindEvent(&event.Bind, &ad.nodeStats)
+		return ad.InsertBindEvent(node, &event.Bind)
 	case model.SyscallsEventType:
 		return node.InsertSyscalls(&event.Syscalls)
 	}
@@ -1061,8 +1061,7 @@ func (ad *ActivityDump) snapshotProcess(pan *ProcessActivityNode) error {
 	return nil
 }
 
-func (pan *ProcessActivityNode) insertSnapshotedSocket(p *process.Process, ad *ActivityDump,
-	family uint16, ip net.IP, port uint16) {
+func (ad *ActivityDump) insertSnapshotedSocket(pan *ProcessActivityNode, p *process.Process, family uint16, ip net.IP, port uint16) {
 	evt := NewEvent(ad.adm.probe.resolvers, ad.adm.probe.scrubber, ad.adm.probe)
 	evt.Event.Type = uint32(model.BindEventType)
 
@@ -1076,7 +1075,7 @@ func (pan *ProcessActivityNode) insertSnapshotedSocket(p *process.Process, ad *A
 	}
 	evt.Bind.Addr.Port = port
 
-	if pan.InsertBindEvent(&evt.Bind, &ad.nodeStats) {
+	if ad.InsertBindEvent(pan, &evt.Bind) {
 		// count this new entry
 		ad.addedSnapshotCount[model.BindEventType].Inc()
 	}
@@ -1135,29 +1134,25 @@ func (pan *ProcessActivityNode) snapshotBoundSockets(p *process.Process, ad *Act
 	for _, s := range sockets {
 		for _, sock := range TCP {
 			if sock.Inode == s {
-				pan.insertSnapshotedSocket(p, ad, unix.AF_INET, sock.LocalAddr,
-					uint16(sock.LocalPort))
+				ad.insertSnapshotedSocket(pan, p, unix.AF_INET, sock.LocalAddr, uint16(sock.LocalPort))
 				break
 			}
 		}
 		for _, sock := range UDP {
 			if sock.Inode == s {
-				pan.insertSnapshotedSocket(p, ad, unix.AF_INET, sock.LocalAddr,
-					uint16(sock.LocalPort))
+				ad.insertSnapshotedSocket(pan, p, unix.AF_INET, sock.LocalAddr, uint16(sock.LocalPort))
 				break
 			}
 		}
 		for _, sock := range TCP6 {
 			if sock.Inode == s {
-				pan.insertSnapshotedSocket(p, ad, unix.AF_INET6, sock.LocalAddr,
-					uint16(sock.LocalPort))
+				ad.insertSnapshotedSocket(pan, p, unix.AF_INET6, sock.LocalAddr, uint16(sock.LocalPort))
 				break
 			}
 		}
 		for _, sock := range UDP6 {
 			if sock.Inode == s {
-				pan.insertSnapshotedSocket(p, ad, unix.AF_INET6, sock.LocalAddr,
-					uint16(sock.LocalPort))
+				ad.insertSnapshotedSocket(pan, p, unix.AF_INET6, sock.LocalAddr, uint16(sock.LocalPort))
 				break
 			}
 		}
@@ -1238,7 +1233,7 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 }
 
 // InsertDNSEvent inserts
-func (pan *ProcessActivityNode) InsertDNSEvent(evt *model.DNSEvent, nodeStats *ActivityDumpNodeStats) bool {
+func (ad *ActivityDump) InsertDNSEvent(pan *ProcessActivityNode, evt *model.DNSEvent) bool {
 	if dnsNode, ok := pan.DNSNames[evt.Name]; ok {
 		// look for the DNS request type
 		for _, req := range dnsNode.Requests {
@@ -1251,12 +1246,12 @@ func (pan *ProcessActivityNode) InsertDNSEvent(evt *model.DNSEvent, nodeStats *A
 		dnsNode.Requests = append(dnsNode.Requests, *evt)
 		return true
 	}
-	pan.DNSNames[evt.Name] = NewDNSNode(evt, nodeStats)
+	pan.DNSNames[evt.Name] = NewDNSNode(evt, &ad.nodeStats)
 	return true
 }
 
 // InsertBindEvent inserts a bind event to the activity dump
-func (pan *ProcessActivityNode) InsertBindEvent(evt *model.BindEvent, nodeStats *ActivityDumpNodeStats) bool {
+func (ad *ActivityDump) InsertBindEvent(pan *ProcessActivityNode, evt *model.BindEvent) bool {
 	if evt.SyscallEvent.Retval != 0 {
 		return false
 	}
@@ -1271,7 +1266,7 @@ func (pan *ProcessActivityNode) InsertBindEvent(evt *model.BindEvent, nodeStats 
 		}
 	}
 	if sock == nil {
-		sock = NewSocketNode(evtFamily, nodeStats)
+		sock = NewSocketNode(evtFamily, &ad.nodeStats)
 		pan.Sockets = append(pan.Sockets, sock)
 		newNode = true
 	}
