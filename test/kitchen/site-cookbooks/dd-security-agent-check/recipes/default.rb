@@ -189,4 +189,9 @@ if node['platform_family'] != 'windows'
       content "integrity"
     end
   end
+
+  file '/tmp/system-probe-tests/color_idx' do
+    content node[:color_idx].to_s
+    mode 644
+  end
 end
