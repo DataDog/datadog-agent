@@ -59,8 +59,8 @@ type OTLP struct {
 	// name and the span kind.
 	//
 	// For context, the OpenTelemetry 'Span Name' is equivalent to the Datadog 'resource name'.
-	// The Datadog Span Name's equivalent in OpenTelemetry does not exist, but the span's kind
-	// comes close.
+	// The Datadog Span's Operation Name equivalent in OpenTelemetry does not exist, but the span's
+	// kind comes close.
 	SpanNameAsResourceName bool `mapstructure:"span_name_as_resource_name"`
 
 	// MaxRequestBytes specifies the maximum number of bytes that will be read
