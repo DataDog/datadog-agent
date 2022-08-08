@@ -1,6 +1,8 @@
 require 'spec_helper'
 require 'open3'
 
+GOLANG_TEST_FAILURE = /FAIL:/
+
 def check_output(output, wait_thr)
   test_failures = []
 
