@@ -120,3 +120,9 @@ func (e *EC2TestEnv) Close() {
 	_ = e.sshClient.Close()
 	_ = e.stack.Down(context.Background())
 }
+
+func createHostName(testName string) string {
+	sl := strings.Split(testName, "/")
+	hostName := fmt.Sprintf("%s-%d", sl[len(sl)-1], time.Now().UnixMilli())
+	return hostName
+}

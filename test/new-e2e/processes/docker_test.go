@@ -8,6 +8,7 @@ package processes
 import (
 	"context"
 	"fmt"
+	"golang.org/x/crypto/ssh"
 	"strings"
 	"testing"
 	"time"
@@ -46,7 +47,7 @@ func (s *DockerTestSuite) SetupSuite() {
 	s.ec2, err = NewEC2TestEnv("process-agent-docker-test")
 	require.NoError(s.T(), err)
 
-	s.waitForDocker()
+	waitForDocker(s.T(), s.ec2.sshClient)
 
 	configuration := common.NewConfiguration()
 	s.ddAPIClient = common.NewAPIClient(configuration)
@@ -58,17 +59,7 @@ func (s *DockerTestSuite) TearDownSuite() {
 }
 
 func (s *DockerTestSuite) TearDownTest() {
-	s.T().Log("terminating docker containers")
-	stdout, err := clients.ExecuteCommand(s.ec2.sshClient, "sudo docker kill $(sudo docker ps -aq)")
-	if err != nil {
-		s.T().Logf("error terminating docker containers. stdout:%s, err: %v", stdout, err)
-	}
-
-	stdout, err = clients.ExecuteCommand(s.ec2.sshClient, "sudo docker rm $(sudo docker ps -aq)")
-	if err != nil {
-		s.T().Logf("error removing docker containers. stdout:%s, err: %v", stdout, err)
-	}
-	s.T().Log("docker containers terminated")
+	killAndRemoveContainers(s.T(), s.ec2.sshClient)
 }
 
 func (s *DockerTestSuite) TestDockerAgent() {
@@ -93,12 +84,12 @@ func (s *DockerTestSuite) TestDockerAgent() {
 
 	// Start containers
 	stdout, err = clients.ExecuteCommand(s.ec2.sshClient,
-		"sudo docker run --name spring-hello -d springio/gs-spring-boot-docker")
+		"docker run --name spring-hello -p 8080:8080 -d springio/gs-spring-boot-docker")
 	s.T().Log(stdout)
 	assert.NoError(s.T(), err)
 
 	stdout, err = clients.ExecuteCommand(s.ec2.sshClient,
-		"sudo docker run --name sleepy  -d busybox sleep 9999")
+		"docker run --name sleepy  -d busybox sleep 9999")
 	s.T().Log(stdout)
 	assert.NoError(s.T(), err)
 
@@ -140,36 +131,46 @@ func (s *DockerTestSuite) TestDockerAgent() {
 // TODO: create config helper
 // TODO: create tests that customize the config yaml
 
-// waitForDocker waits for the docker daemon to startup
-func (s *DockerTestSuite) waitForDocker() {
-	var stdout string
-	require.Eventuallyf(s.T(), func() bool {
-		stdout, _ := clients.ExecuteCommand(s.ec2.sshClient, "systemctl is-active docker")
-		return !strings.Contains(stdout, "inactive")
-	}, 2*time.Minute, 500*time.Millisecond, "docker service is not running")
-	s.T().Logf("docker service is active: %s", stdout)
-
-	require.Eventuallyf(s.T(), func() bool {
-		stdout, _ = clients.ExecuteCommand(s.ec2.sshClient, "sudo docker info")
-		return !strings.Contains(stdout, "docker: command not found")
-	}, 2*time.Minute, 500*time.Millisecond, "docker is not running")
-
-	s.T().Logf("docker is running: %s", stdout)
-}
-
 func (s *DockerTestSuite) waitForProcessAgent() {
 	var stdout string
 	require.Eventuallyf(s.T(), func() bool {
 		// Get process log
-		stdout, _ = clients.ExecuteCommand(s.ec2.sshClient, "sudo docker logs dd-agent | grep PROCESS")
+		stdout, _ = clients.ExecuteCommand(s.ec2.sshClient, "docker logs dd-agent | grep PROCESS")
 		return strings.Contains(stdout, "Starting process-agent for")
 	}, 2*time.Minute, 500*time.Millisecond, "process-agent is not running")
 
 	s.T().Log("process-agent is running")
 }
 
-func createHostName(testName string) string {
-	sl := strings.Split(testName, "/")
-	hostName := fmt.Sprintf("%s-%d", sl[len(sl)-1], time.Now().UnixMilli())
-	return hostName
+// waitForDocker waits for the docker daemon to startup
+func waitForDocker(t *testing.T, sshClient *ssh.Client) {
+	var stdout string
+	require.Eventuallyf(t, func() bool {
+		stdout, _ := clients.ExecuteCommand(sshClient, "systemctl is-active docker")
+		return !strings.Contains(stdout, "inactive")
+	}, 2*time.Minute, 500*time.Millisecond, "docker service is not running")
+	t.Logf("docker service is active: %s", stdout)
+
+	_, err := clients.ExecuteCommand(sshClient, "sudo chmod o+rw /var/run/docker.sock")
+	require.NoError(t, err)
+
+	require.Eventuallyf(t, func() bool {
+		stdout, _ = clients.ExecuteCommand(sshClient, "docker info")
+		return !strings.Contains(stdout, "docker: command not found")
+	}, 2*time.Minute, 500*time.Millisecond, "docker is not running")
+	t.Logf("docker is running: %s", stdout)
+}
+
+func killAndRemoveContainers(t *testing.T, sshClient *ssh.Client) {
+	t.Log("terminating docker containers")
+	stdout, err := clients.ExecuteCommand(sshClient, "docker kill $(sudo docker ps -aq)")
+	if err != nil {
+		t.Logf("error terminating docker containers. stdout:%s, err: %v", stdout, err)
+	}
+
+	stdout, err = clients.ExecuteCommand(sshClient, "docker rm $(sudo docker ps -aq)")
+	if err != nil {
+		t.Logf("error removing docker containers. stdout:%s, err: %v", stdout, err)
+	}
+	t.Log("docker containers terminated")
 }
