@@ -190,7 +190,15 @@ if node['platform_family'] != 'windows'
     end
   end
 
-  file '/tmp/system-probe-tests/color_idx' do
+  # system-probe common
+
+  system_probe_tests_folder = '/tmp/system-probe-tests'
+
+  directory system_probe_tests_folder do
+    recursive true
+  end
+
+  file "#{system_probe_tests_folder}/color_idx" do
     content node[:color_idx].to_s
     mode 644
   end
