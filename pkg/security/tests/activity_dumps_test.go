@@ -67,15 +67,17 @@ func TestActivityDumps(t *testing.T) {
 		}
 
 		validateActivityDumpOutputs(t, test, expectedFormats, outputFiles, func(ad *probe.ActivityDump) bool {
-			node := ad.FindFirstMatchingNode("syscall_tester")
-			if node == nil {
-				t.Fatalf("Node not found in activity dump: %+v", node)
+			nodes := ad.FindMatchingNodes("syscall_tester")
+			if nodes == nil {
+				t.Fatalf("Node not found in activity dump: %+v", nodes)
 			}
-			for _, s := range node.Sockets {
-				if s.Family == "AF_INET" {
-					for _, bindNode := range s.Bind {
-						if bindNode.Port == 4242 && bindNode.IP == "0.0.0.0" {
-							return true
+			for _, node := range nodes {
+				for _, s := range node.Sockets {
+					if s.Family == "AF_INET" {
+						for _, bindNode := range s.Bind {
+							if bindNode.Port == 4242 && bindNode.IP == "0.0.0.0" {
+								return true
+							}
 						}
 					}
 				}
@@ -103,13 +105,15 @@ func TestActivityDumps(t *testing.T) {
 		}
 
 		validateActivityDumpOutputs(t, test, expectedFormats, outputFiles, func(ad *probe.ActivityDump) bool {
-			node := ad.FindFirstMatchingNode("testsuite")
-			if node == nil {
+			nodes := ad.FindMatchingNodes("testsuite")
+			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
-			for name := range node.DNSNames {
-				if name == "foo.bar" {
-					return true
+			for _, node := range nodes {
+				for name := range node.DNSNames {
+					if name == "foo.bar" {
+						return true
+					}
 				}
 			}
 			return false
@@ -140,21 +144,23 @@ func TestActivityDumps(t *testing.T) {
 		tempPathParts := strings.Split(temp.Name(), "/")
 
 		validateActivityDumpOutputs(t, test, expectedFormats, outputFiles, func(ad *probe.ActivityDump) bool {
-			node := ad.FindFirstMatchingNode("testsuite")
-			if node == nil {
+			nodes := ad.FindMatchingNodes("testsuite")
+			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
 
-			current := node.Files
-			for _, part := range tempPathParts {
-				if part == "" {
-					continue
+			for _, node := range nodes {
+				current := node.Files
+				for _, part := range tempPathParts {
+					if part == "" {
+						continue
+					}
+					next, found := current[part]
+					if !found {
+						return false
+					}
+					current = next.Children
 				}
-				next, found := current[part]
-				if !found {
-					return false
-				}
-				current = next.Children
 			}
 
 			return true
@@ -184,24 +190,26 @@ func TestActivityDumps(t *testing.T) {
 		}
 
 		validateActivityDumpOutputs(t, test, expectedFormats, outputFiles, func(ad *probe.ActivityDump) bool {
-			node := ad.FindFirstMatchingNode("syscall_tester")
-			if node == nil {
+			nodes := ad.FindMatchingNodes("syscall_tester")
+			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
 			var exitOK, execveOK bool
-			for _, s := range node.Syscalls {
-				if s == int(model.SysExit) || s == int(model.SysExitGroup) {
-					exitOK = true
-				}
-				if s == int(model.SysExecve) || s == int(model.SysExecveat) {
-					execveOK = true
+			for _, node := range nodes {
+				for _, s := range node.Syscalls {
+					if s == int(model.SysExit) || s == int(model.SysExitGroup) {
+						exitOK = true
+					}
+					if s == int(model.SysExecve) || s == int(model.SysExecveat) {
+						execveOK = true
+					}
 				}
 			}
 			if !exitOK {
-				t.Errorf("exit syscall not found in activity dump: %+v", node.Syscalls)
+				t.Errorf("exit syscall not found in activity dump")
 			}
 			if !execveOK {
-				t.Errorf("execve syscall not found in activity dump: %+v", node.Syscalls)
+				t.Errorf("execve syscall not found in activity dump")
 			}
 			return exitOK && execveOK
 		})
