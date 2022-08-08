@@ -130,11 +130,13 @@ func NewActivityDumpLoadController(cfg *config.Config, man *manager.Manager) (*A
 		return nil, fmt.Errorf("couldn't find ad_dump_timeout map")
 	}
 
+	lcConfig := NewActivityDumpLCConfig(cfg)
+
 	return &ActivityDumpLoadController{
 		// 1 every timeout, otherwise we do not have time to see real effects from the reduction
-		rateLimiter: rate.NewLimiter(rate.Every(cfg.ActivityDumpCgroupDumpTimeout), 1),
+		rateLimiter: rate.NewLimiter(rate.Every(lcConfig.dumpTimeout), 1),
 
-		originalConfig: NewActivityDumpLCConfig(cfg),
+		originalConfig: lcConfig,
 
 		tracedEventTypesMap:     tracedEventTypesMap,
 		tracedCgroupsCounterMap: tracedCgroupsCounterMap,
@@ -155,6 +157,12 @@ func (lc *ActivityDumpLoadController) reduceConfig() {
 		lcCfg := lc.getCurrentConfig()
 		newCfg := lcCfg.reduced()
 		lc.currentConfig = newCfg
+
+		if err := lc.propagateLoadSettings(); err != nil {
+			log.Errorf("failed to propagate activity dump load controller settings: %v", err)
+		}
+
+		lc.rateLimiter.SetLimit(rate.Every(newCfg.dumpTimeout))
 	}
 }
 
