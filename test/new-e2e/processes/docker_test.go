@@ -62,7 +62,7 @@ func (s *DockerTestSuite) TearDownTest() {
 	killAndRemoveContainers(s.T(), s.ec2.sshClient)
 }
 
-func (s *DockerTestSuite) TestDockerAgent() {
+func (s *DockerTestSuite) TestProcessAgentOnDocker() {
 	hostName := createHostName(s.T().Name())
 	hostTag := fmt.Sprintf("host:%s", hostName)
 
