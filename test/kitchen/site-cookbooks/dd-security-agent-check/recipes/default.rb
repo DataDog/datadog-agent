@@ -68,6 +68,10 @@ if node['platform_family'] != 'windows'
     action :load
   end
 
+  # Some functional tests, TestProcessIdentifyInterpreter for example, require python and perl
+  package 'python3'
+  package 'perl'
+
   if not ['redhat', 'suse', 'opensuseleap'].include?(node[:platform])
     if ['ubuntu', 'debian'].include?(node[:platform])
       apt_update
